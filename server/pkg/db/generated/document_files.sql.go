@@ -49,23 +49,27 @@ const setDocumentFileVersion = `-- name: SetDocumentFileVersion :one
 UPDATE documents
 SET file_version_id = $1,
     current_version = $2,
+    title = $3,
+    search_text = $4,
     revision = revision + 1,
     content_revision = revision + 1,
-    updated_by = $3,
-    updated_by_kind = $4,
+    updated_by = $5,
+    updated_by_kind = $6,
     last_version_at = now(),
     updated_at = now()
-WHERE id = $5
-  AND organization_id = $6
-  AND workspace_id = $7
+WHERE id = $7
+  AND organization_id = $8
+  AND workspace_id = $9
   AND kind = 'file'
-  AND revision = $8
+  AND revision = $10
 RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
 `
 
 type SetDocumentFileVersionParams struct {
 	FileVersionID    pgtype.Text `json:"file_version_id"`
 	CurrentVersion   int32       `json:"current_version"`
+	Title            string      `json:"title"`
+	SearchText       string      `json:"search_text"`
 	UpdatedBy        string      `json:"updated_by"`
 	UpdatedByKind    string      `json:"updated_by_kind"`
 	ID               string      `json:"id"`
@@ -86,6 +90,8 @@ func (q *Queries) SetDocumentFileVersion(ctx context.Context, arg SetDocumentFil
 	row := q.db.QueryRow(ctx, setDocumentFileVersion,
 		arg.FileVersionID,
 		arg.CurrentVersion,
+		arg.Title,
+		arg.SearchText,
 		arg.UpdatedBy,
 		arg.UpdatedByKind,
 		arg.ID,

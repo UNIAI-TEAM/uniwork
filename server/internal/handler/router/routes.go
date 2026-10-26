@@ -249,6 +249,10 @@ type Routes struct {
 	SubscribeEmailHubInboxWatch   http.HandlerFunc
 	UnsubscribeEmailHubInboxWatch http.HandlerFunc
 	CompleteEmailHubOAuth         http.HandlerFunc
+	StartDriveGoogleOAuth         http.HandlerFunc
+	CompleteDriveGoogleOAuth      http.HandlerFunc
+	ListDriveConnections          http.HandlerFunc
+	DisconnectDriveConnection     http.HandlerFunc
 	ListPins                      http.HandlerFunc
 	CreatePin                     http.HandlerFunc
 	DeletePin                     http.HandlerFunc

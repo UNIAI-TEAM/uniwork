@@ -473,6 +473,11 @@ func pathParamSDI(path string) any {
 			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			ConnectionID string `path:"connectionID" description:"ULID VCS connection" example:"01J8X4VCS0N1P2Q3R4S5T6U7"`
 		}{}
+	case "workspaceID,driveConnectionID":
+		return struct {
+			WorkspaceID       string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			DriveConnectionID string `path:"driveConnectionID" description:"ULID kết nối Google Drive" example:"01J8X4DRVCONN0N1P2Q3R4S5T6"`
+		}{}
 	case "commentID":
 		return struct {
 			CommentID string `path:"commentID" description:"ULID bình luận" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`

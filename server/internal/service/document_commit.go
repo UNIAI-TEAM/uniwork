@@ -62,7 +62,21 @@ import (
 const (
 	idempotencyScopeDocumentVersionCommit  = "documents.versions.commit"
 	idempotencyScopeDocumentVersionRestore = "documents.versions.restore"
+
+	// DocumentVersionReasonConverted is the reason stamped on a version row
+	// when the desktop app converts a legacy (.doc/.xls/.ppt) live version to
+	// its OOXML counterpart (.docx/.xlsx/.pptx) and commits it onto the same
+	// document (UNI-2213).
+	DocumentVersionReasonConverted = "converted_version"
 )
+
+// DocumentVersionConversion declares that a file version commit converts the
+// document's live legacy version (.doc/.xls/.ppt) into its target OOXML format
+// (.docx/.xlsx/.pptx) on the same document id (UNI-2213, C5).
+type DocumentVersionConversion struct {
+	FromFormat string `json:"from_format"`
+	ToFormat   string `json:"to_format"`
+}
 
 // CommitFileVersionInput is POST /documents/{id}/versions/commit. Engine is
 // filled only by the internal Office path (G2): the public body is
@@ -88,6 +102,11 @@ type CommitFileVersionInput struct {
 	// this document; any other outcome is ignored so a card affordance never
 	// fails a save.
 	ChatRoomID string
+	// Conversion is optional (UNI-2213): when set, the commit allows a format
+	// change along doc->docx, xls->xlsx, or ppt->pptx from a legacy live
+	// version, and refuses every other format combination with 422
+	// legacy_conversion_invalid.
+	Conversion *DocumentVersionConversion
 }
 
 func errDocumentDeleted() error {
@@ -123,6 +142,88 @@ func errEngineIncompatible() error {
 func errOfficeUploadInvalid(reason string) error {
 	return CodedError{Code: "document_upload_invalid", Status: http.StatusConflict, Err: ErrConflict,
 		Msg: "bản tải lên không còn dùng được; hãy tải lên lại", Fields: map[string]any{"reason": reason}}
+}
+
+// errLegacyConversionInvalid refuses a commit that carries Conversion when the
+// live version is not legacy, the declared pair is not one of the three legacy
+// -> OOXML families, or the staged bytes are not a valid target OOXML package
+// (UNI-2213).
+func errLegacyConversionInvalid(reason, msg string) error {
+	return CodedError{
+		Code:   "legacy_conversion_invalid",
+		Status: http.StatusUnprocessableEntity,
+		Msg:    msg,
+		Fields: map[string]any{"reason": reason},
+	}
+}
+
+type legacyConversionPair struct {
+	fromFormat string
+	fromMime   string
+	toFormat   string
+	toMime     string
+}
+
+var legacyConversionPairs = map[string]legacyConversionPair{
+	"doc": {
+		fromFormat: "doc",
+		fromMime:   "application/msword",
+		toFormat:   "docx",
+		toMime:     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	},
+	"xls": {
+		fromFormat: "xls",
+		fromMime:   "application/vnd.ms-excel",
+		toFormat:   "xlsx",
+		toMime:     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	},
+	"ppt": {
+		fromFormat: "ppt",
+		fromMime:   "application/vnd.ms-powerpoint",
+		toFormat:   "pptx",
+		toMime:     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+	},
+}
+
+func normalizeConversion(c *DocumentVersionConversion) (*DocumentVersionConversion, error) {
+	if c == nil {
+		return nil, nil
+	}
+	from := strings.ToLower(strings.TrimSpace(c.FromFormat))
+	to := strings.ToLower(strings.TrimSpace(c.ToFormat))
+	switch from {
+	case "doc", "xls", "ppt":
+	default:
+		return nil, Invalid("conversion.from_format phải là doc, xls hoặc ppt")
+	}
+	switch to {
+	case "docx", "xlsx", "pptx":
+	default:
+		return nil, Invalid("conversion.to_format phải là docx, xlsx hoặc pptx")
+	}
+	return &DocumentVersionConversion{FromFormat: from, ToFormat: to}, nil
+}
+
+func legacyFormatFromMime(mime string) (string, bool) {
+	base := files.NormalizeContentType(mime)
+	for _, p := range legacyConversionPairs {
+		if p.fromMime == base {
+			return p.fromFormat, true
+		}
+	}
+	return "", false
+}
+
+func ooxmlTargetMime(toFormat string) (string, bool) {
+	switch toFormat {
+	case "docx":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document", true
+	case "xlsx":
+		return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", true
+	case "pptx":
+		return "application/vnd.openxmlformats-officedocument.presentationml.presentation", true
+	}
+	return "", false
 }
 
 // officeEngineInfo is the provenance an office-produced version row stamps:
@@ -173,9 +274,15 @@ func checkEngine(e DocumentEngineInfo) error {
 // (C-01 §14.3, DOC-005 §3.1): operation, document, base and the verified
 // checksum of the bytes - not the filename, not the upload id - plus the
 // engine build that produced them.
-func commitFingerprint(documentID string, base int64, checksum string, e DocumentEngineInfo) string {
-	return IdempotencyFingerprint(idempotencyScopeDocumentVersionCommit, documentID, strconv.FormatInt(base, 10), checksum,
-		e.Name, e.Version, e.ContractVersion, e.ProtocolVersion)
+func commitFingerprint(documentID string, base int64, checksum string, e DocumentEngineInfo, conv ...*DocumentVersionConversion) string {
+	parts := []string{
+		idempotencyScopeDocumentVersionCommit, documentID, strconv.FormatInt(base, 10), checksum,
+		e.Name, e.Version, e.ContractVersion, e.ProtocolVersion,
+	}
+	if len(conv) > 0 && conv[0] != nil {
+		parts = append(parts, "convert:"+conv[0].FromFormat+"->"+conv[0].ToFormat)
+	}
+	return IdempotencyFingerprint(parts...)
 }
 
 // preflightDocument is steps 2 of the order: the row, its tenant, and the
@@ -200,6 +307,29 @@ func (s *DocumentService) preflightDocument(ctx context.Context, actor Actor, do
 		return db.Document{}, DocumentAccess{}, err
 	}
 	if doc.Kind != DocumentKindFile {
+		return db.Document{}, DocumentAccess{}, Invalid("chỉ tài liệu file nhận phiên bản tệp")
+	}
+	return doc, access, nil
+}
+
+// preflightCommitDocument is preflightDocument for CommitFileVersion: when
+// withConversion is true, a page document answers 422 legacy_conversion_invalid
+// (not_legacy) per the C5 contract rather than 400 invalid_request.
+func (s *DocumentService) preflightCommitDocument(ctx context.Context, actor Actor, documentID string, withConversion bool) (db.Document, DocumentAccess, error) {
+	doc, access, err := s.documentWithAccess(ctx, actor, documentID)
+	if err != nil {
+		return db.Document{}, DocumentAccess{}, err
+	}
+	if access.Level == DocumentLevelNone || doc.ArchivedAt.Valid {
+		return db.Document{}, DocumentAccess{}, decideFileSave(doc, access)
+	}
+	if err := refuseFolder(doc); err != nil {
+		return db.Document{}, DocumentAccess{}, err
+	}
+	if doc.Kind != DocumentKindFile {
+		if withConversion {
+			return db.Document{}, DocumentAccess{}, errLegacyConversionInvalid("not_legacy", "chỉ tài liệu định dạng cũ (.doc, .xls, .ppt) mới chuyển đổi sang phiên bản OOXML")
+		}
 		return db.Document{}, DocumentAccess{}, Invalid("chỉ tài liệu file nhận phiên bản tệp")
 	}
 	return doc, access, nil
@@ -305,10 +435,15 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 	if err != nil {
 		return DocumentFileResult{}, false, err
 	}
+	conv, err := normalizeConversion(in.Conversion)
+	if err != nil {
+		return DocumentFileResult{}, false, err
+	}
+	in.Conversion = conv
 	if in.UploadID == "" {
 		return DocumentFileResult{}, false, Invalid("upload_id bắt buộc")
 	}
-	doc, current, err := s.preflightDocument(ctx, actor, documentID)
+	doc, current, err := s.preflightCommitDocument(ctx, actor, documentID, conv != nil)
 	if err != nil {
 		return DocumentFileResult{}, false, err
 	}
@@ -318,7 +453,7 @@ func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, do
 		return DocumentFileResult{}, false, err
 	}
 	opts := IdempotencyOptions{
-		Fingerprint:        commitFingerprint(doc.ID, in.BaseRevision, file.ChecksumSHA256, in.Engine),
+		Fingerprint:        commitFingerprint(doc.ID, in.BaseRevision, file.ChecksumSHA256, in.Engine, conv),
 		RequireFingerprint: true,
 	}
 	replay, err := PeekIdempotent(ctx, s.q, doc.OrganizationID, doc.WorkspaceID, idempotencyScopeDocumentVersionCommit, in.IdempotencyKey, actor.ID, opts)
@@ -404,8 +539,17 @@ func (s *DocumentService) commitClaimedFileVersion(
 	}
 	// The editor format check streams the bytes, so it runs before the
 	// transaction opens (FS-C1 §5.5).
-	if _, err := s.checkStoredFile(ctx, fs, scope, file); err != nil {
+	facts, err := s.checkStoredFile(ctx, fs, scope, file)
+	if err != nil {
+		if in.Conversion != nil && isDocumentFormatValidationError(err) {
+			return DocumentFileResult{}, false, false, errLegacyConversionInvalid("not_ooxml", "tệp tải lên không phải gói OOXML hợp lệ của định dạng đích")
+		}
 		return DocumentFileResult{}, false, false, err
+	}
+	if in.Conversion != nil {
+		if err := s.verifyStoredOOXMLTarget(ctx, fs, scope, file, facts); err != nil {
+			return DocumentFileResult{}, false, false, err
+		}
 	}
 
 	var res DocumentFileResult
@@ -497,7 +641,7 @@ func (s *DocumentService) commitClaimedFileVersion(
 		// version (the job CAS). The check is after the base and before
 		// ClaimInTx, so a stale base is still 409 and a locked caller already
 		// got 423.
-		if job == nil && fileVersionUnchanged(current, file) {
+		if job == nil && in.Conversion == nil && fileVersionUnchanged(current, file) {
 			// R1-1: identical bytes are only a no-op for an upload this
 			// document may still take. An upload another version already
 			// consumed stays the contract's refusal, exactly as it is after
@@ -524,7 +668,7 @@ func (s *DocumentService) commitClaimedFileVersion(
 					FileIDs: []files.FileID{files.FileID(current.FileID.String)},
 				})
 				if rerr == nil && len(resolved) == 1 && resolved[0].Err == nil && resolved[0].File.Filename != "" {
-					name = resolved[0].File.Filename
+					name = s.versionFilename(ctx, locked, *current, resolved[0].File.Filename)
 				}
 			}
 			res = DocumentFileResult{Document: locked, Version: *current, File: fileInfoOf(*current, name), Access: access}
@@ -563,7 +707,30 @@ func (s *DocumentService) commitClaimedFileVersion(
 			return errUploadAlreadyCommitted()
 		}
 		f := claimed[0]
-		if current != nil && current.MimeType.String != f.ContentType {
+		versionReason := "upload"
+		var convertedMeta *convertedVersionProvenance
+		if in.Conversion != nil {
+			if job != nil {
+				return errOfficeUploadInvalid("office_job_convert_copy_only")
+			}
+			prov, targetMime, targetExt, err := validateLegacyConversion(current, f, facts.Format, *in.Conversion)
+			if err != nil {
+				return err
+			}
+			f.ContentType = targetMime
+			baseName := f.Filename
+			if current != nil && current.FileID.Valid {
+				if base, rerr := resolveUpload(ctx, fs, scope, current.FileID.String); rerr == nil && base.Filename != "" {
+					baseName = base.Filename
+				}
+			}
+			if strings.TrimSpace(baseName) == "" {
+				baseName = locked.Title
+			}
+			f.Filename = convertedFilename(baseName, targetExt)
+			versionReason = DocumentVersionReasonConverted
+			convertedMeta = &prov
+		} else if current != nil && current.MimeType.String != f.ContentType {
 			// A new version keeps the document's format: a different type is
 			// a conversion (a copy, C-01 §14.4), never a silent editor switch.
 			// An office job output is the one exception: the engine writes
@@ -594,7 +761,7 @@ func (s *DocumentService) commitClaimedFileVersion(
 		if err := s.consumeStorage(ctx, q, actor, locked.OrganizationID, locked.WorkspaceID, f); err != nil {
 			return err
 		}
-		res, err = s.pointAtNewFileVersion(ctx, q, actor, locked, access, f, "upload", eng, pgtype.Int4{})
+		res, err = s.pointAtNewFileVersion(ctx, q, actor, locked, access, f, versionReason, eng, pgtype.Int4{}, convertedMeta)
 		if err != nil {
 			return err
 		}
@@ -732,10 +899,11 @@ func (s *DocumentService) RestoreFileVersion(ctx context.Context, actor Actor, d
 		// The snapshot is the restored version's own: the same bytes.
 		f := claimed[0]
 		f.ContentType, f.SizeBytes, f.ChecksumSHA256 = src.MimeType.String, src.SizeBytes, src.ChecksumSha256.String
+		f.Filename = s.versionFilename(ctx, locked, src, f.Filename)
 		res, err = s.pointAtNewFileVersion(ctx, q, actor, locked, access, f, "restore",
 			DocumentEngineInfo{Name: src.EngineName.String, Version: src.EngineVersion.String,
 				ContractVersion: src.ContractVersion.String, ProtocolVersion: src.ProtocolVersion.String},
-			pgtype.Int4{Int32: src.Version, Valid: true})
+			pgtype.Int4{Int32: src.Version, Valid: true}, nil)
 		if err != nil {
 			return err
 		}
@@ -777,18 +945,166 @@ func replacedFiles(current *db.DocumentVersion, next files.FileID) []files.FileI
 
 // pointAtNewFileVersion appends the version, moves the pointer and the
 // revision, and writes audit + outbox, all on q.
+type convertedVersionProvenance struct {
+	fromFormat   string
+	toFormat     string
+	fromVersion  int32
+	fromChecksum string
+}
+
+// verifyStoredOOXMLTarget ensures the staged file's bytes are a valid OOXML
+// ZIP package with [Content_Types].xml and one of the three OOXML main parts
+// (word/document.xml, xl/workbook.xml, ppt/presentation.xml) before the
+// transaction opens; whether that OOXML family matches the declared conversion
+// pair and live version is checked inside validateLegacyConversion after the
+// lock/engine/base gates (R1-11).
+func (s *DocumentService) verifyStoredOOXMLTarget(ctx context.Context, fs files.Service, scope files.Scope, f files.File, facts document.FileFacts) error {
+	if _, ok := ooxmlTargetMime(facts.Format); ok {
+		return nil
+	}
+	// Re-validate the stored bytes explicitly against an OOXML MIME so a
+	// non-ZIP upload staged under another MIME (e.g. PDF or text/plain) runs
+	// through the OOXML ZIP validator and answers 422 not_ooxml on format
+	// failure, while preserving operational storage errors (R1-2).
+	fAsTarget := f
+	fAsTarget.ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	checked, err := s.checkStoredFile(ctx, fs, scope, fAsTarget)
+	if err != nil {
+		if isDocumentFormatValidationError(err) {
+			return errLegacyConversionInvalid("not_ooxml", "tệp tải lên không phải gói OOXML hợp lệ của định dạng đích")
+		}
+		return err
+	}
+	if _, ok := ooxmlTargetMime(checked.Format); !ok {
+		return errLegacyConversionInvalid("not_ooxml", "tệp tải lên không phải gói OOXML hợp lệ của định dạng đích")
+	}
+	return nil
+}
+
+// isDocumentFormatValidationError reports whether err is a document format
+// validation refusal (mapped by documentValidationError from
+// *document.FileError), as opposed to an operational storage/spool/context
+// error that must retain its own status/code.
+func isDocumentFormatValidationError(err error) bool {
+	var ce CodedError
+	return errors.As(err, &ce) && ce.Code == document.ErrCodeUnsupportedMedia
+}
+
+// validateLegacyConversion checks the live version and the claimed upload
+// against the declared conversion pair inside the commit transaction.
+func validateLegacyConversion(current *db.DocumentVersion, f files.File, validatedFormat string, conv DocumentVersionConversion) (convertedVersionProvenance, string, string, error) {
+	if current == nil || !current.MimeType.Valid {
+		return convertedVersionProvenance{}, "", "", errLegacyConversionInvalid("not_legacy", "chỉ tài liệu định dạng cũ (.doc, .xls, .ppt) mới chuyển đổi sang phiên bản OOXML")
+	}
+	liveLegacyFormat, isLegacy := legacyFormatFromMime(current.MimeType.String)
+	if !isLegacy {
+		return convertedVersionProvenance{}, "", "", errLegacyConversionInvalid("not_legacy", "chỉ tài liệu định dạng cũ (.doc, .xls, .ppt) mới chuyển đổi sang phiên bản OOXML")
+	}
+	pair, ok := legacyConversionPairs[conv.FromFormat]
+	if !ok || pair.toFormat != conv.ToFormat || liveLegacyFormat != conv.FromFormat {
+		return convertedVersionProvenance{}, "", "", errLegacyConversionInvalid("target_mismatch", "định dạng chuyển đổi không khớp với tài liệu gốc")
+	}
+	if files.NormalizeContentType(f.ContentType) != pair.toMime || validatedFormat != pair.toFormat {
+		return convertedVersionProvenance{}, "", "", errLegacyConversionInvalid("not_ooxml", "tệp tải lên không phải gói OOXML hợp lệ của định dạng đích")
+	}
+	return convertedVersionProvenance{
+		fromFormat:   pair.fromFormat,
+		toFormat:     pair.toFormat,
+		fromVersion:  current.Version,
+		fromChecksum: current.ChecksumSha256.String,
+	}, pair.toMime, pair.toFormat, nil
+}
+
+// rewriteConvertedDocumentTitle rewrites the document title's trailing legacy
+// extension (case-insensitive .doc / .xls / .ppt matching the live legacy
+// version's format) to the target OOXML extension (.docx / .xlsx / .pptx,
+// lowercase). Any other title (no suffix, a different suffix, or a suffix of
+// another family) is returned unchanged with changed=false (UNI-2213 fix1).
+func rewriteConvertedDocumentTitle(title, fromFormat, toFormat string) (string, bool) {
+	if fromFormat == "" || toFormat == "" {
+		return title, false
+	}
+	legacyExt := "." + strings.ToLower(fromFormat)
+	if len(title) < len(legacyExt) || !strings.EqualFold(title[len(title)-len(legacyExt):], legacyExt) {
+		return title, false
+	}
+	targetExt := "." + strings.ToLower(toFormat)
+	stem := trimTitleRunes(title[:len(title)-len(legacyExt)], documentTitleLimit(DocumentKindFile)-len(targetExt))
+	next, err := normalizeDocumentTitle(DocumentKindFile, stem+targetExt)
+	if err != nil || next == title {
+		return title, false
+	}
+	return next, true
+}
+
+// convertedVersionFilename rewrites the source version's filename extension to
+// the converted version's OOXML extension (.docx, .xlsx, .pptx).
+func (s *DocumentService) convertedVersionFilename(ctx context.Context, doc db.Document, v db.DocumentVersion, fallback string) string {
+	ext := ""
+	switch files.NormalizeContentType(v.MimeType.String) {
+	case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+		ext = "docx"
+	case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+		ext = "xlsx"
+	case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+		ext = "pptx"
+	default:
+		return fallback
+	}
+	baseName := fallback
+	if s.files != nil && v.ConvertedFromVersion.Valid {
+		if src, err := s.q.GetDocumentVersion(ctx, db.GetDocumentVersionParams{
+			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			DocumentID: doc.ID, Version: v.ConvertedFromVersion.Int32,
+		}); err == nil && src.FileID.Valid {
+			if sf, rerr := resolveUpload(ctx, s.files, documentScope(doc.OrganizationID, doc.WorkspaceID), src.FileID.String); rerr == nil && sf.Filename != "" {
+				baseName = sf.Filename
+			}
+		}
+	}
+	if strings.TrimSpace(baseName) == "" {
+		baseName = doc.Title
+	}
+	return convertedFilename(baseName, ext)
+}
+
+// pointAtNewFileVersion appends the version, moves the pointer and the
+// revision, and writes audit + outbox, all on q.
 func (s *DocumentService) pointAtNewFileVersion(
 	ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess,
 	f files.File, reason string, eng DocumentEngineInfo, restoredFrom pgtype.Int4,
+	converted *convertedVersionProvenance,
 ) (DocumentFileResult, error) {
 	versionNo := doc.CurrentVersion + 1
-	version, err := q.InsertDocumentVersion(ctx, fileVersionParams(doc, util.NewID(), versionNo, reason, actor, f, eng, restoredFrom))
+	params := fileVersionParams(doc, util.NewID(), versionNo, reason, actor, f, eng, restoredFrom)
+	if converted != nil {
+		params.ConvertedFromVersion = pgtype.Int4{Int32: converted.fromVersion, Valid: converted.fromVersion > 0}
+		params.ConvertedFromChecksum = nullText(converted.fromChecksum)
+	}
+	version, err := q.InsertDocumentVersion(ctx, params)
 	if err != nil {
 		return DocumentFileResult{}, err
+	}
+	title := doc.Title
+	searchText := doc.SearchText
+	titleChanged := false
+	priorTitle := doc.Title
+	if converted != nil {
+		if nextTitle, ok := rewriteConvertedDocumentTitle(doc.Title, converted.fromFormat, converted.toFormat); ok {
+			normTitle, err := normalizeDocumentTitle(doc.Kind, nextTitle)
+			if err != nil {
+				return DocumentFileResult{}, err
+			}
+			title = normTitle
+			searchText = documentSearchText(normTitle, doc.ContentText)
+			titleChanged = true
+		}
 	}
 	updated, err := q.SetDocumentFileVersion(ctx, db.SetDocumentFileVersionParams{
 		FileVersionID:    pgtype.Text{String: version.ID, Valid: true},
 		CurrentVersion:   versionNo,
+		Title:            title,
+		SearchText:       searchText,
 		UpdatedBy:        actor.ID,
 		UpdatedByKind:    string(actor.Kind),
 		ID:               doc.ID,
@@ -802,21 +1118,41 @@ func (s *DocumentService) pointAtNewFileVersion(
 		return DocumentFileResult{}, errDocumentVersionConflict(doc.Revision)
 	}
 	if err != nil {
-		return DocumentFileResult{}, err
+		return DocumentFileResult{}, documentTitleWriteError(doc.Kind, err)
 	}
 	action := audit.ActionDocumentVersionCreated
+	before := map[string]any{"revision": doc.Revision}
 	changes := map[string]any{"version": versionNo, "version_id": version.ID, "file_id": string(f.ID), "reason": reason}
 	if reason == "restore" {
 		action = audit.ActionDocumentVersionRestored
 		changes["restored_from"] = restoredFrom.Int32
 	}
+	var meta map[string]any
+	if converted != nil {
+		changes["converted_from"] = converted.fromFormat
+		changes["converted_to"] = converted.toFormat
+		changes["converted_from_version"] = converted.fromVersion
+		if converted.fromChecksum != "" {
+			changes["converted_from_checksum"] = converted.fromChecksum
+		}
+		if titleChanged {
+			before["title"] = priorTitle
+			changes["title"] = updated.Title
+		}
+		meta = map[string]any{
+			"converted_from":         converted.fromFormat,
+			"converted_to":           converted.toFormat,
+			"converted_from_version": converted.fromVersion,
+		}
+	}
 	events := []audit.Event{{Topic: "document.version_created", Payload: map[string]string{
 		"document_id": doc.ID, "version_id": version.ID, "workspace_id": doc.WorkspaceID,
 	}}}
-	// Only an uploaded version - a new file, a replacement, a desktop sync -
-	// is a change people hear of (UNI-2056): an Office editor save carries
-	// engine provenance and a restore its own reason.
-	if reason == "upload" && !version.EngineName.Valid {
+	// Only an uploaded or desktop-converted version - a new file, a
+	// replacement, a desktop sync - is a change people hear of (UNI-2056):
+	// an Office editor save carries engine provenance and a restore its own
+	// reason.
+	if (reason == "upload" || reason == DocumentVersionReasonConverted) && !version.EngineName.Valid {
 		events = append(events, documentChangeNotice(doc.ID, doc.WorkspaceID, docNoticeVersionCreated))
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -826,9 +1162,34 @@ func (s *DocumentService) pointAtNewFileVersion(
 		Action:         action,
 		ResourceType:   "document",
 		ResourceID:     doc.ID,
-		Changes:        audit.Diff(map[string]any{"revision": doc.Revision}, mergeMaps(changes, map[string]any{"revision": updated.Revision})),
+		Changes:        audit.Diff(before, mergeMaps(changes, map[string]any{"revision": updated.Revision})),
+		Metadata:       meta,
 	}, events...); err != nil {
 		return DocumentFileResult{}, err
+	}
+	if titleChanged {
+		if err := auditRecorder.Record(ctx, q, audit.Entry{
+			OrganizationID: updated.OrganizationID,
+			WorkspaceID:    updated.WorkspaceID,
+			Actor:          actor,
+			Action:         audit.ActionDocumentUpdated,
+			ResourceType:   "document",
+			ResourceID:     updated.ID,
+			Changes:        audit.Diff(map[string]any{"title": priorTitle}, map[string]any{"title": updated.Title}),
+			Metadata: map[string]any{
+				"revision":        strconv.FormatInt(updated.Revision, 10),
+				"content_changed": false,
+				"content_bytes":   updated.ContentBytes,
+				"mentions_added":  0,
+			},
+		},
+			audit.Event{Topic: "document.updated", Payload: map[string]string{
+				"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
+			}},
+			documentChangeNotice(updated.ID, updated.WorkspaceID, docNoticeRenamed),
+		); err != nil {
+			return DocumentFileResult{}, err
+		}
 	}
 	return DocumentFileResult{Document: updated, Version: version, File: fileInfoOf(version, f.Filename), Access: access}, nil
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 type fakeRoles struct{}
@@ -338,6 +339,77 @@ func TestOnlyRealMeetingAgentPathsSkipTheGlobalLimiter(t *testing.T) {
 		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
 		if limited != want {
 			t.Errorf("%s: limited = %v, want %v", path, limited, want)
+		}
+	}
+}
+
+// Google Drive OAuth start is on the 10/10min connect limiter while list/delete
+// are not; the Google callback is outside authed on the 60/min credential
+// limiter (spec §5.2, §13).
+func TestDriveOAuthRateLimits(t *testing.T) {
+	refuse := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+	}
+
+	provider := featureflag.NewStaticProvider()
+	provider.Set("drive_connector", featureflag.Rule{Default: true})
+	flags := featureflag.NewService(provider)
+
+	mux := chi.NewRouter()
+	apiRoot := newAPI(mux, &apiCatalog{})
+	registerDriveConnections(apiRoot, stubRoutes(), flags, refuse)
+	registerDriveGoogleCallback(apiRoot, stubRoutes(), refuse)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/workspaces/w1/drive-connections/google/start", nil))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("POST start under connectLimit = %d, want 429", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/workspaces/w1/drive-connections", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "ListDriveConnections" {
+		t.Fatalf("GET drive-connections = %d %q, want 200 ListDriveConnections", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/workspaces/w1/drive-connections/c1", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "DisconnectDriveConnection" {
+		t.Fatalf("DELETE drive-connections = %d %q, want 200 DisconnectDriveConnection", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/drive-connections/google/callback", nil))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("GET callback under credentialLimit = %d, want 429", rec.Code)
+	}
+}
+
+// When drive_connector is off (its catalogue default), every authenticated
+// /drive-connections route answers 404 feature_disabled (spec §5.1, §10).
+func TestDriveConnectionsRequireFeatureFlag(t *testing.T) {
+	pass := func(next http.Handler) http.Handler { return next }
+	provider := featureflag.NewStaticProvider()
+	provider.Set("drive_connector", featureflag.Rule{Default: false})
+	flags := featureflag.NewService(provider)
+
+	mux := chi.NewRouter()
+	registerDriveConnections(newAPI(mux, &apiCatalog{}), stubRoutes(), flags, pass)
+
+	for _, tc := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/workspaces/w1/drive-connections/google/start"},
+		{http.MethodGet, "/workspaces/w1/drive-connections"},
+		{http.MethodDelete, "/workspaces/w1/drive-connections/c1"},
+	} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))
+		if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), "feature_disabled") {
+			t.Fatalf("%s %s with flag off = %d %s, want 404 feature_disabled", tc.method, tc.path, rec.Code, rec.Body.String())
 		}
 	}
 }

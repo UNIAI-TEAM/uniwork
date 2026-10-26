@@ -53,6 +53,7 @@ type Deps struct {
 	CalendarConnections *service.CalendarConnectionService
 	EmailHub            *service.EmailHubService
 	Agents              *service.AgentService
+	DriveConnections    *service.DriveConnectionService
 	Actors              *service.ActorService
 	Audit               *service.AuditService
 	Privacy             *service.PrivacyExportService
@@ -244,6 +245,7 @@ func New(d Deps) http.Handler {
 		DocumentOrganization: h.documentFlagOrganization,
 		CallerOrganization:   h.callerFlagOrganization,
 		MeetingOrganization:  h.meetingFlagOrganization,
+		DriveOrganization:    h.driveFlagOrganization,
 		DeviceStatus: func(ctx context.Context, userID, sessionID string) error {
 			if d.DesktopAuth == nil {
 				return nil
@@ -452,6 +454,10 @@ func New(d Deps) http.Handler {
 		SubscribeEmailHubInboxWatch:   h.subscribeEmailHubInboxWatch,
 		UnsubscribeEmailHubInboxWatch: h.unsubscribeEmailHubInboxWatch,
 		CompleteEmailHubOAuth:         h.completeEmailHubOAuth,
+		StartDriveGoogleOAuth:         h.StartDriveGoogleOAuth,
+		CompleteDriveGoogleOAuth:      h.CompleteDriveGoogleOAuth,
+		ListDriveConnections:          h.ListDriveConnections,
+		DisconnectDriveConnection:     h.DisconnectDriveConnection,
 		ListTaskChildren:              h.listTaskChildren,
 		ListChildrenByParents:         h.listChildrenByParents,
 		ChildTaskProgress:             h.childTaskProgress,

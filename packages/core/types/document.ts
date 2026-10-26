@@ -25,8 +25,19 @@ export type DocumentAccessLevel = (typeof DOCUMENT_ACCESS_LEVELS)[number];
 export const DOCUMENT_ACCESS_VIA = ["member", "share", "link", "ai_context", "break_glass"] as const;
 export type DocumentAccessVia = (typeof DOCUMENT_ACCESS_VIA)[number];
 
-export const DOCUMENT_VERSION_REASONS = ["manual", "auto", "restore", "upload", "agent"] as const;
+export const DOCUMENT_VERSION_REASONS = ["manual", "auto", "restore", "upload", "agent", "converted_version"] as const;
 export type DocumentVersionReason = (typeof DOCUMENT_VERSION_REASONS)[number];
+
+export const DOCUMENT_LEGACY_FORMATS = ["doc", "xls", "ppt"] as const;
+export type DocumentLegacyFormat = (typeof DOCUMENT_LEGACY_FORMATS)[number];
+
+export const DOCUMENT_OOXML_FORMATS = ["docx", "xlsx", "pptx"] as const;
+export type DocumentOOXMLFormat = (typeof DOCUMENT_OOXML_FORMATS)[number];
+
+export interface DocumentVersionConversion {
+  from_format: DocumentLegacyFormat;
+  to_format: DocumentOOXMLFormat;
+}
 
 export const DOCUMENT_OWNER_KINDS = ["work_product"] as const;
 export type DocumentOwnerKind = (typeof DOCUMENT_OWNER_KINDS)[number];
@@ -223,6 +234,8 @@ export const DocumentVersionSchema = z.object({
   size_bytes: z.number().optional().default(0),
   checksum_sha256: z.string().nullable().optional(),
   restored_from: z.number().nullable().optional(),
+  converted_from_version: z.number().nullable().optional(),
+  converted_from_checksum: z.string().nullable().optional(),
   engine_name: z.string().nullable().optional(),
   engine_version: z.string().nullable().optional(),
   contract_version: z.string().nullable().optional(),

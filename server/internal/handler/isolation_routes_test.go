@@ -501,6 +501,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/billing/webhooks/vnpay":                   {class: isoPublic, reason: reasonProvider},
 	"GET /api/v1/calendar-connections/{provider}/callback":  {class: isoPublic, reason: reasonProvider},
 	"GET /api/v1/email-hub-connections/{provider}/callback": {class: isoPublic, reason: reasonProvider},
+	"GET /api/v1/drive-connections/google/callback":         {class: isoPublic, reason: reasonProvider},
 
 	// Links whose secret is the credential.
 	"GET /api/v1/public/documents/{token}":                   {class: isoPublic, reason: reasonLink},
