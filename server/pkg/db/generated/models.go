@@ -995,6 +995,39 @@ type DocumentVersion struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
+type DriveConnection struct {
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	UserID            string             `json:"user_id"`
+	Provider          string             `json:"provider"`
+	GoogleSub         string             `json:"google_sub"`
+	GoogleEmail       string             `json:"google_email"`
+	RefreshTokenEnc   string             `json:"refresh_token_enc"`
+	AccessTokenEnc    string             `json:"access_token_enc"`
+	AccessExpiresAt   pgtype.Timestamptz `json:"access_expires_at"`
+	CredentialVersion int64              `json:"credential_version"`
+	Scopes            string             `json:"scopes"`
+	AuthFailedAt      pgtype.Timestamptz `json:"auth_failed_at"`
+	AuthFailedReason  string             `json:"auth_failed_reason"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	DisconnectedAt    pgtype.Timestamptz `json:"disconnected_at"`
+}
+
+type DriveGrantRevocation struct {
+	GoogleSub            string             `json:"google_sub"`
+	Generation           int64              `json:"generation"`
+	RequestedAt          pgtype.Timestamptz `json:"requested_at"`
+	RefreshTokenEnc      pgtype.Text        `json:"refresh_token_enc"`
+	AttemptID            pgtype.Text        `json:"attempt_id"`
+	AttemptStartedAt     pgtype.Timestamptz `json:"attempt_started_at"`
+	ResolvedAt           pgtype.Timestamptz `json:"resolved_at"`
+	LastAttemptStartedAt pgtype.Timestamptz `json:"last_attempt_started_at"`
+	LastResolvedAt       pgtype.Timestamptz `json:"last_resolved_at"`
+	Attempts             int32              `json:"attempts"`
+	LastError            string             `json:"last_error"`
+}
+
 type Email struct {
 	ID            string             `json:"id"`
 	Kind          string             `json:"kind"`
