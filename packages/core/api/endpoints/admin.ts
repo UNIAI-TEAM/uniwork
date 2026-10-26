@@ -42,6 +42,9 @@ const OrganizationsResponse = z.object({
   offset: z.number().optional(),
 });
 const OrganizationResponse = z.object({ organization: AdminOrganizationSchema });
+const OrganizationDeletionResponse = z.object({
+  deletion_scheduled_at: z.string().nullable(),
+});
 const SubscriptionResponse = z.object({ subscription: SubscriptionSchema });
 const FlagsResponse = z.object({ flags: z.array(AdminFlagSchema) });
 const OverridesResponse = z.object({ overrides: z.array(AdminFlagOverrideSchema) });
@@ -136,6 +139,29 @@ export function suspendOrganization(orgId: string, reason: string): Promise<Admi
 
 export function unsuspendOrganization(orgId: string, reason: string): Promise<AdminOrganization | null> {
   return postOrganization(orgId, "unsuspend", reason);
+}
+
+export async function scheduleAdminOrganizationDeletion(
+  orgId: string,
+  body: { reason: string; confirm_slug: string },
+): Promise<{ deletion_scheduled_at: string | null } | null> {
+  const raw = await request(`/api/v1/admin/organizations/${enc(orgId)}/deletion`, { method: "POST", body });
+  return parseWithFallback(raw, OrganizationDeletionResponse, null, {
+    endpoint: "POST /api/v1/admin/organizations/{org}/deletion",
+  });
+}
+
+export async function cancelAdminOrganizationDeletion(
+  orgId: string,
+  reason: string,
+): Promise<{ deletion_scheduled_at: string | null } | null> {
+  const raw = await request(`/api/v1/admin/organizations/${enc(orgId)}/deletion/cancel`, {
+    method: "POST",
+    body: { reason },
+  });
+  return parseWithFallback(raw, OrganizationDeletionResponse, null, {
+    endpoint: "POST /api/v1/admin/organizations/{org}/deletion/cancel",
+  });
 }
 
 /** Manual plan change (pilot, partner); same response as the billing endpoint. */
