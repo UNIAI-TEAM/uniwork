@@ -1,0 +1,4 @@
+$ for i in $(seq 1 14); do test -f /tmp/sync1-e2e.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/sync1-e2e.exit && echo yes || echo no)"; tail -2 /tmp/sync1-e2e.log
+DONE_FILE=no
+  ✓  54 landing-demo-request.spec.ts:8:2 › demo request keeps details on failure and confirms a saved receipt at 390px (1.9s)
+  ✓  55 landing-demo-request.spec.ts:45:2 › hero and demo text stay readable in light mode (1.3s)
