@@ -1,5 +1,6 @@
 import { deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
+import { CfbError, readCompoundStreams } from "./cfb.ts";
 import {
   extractDocumentText,
   ExtractTypedError,
@@ -26,6 +27,7 @@ function buildRawZip(
     name: string;
     data: Uint8Array;
     method?: number;
+    localMethod?: number;
     flags?: number;
     localFlags?: number;
     claimedUncompressed?: number;
@@ -37,13 +39,14 @@ function buildRawZip(
   for (const entry of entries) {
     const name = enc.encode(entry.name);
     const method = entry.method ?? 0;
+    const localMethod = entry.localMethod ?? method;
     const flags = entry.flags ?? 0;
     const localFlags = entry.localFlags ?? flags;
     const local = new Uint8Array(30 + name.length);
     const lv = new DataView(local.buffer);
     lv.setUint32(0, 0x04034b50, true);
     lv.setUint16(6, localFlags, true);
-    lv.setUint16(8, method, true);
+    lv.setUint16(8, localMethod, true);
     lv.setUint32(18, entry.data.length, true);
     lv.setUint32(22, entry.claimedUncompressed ?? entry.data.length, true);
     lv.setUint16(26, name.length, true);
@@ -182,6 +185,19 @@ function expectExtractFailure(run: () => unknown): ExtractFailureReason {
   throw new Error("expected ExtractTypedError");
 }
 
+function encodeUtf16(str: string, littleEndian: boolean, withBom: boolean): Uint8Array {
+  const bomBytes = withBom ? 2 : 0;
+  const out = new Uint8Array(bomBytes + str.length * 2);
+  const view = new DataView(out.buffer);
+  if (withBom) {
+    view.setUint16(0, 0xfeff, littleEndian);
+  }
+  for (let i = 0; i < str.length; i++) {
+    view.setUint16(bomBytes + i * 2, str.charCodeAt(i), littleEndian);
+  }
+  return out;
+}
+
 describe("extractDocumentText: DOCX", () => {
   it("extracts headings, paragraphs and tables with cells joined by ' | ', skipping media entries", () => {
     const docx = buildRawZip([
@@ -236,6 +252,50 @@ describe("extractDocumentText: DOCX", () => {
     });
     expect(extractDocumentText("docx", docx).text).toBe("Custom target");
   });
+
+  it("accepts a self-closing <w:body/> as valid empty text (R1-14)", () => {
+    const emptyBody = zipEntries({
+      "word/document.xml": `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body/></w:document>`,
+    });
+    expect(extractDocumentText("docx", emptyBody)).toEqual({
+      format: "docx",
+      truncated: false,
+      text: "",
+    });
+  });
+
+  it("decodes XML entities in a single pass without double-decoding numeric into named entities (R1-9)", () => {
+    const singlePassEntities = zipEntries({
+      "word/document.xml":
+        `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>` +
+        `<w:p><w:r><w:t>&#38;lt;user&#38;gt; &amp;lt;tag&amp;gt; &#x26;quot;ok&#x26;quot;</w:t></w:r></w:p>` +
+        `</w:body></w:document>`,
+    });
+    expect(extractDocumentText("docx", singlePassEntities).text).toBe(`&lt;user&gt; &lt;tag&gt; &quot;ok&quot;`);
+  });
+
+  it("decodes UTF-16LE and UTF-16BE XML parts with or without BOM (R1-8)", () => {
+    const xmlText =
+      `<?xml version="1.0" encoding="UTF-16"?>` +
+      `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+      `<w:body><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>VALID UTF16 Tiếng Việt</w:t></w:r></w:p></w:body></w:document>`;
+
+    for (const [le, bom] of [
+      [true, true],
+      [false, true],
+      [true, false],
+      [false, false],
+    ] as const) {
+      const docx = zipEntries({
+        "word/document.xml": encodeUtf16(xmlText, le, bom),
+      });
+      expect(extractDocumentText("docx", docx)).toEqual({
+        format: "docx",
+        truncated: false,
+        text: "## VALID UTF16 Tiếng Việt",
+      });
+    }
+  });
 });
 
 describe("extractDocumentText: XLSX", () => {
@@ -287,6 +347,132 @@ describe("extractDocumentText: XLSX", () => {
     );
     expect(res.text).not.toContain("MUST_NOT_APPEAR");
   });
+
+  it("parses single-quoted XML attributes and rejects unresolvable worksheet relationships (R1-4)", () => {
+    const xlsx = zipEntries({
+      "xl/workbook.xml":
+        `<workbook><sheets>` +
+        `<sheet name='First' sheetId='1' r:id='rId2'/>` +
+        `<sheet name='Second' sheetId='2' r:id='rId1'/>` +
+        `</sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels":
+        `<Relationships>` +
+        `<Relationship Id='rId1' Target='worksheets/sheet1.xml'/>` +
+        `<Relationship Id='rId2' Target='worksheets/sheet2.xml'/>` +
+        `</Relationships>`,
+      "xl/worksheets/sheet1.xml": `<worksheet><sheetData><row r='1'><c r='A1' t='inlineStr'><is><t>SECOND</t></is></c></row></sheetData></worksheet>`,
+      "xl/worksheets/sheet2.xml": `<worksheet><sheetData><row r='1'><c r='A1' t='inlineStr'><is><t>FIRST</t></is></c></row></sheetData></worksheet>`,
+    });
+    expect(extractDocumentText("xlsx", xlsx)).toEqual({
+      format: "xlsx",
+      truncated: false,
+      text: "FIRST",
+    });
+
+    const unresolvedRel = zipEntries({
+      "xl/workbook.xml": `<workbook><sheets><sheet name="First" sheetId="1" r:id="rIdMissing"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>`,
+      "xl/worksheets/sheet1.xml": `<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData></worksheet>`,
+    });
+    expect(expectExtractFailure(() => extractDocumentText("xlsx", unresolvedRel))).toBe("corrupted");
+  });
+
+  it("preserves empty and self-closing shared-string entries without shifting following indexes (R1-5)", () => {
+    const xlsx = zipEntries({
+      "xl/workbook.xml": `<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>`,
+      "xl/sharedStrings.xml": `<sst><si/><si><t>Alpha</t></si><si><t>Beta</t></si></sst>`,
+      "xl/worksheets/sheet1.xml":
+        `<worksheet><sheetData><row r="1">` +
+        `<c r="A1" t="s"><v>0</v></c>` +
+        `<c r="B1" t="s"><v>1</v></c>` +
+        `<c r="C1" t="s"><v>2</v></c>` +
+        `</row></sheetData></worksheet>`,
+    });
+    expect(extractDocumentText("xlsx", xlsx).text).toBe(",Alpha,Beta");
+  });
+
+  it("decodes valid escaped UTF-16 surrogate pairs in XLSX while keeping isolated halves safe (R1-10)", () => {
+    const xlsx = zipEntries({
+      "xl/workbook.xml": `<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>`,
+      "xl/sharedStrings.xml": `<sst><si><t>_xD83D__xDE80_</t></si><si><t>_xD83D_lone</t></si></sst>`,
+      "xl/worksheets/sheet1.xml":
+        `<worksheet><sheetData><row r="1">` +
+        `<c r="A1" t="s"><v>0</v></c>` +
+        `<c r="B1" t="s"><v>1</v></c>` +
+        `<c r="C1" t="inlineStr"><is><t>inline_xD83D__xDE80_</t></is></c>` +
+        `</row></sheetData></worksheet>`,
+    });
+    expect(extractDocumentText("xlsx", xlsx).text).toBe("🚀,_xD83D_lone,inline🚀");
+  });
+
+  it("respects sparse row gaps during CSV emission (R1-11)", () => {
+    const xlsx = zipEntries({
+      "xl/workbook.xml": `<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>`,
+      "xl/worksheets/sheet1.xml":
+        `<worksheet><sheetData>` +
+        `<row r="1"><c r="A1" t="inlineStr"><is><t>ROW1</t></is></c></row>` +
+        `<row r="3"><c r="A3" t="inlineStr"><is><t>ROW3</t></is></c></row>` +
+        `</sheetData></worksheet>`,
+    });
+    expect(extractDocumentText("xlsx", xlsx).text).toBe("ROW1\n\nROW3");
+  });
+
+  it("excludes rPh phonetic annotation runs from shared and inline strings (R1-12)", () => {
+    const xlsx = zipEntries({
+      "xl/workbook.xml": `<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>`,
+      "xl/sharedStrings.xml": `<sst><si><t>東京</t><rPh sb="0" eb="2"><t>とうきょう</t></rPh></si></sst>`,
+      "xl/worksheets/sheet1.xml":
+        `<worksheet><sheetData><row r="1">` +
+        `<c r="A1" t="s"><v>0</v></c>` +
+        `<c r="B1" t="inlineStr"><is><t>大阪</t><rPh sb="0" eb="2"><t>おおさか</t></rPh></is></c>` +
+        `</row></sheetData></worksheet>`,
+    });
+    expect(extractDocumentText("xlsx", xlsx).text).toBe("東京,大阪");
+  });
+
+  it("rejects out-of-bounds or malformed cell references before padding while accepting XFD (R1-1)", () => {
+    for (const badRef of ["ZZZZ1", "XFE1", "A0", "A1048577", "123", "A"]) {
+      const badXlsx = zipEntries({
+        "xl/workbook.xml": `<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+        "xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>`,
+        "xl/worksheets/sheet1.xml": `<worksheet><sheetData><row r="1"><c r="${badRef}"><v>1</v></c></row></sheetData></worksheet>`,
+      });
+      expect(expectExtractFailure(() => extractDocumentText("xlsx", badXlsx))).toBe("corrupted");
+    }
+
+    const validXfd = zipEntries({
+      "xl/workbook.xml": `<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>`,
+      "xl/worksheets/sheet1.xml": `<worksheet><sheetData><row r="1"><c r="XFD1"><v>9</v></c></row></sheetData></worksheet>`,
+    });
+    const xfdRes = extractDocumentText("xlsx", validXfd);
+    expect(xfdRes.truncated).toBe(false);
+    expect(xfdRes.text).toBe(",".repeat(16_383) + "9");
+  });
+
+  it("enforces the text budget during CSV construction without materialising every padded row first (R1-2)", () => {
+    const rowsXml: string[] = [];
+    for (let r = 1; r <= 1500; r++) {
+      rowsXml.push(`<row r="${r}"><c r="XFD${r}"><v>7</v></c></row>`);
+    }
+    const manySparseXfd = zipEntries({
+      "xl/workbook.xml": `<workbook><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>`,
+      "xl/worksheets/sheet1.xml": `<worksheet><sheetData>${rowsXml.join("")}</sheetData></worksheet>`,
+    });
+    const beforeHeap = process.memoryUsage().heapUsed;
+    const sparseRes = extractDocumentText("xlsx", manySparseXfd);
+    const afterHeap = process.memoryUsage().heapUsed;
+    expect(sparseRes.truncated).toBe(true);
+    expect(sparseRes.text.length).toBe(MAX_EXTRACT_CODE_POINTS);
+    const oneRow = ",".repeat(16_383) + "7\n"; // 16,385 chars
+    expect(sparseRes.text.startsWith(oneRow.repeat(12))).toBe(true);
+    expect(afterHeap - beforeHeap).toBeLessThan(16 * 1024 * 1024);
+  });
 });
 
 describe("extractDocumentText: PPTX", () => {
@@ -336,6 +522,36 @@ describe("extractDocumentText: PPTX", () => {
       ].join("\n\n"),
     });
   });
+
+  it("treats presentation slide list as authoritative and rejects missing slide targets or orphan-only decks (R1-6)", () => {
+    const missingSecondSlide = zipEntries({
+      "ppt/presentation.xml": `<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldIdLst><p:sldId id="256" r:id="rId1"/><p:sldId id="257" r:id="rId2"/></p:sldIdLst></p:presentation>`,
+      "ppt/_rels/presentation.xml.rels": `<Relationships><Relationship Id="rId1" Target="slides/slide1.xml"/><Relationship Id="rId2" Target="slides/slide2.xml"/></Relationships>`,
+      "ppt/slides/slide1.xml": `<p:sld><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>ONLY_FIRST</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`,
+    });
+    expect(expectExtractFailure(() => extractDocumentText("pptx", missingSecondSlide))).toBe("corrupted");
+
+    const orphanSlideDeck = zipEntries({
+      "ppt/presentation.xml": `<p:presentation><p:sldIdLst/></p:presentation>`,
+      "ppt/slides/slide1.xml": `<p:sld><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>ORPHAN</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`,
+    });
+    expect(expectExtractFailure(() => extractDocumentText("pptx", orphanSlideDeck))).toBe("corrupted");
+  });
+
+  it("omits Notes section when the speaker-notes body placeholder is empty despite page furniture (R1-13)", () => {
+    const emptyNotesBody = zipEntries({
+      "ppt/presentation.xml": `<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst></p:presentation>`,
+      "ppt/_rels/presentation.xml.rels": `<Relationships><Relationship Id="rId1" Target="slides/slide1.xml"/></Relationships>`,
+      "ppt/slides/slide1.xml": `<p:sld><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>Slide Content</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`,
+      "ppt/slides/_rels/slide1.xml.rels": `<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="../notesSlides/notesSlide1.xml"/></Relationships>`,
+      "ppt/notesSlides/notesSlide1.xml":
+        `<p:notes><p:cSld><p:spTree>` +
+        `<p:sp><p:nvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:endParaRPr/></a:p></p:txBody></p:sp>` +
+        `<p:sp><p:nvSpPr><p:nvPr><p:ph type="sldNum" idx="10"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>1</a:t></a:r></a:p></p:txBody></p:sp>` +
+        `</p:spTree></p:cSld></p:notes>`,
+    });
+    expect(extractDocumentText("pptx", emptyNotesBody).text).toBe("## Slide 1\nSlide Content");
+  });
 });
 
 describe("extractDocumentText: failure classification", () => {
@@ -359,6 +575,66 @@ describe("extractDocumentText: failure classification", () => {
       { name: "word/document.xml", data: enc.encode("encrypted"), method: 99 },
     ]);
     expect(expectExtractFailure(() => extractDocumentText("docx", winZipAes))).toBe("password_required");
+  });
+
+  it("checks local-header encryption and central/local header agreement on skipped media entries without inflating media (R1-16)", () => {
+    const localEncryptedMedia = buildRawZip([
+      {
+        name: "word/document.xml",
+        data: enc.encode(`<w:document><w:body><w:p><w:r><w:t>visible</w:t></w:r></w:p></w:body></w:document>`),
+      },
+      {
+        name: "word/media/a.bin",
+        data: new Uint8Array([1, 2, 3, 4]),
+        flags: 0,
+        localFlags: 0x01,
+      },
+    ]);
+    expect(expectExtractFailure(() => extractDocumentText("docx", localEncryptedMedia))).toBe("password_required");
+
+    const localAesMedia = buildRawZip([
+      {
+        name: "word/document.xml",
+        data: enc.encode(`<w:document><w:body><w:p><w:r><w:t>visible</w:t></w:r></w:p></w:body></w:document>`),
+      },
+      {
+        name: "word/media/a.bin",
+        data: new Uint8Array([1, 2, 3, 4]),
+        method: 0,
+        localMethod: 99,
+      },
+    ]);
+    expect(expectExtractFailure(() => extractDocumentText("docx", localAesMedia))).toBe("password_required");
+
+    const mismatchedMethodMedia = buildRawZip([
+      {
+        name: "word/document.xml",
+        data: enc.encode(`<w:document><w:body><w:p><w:r><w:t>visible</w:t></w:r></w:p></w:body></w:document>`),
+      },
+      {
+        name: "word/media/a.bin",
+        data: new Uint8Array([1, 2, 3, 4]),
+        method: 0,
+        localMethod: 8,
+      },
+    ]);
+    expect(expectExtractFailure(() => extractDocumentText("docx", mismatchedMethodMedia))).toBe("corrupted");
+  });
+
+  it("rejects CFB containers with aliased/overlapping sector chains without materialising aliased streams (R1-3)", () => {
+    // Build a CFB with one 8192-byte stream and mutate a second directory entry to alias the same start sector
+    const aliasedCfb = buildCfb([
+      { name: "StreamA", data: new Uint8Array(8192).fill(0x41) },
+      { name: "EncryptedPackage", data: new Uint8Array(8192).fill(0x42) },
+    ]);
+    const view = new DataView(aliasedCfb.buffer);
+    const firstDirAt = 2 * SECTOR;
+    const streamAStart = view.getUint32(firstDirAt + 1 * 128 + 116, true);
+    // Point second stream ("EncryptedPackage") to StreamA's start sector so they overlap
+    view.setUint32(firstDirAt + 2 * 128 + 116, streamAStart, true);
+
+    expect(() => readCompoundStreams(aliasedCfb)).toThrow(CfbError);
+    expect(expectExtractFailure(() => extractDocumentText("docx", aliasedCfb))).toBe("corrupted");
   });
 
   it("classifies legacy unencrypted CFB container (.doc/.xls/.ppt) as not_office_file", () => {
