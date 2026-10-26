@@ -14377,7 +14377,7 @@
       "tasks_created_with_date_other": "Đã tạo {{count}} việc từ tài liệu · {{date}}",
       "viewer_unknown": {
         "title": "Bạn chưa cho UniWork đọc tệp này.",
-        "body": "Tệp do {{name}} liên kết từ Google Drive của {{name}}. UNI đọc tệp bằng tài khoản Google Drive của chính bạn, nên cần bạn cho phép một lần.",
+        "body": "Tệp do {{name}} liên kết từ Google Drive của họ. UNI đọc tệp bằng tài khoản Google Drive của chính bạn, nên cần bạn cho phép một lần.",
         "body_unnamed": "UNI đọc tệp bằng tài khoản Google Drive của chính bạn, nên cần bạn cho phép một lần.",
         "grant_button": "Cho UniWork đọc tệp",
         "granting": "Đang cấp quyền…",

@@ -148,7 +148,7 @@ export function TaskDetailAttachmentsSection({
     (attachmentsQuery.isLoading ||
       (driveAvailable && driveFilesQuery.isLoading));
 
-  if (!hasContent && !canAdd && !isInitialLoading && !hasError) {
+  if (!hasContent && !canAdd && !hasError) {
     return null;
   }
   return (

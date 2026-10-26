@@ -5,7 +5,13 @@ import { fakeNav, requestMock, wrapWithNav } from "../../../test/api-mock";
 import { TaskDetailEditors } from "./task-detail-editors";
 
 // The sections below the editors are not under test and each pulls its own queries.
-vi.mock("./task-detail-attachments-slot", () => ({ TaskDetailAttachmentsSlot: () => null }));
+const attachmentsSlotSpy = vi.hoisted(() => vi.fn());
+vi.mock("./task-detail-attachments-slot", () => ({
+  TaskDetailAttachmentsSlot: (props: Record<string, unknown>) => {
+    attachmentsSlotSpy(props);
+    return null;
+  },
+}));
 vi.mock("./task-detail-context-line", () => ({ TaskDetailContextLine: () => null }));
 vi.mock("./subtasks-section", () => ({ TaskDetailSubtasksSection: () => null }));
 vi.mock("./task-detail-timeline-slot", () => ({ TaskDetailTimelineSlot: () => null }));
@@ -37,6 +43,7 @@ async function mountAndFindLink(name: string) {
 describe("TaskDetailEditors link context (DOC7-W03)", () => {
   beforeEach(() => {
     requestMock.mockReset();
+    attachmentsSlotSpy.mockReset();
     vi.spyOn(window, "open").mockImplementation(() => null);
   });
 
@@ -72,5 +79,24 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
   it("names the description editor for assistive tech", async () => {
     const { link } = await mountAndFindLink("spec");
     expect(link.closest("[role=textbox]")).toHaveAttribute("aria-label", "Mô tả công việc");
+  });
+
+  it("passes canEdit derived from useTaskPermissions to TaskDetailAttachmentsSlot", async () => {
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/workspaces/w1/me") {
+        return { role: "guest", source: "membership" };
+      }
+      return {};
+    });
+    await mountAndFindLink("spec");
+    await waitFor(() => {
+      expect(attachmentsSlotSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          workspaceId: "w1",
+          taskId: "t1",
+          canEdit: false,
+        }),
+      );
+    });
   });
 });

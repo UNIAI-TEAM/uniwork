@@ -7,6 +7,7 @@ import { createFakeDrivePickerAdapter } from "../../../integrations/drive-picker
 import { DRIVE_OAUTH_MESSAGE_TYPE } from "../../../integrations/use-drive-connect-popup";
 import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../../../test/api-mock";
+import { shortDateFormat } from "../../../common/date-pill";
 import { DriveTaskFileCard } from "./drive-task-file-card";
 
 initI18n();
@@ -131,10 +132,15 @@ describe("DriveTaskFileCard", () => {
     expect(screen.getByRole("img", { name: "Google Docs" })).toBeInTheDocument();
     expect(screen.getByText("Kế hoạch ra mắt Q4")).toBeInTheDocument();
     expect(screen.getByText(/Drive: uni-work1@gmail\.com/)).toBeInTheDocument();
+    const expectedShortDate = new Date("2026-10-26T09:58:00Z").toLocaleDateString(
+      "vi",
+      shortDateFormat("2026"),
+    );
     expect(
       screen.getByTestId("task-drive-card-tasks-created-df_1"),
-    ).toHaveTextContent(/Đã tạo 4 việc từ tài liệu/);
-
+    ).toHaveTextContent(`Đã tạo 4 việc từ tài liệu · ${expectedShortDate}`);
+    expect(screen.queryByText("Liên kết")).toBeNull();
+    expect(screen.queryByText("Link")).toBeNull();
     const openLink = screen.getByRole("link", {
       name: /Mở trên Google Drive/i,
     });
@@ -293,13 +299,17 @@ describe("DriveTaskFileCard", () => {
       ),
     });
 
-    expect(
-      screen.getByTestId("task-drive-card-unknown-df_1"),
-    ).toHaveTextContent("Bạn chưa cho UniWork đọc tệp này.");
+    const unknownBlock = screen.getByTestId("task-drive-card-unknown-df_1");
+    expect(unknownBlock).toHaveTextContent(
+      "Bạn chưa cho UniWork đọc tệp này.",
+    );
+    expect(unknownBlock).toHaveTextContent(
+      "Tệp do Minh liên kết từ Google Drive của họ.",
+    );
+    expect(unknownBlock).not.toHaveTextContent("Google Drive của Minh");
     expect(
       screen.getByText(/Google Docs · Minh liên kết từ Google Drive/),
     ).toBeInTheDocument();
-
     const slotBtn = screen.getByRole("button", { name: "Slot action" });
     expect(slotBtn).toHaveAttribute("aria-disabled", "true");
     expect(slotBtn).toHaveAttribute("title", "Cần cho UniWork đọc tệp trước");
@@ -522,6 +532,8 @@ describe("DriveTaskFileCard", () => {
       "bg-warning-soft",
       "text-warning-soft-foreground",
     );
+    expect(badge.parentElement).toHaveClass("basis-full", "sm:basis-auto");
+    expect(screen.queryByText("Liên kết")).toBeNull();
     expect(
       screen.getByTestId("task-drive-card-bound-access-lost-df_1"),
     ).toHaveTextContent("Tài khoản gắn không còn quyền với tệp này.");

@@ -120,15 +120,21 @@ vi.mock("@uniwork/core/tasks", async (importOriginal) => {
   };
 });
 
-vi.mock("@uniwork/core/drive", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@uniwork/core/drive")>();
-  return {
-    ...actual,
-    useTaskDriveFiles: () => ({
+const mockUseTaskDriveFiles = vi.hoisted(() =>
+  vi.fn(
+    (_wsId: string, _taskId: string, _opts?: { enabled?: boolean }) => ({
       data: driveState.isError ? undefined : driveState.files,
       isLoading: driveState.isLoading,
       isError: driveState.isError,
     }),
+  ),
+);
+
+vi.mock("@uniwork/core/drive", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/core/drive")>();
+  return {
+    ...actual,
+    useTaskDriveFiles: mockUseTaskDriveFiles,
     useDriveConnections: () => ({
       data: { connections: driveState.connections },
       isLoading: false,
@@ -266,6 +272,7 @@ beforeEach(() => {
   deleteMutateAsync.mockClear();
   uploadMutateAsync.mockClear();
   linkDriveFilesMutateAsync.mockClear();
+  mockUseTaskDriveFiles.mockClear();
   attachmentsState.data = [];
   attachmentsState.isError = false;
   attachmentsState.isLoading = false;
@@ -351,15 +358,30 @@ describe("TaskDetailAttachmentsSection", () => {
     expect(screen.queryByTestId("task-attachments-empty")).toBeNull();
   });
 
-  it("renders a row skeleton during initial load", () => {
+  it("renders a row skeleton during initial load when canAdd is true, and returns null without flashing when !canAdd and no content", () => {
     attachmentsState.isLoading = true;
 
-    render(
+    const { unmount } = render(
       shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />),
     );
 
     expect(screen.getByTestId("task-attachments-loading")).toBeInTheDocument();
     expect(screen.queryByTestId("task-attachments-empty")).toBeNull();
+    unmount();
+
+    render(
+      shell(
+        <TaskDetailAttachmentsSection
+          workspaceId="w1"
+          taskId="t1"
+          canEdit={false}
+        />,
+      ),
+    );
+    expect(
+      screen.queryByRole("region", { name: /đính kèm|attachments/i }),
+    ).toBeNull();
+    expect(screen.queryByTestId("task-attachments-loading")).toBeNull();
   });
 
   it("renders images inline and other files as attachment cards", () => {
@@ -660,5 +682,28 @@ describe("TaskDetailAttachmentsSection", () => {
     expect(
       await screen.findByRole("button", { name: "Kết nối Google Drive" }),
     ).toBeInTheDocument();
+  });
+
+  it("gates useTaskDriveFiles on useDriveAvailable()", () => {
+    const { unmount } = render(
+      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />, {
+        driveFlag: false,
+      }),
+    );
+    expect(mockUseTaskDriveFiles).toHaveBeenCalledWith("w1", "t1", {
+      enabled: false,
+    });
+    unmount();
+
+    mockUseTaskDriveFiles.mockClear();
+    publicConfigState.data.drive = { available: true };
+    render(
+      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />, {
+        driveFlag: true,
+      }),
+    );
+    expect(mockUseTaskDriveFiles).toHaveBeenCalledWith("w1", "t1", {
+      enabled: true,
+    });
   });
 });

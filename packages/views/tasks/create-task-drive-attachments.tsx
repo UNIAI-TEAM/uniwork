@@ -97,40 +97,45 @@ export function CreateTaskDriveChips({
             data-testid={`create-task-drive-chip-${df.externalFileId}`}
             data-error={hasError ? "true" : undefined}
             className={cn(
-              "inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg border py-1 pr-1.5 pl-2.5 text-caption",
+              "inline-flex min-h-9 min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border py-1 pr-1.5 pl-2.5 text-caption",
               hasError
                 ? "border-destructive-soft-foreground/20 bg-destructive-soft text-destructive-soft-foreground"
                 : "border-brand/25 bg-brand-subtle text-foreground",
             )}
           >
-            <DocumentTypeIcon
-              format={driveMimeToIconFormat(df.mimeType, df.iconKind)}
-              className="size-4 shrink-0"
-            />
-            <span className="truncate font-medium text-foreground">
-              {df.name}
-            </span>
-            <span className="shrink-0 text-muted-foreground">
-              · {t("drive.terms.google_drive")}
-            </span>
-            {errorMessage ? (
-              <span className="inline-flex items-center gap-1 text-destructive-soft-foreground">
-                <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{errorMessage}</span>
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <DocumentTypeIcon
+                format={driveMimeToIconFormat(df.mimeType, df.iconKind)}
+                className="size-4 shrink-0"
+              />
+              <span className="min-w-24 flex-1 truncate font-medium text-foreground">
+                {df.name}
               </span>
+              <span className="hidden shrink-0 text-muted-foreground sm:inline">
+                · {t("drive.draft_chip.source_badge")}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={t("drive.draft_chip.remove_aria", {
+                  name: df.name,
+                })}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={() => onRemove(df)}
+              >
+                <X className="size-3.5" aria-hidden="true" />
+              </Button>
+            </div>
+            {errorMessage ? (
+              <div
+                role="alert"
+                className="flex min-w-0 basis-full items-start gap-1 text-destructive-soft-foreground"
+              >
+                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 break-words">{errorMessage}</span>
+              </div>
             ) : null}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label={t("drive.draft_chip.remove_aria", {
-                name: df.name,
-              })}
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => onRemove(df)}
-            >
-              <X className="size-3.5" aria-hidden="true" />
-            </Button>
           </div>
         );
       })}

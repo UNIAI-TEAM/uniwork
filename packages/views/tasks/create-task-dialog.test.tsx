@@ -14,6 +14,7 @@ import { createFakeDrivePickerAdapter } from "../integrations/drive-picker";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { CreateTaskDialog } from "./create-task-dialog";
+import { resolveCreateTaskDriveError } from "./create-task-drive-errors";
 
 const toastError = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { error: toastError, success: vi.fn() } }));
@@ -386,6 +387,12 @@ describe("CreateTaskDialog", () => {
         screen.getByTestId("create-task-drive-chip-gsheet_2"),
       ).toBeInTheDocument();
     });
+    const chip1 = screen.getByTestId("create-task-drive-chip-gdoc_1");
+    expect(chip1).toHaveTextContent("Google Drive");
+    expect(chip1.textContent).not.toMatch(/drive\./);
+    expect(
+      chip1.querySelector("span.hidden.sm\\:inline"),
+    ).toHaveTextContent("· Google Drive");
 
     // Picker did NOT call POST .../drive-files during draft stage
     expect(requestMock).not.toHaveBeenCalledWith(
@@ -554,13 +561,19 @@ describe("CreateTaskDialog", () => {
     expect(
       screen.getByTestId("create-task-drive-chip-gdoc_ok"),
     ).not.toHaveAttribute("data-error");
+    const erroredChip = screen.getByTestId("create-task-drive-chip-gdoc_bad");
+    expect(erroredChip).toHaveAttribute("data-error", "true");
+    expect(erroredChip).toHaveClass("flex-wrap", "min-w-0");
+    expect(erroredChip.textContent).not.toMatch(/drive\./);
     expect(
-      screen.getByTestId("create-task-drive-chip-gdoc_bad"),
-    ).toHaveAttribute("data-error", "true");
-    expect(
-      screen.getByTestId("create-task-drive-chip-gdoc_bad"),
-    ).toHaveTextContent("Bạn chưa cấp cho UniWork quyền đọc tệp này.");
-
+      erroredChip.querySelector("span.min-w-24.truncate"),
+    ).toHaveTextContent("Tài liệu bị thu hồi");
+    const alertEl = erroredChip.querySelector('[role="alert"]');
+    expect(alertEl).not.toBeNull();
+    expect(alertEl).toHaveClass("basis-full", "min-w-0");
+    expect(alertEl).toHaveTextContent(
+      "Bạn chưa cấp cho UniWork quyền đọc tệp này.",
+    );
     const persistedDraft = useCreateTaskDraftStore.getState().draftFor("ws1");
     expect(persistedDraft?.driveFiles?.[0]).not.toHaveProperty("errorCode");
     expect(persistedDraft?.driveFiles?.[1]).toEqual(
@@ -572,5 +585,61 @@ describe("CreateTaskDialog", () => {
     expect(persistedDraft?.driveFiles?.[1]).not.toHaveProperty("errorMessage");
 
     resetAuthStoreForTests();
+  });
+
+  it("resolves create-task Drive errors strictly by drive_files_index (returns null when absent, trusts index on external_file_id mismatch)", () => {
+    const draftFiles = [
+      {
+        connectionId: "dc_1",
+        externalFileId: "gdoc_0",
+        name: "Tệp 0",
+        mimeType: "application/vnd.google-apps.document",
+      },
+      {
+        connectionId: "dc_1",
+        externalFileId: "gdoc_1",
+        name: "Tệp 1",
+        mimeType: "application/vnd.google-apps.document",
+      },
+    ];
+    const tFn = (key: string, opts?: Record<string, unknown>) =>
+      key === "drive.picker.errors.file_error_named"
+        ? `${String(opts?.name)}: ${String(opts?.reason)}`
+        : key;
+
+    // 1. Drive error code WITHOUT drive_files_index -> null (falls back to generic toast, marks no chip)
+    const errWithoutIndex = new ApiError(
+      "drive grant required",
+      "drive_grant_required",
+      403,
+      undefined,
+      { external_file_id: "gdoc_1" },
+    );
+    expect(
+      resolveCreateTaskDriveError(errWithoutIndex, draftFiles, tFn),
+    ).toBeNull();
+
+    // 2. Index present with mismatching external_file_id -> trusts drive_files_index per contract
+    const errMismatchId = new ApiError(
+      "drive grant required",
+      "drive_grant_required",
+      403,
+      undefined,
+      { drive_files_index: 1, external_file_id: "other_id" },
+    );
+    const resolved = resolveCreateTaskDriveError(
+      errMismatchId,
+      draftFiles,
+      tFn,
+    );
+    expect(resolved).not.toBeNull();
+    expect(resolved?.updatedDriveFiles[0]).not.toHaveProperty("errorCode");
+    expect(resolved?.updatedDriveFiles[1]).toEqual(
+      expect.objectContaining({
+        externalFileId: "gdoc_1",
+        errorCode: "drive_grant_required",
+      }),
+    );
+    expect(resolved?.toastMessage).toContain("Tệp 1:");
   });
 });

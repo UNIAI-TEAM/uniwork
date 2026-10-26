@@ -14451,7 +14451,7 @@
       "tasks_created_with_date_other": "Created {{count}} tasks from this document · {{date}}",
       "viewer_unknown": {
         "title": "You haven't let UniWork read this file yet.",
-        "body": "Linked by {{name}} from {{name}}'s Google Drive. UNI reads files with your own Google Drive account, so it needs your permission once.",
+        "body": "Linked by {{name}} from their Google Drive. UNI reads files with your own Google Drive account, so it needs your permission once.",
         "body_unnamed": "UNI reads files with your own Google Drive account, so it needs your permission once.",
         "grant_button": "Let UniWork read this file",
         "granting": "Granting access…",
