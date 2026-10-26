@@ -68,6 +68,18 @@ describe("extract_text grant variant and envelope binding", () => {
 
     const extractShapeWithOpen = { ...extractFixture.grant, operation: "open" as const };
     expect(() => verifyGrant(signGrant(extractShapeWithOpen, key), key)).toThrow(/grant_scope/);
+
+    const emptyDocId = { ...fixture.grant, document_id: "" };
+    expect(() => verifyGrant(signGrant(emptyDocId, key), key)).toThrow(/grant_scope/);
+
+    const { document_id: _omittedDocId, ...omittedDocId } = fixture.grant;
+    expect(() => verifyGrant(signGrant(omittedDocId as unknown as ServiceGrant, key), key)).toThrow(/grant_scope/);
+
+    const emptyBaseVersionId = { ...fixture.grant, base_version_id: "" };
+    expect(() => verifyGrant(signGrant(emptyBaseVersionId, key), key)).toThrow(/grant_scope/);
+
+    const { base_version_id: _omittedBaseVersionId, ...omittedBaseVersionId } = fixture.grant;
+    expect(() => verifyGrant(signGrant(omittedBaseVersionId as unknown as ServiceGrant, key), key)).toThrow(/grant_scope/);
   });
 
   it("binds an extract_text envelope without base_revision or base_version_id and refuses cross-operation use", () => {

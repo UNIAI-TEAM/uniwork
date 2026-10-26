@@ -156,41 +156,67 @@ func TestGrantVariantRules(t *testing.T) {
 	key := []byte("grant-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 
 	// Extract grant refused when it violates the extract_text rules or is re-signed for another op.
-	badExtract := []func(*ServiceGrant){
-		func(g *ServiceGrant) { g.DocumentID = "01DOC00000000000000000000A" },
-		func(g *ServiceGrant) { g.DriveFileID = "" },
-		func(g *ServiceGrant) { g.BaseRevision = 1 },
-		func(g *ServiceGrant) { g.BaseVersionID = "01VER00000000000000000000A" },
-		func(g *ServiceGrant) { g.Input = nil },
-		func(g *ServiceGrant) { g.Output = parityGrant().Output },
-		func(g *ServiceGrant) { g.Operation = OperationOpen },
+	badExtract := []struct {
+		name string
+		mut  func(*ServiceGrant)
+	}{
+		{name: "empty_actor_id", mut: func(g *ServiceGrant) { g.ActorID = "" }},
+		{name: "empty_actor_kind", mut: func(g *ServiceGrant) { g.ActorKind = "" }},
+		{name: "invalid_actor_kind", mut: func(g *ServiceGrant) { g.ActorKind = "bot" }},
+		{name: "empty_organization_id", mut: func(g *ServiceGrant) { g.OrganizationID = "" }},
+		{name: "empty_workspace_id", mut: func(g *ServiceGrant) { g.WorkspaceID = "" }},
+		{name: "non_empty_document_id", mut: func(g *ServiceGrant) { g.DocumentID = "01DOC00000000000000000000A" }},
+		{name: "empty_drive_file_id", mut: func(g *ServiceGrant) { g.DriveFileID = "" }},
+		{name: "non_zero_base_revision", mut: func(g *ServiceGrant) { g.BaseRevision = 1 }},
+		{name: "non_empty_base_version_id", mut: func(g *ServiceGrant) { g.BaseVersionID = "01VER00000000000000000000A" }},
+		{name: "nil_input", mut: func(g *ServiceGrant) { g.Input = nil }},
+		{name: "bad_input_checksum_short", mut: func(g *ServiceGrant) { g.Input.Checksum = "bad" }},
+		{name: "bad_input_checksum_uppercase", mut: func(g *ServiceGrant) {
+			g.Input.Checksum = "B94D27B9934D3E08A52E52D7DA7DABFAC484EFE37A5380EE9088F7ACE2EFCDE9"
+		}},
+		{name: "bad_input_negative_length", mut: func(g *ServiceGrant) { g.Input.Length = -1 }},
+		{name: "non_nil_output", mut: func(g *ServiceGrant) { g.Output = parityGrant().Output }},
+		{name: "extract_shape_with_open_operation_and_drive_file_id", mut: func(g *ServiceGrant) { g.Operation = OperationOpen }},
+		{name: "extract_shape_with_open_operation_and_empty_drive_file_id", mut: func(g *ServiceGrant) {
+			g.Operation = OperationOpen
+			g.DriveFileID = ""
+		}},
 	}
-	for i, mut := range badExtract {
-		g := extractParityGrant()
-		mut(&g)
-		tok, err := SignGrant(g, key)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := VerifyGrant(tok, key); err != ErrGrantInvalid {
-			t.Fatalf("case %d: expected ErrGrantInvalid, got %v", i, err)
-		}
+	for _, tc := range badExtract {
+		t.Run(tc.name, func(t *testing.T) {
+			g := extractParityGrant()
+			tc.mut(&g)
+			tok, err := SignGrant(g, key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := VerifyGrant(tok, key); err != ErrGrantInvalid {
+				t.Fatalf("%s: expected ErrGrantInvalid, got %v", tc.name, err)
+			}
+		})
 	}
 
 	// Document grant refused for extract_text or when carrying drive_file_id.
-	badDoc := []func(*ServiceGrant){
-		func(g *ServiceGrant) { g.Operation = OperationExtractText },
-		func(g *ServiceGrant) { g.DriveFileID = "01DRIVEFILE00000000000000A" },
+	badDoc := []struct {
+		name string
+		mut  func(*ServiceGrant)
+	}{
+		{name: "doc_with_extract_text_op", mut: func(g *ServiceGrant) { g.Operation = OperationExtractText }},
+		{name: "doc_with_drive_file_id", mut: func(g *ServiceGrant) { g.DriveFileID = "01DRIVEFILE00000000000000A" }},
+		{name: "doc_with_empty_document_id", mut: func(g *ServiceGrant) { g.DocumentID = "" }},
+		{name: "doc_with_empty_base_version_id", mut: func(g *ServiceGrant) { g.BaseVersionID = "" }},
 	}
-	for i, mut := range badDoc {
-		g := parityGrant()
-		mut(&g)
-		tok, err := SignGrant(g, key)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := VerifyGrant(tok, key); err != ErrGrantInvalid {
-			t.Fatalf("doc case %d: expected ErrGrantInvalid, got %v", i, err)
-		}
+	for _, tc := range badDoc {
+		t.Run(tc.name, func(t *testing.T) {
+			g := parityGrant()
+			tc.mut(&g)
+			tok, err := SignGrant(g, key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := VerifyGrant(tok, key); err != ErrGrantInvalid {
+				t.Fatalf("%s: expected ErrGrantInvalid, got %v", tc.name, err)
+			}
+		})
 	}
 }
