@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^daf1c5f6a" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=daf1c5f6a418c721e3f94e97139f8919cf719be3
+daf1c5f6a fix(drive): wrap paste suggestion chip label at 390px and keep dismiss button inside
+c28b76a1e fix(drive): set LinkHoverCard zIndex below paste chip and clarify no-role test
+ac2105b06 Merge branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-2189-drive-paste-url
