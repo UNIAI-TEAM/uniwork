@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, Ellipsis, Info, Trash2, Upload, UserPen } from "lucide-react";
+import { CircleAlert, Ellipsis, Info, Trash, Upload, UserPen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingCapabilities, useParticipants, useRecordings } from "@uniwork/core/meetings";
 import { useMeetingActionItems } from "@uniwork/core/meetings/action-items";
@@ -251,7 +251,7 @@ export function TranscriptView({
           ) : null}
           {canClerk && rows.length > 0 ? (
             <DropdownMenuItem variant="destructive" onClick={() => setChange({ kind: "all" })}>
-              <Trash2 aria-hidden className="size-4" />
+              <Trash aria-hidden className="size-4" />
               {t("meetings.transcriptDeleteAll")}
             </DropdownMenuItem>
           ) : null}

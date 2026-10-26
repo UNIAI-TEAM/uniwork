@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FolderGit, FolderOpen, Pencil, Trash2 } from "lucide-react";
+import { FolderGit, FolderOpen, Pencil, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -189,7 +189,7 @@ function ResourceRow({
           className="rounded-sm p-0.5 opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100"
           title={t("projects.resources.remove")}
         >
-          <Trash2 className="size-3 text-muted-foreground" />
+          <Trash className="size-3 text-muted-foreground" />
         </button>
       )}
     </div>

@@ -17,7 +17,7 @@ import {
   Share2,
   Star,
   StarOff,
-  Trash2,
+  Trash,
 } from "lucide-react";
 import { sourceLinkIcon } from "../source-links";
 import type { LibraryRow } from "../library-rows";
@@ -38,12 +38,12 @@ const ICONS: Record<Exclude<RowMenuItemId, "go-to-source">, LucideIcon> = {
   duplicate: CopyPlus,
   download: Download,
   shelve: Archive,
-  trash: Trash2,
+  trash: Trash,
   save: FolderInput,
   unshelve: ArchiveRestore,
   restore: ArchiveRestore,
   "view-details": Eye,
-  purge: Trash2,
+  purge: Trash,
 };
 
 function iconOf(item: RowMenuItem, row: LibraryRow): LucideIcon {

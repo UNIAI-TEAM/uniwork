@@ -4,7 +4,7 @@ import {
   Archive,
   Bell,
   Bot,
-  Building2,
+  BuildingComplex,
   CircleDot,
   CreditCard,
   FileText,
@@ -111,7 +111,7 @@ const GROUPS: readonly { id: GroupId; tabs: readonly TabDef[] }[] = [
   {
     id: "organization",
     tabs: [
-      { value: "organization", label: "organization", icon: Building2, Panel: OrganizationTab },
+      { value: "organization", label: "organization", icon: BuildingComplex, Panel: OrganizationTab },
       { value: "departments", label: "departments", icon: Network, Panel: DepartmentsTab },
       { value: "billing", label: "billing", icon: CreditCard, Panel: BillingTab, gate: "billing" },
       { value: "invoices", label: "invoices", icon: Receipt, Panel: InvoicesTab, gate: "billing" },

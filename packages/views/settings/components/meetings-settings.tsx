@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { RotateCcwClock, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { RotateCcwClock, ShieldCheck, Sparkles, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingSettings, useSetMeetingAutoSummary, useSetMeetingTranscriptRetention } from "@uniwork/core/meetings/settings";
 import { useOrgMembership } from "@uniwork/core/organizations";
@@ -180,7 +180,7 @@ export function MeetingsSettings() {
         title={t("retention_shrink_title", { days: shrinkTo ?? 0 })}
         description={t("retention_shrink_description", { days: shrinkTo ?? 0 })}
         confirmLabel={t("retention_shrink_confirm")}
-        icon={Trash2}
+        icon={Trash}
         onConfirm={() => {
           if (shrinkTo !== null) saveRetention(shrinkTo);
           setShrinkTo(null);

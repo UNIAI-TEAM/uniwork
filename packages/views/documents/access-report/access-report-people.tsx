@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useId, useState } from "react";
-import { ArrowDown, ArrowUp, Building2, ChevronDown, CircleAlert, Link2, Users, UsersRound } from "lucide-react";
+import { ArrowDown, ArrowUp, BuildingComplex, ChevronDown, CircleAlert, Link2, Users, UsersRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocumentAccessReportPrincipals } from "@uniwork/core/documents/hooks-access-report";
 import type { AccessReportPrincipal, AccessReportPrincipals } from "@uniwork/core/types/document-access-report";
@@ -312,7 +312,7 @@ function PrincipalGlyph({ principal, name }: { principal: AccessReportPrincipal;
       </span>
     );
   }
-  const Icon = principal.principal_type === "organization" ? Building2 : principal.principal_type === "link" ? Link2 : Users;
+  const Icon = principal.principal_type === "organization" ? BuildingComplex : principal.principal_type === "link" ? Link2 : Users;
   return (
     <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
       <Icon className="size-4" />

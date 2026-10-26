@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, Plus } from "lucide-react";
+import { BuildingComplex, Plus } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -121,7 +121,7 @@ export function DepartmentsTab() {
           </SettingsCard>
         ) : ordered.length === 0 ? (
           <SettingsCard>
-            <SettingsEmpty icon={<Building2 />}>
+            <SettingsEmpty icon={<BuildingComplex />}>
               {canManage ? t("departments.empty_admin") : t("departments.empty_member")}
             </SettingsEmpty>
           </SettingsCard>

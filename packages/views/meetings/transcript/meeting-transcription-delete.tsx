@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { FileHeadphone, Trash2 } from "lucide-react";
+import { FileHeadphone, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useDeleteMeetingTranscription } from "@uniwork/core/meetings/transcript";
@@ -36,7 +36,7 @@ export function TranscriptionDeleteButton({
         aria-label={label}
         onClick={() => setAsk(true)}
       >
-        <Trash2 aria-hidden />
+        <Trash aria-hidden />
       </Button>
       {ask ? (
         <ConfirmDialog
@@ -48,7 +48,7 @@ export function TranscriptionDeleteButton({
           description={t("meetings.transcription.deleteDescription", { file: transcription.filename || "—" })}
           confirmLabel={t("meetings.transcriptDeleteConfirm")}
           pending={remove.isPending}
-          icon={Trash2}
+          icon={Trash}
           onConfirm={() => {
             if (remove.isPending) return;
             remove.mutateAsync(transcription.id).then(

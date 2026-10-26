@@ -10,7 +10,7 @@ import {
   Ellipsis,
   ScrollText,
   Share2,
-  Trash2,
+  Trash,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
@@ -145,7 +145,7 @@ export function DocumentActionsMenu({
     items.push({ id: "unshelve", label: t("documents.shelved_list.unshelve"), icon: ArchiveRestore });
   }
   if (canManage && !owned && !archived && !myFolder) {
-    items.push({ id: "archive", label: t("documents.actions.archive"), icon: Trash2, destructive: true });
+    items.push({ id: "archive", label: t("documents.actions.archive"), icon: Trash, destructive: true });
   }
   if (canManage && !owned && archived && !myFolder) {
     items.push({ id: "restore", label: t("documents.actions.restore"), icon: ArchiveRestore });

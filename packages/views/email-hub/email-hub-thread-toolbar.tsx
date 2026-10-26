@@ -12,7 +12,7 @@ import {
   ShieldAlert,
   Sparkles,
   Star,
-  Trash2,
+  Trash,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
@@ -133,7 +133,7 @@ function TriageOverflowMenu({
         ) : null}
         {can.canTrash ? (
           <DropdownMenuItem variant="destructive" disabled={pending.move} onClick={actions.onTrash}>
-            <Trash2 aria-hidden />
+            <Trash aria-hidden />
             {t("email_hub.trash")}
           </DropdownMenuItem>
         ) : null}
@@ -241,7 +241,7 @@ export function EmailHubThreadToolbar({
         ) : null}
         {can.canTrash ? (
           <EmailHubIconAction
-            icon={Trash2}
+            icon={Trash}
             label={t("email_hub.trash")}
             tooltip={t("email_hub.trash_shortcut")}
             keyShortcuts={keys(KEYSHORTCUTS.trash)}

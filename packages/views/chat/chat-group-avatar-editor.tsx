@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Camera, Trash2, Users } from "lucide-react";
+import { Camera, Trash, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode } from "@uniwork/core/api";
@@ -98,7 +98,7 @@ function GroupAvatarBadge({
               {label}
             </DropdownMenuItem>
             <DropdownMenuItem variant="destructive" onClick={onRemove}>
-              <Trash2 className="size-4" aria-hidden />
+              <Trash className="size-4" aria-hidden />
               {t("chat.group_avatar_remove")}
             </DropdownMenuItem>
           </DropdownMenuContent>

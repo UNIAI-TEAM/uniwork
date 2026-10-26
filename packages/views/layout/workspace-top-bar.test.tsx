@@ -137,6 +137,7 @@ describe("WorkspaceTopBar", () => {
     const create = screen.getByRole("button", { name: /tạo việc/i });
     expect(create).toHaveTextContent("");
     expect(create).toHaveClass("size-8");
+    expect(create.querySelector("svg.lucide-briefcase-plus")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Giao diện" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ngôn ngữ" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /tùy chọn/i })).toBeNull();

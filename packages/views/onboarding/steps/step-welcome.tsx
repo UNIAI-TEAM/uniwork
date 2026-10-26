@@ -1,5 +1,5 @@
 "use client";
-import { ArrowRight, Building2, LayoutGrid, UserPlus, UserRound, type LucideIcon } from "lucide-react";
+import { ArrowRight, BuildingComplex, LayoutGrid, UserPlus, UserRound, type LucideIcon } from "lucide-react";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -17,7 +17,7 @@ type PlanStep = (typeof ONBOARDING_STEP_ORDER)[number];
 
 const STEP_ICON: Record<PlanStep, LucideIcon> = {
   about_you: UserRound,
-  organization: Building2,
+  organization: BuildingComplex,
   workspace: LayoutGrid,
   invite: UserPlus,
 };

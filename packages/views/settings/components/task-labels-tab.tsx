@@ -1,6 +1,6 @@
 "use client";
 
-import { Ellipsis, Pencil, Plus, Search, Tag, Trash2 } from "lucide-react";
+import { Ellipsis, Pencil, Plus, Search, Tag, Trash } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { errorCode } from "@uniwork/core/api";
@@ -190,7 +190,7 @@ export function TaskLabelsTab() {
                             setDeleteOpen(true);
                           }}
                         >
-                          <Trash2 aria-hidden />
+                          <Trash aria-hidden />
                           {t("common.delete")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
