@@ -1,0 +1,2 @@
+$ grep -E "^\s+✘" /tmp/pr8r3e2e-head-e2e.log | sed -E "s/ \([0-9.]+m?s\)$//" | sort -u | head -300; true
+  ✘  15 files-chat.spec.ts:323:3 › chat file and voice messages › an unsupported file type is refused before it is sent

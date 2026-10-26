@@ -1,0 +1,128 @@
+$ rc=$(cat /tmp/pr8r3e2e-head-e2e.exit 2>/dev/null || echo 99); grep -vE "^\s+at " /tmp/pr8r3e2e-head-e2e.log | grep -E "✘|failed|flaky|passed|skipped|did not run|Error:" | head -80; tail -n 30 /tmp/pr8r3e2e-head-e2e.log; for f in e2e/test-results/*/error-context.md; do [ -f "$f" ] && { echo "===== $f"; head -c 3000 "$f"; }; done; grep -qE "[0-9]+ passed" /tmp/pr8r3e2e-head-e2e.log || { echo "no passing test"; [ "$rc" = 0 ] && rc=1; }; echo; echo "E2E_EXIT=$rc"; [ $rc -eq 0 ]
+  ✘  15 files-chat.spec.ts:323:3 › chat file and voice messages › an unsupported file type is refused before it is sent (15.9s)
+    Error: expect(locator).toBeVisible() failed
+    Error: element(s) not found
+  1 failed
+  1 did not run
+  14 passed (2.1m)
+
+
+      334 |     });
+      335 |
+    > 336 |     await expect(owner.getByText("Loại tệp không được hỗ trợ. Dùng ảnh, PDF hoặc văn bản thuần.")).toBeVisible({
+          |                                                                                                    ^
+      337 |       timeout: 15_000,
+      338 |     });
+      339 |     await expect(owner.locator('article[id^="chat-msg-"]').filter({ hasText: "tai-lieu.zip" })).toHaveCount(0);
+        at /workspace/e2e/files-chat.spec.ts:336:100
+
+    Error Context: test-results/files-chat-chat-file-and-v-07b6c-s-refused-before-it-is-sent/error-context.md
+
+    Error Context: test-results/files-chat-chat-file-and-v-07b6c-s-refused-before-it-is-sent/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/files-chat-chat-file-and-v-07b6c-s-refused-before-it-is-sent/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/files-chat-chat-file-and-v-07b6c-s-refused-before-it-is-sent/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    files-chat.spec.ts:323:3 › chat file and voice messages › an unsupported file type is refused before it is sent 
+  1 did not run
+  14 passed (2.1m)
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/e2e@0.0.0 test: `playwright test --reporter=list documents.spec.ts document-owner-transfer.spec.ts member-documents-transfer.spec.ts files-chat.spec.ts`
+Exit status 1
+===== e2e/test-results/files-chat-chat-file-and-v-07b6c-s-refused-before-it-is-sent/error-context.md
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: files-chat.spec.ts >> chat file and voice messages >> an unsupported file type is refused before it is sent
+- Location: files-chat.spec.ts:323:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByText('Loại tệp không được hỗ trợ. Dùng ảnh, PDF hoặc văn bản thuần.')
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 15000ms
+  - waiting for getByText('Loại tệp không được hỗ trợ. Dùng ảnh, PDF hoặc văn bản thuần.')
+
+```
+
+```yaml
+- link "Tới nội dung chính":
+  - /url: "#main-content"
+- banner:
+  - 'button "Tep Chat 1792984973299, Team Files 1792984973299: chuyển workspace"': Team Files 1792984973299
+  - button "Tìm kiếm…": Tìm kiếm… Ctrl+K
+  - button "Hỏi UNI"
+  - button "Thông báo"
+  - button "Tạo việc"
+  - button "Giao diện"
+  - button "Ngôn ngữ"
+  - 'button "chat-owner, chat-owner-1792984973299@example.com: tài khoản"': C
+- navigation "Điều hướng workspace":
+  - list:
+    - listitem:
+      - link "Trang chủ":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299
+    - listitem:
+      - link "Hộp việc":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/inbox
+  - list "Làm việc":
+    - listitem:
+      - link "Công việc":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/tasks
+    - listitem:
+      - link "Việc của tôi":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/my-tasks
+    - listitem:
+      - link "Dự án":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/projects
+    - listitem:
+      - link "Lịch":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/calendar
+  - list "Trao đổi":
+    - listitem:
+      - link "Email Hub":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/email
+    - listitem:
+      - link "Cuộc họp":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/meetings
+    - listitem:
+      - link "Tài liệu":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/documents
+    - listitem:
+      - link "Trò chuyện":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/chat
+    - listitem:
+      - link "Danh bạ":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/people
+- list:
+  - listitem:
+    - button "Thu gọn thanh bên"
+- button "Ẩn/hiện thanh bên"
+- main:
+  - heading "Trò chuyện" [level=1]
+  - complementary:
+    - navigation "Tin nhắn hay kênh":
+      - link "Tin nhắn":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/chat?view=messages
+      - link "Kênh":
+        - /url: /tep-chat-1792984973299/team-files-1792984973299/chat?view=channels
+    - heading "T
+E2E_EXIT=1
