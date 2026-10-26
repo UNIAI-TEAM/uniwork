@@ -3592,7 +3592,7 @@
     "searchMembers": "Nhập tên hoặc email",
     "invitedMembers_one": "Đã mời {{count}} thành viên",
     "invitedMembers_other": "Đã mời {{count}} thành viên",
-    "searchPeople": "Tìm người tham dự",
+    "searchPeople": "Tìm người",
     "inTheMeeting": "Trong cuộc họp",
     "contributors": "Người tham gia",
     "meetingHost": "Chủ trì cuộc họp",
@@ -5221,7 +5221,8 @@
         "lowerMine": "Hạ tay",
         "inRoom": "Trong phòng · {{count}}",
         "scribeRole": "Trợ lý AI · đang ghi",
-        "you": "bạn"
+        "you": "bạn",
+        "micOn": "Mic đang bật"
       },
       "votes": {
         "next": "Tiếp theo",

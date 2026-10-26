@@ -4,7 +4,8 @@ import type { ReactNode } from "react";
 import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
 import { useIsMuted, useIsSpeaking } from "@livekit/components-react";
-import { Eye, EyeOff, Lock, MicOff, EllipsisVertical, Pin, PinOff } from "lucide-react";
+import { Eye, EyeOff, Lock, Mic, MicOff, EllipsisVertical, Pin, PinOff } from "lucide-react";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { useTranslation } from "react-i18next";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -85,6 +86,7 @@ export function MeetingParticipantRow({
       <MeetingPersonAvatar
         name={name}
         avatarUrl={avatarUrl}
+        tint={identityTint(participant.identity)}
         size={30}
         className={cn(speaking && "ring-2 ring-success/60 ring-offset-2 ring-offset-background")}
       />
@@ -95,7 +97,8 @@ export function MeetingParticipantRow({
           <span className="shrink-0 text-caption font-normal text-faint-foreground">{t("meetings.panel.people.you")}</span>
         ) : null}
         {chips.map((chip) => (
-          <MeetingRoleChip key={chip} role={chip} />
+          // The room draws the secretary quiet beside the host's brand chip (People board); the chip stays blue elsewhere.
+          <MeetingRoleChip key={chip} role={chip} className={chip === "secretary" ? "bg-surface-hover text-muted-foreground" : undefined} />
         ))}
       </p>
 
@@ -112,7 +115,11 @@ export function MeetingParticipantRow({
             </span>
           ) : speaking ? (
             <SpeakingBars label={t("meetings.speaking")} />
-          ) : null}
+          ) : (
+            <span role="img" className="text-faint-foreground" aria-label={t("meetings.panel.people.micOn")}>
+              <Mic aria-hidden className="size-4" />
+            </span>
+          )}
         </span>
 
         <DropdownMenu>

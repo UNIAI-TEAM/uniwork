@@ -287,7 +287,7 @@ describe("MeetingRoomPeopleTab", () => {
       expect(rows[0]).toHaveTextContent("Người 000");
       // The count still says everyone, and search still reaches the last row.
       expect(screen.getByText("Trong phòng · 300")).toBeInTheDocument();
-      fireEvent.change(screen.getByRole("textbox", { name: "Tìm người tham dự" }), { target: { value: "299" } });
+      fireEvent.change(screen.getByRole("textbox", { name: "Tìm người" }), { target: { value: "299" } });
       expect(screen.getAllByRole("listitem")).toHaveLength(1);
       expect(screen.getByRole("listitem")).toHaveTextContent("Người 299");
       expect(screen.getByText("Trong phòng · 1")).toBeInTheDocument();
@@ -441,7 +441,7 @@ describe("MeetingRoomPeopleTab", () => {
       );
       expect(await screen.findByText("Trong phòng · 2")).toBeInTheDocument();
       await waitFor(() => expect(requestMock).toHaveBeenCalledWith(expect.stringContaining("/me")));
-      expect(screen.getByRole("textbox", { name: "Tìm người tham dự" })).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "Tìm người" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Thêm người" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Tắt mic mọi người" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Điểm danh" })).not.toBeInTheDocument();

@@ -5222,7 +5222,8 @@
         "lowerMine": "Lower hand",
         "inRoom": "In the room · {{count}}",
         "scribeRole": "AI assistant · taking notes",
-        "you": "you"
+        "you": "you",
+        "micOn": "Mic on"
       },
       "votes": {
         "next": "Up next",

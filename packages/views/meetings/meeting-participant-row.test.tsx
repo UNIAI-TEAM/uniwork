@@ -82,6 +82,18 @@ describe("MeetingParticipantRow", () => {
     expect(screen.queryByText("Agent")).not.toBeInTheDocument();
   });
 
+  it("shows an open mic as a quiet state, beside nothing louder", () => {
+    render(<MeetingParticipantRow participant={fakeParticipant()} />);
+    expect(screen.getByRole("img", { name: "Mic đang bật" })).toHaveClass("text-faint-foreground");
+    expect(screen.queryByRole("img", { name: "Mic đang tắt" })).not.toBeInTheDocument();
+  });
+
+  it("draws the secretary chip quiet in the room", () => {
+    render(<MeetingParticipantRow participant={fakeParticipant()} roleChip="secretary" />);
+    expect(screen.getByText("Thư ký")).toHaveClass("bg-surface-hover", "text-muted-foreground");
+    expect(screen.getByText("Thư ký")).not.toHaveClass("bg-brand-subtle");
+  });
+
   it("marks a secretary and an observer beside the name", () => {
     const { rerender } = render(<MeetingParticipantRow participant={fakeParticipant()} roleChip="secretary" />);
     expect(screen.getByText("Thư ký")).toBeInTheDocument();

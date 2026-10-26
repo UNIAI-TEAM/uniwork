@@ -4,6 +4,7 @@ import { useId, useMemo, useState } from "react";
 import { useParticipants as useLiveKitParticipants } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
 import { Hand, Search, UserPlus, UserRoundCheck } from "lucide-react";
+import { identityTint } from "@uniwork/core/chat/identity-tint";
 import { useTranslation } from "react-i18next";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import { useParticipants } from "@uniwork/core/meetings";
@@ -159,7 +160,7 @@ export function MeetingRoomPeopleTab({
       {canHost && meetingId ? <MeetingJoinRequestsSection meetingId={meetingId} /> : null}
       <div className="mb-3 flex shrink-0 items-center gap-1">
         {/* One search for both views: a long roll needs it as much as the room does. */}
-        <InputGroup className="h-9 min-w-0 flex-1 rounded-[11px] bg-surface-hover">
+        <InputGroup className="h-9 min-w-0 flex-1 rounded-[11px] border-transparent bg-surface-hover dark:bg-surface-hover">
           <InputGroupAddon align="inline-start">
             <Search aria-hidden className="size-4" />
           </InputGroupAddon>
@@ -229,6 +230,7 @@ export function MeetingRoomPeopleTab({
                     <MeetingPersonAvatar
                       name={displayName(participant)}
                       avatarUrl={avatarOf(participant.identity)}
+                      tint={identityTint(participant.identity)}
                       size={30}
                     />
                     <span className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
