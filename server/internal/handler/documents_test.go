@@ -512,7 +512,19 @@ func TestDocumentDownloadIntent(t *testing.T) {
 
 	t.Run("intent=view writes one view row and keeps attachment headers", func(t *testing.T) {
 		id := newFile(t, "view.png")
-		res, raw := doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=view", w.token)
+		// First read is a suffix range so the internal size probe and final open are both tested unmasked.
+		res, raw := doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=view", w.token, "Range", "bytes=-4")
+		if res.StatusCode != 206 || !bytes.Equal(raw, docsPNG[len(docsPNG)-4:]) {
+			t.Fatalf("suffix range intent=view: %d len=%d", res.StatusCode, len(raw))
+		}
+		if got := countLogs(t, id, service.DocumentAccessView); got != 1 {
+			t.Fatalf("view rows after suffix range = %d, want 1", got)
+		}
+		if got := countLogs(t, id, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("download rows after suffix range = %d, want 0", got)
+		}
+		// Repeat view within 5 minutes coalesces and keeps attachment headers.
+		res, raw = doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=view", w.token)
 		if res.StatusCode != 200 || !bytes.Equal(raw, docsPNG) {
 			t.Fatalf("GET intent=view: %d len=%d", res.StatusCode, len(raw))
 		}
@@ -520,18 +532,10 @@ func TestDocumentDownloadIntent(t *testing.T) {
 			t.Fatalf("disposition = %q, want attachment", cd)
 		}
 		if got := countLogs(t, id, service.DocumentAccessView); got != 1 {
-			t.Fatalf("view rows = %d, want 1", got)
+			t.Fatalf("coalesced view rows = %d, want 1", got)
 		}
 		if got := countLogs(t, id, service.DocumentAccessDownload); got != 0 {
 			t.Fatalf("download rows = %d, want 0", got)
-		}
-		// Repeat view within 5 minutes coalesces; suffix range probe does not write a second row.
-		res, raw = doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=view", w.token, "Range", "bytes=-4")
-		if res.StatusCode != 206 || len(raw) != 4 {
-			t.Fatalf("suffix range intent=view: %d len=%d", res.StatusCode, len(raw))
-		}
-		if got := countLogs(t, id, service.DocumentAccessView); got != 1 {
-			t.Fatalf("coalesced view rows = %d, want 1", got)
 		}
 	})
 

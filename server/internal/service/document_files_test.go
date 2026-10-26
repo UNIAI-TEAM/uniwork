@@ -35,6 +35,19 @@ func TestDocumentUpload(t *testing.T) {
 			if res.Access.Level != DocumentLevelManage || res.Document.AclOwnerID.String != env.tn.member.ID {
 				t.Fatalf("creator access = %+v acl=%v", res.Access, res.Document.AclOwnerID)
 			}
+			// An empty action (used by suffix-range size probes) on a fresh document writes no access-log row.
+			pf, err := env.svc.OpenDocumentFile(ctx, member, res.Document.ID, 0, DocumentByteRange{Length: 1}, "")
+			if err != nil {
+				t.Fatalf("open probe: %v", err)
+			}
+			_ = pf.Reader.Close()
+			var probeRows int
+			if err := env.f.pool.QueryRow(ctx, `SELECT count(*) FROM document_access_logs WHERE document_id = $1`, res.Document.ID).Scan(&probeRows); err != nil {
+				t.Fatal(err)
+			}
+			if probeRows != 0 {
+				t.Fatalf("access-log rows after empty-action probe = %d, want 0", probeRows)
+			}
 			got := env.read(t, member, res.Document.ID, 0, DocumentByteRange{})
 			if sha(got) != sha(body) {
 				t.Fatalf("@files-smoke: downloaded checksum %s, uploaded %s", sha(got), sha(body))
@@ -46,23 +59,17 @@ func TestDocumentUpload(t *testing.T) {
 			if n := env.accessLogs(t, res.Document.ID, DocumentAccessDownload); n != 1 {
 				t.Fatalf("download access-log rows = %d, want 1 (reads coalesce within 5 minutes)", n)
 			}
-			// Opening with DocumentAccessView writes a separate view row that coalesces on its own;
-			// an empty action (used by suffix-range size probes) writes no row.
+			// Opening with DocumentAccessView writes a separate view row that coalesces on its own.
 			vf, err := env.svc.OpenDocumentFile(ctx, member, res.Document.ID, 0, DocumentByteRange{Length: 1}, DocumentAccessView)
 			if err != nil {
 				t.Fatalf("open view: %v", err)
 			}
 			_ = vf.Reader.Close()
-			pf, err := env.svc.OpenDocumentFile(ctx, member, res.Document.ID, 0, DocumentByteRange{Length: 1}, "")
-			if err != nil {
-				t.Fatalf("open probe: %v", err)
-			}
-			_ = pf.Reader.Close()
 			if n := env.accessLogs(t, res.Document.ID, DocumentAccessView); n != 1 {
 				t.Fatalf("view access-log rows = %d, want 1", n)
 			}
 			if n := env.accessLogs(t, res.Document.ID, DocumentAccessDownload); n != 1 {
-				t.Fatalf("download access-log rows after view/probe = %d, want 1", n)
+				t.Fatalf("download access-log rows after view = %d, want 1", n)
 			}
 		})
 
