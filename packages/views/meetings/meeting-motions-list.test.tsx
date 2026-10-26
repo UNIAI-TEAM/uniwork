@@ -205,7 +205,8 @@ describe("MeetingMotionsList — room", () => {
     const submit = await screen.findByRole("button", { name: "Gửi phiếu" });
     expect(submit).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("Đang bỏ phiếu")).toBeInTheDocument();
-    expect(screen.getByText("Đã bỏ phiếu 2/3")).toBeInTheDocument();
+    expect(screen.getByText("2/3 đã bỏ phiếu")).toBeInTheDocument();
+    expect(screen.getByText("Công khai")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cách tính phiếu" })).toBeInTheDocument();
     fireEvent.click(submit);
     expect(requestMock).not.toHaveBeenCalledWith(BALLOT, expect.anything());
@@ -271,6 +272,7 @@ describe("MeetingMotionsList — room", () => {
     expect(order[4]!.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // One vote runs at a time: the draft's open button waits and says why.
     const openDraft = await screen.findByRole("button", { name: "Mở biểu quyết: Chọn hình thức đào tạo" });
+    expect(openDraft).toHaveTextContent(/^Mở$/);
     expect(openDraft).toHaveAttribute("aria-disabled", "true");
     expect(openDraft).toHaveAttribute("title", "Đang có nội dung khác mở biểu quyết.");
     expect(openDraft).toHaveAccessibleDescription("Đang có nội dung khác mở biểu quyết.");

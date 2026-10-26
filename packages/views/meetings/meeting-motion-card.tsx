@@ -106,7 +106,7 @@ function RoomOpenCard({
         <ToneBadge tone="muted">{t(`meetings.governance.threshold_${threshold}`)}</ToneBadge>
         <ToneBadge tone="muted" className="gap-1">
           {secret ? <Lock aria-hidden className="size-3" /> : <Eye aria-hidden className="size-3" />}
-          {t(`meetings.governance.ballotMode_${secret ? "SECRET" : "PUBLIC"}`)}
+          {secret ? t("meetings.panel.votes.secret") : t("meetings.governance.ballotMode_PUBLIC")}
         </ToneBadge>
         <Popover>
           <PopoverTrigger
@@ -135,7 +135,7 @@ function RoomOpenCard({
       <div className="mt-3 mb-3.5 flex items-center gap-2.5">
         <RollPips cast={castCount} roll={roll} />
         <span className="text-caption font-semibold text-muted-foreground tabular-nums">
-          {t("meetings.governance.motionProgress", { cast: castCount, roll })}
+          {t("meetings.panel.votes.progress", { cast: castCount, roll })}
         </span>
       </div>
       <OwnBallot meetingId={meetingId} motion={motion} canVote={canVote} room />
@@ -395,7 +395,8 @@ export function MeetingMotionCard({
               className="bg-surface-hover hover:bg-surface-hover/70 aria-disabled:text-faint-foreground"
               onClick={onOpen}
             >
-              {t("meetings.governance.motionOpen")}
+              {/* The row's one action; the name says it in full. */}
+              {t("meetings.panel.votes.open")}
             </Button>
             {openBlocked ? (
               <span id={hintId} className="sr-only">

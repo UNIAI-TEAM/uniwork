@@ -5229,7 +5229,10 @@
         "done": "Done",
         "missing_one": "{{count}} person hasn't voted",
         "missing_other": "{{count}} people haven't voted",
-        "rulesHelp": "How votes count"
+        "rulesHelp": "How votes count",
+        "secret": "Secret",
+        "progress": "{{cast}} of {{roll}} voted",
+        "open": "Open"
       }
     }
   },

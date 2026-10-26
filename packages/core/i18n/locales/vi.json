@@ -5228,7 +5228,10 @@
         "done": "Đã xong",
         "missing_one": "Còn {{count}} người chưa bỏ phiếu",
         "missing_other": "Còn {{count}} người chưa bỏ phiếu",
-        "rulesHelp": "Cách tính phiếu"
+        "rulesHelp": "Cách tính phiếu",
+        "secret": "Kín",
+        "progress": "{{cast}}/{{roll}} đã bỏ phiếu",
+        "open": "Mở"
       }
     }
   },
