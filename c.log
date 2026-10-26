@@ -1,0 +1,12 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; cd server && go test -count=1 -v ./internal/handler -run '^(TestDocument.*|TestDocumentsAPI.*|TestSwaggerSpecFollowsChiRoutesAndSDI)$' -timeout 30m > /tmp/mv2-h.log 2>&1; rc=$?; grep -E "^\s*--- FAIL|^ok|^FAIL|panic" /tmp/mv2-h.log | head -60; grep -c -- "--- PASS" /tmp/mv2-h.log; echo; echo "GO_HANDLER_DOCS_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- FAIL: TestDocumentDownloadIntent (0.20s)
+    --- FAIL: TestDocumentDownloadIntent/no_intent_and_intent=download_write_download_and_coalesce (0.00s)
+    --- FAIL: TestDocumentDownloadIntent/invalid_intent_answers_400_invalid_request_and_writes_no_row (0.00s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/handler	24.084s
+FAIL
+109
+
+GO_HANDLER_DOCS_EXIT=1

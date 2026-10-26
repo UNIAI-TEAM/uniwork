@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^a3b5d0dd3" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=a3b5d0dd3d2437b46698699260516305f15ca4fb
+a3b5d0dd3 fix(documents): fix zoom slider width, track contrast, and focus ring
+1e4a31b55 fix(documents): resolve FE r1 review findings for image viewer
+603e6c7a7 test(documents): pin the suffix probe access rows
