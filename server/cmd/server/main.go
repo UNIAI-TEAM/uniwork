@@ -457,6 +457,24 @@ func main() {
 		Batch: cfg.MeetingOutboxBatch, Tick: cfg.MeetingWorkerTick, Log: log,
 	})
 	dispatcher.RegisterLane(outbox.LaneProvider, meetingSvc.ProviderConsumer())
+	var driveBox *secretbox.Box
+	if key, err := secretbox.LoadKey("DRIVE_CREDENTIAL_KEY"); err == nil {
+		if box, err := secretbox.New(key); err == nil {
+			driveBox = box
+		} else {
+			log.Warn("google drive connector disabled", "err", err)
+		}
+	} else if os.Getenv("DRIVE_CREDENTIAL_KEY") != "" {
+		log.Warn("google drive connector disabled", "err", err)
+	}
+	driveConnectionSvc := service.NewDriveConnectionService(pool, q, wsSvc, driveBox)
+	driveConnectionSvc.SetLogger(log)
+	driveConnectionSvc.ConfigureOAuth(cfg)
+	driveConnectionSvc.SetFlags(flags)
+	if reg != nil {
+		driveConnectionSvc.SetMetrics(reg.Drive)
+	}
+	dispatcher.RegisterLane(outbox.LaneProvider, driveConnectionSvc.RevocationConsumer())
 	realtimeConsumer := outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc)
 	dispatcher.Register(realtimeConsumer)
 	// Sockets are checked only when they connect or subscribe; this closes
@@ -770,23 +788,6 @@ func main() {
 		log.Warn("connected calendars disabled", "err", err)
 	}
 	calendarConnectionSvc := service.NewCalendarConnectionService(pool, q, wsSvc, calendarBox, cfg)
-	var driveBox *secretbox.Box
-	if key, err := secretbox.LoadKey("DRIVE_CREDENTIAL_KEY"); err == nil {
-		if box, err := secretbox.New(key); err == nil {
-			driveBox = box
-		} else {
-			log.Warn("google drive connector disabled", "err", err)
-		}
-	} else if os.Getenv("DRIVE_CREDENTIAL_KEY") != "" {
-		log.Warn("google drive connector disabled", "err", err)
-	}
-	driveConnectionSvc := service.NewDriveConnectionService(pool, q, wsSvc, driveBox)
-	driveConnectionSvc.SetLogger(log)
-	driveConnectionSvc.ConfigureOAuth(cfg)
-	driveConnectionSvc.SetFlags(flags)
-	if reg != nil {
-		driveConnectionSvc.SetMetrics(reg.Drive)
-	}
 	driveWorkersDone := make(chan struct{})
 	go func() { driveConnectionSvc.RunWorkers(runCtx); close(driveWorkersDone) }()
 	// Personal AI provider keys (ADR 0029): without AI_CREDENTIAL_KEY the
@@ -818,6 +819,9 @@ func main() {
 	orgMemberSvc.SetEmailHub(emailHubSvc)
 	wsSvc.SetEmailHub(emailHubSvc)
 	authSvc.SetEmailHub(emailHubSvc)
+	orgMemberSvc.SetDrive(driveConnectionSvc)
+	wsSvc.SetDrive(driveConnectionSvc)
+	authSvc.SetDrive(driveConnectionSvc)
 	go emailHubSvc.RunWorkers(runCtx)
 	go emailHubSvc.RunHubWatchers(runCtx)
 	graphSvc := service.NewGraphService(q, orgSvc, wsSvc, chatSvc)

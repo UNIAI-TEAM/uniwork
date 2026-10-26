@@ -58,6 +58,9 @@ type OrganizationMemberService struct {
 	// emailHub is optional: wired, Leave revokes the OAuth grants of the
 	// mailboxes it disconnects (spec §5.5).
 	emailHub *EmailHubService
+	// drive is optional: wired, Close revokes the Google Drive grants of the
+	// connections it disconnects after commit (spec §5.3a).
+	drive *DriveConnectionService
 }
 
 func NewOrganizationMemberService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService) *OrganizationMemberService {
@@ -70,6 +73,9 @@ func (s *OrganizationMemberService) SetFiles(f files.Service) { s.files = f }
 // SetEmailHub lets Leave revoke the refresh tokens it removes; main wires it
 // once EmailHubService exists.
 func (s *OrganizationMemberService) SetEmailHub(h *EmailHubService) { s.emailHub = h }
+
+// SetDrive lets Close revoke the Google Drive grants it disconnects after commit.
+func (s *OrganizationMemberService) SetDrive(d *DriveConnectionService) { s.drive = d }
 
 // MemberPage is one keyset page of the organization's membership.
 type MemberPage struct {

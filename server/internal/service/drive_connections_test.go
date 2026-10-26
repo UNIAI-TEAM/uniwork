@@ -31,6 +31,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	"github.com/unicomhub/uniwork/server/internal/util/secretbox"
@@ -1805,5 +1806,119 @@ func TestDriveRevocationUnsealRetryConfigAndBoundedResolve(t *testing.T) {
 	rowAfterTimeout, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-bounded-res")
 	if err != nil || rowAfterTimeout.ResolvedAt.Valid || !rowAfterTimeout.RefreshTokenEnc.Valid || !rowAfterTimeout.AttemptID.Valid {
 		t.Fatalf("row after resolve timeout must keep ciphertext and stay retryable: %+v, err=%v", rowAfterTimeout, err)
+	}
+}
+
+// TestDriveProviderLaneAndOrganizationClosePostCommit covers R1-6 and R1-7:
+//   - R1-6: RevocationConsumer is registered with dispatcher.RegisterLane(outbox.LaneProvider, ...)
+//     and executes the revocation for the sub of the connection named by the
+//     drive_connection.changed outbox event emitted on disconnect/lifecycle.
+//   - R1-7: Close, invitation switch (SwitchActionClose), and sole-owner DeleteAccount
+//     carry the disconnected Drive subs out of the membership transaction and
+//     trigger their revocation in post-commit cleanup (never inside the membership
+//     transaction); if the transaction fails / rolls back, no provider call is made.
+func TestDriveProviderLaneAndOrganizationClosePostCommit(t *testing.T) {
+	fx := newDriveTestFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(fx.pool, fx.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	as.SetDrive(fx.svc)
+	fx.ws.SetDrive(fx.svc)
+	memberSvc := NewOrganizationMemberService(fx.pool, fx.q, fx.orgs)
+	memberSvc.SetDrive(fx.svc)
+
+	connectInWS := func(userID, wsID, code string) string {
+		u, nonce, err := fx.svc.StartOAuth(ctx, Human(userID), wsID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		st, _ := extractStateFromAuthURL(t, u)
+		if got := fx.svc.CompleteOAuth(ctx, st, code, "", "", nonce); got != DriveOAuthConnected {
+			t.Fatalf("CompleteOAuth(%s) = %q", code, got)
+		}
+		list, err := fx.svc.List(ctx, Human(userID), wsID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range list {
+			if c.GoogleEmail == "drive-"+code+"@example.com" {
+				return c.ID
+			}
+		}
+		t.Fatalf("connection %s not found", code)
+		return ""
+	}
+
+	// 1. R1-6: Provider lane consumer registration and outbox event handling.
+	dispatcher := outbox.New(fx.pool, fx.q, outbox.Options{Batch: 10, Tick: 20 * time.Millisecond})
+	dispatcher.RegisterLane(outbox.LaneProvider, fx.svc.RevocationConsumer())
+
+	connLane := connectInWS(fx.user.ID, fx.work.ID, "lane-sub")
+	if err := fx.svc.Disconnect(ctx, Human(fx.user.ID), fx.work.ID, connLane); err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	dispCtx, cancelDisp := context.WithCancel(ctx)
+	dispDone := make(chan struct{})
+	go func() {
+		dispatcher.Run(dispCtx)
+		close(dispDone)
+	}()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		rev, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-lane-sub")
+		if err == nil && rev.ResolvedAt.Valid && !rev.RefreshTokenEnc.Valid {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	cancelDisp()
+	<-dispDone
+	revLane, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-lane-sub")
+	if err != nil || !revLane.ResolvedAt.Valid || revLane.RefreshTokenEnc.Valid {
+		t.Fatalf("provider lane consumer did not resolve fake-sub-lane-sub: %+v, err=%v", revLane, err)
+	}
+
+	// 2. R1-7: Organization Close — rollback (wrong confirmSlug) makes NO provider
+	// call and leaves connection active; commit disconnects inside the transaction
+	// and invokes provider RevokeToken ONLY after the transaction has committed.
+	ownerClose := registerVerified(t, fx.q, as, "r1-7-close-"+util.NewID()+"@example.com", "OwnerClose")
+	orgClose, err := fx.orgs.Create(ctx, ownerClose.ID, "Close Org", "r1-7-close-"+strings.ToLower(util.NewID()[:8]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsCloseView, err := fx.ws.CreateInOrg(ctx, ownerClose.ID, orgClose.ID, "WS Close", "ws-close")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = connectInWS(ownerClose.ID, wsCloseView.Workspace.ID, "close-sub")
+	beforeRevokeLen := len(fx.fake.RevokeCalls())
+
+	// Rollback case: wrong confirmSlug -> fails and rolls back -> zero Google calls.
+	if err := memberSvc.Close(ctx, ownerClose.ID, orgClose.ID, "wrong-slug"); err == nil {
+		t.Fatal("Close with wrong slug must fail")
+	}
+	if got := len(fx.fake.RevokeCalls()); got != beforeRevokeLen {
+		t.Fatalf("RevokeCalls after rolled-back Close = %d, want %d", got, beforeRevokeLen)
+	}
+
+	// Commit case: inside RevokeToken hook, readorganizations table on a separate
+	// pool connection to prove the Close transaction has already committed ("archived")
+	// before any Google call happens!
+	var orgStatusDuringRevoke string
+	fx.fake.SetRevoke(func(rctx context.Context, token string) error {
+		if token == "fake-drive-refresh-close-sub" {
+			_ = fx.pool.QueryRow(rctx, `SELECT status FROM organizations WHERE id = $1`, orgClose.ID).Scan(&orgStatusDuringRevoke)
+		}
+		return nil
+	})
+	if err := memberSvc.Close(ctx, ownerClose.ID, orgClose.ID, orgClose.Slug); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	fx.fake.SetRevoke(nil)
+	if orgStatusDuringRevoke != "archived" {
+		t.Fatalf("org status visible on independent connection during RevokeToken = %q, want archived (proving post-commit execution)", orgStatusDuringRevoke)
+	}
+	revClose, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-close-sub")
+	if err != nil || !revClose.ResolvedAt.Valid || revClose.RefreshTokenEnc.Valid {
+		t.Fatalf("revClose after Close post-commit cleanup = %+v, err=%v", revClose, err)
 	}
 }

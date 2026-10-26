@@ -75,8 +75,9 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 		return err
 	}
 	var closedMailboxes []db.DisconnectEmailHubAccountsForUserRow
+	var closedDriveSubs []string
 	if owned > 0 {
-		if closedMailboxes, err = closeSoleOrganization(ctx, qtx, userID, closeSlug); err != nil {
+		if closedMailboxes, closedDriveSubs, err = closeSoleOrganization(ctx, qtx, userID, closeSlug); err != nil {
 			return err
 		}
 		// Anything still owned (a second organization from before ADR 0032,
@@ -149,7 +150,8 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err != nil {
 		return err
 	}
-	if _, err := disconnectDriveConnectionsForUserInTx(ctx, qtx, audit.User(userID), userID, "", "account_deleted"); err != nil {
+	driveSubs, err := disconnectDriveConnectionsForUserInTx(ctx, qtx, audit.User(userID), userID, "", "account_deleted")
+	if err != nil {
 		return err
 	}
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
@@ -203,7 +205,7 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
 	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, append(closedMailboxes, mailboxes...))
-	// u was read before AnonymizeUser cleared the Apple columns.
+	cleanUpDriveGrantsAfterCommit(ctx, s.drive, append(closedDriveSubs, driveSubs...))
 	s.apple.revokeAfterCommit(ctx, userID, u.AppleClientID.String, u.AppleRefreshTokenEnc.String)
 	return nil
 }
@@ -213,20 +215,20 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 // checks: the caller owns it, it is active, nobody else is an active member,
 // the slug matches. Its organization.closed row says the account deletion
 // closed it. A slug naming no organization the account owns is a mismatch.
-func closeSoleOrganization(ctx context.Context, q *db.Queries, userID, slug string) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
+func closeSoleOrganization(ctx context.Context, q *db.Queries, userID, slug string) ([]db.DisconnectEmailHubAccountsForUserRow, []string, error) {
 	if err := lockMembership(ctx, q, userID); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	orgs, err := activeOrganizations(ctx, q, userID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, o := range orgs {
 		if o.Role == OrgRoleOwner && o.Slug == slug {
 			return closeOrganizationQ(ctx, q, userID, o.ID, slug, map[string]any{"reason": "account_deleted"})
 		}
 	}
-	return nil, errCloseConfirmMismatch()
+	return nil, nil, errCloseConfirmMismatch()
 }
 
 // ownerMustTransfer is owner_must_transfer naming the first organization the

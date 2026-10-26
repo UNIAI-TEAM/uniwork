@@ -414,6 +414,30 @@ func (q *Queries) GetDriveConnectionForShare(ctx context.Context, arg GetDriveCo
 	return i, err
 }
 
+const getDriveConnectionSubByID = `-- name: GetDriveConnectionSubByID :one
+SELECT google_sub, disconnected_at
+FROM drive_connections
+WHERE id = $1
+  AND organization_id = $2
+`
+
+type GetDriveConnectionSubByIDParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+type GetDriveConnectionSubByIDRow struct {
+	GoogleSub      string             `json:"google_sub"`
+	DisconnectedAt pgtype.Timestamptz `json:"disconnected_at"`
+}
+
+func (q *Queries) GetDriveConnectionSubByID(ctx context.Context, arg GetDriveConnectionSubByIDParams) (GetDriveConnectionSubByIDRow, error) {
+	row := q.db.QueryRow(ctx, getDriveConnectionSubByID, arg.ID, arg.OrganizationID)
+	var i GetDriveConnectionSubByIDRow
+	err := row.Scan(&i.GoogleSub, &i.DisconnectedAt)
+	return i, err
+}
+
 const getDriveGrantRevocationForUpdate = `-- name: GetDriveGrantRevocationForUpdate :one
 SELECT google_sub, generation, requested_at, refresh_token_enc, attempt_id, attempt_started_at, resolved_at, last_attempt_started_at, last_resolved_at, attempts, last_error
 FROM drive_grant_revocations

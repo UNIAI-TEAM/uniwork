@@ -164,6 +164,7 @@ type acceptOutcome struct {
 	// retried is an invitation this account already accepted (EC-12).
 	retried   bool
 	mailboxes []db.DisconnectEmailHubAccountsForUserRow
+	driveSubs []string
 }
 
 // AcceptInvite turns one invitation into membership, in a single transaction
@@ -205,6 +206,7 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 		return AcceptResult{}, lockRaceAsBusy(err)
 	}
 	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.members.emailHub, out.mailboxes)
+	cleanUpDriveGrantsAfterCommit(ctx, s.members.drive, out.driveSubs)
 	result := AcceptResult{Organization: out.org}
 	if out.workspaceID == "" {
 		landing, err := s.landingWorkspace(ctx, userID, out.invitationID, out.org.ID)
@@ -370,7 +372,7 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 	if !ok {
 		return acceptOutcome{}, errOrganizationSwitchRequired(conflicts)
 	}
-	mailboxes, err := s.giveUp(ctx, qtx, userID, conflicts, plan, locked)
+	mailboxes, driveSubs, err := s.giveUp(ctx, qtx, userID, conflicts, plan, locked)
 	if err != nil {
 		return acceptOutcome{}, err
 	}
@@ -446,7 +448,7 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 	if err := tx.Commit(ctx); err != nil {
 		return acceptOutcome{}, err
 	}
-	return acceptOutcome{org: org, invitationID: inv.ID, workspaceID: inv.WorkspaceID.String, mailboxes: mailboxes}, nil
+	return acceptOutcome{org: org, invitationID: inv.ID, workspaceID: inv.WorkspaceID.String, mailboxes: mailboxes, driveSubs: driveSubs}, nil
 }
 
 // giveUp runs the resolution of every conflict in organization id order, the
@@ -460,21 +462,23 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 // correlation id ties the two for the platform.
 func (s *WorkspaceService) giveUp(ctx context.Context, q *db.Queries, userID string,
 	conflicts []MembershipConflict, plan map[string]SwitchResolution, locked map[string]bool,
-) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
+) ([]db.DisconnectEmailHubAccountsForUserRow, []string, error) {
 	ordered := append([]MembershipConflict(nil), conflicts...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Organization.ID < ordered[j].Organization.ID })
 	meta := map[string]any{"reason": "organization_switch"}
 	var mailboxes []db.DisconnectEmailHubAccountsForUserRow
+	var driveSubs []string
 	for _, c := range ordered {
 		orgID := c.Organization.ID
 		if !locked[orgID] {
 			// The account's lock keeps its memberships from growing, so
 			// every conflict was among the rows taken; this is the guard.
-			return nil, errSwitchStale
+			return nil, nil, errSwitchStale
 		}
 		r := plan[orgID]
 		var (
 			rows []db.DisconnectEmailHubAccountsForUserRow
+			subs []string
 			err  error
 		)
 		switch r.Action {
@@ -487,16 +491,17 @@ func (s *WorkspaceService) giveUp(ctx context.Context, q *db.Queries, userID str
 				rows, err = s.members.leaveQ(ctx, q, userID, orgID, meta)
 			}
 		case SwitchActionClose:
-			rows, err = s.members.closeQ(ctx, q, userID, orgID, r.ConfirmSlug, meta)
+			rows, subs, err = s.members.closeQ(ctx, q, userID, orgID, r.ConfirmSlug, meta)
 		default:
 			err = errSwitchStale
 		}
 		if err != nil {
-			return nil, staleResolution(err)
+			return nil, nil, staleResolution(err)
 		}
 		mailboxes = append(mailboxes, rows...)
+		driveSubs = append(driveSubs, subs...)
 	}
-	return mailboxes, nil
+	return mailboxes, driveSubs, nil
 }
 
 // Invitation states, as the invitation page shows them (spec §4.3).

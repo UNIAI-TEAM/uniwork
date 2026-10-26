@@ -63,6 +63,12 @@ WHERE id = sqlc.arg('id')
   AND user_id = sqlc.arg('user_id')
   AND disconnected_at IS NULL;
 
+-- name: GetDriveConnectionSubByID :one
+SELECT google_sub, disconnected_at
+FROM drive_connections
+WHERE id = sqlc.arg('id')
+  AND organization_id = sqlc.arg('organization_id');
+
 -- name: GetDriveConnectionForShare :one
 -- Shared lock used when verifying source liveness before saving a task proposal
 -- or creating tasks from a proposal (spec §8.2b).

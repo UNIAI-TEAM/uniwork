@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -63,6 +65,86 @@ func enqueueDriveGrantRevocationQ(ctx context.Context, qtx *db.Queries, googleSu
 		return nil
 	}
 	return err
+}
+
+// RevocationConsumer returns the outbox.Consumer registered on outbox.LaneProvider
+// to process Google Drive grant revocations when drive_connection.changed is
+// emitted on disconnect or lifecycle transitions (spec §5.3b, R1-6).
+func (s *DriveConnectionService) RevocationConsumer() outbox.Consumer {
+	return driveRevocationConsumer{s: s}
+}
+
+type driveRevocationConsumer struct {
+	s *DriveConnectionService
+}
+
+func (driveRevocationConsumer) Name() string {
+	return "drive-grant-revocation"
+}
+
+func (driveRevocationConsumer) Topics() []string {
+	return []string{"drive_connection.changed"}
+}
+
+func (c driveRevocationConsumer) Handle(ctx context.Context, ev outbox.Row) error {
+	if c.s == nil || c.s.q == nil || c.s.pool == nil || !c.s.RevocationAvailable() {
+		return nil
+	}
+	var payload struct {
+		ConnectionID string `json:"connection_id"`
+	}
+	if err := json.Unmarshal([]byte(ev.Payload), &payload); err != nil || payload.ConnectionID == "" || !ev.OrganizationID.Valid {
+		return nil
+	}
+	row, err := c.s.q.GetDriveConnectionSubByID(ctx, db.GetDriveConnectionSubByIDParams{
+		ID:             payload.ConnectionID,
+		OrganizationID: ev.OrganizationID.String,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !row.DisconnectedAt.Valid || row.GoogleSub == "" {
+		return nil
+	}
+	return c.s.processOneRevocationForConsumer(ctx, row.GoogleSub)
+}
+
+func (s *DriveConnectionService) processOneRevocationForConsumer(ctx context.Context, googleSub string) error {
+	if s == nil || s.q == nil || s.pool == nil || !s.RevocationAvailable() || googleSub == "" {
+		return nil
+	}
+	claimed, ok, err := s.claimRevocationAttempt(ctx, googleSub)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	if s.executeClaimedRevocation(ctx, googleSub, claimed) {
+		return nil
+	}
+	return errors.New("drive grant revocation attempt failed; retry scheduled")
+}
+
+// cleanUpDriveGrantsAfterCommit triggers immediate post-commit revocation for
+// the google_subs disconnected during an organization close, invitation switch
+// or account deletion (spec §5.3a, R1-7).
+func cleanUpDriveGrantsAfterCommit(ctx context.Context, drive *DriveConnectionService, subs []string) {
+	if drive == nil || len(subs) == 0 {
+		return
+	}
+	ctx = context.WithoutCancel(ctx)
+	seen := make(map[string]bool, len(subs))
+	for _, sub := range subs {
+		if sub == "" || seen[sub] {
+			continue
+		}
+		seen[sub] = true
+		drive.ProcessOneRevocation(ctx, sub)
+	}
 }
 
 // RunWorkers runs the background revocation worker and the hourly evidence
@@ -142,7 +224,10 @@ func (s *DriveConnectionService) ProcessOneRevocation(ctx context.Context, googl
 	if !ok {
 		return false
 	}
+	return s.executeClaimedRevocation(ctx, googleSub, claimed)
+}
 
+func (s *DriveConnectionService) executeClaimedRevocation(ctx context.Context, googleSub string, claimed db.DriveGrantRevocation) bool {
 	if s.testAfterRevocationClaimTx != nil {
 		s.testAfterRevocationClaimTx(googleSub, claimed)
 	}
