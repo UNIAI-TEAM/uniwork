@@ -1,0 +1,6 @@
+$ grep -E "^\s*--- FAIL|^(FAIL|panic)|WARNING: DATA RACE|not formatted|^staticcheck|vet:" /tmp/pr8r2-go-service-f.log | cut -c1-250 | head -80
+WARNING: DATA RACE
+--- FAIL: TestInviteLinkJoinsDoNotDeadlockSmallPool (0.34s)
+FAIL
+FAIL	github.com/unicomhub/uniwork/server/internal/service	182.313s
+FAIL
