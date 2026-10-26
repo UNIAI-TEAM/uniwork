@@ -1,0 +1,6 @@
+$ pnpm install --frozen-lockfile > /tmp/dw3-install.log 2>&1; rc=$?; tail -3 /tmp/dw3-install.log; echo; echo "INSTALL_EXIT=$rc"
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 5.8s using pnpm v10.28.2
+
+INSTALL_EXIT=0

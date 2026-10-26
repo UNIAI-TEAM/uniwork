@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^5bebdb94f" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=5bebdb94fe5a53cb3af25d350f5dfc8f98c7eae6
+5bebdb94f fix(drive): centralize ?connect=drive handling and focus intent in SettingsPage
+450999932 Merge remote-tracking branch 'origin/feature/UNI-923-office-g5-g6-g7' into feature/UNI-2186-drive-web
+d2feb9d0a docs(drive): record the S6 office-engine extraction spike
