@@ -1187,6 +1187,16 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		tn.ids["aiMemoryProposal"], tn.orgID, tn.wsID, tn.ids["conversation"], tn.ids["aiAnswer"], m+" memory proposal", tn.userID); err != nil {
 		t.Fatalf("ask uni memory proposal: %v", err)
 	}
+
+	// A connected Google Drive account (UNI-2177, B1): seeded so drive_connections
+	// holds a row of the tenant's and the isolation matrix hashes it before and after.
+	tn.ids["driveConnection"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_connections
+		(id, organization_id, user_id, provider, google_sub, google_email, refresh_token_enc, access_token_enc, access_expires_at, credential_version, scopes)
+		VALUES ($1, $2, $3, 'google', $4, $5, $6, $6, now() + interval '1 hour', 1, 'openid email https://www.googleapis.com/auth/drive.file')`,
+		tn.ids["driveConnection"], tn.orgID, tn.userID, "sub-"+strings.ToLower(m), strings.ToLower(m)+"-drive@example.com", base64.StdEncoding.EncodeToString(tokenEnc)); err != nil {
+		t.Fatalf("drive connection: %v", err)
+	}
 }
 
 // buildWorkspaceAliases leaves an old task prefix and an old slug on record and

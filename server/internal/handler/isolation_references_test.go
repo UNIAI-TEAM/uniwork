@@ -693,6 +693,32 @@ var isoRefFieldExempt = map[string]string{
 	"CommitOfficeFrameVersionSDI.edit_lock_id": editLockIDExempt,
 	"AcquireDocumentEditLockSDI.editor_id":     "a client-minted editor instance id, not a row",
 	"TakeOverDocumentEditLockSDI.editor_id":    "a client-minted editor instance id, not a row",
+
+	// Google Drive connector (UNI-2172 §13): external_file_id(s) are Google's
+	// file ids, not UniWork tenant rows. The tenant-row id fields land in
+	// B1's contract-first DTOs (UNI-2177) before their routes exist; each
+	// moves from this list to an isoReferences case in the card that registers
+	// its route (B2: StartDriveGoogleOAuthSDI; B4: CreateTaskDriveFileSDI,
+	// LinkDriveFilesSDI, GrantDriveFileAccessSDI, RebindDriveFileSDI; B5:
+	// CreateDriveTaskProposalSDI, CheckDriveTaskProposalDuplicatesSDI; B6:
+	// CreateTasksFromDriveProposalSDI, DriveProposalTaskItemSDI).
+	"CreateTaskDriveFileSDI.external_file_id":            "id of the file on Google Drive, not a UniWork tenant row (spec §13)",
+	"LinkDriveFilesSDI.external_file_ids":                "ids of files on Google Drive, not UniWork tenant rows (spec §13)",
+	"StartDriveGoogleOAuthSDI.reconnect_connection_id":   "contract-first DTO (UNI-2177); route and isoReferences case register in B2 (UNI-2178)",
+	"CreateTaskDriveFileSDI.connection_id":               "contract-first DTO (UNI-2177); wired into CreateTaskSDI and isoReferences in B4 (UNI-2180)",
+	"LinkDriveFilesSDI.connection_id":                    "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
+	"LinkDriveFilesSDI.task_id":                          "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
+	"GrantDriveFileAccessSDI.connection_id":              "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
+	"RebindDriveFileSDI.connection_id":                   "contract-first DTO (UNI-2177); route and isoReferences case register in B4 (UNI-2180)",
+	"CreateDriveTaskProposalSDI.project_id":              "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
+	"CreateDriveTaskProposalSDI.parent_task_id":          "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
+	"CreateDriveTaskProposalSDI.context_task_id":         "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
+	"CheckDriveTaskProposalDuplicatesSDI.project_id":     "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
+	"CheckDriveTaskProposalDuplicatesSDI.parent_task_id": "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
+	"CreateTasksFromDriveProposalSDI.project_id":         "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
+	"CreateTasksFromDriveProposalSDI.parent_task_id":     "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
+	"DriveProposalTaskItemSDI.assignee_id":               "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
+	"DriveProposalTaskItemSDI.label_ids":                 "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
 }
 
 // A body field that names another row is an attack surface the path passes
