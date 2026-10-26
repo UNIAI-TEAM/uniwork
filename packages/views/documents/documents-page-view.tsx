@@ -21,7 +21,6 @@ import { OfficeHomeLaunch, type OfficeHomeLaunchProps } from "../office/office-h
 import { DocumentsDropOverlay } from "./documents-drop-overlay";
 import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { isParentWorkspaceShared, useCreateOfType } from "./documents-create";
-import { CreateMenu } from "./documents-home-create";
 import { DocumentsCollectionHeader, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { docListGroupScreen, groupRowsByDate } from "./doclist/date-groups";
@@ -365,8 +364,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const screenHead = !homeView && view.kind !== "archived";
   const collectionHeader = gate !== "on";
   // Gần đây's Mở tiếp cards (recent-canvas): only while no filter or search narrows the list, and while the rows
-  // sit in the screen's own order (under another sort they are the newest of what loaded, not of everything).
-  const cards = view.kind === "recent" && !filtered && !search.active && library.ownOrderShown ? continueCards(state.rows) : [];
+  const searching = search.active && view.kind !== "archived";
+  const cards = view.kind === "recent" && !filtered && !searching && library.ownOrderShown ? continueCards(state.rows) : [];
   const libraryList = (
     <DocumentsLibraryList
       groups={groups}
@@ -403,16 +402,12 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     updated: library.updated,
     onUpdated: library.setUpdated,
     search: searchBox,
+    searching,
   };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {collectionHeader ? (
-        <DocumentsCollectionHeader search={enabled ? search : null}>
-          {hostActions}
-          {canCreate ? <CreateMenu {...createProps} /> : null}
-        </DocumentsCollectionHeader>
-      ) : null}
+      {collectionHeader ? <DocumentsCollectionHeader /> : null}
 
       {gate !== "on" ? (
         <DocumentsGateState gate={gate} retry={retryGate} />
@@ -447,24 +442,27 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 <DocumentsScreenHead view={view} actions={navButton} />
               </div>
             ) : null}
-            {folderInvalid && !search.active ? (
-              <CollectionPageState
-                icon={CircleAlert}
-                tone="destructive"
-                role="alert"
-                title={t("documents.home.folder_invalid.title")}
-                description={t("documents.home.folder_invalid.description")}
-                actions={
-                  <AppLink
-                    href={wsPaths.documents()}
-                    className={buttonVariants({ variant: "outline", size: "sm" })}
-                    onClick={() => setView({ kind: "home" })}
-                  >
-                    {t("documents.home.folder_invalid.back")}
-                  </AppLink>
-                }
-              />
-            ) : view.kind === "archived" && !search.active ? (
+            {folderInvalid && !searching ? (
+              <>
+                <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 pt-5 sm:px-6">{searchBox}</div>
+                <CollectionPageState
+                  icon={CircleAlert}
+                  tone="destructive"
+                  role="alert"
+                  title={t("documents.home.folder_invalid.title")}
+                  description={t("documents.home.folder_invalid.description")}
+                  actions={
+                    <AppLink
+                      href={wsPaths.documents()}
+                      className={buttonVariants({ variant: "outline", size: "sm" })}
+                      onClick={() => setView({ kind: "home" })}
+                    >
+                      {t("documents.home.folder_invalid.back")}
+                    </AppLink>
+                  }
+                />
+              </>
+            ) : view.kind === "archived" ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-5 sm:px-6">
                 <div className="flex justify-end xl:hidden">{navButton}</div>
                 <DocumentsTrashView
@@ -489,7 +487,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
               </div>
             ) : (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
-                {homeView && canCreate && !search.active ? <DocumentsHomeNote create={folderId ? null : createProps} /> : null}
+                {homeView && canCreate && !searching ? <DocumentsHomeNote create={folderId ? null : createProps} /> : null}
                 {!homeView && cards.length > 0 ? <RecentContinue cards={cards} onOpen={onOpen} /> : null}
                 {view.kind === "shelved" ? (
                   <DocumentsShelvedView
@@ -501,8 +499,12 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                     bulk={bulkCommands.bulk}
                     selectionKey={selectionKey}
                     search={searchBox}
-                    showList={!search.active}
-                    actions={{ onUnshelve: shelvedActions.onUnshelve, onTrash: (doc) => rowDialogs.onArchive(doc), isUnshelving: shelvedActions.isUnshelving }}
+                    showList={!searching}
+                    actions={{
+                      onUnshelve: shelvedActions.onUnshelve,
+                      onTrash: (doc) => rowDialogs.onArchive(doc),
+                      isUnshelving: shelvedActions.isUnshelving,
+                    }}
                   />
                 ) : view.kind !== "archived" ? (
                   <LibraryToolbar
@@ -511,11 +513,14 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                     className={homeView ? "border-t border-border pt-4" : undefined}
                   />
                 ) : null}
-                {search.active ? (
+                {searching ? (
                   <DocumentsSearchResults
                     search={search}
                     myFolderId={myFolderId}
-                    onSelectFolder={(id) => { search.clear(); goHome({ kind: "home" }, id); }}
+                    onSelectFolder={(id) => {
+                      search.clear();
+                      goHome({ kind: "home" }, id);
+                    }}
                     onSelectDocument={onOpen}
                   />
                 ) : view.kind === "shelved" ? null : homeView ? (

@@ -16,10 +16,10 @@ export interface DocumentsSearchBoxProps {
 
 /**
  * Search input for the Documents filter row (and header rows on screens without
- * a filter bar). Compact at rest (~14rem), widens smoothly on focus or while holding
- * a query (~20rem), and wraps to its own full-width line below the row's container
- * breakpoint. Ignores intermediate IME composition keystrokes and clears on Escape
- * or the clear button.
+ * a filter bar). Compact at rest (14rem basis/max-width), widens smoothly into
+ * free space on focus or while holding a query (up to 20rem), and wraps to its
+ * own full-width line below the row's container breakpoint. Ignores intermediate
+ * IME composition keystrokes and clears on Escape or the clear button.
  */
 export function DocumentsSearchBox({ search, className, folderPlaceholder = false }: DocumentsSearchBoxProps) {
   const { t } = useTranslation();
@@ -28,7 +28,7 @@ export function DocumentsSearchBox({ search, className, folderPlaceholder = fals
     <div
       data-expanded={hasQuery ? "true" : "false"}
       className={cn(
-        "relative flex min-w-0 max-w-full basis-full items-center transition-[width] duration-200 ease-out motion-reduce:transition-none @min-[48rem]:ml-auto @min-[48rem]:w-56 @min-[48rem]:basis-auto @min-[48rem]:focus-within:w-80 @min-[48rem]:data-[expanded=true]:w-80",
+        "relative flex min-w-0 max-w-full basis-full items-center transition-[max-width] duration-200 ease-out motion-reduce:transition-none @min-[48rem]:ml-auto @min-[48rem]:grow @min-[48rem]:basis-56 @min-[48rem]:max-w-56 @min-[48rem]:focus-within:max-w-80 @min-[48rem]:data-[expanded=true]:max-w-80",
         className,
       )}
     >

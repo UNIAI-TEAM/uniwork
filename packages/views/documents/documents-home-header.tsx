@@ -18,8 +18,6 @@ import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import { folderMenuItems } from "./documents-folders-grid";
-import { DocumentsSearchBox } from "./documents-search-box";
-import type { UseDocumentsSearchResult } from "./use-documents-search";
 import { FolderBreadcrumb } from "./folder-breadcrumb";
 import { CreateMenu, QuickCreateRow, type CreateChoicesProps } from "./documents-home-create";
 
@@ -97,10 +95,8 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
         </DropdownMenuContent>
       </DropdownMenu>
     ) : null;
-  // The row is a size container: the content width is the viewport minus the app and documents
-  // sidebars, so only the row itself says whether the search box fits beside the actions.
   return (
-    <div className="@container flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <div className="flex min-w-0 flex-1 basis-72 items-center">
         {folderDoc ? (
           <FolderBreadcrumb
@@ -145,26 +141,13 @@ export function DocumentsHomeNote({ create }: { create: CreateChoicesProps | nul
 }
 
 /** The collection header the gate states keep. */
-export function DocumentsCollectionHeader({ search, children }: { search: UseDocumentsSearchResult | null; children?: React.ReactNode }) {
+export function DocumentsCollectionHeader() {
   const { t } = useTranslation();
   return (
     <CollectionPageHeader
       icon={MODULE_ICONS.documents}
       tone={moduleTone("documents")}
       title={t("documents.page.title")}
-      className={
-        search
-          ? "@container h-auto min-h-12 flex-wrap py-2 sm:h-12 sm:flex-nowrap sm:py-0 [&>div:last-child]:contents sm:[&>div:last-child]:flex"
-          : undefined
-      }
-      actions={
-        search ? (
-          <>
-            <DocumentsSearchBox search={search} className="order-last sm:order-first sm:w-56 sm:basis-auto sm:focus-within:w-80 sm:data-[expanded=true]:w-80" />
-            <div className="flex shrink-0 items-center gap-2">{children}</div>
-          </>
-        ) : null
-      }
     />
   );
 }

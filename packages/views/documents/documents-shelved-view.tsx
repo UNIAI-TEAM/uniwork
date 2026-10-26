@@ -38,6 +38,7 @@ export interface DocumentsShelvedViewProps {
   /** False while search results replace the table below the toolbar (UNI-2205). */
   showList?: boolean;
 }
+
 /**
  * The Lưu trữ view (Archive.dc, ARCHIVE-01 U-2): under the shared screen head
  * (its h1 and intro, documents-screen-head.tsx), the shelved toolbar (the shared filter bar + "Lưu trữ bởi") and the shared document list
@@ -75,6 +76,7 @@ export function DocumentsShelvedView({ library, types, onTypes, members, handler
         shelvedBy={library.shelvedBy}
         onShelvedBy={library.setShelvedBy}
         search={search}
+        searching={!showList}
       />
       {showList ? (
         <DocumentsLibraryList

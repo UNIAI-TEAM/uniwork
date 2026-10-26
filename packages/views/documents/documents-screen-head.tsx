@@ -25,7 +25,7 @@ export function DocumentsScreenHead({ view, actions }: DocumentsScreenHeadProps)
   const title = shelved ? t("documents.shelved_list.title") : t(`documents.home.views.${view.kind === "sources" ? (view.source ?? "sources") : kind}`);
   const subtitle = shelved ? t("documents.shelved_list.intro") : t(`documents.home.view_subtitle.${kind}`);
   return (
-    <div className="@container flex flex-wrap items-end justify-between gap-3">
+    <div className="flex flex-wrap items-end justify-between gap-3">
       <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1">
         <h1 className="truncate text-title font-semibold">{title}</h1>
         <p className="text-caption text-muted-foreground">{subtitle}</p>
