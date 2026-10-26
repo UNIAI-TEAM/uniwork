@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -838,7 +839,7 @@ func TestDriveForceRefreshAfterRejectedToken(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return enc
+		return base64.StdEncoding.EncodeToString(enc)
 	}
 
 	const (
