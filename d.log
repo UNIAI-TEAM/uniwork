@@ -1,0 +1,8 @@
+$ pnpm knip --workspace apps/chat-mobile 2>&1 | tail -30; rc=${PIPESTATUS[0]}; echo; echo "MOBILE_KNIP_EXIT=$rc"; [ $rc -eq 0 ]
+
+> uniwork@ knip /workspace
+> knip --workspace apps/chat-mobile
+
+Your Expo app does not have a 'userInterfaceStyle' setting which can to confusing color scheme behavior. Please set a 'userInterfaceStyle' to remove this warning (recommended 'automatic'). https://docs.expo.dev/develop/user-interface/color-themes
+
+MOBILE_KNIP_EXIT=0

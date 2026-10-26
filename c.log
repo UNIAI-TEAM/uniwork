@@ -1,0 +1,36 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm exec turbo typecheck lint test --filter=@uniwork/chat-mobile > /tmp/pr8r1-mobile.log 2>&1; rc=$?; grep -E "Tasks:|Failed:|FAIL |error|✗|×|Test Files|Tests: |Tests  |threshold" /tmp/pr8r1-mobile.log | head -60; tail -25 /tmp/pr8r1-mobile.log; echo; echo "MOBILE_CHECKS_EXIT=$rc"; [ $rc -eq 0 ]
+@uniwork/chat-mobile:test:  ✓ data/query-errors.test.ts (4 tests) 5ms
+@uniwork/chat-mobile:test:  Test Files  226 passed (226)
+@uniwork/chat-mobile:test:       Tests  2227 passed (2227)
+@uniwork/chat-mobile:test:       [realtime] socket refused, waiting for the next foreground return { error: 'not a member' }
+@uniwork/chat-mobile:test:       31 |     if (level === "error") console.error(...args);
+@uniwork/chat-mobile:test: PASS components/ui/error-fallback.test.tsx
+@uniwork/chat-mobile:test: Tests:       753 passed, 753 total
+ Tasks:    4 successful, 4 total
+@uniwork/chat-mobile:test: PASS components/ui/ripple.test.tsx
+@uniwork/chat-mobile:test: PASS components/ui/nav-theme.test.tsx
+@uniwork/chat-mobile:test: PASS components/chat/reported-message-row.test.tsx
+@uniwork/chat-mobile:test: PASS components/brand/unichat-logo.test.tsx
+@uniwork/chat-mobile:test: PASS components/chat/emoji-sheet.test.tsx
+@uniwork/chat-mobile:test: A worker process has failed to exit gracefully and has been force exited. This is likely caused by tests leaking due to improper teardown. Try running with --detectOpenHandles to find leaks. Active timers can also cause this, ensure that .unref() was called on them.
+@uniwork/chat-mobile:test: 
+@uniwork/chat-mobile:test: =============================== Coverage summary ===============================
+@uniwork/chat-mobile:test: Statements   : 97.95% ( 4068/4153 )
+@uniwork/chat-mobile:test: Branches     : 94.18% ( 3161/3356 )
+@uniwork/chat-mobile:test: Functions    : 95.88% ( 1353/1411 )
+@uniwork/chat-mobile:test: Lines        : 98.41% ( 3488/3544 )
+@uniwork/chat-mobile:test: ================================================================================
+@uniwork/chat-mobile:test: 
+@uniwork/chat-mobile:test: Test Suites: 120 passed, 120 total
+@uniwork/chat-mobile:test: Tests:       753 passed, 753 total
+@uniwork/chat-mobile:test: Snapshots:   0 total
+@uniwork/chat-mobile:test: Time:        47.489 s
+@uniwork/chat-mobile:test: Ran all test suites.
+@uniwork/chat-mobile:test: native-run.test.sh: all assertions passed
+
+ Tasks:    4 successful, 4 total
+Cached:    0 cached, 4 total
+  Time:    1m41.307s 
+
+
+MOBILE_CHECKS_EXIT=0
