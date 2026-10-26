@@ -7,7 +7,7 @@ import {
   Send,
   ShieldAlert,
   Star,
-  Trash2,
+  Trash,
   type LucideIcon,
 } from "lucide-react";
 
@@ -42,7 +42,7 @@ export const EMAIL_HUB_PRIMARY_FOLDERS: readonly EmailHubFolderDef[] = [
 export const EMAIL_HUB_MORE_FOLDERS: readonly EmailHubFolderDef[] = [
   { key: "ARCHIVE", icon: Archive, labelKey: "email_hub.folders.archive" },
   { key: "SPAM", icon: ShieldAlert, labelKey: "email_hub.folders.spam" },
-  { key: "TRASH", icon: Trash2, labelKey: "email_hub.folders.trash" },
+  { key: "TRASH", icon: Trash, labelKey: "email_hub.folders.trash" },
 ];
 
 export const EMAIL_HUB_ALL_FOLDERS = [...EMAIL_HUB_PRIMARY_FOLDERS, ...EMAIL_HUB_MORE_FOLDERS];

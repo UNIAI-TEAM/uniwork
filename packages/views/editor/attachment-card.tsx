@@ -9,7 +9,7 @@
  * that decision out of this file so this stays a single-purpose row UI.
  */
 
-import { Download, Eye, FileText, Trash2 } from "lucide-react";
+import { Download, Eye, FileText, Trash } from "lucide-react";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { getPreviewKind } from "./utils/preview";
@@ -99,7 +99,7 @@ function AttachmentCardChrome({
             onDelete();
           }}
         >
-          <Trash2 className="size-3.5" aria-hidden="true" />
+          <Trash className="size-3.5" aria-hidden="true" />
         </button>
       )}
     </div>

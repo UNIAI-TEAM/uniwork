@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Pin, Plus, Search, Trash2, X } from "lucide-react";
+import { Pin, Plus, Search, Trash, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
@@ -117,7 +117,7 @@ function ProjectBatchToolbar({
             className="text-destructive hover:text-destructive"
             onClick={() => setConfirmDelete(true)}
           >
-            <Trash2 className="mr-1 size-3.5" />
+            <Trash className="mr-1 size-3.5" />
             {t("projects.page.delete")}
           </Button>
         ) : null}

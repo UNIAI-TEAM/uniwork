@@ -21,7 +21,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
-  Trash2,
+  Trash,
   UserPlus,
   UserRoundCheck,
   type LucideIcon,
@@ -71,7 +71,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   document_access_approved: CircleCheck,
   document_access_declined: CircleX,
   document_shared: Share2,
-  document_trashed_by_other: Trash2,
+  document_trashed_by_other: Trash,
   document_changed: MODULE_ICONS.documents,
 };
 

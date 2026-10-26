@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { errorCode } from "@uniwork/core/api/http";
 import type { AiMemory } from "@uniwork/core/types";
@@ -138,7 +138,7 @@ export function AskUniMemoryRow({
           className="text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100"
           onClick={onDelete}
         >
-          <Trash2 aria-hidden />
+          <Trash aria-hidden />
         </Button>
       ) : null}
     </li>

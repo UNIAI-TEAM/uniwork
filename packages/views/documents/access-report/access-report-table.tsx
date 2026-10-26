@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useId, useRef, useState } from "react";
-import { Building2, ChevronDown, Link2, Users } from "lucide-react";
+import { BuildingComplex, ChevronDown, Link2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { deriveReportFacts, type ReportFacts } from "@uniwork/core/documents/access-report-facts";
 import type { AccessReportDocument, AccessReportFlag, AccessReportRow } from "@uniwork/core/types/document-access-report";
@@ -275,7 +275,7 @@ function WhoCell({ rows, facts, who }: { rows: readonly AccessReportRow[]; facts
 
 function Face({ type, name }: { type: string; name: string }) {
   if (type === "user") return <ActorAvatar name={name} initials={initialOf(name)} size="sm" />;
-  const Icon = type === "organization" ? Building2 : type === "link" ? Link2 : Users;
+  const Icon = type === "organization" ? BuildingComplex : type === "link" ? Link2 : Users;
   return (
     <span className="flex size-6 items-center justify-center rounded-full bg-muted text-muted-foreground">
       <Icon className="size-3.5" />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Trash2, X } from "lucide-react";
+import { Trash, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -195,7 +195,7 @@ export function BatchActionToolbar({
                 className="text-destructive hover:text-destructive"
                 data-testid="batch-delete"
               >
-                <Trash2 className="mr-1 size-3.5" aria-hidden />
+                <Trash className="mr-1 size-3.5" aria-hidden />
                 {t("tasks.batch.delete")}
               </Button>
             </motion.div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { ArrowLeft, MessageSquarePlus, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, MessageSquarePlus, Sparkles, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   useAiCapabilities,
@@ -287,7 +287,7 @@ export function AskUniLegacyPanel() {
                     if (!remove.isPending) setConfirmDelete(true);
                   }}
                 >
-                  <Trash2 aria-hidden className="size-4" />
+                  <Trash aria-hidden className="size-4" />
                 </Button>
               ) : null}
             </div>

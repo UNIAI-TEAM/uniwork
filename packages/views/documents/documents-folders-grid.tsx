@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Folder, FolderInput, FolderOpen, FolderPlus, Ellipsis, Pencil, ShieldCheck, Star, StarOff, Trash2 } from "lucide-react";
+import { Archive, Folder, FolderInput, FolderOpen, FolderPlus, Ellipsis, Pencil, ShieldCheck, Star, StarOff, Trash } from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { isMyFolder, isShelved, type DocumentTreeNode } from "@uniwork/core/types/document";
@@ -175,8 +175,8 @@ export function folderMenuItems(
   }
   if (!myFolder && handlers.onArchive && canArchiveRow(level)) {
     // A folder's dialog says Delete, so the card says it too (FD-D6), with
-    // the row's Trash2 glyph: Archive now belongs to Lưu trữ beside it.
-    items.push({ id: "archive", label: t("documents.tree.menu.delete"), icon: Trash2, run: () => handlers.onArchive?.(doc) });
+    // the row's Trash glyph: Archive now belongs to Lưu trữ beside it.
+    items.push({ id: "archive", label: t("documents.tree.menu.delete"), icon: Trash, run: () => handlers.onArchive?.(doc) });
   }
   return items;
 }

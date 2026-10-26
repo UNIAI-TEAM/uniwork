@@ -1,7 +1,7 @@
 "use client";
 
 import type { Ref } from "react";
-import { Archive, Keyboard, MailOpen, Mail, Paperclip, SquarePen, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { Archive, Keyboard, MailOpen, Mail, Paperclip, SquarePen, RefreshCw, Search, Trash, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
@@ -104,7 +104,7 @@ function BulkBar({ bulk }: { bulk: EmailHubBulkActions }) {
       ) : null}
       {bulk.onTrash ? (
         <EmailHubIconAction
-          icon={Trash2}
+          icon={Trash}
           label={t("email_hub.trash")}
           disabled={bulk.pending}
           className="hover:text-destructive"

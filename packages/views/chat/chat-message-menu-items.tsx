@@ -11,7 +11,7 @@ import {
   Pencil,
   Pin,
   Reply,
-  Trash2,
+  Trash,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -234,7 +234,7 @@ export function ChatMessageMenuItems({
         <>
           <P.Separator />
           <P.Item variant="destructive" onClick={() => onDelete(message)}>
-            <Trash2 className="size-4" aria-hidden />
+            <Trash className="size-4" aria-hidden />
             {t("chat.action_delete")}
           </P.Item>
         </>
