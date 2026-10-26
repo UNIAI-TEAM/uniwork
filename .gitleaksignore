@@ -63,3 +63,8 @@ ca0d7b4e71b10af3e003598438844da0ec692b03:packages/core/drive/hooks.test.tsx:gene
 f07ff3170f0930a54471b54d0dd5ca54be11bfad:server/internal/service/drive_connections_test.go:generic-api-key:216
 f07ff3170f0930a54471b54d0dd5ca54be11bfad:server/internal/service/drive_connections_test.go:generic-api-key:240
 f07ff3170f0930a54471b54d0dd5ca54be11bfad:server/internal/service/drive_connections_test.go:generic-api-key:253
+# Drive backend lane (UNI-2177 1367c172a, feature/UNI-2177-drive-be): line 1492
+# is Go code, a condition on gen2AfterLateW1.RefreshTokenEnc.Valid, which
+# generic-api-key matches on the word Token. Not a value at all. gitleaks scans
+# every fetched branch, so it failed the secrets job on every PR.
+1367c172ab089055f9cdcd04e69a268cec675c92:server/internal/service/drive_connections_test.go:generic-api-key:1492
