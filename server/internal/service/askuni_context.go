@@ -247,7 +247,7 @@ func (s *AskUNIService) driveFileContext(ctx context.Context, tc ai.ToolContext,
 			title = "Google Drive"
 		}
 		src := ai.Source{Kind: "drive_file", Title: title, Href: href, Excerpt: note}
-		it := agentItem{Kind: "drive_file", ID: id, Key: "drive_file:" + id, Title: title, Href: "", Text: withText("ID: "+id, "Note: "+note), Body: note, Foreign: true}
+		it := agentItem{Kind: "drive_file", ID: id, Key: "drive_file:" + id, Title: title, Href: href, Text: withText("ID: "+id, "Note: "+note), Body: note, Foreign: true}
 		return it, src, nil, nil
 	}
 	title := strings.TrimSpace(dc.Name)
@@ -259,13 +259,6 @@ func (s *AskUNIService) driveFileContext(ctx context.Context, tc ai.ToolContext,
 		fields += "\nMIME: " + dc.MimeType
 	}
 	body := dc.Text
-	if dc.Truncated {
-		truncNote := "Note: Only the first 200,000 characters of this Google Drive file were read."
-		if strings.EqualFold(strings.TrimSpace(locale), "vi") {
-			truncNote = "Ghi chú: UNI chỉ đọc 200.000 ký tự đầu của tệp Google Drive này."
-		}
-		fields += "\n" + truncNote
-	}
 	if len(dc.Attachments) > 0 && body == "" {
 		pdfNote := "Attached as a PDF in this turn."
 		if strings.EqualFold(strings.TrimSpace(locale), "vi") {
@@ -273,9 +266,55 @@ func (s *AskUNIService) driveFileContext(ctx context.Context, tc ai.ToolContext,
 		}
 		body = pdfNote
 	}
+	agentFields, agentBody := fitDriveAgentSource(title, fields, body, locale, dc.Truncated)
 	src := ai.Source{Kind: "drive_file", Title: title, Href: href, Excerpt: body, MaxRunes: ai.MaxRecordExcerpt}
-	it := agentItem{Kind: "drive_file", ID: id, Key: "drive_file:" + id, Title: title, Href: "", Text: withText(fields, body), Body: body, Foreign: true}
+	it := agentItem{Kind: "drive_file", ID: id, Key: "drive_file:" + id, Title: title, Href: href, Text: withText(agentFields, agentBody), Body: agentBody, Foreign: true}
 	return it, src, &dc, nil
+}
+
+// fitDriveAgentSource fits the Drive focus source into the agent's focus budget
+// (askAgentToolResultMax minus the truncation reserve) after RenderSources
+// escaping, keeping the title, field lines and a localized truncation note.
+func fitDriveAgentSource(title, fields, body, locale string, readerTruncated bool) (string, string) {
+	vi := strings.EqualFold(strings.TrimSpace(locale), "vi")
+	truncNote := "Note: This Google Drive file was truncated to fit the context budget."
+	if readerTruncated {
+		truncNote = "Note: Only the first 200,000 characters of this Google Drive file were read."
+	}
+	if vi {
+		truncNote = "Ghi chú: Nội dung tệp Google Drive đã được rút gọn để vừa giới hạn ngữ cảnh."
+		if readerTruncated {
+			truncNote = "Ghi chú: UNI chỉ đọc 200.000 ký tự đầu của tệp Google Drive này."
+		}
+	}
+	const room = askAgentToolResultMax - len("\n"+askAgentTruncated)
+	renderedLen := func(f, b string) int {
+		return len(ai.RenderSources([]ai.Source{{ID: "S99", Kind: "drive_file", Title: title, Excerpt: withText(f, b)}}))
+	}
+	f := fields
+	if readerTruncated {
+		f += "\n" + truncNote
+	}
+	if renderedLen(f, body) <= room {
+		return f, body
+	}
+	if !readerTruncated {
+		f = fields + "\n" + truncNote
+	}
+	runes := []rune(body)
+	lo, hi := 0, len(runes)
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if renderedLen(f, string(runes[:mid])+"…") <= room {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
+	}
+	if lo == 0 {
+		return f, ""
+	}
+	return f, string(runes[:lo]) + "…"
 }
 
 func driveReadErrorNote(err error, locale string) (string, bool) {

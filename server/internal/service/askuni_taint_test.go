@@ -421,7 +421,7 @@ func TestDriveFocusTaintsTurnUnit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 1 || items[0].Kind != "drive_file" || items[0].Key != "drive_file:01DRIVEFILE000000000000009" || items[0].Href != "" || refs.Drive == nil {
+	if len(items) != 1 || items[0].Kind != "drive_file" || items[0].Key != "drive_file:01DRIVEFILE000000000000009" || refs.Drive == nil {
 		t.Fatalf("items=%+v refs=%+v", items, refs)
 	}
 	var taint askTaint
