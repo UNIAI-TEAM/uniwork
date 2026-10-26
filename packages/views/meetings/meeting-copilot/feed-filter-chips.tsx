@@ -18,18 +18,18 @@ const MARK: Record<MeetingFeedKind, { tone: string; Icon: LucideIcon | null }> =
 };
 
 /**
- * The round mark of a feed kind: 20px on a filter chip, 24px on the empty
+ * The round mark of a feed kind: 18px on a composer suggestion, 20px on a filter chip, 24px on the empty
  * state's sample rows, 26px at the head of a feed row. With a `label` it is an
  * image named by its kind; without, decoration.
  */
-export function FeedKindMark({ kind, size, label }: { kind: MeetingFeedKind; size: "chip" | "sample" | "row"; label?: string }) {
+export function FeedKindMark({ kind, size, label }: { kind: MeetingFeedKind; size: "suggest" | "chip" | "sample" | "row"; label?: string }) {
   const { tone, Icon } = MARK[kind];
   return (
     <span
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full font-bold leading-none",
-        { chip: "size-5 text-caption", sample: "size-6 text-caption", row: "size-6.5 text-label" }[size],
+        { suggest: "size-4.5 text-caption", chip: "size-5 text-caption", sample: "size-6 text-caption", row: "size-6.5 text-label" }[size],
         tone,
       )}
     >

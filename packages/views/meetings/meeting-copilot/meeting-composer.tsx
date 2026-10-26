@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowUp, AtSign, Check, CircleQuestionMark, Lock, PencilLine, Sparkles, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useAiCapabilities, useAiMessages, useAiPanelStore, useAskUni } from "@uniwork/core/ai";
+import { aiKeys, useAiCapabilities, useAiMessages, useAiPanelStore, useAskUni } from "@uniwork/core/ai";
 import { useAddNote } from "@uniwork/core/meetings";
 import type { AiMessage } from "@uniwork/core/types";
 import { isImeComposing } from "@uniwork/core/utils";
@@ -44,11 +45,18 @@ function lastExchange(history: AiMessage[] | undefined): { question: string; ans
 
 const isAbort = (err: unknown) => (err as { name?: unknown } | null)?.name === "AbortError";
 
+/** The refusals that close Ask for this meeting rather than fail one question. */
+const REFUSALS: Record<string, Blocked> = { ai_quota_exceeded: "outOfCredit", ai_disabled: "askOff" };
+
+// 15/22 as the plan pins it; 16px on touch, where iOS zooms into a smaller field.
+const INPUT_TYPE = "text-body-lg md:text-body-lg pointer-coarse:text-title-sm";
+
 // The disabled look is drawn by the colours, not the primitive's half opacity.
 const ROUND = "size-8 rounded-full p-0 pointer-coarse:size-11 aria-disabled:opacity-100 [&_svg]:size-4";
 
-function ModeRadio({ ref, checked, tone, disabled, onPick, onKeyDown, icon, label }: {
+function ModeRadio({ ref, checked, tone, disabled, describedBy, onPick, onKeyDown, icon, label }: {
   ref: Ref<HTMLButtonElement>;
+  describedBy?: string;
   tone: string;
   onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => void;
   checked: boolean;
@@ -64,6 +72,7 @@ function ModeRadio({ ref, checked, tone, disabled, onPick, onKeyDown, icon, labe
       role="radio"
       aria-checked={checked}
       aria-disabled={disabled || undefined}
+      aria-describedby={describedBy}
       tabIndex={checked ? 0 : -1}
       onClick={disabled ? undefined : onPick}
       onKeyDown={onKeyDown}
@@ -108,6 +117,7 @@ export function MeetingComposer({
   const { t, i18n } = useTranslation();
   const { t: tAi } = useTranslation(undefined, { keyPrefix: "ai" });
   const tc = (key: string, opts?: Record<string, unknown>) => t(`meetings.panel.composer.${key}`, opts);
+  const qc = useQueryClient();
   const { data: caps } = useAiCapabilities(workspaceId);
   const ask = useAskUni(workspaceId);
   const addNote = useAddNote(meetingId);
@@ -116,24 +126,32 @@ export function MeetingComposer({
   const conversationId = useAiPanelStore((s) => s.conversationByMeeting[meetingId]);
   const history = useAiMessages(conversationId ?? null).data;
 
+  const root = useRef<HTMLDivElement>(null);
   const box = useRef<AskUniEditorHandle>(null);
+  const noteBox = useRef<HTMLTextAreaElement>(null);
+  const stopButton = useRef<HTMLButtonElement>(null);
+  const reasonId = useId();
   const radios = useRef<(HTMLButtonElement | null)[]>([]);
   const controller = useRef<AbortController | null>(null);
   const [chosen, setChosen] = useState<Mode>("ask");
   const [draft, setDraft] = useState<AskUniQuestion>(EMPTY);
   const [asked, setAsked] = useState("");
   const [note, setNote] = useState("");
-  // An ask refused for quota closes Ask for this meeting, whatever the cached capabilities still say.
-  const [quotaHit, setQuotaHit] = useState(false);
+  // An ask refused for quota or with AI switched off closes Ask for this meeting, whatever the cached
+  // capabilities (kept 5 minutes) still say.
+  const [refused, setRefused] = useState<Blocked | null>(null);
 
   const quota = caps?.quota;
-  const blocked: Blocked | null = !caps
+  const capsBlock: Blocked | null = !caps
     ? null
     : !caps.ask_uni
       ? "askOff"
-      : quotaHit || (quota && quota.limit_tokens !== null && quota.used_tokens >= quota.limit_tokens)
+      : quota && quota.limit_tokens !== null && quota.used_tokens >= quota.limit_tokens
         ? "outOfCredit"
         : null;
+  const blocked = capsBlock ?? refused;
+  // Blocking moves the person's own choice to Note, so a later unblock does not pull them back to Ask mid-note.
+  if (blocked && chosen !== "note") setChosen("note");
   const mode: Mode = blocked ? "note" : chosen;
   const pending = ask.isPending;
   const focus = { kind: "meeting", id: meetingId } as const;
@@ -159,10 +177,17 @@ export function MeetingComposer({
     ask.mutate(
       { question, mentions, conversation_id: conversationId, locale: i18n.language, focus, signal: abort.signal },
       {
-        // Stopped or refused, the question comes back to the box (as text: its cards are not restored).
+        // Stopped or failed, the question comes back to the box (as text: its cards are not restored). Refused
+        // for good, it moves to the note box instead of waiting in a hidden one.
         onError: (err) => {
-          box.current?.insert(question);
-          if (resolveErrorKey(err) === "ai_quota_exceeded") setQuotaHit(true);
+          const block = REFUSALS[resolveErrorKey(err)];
+          if (!block) {
+            box.current?.insert(question);
+            return;
+          }
+          setRefused(block);
+          setNote((n) => (n.trim() ? `${n}\n${question}` : question));
+          void qc.invalidateQueries({ queryKey: aiKeys.capabilities(workspaceId) });
         },
       },
     );
@@ -187,22 +212,41 @@ export function MeetingComposer({
     { id: "ask", label: tc("ask"), tone: "text-brand", icon: blocked ? <Lock aria-hidden /> : <Sparkles aria-hidden /> },
     { id: "note", label: tc("note"), tone: "text-foreground", icon: <PencilLine aria-hidden /> },
   ];
+  // Leaving Ask clears its failure: it was about a question no longer on screen.
+  const choose = (m: Mode) => {
+    setChosen(m);
+    if (m === "note" && ask.isError) ask.reset();
+  };
   const radioKey = (e: KeyboardEvent<HTMLButtonElement>) => {
     const next = tablistKeyTarget(e.key, modes.findIndex((m) => m.id === mode), modes.length);
     if (next === null || blocked) return;
     e.preventDefault();
-    setChosen(modes[next]!.id);
+    choose(modes[next]!.id);
     radios.current[next]?.focus();
   };
 
-  // A refusal other than a stop or the quota (which has its own strip) is said in the frame.
+  // Focus follows the exchange: to Stop while UNI works, back to the box when it ends (the box is hidden
+  // meanwhile, and Stop leaves with the pending state). Only when focus was here or nowhere.
+  const wasPending = useRef(pending);
+  useEffect(() => {
+    if (wasPending.current === pending) return;
+    wasPending.current = pending;
+    const active = document.activeElement;
+    if (active && active !== document.body && !root.current?.contains(active)) return;
+    if (pending) stopButton.current?.focus();
+    else if (mode === "note") noteBox.current?.focus();
+    else box.current?.focus();
+  }, [pending, mode]);
+
+  // A failure other than a stop or a refusal that closes Ask (which has its strip) is said in the frame.
   const answered = ask.data?.message;
-  const failure = ask.isError && !isAbort(ask.error) && !quotaHit ? resolveErrorKey(ask.error) : null;
+  const failKey = ask.isError && !isAbort(ask.error) ? resolveErrorKey(ask.error) : null;
+  const failure = failKey && !REFUSALS[failKey] ? failKey : null;
   const canAsk = draft.question !== "";
   const showSuggestions = mode === "ask" && !pending && !canAsk && suggestions.length > 0;
 
   return (
-    <div className="flex flex-col gap-2.5" data-testid="meeting-composer">
+    <div ref={root} className="flex flex-col gap-2.5" data-testid="meeting-composer">
       {showSuggestions ? <ComposerSuggestions items={suggestions} onPick={(q) => send({ question: q, mentions: [] })} /> : null}
       <div
         data-testid="meeting-composer-frame"
@@ -211,13 +255,15 @@ export function MeetingComposer({
       >
         <div>
           {blocked ? (
-            <div role="status" className="flex items-center gap-2 rounded-t-[inherit] bg-warning-soft px-3 py-2 text-caption font-medium text-warning-soft-foreground">
+            <div className="flex items-center gap-2 rounded-t-[inherit] bg-warning-soft px-3 py-1.5 text-caption font-medium text-warning-soft-foreground">
               <Lock aria-hidden className="size-3.5 shrink-0" />
-              <span className="min-w-0 flex-1">{tc(blocked)}</span>
+              <span id={reasonId} className="min-w-0 flex-1">
+                {tc(blocked)}
+              </span>
               <Popover>
                 <PopoverTrigger
                   aria-label={tc("blockedHelp")}
-                  className="relative grid size-5 shrink-0 place-items-center rounded-full pointer-coarse:after:absolute pointer-coarse:after:-inset-3 pointer-coarse:after:content-['']"
+                  className="relative grid size-6 shrink-0 place-items-center rounded-full pointer-coarse:after:absolute pointer-coarse:after:-inset-3 pointer-coarse:after:content-['']"
                 >
                   <CircleQuestionMark aria-hidden className="size-3.5" />
                 </PopoverTrigger>
@@ -244,6 +290,7 @@ export function MeetingComposer({
                 label={tc("askLabel")}
                 placeholder={conversationId ? tc("followupPlaceholder") : tc("askPlaceholder")}
                 maxMentions={MAX_MENTIONS}
+                className={INPUT_TYPE}
                 disabled={!!blocked}
                 onSubmit={send}
                 onChange={setDraft}
@@ -260,11 +307,15 @@ export function MeetingComposer({
                 <span className="ai-shimmer">
                   {notesCount > 0 && hasTranscript ? tc("readingNotes", { count: notesCount }) : tc("reading")}
                 </span>
+              ) : blocked ? (
+                // The strip shows the reason; this says it when Ask closes.
+                tc(blocked)
               ) : answered ? (
                 t("ai.answer_announcement", { answer: forChat(answered.content) || noticeText(tAi, answered.notice) })
               ) : null}
             </div>
             <Textarea
+              ref={noteBox}
               hidden={mode !== "note"}
               rows={1}
               value={note}
@@ -273,7 +324,7 @@ export function MeetingComposer({
               onKeyDown={noteKey}
               placeholder={tc("notePlaceholder")}
               aria-label={tc("noteLabel")}
-              className="max-h-[6lh] min-h-0 resize-none rounded-none border-0 bg-transparent px-0.5 py-0 leading-[22px] focus-visible:ring-0 dark:bg-transparent"
+              className={cn("max-h-[6lh] min-h-0 resize-none rounded-none border-0 bg-transparent px-0.5 py-0 focus-visible:ring-0 dark:bg-transparent", INPUT_TYPE)}
             />
             {pending ? (
               <div className="flex items-center gap-1.5">
@@ -281,7 +332,7 @@ export function MeetingComposer({
                   <Lock aria-hidden className="size-3.5" />
                   {tc("private")}
                 </span>
-                <Button type="button" aria-label={tc("stop")} className={cn(ROUND, "ml-auto bg-foreground text-background hover:bg-foreground/90")} onClick={() => controller.current?.abort()}>
+                <Button ref={stopButton} type="button" aria-label={tc("stop")} className={cn(ROUND, "ml-auto bg-foreground text-background hover:bg-foreground/90")} onClick={() => controller.current?.abort()}>
                   <span aria-hidden className="size-2.5 rounded-[2.5px] bg-background" />
                 </Button>
               </div>
@@ -299,7 +350,8 @@ export function MeetingComposer({
                       checked={mode === m.id}
                       tone={m.tone}
                       disabled={m.id === "ask" && !!blocked}
-                      onPick={() => setChosen(m.id)}
+                      describedBy={m.id === "ask" && blocked ? reasonId : undefined}
+                      onPick={() => choose(m.id)}
                       onKeyDown={radioKey}
                       icon={m.icon}
                       label={m.label}

@@ -118,6 +118,22 @@ describe("MeetingComposer — asking UNI", () => {
     expect(screen.queryByText("Đang đọc lời thoại và 3 ghi chú…")).not.toBeInTheDocument();
   });
 
+  it("moves focus to Stop while UNI works and back to the question after Stop", async () => {
+    holdAsk();
+    render(wrapWithNav(<Room />));
+    const box = await editor();
+    act(() => box.editor.view.focus());
+    expect(box).toHaveFocus();
+    await ask("Ai trình bày?");
+    const stop = await screen.findByRole("button", { name: "Dừng" });
+    await waitFor(() => expect(stop).toHaveFocus());
+
+    fireEvent.click(stop);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Dừng" })).not.toBeInTheDocument());
+    await waitFor(() => expect(box).toHaveFocus());
+    expect(box.textContent).toBe("Ai trình bày?");
+  });
+
   it("says it reads the meeting when there are no notes and transcript to name", async () => {
     holdAsk();
     render(wrapWithNav(<Room notesCount={2} />));
@@ -150,6 +166,21 @@ describe("MeetingComposer — asking UNI", () => {
     await ask("Ai trình bày?");
     expect(await screen.findByRole("alert")).toHaveTextContent("Bạn đang hỏi quá nhanh");
     expect((await editor()).textContent).toBe("Ai trình bày?");
+  });
+
+  it("clears a failure when the person switches to note mode", async () => {
+    requestMock.mockImplementation((path: unknown) =>
+      String(path).endsWith("/ai/ask")
+        ? Promise.reject(new ApiError("slow down", "ai_rate_limited", 429))
+        : Promise.resolve(String(path).endsWith("/ai/capabilities") ? caps : {}),
+    );
+    render(wrapWithNav(<Room />));
+    await ask("Ai trình bày?");
+    await screen.findByRole("alert");
+    fireEvent.click(radio("Ghi chú"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.click(radio("Hỏi"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("keeps the last answer when it unmounts and mounts again, and a follow-up stays in the conversation", async () => {
@@ -265,6 +296,13 @@ describe("MeetingComposer — notes", () => {
     expect(radio("Hỏi")).toHaveAttribute("aria-checked", "true");
   });
 
+  it("types at 15/22 in both boxes", async () => {
+    render(wrapWithNav(<Room />));
+    expect(await editor()).toHaveClass("text-body-lg");
+    fireEvent.click(radio("Ghi chú"));
+    expect(screen.getByRole("textbox", { name: "Ghi chú cho cả phòng" })).toHaveClass("text-body-lg");
+  });
+
   it("Enter saves, Shift+Enter starts a new line", async () => {
     render(wrapWithNav(<Room />));
     await editor();
@@ -296,7 +334,7 @@ describe("MeetingComposer — Ask UNI blocked (Review Focus 1)", () => {
   it("out of credit: starts in note mode with the reason, Ask locked, and notes still save", async () => {
     caps = { enabled: true, ask_uni: true, quota: { used_tokens: 10, limit_tokens: 10 } };
     render(wrapWithNav(<Room />));
-    expect(await screen.findByText("Hết lượt Hỏi UNI tháng này")).toBeInTheDocument();
+    expect(await screen.findByText("Hết lượt Hỏi UNI tháng này", { selector: "span" })).toBeInTheDocument();
     expect(radio("Ghi chú")).toHaveAttribute("aria-checked", "true");
     expect(radio("Hỏi")).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(radio("Hỏi"));
@@ -320,16 +358,38 @@ describe("MeetingComposer — Ask UNI blocked (Review Focus 1)", () => {
     );
     render(wrapWithNav(<Room />));
     await ask("Ai trình bày?");
-    expect(await screen.findByText("Hết lượt Hỏi UNI tháng này")).toBeInTheDocument();
+    expect(await screen.findByText("Hết lượt Hỏi UNI tháng này", { selector: "span" })).toBeInTheDocument();
+    expect(radio("Ghi chú")).toHaveAttribute("aria-checked", "true");
+    expect(radio("Hỏi")).toHaveAttribute("aria-disabled", "true");
+    expect(radio("Hỏi")).toHaveAccessibleDescription("Hết lượt Hỏi UNI tháng này");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // Said when Ask closes, and the question waits in the note box rather than a hidden one.
+    expect(screen.getByTestId("meeting-ask-live")).toHaveTextContent("Hết lượt Hỏi UNI tháng này");
+    const note = screen.getByRole("textbox", { name: "Ghi chú cho cả phòng" });
+    expect(note).toHaveValue("Ai trình bày?");
+    await waitFor(() => expect(note).toHaveFocus());
+  });
+
+  it("an ask refused because AI was switched off mid-meeting switches to note mode and rereads the capabilities", async () => {
+    requestMock.mockImplementation((path: unknown) =>
+      String(path).endsWith("/ai/ask")
+        ? Promise.reject(new ApiError("off", "ai_disabled", 403))
+        : Promise.resolve(String(path).endsWith("/ai/capabilities") ? caps : {}),
+    );
+    render(wrapWithNav(<Room />));
+    await ask("Ai trình bày?");
+    expect(await screen.findByText("Hỏi UNI chưa bật", { selector: "span" })).toBeInTheDocument();
     expect(radio("Ghi chú")).toHaveAttribute("aria-checked", "true");
     expect(radio("Hỏi")).toHaveAttribute("aria-disabled", "true");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Ghi chú cho cả phòng" })).toHaveValue("Ai trình bày?");
+    await waitFor(() => expect(calls("/ai/capabilities").length).toBeGreaterThan(1));
   });
 
   it("Ask UNI off for the workspace: note mode with the reason", async () => {
     caps = { enabled: false };
     render(wrapWithNav(<Room />));
-    expect(await screen.findByText("Hỏi UNI chưa bật")).toBeInTheDocument();
+    expect(await screen.findByText("Hỏi UNI chưa bật", { selector: "span" })).toBeInTheDocument();
     expect(radio("Ghi chú")).toHaveAttribute("aria-checked", "true");
     expect(radio("Hỏi")).toHaveAttribute("aria-disabled", "true");
     expect(screen.queryByRole("textbox", { name: "Hỏi riêng UNI về cuộc họp" })).not.toBeInTheDocument();

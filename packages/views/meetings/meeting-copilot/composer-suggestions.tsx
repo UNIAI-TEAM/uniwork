@@ -22,8 +22,8 @@ export function useMeetingSuggestions(hasItems: boolean): ComposerSuggestion[] {
   return hasItems
     ? [
         { label: t("last5"), question: t("last5Q"), icon: <RotateCcwClock aria-hidden className={PLAIN_ICON} /> },
-        { label: t("decided"), question: t("decidedQ"), icon: <FeedKindMark kind="decision" size="chip" /> },
-        { label: t("mine"), question: t("mineQ"), icon: <FeedKindMark kind="task" size="chip" /> },
+        { label: t("decided"), question: t("decidedQ"), icon: <FeedKindMark kind="decision" size="suggest" /> },
+        { label: t("mine"), question: t("mineQ"), icon: <FeedKindMark kind="task" size="suggest" /> },
       ]
     : [
         { label: t("lastTime"), question: t("lastTimeQ"), icon: <RotateCcwClock aria-hidden className={PLAIN_ICON} /> },

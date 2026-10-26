@@ -45,6 +45,8 @@ interface Props {
   placeholder: string;
   /** The box's accessible name; Ask UNI's own by default. */
   label?: string;
+  /** Merged over the box's own classes (a host's type size). */
+  className?: string;
   disabled?: boolean;
   /** Distinct cards a question may carry; at the limit an `@` shows a notice instead of the picker. */
   maxMentions: number;
@@ -159,7 +161,7 @@ function askUniMention(hooks: () => Hooks) {
  * The host positions the picker (it sits above the nearest positioned ancestor).
  */
 export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUniEditor(
-  { wsId, placeholder, label, disabled = false, maxMentions, onSubmit, onChange, onPasteFiles },
+  { wsId, placeholder, label, className, disabled = false, maxMentions, onSubmit, onChange, onPasteFiles },
   ref,
 ) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
@@ -231,7 +233,7 @@ export const AskUniEditor = forwardRef<AskUniEditorHandle, Props>(function AskUn
     editorProps: {
       // ProseMirror owns these; a new set reaches the DOM on the next render.
       attributes: {
-        class: EDITOR_CLASS,
+        class: cn(EDITOR_CLASS, className),
         "aria-label": label ?? t("composer_label"),
         ...(placeholder ? { "aria-placeholder": placeholder } : {}),
         ...(disabled ? { "aria-disabled": "true" } : {}),

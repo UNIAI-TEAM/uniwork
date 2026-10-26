@@ -12,6 +12,8 @@ describe("ComposerSuggestions", () => {
     const onPick = vi.fn();
     render(wrap(<ComposerSuggestions items={suggestions(true)} onPick={onPick} />));
     expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["5 phút qua", "Đã chốt gì?", "Việc của tôi"]);
+    // The kind marks are 18px, as on the board.
+    expect(screen.getByRole("button", { name: "Đã chốt gì?" }).querySelector("span")).toHaveClass("size-4.5");
 
     fireEvent.click(screen.getByRole("button", { name: "Đã chốt gì?" }));
     expect(onPick).toHaveBeenCalledWith("Cuộc họp đã chốt những gì?");
