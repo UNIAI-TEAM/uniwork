@@ -27,7 +27,7 @@ export function SettingsTab({
 }) {
   return (
     <div className="space-y-8">
-      <header className="flex min-w-0 items-start justify-between gap-4">
+      <header className="flex min-w-0 items-start justify-between gap-4 max-sm:flex-wrap max-sm:gap-y-3">
         <div className="min-w-0">
           <h2
             ref={headingRef}
@@ -43,7 +43,7 @@ export function SettingsTab({
             <p className="mt-1 max-w-[68ch] text-body leading-6 text-pretty text-muted-foreground">{description}</p>
           ) : null}
         </div>
-        {actions ? <div className="flex shrink-0 items-center gap-2 pt-1.5">{actions}</div> : null}
+        {actions ? <div className="flex shrink-0 items-center gap-2 pt-1.5 max-sm:pt-0">{actions}</div> : null}
       </header>
       {children}
     </div>

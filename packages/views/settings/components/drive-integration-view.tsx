@@ -52,7 +52,7 @@ function formatDriveConnectedAt(iso: string, locale: string): string {
  * The "UNI được làm gì với tài liệu đã liên kết" block and the three scope /
  * count / storage summary tiles from prototype 1.3 (`Connected.dc.html`).
  */
-function DrivePermissionsSummary({ totalLinkedFiles }: { totalLinkedFiles: number }) {
+function DrivePermissionsSummary({ totalLinkedFiles }: { totalLinkedFiles: number | null }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.integrations.drive" });
   return (
     <div className="space-y-4 rounded-xl border border-surface-border bg-surface p-4">
@@ -64,7 +64,9 @@ function DrivePermissionsSummary({ totalLinkedFiles }: { totalLinkedFiles: numbe
         <div className="rounded-lg border border-border bg-card px-3.5 py-2.5">
           <div className="text-caption text-muted-foreground">{t("linked_count_label")}</div>
           <div className="mt-0.5 text-body font-medium text-foreground">
-            {t("linked_count", { count: totalLinkedFiles })}
+            {totalLinkedFiles === null
+              ? t("linked_count_unknown")
+              : t("linked_count", { count: totalLinkedFiles })}
           </div>
         </div>
         <div className="rounded-lg border border-border bg-card px-3.5 py-2.5">
@@ -278,6 +280,7 @@ export function DriveIntegrationView({
   const busy = popup.pending || startConnect.isPending;
   const firstConnectFetching =
     justConnectedRef.current && connectionsQuery.isFetching && connections.length === 0;
+
   const handleConnect = (reconnect?: DriveConnection) => {
     setNotice(null);
     reconnectTargetRef.current = reconnect ?? null;
@@ -383,7 +386,13 @@ export function DriveIntegrationView({
             )}
           </SettingsSection>
 
-          <DrivePermissionsSummary totalLinkedFiles={totalLinkedFiles} />
+          <DrivePermissionsSummary
+            totalLinkedFiles={
+              connectionsQuery.isLoading || connectionsQuery.isError || firstConnectFetching
+                ? null
+                : totalLinkedFiles
+            }
+          />
         </div>
       </SettingsTab>
 

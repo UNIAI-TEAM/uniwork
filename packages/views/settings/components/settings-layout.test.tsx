@@ -1,6 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SettingsFieldError, SettingsList, SettingsListItem, SettingsSaveState } from "./settings-layout";
+import {
+  SettingsFieldError,
+  SettingsList,
+  SettingsListItem,
+  SettingsSaveState,
+  SettingsTab,
+} from "./settings-layout";
 
 describe("SettingsSaveState", () => {
   it("exposes role=status when saving", () => {
@@ -71,7 +77,7 @@ describe("SettingsListItem", () => {
           wrapTitle
           tabIndex={-1}
           data-testid="item-row"
-          className="rounded-sm focus-visible:-outline-offset-2"
+          className="rounded-sm first:rounded-t-lg last:rounded-b-lg focus-visible:-outline-offset-2"
           leading={<span>Icon</span>}
           title="Google Drive"
           badge={<span>Badge</span>}
@@ -81,11 +87,37 @@ describe("SettingsListItem", () => {
     );
     const row = screen.getByTestId("item-row");
     expect(row.tagName).toBe("LI");
-    expect(row).toHaveClass("items-start", "rounded-sm", "focus-visible:-outline-offset-2");
+    expect(row).toHaveClass(
+      "items-start",
+      "rounded-sm",
+      "first:rounded-t-lg",
+      "last:rounded-b-lg",
+      "focus-visible:-outline-offset-2",
+    );
     expect(row).not.toHaveClass("outline-none");
     expect(row).toHaveAttribute("tabindex", "-1");
     expect(screen.getByText("Google Drive").parentElement).toHaveClass("flex-wrap", "gap-x-2", "gap-y-1");
     expect(screen.getByText("Icon").parentElement).toHaveClass("mt-0.5");
     expect(screen.getByRole("button", { name: "Action" }).parentElement).toHaveClass("mt-0.5");
+  });
+});
+
+describe("SettingsTab", () => {
+  it("stacks header actions under the description at max-sm", () => {
+    render(
+      <SettingsTab
+        title="Google Drive"
+        description="Link Google Drive documents to tasks."
+        actions={<button type="button">Connect another account</button>}
+      >
+        <div>Content</div>
+      </SettingsTab>,
+    );
+    const header = screen.getByRole("heading", { name: "Google Drive" }).closest("header");
+    expect(header).toHaveClass("max-sm:flex-wrap", "max-sm:gap-y-3");
+    expect(screen.getByRole("button", { name: "Connect another account" }).parentElement).toHaveClass(
+      "pt-1.5",
+      "max-sm:pt-0",
+    );
   });
 });

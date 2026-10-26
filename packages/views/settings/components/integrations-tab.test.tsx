@@ -248,7 +248,12 @@ describe("IntegrationsTab", () => {
       const rowEl = await within(available).findByTestId("drive-integration-row");
       expect(rowEl.tagName).toBe("LI");
       expect(rowEl).toHaveAttribute("tabindex", "-1");
-      expect(rowEl).toHaveClass("rounded-sm", "focus-visible:-outline-offset-2");
+      expect(rowEl).toHaveClass(
+        "rounded-sm",
+        "first:rounded-t-lg",
+        "last:rounded-b-lg",
+        "focus-visible:-outline-offset-2",
+      );
       expect(rowEl).not.toHaveClass("outline-none");
       expect(within(rowEl).getByText("Google Drive")).toBeInTheDocument();
       expect(await within(rowEl).findByText("Chưa kết nối")).toBeInTheDocument();
@@ -318,6 +323,18 @@ describe("IntegrationsTab", () => {
       const rowAgain = await screen.findByTestId("drive-integration-row");
       const manageAgain = within(rowAgain).getByRole("button", { name: "Quản lý" });
       await waitFor(() => expect(document.activeElement).toBe(manageAgain));
+
+      // Re-opening and using browser Back (nav.back() directly, without clicking breadcrumb) also returns focus to "Quản lý" (F6)
+      fireEvent.click(manageAgain);
+      const viewEl2 = await screen.findByTestId("drive-integration-view");
+      const viewHeading2 = within(viewEl2).getByRole("heading", { name: "Google Drive", level: 2 });
+      await waitFor(() => expect(document.activeElement).toBe(viewHeading2));
+      act(() => {
+        nav.back();
+      });
+      const rowAfterBrowserBack = await screen.findByTestId("drive-integration-row");
+      const manageAfterBrowserBack = within(rowAfterBrowserBack).getByRole("button", { name: "Quản lý" });
+      await waitFor(() => expect(document.activeElement).toBe(manageAfterBrowserBack));
     });
 
     it("shows the popup blocked message on the row when window.open returns null", async () => {
@@ -467,7 +484,7 @@ describe("IntegrationsTab", () => {
         ),
       );
 
-      expect(await screen.findByText("Không tải được")).toBeInTheDocument();
+      expect(await screen.findByText("Không tải được tài khoản Google Drive")).toBeInTheDocument();
       const retryBtn = screen.getByRole("button", { name: "Thử lại" });
 
       failLoad = false;
@@ -553,7 +570,7 @@ describe("IntegrationsTab", () => {
       ).toBeInTheDocument();
 
       expect(within(viewEl).getByText("Đang hoạt động")).toBeInTheDocument();
-      expect(within(viewEl).getByText("Mất kết nối · kết nối lại")).toBeInTheDocument();
+      expect(within(viewEl).getByText("Mất kết nối")).toBeInTheDocument();
       expect(within(viewEl).getByText("UNI được làm gì với tài liệu đã liên kết")).toBeInTheDocument();
       expect(within(viewEl).getByText("Chỉ tệp bạn chọn")).toBeInTheDocument();
       expect(within(viewEl).getByText("4 tài liệu đã liên kết")).toBeInTheDocument();
@@ -700,10 +717,14 @@ describe("IntegrationsTab", () => {
       );
 
       const viewEl = await screen.findByTestId("drive-integration-view");
-      expect(await within(viewEl).findByText("Không tải được")).toBeInTheDocument();
+      expect(await within(viewEl).findByText("Không tải được tài khoản Google Drive")).toBeInTheDocument();
+      // F2: while failed, count tile shows "—" instead of claiming "0 tài liệu đã liên kết"
+      expect(within(viewEl).getByText("—")).toBeInTheDocument();
+      expect(within(viewEl).queryByText("0 tài liệu đã liên kết")).not.toBeInTheDocument();
       failLoad = false;
       fireEvent.click(within(viewEl).getByRole("button", { name: "Thử lại" }));
       expect(await within(viewEl).findByText("uni-work1@gmail.com")).toBeInTheDocument();
+      expect(within(viewEl).getByText("2 tài liệu đã liên kết")).toBeInTheDocument();
     });
 
     it("waits for /api/v1/config on cold load (?tab=integrations&integration=drive) without a seeded flag: shows skeleton and keeps param while pending, renders view when enabled, or strips param when disabled (R4-2, R5-1)", async () => {
@@ -787,7 +808,81 @@ describe("IntegrationsTab", () => {
       expect(navColdDisabled.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
       unmount2();
 
-      // Case 3: config arrives with flag off -> strips integration=drive via replace and renders the list
+      // Case 3: cold load without seeded flag; config arrives with flags: { drive_connector: false } -> strips integration=drive and shows list (N6-3)
+      requestMock.mockClear();
+      const { promise: configPromise3, resolve: resolveConfig3 } = Promise.withResolvers<unknown>();
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/config") return configPromise3;
+        if (path === "/api/v1/workspaces/ws1/email-hub/accounts") return Promise.resolve({ accounts: [] });
+        if (path === "/api/v1/workspaces/ws1/drive-connections") return Promise.resolve({ connections: [] });
+        return Promise.resolve({});
+      });
+
+      const navColdFlagOff = fakeNav("/acme/team/settings?tab=integrations&integration=drive");
+      const { container: container3, unmount: unmount3 } = render(
+        wrapWithNav(
+          <PublicConfigFlagsProvider>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <IntegrationsTab />
+            </WorkspaceProvider>
+          </PublicConfigFlagsProvider>,
+          navColdFlagOff,
+        ),
+      );
+
+      expect(container3.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+      expect(navColdFlagOff.replace).not.toHaveBeenCalled();
+
+      await act(async () => {
+        resolveConfig3({
+          flags: { drive_connector: false },
+          rum_sample_rate: 0,
+          drive: { available: true },
+        });
+      });
+
+      expect(await screen.findByText("Email Hub")).toBeInTheDocument();
+      expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("drive-integration-row")).not.toBeInTheDocument();
+      expect(navColdFlagOff.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
+      unmount3();
+
+      // Case 4: cold load without seeded flag; /api/v1/config rejects -> strips integration=drive and shows list (N6-3)
+      requestMock.mockClear();
+      const { promise: configPromise4, reject: rejectConfig4 } = Promise.withResolvers<unknown>();
+      requestMock.mockImplementation((path: string) => {
+        if (path === "/api/v1/config") return configPromise4;
+        if (path === "/api/v1/workspaces/ws1/email-hub/accounts") return Promise.resolve({ accounts: [] });
+        if (path === "/api/v1/workspaces/ws1/drive-connections") return Promise.resolve({ connections: [] });
+        return Promise.resolve({});
+      });
+
+      const navColdRejected = fakeNav("/acme/team/settings?tab=integrations&integration=drive");
+      const { container: container4, unmount: unmount4 } = render(
+        wrapWithNav(
+          <PublicConfigFlagsProvider>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <IntegrationsTab />
+            </WorkspaceProvider>
+          </PublicConfigFlagsProvider>,
+          navColdRejected,
+        ),
+      );
+
+      expect(container4.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+      expect(navColdRejected.replace).not.toHaveBeenCalled();
+
+      await act(async () => {
+        rejectConfig4(new Error("config failed"));
+      });
+
+      expect(await screen.findByText("Email Hub")).toBeInTheDocument();
+      expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("drive-integration-row")).not.toBeInTheDocument();
+      expect(navColdRejected.replace).toHaveBeenCalledWith("/acme/team/settings?tab=integrations");
+      unmount4();
+
+      // Case 5: seeded StaticProvider with flag off -> strips integration=drive via replace and renders the list
       requestMock.mockClear();
       const navFlagOff = fakeNav("/acme/team/settings?tab=integrations&integration=drive");
       renderTab([], {
@@ -855,12 +950,14 @@ describe("IntegrationsTab", () => {
       postDriveOAuthMessage(popup, true, "connected");
 
       const viewEl = await screen.findByTestId("drive-integration-view");
-      // While first-connect refetch is in flight and connections is still empty, show skeleton and hide contradictory empty state & connected banner
+      // While first-connect refetch is in flight and connections is still empty, show skeleton, hide contradictory empty state & connected banner, and show "—" in the count tile (F2)
       expect(viewEl.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
       expect(within(viewEl).queryByText("Chưa có tài khoản Google Drive nào được kết nối.")).not.toBeInTheDocument();
       expect(
         within(viewEl).queryByText("Đã kết nối Google Drive. Bạn có thể liên kết tài liệu vào việc."),
       ).not.toBeInTheDocument();
+      expect(within(viewEl).getByText("—")).toBeInTheDocument();
+      expect(within(viewEl).queryByText("0 tài liệu đã liên kết")).not.toBeInTheDocument();
 
       // Resolve first refetch with empty connections (so we can test a subsequent background refetch on an empty view)
       await act(async () => {
@@ -868,6 +965,7 @@ describe("IntegrationsTab", () => {
       });
 
       expect(await within(viewEl).findByText("Chưa có tài khoản Google Drive nào được kết nối.")).toBeInTheDocument();
+      expect(within(viewEl).getByText("0 tài liệu đã liên kết")).toBeInTheDocument();
       expect(
         within(viewEl).getByText("Đã kết nối Google Drive. Bạn có thể liên kết tài liệu vào việc."),
       ).toBeInTheDocument();

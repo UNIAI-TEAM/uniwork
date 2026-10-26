@@ -106,6 +106,7 @@ export function IntegrationsTab({
   const [focusViewHeading, setFocusViewHeading] = useState(false);
   const [focusManageButton, setFocusManageButton] = useState(false);
   const openedInSessionRef = useRef(false);
+  const prevWantsDriveViewRef = useRef(false);
   const clearFocusViewHeading = useCallback(() => setFocusViewHeading(false), []);
   const clearFocusManageButton = useCallback(() => setFocusManageButton(false), []);
 
@@ -128,9 +129,13 @@ export function IntegrationsTab({
   }, [wantsDriveView, configWaitForDrive, driveAvailable, navigation]);
 
   useEffect(() => {
-    if (!wantsDriveView) {
+    if (prevWantsDriveViewRef.current && !wantsDriveView) {
+      if (openedInSessionRef.current) {
+        setFocusManageButton(true);
+      }
       openedInSessionRef.current = false;
     }
+    prevWantsDriveViewRef.current = wantsDriveView;
   }, [wantsDriveView]);
 
   const openDriveView = (notice?: CallbackNotice) => {

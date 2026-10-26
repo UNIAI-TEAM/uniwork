@@ -269,7 +269,7 @@ export function DriveIntegrationRow({
       data-testid="drive-integration-row"
       align="start"
       wrapTitle
-      className="rounded-sm focus-visible:-outline-offset-2"
+      className="rounded-sm first:rounded-t-lg last:rounded-b-lg focus-visible:-outline-offset-2"
       leading={<DriveMarkTile />}
       title={t("title")}
       badge={badge}

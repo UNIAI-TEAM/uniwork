@@ -997,7 +997,7 @@
         "connected_other": "Đã kết nối {{count}} tài khoản",
         "needs_reconnect_one": " · {{count}} mất kết nối",
         "needs_reconnect_other": " · {{count}} mất kết nối",
-        "load_error": "Không tải được",
+        "load_error": "Không tải được tài khoản Google Drive",
         "retry": "Thử lại",
         "oauth_pending": "Hoàn tất đăng nhập trong cửa sổ vừa mở.",
         "oauth_show_window": "Mở lại cửa sổ",
@@ -1008,6 +1008,7 @@
         "linked_count_label": "Tài liệu đã liên kết",
         "linked_count_one": "{{count}} tài liệu đã liên kết",
         "linked_count_other": "{{count}} tài liệu đã liên kết",
+        "linked_count_unknown": "—",
         "storage_label": "UniWork lưu",
         "storage_value": "Chỉ liên kết, không lưu nội dung",
         "view": {
@@ -1024,7 +1025,7 @@
         "account": {
           "connected_at": "Kết nối {{when}}",
           "status_active": "Đang hoạt động",
-          "lost_reconnect": "Mất kết nối · kết nối lại",
+          "lost_reconnect": "Mất kết nối",
           "reconnect": "Kết nối lại",
           "reconnect_aria": "Kết nối lại {{email}}",
           "disconnect": "Ngắt kết nối",

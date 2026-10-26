@@ -998,7 +998,7 @@
         "connected_other": "{{count}} accounts connected",
         "needs_reconnect_one": " · {{count}} disconnected",
         "needs_reconnect_other": " · {{count}} disconnected",
-        "load_error": "Couldn't load",
+        "load_error": "Couldn't load Google Drive accounts",
         "retry": "Retry",
         "oauth_pending": "Finish signing in in the window that just opened.",
         "oauth_show_window": "Show the window",
@@ -1009,6 +1009,7 @@
         "linked_count_label": "Linked documents",
         "linked_count_one": "{{count}} linked document",
         "linked_count_other": "{{count}} linked documents",
+        "linked_count_unknown": "—",
         "storage_label": "UniWork stores",
         "storage_value": "Links only, no content stored",
         "view": {
@@ -1025,7 +1026,7 @@
         "account": {
           "connected_at": "Connected {{when}}",
           "status_active": "Active",
-          "lost_reconnect": "Disconnected · Reconnect",
+          "lost_reconnect": "Disconnected",
           "reconnect": "Reconnect",
           "reconnect_aria": "Reconnect {{email}}",
           "disconnect": "Disconnect",
