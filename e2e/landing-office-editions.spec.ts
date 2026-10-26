@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { resolve } from "node:path";
 import { auditText } from "./contrast";
 import { landingReady, gotoLanding } from "./landing-ready";
+import { STUB_INSTALLERS, stubOfficeInstallerFallback } from "./landing-office-stubs";
 
 for (const scenario of [
   { width: 1440, theme: "light", locale: "vi", personal: "Office for Personal", status: "Đang phát triển" },
@@ -34,20 +35,16 @@ for (const scenario of [
 }
 
 test("Office trial opens a published Windows installer download", async ({ page }) => {
-  const configResponse = page.waitForResponse(response => response.url().includes("/api/v1/config") && response.request().method() === "GET");
-  // No release manifest here: the Download section offers the config's installers.
-  await page.route("**/downloads/office/releases.json", route => route.fulfill({ status: 404, body: "" }));
+  // Known installers and no release manifest: the section offers STUB_INSTALLERS, so this never skips.
+  await stubOfficeInstallerFallback(page);
   await gotoLanding(page, "/apps/office");
   await landingReady(page);
-  const config = await (await configResponse).json();
-  const published = [config.office_installers?.stable, config.office_installers?.beta, config.office_installers?.dev]
-    .find((rows: { platform: string; url: string }[] | undefined) => rows?.length) ?? [];
-  const installer = published.find((row: { platform: string; url: string }) => row.platform === "win32-x64");
-  test.skip(!installer, "This deployment has no published Windows installer.");
+  const installer = STUB_INSTALLERS.find(row => row.platform === "win32-x64")!;
   await page.locator(".office-trial-action").click();
   // Windows leads for a Windows visitor; anyone else picks it among "Nền tảng khác". The link is the same file either way.
   const windows = page.locator(`#office-download a[download][href="${installer.url}"]`);
-  await expect(page.locator("#office-download .office-dl-spot, #office-download .office-dl-group").first()).toBeVisible();
+  // Past the skeleton, which carries an .office-dl-spot too, before counting links.
+  await expect(page.locator("#office-download .office-dl-spot:not(.is-skeleton), #office-download .office-dl-group").first()).toBeVisible();
   if (await windows.count() === 0) {
     await page.locator("#office-download .office-dl-others-trigger").click();
     await page.locator('#office-download .office-dl-tiles [role=radio][aria-label="Windows"]').click();

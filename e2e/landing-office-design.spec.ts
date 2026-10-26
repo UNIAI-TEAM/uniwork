@@ -5,6 +5,7 @@ import { auditText } from "./contrast";
 import vi from "../packages/core/i18n/locales/vi.json" with { type: "json" };
 import en from "../packages/core/i18n/locales/en.json" with { type: "json" };
 import { landingReady, gotoLanding } from "./landing-ready";
+import { STUB_INSTALLERS, stubOfficeInstallerFallback } from "./landing-office-stubs";
 
 const scenarios = [
   { width: 1306, theme: "light", locale: "en" },
@@ -21,14 +22,10 @@ for (const scenario of scenarios) {
     await context.addCookies([{ name: "uniwork-locale", value: scenario.locale, url: baseURL! }]);
     await page.setViewportSize({ width: scenario.width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: scenario.theme });
-    const configResponse = page.waitForResponse(response => response.url().includes("/api/v1/config") && response.request().method() === "GET");
-    // No release manifest here: the Download section falls back to the config's installers.
-    await page.route("**/downloads/office/releases.json", route => route.fulfill({ status: 404, body: "" }));
+    // No release manifest and known installers: the Download section falls back to the config's STUB_INSTALLERS.
+    await stubOfficeInstallerFallback(page);
     await gotoLanding(page, "/apps/office");
     await landingReady(page);
-    const config = await (await configResponse).json();
-    const published: { platform: string; url: string }[] = [config.office_installers?.stable, config.office_installers?.beta, config.office_installers?.dev]
-      .find((rows: { platform: string; url: string }[] | undefined) => rows?.length) ?? [];
     const hero = page.locator(".office-hero");
     const preview = hero.locator(".office-hero-preview");
     await expect(page.getByRole("tablist")).toHaveCount(1);
@@ -100,9 +97,12 @@ for (const scenario of scenarios) {
     await expect(page.locator("#office-download-title")).toBeInViewport();
     // The quiet fallback note, then only published files: the visitor's own system first, the others behind one row.
     await expect(page.locator("#office-download .office-dl-quiet-alert")).toBeVisible();
+    // Past the skeleton, with at least one link, so the loop below cannot pass on nothing.
+    await expect(page.locator("#office-download .office-dl-spot:not(.is-skeleton), #office-download .office-dl-group").first()).toBeVisible();
+    await expect(page.locator("#office-download a[download]").first()).toBeVisible();
     const links = await page.locator("#office-download a[download]").evaluateAll(anchors => anchors.map(anchor => anchor.getAttribute("href")));
-    for (const link of links) expect(published.map(row => row.url)).toContain(link);
-    if (published.length === 0) expect(links).toEqual([]);
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) expect(STUB_INSTALLERS.map(row => row.url)).toContain(link);
     const closing = page.locator(".final-compact-demo");
     await expect(closing).toHaveText(scenario.locale === "vi" ? vi.landing.office.hero.explore : en.landing.office.hero.explore);
     await closing.click();
