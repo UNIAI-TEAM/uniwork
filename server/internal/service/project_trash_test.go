@@ -179,6 +179,51 @@ func TestRestoreProjectRelinksOnlyTasksStillUnlinked(t *testing.T) {
 	}
 }
 
+// A person moving a task while its project sits in the trash makes the task
+// forget that project: moved to another project it stays there, and moved on
+// to no project it stays without one, instead of the restore pulling it back.
+func TestRestoreProjectLeavesATaskThePersonMovedMeanwhile(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	actor := Human(ua.ID)
+	p, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Dự án P"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.CreateProject(ctx, actor, w.ID, CreateProjectInput{Title: "Dự án Q"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inQ := projectTrashTask(t, s, ua, w, p.ID, "Sang Q")
+	unlinked := projectTrashTask(t, s, ua, w, p.ID, "Sang Q rồi bỏ dự án")
+	if err := s.TrashProject(ctx, actor, w.ID, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	to := &other.ID
+	for _, id := range []string{inQ.ID, unlinked.ID} {
+		if _, err := s.Update(ctx, actor, id, UpdateTaskInput{ProjectID: &to}); err != nil {
+			t.Fatal(err)
+		}
+		if row := rawTask(t, s, id); row.TrashedProjectID.Valid {
+			t.Fatalf("task %s moved to Q still remembers %s", id, row.TrashedProjectID.String)
+		}
+	}
+	var none *string
+	if _, err := s.Update(ctx, actor, unlinked.ID, UpdateTaskInput{ProjectID: &none}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.RestoreProject(ctx, actor, w.ID, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if row := rawTask(t, s, inQ.ID); row.ProjectID.String != other.ID {
+		t.Fatalf("task moved to Q = project %v, want %s", row.ProjectID, other.ID)
+	}
+	if row := rawTask(t, s, unlinked.ID); row.ProjectID.Valid {
+		t.Fatalf("task moved to Q then to no project = project %s, want none", row.ProjectID.String)
+	}
+}
+
 // A new project may take a trashed project's title; restoring the trashed one
 // then would make two, so the restore is refused until one is renamed.
 func TestRestoreProjectRefusesATitleTakenMeanwhile(t *testing.T) {

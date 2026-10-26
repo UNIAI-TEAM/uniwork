@@ -1873,6 +1873,7 @@ func (q *Queries) SetTaskParent(ctx context.Context, arg SetTaskParentParams) (T
 const setTaskProjectID = `-- name: SetTaskProjectID :one
 UPDATE tasks SET
   project_id = $2,
+  trashed_project_id = NULL,
   revision = revision + 1,
   updated_at = now(),
   last_activity_at = now()
@@ -1889,6 +1890,8 @@ type SetTaskProjectIDParams struct {
 	WorkspaceID    string      `json:"workspace_id"`
 }
 
+// A person choosing the project (or none) also drops the trashed project the
+// task remembered, so restoring that project never pulls the task back.
 func (q *Queries) SetTaskProjectID(ctx context.Context, arg SetTaskProjectIDParams) (Task, error) {
 	row := q.db.QueryRow(ctx, setTaskProjectID,
 		arg.ID,

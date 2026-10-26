@@ -104,8 +104,11 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: SetTaskProjectID :one
+-- A person choosing the project (or none) also drops the trashed project the
+-- task remembered, so restoring that project never pulls the task back.
 UPDATE tasks SET
   project_id = $2,
+  trashed_project_id = NULL,
   revision = revision + 1,
   updated_at = now(),
   last_activity_at = now()
