@@ -1,6 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Task } from "@uniwork/core/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import type { Task, User } from "@uniwork/core/types";
 import { fakeNav, requestMock, wrapWithNav } from "../../../test/api-mock";
 import { TaskDetailEditors } from "./task-detail-editors";
 
@@ -23,6 +24,15 @@ const task = {
   description:
     "[spec](/acme/eng/documents/D1) and [pr](https://example.com/acme/eng/documents/D2) and [t](/acme/eng/tasks/UNI-0)",
 } as Task;
+const sessionUser: User = {
+  id: "u1",
+  email: "u1@example.com",
+  display_name: "User One",
+  onboarded_at: "2026-01-01T00:00:00Z",
+  email_verified_at: "2026-01-01T00:00:00Z",
+  onboarding_questionnaire: {},
+  locale: "vi",
+};
 
 async function mountAndFindLink(name: string) {
   const nav = fakeNav("/acme/eng/tasks/t1");
@@ -42,9 +52,14 @@ async function mountAndFindLink(name: string) {
 
 describe("TaskDetailEditors link context (DOC7-W03)", () => {
   beforeEach(() => {
+    resetAuthStoreForTests();
     requestMock.mockReset();
     attachmentsSlotSpy.mockReset();
     vi.spyOn(window, "open").mockImplementation(() => null);
+  });
+
+  afterEach(() => {
+    resetAuthStoreForTests();
   });
 
   it("tags an internal document link in the description with ?from=task:<task id>", async () => {
@@ -81,12 +96,33 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
     expect(link.closest("[role=textbox]")).toHaveAttribute("aria-label", "Mô tả công việc");
   });
 
-  it("passes canEdit derived from useTaskPermissions to TaskDetailAttachmentsSlot", async () => {
+  it("passes canEdit: true to TaskDetailAttachmentsSlot when the signed-in user is a workspace member", async () => {
+    setSessionUser(sessionUser);
     requestMock.mockImplementation(async (path: string) => {
       if (path === "/api/v1/workspaces/w1/me") {
-        return { role: "guest", source: "membership" };
+        return { role: "member", source: "membership" };
       }
-      return {};
+      return [];
+    });
+    await mountAndFindLink("spec");
+    await waitFor(() => {
+      expect(attachmentsSlotSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          workspaceId: "w1",
+          taskId: "t1",
+          canEdit: true,
+        }),
+      );
+    });
+  });
+
+  it("passes canEdit: false to TaskDetailAttachmentsSlot when the signed-in user has no workspace membership", async () => {
+    setSessionUser(sessionUser);
+    requestMock.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/workspaces/w1/me") {
+        throw Object.assign(new Error("forbidden"), { status: 403 });
+      }
+      return [];
     });
     await mountAndFindLink("spec");
     await waitFor(() => {

@@ -2,8 +2,8 @@
  * Pure Google Drive file URL parser for paste detection (spec §7.5, QĐ 8).
  *
  * Recognises:
- * - `docs.google.com/{document|spreadsheets|presentation}/d/<id>` (with optional `/u/<n>/`)
- * - `drive.google.com/file/d/<id>` (with optional `/u/<n>/`)
+ * - `docs.google.com/{document|spreadsheets|presentation}/d/<id>` (with optional `/u/<n>/` or `/a/<domain>/`)
+ * - `drive.google.com/file/d/<id>` (with optional `/u/<n>/` or `/a/<domain>/`)
  *
  * With or without `https://` / `http://`, `/edit`, `/view`, query string, or `#` hash.
  * Anything else (folders, `drive.google.com/drive/folders/...`, `open?id=...`,
@@ -30,6 +30,7 @@ const MAX_URL_CANDIDATE_LENGTH = 2048;
 
 const FILE_ID_RE = /^[A-Za-z0-9_-]+$/;
 const USER_INDEX_RE = /^\d+$/;
+const WORKSPACE_DOMAIN_RE = /^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 const DOCS_KINDS: Record<string, true> = {
   document: true,
   spreadsheets: true,
@@ -100,14 +101,27 @@ export function parseDriveFileUrl(raw: string): string | null {
 }
 
 function stripUserSegment(segments: string[], startIndex: number): number {
-  if (
-    segments[startIndex] === "u" &&
-    segments[startIndex + 1] !== undefined &&
-    USER_INDEX_RE.test(segments[startIndex + 1]!)
-  ) {
-    return startIndex + 2;
+  let idx = startIndex;
+  while (idx < segments.length) {
+    if (
+      segments[idx] === "u" &&
+      segments[idx + 1] !== undefined &&
+      USER_INDEX_RE.test(segments[idx + 1]!)
+    ) {
+      idx += 2;
+      continue;
+    }
+    if (
+      segments[idx] === "a" &&
+      segments[idx + 1] !== undefined &&
+      WORKSPACE_DOMAIN_RE.test(segments[idx + 1]!)
+    ) {
+      idx += 2;
+      continue;
+    }
+    break;
   }
-  return startIndex;
+  return idx;
 }
 
 function isValidDriveFileId(fileId: string | undefined): fileId is string {

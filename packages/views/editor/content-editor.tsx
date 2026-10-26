@@ -83,6 +83,7 @@ import {
   normalizeMarkdown,
   normalizeEditorMarkdown,
   hasUploadingNode,
+  mergeProviderAttachments,
 } from "./content-editor-helpers";
 
 import type { ContentEditorProps, ContentEditorRef } from "./content-editor-types";
@@ -119,7 +120,8 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       quickActionMenu,
       attachments,
       flushPendingOnUnmount = false,
-      onReady, onPasteDriveFileIds,
+      onReady,
+      onPasteDriveFileIds,
     },
     ref,
   ) {
@@ -199,33 +201,10 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       };
     }, [onUploadFile]);
 
-    // Merged list fed to AttachmentDownloadProvider. Caller-supplied attachments
-    // (issue / comment editors that pre-load the full attachments[] from the
-    // server) take precedence — we only append session uploads the caller
-    // doesn't already have, so a parent re-render that includes the same record
-    // doesn't end up with two copies.
-    //
-    // One exception on id collision: when the caller's copy has an EMPTY
-    // `download_url` (the create-issue draft strips the short-lived signed URL
-    // before persisting), backfill it from the session upload. The session copy
-    // holds the this-response signed URL, so the just-pasted image first-paints
-    // from it instead of taking an extra redirect hop through `markdown_url`.
-    const providerAttachments = useMemo(() => {
-      if (sessionUploads.length === 0) return attachments;
-      const sessionById = new Map(sessionUploads.map((a) => [a.id, a]));
-      const merged: Attachment[] = [];
-      for (const a of attachments ?? []) {
-        const session = a.id ? sessionById.get(a.id) : undefined;
-        if (session) sessionById.delete(a.id);
-        merged.push(
-          session && !a.download_url
-            ? { ...a, download_url: session.download_url }
-            : a,
-        );
-      }
-      merged.push(...sessionById.values());
-      return merged;
-    }, [attachments, sessionUploads]);
+    const providerAttachments = useMemo(
+      () => mergeProviderAttachments(attachments, sessionUploads),
+      [attachments, sessionUploads],
+    );
 
     // Current org/ws slug kept in a ref so the click handler always sees the
     // latest value without recreating the editor. Used by openLink to prefix

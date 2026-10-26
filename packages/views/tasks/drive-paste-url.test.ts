@@ -57,6 +57,44 @@ describe("parseDriveFileUrl", () => {
     ).toBe("1FileU1Prefix_0123456789");
   });
 
+  it("supports legacy Google Workspace domain URLs (/a/<domain>/...) for each kind and still rejects published-to-web URLs", () => {
+    expect(
+      parseDriveFileUrl(
+        "https://docs.google.com/a/example.com/document/d/1WorkspaceDoc_0123456789/edit",
+      ),
+    ).toBe("1WorkspaceDoc_0123456789");
+
+    expect(
+      parseDriveFileUrl(
+        "https://docs.google.com/a/corp.example.org/spreadsheets/d/1WorkspaceSheet_0123456789/edit#gid=0",
+      ),
+    ).toBe("1WorkspaceSheet_0123456789");
+
+    expect(
+      parseDriveFileUrl(
+        "https://docs.google.com/a/acme.vn/presentation/d/1WorkspaceSlide_0123456789/view",
+      ),
+    ).toBe("1WorkspaceSlide_0123456789");
+
+    expect(
+      parseDriveFileUrl(
+        "https://drive.google.com/a/acme.vn/file/d/1WorkspaceFile_0123456789/view?usp=sharing",
+      ),
+    ).toBe("1WorkspaceFile_0123456789");
+
+    expect(
+      parseDriveFileUrl(
+        "https://docs.google.com/a/example.com/document/d/e/2PACX-1vSomePublishedIdHere1234567890/pub",
+      ),
+    ).toBeNull();
+
+    expect(
+      parseDriveFileUrl(
+        "https://docs.google.com/a/example.com/spreadsheets/d/e/2PACX-1vPublishedSheetId1234567890/pubhtml",
+      ),
+    ).toBeNull();
+  });
+
   it("returns null for folders, open?id=, other Google paths, and other hosts", () => {
     expect(
       parseDriveFileUrl(
