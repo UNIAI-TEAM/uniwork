@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldAlert } from "lucide-react";
+import { Brain, Check, CircleCheck, ShieldAlert, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiPanelStore } from "@uniwork/core/ai";
 import {
@@ -12,9 +12,8 @@ import {
 } from "@uniwork/core/ai/memory";
 import type { AiMemoryProposal, AiMessage } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
-import { MEMORY_MAX_CHARS, runeCount, useMemoryErrorText } from "./ask-uni-memory-row";
+import { MEMORY_MAX_CHARS, MemoryKindToggle, runeCount, useMemoryErrorText } from "./ask-uni-memory-row";
 
 const SETTLED = new Set(["rejected", "undone", "expired"]);
 
@@ -53,9 +52,32 @@ function Row({ proposal: p, conversationId, orgSlug }: { proposal: AiMemoryPropo
   const shownText = action === "forget" ? p.before_text : p.text;
   const kindLabel = shownKind === "preference" || shownKind === "fact" ? t(`kind_${shownKind}`) : "";
   const status = p.status;
+  if (status === "applied") {
+    // Done: one line, so the answer is not pushed down by a decided card.
+    return (
+      <li className="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-3 py-2">
+        <CircleCheck aria-hidden className="size-4 shrink-0 text-success" />
+        <span className="text-caption text-success">{t(`proposal.done_${action}`)}</span>
+        <span className="min-w-0 flex-1 truncate text-caption text-muted-foreground">{shownText}</span>
+        <Button type="button" size="xs" variant="ghost" disabled={busy} onClick={() => run((cb) => undo.mutate(p.id, cb))}>
+          {t("proposal.undo")}
+        </Button>
+        <Button type="button" size="xs" variant="ghost" onClick={() => setView("memory")}>{t("proposal.open")}</Button>
+        {shownError ? (
+          <p role="alert" className="w-full text-caption text-destructive">
+            {shownError}
+          </p>
+        ) : null}
+      </li>
+    );
+  }
   return (
     <li className="px-3 py-2.5">
-      <p className="text-caption font-medium text-muted-foreground">{t(`proposal.title_${action}`)}</p>
+      <div className="flex items-center gap-1.5 text-caption text-muted-foreground">
+        <Brain aria-hidden className="size-3.5 shrink-0" />
+        <p className="flex-1 font-medium">{t(`proposal.title_${action}`)}</p>
+        {kindLabel && !editing ? <span className="rounded-md bg-muted px-1.5 py-0.5">{kindLabel}</span> : null}
+      </div>
       {editing ? (
         <div className="mt-1.5 flex flex-col gap-2">
           {/* Its own line and wrapping, so a 300-character entry reads whole in the narrow dock; an entry is one line. */}
@@ -67,33 +89,26 @@ function Row({ proposal: p, conversationId, orgSlug }: { proposal: AiMemoryPropo
             className="min-h-0"
           />
           <div className="flex flex-wrap items-center gap-2">
-            <Select
-              items={[{ value: "preference", label: t("kind_preference") }, { value: "fact", label: t("kind_fact") }]}
-              value={kind}
-              onValueChange={(v) => v && setKind(v)}
-            >
-              <SelectTrigger aria-label={t("kind_label")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="preference">{t("kind_preference")}</SelectItem>
-                <SelectItem value="fact">{t("kind_fact")}</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button type="button" size="sm" disabled={busy} onClick={save}>{t("proposal.edit_save")}</Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>{t("proposal.edit_cancel")}</Button>
+            <MemoryKindToggle value={kind} onChange={setKind} />
+            <div className="ms-auto flex gap-1.5">
+              <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>{t("proposal.edit_cancel")}</Button>
+              <Button type="button" size="sm" disabled={busy} onClick={save}>{t("proposal.edit_save")}</Button>
+            </div>
           </div>
         </div>
       ) : (
-        <div className={SETTLED.has(status) ? "mt-1 opacity-60" : "mt-1"}>
+        <div className={SETTLED.has(status) ? "mt-1.5 opacity-60" : "mt-1.5"}>
           {action === "update" && p.before_text !== "" ? (
             <p className="text-body break-words whitespace-pre-wrap text-muted-foreground line-through">
               <span className="sr-only">{t("proposal.was")}: </span>
               {p.before_text}
             </p>
           ) : null}
-          <p className="text-body break-words whitespace-pre-wrap text-foreground">{shownText}</p>
-          {kindLabel ? <p className="mt-0.5 text-caption text-muted-foreground">{kindLabel}</p> : null}
+          <p
+            className={`text-body break-words whitespace-pre-wrap ${action === "forget" ? "text-muted-foreground line-through" : "text-foreground"}`}
+          >
+            {shownText}
+          </p>
         </div>
       )}
       {shownError ? (
@@ -103,25 +118,25 @@ function Row({ proposal: p, conversationId, orgSlug }: { proposal: AiMemoryPropo
       ) : null}
       {editing ? null : status === "pending" ? (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <Button type="button" size="sm" disabled={busy} onClick={() => run((cb) => apply.mutate(p.id, cb))}>
+          <Button
+            type="button"
+            size="sm"
+            variant={action === "forget" ? "destructive" : "default"}
+            disabled={busy}
+            onClick={() => run((cb) => apply.mutate(p.id, cb))}
+          >
+            {action === "forget" ? <Trash aria-hidden /> : <Check aria-hidden />}
             {t(`proposal.${action === "update" ? "save" : action}`)}
           </Button>
           {action === "forget" ? null : (
-            <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => { setText(p.text); setKind(p.kind); setEditing(true); }}>
+            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setText(p.text); setKind(p.kind); setEditing(true); }}>
               {t("proposal.edit")}
             </Button>
           )}
+          {/* Rejecting a forget keeps the entry, so it says so. */}
           <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => run((cb) => reject.mutate(p.id, cb))}>
-            {t("proposal.reject")}
+            {t(action === "forget" ? "proposal.keep" : "proposal.reject")}
           </Button>
-        </div>
-      ) : status === "applied" ? (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className="text-caption text-success">{t(`proposal.done_${action}`)}</span>
-          <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => run((cb) => undo.mutate(p.id, cb))}>
-            {t("proposal.undo")}
-          </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={() => setView("memory")}>{t("proposal.open")}</Button>
         </div>
       ) : (
         <p className="mt-2 text-caption text-muted-foreground">{t(`proposal.${SETTLED.has(status) ? status : "unknown"}`)}</p>
@@ -148,7 +163,7 @@ export function AskUniMemoryCard({
   return (
     // Rows may remember, update or forget, so the region has a neutral name.
     <section aria-label={t("region")} className="mt-3 flex flex-col gap-2" data-slot="ask-uni-memory-card">
-      <div className="overflow-hidden rounded-lg bg-muted/50">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         <ul className="divide-y divide-border">
           {rows.map((p) => (
             <Row key={p.id || `${p.position}`} proposal={p} conversationId={conversationId} orgSlug={orgSlug} />

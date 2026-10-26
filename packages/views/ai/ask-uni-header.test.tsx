@@ -104,8 +104,15 @@ describe("AskUniHeader", () => {
     const names = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? "");
     expect(names.indexOf("Bộ nhớ")).toBeGreaterThan(names.findIndex((n) => n.startsWith("Lịch sử hội thoại")));
     expect(names.indexOf("Bộ nhớ")).toBeLessThan(names.indexOf("Hội thoại mới"));
+    expect(button).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(button);
     expect(useAiPanelStore.getState().view).toBe("memory");
+    // Open, it reads "Bộ nhớ" in words and takes you back to the conversation.
+    const open = await screen.findByRole("button", { name: "Bộ nhớ" });
+    expect(open).toHaveAttribute("aria-pressed", "true");
+    expect(open).toHaveTextContent("Bộ nhớ");
+    fireEvent.click(open);
+    expect(useAiPanelStore.getState().view).toBe("thread");
   });
 
   it("has no memory button when the flag is off", async () => {

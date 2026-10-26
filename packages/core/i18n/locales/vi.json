@@ -7572,15 +7572,13 @@
     },
     "memory": {
       "button": "Bộ nhớ",
-      "title": "Bộ nhớ",
-      "back": "Quay lại cuộc trò chuyện",
+      "title": "Bộ nhớ của bạn",
       "switch_label": "Dùng bộ nhớ",
       "switch_hint": "UNI dùng các mục dưới đây để trả lời hợp ý bạn. UNI chỉ nhớ khi bạn đồng ý.",
       "off_note": "UNI đang không dùng bộ nhớ.",
       "group_preference": "Cách UNI trả lời",
       "group_fact": "Về bạn",
       "count": "{{count}}/{{limit}}",
-      "add": "Thêm",
       "add_entry": "Thêm mục",
       "entry_placeholder": "Một câu ngắn, tối đa {{max}} ký tự",
       "entry_label": "Nội dung mục bộ nhớ",
@@ -7594,12 +7592,9 @@
       "deleted": "Đã xóa một mục",
       "undo": "Hoàn tác",
       "edit_by_chat": "Sửa bằng cách nói với UNI",
-      "edit_prefill": "Cập nhật bộ nhớ của tôi: ",
       "import": "Nhập từ AI khác",
       "importer": {
         "title": "Nhập từ AI khác",
-        "back": "Quay lại",
-        "step_hint": "Dán vào ChatGPT, Claude hoặc Gemini, rồi dán câu trả lời của nó vào ô bên dưới.",
         "prompt": "Hãy liệt kê những gì bạn biết về tôi để tôi chuyển sang một trợ lý AI khác. Chỉ ghi hai nhóm:\nSỞ THÍCH — cách tôi muốn được trả lời: văn phong, giọng điệu, định dạng, những điều nên tránh.\nCÔNG VIỆC — vai trò, nhóm, dự án tôi đang làm, công cụ và cách tôi làm việc, việc tôi đang ưu tiên.\nMỗi ý một dòng, bắt đầu bằng \"- \", ngắn gọn, không ghi ngày. Không ghi đời tư, sức khỏe, thông tin về người khác, mật khẩu, khóa hay số tài khoản. Không thêm lời mở đầu hay kết luận.",
         "copy": "Sao chép",
         "copied": "Đã sao chép",
@@ -7633,7 +7628,10 @@
           "ai_rate_limited": "AI đang bận, thử lại sau ít phút.",
           "invalid_request": "Chữ dán không hợp lệ.",
           "ai_refused": "Mô hình từ chối xử lý chữ này. Bỏ bớt phần nhạy cảm rồi thử lại."
-        }
+        },
+        "step_copy": "Sao chép câu lệnh này vào AI bạn đang dùng",
+        "step_paste": "Dán câu trả lời của AI đó vào đây",
+        "paste_again": "Dán lại"
       },
       "clear_all": "Xóa toàn bộ bộ nhớ",
       "clear_title": "Xóa toàn bộ bộ nhớ?",
@@ -7641,8 +7639,8 @@
       "clear_confirm": "Xóa toàn bộ",
       "cleared_other": "Đã xóa {{count}} mục",
       "footnote": "Xóa một mục không xóa cuộc trò chuyện nơi bạn đã nói điều đó.",
-      "empty_title": "Chưa có gì trong bộ nhớ",
-      "empty_description": "Thêm vài điều để UNI trả lời hợp ý bạn hơn, như cách xưng hô, văn phong hay công việc của bạn.",
+      "empty_title": "Dạy UNI hiểu bạn",
+      "empty_description": "Nói cho UNI bạn muốn được trả lời thế nào, hoặc điều gì về công việc của bạn.",
       "load_error": "Không tải được bộ nhớ.",
       "retry": "Thử lại",
       "full": "Bộ nhớ đã đủ {{limit}} mục. Xóa bớt để thêm mục mới.",
@@ -7687,13 +7685,32 @@
         "edit_cancel": "Hủy",
         "edit_text": "Chữ sẽ lưu",
         "was": "Trước đây",
-        "tainted": "UNI đã đọc nội dung người khác viết trong cuộc trò chuyện này. Chỉ nhớ nếu đúng là ý bạn."
+        "tainted": "UNI đã đọc nội dung người khác viết trong cuộc trò chuyện này. Chỉ nhớ nếu đúng là ý bạn.",
+        "keep": "Giữ lại"
       },
       "used": {
-        "label": "Đã dùng bộ nhớ: {{text}}",
-        "more": "+{{count}}",
         "deleted": "Đã dùng bộ nhớ (mục đã xóa)",
-        "list": "Các mục UNI đã dùng"
+        "list": "Các mục UNI đã dùng",
+        "chip_other": "Dùng {{count}} mục bộ nhớ",
+        "open": "Mở Bộ nhớ"
+      },
+      "switch_title": "Dùng bộ nhớ khi trả lời",
+      "talk_to_uni": "Nói với UNI",
+      "edit_entry_named": "Sửa mục: {{text}}",
+      "entry_count": "{{count}}/{{max}}",
+      "help": {
+        "region": "Gợi ý sửa bộ nhớ",
+        "summary_other": "UNI đang nhớ {{count}} điều: {{preference}} về cách trả lời, {{fact}} về bạn.",
+        "empty": "UNI chưa nhớ gì về bạn. Kể cho UNI vài điều để trả lời hợp ý bạn hơn.",
+        "close": "Đóng gợi ý",
+        "remember_label": "Nhớ một điều mới",
+        "remember_text": "Nhớ giúp tôi là ",
+        "name_label": "Đổi cách xưng hô",
+        "name_text": "Từ giờ gọi tôi là ",
+        "role_label": "Cập nhật vai trò",
+        "role_text": "Cập nhật bộ nhớ: tôi đang làm ",
+        "forget_label": "Bỏ một mục",
+        "forget_text": "Bỏ khỏi bộ nhớ mục "
       }
     }
   },
