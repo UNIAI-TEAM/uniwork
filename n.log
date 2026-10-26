@@ -1,0 +1,27 @@
+$ tail -n 60 /tmp/pr8r1-server.log /tmp/pr8r1-web.log; for p in 19180 14100; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; true
+==> /tmp/pr8r1-server.log <==
+02:15:55.431 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+02:15:55.431 INF local storage adapter ready dir=/tmp/uniwork-uploads
+02:15:55.435 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/26 02:15:55 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+02:15:55.437 INF mail: log mode, messages are printed component=server
+02:15:55.437 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+02:15:55.437 INF ai gateway enabled component=server provider=fake
+02:15:56.240 INF listening component=server port=19180 swagger=http://localhost:19180/swagger/index.html
+02:15:56.240 INF mail: outbox worker started component=server tick=5s
+
+==> /tmp/pr8r1-web.log <==
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+▲ Next.js 16.4.2
+- Local:         http://localhost:14100
+- Network:       http://172.30.0.2:14100
+✓ Ready in 135ms
+✓ Running next.config.mjs took 159ms
+Error: Could not find a production build in the '.next' directory. Try building your app with 'next build' before starting the production server. https://nextjs.org/docs/messages/production-start-no-build-id
+    at ignore-listed frames
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 start: `next start`
+Exit status 1
