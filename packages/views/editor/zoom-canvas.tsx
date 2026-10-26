@@ -59,7 +59,7 @@ export function ZoomToolbarButton({
             onClick={onClick}
             disabled={disabled}
             aria-label={label}
-            className={cn("flex items-center justify-center rounded-md pointer-coarse:size-11 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40", compact ? "size-6" : "size-7")}
+            className={cn("flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40", compact ? "size-6 pointer-coarse:size-11" : "size-7")}
           />
         }
       >

@@ -96,19 +96,21 @@ export function DocumentMediaViewer({ wsId, doc, file, actions, readonly, canCom
 
       <div className="flex min-h-6 shrink-0 items-center justify-between gap-3 border-t border-border bg-office-band px-3 text-caption text-muted-foreground" data-document-media-status>
         <div className="flex min-w-0 items-center gap-1.5">
-          <Popover>
-            <PopoverTrigger
-              render={
-                <Button type="button" variant="ghost" size="icon-xs" aria-label={t("documents.file.metadata_title")}>
-                  <Info aria-hidden className="size-3.5" />
-                </Button>
-              }
-            />
-            <PopoverContent side="top" align="start" className="w-80">
-              <p className="truncate text-body font-medium text-foreground">{file.filename}</p>
-              <DocumentFileFacts file={file} className="grid grid-cols-2 gap-3" />
-            </PopoverContent>
-          </Popover>
+          {!fullscreen.active ? (
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <Button type="button" variant="ghost" size="icon-xs" aria-label={t("documents.file.metadata_title")}>
+                    <Info aria-hidden className="size-3.5" />
+                  </Button>
+                }
+              />
+              <PopoverContent side="top" align="start" className="w-80">
+                <p className="truncate text-body font-medium text-foreground">{file.filename}</p>
+                <DocumentFileFacts file={file} className="grid grid-cols-2 gap-3" />
+              </PopoverContent>
+            </Popover>
+          ) : null}
           <span className="truncate tabular-nums">{summary}</span>
         </div>
         <ZoomControls canvas={canvas} disabled={natural === null} compact slider>

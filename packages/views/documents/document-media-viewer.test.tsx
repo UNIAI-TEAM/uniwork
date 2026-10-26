@@ -64,6 +64,9 @@ function renderView(doc: Document, readonly = false) {
   return render(wrap(<DocumentFileView wsId="ws1" doc={doc} readonly={readonly} permissionNoticeShown />));
 }
 
+const origRequestFullscreen = HTMLElement.prototype.requestFullscreen;
+const origExitFullscreen = window.document.exitFullscreen;
+
 beforeEach(() => {
   requestMock.mockReset();
   createUrl.mockReset().mockReturnValue("blob:media");
@@ -73,7 +76,14 @@ beforeEach(() => {
     static revokeObjectURL = revokeUrl;
   });
 });
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  HTMLElement.prototype.requestFullscreen = origRequestFullscreen;
+  window.document.exitFullscreen = origExitFullscreen;
+  Object.defineProperty(window.document, "fullscreenElement", { value: null, configurable: true });
+  Object.defineProperty(window.document, "fullscreenEnabled", { value: false, configurable: true });
+});
 
 describe("isImageDocument", () => {
   it("opens image/* files in the viewer, and nothing else (video is out of scope)", () => {
@@ -185,13 +195,43 @@ describe("DocumentMediaViewer", () => {
     expect(screen.getByText("175%")).toBeInTheDocument();
     expect(contentWrapper.style.transform).toContain("scale(1.75)");
 
+    fireEvent.change(slider, { target: { value: "9999" } });
+    expect(screen.getByText("400%")).toBeInTheDocument();
+    expect(contentWrapper.style.transform).toContain("scale(4)");
+
     // Fit returns to 50%
     fireEvent.click(screen.getByRole("button", { name: t("editor.canvas.zoom_fit") }));
     expect(screen.getByText("50%")).toBeInTheDocument();
     expect(contentWrapper.style.transform).toContain("scale(0.5)");
   });
 
-  it("offers the full screen button only when document.fullscreenEnabled is true and toggles fullscreen", async () => {
+  it("revokes the object URL on unmount and fetches + revokes when the file version changes", async () => {
+    createUrl.mockReturnValueOnce("blob:v2").mockReturnValueOnce("blob:v3");
+    mockBytes("image/png");
+    const v2 = fileDocument("image/png", "ảnh.png");
+    const { rerender, unmount } = renderView(v2);
+
+    expect(await screen.findByRole("img", { name: "ảnh.png" })).toHaveAttribute("src", "blob:v2");
+    expect(requestMock).toHaveBeenCalledTimes(1);
+    expect(revokeUrl).not.toHaveBeenCalled();
+
+    const v3: Document = {
+      ...v2,
+      current_version: 3,
+      file: { ...v2.file!, version_id: "v3", version: 3 },
+    };
+    rerender(wrap(<DocumentFileView wsId="ws1" doc={v3} readonly={false} permissionNoticeShown />));
+
+    expect(await screen.findByRole("img", { name: "ảnh.png" })).toHaveAttribute("src", "blob:v3");
+    expect(requestMock).toHaveBeenCalledTimes(2);
+    expect(requestMock).toHaveBeenLastCalledWith("/api/v1/documents/d1/download?intent=view", expect.anything());
+    expect(revokeUrl).toHaveBeenCalledWith("blob:v2");
+
+    unmount();
+    expect(revokeUrl).toHaveBeenCalledWith("blob:v3");
+  });
+
+  it("offers the full screen button only when document.fullscreenEnabled is true, hides file details in fullscreen, and toggles fullscreen", async () => {
     Object.defineProperty(window.document, "fullscreenEnabled", { value: true, configurable: true });
     const requestFullscreen = vi.fn().mockResolvedValue(undefined);
     const exitFullscreen = vi.fn().mockResolvedValue(undefined);
@@ -202,6 +242,7 @@ describe("DocumentMediaViewer", () => {
     renderView(fileDocument("image/png", "ảnh.png"));
     await screen.findByRole("img", { name: "ảnh.png" });
 
+    expect(screen.getByRole("button", { name: t("documents.file.metadata_title") })).toBeInTheDocument();
     const enterBtn = screen.getByRole("button", { name: t("documents.media.fullscreen_enter") });
     fireEvent.click(enterBtn);
     expect(requestFullscreen).toHaveBeenCalledTimes(1);
@@ -211,11 +252,13 @@ describe("DocumentMediaViewer", () => {
     fireEvent(window.document, new Event("fullscreenchange"));
 
     const exitBtn = await screen.findByRole("button", { name: t("documents.media.fullscreen_exit") });
+    expect(screen.queryByRole("button", { name: t("documents.file.metadata_title") })).toBeNull();
     fireEvent.click(exitBtn);
     expect(exitFullscreen).toHaveBeenCalledTimes(1);
 
     Object.defineProperty(window.document, "fullscreenElement", { value: null, configurable: true });
-    Object.defineProperty(window.document, "fullscreenEnabled", { value: false, configurable: true });
+    fireEvent(window.document, new Event("fullscreenchange"));
+    expect(await screen.findByRole("button", { name: t("documents.file.metadata_title") })).toBeInTheDocument();
   });
 
   it("offers a retry when the bytes do not arrive", async () => {

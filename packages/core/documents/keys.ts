@@ -148,11 +148,12 @@ export const documentKeys = {
   /**
    * The bytes the image viewer shows for one file version (UNI-2166: a blob
    * through `GET /api/v1/documents/{id}/download?intent=view`). Outside the
-   * detail prefix like `asset`, and keyed by the version id, so a realtime
-   * frame never refetches an open image and a new version always does.
+   * workspace prefix (which `document.*` realtime frames invalidate) and keyed
+   * by the version id, so workspace activity never refetches an open image and
+   * a new version always does.
    */
   media: (wsId: string, documentId: string, versionId: string) =>
-    [...documentKeys.all, wsId, "media", documentId, versionId] as const,
+    [...documentKeys.all, "media", wsId, documentId, versionId] as const,
   comments: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "comments"] as const,
   /**
