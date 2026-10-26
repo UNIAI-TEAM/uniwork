@@ -5147,6 +5147,7 @@
         "open": "Chưa chốt",
         "new": "Mới",
         "playRecording": "Phát bản ghi",
+        "playRecordingAt": "Phát bản ghi lúc {{time}}",
         "addDue": "+ Hạn",
         "jumpToLine": "Xem câu nói lúc {{time}}",
         "chipDecision": "Chốt",

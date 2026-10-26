@@ -112,13 +112,7 @@ function FeedRow({
       )}
       <div className="min-w-0 flex-1">
         {recording ? (
-          <button
-            type="button"
-            className={`${TOUCH_TARGET} text-body font-medium text-foreground hover:underline`}
-            onClick={() => onPlay(recording.id)}
-          >
-            {t("meetings.panel.feed.playRecording")}
-          </button>
+          <PlayRecordingButton time={time} onPlay={() => onPlay(recording.id)} />
         ) : (
           <p className={note ? "text-body text-pretty text-foreground" : "text-body font-medium text-pretty text-foreground"}>{entry.text}</p>
         )}
@@ -151,6 +145,21 @@ function FeedRow({
         {isNew ? <span role="img" aria-label={t("meetings.panel.feed.new")} className="size-1.75 rounded-full bg-brand" /> : null}
       </div>
     </li>
+  );
+}
+
+/** "Play recording", named with its time so several recordings can be told apart. */
+function PlayRecordingButton({ time, onPlay }: { time: string | null; onPlay: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      aria-label={time ? t("meetings.panel.feed.playRecordingAt", { time }) : undefined}
+      className={`${TOUCH_TARGET} text-body font-medium text-foreground hover:underline`}
+      onClick={onPlay}
+    >
+      {t("meetings.panel.feed.playRecording")}
+    </button>
   );
 }
 

@@ -154,7 +154,8 @@ describe("MeetingFeedList", () => {
 
   it("plays a finished recording in the recording dialog", async () => {
     const { rows } = setup();
-    fireEvent.click(within(rows[5]!).getByRole("button", { name: "Phát bản ghi" }));
+    // Named with its time, so several recordings can be told apart; the visible words start the name.
+    fireEvent.click(within(rows[5]!).getByRole("button", { name: "Phát bản ghi lúc 10:20" }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });
