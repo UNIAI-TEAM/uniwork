@@ -129,12 +129,12 @@ describe("readBiff8Workbook cell records", () => {
       new Uint8Array(readFileSync(new URL(`../../../test/fixtures/biff8-rk/${name}`, import.meta.url)));
 
     const formatKm = convertLegacySpreadsheet(rkFixture("poi-FormatKM.xls"));
-    expect(formatKm.content.cells["Sheet1!A2"]).toBe("1.02");
-    expect(formatKm.content.cells["Sheet1!A6"]).toBe("1021.02");
+    expect(formatKm.content.cells?.["Sheet1!A2"]).toBe("1.02");
+    expect(formatKm.content.cells?.["Sheet1!A6"]).toBe("1021.02");
 
     const twoCharts = convertLegacySpreadsheet(rkFixture("poi-44010-TwoCharts.xls"));
-    expect(twoCharts.content.cells["auto_1!D3"]).toBe("46.4");
-    expect(twoCharts.content.cells["auto_1!E3"]).toBe("0.7");
+    expect(twoCharts.content.cells?.["auto_1!D3"]).toBe("46.4");
+    expect(twoCharts.content.cells?.["auto_1!E3"]).toBe("0.7");
   });
 
   it("reads BOOLERR booleans and drops error values", () => {
