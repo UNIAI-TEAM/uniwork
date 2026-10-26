@@ -391,7 +391,7 @@ func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) 
 			*(dest[9].(*int64)) = row.CredentialVersion
 			*(dest[10].(*string)) = row.Scopes
 			*(dest[11].(*pgtype.Timestamptz)) = row.AuthFailedAt
-			*(dest[12].(*pgtype.Text)) = row.AuthFailedReason
+			*(dest[12].(*string)) = row.AuthFailedReason
 			*(dest[13].(*pgtype.Timestamptz)) = row.CreatedAt
 			*(dest[14].(*pgtype.Timestamptz)) = row.UpdatedAt
 			*(dest[15].(*pgtype.Timestamptz)) = row.DisconnectedAt
