@@ -28,11 +28,6 @@ const (
 	// shared strings, sheet list and relationships, a deck's slide names. Past
 	// it the file is refused.
 	maxTables = 16 << 20
-	// maxZipDirectory bounds a zip's central directory: archive/zip builds a
-	// File of about 300 bytes for every entry listed, so 20 MiB of empty
-	// entries would take several times that. Real Office files list a few
-	// hundred entries, a large deck a few thousand.
-	maxZipDirectory = 1 << 20
 	// maxLine bounds one line of a plain-text file. A line this long is past
 	// what one turn reads of a file, so the rest of it is skipped, not kept.
 	maxLine = 1 << 20

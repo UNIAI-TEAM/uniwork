@@ -27,7 +27,7 @@ type zipDoc struct {
 
 func openZip(r io.ReaderAt, size int64) (*zipDoc, error) {
 	// The end record sits in the last 64 KiB; archive/zip reads it in 1 KiB steps.
-	zr, err := zipbound.NewReaderMax(r, size, maxZipDirectory)
+	zr, err := zipbound.NewReader(r, size)
 	// ErrInsecurePath only warns about names we never extract to disk.
 	if err != nil && !errors.Is(err, zip.ErrInsecurePath) {
 		return nil, unreadable(err)
