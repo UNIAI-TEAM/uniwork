@@ -1,6 +1,6 @@
 "use client";
 import { useId, useState, type ReactNode } from "react";
-import { Circle, CircleCheck, RotateCcw } from "lucide-react";
+import { Circle, CircleCheck, RotateCcw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MeetingActionItem } from "@uniwork/core/meetings/action-items";
 import { actionItemTaskDefaults } from "@uniwork/core/meetings/summary-task-items";
@@ -16,16 +16,18 @@ import { AppLink } from "../../navigation";
 import { formatMeetingClock, formatMeetingDay, meetingLocale } from "../meeting-datetime";
 import { ScribeSign } from "../scribe-sign";
 
-export type ActionItemsVariant = "panel" | "compact";
+export type ActionItemsVariant = "panel" | "compact" | "room";
 
 export const LIST_CLASS: Record<ActionItemsVariant, string> = {
   panel: "divide-y divide-border overflow-hidden rounded-lg border border-border",
   compact: "space-y-2",
+  room: "space-y-1.5",
 };
 
 const ROW_CLASS: Record<ActionItemsVariant, string> = {
   panel: "px-3 py-2.5",
   compact: "rounded-xl border border-border bg-surface px-3 py-2.5",
+  room: "rounded-xl p-2.5 inset-ring inset-ring-border",
 };
 
 /** A YYYY-MM-DD due date in the hero's date style ("Thứ Sáu, 25 tháng 9"); the raw string when it does not parse. */
@@ -312,10 +314,13 @@ export function DismissActionItemButton({
   title,
   pending,
   error,
+  icon = false,
   onDismiss,
 }: {
   title: string;
   pending: boolean;
+  /** The room's 28px cross instead of the word. */
+  icon?: boolean;
   /** Why the last dismiss failed, said in the popover. */
   error?: string;
   onDismiss: (reason: string, done: () => void) => void;
@@ -328,8 +333,14 @@ export function DismissActionItemButton({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Button type="button" size="sm" variant="ghost" aria-label={t("meetings.actionItemsSection.dismissLabel", { title })}>
-            {t("meetings.actionItemsSection.dismiss")}
+          <Button
+            type="button"
+            size={icon ? "icon-sm" : "sm"}
+            variant="ghost"
+            className={cn(icon && "text-muted-foreground")}
+            aria-label={t("meetings.actionItemsSection.dismissLabel", { title })}
+          >
+            {icon ? <X aria-hidden /> : t("meetings.actionItemsSection.dismiss")}
           </Button>
         }
       />

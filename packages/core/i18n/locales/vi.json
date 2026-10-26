@@ -4098,7 +4098,7 @@
       "assignNone": "Giao việc",
       "pickReason": "Chọn ít nhất một việc đang chờ xử lý",
       "nothingPending": "Không còn việc nào chờ giao",
-      "add": "Thêm task",
+      "add": "Thêm việc",
       "addHeading": "Task sau họp",
       "editAssign": "Sửa & giao",
       "priorityValue": "ưu tiên {{priority}}",
@@ -5187,6 +5187,13 @@
         "title": "Hỏi UNI",
         "share": "Gửi vào Chat",
         "continue": "Tiếp"
+      },
+      "actions": {
+        "selectAll": "Chọn tất cả việc chờ xử lý",
+        "selected_one": "{{count}} đã chọn",
+        "selected_other": "{{count}} đã chọn",
+        "clear": "Bỏ chọn",
+        "carried": "Từ lần họp trước · {{count}}"
       }
     }
   },

@@ -4099,7 +4099,7 @@
       "assignNone": "Assign tasks",
       "pickReason": "Pick at least one pending item",
       "nothingPending": "Nothing left to assign",
-      "add": "Add task",
+      "add": "Add item",
       "addHeading": "Meeting follow-up",
       "editAssign": "Edit & assign",
       "priorityValue": "{{priority}} priority",
@@ -5188,6 +5188,13 @@
         "title": "Ask UNI",
         "share": "Share to chat",
         "continue": "Continue"
+      },
+      "actions": {
+        "selectAll": "Select all pending items",
+        "selected_one": "{{count}} selected",
+        "selected_other": "{{count}} selected",
+        "clear": "Clear",
+        "carried": "From earlier meetings · {{count}}"
       }
     }
   },

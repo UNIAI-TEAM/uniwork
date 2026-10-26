@@ -1,11 +1,10 @@
 "use client";
-import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, ListChecks, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode } from "@uniwork/core/api/http";
 import {
-  useDismissMeetingActionItem,
   useMeetingActionItems,
   useRestoreMeetingActionItem,
   type MeetingActionItem,
@@ -16,23 +15,17 @@ import { useProject } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
-import { CreateTaskDialog } from "../../tasks/create-task-dialog";
 import { apiErrorCopy } from "../../api-error-copy";
 import { MeetingSectionError, MeetingSectionLoading } from "../meeting-section-state";
 import { SummaryLiveRegion, useAnnouncement } from "../meeting-summary/summary-generate-controls";
 import { useMemberIndex } from "../use-member-index";
-import {
-  ConvertedRow,
-  DismissActionItemButton,
-  DismissedRow,
-  LIST_CLASS,
-  PendingRow,
-  type ActionItemsVariant,
-} from "./action-item-rows";
+import { ConvertedRow, DismissedRow, LIST_CLASS, PendingRow, type ActionItemsVariant } from "./action-item-rows";
 import { MeetingEvidenceChip } from "../meeting-evidence-chip";
+import { ClerkPendingList, focusPendingRow, ROW_CHANGED_ELSEWHERE } from "./clerk-pending-list";
+import { RoomConvertedRow, RoomGroupHeading, RoomPendingRow } from "./room-rows";
+import { ActionItemsSelectionBar } from "./selection-bar";
 import { useActionItemConversion, type ActionItemSelection } from "./use-action-item-conversion";
 
 /** "2/5 done · 1 overdue", once anything is assigned; the groups carry their own counts. */
@@ -56,23 +49,6 @@ function ProgressLine({ counts }: { counts: MeetingActionItemCounts }) {
 
 const NO_ITEMS: readonly MeetingActionItem[] = [];
 
-/**
- * Refusals that mean the row changed elsewhere (assigned, restored, or gone
- * with a regenerated summary): the refetch moves it away with its popover, so
- * the refusal is a toast and focus goes where a successful command sends it.
- */
-const ROW_CHANGED_ELSEWHERE = new Set(["action_item_not_pending", "action_item_not_found", "action_item_not_dismissed"]);
-
-/** Focuses a pending row's checkbox; false when that row is not on screen. */
-function focusPendingRow(root: HTMLElement | null, id: string | undefined): boolean {
-  const row = id
-    ? Array.from(root?.querySelectorAll<HTMLElement>("[data-action-item]") ?? []).find((el) => el.dataset.actionItem === id)
-    : undefined;
-  const box = row?.querySelector<HTMLElement>('[role="checkbox"]');
-  box?.focus();
-  return Boolean(box);
-}
-
 function GroupHeading({ children }: { children: string }) {
   return <h3 className="mb-2 text-label font-semibold text-foreground">{children}</h3>;
 }
@@ -95,157 +71,6 @@ function RowsSkeleton() {
 }
 
 /**
- * The clerk's pending list: tick, then "Assign" makes the tasks at once on
- * the meeting's suggestions (what needs changing is changed on the task);
- * dismiss one with an optional reason; "Add task" opens the task screen's
- * composer for one the summary missed. The call to action stays rendered
- * once there is any item, even with none left pending (aria-disabled, with
- * the reason beside it), so focus has somewhere to land; it is the primary
- * button only once something is ticked.
- */
-function ClerkPendingList({
-  workspaceId,
-  meetingId,
-  projectId,
-  items,
-  pending,
-  variant,
-  announce,
-  selection,
-}: {
-  workspaceId: string;
-  meetingId: string;
-  projectId?: string;
-  items: readonly MeetingActionItem[];
-  pending: readonly MeetingActionItem[];
-  variant: ActionItemsVariant;
-  announce: (message: string) => void;
-  selection?: ActionItemSelection;
-}) {
-  const { t } = useTranslation();
-  const reasonId = useId();
-  const { memberOf } = useMemberIndex(workspaceId);
-  const flow = useActionItemConversion({ workspaceId, meetingId, projectId, items, announce, selection });
-  const dismiss = useDismissMeetingActionItem(meetingId);
-  const [dismissError, setDismissError] = useState<{ id: string; text: string } | null>(null);
-  const addRef = useRef<HTMLButtonElement>(null);
-  const assignRef = useRef<HTMLButtonElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
-  // A dismissed row unmounts with its focused button: once it leaves, focus the next row, else Add item.
-  const landing = useRef<{ leaving: string; next?: string } | null>(null);
-  const count = flow.pickedPending.length;
-  const blocked = count === 0 || flow.pending;
-
-  useEffect(() => {
-    const l = landing.current;
-    if (!l || pending.some((p) => p.id === l.leaving)) return;
-    landing.current = null;
-    if (!focusPendingRow(listRef.current, l.next)) (addRef.current ?? assignRef.current)?.focus();
-  }, [pending]);
-
-  return (
-    <div className="space-y-2.5">
-      {pending.length > 0 ? (
-        <ul ref={listRef} className={LIST_CLASS[variant]}>
-          {pending.map((item, at) => (
-            <PendingRow
-              key={item.id}
-              item={item}
-              variant={variant}
-              suggestedName={memberOf(item.suggested_assignee_id)?.display_name}
-              checked={flow.picked.has(item.id)}
-              onCheckedChange={(on) => flow.toggle(item.id, on)}
-              evidence={<MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />}
-              action={
-                <div className="flex shrink-0 items-center gap-1">
-                  {/* The same values "Assign" would use, in the composer, to change first. */}
-                  <Button type="button" size="sm" variant="ghost" onClick={() => flow.edit(item.id)}>
-                    {t("meetings.actionItemsSection.editAssign")}
-                  </Button>
-                  <DismissActionItemButton
-                    title={item.title}
-                    // One shared mutation: TanStack runs only the latest mutate()'s callbacks, so a
-                    // second dismiss while one is in flight would lose the first's done/toast.
-                    pending={dismiss.isPending}
-                    error={dismissError?.id === item.id ? dismissError.text : undefined}
-                    onDismiss={(reason, done) => {
-                      setDismissError(null);
-                      landing.current = { leaving: item.id, next: (pending[at + 1] ?? pending[at - 1])?.id };
-                      dismiss.mutate(
-                        { itemId: item.id, reason },
-                        {
-                          onSuccess: () => {
-                            done();
-                            announce(t("meetings.actionItemsSection.dismissed"));
-                          },
-                          onError: (err) => {
-                            if (ROW_CHANGED_ELSEWHERE.has(errorCode(err) ?? "")) {
-                              toast.error(t("meetings.actionItemsSection.changedElsewhere"));
-                              return;
-                            }
-                            landing.current = null;
-                            setDismissError({
-                              id: item.id,
-                              text: apiErrorCopy(err) ?? t("meetings.actionItemsSection.dismissFailed"),
-                            });
-                          },
-                        },
-                      );
-                    }}
-                  />
-                </div>
-              }
-            />
-          ))}
-        </ul>
-      ) : null}
-      <div
-        data-testid="action-items-bar"
-        className="flex flex-wrap items-center gap-2"
-      >
-        {items.length > 0 ? (
-          <Button
-            ref={assignRef}
-            type="button"
-            size="sm"
-            variant={count > 0 ? "default" : "outline"}
-            aria-disabled={blocked || undefined}
-            aria-busy={flow.pending || undefined}
-            aria-describedby={count === 0 ? reasonId : undefined}
-            onClick={flow.assign}
-          >
-            {flow.pending ? <Spinner data-icon="inline-start" /> : <ListChecks aria-hidden />}
-            {count > 0 ? t("meetings.actionItemsSection.assign", { count }) : t("meetings.actionItemsSection.assignNone")}
-          </Button>
-        ) : null}
-        <Button ref={addRef} type="button" size="sm" variant="ghost" onClick={() => flow.setComposerOpen(true)}>
-          <Plus aria-hidden />
-          {t("meetings.actionItemsSection.add")}
-        </Button>
-        {count === 0 && items.length > 0 ? (
-          <p id={reasonId} className="text-caption text-muted-foreground">
-            {pending.length > 0
-              ? t("meetings.actionItemsSection.pickReason")
-              : t("meetings.actionItemsSection.nothingPending")}
-          </p>
-        ) : null}
-      </div>
-      {/* The task screen's own composer: an item's values to change first, or a task the summary missed. */}
-      <CreateTaskDialog
-        workspaceId={workspaceId}
-        open={flow.composerOpen}
-        onOpenChange={flow.setComposerOpen}
-        showTrigger={false}
-        defaults={flow.composerDefaults}
-        submitter={flow.submitter}
-        heading={t("meetings.actionItemsSection.addHeading")}
-        finalFocus={addRef}
-      />
-    </div>
-  );
-}
-
-/**
  * "After the meeting" (spec meeting follow-through §9.2 item 1): the meeting's
  * action items in three groups — pending, assigned (with each task's state)
  * and dismissed (folded). A clerk (host, secretary, workspace admin) works the
@@ -260,6 +85,9 @@ export function MeetingActionItemsSection({
   aiRestricted = false,
   variant = "compact",
   selection,
+  editItemId,
+  onEditHandled,
+  onSelectionChange,
 }: {
   workspaceId: string;
   meetingId: string;
@@ -271,10 +99,15 @@ export function MeetingActionItemsSection({
    * only the tasks it handed out, which is all the server sends them, and no evidence chips.
    */
   aiRestricted?: boolean;
-  /** The room's Copilot list; the detail page's panel moved to meeting-detail/close-out. */
-  variant?: Extract<ActionItemsVariant, "compact">;
+  /** `room`: the UNI tab's clerk list (ticks, chips, floating bar); `compact`: the Copilot's. */
+  variant?: Extract<ActionItemsVariant, "compact" | "room">;
   /** Ticks kept by a screen that unmounts this section; else kept here. */
   selection?: ActionItemSelection;
+  /** A pending item whose "Edit & assign" composer opens once the list is in; then `onEditHandled`. */
+  editItemId?: string;
+  onEditHandled?: () => void;
+  /** How many items are ticked, so the room's shell can hide its composer under the bar. */
+  onSelectionChange?: (count: number) => void;
 }) {
   const { t } = useTranslation();
   const query = useMeetingActionItems(meetingId);
@@ -291,6 +124,9 @@ export function MeetingActionItemsSection({
   const bodyRef = useRef<HTMLDivElement>(null);
   // A restored row unmounts with its focused button: follow the item back to its pending row.
   const restoring = useRef<string | null>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
+  const editHandled = useRef<string | undefined>(undefined);
+  const room = variant === "room";
 
   const all = query.data?.items ?? NO_ITEMS;
   // Kept on the client too, so an older server's full list never reaches an outsider.
@@ -315,6 +151,27 @@ export function MeetingActionItemsSection({
     }
   }
 
+  const flow = useActionItemConversion({ workspaceId, meetingId, projectId: project?.id, items, announce, selection });
+  const picked = flow.pickedPending.length;
+
+  const editable = canClerk && pending.some((item) => item.id === editItemId);
+  useEffect(() => {
+    if (!editItemId) {
+      editHandled.current = undefined;
+      return;
+    }
+    if (query.isPending || editHandled.current === editItemId) return;
+    editHandled.current = editItemId;
+    if (editable) flow.edit(editItemId);
+    onEditHandled?.();
+  }, [editItemId, query.isPending, editable, flow, onEditHandled]);
+
+  useEffect(() => {
+    if (!onSelectionChange) return;
+    onSelectionChange(picked);
+    return () => onSelectionChange(0);
+  }, [picked, onSelectionChange]);
+
   useEffect(() => {
     const id = restoring.current;
     if (!id || items.some((item) => item.id === id && item.status === "DISMISSED")) return;
@@ -328,7 +185,7 @@ export function MeetingActionItemsSection({
     <MeetingSectionError message={t("meetings.actionItemsSection.loadFailed")} onRetry={() => void query.refetch()} />
   ) : (
     <div ref={bodyRef} className="space-y-4" data-testid="meeting-action-items">
-      {items.length > 0 && query.data ? <ProgressLine counts={query.data.counts} /> : null}
+      {items.length > 0 && query.data && !room ? <ProgressLine counts={query.data.counts} /> : null}
       {aiRestricted ? (
         <p className="text-label text-muted-foreground">{t("meetings.actionItemsSection.restrictedNote")}</p>
       ) : null}
@@ -337,7 +194,17 @@ export function MeetingActionItemsSection({
       ) : null}
       {(canClerk && !aiRestricted) || pending.length > 0 ? (
         <section>
-          {pending.length > 0 ? (
+          {pending.length > 0 && room ? (
+            <RoomGroupHeading
+              pick={
+                canClerk
+                  ? { picked, total: pending.length, onPickAll: (on) => flow.pickOnly(on ? pending.map((p) => p.id) : []) }
+                  : undefined
+              }
+            >
+              {t("meetings.actionItemsSection.pendingGroup", { count: pending.length })}
+            </RoomGroupHeading>
+          ) : pending.length > 0 ? (
             <GroupHeading>{t("meetings.actionItemsSection.pendingGroup", { count: pending.length })}</GroupHeading>
           ) : null}
           {items.length === 0 ? (
@@ -347,32 +214,44 @@ export function MeetingActionItemsSection({
             <ClerkPendingList
               workspaceId={workspaceId}
               meetingId={meetingId}
-              projectId={project?.id}
               items={items}
               pending={pending}
               variant={variant}
               announce={announce}
-              selection={selection}
+              flow={flow}
+              addRef={addRef}
             />
           ) : (
             <ul className={LIST_CLASS[variant]}>
-              {pending.map((item) => (
-                <PendingRow
-                  key={item.id}
-                  item={item}
-                  variant={variant}
-                  evidence={aiRestricted ? null : <MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />}
-                />
-              ))}
+              {pending.map((item) => {
+                const evidence = aiRestricted ? null : <MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />;
+                return room ? (
+                  <RoomPendingRow key={item.id} item={item} assignee={memberOf(item.suggested_assignee_id)} evidence={evidence} />
+                ) : (
+                  <PendingRow key={item.id} item={item} variant={variant} evidence={evidence} />
+                );
+              })}
             </ul>
           )}
         </section>
       ) : null}
       {converted.length > 0 ? (
         <section>
-          <GroupHeading>{t("meetings.actionItemsSection.convertedGroup", { count: converted.length })}</GroupHeading>
+          {room ? (
+            <RoomGroupHeading>{t("meetings.actionItemsSection.convertedGroup", { count: converted.length })}</RoomGroupHeading>
+          ) : (
+            <GroupHeading>{t("meetings.actionItemsSection.convertedGroup", { count: converted.length })}</GroupHeading>
+          )}
           <ul className={LIST_CLASS[variant]}>
-            {converted.map((item) => (
+            {converted.map((item) =>
+              room ? (
+                <RoomConvertedRow
+                  key={item.id}
+                  item={item}
+                  taskHref={item.task && wsPaths ? wsPaths.task(item.task.id) : null}
+                  assignee={memberOf(item.task?.assignee_id)}
+                />
+              ) : (
               <ConvertedRow
                 key={item.id}
                 item={item}
@@ -381,7 +260,8 @@ export function MeetingActionItemsSection({
                 assigneeName={memberOf(item.task?.assignee_id)?.display_name}
                 evidence={aiRestricted ? null : <MeetingEvidenceChip meetingId={meetingId} evidence={item.evidence} />}
               />
-            ))}
+              ),
+            )}
           </ul>
         </section>
       ) : null}
@@ -444,6 +324,15 @@ export function MeetingActionItemsSection({
     <section className="space-y-3">
       <SummaryLiveRegion message={announcement.text} seq={announcement.seq} />
       {body}
+      {room && canClerk && picked > 0 ? (
+        <ActionItemsSelectionBar
+          count={picked}
+          busy={flow.pending}
+          onClear={() => flow.pickOnly([])}
+          onAssign={flow.assign}
+          fallbackFocus={addRef}
+        />
+      ) : null}
     </section>
   );
 }

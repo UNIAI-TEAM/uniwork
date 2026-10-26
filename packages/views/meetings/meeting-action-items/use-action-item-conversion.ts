@@ -212,6 +212,8 @@ export function useActionItemConversion({
     picked,
     pickedPending,
     toggle,
+    /** Replaces the ticks: every pending item ("select all"), or none. */
+    pickOnly: (ids: readonly string[]) => setPicked(ids.length > 0 ? new Set(ids) : NONE),
     assign,
     /** Opens the composer on the item's values, once its cited lines are in. */
     edit: (id: string) => setEditingId(id),
