@@ -5,19 +5,34 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { useDownloadDocumentFile } from "@uniwork/core/documents/hooks-library";
+import { isLegacyOfficeFormat } from "@uniwork/core/office/office-modules";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { useNavigation } from "../navigation";
+import { LegacyFormatDialog } from "../office/legacy-format-dialog";
 import { DocumentCopyDialog } from "./document-copy-dialog";
 import { documentDownloadName } from "./document-download-name";
+import type { LibraryDesktopOpen } from "./documents-library-row";
 import type { DocumentSummaryRow } from "./library-rows";
+import { rowAppOperation, rowLevel } from "./row-level";
+
+export type OpenableDocumentItem = {
+  id: string;
+  kind?: string;
+  title?: string;
+  format?: string | null;
+  organization_id?: string;
+  current_version?: number;
+  my_level?: string | null;
+  admin_scope?: boolean;
+};
 
 export interface LibraryRowFileCommands {
   onCopyLink: (doc: DocumentSummaryRow) => void;
   onDuplicate: (doc: DocumentSummaryRow) => void;
   onDownload: (doc: DocumentSummaryRow) => void;
+  openDocument: (documentId: string, item?: OpenableDocumentItem) => void;
   dialogs: ReactNode;
 }
-
 /**
  * The three row-menu commands that act on one document (UNI-2045 W8): copy
  * its in-app link, make a copy of a file, download a file. Each goes through
@@ -26,16 +41,34 @@ export interface LibraryRowFileCommands {
  */
 export function useLibraryRowFileCommands({
   wsId,
+  orgId,
   documentHref,
+  onOpen,
+  docById,
+  desktopOpen,
 }: {
   wsId: string;
+  orgId: string;
   /** The in-app path of a document, from the `paths` builder; the host's `getShareableUrl` makes it an absolute address. */
   documentHref: (documentId: string) => string;
+  onOpen: (documentId: string) => void;
+  docById: ReadonlyMap<string, DocumentSummaryRow>;
+  desktopOpen?: LibraryDesktopOpen;
 }): LibraryRowFileCommands {
   const { t } = useTranslation();
   const { getShareableUrl } = useNavigation();
   const download = useDownloadDocumentFile();
   const [copying, setCopying] = useState<DocumentSummaryRow | null>(null);
+  const [legacyTarget, setLegacyTarget] = useState<OpenableDocumentItem | null>(null);
+
+  const openDocument = (documentId: string, item?: OpenableDocumentItem) => {
+    const known = docById.get(documentId) ?? item;
+    if (known && known.kind !== "page" && known.kind !== "folder" && isLegacyOfficeFormat({ format: known.format, filename: known.title })) {
+      setLegacyTarget(known);
+      return;
+    }
+    onOpen(documentId);
+  };
 
   const onCopyLink = (doc: DocumentSummaryRow) => {
     // The address the app shows for the document, never a public (share) link.
@@ -62,16 +95,36 @@ export function useLibraryRowFileCommands({
     );
   };
 
-  const dialogs = copying ? (
-    <DocumentCopyDialog
-      open
-      onOpenChange={(next) => {
-        if (!next) setCopying(null);
-      }}
-      wsId={wsId}
-      doc={copying}
-    />
-  ) : null;
+  const legacyOrgId = legacyTarget?.organization_id || orgId;
+  const legacySavedVersion = legacyTarget?.current_version && legacyTarget.current_version > 0 ? legacyTarget.current_version : 1;
+  const legacyOperation = legacyTarget && "my_level" in legacyTarget ? rowAppOperation(rowLevel(legacyTarget as DocumentSummaryRow)) : "edit";
 
-  return { onCopyLink, onDuplicate: setCopying, onDownload, dialogs };
+  const dialogs = (
+    <>
+      {copying ? (
+        <DocumentCopyDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setCopying(null);
+          }}
+          wsId={wsId}
+          doc={copying}
+        />
+      ) : null}
+      {legacyTarget ? (
+        <LegacyFormatDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setLegacyTarget(null);
+          }}
+          documentId={legacyTarget.id}
+          savedVersion={legacySavedVersion}
+          operation={legacyOperation}
+          desktopOpen={desktopOpen?.({ id: legacyTarget.id, organization_id: legacyOrgId, current_version: legacySavedVersion })}
+        />
+      ) : null}
+    </>
+  );
+
+  return { onCopyLink, onDuplicate: setCopying, onDownload, openDocument, dialogs };
 }

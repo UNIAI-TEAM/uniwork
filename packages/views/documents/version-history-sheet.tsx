@@ -13,6 +13,7 @@ import {
   useDocumentVersions,
   useRestoreDocumentVersion,
 } from "@uniwork/core/documents/hooks-versions";
+import { isLegacyOfficeFormat } from "@uniwork/core/office/office-modules";
 import { isShelved, type Document, type DocumentVersion } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -41,8 +42,8 @@ import { documentErrorMessage } from "./document-error-message";
 import { formatBytes } from "./doclist/format";
 import { formatWhen } from "./document-format";
 import { reportWriteRefused } from "./edit-lock-refusal";
+import { LegacyFormatDialog, type LegacyFormatDesktopOpenProps } from "../office/legacy-format-dialog";
 import { VersionAuthor } from "./version-author";
-
 // The editor chunk only arrives when a page version is actually previewed, so
 // opening the sheet never drags TipTap into the route's first load.
 const VersionPreviewDialog = lazy(() =>
@@ -55,8 +56,9 @@ export interface VersionHistorySheetProps {
   wsId: string;
   /** The live document; its level and revision decide what the sheet may do. */
   doc: Document;
+  /** Host wiring for "Mở bằng UniWork Office" when a legacy version row is opened. */
+  desktopOpen?: LegacyFormatDesktopOpenProps;
 }
-
 /** The version reason is a schema identifier; only its label is translated. */
 const REASON_KEY: Record<string, string> = {
   upload: "reason_upload",
@@ -82,9 +84,8 @@ function reasonLabel(
  * working copy locally — the confirm dialog stays pending until the server
  * answers, and only the mutation's own answer moves the document cache.
  */
-export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHistorySheetProps) {
+export function VersionHistorySheet({ open, onOpenChange, wsId, doc, desktopOpen }: VersionHistorySheetProps) {
   const { t, i18n } = useTranslation();
-  // A shelved document keeps its history readable but takes no new or restored version (ARCHIVE-01 §3).
   const shelved = isShelved(doc);
   const canEdit = !shelved && (doc.my_level === "edit" || doc.my_level === "manage");
   const versions = useDocumentVersions(wsId, doc.id, { enabled: open });
@@ -99,6 +100,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
   const [createError, setCreateError] = useState<string | null>(null);
   const createKeyRef = useRef<string | null>(null);
   const [previewNo, setPreviewNo] = useState<number | undefined>(undefined);
+  const [legacyVersionNo, setLegacyVersionNo] = useState<number | undefined>(undefined);
   const [restoreTarget, setRestoreTarget] = useState<DocumentVersion | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const restoreKeyRef = useRef<string | null>(null);
@@ -308,6 +310,17 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
                           <Eye aria-hidden className="size-3.5" />
                         </Button>
                       ) : null}
+                      {doc.kind === "file" && (isLegacyOfficeFormat({ mime_type: version.mime_type }) || (isLegacyOfficeFormat(doc.file) && !version.mime_type)) ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={t("documents.file.open_version", { no: version.version })}
+                          onClick={() => setLegacyVersionNo(version.version)}
+                        >
+                          <Eye aria-hidden className="size-3.5" />
+                        </Button>
+                      ) : null}
                       {doc.kind === "file" ? (
                         <Button
                           type="button"
@@ -376,6 +389,20 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
             />
           </Suspense>
         ) : null}
+        {open && legacyVersionNo !== undefined ? (
+          <LegacyFormatDialog
+            open
+            onOpenChange={(next) => {
+              if (!next) setLegacyVersionNo(undefined);
+            }}
+            documentId={doc.id}
+            savedVersion={doc.current_version || doc.file?.version}
+            version={legacyVersionNo}
+            operation="view"
+            desktopOpen={desktopOpen}
+          />
+        ) : null}
+
 
         <AlertDialog
           open={restoreTarget !== null}

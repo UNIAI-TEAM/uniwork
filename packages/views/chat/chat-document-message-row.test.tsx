@@ -757,4 +757,28 @@ describe("ChatDocumentMessageRow", () => {
       expect(upload.mutateAsync.mock.calls[1]![0].idempotencyKey).toBe(upload.mutateAsync.mock.calls[0]![0].idempotencyKey);
     });
   });
+
+  describe("legacy Office formats (.doc, .xls, .ppt)", () => {
+    it("opens LegacyFormatDialog instead of navigating when clicking a legacy document card title, and keeps Chỉnh sửa trong UniWork Office in the menu", async () => {
+      const desktopOpen = desktopFactory();
+      const nav = renderCard(
+        documentMessage({
+          ...FULL,
+          title: "Báo cáo Q3.doc",
+          format: "doc",
+          can_open_in_app: false,
+        }),
+        { ...LIVE, desktopOpen },
+      );
+
+      const labels = menuLabels(await openMenu());
+      expect(labels).toContain("Chỉnh sửa trong UniWork Office");
+      expect(labels).toContain("Mở để xem và nhận xét");
+      expect(labels).not.toContain("Chỉnh sửa trên web");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mở trong Tài liệu: Báo cáo Q3.doc" }));
+      expect(nav.push).not.toHaveBeenCalled();
+      expect(await screen.findByRole("dialog", { name: "Mở tệp bằng UniWork Office" })).toBeInTheDocument();
+    });
+  });
 });

@@ -853,4 +853,28 @@ describe("shelved search results (U-6)", () => {
     const freshRow = fresh.closest("li");
     expect(freshRow && within(freshRow as HTMLElement).queryByText(t("documents.shelved_list.badge"))).toBeNull();
   });
+
+  it("opens LegacyFormatDialog instead of navigating when clicking a legacy search hit", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        return Promise.resolve({
+          documents: [
+            summary({ id: "d-ppt", kind: "file", title: "Bài thuyết trình.ppt", format: "ppt", path: [] }),
+          ],
+          next_cursor: null,
+        });
+      }
+      if (path.startsWith(LIST_BASE)) return Promise.resolve({ documents: [], next_cursor: null });
+      return Promise.resolve({});
+    });
+    const { onOpen } = renderSearchView();
+    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "thuyet trinh" } });
+
+    const hit = await screen.findByText("Bài thuyết trình.ppt");
+    fireEvent.click(hit.closest("button")!);
+
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(await screen.findByRole("dialog", { name: t("office.legacy.title") })).toBeInTheDocument();
+  });
 });

@@ -63,7 +63,7 @@ import {
 } from "./library-rows";
 
 /** The formats UniWork Office opens; a page, folder or other file has no app action. */
-const APP_FORMATS = new Set(["docx", "xlsx", "pptx", "pdf", "md", "html"]);
+const APP_FORMATS = new Set(["docx", "xlsx", "pptx", "doc", "xls", "ppt", "pdf", "md", "html"]);
 
 /** How a library row reaches "Open in UniWork Office" (host wiring, per row). */
 export type LibraryDesktopOpen = (doc: { id: string; organization_id: string; current_version: number }) => FrameDesktopOpenProps;
@@ -71,7 +71,7 @@ export type LibraryDesktopOpen = (doc: { id: string; organization_id: string; cu
 export interface LibraryRowHandlers
   extends Pick<RowMenuHandlers, "onUnshelve" | "onRestore" | "onViewDetails" | "onPurge">,
     DocLifecycleHandlers {
-  onOpen: (documentId: string) => void;
+  onOpen: (documentId: string, doc?: DocumentSummaryRow) => void;
   onFolder: (folderId: string) => void;
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Image sources only: fetches the bytes and opens them view-only. */
@@ -203,9 +203,9 @@ export function LibraryRowView({
   const primary = () => {
     if (doc && trashed) handlers.onViewDetails?.(doc);
     // A shelved item opens read-only; a shelved folder never browses.
-    else if (doc && screen === "shelved") handlers.onOpen(doc.id);
+    else if (doc && screen === "shelved") handlers.onOpen(doc.id, doc);
     else if (doc && folder) handlers.onFolder(doc.id);
-    else if (doc) handlers.onOpen(doc.id);
+    else if (doc) handlers.onOpen(doc.id, doc);
     else if (row.type === "source") {
       // U-SRC1 + UNI-1869: the primary click opens the file view-only where the
       // row can (the module frame for an Office format), else downloads it; "Xem nơi đính kèm" is a secondary.

@@ -12580,6 +12580,9 @@
       "no_web_editor_title": "Not editable in the browser",
       "no_web_editor_description": "This format does not open in the browser. Download it to open it in an app on your computer, or upload a new version.",
       "no_web_editor_description_readonly": "This format does not open in the browser. Download it to open it in an app on your computer.",
+      "legacy_format_title": "Open this file in UniWork Office",
+      "legacy_format_description": "This is an older Office file format that opens in the UniWork Office app on your computer.",
+      "open_version": "Open version {{no}}",
       "office_off_title": "{{format}} editing is turned off",
       "office_off_description": "Editing {{format}} files is turned off for this organization. You can still download the file or upload a new version.",
       "office_checking": "Checking whether {{format}} editing is available for this organization…",
@@ -14118,6 +14121,12 @@
         "download": "Download my copy",
         "close": "Close"
       }
+    },
+    "legacy": {
+      "title": "Open this file in UniWork Office",
+      "description": "This is an older Office file format that opens in the UniWork Office app on your computer.",
+      "open_in_app": "Open in UniWork Office",
+      "close": "Close"
     }
   },
   "officeDesktop": {

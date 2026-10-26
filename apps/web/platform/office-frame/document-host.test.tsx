@@ -82,7 +82,7 @@ describe("DocumentOfficeEditorHost", () => {
     await expect(mocks.loaders[0]!()).resolves.toBe("the module host");
   });
 
-  it.each(["legacy.xls", "letter.odt", "archive.zip"])("gives %s the typed unsupported state, never a module host", async (filename) => {
+  it.each(["legacy.doc", "legacy.xls", "legacy.ppt", "letter.odt", "archive.zip"])("gives %s the typed unsupported state, never a module host", async (filename) => {
     await mount(doc(filename));
     expect(container.querySelector('[data-testid="office-host-unsupported"]')).not.toBeNull();
     expect(mocks.hostProps).not.toHaveBeenCalled();
@@ -138,7 +138,12 @@ describe("detectDocumentFormat", () => {
     expect(detectDocumentFormat(doc("x", "application/pdf"))).toBe("pdf");
     expect(detectDocumentFormat(doc("notes.markdown"))).toBe("md");
     expect(detectDocumentFormat(doc("page.htm"))).toBe("html");
+    expect(detectDocumentFormat(doc("old.doc"))).toBe("doc");
+    expect(detectDocumentFormat(doc("noext", "application/msword"))).toBe("doc");
     expect(detectDocumentFormat(doc("old.xls"))).toBe("xls");
+    expect(detectDocumentFormat(doc("old.ppt"))).toBe("ppt");
+    expect(detectDocumentFormat(doc("noext", "application/vnd.ms-powerpoint"))).toBe("ppt");
+    expect(detectDocumentFormat(doc("a.doc.pdf", "application/pdf"))).toBe("pdf");
     expect(detectDocumentFormat(doc("x", "application/vnd.oasis.opendocument.text"))).toBe("odt");
     expect(detectDocumentFormat({ ...doc("x"), file: null } as unknown as Document)).toBe("unknown");
   });

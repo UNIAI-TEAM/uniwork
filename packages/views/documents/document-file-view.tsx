@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useState, type ComponentType } from "react";
-import { Download, FileText, RotateCcwClock } from "lucide-react";
+import { Download, Eye, FileText, MonitorUp, RotateCcwClock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
 import { useOfficeEnabled, type OfficeEnabledState } from "@uniwork/core/documents/office-enabled";
+import { isLegacyOfficeFormat } from "@uniwork/core/office/office-modules";
+import { parseVersionParam } from "@uniwork/core/office/version-view";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Notice } from "../common/notice";
+import { LegacyFormatDialog, type LegacyFormatDesktopOpenProps } from "../office/legacy-format-dialog";
 import { useOfficeFormatName } from "../office/format-name";
 import { HeaderActionsFill } from "../layout/header-actions-slot";
-import { leaveGuardAllows } from "../navigation";
+import { leaveGuardAllows, useOptionalNavigation } from "../navigation";
 import { DocumentFileMenuItems, useDocumentFileActions } from "./document-file-actions";
 import { DocumentFileCard, formatFileSize } from "./document-file-card";
 import { DocumentMediaViewer } from "./document-media-viewer";
@@ -33,6 +36,8 @@ export interface DocumentFileViewProps {
   officeGate?: DocumentOfficeGate;
   /** The page already states the permission reason; the card does not repeat it. */
   permissionNoticeShown?: boolean;
+  /** Host wiring for "Mở bằng UniWork Office" in the legacy-format modal. */
+  desktopOpen?: LegacyFormatDesktopOpenProps;
 }
 
 /** The version reason is a schema identifier; only its label is translated. */
@@ -63,6 +68,7 @@ function reasonLabel(
  * yet.
  */
 function officeFormat(doc: Document): string | null {
+  if (isLegacyOfficeFormat(doc.file)) return null;
   const filename = doc.file?.filename.toLowerCase() ?? "";
   const mime = doc.file?.mime_type.toLowerCase() ?? "";
   if (mime.includes("wordprocessingml.document") || filename.endsWith(".docx")) return "docx";
@@ -130,9 +136,21 @@ function SelfGatedDocumentFileView(props: DocumentFileViewProps) {
   return <DocumentFileBody {...props} gate={gate} />;
 }
 
-function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorHost, permissionNoticeShown, gate }: DocumentFileViewProps & { gate: DocumentOfficeGate }) {
+function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorHost, permissionNoticeShown, desktopOpen, gate }: DocumentFileViewProps & { gate: DocumentOfficeGate }) {
   const { t, i18n } = useTranslation();
+  const nav = useOptionalNavigation();
+  const urlVersion = parseVersionParam(nav?.searchParams.get("version"));
   const file = doc.file;
+  const isLegacy = isLegacyOfficeFormat(file);
+  const [legacyModal, setLegacyModal] = useState<{ open: boolean; version?: number }>(() => ({
+    open: isLegacy,
+    version: urlVersion ?? undefined,
+  }));
+  useEffect(() => {
+    if (isLegacy && urlVersion !== null) {
+      setLegacyModal({ open: true, version: urlVersion });
+    }
+  }, [isLegacy, urlVersion]);
   // A comment-level reader is read-only but not "view only" (UNI-1994).
   const canComment = readonlyReaderCanComment(doc);
   // An image opens in the viewer, which has no version list: history is the page menu's sheet.
@@ -144,7 +162,6 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
   const officeFormatId = gate.format;
   const { office, editorOpen } = gate;
   const formatName = useOfficeFormatName();
-
   if (!file) {
     return (
       <Notice tone="warning" icon={FileText} layout="inline">
@@ -216,13 +233,32 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
         <Notice tone="muted" icon={FileText} layout="inline">
           {t("documents.file.office_checking", { format })}
         </Notice>
+      ) : isLegacy ? (
+        <Notice
+          tone="info"
+          icon={FileText}
+          layout="inline"
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setLegacyModal({ open: true, version: undefined })}
+            >
+              <MonitorUp aria-hidden className="size-3.5" />
+              {t("office.desktop.action")}
+            </Button>
+          }
+        >
+          <span className="font-medium text-foreground">{t("documents.file.legacy_format_title")}</span>{" "}
+          {t("documents.file.legacy_format_description")}
+        </Notice>
       ) : (
         <Notice tone="info" icon={FileText} layout="inline">
           <span className="font-medium text-foreground">{t("documents.file.no_web_editor_title")}</span>{" "}
           {t(readonly ? "documents.file.no_web_editor_description_readonly" : "documents.file.no_web_editor_description")}
         </Notice>
       )}
-
       <section aria-labelledby="document-versions-heading" className="rounded-lg border border-border">
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <RotateCcwClock aria-hidden className="size-4 text-muted-foreground" />
@@ -245,32 +281,48 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
           </p>
         ) : (
           <ul className="divide-y divide-border">
-            {rows.map((version) => (
-              <li key={version.id} className="flex items-center justify-between gap-3 px-4 py-2">
-                <div className="min-w-0">
-                  <p className="truncate text-body text-foreground">
-                    {t("documents.file.version_row", { no: version.version })}
-                    {version.label ? <span className="text-muted-foreground"> · {version.label}</span> : null}
-                  </p>
-                  <p className="text-caption text-muted-foreground">
-                    {reasonLabel(t, version)}
-                    {version.size_bytes > 0
-                      ? ` · ${formatFileSize(version.size_bytes, i18n.language)}`
-                      : ""}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label={t("documents.file.download_version", { no: version.version })}
-                  disabled={downloading !== null}
-                  onClick={() => void download(version.version)}
-                >
-                  <Download aria-hidden className="size-3.5" />
-                </Button>
-              </li>
-            ))}
+            {rows.map((version) => {
+              const versionLegacy = isLegacyOfficeFormat({ mime_type: version.mime_type }) || (isLegacy && !version.mime_type);
+              return (
+                <li key={version.id} className="flex items-center justify-between gap-3 px-4 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-body text-foreground">
+                      {t("documents.file.version_row", { no: version.version })}
+                      {version.label ? <span className="text-muted-foreground"> · {version.label}</span> : null}
+                    </p>
+                    <p className="text-caption text-muted-foreground">
+                      {reasonLabel(t, version)}
+                      {version.size_bytes > 0
+                        ? ` · ${formatFileSize(version.size_bytes, i18n.language)}`
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    {versionLegacy ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        aria-label={t("documents.file.open_version", { no: version.version })}
+                        onClick={() => setLegacyModal({ open: true, version: version.version })}
+                      >
+                        <Eye aria-hidden className="size-3.5" />
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={t("documents.file.download_version", { no: version.version })}
+                      disabled={downloading !== null}
+                      onClick={() => void download(version.version)}
+                    >
+                      <Download aria-hidden className="size-3.5" />
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -278,6 +330,18 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
       <div className="flex items-center gap-2">
         <DocumentSaveIndicator readonly={readonly} canComment={canComment} />
       </div>
+
+      {isLegacy || legacyModal.open ? (
+        <LegacyFormatDialog
+          open={legacyModal.open}
+          onOpenChange={(open) => setLegacyModal((prev) => ({ ...prev, open }))}
+          documentId={doc.id}
+          savedVersion={doc.current_version || file.version}
+          version={legacyModal.version}
+          operation={readonly ? "view" : "edit"}
+          desktopOpen={desktopOpen}
+        />
+      ) : null}
 
       {actions.uploadDialog}
     </div>

@@ -96,11 +96,13 @@ export interface DesktopOpenActionProps {
   requestRef?: MutableRefObject<(() => Promise<DesktopOpenOutcome>) | null>;
   /** `header` (default) fills the page header slot and its compact menu;
    * `inline` renders in place, always visible, with no header-slot behaviour;
+   * `dialog` renders one primary action button with no download split menu
+   * (the install prompt still opens when the app does not answer);
    * `row` is one compact button for a list row (no installer split menu — the
    * install prompt still opens when the app does not answer); `menu` renders
    * no trigger at all: a menu item elsewhere runs the flow through `requestRef`
    * and a failure goes to a toast, as on a row. */
-  placement?: "header" | "inline" | "row" | "menu";
+  placement?: "header" | "inline" | "dialog" | "row" | "menu";
   /** `view` asks for a read-only session (a viewer, or a file the caller may
    * not change); the server still decides and never upgrades it. */
   operation?: "edit" | "view";
@@ -358,6 +360,19 @@ export function DesktopOpenAction({
           <MonitorUp aria-hidden />
           <span className="sr-only">{working ? t("working") : t("row_action")}</span>
         </Button>
+      ) : placement === "dialog" ? (
+        <Button
+          type="button"
+          variant="default"
+          size="sm"
+          className={className}
+          data-office-desktop-action
+          onClick={() => { if (!working) onAction(); }}
+          aria-disabled={working || undefined}
+        >
+          <MonitorUp aria-hidden />
+          <span>{working ? t("working") : label}</span>
+        </Button>
       ) : (
         <ButtonGroup className={cn(inPageHeader && "hidden sm:flex", className)} data-office-desktop-action>
           <Button type="button" variant={inline ? "default" : "outline"} size="sm" className={surface?.primary} onClick={onAction} aria-disabled={working || undefined} aria-label={label} title={label}>
@@ -382,7 +397,7 @@ export function DesktopOpenAction({
           </DropdownMenu>
         </ButtonGroup>
       )}
-      {error && (placement === "header" || placement === "inline") ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
+      {error && (placement === "header" || placement === "inline" || placement === "dialog") ? <p role="alert" className="max-w-56 text-caption leading-tight text-destructive">{error}</p> : null}
       <Dialog open={choiceOpen} onOpenChange={(open) => { if (working) return; setChoiceOpen(open); if (!open) settleRequest("unavailable"); }}>
         <DialogContent className="sm:max-w-md" aria-describedby="office-desktop-choice-description">
           <DialogHeader>

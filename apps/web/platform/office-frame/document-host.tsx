@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useTranslation } from "react-i18next";
 import type { Document } from "@uniwork/core/types/document";
-import { officeModuleForFormat } from "@uniwork/core/office/office-modules";
+import { legacyOfficeFormat, officeModuleForFormat } from "@uniwork/core/office/office-modules";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import type { OfficeEditorHostProps } from "./module-frame-host";
 import { useOfficeTabTitle } from "./tab-title";
@@ -30,6 +30,8 @@ const OfficeModuleHost = dynamic(() => import("./module-frame-host").then((modul
 export function detectDocumentFormat(document: Document): string {
   const filename = document.file?.filename.toLowerCase() ?? "";
   const mime = document.file?.mime_type.toLowerCase() ?? "";
+  const legacy = legacyOfficeFormat(document.file);
+  if (legacy) return legacy;
   if (mime.includes("wordprocessingml.document") || filename.endsWith(".docx")) return "docx";
   if (mime.includes("spreadsheetml.sheet") || filename.endsWith(".xlsx")) return "xlsx";
   if (mime.includes("presentationml.presentation") || filename.endsWith(".pptx")) return "pptx";
@@ -39,10 +41,9 @@ export function detectDocumentFormat(document: Document): string {
   // only: a bare text/plain file (notes.csv, app.log) never maps.
   if (filename.endsWith(".txt")) return "md";
   if (mime === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
-  if (mime === "application/vnd.ms-excel" || filename.endsWith(".xls")) return "xls";
   if (mime === "application/vnd.oasis.opendocument.text" || filename.endsWith(".odt")) return "odt";
   return "unknown";
-}
+ }
 
 /** A format no module opens. Typed, never a silent fallback. */
 function UnsupportedHost({ format, title }: { format: string; title: string }) {

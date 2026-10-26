@@ -614,6 +614,76 @@ describe("DocumentFileView", () => {
       expect(officeHost).not.toHaveBeenCalled();
     });
   });
+
+  describe("legacy Office formats (.doc, .xls, .ppt)", () => {
+    it.each([
+      { filename: "báo-cáo.doc", mime_type: "application/msword" },
+      { filename: "ngân-sách.xls", mime_type: "application/vnd.ms-excel" },
+      { filename: "trình-bày.ppt", mime_type: "application/vnd.ms-powerpoint" },
+    ])("never mounts the editor frame for $filename, opens LegacyFormatDialog, and reopens it from the notice or version row", async ({ filename, mime_type }) => {
+      mockApi({
+        versions: [
+          { ...versions[0]!, mime_type },
+          { ...versions[1]!, mime_type },
+        ],
+      });
+      const officeHost = vi.fn(() => <div data-testid="office-host">Office host</div>);
+      const createSession = vi.fn(async () => ({
+        launch_ticket: `ticket_${"a".repeat(32)}`,
+        launch_url: `uniwork-office://open?ticket=ticket_${"a".repeat(32)}`,
+        expires_at: "2026-10-26T00:00:00Z",
+        document_id: "d1",
+        operation: "edit" as const,
+        version: 2,
+      }));
+      const launch = vi.fn(async () => "launched" as const);
+      render(wrap(
+        <DocumentFileView
+          wsId={WS}
+          doc={fileDocument({
+            organization_id: "org-1",
+            file: {
+              file_id: "f1",
+              version_id: "v2",
+              version: 2,
+              filename,
+              mime_type,
+              size_bytes: 12_345,
+              checksum_sha256: "a".repeat(64),
+            },
+          })}
+          readonly={false}
+          officeEditorHost={officeHost}
+          desktopOpen={{
+            deploymentId: "dep-1",
+            channel: "stable",
+            savedVersion: 2,
+            createSession,
+            launch,
+          }}
+        />,
+        new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } }),
+      ));
+
+      expect(officeHost).not.toHaveBeenCalled();
+      const dialog = await screen.findByRole("dialog", { name: t("office.legacy.title") });
+      expect(dialog).toBeInTheDocument();
+      expect(screen.getAllByText(t("documents.file.legacy_format_title")).length).toBeGreaterThanOrEqual(2);
+
+      // Close the auto-opened modal, then re-open it from a legacy version row (read-only version=1).
+      fireEvent.click(screen.getAllByRole("button", { name: t("office.legacy.close") })[0]!);
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: t("office.legacy.title") })).toBeNull());
+
+      const openV1 = await screen.findByRole("button", { name: t("documents.file.open_version", { no: 1 }) });
+      fireEvent.click(openV1);
+      const reopened = await screen.findByRole("dialog", { name: t("office.legacy.title") });
+      fireEvent.click(reopened.querySelector("[data-office-desktop-action]")!);
+      await waitFor(() => expect(createSession).toHaveBeenCalledWith("d1", expect.objectContaining({
+        operation: "view",
+        version: 1,
+      })));
+    });
+  });
 });
 
 // UNI-1645 CFE-1-2 / CFE-1-12: the file-version commit under the edit lock.

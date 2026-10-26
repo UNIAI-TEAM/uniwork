@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createOfficeFrameApi, docsFrameSrc, type DocsFrameCall } from "./docs-frame-api";
 import { OFFICE_MODULES } from "./docs-frame-protocol";
-import { officeFrameSrc, officeModuleForFormat, officeModuleSpec } from "./office-modules";
+import { isLegacyOfficeFormat, legacyOfficeFormat, officeFrameSrc, officeModuleForFormat, officeModuleSpec } from "./office-modules";
 
 const API = "http://api.test";
 const DOC = {
@@ -27,7 +27,9 @@ describe("office module table", () => {
   it("maps formats to modules, and nothing for a format no frame opens", () => {
     expect(officeModuleForFormat("pptx")).toBe("slides");
     expect(officeModuleForFormat("md")).toBe("markdown");
+    expect(officeModuleForFormat("doc")).toBeNull();
     expect(officeModuleForFormat("xls")).toBeNull();
+    expect(officeModuleForFormat("ppt")).toBeNull();
     expect(officeModuleForFormat(null)).toBeNull();
   });
 
@@ -47,6 +49,45 @@ describe("office module table", () => {
 
   it("places no stored-file size cap on any module, including Sheets (BENCH-01 #2)", () => {
     expect(OFFICE_MODULES.filter((m) => "maxBytes" in officeModuleSpec(m))).toEqual([]);
+  });
+});
+
+describe("isLegacyOfficeFormat / legacyOfficeFormat", () => {
+  it.each([
+    [{ name: "vn-template.doc" }, "doc"],
+    [{ filename: "VN-BUDGET.XLS" }, "xls"],
+    [{ name: "Deck.Ppt" }, "ppt"],
+    [{ extension: "doc" }, "doc"],
+    [{ extension: ".XLS" }, "xls"],
+    [{ extension: "PPT" }, "ppt"],
+    [{ mime: "application/msword" }, "doc"],
+    [{ mime_type: "APPLICATION/VND.MS-EXCEL; charset=binary" }, "xls"],
+    [{ mime: "application/vnd.ms-powerpoint" }, "ppt"],
+    [{ name: "archive.pdf.doc" }, "doc"],
+  ] as const)("detects %j as legacy format %s", (input, expected) => {
+    expect(legacyOfficeFormat(input)).toBe(expected);
+    expect(isLegacyOfficeFormat(input)).toBe(true);
+    expect(officeModuleForFormat(legacyOfficeFormat(input))).toBeNull();
+  });
+
+  it.each([
+    null,
+    undefined,
+    {},
+    { name: "report.docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+    { name: "budget.xlsx", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+    { name: "deck.pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
+    { name: "a.doc.pdf", mime: "application/pdf" },
+    { name: "a.xls.xlsx", mime: "application/vnd.ms-excel" },
+    { name: "a.ppt.pdf" },
+    { name: ".doc" },
+    { name: "doc" },
+    { name: "trail." },
+    { extension: "docx", mime: "application/msword" },
+    { mime: "application/pdf" },
+  ])("returns false / null for non-legacy input %j", (input) => {
+    expect(legacyOfficeFormat(input)).toBeNull();
+    expect(isLegacyOfficeFormat(input)).toBe(false);
   });
 });
 

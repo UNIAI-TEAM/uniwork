@@ -12513,6 +12513,9 @@
       "no_web_editor_title": "Không sửa được trên web",
       "no_web_editor_description": "Định dạng này không mở được trên trình duyệt. Bạn tải về để mở bằng ứng dụng trên máy tính, hoặc tải lên phiên bản mới.",
       "no_web_editor_description_readonly": "Định dạng này không mở được trên trình duyệt. Bạn tải về để mở bằng ứng dụng trên máy tính.",
+      "legacy_format_title": "Mở tệp bằng UniWork Office",
+      "legacy_format_description": "Đây là tệp Office định dạng cũ nên được mở bằng ứng dụng UniWork Office trên máy tính.",
+      "open_version": "Mở phiên bản {{no}}",
       "office_off_title": "Chỉnh sửa {{format}} đang tắt",
       "office_off_description": "Tổ chức này đang tắt chỉnh sửa tệp {{format}}. Bạn vẫn tải tệp về hoặc tải lên phiên bản mới được.",
       "office_checking": "Đang kiểm tra tổ chức này có bật chỉnh sửa {{format}} không…",
@@ -14045,6 +14048,12 @@
         "download": "Tải bản của tôi",
         "close": "Đóng"
       }
+    },
+    "legacy": {
+      "title": "Mở tệp bằng UniWork Office",
+      "description": "Đây là tệp Office định dạng cũ nên được mở bằng ứng dụng UniWork Office trên máy tính.",
+      "open_in_app": "Mở bằng UniWork Office",
+      "close": "Đóng"
     }
   },
   "officeDesktop": {
