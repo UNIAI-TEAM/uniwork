@@ -31,6 +31,7 @@ export function useRestoreTask(workspaceId: string) {
     mutationFn: (taskId: string) => trash.restoreTask(taskId),
     onSuccess: (result, taskId) => {
       void qc.invalidateQueries({ queryKey: taskKeys.trash(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) });
       for (const id of new Set([taskId, ...result.ids])) {
         void qc.invalidateQueries({ queryKey: taskKeys.detail(id) });
       }
@@ -55,6 +56,7 @@ export function useRestoreProject(workspaceId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: taskKeys.projects(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.projectTrash(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) });
       return invalidateTaskCollections(qc, workspaceId);
     },
   });

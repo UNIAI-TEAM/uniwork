@@ -162,6 +162,7 @@ export function useBatchDeleteTasks(workspaceId: string) {
     mutationFn: (taskIds: string[]) => suite.batchDeleteTasks(workspaceId, taskIds),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: taskKeys.trash(workspaceId) });
+      void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.list(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.queryRoot(workspaceId) });
       void qc.invalidateQueries({ queryKey: taskKeys.myTasks(workspaceId) });

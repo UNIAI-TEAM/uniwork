@@ -74,23 +74,24 @@ describe("planCacheUpdate", () => {
     },
   );
 
-  it("task.trashed refreshes what task.deleted does, plus the trash", () => {
+  it("task.trashed refreshes what task.deleted does, plus the trash and the pins", () => {
     const deleted = planCacheUpdate("ws1", { type: "task.deleted", payload: { task_id: "t1" } }).keys;
     const trashed = planCacheUpdate("ws1", { type: "task.trashed", payload: { task_id: "t1" } }).keys;
-    expect(trashed).toEqual([...deleted, taskKeys.trash("ws1")]);
+    expect(trashed).toEqual([...deleted, taskKeys.trash("ws1"), taskKeys.pins("ws1")]);
   });
 
-  it("task.restored refreshes what task.created does, plus the trash", () => {
+  it("task.restored refreshes what task.created does, plus the trash and the pins", () => {
     const created = planCacheUpdate("ws1", { type: "task.created", payload: { task_id: "t1" } }).keys;
     const restored = planCacheUpdate("ws1", { type: "task.restored", payload: { task_id: "t1" } }).keys;
-    expect(restored).toEqual([...created, taskKeys.trash("ws1")]);
+    expect(restored).toEqual([...created, taskKeys.trash("ws1"), taskKeys.pins("ws1")]);
   });
 
-  it.each(["project.trashed", "project.restored"])("%s refreshes projects and the project trash", (type) => {
+  it.each(["project.trashed", "project.restored"])("%s refreshes projects, the project trash and the pins", (type) => {
     const keys = planCacheUpdate("ws1", { type, payload: { project_id: "p1" } }).keys;
     expect(keys).toEqual([
       taskKeys.projects("ws1"),
       taskKeys.projectTrash("ws1"),
+      taskKeys.pins("ws1"),
       taskKeys.project("ws1", "p1"),
     ]);
   });

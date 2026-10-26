@@ -47,7 +47,7 @@ describe("trash hooks", () => {
     await waitFor(() => expect(result.current.hasNextPage).toBe(false));
   });
 
-  it("useRestoreTask invalidates lists, my-tasks, detail and the trash", async () => {
+  it("useRestoreTask invalidates lists, my-tasks, detail, the trash and the pins", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ trash_batch_id: "b1", ids: ["t1", "t2"] }));
     const { qc, wrapper } = setup();
     const keys = [
@@ -56,6 +56,7 @@ describe("trash hooks", () => {
       taskKeys.queryRoot(WS),
       taskKeys.tableRoot(WS),
       taskKeys.trash(WS),
+      taskKeys.pins(WS),
       taskKeys.detail("t1"),
       taskKeys.detail("t2"),
     ];
@@ -67,10 +68,16 @@ describe("trash hooks", () => {
     for (const k of keys) expect(invalidated(qc, k)).toBe(true);
   });
 
-  it("useRestoreProject invalidates projects, project trash and task lists", async () => {
+  it("useRestoreProject invalidates projects, project trash, pins and task lists", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
     const { qc, wrapper } = setup();
-    const keys = [taskKeys.projects(WS), taskKeys.projectTrash(WS), taskKeys.list(WS), taskKeys.queryRoot(WS)];
+    const keys = [
+      taskKeys.projects(WS),
+      taskKeys.projectTrash(WS),
+      taskKeys.pins(WS),
+      taskKeys.list(WS),
+      taskKeys.queryRoot(WS),
+    ];
     for (const k of keys) qc.setQueryData(k, {});
     const { result } = renderHook(() => useRestoreProject(WS), { wrapper });
     await act(async () => {
