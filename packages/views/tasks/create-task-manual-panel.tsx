@@ -26,7 +26,7 @@ import {
   CreateTaskLabelField,
 } from "./pickers/create-task-property-fields";
 import { CreateTaskProjectField } from "./pickers/create-task-project-fields";
-import { useCreateTaskManualState } from "./use-create-task-manual";
+import { useCreateTaskManualState, type CreateTaskSubmitter } from "./use-create-task-manual";
 
 export type CreateTaskManualPanelProps = {
   workspaceId: string;
@@ -38,6 +38,10 @@ export type CreateTaskManualPanelProps = {
   setIsExpanded: (expanded: boolean) => void;
   createAnother: boolean;
   setCreateAnother: (createAnother: boolean) => void;
+  /** Another command creates the task: no drafts, no agent mode, no "create another". */
+  submitter?: CreateTaskSubmitter;
+  /** Replaces "New task" after the workspace name (e.g. "Meeting follow-up"). */
+  heading?: string;
 };
 
 export function CreateTaskManualPanel({
@@ -50,6 +54,8 @@ export function CreateTaskManualPanel({
   setIsExpanded,
   createAnother,
   setCreateAnother,
+  submitter,
+  heading,
 }: CreateTaskManualPanelProps) {
   const editorRef = useRef<ContentEditorRef>(null);
   const sendShortcut = useShortcut("send");
@@ -59,6 +65,7 @@ export function CreateTaskManualPanel({
     carry,
     onClose,
     createAnother,
+    submitter,
   });
   const {
     t,
@@ -117,7 +124,7 @@ export function CreateTaskManualPanel({
             <span className="mx-1.5 text-muted-foreground" aria-hidden>
               ›
             </span>
-            <span className="text-foreground">{t("tasks.create.manual_breadcrumb")}</span>
+            <span className="text-foreground">{heading ?? t("tasks.create.manual_breadcrumb")}</span>
           </DialogTitle>
           <DialogDescription className="sr-only">{t("tasks.create.sr_manual")}</DialogDescription>
         </div>
@@ -142,24 +149,26 @@ export function CreateTaskManualPanel({
               {isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
             </TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-                  aria-label={t("tasks.create.save_draft")}
-                  aria-disabled={busy || isUploading || undefined}
-                  onClick={saveCurrentDraft}
-                />
-              }
-            >
-              <PanelBottomClose className="size-4" aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("tasks.create.save_draft")}</TooltipContent>
-          </Tooltip>
+          {submitter ? null : (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                    aria-label={t("tasks.create.save_draft")}
+                    aria-disabled={busy || isUploading || undefined}
+                    onClick={saveCurrentDraft}
+                  />
+                }
+              >
+                <PanelBottomClose className="size-4" aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("tasks.create.save_draft")}</TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger
               render={
@@ -183,6 +192,8 @@ export function CreateTaskManualPanel({
 
       <div className="shrink-0 px-5 pb-2">
         <Input
+          // A new draft (the next meeting item, "create another") remounts it: autoFocus puts the caret back.
+          key={draft.idempotencyKey}
           aria-label={t("tasks.create.title_placeholder")}
           value={draft.title}
           onChange={(event) => updateDraft({ title: event.target.value })}
@@ -317,40 +328,44 @@ export function CreateTaskManualPanel({
             onSelect={(file) => editorRef.current?.uploadFile(file)}
           />
         </div>
-        <button
-          type="button"
-          aria-disabled={busy || undefined}
-          aria-busy={busy || undefined}
-          title={t("tasks.create.switch_to_agent")}
-          className="border-beam group flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm border border-primary/15 bg-primary/5 px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-          onClick={() => {
-            if (busy || uploadGate.isBlocked()) return;
-            updateDraft({
-              agentPrompt: draft.agentPrompt?.trim() ? draft.agentPrompt : draft.description,
-              agentId:
-                draft.agentId ??
-                (draft.assigneeKind === "agent" ? draft.assigneeId : undefined),
-            });
-            onSwitchMode({
-              project_id: draft.projectId,
-              parent_task_id: draft.parentTaskId,
-            });
-          }}
-        >
-          <ArrowLeftRight
-            className="size-3.5 shrink-0 text-primary transition-transform duration-300 group-hover:rotate-180 motion-reduce:transition-none"
-            aria-hidden
-          />
-          {t("tasks.create.switch_to_agent")}
-        </button>
-        <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted-foreground">
-          <Switch
-            checked={createAnother}
-            onCheckedChange={setCreateAnother}
-            aria-label={t("tasks.create.create_another_short")}
-          />
-          <span aria-hidden>{t("tasks.create.create_another_short")}</span>
-        </label>
+        {submitter ? null : (
+          <>
+            <button
+              type="button"
+              aria-disabled={busy || undefined}
+              aria-busy={busy || undefined}
+              title={t("tasks.create.switch_to_agent")}
+              className="border-beam group flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm border border-primary/15 bg-primary/5 px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50 pointer-coarse:min-h-11"
+              onClick={() => {
+                if (busy || uploadGate.isBlocked()) return;
+                updateDraft({
+                  agentPrompt: draft.agentPrompt?.trim() ? draft.agentPrompt : draft.description,
+                  agentId:
+                    draft.agentId ??
+                    (draft.assigneeKind === "agent" ? draft.assigneeId : undefined),
+                });
+                onSwitchMode({
+                  project_id: draft.projectId,
+                  parent_task_id: draft.parentTaskId,
+                });
+              }}
+            >
+              <ArrowLeftRight
+                className="size-3.5 shrink-0 text-primary transition-transform duration-300 group-hover:rotate-180 motion-reduce:transition-none"
+                aria-hidden
+              />
+              {t("tasks.create.switch_to_agent")}
+            </button>
+            <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted-foreground">
+              <Switch
+                checked={createAnother}
+                onCheckedChange={setCreateAnother}
+                aria-label={t("tasks.create.create_another_short")}
+              />
+              <span aria-hidden>{t("tasks.create.create_another_short")}</span>
+            </label>
+          </>
+        )}
         <CreateTaskSubmitButton
           type="submit"
           inactive={!canSubmit}

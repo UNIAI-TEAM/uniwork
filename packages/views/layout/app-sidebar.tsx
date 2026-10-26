@@ -1,26 +1,15 @@
 "use client";
 
 import { Fragment, useId, useRef } from "react";
-import { ChevronDown, LogOut, Settings } from "lucide-react";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { useLogout } from "@uniwork/core/auth";
 import { useFlag } from "@uniwork/core/feature-flags";
 import { useChatUnreadBadge } from "@uniwork/core/chat";
 import { useEmailHubUnreadCount } from "@uniwork/core/email-hub/hooks";
 import { useUnreadCount } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { useScrollFade } from "@uniwork/ui/hooks/use-scroll-fade";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -38,6 +27,7 @@ import {
 } from "@uniwork/ui/components/ui/sidebar";
 import { UI_EASE_SETTLE, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
 import { AppLink, useNavigation } from "../navigation";
+import { AccountMenu } from "./account-menu";
 import { useWorkspace } from "./workspace-context";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { MODULE_ICONS } from "./module-icons";
@@ -65,22 +55,17 @@ interface NavGroup {
 const navButtonClass =
   "isolate h-9 rounded-md text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-transparent data-active:font-medium data-active:text-sidebar-accent-foreground data-active:hover:bg-transparent";
 
-/** First letter of the first word, which is all an avatar has room for at 32px. */
-function initialOf(name: string) {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
-}
-
 /**
- * Workspace navigation on the inset shell: floating content card beside a
- * padded sidebar rail. PRODUCT.md keeps the nav to built surfaces only —
- * tasks, meetings, members — but the chrome matches the reference layout.
+ * Workspace navigation. On a desktop shell it is the left of three floating
+ * cards under the top bar (ClickUp-style): the modules and pins, then its
+ * collapse toggle at the foot; the workspace switcher and the account sit on the top bar.
+ * On a compact shell it is a sheet that keeps both, since that bar has no room.
+ * PRODUCT.md keeps the nav to built surfaces only.
  */
 export function AppSidebar() {
-  const { t } = useTranslation();
-  const { workspace, user } = useWorkspace();
-  const { pathname, replace } = useNavigation();
+  const { workspace } = useWorkspace();
+  const { pathname } = useNavigation();
   const { isCompact, setOpenMobile } = useSidebar();
-  const { mutateAsync: logout } = useLogout();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
 
   const dismissSheet = () => {
@@ -88,90 +73,56 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar variant="inset" collapsible="icon">
-      {/* The switcher shares the top bar's horizon: expanded (48px) it starts
-          where the content card does, collapsed (32px) it sits 8px lower, so
-          both centres land on the 48px bar's. The sheet keeps its own pad. */}
-      <SidebarHeader className="gap-2 px-2 pt-2 pb-1 group-data-[collapsible=icon]:px-0 lg:pt-0 lg:group-data-[collapsible=icon]:pt-2">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <WorkspaceSwitcher current={workspace} onNavigate={dismissSheet} />
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
+    // The container is fixed to the viewport, so on desktop it starts under the 48px top bar.
+    <Sidebar variant="floating" collapsible="icon" className="lg:top-12 lg:h-[calc(100svh-3rem)] lg:pt-0">
+      {isCompact ? (
+        <SidebarHeader className="gap-2 px-2 pt-2 pb-1">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <WorkspaceSwitcher current={workspace} onNavigate={dismissSheet} />
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+      ) : null}
 
       <ModuleNav ws={ws} pathname={pathname} onNavigate={dismissSheet} />
 
-      <SidebarFooter className="px-2 pt-1 pb-2 group-data-[collapsible=icon]:px-0">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <SidebarMenuButton
-                    size="lg"
-                    // Starts with what the button shows, so a voice-control
-                    // user can say the name they see (WCAG 2.5.3).
-                    aria-label={t("nav.account_named", { name: user.display_name, email: user.email })}
-                    tooltip={user.display_name}
-                    className="gap-2.5 px-2"
-                  />
-                }
-              >
-                <ActorAvatar
-                  name={user.display_name}
-                  initials={initialOf(user.display_name)}
-                  avatarUrl={user.avatar_url}
-                  size="lg"
-                  className="bg-sidebar-accent text-sidebar-accent-foreground"
-                />
-                <span className="flex min-w-0 flex-1 flex-col text-left group-data-[collapsible=icon]:hidden">
-                  <span title={user.display_name} className="truncate text-body font-semibold text-foreground">
-                    {user.display_name}
-                  </span>
-                  <span title={user.email} className="truncate text-caption text-muted-foreground">
-                    {user.email}
-                  </span>
-                </span>
-                <ChevronDown aria-hidden className="ml-auto size-3! text-muted-foreground group-data-[collapsible=icon]:hidden" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" className="min-w-56">
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel className="flex min-w-0 flex-col">
-                    <span className="truncate text-body font-medium text-foreground">{user.display_name}</span>
-                    <span className="truncate font-normal text-caption text-muted-foreground">{user.email}</span>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    render={
-                      <AppLink href={ws.settings()} onClick={dismissSheet} />
-                    }
-                  >
-                    <Settings aria-hidden />
-                    {t("nav.settings")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={async () => {
-                      dismissSheet();
-                      try {
-                        await logout();
-                      } finally {
-                        replace(paths.login());
-                      }
-                    }}
-                  >
-                    <LogOut aria-hidden />
-                    {t("auth.logout")}
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+      {isCompact ? (
+        <SidebarFooter className="px-2 pt-1 pb-2">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <AccountMenu placement="sidebar" onNavigate={dismissSheet} />
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      ) : (
+        // A full-width row at the card's foot, like the modules above it, not a bare icon in a corner.
+        <SidebarFooter className="px-2 pt-1 pb-2 group-data-[collapsible=icon]:px-0">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <CollapseRow />
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      )}
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+/** The collapse toggle, named for what it does next; ⌘B still toggles it (the sidebar primitive). */
+function CollapseRow() {
+  const { t } = useTranslation();
+  const { state, toggleSidebar } = useSidebar();
+  const collapsed = state === "collapsed";
+  const label = t(collapsed ? "nav.expand_sidebar" : "nav.collapse_sidebar");
+  const Icon = collapsed ? ChevronsRight : ChevronsLeft;
+  return (
+    // Centred in the full-width row: it is the card's closing action, not one more module row.
+    <SidebarMenuButton tooltip={label} className={`${navButtonClass} justify-center`} onClick={toggleSidebar}>
+      <Icon aria-hidden className="size-4 shrink-0" />
+      <span>{label}</span>
+    </SidebarMenuButton>
   );
 }
 
@@ -298,7 +249,6 @@ function ModuleNav({
                             size="xs"
                             variant="solid"
                             tone={moduleTone(module)}
-                            className="[&_svg]:size-3"
                           />
                           <span>{t(key)}</span>
                           {badge ? (

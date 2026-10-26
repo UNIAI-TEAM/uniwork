@@ -367,6 +367,30 @@ describe("AiAccessTab", () => {
     expect(screen.queryByRole("switch", { name: SWITCH_NAME })).not.toBeInTheDocument();
   });
 
+  it.each([
+    [false, "hides"],
+    [true, "shows"],
+  ])("with Ask UNI actions on = %s, %s the write ceiling section", async (enabled) => {
+    serve("owner");
+    const base = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: string, init?: Init) =>
+      path === "/api/v1/workspaces/ws1/ai/capabilities"
+        ? Promise.resolve({ enabled: true, ask_uni: true, actions: { enabled, ceiling: "plan", mode: "ask" } })
+        : path === "/api/v1/orgs/acme/ai/ask-write-policy"
+          ? Promise.resolve({ ceiling: "plan" })
+          : base?.(path, init),
+    );
+    renderTab();
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/ai/capabilities"));
+    await flush();
+    if (enabled) {
+      expect(await screen.findByText(t("settings.aiAccess.askWriteTitle"))).toBeInTheDocument();
+      return;
+    }
+    expect(screen.queryByText(t("settings.aiAccess.askWriteTitle"))).toBeNull();
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/orgs/acme/ai/ask-write-policy");
+  });
+
   it("still shows the Ask UNI models section when the MCP policy fails to load", async () => {
     serve("owner");
     const base = requestMock.getMockImplementation();

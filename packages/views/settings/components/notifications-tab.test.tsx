@@ -195,12 +195,33 @@ describe("NotificationsTab", () => {
     render(wrap(<NotificationsTab />));
     const push = (kind: string) => screen.findByRole("switch", { name: `${kind} · Đẩy` });
     expect(await push("Truy cập khẩn cấp vào tài liệu")).toHaveAttribute("aria-checked", "true");
+    expect(await push("Được giao nhiều việc một lúc")).toHaveAttribute("aria-checked", "true");
     expect(await push("Được nhắc đến trong thảo luận")).toHaveAttribute("aria-checked", "true");
     expect(await push("Phản hồi bình luận")).toHaveAttribute("aria-checked", "false");
     // The root's edit-lock kinds push by default too, except the answer.
     expect(await push("Yêu cầu quyền sửa tài liệu")).toHaveAttribute("aria-checked", "true");
     expect(await push("Bị lấy quyền sửa tài liệu")).toHaveAttribute("aria-checked", "true");
     expect(await push("Trả lời yêu cầu quyền sửa")).toHaveAttribute("aria-checked", "false");
+    // prefs.go pushes a system summary, a share and both access-request sides; a decline stays in-app.
+    expect(await push(t("settings.notifications.kinds.meeting_summary_ready"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_shared"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_access_requested"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_access_approved"))).toHaveAttribute("aria-checked", "true");
+    expect(await push(t("settings.notifications.kinds.document_access_declined"))).toHaveAttribute("aria-checked", "false");
+  });
+
+  // Members see the host/secretary and uploader kinds too; each says when it applies.
+  it("says when the meeting kinds that follow a role apply", async () => {
+    mockApi(false);
+    render(wrap(<NotificationsTab />));
+    await screen.findByRole("switch", { name: `${t("settings.notifications.kinds.meeting_summary_ready")} · ${t("settings.notifications.channel_in_app")}` });
+    // The auto summary and the items still to assign after a meeting (follow-2).
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_role"))).toHaveLength(2);
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_participant"))).toHaveLength(1);
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_task"))).toHaveLength(1);
+    // The reminder says its condition: only when the organization turned the automatic summary off.
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_reminder"))).toHaveLength(1);
+    expect(screen.getAllByText(t("settings.notifications.hint_meeting_upload"))).toHaveLength(2);
   });
 
   // BE-TN-2: the trash kind carries a translated label, not a raw key, in vi.

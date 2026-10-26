@@ -90,7 +90,7 @@ function PollOptionVotersSection({
           <p className="min-w-0 truncate text-body-lg font-semibold text-foreground">{option.label}</p>
           {mine ? (
             <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full bg-brand-subtle px-2 text-micro font-semibold text-brand">
-              <Check className="size-3" strokeWidth={3} aria-hidden />
+              <Check className="size-3" aria-hidden />
               {t("chat.poll_voters_your_pick")}
             </span>
           ) : null}

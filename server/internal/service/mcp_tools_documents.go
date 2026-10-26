@@ -479,7 +479,7 @@ func (s *McpToolService) UpdateDocument(ctx context.Context, p McpPrincipal, in 
 	}
 	actor := Human(p.UserID)
 	contentChanged := content != nil && !sameJSON(content, before.Content)
-	var note string
+	var note, undoVersion string
 	switch {
 	case contentChanged:
 		// The version is taken only for a change that will be written. When the
@@ -489,8 +489,13 @@ func (s *McpToolService) UpdateDocument(ctx context.Context, p McpPrincipal, in 
 		switch saved, err := s.docs.CreateDocumentVersion(ctx, actor, before.ID, CreateDocumentVersionInput{Label: versionLabel(ctx)}); {
 		case err == nil:
 			note = fmt.Sprintf("the page as it was is saved as the version %q in its history", saved.Label.String)
+			undoVersion = strconv.Itoa(int(saved.Version))
 		case codedIs(err, "document_version_unchanged"):
 			note = "the page as it was is already the latest version in its history"
+			// Best effort: without it the edit just has no content undo.
+			if page, lerr := s.docs.ListDocumentVersions(ctx, actor, before.ID, ListDocumentVersionsInput{Limit: 1}); lerr == nil && len(page.Versions) > 0 {
+				undoVersion = strconv.Itoa(int(page.Versions[0].Version))
+			}
 		default:
 			return McpWriteResult{}, err
 		}
@@ -501,7 +506,9 @@ func (s *McpToolService) UpdateDocument(ctx context.Context, p McpPrincipal, in 
 	if err != nil {
 		return McpWriteResult{}, err
 	}
-	return s.documentUpdated(base, before, after.Document, shown, note), nil
+	res := s.documentUpdated(base, before, after.Document, shown, note)
+	res.UndoVersionID = undoVersion
+	return res, nil
 }
 
 // mcpContentEdit is what update_document did to the content, as the result

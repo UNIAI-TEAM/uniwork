@@ -36,7 +36,7 @@ function NoticeIconButton({
       >
         {children}
       </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
+      <TooltipContent side="bottom" className="dark">{label}</TooltipContent>
     </Tooltip>
   );
 }

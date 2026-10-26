@@ -4,13 +4,12 @@ import { Check, Copy } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCreateInviteLink } from "@uniwork/core/meetings";
-import { paths } from "@uniwork/core/paths";
-import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog, DialogFooter } from "@uniwork/ui/components/ui/dialog";
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
 } from "@uniwork/ui/components/ui/field";
@@ -26,32 +25,46 @@ import {
 } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { defaultInviteLinkLabel } from "./invite-link-display";
+import { expiresAtFromDays, inviteLinkUrl } from "./invite-link-url";
 
 const DEFAULT_DAYS = "7";
-const DEFAULT_MODE = "AUTO_ADMIT";
+// The host lets each guest in unless they choose otherwise: a leaked link then opens no door by itself.
+const DEFAULT_MODE = "REQUEST_APPROVAL";
 const COPIED_MS = 2000;
+
+/** Values a caller starts the form from (a link that cannot be copied again, a failed create). */
+export type InviteLinkDraft = { name?: string; mode?: string; days?: string; maxUses?: string };
+
+/** Guests who let themselves in need a use limit (create brief AB, auto-admit floor). */
+const needsLimit = (mode: string, maxUses: string) => mode === "AUTO_ADMIT" && !(Number(maxUses) >= 1);
 
 export function CreateInviteLinkDialog({
   meetingId,
   open,
   onOpenChange,
+  initial,
 }: {
   meetingId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Read when the dialog mounts: a caller with new values remounts it (`key`). */
+  initial?: InviteLinkDraft;
 }) {
   const { t, i18n } = useTranslation();
   const id = useId();
   const create = useCreateInviteLink(meetingId);
-  const [name, setName] = useState("");
-  const [days, setDays] = useState(DEFAULT_DAYS);
-  const [mode, setMode] = useState(DEFAULT_MODE);
-  const [maxUses, setMaxUses] = useState("");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [days, setDays] = useState(initial?.days ?? DEFAULT_DAYS);
+  const [mode, setMode] = useState(initial?.mode ?? DEFAULT_MODE);
+  const [maxUses, setMaxUses] = useState(initial?.maxUses ?? "");
+  const [limitTouched, setLimitTouched] = useState(false);
   const [freshUrl, setFreshUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(copiedTimer.current), []);
+
+  const limitError = limitTouched && needsLimit(mode, maxUses);
 
   const close = (next: boolean) => {
     if (!next) {
@@ -59,6 +72,7 @@ export function CreateInviteLinkDialog({
       setDays(DEFAULT_DAYS);
       setMode(DEFAULT_MODE);
       setMaxUses("");
+      setLimitTouched(false);
       setFreshUrl(null);
       setCopied(false);
       window.clearTimeout(copiedTimer.current);
@@ -122,7 +136,12 @@ export function CreateInviteLinkDialog({
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const expires = new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000).toISOString();
+              if (needsLimit(mode, maxUses)) {
+                setLimitTouched(true);
+                document.getElementById(`${id}-max`)?.focus();
+                return;
+              }
+              const expires = expiresAtFromDays(Number(days), Date.now());
               const nowIso = new Date().toISOString();
               const defaultName = defaultInviteLinkLabel(nowIso, i18n.language, t);
               create.mutate(
@@ -140,7 +159,7 @@ export function CreateInviteLinkDialog({
                       close(false);
                       return;
                     }
-                    const url = `${runtimeConfig().appUrl}${paths.meetingInvite(linkId)}#secret=${secret}`;
+                    const url = inviteLinkUrl(linkId, secret);
                     setFreshUrl(url);
                     void copyText(url).then((ok) => {
                       if (ok) toast.success(t("meetings.linkCopied"));
@@ -181,10 +200,10 @@ export function CreateInviteLinkDialog({
                   <FieldDescription>
                     {mode === "REQUEST_APPROVAL"
                       ? t("meetings.linkNeedApprovalGuestHint")
-                      : t("meetings.linkAutoAdmitGuestHint")}
+                      : `${t("meetings.linkAutoAdmitGuestHint")} ${t("meetings.detail.guestLink.limitHint")}`}
                   </FieldDescription>
                 </Field>
-                <Field>
+                <Field data-invalid={limitError || undefined}>
                   <FieldLabel htmlFor={`${id}-max`}>{t("meetings.linkMaxUses")}</FieldLabel>
                   <Input
                     id={`${id}-max`}
@@ -192,8 +211,14 @@ export function CreateInviteLinkDialog({
                     min={1}
                     value={maxUses}
                     onChange={(e) => setMaxUses(e.target.value)}
+                    onBlur={() => setLimitTouched(true)}
+                    aria-invalid={limitError || undefined}
+                    aria-describedby={limitError ? `${id}-max-error` : undefined}
                     placeholder={t("meetings.linkUnlimited")}
                   />
+                  {limitError ? (
+                    <FieldError id={`${id}-max-error`}>{t("meetings.detail.guestLink.limitRequired")}</FieldError>
+                  ) : null}
                 </Field>
               </FieldGroup>
             </FormDialogBody>

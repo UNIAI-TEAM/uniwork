@@ -11,11 +11,12 @@ import {
   MeetingCameraPreview,
   type CameraPreviewStatus,
 } from "./meeting-camera-preview";
-import { formatMeetingRange, meetingLocale } from "./meeting-datetime";
+import { formatMeetingWindow, meetingLocale } from "./meeting-datetime";
 import { MeetingCanvas } from "./meeting-canvas";
 import { MeetingDeviceField } from "./meeting-device-field";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
 import { MeetingMediaPermissionAction, MeetingMicLevel } from "./meeting-room-mic-check";
+import { MeetingScribeNotice } from "./meeting-scribe-notice";
 
 /** What the user chose before connecting; LiveKitRoom takes it as initial media. */
 export interface PreJoinChoice {
@@ -28,12 +29,15 @@ export interface PreJoinChoice {
 export function MeetingPreJoin({
   meeting,
   loading = false,
+  scribeNoticeFor,
   onJoin,
   onLeave,
 }: {
   meeting?: Meeting;
   /** The meeting is still being fetched: draw skeleton lines, not a fallback title. */
   loading?: boolean;
+  /** The meeting's id when the AI scribe would transcribe it: the consent notice shows before joining. */
+  scribeNoticeFor?: string;
   onJoin: (choice: PreJoinChoice) => void;
   onLeave: () => void;
 }) {
@@ -130,11 +134,7 @@ export function MeetingPreJoin({
             )}
             {meeting ? (
               <p className="mt-1 text-label tabular-nums text-muted-foreground">
-                {formatMeetingRange(
-                  meeting.starts_at,
-                  meeting.ends_at,
-                  meetingLocale(i18n.language),
-                )}
+                {formatMeetingWindow(meeting.starts_at, meeting.ends_at, meetingLocale(i18n.language), t)}
               </p>
             ) : null}
           </div>
@@ -164,6 +164,7 @@ export function MeetingPreJoin({
             onValueChange={setVideoDeviceId}
             emptyDescription={t("meetings.deviceCameraNeedsPermission")}
           />
+          {scribeNoticeFor ? <MeetingScribeNotice meetingKey={scribeNoticeFor} scribeOn /> : null}
           <Button
             type="button"
             variant="brand"

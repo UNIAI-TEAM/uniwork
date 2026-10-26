@@ -11,6 +11,7 @@ import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
 import { syncChat } from "@/data/chat-sync/sync";
 import { flushOwed } from "@/data/owed";
+import * as report from "@/data/report";
 import { useActiveChatRoomStore } from "@/data/stores/chat-active-room-store";
 import { useChatPinsStore } from "@/data/stores/chat-pins-store";
 import { usePresenceStore } from "@/data/stores/chat-presence-store";
@@ -126,6 +127,32 @@ describe("useChatRealtime", () => {
     expect(latest).toEqual(expect.arrayContaining(["r1", "r2", "r3"]));
   });
 
+  it("beats through HTTP before the socket has wired presence", async () => {
+    mockSocket.current = null;
+    jest.useFakeTimers();
+    await mount().hook;
+    await act(async () => undefined);
+    expect(chatApi.beatPresence).toHaveBeenCalledWith("w1", true);
+  });
+
+  it("reconciles from the socket beat when it returns a snapshot", async () => {
+    mockSocket.current!.sendPresenceBeat = jest.fn(async () => ["U9"]);
+    jest.useFakeTimers();
+    await mount().hook;
+    await act(async () => undefined);
+    expect(mockSocket.current!.sendPresenceBeat).toHaveBeenCalledWith(true);
+    expect(usePresenceStore.getState().reconcile).toHaveBeenCalledWith(["U9"], "ME", expect.any(Number));
+  });
+
+  it("reports when the opening sync throws", async () => {
+    jest.mocked(syncChat).mockRejectedValueOnce(new Error("offline"));
+    const onErr = jest.fn();
+    jest.spyOn(report, "bestEffort").mockReturnValue(onErr);
+    await mount().hook;
+    await flush();
+    expect(onErr).toHaveBeenCalled();
+  });
+
   it("loads the workspace's pins and beats presence while the app is in front", async () => {
     jest.useFakeTimers();
     const { hook } = mount();
@@ -134,7 +161,7 @@ describe("useChatRealtime", () => {
     expect(chatApi.beatPresence).toHaveBeenCalledWith("w1", true);
     await act(async () => undefined);
     expect(usePresenceStore.getState().reconcile).toHaveBeenCalledWith(["U2"], "ME", expect.any(Number));
-    await act(async () => jest.advanceTimersByTime(15_000));
+    await act(async () => jest.advanceTimersByTime(30_000));
     expect(chatApi.beatPresence).toHaveBeenCalledTimes(2);
 
     // Background: the beat stops and the phone leaves presence; back in front it beats again.
@@ -164,6 +191,24 @@ describe("useChatRealtime", () => {
     await flush();
     expect(usePresenceStore.getState().reconcile).not.toHaveBeenCalled();
     await act(async () => unmount());
+  });
+
+  it("beats over the socket when it answers, and over HTTP when there is no socket", async () => {
+    jest.spyOn(FakeWSClient.prototype, "sendPresenceBeat").mockResolvedValue(["U3"]);
+    const first = mount();
+    const { unmount } = await first.hook;
+    await flush();
+    expect(usePresenceStore.getState().reconcile).toHaveBeenCalledWith(["U3"], "ME", expect.any(Number));
+    expect(chatApi.beatPresence).not.toHaveBeenCalled();
+    await act(async () => unmount());
+
+    // No socket yet: the heartbeat still goes out, by HTTP.
+    mockSocket.current = null;
+    const second = mount();
+    await second.hook;
+    await flush();
+    expect(chatApi.beatPresence).toHaveBeenCalledWith("w1", true);
+    expect(usePresenceStore.getState().reconcile).toHaveBeenCalledWith(["U2"], "ME", expect.any(Number));
   });
 
   it("starts no heartbeat in the background or signed out", async () => {

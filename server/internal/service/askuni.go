@@ -35,6 +35,7 @@ type AskUNIService struct {
 	emailHub *EmailHubService
 	docs     *DocumentService
 	flags    McpFlags
+	memory   *AiMemoryService
 	files    files.Service   // nil until SetFiles; Ask UNI attachments read as off without it
 	reads    *McpToolService // nil until SetReadTools; the agent's tools read through it
 	gw       *ai.Gateway
@@ -45,6 +46,8 @@ type AskUNIService struct {
 	// agent's run and tool surface, nil reporting nothing.
 	agentRuns    *uniworkConcurrency
 	agentMetrics AskAgentMetrics
+	// catchUps shares a meeting's catch-up brief (meeting_catch_up.go).
+	catchUps *briefCache
 	// askMem holds askCount's hits when there is no Redis (askMemIncrement).
 	askMem sync.Map // key -> *askMemRateEntry
 	// fileTurns holds a slot per turn running with files (askFileTurns), and
@@ -67,6 +70,9 @@ func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
 // reads as off (fail closed, as in McpToolService).
 func (s *AskUNIService) SetFlags(f McpFlags) { s.flags = f }
 
+// SetMemory wires the memory service whose flag and switch capabilities report.
+func (s *AskUNIService) SetMemory(m *AiMemoryService) { s.memory = m }
+
 // SetReadTools wires the MCP connector's read methods, which the agent's tools
 // call as the asker (set from main after construction).
 func (s *AskUNIService) SetReadTools(m *McpToolService) { s.reads = m }
@@ -80,6 +86,7 @@ func NewAskUNIService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, o
 		pool: pool, q: q, ws: ws, orgs: orgs, tasks: tasks, meetings: meetings, chat: chat, gw: gw,
 		ent: NewEntitlementService(pool, q), rdb: rdb, now: time.Now,
 		agentRuns: newUniworkConcurrency(rdb, "ai:ask:", askAgentPodMax, askAgentOrgMax, askAgentGlobalMax, askAgentDeadline+10*time.Second),
+		catchUps:  newBriefCache(rdb, meetingCatchUpTTL, gw.CallTimeout()),
 		fileTurns: make(chan struct{}, askFileTurns),
 		fileReads: make(chan struct{}, 1),
 		life:      life, shutdown: shutdown,
@@ -101,7 +108,15 @@ type AICapabilities struct {
 	// Attachments is whether the asker may send files with a question: the
 	// attachments flag is on and their turn would run the agent (agentOn).
 	Attachments bool
+	// Actions is Ask UNI's write state: the flag, the ceiling, the asker's mode.
+	Actions AskActions
+	// Memory is the memory flag with the agent on (R9) and the asker's switch.
+	Memory AskMemoryCaps
 }
+
+// AskMemoryCaps is what capabilities say about memory: Enabled is the flag with
+// the agent on, On is the person's own switch.
+type AskMemoryCaps struct{ Enabled, On bool }
 
 type AskInput struct {
 	ConversationID string
@@ -124,6 +139,9 @@ type AskInput struct {
 	// AttachmentIDs are the files the asker uploaded for this question, in the
 	// order they were attached: at most five, each an unsent upload of theirs.
 	AttachmentIDs []string
+	// Mode is the permission mode the asker runs this turn in (ask, plan,
+	// auto); "" is their saved one. The organization's ceiling clamps it (R9).
+	Mode string
 }
 
 // errRegenerateTarget is the one refusal for a message id that is not the
@@ -153,6 +171,13 @@ type AskResult struct {
 	RunID string
 	// Usage sums the turn's model calls.
 	Usage AskUsage
+	// Proposals are the rows the turn proposed, as they stand after any
+	// auto-applied ones ran; none when the agent proposed nothing.
+	Proposals []AskProposal
+	// MemoryIDs are the memory entries the answer used (P4).
+	MemoryIDs []string
+	// MemoryProposals are the memory rows the turn proposed (P4, R11).
+	MemoryProposals []AskMemoryProposal
 }
 
 const (
@@ -219,6 +244,19 @@ func (s *AskUNIService) Capabilities(ctx context.Context, userID, workspaceID st
 	}
 	out.AskUni = true
 	out.Attachments = s.attachmentsEnabled(ctx, userID, w)
+	tc := ai.ToolContext{ActorID: userID, OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
+	out.Actions = s.askActions(ctx, tc, "")
+	// Write tools reach only an agent turn (agentOn), as files do.
+	agent := s.agentOn(ctx, tc)
+	out.Actions.Enabled = out.Actions.Enabled && agent
+	if s.memory != nil {
+		out.Memory.Enabled = agent && s.memory.AskMemoryEnabled(ctx, userID, w.OrganizationID)
+		// A failed read reports on, deliberately: the turn path re-reads the switch, so this never feeds memory into a turn by itself.
+		out.Memory.On = true
+		if off, err := s.q.GetUserAskUniMemoryOff(ctx, userID); err == nil {
+			out.Memory.On = !off
+		}
+	}
 	out.Models, out.AutoModel = s.askModelOptions(ctx, w.OrganizationID)
 	out.MeetingSummary = s.ent.Can(ctx, w.OrganizationID, FeatureMeetingAISummary) == nil
 	snap, err := s.ent.Snapshot(ctx, w.OrganizationID)
@@ -304,6 +342,17 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 			return AskResult{}, err
 		}
 		q, ok := regenerateQuestion(rows, in.Regenerate)
+		if ok { // an answer with proposals or memory proposals, in any state, is kept (R15, P4 R11)
+			n, err := s.q.AiCountMessageProposals(ctx, db.AiCountMessageProposalsParams{OrganizationID: w.OrganizationID, MessageID: strText(in.Regenerate)})
+			if err != nil {
+				return AskResult{}, err
+			}
+			m, err := s.q.AiCountMessageMemoryProposals(ctx, db.AiCountMessageMemoryProposalsParams{OrganizationID: w.OrganizationID, MessageID: in.Regenerate})
+			if err != nil {
+				return AskResult{}, err
+			}
+			ok = n == 0 && m == 0
+		}
 		if !ok {
 			return AskResult{}, Invalid(errRegenerateTarget)
 		}
@@ -354,6 +403,10 @@ func (s *AskUNIService) AskStream(ctx context.Context, userID, workspaceID strin
 		}
 	}
 	pack, truncated := ai.BuildContext(sources)
+	if len(pack) > 0 { // P0 does not tell who wrote what, so any source taints (R8)
+		p0 := askTaint{conv: convTainted(conv)}
+		s.taintNow(ctx, w.OrganizationID, conv.ID, &p0)
+	}
 	emit.emit(AskEvent{Name: "run", Run: &AskRunEvent{ConversationID: conv.ID}})
 
 	answer := ai.Answer{Citations: []ai.Citation{}}
@@ -763,11 +816,17 @@ type AskContextRef struct {
 	Title string `json:"title"`
 }
 
-// AskStep is one tool the agent ran, as the panel shows it.
+// AskStep is one tool the agent ran, as the panel shows it. The first step of
+// a round carries the round's Note (what the model said before calling) and
+// Thought (its thinking summary, ask_uni_thinking). Kind "think" is the
+// thinking before the answer, with no tool.
 type AskStep struct {
-	Tool   string         `json:"tool"`
-	Label  string         `json:"label"`
-	Counts map[string]int `json:"counts"`
+	Tool    string         `json:"tool"`
+	Label   string         `json:"label"`
+	Counts  map[string]int `json:"counts"`
+	Note    string         `json:"note,omitempty"`
+	Thought string         `json:"thought,omitempty"`
+	Kind    string         `json:"kind,omitempty"`
 }
 
 // askTurn is one question and its answer, as store writes them. A non-empty
@@ -780,6 +839,7 @@ type askTurn struct {
 	Mentions                 []AskContextRef
 	Steps                    []AskStep
 	Followups                []string
+	MemoryIDs                []string
 	Regenerates              string
 	// Model is the catalogue key of the model the person chose; "" for Auto.
 	Model string
@@ -790,6 +850,15 @@ type askTurn struct {
 	UserID, WorkspaceID string
 	// FileNotes are the files of the turn read only in part, stored on the answer.
 	FileNotes []askFileNote
+	// Proposals are the rows the turn's write calls recorded, stored with the
+	// answer from position 1 under the turn's Mode, Tainted mark and RunID.
+	Proposals []askDraftRow
+	Mode      string
+	Tainted   bool
+	RunID     string
+	// MemoryProposals are the turn's propose_memory rows, stored with the
+	// answer from position 1 (R11).
+	MemoryProposals []askMemoryDraft
 }
 
 // jsonOrEmptyList marshals v, writing "[]" for a nil slice.
@@ -836,9 +905,15 @@ func (s *AskUNIService) store(ctx context.Context, orgID, convID string, t askTu
 		ID: util.NewID(), OrganizationID: orgID, ConversationID: convID, Role: "assistant", Content: t.Answer,
 		Citations: jsonOrEmptyList(t.Citations), UsageEventID: strText(t.UsageEventID), Notice: strText(t.Notice),
 		Steps: jsonOrEmptyList(t.Steps), Followups: jsonOrEmptyList(t.Followups), Mentions: "[]", Model: t.Model,
-		FileNotes: jsonOrEmptyList(t.FileNotes),
+		FileNotes: jsonOrEmptyList(t.FileNotes), MemoryIds: jsonOrEmptyList(t.MemoryIDs),
 	})
 	if err != nil {
+		return db.AiMessage{}, err
+	}
+	if err := s.insertTurnProposals(ctx, q, orgID, convID, msg.ID, t); err != nil {
+		return db.AiMessage{}, err
+	}
+	if err := s.insertTurnMemoryProposals(ctx, q, orgID, t.WorkspaceID, convID, msg.ID, t.UserID, t.MemoryProposals); err != nil {
 		return db.AiMessage{}, err
 	}
 	// A regenerate has no question of its own: an empty title leaves the stored one.
@@ -908,11 +983,11 @@ func (s *AskUNIService) Messages(ctx context.Context, userID, conversationID str
 	return out, nil
 }
 
-// DeleteConversation drops a conversation with its messages, feedback and
-// files: a file lives as long as the conversation holds it, so the rows go and
-// the file store is told to release them in the same transaction (the bytes
-// are its collector's to remove). Deleting is not audited, like the rest of
-// the asker's private history.
+// DeleteConversation drops a conversation with its messages, feedback,
+// proposals and files: a file lives as long as the conversation holds it, so
+// the rows go and the file store is told to release them in the same
+// transaction (the bytes are its collector's to remove). Deleting is not
+// audited, like the rest of the asker's private history.
 func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversationID string) error {
 	conv, err := s.ownConversation(ctx, userID, conversationID, "")
 	if err != nil {
@@ -928,6 +1003,14 @@ func (s *AskUNIService) DeleteConversation(ctx context.Context, userID, conversa
 		return err
 	}
 	if err := q.AiDeleteConversationFeedback(ctx, conversationID); err != nil {
+		return err
+	}
+	// Its proposals go with it; what they changed and its audit stay (R20).
+	// So do its memory proposals; the memory they changed stays (P4 R11).
+	if err := q.AiDeleteConversationProposals(ctx, db.AiDeleteConversationProposalsParams{OrganizationID: conv.OrganizationID, ConversationID: strText(conversationID)}); err != nil {
+		return err
+	}
+	if err := q.AiDeleteConversationMemoryProposals(ctx, db.AiDeleteConversationMemoryProposalsParams{OrganizationID: conv.OrganizationID, ConversationID: conversationID}); err != nil {
 		return err
 	}
 	fileIDs, err := q.AiDeleteConversationAttachments(ctx, db.AiDeleteConversationAttachmentsParams{OrganizationID: conv.OrganizationID, ConversationID: conversationID})

@@ -254,7 +254,7 @@ export function DmSettingsSheet({
                         participant.key === "self" ? setSelfNicknameOpen(true) : setNicknameOpen(true)
                       }
                     >
-                      <Tag className="size-4.5" aria-hidden />
+                      <Tag className="size-4" aria-hidden />
                     </Button>
                   }
                 />

@@ -165,6 +165,7 @@ export function TaskDetailEditors({
               key={task.id}
               value={task.description ?? ""}
               placeholder={t("tasks.detail.description_placeholder")}
+              ariaLabel={t("tasks.detail.description_label")}
               onDocumentChange={setLiveDescription}
               onUpdate={(md) => {
                 if (md !== (task.description ?? "")) {
@@ -204,7 +205,8 @@ export function TaskDetailEditors({
           content={attachmentReferences}
         />
         <TaskDetailSubtasksSection workspaceId={workspaceId} taskId={task.id} />
-        <NodeHistorySection workspaceId={workspaceId} nodeType="TASK" nodeId={task.id} />
+        {/* The context line names the meeting a task came from; the timeline does not repeat it. */}
+        <NodeHistorySection workspaceId={workspaceId} nodeType="TASK" nodeId={task.id} originShown={task.origin_type === "meeting"} />
         <TaskDetailTimelineSlot workspaceId={workspaceId} taskId={task.id} />
       </div>
     </div>

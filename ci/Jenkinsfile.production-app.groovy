@@ -4,7 +4,8 @@
  * UniWork production-app: build main → Harbor push → human approve →
  * Helm digest rollout on reap-eng-prod-k8s.
  *
- * Images: uniwork-be, uniwork-fe, uniwork-office-engine (always).
+ * Images: uniwork-be, uniwork-fe, uniwork-office-engine, uniwork-meeting-agent (always;
+ * the agent Deployment stays off until meetingAgent.enabled, but its digest is pinned).
  * Non-secret env lives in deploy/app/env/*.env (Helm --set-file at rollout).
  *
  * Split agents:
@@ -161,6 +162,26 @@ pipeline {
           }
         }
 
+        stage('Build Meeting Agent') {
+          steps {
+            script {
+              // The AI scribe worker (apps/meeting-agent, ADR 0045); its directory is the context.
+              // .github/workflows/meeting-agent-verify.yml runs ruff, pytest and pip-audit.
+              // This Jenkinsfile builds the image and the rollout pins the digest.
+              def serviceTag = 'uniwork-meeting-agent'
+              def imageName = "${env.REGISTRY}/${serviceTag}:${env.IMAGE_TAG}"
+              sh """
+                docker build \\
+                  --memory=${env.DOCKER_BUILD_MEMORY} \\
+                  --memory-swap=${env.DOCKER_BUILD_MEMORY} \\
+                  -t ${imageName} \\
+                  apps/meeting-agent
+              """
+              pushImage(imageName, serviceTag)
+            }
+          }
+        }
+
         stage('Prepare rollout') {
           steps {
             script {
@@ -168,6 +189,7 @@ pipeline {
                 'uniwork-be'            : 'BE_DIGEST',
                 'uniwork-fe'            : 'FE_DIGEST',
                 'uniwork-office-engine' : 'OFFICE_ENGINE_DIGEST',
+                'uniwork-meeting-agent' : 'MEETING_AGENT_DIGEST',
               ]
               def imageTag = env.IMAGE_TAG ?: ''
               def lines = ["export IMAGE_TAG=${imageTag}"]
@@ -201,6 +223,7 @@ pipeline {
               echo "BE_DIGEST=${BE_DIGEST:-}"
               echo "FE_DIGEST=${FE_DIGEST:-}"
               echo "OFFICE_ENGINE_DIGEST=${OFFICE_ENGINE_DIGEST:-}"
+              echo "MEETING_AGENT_DIGEST=${MEETING_AGENT_DIGEST:-}"
               echo "OK: rollout.env written. Helm apply runs on production-k8s after Approve."
             '''
           }
@@ -219,7 +242,7 @@ pipeline {
         expression { return params.DEPLOY }
       }
       steps {
-        input message: 'Deploy main images (be + fe + office-engine) to reap-eng-prod-k8s?', ok: 'Deploy'
+        input message: 'Deploy main images (be + fe + office-engine + meeting-agent) to reap-eng-prod-k8s?', ok: 'Deploy'
       }
     }
 

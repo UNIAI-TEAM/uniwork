@@ -112,6 +112,19 @@ func TestMeetingChatHTTP(t *testing.T) {
 	if res.StatusCode != http.StatusOK || len(out["segments"].([]any)) != 1 || out["after_cursor"] == nil {
 		t.Fatalf("transcript page: %d %v", res.StatusCode, out)
 	}
+	// UNI-1995 #5: a stretch names its two lines. The retired time form, or
+	// one id alone, is refused: falling through to "delete all" would let a
+	// stale client wipe the transcript.
+	segID := out["segments"].([]any)[0].(map[string]any)["id"].(string)
+	for _, q := range []string{"?from=2026-10-21T02:00:00Z&to=2026-10-21T03:00:00Z", "?from_segment_id=" + segID} {
+		if res, out = doJSON(t, srv, "DELETE", "/api/v1/meetings/"+meetingID+"/transcript"+q, token, nil); res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("delete transcript%s: %d %v", q, res.StatusCode, out)
+		}
+	}
+	res, out = doJSON(t, srv, "DELETE", "/api/v1/meetings/"+meetingID+"/transcript?from_segment_id="+segID+"&to_segment_id="+segID, token, nil)
+	if res.StatusCode != http.StatusOK || out["deleted"] != float64(1) {
+		t.Fatalf("delete one-line stretch: %d %v", res.StatusCode, out)
+	}
 
 	res, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+meetingID+"/chat", token, map[string]string{"message": "   "})
 	if res.StatusCode != http.StatusBadRequest {

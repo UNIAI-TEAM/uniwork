@@ -86,7 +86,7 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
   await inboxLink.click();
   // First visit compiles the route under `next dev`; give it the same slack as the other specs.
   await expect(member).toHaveURL(new RegExp(`/${orgSlug}/${wsSlug}/inbox$`), { timeout: 15_000 });
-  const row = member.getByRole("link", { name: new RegExp(`Chủ Nhóm đã giao bạn việc “Việc cho B ${stamp}”`) });
+  const row = member.getByRole("link", { name: new RegExp(`Chủ Nhóm đã giao bạn việc "Việc cho B ${stamp}"`) });
   await expect(row).toBeVisible({ timeout: 10_000 });
   await row.click();
   await expect(member).toHaveURL(new RegExp(taskURL.replace(/^https?:\/\/[^/]+/, "") + "$"));

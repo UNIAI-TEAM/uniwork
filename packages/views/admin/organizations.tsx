@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CircleAlert, ArrowDown, ArrowDownUp, ArrowUp, Building2, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { CircleAlert, ArrowDown, ArrowDownUp, ArrowUp, BuildingComplex, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { useAdminOrganizations, type AdminOrganizationSort } from "@uniwork/core/admin";
 import { useDebouncedValue } from "@uniwork/core/hooks";
 import { paths } from "@uniwork/core/paths";
@@ -57,7 +57,7 @@ export function AdminOrganizationsView() {
 
   return (
     <>
-      <CollectionPageHeader icon={Building2} title={t("title")} count={total} />
+      <CollectionPageHeader icon={BuildingComplex} title={t("title")} count={total} />
       <div className={PAGE_TOOLBAR}>
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
           <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -104,7 +104,7 @@ export function AdminOrganizationsView() {
           }
         />
       ) : rows.length === 0 ? (
-        <CollectionPageState icon={Building2} title={t("empty_title")} description={t("empty_description")} role="status" />
+        <CollectionPageState icon={BuildingComplex} title={t("empty_title")} description={t("empty_description")} role="status" />
       ) : (
         <>
           <Table>

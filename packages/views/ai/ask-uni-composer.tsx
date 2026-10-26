@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Square, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useAiPanelStore } from "@uniwork/core/ai";
+import { useAiConversations, useAiPanelStore } from "@uniwork/core/ai";
 import { askDisplayAttachments, type StagedAskFile } from "@uniwork/core/ai/attachments";
 import type { AskOutcome } from "@uniwork/core/ai/stream";
 import type { AiAttachment, AskUniInput } from "@uniwork/core/types";
@@ -12,6 +12,8 @@ import { useWorkspace } from "../layout/workspace-context";
 import { AskUniAttachmentRow } from "./ask-uni-attachment-chip";
 import { entityKindIcon } from "./ask-uni-entity";
 import { AskUniEditor, type AskUniEditorHandle, type AskUniQuestion } from "./ask-uni-editor";
+import { AskUniComposerNotes, AskUniComposerNotesSign } from "./ask-uni-composer-notes";
+import { AskUniModeButton, useAskUniMode } from "./ask-uni-mode-button";
 import { AskUniModelPicker, useAskModelSelection } from "./ask-uni-model-picker";
 import { useEffectiveFocus, useShownPage } from "./ask-uni-page-context";
 import { AskUniScopePicker } from "./ask-uni-scope-picker";
@@ -72,6 +74,8 @@ export function AskUniComposer({
   const sent = useEffectiveFocus();
   const dismissPage = useAiPanelStore((s) => s.dismissPage);
   const { model, effort } = useAskModelSelection(workspace.id);
+  const askMode = useAskUniMode(workspace.id)?.mode;
+  const tainted = useAiConversations(workspace.id).data?.find((c) => c.id === conversationId)?.tainted ?? false;
 
   const box = useRef<AskUniEditorHandle>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -107,6 +111,15 @@ export function AskUniComposer({
     box.current?.focus();
   }, [pendingFocus, clearPendingFocus, setFocus]);
 
+  // The memory screen's "edit by chat" leaves a line to continue from: take it once.
+  const prefill = useAiPanelStore((s) => s.composerPrefill);
+  const setPrefill = useAiPanelStore((s) => s.setComposerPrefill);
+  useEffect(() => {
+    if (prefill === null) return;
+    box.current?.insert(prefill);
+    setPrefill(null);
+  }, [prefill, setPrefill]);
+
   // A hand-picked focus wins over the page; a removed page chip stays off until another page.
   const shownPage = focus ? null : page;
   const focusLabel = focus ? (focus.label ? `${kindLabel(focus.kind)}: ${focus.label}` : kindLabel(focus.kind)) : "";
@@ -137,6 +150,7 @@ export function AskUniComposer({
         attachment_ids: ids.length > 0 ? ids : undefined,
         model,
         effort,
+        ...(askMode ? { mode: askMode } : {}),
         locale: i18n.language,
       },
       ids.length > 0 ? { attachments: askDisplayAttachments(attachments?.files ?? []) } : undefined,
@@ -160,10 +174,13 @@ export function AskUniComposer({
   const canSend = draft.question !== "" && !filesWait;
   return (
     <div ref={root} className="bg-background p-3" data-slot="ask-uni-composer">
+      <AskUniComposerNotes wsId={workspace.id} tainted={tainted} />
       <div
         data-slot="ask-uni-composer-frame"
-        className="relative flex flex-col gap-2 rounded-2xl border border-border bg-[var(--ask-input)] p-2 transition-colors has-[.ProseMirror-focused]:border-ring has-[.ProseMirror-focused]:ring-2 has-[.ProseMirror-focused]:ring-ring/30"
+        // While the folded notes' sign sits in the top-right corner, the question's lines stop short of it.
+        className="relative flex flex-col gap-2 rounded-2xl border border-border bg-[var(--ask-input)] p-2 transition-colors has-[.ProseMirror-focused]:border-ring has-[.ProseMirror-focused]:ring-2 has-[.ProseMirror-focused]:ring-ring/30 has-data-[slot=ask-uni-composer-notes-sign]:[&_.ProseMirror]:pe-7"
       >
+        <AskUniComposerNotesSign wsId={workspace.id} tainted={tainted} />
         {focus ? (
           <div className="flex flex-wrap gap-1.5">
             <Chip
@@ -217,6 +234,7 @@ export function AskUniComposer({
             onFiles={attachments?.attach}
           />
           <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+            <AskUniModeButton wsId={workspace.id} />
             <AskUniModelPicker />
             {streaming ? (
               <Button type="button" size="icon-sm" aria-label={t("stop")} onClick={onStop}>

@@ -11,7 +11,8 @@ export function manualDialogContentClass(isExpanded: boolean): string {
     "!w-full !max-w-[calc(100vw-1.5rem)]",
     isExpanded
       ? "!h-5/6 !-translate-y-1/2 sm:!max-w-4xl"
-      : "!h-96 !-translate-y-1/2 sm:!max-w-2xl",
+      // A phone gives the body room: a fixed 24rem leaves it a few lines under the toolbar.
+      : "!h-96 max-sm:!h-[85dvh] !-translate-y-1/2 sm:!max-w-2xl",
   );
 }
 

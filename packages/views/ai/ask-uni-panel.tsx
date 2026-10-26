@@ -9,8 +9,11 @@ import { useWorkspace } from "../layout/workspace-context";
 import { AskUniComposer } from "./ask-uni-composer";
 import { AskUniEmptyState } from "./ask-uni-empty";
 import { AskUniHeader } from "./ask-uni-header";
+import { AskUniMemory } from "./ask-uni-memory";
+import { AskUniMemoryHelp } from "./ask-uni-memory-help";
 import { useAskModelSelection } from "./ask-uni-model-picker";
 import { useEffectiveFocus } from "./ask-uni-page-context";
+import { AskUniSourcesBar } from "./ask-uni-sources-bar";
 import { AskUniThread } from "./ask-uni-thread";
 import { useAskUniAttachments } from "./use-ask-uni-attachments";
 
@@ -37,6 +40,10 @@ export function AskUniPanel() {
   const { workspace } = useWorkspace();
   const { i18n } = useTranslation();
   const conversationId = useAiPanelStore((s) => s.conversationId);
+  const view = useAiPanelStore((s) => s.view);
+  const memoryView = view === "memory";
+  const memoryHelp = useAiPanelStore((s) => s.memoryHelp);
+  const setMemoryHelp = useAiPanelStore((s) => s.setMemoryHelp);
   // The panel owns the stream so the thread and the composer share one live turn.
   const stream = useAskUniStream(workspace.id);
   const { model, effort, look } = useAskModelSelection(workspace.id);
@@ -45,9 +52,10 @@ export function AskUniPanel() {
   // Files are read on the agent path only: the capability says whether the server takes them.
   const canAttach = !!useAiCapabilities(workspace.id).data?.attachments;
   const attachments = useAskUniAttachments(workspace.id);
-  const { isDragOver, dropZoneProps } = useFileDropZone({ onDrop: attachments.attach, enabled: canAttach });
+  const { isDragOver, dropZoneProps } = useFileDropZone({ onDrop: attachments.attach, enabled: canAttach && !memoryView });
   // The hook prevents the default of every drag it sees, so with attaching off the dock gets none of its handlers.
-  const dropHandlers = canAttach ? dropZoneProps : undefined;
+  const memoryDrop = canAttach && !memoryView;
+  const dropHandlers = memoryDrop ? dropZoneProps : undefined;
   // A new conversation with nothing in flight starts from suggestions for the open page.
   const empty = conversationId === null && stream.state.status === "idle";
   const askSuggestion = (question: string) =>
@@ -61,19 +69,34 @@ export function AskUniPanel() {
       {...dropHandlers}
     >
       <AskUniHeader />
-      <div className="flex min-h-0 flex-1 flex-col" data-slot="ask-uni-body">
-        {empty ? (
-          <AskUniEmptyState kind={focus?.kind ?? null} onAsk={askSuggestion} disabled={streaming} model={model} look={look} />
-        ) : (
-          <AskUniThread
-            conversationId={conversationId}
-            stream={stream}
-            wsId={workspace.id}
-            askDefaults={{ model, effort, locale: i18n.language }}
+      {memoryView ? null : <AskUniSourcesBar />}
+      {memoryView ? (
+        <AskUniMemory orgSlug={workspace.organization_slug} />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col" data-slot="ask-uni-body">
+          {empty ? (
+            <AskUniEmptyState kind={focus?.kind ?? null} onAsk={askSuggestion} disabled={streaming} model={model} look={look} />
+          ) : (
+            <AskUniThread
+              conversationId={conversationId}
+              stream={stream}
+              wsId={workspace.id}
+              askDefaults={{ model, effort, locale: i18n.language }}
+            />
+          )}
+          {memoryHelp ? <AskUniMemoryHelp orgSlug={workspace.organization_slug} /> : null}
+          <AskUniComposer
+            // Sending is the end of "edit by chat": the strip has done its job.
+            onSend={(input, display) => {
+              setMemoryHelp(false);
+              return stream.ask(input, display);
+            }}
+            onStop={stream.stop}
+            streaming={streaming}
+            attachments={canAttach ? attachments : undefined}
           />
-        )}
-        <AskUniComposer onSend={stream.ask} onStop={stream.stop} streaming={streaming} attachments={canAttach ? attachments : undefined} />
-      </div>
+        </div>
+      )}
       {isDragOver ? <DropOverlay /> : null}
     </div>
   );

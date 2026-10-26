@@ -3,6 +3,8 @@
 import { createContext, use, useEffect, useRef, useState, type ReactNode } from "react";
 import { getAccessToken, subscribe as subscribeToToken } from "../api/session";
 import { WSClient } from "../api/ws-client";
+import { beatChatPresence } from "../api/endpoints/chat-presence";
+import { setPresenceBeatTransport } from "../chat/presence-beat-transport";
 import { useAuthStore } from "../auth/store";
 import { createLogger } from "../logger";
 import { runtimeConfig } from "../runtime-config";
@@ -38,6 +40,19 @@ export function WSProvider({ children, workspaceSlug }: WSProviderProps) {
   const connectedSession = useRef<string | null>(null);
 
   useEffect(() => subscribeToToken(() => setToken(getAccessToken())), []);
+
+  useEffect(() => {
+    if (!client) {
+      setPresenceBeatTransport(undefined);
+      return;
+    }
+    setPresenceBeatTransport((workspaceId, visible) =>
+      client.sendPresenceBeat(visible).then((ids) =>
+        ids !== null ? ids : beatChatPresence(workspaceId, visible),
+      ),
+    );
+    return () => setPresenceBeatTransport(undefined);
+  }, [client]);
 
   useEffect(() => {
     if (!userId || !token || !workspaceSlug) {

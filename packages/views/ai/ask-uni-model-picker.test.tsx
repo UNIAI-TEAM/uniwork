@@ -84,13 +84,12 @@ describe("AskUniModelPicker", () => {
     expect(within(menu).getByRole("menuitem", { name: /Haiku 5.5/ })).not.toHaveAttribute("aria-current");
   });
 
-  it("choosing Opus shows the quota note and the choice is remembered", async () => {
+  it("choosing Opus is shown on the trigger and remembered", async () => {
     mount();
     const menu = await openMenu();
     fireEvent.click(within(menu).getByRole("menuitem", { name: /Opus 5.5/ }));
     expect(useAskModelChoice.getState().model).toBe("opus");
-    expect(await screen.findByText("Opus dùng nhiều hạn mức token hơn các model khác.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Chọn model/ })).toHaveTextContent("Opus 5.5");
+    expect(await screen.findByRole("button", { name: /^Chọn model/ })).toHaveTextContent("Opus 5.5");
     await act(async () => {});
     expect(JSON.stringify(Object.values(localStorage))).toContain("opus");
   });

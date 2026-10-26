@@ -106,6 +106,9 @@ export function DocumentUploadDialog({
   const isVerifying = phase === "verifying";
   const isChunkedActive = isUploading || isPaused || isVerifying;
   const isBusy = pending || isChunkedActive;
+  const selectedText = file
+    ? t("documents.upload.selected", { name: file.name })
+    : t("documents.upload.no_file");
   const percentage =
     chunkedProgress !== null
       ? chunkedProgress.totalBytes > 0
@@ -158,7 +161,7 @@ export function DocumentUploadDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <form
-          className="flex flex-col gap-3"
+          className="flex min-w-0 flex-col gap-3"
           onSubmit={(event) => {
             event.preventDefault();
             if (!file || isBusy) return;
@@ -169,7 +172,7 @@ export function DocumentUploadDialog({
             }
           }}
         >
-          <div className="flex flex-col gap-1.5">
+          <div className="flex min-w-0 flex-col gap-1.5">
             <input
               key={inputKey}
               ref={inputRef}
@@ -194,10 +197,11 @@ export function DocumentUploadDialog({
                 onPickFile?.(picked);
               }}
             />
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
+                className="shrink-0"
                 disabled={isBusy}
                 aria-describedby={selectedNameId}
                 onClick={() => inputRef.current?.click()}
@@ -207,10 +211,11 @@ export function DocumentUploadDialog({
               </Button>
               <p
                 id={selectedNameId}
-                className="truncate text-caption text-muted-foreground"
+                className="min-w-0 truncate text-caption text-muted-foreground"
                 data-testid="document-upload-selected"
+                title={selectedText}
               >
-                {file ? t("documents.upload.selected", { name: file.name }) : t("documents.upload.no_file")}
+                {selectedText}
               </p>
             </div>
             {hint ? (
@@ -223,7 +228,7 @@ export function DocumentUploadDialog({
             ) : null}
           </div>
           {showShareToggle ? (
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-col gap-1">
               <label className="flex cursor-pointer items-center justify-between gap-3">
                 <span className="text-body text-foreground">
                   {t("documents.home.create.share_workspace_toggle")}
@@ -248,7 +253,7 @@ export function DocumentUploadDialog({
             </div>
           ) : null}
           {isChunkedActive ? (
-            <div className="flex flex-col gap-1.5" data-testid="document-upload-progress">
+            <div className="flex min-w-0 flex-col gap-1.5" data-testid="document-upload-progress">
               <Progress
                 value={percentage}
                 className={cn(
@@ -257,7 +262,9 @@ export function DocumentUploadDialog({
                 )}
                 aria-label={t("documents.upload.progress_status", { name: file?.name ?? "" })}
               >
-                <ProgressLabel className="truncate text-caption">{file?.name}</ProgressLabel>
+                <ProgressLabel className="min-w-0 truncate text-caption" title={file?.name}>
+                  {file?.name}
+                </ProgressLabel>
                 <span className="ml-auto text-caption text-muted-foreground tabular-nums">
                   {`${percentage}%`}
                 </span>

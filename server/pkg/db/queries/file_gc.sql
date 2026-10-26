@@ -217,6 +217,12 @@ SELECT p.image_file_id AS file_id, p.organization_id
 FROM chat_link_previews p
 WHERE p.image_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
+-- name: FileGCMeetingTranscriptionRefTenants :many
+-- tenant: system
+-- meeting_transcriptions.file_id: an uploaded meeting recording (UNI-2001).
+SELECT file_id, organization_id
+FROM meeting_transcriptions
+WHERE file_id = ANY(sqlc.arg('file_ids')::text[]);
 -- name: FileGCDocumentDownloadJobRefTenants :many
 -- tenant: system
 -- document_download_jobs.file_id: the row carries its tenant.

@@ -54,8 +54,10 @@ function intentStatusLabel(t: (key: string) => string, status: string): string {
 /** Refund amount to show in the list: pending partial, full pending, or settled refunded. */
 function invoiceRefundAmount(inv: AdminInvoice): number | null {
   switch (inv.status) {
-    case "refund_pending":
-      return inv.amount_paid > 0 ? inv.amount_paid : null;
+    case "refund_pending": {
+      const pending = inv.amount_paid - inv.amount_refunded;
+      return pending > 0 ? pending : null;
+    }
     case "partial_refund_pending":
       return inv.partial_refund_amount > 0 ? inv.partial_refund_amount : null;
     case "refunded":

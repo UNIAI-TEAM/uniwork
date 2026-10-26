@@ -4,6 +4,13 @@ import { afterEach } from "vitest";
 
 afterEach(cleanup);
 
+// jsdom never gives its document focus (document.hasFocus() is always false).
+// The suites run as a page in the focused window of a real browser; a test of
+// the unfocused app hides the page or overrides this.
+if (typeof Document !== "undefined") {
+  Object.defineProperty(Document.prototype, "hasFocus", { configurable: true, writable: true, value: () => true });
+}
+
 if (typeof Blob !== "undefined" && typeof Blob.prototype.arrayBuffer !== "function") {
   Blob.prototype.arrayBuffer = function arrayBuffer(this: Blob): Promise<ArrayBuffer> {
     for (const sym of Object.getOwnPropertySymbols(this)) {

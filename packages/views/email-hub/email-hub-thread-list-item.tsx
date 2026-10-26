@@ -96,7 +96,7 @@ export function EmailHubThreadListItem({
           <Checkbox
             className={cn(
               "absolute opacity-0 transition-[opacity,translate] duration-(--duration-fast) group-hover/row:opacity-100 focus-visible:opacity-100",
-              "pointer-coarse:translate-x-3 pointer-coarse:translate-y-3 pointer-coarse:bg-background pointer-coarse:opacity-100 pointer-coarse:after:-inset-3.5",
+              "pointer-coarse:translate-x-3 pointer-coarse:translate-y-3 pointer-coarse:bg-background pointer-coarse:opacity-100",
               (selectionMode || checked) && "opacity-100 pointer-coarse:translate-x-0 pointer-coarse:translate-y-0",
             )}
             checked={checked}

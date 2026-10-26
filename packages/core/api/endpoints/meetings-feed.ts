@@ -21,9 +21,24 @@ export type MeetingFeedPage<T> = {
   afterCursor: string;
   /** A delta filled its page: rows may lie past it, so read the newest page again. */
   hasMoreAfter: boolean;
+  /** Transcript forward reads only: pass as `from` for the next page; "" when there is none. */
+  newerCursor: string;
 };
 
-export type MeetingFeedQuery = { before?: string; after?: string; limit?: number; signal?: AbortSignal };
+/**
+ * The transcript also reads forward (UNI-1995 #9): `order: "asc"` is the
+ * meeting's first page, `from` the page after a `newerCursor`, `around` the
+ * page that holds a segment id.
+ */
+export type MeetingFeedQuery = {
+  before?: string;
+  after?: string;
+  from?: string;
+  around?: string;
+  order?: "asc";
+  limit?: number;
+  signal?: AbortSignal;
+};
 
 /** One malformed row is dropped, not the whole page. */
 function lenientRows<S extends z.ZodTypeAny>(schema: S) {
@@ -45,6 +60,7 @@ const Cursors = {
   older_cursor: cursor,
   after_cursor: cursor,
   has_more_after: z.boolean().optional().catch(undefined),
+  newer_cursor: cursor,
 };
 const ChatPageResponse = z.object({ messages: lenientRows(ChatMessageSchema), ...Cursors });
 const TranscriptPageResponse = z.object({ segments: lenientRows(TranscriptSegmentSchema), ...Cursors });
@@ -53,6 +69,9 @@ function feedPath(meetingId: string, feed: "chat" | "transcript", q: MeetingFeed
   const p = new URLSearchParams();
   if (q.before) p.set("before", q.before);
   if (q.after) p.set("after", q.after);
+  if (q.from) p.set("from", q.from);
+  if (q.around) p.set("around", q.around);
+  if (q.order) p.set("order", q.order);
   if (q.limit) p.set("limit", String(q.limit));
   const qs = p.toString();
   return `/api/v1/meetings/${encodeURIComponent(meetingId)}/${feed}${qs ? `?${qs}` : ""}`;
@@ -60,13 +79,14 @@ function feedPath(meetingId: string, feed: "chat" | "transcript", q: MeetingFeed
 
 function toPage<T>(
   items: T[],
-  raw: { older_cursor?: string; after_cursor?: string; has_more_after?: boolean },
+  raw: { older_cursor?: string; after_cursor?: string; has_more_after?: boolean; newer_cursor?: string },
 ): MeetingFeedPage<T> {
   return {
     items,
     olderCursor: raw.older_cursor ?? "",
     afterCursor: raw.after_cursor ?? "",
     hasMoreAfter: raw.has_more_after ?? false,
+    newerCursor: raw.newer_cursor ?? "",
   };
 }
 

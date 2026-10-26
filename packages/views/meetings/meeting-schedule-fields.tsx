@@ -3,8 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { TimeInput } from "@uniwork/ui/components/ui/time-input";
 import { DateField } from "../common/date-field";
-import { scheduleWindowIso, splitIsoLocal } from "./meeting-datetime";
+import { MEETING_DAY_FORMAT, scheduleWindowIso, splitIsoLocal } from "./meeting-datetime";
 import { useNow } from "./use-now";
+
+// The hero's day format plus the year: a date being picked may be next year.
+const SCHEDULE_DAY_FORMAT: Intl.DateTimeFormatOptions = { ...MEETING_DAY_FORMAT, year: "numeric" };
 
 /**
  * "HH:MM" strings compare as times. An end before the start runs into the
@@ -125,14 +128,16 @@ export function MeetingScheduleFields({
   return (
     <>
       <Field>
-        <FieldLabel htmlFor={`${idPrefix}-date`}>
+        <FieldLabel id={`${idPrefix}-date-label`} htmlFor={`${idPrefix}-date`}>
           {t("meetings.date")}
         </FieldLabel>
         <DateField
           id={`${idPrefix}-date`}
+          labelId={`${idPrefix}-date-label`}
           min={floor ?? undefined}
           value={date}
           onChange={onDate}
+          formatOptions={SCHEDULE_DAY_FORMAT}
         />
       </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

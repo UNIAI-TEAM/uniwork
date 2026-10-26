@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, CircleAlert, Building2, CircleCheck, CirclePause, Radio, RefreshCw, Send, CircleX } from "lucide-react";
+import { Activity, CircleAlert, BuildingComplex, CircleCheck, CirclePause, Radio, RefreshCw, Send, CircleX } from "lucide-react";
 import { useAdminOrganizations, useAdminSystem } from "@uniwork/core/admin";
 import { paths } from "@uniwork/core/paths";
 import type { AdminSystem } from "@uniwork/core/types";
@@ -90,7 +90,7 @@ function OverviewBody({ system }: { system: AdminSystem }) {
         hint={t("outbox_oldest", { n: oldestSeconds })}
       />
       <Signal
-        icon={Building2}
+        icon={BuildingComplex}
         label={t("organizations")}
         value={all.data?.total ?? 0}
         href={paths.admin.organizations()}

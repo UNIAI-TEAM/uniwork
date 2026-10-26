@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, lazy, useState, type ReactElement, type ReactNode } from "react";
+import { Suspense, lazy, useId, useState, type ReactElement, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
@@ -47,6 +47,12 @@ interface DateFieldProps {
   placeholder?: string;
   /** Accessible field name when the visible trigger contains only a value. */
   ariaLabel?: string;
+  /**
+   * Id of the field's visible label. The trigger is then named by the label
+   * and the chosen day together ("Ngày họp, Thứ Ba, 20 tháng 10"): a
+   * `<label for>` alone would replace the day it shows.
+   */
+  labelId?: string;
   /** Match PropertyPicker/PillButton triggers without duplicating the calendar. */
   triggerRender?: ReactElement<Record<string, unknown>>;
   /** Optional icon in place of the default calendar glyph. */
@@ -76,6 +82,7 @@ export function DateField({
   showIcon = true,
   placeholder,
   ariaLabel,
+  labelId,
   triggerRender,
   icon,
   renderTrigger,
@@ -84,6 +91,9 @@ export function DateField({
 }: DateFieldProps) {
   const { t, i18n } = useTranslation();
   const [internalOpen, setInternalOpen] = useState(false);
+  const valueId = useId();
+  // A custom trigger body has no value span to point at.
+  const labelledBy = labelId && !renderTrigger && !ariaLabel ? `${labelId} ${valueId}` : undefined;
   const open = controlledOpen ?? internalOpen;
   const setOpen = (next: boolean) => {
     setInternalOpen(next);
@@ -106,6 +116,7 @@ export function DateField({
         type="button"
         disabled={disabled}
         aria-label={ariaLabel}
+        aria-labelledby={labelledBy}
         render={triggerRender}
         className={
           triggerRender
@@ -124,7 +135,9 @@ export function DateField({
             {showIcon
               ? (icon ?? <CalendarDays aria-hidden className="size-4 shrink-0 text-muted-foreground" />)
               : null}
-            <span className="truncate">{label}</span>
+            <span id={valueId} className="truncate">
+              {label}
+            </span>
           </>
         )}
       </PopoverTrigger>

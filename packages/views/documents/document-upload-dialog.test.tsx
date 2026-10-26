@@ -52,6 +52,19 @@ describe("DocumentUploadDialog", () => {
     clickSpy.mockRestore();
   });
 
+  it("marks a long picked file name as shrinkable, truncated and titled (class contract only: jsdom cannot measure layout)", () => {
+    const longName = "Đề nghị gia hạn bảo lãnh - gia han bao lanh 19.6.2023_0001.pdf";
+    renderDialog();
+    const input = screen.getByLabelText(t("documents.upload.pick")) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(["x"], longName, { type: "application/pdf" })] } });
+
+    const name = screen.getByTestId("document-upload-selected");
+    expect(name).toHaveClass("min-w-0", "truncate");
+    expect(name).toHaveAttribute("title", t("documents.upload.selected", { name: longName }));
+    expect(screen.getByRole("button", { name: t("documents.upload.pick") })).toHaveClass("shrink-0");
+    expect(input.closest("form")).toHaveClass("min-w-0");
+  });
+
   it("picks one file at a time when nobody takes several", () => {
     renderDialog();
     expect(screen.getByLabelText(t("documents.upload.pick"))).not.toHaveAttribute("multiple");

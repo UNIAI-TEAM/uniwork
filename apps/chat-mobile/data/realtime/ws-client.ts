@@ -79,6 +79,9 @@ export class WSClient {
   private connection: ConnectionState = "offline";
   /** Explicit scopes replayed after each auth_ack (workspace/user are server-side). */
   private readonly scopeSubscriptions = new Map<string, Set<string>>();
+  private presenceBeatWaiter:
+    | { resolve: (ids: string[] | null) => void; timer: ReturnType<typeof setTimeout> }
+    | null = null;
 
   private readonly opts: WSClientOptions;
   private readonly logger: Logger;
@@ -201,6 +204,35 @@ export class WSClient {
     }
   }
 
+  /** Chat presence heartbeat (parity: packages/core/api/ws-client.ts). */
+  sendPresenceBeat(visible: boolean): Promise<string[] | null> {
+    if (!this.isAuthenticated()) return Promise.resolve(null);
+    if (this.presenceBeatWaiter) {
+      clearTimeout(this.presenceBeatWaiter.timer);
+      this.presenceBeatWaiter.resolve(null);
+      this.presenceBeatWaiter = null;
+    }
+    return new Promise((resolve) => {
+      // A newer beat and an ack both clear this timer, so when it fires the waiter is this one.
+      const timer = setTimeout(() => {
+        this.presenceBeatWaiter = null;
+        resolve(null);
+      }, 10_000);
+      this.presenceBeatWaiter = { resolve, timer };
+      this.send({ type: "presence.beat", payload: { state: "online", visible } });
+    });
+  }
+
+  private resolvePresenceBeat(payload: unknown): void {
+    const waiter = this.presenceBeatWaiter;
+    if (!waiter) return;
+    clearTimeout(waiter.timer);
+    this.presenceBeatWaiter = null;
+    const record = asRecord(payload);
+    const ids = record?.online_user_ids;
+    waiter.resolve(Array.isArray(ids) ? (ids as string[]) : null);
+  }
+
   /** Subscribe to a scoped room (chat:{roomId}, meeting:{id}); replayed on
    *  every reconnect. Chat scopes are capped client-side below the server's
    *  50-per-socket limit, which also counts the identity scopes. */
@@ -294,6 +326,10 @@ export class WSClient {
       }
       if (type === "pong") {
         this.onPong();
+        return;
+      }
+      if (type === "presence.ack") {
+        this.resolvePresenceBeat(pathOf(msg, "payload"));
         return;
       }
       this.logger.debug("[ws] event", type);

@@ -12,11 +12,12 @@ export function installMediaStubs() {
   const listeners = new Set<() => void>();
 
   const evaluate = (query: string): boolean => {
-    const min = /\(min-width:\s*(\d+)px\)/.exec(query);
-    if (min) return window.innerWidth >= Number(min[1]);
-    const max = /\(max-width:\s*(\d+)px\)/.exec(query);
-    if (max) return window.innerWidth <= Number(max[1]);
-    return false;
+    // Every width condition must hold, so "(min-width: a) and (max-width: b)" is a range, not just its first half.
+    const conditions = [...query.matchAll(/\((min|max)-width:\s*(\d+)px\)/g)];
+    if (conditions.length === 0) return false;
+    return conditions.every(([, bound, px]) =>
+      bound === "min" ? window.innerWidth >= Number(px) : window.innerWidth <= Number(px),
+    );
   };
 
   window.matchMedia = ((query: string) => {

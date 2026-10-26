@@ -5,6 +5,7 @@ import {
   completeUploadSession,
   createDocumentUploadSession,
   createFrameUploadSession,
+  createMeetingAudioUploadSession,
   createWorkspaceUploadSession,
   getFrameUploadSession,
   getUploadSession,
@@ -281,6 +282,12 @@ export function startChunkedUpload(opts: ChunkedUploadOptions): ChunkedUpload {
       );
     } else if (opts.target.kind === "version") {
       created = await createDocumentUploadSession(opts.target.documentId, body, reqOpts);
+    } else if (opts.target.kind === "meeting_audio") {
+      created = await createMeetingAudioUploadSession(
+        opts.target.meetingId,
+        { ...body, duration_seconds: opts.target.durationSeconds },
+        reqOpts,
+      );
     } else {
       created = await createFrameUploadSession(opts.target.documentId, body, {
         ...reqOpts,

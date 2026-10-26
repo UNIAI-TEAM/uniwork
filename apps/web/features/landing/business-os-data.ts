@@ -1,4 +1,4 @@
-import { ChartColumn, BookOpen, Bot, BrainCircuit, Building2, Calculator, Cloud, Database, FileCheckCorner, FilePenLine, FileSpreadsheet, FileText, FolderKanban, Globe, GraduationCap, LayoutGrid, Mail, MessageSquare, Network, Presentation, Receipt, Scale, Server, ShieldCheck, Sparkles, Users, Video } from "lucide-react";
+import { ChartColumn, BookOpen, Bot, BrainCircuit, BuildingComplex, Calculator, Cloud, Database, FileCheckCorner, FilePenLine, FileSpreadsheet, FileText, FolderKanban, Globe, GraduationCap, LayoutGrid, Mail, MessageSquare, Network, Presentation, Receipt, Scale, Server, ShieldCheck, Sparkles, Users, Video } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 type CapabilityStatus = "available" | "configured" | "foundation" | "development" | "planned";
@@ -28,7 +28,7 @@ export const BUSINESS_OS_LAYERS: BusinessOsLayer[] = [
   {
     key: "core", number: 3, icon: LayoutGrid, status: "available",
     groups: [{ key: "workspace", items: [
-      { key: "organization", icon: Building2 },
+      { key: "organization", icon: BuildingComplex },
       { key: "people", icon: Users },
       { key: "projects", icon: FolderKanban },
       { key: "tasks", icon: FileCheckCorner },
@@ -53,10 +53,10 @@ export const BUSINESS_OS_LAYERS: BusinessOsLayer[] = [
     ] }],
   },
   {
-    key: "services", number: 1, icon: Building2, status: "planned",
+    key: "services", number: 1, icon: BuildingComplex, status: "planned",
     groups: [
       { key: "business", items: [ // plan-literal-ok: landing scene key, not a plan code
-        { key: "company", icon: Building2 },
+        { key: "company", icon: BuildingComplex },
         { key: "tax", icon: Receipt },
         { key: "accounting", icon: Calculator },
         { key: "trademark", icon: ShieldCheck },

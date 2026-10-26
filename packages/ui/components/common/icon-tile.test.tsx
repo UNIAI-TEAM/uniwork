@@ -21,6 +21,8 @@ describe("IconTile", () => {
     const { container } = render(<IconTile icon={CalendarDays} tone="green" variant="solid" size="xs" />);
     const tile = container.querySelector('[data-slot="icon-tile"]');
     expect(tile).toHaveClass("bg-tint-green-solid", "text-on-solid", "size-5");
+    // A 14px glyph: the module glyphs keep their inner detail open under the fixed stroke.
+    expect(tile).toHaveClass("[&_svg]:size-3.5");
     expect(tile).not.toHaveClass("bg-tint-green");
   });
 

@@ -817,7 +817,7 @@ func (s *DocumentService) completeFolderUploadMultipart(ctx context.Context, act
 			return "", fail(objectVersion, "upload_probe_mismatch", errUploadProbeMismatch(), probeMismatch)
 		}
 	}
-	contentType, checksum, valErr := s.streamValidateAssembledObject(ctx, fs, loc, leased.Filename, leased.SizeBytes)
+	contentType, checksum, valErr := s.streamValidateAssembledObject(ctx, fs, loc, files.DocumentFile, leased.Filename, leased.SizeBytes)
 	if valErr != nil {
 		var fe *document.FileError
 		var ce CodedError

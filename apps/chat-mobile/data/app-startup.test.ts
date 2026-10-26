@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const calls = vi.hoisted(() => ({
   startUpdatesController: vi.fn(),
@@ -39,8 +39,7 @@ import type { LocaleSyncDeps } from "./locale-sync";
 import { roomWasRead } from "./room-read-signal";
 import { openDeviceStore } from "./storage/device-store";
 
-const loadedAt = Date.now();
-const { startAppServices, trackFirstScreen, trackPushOpen } = await import("./app-startup");
+const { startAppServices } = await import("./app-startup");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -117,16 +116,26 @@ describe("startAppServices", () => {
 });
 
 describe("trackFirstScreen / trackPushOpen", () => {
-  it("counts the first screen once, from when the module loaded, and a push open by what it was about", () => {
-    trackFirstScreen(loadedAt + 1_500);
-    trackFirstScreen(loadedAt + 9_000);
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("counts the first screen once, from when the module loaded, and a push open by what it was about", async () => {
+    vi.resetModules();
+    vi.setSystemTime(new Date(1_000_000));
+    const fresh = await import("./app-startup");
+    fresh.trackFirstScreen(1_001_500);
+    fresh.trackFirstScreen(1_009_000);
     expect(calls.track).toHaveBeenCalledTimes(1);
     const [[event]] = calls.track.mock.calls as [[{ name: string; duration_ms: number }]];
     expect(event.name).toBe("first_screen");
-    expect(event.duration_ms).toBeGreaterThanOrEqual(1_400);
-    expect(event.duration_ms).toBeLessThanOrEqual(1_500);
-    trackPushOpen({ call_id: "c1", room_id: "r1" });
-    trackPushOpen(undefined);
+    expect(event.duration_ms).toBe(1_500);
+    fresh.trackPushOpen({ call_id: "c1", room_id: "r1" });
+    fresh.trackPushOpen(undefined);
     expect(calls.track.mock.calls.slice(1).map(([e]) => e)).toEqual([
       { name: "push_open", result: "call" },
       { name: "push_open", result: "other" },
@@ -135,9 +144,11 @@ describe("trackFirstScreen / trackPushOpen", () => {
 
   it("defaults the first screen's clock to now", async () => {
     vi.resetModules();
+    vi.setSystemTime(new Date(2_000_000));
     const fresh = await import("./app-startup");
+    vi.setSystemTime(new Date(2_000_010));
     fresh.trackFirstScreen();
     const [[event]] = calls.track.mock.calls as [[{ duration_ms: number }]];
-    expect(event.duration_ms).toBeGreaterThanOrEqual(0);
+    expect(event.duration_ms).toBe(10);
   });
 });

@@ -124,6 +124,89 @@ groups:
           description: "Dòng webhook_inbox chưa xử lý cũ nhất đã {{ $value | humanizeDuration }}: điểm danh, trạng thái phòng và kết thúc cuộc họp đang trễ theo."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/WebhookInboxLagHigh.md
 
+      - alert: MeetingScribeCannotJoin
+        expr: sum(increase(uniwork_meetings_total{event=~"scribe_failed|scribe_dispatch_failed|scribe_no_capacity"}[15m])) > 2
+        for: 5m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Thư ký AI không vào được phòng họp"
+          description: "{{ $value }} lần gọi thư ký AI thất bại hoặc lần chạy bị đánh FAILED trong 15 phút: các phòng đó quay về phụ đề Web Speech và không có transcript của thư ký."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingScribeCannotJoin.md
+
+      - alert: MeetingDialInRefusedCalls
+        expr: sum(increase(uniwork_meetings_total{event="dial_in_call_refused"}[10m])) > 10
+        for: 2m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Nhiều cuộc gọi điện thoại vào họp bị từ chối"
+          description: "{{ $value | printf \"%.0f\" }} cuộc gọi vào phòng họp qua PIN cũ, rule lạ hoặc cuộc họp đã kết thúc bị ngắt trong 10 phút: có thể có người dò PIN trên trunk dùng chung mọi tổ chức."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingDialInRefusedCalls.md
+
+      # Benchmark #1: an expired key or a vendor outage fails every STT session
+      # while the agent stays in the room. Rate and ratio, so one flaky mic is quiet.
+      - alert: MeetingScribeSttErrors
+        expr: |
+          sum(rate(scribe_stt_errors_total[10m])) / clamp_min(sum(rate(scribe_stt_sessions_opened_total[10m])), 0.001) > 0.05
+          and sum(rate(scribe_stt_errors_total[10m])) > 0.05
+        for: 5m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Thư ký AI lỗi nhận dạng giọng nói (STT)"
+          description: "{{ $value | humanizePercentage }} phiên STT mở trong 10 phút lỗi: phòng họp hiện \"Thư ký AI tạm dừng, đang thử lại\", phụ đề quay về máy từng người và transcript có thể thiếu."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingScribeSttErrors.md
+
+      # The server's own check, independent of the agent's metrics: ACTIVE runs
+      # with people in the room that transcribed, then no line for 3 minutes.
+      - alert: MeetingScribeRunsSilent
+        expr: |
+          max(uniwork_meeting_scribe_runs{state="silent"}) >= 2
+          and max(uniwork_meeting_scribe_runs{state="silent"}) / clamp_min(max(uniwork_meeting_scribe_runs{state="active"}), 1) >= 0.5
+        for: 10m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Nhiều cuộc họp có thư ký AI mà không có lời thoại nào"
+          description: "{{ $value }} lần chạy thư ký AI đang ACTIVE, phòng có người, đã ghi được lời thoại rồi 3 phút không có dòng transcript nào: STT, token agent hoặc đường gửi đoạn có thể đang hỏng."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingScribeRunsSilent.md
+
+      # An auto run that settles without a summary sends the host the reminder (auto_summary_failed):
+      # a model error, the plan, the quota or the switch. 20 % over an hour with a floor of 5 runs:
+      # a single org without the plan must not page; a provider outage fails nearly every run.
+      - alert: MeetingAutoSummaryFailing
+        expr: |
+          sum(increase(uniwork_meetings_total{event="auto_summary_failed"}[1h]))
+            / sum(increase(uniwork_meetings_total{event=~"auto_summary_ok|auto_summary_failed"}[1h])) > 0.2
+          and sum(increase(uniwork_meetings_total{event=~"auto_summary_ok|auto_summary_failed"}[1h])) >= 5
+        for: 15m
+        labels:
+          severity: "3"
+        annotations:
+          summary: "Tóm tắt tự động sau họp thất bại trên 20%"
+          description: "{{ $value | humanizePercentage }} cuộc họp kết thúc trong 1 giờ qua không có tóm tắt tự động; chủ trì chỉ nhận lời nhắc tự tóm tắt, việc cần làm không được rút."
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingAutoSummaryFailing.md
+
+      # The worker refuses jobs past load_threshold 0.7 (apps/meeting-agent/agent.py). Two signs the
+      # fleet is out of room for 10 minutes: every worker above 0.6 (the HPA is at maxReplicas or not
+      # keeping up), or dispatches no worker took (scribe_no_capacity: the sweep re-dispatches after
+      # 60 s without counting a miss, for up to 10 min after the run opened, then misses count again).
+      - alert: MeetingScribeCapacityHigh
+        expr: |
+          (
+            min(max by (nodename) (lk_agents_worker_load)) > 0.6
+            and on() sum(lk_agents_active_job_count) > 0
+          )
+          or on() sum(increase(uniwork_meetings_total{event="scribe_no_capacity"}[10m])) > 0
+        for: 10m
+        labels:
+          severity: "2"
+        annotations:
+          summary: "Worker thư ký AI gần hết sức chứa"
+          description: 'Suốt 10 phút, worker thư ký AI ít tải nhất ở {{ with query `min(max by (nodename) (lk_agents_worker_load))` }}{{ . | first | value | humanizePercentage }}{{ end }} tải (ngưỡng nhận job 70%) và {{ with query `sum(increase(uniwork_meetings_total{event="scribe_no_capacity"}[10m]))` }}{{ . | first | value | printf "%.0f" }}{{ else }}0{{ end }} lần gọi thư ký trong 10 phút không worker nào nhận: cuộc họp mới chờ thư ký, quá 10 phút thì lần chạy thành FAILED.'
+          runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/MeetingScribeCapacityHigh.md
+
       - alert: RealtimeSlowEvictions
         expr: sum(increase(uniwork_realtime_slow_evictions_total[10m])) > 25
         for: 5m

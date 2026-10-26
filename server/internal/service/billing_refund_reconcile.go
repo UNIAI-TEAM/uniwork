@@ -47,7 +47,7 @@ func (s *BillingService) reconcileOneRefundPending(ctx context.Context, vnp *bil
 	if err != nil {
 		return err
 	}
-	ev, err := s.vnpayQueryDR(ctx, vnp, intent, "")
+	ev, _, err := s.vnpayQueryDR(ctx, vnp, intent, "")
 	if err != nil {
 		return err
 	}

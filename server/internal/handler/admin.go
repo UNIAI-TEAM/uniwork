@@ -69,6 +69,8 @@ func (h *handlers) adminGetOrganization(w http.ResponseWriter, r *http.Request) 
 	if o.SuspendedReason.Valid {
 		out.SuspendedReason = &o.SuspendedReason.String
 	}
+	out.DeletionScheduledAt = optTimePtr(o.DeletionScheduledAt)
+	out.Erased = o.SuspendedReason.Valid && o.SuspendedReason.String == "organization_deleted"
 	for _, e := range d.Entitlements {
 		out.Entitlements = append(out.Entitlements, sdo.AdminEntitlementDTO{Key: e.Key, Kind: e.Kind, Enabled: e.Enabled, Limit: e.Limit, Current: e.Current})
 	}
@@ -81,6 +83,32 @@ func (h *handlers) adminSuspendOrganization(w http.ResponseWriter, r *http.Reque
 
 func (h *handlers) adminUnsuspendOrganization(w http.ResponseWriter, r *http.Request) {
 	h.adminSetStatus(w, r, service.OrganizationActive)
+}
+
+func (h *handlers) adminScheduleOrganizationDeletion(w http.ResponseWriter, r *http.Request) {
+	var in sdi.AdminScheduleOrganizationDeletionSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	at, err := h.Admin.ScheduleOrganizationDeletion(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"), in.ConfirmSlug, in.Reason)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	s := at.UTC().Format(time.RFC3339)
+	respondJSON(w, http.StatusAccepted, sdo.AdminOrganizationDeletionSDO{DeletionScheduledAt: &s})
+}
+
+func (h *handlers) adminCancelOrganizationDeletion(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ReasonSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if err := h.Admin.CancelOrganizationDeletion(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "orgID"), in.Reason); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.AdminOrganizationDeletionSDO{})
 }
 
 func (h *handlers) adminSetStatus(w http.ResponseWriter, r *http.Request, status string) {

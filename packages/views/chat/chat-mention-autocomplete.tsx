@@ -149,7 +149,7 @@ export function ChatMentionAutocomplete({
               >
                 {isAll ? (
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-subtle text-brand-subtle-foreground">
-                    <Users className="size-4.5" aria-hidden />
+                    <Users className="size-4" aria-hidden />
                   </span>
                 ) : (
                   <ActorAvatar

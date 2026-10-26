@@ -1,5 +1,5 @@
 "use client";
-import { BookOpen, Bot, Building2, CalendarDays, CircleCheck, ClipboardCheck, Columns3, FileText, FolderKanban, House, LayoutDashboard, Mail, MessageSquare, ScrollText, Sparkles, Video, Workflow, Zap } from "lucide-react";
+import { BookOpen, Bot, BuildingComplex, CalendarDays, CircleCheck, ClipboardCheck, Columns3, FileText, FolderKanban, House, LayoutDashboard, Mail, MessageSquare, ScrollText, Sparkles, Video, Workflow, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { featureCopyPrefix, previewKind } from "./feature-page-catalog";
 
@@ -9,7 +9,7 @@ export const PRODUCT_GROUPS = [
   { key: "results", icon: ClipboardCheck },
   { key: "knowledge", icon: BookOpen },
   { key: "ai", icon: Sparkles },
-  { key: "organization", icon: Building2 },
+  { key: "organization", icon: BuildingComplex },
 ] as const;
 type FeatureGroup = (typeof PRODUCT_GROUPS)[number]["key"];
 function catalogItem<const Key extends string>(key: Key, group: FeatureGroup, icon: LucideIcon, anchor: string, status: "demo" | "partial" | "planned") {
@@ -34,7 +34,7 @@ export const PRODUCT_FEATURES = [
   { key: "ask", group: "ai", status: "demo", icon: Sparkles, label: "landing.studio.askTab", anchor: "hoi-uni", description: "landing.workspace.askDescription", availability: "landing.studio.askGuardrail" },
   catalogItem("agents", "ai", Bot, "quan-ly-agent", "partial"),
   catalogItem("automation", "ai", Zap, "tu-dong-hoa", "planned"),
-  catalogItem("organization", "organization", Building2, "to-chuc", "demo"),
+  catalogItem("organization", "organization", BuildingComplex, "to-chuc", "demo"),
   catalogItem("audit", "organization", ScrollText, "nhat-ky", "demo"),
 ] as const;
 

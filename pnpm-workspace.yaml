@@ -35,7 +35,7 @@ catalog:
   tailwind-merge: "^3.4.0"
   class-variance-authority: "^0.7.1"
   clsx: "^2.1.1"
-  lucide-react: "^1.0.1"
+  lucide-react: "^1.48.0"
   i18next: "^26.0.8"
   react-i18next: "^17.0.6"
   vite: "8.2.4"

@@ -3,7 +3,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingInviteShell } from "./meeting-invite-shell";
 
 /**
@@ -24,52 +23,8 @@ function LoadingRegion({ className, children }: { className?: string; children: 
   );
 }
 
-function CardBlock({ className, lines = 3 }: { className?: string; lines?: number }) {
-  return (
-    <div className={cn("flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5", className)}>
-      <Skeleton className="h-5 w-40" />
-      {Array.from({ length: lines }, (_, i) => (
-        <Skeleton key={i} className={cn("h-4", i === lines - 1 ? "w-2/3" : "w-full")} />
-      ))}
-    </div>
-  );
-}
-
-/** Meeting detail: breadcrumb bar, hero block, main column + aside. */
-export function MeetingDetailPageSkeleton() {
-  return (
-    <LoadingRegion className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
-        <Skeleton className="h-4 w-20" />
-        <Skeleton className="h-4 w-40" />
-      </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
-          <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-6">
-            <Skeleton className="h-5 w-24 rounded-full" />
-            <Skeleton className="h-8 w-3/5" />
-            <div className="flex flex-wrap gap-4">
-              <Skeleton className="h-4 w-44" />
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-4 w-36" />
-            </div>
-            <div className="flex gap-2">
-              <Skeleton className="h-9 w-32" />
-              <Skeleton className="h-9 w-24" />
-            </div>
-          </div>
-          <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start xl:grid-cols-[minmax(0,1fr)_22rem]">
-            <div className="flex min-w-0 flex-col gap-6">
-              <CardBlock lines={4} />
-              <CardBlock lines={3} />
-            </div>
-            <CardBlock lines={5} />
-          </div>
-        </div>
-      </div>
-    </LoadingRegion>
-  );
-}
+/** Meeting detail: the redesigned page's real geometry (LoadingError crop 1). */
+export { DetailSkeleton as MeetingDetailPageSkeleton } from "./meeting-detail/detail-skeleton";
 
 /** Room and prejoin routes: the full-screen stage with video tiles. */
 export function MeetingStagePageSkeleton() {

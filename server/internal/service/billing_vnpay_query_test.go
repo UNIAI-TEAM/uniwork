@@ -42,7 +42,7 @@ func TestMarkIntentCompletedParamsStoresVNPayMeta(t *testing.T) {
 		"vnp_BankCode": "NCB", "vnp_TransactionNo": "15699725",
 		"vnp_OrderInfo": "UniWork hihi", "vnp_PayDate": "20261009093922",
 	}}
-	p := markIntentCompletedParams("id", "org", "NCB", "15699725", ev)
+	p := markIntentCompletedParams("id", "org", ev)
 	if !p.ProviderPayDate.Valid || p.ProviderPayDate.String != "20261009093922" {
 		t.Fatalf("pay date %+v", p.ProviderPayDate)
 	}

@@ -14,6 +14,7 @@ import (
 func TestUpdateChatRoomWallpaperPreset_DMMemberAllowed(t *testing.T) {
 	s, _, q, ua, ub, w := chatFixture(t)
 	ctx := context.Background()
+	// A DM needs both people in the organization and the workspace.
 	addOrgMember(t, q, w.OrganizationID, ub.ID)
 	addWorkspaceMember(t, q, w.ID, ub.ID)
 	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)

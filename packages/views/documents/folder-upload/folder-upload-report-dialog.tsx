@@ -56,7 +56,11 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, c
         : "documents.folder_upload.report.reupload_hint";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg" closeLabel={t("common.close")}>
+      <DialogContent
+        // One shrinkable column, as in the pre-flight dialog: a long name truncates inside it and never widens the card.
+        className="grid-cols-[minmax(0,1fr)] sm:max-w-lg"
+        closeLabel={t("common.close")}
+      >
         <DialogHeader>
           <DialogTitle>{t("documents.folder_upload.report.title")}</DialogTitle>
           <DialogDescription>{t("documents.folder_upload.report.description", { name, count: failures.length })}</DialogDescription>
@@ -72,8 +76,8 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, c
             return (
               // Files mode keeps same-named files (FD-D10): the path alone is not a key.
               <li key={`${index}:${failure.path}`} className="flex min-w-0 flex-col gap-0.5" title={failure.path}>
-                <span className="truncate font-mono text-caption text-foreground">{failure.path.slice(slash + 1)}</span>
-                {folder ? <span className="truncate font-mono text-caption text-muted-foreground">{folder}</span> : null}
+                <span className="truncate text-body font-medium text-foreground">{failure.path.slice(slash + 1)}</span>
+                {folder ? <span className="truncate text-caption text-muted-foreground">{folder}</span> : null}
                 <span className="text-caption text-muted-foreground">{failureReasonMessage(t, failure.code, failure.reason, mode, retryNow, failure.retryable !== false)}</span>
               </li>
             );
@@ -83,7 +87,8 @@ export function FolderUploadReportDialog({ open, onOpenChange, name, failures, c
           <p className="text-caption text-muted-foreground">{t("documents.folder_upload.report.expired_note", ctx)}</p>
         ) : null}
         {footerHint ? <p className="text-caption text-muted-foreground">{t(footerHint, ctx)}</p> : null}
-        <DialogFooter className="px-0 pb-0">
+        {/* -mx-4 / -mb-4: the band runs to the dialog's edges, past the content padding. */}
+        <DialogFooter className="-mx-4 -mb-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("documents.folder_upload.report.close")}
           </Button>

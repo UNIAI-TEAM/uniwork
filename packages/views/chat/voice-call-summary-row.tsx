@@ -74,7 +74,7 @@ export function VoiceCallSummaryRow({
         compactTop={compactTop}
         avatar={
           <span aria-hidden className="flex size-8.5 items-center justify-center rounded-[11px] bg-primary text-primary-foreground">
-            <Sparkles className="size-4.5" />
+            <Sparkles className="size-4" />
           </span>
         }
         wide

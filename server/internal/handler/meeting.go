@@ -30,7 +30,7 @@ func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
 		RoomName: m.RoomName, CreatedBy: m.CreatedBy, CreatedAt: rfc3339(m.CreatedAt), Status: m.Status, MeetingType: m.MeetingType,
 		HostUserID: m.HostUserID, Timezone: m.Timezone, AllowJoinRequest: m.AllowJoinRequest,
 		ProjectID: m.ProjectID.String, ActualStartAt: rfc3339(m.ActualStartAt), ActualEndAt: rfc3339(m.ActualEndAt),
-		Version: m.Version,
+		Version: m.Version, ScribeEnabled: !m.ScribeOffAt.Valid, AIContentShared: m.AiContentSharedAt.Valid,
 	}
 	if m.QuorumPercent.Valid {
 		v := m.QuorumPercent.Int16
@@ -93,7 +93,8 @@ func (h *handlers) createMeeting(w http.ResponseWriter, r *http.Request) {
 		service.CreateMeetingInput{
 			Title: in.Title, Description: in.Description, StartsAt: in.StartsAt, EndsAt: in.EndsAt,
 			Timezone: in.Timezone, AllowJoinRequest: in.AllowJoinRequest, ProjectID: in.ProjectID,
-			AttendeeUserIDs: in.AttendeeUserIDs,
+			AttendeeUserIDs: in.AttendeeUserIDs, FollowUpOf: in.PreviousMeetingID,
+			IdempotencyKey: r.Header.Get("Idempotency-Key"),
 		})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -107,7 +108,8 @@ func (h *handlers) createInstantMeeting(w http.ResponseWriter, r *http.Request) 
 	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	m, err := h.Meetings.CreateInstant(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), in.Title)
+	m, err := h.Meetings.CreateInstantKeyed(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), in.Title,
+		r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -121,7 +123,15 @@ func (h *handlers) getMeeting(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"meeting": toMeetingDTO(m)})
+	d := toMeetingDTO(m)
+	d.ScribeStatus = h.Meetings.ScribeStatus(r.Context(), m.ID)
+	readable := h.Meetings.CanReadAIContent(r.Context(), middleware.UserID(r.Context()), m)
+	d.AIContentReadable = &readable
+	if m.SeriesID.Valid {
+		d.SeriesID = m.SeriesID.String
+	}
+	d.PreviousMeetingID, d.NextMeetingID = h.Meetings.SeriesNeighbors(r.Context(), m)
+	respondJSON(w, 200, map[string]any{"meeting": d})
 }
 
 func (h *handlers) updateMeeting(w http.ResponseWriter, r *http.Request) {

@@ -26,6 +26,16 @@ type McpPrincipal struct {
 // grant that holds write.
 func (p McpPrincipal) CanWrite() bool { return p.WriteOpen && mcpScopeHasWrite(p.Scope) }
 
+// WriteGate is the shared write gate for this principal: the two switches,
+// then the grant's scope, then the budget (nil for none).
+func (p McpPrincipal) WriteGate(budget func(context.Context) bool) AIWriteGate {
+	return AIWriteGate{
+		Open: p.WriteOpen, OpenCode: "write_disabled",
+		Scoped: p.CanWrite(), ScopeCode: "insufficient_scope",
+		Budget: budget, BudgetCode: "write_rate_limited",
+	}
+}
+
 // ToolContext is the actor every MCP tool runs as: the human who consented,
 // inside the grant's organization. The workspace comes from tool input.
 func (p McpPrincipal) ToolContext() ai.ToolContext {

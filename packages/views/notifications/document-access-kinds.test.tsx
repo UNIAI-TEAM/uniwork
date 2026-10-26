@@ -69,7 +69,7 @@ describe("DOC-07 notification sentences", () => {
         expect(notificationTitleKey(n)).toBe(`notifications.kind.${kind}_untitled`);
         const text = sentence(n) ?? "";
         expect(text).not.toBe("");
-        expect(text).not.toMatch(/notifications\.kind|\{\{|“\s*”/);
+        expect(text).not.toMatch(/notifications\.kind|\{\{|"\s*"/);
       }
     },
   );

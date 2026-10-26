@@ -19,10 +19,27 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
     case "task":
       return ws.task(n.resource_id);
     case "meeting":
-      // The summary reminder lands on the summary panel (use-meeting-section-deep-link).
-      return n.kind === "meeting_summary_reminder"
-        ? `${ws.meeting(n.resource_id)}?section=summary`
-        : ws.meeting(n.resource_id);
+      // A meeting's batch of assigned tasks lands on the assignee's own
+      // tasks: the row carries no task ids, and the meeting's action items
+      // are the clerk's review list. The summary kinds land on the summary
+      // panel, the transcript kinds on the transcript card
+      // (use-meeting-section-deep-link); notification.ResourceURL matches.
+      switch (n.kind) {
+        case "tasks_assigned":
+          return ws.myTasks();
+        case "meeting_summary_reminder":
+        case "meeting_summary_ready":
+          return `${ws.meeting(n.resource_id)}?section=summary`;
+        case "meeting_action_items_pending":
+          return `${ws.meeting(n.resource_id)}?section=action-items`;
+        case "meeting_recap_ready":
+          return `${ws.meeting(n.resource_id)}?section=${n.params.stage === "minutes" ? "minutes" : "summary"}`;
+        case "meeting_transcript_ready":
+        case "meeting_transcript_failed":
+          return `${ws.meeting(n.resource_id)}?section=transcript`;
+        default:
+          return ws.meeting(n.resource_id);
+      }
     case "audit_export":
       return `${ws.settings()}?tab=audit`;
     case "chat_message": {

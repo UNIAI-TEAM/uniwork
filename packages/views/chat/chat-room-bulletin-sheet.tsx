@@ -233,7 +233,7 @@ function BulletinTabPanel({
                     </span>
                     {pinnedKind ? (
                       <span className="inline-flex items-center gap-1 text-caption font-semibold text-muted-foreground">
-                        <Pin aria-hidden className="size-3.25 rotate-45" />
+                        <Pin aria-hidden className="size-3.5 rotate-45" />
                         {t("chat.pinned_label")}
                       </span>
                     ) : null}

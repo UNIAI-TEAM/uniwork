@@ -133,6 +133,10 @@ func DetectContentType(head []byte, filename string) string {
 		// A box mp4Type refuses is not MP4, even where the standard
 		// sniffer's looser check accepts it.
 		return mimeOctetStream
+	case sniffed == mimeOctetStream && ext == ".mp3" && len(head) >= 2 && head[0] == 0xff && head[1]&0xe0 == 0xe0:
+		// An MP3 without an ID3 tag starts on an MPEG audio frame sync,
+		// which the standard sniffer does not know.
+		return "audio/mpeg"
 	}
 	return sniffed
 }

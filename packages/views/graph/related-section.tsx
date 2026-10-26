@@ -9,19 +9,33 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { SidebarSection } from "../common/sidebar-section";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
-import { graphNodeHref, graphNodeIcon, groupNeighbors } from "./graph-labels";
+import { graphNodeHref, graphNodeIcon, groupNeighbors, isOriginEdge } from "./graph-labels";
 
 /**
  * "Liên quan": the node's one-step neighbors on the Work Graph (C-11 §7).
  * The graph trails its sources by seconds (ADR 0019), so the section says
  * when it read them instead of presenting itself as live.
  */
-export function RelatedSection({ workspaceId, nodeType, nodeId }: { workspaceId: string; nodeType: string; nodeId: string }) {
+export function RelatedSection({
+  workspaceId,
+  nodeType,
+  nodeId,
+  originShown = false,
+}: {
+  workspaceId: string;
+  nodeType: string;
+  nodeId: string;
+  /** The screen already names where the node came from: its originated_from edge is not repeated. */
+  originShown?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const { workspace } = useWorkspace();
   const ui = useGraphUI(workspace.organization_id);
   const query = useGraphNeighbors(workspaceId, nodeType, nodeId, { enabled: ui === "on" });
-  const groups = useMemo(() => groupNeighbors(query.data?.items ?? []), [query.data?.items]);
+  const groups = useMemo(
+    () => groupNeighbors((query.data?.items ?? []).filter((item) => !(originShown && isOriginEdge(item)))),
+    [query.data?.items, originShown],
+  );
   if (ui !== "on") return null;
   // 404 = not projected yet (or hidden, deliberately indistinguishable): nothing related to show.
   const missing = query.error instanceof ApiError && query.error.status === 404;

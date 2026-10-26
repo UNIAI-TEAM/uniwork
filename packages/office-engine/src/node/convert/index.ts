@@ -5,6 +5,8 @@ import { OdfError, readOdfTextPackage } from "./odt.ts";
 import { writeXlsxPackage } from "./xlsx-write.ts";
 import { ZipError, type ZipBoundMode } from "./zip.ts";
 
+export { PageInputError, pageToDocx } from "./page-docx.ts";
+
 // Q7 conversion engine (G2-07b / UNI-690): legacy/ODF -> OOXML, node-only.
 // The converters are deliberately small and honest: they carry the content
 // the G0 fixtures declare as the oracle and name every category they do not

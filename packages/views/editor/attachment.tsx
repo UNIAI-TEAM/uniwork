@@ -27,7 +27,7 @@ import {
   Download,
   Link as LinkIcon,
   Maximize2,
-  Trash2,
+  Trash,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -565,7 +565,7 @@ function ImageAttachmentView({
                 title={t("editor.image.delete")}
                 aria-label={t("editor.image.delete")}
               >
-                <Trash2 className="size-3.5" aria-hidden="true" />
+                <Trash className="size-3.5" aria-hidden="true" />
               </button>
             )}
           </span>

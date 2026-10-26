@@ -1,65 +1,51 @@
-import type { MeetingSummaryTasksBody } from "../api/endpoints/meeting-summary";
-import type { MeetingSummaryActionItem } from "../types/meeting";
-import type { TaskPriority } from "../types/task";
+import type { ConvertActionItemInput, MeetingActionItem } from "../api/endpoints/meeting-action-items";
+import type { CreateTaskBody } from "../api/endpoints/tasks";
+import { TASK_PRIORITIES, type TaskPriority } from "../types/task";
 
-// ---- Meeting summary → tasks -------------------------------------------------
-
-/**
- * What the host confirmed for one action item. null is a choice, not a gap:
- * "nobody" and "no due date" reach the server as null and stay that way.
- */
-export interface SummaryItemDraft {
-  assigneeId: string | null;
-  dueDate: string | null;
-  priority: TaskPriority;
-}
-
-/** An item that already became a live task: shown as created, never sent again. */
-export function isConvertedItem(item: Pick<MeetingSummaryActionItem, "task_id">): boolean {
-  return Boolean(item.task_id);
-}
+// ---- Meeting action items → tasks -------------------------------------------------
 
 /**
- * The draft a host starts from: the server's suggestion for the assignee and
- * the due date (what the panel showed before anything was edited), no priority.
+ * What the task composer opens with for a pending item: its title, the
+ * description the screen built (the AI's prose and the cited lines), the
+ * AI's suggested priority, the server's suggestion for the assignee and the
+ * due date, and the meeting's project. The spoken owner and due phrases stay
+ * suggestions.
  */
-export function summaryItemDraft(item: MeetingSummaryActionItem): SummaryItemDraft {
+export function actionItemTaskDefaults(
+  item: MeetingActionItem,
+  projectId: string | undefined,
+  description?: string,
+): Partial<CreateTaskBody> {
+  const priority = item.suggested_priority?.trim();
   return {
-    assigneeId: item.suggested_assignee_id || null,
-    dueDate: item.due_date || null,
-    priority: "none",
+    title: item.title,
+    ...(description ? { description } : {}),
+    // "none" is the composer's own default: only a real suggestion is applied.
+    ...(priority && priority !== "none" && (TASK_PRIORITIES as readonly string[]).includes(priority)
+      ? { priority: priority as TaskPriority }
+      : {}),
+    assignee_id: item.suggested_assignee_id || null,
+    due_date: item.suggested_due_date || null,
+    project_id: projectId || null,
   };
 }
 
 /**
- * The POST …/summary/tasks body for the picked items still open. Every item
- * carries its index, assignee_id and due_date (null = none); the project is
- * always explicit, "" when the host chose none, so a project the meeting
- * points at but the host cleared is not applied by the server's default.
- * Null when nothing is left to create.
+ * The POST …/action-items/convert item for what the composer submitted.
+ * assignee_id and due_date are always sent (null = none) and the project is
+ * always explicit, "" when the clerk chose none, so a project the meeting
+ * points at but the clerk cleared is not applied by the server's default.
+ * The timed slots (start_at/due_at) are the calendar's; convert takes none.
  */
-export function buildMeetingSummaryTasksBody(
-  summaryId: string,
-  items: readonly MeetingSummaryActionItem[],
-  picked: Iterable<number>,
-  drafts: Readonly<Record<number, SummaryItemDraft | undefined>>,
-  projectId: string | undefined,
-): MeetingSummaryTasksBody | null {
-  const chosen = new Set(picked);
-  const project = projectId?.trim() ?? "";
-  const out = items
-    .filter((item) => chosen.has(item.index) && !isConvertedItem(item))
-    .map((item) => {
-      const draft = drafts[item.index] ?? summaryItemDraft(item);
-      return {
-        index: item.index,
-        assignee_id: draft.assigneeId?.trim() || null,
-        due_date: draft.dueDate?.trim() || null,
-        project_id: project,
-        ...(draft.priority !== "none" ? { priority: draft.priority } : {}),
-      };
-    });
-  return out.length > 0 ? { summary_id: summaryId, items: out } : null;
+export function convertActionItemInput(actionItemId: string, body: CreateTaskBody): ConvertActionItemInput {
+  const { start_at: _startAt, due_at: _dueAt, allow_duplicate: _allowDuplicate, ...rest } = body;
+  return {
+    action_item_id: actionItemId,
+    ...rest,
+    assignee_id: body.assignee_id ?? null,
+    due_date: body.due_date ?? null,
+    project_id: body.project_id ?? "",
+  };
 }
 
 // ---- Email Hub summary → tasks ------------------------------------------------
@@ -80,7 +66,7 @@ export type SummaryTaskFieldOverrides = Record<
   { priority?: string; due_date?: string; project_id?: string }
 >;
 
-/** The Email Hub create-tasks items for the picked action items (meetings use buildMeetingSummaryTasksBody). */
+/** The Email Hub create-tasks items for the picked action items. */
 export function buildSummaryTaskItems(
   actionItems: readonly { title: string; owner?: string; due?: string }[],
   pickedIndices: Iterable<number>,

@@ -519,6 +519,8 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/me/delete":                                  {class: isoSelf, reason: reasonSelf},
 	"PUT /api/v1/me/ai-consent":                               {class: isoSelf, reason: reasonSelf},
 	"PUT /api/v1/me/push-previews":                            {class: isoSelf, reason: reasonSelf},
+	"PUT /api/v1/me/ask-uni-mode":                             {class: isoSelf, reason: "the person's own Ask UNI mode (users.ask_uni_mode): it names no tenant row, takes no id and changes only the caller's account"},
+	"PUT /api/v1/me/ask-uni-memory":                           {class: isoSelf, reason: "the person's own Ask UNI memory switch (users.ask_uni_memory_off): it carries no tenant id and changes only the caller's account"},
 	"DELETE /api/v1/me/ai-consent":                            {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/email/resend":                            {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/email/verify":                            {class: isoSelf, reason: reasonSelf},
@@ -593,13 +595,15 @@ var isoRoutes = map[string]isoSpec{
 	"PUT /api/v1/admin/plans/{code}/features/{key}": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"enabled": true, "reason": "isolation matrix fixture",
 	})},
-	"GET /api/v1/admin/organizations":                    {class: isoPlatform, reason: reasonPlatform},
-	"GET /api/v1/admin/organizations/{orgID}":            {class: isoPlatform, reason: reasonPlatform},
-	"POST /api/v1/admin/organizations/{orgID}/plan":      {class: isoPlatform, reason: reasonPlatform},
-	"POST /api/v1/admin/organizations/{orgID}/suspend":   {class: isoPlatform, reason: reasonPlatform},
-	"POST /api/v1/admin/organizations/{orgID}/unsuspend": {class: isoPlatform, reason: reasonPlatform},
-	"GET /api/v1/admin/system":                           {class: isoPlatform, reason: reasonPlatform},
-	"GET /api/v1/admin/trace/{traceID}":                  {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/organizations":                          {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/organizations/{orgID}":                  {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/plan":            {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/suspend":         {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/deletion":        {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/deletion/cancel": {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/unsuspend":       {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/system":                                 {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/trace/{traceID}":                        {class: isoPlatform, reason: reasonPlatform},
 
 	// Catalogue stubs (router/tasks_stubs.go).
 	"GET /api/v1/tasks/{taskID}/active-task":                                              {class: isoStub, reason: reasonStub},
@@ -798,6 +802,8 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/office-frame/documents/{documentID}/avatars/{userID}":           {class: isoScoped, reason: "frame token credential: Authorize rechecks view on the token's document and AvatarFileOf requires an active member of that document's organization; control = owner reads a same-org avatar in control and frame-avatar", checkControl: isoFrameAvatarCheck},
 	"HEAD /api/v1/office-frame/documents/{documentID}/avatars/{userID}":          {class: isoScoped, reason: "frame token credential: Authorize rechecks view on the token's document and AvatarFileOf requires an active member of that document's organization; control = owner reads a same-org avatar in frame-avatar"},
 	"POST /api/v1/office-frame/documents/{documentID}/export/pdf":                {body: isoFile("current.docx", isoDocxMime, isoFrameDocx, nil), skipControl: "owner 5xx found by G8-04, owner: office frame export (the stub engine answers 501 unsupported_operation)"},
+	// UNI-2004: the page export runs ExportFramePDF's job path on the fixture page.
+	"POST /api/v1/documents/{documentID}/export": {body: isoJSON(map[string]any{"format": "docx"}), skipControl: "the stub engine binds no export, so the owner's page export answers 501 unsupported_operation; TestPageExport holds the owner's export"},
 	// The source frame (UNI-1869): a source token, minted by the owner's
 	// session for a DOCX task attachment, opens the metadata and the bytes.
 	// do() sends that token on /api/v1/office-frame/sources/* (frameSources),
@@ -821,9 +827,22 @@ var isoRoutes = map[string]isoSpec{
 	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                            {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
 	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                   {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
 	"PATCH /api/v1/meetings/{meetingID}/motions/{motionID}":                                  {body: isoJSON(map[string]any{"title": "edited"})},
-	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/ballot":                            {body: isoJSON(map[string]any{"choice": "YES"})},
-	"PATCH /api/v1/meetings/{meetingID}/participants/{participantID}":                        {body: isoJSON(map[string]any{"standing": "OBSERVER"})},
-	"POST /api/v1/meetings/{meetingID}/transcript/agent":                                     {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no member gets past the agent secret (see reason)", reason: "the STT agent authenticates with MEETING_STT_AGENT_SECRET, not a membership; a member is refused the same way"},
+	"PATCH /api/v1/meetings/{meetingID}/transcript/{segmentID}":                              {body: isoJSON(map[string]any{"text": "edited"})},
+	// follow-5: the write-control pass runs .../dismiss first, so the owner's
+	// link of the same item answers 409 action_item_not_pending - the route
+	// decided who is asking and reached the item's state.
+	"POST /api/v1/meetings/{meetingID}/action-items/{actionItemID}/link": {control: []int{http.StatusConflict},
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"task_id": tn.ids["task"]}}
+		}},
+	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/ballot":     {body: isoJSON(map[string]any{"choice": "YES"})},
+	"PATCH /api/v1/meetings/{meetingID}/participants/{participantID}": {body: isoJSON(map[string]any{"standing": "OBSERVER"})},
+	"POST /api/v1/meetings/{meetingID}/agent/started":                 {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
+	"GET /api/v1/meetings/{meetingID}/agent/context":                  {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
+	"POST /api/v1/meetings/{meetingID}/agent/segments":                {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
+	"POST /api/v1/meetings/{meetingID}/agent/finished":                {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
+	"POST /api/v1/meetings/{meetingID}/agent/extract":                 {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
+	"POST /api/v1/meetings/{meetingID}/agent/translate":               {refusedAlso: []int{http.StatusUnauthorized}, skipControl: "no session gets past the agent token (see reason)", reason: "the scribe agent authenticates with a per-meeting uwma_ token (RequireMeetingAgentToken), never a session; every session caller gets 401, and TestMeetingAgentToken* holds the token across meetings and organizations"},
 	"POST /api/v1/orgs/{orgID}/audit/exports": {body: func(*isoWorld, *isoTenant) isoBody {
 		return isoBody{json: map[string]any{"format": "csv", "from": time.Now().Add(-time.Hour).UTC().Format(time.RFC3339), "to": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}}
 	}},
@@ -839,10 +858,42 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs/{orgID}/privacy/deletion/cancel": {
 		skipControl: "no deletion is scheduled in this run, so the owner's cancel would answer 404; TestPrivacyDeletionCoversTheDelay covers that path",
 	},
-	"PUT /api/v1/tasks/{taskID}":                                                                       {body: isoJSON(map[string]any{"revision": 1, "title": "edited"})},
-	"POST /api/v1/tasks/{taskID}/attachments":                                                          {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
-	"DELETE /api/v1/tasks/{taskID}/reactions":                                                          {body: isoJSON(map[string]any{"emoji": "👍"})},
-	"POST /api/v1/tasks/{taskID}/reactions":                                                            {body: isoJSON(map[string]any{"emoji": "👍"})},
+	"PUT /api/v1/tasks/{taskID}":                    {body: isoJSON(map[string]any{"revision": 1, "title": "edited"})},
+	"POST /api/v1/tasks/{taskID}/attachments":       {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
+	"DELETE /api/v1/tasks/{taskID}/reactions":       {body: isoJSON(map[string]any{"emoji": "👍"})},
+	"POST /api/v1/tasks/{taskID}/reactions":         {body: isoJSON(map[string]any{"emoji": "👍"})},
+	"POST /api/v1/ai/proposals/{proposalID}/apply":  {control: []int{http.StatusConflict}, reason: "the seeded row is rejected, so the owner's own call reaches the row and answers 409 proposal_not_pending, which a broken route would not; the refusal to an outsider is 404 before any state check"},
+	"POST /api/v1/ai/proposals/{proposalID}/reject": {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"POST /api/v1/ai/proposals/{proposalID}/undo":   {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"PATCH /api/v1/ai/proposals/{proposalID}":       {body: isoJSON(map[string]any{"changes": map[string]any{"title": "edited"}}), control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	// Ask UNI memory proposals (P4): only the asker decides them, as above.
+	"POST /api/v1/ai/memory-proposals/{memoryProposalID}/apply":  {control: []int{http.StatusConflict}, reason: "the seeded memory proposal is rejected, so the owner's own call reaches the row and answers 409 proposal_not_pending, which a broken route would not; an outsider gets 404 before any membership, flag or state check"},
+	"POST /api/v1/ai/memory-proposals/{memoryProposalID}/reject": {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"POST /api/v1/ai/memory-proposals/{memoryProposalID}/undo":   {control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"PATCH /api/v1/ai/memory-proposals/{memoryProposalID}":       {body: isoJSON(map[string]any{"text": "edited"}), control: []int{http.StatusConflict}, reason: "as apply: the owner's own call answers 409 proposal_not_pending on the rejected seed row"},
+	"POST /api/v1/ai/conversations/{conversationID}/messages/{messageID}/proposals/apply": {
+		body: func(_ *isoWorld, tn *isoTenant) isoBody {
+			return isoBody{json: map[string]any{"proposal_ids": []string{tn.ids["aiProposal"]}}}
+		},
+		control: []int{http.StatusConflict}, reason: "as apply: the owner's own call names the rejected seed row and answers 409 proposal_not_pending; the body-id case in isoReferences applies a pending row of the tenant's own and attacks with A's"},
+	"PUT /api/v1/orgs/{org}/ai/ask-write-policy": {reason: "the attack on A sends ceiling off, which would shut A's Ask UNI writes, so A's tenant digest catches a breach; every other tenant's own call sends plan, the default, which answers 200 and changes nothing",
+		body: func(w *isoWorld, tn *isoTenant) isoBody {
+			ceiling := "plan"
+			if tn == w.alpha {
+				ceiling = "off"
+			}
+			return isoBody{json: map[string]any{"ceiling": ceiling}}
+		}},
+	"POST /api/v1/orgs/{org}/ai/memory": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"kind": "fact", "text": tn.marker + " added by the route"}}
+	}},
+	"POST /api/v1/orgs/{org}/ai/memory/import/split": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"text": "- " + tn.marker + " split by the route"}}
+	}},
+	"POST /api/v1/orgs/{org}/ai/memory/import": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"entries": []map[string]any{{"kind": "fact", "text": tn.marker + " imported by the route"}}}}
+	}},
+	"PATCH /api/v1/orgs/{org}/ai/memory/{memoryID}":                                                    {body: isoJSON(map[string]any{"text": "edited"})},
 	"PATCH /api/v1/ai/conversations/{conversationID}":                                                  {body: isoJSON(map[string]any{"title": "renamed"})},
 	"PUT /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback":                      {body: isoJSON(map[string]any{"rating": "up"})},
 	"POST /api/v1/workspaces/{workspaceID}/ai/ask":                                                     {body: isoJSON(map[string]any{"question": "what is overdue?"})},
@@ -860,8 +911,8 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}":                                         {class: isoScoped, reason: "the room detail read (UNI-1966 L5) authorizes the room by the path's workspace and room id before it answers can_send_document; an outsider is refused 403/404 and A's digest catches a served room"},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/voice":                         {body: isoFile("voice.webm", "audio/webm", tinyWebM, map[string]string{"client_msg_id": "", "duration_ms": "4000"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/avatar":                                 {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
-	"PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}":                                       {body: isoJSON(map[string]any{"name": "edited"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/wallpaper":                              {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
+	"PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}":                                       {body: isoJSON(map[string]any{"wallpaper": map[string]any{"preset": "sky"}})},
 	"PATCH /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}":                  {body: isoJSON(map[string]any{"body": "edited"})},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}/poll/vote":         {body: isoWith(map[string]string{"option_id": "pollOption"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link":                 {body: isoWith(map[string]string{"document_id": "chatLinkDocument"}, map[string]any{"share_level": "comment"})},
@@ -906,7 +957,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/tasks/{taskID}/labels":                                                      {body: isoWith(map[string]string{"label_id": "label"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/agents":                                            {body: isoWith(map[string]string{"agent_id": "agent"}, nil)},
 	"POST /api/v1/orgs/{orgID}/billing/checkout": {body: isoJSON(map[string]any{
-		"plan_code": "starter", "success_path": "/billing/ok", "cancel_path": "/billing/cancel",
+		"plan_code": "starter", "success_path": "/billing/ok",
 	})},
 	"POST /api/v1/meetings/{meetingID}/restore": {control: []int{http.StatusConflict},
 		reason: "the tenant's own fixture meeting was never cancelled, so its owner's restore answers 409 invalid_meeting_state; the cross-tenant call must still be refused 403/404 and A's digest catches a restore"},

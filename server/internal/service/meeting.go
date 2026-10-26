@@ -2,9 +2,13 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -78,7 +82,16 @@ type MeetingRuntime struct {
 	OutboxBatch        int32
 	WebhookBatch       int32
 	WebhookConcurrency int
-	STTAgentSecret     string
+	// The scribe agent (ADR 0045): dispatch it at all, under which
+	// agent_name. SummaryMaxRunes is the summary's transcript budget.
+	ScribeEnabled   bool
+	ScribeAgentName string
+	SummaryMaxRunes int
+	// Dial-in by phone (UNI-2029): create SIP rules at all, the number people
+	// call, and the trunk the rules keep to.
+	DialInEnabled bool
+	DialInNumber  string
+	SIPTrunkID    string
 }
 
 type MeetingService struct {
@@ -96,12 +109,28 @@ type MeetingService struct {
 	Tasks *TaskService
 	// Chat receives LiveKit recording webhooks that do not match a meeting egress.
 	Chat *ChatService
+	// Docs makes and versions the minutes page (UNI-2003); nil reports the
+	// minutes as unavailable.
+	Docs *DocumentService
 	// ent is the entitlement gate (F-02); built here so it can never be nil.
 	ent *EntitlementService
 	// files is the shared FileService, optional: with it wired, note-author
 	// avatars stored as file ids resolve to presigned URLs (UNI-744) and new
 	// recordings go through it (UNI-746); nil keeps both legacy paths.
 	files files.Service
+	// flags evaluates meeting_scribe per organization; nil = off.
+	flags McpFlags
+	// uploads opens the large upload sessions a meeting recording rides on
+	// (UNI-2001); nil = no upload.
+	uploads *DocumentService
+	// captions spaces caption translation calls (UNI-2028).
+	captions captionSpacing
+	// summaryRuns are the clerks' summary runs StartSummary left running;
+	// stopSummaries ends summaryLife, which every one of them watches
+	// (StopSummaryRuns, at shutdown).
+	summaryRuns   sync.WaitGroup
+	summaryLife   context.Context
+	stopSummaries context.CancelFunc
 }
 
 // organizationOf resolves the tenant a meeting belongs to, for the gate.
@@ -146,7 +175,9 @@ func NewMeetingService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, 
 		rt.WebhookConcurrency = 8
 	}
 	nodeID := util.NewID()
-	return &MeetingService{pool: pool, q: q, ws: ws, pub: pub, provider: provider, rt: rt, outboxNodeID: nodeID, ent: NewEntitlementService(pool, q)}
+	life, stop := context.WithCancel(context.Background())
+	return &MeetingService{pool: pool, q: q, ws: ws, pub: pub, provider: provider, rt: rt, outboxNodeID: nodeID, ent: NewEntitlementService(pool, q),
+		summaryLife: life, stopSummaries: stop}
 }
 
 // GuestHMACKey exposes the guest cookie signing key for lobby WebSocket auth.
@@ -243,6 +274,37 @@ type CreateMeetingInput struct {
 	AllowJoinRequest *bool
 	ProjectID        string
 	AttendeeUserIDs  []string
+	// FollowUpOf names the meeting this one is the next of (follow-4): the
+	// new meeting joins that meeting's series. A meeting of another
+	// workspace, or none, is not found.
+	FollowUpOf string
+	// IdempotencyKey (the Idempotency-Key header, UNI-2153): a retry with the
+	// same key replays the meeting the first call made. Empty skips the claim.
+	IdempotencyKey string
+}
+
+// Idempotency scopes of the two create routes; a key is scoped by
+// organization, workspace, scope and actor.
+const (
+	idempotencyScopeMeetingCreate        = "meetings.create"
+	idempotencyScopeMeetingCreateInstant = "meetings.create_instant"
+)
+
+// replayedMeeting decodes the meeting a completed Idempotency-Key claim stored.
+func replayedMeeting(replay *StoredResponse) (db.Meeting, error) {
+	var m db.Meeting
+	err := json.Unmarshal(replay.Body, &m)
+	return m, err
+}
+
+// completeMeetingClaim stores the created meeting under the claim, inside the
+// create's transaction, so a replay returns it byte for byte.
+func completeMeetingClaim(commit func(int, []byte) error, m db.Meeting) error {
+	body, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	return commit(http.StatusOK, body)
 }
 
 func (s *MeetingService) Create(ctx context.Context, userID, workspaceID string, in CreateMeetingInput) (db.Meeting, error) {
@@ -262,7 +324,9 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	}
 	tz := strings.TrimSpace(in.Timezone)
 	if tz == "" {
-		tz = "UTC"
+		if tz, err = s.creatorTimezone(ctx, userID); err != nil {
+			return db.Meeting{}, err
+		}
 	}
 	allow := true
 	if in.AllowJoinRequest != nil {
@@ -272,6 +336,10 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if err := s.requireMeetingProject(ctx, mem.OrganizationID, workspaceID, projectID); err != nil {
 		return db.Meeting{}, err
 	}
+	series, err := s.followUpSeries(ctx, userID, workspaceID, in.FollowUpOf)
+	if err != nil {
+		return db.Meeting{}, err
+	}
 	id := util.NewID()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -279,6 +347,17 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	// The same key with an edited body is a mismatch, not a replay of the first meeting.
+	fp := IdempotencyFingerprint(append([]string{idempotencyScopeMeetingCreate, strings.TrimSpace(in.Title), in.Description,
+		in.StartsAt.UTC().Format(time.RFC3339Nano), in.EndsAt.UTC().Format(time.RFC3339Nano), strings.TrimSpace(in.Timezone),
+		strconv.FormatBool(allow), projectID, strings.TrimSpace(in.FollowUpOf)}, in.AttendeeUserIDs...)...)
+	replay, commit, err := BeginIdempotent(ctx, q, mem.OrganizationID, workspaceID, idempotencyScopeMeetingCreate, in.IdempotencyKey, userID, IdempotencyOptions{Fingerprint: fp})
+	if err != nil {
+		return db.Meeting{}, NormalizeIdempotencyError(err)
+	}
+	if replay != nil {
+		return replayedMeeting(replay)
+	}
 	m, err := q.CreateMeeting(ctx, db.CreateMeetingParams{
 		ID: id, WorkspaceID: workspaceID, OrganizationID: mem.OrganizationID,
 		Title: strings.TrimSpace(in.Title), Description: in.Description,
@@ -287,9 +366,12 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeScheduled,
 		HostUserID: userID, Timezone: tz, AllowJoinRequest: allow,
-		ProjectID: strText(projectID),
+		ProjectID: strText(projectID), SeriesID: strText(series),
 	})
 	if err != nil {
+		return db.Meeting{}, err
+	}
+	if m, err = s.createdScribeOff(ctx, q, m, userID); err != nil {
 		return db.Meeting{}, err
 	}
 	if _, err := s.addHostParticipant(ctx, q, m, userID); err != nil {
@@ -306,12 +388,39 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if err := s.writeAudit(ctx, q, m, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"SCHEDULED"}`); err != nil {
 		return db.Meeting{}, err
 	}
-	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil,
-		audit.Diff(nil, map[string]any{"meeting_type": MeetingTypeScheduled, "title": m.Title}))
+	created := map[string]any{"meeting_type": MeetingTypeScheduled, "title": m.Title}
+	if series != "" {
+		created["series_id"] = series
+	}
+	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil, audit.Diff(nil, created))
+	if err := completeMeetingClaim(commit, m); err != nil {
+		return db.Meeting{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.Meeting{}, err
 	}
 	return m, nil
+}
+
+// followUpSeries is the series a meeting scheduled after previousID joins:
+// the previous meeting's series, or the previous meeting itself when it
+// starts one. "" when there is no previous meeting.
+func (s *MeetingService) followUpSeries(ctx context.Context, userID, workspaceID, previousID string) (string, error) {
+	previousID = strings.TrimSpace(previousID)
+	if previousID == "" {
+		return "", nil
+	}
+	prev, _, err := s.authorize(ctx, userID, previousID)
+	if err != nil {
+		return "", err
+	}
+	if prev.WorkspaceID != workspaceID {
+		return "", ErrNotFound
+	}
+	if prev.SeriesID.Valid && prev.SeriesID.String != "" {
+		return prev.SeriesID.String, nil
+	}
+	return prev.ID, nil
 }
 
 func (s *MeetingService) List(ctx context.Context, userID, workspaceID string) ([]db.Meeting, error) {
@@ -353,9 +462,24 @@ func (s *MeetingService) AddNote(ctx context.Context, userID, meetingID, body st
 	if strings.TrimSpace(body) == "" {
 		return db.MeetingNote{}, Invalid("nội dung không được để trống")
 	}
-	return s.q.CreateMeetingNote(ctx, db.CreateMeetingNoteParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.MeetingNote{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	n, err := q.CreateMeetingNote(ctx, db.CreateMeetingNoteParams{
 		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, AuthorID: userID, Body: body,
 	})
+	if err != nil {
+		return db.MeetingNote{}, err
+	}
+	// Ids only: open panels refetch the notes, so the body never rides the frame.
+	s.recordResource(ctx, q, m, audit.User(userID), "note.created", meetingRelatedPayload(m, map[string]string{"note_id": n.ID}), nil, "meeting_note", n.ID)
+	if err := tx.Commit(ctx); err != nil {
+		return db.MeetingNote{}, err
+	}
+	return n, nil
 }
 
 // SetFiles attaches the shared FileService for both avatar URL emission and
@@ -408,6 +532,9 @@ var meetingActionFor = map[string]string{
 	"join_request.rejected": "meeting.join_request_rejected",
 	"join_request.canceled": "meeting.join_request_canceled",
 	"invite_link.revoked":   "meeting.invite_link_revoked",
+	"scribe.updated":        audit.ActionMeetingScribeToggled,
+	"speaker_label.updated": audit.ActionMeetingSpeakerLabelAssigned,
+	"note.created":          audit.ActionMeetingNoteAdded,
 }
 
 // record writes the meeting command's audit row and puts its realtime event on
@@ -430,6 +557,13 @@ func (s *MeetingService) recordResource(ctx context.Context, q *db.Queries, m db
 	if !ok {
 		return
 	}
+	s.recordAction(ctx, q, m, actor, action, topic, payload, changes, resourceType, resourceID)
+}
+
+// recordAction is recordResource for a command whose audit action is not the
+// one its topic usually maps to (a shared-mic switch is its own action but
+// tells clients participant.updated; a PIN rotation tells them meeting.updated).
+func (s *MeetingService) recordAction(ctx context.Context, q *db.Queries, m db.Meeting, actor audit.Actor, action, topic string, payload map[string]string, changes map[string]audit.Change, resourceType, resourceID string) {
 	// The meeting carries its tenant (ADR 0008), so no workspace read runs
 	// inside the caller's transaction - for a ballot, under the motion lock.
 	orgID := m.OrganizationID

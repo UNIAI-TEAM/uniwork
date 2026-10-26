@@ -27,6 +27,21 @@ import (
 //	GET    /api/v1/orgs/{orgID}/ai/usage
 //	GET    /api/v1/orgs/{org}/ai/ask-models
 //	PUT    /api/v1/orgs/{org}/ai/ask-models
+//	GET    /api/v1/orgs/{org}/ai/ask-write-policy
+//	PUT    /api/v1/orgs/{org}/ai/ask-write-policy
+//	GET    /api/v1/orgs/{org}/ai/memory
+//	POST   /api/v1/orgs/{org}/ai/memory
+//	PATCH  /api/v1/orgs/{org}/ai/memory/{memoryID}
+//	DELETE /api/v1/orgs/{org}/ai/memory/{memoryID}
+//	DELETE /api/v1/orgs/{org}/ai/memory
+//	POST   /api/v1/orgs/{org}/ai/memory/import/split
+//	POST   /api/v1/orgs/{org}/ai/memory/import
+//	POST   /api/v1/ai/proposals/{proposalID}/apply
+//	POST   /api/v1/ai/proposals/{proposalID}/reject
+//	POST   /api/v1/ai/proposals/{proposalID}/undo
+//	PATCH  /api/v1/ai/proposals/{proposalID}
+//	POST   /api/v1/ai/conversations/{conversationID}/messages/{messageID}/proposals/apply
+//	POST   /api/v1/ai/conversations/{conversationID}/messages/{messageID}/document
 func registerAI(r api, h Routes) {
 	r.Get("/workspaces/{workspaceID}/ai/capabilities", h.AiCapabilities, apiOp{
 		summary:     "AI capabilities",
@@ -73,7 +88,7 @@ func registerAI(r api, h Routes) {
 	})
 	r.Post("/workspaces/{workspaceID}/ai/ask/stream", h.AskUniStream, apiOp{
 		summary: "Ask UNI (stream)",
-		description: "Như Ask UNI nhưng trả text/event-stream. Frame: event run, step, delta, citations, done hoặc error (data chỉ có mã). " +
+		description: "Như Ask UNI nhưng trả text/event-stream. Frame: event run, step (kèm note: câu model viết trước khi gọi tool), reasoning (tóm tắt suy nghĩ của model, khi bật ask_uni_thinking), delta, citations, done hoặc error (data chỉ có mã). " +
 			"Lỗi trước sự kiện đầu tiên trả JSON như POST …/ai/ask (400, 402, 403, 404, 422 gồm ai_attachment_unreadable, 429 kèm Retry-After, 503); sau đó là event error, ví dụ mã media_unsupported khi provider không đọc được file đã gắn. done mang câu trả lời đã lưu, kèm file_notes. Cứ 15 giây có dòng `: ping`.",
 		tags:     []string{"ai"},
 		sdi:      sdi.AskUniSDI{},
@@ -161,5 +176,174 @@ func registerAI(r api, h Routes) {
 		tags:        []string{"ai"},
 		sdo:         sdo.AiUsageSDO{},
 		auth:        true,
+	})
+	r.Get("/orgs/{org}/ai/ask-write-policy", h.GetOrgAskWritePolicy, apiOp{
+		summary: "Ask UNI write ceiling of an organization",
+		description: "Trần chế độ ghi của Hỏi UNI trong tổ chức (off, ask, plan, auto); chưa đặt thì plan. Thành viên tổ chức. " +
+			"Cờ ask_uni_actions tắt thì 403 ai_actions_disabled, như mọi route hành động của Hỏi UNI.",
+		tags: []string{"ai"},
+		sdo:  sdo.AskWritePolicySDO{},
+		auth: true,
+	})
+	r.Put("/orgs/{org}/ai/ask-write-policy", h.SetOrgAskWritePolicy, apiOp{
+		summary: "Set the Ask UNI write ceiling of an organization",
+		description: "Owner/admin tổ chức đặt trần: off (UNI không đề xuất gì), ask, plan hoặc auto; giá trị khác -> 400, thành viên thường -> 403. " +
+			"Chế độ của mỗi lượt và mỗi lần áp dụng bị hạ xuống trần này. Không đổi gì thì không ghi audit; có đổi thì ghi organization.ask_uni_write_policy_changed. " +
+			"Cờ ask_uni_actions tắt thì 403 ai_actions_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AskWritePolicySDI{},
+		sdo:  sdo.AskWritePolicySDO{},
+		auth: true,
+	})
+	r.Get("/orgs/{org}/ai/memory", h.ListAiMemory, apiOp{
+		summary: "My Ask UNI memory",
+		description: "Các mục bộ nhớ của người gọi trong tổ chức (riêng từng người, không ai khác đọc được), cách trả lời trước, rồi theo thứ tự thêm (cũ trước), kèm công tắc, trần 50 và số chỗ còn lại. " +
+			"Thành viên tổ chức; cờ ask_uni_memory tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryListSDO{},
+		auth: true,
+	})
+	r.Post("/orgs/{org}/ai/memory", h.CreateAiMemory, apiOp{
+		summary: "Add a memory entry",
+		description: "Thêm một mục cho chính mình (source manual, ghi audit không kèm chữ). kind sai hoặc chữ rỗng, quá 300 ký tự, có xuống dòng -> 400; trùng một mục có sẵn -> 409 ai_memory_duplicate; đủ 50 mục -> 409 ai_memory_full; " +
+			"cờ tắt -> 403 ai_memory_disabled.",
+		tags:   []string{"ai"},
+		sdi:    sdi.AiMemoryCreateSDI{},
+		sdo:    sdo.AiMemoryDTO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+	r.Patch("/orgs/{org}/ai/memory/{memoryID}", h.UpdateAiMemory, apiOp{
+		summary: "Edit a memory entry",
+		description: "Đổi kind và/hoặc chữ của mục của chính mình; trường bỏ trống thì giữ. Mục của người khác hay id không có -> 404 như nhau; chữ sai -> 400; trùng mục khác -> 409 ai_memory_duplicate; " +
+			"cờ tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryUpdateSDI{},
+		sdo:  sdo.AiMemoryDTO{},
+		auth: true,
+	})
+	r.Delete("/orgs/{org}/ai/memory/{memoryID}", h.DeleteAiMemory, apiOp{
+		summary:     "Delete a memory entry",
+		description: "Xóa một mục của chính mình, không hoàn tác. Mục của người khác hay id không có -> 404 như nhau; cờ tắt -> 403 ai_memory_disabled.",
+		tags:        []string{"ai"},
+		status:      http.StatusNoContent,
+		auth:        true,
+	})
+	r.Delete("/orgs/{org}/ai/memory", h.ClearAiMemory, apiOp{
+		summary:     "Clear my memory",
+		description: "Xóa toàn bộ mục của người gọi trong tổ chức này, không hoàn tác; trả số mục đã xóa (0 thì không ghi audit). Cờ tắt -> 403 ai_memory_disabled.",
+		tags:        []string{"ai"},
+		sdo:         sdo.AiMemoryClearSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/ai/memory/import/split", h.SplitAiMemoryImport, apiOp{
+		summary: "Split text pasted from another AI into memory entries",
+		description: "Gọi model nhanh một lần (thử lại một lần khi sai định dạng, mỗi lần một dòng usage) để tách chữ dán thành tối đa 100 mục preference/fact; dòng đời tư, người khác, bí mật hay không nói về người dùng nằm trong skipped. " +
+			"Không lưu gì, không ghi audit, không ghi chữ dán vào log. Chữ dán là dữ liệu không tin cậy: mục giống mệnh lệnh (link, \"ignore previous\"…) có instruction_like, mục trùng có duplicate. " +
+			"Chữ rỗng hay quá 20.000 ký tự (CRLF tính một ký tự) -> 400; quá 5 lần một giờ -> 429 ai_memory_import_rate_limited; model sai định dạng hai lần -> 502 ai_memory_import_failed; cờ ask_uni_memory tắt -> 403 ai_memory_disabled. " +
+			"Lỗi của gateway đi thẳng ra: server không có AI -> 503 ai_disabled; hết quota -> 402 ai_quota_exceeded; nhà cung cấp giới hạn tốc độ -> 429 ai_rate_limited (khác ai_memory_import_rate_limited), có Retry-After; nhà cung cấp lỗi -> 502 ai_provider_error; quá hạn chờ -> 504 ai_provider_timeout; model từ chối -> 422 ai_refused. " +
+			"Công tắc Dùng bộ nhớ không chặn.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryImportSplitSDI{},
+		sdo:  sdo.AiMemoryImportSplitSDO{},
+		auth: true,
+	})
+	r.Post("/orgs/{org}/ai/memory/import", h.ImportAiMemory, apiOp{
+		summary: "Save the entries the person ticked",
+		description: "Lưu 1–50 mục đã tick trong một transaction (source import, mỗi mục một dòng audit ai_memory.created không kèm chữ); server kiểm lại như thêm tay. " +
+			"Mục sai (kind, chữ rỗng, quá 300 ký tự, xuống dòng) -> 400 và không mục nào được lưu; mục trùng bộ nhớ hay trùng mục trước trong lần lưu thì bỏ qua và đếm trong skipped_duplicates; số mục còn lại vượt chỗ -> 409 ai_memory_full, không mục nào được lưu. " +
+			"Cờ tắt -> 403 ai_memory_disabled. Công tắc Dùng bộ nhớ không chặn.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryImportSDI{},
+		sdo:  sdo.AiMemoryImportSDO{},
+		auth: true,
+	})
+	r.Post("/ai/memory-proposals/{memoryProposalID}/apply", h.ApplyAiMemoryProposal, apiOp{
+		summary: "Apply an Ask UNI memory proposal",
+		description: "Người hỏi bấm Nhớ / Lưu / Quên trên thẻ đề xuất bộ nhớ: thêm, sửa hoặc xóa mục bộ nhớ của chính mình, ghi audit ai_memory.* (không kèm chữ) có metadata.via ask_uni; bấm hai lần chỉ chạy một lần. " +
+			"Không bao giờ tự áp dụng, ở mọi chế độ; cờ ask_uni_actions và trần ghi không liên quan. Dòng của người khác hoặc không có -> 404 (không lộ dòng có tồn tại); cờ ask_uni_memory tắt -> 403 ai_memory_disabled; mất quyền workspace -> 403. " +
+			"Mục update/forget nhắm tới đã bị xóa -> 404 ai_memory_not_found. 409 kèm dòng hiện tại trong error.fields.proposal: proposal_not_pending, proposal_expired (quá 24 giờ), ai_memory_off (người hỏi tắt Dùng bộ nhớ), ai_memory_full, ai_memory_duplicate, ai_memory_changed (mục update/forget nhắm tới đã đổi loại hoặc chữ từ khi UNI đề xuất; không đổi gì, dòng giữ pending).",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryProposalDTO{},
+		auth: true,
+	})
+	r.Post("/ai/memory-proposals/{memoryProposalID}/reject", h.RejectAiMemoryProposal, apiOp{
+		summary: "Reject an Ask UNI memory proposal",
+		description: "Bỏ qua một đề xuất bộ nhớ pending của chính người hỏi, kể cả đã quá hạn: pending -> rejected, ghi audit ai_memory_proposal.rejected (không kèm chữ). " +
+			"Dòng của người khác -> 404; cờ tắt -> 403 ai_memory_disabled; dòng không còn pending -> 409 proposal_not_pending kèm dòng trong error.fields.proposal.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryProposalDTO{},
+		auth: true,
+	})
+	r.Post("/ai/memory-proposals/{memoryProposalID}/undo", h.UndoAiMemoryProposal, apiOp{
+		summary: "Undo an applied Ask UNI memory proposal",
+		description: "Hoàn tác một lần một đề xuất bộ nhớ đã áp dụng: remember xóa mục đã tạo, update ghi lại chữ cũ, forget tạo lại mục (id mới); ghi audit ai_memory.* của lệnh ngược. " +
+			"Mục đã bị sửa hoặc xóa sau khi áp dụng -> 409 undo_unavailable, dòng giữ applied; dòng không applied -> 409 proposal_not_pending; cả hai kèm dòng trong error.fields.proposal. Dòng của người khác -> 404; cờ tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiMemoryProposalDTO{},
+		auth: true,
+	})
+	r.Patch("/ai/memory-proposals/{memoryProposalID}", h.EditAiMemoryProposal, apiOp{
+		summary: "Edit an Ask UNI memory proposal",
+		description: "Sửa loại và/hoặc chữ của một đề xuất remember/update pending trước khi áp dụng; trường bỏ trống thì giữ. Chữ sai hoặc sửa đề xuất forget -> 400; trùng một mục có sẵn -> 409 ai_memory_duplicate. " +
+			"Không ghi audit: dòng là sổ sách AI cho tới khi áp dụng. Dòng của người khác -> 404; không còn pending / quá hạn -> 409 kèm dòng; cờ tắt -> 403 ai_memory_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiMemoryProposalEditSDI{},
+		sdo:  sdo.AiMemoryProposalDTO{},
+		auth: true,
+	})
+	r.Post("/ai/proposals/{proposalID}/apply", h.ApplyAiProposal, apiOp{
+		summary: "Apply an Ask UNI proposal",
+		description: "Áp dụng một dòng đề xuất của chính người hỏi (nút Áp dụng): chạy lệnh nghiệp vụ như người hỏi, ghi audit ai_proposal.applied. Bấm hai lần chỉ chạy một lần. " +
+			"Dòng của người khác hoặc không có -> 404 (không lộ dòng có tồn tại). Dòng không còn pending 409 proposal_not_pending, quá 24 giờ 409 proposal_expired, trỏ tới dòng chưa áp dụng 409 proposal_ref_pending, " +
+			"cờ ask_uni_actions tắt hoặc trần off 403 ai_actions_disabled, quá 30 dòng mỗi phút 429 ai_write_rate_limited. " +
+			"Lệnh chạy nhưng bị từ chối (not_found, invalid_args, revision_conflict, lỗi của lệnh…) thì dòng thành failed và route trả 409 với mã đó, kèm chính dòng trong error.fields.proposal; " +
+			"khác với các từ chối trên, vốn không kèm dòng. Thành công trả 200 và dòng.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiProposalDTO{},
+		auth: true,
+	})
+	r.Post("/ai/proposals/{proposalID}/reject", h.RejectAiProposal, apiOp{
+		summary:     "Reject an Ask UNI proposal",
+		description: "Bỏ qua một dòng pending của chính người hỏi: pending → rejected, ghi audit ai_proposal.rejected. Dòng của người khác -> 404; không còn pending -> 409 proposal_not_pending; cờ tắt -> 403 ai_actions_disabled.",
+		tags:        []string{"ai"},
+		sdo:         sdo.AiProposalDTO{},
+		auth:        true,
+	})
+	r.Post("/ai/proposals/{proposalID}/undo", h.UndoAiProposal, apiOp{
+		summary: "Undo an applied Ask UNI proposal",
+		description: "Hoàn tác một dòng đã áp dụng và còn lệnh ngược; mỗi dòng hoàn tác một lần. Đối tượng đã bị sửa sau đó thì 409 undo_unavailable và dòng giữ nguyên applied; " +
+			"dòng không applied 409 proposal_not_pending. Ghi audit ai_proposal.undone. Dòng của người khác -> 404; cờ tắt -> 403 ai_actions_disabled.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiProposalDTO{},
+		auth: true,
+	})
+	r.Patch("/ai/proposals/{proposalID}", h.EditAiProposal, apiOp{
+		summary: "Edit an Ask UNI proposal",
+		description: "Sửa một dòng pending của chính người hỏi: changes ghép vào tham số rồi kiểm lại như một lần gọi mới (xem trước, mức và revision được dựng lại); trả dòng mới. " +
+			"Sửa bị từ chối thì không đổi gì (400 invalid_request). Không ghi audit: dòng là sổ sách AI cho tới khi áp dụng. Dòng của người khác -> 404; không còn pending / quá hạn -> 409; cờ tắt -> 403 ai_actions_disabled.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiProposalEditSDI{},
+		sdo:  sdo.AiProposalDTO{},
+		auth: true,
+	})
+	r.Post("/ai/conversations/{conversationID}/messages/{messageID}/proposals/apply", h.ApplyAiMessageProposals, apiOp{
+		summary: "Apply several Ask UNI proposals of an answer",
+		description: "Áp dụng các dòng được chọn của một câu trả lời (Áp dụng tất cả, hoặc duyệt kế hoạch), theo position; dừng ở dòng lỗi đầu tiên, các dòng chọn sau nó giữ pending. " +
+			"Chế độ Kế hoạch: dòng pending không được chọn chuyển rejected trong cùng lần gọi. Một dòng chọn trỏ tới dòng chưa chọn và chưa áp dụng thì 409 proposal_ref_pending trước khi chạy gì. " +
+			"proposal_ids rỗng hoặc quá 10 -> 400; id không thuộc câu trả lời của chính người hỏi -> 404. Thành công trả mọi dòng của câu trả lời. " +
+			"Dừng vì lệnh bị từ chối thì 409 với mã của dòng lỗi, kèm mọi dòng của câu trả lời trong error.fields.proposals.",
+		tags: []string{"ai"},
+		sdi:  sdi.AiApplyProposalsSDI{},
+		sdo:  sdo.AiProposalListSDO{},
+		auth: true,
+	})
+	r.Post("/ai/conversations/{conversationID}/messages/{messageID}/document", h.SaveAiAnswerDocument, apiOp{
+		summary: "Save an Ask UNI answer as a document",
+		description: "Tạo tài liệu (trang riêng tư ở gốc) từ câu trả lời đã lưu của chính người hỏi: [S#] thành liên kết nội bộ, tiêu đề là tên hội thoại. Chạy như một dòng applied của tin đó (decision answer, position 0) và có Hoàn tác. " +
+			"Một tin chỉ tạo một lần: lần hai trả dòng đã có. Tin không phải câu trả lời của trợ lý, hoặc của người khác -> 404; cờ tắt -> 403 ai_actions_disabled; lệnh bị từ chối -> 409 như apply, kèm dòng.",
+		tags: []string{"ai"},
+		sdo:  sdo.AiProposalDTO{},
+		auth: true,
 	})
 }

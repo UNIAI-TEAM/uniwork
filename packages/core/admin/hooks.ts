@@ -79,6 +79,16 @@ export function useChangeOrganizationPlan(orgId: string) {
   );
 }
 
+export function useScheduleAdminOrganizationDeletion(orgId: string) {
+  return useOrganizationMutation(orgId, (body: { reason: string; confirm_slug: string }) =>
+    admin.scheduleAdminOrganizationDeletion(orgId, body),
+  );
+}
+
+export function useCancelAdminOrganizationDeletion(orgId: string) {
+  return useOrganizationMutation(orgId, (reason: string) => admin.cancelAdminOrganizationDeletion(orgId, reason));
+}
+
 export function useAdminTrace(traceId: string) {
   return useQuery({
     queryKey: adminKeys.trace(traceId),

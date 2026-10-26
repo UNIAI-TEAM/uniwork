@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
+  cancelAdminOrganizationDeletion,
   changeOrganizationPlan,
   deleteFlagOverride,
   getAdminMe,
@@ -16,6 +17,7 @@ import {
   listAdminPaymentIntents,
   listAdminPlans,
   refundAdminInvoice,
+  scheduleAdminOrganizationDeletion,
   setFlagOverride,
   updateAdminPlan,
   suspendOrganization,
@@ -220,6 +222,27 @@ describe("admin endpoints", () => {
     expect(await updateAdminPlan("starter", body)).toMatchObject({ code: "starter" });
     vi.mocked(fetch).mockResolvedValueOnce(json({ plan: { code: true } }));
     expect(await updateAdminPlan("starter", body)).toBeNull();
+  });
+
+  it("schedules and cancels organization deletion, and degrades a malformed body", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ deletion_scheduled_at: "2026-10-28T09:30:00Z" }), { status: 202 }));
+    await expect(scheduleAdminOrganizationDeletion("o1", { reason: "khách yêu cầu xóa tổ chức", confirm_slug: "acme" })).resolves.toEqual({
+      deletion_scheduled_at: "2026-10-28T09:30:00Z",
+    });
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/admin/organizations/o1/deletion");
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("{}", { status: 202 }));
+    await expect(scheduleAdminOrganizationDeletion("o1", { reason: "khách yêu cầu xóa tổ chức", confirm_slug: "acme" })).resolves.toBeNull();
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ deletion_scheduled_at: null }), { status: 200 }));
+    await expect(cancelAdminOrganizationDeletion("o1", "khách rút lại yêu cầu xóa")).resolves.toEqual({ deletion_scheduled_at: null });
+  });
+
+  it("reads deletion_scheduled_at and erased, defaulting when the server omits them", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      organization: { id: "o1", slug: "acme", name: "Acme", status: "active" },
+    }), { status: 200 }));
+    const detail = await getAdminOrganization("o1");
+    expect(detail?.deletion_scheduled_at).toBeNull();
+    expect(detail?.erased).toBe(false);
   });
 
   it("refundAdminInvoice returns refund_pending without throwing after a 200", async () => {

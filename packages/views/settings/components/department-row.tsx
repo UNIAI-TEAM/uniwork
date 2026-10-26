@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Building2, CornerDownRight, Pencil } from "lucide-react";
+import { Archive, BuildingComplex, CornerDownRight, Pencil } from "lucide-react";
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { Department } from "@uniwork/core/types/people";
@@ -129,7 +129,7 @@ export function DepartmentRow({
             <CornerDownRight aria-hidden className="size-4" />
           </span>
         ) : (
-          <IconTile icon={Building2} size="sm" />
+          <IconTile icon={BuildingComplex} size="sm" />
         )
       }
       title={
