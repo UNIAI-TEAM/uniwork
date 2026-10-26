@@ -1,0 +1,6 @@
+$ git fetch -q origin develop; rm -rf /tmp/devbase; git worktree add -f /tmp/devbase FETCH_HEAD >/dev/null 2>&1; cd /tmp/devbase/server && git log --oneline -1 && go vet ./... > /tmp/pr8r5-dev-vet.log 2>&1; rc1=$?; go tool staticcheck ./... > /tmp/pr8r5-dev-sc.log 2>&1; rc2=$?; tail -20 /tmp/pr8r5-dev-vet.log /tmp/pr8r5-dev-sc.log | cut -c1-250; echo; echo "DEV_VET_EXIT=$rc1"; echo "DEV_STATICCHECK_EXIT=$rc2"; true
+fdb4577e6 fix(deploy): scale the meeting agent at 75% CPU
+tail: option used in invalid context -- 2
+
+DEV_VET_EXIT=0
+DEV_STATICCHECK_EXIT=1

@@ -1,0 +1,3 @@
+$ cd server && go vet ./... > /tmp/pr8r5-vet.log 2>&1; rc=$?; tail -40 /tmp/pr8r5-vet.log | cut -c1-250; echo; echo "VET_EXIT=$rc"; [ $rc -eq 0 ]
+
+VET_EXIT=0

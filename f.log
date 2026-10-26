@@ -1,0 +1,5 @@
+$ for i in $(seq 1 14); do test -f /tmp/pr8r5-rest.exit && break; sleep 30; done; echo "DONE_FILE=$(test -f /tmp/pr8r5-rest.exit && echo yes || echo no)"; tail -3 /tmp/pr8r5-rest.log | cut -c1-200
+DONE_FILE=yes
+ok  	github.com/unicomhub/uniwork/server/migrations	17.163s	coverage: 74.6% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/db/tablequery	1.018s	coverage: 82.9% of statements
+ok  	github.com/unicomhub/uniwork/server/pkg/featureflag	1.018s	coverage: 85.9% of statements

@@ -1,0 +1,5 @@
+$ cd server && go tool staticcheck ./... > /tmp/pr8r5-sc.log 2>&1; rc=$?; tail -40 /tmp/pr8r5-sc.log | cut -c1-250; echo; echo "STATICCHECK_EXIT=$rc"; [ $rc -eq 0 ]
+internal/logger/text_test.go:521:5: should use !strings.Contains(plain, "method=GET") instead (S1003)
+internal/logger/text_test.go:521:47: should use !strings.Contains(plain, "trace_id=tid") instead (S1003)
+
+STATICCHECK_EXIT=1
