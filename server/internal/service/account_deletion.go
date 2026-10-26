@@ -74,6 +74,9 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err := lockMembership(ctx, qtx, userID); err != nil {
 		return err
 	}
+	if err := lockAllDriveGrantSubsForUserInTx(ctx, qtx, userID); err != nil {
+		return err
+	}
 	var closedMailboxes []db.DisconnectEmailHubAccountsForUserRow
 	var closedDriveSubs []string
 	if owned > 0 {

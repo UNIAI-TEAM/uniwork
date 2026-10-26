@@ -119,6 +119,9 @@ func (s *DriveConnectionService) oauthRefreshFailed(ctx context.Context, read db
 		!sameDriveExpiry(current.AccessExpiresAt, read.AccessExpiresAt) {
 		return s.accessTokenOf(current)
 	}
+	if s.testBeforeMarkAuthFailed != nil {
+		s.testBeforeMarkAuthFailed(read)
+	}
 	if !s.markAuthFailed(ctx, read, read.CredentialVersion, re.ErrorCode) {
 		if latest, lerr := s.rereadDriveConnection(ctx, read); lerr == nil {
 			if latest.CredentialVersion != read.CredentialVersion || latest.RefreshTokenEnc != read.RefreshTokenEnc ||

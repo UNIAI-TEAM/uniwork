@@ -26,6 +26,10 @@ const (
 	// (pool acquisition, advisory lock and commit) so a held DB lock cannot keep
 	// a worker alive past the 30s shutdown wait (R1-17).
 	driveRevocationResolveTimeout = 15 * time.Second
+	// driveRevocationPostCommitTimeout bounds the synchronous post-commit grant
+	// cleanup (claim transaction, Google revoke, and resolve) per sub so a held
+	// grant lock or exhausted pool never stalls an already-committed request (R2-3).
+	driveRevocationPostCommitTimeout = 15 * time.Second
 	// unresolved revocation is abandoned and alerted (spec §5.3b step 3).
 	driveRevocationAbandonWindow = 24 * time.Hour
 	// driveRevocationEvidenceRetention is the 1-day window after which resolved/empty
@@ -136,14 +140,23 @@ func cleanUpDriveGrantsAfterCommit(ctx context.Context, drive *DriveConnectionSe
 	if drive == nil || len(subs) == 0 {
 		return
 	}
-	ctx = context.WithoutCancel(ctx)
+	if drive.testBeforePostCommitClean != nil {
+		drive.testBeforePostCommitClean(subs)
+	}
+	baseCtx := context.WithoutCancel(ctx)
+	timeout := driveRevocationPostCommitTimeout
+	if drive.postCommitTimeout > 0 {
+		timeout = drive.postCommitTimeout
+	}
 	seen := make(map[string]bool, len(subs))
 	for _, sub := range subs {
 		if sub == "" || seen[sub] {
 			continue
 		}
 		seen[sub] = true
-		drive.ProcessOneRevocation(ctx, sub)
+		subCtx, cancel := context.WithTimeout(baseCtx, timeout)
+		drive.ProcessOneRevocation(subCtx, sub)
+		cancel()
 	}
 }
 

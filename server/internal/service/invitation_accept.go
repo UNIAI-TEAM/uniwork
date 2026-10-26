@@ -463,6 +463,11 @@ func (s *WorkspaceService) acceptInvite(ctx context.Context, userID, token, orgI
 func (s *WorkspaceService) giveUp(ctx context.Context, q *db.Queries, userID string,
 	conflicts []MembershipConflict, plan map[string]SwitchResolution, locked map[string]bool,
 ) ([]db.DisconnectEmailHubAccountsForUserRow, []string, error) {
+	if len(conflicts) > 0 {
+		if err := lockAllDriveGrantSubsForUserInTx(ctx, q, userID); err != nil {
+			return nil, nil, err
+		}
+	}
 	ordered := append([]MembershipConflict(nil), conflicts...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Organization.ID < ordered[j].Organization.ID })
 	meta := map[string]any{"reason": "organization_switch"}

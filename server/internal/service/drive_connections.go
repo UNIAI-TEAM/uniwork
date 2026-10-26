@@ -123,12 +123,15 @@ type DriveConnectionService struct {
 	refreshLocks               sync.Map // connectionID -> *sync.Mutex
 	now                        func() time.Time
 	resolveTimeout             time.Duration
+	postCommitTimeout          time.Duration
 	testBeforeCallbackTx       func(sub string)
 	testAfterCallbackGrantLock func(sub string)
 	testBeforeDisconnectRow    func(sub string)
 	testAfterRevocationClaimTx func(sub string, attempt db.DriveGrantRevocation)
 	testAfterRevokeGoogle      func(sub string, attempt db.DriveGrantRevocation, revokeErr error) error
 	testBeforeResolveTx        func(sub string, generation int64, attemptID string) error
+	testBeforeMarkAuthFailed   func(conn db.DriveConnection)
+	testBeforePostCommitClean  func(subs []string)
 }
 
 // DriveTokenRevoker is the revocation-only subset of DriveProvider so queued
@@ -911,7 +914,32 @@ func (s *DriveConnectionService) Disconnect(ctx context.Context, actor Actor, wo
 // their refresh tokens in drive_grant_revocations under the global per-sub lock
 // in deterministic google_sub order, and writes one drive_connection.disconnected
 // audit + drive_connection.changed outbox event per disconnected row (spec §5.3a).
-var testAfterLifecycleGrantLocks func(subs []string)
+var (
+	testAfterLifecycleGrantLocks func(subs []string)
+	testAfterHelperFirstDriveSub func(userID, orgID, sub string)
+)
+
+// lockAllDriveGrantSubsForUserInTx discovers and acquires all global
+// drive_grant:<google_sub> transaction-scoped advisory locks across every
+// organization for userID in sorted order once before any helper locks
+// drive_connections rows in the transaction (R1-2).
+func lockAllDriveGrantSubsForUserInTx(ctx context.Context, qtx *db.Queries, userID string) error {
+	subs, err := qtx.ListActiveDriveSubsForUser(ctx, db.ListActiveDriveSubsForUserParams{
+		UserID: userID,
+	})
+	if err != nil {
+		return err
+	}
+	for _, sub := range subs {
+		if err := qtx.LockDriveGrantSub(ctx, sub); err != nil {
+			return err
+		}
+	}
+	if testAfterLifecycleGrantLocks != nil && len(subs) > 0 {
+		testAfterLifecycleGrantLocks(subs)
+	}
+	return nil
+}
 
 func disconnectDriveConnectionsForUserInTx(ctx context.Context, qtx *db.Queries, actor audit.Actor, userID, orgID, reason string) ([]string, error) {
 	var orgParam pgtype.Text
@@ -930,11 +958,14 @@ func disconnectDriveConnectionsForUserInTx(ctx context.Context, qtx *db.Queries,
 		return nil, err
 	}
 	lockedSubs := make(map[string]bool, len(discoveredSubs))
-	for _, sub := range discoveredSubs {
+	for i, sub := range discoveredSubs {
 		if err := qtx.LockDriveGrantSub(ctx, sub); err != nil {
 			return nil, err
 		}
 		lockedSubs[sub] = true
+		if i == 0 && testAfterHelperFirstDriveSub != nil {
+			testAfterHelperFirstDriveSub(userID, orgID, sub)
+		}
 	}
 	if testAfterLifecycleGrantLocks != nil && len(discoveredSubs) > 0 {
 		testAfterLifecycleGrantLocks(discoveredSubs)
