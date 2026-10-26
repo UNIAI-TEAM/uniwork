@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { e2eApiUrl } from "./api-url";
 import { auditText } from "./contrast";
 import { checkActiveFocusIndicator, checkActiveFocusRingContrast } from "./focus";
-import { createRecordingAccount } from "./meeting-recording-fixture";
+import { createRecordingAccount, loginViaUi } from "./meeting-recording-fixture";
 
 /**
  * UNI-2198 (Q1): Google Drive connector E2E on the real server + production web
@@ -22,15 +22,7 @@ async function setMode(page: Page, mode: "light" | "dark") {
 
 async function signInAndOpenSettingsIntegrations(page: Page, tag: string) {
   const account = await createRecordingAccount(page, e2eApiUrl, tag);
-  await page.goto("/login");
-  await expect(async () => {
-    await page.getByLabel("Email").fill(account.email);
-    await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
-    await page.waitForTimeout(300);
-    await expect(page.getByLabel("Email")).toHaveValue(account.email, { timeout: 500 });
-  }).toPass({ timeout: 15_000 });
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
-  await expect(page).not.toHaveURL(/\/login$/, { timeout: 20_000 });
+  await loginViaUi(page, account.email);
   await page.goto(`/${account.orgSlug}/${account.wsSlug}/settings?tab=integrations`);
   await expect(page.getByRole("heading", { name: "Tích hợp" })).toBeVisible({ timeout: 30_000 });
   return account;
@@ -75,6 +67,11 @@ test("2. User A links a Drive file from the create-task dialog (paperclip / Atta
     true,
     "Missing backend routes POST /drive-connections/{id}/picker-token, POST /workspaces/{ws}/drive-files, CreateTaskSDI.drive_files, and GET /tasks/{taskID}/drive-files (card B4 / UNI-2180 not merged on root 1c9bbb275)",
   );
+  // Steps once the card lands:
+  // Sign in as A, open the create-task dialog and install the fake Picker (window.__UNIWORK_FAKE_DRIVE_PICKER__).
+  // Open the paperclip / Attach menu, choose Google Drive and pick the fake file.
+  // Submit the task; expect the create request to carry drive_files.
+  // Open the new task and expect the Drive card with the file name.
   await page.goto("/");
 });
 
@@ -85,6 +82,11 @@ test("3. Documents › Google Drive (4.1) for A lists that file (all accounts + 
     true,
     "Missing backend route GET /api/v1/workspaces/{workspaceID}/drive-files and POST /drive-files to link a file (card B4 / UNI-2180 not merged on root 1c9bbb275)",
   );
+  // Steps once the card lands:
+  // Link a Drive file for A (through the task dialog or the API).
+  // Open Documents > Google Drive (4.1); expect the file in the all-accounts list.
+  // Switch to the single-account view; expect the same file.
+  // Expect the sidebar Google Drive section to be visible.
   await page.goto("/");
 });
 
@@ -95,6 +97,10 @@ test("4. User B (same workspace, no connection): sees the file on the task card 
     true,
     "Missing backend routes GET /api/v1/tasks/{taskID}/drive-files and GET /api/v1/workspaces/{workspaceID}/drive-files (card B4 / UNI-2180 not merged on root 1c9bbb275)",
   );
+  // Steps once the card lands:
+  // As A, link a file to a task; register B in the same workspace without a Drive connection.
+  // Open the task as B; expect the card in the unknown / no-access state (spec 7.10).
+  // Open Documents > Google Drive (4.1) as B; expect the empty state with none of A's files.
   await page.goto("/");
 });
 
@@ -105,6 +111,11 @@ test("5. A unlinks at the 4.2 file page; the card on the already-open task page 
     true,
     "Missing backend routes GET/DELETE /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID} and drive_file.unlinked outbox emission (card B4 / UNI-2180 not merged on root 1c9bbb275)",
   );
+  // Steps once the card lands:
+  // As A, open the task page and keep it open; open the 4.2 file page in a second tab.
+  // Unlink the file on 4.2.
+  // Expect the card on the open task page to disappear without a reload (drive_file.unlinked invalidation).
+  // Expect the file gone from 4.1.
   await page.goto("/");
 });
 
@@ -203,6 +214,11 @@ test("6b. Contrast + focus on Documents › Google Drive (4.1) and the Drive fil
     true,
     "Missing backend routes GET /api/v1/workspaces/{workspaceID}/drive-files and GET /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID} needed for 4.1 and 4.2 to render beyond their error state (card B4 / UNI-2180 not merged on root 1c9bbb275)",
   );
+  // Steps once the card lands:
+  // Link a file for A so 4.1 and 4.2 render real content.
+  // For light and dark: open 4.1, run auditText and the focus checks.
+  // Open the 4.2 file detail page and repeat the contrast and focus checks.
+  // Expect no contrast failures and a visible focus indicator.
   await page.goto("/");
 });
 
@@ -213,6 +229,10 @@ test("Part 2 — agent mode sends a Drive file -> proposals", async ({ page }) =
     true,
     "Awaiting B5 (UNI-2181 POST /drive-files/{id}/task-proposals) and W6 (UNI-2190 agent mode + popover proposal trigger)",
   );
+  // Steps once the card lands:
+  // Link a Drive file and open its popover.
+  // Switch to agent mode and send the file to the agent.
+  // Expect task proposals to be returned and listed.
   await page.goto("/");
 });
 
@@ -221,6 +241,10 @@ test("Part 2 — proposal review dialog", async ({ page }) => {
     true,
     "Awaiting B5/B6 (UNI-2181/UNI-2182 proposal endpoints) and W7 (UNI-2191 Drive proposal review dialog)",
   );
+  // Steps once the card lands:
+  // Produce proposals from a linked Drive file.
+  // Open the proposal review dialog.
+  // Expect each proposal with editable fields and accept / skip controls.
   await page.goto("/");
 });
 
@@ -229,6 +253,10 @@ test("Part 2 — batch create tasks from Drive proposal", async ({ page }) => {
     true,
     "Awaiting B6 (UNI-2182 POST /drive-task-proposals/{id}/tasks) and W7 (UNI-2191 review dialog batch creation + toast)",
   );
+  // Steps once the card lands:
+  // Open the review dialog with proposals.
+  // Select proposals and confirm the batch create.
+  // Expect the tasks created and the success toast.
   await page.goto("/");
 });
 
@@ -239,6 +267,10 @@ test("Part 2 — second-create warning when tasks were already created from the 
     true,
     "Awaiting B6 (UNI-2182 tasks_created + prior_creations) and W6/W7 (UNI-2190/UNI-2191 recreate warning)",
   );
+  // Steps once the card lands:
+  // Create tasks from a document once.
+  // Create from the same document again.
+  // Expect the warning listing the prior creations before confirming.
   await page.goto("/");
 });
 
@@ -247,5 +279,9 @@ test("Part 2 — 'Tasks created' block on 4.2 Drive file detail page", async ({ 
     true,
     "Awaiting B4/B6 (UNI-2180/UNI-2182 GET /drive-files/{id} with task_creations populated after batch conversion)",
   );
+  // Steps once the card lands:
+  // Create tasks from a Drive proposal in a batch.
+  // Open the 4.2 file detail page.
+  // Expect the 'Tasks created' block listing the new tasks.
   await page.goto("/");
 });
