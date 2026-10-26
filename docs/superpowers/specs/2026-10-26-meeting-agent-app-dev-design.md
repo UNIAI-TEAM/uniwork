@@ -1,6 +1,6 @@
 # App-dev — Thư ký AI (`meeting-agent`) trên host development
 
-> **Trạng thái:** in-progress — thiết kế đã chốt 2026-10-26, chưa triển khai.
+> **Trạng thái:** in-progress — thiết kế đã chốt 2026-10-26; kế hoạch: `docs/superpowers/plans/2026-10-26-meeting-agent-app-dev.md`; chưa triển khai code.
 
 **Ngày:** 2026-10-26
 
