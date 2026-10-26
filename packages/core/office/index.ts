@@ -1,4 +1,5 @@
 export * from "./error-state";
+export * from "./apt-repo";
 export * from "./desktop-handoff";
 export * from "./desktop-platform";
 export * from "./format-flags";

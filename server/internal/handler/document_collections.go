@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +26,21 @@ import (
 // to DocumentService and map its errors; they never query the database and
 // never widen a service input with a client-supplied field.
 
+// documentTypesFromQuery reads the repeated ?type= values of a document list
+// (UNI-2113, one value per param: ?type=docx&type=xlsx): trimmed, a repeat
+// counted once, an empty value kept so the service answers 400 invalid_type
+// for it. The service owns the vocabulary and the AND with kind=/format=.
+func documentTypesFromQuery(q url.Values) []string {
+	var out []string
+	for _, raw := range q["type"] {
+		v := strings.TrimSpace(raw)
+		if !slices.Contains(out, v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 // documentListInput parses the query shared by the list and recent routes.
 // parent_id PRESENCE is the switch between "one tree level" (set, possibly
 // empty = roots) and the flat workspace list (absent); the service owns the
@@ -42,6 +58,7 @@ func documentListInputFor(w http.ResponseWriter, r *http.Request, recent bool) (
 		Match:       strings.TrimSpace(q.Get("match")),
 		Kind:        strings.TrimSpace(q.Get("kind")),
 		Format:      strings.TrimSpace(q.Get("format")),
+		Types:       documentTypesFromQuery(q),
 		Access:      strings.TrimSpace(q.Get("access")),
 		UpdatedBy:   strings.TrimSpace(q.Get("updated_by")),
 		SharedByMe:  strings.TrimSpace(q.Get("shared_by_me")) == "true",
@@ -198,8 +215,8 @@ func (h *handlers) listRecentDocuments(w http.ResponseWriter, r *http.Request) {
 
 // listFavoriteDocuments is GET /workspaces/{workspaceID}/documents/favorites:
 // the caller's stars in the workspace as list rows (UNI-2045 SV-2), newest star
-// first. Only kind, format, sort/order, cursor and limit are read; a request
-// without a sort is the starred order.
+// first. Only kind, format, type, sort/order, cursor and limit are read; a
+// request without a sort is the starred order.
 func (h *handlers) listFavoriteDocuments(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -209,6 +226,7 @@ func (h *handlers) listFavoriteDocuments(w http.ResponseWriter, r *http.Request)
 	in := service.ListDocumentsInput{
 		Kind:        strings.TrimSpace(q.Get("kind")),
 		Format:      strings.TrimSpace(q.Get("format")),
+		Types:       documentTypesFromQuery(q),
 		Cursor:      strings.TrimSpace(q.Get("cursor")),
 		WithEditors: true,
 	}
@@ -252,6 +270,7 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 	}
 	in := service.SharedWithMeQuery{
 		Format:    strings.TrimSpace(r.URL.Query().Get("format")),
+		Types:     documentTypesFromQuery(r.URL.Query()),
 		Access:    strings.TrimSpace(r.URL.Query().Get("access")),
 		UpdatedBy: strings.TrimSpace(r.URL.Query().Get("updated_by")),
 	}

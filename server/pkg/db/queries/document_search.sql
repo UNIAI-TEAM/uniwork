@@ -179,6 +179,21 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                 OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
                     AND length(d.title) > length(sqlc.narg(format)::text) + 1
                     AND right(lower(d.title), length(sqlc.narg(format)::text) + 1) = '.' || sqlc.narg(format)::text))))
+  -- UNI-2113 type filter (repeated ?type=): OR across the values and AND with
+  -- the format/kind filters. The page leg is kind = 'page'; the format leg is the
+  -- format filter above for a list of formats - the verified MIME wins, the
+  -- title's extension answers only while the MIME names none of the formats the
+  -- library lists, and folders stay (a page-only answer has none).
+  AND ((NOT sqlc.arg(type_page)::boolean AND COALESCE(cardinality(sqlc.arg(type_formats)::text[]), 0) = 0)
+       OR (sqlc.arg(type_page)::boolean AND d.kind = 'page')
+       OR (COALESCE(cardinality(sqlc.arg(type_formats)::text[]), 0) > 0
+           AND (d.kind = 'folder'
+                OR (d.kind = 'file'
+                    AND (cv.mime_type = ANY(sqlc.arg(type_mimes)::text[])
+                         OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
+                             AND EXISTS (SELECT 1 FROM unnest(sqlc.arg(type_formats)::text[]) AS tf(f)
+                                         WHERE length(d.title) > length(tf.f) + 1
+                                           AND right(lower(d.title), length(tf.f) + 1) = '.' || tf.f)))))))
   -- UNI-1868 access filter: the same ladder the permission block above
   -- resolves, so it agrees with the my_level the row reports - role or ACL
   -- owner manage, the home row's workspace_level, a live share at a level in
@@ -472,6 +487,21 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                 OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
                     AND length(d.title) > length(sqlc.narg(format)::text) + 1
                     AND right(lower(d.title), length(sqlc.narg(format)::text) + 1) = '.' || sqlc.narg(format)::text))))
+  -- UNI-2113 type filter (repeated ?type=): OR across the values and AND with
+  -- the format/kind filters. The page leg is kind = 'page'; the format leg is the
+  -- format filter above for a list of formats - the verified MIME wins, the
+  -- title's extension answers only while the MIME names none of the formats the
+  -- library lists, and folders stay (a page-only answer has none).
+  AND ((NOT sqlc.arg(type_page)::boolean AND COALESCE(cardinality(sqlc.arg(type_formats)::text[]), 0) = 0)
+       OR (sqlc.arg(type_page)::boolean AND d.kind = 'page')
+       OR (COALESCE(cardinality(sqlc.arg(type_formats)::text[]), 0) > 0
+           AND (d.kind = 'folder'
+                OR (d.kind = 'file'
+                    AND (cv.mime_type = ANY(sqlc.arg(type_mimes)::text[])
+                         OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
+                             AND EXISTS (SELECT 1 FROM unnest(sqlc.arg(type_formats)::text[]) AS tf(f)
+                                         WHERE length(d.title) > length(tf.f) + 1
+                                           AND right(lower(d.title), length(tf.f) + 1) = '.' || tf.f)))))))
   AND (sqlc.narg(access)::text IS NULL
        OR (sqlc.narg(access)::text = 'restricted' AND d.visibility = 'restricted')
        OR (sqlc.narg(access)::text <> 'restricted'
@@ -654,6 +684,21 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                 OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
                     AND length(d.title) > length(sqlc.narg(format)::text) + 1
                     AND right(lower(d.title), length(sqlc.narg(format)::text) + 1) = '.' || sqlc.narg(format)::text))))
+  -- UNI-2113 type filter (repeated ?type=): OR across the values and AND with
+  -- the format/kind filters. The page leg is kind = 'page'; the format leg is the
+  -- format filter above for a list of formats - the verified MIME wins, the
+  -- title's extension answers only while the MIME names none of the formats the
+  -- library lists, and folders stay (a page-only answer has none).
+  AND ((NOT sqlc.arg(type_page)::boolean AND COALESCE(cardinality(sqlc.arg(type_formats)::text[]), 0) = 0)
+       OR (sqlc.arg(type_page)::boolean AND d.kind = 'page')
+       OR (COALESCE(cardinality(sqlc.arg(type_formats)::text[]), 0) > 0
+           AND (d.kind = 'folder'
+                OR (d.kind = 'file'
+                    AND (cv.mime_type = ANY(sqlc.arg(type_mimes)::text[])
+                         OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
+                             AND EXISTS (SELECT 1 FROM unnest(sqlc.arg(type_formats)::text[]) AS tf(f)
+                                         WHERE length(d.title) > length(tf.f) + 1
+                                           AND right(lower(d.title), length(tf.f) + 1) = '.' || tf.f)))))))
   -- UNI-1868: every row this view can return is already manage (the ladder
   -- above is manage-only), so the service refuses access=manage/edit here and
   -- 'restricted' - the row's visibility - is the one access filter it takes.
@@ -810,6 +855,21 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                 OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
                     AND length(d.title) > length(sqlc.narg(format)::text) + 1
                     AND right(lower(d.title), length(sqlc.narg(format)::text) + 1) = '.' || sqlc.narg(format)::text))))
+  -- UNI-2113 type filter (repeated ?type=): OR across the values and AND with
+  -- the format/kind filters. The page leg is kind = 'page'; the format leg is the
+  -- format filter above for a list of formats - the verified MIME wins, the
+  -- title's extension answers only while the MIME names none of the formats the
+  -- library lists, and folders stay (a page-only answer has none).
+  AND ((NOT sqlc.arg(type_page)::boolean AND COALESCE(cardinality(sqlc.arg(type_formats)::text[]), 0) = 0)
+       OR (sqlc.arg(type_page)::boolean AND d.kind = 'page')
+       OR (COALESCE(cardinality(sqlc.arg(type_formats)::text[]), 0) > 0
+           AND (d.kind = 'folder'
+                OR (d.kind = 'file'
+                    AND (cv.mime_type = ANY(sqlc.arg(type_mimes)::text[])
+                         OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
+                             AND EXISTS (SELECT 1 FROM unnest(sqlc.arg(type_formats)::text[]) AS tf(f)
+                                         WHERE length(d.title) > length(tf.f) + 1
+                                           AND right(lower(d.title), length(tf.f) + 1) = '.' || tf.f)))))))
   AND (sqlc.narg(access)::text IS NULL
        OR (sqlc.narg(access)::text = 'restricted' AND d.visibility = 'restricted')
        OR (sqlc.narg(access)::text <> 'restricted'
@@ -1164,6 +1224,21 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                 OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
                     AND length(d.title) > length(sqlc.narg(format)::text) + 1
                     AND right(lower(d.title), length(sqlc.narg(format)::text) + 1) = '.' || sqlc.narg(format)::text))))
+  -- UNI-2113 type filter (repeated ?type=): OR across the values and AND with
+  -- the format/kind filters. The page leg is kind = 'page'; the format leg is the
+  -- format filter above for a list of formats - the verified MIME wins, the
+  -- title's extension answers only while the MIME names none of the formats the
+  -- library lists, and folders stay (a page-only answer has none).
+  AND ((NOT sqlc.arg(type_page)::boolean AND COALESCE(cardinality(sqlc.arg(type_formats)::text[]), 0) = 0)
+       OR (sqlc.arg(type_page)::boolean AND d.kind = 'page')
+       OR (COALESCE(cardinality(sqlc.arg(type_formats)::text[]), 0) > 0
+           AND (d.kind = 'folder'
+                OR (d.kind = 'file'
+                    AND (cv.mime_type = ANY(sqlc.arg(type_mimes)::text[])
+                         OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY(sqlc.arg(format_mimes)::text[])))
+                             AND EXISTS (SELECT 1 FROM unnest(sqlc.arg(type_formats)::text[]) AS tf(f)
+                                         WHERE length(d.title) > length(tf.f) + 1
+                                           AND right(lower(d.title), length(tf.f) + 1) = '.' || tf.f)))))))
   AND (sqlc.narg(access)::text IS NULL
        OR (sqlc.narg(access)::text = 'restricted' AND d.visibility = 'restricted')
        OR (sqlc.narg(access)::text <> 'restricted'

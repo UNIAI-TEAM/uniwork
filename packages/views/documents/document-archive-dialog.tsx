@@ -54,7 +54,11 @@ function firstName(nodes: DocumentTreeNode[]): string | null {
  * reads the server's separate subfolder and document counts (`enabled: open`,
  * `staleTime: 0`), locks confirmation until the counts arrive, replaces the
  * confirm button when `too_large` is true, and surfaces 403/404 as the subtree
- * permission message. For non-folder documents, the subtree is read as before.
+ * permission message. A page or file reads the same impact (UNI-2074: the server
+ * answers for every root): the count shown is its `total`, one sentence says
+ * that other people's documents inside go back to their owners when
+ * `relocated_count > 0` (and then no tree title is shown, it may be one of them),
+ * and confirmation waits for both the impact and the tree.
  * Restore explains the per-item rule (RESTORE-01): the item and the children
  * inside it the viewer manages come back; the rest stay in the trash.
  *
@@ -76,7 +80,7 @@ export function DocumentArchiveDialog({
   // Archiving a folder deletes its subtree into the trash; the server counts
   // subfolders and documents separately via archive-impact (FD-D6, §3.4/§3.6).
   const folder = doc.kind === "folder";
-  const impact = useDocumentArchiveImpact(wsId, doc.id, { enabled: open && isArchive && folder });
+  const impact = useDocumentArchiveImpact(wsId, doc.id, { enabled: open && isArchive });
   const subtree = useDocumentTree(wsId, doc.id, { enabled: open && isArchive && !folder });
   const [error, setError] = useState<string | null>(null);
   const keyRef = useRef<string | null>(null);
@@ -89,9 +93,13 @@ export function DocumentArchiveDialog({
     }
   }, [open]);
 
-  const descendants = subtree.data ? subtreeCount(subtree.data.documents) : 0;
-  const total = 1 + descendants;
-  const firstChild = subtree.data ? firstName(subtree.data.documents) : null;
+  const impactData = impact.data && !impact.data.too_large ? impact.data : null;
+  const relocatedCount = impactData?.relocated_count ?? 0;
+  // What will really be trashed (the server's total), not the tree: the tree also holds what relocates.
+  const total = impactData ? impactData.total : 1 + (subtree.data ? subtreeCount(subtree.data.documents) : 0);
+  const descendants = total - 1;
+  // A tree title may belong to a document that relocates: name one only when nothing does.
+  const firstChild = relocatedCount === 0 && subtree.data ? firstName(subtree.data.documents) : null;
 
   const confirm = async () => {
     if (pending) return;
@@ -149,11 +157,11 @@ export function DocumentArchiveDialog({
   };
 
   const impactLoading = impact.isPending || impact.isFetching;
-  const tooLarge = isArchive && folder && !impactLoading && !impact.isError && impact.data?.too_large === true;
+  const tooLarge = isArchive && !impactLoading && !impact.isError && impact.data?.too_large === true;
   const impactCls = impact.isError ? classifyDocumentError(impact.error).cls : null;
   // 403/404 on the impact read: nothing the user can retry, so no (dim, disabled) confirm button either.
   const impactRefused =
-    isArchive && folder && !impactLoading && (impactCls === "permission" || impactCls === "missing");
+    isArchive && !impactLoading && (impactCls === "permission" || impactCls === "missing");
 
   const folderImpactBody = (() => {
     if (!isArchive || !folder) return null;
@@ -222,12 +230,38 @@ export function DocumentArchiveDialog({
 
   const impactBody = (() => {
     if (!isArchive || folder) return null;
-    if (subtree.isPending) {
+    if (subtree.isPending || impactLoading) {
       return (
         <div className="space-y-2" aria-busy="true">
           <Skeleton className="h-4 w-2/3" />
           <Skeleton className="h-4 w-1/2" />
         </div>
+      );
+    }
+    if (impactRefused) {
+      return (
+        <p role="alert" className="text-caption text-destructive">
+          {t("documents.archive.archive_forbidden")}
+        </p>
+      );
+    }
+    if (impact.isError || !impact.data) {
+      return (
+        <div className="flex items-center justify-between gap-2">
+          <p role="alert" className="text-caption text-destructive">
+            {t("documents.archive.archive_impact_error")}
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void impact.refetch()}>
+            {t("documents.archive.retry")}
+          </Button>
+        </div>
+      );
+    }
+    if (impact.data.too_large) {
+      return (
+        <p role="alert" className="text-body text-destructive">
+          {t("documents.archive.archive_too_large", { max: impact.data.max_nodes })}
+        </p>
       );
     }
     if (subtree.isError || !subtree.data) {
@@ -242,19 +276,27 @@ export function DocumentArchiveDialog({
         </div>
       );
     }
-    if (total <= 1) {
-      return <p className="text-body text-muted-foreground">{t("documents.archive.impact_empty")}</p>;
-    }
     return (
       <div className="flex flex-col gap-1">
-        <p className="text-body text-foreground">{t("documents.archive.impact_count", { count: total })}</p>
+        {total <= 1 ? (
+          // Only the root goes to the trash: with a relocation sentence below, the sentence alone says the rest.
+          relocatedCount > 0 ? null : (
+            <p className="text-body text-muted-foreground">{t("documents.archive.impact_empty")}</p>
+          )
+        ) : (
+          <p className="text-body text-foreground">{t("documents.archive.impact_count", { count: total })}</p>
+        )}
         {firstChild ? (
           <p className="truncate text-caption text-muted-foreground">{firstChild}</p>
         ) : null}
-        {descendants > 1 ? (
+        {firstChild && descendants > 1 ? (
           <p className="text-caption text-muted-foreground">
             {t("documents.archive.impact_more", { count: descendants - 1 })}
           </p>
+        ) : null}
+        {/* One sentence, never a number: how many items the viewer cannot see is not theirs to learn (UNI-2055 W5). */}
+        {relocatedCount > 0 ? (
+          <p className="text-body text-muted-foreground">{t("documents.archive.archive_relocated")}</p>
         ) : null}
       </div>
     );
@@ -264,7 +306,13 @@ export function DocumentArchiveDialog({
     isArchive &&
     (folder
       ? impactLoading || impact.isError || !impact.data || tooLarge
-      : subtree.isPending || subtree.isError || !subtree.data);
+      : impactLoading ||
+        impact.isError ||
+        !impact.data ||
+        tooLarge ||
+        subtree.isPending ||
+        subtree.isError ||
+        !subtree.data);
 
   return (
     <AlertDialog open={open} onOpenChange={(next) => (!next && !pending ? onOpenChange(false) : undefined)}>

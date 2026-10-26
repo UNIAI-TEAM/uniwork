@@ -95,7 +95,10 @@ func TestDocumentArchive(t *testing.T) {
 	t.Run("a subtree archives in one batch and restores together", func(t *testing.T) {
 		root := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		child := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: root.ID})
-		grand := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: child.ID})
+		// The restricted grandchild is the owner's own: a restricted node the
+		// owner administers without reading would leave for the workspace
+		// root instead (UNI-2074, TestPageRootTrashRelocatesWhatAnAdminCannotRead).
+		grand := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.owner.ID, createdBy: tn.owner.ID, parent: child.ID})
 
 		res, err := f.svc.ArchiveDocument(f.ctx, owner, root.ID, ArchiveDocumentInput{})
 		if err != nil {
@@ -132,18 +135,23 @@ func TestDocumentArchive(t *testing.T) {
 		}
 	})
 
-	t.Run("a restricted child the caller cannot manage blocks the batch", func(t *testing.T) {
+	t.Run("a restricted child the caller cannot manage leaves for the workspace root", func(t *testing.T) {
+		// UNI-2074 (ADR 0037 point 5 for every root): the child is never
+		// trashed by someone who does not manage it and never left live under
+		// an archived parent - it moves to the workspace root and the root
+		// goes to the trash alone.
 		root := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
-		f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: root.ID})
+		child := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID, parent: root.ID})
 		f.share(t, root, DocumentPrincipalUser, tn.member.ID, DocumentLevelManage, tn.aclOwner.ID)
-		if _, err := f.svc.ArchiveDocument(f.ctx, Human(tn.member.ID), root.ID, ArchiveDocumentInput{}); err == nil {
-			t.Fatal("archive with an unmanageable child succeeded")
-		} else {
-			wantCodeOrForbidden(t, err)
+		res, err := f.svc.ArchiveDocument(f.ctx, Human(tn.member.ID), root.ID, ArchiveDocumentInput{})
+		if err != nil {
+			t.Fatalf("archive with an unmanageable child = %v, want the child relocated", err)
 		}
-		// Nothing moved: the refusal is atomic.
-		if d := f.live(t, root.ID); d.ArchiveBatchID.Valid {
-			t.Fatal("partial archive left a batch id behind")
+		if len(res.Affected) != 1 || res.Affected[0] != root.ID {
+			t.Fatalf("archive stamped %v, want the root alone", res.Affected)
+		}
+		if d := f.live(t, child.ID); d.ParentID.Valid || d.ArchiveBatchID.Valid {
+			t.Fatalf("child = parent %q batch %q, want live at the workspace root", d.ParentID.String, d.ArchiveBatchID.String)
 		}
 	})
 
@@ -276,6 +284,11 @@ func TestDocumentRestorePerItem(t *testing.T) {
 			kind: DocumentKindPage, title: "Tài liệu B", parent: folderF.ID,
 		})
 		f.share(t, docA, DocumentPrincipalUser, tn.member.ID, DocumentLevelManage, tn.aclOwner.ID)
+		// The admin reads A and B, so they go to the trash with F: a page the
+		// admin administers without reading would leave for the workspace root
+		// instead (UNI-2074, ADR 0037 point 5 for every root).
+		f.share(t, docA, DocumentPrincipalUser, tn.wsAdmin.ID, DocumentLevelView, tn.aclOwner.ID)
+		f.share(t, docB, DocumentPrincipalUser, tn.wsAdmin.ID, DocumentLevelView, tn.aclOwner.ID)
 
 		arch, err := f.svc.ArchiveDocument(f.ctx, admin, folderF.ID, ArchiveDocumentInput{})
 		if err != nil {

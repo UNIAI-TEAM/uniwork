@@ -165,6 +165,10 @@ var rules = map[string]rule{
 	// the answer that reaches the requester wherever they are.
 	"document.access_requested":       ruleDocumentAccessRequested,
 	"document.access_request_decided": ruleDocumentAccessRequestDecided,
+	// DOC-06 (UNI-2084): the new owner of a single-document transfer.
+	"document.owner_transferred": ruleDocumentOwnerTransferred,
+	// DOC-06b (UNI-2092): the recipient of a bulk transfer, once per run.
+	"document.owners_bulk_transferred": ruleDocumentOwnersBulkTransferred,
 	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
 	// document; the ACL owner hears once per archive batch.
 	"document.archived": both(ruleDocumentTrashed, ruleDocumentTrashedChange),
@@ -1265,6 +1269,100 @@ func ruleDocumentAccessRequestDecided(ctx context.Context, e env, ev outbox.Row,
 		Kind: kind, GroupKey: groupKey,
 		ResourceType: "document", ResourceID: doc.ID,
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+	}}, nil
+}
+
+// ruleDocumentOwnerTransferred tells the new owner of a single-document
+// transfer that the document is theirs (DOC-06 §4.2, §4.4). The frame carries
+// ids only, so the recipient is the document's ACL owner at delivery time,
+// re-checked through the read port (R1-6): an owner who left the workspace
+// since hears nothing. A frame with bulk_id was written by the bulk route,
+// whose own grouped notice covers it, and the caller never hears their own
+// transfer.
+func ruleDocumentOwnerTransferred(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if e.docs == nil || p["document_id"] == "" || p["bulk_id"] != "" {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	if !doc.AclOwnerID.Valid || doc.OwnerKind.Valid {
+		return nil, nil
+	}
+	uid := doc.AclOwnerID.String
+	if isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	canRead, err := e.docs.CanReadDocument(ctx, uid, doc.ID)
+	if err != nil || !canRead {
+		return nil, err
+	}
+	return []Draft{{
+		UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		Kind: KindDocumentOwnerTransferred, GroupKey: "document:" + doc.ID + ":owner",
+		ResourceType: "document", ResourceID: doc.ID,
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String,
+		Params: map[string]string{"actor": actorName(ctx, e.q, ev), "document": doc.Title, "document_id": doc.ID},
+	}}, nil
+}
+
+// ruleDocumentOwnersBulkTransferred tells the recipient of a bulk transfer
+// that a member's documents are theirs (DOC-06b §4.2, §4.4). The frame names
+// no document, so only the recipient's standing is re-checked at delivery
+// time (R1-6): an organization member who was deactivated or left since hears
+// nothing. The group key carries the run, and OncePerGroup makes the later
+// batches of one run add no row and bump nothing. The caller never hears
+// their own transfer. The frame names the workspace of the first moved
+// document: the Inbox and the bell list by workspace, so the row is stored
+// under it while the recipient is still a member there (the workspace gate,
+// e.members), and stays organization-level when the frame has none or the
+// recipient lost it (FE-R1-3).
+func ruleDocumentOwnersBulkTransferred(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	uid, bulkID, fromID, orgID := p["user_id"], p["bulk_id"], p["from_user_id"], p["organization_id"]
+	if e.orgs == nil || uid == "" || bulkID == "" || fromID == "" || orgID == "" {
+		return nil, nil
+	}
+	if ev.OrganizationID.Valid && ev.OrganizationID.String != orgID {
+		return nil, nil
+	}
+	if isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	if _, err := e.orgs.RequireMember(ctx, orgID, uid); err != nil {
+		if refused(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	name := ""
+	if u, err := e.q.GetUserByID(ctx, fromID); err == nil {
+		name = u.DisplayName
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	wsID := ""
+	if w := p["workspace_id"]; w != "" && e.members != nil {
+		if m, err := e.members.RequireMember(ctx, w, uid); err == nil && m.OrganizationID == orgID {
+			wsID = w
+		} else if err != nil && !refused(err) {
+			return nil, err
+		}
+	}
+	return []Draft{{
+		UserID: uid, OrganizationID: orgID, WorkspaceID: wsID,
+		Kind: KindDocumentOwnersBulkTransferred, GroupKey: "document_owner_bulk:" + bulkID,
+		ResourceType: "organization_member", ResourceID: fromID,
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String,
+		Params:       map[string]string{"actor": actorName(ctx, e.q, ev), "name": name},
+		OncePerGroup: true,
 	}}, nil
 }
 

@@ -5,19 +5,22 @@ import { documentIconFormat, fileExtension } from "./document-type-icon";
 // The library table's rows as one model: a workspace document or a file that
 // lives in another module (chat, task, meeting, email) and is listed here as
 // a link (sorting lives in library-sort.ts, the date groups in
-// doclist/date-groups.ts); nothing here invents a row or a count. The type
-// chip went server-side with UNI-1868 (the document lists take
-// `format`/`kind` and key them), so `matchesChip` remains only for what the
-// server cannot filter: merged source rows and the lists loaded in full.
+// doclist/date-groups.ts); nothing here invents a row or a count. The Type
+// picks are the repeated `type` query parameter of every list, the sources
+// route included (UNI-2113): the server filters, no row is narrowed here.
 export type DocumentSummaryRow = DocumentList["documents"][number];
 
 export type LibraryRow =
   | { type: "document"; id: string; doc: DocumentSummaryRow }
   | { type: "source"; id: string; source: DocumentSourceFile };
 
-/** The filter bar's type chips, in their order on every screen (UNI-2045 W10; `txt` is SV-7). */
-export const TYPE_CHIPS = ["all", "page", "docx", "xlsx", "pptx", "pdf", "md", "html", "txt"] as const;
-export type TypeChip = (typeof TYPE_CHIPS)[number];
+/**
+ * Every pickable type of the Loại multi-select, in its order on every screen
+ * (UNI-2045 W10; `txt` is SV-7). Tất cả is "no pick", never a value; the values
+ * are the server's `type` values (`page` or a file format).
+ */
+export const TYPE_FILTERS = ["page", "docx", "xlsx", "pptx", "pdf", "md", "html", "txt"] as const;
+export type DocumentTypeFilter = (typeof TYPE_FILTERS)[number];
 
 export function documentRow(doc: DocumentSummaryRow): LibraryRow {
   return { type: "document", id: doc.id, doc };
@@ -87,19 +90,6 @@ export function rowTypeKey(row: LibraryRow): string {
     default:
       return "documents.file_types.file";
   }
-}
-
-/**
- * The type chip keeps folders visible (they are how one gets to the files)
- * except under "UniNote", which lists pages only. Document lists send the chip
- * to the server (`format`/`kind`); this predicate remains only for the rows
- * the server cannot filter: merged source files, an open folder and the
- * starred view (both loaded in full).
- */
-export function matchesChip(row: LibraryRow, chip: TypeChip): boolean {
-  if (chip === "all") return true;
-  if (isFolderRow(row)) return chip !== "page";
-  return rowFormat(row) === chip;
 }
 
 /** The translation key for a row's visibility, or null when it carries none this client knows. */

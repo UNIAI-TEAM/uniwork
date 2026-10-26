@@ -36,7 +36,24 @@ export function useSendEmailHub(wsId: string) {
     onSuccess: (result, input) => {
       if (!result) return;
       if ("scheduled" in result && result.scheduled) {
-        void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "scheduled", input.accountId] });
+        const key = emailHubKeys.scheduledSends(wsId, input.accountId);
+        qc.setQueryData(key, (old: { scheduled: api.EmailHubScheduledSendItem[] } | undefined) => {
+          const prev = old?.scheduled ?? [];
+          if (prev.some((row) => row.id === result.id)) return old;
+          return {
+            scheduled: [
+              {
+                id: result.id,
+                send_at: result.send_at,
+                subject: result.subject,
+                to: result.to,
+                status: "pending",
+              },
+              ...prev,
+            ],
+          };
+        });
+        void qc.invalidateQueries({ queryKey: key });
         return;
       }
       qc.setQueryData(threadDetailKey(wsId, input.accountId, result.id), result);
@@ -162,7 +179,7 @@ export function useCancelEmailHubScheduledSend(wsId: string) {
     mutationFn: (input: { accountId: string; scheduledId: string }) =>
       api.cancelEmailHubScheduledSend(wsId, input.accountId, input.scheduledId),
     onSuccess: (_data, input) => {
-      void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "scheduled", input.accountId] });
+      void qc.invalidateQueries({ queryKey: emailHubKeys.scheduledSends(wsId, input.accountId) });
     },
   });
 }
@@ -173,7 +190,7 @@ export function useRetryEmailHubScheduledSend(wsId: string) {
     mutationFn: (input: { accountId: string; scheduledId: string }) =>
       api.retryEmailHubScheduledSend(wsId, input.accountId, input.scheduledId),
     onSuccess: (_data, input) => {
-      void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "scheduled", input.accountId] });
+      void qc.invalidateQueries({ queryKey: emailHubKeys.scheduledSends(wsId, input.accountId) });
     },
   });
 }

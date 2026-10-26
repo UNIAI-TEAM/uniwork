@@ -36,6 +36,21 @@ dùng đổi mô hình: thư mục là chung, quyền vẫn chỉ nằm trên t�
    "folder_trashed"`, `from_folder_id`, `batch_id`) cùng transaction với sự kiện outbox `document.moved`; chủ nhận
    thông báo (UNI-2056). Phần còn lại vào Thùng rác cùng lô như hôm nay; khôi phục thư mục không kéo tài liệu đã
    chuyển trở lại.
+
+   **Sửa đổi 2026-10-22 (UNI-2074, D1-4 của UNI-2055):** luật này áp dụng cho mọi gốc bị bỏ vào Thùng rác có cây con
+   sống — trang, tệp, thư mục riêng cũ (ngoài My Folder) và thư mục con của My Folder — không chỉ thư mục chung, và
+   cho mọi người qua được cổng `manage` của gốc (thành viên lẫn admin; agent vẫn bị cổng gốc chặn vì chỉ có mức
+   xem). Trang/tệp bên dưới người thao tác không `manage` được (không thấy, hoặc thấy mà không quản lý; quyền admin
+   không đọc được không tính là thấy) về gốc workspace (`parent_id` rỗng) cùng cây con, kể cả khi gốc nằm trong My
+   Folder — không bao giờ vào My Folder nào. Thư mục chung bên dưới luôn vào Thùng rác; thư mục khác bên dưới người
+   thao tác không đọc hoặc không `manage` được thì cả lệnh bị từ chối (403, không ghi gì), vì thư mục không bao giờ
+   được chuyển (điểm 2, tên thư mục là duy nhất). Dòng audit giữ `reason = "folder_trashed"` và `from_folder_id` =
+   id gốc bất kể loại, thêm `metadata.from_kind` = loại gốc (`folder` | `page` | `file`); thông báo cho chủ dùng câu
+   "trang chứa…" khi `from_kind` là `page`/`file`, câu "thư mục chứa…" cho thư mục và cho dòng cũ không có
+   `from_kind`. Xem trước (`relocated_count`) tính cho mọi gốc, đúng tập lệnh sẽ ghi. Sửa đổi này đóng sự bất đối
+   xứng của D1-4: trước đó admin bỏ một trang chứa trang con hạn chế họ không đọc được thì trang con vào Thùng rác,
+   còn thành viên bỏ trang của mình chứa trang con hạn chế của người khác thì bị 403 cả lệnh; nay cả hai đều chuyển
+   trang con đó về gốc workspace.
 6. **My Folder vẫn riêng.** Thư mục chung → vào My Folder (hoặc con của nó): bị chặn, 422 `folder_into_my_folder`.
    Thư mục con của My Folder → ra workspace: được (client hỏi xác nhận trước), thư mục và mọi thư mục con của nó
    chuyển sang `workspace`/`view`; tài liệu trong cây giữ quyền.
@@ -68,3 +83,11 @@ dùng đổi mô hình: thư mục là chung, quyền vẫn chỉ nằm trên t�
 
 Tên test chốt trong hợp đồng server UNI-2055 v1.0 §9 và được ghi lại ở đây khi lane land (service
 `document_folder_ws_public*_test.go`, handler `documents_folders_test.go`, isolation matrix, `audit_coverage_test.go`).
+
+Sửa đổi điểm 5 (UNI-2074), service `document_trash_relocate_any_root_test.go`:
+`TestPageRootTrashRelocatesWhatAnAdminCannotRead`, `TestPageRootTrashByAMemberRelocatesInsteadOfRefusing`,
+`TestPageRootTrashRelocatesADeepHiddenPageWithItsSubtree`, `TestLegacyPrivateFolderRootTrashRelocatesAHiddenPage`,
+`TestLegacyPrivateFolderRootTrashRefusesAForeignSubFolder`, `TestMyFolderSubFolderTrashRelocatesToTheWorkspaceRoot`,
+`TestPageRootTrashByAnAgentIsRefusedAtTheRoot`; notification
+`TestDocumentChangedRelocationWordingFollowsTheRootKind`; handler `TestDocumentArchiveImpactHTTP`; dòng
+`document.moved` (gốc là trang, `from_kind`) trong `TestEveryAuditedCommandWritesItsRow`.

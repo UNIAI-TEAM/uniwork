@@ -107,6 +107,22 @@ describe("documents library hooks", () => {
     expect(result.current.hasNextPage).toBe(false);
   });
 
+  it("useDocumentSources sends every picked type and keys the query by them", async () => {
+    vi.mocked(fetch).mockResolvedValue(json({ items: [], next_cursor: null }));
+    const { qc, wrapper } = setup();
+    const { result, rerender } = renderHook(({ types }) => useDocumentSources("w1", { types }), {
+      wrapper,
+      initialProps: { types: ["docx", "pdf"] },
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(new URL(String(vi.mocked(fetch).mock.calls[0]![0])).searchParams.getAll("type")).toEqual(["docx", "pdf"]);
+    // Another pick is another query, so its rows are not the previous pick's.
+    rerender({ types: ["docx"] });
+    await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2));
+    expect(new URL(String(vi.mocked(fetch).mock.calls[1]![0])).searchParams.getAll("type")).toEqual(["docx"]);
+    expect(qc.getQueryCache().findAll({ queryKey: documentKeys.sourcesRoot("w1") })).toHaveLength(2);
+  });
+
   it("useDocumentSources refetches on window focus and sits under the sources root", async () => {
     vi.mocked(fetch).mockResolvedValue(json({ items: [item("s1")], next_cursor: null }));
     const { qc, wrapper } = setup();

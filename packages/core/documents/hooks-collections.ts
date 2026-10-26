@@ -49,7 +49,7 @@ export function documentFilterKey(filter?: object): string {
  *  chips (UNI-1868) — the format a row's current version carries, and the
  *  level the caller holds on it — and the filter bar's Người sửa / Cập nhật
  *  (UNI-2045 SV-8). */
-export type DocumentListFilters = Pick<ListDocumentsBaseOpts, "format" | "access" | "updatedBy" | "updatedFrom" | "updatedTo">;
+export type DocumentListFilters = Pick<ListDocumentsBaseOpts, "format" | "types" | "access" | "updatedBy" | "updatedFrom" | "updatedTo">;
 
 /** The column sort of the tables (UNI-2038): part of the key, so another order
  *  starts from page 1. Only the lists that sort on the server take it. */
@@ -64,16 +64,18 @@ function documentListFilterKey(
   if (!filters) return "";
   const { format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity } = filters;
   const includeOwned = filters.includeOwned || undefined;
-  if (!format && !access && !sort && !order && !updatedBy && !updatedFrom && !updatedTo && !activity && !includeOwned) {
+  const types = filters.types?.length ? filters.types : undefined;
+  if (!format && !types && !access && !sort && !order && !updatedBy && !updatedFrom && !updatedTo && !activity && !includeOwned) {
     return "";
   }
-  return documentFilterKey({ format, access, sort, order, updatedBy, updatedFrom, updatedTo, activity, includeOwned });
+  return documentFilterKey({ format, types, access, sort, order, updatedBy, updatedFrom, updatedTo, activity, includeOwned });
 }
 
 /** The filters every collection request carries, picked off a hook's opts. */
 function listFilterParams(opts?: DocumentListFilters) {
   return {
     format: opts?.format,
+    types: opts?.types,
     access: opts?.access,
     updatedBy: opts?.updatedBy,
     updatedFrom: opts?.updatedFrom,

@@ -816,6 +816,21 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		t.Fatal(err)
 	}
 	tn.ids["breakGlassGrant"] = grantID
+	// DOC-06b (UNI-2092): one unrestricted page the tenant's peer owns, for the
+	// bulk transfer control only (POST /orgs/{org}/members/{userID}/document-
+	// ownership names the peer as the source and the owner as the recipient):
+	// without it the peer's one document is the restricted one above, which the
+	// owner skips as self_restricted, and the control would move nothing. No
+	// other route names it; it is a workspace-visible page the owner already
+	// reads, so no list or count of the owner's changes shape.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Peer-owned page", "kind": "page", "visibility": "workspace",
+	})
+	tn.ids["peerOwnedDocument"] = isoID(t, out, "document")
+	if _, err := w.pool.Exec(context.Background(),
+		`UPDATE documents SET acl_owner_id = $2 WHERE id = $1`, tn.ids["peerOwnedDocument"], tn.peerID); err != nil {
+		t.Fatal(err)
+	}
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/documents/settings", tn.token, map[string]any{"public_links_enabled": true})
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/meetings/settings", tn.token, map[string]any{"auto_summary_enabled": false})
 	out = w.call(t, "POST", dp+"/links", tn.token, map[string]any{})

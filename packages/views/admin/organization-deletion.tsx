@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Trash2 } from "lucide-react";
+import { Trash } from "lucide-react";
 import { toast } from "sonner";
 import {
   useAdminMe,
@@ -79,7 +79,7 @@ export function OrganizationDeletionButton({
       >
         {scheduled ? t("undo_delete") : (
           <>
-            <Trash2 data-icon="inline-start" aria-hidden />
+            <Trash data-icon="inline-start" aria-hidden />
             {t("delete")}
           </>
         )}

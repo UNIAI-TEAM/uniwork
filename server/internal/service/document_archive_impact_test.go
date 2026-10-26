@@ -8,8 +8,10 @@ package service
 // then the count - and steps two to four share ONE REPEATABLE READ, read-only
 // transaction, so the ids, the access decision and the numbers describe one
 // moment. A subtree past the bound answers too_large before any per-node work
-// or count, exactly like the command; a node the caller cannot manage refuses
-// the whole read with no number in the answer. Reading writes nothing.
+// or count, exactly like the command; a page or file the caller cannot manage
+// is counted as relocated, never named (ADR 0037 point 5, every root since
+// UNI-2074), and a folder below they cannot read or manage refuses the whole
+// read with no number in the answer. Reading writes nothing.
 
 import (
 	"context"
@@ -137,9 +139,8 @@ func TestDocumentArchiveImpact(t *testing.T) {
 		defer func() { f.svc.archiveMaxNodes = 0 }()
 
 		// The same shape twice: a root the caller manages through a share and
-		// a restricted child they do not manage at all. The root is a page: a
-		// workspace folder relocates such a child instead (ADR 0037 point 5,
-		// TestFolderTrashImpactCountsRelocationWithoutLeaking).
+		// a restricted child they do not manage at all (relocated inside the
+		// bound, ADR 0037 point 5 for every root since UNI-2074).
 		shape := func(t *testing.T, title string, children int) db.Document {
 			t.Helper()
 			root := doc(t, "", DocumentKindPage, title, nil)
@@ -151,10 +152,11 @@ func TestDocumentArchiveImpact(t *testing.T) {
 			return root
 		}
 
-		// Two nodes: inside the bound, so the manage gate runs and refuses.
+		// Two nodes: inside the bound, so the plan runs and counts the
+		// unmanaged child as relocated (UNI-2074).
 		inside := shape(t, "Trong trần", 0)
-		if _, err := f.svc.ArchiveImpact(ctx, member, inside.ID); !errors.Is(err, ErrForbidden) {
-			t.Fatalf("inside the bound with an unmanageable node = %v, want forbidden", err)
+		if got, err := f.svc.ArchiveImpact(ctx, member, inside.ID); err != nil || got.Total != 1 || got.Relocated != 1 {
+			t.Fatalf("inside the bound with an unmanageable node = %+v, %v, want total 1, relocated 1", got, err)
 		}
 		// Past the bound the walk stops first: too_large, no per-node check,
 		// the same answer the archive command gives.
@@ -203,19 +205,16 @@ func TestDocumentArchiveImpact(t *testing.T) {
 		wantImpact(t, f.svc, got, 0, maxDocumentDepth-1, maxDocumentDepth)
 	})
 
-	t.Run("one node the caller cannot manage refuses the whole read", func(t *testing.T) {
-		// A page root keeps the refusal; a workspace folder counts the node
-		// as relocated instead (ADR 0037 point 5), checked below.
+	t.Run("one node the caller cannot manage is counted as relocated, never named", func(t *testing.T) {
+		// Every root takes the relocation plan (UNI-2074, ADR 0037 point 5):
+		// a page root counts the node it would move like a workspace folder.
 		root := doc(t, "", DocumentKindPage, "Có nút hạn chế", nil)
 		doc(t, root.ID, DocumentKindPage, "Hạn chế", func(s *treeDocSpec) { s.visibility = "restricted" })
 		f.share(t, root, DocumentPrincipalUser, tn.member.ID, DocumentLevelManage, tn.aclOwner.ID)
 
 		got, err := f.svc.ArchiveImpact(ctx, member, root.ID)
-		if !errors.Is(err, ErrForbidden) {
-			t.Fatalf("archive impact with an unmanageable node = %v, want forbidden", err)
-		}
-		if got != (DocumentArchiveImpact{}) {
-			t.Fatalf("refused read carried %+v, want no number at all", got)
+		if err != nil || got.Relocated != 1 || got.Documents != 0 || got.Total != 1 {
+			t.Fatalf("page root impact = %+v, %v, want one relocated, only the root stamped", got, err)
 		}
 		// The caller who cannot read the root at all gets the stranger's
 		// answer, never a confirmation of the id.

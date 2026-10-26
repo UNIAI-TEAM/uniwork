@@ -90,7 +90,7 @@ case "$ROW" in
     ;;
   G8-A08)
     step_go 1 ./internal/handler -run 'IsolationMatrix|IsolationRealtime|EveryBodyIDFieldHasAReferenceCase'
-    step_go 1 ./internal/service -run 'EveryAuditedCommandWritesItsRow|ReusedAuditActionCommandsWriteTheirOwnRows'
+    step_go 1 ./internal/service -run 'EveryAuditedCommandWritesItsRow|ReusedAuditActionCommandsWriteTheirOwnRows|MemoryProposalCommandsWriteTheirRows'
     step_node scripts/events-catalogue.test.mjs scripts/no-pii-log.test.mjs
     ;;
   *)

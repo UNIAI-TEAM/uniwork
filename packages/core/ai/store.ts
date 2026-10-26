@@ -9,8 +9,8 @@ type AskUniPanelFocus = {
   label?: string;
 };
 
-/** What the dock shows: the conversation, the memory screen, or the import flow of the memory screen. */
-type AiPanelView = "thread" | "memory" | "memory-import";
+/** What the dock shows: the conversation or the memory screen. */
+type AiPanelView = "thread" | "memory";
 
 /** Client state of the Ask UNI panel (⌘J): open/closed and which conversation is showing. */
 interface AiPanelStore {
@@ -29,8 +29,10 @@ interface AiPanelStore {
   /** The latest conversation asked about each meeting, so a meeting's Ask box finds its answer again. */
   conversationByMeeting: Record<string, string>;
   view: AiPanelView;
-  /** Text the composer takes once ("Sửa bằng cách nói với UNI"): it appends it, focuses, then sets this back to null. */
+  /** Text the composer takes once (a chip of the memory help strip): it appends it, focuses, then sets this back to null. */
   composerPrefill: string | null;
+  /** The strip above the composer that says what UNI remembers and offers starters ("Sửa bằng cách nói với UNI"). */
+  memoryHelp: boolean;
   /** A conversation belongs to one workspace: switching workspace forgets the open one. */
   bindWorkspace: (wsId: string) => void;
   setOpen: (open: boolean) => void;
@@ -52,6 +54,9 @@ interface AiPanelStore {
   dismissPage: () => void;
   setView: (view: AiPanelView) => void;
   setComposerPrefill: (text: string | null) => void;
+  setMemoryHelp: (open: boolean) => void;
+  /** Back to the conversation with the memory help strip open. */
+  openMemoryHelp: () => void;
 }
 
 function remembered(s: AiPanelStore, conversationId: string, focus: AskUniPanelFocus) {
@@ -75,6 +80,7 @@ const EMPTY: Pick<
   | "conversationByMeeting"
   | "view"
   | "composerPrefill"
+  | "memoryHelp"
 > = {
   open: false,
   conversationId: null,
@@ -87,6 +93,7 @@ const EMPTY: Pick<
   conversationByMeeting: {},
   view: "thread",
   composerPrefill: null,
+  memoryHelp: false,
 };
 
 export const useAiPanelStore = create<AiPanelStore>((set) => ({
@@ -96,11 +103,11 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
     set((s) =>
       s.workspaceId === wsId
         ? s
-        : { workspaceId: wsId, ...(s.workspaceId === null ? {} : { conversationId: null, pendingFocus: null, focus: null, view: "thread" as const, composerPrefill: null }) },
+        : { workspaceId: wsId, ...(s.workspaceId === null ? {} : { conversationId: null, pendingFocus: null, focus: null, view: "thread" as const, composerPrefill: null, memoryHelp: false }) },
     ),
-  setOpen: (open) => set({ open, ...(open ? {} : { pendingFocus: null, view: "thread" as const }) }),
+  setOpen: (open) => set({ open, ...(open ? {} : { pendingFocus: null, view: "thread" as const, memoryHelp: false }) }),
   toggle: () =>
-    set((s) => ({ open: !s.open, pendingFocus: s.open ? null : s.pendingFocus, ...(s.open ? { view: "thread" as const } : {}) })),
+    set((s) => ({ open: !s.open, pendingFocus: s.open ? null : s.pendingFocus, ...(s.open ? { view: "thread" as const, memoryHelp: false } : {}) })),
   select: (conversationId) =>
     set(conversationId === null ? { conversationId, pendingFocus: null, focus: null } : { conversationId, pendingFocus: null }),
   openWithFocus: (focus) => set({ open: true, conversationId: null, pendingFocus: focus }),
@@ -121,5 +128,7 @@ export const useAiPanelStore = create<AiPanelStore>((set) => ({
     set((s) => ({ page, pageDismissed: page && `${page.kind}:${page.id}` === s.pageDismissed ? s.pageDismissed : null })),
   setView: (view) => set({ view }),
   setComposerPrefill: (composerPrefill) => set({ composerPrefill }),
+  setMemoryHelp: (memoryHelp) => set({ memoryHelp }),
+  openMemoryHelp: () => set({ view: "thread", memoryHelp: true }),
   dismissPage: () => set((s) => ({ pageDismissed: s.page ? `${s.page.kind}:${s.page.id}` : null })),
 }));
