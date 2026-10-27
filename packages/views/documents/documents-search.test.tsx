@@ -244,6 +244,7 @@ describe("Documents search keeps layout (UNI-2205)", () => {
               kind: "file",
               title: "Báo cáo tuần.docx",
               format: "docx",
+              path: [{ id: "fo-1", title: "Kinh doanh" }],
               last_activity: { kind: "edited", at: "2026-10-26T03:00:00Z" },
             }),
             summary({
@@ -897,9 +898,14 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(screen.queryByRole("searchbox")).toBeNull();
   });
 
-  it("filters loaded source rows client-side by accent-folded title on Ở nơi khác (view=sources) (KLR-1)", async () => {
+  it("filters loaded source rows client-side by accent-folded title on Ở nơi khác (view=sources) and gates useDocumentsSearch off (KLR-1, KLR-14b)", async () => {
+    const searchUrls: string[] = [];
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        searchUrls.push(path);
+        return Promise.resolve({ documents: [], next_cursor: null });
+      }
       if (path.startsWith(`${LIST_BASE}/sources`)) {
         return Promise.resolve({
           items: [
@@ -933,7 +939,6 @@ describe("Documents search keeps layout (UNI-2205)", () => {
           next_cursor: null,
         });
       }
-      // Even when document search returns 0 document hits, sources view matches loaded source rows
       return Promise.resolve({ documents: [], next_cursor: null });
     });
 
@@ -947,17 +952,12 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(await screen.findByText("Báo cáo Đánh giá Quý 4.xlsx")).toBeInTheDocument();
     expect(screen.queryByText("Tài liệu thiết kế.pdf")).toBeNull();
     expect(screen.queryByText(t("documents.home.search.no_results_title", { query: "danh gia" }))).toBeNull();
+    expect(searchUrls).toEqual([]);
   });
 
-  it("shows search hits that are not in the loaded library page on Recent, Shared with me, and Shared by me (KLR-3)", async () => {
+  it("shows search hits that are not in the loaded library page on Shared with me (including via='member' with no shared object) and Shared by me (KLR-3, KLR-12)", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
-      if (path.startsWith(`${LIST_BASE}/recent`)) {
-        return Promise.resolve({
-          documents: [summary({ id: "r-page1", title: "Tài liệu trang 1", last_activity: { kind: "opened", at: "2026-10-26T03:00:00Z" } })],
-          next_cursor: "cursor-page-2",
-        });
-      }
       if (path.startsWith(`${LIST_BASE}/shared-with-me`)) {
         return Promise.resolve({
           documents: [summary({ id: "sh-page1", title: "Chia sẻ trang 1", via: "share" })],
@@ -983,9 +983,15 @@ describe("Documents search keeps layout (UNI-2205)", () => {
         return Promise.resolve({
           documents: [
             summary({
-              id: "unloaded-hit",
+              id: "unloaded-share-hit",
               title: "Hợp đồng ở trang 2 chưa tải",
               via: "share",
+              updated_by: "u1",
+            }),
+            summary({
+              id: "member-via-hit",
+              title: "Hợp đồng chia sẻ cùng quyền qua member",
+              via: "member",
               updated_by: "u1",
             }),
           ],
@@ -995,24 +1001,208 @@ describe("Documents search keeps layout (UNI-2205)", () => {
       return Promise.resolve({ documents: [], next_cursor: null });
     });
 
-    // 1. Recent: hit not in loaded page 1 still shows
-    const { unmount: unmountRecent } = renderSearchView(createNav("view=recent"));
-    expect((await screen.findAllByText("Tài liệu trang 1")).length).toBeGreaterThanOrEqual(1);
-    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "trang 2" } });
-    expect(await screen.findByText("Hợp đồng ở trang 2 chưa tải")).toBeInTheDocument();
-    unmountRecent();
-
-    // 2. Shared with me: hit with via="share" not in loaded page 1 still shows
+    // 1. Shared with me: hits with via="share" AND via="member" (no shared object) not in loaded page 1 both show (KLR-12)
     const { unmount: unmountShared } = renderSearchView(createNav("view=shared"));
     expect(await screen.findByText("Chia sẻ trang 1")).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "trang 2" } });
+    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "hop dong" } });
     expect(await screen.findByText("Hợp đồng ở trang 2 chưa tải")).toBeInTheDocument();
+    expect(screen.getByText("Hợp đồng chia sẻ cùng quyền qua member")).toBeInTheDocument();
     unmountShared();
 
-    // 3. Shared by me: sends shared_by_me=true to server and shows page 2 hit
+    // 2. Shared by me: sends shared_by_me=true to server and shows page 2 hit
     renderSearchView(createNav("view=shared-by-me"));
     fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "trang 2" } });
     expect(await screen.findByText("Chia sẻ bởi tôi trang 2")).toBeInTheDocument();
+  });
+
+  it("scopes Gần đây (view=recent) search to Recent rows only, auto-fetches next pages up to 10 pages without showing empty state while loading, combines with Đã sửa segment, and renders path lines (KLV-6, KLR-14b)", async () => {
+    const searchUrls: string[] = [];
+    let resolvePage2: ((val: unknown) => void) | null = null;
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        searchUrls.push(path);
+        return Promise.resolve({
+          documents: [summary({ id: "ws-only", title: "Báo cáo ngoài Gần đây", path: [] })],
+          next_cursor: null,
+        });
+      }
+      if (path.startsWith(`${LIST_BASE}/recent`)) {
+        const q = queryOf(path);
+        const cursor = q.get("cursor");
+        const activity = q.get("activity");
+        if (activity === "edited") {
+          return Promise.resolve({
+            documents: [
+              summary({
+                id: "rec-edited",
+                title: "Báo cáo đã sửa của tôi",
+                path: [{ id: "fo-ed", title: "Biên tập" }],
+                last_activity: { kind: "edited", at: "2026-10-26T04:00:00Z" },
+              }),
+              summary({
+                id: "rec-edited-other",
+                title: "Kế hoạch đã sửa",
+                path: [],
+                last_activity: { kind: "edited", at: "2026-10-26T03:00:00Z" },
+              }),
+            ],
+            next_cursor: null,
+          });
+        }
+        if (!cursor) {
+          return Promise.resolve({
+            documents: [
+              summary({
+                id: "rec-p1",
+                title: "Tài liệu trang 1",
+                path: [],
+                last_activity: { kind: "opened", at: "2026-10-26T03:00:00Z" },
+              }),
+            ],
+            next_cursor: "cursor-2",
+          });
+        }
+        if (cursor === "cursor-2") {
+          const { promise, resolve } = Promise.withResolvers<unknown>();
+          resolvePage2 = resolve;
+          return promise;
+        }
+      }
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
+
+    renderSearchView(createNav("view=recent"));
+    expect((await screen.findAllByText("Tài liệu trang 1")).length).toBeGreaterThanOrEqual(1);
+
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    fireEvent.change(searchInput, { target: { value: "bao cao" } });
+
+    // While page 2 is auto-fetching and page 1 has 0 matches, list shows loading skeleton, NEVER no_results_title
+    await waitFor(() => expect(resolvePage2).not.toBeNull());
+    expect(screen.getByLabelText(t("documents.library.loading"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.search.no_results_title", { query: "bao cao" }))).toBeNull();
+
+    // Resolve page 2 with a Recent match (and no workspace-only doc)
+    act(() => {
+      resolvePage2?.({
+        documents: [
+          summary({
+            id: "rec-p2",
+            title: "Báo cáo trang 2 Gần đây",
+            path: [{ id: "fo-rec", title: "Tài chính" }],
+            last_activity: { kind: "opened", at: "2026-10-25T03:00:00Z" },
+          }),
+        ],
+        next_cursor: null,
+      });
+    });
+
+    expect(await screen.findByText("Báo cáo trang 2 Gần đây")).toBeInTheDocument();
+    expect(screen.getByTitle("Tài chính")).toHaveTextContent("Tài chính");
+    // Workspace-only hit is NOT shown on Recent, and no GET documents?q= request was fired
+    expect(screen.queryByText("Báo cáo ngoài Gần đây")).toBeNull();
+    expect(searchUrls).toEqual([]);
+
+    // Switch segment to Đã sửa -> narrows Recent rows to edited + query
+    fireEvent.click(screen.getByRole("radio", { name: t("documents.home.filters.activity_edited") }));
+    expect(await screen.findByText("Báo cáo đã sửa của tôi")).toBeInTheDocument();
+    expect(screen.getByTitle("Biên tập")).toHaveTextContent("Biên tập");
+    expect(screen.queryByText("Kế hoạch đã sửa")).toBeNull();
+    expect(screen.queryByText("Báo cáo trang 2 Gần đây")).toBeNull();
+  });
+
+  it("auto-fetches up to 10 Recent pages and keeps Tải thêm with the more-pages hint when older Recent pages remain (KLV-6)", async () => {
+    let fetchedPages = 0;
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(`${LIST_BASE}/recent`)) {
+        fetchedPages += 1;
+        const pageNum = fetchedPages;
+        return Promise.resolve({
+          documents: [
+            summary({
+              id: `rec-p${pageNum}`,
+              title: pageNum === 11 ? "Báo cáo trang 11" : `Tài liệu trang ${pageNum}`,
+              path: [],
+              last_activity: { kind: "opened", at: "2026-10-20T03:00:00Z" },
+            }),
+          ],
+          next_cursor: pageNum < 11 ? `cursor-${pageNum + 1}` : null,
+        });
+      }
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
+
+    renderSearchView(createNav("view=recent"));
+    expect((await screen.findAllByText("Tài liệu trang 1")).length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), {
+      target: { value: "bao cao" },
+    });
+
+    // Stops auto-fetching at 10 pages and shows Tải thêm with the client-filtered more-pages hint
+    const loadMoreBtn = await screen.findByRole("button", { name: t("documents.library.load_more") });
+    expect(fetchedPages).toBe(10);
+    expect(screen.getByText(t("documents.home.no_matches_filters_more_description"))).toBeInTheDocument();
+
+    fireEvent.click(loadMoreBtn);
+    expect(await screen.findByText("Báo cáo trang 11")).toBeInTheDocument();
+    expect(fetchedPages).toBe(11);
+  });
+
+  it("shows loading state while favorites are loading and error state when favorites fail on Có gắn sao (view=starred), never 'no results' (KLR-14c)", async () => {
+    const favoriteResolvers: Array<(val: unknown) => void> = [];
+    let failFavorites = false;
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.includes("/favorites")) {
+        if (failFavorites) {
+          return Promise.reject(new ApiError("favorites failed", "internal", 500));
+        }
+        const { promise, resolve } = Promise.withResolvers<unknown>();
+        favoriteResolvers.push(resolve);
+        return promise;
+      }
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        return Promise.resolve({
+          documents: [summary({ id: "s-1", title: "Tài liệu sao", path: [] })],
+          next_cursor: null,
+        });
+      }
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
+
+    // 1. While favorites are loading, searching on view=starred shows loading state, never no_results_title
+    const { unmount } = renderSearchView(createNav("view=starred"));
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    fireEvent.change(searchInput, { target: { value: "tai lieu" } });
+
+    await waitFor(() => expect(favoriteResolvers.length).toBeGreaterThanOrEqual(1));
+    expect(screen.getByLabelText(t("documents.library.loading"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.search.no_results_title", { query: "tai lieu" }))).toBeNull();
+
+    act(() => {
+      for (const resolve of favoriteResolvers) {
+        resolve({
+          favorites: [{ document_id: "s-1", workspace_id: WS, title: "Tài liệu sao", kind: "page" }],
+          documents: [summary({ id: "s-1", title: "Tài liệu sao", favorited_at: "2026-10-26T03:00:00Z" })],
+          next_cursor: null,
+        });
+      }
+    });
+    expect(await screen.findByText("Tài liệu sao")).toBeInTheDocument();
+    unmount();
+
+    // 2. When favorites fail on view=starred, searching shows the error state, never no_results_title
+    failFavorites = true;
+    renderSearchView(createNav("view=starred"));
+    const searchInputErr = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    fireEvent.change(searchInputErr, { target: { value: "tai lieu" } });
+
+    const alertState = await screen.findByRole("alert");
+    expect(within(alertState).getByText(t("documents.library.error_title"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.search.no_results_title", { query: "tai lieu" }))).toBeNull();
   });
 
   it("hides the Tài liệu section when only folders match a search query, shows the root path line on root hits, and renders the Tổ chức share-scope badge on search hits (KLR-4, KLR-7, KLR-10, KLV-3)", async () => {
