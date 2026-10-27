@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^28a0f8f57" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=28a0f8f57c4c0ad816066f6cd3436f55f5c128f5
+28a0f8f57 Merge G5-G7 root into UNI-2244 BE (folder bulk access)
+78bc3c11a fix(documents): completion-gate batch notifications, record child audit provenance and serialize folder lock
+a95cd5ed1 test(documents): follow the legacy mark label in the legacy row click test
+3a380051b fix(documents): enforce child DOC-05, root read recheck, subtree scope and tree lock in folder bulk access
