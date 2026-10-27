@@ -50,6 +50,7 @@ const NO_EDITOR_NAMES: EditorNames = new Map();
 interface InfiniteLike<T> {
   data?: { pages: T[] };
   isPending: boolean;
+  isFetching?: boolean;
   isError: boolean;
   error: unknown;
   hasNextPage: boolean;
@@ -98,7 +99,7 @@ function documentState(q: InfiniteLike<DocumentList>): LibraryState {
   const rows = (q.data?.pages.flatMap((page) => page.documents) ?? []).map(documentRow);
   return {
     rows,
-    loading: q.isPending,
+    loading: q.isPending || Boolean(rows.length === 0 && q.isError && q.isFetching),
     failure: q.isError && rows.length === 0 ? failureOf(q.error) : null,
     hasMore: Boolean(q.hasNextPage),
     loadingMore: q.isFetchingNextPage,
@@ -407,11 +408,20 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
     docById: new Map(state.rows.flatMap((row) => (row.type === "document" ? [[row.doc.id, row.doc]] : []))),
     starredIds: new Set(starred.map((fav) => fav.document_id)),
     starredCount: favorites.data ? starred.length : null,
+    starredLoading: favorites.isPending || Boolean(starred.length === 0 && favorites.isError && favorites.isFetching) || state.loading,
+    starredFailure: favorites.isError ? failureOf(favorites.error) : state.failure,
+    recentPageCount: recentQuery.data?.pages.length ?? 0,
+    recentFetchFailed: recentQuery.isError && (!recentQuery.isFetching || recentQuery.isFetchingNextPage),
+    sharedPageCount: sharedQuery.data?.pages.length ?? 0,
+    sharedFetchFailed: sharedQuery.isError && (!sharedQuery.isFetching || sharedQuery.isFetchingNextPage),
+    refetchFavorites: () => void favorites.refetch(),
     sourcesAvailable,
     editor,
     setEditor,
     updated: updated.filter,
     setUpdated,
+    editorId,
+    updatedSince,
     /** Gần đây's Tất cả / Đã mở / Đã sửa. */
     activity,
     setActivity,

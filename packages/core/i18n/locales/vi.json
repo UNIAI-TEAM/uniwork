@@ -13545,20 +13545,11 @@
       "breadcrumb_more": "Các cấp ẩn",
       "search": {
         "placeholder": "Tìm thư mục và tài liệu",
-        "placeholder_folder": "Tìm trong thư mục này",
         "label": "Tìm trong Tài liệu",
         "clear": "Xóa ô tìm",
-        "filter_label": "Lọc kết quả",
-        "filter_all": "Tất cả",
-        "filter_folder": "Thư mục",
-        "filter_document": "Tài liệu",
         "path": "Đường dẫn: {{path}}",
         "path_root": "Tài liệu (gốc)",
-        "loading": "Đang tìm…",
-        "empty_title": "Không tìm thấy kết quả",
-        "empty_description": "Thử tên khác hoặc đổi bộ lọc. Xóa ô tìm để quay lại thư mục.",
-        "error_title": "Không tìm được",
-        "error_description": "Kiểm tra kết nối rồi thử lại."
+        "no_results_title": "Không có kết quả cho “{{query}}”"
       },
       "view_subtitle": {
         "recent": "Tài liệu bạn đã mở hoặc sửa trong 30 ngày qua",
