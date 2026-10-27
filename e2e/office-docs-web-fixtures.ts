@@ -83,6 +83,8 @@ export async function setFlags(flags: Record<string, boolean>, organizationId: s
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
+    // One transaction: the server cache reloads the whole table at once, so every row must become visible together.
+    await client.query("BEGIN");
     for (const [flag, enabled] of Object.entries(flags)) {
       await client.query(
         `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind)
@@ -91,6 +93,10 @@ export async function setFlags(flags: Record<string, boolean>, organizationId: s
         [`e2e-${flag}-${scope === "global" ? "global" : organizationId}`, flag, scope, scope === "global" ? "" : organizationId, enabled],
       );
     }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
   } finally {
     await client.end();
   }
