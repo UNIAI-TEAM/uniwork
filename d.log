@@ -1,0 +1,7 @@
+$ pnpm --filter @uniwork/core exec eslint --max-warnings 0 documents/folder-access-batches.ts documents/folder-access-batches.test.tsx > /tmp/w2-lc.log 2>&1; rc1=$?; pnpm --filter @uniwork/views exec eslint --max-warnings 0 layout/folder-access-batch-watchers.tsx layout/dashboard-layout.tsx documents/use-folder-contents-access.tsx documents/folder-access-batch-watchers.test.tsx documents/folder-contents-access-dialog.test.tsx > /tmp/w2-lv.log 2>&1; rc2=$?; tail -n 20 /tmp/w2-lc.log /tmp/w2-lv.log; echo; echo "LINT_CORE_EXIT=$rc1"; echo "LINT_VIEWS_EXIT=$rc2"
+==> /tmp/w2-lc.log <==
+
+==> /tmp/w2-lv.log <==
+
+LINT_CORE_EXIT=0
+LINT_VIEWS_EXIT=0

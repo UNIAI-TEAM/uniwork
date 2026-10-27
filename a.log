@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^a5557dcbe" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=a5557dcbe7a48fe9d50ef568d6962c320caf5da0
+a5557dcbe test(documents): background batch toast survives leaving Documents (UNI-2244)
+0c66c420d fix(documents): keep folder access batch watchers alive across workspace navigation (UNI-2244)
+ed4e399f0 chore(deploy): point the beta installer downloads at UniWork Office 1.0.0-beta.10
