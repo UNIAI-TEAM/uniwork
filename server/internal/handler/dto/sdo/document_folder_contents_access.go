@@ -42,7 +42,7 @@ type FolderContentsAccessPreviewSDO struct {
 	SkippedLocked        int      `json:"skipped_locked" description:"Số tài liệu thuộc Work Product đang khóa quyền bị bỏ qua" example:"1"`
 	LosingUsers          int      `json:"losing_users" description:"Số người dùng mất quyền truy cập ở ít nhất một tài liệu (chế độ replace)" example:"12"`
 	DowngradedUsers      int      `json:"downgraded_users" description:"Số người dùng bị hạ mức quyền hiệu lực ở ít nhất một tài liệu (chế độ replace)" example:"3"`
-	Warnings             []string `json:"warnings" description:"Mã cảnh báo áp dụng cho lô: wide_scope, downgrade, to_private (to_private chỉ phát sinh khi ít nhất một tài liệu quản lý được trong phạm vi đang có chia sẻ cho không gian làm việc gốc trước khi replace về rỗng)" example:"[\"wide_scope\",\"to_private\"]"`
+	Warnings             []string `json:"warnings" description:"Mã cảnh báo áp dụng cho lô: wide_scope, downgrade (khi downgraded_users > 0 ở chế độ replace), to_private (khi ít nhất một tài liệu sẽ được ghi bị mất chia sẻ cho không gian làm việc gốc sau khi replace)" example:"[\"wide_scope\",\"to_private\"]"`
 }
 
 // FolderContentsAccessDryRunSDO is the 200 response of
