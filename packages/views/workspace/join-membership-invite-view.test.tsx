@@ -94,6 +94,6 @@ describe("JoinMembershipInviteView", () => {
     render(wrapWithNav(<JoinMembershipInviteView linkId="l1" />));
     expect(await screen.findByRole("heading", { name: "Chuyển sang Beta" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Bạn đang thuộc Acme" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Tham gia", exact: true })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Tham gia$/ })).toBeNull();
   });
 });
