@@ -1243,11 +1243,12 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(fetchedPages).toBe(11);
   });
 
-  it("stops Recent auto-fetch when page 2 fails (no loop), shows error/retry when nothing matched or matches plus Tải thêm when page 1 matched, and recovers on retry with loading feedback (KLR-15, KLR-20, KLR-21)", async () => {
+  it("stops Recent auto-fetch when page 2 fails (no loop), shows error/retry when nothing matched or matches plus Tải thêm when page 1 matched, and recovers on retry with loading feedback without blanking populated matches (KLR-15, KLR-20, KLR-21, KLR-22)", async () => {
     let page2Calls = 0;
     let failPage2 = true;
     let page1Title = "Tài liệu trang 1";
     let resolveRetryPage1: ((val: unknown) => void) | null = null;
+    let resolveRetryPage2: ((val: unknown) => void) | null = null;
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(`${LIST_BASE}/recent`)) {
@@ -1274,6 +1275,11 @@ describe("Documents search keeps layout (UNI-2205)", () => {
           page2Calls += 1;
           if (failPage2) {
             return Promise.reject(new ApiError("recent page 2 failed", "internal", 500));
+          }
+          if (resolveRetryPage2) {
+            const { promise, resolve } = Promise.withResolvers<unknown>();
+            resolveRetryPage2 = resolve;
+            return promise;
           }
           return Promise.resolve({
             documents: [
@@ -1350,8 +1356,33 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(page2Calls).toBe(1);
 
     failPage2 = false;
+    resolveRetryPage2 = () => {};
     fireEvent.click(loadMoreBtn);
+
+    expect(await screen.findByRole("button", { name: t("documents.library.loading_more") })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    expect(screen.getByText("Báo cáo trang 1 khớp")).toBeInTheDocument();
+    expect(screen.queryByLabelText(t("documents.library.loading"))).toBeNull();
+
+    act(() => {
+      const finish = resolveRetryPage2;
+      resolveRetryPage2 = null;
+      finish?.({
+        documents: [
+          summary({
+            id: "rec-p2",
+            title: "Báo cáo trang 2 sau thử lại",
+            path: [],
+            last_activity: { kind: "opened", at: "2026-10-25T03:00:00Z" },
+          }),
+        ],
+        next_cursor: null,
+      });
+    });
     expect(await screen.findByText("Báo cáo trang 2 sau thử lại")).toBeInTheDocument();
+    expect(screen.getByText("Báo cáo trang 1 khớp")).toBeInTheDocument();
   });
 
   it("shows loading state while favorites are loading and error state when favorites fail on Có gắn sao (view=starred), never 'no results', and Retry refetches favorites (KLR-14c, KLR-16)", async () => {
