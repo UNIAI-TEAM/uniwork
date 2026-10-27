@@ -21,7 +21,8 @@ function message(id: string): ChatMessage {
     body: "xin chào",
     ts: 1,
     kind: "text",
-  } as ChatMessage;
+    reactions: {},
+  } as unknown as ChatMessage;
 }
 
 function selectionUi(overrides: Partial<ChatMessageSelectionUi> = {}): ChatMessageSelectionUi {

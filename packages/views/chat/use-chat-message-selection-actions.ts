@@ -26,7 +26,7 @@ export type ChatMessageSelectionBarState = {
   deleteSelected: () => void;
 };
 
-function messageCopyText(message: ChatMessage): string {
+function messageCopyText(message: { body: string }): string {
   return parseChatMediaMessageBody(message.body)?.url ?? message.body;
 }
 
