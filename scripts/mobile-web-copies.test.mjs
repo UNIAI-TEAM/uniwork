@@ -1,5 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   appFiles,
   codeChars,
@@ -159,4 +163,22 @@ test("drift names a changed source, a new copy, a dropped source and a stale ent
     drift({ "apps/chat-mobile/lib/a.ts": ["packages/core/chat/search-fold.ts"] }, { copies: { "apps/chat-mobile/lib/a.ts": {} } }),
     [`apps/chat-mobile/lib/a.ts: names packages/core/chat/search-fold.ts, which ${MANIFEST} does not record`],
   );
+});
+
+test("run as a command from a checkout whose path has a space, it still reports drift", () => {
+  // realpath: the main module's URL is the real path, and macOS's tmpdir is a symlink.
+  const repo = path.join(fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "web-copies-")), "VA Work");
+  for (const dir of ["scripts", "apps/chat-mobile/lib", "apps/chat-mobile/data", "apps/chat-mobile/components"]) {
+    fs.mkdirSync(path.join(repo, dir), { recursive: true });
+  }
+  fs.copyFileSync(new URL("./mobile-web-copies.mjs", import.meta.url), path.join(repo, "scripts/mobile-web-copies.mjs"));
+  const stale = "apps/chat-mobile/lib/gone.ts";
+  fs.writeFileSync(path.join(repo, MANIFEST), JSON.stringify({ copiedCodeChars: 0, copies: { [stale]: {} } }));
+  try {
+    const run = spawnSync(process.execPath, [path.join(repo, "scripts/mobile-web-copies.mjs")], { encoding: "utf8" });
+    assert.equal(run.stdout, `${stale}: in ${MANIFEST} but no longer a copy (or gone)\n`);
+    assert.equal(run.status, 1);
+  } finally {
+    fs.rmSync(path.dirname(repo), { recursive: true, force: true });
+  }
 });

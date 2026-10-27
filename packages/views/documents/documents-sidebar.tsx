@@ -5,6 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { FolderTree, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DocumentSourceKind } from "@uniwork/core/documents/sources-schema";
+import type { DriveFolderEntry } from "@uniwork/core/drive-library/folders";
 import {
   Sheet,
   SheetContent,
@@ -33,7 +34,7 @@ export type LibraryView =
   | { kind: "shelved" }
   | { kind: "archived" }
   | { kind: "sources"; source: DocumentSourceKind | null }
-  | { kind: "drive"; account: string | null };
+  | { kind: "drive"; account: string | null; folder: string | null };
 
 export const SOURCE_KINDS: readonly DocumentSourceKind[] = ["chat", "meeting", "email", "task"];
 
@@ -73,6 +74,8 @@ export interface DocumentsSidebarProps {
   folderTree?: ReactNode;
   /** Connected Google Drive accounts of the caller; empty/absent hides the Google Drive section. */
   driveConnections?: readonly DriveConnectionSummary[];
+  /** "Name this folder" on an unnamed Drive folder node; absent hides the action (a host without the Picker). */
+  onNameDriveFolder?: (folder: DriveFolderEntry, connectionId: string) => void;
 }
 
 function NavItem({
@@ -172,6 +175,7 @@ export function DocumentsSidebar({
   className,
   folderTree,
   driveConnections,
+  onNameDriveFolder,
 }: DocumentsSidebarProps) {
   const { t } = useTranslation();
   const [createOpen, setCreateOpen] = useState(false);
@@ -229,7 +233,8 @@ export function DocumentsSidebar({
         wsId={wsId}
         connections={driveConnections}
         view={view}
-        onSelect={(account) => onView({ kind: "drive", account })}
+        onSelect={(account, folder) => onView({ kind: "drive", account, folder })}
+        onNameFolder={onNameDriveFolder}
       />
       {folderTree ?? <DocumentTree
         wsId={wsId}

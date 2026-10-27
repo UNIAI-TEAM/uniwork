@@ -793,6 +793,31 @@ type Document struct {
 	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
 }
 
+type DocumentAccessBatch struct {
+	ID                   string             `json:"id"`
+	OrganizationID       string             `json:"organization_id"`
+	WorkspaceID          string             `json:"workspace_id"`
+	FolderID             string             `json:"folder_id"`
+	CreatedBy            string             `json:"created_by"`
+	CreatedByKind        string             `json:"created_by_kind"`
+	Mode                 string             `json:"mode"`
+	Items                []byte             `json:"items"`
+	DocumentIds          []string           `json:"document_ids"`
+	NotifiedLevels       []byte             `json:"notified_levels"`
+	Status               string             `json:"status"`
+	Total                int32              `json:"total"`
+	Processed            int32              `json:"processed"`
+	Changed              int32              `json:"changed"`
+	Unchanged            int32              `json:"unchanged"`
+	SkippedNotManageable int32              `json:"skipped_not_manageable"`
+	SkippedLocked        int32              `json:"skipped_locked"`
+	CursorID             string             `json:"cursor_id"`
+	ErrorCode            pgtype.Text        `json:"error_code"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	FinishedAt           pgtype.Timestamptz `json:"finished_at"`
+}
+
 type DocumentAccessLog struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -2100,6 +2125,7 @@ type MeetingNote struct {
 	Body           string             `json:"body"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	OrganizationID string             `json:"organization_id"`
+	EditedAt       pgtype.Timestamptz `json:"edited_at"`
 }
 
 type MeetingParticipant struct {
@@ -2295,6 +2321,28 @@ type MeetingTranscription struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	StartedAt        pgtype.Timestamptz `json:"started_at"`
 	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
+}
+
+type MembershipInviteLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	SecretHash     string             `json:"secret_hash"`
+	OrgRole        string             `json:"org_role"`
+	WorkspaceRole  string             `json:"workspace_role"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	RevokedBy      pgtype.Text        `json:"revoked_by"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type MembershipInviteLinkWorkspace struct {
+	LinkID         string             `json:"link_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	OrganizationID string             `json:"organization_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type Notification struct {
@@ -2561,6 +2609,9 @@ type Project struct {
 	CreatedByKind  string             `json:"created_by_kind"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	TrashedAt      pgtype.Timestamptz `json:"trashed_at"`
+	TrashedBy      pgtype.Text        `json:"trashed_by"`
+	PurgeAfter     pgtype.Timestamptz `json:"purge_after"`
 }
 
 type ProjectResource struct {
@@ -2677,6 +2728,11 @@ type Task struct {
 	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
 	StartAt            pgtype.Timestamptz `json:"start_at"`
 	DueAt              pgtype.Timestamptz `json:"due_at"`
+	TrashedAt          pgtype.Timestamptz `json:"trashed_at"`
+	TrashedBy          pgtype.Text        `json:"trashed_by"`
+	PurgeAfter         pgtype.Timestamptz `json:"purge_after"`
+	TrashBatchID       pgtype.Text        `json:"trash_batch_id"`
+	TrashedProjectID   pgtype.Text        `json:"trashed_project_id"`
 }
 
 type TaskComment struct {

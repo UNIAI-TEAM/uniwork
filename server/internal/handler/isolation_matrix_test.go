@@ -506,6 +506,7 @@ var isoTenantParams = map[string]bool{
 	"{workspaceID}": true, "{orgID}": true, "{org}": true, "{taskID}": true, "{meetingID}": true,
 	"{documentID}": true, "{commentID}": true, "{attachmentID}": true, "{agentID}": true,
 	"{conversationID}": true, "{requestId}": true, "{fileID}": true,
+	"{folderID}": true,
 	// A launch receipt names a document of one organization; revoke answers
 	// 404 to every account but its creator.
 	"{launchSessionID}": true,
@@ -606,6 +607,13 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{wsSlug}":
 		return tn.wsSlug
 	case "{taskID}":
+		// Restore and purge each end the row they act on, so each has its own.
+		if strings.HasSuffix(pattern, "/restore") {
+			return tn.get(t, "trashedTask")
+		}
+		if strings.HasSuffix(pattern, "/purge") {
+			return tn.get(t, "purgeTask")
+		}
 		return tn.get(t, "task")
 	case "{dependsOnTaskID}":
 		return tn.get(t, "task2")
@@ -614,6 +622,12 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{propertyID}":
 		return tn.get(t, "property")
 	case "{projectID}":
+		if strings.HasSuffix(pattern, "/restore") {
+			return tn.get(t, "trashedProject")
+		}
+		if strings.HasSuffix(pattern, "/purge") {
+			return tn.get(t, "purgeProject")
+		}
 		return tn.get(t, "project")
 	case "{meetingID}":
 		// A transcript line lives in the live meeting, an uploaded
@@ -635,6 +649,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "transcription")
 	case "{motionID}":
 		return tn.get(t, "motion")
+	case "{noteID}":
+		return tn.get(t, "meetingNote")
 	case "{actionItemID}":
 		return tn.get(t, "actionItem")
 	case "{invitationID}":
@@ -741,6 +757,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "restrictedDocument")
 		}
 		return tn.get(t, "document")
+	case "{folderID}":
+		return tn.get(t, "folder")
 	case "{lockID}":
 		return tn.get(t, "docEditLock")
 	case "{requestID}":
@@ -794,6 +812,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		}
 		return tn.get(t, "officeJob")
 	case "{batchID}":
+		if under("/contents-access/") {
+			return tn.get(t, "folderAccessBatch")
+		}
 		// The folder upload batch (UNI-2052) of the tenant's owner.
 		return tn.get(t, "folderUpload")
 	case "{fileKey}":
@@ -875,6 +896,12 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{linkID}":
 		if strings.HasPrefix(pattern, "/api/v1/documents/") {
 			return tn.get(t, "docLink")
+		}
+		if strings.Contains(pattern, "/invite-links/") {
+			if strings.Contains(pattern, "/orgs/") {
+				return tn.get(t, "membershipOrgInviteLink")
+			}
+			return tn.get(t, "membershipInviteLink")
 		}
 		return tn.get(t, "chatLink")
 	case "{resourceID}":

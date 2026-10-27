@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { initI18n } from "@uniwork/core/i18n";
+import { trashKeys } from "@uniwork/core/trash";
 import { requestMock, wrap } from "../../test/api-mock";
 import type { DocumentSummaryRow } from "../library-rows";
 import type { BulkPlan } from "./bulk-actions";
@@ -113,8 +114,10 @@ describe("useDocListBulkCommands", () => {
     expect(text).toContain("Tệp b");
     expect(text).toContain("Tệp e");
     expect(text).toContain(t("documents.list.bulk.error.forbidden"));
-    expect(invalidate).toHaveBeenCalledTimes(1);
+    // The document root and the shared trash, once each after the batch.
+    expect(invalidate).toHaveBeenCalledTimes(2);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: documentKeys.workspace(WS) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: trashKeys.workspace(WS) });
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 

@@ -66,3 +66,37 @@ func TestSubscriptionLapsePastDue(t *testing.T) {
 		t.Fatalf("cancel_at should stay null: %+v", snap.Subscription)
 	}
 }
+
+func TestSubscriptionLapsePastDueAfterPriceRemoved(t *testing.T) {
+	runPastDueAfterPriceChange := func(t *testing.T, price any) {
+		t.Helper()
+		f := newBillingFixture(t)
+		f.seedPlan(t, "paid_team", 500000, nil)
+		admin := registerVerified(t, f.q, f.auth, "pastdue-null-admin@example.com", "Admin")
+		if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
+			t.Fatal(err)
+		}
+		f.assignPlan(t, admin.ID, "paid_team")
+		past := time.Now().UTC().Add(-time.Hour)
+		if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET
+			current_period_start = $1, current_period_end = $1, cancel_at = NULL, provider = 'vnpay', status = 'active'
+			WHERE organization_id = $2`, past, f.orgID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.pool.Exec(f.ctx, `UPDATE plans SET price_amount = $1 WHERE id = $2`, price, "01TESTPLANpaid_team"); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.billing.ProcessSubscriptionLapse(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		snap, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if snap.Subscription.Status != "past_due" || snap.Plan.Code != "paid_team" {
+			t.Fatalf("expected past_due on paid plan, got status=%s plan=%s", snap.Subscription.Status, snap.Plan.Code)
+		}
+	}
+	t.Run("null price", func(t *testing.T) { runPastDueAfterPriceChange(t, nil) })
+	t.Run("zero price", func(t *testing.T) { runPastDueAfterPriceChange(t, int64(0)) })
+}

@@ -181,6 +181,60 @@ func (s *AdminService) ConfirmInvoiceRefund(ctx context.Context, adminID, invoic
 	return after, nil
 }
 
+// RevertInvoiceRefund cancels a refund_pending / partial_refund_pending invoice back to paid.
+func (s *AdminService) RevertInvoiceRefund(ctx context.Context, adminID, invoiceID, reason string) (db.Invoice, error) {
+	if err := checkReason(reason); err != nil {
+		return db.Invoice{}, err
+	}
+	inv, err := s.q.AdminGetInvoiceByID(ctx, invoiceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Invoice{}, ErrNotFound
+	}
+	if err != nil {
+		return db.Invoice{}, err
+	}
+	if inv.Status != "refund_pending" && inv.Status != "partial_refund_pending" {
+		return db.Invoice{}, CodedError{Code: "invoice_not_refundable", Status: http.StatusConflict,
+			Msg: "hóa đơn không ở trạng thái chờ hoàn tiền"}
+	}
+
+	ctx, traceID := ensureTrace(ctx)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.Invoice{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+
+	beforeMap := map[string]any{"status": inv.Status, "number": inv.Number, "amount_paid": inv.AmountPaid}
+	after, err := q.AdminRevertInvoiceRefundRequest(ctx, invoiceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Invoice{}, CodedError{Code: "invoice_not_refundable", Status: http.StatusConflict,
+			Msg: "trạng thái hóa đơn đã đổi — tải lại danh sách"}
+	}
+	if err != nil {
+		return db.Invoice{}, err
+	}
+	afterMap := map[string]any{"status": after.Status, "number": after.Number, "amount_paid": after.AmountPaid}
+	if err := s.recordAdmin(ctx, q, traceID, adminID, audit.ActionBillingInvoiceRefundReverted, "invoice", invoiceID, beforeMap, afterMap, reason); err != nil {
+		return db.Invoice{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: inv.OrganizationID,
+		Actor:          audit.User(adminID),
+		Action:         audit.ActionBillingInvoiceRefundReverted,
+		ResourceType:   "invoice", ResourceID: invoiceID,
+		Changes:  audit.Diff(beforeMap, afterMap),
+		Metadata: map[string]any{"reason": reason, "platform_admin": true, "revert_refund": true},
+	}); err != nil {
+		return db.Invoice{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.Invoice{}, err
+	}
+	return after, nil
+}
+
 func textRequired(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: true}
 }

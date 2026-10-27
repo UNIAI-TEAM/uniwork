@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { isDocumentNotInTrashError } from "@uniwork/core/documents/errors";
 import { usePurgeDocument } from "@uniwork/core/documents/hooks-collections";
 import { documentKeys } from "@uniwork/core/documents/keys";
+import { trashKeys } from "@uniwork/core/trash";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -26,7 +27,8 @@ export interface DocumentPurgeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wsId: string;
-  doc: DocumentSummaryRow;
+  /** A row of the documents trash, or of the shared trash with its `sub_kind` as `kind`. */
+  doc: Pick<DocumentSummaryRow, "id" | "title"> & { kind: string };
 }
 
 /**
@@ -69,6 +71,7 @@ export function DocumentPurgeDialog({ open, onOpenChange, wsId, doc }: DocumentP
         // Nothing is left to confirm: say so, reread the list so the stale row
         // leaves, and close instead of repeating the refusal.
         void qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+        void qc.invalidateQueries({ queryKey: trashKeys.workspace(wsId) });
         onOpenChange(false);
         toast.error(trashErrorMessage(failure, t, "documents.trash.purge_failed"));
       } else {

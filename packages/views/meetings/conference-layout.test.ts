@@ -4,6 +4,7 @@ import { Track } from "livekit-client";
 import {
   conferenceStagePage,
   copilotPanelShown,
+  liveItemsInView,
   filterVisibleTracks,
   newestSharesFirst,
   orderTracks,
@@ -389,6 +390,19 @@ describe("copilotPanelShown", () => {
   it("is off whenever another tab is showing", () => {
     expect(copilotPanelShown({ tab: "chat", compact: false, sheetOpen: false, pinned: true })).toBe(false);
     expect(copilotPanelShown({ tab: "chat", compact: true, sheetOpen: true, pinned: true })).toBe(false);
+  });
+});
+
+describe("liveItemsInView", () => {
+  it("counts the scribe's items seen while the UNI highlights show all kinds or the tasks", () => {
+    expect(liveItemsInView(true, "feed", "all")).toBe(true);
+    expect(liveItemsInView(true, "feed", "task")).toBe(true);
+  });
+
+  it("not under another kind's filter, in the transcript, or with the UNI panel off screen", () => {
+    expect(liveItemsInView(true, "feed", "decision")).toBe(false);
+    expect(liveItemsInView(true, "transcript", "all")).toBe(false);
+    expect(liveItemsInView(false, "feed", "all")).toBe(false);
   });
 });
 

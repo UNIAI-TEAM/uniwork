@@ -19,25 +19,31 @@ export function MeetingRoleChip({
   role,
   className,
 }: {
-  role: MeetingParticipantRole;
+  /** `host` and `sharedMic` are room-panel marks, not roles a participant record carries. */
+  role: MeetingParticipantRole | "host" | "sharedMic";
   className?: string;
 }) {
   const { t } = useTranslation();
   if (role === "agent") return <AgentBadge className={cn(CHIP, className)} />;
   if (role === "phone") return null;
   const label =
-    role === "secretary"
-      ? t("meetings.governance.secretary")
-      : role === "observer"
-        ? t("meetings.governance.standing_OBSERVER")
-        : t("meetings.guest");
+    role === "host"
+      ? t("meetings.host")
+      : role === "sharedMic"
+        ? t("meetings.scribe.sharedMicBadge")
+        : role === "secretary"
+          ? t("meetings.governance.secretary")
+          : role === "observer"
+            ? t("meetings.governance.standing_OBSERVER")
+            : t("meetings.guest");
   // The secretary holds a duty, so it is filled; standing and guest stay outlined.
   return (
     <Badge
       variant="outline"
       className={cn(
         CHIP,
-        role === "secretary" && "border-transparent bg-brand-subtle text-brand-subtle-foreground",
+        (role === "secretary" || role === "host") && "border-transparent bg-brand-subtle text-brand-subtle-foreground",
+        role === "sharedMic" && "border-transparent bg-tint-violet text-tint-violet-foreground",
         role === "observer" && "text-muted-foreground",
         className,
       )}

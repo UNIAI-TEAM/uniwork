@@ -2,7 +2,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
-import { DocumentsFoldersGrid } from "./documents-folders-grid";
+import { DocumentsFoldersGrid, folderMenuItems } from "./documents-folders-grid";
 import { continueCards, RecentContinue } from "./documents-recent-continue";
 import { documentRow, type DocumentSummaryRow } from "./library-rows";
 
@@ -84,5 +84,23 @@ describe("folder card of Home", () => {
       );
       expect(screen.getByText(LABEL[lang])).toBeInTheDocument();
     });
+  });
+});
+
+describe("folderMenuItems: Chia sẻ", () => {
+  const onShareContents = vi.fn();
+  const share = (doc: DocumentSummaryRow) => folderMenuItems(doc, { onShareContents }, (key) => key).find((item) => item.id === "share-contents");
+
+  it("is offered on a readable folder and on the My Folder root, and hands the folder over", () => {
+    for (const doc of [folder({ my_level: "view", system_kind: null }), folder()]) {
+      share(doc)!.run();
+      expect(onShareContents).toHaveBeenLastCalledWith(doc);
+    }
+    expect(share(folder())!.testId).toBe("folder-access-menu-item");
+  });
+
+  it("is absent on an archived folder, and where the host wires no dialog", () => {
+    expect(share(folder({ archived_at: "2026-10-20T03:00:00Z" }))).toBeUndefined();
+    expect(folderMenuItems(folder(), {}, (key) => key).some((item) => item.id === "share-contents")).toBe(false);
   });
 });

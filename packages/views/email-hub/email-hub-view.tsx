@@ -97,6 +97,7 @@ export function EmailHubView() {
   const isScheduledFolder = folder === "SCHEDULED";
   const mailFolder: EmailHubMailFolderKey = isScheduledFolder ? "INBOX" : folder;
   const scheduled = useEmailHubScheduledSends(wsId, accountId);
+  const { refetch: refetchScheduledSends } = scheduled;
   const readingEmail = !!selectedId;
   const sidebarCounts = useEmailHubSidebarCounts(wsId, accountId);
 
@@ -113,6 +114,11 @@ export function EmailHubView() {
     const id = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
     return () => window.clearTimeout(id);
   }, [searchInput]);
+
+  useEffect(() => {
+    if (folder !== "SCHEDULED" || !accountId) return;
+    void refetchScheduledSends();
+  }, [accountId, folder, refetchScheduledSends]);
 
   useEffect(() => {
     setCheckedIds(new Set());
@@ -161,6 +167,19 @@ export function EmailHubView() {
     setComposeSource(source ?? null);
     setComposeOpen(true);
   }, []);
+
+  const alignScheduledMailbox = useCallback(
+    (scheduledAccountId: string) => {
+      setAccountId(scheduledAccountId);
+      setSelectedId(null);
+      setCheckedIds(new Set());
+    },
+    [],
+  );
+
+  const openScheduledFolder = useCallback(() => {
+    setFolder("SCHEDULED");
+  }, [setFolder]);
 
   const activeThread =
     detail.data?.id === selectedId ? detail.data : selectedRow?.id === selectedId ? selectedRow : null;
@@ -316,7 +335,8 @@ export function EmailHubView() {
       onComposeOpenChange={setComposeOpen}
       composeMode={composeMode}
       composeSource={composeSource}
-      onOpenScheduled={() => setFolder("SCHEDULED")}
+      onScheduledCreated={alignScheduledMailbox}
+      onOpenScheduled={openScheduledFolder}
     />
   );
   const frame = "flex h-[calc(100dvh-var(--header-height,3.5rem))] min-h-0 bg-background";

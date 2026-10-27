@@ -12,6 +12,7 @@ import {
 } from "../api/endpoints/documents-collections";
 import { createDownloadJob, getDownloadJob, type DocumentDownloadJob } from "../api/endpoints/documents-download-jobs";
 import { DocumentNotVerifiableError } from "../types/document";
+import { trashKeys } from "../trash/keys";
 import { createSafeId } from "../utils";
 import { runBulk, type BulkResult } from "./bulk";
 import { documentKeys } from "./keys";
@@ -20,7 +21,7 @@ import { requireVerifiableArchive, requireVerifiableDocument } from "./verify";
 // The bulk bar's commands (UNI-2045 W9). Each reuses the single-document
 // endpoint the row menu's hook calls, but none of those hooks: they
 // invalidate per call, and a batch invalidates the workspace document root
-// once, after its last call settles.
+// and the shared trash once, after its last call settles.
 
 export type BulkDocumentCommand = "move" | "shelve" | "unshelve" | "trash" | "restore" | "purge";
 
@@ -69,7 +70,10 @@ export function useBulkDocumentCommand(wsId: string) {
       const keys = new Map(ids.map((id) => [id, createSafeId()]));
       return runBulk(ids, (id) => runOne(command, id, keys.get(id)!, parentId));
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: trashKeys.workspace(wsId) });
+      return qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    },
   });
 }
 

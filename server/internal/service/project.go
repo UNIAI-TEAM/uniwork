@@ -449,56 +449,57 @@ func (s *TaskService) guardDuplicateProjectTitle(
 	return nil
 }
 
+// DeleteProject moves the project to the trash (UNI-2171); PurgeProject
+// deletes it for good.
 func (s *TaskService) DeleteProject(ctx context.Context, actor Actor, workspaceID, projectID string) error {
-	ws, _, err := s.authorizeProjectEdit(ctx, actor, workspaceID, projectID)
-	if err != nil {
-		return err
-	}
+	return s.TrashProject(ctx, actor, workspaceID, projectID)
+}
 
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
+// purgeProjectInTx deletes a trashed project for good, with its resources,
+// project-scoped views and pins. Its tasks were unlinked when it entered the
+// trash and stay alive; only their memory of it is dropped. The caller holds
+// the project row lock (PurgeProject, the purge worker) and has re-checked
+// that it is still in the trash.
+func (s *TaskService) purgeProjectInTx(ctx context.Context, q *db.Queries, p db.Project, actor audit.Actor) error {
+	if err := lockProjectTasks(ctx, q, p); err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-
-	if err := q.DeleteProjectResourcesByProject(ctx, db.DeleteProjectResourcesByProjectParams{
-		ProjectID: projectID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-	}); err != nil {
-		return err
-	}
-	clearedTaskIDs, err := q.ClearTasksProjectID(ctx, db.ClearTasksProjectIDParams{
-		ProjectID:      pgtype.Text{String: projectID, Valid: true},
-		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+	// normalizeProjectID reads the project unlocked, so a task create or
+	// update that saw it live can still link a task after the trash.
+	late, err := q.UnlinkTasksForProjectPurge(ctx, db.UnlinkTasksForProjectPurgeParams{
+		ProjectID: p.ID, OrganizationID: p.OrganizationID, WorkspaceID: p.WorkspaceID,
 	})
 	if err != nil {
 		return err
 	}
-	for _, taskID := range clearedTaskIDs {
-		if err := auditRecorder.Record(ctx, q, audit.Entry{
-			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-			Actor: actor, Action: audit.ActionTaskUpdated,
-			ResourceType: "task", ResourceID: taskID,
-		}, audit.Event{Topic: "task.updated", Payload: map[string]string{
-			"task_id": taskID, "workspace_id": workspaceID,
-		}}); err != nil {
-			return err
-		}
+	if err := auditRecorder.RecordMany(ctx, q, taskUpdatedRecords(actor, p, late)); err != nil {
+		return err
+	}
+	if err := q.DeleteProjectResourcesByProject(ctx, db.DeleteProjectResourcesByProjectParams{
+		ProjectID: p.ID, OrganizationID: p.OrganizationID, WorkspaceID: p.WorkspaceID,
+	}); err != nil {
+		return err
+	}
+	if err := q.ClearTrashedProjectLinks(ctx, db.ClearTrashedProjectLinksParams{
+		ProjectID:      pgtype.Text{String: p.ID, Valid: true},
+		OrganizationID: p.OrganizationID, WorkspaceID: p.WorkspaceID,
+	}); err != nil {
+		return err
 	}
 	if err := q.DeleteTaskViewsByProjectScope(ctx, db.DeleteTaskViewsByProjectScopeParams{
-		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-		ScopeID: pgtype.Text{String: projectID, Valid: true},
+		OrganizationID: p.OrganizationID, WorkspaceID: p.WorkspaceID,
+		ScopeID: pgtype.Text{String: p.ID, Valid: true},
 	}); err != nil {
 		return err
 	}
 	if err := q.DeleteTaskPinsByItem(ctx, db.DeleteTaskPinsByItemParams{
-		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-		ItemType: "project", ItemID: projectID,
+		OrganizationID: p.OrganizationID, WorkspaceID: p.WorkspaceID,
+		ItemType: "project", ItemID: p.ID,
 	}); err != nil {
 		return err
 	}
 	n, err := q.DeleteProject(ctx, db.DeleteProjectParams{
-		ID: projectID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		ID: p.ID, OrganizationID: p.OrganizationID, WorkspaceID: p.WorkspaceID,
 	})
 	if err != nil {
 		return err
@@ -506,16 +507,13 @@ func (s *TaskService) DeleteProject(ctx context.Context, actor Actor, workspaceI
 	if n == 0 {
 		return ErrNotFound
 	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+	return auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: p.OrganizationID, WorkspaceID: p.WorkspaceID,
 		Actor: actor, Action: audit.ActionProjectDeleted,
-		ResourceType: "project", ResourceID: projectID,
+		ResourceType: "project", ResourceID: p.ID,
 	}, audit.Event{Topic: "project.deleted", Payload: map[string]string{
-		"project_id": projectID, "workspace_id": workspaceID,
-	}}); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+		"project_id": p.ID, "workspace_id": p.WorkspaceID,
+	}})
 }
 
 func (s *TaskService) ProjectStats(ctx context.Context, actor Actor, workspaceID string, projects []db.Project) (map[string]ProjectView, error) {
@@ -581,6 +579,13 @@ func (s *TaskService) loadProject(ctx context.Context, q *db.Queries, orgID, wor
 // or deleting it takes a workspace owner/admin, the project's creator or its
 // lead, so one member cannot rewrite a peer's project.
 func (s *TaskService) authorizeProjectEdit(ctx context.Context, actor Actor, workspaceID, projectID string) (db.Workspace, db.Project, error) {
+	return s.authorizeProjectEditIn(ctx, actor, workspaceID, projectID, false)
+}
+
+// authorizeProjectEditIn is authorizeProjectEdit for a live project, or with
+// trashed for one in the trash (restore, purge); a project in the other
+// state is not found. Membership is checked before the project is read.
+func (s *TaskService) authorizeProjectEditIn(ctx context.Context, actor Actor, workspaceID, projectID string, trashed bool) (db.Workspace, db.Project, error) {
 	adminLike := false
 	if actor.Kind == audit.KindHuman {
 		m, err := s.ws.RequireMember(ctx, workspaceID, actor.ID)
@@ -595,14 +600,31 @@ func (s *TaskService) authorizeProjectEdit(ctx context.Context, actor Actor, wor
 	if err != nil {
 		return db.Workspace{}, db.Project{}, err
 	}
-	p, err := s.loadProject(ctx, s.q, ws.OrganizationID, workspaceID, projectID)
+	var p db.Project
+	if trashed {
+		p, err = s.q.GetProjectIncludingTrashed(ctx, db.GetProjectIncludingTrashedParams{
+			ID: projectID, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && !p.TrashedAt.Valid) {
+			err = ErrNotFound
+		}
+	} else {
+		p, err = s.loadProject(ctx, s.q, ws.OrganizationID, workspaceID, projectID)
+	}
 	if err != nil {
 		return db.Workspace{}, db.Project{}, err
 	}
-	if !adminLike && !projectOwnedBy(p, actor) {
+	if !canManageProject(adminLike, p, actor) {
 		return db.Workspace{}, db.Project{}, errNotProjectEditor()
 	}
 	return ws, p, nil
+}
+
+// canManageProject is the one rule for who may edit, trash, restore or purge
+// a project: a workspace admin (organization owners and admins count) or its
+// creator or lead. The trash list shows it as CanManage.
+func canManageProject(adminLike bool, p db.Project, actor Actor) bool {
+	return adminLike || projectOwnedBy(p, actor)
 }
 
 // projectOwnedBy reports whether actor created p or is its lead. Both are

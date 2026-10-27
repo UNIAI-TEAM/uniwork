@@ -37,6 +37,10 @@ const (
 	ActionDepartmentArchived = "department.archived"
 	ActionPeopleExported     = "people.exported"
 	ActionInvitationRevoked  = "invitation.revoked"
+	// Shareable membership invite links (UNI-2226): create and revoke only;
+	// joining still writes member.joined.
+	ActionMembershipInviteLinkCreated = "membership_invite_link.created"
+	ActionMembershipInviteLinkRevoked = "membership_invite_link.revoked"
 
 	ActionWorkspaceCreated         = "workspace.created"
 	ActionWorkspaceUpdated         = "workspace.updated"
@@ -55,6 +59,8 @@ const (
 	ActionTaskCreated      = "task.created"
 	ActionTaskUpdated      = "task.updated"
 	ActionTaskDeleted      = "task.deleted"
+	ActionTaskTrashed      = "task.trashed"
+	ActionTaskRestored     = "task.restored"
 	ActionTaskCommentAdded = "task.comment_added"
 
 	ActionTaskCommentUpdated     = "task.comment_updated"
@@ -90,6 +96,8 @@ const (
 	ActionProjectCreated         = "project.created"
 	ActionProjectUpdated         = "project.updated"
 	ActionProjectDeleted         = "project.deleted"
+	ActionProjectTrashed         = "project.trashed"
+	ActionProjectRestored        = "project.restored"
 	ActionProjectResourceCreated = "project_resource.created"
 	ActionProjectResourceUpdated = "project_resource.updated"
 	ActionProjectResourceDeleted = "project_resource.deleted"
@@ -147,8 +155,9 @@ const (
 	// message is gone for everyone, as its sender's own deletion would be; the organization sees who and why.
 	ActionChatMessageRemoved = "chat.message.removed"
 
-	ActionSubscriptionChanged    = "subscription.changed"
-	ActionBillingInvoiceRefunded = "billing.invoice_refunded"
+	ActionSubscriptionChanged          = "subscription.changed"
+	ActionBillingInvoiceRefunded       = "billing.invoice_refunded"
+	ActionBillingInvoiceRefundReverted = "billing.invoice_refund_reverted"
 
 	// Documents (UNI-675): created today through the owner seam
 	// (C-01 §13.5); the public page/file commands add their own rows as
@@ -179,6 +188,10 @@ const (
 	ActionDocumentLinkCreated            = "document.link_created"
 	ActionDocumentLinkRevoked            = "document.link_revoked"
 	ActionDocumentSettingsChanged        = "document.settings_changed"
+	// Folder bulk access (UNI-2244 §6): one row per completed bulk access
+	// batch (sync in the command's transaction; background when the worker
+	// finishes), with the folder as the resource and the outcome counts.
+	ActionDocumentContentsAccessUpdated = "document.contents_access_updated"
 	// ActionDocumentsAccessReportExported is one access report export
 	// (UNI-1643): ids, the filter and counts, never a name.
 	ActionDocumentsAccessReportExported = "documents.access_report_exported"
@@ -451,6 +464,12 @@ const (
 	// A workspace member added a shared note to a meeting (MeetingService.AddNote,
 	// UNI-2153); the body stays out of the row, which names the note by id.
 	ActionMeetingNoteAdded = "meeting.note_added"
+
+	// The author or a meeting clerk edited or deleted a shared note
+	// (MeetingService.UpdateNote / DeleteNote, UNI-2217); like note_added, the
+	// row names the note by id and never carries its text.
+	ActionMeetingNoteUpdated = "meeting.note_updated"
+	ActionMeetingNoteDeleted = "meeting.note_deleted"
 
 	// A host or admin recorded that a meeting was held without a room:
 	// SCHEDULED → ENDED at the reported times (MeetingService.RecordHeld,

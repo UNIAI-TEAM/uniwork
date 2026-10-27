@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode, RefObject } from "react";
+import { useCallback, useState, type ReactNode, type RefObject } from "react";
 import { useAskUniOpener } from "../ai/ask-uni-focus-button";
 import { useAskUniPageContext } from "../ai/ask-uni-page-context";
 import { ChatRoomComposer, type ChatComposerHandle, type ComposerAttachAction } from "./chat-composer";
@@ -18,9 +18,11 @@ import type { ChatPageContentProps } from "./chat-page-content-props";
 import { ChatPinnedMessagesBar } from "./chat-pinned-messages-bar";
 import { senderLabelFor } from "./native-chat-message-mapping";
 import { ChatActiveCallBar } from "./chat-active-call-bar";
+import { ChatMessageSelectionBar } from "./chat-message-selection-bar";
 import { NativeChatMessagePanel } from "./native-chat-message-panel";
 import type { useChatCatchUpUi } from "./use-chat-catch-up-ui";
 import { useChatInlineEdit } from "./use-chat-inline-edit";
+import type { ChatMessageSelectionBarState } from "./use-chat-message-selection-actions";
 
 /**
  * The open room: its header, search (below the header, which stays) or the
@@ -89,6 +91,10 @@ export function ChatPageConversation({
   const many = target.kind !== "dm";
   useAskUniPageContext({ kind: "room", id: activeRoomId, label: headerTitle });
   const askUni = useAskUniOpener({ kind: "room", id: activeRoomId, label: headerTitle }, workspaceId);
+  const [selectionBar, setSelectionBar] = useState<ChatMessageSelectionBarState | null>(null);
+  const onSelectionChange = useCallback((bar: ChatMessageSelectionBarState | null) => {
+    setSelectionBar(bar);
+  }, []);
 
   return (
     <>
@@ -189,51 +195,65 @@ export function ChatPageConversation({
             onEditMessage={edit.start}
             peerLastReadAt={props.peerLastReadAt}
             desktopOpen={props.desktopOpen}
+            onSelectionChange={onSelectionChange}
           />
         </ChatUnreadProvider>
       </div>
 
-      <ChatRoomComposer
-        ref={composerRef}
-        workspaceId={workspaceId}
-        draftKey={props.composerDraftKey}
-        composerPriority={props.composerPriority}
-        onComposerPriorityChange={props.onComposerPriorityChange}
-        onSend={props.onSend}
-        onSendMedia={props.onSendMedia}
-        onSendVoice={props.onSendVoice}
-        onSendFile={props.onSendFile}
-        onSendDocument={props.onSendDocument}
-        canSendDocument={props.canSendDocument}
-        disabled={props.showLoading || dmBlocked || chatSendRestricted}
-        mentionCandidates={many ? props.mentionCandidates : undefined}
-        memberAvatarByUserId={memberAvatarByUserId}
-        {...chatComposerBlockProps(t, {
-          dmBlocked,
-          chatSendMutedByModerator: props.chatSendMutedByModerator,
-          chatSendRestricted,
-        })}
-        sendLabel={t("chat.send")}
-        blockedByMe={props.dmBlockedByMe}
-        onUnblock={props.onUnblockContact}
-        unblocking={props.unblockingContact}
-        replyTo={props.replyTo}
-        replyToSenderLabel={
-          props.replyTo ? senderLabelFor(props.replyTo, currentUserId, t("chat.you"), nameContext) : undefined
-        }
-        onCancelReply={() => {
-          props.onReplyToChange(null);
-          focusComposer();
-        }}
-        typingLabel={props.typingLabel}
-        onAttachAction={onAttachAction}
-        showCreatePoll={props.canCreatePolls && many}
-        editing={
-          edit.message
-            ? { message: edit.message, saving: edit.saving, error: edit.error, onSave: (text) => void edit.save(text), onCancel: edit.cancel }
-            : null
-        }
-      />
+      {selectionBar?.active ? (
+        <ChatMessageSelectionBar
+          count={selectionBar.count}
+          canForward={selectionBar.canForward}
+          canDelete={selectionBar.canDelete}
+          busy={selectionBar.busy}
+          onClear={selectionBar.clear}
+          onCopy={selectionBar.copy}
+          onForward={selectionBar.forward}
+          onDelete={selectionBar.deleteSelected}
+        />
+      ) : (
+        <ChatRoomComposer
+          ref={composerRef}
+          workspaceId={workspaceId}
+          draftKey={props.composerDraftKey}
+          composerPriority={props.composerPriority}
+          onComposerPriorityChange={props.onComposerPriorityChange}
+          onSend={props.onSend}
+          onSendMedia={props.onSendMedia}
+          onSendVoice={props.onSendVoice}
+          onSendFile={props.onSendFile}
+          onSendDocument={props.onSendDocument}
+          canSendDocument={props.canSendDocument}
+          disabled={props.showLoading || dmBlocked || chatSendRestricted}
+          mentionCandidates={many ? props.mentionCandidates : undefined}
+          memberAvatarByUserId={memberAvatarByUserId}
+          {...chatComposerBlockProps(t, {
+            dmBlocked,
+            chatSendMutedByModerator: props.chatSendMutedByModerator,
+            chatSendRestricted,
+          })}
+          sendLabel={t("chat.send")}
+          blockedByMe={props.dmBlockedByMe}
+          onUnblock={props.onUnblockContact}
+          unblocking={props.unblockingContact}
+          replyTo={props.replyTo}
+          replyToSenderLabel={
+            props.replyTo ? senderLabelFor(props.replyTo, currentUserId, t("chat.you"), nameContext) : undefined
+          }
+          onCancelReply={() => {
+            props.onReplyToChange(null);
+            focusComposer();
+          }}
+          typingLabel={props.typingLabel}
+          onAttachAction={onAttachAction}
+          showCreatePoll={props.canCreatePolls && many}
+          editing={
+            edit.message
+              ? { message: edit.message, saving: edit.saving, error: edit.error, onSave: (text) => void edit.save(text), onCancel: edit.cancel }
+              : null
+          }
+        />
+      )}
     </>
   );
 }

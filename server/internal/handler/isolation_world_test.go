@@ -680,6 +680,19 @@ func (w *isoWorld) buildTasks(t *testing.T, tn *isoTenant) {
 		"resource_type": "github_repo", "resource_ref": map[string]any{"url": "https://github.com/acme/" + strings.ToLower(m)}, "label": m + " Resource",
 	})
 	tn.ids["projectResource"] = isoID(t, out, "resource")
+	// Trashed rows: restore and purge only answer for a row in the trash, so
+	// an attack on them must meet one. Each route ends its row (restore leaves
+	// the trash, purge leaves the database), so each gets its own.
+	for key, kind := range map[string]string{"trashedTask": "Restore", "purgeTask": "Purge"} {
+		out = w.call(t, "POST", ws+"/tasks", tn.token, map[string]any{"title": m + " Trashed Task " + kind})
+		tn.ids[key] = isoID(t, out, "task")
+		w.call(t, "DELETE", "/api/v1/tasks/"+tn.ids[key], tn.token, nil)
+	}
+	for key, kind := range map[string]string{"trashedProject": "Restore", "purgeProject": "Purge"} {
+		out = w.call(t, "POST", ws+"/projects", tn.token, map[string]any{"title": m + " Trashed Project " + kind})
+		tn.ids[key] = isoID(t, out, "project")
+		w.call(t, "DELETE", ws+"/projects/"+tn.ids[key], tn.token, nil)
+	}
 }
 
 func (w *isoWorld) buildMeetings(t *testing.T, tn *isoTenant) {
@@ -916,6 +929,18 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		util.NewID(), tn.ids["folderUploadFileKey"], tn.orgID, tn.wsID, tn.ids["folderUpload"], tn.ids["folder"], strings.ToLower(m)+"-upload.md"); err != nil {
 		t.Fatalf("folder upload file: %v", err)
 	}
+	// A completed folder bulk access batch (UNI-2244) of the tenant's owner on
+	// the seeded folder, so GET /documents/{folderID}/contents-access/{batchID}
+	// has a real row for the owner control and refuses every other tenant.
+	tn.ids["folderAccessBatch"] = util.NewID()
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO document_access_batches
+		(id, organization_id, workspace_id, folder_id, created_by, created_by_kind,
+		 mode, items, document_ids, notified_levels, status, total, processed, changed, unchanged, finished_at)
+		VALUES ($1, $2, $3, $4, $5, 'human', 'merge', '[]'::jsonb, ARRAY[]::text[], '{}'::jsonb,
+		        'completed', 1, 1, 1, 0, now())`,
+		tn.ids["folderAccessBatch"], tn.orgID, tn.wsID, tn.ids["folder"], tn.userID); err != nil {
+		t.Fatalf("folder access batch: %v", err)
+	}
 	// A comment on the file document itself: the office launch session's
 	// own-rows control must name a comment of the document its path names
 	// (R1-1 binds the ticket's comment to its document).
@@ -973,6 +998,16 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	for _, inv := range isoList(t, out, "invitations") {
 		tn.ids["orgInvitation"] = inv["id"].(string)
 	}
+	// Shareable membership invite links (UNI-2226): one workspace-scoped row
+	// and one org-scoped row that also fills membership_invite_link_workspaces.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/invite-links", tn.token, map[string]any{"expires_in_days": 7})
+	tn.ids["membershipInviteLink"] = isoID(t, out, "invite_link")
+	tn.ids["membershipInviteSecret"] = isoString(t, out, "invite_link", "secret")
+	out = w.call(t, "POST", org+"/invite-links", tn.token, map[string]any{
+		"workspace_ids": []string{tn.wsID}, "expires_in_days": 7,
+	})
+	tn.ids["membershipOrgInviteLink"] = isoID(t, out, "invite_link")
+	tn.ids["membershipOrgInviteSecret"] = isoString(t, out, "invite_link", "secret")
 	inviteeToken, _ := w.register(t, invitee, m+" Invitee")
 	out = w.call(t, "GET", "/api/v1/me/invitations", inviteeToken, nil)
 	for _, inv := range isoList(t, out, "invitations") {

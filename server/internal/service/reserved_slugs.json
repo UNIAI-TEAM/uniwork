@@ -6,6 +6,7 @@
   "workspaces",
   "invitations",
   "invite",
+  "join",
   "api",
   "me",
   "orgs",

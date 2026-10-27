@@ -80,6 +80,10 @@ type Deps struct {
 	// graph routes until the server wires it.
 	Graph *service.GraphService
 
+	// Trash is the shared workspace trash (UNI-2171). When omitted, New
+	// derives it from Tasks, Documents, Workspaces and FeatureFlags.
+	Trash *service.TrashService
+
 	// FileAccess is the FileService read path (T4); nil answers 501 on the
 	// file routes until the server wires it.
 	FileAccess *service.FileAccessService
@@ -229,6 +233,11 @@ func New(d Deps) http.Handler {
 			Documents: d.Documents, Chat: d.Chat, Tasks: d.Tasks, Meetings: d.Meetings, EmailHub: d.EmailHub,
 		})
 	}
+	if d.Trash == nil && d.Tasks != nil {
+		// A nil *featureflag.Service reads every flag at its default, as the
+		// document routes do, so it is passed through as is.
+		d.Trash = service.NewTrashService(d.Tasks, d.Documents, d.Workspaces, d.FeatureFlags)
+	}
 	if d.OfficeFrame == nil && d.Documents != nil {
 		d.OfficeFrame = service.NewOfficeFrameService(d.Documents, d.Cfg.JWTSecret)
 	}
@@ -299,6 +308,7 @@ func New(d Deps) http.Handler {
 		AdminListPaymentIntents:           h.adminListPaymentIntents,
 		AdminRefundInvoice:                h.adminRefundInvoice,
 		AdminConfirmInvoiceRefund:         h.adminConfirmInvoiceRefund,
+		AdminRevertInvoiceRefund:          h.adminRevertInvoiceRefund,
 		WS:                                h.ws,
 
 		McpProtectedResource:   h.mcpProtectedResource,
@@ -385,6 +395,17 @@ func New(d Deps) http.Handler {
 		RevokeOrgInvitation:  h.revokeOrgInvitation,
 		TransferOrgOwnership: h.transferOrgOwnership,
 
+		ListOrgInviteLinks:            h.listOrgInviteLinks,
+		CreateOrgInviteLink:           h.createOrgInviteLink,
+		RevokeOrgInviteLink:           h.revokeOrgInviteLink,
+		RegenerateOrgInviteLink:       h.regenerateOrgInviteLink,
+		ListWorkspaceInviteLinks:      h.listWorkspaceInviteLinks,
+		CreateWorkspaceInviteLink:     h.createWorkspaceInviteLink,
+		RevokeWorkspaceInviteLink:     h.revokeWorkspaceInviteLink,
+		RegenerateWorkspaceInviteLink: h.regenerateWorkspaceInviteLink,
+		PreviewMembershipInviteLink:   h.previewMembershipInviteLink,
+		JoinMembershipInviteLink:      h.joinMembershipInviteLink,
+
 		ListPeople:         h.listPeople,
 		GetPerson:          h.getPerson,
 		PatchPersonProfile: h.patchPersonProfile,
@@ -402,6 +423,7 @@ func New(d Deps) http.Handler {
 		UploadWorkspaceIcon: h.uploadWorkspaceIcon,
 		RemoveWorkspaceIcon: h.removeWorkspaceIcon,
 		GetWorkspaceMe:      h.getWorkspaceMe,
+		ListTrash:           h.listTrash,
 		ListMembers:         h.listMembers,
 		PatchMember:         h.patchMember,
 		DeleteMember:        h.deleteMember,
@@ -476,6 +498,9 @@ func New(d Deps) http.Handler {
 		RebindDriveFile:                  h.RebindDriveFile,
 		NameDriveFolder:                  h.NameDriveFolder,
 		ListDriveFolders:                 h.ListDriveFolders,
+		ListTaskTrash:                    h.listTaskTrash,
+		PurgeTask:                        h.purgeTask,
+		RestoreTask:                      h.restoreTask,
 		ListTaskDriveFiles:               h.ListTaskDriveFiles,
 		RemoveTaskDriveFile:              h.RemoveTaskDriveFile,
 		CreateDriveTaskProposal:          h.CreateDriveTaskProposal,
@@ -531,6 +556,9 @@ func New(d Deps) http.Handler {
 		GetProject:            h.getProject,
 		PutProject:            h.putProject,
 		DeleteProject:         h.deleteProject,
+		RestoreProject:        h.restoreProject,
+		PurgeProject:          h.purgeProject,
+		ListProjectTrash:      h.listProjectTrash,
 		ListProjectResources:  h.listProjectResources,
 		CreateProjectResource: h.createProjectResource,
 		PutProjectResource:    h.putProjectResource,
@@ -675,6 +703,8 @@ func New(d Deps) http.Handler {
 		TransferHost:                   h.transferHost,
 		ListNotes:                      h.listNotes,
 		CreateNote:                     h.createNote,
+		UpdateNote:                     h.updateNote,
+		DeleteNote:                     h.deleteNote,
 		MeetingToken:                   h.meetingToken,
 		JoinMeeting:                    h.joinMeeting,
 		ListParticipants:               h.listParticipants,
@@ -1002,6 +1032,8 @@ func New(d Deps) http.Handler {
 		CreateDocumentShare:            h.createDocumentShare,
 		CreateDocumentShareBatch:       h.createDocumentShareBatch,
 		UpdateDocumentAccess:           h.updateDocumentAccess,
+		UpdateFolderContentsAccess:     h.updateFolderContentsAccess,
+		GetFolderContentsAccessBatch:   h.getFolderContentsAccessBatch,
 		RevokeDocumentShare:            h.revokeDocumentShare,
 		CreateDocumentAccessRequest:    h.createDocumentAccessRequest,
 		ListDocumentAccessRequests:     h.listDocumentAccessRequests,

@@ -81,6 +81,8 @@ var catalogue = []EventDef{
 	// carries ids only. Every other task.updated emitter sends ids only.
 	{Topic: "task.updated", Version: 1, Payload: []string{"task_id", "workspace_id", "revision_before", "revision"}, Patch: []string{"title", "status", "priority", "due_date"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.deleted", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task.trashed", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task.restored", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_added", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_updated", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_deleted", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -112,6 +114,8 @@ var catalogue = []EventDef{
 	{Topic: "task_view_preference.updated", Version: 1, Payload: []string{"workspace_id", "user_id", "scope_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project.created", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project.deleted", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project.trashed", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project.restored", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project.updated", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project_resource.created", Version: 1, Payload: []string{"resource_id", "project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project_resource.deleted", Version: 1, Payload: []string{"resource_id", "project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -257,6 +261,9 @@ var catalogue = []EventDef{
 	{Topic: "motion.ballot_cast", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	// A shared note was added to a meeting; open panels refetch the notes. The body stays out of the payload.
 	{Topic: "note.created", Version: 1, Payload: []string{"meeting_id", "version", "note_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	// A note was edited or deleted by its author or a clerk (UNI-2217); same shape, the body stays out.
+	{Topic: "note.updated", Version: 1, Payload: []string{"meeting_id", "version", "note_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "note.deleted", Version: 1, Payload: []string{"meeting_id", "version", "note_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "invitation.responded", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "join_request.created", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "join_request.approved", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
@@ -398,6 +405,10 @@ var catalogue = []EventDef{
 	// workspace_id is the workspace of the first document the call moved (id
 	// order) so the grouped notice lands in a workspace Inbox (FE-R1-3).
 	{Topic: "document.owners_bulk_transferred", Version: 1, Payload: []string{"organization_id", "user_id", "bulk_id", "from_user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Folder bulk access (UNI-2244 §6): emitted when a background batch
+	// finishes so open clients refresh the batch progress and workspace
+	// document queries.
+	{Topic: "document_access_batch.completed", Version: 1, Payload: []string{"batch_id", "folder_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
 	// holder's own connections. revoked makes an online device lock its copy

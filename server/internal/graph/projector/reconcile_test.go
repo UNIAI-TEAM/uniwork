@@ -192,7 +192,16 @@ func TestProjectTaskDeleteClosesEveryEdge(t *testing.T) {
 	}
 	f.sync(t)
 	eq(t, "b edges", f.openEdges(t, graph.NodeTask, b.ID), []string{"BELONGS_TO>TASK:" + a.ID, "DEPENDS_ON>TASK:" + a.ID})
+	// Deleting a would take its subtask b to the trash with it (UNI-2171):
+	// b leaves first in a batch of its own and comes back alone, a root
+	// whose parent and dependency point at a trashed task.
+	if _, err := f.tasks.Trash(f.ctx, service.Human(f.owner.ID), b.ID); err != nil {
+		t.Fatal(err)
+	}
 	if err := f.tasks.Delete(f.ctx, f.owner.ID, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.tasks.Restore(f.ctx, service.Human(f.owner.ID), b.ID); err != nil {
 		t.Fatal(err)
 	}
 	f.sync(t)

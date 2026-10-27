@@ -467,6 +467,7 @@ WITH RECURSIVE tree AS (
   INNER JOIN tree p ON c.parent_task_id = p.id
     AND c.organization_id = p.organization_id
     AND c.workspace_id = p.workspace_id
+    AND c.trashed_at IS NULL
 )
 SELECT tree.id FROM tree
 `
@@ -596,12 +597,14 @@ WITH RECURSIVE ancestors AS (
     AND child.workspace_id = $3
     AND parent.organization_id = $2
     AND parent.workspace_id = $3
+    AND parent.trashed_at IS NULL
   UNION ALL
   SELECT parent.id, parent.parent_task_id
   FROM tasks parent
   INNER JOIN ancestors child ON child.parent_task_id = parent.id
   WHERE parent.organization_id = $2
     AND parent.workspace_id = $3
+    AND parent.trashed_at IS NULL
 )
 SELECT subscriber.organization_id, subscriber.workspace_id, subscriber.task_id, subscriber.actor_type, subscriber.actor_id, subscriber.reason, subscriber.created_at, subscriber.unsubscribed_at, subscriber.opt_out_scope
 FROM task_subscribers subscriber

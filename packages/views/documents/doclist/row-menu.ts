@@ -16,6 +16,7 @@ export type RowMenuItemId =
   | "open-folder"
   | "open-app"
   | "share"
+  | "share-contents"
   | "copy-link"
   | "star"
   | "new-subfolder"
@@ -51,6 +52,8 @@ export interface RowMenuHandlers {
   /** Absent outside an organization (no favorites there). */
   onToggleStar?: (documentId: string, starred: boolean) => void;
   onShare?: (doc: DocumentSummaryRow) => void;
+  /** "Chia sẻ": a folder row's bulk access dialog; absent hides the item. */
+  onShareContents?: (doc: DocumentSummaryRow) => void;
   onNewSubfolder?: (doc: DocumentSummaryRow) => void;
   /** UNI-2055 W3: may the viewer create inside this folder (a workspace folder takes every member); absent = the edit level. */
   canCreateInside?: (doc: DocumentSummaryRow) => boolean;
@@ -191,6 +194,11 @@ function documentGroups(doc: DocumentSummaryRow, { handlers, starred, open, open
   if (handlers.onShare && canShareRow(doc)) {
     const { onShare } = handlers;
     sharing.push({ id: "share", labelKey: "documents.actions.share", run: () => onShare(doc) });
+  }
+  // A folder has no share of its own; its menu offers the bulk command for the documents inside.
+  if (folder && handlers.onShareContents && known) {
+    const { onShareContents } = handlers;
+    sharing.push({ id: "share-contents", labelKey: "documents.folderAccess.menu", run: () => onShareContents(doc) });
   }
   if (handlers.onCopyLink && !myFolder) {
     const { onCopyLink } = handlers;

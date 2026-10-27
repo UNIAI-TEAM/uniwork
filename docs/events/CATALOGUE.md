@@ -201,6 +201,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.unshelved` | 1 | `document_id`, `workspace_id`, `shelve_batch_id` | — | workspace | outbox |
 | `document.deleted` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.change_noticed` | 1 | `document_id`, `workspace_id`, `verb` | — | - | outbox |
+| `document_access_batch.completed` | 1 | `batch_id`, `folder_id`, `workspace_id` | — | workspace | outbox |
 | `drive_connection.changed` | 1 | `connection_id`, `user_id` | — | user | outbox |
 | `drive_file.access_changed` | 1 | `drive_file_id`, `workspace_id`, `user_id` | — | user | outbox |
 | `drive_file.linked` | 1 | `drive_file_id`, `workspace_id` | — | workspace | outbox |
@@ -229,6 +230,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `motion.closed` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
 | `motion.ballot_cast` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
 | `note.created` | 1 | `meeting_id`, `version`, `note_id` | — | meeting | outbox |
+| `note.deleted` | 1 | `meeting_id`, `version`, `note_id` | — | meeting | outbox |
+| `note.updated` | 1 | `meeting_id`, `version`, `note_id` | — | meeting | outbox |
 | `provider.end_session` | 1 | `room_name` | — | - | outbox |
 | `provider.ensure_session` | 1 | `meeting_id`, `room_name`, `session_id` | — | - | outbox |
 | `provider.remove_participant` | 1 | `room_name`, `identity` | — | - | outbox |
@@ -255,6 +258,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `attachment.deleted` | 1 | `attachment_id`, `task_id`, `workspace_id` | — | workspace | outbox |
 | `task.created` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
 | `task.deleted` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.trashed` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.restored` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
 | `task.updated` | 1 | `task_id`, `workspace_id`, `revision_before`, `revision` | `title`, `status`, `priority`, `due_date` | workspace | outbox |
 | `task_label.created` | 1 | `label_id`, `workspace_id` | — | workspace | outbox |
 | `task_label.deleted` | 1 | `label_id`, `workspace_id` | — | workspace | outbox |
@@ -273,6 +278,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `task_view_preference.updated` | 1 | `workspace_id`, `user_id`, `scope_id` | — | workspace | outbox |
 | `project.created` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
 | `project.deleted` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
+| `project.trashed` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
+| `project.restored` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
 | `project.updated` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
 | `project_resource.created` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
 | `project_resource.deleted` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |

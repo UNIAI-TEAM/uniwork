@@ -194,6 +194,7 @@ func main() {
 	}
 	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
 	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, mailOutbox)
+	service.SetMembershipInviteKey([]byte(cfg.JWTSecret))
 	orgMemberSvc.SetMail(renderer, mailOutbox)
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
@@ -446,6 +447,9 @@ func main() {
 	docWorkers := documentSvc.NewDocumentWorkers()
 	officeLaunchSvc := service.NewOfficeLaunchService(documentSvc, cfg)
 	docWorkers.SetOfficeLaunchService(officeLaunchSvc)
+	// The trash sweep (UNI-2171) purges tasks and projects past their 30
+	// days; awaited in the shutdown sequence below like the document worker.
+	trashWorker := service.NewTrashWorker(pool, q, taskSvc, time.Now)
 	officeSvc := service.NewDocumentOfficeService(service.DocumentOfficeOptions{
 		Pool: pool, Queries: q, Files: fileSvc, Engine: officeEngine, Documents: documentSvc, Metrics: officeMetrics,
 		MaxDeadline: officeCfg.MaxJobDeadline, ReconcileInterval: officeCfg.ReconcileInterval, Log: log,
@@ -558,6 +562,7 @@ func main() {
 	// the document.* frames of the Documents UI are not slowed down.
 	dispatcher.Register(service.NewChatDocumentCardRefresher(q, chatSvc))
 	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
+	docAccessBatchWorker := service.NewDocumentAccessBatchWorker(documentSvc, log)
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
 	}
@@ -693,6 +698,8 @@ func main() {
 	// sweep) stops with runCancel and is awaited below like the file collector.
 	docWorkersDone := make(chan struct{})
 	go func() { docWorkers.Run(runCtx); close(docWorkersDone) }()
+	trashWorkerDone := make(chan struct{})
+	go func() { trashWorker.Run(runCtx); close(trashWorkerDone) }()
 	// The change-feed snapshot sweep (G5-01a) stops with runCancel and is
 	// awaited below.
 	docChangesSweepDone := make(chan struct{})
@@ -710,6 +717,10 @@ func main() {
 	// awaited below.
 	editLockSweepDone := make(chan struct{})
 	go func() { editLockSweep.Run(runCtx); close(editLockSweepDone) }()
+	// The folder bulk access batch worker (UNI-2244 §4) stops with runCancel
+	// and is awaited below.
+	docAccessBatchWorkerDone := make(chan struct{})
+	go func() { docAccessBatchWorker.Run(runCtx); close(docAccessBatchWorkerDone) }()
 	// Event retention (G12): deletes delivered/dead outbox rows, processed webhook
 	// callbacks and the provider-event ledger past their windows. It stops with
 	// runCancel and is awaited below.
@@ -1080,6 +1091,11 @@ func main() {
 		log.Warn("documents: maintenance worker did not stop in time")
 	}
 	select {
+	case <-trashWorkerDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("tasks: trash purge worker did not stop in time")
+	}
+	select {
 	case <-docChangesSweepDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("documents: change snapshot sweep did not stop in time")
@@ -1098,6 +1114,11 @@ func main() {
 	case <-editLockSweepDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("documents: edit lock sweep did not stop in time")
+	}
+	select {
+	case <-docAccessBatchWorkerDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("documents: access batch worker did not stop in time")
 	}
 	select {
 	case <-retentionDone:

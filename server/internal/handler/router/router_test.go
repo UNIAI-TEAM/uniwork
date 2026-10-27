@@ -430,3 +430,81 @@ func TestDriveConnectionsRequireFeatureFlag(t *testing.T) {
 		}
 	}
 }
+
+// UNI-2244 BE-1: PUT /api/v1/documents/{folderID}/contents-access documents
+// the three response envelopes (dry-run 200, sync 200, background 202) via
+// FolderContentsAccessResultSDO oneOf and names the error codes in its
+// description; GET /api/v1/documents/{folderID}/contents-access/{batchID}
+// documents FolderContentsAccessBatchSDO.
+func TestFolderContentsAccessOpenAPISpec(t *testing.T) {
+	cfg := config.Config{FrontendOrigin: "http://localhost:3000", EnableSwagger: true}
+	mux := New(Deps{Cfg: cfg}, stubRoutes())
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/swagger/doc.json", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /swagger/doc.json = %d, want 200", rec.Code)
+	}
+
+	type schemaRef struct {
+		Ref   string      `json:"$ref"`
+		OneOf []schemaRef `json:"oneOf"`
+	}
+	type operation struct {
+		Description string `json:"description"`
+		Responses   map[string]struct {
+			Content map[string]struct {
+				Schema schemaRef `json:"schema"`
+			} `json:"content"`
+		} `json:"responses"`
+	}
+	var spec struct {
+		Paths      map[string]map[string]operation `json:"paths"`
+		Components struct {
+			Schemas map[string]schemaRef `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("unmarshal swagger doc: %v", err)
+	}
+
+	putPath := "/api/v1/documents/{folderID}/contents-access"
+	putOp, ok := spec.Paths[putPath]["put"]
+	if !ok {
+		t.Fatalf("PUT %s missing from OpenAPI spec", putPath)
+	}
+	for _, code := range []string{"not_a_folder", "document_access_rejected", "folder_access_batch_running", "not_implemented"} {
+		if !strings.Contains(putOp.Description, code) {
+			t.Errorf("PUT %s description missing error code %q", putPath, code)
+		}
+	}
+	if !strings.Contains(putOp.Description, "fields.batch_id là tùy chọn") {
+		t.Errorf("PUT %s description = %q, want optional fields.batch_id documented", putPath, putOp.Description)
+	}
+	putSchema := putOp.Responses["200"].Content["application/json"].Schema
+	if name, ok := strings.CutPrefix(putSchema.Ref, "#/components/schemas/"); ok {
+		putSchema = spec.Components.Schemas[name]
+	}
+	gotRefs := map[string]bool{}
+	for _, item := range putSchema.OneOf {
+		gotRefs[item.Ref] = true
+	}
+	for _, wantRef := range []string{
+		"#/components/schemas/SdoFolderContentsAccessDryRunSDO",
+		"#/components/schemas/SdoFolderContentsAccessSyncSDO",
+		"#/components/schemas/SdoFolderContentsAccessBackgroundSDO",
+	} {
+		if !gotRefs[wantRef] {
+			t.Errorf("PUT %s 200 schema oneOf = %+v, missing %s", putPath, putSchema.OneOf, wantRef)
+		}
+	}
+
+	getPath := "/api/v1/documents/{folderID}/contents-access/{batchID}"
+	getOp, ok := spec.Paths[getPath]["get"]
+	if !ok {
+		t.Fatalf("GET %s missing from OpenAPI spec", getPath)
+	}
+	if got := getOp.Responses["200"].Content["application/json"].Schema.Ref; got != "#/components/schemas/SdoFolderContentsAccessBatchSDO" {
+		t.Errorf("GET %s 200 schema ref = %q, want SdoFolderContentsAccessBatchSDO", getPath, got)
+	}
+}

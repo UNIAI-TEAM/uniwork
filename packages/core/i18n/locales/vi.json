@@ -286,6 +286,38 @@
           "cc1def6d37a298966b36f85f4dbaaac952240b6ab": "Câu trả lời của Hỏi UNI chỉ ghi tên trạng thái như trên màn hình, không còn kèm mã trạng thái nội bộ trong ngoặc như \"Cần làm (todo)\". Hỏi công việc theo tên trạng thái mà nhóm tự đặt, ví dụ \"Chờ QA\", cũng tìm đúng công việc.",
           "cc8f02e00827170d00e7198c4e86696d603f9e452": "Ghi âm cuộc gọi trong Chat: khi hai người cùng bắt đầu ghi âm một cuộc gọi cùng lúc, cuộc gọi chỉ có một bản ghi âm thay vì hai bản trùng nhau."
         }
+      },
+      "v1_10_0": {
+        "title": "Chuyển chủ sở hữu tài liệu, giao diện chia khung và lịch gửi email đồng bộ hơn",
+        "summary": "Tài liệu cho phép chuyển chủ sở hữu từng tài liệu hoặc mọi tài liệu của một thành viên, lọc nhiều loại cùng lúc, và chuyển vào thùng rác không còn bị chặn bởi trang hay tệp con bạn không quản lý được. Trên máy tính, thanh trên, thanh bên, trang chính và Hỏi UNI được chia thành các khung riêng. Email Hub cập nhật ngay thư mục Đã lên lịch sau khi hẹn giờ gửi.",
+        "note": "Giao diện chia khung áp dụng trên màn hình rộng; điện thoại, máy tính bảng và UniChat giữ giao diện cũ.",
+        "features": {
+          "c237fc6d47c92be3f0abdf2c6d40c893d6acfc3af": "Tài liệu: chuyển chủ sở hữu một tài liệu cho người khác, hoặc chuyển cùng lúc mọi tài liệu của một thành viên sang thành viên khác; chủ sở hữu mới nhận được thông báo. Bộ lọc Loại chọn được nhiều loại cùng lúc, hiện thành các thẻ bỏ được từng thẻ. Khi chuyển một trang, tệp hoặc thư mục vào thùng rác, trang và tệp con mà bạn không quản lý được sẽ được chuyển ra gốc workspace thay vì chặn cả thao tác; thư mục con bạn không xem hoặc không quản lý được vẫn chặn thao tác. Trang cài UniWork Office có thêm cách cài qua kho apt và một lệnh cài nhanh bên cạnh tệp .deb, và trình xem tệp nguồn Office có nút phóng to."
+        },
+        "improvements": {
+          "ca6714faf79e3eb2e5b258b1f5cb96cfdc1f7cd99": "Giao diện trên máy tính được chia thành các khung: thanh trên chạy ngang toàn ứng dụng, gồm ô chọn tổ chức và workspace, tìm kiếm, Hỏi UNI, thông báo, tạo mới và tài khoản; thanh bên là một khung riêng thu gọn được (phím ⌘B vẫn dùng được); trang chính và Hỏi UNI là hai khung cạnh nhau, kéo được để đổi độ rộng. Nút Tạo việc trên thanh trên dùng biểu tượng cặp hồ sơ có dấu cộng, và mọi biểu tượng có nét dày như nhau ở mọi cỡ."
+        },
+        "fixes": {
+          "c9f7c3046356c3008e37eaa2c11b3f3f8f3a23541": "Email Hub: sau khi hẹn giờ gửi một email, hộp thư đang mở chuyển sang đúng tài khoản gửi email đó, thư mục Đã lên lịch tải lại khi mở, và danh sách cùng số đếm ở thanh bên cập nhật ngay."
+        }
+      },
+      "v1_11_0": {
+        "title": "Thùng rác cho công việc và dự án, chọn nhiều tin nhắn và Hỏi UNI đọc tệp Office",
+        "summary": "Công việc và dự án đã xóa vào thùng rác 30 ngày, kèm một thùng rác chung cho cả workspace. Chat cho chọn nhiều tin nhắn để sao chép, chuyển tiếp hoặc xóa. Hỏi UNI đọc được chữ trong tệp Word, Excel và PowerPoint ở Tài liệu. Phòng họp có panel bên phải mới và ghi chú sửa, xóa được; Tài liệu mở ảnh ngay trên trang. Trang Bảng giá lấy gói và giá từ danh mục gói trong ứng dụng.",
+        "note": "Hỏi UNI và connector MCP cần tính năng AI của tổ chức được cấu hình, và chỉ đọc tài liệu bạn có quyền xem. Chọn nhiều tin nhắn chưa có trên app UniChat cho điện thoại.",
+        "features": {
+          "c1806f58e5085aff30d6df82bb89a5016a8372ff7": "Tài liệu: tệp ảnh mở trong trình xem chỉ-xem ngay trên trang, có thanh trượt phóng to, thay vì chỉ hiện thẻ tải xuống; lượt mở ảnh được ghi là lượt xem trong nhật ký truy cập. Trang UniWork Office (/apps/office) có thêm mục tải xuống: chọn kênh phát hành, tự chọn sẵn hệ điều hành của bạn, hướng dẫn cài theo từng hệ điều hành, cách cài qua apt, ghi chú phát hành và lịch sử phiên bản.",
+          "c6170e52b6303ce4f1b355da788e2e88b40f8f8a7": "Xóa công việc hoặc dự án giờ chuyển vào thùng rác 30 ngày thay vì mất ngay: xóa task thì các việc con đi cùng, xóa dự án thì các task của nó được giữ và gắn lại khi khôi phục, và có nút Hoàn tác trong 10 giây; mục quá 30 ngày được xóa vĩnh viễn tự động. Thùng rác chung mở từ menu ảnh đại diện › Thùng rác (Cài đặt › Workspace › Thùng rác), gộp công việc, dự án và tài liệu, lọc theo tên (gõ không dấu vẫn khớp), theo loại và người xóa; mỗi dòng có Khôi phục và Xóa vĩnh viễn theo quyền của từng loại. Nút Thùng rác riêng trên trang Công việc và Dự án được bỏ; Tài liệu vẫn giữ thùng rác riêng. Kèm theo: đường kẻ bảng rõ hơn ở chế độ tối, và tạo task không còn lỗi khi dự án được nhớ từ lần trước đã bị xóa.",
+          "ca2f978c3f4a333d2077ea2efc12da4d529c1a08d": "Chat: chọn nhiều tin nhắn bằng mục Chọn trong menu của một tin, rồi sao chép các tin đã chọn thành văn bản, chuyển tiếp chúng, hoặc xóa những tin bạn đã gửi (có hỏi lại trước khi xóa). Hình nền tùy chỉnh của cuộc trò chuyện không còn tải lại mỗi khi danh sách phòng được làm mới.",
+          "c55a0ab3e61e9836c1202fd055f9fff991ad5d962": "Hỏi UNI đọc được chữ trong tệp Word, Excel, PowerPoint và OpenDocument (docx, xlsx, pptx, odt) lưu ở Tài liệu, theo từng đoạn, từng dòng bảng và từng slide; connector MCP cho trợ lý AI bên ngoài cũng đọc được như vậy. Hỏi UNI còn duyệt được các mục trong một thư mục của workspace đang hỏi. Tệp PDF, tệp lớn hơn 20 MiB và tệp hỏng vẫn chỉ trả tên và loại tệp, kèm lý do."
+        },
+        "improvements": {
+          "c0a454a4d96fee86ef8eb10dc6c25b51bc8543b6b": "Phòng họp: panel bên phải được làm lại với hàng tab UNI, Chat, Mọi người và Biểu quyết có huy hiệu, tab UNI có bộ lọc theo loại và ô nhập Hỏi/Ghi chú mới; trên điện thoại, panel mở dạng bảng trượt từ dưới lên. Ghi chú cuộc họp giờ sửa và xóa được (xóa có xác nhận), ghi chú đã sửa có dấu \"đã sửa\"; chỉ người viết, chủ trì, thư ký cuộc họp hoặc quản trị workspace làm được. Nút ✦ UNI trên thanh điều khiển được bỏ; tin mới của UNI hiện bằng chấm trên nút mở panel.",
+          "cad0a7e7d964c14765e525e02083097d1eb8721e4": "Trang Bảng giá hiển thị các gói, giá, hạn mức và tính năng lấy trực tiếp từ danh mục gói đang công bố trong ứng dụng thay vì nội dung soạn tay, nên khớp với mục Thanh toán; trang có bảng so sánh tính năng theo gói, và báo rõ khi đang tải hoặc chưa tải được bảng giá."
+        },
+        "fixes": {
+          "cf9e65a0f7a8a8387d6ddf7ba8acee85c6c039c63": "Thanh toán VNPay: khi bạn quay lại từ VNPay mà chưa hoàn tất thanh toán, trang Thanh toán báo đã hủy ngay thay vì chờ xác nhận."
+        }
       }
     }
   },
@@ -580,6 +612,40 @@
     },
     "inviteSent_other": "Đã gửi {{count}} lời mời"
   },
+  "inviteLink": {
+    "workspaceTitle": "Mời bằng liên kết",
+    "workspaceDescription": "Tạo một đường dẫn để nhiều người cùng gia nhập workspace này với vai trò Thành viên.",
+    "orgTitle": "Mời bằng liên kết",
+    "orgDescription": "Tạo đường dẫn để người nhận gia nhập tổ chức và các workspace bạn chọn.",
+    "workspacesLabel": "Workspace trên liên kết",
+    "workspacesHint": "Chọn ít nhất một workspace. Người mở liên kết sẽ gia nhập tổ chức và các workspace đã chọn với vai trò Thành viên.",
+    "expiry": "Thời hạn liên kết",
+    "expiryDays_one": "{{count}} ngày",
+    "expiryDays_other": "{{count}} ngày",
+    "create": "Tạo liên kết",
+    "copy": "Sao chép liên kết",
+    "copied": "Đã sao chép liên kết",
+    "created": "Đã tạo liên kết mời",
+    "regenerate": "Tạo lại",
+    "regenerated": "Đã tạo liên kết mới",
+    "revoke": "Thu hồi",
+    "revoked": "Đã thu hồi liên kết",
+    "revokeTitle": "Thu hồi liên kết mời?",
+    "revokeBody": "Người chưa gia nhập sẽ không dùng được liên kết này nữa. Thành viên hiện có không bị ảnh hưởng.",
+    "status": {
+      "active": "Đang hiệu lực",
+      "expired": "Hết hạn",
+      "revoked": "Đã thu hồi"
+    },
+    "joinTitle": "Gia nhập workspace",
+    "joinOrgTitle": "Gia nhập tổ chức và workspace",
+    "joinAction": "Gia nhập",
+    "joined": "Đã tham gia",
+    "notJoined": "Chưa tham gia",
+    "joining": "Đang gia nhập…",
+    "invalid": "Liên kết mời không hợp lệ hoặc đã hết hạn.",
+    "loginHint": "Đăng nhập hoặc đăng ký để tiếp tục với liên kết mời này."
+  },
   "nav": {
     "home": "Trang chủ",
     "inbox": "Hộp việc",
@@ -608,7 +674,8 @@
     "projects": "Dự án",
     "calendar": "Lịch",
     "squads": "Squad",
-    "runtimes": "Runtime"
+    "runtimes": "Runtime",
+    "trash": "Thùng rác"
   },
   "topbar": {
     "search": "Tìm kiếm…",
@@ -796,7 +863,8 @@
         "connectedApps": "Ứng dụng AI",
         "aiAccess": "Truy cập AI",
         "taskStatuses": "Trạng thái công việc",
-        "taskLabels": "Nhãn"
+        "taskLabels": "Nhãn",
+        "trash": "Thùng rác"
       },
       "nav_label": "Mục cài đặt",
       "section_picker": "Chọn mục cài đặt",
@@ -2657,11 +2725,9 @@
       "cancel": "Hủy",
       "update_success": "Đã cập nhật {{count}} task",
       "update_failed": "Không cập nhật được task",
-      "delete_success": "Đã xóa {{count}} task",
       "delete_failed": "Không xóa được task",
-      "delete_dialog_title": "Xóa {{count}} task?",
-      "delete_dialog_desc": "Các task này sẽ bị xóa vĩnh viễn.",
-      "delete_dialog_warning": "Không hoàn tác được."
+      "delete_dialog_title": "Chuyển vào thùng rác?",
+      "delete_dialog_desc": "Có thể khôi phục trong 30 ngày."
     },
     "row_actions": {
       "open": "Mở",
@@ -2673,11 +2739,10 @@
       "change_assignee": "Đổi người phụ trách",
       "set_parent": "Đặt công việc cha…",
       "delete": "Xóa",
-      "delete_dialog_title": "Xóa task này?",
-      "delete_dialog_desc": "\"{{title}}\" sẽ bị xóa vĩnh viễn. Không hoàn tác được.",
-      "delete_confirm": "Xóa task",
+      "delete_dialog_title": "Chuyển vào thùng rác?",
+      "delete_dialog_desc": "Có thể khôi phục trong 30 ngày.",
+      "delete_confirm": "Chuyển vào thùng rác",
       "cancel": "Hủy",
-      "delete_success": "Đã xóa task",
       "delete_failed": "Không xóa được task",
       "assignees_loading": "Đang tải thành viên…",
       "assignees_failed": "Không tải được thành viên"
@@ -3680,7 +3745,7 @@
     "searchMembers": "Nhập tên hoặc email",
     "invitedMembers_one": "Đã mời {{count}} thành viên",
     "invitedMembers_other": "Đã mời {{count}} thành viên",
-    "searchPeople": "Tìm người tham dự",
+    "searchPeople": "Tìm người",
     "inTheMeeting": "Trong cuộc họp",
     "contributors": "Người tham gia",
     "meetingHost": "Chủ trì cuộc họp",
@@ -4186,7 +4251,7 @@
       "assignNone": "Giao việc",
       "pickReason": "Chọn ít nhất một việc đang chờ xử lý",
       "nothingPending": "Không còn việc nào chờ giao",
-      "add": "Thêm task",
+      "add": "Thêm việc",
       "addHeading": "Task sau họp",
       "editAssign": "Sửa & giao",
       "priorityValue": "ưu tiên {{priority}}",
@@ -5186,6 +5251,163 @@
       "reinvite": "Mời lại",
       "scribeOffFailed": "Chưa tắt được Thư ký UNI. Thư ký UNI đang ghi lời thoại.",
       "scribeOnFailed": "Chưa bật được Thư ký UNI. Cuộc họp này chưa được ghi lời thoại."
+    },
+    "panel": {
+      "transcript": {
+        "search": "Tìm trong lời thoại",
+        "latest": "Về mới nhất",
+        "speaking": "đang nói",
+        "becameDecision": "Đã thành quyết định",
+        "newItem": "Việc mới",
+        "newItemOwner": "Việc mới · {{owner}}"
+      },
+      "collapse": "Thu gọn bảng",
+      "status": {
+        "listening": "Đang nghe",
+        "live": "Đang ghi",
+        "paused": "Tạm dừng",
+        "joining": "Đang vào",
+        "failed": "Chưa vào được",
+        "off": "Tắt"
+      },
+      "views": {
+        "label": "Cách xem",
+        "feed": "Tổng hợp",
+        "transcript": "Lời thoại"
+      },
+      "summary": {
+        "title": "Tóm tắt đến giờ",
+        "update": "Cập nhật tóm tắt",
+        "copy": "Sao chép tóm tắt",
+        "none": "Chưa có tóm tắt",
+        "create": "Tạo",
+        "sourcesHelp": "AI viết từ đâu"
+      },
+      "filters": {
+        "label": "Lọc theo loại",
+        "all": "Tất cả"
+      },
+      "kind": {
+        "decision": "Quyết định",
+        "task": "Việc cần làm",
+        "question": "Câu hỏi còn mở",
+        "note": "Ghi chú",
+        "recording": "Bản ghi",
+        "countLabel": "{{kind}}, {{count}}"
+      },
+      "feed": {
+        "label": "Diễn biến cuộc họp",
+        "open": "Chưa chốt",
+        "new": "Mới",
+        "playRecording": "Phát bản ghi",
+        "playRecordingAt": "Phát bản ghi lúc {{time}}",
+        "addDue": "+ Hạn",
+        "jumpToLine": "Xem câu nói lúc {{time}}",
+        "chipDecision": "Chốt",
+        "chipTask": "Việc",
+        "chipQuestion": "Hỏi",
+        "note": {
+          "actions": "Thao tác với ghi chú: {{text}}",
+          "edit": "Sửa",
+          "delete": "Xóa ghi chú",
+          "field": "Nội dung ghi chú",
+          "edited": "· đã sửa",
+          "deleteTitle": "Xóa ghi chú này?",
+          "deleteBody": "Mọi người trong cuộc họp sẽ không thấy ghi chú này nữa."
+        }
+      },
+      "empty": {
+        "title": "Thư ký UNI đang nghe",
+        "line": "Ý chính sẽ hiện ở đây ngay khi có người nói.",
+        "decided": "Chốt",
+        "todo": "Việc",
+        "asked": "Hỏi",
+        "carried_one": "{{count}} việc còn mở",
+        "carried_other": "{{count}} việc còn mở",
+        "carriedFrom": "Từ lần họp trước"
+      },
+      "composer": {
+        "modeLabel": "Chế độ ô nhập",
+        "ask": "Hỏi",
+        "note": "Ghi chú",
+        "askPlaceholder": "Hỏi riêng UNI về cuộc họp…",
+        "followupPlaceholder": "Hỏi tiếp…",
+        "notePlaceholder": "Ghi chú cho cả phòng…",
+        "askLabel": "Hỏi riêng UNI về cuộc họp",
+        "noteLabel": "Ghi chú cho cả phòng",
+        "scope": "Họp này",
+        "scopeLabel": "Phạm vi: cuộc họp này",
+        "mention": "Nhắc tới việc, người, tài liệu",
+        "send": "Gửi",
+        "saveNote": "Lưu ghi chú",
+        "stop": "Dừng",
+        "reading": "Đang đọc cuộc họp…",
+        "readingNotes_one": "Đang đọc lời thoại và {{count}} ghi chú…",
+        "readingNotes_other": "Đang đọc lời thoại và {{count}} ghi chú…",
+        "private": "Riêng bạn",
+        "everyone": "Cả phòng",
+        "outOfCredit": "Hết lượt Hỏi UNI tháng này",
+        "askOff": "Hỏi UNI chưa bật",
+        "blockedHelp": "Vì sao và cách xử lý",
+        "askPlaceholderShort": "Hỏi riêng UNI…"
+      },
+      "suggest": {
+        "last5": "5 phút qua",
+        "last5Q": "Tóm tắt 5 phút vừa qua.",
+        "decided": "Đã chốt gì?",
+        "decidedQ": "Cuộc họp đã chốt những gì?",
+        "mine": "Việc của tôi",
+        "mineQ": "Tôi được giao những việc gì trong cuộc họp này?",
+        "lastTime": "Lần trước chốt gì?",
+        "lastTimeQ": "Lần họp trước đã chốt gì?",
+        "goal": "Mục tiêu buổi này?",
+        "goalQ": "Mục tiêu của cuộc họp này là gì?"
+      },
+      "answer": {
+        "title": "Hỏi UNI",
+        "share": "Gửi vào Chat",
+        "continue": "Tiếp"
+      },
+      "actions": {
+        "selectAll": "Chọn tất cả việc chờ xử lý",
+        "selected_one": "{{count}} đã chọn",
+        "selected_other": "{{count}} đã chọn",
+        "clear": "Bỏ chọn",
+        "carried": "Từ lần họp trước · {{count}}",
+        "pending": "Chờ xử lý · {{count}}",
+        "converted": "Đã giao · {{count}}",
+        "editLabel": "Sửa & giao \"{{title}}\"",
+        "selectedRegion": "Việc đã chọn"
+      },
+      "people": {
+        "waiting_one": "{{count}} người đang chờ",
+        "waiting_other": "{{count}} người đang chờ",
+        "admit": "Cho vào",
+        "showWaiting": "Xem từng người",
+        "waitingAlone": "đang chờ",
+        "waitingOthers_one": "và {{count}} người khác",
+        "waitingOthers_other": "và {{count}} người khác",
+        "admitAll": "Cho vào cả {{count}} người",
+        "hands": "Giơ tay · {{count}}",
+        "lowerMine": "Hạ tay",
+        "inRoom": "Trong phòng · {{count}}",
+        "scribeRole": "Trợ lý AI · đang ghi",
+        "you": "bạn",
+        "micOn": "Mic đang bật"
+      },
+      "votes": {
+        "next": "Tiếp theo",
+        "done": "Đã xong",
+        "missing_one": "Còn {{count}} người chưa bỏ phiếu",
+        "missing_other": "Còn {{count}} người chưa bỏ phiếu",
+        "rulesHelp": "Cách tính phiếu",
+        "secret": "Kín",
+        "progress": "{{cast}}/{{roll}} đã bỏ phiếu",
+        "open": "Mở"
+      },
+      "chat": {
+        "placeholder": "Nhắn cho mọi người…"
+      }
     }
   },
   "calendar": {
@@ -5904,6 +6126,23 @@
     "action_more": "Thêm",
     "action_copy": "Sao chép",
     "action_delete": "Xóa",
+    "action_select": "Chọn",
+    "selection": {
+      "select_message": "Chọn tin nhắn",
+      "selected": "Đã chọn",
+      "selected_count_one": "Đã chọn {{count}}",
+      "selected_count_other": "Đã chọn {{count}}",
+      "copy_selected": "Sao chép tin đã chọn thành văn bản",
+      "forward_selected": "Chuyển tiếp tin đã chọn",
+      "delete_selected": "Xóa tin đã chọn",
+      "clear": "Bỏ chọn",
+      "toolbar_aria": "Tin nhắn đã chọn",
+      "delete_confirm_title": "Xóa các tin đã chọn?",
+      "delete_confirm_description_one": "Xóa {{count}} tin bạn đã gửi? Không hoàn tác được.",
+      "delete_confirm_description_other": "Xóa {{count}} tin bạn đã gửi? Không hoàn tác được.",
+      "deleted_one": "Đã xóa {{count}} tin",
+      "deleted_other": "Đã xóa {{count}} tin"
+    },
     "edit_dialog_title": "Sửa tin nhắn",
     "edit_dialog_save": "Lưu",
     "edit_dialog_cancel": "Hủy",
@@ -5965,6 +6204,10 @@
     "forward": {
       "action": "Chuyển tiếp",
       "title": "Chuyển tiếp tin nhắn",
+      "title_many_one": "Chuyển tiếp {{count}} tin",
+      "title_many_other": "Chuyển tiếp {{count}} tin",
+      "preview_many_one": "{{count}} tin đã chọn",
+      "preview_many_other": "{{count}} tin đã chọn",
       "description": "Người nhận thấy tên người gửi gốc, không thấy tin được chuyển từ cuộc trò chuyện nào.",
       "search_label": "Gửi tới",
       "search_placeholder": "Tìm người, nhóm hoặc kênh",
@@ -7127,6 +7370,14 @@
       "document_shared_untitled": "{{actor}} đã chia sẻ một tài liệu với bạn. Quyền: {{level}}.",
       "document_shared_nolevel": "{{actor}} đã chia sẻ tài liệu \"{{document}}\" với bạn.",
       "document_shared_untitled_nolevel": "{{actor}} đã chia sẻ một tài liệu với bạn.",
+      "document_shared_folder_one": "{{actor}} đã chia sẻ {{count}} tài liệu trong thư mục \"{{document}}\" với bạn. Quyền: {{level}}.",
+      "document_shared_folder_other": "{{actor}} đã chia sẻ {{count}} tài liệu trong thư mục \"{{document}}\" với bạn. Quyền: {{level}}.",
+      "document_shared_folder_untitled_one": "{{actor}} đã chia sẻ {{count}} tài liệu trong một thư mục với bạn. Quyền: {{level}}.",
+      "document_shared_folder_untitled_other": "{{actor}} đã chia sẻ {{count}} tài liệu trong một thư mục với bạn. Quyền: {{level}}.",
+      "document_shared_folder_nolevel_one": "{{actor}} đã chia sẻ {{count}} tài liệu trong thư mục \"{{document}}\" với bạn.",
+      "document_shared_folder_nolevel_other": "{{actor}} đã chia sẻ {{count}} tài liệu trong thư mục \"{{document}}\" với bạn.",
+      "document_shared_folder_untitled_nolevel_one": "{{actor}} đã chia sẻ {{count}} tài liệu trong một thư mục với bạn.",
+      "document_shared_folder_untitled_nolevel_other": "{{actor}} đã chia sẻ {{count}} tài liệu trong một thư mục với bạn.",
       "document_trashed_by_other": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
       "document_trashed_by_other_untitled": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
       "document_trashed_by_other_nodate": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác",
@@ -7916,7 +8167,7 @@
         },
         "price": "Giá (đồng, để trống = liên hệ)",
         "sort_order": "Thứ tự sắp xếp",
-        "is_active": "Hiển thị trên trang billing"
+        "is_active": "Công bố trên Bảng giá và Thanh toán"
       },
       "col": {
         "feature_key": "Khóa",
@@ -8011,6 +8262,10 @@
       "confirm_refund_title": "Xác nhận hoàn HĐ {{number}}",
       "confirm_refund_description": "Thường không cần: server tự đối chiếu VNPay mỗi ~2 phút. Chỉ dùng khi HĐ vẫn “Chờ hoàn” sau khi VNPay đã duyệt.",
       "confirm_refund_success": "Đã chuyển hóa đơn sang Đã hoàn tiền.",
+      "revert_refund_action": "Hủy yêu cầu hoàn tiền",
+      "revert_refund_title": "Hủy yêu cầu hoàn HĐ {{number}}",
+      "revert_refund_description": "Dùng khi VNPay từ chối hoàn hoặc yêu cầu gửi nhầm — hóa đơn trở lại Đã thanh toán.",
+      "revert_refund_success": "Đã hủy yêu cầu hoàn tiền.",
       "detail": {
         "empty": "—",
         "invoice_description": "Hóa đơn billing trên tổ chức.",
@@ -8567,9 +8822,9 @@
       "sidebar_label": "Chi tiết dự án"
     },
     "delete_dialog": {
-      "title": "Xóa dự án",
-      "description": "Dự án sẽ bị xóa. Công việc không bị xóa nhưng sẽ được gỡ liên kết.",
-      "confirm": "Xóa",
+      "title": "Chuyển vào thùng rác?",
+      "description": "Có thể khôi phục trong 30 ngày. Công việc trong dự án được giữ lại, chỉ gỡ liên kết.",
+      "confirm": "Chuyển vào thùng rác",
       "cancel": "Hủy"
     },
     "create_dialog": {
@@ -9312,8 +9567,8 @@
         "AI đọc theo quyền; lựa chọn mô hình phụ thuộc cấu hình."
       ],
       "enterpriseCta": "Xem quản trị tổ chức",
-      "pricingTitle": "Khởi đầu với Starter.",
-      "pricingDescription": "Starter miễn phí, Team và Business trả phí theo tháng — hạn mức và giá khớp catalog trong ứng dụng.",
+      "pricingTitle": "Chọn gói phù hợp với đội nhóm.",
+      "pricingDescription": "So sánh các gói hiện có, hạn mức sử dụng và tính năng để chọn gói phù hợp với tổ chức.",
       "solutionLabel": "Giải pháp",
       "resourcesLabel": "Bắt đầu và tìm hiểu"
     },
@@ -10532,34 +10787,52 @@
       "ent4": "SCIM và chính sách lưu trữ dữ liệu"
     },
     "pricing": {
-      "title": "Ba gói cho mọi quy mô đội.",
-      "sub": "Bắt đầu miễn phí với hạn mức rõ ràng; nâng cấp khi nhóm cần thêm thành viên, họp và AI.",
-      "p1": {
-        "name": "Starter",
-        "price": "Miễn phí",
-        "desc": "Tối đa 5 thành viên, 2 workspace — phù hợp thử nghiệm và nhóm nhỏ."
-      },
-      "p2": {
-        "name": "Team",
-        "price": "499.000 VND / tháng",
-        "desc": "Tối đa 30 thành viên, ghi hình họp, liên kết tài liệu công khai và 2 triệu token AI mỗi tháng."
-      },
-      "p3": {
-        "name": "Business",
-        "price": "1.499.000 VND / tháng",
-        "desc": "Tối đa 150 thành viên, SSO, dung lượng và phút họp cao hơn — cho tổ chức đang mở rộng."
-      },
-      "quotasLabel": "Hạn mức gói Starter (mặc định khi đăng ký)",
-      "q1": "5 thành viên tổ chức",
-      "q2": "2 workspace",
-      "q3": "200 công việc",
-      "q4": "3.000 phút tham dự họp",
-      "q5": "Ghi hình và tóm tắt họp bằng AI (theo gói)",
-      "q6": "100.000 token AI",
-      "q7": "5 GB dung lượng lưu trữ",
-      "q8": "Liên kết tài liệu công khai (SSO chỉ ở gói Business trả phí)",
-      "status": "Giá và hạn mức khớp catalog trong ứng dụng; sau khi đăng ký bạn chọn gói và thanh toán qua VNPay nếu nâng cấp.",
-      "cta": "Tạo workspace"
+      "title": "Chọn gói phù hợp với đội nhóm.",
+      "sub": "So sánh số thành viên, workspace, dung lượng, cuộc họp và AI.",
+      "defaultPlan": "Mặc định khi đăng ký",
+      "perOrganization": "cho mỗi tổ chức",
+      "perOrganizationPeriod": "mỗi tổ chức / {{period}}",
+      "startWithPlan": "Bắt đầu với {{name}}",
+      "contact": "Trao đổi với UniWork",
+      "compareFeatures": "So sánh tính năng trong từng gói",
+      "feature": "Tính năng",
+      "included": "Có trong gói",
+      "notSpecified": "Chưa công bố",
+      "loading": "Đang tải các gói hiện có…",
+      "errorTitle": "Chưa tải được bảng giá hiện tại.",
+      "emptyTitle": "Chưa có gói nào được công bố.",
+      "unavailableDescription": "Thử tải lại hoặc trao đổi với UniWork để xác nhận gói và giá hiện có.",
+      "status": "Sau khi đăng ký, chủ tổ chức xem chi tiết và xác nhận đổi gói trong mục Thanh toán.",
+      "usageNote": "Phút tham dự họp được tính cho từng người. Phút ghi lời họp có hạn mức riêng. Tính năng còn phụ thuộc vào cấu hình dịch vụ của tổ chức.",
+      "deploymentTitle": "Cần trao đổi về triển khai?",
+      "deploymentDescription": "Chia sẻ quy mô đội nhóm, quy trình và cách triển khai để cùng xem phương án phù hợp.",
+      "labels": {
+        "price_free": "Miễn phí",
+        "price_contact": "Liên hệ để báo giá",
+        "period": {
+          "month": "tháng",
+          "year": "năm",
+          "none": "không kỳ hạn"
+        },
+        "unlimited": "không giới hạn",
+        "plan_line_storage_gb": "{{n}} GB",
+        "not_in_plan": "Không có trong gói",
+        "retry": "Thử lại",
+        "features": {
+          "members_max": "Thành viên tổ chức",
+          "workspaces_max": "Workspace",
+          "tasks_max": "Số việc",
+          "storage_bytes": "Dung lượng lưu trữ",
+          "meeting_participant_minutes": "Phút tham dự họp",
+          "ai_tokens": "Token AI",
+          "meeting_recording": "Ghi hình cuộc họp",
+          "meeting_ai_summary": "Tóm tắt họp bằng AI",
+          "documents_public_links": "Liên kết công khai cho tài liệu",
+          "meeting_transcription": "Phút ghi lời cuộc họp",
+          "office_ai_byok": "Khóa AI riêng cho Office",
+          "office_ai_cloud": "Công cụ AI đám mây cho Office"
+        }
+      }
     },
     "final": {
       "compactTitle": "Đưa công việc của nhóm về cùng một nơi.",
@@ -10585,7 +10858,7 @@
       "q7": "UniWork đã phát hành chưa?",
       "a7": "UniWork đang trong giai đoạn trước phát hành rộng. Trang tách riêng chức năng hiện có và lộ trình; một số chức năng cần bật cấu hình hoặc kết nối dịch vụ trước khi sử dụng.",
       "q8": "Bao nhiêu tiền?",
-      "a8": "Starter là gói miễn phí trong giai đoạn hiện tại. Các gói thương mại và hạn mức đang được hoàn thiện; đây không phải cam kết miễn phí không giới hạn lâu dài.",
+      "a8": "Xem các gói đang mở, giá và hạn mức hiện tại trên trang Bảng giá. Sau khi đăng ký, chủ tổ chức có thể xem chi tiết và xác nhận đổi gói trong mục Thanh toán.",
       "q9": "Chạy trên hạ tầng của chúng tôi được không?",
       "a9": "Chưa được hôm nay. Bản cài on-premise bằng Docker Compose hoặc Helm nằm trong lộ trình, cùng với OIDC bất kỳ, lưu trữ MinIO và mô hình chạy nội bộ.",
       "q10": "Có API không?",
@@ -11057,16 +11330,16 @@
         "closing": "Đưa nhịp làm việc của nhóm vào UniWork."
       },
       "pricing": {
-        "viewPlan": "Xem gói Starter",
+        "viewPlan": "So sánh các gói",
         "checkTitle": "Rõ giai đoạn hiện tại. Rõ điều cần xác nhận.",
         "checkDescription": "Đối chiếu gói Starter, Team và Business với nhu cầu triển khai, cấu hình AI và quy mô đội.",
         "enterpriseLink": "Xem nền tảng doanh nghiệp",
-        "closing": "Khám phá UniWork cùng Starter.",
+        "closing": "Đưa đội nhóm vào UniWork.",
         "rows": [
           {
             "subject": "Gói hiện tại",
-            "current": "Starter miễn phí trong giai đoạn hiện tại.",
-            "confirm": "Các gói thương mại và hạn mức đang được hoàn thiện; chưa có cam kết miễn phí không giới hạn lâu dài."
+            "current": "Starter miễn phí; Team và Business trả phí theo tháng trên trang bảng giá.",
+            "confirm": "Đối chiếu hạn mức (thành viên, workspace, AI, họp) với quy mô đội trước khi nâng gói."
           },
           {
             "subject": "AI và tài nguyên",
@@ -11994,6 +12267,68 @@
           "close": "Xong"
         }
       }
+    },
+    "folderAccess": {
+      "menu": "Chia sẻ",
+      "title": "Chia sẻ",
+      "subtitle": "Các tài liệu trong thư mục \"{{folder}}\" và các thư mục con.",
+      "subtitle_untitled": "Các tài liệu trong thư mục này và các thư mục con.",
+      "fixed_sentence": "Áp dụng cho các tài liệu hiện có. Tài liệu thêm sau không tự nhận quyền.",
+      "mode_label": "Cách áp dụng",
+      "mode_merge": "Thêm vào quyền đã có",
+      "mode_replace": "Thay thế quyền cũ",
+      "mode_merge_hint": "Cấp thêm cho các đối tượng đã chọn. Quyền đang có không bị hạ hay gỡ.",
+      "mode_replace_hint": "Mỗi tài liệu chỉ còn đúng danh sách bên dưới. Ai không có trong danh sách sẽ mất quyền.",
+      "principals_title": "Đối tượng và mức quyền",
+      "principals_empty_merge": "Chưa chọn đối tượng nào. Tìm và chọn ít nhất một đối tượng để thêm quyền.",
+      "principals_empty_replace": "Chưa chọn thêm ai. Chỉ dòng Workspace bên dưới được giữ lại.",
+      "workspace_row": "Workspace \"{{name}}\"",
+      "workspace_row_unnamed": "Workspace chứa thư mục",
+      "workspace_level_label": "Mức quyền của workspace",
+      "workspace_level_choose": "Chọn mức quyền",
+      "level_private": "Riêng tư",
+      "confirm": "Xác nhận",
+      "checking": "Đang kiểm tra…",
+      "back": "Quay lại",
+      "apply": "Áp dụng",
+      "apply_replace": "Thay thế quyền",
+      "applying": "Đang áp dụng…",
+      "summary_changed_one": "Sẽ đổi {{count}} tài liệu",
+      "summary_changed_other": "Sẽ đổi {{count}} tài liệu",
+      "summary_skipped_one": "bỏ qua {{count}} tài liệu bạn không quản lý",
+      "summary_skipped_other": "bỏ qua {{count}} tài liệu bạn không quản lý",
+      "summary_locked_one": "{{count}} đang bị khóa",
+      "summary_locked_other": "{{count}} đang bị khóa",
+      "summary_losing_one": "{{count}} người mất quyền ở ít nhất một tài liệu",
+      "summary_losing_other": "{{count}} người mất quyền ở ít nhất một tài liệu",
+      "warning_wide_scope": "Có cả workspace hoặc cả tổ chức trong danh sách: nhiều người sẽ mở được các tài liệu này.",
+      "warning_to_private": "Workspace không còn trong danh sách: các tài liệu sẽ chuyển về Riêng tư.",
+      "warning_downgrade_one": "{{count}} người bị hạ mức quyền ở ít nhất một tài liệu.",
+      "warning_downgrade_other": "{{count}} người bị hạ mức quyền ở ít nhất một tài liệu.",
+      "warning_downgrade_generic": "Một số quyền trên các tài liệu này sẽ bị hạ mức.",
+      "nothing_to_change": "Không có gì thay đổi: quyền hiện tại đã đúng với danh sách này.",
+      "toast_done_one": "Đã đổi quyền {{count}} tài liệu",
+      "toast_done_other": "Đã đổi quyền {{count}} tài liệu",
+      "toast_skipped_one": "Bỏ qua {{count}} tài liệu bạn không quản lý.",
+      "toast_skipped_other": "Bỏ qua {{count}} tài liệu bạn không quản lý.",
+      "toast_locked_one": "{{count}} tài liệu đang bị khóa nên chưa đổi.",
+      "toast_locked_other": "{{count}} tài liệu đang bị khóa nên chưa đổi.",
+      "toast_unknown": "Đã gửi thay đổi quyền. Mở các tài liệu để kiểm tra kết quả.",
+      "progress_title": "Đang áp dụng quyền",
+      "progress_label": "Tiến độ áp dụng quyền",
+      "progress_count_one": "{{processed}}/{{count}} tài liệu",
+      "progress_count_other": "{{processed}}/{{count}} tài liệu",
+      "progress_starting": "Đang chờ bắt đầu…",
+      "progress_hint": "Bạn có thể đóng hộp thoại, việc áp dụng vẫn chạy nền. Có kết quả sẽ báo lại.",
+      "progress_already_running": "Thư mục này đang có một lượt áp dụng quyền chạy nền. Đây là tiến độ của lượt đó.",
+      "progress_close": "Xong",
+      "batch_done_one": "Đã áp dụng quyền cho {{count}} tài liệu",
+      "batch_done_other": "Đã áp dụng quyền cho {{count}} tài liệu",
+      "batch_failed": "Việc áp dụng quyền dừng giữa chừng. Chạy lại để hoàn tất.",
+      "error_not_a_folder": "Mục này không phải thư mục nên không đổi quyền hàng loạt được.",
+      "error_generic": "Không áp dụng được quyền. Hãy thử lại.",
+      "error_rejected": "Không áp dụng được cho một số đối tượng. Sửa các đối tượng được đánh dấu rồi thử lại.",
+      "busy": "Thư mục này đang được cập nhật quyền. Thử lại sau giây lát."
     },
     "tree": {
       "aria_label": "Cây tài liệu",
@@ -14331,6 +14666,7 @@
     },
     "picker": {
       "title": "Chọn tệp từ Google Drive",
+      "folder_title": "Chọn thư mục cần lấy tên",
       "disclosure": "UniWork chỉ được quyền với tệp bạn chọn. UniWork chỉ lưu liên kết, nội dung vẫn nằm trên Google Drive.",
       "account_step": {
         "title": "Chọn tài khoản Google Drive",
@@ -14585,7 +14921,23 @@
     "sidebar": {
       "google_drive": "Google Drive",
       "account_row": "Drive: {{email}}",
-      "disconnected": "Mất kết nối"
+      "disconnected": "Mất kết nối",
+      "folders_loading": "Đang tải thư mục…",
+      "folders_error": "Không tải được thư mục"
+    },
+    "folder": {
+      "unnamed": "Thư mục trên Drive · {{id}}",
+      "unnamed_short": "Thư mục · {{id}}",
+      "count_one": "{{count}} tệp",
+      "count_other": "{{count}} tệp",
+      "name_action": "Đặt tên theo Drive",
+      "name_done": "Đã đặt tên thư mục theo Drive",
+      "name_mismatch": "Bạn đã chọn một thư mục khác. Hãy chọn đúng thư mục này để đặt tên.",
+      "name_not_found": "Không đọc được tên thư mục này từ Google Drive. Hãy chọn đúng thư mục này trong cửa sổ chọn rồi thử lại.",
+      "name_not_folder": "Mục đã chọn không phải là thư mục hoặc đã nằm trong thùng rác.",
+      "name_unavailable": "Google Drive tạm thời không phản hồi. Thử lại sau ít phút.",
+      "name_failed": "Không đặt được tên thư mục. Thử lại sau.",
+      "menu_aria": "Thao tác với thư mục {{name}}"
     },
     "file_types": {
       "google_doc": "Google Docs",
@@ -14640,7 +14992,12 @@
       "error_description": "Kiểm tra kết nối mạng rồi thử lại.",
       "retry": "Thử lại",
       "load_more": "Tải thêm",
-      "loading_more": "Đang tải thêm…"
+      "loading_more": "Đang tải thêm…",
+      "search_label": "Tìm trong danh sách Drive",
+      "search_placeholder": "Tìm theo tên",
+      "no_results_title": "Không có kết quả",
+      "no_results_description": "Không có thư mục hoặc tệp nào khớp với “{{query}}”.",
+      "breadcrumb_label": "Vị trí trong Google Drive"
     },
     "detail": {
       "breadcrumb_documents": "Tài liệu",
@@ -14764,5 +15121,74 @@
         "retry": "Thử lại"
       }
     }
+  },
+  "trash": {
+    "title": "Thùng rác",
+    "move_confirm": "Chuyển vào thùng rác",
+    "moved": "Đã chuyển vào thùng rác",
+    "undo": "Hoàn tác",
+    "restore": "Khôi phục",
+    "restored": "Đã khôi phục",
+    "restore_failed": "Không khôi phục được",
+    "purge": "Xóa vĩnh viễn",
+    "purge_title": "Xóa vĩnh viễn?",
+    "purge_desc": "\"{{title}}\" sẽ bị xóa vĩnh viễn. Không hoàn tác được.",
+    "purged": "Đã xóa vĩnh viễn",
+    "purge_failed": "Không xóa vĩnh viễn được",
+    "cancel": "Hủy",
+    "unknown_member": "Thành viên cũ",
+    "load_more": "Tải thêm",
+    "error_title": "Không tải được thùng rác",
+    "errors": {
+      "trash_too_large": "Có quá nhiều task trong một lần chuyển vào thùng rác. Hãy chọn ít task hơn rồi thử lại.",
+      "duplicate_project_title": "Đã có dự án trùng tên trong workspace này. Hãy chọn tên khác hoặc đổi tên dự án kia rồi thử lại."
+    },
+    "description": "Mục đã xóa nằm ở đây 30 ngày, sau đó tự xóa vĩnh viễn.",
+    "filters_label": "Lọc thùng rác",
+    "search": "Tìm theo tên…",
+    "clear_search": "Xóa tìm kiếm",
+    "clear_filter": "Bỏ lọc {{name}}",
+    "kind_label": "Loại",
+    "kinds": {
+      "task": "Công việc",
+      "project": "Dự án",
+      "document": "Tài liệu"
+    },
+    "trashed_by_label": "Người xóa",
+    "trashed_by_me": "Tôi",
+    "search_people": "Tìm người",
+    "no_people": "Không tìm thấy ai",
+    "people_cap": "Chọn được tối đa {{max}} người",
+    "former_members_one": "{{count}} thành viên cũ",
+    "former_members_other": "{{count}} thành viên cũ",
+    "table_label": "Mục trong thùng rác",
+    "columns": {
+      "name": "Tên",
+      "location": "Vị trí",
+      "trashed_at": "Xóa lúc",
+      "trashed_by": "Người xóa",
+      "left": "Còn",
+      "actions": "Thao tác"
+    },
+    "days_left_one": "{{count}} ngày",
+    "days_left_other": "{{count}} ngày",
+    "sub": {
+      "task_with_one": "Công việc · kèm {{count}} việc con",
+      "task_with_other": "Công việc · kèm {{count}} việc con",
+      "project_with_one": "Dự án · {{count}} công việc sẽ gắn lại khi khôi phục",
+      "project_with_other": "Dự án · {{count}} công việc sẽ gắn lại khi khôi phục",
+      "page": "Trang",
+      "file": "Tệp",
+      "folder": "Thư mục"
+    },
+    "row_actions": "Thao tác cho {{title}}",
+    "locked": {
+      "project": "Chỉ người tạo, người phụ trách hoặc quản trị viên mới khôi phục hay xóa vĩnh viễn được dự án này.",
+      "document": "Cần quyền quản lý tài liệu này."
+    },
+    "empty_title": "Thùng rác trống",
+    "no_match_title": "Không có mục nào khớp",
+    "clear_filters": "Bỏ lọc",
+    "untitled": "Chưa có tiêu đề"
   }
 }

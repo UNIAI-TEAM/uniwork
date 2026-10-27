@@ -16,6 +16,7 @@
 //
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import {
   inspectSource,
@@ -393,5 +394,5 @@ async function main() {
   console.log(JSON.stringify({ ok: true, fileCount: record.fileCount, out: UPSTREAM_DIR }));
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) main().catch((e) => { console.error(e.message); process.exit(1); });

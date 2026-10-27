@@ -58,12 +58,17 @@ export function LearnPage() {
 
 export function PricingPage() {
   const { t } = useTranslation();
-  return <MarketingShell closingTitle="landing.chapters.pricing.closing" closingDemoHref={`${paths.feature("tasks")}#feature-preview`}><div className="chapter-world">
-    <ChapterHero titleKey="landing.productPages.pricingTitle" descriptionKey="landing.productPages.pricingDescription" visual={<ChapterScene featureKey="tasks" index={1} />}>
+  return <MarketingShell className="marketing-pricing-page" closingTitle="landing.chapters.pricing.closing" closingDemoHref={`${paths.feature("tasks")}#feature-preview`}><div className="chapter-world">
+    <section className="marketing-intro public-pricing-intro" aria-labelledby="pricing-page-title">
+      <h1 id="pricing-page-title">{t("landing.productPages.pricingTitle")}</h1>
+      <p>{t("landing.productPages.pricingDescription")}</p>
       <div className="marketing-actions"><Link href={paths.register()} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link><MarketingAnchor href="#plan-offer" className="chapter-link">{t("landing.chapters.pricing.viewPlan")}<ArrowDown aria-hidden /></MarketingAnchor></div>
-    </ChapterHero>
+    </section>
     <div id="plan-offer" className="marketing-pricing"><Pricing showIntroduction={false} /></div>
-    <section className="chapter-section chapter-soft"><div className="chapter-width"><ChapterHeading titleKey="landing.chapters.pricing.checkTitle" descriptionKey="landing.chapters.pricing.checkDescription" /><PricingScopeTable /><ChapterLink href={paths.enterprise()} labelKey="landing.chapters.pricing.enterpriseLink" /></div></section>
+    <section className="public-pricing-enterprise" aria-labelledby="pricing-deployment-title">
+      <div><h2 id="pricing-deployment-title">{t("landing.pricing.deploymentTitle")}</h2><p>{t("landing.pricing.deploymentDescription")}</p></div>
+      <ChapterLink href={paths.requestDemo()} labelKey="landing.pricing.contact" />
+    </section>
   </div></MarketingShell>;
 }
 
@@ -83,11 +88,4 @@ export function EnterprisePage() {
       </article>)}</div>
     </section>
   </div></MarketingShell>;
-}
-
-function PricingScopeTable() {
-  const { t } = useTranslation();
-  return <table className="chapter-table"><caption className="sr-only">{t("landing.chapters.pricing.checkTitle")}</caption><thead><tr>{["subject", "current", "confirm"].map(key => <th key={key} scope="col">{t(`landing.chapters.table.${key}`)}</th>)}</tr></thead>
-    <tbody>{[1, 2].map(index => <tr key={index}>{["subject", "current", "confirm"].map(key => key === "subject" ? <th scope="row" key={key}>{t(`landing.chapters.pricing.rows.${index}.${key}`)}</th> : <td key={key}>{t(`landing.chapters.pricing.rows.${index}.${key}`)}</td>)}</tr>)}</tbody>
-  </table>;
 }
