@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^d3a5b84a1" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=d3a5b84a1edc54be7ae3453e25c9087bb980a0da
+d3a5b84a1 fix(drive): keep agent panel footer visible on small viewports (UNI-2219)
+4ded54925 fix(drive): focus caret at end on hint click and refine prompt hints (UNI-2219)
+453111eaf feat(drive): add prompt hints and capability placeholder for task proposals
