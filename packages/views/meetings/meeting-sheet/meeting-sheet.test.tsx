@@ -177,6 +177,24 @@ describe("MeetingSheet · create", () => {
     expect((posts("/workspaces/w1/meetings")[0]![1] as Init).body).toMatchObject({ title: "Giao ban", venue: "in_person" });
   });
 
+  it("an in-person draft drops its guest links", async () => {
+    serve((path) => (path.endsWith("/meeting-capabilities") ? { scribe: true, scribe_policy: "on", transcription: true } : undefined));
+    const onDone = vi.fn();
+    const dialog = openCreate(onDone);
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Giao ban" } });
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Khách bên ngoài" }));
+    expect(within(dialog).getByRole("region", { name: "Khách bên ngoài" })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Trực tiếp/ }));
+    expect(within(dialog).queryByRole("region", { name: "Khách bên ngoài" })).toBeNull();
+    // Back to Online, the unsaved link is still there.
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Online/ }));
+    expect(within(dialog).getByRole("region", { name: "Khách bên ngoài" })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Trực tiếp/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"));
+    expect(posts("/invite-links")).toHaveLength(0);
+  });
+
   it("hides the venue without transcription", async () => {
     const dialog = openCreate();
     await within(dialog).findByRole("group", { name: "Thêm tùy chọn" });

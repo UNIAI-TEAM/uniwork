@@ -77,8 +77,9 @@ export function SheetFields(p: SheetFieldsProps) {
   const activeLinks = (p.existingLinks ?? []).filter((l) => inviteLinkStatus(l, new Date(p.nowMs)) === "active");
   // An optional part shows while it holds something; the roll also once opened, so clearing its field keeps the field.
   const [rollOpen, setRollOpen] = useState(() => draft.quorum.trim() !== "");
+  const inPerson = draft.venue === "in_person";
   const show = {
-    guests: activeLinks.length + draft.links.length > 0,
+    guests: !inPerson && activeLinks.length + draft.links.length > 0,
     votes: draft.motions.length > 0,
     roll: rollOpen || draft.quorum.trim() !== "",
   };
@@ -89,7 +90,6 @@ export function SheetFields(p: SheetFieldsProps) {
     placeholder: t("meetings.sheet.agendaPlaceholder"),
     onChange: (e: ChangeEvent<HTMLTextAreaElement>) => patch({ description: e.target.value }),
   };
-  const inPerson = draft.venue === "in_person";
   const timeChecksPast = p.mode !== "edit" || (["date", "start", "end", "timezone"] as const).some((k) => draft[k] !== snapshot[k]);
   return (
     <>

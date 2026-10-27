@@ -51,6 +51,14 @@ describe("buildCreatePlan", () => {
     expect(buildCreatePlan({ ...d, scribe: true }, ctx).steps.some((s) => s.kind === "scribe")).toBe(false);
   });
 
+  it("creates no guest link for an in-person draft", () => {
+    const plan = buildCreatePlan({ ...fullDraft(), venue: "in_person" }, ctx);
+    expect(plan.steps.some((s) => s.kind === "link")).toBe(false);
+    const snap: MeetingDraft = { ...fullDraft(), links: [], motions: [], venue: "in_person" };
+    const edit = buildEditPlan({ id: "m3" }, { ...snap, links: [newGuestLink()] }, snap, { ...ctx, timeLocked: false });
+    expect(edit.steps.some((s) => s.kind === "link")).toBe(false);
+  });
+
   it("sends the venue", () => {
     expect(buildCreatePlan(fullDraft(), ctx).create?.venue).toBe("online");
     expect(buildCreatePlan({ ...fullDraft(), venue: "in_person" }, ctx).create?.venue).toBe("in_person");

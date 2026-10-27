@@ -64,6 +64,11 @@ export function draftKey(prefix: string): string {
   return `${prefix}${keySeq}`;
 }
 
+/** The new guest links the draft would create: none in person, which has no room (spec D4); kept for a switch back to Online. */
+export function draftLinks(draft: Pick<MeetingDraft, "venue" | "links">): GuestLinkDraft[] {
+  return draft.venue === "in_person" ? [] : draft.links;
+}
+
 export function newGuestLink(): GuestLinkDraft {
   return { key: draftKey("l"), name: "", access: "REQUEST_APPROVAL", days: "7", maxUses: "" };
 }
@@ -203,7 +208,7 @@ export function draftChanges(draft: MeetingDraft, snapshot: MeetingDraft): strin
   }
   for (const id of before.keys()) if (!after.has(id)) out.push(`person-:${id}`);
   const linkKeys = new Set(snapshot.links.map((l) => l.key));
-  for (const l of draft.links) if (!linkKeys.has(l.key)) out.push(`link:${l.key}`);
+  for (const l of draftLinks(draft)) if (!linkKeys.has(l.key)) out.push(`link:${l.key}`);
   const oldMotions = new Map(snapshot.motions.map((m, i) => [m.key, { m, i }]));
   const kept = draft.motions.filter((m) => oldMotions.has(m.key));
   for (const m of draft.motions) {

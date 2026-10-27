@@ -47,8 +47,8 @@ export function MeetingVenuePicker({
               aria-disabled={readOnly || undefined}
               onClick={() => !readOnly && !checked && onChange(v)}
               className={cn(
-                "relative flex min-w-0 items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 text-left hover:bg-surface-hover aria-disabled:cursor-not-allowed",
-                checked && "border-primary bg-surface-selected ring-1 ring-primary ring-inset hover:bg-surface-selected",
+                "relative flex min-w-0 items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 text-left not-aria-disabled:hover:bg-surface-hover aria-disabled:cursor-not-allowed",
+                checked && "border-primary bg-surface-selected ring-1 ring-primary ring-inset not-aria-disabled:hover:bg-surface-selected",
               )}
             >
               <span aria-hidden className={cn("grid size-8 shrink-0 place-items-center rounded-md", card.tint)}>
