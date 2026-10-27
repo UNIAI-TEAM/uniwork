@@ -535,14 +535,17 @@ database and never reveal whether an id exists to a non-member.
   `TestMCPAddressCeilingStopsRotatingTokens`. A guess at a secret rides a
   named budget under a ceiling of 600/min per address
   (`server/internal/handler/router/sign_in_budgets.go`, ADR 0047 §9):
-  `sign-in-password` (`/auth/login`, 20/min per address and the hashed,
-  normalized email read from the body without consuming it) and
-  `sign-in-mfa` (`/auth/mfa/verify`, 10/min per address and the account of
-  the verified challenge token), both off the global limiter so an office
-  NAT signs in per person; `step-up` (`/me/step-up*`, `PUT /me/password`,
-  `POST /me/delete`, `POST /orgs/{org}/transfer-ownership`, 10/min per
-  bearer). `TestSignInPasswordBudgetIsPerAddressAndEmail`,
-  `TestSignInMFABudgetKeysTheChallengedAccount` and
+  `sign-in-password` (`/auth/login` and the app's `/auth/native/password`,
+  one budget for both, 20/min per address and the hashed, normalized email
+  read from the body without consuming it) and `sign-in-mfa`
+  (`/auth/mfa/verify` and `/auth/native/mfa`, 10/min per address and the
+  account of the verified challenge token), all four off the global limiter
+  so an office NAT signs in per person; `step-up` (`/me/step-up*`,
+  `PUT /me/password`, `POST /me/delete`, `POST /orgs/{org}/transfer-ownership`,
+  10/min per bearer). `TestSignInPasswordBudgetIsPerAddressAndEmail`,
+  `TestSignInMFABudgetKeysTheChallengedAccount`,
+  `TestNativePasswordSharesTheSignInPasswordBudget`,
+  `TestNativeMFASharesTheSignInMFABudget` and
   `TestStepUpRoutesShareOneBudgetPerPerson` hold them. The other credential
   routes carry their own small budget in
   `server/internal/handler/router/router.go`, whose tests pin all of it.
@@ -569,7 +572,7 @@ database and never reveal whether an id exists to a non-member.
   `TestAppleWebSignInKeepsTheConsentForTheServicesID`, `TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay`,
   `TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking`, `TestLegacyAppleNativeKeepsItsCodes` and
   `TestDeleteAccountRevokesTheAppleToken` hold it.
-- Every provider sign-in (Google and Apple on the web, Apple on the iPhone) finds its account through `resolveIdentity` in
+- Every provider sign-in (Google and Apple on the web, Google and Apple in the app) finds its account through `resolveIdentity` in
   `server/internal/service/identity_resolve.go` (ADR 0047): the provider subject first, then the address only when
   the provider vouches for it. An address the provider owns (Gmail or the Workspace `hd`; iCloud or Apple's relay)
   links to a verified account, or takes back an account that never proved the address — everything its registrant
@@ -591,10 +594,25 @@ database and never reveal whether an id exists to a non-member.
   `TestTicketLinkNeedsASessionStartedAfterTheTicket`, `TestEmailClaimLinksCreatesOrReclaims` and
   `TestAProviderIdentityMovesOnlyFromAnEmptyAccount` hold it.
 - The public routes that open a session or spend a sign-in cookie (`/auth/login`, `/auth/register`,
-  `/auth/mfa/verify`, `/auth/password/reset`, `/auth/sign-in-ticket*`) go through `mw.SameSiteJSON`: a request
-  marked `Sec-Fetch-Site: cross-site` is 403 `cross_site_request` and a body that is not `application/json` is 415,
-  so another site cannot sign a browser in (login CSRF). Native clients send no fetch metadata and post JSON.
-  `TestCredentialRoutesRefuseCrossSiteForms` holds it.
+  `/auth/mfa/verify`, `/auth/password/reset`, `/auth/sign-in-ticket*`, and the app's `/auth/native/*`) go through
+  `mw.SameSiteJSON`: a request marked `Sec-Fetch-Site: cross-site` is 403 `cross_site_request` and a body that is
+  not `application/json` is 415, so another site cannot sign a browser in (login CSRF) or spend an address's
+  budget. Native clients send no fetch metadata and post JSON. `TestCredentialRoutesRefuseCrossSiteForms` holds it.
+- The app's own sign-in screen (ADR 0047 §8, `server/internal/service/native_sign_in.go`) is public doors under
+  `/api/v1/auth/native/*` — password, second factor, Google, Apple, register, and the choice screen's ticket
+  commands — plus the app's Settings links `POST /me/sign-in-methods/{google,apple}/native` (a device bearer with a
+  step-up; a provider token that fails is 403, never 401). The doors take only a client in `NATIVE_SIGN_IN_CLIENTS`
+  (default `uniwork-chat-mobile`, the legacy `POST /auth/apple/native` included; the desktop apps and Office sign in
+  through the web page) and answer one `NativeSignInSDO` (`signed_in`, `mfa_required`, `identity_unmatched`,
+  `link_required`): a challenge bound to the app's client and deployment, which only `/auth/native/mfa` takes, or a
+  ticket in JSON that opens only with the app's nonce. A session is a device session issued in the transaction
+  that audits `auth.login_succeeded` (`via`, `channel: native`), and an account that had any session or device before
+  hears of it, whatever the device says it is. The app's Google ID token is checked by `auth.GoogleNativeVerifier`:
+  `aud` among the web and app clients, `azp` one of `GOOGLE_NATIVE_CLIENT_IDS` (never `GOOGLE_CLIENT_ID`, or the
+  config refuses to load), `iat` at most ten minutes old and a required nonce hash; it is also the step-up's Google
+  proof. `TestWebAndNativeGoogleAudiencesStayApart`, `TestGoogleNativeNeedsANonceAndTheAppAzp`,
+  `TestNativeDoorsTakeOnlyNativeClients`, `TestNativeTicketNeedsTheNonce`, `TestNativeSecondStepIsBoundToTheApp`,
+  `TestNativeSignInAlwaysAlertsAnAccountThatHadASession` and `TestAppLinksAProviderFromSettings` hold it.
 - The second factor (ADR 0047 §4): a challenge token names its channel (`chn`; none reads as web) and the browser's
   `POST /auth/mfa/verify` takes only a web one. An identity that would link into an account with a second factor
   rides in the challenge (`pl`, sealed) and is linked only in the transaction that opens the session once the
@@ -620,7 +638,7 @@ database and never reveal whether an id exists to a non-member.
   from an account whose address is Apple's relay; a password change or an unlink signs every other session out
   (`revokeOtherUserSessions`, MCP grants, `credentials_revoked_at`). A link from Settings goes through the browser
   that asked: its `link_token` is bound to the account and browser session, and the provider's start and callback
-  both check the refresh cookie opens that very session. The proofs shipped apps still send in place of a token
+  both check the refresh cookie opens that very session; the app links with the provider's own sheet instead. The proofs shipped apps still send in place of a token
   (`POST /me/delete`'s password, code or typed address; an owner's password on a hand-over) are reviewed by
   2027-01-31 (`TestLegacyProofDoorsAreReviewed`). `TestSignInMethodChangesNeedAProof`, `TestMFAEnrolmentNeedsAProof`,
   `TestStepUpTokenDiesWithItsSession`, `TestStepUpCodeNamesItsActionAndIgnoresTheDevCode`,

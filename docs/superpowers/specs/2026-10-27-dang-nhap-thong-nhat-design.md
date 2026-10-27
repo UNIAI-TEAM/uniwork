@@ -368,6 +368,30 @@ Mọi route: công khai, `Cache-Control: no-store`, ⚑ chỉ nhận `client_id`
   `reclaim` vẫn chạy (không MFA).
   `TestLegacyAppleNativeKeepsItsCodes`. Gỡ khi mọi bản mobile đang dùng gọi `/auth/native/*`; hạn xem lại
   2027-01-31 ghi trong `scripts/governance.test.mjs` (fail khi quá hạn mà route còn).
+- Lát 5 (server): `service/native_sign_in.go` (cửa) và `service/native_sign_in_ticket.go` (vé), `NativeSignInService`.
+  Cửa không đúng client → `400 invalid_request` (như route Apple cũ); client native phải vừa nằm trong
+  `NATIVE_SIGN_IN_CLIENTS` vừa là client desktop đã cấu hình, và route Apple cũ cũng chỉ nhận danh sách này (bản app
+  đã phát hành gửi `uniwork-chat-mobile`). Mọi cửa native (cả vé) qua `mw.SameSiteJSON` như cửa web: app gửi JSON,
+  không có `Sec-Fetch-Site`; form trang khác không tiêu ngân sách. `NativeClientSDI` nhúng vào mọi SDI native, kể cả
+  `claim-email` và `link` (vé native kiểm client/deployment). `NativeSignInSDO`: `reclaimed`, `link_skipped` luôn có;
+  `session`, `mfa_token`, `ticket`, `identity` chỉ khi có. Đóng: không có service → `503 native_sign_in_unavailable`;
+  Google chưa cấu hình (`GOOGLE_NATIVE_CLIENT_IDS`) → `503 google_not_configured`; Apple native chưa cấu hình →
+  `503 apple_auth_unavailable`. Audit `auth.login_succeeded` mọi phiên native mang `channel: native`; bước hai native
+  ghi `via: mfa` (cùng `mfa: true`) vì token thử thách không nhớ bước đầu đi cửa nào; `login_failed` native cũng mang
+  `channel`. Bước hai web và native dùng chung một lõi (`AuthService.secondStep`: khoá hàng, `weighSecondFactor`,
+  `finishPendingLink`). Mail `new_login`: tài khoản có bất kỳ `refresh_tokens` nào trước lần này (hàng không bao giờ
+  bị xoá) thì báo, trừ lượt `reclaim` (đã gửi `reclaimed`); tài khoản vừa tạo không báo. Thiết bị trong mọi mail của
+  cửa native là "nhãn (nền tảng[, deployment khi không phải default])" thay user-agent HTTP. Google native:
+  `auth.DiscoverGoogle` chạy discovery một lần cho cả web và app; verifier native thêm `iat` không quá 1 phút ở tương
+  lai; code flow web giờ từ chối `azp` khác client web (token app không mở cửa web); config từ chối khởi động khi
+  `GOOGLE_CLIENT_ID` nằm trong `GOOGLE_NATIVE_CLIENT_IDS`. Token nhà cung cấp sai ở cửa công khai → `401
+  provider_token_invalid`; ở lệnh của người đã đăng nhập (`/me/sign-in-methods/*/native`, step-up) → `403`.
+  `/me/sign-in-methods/{google,apple}/native` kiểm theo thứ tự: bearer của app (trình duyệt → `400
+  invalid_request`), email đã xác minh (`403 email_unverified`), step-up (`401`/`403 proof_required`), rồi token
+  (`403 provider_token_invalid`); `move`, `taken`, `already_linked` là của `attachIdentity`; audit `via: settings`.
+  Liên kết vé native (`/auth/native/sign-in-ticket/link`) nhận thêm `step_up_token` như vé web. Step-up nhận token
+  Google của app khi verifier native được cấu hình (`AuthService.SetGoogleNative`, thay hook `SetGoogleProofVerifier`
+  của lát 3). Chưa có `DELETE` vé native: token Apple trong một vé app bỏ dở không được trả lại Apple.
 
 ### 3.7 Step-up và phương thức đăng nhập
 
@@ -723,5 +747,6 @@ Một nhánh, commit theo lát, mỗi lát để server chạy được:
    Quên mật khẩu đặt lần đầu ghi `auth.password_set` (cả khi là thu hồi tài khoản chưa xác minh mà chưa có mật
    khẩu), không thì `auth.password_changed`.
 4. Apple web. Lát 4 (server) xong, gồm `POST /me/sign-in-methods/apple/link`; câu trả lời ghi ở 3.4.
-5. Route native + Google ID token + bộ chuyển mã route Apple cũ.
+5. Route native + Google ID token + bộ chuyển mã route Apple cũ. Lát 5 (server) xong, gồm
+   `/me/sign-in-methods/{google,apple}/native` và bằng chứng step-up Google trên app; câu trả lời ghi ở 3.6.
 6. Web (4.x). 7. Mobile (5.x).
