@@ -657,7 +657,7 @@ func TestDocumentSharedFolderContentsBatchGrouping(t *testing.T) {
 	if gotTitleVI := Title("vi", n.Kind, p); gotTitleVI != wantTitleVI {
 		t.Fatalf("Title(vi, batch) = %q, want %q", gotTitleVI, wantTitleVI)
 	}
-	wantTitleEN := p["actor"] + ` shared 2 documents in the folder "Hồ sơ Dự án X" with you (Edit).`
+	wantTitleEN := p["actor"] + ` shared 2 document(s) in folder "Hồ sơ Dự án X" with you (Edit).`
 	if gotTitleEN := Title("en", n.Kind, p); gotTitleEN != wantTitleEN {
 		t.Fatalf("Title(en, batch) = %q, want %q", gotTitleEN, wantTitleEN)
 	}
