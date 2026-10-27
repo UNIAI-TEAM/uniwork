@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^3af2b7e5e" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=3af2b7e5e861f55c831d09329d29420f835ea9dc
+3af2b7e5e test(drive): verify Drive links and provenance across task trash, restore, and purge
+7128dac0b fix(drive): exclude trashed tasks from Drive task link and provenance reads
+893708b0b fix(privacy): include membership invite link tables in tenant export
+f6b6a4b0b Merge UNI-2221 F1 (ListMine refreshes drive_folder_id=none) into the G5-G7 root

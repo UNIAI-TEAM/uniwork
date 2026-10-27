@@ -1,0 +1,6 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server && go test -count=1 -v ./migrations/ > /tmp/db32-mig.log 2>&1; rc=$?; grep -E -- '--- (FAIL|SKIP)' /tmp/db32-mig.log | head -30; grep -B2 -A20 -- '--- FAIL' /tmp/db32-mig.log | head -80; grep -E '^ok|^FAIL|panic' /tmp/db32-mig.log; echo; echo "GO_MIGRATIONS_EXIT=$rc"; [ $rc -eq 0 ]
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/migrations	7.595s
+
+GO_MIGRATIONS_EXIT=0
