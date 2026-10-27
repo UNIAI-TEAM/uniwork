@@ -975,6 +975,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":             {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
 	"PUT /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":              {controlAs: "peer", body: isoWith(map[string]string{"connection_id": "peerDriveConnection"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind":             {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name":           {body: isoWith(map[string]string{"drive_connection_id": "driveConnection"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals":     {body: isoJSON(map[string]any{"prompt": "Extract tasks"})},
 	"POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates": {body: isoJSON(map[string]any{"titles": []string{"Chốt phạm vi beta"}})},
 	"POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks": {body: isoJSON(map[string]any{

@@ -413,6 +413,8 @@ func TestDriveConnectionsRequireFeatureFlag(t *testing.T) {
 		{http.MethodPost, "/workspaces/w1/drive-files/df1/access"},
 		{http.MethodPut, "/workspaces/w1/drive-files/df1/access"},
 		{http.MethodPost, "/workspaces/w1/drive-files/df1/rebind"},
+		{http.MethodPost, "/workspaces/w1/drive-folders/fldr1/name"},
+		{http.MethodGet, "/workspaces/w1/drive-folders"},
 		{http.MethodGet, "/tasks/t1/drive-files"},
 		{http.MethodDelete, "/tasks/t1/drive-files/df1"},
 		{http.MethodPost, "/workspaces/w1/drive-files/df1/task-proposals"},

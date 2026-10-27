@@ -482,6 +482,20 @@ func (f *FakeDriveProvider) FilesGet(_ context.Context, _, externalFileID string
 	}, nil
 }
 
+// FolderNameGet returns deterministic folder name for FakeDriveProvider (UNI-2221).
+func (f *FakeDriveProvider) FolderNameGet(_ context.Context, _, folderID string) (string, error) {
+	id := strings.TrimSpace(folderID)
+	if id == "" {
+		return "", &DriveAPIError{
+			Class:        DriveErrorClassFileNotAccessible,
+			HTTPStatus:   http.StatusNotFound,
+			GoogleReason: "notFound",
+			Err:          ErrDriveFileNotAccessible,
+		}
+	}
+	return id, nil
+}
+
 const (
 	fakeDriveExportMarkdown = "# Kế hoạch công việc từ tài liệu\n" +
 		"- [ ] Chốt phạm vi tính năng beta trước 2026-11-15\n" +
