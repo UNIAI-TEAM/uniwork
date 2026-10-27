@@ -12,6 +12,9 @@ export const driveLibraryKeys = {
   lists: (wsId: string) => [...driveLibraryKeys.workspace(wsId), "library-files"] as const,
   list: (wsId: string, connectionId?: string | null) =>
     [...driveLibraryKeys.lists(wsId), connectionId || "all"] as const,
+  folderLists: (wsId: string) => [...driveLibraryKeys.workspace(wsId), "library-folders"] as const,
+  folders: (wsId: string, connectionId?: string | null) =>
+    [...driveLibraryKeys.folderLists(wsId), connectionId || "all"] as const,
   details: (wsId: string) => [...driveLibraryKeys.workspace(wsId), "library-file"] as const,
   detail: (wsId: string, driveFileId: string) =>
     [...driveLibraryKeys.details(wsId), driveFileId] as const,

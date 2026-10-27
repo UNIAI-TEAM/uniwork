@@ -9,7 +9,6 @@ import { DocumentShareScopeBadge } from "./document-share-scope-badge";
 import { DocumentTree } from "./document-tree";
 import { DocumentsLibraryList } from "./documents-library-list";
 import { type LibraryRowHandlers } from "./documents-library-row";
-import { DocumentsSearchResults } from "./documents-search-results";
 import { documentRow } from "./library-rows";
 
 initI18n();
@@ -265,42 +264,6 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
     expect(accessCell.querySelector("[data-access-kind]")).toHaveAttribute("data-access-kind", "shared");
     expect(within(accessCell).getByText("Được chia sẻ")).toBeInTheDocument();
     expect(within(accessCell).queryByText("4 người")).not.toBeInTheDocument();
-    unmount();
-
-    // Search results mount
-    render(
-      <DocumentsSearchResults
-        search={{
-          query: "bao cao",
-          committedQuery: "bao cao",
-          filter: "all",
-          active: true,
-          composing: false,
-          items: [
-            {
-              ...summaryRow,
-              share_scope: scope({ organization: true }),
-            },
-          ],
-          loading: false,
-          loadingMore: false,
-          hasMore: false,
-          error: null,
-          isError: false,
-          setFilter: vi.fn(),
-          onQueryChange: vi.fn(),
-          onCompositionStart: vi.fn(),
-          onCompositionEnd: vi.fn(),
-          onKeyDown: vi.fn(),
-          clear: vi.fn(),
-          loadMore: vi.fn(),
-          retry: vi.fn(),
-        }}
-        onSelectFolder={vi.fn()}
-        onSelectDocument={vi.fn()}
-      />,
-    );
-    expect(screen.getByText("Tổ chức")).toBeInTheDocument();
     unmount();
 
     // Tree rows mount

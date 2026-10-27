@@ -365,17 +365,18 @@ func (s *DriveFileService) flagEnabledForMember(ctx context.Context, userID, org
 	}
 	ec := featureflag.EvalContext{UserID: userID, OrganizationID: orgID}
 	evalCtx := featureflag.WithEvalContext(ctx, ec)
+	def := driveConnectorFlagDefault()
 	if s.flags != nil {
-		if !s.flags.IsEnabled(evalCtx, "drive_connector", false) {
+		if !s.flags.IsEnabled(evalCtx, "drive_connector", def) {
 			return false
 		}
 		if s.connections != nil && s.connections.flags != nil && s.connections.flags != s.flags {
-			return s.connections.flags.IsEnabled(evalCtx, "drive_connector", false)
+			return s.connections.flags.IsEnabled(evalCtx, "drive_connector", def)
 		}
 		return true
 	}
 	if s.connections != nil && s.connections.flags != nil {
-		return s.connections.flags.IsEnabled(evalCtx, "drive_connector", false)
+		return s.connections.flags.IsEnabled(evalCtx, "drive_connector", def)
 	}
 	return false
 }

@@ -158,6 +158,11 @@ type DocumentService struct {
 	// (UNI-2052, document_folder_uploads.go).
 	folderUpload folderUploadConfig
 
+	// folderAccessSyncMax overrides FolderContentsAccessSyncMax in tests so a
+	// background batch can be exercised with a handful of subtree documents.
+	// Zero means FolderContentsAccessSyncMax.
+	folderAccessSyncMax int
+
 	// clock is the service's time source; tests inject it so the retention
 	// and auto-version workers never wait for real time.
 	clock func() time.Time
@@ -198,6 +203,19 @@ func (s *DocumentService) SetClock(now func() time.Time) {
 		now = time.Now
 	}
 	s.clock = now
+}
+
+// SetFolderContentsAccessSyncMax overrides FolderContentsAccessSyncMax in
+// tests; n <= 0 resets to the default (500).
+func (s *DocumentService) SetFolderContentsAccessSyncMax(n int) {
+	s.folderAccessSyncMax = n
+}
+
+func (s *DocumentService) effectiveFolderContentsAccessSyncMax() int {
+	if s != nil && s.folderAccessSyncMax > 0 {
+		return s.folderAccessSyncMax
+	}
+	return FolderContentsAccessSyncMax
 }
 
 // now is the one place document code reads the time.

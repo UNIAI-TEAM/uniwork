@@ -13545,20 +13545,11 @@
       "breadcrumb_more": "Các cấp ẩn",
       "search": {
         "placeholder": "Tìm thư mục và tài liệu",
-        "placeholder_folder": "Tìm trong thư mục này",
         "label": "Tìm trong Tài liệu",
         "clear": "Xóa ô tìm",
-        "filter_label": "Lọc kết quả",
-        "filter_all": "Tất cả",
-        "filter_folder": "Thư mục",
-        "filter_document": "Tài liệu",
         "path": "Đường dẫn: {{path}}",
         "path_root": "Tài liệu (gốc)",
-        "loading": "Đang tìm…",
-        "empty_title": "Không tìm thấy kết quả",
-        "empty_description": "Thử tên khác hoặc đổi bộ lọc. Xóa ô tìm để quay lại thư mục.",
-        "error_title": "Không tìm được",
-        "error_description": "Kiểm tra kết nối rồi thử lại."
+        "no_results_title": "Không có kết quả cho “{{query}}”"
       },
       "view_subtitle": {
         "recent": "Tài liệu bạn đã mở hoặc sửa trong 30 ngày qua",
@@ -14340,6 +14331,7 @@
     },
     "picker": {
       "title": "Chọn tệp từ Google Drive",
+      "folder_title": "Chọn thư mục cần lấy tên",
       "disclosure": "UniWork chỉ được quyền với tệp bạn chọn. UniWork chỉ lưu liên kết, nội dung vẫn nằm trên Google Drive.",
       "account_step": {
         "title": "Chọn tài khoản Google Drive",
@@ -14594,7 +14586,23 @@
     "sidebar": {
       "google_drive": "Google Drive",
       "account_row": "Drive: {{email}}",
-      "disconnected": "Mất kết nối"
+      "disconnected": "Mất kết nối",
+      "folders_loading": "Đang tải thư mục…",
+      "folders_error": "Không tải được thư mục"
+    },
+    "folder": {
+      "unnamed": "Thư mục trên Drive · {{id}}",
+      "unnamed_short": "Thư mục · {{id}}",
+      "count_one": "{{count}} tệp",
+      "count_other": "{{count}} tệp",
+      "name_action": "Đặt tên theo Drive",
+      "name_done": "Đã đặt tên thư mục theo Drive",
+      "name_mismatch": "Bạn đã chọn một thư mục khác. Hãy chọn đúng thư mục này để đặt tên.",
+      "name_not_found": "Không đọc được tên thư mục này từ Google Drive. Hãy chọn đúng thư mục này trong cửa sổ chọn rồi thử lại.",
+      "name_not_folder": "Mục đã chọn không phải là thư mục hoặc đã nằm trong thùng rác.",
+      "name_unavailable": "Google Drive tạm thời không phản hồi. Thử lại sau ít phút.",
+      "name_failed": "Không đặt được tên thư mục. Thử lại sau.",
+      "menu_aria": "Thao tác với thư mục {{name}}"
     },
     "file_types": {
       "google_doc": "Google Docs",
@@ -14649,7 +14657,12 @@
       "error_description": "Kiểm tra kết nối mạng rồi thử lại.",
       "retry": "Thử lại",
       "load_more": "Tải thêm",
-      "loading_more": "Đang tải thêm…"
+      "loading_more": "Đang tải thêm…",
+      "search_label": "Tìm trong danh sách Drive",
+      "search_placeholder": "Tìm theo tên",
+      "no_results_title": "Không có kết quả",
+      "no_results_description": "Không có thư mục hoặc tệp nào khớp với “{{query}}”.",
+      "breadcrumb_label": "Vị trí trong Google Drive"
     },
     "detail": {
       "breadcrumb_documents": "Tài liệu",

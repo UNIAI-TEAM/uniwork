@@ -149,24 +149,36 @@ describe("documents-view-url drive view", () => {
     expect(viewFromSearchParams(new URLSearchParams("view=drive"))).toEqual({
       kind: "drive",
       account: null,
+      folder: null,
     });
     expect(viewFromSearchParams(new URLSearchParams("view=drive&account=conn1"))).toEqual({
       kind: "drive",
       account: "conn1",
+      folder: null,
+    });
+    expect(viewFromSearchParams(new URLSearchParams("view=drive&account=conn1&driveFolder=fld1"))).toEqual({
+      kind: "drive",
+      account: "conn1",
+      folder: "fld1",
     });
 
     const wsPaths = {
       documents: () => "/acme/doi/documents",
       documentsFolder: (id: string) => `/acme/doi/documents?folder=${id}`,
-      documentsDrive: (account?: string | null) =>
-        account ? `/acme/doi/documents?view=drive&account=${account}` : "/acme/doi/documents?view=drive",
+      documentsDrive: (account?: string | null, folder?: string | null) =>
+        account
+          ? `/acme/doi/documents?view=drive&account=${account}${folder ? `&driveFolder=${folder}` : ""}`
+          : "/acme/doi/documents?view=drive",
     };
 
-    expect(buildDocumentsViewUrl(wsPaths, { kind: "drive", account: null }, null)).toBe(
+    expect(buildDocumentsViewUrl(wsPaths, { kind: "drive", account: null, folder: null }, null)).toBe(
       "/acme/doi/documents?view=drive",
     );
-    expect(buildDocumentsViewUrl(wsPaths, { kind: "drive", account: "conn1" }, "fo1")).toBe(
+    expect(buildDocumentsViewUrl(wsPaths, { kind: "drive", account: "conn1", folder: null }, "fo1")).toBe(
       "/acme/doi/documents?view=drive&account=conn1",
+    );
+    expect(buildDocumentsViewUrl(wsPaths, { kind: "drive", account: "conn1", folder: "fld1" }, null)).toBe(
+      "/acme/doi/documents?view=drive&account=conn1&driveFolder=fld1",
     );
   });
 });
@@ -300,9 +312,11 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     const acct1Btn = screen.getAllByRole("button", { name: /Drive: uni-work1@gmail\.com/ })[0]!;
     expect(acct1Btn).not.toHaveAttribute("aria-current");
     expect(acct1Btn).toHaveAttribute("title", "Drive: uni-work1@gmail.com");
-    expect(acct1Btn).toHaveStyle({ paddingLeft: "56px" });
+    // Account row = chevron slot at x=28 (under the Drive icon) + select button whose pl-3 puts the email at x=56.
+    expect(acct1Btn.parentElement).toHaveStyle({ paddingLeft: "28px" });
+    expect(acct1Btn.parentElement?.firstElementChild).toHaveAttribute("data-chevron");
     expect(acct1Btn.querySelector("svg, img")).toBeNull();
-    expect(acct1Btn).toHaveClass("pr-2", "gap-2");
+    expect(acct1Btn).toHaveClass("pl-3", "pr-2", "gap-2");
     expect(acct1Btn).toHaveTextContent("3");
     expect(acct1Btn.lastElementChild).toHaveClass(
       "ml-auto",
@@ -314,8 +328,8 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     );
 
     const acct3Btn = screen.getAllByRole("button", { name: /Drive: uni-work3@gmail\.com/ })[0]!;
-    expect(acct3Btn).toHaveStyle({ paddingLeft: "56px" });
-    expect(acct3Btn).toHaveClass("pr-2", "gap-2");
+    expect(acct3Btn.parentElement).toHaveStyle({ paddingLeft: "28px" });
+    expect(acct3Btn).toHaveClass("pl-3", "pr-2", "gap-2");
     expect(acct3Btn).toHaveTextContent(t("driveLibrary.sidebar.disconnected"));
     expect(acct3Btn).toHaveAttribute(
       "title",
