@@ -9,8 +9,11 @@ import type { DetailStatus, DetailViewer } from "./detail-model";
 export type MinutesState = "off" | "none" | "draft" | "final";
 
 export type StripJob =
-  /** Before the meeting: when it starts and who has not answered; the runner starts it, anyone else joins. */
-  | { kind: "start"; canStart: boolean; pendingNames: string[] }
+  /**
+   * Before the meeting: when it starts and who has not answered; the runner starts it, anyone else joins.
+   * In person there is no room: a clerk records it (`canRecord`), nobody starts or joins.
+   */
+  | { kind: "start"; canStart: boolean; pendingNames: string[]; inPerson: boolean; canRecord: boolean }
   /** Before the meeting, an invitee who is not running it: package G's RSVP row. */
   | { kind: "rsvp" }
   /** Live: "Cần bạn · n" over the lobby and vote rows (package F), with End for the runner and Join. */
@@ -61,6 +64,10 @@ export type StripInput = {
   minutesEditable: boolean;
   /** The summary run is under way (AfterAIStates c1). */
   summaryRunning?: boolean;
+  /** Held in person, without a room (UNI-2247). */
+  inPerson?: boolean;
+  /** A clerk of an in-person meeting where the organization transcribes. */
+  canRecord?: boolean;
 };
 
 /** The fields of an action item the strip reads. */
@@ -123,7 +130,15 @@ export function nextStepJobs(input: StripInput): StripJob[] {
     case "SCHEDULED":
       return input.hasInvitation && !input.canHost
         ? [{ kind: "rsvp" }]
-        : [{ kind: "start", canStart: input.canHost, pendingNames: input.pendingNames }];
+        : [
+            {
+              kind: "start",
+              canStart: input.canHost,
+              pendingNames: input.pendingNames,
+              inPerson: input.inPerson === true,
+              canRecord: input.canRecord === true,
+            },
+          ];
     case "IN_PROGRESS":
       return [{ kind: "live", need: input.liveNeed, canEnd: input.canHost }];
     case "OVERTIME":

@@ -1,6 +1,6 @@
 "use client";
 import { useId, useRef, useState } from "react";
-import { CalendarCheck, CircleAlert } from "lucide-react";
+import { CalendarCheck, CircleAlert, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode } from "@uniwork/core/api";
@@ -28,19 +28,24 @@ export function MeetingRecordHeldButton({
   meeting,
   size = "sm",
   className,
+  label,
+  icon: Icon = CalendarCheck,
 }: {
   workspaceId: string;
   meeting: Meeting;
   size?: "sm" | "lg";
   className?: string;
+  /** In person it reads "Đã có file ghi âm" (UNI-2247); the dialog is the same. */
+  label?: string;
+  icon?: LucideIcon;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
     <>
       <Button type="button" size={size} variant="outline" className={className} onClick={() => setOpen(true)}>
-        <CalendarCheck aria-hidden />
-        {t("meetings.held.button")}
+        <Icon aria-hidden />
+        {label ?? t("meetings.held.button")}
       </Button>
       {open ? <MeetingRecordHeldDialog workspaceId={workspaceId} meeting={meeting} onOpenChange={setOpen} /> : null}
     </>

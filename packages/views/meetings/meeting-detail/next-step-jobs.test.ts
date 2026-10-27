@@ -21,10 +21,18 @@ const item = (over: Partial<StripItem>): StripItem => ({ title: "Việc", status
 
 describe("nextStepJobs", () => {
   it("gives the runner the start row before the meeting, and an invitee the RSVP row", () => {
-    expect(nextStepJobs(base)).toEqual([{ kind: "start", canStart: true, pendingNames: ["Minh Trần"] }]);
+    expect(nextStepJobs(base)).toEqual([{ kind: "start", canStart: true, pendingNames: ["Minh Trần"], inPerson: false, canRecord: false }]);
     expect(nextStepJobs({ ...base, viewer: "member", canHost: false, hasInvitation: true })).toEqual([{ kind: "rsvp" }]);
     // Not invited, not running it: the start row, joining instead of starting.
     expect(nextStepJobs({ ...base, viewer: "member", canHost: false })[0]).toMatchObject({ kind: "start", canStart: false });
+  });
+
+  it("an in-person start job lets a clerk record", () => {
+    expect(nextStepJobs({ ...base, inPerson: true, isClerk: true, canRecord: true })[0]).toMatchObject({
+      kind: "start",
+      inPerson: true,
+      canRecord: true,
+    });
   });
 
   it("lets only the runner end, extend, restore or reschedule", () => {

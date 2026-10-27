@@ -45,6 +45,16 @@ describe("DetailHeader", () => {
     expect(clockLine("14:00–15:00 · còn 17 giờ")).toBeInTheDocument();
   });
 
+  it("shows Trực tiếp beside the status for an in-person meeting", () => {
+    const { unmount } = header({ venue: "in_person" }, "SCHEDULED", NOW);
+    const pill = screen.getByText("Trực tiếp");
+    expect(pill.previousElementSibling).toHaveTextContent("Sắp diễn ra");
+    expect(pill).toHaveClass("bg-tint-violet", "text-tint-violet-foreground", "h-5.5");
+    unmount();
+    header({}, "SCHEDULED", NOW);
+    expect(screen.queryByText("Trực tiếp")).not.toBeInTheDocument();
+  });
+
   it("reads an ended meeting by when it actually ran, and names yesterday", () => {
     header(
       {

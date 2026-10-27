@@ -161,6 +161,62 @@ describe("MeetingDetailView › strip per state and viewer", () => {
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 
+  describe("in person", () => {
+    const m3 = fixtureMeeting("m3");
+    const inPerson = { [`/api/v1/meetings/${m3.id}`]: { meeting: { ...m3, venue: "in_person" } } };
+    const caps = (transcription: boolean) => ({ [`/api/v1/workspaces/${demoWorkspace.id}/meeting-capabilities`]: { transcription } });
+
+    it("an in-person meeting starts by recording", async () => {
+      const onRecord = vi.fn();
+      open("m3", { extra: { ...inPerson, ...caps(true) }, props: { onRecord } });
+      const row = await strip();
+      fireEvent.click(await within(row).findByRole("button", { name: "Bắt đầu ghi âm" }));
+      expect(onRecord).toHaveBeenCalledWith();
+      expect(within(row).queryByRole("button", { name: "Bắt đầu họp" })).not.toBeInTheDocument();
+      expect(within(row).queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
+      // Not yet started: nothing to record as held.
+      expect(within(row).queryByRole("button", { name: "Đã có file ghi âm" })).not.toBeInTheDocument();
+      expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/start"))).toBe(false);
+    });
+
+    it("offers the recording file once the start time passed", async () => {
+      vi.setSystemTime(Date.parse(m3.starts_at) + 5 * 60_000);
+      open("m3", { extra: { ...inPerson, ...caps(true) }, props: { onRecord: vi.fn() } });
+      const row = await strip();
+      expect(await within(row).findByRole("button", { name: "Bắt đầu ghi âm" })).toBeInTheDocument();
+      fireEvent.click(within(row).getByRole("button", { name: "Đã có file ghi âm" }));
+      expect(await screen.findByRole("dialog", { name: "Ghi nhận cuộc họp đã diễn ra" })).toBeInTheDocument();
+    });
+
+    it("offers neither a recording nor a room without transcription", async () => {
+      vi.setSystemTime(Date.parse(m3.starts_at) + 5 * 60_000);
+      open("m3", { extra: { ...inPerson, ...caps(false) }, props: { onRecord: vi.fn() } });
+      const row = await strip();
+      expect(await within(row).findByRole("button", { name: "Đã có file ghi âm" })).toBeInTheDocument();
+      expect(within(row).queryByRole("button", { name: "Bắt đầu ghi âm" })).not.toBeInTheDocument();
+      expect(within(row).queryByRole("button", { name: "Bắt đầu họp" })).not.toBeInTheDocument();
+      expect(within(row).queryByRole("button", { name: "Vào phòng họp" })).not.toBeInTheDocument();
+    });
+
+    it("draws no record button when the page cannot record", async () => {
+      open("m3", { extra: { ...inPerson, ...caps(true) } });
+      const row = await strip();
+      await within(row).findByRole("button", { name: "Thêm vào lịch" });
+      expect(within(row).queryByRole("button", { name: "Bắt đầu ghi âm" })).not.toBeInTheDocument();
+      expect(within(row).queryByRole("button", { name: "Bắt đầu họp" })).not.toBeInTheDocument();
+    });
+
+    it("an in-person meeting has no guests", async () => {
+      open("m3", { extra: { ...inPerson, ...caps(true) }, props: { onRecord: vi.fn() } });
+      await strip();
+      expect(await screen.findByText("Hình thức")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Khách:/ })).not.toBeInTheDocument();
+      expect(screen.queryByText("Agency Ánh Dương")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /liên kết/i })).not.toBeInTheDocument();
+      expect(requestMock.mock.calls.some(([p]) => String(p).endsWith("/invite-links"))).toBe(false);
+    });
+  });
+
   it("asks an invitee for an answer before the meeting", async () => {
     open("m3", { viewer: "minh" });
     const row = await strip();

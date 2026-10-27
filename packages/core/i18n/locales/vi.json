@@ -5083,6 +5083,7 @@
       },
       "rail": {
         "label": "Thông tin cuộc họp",
+        "venue": "Hình thức",
         "host": "Chủ trì",
         "secretary": "Thư ký",
         "you": " · bạn",
@@ -5323,7 +5324,9 @@
       "onlineHint": "Phòng họp có link",
       "inPerson": "Trực tiếp",
       "inPersonHint": "Ghi âm tại phòng",
-      "prepare": "Chuẩn bị ghi âm"
+      "prepare": "Chuẩn bị ghi âm",
+      "startRecording": "Bắt đầu ghi âm",
+      "haveFile": "Đã có file ghi âm"
     },
     "instantDialog": {
       "titlePlaceholder": "Cuộc họp tức thì",

@@ -5084,6 +5084,7 @@
       },
       "rail": {
         "label": "Meeting details",
+        "venue": "Format",
         "host": "Host",
         "secretary": "Secretary",
         "you": " · you",
@@ -5324,7 +5325,9 @@
       "onlineHint": "A meeting room with a link",
       "inPerson": "In person",
       "inPersonHint": "Recorded in the room",
-      "prepare": "Prepare the recording"
+      "prepare": "Prepare the recording",
+      "startRecording": "Start recording",
+      "haveFile": "Already have a recording"
     },
     "instantDialog": {
       "titlePlaceholder": "Instant meeting",

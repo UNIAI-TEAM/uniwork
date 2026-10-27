@@ -1,6 +1,7 @@
 "use client";
 import { Calendar, Clock, Ellipsis, Globe } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
+import { meetingVenue } from "@uniwork/core/meetings/venue";
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -18,6 +19,7 @@ import { clockRange, dayWord, durationWords, elapsedWords, longDay, overtimeWord
 import { LiveTimeBar } from "./live-time-bar";
 import { kitButton } from "./ui/kit-buttons";
 import { MeetingStatusPill } from "./ui/status-pill";
+import { MeetingVenuePill } from "./ui/venue-pill";
 
 const MINUTE = 60_000;
 
@@ -132,6 +134,7 @@ export function DetailHeader({
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-body text-muted-foreground *:inline-flex *:items-center *:gap-1.5 [&_svg]:size-3.5 [&_svg]:shrink-0 @max-[37.5rem]/meeting:gap-x-3 @max-[37.5rem]/meeting:gap-y-1.5 @max-[37.5rem]/meeting:text-caption">
         <MeetingStatusPill status={status} minutes={pillTime || undefined} />
+        {meetingVenue(meeting) === "in_person" ? <MeetingVenuePill /> : null}
         <span>
           <Calendar aria-hidden />
           {yesterday
