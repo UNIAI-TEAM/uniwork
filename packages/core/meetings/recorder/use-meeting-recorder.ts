@@ -6,7 +6,7 @@ import { createMeetingRecorder, type MeetingRecorder, type RecorderState } from 
 import { openRecordingStore, type RecordingPart, type RecordingStore } from "./store";
 
 let sharedStore: RecordingStore | null = null;
-function defaultStore(): RecordingStore {
+export function defaultStore(): RecordingStore {
   return (sharedStore ??= openRecordingStore());
 }
 
