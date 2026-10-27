@@ -48,7 +48,8 @@ type FakeProvider struct {
 	ScribeDispatchErr error
 	// ScribeUnassigned: no worker takes a dispatch (no capacity).
 	ScribeUnassigned bool
-	// LastJoin is the last join credential request (attributes included).
+	// LastJoin is the last join credential request (attributes included),
+	// written under permMu: invite-link joins issue credentials at once.
 	LastJoin IssueJoinCredentialRequest
 	// AttributeUpdates records SetParticipantAttributes calls (under permMu).
 	AttributeUpdates []SetParticipantAttributesRequest
@@ -91,7 +92,9 @@ func (f *FakeProvider) EnsureSession(_ context.Context, req EnsureSessionRequest
 }
 
 func (f *FakeProvider) IssueJoinCredential(_ context.Context, req IssueJoinCredentialRequest) (JoinCredential, error) {
+	f.permMu.Lock()
 	f.LastJoin = req
+	f.permMu.Unlock()
 	if f.JoinErr != nil {
 		return JoinCredential{}, f.JoinErr
 	}
