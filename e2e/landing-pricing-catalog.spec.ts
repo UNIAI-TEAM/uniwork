@@ -12,7 +12,10 @@ const features = [
   { feature_key: "tasks.max", enabled: true, quota_limit: null },
   { feature_key: "storage.bytes", enabled: true, quota_limit: 1.5 * 1024 ** 3 },
   { feature_key: "meeting.participant_minutes", enabled: true, quota_limit: 8000 },
+  { feature_key: "meeting.transcription", enabled: true, quota_limit: 321 },
   { feature_key: "ai.tokens", enabled: true, quota_limit: 650000 },
+  { feature_key: "office.ai_byok", enabled: true, quota_limit: null },
+  { feature_key: "office.ai_cloud", enabled: true, quota_limit: null },
   { feature_key: "meeting.recording", enabled: true, quota_limit: null },
   { feature_key: "meeting.ai_summary", enabled: false, quota_limit: null },
   { feature_key: "documents.public_links", enabled: true, quota_limit: null },
@@ -42,6 +45,8 @@ for (const sample of [
     await expect(section.locator('[data-plan-code="starter"] dd').first()).toHaveText("42");
     await expect(section.locator('[data-plan-code="starter"] .public-pricing-limits')).toContainText(/1[.,]5 GB/);
     await expect(page.locator(".chapter-hero-media")).toHaveCount(0);
+    await expect(section.locator(".public-pricing-comparison")).toHaveCount(0);
+    await expect(section.locator('[data-plan-code="starter"] dd').nth(5)).toHaveText("321");
     for (const button of await section.locator(".public-pricing-action").all()) {
       expect((await button.innerText()).trim().length).toBeGreaterThan(4);
       expect(await button.getAttribute("href")).toBe("/register");
@@ -98,7 +103,8 @@ test("loading and a changed catalog retain only returned plans and explicit feat
   release();
   await expect(section.locator(".public-pricing-plan")).toHaveCount(1);
   await expect(section.locator(".public-pricing-limits dd").first()).toHaveText("0");
-  await expect(section.locator(".public-pricing-comparison tbody tr").first()).toContainText("Not specified");
+  await expect(section.locator(".public-pricing-comparison")).toHaveCount(0);
+  await expect(section.locator(".public-pricing-limits dd").nth(5)).toHaveText("Not specified");
 });
 
 test("anonymous pricing matches the live billing API without a test response", async ({ page }) => {
@@ -117,6 +123,10 @@ test("anonymous pricing matches the live billing API without a test response", a
     await expect(offer.getByRole("heading")).toHaveText(plan.name);
     const price = plan.price_amount === null ? "Contact us for pricing" : plan.price_amount === 0 ? "Free" : formatPlanAmount(plan.price_amount, plan.price_currency, "en");
     await expect(offer.locator(".public-pricing-price strong")).toHaveText(price);
+    const transcription = plan.features.find(feature => feature.feature_key === "meeting.transcription");
+    if (transcription?.enabled && transcription.quota_limit !== null) {
+      await expect(offer.locator("dd").nth(5)).toHaveText(transcription.quota_limit.toLocaleString("en"));
+    }
     const members = plan.features.find(feature => feature.feature_key === "members.max");
     if (members?.enabled && members.quota_limit !== null) {
       await expect(offer.locator("dd").first()).toHaveText(members.quota_limit.toLocaleString("en"));
@@ -138,4 +148,27 @@ test("anonymous pricing matches the live billing API without a test response", a
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   const positions = await offers.evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top));
   expect(Math.max(...positions) - Math.min(...positions)).toBeLessThan(2);
+});
+
+test("comparison requires several real differences and excludes catalog-only SSO", async ({ page }) => {
+  const excluded = new Set(["meeting.recording", "meeting.ai_summary", "office.ai_cloud"]);
+  let count = 3;
+  await page.route("**/api/v1/plans", route => route.fulfill({ json: { plans: plans.map((plan, index) => ({
+    ...plan,
+    features: features.map(feature => ({
+      ...feature,
+      enabled: index !== 1 || !new Set([...excluded].slice(0, count)).has(feature.feature_key),
+    })),
+  })) } }));
+  await page.goto("/pricing");
+  const comparison = page.locator(".public-pricing-comparison");
+  await expect(comparison.locator("tbody tr")).toHaveCount(3);
+  await expect(comparison).toContainText("Office cloud AI tools");
+  await expect(comparison).not.toContainText("SSO");
+  await expect(comparison).not.toContainText("Public links for documents");
+  await expect(comparison.getByRole("row", { name: /Office cloud AI tools/ })).toContainText("Not in this plan");
+  count = 2;
+  await page.reload();
+  await expect(page.locator(".public-pricing-plan")).toHaveCount(3);
+  await expect(comparison).toHaveCount(0);
 });

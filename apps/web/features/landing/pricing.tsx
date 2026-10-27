@@ -9,10 +9,8 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MarketingLink as Link } from "../../platform/marketing-link";
 import { ANCHORS } from "./anchors";
 import { Container, SectionTitle } from "./layout-primitives";
+import { PRICING_QUOTA_KEYS as QUOTA_KEYS, pricingComparisonRows } from "./pricing-catalog";
 import "./pricing.css";
-
-const QUOTA_KEYS = ["members.max", "workspaces.max", "tasks.max", "storage.bytes", "meeting.participant_minutes", "ai.tokens"] as const;
-const FLAG_KEYS = ["meeting.recording", "meeting.ai_summary", "documents.public_links", "sso.oidc"] as const;
 
 function FeatureValue({ feature, featureKey }: { feature?: PlanFeature; featureKey: string }) {
   const { t, i18n } = useTranslation();
@@ -56,13 +54,15 @@ function PlanOffer({ plan }: { plan: Plan }) {
 
 function PlanFeatures({ plans }: { plans: Plan[] }) {
   const { t } = useTranslation();
+  const rows = pricingComparisonRows(plans);
+  if (!rows.length) return null;
   // Keyboard users need to focus the named horizontal scroll region at narrow widths.
   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
   return <div className="public-pricing-comparison" role="region" aria-label={t("landing.pricing.compareFeatures")} tabIndex={0} data-plan-count={plans.length}>
     <table>
       <caption>{t("landing.pricing.compareFeatures")}</caption>
       <thead><tr><th scope="col">{t("landing.pricing.feature")}</th>{plans.map(plan => <th key={plan.id} scope="col">{plan.name}</th>)}</tr></thead>
-      <tbody>{FLAG_KEYS.map(key => <tr key={key}>
+      <tbody>{rows.map(key => <tr key={key}>
         <th scope="row">{t(`landing.pricing.labels.features.${key.replaceAll(".", "_")}`)}</th>
         {plans.map(plan => {
           const feature = plan.features.find(item => item.feature_key === key);

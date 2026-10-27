@@ -79,7 +79,7 @@ test("decision sections use prominent semantic icon anchors", async ({ page }) =
   await page.locator("#work-products [data-slot=accordion-trigger]").click();
   await expect(page.locator("#work-products .work-product-icon")).toHaveCount(4);
   await expect(page.locator("#bang-gia .public-pricing-plan")).toHaveCount(3);
-  await expect(page.locator("#bang-gia .public-pricing-comparison tbody tr")).toHaveCount(4);
+  await expect(page.locator("#bang-gia .public-pricing-comparison")).toHaveCount(0);
   await expect(page.locator(".landing-faq .faq-heading-mark")).toHaveCount(1);
   await expect(page.locator(".landing-faq .faq-question-icon:visible")).toHaveCount(5);
   // Plated anchors carry a 44px footprint. Security deliberately has no plate

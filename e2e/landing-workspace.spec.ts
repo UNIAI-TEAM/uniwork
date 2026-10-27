@@ -92,7 +92,7 @@ test("tablet product stage stays readable and Starter keeps one honest action", 
   await expect(pricing.locator(".public-pricing-plan")).toHaveCount(3);
   await expect(pricing.locator(".public-pricing-plan").first()).toContainText("Miễn phí");
   await expect(pricing.locator(".pricing-offer")).toContainText("499.000");
-  await expect(pricing.locator(".public-pricing-limits > div")).toHaveCount(18);
+  await expect(pricing.locator(".public-pricing-limits > div")).toHaveCount(21);
   await expect(pricing.locator(".public-pricing-action")).toHaveCount(3);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

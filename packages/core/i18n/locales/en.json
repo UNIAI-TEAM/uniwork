@@ -10690,7 +10690,7 @@
       "emptyTitle": "No plans are published yet.",
       "unavailableDescription": "Try loading again, or contact UniWork to confirm the available plans and prices.",
       "status": "After sign-up, the organization owner reviews and confirms plan changes in Billing.",
-      "usageNote": "Meeting limits count minutes for each participant. Features also depend on your organization’s service configuration.",
+      "usageNote": "Meeting participant minutes count each attendee. Transcription minutes have a separate limit. Features also depend on your organization’s service configuration.",
       "deploymentTitle": "Have deployment questions?",
       "deploymentDescription": "Tell us about your team size, workflows and setup so we can discuss the available options.",
       "labels": {
@@ -10715,7 +10715,9 @@
           "meeting_recording": "Meeting recording",
           "meeting_ai_summary": "AI meeting summaries",
           "documents_public_links": "Public links for documents",
-          "sso_oidc": "SSO sign-in (OIDC)"
+          "meeting_transcription": "Meeting transcription minutes",
+          "office_ai_byok": "Office AI with your own key",
+          "office_ai_cloud": "Office cloud AI tools"
         }
       }
     },
