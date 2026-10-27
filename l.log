@@ -1,0 +1,7 @@
+$ rm -rf /tmp/fca3-base; git worktree prune; git worktree add -f --detach /tmp/fca3-base f2910159b; rc=$?; cd /tmp/fca3-base && echo "BASE_HEAD_SHA=$(git rev-parse HEAD)"; echo; echo "BASE_CHECKOUT_EXIT=$rc"
+Preparing worktree (detached HEAD f2910159b)
+Updating files:  82% (9622/11702)Updating files:  83% (9713/11702)Updating files:  84% (9830/11702)Updating files:  85% (9947/11702)Updating files:  86% (10064/11702)Updating files:  87% (10181/11702)Updating files:  88% (10298/11702)Updating files:  89% (10415/11702)Updating files:  90% (10532/11702)Updating files:  91% (10649/11702)Updating files:  92% (10766/11702)Updating files:  93% (10883/11702)Updating files:  94% (11000/11702)Updating files:  95% (11117/11702)Updating files:  96% (11234/11702)Updating files:  97% (11351/11702)Updating files:  98% (11468/11702)Updating files:  99% (11585/11702)Updating files: 100% (11702/11702)Updating files: 100% (11702/11702), done.
+HEAD is now at f2910159b Merge UNI-2244 BE-1+BE-2 (folder contents access, server) into the G5-G7 root
+BASE_HEAD_SHA=f2910159bf64eaa0667b785da6962ebc2b6d2260
+
+BASE_CHECKOUT_EXIT=0

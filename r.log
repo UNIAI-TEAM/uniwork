@@ -1,0 +1,30 @@
+$ P=$(ps -eo pid=,cmd= | awk '/next-server|sh -c next start|bin\/server/ && !/awk/ {print $1}'); for p in $P; do kill $p 2>/dev/null; done; tail -20 /tmp/fca3-base-web.log; tail -20 /tmp/fca3-base-server.log; true
+
+> @uniwork/web@0.0.0 start /tmp/fca3-base/apps/web
+> next start
+
+▲ Next.js 16.4.2
+- Local:         http://localhost:3000
+- Network:       http://172.30.0.2:3000
+✓ Ready in 104ms
+✓ Running next.config.mjs took 205ms
+13:52:49.615 INF http request method=GET path=/api/v1/workspaces/01M5YT4WKR67K9XXK34DJQF9YF/documents/tree status=200 duration=4.706ms request_id=cursor/vPyy3Q4sdb-000596 correlation_id=2218480bc7f3c8bc612d9a0cc6ccb0a8 trace_id=2218480bc7f3c8bc612d9a0cc6ccb0a8 span_id=751418ab448a9d03 organization_id=01M5YT4WKFRMG18H4YEXPDFQX9 workspace_id=01M5YT4WKR67K9XXK34DJQF9YF actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:49.621 INF http request method=GET path=/api/v1/workspaces/01M5YT4WKR67K9XXK34DJQF9YF/documents/tree status=200 duration=6.871ms request_id=cursor/vPyy3Q4sdb-000599 correlation_id=8165c1d1238aafef8a169076f7fddbd8 trace_id=8165c1d1238aafef8a169076f7fddbd8 span_id=8fecd1e524ee8850 organization_id=01M5YT4WKFRMG18H4YEXPDFQX9 workspace_id=01M5YT4WKR67K9XXK34DJQF9YF actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:49.621 INF http request method=GET path=/api/v1/config status=200 duration=2.349ms request_id=cursor/vPyy3Q4sdb-000600 correlation_id=db85ff8c0e35e5a31565a30ac59f5d2d trace_id=db85ff8c0e35e5a31565a30ac59f5d2d span_id=f69d5cb9e7919e9c actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:49.622 INF http request method=GET path=/api/v1/config status=200 duration=266µs request_id=cursor/vPyy3Q4sdb-000606 correlation_id=1a96674b520d9e31a5c4e269032f5098 trace_id=1a96674b520d9e31a5c4e269032f5098 span_id=e5deec821a7cf7f8 actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:49.622 INF http request method=GET path=/api/v1/workspaces/01M5YT4WKR67K9XXK34DJQF9YF/me status=200 duration=3.744ms request_id=cursor/vPyy3Q4sdb-000601 correlation_id=0ab9cd8a3b9b81513e26116261a4bd20 trace_id=0ab9cd8a3b9b81513e26116261a4bd20 span_id=42b993584a6e7d4f organization_id=01M5YT4WKFRMG18H4YEXPDFQX9 workspace_id=01M5YT4WKR67K9XXK34DJQF9YF actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:49.622 INF http request method=GET path=/api/v1/me/notifications status=200 duration=2.699ms request_id=cursor/vPyy3Q4sdb-000604 correlation_id=a76c8200d17bd25053ee12ca926868fb trace_id=a76c8200d17bd25053ee12ca926868fb span_id=2b52d8750fa993cb actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:49.625 INF http request method=GET path=/api/v1/workspaces/01M5YT4WKR67K9XXK34DJQF9YF/documents/sources status=200 duration=6.866ms request_id=cursor/vPyy3Q4sdb-000602 correlation_id=6969bf4ded33250795564babcce432e7 trace_id=6969bf4ded33250795564babcce432e7 span_id=e5d6f038c05cb6c2 organization_id=01M5YT4WKFRMG18H4YEXPDFQX9 workspace_id=01M5YT4WKR67K9XXK34DJQF9YF actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:49.626 INF http request method=GET path=/api/v1/workspaces/01M5YT4WKR67K9XXK34DJQF9YF/chat/voice/pending status=200 duration=4.148ms request_id=cursor/vPyy3Q4sdb-000605 correlation_id=f9c01d9356ca4697a2448b79688b6d45 trace_id=f9c01d9356ca4697a2448b79688b6d45 span_id=3f6e68202bd40e98 organization_id=01M5YT4WKFRMG18H4YEXPDFQX9 workspace_id=01M5YT4WKR67K9XXK34DJQF9YF actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:49.627 INF http request method=GET path=/api/v1/workspaces/01M5YT4WKR67K9XXK34DJQF9YF/documents status=200 duration=8.716ms request_id=cursor/vPyy3Q4sdb-000603 correlation_id=839789df3ff395e500ad21c5caefa799 trace_id=839789df3ff395e500ad21c5caefa799 span_id=78646119f7e12046 organization_id=01M5YT4WKFRMG18H4YEXPDFQX9 workspace_id=01M5YT4WKR67K9XXK34DJQF9YF actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:49.650 INF websocket connected user_id=01M5YT4WJQQ8978SRZA7ADHFEK client_platform=web client_version="" client_os="" workspace_id=01M5YT4WKR67K9XXK34DJQF9YF
+13:52:49.651 INF http request method=GET path=/api/v1/ws status=0 duration=25.73ms request_id=cursor/vPyy3Q4sdb-000607 correlation_id=dcf2be95055fa78238bb29f97d784fe4 trace_id=dcf2be95055fa78238bb29f97d784fe4 span_id=9a08e5c021025b36
+13:52:49.651 INF ws client connected user_id=01M5YT4WJQQ8978SRZA7ADHFEK total_clients=3 workspace_id=01M5YT4WKR67K9XXK34DJQF9YF
+13:52:50.029 INF http request method=GET path=/api/v1/workspaces/01M5YT4WKR67K9XXK34DJQF9YF/documents status=200 duration=6.358ms request_id=cursor/vPyy3Q4sdb-000609 correlation_id=aaab8350886986a71b63ef8cc007fdf8 trace_id=aaab8350886986a71b63ef8cc007fdf8 span_id=0e6fa41707a8f0ac organization_id=01M5YT4WKFRMG18H4YEXPDFQX9 workspace_id=01M5YT4WKR67K9XXK34DJQF9YF actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:54.786 INF http request method=POST path=/api/v1/rum status=204 duration=399µs request_id=cursor/vPyy3Q4sdb-000611 correlation_id=45b2de0125484b6d0701b5308bd6be51 trace_id=45b2de0125484b6d0701b5308bd6be51 span_id=58831362f3c662ab actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:54.786 INF http request method=POST path=/api/v1/rum status=204 duration=1.146ms request_id=cursor/vPyy3Q4sdb-000612 correlation_id=1b842c70ce44df9e437dc34f7aca8ca5 trace_id=1b842c70ce44df9e437dc34f7aca8ca5 span_id=1f2bf8f0895a2543 actor_id=01M5YT4WJQQ8978SRZA7ADHFEK actor_kind=human
+13:52:54.799 INF ws client disconnected user_id=01M5YT4WJQQ8978SRZA7ADHFEK total_clients=2 workspace_id=01M5YT4WKR67K9XXK34DJQF9YF
+13:52:54.970 INF ws client disconnected user_id=01M5YT4WJQQ8978SRZA7ADHFEK total_clients=1 workspace_id=01M5YT4WKR67K9XXK34DJQF9YF
+13:52:55.239 INF ws client disconnected user_id=01M5YT4WJQQ8978SRZA7ADHFEK total_clients=0 workspace_id=01M5YT4WKR67K9XXK34DJQF9YF
+13:52:55.747 INF shutting down component=server signal=terminated
+13:52:55.748 INF stopped component=server

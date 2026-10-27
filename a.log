@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^2ee746ea6" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=2ee746ea626454282f50e6fd1506dda9973b91f2
+2ee746ea6 test(documents): open folder contents access from the tree menu, follow the new summary copy (UNI-2244)
+5dbff9ec8 Merge commit '342a03ad7' into feature/UNI-2244-folder-bulk-access-e2e
+342a03ad7 Merge remote-tracking branch 'origin/feature/UNI-2244-web-fix1' into feature/UNI-2244-folder-bulk-access-web
+20c371b4d fix(documents): close the folder access dialog with a neutral toast on an unreadable apply answer, name the noun in the vi skipped summary

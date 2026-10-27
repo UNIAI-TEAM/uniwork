@@ -1,0 +1,11 @@
+$ cd /tmp/fca3-base && pnpm install --frozen-lockfile >/dev/null 2>&1; rc=$?; echo; echo "BASE_INSTALL_EXIT=$rc"; cd /tmp/fca3-base && node apps/web/scripts/office-frame-sync.mjs --all; rc=$?; echo; echo "BASE_FRAME_SYNC_EXIT=$rc"
+
+BASE_INSTALL_EXIT=0
+office-frame: docs 46 files verified, installed at /tmp/fca3-base/apps/web/public/office-frame/docs/0.1.0-59defc1
+office-frame: pdf 229 files verified, installed at /tmp/fca3-base/apps/web/public/office-frame/pdf/0.1.0-59defc1
+office-frame: markdown 90 files verified, installed at /tmp/fca3-base/apps/web/public/office-frame/markdown/0.1.0-59defc1
+office-frame: html 7 files verified, installed at /tmp/fca3-base/apps/web/public/office-frame/html/0.1.0-59defc1
+office-frame: slides 19 files verified, installed at /tmp/fca3-base/apps/web/public/office-frame/slides/0.1.0-59defc1
+office-frame: sheets 219 files verified, installed at /tmp/fca3-base/apps/web/public/office-frame/sheets/0.1.0-59defc1
+
+BASE_FRAME_SYNC_EXIT=0
