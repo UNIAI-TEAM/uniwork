@@ -455,3 +455,29 @@ func (f *FakeDriveProvider) RevokeToken(ctx context.Context, token string) error
 	}
 	return nil
 }
+
+// FilesGet returns deterministic in-memory DriveFileMetadata for any non-empty
+// externalFileID when running under DRIVE_FAKE_PROVIDER=1 so offline and E2E
+// flows never dial https://www.googleapis.com.
+func (f *FakeDriveProvider) FilesGet(_ context.Context, _, externalFileID string) (DriveFileMetadata, error) {
+	extID := strings.TrimSpace(externalFileID)
+	if extID == "" {
+		return DriveFileMetadata{}, &DriveAPIError{
+			Class:          DriveErrorClassFileNotAccessible,
+			HTTPStatus:     http.StatusNotFound,
+			GoogleReason:   "notFound",
+			MarkAccessLost: true,
+			Err:            ErrDriveFileNotAccessible,
+		}
+	}
+	return DriveFileMetadata{
+		ExternalFileID: extID,
+		Name:           extID,
+		MimeType:       DriveMimeGoogleDoc,
+		IconKind:       "google_doc",
+		WebViewLink:    "https://docs.google.com/document/d/" + extID + "/edit",
+		OwnerDisplay:   "Fake Drive Owner",
+		SharingState:   DriveSharingStateShared,
+		Trashed:        false,
+	}, nil
+}

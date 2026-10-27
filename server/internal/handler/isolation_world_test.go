@@ -247,6 +247,28 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.DriveConnections = service.NewDriveConnectionService(pool, q, d.Workspaces, box)
 	d.DriveConnections.SetProvider(service.NewFakeDriveProvider(config.Config{FrontendOrigin: "http://localhost:3000"}))
 	d.DriveConnections.SetFlags(d.FeatureFlags)
+	d.DriveConnections.SetPickerConfig("iso-picker-key", "1234567890")
+	driveFakeAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		extID := strings.TrimPrefix(r.URL.Path, "/drive/v3/files/")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":           extID,
+			"name":         "Drive File " + extID,
+			"mimeType":     "application/vnd.google-apps.document",
+			"webViewLink":  "https://docs.google.com/document/d/" + extID + "/edit",
+			"shared":       true,
+			"trashed":      false,
+			"modifiedTime": "2026-10-26T10:00:00Z",
+			"owners":       []map[string]any{{"displayName": "Drive Owner"}},
+			"permissions":  []map[string]any{{"id": "p1"}, {"id": "p2"}},
+		})
+	}))
+	t.Cleanup(driveFakeAPI.Close)
+	d.DriveFiles = service.NewDriveFileService(pool, q, d.Workspaces, d.DriveConnections,
+		service.NewDriveAPIClientForTest(driveFakeAPI.URL+"/drive/v3", driveFakeAPI.Client().Transport))
+	d.DriveFiles.SetFlags(d.FeatureFlags)
+	d.Tasks.SetDriveFiles(d.DriveFiles)
+	d.Audit.SetDriveFiles(d.DriveFiles)
 	// Ask UNI files (UNI-2119): the upload route is offered only where the turn
 	// runs the agent, so Ask UNI gets the file store, the flags (the loop below
 	// turns every one on) and the read tools, as main.go wires them. The asks
@@ -574,7 +596,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 		token *string
 		id    string
 	}{{&tn.token, tn.userID}, {&tn.peerToken, tn.peerID}, {&tn.thirdToken, tn.thirdID}} {
-		tok, err := long.Mint(p.id)
+		tok, err := long.MintWebSession(p.id, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1037,17 +1059,6 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		t.Fatalf("email account: %v", err)
 	}
 	tn.ids["emailAccount"] = acc.ID
-	driveConn, err := w.q.CreateDriveConnection(ctx, db.CreateDriveConnectionParams{
-		ID: util.NewID(), OrganizationID: tn.orgID, UserID: tn.userID, Provider: "google",
-		GoogleSub: "google-sub-" + strings.ToLower(m), GoogleEmail: strings.ToLower(m) + "-drive@example.com",
-		RefreshTokenEnc: "enc", AccessTokenEnc: "enc",
-		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
-		Scopes:          "openid email https://www.googleapis.com/auth/drive.file",
-	})
-	if err != nil {
-		t.Fatalf("drive connection: %v", err)
-	}
-	tn.ids["driveConnection"] = driveConn.ID
 	th, err := w.q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
 		ID: util.NewID(), AccountID: acc.ID, OrganizationID: tn.orgID, Folder: "INBOX", ImapUid: 1,
 		Subject: m + " mail subject", Snippet: m + " mail snippet", FromAddr: "sender@example.com",
@@ -1210,6 +1221,75 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		VALUES ($1, $2, $3, 'google', $4, $5, $6, $6, now() + interval '1 hour', 1, 'openid email https://www.googleapis.com/auth/drive.file')`,
 		tn.ids["driveConnection"], tn.orgID, tn.userID, "sub-"+strings.ToLower(m), strings.ToLower(m)+"-drive@example.com", base64.StdEncoding.EncodeToString(tokenEnc)); err != nil {
 		t.Fatalf("drive connection: %v", err)
+	}
+	// A linked Google Drive file, the owner's read-access row, and its task link
+	// (UNI-2180, B4): seeded so drive_files, drive_file_access and
+	// drive_file_task_links hold rows of the tenant's.
+	tn.ids["driveFile"] = util.NewID()
+	extFileID := "ext-drive-" + strings.ToLower(m)
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_files
+		(id, organization_id, workspace_id, external_file_id, connection_id, bound_by, created_by, created_by_kind,
+		 name, mime_type, icon_kind, web_view_link, owner_display, sharing_state, metadata_refreshed_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $6, 'human', $7, 'application/vnd.google-apps.document', 'google_doc',
+		        $8, $9, 'shared', now())`,
+		tn.ids["driveFile"], tn.orgID, tn.wsID, extFileID, tn.ids["driveConnection"], tn.userID,
+		m+" Drive Doc", "https://docs.google.com/document/d/"+extFileID+"/edit", m+" Owner"); err != nil {
+		t.Fatalf("drive file: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_file_access
+		(id, organization_id, workspace_id, drive_file_id, user_id, connection_id, state)
+		VALUES ($1, $2, $3, $4, $5, $6, 'granted')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["driveFile"], tn.userID, tn.ids["driveConnection"]); err != nil {
+		t.Fatalf("drive file access: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_file_task_links
+		(id, organization_id, workspace_id, drive_file_id, task_id, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, 'human')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["driveFile"], tn.ids["task"], tn.userID); err != nil {
+		t.Fatalf("drive file task link: %v", err)
+	}
+	// A second connection for the owner and a peer-bound Drive file on which the
+	// owner holds a granted drive_file_access row (B4b-F03): exercises PUT
+	// /workspaces/{workspaceID}/drive-files/{driveFileID}/access in
+	// isoReferences past the bound_by use_rebind gate and past the granted-access
+	// gate, so the control (switching to driveConnection2) answers 200 and the
+	// attack (naming A's driveConnection) reaches requireCallerConnection -> 404.
+	tn.ids["driveConnection2"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_connections
+		(id, organization_id, user_id, provider, google_sub, google_email, refresh_token_enc, access_token_enc, access_expires_at, credential_version, scopes)
+		VALUES ($1, $2, $3, 'google', $4, $5, $6, $6, now() + interval '1 hour', 1, 'openid email https://www.googleapis.com/auth/drive.file')`,
+		tn.ids["driveConnection2"], tn.orgID, tn.userID, "sub-2-"+strings.ToLower(m), strings.ToLower(m)+"-drive2@example.com", base64.StdEncoding.EncodeToString(tokenEnc)); err != nil {
+		t.Fatalf("drive connection 2: %v", err)
+	}
+	tn.ids["peerDriveConnection"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_connections
+		(id, organization_id, user_id, provider, google_sub, google_email, refresh_token_enc, access_token_enc, access_expires_at, credential_version, scopes)
+		VALUES ($1, $2, $3, 'google', $4, $5, $6, $6, now() + interval '1 hour', 1, 'openid email https://www.googleapis.com/auth/drive.file')`,
+		tn.ids["peerDriveConnection"], tn.orgID, tn.peerID, "sub-peer-"+strings.ToLower(m), strings.ToLower(m)+"-peer-drive@example.com", base64.StdEncoding.EncodeToString(tokenEnc)); err != nil {
+		t.Fatalf("peer drive connection: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_file_access
+		(id, organization_id, workspace_id, drive_file_id, user_id, connection_id, state)
+		VALUES ($1, $2, $3, $4, $5, $6, 'granted')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["driveFile"], tn.peerID, tn.ids["peerDriveConnection"]); err != nil {
+		t.Fatalf("peer access on drive file: %v", err)
+	}
+	tn.ids["peerBoundDriveFile"] = util.NewID()
+	peerExtFileID := "ext-drive-peer-" + strings.ToLower(m)
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_files
+		(id, organization_id, workspace_id, external_file_id, connection_id, bound_by, created_by, created_by_kind,
+		 name, mime_type, icon_kind, web_view_link, owner_display, sharing_state, metadata_refreshed_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $6, 'human', $7, 'application/vnd.google-apps.document', 'google_doc',
+		        $8, $9, 'shared', now())`,
+		tn.ids["peerBoundDriveFile"], tn.orgID, tn.wsID, peerExtFileID, tn.ids["peerDriveConnection"], tn.peerID,
+		m+" Peer Drive Doc", "https://docs.google.com/document/d/"+peerExtFileID+"/edit", m+" Peer Owner"); err != nil {
+		t.Fatalf("peer bound drive file: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_file_access
+		(id, organization_id, workspace_id, drive_file_id, user_id, connection_id, state)
+		VALUES ($1, $2, $3, $4, $5, $6, 'granted')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["peerBoundDriveFile"], tn.userID, tn.ids["driveConnection"]); err != nil {
+		t.Fatalf("owner access on peer bound drive file: %v", err)
 	}
 }
 

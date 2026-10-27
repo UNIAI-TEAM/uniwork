@@ -93,6 +93,9 @@ type driveOfficeExtractor interface {
 	ExtractText(ctx context.Context, req office.ExtractTextRequest) (office.ExtractTextResult, error)
 }
 
+// DriveOfficeExtractor is the exported alias of driveOfficeExtractor for main.go wiring.
+type DriveOfficeExtractor = driveOfficeExtractor
+
 // driveAuditTxWriter records an audit row in a short transaction when no
 // *pgxpool.Pool is wired (unit tests). When nil, DriveContentService uses pool
 // + q + auditRecorder.Record directly.
@@ -276,6 +279,15 @@ func (s *DriveContentService) ReadForAI(
 	partial.Name = name
 	partial.MimeType = mimeType
 	s.maybeRecordMetadataRefresh(ctx, workspaceID, row.DriveFileID, meta)
+	if s.q != nil && row.OrganizationID != "" {
+		_, _ = s.q.TouchDriveFileAccessCheckedAt(ctx, db.TouchDriveFileAccessCheckedAtParams{
+			OrganizationID: row.OrganizationID,
+			WorkspaceID:    workspaceID,
+			DriveFileID:    row.DriveFileID,
+			UserID:         requesterID,
+			ConnectionID:   conn.ID,
+		})
+	}
 
 	kind, officeFmt, supported := classifyDriveContentMime(mimeType)
 	if !supported {

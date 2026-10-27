@@ -380,7 +380,7 @@ func pathParamSDI(path string) any {
 	case "workspaceID,resourceType,resourceID":
 		return struct {
 			WorkspaceID  string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-			ResourceType string `path:"resourceType" description:"Loại tài nguyên: task hoặc meeting" example:"task"`
+			ResourceType string `path:"resourceType" description:"Loại tài nguyên: task, meeting, drive_file, drive_connection hoặc drive_task_proposal" example:"task"`
 			ResourceID   string `path:"resourceID" description:"ULID tài nguyên" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
 		}{}
 	case "workspaceID,jobID":
@@ -477,6 +477,16 @@ func pathParamSDI(path string) any {
 		return struct {
 			WorkspaceID       string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			DriveConnectionID string `path:"driveConnectionID" description:"ULID kết nối Google Drive" example:"01J8X4DRVCONN0N1P2Q3R4S5T6"`
+		}{}
+	case "workspaceID,driveFileID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			DriveFileID string `path:"driveFileID" description:"ULID bản ghi tệp Google Drive đã liên kết" example:"01J8X4DRVFIL0N1P2Q3R4S5T6"`
+		}{}
+	case "taskID,driveFileID":
+		return struct {
+			TaskID      string `path:"taskID" description:"ULID công việc hoặc identifier PREFIX-N (không phân biệt hoa thường)" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+			DriveFileID string `path:"driveFileID" description:"ULID bản ghi tệp Google Drive đã liên kết" example:"01J8X4DRVFIL0N1P2Q3R4S5T6"`
 		}{}
 	case "commentID":
 		return struct {

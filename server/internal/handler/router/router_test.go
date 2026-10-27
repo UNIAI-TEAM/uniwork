@@ -405,6 +405,16 @@ func TestDriveConnectionsRequireFeatureFlag(t *testing.T) {
 		{http.MethodPost, "/workspaces/w1/drive-connections/google/start"},
 		{http.MethodGet, "/workspaces/w1/drive-connections"},
 		{http.MethodDelete, "/workspaces/w1/drive-connections/c1"},
+		{http.MethodPost, "/workspaces/w1/drive-connections/c1/picker-token"},
+		{http.MethodPost, "/workspaces/w1/drive-files"},
+		{http.MethodGet, "/workspaces/w1/drive-files"},
+		{http.MethodGet, "/workspaces/w1/drive-files/df1"},
+		{http.MethodDelete, "/workspaces/w1/drive-files/df1"},
+		{http.MethodPost, "/workspaces/w1/drive-files/df1/access"},
+		{http.MethodPut, "/workspaces/w1/drive-files/df1/access"},
+		{http.MethodPost, "/workspaces/w1/drive-files/df1/rebind"},
+		{http.MethodGet, "/tasks/t1/drive-files"},
+		{http.MethodDelete, "/tasks/t1/drive-files/df1"},
 	} {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))

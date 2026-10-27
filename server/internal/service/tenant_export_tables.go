@@ -52,6 +52,7 @@ var tenantExportExcluded = map[string]string{
 	"document_folder_upload_files":   "Từng tệp của lô tải thư mục (UNI-2052), trạng thái tạm; tài liệu tạo ra nằm trong documents.",
 	"mcp_tokens":                     "Token của ứng dụng AI đã kết nối, chỉ lưu digest; là bí mật phiên.",
 	"drive_connections":              "Kết nối Google Drive của từng người: token OAuth đã niêm phong, là bí mật phiên; nội dung tệp nằm trên Google Drive.",
+	"drive_file_access":              "Trạng thái quyền đọc Google Drive của từng người, gắn với kết nối đã niêm phong; không phải nội dung.",
 }
 
 func tenantExportIncludes(table string) bool {
@@ -106,6 +107,8 @@ var tenantExportIncludedTables = []string{
 	"document_shares",
 	"document_versions",
 	"documents",
+	"drive_file_task_links",
+	"drive_files",
 	"email_hub_accounts",
 	"email_hub_attachments",
 	"email_hub_scheduled_sends",

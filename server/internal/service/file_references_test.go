@@ -24,6 +24,15 @@ import (
 // keep that file alive for the collector.
 var fileServiceTables = map[string]bool{"files": true, "file_upload_sessions": true, "file_multipart_uploads": true, "file_jobs": true, "file_backfill_items": true, "file_derivatives": true}
 
+// nonFileServiceIDColumns are *_file_id columns that hold external provider
+// ids or non-FileService table row ids rather than FileService file ids, so
+// they must not join managedFileReferenceSources.
+var nonFileServiceIDColumns = map[string]string{
+	"drive_files.external_file_id":        "Google Drive file id, not a FileService id",
+	"drive_file_access.drive_file_id":     "drive_files row id, not a FileService id",
+	"drive_file_task_links.drive_file_id": "drive_files row id, not a FileService id",
+}
+
 var (
 	alterTableRe  = regexp.MustCompile(`(?is)ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?"?(\w+)"?(.*)`)
 	addColumnRe   = regexp.MustCompile(`(?i)ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w*file_id)"?\s`)
@@ -80,6 +89,9 @@ func TestEveryFileIDColumnHasAReferenceSource(t *testing.T) {
 		if fileServiceTables[table] {
 			continue
 		}
+		if _, ok := nonFileServiceIDColumns[col]; ok {
+			continue
+		}
 		if !catalogue[col] {
 			t.Errorf("migration adds %s but managedFileReferenceSources has no row for it: add its ReferenceProvider, tenant query and catalogue row", col)
 		}
@@ -87,6 +99,17 @@ func TestEveryFileIDColumnHasAReferenceSource(t *testing.T) {
 	for col := range catalogue {
 		if !columns[col] {
 			t.Errorf("catalogue lists %s, which no migration creates", col)
+		}
+	}
+	for col, reason := range nonFileServiceIDColumns {
+		if strings.TrimSpace(reason) == "" {
+			t.Errorf("nonFileServiceIDColumns[%q] has an empty reason", col)
+		}
+		if !columns[col] {
+			t.Errorf("nonFileServiceIDColumns lists %s, which no migration creates", col)
+		}
+		if catalogue[col] {
+			t.Errorf("%s is in both managedFileReferenceSources and nonFileServiceIDColumns", col)
 		}
 	}
 }

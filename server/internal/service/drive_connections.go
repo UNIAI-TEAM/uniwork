@@ -120,6 +120,8 @@ type DriveConnectionService struct {
 	provider                   DriveProvider
 	revoker                    DriveTokenRevoker
 	metrics                    DriveMetrics
+	pickerAPIKey               string
+	appID                      string
 	refreshLocks               sync.Map // connectionID -> *sync.Mutex
 	now                        func() time.Time
 	resolveTimeout             time.Duration
@@ -189,6 +191,14 @@ func (s *DriveConnectionService) SetRevoker(r DriveTokenRevoker) {
 	s.revoker = r
 }
 
+// SetPickerConfig sets the Google Picker developer key and project number (app_id).
+func (s *DriveConnectionService) SetPickerConfig(apiKey, appID string) {
+	if s != nil {
+		s.pickerAPIKey = strings.TrimSpace(apiKey)
+		s.appID = strings.TrimSpace(appID)
+	}
+}
+
 // Provider returns the active DriveProvider, or nil when not configured.
 func (s *DriveConnectionService) Provider() DriveProvider {
 	if s == nil {
@@ -206,6 +216,8 @@ func (s *DriveConnectionService) ConfigureOAuth(cfg config.Config) {
 	if s == nil || s.box == nil {
 		return
 	}
+	s.pickerAPIKey = strings.TrimSpace(cfg.GoogleDrivePickerAPIKey)
+	s.appID = strings.TrimSpace(cfg.GoogleDriveAppID)
 	if !strings.EqualFold(cfg.AppEnv, "production") && cfg.DriveFakeProvider {
 		if cfg.GoogleDriveClientID == "" && cfg.GoogleDriveClientSecret == "" {
 			cfg.GoogleDriveClientID = "fake-cid"
@@ -799,9 +811,21 @@ func (s *DriveConnectionService) List(ctx context.Context, actor Actor, workspac
 	if err != nil {
 		return nil, err
 	}
+	countsByConn := make(map[string]int, len(rows))
+	if counts, cerr := s.q.CountDriveFilesByUserConnections(ctx, db.CountDriveFilesByUserConnectionsParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+		UserID:         actor.ID,
+	}); cerr == nil {
+		for _, c := range counts {
+			countsByConn[c.ConnectionID] = int(c.FileCount)
+		}
+	}
 	out := make([]DriveConnectionView, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, driveConnectionView(r))
+		v := driveConnectionView(r)
+		v.LinkedFileCount = countsByConn[r.ID]
+		out = append(out, v)
 	}
 	return out, nil
 }
@@ -827,6 +851,44 @@ func driveConnectionView(r db.DriveConnection) DriveConnectionView {
 		ConnectedAt:      r.CreatedAt.Time.UTC(),
 		UpdatedAt:        r.UpdatedAt.Time.UTC(),
 	}
+}
+
+// PickerToken returns a short-lived Google OAuth access token for the caller's
+// own active connection so the browser can open Google Picker
+// (POST /api/v1/workspaces/{workspaceID}/drive-connections/{driveConnectionID}/picker-token;
+// spec §7.1).
+func (s *DriveConnectionService) PickerToken(ctx context.Context, actor Actor, workspaceID, driveConnectionID string) (DrivePickerTokenView, error) {
+	ws, err := s.workspace(ctx, actor, workspaceID)
+	if err != nil {
+		return DrivePickerTokenView{}, err
+	}
+	if !s.flagEnabledForMember(ctx, actor.ID, ws.OrganizationID) {
+		return DrivePickerTokenView{}, errDriveFeatureDisabled()
+	}
+	conn, err := s.q.GetDriveConnection(ctx, db.GetDriveConnectionParams{
+		ID:             strings.TrimSpace(driveConnectionID),
+		OrganizationID: ws.OrganizationID,
+		UserID:         actor.ID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DrivePickerTokenView{}, ErrNotFound
+	}
+	if err != nil {
+		return DrivePickerTokenView{}, err
+	}
+	if conn.AuthFailedAt.Valid {
+		return DrivePickerTokenView{}, DriveErrToCodedError(ErrDriveReauthRequired)
+	}
+	tok, exp, err := s.AccessToken(ctx, conn)
+	if err != nil {
+		return DrivePickerTokenView{}, DriveErrToCodedError(err)
+	}
+	return DrivePickerTokenView{
+		AccessToken:  tok,
+		ExpiresAt:    exp.UTC(),
+		DeveloperKey: s.pickerAPIKey,
+		AppID:        s.appID,
+	}, nil
 }
 
 // Disconnect disconnects one Drive connection of the caller in the workspace's
