@@ -388,7 +388,8 @@ describe("MeetingRoomCopilotTab › summary", () => {
     serve({ transcript: ok({ segments: [segment] }) });
     renderTab();
     const card = (await screen.findByRole("heading", { name: "Tóm tắt đến giờ" })).closest("section")!;
-    await waitFor(() => expect(card).toHaveTextContent(/lời thoại/i));
+    // The label waits on every source query; on a loaded CI runner that took 1.5s.
+    await waitFor(() => expect(card).toHaveTextContent(/lời thoại/i), { timeout: 3000 });
     expect(card).not.toHaveTextContent(/ghi chú|tin nhắn/);
   });
 
