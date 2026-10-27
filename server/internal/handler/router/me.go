@@ -31,6 +31,8 @@ import (
 //	POST  /api/v1/me/sign-in-methods/google/link    (credential rate limit)
 //	POST  /api/v1/me/sign-in-methods/google/unlink  (credential rate limit)
 //	POST  /api/v1/me/sign-in-methods/apple/unlink   (credential rate limit)
+//	POST  /api/v1/me/sign-in-methods/google/native  (credential rate limit)
+//	POST  /api/v1/me/sign-in-methods/apple/native   (credential rate limit)
 //	PUT   /api/v1/me/ai-consent
 //	DELETE /api/v1/me/ai-consent
 //	PUT   /api/v1/me/ask-uni-mode
@@ -264,6 +266,25 @@ func registerSignInMethods(r api, h Routes, credentialLimit, stepUpLimit func(ht
 		tags: []string{"me"},
 		sdi:  sdi.LinkSignInMethodSDI{},
 		sdo:  sdo.AuthorizationURLSDO{},
+		auth: true,
+	})
+	r.With(credentialLimit).Post("/me/sign-in-methods/google/native", h.LinkGoogleNative, apiOp{
+		summary: "Link Google from the app",
+		description: "Trên app, với step_up_token của phiên thiết bị: liên kết tài khoản Google mà SDK Google vừa trả ID token (azp là client iOS/Android của app, iat không quá 10 phút, nonce là SHA-256 của nonce gốc) vào tài khoản đang đăng nhập, không cần trình duyệt. Token sai → 403 provider_token_invalid (không bao giờ 401: người gọi đã đăng nhập). " +
+			"403 email_unverified khi email tài khoản chưa xác minh; thiếu hay hết hạn step_up_token → 403 proof_required kèm proofs; token web cũ hơn lần đổi thông tin đăng nhập hay phiên đã thu hồi → 401 invalid_token. Danh tính đang mở tài khoản khác: tài khoản trống → 409 sign_in_method_movable kèm masked_email (gửi lại move: true), không thì 409 sign_in_method_taken; đã liên kết Google khác → 409 sign_in_method_already_linked. " +
+			"Bearer của trình duyệt → 400 invalid_request (web liên kết qua POST /me/sign-in-methods/google/link); chưa cấu hình (GOOGLE_NATIVE_CLIENT_IDS) → 503 google_not_configured. Ghi audit auth.sign_in_method_linked (via settings) và gửi mail.",
+		tags: []string{"me"},
+		sdi:  sdi.LinkGoogleNativeSDI{},
+		sdo:  sdo.SignInMethodsChangeSDO{},
+		auth: true,
+	})
+	r.With(credentialLimit).Post("/me/sign-in-methods/apple/native", h.LinkAppleNative, apiOp{
+		summary: "Link Apple from the app",
+		description: "Trên iPhone, với step_up_token của phiên thiết bị: liên kết Apple ID mà sheet Apple vừa trả identity token (aud là bundle id của app, nonce là SHA-256 của nonce gốc) vào tài khoản đang đăng nhập; tài khoản giữ token Apple đổi từ authorization_code để thu hồi khi gỡ liên kết hay xoá tài khoản. Token sai → 403 provider_token_invalid. " +
+			"Cùng các lỗi như liên kết Google trên app (email_unverified, proof_required, sign_in_method_movable, sign_in_method_taken, sign_in_method_already_linked). Bearer của trình duyệt → 400 invalid_request; Android liên kết Apple qua trang Cài đặt web. Chưa cấu hình (APPLE_SIWA_AUDIENCES) → 503 apple_auth_unavailable. Ghi audit auth.sign_in_method_linked (via settings) và gửi mail.",
+		tags: []string{"me"},
+		sdi:  sdi.LinkAppleNativeSDI{},
+		sdo:  sdo.SignInMethodsChangeSDO{},
 		auth: true,
 	})
 	unlink := func(provider string) apiOp {

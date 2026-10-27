@@ -11,7 +11,9 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/auth/appletest"
 	"github.com/unicomhub/uniwork/server/internal/mail"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -267,8 +269,8 @@ func TestLinkWaitsForTheSecondFactor(t *testing.T) {
 // An account that never proved its address cannot set up a second factor
 // (ADR 0047 §2): whoever registered someone else's address must not be able
 // to plant anything that outlives the owner's reclaim. A secret planted
-// before the gate existed is not turned on either. The link half of the rule
-// comes with the sign-in methods.
+// before the gate existed is not turned on either. Nor does it take a
+// provider link, from the choice screen, the browser's Settings or the app's.
 func TestUnverifiedAccountsCannotEnrolMFAOrLink(t *testing.T) {
 	f := newIdentityFixture(t)
 	reg, err := f.auth.Register(f.ctx, "unproved@example.com", "password123", "Chưa xác minh", "vi")
@@ -324,6 +326,17 @@ func TestUnverifiedAccountsCannotEnrolMFAOrLink(t *testing.T) {
 	}
 	if u := f.user(t, uid); u.GoogleID.Valid {
 		t.Fatal("a refused Settings link wrote")
+	}
+	// Nor from the app's Settings with the provider's own sheet: refused
+	// before any proof is asked.
+	device := f.deviceSignIn(t, uid, "unproved-app")
+	nonce := util.NewID()
+	sheet := AppLink{Token: f.issuer.Token(t, appletest.Claims(appleBundle, "apple-unproved", "unproved.apple@icloud.com", false, nonce)), Nonce: nonce}
+	if _, err := methods.LinkFromApp(f.native(t, device), uid, ProviderApple, sheet); !errors.Is(err, ErrEmailUnverified) {
+		t.Fatalf("an app link into an unverified account: %v, want email_unverified", err)
+	}
+	if u := f.user(t, uid); u.AppleID.Valid {
+		t.Fatal("a refused app link wrote")
 	}
 	// Proved, the same account enrols.
 	if _, err := f.q.MarkEmailVerified(f.ctx, uid); err != nil {

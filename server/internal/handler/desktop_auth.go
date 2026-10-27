@@ -99,7 +99,7 @@ func (h *handlers) desktopExchange(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.DesktopSessionSDO{AccountID: sess.AccountID, DeviceSessionID: sess.DeviceSessionID, SessionID: sess.SessionID, DeploymentID: sess.DeploymentID, AccessToken: sess.AccessToken, TokenType: "Bearer", ExpiresIn: sess.ExpiresIn, RefreshToken: sess.RefreshToken, RefreshExpiresIn: sess.RefreshExpiresIn, RefreshRotates: true})
+	respondJSON(w, http.StatusOK, toDesktopSessionSDO(sess))
 }
 
 func (h *handlers) desktopRefresh(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +116,7 @@ func (h *handlers) desktopRefresh(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.DesktopSessionSDO{AccountID: sess.AccountID, DeviceSessionID: sess.DeviceSessionID, SessionID: sess.SessionID, DeploymentID: sess.DeploymentID, AccessToken: sess.AccessToken, TokenType: "Bearer", ExpiresIn: sess.ExpiresIn, RefreshToken: sess.RefreshToken, RefreshExpiresIn: sess.RefreshExpiresIn, RefreshRotates: true})
+	respondJSON(w, http.StatusOK, toDesktopSessionSDO(sess))
 }
 
 func (h *handlers) desktopLogout(w http.ResponseWriter, r *http.Request) {

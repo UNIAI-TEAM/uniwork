@@ -717,3 +717,92 @@ func TestBudgetKeysLeaveTheBodyWhole(t *testing.T) {
 		}
 	}
 }
+
+// The app's password door shares the browser's sign-in-password budget
+// (ADR 0047 §9, spec §3.9): one budget per address and email whichever door
+// the guesses come through, and one ceiling of 600 a minute per address
+// across both, off the global limiter as /auth/login is.
+func TestNativePasswordSharesTheSignInPasswordBudget(t *testing.T) {
+	h, _ := limitedMux(t)
+	doors := []string{"/api/v1/auth/login", "/api/v1/auth/native/password"}
+	an := caller{ip: "10.53.0.1", json: true, body: `{"email":"an@acme.vn","password":"x","client_id":"uniwork-chat-mobile","deployment_id":"default"}`}
+	for i := 0; i < 20; i++ {
+		if code := an.send(h, http.MethodPost, doors[i%2]); code == http.StatusTooManyRequests {
+			t.Fatalf("request %d of 20 across both doors refused", i+1)
+		}
+	}
+	for _, door := range doors {
+		an.wantRefused(t, h, http.MethodPost, door, "one budget per address and email across the browser's and the app's door")
+	}
+	caller{ip: an.ip, json: true, body: `{"email":"binh@acme.vn","password":"x"}`}.spend(t, h, http.MethodPost, doors[1], 20)
+
+	sweep := caller{ip: "10.53.0.2", json: true}
+	for i := 0; i < 600; i++ {
+		sweep.body = fmt.Sprintf(`{"email":"user%d@acme.vn","password":"x"}`, i)
+		if code := sweep.send(h, http.MethodPost, doors[i%2]); code == http.StatusTooManyRequests {
+			t.Fatalf("request %d of 600 refused", i+1)
+		}
+	}
+	sweep.body = `{"email":"fresh@acme.vn","password":"x"}`
+	for _, door := range doors {
+		sweep.wantRefused(t, h, http.MethodPost, door, "the address ceiling: 600 a minute across both doors")
+	}
+
+	form := caller{ip: "10.53.0.3", body: an.body}
+	for i := 0; i < 30; i++ {
+		if code := form.send(h, http.MethodPost, doors[1]); code != http.StatusUnsupportedMediaType {
+			t.Fatalf("a form post to the app's door: %d, want 415", code)
+		}
+	}
+}
+
+// The app's second step shares the browser's sign-in-mfa budget: 10 a
+// minute per address and the account the challenge names, whichever door.
+func TestNativeMFASharesTheSignInMFABudget(t *testing.T) {
+	h, minter := limitedMux(t)
+	doors := []string{"/api/v1/auth/mfa/verify", "/api/v1/auth/native/mfa"}
+	tok, err := minter.MintMFA(auth.MFAChallenge{UserID: "user-a", Channel: auth.MFAChannelNative, ClientID: "uniwork-chat-mobile", DeploymentID: "default"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := caller{ip: "10.54.0.1", json: true, body: `{"mfa_token":"` + tok + `","code":"000000","client_id":"uniwork-chat-mobile","deployment_id":"default"}`}
+	for i := 0; i < 10; i++ {
+		if code := a.send(h, http.MethodPost, doors[i%2]); code == http.StatusTooManyRequests {
+			t.Fatalf("request %d of 10 across both doors refused", i+1)
+		}
+	}
+	for _, door := range doors {
+		a.wantRefused(t, h, http.MethodPost, door, "one account's second step: 10 a minute across both doors")
+	}
+}
+
+// The app's other doors turn a token, a ticket or a sign-up into a session
+// like the browser's credential routes, so each rides the credential budget:
+// 60 a minute per address and path. The login-CSRF guard runs first, so a
+// form another site posts spends nothing.
+func TestNativeSignInRoutesRideTheCredentialBudget(t *testing.T) {
+	h, minter := limitedMux(t)
+	for i, path := range []string{
+		"/api/v1/auth/native/google",
+		"/api/v1/auth/native/apple",
+		"/api/v1/auth/native/register",
+		"/api/v1/auth/native/sign-in-ticket/create",
+		"/api/v1/auth/native/sign-in-ticket/claim-email",
+		"/api/v1/auth/native/sign-in-ticket/claim-email/verify",
+		"/api/v1/auth/native/sign-in-ticket/link",
+		"/api/v1/me/sign-in-methods/google/native",
+		"/api/v1/me/sign-in-methods/apple/native",
+	} {
+		c := caller{ip: fmt.Sprintf("10.55.0.%d", i+1), json: true, bearer: mustMint(t, minter, "user-native")}
+		if strings.HasPrefix(path, "/api/v1/auth/native/") {
+			form := caller{ip: c.ip, bearer: c.bearer}
+			for j := 0; j < 70; j++ {
+				if code := form.send(h, http.MethodPost, path); code != http.StatusUnsupportedMediaType {
+					t.Fatalf("%s as a form: %d, want 415", path, code)
+				}
+			}
+		}
+		c.spend(t, h, http.MethodPost, path, 60)
+		c.wantRefused(t, h, http.MethodPost, path, "credential budget: 60 a minute")
+	}
+}

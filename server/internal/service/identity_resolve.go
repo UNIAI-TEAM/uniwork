@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -295,6 +296,34 @@ func (m signInMailer) kick(queued bool) {
 	if queued && m.out != nil {
 		m.out.Kick()
 	}
+}
+
+// tellAppSignIn sends, after commit and best effort, the new-login alert of
+// a session the app opened on u, naming the device: unlike a browser's,
+// which alerts only on a browser string the account has not used, an app's
+// sign-in alerts whenever the account had a session before (spec §3.6), since
+// what the app says it is proves nothing. A login must not fail because its
+// alert could not be queued.
+func (m signInMailer) tellAppSignIn(ctx context.Context, q *db.Queries, u db.User, device string) {
+	if m.out == nil {
+		return
+	}
+	at := time.Now()
+	if m.now != nil {
+		at = m.now()
+	}
+	msg, err := m.render.NewLogin(u.Email, u.Locale, u.ID, mail.NewLoginData{
+		UserAgent: device, IP: mail.SafeField(sessionMetaFrom(ctx).IP), At: at,
+		SessionsURL: m.render.AppURL + "/settings?tab=security", App: true,
+	})
+	if err == nil {
+		_, err = m.out.Enqueue(ctx, q, msg)
+	}
+	if err != nil {
+		slog.Warn("app sign-in alert not queued", "user", u.ID, "err", err)
+		return
+	}
+	m.out.Kick()
 }
 
 // linkIdentity writes the provider link on a verified account. A row the

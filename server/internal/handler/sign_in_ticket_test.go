@@ -328,6 +328,17 @@ func TestCredentialRoutesRefuseCrossSiteForms(t *testing.T) {
 		{http.MethodPost, "/api/v1/auth/sign-in-ticket/claim-email", ""},
 		{http.MethodPost, "/api/v1/auth/sign-in-ticket/claim-email/verify", ""},
 		{http.MethodPost, "/api/v1/auth/sign-in-ticket/link", token},
+		// The app's doors (ADR 0047 §8): the app posts JSON and sends no
+		// fetch metadata, so only another site's forms are refused.
+		{http.MethodPost, "/api/v1/auth/native/password", ""},
+		{http.MethodPost, "/api/v1/auth/native/mfa", ""},
+		{http.MethodPost, "/api/v1/auth/native/google", ""},
+		{http.MethodPost, "/api/v1/auth/native/apple", ""},
+		{http.MethodPost, "/api/v1/auth/native/register", ""},
+		{http.MethodPost, "/api/v1/auth/native/sign-in-ticket/create", ""},
+		{http.MethodPost, "/api/v1/auth/native/sign-in-ticket/claim-email", ""},
+		{http.MethodPost, "/api/v1/auth/native/sign-in-ticket/claim-email/verify", ""},
+		{http.MethodPost, "/api/v1/auth/native/sign-in-ticket/link", token},
 	}
 	send := func(method, path, token, site, contentType, body string) (int, string) {
 		req, _ := http.NewRequest(method, srv.URL+path, strings.NewReader(body))

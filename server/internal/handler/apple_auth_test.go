@@ -116,7 +116,8 @@ func TestAppleSignInRefusals(t *testing.T) {
 // /auth/providers only ever gains flags (ADR 0047 §10): apple keeps meaning
 // the native iPhone sign-in the shipped app reads; the web's Apple reports
 // false without its Services ID (TestAuthProvidersReportsEachAppleDoor), and
-// the app's Google SDK until its route exists.
+// the app's Google SDK without GOOGLE_NATIVE_CLIENT_IDS
+// (TestNativeGoogleSignInOverHTTP reports it on).
 func TestAuthProvidersReportsApple(t *testing.T) {
 	srv, _ := newAppleTestServer(t)
 	res, out := doJSON(t, srv, http.MethodGet, "/api/v1/auth/providers", "", nil)

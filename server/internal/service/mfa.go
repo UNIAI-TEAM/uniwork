@@ -165,50 +165,11 @@ func (s *AuthService) VerifyMFA(ctx context.Context, mfaToken, code string) (Ses
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.q.WithTx(tx)
-	u, err := q.GetUserForUpdate(ctx, ch.UserID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Session{}, ErrInvalidCredentials
-	}
+	step, err := s.secondStep(ctx, tx, q, ch, code)
 	if err != nil {
 		return Session{}, err
 	}
-	if u.DeletedAt.Valid {
-		// Erased between the two steps: the challenge died with the account.
-		return Session{}, ErrInvalidCredentials
-	}
-	// MFA switched off between the two steps: the first factor alone is what
-	// the account now requires.
-	mfa := u.MfaEnabledAt.Valid
-	if mfa {
-		v, err := s.weighSecondFactor(ctx, q, u, code)
-		if err != nil {
-			return Session{}, err
-		}
-		if !v.ok {
-			// The failure is counted (and may have started the lockout), so it
-			// commits; the refusal follows.
-			if err := tx.Commit(ctx); err != nil {
-				return Session{}, err
-			}
-			s.signInMailer().kick(v.queued)
-			meta := map[string]any{"reason": "bad_mfa", "locked": v.started}
-			if v.locked != nil && !v.started {
-				meta = map[string]any{"reason": "second_factor_locked"}
-			}
-			s.recordAuth(ctx, audit.ActionAuthLoginFailed, u.ID, meta)
-			if v.locked != nil {
-				return Session{}, v.locked
-			}
-			return Session{}, ErrInvalidCredentials
-		}
-	}
-	var link pendingLinkOutcome
-	if ch.PendingLink != "" {
-		if link, err = s.finishPendingLink(ctx, tx, u, ch.PendingLink); err != nil {
-			return Session{}, err
-		}
-		u = link.user
-	}
+	u := step.user
 	sess, newDevice, err := s.openSession(ctx, q, u, "", "")
 	if err != nil {
 		return Session{}, err
@@ -216,19 +177,88 @@ func (s *AuthService) VerifyMFA(ctx context.Context, mfaToken, code string) (Ses
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: audit.NoOrganization, Actor: audit.User(u.ID),
 		Action: audit.ActionAuthLoginSucceeded, ResourceType: "user", ResourceID: u.ID,
-		Metadata: map[string]any{"mfa": mfa},
+		Metadata: map[string]any{"mfa": step.mfa},
 	}); err != nil {
 		return Session{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Session{}, err
 	}
-	s.signInMailer().kick(link.queued)
+	s.signInMailer().kick(step.link.queued)
 	if newDevice {
 		s.sendNewLoginMail(ctx, sess.User, sessionMetaFrom(ctx))
 	}
-	sess.LinkSkipped = link.skipped
+	sess.LinkSkipped = step.link.skipped
 	return sess, nil
+}
+
+// passedSecondStep is what secondStep leaves the caller to open its session
+// on: the account (as the pending link left it), whether a second factor was
+// asked, and the link.
+type passedSecondStep struct {
+	user db.User
+	mfa  bool
+	link pendingLinkOutcome
+}
+
+// secondStep is what the browser's and the app's second step share (ADR 0047
+// §4, spec §3.3), for a challenge ch whose channel the caller has checked, in
+// the caller's transaction tx (q): the account is read under its row lock
+// (gone or erased: invalid_credentials), the code is weighed against the
+// lockout (weighSecondFactor), and the provider identity the first step left
+// waiting is linked if it still resolves to this account (finishPendingLink).
+// A second factor switched off between the two steps is not asked: the first
+// factor alone is what the account now requires. A wrong code is counted, so
+// secondStep commits tx itself, kicks the lockout notice, audits the failure
+// and answers the refusal (invalid_credentials, or 429 second_factor_locked);
+// on success the caller opens its session in tx, audits and commits.
+func (s *AuthService) secondStep(ctx context.Context, tx pgx.Tx, q *db.Queries, ch auth.MFAChallenge, code string) (passedSecondStep, error) {
+	u, err := q.GetUserForUpdate(ctx, ch.UserID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return passedSecondStep{}, ErrInvalidCredentials
+	}
+	if err != nil {
+		return passedSecondStep{}, err
+	}
+	if u.DeletedAt.Valid {
+		// Erased between the two steps: the challenge died with the account.
+		return passedSecondStep{}, ErrInvalidCredentials
+	}
+	out := passedSecondStep{mfa: u.MfaEnabledAt.Valid}
+	if out.mfa {
+		v, err := s.weighSecondFactor(ctx, q, u, code)
+		if err != nil {
+			return passedSecondStep{}, err
+		}
+		if !v.ok {
+			// The failure is counted (and may have started the lockout), so it
+			// commits; the refusal follows.
+			if err := tx.Commit(ctx); err != nil {
+				return passedSecondStep{}, err
+			}
+			s.signInMailer().kick(v.queued)
+			meta := map[string]any{"reason": "bad_mfa", "locked": v.started}
+			if v.locked != nil && !v.started {
+				meta = map[string]any{"reason": "second_factor_locked"}
+			}
+			if ch.Channel == auth.MFAChannelNative {
+				meta["channel"] = auth.MFAChannelNative
+			}
+			s.recordAuth(ctx, audit.ActionAuthLoginFailed, u.ID, meta)
+			if v.locked != nil {
+				return passedSecondStep{}, v.locked
+			}
+			return passedSecondStep{}, ErrInvalidCredentials
+		}
+	}
+	out.user = u
+	if ch.PendingLink != "" {
+		if out.link, err = s.finishPendingLink(ctx, tx, u, ch.PendingLink); err != nil {
+			return passedSecondStep{}, err
+		}
+		out.user = out.link.user
+	}
+	return out, nil
 }
 
 func (s *AuthService) mintAudited(ctx context.Context, u db.User, meta map[string]any) (Session, error) {

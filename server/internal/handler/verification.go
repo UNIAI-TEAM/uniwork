@@ -39,5 +39,6 @@ func (h *handlers) resendVerification(w http.ResponseWriter, r *http.Request) {
 func (h *handlers) authProviders(w http.ResponseWriter, _ *http.Request) {
 	respondJSON(w, http.StatusOK, sdo.AuthProvidersSDO{
 		Google: h.Google != nil, Apple: h.AppleAuth.NativeEnabled(), AppleWeb: h.AppleAuth.WebEnabled(),
+		GoogleNative: h.NativeSignIn.GoogleEnabled(),
 	})
 }

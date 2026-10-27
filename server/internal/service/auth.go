@@ -51,6 +51,9 @@ type AuthService struct {
 	// proofVerifiers check the provider tokens the app offers as a step-up
 	// proof, by provider; one is offered only once its verifier is here.
 	proofVerifiers map[string]ProviderProofVerifier
+	// googleNative checks the app's Google ID tokens (SetGoogleNative); nil
+	// keeps the app's Google door closed.
+	googleNative GoogleTokenVerifier
 }
 
 func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
@@ -173,37 +176,62 @@ func validatePassword(p string) error {
 }
 
 func (s *AuthService) Register(ctx context.Context, email, password, displayName, locale string) (Session, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	if !strings.Contains(email, "@") || len(email) < 5 {
-		return Session{}, Invalid("email không hợp lệ")
-	}
-	if err := validatePassword(password); err != nil {
+	p, err := newPasswordAccount(email, password, displayName, locale)
+	if err != nil {
 		return Session{}, err
 	}
+	u, err := createPasswordAccount(ctx, s.q, p)
+	if err != nil {
+		return Session{}, err
+	}
+	s.sendVerificationAfterSignUp(ctx, u.ID)
+	return s.mintSession(ctx, u, "", "")
+}
+
+// newPasswordAccount checks a sign-up by email (the web's and the app's) and
+// hashes its password: the row createPasswordAccount inserts.
+func newPasswordAccount(email, password, displayName, locale string) (db.CreateUserParams, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if !strings.Contains(email, "@") || len(email) < 5 {
+		return db.CreateUserParams{}, Invalid("email không hợp lệ")
+	}
+	if err := validatePassword(password); err != nil {
+		return db.CreateUserParams{}, err
+	}
 	if strings.TrimSpace(displayName) == "" {
-		return Session{}, Invalid("tên hiển thị không được để trống")
+		return db.CreateUserParams{}, Invalid("tên hiển thị không được để trống")
 	}
 	hash, err := auth.HashPassword(password)
 	if err != nil {
-		return Session{}, err
+		return db.CreateUserParams{}, err
 	}
-	userID := util.NewID()
-	u, err := s.q.CreateUser(ctx, db.CreateUserParams{
-		ID: userID, Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
+	return db.CreateUserParams{
+		ID: util.NewID(), Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
 		Locale: NormalizeLocale(locale),
-	})
+	}, nil
+}
+
+// createPasswordAccount inserts a sign-up's account in q; an address another
+// account holds is ErrConflict. The address starts unverified: the caller
+// mails the code once its transaction committed.
+func createPasswordAccount(ctx context.Context, q *db.Queries, p db.CreateUserParams) (db.User, error) {
+	u, err := q.CreateUser(ctx, p)
 	if isUniqueViolation(err) {
-		return Session{}, ErrConflict
+		return db.User{}, ErrConflict
 	}
-	if err != nil {
-		return Session{}, err
+	return u, err
+}
+
+// sendVerificationAfterSignUp mails the code that proves a new account's
+// address, best effort: the account exists either way and the person can ask
+// for the code again.
+func (s *AuthService) sendVerificationAfterSignUp(ctx context.Context, userID string) {
+	if s.verification == nil {
+		return
 	}
-	if s.verification != nil {
-		if err := s.verification.Send(ctx, u.ID); err != nil {
-			slog.Warn("send verification code after register", "user", u.ID, "err", err)
-		}
+	if err := s.verification.Send(ctx, userID); err != nil {
+		slog.Warn("send verification code after sign-up", "user", userID, "err", err)
 	}
-	return s.mintSession(ctx, u, "", "")
 }
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (Session, error) {

@@ -145,7 +145,7 @@ func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (Des
 		// verifier for the app's tokens.
 		return DesktopSession{}, errors.New("apple native sign-in is not configured")
 	}
-	if !s.desktop.clientAllowed(in.ClientID, in.DeploymentID) {
+	if !s.desktop.nativeClientAllowed(in.ClientID, in.DeploymentID) {
 		return DesktopSession{}, Invalid("invalid native sign-in client")
 	}
 	claims, err := s.verifier.Verify(ctx, in.IdentityToken, in.Nonce)
@@ -304,21 +304,26 @@ func legacyAppleError(err error) error {
 // device. A new account hears nothing; a link or a reclaim queued its own
 // notice in the transaction.
 func (s *AppleAuthService) tellNewSession(ctx context.Context, u db.User, device string) {
-	if s.out == nil {
-		return
+	s.mailer().tellAppSignIn(ctx, s.q, u, device)
+}
+
+// nativeIdentity is the person behind an identity token the app's Apple
+// sheet returned (the app's own sign-in screen, its Settings link): checked
+// by the app's verifier (its bundle ids, the hash of nonce), with the consent
+// Apple's one-time code redeems for, sealed (none without a code or the
+// key). A refused token is the verifier's error (auth.AppleTokenError),
+// which the caller answers with its own code; whatever the identity goes on
+// to, a refusal gives its consent back (giveBack).
+func (s *AppleAuthService) nativeIdentity(ctx context.Context, token, nonce, code, givenName, familyName string) (ProviderIdentity, error) {
+	if !s.NativeEnabled() {
+		return ProviderIdentity{}, errors.New("apple native sign-in is not configured")
 	}
-	msg, err := s.render.NewLogin(u.Email, u.Locale, u.ID, mail.NewLoginData{
-		UserAgent: device, IP: mail.SafeField(sessionMetaFrom(ctx).IP), At: s.desktop.now(),
-		SessionsURL: s.render.AppURL + "/settings?tab=security", App: true,
-	})
-	if err == nil {
-		_, err = s.out.Enqueue(ctx, s.q, msg)
-	}
+	claims, err := s.verifier.Verify(ctx, token, nonce)
 	if err != nil {
-		s.log.Warn("apple sign-in alert not queued", "user", u.ID, "kind", msg.Kind, "err", err)
-		return
+		return ProviderIdentity{}, err
 	}
-	s.out.Kick()
+	_, sealed := s.keepRefreshToken(ctx, claims, code)
+	return appleIdentity(claims, givenName, familyName, sealed), nil
 }
 
 // keepRefreshToken redeems the authorization code for the refresh token

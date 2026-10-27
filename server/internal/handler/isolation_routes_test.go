@@ -412,6 +412,9 @@ const (
 	reasonPlatform   = "platform console: across tenants by design, closed without users.platform_role"
 	reasonStub       = "catalogue stub: the same 422 capability_unavailable for every caller and id"
 	reasonTicket     = "authentication: the sealed sign-in ticket in the caller's HttpOnly cookie is the credential; there is no tenant before sign-in"
+	// reasonNativeTicket is the app's ticket: in the JSON body, and opened
+	// only with the nonce of the sign-in that issued it.
+	reasonNativeTicket = "authentication: the sealed sign-in ticket in the body, which opens only with the nonce of the sign-in that issued it, is the credential; there is no tenant before sign-in"
 )
 
 // isoRoutes holds every route that is not plain isoScoped-with-no-body.
@@ -461,6 +464,18 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/auth/sign-in-ticket/claim-email":        {class: isoPublic, reason: reasonTicket},
 	"POST /api/v1/auth/sign-in-ticket/claim-email/verify": {class: isoPublic, reason: reasonTicket},
 	"POST /api/v1/auth/sign-in-ticket/link":               {class: isoSelf, reason: "links the ticket's identity into the caller's own account only; the account is the bearer's, the identity the sealed ticket the caller's browser holds, and no id is taken from the request"},
+	// The app's own sign-in screen (ADR 0047 §8): the same credentials as
+	// the browser's doors, in JSON; client_id and deployment_id are
+	// allowlist values, never rows.
+	"POST /api/v1/auth/native/password":                          {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/native/mfa":                               {class: isoPublic, reason: "authentication: the challenge token, signed and bound to this app's client and deployment, with the second factor is the credential; it names no tenant row"},
+	"POST /api/v1/auth/native/google":                            {class: isoPublic, reason: "authentication: Google's ID token, issued to this app's own client (azp) and carrying the hash of the request's nonce, is the credential; it names no tenant row"},
+	"POST /api/v1/auth/native/apple":                             {class: isoPublic, reason: "authentication: Apple's identity token, signed for this app's bundle id and carrying the hash of the request's nonce, is the credential; it names no tenant row"},
+	"POST /api/v1/auth/native/register":                          {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/native/sign-in-ticket/create":             {class: isoPublic, reason: reasonNativeTicket},
+	"POST /api/v1/auth/native/sign-in-ticket/claim-email":        {class: isoPublic, reason: reasonNativeTicket},
+	"POST /api/v1/auth/native/sign-in-ticket/claim-email/verify": {class: isoPublic, reason: reasonNativeTicket},
+	"POST /api/v1/auth/native/sign-in-ticket/link":               {class: isoSelf, reason: "links the app's ticket's identity into the caller's own account only; the account is the bearer's device session's, the identity the sealed ticket the app holds with its nonce, and no id is taken from the request"},
 
 	// MCP connector OAuth server (ADR 0031): a client is a program, and the
 	// code, verifier, refresh token or client secret is the credential.
@@ -552,6 +567,8 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/me/sign-in-methods/apple/link":              {class: isoSelf, reason: "starts a link into the caller's own account; the link token it answers names that account and session, nothing taken from the request"},
 	"POST /api/v1/me/sign-in-methods/google/unlink":           {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/sign-in-methods/apple/unlink":            {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/sign-in-methods/google/native":           {class: isoSelf, reason: "links the identity the app's Google token proves into the caller's own account; no id is taken from the request"},
+	"POST /api/v1/me/sign-in-methods/apple/native":            {class: isoSelf, reason: "links the identity the app's Apple token proves into the caller's own account; no id is taken from the request"},
 	"GET /api/v1/me/notification-preferences":                 {class: isoSelf, reason: reasonSelf},
 	"PUT /api/v1/me/notification-preferences":                 {class: isoSelf, reason: reasonSelf},
 	"GET /api/v1/me/notifications":                            {class: isoSelf, reason: reasonSelf},

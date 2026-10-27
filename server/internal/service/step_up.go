@@ -139,13 +139,32 @@ func errCodeDailyCap(wait time.Duration) error {
 	}
 }
 
-// SetGoogleProofVerifier lets a fresh Google ID token from the app's SDK
-// prove a Google-linked account. ponytail: the native Google verifier (azp
-// is the app, nonce required) arrives with the native routes; until main
-// wires it here, no account is offered google as a proof.
-func (s *AuthService) SetGoogleProofVerifier(v ProviderProofVerifier) {
-	s.setProofVerifier(ProviderGoogle, v)
+// GoogleTokenVerifier checks an ID token the app's Google SDK returned (ADR
+// 0047 §8: an app client as azp, the hash of the app's nonce, a fresh iat);
+// auth.GoogleNativeVerifier in production.
+type GoogleTokenVerifier interface {
+	Verify(ctx context.Context, rawToken, rawNonce string) (auth.GoogleClaims, error)
 }
+
+// SetGoogleNative opens the app's Google door (POST /auth/native/google, the
+// app's Settings link) and lets a fresh Google ID token from the app's SDK
+// prove a Google-linked account in a step-up. nil closes both: no account is
+// then offered google as a proof.
+func (s *AuthService) SetGoogleNative(v GoogleTokenVerifier) {
+	s.googleNative = v
+	if v == nil {
+		s.setProofVerifier(ProviderGoogle, nil)
+		return
+	}
+	s.setProofVerifier(ProviderGoogle, func(ctx context.Context, token, nonce string) (string, time.Time, error) {
+		c, err := v.Verify(ctx, token, nonce)
+		return c.Sub, c.IssuedAt, err
+	})
+}
+
+// GoogleNativeEnabled: the app's Google ID tokens can be checked
+// (GOOGLE_NATIVE_CLIENT_IDS), so the app's Google door is open.
+func (s *AuthService) GoogleNativeEnabled() bool { return s != nil && s.googleNative != nil }
 
 func (s *AuthService) setProofVerifier(provider string, v ProviderProofVerifier) {
 	if s.proofVerifiers == nil {

@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
-	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
@@ -30,5 +29,5 @@ func (h *handlers) appleSignIn(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.DesktopSessionSDO{AccountID: sess.AccountID, DeviceSessionID: sess.DeviceSessionID, SessionID: sess.SessionID, DeploymentID: sess.DeploymentID, AccessToken: sess.AccessToken, TokenType: "Bearer", ExpiresIn: sess.ExpiresIn, RefreshToken: sess.RefreshToken, RefreshExpiresIn: sess.RefreshExpiresIn, RefreshRotates: true})
+	respondJSON(w, http.StatusOK, toDesktopSessionSDO(sess))
 }

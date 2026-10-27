@@ -185,7 +185,18 @@ func TestSignInMethodChangesNeedAProof(t *testing.T) {
 			wantProofRequired(t, c.run(ctx, tok), c.name+" with "+why)
 		}
 	}
-	if got := f.user(t, u.ID); got.TotpSecret.Valid || got.DeletedAt.Valid || got.PasswordChangedAt.Valid {
+	// The app's link from Settings takes a token of the app's own session:
+	// none, the browser session's or garbage is proof_required, and the
+	// provider's token is not looked at.
+	app := f.native(t, f.deviceSignIn(t, u.ID, "proof-app"))
+	nonce := util.NewID()
+	sheet := AppLink{Token: f.issuer.Token(t, appletest.Claims(appleBundle, "apple-proof", "proof@icloud.com", false, nonce)), Nonce: nonce}
+	for why, tok := range map[string]string{"no token": "", "the browser session's": grant.Token, "garbage": "x"} {
+		sheet.StepUpToken = tok
+		_, err := methods.LinkFromApp(app, u.ID, ProviderApple, sheet)
+		wantProofRequired(t, err, "an app link with "+why)
+	}
+	if got := f.user(t, u.ID); got.TotpSecret.Valid || got.DeletedAt.Valid || got.PasswordChangedAt.Valid || got.AppleID.Valid {
 		t.Fatalf("a refused command wrote: %+v", got)
 	}
 	// Expired: the same token ten minutes on.

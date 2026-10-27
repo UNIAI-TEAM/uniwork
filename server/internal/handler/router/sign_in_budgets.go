@@ -21,12 +21,14 @@ import (
 // secret (ADR 0047 §9, spec §3.9), each under a ceiling per address that
 // runs first, so a request the ceiling refuses opens no counter of its own:
 //
-//   - password: POST /auth/login (and the app's /auth/native/password),
-//     per address and normalized email, 20 a minute, under 600 a minute per
-//     address: an office behind one NAT signs in on a budget per person,
-//     while one address still cannot try a password on every account;
-//   - mfa: POST /auth/mfa/verify (and /auth/native/mfa), per address and the
-//     account the verified challenge token names, 10 a minute, under 600;
+//   - password: POST /auth/login and the app's POST /auth/native/password,
+//     one budget for both, per address and normalized email, 20 a minute,
+//     under 600 a minute per address: an office behind one NAT signs in on a
+//     budget per person, while one address still cannot try a password on
+//     every account;
+//   - mfa: POST /auth/mfa/verify and the app's POST /auth/native/mfa, one
+//     budget for both, per address and the account the verified challenge
+//     token names, 10 a minute, under 600;
 //   - stepUp: every route that takes a signed-in person's proof (POST
 //     /me/step-up*, PUT /me/password, POST /me/delete, POST
 //     /orgs/{org}/transfer-ownership), per bearer, 10 a minute, under 600.

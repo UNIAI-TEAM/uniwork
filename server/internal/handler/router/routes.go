@@ -86,6 +86,15 @@ type Routes struct {
 	SignInTicketDiscard   http.HandlerFunc
 	SignInTicketLink      http.HandlerFunc
 	AppleSignIn           http.HandlerFunc
+	NativePassword        http.HandlerFunc
+	NativeMFA             http.HandlerFunc
+	NativeGoogle          http.HandlerFunc
+	NativeApple           http.HandlerFunc
+	NativeRegister        http.HandlerFunc
+	NativeTicketCreate    http.HandlerFunc
+	NativeTicketClaim     http.HandlerFunc
+	NativeTicketVerify    http.HandlerFunc
+	NativeTicketLink      http.HandlerFunc
 	DesktopStart          http.HandlerFunc
 	DesktopConsent        http.HandlerFunc
 	DesktopConsentCommand http.HandlerFunc
@@ -115,6 +124,8 @@ type Routes struct {
 	LinkApple           http.HandlerFunc
 	UnlinkGoogle        http.HandlerFunc
 	UnlinkApple         http.HandlerFunc
+	LinkGoogleNative    http.HandlerFunc
+	LinkAppleNative     http.HandlerFunc
 	SetAIConsent        http.HandlerFunc
 	WithdrawAIConsent   http.HandlerFunc
 	SetPushPreviews     http.HandlerFunc

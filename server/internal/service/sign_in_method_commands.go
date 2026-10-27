@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -358,6 +359,106 @@ func (s *SignInMethodsService) LinkFromBrowser(ctx context.Context, li LinkInten
 	return BrowserLink{Change: SignInMethodsChange{
 		User: s.auth.decorateAvatar(ctx, a.user), Methods: s.auth.signInMethods(a.user, SignInChannelWeb),
 	}}, nil
+}
+
+// AppLink is POST /me/sign-in-methods/{provider}/native: the provider token
+// the app's own sheet just returned (Google's SDK, the iPhone's Apple
+// sheet) with the raw nonce it handed the sheet, Apple's one-time code, the
+// step-up token of the app's session, and Move, to move the identity out of
+// the empty account holding it (after 409 sign_in_method_movable).
+type AppLink struct {
+	StepUpToken       string
+	Token             string
+	Nonce             string
+	AuthorizationCode string
+	Move              bool
+}
+
+// LinkFromApp links a provider from the app's Settings (ADR 0047 §6): the
+// app proves the identity with the provider's own sheet, so no browser round
+// trip is needed. Only the app's bearer takes this door (a browser links
+// through LinkFromBrowser: 400 invalid_request). The account must have proved
+// its address (403 email_unverified), then the step-up of the app's session
+// (requireStepUp: a browser token older than a credential change and a dead
+// session are 401, a missing token 403 proof_required); then the token,
+// checked by the app's verifier of that provider (403 provider_token_invalid,
+// never 401: the caller is signed in), and attachIdentity links it into the
+// account, audited via settings — taken, movable and already-linked are
+// attach's own answers. An Apple consent the proof brought and nothing kept
+// goes back to Apple unless the Apple ID opens an account.
+func (s *SignInMethodsService) LinkFromApp(ctx context.Context, userID, provider string, in AppLink) (out SignInMethodsChange, err error) {
+	if provider != ProviderGoogle && provider != ProviderApple {
+		return SignInMethodsChange{}, Invalid("nhà cung cấp không hợp lệ")
+	}
+	at, ok := auth.AccessTokenFrom(ctx)
+	if !ok || at.UserID != userID || at.Web {
+		// A browser links through the provider's own pages instead.
+		return SignInMethodsChange{}, Invalid("liên kết trên app bằng đăng nhập của nhà cung cấp; trên web dùng trình duyệt đang đăng nhập")
+	}
+	u, err := s.auth.Me(ctx, userID)
+	if err != nil {
+		return SignInMethodsChange{}, err
+	}
+	if !u.EmailVerifiedAt.Valid {
+		return SignInMethodsChange{}, ErrEmailUnverified
+	}
+	if err := s.auth.requireStepUp(ctx, s.q, userID, in.StepUpToken); err != nil {
+		return SignInMethodsChange{}, err
+	}
+	id, err := s.appIdentity(ctx, provider, in)
+	if err != nil {
+		return SignInMethodsChange{}, err
+	}
+	defer func() {
+		if err != nil {
+			s.auth.apple.giveBack(ctx, id)
+		}
+	}()
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return SignInMethodsChange{}, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	q := s.q.WithTx(tx)
+	caller, err := lockLiveUser(ctx, q, userID)
+	if err != nil {
+		return SignInMethodsChange{}, err
+	}
+	a, err := s.auth.attachIdentity(ctx, q, caller, id, linkViaSettings, in.Move)
+	if err != nil {
+		return SignInMethodsChange{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		if isUniqueViolation(err) {
+			return SignInMethodsChange{}, errSignInAccountConflict()
+		}
+		return SignInMethodsChange{}, err
+	}
+	s.auth.afterAttach(ctx, a)
+	return SignInMethodsChange{
+		User: s.auth.decorateAvatar(ctx, a.user), Methods: s.auth.signInMethods(a.user, SignInChannelNative),
+	}, nil
+}
+
+// appIdentity is the identity the app's provider token proves, checked by
+// that provider's app verifier; a token that does not verify, or a provider
+// whose app door is closed, is 403 provider_token_invalid.
+func (s *SignInMethodsService) appIdentity(ctx context.Context, provider string, in AppLink) (ProviderIdentity, error) {
+	switch {
+	case provider == ProviderGoogle && s.auth.GoogleNativeEnabled():
+		c, err := s.auth.googleNative.Verify(ctx, in.Token, in.Nonce)
+		if err == nil {
+			return googleIdentity(c), nil
+		}
+		slog.Info("app google link refused", "reason", googleTokenReason(err))
+	case provider == ProviderApple && s.auth.apple.NativeEnabled():
+		id, err := s.auth.apple.nativeIdentity(ctx, in.Token, in.Nonce, in.AuthorizationCode, "", "")
+		if err == nil {
+			return id, nil
+		}
+		slog.Info("app apple link refused", "reason", appleTokenReason(err))
+	}
+	return ProviderIdentity{}, errProviderProofInvalid()
 }
 
 // Unlink is POST /me/sign-in-methods/{provider}/unlink, with a step-up

@@ -103,10 +103,10 @@ func New(d Deps, h Routes) http.Handler {
 		// Native refresh skips it for the same reason: phones behind one
 		// carrier address would share 300 a minute; it has its own
 		// per-device budget under an address ceiling (refreshLimit).
-		// The password and second-factor steps of a sign-in skip it too:
-		// an office behind one NAT signs in on a budget per person under a
-		// ceiling of 600 a minute per address (signInBudgets), which the
-		// global 300 would otherwise cap.
+		// The password and second-factor steps of a sign-in skip it too, the
+		// browser's and the app's: an office behind one NAT signs in on a
+		// budget per person under a ceiling of 600 a minute per address
+		// (signInBudgets), which the global 300 would otherwise cap.
 		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, globalIdentity(d.Minter, d.FrameIdentity))
 		// The scribe agent's routes skip it too (isMeetingAgentPath): one agent
 		// pod sends every meeting it serves from one address; they have their
@@ -116,7 +116,8 @@ func New(d Deps, h Routes) http.Handler {
 		// files sends 500 PUTs; it has its own per-person budget
 		// (folder-upload-content, 600/min).
 		r.Use(exceptFolderUploadContent(mw.ExceptPaths(global, "/healthz", "/readyz", apiHealthPath, "/mcp", "/api/v1/auth/desktop/refresh",
-			"/api/v1/auth/login", "/api/v1/auth/mfa/verify", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath)))
+			"/api/v1/auth/login", "/api/v1/auth/mfa/verify", "/api/v1/auth/native/password", "/api/v1/auth/native/mfa",
+			"/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath)))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
 	// Native refresh: per (address, device) under a ceiling per address; the

@@ -718,16 +718,26 @@ func main() {
 	officeSpoolSweep := officeSvc.NewSpoolSweeper()
 	officeSpoolSweepDone := make(chan struct{})
 	go func() { officeSpoolSweep.Run(runCtx); close(officeSpoolSweepDone) }()
-	// Google needs both credentials; discovery runs once here. A failed
-	// discovery leaves Google off rather than taking the API down with it.
+	// Google on the web needs both credentials, Google in the app its iOS
+	// and Android clients (ADR 0047 §8); discovery runs once here for both. A
+	// failed discovery leaves Google off rather than taking the API down with
+	// it.
 	var google handler.GoogleExchanger
-	if cfg.GoogleEnabled() {
-		g, err := auth.NewGoogleOAuth(ctx, auth.GoogleIssuer, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL())
-		if err != nil {
+	if cfg.GoogleEnabled() || cfg.GoogleNativeEnabled() {
+		d, err := auth.DiscoverGoogle(ctx, auth.GoogleIssuer)
+		switch {
+		case err != nil:
 			log.Error("google sign-in disabled", "err", err)
-		} else {
-			google = g
-			log.Info("google sign-in enabled", "redirect_url", cfg.GoogleRedirectURL())
+		default:
+			if cfg.GoogleEnabled() {
+				google = d.OAuth(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL())
+				log.Info("google sign-in enabled", "redirect_url", cfg.GoogleRedirectURL())
+			}
+			if cfg.GoogleNativeEnabled() {
+				// Interfaces stay nil, never a typed nil, while the door is off.
+				authSvc.SetGoogleNative(d.NativeVerifier(cfg.GoogleClientID, cfg.GoogleNativeClientIDs, nil))
+				log.Info("google sign-in in the app enabled", "clients", strings.Join(cfg.GoogleNativeClientIDs, ","))
+			}
 		}
 	}
 	// Sign in with Apple (ADR 0041, 0047): the phone's native sheet, on with
@@ -878,15 +888,17 @@ func main() {
 	// runCancel and is awaited below.
 	mcpCleanupDone := make(chan struct{})
 	go func() { mcpAuth.Run(runCtx); close(mcpCleanupDone) }()
+	signInTickets := service.NewSignInTicketService(pool, q, authSvc, renderer, mailOutbox)
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
 		DesktopAuth:         desktopAuthSvc,
 		AppleAuth:           appleAuth,
+		NativeSignIn:        service.NewNativeSignInService(pool, q, authSvc, desktopAuthSvc, signInTickets),
 		Verification:        verification,
 		PasswordReset:       passwordReset,
 		GoogleAuth:          service.NewGoogleAuthService(authSvc),
-		SignInTickets:       service.NewSignInTicketService(pool, q, authSvc, renderer, mailOutbox),
+		SignInTickets:       signInTickets,
 		SignInMethods:       service.NewSignInMethodsService(pool, q, authSvc),
 		Sealer:              sealer,
 		Google:              google,

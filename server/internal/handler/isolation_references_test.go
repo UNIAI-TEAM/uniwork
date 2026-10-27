@@ -677,6 +677,8 @@ var isoRefFieldExempt = map[string]string{
 	"DesktopExchangeSDI.deployment_id":               "a configured deployment profile (allowlist), not a row",
 	"AppleSignInSDI.client_id":                       "the configured native client id (allowlist), not a row; Apple's identity token with its nonce is the credential",
 	"AppleSignInSDI.deployment_id":                   "a configured deployment profile (allowlist), not a row",
+	"NativeClientSDI.client_id":                      "a native sign-in client id (NATIVE_SIGN_IN_CLIENTS allowlist), not a row; the password, challenge, provider token or ticket with its nonce is the credential",
+	"NativeClientSDI.deployment_id":                  "a configured deployment profile (allowlist), not a row; a native ticket or challenge must also carry it",
 	"DesktopLogoutSDI.deployment_id":                 "a configured deployment profile (allowlist); the device row must also carry it, and the device id is attacked by its own case",
 	"DesktopRefreshSDI.deployment_id":                "a configured deployment profile (allowlist); the device row must also carry it",
 	"DesktopRefreshSDI.device_session_id":            "public route: the rotating refresh token is the credential; a wrong token for a device id reaches replay detection, which revokes that device by design",

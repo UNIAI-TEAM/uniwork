@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -72,6 +73,9 @@ func NewDesktopAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenM
 	}
 	if len(cfg.DesktopAuthDeploymentIDs) == 0 {
 		cfg.DesktopAuthDeploymentIDs = []string{"default"}
+	}
+	if len(cfg.NativeSignInClients) == 0 {
+		cfg.NativeSignInClients = []string{"uniwork-chat-mobile"}
 	}
 	if cfg.DesktopAuthCodeTTL <= 0 {
 		cfg.DesktopAuthCodeTTL = 120 * time.Second
@@ -852,11 +856,14 @@ func (s *DesktopAuthService) allowed(clientID, redirectURI, deploymentID string)
 	return false
 }
 
-// clientAllowed is allowed without a redirect: a native sign-in that never
-// leaves the app (Sign in with Apple) names a configured client and an
-// allowlisted deployment.
-func (s *DesktopAuthService) clientAllowed(clientID, deploymentID string) bool {
-	if clientID == "" || !s.deploymentAllowed(deploymentID) {
+// nativeClientAllowed is allowed without a redirect: a sign-in that never
+// leaves the app (its own sign-in screen, the iPhone's Sign in with Apple)
+// names one of the native sign-in clients (NATIVE_SIGN_IN_CLIENTS, ADR 0047
+// §8) that is also a configured client, and an allowlisted deployment. The
+// desktop apps and Office are configured clients too, but sign in through
+// the web page, never these doors.
+func (s *DesktopAuthService) nativeClientAllowed(clientID, deploymentID string) bool {
+	if clientID == "" || !s.deploymentAllowed(deploymentID) || !slices.Contains(s.cfg.NativeSignInClients, clientID) {
 		return false
 	}
 	for _, c := range s.cfg.DesktopClients() {

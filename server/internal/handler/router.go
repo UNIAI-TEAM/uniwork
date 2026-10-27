@@ -54,7 +54,10 @@ type Deps struct {
 	// native route unless the app's bundle ids are set (NativeEnabled,
 	// /auth/providers apple), the web's start and link unless the Services ID
 	// and its key are (WebEnabled, apple_web).
-	AppleAuth           *service.AppleAuthService
+	AppleAuth *service.AppleAuthService
+	// NativeSignIn runs the app's own sign-in screen (ADR 0047 §8):
+	// /api/v1/auth/native/*. nil answers 503 native_sign_in_unavailable.
+	NativeSignIn        *service.NativeSignInService
 	Organizations       *service.OrganizationService
 	OrgMembers          *service.OrganizationMemberService
 	People              *service.PeopleService
@@ -353,6 +356,15 @@ func New(d Deps) http.Handler {
 		SignInTicketDiscard:   h.signInTicketDiscard,
 		SignInTicketLink:      h.signInTicketLink,
 		AppleSignIn:           h.appleSignIn,
+		NativePassword:        h.nativePassword,
+		NativeMFA:             h.nativeMFA,
+		NativeGoogle:          h.nativeGoogle,
+		NativeApple:           h.nativeApple,
+		NativeRegister:        h.nativeRegister,
+		NativeTicketCreate:    h.nativeTicketCreate,
+		NativeTicketClaim:     h.nativeTicketClaimEmail,
+		NativeTicketVerify:    h.nativeTicketClaimEmailVerify,
+		NativeTicketLink:      h.nativeTicketLink,
 		DesktopStart:          h.desktopStart,
 		DesktopConsent:        h.desktopConsent,
 		DesktopConsentCommand: h.desktopConsentCommand,
@@ -382,6 +394,8 @@ func New(d Deps) http.Handler {
 		LinkApple:           h.signInMethodLink(service.ProviderApple),
 		UnlinkGoogle:        h.signInMethodUnlink(service.ProviderGoogle),
 		UnlinkApple:         h.signInMethodUnlink(service.ProviderApple),
+		LinkGoogleNative:    h.signInMethodLinkNative(service.ProviderGoogle),
+		LinkAppleNative:     h.signInMethodLinkNative(service.ProviderApple),
 		SetAIConsent:        h.setAIConsent,
 		WithdrawAIConsent:   h.withdrawAIConsent,
 		SetPushPreviews:     h.setPushPreviews,

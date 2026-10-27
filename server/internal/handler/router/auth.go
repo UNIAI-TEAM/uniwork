@@ -30,6 +30,14 @@ import (
 //	POST   /api/v1/auth/sign-in-ticket/claim-email/verify (same-site JSON, credential rate limit)
 //	DELETE /api/v1/auth/sign-in-ticket                    (same-site JSON, credential rate limit)
 //	POST   /api/v1/auth/apple/native     (credential rate limit)
+//	POST   /api/v1/auth/native/password  (same-site JSON, sign-in-password budget)
+//	POST   /api/v1/auth/native/mfa       (same-site JSON, sign-in-mfa budget)
+//	POST   /api/v1/auth/native/google    (same-site JSON, credential rate limit)
+//	POST   /api/v1/auth/native/apple     (same-site JSON, credential rate limit)
+//	POST   /api/v1/auth/native/register  (same-site JSON, credential rate limit)
+//	POST   /api/v1/auth/native/sign-in-ticket/create             (same-site JSON, credential rate limit)
+//	POST   /api/v1/auth/native/sign-in-ticket/claim-email        (same-site JSON, credential rate limit)
+//	POST   /api/v1/auth/native/sign-in-ticket/claim-email/verify (same-site JSON, credential rate limit)
 //
 // Same-site JSON (mw.SameSiteJSON) is the login-CSRF guard of every public
 // route that opens a session or spends a sign-in cookie (ADR 0047 §9). It
@@ -147,6 +155,7 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 		sdi:         sdi.AppleSignInSDI{},
 		sdo:         sdo.DesktopSessionSDO{},
 	})
+	registerNativeAuth(v1, h, credentialLimit, budgets)
 	v1.With(credentialLimit).Get("/auth/desktop/start", h.DesktopStart, apiOp{
 		summary: "Start desktop authorization", description: "Khởi tạo pending attempt PKCE; không phát code hoặc phê duyệt thiết bị. provider (google | apple, tuỳ chọn) được nối vào authorization_url để trang web đưa người chưa đăng nhập thẳng tới nhà cung cấp; giá trị khác → 400 invalid_request.", tags: []string{"auth"}, sdi: sdi.DesktopStartSDI{}, sdo: sdo.DesktopStartSDO{},
 	})
@@ -186,12 +195,93 @@ func registerAppleWeb(v1 api, h Routes, credentialLimit func(http.Handler) http.
 	})
 }
 
+// nativeAnswer is what every door of the app's sign-in screen answers, as
+// the descriptions below say once.
+const nativeAnswer = " Trả NativeSignInSDO: status signed_in (session là phiên thiết bị native, như /auth/desktop/exchange), mfa_required (mfa_token gắn với client và deployment này, gửi ở POST /auth/native/mfa), identity_unmatched hay link_required (ticket 15 phút cho màn chọn, chỉ dùng được cùng nonce gốc, kèm identity). Chỉ nhận client_id trong NATIVE_SIGN_IN_CLIENTS (mặc định uniwork-chat-mobile) với deployment đã cấu hình, không thì 400 invalid_request; desktop và Office đăng nhập qua trang web. Phiên mới ghi audit auth.login_succeeded (via) trong cùng giao dịch; tài khoản đã từng có phiên hay thiết bị nhận mail báo đăng nhập mới. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site. Cache-Control: no-store."
+
+// registerNativeAuth is the app's own sign-in screen (ADR 0047 §8, spec
+// §3.6): public doors under /auth/native that take only the native sign-in
+// clients and answer NativeSignInSDO. They hold to same-site JSON like the
+// browser's session doors (the app sends JSON and no Sec-Fetch-Site), so a
+// form another site posts spends no budget. The password and the second
+// factor share the browser's named budgets (signInBudgets), so no mix of
+// doors buys more guesses; the rest ride the credential budget.
+func registerNativeAuth(v1 api, h Routes, credentialLimit func(http.Handler) http.Handler, budgets signInBudgets) {
+	door := v1.With(mw.SameSiteJSON, credentialLimit)
+	v1.With(mw.SameSiteJSON, budgets.password).Post("/auth/native/password", h.NativePassword, apiOp{
+		summary:     "Sign in with a password (app)",
+		description: "Email và mật khẩu từ màn đăng nhập trong app. Tài khoản bật xác thực hai lớp nhận mfa_required. Sai email hay mật khẩu → 401 invalid_credentials (như nhau). Ngân sách sign-in-password dùng chung với POST /auth/login: 20 lần/phút theo địa chỉ + email, dưới trần 600/phút theo địa chỉ." + nativeAnswer,
+		tags:        []string{"auth"},
+		sdi:         sdi.NativePasswordSDI{},
+		sdo:         sdo.NativeSignInSDO{},
+	})
+	v1.With(mw.SameSiteJSON, budgets.mfa).Post("/auth/native/mfa", h.NativeMFA, apiOp{
+		summary:     "Verify the second factor (app)",
+		description: "Bước hai trong app: mfa_token của app cùng mã TOTP hoặc mã khôi phục. Chỉ nhận token thử thách phát cho đúng client và deployment của body (token của web hay app khác → 401 invalid_credentials, không tính là một lần đoán). Mười lần sai liên tiếp (cộng chung với web và step-up) khoá bước hai 15 phút và gửi mail cho chủ tài khoản: 429 second_factor_locked kèm retry_after. Token mang liên kết Google/Apple đang chờ thì liên kết được ghi cùng giao dịch mở phiên; không ghi được thì vẫn đăng nhập và trả link_skipped. Ngân sách sign-in-mfa dùng chung với POST /auth/mfa/verify: 10 lần/phút theo địa chỉ + tài khoản của token." + nativeAnswer,
+		tags:        []string{"auth"},
+		sdi:         sdi.NativeMFASDI{},
+		sdo:         sdo.NativeSignInSDO{},
+	})
+	door.Post("/auth/native/google", h.NativeGoogle, apiOp{
+		summary:     "Sign in with Google (app)",
+		description: "ID token SDK Google trả cho app: kiểm chữ ký theo khoá Google, aud là client web hay client app, azp bắt buộc là client iOS/Android của app (GOOGLE_NATIVE_CLIENT_IDS; token phát cho web bị từ chối), iat không quá 10 phút, nonce bắt buộc là SHA-256 (hex) của nonce gốc; sai → 401 provider_token_invalid. Khớp tài khoản theo quy tắc chung (ADR 0047): không khớp → identity_unmatched (intent=sign_up thì tạo tài khoản ngay); email đã có tài khoản mà danh tính chưa được tự liên kết → link_required; tài khoản chưa xác minh mà Google sở hữu email → lấy lại tài khoản (reclaimed); lỗi của bộ khớp giữ mã (403 sign_in_email_unverified, 403 sign_in_account_unverified, 409 sign_in_account_conflict). Chưa cấu hình → 503 google_not_configured." + nativeAnswer,
+		tags:        []string{"auth"},
+		sdi:         sdi.NativeGoogleSDI{},
+		sdo:         sdo.NativeSignInSDO{},
+	})
+	door.Post("/auth/native/apple", h.NativeApple, apiOp{
+		summary:     "Sign in with Apple (app)",
+		description: "Identity token sheet Apple trả cho app iPhone: kiểm theo JWKS của Apple (iss, aud là bundle id, exp, nonce là SHA-256 của nonce gốc); sai → 401 provider_token_invalid. Khớp tài khoản theo quy tắc chung như Google native (không tạo tài khoản ngầm: identity_unmatched, link_required, reclaimed; intent=sign_up tạo ngay). Tài khoản mở được giữ token Apple đổi từ authorization_code để thu hồi khi xoá tài khoản; lượt bị từ chối trả token lại Apple trừ khi Apple ID đã mở một tài khoản. Chưa cấu hình (APPLE_SIWA_AUDIENCES) → 503 apple_auth_unavailable. Bản app cũ dùng POST /auth/apple/native." + nativeAnswer,
+		tags:        []string{"auth"},
+		sdi:         sdi.NativeAppleSDI{},
+		sdo:         sdo.NativeSignInSDO{},
+	})
+	door.Post("/auth/native/register", h.NativeRegister, apiOp{
+		summary:     "Register (app)",
+		description: "Đăng ký bằng email từ màn đăng ký trong app: cùng kiểm tra như POST /auth/register (400 invalid_request, 409 conflict khi email đã có tài khoản); trả signed_in trên tài khoản chưa xác minh và gửi mã xác minh email." + nativeAnswer,
+		tags:        []string{"auth"},
+		sdi:         sdi.NativeRegisterSDI{},
+		sdo:         sdo.NativeSignInSDO{},
+	})
+	door.Post("/auth/native/sign-in-ticket/create", h.NativeTicketCreate, apiOp{
+		summary:     "Create an account from the pending sign-in (app)",
+		description: "\"Tạo tài khoản mới\" trên màn chọn của app: như POST /auth/sign-in-ticket/create trên vé của app (chỉ vé unmatched; email vừa có tài khoản hay vé link_required → 409 sign_in_account_conflict; display_name bắt buộc khi vé không có tên; danh tính đã mở một tài khoản thì đăng nhập vào đó). Vé thiếu, hết hạn hay hỏng → 404 sign_in_ticket_missing; nonce, client_id hay deployment_id khác lúc cấp vé, hay vé của web → 400 sign_in_ticket_channel. Audit via ticket." + nativeAnswer,
+		tags:        []string{"auth"},
+		sdi:         sdi.NativeTicketCreateSDI{},
+		sdo:         sdo.NativeSignInSDO{},
+	})
+	door.Post("/auth/native/sign-in-ticket/claim-email", h.NativeTicketClaim, apiOp{
+		summary:     "Mail a code to another address (app)",
+		description: "\"Tôi được mời bằng email khác\" trong app: như POST /auth/sign-in-ticket/claim-email trên vé của app. Luôn 200 {status: sent} dù địa chỉ có tài khoản hay không; một vé gửi tối đa một mã mỗi 60 giây (429 rate_limited kèm retry_after). Vé thiếu hay hỏng → 404 sign_in_ticket_missing; nonce, client hay deployment lệch → 400 sign_in_ticket_channel. Chỉ nhận client_id trong NATIVE_SIGN_IN_CLIENTS. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site.",
+		tags:        []string{"auth"},
+		sdi:         sdi.NativeEmailClaimSDI{},
+		sdo:         sdo.StatusSDO{},
+	})
+	door.Post("/auth/native/sign-in-ticket/claim-email/verify", h.NativeTicketVerify, apiOp{
+		summary:     "Prove the other address (app)",
+		description: "Kiểm mã gửi tới địa chỉ đã nhập, như POST /auth/sign-in-ticket/claim-email/verify trên vé của app: liên kết vào tài khoản đã xác minh của địa chỉ (bật xác thực hai lớp thì mfa_required, liên kết ghi sau bước hai), lấy lại tài khoản chưa xác minh (reclaimed), hay tạo tài khoản với địa chỉ đó. Sai mã → 400 invalid_code; danh tính đã mở tài khoản khác → 409 sign_in_method_taken; tài khoản đã liên kết tài khoản khác của nhà cung cấp → 409 sign_in_method_already_linked. Audit via email_claim." + nativeAnswer,
+		tags:        []string{"auth"},
+		sdi:         sdi.NativeEmailClaimVerifySDI{},
+		sdo:         sdo.NativeSignInSDO{},
+	})
+}
+
 // registerSignInTicketLink is the choice screen's "I already have an
 // account" once the person signed in: a bearer route that also spends the
-// ticket cookie, so it is held to same-site JSON like the public ones.
+// ticket cookie, so it is held to same-site JSON like the public ones; and
+// the app's, which spends the app's ticket from its JSON body.
 //
-//	POST /api/v1/auth/sign-in-ticket/link (bearer, same-site JSON, credential rate limit)
+//	POST /api/v1/auth/sign-in-ticket/link        (bearer, same-site JSON, credential rate limit)
+//	POST /api/v1/auth/native/sign-in-ticket/link (bearer of the app, same-site JSON, credential rate limit)
 func registerSignInTicketLink(authed api, h Routes, credentialLimit func(http.Handler) http.Handler) {
+	authed.With(mw.SameSiteJSON, credentialLimit).Post("/auth/native/sign-in-ticket/link", h.NativeTicketLink, apiOp{
+		summary:     "Link the pending sign-in (app)",
+		description: "\"Tôi đã có tài khoản\" trong app sau khi đăng nhập: liên kết danh tính Google/Apple của vé app vào tài khoản đang đăng nhập (bearer của phiên thiết bị). Vé chỉ mở được cùng nonce gốc, client_id và deployment_id lúc cấp (lệch, hay bearer của trình duyệt → 400 sign_in_ticket_channel; vé thiếu hay hỏng → 404 sign_in_ticket_missing). Phiên thiết bị phải bắt đầu sau khi vé được cấp, cùng client và deployment, hoặc gửi step_up_token của phiên này, không thì 403 proof_required; phiên đã thu hồi → 401 invalid_token. Danh tính đang mở tài khoản khác: tài khoản trống → 409 sign_in_method_movable kèm masked_email (gửi lại move: true), không thì 409 sign_in_method_taken; đã liên kết tài khoản khác của nhà cung cấp → 409 sign_in_method_already_linked; email chưa xác minh → 403 email_unverified. Audit via ticket (hoặc move). Chỉ nhận client_id trong NATIVE_SIGN_IN_CLIENTS.",
+		tags:        []string{"auth"},
+		sdi:         sdi.NativeTicketLinkSDI{},
+		sdo:         sdo.SignInMethodsChangeSDO{},
+		auth:        true,
+	})
 	authed.With(mw.SameSiteJSON, credentialLimit).Post("/auth/sign-in-ticket/link", h.SignInTicketLink, apiOp{
 		summary:     "Link the pending sign-in",
 		description: "Liên kết danh tính Google/Apple của vé (cookie uniwork_sign_in_ticket) vào tài khoản đang đăng nhập (bearer web). Phiên của bearer phải bắt đầu sau khi vé được cấp, hoặc gửi step_up_token của phiên này (POST /me/step-up), không thì 403 proof_required; bearer khác kênh vé → 400 sign_in_ticket_channel; token web cũ hơn lần đổi thông tin đăng nhập → 401 invalid_token. Danh tính đang mở tài khoản khác: tài khoản chưa từng vào tổ chức nào → 409 sign_in_method_movable kèm masked_email (gửi lại move: true để chuyển sang đây, tài khoản trống bị xoá), không thì 409 sign_in_method_taken kèm masked_email; tài khoản đã liên kết tài khoản khác của nhà cung cấp → 409 sign_in_method_already_linked; email tài khoản chưa xác minh → 403 email_unverified. Thành công trả user và phương thức đăng nhập, xoá cookie vé; audit via ticket (hoặc move).",
