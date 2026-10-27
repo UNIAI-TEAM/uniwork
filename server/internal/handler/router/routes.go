@@ -42,6 +42,7 @@ type Routes struct {
 	AdminListPaymentIntents           http.HandlerFunc
 	AdminRefundInvoice                http.HandlerFunc
 	AdminConfirmInvoiceRefund         http.HandlerFunc
+	AdminRevertInvoiceRefund          http.HandlerFunc
 
 	// MCP connector: OAuth discovery and endpoints, and /mcp itself (ADR
 	// 0031), mounted by registerMCP.
@@ -150,6 +151,7 @@ type Routes struct {
 	UploadWorkspaceIcon http.HandlerFunc
 	RemoveWorkspaceIcon http.HandlerFunc
 	GetWorkspaceMe      http.HandlerFunc
+	ListTrash           http.HandlerFunc
 	ListMembers         http.HandlerFunc
 	PatchMember         http.HandlerFunc
 	DeleteMember        http.HandlerFunc
@@ -165,6 +167,9 @@ type Routes struct {
 	UpdateTask            http.HandlerFunc
 	PutTaskSuite          http.HandlerFunc
 	DeleteTask            http.HandlerFunc
+	RestoreTask           http.HandlerFunc
+	PurgeTask             http.HandlerFunc
+	ListTaskTrash         http.HandlerFunc
 	ListComments          http.HandlerFunc
 	CreateComment         http.HandlerFunc
 	QueryTasks            http.HandlerFunc
@@ -281,6 +286,9 @@ type Routes struct {
 	GetProject            http.HandlerFunc
 	PutProject            http.HandlerFunc
 	DeleteProject         http.HandlerFunc
+	RestoreProject        http.HandlerFunc
+	PurgeProject          http.HandlerFunc
+	ListProjectTrash      http.HandlerFunc
 	ListProjectResources  http.HandlerFunc
 	CreateProjectResource http.HandlerFunc
 	PutProjectResource    http.HandlerFunc
@@ -428,6 +436,8 @@ type Routes struct {
 	TransferHost                   http.HandlerFunc
 	ListNotes                      http.HandlerFunc
 	CreateNote                     http.HandlerFunc
+	UpdateNote                     http.HandlerFunc
+	DeleteNote                     http.HandlerFunc
 	MeetingToken                   http.HandlerFunc
 	JoinMeeting                    http.HandlerFunc
 	ListParticipants               http.HandlerFunc

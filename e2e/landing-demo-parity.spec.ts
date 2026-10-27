@@ -40,7 +40,7 @@ for (const sample of [
     await workspace.screenshot({ path: `.impeccable/review/ported-demo-${sample.width}-${sample.theme}.png`, animations: "disabled" });
 
     // The V2 demo must not replace the original landing's pricing or roadmap.
-    await expect(page.locator(".pricing-plan-diagram")).toHaveCount(1);
+    await expect(page.locator(".public-pricing-plan")).toHaveCount(3);
     await expect(page.locator(".roadmap-hero")).toHaveCount(1);
     await expect(page.locator(".work-journey")).toHaveCount(0);
     if (sample.width >= 1100) {

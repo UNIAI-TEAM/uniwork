@@ -49,13 +49,14 @@ type MeetingDTO struct {
 }
 
 type NoteDTO struct {
-	ID          string `json:"id" example:"01J8X4NOTE1P2Q3R4S5T6U7V8"`
-	MeetingID   string `json:"meeting_id" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
-	AuthorID    string `json:"author_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Body        string `json:"body" example:"Quyết định ship vào thứ Sáu."`
-	CreatedAt   string `json:"created_at" example:"2026-08-28T02:15:00Z"`
-	DisplayName string `json:"display_name" example:"Nguyễn Văn An"`
-	AvatarURL   string `json:"avatar_url,omitempty" example:"https://cdn.example.com/avatars/an.png"`
+	ID          string  `json:"id" example:"01J8X4NOTE1P2Q3R4S5T6U7V8"`
+	MeetingID   string  `json:"meeting_id" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+	AuthorID    string  `json:"author_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Body        string  `json:"body" example:"Quyết định ship vào thứ Sáu."`
+	CreatedAt   string  `json:"created_at" example:"2026-08-28T02:15:00Z"`
+	EditedAt    *string `json:"edited_at" description:"Lần sửa gần nhất; null khi chưa từng sửa" example:"2026-08-28T02:20:00Z"`
+	DisplayName string  `json:"display_name" example:"Nguyễn Văn An"`
+	AvatarURL   string  `json:"avatar_url,omitempty" example:"https://cdn.example.com/avatars/an.png"`
 }
 
 type NoteSDO struct {

@@ -77,7 +77,8 @@ func createDefaultSubscription(ctx context.Context, q *db.Queries, orgID string,
 	})
 }
 
-// ListPlans: every active plan with its features. Any signed-in user.
+// ListPlans is the public catalog of active plans and their configured features.
+// It contains no organization subscriptions, overrides, usage or invoices.
 func (s *BillingService) ListPlans(ctx context.Context) ([]PlanView, error) {
 	plans, err := s.q.ListActivePlans(ctx)
 	if err != nil {

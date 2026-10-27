@@ -202,6 +202,15 @@ export async function addNote(meetingId: string, body: string): Promise<void> {
   await request(`/api/v1/meetings/${enc(meetingId)}/notes`, { method: "POST", body: { body } });
 }
 
+// The callers refetch the notes after either, so neither shapes the answer.
+export async function updateNote(meetingId: string, noteId: string, body: string): Promise<void> {
+  await request(`/api/v1/meetings/${enc(meetingId)}/notes/${enc(noteId)}`, { method: "PATCH", body: { body } });
+}
+
+export async function deleteNote(meetingId: string, noteId: string): Promise<void> {
+  await request(`/api/v1/meetings/${enc(meetingId)}/notes/${enc(noteId)}`, { method: "DELETE" });
+}
+
 /**
  * @deprecated Use {@link joinMeeting} instead. POST /token remains for legacy clients.
  * The room token is the one response that cannot degrade: without it there

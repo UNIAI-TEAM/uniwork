@@ -585,6 +585,9 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/admin/invoices/{invoiceID}/confirm-refund": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"reason": "isolation matrix fixture",
 	})},
+	"POST /api/v1/admin/invoices/{invoiceID}/revert-refund": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
+		"reason": "isolation matrix fixture",
+	})},
 	"POST /api/v1/admin/plans": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"code": "iso_test_plan", "name": "ISO", "description": "", "billing_period": "none",
 		"price_currency": "VND", "is_active": false, "sort_order": 99, "reason": "isolation matrix fixture",
@@ -834,6 +837,7 @@ var isoRoutes = map[string]isoSpec{
 	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                            {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
 	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                   {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
 	"PATCH /api/v1/meetings/{meetingID}/motions/{motionID}":                                  {body: isoJSON(map[string]any{"title": "edited"})},
+	"PATCH /api/v1/meetings/{meetingID}/notes/{noteID}":                                      {body: isoJSON(map[string]any{"body": "edited"})},
 	"PATCH /api/v1/meetings/{meetingID}/transcript/{segmentID}":                              {body: isoJSON(map[string]any{"text": "edited"})},
 	// follow-5: the write-control pass runs .../dismiss first, so the owner's
 	// link of the same item answers 409 action_item_not_pending - the route

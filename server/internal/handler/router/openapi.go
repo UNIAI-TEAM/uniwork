@@ -304,6 +304,11 @@ func pathParamSDI(path string) any {
 			MeetingID    string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
 			InvitationID string `path:"invitationID" description:"ULID lời mời" example:"01J8X4INVN1P2Q3R4S5T6U"`
 		}{}
+	case "meetingID,noteID":
+		return struct {
+			MeetingID string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+			NoteID    string `path:"noteID" description:"ULID ghi chú" example:"01J8X4NOTE1P2Q3R4S5T6U7V8"`
+		}{}
 	case "meetingID,motionID":
 		return struct {
 			MeetingID string `path:"meetingID" description:"ULID cuộc họp" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`

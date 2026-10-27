@@ -71,7 +71,7 @@ export function useAiMessages(conversationId: string | null) {
 export function useAskUni(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: AskUniInput) => api.askUni(wsId, body),
+    mutationFn: ({ signal, ...body }: AskUniInput & { signal?: AbortSignal }) => api.askUni(wsId, body, { signal }),
     onSuccess: (res, vars) => {
       // The conversation keeps the focus it was asked with (the server does not
       // store it) even when the screen that asked is gone: a hook callback runs

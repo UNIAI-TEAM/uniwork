@@ -20,9 +20,18 @@ import { useMeetingVotePrompt } from "./use-meeting-vote-prompt";
  * steps (pick, then submit); afterwards it confirms in place and goes away by
  * itself. Hidden by hand (button or Escape), the ballot stays in
  * the Votes tab. It sits outside the stage's `dark` wrapper, so it carries
- * `dark` itself, like the join-request notice.
+ * `dark` itself, like the join-request notice. While the Votes tab is on
+ * screen (`hidden`) the card stands down and only the announcer stays.
  */
-export function MeetingVotePrompt({ meetingId, onOpenTab }: { meetingId: string; onOpenTab: () => void }) {
+export function MeetingVotePrompt({
+  meetingId,
+  onOpenTab,
+  hidden = false,
+}: {
+  meetingId: string;
+  onOpenTab: () => void;
+  hidden?: boolean;
+}) {
   const { t } = useTranslation();
   const titleId = useId();
   const { motion, recorded, dismiss, markRecorded } = useMeetingVotePrompt(meetingId);
@@ -31,7 +40,7 @@ export function MeetingVotePrompt({ meetingId, onOpenTab }: { meetingId: string;
   const focusInside = useRef(false);
   const dismissRef = useRef(dismiss);
   dismissRef.current = dismiss;
-  const shown = motion !== null;
+  const shown = motion !== null && !hidden;
 
   // Escape from anywhere inside the card hides it, as for any popover.
   useEffect(() => {
@@ -69,12 +78,12 @@ export function MeetingVotePrompt({ meetingId, onOpenTab }: { meetingId: string;
       ? null
       : createPortal(
           <p role="status" className="sr-only">
-            {motion && !recorded ? t("meetings.governance.votePromptAnnounce", { title: motion.title }) : ""}
+            {shown && !recorded ? t("meetings.governance.votePromptAnnounce", { title: motion.title }) : ""}
           </p>,
           document.body,
         );
 
-  if (!motion) return announcer;
+  if (!motion || hidden) return announcer;
 
   const onBlur = (event: FocusEvent<HTMLElement>) => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) focusInside.current = false;

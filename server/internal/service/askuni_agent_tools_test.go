@@ -19,7 +19,7 @@ import (
 
 var agentToolOrder = []string{
 	"search", "list_tasks", "get_task", "list_meetings", "get_meeting", "get_meeting_transcript", "list_projects",
-	"get_project", "get_document", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
+	"get_project", "get_document", "list_documents", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
 }
 
 // newAgentWorld is the MCP tool world with Ask UNI's read tools wired to it,
@@ -471,7 +471,7 @@ func TestAskAgentListsSayWhenCut(t *testing.T) {
 // Without SetReadTools a tool that reads through the connector is a server
 // fault, never a panic and never an answer the model could act on.
 func TestAskAgentToolsNeedTheReadPath(t *testing.T) {
-	needs := []string{"list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects", "get_project", "get_document", "list_members"}
+	needs := []string{"list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects", "get_project", "get_document", "list_documents", "list_members"}
 	for _, tool := range (&AskUNIService{}).agentTools() {
 		if !slices.Contains(needs, tool.Name) {
 			continue
@@ -582,5 +582,64 @@ func TestCitationsCarryTheObjectID(t *testing.T) {
 	book.render([]agentItem{moreNote("more")}, 100000)
 	if len(book.byID) != 1 {
 		t.Errorf("a note became a source: %+v", book.byID)
+	}
+}
+
+// list_documents browses one folder level of the asked workspace; a folder of
+// workspace two lists nothing, like a parent nobody has.
+func TestAgentListDocuments(t *testing.T) {
+	x, s, tc := newAgentWorld(t)
+	ctx := context.Background()
+	docs, _ := x.withDocs(t, "Trang gốc", mcpTestPage)
+	folder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Báo giá"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{ParentID: folder.Document.ID, Title: "Báo giá Minh An", Content: json.RawMessage(mcpTestPage)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := docs.CreateFileDocument(ctx, Human(x.ua.ID), x.w.ID, CreateFileDocumentInput{ParentID: folder.Document.ID, Title: "don-hang-10.xlsx", Filename: "don-hang-10.xlsx", Body: bytes.NewReader(officeFile(t, officeXLSXParts))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := func(items []agentItem) []string {
+		var out []string
+		for _, it := range items {
+			out = append(out, it.ID)
+		}
+		sort.Strings(out)
+		return out
+	}
+
+	top := runAgentTool(t, s, tc, "list_documents", `{"parent_id":"","cursor":""}`)
+	if !slices.Contains(ids(top), folder.Document.ID) {
+		t.Errorf("top level = %+v; want the folder", top)
+	}
+	under := runAgentTool(t, s, tc, "list_documents", `{"parent_id":"`+folder.Document.ID+`","cursor":""}`)
+	want := []string{page.Document.ID, file.Document.ID}
+	sort.Strings(want)
+	if !slices.Equal(ids(under), want) {
+		t.Fatalf("under the folder = %+v; want %v", under, want)
+	}
+	for _, it := range under {
+		if it.Kind != "document" || it.Key == "" || it.Key != it.Href || !strings.Contains(it.Text, "ID: "+it.ID) {
+			t.Errorf("row = %+v", it)
+		}
+	}
+
+	v2, err := x.tools.ws.CreateInOrg(ctx, x.ua.ID, x.w.OrganizationID, "Beta", "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder2, err := docs.CreatePage(ctx, Human(x.ua.ID), v2.Workspace.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục mật hai"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := docs.CreatePage(ctx, Human(x.ua.ID), v2.Workspace.ID, CreatePageInput{ParentID: folder2.Document.ID, Title: "Trang mật hai", Content: json.RawMessage(mcpTestPage)}); err != nil {
+		t.Fatal(err)
+	}
+	if items := runAgentTool(t, s, tc, "list_documents", `{"parent_id":"`+folder2.Document.ID+`","cursor":""}`); len(items) != 0 {
+		t.Errorf("a folder of workspace two listed %+v", items)
 	}
 }

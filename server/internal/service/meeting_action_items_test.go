@@ -446,6 +446,45 @@ func TestActionItemLifecycle(t *testing.T) {
 	}
 }
 
+// A converted item whose task went to the trash is pending again, the way a
+// deleted task made it before the trash (UNI-2171): the list says so, and
+// convert and dismiss act on it instead of answering action_item_not_pending.
+func TestActionItemOfATrashedTaskIsPendingAgain(t *testing.T) {
+	s, ua, _, _, m := summaryTasksFixture(t)
+	ctx := context.Background()
+	seedSummary(t, s, m, ua.ID, ai.ActionItem{Title: "Gửi báo cáo"}, ai.ActionItem{Title: "Đặt phòng"})
+	items := itemsByTitle(t, s, ua.ID, m)
+	report, room := items["Gửi báo cáo"].Item.ID, items["Đặt phòng"].Item.ID
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: report}, {ActionItemID: room}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range links {
+		if _, err := s.Tasks.Trash(ctx, Human(ua.ID), l.TaskID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for title, it := range itemsByTitle(t, s, ua.ID, m) {
+		if it.Status != ActionItemPending || it.Task != nil {
+			t.Fatalf("%s with its task in the trash = %s %+v, want pending without a task", title, it.Status, it.Task)
+		}
+	}
+	again, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: report}})
+	if err != nil {
+		t.Fatalf("convert an item whose task is in the trash: %v", err)
+	}
+	if err := s.DismissActionItem(ctx, ua.ID, m.ID, room, ""); err != nil {
+		t.Fatalf("dismiss an item whose task is in the trash: %v", err)
+	}
+	got := itemsByTitle(t, s, ua.ID, m)
+	if it := got["Gửi báo cáo"]; it.Status != ActionItemConverted || it.Item.TaskID.String != again[0].TaskID {
+		t.Fatalf("reconverted = %s task %s, want converted to %s", it.Status, it.Item.TaskID.String, again[0].TaskID)
+	}
+	if it := got["Đặt phòng"]; it.Status != ActionItemDismissed {
+		t.Fatalf("dismissed = %s", it.Status)
+	}
+}
+
 func TestActionItemsDescribeTheirTasks(t *testing.T) {
 	s, ua, ub, _, m := summaryTasksFixture(t)
 	ctx := context.Background()

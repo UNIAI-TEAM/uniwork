@@ -1,5 +1,6 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { ApiError } from "@uniwork/core/api";
 import { setSessionUser, resetAuthStoreForTests, useAuthStore } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -206,6 +207,36 @@ describe("TaskDetailSuitePage", () => {
         "/api/v1/tasks/t1/parent",
         expect.objectContaining({ method: "PUT", body: { parent_task_id: "t2" } }),
       ),
+    );
+  });
+
+  it("xóa task chuyển vào thùng rác và Hoàn tác khôi phục đúng lô vừa xóa", async () => {
+    vi.mocked(toast.success).mockReset();
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      const p = String(path);
+      if (p === "/api/v1/tasks/t1" && init?.method === "DELETE") {
+        return Promise.resolve({ trash_batch_id: "b1", ids: ["t1", "t9"] });
+      }
+      if (p === "/api/v1/tasks/t1") return Promise.resolve({ task });
+      return Promise.resolve({});
+    });
+    render(shell(<TaskDetailSuitePage workspaceId="w1" taskId="t1" />));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Thao tác công việc" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Xóa" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Chuyển vào thùng rác?")).toBeInTheDocument();
+    expect(within(dialog).getByText("Có thể khôi phục trong 30 ngày.")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển vào thùng rác" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+    const [message, options] = vi.mocked(toast.success).mock.calls[0]!;
+    expect(message).toBe("Đã chuyển vào thùng rác");
+    const action = (options as { action: { label: string; onClick: () => void } }).action;
+    expect(action.label).toBe("Hoàn tác");
+    action.onClick();
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t1/restore", { method: "POST" }),
     );
   });
 

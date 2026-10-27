@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -23,20 +22,11 @@ func (s *BillingService) paymentIntentForInvoice(ctx context.Context, q *db.Quer
 	if q == nil {
 		q = s.q
 	}
-	if in.PaymentIntentID.Valid && strings.TrimSpace(in.PaymentIntentID.String) != "" {
-		intent, err := q.GetBillingPaymentIntentForInvoice(ctx, db.GetBillingPaymentIntentForInvoiceParams{
-			ID: in.PaymentIntentID.String, OrganizationID: in.OrganizationID,
-		})
-		if err == nil {
-			return intent, nil
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return db.BillingPaymentIntent{}, err
-		}
+	if !in.PaymentIntentID.Valid || strings.TrimSpace(in.PaymentIntentID.String) == "" {
+		return db.BillingPaymentIntent{}, pgx.ErrNoRows
 	}
-	return q.GetCompletedPaymentIntentForInvoice(ctx, db.GetCompletedPaymentIntentForInvoiceParams{
-		OrganizationID: in.OrganizationID, SubscriptionID: in.SubscriptionID,
-		Provider: in.Provider, Amount: in.AmountPaid,
+	return q.GetBillingPaymentIntentForInvoice(ctx, db.GetBillingPaymentIntentForInvoiceParams{
+		ID: in.PaymentIntentID.String, OrganizationID: in.OrganizationID,
 	})
 }
 

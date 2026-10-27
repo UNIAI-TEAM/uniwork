@@ -31,7 +31,7 @@ func TestEverySQLStartsWithTenant(t *testing.T) {
 	}
 	for name, build := range builders {
 		sql, args := build()
-		if !strings.Contains(sql, "t.organization_id = $1 AND t.workspace_id = $2") {
+		if !strings.Contains(sql, "t.organization_id = $1 AND t.workspace_id = $2 AND t.trashed_at IS NULL") {
 			t.Errorf("%s: missing tenant clause: %s", name, sql)
 		}
 		if len(args) < 2 || args[0] != "o" || args[1] != "w" {
@@ -42,7 +42,7 @@ func TestEverySQLStartsWithTenant(t *testing.T) {
 				t.Errorf("%s: user value %q leaked into SQL", name, needle)
 			}
 		}
-		if strings.Count(sql, "tasks p ") > 0 && !strings.Contains(sql, "p.organization_id = $1 AND p.workspace_id = $2") {
+		if strings.Count(sql, "tasks p ") > 0 && !strings.Contains(sql, "p.organization_id = $1 AND p.workspace_id = $2 AND p.trashed_at IS NULL") {
 			t.Errorf("%s: correlated parent lookup without tenant clause", name)
 		}
 	}

@@ -4,6 +4,10 @@
 # screen shows, and it is still there a few seconds later (a crash on boot or
 # just after it fails here). No server and no account: the build points at
 # placeholder URLs, so nothing past the sign-in screen is in scope.
+#
+# Wait on testIDs first: the login hero is a fixed 440 pt stage, so on a short
+# emulator the "Sign in" button can sit below the fold until we scroll (the
+# a11y-large-text-dark flow already does). Text asserts still prove i18n loaded.
 appId: com.uniworkos.chat
 name: Cold start reaches sign-in
 tags:
@@ -12,9 +16,25 @@ tags:
 - launchApp:
     clearState: true
 - extendedWaitUntil:
-    visible: "Sign in|Đăng nhập"
+    visible:
+      id: login-screen
     timeout: 60000
+- scrollUntilVisible:
+    element:
+      id: login-button
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: login-button
+- assertVisible: "Sign in|Đăng nhập"
+- scrollUntilVisible:
+    element:
+      text: "Sign in with your UniWork account in the browser|Đăng nhập bằng tài khoản UniWork trong trình duyệt"
+    direction: DOWN
+    visibilityPercentage: 50
+    timeout: 10000
 - assertVisible: "Sign in with your UniWork account in the browser|Đăng nhập bằng tài khoản UniWork trong trình duyệt"
 - waitForAnimationToEnd:
     timeout: 5000
-- assertVisible: "Sign in|Đăng nhập"
+- assertVisible:
+    id: login-button

@@ -1,6 +1,9 @@
 package handler
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 // The owner reads the default subscription with usage, cannot buy a paid
 // plan without a provider, and gets a stable 409 on a stale row_version.
@@ -12,6 +15,20 @@ func TestBillingEndpoints(t *testing.T) {
 		t.Fatalf("list plans: %d %v", res.StatusCode, out)
 	}
 	defaultPlan := out["plans"].([]any)[0].(map[string]any)
+	res, publicCatalog := doJSON(t, w.srv, "GET", "/api/v1/plans", "", nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("anonymous catalog: %d %v", res.StatusCode, publicCatalog)
+	}
+	if res.Header.Get("Cache-Control") != "no-store" {
+		t.Fatalf("catalog must not cache outdated prices: %q", res.Header.Get("Cache-Control"))
+	}
+	if !reflect.DeepEqual(publicCatalog, out) {
+		t.Fatalf("public catalog differs from billing catalog: %v", publicCatalog)
+	}
+	res, _ = doJSON(t, w.srv, "GET", "/api/v1/orgs/"+w.orgID+"/billing", "", nil)
+	if res.StatusCode != 401 {
+		t.Fatalf("anonymous subscription: %d", res.StatusCode)
+	}
 
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/orgs/"+w.orgID+"/billing", w.token, nil)
 	if res.StatusCode != 200 {

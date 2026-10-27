@@ -190,6 +190,10 @@
   --success-solid: #16824b;
   --warning-soft: #fff6d6;
   --warning-soft-foreground: #8a4f04;
+  /* Count badge for "waiting on you" (people at the door, an unvoted motion):
+     the same amber pill in both themes, 8.8:1. */
+  --badge-attention: #fbbf24;
+  --badge-attention-foreground: #3b2300;
   --warning-solid: #a86400;
   --info-soft: #e6f0ff;
   --info-soft-foreground: #0a66bc;
@@ -496,6 +500,8 @@
   --success-solid: #16824b;
   --warning-soft: #3a2f10;
   --warning-soft-foreground: #fbbf24;
+  --badge-attention: #fbbf24;
+  --badge-attention-foreground: #3b2300;
   --warning-solid: #a86400;
   --info-soft: #182640;
   --info-soft-foreground: #5db4ff;
@@ -775,6 +781,8 @@ html.dark[data-accent] {
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
   --color-warning-soft-foreground: var(--warning-soft-foreground);
+  --color-badge-attention: var(--badge-attention);
+  --color-badge-attention-foreground: var(--badge-attention-foreground);
   --color-warning-solid: var(--warning-solid);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);

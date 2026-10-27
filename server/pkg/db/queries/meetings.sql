@@ -166,9 +166,22 @@ RETURNING *;
 
 -- name: ListMeetingNotes :many
 -- tenant: parent meeting_id
-SELECT n.id, n.meeting_id, n.author_id, n.body, n.created_at, u.display_name, u.avatar_url, u.avatar_file_id
+SELECT n.id, n.meeting_id, n.author_id, n.body, n.created_at, n.edited_at, u.display_name, u.avatar_url, u.avatar_file_id
 FROM meeting_notes n JOIN users u ON u.id = n.author_id
 WHERE n.meeting_id = $1 ORDER BY n.created_at;
+
+-- name: GetMeetingNote :one
+SELECT * FROM meeting_notes
+WHERE organization_id = sqlc.arg(organization_id) AND meeting_id = sqlc.arg(meeting_id) AND id = sqlc.arg(id);
+
+-- name: UpdateMeetingNoteBody :one
+UPDATE meeting_notes SET body = sqlc.arg(body), edited_at = now()
+WHERE organization_id = sqlc.arg(organization_id) AND meeting_id = sqlc.arg(meeting_id) AND id = sqlc.arg(id)
+RETURNING *;
+
+-- name: DeleteMeetingNote :execrows
+DELETE FROM meeting_notes
+WHERE organization_id = sqlc.arg(organization_id) AND meeting_id = sqlc.arg(meeting_id) AND id = sqlc.arg(id);
 
 -- name: MeetingWorkspaceStatistics :one
 SELECT

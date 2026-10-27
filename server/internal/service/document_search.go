@@ -53,11 +53,14 @@ const (
 //     the caller can view, keyset shelved_at DESC, id DESC, filters allowed.
 //     Shelved with Archived is 400 invalid_filter.
 type ListDocumentsInput struct {
-	ParentID    *string
-	Query       string
-	Kind        string
-	Match       string
-	Archived    bool
+	ParentID *string
+	Query    string
+	Kind     string
+	Match    string
+	Archived bool
+	// ArchivedBy narrows the trash view to what any of these users archived;
+	// empty is no filter, and it means nothing without Archived.
+	ArchivedBy  []string
 	Shelved     bool
 	UpdatedBy   string
 	UpdatedFrom time.Time
@@ -86,6 +89,10 @@ type ListDocumentsInput struct {
 	// favorites narrows the flat list to the caller's own stars in the
 	// workspace (ListFavoriteDocuments sets it; no handler input reaches it).
 	favorites bool
+	// withPaths resolves Path on every row, not only on a search: the shared
+	// trash names each document's folders (TrashService sets it; no handler
+	// input reaches it).
+	withPaths bool
 	// WithEditors resolves updated_by_user on every row (UNI-2045 SV-6); the
 	// HTTP list routes set it, internal callers (MCP, Ask UNI) skip the lookup.
 	WithEditors bool
@@ -629,7 +636,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
 			AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelEdit),
 			ShareWorkspaces: scope.shareWorkspaces,
-			Kind:            kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Kind:            kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, ArchivedBy: in.ArchivedBy, UpdatedFrom: from, UpdatedTo: to,
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
 			FormatMimes: files.DocumentFormatMimes(),
 			TypePage:    filters.typePage, TypeFormats: filters.typeFormats, TypeMimes: filters.typeMimes, Access: nullText(filters.access),
@@ -788,7 +795,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			return DocumentListPage{}, err
 		}
 	}
-	if query.Valid {
+	if query.Valid || in.withPaths {
 		if err := s.attachListPaths(ctx, scope, workspaceID, agent, out.Items); err != nil {
 			return DocumentListPage{}, err
 		}

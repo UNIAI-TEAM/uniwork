@@ -51,6 +51,8 @@ export const MeetingNoteSchema = z.object({
   display_name: z.string().optional(),
   avatar_url: z.string().nullish(),
   created_at: z.string().nullish(),
+  /** Last edit (UNI-2217); null when never edited. A drifted value reads as never edited. */
+  edited_at: z.string().nullish().catch(undefined),
 });
 export type MeetingNote = z.infer<typeof MeetingNoteSchema>;
 

@@ -78,8 +78,8 @@ test("decision sections use prominent semantic icon anchors", async ({ page }) =
   await expect(page.locator("#security .security-mechanism-icon")).toHaveCount(3);
   await page.locator("#work-products [data-slot=accordion-trigger]").click();
   await expect(page.locator("#work-products .work-product-icon")).toHaveCount(4);
-  await expect(page.locator("#bang-gia .pricing-plan-mark")).toHaveCount(1);
-  await expect(page.locator("#bang-gia .pricing-check")).toHaveCount(8);
+  await expect(page.locator("#bang-gia .public-pricing-plan")).toHaveCount(3);
+  await expect(page.locator("#bang-gia .public-pricing-comparison")).toHaveCount(0);
   await expect(page.locator(".landing-faq .faq-heading-mark")).toHaveCount(1);
   await expect(page.locator(".landing-faq .faq-question-icon:visible")).toHaveCount(5);
   // Plated anchors carry a 44px footprint. Security deliberately has no plate
@@ -87,7 +87,7 @@ test("decision sections use prominent semantic icon anchors", async ({ page }) =
   // glyph and its trigger are measured separately.
   for (const selector of [
     "#work-products .work-product-icon",
-    "#bang-gia .pricing-plan-mark",
+    "#bang-gia .public-pricing-action",
     ".landing-faq .faq-question-icon",
   ]) {
     const box = await page.locator(selector).first().boundingBox();

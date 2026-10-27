@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { Ellipsis } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useDeleteTask, usePutTask, useUpdateTask } from "@uniwork/core/tasks";
+import { useDeleteTask, usePutTask, useRestoreTask, useUpdateTask } from "@uniwork/core/tasks";
 import type { Task } from "@uniwork/core/types";
 import {
   AlertDialog,
@@ -28,6 +28,7 @@ import { useAskUniPageContext } from "../../../ai/ask-uni-page-context";
 import { PinToggleButton } from "../../../common/pin-toggle-button";
 import { useNavigation } from "../../../navigation";
 import { toastApiError } from "../../../toast-api-error";
+import { useToastMovedToTrash } from "../../../trash/use-toast-moved-to-trash";
 import {
   DROPDOWN_PARTS,
   RowActionItems,
@@ -52,6 +53,8 @@ export function TaskDetailHeaderActions({
   useAskUniPageContext({ kind: "task", id: task.id, label: task.title });
   const navigation = useNavigation();
   const remove = useDeleteTask(workspaceId);
+  const restore = useRestoreTask(workspaceId);
+  const toastMovedToTrash = useToastMovedToTrash();
   const put = usePutTask(workspaceId);
   const update = useUpdateTask(workspaceId);
   const actionsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -70,9 +73,10 @@ export function TaskDetailHeaderActions({
 
   const confirmDelete = async () => {
     try {
-      await remove.mutateAsync(task.id);
+      const result = await remove.mutateAsync(task.id);
       setDeleteOpen(false);
-      toast.success(t("tasks.row_actions.delete_success"));
+      // Restoring any id of the batch brings the whole batch back.
+      toastMovedToTrash(() => restore.mutateAsync(result.ids[0] ?? task.id));
       if (onDeleted) onDeleted();
       else navigation.push(tasksHref);
     } catch (err) {
@@ -170,7 +174,7 @@ export function TaskDetailHeaderActions({
           <AlertDialogHeader>
             <AlertDialogTitle>{t("tasks.row_actions.delete_dialog_title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("tasks.row_actions.delete_dialog_desc", { title: task.title })}
+              {t("tasks.row_actions.delete_dialog_desc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
