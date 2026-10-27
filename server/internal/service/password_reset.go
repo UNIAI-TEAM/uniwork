@@ -25,8 +25,8 @@ const (
 )
 
 // PasswordResetService issues one-time reset links and applies them. Request
-// never reveals whether an address exists: unknown, Google-only and
-// rate-limited requests all return nil without mail.
+// never reveals whether an address exists: unknown and rate-limited requests
+// return nil without mail, like the ones that mail.
 type PasswordResetService struct {
 	pool   *pgxpool.Pool
 	q      *db.Queries
@@ -40,10 +40,14 @@ func NewPasswordResetService(pool *pgxpool.Pool, q *db.Queries, a *AuthService, 
 	return &PasswordResetService{pool: pool, q: q, auth: a, render: r, out: out, now: time.Now}
 }
 
+// Request mails a one-time link to the account at email. An account without
+// a password (it signs in with Google or Apple, ADR 0047 spec §3.7) gets the
+// set-a-password variant: its provider sign-ins as buttons, and the same
+// link to set a first password, which Reset audits as auth.password_set.
 func (s *PasswordResetService) Request(ctx context.Context, email string) error {
 	email = strings.ToLower(strings.TrimSpace(email))
 	u, err := s.q.GetUserByEmail(ctx, email)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !u.PasswordHash.Valid) {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
@@ -68,9 +72,19 @@ func (s *PasswordResetService) Request(ctx context.Context, email string) error 
 		return nil
 	}
 	token := util.NewID() + util.NewID()
-	msg, err := s.render.PasswordReset(u.Email, u.Locale, u.ID, mail.PasswordResetData{
+	data := mail.PasswordResetData{
 		ResetURL: s.render.AppURL + "/reset-password?token=" + token, Expires: passwordResetTTL,
-	})
+		SetPassword: !u.PasswordHash.Valid,
+	}
+	if data.SetPassword {
+		if u.GoogleID.Valid {
+			data.SignInWith = append(data.SignInWith, mail.SignInMethodGoogle)
+		}
+		if u.AppleID.Valid {
+			data.SignInWith = append(data.SignInWith, mail.SignInMethodApple)
+		}
+	}
+	msg, err := s.render.PasswordReset(u.Email, u.Locale, u.ID, data)
 	if err != nil {
 		return err
 	}
@@ -113,7 +127,9 @@ func (s *PasswordResetService) Request(ctx context.Context, email string) error 
 // Reset sets the password, burns the token, revokes every refresh token and
 // every MCP grant (Ruling 49: an AI app connected by whoever held the old
 // password must not outlive it) and returns a fresh session so the user lands
-// in the app.
+// in the app. On an account that had no password the link sets its first
+// one: auth.password_set instead of auth.password_changed, both via
+// reset_token.
 //
 // On an account that never proved its address the link is the first proof
 // of the mailbox, so the reset takes the account back (ADR 0047 §2, spec
@@ -158,8 +174,9 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	if rows == 0 {
 		return Session{}, ErrInvalidToken
 	}
+	action := passwordAuditAction(locked)
 	if !locked.EmailVerifiedAt.Valid {
-		return s.resetReclaim(ctx, tx, qtx, t.UserID, hash)
+		return s.resetReclaim(ctx, tx, qtx, t.UserID, hash, action)
 	}
 	u, err := qtx.SetUserPassword(ctx, db.SetUserPasswordParams{ID: t.UserID, PasswordHash: pgtype.Text{String: hash, Valid: true}})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -183,7 +200,7 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: audit.NoOrganization,
 		Actor:          audit.User(t.UserID),
-		Action:         audit.ActionAuthPasswordChanged,
+		Action:         action,
 		ResourceType:   "user", ResourceID: t.UserID,
 		Metadata: map[string]any{"via": "reset_token"},
 	}); err != nil {
@@ -208,10 +225,10 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 // resetReclaim is Reset on an account that never proved its address, in
 // Reset's transaction with the token already burnt: reclaimMailbox (which
 // also expires every other reset link), the new password, the audit row
-// (via reset_token, reclaimed) and the owner's notice, then a session
-// without a second factor: reclaimMailbox cleared the one whoever
+// (action, via reset_token, reclaimed) and the owner's notice, then a
+// session without a second factor: reclaimMailbox cleared the one whoever
 // registered set up.
-func (s *PasswordResetService) resetReclaim(ctx context.Context, tx pgx.Tx, qtx *db.Queries, userID, hash string) (Session, error) {
+func (s *PasswordResetService) resetReclaim(ctx context.Context, tx pgx.Tx, qtx *db.Queries, userID, hash, action string) (Session, error) {
 	back, err := reclaimMailbox(ctx, qtx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, ErrInvalidToken
@@ -226,7 +243,7 @@ func (s *PasswordResetService) resetReclaim(ctx context.Context, tx pgx.Tx, qtx 
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: audit.NoOrganization,
 		Actor:          audit.User(userID),
-		Action:         audit.ActionAuthPasswordChanged,
+		Action:         action,
 		ResourceType:   "user", ResourceID: userID,
 		Metadata: map[string]any{"via": "reset_token", "reclaimed": true},
 	}); err != nil {
@@ -252,4 +269,13 @@ func (s *PasswordResetService) resetReclaim(ctx context.Context, tx pgx.Tx, qtx 
 	}
 	sess.Reclaimed = true
 	return sess, nil
+}
+
+// passwordAuditAction is the audit action of a password write on u as it was
+// before: its first password is set, any later one changed.
+func passwordAuditAction(u db.User) string {
+	if u.PasswordHash.Valid {
+		return audit.ActionAuthPasswordChanged
+	}
+	return audit.ActionAuthPasswordSet
 }

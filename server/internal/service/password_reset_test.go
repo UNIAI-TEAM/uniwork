@@ -71,18 +71,58 @@ func TestPasswordResetFlow(t *testing.T) {
 	}
 }
 
-func TestPasswordResetIgnoresGoogleOnly(t *testing.T) {
+// An account that signs in only with a provider is not left out of forgot
+// password (ADR 0047, spec §3.7): the answer is the same as for any address,
+// and the mail it gets says the account signs in with Google, offers that
+// sign-in, and carries the same one-time link to set a first password, which
+// is audited as auth.password_set, not a change.
+func TestForgotPasswordOnAPasswordlessAccountOffersToSetOne(t *testing.T) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	out := &fakeOutbox{}
 	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
-	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "x"}, out)
+	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "http://localhost:3000"}, out)
 	ctx := context.Background()
-	if _, err := q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{ID: "g1", Email: "g@example.com", DisplayName: "G", GoogleID: pgtype.Text{String: "sub", Valid: true}, EmailVerified: true, Locale: "vi"}); err != nil {
+	u, err := q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{ID: "g1", Email: "g@example.com", DisplayName: "G", GoogleID: pgtype.Text{String: "sub", Valid: true}, EmailVerified: true, Locale: "vi"})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Request(ctx, "g@example.com"); err != nil || len(out.queued) != 0 {
+	if err := s.Request(ctx, "G@example.com"); err != nil || len(out.queued) != 1 {
 		t.Fatalf("google-only: %v %d", err, len(out.queued))
+	}
+	m := out.queued[0]
+	if m.Kind != mail.KindPasswordReset || m.UserID != u.ID || m.Subject != "Đặt mật khẩu UniWork" {
+		t.Fatalf("envelope %+v", m)
+	}
+	for _, want := range []string{"đăng nhập bằng Google", "http://localhost:3000/login?provider=google", "/reset-password?token="} {
+		if !strings.Contains(m.Text, want) {
+			t.Fatalf("mail misses %q: %s", want, m.Text)
+		}
+	}
+	if strings.Contains(m.Text, "provider=apple") {
+		t.Fatal("offers a provider the account does not have")
+	}
+	tok := resetToken.FindStringSubmatch(m.Text)[1]
+	sess, err := s.Reset(ctx, tok, "first-password-1")
+	if err != nil || sess.AccessToken == "" {
+		t.Fatalf("set: %v", err)
+	}
+	if _, err := as.Login(ctx, "g@example.com", "first-password-1"); err != nil {
+		t.Fatalf("the password set by the link: %v", err)
+	}
+	if got, _ := q.GetUserByID(ctx, u.ID); !got.GoogleID.Valid || !got.PasswordChangedAt.Valid {
+		t.Fatalf("the link must add a password and keep Google: %+v", got)
+	}
+	count := func(action string) int {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = $1 AND actor_id = $2
+			AND metadata::jsonb->>'via' = 'reset_token'`, action, u.ID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if set, changed := count(audit.ActionAuthPasswordSet), count(audit.ActionAuthPasswordChanged); set != 1 || changed != 0 {
+		t.Fatalf("audit: password_set %d, password_changed %d", set, changed)
 	}
 }
 
