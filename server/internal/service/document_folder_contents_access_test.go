@@ -236,12 +236,33 @@ func TestFolderContentsAccessModesAndSubtreeScope(t *testing.T) {
 		t.Fatalf("folder contents_access_updated audit row missing: %v", err)
 	}
 
-	// Verify only ONE document.shared outbox event for outsider carry notify_user_id across the batch (for page2 & subPage1 where outsider rose from none -> view).
+	// Verify per-share document.shared events suppress notify_user_id for via=folder_contents,
+	// while document_access_batches.notified_levels records outsider (count=2, level="view")
+	// and document_access_batch.completed is emitted for the sync batch (F5).
 	var notifyEvents int
 	if err := f.pool.QueryRow(f.ctx,
 		`SELECT count(*) FROM outbox_events WHERE topic = 'document.shared' AND payload::jsonb->>'notify_user_id' = $1`,
-		tn.outsider.ID).Scan(&notifyEvents); err != nil || notifyEvents != 1 {
-		t.Fatalf("outsider notify_user_id event count = %d (err=%v), want 1", notifyEvents, err)
+		tn.outsider.ID).Scan(&notifyEvents); err != nil || notifyEvents != 0 {
+		t.Fatalf("outsider per-share notify_user_id event count = %d (err=%v), want 0 (suppressed for folder_contents)", notifyEvents, err)
+	}
+	var syncNotifiedRaw []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT notified_levels FROM document_access_batches WHERE id = $1`,
+		syncMerge.BatchID).Scan(&syncNotifiedRaw); err != nil {
+		t.Fatalf("read sync batch notified_levels: %v", err)
+	}
+	var syncNotified map[string]FolderContentsRecipientNotice
+	if err := json.Unmarshal(syncNotifiedRaw, &syncNotified); err != nil {
+		t.Fatalf("unmarshal sync notified_levels: %v", err)
+	}
+	if got := syncNotified[tn.outsider.ID]; got.Level != string(DocumentLevelView) || got.Count != 2 {
+		t.Fatalf("sync notified_levels[outsider] = %+v, want level=view count=2 (subPage1 + page2)", got)
+	}
+	var syncCompletedEvents int
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT count(*) FROM outbox_events WHERE topic = 'document_access_batch.completed' AND payload::jsonb->>'batch_id' = $1`,
+		syncMerge.BatchID).Scan(&syncCompletedEvents); err != nil || syncCompletedEvents != 1 {
+		t.Fatalf("sync document_access_batch.completed count = %d (err=%v), want 1", syncCompletedEvents, err)
 	}
 
 	// 6. Dry-run replace mode with downgrade warning and empty-items to_private warning:
@@ -431,12 +452,26 @@ func TestFolderContentsAccessBackgroundWorkerAndRecovery(t *testing.T) {
 		}
 	}
 
-	// Verify only 1 outbox event for outsider carried notify_user_id across all 3 chunks (notified_levels persisted between chunks).
+	// Verify per-share document.shared events suppress notify_user_id across all chunks,
+	// while notified_levels accumulated count=5 level=edit for outsider across the 3 chunks (F5).
 	var notifyCount int
 	if err := f.pool.QueryRow(f.ctx,
 		`SELECT count(*) FROM outbox_events WHERE topic = 'document.shared' AND payload::jsonb->>'notify_user_id' = $1`,
-		tn.outsider.ID).Scan(&notifyCount); err != nil || notifyCount != 1 {
-		t.Fatalf("background batch notify_user_id count = %d (err=%v), want 1", notifyCount, err)
+		tn.outsider.ID).Scan(&notifyCount); err != nil || notifyCount != 0 {
+		t.Fatalf("background batch per-share notify_user_id count = %d (err=%v), want 0", notifyCount, err)
+	}
+	var bgNotifiedRaw []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT notified_levels FROM document_access_batches WHERE id = $1`,
+		res.BatchID).Scan(&bgNotifiedRaw); err != nil {
+		t.Fatalf("read bg batch notified_levels: %v", err)
+	}
+	var bgNotified map[string]FolderContentsRecipientNotice
+	if err := json.Unmarshal(bgNotifiedRaw, &bgNotified); err != nil {
+		t.Fatalf("unmarshal bg notified_levels: %v", err)
+	}
+	if got := bgNotified[tn.outsider.ID]; got.Level != string(DocumentLevelEdit) || got.Count != 5 {
+		t.Fatalf("bg notified_levels[outsider] = %+v, want level=edit count=5", got)
 	}
 
 	// Verify document_access_batch.completed outbox event was emitted with batch_id, folder_id, workspace_id.
@@ -878,4 +913,88 @@ func TestFolderContentsAccessSubtreeRecheckAndForeignMyFolder(t *testing.T) {
 			t.Fatalf("untouched doc %s outsider level = %q, want none", untouchedID, got)
 		}
 	}
+}
+
+// TestFolderContentsAccessAuditProvenanceAndSequentialSyncs covers F6 (B2-R-05)
+// and F9 (B2-R-06):
+//   - child audit rows for grant, relevel, revoke, and home-row updates carry
+//     all five required provenance keys: batch_id, via, folder_id, mode, and
+//     before_level;
+//   - two sequential sync updates on the same folder both succeed and return
+//     distinct non-empty batch IDs, while a request arriving when a background
+//     batch is queued returns 409 folder_access_batch_running with its batch_id.
+func TestFolderContentsAccessAuditProvenanceAndSequentialSyncs(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "fcaf6f9")
+	H := Human
+	actor := H(tn.aclOwner.ID)
+
+	folder := createTestFolder(t, f, actor, tn.wsA, "F6F9 Folder", nil)
+	folderID := folder.ID
+	page := createTestPageInParent(t, f, actor, tn.wsA, "F6F9 Page", "restricted", &folderID)
+
+	assertFiveMetaKeys := func(t *testing.T, action, batchID, wantMode, wantBeforeLevel string) {
+		t.Helper()
+		var rawMeta string
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT metadata FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'batch_id' = $3 LIMIT 1`,
+			action, page.ID, batchID).Scan(&rawMeta); err != nil {
+			t.Fatalf("missing audit row action=%s batch_id=%s: %v", action, batchID, err)
+		}
+		var meta map[string]any
+		if err := json.Unmarshal([]byte(rawMeta), &meta); err != nil {
+			t.Fatalf("unmarshal audit metadata (%s): %v", rawMeta, err)
+		}
+		for _, k := range []string{"batch_id", "via", "folder_id", "mode", "before_level"} {
+			if _, ok := meta[k]; !ok {
+				t.Fatalf("audit action=%s metadata=%v missing key %q", action, meta, k)
+			}
+		}
+		if meta["batch_id"] != batchID || meta["via"] != FolderContentsAccessVia ||
+			meta["folder_id"] != folderID || meta["mode"] != wantMode || meta["before_level"] != wantBeforeLevel {
+			t.Fatalf("audit action=%s metadata=%v, want batch_id=%s via=%s folder_id=%s mode=%s before_level=%q",
+				action, meta, batchID, FolderContentsAccessVia, folderID, wantMode, wantBeforeLevel)
+		}
+	}
+
+	// Sync 1 (merge): grant outsider=view (before_level="") and home workspace=view (before_level="").
+	sync1, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+		Mode: FolderContentsAccessModeMerge,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
+			{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsA, Level: DocumentLevelView},
+		},
+	})
+	if err != nil || sync1.BatchID == "" || sync1.Changed != 1 {
+		t.Fatalf("sync1 = %+v, err = %v", sync1, err)
+	}
+	assertFiveMetaKeys(t, audit.ActionDocumentShared, sync1.BatchID, FolderContentsAccessModeMerge, "")
+	assertFiveMetaKeys(t, audit.ActionDocumentWorkspaceAccessChanged, sync1.BatchID, FolderContentsAccessModeMerge, "")
+
+	// Sync 2 (merge, sequential on the same folder): relevel outsider view->edit (before_level="view")
+	// and home workspace view->edit (before_level="view").
+	sync2, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+		Mode: FolderContentsAccessModeMerge,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelEdit},
+			{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsA, Level: DocumentLevelEdit},
+		},
+	})
+	if err != nil || sync2.BatchID == "" || sync2.BatchID == sync1.BatchID || sync2.Changed != 1 {
+		t.Fatalf("sync2 = %+v, err = %v", sync2, err)
+	}
+	assertFiveMetaKeys(t, audit.ActionDocumentShared, sync2.BatchID, FolderContentsAccessModeMerge, string(DocumentLevelView))
+	assertFiveMetaKeys(t, audit.ActionDocumentWorkspaceAccessChanged, sync2.BatchID, FolderContentsAccessModeMerge, string(DocumentLevelView))
+
+	// Sync 3 (replace with empty items): revoke outsider edit (before_level="edit")
+	// and close home workspace edit->restricted (before_level="edit").
+	sync3, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+		Mode:  FolderContentsAccessModeReplace,
+		Items: []FolderContentsAccessItem{},
+	})
+	if err != nil || sync3.BatchID == "" || sync3.Changed != 1 {
+		t.Fatalf("sync3 = %+v, err = %v", sync3, err)
+	}
+	assertFiveMetaKeys(t, audit.ActionDocumentShareRevoked, sync3.BatchID, FolderContentsAccessModeReplace, string(DocumentLevelEdit))
+	assertFiveMetaKeys(t, audit.ActionDocumentWorkspaceAccessChanged, sync3.BatchID, FolderContentsAccessModeReplace, string(DocumentLevelEdit))
 }

@@ -377,7 +377,7 @@ func (s *DocumentService) executeFolderContentsAccessSync(
 	itemsJSON []byte,
 	docIDs []string,
 ) (FolderContentsAccessResult, error) {
-	notifiedLevels := make(map[string]string)
+	notifiedLevels := make(map[string]FolderContentsRecipientNotice)
 	var outcome folderContentsOutcome
 
 	userItemIDs := make([]string, 0, len(items))
@@ -501,7 +501,7 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 	items []FolderContentsAccessItem,
 	userItemIDs []string,
 	doc db.Document,
-	notifiedLevels map[string]string,
+	notifiedLevels map[string]FolderContentsRecipientNotice,
 ) (folderContentsOutcome, error) {
 	if doc.ArchivedAt.Valid || doc.Kind == DocumentKindFolder || isMyFolder(doc) {
 		return folderContentsOutcome{Processed: 1}, nil
@@ -537,13 +537,14 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 		return folderContentsOutcome{Processed: 1, Unchanged: 1}, nil
 	}
 
-	// Compute notify recipients before mutating the document's ACL: a user item
-	// notifies only when its final effective level strictly exceeds its before
-	// effective level AND notifiedLevels[uid] != string(afterLevel) (spec §6).
-	notifyUserByID := make(map[string]string, len(userItemIDs))
-	var beforeLevels map[string]DocumentAccess
-	if len(userItemIDs) > 0 {
-		beforeLevels, err = s.resolveLevelsInTenantWithShares(ctx, q, doc, sharesBefore, userItemIDs)
+	// Accumulate per-recipient effective-level increases in notifiedLevels so
+	// completion emits a single N-document summary per recipient (spec §6, F5).
+	// Per-share notifications are suppressed for via=folder_contents; a recipient
+	// is recorded whenever their effective level on the child strictly rises,
+	// even when their direct user share row was unchanged and a home/group row
+	// caused the rise (scenario 3).
+	if notifiedLevels != nil && len(userItemIDs) > 0 {
+		beforeLevels, err := s.resolveLevelsInTenantWithShares(ctx, q, doc, sharesBefore, userItemIDs)
 		if err != nil {
 			return folderContentsOutcome{}, err
 		}
@@ -553,21 +554,28 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 			return folderContentsOutcome{}, err
 		}
 		for _, uid := range userItemIDs {
-			if uid == actor.ID {
+			if actor.Kind == audit.KindHuman && uid == actor.ID {
 				continue
 			}
 			b := beforeLevels[uid].Level
 			a := afterLevels[uid].Level
-			if a.rank() > b.rank() && notifiedLevels[uid] != string(a) {
-				notifyUserByID[uid] = uid
-				notifiedLevels[uid] = string(a)
+			if a.rank() > b.rank() {
+				notice := notifiedLevels[uid]
+				notice.Count++
+				if DocumentLevel(notice.Level).rank() < a.rank() {
+					notice.Level = string(a)
+				}
+				notice.DocIDs = append(notice.DocIDs, doc.ID)
+				notifiedLevels[uid] = notice
 			}
 		}
 	}
 
 	batchMeta := documentShareBatchMeta{
-		BatchID: batchID,
-		Via:     FolderContentsAccessVia,
+		BatchID:  batchID,
+		Via:      FolderContentsAccessVia,
+		FolderID: folder.ID,
+		Mode:     mode,
 	}
 
 	legacyHome := filterHomeWorkspaceShares(sharesBefore, doc.WorkspaceID)
@@ -610,15 +618,11 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 			if sh, ok := liveByKey[k]; ok && DocumentLevel(sh.Level).rank() >= it.Level.rank() {
 				continue
 			}
-			notifyUID := ""
-			if it.PrincipalType == DocumentPrincipalUser {
-				notifyUID = notifyUserByID[it.PrincipalID]
-			}
 			if _, err := s.applyDocumentShareWithMeta(ctx, q, actor, updatedDoc, acc, DocumentShareInput{
 				PrincipalType: it.PrincipalType,
 				PrincipalID:   it.PrincipalID,
 				Level:         it.Level,
-			}, batchMeta, notifyUID); err != nil {
+			}, batchMeta, ""); err != nil {
 				return folderContentsOutcome{}, err
 			}
 		}
@@ -693,15 +697,11 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 			if sh, ok := liveByKey[k]; ok && DocumentLevel(sh.Level) == it.Level {
 				continue
 			}
-			notifyUID := ""
-			if it.PrincipalType == DocumentPrincipalUser {
-				notifyUID = notifyUserByID[it.PrincipalID]
-			}
 			if _, err := s.applyDocumentShareWithMeta(ctx, q, actor, updatedDoc, acc, DocumentShareInput{
 				PrincipalType: it.PrincipalType,
 				PrincipalID:   it.PrincipalID,
 				Level:         it.Level,
-			}, batchMeta, notifyUID); err != nil {
+			}, batchMeta, ""); err != nil {
 				return folderContentsOutcome{}, err
 			}
 		}
@@ -745,9 +745,8 @@ func recordFolderContentsBatchCompletedAudit(
 			"level":          string(it.Level),
 		}
 	}
-	var events []audit.Event
-	if execution == FolderContentsAccessExecBackground {
-		events = append(events, folderContentsBatchCompletedEvent(batchID, folder.ID, folder.WorkspaceID))
+	events := []audit.Event{
+		folderContentsBatchCompletedEvent(batchID, folder.ID, folder.WorkspaceID),
 	}
 	return auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: folder.OrganizationID,

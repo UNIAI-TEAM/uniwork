@@ -182,7 +182,7 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 		}
 	}
 
-	notifiedLevels := make(map[string]string)
+	notifiedLevels := make(map[string]FolderContentsRecipientNotice)
 	if len(batch.NotifiedLevels) > 0 {
 		_ = json.Unmarshal(batch.NotifiedLevels, &notifiedLevels)
 	}

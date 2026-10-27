@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -116,6 +117,16 @@ type FolderContentsAccessBatch struct {
 	SkippedNotManageable int
 	SkippedLocked        int
 	FinishedAt           *time.Time
+}
+
+// FolderContentsRecipientNotice is one entry in document_access_batches.notified_levels
+// (keyed by recipient user_id): the highest effective level reached across the
+// batch, the number of subtree documents where their effective level strictly
+// rose, and the affected document IDs for delivery-time read checks (UNI-2244 §6, F5).
+type FolderContentsRecipientNotice struct {
+	Level  string   `json:"level"`
+	Count  int      `json:"count"`
+	DocIDs []string `json:"doc_ids,omitempty"`
 }
 
 // validateFolderContentsAccessInput checks syntax and bounds on mode and items
@@ -230,21 +241,28 @@ func (s *DocumentService) UpdateFolderContentsAccess(
 		return FolderContentsAccessResult{}, errDocumentAccessRejected(rejected)
 	}
 
-	// 3. Try advisory lock on folderID (§3.1 step 2) and check for a queued/running batch.
-	locked, err := q.TryLockFolderAccessBatch(ctx, folder.ID)
-	if err != nil {
+	// 3. Acquire the blocking per-folder advisory xact lock with a 30s timeout
+	// (§3.1 step 2, F9) and check for a queued/running batch.
+	if _, err := tx.Exec(ctx, `SET LOCAL lock_timeout = '30s'`); err != nil {
 		return FolderContentsAccessResult{}, err
 	}
-	if !locked {
-		runningID, err := q.GetRunningDocumentAccessBatchForFolder(ctx, db.GetRunningDocumentAccessBatchForFolderParams{
-			OrganizationID: folder.OrganizationID,
-			WorkspaceID:    folder.WorkspaceID,
-			FolderID:       folder.ID,
-		})
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return FolderContentsAccessResult{}, err
+	if err := q.LockFolderAccessBatch(ctx, folder.ID); err != nil {
+		var pe *pgconn.PgError
+		if errors.As(err, &pe) && pe.Code == "55P03" {
+			_ = tx.Rollback(ctx)
+			runningID, qErr := s.q.GetRunningDocumentAccessBatchForFolder(ctx, db.GetRunningDocumentAccessBatchForFolderParams{
+				OrganizationID: folder.OrganizationID,
+				WorkspaceID:    folder.WorkspaceID,
+				FolderID:       folder.ID,
+			})
+			if qErr == nil && runningID != "" {
+				return FolderContentsAccessResult{}, errFolderAccessBatchRunning(runningID)
+			}
 		}
-		return FolderContentsAccessResult{}, errFolderAccessBatchRunning(runningID)
+		return FolderContentsAccessResult{}, err
+	}
+	if _, err := tx.Exec(ctx, `SET LOCAL lock_timeout = 0`); err != nil {
+		return FolderContentsAccessResult{}, err
 	}
 	if runningID, err := q.GetRunningDocumentAccessBatchForFolder(ctx, db.GetRunningDocumentAccessBatchForFolderParams{
 		OrganizationID: folder.OrganizationID,

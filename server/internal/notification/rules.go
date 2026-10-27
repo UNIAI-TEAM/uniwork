@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -183,6 +184,9 @@ var rules = map[string]rule{
 	"document.deleted":        ruleDocumentDeletedChange,
 	"document.share_revoked":  ruleDocumentShareRevokedAccessChange,
 	"document.change_noticed": ruleDocumentChangeNoticed,
+	// UNI-2244 §6 (F5): one completion-gated notification per recipient whose
+	// effective access rose across a folder bulk access batch.
+	"document_access_batch.completed": ruleDocumentAccessBatchCompleted,
 
 	"participant.invited":    ruleParticipantInvited,
 	"member.joined":          ruleMemberJoined,
@@ -1034,38 +1038,9 @@ func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]
 	if meta, err := auditMetadata(ctx, e.q, ev, audit.ActionDocumentShared, doc.ID); err != nil {
 		return nil, err
 	} else if via, _ := meta["via"].(string); via == "folder_contents" {
-		batchID, _ := meta["batch_id"].(string)
-		if batchID != "" {
-			folderID, err := e.q.GetDocumentAccessBatchFolderID(ctx, db.GetDocumentAccessBatchFolderIDParams{
-				ID:             batchID,
-				OrganizationID: doc.OrganizationID,
-				WorkspaceID:    doc.WorkspaceID,
-			})
-			if err == nil && folderID != "" {
-				folder, err := e.q.GetDocumentByID(ctx, folderID)
-				if err == nil && folder.OrganizationID == doc.OrganizationID && folder.WorkspaceID == doc.WorkspaceID {
-					return []Draft{{
-						UserID:         uid,
-						OrganizationID: doc.OrganizationID,
-						WorkspaceID:    doc.WorkspaceID,
-						Kind:           KindDocumentShared,
-						GroupKey:       "document_access_batch:" + batchID + ":" + uid + ":" + level,
-						ResourceType:   "document",
-						ResourceID:     folder.ID,
-						ActorKind:      actorKindOf(ev),
-						ActorID:        ev.ActorID.String,
-						OncePerGroup:   true,
-						Params: map[string]string{
-							"actor":       actorName(ctx, e.q, ev),
-							"document":    folder.Title,
-							"document_id": folder.ID,
-							"level":       level,
-							"batch_id":    batchID,
-						},
-					}}, nil
-				}
-			}
-		}
+		// Folder bulk access batches suppress per-document share notices and
+		// emit one completion-gated summary on document_access_batch.completed (UNI-2244 §6, F5).
+		return nil, nil
 	}
 	return []Draft{{
 		UserID:         uid,
@@ -1084,6 +1059,106 @@ func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]
 			"level":       level,
 		},
 	}}, nil
+}
+
+// ruleDocumentAccessBatchCompleted delivers one grouped KindDocumentShared
+// notification per recipient whose effective access rose across a completed
+// folder bulk access batch (sync or background, UNI-2244 §6, F5).
+func ruleDocumentAccessBatchCompleted(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	batchID := p["batch_id"]
+	folderID := p["folder_id"]
+	wsID := p["workspace_id"]
+	if e.docs == nil || batchID == "" || folderID == "" || wsID == "" {
+		return nil, nil
+	}
+	folder, err := e.q.GetDocumentByID(ctx, folderID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if folder.WorkspaceID != wsID ||
+		(ev.OrganizationID.Valid && folder.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && folder.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	batch, err := e.q.GetDocumentAccessBatchForNotification(ctx, db.GetDocumentAccessBatchForNotificationParams{
+		ID:             batchID,
+		OrganizationID: folder.OrganizationID,
+		WorkspaceID:    folder.WorkspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if batch.FolderID != folder.ID || batch.Status != service.FolderContentsAccessBatchStatusCompleted {
+		return nil, nil
+	}
+	if len(batch.NotifiedLevels) == 0 {
+		return nil, nil
+	}
+	var recipients map[string]service.FolderContentsRecipientNotice
+	if err := json.Unmarshal(batch.NotifiedLevels, &recipients); err != nil {
+		return nil, nil
+	}
+	if len(recipients) == 0 {
+		return nil, nil
+	}
+	uids := make([]string, 0, len(recipients))
+	for uid := range recipients {
+		uids = append(uids, uid)
+	}
+	slices.Sort(uids)
+	actor := actorName(ctx, e.q, ev)
+	var out []Draft
+	for _, uid := range uids {
+		info := recipients[uid]
+		if uid == "" || info.Count <= 0 || info.Level == "" || isActorOfEvent(ev, uid) {
+			continue
+		}
+		checkIDs := info.DocIDs
+		if len(checkIDs) == 0 {
+			checkIDs = batch.DocumentIds
+		}
+		readable := false
+		for _, docID := range checkIDs {
+			canRead, err := e.docs.CanReadDocument(ctx, uid, docID)
+			if err != nil {
+				return nil, err
+			}
+			if canRead {
+				readable = true
+				break
+			}
+		}
+		if !readable {
+			continue
+		}
+		out = append(out, Draft{
+			UserID:         uid,
+			OrganizationID: folder.OrganizationID,
+			WorkspaceID:    folder.WorkspaceID,
+			Kind:           KindDocumentShared,
+			GroupKey:       "document_access_batch:" + batch.ID + ":" + uid + ":" + info.Level,
+			ResourceType:   "document",
+			ResourceID:     folder.ID,
+			ActorKind:      actorKindOf(ev),
+			ActorID:        ev.ActorID.String,
+			OncePerGroup:   true,
+			Params: map[string]string{
+				"actor":       actor,
+				"document":    folder.Title,
+				"document_id": folder.ID,
+				"level":       info.Level,
+				"batch_id":    batch.ID,
+				"count":       strconv.Itoa(info.Count),
+			},
+		})
+	}
+	return out, nil
 }
 
 // ruleDocumentAccessRequested tells a document's managers that somebody asked
