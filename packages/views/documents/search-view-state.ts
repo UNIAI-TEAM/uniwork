@@ -21,8 +21,8 @@ import {
 import { foldSearchText, formatSearchPath } from "./search-path";
 import { useDocumentsSearch, type UseDocumentsSearchResult } from "./use-documents-search";
 
-/** Maximum Recent pages auto-fetched while searching on Gần đây (10 pages = 500 rows). */
-const RECENT_SEARCH_AUTO_PAGE_CAP = 10;
+/** Maximum pages auto-fetched while searching on Gần đây or Được chia sẻ với tôi (10 pages = 500 rows). */
+const SCREEN_SEARCH_AUTO_PAGE_CAP = 10;
 
 export interface SearchViewState {
   rows: LibraryRow[];
@@ -54,8 +54,8 @@ export interface BuildSearchViewStateInput {
   starredLoading?: boolean;
   starredFailure?: "error" | "permission" | null;
   starredRefetch?: () => void;
-  recentAutoPaging?: boolean;
-  recentFetchFailed?: boolean;
+  screenAutoPaging?: boolean;
+  screenFetchFailed?: boolean;
   shelvedBy: string | null;
   tree: DocumentTreeNode[];
   myFolderId: string | null;
@@ -129,8 +129,8 @@ export function buildSearchViewState({
   starredLoading = false,
   starredFailure = null,
   starredRefetch,
-  recentAutoPaging = false,
-  recentFetchFailed = false,
+  screenAutoPaging = false,
+  screenFetchFailed = false,
   shelvedBy,
   tree,
   myFolderId,
@@ -176,10 +176,10 @@ export function buildSearchViewState({
     };
   }
 
-  // Gần đây (viewKind === "recent", KLV-6): `/documents/recent` ignores `q`, so
-  // search filters the Recent screen's rows client-side by folded title while
-  // auto-paging up to RECENT_SEARCH_AUTO_PAGE_CAP pages (500 rows).
-  if (viewKind === "recent") {
+  // Gần đây & Được chia sẻ với tôi (viewKind === "recent" | "shared", KLV-6, KLV-9):
+  // their server endpoints take no `q`, so search filters the screen's own rows
+  // client-side by folded title while auto-paging up to SCREEN_SEARCH_AUTO_PAGE_CAP pages (500 rows).
+  if (viewKind === "recent" || viewKind === "shared") {
     const foldedQuery = foldSearchText(search.committedQuery);
     const rows = foldedQuery
       ? libraryRows.filter(
@@ -190,14 +190,14 @@ export function buildSearchViewState({
     for (const row of rows) {
       if (row.type === "document") docById.set(row.doc.id, row.doc);
     }
-    const loading = libraryLoading || (rows.length === 0 && (recentAutoPaging || libraryLoadingMore));
+    const loading = libraryLoading || (rows.length === 0 && (screenAutoPaging || libraryLoadingMore));
     return {
       rows,
       folders: [],
       docById,
       loading,
-      failure: libraryFailure ?? (rows.length === 0 && recentFetchFailed ? "error" : null),
-      hasMore: !recentAutoPaging && libraryHasMore,
+      failure: libraryFailure ?? (rows.length === 0 && screenFetchFailed ? "error" : null),
+      hasMore: !screenAutoPaging && libraryHasMore,
       loadingMore: libraryLoadingMore,
       loadMore: libraryLoadMore,
       refetch: libraryRefetch,
@@ -305,6 +305,8 @@ export interface UseDocumentsSearchViewLibraryInput {
   refetchFavorites: () => void;
   recentPageCount: number;
   recentFetchFailed: boolean;
+  sharedPageCount: number;
+  sharedFetchFailed: boolean;
   shelvedBy: string | null;
   activity: ActivityFilter;
   editor: string;
@@ -344,7 +346,8 @@ export function useDocumentsSearchView({
 }: UseDocumentsSearchViewInput) {
   const { t } = useTranslation();
   const viewKind = view.kind;
-  const searchEnabled = enabled && viewKind !== "sources" && viewKind !== "recent" && viewKind !== "archived";
+  const screenScoped = viewKind === "recent" || viewKind === "shared";
+  const searchEnabled = enabled && viewKind !== "sources" && !screenScoped && viewKind !== "archived";
   const search = useDocumentsSearch(wsId, searchEnabled, {
     types,
     updatedBy: library.editorId,
@@ -354,20 +357,22 @@ export function useDocumentsSearchView({
   });
   const searching = search.active && viewKind !== "archived";
   const { loadMore: libraryLoadMore, loadingMore: libraryLoadingMore } = library.state;
-  const recentAutoPaging =
+  const screenPageCount = viewKind === "recent" ? library.recentPageCount : viewKind === "shared" ? library.sharedPageCount : 0;
+  const screenFetchFailed =
+    viewKind === "recent" ? library.recentFetchFailed : viewKind === "shared" ? library.sharedFetchFailed : false;
+  const screenAutoPaging =
     searching &&
-    viewKind === "recent" &&
+    screenScoped &&
     library.state.hasMore &&
     !library.state.failure &&
-    !library.recentFetchFailed &&
-    library.recentPageCount > 0 &&
-    library.recentPageCount < RECENT_SEARCH_AUTO_PAGE_CAP;
+    !screenFetchFailed &&
+    screenPageCount > 0 &&
+    screenPageCount < SCREEN_SEARCH_AUTO_PAGE_CAP;
   useEffect(() => {
-    if (recentAutoPaging && !libraryLoadingMore) {
+    if (screenAutoPaging && !libraryLoadingMore) {
       libraryLoadMore();
     }
-  }, [recentAutoPaging, libraryLoadingMore, libraryLoadMore]);
-
+  }, [screenAutoPaging, libraryLoadingMore, libraryLoadMore]);
   const clearAndFocus = () => {
     search.clear();
     search.focusInput();
@@ -390,8 +395,8 @@ export function useDocumentsSearchView({
       library.refetchFavorites();
       library.state.refetch();
     },
-    recentAutoPaging,
-    recentFetchFailed: library.recentFetchFailed,
+    screenAutoPaging,
+    screenFetchFailed,
     shelvedBy: library.shelvedBy,
     tree: library.tree,
     myFolderId,
@@ -411,7 +416,7 @@ export function useDocumentsSearchView({
   // copy and the no-results state, so all three read the same flag.
   const filtered = metaFiltered || types.length > 0;
   const filteredBy = searchState
-    ? viewKind === "recent"
+    ? screenScoped
       ? ("client" as const)
       : ("server" as const)
     : filtered
@@ -465,7 +470,7 @@ export function useDocumentsSearchView({
     onClearLibraryFilters();
   };
 
-  const recentMorePages = viewKind === "recent" && Boolean(searchState?.hasMore);
+  const screenMorePages = screenScoped && Boolean(searchState?.hasMore);
   return {
     search,
     searching,
@@ -473,7 +478,7 @@ export function useDocumentsSearchView({
     state,
     activeDocById: searchState ? searchState.docById : library.docById,
     activeRows: searchState ? searchState.rows : library.state.rows,
-    metaFiltered: (metaFiltered && !searchState) || (Boolean(searchState) && viewKind === "recent"),
+    metaFiltered: (metaFiltered && !searchState) || (Boolean(searchState) && screenScoped),
     filteredBy,
     tableRows,
     listScreen,
@@ -487,7 +492,7 @@ export function useDocumentsSearchView({
     openFolderFromList,
     clearFiltersOrSearch,
     emptyFiltered: searchState
-      ? recentMorePages
+      ? screenMorePages
         ? { title: t("documents.home.search.no_results_title", { query: searchState.query }) }
         : {
             title: t("documents.home.search.no_results_title", { query: searchState.query }),
