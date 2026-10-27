@@ -1,6 +1,30 @@
 import { runtimeConfig } from "../runtime-config";
 import { marketingHref, vietnamesePath } from "./marketing";
 
+/** Search params of the Documents › Google Drive library: the selected account and Drive folder. */
+export const DRIVE_ACCOUNT_PARAM = "account";
+export const DRIVE_FOLDER_PARAM = "driveFolder";
+/** `nameFolder=1` asks the library to open "Name this folder" for the selected folder (the app hands off with it). */
+export const DRIVE_NAME_FOLDER_PARAM = "nameFolder";
+
+interface DriveLibrarySelection {
+  account: string | null;
+  folder: string | null;
+}
+
+/** Reads the selection `paths.workspace().documentsDrive` writes; a folder only counts under an account. */
+export function parseDriveLibrarySelection(params: { get(name: string): string | null }): DriveLibrarySelection {
+  const account = params.get(DRIVE_ACCOUNT_PARAM) || null;
+  const folder = account ? params.get(DRIVE_FOLDER_PARAM) || null : null;
+  return { account, folder };
+}
+
+/** Whether the URL asks for "Name this folder"; it only counts with an account and a folder selected. */
+export function parseDriveNameFolderRequest(params: { get(name: string): string | null }): boolean {
+  const { folder } = parseDriveLibrarySelection(params);
+  return Boolean(folder) && params.get(DRIVE_NAME_FOLDER_PARAM) === "1";
+}
+
 export const paths = {
   root: () => "/",
   login: () => "/login",
@@ -124,11 +148,16 @@ export const paths = {
         folderId
           ? `${base}/documents/access-report?folder=${encodeURIComponent(folderId)}`
           : `${base}/documents/access-report`,
-      // The caller's Google Drive list in Documents (4.1), optionally narrowed to one connected account.
-      documentsDrive: (accountId?: string | null) =>
-        accountId
-          ? `${base}/documents?view=drive&account=${encodeURIComponent(accountId)}`
-          : `${base}/documents?view=drive`,
+      // The caller's Google Drive list in Documents (4.1), optionally narrowed to one connected
+      // account and, inside it, to one Drive folder. A folder without an account is dropped.
+      // `nameFolder` adds the "Name this folder" request and only applies to a selected folder.
+      documentsDrive: (accountId?: string | null, folderId?: string | null, opts?: { nameFolder?: boolean }) => {
+        if (!accountId) return `${base}/documents?view=drive`;
+        const account = `${base}/documents?view=drive&${DRIVE_ACCOUNT_PARAM}=${encodeURIComponent(accountId)}`;
+        if (!folderId) return account;
+        const folder = `${account}&${DRIVE_FOLDER_PARAM}=${encodeURIComponent(folderId)}`;
+        return opts?.nameFolder ? `${folder}&${DRIVE_NAME_FOLDER_PARAM}=1` : folder;
+      },
       // Detail page of a linked Google Drive file reference (4.2).
       documentsDriveFile: (driveFileId: string) =>
         `${base}/documents/drive/${encodeURIComponent(driveFileId)}`,

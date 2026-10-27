@@ -14405,6 +14405,7 @@
     },
     "picker": {
       "title": "Pick files from Google Drive",
+      "folder_title": "Pick the folder to name",
       "disclosure": "UniWork only gets access to the files you pick. UniWork stores only links; your content stays on Google Drive.",
       "account_step": {
         "title": "Choose a Google Drive account",
@@ -14659,7 +14660,23 @@
     "sidebar": {
       "google_drive": "Google Drive",
       "account_row": "Drive: {{email}}",
-      "disconnected": "Disconnected"
+      "disconnected": "Disconnected",
+      "folders_loading": "Loading folders…",
+      "folders_error": "Could not load folders"
+    },
+    "folder": {
+      "unnamed": "Drive folder · {{id}}",
+      "unnamed_short": "Folder · {{id}}",
+      "count_one": "{{count}} file",
+      "count_other": "{{count}} files",
+      "name_action": "Name this folder",
+      "name_done": "Folder named from Drive",
+      "name_mismatch": "You picked a different folder. Pick this folder to name it.",
+      "name_not_found": "Could not read this folder's name from Google Drive. Pick this folder in the window and try again.",
+      "name_not_folder": "The item you picked is not a folder, or it is in the trash.",
+      "name_unavailable": "Google Drive isn't responding right now. Try again in a few minutes.",
+      "name_failed": "Could not name the folder. Try again.",
+      "menu_aria": "Actions for folder {{name}}"
     },
     "file_types": {
       "google_doc": "Google Docs",
@@ -14714,7 +14731,12 @@
       "error_description": "Check your connection and try again.",
       "retry": "Try again",
       "load_more": "Load more",
-      "loading_more": "Loading more…"
+      "loading_more": "Loading more…",
+      "search_label": "Search this Drive list",
+      "search_placeholder": "Search by name",
+      "no_results_title": "No results",
+      "no_results_description": "No folder or file matches “{{query}}”.",
+      "breadcrumb_label": "Location in Google Drive"
     },
     "detail": {
       "breadcrumb_documents": "Documents",

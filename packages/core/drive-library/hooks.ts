@@ -5,9 +5,12 @@ import {
   linkDriveFiles,
   type DriveFileLinkResults,
 } from "../api/endpoints/drive";
+import { ApiError } from "../api/http";
 import {
   getDriveFile,
   listDriveFiles,
+  listDriveFolders,
+  nameDriveFolder,
   rebindDriveFile,
   unlinkDriveFile,
   type DriveFile,
@@ -167,6 +170,47 @@ export function useAttachDriveFileToTask(wsId: string) {
         qc.invalidateQueries({ queryKey: driveLibraryKeys.lists(wsId) }),
         qc.invalidateQueries({ queryKey: driveLibraryKeys.task(wsId, taskId) }),
         qc.invalidateQueries({ queryKey: driveLibraryKeys.workspace(wsId) }),
+      ]);
+    },
+  });
+}
+
+/**
+ * The folder groups of one connected account from `GET .../drive-folders` (one request, no page
+ * walk). Data is null when the server answered without a folder list; a failed request leaves no
+ * data: `useDriveAccountFolders` then derives folders from the files. A 4xx is not retried, so an
+ * older server (no such route) falls back at once.
+ */
+export function useDriveFolders(wsId: string, connectionId: string | null, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: driveLibraryKeys.folders(wsId, connectionId),
+    queryFn: ({ signal }) => listDriveFolders(wsId, { connection_id: connectionId }, signal),
+    enabled: (opts?.enabled ?? true) && !!wsId,
+    refetchOnWindowFocus: true,
+    retry: (count, err) => !(err instanceof ApiError && err.status < 500) && count < 1,
+  });
+}
+
+interface NameDriveFolderVariables {
+  folderId: string;
+  connectionId: string;
+}
+
+/**
+ * Names a Drive folder from Google (`POST .../drive-folders/{id}/name`). Awaits the server (no
+ * optimistic update) and invalidates the folder lists, the file lists and the file details, which
+ * all carry the folder name.
+ */
+export function useNameDriveFolder(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ folderId, connectionId }: NameDriveFolderVariables) =>
+      nameDriveFolder(wsId, folderId, { drive_connection_id: connectionId }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: driveLibraryKeys.folderLists(wsId) }),
+        qc.invalidateQueries({ queryKey: driveLibraryKeys.lists(wsId) }),
+        qc.invalidateQueries({ queryKey: driveLibraryKeys.details(wsId) }),
       ]);
     },
   });
