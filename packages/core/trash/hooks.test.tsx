@@ -92,6 +92,18 @@ describe("shared trash hooks", () => {
     await waitFor(() => expect(result.current.data?.pages[0]?.items).toHaveLength(0));
   });
 
+  it("useTrashList never shows another workspace's rows while the new one loads", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ items: [{ kind: "task", id: "t1", title: "Của A" }], next_cursor: "" }))
+      .mockReturnValueOnce(new Promise<Response>(() => {}));
+    const { wrapper } = setup();
+    const { result, rerender } = renderHook(({ ws }) => useTrashList(ws), { wrapper, initialProps: { ws: WS } });
+    await waitFor(() => expect(result.current.data?.pages[0]?.items).toHaveLength(1));
+    rerender({ ws: "ws-other" });
+    expect(result.current.isPlaceholderData).toBe(false);
+    expect(result.current.data).toBeUndefined();
+  });
+
   it("a filter change is a different list under the same workspace root", () => {
     expect(trashKeys.list(WS, "a")).not.toEqual(trashKeys.list(WS, "b"));
     expect(trashKeys.list(WS, "a").slice(0, 2)).toEqual(trashKeys.workspace(WS));

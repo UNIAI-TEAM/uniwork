@@ -18,6 +18,8 @@ export function useTrashList(wsId: string, filters: TrashFilters = {}) {
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: !!wsId,
-    placeholderData: keepPreviousData,
+    // Keep the rows while a filter changes, never across workspaces.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === wsId ? keepPreviousData(previous) : undefined,
   });
 }
