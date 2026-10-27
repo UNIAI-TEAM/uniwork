@@ -86,6 +86,18 @@ export const batchFailed = {
   finished_at: "2026-10-27T10:05:00Z" as string | null,
 };
 
+/** GET while queued or running, as the server sends it: `finished_at` is omitted, not null. */
+export const batchRunningWire: Omit<typeof batchRunning, "finished_at"> = {
+  batch_id: "01JBATCHBG000000000000000",
+  status: "running",
+  total: 1800,
+  processed: 600,
+  changed: 590,
+  unchanged: 0,
+  skipped_not_manageable: 10,
+  skipped_locked: 0,
+};
+
 /** 422: the id names a document that is not a folder. */
 export const errorNotAFolder = {
   error: { code: "not_a_folder", message: "Document is not a folder" },

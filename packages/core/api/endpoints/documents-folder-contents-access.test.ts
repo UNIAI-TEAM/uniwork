@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   backgroundAccepted,
   batchCompleted,
+  batchRunningWire,
   batchFailed,
   batchRunning,
   dryRunMerge,
@@ -211,6 +212,14 @@ describe("getFolderContentsAccessBatch", () => {
     expect(out.status).toBe("queued");
   });
 
+  it("reads an omitted finished_at (queued or running) as null", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(batchRunningWire));
+    const out = await getFolderContentsAccessBatch("f1", batchRunningWire.batch_id);
+    expect(out).toEqual({ ...batchRunningWire, finished_at: null });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...batchRunningWire, status: "queued", processed: 0 }));
+    expect((await getFolderContentsAccessBatch("f1", batchRunningWire.batch_id)).finished_at).toBeNull();
+  });
+
   it("reads an unknown or missing status as running, so the client asks again", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ ...batchRunning, status: "paused" }));
     expect((await getFolderContentsAccessBatch("f1", "b1")).status).toBe("running");
@@ -298,5 +307,26 @@ describe("error helpers", () => {
     expect(parseDocumentAccessRejected(err)?.rejected).toEqual([
       { index: 1, principal_type: "user", principal_id: "u9", code: "principal_not_in_organization" },
     ]);
+  });
+
+  it("keeps every rejected code the server documents", async () => {
+    const codes = ["principal_not_in_organization", "level_not_allowed", "duplicate_principal", "break_glass_required"];
+    const rejected = codes.map((code, index) => ({ index, principal_type: "user", principal_id: `u${index}`, code }));
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ error: { code: "document_access_rejected", message: "no", fields: { rejected } } }, 422),
+    );
+    const err = await catching(() => updateFolderContentsAccess("f1", input, { dryRun: false }));
+    expect(parseDocumentAccessRejected(err)?.rejected).toEqual(rejected);
+  });
+
+  it("a 501 not_implemented from the stub is a plain ApiError, not a batch or rejection", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "not_implemented", message: "soon" } }, 501));
+    const err = await catching(() => updateFolderContentsAccess("f1", input, { dryRun: false }));
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(501);
+    expect((err as ApiError).code).toBe("not_implemented");
+    expect(parseFolderAccessBatchRunning(err)).toBeNull();
+    expect(parseDocumentAccessRejected(err)).toBeNull();
+    expect(isNotAFolderError(err)).toBe(false);
   });
 });

@@ -1,3 +1,4 @@
+import { folderContentsAccessKeys } from "../documents/hooks-folder-contents-access";
 import { clearDocumentAccessRequestSent } from "../documents/hooks-access-requests";
 import { chatKeys } from "../chat/chat-keys";
 import { documentKeys } from "../documents/keys";
@@ -103,6 +104,14 @@ export function documentFrameKeys(
       // refreshes the whole documents prefix whichever workspace is open.
       // Ids only; nothing from the frame is cached.
       return [documentKeys.all];
+    }
+    case "document_access_batch.completed": {
+      // UNI-2244: a background folder access batch finished (ids only:
+      // batch_id, folder_id, workspace_id). Its writes touched documents all
+      // over the subtree, so the workspace root refreshes (detail, shares,
+      // lists, tree) and so does the batch status the dialog polls. The
+      // frame only marks queries stale; nothing from it is cached.
+      return ownWorkspace ? [folderContentsAccessKeys.all(wsId), documentKeys.workspace(wsId)] : [];
     }
     case "document.lock_changed": {
       // UNI-1645: who holds the document changed (acquire, release, expiry,
