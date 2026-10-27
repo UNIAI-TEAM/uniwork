@@ -2,7 +2,7 @@
 
 > **Trạng thái:** shipped · **Cập nhật:** 2026-10-27 · **Thành phần:** `DriveConnectionService`, `DriveFileService`, `DriveContentService`, `DriveTaskProposalService`, `DriveProposalRetentionSweeper` trong tiến trình API (`server/internal/service/drive_*.go`) · **Liên quan:** ADR 0047, spec `docs/superpowers/specs/2026-10-26-google-drive-connector-design.md`, plan `docs/superpowers/plans/2026-10-26-google-drive-connector.md`, [`docs/runbooks/drive-connector.md`](../runbooks/drive-connector.md), UNI-2172, UNI-2200
 
-Theo quyết định người dùng 2026-10-27 (Amendment A1), connector Google Drive **không triển khai theo từng tổ chức pilot**: khi phát hành lên production, tính năng được **bật cho toàn bộ người dùng ngay lúc deploy**, và cờ `drive_connector` chỉ giữ vai trò công tắc ngắt khẩn cấp (kill switch).
+Theo quyết định người dùng 2026-10-27 (Amendment A1 & A2, commit `898ec2ccc`), connector Google Drive **không triển khai theo từng tổ chức pilot**: cờ `drive_connector` có **`Default: true`** trong `server/internal/featureflags/keys.go:114` (mô tả: *"Connector Google Drive: kết nối, liên kết tệp, UNI đề xuất việc (UNI-2172, ADR 0047); mặc định bật khi server có OAuth Drive, FF_DRIVE_CONNECTOR=false là công tắc tắt"*). Khi phát hành lên production, chỉ cần hoàn tất điều kiện tiên quyết `(a)` và deploy — tính năng **tự động bật cho toàn bộ người dùng ngay lúc deploy** mà không cần đặt biến môi trường cờ hay override, và cờ `drive_connector` chỉ giữ vai trò công tắc ngắt khẩn cấp (kill switch).
 
 ---
 
@@ -19,34 +19,33 @@ Theo quyết định người dùng 2026-10-27 (Amendment A1), connector Google 
      - `GOOGLE_DRIVE_CLIENT_ID` và `GOOGLE_DRIVE_CLIENT_SECRET` (`.env.example:279-280`, `server/internal/config/config.go:525-526`).
      - `GOOGLE_DRIVE_PICKER_API_KEY` và `GOOGLE_DRIVE_APP_ID` (`.env.example:283-284`, `server/internal/config/config.go:527-528`).
      - `DRIVE_CREDENTIAL_KEY`: khóa AES-256-GCM 32 byte mã hóa base64, tạo độc lập hoàn toàn với `EMAIL_HUB_CREDENTIAL_KEY` và `CALENDAR_CREDENTIAL_KEY` (`.env.example:285-288`, `server/cmd/server/main.go:462-471`).
-   - `DriveConnectionService.Available()` chỉ trả `true` khi cả `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET` và `DRIVE_CREDENTIAL_KEY` đều hợp lệ (`server/internal/service/drive_connections.go:210-243`, `:264-266`). Thiếu hoặc sai khóa, server ghi log cảnh báo `"google drive connector disabled"` (`server/cmd/server/main.go:467-470`) và trả `drive.available: false` trên `GET /api/v1/config` (`server/internal/handler/config.go:36-37`).
+   - **Ý nghĩa thực tế của *"mặc định bật khi server có OAuth Drive"* (`server/internal/featureflags/keys.go:114`) trong mã nguồn:**
+     - Hàm `EvaluateFrontendPublicFlags` (`server/internal/featureflags/keys.go:189-198`) đánh giá cờ công khai theo `f.Default` (`true`), nên `GET /api/v1/config` luôn trả `flags.drive_connector: true` theo mặc định kể cả khi chưa cấu hình `GOOGLE_DRIVE_*` (`server/internal/handler/config.go:36`).
+     - Tuy nhiên, server **ẩn tính năng Drive khi thiếu cấu hình OAuth hoặc khóa mã hóa** thông qua `DriveConnectionService.Available()` (`server/internal/service/drive_connections.go:264-266`): hàm này chỉ trả `true` khi `s != nil && s.box != nil && s.provider != nil`, tức là cả 3 biến `DRIVE_CREDENTIAL_KEY` (khóa 32 byte hợp lệ trong `s.box`, `server/cmd/server/main.go:462-471`), `GOOGLE_DRIVE_CLIENT_ID` và `GOOGLE_DRIVE_CLIENT_SECRET` (khác rỗng trong `ConfigureOAuth`, `server/internal/service/drive_connections.go:215-243`) đều được cấu hình. Nếu thiếu hoặc sai khóa, server ghi log cảnh báo `"google drive connector disabled"` (`server/cmd/server/main.go:467-470`) và:
+       - `GET /api/v1/config` tính `driveAvailable := flags["drive_connector"] && h.DriveConnections.Available()` (`server/internal/handler/config.go:37`, `server/internal/handler/dto/sdo/drive.go:4-6`) → trả `drive.available: false`. Trên Web, `useDriveAvailable()` kiểm tra `useFlag("drive_connector", false) && Boolean(config.drive?.available)` (`packages/views/settings/components/drive-integration-row.tsx:29-34`), nên toàn bộ lối vào Google Drive trên Web tự động ẩn khi `drive.available: false`.
+       - `GET /api/v1/orgs/{orgID}/office/capabilities` (`server/internal/service/office_app_capabilities.go:89`, `:117-119`) gọi `s.drive.AvailableForContext(ctx)` (`server/internal/service/drive_connections.go:270-275`), trả `false` ngay tại `if !s.Available()` (`:271-273`), nên trả `drive_connector: false` cho app desktop.
+       - Gọi trực tiếp `POST /api/v1/workspaces/{workspaceID}/drive-connections/google/start` bị chặn tại `if !s.Available()` (`server/internal/service/drive_connections.go:371-373`) với `ErrDriveNotConfigured` → HTTP **503 `drive_unavailable`** (`server/internal/handler/auth.go:211-212`), và luồng đọc nội dung cho AI (`resolveFileForAIRead`, `server/internal/service/drive_files_read.go:364-366`) cũng từ chối với `ErrDriveUnavailable`.
+     - **Lưu ý quan trọng về `GOOGLE_DRIVE_PICKER_API_KEY` và `GOOGLE_DRIVE_APP_ID`:** `ConfigureOAuth` lưu hai biến này vào `s.pickerAPIKey` và `s.appID` (`server/internal/service/drive_connections.go:219-220`) để trả về trong `PickerToken` (`server/internal/service/drive_connections.go:886-891`), nhưng `Available()` (`:264-266`) **không** kiểm tra `pickerAPIKey` hay `appID`. Nếu đặt đủ `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, `DRIVE_CREDENTIAL_KEY` mà thiếu `GOOGLE_DRIVE_PICKER_API_KEY` hoặc `GOOGLE_DRIVE_APP_ID`, server vẫn trả `drive.available: true` và hiện giao diện Drive, nhưng bước mở Google Picker trên trình duyệt sẽ lỗi vì thiếu `developer_key`/`app_id`. Do đó điều kiện tiên quyết `(a).3` bắt buộc phải có đủ cả 5 biến trước khi deploy.
    - **Cấm bật giả lập trên production:** `DRIVE_FAKE_PROVIDER` phải để trống (hoặc `0`/`false`). Nếu đặt khác `0`/`false` khi `APP_ENV=production`, `config.Load()` từ chối khởi động tiến trình với lỗi `"DRIVE_FAKE_PROVIDER is refused when APP_ENV=production"` (`.env.example:289-291`, `server/internal/config/config.go:448-449`, `:628-630`). Biến build web `NEXT_PUBLIC_DRIVE_FAKE_PICKER` cũng không bao giờ được đặt trên production (`.env.example:292-293`).
 
 ---
 
-## (b) Bật cho toàn bộ người dùng ngay khi deploy (`Turn on for all at deploy`)
+## (b) Tự động bật khi deploy (`Default ON at deploy — no flag step`)
 
-- **Khai báo trong mã nguồn:** Cờ `drive_connector` được khai báo tại `server/internal/featureflags/keys.go:114` với `Key: "drive_connector"`, `Default: false`, `Public: true`, `Owner: "work"`, `ReviewAt: day(2027, 4, 30)`.
+- **Khai báo trong mã nguồn:** Cờ `drive_connector` được khai báo tại `server/internal/featureflags/keys.go:114` với:
+  - `Key: "drive_connector"`
+  - `Description: "Connector Google Drive: kết nối, liên kết tệp, UNI đề xuất việc (UNI-2172, ADR 0047); mặc định bật khi server có OAuth Drive, FF_DRIVE_CONNECTOR=false là công tắc tắt"`
+  - `Default: true`, `Public: true`, `Owner: "work"`, `ReviewAt: day(2027, 4, 30)`.
 - **Thứ tự ưu tiên đánh giá cờ (`featureflags.NewService`):**
   1. `DBProvider` (`feature_flag_overrides` trong PostgreSQL, ưu tiên `user` > `organization` > `global`, cache 30 giây và xóa cache tức thì qua sự kiện outbox `flag.updated`; `server/internal/featureflags/db_provider.go:20-33`, `:86-149`).
   2. `EnvProvider` đọc biến môi trường tiền tố `FF_` + `UPPER_SNAKE_CASE(key)` (`server/pkg/featureflag/config.go:17-21`, `:119-162`; `server/pkg/featureflag/env_provider.go:15-26`, `:54-157`).
   3. `StaticProvider` từ file YAML `FEATURE_FLAGS_FILE` nếu có (`server/pkg/featureflag/config.go:12-15`, `:140-151`).
-  4. Giá trị `Default` trong `server/internal/featureflags/keys.go:114`.
-- **Cách bật cho tất cả mọi người khi deploy:**
-  - Đặt biến môi trường trong ConfigMap runtime (`deploy/app/env/uniwork-be.env:185-192`):
-    ```dotenv
-    FF_DRIVE_CONNECTOR=true
-    ```
-    (`EnvProvider` nhận `"true"`, `"on"`, `"1"`, `"yes"` không phân biệt hoa thường → `Enabled=true`; `server/pkg/featureflag/env_provider.go:19-21`).
-  - Hoặc đặt override `global` trong bảng `feature_flag_overrides` qua Admin API (cần tài khoản có `users.platform_role = 'admin'`, cấp bằng CLI `uniwork-admin grant-platform-role --email <email> --role admin --reason "..."` tại `server/cmd/uniwork-admin/main.go:8`, `:47-75`; lưu ý `uniwork-admin` không có lệnh con thao tác cờ):
-    ```sh
-    curl -X PUT "$API_PUBLIC_URL/api/v1/admin/flags/drive_connector/overrides" \
-      -H "Authorization: Bearer $ADMIN_TOKEN" \
-      -H "Content-Type: application/json" \
-      -d '{"scope_type":"global","scope_id":"","enabled":true,"reason":"Ra mắt Google Drive connector toàn hệ thống (UNI-2200)"}'
-    ```
-    (`server/internal/handler/router/admin.go:31`, `:73`; `server/internal/handler/admin_flags.go:53-73`; `server/internal/service/admin_flags.go:68-136`).
-- **Kiểm tra sau khi bật:**
+  4. Giá trị mặc định `Default: true` trong `server/internal/featureflags/keys.go:114`.
+- **Quy trình khi deploy:**
+  - **Hoàn tất điều kiện tiên quyết `(a)` + deploy `uniwork-be` / web.**
+  - **Không có bước bật cờ khi deploy:** Không cần đặt biến môi trường `FF_DRIVE_CONNECTOR` trong `deploy/app/env/uniwork-be.env` và không cần tạo bản ghi override trong bảng `feature_flag_overrides`. Khi điều kiện tiên quyết `(a)` đã thỏa mãn (`DriveConnectionService.Available() == true`) và không có công tắc tắt nào đang đặt, tính năng Google Drive tự động mở cho toàn bộ người dùng ngay khi tiến trình lên.
+  - *(Lưu ý trung thực về đối số fallback trong các hàm `flagEnabled*` tầng service tại `@7ff7999b9`):* Trong khi `EvaluateFrontendPublicFlags` (`server/internal/featureflags/keys.go:189-198`), middleware `mw.RequireFeatureFlag` (`server/internal/middleware/feature_flag.go:36-43`) và `OfficeCapabilitiesService.enabled` (`server/internal/service/office_app_capabilities.go:109-115`) tra `featureflags.Lookup("drive_connector")` để lấy `Default: true` từ `server/internal/featureflags/keys.go:114`, thì các hàm kiểm tra nội bộ ở tầng service gồm `DriveConnectionService.flagEnabled` / `flagEnabledForMember` (`server/internal/service/drive_connections.go:277-291`), `DriveFileService.flagEnabledForMember` (`server/internal/service/drive_files.go:340-359`) và `DriveTaskProposalService.flagEnabledForMember` (`server/internal/service/drive_task_proposals.go:191-209`) hiện vẫn truyền hằng `false` vào `s.flags.IsEnabled(..., "drive_connector", false)` (hàm `featureflag.Service.Decision` tại `server/pkg/featureflag/service.go:75-82` trả về `defaultVal` của lời gọi khi không có rule trong DB/env/file).
+- **Kiểm tra ngay sau khi deploy:**
   - `GET /api/v1/config` trả về `"flags": { ..., "drive_connector": true }` và `"drive": { "available": true }` (`server/internal/handler/config.go:36-37`, `server/internal/handler/dto/sdo/drive.go:4-6`).
   - Với app desktop (`uniwork-office`), `GET /api/v1/orgs/{orgID}/office/capabilities` trả `"drive_connector": true` (`server/internal/service/office_app_capabilities.go:64-72`, `:117-119`, `server/internal/handler/dto/sdo/office_capabilities.go:20`).
 
@@ -58,7 +57,7 @@ Khi cần ngắt khẩn cấp tính năng Google Drive trên toàn hệ thống,
 
 ### Cách tắt khẩn cấp (Kill switch OFF)
 
-1. **Cách nhanh nhất (không cần restart pod, có hiệu lực ngay trên mọi replica):** Gọi Admin API (hoặc bấm trên màn `/admin/flags`) đặt override `global` = `false` với `reason` tối thiểu 10 ký tự (`server/internal/service/admin.go:69-74`, `server/internal/service/admin_flags.go:92-136`):
+1. **Qua override `global` = `false` trong DB (không cần restart pod, có hiệu lực ngay trên mọi replica):** Gọi Admin API (hoặc bấm trên màn `/admin/flags`; cần tài khoản có `users.platform_role = 'admin'` cấp bằng CLI `uniwork-admin grant-platform-role --email <email> --role admin --reason "..."` tại `server/cmd/uniwork-admin/main.go:8`, `:47-75` — lưu ý `uniwork-admin` không có lệnh con thao tác cờ) để đặt override `global` = `false` với `reason` tối thiểu 10 ký tự (`server/internal/handler/router/admin.go:31`, `:73`; `server/internal/handler/admin_flags.go:53-73`; `server/internal/service/admin.go:69-74`; `server/internal/service/admin_flags.go:68-136`):
    ```sh
    curl -X PUT "$API_PUBLIC_URL/api/v1/admin/flags/drive_connector/overrides" \
      -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -66,8 +65,8 @@ Khi cần ngắt khẩn cấp tính năng Google Drive trên toàn hệ thống,
      -d '{"scope_type":"global","scope_id":"","enabled":false,"reason":"Tắt khẩn cấp Google Drive connector để xử lý sự cố"}'
    ```
    Lệnh này ghi `admin_actions` + `audit_events` (`action = 'flag.override_set'`) trong một transaction và phát sự kiện outbox `flag.updated` để mọi pod xóa cache `DBProvider` ngay lập tức (`server/internal/service/admin_flags.go:126-131`, `:179-192`; `server/internal/featureflags/db_provider.go:28`, `:123-134`).
-   > **Lưu ý về độ ưu tiên:** Vì `DBProvider` tra cứu theo thứ tự `user` → `organization` → `global` (`server/internal/featureflags/db_provider.go:30-33`, `:86-121`), cần kiểm tra `GET /api/v1/admin/flags/drive_connector/overrides` (`server/internal/handler/router/admin.go:30`) để bảo đảm không còn dòng override `user` hay `organization` nào mang `enabled: true`; nếu có, xóa chúng bằng `DELETE /api/v1/admin/flags/drive_connector/overrides` (`server/internal/handler/router/admin.go:32`, `:74`).
-2. **Qua biến môi trường (khi không có override trong DB):** Đặt `FF_DRIVE_CONNECTOR=false` trong `deploy/app/env/uniwork-be.env` và khởi động lại `uniwork-be` (`server/pkg/featureflag/env_provider.go:22`).
+   > **Lưu ý về độ ưu tiên:** Vì `DBProvider` tra cứu theo thứ tự `user` → `organization` → `global` (`server/internal/featureflags/db_provider.go:30-33`, `:86-121`), cần kiểm tra `GET /api/v1/admin/flags/drive_connector/overrides` (`server/internal/handler/router/admin.go:30`) để bảo đảm không có dòng override `user` hay `organization` nào mang `enabled: true`; nếu có, xóa chúng bằng `DELETE /api/v1/admin/flags/drive_connector/overrides` (`server/internal/handler/router/admin.go:32`, `:74`).
+2. **Qua biến môi trường `FF_DRIVE_CONNECTOR=false` (khi không có override `enabled: true` trong DB):** Đặt `FF_DRIVE_CONNECTOR=false` trong ConfigMap runtime (`deploy/app/env/uniwork-be.env:185-192`) và rollout/khởi động lại `uniwork-be` (`server/internal/featureflags/keys.go:114`, `server/pkg/featureflag/env_provider.go:22`).
 
 ### Trải nghiệm người dùng và hành vi hệ thống khi cờ tắt
 
@@ -97,17 +96,17 @@ Khi cần ngắt khẩn cấp tính năng Google Drive trên toàn hệ thống,
 
 ### Cách bật lại (Re-enable) và ngày rà soát cờ (`review_at`)
 
-- **Bật lại sau khi khắc phục sự cố:**
-  - Nếu trước đó đặt override `global` = `false` trong DB trong khi `FF_DRIVE_CONNECTOR=true` đã có trong env: xóa override `global` để hệ thống đọc lại `FF_DRIVE_CONNECTOR=true`:
+- **Bật lại sau khi khắc phục sự cố (xóa công tắc tắt để quay về mặc định `Default: true` tại `server/internal/featureflags/keys.go:114`):**
+  - Nếu trước đó tắt bằng override `global` = `false` trong DB: xóa dòng override `global` để hệ thống quay về `Default: true` trong `server/internal/featureflags/keys.go:114`:
     ```sh
     curl -X DELETE "$API_PUBLIC_URL/api/v1/admin/flags/drive_connector/overrides" \
       -H "Authorization: Bearer $ADMIN_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{"scope_type":"global","scope_id":"","reason":"Khôi phục Google Drive connector sau khi xử lý xong sự cố"}'
     ```
-    (`server/internal/handler/router/admin.go:32`, `:74`; `server/internal/service/admin_flags.go:139-174`). Hoặc gọi `PUT /api/v1/admin/flags/drive_connector/overrides` với `"enabled": true`.
-  - Nếu tắt bằng `FF_DRIVE_CONNECTOR=false`: đổi lại thành `FF_DRIVE_CONNECTOR=true` và rollout/restart `uniwork-be`.
-- **`review_at`:** Hiện tại `drive_connector` có `ReviewAt: day(2027, 4, 30)` (`server/internal/featureflags/keys.go:114`), được kiểm bởi `TestFlagsAreReviewed` (`server/internal/featureflags/keys_test.go`). Trước hoặc vào ngày `2027-04-30`, **owner `"work"` cùng chủ sản phẩm (Product Owner)** quyết định trong một PR riêng: hoặc đổi `Default: true` trong `keys.go` và gia hạn `ReviewAt` để giữ cờ làm kill switch dài hạn (như `office_engine` tại `keys.go:51`), hoặc gỡ bỏ cờ nếu không còn cần công tắc riêng. Không sửa `keys.go` trong đợt ra mắt này.
+    (`server/internal/handler/router/admin.go:32`, `:74`; `server/internal/service/admin_flags.go:139-174`).
+  - Nếu trước đó tắt bằng biến môi trường `FF_DRIVE_CONNECTOR=false`: **xóa bỏ** `FF_DRIVE_CONNECTOR=false` khỏi `deploy/app/env/uniwork-be.env` và rollout/khởi động lại `uniwork-be` (không cần đặt biến môi trường mới vì mặc định trong `server/internal/featureflags/keys.go:114` đã là `Default: true`).
+- **`review_at`:** Cờ `drive_connector` có `Default: true` và `ReviewAt: day(2027, 4, 30)` (`server/internal/featureflags/keys.go:114`), được kiểm bởi `TestFlagsAreReviewed` (`server/internal/featureflags/keys_test.go`). Trước hoặc vào ngày `2027-04-30`, **owner `"work"` cùng chủ sản phẩm (Product Owner)** quyết định trong một PR riêng: hoặc gia hạn `ReviewAt` để tiếp tục giữ cờ làm kill switch dài hạn (như `office_engine` tại `server/internal/featureflags/keys.go:51`), hoặc gỡ bỏ cờ nếu không còn cần công tắc riêng.
 
 ---
 
