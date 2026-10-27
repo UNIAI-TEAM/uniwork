@@ -263,7 +263,7 @@ func (s *PasswordResetService) resetReclaim(ctx context.Context, tx pgx.Tx, qtx 
 	m.kick(queued)
 	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, back.leases)
 	s.auth.apple.revokeAfterCommit(ctx, userID, back.appleClientID, back.appleToken)
-	sess, err := s.auth.mintAudited(ctx, u, map[string]any{"via": "reset_token", "reclaimed": true})
+	sess, err := s.auth.reclaimedSession(ctx, u, map[string]any{"via": "reset_token", "reclaimed": true})
 	if err != nil {
 		return Session{}, err
 	}

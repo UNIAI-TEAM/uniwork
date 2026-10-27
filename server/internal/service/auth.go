@@ -263,6 +263,20 @@ func (s *AuthService) sessionOrChallenge(ctx context.Context, u db.User, meta ma
 	return sess, nil
 }
 
+// reclaimedSession opens the session of a reclaim (a provider that owns the
+// address, a reset link) with its login audit row and no new-login alert:
+// the reclaim already told the owner and ended every session before it, and
+// the sessions it ended would make the owner's own browser read as new. The
+// reclaim cleared the second factor, so no challenge is owed.
+func (s *AuthService) reclaimedSession(ctx context.Context, u db.User, meta map[string]any) (Session, error) {
+	sess, _, err := s.openSession(ctx, s.q, u, "", "")
+	if err != nil {
+		return Session{}, err
+	}
+	s.recordAuth(ctx, audit.ActionAuthLoginSucceeded, u.ID, meta)
+	return sess, nil
+}
+
 // challengeOn answers a first factor that passed on an account with a
 // second factor: the challenge token for ch's channel (and native client),
 // in place of a session.

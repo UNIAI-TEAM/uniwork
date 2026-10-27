@@ -124,7 +124,9 @@ type ProviderIdentity struct {
   xoá mã xác minh, `MarkCredentialsRevoked`; audit `auth.sign_in_method_linked {provider, via:"reclaim"}` và
   `auth.session_revoked` (`sessionRevoked(uid,"")`); mail `sign_in_method_changed` (`change: reclaimed`) xếp trong giao
   dịch. Rồi cấp phiên trực tiếp (không MFA). Người vừa lấy lại thấy thông báo một lần
-  (`reclaimed: true` trong kết quả).
+  (`reclaimed: true` trong kết quả). Phiên của lượt `reclaim` (web, app, link reset, "email khác") không kèm mail
+  `new_login`: mail `reclaimed` đã báo chủ, và phiên của người đăng ký trước vừa bị thu hồi làm trình duyệt của chủ
+  trông như thiết bị mới.
 - ⚑ **Quên mật khẩu trên tài khoản chưa xác minh** cũng là `reclaim` theo hộp thư: `Reset` đánh dấu đã xác minh, xoá
   TOTP, mã khôi phục, danh tính nhà cung cấp, rồi cấp phiên không MFA. Cùng phần dọn với `reclaim` của nhà cung cấp
   (`reclaimMailbox`), rồi đặt mật khẩu mới; audit `auth.password_changed {via:"reset_token", reclaimed:true}` và

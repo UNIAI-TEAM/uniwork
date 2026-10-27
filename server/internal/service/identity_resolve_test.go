@@ -119,6 +119,23 @@ func (f *identityFixture) linkAudits(t *testing.T, userID, provider, via string)
 		audit.ActionAuthSignInMethodLinked, userID, provider, via)
 }
 
+// newLogins counts the new-login alerts queued for an address.
+func (f *identityFixture) newLogins(to string) int {
+	n := 0
+	for _, m := range f.mailsTo(to) {
+		if m.Kind == mail.KindNewLogin {
+			n++
+		}
+	}
+	return n
+}
+
+// ownerBrowser is a request from a browser the squatter never used, whose
+// first session on the account would otherwise read as a new device.
+func (f *identityFixture) ownerBrowser() context.Context {
+	return WithSessionMeta(f.ctx, SessionMeta{UserAgent: "Mozilla/5.0 (Owner's Mac) Safari/18", IP: "198.51.100.7"})
+}
+
 // mailsTo lists the kinds queued for an address.
 func (f *identityFixture) mailsTo(to string) []mail.Message {
 	f.out.mu.Lock()
@@ -472,7 +489,7 @@ func TestProviderSignInReclaimsAnUnverifiedAccount(t *testing.T) {
 	t.Run("google", func(t *testing.T) {
 		f := newIdentityFixture(t)
 		s := f.squat(t, "victim@gmail.com")
-		res, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "victim-google", Email: "victim@gmail.com", EmailVerified: true, Name: "Nạn nhân"}, "vi", SignInIntentSignIn)
+		res, err := f.google.SignIn(f.ownerBrowser(), GoogleClaims{Sub: "victim-google", Email: "victim@gmail.com", EmailVerified: true, Name: "Nạn nhân"}, "vi", SignInIntentSignIn)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -480,6 +497,11 @@ func TestProviderSignInReclaimsAnUnverifiedAccount(t *testing.T) {
 			t.Fatalf("the owner is signed in to the account taken back: %+v", res)
 		}
 		f.assertGone(t, s, "victim@gmail.com")
+		// The reclaim notice is the owner's news: the squatter's sessions it
+		// ended make no new-login alert out of the owner's own browser.
+		if n := f.newLogins("victim@gmail.com"); n != 0 {
+			t.Fatalf("the reclaim also sent %d new-login alerts", n)
+		}
 		u := f.user(t, s.user.ID)
 		if u.GoogleID.String != "victim-google" || u.GoogleEmail.String != "victim@gmail.com" || u.AppleID.Valid || u.AppleEmail.Valid || u.AppleClientID.Valid || u.AppleRefreshTokenEnc.Valid {
 			t.Fatalf("only the owner's Google identity opens it now: %+v", u)

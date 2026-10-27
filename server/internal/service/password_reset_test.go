@@ -273,7 +273,7 @@ func TestAResetLinkReclaimsAnUnverifiedAccount(t *testing.T) {
 	if !s.user.MfaEnabledAt.Valid {
 		t.Fatal("the squatter has a second factor")
 	}
-	sess, err := reset.Reset(f.ctx, s.resetTokenRaw, "owner-password")
+	sess, err := reset.Reset(f.ownerBrowser(), s.resetTokenRaw, "owner-password")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,6 +281,9 @@ func TestAResetLinkReclaimsAnUnverifiedAccount(t *testing.T) {
 		t.Fatalf("the owner is signed in, no second factor asked: %+v", sess)
 	}
 	f.assertTakenBack(t, s, "mailbox@example.com")
+	if n := f.newLogins("mailbox@example.com"); n != 0 {
+		t.Fatalf("the reclaim also sent %d new-login alerts", n)
+	}
 	u := f.user(t, s.user.ID)
 	if !u.PasswordHash.Valid || !u.PasswordChangedAt.Valid || u.GoogleID.Valid || u.AppleID.Valid || u.AppleRefreshTokenEnc.Valid {
 		t.Fatalf("the owner's password is the one way in: %+v", u)

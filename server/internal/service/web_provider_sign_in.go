@@ -128,13 +128,22 @@ func (s *AuthService) webProviderSignIn(ctx context.Context, id ProviderIdentity
 		}
 		return ProviderSignInResult{Session: sess}, nil
 	}
-	// A reclaim cleared the second factor in the transaction above, so the
-	// session comes without a challenge: whoever registered set it up.
-	sess, err := s.sessionOrChallenge(ctx, u, map[string]any{"via": "provider", "provider": id.Provider})
+	meta := map[string]any{"via": "provider", "provider": id.Provider}
+	if reclaimedIt {
+		// A reclaim cleared the second factor in the transaction above, so
+		// the session comes without a challenge: whoever registered set it
+		// up. Its notice is the owner's news, not a new-login alert.
+		sess, err := s.reclaimedSession(ctx, u, meta)
+		if err != nil {
+			return ProviderSignInResult{}, err
+		}
+		return ProviderSignInResult{Session: sess, Reclaimed: true}, nil
+	}
+	sess, err := s.sessionOrChallenge(ctx, u, meta)
 	if err != nil {
 		return ProviderSignInResult{}, err
 	}
-	return ProviderSignInResult{Session: sess, Reclaimed: reclaimedIt}, nil
+	return ProviderSignInResult{Session: sess}, nil
 }
 
 // webSignInTicket answers a browser sign-in that found no account to sign in

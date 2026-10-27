@@ -105,16 +105,6 @@ func (f *nativeFixture) loginAudits(t *testing.T, uid, via string) int {
 		AND metadata::jsonb->>'via' = $3 AND metadata::jsonb->>'channel' = 'native'`, audit.ActionAuthLoginSucceeded, uid, via)
 }
 
-func (f *nativeFixture) newLogins(to string) int {
-	n := 0
-	for _, m := range f.mailsTo(to) {
-		if m.Kind == mail.KindNewLogin {
-			n++
-		}
-	}
-	return n
-}
-
 // The password door (spec §3.6): the app's device session on a right
 // password, audited via password on the app's channel; the app's challenge,
 // bound to this app, on an account with a second factor; a wrong address or

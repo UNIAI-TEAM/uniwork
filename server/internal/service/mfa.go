@@ -261,15 +261,6 @@ func (s *AuthService) secondStep(ctx context.Context, tx pgx.Tx, q *db.Queries, 
 	return out, nil
 }
 
-func (s *AuthService) mintAudited(ctx context.Context, u db.User, meta map[string]any) (Session, error) {
-	sess, err := s.mintSession(ctx, u, "", "")
-	if err != nil {
-		return Session{}, err
-	}
-	s.recordAuth(ctx, audit.ActionAuthLoginSucceeded, u.ID, meta)
-	return sess, nil
-}
-
 func (s *AuthService) totpMatches(u db.User, code string) bool {
 	secret, err := s.sealer.Open(u.TotpSecret.String)
 	return err == nil && auth.ValidTOTP(secret, code, s.now())
