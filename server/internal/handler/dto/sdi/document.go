@@ -37,7 +37,7 @@ type CreateDocumentFileSDI struct {
 	ParentID    *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Destination *string `formData:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
 	Title       *string `formData:"title" description:"Tiêu đề hiển thị; mặc định tên tệp" example:"bao-cao-thang-9.pdf"`
-	Template    *string `formData:"template" description:"true = tải lên như một mẫu văn bản của workspace (Mẫu): tệp ở gốc, hiển thị workspace; dùng cùng parent_id hoặc destination -> 400 invalid_request; bỏ trống hoặc false = tệp thường" example:"true"`
+	Template    *string `formData:"template" description:"true = tải lên như một mẫu văn bản của workspace (Mẫu): tệp ở gốc, hiển thị workspace; dùng cùng parent_id hoặc destination -> 400 invalid_request; bỏ trống hoặc false = tệp thường; giá trị khác true/false, hoặc template=true kèm visibility khác workspace -> 400 invalid_request" example:"true"`
 }
 
 // MarkDocumentTemplateSDI documents POST /api/v1/documents/{documentID}/template
@@ -48,7 +48,7 @@ type MarkDocumentTemplateSDI struct {
 
 // ListTemplateDocumentsSDI documents GET
 // /api/v1/workspaces/{workspaceID}/documents/templates (UNI-2225): the
-// workspace's templates as list rows, newest mark first, paged by keyset.
+// workspace's templates as list rows, most recently updated first, paged by keyset.
 type ListTemplateDocumentsSDI struct {
 	Cursor *string  `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0xMC0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
 	Limit  *int32   `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`

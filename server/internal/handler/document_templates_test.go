@@ -106,6 +106,28 @@ func TestDocumentTemplateUploadFlag(t *testing.T) {
 	}
 }
 
+func TestDocumentTemplateUploadFlagValidation(t *testing.T) {
+	w := newDocsWorld(t)
+	for name, fields := range map[string]map[string]string{
+		"unknown value":         {"title": "Mẫu", "template": "maybe"},
+		"template and private":  {"title": "Mẫu", "template": "true", "visibility": "restricted"},
+		"false is a plain file": {"title": "Tệp", "template": "FALSE"},
+	} {
+		status, out := createFileDocWithFields(t, w, fields)
+		want := 400
+		if name == "false is a plain file" {
+			want = 201
+		}
+		if status != want {
+			t.Fatalf("%s = %d %v, want %d", name, status, out, want)
+		}
+	}
+	status, out := createFileDocWithFields(t, w, map[string]string{"title": "Mẫu", "template": "true", "visibility": "workspace"})
+	if status != 201 {
+		t.Fatalf("template with visibility=workspace = %d %v", status, out)
+	}
+}
+
 func TestDocumentTemplateRequiresSession(t *testing.T) {
 	w := newDocsWorld(t)
 	id := newTemplateFile(t, w, "workspace")

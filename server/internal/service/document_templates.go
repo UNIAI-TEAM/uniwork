@@ -39,6 +39,11 @@ func (s *DocumentService) MarkDocumentTemplate(ctx context.Context, actor Actor,
 		if err := s.templateCommandChecks(ctx, q, actor, doc); err != nil {
 			return err
 		}
+		// The gate lets a manager or AdminScope caller see a trashed file; a
+		// mark (and above all a widen) on it is refused, as UpdateDocument does.
+		if doc.ArchivedAt.Valid {
+			return errDocumentDeleted()
+		}
 		if doc.Visibility == documentVisibilityRestricted {
 			if !in.WidenToWorkspace {
 				return errTemplateWidensVisibility()

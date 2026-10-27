@@ -528,7 +528,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Delete("/documents/{documentID}/template", h.UnmarkDocumentTemplate, apiOp{
 		summary:     "Unmark a document as a template",
-		description: "Bỏ đánh dấu mẫu (UNI-2225); tệp giữ nguyên visibility. Tệp chưa là mẫu vẫn trả 200 không đổi gì (idempotent). Tài liệu đã lưu trữ thì không bỏ đánh dấu được. Trả DocumentSDO.",
+		description: "Bỏ đánh dấu mẫu (UNI-2225); tệp giữ nguyên visibility. Tệp chưa là mẫu vẫn trả 200 không đổi gì (idempotent). Tệp đã lưu trữ hoặc ở thùng rác vẫn bỏ đánh dấu được. Trả DocumentSDO.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentSDO{},
 		auth:        true,

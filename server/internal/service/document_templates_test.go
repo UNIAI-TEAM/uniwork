@@ -198,6 +198,40 @@ func TestMarkDocumentTemplateRefusals(t *testing.T) {
 			t.Fatalf("member of another workspace = %v, want ErrNotFound", err)
 		}
 	})
+	t.Run("trashed", func(t *testing.T) {
+		doc := w.file(t, documentVisibilityRestricted)
+		owner := Human(w.tn.aclOwner.ID)
+		if _, err := w.f.svc.ArchiveDocument(w.f.ctx, owner, doc.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		// The widening flag must not slip past the trash check either.
+		_, err := w.f.svc.MarkDocumentTemplate(w.f.ctx, owner, doc.ID, MarkDocumentTemplateInput{WidenToWorkspace: true})
+		if !codedIs(err, "document_deleted") {
+			t.Fatalf("trashed = %v, want document_deleted", err)
+		}
+		got := w.reload(t, doc.ID)
+		if got.Visibility != documentVisibilityRestricted || got.TemplateMarkedAt.Valid {
+			t.Fatalf("refused mark changed the row: %q marked=%v", got.Visibility, got.TemplateMarkedAt.Valid)
+		}
+		if n := w.auditCount(t, audit.ActionDocumentTemplateMarked, doc.ID); n != 0 {
+			t.Fatalf("refused mark audited %d rows", n)
+		}
+	})
+}
+
+// An org admin who is not the ACL owner and holds no share cannot widen
+// someone else's restricted file by marking it: that is break-glass territory.
+func TestMarkRestrictedDocumentTemplateBreakGlass(t *testing.T) {
+	w := newTemplateWorld(t, "tplglass")
+	doc := w.file(t, documentVisibilityRestricted)
+
+	_, err := w.f.svc.MarkDocumentTemplate(w.f.ctx, Human(w.tn.orgAdmin.ID), doc.ID, MarkDocumentTemplateInput{WidenToWorkspace: true})
+	if !codedIs(err, "break_glass_required") {
+		t.Fatalf("org admin widening a restricted file = %v, want break_glass_required", err)
+	}
+	if got := w.reload(t, doc.ID); got.Visibility != documentVisibilityRestricted || got.TemplateMarkedAt.Valid {
+		t.Fatalf("refused mark changed the row: %q marked=%v", got.Visibility, got.TemplateMarkedAt.Valid)
+	}
 }
 
 func TestUnmarkDocumentTemplate(t *testing.T) {

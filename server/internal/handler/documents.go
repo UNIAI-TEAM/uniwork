@@ -297,6 +297,15 @@ func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+	template := strings.ToLower(strings.TrimSpace(fields["template"]))
+	if template != "" && template != "true" && template != "false" {
+		respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "template" must be true or false`)
+		return
+	}
+	if vis := strings.TrimSpace(fields["visibility"]); template == "true" && vis != "" && vis != "workspace" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "a template is visible to the whole workspace: visibility must be workspace")
+		return
+	}
 	part := &cappedDocumentPart{r: file, max: h.documentMaxBytes()}
 	res, err := h.Documents.CreateFileDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.CreateFileDocumentInput{
 		ParentID:       strings.TrimSpace(fields["parent_id"]),
@@ -305,7 +314,7 @@ func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 		Filename:       file.FileName(),
 		Body:           part,
 		Visibility:     strings.TrimSpace(fields["visibility"]),
-		Template:       strings.EqualFold(strings.TrimSpace(fields["template"]), "true"),
+		Template:       template == "true",
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 	})
 	if err != nil {
