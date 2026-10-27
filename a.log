@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^5153cb15e" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=5153cb15e948d4f19a9380a18ce503e8d38eae06
+5153cb15e test(documents): add folder bulk access service, handler, notification and audit coverage tests
+d11318f1e test(documents): cover folder reader share-candidates access
+ff5a5cdda feat(documents): allow folder readers to list share candidates
+2feaeb3cb feat(documents): wire folder bulk access handlers and isolation matrix
