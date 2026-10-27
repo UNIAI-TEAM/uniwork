@@ -77,7 +77,7 @@ function DriveFolderRow({ folder, href }: { folder: DriveFolderEntry; href: stri
   const count = t("driveLibrary.folder.count", { count: folder.fileCount });
   return (
     <tr className="hover:bg-accent/40">
-      <td className="w-full max-w-0 px-4 py-3 md:min-w-48">
+      <td className="w-full max-w-0 px-4 py-3">
         <div className="flex min-w-0 items-start gap-3 md:items-center">
           <DOCUMENTS_NAV_ICONS.folder aria-hidden className="mt-0.5 size-6 shrink-0 text-muted-foreground md:mt-0" />
           <div className="flex min-w-0 flex-1 flex-col gap-1 md:gap-0">
@@ -92,7 +92,7 @@ function DriveFolderRow({ folder, href }: { folder: DriveFolderEntry; href: stri
           </div>
         </div>
       </td>
-      <td colSpan={COLUMN_COUNT - 1} className="hidden whitespace-nowrap px-4 py-3 text-caption text-muted-foreground md:table-cell">
+      <td colSpan={COLUMN_COUNT - 1} className="hidden whitespace-nowrap px-3 py-3 text-caption text-muted-foreground md:table-cell">
         {count}
       </td>
     </tr>
@@ -125,7 +125,7 @@ function DriveFileRow({
 
   return (
     <tr className="hover:bg-accent/40">
-      <td className="w-full max-w-0 px-4 py-3 md:min-w-48">
+      <td className="w-full max-w-0 px-4 py-3">
         <div className="flex min-w-0 items-start gap-3 md:items-center">
           <DocumentTypeIcon format={file.icon_kind} className="mt-0.5 size-6 shrink-0 md:mt-0" />
           <div className="flex min-w-0 flex-1 flex-col gap-1 md:gap-0">
@@ -160,34 +160,35 @@ function DriveFileRow({
           </div>
         </div>
       </td>
-      <td className="hidden whitespace-nowrap px-4 py-3 md:table-cell">
+      <td className="hidden px-3 py-3 md:table-cell">
         <div className="flex flex-col gap-0.5">
-          <span title={accountEmail} className="block max-w-48 truncate text-caption text-foreground">{accountEmail}</span>
+          <span title={accountEmail} className="block truncate text-caption text-foreground">{accountEmail}</span>
           {rowNeedsReconnect ? (
             <AppLink
               href={reconnectHref}
               className="inline-flex min-h-6 items-center gap-1 text-caption text-warning hover:underline pointer-coarse:min-h-11"
             >
               <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
-              <span>{t("driveLibrary.list.reconnect_inline")}</span>
+              <span className="min-w-0">{t("driveLibrary.list.reconnect_inline")}</span>
             </AppLink>
           ) : null}
         </div>
       </td>
-      <td className="hidden whitespace-nowrap px-4 py-3 md:table-cell">
+      <td className="hidden px-3 py-3 md:table-cell">
         <span
+          title={badge.label}
           className={cn(
-            "inline-flex items-center rounded-md px-2 py-0.5 text-caption font-medium",
+            "inline-block max-w-full truncate rounded-md px-2 py-0.5 align-middle text-caption font-medium",
             badge.className,
           )}
         >
           {badge.label}
         </span>
       </td>
-      <td className="hidden whitespace-nowrap px-4 py-3 text-caption text-muted-foreground md:table-cell">
+      <td className="hidden px-3 py-3 text-caption text-muted-foreground md:table-cell">
         {formatUsedIn(file, t)}
       </td>
-      <td className="hidden whitespace-nowrap px-4 py-3 text-caption text-muted-foreground md:table-cell">
+      <td className="hidden whitespace-nowrap px-3 py-3 text-caption text-muted-foreground md:table-cell">
         {createdCount > 0
           ? t("driveLibrary.list.tasks_created", { count: createdCount })
           : null}
@@ -207,22 +208,22 @@ export function DriveLibraryTable({
   const { t } = useTranslation();
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-background">
-      <table className="w-full table-fixed border-collapse text-body md:table-auto md:min-w-[44rem]">
+      <table className="w-full table-fixed border-collapse text-body md:min-w-[41rem]">
         <thead>
           <tr className="border-b border-border text-left text-caption text-muted-foreground">
-            <th scope="col" className="w-full px-4 py-3 font-medium md:min-w-48">
+            <th scope="col" className="w-full px-4 py-3 font-medium md:w-auto">
               {t("driveLibrary.list.columns.name")}
             </th>
-            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
+            <th scope="col" className="hidden px-3 py-3 font-medium md:table-cell md:w-32">
               {t("driveLibrary.list.columns.account")}
             </th>
-            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
+            <th scope="col" className="hidden px-3 py-3 font-medium md:table-cell md:w-40">
               {t("driveLibrary.list.columns.access")}
             </th>
-            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
+            <th scope="col" className="hidden px-3 py-3 font-medium md:table-cell md:w-32">
               {t("driveLibrary.list.columns.used_in")}
             </th>
-            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
+            <th scope="col" className="hidden px-3 py-3 font-medium md:table-cell md:w-20">
               {t("driveLibrary.list.columns.tasks_created")}
             </th>
           </tr>
