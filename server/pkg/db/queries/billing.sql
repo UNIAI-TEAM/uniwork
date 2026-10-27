@@ -137,12 +137,6 @@ SELECT * FROM billing_payment_intents WHERE provider_txn_ref = $1;
 -- name: GetBillingPaymentIntentByID :one
 SELECT * FROM billing_payment_intents WHERE id = $1 AND organization_id = $2;
 
--- name: GetCompletedPaymentIntentForInvoice :one
-SELECT * FROM billing_payment_intents
-WHERE organization_id = $1 AND subscription_id = $2 AND provider = $3 AND amount = $4 AND status = 'completed'
-ORDER BY COALESCE(completed_at, created_at) DESC
-LIMIT 1;
-
 -- name: MarkBillingPaymentIntentCompleted :one
 UPDATE billing_payment_intents SET
   status = 'completed',
@@ -267,7 +261,6 @@ JOIN plans p ON p.id = s.plan_id
 WHERE s.status = 'active'
   AND s.current_period_end IS NOT NULL AND s.current_period_end < now()
   AND s.cancel_at IS NULL
-  AND p.price_amount IS NOT NULL AND p.price_amount > 0
 ORDER BY s.current_period_end
 LIMIT $1;
 
@@ -315,7 +308,6 @@ UPDATE subscriptions s SET
   updated_at = now()
 FROM plans p
 WHERE s.id = $1 AND s.organization_id = $2 AND s.plan_id = p.id
-  AND p.price_amount IS NOT NULL AND p.price_amount > 0
   AND s.status = 'active'
   AND s.cancel_at IS NULL
   AND s.current_period_end IS NOT NULL AND s.current_period_end < now()

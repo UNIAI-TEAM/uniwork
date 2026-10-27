@@ -64,4 +64,8 @@ export function useInvoices(orgId: string) {
 }
 
 export { saveCheckoutBaseline } from "./checkout-baseline";
+export {
+  checkoutReturnStateFromSearchParams,
+  stripCheckoutReturnSearchParams,
+} from "./checkout-return-vnpay";
 export { useCheckoutReturn, type CheckoutReturnState } from "./use-checkout-return";

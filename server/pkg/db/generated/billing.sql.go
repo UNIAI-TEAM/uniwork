@@ -539,53 +539,6 @@ func (q *Queries) GetBillingPaymentIntentForInvoice(ctx context.Context, arg Get
 	return i, err
 }
 
-const getCompletedPaymentIntentForInvoice = `-- name: GetCompletedPaymentIntentForInvoice :one
-SELECT id, organization_id, subscription_id, plan_id, provider, provider_txn_ref, amount, currency, status, expires_at, completed_at, created_at, updated_at, created_by, created_by_kind, provider_bank_code, provider_transaction_no, provider_order_info, provider_pay_date, reconcile_attempted_at FROM billing_payment_intents
-WHERE organization_id = $1 AND subscription_id = $2 AND provider = $3 AND amount = $4 AND status = 'completed'
-ORDER BY COALESCE(completed_at, created_at) DESC
-LIMIT 1
-`
-
-type GetCompletedPaymentIntentForInvoiceParams struct {
-	OrganizationID string `json:"organization_id"`
-	SubscriptionID string `json:"subscription_id"`
-	Provider       string `json:"provider"`
-	Amount         int64  `json:"amount"`
-}
-
-func (q *Queries) GetCompletedPaymentIntentForInvoice(ctx context.Context, arg GetCompletedPaymentIntentForInvoiceParams) (BillingPaymentIntent, error) {
-	row := q.db.QueryRow(ctx, getCompletedPaymentIntentForInvoice,
-		arg.OrganizationID,
-		arg.SubscriptionID,
-		arg.Provider,
-		arg.Amount,
-	)
-	var i BillingPaymentIntent
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.SubscriptionID,
-		&i.PlanID,
-		&i.Provider,
-		&i.ProviderTxnRef,
-		&i.Amount,
-		&i.Currency,
-		&i.Status,
-		&i.ExpiresAt,
-		&i.CompletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.CreatedBy,
-		&i.CreatedByKind,
-		&i.ProviderBankCode,
-		&i.ProviderTransactionNo,
-		&i.ProviderOrderInfo,
-		&i.ProviderPayDate,
-		&i.ReconcileAttemptedAt,
-	)
-	return i, err
-}
-
 const getDefaultPlan = `-- name: GetDefaultPlan :one
 SELECT id, code, name, description, billing_period, price_amount, price_currency, is_default, is_active, sort_order, created_at, updated_at FROM plans WHERE is_default LIMIT 1
 `
@@ -1379,7 +1332,6 @@ JOIN plans p ON p.id = s.plan_id
 WHERE s.status = 'active'
   AND s.current_period_end IS NOT NULL AND s.current_period_end < now()
   AND s.cancel_at IS NULL
-  AND p.price_amount IS NOT NULL AND p.price_amount > 0
 ORDER BY s.current_period_end
 LIMIT $1
 `
@@ -1539,7 +1491,6 @@ UPDATE subscriptions s SET
   updated_at = now()
 FROM plans p
 WHERE s.id = $1 AND s.organization_id = $2 AND s.plan_id = p.id
-  AND p.price_amount IS NOT NULL AND p.price_amount > 0
   AND s.status = 'active'
   AND s.cancel_at IS NULL
   AND s.current_period_end IS NOT NULL AND s.current_period_end < now()
