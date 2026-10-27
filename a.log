@@ -1,0 +1,3 @@
+$ git rev-parse --short HEAD; echo PROBE_EXIT=$?
+ff98b2e1d
+PROBE_EXIT=0
