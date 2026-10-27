@@ -183,6 +183,11 @@ WHERE va.organization_id = $1
   AND va.user_id = $3
   AND f.unlinked_at IS NULL
   AND ($4::text IS NULL OR va.connection_id = $4)
+  AND (
+    $5::text IS NULL
+    OR ($5 = 'none' AND f.drive_folder_id IS NULL)
+    OR ($5 <> 'none' AND f.drive_folder_id = $5)
+  )
 `
 
 type CountMyDriveFilesParams struct {
@@ -190,6 +195,7 @@ type CountMyDriveFilesParams struct {
 	WorkspaceID    string      `json:"workspace_id"`
 	ViewerUserID   string      `json:"viewer_user_id"`
 	ConnectionID   pgtype.Text `json:"connection_id"`
+	FolderFilter   pgtype.Text `json:"folder_filter"`
 }
 
 func (q *Queries) CountMyDriveFiles(ctx context.Context, arg CountMyDriveFilesParams) (int64, error) {
@@ -198,6 +204,7 @@ func (q *Queries) CountMyDriveFiles(ctx context.Context, arg CountMyDriveFilesPa
 		arg.WorkspaceID,
 		arg.ViewerUserID,
 		arg.ConnectionID,
+		arg.FolderFilter,
 	)
 	var column_1 int64
 	err := row.Scan(&column_1)
@@ -1104,12 +1111,17 @@ WHERE va.organization_id = $1
   AND f.unlinked_at IS NULL
   AND ($4::text IS NULL OR va.connection_id = $4)
   AND (
-    $5::timestamptz IS NULL
-    OR f.created_at < $5::timestamptz
-    OR (f.created_at = $5::timestamptz AND f.id < $6::text)
+    $5::text IS NULL
+    OR ($5 = 'none' AND f.drive_folder_id IS NULL)
+    OR ($5 <> 'none' AND f.drive_folder_id = $5)
+  )
+  AND (
+    $6::timestamptz IS NULL
+    OR f.created_at < $6::timestamptz
+    OR (f.created_at = $6::timestamptz AND f.id < $7::text)
   )
 ORDER BY f.created_at DESC, f.id DESC
-LIMIT $7
+LIMIT $8
 `
 
 type ListMyDriveFilesEnrichedParams struct {
@@ -1117,6 +1129,7 @@ type ListMyDriveFilesEnrichedParams struct {
 	WorkspaceID     string             `json:"workspace_id"`
 	ViewerUserID    string             `json:"viewer_user_id"`
 	ConnectionID    pgtype.Text        `json:"connection_id"`
+	FolderFilter    pgtype.Text        `json:"folder_filter"`
 	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
 	LimitN          int32              `json:"limit_n"`
@@ -1167,6 +1180,7 @@ func (q *Queries) ListMyDriveFilesEnriched(ctx context.Context, arg ListMyDriveF
 		arg.WorkspaceID,
 		arg.ViewerUserID,
 		arg.ConnectionID,
+		arg.FolderFilter,
 		arg.CursorCreatedAt,
 		arg.CursorID,
 		arg.LimitN,

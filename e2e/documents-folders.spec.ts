@@ -888,12 +888,10 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
     name: "Tìm trong Tài liệu",
   });
   await searchInputA.fill("Hồ sơ Realtime Move");
-  const resultsListA = searchPageA.getByRole("list", {
-    name: "Tìm trong Tài liệu",
-  });
-  await expect(
-    resultsListA.getByText("Đường dẫn: Nguồn"),
-  ).toBeVisible();
+  // The moved folder is a card in the "Thư mục" section (UNI-2205); its ancestor path is screen-reader text.
+  await expect(folderCard(searchPageA, "Hồ sơ Realtime Move")).toContainText(
+    "Đường dẫn: Nguồn",
+  );
 
   const contextB = await browser.newContext();
   try {
@@ -920,9 +918,10 @@ test("FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforce
     await expect(folderCard(page, "Hồ sơ Realtime Move")).toHaveCount(0, {
       timeout: 15_000,
     });
-    await expect(
-      resultsListA.getByText("Đường dẫn: Đích"),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(folderCard(searchPageA, "Hồ sơ Realtime Move")).toContainText(
+      "Đường dẫn: Đích",
+      { timeout: 15_000 },
+    );
     const expandDst = tree.getByRole("button", { name: "Mở rộng Đích", exact: true });
     if (await expandDst.isVisible()) {
       await expandDst.click();
@@ -1598,6 +1597,19 @@ test("FD-A08 (FD-09 UI) deep breadcrumb shows root, …, parent and leaf, and th
   );
 });
 
+/**
+ * Picks types in the Loại multi-select of the documents filter bar (`documents-library-toolbar.tsx`,
+ * UNI-2113): each option toggles, "Tất cả" clears the picks; the menu stays open while picking.
+ */
+async function pickTypeFilter(page: Page, ...labels: string[]): Promise<void> {
+  await page.getByRole("combobox", { name: /^Loại/ }).click();
+  const listbox = page.getByRole("listbox");
+  for (const label of labels) {
+    await listbox.getByRole("option", { name: label, exact: true }).click();
+  }
+  await page.keyboard.press("Escape");
+}
+
 test("FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches", async ({
   page,
 }) => {
@@ -1694,35 +1706,42 @@ test("FD-A09 unified search and ⌘K find folders and documents by title, filter
   });
   await searchInput.fill("hop dong");
 
-  const resultsList = page.getByRole("list", { name: "Tìm trong Tài liệu" });
-  await expect(resultsList.getByText("Hợp đồng Đối tác")).toBeVisible();
-  await expect(resultsList.getByText("Báo cáo Hợp đồng Quý 1")).toBeVisible();
-  await expect(resultsList.getByText("Bảng tính Hợp đồng Quý 1")).toBeVisible();
-  await expect(
-    resultsList.getByText("Đường dẫn: Tài chính 2026 › Quý 1").first(),
-  ).toBeVisible();
+  // Search keeps the library layout (UNI-2205): folder hits are cards in the "Thư mục" section, document hits are
+  // rows of the "Tài liệu" table, and each hit carries its ancestor path as screen-reader text "Đường dẫn: …".
+  await expect(folderCard(page, "Hợp đồng Đối tác")).toBeVisible();
+  await expect(contentRow(page, "Báo cáo Hợp đồng Quý 1")).toBeVisible();
+  await expect(contentRow(page, "Bảng tính Hợp đồng Quý 1")).toBeVisible();
+  await expect(folderCard(page, "Hợp đồng Đối tác")).toContainText(
+    "Đường dẫn: Tài chính 2026",
+  );
+  await expect(contentRow(page, "Báo cáo Hợp đồng Quý 1")).toContainText(
+    "Đường dẫn: Tài chính 2026 › Quý 1",
+  );
+  // The All/Folders/Documents pills are gone; the Loại menu filters by file type. Folders stay in a file-type
+  // answer (server/internal/service/document_search.go: Types) and a UniNote-only answer has none.
+  await expect(page.getByRole("radiogroup", { name: "Lọc kết quả" })).toHaveCount(0);
 
-  const filterGroup = page.getByRole("radiogroup", { name: "Lọc kết quả" });
-  await filterGroup.getByRole("radio", { name: "Thư mục" }).click();
-  await expect(resultsList.getByText("Hợp đồng Đối tác")).toBeVisible();
-  await expect(
-    resultsList.getByText("Báo cáo Hợp đồng Quý 1"),
-  ).toHaveCount(0);
+  await pickTypeFilter(page, ".docx");
+  await expect(contentRow(page, "Báo cáo Hợp đồng Quý 1")).toBeVisible();
+  await expect(folderCard(page, "Hợp đồng Đối tác")).toBeVisible();
+  await expect(contentRow(page, "Bảng tính Hợp đồng Quý 1")).toHaveCount(0);
 
-  await filterGroup.getByRole("radio", { name: "Tài liệu" }).click();
-  await expect(resultsList.getByText("Báo cáo Hợp đồng Quý 1")).toBeVisible();
-  await expect(resultsList.getByText("Hợp đồng Đối tác")).toHaveCount(0);
+  await pickTypeFilter(page, "Tất cả", "UniNote");
+  await expect(contentRow(page, "Hợp đồng Chia Sẻ Riêng")).toBeVisible();
+  await expect(folderCard(page, "Hợp đồng Đối tác")).toHaveCount(0);
+  await expect(contentRow(page, "Báo cáo Hợp đồng Quý 1")).toHaveCount(0);
 
-  await filterGroup.getByRole("radio", { name: "Tất cả" }).click();
+  await pickTypeFilter(page, "Tất cả");
   await searchInput.fill("BODYONLYTOKEN99");
-  await expect(page.getByText("Không tìm thấy kết quả")).toBeVisible();
-  await expect(resultsList).toHaveCount(0);
+  await expect(
+    page.getByText("Không có kết quả cho “BODYONLYTOKEN99”"),
+  ).toBeVisible();
+  await expect(page.getByRole("table", { name: "Tài liệu" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: /^Thư mục/ })).toHaveCount(0);
 
   // A document result opens the document page, not a folder view.
   await searchInput.fill("Báo cáo Hợp đồng Quý 1");
-  await resultsList
-    .getByRole("button", { name: /Báo cáo Hợp đồng Quý 1/ })
-    .click();
+  await contentRowOpen(page, "Báo cáo Hợp đồng Quý 1").click();
   await expect(page).toHaveURL(
     new RegExp(`/${ws.orgSlug}/${ws.wsSlug}/documents/${reportDoc.id}$`),
   );
@@ -1730,7 +1749,7 @@ test("FD-A09 unified search and ⌘K find folders and documents by title, filter
 
   await page.goto(`/${ws.orgSlug}/${ws.wsSlug}/documents`);
   await searchInput.fill("Hợp đồng Đối tác");
-  await resultsList.getByRole("button", { name: /Hợp đồng Đối tác/ }).click();
+  await folderCard(page, "Hợp đồng Đối tác").getByRole("button").first().click();
   await expect(page).toHaveURL(new RegExp(`folder=${partnerFolder.id}`));
 
   await page.keyboard.press("Control+k");
@@ -2325,10 +2344,8 @@ test("FD-A12 a second session archiving and restoring a folder subtree is seen l
       name: "Tìm trong Tài liệu",
     });
     await searchInputA.fill("Dự án Đóng");
-    const resultsListA = searchPageA.getByRole("list", {
-      name: "Tìm trong Tài liệu",
-    });
-    await expect(resultsListA.getByText("Dự án Đóng")).toBeVisible();
+    // The hit is a card in the "Thư mục" section of the normal library layout (UNI-2205), not a results list.
+    await expect(folderCard(searchPageA, "Dự án Đóng")).toBeVisible();
 
     // B archives with B's own token (manage on its own tree); A's tree, card grid and search lose it live.
     const archived = await archiveDocument(pageB, memberB.token, rootFolder.id);
@@ -2345,9 +2362,9 @@ test("FD-A12 a second session archiving and restoring a folder subtree is seen l
     await expect(folderCard(page, "Dự án Đóng")).toHaveCount(0, {
       timeout: 15_000,
     });
-    await expect(searchPageA.getByText("Không tìm thấy kết quả")).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(
+      searchPageA.getByText("Không có kết quả cho “Dự án Đóng”"),
+    ).toBeVisible({ timeout: 15_000 });
 
     // B creates a folder with the same name while rootFolder is in trash, then restores rootFolder:
     // the restore collides and auto-renames, and A sees both live.
@@ -2372,7 +2389,7 @@ test("FD-A12 a second session archiving and restoring a folder subtree is seen l
     await expect(folderCard(page, "Dự án Đóng (2)")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(resultsListA.getByText("Dự án Đóng (2)")).toBeVisible({
+    await expect(folderCard(searchPageA, "Dự án Đóng (2)")).toBeVisible({
       timeout: 15_000,
     });
 

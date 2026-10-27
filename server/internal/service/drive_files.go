@@ -65,9 +65,10 @@ type LinkDriveFilesInput struct {
 
 // ListDriveFilesFilter narrows DriveFileService.ListMine (GET /workspaces/{ws}/drive-files).
 type ListDriveFilesFilter struct {
-	ConnectionID string
-	Cursor       string
-	Limit        int32
+	ConnectionID  string
+	DriveFolderID string
+	Cursor        string
+	Limit         int32
 }
 
 // DriveLinkedTaskRef is a compact reference to a task visible to the viewer (spec §7.6, §7.7, §8.8).
@@ -158,9 +159,10 @@ type DriveFileView struct {
 
 // DriveFileListResult is the service-layer representation of sdo.DriveFileListSDO (spec §7.6).
 type DriveFileListResult struct {
-	Files      []DriveFileView
-	TotalCount int64
-	NextCursor *string
+	Files         []DriveFileView
+	TotalCount    int64
+	NextCursor    *string
+	DriveFolderID *string
 }
 
 // DriveFileLinkReceiptView is the privacy-safe receipt returned inside DriveFileLinkItemResult
