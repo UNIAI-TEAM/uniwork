@@ -1,0 +1,151 @@
+$ export NEXT_PUBLIC_API_URL=http://localhost:18654 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18654 DEV_VERIFICATION_CODE=123456; pnpm --filter @uniwork/e2e exec playwright test e2e/documents-share.spec.ts e2e/documents-folders.spec.ts --reporter=list > /tmp/fca4-reg.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/fca4-reg.log | grep -A40 -E "^\s+[0-9]+\) " | head -n 300; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/fca4-reg.log; tail -n 40 /tmp/fca4-reg.log; echo; echo "E2E_DOCS_REGRESSION_EXIT=$rc"
+  1) documents-folders.spec.ts:745:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('list', { name: 'Tìm trong Tài liệu' }).getByText('Đường dẫn: Nguồn')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('list', { name: 'Tìm trong Tài liệu' }).getByText('Đường dẫn: Nguồn')
+
+
+      894 |   await expect(
+      895 |     resultsListA.getByText("Đường dẫn: Nguồn"),
+    > 896 |   ).toBeVisible();
+          |     ^
+      897 |
+      898 |   const contextB = await browser.newContext();
+      899 |   try {
+
+    Error Context: test-results/documents-folders-FD-A05-m-d460d-dates-a-second-session-live/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A05-m-d460d-dates-a-second-session-live/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A05-m-d460d-dates-a-second-session-live/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) documents-folders.spec.ts:1601:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('list', { name: 'Tìm trong Tài liệu' }).getByText('Hợp đồng Đối tác')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('list', { name: 'Tìm trong Tài liệu' }).getByText('Hợp đồng Đối tác')
+
+
+      1696 |
+      1697 |   const resultsList = page.getByRole("list", { name: "Tìm trong Tài liệu" });
+    > 1698 |   await expect(resultsList.getByText("Hợp đồng Đối tác")).toBeVisible();
+           |                                                           ^
+      1699 |   await expect(resultsList.getByText("Báo cáo Hợp đồng Quý 1")).toBeVisible();
+      1700 |   await expect(resultsList.getByText("Bảng tính Hợp đồng Quý 1")).toBeVisible();
+      1701 |   await expect(
+
+    Error Context: test-results/documents-folders-FD-A09-u-12c98-d-exclude-body-only-matches/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A09-u-12c98-d-exclude-body-only-matches/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A09-u-12c98-d-exclude-body-only-matches/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) documents-folders.spec.ts:2233:1 › FD-A12 a second session archiving and restoring a folder subtree is seen live by the first session, counts items and renames on restore collision 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('list', { name: 'Tìm trong Tài liệu' }).getByText('Dự án Đóng')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('list', { name: 'Tìm trong Tài liệu' }).getByText('Dự án Đóng')
+
+
+      2329 |       name: "Tìm trong Tài liệu",
+      2330 |     });
+    > 2331 |     await expect(resultsListA.getByText("Dự án Đóng")).toBeVisible();
+           |                                                        ^
+      2332 |
+      2333 |     // B archives with B's own token (manage on its own tree); A's tree, card grid and search lose it live.
+      2334 |     const archived = await archiveDocument(pageB, memberB.token, rootFolder.id);
+
+    Error Context: test-results/documents-folders-FD-A12-a-626af-enames-on-restore-collision/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A12-a-626af-enames-on-restore-collision/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A12-a-626af-enames-on-restore-collision/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    documents-folders.spec.ts:745:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live 
+    documents-folders.spec.ts:1601:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches 
+    documents-folders.spec.ts:2233:1 › FD-A12 a second session archiving and restoring a folder subtree is seen live by the first session, counts items and renames on restore collision 
+  1 skipped
+  26 passed (6.3m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test e2e/documents-share.spec.ts e2e/documents-folders.spec.ts --reporter=list
+  3 failed
+  1 skipped
+  26 passed (6.3m)
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('list', { name: 'Tìm trong Tài liệu' }).getByText('Dự án Đóng')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 5000ms
+      - waiting for getByRole('list', { name: 'Tìm trong Tài liệu' }).getByText('Dự án Đóng')
+
+
+      2329 |       name: "Tìm trong Tài liệu",
+      2330 |     });
+    > 2331 |     await expect(resultsListA.getByText("Dự án Đóng")).toBeVisible();
+           |                                                        ^
+      2332 |
+      2333 |     // B archives with B's own token (manage on its own tree); A's tree, card grid and search lose it live.
+      2334 |     const archived = await archiveDocument(pageB, memberB.token, rootFolder.id);
+        at /workspace/e2e/documents-folders.spec.ts:2331:56
+
+    Error Context: test-results/documents-folders-FD-A12-a-626af-enames-on-restore-collision/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folders-FD-A12-a-626af-enames-on-restore-collision/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folders-FD-A12-a-626af-enames-on-restore-collision/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3 failed
+    documents-folders.spec.ts:745:1 › FD-A05 move folder by drag-and-drop and Move-to keeps descendants, enforces depth<=20, renames on collision, and updates a second session live 
+    documents-folders.spec.ts:1601:1 › FD-A09 unified search and ⌘K find folders and documents by title, filter by kind, show paths, omit unreadable ancestors, and exclude body-only matches 
+    documents-folders.spec.ts:2233:1 › FD-A12 a second session archiving and restoring a folder subtree is seen live by the first session, counts items and renames on restore collision 
+  1 skipped
+  26 passed (6.3m)
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test e2e/documents-share.spec.ts e2e/documents-folders.spec.ts --reporter=list
+
+E2E_DOCS_REGRESSION_EXIT=1

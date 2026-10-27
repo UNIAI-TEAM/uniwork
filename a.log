@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^9ff97963d" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=9ff97963d39250425d2547fb11188b7c1ea8a364
+9ff97963d test(documents): folder access e2e follows fix2 labels, card and header menus, home share for to_private (UNI-2244)
+12cc2793f Merge commit '3cfe6727d' into feature/UNI-2244-folder-bulk-access-e2e
+3cfe6727d feat(documents): offer Chia sẻ on the folder card and open-folder menus, retitle the folder access dialog with a folder subtitle
+2ee746ea6 test(documents): open folder contents access from the tree menu, follow the new summary copy (UNI-2244)
