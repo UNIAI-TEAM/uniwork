@@ -59,7 +59,7 @@ for (const sample of [
       await expect(player).toHaveAttribute("data-step", String(beat));
       if (beat === 3) {
         await expect(player.locator('[data-demo-result="assignee"]')).toContainText("Khánh Vy");
-        await expect(player.locator('[data-demo-detail="task"]')).toContainText("in_progress");
+        await expect(player.locator('[data-demo-detail="task"]')).toContainText(sample.locale === "vi" ? "Đang làm" : "In progress");
       }
       if (beat === 5) {
         await player.screenshot({ path: `.impeccable/review/action-click-${sample.width}-${sample.theme}.png`, animations: "disabled" });

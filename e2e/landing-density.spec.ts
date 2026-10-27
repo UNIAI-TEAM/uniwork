@@ -29,18 +29,17 @@ for (const width of [1910, 1440, 768, 390]) {
     const player = workspace.locator(".product-playback");
     await expect(player).toHaveAttribute("data-running", "false");
     const playback = player.locator('[data-action="toggle-playback"]');
-    if (width >= 768) {
-      await playback.click();
-      await expect(player).toHaveAttribute("data-running", "true");
-      await playback.click();
-      await expect(player).toHaveAttribute("data-running", "false");
-    } else {
-      await expect(playback).toHaveCount(0);
-    }
+    await playback.click();
+    await expect(player).toHaveAttribute("data-running", "true");
+    await playback.click();
+    await expect(player).toHaveAttribute("data-running", "false");
     await workspace.screenshot({ path: `.impeccable/review/density-${width}.png`, animations: "disabled" });
     await workspace.locator('[data-action="toggle-presentation"]').click();
-    await expect(workspace.locator('[data-action="reset-preview"]')).toBeVisible();
-    await workspace.locator('[data-action="reset-preview"]').click();
+    await expect(workspace).toHaveAttribute("data-presentation", "explore");
+    await expect(player).toHaveCount(0);
+    await workspace.locator('[data-action="toggle-presentation"]').click();
+    await expect(workspace).toHaveAttribute("data-presentation", "watch");
+    await expect(player).toHaveCount(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
     const solutions = page.locator(".solutions-section");

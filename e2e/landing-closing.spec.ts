@@ -60,7 +60,7 @@ for (const sample of samples) {
       await expect(closing).toHaveCSS("padding-top", sample.width < 768 ? "32px" : "48px");
       await expect(closing).toHaveCSS("padding-bottom", "0px");
       await expect(closing.locator(".final-showcase .product-demo-poster > div")).toHaveAttribute("inert", "");
-      await expect(closing.locator("figcaption")).toContainText(sample.locale === "en" ? "Illustrative sample data" : "Dữ liệu mẫu minh họa");
+      await expect(closing.locator("figcaption")).toContainText(sample.locale === "en" ? "Fictional demo data" : "Dữ liệu hư cấu minh họa");
     }
     const frame = (await closing.boundingBox())!;
     const heading = (await title.boundingBox())!;

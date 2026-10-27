@@ -33,8 +33,10 @@ for (const sample of [{ width: 1440, theme: "light", locale: "vi" }, { width: 14
         continue;
       }
       await expect(canvas).toBeVisible();
-      await expect(canvas.locator(".lovable-sidebar")).toHaveCount(1);
-      await expect(canvas.locator(".lovable-toolbar")).toHaveCount(1);
+      // Embedded in the product shell the reference draws only the screen body: the shell owns the sidebar and toolbar.
+      await expect(canvas).toHaveAttribute("data-embedded", "true");
+      await expect(canvas.locator(".lovable-sidebar, .lovable-toolbar")).toHaveCount(0);
+      await expect(workspace.locator(".product-demo-sidebar")).toHaveCount(1);
       expect(await canvas.innerText()).not.toMatch(/landing\.lovable\./);
       const geometry = await canvas.evaluate(node => {
         const box = node.getBoundingClientRect();
@@ -42,7 +44,8 @@ for (const sample of [{ width: 1440, theme: "light", locale: "vi" }, { width: 14
         return { width: box.width, viewport: viewport.width, ratio: box.width / box.height, overflow: document.documentElement.scrollWidth - window.innerWidth };
       });
       expect(geometry.width).toBeLessThanOrEqual(geometry.viewport + 1);
-      expect(geometry.ratio).toBeCloseTo(1.76, 1);
+      // The embedded canvas is 1500x928.
+      expect(geometry.ratio).toBeCloseTo(1500 / 928, 1);
       expect(geometry.overflow).toBeLessThanOrEqual(1);
       if (["workflows", "outputs", "approvals", "knowledge", "agents", "automation"].includes(feature)) {
         await workspace.screenshot({ path: `.impeccable/review/lovable-${feature}-${sample.width}-${sample.theme}.png`, animations: "disabled" });
