@@ -2322,4 +2322,99 @@ func TestListMineDriveFolderFilter(t *testing.T) {
 	if storedParentID == nil || *storedParentID != "fld-alpha-01" || !stillStale {
 		t.Fatalf("stored row after filtered ListMine = (drive_folder_id=%v, stillStale=%v), want (fld-alpha-01, true)", storedParentID, stillStale)
 	}
+
+	// 10. Stale parentless row whose provider still reports no parent stays on the
+	// "none" page with its refresh timestamp updated.
+	var r1ID, r2ID string
+	for _, f := range noneRes.Files {
+		switch f.ExternalFileID {
+		case "flt-r-1":
+			r1ID = f.ID
+		case "flt-r-2":
+			r2ID = f.ID
+		}
+	}
+	if r1ID == "" || r2ID == "" {
+		t.Fatalf("missing parentless file IDs: r1=%q r2=%q", r1ID, r2ID)
+	}
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, r1ID); err != nil {
+		t.Fatalf("age metadata_refreshed_at on flt-r-1: %v", err)
+	}
+	noneStillParentless, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+		DriveFolderID: "none",
+	})
+	if err != nil {
+		t.Fatalf("ListMine none (still parentless): %v", err)
+	}
+	if noneStillParentless.TotalCount != 2 || len(noneStillParentless.Files) != 2 || noneStillParentless.DriveFolderID == nil || *noneStillParentless.DriveFolderID != "none" {
+		t.Fatalf("ListMine none (still parentless) = %+v, want 2 files and echo none", noneStillParentless)
+	}
+	for _, f := range noneStillParentless.Files {
+		if f.DriveFolder != nil {
+			t.Fatalf("ListMine none (still parentless) returned file with folder: %+v", f.DriveFolder)
+		}
+	}
+	if err := env.pool.QueryRow(ctx, `SELECT drive_folder_id, metadata_refreshed_at < now() - interval '10 minutes' FROM drive_files WHERE id = $1`, r1ID).Scan(&storedParentID, &stillStale); err != nil {
+		t.Fatalf("query stored drive_files row for flt-r-1: %v", err)
+	}
+	if storedParentID != nil || stillStale {
+		t.Fatalf("stored row for flt-r-1 after ListMine(none) = (drive_folder_id=%v, stillStale=%v), want (nil, false)", storedParentID, stillStale)
+	}
+
+	// 11. Stale parentless row whose provider now reports parent fld-alpha-01 is
+	// refreshed on ListMine("none"), re-queried out of the "none" page and total_count,
+	// keep paging consistent (Limit=1 over two parentless rows where the first gains a
+	// parent returns the remaining parentless row with NextCursor == nil and TotalCount == 1),
+	// and appears in a subsequent ListMine("fld-alpha-01").
+	firstNoneExtID := noneRes.Files[0].ExternalFileID
+	firstNoneID := noneRes.Files[0].ID
+	secondNoneExtID := noneRes.Files[1].ExternalFileID
+	env.googleSrv.SetFile(firstNoneExtID, FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       firstNoneExtID,
+			Name:     "Doc " + firstNoneExtID,
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-alpha-01"},
+		},
+	})
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, firstNoneID); err != nil {
+		t.Fatalf("age metadata_refreshed_at on %s: %v", firstNoneExtID, err)
+	}
+	noneAfterGain, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+		DriveFolderID: "none",
+		Limit:         1,
+	})
+	if err != nil {
+		t.Fatalf("ListMine none Limit=1 after parent gained: %v", err)
+	}
+	if noneAfterGain.TotalCount != 1 || len(noneAfterGain.Files) != 1 || noneAfterGain.NextCursor != nil || noneAfterGain.DriveFolderID == nil || *noneAfterGain.DriveFolderID != "none" {
+		t.Fatalf("ListMine none Limit=1 after parent gained = %+v, want TotalCount=1 len=1 NextCursor=nil DriveFolderID=none", noneAfterGain)
+	}
+	if noneAfterGain.Files[0].ExternalFileID != secondNoneExtID || noneAfterGain.Files[0].DriveFolder != nil {
+		t.Fatalf("ListMine none Limit=1 remaining file = %+v, want %s with nil DriveFolder", noneAfterGain.Files[0], secondNoneExtID)
+	}
+	if err := env.pool.QueryRow(ctx, `SELECT drive_folder_id, metadata_refreshed_at < now() - interval '10 minutes' FROM drive_files WHERE id = $1`, firstNoneID).Scan(&storedParentID, &stillStale); err != nil {
+		t.Fatalf("query stored drive_files row for %s: %v", firstNoneExtID, err)
+	}
+	if storedParentID == nil || *storedParentID != "fld-alpha-01" || stillStale {
+		t.Fatalf("stored row for %s after ListMine(none) = (drive_folder_id=%v, stillStale=%v), want (fld-alpha-01, false)", firstNoneExtID, storedParentID, stillStale)
+	}
+	alphaAfterGain, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+		DriveFolderID: "fld-alpha-01",
+	})
+	if err != nil {
+		t.Fatalf("ListMine fld-alpha-01 after parent gained: %v", err)
+	}
+	if alphaAfterGain.TotalCount != 3 || len(alphaAfterGain.Files) != 3 {
+		t.Fatalf("ListMine fld-alpha-01 after parent gained = total=%d len=%d, want 3, 3", alphaAfterGain.TotalCount, len(alphaAfterGain.Files))
+	}
+	foundGained := false
+	for _, f := range alphaAfterGain.Files {
+		if f.ExternalFileID == firstNoneExtID {
+			foundGained = true
+		}
+	}
+	if !foundGained {
+		t.Fatalf("ListMine fld-alpha-01 after parent gained did not include %s: %+v", firstNoneExtID, alphaAfterGain.Files)
+	}
 }
