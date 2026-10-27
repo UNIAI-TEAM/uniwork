@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { createMeetingRecorder, type MeetingRecorder, type RecorderState } from "./recorder";
 import { isLivePart, openRecordingStore, type RecordingPart, type RecordingStore } from "./store";
@@ -129,13 +129,14 @@ export function useUnsentRecordings(userId: string | undefined, meetingId?: stri
   savedAt: number | null;
   /** The device store has not answered yet: `parts` is not known to be empty. */
   isPending: boolean;
-  /** Reads the device again; resolves with every part. */
-  refresh: () => Promise<RecordingPart[]>;
+  refresh: () => void;
   /** Deletes the parts no tab is writing, then reads the device again. */
   discard: () => Promise<void>;
 } {
-  const { data: parts = [], isPending, refetch } = useQuery({
-    queryKey: ["meeting-recordings-local", userId, meetingId],
+  const qc = useQueryClient();
+  const queryKey = ["meeting-recordings-local", userId, meetingId];
+  const { data: parts = [], isPending } = useQuery({
+    queryKey,
     queryFn: () => (store ?? defaultStore()).listParts(userId!, meetingId),
     enabled: userId !== undefined,
     // The device, not the network: always read it afresh (another screen of this tab may have written it).
@@ -146,11 +147,20 @@ export function useUnsentRecordings(userId: string | undefined, meetingId?: stri
   const settled = parts.filter((p) => !isLivePart(p, now));
   const seconds = settled.reduce((sum, p) => sum + ((p.endedAt ?? p.lastChunkAt) - p.startedAt) / 1000, 0);
   const savedAt = settled.length ? Math.max(...settled.map((p) => p.lastChunkAt)) : null;
-  const refresh = async () => (userId === undefined ? [] : ((await refetch()).data ?? []));
+  const refresh = () => void qc.invalidateQueries({ queryKey });
   const discard = async () => {
     const target = store ?? defaultStore();
-    await Promise.all(settled.map((p) => target.deletePart(p.id)));
-    await refresh();
+    try {
+      await Promise.all(settled.map((p) => target.deletePart(p.id)));
+    } finally {
+      // Every list of this account's parts (this meeting's, the whole device's), as a send does.
+      await qc.invalidateQueries({ queryKey: ["meeting-recordings-local", userId] });
+    }
   };
   return { parts, seconds, savedAt, isPending, refresh, discard };
+}
+
+/** Every part this account left on this device, read once and only when asked (the sign-out question). */
+export function readUnsentRecordings(userId: string): Promise<RecordingPart[]> {
+  return defaultStore().listParts(userId);
 }

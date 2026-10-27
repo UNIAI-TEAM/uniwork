@@ -86,7 +86,7 @@ describe("useUnsentRecordings", () => {
     expect(result.current.savedAt).toBe(120_000);
 
     await store.deletePart("a");
-    await result.current.refresh();
+    result.current.refresh();
     await waitFor(() => expect(result.current.parts).toHaveLength(1));
     expect(result.current.seconds).toBe(30);
   });

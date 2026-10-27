@@ -649,6 +649,23 @@ describe("MeetingDetailView › a recording left on this device (UNI-2247)", () 
     expect(await within(await strip()).findByRole("button", { name: "Bắt đầu ghi âm" })).toBeInTheDocument();
     expect(screen.queryByText(/chưa gửi trên máy này/)).not.toBeInTheDocument();
   });
+
+  it("says a failed delete and keeps the recording and the question", async () => {
+    await store();
+    vi.spyOn(device.store!, "deletePart").mockRejectedValue(new Error("quota"));
+    const error = vi.spyOn(toast, "error");
+    open("m3", { extra: inPerson(), props: { onRecord: vi.fn() } });
+    const row = await strip();
+    await within(row).findByText("Còn bản ghi 35:12 chưa gửi trên máy này");
+    fireEvent.click(within(row).getByRole("button", { name: /Thao tác khác/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Xóa bản ghi trên máy…" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Xóa bản ghi này khỏi máy? Không lấy lại được." });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa" }));
+    await waitFor(() => expect(error).toHaveBeenCalledWith("Có lỗi xảy ra"));
+    expect(screen.getByRole("alertdialog", { name: "Xóa bản ghi này khỏi máy? Không lấy lại được." })).toBeInTheDocument();
+    expect(screen.getByText("Còn bản ghi 35:12 chưa gửi trên máy này")).toBeInTheDocument();
+    expect(await device.store!.listParts(demo.users.lan.id)).toHaveLength(1);
+  });
 });
 
 describe("MeetingDetailView › header actions", () => {

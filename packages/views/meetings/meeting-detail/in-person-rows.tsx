@@ -6,6 +6,7 @@ import { useUnsentRecordings } from "@uniwork/core/meetings/recorder";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../../common/form-dialog";
+import { toastApiError } from "../../toast-api-error";
 import { useWorkspace } from "../../layout/workspace-context";
 import { formatOffset } from "../meeting-recording-offset";
 import { MeetingSpeakerLabelsDialog } from "../meeting-speaker-labels-dialog";
@@ -97,10 +98,17 @@ export function UnsentRow({ job, h }: { job: Extract<StripJob, { kind: "unsent" 
             onConfirm={() => {
               if (deleting) return;
               setDeleting(true);
-              void discard().finally(() => {
-                setDeleting(false);
-                setAsking(false);
-              });
+              // A failed delete keeps the question open, so the person can try again.
+              discard().then(
+                () => {
+                  setDeleting(false);
+                  setAsking(false);
+                },
+                (err: unknown) => {
+                  setDeleting(false);
+                  toastApiError(err, t("common.error"));
+                },
+              );
             }}
           />
         </>

@@ -8,15 +8,12 @@ import { fakeNav, wrapWithNav } from "../test/api-mock";
 import { AccountMenu } from "./account-menu";
 import { WorkspaceProvider } from "./workspace-context";
 
-// The guard reads this device's recordings from the shared store; each test hands it a fresh one.
+// Sign-out reads this device's recordings from the shared store; each test hands it a fresh one.
 const device = vi.hoisted(() => ({ store: undefined as RecordingStore | undefined }));
-vi.mock("@uniwork/core/meetings/recorder", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@uniwork/core/meetings/recorder")>();
-  return {
-    ...actual,
-    useUnsentRecordings: (userId: string | undefined, meetingId?: string) => actual.useUnsentRecordings(userId, meetingId, device.store),
-  };
-});
+vi.mock("@uniwork/core/meetings/recorder", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/core/meetings/recorder")>()),
+  readUnsentRecordings: (userId: string) => device.store!.listParts(userId),
+}));
 
 initI18n();
 
@@ -78,6 +75,43 @@ describe("AccountMenu", () => {
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/login"));
     // Signing out never takes the recording with it.
     expect(await device.store!.listParts("u1")).toHaveLength(1);
+  });
+
+  it("reads the device only when the person signs out", async () => {
+    const read = vi.spyOn(device.store!, "listParts");
+    const { logout } = renderMenu();
+    fireEvent.click(screen.getByRole("button", { name: /An/ }));
+    await screen.findByRole("menuitem", { name: "Đăng xuất" });
+    expect(read).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Đăng xuất" }));
+    await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
+    expect(read).toHaveBeenCalledWith("u1");
+  });
+
+  it("signs out after 1.5 s when the device never answers", async () => {
+    vi.spyOn(device.store!, "listParts").mockReturnValue(new Promise(() => {}));
+    const { logout } = renderMenu();
+    fireEvent.click(screen.getByRole("button", { name: /An/ }));
+    const item = await screen.findByRole("menuitem", { name: "Đăng xuất" });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      fireEvent.click(item);
+      await vi.advanceTimersByTimeAsync(1_499);
+      expect(logout).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(logout).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("signs out when the device cannot be read", async () => {
+    vi.spyOn(device.store!, "listParts").mockRejectedValue(new Error("blocked"));
+    const { logout } = renderMenu();
+    await signOut();
+    await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("signs out at once with nothing on the device", async () => {

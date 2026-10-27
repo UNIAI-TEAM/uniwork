@@ -9,13 +9,10 @@ import { ChatSettingsPage } from "./chat-settings-page";
 
 // Sign-out reads this device's recordings from the shared store; each test hands it a fresh one.
 const device = vi.hoisted(() => ({ store: undefined as RecordingStore | undefined }));
-vi.mock("@uniwork/core/meetings/recorder", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@uniwork/core/meetings/recorder")>();
-  return {
-    ...actual,
-    useUnsentRecordings: (userId: string | undefined, meetingId?: string) => actual.useUnsentRecordings(userId, meetingId, device.store),
-  };
-});
+vi.mock("@uniwork/core/meetings/recorder", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/core/meetings/recorder")>()),
+  readUnsentRecordings: (userId: string) => device.store!.listParts(userId),
+}));
 
 initI18n();
 
