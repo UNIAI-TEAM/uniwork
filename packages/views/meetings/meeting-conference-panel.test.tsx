@@ -11,6 +11,7 @@ import { MeetingConference } from "./meeting-conference";
  * while the Votes tab shows the same ballot.
  */
 const view = vi.hoisted(() => ({ compact: false }));
+const live = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("@uniwork/ui/hooks/use-mobile", () => ({
   useIsMobile: () => view.compact,
@@ -62,6 +63,10 @@ vi.mock("./meeting-room-sidebar", async (importOriginal) => ({
     </div>
   ),
 }));
+vi.mock("./meeting-copilot/live-items-unseen", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./meeting-copilot/live-items-unseen")>()),
+  useUnseenLiveItems: () => ({ count: live.count, latest: undefined, ids: new Set<string>() }),
+}));
 vi.mock("./meeting-control-bar", () => ({ MeetingControlBar: () => null }));
 vi.mock("./meeting-stage-footer", () => ({
   MeetingStageFooter: ({ prompt }: { prompt: ReactNode }) => prompt,
@@ -100,6 +105,7 @@ beforeAll(() => {
 });
 beforeEach(() => {
   view.compact = false;
+  live.count = 0;
 });
 
 function renderConference() {
@@ -140,6 +146,18 @@ describe("MeetingConference side panel", () => {
     expect(screen.getByTestId("meeting-vote-prompt")).toBeInTheDocument();
     // The button left with the panel; the keyboard lands on the header's toggle that reopens it.
     expect(screen.getByRole("button", { name: "Mở bảng phụ" })).toHaveFocus();
+  });
+
+  it("marks the header's panel button with what waits in UNI once the panel is closed", () => {
+    live.count = 2;
+    renderConference();
+    fireEvent.click(screen.getByTestId("meeting-vote-prompt"));
+    const open = screen.getByRole("button", { name: "Đóng bảng phụ" });
+    expect(open.querySelector("[data-slot=panel-news]")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "collapse" }));
+    const closed = screen.getByRole("button", { name: "Mở bảng phụ, UNI · 2 việc mới ghi" });
+    expect(closed.querySelector("[data-slot=panel-news]")).not.toBeNull();
   });
 
   it("opens the panel as a bottom sheet on a phone, with no collapse button", async () => {

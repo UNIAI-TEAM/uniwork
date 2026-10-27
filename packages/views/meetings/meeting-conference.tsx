@@ -204,14 +204,6 @@ function ConferenceStage({
     sheetOpen: sidebarSheetOpen,
     pinned: sidebarPinned,
   });
-  const toggleCopilot = useCallback(() => {
-    if (!copilotActive) {
-      openSidebarTab("copilot");
-      return;
-    }
-    if (compact) setSidebarSheetOpen(false);
-    else setSidebarPinned(false);
-  }, [compact, copilotActive, openSidebarTab]);
   // Once the UNI panel has been on screen, the catch-up is no longer news.
   const [catchUpSeen, setCatchUpSeen] = useState(false);
   if (copilotActive && lateMinutes !== null && !catchUpSeen) setCatchUpSeen(true);
@@ -229,6 +221,14 @@ function ConferenceStage({
   const liveItemsSeeing = liveItemsInView(copilotActive, uniView, uniFilter);
   const liveItems = useUnseenLiveItems(guestMode ? undefined : resolvedMeetingId || undefined, liveItemsSeeing);
   const chatUnread = useMeetingChatUnread(resolvedMeetingId || undefined, chatVisible);
+  // What waits in UNI behind a closed panel rides on the header's panel button (the Main board has no UNI button in the dock).
+  const panelNews = panelShown
+    ? null
+    : copilotBadge
+      ? t("meetings.aiCopilotCatchUp")
+      : liveItems.count > 0
+        ? t("meetings.aiCopilotLiveItems", { count: liveItems.count })
+        : null;
 
   const sheetClose = useMemo(
     () => (
@@ -317,13 +317,9 @@ function ConferenceStage({
         captionsAvailable={scribeInRoom || scribeJoining || captionsSupported()}
         captionsOn={captionsOn}
         onToggleCaptions={toggleCaptions}
-        onToggleCopilot={toggleCopilot}
-        copilotActive={copilotActive}
-        copilotBadge={copilotBadge}
-        copilotLiveItems={liveItems.count}
       />
     ),
-    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, scribeJoining, captionsOn, toggleCaptions, toggleCopilot, copilotActive, copilotBadge, liveItems.count],
+    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, scribeJoining, captionsOn, toggleCaptions],
   );
 
   return (
@@ -351,6 +347,7 @@ function ConferenceStage({
               sidebarOpen={sidebarPinned}
               onToggleSidebar={compact ? undefined : toggleSidebar}
               onOpenSidebar={compact ? openSidebarSheet : undefined}
+              panelNews={panelNews}
               onOpenPeople={openPeople}
               peopleOpen={sidebarTab === "participants" && panelShown}
             />
