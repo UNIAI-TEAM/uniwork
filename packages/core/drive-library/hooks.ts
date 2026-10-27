@@ -2,6 +2,10 @@
 
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  linkDriveFiles,
+  type DriveFileLinkResults,
+} from "../api/endpoints/drive";
+import {
   getDriveFile,
   listDriveFiles,
   rebindDriveFile,
@@ -126,6 +130,43 @@ export function useRebindDriveFile(wsId: string, driveFileId: string) {
     onSuccess: (updated) => {
       qc.setQueryData(driveLibraryKeys.detail(wsId, driveFileId), updated);
       return qc.invalidateQueries({ queryKey: driveLibraryKeys.workspace(wsId) });
+    },
+  });
+}
+
+export interface AttachDriveFileToTaskVariables {
+  driveFileId: string;
+  connectionId: string;
+  externalFileId: string;
+  taskId: string;
+}
+
+/**
+ * Links an existing Google Drive file reference to a task via
+ * `POST /api/v1/workspaces/{wsId}/drive-files` (`{ connection_id, external_file_ids: [externalFileId], task_id }`).
+ * Awaits the server (no optimistic update) and invalidates the drive-file detail,
+ * the library list, that task's drive-files key, and the workspace Drive prefix.
+ */
+export function useAttachDriveFileToTask(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      connectionId,
+      externalFileId,
+      taskId,
+    }: AttachDriveFileToTaskVariables): Promise<DriveFileLinkResults> =>
+      linkDriveFiles(wsId, {
+        connection_id: connectionId,
+        external_file_ids: [externalFileId],
+        task_id: taskId,
+      }),
+    onSuccess: async (_res, { driveFileId, taskId }) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: driveLibraryKeys.detail(wsId, driveFileId) }),
+        qc.invalidateQueries({ queryKey: driveLibraryKeys.lists(wsId) }),
+        qc.invalidateQueries({ queryKey: driveLibraryKeys.task(wsId, taskId) }),
+        qc.invalidateQueries({ queryKey: driveLibraryKeys.workspace(wsId) }),
+      ]);
     },
   });
 }

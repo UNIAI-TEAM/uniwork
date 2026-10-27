@@ -15,4 +15,5 @@ export const driveLibraryKeys = {
   details: (wsId: string) => [...driveLibraryKeys.workspace(wsId), "library-file"] as const,
   detail: (wsId: string, driveFileId: string) =>
     [...driveLibraryKeys.details(wsId), driveFileId] as const,
+  task: (wsId: string, taskId: string) => driveKeys.task(wsId, taskId),
 };

@@ -229,20 +229,16 @@ describe("DriveFileDetailView (4.2)", () => {
     const leafSpan = screen.getAllByTitle("Kế hoạch ra mắt Q4").find((el) => el.tagName === "SPAN");
     expect(leafSpan).toBeTruthy();
 
-    // Open in Google Drive links use open_url in a new tab with noopener noreferrer; header link is icon-only below sm with aria-label
+    // Open in Google Drive link is rendered once (in the file card only, not duplicated in BreadcrumbHeader, spec §7.7)
     const openLinks = screen.getAllByRole("link", { name: t("driveLibrary.detail.open_on_drive") });
-    expect(openLinks.length).toBeGreaterThan(0);
-    expect(openLinks[0]).toHaveAttribute("aria-label", t("driveLibrary.detail.open_on_drive"));
-    expect(within(openLinks[0]!).getByText(t("driveLibrary.detail.open_on_drive"))).toHaveClass("hidden", "sm:inline");
-    expect(openLinks[0]!.parentElement).toHaveClass("basis-full", "sm:basis-auto");
-    for (const link of openLinks) {
-      expect(link).toHaveAttribute(
-        "href",
-        "https://docs.google.com/document/d/ext-1/edit?authuser=uni-work1%40gmail.com",
-      );
-      expect(link).toHaveAttribute("target", "_blank");
-      expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    }
+    expect(openLinks).toHaveLength(1);
+    const openLink = openLinks[0]!;
+    expect(openLink).toHaveAttribute(
+      "href",
+      "https://docs.google.com/document/d/ext-1/edit?authuser=uni-work1%40gmail.com",
+    );
+    expect(openLink).toHaveAttribute("target", "_blank");
+    expect(openLink).toHaveAttribute("rel", "noopener noreferrer");
     // Bound account + rebound suffix when bound_by_id !== created_by
     expect(screen.getByText("admin@gmail.com")).toBeInTheDocument();
     expect(screen.getByText("(gắn lại bởi Lan Trần)")).toBeInTheDocument();
@@ -993,5 +989,270 @@ describe("DriveFileDetailView (4.2)", () => {
     );
     expect(await screen.findByText(t("driveLibrary.detail.not_found.title"))).toBeInTheDocument();
     expect(requestMock.mock.calls.filter(([p]) => p === DETAIL_URL)).toHaveLength(0);
+  });
+
+  it("shows '+ Gắn vào việc' only when viewer_access === 'granted' with a connection, opens the task picker, confirms per §7.1 when sharing_state !== 'shared', posts to /drive-files, and refreshes detail", async () => {
+    // 1. Viewer with unknown access (reached 4.2 only through a task) -> no "+ Gắn vào việc" button
+    requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({
+            viewer_access: "unknown",
+            viewer_connection_id: undefined,
+            viewer_account_email: undefined,
+          }),
+        });
+      }
+      return Promise.resolve({ events: [] });
+    });
+    const { unmount } = render(
+      withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} connections={connections} />),
+    );
+    await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
+    expect(
+      screen.queryByRole("button", { name: t("driveLibrary.detail.used_in.attach_to_task") }),
+    ).toBeNull();
+    unmount();
+
+    // 2. Viewer with granted access -> button visible; picking a task opens §7.1 confirmation (sharing_state: "private"), then posts to /drive-files and refreshes "Đang dùng ở"
+    let linkedToTask3 = false;
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path === DRIVE_CONNECTIONS_URL) {
+        return Promise.resolve({ connections: rawConnections });
+      }
+      if (path === `/api/v1/workspaces/${WS}/tasks/table/rows` && opts?.method === "POST") {
+        return Promise.resolve({
+          query_fingerprint: "fp1",
+          group_key: null,
+          parent_id: null,
+          total: 2,
+          rows: [
+            {
+              task: {
+                id: "t1",
+                workspace_id: WS,
+                identifier: "UNI-1042",
+                title: "Chuẩn bị kế hoạch ra mắt Q4",
+                description: "",
+                created_by: "u1",
+                status: "todo",
+                priority: "medium",
+                position: 1,
+                revision: 1,
+                created_at: "2026-10-26T08:00:00Z",
+                updated_at: "2026-10-26T08:00:00Z",
+              },
+              direct_child_count: 0,
+              labels: [],
+            },
+            {
+              task: {
+                id: "t3",
+                workspace_id: WS,
+                identifier: "UNI-1052",
+                title: "Soạn FAQ cho CS",
+                description: "",
+                created_by: "u1",
+                status: "todo",
+                priority: "medium",
+                position: 2,
+                revision: 1,
+                created_at: "2026-10-26T08:05:00Z",
+                updated_at: "2026-10-26T08:05:00Z",
+              },
+              direct_child_count: 0,
+              labels: [],
+            },
+          ],
+          next_cursor: null,
+        });
+      }
+      if (path === `/api/v1/workspaces/${WS}/drive-files` && opts?.method === "POST") {
+        linkedToTask3 = true;
+        return Promise.resolve({
+          results: [
+            {
+              external_file_id: "ext-1",
+              outcome: "already_linked",
+              account_email: "uni-work1@gmail.com",
+              file: {
+                id: FILE_ID,
+                workspace_id: WS,
+                external_file_id: "ext-1",
+                name: "Kế hoạch ra mắt Q4",
+                mime_type: "application/vnd.google-apps.document",
+                icon_kind: "google_doc",
+                sharing_state: "private",
+                web_view_link: "https://docs.google.com/document/d/ext-1/edit",
+                open_url: "https://docs.google.com/document/d/ext-1/edit?authuser=uni-work1%40gmail.com",
+                viewer_access: "granted",
+              },
+            },
+          ],
+        });
+      }
+      if (path === DETAIL_URL) {
+        const tasks = linkedToTask3
+          ? [
+              { task_id: "t1", identifier: "UNI-1042", title: "Chuẩn bị kế hoạch ra mắt Q4", status: "todo" },
+              { task_id: "t2", identifier: "UNI-1051", title: "Chốt phạm vi tính năng beta", status: "todo" },
+              { task_id: "t3", identifier: "UNI-1052", title: "Soạn FAQ cho CS", status: "todo" },
+            ]
+          : [
+              { task_id: "t1", identifier: "UNI-1042", title: "Chuẩn bị kế hoạch ra mắt Q4", status: "todo" },
+              { task_id: "t2", identifier: "UNI-1051", title: "Chốt phạm vi tính năng beta", status: "todo" },
+            ];
+        return Promise.resolve({
+          file: detailFile({
+            sharing_state: "private",
+            used_in_count: tasks.length,
+            used_in_tasks: tasks,
+            task_creations: [],
+            tasks_created: { count: 0 },
+          }),
+        });
+      }
+      return Promise.resolve({ events: [] });
+    });
+
+    render(
+      withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} connections={connections} />),
+    );
+
+    const attachBtn = await screen.findByRole("button", {
+      name: t("driveLibrary.detail.used_in.attach_to_task"),
+    });
+    fireEvent.click(attachBtn);
+
+    const pickerDialog = await screen.findByRole("dialog");
+    expect(
+      within(pickerDialog).getByText(t("driveLibrary.detail.used_in.attach_dialog.title")),
+    ).toBeInTheDocument();
+
+    // Already-linked task (t1) is marked and aria-disabled
+    const alreadyLinkedOption = await within(pickerDialog).findByRole("option", {
+      name: /Chuẩn bị kế hoạch ra mắt Q4, đã gắn/,
+    });
+    expect(alreadyLinkedOption).toHaveAttribute("aria-disabled", "true");
+
+    // Pick unlinked task t3
+    const targetOption = within(pickerDialog).getByRole("option", { name: "Soạn FAQ cho CS" });
+    fireEvent.click(targetOption);
+    expect(
+      within(pickerDialog).getByText(
+        t("driveLibrary.detail.used_in.attach_dialog.selected_task", { title: "Soạn FAQ cho CS" }),
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(pickerDialog).getByRole("button", {
+        name: t("driveLibrary.detail.used_in.attach_dialog.submit"),
+      }),
+    );
+
+    // §7.1 confirmation AlertDialog appears with "Tên tệp sẽ hiện cho người xem được việc này"
+    const confirmDialog = await screen.findByRole("alertdialog");
+    expect(within(confirmDialog).getByText(t("drive.picker.confirm_dialog.description"))).toBeInTheDocument();
+    fireEvent.click(
+      within(confirmDialog).getByRole("button", {
+        name: t("drive.picker.confirm_dialog.confirm", { count: 1 }),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(
+        requestMock.mock.calls.some(
+          ([p, opts]) =>
+            p === `/api/v1/workspaces/${WS}/drive-files` &&
+            (opts as { method?: string } | undefined)?.method === "POST" &&
+            JSON.stringify((opts as { body?: unknown } | undefined)?.body) ===
+              JSON.stringify({
+                connection_id: "conn1",
+                external_file_ids: ["ext-1"],
+                task_id: "t3",
+              }),
+        ),
+      ).toBe(true),
+    );
+
+    // Refreshes "Đang dùng ở · 3" and shows the newly linked task
+    expect(await screen.findByText("Đang dùng ở · 3")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "UNI-1052 · Soạn FAQ cho CS" })).toHaveAttribute(
+      "href",
+      "/acme/doi/tasks/t3",
+    );
+  });
+
+  it("shows a localized toast when the server refuses attaching a file to a task (403 forbidden)", async () => {
+    const toastErrorSpy = vi.spyOn(toast, "error").mockImplementation(() => "");
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path === DRIVE_CONNECTIONS_URL) {
+        return Promise.resolve({ connections: rawConnections });
+      }
+      if (path === `/api/v1/workspaces/${WS}/tasks/table/rows` && opts?.method === "POST") {
+        return Promise.resolve({
+          query_fingerprint: "fp1",
+          group_key: null,
+          parent_id: null,
+          total: 1,
+          rows: [
+            {
+              task: {
+                id: "t3",
+                workspace_id: WS,
+                identifier: "UNI-1052",
+                title: "Soạn FAQ cho CS",
+                description: "",
+                created_by: "u1",
+                status: "todo",
+                priority: "medium",
+                position: 1,
+                revision: 1,
+                created_at: "2026-10-26T08:05:00Z",
+                updated_at: "2026-10-26T08:05:00Z",
+              },
+              direct_child_count: 0,
+              labels: [],
+            },
+          ],
+          next_cursor: null,
+        });
+      }
+      if (path === `/api/v1/workspaces/${WS}/drive-files` && opts?.method === "POST") {
+        return Promise.reject(new ApiError("forbidden", "forbidden", 403));
+      }
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({
+            sharing_state: "shared",
+          }),
+        });
+      }
+      return Promise.resolve({ events: [] });
+    });
+
+    render(
+      withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} connections={connections} />),
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: t("driveLibrary.detail.used_in.attach_to_task") }),
+    );
+    const pickerDialog = await screen.findByRole("dialog");
+    fireEvent.click(await within(pickerDialog).findByRole("option", { name: "Soạn FAQ cho CS" }));
+    // sharing_state === "shared" -> links immediately without confirmation dialog
+    fireEvent.click(
+      within(pickerDialog).getByRole("button", {
+        name: t("driveLibrary.detail.used_in.attach_dialog.submit"),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(toastErrorSpy).toHaveBeenCalledWith(t("errors.api.forbidden")),
+    );
+    toastErrorSpy.mockRestore();
   });
 });

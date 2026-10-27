@@ -14569,7 +14569,27 @@
         "title": "Đang dùng ở · {{count}}",
         "empty": "Chưa gắn vào việc nào.",
         "attach_to_task": "+ Gắn vào việc",
-        "task_row": "{{identifier}} · {{title}}"
+        "task_row": "{{identifier}} · {{title}}",
+        "attach_dialog": {
+          "title": "Gắn tệp vào việc",
+          "description": "Chọn một công việc trong workspace để liên kết tệp Google Drive này.",
+          "search_label": "Tìm việc",
+          "search_placeholder": "Tên, mã hoặc id…",
+          "task_list_aria": "Danh sách việc",
+          "loading": "Đang tải…",
+          "load_error": "Không tải được danh sách việc.",
+          "empty": "Không có việc nào khớp",
+          "empty_workspace": "Workspace chưa có việc nào.",
+          "already_linked": "Đã gắn",
+          "task_option_selected": "{{title}}, đã chọn",
+          "task_option_already_linked": "{{title}}, đã gắn",
+          "selected_task": "Đã chọn: {{title}}",
+          "results_capped_one": "Hiện {{count}} việc đầu — gõ để lọc",
+          "results_capped_other": "Hiện {{count}} việc đầu — gõ để lọc",
+          "submit": "Gắn vào việc",
+          "submitting": "Đang gắn…",
+          "failed": "Không gắn được tệp vào việc. Thử lại."
+        }
       },
       "tasks_created": {
         "title": "Việc đã tạo từ tài liệu",

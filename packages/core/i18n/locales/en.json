@@ -14643,7 +14643,27 @@
         "title": "Used in · {{count}}",
         "empty": "Not linked to any task.",
         "attach_to_task": "+ Link to task",
-        "task_row": "{{identifier}} · {{title}}"
+        "task_row": "{{identifier}} · {{title}}",
+        "attach_dialog": {
+          "title": "Link file to task",
+          "description": "Pick a workspace task to link this Google Drive file to.",
+          "search_label": "Search tasks",
+          "search_placeholder": "Title, identifier, or id…",
+          "task_list_aria": "Task list",
+          "loading": "Loading…",
+          "load_error": "Couldn't load tasks.",
+          "empty": "No matching tasks",
+          "empty_workspace": "This workspace has no tasks yet.",
+          "already_linked": "Already linked",
+          "task_option_selected": "{{title}}, selected",
+          "task_option_already_linked": "{{title}}, already linked",
+          "selected_task": "Selected: {{title}}",
+          "results_capped_one": "Showing the first {{count}} task — type to filter",
+          "results_capped_other": "Showing the first {{count}} tasks — type to filter",
+          "submit": "Link to task",
+          "submitting": "Linking…",
+          "failed": "Could not link the file to the task. Try again."
+        }
       },
       "tasks_created": {
         "title": "Tasks created from this document",
