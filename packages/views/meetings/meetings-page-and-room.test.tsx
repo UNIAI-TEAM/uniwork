@@ -290,7 +290,7 @@ describe("MeetingRoomView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
     act(() => lastDisconnected?.(DisconnectReason.PARTICIPANT_REMOVED));
-    const heading = await screen.findByRole("heading", { name: "Người chủ trì đã mời bạn ra khỏi cuộc họp" });
+    const heading = await screen.findByRole("heading", { name: "Bạn đã được mời ra khỏi phòng" });
     // The room vanished under the pointer: focus lands on why, so a screen
     // reader hears it instead of losing its place on a removed video tile.
     await waitFor(() => expect(heading).toHaveFocus());
