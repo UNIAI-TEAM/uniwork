@@ -25,7 +25,7 @@ export default async function globalSetup(): Promise<void> {
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
-    for (const key of ["documents", "graph", "graph_ui"]) {
+    for (const key of ["documents", "drive_connector", "graph", "graph_ui"]) {
       await client.query(
         `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind)
          VALUES ($1, $2, 'global', '', true, 'e2e: flag on for specs', 'e2e', 'system')
@@ -43,13 +43,13 @@ export default async function globalSetup(): Promise<void> {
       const res = await fetch(`${api}/api/v1/config`);
       if (res.ok) {
         const body = (await res.json()) as { flags?: Record<string, boolean> };
-        if (body.flags?.documents === true && body.flags?.graph_ui === true) return;
+        if (body.flags?.documents === true && body.flags?.drive_connector === true && body.flags?.graph_ui === true) return;
       }
     } catch {
       // The API may still be starting; keep polling until the deadline.
     }
     if (Date.now() > deadline) {
-      throw new Error("documents/graph_ui flags are still off after 45 s; is the API up on " + api + "?");
+      throw new Error("documents/drive_connector/graph_ui flags are still off after 45 s; is the API up on " + api + "?");
     }
     await new Promise((resolve) => setTimeout(resolve, 2_000));
   }

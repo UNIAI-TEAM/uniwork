@@ -14679,7 +14679,6 @@
       "footnote": "Each file is bound to the Google Drive account that picked it. Opening the file and letting UNI read it both use that account. Unlinking leaves the file on Google Drive untouched.",
       "add_all": "Add from Google Drive",
       "add_account": "Add from {{email}}",
-      "add_unavailable_hint": "Connect Google Drive or open in the browser to pick files",
       "manage_connections": "Manage connections",
       "reconnect_inline": "Disconnected · Reconnect",
       "columns": {
@@ -14807,7 +14806,8 @@
       },
       "not_found": {
         "title": "This file wasn't found or you don't have permission to view it.",
-        "back": "Back to my Google Drive"
+        "back": "Back to my Google Drive",
+        "back_documents": "Back to Documents"
       },
       "error": {
         "title": "Could not load Google Drive file details.",

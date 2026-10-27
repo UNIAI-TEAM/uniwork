@@ -28,7 +28,12 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { EventTime, useAuditLabels } from "../../audit/event-presenter";
+import {
+  useDrivePicker,
+  type DrivePickerAdapter,
+} from "../../integrations/drive-picker";
 import { AppLink } from "../../navigation";
 import type { DriveConnectionSummary } from "./use-drive-library-connections";
 
@@ -234,23 +239,48 @@ export interface DriveRebindSectionProps {
   wsId: string;
   file: DriveFile;
   connections: readonly DriveConnectionSummary[];
-  /** Seam for W3 Picker before calling `rebindDriveFile`; rendered only when `onRebind` is passed. */
-  onRebind?: (connectionId: string) => Promise<void> | void;
+  /** Optional Google Picker adapter for deterministic testing. */
+  pickerAdapter?: DrivePickerAdapter;
 }
 
 /**
  * §7.7 "Liên kết lại bằng tài khoản khác" button + account picker dialog.
- * Visible only when `onRebind` is passed, `can_rebind` is true, and (`Boolean(access_lost_at)` or `bound_connection_lost`).
+ * Visible when `can_rebind` is true and (`Boolean(access_lost_at)` or `bound_connection_lost`).
+ * Opens the W3 Google Picker with `fileIds: [file.external_file_id]` and `linkOnPick: false`
+ * for the chosen connection first, then calls `POST .../rebind` on `onPicked` (spec §6.3, §7.7).
  */
 export function DriveRebindSection({
   wsId,
   file,
   connections,
-  onRebind,
+  pickerAdapter,
 }: DriveRebindSectionProps) {
   const { t } = useTranslation();
   const rebindMutation = useRebindDriveFile(wsId, file.id);
   const [open, setOpen] = useState(false);
+
+  const runRebindMutation = async (connectionId: string) => {
+    try {
+      await rebindMutation.mutateAsync({ connection_id: connectionId });
+      setOpen(false);
+    } catch (error) {
+      const msg = error instanceof ApiError ? apiErrorMessage(error) : null;
+      toast.error(msg ?? t("driveLibrary.detail.rebind.failed"));
+    }
+  };
+
+  const picker = useDrivePicker({
+    wsId,
+    forTask: false,
+    adapter: pickerAdapter,
+    onPicked: ({ connectionId, pickedFiles }) => {
+      if (!pickedFiles.some((f) => f.id === file.external_file_id)) {
+        toast.error(t("driveLibrary.detail.rebind.failed"));
+        return;
+      }
+      void runRebindMutation(connectionId);
+    },
+  });
 
   const activeConnections = connections.filter((c) => !c.needs_reconnect);
   const defaultConnectionId =
@@ -260,39 +290,41 @@ export function DriveRebindSection({
   const [selectedId, setSelectedId] = useState<string>(defaultConnectionId);
 
   const showRebind =
-    Boolean(onRebind) &&
     file.can_rebind &&
     (Boolean(file.access_lost_at) || file.bound_connection_lost);
-  if (!showRebind || !onRebind) {
+  if (!showRebind) {
     return null;
   }
 
   const resolvedConnectionId =
     activeConnections.some((c) => c.id === selectedId) ? selectedId : defaultConnectionId;
+  const busy = picker.pending || rebindMutation.isPending;
 
-  const handleSubmit = async () => {
-    if (!resolvedConnectionId) return;
-    try {
-      await onRebind(resolvedConnectionId);
-      await rebindMutation.mutateAsync({ connection_id: resolvedConnectionId });
-      setOpen(false);
-    } catch (error) {
-      const msg = error instanceof ApiError ? apiErrorMessage(error) : null;
-      toast.error(msg ?? t("driveLibrary.detail.rebind.failed"));
-    }
+  const handleSubmit = () => {
+    if (!resolvedConnectionId || busy) return;
+    setOpen(false);
+    picker.open({
+      connectionId: resolvedConnectionId,
+      fileIds: [file.external_file_id],
+      multiselect: false,
+      linkOnPick: false,
+    });
   };
+
   return (
     <>
       <Button
         type="button"
         variant="outline"
         size="sm"
+        disabled={busy}
+        aria-busy={busy || undefined}
         onClick={() => {
           setSelectedId(defaultConnectionId);
           setOpen(true);
         }}
       >
-        <RefreshCw aria-hidden className="size-3.5" />
+        {busy ? <Spinner /> : <RefreshCw aria-hidden className="size-3.5" />}
         {t("driveLibrary.detail.rebind.button")}
       </Button>
 
@@ -337,19 +369,19 @@ export function DriveRebindSection({
             <Button
               type="button"
               variant="outline"
-              disabled={rebindMutation.isPending}
+              disabled={busy}
               onClick={() => setOpen(false)}
             >
               {t("driveLibrary.detail.rebind.cancel")}
             </Button>
             <Button
               type="button"
-              disabled={!resolvedConnectionId || rebindMutation.isPending}
-              aria-busy={rebindMutation.isPending || undefined}
+              disabled={!resolvedConnectionId || busy}
+              aria-busy={busy || undefined}
               onClick={() => void handleSubmit()}
             >
               {t(
-                rebindMutation.isPending
+                busy
                   ? "driveLibrary.detail.rebind.submitting"
                   : "driveLibrary.detail.rebind.submit",
               )}
@@ -357,6 +389,7 @@ export function DriveRebindSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {picker.dialogs}
     </>
   );
 }
@@ -460,28 +493,56 @@ export interface DriveTasksCreatedSectionProps {
   taskHref: (taskId: string) => string;
 }
 
-export function DriveTasksCreatedSection({ sectionRef, creations, totalCreatedCount, formatDate, taskHref }: DriveTasksCreatedSectionProps) {
+/**
+ * §8.8 "Việc đã tạo từ tài liệu" grouped task links card on 4.2. `creations` arrives already
+ * stripped of empty groups; the `#drive-tasks-created` anchor and `sectionRef` let the propose
+ * popover and the `?propose=1` hash scroll to it.
+ */
+export function DriveTasksCreatedSection({
+  sectionRef,
+  creations,
+  totalCreatedCount,
+  formatDate,
+  taskHref,
+}: DriveTasksCreatedSectionProps) {
   const { t } = useTranslation();
   if (creations.length === 0 && totalCreatedCount <= 0) return null;
-
   return (
-    <div id="drive-tasks-created" ref={sectionRef} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4">
+    <div
+      id="drive-tasks-created"
+      ref={sectionRef}
+      className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-body font-semibold text-foreground">{t("driveLibrary.detail.tasks_created.title")}</h2>
+        <h2 className="text-body font-semibold text-foreground">
+          {t("driveLibrary.detail.tasks_created.title")}
+        </h2>
         {totalCreatedCount > 0 ? (
-          <span className="text-caption text-muted-foreground">{t("driveLibrary.detail.tasks_created.summary", { count: totalCreatedCount })}</span>
+          <span className="text-caption text-muted-foreground">
+            {t("driveLibrary.detail.tasks_created.summary", { count: totalCreatedCount })}
+          </span>
         ) : null}
       </div>
       {creations.map((group) => (
         <div key={group.proposal_id} className="flex flex-col gap-1.5">
           <div className="text-caption font-medium text-muted-foreground">
-            {t("driveLibrary.detail.tasks_created.group", { date: formatDate(group.created_at), name: group.created_by_name, count: group.tasks.length })}
+            {t("driveLibrary.detail.tasks_created.group", {
+              date: formatDate(group.created_at),
+              name: group.created_by_name,
+              count: group.tasks.length,
+            })}
           </div>
           <ul className="flex flex-col gap-1">
             {group.tasks.map((task) => (
               <li key={task.task_id}>
-                <AppLink href={taskHref(task.task_id)} className="inline-flex min-h-8 items-center text-body text-foreground hover:underline pointer-coarse:min-h-11">
-                  {t("driveLibrary.detail.used_in.task_row", { identifier: task.identifier, title: task.title })}
+                <AppLink
+                  href={taskHref(task.task_id)}
+                  className="inline-flex min-h-8 items-center text-body text-foreground hover:underline pointer-coarse:min-h-11"
+                >
+                  {t("driveLibrary.detail.used_in.task_row", {
+                    identifier: task.identifier,
+                    title: task.title,
+                  })}
                 </AppLink>
               </li>
             ))}
