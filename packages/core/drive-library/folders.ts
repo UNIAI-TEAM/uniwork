@@ -1,4 +1,4 @@
-import type { DriveFolderRef } from "../api/endpoints/drive-library";
+import type { DriveFolderGroup, DriveFolderRef } from "../api/endpoints/drive-library";
 
 const SHORT_ID_LENGTH = 6;
 
@@ -63,13 +63,39 @@ export function deriveDriveFolders<T extends { drive_folder?: DriveFolderRef | n
       byId.set(folder.id, { id: folder.id, name, shortId: shortDriveFolderId(folder.id), fileCount: 1 });
     }
   }
+  return { folders: sortDriveFolders(byId.values(), locale), unfiled };
+}
+
+/** Named A-Z (numeric collator, id tie-break), then unnamed by id: the one order both sources share. */
+function sortDriveFolders(entries: Iterable<DriveFolderEntry>, locale?: string): DriveFolderEntry[] {
   const collator = new Intl.Collator(locale, { sensitivity: "base", numeric: true });
-  const all = [...byId.values()];
+  const all = [...entries];
   const named = all
     .filter((f) => f.name !== null)
     .sort((a, b) => collator.compare(a.name ?? "", b.name ?? "") || compareIds(a.id, b.id));
   const unnamed = all.filter((f) => f.name === null).sort((a, b) => compareIds(a.id, b.id));
-  return { folders: [...named, ...unnamed], unfiled };
+  return [...named, ...unnamed];
+}
+
+/**
+ * Folder entries from the server's folder list (drive-folder contract v3). The group without a
+ * parent (`id` null) is not a folder, so it is dropped; the server's own order is replaced by the
+ * client rule so both sources list folders the same way.
+ */
+export function driveFoldersFromGroups(groups: readonly DriveFolderGroup[], locale?: string): DriveFolderEntry[] {
+  const byId = new Map<string, DriveFolderEntry>();
+  for (const group of groups) {
+    if (!group.id) continue;
+    const name = group.name?.trim() || null;
+    const entry = byId.get(group.id);
+    if (entry) {
+      entry.fileCount += group.file_count;
+      entry.name ??= name;
+    } else {
+      byId.set(group.id, { id: group.id, name, shortId: shortDriveFolderId(group.id), fileCount: group.file_count });
+    }
+  }
+  return sortDriveFolders(byId.values(), locale);
 }
 
 /** The files that sit directly in one folder, in incoming order. */

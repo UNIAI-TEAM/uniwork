@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveDriveFolders, driveFilesInFolder, shortDriveFolderId } from "./folders";
+import { deriveDriveFolders, driveFilesInFolder, driveFoldersFromGroups, shortDriveFolderId } from "./folders";
 
 type F = { id: string; drive_folder?: { id: string; name: string | null } | null };
 const f = (id: string, folder?: F["drive_folder"]): F => ({ id, drive_folder: folder });
@@ -61,5 +61,39 @@ describe("driveFilesInFolder", () => {
     const files = [f("1", { id: "x", name: "X" }), f("2", { id: "y", name: "Y" }), f("3", { id: "x", name: "X" }), f("4")];
     expect(driveFilesInFolder(files, "x").map((x) => x.id)).toEqual(["1", "3"]);
     expect(driveFilesInFolder(files, "missing")).toEqual([]);
+  });
+});
+
+describe("driveFoldersFromGroups", () => {
+  it("drops the no-parent group, trims blank names to unnamed and keeps the server counts", () => {
+    const folders = driveFoldersFromGroups(
+      [
+        { id: null, name: null, file_count: 9 },
+        { id: "zzz999aaa", name: "  ", file_count: 1 },
+        { id: "fld-b", name: "Báo cáo", file_count: 4 },
+        { id: "fld-a", name: "Dự án 2", file_count: 2 },
+      ],
+      "vi",
+    );
+    expect(folders.map((x) => [x.id, x.name, x.shortId, x.fileCount])).toEqual([
+      ["fld-b", "Báo cáo", "fld-b", 4],
+      ["fld-a", "Dự án 2", "fld-a", 2],
+      ["zzz999aaa", null, "zzz999", 1],
+    ]);
+  });
+
+  it("uses the same numeric order as the derivation and merges a repeated id", () => {
+    const folders = driveFoldersFromGroups(
+      [
+        { id: "f10", name: "Phòng 10", file_count: 1 },
+        { id: "f2", name: "Phòng 2", file_count: 1 },
+        { id: "f2", name: null, file_count: 2 },
+      ],
+      "vi",
+    );
+    expect(folders.map((x) => [x.name, x.fileCount])).toEqual([
+      ["Phòng 2", 3],
+      ["Phòng 10", 1],
+    ]);
   });
 });
