@@ -197,6 +197,28 @@ describe("folder contents access dialog", () => {
     expect(await within(dialog).findByTestId("folder-access-summary")).toHaveTextContent("Will change 1 document · skip 1 you don't manage");
   });
 
+  it("exposes the stable test ids the e2e lane drives", async () => {
+    transport({ dry: () => dryRunReplace });
+    const { user, dialog } = await openDialog();
+    expect(dialog).toHaveAttribute("data-testid", "folder-access-dialog");
+    expect(within(dialog).queryByTestId("folder-access-workspace-row")).toBeNull();
+
+    await user.click(within(dialog).getByTestId("folder-access-mode"));
+    expect(await screen.findByTestId("folder-access-mode-merge")).toBeInTheDocument();
+    await user.click(await screen.findByTestId("folder-access-mode-replace"));
+    expect(within(dialog).getByTestId("folder-access-mode")).toHaveTextContent("Thay thế quyền cũ");
+    expect(within(dialog).getByTestId("folder-access-workspace-row")).toBeInTheDocument();
+
+    await pick(user, dialog, /Nguyễn An/);
+    expect(within(dialog).getByTestId("folder-access-principal-u2")).toHaveTextContent("Nguyễn An");
+
+    await user.click(within(dialog).getByTestId("folder-access-workspace-level"));
+    await user.click(await screen.findByRole("option", { name: "Riêng tư" }));
+    await user.click(within(dialog).getByTestId("folder-access-confirm"));
+    expect(await within(dialog).findByTestId("folder-access-summary")).toBeInTheDocument();
+    expect(within(dialog).getByTestId("folder-access-apply")).toHaveTextContent(t("documents.folderAccess.apply_replace"));
+  });
+
   it("starts the workspace row unchosen in Replace mode and holds Confirm until a level or Riêng tư is picked", async () => {
     const calls = transport({ dry: () => dryRunReplace });
     const { user, dialog } = await openDialog();

@@ -403,6 +403,24 @@ describe("size column", () => {
   });
 });
 
+describe("folder contents access menu item (UNI-2244)", () => {
+  it("offers Chia sẻ các tài liệu bên trong… on a folder row under a stable test id, and hands the folder over", async () => {
+    const onShareContents = vi.fn();
+    renderList([doc("fo1", "Hợp đồng", { kind: "folder" })], { onShareContents });
+    await openMenu("fo1", "Hợp đồng");
+    const entry = screen.getByTestId("folder-access-menu-item");
+    expect(entry).toHaveTextContent(t("documents.folderAccess.menu"));
+    fireEvent.click(entry);
+    expect(onShareContents).toHaveBeenCalledWith(expect.objectContaining({ id: "fo1" }));
+  });
+
+  it("is absent on a document row", async () => {
+    renderList([doc("a", "A.docx")], { onShareContents: vi.fn() });
+    await openMenu("a", "A.docx");
+    expect(screen.queryByTestId("folder-access-menu-item")).toBeNull();
+  });
+});
+
 describe("folder star menu (SV-4)", () => {
   it("offers Gắn sao on an unstarred folder row and reports the current state", async () => {
     const onToggleStar = vi.fn();

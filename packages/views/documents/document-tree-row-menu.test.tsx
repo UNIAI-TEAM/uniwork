@@ -720,7 +720,8 @@ describe("DocumentTreeRowMenu contents access entry (UNI-2244)", () => {
 
     render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="manage" actions={actions} />));
     openMenu();
-    expect(await screen.findByRole("menuitem", { name: t("documents.folderAccess.menu") })).toBeInTheDocument();
+    const entry = await screen.findByRole("menuitem", { name: t("documents.folderAccess.menu") });
+    expect(entry).toHaveAttribute("data-testid", "folder-access-menu-item");
   });
 
   it("stays out of the menu when the host mounts no dialog", async () => {
