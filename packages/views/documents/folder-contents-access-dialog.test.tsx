@@ -138,7 +138,7 @@ describe("folder contents access dialog", () => {
     const calls = transport();
     const { user, dialog } = await openDialog();
     expect(within(dialog).getByRole("heading", { name: "Chia sẻ" })).toBeInTheDocument();
-    expect(dialog).toHaveAccessibleDescription(t("documents.folderAccess.subtitle", { folder: "Hợp đồng" }));
+    expect(dialog).toHaveAccessibleDescription("Các tài liệu trong thư mục \"Hợp đồng\" và các thư mục con.");
     expect(dialog).toHaveTextContent("Áp dụng cho các tài liệu hiện có. Tài liệu thêm sau không tự nhận quyền.");
     expect(within(dialog).getByRole("combobox", { name: t("documents.folderAccess.mode_label") })).toHaveTextContent("Thêm vào quyền đã có");
     expect(within(dialog).queryByTestId("folder-access-workspace-row")).toBeNull();
@@ -292,6 +292,18 @@ describe("folder contents access dialog", () => {
     expect(within(summary).getByTestId("folder-access-warning-downgrade")).toHaveTextContent("3 người bị hạ mức quyền ở ít nhất một tài liệu");
   });
 
+  it("words a downgrade warning without a count when the server counts nobody", async () => {
+    transport({ dry: () => ({ ...dryRunMerge, preview: { ...dryRunMerge.preview, downgraded_users: 0, warnings: ["downgrade"] } }) });
+    const { user, dialog } = await openDialog();
+    await pick(user, dialog, /Nguyễn An/);
+    const summary = await review(user, dialog);
+    const warning = within(summary).getByTestId("folder-access-warning-downgrade");
+    expect(warning).toHaveTextContent("Một số quyền trên các tài liệu này sẽ bị hạ mức.");
+    expect(warning).not.toHaveTextContent(/\b0\b/);
+    await setLocale("en");
+    expect(t("documents.folderAccess.warning_downgrade_generic")).toBe("Some access on these documents will be lowered.");
+  });
+
   it("says nothing will change and holds Áp dụng when the dry run changes no document", async () => {
     const calls = transport({ dry: () => ({ total: 4, preview: { ...dryRunMerge.preview, changed: 0, unchanged: 4, skipped_not_manageable: 0 } }) });
     const { user, dialog } = await openDialog();
@@ -352,14 +364,32 @@ describe("folder contents access dialog", () => {
     expect(toast.success).toHaveBeenCalledTimes(1);
   });
 
-  it("toasts the failure of a background batch once", async () => {
+  it("shows the failure of a background batch inline only while the dialog is open", async () => {
     transport({ real: () => backgroundAccepted, batch: () => batchFailed });
     const { user, dialog } = await openDialog();
     await pick(user, dialog, /Nguyễn An/);
     await review(user, dialog);
     await user.click(within(dialog).getByRole("button", { name: t("documents.folderAccess.apply") }));
     expect(await within(dialog).findByText(t("documents.folderAccess.batch_failed"))).toBeInTheDocument();
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.folderAccess.batch_failed")));
+    // The inline alert already says it while the dialog is open: no toast repeats the sentence.
+    const { promise: settled, resolve } = Promise.withResolvers<void>();
+    setTimeout(resolve, 100);
+    await settled;
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("keeps the failure toast for a batch the closed dialog was showing", async () => {
+    let failed = false;
+    transport({ real: () => backgroundAccepted, batch: () => (failed ? batchFailed : batchRunning) });
+    const { user, dialog } = await openDialog();
+    await pick(user, dialog, /Nguyễn An/);
+    await review(user, dialog);
+    await user.click(within(dialog).getByRole("button", { name: t("documents.folderAccess.apply") }));
+    await within(dialog).findByTestId("folder-access-progress");
+    await user.click(within(dialog).getByRole("button", { name: t("documents.folderAccess.progress_close") }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    failed = true;
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(t("documents.folderAccess.batch_failed")), { timeout: 6000 });
     expect(toast.error).toHaveBeenCalledTimes(1);
   });
 
@@ -468,6 +498,7 @@ describe("folder contents access dialog subtitle", () => {
       expect(await screen.findByRole("dialog")).toHaveAccessibleDescription(subtitle);
       unmount();
     }
-    expect(t("documents.folderAccess.subtitle_untitled")).toBe("Áp dụng cho các tài liệu trong thư mục này và thư mục con.");
+    expect(t("documents.folderAccess.subtitle_untitled")).toBe("Các tài liệu trong thư mục này và các thư mục con.");
+    expect(t("documents.folderAccess.subtitle", { folder: "Hợp đồng" })).toBe("Các tài liệu trong thư mục \"Hợp đồng\" và các thư mục con.");
   });
 });

@@ -58,12 +58,12 @@ export function FolderContentsAccessProgress({
     <section aria-label={t("documents.folderAccess.progress_title")} className="flex min-w-0 flex-col gap-3" data-testid="folder-access-progress">
       {alreadyRunning ? (
         <Alert variant="warning" role="status">
-          <AlertDescription>{t("documents.folderAccess.progress_already_running")}</AlertDescription>
+          <AlertDescription className="text-pretty">{t("documents.folderAccess.progress_already_running")}</AlertDescription>
         </Alert>
       ) : null}
       {status === "failed" ? (
         <Alert variant="destructiveSoft">
-          <AlertDescription>{t("documents.folderAccess.batch_failed")}</AlertDescription>
+          <AlertDescription className="text-pretty">{t("documents.folderAccess.batch_failed")}</AlertDescription>
         </Alert>
       ) : status === "completed" ? (
         <p role="status" className="text-body font-medium break-words text-foreground">
@@ -95,11 +95,14 @@ export function FolderContentsAccessWatcher({
   wsId,
   folderId,
   batchId,
+  inDialog,
   onSettled,
 }: {
   wsId: string;
   folderId: string;
   batchId: string;
+  /** The open dialog is showing this batch: its failure already reads inline, so no toast repeats it. */
+  inDialog: boolean;
   onSettled: (batchId: string) => void;
 }) {
   const toasts = useFolderAccessToasts();
@@ -118,13 +121,13 @@ export function FolderContentsAccessWatcher({
       onSettled(batchId);
     } else if (status === "failed") {
       done.current = true;
-      toasts.failed();
+      if (!inDialog) toasts.failed();
       onSettled(batchId);
     } else if (gone) {
       done.current = true;
       onSettled(batchId);
     }
-  }, [status, batch, gone, batchId, onSettled, toasts]);
+  }, [status, batch, gone, batchId, inDialog, onSettled, toasts]);
 
   return null;
 }

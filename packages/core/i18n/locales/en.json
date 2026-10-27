@@ -12068,8 +12068,8 @@
     "folderAccess": {
       "menu": "Share",
       "title": "Share",
-      "subtitle": "Applies to the documents in folder \"{{folder}}\" and its subfolders.",
-      "subtitle_untitled": "Applies to the documents in this folder and its subfolders.",
+      "subtitle": "Documents in folder \"{{folder}}\" and its subfolders.",
+      "subtitle_untitled": "Documents in this folder and its subfolders.",
       "fixed_sentence": "Applies to the documents that exist now. Documents added later do not get this access.",
       "mode_label": "How to apply",
       "mode_merge": "Add to existing access",
@@ -12102,6 +12102,7 @@
       "warning_to_private": "The workspace is no longer in the list: these documents become Private.",
       "warning_downgrade_one": "{{count}} person gets a lower access level on at least one document.",
       "warning_downgrade_other": "{{count}} people get a lower access level on at least one document.",
+      "warning_downgrade_generic": "Some access on these documents will be lowered.",
       "nothing_to_change": "Nothing will change: current access already matches this list.",
       "toast_done_one": "Access changed on {{count}} document",
       "toast_done_other": "Access changed on {{count}} documents",
