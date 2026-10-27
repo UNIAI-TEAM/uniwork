@@ -23,8 +23,9 @@ test("landing demo controls perform the actions they advertise without workspace
   await demo.getByRole("button", { name: "Gửi tin nhắn", exact: true }).click();
   await expect(demo.getByRole("tabpanel", { name: "Trao đổi", exact: true }).locator(".product-chat-messages")).toContainText("Nhóm mình đã sẵn sàng");
   await selectWorkspaceFeature(page, "ask");
-  await demo.getByRole("button", { name: "Ai đang phụ trách?", exact: true }).click();
-  await expect(demo.locator(".product-ask-preview")).toContainText("Khánh Vy");
+  await demo.getByRole("textbox", { name: vi.ai.input_label }).fill(vi.landing.demo.ownerQuestion);
+  await demo.getByRole("textbox", { name: vi.ai.input_label }).press("Enter");
+  await expect(demo.locator(".product-ask-preview")).toContainText("Bảo Lâm phụ trách");
   expect(writes).toEqual([]);
 });
 
