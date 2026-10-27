@@ -13,7 +13,8 @@ test("catalog covers 25 reference entries without implying illustrations are wor
   const illustrations = ["workflows", "outputs", "approvals", "knowledge", "automation", "agents", "ai-brain", "skills", "work-catalog", "decisions", "decision-history", "ai-market", "reports"];
   for (const key of Object.values(workspaceGroups).flat()) {
     await selectWorkspaceFeature(page, key);
-    await expect(stage.locator("[role=tabpanel]")).toHaveCount(1);
+    // Every destination stays mounted (keepMounted), hidden; exactly one panel is shown.
+    await expect(stage.locator("[role=tabpanel]:not([hidden])")).toHaveCount(1);
     await expect(stage.locator(`.product-demo-shell[data-demo-feature="${key}"]`)).toHaveCount(1);
     if (illustrations.includes(key)) {
       // Features without a current screen stay a labelled illustration, not a working module.
@@ -36,7 +37,7 @@ test("project and organization previews work locally and source links stay withi
   await expect(stage).toContainText("Demo Studio");
   await selectWorkspaceFeature(page, "organization");
   await expect(stage.locator(".product-current-people")).toBeVisible();
-  await expect(stage.locator(".product-current-people a[href^='/people/']")).toHaveCount(3);
+  await expect(stage.locator(".product-current-people a[href^='/people/']")).toHaveCount(6);
   await selectWorkspaceFeature(page, "audit");
   await expect(stage.locator(".audit-example-detail")).toContainText("human");
   await expect(stage.locator(".audit-example-detail")).toContainText("task.updated");

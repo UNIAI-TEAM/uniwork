@@ -39,7 +39,7 @@ test('mail can be searched, filtered, starred, archived and composed locally', a
   const manual = page.locator('.manual-preview:not([hidden]) .product-email-workspace');
   const list = manual.locator('.product-email-list');
   const search = manual.getByRole('searchbox', { name: vi.email_hub.search_label });
-  await search.fill('Minh Linh');
+  await search.fill('An Nhiên');
   await expect(list.locator('[data-thread-row]')).toHaveCount(2);
   await search.fill('');
   await manual.getByRole('button', { name: vi.email_hub.filters.attachments, exact: true }).click();
@@ -51,8 +51,9 @@ test('mail can be searched, filtered, starred, archived and composed locally', a
   await expect(manual.getByRole('button', { name: vi.email_hub.star, exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Escape');
   await manual.getByRole('navigation', { name: vi.email_hub.folders_nav }).getByRole('button', { name: vi.email_hub.folders.starred, exact: true }).click();
-  await expect(list.locator('[data-thread-row]')).toHaveCount(1);
-  await list.locator('[data-thread-row]').click();
+  // The seed already stars one other thread, so the Starred folder holds two.
+  await expect(list.locator('[data-thread-row]')).toHaveCount(2);
+  await list.locator('[data-thread-row="demo-mail-0"]').click();
   await manual.getByRole('button', { name: vi.email_hub.archive, exact: true }).click();
   await manual.getByRole('button', { name: vi.email_hub.folders.more, exact: true }).click();
   await manual.getByRole('navigation', { name: vi.email_hub.folders_nav }).getByRole('button', { name: vi.email_hub.folders.archive, exact: true }).click();
@@ -87,7 +88,7 @@ test('phone folder navigation and reading actions remain usable', async ({ page 
   await manual.getByRole('button', { name: vi.email_hub.back_to_list, exact: true }).click();
   await manual.getByRole('button', { name: vi.email_hub.folder_menu.replace('{{folder}}', vi.email_hub.folders.inbox), exact: true }).click();
   await page.getByRole('menuitem', { name: vi.email_hub.folders.starred, exact: true }).click();
-  await expect(manual.locator('[data-thread-row]')).toHaveCount(1);
+  await expect(manual.locator('[data-thread-row]')).toHaveCount(2);
   await manual.getByRole('button', { name: vi.email_hub.compose_label, exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText(vi.landing.productDemo.email.localOnly);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
