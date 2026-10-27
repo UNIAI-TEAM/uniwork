@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^fe200d76c" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=fe200d76c482b10f27cee0d9babeef60ce8ae355
+fe200d76c test(drive): cover Drive folder parent resolution, naming, and aggregate list
+413e20496 feat(drive): add GET /workspaces/{workspaceID}/drive-folders aggregate list
+155046990 feat(drive): add POST /workspaces/{workspaceID}/drive-folders/{driveFolderID}/name
+f17f2f347 feat(drive): add drive_folder reference to DriveFileDTO
