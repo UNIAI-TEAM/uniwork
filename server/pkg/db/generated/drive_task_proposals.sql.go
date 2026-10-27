@@ -230,6 +230,69 @@ func (q *Queries) GetDriveTaskProposalForWorkspace(ctx context.Context, arg GetD
 	return i, err
 }
 
+const insertDriveTaskProposalLink = `-- name: InsertDriveTaskProposalLink :one
+INSERT INTO drive_task_proposal_links (
+  id, organization_id, workspace_id, proposal_id, item_index,
+  task_id, drive_file_id, external_file_id, created_by, created_by_kind
+) VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
+  $7,
+  $8,
+  $9,
+  COALESCE(NULLIF($10::text, ''), 'human')
+)
+ON CONFLICT (proposal_id, item_index) DO NOTHING
+RETURNING id, organization_id, workspace_id, proposal_id, item_index, task_id, drive_file_id, external_file_id, created_by, created_by_kind, created_at
+`
+
+type InsertDriveTaskProposalLinkParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	ProposalID     string `json:"proposal_id"`
+	ItemIndex      int32  `json:"item_index"`
+	TaskID         string `json:"task_id"`
+	DriveFileID    string `json:"drive_file_id"`
+	ExternalFileID string `json:"external_file_id"`
+	CreatedBy      string `json:"created_by"`
+	CreatedByKind  string `json:"created_by_kind"`
+}
+
+func (q *Queries) InsertDriveTaskProposalLink(ctx context.Context, arg InsertDriveTaskProposalLinkParams) (DriveTaskProposalLink, error) {
+	row := q.db.QueryRow(ctx, insertDriveTaskProposalLink,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ProposalID,
+		arg.ItemIndex,
+		arg.TaskID,
+		arg.DriveFileID,
+		arg.ExternalFileID,
+		arg.CreatedBy,
+		arg.CreatedByKind,
+	)
+	var i DriveTaskProposalLink
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ProposalID,
+		&i.ItemIndex,
+		&i.TaskID,
+		&i.DriveFileID,
+		&i.ExternalFileID,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listDriveProposalWorkspaceLabels = `-- name: ListDriveProposalWorkspaceLabels :many
 SELECT id, name
 FROM task_labels
@@ -310,6 +373,161 @@ func (q *Queries) ListDriveProposalWorkspaceMembers(ctx context.Context, arg Lis
 	for rows.Next() {
 		var i ListDriveProposalWorkspaceMembersRow
 		if err := rows.Scan(&i.UserID, &i.DisplayName, &i.Email); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDriveTaskCreationLinksByExternalFileID = `-- name: ListDriveTaskCreationLinksByExternalFileID :many
+SELECT l.id,
+       l.proposal_id,
+       l.item_index,
+       l.task_id,
+       l.drive_file_id,
+       l.external_file_id,
+       l.created_by,
+       l.created_at,
+       COALESCE(u.display_name, '')::text AS created_by_name,
+       t.number AS task_number,
+       t.title AS task_title,
+       t.status AS task_status
+FROM drive_task_proposal_links l
+JOIN tasks t
+  ON t.id = l.task_id
+ AND t.organization_id = l.organization_id
+ AND t.workspace_id = l.workspace_id
+LEFT JOIN users u
+  ON u.id = l.created_by
+WHERE l.organization_id = $1
+  AND l.workspace_id = $2
+  AND l.external_file_id = $3
+ORDER BY l.created_at DESC, l.proposal_id DESC, l.item_index ASC, l.id ASC
+`
+
+type ListDriveTaskCreationLinksByExternalFileIDParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	ExternalFileID string `json:"external_file_id"`
+}
+
+type ListDriveTaskCreationLinksByExternalFileIDRow struct {
+	ID             string             `json:"id"`
+	ProposalID     string             `json:"proposal_id"`
+	ItemIndex      int32              `json:"item_index"`
+	TaskID         string             `json:"task_id"`
+	DriveFileID    string             `json:"drive_file_id"`
+	ExternalFileID string             `json:"external_file_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	CreatedByName  string             `json:"created_by_name"`
+	TaskNumber     int64              `json:"task_number"`
+	TaskTitle      string             `json:"task_title"`
+	TaskStatus     string             `json:"task_status"`
+}
+
+// Returns proposal link rows joined with existing tasks for one external_file_id in workspace_id,
+// ordered by proposal creation batch DESC then item_index ASC (spec §8.8).
+func (q *Queries) ListDriveTaskCreationLinksByExternalFileID(ctx context.Context, arg ListDriveTaskCreationLinksByExternalFileIDParams) ([]ListDriveTaskCreationLinksByExternalFileIDRow, error) {
+	rows, err := q.db.Query(ctx, listDriveTaskCreationLinksByExternalFileID, arg.OrganizationID, arg.WorkspaceID, arg.ExternalFileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDriveTaskCreationLinksByExternalFileIDRow{}
+	for rows.Next() {
+		var i ListDriveTaskCreationLinksByExternalFileIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProposalID,
+			&i.ItemIndex,
+			&i.TaskID,
+			&i.DriveFileID,
+			&i.ExternalFileID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.CreatedByName,
+			&i.TaskNumber,
+			&i.TaskTitle,
+			&i.TaskStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDriveTaskProposalLinksByExternalFileIDs = `-- name: ListDriveTaskProposalLinksByExternalFileIDs :many
+SELECT l.id,
+       l.proposal_id,
+       l.item_index,
+       l.task_id,
+       l.drive_file_id,
+       l.external_file_id,
+       l.created_by,
+       l.created_at,
+       COALESCE(u.display_name, '')::text AS created_by_name
+FROM drive_task_proposal_links l
+JOIN tasks t
+  ON t.id = l.task_id
+ AND t.organization_id = l.organization_id
+ AND t.workspace_id = l.workspace_id
+LEFT JOIN users u
+  ON u.id = l.created_by
+WHERE l.organization_id = $1
+  AND l.workspace_id = $2
+  AND l.external_file_id = ANY($3::text[])
+ORDER BY l.created_at DESC, l.id DESC
+`
+
+type ListDriveTaskProposalLinksByExternalFileIDsParams struct {
+	OrganizationID  string   `json:"organization_id"`
+	WorkspaceID     string   `json:"workspace_id"`
+	ExternalFileIds []string `json:"external_file_ids"`
+}
+
+type ListDriveTaskProposalLinksByExternalFileIDsRow struct {
+	ID             string             `json:"id"`
+	ProposalID     string             `json:"proposal_id"`
+	ItemIndex      int32              `json:"item_index"`
+	TaskID         string             `json:"task_id"`
+	DriveFileID    string             `json:"drive_file_id"`
+	ExternalFileID string             `json:"external_file_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	CreatedByName  string             `json:"created_by_name"`
+}
+
+// Returns tasks created from Drive proposals for external_file_ids in workspace_id,
+// ordered newest first so the caller can apply canViewTask and aggregate tasks_created (spec §8.8).
+func (q *Queries) ListDriveTaskProposalLinksByExternalFileIDs(ctx context.Context, arg ListDriveTaskProposalLinksByExternalFileIDsParams) ([]ListDriveTaskProposalLinksByExternalFileIDsRow, error) {
+	rows, err := q.db.Query(ctx, listDriveTaskProposalLinksByExternalFileIDs, arg.OrganizationID, arg.WorkspaceID, arg.ExternalFileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDriveTaskProposalLinksByExternalFileIDsRow{}
+	for rows.Next() {
+		var i ListDriveTaskProposalLinksByExternalFileIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProposalID,
+			&i.ItemIndex,
+			&i.TaskID,
+			&i.DriveFileID,
+			&i.ExternalFileID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.CreatedByName,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

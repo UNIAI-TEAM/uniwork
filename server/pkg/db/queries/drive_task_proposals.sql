@@ -111,3 +111,73 @@ WHERE a.organization_id = sqlc.arg('organization_id')
   AND a.state = 'granted'
   AND c.disconnected_at IS NULL
   AND c.auth_failed_at IS NULL;
+
+-- name: InsertDriveTaskProposalLink :one
+INSERT INTO drive_task_proposal_links (
+  id, organization_id, workspace_id, proposal_id, item_index,
+  task_id, drive_file_id, external_file_id, created_by, created_by_kind
+) VALUES (
+  sqlc.arg('id'),
+  sqlc.arg('organization_id'),
+  sqlc.arg('workspace_id'),
+  sqlc.arg('proposal_id'),
+  sqlc.arg('item_index'),
+  sqlc.arg('task_id'),
+  sqlc.arg('drive_file_id'),
+  sqlc.arg('external_file_id'),
+  sqlc.arg('created_by'),
+  COALESCE(NULLIF(sqlc.arg('created_by_kind')::text, ''), 'human')
+)
+ON CONFLICT (proposal_id, item_index) DO NOTHING
+RETURNING *;
+
+-- name: ListDriveTaskProposalLinksByExternalFileIDs :many
+-- Returns tasks created from Drive proposals for external_file_ids in workspace_id,
+-- ordered newest first so the caller can apply canViewTask and aggregate tasks_created (spec §8.8).
+SELECT l.id,
+       l.proposal_id,
+       l.item_index,
+       l.task_id,
+       l.drive_file_id,
+       l.external_file_id,
+       l.created_by,
+       l.created_at,
+       COALESCE(u.display_name, '')::text AS created_by_name
+FROM drive_task_proposal_links l
+JOIN tasks t
+  ON t.id = l.task_id
+ AND t.organization_id = l.organization_id
+ AND t.workspace_id = l.workspace_id
+LEFT JOIN users u
+  ON u.id = l.created_by
+WHERE l.organization_id = sqlc.arg('organization_id')
+  AND l.workspace_id = sqlc.arg('workspace_id')
+  AND l.external_file_id = ANY(sqlc.arg('external_file_ids')::text[])
+ORDER BY l.created_at DESC, l.id DESC;
+
+-- name: ListDriveTaskCreationLinksByExternalFileID :many
+-- Returns proposal link rows joined with existing tasks for one external_file_id in workspace_id,
+-- ordered by proposal creation batch DESC then item_index ASC (spec §8.8).
+SELECT l.id,
+       l.proposal_id,
+       l.item_index,
+       l.task_id,
+       l.drive_file_id,
+       l.external_file_id,
+       l.created_by,
+       l.created_at,
+       COALESCE(u.display_name, '')::text AS created_by_name,
+       t.number AS task_number,
+       t.title AS task_title,
+       t.status AS task_status
+FROM drive_task_proposal_links l
+JOIN tasks t
+  ON t.id = l.task_id
+ AND t.organization_id = l.organization_id
+ AND t.workspace_id = l.workspace_id
+LEFT JOIN users u
+  ON u.id = l.created_by
+WHERE l.organization_id = sqlc.arg('organization_id')
+  AND l.workspace_id = sqlc.arg('workspace_id')
+  AND l.external_file_id = sqlc.arg('external_file_id')
+ORDER BY l.created_at DESC, l.proposal_id DESC, l.item_index ASC, l.id ASC;

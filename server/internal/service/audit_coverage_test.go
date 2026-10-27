@@ -2343,6 +2343,48 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalDiscarded, propDisconn.ID, linked2[0].File.ID, "drive-prop-disc2@example.com", "fake-sub-prop-disc-2", "source_disconnected", "SECRET_DOC_BODY_DISCARD")
 		},
+		audit.ActionDriveTaskProposalTasksCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			propSvc, fileSvc, connSvc, googleSrv := newAuditDriveProposalService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-prop-tasks", "drive-prop-tasks@example.com")
+			googleSrv.SetFile("ext-audit-prop-tasks", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-prop-tasks", Name: "Tasks From Proposal Doc", MimeType: DriveMimeGoogleDoc},
+				ExportByMime: map[string][]byte{
+					DriveMimeMarkdown: []byte("# Plan\nSECRET_DOC_BODY_CONVERT"),
+				},
+			})
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-prop-tasks"},
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			prop, err := propSvc.Propose(f.ctx, Human(f.owner.ID), w.ID, res[0].File.ID, ProposeDriveTasksInput{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantFilePayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+			}
+			beforeFileUpdated := auditOutboxCountMap(t, f, "drive_file.updated", wantFilePayload)
+			created, err := propSvc.CreateTasksFromProposal(f.ctx, Human(f.owner.ID), w.ID, prop.ID, CreateTasksFromProposalInput{
+				Items: []CreateTasksFromProposalItemInput{
+					{
+						Index:       0,
+						Title:       "Follow up on plan",
+						Description: "Detailed task body",
+						Priority:    "high",
+					},
+				},
+			})
+			if err != nil || len(created.TaskIDs) != 1 {
+				t.Fatalf("CreateTasksFromProposal = %+v, err=%v", created, err)
+			}
+			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalTasksCreated, prop.ID, res[0].File.ID, "drive-prop-tasks@example.com", "fake-sub-prop-tasks", "", "SECRET_DOC_BODY_CONVERT")
+			assertAuditOutboxTopicAfter(t, f, beforeFileUpdated, "drive_file.updated", wantFilePayload)
+		},
 		// UNI-1853 M7: the host generates the meeting's AI summary.
 		audit.ActionMeetingSummaryCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2886,6 +2928,7 @@ func auditActions() []string {
 		audit.ActionTaskDriveFileUnlinked,
 		audit.ActionDriveTaskProposalCreated,
 		audit.ActionDriveTaskProposalDiscarded,
+		audit.ActionDriveTaskProposalTasksCreated,
 		audit.ActionMcpGrantCreated,
 		audit.ActionMcpGrantRevoked,
 		audit.ActionMcpGrantScopeChanged,
@@ -3759,6 +3802,9 @@ func newAuditDriveProposalService(t *testing.T, f *auditFixture) (*DriveTaskProp
 		}
 	}}, NewAIQuota(NewEntitlementService(f.pool, f.q)), nil, ai.Options{})
 	propSvc := NewDriveTaskProposalService(f.pool, f.q, f.ws, fileSvc, connSvc, contentSvc, gw)
+	propSvc.SetTasks(f.tasks)
+	fileSvc.SetTaskCreationsLoader(fileSvc)
+	propSvc.SetTaskCreationsLoader(fileSvc)
 	return propSvc, fileSvc, connSvc, googleSrv
 }
 

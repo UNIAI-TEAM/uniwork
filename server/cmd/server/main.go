@@ -832,6 +832,9 @@ func main() {
 		driveTaskProposalSvc.SetMetrics(reg.Drive)
 	}
 	auditSvc.SetDriveProposalHistoryAuthorizer(driveTaskProposalSvc.AuthorizeHistory)
+	driveTaskProposalSvc.SetTasks(taskSvc)
+	driveFileSvc.SetTaskCreationsLoader(driveFileSvc)
+	driveTaskProposalSvc.SetTaskCreationsLoader(driveFileSvc)
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)
