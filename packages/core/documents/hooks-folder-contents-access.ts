@@ -6,6 +6,7 @@ import {
   updateFolderContentsAccess,
   type FolderContentsAccessInput,
 } from "../api/endpoints/documents-folder-contents-access";
+import { claimAccessBatchRefresh } from "./access-batch-refresh";
 import { documentKeys } from "./keys";
 
 // Folder contents access (UNI-2244): preview a bulk access change for every
@@ -37,10 +38,12 @@ export function usePreviewFolderContentsAccess(wsId: string) {
 
 /**
  * Apply: resolves `sync` (written in the request) or `background` (queued).
- * Every result but `background` refetches the workspace documents; a
- * background batch refreshes them when it completes (`useFolderContentsAccessBatch`).
+ * A `sync` result refetches the workspace documents unless the batch's
+ * completed frame already did (see access-batch-refresh); a background batch
+ * refreshes them when it completes (`useFolderContentsAccessBatch`).
  * `dry_run` from apply means "result unknown": the 200 body was unreadable and
- * the write may have happened, so callers must not read it as "no changes".
+ * the write may have happened, so callers must not read it as "no changes";
+ * it has no batch id to claim and always refetches.
  */
 export function useApplyFolderContentsAccess(wsId: string) {
   const qc = useQueryClient();
@@ -48,7 +51,9 @@ export function useApplyFolderContentsAccess(wsId: string) {
     mutationKey: [...folderContentsAccessKeys.all(wsId), "apply"],
     mutationFn: ({ folderId, input }: FolderContentsAccessVars) => updateFolderContentsAccess(folderId, input, { dryRun: false }),
     onSuccess: async (result) => {
-      if (result.kind !== "background") await qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+      if (result.kind === "background") return;
+      if (result.kind === "sync" && !claimAccessBatchRefresh(wsId, result.batch_id)) return;
+      await qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
     },
   });
 }
@@ -56,7 +61,8 @@ export function useApplyFolderContentsAccess(wsId: string) {
 /**
  * Progress of a background batch. Disabled while `batchId` is null; polls
  * every 2 s while queued or running and stops once completed or failed. The
- * workspace documents are invalidated when it reaches `completed`.
+ * workspace documents are invalidated when it reaches `completed`, unless the
+ * completed frame already refreshed them.
  */
 export function useFolderContentsAccessBatch(wsId: string, folderId: string, batchId: string | null) {
   const qc = useQueryClient();
@@ -74,7 +80,9 @@ export function useFolderContentsAccessBatch(wsId: string, folderId: string, bat
   });
   const completed = query.data?.status === "completed";
   useEffect(() => {
-    if (completed) void qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    if (completed && batchId !== null && claimAccessBatchRefresh(wsId, batchId)) {
+      void qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+    }
   }, [completed, qc, wsId, batchId]);
   return query;
 }
