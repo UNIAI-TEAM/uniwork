@@ -373,6 +373,7 @@ export function useDocumentsSearchView({
       libraryLoadMore();
     }
   }, [screenAutoPaging, libraryLoadingMore, libraryLoadMore]);
+
   const clearAndFocus = () => {
     search.clear();
     search.focusInput();
