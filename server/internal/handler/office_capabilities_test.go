@@ -387,7 +387,7 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 
 	// Router fallback (OfficeCapabilities left nil, available DriveConnections):
 	// flag off -> false; flag on -> 200 and drive_connector == true.
-	clearFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "")
+	setFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "", false)
 	availDrive := service.NewDriveConnectionService(pool, q, d.Workspaces, box)
 	availDrive.ConfigureOAuth(config.Config{
 		AppEnv:            "development",

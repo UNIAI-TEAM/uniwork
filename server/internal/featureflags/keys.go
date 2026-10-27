@@ -111,7 +111,7 @@ var catalogue = []Flag{
 	{Key: "ask_uni_actions", Description: "Hỏi UNI đề xuất thay đổi ghi (task, bình luận, tin nhắn…) để người dùng xác nhận (UNI-2148, P3); tắt thì vòng agent không gửi tool ghi và các route đề xuất trả 403 ai_actions_disabled", Default: false, Public: true, Owner: "ai", ReviewAt: day(2027, 4, 30)},
 	{Key: "ask_uni_memory", Description: "Hỏi UNI có bộ nhớ riêng của từng người (UNI-2156, P4): đề xuất nhớ khi người dùng xác nhận, màn Bộ nhớ, nhập từ AI khác; tắt thì không có khối bộ nhớ trong prompt, không có tool propose_memory, mọi route bộ nhớ trả 403 ai_memory_disabled", Default: false, Public: true, Owner: "ai", ReviewAt: day(2027, 5, 31)},
 	{Key: "ask_uni_thinking", Description: "Hỏi UNI cho thấy cách suy luận (UNI-2148): bật suy nghĩ thích ứng của model Anthropic, stream phần tóm tắt suy nghĩ và chạy prompt @8–@11 có một câu dẫn trước mỗi lần tra cứu; tốn thêm token output. Tắt thì giữ @4–@7, không suy nghĩ", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 4, 30)},
-	{Key: "drive_connector", Description: "Connector Google Drive: kết nối, liên kết tệp, UNI đề xuất việc (UNI-2172, ADR 0047)", Default: false, Public: true, Owner: "work", ReviewAt: day(2027, 4, 30)},
+	{Key: "drive_connector", Description: "Connector Google Drive: kết nối, liên kết tệp, UNI đề xuất việc (UNI-2172, ADR 0047); mặc định bật khi server có OAuth Drive, FF_DRIVE_CONNECTOR=false là công tắc tắt", Default: true, Public: true, Owner: "work", ReviewAt: day(2027, 4, 30)},
 }
 
 // EvaluateMobileFlags evaluates every mobile key for the request's context,
