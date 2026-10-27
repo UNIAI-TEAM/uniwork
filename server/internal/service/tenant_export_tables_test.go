@@ -68,6 +68,23 @@ func TestRedactTenantRowDropsSecretsAndStorageLocators(t *testing.T) {
 	if !strings.Contains(text, "checksum_sha256") || summary == nil || summary.FileID != "f1" || summary.Filename != "a.png" {
 		t.Fatalf("file summary = %+v row %s", summary, text)
 	}
+
+	inviteLinkClean, inviteLinkSummary, err := redactTenantRow("membership_invite_links", `{
+		"id":"mil1","organization_id":"o1","workspace_id":"w1",
+		"secret_hash":"sha256-invite-secret","org_role":"member","workspace_role":"member"
+	}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inviteLinkText := string(inviteLinkClean)
+	for _, forbidden := range []string{"secret_hash", "sha256-invite-secret"} {
+		if strings.Contains(inviteLinkText, forbidden) {
+			t.Fatalf("redacted membership_invite_links row still has %q: %s", forbidden, inviteLinkText)
+		}
+	}
+	if inviteLinkSummary != nil || !strings.Contains(inviteLinkText, `"id":"mil1"`) || !strings.Contains(inviteLinkText, `"org_role":"member"`) {
+		t.Fatalf("redacted membership_invite_links = %+v row %s", inviteLinkSummary, inviteLinkText)
+	}
 }
 
 var (
