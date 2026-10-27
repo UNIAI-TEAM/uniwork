@@ -87,6 +87,34 @@ describe("drive-library endpoints", () => {
     expect(out.next_cursor).toBe("cur2");
   });
 
+  it("listDriveFiles sends drive_folder_id (a folder id or none) with the connection filter and reads the echo", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ files: [validFile()], total_count: 12, next_cursor: "cur2", drive_folder_id: "fld-1234567890" }),
+    );
+    const out = await listDriveFiles("ws1", { connection_id: "conn1", drive_folder_id: "fld-1234567890", limit: 50 });
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe(
+      "http://api.test/api/v1/workspaces/ws1/drive-files?connection_id=conn1&drive_folder_id=fld-1234567890&limit=50",
+    );
+    expect(out.drive_folder_id).toBe("fld-1234567890");
+    expect(out.total_count).toBe(12);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ files: [], total_count: 0, next_cursor: null, drive_folder_id: "none" }));
+    const none = await listDriveFiles("ws1", { drive_folder_id: "none" });
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/ws1/drive-files?drive_folder_id=none",
+    );
+    expect(none.drive_folder_id).toBe("none");
+  });
+
+  it("listDriveFiles reads the drive_folder_id echo leniently: null, absent and a wrong type are no filter", async () => {
+    for (const echo of [{ drive_folder_id: null }, {}, { drive_folder_id: 7 }, { drive_folder_id: { id: "x" } }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ files: [validFile()], total_count: 1, next_cursor: null, ...echo }));
+      const out = await listDriveFiles("ws1");
+      expect(out.files).toHaveLength(1);
+      expect(out.drive_folder_id).toBeNull();
+    }
+  });
+
   it("listDriveFiles omits empty query parameters and accepts omitted optional fields", async () => {
     const minimalFile: Record<string, unknown> = {
       ...validFile(),
@@ -165,6 +193,7 @@ describe("drive-library endpoints", () => {
       files: [],
       total_count: 0,
       next_cursor: null,
+      drive_folder_id: null,
     });
   });
 
@@ -176,6 +205,7 @@ describe("drive-library endpoints", () => {
       files: [],
       total_count: 0,
       next_cursor: null,
+      drive_folder_id: null,
     });
 
     vi.mocked(fetch).mockResolvedValueOnce(

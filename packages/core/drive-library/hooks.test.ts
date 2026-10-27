@@ -99,6 +99,106 @@ describe("driveLibraryKeys and hooks", () => {
     expect((query?.options as { refetchOnWindowFocus?: boolean } | undefined)?.refetchOnWindowFocus).toBe(true);
   });
 
+  describe("useDriveFiles with a drive folder filter", () => {
+    const rows = [
+      { id: "a", folder: "fld-1234567890" },
+      { id: "b", folder: "fld-1234567890" },
+      { id: "c", folder: "fld-1234567890" },
+      { id: "d", folder: "fld-other-abcdef" },
+      { id: "e", folder: null },
+    ];
+
+    /** A server that filters by `drive_folder_id` (`none` = no parent), counts the filtered set and pages by offset cursor. */
+    function serveFiltered() {
+      vi.mocked(fetch).mockImplementation((input) => {
+        const params = new URL(String(input)).searchParams;
+        const filter = params.get("drive_folder_id");
+        const matching = rows.filter((r) => (filter === null ? true : filter === "none" ? r.folder === null : r.folder === filter));
+        const offset = Number(params.get("cursor") ?? 0);
+        const limit = Number(params.get("limit"));
+        const page = matching.slice(offset, offset + limit);
+        const more = offset + limit < matching.length;
+        return Promise.resolve(
+          json({
+            files: page.map((r) => sampleFile({ id: r.id, drive_folder: r.folder ? { id: r.folder, name: null } : null })),
+            total_count: matching.length,
+            next_cursor: more ? String(offset + limit) : null,
+            drive_folder_id: filter,
+          }),
+        );
+      });
+    }
+    const requested = () => vi.mocked(fetch).mock.calls.map(([url]) => new URL(String(url)).searchParams);
+
+    it("sends the folder id with the connection and pages it with the filtered total", async () => {
+      serveFiltered();
+      const { result } = renderHook(
+        () => useDriveFiles("ws1", { connectionId: "conn1", driveFolderId: "fld-1234567890", limit: 2 }),
+        { wrapper: makeWrapper(qc) },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data?.pages[0]?.files.map((f) => f.id)).toEqual(["a", "b"]);
+      expect(result.current.data?.pages[0]?.total_count).toBe(3);
+      expect(result.current.hasNextPage).toBe(true);
+      expect(requested()[0]!.get("connection_id")).toBe("conn1");
+      expect(requested()[0]!.get("drive_folder_id")).toBe("fld-1234567890");
+
+      await result.current.fetchNextPage();
+      await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+      expect(result.current.data?.pages.flatMap((p) => p.files.map((f) => f.id))).toEqual(["a", "b", "c"]);
+      expect(requested()[1]!.get("cursor")).toBe("2");
+      expect(requested()[1]!.get("drive_folder_id")).toBe("fld-1234567890");
+      expect(result.current.hasNextPage).toBe(false);
+    });
+
+    it("none asks for the files with no known parent folder", async () => {
+      serveFiltered();
+      const { result } = renderHook(() => useDriveFiles("ws1", { connectionId: "conn1", driveFolderId: "none" }), {
+        wrapper: makeWrapper(qc),
+      });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data?.pages[0]?.files.map((f) => f.id)).toEqual(["e"]);
+      expect(requested()[0]!.get("drive_folder_id")).toBe("none");
+    });
+
+    it("an unknown well-shaped folder id is an empty page, not an error", async () => {
+      serveFiltered();
+      const { result } = renderHook(
+        () => useDriveFiles("ws1", { connectionId: "conn1", driveFolderId: "fld-unknown-0000" }),
+        { wrapper: makeWrapper(qc) },
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data?.pages[0]).toMatchObject({ files: [], total_count: 0, next_cursor: null });
+      expect(result.current.hasNextPage).toBe(false);
+    });
+
+    it("keeps a cache entry per folder, apart from the unfiltered list", async () => {
+      serveFiltered();
+      const wrapper = makeWrapper(qc);
+      const first = renderHook(() => useDriveFiles("ws1", { connectionId: "conn1", driveFolderId: "fld-1234567890" }), { wrapper });
+      const second = renderHook(() => useDriveFiles("ws1", { connectionId: "conn1", driveFolderId: "fld-other-abcdef" }), { wrapper });
+      const whole = renderHook(() => useDriveFiles("ws1", { connectionId: "conn1" }), { wrapper });
+      await waitFor(() => expect(first.result.current.isSuccess && second.result.current.isSuccess && whole.result.current.isSuccess).toBe(true));
+      expect(first.result.current.data?.pages[0]?.files.map((f) => f.id)).toEqual(["a", "b", "c"]);
+      expect(second.result.current.data?.pages[0]?.files.map((f) => f.id)).toEqual(["d"]);
+      expect(whole.result.current.data?.pages[0]?.files).toHaveLength(5);
+
+      const folderKey = driveLibraryKeys.list("ws1", "conn1", "fld-1234567890");
+      const noneKey = driveLibraryKeys.list("ws1", "conn1", "none");
+      const keys = [
+        driveLibraryKeys.list("ws1", "conn1"),
+        folderKey,
+        driveLibraryKeys.list("ws1", "conn1", "fld-other-abcdef"),
+        noneKey,
+      ];
+      expect(new Set(keys.map((k) => JSON.stringify(k))).size).toBe(4);
+      expect(qc.getQueryCache().find({ queryKey: folderKey, exact: true })).toBeDefined();
+      expect(qc.getQueryCache().find({ queryKey: noneKey, exact: true })).toBeUndefined();
+      // Every folder key stays under the workspace lists prefix, so drive_file.* invalidation reaches it.
+      expect(keys.every((k) => driveLibraryKeys.lists("ws1").every((part, i) => k[i] === part))).toBe(true);
+    });
+  });
+
   it("useDriveFile fetches file detail and enables refetchOnWindowFocus", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ file: sampleFile() }));
     const { result } = renderHook(() => useDriveFile("ws1", "df1"), {
