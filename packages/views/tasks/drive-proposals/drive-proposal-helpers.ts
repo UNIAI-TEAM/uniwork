@@ -129,6 +129,71 @@ export function formatDriveProposalSourceLine(
   });
 }
 
+export interface DriveProposalSummaryParts {
+  goalPart: string;
+  tailPart: string;
+  fullText: string;
+}
+
+export function formatDriveProposalSummaryLine(
+  goal: string,
+  checklist: readonly string[],
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): DriveProposalSummaryParts | null {
+  const normalizedGoal = goal.replace(/\s+/g, " ").trim();
+  const todoCount = checklist.filter((item) => item.trim().length > 0).length;
+
+  const goalPart = normalizedGoal
+    ? t("drive.proposals.review.summary_goal", { goal: normalizedGoal })
+    : "";
+  const todosText =
+    todoCount > 0
+      ? t("drive.proposals.review.summary_todos", { count: todoCount })
+      : "";
+  const tailPart = todosText
+    ? goalPart
+      ? t("drive.proposals.review.summary_todos_tail", { todos: todosText })
+      : todosText
+    : "";
+
+  const fullText = `${goalPart}${tailPart}`;
+  if (!fullText) {
+    return null;
+  }
+  return { goalPart, tailPart, fullText };
+}
+
+export interface DriveProposalQuoteSourceParts {
+  quotePart: string;
+  fileTailPart: string;
+  fullText: string;
+}
+
+export function formatDriveProposalQuoteSourceLine(
+  excerpt: DriveProposalExcerpt,
+  fileName: string,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): DriveProposalQuoteSourceParts | null {
+  const normalizedQuote = excerpt.quote.replace(/\s+/g, " ").trim();
+  if (!normalizedQuote) {
+    return null;
+  }
+  const quotePart = t("drive.proposals.review.summary_quote_only", {
+    quote: normalizedQuote,
+  });
+  const trimmedFileName = fileName.replace(/\s+/g, " ").trim();
+  const fileTailPart = trimmedFileName
+    ? t("drive.proposals.review.summary_quote_file_tail", {
+        fileName: trimmedFileName,
+      })
+    : "";
+  return {
+    quotePart,
+    fileTailPart,
+    fullText: `${quotePart}${fileTailPart}`,
+  };
+}
+
 /**
  * Builds the task description from the item's goal, checklist, excerpt, and
  * source document link (spec §8.4, §8.5, Q3: excerpt always stays in the
