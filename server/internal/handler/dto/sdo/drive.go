@@ -61,6 +61,12 @@ type DriveTaskCreationGroupDTO struct {
 	Tasks         []DriveLinkedTaskRefDTO `json:"tasks" description:"Danh sách công việc thuộc lần tạo này mà người xem được phép thấy" example:"[{\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"identifier\":\"UNI-1042\",\"title\":\"Chuẩn bị kế hoạch ra mắt Q4\",\"status\":\"todo\"}]"`
 }
 
+// DriveFolderRefDTO identifies the parent Google Drive folder of a linked file (UNI-2221).
+type DriveFolderRefDTO struct {
+	ID   string  `json:"id" description:"ID thư mục cha trên Google Drive" example:"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8"`
+	Name *string `json:"name" description:"Tên thư mục cha trên Google Drive; null khi chưa đặt tên hoặc không đọc được tên dưới quyền drive.file" example:"Tài liệu dự án Q4"`
+}
+
 // DriveFileDTO is a Google Drive file reference in the workspace (list row on 4.1 and detail on 4.2; spec §6.2, §7.6, §7.7, §8.8).
 type DriveFileDTO struct {
 	ID                     string                      `json:"id" description:"ULID tham chiếu tệp Drive trong UniWork" example:"01J8X4DRVFILE0N1P2Q3R4S5T6"`
@@ -68,6 +74,7 @@ type DriveFileDTO struct {
 	WorkspaceID            string                      `json:"workspace_id" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 	ExternalFileID         string                      `json:"external_file_id" description:"ID tệp trên Google Drive" example:"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"`
 	DriveID                *string                     `json:"drive_id,omitempty" description:"ID Bộ nhớ dùng chung (Shared Drive) nếu tệp nằm trong Bộ nhớ dùng chung; null nếu ở Drive cá nhân" example:"0AJ8X4SHAREDDRV001"`
+	DriveFolder            *DriveFolderRefDTO          `json:"drive_folder" description:"Thư mục cha trên Google Drive; null khi không có thư mục cha hoặc chưa làm mới metadata" example:"{\"id\":\"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8\",\"name\":\"Tài liệu dự án Q4\"}"`
 	Name                   string                      `json:"name" description:"Tên tệp chụp từ Google Drive" example:"Kế hoạch ra mắt Q4"`
 	MimeType               string                      `json:"mime_type" description:"MIME type của tệp trên Google Drive" example:"application/vnd.google-apps.document"`
 	IconKind               string                      `json:"icon_kind" description:"Loại biểu tượng hiển thị: google_doc, google_sheet, google_slide, pdf, docx, xlsx, pptx, text, markdown hoặc generic" example:"google_doc"`

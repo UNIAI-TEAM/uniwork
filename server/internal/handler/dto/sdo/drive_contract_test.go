@@ -38,6 +38,7 @@ var driveSDOTypes = map[string]reflect.Type{
 	"DriveTasksCreatedSummaryDTO":     reflect.TypeFor[sdo.DriveTasksCreatedSummaryDTO](),
 	"DriveLinkedTaskRefDTO":           reflect.TypeFor[sdo.DriveLinkedTaskRefDTO](),
 	"DriveTaskCreationGroupDTO":       reflect.TypeFor[sdo.DriveTaskCreationGroupDTO](),
+	"DriveFolderRefDTO":               reflect.TypeFor[sdo.DriveFolderRefDTO](),
 	"DriveFileDTO":                    reflect.TypeFor[sdo.DriveFileDTO](),
 	"DriveFileSDO":                    reflect.TypeFor[sdo.DriveFileSDO](),
 	"DriveFileListSDO":                reflect.TypeFor[sdo.DriveFileListSDO](),
@@ -290,6 +291,82 @@ func assertStructFieldTags(t *testing.T, typeName string, typ reflect.Type) {
 			var obj map[string]any
 			if err := json.Unmarshal([]byte(ex), &obj); err != nil {
 				t.Errorf("%s: struct/map example %q is not a valid JSON object: %v", fieldPath, ex, err)
+			}
+		}
+	}
+}
+
+// TestDriveFileDTODriveFolderShape (UNI-2221) verifies that DriveFileDTO marshals
+// drive_folder as null when nil, {"id":"...","name":null} when Name is nil, and
+// {"id":"...","name":"..."} when Name is set, while DriveFileLinkReceiptDTO and
+// DriveTaskFileCardDTO do not expose drive_folder.
+func TestDriveFileDTODriveFolderShape(t *testing.T) {
+	// 1. Nil DriveFolder -> drive_folder: null (present, not omitted).
+	dtoNil := sdo.DriveFileDTO{ID: "01J8X4DRVFILE0N1P2Q3R4S5T6"}
+	rawNil, err := json.Marshal(dtoNil)
+	if err != nil {
+		t.Fatalf("marshal dtoNil: %v", err)
+	}
+	var mapNil map[string]any
+	if err := json.Unmarshal(rawNil, &mapNil); err != nil {
+		t.Fatalf("unmarshal dtoNil: %v", err)
+	}
+	valNil, existsNil := mapNil["drive_folder"]
+	if !existsNil || valNil != nil {
+		t.Fatalf("dtoNil drive_folder = (%v, exists=%v), want (nil, true)", valNil, existsNil)
+	}
+
+	// 2. Unnamed folder -> drive_folder: {"id": "fld-1", "name": null}.
+	dtoUnnamed := sdo.DriveFileDTO{
+		ID:          "01J8X4DRVFILE0N1P2Q3R4S5T6",
+		DriveFolder: &sdo.DriveFolderRefDTO{ID: "fld-1", Name: nil},
+	}
+	rawUnnamed, err := json.Marshal(dtoUnnamed)
+	if err != nil {
+		t.Fatalf("marshal dtoUnnamed: %v", err)
+	}
+	var mapUnnamed map[string]any
+	if err := json.Unmarshal(rawUnnamed, &mapUnnamed); err != nil {
+		t.Fatalf("unmarshal dtoUnnamed: %v", err)
+	}
+	folderUnnamed, ok := mapUnnamed["drive_folder"].(map[string]any)
+	if !ok {
+		t.Fatalf("dtoUnnamed drive_folder = %T, want object", mapUnnamed["drive_folder"])
+	}
+	if folderUnnamed["id"] != "fld-1" {
+		t.Fatalf("dtoUnnamed drive_folder.id = %v, want fld-1", folderUnnamed["id"])
+	}
+	if nameVal, nameExists := folderUnnamed["name"]; !nameExists || nameVal != nil {
+		t.Fatalf("dtoUnnamed drive_folder.name = (%v, exists=%v), want (nil, true)", nameVal, nameExists)
+	}
+
+	// 3. Named folder -> drive_folder: {"id": "fld-1", "name": "Kế hoạch Q4"}.
+	folderName := "Kế hoạch Q4"
+	dtoNamed := sdo.DriveFileDTO{
+		ID:          "01J8X4DRVFILE0N1P2Q3R4S5T6",
+		DriveFolder: &sdo.DriveFolderRefDTO{ID: "fld-1", Name: &folderName},
+	}
+	rawNamed, err := json.Marshal(dtoNamed)
+	if err != nil {
+		t.Fatalf("marshal dtoNamed: %v", err)
+	}
+	var mapNamed map[string]any
+	if err := json.Unmarshal(rawNamed, &mapNamed); err != nil {
+		t.Fatalf("unmarshal dtoNamed: %v", err)
+	}
+	folderNamed, ok := mapNamed["drive_folder"].(map[string]any)
+	if !ok || folderNamed["id"] != "fld-1" || folderNamed["name"] != "Kế hoạch Q4" {
+		t.Fatalf("dtoNamed drive_folder = %+v, want id=fld-1 name=Kế hoạch Q4", mapNamed["drive_folder"])
+	}
+
+	// 4. DriveFileLinkReceiptDTO and DriveTaskFileCardDTO do not carry drive_folder.
+	for _, typ := range []reflect.Type{
+		reflect.TypeFor[sdo.DriveFileLinkReceiptDTO](),
+		reflect.TypeFor[sdo.DriveTaskFileCardDTO](),
+	} {
+		for i := range typ.NumField() {
+			if strings.Split(typ.Field(i).Tag.Get("json"), ",")[0] == "drive_folder" {
+				t.Errorf("%s must not expose drive_folder", typ.Name())
 			}
 		}
 	}

@@ -380,6 +380,7 @@ func toDriveFileDTO(v service.DriveFileView) sdo.DriveFileDTO {
 		WorkspaceID:            v.WorkspaceID,
 		ExternalFileID:         v.ExternalFileID,
 		DriveID:                v.DriveID,
+		DriveFolder:            toDriveFolderRefDTO(v.DriveFolder),
 		Name:                   v.Name,
 		MimeType:               v.MimeType,
 		IconKind:               v.IconKind,
@@ -419,6 +420,16 @@ func toDriveFileDTO(v service.DriveFileView) sdo.DriveFileDTO {
 		dto.UpdatedAt = v.UpdatedAt.UTC().Format(time.RFC3339)
 	}
 	return dto
+}
+
+func toDriveFolderRefDTO(v *service.DriveFolderRefView) *sdo.DriveFolderRefDTO {
+	if v == nil || v.ID == "" {
+		return nil
+	}
+	return &sdo.DriveFolderRefDTO{
+		ID:   v.ID,
+		Name: v.Name,
+	}
 }
 
 func toDriveFileLinkReceiptDTO(v *service.DriveFileLinkReceiptView) *sdo.DriveFileLinkReceiptDTO {
