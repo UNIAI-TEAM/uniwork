@@ -1,8 +1,11 @@
 "use client";
 
-import { memo } from "react";
+import { memo, type KeyboardEvent, type MouseEvent } from "react";
+import { useTranslation } from "react-i18next";
+import { Check } from "lucide-react";
 import { latestSeenOwnMessageIndex } from "@uniwork/core/chat/read-receipt-utils";
 import { isPendingChatMessageId } from "@uniwork/core/chat/pending-message-id";
+import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageRow } from "./chat-message-row";
 import { ChatFileMessageRow } from "./chat-file-message-row";
@@ -362,12 +365,34 @@ function MessageBody({
  * one element per message. Memoised: a row re-renders when its own message,
  * layout or highlight changes, not whenever the timeline does.
  */
+function ChatMessageSelectionCheck({ selected }: { selected: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      role="checkbox"
+      aria-checked={selected}
+      aria-label={selected ? t("chat.selection.selected") : t("chat.selection.select_message")}
+      className={cn(
+        "mt-auto mb-1 flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+        selected
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-muted-foreground/50 bg-surface/80 text-transparent",
+      )}
+    >
+      <Check className="size-3.5" aria-hidden />
+    </span>
+  );
+}
+
 export const NativeChatMessageItem = memo(function NativeChatMessageItem({
   message,
   layout,
   context,
   highlighted,
   isTimelineTail = false,
+  selectionActive = false,
+  selected = false,
+  onToggleSelect,
 }: {
   message: ChatMessage;
   layout: NativeChatRowLayout;
@@ -375,6 +400,9 @@ export const NativeChatMessageItem = memo(function NativeChatMessageItem({
   highlighted: boolean;
   /** Newest row in the loaded timeline (outgoing send animation). */
   isTimelineTail?: boolean;
+  selectionActive?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (messageId: string) => void;
 }) {
   const body = (
     <MessageBody
@@ -385,13 +413,36 @@ export const NativeChatMessageItem = memo(function NativeChatMessageItem({
       isTimelineTail={isTimelineTail}
     />
   );
-  if (!layout.opensDay && !layout.opensUnread && !layout.opensReplies) return body;
+  const selectable =
+    selectionActive && onToggleSelect && !layout.inAlbum ? (
+      <div
+        className="flex w-full items-end gap-2"
+        onClick={(event: MouseEvent) => {
+          // Ignore clicks on links/controls inside the bubble (not the row shell).
+          const target = event.target as HTMLElement | null;
+          if (target?.closest("a, button, input, textarea, [role='menuitem']")) return;
+          onToggleSelect(message.id);
+        }}
+        onKeyDown={(event: KeyboardEvent) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          onToggleSelect(message.id);
+        }}
+        role="presentation"
+      >
+        <div className="min-w-0 flex-1">{body}</div>
+        <ChatMessageSelectionCheck selected={selected} />
+      </div>
+    ) : (
+      body
+    );
+  if (!layout.opensDay && !layout.opensUnread && !layout.opensReplies) return selectable;
   return (
     <div>
       {layout.opensReplies ? <ChatRepliesSeparator count={layout.opensReplies} /> : null}
       {layout.opensDay && !layout.opensReplies ? <ChatDaySeparator ts={message.ts} /> : null}
       {layout.opensUnread ? <ChatUnreadSeparator /> : null}
-      {body}
+      {selectable}
     </div>
   );
 },
@@ -404,6 +455,9 @@ function sameRow(
     context: NativeChatMessageContext;
     highlighted: boolean;
     isTimelineTail?: boolean;
+    selectionActive?: boolean;
+    selected?: boolean;
+    onToggleSelect?: (messageId: string) => void;
   },
   next: {
     message: ChatMessage;
@@ -411,13 +465,19 @@ function sameRow(
     context: NativeChatMessageContext;
     highlighted: boolean;
     isTimelineTail?: boolean;
+    selectionActive?: boolean;
+    selected?: boolean;
+    onToggleSelect?: (messageId: string) => void;
   },
 ): boolean {
   if (
     prev.message !== next.message ||
     prev.context !== next.context ||
     prev.highlighted !== next.highlighted ||
-    prev.isTimelineTail !== next.isTimelineTail
+    prev.isTimelineTail !== next.isTimelineTail ||
+    prev.selectionActive !== next.selectionActive ||
+    prev.selected !== next.selected ||
+    prev.onToggleSelect !== next.onToggleSelect
   ) {
     return false;
   }
