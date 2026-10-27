@@ -172,6 +172,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionMembershipInviteLinkCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			if _, err := f.ws.CreateWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, nil); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMembershipInviteLinkRevoked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			link, err := f.ws.CreateWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.ws.RevokeWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, link.Link.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionOrganizationOwnershipChanged: func(t *testing.T, f *auditFixture) {
 			f.addMember(t)
 			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, auditPassword); err != nil {

@@ -41,6 +41,8 @@ export const paths = {
   invite: (token: string) => `/invite/${token}`,
   meetingInvite: (linkId: string) => `/invite/meeting/${linkId}`,
   meetingInviteRoom: (linkId: string) => `/invite/meeting/${linkId}/room`,
+  /** Shareable membership invite link (workspace or organization). Secret rides in the fragment. */
+  membershipInvite: (linkId: string) => `/join/${encodeURIComponent(linkId)}`,
   /** Anonymous document link (G1-08): outside the shell, token-only access. */
   publicShare: (token: string) => `/share/${encodeURIComponent(token)}`,
   /**
@@ -183,6 +185,7 @@ export const GLOBAL_PREFIXES = [
   "/invitations",
   "/workspaces",
   "/invite/",
+  "/join/",
   "/share/",
   "/admin",
   // Public marketing pages: without these the two-segment ones would read
