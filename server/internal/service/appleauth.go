@@ -138,7 +138,8 @@ func (s *AppleAuthService) mailer() signInMailer {
 //
 // It answers the native device session.
 // ponytail: retire once every mobile build in use calls /auth/native/apple;
-// reviewed by 2027-01-31 (spec §3.6).
+// reviewed by legacyProofReviewBy with the shipped apps' other doors
+// (TestLegacyProofDoorsAreReviewed, spec §3.6).
 func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (DesktopSession, error) {
 	if !s.NativeEnabled() {
 		// The handler answers 503 before this; a web-only deployment has no

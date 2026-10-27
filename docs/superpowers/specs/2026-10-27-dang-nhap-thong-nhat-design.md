@@ -369,7 +369,8 @@ Mọi route: công khai, `Cache-Control: no-store`, ⚑ chỉ nhận `client_id`
   app cũ không có màn chọn nên không tạo được tài khoản thứ hai cùng email, đúng mã bản cũ trả cho trường hợp này);
   `reclaim` vẫn chạy (không MFA).
   `TestLegacyAppleNativeKeepsItsCodes`. Gỡ khi mọi bản mobile đang dùng gọi `/auth/native/*`; hạn xem lại
-  2027-01-31 ghi trong `scripts/governance.test.mjs` (fail khi quá hạn mà route còn).
+  2027-01-31 cùng các bằng chứng cũ (3.7), giữ bằng `TestLegacyProofDoorsAreReviewed` (Go, hằng
+  `legacyProofReviewBy`; fail khi quá hạn cho tới khi gỡ hay dời hạn có lý do) thay cho `scripts/governance.test.mjs`.
 - Lát 5 (server): `service/native_sign_in.go` (cửa) và `service/native_sign_in_ticket.go` (vé), `NativeSignInService`.
   Cửa không đúng client → `400 invalid_request` (như route Apple cũ); client native phải vừa nằm trong
   `NATIVE_SIGN_IN_CLIENTS` vừa là client desktop đã cấu hình, và route Apple cũ cũng chỉ nhận danh sách này (bản app

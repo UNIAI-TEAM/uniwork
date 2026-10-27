@@ -640,7 +640,7 @@ database and never reveal whether an id exists to a non-member.
   that asked: its `link_token` is bound to the account and browser session, and the provider's start and callback
   both check the refresh cookie opens that very session; the app links with the provider's own sheet instead. The proofs shipped apps still send in place of a token
   (`POST /me/delete`'s password, code or typed address; an owner's password on a hand-over) are reviewed by
-  2027-01-31 (`TestLegacyProofDoorsAreReviewed`). `TestSignInMethodChangesNeedAProof`, `TestMFAEnrolmentNeedsAProof`,
+  2027-01-31 with the legacy `POST /auth/apple/native` (`TestLegacyProofDoorsAreReviewed`). `TestSignInMethodChangesNeedAProof`, `TestMFAEnrolmentNeedsAProof`,
   `TestStepUpTokenDiesWithItsSession`, `TestStepUpCodeNamesItsActionAndIgnoresTheDevCode`,
   `TestTheLastSignInMethodCannotBeRemoved`, `TestARelayAccountKeepsApple`, `TestPasswordChangeRevokesEveryOtherSession`
   and `TestLinkStartNeedsTheSameBrowserSession` hold it.

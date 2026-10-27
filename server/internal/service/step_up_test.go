@@ -540,16 +540,18 @@ func TestPasswordChangeRevokesEveryOtherSession(t *testing.T) {
 	}
 }
 
-// The legacy proofs shipped apps send in place of a step-up token are
-// reviewed with the legacy Apple route (ADR 0047 §8): once the date passes
-// this fails until they are removed or the date is moved with a reason.
+// The doors kept only for shipped apps — the legacy proofs they send in
+// place of a step-up token, and the legacy Apple route POST
+// /auth/apple/native with its old codes (AppleAuthService.SignIn) — are
+// reviewed together (ADR 0047 §8, spec §3.6): once the date passes this
+// fails until they are removed or the date is moved with a reason.
 func TestLegacyProofDoorsAreReviewed(t *testing.T) {
 	by, err := time.Parse("2006-01-02", legacyProofReviewBy)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if time.Now().After(by.Add(24 * time.Hour)) {
-		t.Fatalf("legacy proofs (POST /me/delete password/code/email_confirmation, an owner's password on a hand-over) were due for review on %s", legacyProofReviewBy)
+		t.Fatalf("the shipped apps' doors (POST /me/delete password/code/email_confirmation, an owner's password on a hand-over, POST /auth/apple/native) were due for review on %s", legacyProofReviewBy)
 	}
 }
 
