@@ -14543,7 +14543,13 @@
       "reader_line": "UNI reads the file with account {{email}} and proposes a task list for your review. No tasks are created until you confirm.",
       "reader_line_no_email": "UNI reads the file with your Google Drive account and proposes a task list for your review. No tasks are created until you confirm.",
       "prompt_label": "Instructions for UNI (optional)",
-      "prompt_placeholder": "For example: Create a task for each item under Assignments and Risks…",
+      "prompt_placeholder": "For example: assignee, deadline, priority, or scope to extract…",
+      "prompt_hints": {
+        "group_aria": "Example prompts for UNI",
+        "assignee_deadline": "Assign by owner, due this week",
+        "scope": "Only tasks for the BE team",
+        "priority": "High priority for urgent items"
+      },
       "submit": "Send to agent",
       "submit_anyway": "Send to UNI anyway",
       "reading": "UNI is reading the document…",

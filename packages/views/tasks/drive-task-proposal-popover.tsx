@@ -16,6 +16,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { shortDateFormat } from "../common/date-pill";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
+import { appendDrivePromptHint, DrivePromptHints } from "./drive-prompt-hints";
 
 export interface DriveProposalReviewContextValue {
   /**
@@ -280,6 +281,7 @@ export function DriveProposeTasksPopover({
   const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   const [prompt, setPrompt] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [errorState, setErrorState] = useState<DriveProposalErrorResolution | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
@@ -309,6 +311,17 @@ export function DriveProposeTasksPopover({
     abortRef.current = null;
     setAbortController(null);
     proposeMutation.reset();
+  };
+
+  const handleSelectHint = (hint: string) => {
+    if (isReading || isAiDisabled || errorState?.isAccessRequired) return;
+    const nextPrompt = appendDrivePromptHint(prompt, hint).slice(0, 2000);
+    setPrompt(nextPrompt);
+    const el = textareaRef.current;
+    if (el) {
+      el.focus();
+      el.setSelectionRange(nextPrompt.length, nextPrompt.length);
+    }
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -413,16 +426,8 @@ export function DriveProposeTasksPopover({
           id={warningId}
           tasksCreated={tasksCreated}
           detailHref={detailHref}
-          onViewCreatedTasks={
-            onViewCreatedTasks
-              ? () => {
-                  setOpen(false);
-                  onViewCreatedTasks();
-                }
-              : undefined
-          }
+          onViewCreatedTasks={onViewCreatedTasks ? () => { setOpen(false); onViewCreatedTasks(); } : undefined}
         />
-
         <div className="flex flex-col gap-1.5">
           <label
             htmlFor={promptInputId}
@@ -431,6 +436,7 @@ export function DriveProposeTasksPopover({
             {t("drive.proposals.prompt_label")}
           </label>
           <Textarea
+            ref={textareaRef}
             id={promptInputId}
             rows={3}
             maxLength={2000}
@@ -440,46 +446,26 @@ export function DriveProposeTasksPopover({
             placeholder={t("drive.proposals.prompt_placeholder")}
             className="min-h-20 resize-y text-body"
           />
+          <DrivePromptHints
+            disabled={isReading || isAiDisabled || Boolean(errorState?.isAccessRequired)}
+            onSelectHint={handleSelectHint}
+          />
         </div>
 
         <DriveProposalErrorNotice error={errorState} openUrl={openUrl} />
 
         <div className="flex items-center justify-end gap-2 pt-1">
-          <div
-            aria-live="polite"
-            className={
-              isReading
-                ? "mr-auto inline-flex items-center gap-2 text-caption text-muted-foreground"
-                : "sr-only"
-            }
-          >
-            {isReading ? (
-              <>
-                <Spinner className="size-3.5" />
-                <span>{t("drive.proposals.reading")}</span>
-              </>
-            ) : null}
+          <div aria-live="polite" className={isReading ? "mr-auto inline-flex items-center gap-2 text-caption text-muted-foreground" : "sr-only"}>
+            {isReading ? <><Spinner className="size-3.5" /><span>{t("drive.proposals.reading")}</span></> : null}
           </div>
           {isReading ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleCancelReading}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={handleCancelReading}>
               {t("drive.proposals.cancel_reading")}
             </Button>
           ) : (
-            <Button
-              type="button"
-              size="sm"
-              aria-describedby={hasPriorTasks ? warningId : undefined}
-              onClick={() => void handleSubmit()}
-            >
+            <Button type="button" size="sm" aria-describedby={hasPriorTasks ? warningId : undefined} onClick={() => void handleSubmit()}>
               <Sparkles className="size-3.5" aria-hidden />
-              {hasPriorTasks
-                ? t("drive.proposals.submit_anyway")
-                : t("drive.proposals.submit")}
+              {hasPriorTasks ? t("drive.proposals.submit_anyway") : t("drive.proposals.submit")}
             </Button>
           )}
         </div>

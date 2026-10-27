@@ -32,6 +32,7 @@ import { ContentEditor, FileDropOverlay, useFileDropZone, useUploadGate, type Co
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { CreateTaskDriveChips } from "./create-task-drive-attachments";
 import { CreateTaskSubmitButton } from "./create-task-submit-button";
+import { appendDrivePromptHint, DrivePromptHints } from "./drive-prompt-hints";
 import { DriveProposalErrorNotice, DriveRecreateWarning, resolveDriveProposalError, useDriveProposalReview, type DriveProposalErrorResolution } from "./drive-task-proposal-popover";
 import { PriorityIcon } from "./icons/priority-icon";
 import { CreateTaskDateField } from "./pickers/create-task-overflow-fields";
@@ -353,60 +354,24 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
         </div>
         <TooltipProvider delay={300}>
           <div className="flex shrink-0 items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
-                  onClick={() => setIsExpanded(!isExpanded)}
-                />
-              }
-            >
-              {isExpanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-                  aria-label={t("tasks.create.save_draft")}
-                  aria-disabled={isUploading || isProposing || undefined}
-                  onClick={saveCurrentDraft}
-                />
-              }
-            >
-              <PanelBottomClose className="size-4" aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("tasks.create.save_draft")}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label={t("common.close")}
-                  onClick={() => { if (isProposing) cancelProposalReading(); onClose(); }}
-                />
-              }
-            >
-              <X className="size-4" aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("common.close")}</TooltipContent>
-          </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")} onClick={() => setIsExpanded(!isExpanded)} />}>
+                {isExpanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50" aria-label={t("tasks.create.save_draft")} aria-disabled={isUploading || isProposing || undefined} onClick={saveCurrentDraft} />}>
+                <PanelBottomClose className="size-4" aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("tasks.create.save_draft")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label={t("common.close")} onClick={() => { if (isProposing) cancelProposalReading(); onClose(); }} />}>
+                <X className="size-4" aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("common.close")}</TooltipContent>
+            </Tooltip>
           </div>
         </TooltipProvider>
       </div>
@@ -432,7 +397,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
           ref={editorRef}
           defaultValue={draft.agentPrompt ?? ""}
           ariaLabel={t("tasks.create.agent_prompt_aria")}
-          placeholder={t("tasks.create.agent_prompt_placeholder")}
+          placeholder={hasDriveChip ? t("drive.proposals.prompt_placeholder") : t("tasks.create.agent_prompt_placeholder")}
           onDocumentChange={(prompt) => { setHasContent(prompt.trim().length > 0); updateDraft({ agentPrompt: prompt }); }}
           onSubmit={submit}
           onUploadFile={uploadFile}
@@ -444,6 +409,19 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
 
       {hasDriveChip ? (
         <div className="flex shrink-0 flex-col gap-2 pb-2">
+          <DrivePromptHints
+            className="px-5"
+            disabled={isProposing || isDriveSendBlocked || Boolean(proposalError?.isAccessRequired)}
+            onSelectHint={(hint) => {
+              if (isProposing || isDriveSendBlocked || proposalError?.isAccessRequired) return;
+              const currentPrompt = editorRef.current?.getMarkdown() ?? draftRef.current.agentPrompt ?? "";
+              const nextPrompt = appendDrivePromptHint(currentPrompt, hint);
+              editorRef.current?.adoptContent(nextPrompt);
+              editorRef.current?.focus();
+              setHasContent(nextPrompt.trim().length > 0);
+              updateDraft({ agentPrompt: nextPrompt });
+            }}
+          />
           <CreateTaskDriveChips
             driveFiles={draft.driveFiles}
             onRemove={(df) => {
