@@ -449,6 +449,10 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
 		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
 	})
+	r.With(joinLimit).Post("/meetings/{meetingID}/call-rating", h.RateCall, apiOp{
+		summary: "Rate the call's sound and picture on leaving (member or active guest)", tags: []string{"meetings"},
+		sdi: sdi.RateCallSDI{}, sdo: sdo.StatusSDO{},
+	})
 	r.Get("/meetings/{meetingID}/motions", h.ListMotions, apiOp{
 		summary:     "List vote items (member or active guest)",
 		description: "Người không phải clerk không thấy DRAFT; result chỉ có khi CLOSED. Phiếu của người gọi ở /my-ballots, ai chọn gì ở /motions/{motionID}/voters.",

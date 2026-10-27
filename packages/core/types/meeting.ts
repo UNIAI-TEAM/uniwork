@@ -84,6 +84,11 @@ export const ParticipantSchema = z.object({
   is_secretary: z.boolean().optional(),
   /** This participant's mic is the room's shared one: the AI scribe tells its speakers apart. */
   shared_mic: z.boolean().optional(),
+  /** Holds an open attendance session right now; an older server omits it. */
+  in_room: z.boolean().optional(),
+  /** Who removed this participant and when (RFC 3339); guests never get `removed_by`. */
+  removed_by: z.string().optional(),
+  removed_at: z.string().optional(),
 });
 export type MeetingParticipant = z.infer<typeof ParticipantSchema>;
 

@@ -41,6 +41,7 @@ import { MeetingsCrumb } from "./meeting-detail/meetings-crumb";
 import { DetailLoadFailed, DetailNotFound } from "./meeting-detail/detail-states";
 import { DETAIL_SCROLLER_ID, DETAIL_SHEET } from "./meeting-detail/layout";
 import { nextStepJobs, type MinutesState } from "./meeting-detail/next-step-jobs";
+import { MeetingJustEndedCard } from "./meeting-detail/just-ended-card";
 import { NextStepStrip } from "./meeting-detail/next-step-strip";
 import { PhoneBarProvider, PhoneBottomBar, PhoneTop, useNarrow } from "./meeting-detail/phone-frame";
 import { HistoryDrawer } from "./meeting-detail/rail/history-drawer";
@@ -198,6 +199,24 @@ export function MeetingDetailView({
     summaryRunning: summaryRun?.status === "running",
   });
 
+  const stripHandlers = {
+    onJoin,
+    onEnd: () => ask("end"),
+    onReview: () => review(),
+    onEdit: () => setEditOpen(true),
+    onFinalize: () => tab.set("minutes", { finalize: "1" }),
+    onFollowUpCreated: (id: string) => nav?.push(wsPaths.meeting(id)),
+    hostName,
+    clerkNames: [
+      hostName,
+      ...activeParticipants.filter((p) => p.is_secretary && p.user_id !== meeting.host_user_id).map((p) => nameOf(p.user_id) || p.display_name_snapshot || ""),
+    ].filter(Boolean),
+    canceledBy: canceledRow ? { name: nameOf(canceledRow.actor_id), at: canceledRow.occurred_at } : undefined,
+  };
+  // The room sends the host who ended the meeting here with ?ended=1 (board E); any later visit gets the strip.
+  const justEndedJob =
+    nav?.searchParams.get("ended") === "1" ? jobs.find((j) => j.kind === "closeOut") : undefined;
+
   const review = () => {
     // The page's router.replace commits after the next frame, so it scrolls through the
     // ?section= deep link once the overview is mounted; the panel's tab state commits in the click.
@@ -295,23 +314,11 @@ export function MeetingDetailView({
                   {closeError.text}
                 </p>
               ) : null}
-              <NextStepStrip
-                jobs={jobs}
-                handlers={{
-                  onJoin,
-                  onEnd: () => ask("end"),
-                  onReview: review,
-                  onEdit: () => setEditOpen(true),
-                  onFinalize: () => tab.set("minutes", { finalize: "1" }),
-                  onFollowUpCreated: (id) => nav?.push(wsPaths.meeting(id)),
-                  hostName,
-                  clerkNames: [
-                    hostName,
-                    ...activeParticipants.filter((p) => p.is_secretary && p.user_id !== meeting.host_user_id).map((p) => nameOf(p.user_id) || p.display_name_snapshot || ""),
-                  ].filter(Boolean),
-                  canceledBy: canceledRow ? { name: nameOf(canceledRow.actor_id), at: canceledRow.occurred_at } : undefined,
-                }}
-              />
+              {justEndedJob ? (
+                <MeetingJustEndedCard job={justEndedJob} handlers={stripHandlers} />
+              ) : (
+                <NextStepStrip jobs={jobs} handlers={stripHandlers} />
+              )}
               <DetailBody />
             </div>
           </PhoneBarProvider>

@@ -15,15 +15,20 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-func toParticipantDTO(p db.MeetingParticipant, redactGuestFields bool) sdo.ParticipantDTO {
+func toParticipantDTO(p db.MeetingParticipant, redactGuestFields, inRoom bool) sdo.ParticipantDTO {
 	d := sdo.ParticipantDTO{
 		ID: p.ID, MeetingID: p.MeetingID, PrincipalType: p.PrincipalType,
 		UserID: p.UserID.String, GuestID: p.GuestID.String,
 		DisplayNameSnapshot: p.DisplayNameSnapshot, Role: p.Role, Status: p.Status,
 		Standing: p.Standing, IsSecretary: p.IsSecretary, SharedMic: p.SharedMicAt.Valid,
+		InRoom: inRoom, RemovedBy: p.RemovedBy.String,
+	}
+	if p.RemovedAt.Valid {
+		d.RemovedAt = p.RemovedAt.Time.UTC().Format(time.RFC3339)
 	}
 	if redactGuestFields {
 		d.GuestID = ""
+		d.RemovedBy = ""
 	}
 	return d
 }
@@ -42,14 +47,14 @@ func (h *handlers) listParticipants(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc phiên khách")
 		return
 	}
-	ps, err := h.Meetings.ListParticipants(r.Context(), userID, guestID, chi.URLParam(r, "meetingID"))
+	ps, inRoom, err := h.Meetings.ListParticipantsInRoom(r.Context(), userID, guestID, chi.URLParam(r, "meetingID"))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
 	out := make([]sdo.ParticipantDTO, 0, len(ps))
 	for _, p := range ps {
-		out = append(out, toParticipantDTO(p, guestID != ""))
+		out = append(out, toParticipantDTO(p, guestID != "", inRoom[p.ID]))
 	}
 	respondJSON(w, 200, map[string]any{"participants": out})
 }
@@ -64,7 +69,7 @@ func (h *handlers) inviteParticipant(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"participant": toParticipantDTO(p, false)})
+	respondJSON(w, 200, map[string]any{"participant": toParticipantDTO(p, false, false)})
 }
 
 func (h *handlers) listInvitations(w http.ResponseWriter, r *http.Request) {
@@ -189,10 +194,14 @@ func (h *handlers) resolveInviteLink(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	startedAt := ""
+	if !v.StartedAt.IsZero() {
+		startedAt = v.StartedAt.UTC().Format(time.RFC3339)
+	}
 	respondJSON(w, 200, sdo.PublicInviteLinkSDO{
 		LinkID: v.LinkID, MeetingID: v.MeetingID, Title: v.Title, StartsAt: v.StartsAt.UTC().Format(time.RFC3339),
 		AccessMode: v.AccessMode, Expired: v.Expired, GuestSession: guestSession,
-		LinkState: v.LinkState, MeetingState: v.MeetingState, Scribe: v.Scribe,
+		LinkState: v.LinkState, MeetingState: v.MeetingState, Scribe: v.Scribe, StartedAt: startedAt,
 	})
 }
 

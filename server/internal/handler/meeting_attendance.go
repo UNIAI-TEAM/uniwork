@@ -98,5 +98,5 @@ func (h *handlers) patchParticipant(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, sdo.ParticipantSDO{Participant: toParticipantDTO(p, false)})
+	respondJSON(w, 200, sdo.ParticipantSDO{Participant: toParticipantDTO(p, false, false)})
 }

@@ -490,6 +490,7 @@ type Routes struct {
 	SetCaptionLanguage             http.HandlerFunc
 	ListTranscript                 http.HandlerFunc
 	AppendChatMessage              http.HandlerFunc
+	RateCall                       http.HandlerFunc
 	ListChatMessages               http.HandlerFunc
 	GetMeetingSummary              http.HandlerFunc
 	CreateSummary                  http.HandlerFunc
