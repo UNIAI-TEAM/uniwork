@@ -24,6 +24,15 @@ import (
 // keep that file alive for the collector.
 var fileServiceTables = map[string]bool{"files": true, "file_upload_sessions": true, "file_multipart_uploads": true, "file_jobs": true, "file_backfill_items": true, "file_derivatives": true}
 
+// nonFileServiceIDColumns lists columns matching *file_id that store Google
+// Drive file or reference IDs (ADR 0047, no object-storage bytes in UniWork)
+// rather than FileService file IDs.
+var nonFileServiceIDColumns = map[string]string{
+	"drive_task_proposals.drive_file_id":         "Drive ids, not FileService ids",
+	"drive_task_proposal_links.drive_file_id":    "Drive ids, not FileService ids",
+	"drive_task_proposal_links.external_file_id": "Drive ids, not FileService ids",
+}
+
 var (
 	alterTableRe  = regexp.MustCompile(`(?is)ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?"?(\w+)"?(.*)`)
 	addColumnRe   = regexp.MustCompile(`(?i)ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w*file_id)"?\s`)
@@ -75,9 +84,17 @@ func TestEveryFileIDColumnHasAReferenceSource(t *testing.T) {
 			t.Errorf("%s.%s has no tenant query", src.Table, src.Column)
 		}
 	}
+	for col, reason := range nonFileServiceIDColumns {
+		if strings.TrimSpace(reason) == "" {
+			t.Errorf("nonFileServiceIDColumns[%s] has an empty reason", col)
+		}
+		if !columns[col] {
+			t.Errorf("nonFileServiceIDColumns lists %s, which no migration creates", col)
+		}
+	}
 	for col := range columns {
 		table := strings.SplitN(col, ".", 2)[0]
-		if fileServiceTables[table] {
+		if fileServiceTables[table] || nonFileServiceIDColumns[col] != "" {
 			continue
 		}
 		if !catalogue[col] {
