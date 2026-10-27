@@ -338,6 +338,22 @@ describe("Drive account and folder views in the main list", () => {
 });
 
 describe("Name this folder", () => {
+  /** Answers GET drive-folders like a server that has the list; `serve()` alone is the fallback path. */
+  function serveFolderList() {
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: unknown) =>
+      path.startsWith(`/api/v1/workspaces/${WS}/drive-folders`)
+        ? Promise.resolve({
+            folders: [
+              { id: ALPHA.id, name: ALPHA.name, file_count: 1 },
+              { id: BETA.id, name: BETA.name, file_count: 2 },
+              { id: UNNAMED.id, name: null, file_count: 1 },
+            ],
+          })
+        : base(path, init),
+    );
+  }
+
   function renderSection(onNameFolder?: (folder: { id: string }, connectionId: string) => void) {
     const nav = fakeNav(`${DRIVE_HOME}&account=conn1`);
     render(
@@ -354,7 +370,14 @@ describe("Name this folder", () => {
     );
   }
 
+  it("is hidden on the derived fallback, where the server has no folder list to name from", async () => {
+    renderSection(vi.fn());
+    await screen.findByRole("button", { name: /Dự án Beta/ });
+    expect(screen.queryByRole("button", { name: /Thao tác với thư mục/ })).toBeNull();
+  });
+
   it("is hidden while the server route does not exist (no handler)", async () => {
+    serveFolderList();
     renderSection();
     await screen.findByRole("button", { name: /Dự án Beta/ });
     expect(screen.queryByRole("button", { name: /Thao tác với thư mục/ })).toBeNull();
@@ -362,6 +385,7 @@ describe("Name this folder", () => {
 
   it("offers the action on unnamed folders only and hands the folder to the handler", async () => {
     const onNameFolder = vi.fn();
+    serveFolderList();
     renderSection(onNameFolder);
     await screen.findByRole("button", { name: /Dự án Beta/ });
     expect(screen.queryByRole("button", { name: t("driveLibrary.folder.menu_aria", { name: "Alpha" }) })).toBeNull();
