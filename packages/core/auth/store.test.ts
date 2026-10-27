@@ -19,6 +19,7 @@ vi.mock("../office/draft-session-key", async (importOriginal) => {
 
 import * as auth from "../api/endpoints/auth";
 import { endOfficeDraftSession, getOfficeDraftKey } from "../office/draft-session-key";
+import { resetFolderAccessBatches, useFolderAccessBatchStore } from "../documents/folder-access-batches";
 import { getAccessToken, setAccessToken } from "../api/session";
 import { registerSessionProvider } from "./session-provider";
 import { resetAuthStoreForTests, useAuthStore } from "./store";
@@ -31,6 +32,7 @@ const user: User = {
 describe("auth store", () => {
   beforeEach(() => {
     resetAuthStoreForTests();
+    resetFolderAccessBatches();
     setAccessToken(null);
     vi.mocked(auth.refreshSession).mockReset();
     vi.mocked(auth.logout).mockReset();
@@ -148,6 +150,20 @@ describe("auth store", () => {
     expect(endOfficeDraftSession).not.toHaveBeenCalled();
     useAuthStore.getState().setUser({ ...user, id: "u2" });
     expect(endOfficeDraftSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("logout drops the background folder access batches this tab was following", async () => {
+    useAuthStore.getState().setUser(user);
+    useFolderAccessBatchStore.getState().track({ wsId: "ws1", folderId: "f1", batchId: "b1" }, { shown: true });
+    await useAuthStore.getState().logout();
+    expect(useFolderAccessBatchStore.getState()).toMatchObject({ batches: [], shown: [], settled: [] });
+  });
+
+  it("a different user signing in does not inherit the previous user's folder access batches", () => {
+    useAuthStore.getState().setUser(user);
+    useFolderAccessBatchStore.getState().track({ wsId: "ws1", folderId: "f1", batchId: "b1" });
+    useAuthStore.getState().setUser({ ...user, id: "u2" });
+    expect(useFolderAccessBatchStore.getState().batches).toEqual([]);
   });
 
   it("a token loss keeps the drafts for the same person, but not for the next one", () => {

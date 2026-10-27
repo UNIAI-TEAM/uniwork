@@ -15,8 +15,10 @@ import {
   errorNotAFolder,
   syncResult,
 } from "@uniwork/core/documents/folder-contents-access.fixtures";
+import { resetFolderAccessBatches } from "@uniwork/core/documents/folder-access-batches";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../test/api-mock";
+import { FolderAccessBatchWatchers } from "../layout/folder-access-batch-watchers";
 import { DocumentTree } from "./document-tree";
 import { FolderContentsAccessDialog } from "./folder-contents-access-dialog";
 import type { DocumentSummaryRow } from "./library-rows";
@@ -84,10 +86,12 @@ const puts = (calls: Call[]) => calls.filter((c) => c.method === "PUT");
 const apiError = (body: { error: { code: string; message: string; fields?: Record<string, unknown> } }, status: number) =>
   new ApiError(body.error.message, body.error.code, status, undefined, body.error.fields);
 
+// The watcher list is what the workspace shell mounts beside the page; a batch outlives the dialog through it.
 function Harness() {
   const { onShareContents, dialogs } = useFolderContentsAccess(WS);
   return (
     <>
+      <FolderAccessBatchWatchers wsId={WS} />
       <button type="button" onClick={() => onShareContents(folder)}>go</button>
       <button type="button" onClick={() => onShareContents({ ...folder, kind: "file" })}>go-file</button>
       {dialogs}
@@ -129,6 +133,7 @@ async function review(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElem
 describe("folder contents access dialog", () => {
   beforeEach(async () => {
     await setLocale("vi");
+    resetFolderAccessBatches();
     requestMock.mockReset();
     for (const fn of Object.values(toast)) fn.mockReset();
   });
