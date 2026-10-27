@@ -40,7 +40,7 @@ export interface DocumentsHomeHeaderProps {
   onRoot: () => void;
   onFolder: (folderId: string) => void;
   /** The commands the open folder's ⋯ menu may offer (its own level gates them). */
-  folderHandlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred">;
+  folderHandlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onShareContents" | "onToggleStar" | "isStarred">;
   /** Opens the access report scoped to the open folder; offered in its ⋯ menu to a manager. */
   onAccessReport?: (folderId: string) => void;
   canCreate: boolean;
@@ -88,7 +88,7 @@ export function DocumentsHomeHeader({ wsId, folderDoc, canRename, myFolderId = n
             </DropdownMenuItem>
           ) : null}
           {menuItems.map((item) => (
-            <DropdownMenuItem key={item.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={item.run}>
+            <DropdownMenuItem key={item.id} data-testid={item.testId} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={item.run}>
               <item.icon aria-hidden className="size-4" />
               {item.label}
             </DropdownMenuItem>

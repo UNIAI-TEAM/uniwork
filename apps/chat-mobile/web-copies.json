@@ -40,7 +40,7 @@
     "apps/chat-mobile/data/chat-api.ts": {
       "packages/core/api/endpoints/chat-follow-ups.ts": "eb59130cb4ae1ded248f7e3794b954b46a00e0de5fedef4140b03903a80a6e90",
       "packages/core/api/endpoints/chat-links.ts": "f5873a68d8c42fbcbf45a3f2056f2bc6332d63f15d4dc8ee2c9fd58d3b4568d9",
-      "packages/core/api/endpoints/tasks.ts": "f5ad2d07e94eb961bc0e114efd306d5ecd2ce570d63eb9fa7622f5fa9878b6d0",
+      "packages/core/api/endpoints/tasks.ts": "4a022107e85a57b21892d777da02129277ca713d07b6a5714aea4897a8e910f9",
       "packages/core/api/endpoints/workspaces.ts": "9a01a8b55ffe7b3165cd67c7a1181a298838c1cfb4ee67acdfa688a200c32359"
     },
     "apps/chat-mobile/data/chat-send.ts": {
@@ -51,7 +51,7 @@
       "packages/core/chat/thread-hooks.ts": "5bc995cb60f1b595b879ec635a88e236c60458976213e9a1573dbe39ab147e91"
     },
     "apps/chat-mobile/data/realtime/chat-realtime.ts": {
-      "packages/core/realtime/use-realtime-sync.ts": "0060cb52c1978fbf04d63dfad289862f91640149284db6dce5267a3a47877d30"
+      "packages/core/realtime/use-realtime-sync.ts": "94828e57468cd607046e4efec52277f73d3649d70982251959fac1e7f48580a2"
     },
     "apps/chat-mobile/data/realtime/use-chat-scopes.ts": {
       "packages/core/realtime/use-chat-room-scopes.ts": "877a7d7c7a8600e70460626be873ba771668627c7243beddf340c613ba9dfb18"
@@ -102,7 +102,7 @@
       "packages/views/chat/voice-call-log-row.tsx": "f0d3c2f9f083520eaa880abd7b2c89dc9d4450fa2280e4c5903ee8a34445fe53"
     },
     "apps/chat-mobile/lib/message-format.ts": {
-      "packages/views/chat/chat-message-body.tsx": "c8d39c21e4ec3c3fa6747a622628b32fee7f40a26504d8ca01ca80e81556b7b8"
+      "packages/views/chat/chat-message-body.tsx": "c28a7948d8bd3a2f5bca39a54b4492671434bc5bf0b2aeacc0640ada11034531"
     },
     "apps/chat-mobile/lib/people-display.ts": {
       "packages/views/chat/chat-page-utils.ts": "63980c22641b82a6582aa9cabcdaaad16011c87f1a6fb5d462201ef3ecbeec99",
@@ -131,7 +131,7 @@
       "packages/views/chat/chat-sidebar-typing.ts": "fb5f28703e35f44b156f6ae5cc2d0dc0e9d3a1d3bf006802b02b3aff9fc904df"
     },
     "apps/chat-mobile/lib/unread-divider.ts": {
-      "packages/views/chat/native-chat-message-item.tsx": "caa86d206b33f1618d36a39d0a23331f44ec1ffd7c899c04a77fd8a62a8ab018",
+      "packages/views/chat/native-chat-message-item.tsx": "310a683552f8d47dd3dfae9c6c218401592666313954058e5d6ff0c83832137a",
       "packages/views/chat/use-chat-catch-up-ui.ts": "d8a2c65d4cec17533b6f995f8d03096022f3b4334ff0e0b6529a7da162cd6837"
     },
     "apps/chat-mobile/lib/voice-call.ts": {

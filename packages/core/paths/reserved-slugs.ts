@@ -19,6 +19,7 @@ export const RESERVED_SLUGS = [
   "inbox",
   "invitations",
   "invite",
+  "join",
   "learn",
   "login",
   "mcp",

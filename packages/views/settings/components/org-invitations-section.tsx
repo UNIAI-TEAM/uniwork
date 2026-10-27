@@ -16,6 +16,7 @@ import { ConfirmDialog } from "../../common/form-dialog";
 import { toastApiError } from "../../toast-api-error";
 import { InviteForm, type InviteRole, type InviteSendResult } from "./invite-form";
 import { InviteWorkspacePicker } from "./invite-workspace-picker";
+import { OrgInviteLinkPanel } from "./membership-invite-link-panel";
 import {
   SettingsBadge,
   SettingsList,
@@ -98,6 +99,7 @@ export function OrgInvitationsSection({ orgSlug, orgId }: { orgSlug: string; org
           }
         />
       </SettingsSection>
+      <OrgInviteLinkPanel orgSlug={orgSlug} orgId={orgId} />
 
       {isLoading ? (
         <SettingsSkeletonRows rows={2} withAvatar />

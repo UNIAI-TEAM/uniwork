@@ -349,10 +349,11 @@ func TestLinkCommandsNeedSendStandingInRoom(t *testing.T) {
 	})
 }
 
-// TestDeleteTaskDropsItsChatLinks: deleting a task takes its card off the
+// TestPurgeTaskDropsItsChatLinks: purging a task takes its card off the
 // message and frees the thread it synced with, in the same transaction, so a
-// new task can sync the thread again (UNI-1686).
-func TestDeleteTaskDropsItsChatLinks(t *testing.T) {
+// new task can sync the thread again (UNI-1686). The trash keeps the links,
+// so a restore brings them back (UNI-2171).
+func TestPurgeTaskDropsItsChatLinks(t *testing.T) {
 	s, tasks, q, ua, w, pool := chatWithTasks(t)
 	ctx := context.Background()
 
@@ -382,6 +383,12 @@ func TestDeleteTaskDropsItsChatLinks(t *testing.T) {
 	if err := tasks.Delete(ctx, ua.ID, synced.ID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := q.GetChatThreadTaskLinkByThread(ctx, root.ID); err != nil {
+		t.Fatalf("thread link after trash: %v; want kept until the purge", err)
+	}
+	if err := tasks.Purge(ctx, Human(ua.ID), synced.ID); err != nil {
+		t.Fatal(err)
+	}
 	if links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, ch.ID, []string{root.ID}); err != nil || len(links) != 0 {
 		t.Fatalf("root links after delete: err=%v %+v; want none", err, links)
 	}
@@ -395,8 +402,11 @@ func TestDeleteTaskDropsItsChatLinks(t *testing.T) {
 		t.Fatalf("chat.message.linked rows: %d; want 1", got)
 	}
 
-	// The batch delete goes through the same path.
+	// The batch delete trashes the same way; its purge drops the card.
 	if _, err := tasks.BatchDeleteTasks(ctx, Human(ua.ID), w.ID, []string{carded.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tasks.Purge(ctx, Human(ua.ID), carded.ID); err != nil {
 		t.Fatal(err)
 	}
 	if links, err := s.ListRoomMessageLinks(ctx, ua.ID, w.ID, ch.ID, []string{other.ID}); err != nil || len(links) != 0 {

@@ -82,6 +82,22 @@ describe("ai hooks", () => {
     ]);
   });
 
+  it("useAskUni hands the signal to the request, not to the body", async () => {
+    const { wrapper } = setup();
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ conversation_id: "c1", message: { id: "m1", role: "assistant", content: "ok", citations: [] } }),
+    );
+    vi.mocked(fetch).mockReturnValue(new Promise(() => undefined)); // refetches never return
+    const ctrl = new AbortController();
+    const { result } = renderHook(() => useAskUni("ws1"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync({ question: "q", signal: ctrl.signal });
+    });
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(init.signal).toBe(ctrl.signal);
+    expect(JSON.parse(init.body as string)).toEqual({ question: "q" });
+  });
+
   it("useAskUni surfaces the server's error code instead of rendering an empty turn", async () => {
     const { wrapper } = setup();
     vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "ai_quota_exceeded", message: "hết" } }, 402));

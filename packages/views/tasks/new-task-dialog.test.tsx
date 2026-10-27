@@ -367,6 +367,30 @@ describe("NewTaskDialog", () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it("drops a remembered project that no longer exists instead of sending it", async () => {
+    // The last task went into a project that has since been deleted (or moved to the trash).
+    useCreateTaskDraftStore.setState({ settings: { ws1: { projectId: "gone" } }, ownerId: "u1" });
+    render(
+      wrap(<NewTaskDialog workspaceId="ws1" open showTrigger={false} onOpenChange={() => {}} />),
+    );
+    await waitFor(() =>
+      expect(requestMock.mock.calls.some(([path]) => /\/workspaces\/ws1\/projects/.test(String(path)))).toBe(true),
+    );
+    expect(screen.getByRole("button", { name: "Không có dự án" })).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), { target: { value: "Việc mới" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo" }));
+
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/ws1/tasks",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.objectContaining({ title: "Việc mới", project_id: null }),
+        }),
+      ),
+    );
+  });
+
   it("submits surface defaults and the full human create payload", async () => {
     render(
       wrap(

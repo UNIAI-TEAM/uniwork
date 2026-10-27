@@ -9,6 +9,7 @@ import { commonTaskFields } from "@uniwork/core/tasks/batch";
 import {
   useBatchDeleteTasks,
   useBatchUpdateTasks,
+  useRestoreTask,
 } from "@uniwork/core/tasks";
 import type { Task } from "@uniwork/core/types";
 import {
@@ -24,6 +25,8 @@ import {
 import { Button } from "@uniwork/ui/components/ui/button";
 import { UI_EASE_OUT, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
+import { toastApiError } from "../../toast-api-error";
+import { useToastMovedToTrash } from "../../trash/use-toast-moved-to-trash";
 import { useTaskSurfaceActionsOptional } from "../surface/actions-context";
 import { useTaskSurfaceSelection } from "../surface/selection-context";
 import {
@@ -62,6 +65,8 @@ export function BatchActionToolbar({
   const surfaceActions = useTaskSurfaceActionsOptional();
   const batchUpdate = useBatchUpdateTasks(workspaceId);
   const batchDelete = useBatchDeleteTasks(workspaceId);
+  const restore = useRestoreTask(workspaceId);
+  const toastMovedToTrash = useToastMovedToTrash();
   const loading =
     surfaceActions?.isPending ??
     (batchUpdate.isPending || batchDelete.isPending);
@@ -106,13 +111,13 @@ export function BatchActionToolbar({
         await batchDelete.mutateAsync(ids);
       }
       clear();
-      toast.success(t("tasks.batch.delete_success", { count }));
-    } catch (err) {
-      toast.error(
-        err instanceof Error && err.message
-          ? err.message
-          : t("tasks.batch.delete_failed"),
+      // The batch answers with its batch id only; restoring any one of the
+      // ids just deleted brings the whole batch back.
+      toastMovedToTrash(() =>
+        surfaceActions ? surfaceActions.restoreTask(ids[0]!) : restore.mutateAsync(ids[0]!),
       );
+    } catch (err) {
+      toastApiError(err, t("tasks.batch.delete_failed"));
     } finally {
       deletingRef.current = false;
       setDeleting(false);
@@ -207,13 +212,10 @@ export function BatchActionToolbar({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t("tasks.batch.delete_dialog_title", { count })}
+              {t("tasks.batch.delete_dialog_title")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t("tasks.batch.delete_dialog_desc", { count })}
-              <span className="mt-2 block text-caption text-muted-foreground">
-                {t("tasks.batch.delete_dialog_warning")}
-              </span>
+              {t("tasks.batch.delete_dialog_desc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -226,7 +228,7 @@ export function BatchActionToolbar({
               className="bg-destructive-solid text-on-solid hover:bg-destructive-solid/90"
               data-testid="batch-delete-confirm"
             >
-              {t("tasks.batch.delete")}
+              {t("trash.move_confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

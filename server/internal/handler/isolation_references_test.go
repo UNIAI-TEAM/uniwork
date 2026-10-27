@@ -200,7 +200,7 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks/batch-update", what: "task ids", allow2xx: true,
 		body: map[string]any{"task_ids": []any{isoRef("task2")}, "updates": map[string]any{"priority": "high"}}, covers: []string{"BatchUpdateTasksSDI.task_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks/batch-delete", what: "task ids", allow2xx: true,
-		body: map[string]any{"task_ids": []any{isoRef("task2")}}, noControl: "deleting B's own task would break later cases", covers: []string{"BatchDeleteTasksSDI.task_ids"}},
+		body: map[string]any{"task_ids": []any{isoRef("task2")}}, noControl: "moving B's own task to the trash would break later cases", covers: []string{"BatchDeleteTasksSDI.task_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks/query", what: "project filter", allow2xx: true,
 		body: map[string]any{"project_id": isoRef("project")}, covers: []string{"QueryTasksSDI.project_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/pins", what: "pinned task", body: map[string]any{"item_type": "task", "item_id": isoRef("task2")}, covers: []string{"CreatePinSDI.item_id"}},
@@ -485,6 +485,9 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/orgs/{org}/invitations", what: "granted workspace", body: map[string]any{
 		"emails": []any{"iso-ref-invitee@example.com"}, "org_role": "member", "workspace_ids": []any{isoRef("ws")}},
 		covers: []string{"OrgInviteSDI.workspace_ids"}},
+	{method: "POST", pattern: "/api/v1/orgs/{org}/invite-links", what: "granted workspace", body: map[string]any{
+		"workspace_ids": []any{isoRef("ws")}, "expires_in_days": 7},
+		covers: []string{"CreateMembershipInviteLinkSDI.workspace_ids"}},
 	// DOC-06b (UNI-2092 §4.2): A's person as the recipient of a bulk transfer
 	// in B is 422 owner_target_not_member, naming nobody. The control hands
 	// B's peer's documents to B's owner: the unrestricted one moves, the
@@ -767,6 +770,8 @@ var isoRefFieldExempt = map[string]string{
 	"AiUniworkMessageSDI.tool_call_id":            "the model's tool call id, matched against the server's own transcript, not a row",
 	"MintChatVoiceTokenSDI.room_id":               "the route names no other row: the cross-tenant pass sends A's room in the body",
 	"ResolveInviteLinkSDI.link_id":                "public route: the link id comes with its secret, and holding both is the grant",
+	"PreviewMembershipInviteLinkSDI.link_id":      "auth route: the link id comes with its secret, and holding both is the grant; no tenant path",
+	"JoinMembershipInviteLinkSDI.link_id":         "auth route: the link id comes with its secret, and holding both is the grant; no tenant path",
 	"SummarizeEmailHubThreadSDI.account_id":       "the mixed pass sends B's workspace with A's thread and A's account in the body",
 	"PatchEmailHubThreadSDI.account_id":           "the mixed pass sends B's workspace with A's thread and A's account in the body",
 	"EmailHubSummaryTasksSDI.account_id":          "the mixed pass sends B's workspace with A's thread and A's account in the body",

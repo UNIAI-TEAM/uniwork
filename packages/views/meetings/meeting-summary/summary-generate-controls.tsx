@@ -1,54 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { CircleAlert, Sparkles } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { ConfirmDialog } from "../../common/form-dialog";
-import { Notice } from "../../common/notice";
+import { Notice, type NoticeTone } from "../../common/notice";
 import type { SummaryGeneration } from "./use-summary-generation";
-
-/**
- * Generate / regenerate. While the model works it shows a spinner and holds
- * still with aria-disabled (it stays in the tab order, and says why through
- * aria-describedby when a reason element is rendered), never native disabled.
- */
-export function SummaryGenerateButton({
-  gen,
-  variant,
-  reasonId,
-  className,
-}: {
-  gen: SummaryGeneration;
-  variant: "brandSubtle" | "outline" | "default";
-  /** Id of the element that says why the button cannot be pressed, when one is shown. */
-  reasonId?: string;
-  className?: string;
-}) {
-  const { t } = useTranslation();
-  if (!gen.showGenerate) return null;
-  const blocked = gen.blockedReason !== null;
-  return (
-    <Button
-      type="button"
-      size="sm"
-      variant={variant}
-      className={className}
-      aria-disabled={blocked || undefined}
-      aria-busy={gen.generating || undefined}
-      aria-describedby={blocked && reasonId ? reasonId : undefined}
-      title={gen.blockedReason ?? undefined}
-      onClick={gen.requestGenerate}
-    >
-      {gen.generating ? <Spinner data-icon="inline-start" /> : <Sparkles aria-hidden />}
-      {gen.generating
-        ? t("meetings.summarizing")
-        : gen.summary
-          ? t("meetings.regenerateSummary")
-          : t("meetings.generateSummary")}
-    </Button>
-  );
-}
 
 /** Replacing a summary others may have read is asked first, on both screens. */
 export function SummaryRegenerateConfirm({ gen }: { gen: SummaryGeneration }) {
@@ -71,12 +28,21 @@ export function SummaryRegenerateConfirm({ gen }: { gen: SummaryGeneration }) {
  * said it, so the notice stays quiet; Retry only where a second try can help,
  * and through the same door as the button: it asks before replacing a summary.
  */
-export function SummaryFailureNotice({ gen, className }: { gen: SummaryGeneration; className?: string }) {
+export function SummaryFailureNotice({
+  gen,
+  tone = "destructive",
+  className,
+}: {
+  gen: SummaryGeneration;
+  /** The room's summary card says it as an amber strip inside the card. */
+  tone?: NoticeTone;
+  className?: string;
+}) {
   const { t } = useTranslation();
   if (!gen.failure) return null;
   return (
     <Notice
-      tone="destructive"
+      tone={tone}
       icon={CircleAlert}
       layout="inline"
       live="off"

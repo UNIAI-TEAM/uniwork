@@ -1,6 +1,7 @@
 package service
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -534,12 +536,93 @@ func TestMcpGetDocumentReadsTextFiles(t *testing.T) {
 	// A file that is not text is not read: name, type and the reason.
 	pdf := x.textFile(t, "tai-lieu.pdf", []byte("%PDF-1.7\n% bao cao\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"))
 	d = x.getDoc(t, pdf)
-	if d.Format != "" || d.Content != "" || d.Truncated || d.Filename != "tai-lieu.pdf" || d.MimeType != "application/pdf" || !strings.Contains(d.Note, "not a text file") {
+	if d.Format != "" || d.Content != "" || d.Truncated || d.Filename != "tai-lieu.pdf" || d.MimeType != "application/pdf" || d.Note != mcpNotTextNote {
 		t.Fatalf("pdf = %+v", d)
 	}
 	// A file is found by its name, not by what its bytes say.
 	if ids := x.searchIDs(t, x.p, "tai-lieu.pdf"); len(ids) != 1 || ids[0] != pdf {
 		t.Errorf("a file is found by its name: %v", ids)
+	}
+}
+
+// officeFile is a zip with the two parts every OOXML package carries, plus parts.
+func officeFile(t *testing.T, parts map[string]string) []byte {
+	t.Helper()
+	all := map[string]string{"[Content_Types].xml": "<Types/>", "_rels/.rels": "<Relationships/>"}
+	for k, v := range parts {
+		all[k] = v
+	}
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, body := range all {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// officeXLSXParts is one sheet, "Doanh thu", copied from the attachtext tests.
+var officeXLSXParts = map[string]string{
+	"xl/workbook.xml":            `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Doanh thu" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+	"xl/_rels/workbook.xml.rels": `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="x/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="x/sharedStrings" Target="sharedStrings.xml"/></Relationships>`,
+	"xl/sharedStrings.xml":       `<sst><si><t>Tên</t></si><si><r><t>Ghi </t></r><r><t>chú</t></r><rPh><t>furigana</t></rPh></si></sst>`,
+	"xl/worksheets/sheet1.xml": `<worksheet><sheetData>` +
+		`<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1"><v>12</v></c><c r="C1" t="s"><v>1</v></c></row>` +
+		`<row r="2"><c r="A2" t="inlineStr"><is><t>Nội tuyến</t></is></c><c r="C2" t="b"><v>1</v></c></row>` +
+		`<row r="3"><c r="A3" s="1"/></row>` +
+		`</sheetData></worksheet>`,
+}
+
+func TestMcpGetDocumentReadsOfficeFiles(t *testing.T) {
+	x := newMcpToolWorld(t)
+	const w = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"`
+	docx := x.textFile(t, "bao-gia.docx", officeFile(t, map[string]string{"word/document.xml": `<w:document ` + w + `><w:body>` +
+		`<w:p><w:r><w:t>Báo giá tháng 10</w:t></w:r></w:p>` +
+		`<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Hàng</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Giá</w:t></w:r></w:p></w:tc></w:tr></w:tbl>` +
+		`</w:body></w:document>`}))
+	// A file read writes a view row and a download row; the download row is the read of the bytes.
+	downloads := func(id string) (n int) {
+		t.Helper()
+		if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT count(*) FROM document_access_logs WHERE document_id = $1 AND action = $2`, id, DocumentAccessDownload).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := downloads(docx)
+	d := x.getDoc(t, docx)
+	if d.Format != "extracted" || d.Content != "Báo giá tháng 10\nHàng | Giá" || d.Truncated || d.Note != mcpOfficeNote || d.Filename != "bao-gia.docx" {
+		t.Fatalf("docx = %+v", d)
+	}
+	if got := downloads(docx) - before; got != 1 {
+		t.Errorf("one read wrote %d download rows, want 1", got)
+	}
+
+	pptx := x.textFile(t, "gioi-thieu.pptx", officeFile(t, map[string]string{"ppt/presentation.xml": `<p:presentation/>`, "ppt/slides/slide1.xml": `<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>Giới thiệu dịch vụ</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`}))
+	if d = x.getDoc(t, pptx); d.Format != "extracted" || d.Content != "Slide 1\nGiới thiệu dịch vụ" {
+		t.Fatalf("pptx = %+v", d)
+	}
+
+	xlsx := x.textFile(t, "so-lieu.xlsx", officeFile(t, officeXLSXParts))
+	if d = x.getDoc(t, xlsx); d.Format != "extracted" || !strings.HasPrefix(d.Content, "## ") || d.Note != mcpOfficeNote {
+		t.Fatalf("xlsx = %+v", d)
+	}
+
+	empty := x.textFile(t, "trong.docx", officeFile(t, map[string]string{"word/document.xml": `<w:document ` + w + `><w:body/></w:document>`}))
+	if d = x.getDoc(t, empty); d.Format != "extracted" || d.Content != "" || d.Note != mcpOfficeEmptyNote {
+		t.Fatalf("empty = %+v", d)
+	}
+
+	broken := x.textFile(t, "hong.docx", officeFile(t, map[string]string{"word/document.xml": `<w:document ` + w + `><w:body><w:p>`}))
+	if d = x.getDoc(t, broken); d.Format != "" || d.Content != "" || d.Note != mcpOfficeUnreadableNote || d.Filename != "hong.docx" {
+		t.Fatalf("broken = %+v", d)
 	}
 }
 
@@ -1745,5 +1828,34 @@ func TestMcpDocumentWriteSchemasHoldTheLimits(t *testing.T) {
 	}
 	if got, _ := json.Marshal(prop("update_document", "mode", "enum")); string(got) != `["append","replace"]` {
 		t.Errorf("update_document mode enum = %s", got)
+	}
+}
+
+// An Office read waits on the process's one file-read slot; when it cannot take
+// it the file is not opened, so no download row is written.
+func TestMcpGetDocumentOfficeReadNeedsTheFileReadSlot(t *testing.T) {
+	x := newMcpToolWorld(t)
+	const w = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"`
+	id := x.textFile(t, "bao-gia.docx", officeFile(t, map[string]string{"word/document.xml": `<w:document ` + w + `><w:body><w:p><w:r><w:t>Báo giá</w:t></w:r></w:p></w:body></w:document>`}))
+	x.tools.ask.fileReads <- struct{}{}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	d, err := x.tools.GetDocument(ctx, x.p, mcpDocumentRef{WorkspaceID: x.w.ID, DocumentID: id})
+	<-x.tools.ask.fileReads
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Note != mcpFileBusyNote || d.Content != "" {
+		t.Errorf("busy read = %+v", d)
+	}
+	var n int
+	if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT count(*) FROM document_access_logs WHERE document_id = $1 AND action = $2`, id, DocumentAccessDownload).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("a file that was not opened wrote %d download rows", n)
+	}
+	if d := x.getDoc(t, id); d.Content != "Báo giá" {
+		t.Errorf("read after the slot was freed = %+v", d)
 	}
 }

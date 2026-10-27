@@ -1,6 +1,19 @@
 import { taskKeys } from "./keys";
 import { parseTaskPatchFrame, type TaskPatchFrame } from "./realtime-task-patch";
 
+const TASK_LIFECYCLE_EVENTS = new Set([
+  "task.created",
+  "task.updated",
+  "task.deleted",
+  "task.trashed",
+  "task.restored",
+]);
+
+/** A frame after which a task exists, changed, or no longer shows: every task surface may be stale. */
+export function isTaskLifecycleEvent(type: string): boolean {
+  return TASK_LIFECYCLE_EVENTS.has(type);
+}
+
 export type CacheUpdatePlan = {
   type: "invalidate";
   keys: readonly (readonly unknown[])[];
@@ -37,7 +50,9 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
   switch (event.type) {
     case "task.created":
     case "task.updated":
-    case "task.deleted": {
+    case "task.deleted":
+    case "task.trashed":
+    case "task.restored": {
       push(taskKeys.list(wsId), taskKeys.myTasks(wsId), taskKeys.queryRoot(wsId), taskKeys.tableRoot(wsId));
       // Attaching or detaching a label lands as task.updated.
       push(taskKeys.labelLinks(wsId));
@@ -45,6 +60,8 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
         push(taskKeys.detail(payload.task_id), taskKeys.children(payload.task_id));
         if (event.type === "task.updated") push(taskKeys.subscribers(payload.task_id));
       }
+      // The sidebar hides a pin to a trashed item and shows it again on restore.
+      if (event.type === "task.trashed" || event.type === "task.restored") push(taskKeys.pins(wsId));
       // Only task.updated declares Patch in the catalogue.
       if (event.type === "task.updated") patch = parseTaskPatchFrame(payload);
       break;
@@ -112,8 +129,13 @@ export function planCacheUpdate(wsId: string, event: CacheUpdateEvent): CacheUpd
     }
     case "project.created":
     case "project.updated":
-    case "project.deleted": {
+    case "project.deleted":
+    case "project.trashed":
+    case "project.restored": {
       push(taskKeys.projects(wsId));
+      if (event.type === "project.trashed" || event.type === "project.restored") {
+        push(taskKeys.pins(wsId));
+      }
       if (payload.project_id) push(taskKeys.project(wsId, payload.project_id));
       break;
     }

@@ -57,8 +57,12 @@ export async function getAiCapabilities(wsId: string): Promise<AiCapabilities> {
  * throws, because rendering an empty assistant turn would read as "UNI said
  * nothing" — the panel shows the error instead.
  */
-export async function askUni(wsId: string, body: AskUniInput): Promise<AskUniResponse> {
-  const raw = await request(`/api/v1/workspaces/${wsId}/ai/ask`, { method: "POST", body });
+export async function askUni(
+  wsId: string,
+  body: AskUniInput,
+  opts: { signal?: AbortSignal } = {},
+): Promise<AskUniResponse> {
+  const raw = await request(`/api/v1/workspaces/${wsId}/ai/ask`, { method: "POST", body, signal: opts.signal });
   const parsed = AskUniResponseSchema.safeParse(raw);
   if (!parsed.success) throw new Error("ai_output_invalid");
   return parsed.data;

@@ -4,7 +4,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { adminKeys, useAdminConfirmInvoiceRefund, useAdminRefundInvoice } from "@uniwork/core/admin";
+import {
+  adminKeys,
+  useAdminConfirmInvoiceRefund,
+  useAdminRefundInvoice,
+  useAdminRevertInvoiceRefund,
+} from "@uniwork/core/admin";
 import { ApiError } from "@uniwork/core/api";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
@@ -37,17 +42,22 @@ export function AdminInvoiceRefundDialogs({
   onRefundTargetChange,
   confirmTarget,
   onConfirmTargetChange,
+  revertTarget,
+  onRevertTargetChange,
 }: {
   refundTarget: InvoiceRefundTarget | null;
   onRefundTargetChange: (v: InvoiceRefundTarget | null) => void;
   confirmTarget: { id: string; number: string } | null;
   onConfirmTargetChange: (v: { id: string; number: string } | null) => void;
+  revertTarget: { id: string; number: string } | null;
+  onRevertTargetChange: (v: { id: string; number: string } | null) => void;
 }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "admin.invoices" });
   const qc = useQueryClient();
   const refundInFlight = useRef(false);
   const refund = useAdminRefundInvoice();
   const confirmRefund = useAdminConfirmInvoiceRefund();
+  const revertRefund = useAdminRevertInvoiceRefund();
   const [providerRef, setProviderRef] = useState("");
   const [refundMode, setRefundMode] = useState<"full" | "partial">("full");
   const [partialAmount, setPartialAmount] = useState("");
@@ -217,7 +227,39 @@ export function AdminInvoiceRefundDialogs({
             .then(
               () => {
                 toast.success(t("confirm_refund_success"));
+                void qc.invalidateQueries({ queryKey: adminKeys.invoicesRoot });
                 onConfirmTargetChange(null);
+              },
+              (err: unknown) => {
+                let msg = t("refund_failed");
+                if (err instanceof ApiError && err.code === "invoice_not_refundable") {
+                  msg = t("refund_not_allowed");
+                } else if (err instanceof ApiError && err.message.trim()) {
+                  msg = err.message.trim();
+                }
+                toast.error(msg);
+              },
+            );
+        }}
+      />
+      <ReasonDialog
+        open={revertTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) onRevertTargetChange(null);
+        }}
+        title={t("revert_refund_title", { number: revertTarget?.number ?? "" })}
+        description={t("revert_refund_description")}
+        destructive
+        pending={revertRefund.isPending}
+        onSubmit={(reason) => {
+          if (!revertTarget) return;
+          void revertRefund
+            .mutateAsync({ invoiceId: revertTarget.id, reason })
+            .then(
+              () => {
+                toast.success(t("revert_refund_success"));
+                void qc.invalidateQueries({ queryKey: adminKeys.invoicesRoot });
+                onRevertTargetChange(null);
               },
               (err: unknown) => {
                 let msg = t("refund_failed");

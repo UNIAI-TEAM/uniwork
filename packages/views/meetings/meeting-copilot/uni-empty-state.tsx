@@ -1,0 +1,115 @@
+"use client";
+import { ChevronRight, RotateCcwClock } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useMeetingCarriedOverItems } from "@uniwork/core/meetings/action-items";
+import type { MeetingFeedKind } from "@uniwork/core/meetings/feed";
+import { ScribeMark } from "@uniwork/ui/brand/scribe-mark";
+import { meetingAvatarTint } from "../meeting-detail/avatar-tint";
+import { MeetingPersonAvatar } from "../meeting-person";
+import type { ScribeChipState } from "../meeting-scribe-chip";
+import { useMemberIndex } from "../use-member-index";
+import { FeedKindMark } from "./feed-filter-chips";
+
+// What the heading says per scribe state: only a scribe that is on is listening. Off, or failed to join,
+// there is no transcript coming, so the line says how to get one.
+const HEADING: Record<ScribeChipState, string> = {
+  on: "meetings.panel.empty.title",
+  joining: "meetings.scribe.chipJoining",
+  paused: "meetings.scribe.chipPaused",
+  failed: "meetings.scribe.chipFailed",
+  off: "meetings.transcriptEmpty",
+};
+
+// The sample rows hint at what will appear; each bar is a different length so they read as text.
+const SAMPLES: readonly { kind: MeetingFeedKind; label: string; bar: string }[] = [
+  { kind: "decision", label: "meetings.panel.empty.decided", bar: "flex-1" },
+  { kind: "task", label: "meetings.panel.empty.todo", bar: "w-[70%]" },
+  { kind: "question", label: "meetings.panel.empty.asked", bar: "w-[55%]" },
+];
+
+/**
+ * The UNI tab before the meeting has produced anything: the scribe's mark in its
+ * halo, what will show up here, and the open items earlier meetings left, if any.
+ */
+export function UniEmptyState({
+  meetingId,
+  workspaceId,
+  scribeState,
+  onOpenCarried,
+}: {
+  meetingId: string;
+  workspaceId: string;
+  scribeState: ScribeChipState;
+  onOpenCarried: () => void;
+}) {
+  const { t } = useTranslation();
+  const carriedOver = useMeetingCarriedOverItems(meetingId).data;
+  const { memberOf, members } = useMemberIndex(workspaceId);
+  const total = carriedOver?.total ?? 0;
+  // Up to two people the open items wait on, each once; an assignee no member list names has no face.
+  const owners = [...new Set(carriedOver?.items.map((item) => item.task.assignee_id))]
+    .flatMap((id) => {
+      const member = memberOf(id);
+      return member ? [member] : [];
+    })
+    .slice(0, 2);
+  const off = scribeState === "off";
+  const carried = t("meetings.panel.empty.carried", { count: total });
+  const carriedFrom = t("meetings.panel.empty.carriedFrom");
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col px-4">
+      <div className="flex flex-1 flex-col items-center justify-center text-center">
+        <div className="flex size-28 items-center justify-center rounded-full bg-tint-violet/40">
+          <div className="flex size-21 items-center justify-center rounded-full bg-tint-violet">
+            <ScribeMark size={52} state={off ? "off" : "idle"} />
+          </div>
+        </div>
+        <h2 className="mb-1.5 mt-4.5 font-display text-title-sm font-bold text-foreground">{t(HEADING[scribeState])}</h2>
+        <p className="max-w-70 text-label text-muted-foreground">
+          {t(scribeState === "failed" ? "meetings.transcriptEmpty" : "meetings.panel.empty.line")}
+        </p>
+        <ul aria-hidden className="mt-6 flex w-66 flex-col gap-2.5">
+          {SAMPLES.map(({ kind, label, bar }) => (
+            <li key={kind} className="flex items-center gap-2.5">
+              <FeedKindMark kind={kind} size="sample" />
+              <span className={`h-2 rounded-sm bg-surface-hover ${bar}`} />
+              <span className="ml-auto w-8.5 shrink-0 text-right text-micro font-medium text-faint-foreground">{t(label)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      {total > 0 ? (
+        <button
+          type="button"
+          aria-label={`${carried}, ${carriedFrom}`}
+          className="group mb-3 flex w-full items-center gap-2.5 rounded-[14px] border border-border px-3 py-2.5 text-left transition-colors hover:bg-surface-hover"
+          onClick={onOpenCarried}
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-surface-hover text-muted-foreground group-hover:bg-surface">
+            <RotateCcwClock aria-hidden className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-label font-semibold text-foreground">{carried}</span>
+            <span className="block text-caption text-muted-foreground">{carriedFrom}</span>
+          </span>
+          {owners.length > 0 ? (
+            <span className="flex">
+              {owners.map((member) => (
+                <MeetingPersonAvatar
+                  key={member.user_id}
+                  name={member.display_name ?? ""}
+                  avatarUrl={member.avatar_url}
+                  size={22}
+                  tint={meetingAvatarTint(member.user_id, members)}
+                  className="ring-2 ring-surface not-first:-ml-1.5"
+                />
+              ))}
+            </span>
+          ) : null}
+          <ChevronRight aria-hidden className="size-4 shrink-0 text-faint-foreground" />
+        </button>
+      ) : null}
+    </div>
+  );
+}

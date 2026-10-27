@@ -27,42 +27,6 @@ func isFolderContentsDocLocked(doc db.Document) bool {
 	return doc.OwnerKind.Valid || (doc.OwnerID.Valid && doc.OwnerID.String != "")
 }
 
-// childRequiresBreakGlass reports whether applying any item in items to doc
-// would require break-glass under DOC-05 (an AdminScope caller below manage
-// widening a restricted document's home row or granting a principal that
-// reaches themselves). Such children are skipped as skipped_not_manageable
-// rather than failing the whole folder batch or bypassing break-glass (F1).
-func (s *DocumentService) childRequiresBreakGlass(
-	ctx context.Context,
-	q *db.Queries,
-	doc db.Document,
-	access DocumentAccess,
-	actor Actor,
-	items []FolderContentsAccessItem,
-) (bool, error) {
-	if access.Level.AtLeast(DocumentLevelManage) {
-		return false, nil
-	}
-	for _, it := range items {
-		if it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == doc.WorkspaceID &&
-			doc.Visibility == documentVisibilityRestricted {
-			return true, nil
-		}
-		err := s.refuseAdminSelfShare(ctx, q, doc, access, actor, DocumentShareInput{
-			PrincipalType: it.PrincipalType,
-			PrincipalID:   it.PrincipalID,
-			Level:         it.Level,
-		})
-		if err != nil {
-			if codedIs(err, "break_glass_required") {
-				return true, nil
-			}
-			return false, err
-		}
-	}
-	return false, nil
-}
-
 func (s *DocumentService) previewFolderContentsAccess(
 	ctx context.Context,
 	actor Actor,
@@ -73,11 +37,11 @@ func (s *DocumentService) previewFolderContentsAccess(
 ) (FolderContentsAccessResult, error) {
 	q := s.q
 	var (
-		changed               int
-		unchanged             int
-		skippedNotManageable  int
-		skippedLocked         int
-		hadHomeWorkspaceShare bool
+		changed                 int
+		unchanged               int
+		skippedNotManageable    int
+		skippedLocked           int
+		losesHomeWorkspaceShare bool
 	)
 	var allMembers []string
 	var losingSet, downgradedSet map[string]bool
@@ -122,15 +86,10 @@ func (s *DocumentService) previewFolderContentsAccess(
 		if err != nil {
 			return FolderContentsAccessResult{}, err
 		}
-		if !acc.canAdminister() {
-			skippedNotManageable++
-			continue
-		}
-		needBG, err := s.childRequiresBreakGlass(ctx, q, doc, acc, actor, items)
-		if err != nil {
-			return FolderContentsAccessResult{}, err
-		}
-		if needBG {
+		// Only documents where the caller holds manage are modified; a child
+		// the caller reaches only through AdminScope below manage is always
+		// counted in skipped_not_manageable regardless of items (DOC-05, V1-6).
+		if !acc.Level.AtLeast(DocumentLevelManage) {
 			skippedNotManageable++
 			continue
 		}
@@ -142,15 +101,15 @@ func (s *DocumentService) previewFolderContentsAccess(
 			unchanged++
 		}
 
-		if docHasHomeWorkspaceShare(doc, sharesBefore) {
-			hadHomeWorkspaceShare = true
+		simDoc, simShares := simulateFolderContentsDocAfter(doc, sharesBefore, mode, items)
+		if wouldChange && docHasHomeWorkspaceShare(doc, sharesBefore) && !docHasHomeWorkspaceShare(simDoc, simShares) {
+			losesHomeWorkspaceShare = true
 		}
 		if mode == FolderContentsAccessModeReplace && len(allMembers) > 0 {
 			beforeMap, err := s.resolveLevelsInTenantWithShares(ctx, q, doc, sharesBefore, allMembers)
 			if err != nil {
 				return FolderContentsAccessResult{}, err
 			}
-			simDoc, simShares := simulateFolderContentsDocAfter(doc, sharesBefore, mode, items)
 			afterMap, err := s.resolveLevelsInTenantWithShares(ctx, q, simDoc, simShares, allMembers)
 			if err != nil {
 				return FolderContentsAccessResult{}, err
@@ -169,7 +128,7 @@ func (s *DocumentService) previewFolderContentsAccess(
 
 	losingUsers := len(losingSet)
 	downgradedUsers := len(downgradedSet)
-	warnings := computeFolderContentsWarnings(folder.WorkspaceID, mode, items, len(docIDs), changed, losingUsers, downgradedUsers, hadHomeWorkspaceShare)
+	warnings := computeFolderContentsWarnings(folder.WorkspaceID, mode, items, len(docIDs), changed, losingUsers, downgradedUsers, losesHomeWorkspaceShare)
 
 	return FolderContentsAccessResult{
 		DryRun: true,
@@ -194,24 +153,28 @@ func computeFolderContentsWarnings(
 	changed int,
 	losingUsers int,
 	downgradedUsers int,
-	hadHomeWorkspaceShare bool,
+	losesHomeWorkspaceShare bool,
 ) []string {
+	_ = losingUsers
 	warnings := make([]string, 0, 3)
 	hasWide := false
+	hasHome := false
 	for _, it := range items {
 		if it.PrincipalType == DocumentPrincipalOrganization ||
 			(it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID != workspaceID) {
 			hasWide = true
-			break
+		}
+		if it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == workspaceID {
+			hasHome = true
 		}
 	}
 	if hasWide && total >= 20 {
 		warnings = append(warnings, FolderContentsAccessWarningWideScope)
 	}
-	if mode == FolderContentsAccessModeReplace && len(items) > 0 && (losingUsers > 0 || downgradedUsers > 0) {
+	if mode == FolderContentsAccessModeReplace && downgradedUsers > 0 {
 		warnings = append(warnings, FolderContentsAccessWarningDowngrade)
 	}
-	if mode == FolderContentsAccessModeReplace && len(items) == 0 && changed > 0 && hadHomeWorkspaceShare {
+	if mode == FolderContentsAccessModeReplace && !hasHome && changed > 0 && losesHomeWorkspaceShare {
 		warnings = append(warnings, FolderContentsAccessWarningToPrivate)
 	}
 	return warnings
@@ -535,14 +498,7 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 	if err != nil {
 		return folderContentsOutcome{}, err
 	}
-	if !acc.canAdminister() {
-		return folderContentsOutcome{Processed: 1, SkippedNotManageable: 1}, nil
-	}
-	needBG, err := s.childRequiresBreakGlass(ctx, q, doc, acc, actor, items)
-	if err != nil {
-		return folderContentsOutcome{}, err
-	}
-	if needBG {
+	if !acc.Level.AtLeast(DocumentLevelManage) {
 		return folderContentsOutcome{Processed: 1, SkippedNotManageable: 1}, nil
 	}
 

@@ -1,5 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const toastMessage = vi.hoisted(() => vi.fn());
+const toastSuccess = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({
+  toast: { success: toastSuccess, error: vi.fn(), message: toastMessage },
+}));
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -81,6 +87,8 @@ describe("BillingTab", () => {
     resetAuthStoreForTests();
     setSessionUser(user);
     requestMock.mockReset();
+    toastMessage.mockReset();
+    toastSuccess.mockReset();
   });
 
   it("shows the owner the plan, price, usage with what is left, and plan cards", async () => {
@@ -156,6 +164,29 @@ describe("BillingTab", () => {
     expect(await screen.findByText(/Gói ngừng vào/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Khôi phục" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ngừng gói" })).toBeNull();
+  });
+
+  it("says the payment was cancelled when VNPay returns a non-00 code", async () => {
+    mockApi("owner");
+    const nav = fakeNav("/acme/team/settings?tab=billing&checkout=success&vnp_ResponseCode=24&vnp_TxnRef=x");
+    renderTab(nav);
+    await waitFor(() =>
+      expect(toastMessage).toHaveBeenCalledWith("Bạn đã hủy thanh toán trên cổng. Gói hiện tại giữ nguyên."),
+    );
+    expect(screen.queryByText(/Đang xác nhận thanh toán/)).toBeNull();
+    await waitFor(() => {
+      expect(nav.replace).toHaveBeenCalled();
+      const href = vi.mocked(nav.replace).mock.calls.at(-1)?.[0] as string;
+      expect(href).not.toMatch(/checkout=|vnp_/);
+    });
+  });
+
+  it("still confirms checkout when VNPay returns ResponseCode 00", async () => {
+    mockApi("owner", { ...paidSubscription, plan_code: "team", row_version: 2 });
+    const nav = fakeNav("/acme/team/settings?tab=billing&checkout=success&vnp_ResponseCode=00");
+    renderTab(nav);
+    expect(await screen.findByText(/Đang xác nhận thanh toán/)).toBeInTheDocument();
+    expect(toastMessage).not.toHaveBeenCalled();
   });
 
   it("redirects to checkout in the same window", async () => {

@@ -585,6 +585,9 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/admin/invoices/{invoiceID}/confirm-refund": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"reason": "isolation matrix fixture",
 	})},
+	"POST /api/v1/admin/invoices/{invoiceID}/revert-refund": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
+		"reason": "isolation matrix fixture",
+	})},
 	"POST /api/v1/admin/plans": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"code": "iso_test_plan", "name": "ISO", "description": "", "billing_period": "none",
 		"price_currency": "VND", "is_active": false, "sort_order": 99, "reason": "isolation matrix fixture",
@@ -838,6 +841,7 @@ var isoRoutes = map[string]isoSpec{
 	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                            {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
 	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                   {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
 	"PATCH /api/v1/meetings/{meetingID}/motions/{motionID}":                                  {body: isoJSON(map[string]any{"title": "edited"})},
+	"PATCH /api/v1/meetings/{meetingID}/notes/{noteID}":                                      {body: isoJSON(map[string]any{"body": "edited"})},
 	"PATCH /api/v1/meetings/{meetingID}/transcript/{segmentID}":                              {body: isoJSON(map[string]any{"text": "edited"})},
 	// follow-5: the write-control pass runs .../dismiss first, so the owner's
 	// link of the same item answers 409 action_item_not_pending - the route
@@ -997,5 +1001,11 @@ var isoRoutes = map[string]isoSpec{
 	// Tenant rows named in the body rather than the path.
 	"GET /api/v1/invitations/{token}":         {class: isoScoped, skipControl: "the invitation is addressed to an invitee outside the tenant; only that verified mailbox may read it"},
 	"POST /api/v1/invitations/{token}/accept": {class: isoScoped, skipControl: "accepting consumes the invitation"},
-	"POST /api/v1/chat/voice/token":           {body: isoWith(map[string]string{"room_id": "room", "call_id": "callID"}, nil)},
+	"POST /api/v1/membership-invite-links/preview": {class: isoScoped, skipControl: "link_id+secret is the grant; holding both reveals only the linked org/workspace names", body: isoJSON(map[string]any{
+		"link_id": "01J8X4LNK0N1P2Q3R4S5T6U7V", "secret": "not-a-real-secret",
+	})},
+	"POST /api/v1/membership-invite-links/join": {class: isoScoped, skipControl: "link_id+secret is the grant; join creates membership only when the link is Active", body: isoJSON(map[string]any{
+		"link_id": "01J8X4LNK0N1P2Q3R4S5T6U7V", "secret": "not-a-real-secret",
+	})},
+	"POST /api/v1/chat/voice/token": {body: isoWith(map[string]string{"room_id": "room", "call_id": "callID"}, nil)},
 }

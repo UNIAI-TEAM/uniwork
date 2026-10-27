@@ -133,6 +133,8 @@ interface ComposeEmailDialogProps {
   onOpenChange: (open: boolean) => void;
   mode?: ComposeMode;
   sourceThread?: EmailHubThread | null;
+  /** Aligns the mailbox in view with the account that owns the new scheduled send. */
+  onScheduledCreated?: (accountId: string) => void;
   /** Opens the scheduled folder from the "scheduled" toast. */
   onOpenScheduled?: () => void;
 }
@@ -144,6 +146,7 @@ export function ComposeEmailDialog({
   onOpenChange,
   mode = "new",
   sourceThread,
+  onScheduledCreated,
   onOpenScheduled,
 }: ComposeEmailDialogProps) {
   const { t, i18n } = useTranslation();
@@ -246,6 +249,7 @@ export function ComposeEmailDialog({
 
   const handleSendSuccess = (result: EmailHubThread | EmailHubScheduledSend | null) => {
     if (isScheduledSend(result)) {
+      onScheduledCreated?.(result.account_id);
       toast.success(
         t("email_hub.compose.schedule_success", { time: formatEmailFullDate(result.send_at, locale) }),
         onOpenScheduled ? { action: { label: t("email_hub.compose.view_scheduled"), onClick: onOpenScheduled } } : undefined,

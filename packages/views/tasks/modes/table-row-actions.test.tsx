@@ -221,10 +221,10 @@ describe("bảng: nút ba chấm trong cột __add không mở task", () => {
     const dialog = await screen.findByRole("alertdialog");
     expect(batchDeleteCalls()).toHaveLength(0);
 
-    fireEvent.click(within(dialog).getByText("Xóa task này?"));
+    fireEvent.click(within(dialog).getByText("Chuyển vào thùng rác?"));
     expect(onOpenTask).not.toHaveBeenCalled();
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa task" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển vào thùng rác" }));
     await waitFor(() => expect(batchDeleteCalls()).toHaveLength(1));
     expect(onOpenTask).not.toHaveBeenCalled();
   });

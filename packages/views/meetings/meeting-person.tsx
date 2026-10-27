@@ -27,12 +27,16 @@ export function personAvatarSrc(avatarUrl: unknown): string | undefined {
  * kit's exact diameters, with the kit's initials type (no inline font size).
  */
 export type MeetingPersonAvatarSize = "sm" | "default" | "lg" | "xl" | "stage" | KitAvatarSize;
-type KitAvatarSize = 20 | 24 | 28 | 32;
+type KitAvatarSize = 18 | 20 | 22 | 24 | 26 | 28 | 30 | 32;
 
 const KIT_SIZE: Record<KitAvatarSize, string> = {
+  18: "size-4.5 text-micro font-semibold tracking-tight",
   20: "size-5 text-micro font-semibold tracking-tight",
+  22: "size-5.5 text-micro font-semibold tracking-tight",
   24: "size-6 text-micro font-semibold tracking-tight",
+  26: "size-6.5 text-micro font-semibold tracking-tight",
   28: "size-7 text-caption font-semibold",
+  30: "size-7.5 text-micro font-semibold",
   32: "size-8 text-caption font-semibold",
 };
 

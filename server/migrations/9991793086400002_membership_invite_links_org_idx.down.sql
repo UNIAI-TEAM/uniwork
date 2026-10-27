@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_membership_invite_links_org;

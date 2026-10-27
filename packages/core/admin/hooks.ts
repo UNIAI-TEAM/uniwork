@@ -199,6 +199,17 @@ export function useAdminConfirmInvoiceRefund() {
   });
 }
 
+export function useAdminRevertInvoiceRefund() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ invoiceId, reason }: { invoiceId: string; reason: string }) =>
+      admin.revertAdminInvoiceRefund(invoiceId, reason),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: adminKeys.invoicesRoot });
+    },
+  });
+}
+
 export function useCreateAdminPlan() {
   return usePlanCatalogMutation((body: PlanCreateInput) => admin.createAdminPlan(body));
 }

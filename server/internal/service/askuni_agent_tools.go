@@ -180,8 +180,13 @@ func (s *AskUNIService) agentTools() []agentTool {
 			}, s.needsReads(s.agentListProjects)),
 		readTool("get_project", "One project with its description; its first 20 tasks follow as their own sources.",
 			map[string]agentProp{"project_id": strArg("The project's id.")}, s.needsReads(s.agentGetProject)),
-		readTool("get_document", "One document: a page as Markdown, a text file's text, or another file's name and type.",
+		readTool("get_document", "One document: a page as Markdown; a text file's text; a docx, xlsx, pptx, odt or csv file's text read paragraph by paragraph, slide by slide or row by row (no formatting); any other file's name and type.",
 			map[string]agentProp{"document_id": strArg("The document's id.")}, s.needsReads(s.agentGetDocument)),
+		readTool("list_documents", "Pages, files and folders directly under one folder or page of the workspace (the top level when parent_id is \"\"), in the order of the document tree, 50 at a time. Use it to browse a folder; open a row with get_document.",
+			map[string]agentProp{
+				"parent_id": strArg("A folder or page id from list_documents or search; \"\" for the top level."),
+				"cursor":    strArg("The cursor a previous list_documents call gave; \"\" for the first page."),
+			}, s.needsReads(s.agentListDocuments)),
 		readTool("list_chat_rooms", "Chat rooms the user belongs to in the workspace: name, type and last activity.", nil, s.agentListChatRooms),
 		readTool("read_chat_room", "The latest 30 messages of one chat room the user may read.",
 			map[string]agentProp{
@@ -533,6 +538,30 @@ func (s *AskUNIService) agentGetDocument(ctx context.Context, tc ai.ToolContext,
 	// An uploaded file is somebody's document from outside, like an attachment:
 	// no audit row says who wrote its text (R8).
 	return []agentItem{{Kind: "document", ID: d.ID, Key: h, Title: d.Title, Href: h, Text: withText(fields, d.Content), Body: d.Content, Foreign: d.Filename != ""}}, nil
+}
+
+func (s *AskUNIService) agentListDocuments(ctx context.Context, tc ai.ToolContext, raw json.RawMessage) ([]agentItem, error) {
+	var a struct {
+		ParentID string `json:"parent_id"`
+		Cursor   string `json:"cursor"`
+	}
+	if err := agentArgs(raw, &a); err != nil {
+		return nil, err
+	}
+	l, err := s.reads.ListDocuments(ctx, principalOf(tc), mcpListDocumentsIn{WorkspaceID: tc.WorkspaceID, ParentID: a.ParentID, Cursor: a.Cursor})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]agentItem, 0, len(l.Documents)+1)
+	for _, d := range l.Documents {
+		h := s.href(d.URL)
+		// Like search's document rows: Foreign stays unset, authorship decides Mine.
+		out = append(out, agentItem{Kind: "document", ID: d.ID, Key: h, Href: h, Title: d.Title, Text: "ID: " + d.ID + "\nType: " + d.DocKind})
+	}
+	if l.NextCursor != "" {
+		out = append(out, moreNote("More documents follow; call list_documents again with cursor "+l.NextCursor+"."))
+	}
+	return out, nil
 }
 
 // roomTitle is what the sidebar calls a room: its name, else the dm peer's.
