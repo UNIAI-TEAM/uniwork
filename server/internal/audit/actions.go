@@ -414,6 +414,12 @@ const (
 	// UNI-2153); the body stays out of the row, which names the note by id.
 	ActionMeetingNoteAdded = "meeting.note_added"
 
+	// The author or a meeting clerk edited or deleted a shared note
+	// (MeetingService.UpdateNote / DeleteNote, UNI-2217); like note_added, the
+	// row names the note by id and never carries its text.
+	ActionMeetingNoteUpdated = "meeting.note_updated"
+	ActionMeetingNoteDeleted = "meeting.note_deleted"
+
 	// A host or admin recorded that a meeting was held without a room:
 	// SCHEDULED → ENDED at the reported times (MeetingService.RecordHeld,
 	// UNI-2001).

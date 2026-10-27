@@ -403,6 +403,8 @@ type Routes struct {
 	TransferHost                   http.HandlerFunc
 	ListNotes                      http.HandlerFunc
 	CreateNote                     http.HandlerFunc
+	UpdateNote                     http.HandlerFunc
+	DeleteNote                     http.HandlerFunc
 	MeetingToken                   http.HandlerFunc
 	JoinMeeting                    http.HandlerFunc
 	ListParticipants               http.HandlerFunc

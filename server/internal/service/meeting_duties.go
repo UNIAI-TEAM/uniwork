@@ -26,17 +26,27 @@ func (s *MeetingService) requireMeetingClerk(ctx context.Context, userID, meetin
 	if err != nil {
 		return db.Meeting{}, err
 	}
-	if m.HostUserID == userID || isWSAdmin(mem.Role) {
-		return m, nil
-	}
-	p, err := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: meetingID, UserID: strText(userID)})
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	ok, err := s.isMeetingClerk(ctx, m, mem, userID)
+	if err != nil {
 		return db.Meeting{}, err
 	}
-	if err == nil && p.IsSecretary {
-		return m, nil
+	if !ok {
+		return db.Meeting{}, errNotClerk()
 	}
-	return db.Meeting{}, errNotClerk()
+	return m, nil
+}
+
+// isMeetingClerk is requireMeetingClerk's decision for a caller that has
+// already passed authorize.
+func (s *MeetingService) isMeetingClerk(ctx context.Context, m db.Meeting, mem db.WorkspaceMember, userID string) (bool, error) {
+	if m.HostUserID == userID || isWSAdmin(mem.Role) {
+		return true, nil
+	}
+	p, err := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(userID)})
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
+	return err == nil && p.IsSecretary, nil
 }
 
 // requireSecretaryEligible: a secretary clerks through the workspace gate

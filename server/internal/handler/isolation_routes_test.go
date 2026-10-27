@@ -827,6 +827,7 @@ var isoRoutes = map[string]isoSpec{
 	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                            {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
 	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                   {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
 	"PATCH /api/v1/meetings/{meetingID}/motions/{motionID}":                                  {body: isoJSON(map[string]any{"title": "edited"})},
+	"PATCH /api/v1/meetings/{meetingID}/notes/{noteID}":                                      {body: isoJSON(map[string]any{"body": "edited"})},
 	"PATCH /api/v1/meetings/{meetingID}/transcript/{segmentID}":                              {body: isoJSON(map[string]any{"text": "edited"})},
 	// follow-5: the write-control pass runs .../dismiss first, so the owner's
 	// link of the same item answers 409 action_item_not_pending - the route

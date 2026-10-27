@@ -113,6 +113,8 @@ export const WS_EVENT_TYPES = [
   "member.removed",
   "member.role_changed",
   "note.created",
+  "note.deleted",
+  "note.updated",
   "notification.created",
   "office_lease.granted",
   "office_lease.released",
