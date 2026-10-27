@@ -85,12 +85,18 @@ function RoomFace({ room, title }: { room: ChatRoomRecord; title: string }) {
 export function ChatForwardDialog({
   workspaceId,
   message,
+  messages,
   onOpenChange,
+  onForwarded,
 }: {
   workspaceId: string;
-  /** The message to forward; null closes the dialog. */
-  message: ChatMessage | null;
+  /** Single message to forward; prefer `messages` when forwarding a selection. */
+  message?: ChatMessage | null;
+  /** One or more messages (same targets); null/empty closes the dialog. */
+  messages?: ChatMessage[] | null;
   onOpenChange: (open: boolean) => void;
+  /** Called after every source message has been forwarded successfully. */
+  onForwarded?: () => void;
 }) {
   const { t } = useTranslation();
   const listId = useId();
@@ -98,7 +104,12 @@ export function ChatForwardDialog({
   const [picked, setPicked] = useState<string[]>([]);
   const [comment, setComment] = useState("");
   const forward = useForwardChatMessage(workspaceId);
-  const { data: rooms = [], isLoading } = useChatRooms(message ? workspaceId : "");
+  const sources = useMemo(() => {
+    if (messages && messages.length > 0) return messages;
+    return message ? [message] : [];
+  }, [message, messages]);
+  const open = sources.length > 0;
+  const { data: rooms = [], isLoading } = useChatRooms(open ? workspaceId : "");
 
   const sorted = useMemo(
     () =>
@@ -129,9 +140,19 @@ export function ChatForwardDialog({
     );
 
   const submit = () => {
-    if (!message || picked.length === 0 || forward.isPending) return;
-    void forward
-      .mutateAsync({ messageId: message.id, target_room_ids: picked, comment: comment.trim() || undefined })
+    if (sources.length === 0 || picked.length === 0 || forward.isPending) return;
+    const note = comment.trim() || undefined;
+    void (async () => {
+      let copies: { room_id: string; message_id: string }[] = [];
+      for (const source of sources) {
+        copies = await forward.mutateAsync({
+          messageId: source.id,
+          target_room_ids: picked,
+          comment: note,
+        });
+      }
+      return copies;
+    })()
       .then((copies) => {
         const names = copies.map((copy) => titleOf(copy.room_id)).filter(Boolean);
         const shown = names.slice(0, 3).join(", ");
@@ -140,6 +161,7 @@ export function ChatForwardDialog({
             ? t("chat.forward.done_more", { names: shown, count: names.length - 3 })
             : t("chat.forward.done", { names: shown }),
         );
+        onForwarded?.();
         close();
       })
       .catch((err: unknown) => {
@@ -154,21 +176,28 @@ export function ChatForwardDialog({
       });
   };
 
+  const preview = sources[0];
+
   return (
-    <Dialog open={message != null} onOpenChange={(open) => (open ? undefined : close())}>
+    <Dialog open={open} onOpenChange={(next) => (next ? undefined : close())}>
       <FormDialogContent size="md" className={`${CHAT_DIALOG_CLASS} ${CHAT_DIALOG_WIDTH.form}`}>
-        <FormDialogHeader title={t("chat.forward.title")} description={t("chat.forward.description")} />
+        <FormDialogHeader
+          title={sources.length > 1 ? t("chat.forward.title_many", { count: sources.length }) : t("chat.forward.title")}
+          description={t("chat.forward.description")}
+        />
         <FormDialogBody className={`${CHAT_DIALOG_BODY_CLASS} space-y-5`}>
-          {message ? (
+          {preview ? (
             // What goes, quoted the way the delete confirmation quotes it.
             <blockquote className="flex min-w-0 items-start gap-2 rounded-[10px] border-l-3 border-brand/30 bg-muted px-3 py-2 text-body text-foreground">
               <Forward className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
               <span className="line-clamp-2 [overflow-wrap:anywhere]">
-                {replyPreviewLabel(message, {
-                  voice: t("chat.voice_message"),
-                  file: t("chat.file_untitled"),
-                  media: { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") },
-                })}
+                {sources.length > 1
+                  ? t("chat.forward.preview_many", { count: sources.length })
+                  : replyPreviewLabel(preview, {
+                      voice: t("chat.voice_message"),
+                      file: t("chat.file_untitled"),
+                      media: { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") },
+                    })}
               </span>
             </blockquote>
           ) : null}
