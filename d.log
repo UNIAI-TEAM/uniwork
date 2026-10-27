@@ -1,0 +1,7 @@
+$ . scripts/local-env.sh; cd server && { go build ./... && go vet ./... && go tool staticcheck ./internal/service/... ./internal/ ./cmd/... ./pkg/... && go test -count=1 ./internal/ && echo "GOFMT_FILES=[$(gofmt -l ./internal ./pkg ./cmd ./migrations)]" && test -z "$(gofmt -l ./internal ./pkg ./cmd ./migrations)"; } > /tmp/db24-static.log 2>&1; rc=$?; tail -30 /tmp/db24-static.log; echo; echo "GO_STATIC_ARCH_EXIT=$rc"; [ $rc -eq 0 ]
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal	2.539s
+GOFMT_FILES=[]
+
+GO_STATIC_ARCH_EXIT=0

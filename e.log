@@ -1,0 +1,5 @@
+$ pnpm install --frozen-lockfile > /tmp/db24-install.log 2>&1; node --test scripts/governance.test.mjs scripts/no-pii-log.test.mjs scripts/events-catalogue.test.mjs scripts/env-example.test.mjs > /tmp/db24-scripts.log 2>&1; rc=$?; grep -E "^# (pass|fail)|^not ok" /tmp/db24-scripts.log; grep -A15 '^not ok' /tmp/db24-scripts.log | head -60; echo; echo "NODE_SCRIPTS_EXIT=$rc"; [ $rc -eq 0 ]
+# pass 35
+# fail 0
+
+NODE_SCRIPTS_EXIT=0
