@@ -1,0 +1,2 @@
+$ git diff --exit-code -- fixtures/generated; rc=$?; echo T18_EXIT=$rc; [ $rc -eq 0 ]
+T18_EXIT=0

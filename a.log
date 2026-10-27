@@ -1,0 +1,4 @@
+$ git fetch -q --unshallow origin 2>/dev/null; git fetch -q origin main; git rev-parse HEAD origin/main; rc=$?; echo T01_EXIT=$rc; [ $rc -eq 0 ]
+06a95c6d925135fbfe4bf4803842b0d59807ff3f
+c492b6d5648cc56ab9437ce5d09b42138a5c2480
+T01_EXIT=0
