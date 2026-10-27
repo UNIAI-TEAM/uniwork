@@ -131,7 +131,7 @@
       "packages/views/chat/chat-sidebar-typing.ts": "fb5f28703e35f44b156f6ae5cc2d0dc0e9d3a1d3bf006802b02b3aff9fc904df"
     },
     "apps/chat-mobile/lib/unread-divider.ts": {
-      "packages/views/chat/native-chat-message-item.tsx": "caa86d206b33f1618d36a39d0a23331f44ec1ffd7c899c04a77fd8a62a8ab018",
+      "packages/views/chat/native-chat-message-item.tsx": "310a683552f8d47dd3dfae9c6c218401592666313954058e5d6ff0c83832137a",
       "packages/views/chat/use-chat-catch-up-ui.ts": "d8a2c65d4cec17533b6f995f8d03096022f3b4334ff0e0b6529a7da162cd6837"
     },
     "apps/chat-mobile/lib/voice-call.ts": {
