@@ -13,17 +13,8 @@ import {
 } from "./document-tree-row-menu";
 import { documentIconFormat, DocumentTypeIcon } from "./document-type-icon";
 import { DOCUMENTS_NAV_ICONS } from "./documents-nav-icons";
+import { treeRowPaddingLeft } from "./document-tree-indent";
 import type { TreeRow } from "./document-tree-model";
-
-/**
- * Caps visual indent so deep branches (up to TREE_MAX_LEVEL = 20) keep a
- * readable label inside the 256px sidebar without horizontal scroll:
- * 20px/level (chevron slot 16 + gap 4) through depth 6 so each child's
- * chevron column sits under its parent's icon, capped at 120px (depth >= 6).
- */
-function treeRowPaddingLeft(depth: number): number {
-  return Math.min(8 + depth * 20, 120);
-}
 
 /**
  * From this depth on the row menu stops taking width in the row: at the 224px

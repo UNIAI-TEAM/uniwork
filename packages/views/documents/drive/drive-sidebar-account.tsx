@@ -15,8 +15,16 @@ import {
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DOCUMENTS_NAV_ICONS } from "../documents-nav-icons";
+import { treeIconLeft, treeRowPaddingLeft } from "../document-tree-indent";
 import { driveFolderLabel, driveFolderShortLabel } from "./drive-folder-label";
 import type { DriveConnectionSummary } from "./use-drive-library-connections";
+
+// Drive rows share the folder tree's columns (document-tree-indent.ts): the account row is a tree row of
+// depth 1 (chevron column), its folders take that depth's icon column. Following the tree's own formula
+// keeps them from drifting if the tree's indent changes.
+const DRIVE_TREE_DEPTH = 1;
+const DRIVE_ACCOUNT_PADDING_LEFT = treeRowPaddingLeft(DRIVE_TREE_DEPTH);
+const DRIVE_FOLDER_PADDING_LEFT = treeIconLeft(DRIVE_TREE_DEPTH);
 
 const COUNT_CLASS = "ml-auto shrink-0 font-mono text-caption tabular-nums text-muted-foreground";
 const ROW_CLASS =
@@ -66,8 +74,9 @@ function FolderRow({
         }
         aria-current={current ? "page" : undefined}
         onClick={onSelect}
-        // Icon starts at x=56px, exactly under the account email: 28 (account chevron) + 16 chevron slot + 12 gap.
-        style={{ paddingLeft: "56px" }}
+        // Icon box sits on the icon column of the folder-tree level the row belongs to (depth 1: under the
+        // account chevron's own tree level), so a Drive folder and a tree folder of that level share x.
+        style={{ paddingLeft: `${DRIVE_FOLDER_PADDING_LEFT}px` }}
         className={cn(ROW_CLASS, "min-w-0 flex-1 pr-2", current && CURRENT_CLASS)}
       >
         <span aria-hidden className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
@@ -117,7 +126,7 @@ export function DriveSidebarAccount({
 
   return (
     <div className="flex flex-col gap-0.5">
-      <div className="flex items-center" style={{ paddingLeft: "28px" }}>
+      <div className="flex items-center" style={{ paddingLeft: `${DRIVE_ACCOUNT_PADDING_LEFT}px` }}>
         <button
           type="button"
           data-chevron
@@ -160,7 +169,7 @@ export function DriveSidebarAccount({
         {expanded && folders.isPending ? (
           <div
             role="status"
-            style={{ paddingLeft: "56px" }}
+            style={{ paddingLeft: `${DRIVE_FOLDER_PADDING_LEFT}px` }}
             className="flex min-h-9 items-center gap-2 pr-2 text-caption text-muted-foreground"
           >
             <Spinner aria-hidden role="presentation" />
@@ -168,7 +177,7 @@ export function DriveSidebarAccount({
           </div>
         ) : null}
         {expanded && folders.isError ? (
-          <p role="alert" style={{ paddingLeft: "56px" }} className="pr-2 py-1.5 text-caption text-destructive">
+          <p role="alert" style={{ paddingLeft: `${DRIVE_FOLDER_PADDING_LEFT}px` }} className="pr-2 py-1.5 text-caption text-destructive">
             {t("driveLibrary.sidebar.folders_error")}
           </p>
         ) : null}
