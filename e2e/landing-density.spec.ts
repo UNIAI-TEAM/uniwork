@@ -10,12 +10,12 @@ for (const width of [1910, 1440, 768, 390]) {
     await gotoLanding(page, "/#du-an");
     await landingReady(page);
     const workspace = page.locator("#product-preview");
-    await expect(workspace.locator(width < 768 ? ".mobile-feature-story" : ".lovable-canvas")).toBeVisible();
+    await expect(workspace.locator(".product-demo-shell")).toBeVisible();
     await expect(page.locator(".demo-director, .demo-beats, .workspace-availability, .hero-scene-footer, .preview-caption")).toHaveCount(0);
     await expect(page.locator("#platform-title")).toHaveClass("sr-only");
     const geometry = await workspace.evaluate(node => {
       const box = node.getBoundingClientRect();
-      const preview = node.querySelector(".lovable-viewport, .mobile-feature-story")!.getBoundingClientRect();
+      const preview = node.querySelector(".product-demo-shell")!.getBoundingClientRect();
       return { left: box.left, right: innerWidth - box.right, preview: preview.width, overflow: document.documentElement.scrollWidth - innerWidth };
     });
     const frame = await page.locator(".platform-section").boundingBox();
