@@ -18,6 +18,7 @@ import { setAccessToken } from "../session";
 import { parseDocumentAccessRejected } from "./documents-sharing";
 import {
   getFolderContentsAccessBatch,
+  isFolderAccessBatchRunningError,
   isNotAFolderError,
   parseFolderAccessBatchRunning,
   updateFolderContentsAccess,
@@ -293,6 +294,13 @@ describe("error helpers", () => {
     expect(parseFolderAccessBatchRunning(new ApiError("x", "folder_access_batch_running", 409, undefined, { batch_id: "" }))).toBeNull();
     expect(parseFolderAccessBatchRunning(new Error("folder_access_batch_running"))).toBeNull();
     expect(parseFolderAccessBatchRunning(undefined)).toBeNull();
+  });
+
+  it("isFolderAccessBatchRunningError is true for the 409 with or without a batch id, and for nothing else", () => {
+    expect(isFolderAccessBatchRunningError(new ApiError("x", "folder_access_batch_running", 409, undefined, { batch_id: "b1" }))).toBe(true);
+    expect(isFolderAccessBatchRunningError(new ApiError("x", "folder_access_batch_running", 409))).toBe(true);
+    expect(isFolderAccessBatchRunningError(new ApiError("x", "forbidden", 403))).toBe(false);
+    expect(isFolderAccessBatchRunningError({ code: "folder_access_batch_running" })).toBe(false);
   });
 
   it("isNotAFolderError is true only for the not_a_folder ApiError", () => {
