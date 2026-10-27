@@ -387,4 +387,51 @@ describe("MeetingRecordView", () => {
     expect(screen.queryByRole("link", { name: "Cuộc họp" })).not.toBeInTheDocument();
     expect(within(screen.getByRole("navigation", { name: "Cuộc họp" })).getByText("Cuộc họp")).toBeInTheDocument();
   });
+
+  it("the end question stays open until the recording is saved", async () => {
+    const memory = memoryRecordingStore();
+    let save: () => void = () => {};
+    const saved = new Promise<void>((resolve) => (save = resolve));
+    const store: RecordingStore = { ...memory, finishPart: async (...args) => (await saved, memory.finishPart(...args)) };
+    renderView(store);
+    await startRecording();
+    fireEvent.click(screen.getAllByRole("button", { name: "Kết thúc" })[0]!);
+    const confirm = await screen.findByRole("alertdialog", { name: "Kết thúc và gửi bản ghi?" });
+    fireEvent.click(within(confirm).getByRole("button", { name: "Kết thúc và gửi" }));
+    await waitFor(() => expect(within(confirm).getByRole("button", { name: "Kết thúc và gửi" })).toHaveAttribute("aria-busy", "true"));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(screen.getByRole("alertdialog", { name: "Kết thúc và gửi bản ghi?" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Đang gửi bản ghi" })).not.toBeInTheDocument();
+
+    save();
+    expect(await screen.findByRole("dialog", { name: "Đang gửi bản ghi" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  });
+
+  it("leaves once, and never reports a send it stopped", async () => {
+    // The part PUT hangs until the upload is cancelled.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+          }),
+      ),
+    );
+    const store = memoryRecordingStore();
+    await storedPart(store);
+    const onSent = vi.fn();
+    const onBack = renderView(store, vi.fn(), undefined, { send: true, onSent });
+    const stop = await screen.findByRole("button", { name: "Dừng gửi" });
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    fireEvent.click(stop);
+    fireEvent.click(stop);
+    fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+    await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(onSent).not.toHaveBeenCalled();
+  });
 });
+

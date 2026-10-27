@@ -1,13 +1,12 @@
 "use client";
-import { AudioLines, CircleAlert, RefreshCw, WifiOff } from "lucide-react";
+import { AudioLines, CircleAlert, WifiOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
 import type { SendPhase } from "@uniwork/core/meetings/recorder";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { Dialog, DialogFooter } from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Progress } from "@uniwork/ui/components/ui/progress";
 import { cn } from "@uniwork/ui/lib/utils";
-import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../../common/form-dialog";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../../common/form-dialog";
 import { Notice } from "../../common/notice";
 import { formatBytes } from "../../documents/doclist/format";
 import { meetingLocale } from "../meeting-datetime";
@@ -51,7 +50,16 @@ export function RecordSendDialog({
   const total = formatBytes(totalBytes, locale);
 
   return (
-    <Dialog open onOpenChange={(open) => (open ? undefined : halted ? onLater() : onStop())}>
+    <Dialog
+      open
+      // Mid-send, a stray click or Esc must not stop it: only the X and "Dừng gửi" do.
+      disablePointerDismissal={!halted}
+      onOpenChange={(open, details) => {
+        if (open || (!halted && details.reason !== "close-press")) return;
+        if (halted) onLater();
+        else onStop();
+      }}
+    >
       <FormDialogContent>
         <FormDialogHeader title={t(title)} description={t(body)} />
         <FormDialogBody className="space-y-3">
@@ -95,35 +103,24 @@ export function RecordSendDialog({
             </Notice>
           ) : null}
         </FormDialogBody>
-        {/* FormDialogFooter's look; its primary takes no icon, and Retry carries one. */}
-        <DialogFooter className="items-stretch px-5 py-3 sm:items-center">
-          {phase === "failed" ? null : (
-            <p className="min-w-0 text-caption text-muted-foreground sm:mr-auto">{t("meetings.record.keepOpen")}</p>
-          )}
-          {halted ? (
-            <>
-              <Button type="button" variant="outline" onClick={onLater}>
-                {t("meetings.record.later")}
-              </Button>
-              {waiting || failure?.retry ? (
-                <Button type="button" onClick={onRetry}>
-                  <RefreshCw aria-hidden />
-                  {t("meetings.record.retryNow")}
-                </Button>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <Button type="button" variant="outline" onClick={onStop}>
-                {t("meetings.record.stopSending")}
-              </Button>
-              {/* Says what is happening; there is nothing to press until it is done. */}
-              <Button type="button" aria-disabled>
-                {t("meetings.record.sending")}
-              </Button>
-            </>
-          )}
-        </DialogFooter>
+        {halted ? (
+          <FormDialogFooter
+            leading={waiting ? <p>{t("meetings.record.keepOpen")}</p> : undefined}
+            cancelLabel={t("meetings.record.later")}
+            onCancel={onLater}
+            submitLabel={waiting || failure?.retry ? t("meetings.record.retryNow") : undefined}
+            onSubmit={onRetry}
+          />
+        ) : (
+          // "Đang gửi…" says what is happening; there is nothing to press until it is done.
+          <FormDialogFooter
+            leading={<p>{t("meetings.record.keepOpen")}</p>}
+            cancelLabel={t("meetings.record.stopSending")}
+            onCancel={onStop}
+            submitLabel={t("meetings.record.sending")}
+            submitDisabled
+          />
+        )}
       </FormDialogContent>
     </Dialog>
   );

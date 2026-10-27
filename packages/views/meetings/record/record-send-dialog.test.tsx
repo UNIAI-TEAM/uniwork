@@ -68,4 +68,20 @@ describe("RecordSendDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Thử lại ngay" }));
     expect(props.onRetry).toHaveBeenCalledTimes(1);
   });
+
+  it("mid-send, only the X or Dừng gửi stops it", () => {
+    const props = renderDialog();
+    const dialog = screen.getByRole("dialog", { name: "Đang gửi bản ghi" });
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(props.onStop).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Đang gửi bản ghi" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+    expect(props.onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("while waiting, Esc leaves it for later", () => {
+    const props = renderDialog({ phase: "waiting", error: new TypeError("Failed to fetch") });
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Chờ mạng để gửi" }), { key: "Escape" });
+    expect(props.onLater).toHaveBeenCalledTimes(1);
+  });
 });

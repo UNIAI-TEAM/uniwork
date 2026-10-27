@@ -64,10 +64,14 @@ function RecordSend({
     void send();
   }, [send]);
 
+  // Sent or left, whichever comes first, and only once: the page goes one way.
+  const finished = useRef(false);
   const sent = useRef(onSent);
   sent.current = onSent;
   useEffect(() => {
-    if (phase === "done") sent.current();
+    if (phase !== "done" || finished.current) return;
+    finished.current = true;
+    sent.current();
   }, [phase]);
 
   // Leaving now would strand an upload the server never queues: the browser asks first.
@@ -83,7 +87,11 @@ function RecordSend({
     return () => window.removeEventListener("beforeunload", ask);
   }, [busy]);
 
-  const leave = () => void sender.stop().then(onBack);
+  const leave = () => {
+    if (finished.current) return;
+    finished.current = true;
+    void sender.stop().then(onBack);
+  };
   return (
     <RecordSendDialog
       phase={phase}
@@ -168,9 +176,16 @@ export function MeetingRecordView({
   const [sending, setSending] = useState(false);
   // Every "Kết thúc" asks first; "Ghi tiếp" closes the question and the recording never stopped.
   const onEndRequested = () => setAskEnd(true);
+  // The question stays open, pending, until the last slice is saved; then the send dialog takes over.
+  const [ending, setEnding] = useState(false);
   const endAndSend = () => {
-    setAskEnd(false);
-    void recorder.stop().then(() => setSending(true));
+    if (ending) return;
+    setEnding(true);
+    void recorder.stop().then(() => {
+      setAskEnd(false);
+      setEnding(false);
+      setSending(true);
+    });
   };
 
   // `?send=1`: once the meeting and what this device holds are known, send it, or go back with nothing to send.
@@ -240,7 +255,8 @@ export function MeetingRecordView({
       />
       <ConfirmDialog
         open={askEnd}
-        onOpenChange={setAskEnd}
+        onOpenChange={(open) => (ending ? undefined : setAskEnd(open))}
+        pending={ending}
         destructive={false}
         title={t("meetings.record.endTitle")}
         description={t("meetings.record.endBody", { duration: formatVoiceCallDuration((priorMs + activeMs) / 1000) })}
