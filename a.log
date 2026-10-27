@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^0ce7f9272" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=0ce7f927201796bd564da88b41815c3c849856e6
+0ce7f9272 fix(drive): preserve leading space on quote file tail span
+dd3306202 fix(drive): split summary and quote rows for truncation and align to-do copy
+d4b2fe0e0 feat(drive): show goal, subtask count, and quote summary under proposal review items

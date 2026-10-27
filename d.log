@@ -1,0 +1,8 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/core lint > /tmp/d97-lint-core.log 2>&1; rc=$?; grep -E "error|warning" /tmp/d97-lint-core.log | head -60; tail -5 /tmp/d97-lint-core.log; echo; echo "LINT_CORE_EXIT=$rc"
+> eslint . --max-warnings 0
+
+> @uniwork/core@0.0.0 lint /workspace/packages/core
+> eslint . --max-warnings 0
+
+
+LINT_CORE_EXIT=0
