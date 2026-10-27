@@ -1,0 +1,15 @@
+Subject: {{.Data.Code}} is your UniWork confirmation code
+
+Confirm it's you
+
+Someone just asked for a code to {{.Data.ActionName}} on your UniWork account. The code works for that and nothing else:
+
+    {{.Data.Code}}
+
+The code is valid for {{expires .Data.Expires .Locale}} and can be used once.
+{{if .Data.Device}}
+    Device: {{.Data.Device}}{{end}}{{if .Data.IP}}
+    IP address: {{.Data.IP}}{{end}}
+    When: {{.Data.At.Format "2006-01-02 15:04 MST"}}
+
+Never share this code, not even with someone who says they are from UniWork. If you did not just ask for it, do not enter it: someone is using your signed-in session. Review your open sessions and change your password: {{.Data.SecurityURL}}

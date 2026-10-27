@@ -31,6 +31,11 @@ const (
 	// account matched ("I was invited with another address", ADR 0047). The
 	// address may have no account, so the mail names no user.
 	KindSignInEmailClaim = "sign_in_email_claim"
+	// The code that proves, from a session already signed in, that the
+	// account's owner is at the keyboard for one sensitive action (ADR 0047
+	// §5): it names the action, never verifies an address and is never the
+	// development code.
+	KindStepUpCode = "step_up_code"
 )
 
 type Message struct {
