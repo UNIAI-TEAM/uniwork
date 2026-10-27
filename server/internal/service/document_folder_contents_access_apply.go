@@ -630,7 +630,7 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 
 // DocumentAccessBatchCompletedTopic is the outbox topic emitted when a
 // background folder-contents access batch finishes (UNI-2244 §6).
-const DocumentAccessBatchCompletedTopic = "document.access_batch_completed"
+const DocumentAccessBatchCompletedTopic = "document_access_batch.completed"
 
 func folderContentsBatchCompletedEvent(batchID, folderID, workspaceID string) audit.Event {
 	return audit.Event{
