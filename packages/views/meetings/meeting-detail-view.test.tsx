@@ -498,6 +498,45 @@ describe("MeetingDetailView › in person, after the recording was sent (UNI-224
     expect(row).not.toHaveTextContent("người nói chưa có tên");
   });
 
+  it("refetches the speakers when the last part finishes, and never offers to finalize before they answer", async () => {
+    // No realtime frame: the poll sees the part done while the cached labels are still the empty ones.
+    let parts = [part("t1", "RUNNING", 2538)];
+    let labels: Promise<unknown> = Promise.resolve({ labels: [] });
+    const extra = {
+      ...done([]),
+      get [`${base}/transcriptions`]() {
+        return { transcriptions: parts };
+      },
+      get [`${base}/speaker-labels`]() {
+        return labels;
+      },
+    };
+    let finalizeSeen = false;
+    const watch = new MutationObserver(() => {
+      finalizeSeen ||= document.body.textContent?.includes("Chốt biên bản") === true;
+    });
+    watch.observe(document.body, { childList: true, subtree: true, characterData: true });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    open("m1", { extra, client });
+    const row = await strip();
+    expect(await within(row).findByText("Thư ký UNI đang ghi lời bản ghi 42 phút")).toBeInTheDocument();
+    const labelCalls = () => requestMock.mock.calls.filter(([p]) => String(p) === `${base}/speaker-labels`).length;
+    await waitFor(() => expect(labelCalls()).toBe(1));
+
+    let answer: (v: unknown) => void = () => {};
+    labels = new Promise((resolve) => (answer = resolve));
+    parts = [part("t1", "COMPLETE", 2538)];
+    await act(() => client.invalidateQueries({ queryKey: meetingKeys.transcriptions(m1.id) }));
+    await waitFor(() => expect(labelCalls()).toBe(2));
+    // Held on the transcribing row while the speakers are refetched.
+    expect(within(row).getByText("Thư ký UNI đang ghi lời bản ghi 42 phút")).toBeInTheDocument();
+
+    await act(async () => answer({ labels: [label(1), label(2), label(3)] }));
+    expect(await within(row).findByText("3 người nói chưa có tên")).toBeInTheDocument();
+    watch.disconnect();
+    expect(finalizeSeen).toBe(false);
+  });
+
   it("leaves an online meeting as it was, without asking for its transcriptions or speakers", async () => {
     open("m1", { extra: { ...done([label(1)]), [base]: { meeting: m1 } } });
     const row = await strip();

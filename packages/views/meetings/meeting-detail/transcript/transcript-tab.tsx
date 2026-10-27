@@ -25,6 +25,7 @@ import { MeetingRecordingDialog } from "../../meeting-recording-dialog";
 import { MeetingRecordingUploadDialog, MeetingTranscriptionStatus } from "../../meeting-recording-upload";
 import { MeetingTextSkeleton } from "../../meeting-section-state";
 import { MeetingSpeakerLabelsButton, MeetingSpeakerLabelsDialog } from "../../meeting-speaker-labels-dialog";
+import { isUnnamedSpeaker } from "../../speaker-label-merge";
 import { scrollSectionIntoView } from "../../use-meeting-section-deep-link";
 import { useMemberIndex } from "../../use-member-index";
 import { TranscriptChangeDialog, type TranscriptChange } from "../../transcript/transcript-change-dialog";
@@ -304,7 +305,7 @@ export function TranscriptView({
             hasCited={cited.size > 0}
             assign={
               // In person, naming the speakers is the next step (UNI-2247); online it stays in the ⋯.
-              canClerk && meetingVenue(meeting) === "in_person" && labels.data?.some((l) => !l.user_id && !l.name && !l.assigned_name) ? (
+              canClerk && meetingVenue(meeting) === "in_person" && labels.data?.some(isUnnamedSpeaker) ? (
                 <MeetingSpeakerLabelsButton meetingId={meetingId} workspaceId={workspaceId} />
               ) : undefined
             }

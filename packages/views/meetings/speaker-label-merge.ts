@@ -10,6 +10,11 @@ function parse(key: string): { mic: string; session: number; letter: string } | 
   return { mic: `${identity}:${session.slice(0, cut)}`, session: n, letter };
 }
 
+/** A speaker nobody named yet: neither a member nor a free name. */
+export function isUnnamedSpeaker(label: SpeakerLabel): boolean {
+  return !label.user_id && !label.name && !label.assigned_name;
+}
+
 const MAX_CANDIDATES = 3;
 
 /**
