@@ -375,4 +375,23 @@ func TestDriveFileDTODriveFolderShape(t *testing.T) {
 			}
 		}
 	}
+	// 5. DriveFolderNamedSDO marshals updated_count (not updated_files).
+	namedSDO := sdo.DriveFolderNamedSDO{
+		DriveFolder:  sdo.DriveFolderRefDTO{ID: "fld-1", Name: &folderName},
+		UpdatedCount: 3,
+	}
+	rawNamedSDO, err := json.Marshal(namedSDO)
+	if err != nil {
+		t.Fatalf("marshal DriveFolderNamedSDO: %v", err)
+	}
+	var mapNamedSDO map[string]any
+	if err := json.Unmarshal(rawNamedSDO, &mapNamedSDO); err != nil {
+		t.Fatalf("unmarshal DriveFolderNamedSDO: %v", err)
+	}
+	if mapNamedSDO["updated_count"] != float64(3) {
+		t.Fatalf("DriveFolderNamedSDO updated_count = %v, want 3", mapNamedSDO["updated_count"])
+	}
+	if _, hasOldKey := mapNamedSDO["updated_files"]; hasOldKey {
+		t.Fatalf("DriveFolderNamedSDO must not expose updated_files: %+v", mapNamedSDO)
+	}
 }

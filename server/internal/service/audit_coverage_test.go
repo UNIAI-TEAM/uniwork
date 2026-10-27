@@ -2423,8 +2423,8 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if named.UpdatedFiles != 1 || named.DriveFolder.Name == nil || *named.DriveFolder.Name != "Thư mục Kế hoạch" {
-				t.Fatalf("NameFolder = %+v, want UpdatedFiles=1 Name=Thư mục Kế hoạch", named)
+			if named.UpdatedCount != 1 || named.DriveFolder.Name == nil || *named.DriveFolder.Name != "Thư mục Kế hoạch" {
+				t.Fatalf("NameFolder = %+v, want UpdatedCount=1 Name=Thư mục Kế hoạch", named)
 			}
 			assertAuditOutboxTopicAfter(t, f, beforeUpdated, "drive_file.updated", wantPayload)
 		},

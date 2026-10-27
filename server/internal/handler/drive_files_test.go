@@ -689,6 +689,45 @@ func TestDriveFolderHTTPFlow(t *testing.T) {
 	if len(files) != 3 {
 		t.Fatalf("len(files) = %d, want 3", len(files))
 	}
+	fileIDByExt := make(map[string]string, 3)
+	for _, raw := range files {
+		fobj := raw.(map[string]any)
+		extID := fobj["external_file_id"].(string)
+		fileIDByExt[extID] = fobj["id"].(string)
+		dfVal, hasDF := fobj["drive_folder"]
+		if !hasDF {
+			t.Fatalf("list file %s missing drive_folder key: %+v", extID, fobj)
+		}
+		if extID == "ext-http-root" {
+			if dfVal != nil {
+				t.Fatalf("list ext-http-root drive_folder = %+v, want nil", dfVal)
+			}
+		} else {
+			dfMap, ok := dfVal.(map[string]any)
+			if !ok || dfMap["id"] != "fld-http-1" || dfMap["name"] != nil {
+				t.Fatalf("list %s drive_folder before naming = %+v, want {id:fld-http-1, name:nil}", extID, dfVal)
+			}
+		}
+	}
+
+	// Check GET /drive-files/{driveFileID} detail before naming for null and unnamed drive_folder.
+	rootDetailRes, rootDetailOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files/"+fileIDByExt["ext-http-root"], e.ownerTk, nil)
+	if rootDetailRes.StatusCode != http.StatusOK {
+		t.Fatalf("GetDriveFile root = %d %v", rootDetailRes.StatusCode, rootDetailOut)
+	}
+	rootFileObj := rootDetailOut["file"].(map[string]any)
+	if dfVal, hasDF := rootFileObj["drive_folder"]; !hasDF || dfVal != nil {
+		t.Fatalf("detail ext-http-root drive_folder = (%v, exists=%v), want (nil, true)", dfVal, hasDF)
+	}
+	unnamedDetailRes, unnamedDetailOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files/"+fileIDByExt["ext-http-fldr-1"], e.ownerTk, nil)
+	if unnamedDetailRes.StatusCode != http.StatusOK {
+		t.Fatalf("GetDriveFile unnamed = %d %v", unnamedDetailRes.StatusCode, unnamedDetailOut)
+	}
+	unnamedFileObj := unnamedDetailOut["file"].(map[string]any)
+	unnamedDF, ok := unnamedFileObj["drive_folder"].(map[string]any)
+	if !ok || unnamedDF["id"] != "fld-http-1" || unnamedDF["name"] != nil {
+		t.Fatalf("detail ext-http-fldr-1 drive_folder before naming = %+v, want {id:fld-http-1, name:nil}", unnamedFileObj["drive_folder"])
+	}
 
 	// Check aggregate GET /drive-folders before naming: unnamed folder first, null id last.
 	foldersRes, foldersOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-folders", e.ownerTk, nil)
@@ -708,12 +747,31 @@ func TestDriveFolderHTTPFlow(t *testing.T) {
 		t.Fatalf("folders[1] before naming = %+v, want {id:nil, name:nil, file_count:1}", g1)
 	}
 
-	// Naming while Google returns 404 -> 404 drive_file_not_accessible.
+	// Naming while Google returns 404 -> 404 drive_folder_not_found.
 	name404Res, name404Out := doJSON(t, e.srv, "POST", "/api/v1/workspaces/"+e.wsID+"/drive-folders/fld-http-1/name", e.ownerTk, map[string]any{
 		"drive_connection_id": ownerConn,
 	})
-	if name404Res.StatusCode != http.StatusNotFound || errorCode(name404Out) != "drive_file_not_accessible" {
-		t.Fatalf("NameDriveFolder on 404 = %d %v, want 404 drive_file_not_accessible", name404Res.StatusCode, name404Out)
+	if name404Res.StatusCode != http.StatusNotFound || errorCode(name404Out) != "drive_folder_not_found" {
+		t.Fatalf("NameDriveFolder on 404 = %d %v, want 404 drive_folder_not_found", name404Res.StatusCode, name404Out)
+	}
+
+	// Naming while Google returns 403 -> 404 drive_folder_not_found.
+	e.mu.Lock()
+	e.googleError["fld-http-1"] = http.StatusForbidden
+	e.mu.Unlock()
+	name403Res, name403Out := doJSON(t, e.srv, "POST", "/api/v1/workspaces/"+e.wsID+"/drive-folders/fld-http-1/name", e.ownerTk, map[string]any{
+		"drive_connection_id": ownerConn,
+	})
+	if name403Res.StatusCode != http.StatusNotFound || errorCode(name403Out) != "drive_folder_not_found" {
+		t.Fatalf("NameDriveFolder on 403 = %d %v, want 404 drive_folder_not_found", name403Res.StatusCode, name403Out)
+	}
+
+	// Naming when target ID is a non-folder document -> 422 drive_folder_not_folder.
+	name422Res, name422Out := doJSON(t, e.srv, "POST", "/api/v1/workspaces/"+e.wsID+"/drive-folders/ext-http-root/name", e.ownerTk, map[string]any{
+		"drive_connection_id": ownerConn,
+	})
+	if name422Res.StatusCode != http.StatusUnprocessableEntity || errorCode(name422Out) != "drive_folder_not_folder" {
+		t.Fatalf("NameDriveFolder on non-folder = %d %v, want 422 drive_folder_not_folder", name422Res.StatusCode, name422Out)
 	}
 
 	// Naming with peer's connection -> 404 not_found.
@@ -737,10 +795,41 @@ func TestDriveFolderHTTPFlow(t *testing.T) {
 		t.Fatalf("NameDriveFolder 200 = %d %v", nameOKRes.StatusCode, nameOKOut)
 	}
 	dfObj, _ := nameOKOut["drive_folder"].(map[string]any)
-	if dfObj["id"] != "fld-http-1" || dfObj["name"] != "Thư mục Thiết kế" || nameOKOut["updated_files"] != float64(2) {
-		t.Fatalf("NameDriveFolder response = %+v, want id=fld-http-1 name=Thư mục Thiết kế updated_files=2", nameOKOut)
+	if dfObj["id"] != "fld-http-1" || dfObj["name"] != "Thư mục Thiết kế" || nameOKOut["updated_count"] != float64(2) {
+		t.Fatalf("NameDriveFolder response = %+v, want id=fld-http-1 name=Thư mục Thiết kế updated_count=2", nameOKOut)
+	}
+	if _, hasOldKey := nameOKOut["updated_files"]; hasOldKey {
+		t.Fatalf("NameDriveFolder response must not contain updated_files: %+v", nameOKOut)
 	}
 
+	// Check list AND get after naming for named drive_folder.
+	listAfterRes, listAfterOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files", e.ownerTk, nil)
+	if listAfterRes.StatusCode != http.StatusOK {
+		t.Fatalf("ListDriveFiles after naming = %d %v", listAfterRes.StatusCode, listAfterOut)
+	}
+	for _, raw := range jsonArrayAt(t, listAfterOut, "files") {
+		fobj := raw.(map[string]any)
+		extID := fobj["external_file_id"].(string)
+		if extID == "ext-http-root" {
+			if fobj["drive_folder"] != nil {
+				t.Fatalf("list after naming ext-http-root drive_folder = %+v, want nil", fobj["drive_folder"])
+			}
+			continue
+		}
+		dfMap, ok := fobj["drive_folder"].(map[string]any)
+		if !ok || dfMap["id"] != "fld-http-1" || dfMap["name"] != "Thư mục Thiết kế" {
+			t.Fatalf("list after naming %s drive_folder = %+v, want {id:fld-http-1, name:Thư mục Thiết kế}", extID, fobj["drive_folder"])
+		}
+	}
+	namedDetailRes, namedDetailOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files/"+fileIDByExt["ext-http-fldr-1"], e.ownerTk, nil)
+	if namedDetailRes.StatusCode != http.StatusOK {
+		t.Fatalf("GetDriveFile named = %d %v", namedDetailRes.StatusCode, namedDetailOut)
+	}
+	namedFileObj := namedDetailOut["file"].(map[string]any)
+	namedDF, ok := namedFileObj["drive_folder"].(map[string]any)
+	if !ok || namedDF["id"] != "fld-http-1" || namedDF["name"] != "Thư mục Thiết kế" {
+		t.Fatalf("detail ext-http-fldr-1 drive_folder after naming = %+v, want {id:fld-http-1, name:Thư mục Thiết kế}", namedFileObj["drive_folder"])
+	}
 	// Check aggregate GET /drive-folders after naming and with drive_connection_id filter.
 	foldersAfterRes, foldersAfterOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-folders?drive_connection_id="+ownerConn, e.ownerTk, nil)
 	if foldersAfterRes.StatusCode != http.StatusOK {
