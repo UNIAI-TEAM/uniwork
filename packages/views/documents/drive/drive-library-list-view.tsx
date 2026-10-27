@@ -235,10 +235,11 @@ function DriveLibraryListBody({
   const [searchState, setSearchState] = useState({ key: nodeKey, text: "" });
   const search = searchState.key === nodeKey ? searchState.text : "";
   const foldedSearch = fold(search);
-  const shownFolders = foldedSearch
-    ? nodeFolders.filter((f) => fold(driveFolderLabel(f, t)).includes(foldedSearch))
-    : nodeFolders;
-  const shownFiles = foldedSearch ? nodeFiles.filter((f) => fold(f.name).includes(foldedSearch)) : nodeFiles;
+  // Account view with a query: flat search over every file of the account, folder rows hidden.
+  const flatAccountSearch = foldedSearch !== "" && accountScoped && !selectedFolder;
+  const shownFolders = flatAccountSearch ? [] : nodeFolders;
+  const searchedFiles = flatAccountSearch ? account.files : nodeFiles;
+  const shownFiles = foldedSearch ? searchedFiles.filter((f) => fold(f.name).includes(foldedSearch)) : nodeFiles;
   const nodeEmpty = nodeFolders.length === 0 && nodeFiles.length === 0;
 
   // §7.11: `?pick=1` only moves focus to the "Thêm từ…" button, then is removed with `replace`.
@@ -303,7 +304,7 @@ function DriveLibraryListBody({
               <>
                 <h1 className="sr-only">{driveFolderLabel(selectedFolder, t)}</h1>
                 <Breadcrumb aria-label={t("driveLibrary.list.breadcrumb_label")}>
-                  <BreadcrumbList className="text-title">
+                  <BreadcrumbList className="text-title tracking-normal">
                     <BreadcrumbItem>
                       <BreadcrumbLink render={<AppLink href={wsPaths.documentsDrive()} />}>
                         {t("driveLibrary.list.title_all")}

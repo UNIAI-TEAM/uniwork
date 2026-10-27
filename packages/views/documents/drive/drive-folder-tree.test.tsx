@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
@@ -275,6 +275,8 @@ describe("Drive account and folder views in the main list", () => {
     expect(within(table).getByRole("link", { name: "Tệp ở gốc" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Drive: uni-work1@gmail.com" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: t("driveLibrary.list.breadcrumb_label") })).toBeNull();
+    // No folder is current, so the account row is.
+    expect(await screen.findByRole("button", { name: /Drive: uni-work1@gmail\.com/ })).toHaveAttribute("aria-current", "page");
   });
 
   it("an old server without drive_folder gives today's flat account list and no folder nodes", async () => {
@@ -291,16 +293,19 @@ describe("Drive account and folder views in the main list", () => {
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     // The account is open (it is selected) but has no folder children.
     expect(screen.queryByRole("button", { name: new RegExp(t("driveLibrary.folder.unnamed", { id: "" })) })).toBeNull();
+    // Known to have no folders: the chevron is gone.
+    await waitFor(() => expect(screen.getByRole("button", { name: /Drive: uni-work1@gmail\.com/ }).parentElement?.querySelector("[data-chevron]")).toHaveAttribute("hidden"));
   });
 
-  it("search is scoped to the node: account view filters folders and files, folder view only its files", async () => {
+  it("account search is flat over every file of the account (folder rows hidden); folder view only its files", async () => {
     renderDocuments(`${DRIVE_HOME}&account=conn1`);
     await readyTable("Dự án Beta");
     const box = screen.getByRole("searchbox", { name: t("driveLibrary.list.search_label") });
 
-    fireEvent.change(box, { target: { value: "du an" } });
-    expect(within(screen.getByRole("table")).getByRole("link", { name: "Dự án Beta" })).toBeInTheDocument();
-    expect(within(screen.getByRole("table")).queryByRole("link", { name: "Alpha" })).toBeNull();
+    // A file inside a folder is found by name, diacritics folded; folder rows are not shown.
+    fireEvent.change(box, { target: { value: "ke hoach" } });
+    expect(within(screen.getByRole("table")).getByRole("link", { name: "Kế hoạch Beta" })).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).queryByRole("link", { name: "Dự án Beta" })).toBeNull();
     expect(within(screen.getByRole("table")).queryByRole("link", { name: "Tệp ở gốc" })).toBeNull();
 
     fireEvent.change(box, { target: { value: "gốc" } });
