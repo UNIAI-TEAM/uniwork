@@ -81,6 +81,8 @@
     "./documents/bulk": "./documents/bulk.ts",
     "./documents/hooks-bulk": "./documents/hooks-bulk.ts",
     "./documents/hooks-bulk-share": "./documents/hooks-bulk-share.ts",
+    "./documents/hooks-folder-contents-access": "./documents/hooks-folder-contents-access.ts",
+    "./documents/folder-contents-access.fixtures": "./documents/folder-contents-access.fixtures.ts",
     "./documents/hooks-owner": "./documents/hooks-owner.ts",
     "./documents/hooks-access-requests": "./documents/hooks-access-requests.ts",
     "./documents/hooks-access-decisions": "./documents/hooks-access-decisions.ts",
