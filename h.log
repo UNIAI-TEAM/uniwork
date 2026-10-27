@@ -1,0 +1,3 @@
+$ pnpm --filter @uniwork/core exec eslint --max-warnings 0 auth/store.ts auth/store.test.ts > /tmp/w3-la.log 2>&1; rc=$?; tail -n 20 /tmp/w3-la.log; echo; echo "LINT_AUTH_EXIT=$rc"
+
+LINT_AUTH_EXIT=0

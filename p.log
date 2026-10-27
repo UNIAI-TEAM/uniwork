@@ -1,0 +1,28 @@
+$ export NEXT_PUBLIC_API_URL=http://localhost:18660 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18660 DEV_VERIFICATION_CODE=123456; pnpm --filter @uniwork/e2e exec playwright test e2e/documents-folder-contents-access.spec.ts --reporter=list > /tmp/sw3-fca.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/sw3-fca.log | grep -A40 -E "^\s+[0-9]+\) " | head -n 200; tail -n 30 /tmp/sw3-fca.log; ls -R e2e/test-results 2>/dev/null | grep -i png | head -n 20; echo; echo "E2E_FCA_EXIT=$rc"
+
+Running 5 tests using 1 worker
+
+(node:28119) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-folder-contents-access.spec.ts:186:1 › merge: dry run counts the skipped document, apply writes the subtree and leaves the foreign page alone (5.1s)
+  ✓  2 documents-folder-contents-access.spec.ts:230:1 › replace: Confirm waits for a workspace choice, then the shares are exactly the chosen set (6.3s)
+  ✓  3 documents-folder-contents-access.spec.ts:309:1 › card menu: the home folder card menu opens the same dialog (4.5s)
+  -  4 documents-folder-contents-access.spec.ts:340:1 › 202 background batch: progress bar and toast on completion
+  ✓  5 documents-folder-contents-access.spec.ts:535:1 › background batch: the toast lands after leaving Documents, once (M2) (21.8s)
+
+  1 skipped
+  4 passed (40.0s)
+completed-1-left-documents-running.png
+completed-2-toast-on-tasks.png
+completed-3-back-on-documents.png
+failed-1-left-documents-running.png
+failed-2-toast-on-tasks.png
+failed-3-back-on-documents.png
+completed-1-left-documents-running-d2b6c151e6aaf3405f0b8a3d92a6d533cb5aff83.png
+completed-2-toast-on-tasks-7dfb6ba39f447ed7b60f9db925dd29a860ccbe26.png
+completed-3-back-on-documents-ee9366b536542f2bd3e3497ed46033bfb6b77743.png
+failed-1-left-documents-running-e13bcd6a0657defdbe0123a573dbda6777f478a3.png
+failed-2-toast-on-tasks-75be659dec4074479d2c43845bec173f35bb4097.png
+failed-3-back-on-documents-dba533401c6889b26b028c2eb7d384bcdc5f6f3f.png
+
+E2E_FCA_EXIT=0

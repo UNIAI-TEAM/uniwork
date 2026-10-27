@@ -1,0 +1,15 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/core typecheck >/tmp/w3-tc.log 2>&1 && pnpm --filter @uniwork/views typecheck >>/tmp/w3-tc.log 2>&1 && pnpm --filter @uniwork/web typecheck >>/tmp/w3-tc.log 2>&1; rc=$?; tail -n 20 /tmp/w3-tc.log; echo; echo "TYPECHECK_EXIT=$rc"
+
+> @uniwork/core@0.0.0 typecheck /workspace/packages/core
+> tsc --noEmit
+
+
+> @uniwork/views@0.0.0 typecheck /workspace/packages/views
+> tsc --noEmit
+
+
+> @uniwork/web@0.0.0 typecheck /workspace/apps/web
+> tsc --noEmit
+
+
+TYPECHECK_EXIT=0

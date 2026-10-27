@@ -1,0 +1,6 @@
+$ node --test scripts/*.test.mjs 2>&1 | grep -E "^# (tests|pass|fail)|^not ok" | head -n 30; rc=${PIPESTATUS[0]}; echo; echo "SCRIPTS_EXIT=$rc"
+# tests 393
+# pass 393
+# fail 0
+
+SCRIPTS_EXIT=0

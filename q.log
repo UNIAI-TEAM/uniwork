@@ -1,0 +1,19 @@
+$ export NEXT_PUBLIC_API_URL=http://localhost:18660 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18660 DEV_VERIFICATION_CODE=123456; pnpm --filter @uniwork/e2e exec playwright test e2e/documents-home.spec.ts e2e/onboarding-shell.spec.ts e2e/onboarding-smoke.spec.ts --reporter=list > /tmp/sw3-reg.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/sw3-reg.log | grep -A40 -E "^\s+[0-9]+\) " | head -n 200; tail -n 30 /tmp/sw3-reg.log; echo; echo "E2E_REG_EXIT=$rc"
+
+Running 9 tests using 1 worker
+
+(node:28361) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-home.spec.ts:54:1 › quick create, folder, move and the other-modules section on the owner's home (7.6s)
+  ✓  2 documents-home.spec.ts:129:1 › My Folder sub-nav row, personal folder view, localized tree label, Home create into My Folder, and system folder guards (4.3s)
+  ✓  3 documents-home.spec.ts:180:1 › the header Open UniWork Office falls back to the installer dialog when no app answers (5.7s)
+  ✓  4 documents-home.spec.ts:297:3 › a view-only member › sees create controls at the root, and a shared page without its owner's folder (3.4s)
+  ✓  5 documents-home.spec.ts:312:3 › a view-only member › gets no Move, Archive or Move to trash on a row shared at view level (3.7s)
+  ✓  6 documents-home.spec.ts:326:3 › a view-only member › lists shared documents under the owner's Tôi đã chia sẻ, excludes private ones, and keeps them out of the recipient's Tôi đã chia sẻ (7.5s)
+  ✓  7 onboarding-shell.spec.ts:36:1 › onboarding — structural blocks match the column width on every step (1.2s)
+  ✓  8 onboarding-shell.spec.ts:56:1 › onboarding — the shell survives step changes instead of re-mounting (933ms)
+  ✓  9 onboarding-smoke.spec.ts:10:1 › register → onboarding 4 bước → 🎉 → task hướng dẫn (3.1s)
+
+  9 passed (39.2s)
+
+E2E_REG_EXIT=0
