@@ -40,7 +40,7 @@ export function useFolderContentsAccess(wsId: string): FolderContentsAccessComma
 
   const track = useCallback(
     (batch: TrackedFolderBatch) => {
-      trackBatch({ wsId, ...batch });
+      trackBatch({ wsId, ...batch }, { shown: true });
       setShownBatchId(batch.batchId);
     },
     [wsId, trackBatch],

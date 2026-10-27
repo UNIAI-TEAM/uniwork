@@ -27,7 +27,8 @@ interface FolderAccessBatchState {
   /** Keys of batches an open dialog is showing: their failure reads inline there, so no toast repeats it. */
   shown: string[];
   settled: string[];
-  track: (batch: TrackedFolderAccessBatch) => void;
+  /** `shown: true` marks it shown in the same update, for a dialog that already shows it: a watcher mounted by this update must not toast the failure the dialog reads inline. */
+  track: (batch: TrackedFolderAccessBatch, options?: { shown?: boolean }) => void;
   settle: (wsId: string, batchId: string) => void;
   show: (wsId: string, batchId: string) => void;
   hide: (wsId: string, batchId: string) => void;
@@ -37,11 +38,17 @@ export const useFolderAccessBatchStore = create<FolderAccessBatchState>((set) =>
   batches: [],
   shown: [],
   settled: [],
-  track: (batch) =>
+  track: (batch, options) =>
     set((state) => {
       const key = keyOf(batch.wsId, batch.batchId);
-      if (state.settled.includes(key) || state.batches.some((b) => keyOf(b.wsId, b.batchId) === key)) return state;
-      return { batches: [...state.batches, batch] };
+      if (state.settled.includes(key)) return state;
+      const tracked = state.batches.some((b) => keyOf(b.wsId, b.batchId) === key);
+      const shown = options?.shown === true && !state.shown.includes(key);
+      if (tracked && !shown) return state;
+      return {
+        batches: tracked ? state.batches : [...state.batches, batch],
+        shown: shown ? [...state.shown, key] : state.shown,
+      };
     }),
   settle: (wsId, batchId) =>
     set((state) => {
@@ -75,7 +82,7 @@ export function useFolderAccessBatchShown(wsId: string, batchId: string): boolea
   return useFolderAccessBatchStore((state) => state.shown.includes(keyOf(wsId, batchId)));
 }
 
-/** Test seam: the store is module state, so a test file must start each case clean. */
+/** Forgets every batch: the store is module state that outlives a session, so sign-out and a user switch (auth store) clear it; tests start each case with it too. */
 export function resetFolderAccessBatches(): void {
   useFolderAccessBatchStore.setState({ batches: [], shown: [], settled: [] });
 }

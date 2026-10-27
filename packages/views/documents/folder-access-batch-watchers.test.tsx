@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { batchCompleted, batchFailed, batchRunning } from "@uniwork/core/documents/folder-contents-access.fixtures";
-import { resetFolderAccessBatches } from "@uniwork/core/documents/folder-access-batches";
+import { folderContentsAccessKeys } from "@uniwork/core/documents/hooks-folder-contents-access";
+import { resetFolderAccessBatches, useFolderAccessBatchStore } from "@uniwork/core/documents/folder-access-batches";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { FolderAccessBatchWatchers } from "../layout/folder-access-batch-watchers";
 import { requestMock, wrap } from "../test/api-mock";
@@ -162,6 +163,18 @@ describe("folder access batch watchers", () => {
 
     status = "failed";
     await waitFor(() => expect(requestMock.mock.calls.length).toBeGreaterThan(callsBefore), { timeout: 6000 });
+    await settleQuietly();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("keeps the failure toast back for a batch already failed in the cache when the open dialog hands it over", async () => {
+    status = "failed";
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    client.setQueryData(folderContentsAccessKeys.batch(WS, "f1", batchId), answer(batchId));
+    render(wrap(<Shell />, client));
+    fireEvent.click(screen.getByRole("button", { name: "open-page" }));
+    fireEvent.click(screen.getByRole("button", { name: "start-batch" }));
+    await waitFor(() => expect(useFolderAccessBatchStore.getState().batches).toEqual([]));
     await settleQuietly();
     expect(toast.error).not.toHaveBeenCalled();
   });

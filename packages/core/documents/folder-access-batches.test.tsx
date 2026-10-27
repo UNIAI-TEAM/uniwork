@@ -45,4 +45,29 @@ describe("folder access batch store", () => {
     settle("ws1", "b1");
     expect(useFolderAccessBatchStore.getState().shown).toEqual([]);
   });
+
+  it("marks the batch shown in the same update that tracks it, so no reader sees it tracked but not shown", () => {
+    const seen: { batches: number; shown: number }[] = [];
+    const unsubscribe = useFolderAccessBatchStore.subscribe((state) => seen.push({ batches: state.batches.length, shown: state.shown.length }));
+    useFolderAccessBatchStore.getState().track(batch("b1"), { shown: true });
+    unsubscribe();
+    expect(seen).toEqual([{ batches: 1, shown: 1 }]);
+  });
+
+  it("does not mark a batch shown that was refused as already settled", () => {
+    const { track, settle } = useFolderAccessBatchStore.getState();
+    track(batch("b1"));
+    settle("ws1", "b1");
+    track(batch("b1"), { shown: true });
+    expect(useFolderAccessBatchStore.getState().shown).toEqual([]);
+  });
+
+  it("marks an already tracked batch shown when a dialog hands it over again", () => {
+    const { track } = useFolderAccessBatchStore.getState();
+    track(batch("b1"));
+    track(batch("b1"), { shown: true });
+    const { batches, shown } = useFolderAccessBatchStore.getState();
+    expect(batches).toHaveLength(1);
+    expect(shown).toHaveLength(1);
+  });
 });
