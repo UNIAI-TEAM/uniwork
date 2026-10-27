@@ -104,7 +104,7 @@ function DriveFileRow({
 
   return (
     <tr className="hover:bg-accent/40">
-      <td className={cn("w-full max-w-0 px-4 py-3", grouped && "md:pl-10")}>
+      <td className={cn("w-full max-w-0 px-4 py-3 md:min-w-48", grouped && "md:pl-10")}>
         <div className="flex min-w-0 items-start gap-3 md:items-center">
           <DocumentTypeIcon format={file.icon_kind} className="mt-0.5 size-6 shrink-0 md:mt-0" />
           <div className="flex min-w-0 flex-1 flex-col gap-1 md:gap-0">
@@ -141,7 +141,7 @@ function DriveFileRow({
       </td>
       <td className="hidden whitespace-nowrap px-4 py-3 md:table-cell">
         <div className="flex flex-col gap-0.5">
-          <span className="text-caption text-foreground">{accountEmail}</span>
+          <span title={accountEmail} className="block max-w-48 truncate text-caption text-foreground">{accountEmail}</span>
           {rowNeedsReconnect ? (
             <AppLink
               href={reconnectHref}
@@ -201,7 +201,7 @@ export function DriveLibraryTable({
       <table className="w-full table-fixed border-collapse text-body md:table-auto md:min-w-[44rem]">
         <thead>
           <tr className="border-b border-border text-left text-caption text-muted-foreground">
-            <th scope="col" className="w-full px-4 py-3 font-medium">
+            <th scope="col" className="w-full px-4 py-3 font-medium md:min-w-48">
               {t("driveLibrary.list.columns.name")}
             </th>
             <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
