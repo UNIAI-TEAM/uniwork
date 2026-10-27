@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMeetingRecorder } from "./recorder";
-import { memoryRecordingStore } from "./store";
+import { memoryRecordingStore, type RecordingStore } from "./store";
 import { useMeetingRecorder } from "./use-meeting-recorder";
 
 class FakeTrack extends EventTarget {
@@ -15,12 +15,18 @@ class FakeTrack extends EventTarget {
   end(): void {
     this.dispatchEvent(new Event("ended"));
   }
+  /** iOS on a screen lock or an incoming call: the track stays, the sound goes. */
+  mute(): void {
+    this.dispatchEvent(new Event("mute"));
+  }
 }
 
 class FakeRecorder {
   static all: FakeRecorder[] = [];
   static isTypeSupported = (type: string): boolean => type === "audio/mp4";
   state: RecordingState = "inactive";
+  /** A browser that never fires the stop event. */
+  neverStops = false;
   timeslice: number | undefined;
   ondataavailable: ((event: BlobEvent) => void) | null = null;
   onstop: (() => void) | null = null;
@@ -41,15 +47,18 @@ class FakeRecorder {
   }
   /** Like the browser: the last bit of audio, then the stop event. */
   stop(): void {
-    this.tick("!");
     this.state = "inactive";
+    if (this.neverStops) return;
+    this.tick("!");
     this.onstop?.();
   }
 }
 
 type Language = "vi" | "en";
 
-function setup(over: { baseStartedAt?: number; language?: () => Language; refuse?: unknown } = {}) {
+function setup(
+  over: { baseStartedAt?: number; language?: () => Language; refuse?: unknown; store?: RecordingStore } = {},
+) {
   let clock = 1_000_000;
   let ids = 0;
   const tracks: FakeTrack[] = [];
@@ -59,7 +68,7 @@ function setup(over: { baseStartedAt?: number; language?: () => Language; refuse
     tracks.push(track);
     return Promise.resolve({ getTracks: () => [track] } as unknown as MediaStream);
   });
-  const store = memoryRecordingStore();
+  const store = over.store ?? memoryRecordingStore();
   const recorder = createMeetingRecorder({
     store,
     userId: "u1",
@@ -168,6 +177,69 @@ describe("createMeetingRecorder", () => {
     // Only recording time counts: the interruption is not on the clock.
     t.advance(10_000);
     expect(t.recorder.activeMs()).toBe(70_000);
+  });
+
+  it("a muted track closes the part and interrupts", async () => {
+    const t = setup();
+    const startedAt = t.now();
+    await t.recorder.start();
+    t.advance(20_000);
+    t.tracks[0]?.mute();
+    expect(t.recorder.state).toBe("interrupted");
+    await vi.waitFor(async () => expect((await t.parts())[0]?.endedAt).toBe(startedAt + 20_000));
+    expect(t.tracks[0]?.stopped).toBe(true);
+  });
+
+  it("a mute while paused still interrupts", async () => {
+    const t = setup();
+    await t.recorder.start();
+    t.recorder.pause();
+    expect(t.recorder.state).toBe("paused");
+    t.tracks[0]?.mute();
+    expect(t.recorder.state).toBe("interrupted");
+  });
+
+  it("a failed chunk write interrupts and keeps the error", async () => {
+    const full = new DOMException("full", "QuotaExceededError");
+    const memory = memoryRecordingStore();
+    let failures = 1;
+    const store: RecordingStore = {
+      ...memory,
+      appendChunk: (...args) => (failures-- > 0 ? Promise.reject(full) : memory.appendChunk(...args)),
+    };
+    const t = setup({ store });
+    const seen = vi.fn();
+    t.recorder.subscribe(seen);
+    await t.recorder.start();
+    t.advance(5_000);
+    t.media().tick("lost");
+    await vi.waitFor(() => expect(t.recorder.state).toBe("interrupted"));
+    expect(t.recorder.error).toBe(full);
+    await vi.waitFor(async () => expect((await t.parts())[0]?.endedAt).toBe(t.now()));
+
+    await t.recorder.resumeAfterInterrupt();
+    expect(t.recorder.state).toBe("recording");
+    expect(t.recorder.error).toBeNull();
+    t.media().tick("kept");
+    await t.recorder.stop();
+    expect(await text(await t.store.readPart("part-2"))).toBe("kept!");
+  });
+
+  it("stop resolves when the recorder never fires stop", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const t = setup();
+      await t.recorder.start();
+      t.media().neverStops = true;
+      t.media().tick("aa");
+      const stopped = t.recorder.stop();
+      await vi.advanceTimersByTimeAsync(3_000);
+      await stopped;
+      expect(t.recorder.state).toBe("stopped");
+      expect((await t.parts())[0]).toMatchObject({ bytes: 2, endedAt: t.now() });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("switching device starts a new part", async () => {

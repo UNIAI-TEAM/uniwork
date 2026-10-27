@@ -35,6 +35,8 @@ type RecorderDeps = {
 };
 
 const MIME_TYPES = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"] as const;
+/** How long a closing part waits for the browser's stop event before it ends with what is stored. */
+const STOP_WAIT_MS = 3_000;
 
 /** The part being written now and what it records from. */
 type LivePart = { part: RecordingPart; media: MediaRecorder; stream: MediaStream; stopped: Promise<void>; seq: number };
@@ -42,9 +44,10 @@ type LivePart = { part: RecordingPart; media: MediaRecorder; stream: MediaStream
 /**
  * Records a meeting into the device-side store, one chunk every `timesliceMs`
  * (spec D2). Pausing silences the track and keeps the file running, so offsets
- * stay wall-clock (spec D8); only an interruption (the track ended: a locked
- * phone, an unplugged microphone) or a device switch closes the part and opens
- * the next one.
+ * stay wall-clock (spec D8); only an interruption or a device switch closes the
+ * part and opens the next one. An interruption is the track ending or muting (a
+ * locked phone, an incoming call, an unplugged microphone) or a chunk the store
+ * could not save.
  */
 export function createMeetingRecorder(deps: RecorderDeps): MeetingRecorder {
   const { store, getUserMedia, MediaRecorderCtor: Recorder } = deps;
@@ -58,7 +61,7 @@ export function createMeetingRecorder(deps: RecorderDeps): MeetingRecorder {
   let language: Language | null = null;
   let recordedMs = 0;
   let runningSince: number | null = null;
-  // Every chunk write in arrival order; a failed write is reported and the next one still runs.
+  // Every chunk write in arrival order; a failed write is reported (and interrupts) and the next one still runs.
   let writes: Promise<void> = Promise.resolve();
   // start, switch, resume and stop run one at a time.
   let ops: Promise<void> = Promise.resolve();
@@ -87,8 +90,9 @@ export function createMeetingRecorder(deps: RecorderDeps): MeetingRecorder {
   };
   const run = (fn: () => Promise<void>): Promise<void> => (ops = ops.then(fn).catch(fail));
 
-  function interrupt() {
+  function interrupt(cause?: unknown) {
     if (state !== "recording" && state !== "paused") return;
+    if (cause !== undefined) error = cause;
     const endedAt = now();
     stopClock();
     setState("interrupted");
@@ -117,16 +121,25 @@ export function createMeetingRecorder(deps: RecorderDeps): MeetingRecorder {
         if (event.data.size === 0) return;
         const seq = next.seq++;
         const at = now();
-        void write(() => store.appendChunk(part.id, seq, event.data, at));
+        void write(() =>
+          store.appendChunk(part.id, seq, event.data, at).catch((cause: unknown) => {
+            // Storage gave out: stop visibly rather than keep recording what cannot be saved.
+            if (live === next) interrupt(cause);
+            throw cause;
+          }),
+        );
       };
       media.onstop = () => markStopped();
       media.onerror = () => {
         if (live === next) interrupt();
       };
       for (const track of stream.getTracks()) {
-        track.addEventListener("ended", () => {
-          if (live === next) interrupt();
-        });
+        // iOS mutes rather than ends the track on a screen lock or a call; pause() never mutes it.
+        for (const type of ["ended", "mute"]) {
+          track.addEventListener(type, () => {
+            if (live === next) interrupt();
+          });
+        }
         // A switch while paused stays paused on the new microphone.
         if (state === "paused") track.enabled = false;
       }
@@ -144,9 +157,12 @@ export function createMeetingRecorder(deps: RecorderDeps): MeetingRecorder {
     const closing = live;
     if (!closing) return;
     live = null;
-    // When the track ended the browser may have stopped the recorder already; its stop event still comes.
+    // When the track ended the browser may have stopped the recorder already; its stop event should still
+    // come, but a part never waits on it for ever: that would hang End-and-send.
     if (closing.media.state !== "inactive") closing.media.stop();
-    await closing.stopped;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([closing.stopped, new Promise<void>((resolve) => (timer = setTimeout(resolve, STOP_WAIT_MS)))]);
+    clearTimeout(timer);
     closing.stream.getTracks().forEach((track) => track.stop());
     emit();
     await write(() => store.finishPart(closing.part.id, endedAt));
@@ -186,6 +202,7 @@ export function createMeetingRecorder(deps: RecorderDeps): MeetingRecorder {
     resumeAfterInterrupt: (deviceId) =>
       run(async () => {
         if (state !== "interrupted") return;
+        error = null;
         await openPart(deviceId);
         startClock();
         setState("recording");

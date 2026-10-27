@@ -62,11 +62,7 @@ function openDatabase(idb: IDBFactory): Promise<IDBDatabase> {
     db.createObjectStore(PARTS, { keyPath: "id" }).createIndex("userId", "userId");
     db.createObjectStore(CHUNKS, { keyPath: ["partId", "seq"] });
   };
-  return request(open).then((db) => {
-    // Never hold the database open against an upgrade from a newer tab.
-    db.onversionchange = () => db.close();
-    return db;
-  });
+  return request(open);
 }
 
 function chunksOf(partId: string): IDBKeyRange {
@@ -89,13 +85,33 @@ export function openRecordingStore(factory?: IDBFactory): RecordingStore {
   // shortcut: without IndexedDB (server render, a locked-down browser) the recording lives in this page's memory only.
   if (!idb) return memoryRecordingStore();
   let opening: Promise<IDBDatabase> | null = null;
-  const transaction = async (mode: IDBTransactionMode): Promise<IDBTransaction> => {
-    opening ??= openDatabase(idb).catch((cause: unknown) => {
-      opening = null;
+  /**
+   * A transaction on the cached connection. A connection that fails, closes or
+   * is lost (iOS drops it after backgrounding) is forgotten, so the next call
+   * reopens it; a transaction that cannot even start is tried once more on a
+   * fresh connection.
+   */
+  const transaction = async (mode: IDBTransactionMode, retry = true): Promise<IDBTransaction> => {
+    const attempt = (opening ??= openDatabase(idb));
+    const drop = () => {
+      if (opening === attempt) opening = null;
+    };
+    try {
+      const db = await attempt;
+      db.onclose = drop;
+      // Never hold the database open against an upgrade from a newer tab.
+      db.onversionchange = () => {
+        db.close();
+        drop();
+      };
+      const tx = db.transaction([PARTS, CHUNKS], mode);
+      tx.addEventListener("abort", drop);
+      return tx;
+    } catch (cause) {
+      drop();
+      if (retry) return transaction(mode, false);
       throw cause;
-    });
-    const db = await opening;
-    return db.transaction([PARTS, CHUNKS], mode);
+    }
   };
 
   return {

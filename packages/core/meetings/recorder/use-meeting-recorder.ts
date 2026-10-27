@@ -44,6 +44,8 @@ export function useMeetingRecorder(opts: { userId: string; meetingId: string; la
     [userId, meetingId, store],
   );
   const state = useSyncExternalStore(recorder.subscribe, () => recorder.state, () => recorder.state);
+  // Re-render when only the error changes (a failed write after the state already moved).
+  useSyncExternalStore(recorder.subscribe, () => recorder.error, () => recorder.error);
   const [, tick] = useReducer((n: number) => n + 1, 0);
   const [wakeLockHeld, setWakeLockHeld] = useState(false);
   const holding = state === "recording" || state === "paused";

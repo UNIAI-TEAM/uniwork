@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
-import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
+import { IDBDatabase, IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { memoryRecordingStore, openRecordingStore, type RecordingPart, type RecordingStore } from "./store";
@@ -54,6 +54,20 @@ describe.each<[string, () => RecordingStore]>([
     // The chunks went with the part: a new part under the same id starts empty.
     await store.createPart(part({ id: "a" }));
     expect((await store.readPart("a")).size).toBe(0);
+  });
+});
+
+describe("indexeddb recording store", () => {
+  it("the store reopens after its connection is lost", async () => {
+    const store = openRecordingStore(new IDBFactory());
+    const opened = vi.spyOn(IDBDatabase.prototype, "transaction");
+    await store.createPart(part({ id: "a" }));
+    // What iOS does to a backgrounded page: the connection is gone under the store.
+    (opened.mock.contexts[0] as IDBDatabase).close();
+    opened.mockRestore();
+
+    await store.appendChunk("a", 0, new Blob(["kept"]), 2_000);
+    expect(await text(await store.readPart("a"))).toBe("kept");
   });
 });
 
