@@ -21,7 +21,7 @@ import {
  * - Web build: `NEXT_PUBLIC_DRIVE_FAKE_PICKER=1` baked at `next build`.
  */
 test.describe.configure({ timeout: 240_000 });
-const B4_ON_ROOT = false; // flip to true when UNI-2180 (B4 drive-files routes) is on the root
+const B4_ON_ROOT = true; // UNI-2180 (B4 drive-files routes) is on the root
 // Drive-be's fake files.get (DRIVE_FAKE_PROVIDER=1) echoes the external id as the file name; change here if its fake changes.
 const fakeDriveName = (externalFileId: string) => externalFileId;
 
@@ -261,7 +261,8 @@ test("3. Documents › Google Drive (4.1) for A lists that file (all accounts + 
 
   const table = page.getByRole("table");
   await expect(table.getByRole("link", { name: fakeDriveName(seedFile.id) })).toBeVisible({ timeout: 20_000 });
-  await expect(table.getByText(googleEmail)).toBeVisible();
+  // The row renders the email twice: an md:hidden mobile line and the desktop account cell.
+  await expect(table.getByText(googleEmail).filter({ visible: true })).toBeVisible();
   await expect(table.getByText(taskIdentifier)).toBeVisible();
 
   await sidebarAccountBtn.click();
