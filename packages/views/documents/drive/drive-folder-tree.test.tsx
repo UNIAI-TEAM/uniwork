@@ -174,6 +174,10 @@ describe("Drive folder tree in the sidebar", () => {
     expect(alpha).toHaveTextContent("1");
     expect(beta).toHaveTextContent("2");
     expect(unnamed).toHaveTextContent("1");
+    // The sidebar row shows the short label so the id fits; title and accessible name keep the full one.
+    expect(unnamed).toHaveTextContent("Thư mục · 1xYz9Q");
+    expect(unnamed).not.toHaveTextContent(UNNAMED_LABEL);
+    expect(unnamed).toHaveAttribute("title", UNNAMED_LABEL);
     // Same tree grid: icon starts at x=56 under the account email, 20px icon box, name, count.
     expect(beta).toHaveStyle({ paddingLeft: "56px" });
     expect(beta.firstElementChild).toHaveClass("size-5", "shrink-0");

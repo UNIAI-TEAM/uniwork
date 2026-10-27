@@ -14675,6 +14675,7 @@
     },
     "folder": {
       "unnamed": "Drive folder · {{id}}",
+      "unnamed_short": "Folder · {{id}}",
       "count_one": "{{count}} file",
       "count_other": "{{count}} files",
       "name_action": "Name this folder",

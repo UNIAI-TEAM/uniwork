@@ -14601,6 +14601,7 @@
     },
     "folder": {
       "unnamed": "Thư mục trên Drive · {{id}}",
+      "unnamed_short": "Thư mục · {{id}}",
       "count_one": "{{count}} tệp",
       "count_other": "{{count}} tệp",
       "name_action": "Đặt tên theo Drive",

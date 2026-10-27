@@ -15,7 +15,7 @@ import {
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DOCUMENTS_NAV_ICONS } from "../documents-nav-icons";
-import { driveFolderLabel } from "./drive-folder-label";
+import { driveFolderLabel, driveFolderShortLabel } from "./drive-folder-label";
 import type { DriveConnectionSummary } from "./use-drive-library-connections";
 
 const COUNT_CLASS = "ml-auto shrink-0 font-mono text-caption tabular-nums text-muted-foreground";
@@ -54,11 +54,16 @@ function FolderRow({
 }) {
   const { t } = useTranslation();
   const label = driveFolderLabel(folder, t);
+  const shortLabel = driveFolderShortLabel(folder, t);
   return (
     <div className="group/row relative flex items-center rounded-md">
       <button
         type="button"
         title={label}
+        // The short label may differ from the full one; the accessible name keeps the full label.
+        aria-label={
+          shortLabel === label ? undefined : `${label}, ${t("driveLibrary.folder.count", { count: folder.fileCount })}`
+        }
         aria-current={current ? "page" : undefined}
         onClick={onSelect}
         // Icon starts at x=56px, exactly under the account email: 28 (account chevron) + 16 chevron slot + 12 gap.
@@ -68,7 +73,7 @@ function FolderRow({
         <span aria-hidden className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
           <DOCUMENTS_NAV_ICONS.folder className="size-4" />
         </span>
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="min-w-0 flex-1 truncate">{shortLabel}</span>
         {/* The action sits over the count, so the label keeps its full width; the count steps aside while it shows. */}
         <span
           className={cn(
