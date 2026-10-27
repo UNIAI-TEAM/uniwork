@@ -138,7 +138,8 @@ export function DriveSidebarSection({
                 title={rowTitle}
                 aria-current={isCurrent ? "page" : undefined}
                 onClick={() => onSelect(conn.id)}
-                style={{ paddingLeft: "28px" }}
+                // Email starts at x=56px, exactly under the "Google Drive" label: 8 (px-2) + 16 chevron + 4 gap + 20 icon + 8 gap. No icon on account rows.
+                style={{ paddingLeft: "56px" }}
                 className={cn(
                   "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md pr-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
                   isCurrent && "bg-brand-subtle font-medium text-brand-subtle-foreground hover:bg-brand-subtle",

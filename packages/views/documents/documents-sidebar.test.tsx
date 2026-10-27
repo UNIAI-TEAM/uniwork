@@ -351,8 +351,9 @@ describe("DocumentsSidebar icons", () => {
     expect(leafFolderRow.firstElementChild).toHaveClass("size-4", "shrink-0", "-mr-1");
     expect(leafFolderRow.children[1]).toHaveClass("size-5", "shrink-0");
 
-    // Drive account sub-row indents by one 20px step (paddingLeft = 28px, starting under Drive's icon at x=28) with right-aligned count (pr-2).
-    expect(driveAccountRow).toHaveStyle({ paddingLeft: "28px" });
+    // Drive account sub-row has no icon; its email starts at x=56px, under the "Google Drive" label text, with right-aligned count (pr-2).
+    expect(driveAccountRow).toHaveStyle({ paddingLeft: "56px" });
+    expect(driveAccountRow.querySelector("svg, img, [data-icon]")).toBeNull();
     expect(driveAccountRow).toHaveClass("pr-2", "gap-2");
     expect(driveAccountRow.lastElementChild).toHaveClass(
       "ml-auto",

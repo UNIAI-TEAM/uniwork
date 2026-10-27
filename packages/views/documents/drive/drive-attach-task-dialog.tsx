@@ -73,7 +73,7 @@ function useAttachableTasks(wsId: string, search: string, enabled: boolean) {
   });
 }
 
-export interface DriveAttachTaskDialogProps {
+interface DriveAttachTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wsId: string;

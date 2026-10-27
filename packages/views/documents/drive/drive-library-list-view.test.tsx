@@ -300,7 +300,8 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     const acct1Btn = screen.getAllByRole("button", { name: /Drive: uni-work1@gmail\.com/ })[0]!;
     expect(acct1Btn).not.toHaveAttribute("aria-current");
     expect(acct1Btn).toHaveAttribute("title", "Drive: uni-work1@gmail.com");
-    expect(acct1Btn).toHaveStyle({ paddingLeft: "28px" });
+    expect(acct1Btn).toHaveStyle({ paddingLeft: "56px" });
+    expect(acct1Btn.querySelector("svg, img")).toBeNull();
     expect(acct1Btn).toHaveClass("pr-2", "gap-2");
     expect(acct1Btn).toHaveTextContent("3");
     expect(acct1Btn.lastElementChild).toHaveClass(
@@ -313,7 +314,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     );
 
     const acct3Btn = screen.getAllByRole("button", { name: /Drive: uni-work3@gmail\.com/ })[0]!;
-    expect(acct3Btn).toHaveStyle({ paddingLeft: "28px" });
+    expect(acct3Btn).toHaveStyle({ paddingLeft: "56px" });
     expect(acct3Btn).toHaveClass("pr-2", "gap-2");
     expect(acct3Btn).toHaveTextContent(t("driveLibrary.sidebar.disconnected"));
     expect(acct3Btn).toHaveAttribute(

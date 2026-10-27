@@ -135,7 +135,7 @@ export function useRebindDriveFile(wsId: string, driveFileId: string) {
   });
 }
 
-export interface AttachDriveFileToTaskVariables {
+interface AttachDriveFileToTaskVariables {
   driveFileId: string;
   connectionId: string;
   externalFileId: string;
