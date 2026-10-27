@@ -29,6 +29,19 @@ describe("DocumentTypeIcon accessible labels", () => {
   });
 });
 
+describe("DocumentTypeIcon legacy Office formats", () => {
+  it("draws .doc/.xls/.ppt with a lighter copy of the modern mark", async () => {
+    await setLocale("en");
+    render(<>{["doc", "xls", "ppt", "docx"].map((format) => <DocumentTypeIcon key={format} format={format} />)}</>);
+    const [doc, xls, ppt, docx] = screen.getAllByRole("img");
+    expect(doc).toHaveAccessibleName("Word document");
+    expect(xls).toHaveAccessibleName("Excel spreadsheet");
+    expect(ppt).toHaveAccessibleName("PowerPoint presentation");
+    for (const icon of [doc, xls, ppt]) expect(icon).toHaveClass("opacity-55");
+    expect(docx).not.toHaveClass("opacity-55");
+  });
+});
+
 describe("DocumentTypeIcon UniNote kind", () => {
   it("draws the page kind with the UniNote tile, filling the box like the other marks", async () => {
     await setLocale("en");

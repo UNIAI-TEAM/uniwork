@@ -329,7 +329,7 @@ describe("folder layout (Folder.dc)", () => {
     expect(document.querySelector('[data-slot="documents-filter-zone"]')!.parentElement).toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toHaveAttribute(
       "placeholder",
-      t("documents.home.search.placeholder_folder"),
+      t("documents.home.search.placeholder"),
     );
     expect(screen.queryByText(/Dự án CCB”/)).toBeNull();
 
