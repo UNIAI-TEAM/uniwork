@@ -56,6 +56,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0044](0044-hoi-uni-ghi-qua-de-xuat-tren-server-va-ba-che-do-quyen.md) | Hỏi UNI ghi qua đề xuất lưu trên server, ba chế độ quyền, lượt bị nhiễm thì phải hỏi; mở rộng 0033 sang kênh Hỏi UNI |
 | [0045](0045-agent-hop-goi-stt-truc-tiep-llm-qua-gateway.md) | Agent thư ký AI (`apps/meeting-agent`) gọi nhà cung cấp STT trực tiếp; mọi lời gọi LLM vẫn qua `ai.Gateway`; agent chỉ gọi `/meetings/{id}/agent/*` bằng token `uwma_` theo cuộc họp, không ghi bảng nghiệp vụ |
 | [0046](0046-console-xep-xoa-to-chuc-qua-mot-cua.md) | Lệnh ghi content thứ hai của console: xếp hoặc hoàn tác lịch xóa tổ chức 5 ngày qua `OrganizationDeletionQueue` (`queueDeletion`, `cancelDeletion`; nối `privacySvc` ở `main.go`); `AdminService` không giữ `*PrivacyExportService` nên không xuất hay tải tệp tenant; `recordAdmin` chạy trong giao dịch của hàng đợi; bổ sung cho 0042 |
+| [0047](0047-dang-nhap-thong-nhat-tren-moi-nen-tang.md) | Đăng nhập thống nhất: email + mật khẩu, Google, Apple và hai lớp như nhau trên web, máy tính, điện thoại; một bộ quy tắc khớp tài khoản cho mọi nhà cung cấp (liên kết theo email chỉ khi hai phía đã xác minh, thu hồi tài khoản chưa xác minh, không khớp thì vé + màn chọn thay vì tạo ngầm); thay mục 2 và 4 của 0041 |
 
 ## Bản nháp
 
