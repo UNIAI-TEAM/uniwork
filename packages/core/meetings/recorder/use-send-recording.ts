@@ -15,6 +15,8 @@ export type SendPhase = "idle" | "holding" | "uploading" | "waiting" | "failed" 
 /** A part left open by a closed tab ends at its last saved chunk. */
 const endOf = (p: RecordingPart): number => p.endedAt ?? p.lastChunkAt;
 const secondsBetween = (from: number, to: number): number => Math.round((to - from) / 1000);
+/** While waiting, send again after 10 s, then 30 s, then every 60 s (the `online` event may never come). */
+const WAIT_RETRY_MS = [10_000, 30_000, 60_000];
 
 /** Name and lastModified come from the part, so the File rebuilt after a reload has the same upload key. */
 function partFile(part: RecordingPart, blob: Blob): File {
@@ -54,6 +56,8 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
   const upload = useUploadMeetingRecording(meeting.id);
   const [phase, setPhase] = useState<SendPhase>("idle");
   const [error, setError] = useState<unknown>(null);
+  // Failed attempts in a row while waiting: picks the retry delay, and re-arms the timer after each one.
+  const [waits, setWaits] = useState(0);
   const [totals, setTotals] = useState({ doneBytes: 0, totalBytes: 0, seconds: 0, currentBytes: 0 });
   const running = useRef(false);
   const stopped = useRef(false);
@@ -101,19 +105,30 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
         inFlight.current = { id: part.id, file };
         const seconds = secondsBetween(part.startedAt, endOf(part));
         setTotals((t) => ({ ...t, currentBytes: part.bytes }));
-        await upload.mutateAsync({ file, language: part.language, consent: true, durationSeconds: seconds, offsetSeconds: part.offsetSeconds });
+        try {
+          await upload.mutateAsync({ file, language: part.language, consent: true, durationSeconds: seconds, offsetSeconds: part.offsetSeconds });
+        } catch (err) {
+          // The queue request reached the server but its answer was lost: a fresh upload's file can only collide with itself.
+          if (errorCode(err) !== "transcription_in_progress") throw err;
+        }
         await store.deletePart(part.id);
         sent.current = { bytes: sent.current.bytes + part.bytes, seconds: sent.current.seconds + seconds };
         setTotals((t) => ({ ...t, doneBytes: sent.current.bytes, currentBytes: 0 }));
         void qc.invalidateQueries({ queryKey: ["meeting-recordings-local", userId] });
       }
       setPhase(stopped.current ? "idle" : "done");
+      setWaits(0);
     } catch (err) {
       if (stopped.current) {
         setPhase("idle");
+      } else if (isNetworkError(err)) {
+        setError(err);
+        setPhase("waiting");
+        setWaits((n) => n + 1);
       } else {
         setError(err);
-        setPhase(isNetworkError(err) ? "waiting" : "failed");
+        setPhase("failed");
+        setWaits(0);
       }
     } finally {
       running.current = false;
@@ -125,13 +140,18 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
   useEffect(() => {
     if (phase !== "waiting") return;
     const resume = () => void latestSend.current();
+    const timer = setTimeout(resume, WAIT_RETRY_MS[Math.min(waits, WAIT_RETRY_MS.length) - 1]);
     window.addEventListener("online", resume);
-    return () => window.removeEventListener("online", resume);
-  }, [phase]);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("online", resume);
+    };
+  }, [phase, waits]);
 
   const stop = async () => {
     stopped.current = true;
     setPhase("idle");
+    setWaits(0);
     await upload.cancel();
   };
 

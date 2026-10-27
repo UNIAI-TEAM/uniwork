@@ -211,6 +211,64 @@ describe("useSendRecording", () => {
     expect(server.paths().filter((p) => p.startsWith("PUT"))).toHaveLength(2);
   });
 
+  it("a part whose queue answer was lost counts as sent", async () => {
+    const store = memoryRecordingStore();
+    await twoParts(store);
+    // The server queues each upload once; the answer to the first is lost on the way back.
+    const queued: string[] = [];
+    fakeServer((c) => {
+      if (!c.path.endsWith("/transcriptions")) return;
+      const id = (c.body as { upload_id: string }).upload_id;
+      if (queued.includes(id)) return refusal(409, "transcription_in_progress");
+      queued.push(id);
+      if (id === "up-sess-1") throw new TypeError("Failed to fetch");
+    });
+    const { result } = renderSend(store, "ENDED");
+    await act(() => result.current.send());
+    expect(result.current.phase).toBe("waiting");
+
+    act(() => void window.dispatchEvent(new Event("online")));
+    await waitFor(() => expect(result.current.phase).toBe("done"));
+    expect(await store.listParts("u1", "m1")).toEqual([]);
+    expect(queued).toEqual(["up-sess-1", "up-sess-2"]);
+    expect(result.current.sentBytes).toBe(result.current.totalBytes);
+  });
+
+  it("a stalled send retries on its own while the browser says it is online", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const store = memoryRecordingStore();
+      await twoParts(store);
+      let drops = 2;
+      const server = fakeServer((c) => {
+        if (c.path.endsWith("audio-upload-sessions") && drops > 0) {
+          drops -= 1;
+          throw new TypeError("Failed to fetch");
+        }
+      });
+      const opens = () => server.paths().filter((p) => p.endsWith("audio-upload-sessions")).length;
+      const { result } = renderSend(store, "ENDED");
+      await act(() => result.current.send());
+      expect(navigator.onLine).toBe(true);
+      expect(result.current.phase).toBe("waiting");
+
+      await act(() => vi.advanceTimersByTimeAsync(9_999));
+      expect(opens()).toBe(1);
+      await act(() => vi.advanceTimersByTimeAsync(1));
+      expect(opens()).toBe(2);
+      expect(result.current.phase).toBe("waiting");
+
+      // The second wait is 30 s.
+      await act(() => vi.advanceTimersByTimeAsync(29_999));
+      expect(opens()).toBe(2);
+      await act(() => vi.advanceTimersByTimeAsync(1));
+      await vi.waitFor(() => expect(result.current.phase).toBe("done"));
+      expect(await store.listParts("u1", "m1")).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("rebuilds the same File key on retry", async () => {
     const store = memoryRecordingStore();
     const [p1] = await twoParts(store);
