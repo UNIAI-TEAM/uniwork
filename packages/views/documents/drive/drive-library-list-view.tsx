@@ -21,7 +21,6 @@ import {
   BreadcrumbSeparator,
 } from "@uniwork/ui/components/ui/breadcrumb";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
-import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
@@ -33,6 +32,7 @@ import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink, useNavigation } from "../../navigation";
 import { fold } from "../../settings/components/member-search";
 import { driveFolderLabel } from "./drive-folder-label";
+import { DriveLibraryLoadingTable } from "./drive-library-loading-table";
 import { DriveLibrarySearch } from "./drive-library-search";
 import { DriveLibraryTable } from "./drive-library-table";
 import { NameDriveFolderHost, useNameFolderLauncher } from "./name-drive-folder-host";
@@ -53,61 +53,6 @@ export interface DriveLibraryListViewProps {
   onAddFromDrive?: (connectionId: string | null) => void;
   /** Optional Google Picker adapter for deterministic testing. */
   pickerAdapter?: DrivePickerAdapter;
-}
-
-function DriveLibraryLoadingTable() {
-  const { t } = useTranslation();
-  return (
-    <div
-      role="status"
-      className="overflow-hidden rounded-lg border border-border bg-background"
-      aria-busy="true"
-      aria-label={t("documents.library.loading")}
-    >
-      <table className="w-full table-fixed border-collapse text-body md:table-auto md:min-w-[44rem]">
-        <thead>
-          <tr className="border-b border-border text-left text-caption text-muted-foreground">
-            <th scope="col" className="w-full px-4 py-3 font-medium">
-              {t("driveLibrary.list.columns.name")}
-            </th>
-            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-              {t("driveLibrary.list.columns.account")}
-            </th>
-            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-              {t("driveLibrary.list.columns.access")}
-            </th>
-            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-              {t("driveLibrary.list.columns.used_in")}
-            </th>
-            <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-              {t("driveLibrary.list.columns.tasks_created")}
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <tr key={index}>
-              <td className="w-full max-w-0 px-4 py-3">
-                <Skeleton className="h-5 w-48 max-w-full rounded-md" />
-              </td>
-              <td className="hidden px-4 py-3 md:table-cell">
-                <Skeleton className="h-4 w-36 rounded-md" />
-              </td>
-              <td className="hidden px-4 py-3 md:table-cell">
-                <Skeleton className="h-5 w-24 rounded-md" />
-              </td>
-              <td className="hidden px-4 py-3 md:table-cell">
-                <Skeleton className="h-4 w-28 rounded-md" />
-              </td>
-              <td className="hidden px-4 py-3 md:table-cell">
-                <Skeleton className="h-4 w-16 rounded-md" />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
 }
 
 /**
