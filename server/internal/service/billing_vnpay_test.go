@@ -420,8 +420,10 @@ func TestApplyProviderEventSamePlanExtendsPeriod(t *testing.T) {
 		t.Fatal("missing period end")
 	}
 	wantEnd := subscriptionPeriodEnd(periodEnd, snap.Plan.BillingPeriod)
-	if !snap.Subscription.CurrentPeriodEnd.Time.Equal(wantEnd.Time) {
-		t.Fatalf("period_end got %v want %v", snap.Subscription.CurrentPeriodEnd.Time, wantEnd.Time)
+	gotEnd := snap.Subscription.CurrentPeriodEnd.Time.UTC().Truncate(time.Microsecond)
+	want := wantEnd.Time.UTC().Truncate(time.Microsecond)
+	if !gotEnd.Equal(want) {
+		t.Fatalf("period_end got %v want %v", gotEnd, want)
 	}
 }
 
