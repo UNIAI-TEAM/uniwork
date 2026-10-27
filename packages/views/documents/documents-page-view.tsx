@@ -36,6 +36,7 @@ import { DocumentsSections, nonFolderRows, subfoldersOf } from "./documents-fold
 import { continueCards, RecentContinue } from "./documents-recent-continue";
 import { DocumentsScreenHead } from "./documents-screen-head";
 import { DocumentsShelvedView } from "./documents-shelved-view";
+import { DocumentsTemplatesView } from "./documents-templates-view";
 import { DocumentsTrashView } from "./documents-trash-view";
 import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./documents-sidebar";
 import { downloadSourceFile } from "./download-source-file";
@@ -502,6 +503,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   }}
                 />
               </div>
+            ) : view.kind === "templates" ? (
+              <DocumentsTemplatesView library={library} handlers={handlers} canUpload={canCreate} wsId={wsId} />
             ) : view.kind === "shelved" ? (
               <DocumentsShelvedView
                 library={library}
