@@ -94,6 +94,10 @@ export function DriveSidebarAccount({
   const folders = useDriveAccountFolders(wsId, connection.id, { enabled: expanded, locale: i18n.language });
   const accountLabel = t("driveLibrary.sidebar.account_row", { email: connection.google_email });
   const disconnectedLabel = t("driveLibrary.sidebar.disconnected");
+  // An unknown folder id shows the account view, so the account row is the current node then.
+  const accountIsCurrent = accountCurrent && !folders.folders.some((f) => f.id === currentFolderId);
+  // Known to have no folders: not loading, not failed, nothing derived.
+  const noFolders = expanded && !folders.isPending && !folders.isError && folders.folders.length === 0;
   const rowTitle = connection.needs_reconnect ? `${accountLabel} · ${disconnectedLabel}` : accountLabel;
 
   return (
@@ -102,6 +106,7 @@ export function DriveSidebarAccount({
         <button
           type="button"
           data-chevron
+          hidden={noFolders}
           aria-expanded={expanded}
           aria-controls={groupId}
           aria-label={
@@ -117,10 +122,10 @@ export function DriveSidebarAccount({
         <button
           type="button"
           title={rowTitle}
-          aria-current={accountCurrent ? "page" : undefined}
+          aria-current={accountIsCurrent ? "page" : undefined}
           onClick={() => onSelect(connection.id, null)}
           // Email starts at x=56px, exactly under the "Google Drive" label: 28 + 16 chevron + 12 (pl-3). No icon on account rows.
-          className={cn(ROW_CLASS, "min-w-0 flex-1 pl-3 pr-2", accountCurrent && CURRENT_CLASS)}
+          className={cn(ROW_CLASS, "min-w-0 flex-1 pl-3 pr-2", accountIsCurrent && CURRENT_CLASS)}
         >
           <span className="sr-only">{accountLabel}</span>
           <span aria-hidden className="min-w-0 flex-1 truncate">
@@ -151,6 +156,18 @@ export function DriveSidebarAccount({
           <p role="alert" style={{ paddingLeft: "56px" }} className="pr-2 py-1.5 text-caption text-destructive">
             {t("driveLibrary.sidebar.folders_error")}
           </p>
+        ) : null}
+        {expanded && folders.isLoadMoreError ? (
+          <div
+            role="alert"
+            style={{ paddingLeft: "56px" }}
+            className="flex flex-wrap items-center gap-2 py-1.5 pr-2 text-caption text-destructive"
+          >
+            <span>{t("driveLibrary.sidebar.folders_error")}</span>
+            <Button type="button" variant="outline" size="sm" onClick={folders.retryLoadMore}>
+              {t("driveLibrary.list.retry")}
+            </Button>
+          </div>
         ) : null}
         {folders.folders.map((folder) => (
           <FolderRow

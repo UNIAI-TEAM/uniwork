@@ -146,7 +146,7 @@ export function DriveSidebarSection({
               key={conn.id}
               wsId={wsId}
               connection={conn}
-              accountCurrent={view.kind === "drive" && selectedAccount === conn.id && !selectedFolder}
+              accountCurrent={view.kind === "drive" && selectedAccount === conn.id}
               currentFolderId={selectedAccount === conn.id ? selectedFolder : null}
               expanded={openAccounts.has(conn.id)}
               onToggle={() => toggleAccount(conn.id)}
