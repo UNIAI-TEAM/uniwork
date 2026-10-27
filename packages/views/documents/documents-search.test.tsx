@@ -1151,18 +1151,111 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(fetchedPages).toBe(11);
   });
 
-  it("shows loading state while favorites are loading and error state when favorites fail on Có gắn sao (view=starred), never 'no results' (KLR-14c)", async () => {
-    const favoriteResolvers: Array<(val: unknown) => void> = [];
-    let failFavorites = false;
+  it("stops Recent auto-fetch when page 2 fails (no loop), shows error/retry when nothing matched or matches plus Tải thêm when page 1 matched, and recovers on retry (KLR-15)", async () => {
+    let page2Calls = 0;
+    let failPage2 = true;
+    let page1Title = "Tài liệu trang 1";
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
-      if (path.includes("/favorites")) {
-        if (failFavorites) {
+      if (path.startsWith(`${LIST_BASE}/recent`)) {
+        const cursor = queryOf(path).get("cursor");
+        if (!cursor) {
+          return Promise.resolve({
+            documents: [
+              summary({
+                id: "rec-p1",
+                title: page1Title,
+                path: [],
+                last_activity: { kind: "opened", at: "2026-10-26T03:00:00Z" },
+              }),
+            ],
+            next_cursor: "cursor-2",
+          });
+        }
+        if (cursor === "cursor-2") {
+          page2Calls += 1;
+          if (failPage2) {
+            return Promise.reject(new ApiError("recent page 2 failed", "internal", 500));
+          }
+          return Promise.resolve({
+            documents: [
+              summary({
+                id: "rec-p2",
+                title: "Báo cáo trang 2 sau thử lại",
+                path: [],
+                last_activity: { kind: "opened", at: "2026-10-25T03:00:00Z" },
+              }),
+            ],
+            next_cursor: null,
+          });
+        }
+      }
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
+
+    // 1. Nothing matched on page 1, page 2 fails -> exactly 1 page-2 request, error state with working retry
+    const { unmount } = renderSearchView(createNav("view=recent"));
+    expect((await screen.findAllByText("Tài liệu trang 1")).length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), {
+      target: { value: "bao cao" },
+    });
+
+    const alertState = await screen.findByRole("alert");
+    expect(within(alertState).getByText(t("documents.library.error_title"))).toBeInTheDocument();
+    expect(screen.queryByLabelText(t("documents.library.loading"))).toBeNull();
+    expect(screen.queryByText(t("documents.home.search.no_results_title", { query: "bao cao" }))).toBeNull();
+    expect(page2Calls).toBe(1);
+
+    failPage2 = false;
+    fireEvent.click(within(alertState).getByRole("button", { name: t("documents.library.retry") }));
+    expect(await screen.findByText("Báo cáo trang 2 sau thử lại")).toBeInTheDocument();
+    unmount();
+
+    // 2. Page 1 matched, page 2 fails -> stops auto-paging (1 page-2 request), shows page-1 match + Tải thêm as retry
+    page2Calls = 0;
+    failPage2 = true;
+    page1Title = "Báo cáo trang 1 khớp";
+    renderSearchView(createNav("view=recent"));
+    expect((await screen.findAllByText("Báo cáo trang 1 khớp")).length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), {
+      target: { value: "bao cao" },
+    });
+
+    await waitFor(() => expect(page2Calls).toBe(1));
+    const loadMoreBtn = await screen.findByRole("button", { name: t("documents.library.load_more") });
+    expect(screen.getByText("Báo cáo trang 1 khớp")).toBeInTheDocument();
+    expect(page2Calls).toBe(1);
+
+    failPage2 = false;
+    fireEvent.click(loadMoreBtn);
+    expect(await screen.findByText("Báo cáo trang 2 sau thử lại")).toBeInTheDocument();
+  });
+
+  it("shows loading state while favorites are loading and error state when favorites fail on Có gắn sao (view=starred), never 'no results', and Retry refetches favorites (KLR-14c, KLR-16)", async () => {
+    const favoriteResolvers: Array<(val: unknown) => void> = [];
+    let failOrgFavorites = false;
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.includes("/orgs/") && path.endsWith("/documents/favorites")) {
+        if (failOrgFavorites) {
           return Promise.reject(new ApiError("favorites failed", "internal", 500));
         }
-        const { promise, resolve } = Promise.withResolvers<unknown>();
-        favoriteResolvers.push(resolve);
-        return promise;
+        if (favoriteResolvers.length === 0) {
+          const { promise, resolve } = Promise.withResolvers<unknown>();
+          favoriteResolvers.push(resolve);
+          return promise;
+        }
+        return Promise.resolve({
+          favorites: [{ document_id: "s-1", workspace_id: WS, title: "Tài liệu sao", kind: "page" }],
+        });
+      }
+      if (path.startsWith(`${LIST_BASE}/favorites`)) {
+        return Promise.resolve({
+          documents: [summary({ id: "s-1", title: "Tài liệu sao", favorited_at: "2026-10-26T03:00:00Z" })],
+          next_cursor: null,
+        });
       }
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
         return Promise.resolve({
@@ -1186,16 +1279,14 @@ describe("Documents search keeps layout (UNI-2205)", () => {
       for (const resolve of favoriteResolvers) {
         resolve({
           favorites: [{ document_id: "s-1", workspace_id: WS, title: "Tài liệu sao", kind: "page" }],
-          documents: [summary({ id: "s-1", title: "Tài liệu sao", favorited_at: "2026-10-26T03:00:00Z" })],
-          next_cursor: null,
         });
       }
     });
     expect(await screen.findByText("Tài liệu sao")).toBeInTheDocument();
     unmount();
 
-    // 2. When favorites fail on view=starred, searching shows the error state, never no_results_title
-    failFavorites = true;
+    // 2. When org favorites fail on view=starred, searching shows the error state, and Retry refetches favorites so the hit shows (KLR-16)
+    failOrgFavorites = true;
     renderSearchView(createNav("view=starred"));
     const searchInputErr = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInputErr, { target: { value: "tai lieu" } });
@@ -1203,6 +1294,10 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     const alertState = await screen.findByRole("alert");
     expect(within(alertState).getByText(t("documents.library.error_title"))).toBeInTheDocument();
     expect(screen.queryByText(t("documents.home.search.no_results_title", { query: "tai lieu" }))).toBeNull();
+
+    failOrgFavorites = false;
+    fireEvent.click(within(alertState).getByRole("button", { name: t("documents.library.retry") }));
+    expect(await screen.findByText("Tài liệu sao")).toBeInTheDocument();
   });
 
   it("hides the Tài liệu section when only folders match a search query, shows the root path line on root hits, and renders the Tổ chức share-scope badge on search hits (KLR-4, KLR-7, KLR-10, KLV-3)", async () => {
