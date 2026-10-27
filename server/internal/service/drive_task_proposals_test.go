@@ -909,8 +909,10 @@ func TestDriveTasksCreatedFromDocumentProvenanceAndPrivacy(t *testing.T) {
 	}
 	e.fileSvc.SetTaskAccessPolicy(DriveTaskAccessPolicy{})
 
-	// 4. Deleting taskA via TaskService.Delete removes it from tasks_created and task_creations;
-	// deleting taskB too drops the empty group and resets count to 0.
+	// 4. Trashing taskA via TaskService.Delete hides it from tasks_created,
+	// task_creations, prior_creations, ListMine, and ListForTask; trashing taskB
+	// too drops the empty group and resets count to 0; Restore brings them back;
+	// Purge removes them permanently.
 	if err := e.taskSvc.Delete(ctx, e.owner.ID, taskA); err != nil {
 		t.Fatalf("Delete(taskA): %v", err)
 	}
@@ -918,8 +920,17 @@ func TestDriveTasksCreatedFromDocumentProvenanceAndPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if afterDelA.TasksCreated.Count != 1 || len(afterDelA.TaskCreations) != 1 || len(afterDelA.TaskCreations[0].Tasks) != 1 {
-		t.Fatalf("after Delete(taskA): summary=%+v groups=%+v, want count=1 and 1 task", afterDelA.TasksCreated, afterDelA.TaskCreations)
+	if afterDelA.TasksCreated.Count != 1 || len(afterDelA.TaskCreations) != 1 || len(afterDelA.TaskCreations[0].Tasks) != 1 || afterDelA.TaskCreations[0].Tasks[0].TaskID != taskB {
+		t.Fatalf("after Delete(taskA): summary=%+v groups=%+v, want count=1 and [taskB]", afterDelA.TasksCreated, afterDelA.TaskCreations)
+	}
+	if mineAfterDelA, merr := e.fileSvc.ListMine(ctx, Human(e.owner.ID), e.wsA.ID, ListDriveFilesFilter{}); merr != nil || len(mineAfterDelA.Files) != 1 || mineAfterDelA.Files[0].TasksCreated.Count != 1 {
+		t.Fatalf("ListMine after Delete(taskA) = %+v, err=%v, want count=1", mineAfterDelA, merr)
+	}
+	if cardsAfterDelA, cerr := e.fileSvc.ListForTask(ctx, Human(e.owner.ID), taskB); cerr != nil || len(cardsAfterDelA) != 1 || cardsAfterDelA[0].TasksCreated.Count != 1 {
+		t.Fatalf("ListForTask(taskB) after Delete(taskA) = %+v, err=%v, want count=1", cardsAfterDelA, cerr)
+	}
+	if propAfterDelA, perr := propSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, prop2.ID); perr != nil || propAfterDelA.TasksCreated.Count != 1 || len(propAfterDelA.PriorCreations) != 1 || len(propAfterDelA.PriorCreations[0].Tasks) != 1 {
+		t.Fatalf("Get(prop2) after Delete(taskA) = %+v / %+v, err=%v, want count=1", propAfterDelA.TasksCreated, propAfterDelA.PriorCreations, perr)
 	}
 	if err := e.taskSvc.Delete(ctx, e.owner.ID, taskB); err != nil {
 		t.Fatalf("Delete(taskB): %v", err)
@@ -928,10 +939,52 @@ func TestDriveTasksCreatedFromDocumentProvenanceAndPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if afterDelBoth.TasksCreated.Count != 0 || len(afterDelBoth.TaskCreations) != 0 {
-		t.Fatalf("after Delete(taskB): summary=%+v groups=%+v, want count=0 and 0 groups", afterDelBoth.TasksCreated, afterDelBoth.TaskCreations)
+	if afterDelBoth.TasksCreated.Count != 0 || len(afterDelBoth.TaskCreations) != 0 || afterDelBoth.UsedInCount != 0 {
+		t.Fatalf("after Delete(taskB): summary=%+v groups=%+v usedIn=%d, want count=0 and 0 groups", afterDelBoth.TasksCreated, afterDelBoth.TaskCreations, afterDelBoth.UsedInCount)
+	}
+	if propAfterDelBoth, perr := propSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, prop2.ID); perr != nil || propAfterDelBoth.TasksCreated.Count != 0 || len(propAfterDelBoth.PriorCreations) != 0 {
+		t.Fatalf("Get(prop2) after Delete(taskB) = %+v / %+v, err=%v, want count=0", propAfterDelBoth.TasksCreated, propAfterDelBoth.PriorCreations, perr)
 	}
 
+	// Restore brings taskA and taskB back into tasks_created, task_creations, prior_creations, ListMine, and ListForTask.
+	if _, err := e.taskSvc.Restore(ctx, Human(e.owner.ID), taskA); err != nil {
+		t.Fatalf("Restore(taskA): %v", err)
+	}
+	if afterRestoreA, gerr := e.fileSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, fileID2); gerr != nil || afterRestoreA.TasksCreated.Count != 1 || len(afterRestoreA.TaskCreations) != 1 || len(afterRestoreA.TaskCreations[0].Tasks) != 1 || afterRestoreA.TaskCreations[0].Tasks[0].TaskID != taskA {
+		t.Fatalf("after Restore(taskA): summary=%+v groups=%+v, err=%v, want count=1 with [taskA]", afterRestoreA.TasksCreated, afterRestoreA.TaskCreations, gerr)
+	}
+	if _, err := e.taskSvc.Restore(ctx, Human(e.owner.ID), taskB); err != nil {
+		t.Fatalf("Restore(taskB): %v", err)
+	}
+	afterRestoreBoth, err := e.fileSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, fileID2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterRestoreBoth.TasksCreated.Count != 2 || len(afterRestoreBoth.TaskCreations) != 1 || len(afterRestoreBoth.TaskCreations[0].Tasks) != 2 || afterRestoreBoth.UsedInCount != 1 {
+		t.Fatalf("after Restore(taskB): summary=%+v groups=%+v usedIn=%d, want count=2, 1 group with 2 tasks, usedIn=1", afterRestoreBoth.TasksCreated, afterRestoreBoth.TaskCreations, afterRestoreBoth.UsedInCount)
+	}
+	if mineAfterRestore, merr := e.fileSvc.ListMine(ctx, Human(e.owner.ID), e.wsA.ID, ListDriveFilesFilter{}); merr != nil || len(mineAfterRestore.Files) != 1 || mineAfterRestore.Files[0].TasksCreated.Count != 2 || mineAfterRestore.Files[0].UsedInCount != 1 {
+		t.Fatalf("ListMine after Restore(taskB) = %+v, err=%v, want count=2 usedIn=1", mineAfterRestore, merr)
+	}
+	if cardsAfterRestore, cerr := e.fileSvc.ListForTask(ctx, Human(e.owner.ID), taskB); cerr != nil || len(cardsAfterRestore) != 1 || cardsAfterRestore[0].TasksCreated.Count != 2 {
+		t.Fatalf("ListForTask(taskB) after Restore(taskB) = %+v, err=%v, want count=2", cardsAfterRestore, cerr)
+	}
+	if propAfterRestore, perr := propSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, prop2.ID); perr != nil || propAfterRestore.TasksCreated.Count != 2 || len(propAfterRestore.PriorCreations) != 1 || len(propAfterRestore.PriorCreations[0].Tasks) != 2 {
+		t.Fatalf("Get(prop2) after Restore(taskB) = %+v / %+v, err=%v, want count=2 and 2 tasks", propAfterRestore.TasksCreated, propAfterRestore.PriorCreations, perr)
+	}
+
+	// Trash and Purge taskA and taskB before the 5-group cap check.
+	for _, tid := range []string{taskA, taskB} {
+		if err := e.taskSvc.Delete(ctx, e.owner.ID, tid); err != nil {
+			t.Fatalf("re-Delete(%s): %v", tid, err)
+		}
+		if err := e.taskSvc.Purge(ctx, Human(e.owner.ID), tid); err != nil {
+			t.Fatalf("Purge(%s): %v", tid, err)
+		}
+	}
+	if afterPurgeBoth, gerr := e.fileSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, fileID2); gerr != nil || afterPurgeBoth.TasksCreated.Count != 0 || len(afterPurgeBoth.TaskCreations) != 0 || afterPurgeBoth.UsedInCount != 0 {
+		t.Fatalf("after Purge(taskA, taskB): summary=%+v groups=%+v usedIn=%d, err=%v, want 0", afterPurgeBoth.TasksCreated, afterPurgeBoth.TaskCreations, afterPurgeBoth.UsedInCount, gerr)
+	}
 	// 5. Verify 5-group cap on task_creations / prior_creations when >5 proposal batches convert.
 	for b := range 6 {
 		pb, perr := propSvc.Propose(ctx, Human(e.owner.ID), e.wsA.ID, fileID2, ProposeDriveTasksInput{})
