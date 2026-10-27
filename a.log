@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^2134b86e0" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=2134b86e085ccdf0579a7c615bbbda8772a5a5e0
+2134b86e0 fix(drive): skip filtered metadata refresh, validate raw folder filter, and document drive_connection_id
+0317952d1 test(drive): cover filtered refresh skip, raw folder validation, and drive_connection_id
+fb938ae06 Merge G5-G7 root into UNI-2221 part C (drive folder filter)
+f2910159b Merge UNI-2244 BE-1+BE-2 (folder contents access, server) into the G5-G7 root
