@@ -1,0 +1,5 @@
+$ node --test scripts/governance.test.mjs scripts/alerts-runbooks.test.mjs scripts/env-example.test.mjs scripts/no-pii-log.test.mjs > /tmp/rb-scripts.log 2>&1; rc=$?; grep -E '^# (pass|fail)|not ok' /tmp/rb-scripts.log | head -20; echo; echo "SCRIPTS_EXIT=$rc"; [ "$rc" -eq 0 ]
+# pass 33
+# fail 0
+
+SCRIPTS_EXIT=0
