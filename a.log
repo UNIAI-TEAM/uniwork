@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^c73362359" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=c73362359ded7d18cced3183709d25255f1813d7
+c73362359 Merge the G5-G7 root aaa9b07fa into UNI-2182
+0a46d279d Merge B5 head 944d2e91d into UNI-2182
+a84e0e6b0 test(drive): expect 404 after the proposal row is purged (R11)
+aaa9b07fa Merge UNI-2198 B4 flip (Drive e2e on real B4 routes) into the G5-G7 root
