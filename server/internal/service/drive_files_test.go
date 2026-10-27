@@ -1068,9 +1068,11 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 	if err != nil || len(cards) != 1 || cards[0].ExternalFileID != "ext-tc-ok" {
 		t.Fatalf("ListForTask on created task = %+v, err=%v", cards, err)
 	}
-	// 3 (F09). Single task deletion and batch task deletion both remove the task's
-	// drive_file_task_links rows in the same transaction, retain drive_files and
-	// drive_file_access rows, and emit drive_file.updated for affected files.
+	// 3 (F09 + UNI-2171 trash). Single and batch task deletion (Trash) keep the
+	// task's drive_file_task_links rows so Restore brings them back with no relink,
+	// while Drive reads (Get, ListMine, ListForTask, and the task-link visibility
+	// gate) skip trashed tasks; only Purge removes drive_file_task_links and emits
+	// drive_file.updated while retaining drive_files and drive_file_access rows.
 	driveFileID := cards[0].ID
 	batchTask1, err := env.taskSvc.Create(ctx, Human(env.owner.ID), env.wsA.ID, CreateTaskInput{
 		Title:      "Batch Delete Drive 1",
@@ -1086,21 +1088,83 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create batchTask2: %v", err)
 	}
+	if peerDetail, perr := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, driveFileID); perr != nil || peerDetail.UsedInCount != 3 {
+		t.Fatalf("peer Get with 3 live tasks = %+v, err=%v, want UsedInCount=3", peerDetail, perr)
+	}
 	var updatedOutboxBefore int
 	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload::jsonb->>'drive_file_id' = $1`, driveFileID).Scan(&updatedOutboxBefore)
 	if err := env.taskSvc.Delete(ctx, env.owner.ID, createdTask.ID); err != nil {
 		t.Fatalf("Delete createdTask: %v", err)
 	}
 	var singleLinkCount int
-	if err := env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE task_id = $1`, createdTask.ID).Scan(&singleLinkCount); err != nil || singleLinkCount != 0 {
-		t.Fatalf("singleLinkCount after Delete = %d, err=%v, want 0", singleLinkCount, err)
+	if err := env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE task_id = $1`, createdTask.ID).Scan(&singleLinkCount); err != nil || singleLinkCount != 1 {
+		t.Fatalf("singleLinkCount after Delete (trash) = %d, err=%v, want 1", singleLinkCount, err)
+	}
+	if _, err := env.fileSvc.ListForTask(ctx, Human(env.owner.ID), createdTask.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ListForTask on trashed createdTask = %v, want ErrNotFound", err)
+	}
+	if afterSingleTrash, gerr := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, driveFileID); gerr != nil || afterSingleTrash.UsedInCount != 2 || len(afterSingleTrash.UsedInTasks) != 2 {
+		t.Fatalf("Get after single task trash = %+v, err=%v, want UsedInCount=2", afterSingleTrash, gerr)
 	}
 	if n, err := env.taskSvc.BatchDeleteTasks(ctx, Human(env.owner.ID), env.wsA.ID, []string{batchTask1.ID, batchTask2.ID}); err != nil || n != 2 {
 		t.Fatalf("BatchDeleteTasks = %d, err=%v, want 2", n, err)
 	}
 	var totalLinkCount int
+	if err := env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE drive_file_id = $1`, driveFileID).Scan(&totalLinkCount); err != nil || totalLinkCount != 3 {
+		t.Fatalf("totalLinkCount after single+batch trash = %d, err=%v, want 3", totalLinkCount, err)
+	}
+	trashedDetail, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, driveFileID)
+	if err != nil || trashedDetail.UsedInCount != 0 || len(trashedDetail.UsedInTasks) != 0 {
+		t.Fatalf("Get while all linked tasks trashed = %+v, err=%v, want UsedInCount=0", trashedDetail, err)
+	}
+	trashedMine, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{})
+	if err != nil || len(trashedMine.Files) != 1 || trashedMine.Files[0].UsedInCount != 0 || len(trashedMine.Files[0].UsedInTasks) != 0 {
+		t.Fatalf("ListMine while all linked tasks trashed = %+v, err=%v, want UsedInCount=0", trashedMine, err)
+	}
+	if _, perr := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, driveFileID); !errors.Is(perr, ErrNotFound) {
+		t.Fatalf("peer Get while all linked tasks trashed = %v, want ErrNotFound", perr)
+	}
+
+	// Restore brings the tasks and their Drive links back with no relink.
+	if _, err := env.taskSvc.Restore(ctx, Human(env.owner.ID), createdTask.ID); err != nil {
+		t.Fatalf("Restore createdTask: %v", err)
+	}
+	restoredCards, err := env.fileSvc.ListForTask(ctx, Human(env.owner.ID), createdTask.ID)
+	if err != nil || len(restoredCards) != 1 || restoredCards[0].ID != driveFileID {
+		t.Fatalf("ListForTask after Restore(createdTask) = %+v, err=%v", restoredCards, err)
+	}
+	if peerRestored, perr := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, driveFileID); perr != nil || peerRestored.UsedInCount != 1 || peerRestored.UsedInTasks[0].TaskID != createdTask.ID {
+		t.Fatalf("peer Get after Restore(createdTask) = %+v, err=%v, want UsedInCount=1", peerRestored, perr)
+	}
+	if _, err := env.taskSvc.Restore(ctx, Human(env.owner.ID), batchTask1.ID); err != nil {
+		t.Fatalf("Restore batchTask1 batch: %v", err)
+	}
+	restoredMine, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{})
+	if err != nil || len(restoredMine.Files) != 1 || restoredMine.Files[0].UsedInCount != 3 || len(restoredMine.Files[0].UsedInTasks) != 3 {
+		t.Fatalf("ListMine after Restore all = %+v, err=%v, want UsedInCount=3", restoredMine, err)
+	}
+
+	// Trash again and Purge: Purge deletes drive_file_task_links and emits drive_file.updated.
+	if err := env.taskSvc.Delete(ctx, env.owner.ID, createdTask.ID); err != nil {
+		t.Fatalf("re-Delete createdTask: %v", err)
+	}
+	if err := env.taskSvc.Purge(ctx, Human(env.owner.ID), createdTask.ID); err != nil {
+		t.Fatalf("Purge createdTask: %v", err)
+	}
+	if err := env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE task_id = $1`, createdTask.ID).Scan(&singleLinkCount); err != nil || singleLinkCount != 0 {
+		t.Fatalf("singleLinkCount after Purge = %d, err=%v, want 0", singleLinkCount, err)
+	}
+	if n, err := env.taskSvc.BatchDeleteTasks(ctx, Human(env.owner.ID), env.wsA.ID, []string{batchTask1.ID, batchTask2.ID}); err != nil || n != 2 {
+		t.Fatalf("re-BatchDeleteTasks = %d, err=%v, want 2", n, err)
+	}
+	if err := env.taskSvc.Purge(ctx, Human(env.owner.ID), batchTask1.ID); err != nil {
+		t.Fatalf("Purge batchTask1: %v", err)
+	}
+	if err := env.taskSvc.Purge(ctx, Human(env.owner.ID), batchTask2.ID); err != nil {
+		t.Fatalf("Purge batchTask2: %v", err)
+	}
 	if err := env.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE drive_file_id = $1`, driveFileID).Scan(&totalLinkCount); err != nil || totalLinkCount != 0 {
-		t.Fatalf("totalLinkCount after single+batch delete = %d, err=%v, want 0", totalLinkCount, err)
+		t.Fatalf("totalLinkCount after Purge all = %d, err=%v, want 0", totalLinkCount, err)
 	}
 	var updatedOutboxAfter int
 	_ = env.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload::jsonb->>'drive_file_id' = $1`, driveFileID).Scan(&updatedOutboxAfter)
@@ -1109,7 +1173,7 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 	}
 	retainedDetail, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, driveFileID)
 	if err != nil || retainedDetail.UsedInCount != 0 || retainedDetail.ViewerAccess != DriveViewerAccessGranted {
-		t.Fatalf("retainedDetail after task deletes = %+v, err=%v", retainedDetail, err)
+		t.Fatalf("retainedDetail after task purges = %+v, err=%v", retainedDetail, err)
 	}
 
 	// Verify flag off returns 404 feature_disabled.
