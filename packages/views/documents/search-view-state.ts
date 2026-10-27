@@ -53,7 +53,9 @@ export interface BuildSearchViewStateInput {
   starredIds: ReadonlySet<string>;
   starredLoading?: boolean;
   starredFailure?: "error" | "permission" | null;
+  starredRefetch?: () => void;
   recentAutoPaging?: boolean;
+  recentFetchFailed?: boolean;
   shelvedBy: string | null;
   tree: DocumentTreeNode[];
   myFolderId: string | null;
@@ -126,7 +128,9 @@ export function buildSearchViewState({
   starredIds,
   starredLoading = false,
   starredFailure = null,
+  starredRefetch,
   recentAutoPaging = false,
+  recentFetchFailed = false,
   shelvedBy,
   tree,
   myFolderId,
@@ -192,7 +196,7 @@ export function buildSearchViewState({
       folders: [],
       docById,
       loading,
-      failure: libraryFailure,
+      failure: libraryFailure ?? (rows.length === 0 && recentFetchFailed ? "error" : null),
       hasMore: !recentAutoPaging && libraryHasMore,
       loadingMore: libraryLoadingMore,
       loadMore: libraryLoadMore,
@@ -283,7 +287,7 @@ export function buildSearchViewState({
     hasMore: search.hasMore,
     loadingMore: search.loadingMore,
     loadMore: search.loadMore,
-    refetch: starredView && starredFailure && !searchFailure ? libraryRefetch : search.retry,
+    refetch: starredView && starredFailure && !searchFailure ? (starredRefetch ?? libraryRefetch) : search.retry,
     query: search.committedQuery,
     onClearSearch,
     searchPath,
@@ -298,7 +302,9 @@ export interface UseDocumentsSearchViewLibraryInput {
   starredIds: ReadonlySet<string>;
   starredLoading: boolean;
   starredFailure: "error" | "permission" | null;
+  refetchFavorites: () => void;
   recentPageCount: number;
+  recentFetchFailed: boolean;
   shelvedBy: string | null;
   activity: ActivityFilter;
   editor: string;
@@ -347,18 +353,20 @@ export function useDocumentsSearchView({
     sharedByMe: viewKind === "sharedByMe",
   });
   const searching = search.active && viewKind !== "archived";
+  const { loadMore: libraryLoadMore, loadingMore: libraryLoadingMore } = library.state;
   const recentAutoPaging =
     searching &&
     viewKind === "recent" &&
     library.state.hasMore &&
     !library.state.failure &&
+    !library.recentFetchFailed &&
     library.recentPageCount > 0 &&
     library.recentPageCount < RECENT_SEARCH_AUTO_PAGE_CAP;
   useEffect(() => {
-    if (recentAutoPaging && !library.state.loadingMore) {
-      library.state.loadMore();
+    if (recentAutoPaging && !libraryLoadingMore) {
+      libraryLoadMore();
     }
-  }, [recentAutoPaging, library.state]);
+  }, [recentAutoPaging, libraryLoadingMore, libraryLoadMore]);
 
   const clearAndFocus = () => {
     search.clear();
@@ -378,7 +386,12 @@ export function useDocumentsSearchView({
     starredIds: library.starredIds,
     starredLoading: library.starredLoading,
     starredFailure: library.starredFailure,
+    starredRefetch: () => {
+      library.refetchFavorites();
+      library.state.refetch();
+    },
     recentAutoPaging,
+    recentFetchFailed: library.recentFetchFailed,
     shelvedBy: library.shelvedBy,
     tree: library.tree,
     myFolderId,

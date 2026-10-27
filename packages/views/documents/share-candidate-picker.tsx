@@ -53,8 +53,6 @@ export function SharePrincipalIcon({
   return <Icon aria-hidden className={className} />;
 }
 
-export { foldSearchText };
-
 /**
  * The local directory the picker falls back to when the candidates endpoint is
  * unavailable. It is only a fallback: it cannot know who the server would

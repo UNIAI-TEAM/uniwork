@@ -410,6 +410,8 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
     starredLoading: favorites.isPending || state.loading,
     starredFailure: favorites.isError ? failureOf(favorites.error) : state.failure,
     recentPageCount: recentQuery.data?.pages.length ?? 0,
+    recentFetchFailed: recentQuery.isError,
+    refetchFavorites: () => void favorites.refetch(),
     sourcesAvailable,
     editor,
     setEditor,
