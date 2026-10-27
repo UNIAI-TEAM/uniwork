@@ -220,23 +220,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     },
   });
   const {
-    search,
-    searching,
-    searchState,
-    state,
-    activeDocById,
-    activeRows,
-    metaFiltered,
-    filteredBy,
-    tableRows,
-    listScreen,
-    groupScreen,
-    groups,
-    subfolders,
-    listLoading,
-    rootEmpty,
-    cards,
-    hideDocuments,
+    search, searching, searchState, state, activeDocById, activeRows, metaFiltered, filteredBy, tableRows,
+    listScreen, groupScreen, groups, subfolders, listLoading, rootEmpty, cards, hideDocuments,
   } = searchView;
   const fileCommands = useLibraryRowFileCommands({
     wsId, orgId, documentHref: wsPaths.document, onOpen, docById: activeDocById, desktopOpen,
