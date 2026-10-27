@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^56a252986" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=56a252986e9fa0f3fe2880e8859f7e13c0bee85d
+56a252986 fix(notifications): align document_shared folder batch title wording and untitled fallback
+badffc8be fix(documents): render batch notification count, map folder lock timeout to 409 and scope to_private warning
+7c966fa24 test(documents): add failing tests for folder batch notification title and lock timeout mapping
+28a0f8f57 Merge G5-G7 root into UNI-2244 BE (folder bulk access)
