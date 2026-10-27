@@ -394,4 +394,47 @@ func TestDriveFileDTODriveFolderShape(t *testing.T) {
 	if _, hasOldKey := mapNamedSDO["updated_files"]; hasOldKey {
 		t.Fatalf("DriveFolderNamedSDO must not expose updated_files: %+v", mapNamedSDO)
 	}
+
+	// 6. DriveFileListSDO marshals top-level drive_folder_id as null when nil,
+	// "none" when filtering parentless files, and "<id>" when filtering by folder id.
+	listUnfiltered := sdo.DriveFileListSDO{Files: []sdo.DriveFileDTO{}, TotalCount: 0}
+	rawUnfiltered, err := json.Marshal(listUnfiltered)
+	if err != nil {
+		t.Fatalf("marshal listUnfiltered: %v", err)
+	}
+	var mapUnfiltered map[string]any
+	if err := json.Unmarshal(rawUnfiltered, &mapUnfiltered); err != nil {
+		t.Fatalf("unmarshal listUnfiltered: %v", err)
+	}
+	if dfIDVal, dfIDExists := mapUnfiltered["drive_folder_id"]; !dfIDExists || dfIDVal != nil {
+		t.Fatalf("listUnfiltered drive_folder_id = (%v, exists=%v), want (nil, true)", dfIDVal, dfIDExists)
+	}
+
+	noneFilter := "none"
+	listNone := sdo.DriveFileListSDO{Files: []sdo.DriveFileDTO{}, TotalCount: 1, DriveFolderID: &noneFilter}
+	rawNone, err := json.Marshal(listNone)
+	if err != nil {
+		t.Fatalf("marshal listNone: %v", err)
+	}
+	var mapNone map[string]any
+	if err := json.Unmarshal(rawNone, &mapNone); err != nil {
+		t.Fatalf("unmarshal listNone: %v", err)
+	}
+	if mapNone["drive_folder_id"] != "none" {
+		t.Fatalf("listNone drive_folder_id = %v, want none", mapNone["drive_folder_id"])
+	}
+
+	idFilter := "1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8"
+	listID := sdo.DriveFileListSDO{Files: []sdo.DriveFileDTO{}, TotalCount: 2, DriveFolderID: &idFilter}
+	rawID, err := json.Marshal(listID)
+	if err != nil {
+		t.Fatalf("marshal listID: %v", err)
+	}
+	var mapID map[string]any
+	if err := json.Unmarshal(rawID, &mapID); err != nil {
+		t.Fatalf("unmarshal listID: %v", err)
+	}
+	if mapID["drive_folder_id"] != idFilter {
+		t.Fatalf("listID drive_folder_id = %v, want %s", mapID["drive_folder_id"], idFilter)
+	}
 }

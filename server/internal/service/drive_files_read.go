@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -11,6 +12,21 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+const driveFolderFilterNone = "none"
+
+var driveFolderFilterIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{10,256}$`)
+
+func parseDriveFolderFilter(raw string) (pgtype.Text, *string, error) {
+	if raw == "" {
+		return pgtype.Text{}, nil, nil
+	}
+	if raw != driveFolderFilterNone && !driveFolderFilterIDPattern.MatchString(raw) {
+		return pgtype.Text{}, nil, Invalid("drive_folder_id không hợp lệ")
+	}
+	echo := raw
+	return pgtype.Text{String: raw, Valid: true}, &echo, nil
+}
 
 // ListMine returns the paginated list of active Drive files in workspaceID for
 // which the caller has a row in drive_file_access
@@ -51,6 +67,11 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 		cursorID = pgtype.Text{String: id, Valid: true}
 	}
 
+	folderFilter, appliedFolderID, err := parseDriveFolderFilter(filter.DriveFolderID)
+	if err != nil {
+		return DriveFileListResult{}, err
+	}
+
 	limit := filter.Limit
 	if limit <= 0 {
 		limit = driveDefaultListLimit
@@ -64,6 +85,7 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 		WorkspaceID:    ws.ID,
 		ViewerUserID:   actor.ID,
 		ConnectionID:   connIDFilter,
+		FolderFilter:   folderFilter,
 	})
 	if err != nil {
 		return DriveFileListResult{}, err
@@ -74,6 +96,7 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 		WorkspaceID:     ws.ID,
 		ViewerUserID:    actor.ID,
 		ConnectionID:    connIDFilter,
+		FolderFilter:    folderFilter,
 		CursorCreatedAt: cursorCreatedAt,
 		CursorID:        cursorID,
 		LimitN:          limit + 1,
@@ -90,11 +113,14 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 		rows = rows[:limit]
 	}
 
-	// Opportunistically refresh stale metadata (> 10 min) using the caller's own connection.
-	parentCache := make(map[string]string, len(rows))
-	for i := range rows {
-		if refreshed, ok := s.maybeRefreshEnrichedRow(ctx, actor.ID, ws, rows[i], parentCache); ok {
-			rows[i] = refreshed
+	// Opportunistically refresh stale metadata (> 10 min) using the caller's own connection
+	// on unfiltered lists only; folder-filtered lists keep the stored parent population.
+	if !folderFilter.Valid {
+		parentCache := make(map[string]string, len(rows))
+		for i := range rows {
+			if refreshed, ok := s.maybeRefreshEnrichedRow(ctx, actor.ID, ws, rows[i], parentCache); ok {
+				rows[i] = refreshed
+			}
 		}
 	}
 
@@ -127,9 +153,10 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 	}
 
 	return DriveFileListResult{
-		Files:      files,
-		TotalCount: totalCount,
-		NextCursor: nextCursor,
+		Files:         files,
+		TotalCount:    totalCount,
+		NextCursor:    nextCursor,
+		DriveFolderID: appliedFolderID,
 	}, nil
 }
 
