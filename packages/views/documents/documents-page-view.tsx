@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { CircleAlert, FolderPlus, FolderTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -50,6 +50,8 @@ import { useLibraryRowFileCommands } from "./use-library-row-file-commands";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
+import { useFocusClaim } from "./use-focus-claim";
+import { useTemplatesDrop } from "./use-template-upload";
 import { useTrashActions } from "./use-trash-actions";
 import { useShelvedActions } from "./use-shelved-actions";
 import { buildDocumentsViewUrl, viewFromSearchParams } from "./documents-view-url";
@@ -95,18 +97,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const [types, setTypes] = useState<DocumentTypeFilter[]>([]);
   const [navOpen, setNavOpen] = useState(false);
 
-  // The trashed document a notification pointed at is scrolled to and focused once per id, the first time its row shows.
+  // The trashed document a notification pointed at (see useFocusClaim).
   const focusId = searchParams.get("focus");
-  const appliedFocus = useRef<string | null>(null);
-  // A row present on the first render takes the keyboard; one that only comes in after the user pressed Load more for that focus id is scrolled to and highlighted, never focused.
-  const pagedByUser = useRef<string | null>(null);
-  const claimFocus = useCallback((documentId: string) => {
-    if (appliedFocus.current === documentId) return null;
-    appliedFocus.current = documentId;
-    const mode = pagedByUser.current === documentId ? "reveal" : "focus";
-    pagedByUser.current = null;
-    return mode;
-  }, []);
+  const { claimFocus, pagedByUser } = useFocusClaim();
 
   const urlFolderId = searchParams.get("folder") || null;
   const folderId = view.kind === "home" ? urlFolderId : null;
@@ -200,6 +193,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onOpenFolder: (id) => goHome({ kind: "home" }, id),
     officeHome,
   });
+
+  // On Mẫu văn bản a drop makes templates (never My Folder) and the zone is this one, not the page's.
+  const templatesDrop = useTemplatesDrop(wsId, enabled && canCreate && view.kind === "templates");
+  const drop = view.kind === "templates" ? { zoneProps: templatesDrop.zoneProps, active: templatesDrop.active } : { zoneProps: uploads.zoneProps, active: uploads.dropActive };
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, folderRow: folderDoc });
   const fileCommands = useLibraryRowFileCommands({ wsId, documentHref: wsPaths.document });
@@ -422,7 +419,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
           <section
             className="relative min-h-0 min-w-0 flex-1 overflow-y-auto"
             aria-label={t("documents.page.title")}
-            {...uploads.zoneProps}
+            {...drop.zoneProps}
           >
             {homeView ? (
               <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6">
@@ -552,7 +549,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 {libraryList}
               </div>
             )}
-            {uploads.dropActive ? <DocumentsDropOverlay /> : null}
+            {drop.active ? <DocumentsDropOverlay label={view.kind === "templates" ? t("documents.templates.drop_hint") : undefined} /> : null}
           </section>
         </div>
       )}

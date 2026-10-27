@@ -13661,7 +13661,9 @@
       },
       "uploaded": "Đã thêm {{title}} vào Mẫu văn bản",
       "upload_failed": "Không tải mẫu lên được. Chưa có gì thay đổi.",
-      "too_large": "Tệp lớn hơn {{size}} nên không tải thẳng vào Mẫu văn bản được. Hãy tải vào một thư mục rồi đánh dấu là mẫu."
+      "too_large": "Tệp lớn hơn {{size}} nên không tải thẳng vào Mẫu văn bản được. Hãy tải vào một thư mục rồi đánh dấu là mẫu.",
+      "no_folders": "Mẫu văn bản chỉ nhận tệp, không nhận thư mục.",
+      "drop_hint": "Thả tệp để thêm vào Mẫu văn bản"
     },
     "scope": {
       "private": "Riêng tư",

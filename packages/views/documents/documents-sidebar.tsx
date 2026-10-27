@@ -182,7 +182,7 @@ export function DocumentsSidebar({
       <NavItem icon={DOCUMENTS_NAV_ICONS.shared} label={t("documents.home.sidebar.shared")} current={isView("shared")} onClick={() => onView({ kind: "shared" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.sharedByMe} label={t("documents.home.sidebar.shared_by_me")} current={isView("sharedByMe")} onClick={() => onView({ kind: "sharedByMe" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.templates} label={t("documents.home.sidebar.templates")} current={isView("templates")} onClick={() => onView({ kind: "templates" })} />
-      <NavItem icon={DOCUMENTS_NAV_ICONS.shelved}label={t("documents.home.sidebar.shelved")} current={isView("shelved")} onClick={() => onView({ kind: "shelved" })} />
+      <NavItem icon={DOCUMENTS_NAV_ICONS.shelved} label={t("documents.home.sidebar.shelved")} current={isView("shelved")} onClick={() => onView({ kind: "shelved" })} />
       <NavItem icon={DOCUMENTS_NAV_ICONS.trash} label={t("documents.home.sidebar.trash")} current={isView("archived")} onClick={() => onView({ kind: "archived" })} />
       {accessReportHref ? (
         <NavItem icon={DOCUMENTS_NAV_ICONS.accessReport} label={t("documents.accessReport.title")} current={false} href={accessReportHref} />

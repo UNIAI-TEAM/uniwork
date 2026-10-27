@@ -3,17 +3,13 @@
 import { useRef, type ChangeEvent } from "react";
 import { Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { chunkedUploadThreshold } from "@uniwork/core/documents/chunked-upload";
-import { useCreateDocumentFile, useDocumentLimits } from "@uniwork/core/documents/hooks";
-import { DOCUMENT_UPLOAD_ACCEPT, formatDocumentSizeMB } from "@uniwork/core/documents/limits";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import { rowFormat, type RowGroup } from "./library-rows";
 import type { useDocumentsLibrary } from "./use-documents-library";
+import { useTemplateUpload } from "./use-template-upload";
 
 type TemplateGroup = "word" | "excel" | "powerpoint" | "other";
 
@@ -50,10 +46,9 @@ export interface DocumentsTemplatesViewProps {
  * is refused here and goes through a folder instead.
  */
 export function DocumentsTemplatesView({ library, handlers, canUpload, wsId }: DocumentsTemplatesViewProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const state = library.state;
-  const limits = useDocumentLimits({ enabled: canUpload });
-  const create = useCreateDocumentFile(wsId);
+  const { upload, pending, accept } = useTemplateUpload(wsId, canUpload);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const buckets = new Map<TemplateGroup, RowGroup["rows"]>();
@@ -66,39 +61,12 @@ export function DocumentsTemplatesView({ library, handlers, canUpload, wsId }: D
     return rows ? [{ key, rows }] : [];
   });
 
-  const upload = async (file: File) => {
-    const threshold = chunkedUploadThreshold(limits);
-    if (threshold !== null && file.size > threshold) {
-      toast.error(t("documents.templates.too_large", { size: formatDocumentSizeMB(threshold, i18n.language) }));
-      return;
-    }
-    const invalid = documentUploadValidationMessage(file, limits.upload_max_bytes, t, i18n.language);
-    if (invalid) {
-      toast.error(invalid);
-      return;
-    }
-    try {
-      const doc = await create.mutateAsync({ file, meta: { visibility: "workspace", template: true } });
-      toast.success(t("documents.templates.uploaded", { title: doc.title }));
-    } catch (error) {
-      toast.error(
-        documentErrorMessage(error, t, "documents.templates.upload_failed", {
-          locale: i18n.language,
-          file,
-          maxBytes: limits.upload_max_bytes,
-        }),
-      );
-    }
-  };
   const onPick = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     // Clearing the value lets the same file be picked again after a failure.
     event.target.value = "";
-    if (file && !create.isPending) void upload(file);
+    if (file && !pending) void upload(file);
   };
-  const accept = limits.upload_extensions?.length
-    ? limits.upload_extensions.map((extension) => `.${extension}`).join(",")
-    : DOCUMENT_UPLOAD_ACCEPT;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
@@ -109,12 +77,12 @@ export function DocumentsTemplatesView({ library, handlers, canUpload, wsId }: D
             type="button"
             variant="outline"
             size="sm"
-            aria-disabled={create.isPending || undefined}
+            aria-disabled={pending || undefined}
             onClick={() => {
-              if (!create.isPending) inputRef.current?.click();
+              if (!pending) inputRef.current?.click();
             }}
           >
-            {create.isPending ? <Spinner aria-hidden role="presentation" /> : <Upload aria-hidden className="size-3.5" />}
+            {pending ? <Spinner aria-hidden role="presentation" /> : <Upload aria-hidden className="size-3.5" />}
             {t("documents.templates.upload")}
           </Button>
         </div>
