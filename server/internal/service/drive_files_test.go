@@ -1432,3 +1432,368 @@ func TestDriveFakeProviderLinkAndCreateTaskWithDriveFiles(t *testing.T) {
 		t.Fatalf("CreateTask stored Drive file = %+v", taskFile)
 	}
 }
+
+// TestDriveFolderParentAndNameFolder (UNI-2221) verifies:
+//   - files.get metadata parsing for no parent -> drive_folder = nil,
+//     parent id with 404 folder name -> drive_folder = {id, name: nil},
+//     and parent id with 200 folder name -> drive_folder = {id, name: "..."}
+//   - POST /workspaces/{workspaceID}/drive-folders/{driveFolderID}/name updates
+//     drive_folder_name on all active files in the caller's workspace with that
+//     parent id, never touches another workspace's rows, refuses 403/404 from
+//     Google without altering stored state, refuses another user's connection
+//     with 404, and writes drive_folder.named audit + drive_file.updated outbox
+//   - when another member's metadata refresh gets 404 on a folder that was
+//     already named in the workspace, the stored drive_folder_name is kept;
+//     when a refresh gets 200 with a new folder name, it updates the name.
+func TestDriveFolderParentAndNameFolder(t *testing.T) {
+	env := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+	wsBView, err := env.ws.CreateInOrg(ctx, env.owner.ID, env.org.ID, "Drive Folder WS B", "drive-fldr-wsb-"+strings.ToLower(util.NewID()[:6]))
+	if err != nil {
+		t.Fatalf("create wsB: %v", err)
+	}
+	wsB := wsBView.Workspace
+	connOwnerA := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-owner-fldr", "owner-fldr@example.com")
+	connPeerA := env.connectAccount(t, env.peer.ID, env.wsA.ID, "sub-peer-fldr", "peer-fldr@example.com")
+
+	// 1. Metadata parsing: no parent, parent with 404 folder, parent with 200 folder.
+	env.googleSrv.SetFile("ext-no-parent", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "ext-no-parent",
+			Name:     "Root Doc",
+			MimeType: DriveMimeGoogleDoc,
+		},
+	})
+	env.googleSrv.SetFile("ext-unpicked-folder-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "ext-unpicked-folder-1",
+			Name:     "Spec 1",
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-unpicked"},
+		},
+	})
+	env.googleSrv.SetFile("ext-unpicked-folder-2", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "ext-unpicked-folder-2",
+			Name:     "Spec 2",
+			MimeType: DriveMimeGoogleSheet,
+			Parents:  []string{"fld-unpicked"},
+		},
+	})
+	env.googleSrv.SetFile("fld-picked", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-picked",
+			Name:     "Picked Folder",
+			MimeType: DriveMimeGoogleFolder,
+		},
+	})
+	env.googleSrv.SetFile("ext-picked-folder-file", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "ext-picked-folder-file",
+			Name:     "Notes In Picked Folder",
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-picked"},
+		},
+	})
+
+	linked, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID: connOwnerA.ID,
+		ExternalFileIDs: []string{
+			"ext-no-parent",
+			"ext-unpicked-folder-1",
+			"ext-unpicked-folder-2",
+			"ext-picked-folder-file",
+		},
+	})
+	if err != nil || len(linked) != 4 {
+		t.Fatalf("Link 4 files = %+v, err=%v", linked, err)
+	}
+
+	fileNoParent, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, linked[0].File.ID)
+	if err != nil {
+		t.Fatalf("Get fileNoParent: %v", err)
+	}
+	if fileNoParent.DriveFolder != nil {
+		t.Fatalf("fileNoParent.DriveFolder = %+v, want nil", fileNoParent.DriveFolder)
+	}
+
+	fileUnpicked1, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, linked[1].File.ID)
+	if err != nil {
+		t.Fatalf("Get fileUnpicked1: %v", err)
+	}
+	if fileUnpicked1.DriveFolder == nil || fileUnpicked1.DriveFolder.ID != "fld-unpicked" || fileUnpicked1.DriveFolder.Name != nil {
+		t.Fatalf("fileUnpicked1.DriveFolder = %+v, want {ID:fld-unpicked, Name:nil}", fileUnpicked1.DriveFolder)
+	}
+
+	filePicked, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, linked[3].File.ID)
+	if err != nil {
+		t.Fatalf("Get filePicked: %v", err)
+	}
+	if filePicked.DriveFolder == nil || filePicked.DriveFolder.ID != "fld-picked" || filePicked.DriveFolder.Name == nil || *filePicked.DriveFolder.Name != "Picked Folder" {
+		t.Fatalf("filePicked.DriveFolder = %+v, want {ID:fld-picked, Name:Picked Folder}", filePicked.DriveFolder)
+	}
+
+	// Link a file in wsB with the same parent folder id "fld-unpicked" to verify workspace isolation.
+	linkedWsB, err := env.fileSvc.Link(ctx, Human(env.owner.ID), wsB.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwnerA.ID,
+		ExternalFileIDs: []string{"ext-unpicked-folder-1"},
+	})
+	if err != nil || len(linkedWsB) != 1 || linkedWsB[0].File == nil {
+		t.Fatalf("Link in wsB = %+v, err=%v", linkedWsB, err)
+	}
+
+	// 2. Refusals on NameFolder:
+	// (a) Foreign/another member's connection -> 404 ErrNotFound.
+	if _, err := env.fileSvc.NameFolder(ctx, Human(env.owner.ID), env.wsA.ID, "fld-unpicked", connPeerA.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("NameFolder with peer connection = %v, want ErrNotFound", err)
+	}
+	// (b) Folder still 404 at Google -> 404 drive_file_not_accessible, nothing changed.
+	_, err = env.fileSvc.NameFolder(ctx, Human(env.owner.ID), env.wsA.ID, "fld-unpicked", connOwnerA.ID)
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Status != http.StatusNotFound || ce.Code != "drive_file_not_accessible" {
+		t.Fatalf("NameFolder 404 at Google = %v (ce=%+v), want 404 drive_file_not_accessible", err, ce)
+	}
+	// (c) Folder 403 insufficientFilePermissions at Google -> 403 drive_grant_required, nothing changed.
+	env.googleSrv.SetFile("fld-unpicked", FakeGoogleDriveFile{
+		DefaultError: &FakeGoogleDriveErrorResponse{Status: http.StatusForbidden, Reason: "insufficientFilePermissions"},
+	})
+	_, err = env.fileSvc.NameFolder(ctx, Human(env.owner.ID), env.wsA.ID, "fld-unpicked", connOwnerA.ID)
+	if !errors.As(err, &ce) || ce.Status != http.StatusForbidden || ce.Code != "drive_grant_required" {
+		t.Fatalf("NameFolder 403 at Google = %v (ce=%+v), want 403 drive_grant_required", err, ce)
+	}
+
+	// 3. User picks the folder in Google Picker -> Google now returns 200 with name.
+	env.googleSrv.SetFile("fld-unpicked", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-unpicked",
+			Name:     "Hồ sơ thiết kế Q4",
+			MimeType: DriveMimeGoogleFolder,
+		},
+	})
+	namedRes, err := env.fileSvc.NameFolder(ctx, Human(env.owner.ID), env.wsA.ID, "fld-unpicked", connOwnerA.ID)
+	if err != nil {
+		t.Fatalf("NameFolder 200: %v", err)
+	}
+	if namedRes.UpdatedFiles != 2 || namedRes.DriveFolder.ID != "fld-unpicked" || namedRes.DriveFolder.Name == nil || *namedRes.DriveFolder.Name != "Hồ sơ thiết kế Q4" {
+		t.Fatalf("NameFolder result = %+v, want UpdatedFiles=2 Name=Hồ sơ thiết kế Q4", namedRes)
+	}
+
+	// Both files in wsA now report the folder name, while wsB's file remains unnamed.
+	after1, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, linked[1].File.ID)
+	if err != nil || after1.DriveFolder == nil || after1.DriveFolder.Name == nil || *after1.DriveFolder.Name != "Hồ sơ thiết kế Q4" {
+		t.Fatalf("wsA file 1 after NameFolder = %+v, err=%v", after1.DriveFolder, err)
+	}
+	after2, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, linked[2].File.ID)
+	if err != nil || after2.DriveFolder == nil || after2.DriveFolder.Name == nil || *after2.DriveFolder.Name != "Hồ sơ thiết kế Q4" {
+		t.Fatalf("wsA file 2 after NameFolder = %+v, err=%v", after2.DriveFolder, err)
+	}
+	wsBFile, err := env.fileSvc.Get(ctx, Human(env.owner.ID), wsB.ID, linkedWsB[0].File.ID)
+	if err != nil || wsBFile.DriveFolder == nil || wsBFile.DriveFolder.Name != nil {
+		t.Fatalf("wsB file DriveFolder = %+v (err=%v), want Name=nil (workspace isolated)", wsBFile.DriveFolder, err)
+	}
+
+	// 4. Refresh preservation: peer links ext-unpicked-folder-1 with peer's token,
+	// where peer's token gets 404 on fld-unpicked. The stored name "Hồ sơ thiết kế Q4"
+	// MUST be kept, not wiped to NULL.
+	peerToken := "tok-a-sub-peer-fldr"
+	env.googleSrv.SetFile("fld-unpicked", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-unpicked",
+			Name:     "Hồ sơ thiết kế Q4",
+			MimeType: DriveMimeGoogleFolder,
+		},
+		ErrorByToken: map[string]FakeGoogleDriveErrorResponse{
+			peerToken: {Status: http.StatusNotFound, Reason: "notFound"},
+		},
+	})
+	if _, err := env.fileSvc.Link(ctx, Human(env.peer.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connPeerA.ID,
+		ExternalFileIDs: []string{"ext-unpicked-folder-1"},
+	}); err != nil {
+		t.Fatalf("peer Link existing file: %v", err)
+	}
+	// Also age metadata_refreshed_at and trigger opportunistic refresh as peer (whose token gets 404 on folder).
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, linked[1].File.ID); err != nil {
+		t.Fatalf("age metadata_refreshed_at: %v", err)
+	}
+	peerGot, err := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, linked[1].File.ID)
+	if err != nil {
+		t.Fatalf("peer Get after stale refresh: %v", err)
+	}
+	if peerGot.DriveFolder == nil || peerGot.DriveFolder.Name == nil || *peerGot.DriveFolder.Name != "Hồ sơ thiết kế Q4" {
+		t.Fatalf("peer refresh with 404 on folder wiped stored folder name: %+v", peerGot.DriveFolder)
+	}
+
+	// When owner refreshes and Google returns 200 with a renamed folder, the new name overwrites the old one.
+	env.googleSrv.SetFile("fld-unpicked", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-unpicked",
+			Name:     "Hồ sơ thiết kế Q4 (Đã đổi tên)",
+			MimeType: DriveMimeGoogleFolder,
+		},
+	})
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, linked[1].File.ID); err != nil {
+		t.Fatalf("age metadata_refreshed_at for owner rename refresh: %v", err)
+	}
+	ownerRefreshed, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, linked[1].File.ID)
+	if err != nil {
+		t.Fatalf("owner Get after folder rename: %v", err)
+	}
+	if ownerRefreshed.DriveFolder == nil || ownerRefreshed.DriveFolder.Name == nil || *ownerRefreshed.DriveFolder.Name != "Hồ sơ thiết kế Q4 (Đã đổi tên)" {
+		t.Fatalf("owner refresh after folder rename = %+v, want Hồ sơ thiết kế Q4 (Đã đổi tên)", ownerRefreshed.DriveFolder)
+	}
+}
+
+// TestListDriveFoldersAggregate (UNI-2221 item 7) verifies:
+//   - GET /workspaces/{workspaceID}/drive-folders returns one entry per parent folder
+//     Plus {id: nil, name: nil} for files without a parent
+//   - ordering: named A-Z (case-insensitive), then unnamed by id, then null id last
+//   - sum of file_count equals CountMyDriveFiles (ListMine TotalCount) for the same viewer/filter
+//   - another member's files for which the viewer has no drive_file_access row are excluded
+//   - another workspace's rows never appear
+//   - unknown/foreign drive_connection_id filter returns ErrNotFound (404).
+func TestListDriveFoldersAggregate(t *testing.T) {
+	env := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+	wsBView, err := env.ws.CreateInOrg(ctx, env.owner.ID, env.org.ID, "Drive Folder Agg WS B", "drive-agg-wsb-"+strings.ToLower(util.NewID()[:6]))
+	if err != nil {
+		t.Fatalf("create wsB: %v", err)
+	}
+	wsB := wsBView.Workspace
+	connOwner1 := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-owner-agg-1", "owner-agg1@example.com")
+	connOwner2 := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-owner-agg-2", "owner-agg2@example.com")
+	connPeer := env.connectAccount(t, env.peer.ID, env.wsA.ID, "sub-peer-agg", "peer-agg@example.com")
+
+	// Configure folders:
+	// - "fld-b" named "Beta Folder" (2 files for owner on connOwner1)
+	// - "fld-a" named "alpha folder" (1 file for owner on connOwner2)
+	// - "fld-u2" unnamed (404) (1 file for owner on connOwner1)
+	// - "fld-u1" unnamed (404) (1 file for owner on connOwner1)
+	// - no parent (2 files for owner on connOwner1)
+	// - "fld-peer-only" named "Peer Secret Folder" (1 file linked only by peer)
+	env.googleSrv.SetFile("fld-b", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-b", Name: "Beta Folder", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("fld-a", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-a", Name: "alpha folder", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("fld-peer-only", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-peer-only", Name: "Peer Secret Folder", MimeType: DriveMimeGoogleFolder},
+	})
+
+	for _, f := range []struct {
+		id      string
+		parents []string
+	}{
+		{id: "agg-b-1", parents: []string{"fld-b"}},
+		{id: "agg-b-2", parents: []string{"fld-b"}},
+		{id: "agg-a-1", parents: []string{"fld-a"}},
+		{id: "agg-u2-1", parents: []string{"fld-u2"}},
+		{id: "agg-u1-1", parents: []string{"fld-u1"}},
+		{id: "agg-root-1", parents: nil},
+		{id: "agg-root-2", parents: nil},
+		{id: "agg-peer-1", parents: []string{"fld-peer-only"}},
+		{id: "agg-wsb-1", parents: []string{"fld-b"}},
+	} {
+		env.googleSrv.SetFile(f.id, FakeGoogleDriveFile{
+			Metadata: googleDriveFileJSON{
+				ID:       f.id,
+				Name:     "Doc " + f.id,
+				MimeType: DriveMimeGoogleDoc,
+				Parents:  f.parents,
+			},
+		})
+	}
+
+	if _, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner1.ID,
+		ExternalFileIDs: []string{"agg-b-1", "agg-b-2", "agg-u2-1", "agg-u1-1", "agg-root-1", "agg-root-2"},
+	}); err != nil {
+		t.Fatalf("owner Link conn1: %v", err)
+	}
+	if _, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner2.ID,
+		ExternalFileIDs: []string{"agg-a-1"},
+	}); err != nil {
+		t.Fatalf("owner Link conn2: %v", err)
+	}
+	if _, err := env.fileSvc.Link(ctx, Human(env.peer.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connPeer.ID,
+		ExternalFileIDs: []string{"agg-peer-1"},
+	}); err != nil {
+		t.Fatalf("peer Link: %v", err)
+	}
+	if _, err := env.fileSvc.Link(ctx, Human(env.owner.ID), wsB.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner1.ID,
+		ExternalFileIDs: []string{"agg-wsb-1"},
+	}); err != nil {
+		t.Fatalf("owner Link wsB: %v", err)
+	}
+
+	// 1. All connections for owner in wsA:
+	folders, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
+	if err != nil {
+		t.Fatalf("ListFolders owner wsA: %v", err)
+	}
+	if len(folders) != 5 {
+		t.Fatalf("len(folders) = %d, want 5: %+v", len(folders), folders)
+	}
+	// Expected order:
+	// 0: fld-a ("alpha folder", count=1)
+	// 1: fld-b ("Beta Folder", count=2)
+	// 2: fld-u1 (nil, count=1)
+	// 3: fld-u2 (nil, count=1)
+	// 4: nil (nil, count=2)
+	if folders[0].ID == nil || *folders[0].ID != "fld-a" || folders[0].Name == nil || *folders[0].Name != "alpha folder" || folders[0].FileCount != 1 {
+		t.Fatalf("folders[0] = %+v, want fld-a (alpha folder, 1)", folders[0])
+	}
+	if folders[1].ID == nil || *folders[1].ID != "fld-b" || folders[1].Name == nil || *folders[1].Name != "Beta Folder" || folders[1].FileCount != 2 {
+		t.Fatalf("folders[1] = %+v, want fld-b (Beta Folder, 2)", folders[1])
+	}
+	if folders[2].ID == nil || *folders[2].ID != "fld-u1" || folders[2].Name != nil || folders[2].FileCount != 1 {
+		t.Fatalf("folders[2] = %+v, want fld-u1 (nil, 1)", folders[2])
+	}
+	if folders[3].ID == nil || *folders[3].ID != "fld-u2" || folders[3].Name != nil || folders[3].FileCount != 1 {
+		t.Fatalf("folders[3] = %+v, want fld-u2 (nil, 1)", folders[3])
+	}
+	if folders[4].ID != nil || folders[4].Name != nil || folders[4].FileCount != 2 {
+		t.Fatalf("folders[4] = %+v, want nil (nil, 2)", folders[4])
+	}
+
+	var sumAll int64
+	for _, g := range folders {
+		sumAll += g.FileCount
+	}
+	listAll, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{})
+	if err != nil {
+		t.Fatalf("ListMine owner wsA: %v", err)
+	}
+	if sumAll != listAll.TotalCount {
+		t.Fatalf("sum(file_count) = %d, want ListMine.TotalCount = %d", sumAll, listAll.TotalCount)
+	}
+
+	// 2. Filtered by connOwner1:
+	foldersConn1, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, connOwner1.ID)
+	if err != nil {
+		t.Fatalf("ListFolders connOwner1: %v", err)
+	}
+	var sumConn1 int64
+	for _, g := range foldersConn1 {
+		sumConn1 += g.FileCount
+	}
+	listConn1, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{ConnectionID: connOwner1.ID})
+	if err != nil {
+		t.Fatalf("ListMine connOwner1: %v", err)
+	}
+	if sumConn1 != listConn1.TotalCount || sumConn1 != 6 {
+		t.Fatalf("sumConn1 = %d, want ListMine.TotalCount = %d (6)", sumConn1, listConn1.TotalCount)
+	}
+
+	// 3. Peer's connection ID or malformed ID -> ErrNotFound (404).
+	if _, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, connPeer.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ListFolders with peer connection = %v, want ErrNotFound", err)
+	}
+	if _, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "not-a-valid-conn"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ListFolders with unknown connection = %v, want ErrNotFound", err)
+	}
+}

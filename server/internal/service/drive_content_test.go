@@ -690,6 +690,112 @@ func TestDriveAPIFilesGetMetadataAndRedirectGuard(t *testing.T) {
 	}
 }
 
+// TestDriveAPIFolderParentAndFolderNameResolution (UNI-2221) verifies without a
+// database that:
+//   - FilesGetWithConnection parses parents[0] into ParentFolderID
+//   - when the file has no parents, ParentFolderID and ParentFolderName are empty
+//   - when the parent folder returns 404/403 under drive.file, FilesGetWithConnection
+//     still succeeds with ParentFolderID set and ParentFolderName empty
+//   - when the parent folder returns 200 (picked folder), FilesGetWithConnection
+//     sets ParentFolderName
+//   - FolderNameWithConnection returns the folder name on 200 and returns a
+//     classified DriveAPIError on 404, 403, trashed folder, or non-folder MIME.
+func TestDriveAPIFolderParentAndFolderNameResolution(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	gSrv := NewFakeGoogleDriveServer(t.Cleanup)
+	tokens := &fakeDriveTokenSource{tokensByConn: map[string]string{"conn-fldr": "tok-fldr"}}
+	conn := db.DriveConnection{ID: "conn-fldr"}
+
+	gSrv.SetFile("file-no-parent", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "file-no-parent",
+			Name:     "No Parent Doc",
+			MimeType: DriveMimeGoogleDoc,
+		},
+	})
+	gSrv.SetFile("file-404-parent", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "file-404-parent",
+			Name:     "Unpicked Parent Doc",
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-404", "fld-second-ignored"},
+		},
+	})
+	gSrv.SetFile("fld-200", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-200",
+			Name:     "Kế hoạch Quý 4",
+			MimeType: DriveMimeGoogleFolder,
+		},
+	})
+	gSrv.SetFile("file-200-parent", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "file-200-parent",
+			Name:     "Picked Parent Doc",
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-200"},
+		},
+	})
+	gSrv.SetFile("fld-trashed", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-trashed",
+			Name:     "Trashed Folder",
+			MimeType: DriveMimeGoogleFolder,
+			Trashed:  true,
+		},
+	})
+	gSrv.SetFile("not-a-folder", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "not-a-folder",
+			Name:     "Plain Doc",
+			MimeType: DriveMimeGoogleDoc,
+		},
+	})
+
+	// 1. No parent -> ParentFolderID == "", ParentFolderName == "".
+	mNoParent, err := gSrv.Client.FilesGetWithConnection(ctx, tokens, conn, "file-no-parent")
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection file-no-parent: %v", err)
+	}
+	if mNoParent.ParentFolderID != "" || mNoParent.ParentFolderName != "" {
+		t.Fatalf("file-no-parent folder = (%q, %q), want empty", mNoParent.ParentFolderID, mNoParent.ParentFolderName)
+	}
+
+	// 2. Parent returns 404 -> ParentFolderID == "fld-404", ParentFolderName == "".
+	m404, err := gSrv.Client.FilesGetWithConnection(ctx, tokens, conn, "file-404-parent")
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection file-404-parent: %v", err)
+	}
+	if m404.ParentFolderID != "fld-404" || m404.ParentFolderName != "" {
+		t.Fatalf("file-404-parent folder = (%q, %q), want (fld-404, \"\")", m404.ParentFolderID, m404.ParentFolderName)
+	}
+
+	// 3. Parent returns 200 -> ParentFolderID == "fld-200", ParentFolderName == "Kế hoạch Quý 4".
+	m200, err := gSrv.Client.FilesGetWithConnection(ctx, tokens, conn, "file-200-parent")
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection file-200-parent: %v", err)
+	}
+	if m200.ParentFolderID != "fld-200" || m200.ParentFolderName != "Kế hoạch Quý 4" {
+		t.Fatalf("file-200-parent folder = (%q, %q), want (fld-200, Kế hoạch Quý 4)", m200.ParentFolderID, m200.ParentFolderName)
+	}
+
+	// 4. FolderNameWithConnection direct calls: 200, 404, trashed, non-folder MIME.
+	gotName, err := gSrv.Client.FolderNameWithConnection(ctx, tokens, conn, "fld-200")
+	if err != nil || gotName != "Kế hoạch Quý 4" {
+		t.Fatalf("FolderNameWithConnection fld-200 = (%q, %v), want (Kế hoạch Quý 4, nil)", gotName, err)
+	}
+	if _, err := gSrv.Client.FolderNameWithConnection(ctx, tokens, conn, "fld-404"); !errors.Is(err, ErrDriveFileNotAccessible) {
+		t.Fatalf("FolderNameWithConnection fld-404 = %v, want ErrDriveFileNotAccessible", err)
+	}
+	if _, err := gSrv.Client.FolderNameWithConnection(ctx, tokens, conn, "fld-trashed"); !errors.Is(err, ErrDriveFileNotAccessible) {
+		t.Fatalf("FolderNameWithConnection fld-trashed = %v, want ErrDriveFileNotAccessible", err)
+	}
+	if _, err := gSrv.Client.FolderNameWithConnection(ctx, tokens, conn, "not-a-folder"); !errors.Is(err, ErrDriveFileNotAccessible) {
+		t.Fatalf("FolderNameWithConnection not-a-folder = %v, want ErrDriveFileNotAccessible", err)
+	}
+}
+
 // TestDriveAPIErrorMappingS4Reasons verifies every Google error reason and HTTP
 // status in spec §5.7 (S4): appNotAuthorizedToFile -> drive_grant_required
 // (MarkAccessLost=false), domainPolicy -> blocked_by_workspace_admin

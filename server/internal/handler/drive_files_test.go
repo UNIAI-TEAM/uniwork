@@ -60,9 +60,11 @@ type driveHTTPTestEnv struct {
 	thirdID string
 	thirdTk string
 
-	mu           sync.Mutex
-	googleError  map[string]int
-	auditCounter *auditQueryCountingDBTX
+	mu            sync.Mutex
+	googleError   map[string]int
+	googleParents map[string][]string
+	googleFolders map[string]string
+	auditCounter  *auditQueryCountingDBTX
 }
 
 func newDriveHTTPTestEnv(t *testing.T) *driveHTTPTestEnv {
@@ -87,18 +89,22 @@ func newDriveHTTPTestEnv(t *testing.T) *driveHTTPTestEnv {
 	d.DriveConnections.SetFlags(d.FeatureFlags)
 
 	env := &driveHTTPTestEnv{
-		deps:         d,
-		pool:         pool,
-		q:            q,
-		box:          box,
-		googleError:  make(map[string]int),
-		auditCounter: auditCounter,
+		deps:          d,
+		pool:          pool,
+		q:             q,
+		box:           box,
+		googleError:   make(map[string]int),
+		googleParents: make(map[string][]string),
+		googleFolders: make(map[string]string),
+		auditCounter:  auditCounter,
 	}
 
 	googleFake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		extID := strings.TrimPrefix(r.URL.Path, "/drive/v3/files/")
 		env.mu.Lock()
 		status := env.googleError[extID]
+		parents := env.googleParents[extID]
+		folderName, isFolder := env.googleFolders[extID]
 		env.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		if status != 0 {
@@ -118,7 +124,16 @@ func newDriveHTTPTestEnv(t *testing.T) *driveHTTPTestEnv {
 			})
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		if isFolder {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":       extID,
+				"name":     folderName,
+				"mimeType": "application/vnd.google-apps.folder",
+				"trashed":  false,
+			})
+			return
+		}
+		body := map[string]any{
 			"id":           extID,
 			"name":         "Spec Document " + extID,
 			"mimeType":     "application/vnd.google-apps.document",
@@ -128,7 +143,11 @@ func newDriveHTTPTestEnv(t *testing.T) *driveHTTPTestEnv {
 			"modifiedTime": "2026-10-26T10:00:00Z",
 			"owners":       []map[string]any{{"displayName": "Owner " + extID}},
 			"permissions":  []map[string]any{{"id": "p1"}, {"id": "p2"}},
-		})
+		}
+		if len(parents) > 0 {
+			body["parents"] = parents
+		}
+		_ = json.NewEncoder(w).Encode(body)
 	}))
 	t.Cleanup(googleFake.Close)
 
@@ -632,5 +651,113 @@ func TestParseListDriveFilesLimitClampsBeforeInt32Narrowing(t *testing.T) {
 		if ok != tc.ok || got != tc.want {
 			t.Fatalf("parseListDriveFilesLimit(%q) = (%d, %v), want (%d, %v)", tc.raw, got, ok, tc.want, tc.ok)
 		}
+	}
+}
+
+// TestDriveFolderHTTPFlow (UNI-2221) exercises the HTTP wire contract for:
+//   - GET /api/v1/workspaces/{workspaceID}/drive-files and GET .../drive-files/{driveFileID}
+//     returning drive_folder: null | {id, name: null} | {id, name}
+//   - POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name
+//     updating files in the workspace and refusing 403/404 from Google
+//   - GET /api/v1/workspaces/{workspaceID}/drive-folders returning ordered
+//     folder aggregates and file counts matching total_count.
+func TestDriveFolderHTTPFlow(t *testing.T) {
+	e := newDriveHTTPTestEnv(t)
+	ownerConn := e.seedConnection(t, e.ownerID, "sub-owner-fldr-http", "owner-fldr-http@example.com")
+	peerConn := e.seedConnection(t, e.peerID, "sub-peer-fldr-http", "peer-fldr-http@example.com")
+
+	e.mu.Lock()
+	e.googleParents["ext-http-fldr-1"] = []string{"fld-http-1"}
+	e.googleParents["ext-http-fldr-2"] = []string{"fld-http-1"}
+	e.googleError["fld-http-1"] = http.StatusNotFound
+	e.mu.Unlock()
+
+	// Link 1 root file (no parent) and 2 files in fld-http-1 (whose folder name initially 404s).
+	linkRes, linkOut := doJSON(t, e.srv, "POST", "/api/v1/workspaces/"+e.wsID+"/drive-files", e.ownerTk, map[string]any{
+		"connection_id":     ownerConn,
+		"external_file_ids": []string{"ext-http-root", "ext-http-fldr-1", "ext-http-fldr-2"},
+	})
+	if linkRes.StatusCode != http.StatusOK {
+		t.Fatalf("LinkDriveFiles = %d %v", linkRes.StatusCode, linkOut)
+	}
+
+	listRes, listOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files", e.ownerTk, nil)
+	if listRes.StatusCode != http.StatusOK {
+		t.Fatalf("ListDriveFiles = %d %v", listRes.StatusCode, listOut)
+	}
+	files := jsonArrayAt(t, listOut, "files")
+	if len(files) != 3 {
+		t.Fatalf("len(files) = %d, want 3", len(files))
+	}
+
+	// Check aggregate GET /drive-folders before naming: unnamed folder first, null id last.
+	foldersRes, foldersOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-folders", e.ownerTk, nil)
+	if foldersRes.StatusCode != http.StatusOK {
+		t.Fatalf("ListDriveFolders = %d %v", foldersRes.StatusCode, foldersOut)
+	}
+	folderGroups := jsonArrayAt(t, foldersOut, "folders")
+	if len(folderGroups) != 2 {
+		t.Fatalf("len(folders) = %d, want 2: %v", len(folderGroups), foldersOut)
+	}
+	g0 := folderGroups[0].(map[string]any)
+	g1 := folderGroups[1].(map[string]any)
+	if g0["id"] != "fld-http-1" || g0["name"] != nil || g0["file_count"] != float64(2) {
+		t.Fatalf("folders[0] before naming = %+v, want {id:fld-http-1, name:nil, file_count:2}", g0)
+	}
+	if g1["id"] != nil || g1["name"] != nil || g1["file_count"] != float64(1) {
+		t.Fatalf("folders[1] before naming = %+v, want {id:nil, name:nil, file_count:1}", g1)
+	}
+
+	// Naming while Google returns 404 -> 404 drive_file_not_accessible.
+	name404Res, name404Out := doJSON(t, e.srv, "POST", "/api/v1/workspaces/"+e.wsID+"/drive-folders/fld-http-1/name", e.ownerTk, map[string]any{
+		"drive_connection_id": ownerConn,
+	})
+	if name404Res.StatusCode != http.StatusNotFound || errorCode(name404Out) != "drive_file_not_accessible" {
+		t.Fatalf("NameDriveFolder on 404 = %d %v, want 404 drive_file_not_accessible", name404Res.StatusCode, name404Out)
+	}
+
+	// Naming with peer's connection -> 404 not_found.
+	namePeerConnRes, _ := doJSON(t, e.srv, "POST", "/api/v1/workspaces/"+e.wsID+"/drive-folders/fld-http-1/name", e.ownerTk, map[string]any{
+		"drive_connection_id": peerConn,
+	})
+	if namePeerConnRes.StatusCode != http.StatusNotFound {
+		t.Fatalf("NameDriveFolder with peer connection = %d, want 404", namePeerConnRes.StatusCode)
+	}
+
+	// Simulate user picking fld-http-1 in Picker -> Google returns 200 folder metadata.
+	e.mu.Lock()
+	delete(e.googleError, "fld-http-1")
+	e.googleFolders["fld-http-1"] = "Thư mục Thiết kế"
+	e.mu.Unlock()
+
+	nameOKRes, nameOKOut := doJSON(t, e.srv, "POST", "/api/v1/workspaces/"+e.wsID+"/drive-folders/fld-http-1/name", e.ownerTk, map[string]any{
+		"drive_connection_id": ownerConn,
+	})
+	if nameOKRes.StatusCode != http.StatusOK {
+		t.Fatalf("NameDriveFolder 200 = %d %v", nameOKRes.StatusCode, nameOKOut)
+	}
+	dfObj, _ := nameOKOut["drive_folder"].(map[string]any)
+	if dfObj["id"] != "fld-http-1" || dfObj["name"] != "Thư mục Thiết kế" || nameOKOut["updated_files"] != float64(2) {
+		t.Fatalf("NameDriveFolder response = %+v, want id=fld-http-1 name=Thư mục Thiết kế updated_files=2", nameOKOut)
+	}
+
+	// Check aggregate GET /drive-folders after naming and with drive_connection_id filter.
+	foldersAfterRes, foldersAfterOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-folders?drive_connection_id="+ownerConn, e.ownerTk, nil)
+	if foldersAfterRes.StatusCode != http.StatusOK {
+		t.Fatalf("ListDriveFolders after naming = %d %v", foldersAfterRes.StatusCode, foldersAfterOut)
+	}
+	afterGroups := jsonArrayAt(t, foldersAfterOut, "folders")
+	if len(afterGroups) != 2 {
+		t.Fatalf("len(folders) after naming = %d, want 2", len(afterGroups))
+	}
+	ag0 := afterGroups[0].(map[string]any)
+	if ag0["id"] != "fld-http-1" || ag0["name"] != "Thư mục Thiết kế" || ag0["file_count"] != float64(2) {
+		t.Fatalf("folders[0] after naming = %+v, want name=Thư mục Thiết kế", ag0)
+	}
+
+	// Foreign connection_id query on GET /drive-folders -> 404.
+	badFilterRes, _ := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-folders?drive_connection_id="+peerConn, e.ownerTk, nil)
+	if badFilterRes.StatusCode != http.StatusNotFound {
+		t.Fatalf("ListDriveFolders with peer drive_connection_id = %d, want 404", badFilterRes.StatusCode)
 	}
 }
