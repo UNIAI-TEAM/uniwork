@@ -1418,11 +1418,11 @@ func TestCreateTasksFromDriveProposalHTTPAndProvenance(t *testing.T) {
 	if err := e.pool.QueryRow(context.Background(), `SELECT description FROM tasks WHERE id = $1`, createdSDO.TaskIDs[0]).Scan(&gotTask0Desc); err != nil || gotTask0Desc != wantHTTPDesc0 {
 		t.Fatalf("task[0] description after proposal delete = %q (err=%v), want %q", gotTask0Desc, err, wantHTTPDesc0)
 	}
-	// 5. Re-submitting the converted proposal -> 409 proposal_not_ready.
+	// Re-submitting after the proposal row is purged -> 404 not_found.
 	if r, o := doJSON(t, e.srv, "POST", tasksPath, e.ownerTk, map[string]any{
 		"items": []any{map[string]any{"index": 0, "title": "Retry", "description": "D"}},
-	}); r.StatusCode != http.StatusConflict || jsonErrCode(o) != sdo.DriveErrProposalNotReady {
-		t.Fatalf("second POST tasks = %d %v, want 409 proposal_not_ready", r.StatusCode, o)
+	}); r.StatusCode != http.StatusNotFound || jsonErrCode(o) != "not_found" {
+		t.Fatalf("post-delete POST tasks = %d %v, want 404 not_found", r.StatusCode, o)
 	}
 
 	// 6. Verify §8.8 on GET /drive-files/{id}, GET /drive-files, GET /tasks/{id}/drive-files, and next POST /task-proposals.
