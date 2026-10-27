@@ -609,7 +609,8 @@
     "projects": "Projects",
     "calendar": "Calendar",
     "squads": "Squads",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "trash": "Trash"
   },
   "topbar": {
     "search": "Search…",
@@ -797,7 +798,8 @@
         "connectedApps": "AI apps",
         "aiAccess": "AI access",
         "taskStatuses": "Task statuses",
-        "taskLabels": "Labels"
+        "taskLabels": "Labels",
+        "trash": "Trash"
       },
       "nav_label": "Settings sections",
       "section_picker": "Choose a settings section",
@@ -2576,11 +2578,9 @@
       "cancel": "Cancel",
       "update_success": "Updated {{count}} tasks",
       "update_failed": "Could not update tasks",
-      "delete_success": "Deleted {{count}} tasks",
       "delete_failed": "Could not delete tasks",
-      "delete_dialog_title": "Delete {{count}} tasks?",
-      "delete_dialog_desc": "These tasks will be permanently deleted.",
-      "delete_dialog_warning": "This cannot be undone."
+      "delete_dialog_title": "Move to trash?",
+      "delete_dialog_desc": "You can restore it within 30 days."
     },
     "row_actions": {
       "open": "Open",
@@ -2592,11 +2592,10 @@
       "change_assignee": "Change assignee",
       "set_parent": "Set parent task…",
       "delete": "Delete",
-      "delete_dialog_title": "Delete this task?",
-      "delete_dialog_desc": "\"{{title}}\" will be permanently deleted. This cannot be undone.",
-      "delete_confirm": "Delete task",
+      "delete_dialog_title": "Move to trash?",
+      "delete_dialog_desc": "You can restore it within 30 days.",
+      "delete_confirm": "Move to trash",
       "cancel": "Cancel",
-      "delete_success": "Task deleted",
       "delete_failed": "Could not delete task",
       "assignees_loading": "Loading members…",
       "assignees_failed": "Could not load members"
@@ -8513,9 +8512,9 @@
       "sidebar_label": "Project details"
     },
     "delete_dialog": {
-      "title": "Delete project",
-      "description": "This will delete the project. Tasks will not be deleted but will be unlinked.",
-      "confirm": "Delete",
+      "title": "Move to trash?",
+      "description": "You can restore it within 30 days. Tasks in the project are kept and only unlinked.",
+      "confirm": "Move to trash",
       "cancel": "Cancel"
     },
     "create_dialog": {
@@ -14270,5 +14269,74 @@
     "data": "Data and AI",
     "privacy": "Privacy policy",
     "terms": "Terms of use"
+  },
+  "trash": {
+    "title": "Trash",
+    "move_confirm": "Move to trash",
+    "moved": "Moved to trash",
+    "undo": "Undo",
+    "restore": "Restore",
+    "restored": "Restored",
+    "restore_failed": "Could not restore",
+    "purge": "Delete forever",
+    "purge_title": "Delete forever?",
+    "purge_desc": "\"{{title}}\" will be deleted forever. This cannot be undone.",
+    "purged": "Deleted forever",
+    "purge_failed": "Could not delete forever",
+    "cancel": "Cancel",
+    "unknown_member": "Former member",
+    "load_more": "Load more",
+    "error_title": "Could not load the trash",
+    "errors": {
+      "trash_too_large": "Too many tasks for one move to the trash. Select fewer tasks and try again.",
+      "duplicate_project_title": "A project with the same title already exists in this workspace. Choose another title or rename that project, then try again."
+    },
+    "description": "Deleted items stay here for 30 days, then are deleted forever.",
+    "filters_label": "Filter the trash",
+    "search": "Search by name…",
+    "clear_search": "Clear search",
+    "clear_filter": "Clear the {{name}} filter",
+    "kind_label": "Type",
+    "kinds": {
+      "task": "Task",
+      "project": "Project",
+      "document": "Document"
+    },
+    "trashed_by_label": "Deleted by",
+    "trashed_by_me": "Me",
+    "search_people": "Search people",
+    "no_people": "No one found",
+    "people_cap": "You can pick up to {{max}} people",
+    "former_members_one": "{{count}} former member",
+    "former_members_other": "{{count}} former members",
+    "table_label": "Items in the trash",
+    "columns": {
+      "name": "Name",
+      "location": "Location",
+      "trashed_at": "Deleted",
+      "trashed_by": "Deleted by",
+      "left": "Left",
+      "actions": "Actions"
+    },
+    "days_left_one": "{{count}} day",
+    "days_left_other": "{{count}} days",
+    "sub": {
+      "task_with_one": "Task · with {{count}} subtask",
+      "task_with_other": "Task · with {{count}} subtasks",
+      "project_with_one": "Project · {{count}} task is reattached on restore",
+      "project_with_other": "Project · {{count}} tasks are reattached on restore",
+      "page": "Page",
+      "file": "File",
+      "folder": "Folder"
+    },
+    "row_actions": "Actions for {{title}}",
+    "locked": {
+      "project": "Only the creator, the lead or an admin can restore or delete this project forever.",
+      "document": "You need permission to manage this document."
+    },
+    "empty_title": "The trash is empty",
+    "no_match_title": "No items match",
+    "clear_filters": "Clear filters",
+    "untitled": "Untitled"
   }
 }

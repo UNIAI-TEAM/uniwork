@@ -46,8 +46,22 @@ func registerTasks(r api, h Routes) {
 		auth:        true,
 	})
 	r.Delete("/tasks/{taskID}", h.DeleteTask, apiOp{
-		summary:     "Delete task",
-		description: "Xóa công việc. Cần quyền sửa bảng.",
+		summary:     "Trash task",
+		description: "Chuyển công việc và các công việc con vào thùng rác (khôi phục được trong 30 ngày). Cần quyền sửa bảng.",
+		tags:        []string{"tasks"},
+		sdo:         sdo.TaskTrashSDO{},
+		auth:        true,
+	})
+	r.Post("/tasks/{taskID}/restore", h.RestoreTask, apiOp{
+		summary:     "Restore task",
+		description: "Khôi phục lô thùng rác chứa công việc này, về đúng trạng thái trước khi xoá.",
+		tags:        []string{"tasks"},
+		sdo:         sdo.TaskTrashSDO{},
+		auth:        true,
+	})
+	r.Post("/tasks/{taskID}/purge", h.PurgeTask, apiOp{
+		summary:     "Purge task",
+		description: "Xoá vĩnh viễn công việc đang trong thùng rác. Không hoàn tác được.",
 		tags:        []string{"tasks"},
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
@@ -120,11 +134,19 @@ func registerTasksSuite(r api, h Routes) {
 			auth:        true,
 		})
 		suite.Post("/workspaces/{workspaceID}/tasks/batch-delete", h.BatchDeleteTasks, apiOp{
-			summary:     "Batch delete tasks",
-			description: "Xóa nhiều công việc.",
+			summary:     "Batch trash tasks",
+			description: "Chuyển nhiều công việc (và công việc con) vào thùng rác; tối đa 100 id, 1000 công việc mỗi lô.",
 			tags:        []string{"tasks"},
 			sdi:         sdi.BatchDeleteTasksSDI{},
 			sdo:         sdo.BatchDeleteTasksSDO{},
+			auth:        true,
+		})
+		suite.Get("/workspaces/{workspaceID}/tasks/trash", h.ListTaskTrash, apiOp{
+			summary:     "List task trash",
+			description: "Thùng rác công việc: chỉ công việc gốc của mỗi lô, mới xoá trước, 50 mỗi trang. Query: cursor.",
+			tags:        []string{"tasks"},
+			sdi:         sdi.ListTrashSDI{},
+			sdo:         sdo.TaskTrashPageSDO{},
 			auth:        true,
 		})
 		suite.Get("/workspaces/{workspaceID}/my-tasks", h.ListMyTasks, apiOp{
@@ -339,6 +361,10 @@ func registerTasksSuite(r api, h Routes) {
 		})
 
 		// Projects + resources (catalogue group projects). search before {projectID}.
+		suite.Get("/workspaces/{workspaceID}/projects/trash", h.ListProjectTrash, apiOp{
+			summary: "List project trash", description: "Thùng rác project, mới xoá trước, 50 mỗi trang. Query: cursor.",
+			tags: []string{"tasks"}, sdi: sdi.ListTrashSDI{}, sdo: sdo.ProjectTrashPageSDO{}, auth: true,
+		})
 		suite.Get("/workspaces/{workspaceID}/projects/search", h.SearchProjects, apiOp{
 			summary: "Search projects", description: "Tìm project theo title/description. Query: q, include_closed, limit, offset.",
 			tags: []string{"tasks"}, sdo: sdo.ProjectListSDO{}, auth: true,
@@ -360,7 +386,15 @@ func registerTasksSuite(r api, h Routes) {
 			tags: []string{"tasks"}, sdi: sdi.PutProjectSDI{}, sdo: sdo.ProjectSDO{}, auth: true,
 		})
 		suite.Delete("/workspaces/{workspaceID}/projects/{projectID}", h.DeleteProject, apiOp{
-			summary: "Delete project", description: "Xóa project, resources, pin và view theo scope.",
+			summary: "Trash project", description: "Chuyển project vào thùng rác (khôi phục được trong 30 ngày); công việc của nó được giữ lại.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Post("/workspaces/{workspaceID}/projects/{projectID}/restore", h.RestoreProject, apiOp{
+			summary: "Restore project", description: "Khôi phục project khỏi thùng rác. 409 duplicate_project_title nếu tên đã bị project khác dùng.",
+			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
+		})
+		suite.Post("/workspaces/{workspaceID}/projects/{projectID}/purge", h.PurgeProject, apiOp{
+			summary: "Purge project", description: "Xoá vĩnh viễn project đang trong thùng rác. Không hoàn tác được.",
 			tags: []string{"tasks"}, sdo: sdo.StatusSDO{}, auth: true,
 		})
 		suite.Get("/workspaces/{workspaceID}/projects/{projectID}/resources", h.ListProjectResources, apiOp{

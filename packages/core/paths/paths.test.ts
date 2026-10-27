@@ -22,6 +22,12 @@ describe("paths.workspace().documentsFolder", () => {
   });
 });
 
+describe("paths.workspace() trash pages", () => {
+  it("builds the task and project trash routes", () => {
+    const ws = paths.workspace("acme", "team");
+  });
+});
+
 describe("paths.workspace().documentsTrash", () => {
   const ws = paths.workspace("acme", "team");
 

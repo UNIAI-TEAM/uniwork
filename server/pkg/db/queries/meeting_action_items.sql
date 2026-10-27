@@ -1,7 +1,8 @@
 -- Action items of a meeting (UNI-1998, spec meeting follow-through §5.1). A
 -- row's state is derived in Go (actionItemStatus) from dismissed_at and
--- whether task_id still names a task: tasks are hard-deleted, so every read
--- that needs the state joins tasks and reports task_live.
+-- whether task_id still names a live task: a task that was deleted or sits in
+-- the trash does not count, so every read that needs the state joins tasks
+-- (trashed_at IS NULL) and reports task_live.
 
 -- name: InsertMeetingActionItem :one
 INSERT INTO meeting_action_items (
@@ -27,7 +28,7 @@ SELECT sqlc.embed(i),
   t.assignee_id AS task_assignee_id,
   t.due_date AS task_due_date
 FROM meeting_action_items i
-LEFT JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+LEFT JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE i.organization_id = sqlc.arg(organization_id) AND i.meeting_id = sqlc.arg(meeting_id)
 ORDER BY (i.source <> 'AI'), i.position, i.created_at, i.id;
@@ -37,7 +38,7 @@ ORDER BY (i.source <> 'AI'), i.position, i.created_at, i.id;
 -- deadlock on them. An id of another meeting or tenant is simply absent.
 SELECT sqlc.embed(i), (t.id IS NOT NULL)::boolean AS task_live
 FROM meeting_action_items i
-LEFT JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+LEFT JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL
 WHERE i.organization_id = sqlc.arg(organization_id) AND i.meeting_id = sqlc.arg(meeting_id)
   AND i.id = ANY(sqlc.arg(ids)::text[])
 ORDER BY i.id
@@ -66,21 +67,21 @@ WHERE organization_id = sqlc.arg(organization_id) AND id = sqlc.arg(id);
 -- name: RefineLiveMeetingActionItem :execrows
 -- A summary refines a pending live item in place (UNI-1995 benchmark #21):
 -- owner, due, priority, description and evidence, never its title. Only while
--- nobody handled it: not dismissed and no task that still exists.
+-- nobody handled it: not dismissed and no live task (deleted or trashed).
 UPDATE meeting_action_items i
 SET owner_text = sqlc.arg(owner_text), due_text = sqlc.arg(due_text), suggested_priority = sqlc.arg(suggested_priority),
   description = sqlc.arg(description), evidence = sqlc.arg(evidence), updated_at = now()
 WHERE i.organization_id = sqlc.arg(organization_id) AND i.meeting_id = sqlc.arg(meeting_id) AND i.id = sqlc.arg(id)
   AND i.source = 'LIVE' AND i.dismissed_at IS NULL
-  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id);
+  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL);
 
 -- name: DeletePendingAIMeetingActionItems :execrows
 -- A regenerated summary replaces the AI items nobody has handled yet: not
--- dismissed, and no task, or a task that was deleted since.
+-- dismissed, and no task, or a task that was deleted or trashed since.
 DELETE FROM meeting_action_items i
 WHERE i.organization_id = sqlc.arg(organization_id) AND i.meeting_id = sqlc.arg(meeting_id)
   AND i.source = 'AI' AND i.dismissed_at IS NULL
-  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id);
+  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL);
 
 -- name: LockMeetingSummaryChanges :exec
 -- Serializes every write on a meeting's summaries and action items: storing a
@@ -103,7 +104,7 @@ SELECT i.id AS action_item_id, COUNT(*) OVER ()::int AS total,
   t.assignee_id AS task_assignee_id, t.due_date AS task_due_date
 FROM meetings m
 JOIN meeting_action_items i ON i.meeting_id = m.id AND i.organization_id = m.organization_id
-JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE m.organization_id = sqlc.arg(organization_id) AND m.workspace_id = sqlc.arg(workspace_id)
   AND ((sqlc.narg(project_id)::text IS NOT NULL AND m.project_id = sqlc.narg(project_id)::text)

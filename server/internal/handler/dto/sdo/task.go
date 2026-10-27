@@ -113,7 +113,8 @@ type BatchUpdateTasksSDO struct {
 
 // BatchDeleteTasksSDO is POST .../tasks/batch-delete.
 type BatchDeleteTasksSDO struct {
-	Deleted int `json:"deleted" example:"3"`
+	Deleted      int    `json:"deleted" description:"Số công việc đã chuyển vào thùng rác, tính cả công việc con" example:"3"`
+	TrashBatchID string `json:"trash_batch_id" description:"Lô thùng rác; rỗng khi không có gì được chuyển" example:"01J8X4BATCHN1P2Q3R4S5T6U"`
 }
 
 // ChildProgressDTO is one row of child-progress.

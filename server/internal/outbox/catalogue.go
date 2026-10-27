@@ -81,6 +81,8 @@ var catalogue = []EventDef{
 	// carries ids only. Every other task.updated emitter sends ids only.
 	{Topic: "task.updated", Version: 1, Payload: []string{"task_id", "workspace_id", "revision_before", "revision"}, Patch: []string{"title", "status", "priority", "due_date"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.deleted", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task.trashed", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task.restored", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_added", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_updated", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_deleted", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -112,6 +114,8 @@ var catalogue = []EventDef{
 	{Topic: "task_view_preference.updated", Version: 1, Payload: []string{"workspace_id", "user_id", "scope_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project.created", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project.deleted", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project.trashed", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project.restored", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project.updated", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project_resource.created", Version: 1, Payload: []string{"resource_id", "project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project_resource.deleted", Version: 1, Payload: []string{"resource_id", "project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

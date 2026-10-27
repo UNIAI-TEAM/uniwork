@@ -194,14 +194,6 @@ func (h *handlers) updateTask(w http.ResponseWriter, r *http.Request) {
 	h.respondTask(w, r, 200, t)
 }
 
-func (h *handlers) deleteTask(w http.ResponseWriter, r *http.Request) {
-	if err := h.Tasks.Delete(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "taskID")); err != nil {
-		h.mapServiceError(w, err)
-		return
-	}
-	respondJSON(w, 200, map[string]string{"status": "ok"})
-}
-
 func (h *handlers) listComments(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.UserID(r.Context())
 	taskID := chi.URLParam(r, "taskID")

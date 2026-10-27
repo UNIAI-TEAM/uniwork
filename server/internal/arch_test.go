@@ -521,7 +521,7 @@ func TestMcpToolsCallNoDelete(t *testing.T) {
 	if len(files) == 0 {
 		t.Fatal("no service/mcp_tools*.go found; the glob is stale")
 	}
-	banned := regexp.MustCompile(`\.(Delete\w*|BatchDelete\w*|ArchiveDocument|DeleteComment|DeleteProject)\(`)
+	banned := regexp.MustCompile(`\.(Delete\w*|BatchDelete\w*|ArchiveDocument|DeleteComment|DeleteProject|Trash\w*|Purge\w*)\(`)
 	for _, f := range files {
 		if strings.HasSuffix(f, "_test.go") {
 			continue
