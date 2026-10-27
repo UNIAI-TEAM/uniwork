@@ -12059,7 +12059,8 @@
       "batch_failed": "Việc áp dụng quyền dừng giữa chừng. Chạy lại để hoàn tất.",
       "error_not_a_folder": "Mục này không phải thư mục nên không đổi quyền hàng loạt được.",
       "error_generic": "Không áp dụng được quyền. Hãy thử lại.",
-      "error_rejected": "Không áp dụng được cho một số đối tượng. Sửa các đối tượng được đánh dấu rồi thử lại."
+      "error_rejected": "Không áp dụng được cho một số đối tượng. Sửa các đối tượng được đánh dấu rồi thử lại.",
+      "busy": "Thư mục này đang được cập nhật quyền. Thử lại sau giây lát."
     },
     "tree": {
       "aria_label": "Cây tài liệu",
