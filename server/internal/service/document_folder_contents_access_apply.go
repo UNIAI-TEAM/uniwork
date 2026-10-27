@@ -628,6 +628,21 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 	return folderContentsOutcome{Processed: 1, Changed: 1}, nil
 }
 
+// DocumentAccessBatchCompletedTopic is the outbox topic emitted when a
+// background folder-contents access batch finishes (UNI-2244 §6).
+const DocumentAccessBatchCompletedTopic = "document.access_batch_completed"
+
+func folderContentsBatchCompletedEvent(batchID, folderID, workspaceID string) audit.Event {
+	return audit.Event{
+		Topic: DocumentAccessBatchCompletedTopic,
+		Payload: map[string]string{
+			"batch_id":     batchID,
+			"folder_id":    folderID,
+			"workspace_id": workspaceID,
+		},
+	}
+}
+
 func recordFolderContentsBatchCompletedAudit(
 	ctx context.Context,
 	q *db.Queries,
@@ -650,14 +665,7 @@ func recordFolderContentsBatchCompletedAudit(
 	}
 	var events []audit.Event
 	if execution == FolderContentsAccessExecBackground {
-		events = append(events, audit.Event{
-			Topic: "document.access_batch_completed",
-			Payload: map[string]string{
-				"batch_id":     batchID,
-				"folder_id":    folder.ID,
-				"workspace_id": folder.WorkspaceID,
-			},
-		})
+		events = append(events, folderContentsBatchCompletedEvent(batchID, folder.ID, folder.WorkspaceID))
 	}
 	return auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: folder.OrganizationID,

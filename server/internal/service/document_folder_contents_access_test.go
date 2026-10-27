@@ -1,13 +1,14 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -434,14 +435,59 @@ func TestFolderContentsAccessBackgroundWorkerAndRecovery(t *testing.T) {
 		t.Fatalf("background batch notify_user_id count = %d (err=%v), want 1", notifyCount, err)
 	}
 
-	// Verify document.access_batch_completed outbox event was emitted with batch_id, folder_id, workspace_id.
+	// Verify document_access_batch.completed outbox event was emitted with batch_id, folder_id, workspace_id.
+	def, ok := outbox.Lookup("document_access_batch.completed")
+	if !ok {
+		t.Fatal("catalogue missing document_access_batch.completed")
+	}
 	var completedPayload string
 	if err := f.pool.QueryRow(f.ctx,
-		`SELECT payload FROM outbox_events WHERE topic = 'document.access_batch_completed' AND payload::jsonb->>'batch_id' = $1`,
+		`SELECT payload FROM outbox_events WHERE topic = 'document_access_batch.completed' AND payload::jsonb->>'batch_id' = $1`,
 		res.BatchID).Scan(&completedPayload); err != nil {
-		t.Fatalf("document.access_batch_completed event missing: %v", err)
+		t.Fatalf("document_access_batch.completed event missing: %v", err)
 	}
-	if !strings.Contains(completedPayload, folderID) || !strings.Contains(completedPayload, tn.wsA) {
-		t.Fatalf("completedPayload = %s, want folder_id and workspace_id", completedPayload)
+	var gotPayload map[string]string
+	if err := json.Unmarshal([]byte(completedPayload), &gotPayload); err != nil {
+		t.Fatalf("unmarshal document_access_batch.completed payload: %v", err)
+	}
+	gotKeys := make([]string, 0, len(gotPayload))
+	for k := range gotPayload {
+		gotKeys = append(gotKeys, k)
+	}
+	slices.Sort(gotKeys)
+	wantKeys := slices.Clone(def.Payload)
+	slices.Sort(wantKeys)
+	if !slices.Equal(gotKeys, wantKeys) {
+		t.Fatalf("document_access_batch.completed payload keys = %v, want catalogue keys %v", gotKeys, wantKeys)
+	}
+	if gotPayload["batch_id"] != res.BatchID || gotPayload["folder_id"] != folderID || gotPayload["workspace_id"] != tn.wsA {
+		t.Fatalf("completedPayload = %v, want batch_id=%s folder_id=%s workspace_id=%s", gotPayload, res.BatchID, folderID, tn.wsA)
+	}
+}
+
+func TestFolderContentsBatchCompletedEventMatchesCatalogue(t *testing.T) {
+	ev := folderContentsBatchCompletedEvent("batch-1", "folder-1", "ws-1")
+	if ev.Topic != DocumentAccessBatchCompletedTopic {
+		t.Fatalf("event topic = %q, want DocumentAccessBatchCompletedTopic %q", ev.Topic, DocumentAccessBatchCompletedTopic)
+	}
+	def, ok := outbox.Lookup(DocumentAccessBatchCompletedTopic)
+	if !ok {
+		t.Fatalf("emitted topic %q is not in outbox.Catalogue", DocumentAccessBatchCompletedTopic)
+	}
+	if DocumentAccessBatchCompletedTopic != "document_access_batch.completed" {
+		t.Fatalf("DocumentAccessBatchCompletedTopic = %q, want \"document_access_batch.completed\"", DocumentAccessBatchCompletedTopic)
+	}
+	if def.Scope != outbox.ScopeWorkspace || def.Delivery != outbox.DeliveryOutbox {
+		t.Fatalf("catalogue row for %s = %+v, want ScopeWorkspace + DeliveryOutbox", DocumentAccessBatchCompletedTopic, def)
+	}
+	gotKeys := make([]string, 0, len(ev.Payload))
+	for k := range ev.Payload {
+		gotKeys = append(gotKeys, k)
+	}
+	slices.Sort(gotKeys)
+	wantKeys := slices.Clone(def.Payload)
+	slices.Sort(wantKeys)
+	if !slices.Equal(gotKeys, wantKeys) {
+		t.Fatalf("%s payload keys = %v, want catalogue keys %v", DocumentAccessBatchCompletedTopic, gotKeys, wantKeys)
 	}
 }
