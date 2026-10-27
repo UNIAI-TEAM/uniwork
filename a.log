@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^bde56c52a" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=bde56c52a25201f1dbf18a196b5c3c0d997b7f09
+bde56c52a test(documents): follow the fix3 folder access subtitle (UNI-2244)
+1b4b1a299 Merge commit '4055071cd' into feature/UNI-2244-folder-bulk-access-e2e
+4055071cd fix(documents): count-free downgrade warning, fit workspace level trigger, no duplicate failure toast, full-width warning text, shorter folder access subtitle
+208e2bbd1 test(documents): no loss when the replace keeps the workspace at View (UNI-2244)

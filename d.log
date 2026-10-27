@@ -1,0 +1,2 @@
+$ bash ~/.uniwork-cloud/.cursor/cloud/start.sh >/dev/null 2>&1 || true; for p in 18662 3000; do for pid in $(lsof -ti tcp:$p 2>/dev/null); do kill $pid; done; done; sleep 2; P=$(ps -eo pid=,cmd= | awk '/next-server|sh -c next start|bin\/server/ && !/awk/ {print $1}'); echo "STALE_PIDS=$P"; for p in $P; do kill $p 2>/dev/null; done; sleep 3; for p in $P; do kill -0 $p 2>/dev/null && kill -9 $p; done; for p in 18662 3000; do lsof -ti tcp:$p >/dev/null 2>&1 && echo "PORT_STILL_BUSY=$p"; done; true
+STALE_PIDS=
