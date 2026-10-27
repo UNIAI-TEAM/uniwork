@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { VI_LOCALE_STATE } from "./locale-state";
 import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
-import { setFlag } from "./office-docs-web-fixtures";
+import { setFlag, setFlags } from "./office-docs-web-fixtures";
 
 // The golden path for F-09 (spec §8): A creates a task, opens Ask UNI with
 // ⌘J and asks about it; the answer cites [S1] as a link to that task. B, in a
@@ -156,6 +156,8 @@ test("docked Ask UNI streams an answer, stops a run and opens with a focus", asy
 // P2b: from a task's page the dock offers the page as a chip, "@" mentions a task as a card, the
 // answer cites it as an entity link, and a stored answer keeps its "Xong sau n bước" line.
 test("docked Ask UNI offers the page chip, @ mentions a task and keeps the steps after a reload", async ({ page }) => {
+  // The flag write below and its reset in finally can each wait out the server's 30 s override cache.
+  test.setTimeout(150_000);
   const orgId = await onboard(page, "Chủ Nhắc", `Nhắc ${stamp}`, "Đội Nhắc");
   await askUniOrSkip(page);
 
@@ -228,9 +230,7 @@ test("docked Ask UNI answers with a source, proposes a task, applies it and undo
   const orgId = await onboard(page, "Chủ Hành Động", `Hành động ${stamp}`, "Đội Hành động");
   test.skip(!(await page.getByRole("button", { name: /Hỏi UNI/ }).isVisible().catch(() => false)), "AI provider not configured on this server");
 
-  await setFlag("ask_uni_stream", orgId, true);
-  await setFlag("ask_uni_agent", orgId, true);
-  await setFlag("ask_uni_actions", orgId, true);
+  await setFlags({ ask_uni_stream: true, ask_uni_agent: true, ask_uni_actions: true }, orgId);
   try {
     const title = `Việc có nguồn ${stamp}`;
     await reloadWithOrgFlags(page);
@@ -269,9 +269,7 @@ test("docked Ask UNI answers with a source, proposes a task, applies it and undo
     await expect(dock.getByText("Đã hoàn tác")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(made).and(page.locator(":not(aside *)"))).toHaveCount(0, { timeout: 15_000 });
   } finally {
-    await setFlag("ask_uni_actions", orgId, false);
-    await setFlag("ask_uni_agent", orgId, false);
-    await setFlag("ask_uni_stream", orgId, false);
+    await setFlags({ ask_uni_actions: false, ask_uni_agent: false, ask_uni_stream: false }, orgId);
   }
 });
 
@@ -283,9 +281,7 @@ test("docked Ask UNI remembers a preference, uses it, and the memory screen edit
   const orgId = await onboard(page, "Chủ Bộ Nhớ", `Bộ nhớ ${stamp}`, "Đội Bộ nhớ");
   test.skip(!(await page.getByRole("button", { name: /Hỏi UNI/ }).isVisible().catch(() => false)), "AI provider not configured on this server");
 
-  await setFlag("ask_uni_stream", orgId, true);
-  await setFlag("ask_uni_agent", orgId, true);
-  await setFlag("ask_uni_memory", orgId, true);
+  await setFlags({ ask_uni_stream: true, ask_uni_agent: true, ask_uni_memory: true }, orgId);
   try {
     await reloadWithOrgFlags(page);
     await page.keyboard.press("ControlOrMeta+j");
@@ -320,8 +316,6 @@ test("docked Ask UNI remembers a preference, uses it, and the memory screen edit
     await expect(page.getByText("Đã xóa một mục")).toBeVisible({ timeout: 15_000 });
     await expect(dock.getByRole("button", { name: "Trả lời ngắn gọn", exact: true })).toHaveCount(0);
   } finally {
-    await setFlag("ask_uni_memory", orgId, false);
-    await setFlag("ask_uni_agent", orgId, false);
-    await setFlag("ask_uni_stream", orgId, false);
+    await setFlags({ ask_uni_memory: false, ask_uni_agent: false, ask_uni_stream: false }, orgId);
   }
 });
