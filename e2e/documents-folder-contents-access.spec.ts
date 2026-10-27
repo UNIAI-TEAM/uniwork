@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page, type Request, type Response } from "@playwright/test";
-import { createFolder, createPage } from "./documents-folders-fixtures";
+import { createFolder, createPage, folderCard } from "./documents-folders-fixtures";
 import {
   buildShareScene,
   grantAccess,
@@ -8,6 +8,7 @@ import {
   toast,
   userItem,
   who,
+  type AccessItem,
   type ShareScene,
 } from "./documents-share-fixtures";
 import { loginViaUi } from "./meeting-recording-fixture";
@@ -35,6 +36,11 @@ const L = {
     L.tree(page).getByRole("button", { name: `Thao tác cho ${title}`, exact: true }),
   menuItem: (page: Page): Locator => page.getByTestId("folder-access-menu-item"),
   dialog: (page: Page): Locator => page.getByTestId("folder-access-dialog"),
+  dialogTitle: (dialog: Locator): Locator => dialog.getByRole("heading", { name: DIALOG_TITLE, exact: true }),
+  cardMenu: (page: Page, folderTitle: string): Locator =>
+    folderCard(page, folderTitle).getByRole("button", { name: `Thao tác cho ${folderTitle}`, exact: true }),
+  cardOpen: (page: Page, folderTitle: string): Locator => folderCard(page, folderTitle).getByRole("button").first(),
+  headerMenu: (page: Page): Locator => page.getByRole("button", { name: "Thao tác với thư mục", exact: true }),
   mode: (dialog: Locator): Locator => dialog.getByTestId("folder-access-mode"),
   modeOption: (page: Page, mode: "merge" | "replace"): Locator => page.getByTestId(`folder-access-mode-${mode}`),
   confirm: (dialog: Locator): Locator => dialog.getByTestId("folder-access-confirm"),
@@ -49,7 +55,9 @@ const L = {
   option: (page: Page, name: string): Locator => page.getByRole("option", { name, exact: true }),
 };
 
-const MENU_LABEL = "Chia sẻ các tài liệu bên trong…";
+/** documents.folderAccess.title / .subtitle in packages/core/i18n/locales/vi.json. */
+const DIALOG_TITLE = "Chia sẻ";
+const subtitleOf = (folderTitle: string): string => `Áp dụng cho các tài liệu trong thư mục "${folderTitle}" và thư mục con.`;
 
 interface Tree {
   folder: { id: string; title: string };
@@ -142,10 +150,17 @@ async function openFolderAccess(page: Page, folderTitle: string): Promise<Locato
   await expect(row).toBeVisible({ timeout: 60_000 });
   await row.hover();
   await L.treeMenu(page, folderTitle).click();
-  await expect(L.menuItem(page)).toHaveText(MENU_LABEL);
+  await expect(L.menuItem(page)).toBeVisible();
   await L.menuItem(page).click();
+  return expectDialogFor(page, folderTitle);
+}
+
+/** The open dialog carries the new title and the subtitle naming the folder. */
+async function expectDialogFor(page: Page, folderTitle: string): Promise<Locator> {
   const dialog = L.dialog(page);
   await expect(dialog).toBeVisible({ timeout: 30_000 });
+  await expect(L.dialogTitle(dialog)).toBeVisible();
+  await expect(dialog).toContainText(subtitleOf(folderTitle));
   return dialog;
 }
 
@@ -214,8 +229,12 @@ test("merge: dry run counts the skipped document, apply writes the subtree and l
 
 test("replace: Confirm waits for a workspace choice, then the shares are exactly the chosen set", async ({ page }) => {
   const tree = await seedTree(page);
-  // Existing access the replace must take away: the other member holds Edit on both managed pages.
-  for (const id of tree.managed) await grantAccess(page.request, s.member.token, id, [userItem(s.other, "edit")]);
+  // Existing access the replace must take away: the other member holds Edit on both managed pages. The first page also
+  // has a home-workspace share at View: the server warns to_private only when a home-workspace share exists before
+  // the replace (UNI-2244 Amendment A1), and seeded pages are private.
+  const homeView: AccessItem = { principal_type: "workspace", principal_id: s.m.aOwner.wsId, level: "view", on_existing: "update" };
+  await grantAccess(page.request, s.member.token, tree.managed[0]!, [userItem(s.other, "edit"), homeView]);
+  await grantAccess(page.request, s.member.token, tree.managed[1]!, [userItem(s.other, "edit")]);
   const foreignBefore = await accessOf(page, s.other.token, tree.foreign);
   const extra = s.extras[0]!;
 
@@ -244,10 +263,12 @@ test("replace: Confirm waits for a workspace choice, then the shares are exactly
   const dryPrivate = await clickAndWaitPut(page, L.confirm(dialog), tree.folder.id, true);
   expect(dryPrivate.status(), await dryPrivate.text()).toBe(200);
   const privateBody = (await dryPrivate.json()) as DryRunBody;
-  expect(privateBody.preview).toMatchObject({ changed: 2, skipped_not_manageable: 1, losing_users: 1 });
+  expect(privateBody.preview).toMatchObject({ changed: 2, skipped_not_manageable: 1 });
+  // Workspace members may now count as losing access too, so only a lower bound holds.
+  expect(privateBody.preview.losing_users).toBeGreaterThanOrEqual(1);
   expect(privateBody.preview.warnings).toContain("to_private");
   expect(sentBody(dryPrivate.request()).items).toEqual([]);
-  await expect(L.summary(dialog)).toContainText("1 người mất quyền ở ít nhất một tài liệu");
+  await expect(L.summary(dialog)).toContainText(/\d+ người mất quyền ở ít nhất một tài liệu/);
   await expect(L.warning(dialog, "to_private")).toBeVisible();
 
   // Back, keep the workspace at View and add one person at Comment: that exact set is written.
@@ -281,6 +302,37 @@ test("replace: Confirm waits for a workspace choice, then the shares are exactly
     expect(await accessOf(page, s.member.token, id)).toEqual({ shares: [`user:${extra.id}:comment`], home: "view" });
   }
   expect(await accessOf(page, s.other.token, tree.foreign)).toEqual(foreignBefore);
+});
+
+test("card menu: the home folder card menu opens the same dialog", async ({ page }) => {
+  const tree = await seedTree(page);
+  await signInMember(page);
+  await page.goto(`/${s.m.aOwner.orgSlug}/${s.m.aOwner.wsSlug}/documents`);
+  const card = folderCard(page, tree.folder.title);
+  await expect(card).toBeVisible({ timeout: 60_000 });
+  const puts: string[] = [];
+  page.on("request", (req) => {
+    if (req.method() === "PUT" && req.url().includes("/contents-access")) puts.push(req.url());
+  });
+
+  await card.hover();
+  await L.cardMenu(page, tree.folder.title).click();
+  await expect(L.menuItem(page)).toBeVisible();
+  await L.menuItem(page).click();
+  const dialog = await expectDialogFor(page, tree.folder.title);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+
+  // The open folder's header menu carries the same item.
+  await L.cardOpen(page, tree.folder.title).click();
+  await expect(L.headerMenu(page)).toBeVisible({ timeout: 30_000 });
+  await L.headerMenu(page).click();
+  await expect(L.menuItem(page)).toBeVisible();
+  await L.menuItem(page).click();
+  await expectDialogFor(page, tree.folder.title);
+  await page.keyboard.press("Escape");
+  await expect(L.dialog(page)).toBeHidden();
+  expect(puts).toEqual([]);
 });
 
 test("202 background batch: progress bar and toast on completion", async () => {
