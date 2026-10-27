@@ -7992,7 +7992,7 @@
         },
         "price": "Giá (đồng, để trống = liên hệ)",
         "sort_order": "Thứ tự sắp xếp",
-        "is_active": "Hiển thị trên trang billing"
+        "is_active": "Công bố trên Bảng giá và Thanh toán"
       },
       "col": {
         "feature_key": "Khóa",
@@ -9392,8 +9392,8 @@
         "AI đọc theo quyền; lựa chọn mô hình phụ thuộc cấu hình."
       ],
       "enterpriseCta": "Xem quản trị tổ chức",
-      "pricingTitle": "Khởi đầu với Starter.",
-      "pricingDescription": "Starter miễn phí, Team và Business trả phí theo tháng — hạn mức và giá khớp catalog trong ứng dụng.",
+      "pricingTitle": "Chọn gói phù hợp với đội nhóm.",
+      "pricingDescription": "So sánh các gói hiện có, hạn mức sử dụng và tính năng để chọn gói phù hợp với tổ chức.",
       "solutionLabel": "Giải pháp",
       "resourcesLabel": "Bắt đầu và tìm hiểu"
     },
@@ -10612,34 +10612,50 @@
       "ent4": "SCIM và chính sách lưu trữ dữ liệu"
     },
     "pricing": {
-      "title": "Ba gói cho mọi quy mô đội.",
-      "sub": "Bắt đầu miễn phí với hạn mức rõ ràng; nâng cấp khi nhóm cần thêm thành viên, họp và AI.",
-      "p1": {
-        "name": "Starter",
-        "price": "Miễn phí",
-        "desc": "Tối đa 5 thành viên, 2 workspace — phù hợp thử nghiệm và nhóm nhỏ."
-      },
-      "p2": {
-        "name": "Team",
-        "price": "499.000 VND / tháng",
-        "desc": "Tối đa 30 thành viên, ghi hình họp, liên kết tài liệu công khai và 2 triệu token AI mỗi tháng."
-      },
-      "p3": {
-        "name": "Business",
-        "price": "1.499.000 VND / tháng",
-        "desc": "Tối đa 150 thành viên, SSO, dung lượng và phút họp cao hơn — cho tổ chức đang mở rộng."
-      },
-      "quotasLabel": "Hạn mức gói Starter (mặc định khi đăng ký)",
-      "q1": "5 thành viên tổ chức",
-      "q2": "2 workspace",
-      "q3": "200 công việc",
-      "q4": "3.000 phút tham dự họp",
-      "q5": "Ghi hình và tóm tắt họp bằng AI (theo gói)",
-      "q6": "100.000 token AI",
-      "q7": "5 GB dung lượng lưu trữ",
-      "q8": "Liên kết tài liệu công khai (SSO chỉ ở gói Business trả phí)",
-      "status": "Giá và hạn mức khớp catalog trong ứng dụng; sau khi đăng ký bạn chọn gói và thanh toán qua VNPay nếu nâng cấp.",
-      "cta": "Tạo workspace"
+      "title": "Chọn gói phù hợp với đội nhóm.",
+      "sub": "So sánh số thành viên, workspace, dung lượng, cuộc họp và AI.",
+      "defaultPlan": "Mặc định khi đăng ký",
+      "perOrganization": "cho mỗi tổ chức",
+      "perOrganizationPeriod": "mỗi tổ chức / {{period}}",
+      "startWithPlan": "Bắt đầu với {{name}}",
+      "contact": "Trao đổi với UniWork",
+      "compareFeatures": "So sánh tính năng trong từng gói",
+      "feature": "Tính năng",
+      "included": "Có trong gói",
+      "notSpecified": "Chưa công bố",
+      "loading": "Đang tải các gói hiện có…",
+      "errorTitle": "Chưa tải được bảng giá hiện tại.",
+      "emptyTitle": "Chưa có gói nào được công bố.",
+      "unavailableDescription": "Thử tải lại hoặc trao đổi với UniWork để xác nhận gói và giá hiện có.",
+      "status": "Sau khi đăng ký, chủ tổ chức xem chi tiết và xác nhận đổi gói trong mục Thanh toán.",
+      "usageNote": "Phút họp được tính cho từng người tham gia. Tính năng còn phụ thuộc vào cấu hình dịch vụ của tổ chức.",
+      "deploymentTitle": "Cần trao đổi về triển khai?",
+      "deploymentDescription": "Chia sẻ quy mô đội nhóm, quy trình và cách triển khai để cùng xem phương án phù hợp.",
+      "labels": {
+        "price_free": "Miễn phí",
+        "price_contact": "Liên hệ để báo giá",
+        "period": {
+          "month": "tháng",
+          "year": "năm",
+          "none": "không kỳ hạn"
+        },
+        "unlimited": "không giới hạn",
+        "plan_line_storage_gb": "{{n}} GB",
+        "not_in_plan": "Không có trong gói",
+        "retry": "Thử lại",
+        "features": {
+          "members_max": "Thành viên tổ chức",
+          "workspaces_max": "Workspace",
+          "tasks_max": "Số việc",
+          "storage_bytes": "Dung lượng lưu trữ",
+          "meeting_participant_minutes": "Phút tham dự họp",
+          "ai_tokens": "Token AI",
+          "meeting_recording": "Ghi hình cuộc họp",
+          "meeting_ai_summary": "Tóm tắt họp bằng AI",
+          "documents_public_links": "Liên kết công khai cho tài liệu",
+          "sso_oidc": "Đăng nhập SSO (OIDC)"
+        }
+      }
     },
     "final": {
       "compactTitle": "Đưa công việc của nhóm về cùng một nơi.",
@@ -10665,7 +10681,7 @@
       "q7": "UniWork đã phát hành chưa?",
       "a7": "UniWork đang trong giai đoạn trước phát hành rộng. Trang tách riêng chức năng hiện có và lộ trình; một số chức năng cần bật cấu hình hoặc kết nối dịch vụ trước khi sử dụng.",
       "q8": "Bao nhiêu tiền?",
-      "a8": "Starter miễn phí với hạn mức rõ ràng; Team 499.000 VND/tháng và Business 1.499.000 VND/tháng. Giá và quota khớp catalog trong ứng dụng — xem bảng giá công khai hoặc Cài đặt › Gói sau khi đăng ký.",
+      "a8": "Xem các gói đang mở, giá và hạn mức hiện tại trên trang Bảng giá. Sau khi đăng ký, chủ tổ chức có thể xem chi tiết và xác nhận đổi gói trong mục Thanh toán.",
       "q9": "Chạy trên hạ tầng của chúng tôi được không?",
       "a9": "Chưa được hôm nay. Bản cài on-premise bằng Docker Compose hoặc Helm nằm trong lộ trình, cùng với OIDC bất kỳ, lưu trữ MinIO và mô hình chạy nội bộ.",
       "q10": "Có API không?",
@@ -11137,11 +11153,11 @@
         "closing": "Đưa nhịp làm việc của nhóm vào UniWork."
       },
       "pricing": {
-        "viewPlan": "Xem gói Starter",
+        "viewPlan": "So sánh các gói",
         "checkTitle": "Rõ giai đoạn hiện tại. Rõ điều cần xác nhận.",
         "checkDescription": "Đối chiếu gói Starter, Team và Business với nhu cầu triển khai, cấu hình AI và quy mô đội.",
         "enterpriseLink": "Xem nền tảng doanh nghiệp",
-        "closing": "Khám phá UniWork cùng Starter.",
+        "closing": "Đưa đội nhóm vào UniWork.",
         "rows": [
           {
             "subject": "Gói hiện tại",

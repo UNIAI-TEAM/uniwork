@@ -8052,7 +8052,7 @@
         },
         "price": "Price (smallest unit; empty = contact us)",
         "sort_order": "Sort order",
-        "is_active": "Visible on billing page"
+        "is_active": "Publish in pricing and billing"
       },
       "col": {
         "feature_key": "Key",
@@ -9453,8 +9453,8 @@
         "AI reads within permissions; model choice depends on configuration."
       ],
       "enterpriseCta": "Explore organization management",
-      "pricingTitle": "Start with Starter.",
-      "pricingDescription": "Free Starter plus paid Team and Business tiers — limits and prices match the in-app catalog.",
+      "pricingTitle": "Choose a plan for your team.",
+      "pricingDescription": "Compare the current plans, their resource limits and included features. Choose what fits your organization.",
       "solutionLabel": "Solutions",
       "resourcesLabel": "Get started and learn"
     },
@@ -10674,34 +10674,50 @@
       "ent4": "SCIM and data retention policy"
     },
     "pricing": {
-      "title": "Three plans for every team size.",
-      "sub": "Start free with clear limits; upgrade when you need more members, meetings, and AI.",
-      "p1": {
-        "name": "Starter",
-        "price": "Free",
-        "desc": "Up to 5 members and 2 workspaces — for trials and small teams."
-      },
-      "p2": {
-        "name": "Team",
-        "price": "499,000 VND / month",
-        "desc": "Up to 30 members, meeting recording, public document links, and 2M AI tokens per month."
-      },
-      "p3": {
-        "name": "Business",
-        "price": "1,499,000 VND / month",
-        "desc": "Up to 150 members, SSO, and higher storage and meeting minutes for growing organizations."
-      },
-      "quotasLabel": "Starter limits (default when you sign up)",
-      "q1": "5 organization members",
-      "q2": "2 workspaces",
-      "q3": "200 tasks",
-      "q4": "3,000 meeting participant minutes",
-      "q5": "Meeting recording and AI summary (by plan)",
-      "q6": "100,000 AI tokens",
-      "q7": "5 GB storage",
-      "q8": "Public document links (SSO on paid Business only)",
-      "status": "Prices and limits match the in-app catalog; after sign-up you can upgrade and pay through VNPay.",
-      "cta": "Create a workspace"
+      "title": "Choose a plan for your team.",
+      "sub": "Compare members, workspace capacity, meetings and AI in one place.",
+      "defaultPlan": "Default on sign-up",
+      "perOrganization": "per organization",
+      "perOrganizationPeriod": "per organization / {{period}}",
+      "startWithPlan": "Start with {{name}}",
+      "contact": "Talk to UniWork",
+      "compareFeatures": "Compare included features",
+      "feature": "Feature",
+      "included": "Included",
+      "notSpecified": "Not specified",
+      "loading": "Loading current plans…",
+      "errorTitle": "We couldn’t load the current prices.",
+      "emptyTitle": "No plans are published yet.",
+      "unavailableDescription": "Try loading again, or contact UniWork to confirm the available plans and prices.",
+      "status": "After sign-up, the organization owner reviews and confirms plan changes in Billing.",
+      "usageNote": "Meeting limits count minutes for each participant. Features also depend on your organization’s service configuration.",
+      "deploymentTitle": "Have deployment questions?",
+      "deploymentDescription": "Tell us about your team size, workflows and setup so we can discuss the available options.",
+      "labels": {
+        "price_free": "Free",
+        "price_contact": "Contact us for pricing",
+        "period": {
+          "month": "month",
+          "year": "year",
+          "none": "no term"
+        },
+        "unlimited": "unlimited",
+        "plan_line_storage_gb": "{{n}} GB",
+        "not_in_plan": "Not in this plan",
+        "retry": "Retry",
+        "features": {
+          "members_max": "Organization members",
+          "workspaces_max": "Workspaces",
+          "tasks_max": "Tasks",
+          "storage_bytes": "Storage",
+          "meeting_participant_minutes": "Meeting participant minutes",
+          "ai_tokens": "AI tokens",
+          "meeting_recording": "Meeting recording",
+          "meeting_ai_summary": "AI meeting summaries",
+          "documents_public_links": "Public links for documents",
+          "sso_oidc": "SSO sign-in (OIDC)"
+        }
+      }
     },
     "final": {
       "compactTitle": "Bring your team's work together.",
@@ -10727,7 +10743,7 @@
       "q7": "Has UniWork launched?",
       "a7": "UniWork is in pre-launch. This page separates current capabilities from the roadmap; some features need configuration or a connected service before use.",
       "q8": "What does it cost?",
-      "a8": "Starter is free with clear limits; Team is 499,000 VND/month and Business is 1,499,000 VND/month. Prices and quotas match the in-app catalog — see the public pricing page or Settings › Plan after sign-up.",
+      "a8": "See the pricing page for the plans currently available, their prices and resource limits. After sign-up, the organization owner can review and confirm plan changes in Billing.",
       "q9": "Can it run on our own infrastructure?",
       "a9": "Not today. An on-premise install through Docker Compose or Helm is on the roadmap, along with any OIDC provider, MinIO storage and models running in house.",
       "q10": "Is there an API?",
@@ -11199,11 +11215,11 @@
         "closing": "Bring your team’s working rhythm to UniWork."
       },
       "pricing": {
-        "viewPlan": "See Starter",
+        "viewPlan": "Compare plans",
         "checkTitle": "Understand today. Confirm what comes next.",
         "checkDescription": "Compare Starter, Team and Business with your deployment needs, AI setup and team size.",
         "enterpriseLink": "Explore enterprise foundations",
-        "closing": "Explore UniWork with Starter.",
+        "closing": "Bring your team into UniWork.",
         "rows": [
           {
             "subject": "Current plan",
