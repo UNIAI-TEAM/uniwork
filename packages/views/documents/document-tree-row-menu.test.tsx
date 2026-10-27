@@ -702,3 +702,31 @@ describe("DocumentTreeRowMenu access report entry (UNI-1643)", () => {
     expect(nav.push).toHaveBeenCalledWith("/acme/doi/documents/access-report?folder=f1");
   });
 });
+
+describe("DocumentTreeRowMenu contents access entry (UNI-2244)", () => {
+  const baseActions = { onNewSubfolder: vi.fn(), onRename: vi.fn(), onMoveTo: vi.fn(), onDelete: vi.fn() };
+  const item = () => screen.queryByRole("menuitem", { name: t("documents.folderAccess.menu") });
+  const openMenu = () =>
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.row.menu", { title: "Hợp đồng" }) }));
+
+  it("offers it to any reader of the folder and hands the folder over", async () => {
+    const onShareContents = vi.fn();
+    const actions = { ...baseActions, onShareContents };
+    const view = render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="view" actions={actions} />));
+    openMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.folderAccess.menu") }));
+    expect(onShareContents).toHaveBeenCalledWith(folderNode);
+    view.unmount();
+
+    render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="manage" actions={actions} />));
+    openMenu();
+    expect(await screen.findByRole("menuitem", { name: t("documents.folderAccess.menu") })).toBeInTheDocument();
+  });
+
+  it("stays out of the menu when the host mounts no dialog", async () => {
+    render(wrap(<DocumentTreeRowMenu wsId={WS} node={folderNode} myLevel="manage" actions={baseActions} />));
+    openMenu();
+    await screen.findByRole("menuitem", { name: t("documents.tree.menu.rename") });
+    expect(item()).toBeNull();
+  });
+});

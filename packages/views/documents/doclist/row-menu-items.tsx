@@ -30,6 +30,7 @@ const ICONS: Record<Exclude<RowMenuItemId, "go-to-source">, LucideIcon> = {
   "open-folder": FolderOpen,
   "open-app": MonitorUp,
   share: Share2,
+  "share-contents": Share2,
   "copy-link": Link2,
   star: Star,
   "new-subfolder": FolderPlus,

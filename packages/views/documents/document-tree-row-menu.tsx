@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Ellipsis, FolderInput, FolderOpen, FolderPlus, Pencil, ShieldCheck, Star, Trash } from "lucide-react";
+import { Ellipsis, FolderInput, FolderOpen, FolderPlus, Pencil, Share2, ShieldCheck, Star, Trash } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -46,6 +46,8 @@ export interface TreeRowMenuActions {
   onDelete: (node: DocumentTreeNode) => void;
   /** Opens the folder's access report; absent where the host cannot navigate. */
   onAccessReport?: (node: DocumentTreeNode) => void;
+  /** Opens "Chia sẻ các tài liệu bên trong…" on the folder; absent where the host mounts no dialog. */
+  onShareContents?: (node: DocumentTreeNode) => void;
   /** Stars or unstars the folder (`starred` is its current state); absent where the host knows no organization. */
   onToggleStar?: (node: DocumentTreeNode, starred: boolean) => void;
 }
@@ -205,6 +207,15 @@ export function DocumentTreeRowMenu({
             </DropdownMenuItem>
           </>
         ) : null}
+        {actions?.onShareContents ? (
+          <DropdownMenuItem
+            className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
+            onClick={() => actions.onShareContents?.(node)}
+          >
+            <Share2 aria-hidden className="size-3.5" />
+            {t("documents.folderAccess.menu")}
+          </DropdownMenuItem>
+        ) : null}
         {canReport ? (
           <DropdownMenuItem
             className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
@@ -265,6 +276,7 @@ export function useTreeRowMenuDialogs({
   };
 
   const actions: TreeRowMenuActions = {
+    onShareContents: (node) => rowDialogs.onShareContents(resolveSummaryRow(node)),
     onNewSubfolder: (node) => setCreatingUnder(node),
     onRename: (node) => {
       if (isMyFolder(node)) return;
