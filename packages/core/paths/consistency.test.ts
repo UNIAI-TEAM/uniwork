@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { GLOBAL_PREFIXES, isGlobalPath, paths } from "./paths";
+import { GLOBAL_PREFIXES, isGlobalPath, parseDriveLibrarySelection, paths } from "./paths";
 import { RESERVED_SLUGS } from "./reserved-slugs";
 
 /**
@@ -126,6 +126,27 @@ describe("paths stay in step with the app's routes", () => {
     expect(ws.documentsDrive()).toBe("/acme/team/documents?view=drive");
     expect(ws.documentsDrive("conn-1")).toBe("/acme/team/documents?view=drive&account=conn-1");
     expect(ws.documentsDriveFile("df-1")).toBe("/acme/team/documents/drive/df-1");
+  });
+
+  it("builds and parses the Drive library account + folder selection (round trip)", () => {
+    const ws = paths.workspace("acme", "team");
+    expect(ws.documentsDrive("conn-1", "fld/1 é")).toBe(
+      "/acme/team/documents?view=drive&account=conn-1&driveFolder=fld%2F1%20%C3%A9",
+    );
+    // A folder without an account is dropped: the folder only exists under an account.
+    expect(ws.documentsDrive(null, "fld-1")).toBe("/acme/team/documents?view=drive");
+    for (const [account, folder] of [["conn-1", "fld/1 é"], ["conn-1", null], [null, null]] as const) {
+      const url = new URL(ws.documentsDrive(account, folder), "http://x");
+      expect(parseDriveLibrarySelection(url.searchParams)).toEqual({ account, folder });
+    }
+    expect(parseDriveLibrarySelection(new URLSearchParams("view=drive&driveFolder=f"))).toEqual({
+      account: null,
+      folder: null,
+    });
+    expect(parseDriveLibrarySelection(new URLSearchParams("view=drive&account=&driveFolder="))).toEqual({
+      account: null,
+      folder: null,
+    });
   });
 });
 
