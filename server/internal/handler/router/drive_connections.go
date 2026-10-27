@@ -116,19 +116,19 @@ func registerDriveConnections(r api, h Routes, flags *featureflag.Service, conne
 	})
 	d.With(proposalLimit).Post("/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", h.CreateDriveTaskProposal, apiOp{
 		summary: "Propose workspace tasks from a Google Drive file",
-		description: "Đọc nội dung tệp Google Drive qua kết nối của chính người gọi (`ReadForAI`, ADR 0047), gọi AI Gateway trích xuất tối đa 25 mục công việc đề xuất kèm trích dẫn nguồn và phát hiện trùng lặp, " +
+		description: "Đọc nội dung tệp Google Drive qua kết nối của chính người gọi (`ReadForAI`, ADR 0047), gọi AI Gateway trích xuất tối đa 20 mục công việc đề xuất kèm trích dẫn nguồn và phát hiện trùng lặp, " +
 			"và lưu bản đề xuất `ready` (hết hạn sau 7 ngày; spec §8.1–§8.3). Giới hạn 10 yêu cầu mỗi 10 phút theo người dùng.",
-		tags: []string{"drive"}, sdi: sdi.CreateDriveTaskProposalSDI{}, sdo: sdo.DriveTaskProposalSDO{}, auth: true,
+		tags: []string{"drive"}, sdi: sdi.CreateDriveTaskProposalSDI{}, sdo: sdo.DriveTaskProposalSDO{}, status: http.StatusCreated, auth: true,
 	})
 	d.Get("/workspaces/{workspaceID}/drive-task-proposals/{proposalID}", h.GetDriveTaskProposal, apiOp{
 		summary:     "Get a Google Drive task proposal batch",
-		description: "Đọc lại bản đề xuất công việc `ready` của chính người gọi trước khi hết hạn (spec §8.3).",
+		description: "Đọc bản đề xuất công việc của chính người gọi theo trạng thái hiện tại (`ready`, `converted` hoặc `discarded`, kể cả khi đã quá hạn; khi `converted` hoặc `discarded` thì `items` là `[]`; spec §8.3).",
 		tags:        []string{"drive"}, sdo: sdo.DriveTaskProposalSDO{}, auth: true,
 	})
 	d.Delete("/workspaces/{workspaceID}/drive-task-proposals/{proposalID}", h.DiscardDriveTaskProposal, apiOp{
 		summary:     "Discard a Google Drive task proposal batch",
 		description: "Hủy bản đề xuất công việc từ tệp Google Drive của người gọi (`status = discarded`, xóa `items`; idempotent khi đã `converted` hoặc `discarded`; spec §8.3).",
-		tags:        []string{"drive"}, auth: true,
+		tags:        []string{"drive"}, status: http.StatusNoContent, auth: true,
 	})
 	d.Post("/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates", h.CheckDriveTaskProposalDuplicates, apiOp{
 		summary:     "Recheck duplicate tasks for edited Google Drive proposal titles",

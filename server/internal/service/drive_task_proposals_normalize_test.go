@@ -364,14 +364,36 @@ func TestParseDriveProposalRawItems(t *testing.T) {
 		}
 	})
 
-	t.Run("null item in items array is skipped without panic", func(t *testing.T) {
+	t.Run("null item in items array stays as empty placeholder and preserves dependency coordinates", func(t *testing.T) {
 		raw, err := parseDriveProposalRawItems(`{"items":[null]}`)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
+		if len(raw) != 1 || raw[0].Title != "" {
+			t.Fatalf("expected 1 empty placeholder raw item, got %+v", raw)
+		}
 		got := normalizeDriveProposalItems(raw, nil, nil)
 		if len(got) != 0 {
 			t.Fatalf("expected 0 items, got %+v", got)
+		}
+
+		// Reviewer R1-1 case: [null, A, B(blocked_by_indexes=[1])] -> B depends on A (dense 0).
+		rawShifted, err := parseDriveProposalRawItems(`{"items":[null,{"title":"Task A"},{"title":"Task B","blocked_by_indexes":[1]}]}`)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(rawShifted) != 3 {
+			t.Fatalf("len(rawShifted) = %d, want 3 (null kept in raw array)", len(rawShifted))
+		}
+		gotShifted := normalizeDriveProposalItems(rawShifted, nil, nil)
+		if len(gotShifted) != 2 {
+			t.Fatalf("len(gotShifted) = %d, want 2: %+v", len(gotShifted), gotShifted)
+		}
+		if gotShifted[0].Index != 0 || gotShifted[0].Title != "Task A" || !reflect.DeepEqual(gotShifted[0].BlockedByIndexes, []int{}) {
+			t.Fatalf("Task A = %+v, want Index=0 BlockedByIndexes=[]", gotShifted[0])
+		}
+		if gotShifted[1].Index != 1 || gotShifted[1].Title != "Task B" || !reflect.DeepEqual(gotShifted[1].BlockedByIndexes, []int{0}) {
+			t.Fatalf("Task B = %+v, want Index=1 BlockedByIndexes=[0] (raw 1 -> dense 0)", gotShifted[1])
 		}
 	})
 

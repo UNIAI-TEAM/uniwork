@@ -61,7 +61,9 @@ func TestDriveProposalSeamHelpersAndOrgLifecycleDiscards(t *testing.T) {
 		t.Fatalf("Propose = %v", err)
 	}
 
-	// 1. requireOwnProposalQ: owner succeeds, peer in same workspace gets ErrNotFound.
+	// 1. requireOwnProposalQ (R1-3): owner succeeds; peer in same workspace,
+	// unknown workspace, and unknown proposal ID all return ErrNotFound; operational
+	// DB errors (cancelled context) propagate instead of being masked as ErrNotFound.
 	pRow, err := propSvc.requireOwnProposalQ(ctx, e.q, e.owner.ID, e.wsA.ID, propView.ID)
 	if err != nil || pRow.ID != propView.ID {
 		t.Fatalf("requireOwnProposalQ(owner) = %+v, err=%v", pRow, err)
@@ -69,7 +71,17 @@ func TestDriveProposalSeamHelpersAndOrgLifecycleDiscards(t *testing.T) {
 	if _, err := propSvc.requireOwnProposalQ(ctx, e.q, e.peer.ID, e.wsA.ID, propView.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("requireOwnProposalQ(peer) = %v, want ErrNotFound", err)
 	}
-
+	if _, err := propSvc.requireOwnProposalQ(ctx, e.q, e.owner.ID, "01UNKNOWNWS000000000000000", propView.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("requireOwnProposalQ(unknown workspace) = %v, want ErrNotFound", err)
+	}
+	if _, err := propSvc.requireOwnProposalQ(ctx, e.q, e.owner.ID, e.wsA.ID, "01UNKNOWNPROP0000000000000"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("requireOwnProposalQ(unknown proposal) = %v, want ErrNotFound", err)
+	}
+	canceledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := propSvc.requireOwnProposalQ(canceledCtx, e.q, e.owner.ID, e.wsA.ID, propView.ID); !errors.Is(err, context.Canceled) {
+		t.Fatalf("requireOwnProposalQ(canceledCtx) = %v, want context.Canceled", err)
+	}
 	// 2. lockSourceForProposalQ: succeeds inside a caller transaction and returns the locked proposal row.
 	tx, err := e.pool.Begin(ctx)
 	if err != nil {
@@ -136,19 +148,73 @@ func TestDriveProposalSeamHelpersAndOrgLifecycleDiscards(t *testing.T) {
 
 	orgMemberSvc := NewOrganizationMemberService(e.pool, e.q, e.orgs)
 	orgMemberSvc.SetDrive(e.svc)
+
+	// R1-11 rollback check on the shared org-lifecycle seam: if a later step in
+	// Deactivate fails (e.g. recording drive_connection.disconnected), peer's
+	// membership, Drive connection, ready proposal (status=ready, non-null items),
+	// and discard audit row all roll back together.
+	if _, err := e.pool.Exec(ctx, `
+		CREATE OR REPLACE FUNCTION uni_test_b5_lifecycle_rollback() RETURNS trigger
+		LANGUAGE plpgsql AS $fn$
+		BEGIN
+		  IF NEW.organization_id = '`+e.org.ID+`' AND NEW.action = 'drive_connection.disconnected' THEN
+		    RAISE EXCEPTION 'simulated lifecycle audit failure after proposal discard';
+		  END IF;
+		  RETURN NEW;
+		END;
+		$fn$`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(ctx, `DROP TRIGGER IF EXISTS uni_test_b5_lifecycle_rollback ON audit_events`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(ctx, `
+		CREATE TRIGGER uni_test_b5_lifecycle_rollback
+		BEFORE INSERT ON audit_events
+		FOR EACH ROW EXECUTE FUNCTION uni_test_b5_lifecycle_rollback()`); err != nil {
+		t.Fatal(err)
+	}
+	dropLifecycleTrigger := func() {
+		_, _ = e.pool.Exec(ctx, `DROP TRIGGER IF EXISTS uni_test_b5_lifecycle_rollback ON audit_events`)
+		_, _ = e.pool.Exec(ctx, `DROP FUNCTION IF EXISTS uni_test_b5_lifecycle_rollback()`)
+	}
+	t.Cleanup(dropLifecycleTrigger)
+
+	if _, err := orgMemberSvc.Deactivate(ctx, e.owner.ID, e.org.ID, e.peer.ID); err == nil {
+		t.Fatal("Deactivate succeeded past simulated audit failure")
+	}
+	var peerDeactivatedAt, peerConnDiscAt bool
+	if err := e.pool.QueryRow(ctx, `SELECT deactivated_at IS NOT NULL FROM organization_members WHERE organization_id = $1 AND user_id = $2`, e.org.ID, e.peer.ID).Scan(&peerDeactivatedAt); err != nil || peerDeactivatedAt {
+		t.Fatalf("after failed Deactivate: deactivated_at valid=%v err=%v, want false", peerDeactivatedAt, err)
+	}
+	if err := e.pool.QueryRow(ctx, `SELECT disconnected_at IS NOT NULL FROM drive_connections WHERE id = $1`, peerConn.ID).Scan(&peerConnDiscAt); err != nil || peerConnDiscAt {
+		t.Fatalf("after failed Deactivate: connection disconnected_at valid=%v err=%v, want false", peerConnDiscAt, err)
+	}
+	var peerPropStatus string
+	var peerPropItems []byte
+	if err := e.pool.QueryRow(ctx, `SELECT status, items FROM drive_task_proposals WHERE id = $1`, peerProp.ID).Scan(&peerPropStatus, &peerPropItems); err != nil || peerPropStatus != DriveProposalStatusReady || len(peerPropItems) == 0 {
+		t.Fatalf("after failed Deactivate: proposal status=%q len(items)=%d err=%v, want ready with items", peerPropStatus, len(peerPropItems), err)
+	}
+	var peerDiscardAudits int
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'drive_task_proposal.discarded' AND resource_id = $2`, e.org.ID, peerProp.ID).Scan(&peerDiscardAudits); err != nil || peerDiscardAudits != 0 {
+		t.Fatalf("after failed Deactivate: discard audit count=%d err=%v, want 0", peerDiscardAudits, err)
+	}
+	dropLifecycleTrigger()
+
 	if _, err := orgMemberSvc.Deactivate(ctx, e.owner.ID, e.org.ID, e.peer.ID); err != nil {
 		t.Fatalf("Deactivate peer = %v", err)
 	}
 
-	var peerPropStatus, peerDiscardReason string
-	if err := e.pool.QueryRow(ctx, `SELECT status FROM drive_task_proposals WHERE id = $1`, peerProp.ID).Scan(&peerPropStatus); err != nil || peerPropStatus != DriveProposalStatusDiscarded {
-		t.Fatalf("peer proposal status after Deactivate = %q (err=%v), want discarded", peerPropStatus, err)
+	var peerDiscardReason, peerDiscardEmail, peerDiscardSub string
+	if err := e.pool.QueryRow(ctx, `SELECT status, items FROM drive_task_proposals WHERE id = $1`, peerProp.ID).Scan(&peerPropStatus, &peerPropItems); err != nil || peerPropStatus != DriveProposalStatusDiscarded || peerPropItems != nil {
+		t.Fatalf("peer proposal status after Deactivate = %q items=%v (err=%v), want discarded and nil items", peerPropStatus, peerPropItems, err)
 	}
 	if err := e.pool.QueryRow(ctx,
-		`SELECT metadata::jsonb->>'reason' FROM audit_events WHERE organization_id = $1 AND action = 'drive_task_proposal.discarded' AND resource_id = $2`,
+		`SELECT metadata::jsonb->>'reason', metadata::jsonb->>'google_email', metadata::jsonb->>'google_sub'
+		 FROM audit_events WHERE organization_id = $1 AND action = 'drive_task_proposal.discarded' AND resource_id = $2`,
 		e.org.ID, peerProp.ID,
-	).Scan(&peerDiscardReason); err != nil || peerDiscardReason != "source_disconnected" {
-		t.Fatalf("peer proposal discard audit reason after Deactivate = %q (err=%v), want source_disconnected", peerDiscardReason, err)
+	).Scan(&peerDiscardReason, &peerDiscardEmail, &peerDiscardSub); err != nil || peerDiscardReason != "source_disconnected" || peerDiscardEmail != "seam-peer@example.com" || peerDiscardSub != "sub-seam-peer" {
+		t.Fatalf("peer proposal discard audit after Deactivate = (%q, %q, %q) err=%v, want (source_disconnected, seam-peer@example.com, sub-seam-peer)", peerDiscardReason, peerDiscardEmail, peerDiscardSub, err)
 	}
 }
 

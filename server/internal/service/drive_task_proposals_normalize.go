@@ -112,12 +112,11 @@ func parseDriveProposalRawItems(text string) ([]driveProposalRawItem, error) {
 	if payload.Items == nil {
 		return nil, fmt.Errorf("%w: missing items array", ai.ErrOutputInvalid)
 	}
-	out := make([]driveProposalRawItem, 0, len(*payload.Items))
-	for _, item := range *payload.Items {
-		if item == nil {
-			continue
+	out := make([]driveProposalRawItem, len(*payload.Items))
+	for i, item := range *payload.Items {
+		if item != nil {
+			out[i] = *item
 		}
-		out = append(out, *item)
 	}
 	return out, nil
 }

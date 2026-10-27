@@ -229,6 +229,17 @@ func (s *DriveTaskProposalService) workspaceAndMember(ctx context.Context, actor
 	return ws, member, nil
 }
 
+func (s *DriveTaskProposalService) workspaceAndMemberForProposal(ctx context.Context, actor Actor, workspaceID string) (db.Workspace, db.WorkspaceMember, error) {
+	ws, member, err := s.workspaceAndMember(ctx, actor, workspaceID)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) {
+			return db.Workspace{}, db.WorkspaceMember{}, ErrNotFound
+		}
+		return db.Workspace{}, db.WorkspaceMember{}, err
+	}
+	return ws, member, nil
+}
+
 // AuthorizeHistory enforces the §7.6a / §8.2a requester-only gate on
 // GET /api/v1/workspaces/{workspaceID}/resources/drive_task_proposal/{proposalID}/history.
 func (s *DriveTaskProposalService) AuthorizeHistory(ctx context.Context, userID, workspaceID, proposalID string) error {
@@ -252,6 +263,9 @@ func (s *DriveTaskProposalService) requireOwnProposalQ(
 		return db.DriveTaskProposal{}, ErrNotFound
 	}
 	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, actorID); err != nil {
+		if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) {
+			return db.DriveTaskProposal{}, ErrNotFound
+		}
 		return db.DriveTaskProposal{}, err
 	}
 	ws, err := q.GetWorkspaceByID(ctx, workspaceID)
@@ -367,6 +381,16 @@ func (s *DriveTaskProposalService) Propose(
 	if driveFileID == "" {
 		return DriveTaskProposalView{}, ErrNotFound
 	}
+	if _, err := s.q.GetActiveDriveFileByID(ctx, db.GetActiveDriveFileByIDParams{
+		ID:             driveFileID,
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DriveTaskProposalView{}, ErrNotFound
+		}
+		return DriveTaskProposalView{}, err
+	}
 
 	prompt := strings.TrimSpace(in.Prompt)
 	if utf8.RuneCountInString(prompt) > driveMaxProposalPromptRunes {
@@ -379,65 +403,66 @@ func (s *DriveTaskProposalService) Propose(
 		s.observeResult("invalid_request")
 		return DriveTaskProposalView{}, err
 	}
-	parentTaskID, err := s.validateOptionalTask(ctx, ws.OrganizationID, ws.ID, in.ParentTaskID, "parent task not found in workspace")
+	parentTaskID, err := s.validateOptionalTask(ctx, ws.OrganizationID, ws.ID, in.ParentTaskID)
 	if err != nil {
 		s.observeResult("invalid_request")
 		return DriveTaskProposalView{}, err
 	}
-	contextTaskID, err := s.validateOptionalTask(ctx, ws.OrganizationID, ws.ID, in.ContextTaskID, "context task not found in workspace")
+	contextTaskID, err := s.validateOptionalTask(ctx, ws.OrganizationID, ws.ID, in.ContextTaskID)
 	if err != nil {
 		s.observeResult("invalid_request")
 		return DriveTaskProposalView{}, err
 	}
+
+	// Step 1-2 (spec §8.2, R1-4): require a granted drive_file_access row on an
+	// active requester-owned connection and snapshot (connection_id, credential_version)
+	// BEFORE calling ReadForAI. Missing / not granted / inactive returns 409
+	// drive_access_required before any content read; operational lookup errors propagate.
+	acc, err := s.q.GetDriveFileAccessByUser(ctx, db.GetDriveFileAccessByUserParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+		DriveFileID:    driveFileID,
+		UserID:         actor.ID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			s.observeResult("access_required")
+			return DriveTaskProposalView{}, DriveErrToCodedError(ErrDriveAccessRequired)
+		}
+		return DriveTaskProposalView{}, err
+	}
+	if acc.State != "granted" || strings.TrimSpace(acc.ConnectionID) == "" {
+		s.observeResult("access_required")
+		return DriveTaskProposalView{}, DriveErrToCodedError(ErrDriveAccessRequired)
+	}
+	conn, err := s.q.GetDriveConnectionAnyState(ctx, db.GetDriveConnectionAnyStateParams{
+		ID:             acc.ConnectionID,
+		OrganizationID: ws.OrganizationID,
+		UserID:         actor.ID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			s.observeResult("access_required")
+			return DriveTaskProposalView{}, DriveErrToCodedError(ErrDriveAccessRequired)
+		}
+		return DriveTaskProposalView{}, err
+	}
+	if conn.UserID != actor.ID || conn.OrganizationID != ws.OrganizationID || conn.DisconnectedAt.Valid || conn.AuthFailedAt.Valid {
+		s.observeResult("access_required")
+		return DriveTaskProposalView{}, DriveErrToCodedError(ErrDriveAccessRequired)
+	}
+	initialConnectionID := conn.ID
+	initialCredentialVersion := conn.CredentialVersion
 
 	if s.content == nil {
 		s.observeResult("drive_error")
 		return DriveTaskProposalView{}, DriveErrToCodedError(ErrDriveUnavailable)
 	}
-
-	// Capture the caller's granted connection before ReadForAI so Step 6 can
-	// detect an account switch or rebind that happens while the model is running.
-	var initialConnectionID string
-	var initialCredentialVersion int64
-	if acc, aerr := s.q.GetDriveFileAccessByUser(ctx, db.GetDriveFileAccessByUserParams{
-		OrganizationID: ws.OrganizationID,
-		WorkspaceID:    ws.ID,
-		DriveFileID:    driveFileID,
-		UserID:         actor.ID,
-	}); aerr == nil {
-		initialConnectionID = acc.ConnectionID
-		if conn, cerr := s.q.GetDriveConnectionAnyState(ctx, db.GetDriveConnectionAnyStateParams{
-			ID:             acc.ConnectionID,
-			OrganizationID: ws.OrganizationID,
-			UserID:         actor.ID,
-		}); cerr == nil {
-			initialCredentialVersion = conn.CredentialVersion
-		}
-	}
 	content, err := s.content.ReadForAI(ctx, actor.ID, ws.ID, driveFileID, DriveContentPurposeTaskProposal)
 	if err != nil {
-		mapped := DriveErrToCodedError(err)
+		mapped := mapDriveProposalReadError(err)
 		s.observeReadError(err, mapped)
 		return DriveTaskProposalView{}, mapped
-	}
-
-	// If ReadForAI succeeded, ensure initialConnectionID is set to the caller's
-	if initialConnectionID == "" {
-		if acc, aerr := s.q.GetDriveFileAccessByUser(ctx, db.GetDriveFileAccessByUserParams{
-			OrganizationID: ws.OrganizationID,
-			WorkspaceID:    ws.ID,
-			DriveFileID:    driveFileID,
-			UserID:         actor.ID,
-		}); aerr == nil {
-			initialConnectionID = acc.ConnectionID
-			if conn, cerr := s.q.GetDriveConnectionAnyState(ctx, db.GetDriveConnectionAnyStateParams{
-				ID:             acc.ConnectionID,
-				OrganizationID: ws.OrganizationID,
-				UserID:         actor.ID,
-			}); cerr == nil {
-				initialCredentialVersion = conn.CredentialVersion
-			}
-		}
 	}
 	if s.ai == nil || !s.ai.Enabled() {
 		s.observeResult("ai_error")
@@ -507,6 +532,7 @@ func (s *DriveTaskProposalService) Propose(
 		PromptID:       ai.PromptDriveTaskProposals,
 		Vars:           vars,
 		Attachments:    content.Attachments,
+		Truncated:      content.Truncated,
 		Sources: []ai.Source{{
 			Kind:  "drive_file",
 			ID:    driveFileID,
@@ -652,13 +678,15 @@ func (s *DriveTaskProposalService) Propose(
 	return buildDriveTaskProposalView(row, lockedFile, lockedConn.GoogleEmail, items, summary, groups), nil
 }
 
-// Get returns a ready, non-expired Drive task proposal batch owned by actor (spec §8.3).
+// Get returns a Drive task proposal batch owned by actor in its current state
+// (ready, converted, or discarded, including expired-but-ready; items is [] once
+// converted or discarded; spec §8.3).
 func (s *DriveTaskProposalService) Get(
 	ctx context.Context,
 	actor Actor,
 	workspaceID, proposalID string,
 ) (DriveTaskProposalView, error) {
-	ws, member, err := s.workspaceAndMember(ctx, actor, workspaceID)
+	ws, member, err := s.workspaceAndMemberForProposal(ctx, actor, workspaceID)
 	if err != nil {
 		return DriveTaskProposalView{}, err
 	}
@@ -715,7 +743,7 @@ func (s *DriveTaskProposalService) Discard(
 	actor Actor,
 	workspaceID, proposalID string,
 ) error {
-	ws, _, err := s.workspaceAndMember(ctx, actor, workspaceID)
+	ws, _, err := s.workspaceAndMemberForProposal(ctx, actor, workspaceID)
 	if err != nil {
 		return err
 	}
@@ -797,7 +825,7 @@ func (s *DriveTaskProposalService) Duplicates(
 	workspaceID, proposalID string,
 	in CheckDriveProposalDuplicatesInput,
 ) ([]DriveProposalDuplicateItem, error) {
-	ws, _, err := s.workspaceAndMember(ctx, actor, workspaceID)
+	ws, _, err := s.workspaceAndMemberForProposal(ctx, actor, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -816,7 +844,7 @@ func (s *DriveTaskProposalService) Duplicates(
 	if err != nil {
 		return nil, err
 	}
-	parentTaskID, err := s.validateOptionalTask(ctx, ws.OrganizationID, ws.ID, in.ParentTaskID, "parent task not found in workspace")
+	parentTaskID, err := s.validateOptionalTask(ctx, ws.OrganizationID, ws.ID, in.ParentTaskID)
 	if err != nil {
 		return nil, err
 	}
@@ -854,7 +882,7 @@ func (s *DriveTaskProposalService) validateOptionalProject(
 		WorkspaceID:    workspaceID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", "", Invalid("project not found in workspace")
+		return "", "", ErrNotFound
 	}
 	if err != nil {
 		return "", "", err
@@ -866,7 +894,6 @@ func (s *DriveTaskProposalService) validateOptionalTask(
 	ctx context.Context,
 	orgID, workspaceID string,
 	raw *string,
-	notFoundMsg string,
 ) (string, error) {
 	if raw == nil {
 		return "", nil
@@ -881,12 +908,39 @@ func (s *DriveTaskProposalService) validateOptionalTask(
 		WorkspaceID:    workspaceID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", Invalid(notFoundMsg)
+		return "", ErrNotFound
 	}
 	if err != nil {
 		return "", err
 	}
 	return t.ID, nil
+}
+
+func mapDriveProposalReadError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var ce CodedError
+	if errors.As(err, &ce) {
+		switch ce.Code {
+		case "drive_file_too_large", "password_required", "corrupted", "not_office_file":
+			msg := ce.Msg
+			if msg == "" {
+				msg = "UNI chưa đọc được định dạng này."
+			}
+			return CodedError{
+				Status: http.StatusUnprocessableEntity,
+				Code:   "drive_format_unsupported",
+				Msg:    msg,
+				Fields: ce.Fields,
+				Err:    ErrDriveFormatUnsupported,
+			}
+		}
+	}
+	if errors.Is(err, ErrDriveFileTooLarge) || errors.Is(err, ErrDriveFileUnreadable) || errors.Is(err, ErrDriveFormatUnsupported) {
+		return DriveErrToCodedError(ErrDriveFormatUnsupported)
+	}
+	return DriveErrToCodedError(err)
 }
 
 func (s *DriveTaskProposalService) loadCreations(
@@ -926,7 +980,7 @@ func (s *DriveTaskProposalService) observeReadError(rawErr, mappedErr error) {
 		s.observeResult("file_not_accessible")
 	case errors.Is(rawErr, ErrDriveReauthRequired):
 		s.observeResult("auth_failed")
-	case errors.Is(rawErr, ErrDriveFormatUnsupported):
+	case errors.Is(rawErr, ErrDriveFormatUnsupported), errors.Is(mappedErr, ErrDriveFormatUnsupported):
 		s.observeResult("format_unsupported")
 	case errors.Is(rawErr, ErrDriveExtractUnavailable):
 		s.observeResult("extract_unavailable")
@@ -1095,6 +1149,26 @@ func discardReadyProposalsForConnectionInTx(
 		return err
 	}
 	for _, r := range rows {
+		email := googleEmail
+		sub := googleSub
+		connID := r.ConnectionID
+		if connID == "" {
+			connID = connectionID
+		}
+		if email == "" || sub == "" {
+			if conn, cerr := qtx.GetDriveConnectionAnyState(ctx, db.GetDriveConnectionAnyStateParams{
+				ID:             connID,
+				OrganizationID: r.OrganizationID,
+				UserID:         r.RequestedBy,
+			}); cerr == nil {
+				if email == "" {
+					email = conn.GoogleEmail
+				}
+				if sub == "" {
+					sub = conn.GoogleSub
+				}
+			}
+		}
 		if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 			OrganizationID: r.OrganizationID,
 			WorkspaceID:    r.WorkspaceID,
@@ -1104,9 +1178,9 @@ func discardReadyProposalsForConnectionInTx(
 			ResourceID:     r.ID,
 			Metadata: map[string]any{
 				"drive_file_id": r.DriveFileID,
-				"connection_id": connectionID,
-				"google_email":  googleEmail,
-				"google_sub":    googleSub,
+				"connection_id": connID,
+				"google_email":  email,
+				"google_sub":    sub,
 				"reason":        "source_disconnected",
 			},
 		}); err != nil {
@@ -1118,7 +1192,8 @@ func discardReadyProposalsForConnectionInTx(
 
 // discardReadyProposalsForFileInTx discards all ready Drive task proposals tied
 // to driveFileID and records drive_task_proposal.discarded (reason = source_unlinked)
-// in the same transaction (seam §4 + A4, spec §8.2b, §8.6).
+// in the same transaction, resolving google_email and google_sub from each
+// proposal's saved connection_id (seam §4 + A4, spec §8.2b, §8.6, R1-7).
 func discardReadyProposalsForFileInTx(
 	ctx context.Context,
 	qtx *db.Queries,
@@ -1132,20 +1207,13 @@ func discardReadyProposalsForFileInTx(
 	for _, r := range rows {
 		email := defaultEmail
 		sub := defaultSub
-		if acc, aerr := qtx.GetDriveFileAccessByUser(ctx, db.GetDriveFileAccessByUserParams{
+		if conn, cerr := qtx.GetDriveConnectionAnyState(ctx, db.GetDriveConnectionAnyStateParams{
+			ID:             r.ConnectionID,
 			OrganizationID: r.OrganizationID,
-			WorkspaceID:    r.WorkspaceID,
-			DriveFileID:    r.DriveFileID,
 			UserID:         r.RequestedBy,
-		}); aerr == nil {
-			if conn, cerr := qtx.GetDriveConnectionAnyState(ctx, db.GetDriveConnectionAnyStateParams{
-				ID:             acc.ConnectionID,
-				OrganizationID: r.OrganizationID,
-				UserID:         r.RequestedBy,
-			}); cerr == nil {
-				email = conn.GoogleEmail
-				sub = conn.GoogleSub
-			}
+		}); cerr == nil {
+			email = conn.GoogleEmail
+			sub = conn.GoogleSub
 		}
 		if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 			OrganizationID: r.OrganizationID,
@@ -1156,6 +1224,7 @@ func discardReadyProposalsForFileInTx(
 			ResourceID:     r.ID,
 			Metadata: map[string]any{
 				"drive_file_id": r.DriveFileID,
+				"connection_id": r.ConnectionID,
 				"google_email":  email,
 				"google_sub":    sub,
 				"reason":        "source_unlinked",

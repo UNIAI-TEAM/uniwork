@@ -96,6 +96,7 @@ func newDriveProposalHTTPTestEnv(t *testing.T) *driveProposalHTTPTestEnv {
 	t.Helper()
 	base := newDriveHTTPTestEnv(t)
 	base.srv.Close()
+	base.deps.Cfg.EnableSwagger = true
 
 	sp := featureflag.NewStaticProvider()
 	sp.Set("drive_connector", featureflag.Rule{Default: true})
@@ -537,11 +538,78 @@ func TestDriveProposalEndToEndNormalizationDuplicatesAndAudit(t *testing.T) {
 	if got := e.metrics.get("created"); got != 1 {
 		t.Fatalf("drive_task_proposals_total{result=created} = %d, want 1", got)
 	}
+
+	// R1-8: untruncated ReadForAI -> both proposal.truncated and ai_usage_events.truncated are false.
+	var propTrunc, usageTrunc bool
+	if err := e.pool.QueryRow(context.Background(),
+		`SELECT p.truncated, u.truncated
+		 FROM drive_task_proposals p
+		 JOIN ai_usage_events u ON u.id = p.usage_event_id
+		 WHERE p.id = $1`,
+		prop.ID,
+	).Scan(&propTrunc, &usageTrunc); err != nil || propTrunc || usageTrunc {
+		t.Fatalf("untruncated proposal/usage truncated = (%v, %v) err=%v, want (false, false)", propTrunc, usageTrunc, err)
+	}
+
+	// R1-1 + R1-8: HTTP POST with [null, A, B(blocked_by_indexes=[1])] and Truncated=true from ReadForAI:
+	// null stays as an empty placeholder in the raw array so B's raw dependency [1] maps to A's dense index [0],
+	// and Truncated=true propagates to both drive_task_proposals.truncated and ai_usage_events.truncated.
+	truncReader := &fakeDriveContentReader{
+		content: service.DriveContent{
+			DriveFileID: fileID,
+			Name:        "Truncated Spec Document",
+			MimeType:    service.DriveMimeGoogleDoc,
+			Text:        "Truncated content",
+			Truncated:   true,
+		},
+	}
+	e.deps.DriveTaskProposals.SetDriveContentReader(truncReader)
+	defer e.deps.DriveTaskProposals.SetDriveContentReader(e.contentSvc)
+
+	e.aiMu.Lock()
+	e.aiReply = func(provider.CompletionRequest) (provider.CompletionResponse, error) {
+		return provider.CompletionResponse{
+			Text:  `{"items":[null,{"title":"Task A","assignee_member_id":"","assignee_basis":"","priority":"","priority_basis":"","start_date":"","start_basis":"","due_date":"","due_basis":"","label_ids":[],"label_basis":"","goal":"Goal A","checklist":[],"excerpt":{"section":"S1","quote":"Q1"},"blocked_by_indexes":[]},{"title":"Task B","assignee_member_id":"","assignee_basis":"","priority":"","priority_basis":"","start_date":"","start_basis":"","due_date":"","due_basis":"","label_ids":[],"label_basis":"","goal":"Goal B","checklist":[],"excerpt":{"section":"S2","quote":"Q2"},"blocked_by_indexes":[1]}]}`,
+			Model: "fake",
+		}, nil
+	}
+	e.aiMu.Unlock()
+
+	resNull, outNull := doJSON(t, e.srv, "POST", proposePath, e.ownerTk, map[string]any{})
+	if resNull.StatusCode != http.StatusCreated {
+		t.Fatalf("POST task-proposals with leading null item = %d %v, want 201", resNull.StatusCode, outNull)
+	}
+	var nullSDO sdo.DriveTaskProposalSDO
+	nullBytes, _ := json.Marshal(outNull)
+	_ = json.Unmarshal(nullBytes, &nullSDO)
+	if len(nullSDO.Proposal.Items) != 2 {
+		t.Fatalf("leading-null proposal len(items) = %d, want 2: %+v", len(nullSDO.Proposal.Items), nullSDO.Proposal.Items)
+	}
+	if nullSDO.Proposal.Items[0].Index != 0 || nullSDO.Proposal.Items[0].Title != "Task A" || len(nullSDO.Proposal.Items[0].BlockedByIndexes) != 0 {
+		t.Fatalf("Task A = %+v, want Index=0 BlockedByIndexes=[]", nullSDO.Proposal.Items[0])
+	}
+	if nullSDO.Proposal.Items[1].Index != 1 || nullSDO.Proposal.Items[1].Title != "Task B" || len(nullSDO.Proposal.Items[1].BlockedByIndexes) != 1 || nullSDO.Proposal.Items[1].BlockedByIndexes[0] != 0 {
+		t.Fatalf("Task B = %+v, want Index=1 BlockedByIndexes=[0] (raw 1 is Task A)", nullSDO.Proposal.Items[1])
+	}
+	if !nullSDO.Proposal.Truncated {
+		t.Fatalf("proposal.truncated = false, want true")
+	}
+	if err := e.pool.QueryRow(context.Background(),
+		`SELECT p.truncated, u.truncated
+		 FROM drive_task_proposals p
+		 JOIN ai_usage_events u ON u.id = p.usage_event_id
+		 WHERE p.id = $1`,
+		nullSDO.Proposal.ID,
+	).Scan(&propTrunc, &usageTrunc); err != nil || !propTrunc || !usageTrunc {
+		t.Fatalf("truncated proposal/usage truncated = (%v, %v) err=%v, want (true, true)", propTrunc, usageTrunc, err)
+	}
 }
 
-// TestDriveProposalOnlyItsRequester (contract §3, §6; spec §8.2a) verifies that
-// another member of the SAME workspace receives 404 not_found on GET, DELETE,
-// POST /duplicates, and GET /resources/drive_task_proposal/{id}/history.
+// TestDriveProposalOnlyItsRequester (contract §3, §6; spec §8.2a; R1-3) verifies
+// that every gate miss on GET, DELETE, POST /duplicates, and
+// GET /resources/drive_task_proposal/{id}/history — unknown proposal ID, wrong
+// workspace, unknown workspace, non-member, and another member of the SAME
+// workspace — returns the exact same 404 not_found status and JSON body.
 func TestDriveProposalOnlyItsRequester(t *testing.T) {
 	e := newDriveProposalHTTPTestEnv(t)
 	ownerConn := e.seedConnection(t, e.ownerID, "sub-req-only", "req-only@example.com")
@@ -557,15 +625,68 @@ func TestDriveProposalOnlyItsRequester(t *testing.T) {
 	propPath := fmt.Sprintf("/api/v1/workspaces/%s/drive-task-proposals/%s", e.wsID, proposalID)
 	histPath := fmt.Sprintf("/api/v1/workspaces/%s/resources/drive_task_proposal/%s/history", e.wsID, proposalID)
 
-	// Peer is a full member of the same workspace (e.wsID), but not the requester.
-	if r, o := doJSON(t, e.srv, "GET", propPath, e.peerTk, nil); r.StatusCode != http.StatusNotFound || jsonErrCode(o) != "not_found" {
-		t.Fatalf("peer GET proposal = %d %v, want 404 not_found", r.StatusCode, o)
+	unknownPropID := util.NewID()
+	unknownWsID := util.NewID()
+
+	tag := strings.ToLower(util.NewID()[:8])
+	regRes, regOut := doJSON(t, e.srv, "POST", "/api/v1/auth/register", "", map[string]string{
+		"email": "drive-outsider-" + tag + "@example.com", "password": "password123", "display_name": "Outsider",
+	})
+	if regRes.StatusCode != http.StatusOK {
+		t.Fatalf("register outsider: %d %v", regRes.StatusCode, regOut)
 	}
-	if r, o := doJSON(t, e.srv, "POST", propPath+"/duplicates", e.peerTk, map[string]any{"titles": []string{"Task"}}); r.StatusCode != http.StatusNotFound || jsonErrCode(o) != "not_found" {
-		t.Fatalf("peer POST duplicates = %d %v, want 404 not_found", r.StatusCode, o)
+	outsiderTk := regOut["access_token"].(string)
+	verifyEmail(t, e.srv, outsiderTk)
+	orgRes, orgOut := doJSON(t, e.srv, "POST", "/api/v1/orgs", outsiderTk, map[string]string{
+		"name": "Outsider Org", "slug": "outsider-org-" + tag,
+	})
+	if orgRes.StatusCode != http.StatusCreated {
+		t.Fatalf("create outsider org: %d %v", orgRes.StatusCode, orgOut)
 	}
-	if r, o := doJSON(t, e.srv, "DELETE", propPath, e.peerTk, nil); r.StatusCode != http.StatusNotFound || jsonErrCode(o) != "not_found" {
-		t.Fatalf("peer DELETE proposal = %d %v, want 404 not_found", r.StatusCode, o)
+	outsiderOrgID := orgOut["organization"].(map[string]any)["id"].(string)
+	wsRes, wsOut := doJSON(t, e.srv, "POST", "/api/v1/orgs/"+outsiderOrgID+"/workspaces", outsiderTk, map[string]string{
+		"name": "Outsider WS", "slug": "outsider-ws-" + tag,
+	})
+	if wsRes.StatusCode != http.StatusCreated {
+		t.Fatalf("create outsider ws: %d %v", wsRes.StatusCode, wsOut)
+	}
+	otherWsID := wsOut["workspace"].(map[string]any)["id"].(string)
+	type surface struct {
+		name   string
+		method string
+		path   func(wsID, pID string) string
+		body   map[string]any
+	}
+	surfaces := []surface{
+		{
+			name:   "GET",
+			method: "GET",
+			path: func(wsID, pID string) string {
+				return fmt.Sprintf("/api/v1/workspaces/%s/drive-task-proposals/%s", wsID, pID)
+			},
+		},
+		{
+			name:   "DELETE",
+			method: "DELETE",
+			path: func(wsID, pID string) string {
+				return fmt.Sprintf("/api/v1/workspaces/%s/drive-task-proposals/%s", wsID, pID)
+			},
+		},
+		{
+			name:   "POST_duplicates",
+			method: "POST",
+			path: func(wsID, pID string) string {
+				return fmt.Sprintf("/api/v1/workspaces/%s/drive-task-proposals/%s/duplicates", wsID, pID)
+			},
+			body: map[string]any{"titles": []string{"Task"}},
+		},
+		{
+			name:   "GET_history",
+			method: "GET",
+			path: func(wsID, pID string) string {
+				return fmt.Sprintf("/api/v1/workspaces/%s/resources/drive_task_proposal/%s/history", wsID, pID)
+			},
+		},
 	}
 	if r, o := doJSON(t, e.srv, "POST", propPath+"/tasks", e.peerTk, map[string]any{
 		"items": []any{map[string]any{"index": 0, "title": "Peer task", "description": "Body"}},
@@ -573,12 +694,37 @@ func TestDriveProposalOnlyItsRequester(t *testing.T) {
 		t.Fatalf("peer POST tasks = %d %v, want 404 not_found", r.StatusCode, o)
 	}
 
-	beforeSelects := e.auditCounter.resourceSelects.Load()
-	if r, o := doJSON(t, e.srv, "GET", histPath, e.peerTk, nil); r.StatusCode != http.StatusNotFound || jsonErrCode(o) != "not_found" {
-		t.Fatalf("peer GET proposal history = %d %v, want 404 not_found", r.StatusCode, o)
-	}
-	if got := e.auditCounter.resourceSelects.Load(); got != beforeSelects {
-		t.Fatalf("denied peer proposal history executed ListResourceAuditEvents (%d -> %d)", beforeSelects, got)
+	for _, sf := range surfaces {
+		// Baseline: owner requesting an unknown proposal ID in their own workspace.
+		baseRes, baseOut := doJSON(t, e.srv, sf.method, sf.path(e.wsID, unknownPropID), e.ownerTk, sf.body)
+		if baseRes.StatusCode != http.StatusNotFound || jsonErrCode(baseOut) != "not_found" {
+			t.Fatalf("%s unknown-proposal baseline = %d %v, want 404 not_found", sf.name, baseRes.StatusCode, baseOut)
+		}
+		baseJSON, _ := json.Marshal(baseOut)
+
+		for _, miss := range []struct {
+			label string
+			wsID  string
+			pID   string
+			token string
+		}{
+			{label: "same_workspace_peer", wsID: e.wsID, pID: proposalID, token: e.peerTk},
+			{label: "wrong_workspace_unknown", wsID: unknownWsID, pID: proposalID, token: e.ownerTk},
+			{label: "wrong_workspace_other_org", wsID: otherWsID, pID: proposalID, token: e.ownerTk},
+			{label: "non_member_other_org_caller", wsID: e.wsID, pID: proposalID, token: outsiderTk},
+		} {
+			beforeSelects := e.auditCounter.resourceSelects.Load()
+			r, o := doJSON(t, e.srv, sf.method, sf.path(miss.wsID, miss.pID), miss.token, sf.body)
+			gotJSON, _ := json.Marshal(o)
+			if r.StatusCode != http.StatusNotFound || jsonErrCode(o) != "not_found" || string(gotJSON) != string(baseJSON) {
+				t.Fatalf("%s (%s) = %d %s, want identical 404 %s", sf.name, miss.label, r.StatusCode, string(gotJSON), string(baseJSON))
+			}
+			if sf.name == "GET_history" {
+				if got := e.auditCounter.resourceSelects.Load(); got != beforeSelects {
+					t.Fatalf("%s (%s) executed ListResourceAuditEvents (%d -> %d)", sf.name, miss.label, beforeSelects, got)
+				}
+			}
+		}
 	}
 
 	// Owner (the requester) succeeds on all four routes.
@@ -634,6 +780,17 @@ func TestDriveProposalConcurrentSourceChanges(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "credential_version_change_during_ai",
+			mutate: func(t *testing.T, e *driveProposalHTTPTestEnv, _, conn1, _ string) {
+				if _, err := e.pool.Exec(context.Background(),
+					`UPDATE drive_connections SET credential_version = credential_version + 1, updated_at = now() WHERE id = $1`,
+					conn1,
+				); err != nil {
+					t.Fatalf("bump credential_version on %s: %v", conn1, err)
+				}
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newDriveProposalHTTPTestEnv(t)
@@ -675,18 +832,86 @@ func TestDriveProposalConcurrentSourceChanges(t *testing.T) {
 				t.Fatalf("%s: POST task-proposals = %d %v, want 409 drive_source_changed", tc.name, got.status, got.body)
 			}
 
-			var readyCount int
+			var totalCount, createdAudits int
 			if err := e.pool.QueryRow(context.Background(),
-				`SELECT count(*) FROM drive_task_proposals WHERE workspace_id = $1 AND drive_file_id = $2 AND status = 'ready'`,
+				`SELECT count(*) FROM drive_task_proposals WHERE workspace_id = $1 AND drive_file_id = $2`,
 				e.wsID, fileID,
-			).Scan(&readyCount); err != nil {
+			).Scan(&totalCount); err != nil {
 				t.Fatal(err)
 			}
-			if readyCount != 0 {
-				t.Fatalf("%s: ready proposals count = %d, want 0", tc.name, readyCount)
+			if totalCount != 0 {
+				t.Fatalf("%s: proposals count = %d, want 0", tc.name, totalCount)
+			}
+			if err := e.pool.QueryRow(context.Background(),
+				`SELECT count(*) FROM audit_events WHERE organization_id = $1 AND workspace_id = $2 AND action = 'drive_task_proposal.created'`,
+				e.orgID, e.wsID,
+			).Scan(&createdAudits); err != nil {
+				t.Fatal(err)
+			}
+			if createdAudits != 0 {
+				t.Fatalf("%s: drive_task_proposal.created audit count = %d, want 0", tc.name, createdAudits)
 			}
 		})
 	}
+
+	// R1-4 + R1-10: credential_version replacement while ReadForAI is paused must
+	// compare against the pre-ReadForAI snapshot (not a post-read fallback) and
+	// refuse with 409 drive_source_changed and 0 rows.
+	t.Run("credential_version_change_during_read", func(t *testing.T) {
+		e := newDriveProposalHTTPTestEnv(t)
+		conn1 := e.seedConnection(t, e.ownerID, "sub-race-read-1", "raceread1@example.com")
+		linked := e.linkFile(t, e.ownerTk, conn1, "ext-race-read", "")
+		fileID := jsonStr(linked, "id")
+
+		inRead := make(chan struct{})
+		releaseRead := make(chan struct{})
+		var once sync.Once
+		fakeReader := &fakeDriveContentReader{
+			fn: func(ctx context.Context, requesterID, workspaceID, driveFileID string, purpose service.DriveContentPurpose) (service.DriveContent, error) {
+				once.Do(func() { close(inRead) })
+				<-releaseRead
+				return service.DriveContent{
+					DriveFileID: driveFileID,
+					Name:        "Read Race Doc",
+					MimeType:    service.DriveMimeGoogleDoc,
+					Text:        "# Read Race\n- Task 1",
+				}, nil
+			},
+		}
+		e.deps.DriveTaskProposals.SetDriveContentReader(fakeReader)
+		defer e.deps.DriveTaskProposals.SetDriveContentReader(e.contentSvc)
+
+		type result struct {
+			status int
+			body   map[string]any
+		}
+		done := make(chan result, 1)
+		go func() {
+			r, o := doJSON(t, e.srv, "POST", fmt.Sprintf("/api/v1/workspaces/%s/drive-files/%s/task-proposals", e.wsID, fileID), e.ownerTk, map[string]any{})
+			done <- result{status: r.StatusCode, body: o}
+		}()
+
+		<-inRead
+		if _, err := e.pool.Exec(context.Background(),
+			`UPDATE drive_connections SET credential_version = credential_version + 1, updated_at = now() WHERE id = $1`,
+			conn1,
+		); err != nil {
+			t.Fatalf("bump credential_version during read: %v", err)
+		}
+		close(releaseRead)
+
+		got := <-done
+		if got.status != http.StatusConflict || jsonErrCode(got.body) != sdo.DriveErrSourceChanged {
+			t.Fatalf("credential_version_change_during_read: POST = %d %v, want 409 drive_source_changed", got.status, got.body)
+		}
+		var count int
+		if err := e.pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM drive_task_proposals WHERE workspace_id = $1 AND drive_file_id = $2`,
+			e.wsID, fileID,
+		).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("credential_version_change_during_read: proposals count = %d (err=%v), want 0", count, err)
+		}
+	})
 }
 
 // TestDriveProposalDiscardHooksAndIdempotentDelete verifies that:
@@ -737,49 +962,162 @@ func TestDriveProposalDiscardHooksAndIdempotentDelete(t *testing.T) {
 		}
 	}
 
-	// 2. Unlink discards ready proposal on file2 (reason = source_unlinked).
+	// 2. Unlink discards ready proposals on file2 (reason = source_unlinked) using
+	// each proposal's saved connection_id (R1-7), and rolls back atomically if a
+	// later step in Unlink fails (R1-11).
 	p2 := propose(e.ownerTk, file2)
+
+	// Peer connects their own account, grants access on file2, and creates a proposal on file2.
+	peerConn := e.seedConnection(t, e.peerID, "sub-disc-peer", "peer-disc@example.com")
+	if _, err := e.q.UpsertDriveFileAccessGranted(context.Background(), db.UpsertDriveFileAccessGrantedParams{
+		ID:             util.NewID(),
+		OrganizationID: e.orgID,
+		WorkspaceID:    e.wsID,
+		DriveFileID:    file2,
+		UserID:         e.peerID,
+		ConnectionID:   peerConn,
+	}); err != nil {
+		t.Fatalf("grant peer access on file2: %v", err)
+	}
+	p2Peer := propose(e.peerTk, file2)
+
+	// Owner rebinds file2 from conn1 (disc1@example.com) to conn2 (disc2@example.com)
+	// BEFORE unlinking file2. p2 was read with conn1, so its discard audit must
+	// still name disc1@example.com / sub-disc-1 (not disc2@example.com).
+	if r, o := doJSON(t, e.srv, "POST", fmt.Sprintf("/api/v1/workspaces/%s/drive-files/%s/rebind", e.wsID, file2), e.ownerTk, map[string]any{
+		"connection_id": conn2,
+	}); r.StatusCode != http.StatusOK {
+		t.Fatalf("rebind file2 to conn2 = %d %v, want 200", r.StatusCode, o)
+	}
+
+	p3 := propose(e.ownerTk, file3)
+
+	// R1-11: install a trigger that fails the outer Unlink / Disconnect audit step
+	// AFTER the proposal discard hook has run, proving that file/connection state,
+	// proposal status/items, and discard audit rows all roll back together.
+	ctx := context.Background()
+	if _, err := e.pool.Exec(ctx, `
+		CREATE OR REPLACE FUNCTION uni_test_b5_hook_rollback() RETURNS trigger
+		LANGUAGE plpgsql AS $fn$
+		BEGIN
+		  IF NEW.organization_id = '`+e.orgID+`' AND NEW.action IN ('drive_file.unlinked', 'drive_connection.disconnected') THEN
+		    RAISE EXCEPTION 'simulated post-hook audit failure';
+		  END IF;
+		  RETURN NEW;
+		END;
+		$fn$`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(ctx, `DROP TRIGGER IF EXISTS uni_test_b5_hook_rollback ON audit_events`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(ctx, `
+		CREATE TRIGGER uni_test_b5_hook_rollback
+		BEFORE INSERT ON audit_events
+		FOR EACH ROW EXECUTE FUNCTION uni_test_b5_hook_rollback()`); err != nil {
+		t.Fatal(err)
+	}
+	dropHookTrigger := func() {
+		_, _ = e.pool.Exec(ctx, `DROP TRIGGER IF EXISTS uni_test_b5_hook_rollback ON audit_events`)
+		_, _ = e.pool.Exec(ctx, `DROP FUNCTION IF EXISTS uni_test_b5_hook_rollback()`)
+	}
+	t.Cleanup(dropHookTrigger)
+
+	if r, _ := doJSON(t, e.srv, "DELETE", fmt.Sprintf("/api/v1/workspaces/%s/drive-files/%s", e.wsID, file2), e.ownerTk, nil); r.StatusCode < 500 {
+		t.Fatalf("unlink file2 with failing post-hook trigger = %d, want 5xx", r.StatusCode)
+	}
+	var file2Unlinked bool
+	if err := e.pool.QueryRow(ctx, `SELECT unlinked_at IS NOT NULL FROM drive_files WHERE id = $1`, file2).Scan(&file2Unlinked); err != nil || file2Unlinked {
+		t.Fatalf("file2 unlinked after rollback = %v (err=%v), want false", file2Unlinked, err)
+	}
+	for _, propID := range []string{p2, p2Peer} {
+		var st string
+		var it []byte
+		if err := e.pool.QueryRow(ctx, `SELECT status, items FROM drive_task_proposals WHERE id = $1`, propID).Scan(&st, &it); err != nil || st != "ready" || len(it) == 0 {
+			t.Fatalf("proposal %s after unlink rollback: status=%q len(items)=%d err=%v, want ready with items", propID, st, len(it), err)
+		}
+		var audCnt int
+		if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'drive_task_proposal.discarded' AND resource_id = $2`, e.orgID, propID).Scan(&audCnt); err != nil || audCnt != 0 {
+			t.Fatalf("proposal %s discard audit count after unlink rollback = %d (err=%v), want 0", propID, audCnt, err)
+		}
+	}
+
+	if r, _ := doJSON(t, e.srv, "DELETE", fmt.Sprintf("/api/v1/workspaces/%s/drive-connections/%s", e.wsID, conn2), e.ownerTk, nil); r.StatusCode < 500 {
+		t.Fatalf("disconnect conn2 with failing post-hook trigger = %d, want 5xx", r.StatusCode)
+	}
+	var conn2Disc bool
+	if err := e.pool.QueryRow(ctx, `SELECT disconnected_at IS NOT NULL FROM drive_connections WHERE id = $1`, conn2).Scan(&conn2Disc); err != nil || conn2Disc {
+		t.Fatalf("conn2 disconnected after rollback = %v (err=%v), want false", conn2Disc, err)
+	}
+	var p3Status string
+	var p3Items []byte
+	if err := e.pool.QueryRow(ctx, `SELECT status, items FROM drive_task_proposals WHERE id = $1`, p3).Scan(&p3Status, &p3Items); err != nil || p3Status != "ready" || len(p3Items) == 0 {
+		t.Fatalf("proposal p3 after disconnect rollback: status=%q len(items)=%d err=%v, want ready with items", p3Status, len(p3Items), err)
+	}
+	var p3AudCnt int
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'drive_task_proposal.discarded' AND resource_id = $2`, e.orgID, p3).Scan(&p3AudCnt); err != nil || p3AudCnt != 0 {
+		t.Fatalf("proposal p3 discard audit count after disconnect rollback = %d (err=%v), want 0", p3AudCnt, err)
+	}
+
+	dropHookTrigger()
+
+	// Now run Unlink without the trigger: both p2 and p2Peer are discarded and their
+	// audit rows record each proposal's own saved connection (conn1 for p2, peerConn for p2Peer).
 	if r, o := doJSON(t, e.srv, "DELETE", fmt.Sprintf("/api/v1/workspaces/%s/drive-files/%s", e.wsID, file2), e.ownerTk, nil); r.StatusCode != http.StatusOK {
 		t.Fatalf("unlink file2 = %d %v", r.StatusCode, o)
 	}
-	var p2Status, p2Reason string
-	var p2Items []byte
-	if err := e.pool.QueryRow(context.Background(),
-		`SELECT status, items FROM drive_task_proposals WHERE id = $1`, p2,
-	).Scan(&p2Status, &p2Items); err != nil || p2Status != "discarded" || p2Items != nil {
-		t.Fatalf("proposal p2 after unlink: status=%q items=%v err=%v, want discarded and nil items", p2Status, p2Items, err)
-	}
-	if err := e.pool.QueryRow(context.Background(),
-		`SELECT metadata::jsonb->>'reason' FROM audit_events WHERE organization_id = $1 AND action = 'drive_task_proposal.discarded' AND resource_id = $2`,
-		e.orgID, p2,
-	).Scan(&p2Reason); err != nil || p2Reason != "source_unlinked" {
-		t.Fatalf("proposal p2 discard audit reason = %q (err=%v), want source_unlinked", p2Reason, err)
+	for _, exp := range []struct {
+		propID    string
+		wantConn  string
+		wantEmail string
+		wantSub   string
+	}{
+		{propID: p2, wantConn: conn1, wantEmail: "disc1@example.com", wantSub: "sub-disc-1"},
+		{propID: p2Peer, wantConn: peerConn, wantEmail: "peer-disc@example.com", wantSub: "sub-disc-peer"},
+	} {
+		var st, reason, email, sub, cid string
+		var it []byte
+		if err := e.pool.QueryRow(ctx,
+			`SELECT status, items FROM drive_task_proposals WHERE id = $1`, exp.propID,
+		).Scan(&st, &it); err != nil || st != "discarded" || it != nil {
+			t.Fatalf("proposal %s after unlink: status=%q items=%v err=%v, want discarded and nil items", exp.propID, st, it, err)
+		}
+		if err := e.pool.QueryRow(ctx,
+			`SELECT metadata::jsonb->>'reason', metadata::jsonb->>'connection_id', metadata::jsonb->>'google_email', metadata::jsonb->>'google_sub'
+			 FROM audit_events WHERE organization_id = $1 AND action = 'drive_task_proposal.discarded' AND resource_id = $2`,
+			e.orgID, exp.propID,
+		).Scan(&reason, &cid, &email, &sub); err != nil || reason != "source_unlinked" || cid != exp.wantConn || email != exp.wantEmail || sub != exp.wantSub {
+			t.Fatalf("proposal %s discard audit = (reason=%q conn=%q email=%q sub=%q) err=%v, want (source_unlinked, %q, %q, %q)",
+				exp.propID, reason, cid, email, sub, err, exp.wantConn, exp.wantEmail, exp.wantSub)
+		}
 	}
 
 	// 3. Disconnect discards ready proposal on conn2 (reason = source_disconnected).
-	p3 := propose(e.ownerTk, file3)
 	if r, o := doJSON(t, e.srv, "DELETE", fmt.Sprintf("/api/v1/workspaces/%s/drive-connections/%s", e.wsID, conn2), e.ownerTk, nil); r.StatusCode != http.StatusOK {
 		t.Fatalf("disconnect conn2 = %d %v", r.StatusCode, o)
 	}
-	var p3Status, p3Reason string
-	var p3Items []byte
-	if err := e.pool.QueryRow(context.Background(),
+	var p3Reason, p3Conn, p3Email, p3Sub string
+	if err := e.pool.QueryRow(ctx,
 		`SELECT status, items FROM drive_task_proposals WHERE id = $1`, p3,
 	).Scan(&p3Status, &p3Items); err != nil || p3Status != "discarded" || p3Items != nil {
 		t.Fatalf("proposal p3 after disconnect: status=%q items=%v err=%v, want discarded and nil items", p3Status, p3Items, err)
 	}
-	if err := e.pool.QueryRow(context.Background(),
-		`SELECT metadata::jsonb->>'reason' FROM audit_events WHERE organization_id = $1 AND action = 'drive_task_proposal.discarded' AND resource_id = $2`,
+	if err := e.pool.QueryRow(ctx,
+		`SELECT metadata::jsonb->>'reason', metadata::jsonb->>'connection_id', metadata::jsonb->>'google_email', metadata::jsonb->>'google_sub'
+		 FROM audit_events WHERE organization_id = $1 AND action = 'drive_task_proposal.discarded' AND resource_id = $2`,
 		e.orgID, p3,
-	).Scan(&p3Reason); err != nil || p3Reason != "source_disconnected" {
-		t.Fatalf("proposal p3 discard audit reason = %q (err=%v), want source_disconnected", p3Reason, err)
+	).Scan(&p3Reason, &p3Conn, &p3Email, &p3Sub); err != nil || p3Reason != "source_disconnected" || p3Conn != conn2 || p3Email != "disc2@example.com" || p3Sub != "sub-disc-2" {
+		t.Fatalf("proposal p3 discard audit = (reason=%q conn=%q email=%q sub=%q) err=%v, want (source_disconnected, %q, disc2@example.com, sub-disc-2)",
+			p3Reason, p3Conn, p3Email, p3Sub, err, conn2)
 	}
 }
 
-// TestDriveProposalErrorMappings (contract §5, §6) verifies HTTP status and
-// error codes for feature_disabled, invalid_request, drive_access_required,
-// drive_format_unsupported, drive_extract_unavailable, ai_output_invalid,
-// ai_quota_exceeded, and ai_rate_limited (with Retry-After header).
+// TestDriveProposalErrorMappings (contract §5, §6; R1-4, R1-5, R1-6, R1-9)
+// verifies HTTP status and error codes for feature_disabled, invalid_request,
+// 404 not_found on unknown/foreign references, pre-read 409 drive_access_required
+// without calling ReadForAI, 422 drive_format_unsupported for all four coded
+// reader format/unreadability errors, 503 drive_extract_unavailable,
+// 502 ai_output_invalid, and OpenAPI status codes (201 create, 204 delete).
 func TestDriveProposalErrorMappings(t *testing.T) {
 	e := newDriveProposalHTTPTestEnv(t)
 	ownerConn := e.seedConnection(t, e.ownerID, "sub-err-map", "err-map@example.com")
@@ -788,6 +1126,14 @@ func TestDriveProposalErrorMappings(t *testing.T) {
 	fileID := jsonStr(linked, "id")
 	proposePath := fmt.Sprintf("/api/v1/workspaces/%s/drive-files/%s/task-proposals", e.wsID, fileID)
 
+	// Create one valid proposal so we can also test unknown references on POST .../duplicates.
+	okRes, okOut := doJSON(t, e.srv, "POST", proposePath, e.ownerTk, map[string]any{})
+	if okRes.StatusCode != http.StatusCreated {
+		t.Fatalf("initial POST task-proposals = %d %v, want 201", okRes.StatusCode, okOut)
+	}
+	propID := jsonStr(jsonMap(okOut, "proposal"), "id")
+	dupPath := fmt.Sprintf("/api/v1/workspaces/%s/drive-task-proposals/%s/duplicates", e.wsID, propID)
+
 	// 1. Prompt > 500 runes -> 400 invalid_request.
 	if r, o := doJSON(t, e.srv, "POST", proposePath, e.ownerTk, map[string]any{
 		"prompt": strings.Repeat("a", 501),
@@ -795,28 +1141,97 @@ func TestDriveProposalErrorMappings(t *testing.T) {
 		t.Fatalf("prompt > 500 runes = %d %v, want 400 invalid_request", r.StatusCode, o)
 	}
 
-	// 2. Foreign/unknown project_id, parent_task_id, context_task_id -> 400 invalid_request.
+	// 2. R1-5: Foreign/unknown project_id, parent_task_id, context_task_id -> 404 not_found on POST task-proposals and POST duplicates.
 	for _, field := range []string{"project_id", "parent_task_id", "context_task_id"} {
 		if r, o := doJSON(t, e.srv, "POST", proposePath, e.ownerTk, map[string]any{
 			field: "01NONEXISTENT0000000000000",
-		}); r.StatusCode != http.StatusBadRequest || jsonErrCode(o) != "invalid_request" {
-			t.Fatalf("unknown %s = %d %v, want 400 invalid_request", field, r.StatusCode, o)
+		}); r.StatusCode != http.StatusNotFound || jsonErrCode(o) != "not_found" {
+			t.Fatalf("propose unknown %s = %d %v, want 404 not_found", field, r.StatusCode, o)
+		}
+	}
+	for _, field := range []string{"project_id", "parent_task_id"} {
+		if r, o := doJSON(t, e.srv, "POST", dupPath, e.ownerTk, map[string]any{
+			field:    "01NONEXISTENT0000000000000",
+			"titles": []string{"Task title"},
+		}); r.StatusCode != http.StatusNotFound || jsonErrCode(o) != "not_found" {
+			t.Fatalf("duplicates unknown %s = %d %v, want 404 not_found", field, r.StatusCode, o)
 		}
 	}
 
-	// 3. Peer can see the file via taskID, but has no granted drive_file_access -> 409 drive_access_required.
-	if r, o := doJSON(t, e.srv, "POST", proposePath, e.peerTk, map[string]any{}); r.StatusCode != http.StatusConflict || jsonErrCode(o) != sdo.DriveErrAccessRequired {
-		t.Fatalf("peer without granted access = %d %v, want 409 drive_access_required", r.StatusCode, o)
+	// 3. R1-4: Peer has no granted drive_file_access -> 409 drive_access_required
+	// BEFORE ReadForAI is invoked, even if a fake ReadForAI would grant access and
+	// bump credential_version.
+	peerConn := e.seedConnection(t, e.peerID, "sub-peer-err-map", "peer-err-map@example.com")
+	var readCalled atomic.Bool
+	fakeReader := &fakeDriveContentReader{
+		fn: func(ctx context.Context, requesterID, workspaceID, driveFileID string, purpose service.DriveContentPurpose) (service.DriveContent, error) {
+			readCalled.Store(true)
+			_, _ = e.q.UpsertDriveFileAccessGranted(ctx, db.UpsertDriveFileAccessGrantedParams{
+				ID:             util.NewID(),
+				OrganizationID: e.orgID,
+				WorkspaceID:    workspaceID,
+				DriveFileID:    driveFileID,
+				UserID:         requesterID,
+				ConnectionID:   peerConn,
+			})
+			_, _ = e.pool.Exec(ctx, `UPDATE drive_connections SET credential_version = credential_version + 1 WHERE id = $1`, peerConn)
+			return service.DriveContent{
+				DriveFileID: driveFileID,
+				Name:        "Should Never Be Read",
+				MimeType:    service.DriveMimeGoogleDoc,
+				Text:        "Should not happen",
+			}, nil
+		},
 	}
-
-	// 4. ReadForAI errors: 422 drive_format_unsupported and 503 drive_extract_unavailable.
-	fakeReader := &fakeDriveContentReader{}
 	e.deps.DriveTaskProposals.SetDriveContentReader(fakeReader)
 	defer e.deps.DriveTaskProposals.SetDriveContentReader(e.contentSvc)
 
-	fakeReader.err = service.ErrDriveFormatUnsupported
-	if r, o := doJSON(t, e.srv, "POST", proposePath, e.ownerTk, map[string]any{}); r.StatusCode != http.StatusUnprocessableEntity || jsonErrCode(o) != sdo.DriveErrFormatUnsupported {
-		t.Fatalf("unsupported format = %d %v, want 422 drive_format_unsupported", r.StatusCode, o)
+	if r, o := doJSON(t, e.srv, "POST", proposePath, e.peerTk, map[string]any{}); r.StatusCode != http.StatusConflict || jsonErrCode(o) != sdo.DriveErrAccessRequired {
+		t.Fatalf("peer without granted access = %d %v, want 409 drive_access_required", r.StatusCode, o)
+	}
+	if readCalled.Load() {
+		t.Fatalf("ReadForAI was called when caller had no initial granted drive_file_access")
+	}
+
+	// 4. R1-6: ReadForAI errors: bare ErrDriveFormatUnsupported and all four coded
+	// reader format/unreadability errors (drive_file_too_large, password_required,
+	// corrupted, not_office_file) map to 422 drive_format_unsupported; 503
+	// drive_extract_unavailable stays distinct.
+	fakeReader.fn = nil
+	for _, formatErr := range []error{
+		service.ErrDriveFormatUnsupported,
+		service.CodedError{
+			Status: http.StatusUnprocessableEntity,
+			Code:   "drive_file_too_large",
+			Msg:    "Tệp Google Drive vượt quá giới hạn dung lượng đọc của UNI.",
+			Err:    service.ErrDriveFormatUnsupported,
+		},
+		service.CodedError{
+			Status: http.StatusUnprocessableEntity,
+			Code:   "password_required",
+			Msg:    "Tệp đặt mật khẩu nên UNI không đọc được.",
+			Fields: map[string]any{"reason": "password_required"},
+			Err:    service.ErrDriveFileUnreadable,
+		},
+		service.CodedError{
+			Status: http.StatusUnprocessableEntity,
+			Code:   "corrupted",
+			Msg:    "Tệp Office bị hỏng hoặc không đọc được.",
+			Fields: map[string]any{"reason": "corrupted"},
+			Err:    service.ErrDriveFileUnreadable,
+		},
+		service.CodedError{
+			Status: http.StatusUnprocessableEntity,
+			Code:   "not_office_file",
+			Msg:    "UNI chưa đọc được định dạng này.",
+			Fields: map[string]any{"reason": "not_office_file"},
+			Err:    service.ErrDriveFormatUnsupported,
+		},
+	} {
+		fakeReader.err = formatErr
+		if r, o := doJSON(t, e.srv, "POST", proposePath, e.ownerTk, map[string]any{}); r.StatusCode != http.StatusUnprocessableEntity || jsonErrCode(o) != sdo.DriveErrFormatUnsupported {
+			t.Fatalf("reader error %v = %d %v, want 422 drive_format_unsupported", formatErr, r.StatusCode, o)
+		}
 	}
 
 	fakeReader.err = service.ErrDriveExtractUnavailable
@@ -848,6 +1263,30 @@ func TestDriveProposalErrorMappings(t *testing.T) {
 		t.Fatalf("flag off = %d %v, want 404 feature_disabled (calls=%d)", r.StatusCode, o, callCount.Load())
 	}
 	e.flagRules.Set("drive_connector", featureflag.Rule{Default: true})
+
+	// 7. R1-9: Generated OpenAPI spec advertises 201 on POST task-proposals (with
+	// "20" max items in description) and 204 on DELETE drive-task-proposals/{proposalID}.
+	swagRes, swagDoc := doJSON(t, e.srv, "GET", "/swagger/doc.json", "", nil)
+	if swagRes.StatusCode != http.StatusOK {
+		t.Fatalf("GET /swagger/doc.json = %d, want 200", swagRes.StatusCode)
+	}
+	paths := jsonMap(swagDoc, "paths")
+	postOp := jsonMap(jsonMap(paths, "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals"), "post")
+	if jsonMap(jsonMap(postOp, "responses"), "201") == nil {
+		t.Fatalf("OpenAPI POST task-proposals responses = %+v, want 201", jsonMap(postOp, "responses"))
+	}
+	if desc := jsonStr(postOp, "description"); !strings.Contains(desc, "20") || strings.Contains(desc, "25") {
+		t.Fatalf("OpenAPI POST task-proposals description = %q, want 20 (not 25)", desc)
+	}
+	itemPath := jsonMap(paths, "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}")
+	delOp := jsonMap(itemPath, "delete")
+	if jsonMap(jsonMap(delOp, "responses"), "204") == nil {
+		t.Fatalf("OpenAPI DELETE drive-task-proposals/{proposalID} responses = %+v, want 204", jsonMap(delOp, "responses"))
+	}
+	getOp := jsonMap(itemPath, "get")
+	if getDesc := jsonStr(getOp, "description"); !strings.Contains(getDesc, "converted") || !strings.Contains(getDesc, "discarded") {
+		t.Fatalf("OpenAPI GET drive-task-proposals/{proposalID} description = %q, want terminal/expired state wording", getDesc)
+	}
 }
 
 // TestCreateTasksFromDriveProposalHTTPAndProvenance verifies the HTTP contract

@@ -594,21 +594,26 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind", what: "connection", body: map[string]any{
 		"connection_id": isoRef("driveConnection")},
 		covers: []string{"RebindDriveFileSDI.connection_id"}},
-	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "project", body: map[string]any{
-		"project_id": isoRef("project")},
-		covers: []string{"CreateDriveTaskProposalSDI.project_id"}},
-	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "parent task", body: map[string]any{
-		"parent_task_id": isoRef("task")},
-		covers: []string{"CreateDriveTaskProposalSDI.parent_task_id"}},
-	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "context task", body: map[string]any{
-		"context_task_id": isoRef("task")},
-		covers: []string{"CreateDriveTaskProposalSDI.context_task_id"}},
-	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates", what: "project", body: map[string]any{
-		"project_id": isoRef("project"), "titles": []any{"Chốt phạm vi beta"}},
-		covers: []string{"CheckDriveTaskProposalDuplicatesSDI.project_id"}},
-	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates", what: "parent task", body: map[string]any{
-		"parent_task_id": isoRef("task"), "titles": []any{"Chốt phạm vi beta"}},
-		covers: []string{"CheckDriveTaskProposalDuplicatesSDI.parent_task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "project",
+		wantAttackStatus: 404,
+		body:             map[string]any{"project_id": isoRef("project")},
+		covers:           []string{"CreateDriveTaskProposalSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "parent task",
+		wantAttackStatus: 404,
+		body:             map[string]any{"parent_task_id": isoRef("task")},
+		covers:           []string{"CreateDriveTaskProposalSDI.parent_task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "context task",
+		wantAttackStatus: 404,
+		body:             map[string]any{"context_task_id": isoRef("task")},
+		covers:           []string{"CreateDriveTaskProposalSDI.context_task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates", what: "project",
+		wantAttackStatus: 404,
+		body:             map[string]any{"project_id": isoRef("project"), "titles": []any{"Chốt phạm vi beta"}},
+		covers:           []string{"CheckDriveTaskProposalDuplicatesSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates", what: "parent task",
+		wantAttackStatus: 404,
+		body:             map[string]any{"parent_task_id": isoRef("task"), "titles": []any{"Chốt phạm vi beta"}},
+		covers:           []string{"CheckDriveTaskProposalDuplicatesSDI.parent_task_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks", what: "project", proposalKey: "driveProposalRefProject",
 		body: map[string]any{
 			"project_id": isoRef("project"),
