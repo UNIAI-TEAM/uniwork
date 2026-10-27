@@ -182,6 +182,8 @@ type PublicInviteView struct {
 	// available to its organization), so the page tells the guest before they
 	// join (UNI-1995 access, consent notice).
 	Scribe bool
+	// StartedAt is when the meeting actually started; zero until it has.
+	StartedAt time.Time
 }
 
 // ResolveInviteLink describes a link to the page that opened it, including
@@ -204,7 +206,7 @@ func (s *MeetingService) ResolveInviteLink(ctx context.Context, linkID, secret s
 	now := time.Now()
 	expired := link.RevokedAt.Valid || !link.ExpiresAt.Time.After(now)
 	return PublicInviteView{
-		LinkID: link.ID, MeetingID: m.ID, Title: m.Title, StartsAt: m.StartsAt.Time,
+		LinkID: link.ID, MeetingID: m.ID, Title: m.Title, StartsAt: m.StartsAt.Time, StartedAt: m.ActualStartAt.Time,
 		AccessMode: link.AccessMode, Expired: expired,
 		LinkState:    s.inviteLinkState(ctx, link, m.ID, viewer, now),
 		MeetingState: inviteMeetingState(m, now.UTC()),

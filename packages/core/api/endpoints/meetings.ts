@@ -323,6 +323,8 @@ const PublicInviteLinkSchema = z.object({
   meeting_state: z.string().optional(),
   /** The AI scribe would transcribe the meeting: the page tells the guest before they join. */
   scribe: z.boolean().optional(),
+  /** When the meeting actually started; a guest outside the room shows how long it has run. */
+  started_at: z.string().optional().catch(undefined),
 });
 export type PublicInviteLink = z.infer<typeof PublicInviteLinkSchema>;
 export type InviteLinkState = "active" | "expired" | "revoked" | "exhausted";
