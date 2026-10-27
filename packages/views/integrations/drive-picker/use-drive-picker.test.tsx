@@ -617,6 +617,34 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
 
     const mismatchAlert = await screen.findByTestId("drive-picker-connect-notice");
     expect(mismatchAlert).toHaveTextContent("expired@vietants.vn");
+    // Other failures keep the plain hint above the reconnect action ...
+    expect(screen.getByTestId("drive-consent-hint")).toBeInTheDocument();
+
+    // ... but scope_not_granted already carries the same instruction, so the hint steps aside.
+    fireEvent.click(
+      within(await screen.findByTestId("drive-picker-account-dc_lost")).getByRole("button", {
+        name: "Kết nối lại expired@vietants.vn",
+      }),
+    );
+    // Let the start request settle so the popup's message listener is attached.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          origin: apiOrigin,
+          source: fakePopupWindow,
+          data: { type: DRIVE_OAUTH_MESSAGE_TYPE, ok: false, code: "scope_not_granted" },
+        }),
+      );
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("drive-picker-connect-notice")).toHaveTextContent(
+        "hãy tick ô quyền truy cập tệp Google Drive",
+      ),
+    );
+    expect(screen.queryByTestId("drive-consent-hint")).not.toBeInTheDocument();
   });
 
   it("waits while the connections list is loading and shows an error toast with retry (no navigation) when the connections list fails (R1-3, R1-13)", async () => {
