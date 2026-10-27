@@ -36,7 +36,8 @@ test.describe("membership invite link", () => {
       timeout: 20_000,
     });
     await invitee.getByRole("button", { name: "Tham gia", exact: true }).click();
-    await expect(invitee).toHaveURL(new RegExp(`/${ownerSeed.orgSlug}/${ownerSeed.wsSlug}/`), { timeout: 20_000 });
+    // The join lands on the workspace root (Home), which has no trailing slash.
+    await expect(invitee).toHaveURL(new RegExp(`/${ownerSeed.orgSlug}/${ownerSeed.wsSlug}/?$`), { timeout: 20_000 });
 
     await owner.context().close();
     await invitee.context().close();
