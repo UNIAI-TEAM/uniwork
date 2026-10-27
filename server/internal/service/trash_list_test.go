@@ -314,3 +314,34 @@ func TestTrashListSkipsDocumentsWhenTheFlagIsOff(t *testing.T) {
 		t.Fatalf("flag off, kind=document = %+v", page)
 	}
 }
+
+func TestTrashListNameSearchIgnoresAccentsForEveryKind(t *testing.T) {
+	x := newTrashListFixture(t, nil)
+	x.trashTask(t, x.tn.owner, "", "Hợp đồng mẫu")
+	x.trashProject(t, x.tn.owner, "Hợp đồng khung")
+	x.trashDoc(t, x.tn.owner, treeDocSpec{title: "Hợp đồng thuê"})
+	got := x.list(t, x.tn.owner, ListTrashInput{Filter: TrashFilter{Query: "hop dong"}})
+	if len(got.Items) != 3 {
+		t.Fatalf("q=hop dong found %d rows %v, want task, project and document", len(got.Items), trashKindsOf(got.Items))
+	}
+}
+
+func TestTrashListTaskWithoutProjectIsLocatedInTheWorkspace(t *testing.T) {
+	x := newTrashListFixture(t, nil)
+	x.trashTask(t, x.tn.owner, "", "Việc lẻ")
+	page := x.list(t, x.tn.owner, ListTrashInput{Kind: TrashKindTask})
+	if len(page.Items) != 1 || page.Items[0].LocationTitle != x.w.Name {
+		t.Fatalf("task row = %+v, want location %q", page.Items, x.w.Name)
+	}
+}
+
+func TestTrashListPassesCodedRefusalsThrough(t *testing.T) {
+	x := newTrashListFixture(t, nil)
+	if _, err := x.pool.Exec(x.ctx, `UPDATE organization_members SET deactivated_at = now() WHERE organization_id = $1 AND user_id = $2`,
+		x.w.OrganizationID, x.tn.member.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := x.svc.List(x.ctx, Human(x.tn.member.ID), x.w.ID, ListTrashInput{}); !errors.Is(err, ErrMemberDeactivated) {
+		t.Fatalf("deactivated member List = %v, want ErrMemberDeactivated", err)
+	}
+}

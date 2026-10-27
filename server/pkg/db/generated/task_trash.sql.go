@@ -243,7 +243,7 @@ WHERE organization_id = $1
   AND trashed_at IS NOT NULL
   AND ($3::timestamptz IS NULL
        OR (trashed_at, id) < ($3, $4::text))
-  AND ($5::text IS NULL OR title ILIKE '%' || $5 || '%')
+  AND ($5::text IS NULL OR uw_fold_search(title) ILIKE '%' || $5 || '%')
   AND ($6::text IS NULL OR trashed_by = $6)
 ORDER BY trashed_at DESC, id DESC
 LIMIT $7
@@ -384,7 +384,7 @@ WITH RECURSIVE page AS (
     )
     AND ($3::timestamptz IS NULL
          OR (t.trashed_at, t.id) < ($3, $4::text))
-    AND ($5::text IS NULL OR t.title ILIKE '%' || $5 || '%')
+    AND ($5::text IS NULL OR uw_fold_search(t.title) ILIKE '%' || $5 || '%')
     AND ($6::text IS NULL OR t.trashed_by = $6)
   ORDER BY t.trashed_at DESC, t.id DESC
   LIMIT $7

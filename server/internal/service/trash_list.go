@@ -1,6 +1,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -160,7 +161,10 @@ func (s *TrashService) List(ctx context.Context, actor Actor, workspaceID string
 	}
 
 	// A k-way merge keeps each source's own order, so a source's cursor always
-	// marks a prefix of its rows; ties go to the earlier kind in srcs.
+	// marks a prefix of its rows; ties go to the earlier kind in srcs. Invariant:
+	// every source page that carries a next cursor holds at least trashPageSize
+	// rows, so the merge never takes a row past another source's unread rows; a
+	// source that filtered rows after its query would break the order.
 	page := TrashPage[TrashItem]{Items: make([]TrashItem, 0, trashPageSize)}
 	taken := make([]int, len(srcs))
 	for len(page.Items) < trashPageSize {
@@ -209,7 +213,7 @@ func (s *TrashService) read(ctx context.Context, actor Actor, view WorkspaceView
 		for _, r := range page.Items {
 			src.items = append(src.items, TrashItem{
 				Kind: k, ID: r.ID, Title: r.Title, Identifier: r.Identifier, Count: r.BatchSize - 1,
-				LocationTitle: r.ProjectTitle, TrashedBy: r.TrashedBy, TrashedAt: r.TrashedAt, PurgeAfter: r.PurgeAfter,
+				LocationTitle: cmp.Or(r.ProjectTitle, view.Name), TrashedBy: r.TrashedBy, TrashedAt: r.TrashedAt, PurgeAfter: r.PurgeAfter,
 				CanManage: true,
 			})
 		}

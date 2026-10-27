@@ -59,11 +59,12 @@ type TrashFilter struct {
 	Query, TrashedBy string
 }
 
-// args is the filter as the nullable sqlc parameters: the LIKE wildcards of
-// Query are escaped so they match literally.
+// args is the filter as the nullable sqlc parameters: Query is folded (case,
+// accents) as the SQL compares uw_fold_search, and its LIKE wildcards are
+// escaped so they match literally.
 func (f TrashFilter) args() (query, trashedBy pgtype.Text) {
 	if q := strings.TrimSpace(f.Query); q != "" {
-		query = pgtype.Text{String: escapeLikePattern(q), Valid: true}
+		query = pgtype.Text{String: escapeLikeQuery(q), Valid: true}
 	}
 	return query, nullText(f.TrashedBy)
 }
