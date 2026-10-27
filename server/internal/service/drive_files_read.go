@@ -18,15 +18,14 @@ const driveFolderFilterNone = "none"
 var driveFolderFilterIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{10,256}$`)
 
 func parseDriveFolderFilter(raw string) (pgtype.Text, *string, error) {
-	fid := strings.TrimSpace(raw)
-	if fid == "" {
+	if raw == "" {
 		return pgtype.Text{}, nil, nil
 	}
-	if fid != driveFolderFilterNone && !driveFolderFilterIDPattern.MatchString(fid) {
+	if raw != driveFolderFilterNone && !driveFolderFilterIDPattern.MatchString(raw) {
 		return pgtype.Text{}, nil, Invalid("drive_folder_id không hợp lệ")
 	}
-	echo := fid
-	return pgtype.Text{String: fid, Valid: true}, &echo, nil
+	echo := raw
+	return pgtype.Text{String: raw, Valid: true}, &echo, nil
 }
 
 // ListMine returns the paginated list of active Drive files in workspaceID for
@@ -114,11 +113,14 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 		rows = rows[:limit]
 	}
 
-	// Opportunistically refresh stale metadata (> 10 min) using the caller's own connection.
-	parentCache := make(map[string]string, len(rows))
-	for i := range rows {
-		if refreshed, ok := s.maybeRefreshEnrichedRow(ctx, actor.ID, ws, rows[i], parentCache); ok {
-			rows[i] = refreshed
+	// Opportunistically refresh stale metadata (> 10 min) using the caller's own connection
+	// on unfiltered lists only; folder-filtered lists keep the stored parent population.
+	if !folderFilter.Valid {
+		parentCache := make(map[string]string, len(rows))
+		for i := range rows {
+			if refreshed, ok := s.maybeRefreshEnrichedRow(ctx, actor.ID, ws, rows[i], parentCache); ok {
+				rows[i] = refreshed
+			}
 		}
 	}
 

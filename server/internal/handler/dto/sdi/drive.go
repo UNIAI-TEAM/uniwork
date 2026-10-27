@@ -28,10 +28,11 @@ type LinkDriveFilesSDI struct {
 
 // ListDriveFilesSDI documents the query parameters of GET /api/v1/workspaces/{workspaceID}/drive-files.
 type ListDriveFilesSDI struct {
-	ConnectionID  string `query:"connection_id" description:"Lọc theo ULID kết nối Google Drive trong dòng truy cập của người gọi; bỏ trống = mọi kết nối của tôi" example:"01J8X4DRVCONN0N1P2Q3R4S5T6"`
-	DriveFolderID string `query:"drive_folder_id" description:"Lọc theo ID thư mục cha trên Google Drive hoặc 'none' (tệp không có thư mục cha); bỏ trống = không lọc" example:"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8"`
-	Cursor        string `query:"cursor" description:"Con trỏ trang kế tiếp (next_cursor của trang trước); bỏ trống = trang đầu" example:"eyJpZCI6IjAxSjifQ"`
-	Limit         int32  `query:"limit" description:"Kích thước trang (mặc định 50, tối đa 100)" example:"50"`
+	ConnectionID      string `query:"connection_id" description:"Lọc theo ULID kết nối Google Drive trong dòng truy cập của người gọi; bỏ trống = mọi kết nối của tôi" example:"01J8X4DRVCONN0N1P2Q3R4S5T6"`
+	DriveConnectionID string `query:"drive_connection_id" description:"Bí danh của connection_id, chỉ dùng khi connection_id để trống; lọc theo ULID kết nối Google Drive trong dòng truy cập của người gọi" example:"01J8X4DRVCONN0N1P2Q3R4S5T6"`
+	DriveFolderID     string `query:"drive_folder_id" description:"Lọc theo ID thư mục cha trên Google Drive hoặc 'none' (tệp không có thư mục cha); bỏ trống = không lọc" example:"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8"`
+	Cursor            string `query:"cursor" description:"Con trỏ trang kế tiếp (next_cursor của trang trước); bỏ trống = trang đầu" example:"eyJpZCI6IjAxSjifQ"`
+	Limit             int32  `query:"limit" description:"Kích thước trang (mặc định 50, tối đa 100)" example:"50"`
 }
 
 // ListDriveFoldersSDI documents the query parameters of GET /api/v1/workspaces/{workspaceID}/drive-folders (UNI-2221).
