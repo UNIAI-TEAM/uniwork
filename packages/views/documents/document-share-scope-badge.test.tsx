@@ -266,7 +266,6 @@ describe("DocumentShareScopeBadge (UNI-1785)", () => {
     expect(within(accessCell).queryByText("4 người")).not.toBeInTheDocument();
     unmount();
 
-
     // Tree rows mount
     const treeNodes: DocumentTreeNode[] = [
       {

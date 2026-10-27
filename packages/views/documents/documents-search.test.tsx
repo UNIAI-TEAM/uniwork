@@ -496,14 +496,17 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     shouldFail = false;
     fireEvent.click(within(alertState).getByRole("button", { name: t("documents.library.retry") }));
 
-    // Empty state with the query in the title and a clear search button
+    // Empty state with the query in the title and a clear search button that returns focus to the search box (KLV-4)
     const expectedTitle = t("documents.home.search.no_results_title", { query: "khong co" });
     expect(await screen.findByText(expectedTitle)).toBeInTheDocument();
     const statusRegion = screen.getByRole("status");
     const clearAction = within(statusRegion).getByRole("button", { name: t("documents.home.search.clear") });
+    clearAction.focus();
+    expect(document.activeElement).toBe(clearAction);
     fireEvent.click(clearAction);
 
     expect(searchInput).toHaveValue("");
+    expect(document.activeElement).toBe(searchInput);
     expect(await screen.findByText("Tài liệu ban đầu")).toBeInTheDocument();
   });
 
@@ -675,7 +678,7 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(homeSearchBox.className).toContain("@min-[48rem]:focus-within:w-full");
     unmount();
 
-    // Open folder: search box is on the filter row with folder placeholder, not in breadcrumb head row
+    // Open folder: search box is on the filter row with the neutral placeholder (KLR-9), not in breadcrumb head row
     const { unmount: unmountFolder } = render(
       wrap(
         <NavigationProvider value={createNav("folder=fo-open")}>
@@ -692,7 +695,7 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(crumb).toContainElement(folderHeading);
     const folderHeadRow = crumb.parentElement!.parentElement!;
     const folderSearchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
-    expect(folderSearchInput).toHaveAttribute("placeholder", t("documents.home.search.placeholder_folder"));
+    expect(folderSearchInput).toHaveAttribute("placeholder", t("documents.home.search.placeholder"));
     expect(folderHeadRow.contains(folderSearchInput)).toBe(false);
     const folderFilterZone = document.querySelector<HTMLElement>('[data-slot="documents-filter-zone"]')!;
     expect(folderFilterZone.contains(folderSearchInput)).toBe(false);
@@ -815,16 +818,17 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(searchSlot).toHaveAttribute("data-expanded", "true");
     expect(searchBox).toHaveAttribute("data-expanded", "true");
 
-    // Clearing via clear button returns to rest state and restores initial items
+    // Clearing via clear X button returns to rest state, restores initial items, and returns focus to the input (KLV-4)
     const clearBtn = screen.getByRole("button", { name: t("documents.home.search.clear") });
     fireEvent.click(clearBtn);
     expect(searchInput).toHaveValue("");
+    expect(document.activeElement).toBe(searchInput);
     expect(searchSlot).toHaveAttribute("data-expanded", "false");
     expect(searchBox).toHaveAttribute("data-expanded", "false");
     expect(await screen.findByText("Tài liệu ban đầu")).toBeInTheDocument();
   });
 
-  it("keeps the same input focused on Lưu trữ while keeping filter controls and the shelved table visible, and never shows search on Thùng rác", async () => {
+  it("keeps the same input focused on Lưu trữ while showing only shelved matches (KLR-2 / KLV-1), and never shows search on Thùng rác", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
@@ -835,6 +839,11 @@ describe("Documents search keeps layout (UNI-2205)", () => {
               title: "Kết quả tìm kiếm Lưu trữ",
               shelved_at: "2026-10-10T03:00:00Z",
               shelved_by: "u1",
+            }),
+            summary({
+              id: "hit-unshelved",
+              title: "Tài liệu chưa lưu trữ",
+              shelved_at: null,
             }),
           ],
           next_cursor: null,
@@ -864,12 +873,13 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     searchInput.focus();
     fireEvent.change(searchInput, { target: { value: "k" } });
 
-    // Same input element stays mounted and focused; filter controls and shelved table stay visible with matched shelved row
+    // Same input element stays mounted and focused; only the shelved hit renders, never the un-shelved hit (KLR-2)
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toBe(searchInput);
     expect(document.activeElement).toBe(searchInput);
     expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: t("documents.shelved_list.filter_by_label") })).toBeInTheDocument();
     expect(await screen.findByText("Kết quả tìm kiếm Lưu trữ")).toBeInTheDocument();
+    expect(screen.queryByText("Tài liệu chưa lưu trữ")).toBeNull();
     expect(screen.queryByText("Hồ sơ lưu trữ ban đầu")).toBeNull();
     expect(screen.getByRole("columnheader", { name: t("documents.list.screen_column.shelved") })).toBeInTheDocument();
 
@@ -885,6 +895,180 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(await screen.findByText("Tài liệu trong thùng rác")).toBeInTheDocument();
     expect(screen.queryByText("Kết quả tìm kiếm Lưu trữ")).toBeNull();
     expect(screen.queryByRole("searchbox")).toBeNull();
+  });
+
+  it("filters loaded source rows client-side by accent-folded title on Ở nơi khác (view=sources) (KLR-1)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(`${LIST_BASE}/sources`)) {
+        return Promise.resolve({
+          items: [
+            {
+              id: "src-1",
+              source: "chat",
+              parent: { kind: "chat_channel", id: "ch-1", title: "Kênh Chung" },
+              name: "Báo cáo Đánh giá Quý 4.xlsx",
+              mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              extension: "xlsx",
+              size_bytes: 2048,
+              updated_at: "2026-10-20T03:00:00Z",
+              owner: { id: "u1", kind: "human", name: "An" },
+              can_open_in_app: false,
+              can_save: true,
+            },
+            {
+              id: "src-2",
+              source: "task",
+              parent: { kind: "task", id: "tk-1", title: "Việc A" },
+              name: "Tài liệu thiết kế.pdf",
+              mime_type: "application/pdf",
+              extension: "pdf",
+              size_bytes: 4096,
+              updated_at: "2026-10-21T03:00:00Z",
+              owner: { id: "u1", kind: "human", name: "An" },
+              can_open_in_app: false,
+              can_save: true,
+            },
+          ],
+          next_cursor: null,
+        });
+      }
+      // Even when document search returns 0 document hits, sources view matches loaded source rows
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
+
+    renderSearchView(createNav("view=sources"));
+    expect(await screen.findByText("Báo cáo Đánh giá Quý 4.xlsx")).toBeInTheDocument();
+    expect(screen.getByText("Tài liệu thiết kế.pdf")).toBeInTheDocument();
+
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    fireEvent.change(searchInput, { target: { value: "danh gia" } });
+
+    expect(await screen.findByText("Báo cáo Đánh giá Quý 4.xlsx")).toBeInTheDocument();
+    expect(screen.queryByText("Tài liệu thiết kế.pdf")).toBeNull();
+    expect(screen.queryByText(t("documents.home.search.no_results_title", { query: "danh gia" }))).toBeNull();
+  });
+
+  it("shows search hits that are not in the loaded library page on Recent, Shared with me, and Shared by me (KLR-3)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(`${LIST_BASE}/recent`)) {
+        return Promise.resolve({
+          documents: [summary({ id: "r-page1", title: "Tài liệu trang 1", last_activity: { kind: "opened", at: "2026-10-26T03:00:00Z" } })],
+          next_cursor: "cursor-page-2",
+        });
+      }
+      if (path.startsWith(`${LIST_BASE}/shared-with-me`)) {
+        return Promise.resolve({
+          documents: [summary({ id: "sh-page1", title: "Chia sẻ trang 1", via: "share" })],
+          next_cursor: "cursor-page-2",
+        });
+      }
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        const qParams = queryOf(path);
+        if (qParams.get("shared_by_me") === "true") {
+          return Promise.resolve({
+            documents: [
+              summary({
+                id: "sbm-page2",
+                title: "Chia sẻ bởi tôi trang 2",
+                is_owner: true,
+                visibility: "workspace",
+                share_summary: { people: 2, workspaces: 0, links: 0, latest_at: "2026-10-25T03:00:00Z" },
+              }),
+            ],
+            next_cursor: null,
+          });
+        }
+        return Promise.resolve({
+          documents: [
+            summary({
+              id: "unloaded-hit",
+              title: "Hợp đồng ở trang 2 chưa tải",
+              via: "share",
+              updated_by: "u1",
+            }),
+          ],
+          next_cursor: null,
+        });
+      }
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
+
+    // 1. Recent: hit not in loaded page 1 still shows
+    const { unmount: unmountRecent } = renderSearchView(createNav("view=recent"));
+    expect((await screen.findAllByText("Tài liệu trang 1")).length).toBeGreaterThanOrEqual(1);
+    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "trang 2" } });
+    expect(await screen.findByText("Hợp đồng ở trang 2 chưa tải")).toBeInTheDocument();
+    unmountRecent();
+
+    // 2. Shared with me: hit with via="share" not in loaded page 1 still shows
+    const { unmount: unmountShared } = renderSearchView(createNav("view=shared"));
+    expect(await screen.findByText("Chia sẻ trang 1")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "trang 2" } });
+    expect(await screen.findByText("Hợp đồng ở trang 2 chưa tải")).toBeInTheDocument();
+    unmountShared();
+
+    // 3. Shared by me: sends shared_by_me=true to server and shows page 2 hit
+    renderSearchView(createNav("view=shared-by-me"));
+    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "trang 2" } });
+    expect(await screen.findByText("Chia sẻ bởi tôi trang 2")).toBeInTheDocument();
+  });
+
+  it("hides the Tài liệu section when only folders match a search query, shows the root path line on root hits, and renders the Tổ chức share-scope badge on search hits (KLR-4, KLR-7, KLR-10, KLV-3)", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        const q = queryOf(path).get("q");
+        if (q === "thu muc") {
+          return Promise.resolve({
+            documents: [summary({ id: "fo-only", kind: "folder", title: "Thư mục Pháp chế gốc", path: [] })],
+            next_cursor: null,
+          });
+        }
+        return Promise.resolve({
+          documents: [
+            summary({
+              id: "root-org-doc",
+              kind: "page",
+              title: "Quy chế Tổ chức",
+              path: [],
+              shelved_at: "2026-10-10T03:00:00Z",
+              share_scope: {
+                home_workspace: false,
+                users: 0,
+                workspaces: 0,
+                organization: true,
+                public_link: false,
+              },
+            }),
+          ],
+          next_cursor: null,
+        });
+      }
+      return Promise.resolve({ documents: [], next_cursor: null });
+    });
+
+    renderSearchView();
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+
+    // Folder-only match: Thư mục 1 shows with root path line "Tài liệu (gốc)", and Tài liệu 0 / no_results_title is hidden (KLR-4, KLR-7)
+    fireEvent.change(searchInput, { target: { value: "thu muc" } });
+    const foldersSection = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} 1$`) });
+    expect(within(foldersSection).getByText("Thư mục Pháp chế gốc")).toBeInTheDocument();
+    const rootLabel = t("documents.home.search.path_root");
+    expect(within(foldersSection).getByTitle(rootLabel)).toHaveTextContent(rootLabel);
+    expect(screen.queryByRole("heading", { level: 2, name: new RegExp(`^${t("documents.home.sections.documents")}`) })).toBeNull();
+    expect(screen.queryByText(t("documents.home.search.no_results_title", { query: "thu muc" }))).toBeNull();
+
+    // Document root match with organization share_scope: shows root path line, "Tổ chức" badge, and title priority classes (KLR-7, KLR-10, KLV-3)
+    fireEvent.change(searchInput, { target: { value: "quy che" } });
+    const titleSpan = await screen.findByText("Quy chế Tổ chức");
+    expect(titleSpan.className).toContain("min-w-[60%]");
+    expect(titleSpan.parentElement?.className).toContain("flex-wrap");
+    const row = titleSpan.closest("tr")!;
+    expect(within(row).getByTitle(rootLabel)).toHaveTextContent(rootLabel);
+    expect(within(row).getByText(t("documents.scope.organization"))).toBeInTheDocument();
   });
 });
 
