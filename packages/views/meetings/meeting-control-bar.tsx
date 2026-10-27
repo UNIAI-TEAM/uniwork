@@ -45,6 +45,7 @@ import {
   MenuControl,
   ReactionsControl,
 } from "./meeting-control-bar-controls";
+import type { RoomExit } from "./exit/exit-model";
 import { MEETING_DARK_BAR } from "./meeting-dark-bar";
 import { MeetingHostLeaveDialog } from "./meeting-host-leave-dialog";
 import { MeetingLeaveConfirmDialog } from "./meeting-leave-confirm-dialog";
@@ -57,7 +58,8 @@ import { useScreenShareControl } from "./use-screen-share-control";
 /** Memoized: the stage hands it stable callbacks, so tile and speaker updates pass it by. */
 export const MeetingControlBar = memo(function MeetingControlBar({
   className,
-  onLeave,
+  onExit,
+  onEndForAll,
   meetingId,
   canHost = false,
   recordingEnabled = false,
@@ -68,7 +70,9 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   hostLeave,
 }: {
   className?: string;
-  onLeave: () => void;
+  /** Leaving hands back how the mic and camera were, so "Vào lại" restores them. */
+  onExit: (exit: RoomExit) => void;
+  onEndForAll?: () => void;
   meetingId?: string;
   canHost?: boolean;
   /** Set for a host or admin of a live meeting: Leave then asks how, not just whether. Keep it memoized. */
@@ -351,9 +355,14 @@ export const MeetingControlBar = memo(function MeetingControlBar({
           meeting={hostLeave.meeting}
           workspaceId={hostLeave.workspaceId}
           recording={recording}
-          onLeave={() => {
+          media={{ audio: mic.enabled, video: camera.enabled }}
+          onExit={(next) => {
             setLeaveConfirmOpen(false);
-            onLeave();
+            onExit(next);
+          }}
+          onEndForAll={() => {
+            setLeaveConfirmOpen(false);
+            onEndForAll?.();
           }}
         />
       ) : (
@@ -362,7 +371,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
           onOpenChange={setLeaveConfirmOpen}
           onConfirm={() => {
             setLeaveConfirmOpen(false);
-            onLeave();
+            onExit({ kind: "left", media: { audio: mic.enabled, video: camera.enabled } });
           }}
         />
       )}

@@ -4,9 +4,8 @@ import { useId, useMemo, useState } from "react";
 import { useParticipants as useLiveKitParticipants } from "@livekit/components-react";
 import { ArrowRightLeft, Crown, LogOut, PhoneOff, Users, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { useAuthStore } from "@uniwork/core/auth";
-import { useEndMeeting, useParticipants, useTransferHost } from "@uniwork/core/meetings";
+import { useParticipants, useTransferHost } from "@uniwork/core/meetings";
 import type { Meeting } from "@uniwork/core/types";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -24,6 +23,7 @@ import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-grou
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../toast-api-error";
+import type { ExitMedia, RoomExit } from "./exit/exit-model";
 import { meetingLocale } from "./meeting-datetime";
 import { dutyRole } from "./meeting-duty-menu-items";
 import { handoverCandidates } from "./meeting-host-handover";
@@ -50,14 +50,20 @@ export function MeetingHostLeaveDialog({
   meeting,
   workspaceId,
   recording,
-  onLeave,
+  media,
+  onExit,
+  onEndForAll,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   meeting: Meeting;
   workspaceId: string;
   recording: boolean;
-  onLeave: () => void;
+  /** Mic and camera now, carried into the leave screen's "Vào lại". */
+  media: ExitMedia;
+  onExit: (exit: RoomExit) => void;
+  /** The room view ends the meeting (and shows the wait), so the dialog only asks. */
+  onEndForAll: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -65,7 +71,14 @@ export function MeetingHostLeaveDialog({
       <DialogContent className="gap-0 p-0 sm:max-w-md" closeLabel={t("common.close")}>
         {/* Mounted only while open: the roster it reads must not repaint the control bar. */}
         {open ? (
-          <HostLeaveBody meeting={meeting} workspaceId={workspaceId} recording={recording} onLeave={onLeave} />
+          <HostLeaveBody
+            meeting={meeting}
+            workspaceId={workspaceId}
+            recording={recording}
+            media={media}
+            onExit={onExit}
+            onEndForAll={onEndForAll}
+          />
         ) : null}
       </DialogContent>
     </Dialog>
@@ -76,12 +89,16 @@ function HostLeaveBody({
   meeting,
   workspaceId,
   recording,
-  onLeave,
+  media,
+  onExit,
+  onEndForAll,
 }: {
   meeting: Meeting;
   workspaceId: string;
   recording: boolean;
-  onLeave: () => void;
+  media: ExitMedia;
+  onExit: (exit: RoomExit) => void;
+  onEndForAll: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const id = useId();
@@ -106,8 +123,7 @@ function HostLeaveBody({
   const avatarOf = useRoomAvatarOf();
   const tintOf = useRoomTintOf();
   const transfer = useTransferHost(workspaceId, meeting.id);
-  const end = useEndMeeting(workspaceId);
-  const busy = transfer.isPending || end.isPending;
+  const busy = transfer.isPending;
 
   // The default follows the room until the host picks: the roster may land after the dialog opens.
   const [picked, setPicked] = useState<Choice | null>(null);
@@ -149,22 +165,19 @@ function HostLeaveBody({
   const confirm = () => {
     if (busy) return;
     if (choice === "leave") {
-      onLeave();
+      onExit({ kind: isHost ? "leftHost" : "left", media });
       return;
     }
-    // mutateAsync: ending closes the room, which can unmount this dialog before
-    // the answer lands and drop mutate()'s per-call callbacks.
     if (choice === "end") {
-      end.mutateAsync(meeting.id).then(onLeave, (err: unknown) => toastApiError(err, t("common.error")));
+      onEndForAll();
       return;
     }
     if (!target?.user_id) return;
-    const name = nameOf(target);
-    transfer.mutateAsync(target.user_id).then(
-      () => {
-        toast.success(t("meetings.hostTransferred", { name }));
-        onLeave();
-      },
+    const toUserId = target.user_id;
+    const toName = nameOf(target);
+    // The handover screen says who holds the room now, so no toast here.
+    transfer.mutateAsync(toUserId).then(
+      () => onExit({ kind: "handedOver", media, toUserId, toName }),
       (err: unknown) => toastApiError(err, t("common.error")),
     );
   };

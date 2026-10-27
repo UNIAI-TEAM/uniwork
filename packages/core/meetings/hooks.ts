@@ -256,11 +256,12 @@ export function useExtendMeeting(workspaceId: string) {
   });
 }
 
-export function useParticipants(meetingId: string) {
+export function useParticipants(meetingId: string, opts?: { refetchInterval?: number }) {
   return useQuery({
     queryKey: meetingKeys.participants(meetingId),
     queryFn: () => meetings.listParticipants(meetingId),
     enabled: !!meetingId,
+    refetchInterval: opts?.refetchInterval,
   });
 }
 

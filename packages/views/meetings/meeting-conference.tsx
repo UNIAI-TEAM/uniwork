@@ -32,6 +32,7 @@ import {
 import { MeetingConnectionNotice } from "./meeting-connection-notice";
 import { MeetingScribeCaptions, useScribeInRoom, useScribeJoinWait, useScribePaused } from "./meeting-scribe-captions";
 import { scribeChipState } from "./meeting-scribe-chip";
+import type { RoomExit } from "./exit/exit-model";
 import { MeetingControlBar } from "./meeting-control-bar";
 import { MeetingStageFooter } from "./meeting-stage-footer";
 import { MeetingCameraBackgroundSync } from "./meeting-camera-background-sync";
@@ -77,7 +78,10 @@ export function MeetingConference(props: {
   meetingsHref?: string;
   workspaceLabel?: string;
   guestMode?: boolean;
-  onLeave: () => void;
+  /** Someone is out of the room (left, handed over): the room view swaps in a leave screen. */
+  onExit: (exit: RoomExit) => void;
+  /** The host or an admin ends the meeting for everyone. */
+  onEndForAll?: () => void;
   /** Device trouble (a blocked mic, a busy camera) shown on the stage, above the tiles. */
   deviceNotice?: ReactNode;
 }) {
@@ -113,7 +117,8 @@ function ConferenceStage({
   workspaceLabel,
   guestMode,
   guests,
-  onLeave,
+  onExit,
+  onEndForAll,
   deviceNotice,
 }: {
   meetingId?: string;
@@ -124,7 +129,8 @@ function ConferenceStage({
   workspaceLabel?: string;
   guestMode?: boolean;
   guests: ReadonlySet<string>;
-  onLeave: () => void;
+  onExit: (exit: RoomExit) => void;
+  onEndForAll?: () => void;
   deviceNotice?: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -165,11 +171,12 @@ function ConferenceStage({
   const recording = roomRecording || (recordings ?? []).some((r) => r.status === "ACTIVE");
   // The room view may hand a fresh callback on each of its renders; the
   // control bar is memoized, so it gets one that never changes.
-  const onLeaveRef = useRef(onLeave);
+  const exitRef = useRef({ onExit, onEndForAll });
   useLayoutEffect(() => {
-    onLeaveRef.current = onLeave;
+    exitRef.current = { onExit, onEndForAll };
   });
-  const leave = useCallback(() => onLeaveRef.current(), []);
+  const exit = useCallback((next: RoomExit) => exitRef.current.onExit(next), []);
+  const endForAll = useCallback(() => exitRef.current.onEndForAll?.(), []);
 
   const openSidebarTab = useCallback(
     (tab: MeetingSidebarTab) => {
@@ -315,7 +322,8 @@ function ConferenceStage({
   const controlBar = useMemo(
     () => (
       <MeetingControlBar
-        onLeave={leave}
+        onExit={exit}
+        onEndForAll={endForAll}
         meetingId={resolvedMeetingId || undefined}
         canHost={canHost.allowed}
         hostLeave={hostLeave}
@@ -326,7 +334,7 @@ function ConferenceStage({
         onToggleCaptions={toggleCaptions}
       />
     ),
-    [leave, resolvedMeetingId, canHost.allowed, hostLeave, recordingEnabled, recording, scribeInRoom, scribeJoining, captionsOn, toggleCaptions],
+    [exit, endForAll, resolvedMeetingId, canHost.allowed, hostLeave, recordingEnabled, recording, scribeInRoom, scribeJoining, captionsOn, toggleCaptions],
   );
 
   return (

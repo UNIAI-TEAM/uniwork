@@ -56,7 +56,11 @@ function serve(joinRequests: unknown[] = []) {
 
 const calls = (suffix: string) => requestMock.mock.calls.filter((c) => String(c[0]).endsWith(suffix));
 
-function renderDialog(onLeave = vi.fn(), recording = false) {
+const media = { audio: true, video: false };
+
+function renderDialog(recording = false) {
+  const onExit = vi.fn();
+  const onEndForAll = vi.fn();
   render(
     wrapWithNav(
       <MeetingHostLeaveDialog
@@ -65,11 +69,13 @@ function renderDialog(onLeave = vi.fn(), recording = false) {
         meeting={meeting}
         workspaceId="w1"
         recording={recording}
-        onLeave={onLeave}
+        media={media}
+        onExit={onExit}
+        onEndForAll={onEndForAll}
       />,
     ),
   );
-  return onLeave;
+  return { onExit, onEndForAll };
 }
 
 beforeAll(() => {
@@ -86,7 +92,7 @@ beforeEach(() => {
 
 describe("MeetingHostLeaveDialog", () => {
   it("hands the room to the secretary by default, then leaves", async () => {
-    const onLeave = renderDialog();
+    const { onExit } = renderDialog();
     // Guests cannot take the host role, so only the two members are offered, the secretary first.
     const lan = await screen.findByRole("radio", { name: /Lan/ });
     expect(lan).toBeChecked();
@@ -97,30 +103,34 @@ describe("MeetingHostLeaveDialog", () => {
     fireEvent.click(screen.getByRole("radio", { name: /Minh/ }));
     fireEvent.click(screen.getByRole("button", { name: "Chuyển cho Minh và rời" }));
 
-    await waitFor(() => expect(onLeave).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(onExit).toHaveBeenCalledExactlyOnceWith({ kind: "handedOver", media, toUserId: "u-minh", toName: "Minh" }),
+    );
     expect(calls("/host-transfer")).toHaveLength(1);
     expect(calls("/host-transfer")[0]?.[1]).toMatchObject({ method: "POST", body: { new_host_user_id: "u-minh" } });
-    expect(toast.success).toHaveBeenCalledWith("Đã chuyển quyền chủ trì cho Minh");
+    // The handover screen says it; no toast on top.
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
-  it("ends the meeting for everyone before leaving", async () => {
-    const onLeave = renderDialog();
+  it("hands ending for everyone to the room, which shows the wait", async () => {
+    const { onEndForAll, onExit } = renderDialog();
     await screen.findByRole("radio", { name: /Lan/ });
     fireEvent.click(screen.getByRole("radio", { name: /Kết thúc cho mọi người/ }));
     fireEvent.click(screen.getByRole("button", { name: "Kết thúc họp" }));
-    await waitFor(() => expect(onLeave).toHaveBeenCalledTimes(1));
-    expect(calls("/end")).toHaveLength(1);
+    expect(onEndForAll).toHaveBeenCalledOnce();
+    expect(onExit).not.toHaveBeenCalled();
+    expect(calls("/end")).toHaveLength(0);
     expect(calls("/host-transfer")).toHaveLength(0);
   });
 
   it("just leaves, and shows what keeps going without the host", async () => {
     serve([{ id: "jr1", meeting_id: "m1", status: "PENDING", display_name_snapshot: "Người lạ" }]);
-    const onLeave = renderDialog(vi.fn(), true);
+    const { onExit } = renderDialog(true);
     expect(await screen.findByText("1 người đang chờ vào")).toBeInTheDocument();
     expect(screen.getByText("Ghi hình vẫn chạy")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: /Chỉ rời phòng/ }));
     fireEvent.click(screen.getByRole("button", { name: "Rời ngay" }));
-    expect(onLeave).toHaveBeenCalledTimes(1);
+    expect(onExit).toHaveBeenCalledExactlyOnceWith({ kind: "leftHost", media });
     expect(calls("/host-transfer")).toHaveLength(0);
     expect(calls("/end")).toHaveLength(0);
   });
