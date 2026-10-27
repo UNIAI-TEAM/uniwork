@@ -398,7 +398,6 @@ function DriveLibraryListBody({
                     : undefined;
                   const rowNeedsReconnect =
                     file.viewer_access === "connection_lost" ||
-                    file.bound_connection_lost ||
                     Boolean(viewerConn?.needs_reconnect);
                   const accountEmail =
                     file.viewer_account_email || t("driveLibrary.list.no_account_value");

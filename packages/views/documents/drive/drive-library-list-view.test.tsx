@@ -294,6 +294,35 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(driveBtn).not.toHaveAttribute("aria-current");
   });
 
+  it("does not show a reconnect link for a bound_connection_lost file when the viewer's own access is granted on a healthy connection", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      return Promise.resolve({
+        files: [
+          driveFile({
+            id: "df_binder_lost",
+            name: "Tệp do người khác liên kết",
+            bound_connection_lost: true,
+            viewer_access: "granted",
+            viewer_connection_id: "conn1",
+          }),
+        ],
+        total_count: 1,
+        next_cursor: null,
+      });
+    });
+
+    render(
+      withFlag(<DriveLibraryListView wsId={WS} accountId={null} connections={connections} />),
+    );
+
+    await screen.findByRole("link", { name: "Tệp do người khác liên kết" });
+    const table = screen.getByRole("table");
+    expect(
+      within(table).queryByRole("link", { name: t("driveLibrary.list.reconnect_inline") }),
+    ).toBeNull();
+  });
+
   it("renders a real table with all 5 columns, sharing states, used-in counts, tasks created, and pagination", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
@@ -791,6 +820,10 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(screen.queryByRole("button", { name: /^Google Drive/ })).toBeNull();
     expect(
       requestMock.mock.calls.filter(([p]) => String(p).startsWith(DRIVE_CONNECTIONS_URL)),
+    ).toHaveLength(0);
+    // The sidebar fallback must not fetch /drive-files either when Drive is unavailable
+    expect(
+      requestMock.mock.calls.filter(([p]) => String(p).startsWith(DRIVE_LIST_URL)),
     ).toHaveLength(0);
     loadingRender.unmount();
     requestMock.mockClear();
