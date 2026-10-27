@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^c2f6baa86" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=c2f6baa861546817012ceb3f09fb29e83e70b68c
+c2f6baa86 fix(drive): refresh stale metadata on drive_folder_id=none list
+63d57f1b2 test(drive): cover opportunistic metadata refresh on drive_folder_id=none list
+c986c6eab Merge UNI-2205 fix-e2e (documents-folders e2e follows the search-keeps-layout DOM) into the G5-G7 root
+e5b113266 Merge UNI-2221 part C (drive_folder_id filter on the Drive files list) into the G5-G7 root
