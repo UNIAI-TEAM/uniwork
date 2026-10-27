@@ -613,6 +613,40 @@
       "goToWorkspaces": "See my workspaces"
     }
   },
+  "inviteLink": {
+    "workspaceTitle": "Invite by link",
+    "workspaceDescription": "Create a link so many people can join this workspace as Member.",
+    "orgTitle": "Invite by link",
+    "orgDescription": "Create a link so people can join the organization and the workspaces you pick.",
+    "workspacesLabel": "Workspaces on the link",
+    "workspacesHint": "Pick at least one workspace. Anyone who opens the link joins the organization and those workspaces as Member.",
+    "expiry": "Link expiration",
+    "expiryDays_one": "{{count}} day",
+    "expiryDays_other": "{{count}} days",
+    "create": "Create link",
+    "copy": "Copy link",
+    "copied": "Link copied",
+    "created": "Invite link created",
+    "regenerate": "Regenerate",
+    "regenerated": "New invite link created",
+    "revoke": "Revoke",
+    "revoked": "Invite link revoked",
+    "revokeTitle": "Revoke invite link?",
+    "revokeBody": "People who have not joined yet will not be able to use this link. Existing members are not affected.",
+    "status": {
+      "active": "Active",
+      "expired": "Expired",
+      "revoked": "Revoked"
+    },
+    "joinTitle": "Join workspace",
+    "joinOrgTitle": "Join organization & workspaces",
+    "joinAction": "Join",
+    "joined": "Joined",
+    "notJoined": "Not joined",
+    "joining": "Joining…",
+    "invalid": "This invite link is invalid or no longer active.",
+    "loginHint": "Sign in or register to continue with this invite link."
+  },
   "nav": {
     "home": "Home",
     "inbox": "Inbox",

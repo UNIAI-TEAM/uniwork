@@ -395,6 +395,17 @@ func New(d Deps) http.Handler {
 		RevokeOrgInvitation:  h.revokeOrgInvitation,
 		TransferOrgOwnership: h.transferOrgOwnership,
 
+		ListOrgInviteLinks:            h.listOrgInviteLinks,
+		CreateOrgInviteLink:           h.createOrgInviteLink,
+		RevokeOrgInviteLink:           h.revokeOrgInviteLink,
+		RegenerateOrgInviteLink:       h.regenerateOrgInviteLink,
+		ListWorkspaceInviteLinks:      h.listWorkspaceInviteLinks,
+		CreateWorkspaceInviteLink:     h.createWorkspaceInviteLink,
+		RevokeWorkspaceInviteLink:     h.revokeWorkspaceInviteLink,
+		RegenerateWorkspaceInviteLink: h.regenerateWorkspaceInviteLink,
+		PreviewMembershipInviteLink:   h.previewMembershipInviteLink,
+		JoinMembershipInviteLink:      h.joinMembershipInviteLink,
+
 		ListPeople:         h.listPeople,
 		GetPerson:          h.getPerson,
 		PatchPersonProfile: h.patchPersonProfile,

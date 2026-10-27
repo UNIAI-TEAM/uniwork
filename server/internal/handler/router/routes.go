@@ -134,6 +134,17 @@ type Routes struct {
 	RevokeOrgInvitation  http.HandlerFunc
 	TransferOrgOwnership http.HandlerFunc
 
+	ListOrgInviteLinks            http.HandlerFunc
+	CreateOrgInviteLink           http.HandlerFunc
+	RevokeOrgInviteLink           http.HandlerFunc
+	RegenerateOrgInviteLink       http.HandlerFunc
+	ListWorkspaceInviteLinks      http.HandlerFunc
+	CreateWorkspaceInviteLink     http.HandlerFunc
+	RevokeWorkspaceInviteLink     http.HandlerFunc
+	RegenerateWorkspaceInviteLink http.HandlerFunc
+	PreviewMembershipInviteLink   http.HandlerFunc
+	JoinMembershipInviteLink      http.HandlerFunc
+
 	ListPeople         http.HandlerFunc
 	GetPerson          http.HandlerFunc
 	PatchPersonProfile http.HandlerFunc

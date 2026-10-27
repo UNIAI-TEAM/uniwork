@@ -998,6 +998,16 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	for _, inv := range isoList(t, out, "invitations") {
 		tn.ids["orgInvitation"] = inv["id"].(string)
 	}
+	// Shareable membership invite links (UNI-2226): one workspace-scoped row
+	// and one org-scoped row that also fills membership_invite_link_workspaces.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/invite-links", tn.token, map[string]any{"expires_in_days": 7})
+	tn.ids["membershipInviteLink"] = isoID(t, out, "invite_link")
+	tn.ids["membershipInviteSecret"] = isoString(t, out, "invite_link", "secret")
+	out = w.call(t, "POST", org+"/invite-links", tn.token, map[string]any{
+		"workspace_ids": []string{tn.wsID}, "expires_in_days": 7,
+	})
+	tn.ids["membershipOrgInviteLink"] = isoID(t, out, "invite_link")
+	tn.ids["membershipOrgInviteSecret"] = isoString(t, out, "invite_link", "secret")
 	inviteeToken, _ := w.register(t, invitee, m+" Invitee")
 	out = w.call(t, "GET", "/api/v1/me/invitations", inviteeToken, nil)
 	for _, inv := range isoList(t, out, "invitations") {
