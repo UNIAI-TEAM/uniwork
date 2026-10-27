@@ -207,6 +207,7 @@ func TestCreateListProjectTenantIsolation(t *testing.T) {
 		t.Fatalf("search leak = %+v total=%d err=%v", leak, leakTotal, err)
 	}
 
+	// Delete moves the project to the trash: hidden from readers, not removed.
 	if err := s.DeleteProject(ctx, Human(ua.ID), w.ID, projA.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -216,8 +217,13 @@ func TestCreateListProjectTenantIsolation(t *testing.T) {
 
 	drained := events.drain(t)
 	want := map[string]bool{
-		"project.created": true, "project.deleted": true,
+		"project.created": true, "project.trashed": true,
 		"project_resource.created": true,
+	}
+	for _, e := range drained {
+		if e.Type == "project.deleted" {
+			t.Fatalf("a delete only trashes the project, yet project.deleted fired: %#v", e)
+		}
 	}
 	for _, e := range drained {
 		delete(want, e.Type)

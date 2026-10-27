@@ -55,6 +55,8 @@ const (
 	ActionTaskCreated      = "task.created"
 	ActionTaskUpdated      = "task.updated"
 	ActionTaskDeleted      = "task.deleted"
+	ActionTaskTrashed      = "task.trashed"
+	ActionTaskRestored     = "task.restored"
 	ActionTaskCommentAdded = "task.comment_added"
 
 	ActionTaskCommentUpdated     = "task.comment_updated"
@@ -90,6 +92,8 @@ const (
 	ActionProjectCreated         = "project.created"
 	ActionProjectUpdated         = "project.updated"
 	ActionProjectDeleted         = "project.deleted"
+	ActionProjectTrashed         = "project.trashed"
+	ActionProjectRestored        = "project.restored"
 	ActionProjectResourceCreated = "project_resource.created"
 	ActionProjectResourceUpdated = "project_resource.updated"
 	ActionProjectResourceDeleted = "project_resource.deleted"
@@ -147,8 +151,9 @@ const (
 	// message is gone for everyone, as its sender's own deletion would be; the organization sees who and why.
 	ActionChatMessageRemoved = "chat.message.removed"
 
-	ActionSubscriptionChanged    = "subscription.changed"
-	ActionBillingInvoiceRefunded = "billing.invoice_refunded"
+	ActionSubscriptionChanged          = "subscription.changed"
+	ActionBillingInvoiceRefunded       = "billing.invoice_refunded"
+	ActionBillingInvoiceRefundReverted = "billing.invoice_refund_reverted"
 
 	// Documents (UNI-675): created today through the owner seam
 	// (C-01 §13.5); the public page/file commands add their own rows as

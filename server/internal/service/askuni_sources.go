@@ -17,8 +17,6 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
-	"github.com/unicomhub/uniwork/server/internal/featureflags"
-	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 // The Ask UNI tool registry (spec F-09 §3.4) and the permission-aware source
@@ -408,15 +406,7 @@ func (s *AskUNIService) searchWorkspaceMarks(ctx context.Context, tc ai.ToolCont
 // documentsOn mirrors McpToolService.documentsOn: DocumentService wired and the
 // `documents` flag on for the asker's organization and person; no evaluator = off.
 func (s *AskUNIService) documentsOn(ctx context.Context, tc ai.ToolContext) bool {
-	if s.docs == nil || s.flags == nil {
-		return false
-	}
-	def := false
-	if f, ok := featureflags.Lookup(mcpDocumentsFlag); ok {
-		def = f.Default
-	}
-	ctx = featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: tc.ActorID, OrganizationID: tc.OrganizationID})
-	return s.flags.IsEnabled(ctx, mcpDocumentsFlag, def)
+	return s.docs != nil && documentsFlagOn(ctx, s.flags, tc.ActorID, tc.OrganizationID)
 }
 
 // searchDocumentSources finds documents the asker may read by the question's

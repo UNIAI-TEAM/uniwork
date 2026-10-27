@@ -22,7 +22,11 @@ const TaskResponse = z.object({ task: TaskSchema });
 const TasksResponse = z.object({ tasks: z.array(TaskSchema) });
 const GroupedResponse = z.object({ groups: z.array(TaskGroupSchema) });
 const BatchUpdateResponse = z.object({ updated: z.number() });
-const BatchDeleteResponse = z.object({ deleted: z.number() });
+const BatchDeleteResponse = z.object({
+  deleted: z.number().default(0),
+  trash_batch_id: z.string().default(""),
+});
+export type BatchDeleteResult = z.infer<typeof BatchDeleteResponse>;
 const ChildProgressResponse = z.object({ progress: z.array(ChildProgressSchema) });
 const DependencyResponse = z.object({ dependency: TaskDependencySchema });
 const AssigneeFrequencyResponse = z.object({ items: z.array(AssigneeFrequencySchema) });
@@ -142,14 +146,21 @@ export async function batchUpdateTasks(
   }).updated;
 }
 
-export async function batchDeleteTasks(workspaceId: string, taskIds: string[]): Promise<number> {
+/** Moves the tasks to the trash in one batch; `trash_batch_id` is what an undo restores. */
+export async function batchDeleteTasks(
+  workspaceId: string,
+  taskIds: string[],
+): Promise<BatchDeleteResult> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/tasks/batch-delete`, {
     method: "POST",
     body: { task_ids: taskIds },
   });
-  return parseWithFallback<{ deleted: number }>(raw, BatchDeleteResponse, { deleted: 0 }, {
-    endpoint: "POST /api/v1/workspaces/{ws}/tasks/batch-delete",
-  }).deleted;
+  return parseWithFallback<BatchDeleteResult>(
+    raw,
+    BatchDeleteResponse,
+    { deleted: 0, trash_batch_id: "" },
+    { endpoint: "POST /api/v1/workspaces/{ws}/tasks/batch-delete" },
+  );
 }
 
 export async function listMyTasks(

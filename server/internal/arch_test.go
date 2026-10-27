@@ -209,7 +209,7 @@ func TestAuditAndOutboxWritesGoThroughTheAuditPackage(t *testing.T) {
 // fail-closed formula, so the sqlc queries on plans, subscriptions and
 // usage_* are callable from those two files only.
 func TestBillingQueriesStayInBillingServices(t *testing.T) {
-	billing := regexp.MustCompile(`\.(ListActivePlans|ListAllPlans|GetPlanByCode|GetPlanByID|GetDefaultPlan|GetFeatureByKey|ListFeatures|ListPlanFeatures|ListAllPlanFeatures|ListActivePlanFeatures|InsertPlanCatalog|UpdatePlanCatalog|UpsertPlanFeatureRow|GetLiveSubscription|LockLiveSubscription|CreateSubscription|ChangeSubscriptionPlan|SetSubscriptionCancelAt|InsertUsageEvent|GetUsageCounter|ListUsageCounters|AddUsageWithinLimit|MarkUsageThresholdNotified|InsertBillingPaymentIntent|ExpirePendingBillingPaymentIntents|GetPendingBillingPaymentIntentForPlan|GetBillingPaymentIntentByTxnRef|GetBillingPaymentIntentByID|GetBillingPaymentIntentForInvoice|MarkBillingPaymentIntentCompleted|MarkBillingPaymentIntentFailed|ApplyPaidSubscriptionFromProvider|InsertInvoice|ListInvoicesByOrganization|ListSubscriptionsDueForCancelLapse|ListSubscriptionsDueForPastDue|RevertSubscriptionToDefaultAtCancel|RevertSubscriptionToDefaultAfterInvoiceRefund|MarkSubscriptionPastDue|ClaimPendingBillingWebhookInbox)\(`)
+	billing := regexp.MustCompile(`\.(ListActivePlans|ListAllPlans|GetPlanByCode|GetPlanByID|GetDefaultPlan|GetFeatureByKey|ListFeatures|ListPlanFeatures|ListAllPlanFeatures|ListActivePlanFeatures|InsertPlanCatalog|UpdatePlanCatalog|UpsertPlanFeatureRow|GetLiveSubscription|LockLiveSubscription|CreateSubscription|ChangeSubscriptionPlan|SetSubscriptionCancelAt|InsertUsageEvent|GetUsageCounter|ListUsageCounters|AddUsageWithinLimit|MarkUsageThresholdNotified|InsertBillingPaymentIntent|ExpirePendingBillingPaymentIntents|GetPendingBillingPaymentIntentForPlan|GetBillingPaymentIntentByTxnRef|GetBillingPaymentIntentByID|GetBillingPaymentIntentForInvoice|MarkBillingPaymentIntentCompleted|MarkBillingPaymentIntentFailed|ApplyPaidSubscriptionFromProvider|InsertInvoice|ListInvoicesByOrganization|ListSubscriptionsDueForCancelLapse|ListSubscriptionsDueForPastDue|RevertSubscriptionToDefaultAtCancel|RevertSubscriptionToDefaultAfterInvoiceRefund|MarkSubscriptionPastDue|ClaimPendingBillingWebhookInbox|TouchInvoiceRefundReconcile)\(`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
@@ -309,9 +309,21 @@ func TestAIPackageOnlyCallsAiQueries(t *testing.T) {
 }
 
 // The platform console reads across tenants, so its query set (admin.sql) is
-// fenced: only service/admin.go calls Admin* queries, and admin.go never
-// reaches a content service (task, chat, meeting) — metadata only (F-11 §5.1).
+// fenced: only the listed service/admin*.go files call Admin* queries, and no
+// service/admin*.go reaches a content service (task, chat, meeting) — metadata only (F-11 §5.1).
 func TestAdminQueriesStayInAdminService(t *testing.T) {
+	allowedAdminSQLCaller := func(slash string) bool {
+		switch {
+		case strings.HasSuffix(slash, "internal/service/admin.go"),
+			strings.HasSuffix(slash, "internal/service/admin_flags.go"),
+			strings.HasSuffix(slash, "internal/service/admin_billing.go"),
+			strings.HasSuffix(slash, "internal/service/admin_billing_refund.go"),
+			strings.HasSuffix(slash, "internal/service/admin_billing_refund_vnpay.go"):
+			return true
+		default:
+			return strings.Contains(slash, "pkg/db/generated/")
+		}
+	}
 	demoQueries := regexp.MustCompile(`\bq\.(AdminListDemoRequests|AdminCountDemoRequests|AdminGetDemoRequest|AdminUpdateDemoRequest)\(`)
 	// The operator's queue of chat reports lives in admin.go itself: never beside the chat service that reads messages.
 	reportQueries := regexp.MustCompile(`\bq\.(AdminListChatReports|AdminChatReportQueue|AdminGetChatReportForUpdate|AdminResolveChatReport)\(`)
@@ -333,7 +345,7 @@ func TestAdminQueriesStayInAdminService(t *testing.T) {
 		if strings.HasSuffix(slash, "internal/service/admin_demo_requests.go") {
 			return nil
 		}
-		if strings.HasSuffix(slash, "internal/service/admin.go") || strings.HasSuffix(slash, "internal/service/admin_flags.go") || strings.HasSuffix(slash, "internal/service/admin_billing.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund.go") || strings.HasSuffix(slash, "internal/service/admin_billing_refund_vnpay.go") || strings.HasSuffix(slash, "internal/service/admin_plans.go") || strings.Contains(slash, "pkg/db/generated/") {
+		if allowedAdminSQLCaller(slash) {
 			return nil
 		}
 		src, err := os.ReadFile(path)
@@ -341,23 +353,22 @@ func TestAdminQueriesStayInAdminService(t *testing.T) {
 			return err
 		}
 		if adminQueries.Match(src) || demoQueries.Match(src) {
-			t.Errorf("%s calls an admin.sql query; only service/admin.go may", path)
+			t.Errorf("%s calls an admin.sql query; only listed service/admin*.go files may", path)
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	adminServiceFiles := []string{
-		"service/admin.go",
-		"service/admin_flags.go",
-		"service/admin_billing.go",
-		"service/admin_billing_refund.go",
-		"service/admin_billing_refund_vnpay.go",
-		"service/admin_plans.go",
+	adminFiles, err := filepath.Glob("service/admin*.go")
+	if err != nil {
+		t.Fatal(err)
 	}
 	for _, forbidden := range []string{"TaskService", "ChatService", "MeetingService", "GetTask", "chat_messages", "ListTasks"} {
-		for _, rel := range adminServiceFiles {
+		for _, rel := range adminFiles {
+			if strings.HasSuffix(rel, "_test.go") {
+				continue
+			}
 			src, err := os.ReadFile(rel)
 			if err != nil {
 				t.Fatal(err)
@@ -521,7 +532,7 @@ func TestMcpToolsCallNoDelete(t *testing.T) {
 	if len(files) == 0 {
 		t.Fatal("no service/mcp_tools*.go found; the glob is stale")
 	}
-	banned := regexp.MustCompile(`\.(Delete\w*|BatchDelete\w*|ArchiveDocument|DeleteComment|DeleteProject)\(`)
+	banned := regexp.MustCompile(`\.(Delete\w*|BatchDelete\w*|ArchiveDocument|DeleteComment|DeleteProject|Trash\w*|Purge\w*)\(`)
 	for _, f := range files {
 		if strings.HasSuffix(f, "_test.go") {
 			continue

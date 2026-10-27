@@ -140,6 +140,35 @@ func TestAdminConfirmInvoiceRefund(t *testing.T) {
 	}
 }
 
+func TestAdminRevertInvoiceRefund(t *testing.T) {
+	f := newBillingFixture(t)
+	admin := registerVerified(t, f.q, f.auth, "revert-refund@example.com", "Platform")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	adminSvc := NewAdminService(f.pool, f.q, f.billing, f.ent)
+	invID := "01TESTINVOICE0000003"
+	var subID string
+	if err := f.pool.QueryRow(f.ctx, `SELECT id FROM subscriptions WHERE organization_id = $1`, f.orgID).Scan(&subID); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO invoices (
+		id, organization_id, subscription_id, provider, number, status,
+		amount_due, amount_paid, currency, period_start, period_end, paid_at, refund_requested_at
+	) VALUES ($1, $2, $3, 'vnpay', 'UW-TEST-REVERT', 'refund_pending', 499000, 499000, 'VND', $4, $4, $4, $4)`,
+		invID, f.orgID, subID, now); err != nil {
+		t.Fatal(err)
+	}
+	after, err := adminSvc.RevertInvoiceRefund(f.ctx, admin.ID, invID, "VNPay từ chối hoàn trên merchant portal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Status != "paid" || after.RefundRequestedAt.Valid {
+		t.Fatalf("invoice: %+v", after)
+	}
+}
+
 func TestAdminRefundInvoiceRespectsAmountAlreadyRefunded(t *testing.T) {
 	f := newBillingFixture(t)
 	admin := registerVerified(t, f.q, f.auth, "refund-cap@example.com", "Platform")
@@ -375,6 +404,38 @@ func TestAdminRefundInvoiceRaceLoserGetsConflict(t *testing.T) {
 	}
 	if status != "partial_refund_pending" || partial != 200000 {
 		t.Fatalf("winner changed: status=%s partial=%d", status, partial)
+	}
+}
+
+func TestAdminRefundInvoiceVnpayMissingPaymentIntent(t *testing.T) {
+	f := newBillingFixture(t)
+	vnp, err := billing.NewVNPay(billing.VNPayConfig{TMNCode: "TMNTEST1", HashSecret: "testsecret", QueryURL: "http://127.0.0.1:9"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, vnp)
+	admin := registerVerified(t, f.q, f.auth, "refund-no-intent@example.com", "Platform")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	adminSvc := NewAdminService(f.pool, f.q, f.billing, f.ent)
+	invID := "01TESTINVOICENOINTENT1"
+	var subID string
+	if err := f.pool.QueryRow(f.ctx, `SELECT id FROM subscriptions WHERE organization_id = $1`, f.orgID).Scan(&subID); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO invoices (
+		id, organization_id, subscription_id, provider, number, status,
+		amount_due, amount_paid, currency, period_start, period_end, paid_at
+	) VALUES ($1, $2, $3, 'vnpay', 'UW-NO-INTENT', 'paid', 499000, 499000, 'VND', $4, $4, $4)`,
+		invID, f.orgID, subID, now); err != nil {
+		t.Fatal(err)
+	}
+	_, err = adminSvc.RefundInvoice(f.ctx, admin.ID, invID, "hoàn hóa đơn thiếu liên kết intent", "", "127.0.0.1", 0)
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "payment_intent_not_found" {
+		t.Fatalf("RefundInvoice = %v, want payment_intent_not_found", err)
 	}
 }
 

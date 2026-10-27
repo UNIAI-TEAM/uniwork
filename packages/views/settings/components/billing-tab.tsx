@@ -7,13 +7,14 @@ import { toast } from "sonner";
 import {
   useCancelSubscription,
   useChangePlan,
+  checkoutReturnStateFromSearchParams,
   saveCheckoutBaseline,
+  stripCheckoutReturnSearchParams,
   useCheckoutReturn,
   useCreateCheckout,
   usePlans,
   useResumeSubscription,
   useSubscription,
-  type CheckoutReturnState,
 } from "@uniwork/core/billing";
 import { useBillingPermissions } from "@uniwork/core/permissions";
 import type { Plan, Subscription } from "@uniwork/core/types";
@@ -108,16 +109,14 @@ export function BillingTab() {
   const resume = useResumeSubscription(orgId);
   const checkout = useCreateCheckout(orgId);
   const navigation = useNavigation();
-  const checkoutRaw = navigation.searchParams.get("checkout");
-  const checkoutReturn: CheckoutReturnState =
-    checkoutRaw === "success" || checkoutRaw === "cancel" ? checkoutRaw : null;
+  const checkoutReturn = checkoutReturnStateFromSearchParams(navigation.searchParams);
   const returnPoll = useCheckoutReturn(canView.allowed ? orgId : "", checkoutReturn);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [pendingCode, setPendingCode] = useState("");
 
   const clearCheckoutQuery = () => {
     const params = new URLSearchParams(navigation.searchParams);
-    params.delete("checkout");
+    stripCheckoutReturnSearchParams(params);
     const q = params.toString();
     navigation.replace(q ? `${navigation.pathname}?${q}` : navigation.pathname);
   };
@@ -127,8 +126,6 @@ export function BillingTab() {
   useEffect(() => {
     if (returnPoll.confirmed) {
       toast.success(t("checkout_success"));
-      clearCheckoutQuery();
-    } else if (returnPoll.timedOut) {
       clearCheckoutQuery();
     } else if (returnPoll.canceled) {
       toast.message(t("checkout_cancelled"));

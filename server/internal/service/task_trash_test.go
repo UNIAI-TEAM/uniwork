@@ -1,0 +1,632 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
+)
+
+// trashTestTask creates a task under parentID ("" for a root).
+func trashTestTask(t *testing.T, s *TaskService, ua db.User, w db.Workspace, parentID, title string) db.Task {
+	t.Helper()
+	in := CreateTaskInput{Title: title, AllowDuplicate: true}
+	if parentID != "" {
+		in.ParentTaskID = &parentID
+	}
+	task, err := s.Create(context.Background(), Human(ua.ID), w.ID, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return task
+}
+
+// rawTask reads a row whether or not it is in the trash.
+func rawTask(t *testing.T, s *TaskService, id string) db.Task {
+	t.Helper()
+	task, err := s.q.GetTaskByIDIncludingTrashed(context.Background(), id)
+	if err != nil {
+		t.Fatalf("read %s: %v", id, err)
+	}
+	return task
+}
+
+func auditRows(t *testing.T, s *TaskService, action string, ids ...string) int {
+	t.Helper()
+	var n int
+	if err := s.pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = ANY($2)`, action, ids).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func taskEvents(evs []Event, topic string, ids ...string) int {
+	n := 0
+	for _, e := range evs {
+		if e.Type != topic {
+			continue
+		}
+		for _, id := range ids {
+			if e.Payload["task_id"] == id {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// seedTasks inserts n tasks straight into the table (a 1000-row tree through
+// Create would take minutes); parentID "" makes them roots.
+func seedTasks(t *testing.T, s *TaskService, ua db.User, w db.Workspace, prefix, parentID string, n int) []string {
+	t.Helper()
+	parent := &parentID
+	if parentID == "" {
+		parent = nil
+	}
+	if _, err := s.pool.Exec(context.Background(), `
+		INSERT INTO tasks (id, workspace_id, organization_id, number, title, description, created_by, creator_type, creator_id, last_activity_at, parent_task_id)
+		SELECT $1 || lpad(g::text, 5, '0'), $2, $3,
+		       (SELECT COALESCE(max(number), 0) FROM tasks WHERE workspace_id = $2) + g,
+		       'seed ' || g, '', $4, 'member', $4, now(), $5
+		FROM generate_series(1, $6::int) g`, prefix, w.ID, w.OrganizationID, ua.ID, parent, n); err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, n)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("%s%05d", prefix, i+1)
+	}
+	return ids
+}
+
+func TestTrashTaskMovesItsSubtreeInOneBatch(t *testing.T) {
+	s, events, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	parent := trashTestTask(t, s, ua, w, "", "Gốc 1")
+	c1 := trashTestTask(t, s, ua, w, parent.ID, "Con 1")
+	c2 := trashTestTask(t, s, ua, w, parent.ID, "Con 2")
+
+	res, err := s.Trash(ctx, Human(ua.ID), parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := []string{parent.ID, c1.ID, c2.ID}
+	if res.BatchID == "" || len(res.IDs) != 3 {
+		t.Fatalf("result = %+v, want one batch of three", res)
+	}
+	for _, id := range ids {
+		row := rawTask(t, s, id)
+		if row.TrashBatchID.String != res.BatchID || !row.TrashedAt.Valid || row.TrashedBy.String != ua.ID {
+			t.Fatalf("row %s = batch %q at %v by %q", id, row.TrashBatchID.String, row.TrashedAt, row.TrashedBy.String)
+		}
+		if d := row.PurgeAfter.Time.Sub(row.TrashedAt.Time) - trashRetention; d < -time.Minute || d > time.Minute {
+			t.Fatalf("row %s purge_after %v is not trashed_at + 30 days (%v)", id, row.PurgeAfter.Time, row.TrashedAt.Time)
+		}
+		if _, err := s.Get(ctx, ua.ID, id); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("Get %s after trash = %v, want ErrNotFound", id, err)
+		}
+	}
+	if n := auditRows(t, s, "task.trashed", ids...); n != 3 {
+		t.Fatalf("task.trashed audit rows = %d, want 3", n)
+	}
+	if n := taskEvents(events.drain(t), "task.trashed", ids...); n != 3 {
+		t.Fatalf("task.trashed events = %d, want 3", n)
+	}
+}
+
+func TestRestoreTaskRestoresTheWholeBatch(t *testing.T) {
+	s, events, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	parent := trashTestTask(t, s, ua, w, "", "Gốc 2")
+	child := trashTestTask(t, s, ua, w, parent.ID, "Con")
+	trashed, err := s.Trash(ctx, Human(ua.ID), parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.Restore(ctx, Human(ub.ID), child.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("non-member restore = %v, want ErrForbidden", err)
+	}
+	// Restoring any member of the batch brings back the whole batch.
+	res, err := s.Restore(ctx, Human(ua.ID), child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.BatchID != trashed.BatchID || len(res.IDs) != 2 {
+		t.Fatalf("restore = %+v, want batch %s with two rows", res, trashed.BatchID)
+	}
+	got, err := s.Get(ctx, ua.ID, child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ParentTaskID.String != parent.ID || got.TrashBatchID.Valid || got.PurgeAfter.Valid {
+		t.Fatalf("restored child = parent %q batch %v purge %v", got.ParentTaskID.String, got.TrashBatchID, got.PurgeAfter)
+	}
+	if _, err := s.Get(ctx, ua.ID, parent.ID); err != nil {
+		t.Fatalf("parent after restore: %v", err)
+	}
+	if n := auditRows(t, s, "task.restored", parent.ID, child.ID); n != 2 {
+		t.Fatalf("task.restored audit rows = %d, want 2", n)
+	}
+	if n := taskEvents(events.drain(t), "task.restored", parent.ID, child.ID); n != 2 {
+		t.Fatalf("task.restored events = %d, want 2", n)
+	}
+	if _, err := s.Restore(ctx, Human(ua.ID), parent.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("restore of a live task = %v, want ErrNotFound", err)
+	}
+}
+
+func TestRestoreChildWhoseParentStaysTrashedBecomesRoot(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	parent := trashTestTask(t, s, ua, w, "", "Gốc 3")
+	child := trashTestTask(t, s, ua, w, parent.ID, "Con")
+	grandchild := trashTestTask(t, s, ua, w, child.ID, "Cháu")
+	first, err := s.Trash(ctx, Human(ua.ID), child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The parent leaves in its own batch; the child already sits in another.
+	second, err := s.Trash(ctx, Human(ua.ID), parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.IDs) != 1 || first.BatchID == second.BatchID {
+		t.Fatalf("parent batch = %+v, child batch = %+v", second, first)
+	}
+
+	if _, err := s.Restore(ctx, Human(ua.ID), child.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Get(ctx, ua.ID, child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ParentTaskID.Valid {
+		t.Fatalf("restored child still points at trashed parent %s", got.ParentTaskID.String)
+	}
+	// A member whose parent came back in the same batch keeps it.
+	gc, err := s.Get(ctx, ua.ID, grandchild.ID)
+	if err != nil || gc.ParentTaskID.String != child.ID {
+		t.Fatalf("grandchild = %+v %v, want parent %s", gc.ParentTaskID, err, child.ID)
+	}
+	if _, err := s.Get(ctx, ua.ID, parent.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("parent = %v, want still trashed", err)
+	}
+}
+
+// waitBlockedBy returns once some backend waits on a lock pid holds, or fails
+// when done answers first (the command never waited).
+func waitBlockedBy(t *testing.T, pool *pgxpool.Pool, pid int, done <-chan error) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-done:
+			t.Fatalf("command finished without waiting for the lock: %v", err)
+		default:
+		}
+		var n int
+		if err := pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))`, pid).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("no backend waited on the lock")
+}
+
+// The purge worker (one row per transaction) removes the parent while a
+// restore of the batch waits for it: the child comes back as a root, never
+// pointing at the purged row (Review Focus 1 and 3).
+func TestRestoreRacingAPurgeOfTheParentMakesTheChildARoot(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	parent := trashTestTask(t, s, ua, w, "", "Gốc")
+	child := trashTestTask(t, s, ua, w, parent.ID, "Con")
+	if _, err := s.Trash(ctx, Human(ua.ID), parent.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	worker, err := s.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Rollback(ctx)
+	wq := s.q.WithTx(worker)
+	row, err := wq.LockTaskForPurge(ctx, db.LockTaskForPurgeParams{
+		ID: parent.ID, OrganizationID: parent.OrganizationID, WorkspaceID: parent.WorkspaceID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workerPID int
+	if err := worker.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&workerPID); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := s.Restore(ctx, Human(ua.ID), child.ID)
+		done <- err
+	}()
+	waitBlockedBy(t, s.pool, workerPID, done)
+	if err := s.purgeTaskInTx(ctx, wq, row, audit.System("tasks.purge")); err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("restore = %v", err)
+	}
+	got, err := s.Get(ctx, ua.ID, child.ID)
+	if err != nil || got.ParentTaskID.Valid {
+		t.Fatalf("restored child = parent %+v err %v, want a root", got.ParentTaskID, err)
+	}
+}
+
+func TestBatchTrashIsOneBatchAndRestoresTogether(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	parent := trashTestTask(t, s, ua, w, "", "Gốc 4")
+	child := trashTestTask(t, s, ua, w, parent.ID, "Con")
+	other := trashTestTask(t, s, ua, w, "", "Gốc 5")
+	ids := []string{parent.ID, child.ID, other.ID}
+
+	if _, err := s.TrashMany(ctx, Human(ua.ID), w.ID, append(append([]string{}, ids...), "01JNOTATASK000000000000000")); err == nil {
+		t.Fatal("expected an unknown id to fail the whole batch")
+	}
+	for _, id := range ids {
+		if _, err := s.Get(ctx, ua.ID, id); err != nil {
+			t.Fatalf("task %s trashed by a failed batch: %v", id, err)
+		}
+	}
+
+	res, err := s.TrashMany(ctx, Human(ua.ID), w.ID, ids)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.BatchID == "" || len(res.IDs) != 3 {
+		t.Fatalf("batch = %+v, want three rows (the child once)", res)
+	}
+	for _, id := range ids {
+		if row := rawTask(t, s, id); row.TrashBatchID.String != res.BatchID {
+			t.Fatalf("row %s in batch %q, want %s", id, row.TrashBatchID.String, res.BatchID)
+		}
+	}
+	restored, err := s.Restore(ctx, Human(ua.ID), other.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(restored.IDs) != 3 {
+		t.Fatalf("restore = %+v, want all three back", restored)
+	}
+	for _, id := range ids {
+		if _, err := s.Get(ctx, ua.ID, id); err != nil {
+			t.Fatalf("task %s after restore: %v", id, err)
+		}
+	}
+}
+
+func TestTrashTooLargeIsRefused(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	root := trashTestTask(t, s, ua, w, "", "Gốc 6")
+	seedTasks(t, s, ua, w, "bigtree", root.ID, taskTrashMaxNodes)
+
+	_, err := s.Trash(ctx, Human(ua.ID), root.ID)
+	var coded CodedError
+	if !errors.As(err, &coded) || coded.Code != "trash_too_large" || coded.Status != 422 {
+		t.Fatalf("trash of %d nodes = %v, want 422 trash_too_large", taskTrashMaxNodes+1, err)
+	}
+	if _, err := s.Get(ctx, ua.ID, root.ID); err != nil {
+		t.Fatalf("refused trash moved the root: %v", err)
+	}
+}
+
+// A trash waits, in id order, for rows another trash holds, then reads the
+// subtree again under the lock. When the other side trashed the root
+// meanwhile, a single trash and a batch left with nothing are not found, never
+// a 200 carrying a fresh empty batch that an undo would restore (Review M1, M2).
+func TestTrashLosingARaceToAnotherTrashIsNotFound(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	root := trashTestTask(t, s, ua, w, "", "Gốc tranh chấp")
+	child := trashTestTask(t, s, ua, w, root.ID, "Con")
+	ids := []string{root.ID, child.ID}
+	for _, call := range []struct {
+		name string
+		run  func() (TrashResult, error)
+	}{
+		{"single", func() (TrashResult, error) { return s.Trash(ctx, Human(ua.ID), root.ID) }},
+		{"batch", func() (TrashResult, error) { return s.TrashMany(ctx, Human(ua.ID), w.ID, []string{root.ID}) }},
+	} {
+		other, err := s.pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = other.Rollback(ctx) }()
+		oq := s.q.WithTx(other)
+		if _, err := oq.LockTasksForTrash(ctx, db.LockTasksForTrashParams{
+			OrganizationID: w.OrganizationID, WorkspaceID: w.ID, Ids: ids,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var otherPID int
+		if err := other.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&otherPID); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() {
+			res, err := call.run()
+			if err == nil {
+				err = fmt.Errorf("trashed %+v", res)
+			}
+			done <- err
+		}()
+		waitBlockedBy(t, s.pool, otherPID, done)
+		if _, err := oq.TrashTasks(ctx, db.TrashTasksParams{
+			TrashedBy:      pgtype.Text{String: ua.ID, Valid: true},
+			PurgeAfter:     pgtype.Timestamptz{Time: time.Now().Add(trashRetention), Valid: true},
+			TrashBatchID:   pgtype.Text{String: util.NewID(), Valid: true},
+			OrganizationID: w.OrganizationID, WorkspaceID: w.ID, Ids: ids,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := other.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; !errors.Is(err, ErrNotFound) {
+			t.Fatalf("%s trash after losing the race = %v, want ErrNotFound", call.name, err)
+		}
+		if _, err := s.Restore(ctx, Human(ua.ID), root.ID); err != nil {
+			t.Fatalf("%s: restore of the winner's batch = %v", call.name, err)
+		}
+	}
+}
+
+func TestPurgeTaskDeletesTheRow(t *testing.T) {
+	s, fake, pool, ua, ub, w := taskFixtureWithFiles(t)
+	spy := &releaseSpy{Service: fake}
+	s.SetFiles(spy)
+	ctx := context.Background()
+	task := trashTestTask(t, s, ua, w, "", "Gốc 7")
+	child := trashTestTask(t, s, ua, w, task.ID, "Con")
+	sibling := trashTestTask(t, s, ua, w, "", "Gốc 8")
+	att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "", "a.txt", "text/plain", 2, strings.NewReader("a\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Purge(ctx, Human(ua.ID), task.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("purge of a live task = %v, want ErrNotFound", err)
+	}
+	if _, err := s.TrashMany(ctx, Human(ua.ID), w.ID, []string{task.ID, sibling.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if got := spy.releasedIDs(); len(got) != 0 {
+		t.Fatalf("trash released files %v; only a purge may", got)
+	}
+	if err := s.Purge(ctx, Human(ub.ID), task.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("non-member purge = %v, want ErrForbidden", err)
+	}
+
+	if err := s.Purge(ctx, Human(ua.ID), task.ID); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{task.ID, child.ID} {
+		if _, err := s.q.GetTaskByIDIncludingTrashed(ctx, id); !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("row %s after purge: %v, want gone", id, err)
+		}
+	}
+	// A batch sibling that is a root of its own stays in the trash.
+	if row := rawTask(t, s, sibling.ID); !row.TrashedAt.Valid {
+		t.Fatalf("sibling = %+v, want still trashed", row)
+	}
+	if got := spy.releasedIDs(); len(got) != 1 || string(got[0]) != att.FileID.String {
+		t.Fatalf("released = %v, want the attachment file %s", got, att.FileID.String)
+	}
+	if n := auditRows(t, s, "task.deleted", task.ID, child.ID); n != 2 {
+		t.Fatalf("task.deleted audit rows = %d, want 2", n)
+	}
+	if n := len(topicsLike(t, pool, w.OrganizationID, "task.deleted")); n != 2 {
+		t.Fatalf("task.deleted events = %d, want 2", n)
+	}
+	if err := s.Purge(ctx, Human(ua.ID), task.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("second purge = %v, want ErrNotFound", err)
+	}
+}
+
+func TestTrashListShowsBatchRootsWithSize(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	parent := trashTestTask(t, s, ua, w, "", "Gốc 9")
+	trashTestTask(t, s, ua, w, parent.ID, "Con 1")
+	trashTestTask(t, s, ua, w, parent.ID, "Con 2")
+	if _, err := s.Trash(ctx, Human(ua.ID), parent.ID); err != nil {
+		t.Fatal(err)
+	}
+	// 51 roots in one batch share one trashed_at: the page boundary falls
+	// inside a tie, which only the id half of the cursor can resolve.
+	roots := seedTasks(t, s, ua, w, "trashroot", "", trashPageSize+1)
+	if _, err := s.TrashMany(ctx, Human(ua.ID), w.ID, roots); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Items) != trashPageSize || first.NextCursor == "" {
+		t.Fatalf("first page = %d items, cursor %q", len(first.Items), first.NextCursor)
+	}
+	second, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{}, first.NextCursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Items) != 2 || second.NextCursor != "" {
+		t.Fatalf("second page = %+v", second)
+	}
+	seen := map[string]TaskTrashRow{}
+	for _, it := range append(first.Items, second.Items...) {
+		if _, dup := seen[it.ID]; dup {
+			t.Fatalf("%s listed twice", it.ID)
+		}
+		seen[it.ID] = it
+	}
+	got, ok := seen[parent.ID]
+	if !ok || got.BatchSize != 3 || got.Title != parent.Title || got.TrashedBy != ua.ID ||
+		got.Identifier != fmt.Sprintf("%s-%d", w.TaskPrefix, parent.Number) || got.PurgeAfter.Before(got.TrashedAt) {
+		t.Fatalf("parent row = %+v", got)
+	}
+	want := append([]string{parent.ID}, roots...)
+	sort.Strings(want)
+	var have []string
+	for id, it := range seen {
+		if id != parent.ID && it.BatchSize != 1 {
+			t.Fatalf("root %s batch size %d, want 1", id, it.BatchSize)
+		}
+		have = append(have, id)
+	}
+	sort.Strings(have)
+	if strings.Join(have, ",") != strings.Join(want, ",") {
+		t.Fatalf("listed %v, want only the batch roots %v", have, want)
+	}
+
+	if _, err := s.ListTrash(ctx, ub.ID, w.ID, TrashFilter{}, ""); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("non-member list = %v, want ErrForbidden", err)
+	}
+	if _, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{}, "not-a-cursor"); err == nil {
+		t.Fatal("a forged cursor was accepted")
+	}
+}
+
+func TestTrashedTaskRefusesWrites(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	task := trashTestTask(t, s, ua, w, "", "Gốc 10")
+	if _, err := s.Trash(ctx, Human(ua.ID), task.ID); err != nil {
+		t.Fatal(err)
+	}
+	title := "đổi tên"
+	if _, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{Title: &title}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Update of a trashed task = %v, want ErrNotFound", err)
+	}
+	if _, err := s.Trash(ctx, Human(ua.ID), task.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("second Trash = %v, want ErrNotFound", err)
+	}
+}
+
+func TestTaskTrashListFiltersByNameAndDeleter(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, s.q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, s.q, w.ID, ub.ID)
+	report := trashTestTask(t, s, ua, w, "", "Báo cáo Q3")
+	plan := trashTestTask(t, s, ua, w, "", "Kế hoạch")
+	if _, err := s.Trash(ctx, Human(ua.ID), report.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Trash(ctx, Human(ub.ID), plan.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	byName, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{Query: "báo cáo"}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(byName.Items) != 1 || byName.Items[0].ID != report.ID {
+		t.Fatalf("query list = %+v, want only %s", byName.Items, report.ID)
+	}
+	byDeleter, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{TrashedBy: []string{ub.ID}}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(byDeleter.Items) != 1 || byDeleter.Items[0].ID != plan.ID {
+		t.Fatalf("deleter list = %+v, want only %s", byDeleter.Items, plan.ID)
+	}
+
+	// The cursor of a filtered page keeps the filter: 51 more of B's rows, and
+	// the second page of B's list holds B's rows only.
+	roots := seedTasks(t, s, ub, w, "filtroot", "", trashPageSize+1)
+	if _, err := s.TrashMany(ctx, Human(ub.ID), w.ID, roots); err != nil {
+		t.Fatal(err)
+	}
+	f := TrashFilter{TrashedBy: []string{ub.ID}}
+	first, err := s.ListTrash(ctx, ua.ID, w.ID, f, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Items) != trashPageSize || first.NextCursor == "" {
+		t.Fatalf("first page = %d items, cursor %q", len(first.Items), first.NextCursor)
+	}
+	second, err := s.ListTrash(ctx, ua.ID, w.ID, f, first.NextCursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Items) != 2 {
+		t.Fatalf("second page = %d items, want 2 (52 of B's rows in all)", len(second.Items))
+	}
+	for _, it := range append(first.Items, second.Items...) {
+		if it.TrashedBy != ub.ID {
+			t.Fatalf("row %s trashed by %s leaked into B's list", it.ID, it.TrashedBy)
+		}
+	}
+}
+
+func TestTaskTrashRowNamesItsProject(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+	p, err := s.CreateProject(ctx, Human(ua.ID), w.ID, CreateProjectInput{Title: "Website mới"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inProject := projectTrashTask(t, s, ua, w, p.ID, "Có dự án")
+	loose := trashTestTask(t, s, ua, w, "", "Không dự án")
+	if _, err := s.TrashMany(ctx, Human(ua.ID), w.ID, []string{inProject.ID, loose.ID}); err != nil {
+		t.Fatal(err)
+	}
+	page, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := map[string]TaskTrashRow{}
+	for _, it := range page.Items {
+		rows[it.ID] = it
+	}
+	if got := rows[inProject.ID]; got.ProjectID != p.ID || got.ProjectTitle != "Website mới" {
+		t.Fatalf("project row = %+v", got)
+	}
+	if got := rows[loose.ID]; got.ProjectID != "" || got.ProjectTitle != "" {
+		t.Fatalf("loose row = %+v, want no project", got)
+	}
+
+	// A project sent to the trash is still named: the task points at it
+	// through trashed_project_id.
+	if err := s.TrashProject(ctx, Human(ua.ID), w.ID, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	page, err = s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range page.Items {
+		if it.ID == inProject.ID && (it.ProjectID != p.ID || it.ProjectTitle != "Website mới") {
+			t.Fatalf("row after project trash = %+v", it)
+		}
+	}
+}

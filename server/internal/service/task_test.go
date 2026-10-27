@@ -212,11 +212,15 @@ func TestTaskCRUD(t *testing.T) {
 		t.Fatalf("comments: %v n=%d", err, len(cs))
 	}
 
+	// Delete moves the task to the trash: hidden from Get, the row kept.
 	if err := s.Delete(ctx, ua.ID, task.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Get(ctx, ua.ID, task.ID); err != ErrNotFound {
 		t.Fatalf("after delete: %v", err)
+	}
+	if row, err := s.q.GetTaskByIDIncludingTrashed(ctx, task.ID); err != nil || !row.TrashedAt.Valid {
+		t.Fatalf("deleted row = %+v %v, want kept in the trash", row.TrashedAt, err)
 	}
 
 	// Every command left an event on the outbox, and draining it delivers the
@@ -226,7 +230,7 @@ func TestTaskCRUD(t *testing.T) {
 	for _, e := range delivered {
 		types[e.Type] = true
 	}
-	for _, want := range []string{"task.created", "task.updated", "task.comment_added", "task.deleted"} {
+	for _, want := range []string{"task.created", "task.updated", "task.comment_added", "task.trashed"} {
 		if !types[want] {
 			t.Fatalf("missing event %s (got %v)", want, delivered)
 		}

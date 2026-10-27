@@ -4,11 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { setAccessToken } from "../api/session";
 import { useBulkDocumentCommand, useDocumentDownloadJob } from "./hooks-bulk";
+import { trashKeys } from "../trash/keys";
 import { documentKeys } from "./keys";
 
 // UNI-2045 W9: the bulk hooks reuse the single-document endpoints, fan out
-// through runBulk and invalidate the workspace document root once, after the
-// whole batch; the zip hook creates an SV-9 job and polls it to an end.
+// through runBulk and invalidate the workspace document root and the shared
+// trash once each, after the whole batch; the zip hook creates an SV-9 job and polls it to an end.
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -54,7 +55,7 @@ describe("useBulkDocumentCommand", () => {
     setAccessToken(null);
   });
 
-  it("trashes every id through /archive, counts a 403 and invalidates once", async () => {
+  it("trashes every id through /archive, counts a 403 and invalidates once per root", async () => {
     vi.mocked(fetch).mockImplementation(async (input) => {
       const path = pathOf(input);
       if (path === "/api/v1/documents/d2/archive") return json({ error: { code: "forbidden", message: "no" } }, 403);
@@ -70,8 +71,9 @@ describe("useBulkDocumentCommand", () => {
     expect(out).toEqual({ ok: ["d1", "d3"], failed: [{ id: "d2", code: "forbidden" }] });
     const paths = vi.mocked(fetch).mock.calls.map(([input]) => pathOf(input));
     expect(paths.sort()).toEqual(["/api/v1/documents/d1/archive", "/api/v1/documents/d2/archive", "/api/v1/documents/d3/archive"]);
-    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledTimes(2);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: documentKeys.workspace("w1") });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: trashKeys.workspace("w1") });
   });
 
   it("moves each id onto the one target with the revision it reads first", async () => {
@@ -88,7 +90,7 @@ describe("useBulkDocumentCommand", () => {
     const moves = vi.mocked(fetch).mock.calls.filter(([input]) => pathOf(input).endsWith("/move"));
     expect(moves).toHaveLength(2);
     for (const [, init] of moves) expect(JSON.parse(String(init?.body))).toEqual({ parent_id: "f9", revision: "7" });
-    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledTimes(2);
   });
 
   it.each([
@@ -109,7 +111,7 @@ describe("useBulkDocumentCommand", () => {
     });
     expect(out?.ok).toEqual(["d1", "d2"]);
     expect(vi.mocked(fetch).mock.calls.every(([input]) => pathOf(input).endsWith(suffix))).toBe(true);
-    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledTimes(2);
   });
 });
 

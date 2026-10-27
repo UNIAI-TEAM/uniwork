@@ -286,6 +286,20 @@
           "cc1def6d37a298966b36f85f4dbaaac952240b6ab": "Ask UNI answers show only the status name you see on screen, without an internal status code in brackets such as \"To do (todo)\". Asking for tasks by a status name your team created, such as \"Waiting for QA\", also finds the right tasks.",
           "cc8f02e00827170d00e7198c4e86696d603f9e452": "Chat call recording: when two people start recording the same call at the same time, the call now gets one recording instead of two duplicates."
         }
+      },
+      "v1_10_0": {
+        "title": "Document ownership transfer, a panel layout and better-synced scheduled email",
+        "summary": "Documents lets you transfer ownership of one document or all of a member's documents, filter by several types at once, and move items to the trash without being blocked by sub-pages or files you cannot manage. On desktop, the top bar, sidebar, main page and Ask UNI are split into separate panels. Email Hub updates the Scheduled folder right away after you schedule an email.",
+        "note": "The panel layout applies on wide screens; phones, tablets and UniChat keep the previous layout.",
+        "features": {
+          "c237fc6d47c92be3f0abdf2c6d40c893d6acfc3af": "Documents: transfer ownership of one document to someone else, or move all of a member's documents to another member at once; the new owner gets a notification. The Type filter accepts several types at once, shown as chips you can remove one by one. When you move a page, file or folder to the trash, sub-pages and files you cannot manage are moved to the workspace root instead of blocking the whole action; a sub-folder you cannot view or manage still blocks it. The UniWork Office install page adds installing from the apt repository and a one-command install next to the .deb file, and the Office source viewer has a maximize button."
+        },
+        "improvements": {
+          "ca6714faf79e3eb2e5b258b1f5cb96cfdc1f7cd99": "The desktop layout is split into panels: a top bar runs across the whole app with the organization and workspace switcher, search, Ask UNI, notifications, create and your account; the sidebar is its own panel you can collapse (⌘B still works); the main page and Ask UNI sit side by side as two panels you can drag to resize. The Create task button in the top bar uses a briefcase-with-plus icon, and all icons have the same stroke weight at every size."
+        },
+        "fixes": {
+          "c9f7c3046356c3008e37eaa2c11b3f3f8f3a23541": "Email Hub: after you schedule an email, the open mailbox switches to the account that sends it, the Scheduled folder refreshes when you open it, and the list and the sidebar count update right away."
+        }
       }
     }
   },
@@ -609,7 +623,8 @@
     "projects": "Projects",
     "calendar": "Calendar",
     "squads": "Squads",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "trash": "Trash"
   },
   "topbar": {
     "search": "Search…",
@@ -797,7 +812,8 @@
         "connectedApps": "AI apps",
         "aiAccess": "AI access",
         "taskStatuses": "Task statuses",
-        "taskLabels": "Labels"
+        "taskLabels": "Labels",
+        "trash": "Trash"
       },
       "nav_label": "Settings sections",
       "section_picker": "Choose a settings section",
@@ -2576,11 +2592,9 @@
       "cancel": "Cancel",
       "update_success": "Updated {{count}} tasks",
       "update_failed": "Could not update tasks",
-      "delete_success": "Deleted {{count}} tasks",
       "delete_failed": "Could not delete tasks",
-      "delete_dialog_title": "Delete {{count}} tasks?",
-      "delete_dialog_desc": "These tasks will be permanently deleted.",
-      "delete_dialog_warning": "This cannot be undone."
+      "delete_dialog_title": "Move to trash?",
+      "delete_dialog_desc": "You can restore it within 30 days."
     },
     "row_actions": {
       "open": "Open",
@@ -2592,11 +2606,10 @@
       "change_assignee": "Change assignee",
       "set_parent": "Set parent task…",
       "delete": "Delete",
-      "delete_dialog_title": "Delete this task?",
-      "delete_dialog_desc": "\"{{title}}\" will be permanently deleted. This cannot be undone.",
-      "delete_confirm": "Delete task",
+      "delete_dialog_title": "Move to trash?",
+      "delete_dialog_desc": "You can restore it within 30 days.",
+      "delete_confirm": "Move to trash",
       "cancel": "Cancel",
-      "delete_success": "Task deleted",
       "delete_failed": "Could not delete task",
       "assignees_loading": "Loading members…",
       "assignees_failed": "Could not load members"
@@ -7977,6 +7990,10 @@
       "confirm_refund_title": "Confirm refund {{number}}",
       "confirm_refund_description": "Usually unnecessary — the server reconciles with VNPay about every 2 minutes. Use only if the invoice stays pending after VNPay approval.",
       "confirm_refund_success": "Invoice marked as refunded.",
+      "revert_refund_action": "Cancel refund request",
+      "revert_refund_title": "Cancel refund request {{number}}",
+      "revert_refund_description": "Use when VNPay refused the refund or the request was sent by mistake — invoice returns to Paid.",
+      "revert_refund_success": "Refund request cancelled.",
       "detail": {
         "empty": "—",
         "invoice_description": "Organization billing invoice.",
@@ -8534,9 +8551,9 @@
       "sidebar_label": "Project details"
     },
     "delete_dialog": {
-      "title": "Delete project",
-      "description": "This will delete the project. Tasks will not be deleted but will be unlinked.",
-      "confirm": "Delete",
+      "title": "Move to trash?",
+      "description": "You can restore it within 30 days. Tasks in the project are kept and only unlinked.",
+      "confirm": "Move to trash",
       "cancel": "Cancel"
     },
     "create_dialog": {
@@ -14291,5 +14308,74 @@
     "data": "Data and AI",
     "privacy": "Privacy policy",
     "terms": "Terms of use"
+  },
+  "trash": {
+    "title": "Trash",
+    "move_confirm": "Move to trash",
+    "moved": "Moved to trash",
+    "undo": "Undo",
+    "restore": "Restore",
+    "restored": "Restored",
+    "restore_failed": "Could not restore",
+    "purge": "Delete forever",
+    "purge_title": "Delete forever?",
+    "purge_desc": "\"{{title}}\" will be deleted forever. This cannot be undone.",
+    "purged": "Deleted forever",
+    "purge_failed": "Could not delete forever",
+    "cancel": "Cancel",
+    "unknown_member": "Former member",
+    "load_more": "Load more",
+    "error_title": "Could not load the trash",
+    "errors": {
+      "trash_too_large": "Too many tasks for one move to the trash. Select fewer tasks and try again.",
+      "duplicate_project_title": "A project with the same title already exists in this workspace. Choose another title or rename that project, then try again."
+    },
+    "description": "Deleted items stay here for 30 days, then are deleted forever.",
+    "filters_label": "Filter the trash",
+    "search": "Search by name…",
+    "clear_search": "Clear search",
+    "clear_filter": "Clear the {{name}} filter",
+    "kind_label": "Type",
+    "kinds": {
+      "task": "Task",
+      "project": "Project",
+      "document": "Document"
+    },
+    "trashed_by_label": "Deleted by",
+    "trashed_by_me": "Me",
+    "search_people": "Search people",
+    "no_people": "No one found",
+    "people_cap": "You can pick up to {{max}} people",
+    "former_members_one": "{{count}} former member",
+    "former_members_other": "{{count}} former members",
+    "table_label": "Items in the trash",
+    "columns": {
+      "name": "Name",
+      "location": "Location",
+      "trashed_at": "Deleted",
+      "trashed_by": "Deleted by",
+      "left": "Left",
+      "actions": "Actions"
+    },
+    "days_left_one": "{{count}} day",
+    "days_left_other": "{{count}} days",
+    "sub": {
+      "task_with_one": "Task · with {{count}} subtask",
+      "task_with_other": "Task · with {{count}} subtasks",
+      "project_with_one": "Project · {{count}} task is reattached on restore",
+      "project_with_other": "Project · {{count}} tasks are reattached on restore",
+      "page": "Page",
+      "file": "File",
+      "folder": "Folder"
+    },
+    "row_actions": "Actions for {{title}}",
+    "locked": {
+      "project": "Only the creator, the lead or an admin can restore or delete this project forever.",
+      "document": "You need permission to manage this document."
+    },
+    "empty_title": "The trash is empty",
+    "no_match_title": "No items match",
+    "clear_filters": "Clear filters",
+    "untitled": "Untitled"
   }
 }

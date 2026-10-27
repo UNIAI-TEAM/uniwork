@@ -50,6 +50,7 @@ export function AdminInvoicesView() {
   const [detail, setDetail] = useState<AdminBillingDetail | null>(null);
   const [refundTarget, setRefundTarget] = useState<InvoiceRefundTarget | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<{ id: string; number: string } | null>(null);
+  const [revertTarget, setRevertTarget] = useState<{ id: string; number: string } | null>(null);
   const search = useDebouncedValue(q.trim());
 
   const rangeInvalid = Boolean(dateFrom && dateTo && dateFrom > dateTo);
@@ -241,6 +242,7 @@ export function AdminInvoicesView() {
               })
             }
             onConfirmRefund={(inv: AdminInvoice) => setConfirmTarget({ id: inv.id, number: inv.number })}
+            onRevertRefund={(inv: AdminInvoice) => setRevertTarget({ id: inv.id, number: inv.number })}
           />
           {pager}
         </>
@@ -271,6 +273,8 @@ export function AdminInvoicesView() {
         onRefundTargetChange={setRefundTarget}
         confirmTarget={confirmTarget}
         onConfirmTargetChange={setConfirmTarget}
+        revertTarget={revertTarget}
+        onRevertTargetChange={setRevertTarget}
       />
     </>
   );

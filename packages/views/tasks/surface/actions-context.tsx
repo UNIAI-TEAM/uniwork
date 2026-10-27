@@ -32,6 +32,8 @@ export interface TaskSurfaceActions {
     updates: BatchUpdateBody["updates"],
   ) => Promise<void>;
   batchDelete: (taskIds: string[]) => Promise<void>;
+  /** Undo of a delete: restores the trash batch the task was in. */
+  restoreTask: (taskId: string) => Promise<void>;
 }
 
 const TaskSurfaceActionsContext = createContext<TaskSurfaceActions | null>(

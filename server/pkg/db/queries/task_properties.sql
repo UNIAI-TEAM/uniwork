@@ -4,6 +4,7 @@ SELECT p.*,
     SELECT COUNT(*) FROM tasks t
     WHERE t.organization_id = p.organization_id
       AND t.workspace_id = p.workspace_id
+      AND t.trashed_at IS NULL
       AND t.properties ? p.id
   )::bigint AS usage_count
 FROM task_properties p

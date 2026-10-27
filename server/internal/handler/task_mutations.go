@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
@@ -103,13 +104,13 @@ func (h *handlers) batchDeleteTasks(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	n, err := h.Tasks.BatchDeleteTasks(r.Context(), service.Human(middleware.UserID(r.Context())),
+	res, err := h.Tasks.TrashMany(r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"), in.TaskIDs)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"deleted": n})
+	respondJSON(w, 200, sdo.BatchDeleteTasksSDO{Deleted: len(res.IDs), TrashBatchID: res.BatchID})
 }
 
 // resolveTaskRevision prefers a matching body revision and If-Match pair.
