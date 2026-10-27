@@ -75,6 +75,23 @@ describe("shared trash hooks", () => {
     await waitFor(() => expect(result.current.hasNextPage).toBe(false));
   });
 
+  it("useTrashList keeps the previous rows on screen while a new filter loads", async () => {
+    const row = { kind: "task", id: "t1", title: "Cũ" };
+    let release: (r: Response) => void = () => {};
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ items: [row], next_cursor: "" }))
+      .mockReturnValueOnce(new Promise<Response>((res) => (release = res)));
+    const { wrapper } = setup();
+    const { result, rerender } = renderHook(({ q }) => useTrashList(WS, { q }), { wrapper, initialProps: { q: "" } });
+    await waitFor(() => expect(result.current.data?.pages[0]?.items).toHaveLength(1));
+    rerender({ q: "mới" });
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isPlaceholderData).toBe(true);
+    expect(result.current.data?.pages[0]?.items).toHaveLength(1);
+    release(json({ items: [], next_cursor: "" }));
+    await waitFor(() => expect(result.current.data?.pages[0]?.items).toHaveLength(0));
+  });
+
   it("a filter change is a different list under the same workspace root", () => {
     expect(trashKeys.list(WS, "a")).not.toEqual(trashKeys.list(WS, "b"));
     expect(trashKeys.list(WS, "a").slice(0, 2)).toEqual(trashKeys.workspace(WS));

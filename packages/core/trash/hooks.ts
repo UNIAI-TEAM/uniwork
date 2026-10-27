@@ -1,5 +1,5 @@
 "use client";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { listTrash, type TrashKind } from "../api/endpoints/trash";
 import { trashKeys } from "./keys";
 
@@ -18,5 +18,6 @@ export function useTrashList(wsId: string, filters: TrashFilters = {}) {
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: !!wsId,
+    placeholderData: keepPreviousData,
   });
 }
