@@ -104,6 +104,8 @@ export interface LibraryRowHandlers
    * level. Absent where the host mounts no dialog.
    */
   onShare?: (doc: DocumentSummaryRow) => void;
+  /** Opens "Chia sẻ các tài liệu bên trong…" from a folder row's menu; absent where the host mounts no dialog. */
+  onShareContents?: (doc: DocumentSummaryRow) => void;
   /** Lưu trữ (ARCHIVE-01 U-4): manage-only, hidden on My Folder; the page
    *  wires it so a folder opens the confirm dialog and a document shelves at
    *  once with an undo toast. */

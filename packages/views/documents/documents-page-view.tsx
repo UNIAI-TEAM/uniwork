@@ -271,6 +271,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
     // Any reader may open Share from a row (UNI-2009); it is not gated by canCreate like the commands above.
     onShare: rowDialogs.onShare,
+    onShareContents: rowDialogs.onShareContents,
     onShelve: rowCommands ? (doc) => shelvedActions.onShelve(doc) : undefined,
     // Link and download are reads, offered to any reader; the copy needs edit, which the menu checks per row.
     onCopyLink: fileCommands.onCopyLink,
