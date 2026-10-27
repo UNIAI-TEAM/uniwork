@@ -2,8 +2,13 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  checkDriveTaskProposalDuplicates,
+  createDriveTaskProposal,
+  createTasksFromDriveProposal,
+  deleteDriveTaskProposal,
   disconnectDriveConnection,
   getDrivePickerToken,
+  getDriveTaskProposal,
   grantDriveFileAccess,
   isDriveConnectionLost,
   linkDriveFiles,
@@ -11,34 +16,58 @@ import {
   listTaskDriveFiles,
   removeTaskDriveFile,
   startDriveConnect,
+  type CheckDriveTaskProposalDuplicatesBody,
+  type CreateDriveTaskProposalBody,
+  type CreateTasksFromDriveProposalBody,
   type DriveConnection,
   type DriveConnectionList,
+  type DriveDuplicateTask,
   type DriveFile,
   type DriveFileLinkItem,
   type DriveFileLinkReceipt,
   type DriveFileLinkResults,
   type DriveLinkedTaskRef,
   type DrivePickerToken,
+  type DriveProposalCreatedTaskItem,
+  type DriveProposalDuplicateItem,
+  type DriveProposalExcerpt,
+  type DriveProposalTaskItemInput,
+  type DriveProposalTasksCreated,
   type DriveTaskCreationGroup,
   type DriveTaskFileCard,
+  type DriveTaskProposal,
+  type DriveTaskProposalItem,
   type DriveTasksCreatedSummary,
   type LinkDriveFilesBody,
 } from "../api/endpoints/drive";
+import { invalidateTaskCollections } from "../tasks/invalidate";
+import { taskKeys } from "../tasks/keys";
 import { driveKeys } from "./keys";
 
 export {
   driveKeys,
   isDriveConnectionLost,
+  type CheckDriveTaskProposalDuplicatesBody,
+  type CreateDriveTaskProposalBody,
+  type CreateTasksFromDriveProposalBody,
   type DriveConnection,
   type DriveConnectionList,
+  type DriveDuplicateTask,
   type DriveFile,
   type DriveFileLinkItem,
   type DriveFileLinkReceipt,
   type DriveFileLinkResults,
   type DriveLinkedTaskRef,
   type DrivePickerToken,
+  type DriveProposalCreatedTaskItem,
+  type DriveProposalDuplicateItem,
+  type DriveProposalExcerpt,
+  type DriveProposalTaskItemInput,
+  type DriveProposalTasksCreated,
   type DriveTaskCreationGroup,
   type DriveTaskFileCard,
+  type DriveTaskProposal,
+  type DriveTaskProposalItem,
   type DriveTasksCreatedSummary,
   type LinkDriveFilesBody,
 };
@@ -170,6 +199,123 @@ export function useGrantDriveFileAccess(wsId: string, taskId?: string) {
         void qc.invalidateQueries({ queryKey: driveKeys.task(wsId, taskId) });
       }
       void qc.invalidateQueries({ queryKey: driveKeys.workspace(wsId) });
+    },
+  });
+}
+
+/**
+ * Reads a Google Drive file with the caller's connected account and creates an
+ * AI task proposal batch (`POST /workspaces/{ws}/drive-files/{driveFileID}/task-proposals`,
+ * Card B5, spec §8.2). Seeds `driveKeys.proposal(wsId, proposal.id)` on success.
+ */
+export function useCreateDriveTaskProposal(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      driveFileId,
+      body,
+      signal,
+    }: {
+      driveFileId: string;
+      body?: CreateDriveTaskProposalBody;
+      signal?: AbortSignal;
+    }) => {
+      const proposal = await createDriveTaskProposal(wsId, driveFileId, body, signal);
+      if (!proposal) throw new Error("drive_task_proposal_response_invalid");
+      return proposal;
+    },
+    onSuccess: (proposal) => {
+      qc.setQueryData(driveKeys.proposal(wsId, proposal.id), proposal);
+    },
+  });
+}
+
+/**
+ * Fetches a task proposal batch by ID (`GET /workspaces/{ws}/drive-task-proposals/{proposalID}`,
+ * Card B5, spec §8.2a). Keyed under `driveKeys.proposal(wsId, proposalId)`.
+ */
+export function useDriveTaskProposal(
+  wsId: string,
+  proposalId: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery<DriveTaskProposal | null>({
+    queryKey: driveKeys.proposal(wsId, proposalId),
+    queryFn: ({ signal }) => getDriveTaskProposal(wsId, proposalId, signal),
+    enabled: (options?.enabled ?? true) && Boolean(wsId) && Boolean(proposalId),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Discards a task proposal batch (`DELETE /workspaces/{ws}/drive-task-proposals/{proposalID}`,
+ * Card B5, spec §8.4, §8.6). Awaits the server response and invalidates the
+ * proposal query key on success.
+ */
+export function useDeleteDriveTaskProposal(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      proposalId,
+      signal,
+    }: {
+      proposalId: string;
+      signal?: AbortSignal;
+    }) => deleteDriveTaskProposal(wsId, proposalId, signal),
+    onSuccess: (_data, { proposalId }) => {
+      void qc.invalidateQueries({ queryKey: driveKeys.proposal(wsId, proposalId) });
+    },
+  });
+}
+
+/**
+ * Recomputes duplicate warnings for a proposal's item titles when the batch
+ * project or parent task changes (`POST /workspaces/{ws}/drive-task-proposals/{proposalID}/duplicates`,
+ * Card B5, spec §8.4).
+ */
+export function useCheckDriveTaskProposalDuplicates(wsId: string) {
+  return useMutation({
+    mutationFn: ({
+      proposalId,
+      body,
+      signal,
+    }: {
+      proposalId: string;
+      body: CheckDriveTaskProposalDuplicatesBody;
+      signal?: AbortSignal;
+    }) => checkDriveTaskProposalDuplicates(wsId, proposalId, body, signal),
+  });
+}
+
+/**
+ * Batch-creates confirmed tasks from a Drive task proposal (`POST /workspaces/{ws}/drive-task-proposals/{proposalID}/tasks`,
+ * Card B6, spec §8.5). Awaits the server response (no optimistic create) and
+ * invalidates task collections, parent task detail/subtasks when set, the
+ * workspace Drive queries (`tasks_created`, file detail, task Drive cards),
+ * and the proposal itself.
+ */
+export function useCreateTasksFromDriveProposal(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      proposalId,
+      body,
+      signal,
+    }: {
+      proposalId: string;
+      body: CreateTasksFromDriveProposalBody;
+      signal?: AbortSignal;
+    }) => createTasksFromDriveProposal(wsId, proposalId, body, signal),
+    onSuccess: (_created, { proposalId, body }) => {
+      void qc.invalidateQueries({ queryKey: driveKeys.proposal(wsId, proposalId) });
+      void qc.invalidateQueries({ queryKey: driveKeys.workspace(wsId) });
+      if (body.parent_task_id) {
+        void qc.invalidateQueries({ queryKey: taskKeys.detail(body.parent_task_id) });
+        void qc.invalidateQueries({ queryKey: taskKeys.children(body.parent_task_id) });
+        void qc.invalidateQueries({ queryKey: taskKeys.childProgress(wsId) });
+      }
+      return invalidateTaskCollections(qc, wsId);
     },
   });
 }

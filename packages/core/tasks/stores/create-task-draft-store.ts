@@ -12,10 +12,16 @@ const CREATE_TASK_DRAFT_STORAGE_KEY = "uniwork_create_task_drafts";
 export type CreateTaskDraftDriveFile = {
   connectionId: string;
   externalFileId: string;
+  driveFileId?: string;
   name: string;
   mimeType: string;
   iconKind?: string;
   errorCode?: string;
+  tasksCreated?: {
+    count: number;
+    last_created_at?: string;
+    last_created_by_name?: string;
+  };
 };
 
 export type CreateTaskDraft = {

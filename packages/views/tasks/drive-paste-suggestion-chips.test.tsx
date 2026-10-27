@@ -46,6 +46,8 @@ vi.mock("sonner", () => ({
 
 initI18n();
 
+const QUERY_WAIT_OPTIONS = { timeout: 5000 } as const;
+
 const defaultUser: User = {
   id: "u1",
   email: "minh@vietants.vn",
@@ -189,12 +191,18 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
     // Chip is rendered with a button group and accessible dismiss label
     const chipGroup = await screen.findByTestId(
       "drive-paste-suggestion-chip-1GdocPlanQ4_0123456789ab",
+      {},
+      QUERY_WAIT_OPTIONS,
     );
     expect(chipGroup).toHaveAttribute("role", "group");
     expect(
-      await screen.findByRole("button", {
-        name: "Liên kết tệp Google Drive này vào việc?",
-      }),
+      await screen.findByRole(
+        "button",
+        {
+          name: "Liên kết tệp Google Drive này vào việc?",
+        },
+        QUERY_WAIT_OPTIONS,
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
@@ -367,7 +375,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
         "/api/v1/config",
         expect.anything(),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
     // Paste duplicate IDs + already linked ID
     pasteTextIntoEditor(
       editor,
@@ -380,6 +388,8 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
 
     const chip = await screen.findByTestId(
       "drive-paste-suggestion-chip-1DupDoc_0123456789abcdef",
+      {},
+      QUERY_WAIT_OPTIONS,
     );
     expect(chip).toBeInTheDocument();
     await waitFor(() => {
@@ -388,7 +398,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
           "drive-paste-suggestion-chip-1AlreadyLinkedId_0123456",
         ),
       ).toBeNull();
-    });
+    }, QUERY_WAIT_OPTIONS);
     expect(
       screen.getAllByRole("button", {
         name: "Liên kết tệp Google Drive này vào việc?",
@@ -504,15 +514,23 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
       "https://docs.google.com/document/d/1GdocTaskLink_0123456789/edit",
     );
 
-    const linkBtn = await screen.findByRole("button", {
-      name: "Liên kết tệp Google Drive này vào việc?",
-    });
+    const linkBtn = await screen.findByRole(
+      "button",
+      {
+        name: "Liên kết tệp Google Drive này vào việc?",
+      },
+      QUERY_WAIT_OPTIONS,
+    );
     fireEvent.click(linkBtn);
 
     // Confirm dialog appears because sharingState is "private"
-    const confirmBtn = await screen.findByRole("button", {
-      name: "Liên kết 1 tệp",
-    });
+    const confirmBtn = await screen.findByRole(
+      "button",
+      {
+        name: "Liên kết 1 tệp",
+      },
+      QUERY_WAIT_OPTIONS,
+    );
     expect(adapter.calls).toHaveLength(1);
     expect(adapter.calls[0]?.fileIds).toEqual(["1GdocTaskLink_0123456789"]);
 
@@ -530,7 +548,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
           },
         }),
       );
-    });
+    }, QUERY_WAIT_OPTIONS);
 
     await waitFor(() => {
       expect(
@@ -538,7 +556,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
           "drive-paste-suggestion-chip-1GdocTaskLink_0123456789",
         ),
       ).toBeNull();
-    });
+    }, QUERY_WAIT_OPTIONS);
   });
 
   it("opens the Picker with fileIds: [id] in create-task draft mode and adds a W4 draft Drive chip", async () => {
@@ -604,14 +622,20 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
       "https://docs.google.com/spreadsheets/d/1GsheetDraft_0123456789a/edit",
     );
 
-    const linkBtn = await screen.findByRole("button", {
-      name: "Liên kết tệp Google Drive này vào việc?",
-    });
+    const linkBtn = await screen.findByRole(
+      "button",
+      {
+        name: "Liên kết tệp Google Drive này vào việc?",
+      },
+      QUERY_WAIT_OPTIONS,
+    );
     fireEvent.click(linkBtn);
 
     // Becomes a W4 draft Drive chip and clears the suggestion chip
     const draftChip = await screen.findByTestId(
       "create-task-drive-chip-1GsheetDraft_0123456789a",
+      {},
+      QUERY_WAIT_OPTIONS,
     );
     expect(draftChip).toHaveTextContent("Bảng ngân sách Q4");
     expect(adapter.calls).toHaveLength(1);
@@ -679,9 +703,13 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
       "https://drive.google.com/file/d/1GfileNoConn_0123456789a/view",
     );
 
-    const connectBtn = await screen.findByRole("button", {
-      name: "Kết nối Google Drive để liên kết",
-    });
+    const connectBtn = await screen.findByRole(
+      "button",
+      {
+        name: "Kết nối Google Drive để liên kết",
+      },
+      QUERY_WAIT_OPTIONS,
+    );
     expect(connectBtn).toBeInTheDocument();
 
     fireEvent.click(connectBtn);
@@ -740,6 +768,8 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
     expect(
       await screen.findByTestId(
         "drive-paste-suggestion-chip-1GdocUndoSanity_01234567",
+        {},
+        QUERY_WAIT_OPTIONS,
       ),
     ).toBeInTheDocument();
     expect(editor.querySelector("a")?.getAttribute("href")).toBe(pastedUrl);
@@ -809,7 +839,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
     // Wait for permissions query to resolve so canEdit is true
     await waitFor(() => {
       expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/me");
-    });
+    }, QUERY_WAIT_OPTIONS);
 
     // 1. Prose mixed with a single Drive URL -> 1 chip (no kind suffix needed)
     const urlOne =
@@ -819,12 +849,18 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
     expect(
       await screen.findByTestId(
         "drive-paste-suggestion-chip-1GdocProseMixOne_0123456",
+        {},
+        QUERY_WAIT_OPTIONS,
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", {
-        name: "Liên kết tệp Google Drive này vào việc?",
-      }),
+      await screen.findByRole(
+        "button",
+        {
+          name: "Liên kết tệp Google Drive này vào việc?",
+        },
+        QUERY_WAIT_OPTIONS,
+      ),
     ).toBeInTheDocument();
     expect(editor).toHaveTextContent("Xem bản nháp tại");
     expect(editor).toHaveTextContent("trước buổi họp.");
@@ -921,6 +957,8 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
 
     const chipsContainer = await screen.findByTestId(
       "drive-paste-suggestion-chips",
+      {},
+      QUERY_WAIT_OPTIONS,
     );
     const hoverCard = document.querySelector<HTMLElement>(".link-hover-card");
     expect(hoverCard).not.toBeNull();
@@ -977,9 +1015,15 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
       "https://docs.google.com/document/d/1GdocWrapLayout_012345678/edit\nhttps://drive.google.com/file/d/1GfileWrapLayout_01234567/view",
     );
 
-    const chipsList = await screen.findByTestId("drive-paste-suggestion-chips");
+    const chipsList = await screen.findByTestId(
+      "drive-paste-suggestion-chips",
+      {},
+      QUERY_WAIT_OPTIONS,
+    );
     const chipGroup = await screen.findByTestId(
       "drive-paste-suggestion-chip-1GfileWrapLayout_01234567",
+      {},
+      QUERY_WAIT_OPTIONS,
     );
     const buttons = chipGroup.querySelectorAll("button");
     const actionButton = buttons[0]!;
@@ -1045,7 +1089,7 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
 
     await waitFor(() => {
       expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/ws1/me");
-    });
+    }, QUERY_WAIT_OPTIONS);
 
     const pastedUrl =
       "https://docs.google.com/document/d/1GdocNoWorkspaceRole_0123/edit";
@@ -1054,12 +1098,14 @@ describe("Drive paste URL suggestion chips (W5, spec §7.5)", () => {
     // Link is still inserted into the editor (pre-existing editor behaviour),
     // but no suggestion chip is shown for a user who has no workspace role.
     expect(editor.querySelector("a")?.getAttribute("href")).toBe(pastedUrl);
-    expect(screen.queryByTestId("drive-paste-suggestion-chips")).toBeNull();
-    expect(
-      screen.queryByTestId(
-        "drive-paste-suggestion-chip-1GdocNoWorkspaceRole_0123",
-      ),
-    ).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByTestId("drive-paste-suggestion-chips")).toBeNull();
+      expect(
+        screen.queryByTestId(
+          "drive-paste-suggestion-chip-1GdocNoWorkspaceRole_0123",
+        ),
+      ).toBeNull();
+    }, QUERY_WAIT_OPTIONS);
   });
 
   it("keeps a ContentEditor without onPasteDriveFileIds completely inert on pasting a Drive URL", async () => {

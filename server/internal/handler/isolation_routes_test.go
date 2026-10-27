@@ -972,9 +972,14 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/workspaces/{workspaceID}/drive-files": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
 		return isoBody{json: map[string]any{"connection_id": tn.ids["driveConnection"], "external_file_ids": []string{"iso-drive-" + strings.ToLower(tn.tag)}}}
 	}},
-	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access": {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
-	"PUT /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":  {controlAs: "peer", body: isoWith(map[string]string{"connection_id": "peerDriveConnection"}, nil)},
-	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind": {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":             {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
+	"PUT /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":              {controlAs: "peer", body: isoWith(map[string]string{"connection_id": "peerDriveConnection"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind":             {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals":     {body: isoJSON(map[string]any{"prompt": "Extract tasks"})},
+	"POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates": {body: isoJSON(map[string]any{"titles": []string{"Chốt phạm vi beta"}})},
+	"POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks": {body: isoJSON(map[string]any{
+		"items": []any{map[string]any{"index": 0, "title": "Chốt phạm vi beta", "description": "Mục tiêu"}},
+	})},
 	"POST /api/v1/orgs/{orgID}/billing/checkout": {body: isoJSON(map[string]any{
 		"plan_code": "starter", "success_path": "/billing/ok",
 	})},

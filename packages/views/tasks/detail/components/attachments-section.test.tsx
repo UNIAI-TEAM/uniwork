@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import type { DriveTaskFileCard } from "@uniwork/core/drive";
@@ -185,6 +185,22 @@ vi.mock("@uniwork/core/feature-flags", async (importOriginal) => {
   };
 });
 
+const aiCapsState = vi.hoisted(() => ({
+  enabled: true,
+}));
+
+vi.mock("@uniwork/core/ai", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    useAiCapabilities: () => ({
+      data: { enabled: aiCapsState.enabled },
+      isLoading: false,
+      isError: false,
+    }),
+  };
+});
+
 vi.mock("@uniwork/core/api/http", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/api/http")>();
   return {
@@ -192,7 +208,6 @@ vi.mock("@uniwork/core/api/http", async (importOriginal) => {
     requestBlob: vi.fn().mockResolvedValue(new Blob(["x"], { type: "image/png" })),
   };
 });
-
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
@@ -273,6 +288,7 @@ beforeEach(() => {
   uploadMutateAsync.mockClear();
   linkDriveFilesMutateAsync.mockClear();
   mockUseTaskDriveFiles.mockClear();
+  aiCapsState.enabled = true;
   attachmentsState.data = [];
   attachmentsState.isError = false;
   attachmentsState.isLoading = false;
@@ -709,5 +725,89 @@ describe("TaskDetailAttachmentsSection", () => {
     expect(mockUseTaskDriveFiles).toHaveBeenCalledWith("w1", "t1", {
       enabled: true,
     });
+  });
+
+  it("renders 'Tạo việc từ tài liệu' popover on a granted DriveTaskFileCard, aria-disables it when viewer_access !== 'granted', and hides it when can_propose is false", async () => {
+    publicConfigState.data.drive = { available: true };
+    driveState.files = [
+      {
+        ...sampleDriveCard,
+        id: "df_granted",
+        name: "Tệp được cấp quyền",
+        viewer_access: "granted",
+        can_propose: true,
+        tasks_created: {
+          count: 3,
+          last_created_at: "2026-10-25T10:00:00Z",
+          last_created_by_name: "Lan",
+        },
+      },
+      {
+        ...sampleDriveCard,
+        id: "df_blocked",
+        name: "Tệp chưa cấp quyền",
+        viewer_access: "unknown",
+        can_propose: true,
+      },
+      {
+        ...sampleDriveCard,
+        id: "df_readonly",
+        name: "Tệp chỉ đọc",
+        viewer_access: "granted",
+        can_propose: false,
+      },
+    ];
+
+    render(
+      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />, {
+        driveFlag: true,
+      }),
+    );
+
+    const proposeButtons = screen.getAllByRole("button", {
+      name: "Tạo việc từ tài liệu",
+    });
+    expect(proposeButtons).toHaveLength(2);
+    expect(proposeButtons[0]).not.toHaveAttribute("aria-disabled");
+    expect(proposeButtons[1]).toHaveAttribute("aria-disabled", "true");
+    expect(proposeButtons[1]).toHaveAttribute("aria-describedby");
+
+    fireEvent.click(proposeButtons[0]!);
+    expect(
+      await screen.findByText(
+        "UNI đọc tệp bằng tài khoản uni-work1@gmail.com rồi đưa ra danh sách việc để bạn duyệt. Chưa có việc nào được tạo trước khi bạn duyệt.",
+      ),
+    ).toBeInTheDocument();
+    const warning = screen.getByTestId("drive-recreate-warning");
+    expect(warning).toHaveAttribute("role", "status");
+    expect(
+      within(warning).getByRole("link", { name: "Xem các việc đã tạo" }),
+    ).toHaveAttribute("href", "/org/team/documents/drive/df_granted#drive-tasks-created");
+
+    // F5: When AI is disabled on the workspace, the granted card's propose button is aria-disabled with the ai_disabled hint
+    aiCapsState.enabled = false;
+    driveState.files = [
+      {
+        ...sampleDriveCard,
+        id: "df_ai_off",
+        name: "Tệp khi AI tắt",
+        viewer_access: "granted",
+        can_propose: true,
+      },
+    ];
+    render(
+      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />, {
+        driveFlag: true,
+      }),
+    );
+    const aiOffBtns = screen.getAllByRole("button", { name: "Tạo việc từ tài liệu" });
+    const aiOffBtn = aiOffBtns[aiOffBtns.length - 1]!;
+    expect(aiOffBtn).toHaveAttribute("aria-disabled", "true");
+    expect(aiOffBtn).toHaveAttribute("title", "AI chưa khả dụng trên workspace này.");
+    const aiHintId = aiOffBtn.getAttribute("aria-describedby");
+    expect(aiHintId).toBeTruthy();
+    expect(document.getElementById(aiHintId!)).toHaveTextContent(
+      "AI chưa khả dụng trên workspace này.",
+    );
   });
 });
