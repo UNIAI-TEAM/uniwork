@@ -18,4 +18,10 @@ paths = ['''^\.cursor/''']
 # request label sent to the fake engine, never a credential. generic-api-key
 # matches it only on entropy. The file is byte-pinned in
 # docs/office/g0/evidence-register.json, so the literal stays.
-regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''', '''^IDEMP-H1-CLOB$''']
+# Y2ktZTJl... is the DRIVE_CREDENTIAL_KEY of the e2e job in
+# .github/workflows/ci.yml (commit 1f20deb5): base64 of the ASCII string
+# "ci-e2e-drive-credential-key-0000", a CI-only throwaway like the job's
+# JWT_SECRET. It only gives the fake Drive provider (DRIVE_FAKE_PROVIDER=1,
+# refused under APP_ENV=production) a credential box in CI and protects
+# nothing, so it is not a credential. generic-api-key matches it on entropy.
+regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''', '''^IDEMP-H1-CLOB$''', '''^Y2ktZTJlLWRyaXZlLWNyZWRlbnRpYWwta2V5LTAwMDA=$''']
