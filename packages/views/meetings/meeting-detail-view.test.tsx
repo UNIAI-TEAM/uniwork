@@ -437,6 +437,77 @@ describe("MeetingDetailView › strip per state and viewer", () => {
   });
 });
 
+describe("MeetingDetailView › in person, after the recording was sent (UNI-2247)", () => {
+  const m1 = fixtureMeeting("m1");
+  const base = `/api/v1/meetings/${m1.id}`;
+  const inPerson = { [base]: { meeting: { ...m1, venue: "in_person" } } };
+  const part = (id: string, status: string, estimated_seconds: number) => ({ id, meeting_id: m1.id, status, estimated_seconds });
+  const label = (n: number, named = false) => ({
+    id: `l${n}`,
+    label_key: `upload:t1:${n}`,
+    number: n,
+    ...(named ? { name: "Lan Phạm", assigned_name: "Lan Phạm" } : {}),
+  });
+  const transcribing = {
+    ...inPerson,
+    [`/api/v1/workspaces/${demoWorkspace.id}/meeting-capabilities`]: { ai_summary: true, transcription: true },
+    [`${base}/summary`]: { summary: null, run: { status: "idle", at: null, attempts: 0, failure: null } },
+    [`${base}/action-items`]: { items: [] },
+    [`${base}/transcriptions`]: { transcriptions: [part("t1", "RUNNING", 2538)] },
+  };
+  const done = (labels: unknown[]) => ({
+    ...MINUTES_ON,
+    ...inPerson,
+    [`${base}/transcriptions`]: { transcriptions: [part("t1", "COMPLETE", 2538)] },
+    [`${base}/speaker-labels`]: { labels },
+  });
+  const asked = (segment: string) => requestMock.mock.calls.some(([p]) => String(p).split("?")[0] === `${base}/${segment}`);
+
+  it("shows the transcription under way", async () => {
+    open("m1", { extra: transcribing });
+    const row = await strip();
+    expect(await within(row).findByText("Thư ký UNI đang ghi lời bản ghi 42 phút")).toBeInTheDocument();
+    expect(within(row).getByText("Khoảng 4 phút nữa có tóm tắt và việc đề xuất · sẽ báo bạn và thư ký")).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Lên lịch họp tiếp" })).toBeInTheDocument();
+    const summary = await screen.findByTestId("meeting-summary-panel");
+    expect(await within(summary).findByText("Thư ký UNI đang ghi lời và tách người nói")).toBeInTheDocument();
+    expect(within(summary).getByText("Nhận bản ghi ✓ · Ghi lời · Tóm tắt và việc đề xuất")).toBeInTheDocument();
+    expect(within(summary).queryByRole("button", { name: "Soạn tóm tắt" })).not.toBeInTheDocument();
+    expect(await screen.findByText("Việc đề xuất có sau khi Thư ký UNI soạn xong")).toBeInTheDocument();
+  });
+
+  it("asks to name speakers before finalizing", async () => {
+    open("m1", { extra: done([label(1), label(2), label(3), label(4, true)]) });
+    const row = await strip();
+    expect(await within(row).findByText("3 người nói chưa có tên")).toBeInTheDocument();
+    expect(row).toHaveTextContent("3 người nói chưa có tên · 9 việc chờ giao");
+    expect(within(row).getByText("Gán tên để lời thoại, tóm tắt và biên bản ghi đúng người.")).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Rà và giao 9 việc" })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Chốt biên bản" })).not.toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Lên lịch họp tiếp" })).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "Gán người nói" }));
+    expect(await screen.findByRole("dialog", { name: "Gán người nói" })).toBeInTheDocument();
+  });
+
+  it("goes back to the close-out once every speaker has a name", async () => {
+    open("m1", { extra: done([label(1, true)]) });
+    const row = await strip();
+    expect(await within(row).findByRole("button", { name: "Chốt biên bản" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Lên lịch họp tiếp" })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Gán người nói" })).not.toBeInTheDocument();
+    expect(row).not.toHaveTextContent("người nói chưa có tên");
+  });
+
+  it("leaves an online meeting as it was, without asking for its transcriptions or speakers", async () => {
+    open("m1", { extra: { ...done([label(1)]), [base]: { meeting: m1 } } });
+    const row = await strip();
+    expect(await within(row).findByRole("button", { name: "Chốt biên bản" })).toBeInTheDocument();
+    expect(row).not.toHaveTextContent("người nói chưa có tên");
+    expect(asked("transcriptions")).toBe(false);
+    expect(asked("speaker-labels")).toBe(false);
+  });
+});
+
 describe("MeetingDetailView › header actions", () => {
   it("confirms a cancel with a toast before leaving", async () => {
     const success = vi.spyOn(toast, "success");

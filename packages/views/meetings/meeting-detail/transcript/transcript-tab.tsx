@@ -8,6 +8,7 @@ import { useSpeakerLabels } from "@uniwork/core/meetings/speaker-labels";
 import { useMeetingSummary } from "@uniwork/core/meetings/summary";
 import { useFullTranscript } from "@uniwork/core/meetings/transcript";
 import { useMeetingTranscriptions } from "@uniwork/core/meetings/transcriptions";
+import { meetingVenue } from "@uniwork/core/meetings/venue";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -23,7 +24,7 @@ import { MeetingFeedLoadOlder } from "../../meeting-feed-load-older";
 import { MeetingRecordingDialog } from "../../meeting-recording-dialog";
 import { MeetingRecordingUploadDialog, MeetingTranscriptionStatus } from "../../meeting-recording-upload";
 import { MeetingTextSkeleton } from "../../meeting-section-state";
-import { MeetingSpeakerLabelsDialog } from "../../meeting-speaker-labels-dialog";
+import { MeetingSpeakerLabelsButton, MeetingSpeakerLabelsDialog } from "../../meeting-speaker-labels-dialog";
 import { scrollSectionIntoView } from "../../use-meeting-section-deep-link";
 import { useMemberIndex } from "../../use-member-index";
 import { TranscriptChangeDialog, type TranscriptChange } from "../../transcript/transcript-change-dialog";
@@ -301,6 +302,12 @@ export function TranscriptView({
             citedOnly={citedOnly}
             onCitedOnly={(on) => filter(() => setCitedOnly(on))}
             hasCited={cited.size > 0}
+            assign={
+              // In person, naming the speakers is the next step (UNI-2247); online it stays in the ⋯.
+              canClerk && meetingVenue(meeting) === "in_person" && labels.data?.some((l) => !l.user_id && !l.name && !l.assigned_name) ? (
+                <MeetingSpeakerLabelsButton meetingId={meetingId} workspaceId={workspaceId} />
+              ) : undefined
+            }
             end={actions}
           />
           <TranscriptPlayer meetingId={meetingId} onPlay={setPlayAt} />

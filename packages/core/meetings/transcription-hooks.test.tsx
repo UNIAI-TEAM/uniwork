@@ -35,4 +35,19 @@ describe("useMeetingTranscriptions", () => {
     });
     expect(list).toHaveBeenCalledTimes(2);
   });
+
+  it("keeps polling while an earlier part is still open (UNI-2247)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const parts = (older: string) => [{ ...row("COMPLETE"), id: "t2" }, row(older)];
+    list.mockReset().mockResolvedValueOnce(parts("RUNNING")).mockResolvedValue(parts("COMPLETE"));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client: qc }, children);
+    const { result } = renderHook(() => useMeetingTranscriptions("m1"), { wrapper });
+    await waitFor(() => expect(result.current.data?.[1]?.status).toBe("RUNNING"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+    await waitFor(() => expect(result.current.data?.[1]?.status).toBe("COMPLETE"));
+    expect(list).toHaveBeenCalledTimes(2);
+  });
 });

@@ -15,6 +15,7 @@ import { ScheduleFollowUpButton } from "../schedule-follow-up-button";
 import { dueWords } from "./close-out/action-item-row";
 import { useDetail } from "./detail-context";
 import { clock, dayWord, shortDay, untilWords } from "./format";
+import { NameSpeakersButton, TranscribingRow } from "./in-person-rows";
 import type { StripJob } from "./next-step-jobs";
 import { PhonePrimary, usePhoneBar } from "./phone-frame";
 import { kitButton } from "./ui/kit-buttons";
@@ -351,23 +352,37 @@ function CloseOutRow({ job, h }: { job: Extract<StripJob, { kind: "closeOut" }>;
     .filter(Boolean)
     .join(" · ");
   const review = job.pending > 0;
+  // In person, the speakers come first: the items follow, the minutes wait until they are named (board p09).
+  const unnamed = job.unnamedSpeakers ?? 0;
+  const head =
+    unnamed > 0
+      ? {
+          lead: t("meetings.record.unnamedSpeakers", { count: unnamed }),
+          rest: review ? t("meetings.detail.strip.pendingItems", { count: job.pending }) : null,
+        }
+      : { lead, rest };
   return (
     <StripRow
       title={
-        lead ? (
+        head.lead ? (
           <>
-            <strong>{lead}</strong>
-            {rest ? t("meetings.detail.strip.tail", { text: rest }) : null}
+            <strong>{head.lead}</strong>
+            {head.rest ? t("meetings.detail.strip.tail", { text: head.rest }) : null}
           </>
         ) : undefined
       }
-      caption={caption || undefined}
+      caption={unnamed > 0 ? t("meetings.record.unnamedHint") : caption || undefined}
       actions={
         <>
-          {job.canFollowUp && !phone ? (
+          {unnamed > 0 && (!phone || !review) ? (
+            <PhonePrimary>
+              <NameSpeakersButton primary={!review} />
+            </PhonePrimary>
+          ) : null}
+          {job.canFollowUp && !phone && unnamed === 0 ? (
             <ScheduleFollowUpButton workspaceId={workspaceId} meeting={meeting} participants={participants} onCreated={h.onFollowUpCreated} />
           ) : null}
-          {job.canFinalize && (!phone || !review) ? (
+          {job.canFinalize && unnamed === 0 && (!phone || !review) ? (
             <PhonePrimary>
               <Button
                 type="button"
@@ -450,6 +465,8 @@ export function StripJobRow({ job, handlers }: { job: StripJob; handlers: StripH
       return <CloseOutRow job={job} h={handlers} />;
     case "memberItems":
       return <MemberItemsRow job={job} h={handlers} />;
+    case "transcribing":
+      return <TranscribingRow job={job} h={handlers} />;
     case "outsider":
       return <OutsiderRow />;
     default:

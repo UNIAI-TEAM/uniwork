@@ -3921,7 +3921,15 @@
       "later": "Later",
       "retryNow": "Retry now",
       "failedTitle": "The recording was not sent",
-      "failedBody": "The recording is still safe on this device."
+      "failedBody": "The recording is still safe on this device.",
+      "transcribingTitle": "UNI Scribe is transcribing the {{minutes}}-minute recording",
+      "transcribingEta_one": "Summary and suggested items in about {{count}} minute · you and the secretary will be notified",
+      "transcribingEta_other": "Summary and suggested items in about {{count}} minutes · you and the secretary will be notified",
+      "summaryTranscribing": "UNI Scribe is transcribing and telling the speakers apart",
+      "summarySteps": "Recording received ✓ · Transcript · Summary and suggested items",
+      "unnamedSpeakers_one": "{{count}} speaker without a name",
+      "unnamedSpeakers_other": "{{count}} speakers without a name",
+      "unnamedHint": "Name them so the transcript, summary and minutes credit the right people."
     },
     "startRecording": "Start recording",
     "stopRecording": "Stop recording",
@@ -4966,7 +4974,8 @@
         "itemsTitle": "Action items",
         "itemsAfterRunning": "Action items come once the summary is written",
         "itemsAfterNone": "Action items come with the summary",
-        "itemsAfterFailed": "Action items come once a summary is written"
+        "itemsAfterFailed": "Action items come once a summary is written",
+        "itemsAfterTranscribing": "Suggested items come once UNI Scribe has finished"
       },
       "evidence": {
         "chipLabelMany_one": "See the evidence at {{time}}, {{count}} source",

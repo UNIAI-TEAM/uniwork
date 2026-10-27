@@ -254,6 +254,7 @@ export function MeetingDetailView({
       review,
     },
     roll: { open: rollOpen, setOpen: setRollOpen },
+    transcribing: inPersonStrip.transcribing,
   };
 
   const scheduled = status === "SCHEDULED";

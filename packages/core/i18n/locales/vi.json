@@ -3920,7 +3920,15 @@
       "later": "Để sau",
       "retryNow": "Thử lại ngay",
       "failedTitle": "Chưa gửi được bản ghi",
-      "failedBody": "Bản ghi vẫn an toàn trên máy này."
+      "failedBody": "Bản ghi vẫn an toàn trên máy này.",
+      "transcribingTitle": "Thư ký UNI đang ghi lời bản ghi {{minutes}} phút",
+      "transcribingEta_one": "Khoảng {{count}} phút nữa có tóm tắt và việc đề xuất · sẽ báo bạn và thư ký",
+      "transcribingEta_other": "Khoảng {{count}} phút nữa có tóm tắt và việc đề xuất · sẽ báo bạn và thư ký",
+      "summaryTranscribing": "Thư ký UNI đang ghi lời và tách người nói",
+      "summarySteps": "Nhận bản ghi ✓ · Ghi lời · Tóm tắt và việc đề xuất",
+      "unnamedSpeakers_one": "{{count}} người nói chưa có tên",
+      "unnamedSpeakers_other": "{{count}} người nói chưa có tên",
+      "unnamedHint": "Gán tên để lời thoại, tóm tắt và biên bản ghi đúng người."
     },
     "startRecording": "Bắt đầu ghi hình",
     "stopRecording": "Dừng ghi hình",
@@ -4965,7 +4973,8 @@
         "itemsTitle": "Việc cần làm",
         "itemsAfterRunning": "Việc cần làm có sau khi soạn xong",
         "itemsAfterNone": "Việc cần làm có sau khi soạn tóm tắt",
-        "itemsAfterFailed": "Việc cần làm có sau khi soạn được tóm tắt"
+        "itemsAfterFailed": "Việc cần làm có sau khi soạn được tóm tắt",
+        "itemsAfterTranscribing": "Việc đề xuất có sau khi Thư ký UNI soạn xong"
       },
       "evidence": {
         "chipLabelMany_one": "Xem căn cứ lúc {{time}}, {{count}} căn cứ",

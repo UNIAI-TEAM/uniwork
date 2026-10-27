@@ -19,8 +19,8 @@ export function useMeetingTranscriptions(meetingId: string, enabled = true) {
     queryKey: meetingKeys.transcriptions(meetingId),
     queryFn: () => api.listMeetingTranscriptions(meetingId),
     enabled: enabled && Boolean(meetingId),
-    // The list is newest first: poll while the latest part is still being transcribed.
-    refetchInterval: (q) => (OPEN.has(q.state.data?.[0]?.status ?? "") ? TRANSCRIPTION_POLL_MS : false),
+    // Poll while any part is still being transcribed: an in-person recording sends several (UNI-2247).
+    refetchInterval: (q) => (q.state.data?.some((t) => OPEN.has(t.status)) ? TRANSCRIPTION_POLL_MS : false),
   });
 }
 

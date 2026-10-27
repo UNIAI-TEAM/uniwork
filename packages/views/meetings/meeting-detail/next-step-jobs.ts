@@ -40,7 +40,11 @@ export type StripJob =
       minutes: MinutesState;
       canFinalize: boolean;
       canFollowUp: boolean;
+      /** In person: speakers nobody named yet, named before the minutes are finalized (absent when none). */
+      unnamedSpeakers?: number;
     }
+  /** In person, after the recording was sent: Thư ký UNI is transcribing it (UNI-2247). */
+  | { kind: "transcribing"; minutes: number; etaMinutes: number }
   /** After the end, a member's own items. */
   | { kind: "memberItems"; mine: number; assigned: number; waiting: number; nearest: { title: string; due: string } | null };
 
@@ -68,7 +72,26 @@ export type StripInput = {
   inPerson?: boolean;
   /** A clerk of an in-person meeting where the organization transcribes. */
   canRecord?: boolean;
+  /** In person: the recording being transcribed (`transcribingOf`), null when no part is open. */
+  transcribing?: Transcribing | null;
+  /** In person: speaker labels with neither a member nor a name. */
+  unnamedSpeakers?: number;
 };
+
+/** The recording's length and what of it is still being transcribed, in seconds. */
+export type Transcribing = { seconds: number; openSeconds: number };
+
+const OPEN = new Set(["QUEUED", "RUNNING"]);
+
+/**
+ * An in-person recording is sent in parts, one transcription each (R23): it is being
+ * transcribed while any part is open; its length is every part that did not fail.
+ */
+export function transcribingOf(rows: readonly { status: string; estimated_seconds?: number }[] | undefined): Transcribing | null {
+  if (!rows?.some((r) => OPEN.has(r.status))) return null;
+  const sum = (keep: (status: string) => boolean) => rows.reduce((n, r) => n + (keep(r.status) ? (r.estimated_seconds ?? 0) : 0), 0);
+  return { seconds: sum((s) => s !== "FAILED"), openSeconds: sum((s) => OPEN.has(s)) };
+}
 
 /** The fields of an action item the strip reads. */
 export type StripItem = {
@@ -98,9 +121,11 @@ function closeOut(input: StripInput): StripJob | null {
     minutes: input.minutes,
     canFinalize: input.minutes === "draft" && input.minutesEditable,
     canFollowUp: input.canHost,
+    ...(input.inPerson && input.unnamedSpeakers ? { unnamedSpeakers: input.unnamedSpeakers } : {}),
   };
   // Nothing to say and nothing to press: no row.
-  const says = job.pending > 0 || job.minutes === "draft" || job.minutes === "none" || job.converted > 0 || job.drafting;
+  const says =
+    job.pending > 0 || job.minutes === "draft" || job.minutes === "none" || job.converted > 0 || job.drafting || Boolean(job.unnamedSpeakers);
   return says || job.canFollowUp ? job : null;
 }
 
@@ -145,6 +170,11 @@ export function nextStepJobs(input: StripInput): StripJob[] {
     case "OVERTIME":
       return [{ kind: "overtime", canAct: input.canHost }];
     case "ENDED": {
+      const t = input.inPerson ? input.transcribing : null;
+      // Rounded, not ceiled: 42:18 reads "42 phút", as the header writes the meeting's length (board p07).
+      if (t) {
+        return [{ kind: "transcribing", minutes: Math.max(1, Math.round(t.seconds / 60)), etaMinutes: Math.max(1, Math.round(t.openSeconds / 600)) }];
+      }
       const job = input.isClerk ? closeOut(input) : memberItems(input);
       return job ? [job] : [];
     }

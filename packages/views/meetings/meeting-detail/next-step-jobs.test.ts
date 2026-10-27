@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capJobs, nextStepJobs, type StripInput, type StripItem } from "./next-step-jobs";
+import { capJobs, nextStepJobs, transcribingOf, type StripInput, type StripItem } from "./next-step-jobs";
 
 const base: StripInput = {
   status: "SCHEDULED",
@@ -100,6 +100,44 @@ describe("nextStepJobs", () => {
     const ended = { ...base, status: "ENDED" as const, minutes: "none" as const, items: [], summaryRunning: true };
     expect(nextStepJobs(ended)[0]).toMatchObject({ kind: "closeOut", drafting: true, canFinalize: false });
     expect(nextStepJobs({ ...ended, items: [item({})] })[0]).toMatchObject({ drafting: false, pending: 1 });
+  });
+
+  describe("in person, once the recording was sent (UNI-2247)", () => {
+    const ended = { ...base, status: "ENDED" as const, inPerson: true, items: [], minutes: "none" as const };
+    const part = (status: string, estimated_seconds?: number) => ({ status, estimated_seconds });
+
+    it("an in-person meeting being transcribed", () => {
+      const transcribing = transcribingOf([part("RUNNING", 2538)]);
+      expect(nextStepJobs({ ...ended, transcribing })).toEqual([{ kind: "transcribing", minutes: 42, etaMinutes: 4 }]);
+      // Anyone at the meeting reads it, not only the clerk.
+      expect(nextStepJobs({ ...ended, transcribing, viewer: "member", isClerk: false, canHost: false })[0]).toMatchObject({ kind: "transcribing" });
+    });
+
+    it("sizes a recording sent in parts from all of them, and the wait from the open ones", () => {
+      const parts = [part("RUNNING", 1038), part("COMPLETE", 1500), part("FAILED", 900)];
+      expect(transcribingOf(parts)).toEqual({ seconds: 2538, openSeconds: 1038 });
+      expect(nextStepJobs({ ...ended, transcribing: transcribingOf(parts) })).toEqual([{ kind: "transcribing", minutes: 42, etaMinutes: 2 }]);
+      // An earlier part still queued keeps the meeting transcribing after the newest one is done.
+      expect(transcribingOf([part("COMPLETE", 600), part("QUEUED", 60)])).toEqual({ seconds: 660, openSeconds: 60 });
+      expect(nextStepJobs({ ...ended, transcribing: transcribingOf([part("QUEUED", 60)]) })[0]).toMatchObject({ etaMinutes: 1 });
+      // Nothing open: no transcribing row.
+      expect(transcribingOf([part("COMPLETE", 600), part("FAILED", 60)])).toBeNull();
+      expect(transcribingOf(undefined)).toBeNull();
+    });
+
+    it("close-out names unnamed speakers first", () => {
+      const [job] = nextStepJobs({ ...ended, items: [item({})], minutes: "draft", minutesEditable: true, unnamedSpeakers: 3 });
+      expect(job).toMatchObject({ kind: "closeOut", unnamedSpeakers: 3, pending: 1 });
+      // Unnamed speakers alone still make a row.
+      expect(nextStepJobs({ ...ended, canHost: false, viewer: "secretary", minutes: "final", unnamedSpeakers: 1 })[0]).toMatchObject({
+        unnamedSpeakers: 1,
+      });
+    });
+
+    it("leaves an online meeting's close-out as it was", () => {
+      const online = { ...ended, inPerson: false, transcribing: transcribingOf([part("RUNNING", 600)]) };
+      expect(nextStepJobs(online)[0]).toMatchObject({ kind: "closeOut" });
+    });
   });
 
   it("tells a member their own items: assigned, waiting and the nearest due", () => {
