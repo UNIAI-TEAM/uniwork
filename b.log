@@ -1,0 +1,43 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server && go test -race -count=1 -v ./internal/service -run 'FolderContentsAccess|DocumentAccessBatch|DocumentShare' -timeout 40m > /tmp/db31-race.log 2>&1; rc=$?; grep -E -- '^--- (PASS|FAIL|SKIP)' /tmp/db31-race.log | sed 's/ (.*//'; grep -A30 'WARNING: DATA RACE' /tmp/db31-race.log | head -60; grep -E '^ok|^FAIL|panic' /tmp/db31-race.log; echo; echo "GO_SERVICE_RACE_EXIT=$rc"; [ $rc -eq 0 ]
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- PASS: TestChatDocumentShareRevokerUnit
+--- PASS: TestChatDocumentShareSourceMarkerAndRevokeOnLeave
+--- PASS: TestChatDocumentShareLowersToBackingLevelOnLeave
+--- PASS: TestChatDocumentShareBackedByArchivedRoom
+--- PASS: TestChatDocumentShareRevokedOnOrganizationLeave
+--- PASS: TestChatDocumentShareReconcileRacingRemovals
+--- PASS: TestChatDocumentShareReconcileIsBoundToMembership
+--- PASS: TestChatDocumentShareRestoreAndRepointAreAudited
+--- PASS: TestChatDocumentShareableTypesMirrorTheServer
+--- PASS: TestDocumentAccessBatchMatchesThePerItemPath
+--- PASS: TestDocumentAccessBatchPreviewLevelsMatchThePerUserResolver
+--- PASS: TestDocumentAccessBatchHasNoItemCap
+--- PASS: TestDocumentAccessBatch
+--- PASS: TestDocumentAccessBatchDryRunAndPreview
+--- PASS: TestDocumentAccessBatchPreviewCountsMatchTheResolver
+--- PASS: TestDocumentAccessBatchLateFailureRollsBack
+--- PASS: TestFolderContentsAccessModesAndSubtreeScope
+--- PASS: TestFolderContentsAccessBackgroundWorkerAndRecovery
+--- PASS: TestFolderContentsAccessSkipsLockedOwnedDocument
+--- PASS: TestFolderContentsAccessChildDOC05SkipsRestrictedSelfGrant
+--- PASS: TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot
+--- PASS: TestFolderContentsAccessSubtreeRecheckAndForeignMyFolder
+--- PASS: TestFolderContentsAccessAuditProvenanceAndSequentialSyncs
+--- PASS: TestFolderContentsAccessLockTimeoutErrorMapping
+--- PASS: TestFolderContentsAccessToPrivateWarningRequiresHomeWorkspaceShare
+--- PASS: TestFolderContentsAccessDryRunToPrivateOnlyWhenHomeWorkspaceShared
+--- PASS: TestApplyDocumentShareMergesHomeWorkspaceInAList
+--- PASS: TestListDocumentShareCandidates
+--- PASS: TestListDocumentShareCandidatesTypeRankOrder
+--- PASS: TestDocumentShareScopeAC08RestrictedUnshared
+--- PASS: TestDocumentShareScopeAC19CountsAcrossSurfaces
+--- PASS: TestDocumentShareScopeLegacyHomeWorkspaceShare
+--- PASS: TestDocumentShareScopeRevokedAndExpiredIgnored
+--- PASS: TestDocumentShareScopeOneQueryPerPageNoNPlusOne
+--- PASS: TestDocumentShareScopeAbsentForAgent
+--- PASS: TestDocumentSharedWithMeKeysetWalk
+--- PASS: TestDocumentShare
+ok  	github.com/unicomhub/uniwork/server/internal/service	18.559s
+
+GO_SERVICE_RACE_EXIT=0

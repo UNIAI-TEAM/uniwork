@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^2f5d16f0f" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=2f5d16f0fe12de1746ccbda86f10cad77b01f75f
+2f5d16f0f fix(documents): lock folder access batch by id in worker chunk tests
+8d24b2a2d test(documents): reproduce foreign queued batch flake in root access loss worker test
+2bcc09830 Merge UNI-2244 warnings follow-up (V1-1, V1-6) into the G5-G7 root
+7f101eef9 fix(workspace): clean up Drive grants when an invite link switches organization

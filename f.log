@@ -1,0 +1,10 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server && go test -count=20 -v ./internal/service -run '^(TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot|TestFolderContentsAccessBackgroundWorkerAndRecovery|TestFolderContentsAccessChildDOC05SkipsRestrictedSelfGrant|TestFolderContentsAccessSubtreeRecheckAndForeignMyFolder)$' -timeout 40m > /tmp/db31-c20.log 2>&1; rc=$?; grep -E -- '^--- (PASS|FAIL|SKIP)' /tmp/db31-c20.log | sed 's/ (.*//' | sort | uniq -c; grep -B2 -A20 -- '--- FAIL' /tmp/db31-c20.log | head -80; grep -E '^ok|^FAIL|panic' /tmp/db31-c20.log; echo; echo "GO_COUNT20_EXIT=$rc"; [ $rc -eq 0 ]
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+     20 --- PASS: TestFolderContentsAccessBackgroundWorkerAndRecovery
+     20 --- PASS: TestFolderContentsAccessChildDOC05SkipsRestrictedSelfGrant
+     20 --- PASS: TestFolderContentsAccessSubtreeRecheckAndForeignMyFolder
+     20 --- PASS: TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot
+ok  	github.com/unicomhub/uniwork/server/internal/service	24.398s
+
+GO_COUNT20_EXIT=0
