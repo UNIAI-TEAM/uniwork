@@ -1,6 +1,6 @@
 # Meetings: Họp trực tiếp không giấy — bấm ghi âm, họp xong có biên bản và việc
 
-> **Trạng thái:** in-progress — bản thiết kế viết ngày 2026-10-28, chờ chủ sản phẩm duyệt. Chưa có issue UniAI (cần một issue trước khi viết code).
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-28 (canvas https://claude.ai/artifact/1eikX52yAUgvv46c6Fwp6y); issue UNI-2247 (sub-issue của UNI-2153); kế hoạch: `docs/superpowers/plans/2026-10-28-meeting-in-person-recorder.md`. Task 1–13 xong trên nhánh `feature/UNI-2247-hop-truc-tiep-khong-giay-ghi-am-trong-ap`, chờ PR vào develop. Những gì triển khai chốt thêm: §11.
 
 ## 1. Ý định
 
@@ -239,3 +239,75 @@ thường lệ.
 - **Thử tay trước khi bật**: một buổi họp thật 60 phút trên iPhone Safari, Android
   Chrome và laptop. Đo thời gian từ Kết thúc tới khi có biên bản nháp. Thử khoá
   máy, tắt Wi-Fi giữa buổi, đóng tab rồi mở lại.
+
+## 11. Bổ sung sau khi duyệt
+
+Những gì lúc triển khai mới chốt, ngoài bản đã duyệt. Thiết kế màn hình đã chốt
+(13 bảng "Hiện tại → Đề xuất"): https://claude.ai/artifact/1eikX52yAUgvv46c6Fwp6y.
+
+**Server**
+
+- Hình thức là cột `meetings.venue TEXT NOT NULL DEFAULT 'online'`, CHECK
+  `venue IN ('online','in_person')`; JSON `venue`, TS `MeetingVenue`. Đổi được
+  chỉ khi cuộc họp còn `SCHEDULED`, như D4. Hình thức nằm trong dấu vân tay idempotency
+  của cả tạo lịch lẫn họp ngay.
+- `Start` họp trực tiếp trả 409 `meeting_in_person`. Họp trực tiếp không có
+  đường gọi vào nào (ICS, `GET /dial-in`, cấp, đổi PIN đều từ chối), không có
+  link khách. Cột PIN vẫn được rút lúc tạo như mọi cuộc họp nhưng không bao giờ
+  hiện ra.
+- "Ghi nhận đã họp" nhận `duration_seconds`: server lấy giờ của chính nó lúc
+  nhận làm giờ kết thúc, trừ độ dài ra giờ bắt đầu. Máy ghi không gửi giờ tuyệt
+  đối nào, nên đồng hồ máy lệch không làm sai giờ họp (§9).
+- Mỗi phần ghi gửi `offset_seconds`: số giây tính từ đầu phần ghi thứ nhất (giờ
+  thật, kể cả lúc tạm dừng). Server đặt phần đó ở giờ bắt đầu thật của cuộc họp
+  cộng độ lệch, từ chối độ lệch âm hoặc vượt giờ họp quá 1 phút. Đây là cách sửa
+  giờ của §6 mục 8; máy ghi luôn gửi trường này.
+- Bản ghi lời trả thêm `estimated_seconds` (độ dài ước tính của phần ghi).
+- Ghi nhận đã họp theo độ dài không tự xếp tóm tắt; tóm tắt do lần ghi lời xong
+  xếp, và chờ đến khi không còn phần nào `QUEUED`/`RUNNING` (D13). Lời nhắc
+  "soạn tóm tắt" khi cuộc họp kết thúc không gửi cho họp trực tiếp.
+- Điểm danh họp trực tiếp gợi ý có mặt cho mọi người được mời (D12), như đã duyệt.
+
+**Máy ghi (web)**
+
+- Màn ghi là route riêng `/{org}/{ws}/meetings/{id}/record`. Ngôn ngữ và micro
+  chốt lúc bấm Bắt đầu. Nút Bắt đầu chờ đến khi đọc xong những phần đã có trên
+  máy (để độ lệch nối tiếp, không về 0). Không đọc được cuộc họp, capability hay
+  danh sách người dự lần đầu thì quay về trang cuộc họp; lỗi khi tải lại sau đó
+  không bao giờ dừng bản ghi đang chạy.
+- Đoạn 5 giây lưu ngay vào IndexedDB. Track bị `mute` (iOS khoá máy, có cuộc gọi)
+  hay `ended`, hoặc ghi đoạn vào máy hỏng, đều đóng phần đang ghi và hiện "Ghi
+  âm bị ngắt"; "Ghi tiếp" mở phần mới. Dừng ghi chờ đoạn cuối tối đa 3 giây.
+- Một phần **đang sống** là phần chưa đóng và có đoạn mới trong 15 giây gần nhất
+  (có thể một tab khác đang ghi). Phần đang sống không bao giờ bị gửi hay xoá, và
+  không tính vào dải "Còn bản ghi … chưa gửi". Mở lại trang sau khi đóng tab giữa
+  buổi, dải hiện khi phần đó hết sống (tối đa khoảng 15 giây).
+- Gửi: mỗi phần một lần tải lên rồi xếp hàng ghi lời; xếp xong thì xoá khỏi máy.
+  409 `transcription_in_progress` khi xếp hàng nghĩa là đã xếp. Mất mạng thì chờ
+  sự kiện `online` và thử lại sau 10 giây, 30 giây, rồi mỗi 60 giây. Máy thứ hai
+  kết thúc khi cuộc họp đã `ENDED` thì bỏ qua ghi nhận đã họp và chỉ gửi.
+- Trong lúc gửi, hộp thoại chỉ dừng bằng nút X hoặc "Dừng gửi" (bấm ra ngoài hay
+  Esc không đóng). "Dừng gửi" và "Để sau" đều để các phần lại trên máy và về
+  trang cuộc họp.
+- Dải bản ghi chưa gửi: "Ghi tiếp" khi cuộc họp chưa `ENDED`/`CANCELED`, "Kết
+  thúc và gửi" trừ khi `CANCELED`, "Xóa bản ghi trên máy…" luôn có (hỏi lại).
+- Đăng xuất khi còn bản ghi chưa gửi thì cảnh báo. Máy chỉ được đọc khi bấm
+  Đăng xuất và chờ tối đa 1,5 giây; quá giờ hoặc lỗi thì đăng xuất như thường
+  (không chặn), bản ghi vẫn nằm trên máy.
+
+**Sau khi gửi (trang cuộc họp)**
+
+- Một bản ghi bị ngắt là nhiều phần, nên nhiều lần ghi lời. "Thư ký UNI đang ghi
+  lời bản ghi n phút" hiện khi còn bất kỳ phần nào đang chờ hoặc đang chạy; n là
+  tổng `estimated_seconds` của các phần không hỏng, làm tròn theo phút (ít nhất
+  1). Thời gian chờ ước tính bằng một phần mười tổng độ dài các phần còn mở.
+- Còn người nói chưa có tên thì dải kết quả ghi "n người nói chưa có tên", nút
+  "Gán người nói" thay cho "Chốt biên bản" và ẩn "Lên lịch họp tiếp". Ghi lời xong
+  thì đọc lại tên người nói trước khi mời chốt biên bản.
+- Thư ký được giao (không chỉ chủ trì) thấy "Bắt đầu ghi âm" thay cho trả lời lời
+  mời; người được mời họp trực tiếp không bao giờ thấy "Vào phòng họp".
+
+**Kiểm thử e2e** (`e2e/meeting-in-person.spec.ts`): Họp ngay → Trực tiếp → ghi
+vài giây → tạm dừng → tải lại trang → trang cuộc họp hiện "Còn bản ghi … chưa
+gửi" và "Kết thúc và gửi"; trang họp trực tiếp có "Bắt đầu ghi âm", không có
+phòng. Khác §10: e2e không gửi, vì máy chạy test không có nhà cung cấp ghi lời.
