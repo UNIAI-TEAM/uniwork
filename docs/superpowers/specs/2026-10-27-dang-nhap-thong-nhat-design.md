@@ -294,8 +294,11 @@ Mọi route: công khai, `Cache-Control: no-store`, ⚑ chỉ nhận `client_id`
   client web), `iat` không quá 10 phút, ⚑ `nonce` **bắt buộc** = `sha256hex(nonce gốc)`, `email_verified`, `hd`.
   `TestWebAndNativeGoogleAudiencesStayApart`, `TestGoogleNativeNeedsANonceAndTheAppAzp`.
 - ⚑ `POST /api/v1/auth/apple/native` (cũ) chạy trên `resolveIdentity` qua bộ chuyển mã cho bản app đã phát hành:
-  xung đột → `409 apple_account_conflict`; email không dùng được/chưa xác minh → `401 apple_token_invalid`; MFA → `403
-  mfa_required` (không liên kết); `unmatched`/`link_required` → `CreateAppleUser` như cũ; `reclaim` vẫn chạy (không MFA).
+  xung đột → `409 apple_account_conflict`; email không dùng được/chưa xác minh (`sign_in_email_unverified`) → `401
+  apple_token_invalid`; MFA → `403 mfa_required` (không liên kết); `unmatched` → `CreateAppleUser` như cũ (email đã xác
+  minh); `link_required` và `sign_in_account_unverified` → `409 apple_account_conflict` (email đã thuộc một tài khoản,
+  app cũ không có màn chọn nên không tạo được tài khoản thứ hai cùng email, đúng mã bản cũ trả cho trường hợp này);
+  `reclaim` vẫn chạy (không MFA).
   `TestLegacyAppleNativeKeepsItsCodes`. Gỡ khi mọi bản mobile đang dùng gọi `/auth/native/*`; hạn xem lại
   2027-01-31 ghi trong `scripts/governance.test.mjs` (fail khi quá hạn mà route còn).
 
@@ -608,7 +611,9 @@ Một nhánh, commit theo lát, mỗi lát để server chạy được:
 
 1. Dữ liệu + sqlc; sealer theo purpose; `resolveIdentity` với `reclaim`; Google web đi qua nó (PKCE, nonce, `next`);
    cổng `requireVerifiedEmail` cho MFA/liên kết; quên mật khẩu chưa xác minh = reclaim; helper thu hồi; khoá bước hai.
-   Lát này còn tạo ngay khi `unmatched` (như cũ) để không có trang 404.
+   Lát này còn tạo ngay khi `unmatched` (như cũ) để không có trang 404; `link_required` chưa có vé nên Google web từ
+   chối (`/login?error=sign_in_conflict`, không liên kết), và tài khoản bật MFA được hỏi bước hai mà không liên kết
+   (cho tới khi có liên kết chờ `pl`, 3.3).
 2. Vé + màn chọn server (create, claim-email, link, move, `intent=sign_up`), MFA gắn kênh + `pl`, chống login CSRF,
    `/auth/providers`, gợi ý PKCE. Từ lát này `unmatched` ra vé — **cùng PR** với trang `/auth/continue` của web.
 3. Step-up + phương thức đăng nhập + mật khẩu + quên mật khẩu không mật khẩu + xoá tài khoản/chuyển quyền dùng step-up +
