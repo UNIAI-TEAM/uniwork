@@ -15,15 +15,18 @@ import (
 )
 
 const (
-	driveGoogleAPIBaseURL  = "https://www.googleapis.com/drive/v3"
-	driveAPIDefaultTimeout = 15 * time.Second
-	driveAPIMaxRedirects   = 5
-	driveMetadataMaxBytes  = 1 << 20 // 1 MiB metadata response ceiling
-	driveErrorBodyMaxBytes = 64 << 10
+	driveGoogleAPIBaseURL   = "https://www.googleapis.com/drive/v3"
+	driveAPIDefaultTimeout  = 15 * time.Second
+	driveAPIMaxRedirects    = 5
+	driveParentLookupBudget = 3 * time.Second
+	driveMetadataMaxBytes   = 1 << 20 // 1 MiB metadata response ceiling
+	driveErrorBodyMaxBytes  = 64 << 10
 
 	// driveFilesGetFields is the exact field mask spec §6.2 and §7.2 step 2 require
 	// when reading a linked Google Drive file's metadata.
-	driveFilesGetFields = "id,name,mimeType,webViewLink,iconLink,driveId,owners(displayName),lastModifyingUser(displayName),modifiedTime,shared,trashed,permissions(id)"
+	driveFilesGetFields   = "id,name,mimeType,webViewLink,iconLink,driveId,parents,owners(displayName),lastModifyingUser(displayName),modifiedTime,shared,trashed,permissions(id)"
+	driveFolderGetFields  = "id,name,mimeType,trashed"
+	DriveMimeGoogleFolder = "application/vnd.google-apps.folder"
 )
 
 var (
@@ -33,6 +36,12 @@ var (
 	// ErrDriveFileTooLarge is returned when a downloaded or exported Drive file
 	// exceeds its per-format byte ceiling (spec §8.3).
 	ErrDriveFileTooLarge = errors.New("drive_file_too_large")
+	// ErrDriveFolderNotFound is returned when a Google Drive folder cannot be
+	// read (404, 403, or empty/blank folder name; UNI-2221).
+	ErrDriveFolderNotFound = errors.New("drive_folder_not_found")
+	// ErrDriveFolderNotFolder is returned when the requested Drive item is not a
+	// folder (missing or non-folder mimeType) or is trashed (UNI-2221).
+	ErrDriveFolderNotFolder = errors.New("drive_folder_not_folder")
 )
 
 // DriveErrorClass classifies a Google Drive API error according to spec §5.7.
@@ -45,6 +54,8 @@ const (
 	DriveErrorClassUnavailable        DriveErrorClass = "drive_unavailable"
 	DriveErrorClassAuthFailed         DriveErrorClass = "auth_failed"
 	DriveErrorClassAuthenticationNeed DriveErrorClass = "auth_error"
+	DriveErrorClassFolderNotFound     DriveErrorClass = "drive_folder_not_found"
+	DriveErrorClassFolderNotFolder    DriveErrorClass = "drive_folder_not_folder"
 )
 
 // DriveAPIError is a classified error from the Google Drive REST API (spec §5.7).
@@ -101,6 +112,10 @@ func (e *DriveAPIError) Is(target error) bool {
 		return target == ErrDriveUnavailable
 	case DriveErrorClassAuthFailed:
 		return target == ErrDriveReauthRequired
+	case DriveErrorClassFolderNotFound:
+		return target == ErrDriveFolderNotFound || target == ErrDriveFileNotAccessible
+	case DriveErrorClassFolderNotFolder:
+		return target == ErrDriveFolderNotFolder
 	}
 	return false
 }
@@ -120,14 +135,17 @@ type DriveFileMetadata struct {
 	SharingState      string // "private" | "shared" | "unknown"
 	SharedUserCount   *int
 	Trashed           bool
+	ParentFolderID    string
+	ParentFolderName  string
 }
 
 // DriveAPIClient calls Google Drive REST v3 over a 15-second HTTP client that
 // refuses redirects outside Google hosts (spec §8.3).
 type DriveAPIClient struct {
-	baseURL    string
-	httpClient *http.Client
-	allowHost  func(host string) bool
+	baseURL            string
+	httpClient         *http.Client
+	allowHost          func(host string) bool
+	parentLookupBudget time.Duration
 }
 
 // NewDriveAPIClient returns a DriveAPIClient pointed at https://www.googleapis.com/drive/v3
@@ -234,8 +252,20 @@ func (s *DriveConnectionService) ForceRefreshAccessToken(ctx context.Context, co
 // FilesGetWithConnection fetches metadata for externalFileID using conn's OAuth
 // token, refreshing once on 401/authError and classifying any error per §5.7.
 func (c *DriveAPIClient) FilesGetWithConnection(ctx context.Context, tokens DriveTokenSource, conn db.DriveConnection, externalFileID string) (DriveFileMetadata, error) {
+	return c.filesGetWithConnectionAndParentCache(ctx, tokens, conn, externalFileID, nil)
+}
+
+func (c *DriveAPIClient) filesGetWithConnectionAndParentCache(
+	ctx context.Context,
+	tokens DriveTokenSource,
+	conn db.DriveConnection,
+	externalFileID string,
+	parentCache map[string]string,
+) (DriveFileMetadata, error) {
 	var meta DriveFileMetadata
+	var usedToken string
 	err := c.withConnectionToken(ctx, tokens, conn, func(accessToken string) error {
+		usedToken = accessToken
 		if fp := c.fakeProviderForTokens(tokens); fp != nil {
 			var callErr error
 			meta, callErr = fp.FilesGet(ctx, accessToken, externalFileID)
@@ -245,7 +275,117 @@ func (c *DriveAPIClient) FilesGetWithConnection(ctx context.Context, tokens Driv
 		meta, callErr = c.FilesGet(ctx, accessToken, externalFileID)
 		return callErr
 	})
-	return meta, err
+	if err != nil {
+		return meta, err
+	}
+	if meta.ParentFolderID != "" && meta.ParentFolderName == "" && c != nil {
+		if parentCache != nil {
+			if cached, seen := parentCache[meta.ParentFolderID]; seen {
+				meta.ParentFolderName = cached
+				return meta, nil
+			}
+		}
+		resolved := c.tryResolveParentFolderName(ctx, tokens, usedToken, meta.ParentFolderID)
+		if parentCache != nil {
+			parentCache[meta.ParentFolderID] = resolved
+		}
+		meta.ParentFolderName = resolved
+	}
+	return meta, nil
+}
+
+// FolderNameWithConnection fetches the name of a Google Drive folder using conn's OAuth token,
+// refreshing once on 401/authError and classifying any error per §5.7 (UNI-2221).
+func (c *DriveAPIClient) FolderNameWithConnection(ctx context.Context, tokens DriveTokenSource, conn db.DriveConnection, folderID string) (string, error) {
+	var name string
+	err := c.withConnectionToken(ctx, tokens, conn, func(accessToken string) error {
+		if c == nil || c.baseURL == driveGoogleAPIBaseURL {
+			if dcs, ok := tokens.(*DriveConnectionService); ok && dcs != nil {
+				if fp, ok := dcs.Provider().(*FakeDriveProvider); ok && fp != nil {
+					var callErr error
+					name, callErr = fp.FolderNameGet(ctx, accessToken, folderID)
+					return callErr
+				}
+			}
+		}
+		var callErr error
+		name, callErr = c.FolderNameGet(ctx, accessToken, folderID)
+		return callErr
+	})
+	return name, err
+}
+
+func (c *DriveAPIClient) tryResolveParentFolderName(ctx context.Context, tokens DriveTokenSource, accessToken, folderID string) string {
+	budget := driveParentLookupBudget
+	if c != nil && c.parentLookupBudget > 0 {
+		budget = c.parentLookupBudget
+	}
+	pctx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+	if c.baseURL == driveGoogleAPIBaseURL {
+		if dcs, ok := tokens.(*DriveConnectionService); ok && dcs != nil {
+			if fp, ok := dcs.Provider().(*FakeDriveProvider); ok && fp != nil {
+				name, err := fp.FolderNameGet(pctx, accessToken, folderID)
+				if err == nil {
+					return name
+				}
+				return ""
+			}
+		}
+	}
+	name, err := c.FolderNameGet(pctx, accessToken, folderID)
+	if err != nil {
+		return ""
+	}
+	return name
+}
+
+// FolderNameGet fetches a Drive folder's name from GET /drive/v3/files/{folderId}
+// with supportsAllDrives=true and fields=id,name,mimeType,trashed (UNI-2221).
+func (c *DriveAPIClient) FolderNameGet(ctx context.Context, accessToken, folderID string) (string, error) {
+	folderID = strings.TrimSpace(folderID)
+	if folderID == "" {
+		return "", &DriveAPIError{
+			Class:        DriveErrorClassFolderNotFound,
+			HTTPStatus:   http.StatusNotFound,
+			GoogleReason: "notFound",
+			Err:          ErrDriveFolderNotFound,
+		}
+	}
+	q := url.Values{
+		"supportsAllDrives": {"true"},
+		"fields":            {driveFolderGetFields},
+	}
+	endpoint := c.endpoint("/files/"+url.PathEscape(folderID), q)
+	body, err := c.doGET(ctx, accessToken, endpoint, driveMetadataMaxBytes)
+	if err != nil {
+		return "", err
+	}
+	var raw googleDriveFileJSON
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return "", &DriveAPIError{
+			Class: DriveErrorClassUnavailable,
+			Err:   ErrDriveUnavailable,
+		}
+	}
+	if raw.Trashed || strings.TrimSpace(raw.MimeType) != DriveMimeGoogleFolder {
+		return "", &DriveAPIError{
+			Class:        DriveErrorClassFolderNotFolder,
+			HTTPStatus:   http.StatusUnprocessableEntity,
+			GoogleReason: "notFolder",
+			Err:          ErrDriveFolderNotFolder,
+		}
+	}
+	name := strings.TrimSpace(raw.Name)
+	if name == "" {
+		return "", &DriveAPIError{
+			Class:        DriveErrorClassFolderNotFound,
+			HTTPStatus:   http.StatusNotFound,
+			GoogleReason: "notFound",
+			Err:          ErrDriveFolderNotFound,
+		}
+	}
+	return name, nil
 }
 
 func (c *DriveAPIClient) withConnectionToken(ctx context.Context, tokens DriveTokenSource, conn db.DriveConnection, fn func(accessToken string) error) error {
@@ -304,12 +444,13 @@ func mapTokenSourceError(err error) error {
 }
 
 type googleDriveFileJSON struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	MimeType    string `json:"mimeType"`
-	WebViewLink string `json:"webViewLink"`
-	IconLink    string `json:"iconLink"`
-	DriveID     string `json:"driveId"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	MimeType    string   `json:"mimeType"`
+	WebViewLink string   `json:"webViewLink"`
+	IconLink    string   `json:"iconLink"`
+	DriveID     string   `json:"driveId"`
+	Parents     []string `json:"parents"`
 	Owners      []struct {
 		DisplayName string `json:"displayName"`
 	} `json:"owners"`
@@ -400,6 +541,10 @@ func normalizeDriveFileMetadata(raw googleDriveFileJSON, fallbackID string) Driv
 		n := len(raw.Permissions)
 		sharedCount = &n
 	}
+	parentID := ""
+	if len(raw.Parents) > 0 {
+		parentID = strings.TrimSpace(raw.Parents[0])
+	}
 	return DriveFileMetadata{
 		ExternalFileID:    id,
 		DriveID:           driveID,
@@ -413,6 +558,7 @@ func normalizeDriveFileMetadata(raw googleDriveFileJSON, fallbackID string) Driv
 		SharingState:      sharingState,
 		SharedUserCount:   sharedCount,
 		Trashed:           raw.Trashed,
+		ParentFolderID:    parentID,
 	}
 }
 
@@ -786,4 +932,57 @@ func DriveErrToCodedError(err error) error {
 		}
 	}
 	return err
+}
+
+// DriveFolderErrToCodedError maps an error from FolderNameWithConnection on the
+// NameFolder route (UNI-2221): Google 404 and every non-rate-limit Google 403
+// (including insufficientFilePermissions, forbidden, appNotAuthorizedToFile,
+// domainPolicy) as well as unreadable/blank folder names map uniformly to
+// 404 drive_folder_not_found; non-folder or trashed items map to
+// 422 drive_folder_not_folder; other errors (auth_failed, 429, 5xx) keep
+// DriveErrToCodedError's mapping.
+func DriveFolderErrToCodedError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var ce CodedError
+	if errors.As(err, &ce) {
+		return err
+	}
+	var apiErr *DriveAPIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.Class {
+		case DriveErrorClassFolderNotFolder:
+			return CodedError{
+				Status: http.StatusUnprocessableEntity,
+				Code:   "drive_folder_not_folder",
+				Msg:    "Mục đã chọn trên Google Drive không phải là thư mục hợp lệ.",
+				Err:    ErrDriveFolderNotFolder,
+			}
+		case DriveErrorClassFolderNotFound, DriveErrorClassFileNotAccessible, DriveErrorClassGrantRequired, DriveErrorClassBlockedByAdmin:
+			return CodedError{
+				Status: http.StatusNotFound,
+				Code:   "drive_folder_not_found",
+				Msg:    "Không tìm thấy thư mục Google Drive hoặc bạn chưa cấp quyền cho thư mục này.",
+				Err:    ErrDriveFolderNotFound,
+			}
+		}
+	}
+	if errors.Is(err, ErrDriveFolderNotFolder) {
+		return CodedError{
+			Status: http.StatusUnprocessableEntity,
+			Code:   "drive_folder_not_folder",
+			Msg:    "Mục đã chọn trên Google Drive không phải là thư mục hợp lệ.",
+			Err:    ErrDriveFolderNotFolder,
+		}
+	}
+	if errors.Is(err, ErrDriveFolderNotFound) {
+		return CodedError{
+			Status: http.StatusNotFound,
+			Code:   "drive_folder_not_found",
+			Msg:    "Không tìm thấy thư mục Google Drive hoặc bạn chưa cấp quyền cho thư mục này.",
+			Err:    ErrDriveFolderNotFound,
+		}
+	}
+	return DriveErrToCodedError(err)
 }

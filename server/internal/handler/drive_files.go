@@ -161,6 +161,36 @@ func (h *handlers) ListDriveFiles(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ListDriveFolders returns the aggregate list of parent Drive folders for the
+// caller's Drive library in the workspace
+// (GET /api/v1/workspaces/{workspaceID}/drive-folders; UNI-2221).
+func (h *handlers) ListDriveFolders(w http.ResponseWriter, r *http.Request) {
+	if h.DriveFiles == nil {
+		h.mapServiceError(w, service.ErrDriveNotConfigured)
+		return
+	}
+	connID := strings.TrimSpace(r.URL.Query().Get("drive_connection_id"))
+	rows, err := h.DriveFiles.ListFolders(
+		r.Context(),
+		service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"),
+		connID,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	folders := make([]sdo.DriveFolderGroupDTO, 0, len(rows))
+	for _, row := range rows {
+		folders = append(folders, sdo.DriveFolderGroupDTO{
+			ID:        row.ID,
+			Name:      row.Name,
+			FileCount: row.FileCount,
+		})
+	}
+	respondJSON(w, http.StatusOK, sdo.DriveFolderListSDO{Folders: folders})
+}
+
 // GetDriveFile returns the detail of a Drive file reference in the workspace
 // (GET /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}; spec §7.6a, §7.7).
 func (h *handlers) GetDriveFile(w http.ResponseWriter, r *http.Request) {
@@ -280,6 +310,39 @@ func (h *handlers) RebindDriveFile(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, sdo.DriveFileSDO{File: toDriveFileDTO(v)})
 }
 
+// NameDriveFolder resolves a Google Drive folder's name using the caller's own
+// active connection and sets drive_folder_name on all active drive_files in the
+// workspace with that parent folder ID
+// (POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name; UNI-2221).
+func (h *handlers) NameDriveFolder(w http.ResponseWriter, r *http.Request) {
+	if h.DriveFiles == nil {
+		h.mapServiceError(w, service.ErrDriveNotConfigured)
+		return
+	}
+	var in sdi.NameDriveFolderSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	res, err := h.DriveFiles.NameFolder(
+		r.Context(),
+		service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "driveFolderID"),
+		in.DriveConnectionID,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.DriveFolderNamedSDO{
+		DriveFolder: sdo.DriveFolderRefDTO{
+			ID:   res.DriveFolder.ID,
+			Name: res.DriveFolder.Name,
+		},
+		UpdatedCount: res.UpdatedCount,
+	})
+}
+
 // ListTaskDriveFiles returns the Google Drive file cards attached to a task
 // (GET /api/v1/tasks/{taskID}/drive-files; spec §7.3).
 func (h *handlers) ListTaskDriveFiles(w http.ResponseWriter, r *http.Request) {
@@ -380,6 +443,7 @@ func toDriveFileDTO(v service.DriveFileView) sdo.DriveFileDTO {
 		WorkspaceID:            v.WorkspaceID,
 		ExternalFileID:         v.ExternalFileID,
 		DriveID:                v.DriveID,
+		DriveFolder:            toDriveFolderRefDTO(v.DriveFolder),
 		Name:                   v.Name,
 		MimeType:               v.MimeType,
 		IconKind:               v.IconKind,
@@ -419,6 +483,16 @@ func toDriveFileDTO(v service.DriveFileView) sdo.DriveFileDTO {
 		dto.UpdatedAt = v.UpdatedAt.UTC().Format(time.RFC3339)
 	}
 	return dto
+}
+
+func toDriveFolderRefDTO(v *service.DriveFolderRefView) *sdo.DriveFolderRefDTO {
+	if v == nil || v.ID == "" {
+		return nil
+	}
+	return &sdo.DriveFolderRefDTO{
+		ID:   v.ID,
+		Name: v.Name,
+	}
 }
 
 func toDriveFileLinkReceiptDTO(v *service.DriveFileLinkReceiptView) *sdo.DriveFileLinkReceiptDTO {

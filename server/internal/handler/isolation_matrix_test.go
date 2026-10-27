@@ -929,6 +929,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "driveConnection")
 	case "{driveFileID}":
 		return tn.get(t, "driveFile")
+	case "{driveFolderID}":
+		return "iso-folder-" + strings.ToLower(tn.tag)
 	case "{quickActionID}", "{agentTaskID}", "{connectionID}":
 		// Stubbed routes: no row exists for anyone.
 		return "01J8X4STUB0N1P2Q3R4S5T6U7V"
@@ -1045,7 +1047,7 @@ func isoMixedPath(t *testing.T, pattern, firstKey string, from, to *isoTenant) (
 var isoSharedParams = map[string]bool{
 	"{provider}": true, "{aiProvider}": true, "{resourceType}": true, "{itemType}": true, "{versionNo}": true, "{key}": true,
 	"{code}":          true,
-	"{quickActionID}": true, "{agentTaskID}": true, "{connectionID}": true, "{nodeType}": true,
+	"{quickActionID}": true, "{agentTaskID}": true, "{connectionID}": true, "{nodeType}": true, "{driveFolderID}": true,
 }
 
 // referencesTo lists the tables in which a row of tenant `in` names one of

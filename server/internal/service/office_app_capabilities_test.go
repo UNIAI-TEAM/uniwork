@@ -72,8 +72,9 @@ func TestOfficeAppCapabilityFlagKeysAreDeclared(t *testing.T) {
 	}
 	if f, ok := featureflags.Lookup("drive_connector"); !ok {
 		t.Error("drive_connector is delegated by OfficeCapabilitiesService.Get but is not declared in the flag registry")
-	} else if f.Default {
-		t.Errorf("drive_connector default = %v, want false", f.Default)
+	} else if !f.Default {
+		// On for everyone once the server has Drive OAuth (USER 2026-10-27).
+		t.Errorf("drive_connector default = %v, want true", f.Default)
 	}
 }
 
@@ -201,8 +202,9 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 		t.Fatal("provider unavailable: DriveConnector = true, want false")
 	}
 
-	// 4. Flag off + provider available -> false.
-	clearOverride(featureflags.ScopeGlobal, "")
+	// 4. Flag off + provider available -> false. The flag defaults on, so
+	// "off" is an explicit override.
+	setOverride(featureflags.ScopeGlobal, "", false)
 	driveSvc := availableDrive()
 	driveSvc.SetFlags(flags)
 	svc.SetDrive(driveSvc)

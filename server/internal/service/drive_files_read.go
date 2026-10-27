@@ -91,8 +91,9 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 	}
 
 	// Opportunistically refresh stale metadata (> 10 min) using the caller's own connection.
+	parentCache := make(map[string]string, len(rows))
 	for i := range rows {
-		if refreshed, ok := s.maybeRefreshEnrichedRow(ctx, actor.ID, ws, rows[i]); ok {
+		if refreshed, ok := s.maybeRefreshEnrichedRow(ctx, actor.ID, ws, rows[i], parentCache); ok {
 			rows[i] = refreshed
 		}
 	}
@@ -130,6 +131,62 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 		TotalCount: totalCount,
 		NextCursor: nextCursor,
 	}, nil
+}
+
+// ListFolders returns the aggregate list of parent Drive folders across active
+// Drive files in workspaceID for which the caller has a row in drive_file_access
+// (GET /api/v1/workspaces/{workspaceID}/drive-folders; UNI-2221).
+func (s *DriveFileService) ListFolders(ctx context.Context, actor Actor, workspaceID, connectionID string) ([]DriveFolderGroupView, error) {
+	ws, _, err := s.workspaceAndMember(ctx, actor, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if !s.flagEnabledForMember(ctx, actor.ID, ws.OrganizationID) {
+		return nil, errDriveFeatureDisabled()
+	}
+
+	var connIDFilter pgtype.Text
+	if cid := strings.TrimSpace(connectionID); cid != "" {
+		if _, cerr := s.q.GetDriveConnectionAnyState(ctx, db.GetDriveConnectionAnyStateParams{
+			ID:             cid,
+			OrganizationID: ws.OrganizationID,
+			UserID:         actor.ID,
+		}); cerr != nil {
+			if errors.Is(cerr, pgx.ErrNoRows) {
+				return nil, ErrNotFound
+			}
+			return nil, cerr
+		}
+		connIDFilter = pgtype.Text{String: cid, Valid: true}
+	}
+
+	rows, err := s.q.ListMyDriveFolders(ctx, db.ListMyDriveFoldersParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+		ViewerUserID:   actor.ID,
+		ConnectionID:   connIDFilter,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]DriveFolderGroupView, 0, len(rows))
+	for _, r := range rows {
+		var idPtr, namePtr *string
+		if r.DriveFolderID.Valid && strings.TrimSpace(r.DriveFolderID.String) != "" {
+			fid := strings.TrimSpace(r.DriveFolderID.String)
+			idPtr = &fid
+			if fname := strings.TrimSpace(r.DriveFolderName); fname != "" {
+				namePtr = &fname
+			}
+		}
+		out = append(out, DriveFolderGroupView{
+			ID:        idPtr,
+			Name:      namePtr,
+			FileCount: r.FileCount,
+		})
+	}
+	return out, nil
 }
 
 // Get returns the full detail of a Drive file reference in workspaceID
@@ -240,8 +297,9 @@ func (s *DriveFileService) ListForTask(ctx context.Context, actor Actor, taskID 
 		return nil, err
 	}
 
+	parentCache := make(map[string]string, len(rows))
 	for i := range rows {
-		if refreshed, ok := s.maybeRefreshTaskCardRow(ctx, actor.ID, ws, rows[i]); ok {
+		if refreshed, ok := s.maybeRefreshTaskCardRow(ctx, actor.ID, ws, rows[i], parentCache); ok {
 			rows[i] = refreshed
 		}
 	}
@@ -452,6 +510,8 @@ func (s *DriveFileService) RecordFileMetadataRefresh(ctx context.Context, worksp
 	params := normalizeMetadataForDB(meta, meta.ExternalFileID, s.nowUTC())
 	_, _ = s.q.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
+		DriveFolderID:          params.DriveFolderID,
+		DriveFolderName:        params.DriveFolderName,
 		Name:                   params.Name,
 		MimeType:               params.MimeType,
 		IconKind:               params.IconKind,

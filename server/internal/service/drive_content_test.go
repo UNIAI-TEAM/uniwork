@@ -407,24 +407,37 @@ func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) 
 		}
 		return scanMemDriveFile(row)
 	case strings.Contains(sql, "-- name: UpdateDriveFileMetadata "):
-		id, _ := args[11].(string)
-		orgID, _ := args[12].(string)
-		wsID, _ := args[13].(string)
+		id, _ := args[13].(string)
+		orgID, _ := args[14].(string)
+		wsID, _ := args[15].(string)
 		row, ok := m.files[id]
 		if !ok || row.OrganizationID != orgID || row.WorkspaceID != wsID || row.UnlinkedAt.Valid {
 			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
 		}
 		row.DriveID, _ = args[0].(pgtype.Text)
-		row.Name, _ = args[1].(string)
-		row.MimeType, _ = args[2].(string)
-		row.IconKind, _ = args[3].(string)
-		row.WebViewLink, _ = args[4].(string)
-		row.OwnerDisplay, _ = args[5].(string)
-		row.DriveModifiedAt, _ = args[6].(pgtype.Timestamptz)
-		row.DriveModifiedByDisplay, _ = args[7].(string)
-		row.SharingState, _ = args[8].(string)
-		row.SharedUserCount, _ = args[9].(pgtype.Int4)
-		row.MetadataRefreshedAt, _ = args[10].(pgtype.Timestamptz)
+		newFolderID, _ := args[1].(pgtype.Text)
+		newFolderName, _ := args[2].(pgtype.Text)
+		switch {
+		case !newFolderID.Valid:
+			row.DriveFolderName = pgtype.Text{}
+		case newFolderName.Valid:
+			row.DriveFolderName = newFolderName
+		case row.DriveFolderID.Valid && row.DriveFolderID.String == newFolderID.String:
+			// keep row.DriveFolderName
+		default:
+			row.DriveFolderName = pgtype.Text{}
+		}
+		row.DriveFolderID = newFolderID
+		row.Name, _ = args[3].(string)
+		row.MimeType, _ = args[4].(string)
+		row.IconKind, _ = args[5].(string)
+		row.WebViewLink, _ = args[6].(string)
+		row.OwnerDisplay, _ = args[7].(string)
+		row.DriveModifiedAt, _ = args[8].(pgtype.Timestamptz)
+		row.DriveModifiedByDisplay, _ = args[9].(string)
+		row.SharingState, _ = args[10].(string)
+		row.SharedUserCount, _ = args[11].(pgtype.Int4)
+		row.MetadataRefreshedAt, _ = args[12].(pgtype.Timestamptz)
 		m.files[id] = row
 		return scanMemDriveFile(row)
 	case strings.Contains(sql, "-- name: GetDriveFileAccessByUser "):
@@ -510,6 +523,10 @@ func scanMemDriveFile(row db.DriveFile) pgx.Row {
 		*(dest[22].(*pgtype.Timestamptz)) = row.UnlinkedAt
 		*(dest[23].(*pgtype.Text)) = row.UnlinkedBy
 		*(dest[24].(*pgtype.Text)) = row.UnlinkedByKind
+		if len(dest) > 25 {
+			*(dest[25].(*pgtype.Text)) = row.DriveFolderID
+			*(dest[26].(*pgtype.Text)) = row.DriveFolderName
+		}
 		return nil
 	})
 }
@@ -688,6 +705,293 @@ func TestDriveAPIFilesGetMetadataAndRedirectGuard(t *testing.T) {
 	nextAttacker, _ := http.NewRequest(http.MethodGet, "https://googleapis.com.attacker.test/x", nil)
 	if err := prodClient.checkRedirect(nextAttacker, []*http.Request{viaReq}); err == nil {
 		t.Fatal("checkRedirect must refuse lookalike host")
+	}
+}
+
+// TestDriveAPIFolderParentAndFolderNameResolution (UNI-2221) verifies without a
+// database that:
+//   - FilesGetWithConnection parses parents[0] into ParentFolderID
+//   - when the file has no parents, ParentFolderID and ParentFolderName are empty
+//   - when the parent folder returns 404/403 under drive.file, FilesGetWithConnection
+//     still succeeds with ParentFolderID set and ParentFolderName empty
+//   - when the parent folder returns 200 (picked folder), FilesGetWithConnection
+//     sets ParentFolderName
+//   - FolderNameWithConnection returns the folder name on 200 and returns a
+//     classified DriveAPIError on 404, 403, trashed folder, or non-folder MIME.
+func TestDriveAPIFolderParentAndFolderNameResolution(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	gSrv := NewFakeGoogleDriveServer(t.Cleanup)
+	tokens := &fakeDriveTokenSource{tokensByConn: map[string]string{"conn-fldr": "tok-fldr"}}
+	conn := db.DriveConnection{ID: "conn-fldr"}
+
+	gSrv.SetFile("file-no-parent", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "file-no-parent",
+			Name:     "No Parent Doc",
+			MimeType: DriveMimeGoogleDoc,
+		},
+	})
+	gSrv.SetFile("file-404-parent", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "file-404-parent",
+			Name:     "Unpicked Parent Doc",
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-404", "fld-second-ignored"},
+		},
+	})
+	gSrv.SetFile("fld-200", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-200",
+			Name:     "Kế hoạch Quý 4",
+			MimeType: DriveMimeGoogleFolder,
+		},
+	})
+	gSrv.SetFile("file-200-parent", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "file-200-parent",
+			Name:     "Picked Parent Doc",
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-200"},
+		},
+	})
+	gSrv.SetFile("fld-403", FakeGoogleDriveFile{
+		DefaultError: &FakeGoogleDriveErrorResponse{Status: http.StatusForbidden, Reason: "insufficientFilePermissions"},
+	})
+	gSrv.SetFile("file-403-parent", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "file-403-parent",
+			Name:     "Forbidden Parent Doc",
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-403"},
+		},
+	})
+	gSrv.SetFile("fld-trashed", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-trashed",
+			Name:     "Trashed Folder",
+			MimeType: DriveMimeGoogleFolder,
+			Trashed:  true,
+		},
+	})
+	gSrv.SetFile("not-a-folder", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "not-a-folder",
+			Name:     "Plain Doc",
+			MimeType: DriveMimeGoogleDoc,
+		},
+	})
+	gSrv.SetFile("fld-missing-mime", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:   "fld-missing-mime",
+			Name: "No Mime Folder",
+		},
+	})
+	gSrv.SetFile("fld-empty-name", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-empty-name",
+			Name:     "",
+			MimeType: DriveMimeGoogleFolder,
+		},
+	})
+	gSrv.SetFile("fld-ws-name", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-ws-name",
+			Name:     "   \t\n  ",
+			MimeType: DriveMimeGoogleFolder,
+		},
+	})
+	gSrv.SetFile("file-empty-name-parent", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "file-empty-name-parent",
+			Name:     "Child Of Blank Folder",
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-ws-name"},
+		},
+	})
+
+	// 1. No parent -> ParentFolderID == "", ParentFolderName == "".
+	mNoParent, err := gSrv.Client.FilesGetWithConnection(ctx, tokens, conn, "file-no-parent")
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection file-no-parent: %v", err)
+	}
+	if mNoParent.ParentFolderID != "" || mNoParent.ParentFolderName != "" {
+		t.Fatalf("file-no-parent folder = (%q, %q), want empty", mNoParent.ParentFolderID, mNoParent.ParentFolderName)
+	}
+
+	// 2. Parent returns 404 or 403 -> ParentFolderID set, ParentFolderName == "".
+	m404, err := gSrv.Client.FilesGetWithConnection(ctx, tokens, conn, "file-404-parent")
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection file-404-parent: %v", err)
+	}
+	if m404.ParentFolderID != "fld-404" || m404.ParentFolderName != "" {
+		t.Fatalf("file-404-parent folder = (%q, %q), want (fld-404, \"\")", m404.ParentFolderID, m404.ParentFolderName)
+	}
+	m403, err := gSrv.Client.FilesGetWithConnection(ctx, tokens, conn, "file-403-parent")
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection file-403-parent: %v", err)
+	}
+	if m403.ParentFolderID != "fld-403" || m403.ParentFolderName != "" {
+		t.Fatalf("file-403-parent folder = (%q, %q), want (fld-403, \"\")", m403.ParentFolderID, m403.ParentFolderName)
+	}
+
+	// 3. Parent returns 200 -> ParentFolderID == "fld-200", ParentFolderName == "Kế hoạch Quý 4".
+	m200, err := gSrv.Client.FilesGetWithConnection(ctx, tokens, conn, "file-200-parent")
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection file-200-parent: %v", err)
+	}
+	if m200.ParentFolderID != "fld-200" || m200.ParentFolderName != "Kế hoạch Quý 4" {
+		t.Fatalf("file-200-parent folder = (%q, %q), want (fld-200, Kế hoạch Quý 4)", m200.ParentFolderID, m200.ParentFolderName)
+	}
+
+	// 4. Parent with empty/whitespace name -> never substitutes folder ID; ParentFolderName stays "".
+	mBlank, err := gSrv.Client.FilesGetWithConnection(ctx, tokens, conn, "file-empty-name-parent")
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection file-empty-name-parent: %v", err)
+	}
+	if mBlank.ParentFolderID != "fld-ws-name" || mBlank.ParentFolderName != "" {
+		t.Fatalf("file-empty-name-parent folder = (%q, %q), want (fld-ws-name, \"\")", mBlank.ParentFolderID, mBlank.ParentFolderName)
+	}
+
+	// 5. FolderNameWithConnection + DriveFolderErrToCodedError direct calls:
+	// 200, 404, 403 reasons, empty/whitespace name -> 404 drive_folder_not_found;
+	// trashed, non-folder MIME, missing MIME -> 422 drive_folder_not_folder.
+	gotName, err := gSrv.Client.FolderNameWithConnection(ctx, tokens, conn, "fld-200")
+	if err != nil || gotName != "Kế hoạch Quý 4" {
+		t.Fatalf("FolderNameWithConnection fld-200 = (%q, %v), want (Kế hoạch Quý 4, nil)", gotName, err)
+	}
+	for _, folderID := range []string{"fld-404", "fld-403", "fld-empty-name", "fld-ws-name"} {
+		_, ferr := gSrv.Client.FolderNameWithConnection(ctx, tokens, conn, folderID)
+		mapped := DriveFolderErrToCodedError(ferr)
+		var ce CodedError
+		if !errors.As(mapped, &ce) || ce.Status != http.StatusNotFound || ce.Code != "drive_folder_not_found" {
+			t.Fatalf("FolderNameWithConnection(%q) mapped = %+v (raw=%v), want 404 drive_folder_not_found", folderID, ce, ferr)
+		}
+	}
+	for _, reason := range []string{"insufficientFilePermissions", "forbidden", "appNotAuthorizedToFile", "domainPolicy", ""} {
+		fid := "fld-403-" + reason
+		gSrv.SetFile(fid, FakeGoogleDriveFile{
+			DefaultError: &FakeGoogleDriveErrorResponse{Status: http.StatusForbidden, Reason: reason},
+		})
+		_, ferr := gSrv.Client.FolderNameWithConnection(ctx, tokens, conn, fid)
+		mapped := DriveFolderErrToCodedError(ferr)
+		var ce CodedError
+		if !errors.As(mapped, &ce) || ce.Status != http.StatusNotFound || ce.Code != "drive_folder_not_found" {
+			t.Fatalf("FolderNameWithConnection 403 reason=%q mapped = %+v (raw=%v), want 404 drive_folder_not_found", reason, ce, ferr)
+		}
+	}
+	for _, folderID := range []string{"fld-trashed", "not-a-folder", "fld-missing-mime"} {
+		_, ferr := gSrv.Client.FolderNameWithConnection(ctx, tokens, conn, folderID)
+		if !errors.Is(ferr, ErrDriveFolderNotFolder) {
+			t.Fatalf("FolderNameWithConnection(%q) = %v, want ErrDriveFolderNotFolder", folderID, ferr)
+		}
+		mapped := DriveFolderErrToCodedError(ferr)
+		var ce CodedError
+		if !errors.As(mapped, &ce) || ce.Status != http.StatusUnprocessableEntity || ce.Code != "drive_folder_not_folder" {
+			t.Fatalf("FolderNameWithConnection(%q) mapped = %+v, want 422 drive_folder_not_folder", folderID, ce)
+		}
+	}
+
+	// 6. Request-scoped parent cache: 2 children under same parent -> 1 parent call;
+	// 2 children under distinct parents -> 2 parent calls; failed parent lookups are cached too.
+	gSrv.SetFile("batch-same-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "batch-same-1", Name: "Same 1", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-batch-same"}},
+	})
+	gSrv.SetFile("batch-same-2", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "batch-same-2", Name: "Same 2", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-batch-same"}},
+	})
+	gSrv.SetFile("fld-batch-same", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-batch-same", Name: "Shared Batch Folder", MimeType: DriveMimeGoogleFolder},
+	})
+	beforeSame := len(gSrv.Calls())
+	cacheSame := make(map[string]string)
+	ms1, err := gSrv.Client.filesGetWithConnectionAndParentCache(ctx, tokens, conn, "batch-same-1", cacheSame)
+	if err != nil || ms1.ParentFolderName != "Shared Batch Folder" {
+		t.Fatalf("batch-same-1 = (%+v, %v)", ms1, err)
+	}
+	ms2, err := gSrv.Client.filesGetWithConnectionAndParentCache(ctx, tokens, conn, "batch-same-2", cacheSame)
+	if err != nil || ms2.ParentFolderName != "Shared Batch Folder" {
+		t.Fatalf("batch-same-2 = (%+v, %v)", ms2, err)
+	}
+	sameParentCalls := 0
+	for _, c := range gSrv.Calls()[beforeSame:] {
+		if c.FileID == "fld-batch-same" {
+			sameParentCalls++
+		}
+	}
+	if sameParentCalls != 1 {
+		t.Fatalf("same parent calls = %d, want 1", sameParentCalls)
+	}
+
+	gSrv.SetFile("batch-diff-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "batch-diff-1", Name: "Diff 1", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-diff-a"}},
+	})
+	gSrv.SetFile("batch-diff-2", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "batch-diff-2", Name: "Diff 2", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-diff-b"}},
+	})
+	beforeDiff := len(gSrv.Calls())
+	cacheDiff := make(map[string]string)
+	if _, err := gSrv.Client.filesGetWithConnectionAndParentCache(ctx, tokens, conn, "batch-diff-1", cacheDiff); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := gSrv.Client.filesGetWithConnectionAndParentCache(ctx, tokens, conn, "batch-diff-2", cacheDiff); err != nil {
+		t.Fatal(err)
+	}
+	// Repeat batch-diff-1 (whose parent fld-diff-a 404'd) to prove failed lookups are also cached.
+	if _, err := gSrv.Client.filesGetWithConnectionAndParentCache(ctx, tokens, conn, "batch-diff-1", cacheDiff); err != nil {
+		t.Fatal(err)
+	}
+	diffParentCalls := 0
+	for _, c := range gSrv.Calls()[beforeDiff:] {
+		if c.FileID == "fld-diff-a" || c.FileID == "fld-diff-b" {
+			diffParentCalls++
+		}
+	}
+	if diffParentCalls != 2 {
+		t.Fatalf("distinct parent calls = %d, want 2", diffParentCalls)
+	}
+
+	// 7. Optional parent lookup runs under a child context with a 3s timeout
+	// (configurable on DriveAPIClient for fast unit tests): when the parent
+	// lookup blocks longer than the child budget, the parent request is canceled,
+	// child metadata is still returned with unknown folder name, and the caller's
+	// context remains active.
+	gSrv.Client.parentLookupBudget = 50 * time.Millisecond
+	defer func() { gSrv.Client.parentLookupBudget = 0 }()
+	parentCanceled := make(chan struct{})
+	gSrv.SetOverride(func(w http.ResponseWriter, r *http.Request, call FakeGoogleDriveCall) bool {
+		if call.FileID == "fld-slow-parent" {
+			<-r.Context().Done()
+			close(parentCanceled)
+			return true
+		}
+		return false
+	})
+	defer gSrv.SetOverride(nil)
+	gSrv.SetFile("file-slow-parent", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "file-slow-parent",
+			Name:     "Child With Slow Parent",
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-slow-parent"},
+		},
+	})
+	callerCtx, callerCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer callerCancel()
+	mSlow, err := gSrv.Client.FilesGetWithConnection(callerCtx, tokens, conn, "file-slow-parent")
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection file-slow-parent: %v", err)
+	}
+	if mSlow.ParentFolderID != "fld-slow-parent" || mSlow.ParentFolderName != "" {
+		t.Fatalf("mSlow folder = (%q, %q), want (fld-slow-parent, \"\")", mSlow.ParentFolderID, mSlow.ParentFolderName)
+	}
+	select {
+	case <-parentCanceled:
+	case <-time.After(time.Second):
+		t.Fatalf("slow parent request was not canceled by child context timeout")
+	}
+	if callerCtx.Err() != nil {
+		t.Fatalf("callerCtx err = %v, want nil", callerCtx.Err())
 	}
 }
 
@@ -2133,11 +2437,19 @@ func TestDriveContentReadForAIHonorsFlagAndProviderAvailability(t *testing.T) {
 		extFileID   = "ext-f01-doc"
 	)
 
+	gSrv.SetFile("fld-f01", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-f01",
+			Name:     "F01 Folder",
+			MimeType: DriveMimeGoogleFolder,
+		},
+	})
 	gSrv.SetFile(extFileID, FakeGoogleDriveFile{
 		Metadata: googleDriveFileJSON{
 			ID:       extFileID,
 			Name:     "F01 Private Doc",
 			MimeType: DriveMimePlainText,
+			Parents:  []string{"fld-f01"},
 		},
 		DefaultMedia: []byte("private Drive text"),
 	})
@@ -2251,8 +2563,12 @@ func TestDriveContentReadForAIHonorsFlagAndProviderAvailability(t *testing.T) {
 	if dc.Text != "private Drive text" || dc.GoogleEmail != "f01@example.com" {
 		t.Fatalf("flag on + configured ReadForAI dc = %+v", dc)
 	}
-	if gotCalls := len(gSrv.Calls()); gotCalls != 2 {
-		t.Fatalf("flag on + configured Google calls = %d, want 2 (files.get + media)", gotCalls)
+	if gotCalls := len(gSrv.Calls()); gotCalls != 3 {
+		t.Fatalf("flag on + configured Google calls = %d, want 3 (files.get + parent folder + media)", gotCalls)
+	}
+	updatedRow := memDB.files[driveFileID]
+	if !updatedRow.DriveFolderID.Valid || updatedRow.DriveFolderID.String != "fld-f01" || !updatedRow.DriveFolderName.Valid || updatedRow.DriveFolderName.String != "F01 Folder" {
+		t.Fatalf("memDB.files[%s] folder = (%+v, %+v), want (fld-f01, F01 Folder)", driveFileID, updatedRow.DriveFolderID, updatedRow.DriveFolderName)
 	}
 }
 

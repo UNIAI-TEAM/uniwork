@@ -22,7 +22,7 @@ WHERE id = $1
     metadata_refreshed_at IS NULL
     OR metadata_refreshed_at < now() - interval '10 minutes'
   )
-RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 `
 
 type ClaimDriveFileMetadataRefreshParams struct {
@@ -60,6 +60,8 @@ func (q *Queries) ClaimDriveFileMetadataRefresh(ctx context.Context, arg ClaimDr
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 	)
 	return i, err
 }
@@ -74,7 +76,7 @@ WHERE id = $1
   AND connection_id = $4
   AND unlinked_at IS NULL
   AND access_lost_at IS NOT NULL
-RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 `
 
 type ClearDriveFileBoundAccessLostParams struct {
@@ -118,6 +120,8 @@ func (q *Queries) ClearDriveFileBoundAccessLost(ctx context.Context, arg ClearDr
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 	)
 	return i, err
 }
@@ -203,6 +207,7 @@ func (q *Queries) CountMyDriveFiles(ctx context.Context, arg CountMyDriveFilesPa
 const createDriveFile = `-- name: CreateDriveFile :one
 INSERT INTO drive_files (
   id, organization_id, workspace_id, external_file_id, drive_id,
+  drive_folder_id, drive_folder_name,
   connection_id, bound_by, created_by, created_by_kind,
   name, mime_type, icon_kind, web_view_link, owner_display,
   drive_modified_at, drive_modified_by_display, sharing_state,
@@ -226,9 +231,11 @@ INSERT INTO drive_files (
   $16,
   $17,
   $18,
-  $19
+  $19,
+  $20,
+  $21
 )
-RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 `
 
 type CreateDriveFileParams struct {
@@ -237,6 +244,8 @@ type CreateDriveFileParams struct {
 	WorkspaceID            string             `json:"workspace_id"`
 	ExternalFileID         string             `json:"external_file_id"`
 	DriveID                pgtype.Text        `json:"drive_id"`
+	DriveFolderID          pgtype.Text        `json:"drive_folder_id"`
+	DriveFolderName        pgtype.Text        `json:"drive_folder_name"`
 	ConnectionID           string             `json:"connection_id"`
 	BoundBy                string             `json:"bound_by"`
 	CreatedBy              string             `json:"created_by"`
@@ -260,6 +269,8 @@ func (q *Queries) CreateDriveFile(ctx context.Context, arg CreateDriveFileParams
 		arg.WorkspaceID,
 		arg.ExternalFileID,
 		arg.DriveID,
+		arg.DriveFolderID,
+		arg.DriveFolderName,
 		arg.ConnectionID,
 		arg.BoundBy,
 		arg.CreatedBy,
@@ -302,6 +313,8 @@ func (q *Queries) CreateDriveFile(ctx context.Context, arg CreateDriveFileParams
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 	)
 	return i, err
 }
@@ -532,7 +545,7 @@ func (q *Queries) DeleteDriveFileTaskLinksByTask(ctx context.Context, arg Delete
 }
 
 const getActiveDriveFileByExternalIDForUpdate = `-- name: GetActiveDriveFileByExternalIDForUpdate :one
-SELECT id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+SELECT id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 FROM drive_files
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -576,12 +589,14 @@ func (q *Queries) GetActiveDriveFileByExternalIDForUpdate(ctx context.Context, a
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 	)
 	return i, err
 }
 
 const getActiveDriveFileByID = `-- name: GetActiveDriveFileByID :one
-SELECT id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+SELECT id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 FROM drive_files
 WHERE id = $1
   AND organization_id = $2
@@ -624,12 +639,14 @@ func (q *Queries) GetActiveDriveFileByID(ctx context.Context, arg GetActiveDrive
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 	)
 	return i, err
 }
 
 const getActiveDriveFileByIDForShare = `-- name: GetActiveDriveFileByIDForShare :one
-SELECT id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+SELECT id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 FROM drive_files
 WHERE id = $1
   AND organization_id = $2
@@ -673,12 +690,14 @@ func (q *Queries) GetActiveDriveFileByIDForShare(ctx context.Context, arg GetAct
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 	)
 	return i, err
 }
 
 const getActiveDriveFileByIDForUpdate = `-- name: GetActiveDriveFileByIDForUpdate :one
-SELECT id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+SELECT id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 FROM drive_files
 WHERE id = $1
   AND organization_id = $2
@@ -722,6 +741,8 @@ func (q *Queries) GetActiveDriveFileByIDForUpdate(ctx context.Context, arg GetAc
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 	)
 	return i, err
 }
@@ -842,7 +863,7 @@ func (q *Queries) GetDriveFileAccessByUserForUpdate(ctx context.Context, arg Get
 }
 
 const getDriveFileEnriched = `-- name: GetDriveFileEnriched :one
-SELECT f.id, f.organization_id, f.workspace_id, f.external_file_id, f.drive_id, f.connection_id, f.bound_by, f.created_by, f.created_by_kind, f.name, f.mime_type, f.icon_kind, f.web_view_link, f.owner_display, f.drive_modified_at, f.drive_modified_by_display, f.sharing_state, f.shared_user_count, f.metadata_refreshed_at, f.access_lost_at, f.created_at, f.updated_at, f.unlinked_at, f.unlinked_by, f.unlinked_by_kind,
+SELECT f.id, f.organization_id, f.workspace_id, f.external_file_id, f.drive_id, f.connection_id, f.bound_by, f.created_by, f.created_by_kind, f.name, f.mime_type, f.icon_kind, f.web_view_link, f.owner_display, f.drive_modified_at, f.drive_modified_by_display, f.sharing_state, f.shared_user_count, f.metadata_refreshed_at, f.access_lost_at, f.created_at, f.updated_at, f.unlinked_at, f.unlinked_by, f.unlinked_by_kind, f.drive_folder_id, f.drive_folder_name,
        COALESCE(bc.google_email, '')::text AS bound_account_email,
        (bc.id IS NULL OR bc.disconnected_at IS NOT NULL OR bc.auth_failed_at IS NOT NULL)::boolean AS bound_connection_lost,
        COALESCE(bu.display_name, '')::text AS bound_by_name,
@@ -906,6 +927,8 @@ type GetDriveFileEnrichedRow struct {
 	UnlinkedAt             pgtype.Timestamptz `json:"unlinked_at"`
 	UnlinkedBy             pgtype.Text        `json:"unlinked_by"`
 	UnlinkedByKind         pgtype.Text        `json:"unlinked_by_kind"`
+	DriveFolderID          pgtype.Text        `json:"drive_folder_id"`
+	DriveFolderName        pgtype.Text        `json:"drive_folder_name"`
 	BoundAccountEmail      string             `json:"bound_account_email"`
 	BoundConnectionLost    bool               `json:"bound_connection_lost"`
 	BoundByName            string             `json:"bound_by_name"`
@@ -951,6 +974,8 @@ func (q *Queries) GetDriveFileEnriched(ctx context.Context, arg GetDriveFileEnri
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 		&i.BoundAccountEmail,
 		&i.BoundConnectionLost,
 		&i.BoundByName,
@@ -962,6 +987,30 @@ func (q *Queries) GetDriveFileEnriched(ctx context.Context, arg GetDriveFileEnri
 		&i.ViewerConnectionActive,
 	)
 	return i, err
+}
+
+const getWorkspaceDriveFolderName = `-- name: GetWorkspaceDriveFolderName :one
+SELECT drive_folder_name
+FROM drive_files
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND drive_folder_id = $3::text
+  AND drive_folder_name IS NOT NULL
+  AND unlinked_at IS NULL
+LIMIT 1
+`
+
+type GetWorkspaceDriveFolderNameParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DriveFolderID  string `json:"drive_folder_id"`
+}
+
+func (q *Queries) GetWorkspaceDriveFolderName(ctx context.Context, arg GetWorkspaceDriveFolderNameParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceDriveFolderName, arg.OrganizationID, arg.WorkspaceID, arg.DriveFolderID)
+	var drive_folder_name pgtype.Text
+	err := row.Scan(&drive_folder_name)
+	return drive_folder_name, err
 }
 
 const listLinkedTasksByDriveFileIDs = `-- name: ListLinkedTasksByDriveFileIDs :many
@@ -1025,7 +1074,7 @@ func (q *Queries) ListLinkedTasksByDriveFileIDs(ctx context.Context, arg ListLin
 }
 
 const listMyDriveFilesEnriched = `-- name: ListMyDriveFilesEnriched :many
-SELECT f.id, f.organization_id, f.workspace_id, f.external_file_id, f.drive_id, f.connection_id, f.bound_by, f.created_by, f.created_by_kind, f.name, f.mime_type, f.icon_kind, f.web_view_link, f.owner_display, f.drive_modified_at, f.drive_modified_by_display, f.sharing_state, f.shared_user_count, f.metadata_refreshed_at, f.access_lost_at, f.created_at, f.updated_at, f.unlinked_at, f.unlinked_by, f.unlinked_by_kind,
+SELECT f.id, f.organization_id, f.workspace_id, f.external_file_id, f.drive_id, f.connection_id, f.bound_by, f.created_by, f.created_by_kind, f.name, f.mime_type, f.icon_kind, f.web_view_link, f.owner_display, f.drive_modified_at, f.drive_modified_by_display, f.sharing_state, f.shared_user_count, f.metadata_refreshed_at, f.access_lost_at, f.created_at, f.updated_at, f.unlinked_at, f.unlinked_by, f.unlinked_by_kind, f.drive_folder_id, f.drive_folder_name,
        COALESCE(bc.google_email, '')::text AS bound_account_email,
        (bc.id IS NULL OR bc.disconnected_at IS NOT NULL OR bc.auth_failed_at IS NOT NULL)::boolean AS bound_connection_lost,
        COALESCE(bu.display_name, '')::text AS bound_by_name,
@@ -1099,6 +1148,8 @@ type ListMyDriveFilesEnrichedRow struct {
 	UnlinkedAt             pgtype.Timestamptz `json:"unlinked_at"`
 	UnlinkedBy             pgtype.Text        `json:"unlinked_by"`
 	UnlinkedByKind         pgtype.Text        `json:"unlinked_by_kind"`
+	DriveFolderID          pgtype.Text        `json:"drive_folder_id"`
+	DriveFolderName        pgtype.Text        `json:"drive_folder_name"`
 	BoundAccountEmail      string             `json:"bound_account_email"`
 	BoundConnectionLost    bool               `json:"bound_connection_lost"`
 	BoundByName            string             `json:"bound_by_name"`
@@ -1153,6 +1204,8 @@ func (q *Queries) ListMyDriveFilesEnriched(ctx context.Context, arg ListMyDriveF
 			&i.UnlinkedAt,
 			&i.UnlinkedBy,
 			&i.UnlinkedByKind,
+			&i.DriveFolderID,
+			&i.DriveFolderName,
 			&i.BoundAccountEmail,
 			&i.BoundConnectionLost,
 			&i.BoundByName,
@@ -1173,8 +1226,71 @@ func (q *Queries) ListMyDriveFilesEnriched(ctx context.Context, arg ListMyDriveF
 	return items, nil
 }
 
+const listMyDriveFolders = `-- name: ListMyDriveFolders :many
+SELECT f.drive_folder_id,
+       COALESCE(max(f.drive_folder_name), '')::text AS drive_folder_name,
+       count(*)::bigint AS file_count
+FROM drive_file_access va
+JOIN drive_files f
+  ON f.id = va.drive_file_id
+ AND f.organization_id = va.organization_id
+ AND f.workspace_id = va.workspace_id
+WHERE va.organization_id = $1
+  AND va.workspace_id = $2
+  AND va.user_id = $3
+  AND f.unlinked_at IS NULL
+  AND ($4::text IS NULL OR va.connection_id = $4)
+GROUP BY f.drive_folder_id
+ORDER BY
+  CASE
+    WHEN f.drive_folder_id IS NULL THEN 2
+    WHEN max(f.drive_folder_name) IS NULL THEN 1
+    ELSE 0
+  END ASC,
+  lower(COALESCE(max(f.drive_folder_name), '')) ASC,
+  COALESCE(f.drive_folder_id, '') ASC
+`
+
+type ListMyDriveFoldersParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	ViewerUserID   string      `json:"viewer_user_id"`
+	ConnectionID   pgtype.Text `json:"connection_id"`
+}
+
+type ListMyDriveFoldersRow struct {
+	DriveFolderID   pgtype.Text `json:"drive_folder_id"`
+	DriveFolderName string      `json:"drive_folder_name"`
+	FileCount       int64       `json:"file_count"`
+}
+
+func (q *Queries) ListMyDriveFolders(ctx context.Context, arg ListMyDriveFoldersParams) ([]ListMyDriveFoldersRow, error) {
+	rows, err := q.db.Query(ctx, listMyDriveFolders,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ViewerUserID,
+		arg.ConnectionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMyDriveFoldersRow{}
+	for rows.Next() {
+		var i ListMyDriveFoldersRow
+		if err := rows.Scan(&i.DriveFolderID, &i.DriveFolderName, &i.FileCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskDriveFilesEnriched = `-- name: ListTaskDriveFilesEnriched :many
-SELECT f.id, f.organization_id, f.workspace_id, f.external_file_id, f.drive_id, f.connection_id, f.bound_by, f.created_by, f.created_by_kind, f.name, f.mime_type, f.icon_kind, f.web_view_link, f.owner_display, f.drive_modified_at, f.drive_modified_by_display, f.sharing_state, f.shared_user_count, f.metadata_refreshed_at, f.access_lost_at, f.created_at, f.updated_at, f.unlinked_at, f.unlinked_by, f.unlinked_by_kind,
+SELECT f.id, f.organization_id, f.workspace_id, f.external_file_id, f.drive_id, f.connection_id, f.bound_by, f.created_by, f.created_by_kind, f.name, f.mime_type, f.icon_kind, f.web_view_link, f.owner_display, f.drive_modified_at, f.drive_modified_by_display, f.sharing_state, f.shared_user_count, f.metadata_refreshed_at, f.access_lost_at, f.created_at, f.updated_at, f.unlinked_at, f.unlinked_by, f.unlinked_by_kind, f.drive_folder_id, f.drive_folder_name,
        l.task_id AS linked_task_id,
        l.created_at AS linked_at,
        COALESCE(bc.google_email, '')::text AS bound_account_email,
@@ -1245,6 +1361,8 @@ type ListTaskDriveFilesEnrichedRow struct {
 	UnlinkedAt             pgtype.Timestamptz `json:"unlinked_at"`
 	UnlinkedBy             pgtype.Text        `json:"unlinked_by"`
 	UnlinkedByKind         pgtype.Text        `json:"unlinked_by_kind"`
+	DriveFolderID          pgtype.Text        `json:"drive_folder_id"`
+	DriveFolderName        pgtype.Text        `json:"drive_folder_name"`
 	LinkedTaskID           string             `json:"linked_task_id"`
 	LinkedAt               pgtype.Timestamptz `json:"linked_at"`
 	BoundAccountEmail      string             `json:"bound_account_email"`
@@ -1298,6 +1416,8 @@ func (q *Queries) ListTaskDriveFilesEnriched(ctx context.Context, arg ListTaskDr
 			&i.UnlinkedAt,
 			&i.UnlinkedBy,
 			&i.UnlinkedByKind,
+			&i.DriveFolderID,
+			&i.DriveFolderName,
 			&i.LinkedTaskID,
 			&i.LinkedAt,
 			&i.BoundAccountEmail,
@@ -1392,7 +1512,7 @@ WHERE id = $1
   AND connection_id = $4
   AND unlinked_at IS NULL
   AND access_lost_at IS NULL
-RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 `
 
 type MarkDriveFileBoundAccessLostParams struct {
@@ -1436,6 +1556,8 @@ func (q *Queries) MarkDriveFileBoundAccessLost(ctx context.Context, arg MarkDriv
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 	)
 	return i, err
 }
@@ -1446,28 +1568,37 @@ SET connection_id = $1,
     bound_by = $2,
     access_lost_at = NULL,
     drive_id = $3,
-    name = $4,
-    mime_type = $5,
-    icon_kind = $6,
-    web_view_link = $7,
-    owner_display = $8,
-    drive_modified_at = $9,
-    drive_modified_by_display = $10,
-    sharing_state = $11,
-    shared_user_count = $12,
-    metadata_refreshed_at = $13,
+    drive_folder_id = $4,
+    drive_folder_name = CASE
+      WHEN $4::text IS NULL THEN NULL
+      WHEN $5::text IS NOT NULL THEN $5::text
+      WHEN drive_files.drive_folder_id IS NOT DISTINCT FROM $4::text THEN drive_files.drive_folder_name
+      ELSE NULL
+    END,
+    name = $6,
+    mime_type = $7,
+    icon_kind = $8,
+    web_view_link = $9,
+    owner_display = $10,
+    drive_modified_at = $11,
+    drive_modified_by_display = $12,
+    sharing_state = $13,
+    shared_user_count = $14,
+    metadata_refreshed_at = $15,
     updated_at = now()
-WHERE id = $14
-  AND organization_id = $15
-  AND workspace_id = $16
+WHERE id = $16
+  AND organization_id = $17
+  AND workspace_id = $18
   AND unlinked_at IS NULL
-RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 `
 
 type RebindDriveFileParams struct {
 	ConnectionID           string             `json:"connection_id"`
 	BoundBy                string             `json:"bound_by"`
 	DriveID                pgtype.Text        `json:"drive_id"`
+	DriveFolderID          pgtype.Text        `json:"drive_folder_id"`
+	DriveFolderName        pgtype.Text        `json:"drive_folder_name"`
 	Name                   string             `json:"name"`
 	MimeType               string             `json:"mime_type"`
 	IconKind               string             `json:"icon_kind"`
@@ -1488,6 +1619,8 @@ func (q *Queries) RebindDriveFile(ctx context.Context, arg RebindDriveFileParams
 		arg.ConnectionID,
 		arg.BoundBy,
 		arg.DriveID,
+		arg.DriveFolderID,
+		arg.DriveFolderName,
 		arg.Name,
 		arg.MimeType,
 		arg.IconKind,
@@ -1529,8 +1662,53 @@ func (q *Queries) RebindDriveFile(ctx context.Context, arg RebindDriveFileParams
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 	)
 	return i, err
+}
+
+const setDriveFolderNameInWorkspace = `-- name: SetDriveFolderNameInWorkspace :many
+UPDATE drive_files
+SET drive_folder_name = $1::text,
+    updated_at = now()
+WHERE organization_id = $2
+  AND workspace_id = $3
+  AND drive_folder_id = $4::text
+  AND unlinked_at IS NULL
+RETURNING id
+`
+
+type SetDriveFolderNameInWorkspaceParams struct {
+	DriveFolderName string `json:"drive_folder_name"`
+	OrganizationID  string `json:"organization_id"`
+	WorkspaceID     string `json:"workspace_id"`
+	DriveFolderID   string `json:"drive_folder_id"`
+}
+
+func (q *Queries) SetDriveFolderNameInWorkspace(ctx context.Context, arg SetDriveFolderNameInWorkspaceParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, setDriveFolderNameInWorkspace,
+		arg.DriveFolderName,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DriveFolderID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const touchDriveFileAccessCheckedAt = `-- name: TouchDriveFileAccessCheckedAt :one
@@ -1586,7 +1764,7 @@ WHERE id = $3
   AND organization_id = $4
   AND workspace_id = $5
   AND unlinked_at IS NULL
-RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 `
 
 type UnlinkDriveFileParams struct {
@@ -1632,6 +1810,8 @@ func (q *Queries) UnlinkDriveFile(ctx context.Context, arg UnlinkDriveFileParams
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 	)
 	return i, err
 }
@@ -1639,26 +1819,35 @@ func (q *Queries) UnlinkDriveFile(ctx context.Context, arg UnlinkDriveFileParams
 const updateDriveFileMetadata = `-- name: UpdateDriveFileMetadata :one
 UPDATE drive_files
 SET drive_id = $1,
-    name = $2,
-    mime_type = $3,
-    icon_kind = $4,
-    web_view_link = $5,
-    owner_display = $6,
-    drive_modified_at = $7,
-    drive_modified_by_display = $8,
-    sharing_state = $9,
-    shared_user_count = $10,
-    metadata_refreshed_at = $11,
+    drive_folder_id = $2,
+    drive_folder_name = CASE
+      WHEN $2::text IS NULL THEN NULL
+      WHEN $3::text IS NOT NULL THEN $3::text
+      WHEN drive_files.drive_folder_id IS NOT DISTINCT FROM $2::text THEN drive_files.drive_folder_name
+      ELSE NULL
+    END,
+    name = $4,
+    mime_type = $5,
+    icon_kind = $6,
+    web_view_link = $7,
+    owner_display = $8,
+    drive_modified_at = $9,
+    drive_modified_by_display = $10,
+    sharing_state = $11,
+    shared_user_count = $12,
+    metadata_refreshed_at = $13,
     updated_at = now()
-WHERE id = $12
-  AND organization_id = $13
-  AND workspace_id = $14
+WHERE id = $14
+  AND organization_id = $15
+  AND workspace_id = $16
   AND unlinked_at IS NULL
-RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind
+RETURNING id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 `
 
 type UpdateDriveFileMetadataParams struct {
 	DriveID                pgtype.Text        `json:"drive_id"`
+	DriveFolderID          pgtype.Text        `json:"drive_folder_id"`
+	DriveFolderName        pgtype.Text        `json:"drive_folder_name"`
 	Name                   string             `json:"name"`
 	MimeType               string             `json:"mime_type"`
 	IconKind               string             `json:"icon_kind"`
@@ -1677,6 +1866,8 @@ type UpdateDriveFileMetadataParams struct {
 func (q *Queries) UpdateDriveFileMetadata(ctx context.Context, arg UpdateDriveFileMetadataParams) (DriveFile, error) {
 	row := q.db.QueryRow(ctx, updateDriveFileMetadata,
 		arg.DriveID,
+		arg.DriveFolderID,
+		arg.DriveFolderName,
 		arg.Name,
 		arg.MimeType,
 		arg.IconKind,
@@ -1718,6 +1909,8 @@ func (q *Queries) UpdateDriveFileMetadata(ctx context.Context, arg UpdateDriveFi
 		&i.UnlinkedAt,
 		&i.UnlinkedBy,
 		&i.UnlinkedByKind,
+		&i.DriveFolderID,
+		&i.DriveFolderName,
 	)
 	return i, err
 }

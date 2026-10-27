@@ -256,10 +256,14 @@ func newIsolationServer(t *testing.T) *isoWorld {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		extID := strings.TrimPrefix(r.URL.Path, "/drive/v3/files/")
+		mime := "application/vnd.google-apps.document"
+		if strings.HasPrefix(extID, "iso-folder-") {
+			mime = "application/vnd.google-apps.folder"
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"id":           extID,
 			"name":         "Drive File " + extID,
-			"mimeType":     "application/vnd.google-apps.document",
+			"mimeType":     mime,
 			"webViewLink":  "https://docs.google.com/document/d/" + extID + "/edit",
 			"shared":       true,
 			"trashed":      false,
