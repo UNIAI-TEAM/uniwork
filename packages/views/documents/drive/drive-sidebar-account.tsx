@@ -35,7 +35,8 @@ interface DriveSidebarAccountProps {
   onSelect: (account: string, folder: string | null) => void;
   /**
    * "Name this folder" on an unnamed node. A host passes it when it can open the Google Picker;
-   * without it the row menu is not drawn.
+   * without it the row menu is not drawn. It is drawn only for a folder list that came from the server:
+   * the route that names a folder is as new as that list.
    */
   onNameFolder?: (folder: DriveFolderEntry, connectionId: string) => void;
 }
@@ -180,7 +181,7 @@ export function DriveSidebarAccount({
             current={currentFolderId === folder.id}
             onSelect={() => onSelect(connection.id, folder.id)}
             menu={
-              onNameFolder && folder.name === null ? (
+              onNameFolder && folders.serverList && folder.name === null ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={

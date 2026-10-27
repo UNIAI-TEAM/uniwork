@@ -292,6 +292,13 @@ describe("Name this folder", () => {
     expect(await screen.findByRole("button", { name: t("driveLibrary.folder.name_action") })).toBeInTheDocument();
   });
 
+  it("does not offer it when the folder list came from the fallback (no folder list on the server)", async () => {
+    serve({ folders: () => Promise.reject(new ApiError("x", "not_found", 404)) });
+    renderList(UNNAMED_URL, UNNAMED.id);
+    await screen.findByRole("link", { name: "Biên bản chưa xếp" });
+    expect(screen.queryByRole("button", { name: t("driveLibrary.folder.name_action") })).toBeNull();
+  });
+
   it("does not offer it on a named folder", async () => {
     renderList(`${DRIVE_HOME}&account=conn1&driveFolder=${BETA.id}`, BETA.id);
     await screen.findByRole("link", { name: "Kế hoạch Beta" });
@@ -399,6 +406,13 @@ describe("nameFolder=1", () => {
 });
 
 describe("Name this folder from the sidebar", () => {
+  it("draws no menu on a derived folder when the server has no folder list", async () => {
+    serve({ folders: () => Promise.reject(new ApiError("x", "not_found", 404)) });
+    renderDocuments(`${DRIVE_HOME}&account=conn1`);
+    await screen.findByRole("button", { name: new RegExp(`^${UNNAMED_LABEL}`) });
+    expect(screen.queryByRole("button", { name: t("driveLibrary.folder.menu_aria", { name: UNNAMED_LABEL }) })).toBeNull();
+  });
+
   it("opens the Picker from the unnamed node's menu and names the folder", async () => {
     configureRuntime({ allowFakeDrivePicker: true });
     const calls: unknown[] = [];

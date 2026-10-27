@@ -269,7 +269,7 @@ function DriveLibraryListBody({
   // request the desktop app hands off with. The request is dropped from the URL once it was looked at,
   // so the Picker opens at most once.
   const { request: nameRequest, launch: launchName } = useNameFolderLauncher();
-  const canNameFolder = selectedFolder !== null && selectedFolder.name === null && !brokenAccount;
+  const canNameFolder = selectedFolder !== null && selectedFolder.name === null && !brokenAccount && account.serverList;
   const nameRequested = parseDriveNameFolderRequest(searchParams);
   const nameSettled = !waitForConnections && (!accountScoped || account.isError || (!account.isPending && account.foldersComplete));
   const nameHandledRef = useRef(false);
