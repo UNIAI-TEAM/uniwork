@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -52,6 +53,18 @@ func driveConnectorFlags(t *testing.T, on bool) *featureflag.Service {
 		t.Fatal(err)
 	}
 	return flags
+}
+
+// isolateDriveConnectorFlagSources clears FEATURE_FLAGS_FILE and unsets
+// FF_DRIVE_CONNECTOR (after registering restoration via t.Setenv) so tests of
+// the catalogue default are not masked by inherited process environment.
+func isolateDriveConnectorFlagSources(t *testing.T) {
+	t.Helper()
+	t.Setenv("FEATURE_FLAGS_FILE", "")
+	t.Setenv("FF_DRIVE_CONNECTOR", "")
+	if err := os.Unsetenv("FF_DRIVE_CONNECTOR"); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func testDriveBox(t *testing.T) *secretbox.Box {
@@ -3230,6 +3243,7 @@ func TestDriveProviderLaneAndOrganizationClosePostCommit(t *testing.T) {
 // evaluates drive_connector at its catalogue default (true), and refuses with
 // 404 feature_disabled when FF_DRIVE_CONNECTOR=false.
 func TestDriveConnectionServiceDefaultFlagEnabled(t *testing.T) {
+	isolateDriveConnectorFlagSources(t)
 	fx := newDriveTestFixture(t)
 	ctx := context.Background()
 

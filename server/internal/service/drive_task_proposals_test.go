@@ -1210,6 +1210,7 @@ func TestDriveFakeProviderOfflineReadForAIAndPropose(t *testing.T) {
 // evaluates drive_connector at its catalogue default (true), and refuses with
 // 404 feature_disabled when FF_DRIVE_CONNECTOR=false.
 func TestDriveTaskProposalServiceDefaultFlagEnabled(t *testing.T) {
+	isolateDriveConnectorFlagSources(t)
 	e := newDriveFilesTestEnv(t)
 	ctx := context.Background()
 

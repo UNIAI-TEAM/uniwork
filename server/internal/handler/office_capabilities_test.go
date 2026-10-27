@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -331,6 +332,11 @@ func (p *trueThenFalseDriveFlagProvider) Lookup(_ context.Context, key string) (
 }
 
 func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
+	t.Setenv("FEATURE_FLAGS_FILE", "")
+	t.Setenv("FF_DRIVE_CONNECTOR", "")
+	if err := os.Unsetenv("FF_DRIVE_CONNECTOR"); err != nil {
+		t.Fatal(err)
+	}
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	q := db.New(pool)
 	srv := httptest.NewServer(New(d))

@@ -1439,6 +1439,7 @@ func TestDriveFakeProviderLinkAndCreateTaskWithDriveFiles(t *testing.T) {
 // drive_connector at its catalogue default (true), and refuses with 404
 // feature_disabled when FF_DRIVE_CONNECTOR=false.
 func TestDriveFileServiceDefaultFlagEnabled(t *testing.T) {
+	isolateDriveConnectorFlagSources(t)
 	env := newDriveFilesTestEnv(t)
 	ctx := context.Background()
 

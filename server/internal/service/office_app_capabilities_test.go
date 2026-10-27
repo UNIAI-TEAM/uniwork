@@ -97,6 +97,7 @@ func (p *trueThenFalseFlagProvider) Lookup(_ context.Context, key string) (featu
 // provider reads false without panicking, and that a non-member is still
 // refused by RequireMember (spec §17.1, plan B10).
 func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
+	isolateDriveConnectorFlagSources(t)
 	ctx := context.Background()
 	pool := testutil.DB(t)
 	q := db.New(pool)
