@@ -13618,7 +13618,6 @@
       "breadcrumb_more": "Hidden levels",
       "search": {
         "placeholder": "Search folders and documents",
-        "placeholder_folder": "Search in this folder",
         "label": "Search Documents",
         "clear": "Clear search",
         "path": "Path: {{path}}",

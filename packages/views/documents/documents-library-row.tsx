@@ -119,7 +119,7 @@ export interface LibraryRowHandlers
   /** The folder a document sits in, for the Name cell's location line; absent draws none. */
   locationName?: (doc: DocumentSummaryRow) => string | null;
   /** A search hit's ancestor path line under the name; when present it replaces `locationName`. */
-  searchPath?: (doc: DocumentSummaryRow) => { display: string; full: string; srText: string } | null;
+  searchPath?: (doc: { path?: { id: string; title: string }[] }) => { display: string; full: string; srText: string } | null;
   desktopOpen?: LibraryDesktopOpen;
 }
 

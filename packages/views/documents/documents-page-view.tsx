@@ -22,16 +22,15 @@ import { DocumentsGateState, useDocumentsGate } from "./documents-gate";
 import { isParentWorkspaceShared, useCreateOfType } from "./documents-create";
 import { DocumentsCollectionHeader, DocumentsFolderInvalidState, DocumentsHomeHeader, DocumentsHomeNote } from "./documents-home-header";
 import { DocumentsLibraryList } from "./documents-library-list";
-import { docListGroupScreen, groupRowsByDate } from "./doclist/date-groups";
 import type { DocumentTypeFilter } from "./library-rows";
 import { useCollapsedGroups } from "./doclist/group-state";
-import { docListScreenOfView, folderNameLookup } from "./doclist/live-screen";
+import { folderNameLookup } from "./doclist/live-screen";
 import { docMemberLookup } from "./doclist/screen-cells";
 import { useDocListBulkCommands } from "./doclist/use-bulk-commands";
 import type { LibraryDesktopOpen, LibraryRowHandlers } from "./documents-library-row";
 import { LibraryToolbar } from "./documents-library-toolbar";
-import { DocumentsSections, nonFolderRows, subfoldersOf } from "./documents-folders-grid";
-import { continueCards, RecentContinue } from "./documents-recent-continue";
+import { DocumentsSections } from "./documents-folders-grid";
+import { RecentContinue } from "./documents-recent-continue";
 import { DocumentsScreenHead } from "./documents-screen-head";
 import { DocumentsShelvedView } from "./documents-shelved-view";
 import { DocumentsTrashView } from "./documents-trash-view";
@@ -46,7 +45,7 @@ import { useLibraryRowDialogs } from "./use-library-row-dialogs";
 import { useLibraryRowFileCommands } from "./use-library-row-file-commands";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchBox } from "./documents-search-box";
-import { buildSearchViewState, useDocumentsSearch } from "./use-documents-search";
+import { useDocumentsSearchView } from "./search-view-state";
 import { useTrashActions } from "./use-trash-actions";
 import { useShelvedActions } from "./use-shelved-actions";
 import { buildDocumentsViewUrl, sameDocumentsView, viewFromSearchParams } from "./documents-view-url";
@@ -120,9 +119,19 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // Every list screen but Thùng rác shows the filter bar (UNI-2045 W10).
   const members = useMembers(enabled ? wsId : "");
   const names = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])), [members.data]);
-  const library = useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, types: view.kind === "archived" ? NO_TYPES : types, editorNames: names });
-  const search = useDocumentsSearch(wsId, enabled, { types: view.kind === "archived" ? NO_TYPES : types, updatedBy: library.editorId, updatedFrom: library.updatedSince });
-  const folder = useDocument(wsId, folderId ?? "", { enabled: enabled && !!folderId, retry: shouldRetryFolderDetail });
+  const library = useDocumentsLibrary({
+    wsId,
+    orgId,
+    enabled,
+    view,
+    folderId,
+    types: view.kind === "archived" ? NO_TYPES : types,
+    editorNames: names,
+  });
+  const folder = useDocument(wsId, folderId ?? "", {
+    enabled: enabled && !!folderId,
+    retry: shouldRetryFolderDetail,
+  });
   const ensureMyFolder = useEnsureMyFolder(wsId);
   const creator = useCreateOfType(wsId, onOpen);
   const downloadSource = useDownloadDocumentSource(wsId);
@@ -139,12 +148,24 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       failedCopy: t("documents.home.row.download_failed"),
     });
 
-  const officeViewer = useSourceOfficeViewer({ wsId, organizationId: context?.workspace.organization_id, frameVersion: officeFrameVersion ?? (() => ""), onDownload: (source) => downloadFile(source.id) });
+  const officeViewer = useSourceOfficeViewer({
+    wsId,
+    organizationId: context?.workspace.organization_id,
+    frameVersion: officeFrameVersion ?? (() => ""),
+    onDownload: (source) => downloadFile(source.id),
+  });
   const favorite = useFavoriteDocument();
   const unfavorite = useUnfavoriteDocument();
 
   const rawFolderDoc = folder.data ?? null;
-  const folderInvalid = Boolean(folderId) && !folder.isPending && (folder.isError || rawFolderDoc === null || rawFolderDoc.kind !== "folder" || Boolean(rawFolderDoc.archived_at) || rawFolderDoc.workspace_id !== wsId);
+  const folderInvalid =
+    Boolean(folderId) &&
+    !folder.isPending &&
+    (folder.isError ||
+      rawFolderDoc === null ||
+      rawFolderDoc.kind !== "folder" ||
+      Boolean(rawFolderDoc.archived_at) ||
+      rawFolderDoc.workspace_id !== wsId);
   // At the workspace root every member may create (DocumentService.CreatePage
   // asks RequireMember only); inside a folder the folder's own level decides,
   // and a viewer of it sees no create control at all.
@@ -164,14 +185,62 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const parentForCreate = view.kind === "home" ? folderId : null;
   const parentShared = parentForCreate !== null && isParentWorkspaceShared(folderDoc, library.docById.get(parentForCreate));
 
-  const uploads = useDocumentsUploads({ wsId, limits, canUpload: enabled && canCreate && !folderInvalid, parentId: parentForCreate, folderDoc, folderTitle: openFolderTitle, tree: library.tree, myFolderId, resolveRootParent: async () => myFolderId ?? (await ensureMyFolder.mutateAsync()).id, parentShared, onOpen, onOpenFolder: (id) => goHome({ kind: "home" }, id), officeHome });
+  const uploads = useDocumentsUploads({
+    wsId,
+    limits,
+    canUpload: enabled && canCreate && !folderInvalid,
+    parentId: parentForCreate,
+    folderDoc,
+    folderTitle: openFolderTitle,
+    tree: library.tree,
+    myFolderId,
+    resolveRootParent: async () => myFolderId ?? (await ensureMyFolder.mutateAsync()).id,
+    parentShared,
+    onOpen,
+    onOpenFolder: (id) => goHome({ kind: "home" }, id),
+    officeHome,
+  });
 
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, folderRow: folderDoc });
-  const searching = search.active && view.kind !== "archived";
-  const searchState = buildSearchViewState({ search, searching, viewKind: view.kind, libraryRows: library.state.rows, starredIds: library.starredIds, shelvedBy: library.shelvedBy, tree: library.tree, myFolderId, myFolderLabel, formatPathSr: (full) => t("documents.home.search.path", { path: full }) });
-  const activeDocById = searchState ? searchState.docById : library.docById;
-  const activeRows = searchState ? searchState.rows : library.state.rows;
-  const fileCommands = useLibraryRowFileCommands({ wsId, orgId, documentHref: wsPaths.document, onOpen, docById: activeDocById, desktopOpen });
+  const searchView = useDocumentsSearchView({
+    wsId,
+    enabled,
+    view,
+    folderId,
+    folderPending: folder.isPending,
+    types: view.kind === "archived" ? NO_TYPES : types,
+    library,
+    myFolderId,
+    myFolderLabel,
+    userId: permissionCtx.userId,
+    onNavigateFolder: (id) => goHome({ kind: "home" }, id),
+    onClearLibraryFilters: () => {
+      setTypes([]);
+      library.clearFilters();
+    },
+  });
+  const {
+    search,
+    searching,
+    searchState,
+    state,
+    activeDocById,
+    activeRows,
+    metaFiltered,
+    filteredBy,
+    tableRows,
+    listScreen,
+    groupScreen,
+    groups,
+    subfolders,
+    listLoading,
+    rootEmpty,
+    cards,
+    hideDocuments,
+  } = searchView;
+  const fileCommands = useLibraryRowFileCommands({
+    wsId, orgId, documentHref: wsPaths.document, onOpen, docById: activeDocById, desktopOpen,
+  });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   const shelvedActions = useShelvedActions({ wsId, rows: activeRows });
   // The bulk bar (UNI-2045 W9) on every list screen but the sources view; a
@@ -199,9 +268,13 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       push(buildDocumentsViewUrl(wsPaths, next, targetFolder));
     }
   };
+
   const newRootFolder = async (title?: string): Promise<boolean> => {
     const id = await creator.newFolder(null, title);
-    if (id) { goHome({ kind: "home" }, id); return true; }
+    if (id) {
+      goHome({ kind: "home" }, id);
+      return true;
+    }
     return false;
   };
   const openMyFolder = () => {
@@ -214,7 +287,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   };
   const handlers: LibraryRowHandlers = {
     onOpen: fileCommands.openDocument,
-    onFolder: (id) => { if (searching) search.clear(); goHome({ kind: "home" }, id); },
+    onFolder: searchView.openFolderFromList,
     onGoToSource: (row) => {
       const target = context ? sourceParentPath(paths.workspace(context.workspace.organization_slug, context.workspace.slug), row.source.parent) : null;
       if (target) push(target);
@@ -251,28 +324,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   };
 
   const homeView = view.kind === "home";
-  const metaFiltered = library.editor !== "any" || library.updated !== "any" || (view.kind === "recent" && library.activity !== "all");
-  // "filtered" answers "is a filter on" (the filter bar of every list screen):
-  // it gates the folder's subfolders-only suppression (TV-4), the root's empty
-  // copy and the no-results state, so all three read the same flag.
-  const filtered = metaFiltered || types.length > 0;
-  const filteredBy = searchState ? ("server" as const) : filtered ? (library.clientFiltered ? ("client" as const) : ("server" as const)) : null;
-  const state = searchState ?? library.state;
-  // At home and in a folder the folders are cards above the table.
-  const tableRows = homeView ? nonFolderRows(state.rows) : state.rows;
-  // The date groups (W11) while the rows sit in their screen's own order; a flat list otherwise.
-  const listScreen = docListScreenOfView(view);
-  const groupScreen = docListGroupScreen(listScreen);
   const collapse = useCollapsedGroups(groupScreen);
-  const groups = !searchState && groupScreen && library.ownOrderShown ? groupRowsByDate(tableRows, groupScreen, new Date()) : [{ key: "all", rows: tableRows }];
-  const subfolders = searchState ? searchState.folders : subfoldersOf(library.tree, folderId);
-  // The root's folders come from the tree query: until it answers, an empty root
-  // list cannot tell "no folders" from "folders not here yet".
-  const rootTreePending = !searchState && homeView && !folderId && !filtered && library.treeLoading && tableRows.length === 0;
-  const listLoading = state.loading || (!searchState && Boolean(folderId) && folder.isPending) || rootTreePending;
-  // UNI-1994: folders on screen but no loose root document is not an empty workspace.
-  const outsideFolders = !folderId && !filtered && !searchState && subfolders.length > 0;
-  const rootEmpty = outsideFolders ? "outside_folders_" : "";
   const { renderDriveView, sectionZoneProps, sidebarDriveProps } = buildDocumentsDriveBranch({ wsId, view, driveConnections, onAddFromDrive, zoneProps: uploads.zoneProps });
   const emptyCopy = homeView
     ? {
@@ -288,8 +340,32 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       }
     : { title: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_title`), description: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_description`) };
 
-  const sidebar = { wsId, view, folderId, myFolderId, myFolderPending: ensureMyFolder.isPending, starredCount: library.starredCount, sourcesAvailable: library.sourcesAvailable, canCreate: !folderId || canCreate, newFolderPending: creator.folderPending, accessReportHref: wsPaths.documentsAccessReport(), ...sidebarDriveProps, onView: (next: LibraryView) => goHome(next), onFolder: (id: string) => goHome({ kind: "home" }, id), onMyFolder: openMyFolder, onNewFolder: (title?: string) => newRootFolder(title) };
-  const createProps = { pending: creator.pending, unavailable: creator.unavailable, recentType: creator.lastType, onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate), onUpload: uploads.openUpload, onUploadFolder: uploads.openFolderUpload, onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined };
+  const sidebar = {
+    wsId,
+    view,
+    folderId,
+    myFolderId,
+    myFolderPending: ensureMyFolder.isPending,
+    starredCount: library.starredCount,
+    sourcesAvailable: library.sourcesAvailable,
+    canCreate: !folderId || canCreate,
+    newFolderPending: creator.folderPending,
+    accessReportHref: wsPaths.documentsAccessReport(),
+    ...sidebarDriveProps,
+    onView: (next: LibraryView) => goHome(next),
+    onFolder: (id: string) => goHome({ kind: "home" }, id),
+    onMyFolder: openMyFolder,
+    onNewFolder: (title?: string) => newRootFolder(title),
+  };
+  const createProps = {
+    pending: creator.pending,
+    unavailable: creator.unavailable,
+    recentType: creator.lastType,
+    onCreate: (type: Parameters<typeof creator.create>[0]) => void creator.create(type, parentForCreate),
+    onUpload: uploads.openUpload,
+    onUploadFolder: uploads.openFolderUpload,
+    onNewFolder: parentForCreate ? rowDialogs.onCreateFolder : undefined,
+  };
 
   const navButton = (
     <Button type="button" variant="outline" size="sm" className="shrink-0 xl:hidden" onClick={() => setNavOpen(true)}>
@@ -303,8 +379,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   // gate states keep the collection header.
   const screenHead = !homeView && view.kind !== "archived" && view.kind !== "drive";
   const collectionHeader = gate !== "on";
-  // Gần đây's Mở tiếp cards (recent-canvas): only while no filter or search narrows the list, and while the rows
-  const cards = view.kind === "recent" && !filtered && !searching && library.ownOrderShown ? continueCards(state.rows) : [];
   const libraryList = (
     <DocumentsLibraryList
       groups={groups}
@@ -313,13 +387,13 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       filteredBy={filteredBy}
       metaFiltered={metaFiltered && !searchState}
       cardsShown={canCreate && homeView && !searchState}
-      emptyFiltered={searchState ? { title: t("documents.home.search.no_results_title", { query: searchState.query }), description: undefined } : undefined}
-      clearFiltersLabel={searchState ? t("documents.home.search.clear") : undefined}
+      emptyFiltered={searchView.emptyFiltered}
+      clearFiltersLabel={searchView.clearFiltersLabel}
       hasMore={state.hasMore}
       loadingMore={state.loadingMore}
       onLoadMore={state.loadMore}
       onRetry={state.refetch}
-      onClearFilters={() => { if (searchState) return searchState.onClearSearch(); setTypes([]); library.clearFilters(); }}
+      onClearFilters={searchView.clearFiltersOrSearch}
       handlers={handlers}
       sort={library.sortControl}
       screen={listScreen}
@@ -330,8 +404,17 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       empty={emptyCopy}
     />
   );
-  const searchBox = <DocumentsSearchBox search={search} folderPlaceholder={Boolean(folderDoc)} />;
-  const toolbar = { types, onTypes: setTypes, editor: library.editor, onEditor: library.setEditor, members: members.data, updated: library.updated, onUpdated: library.setUpdated, search: searchBox };
+  const searchBox = <DocumentsSearchBox search={search} />;
+  const toolbar = {
+    types,
+    onTypes: setTypes,
+    editor: library.editor,
+    onEditor: library.setEditor,
+    members: members.data,
+    updated: library.updated,
+    onUpdated: library.setUpdated,
+    search: searchBox,
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -373,7 +456,11 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
             {folderInvalid ? (
               <div className="@container mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
                 {searchBox}
-                {searching ? libraryList : <DocumentsFolderInvalidState backHref={wsPaths.documents()} onBack={() => setView({ kind: "home" })} />}
+                {searching ? (
+                  libraryList
+                ) : (
+                  <DocumentsFolderInvalidState backHref={wsPaths.documents()} onBack={() => setView({ kind: "home" })} />
+                )}
               </div>
             ) : renderDriveView(navButton) ?? (view.kind === "archived" ? (
               <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-5 sm:px-6">
@@ -432,13 +519,12 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                       folderTitle={!searching && folderId ? "documents.home.sections.subfolders" : "documents.home.sections.folders"}
                       folders={subfolders}
                       documentsCount={tableRows.length}
-                      hideDocuments={
-                        // TV-4: a folder whose children are only subfolders is not
-                        // empty, so it shows no "Tài liệu 0" and no empty copy.
-                        // Filters, loading and failure keep their own states.
-                        !searching && Boolean(folderId) && subfolders.length > 0 && tableRows.length === 0 && !filtered && !listLoading && !state.failure
-                      }
-                      grid={{ docById: activeDocById, handlers, onOpenFolder: (id) => { if (searching) search.clear(); goHome({ kind: "home" }, id); } }}
+                      hideDocuments={hideDocuments}
+                      grid={{
+                        docById: activeDocById,
+                        handlers,
+                        onOpenFolder: searchView.openFolderFromList,
+                      }}
                     >
                       {libraryList}
                     </DocumentsSections>
@@ -457,11 +543,17 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       )}
 
       <DocumentsSidebarSheet open={navOpen} onOpenChange={setNavOpen} {...sidebar} />
+
       {uploads.dialogs}
+
       {officeViewer.dialog}
+
       {trashActions.dialog}
+
       {shelvedActions.dialog}
+
       {bulkCommands.dialogs}
+
       {rowDialogs.dialogs}
       {fileCommands.dialogs}
     </div>

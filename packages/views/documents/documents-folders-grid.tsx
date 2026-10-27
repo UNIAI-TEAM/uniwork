@@ -34,7 +34,8 @@ export interface DocumentsFoldersGridProps {
   /** The table row handlers; a handler absent for the viewer hides its menu item too. */
   handlers: Pick<
     LibraryRowHandlers,
-    "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred" | "personName" | "searchPath"
+    | "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve"
+    | "onArchive" | "onToggleStar" | "isStarred" | "personName" | "searchPath"
   >;
   onOpenFolder: (folderId: string) => void;
 }
@@ -62,7 +63,7 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
           .filter(Boolean)
           .join(" · ");
         const starred = Boolean(doc && handlers.isStarred(doc.id));
-        const searchPath = doc ? (handlers.searchPath?.(doc) ?? null) : null;
+        const searchPath = handlers.searchPath?.(doc ?? { path: [] }) ?? null;
         const menuItems = doc ? folderMenuItems(doc, handlers, t) : [];
         const canMenu = menuItems.length > 0 || Boolean(doc && handlers.onToggleStar);
         return (

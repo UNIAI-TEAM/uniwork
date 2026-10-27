@@ -57,7 +57,9 @@ export interface DocumentsShelvedViewProps {
  * trữ` · `Tải xuống` │ `Chuyển vào thùng rác`, flat in the server's
  * shelved_at-newest order (F1).
  */
-export function DocumentsShelvedView({ library, types, onTypes, members, handlers, actions, bulk, selectionKey, search, searchList }: DocumentsShelvedViewProps) {
+export function DocumentsShelvedView({
+  library, types, onTypes, members, handlers, actions, bulk, selectionKey, search, searchList,
+}: DocumentsShelvedViewProps) {
   const { t } = useTranslation();
   const state = searchList ?? library.state;
   // The "Lưu trữ bởi" options (U-2/Q-UI2): the workspace members plus the
@@ -71,7 +73,8 @@ export function DocumentsShelvedView({ library, types, onTypes, members, handler
       .map((id) => ({ value: id, label: t("documents.shelved_list.shelved_by_former") })),
     ...(library.shelvedHasSystem ? [{ value: SHELVED_BY_SYSTEM, label: t("documents.shelved_list.shelved_by_system") }] : []),
   ];
-  const filtered = Boolean(searchList) || types.length > 0 || library.shelvedBy !== null || library.editor !== "any" || library.updated !== "any";
+  const filtered =
+    Boolean(searchList) || types.length > 0 || library.shelvedBy !== null || library.editor !== "any" || library.updated !== "any";
   return (
     <>
       <ShelvedToolbar
