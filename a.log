@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^ec1606609" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=ec1606609672f9bf39736cb74afe748a63fae210
+ec1606609 Merge B5 review fixes (4757f994b) into UNI-2182
+7ea9f498f refactor(drive): remove unused SweepDriveTaskProposals wrapper and NewRetentionSweeper alias
+5293371bd test(drive): verify After rollback, conflict 409, 0-based links, and post-purge provenance
+65f505e63 fix(drive): return 410 on expired proposal and emit converted event with full audit metadata
