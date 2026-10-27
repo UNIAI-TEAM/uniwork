@@ -49,8 +49,11 @@ type Deps struct {
 	// their OAuth state cookie with it (ADR 0047). A zero sealer refuses to
 	// seal, so a provider start answers its failure instead of a weak cookie.
 	Sealer auth.SecretSealer
-	// AppleAuth is nil unless APPLE_SIWA_AUDIENCES is set: the native Sign in
-	// with Apple route answers 503 and /auth/providers reports apple=false.
+	// AppleAuth is Sign in with Apple; nil unless APPLE_SIWA_AUDIENCES or the
+	// web's Services ID is set. Each door answers 503 while closed: the
+	// native route unless the app's bundle ids are set (NativeEnabled,
+	// /auth/providers apple), the web's start and link unless the Services ID
+	// and its key are (WebEnabled, apple_web).
 	AppleAuth           *service.AppleAuthService
 	Organizations       *service.OrganizationService
 	OrgMembers          *service.OrganizationMemberService
@@ -340,6 +343,9 @@ func New(d Deps) http.Handler {
 		AuthProviders:         h.authProviders,
 		GoogleStart:           h.googleStart,
 		GoogleCallback:        h.googleCallback,
+		AppleStart:            h.appleStart,
+		AppleCallback:         h.appleCallback,
+		AppleFinish:           h.appleFinish,
 		SignInTicket:          h.signInTicket,
 		SignInTicketCreate:    h.signInTicketCreate,
 		SignInTicketClaim:     h.signInTicketClaimEmail,
@@ -373,6 +379,7 @@ func New(d Deps) http.Handler {
 		SignInMethods:       h.signInMethods,
 		SetPassword:         h.setPassword,
 		LinkGoogle:          h.signInMethodLink(service.ProviderGoogle),
+		LinkApple:           h.signInMethodLink(service.ProviderApple),
 		UnlinkGoogle:        h.signInMethodUnlink(service.ProviderGoogle),
 		UnlinkApple:         h.signInMethodUnlink(service.ProviderApple),
 		SetAIConsent:        h.setAIConsent,

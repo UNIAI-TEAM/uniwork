@@ -12,7 +12,7 @@ import (
 // identity token in, the same native device session as the PKCE exchange out.
 func (h *handlers) appleSignIn(w http.ResponseWriter, r *http.Request) {
 	noStore(w)
-	if h.AppleAuth == nil {
+	if !h.AppleAuth.NativeEnabled() {
 		respondError(w, http.StatusServiceUnavailable, "apple_auth_unavailable", "Sign in with Apple is not configured")
 		return
 	}

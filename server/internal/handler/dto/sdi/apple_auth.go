@@ -15,3 +15,21 @@ type AppleSignInSDI struct {
 	Platform          string `json:"platform,omitempty" description:"Metadata nền tảng, có giới hạn độ dài" example:"ios"`
 	Build             string `json:"build,omitempty" description:"Metadata bản dựng, có giới hạn độ dài" example:"0.3.2"`
 }
+
+// AppleStartSDI is GET /api/v1/auth/apple/start: Sign in with Apple on the
+// web (ADR 0047 §7), as the Google start.
+type AppleStartSDI struct {
+	Next      string `query:"next" description:"Đường dẫn cùng origin sau khi đăng nhập; /auth/continue?step=link&… (đăng nhập để liên kết vé đang chờ) giữ cookie vé" example:"/acme/team"`
+	Intent    string `query:"intent" description:"sign_in (mặc định) từ trang đăng nhập: không khớp tài khoản nào thì ra vé và màn chọn; sign_up từ trang đăng ký: không khớp thì tạo tài khoản ngay; link (kèm link_token, từ Cài đặt): liên kết vào tài khoản đang đăng nhập; giá trị khác chuyển về /login?error=apple_failed" example:"sign_in"`
+	LinkToken string `query:"link_token" description:"Với intent=link: token từ POST /me/sign-in-methods/apple/link (5 phút); cookie refresh của trình duyệt phải thuộc đúng phiên đã xin nó, không thì quay về return_to với result=session_mismatch" example:"Xb2u…"`
+}
+
+// AppleCallbackSDI is POST /api/v1/auth/apple/callback: what Apple posts to
+// the return URL (response_mode=form_post), never JSON. The code is redeemed
+// once and never logged; user is unsigned.
+type AppleCallbackSDI struct {
+	Code  string `formData:"code" description:"Authorization code dùng một lần Apple trả về (5 phút); server đổi kèm redirect_uri lấy identity token và refresh token" example:"c1a2b3c4d5e6f.0.mrzq.AbCdEfGhIjKlMnOp"`
+	State string `formData:"state" description:"CSRF state khớp state trong cookie niêm phong uniwork_apple_state" example:"9f2c4e1ab37d"`
+	User  string `formData:"user" description:"JSON Apple gửi ở lần đồng ý đầu ({name:{firstName,lastName}, email}); không ký nên tên chỉ là gợi ý cho hồ sơ mới, email không bao giờ được đọc (email chỉ lấy từ identity token)" example:"{\"name\":{\"firstName\":\"Lan\",\"lastName\":\"Phạm\"}}"`
+	Error string `formData:"error" description:"Lỗi Apple trả khi không có code, ví dụ user_cancelled_authorize khi người dùng bấm Hủy" example:"user_cancelled_authorize"`
+}

@@ -71,6 +71,10 @@ func newIdentityFixture(t *testing.T) *identityFixture {
 	verifier := auth.NewAppleVerifier(auth.AppleIssuer, issuer.JWKSURL, []string{appleBundle}, nil)
 	apple := NewAppleAuthService(pool, q, desktop, verifier, client, sealer)
 	apple.SetMail(renderer, out)
+	apple.SetWeb(as, AppleWeb{
+		ServicesID: appleServicesID, RedirectURI: appleWebReturn, Client: client,
+		Verifier: auth.NewAppleVerifier(auth.AppleIssuer, issuer.JWKSURL, []string{appleServicesID}, nil),
+	})
 	as.SetApple(apple)
 	return &identityFixture{
 		ctx: context.Background(), pool: pool, q: q, auth: as, google: NewGoogleAuthService(as),

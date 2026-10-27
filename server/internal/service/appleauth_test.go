@@ -24,12 +24,45 @@ import (
 const appleBundle = "com.uniworkos.chat"
 
 // fakeAppleClient records what would have gone to Apple's token and revoke
-// endpoints.
+// endpoints. A web code redeems only once issueWebCode named the identity
+// token Apple would answer it with.
 type fakeAppleClient struct {
-	mu        sync.Mutex
-	exchanges []string
-	revoked   []string
-	failCode  bool
+	mu           sync.Mutex
+	exchanges    []string
+	revoked      []string
+	failCode     bool
+	webCodes     map[string]string
+	webExchanges []string
+}
+
+func (f *fakeAppleClient) issueWebCode(code, idToken string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.webCodes == nil {
+		f.webCodes = map[string]string{}
+	}
+	f.webCodes[code] = idToken
+}
+
+// ExchangeWebCode redeems a code once, answering its identity token and a
+// refresh token named after it.
+func (f *fakeAppleClient) ExchangeWebCode(_ context.Context, clientID, code, redirectURI string) (auth.AppleWebTokens, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.webExchanges = append(f.webExchanges, clientID+" "+code+" "+redirectURI)
+	tok, ok := f.webCodes[code]
+	if !ok {
+		return auth.AppleWebTokens{}, auth.AppleClientError{Op: "token", Status: http.StatusBadRequest, Code: "invalid_grant"}
+	}
+	delete(f.webCodes, code)
+	return auth.AppleWebTokens{IDToken: tok, RefreshToken: "apple-web-refresh-for-" + code}, nil
+}
+
+// revokedNow is what was revoked so far.
+func (f *fakeAppleClient) revokedNow() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.revoked...)
 }
 
 func (f *fakeAppleClient) RefreshTokenForCode(_ context.Context, clientID, code string) (string, error) {

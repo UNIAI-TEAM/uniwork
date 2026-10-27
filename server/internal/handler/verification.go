@@ -34,8 +34,10 @@ func (h *handlers) resendVerification(w http.ResponseWriter, r *http.Request) {
 // authProviders tells the sign-in screens which third-party sign-ins exist,
 // so a deployment without Google credentials shows no Google button. apple
 // keeps the meaning the shipped iPhone app reads (native Sign in with
-// Apple); apple_web and google_native stay false until their routes exist
-// (ADR 0047 §10).
+// Apple), apple_web is Sign in with Apple on the web, and google_native
+// stays false until its route exists (ADR 0047 §10).
 func (h *handlers) authProviders(w http.ResponseWriter, _ *http.Request) {
-	respondJSON(w, http.StatusOK, sdo.AuthProvidersSDO{Google: h.Google != nil, Apple: h.AppleAuth != nil})
+	respondJSON(w, http.StatusOK, sdo.AuthProvidersSDO{
+		Google: h.Google != nil, Apple: h.AppleAuth.NativeEnabled(), AppleWeb: h.AppleAuth.WebEnabled(),
+	})
 }

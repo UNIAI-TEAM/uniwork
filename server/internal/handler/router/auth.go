@@ -21,6 +21,9 @@ import (
 //	GET    /api/v1/auth/providers
 //	GET    /api/v1/auth/google/start     (credential rate limit)
 //	GET    /api/v1/auth/google/callback  (credential rate limit)
+//	GET    /api/v1/auth/apple/start      (credential rate limit)
+//	POST   /api/v1/auth/apple/callback   (credential rate limit; Apple's cross-site form post)
+//	GET    /api/v1/auth/apple/finish     (credential rate limit)
 //	GET    /api/v1/auth/sign-in-ticket                    (same-site JSON, credential rate limit)
 //	POST   /api/v1/auth/sign-in-ticket/create             (same-site JSON, credential rate limit)
 //	POST   /api/v1/auth/sign-in-ticket/claim-email        (same-site JSON, credential rate limit)
@@ -103,6 +106,7 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 		sdi:         sdi.GoogleCallbackSDI{},
 		status:      303,
 	})
+	registerAppleWeb(v1, h, credentialLimit)
 	sessionDoor.Get("/auth/sign-in-ticket", h.SignInTicket, apiOp{
 		summary:     "Read the pending sign-in",
 		description: "Màn chọn /auth/continue đọc lượt đăng nhập Google/Apple đang chờ từ cookie vé uniwork_sign_in_ticket (HttpOnly, 15 phút): nhà cung cấp, loại (unmatched | link_required), email, tên, email ẩn của Apple. Không có vé, vé hết hạn hay hỏng → 404 sign_in_ticket_missing và xoá cookie (ADR 0047).",
@@ -151,6 +155,34 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	})
 	v1.With(refreshLimit).Post("/auth/desktop/refresh", h.DesktopRefresh, apiOp{
 		summary: "Refresh desktop session", description: "Xoay refresh token native; phát hiện replay và thu hồi thiết bị. Gửi header `X-UniWork-Device` = `device_session_id` để được ngân sách riêng theo thiết bị (60/phút) dưới trần theo IP (600/phút); không header thì theo IP.", tags: []string{"auth"}, sdi: sdi.DesktopRefreshSDI{}, sdo: sdo.DesktopSessionSDO{},
+	})
+}
+
+// registerAppleWeb is Sign in with Apple on the web (ADR 0047 §7): the
+// start, Apple's form post, and the same-site finish. None takes
+// mw.SameSiteJSON: Apple posts a form from its own site, and the finish
+// follows that post. The state Apple echoes, bound to a sealed cookie, and
+// the nonce in the identity token stop a forged sign-in instead.
+func registerAppleWeb(v1 api, h Routes, credentialLimit func(http.Handler) http.Handler) {
+	v1.With(credentialLimit).Get("/auth/apple/start", h.AppleStart, apiOp{
+		summary:     "Start Sign in with Apple on the web",
+		description: "Ghi cookie niêm phong uniwork_apple_state (state, nonce gốc, next, intent; HttpOnly, SameSite=None; Secure, Path /api/v1/auth/apple, 10 phút) rồi 302 tới trang ủy quyền của Apple với Services ID, response_mode=form_post, scope name email và nonce là SHA-256 (hex) của nonce gốc (ADR 0047). intent=sign_up (trang đăng ký) tạo tài khoản ngay khi không khớp tài khoản nào. intent=link kèm link_token (từ POST /me/sign-in-methods/apple/link): chỉ bắt đầu khi cookie refresh của trình duyệt thuộc đúng phiên đã xin token, không thì 303 về return_to với sign_in_method=apple&result=session_mismatch (token hỏng/hết hạn: result=failed). Chưa cấu hình (APPLE_SIWA_WEB_CLIENT_ID và khoá Sign in with Apple) → 503 apple_not_configured. Chỉ chạy trên https.",
+		tags:        []string{"auth"},
+		sdi:         sdi.AppleStartSDI{},
+		status:      302,
+	})
+	v1.With(credentialLimit).Post("/auth/apple/callback", h.AppleCallback, apiOp{
+		summary:     "Sign in with Apple callback",
+		description: "Apple POST form (application/x-www-form-urlencoded, tối đa 64 KiB; không phải JSON) về return URL. Luôn xoá cookie state; kiểm state với cookie uniwork_apple_state; error=user_cancelled_authorize → /login?error=apple_denied; đổi code kèm redirect_uri lấy identity token và refresh token; kiểm identity token bằng verifier của web (aud chỉ là Services ID, nonce của lượt này); email chỉ lấy từ token, tên từ trường user chỉ là gợi ý. Không đăng nhập ở đây (POST từ site khác không mang cookie Lax): ghi kết quả vào cookie niêm phong uniwork_apple_result (SameSite=None; Secure, 2 phút) rồi 303 tới GET /api/v1/auth/apple/finish. Lỗi → 303 /login?error=apple_failed|apple_denied&next= (liên kết từ Cài đặt: return_to với result=failed|denied).",
+		tags:        []string{"auth"},
+		sdi:         sdi.AppleCallbackSDI{},
+		status:      303,
+	})
+	v1.With(credentialLimit).Get("/auth/apple/finish", h.AppleFinish, apiOp{
+		summary:     "Finish Sign in with Apple on the web",
+		description: "Điều hướng cùng site sau callback, nên cookie Lax (uniwork_refresh, vé) có mặt. Xoá cookie uniwork_apple_result rồi kết thúc như callback Google (ADR 0047): phiên → cookie refresh và 303 /auth/callback?next= (reclaimed=1 khi vừa lấy lại tài khoản); cần MFA → cookie uniwork_mfa (liên kết đang chờ chỉ ghi sau bước hai) và /login?mfa=1&next=; không khớp tài khoản nào hay email đã có tài khoản mà danh tính chưa được tự liên kết → cookie vé uniwork_sign_in_ticket và /auth/continue?next=; lỗi → /login?error=<mã>&next= (apple_failed, sign_in_unverified, sign_in_conflict, sign_in_account_unverified). Liên kết từ Cài đặt: kiểm lại cookie refresh thuộc đúng phiên đã bắt đầu, liên kết vào tài khoản đó (audit via settings) rồi 303 về return_to với sign_in_method=apple&result=linked|failed|taken|movable|already_linked|session_mismatch. Tài khoản tạo hay liên kết giữ token Apple (client là Services ID) để thu hồi khi xoá tài khoản; lượt bị từ chối trả token lại Apple trừ khi Apple ID đó đã mở một tài khoản. Thiếu hay hết hạn cookie kết quả → /login?error=apple_failed.",
+		tags:        []string{"auth"},
+		status:      303,
 	})
 }
 

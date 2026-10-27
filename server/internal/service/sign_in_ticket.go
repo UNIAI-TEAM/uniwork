@@ -13,7 +13,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -224,13 +223,10 @@ func (s *SignInTicketService) Describe(_ context.Context, sealed string, b Ticke
 // Best effort.
 func (s *SignInTicketService) Discard(ctx context.Context, sealed string, b TicketBinding) {
 	t, err := s.auth.openSignInTicket(sealed, b)
-	if err != nil || t.Identity.AppleRefresh == "" {
+	if err != nil {
 		return
 	}
-	if _, err := userBySubject(ctx, s.q, t.Identity); !errors.Is(err, pgx.ErrNoRows) {
-		return
-	}
-	s.auth.apple.revokeAfterCommit(ctx, "", t.Identity.AppleClientID, t.Identity.AppleRefresh)
+	s.auth.apple.giveBack(ctx, t.Identity)
 }
 
 // ticketDisplayName is the name a new account from a ticket shows: the one

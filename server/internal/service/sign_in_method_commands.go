@@ -312,7 +312,15 @@ type BrowserLink struct {
 // (CheckLinkSession again: the cookie may have changed hands during the
 // round trip), then attachIdentity links it into that account, audited via
 // settings. A link_required, taken or already-linked answer is attach's own.
-func (s *SignInMethodsService) LinkFromBrowser(ctx context.Context, li LinkIntent, id ProviderIdentity, rawRefresh string) (BrowserLink, error) {
+// An Apple consent the proof brought and nothing kept (a refusal other than
+// movable, whose ticket carries it on) goes back to Apple unless the Apple ID
+// opens an account.
+func (s *SignInMethodsService) LinkFromBrowser(ctx context.Context, li LinkIntent, id ProviderIdentity, rawRefresh string) (out BrowserLink, err error) {
+	defer func() {
+		if err != nil && out.Ticket == "" {
+			s.auth.apple.giveBack(ctx, id)
+		}
+	}()
 	if err := s.CheckLinkSession(ctx, li, rawRefresh); err != nil {
 		return BrowserLink{}, err
 	}

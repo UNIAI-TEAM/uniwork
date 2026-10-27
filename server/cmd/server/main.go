@@ -730,29 +730,50 @@ func main() {
 			log.Info("google sign-in enabled", "redirect_url", cfg.GoogleRedirectURL())
 		}
 	}
-	// Sign in with Apple on the phone (ADR 0041): on with the bundle ids its
-	// identity tokens may name. The key that signs Apple client secrets is
-	// what lets a sign-in keep a refresh token and account deletion revoke
-	// it, which Apple requires; without it sign-in still works and the
-	// missing revoke is logged here.
+	// Sign in with Apple (ADR 0041, 0047): the phone's native sheet, on with
+	// the bundle ids its identity tokens may name, and the web, on with the
+	// Services ID. Each door has its own verifier, so a token issued to one
+	// never opens the other. The key that signs Apple client secrets is what
+	// lets a sign-in keep a refresh token and account deletion revoke it,
+	// which Apple requires: the phone signs in without it and the missing
+	// revoke is logged here; the web cannot redeem its code without it, so it
+	// stays off.
 	var appleAuth *service.AppleAuthService
-	if cfg.AppleSignInEnabled() {
-		var appleClient service.AppleTokenClient
+	if cfg.AppleSignInEnabled() || cfg.AppleSignInWebClientID != "" {
+		var appleClient *auth.AppleClient
 		if cfg.AppleRevokeConfigured() {
 			c, err := auth.NewAppleClient(cfg.AppleSignInTeamID, cfg.AppleSignInKeyID, cfg.AppleSignInPrivateKey, auth.AppleIssuer)
 			if err != nil {
-				log.Error("sign in with apple: token revoke disabled", "err", err)
+				log.Error("sign in with apple: the key does not load; token revoke and the web are off", "err", err)
 			} else {
 				appleClient = c
 			}
 		} else {
-			log.Warn("sign in with apple: APPLE_SIWA_TEAM_ID, APPLE_SIWA_KEY_ID or APPLE_SIWA_PRIVATE_KEY unset; account deletion cannot revoke Apple tokens")
+			log.Warn("sign in with apple: APPLE_SIWA_TEAM_ID, APPLE_SIWA_KEY_ID or APPLE_SIWA_PRIVATE_KEY unset; account deletion cannot revoke Apple tokens and the web stays off")
 		}
-		verifier := auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, cfg.AppleSignInAudiences, nil)
-		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, verifier, appleClient, sealer)
+		// Interfaces stay nil, never a typed nil, while a door or the key is off.
+		var native service.AppleTokenVerifier
+		if cfg.AppleSignInEnabled() {
+			native = auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, cfg.AppleSignInAudiences, nil)
+		}
+		var tokens service.AppleTokenClient
+		if appleClient != nil {
+			tokens = appleClient
+		}
+		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, native, tokens, sealer)
 		appleAuth.SetMail(renderer, mailOutbox)
+		if cfg.AppleWebConfigured() && appleClient != nil {
+			appleAuth.SetWeb(authSvc, service.AppleWeb{
+				ServicesID: cfg.AppleSignInWebClientID, RedirectURI: cfg.AppleWebRedirectURL(),
+				Verifier: auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, []string{cfg.AppleSignInWebClientID}, nil),
+				Client:   appleClient,
+			})
+			log.Info("sign in with apple on the web enabled", "services_id", cfg.AppleSignInWebClientID, "redirect_url", cfg.AppleWebRedirectURL())
+		}
 		authSvc.SetApple(appleAuth)
-		log.Info("sign in with apple enabled", "audiences", strings.Join(cfg.AppleSignInAudiences, ","))
+		if cfg.AppleSignInEnabled() {
+			log.Info("sign in with apple enabled", "audiences", strings.Join(cfg.AppleSignInAudiences, ","))
+		}
 	}
 	// Platform console (F-11): reads metadata across tenants, guarded by
 	// users.platform_role rather than membership.

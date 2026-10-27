@@ -257,6 +257,15 @@ func registerSignInMethods(r api, h Routes, credentialLimit, stepUpLimit func(ht
 		sdo:  sdo.AuthorizationURLSDO{},
 		auth: true,
 	})
+	r.With(credentialLimit).Post("/me/sign-in-methods/apple/link", h.LinkApple, apiOp{
+		summary: "Start linking Apple",
+		description: "Từ trình duyệt đang đăng nhập, với step_up_token: trả authorization_url (GET /auth/apple/start?intent=link&link_token=…, token 5 phút gắn với tài khoản và phiên này). Trình duyệt đi qua Apple rồi về return_to kèm sign_in_method=apple&result=…; tài khoản giữ token Apple của Services ID để thu hồi khi xoá tài khoản. " +
+			"403 email_unverified khi email tài khoản chưa xác minh; 409 sign_in_method_already_linked khi đã liên kết Apple; bearer của app → 400 invalid_request (app liên kết bằng sheet Apple); 503 apple_not_configured khi Sign in with Apple trên web chưa cấu hình.",
+		tags: []string{"me"},
+		sdi:  sdi.LinkSignInMethodSDI{},
+		sdo:  sdo.AuthorizationURLSDO{},
+		auth: true,
+	})
 	for _, p := range []struct {
 		path, provider string
 		handler        http.HandlerFunc

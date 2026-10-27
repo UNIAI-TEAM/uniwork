@@ -305,6 +305,23 @@ func TestAppleNativeSignInRidesTheCredentialBudget(t *testing.T) {
 	c.wantRefused(t, h, http.MethodPost, "/api/v1/auth/apple/native", "credential budget: 60 a minute")
 }
 
+// Sign in with Apple on the web (ADR 0047 §7) turns Apple's answer into a
+// session like Google's, so each of its steps rides the credential budget:
+// 60 a minute per address and path. Apple's callback is a cross-site form,
+// which no login-CSRF guard turns away before the budget.
+func TestAppleWebRoutesRideTheCredentialBudget(t *testing.T) {
+	h, _ := limitedMux(t)
+	for i, r := range []struct{ method, path string }{
+		{http.MethodGet, "/api/v1/auth/apple/start"},
+		{http.MethodPost, "/api/v1/auth/apple/callback"},
+		{http.MethodGet, "/api/v1/auth/apple/finish"},
+	} {
+		c := caller{ip: fmt.Sprintf("10.20.10.%d", i+1), body: "code=c&state=s"}
+		c.spend(t, h, r.method, r.path, 60)
+		c.wantRefused(t, h, r.method, r.path, "credential budget: 60 a minute")
+	}
+}
+
 // The choice screen of a provider sign-in (ADR 0047) turns a ticket into an
 // account or a session, so each of its routes rides the credential budget:
 // 60 a minute per address and path. The login-CSRF guard runs first, so a

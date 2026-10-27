@@ -76,6 +76,9 @@ type Routes struct {
 	AuthProviders         http.HandlerFunc
 	GoogleStart           http.HandlerFunc
 	GoogleCallback        http.HandlerFunc
+	AppleStart            http.HandlerFunc
+	AppleCallback         http.HandlerFunc
+	AppleFinish           http.HandlerFunc
 	SignInTicket          http.HandlerFunc
 	SignInTicketCreate    http.HandlerFunc
 	SignInTicketClaim     http.HandlerFunc
@@ -109,6 +112,7 @@ type Routes struct {
 	SignInMethods       http.HandlerFunc
 	SetPassword         http.HandlerFunc
 	LinkGoogle          http.HandlerFunc
+	LinkApple           http.HandlerFunc
 	UnlinkGoogle        http.HandlerFunc
 	UnlinkApple         http.HandlerFunc
 	SetAIConsent        http.HandlerFunc

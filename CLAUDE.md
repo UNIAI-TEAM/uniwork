@@ -547,20 +547,29 @@ database and never reveal whether an id exists to a non-member.
   routes carry their own small budget in
   `server/internal/handler/router/router.go`, whose tests pin all of it.
 - A bearer route never answers with a redirect: only the browser sign-in
-  handlers (`server/internal/handler/google.go` and the finish they share,
-  `server/internal/handler/web_sign_in.go`), MCP OAuth authorize and Swagger
-  entry handlers call `http.Redirect` (`TestOnlyBrowserFlowsRedirect` in
-  `server/internal/arch_test.go`), since a native client's HTTP stack may
-  carry `Authorization` to wherever a 3xx points.
-- Sign in with Apple (ADR 0041) enters only through `POST /api/v1/auth/apple/native`: `auth.AppleVerifier` checks
-  Apple's signature against its JWKS, `iss`, `exp`, an `aud` listed in `APPLE_SIWA_AUDIENCES` and a `nonce` equal to
-  the SHA-256 of the raw nonce the app sent. The route keeps the codes the shipped app reads (`mfa_required`, never
-  linking an MFA account; `apple_token_invalid`; `apple_account_conflict`); account deletion revokes the Apple token
-  the sign-in kept, sealed. `TestAppleVerifierRefusesWhatAppleDidNotIssueForThisApp`,
-  `TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay`,
+  handlers (`server/internal/handler/google.go`, `server/internal/handler/apple_web.go`
+  and the finish they share, `server/internal/handler/web_sign_in.go`), MCP OAuth
+  authorize and Swagger entry handlers call `http.Redirect`
+  (`TestOnlyBrowserFlowsRedirect` in `server/internal/arch_test.go`), since a
+  native client's HTTP stack may carry `Authorization` to wherever a 3xx points.
+- Sign in with Apple (ADR 0041, 0047) has two doors, each with its own `auth.AppleVerifier` checking Apple's
+  signature against its JWKS, `iss`, `exp` and a `nonce` equal to the SHA-256 of the raw nonce: the iPhone's
+  `POST /api/v1/auth/apple/native`, whose `aud` is a bundle id in `APPLE_SIWA_AUDIENCES`, and the web, whose only
+  `aud` is the Services ID `APPLE_SIWA_WEB_CLIENT_ID` (on only with the Sign in with Apple key; never one of the
+  app's audiences, or the config refuses to load). The web start seals state and nonce into `uniwork_apple_state`
+  (`SameSite=None; Secure` always, since Apple answers with a cross-site `form_post`); `POST /auth/apple/callback`
+  checks the state, redeems the code with its `redirect_uri` and verifies the token, takes the address only from
+  the token (the `user` field's name is a hint), and hands the result to the same-site `GET /auth/apple/finish` in
+  a sealed two-minute cookie, which signs in or links like Google. The native route keeps the codes the shipped
+  app reads (`mfa_required`, never linking an MFA account; `apple_token_invalid`; `apple_account_conflict`). The
+  account a sign-in or link opens keeps the Apple token, sealed, with the client it was issued to (bundle id or
+  Services ID), and account deletion revokes it there; a sign-in that keeps it nowhere gives it back to Apple
+  unless the Apple ID opens an account. `TestAppleVerifierRefusesWhatAppleDidNotIssueForThisApp`,
+  `TestWebAndNativeAppleAudiencesStayApart`, `TestAppleWebCallbackChecksStateNonceAndAudience`,
+  `TestAppleWebSignInKeepsTheConsentForTheServicesID`, `TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay`,
   `TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking`, `TestLegacyAppleNativeKeepsItsCodes` and
   `TestDeleteAccountRevokesTheAppleToken` hold it.
-- Every provider sign-in (Google on the web, Apple) finds its account through `resolveIdentity` in
+- Every provider sign-in (Google and Apple on the web, Apple on the iPhone) finds its account through `resolveIdentity` in
   `server/internal/service/identity_resolve.go` (ADR 0047): the provider subject first, then the address only when
   the provider vouches for it. An address the provider owns (Gmail or the Workspace `hd`; iCloud or Apple's relay)
   links to a verified account, or takes back an account that never proved the address — everything its registrant

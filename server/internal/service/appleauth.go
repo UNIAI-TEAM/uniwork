@@ -59,13 +59,18 @@ func appleMFARequired() error {
 	return CodedError{Code: "mfa_required", Status: http.StatusForbidden, Msg: "this account signs in with a second factor in the browser", Err: ErrMFARequired}
 }
 
-// AppleAuthService turns a native Sign in with Apple into the same device
-// session the PKCE code exchange issues (ADR 0041), resolving the account
-// with the rules every provider shares (resolveIdentity, ADR 0047).
+// AppleAuthService is Sign in with Apple, resolving the account with the
+// rules every provider shares (resolveIdentity, ADR 0047), through two
+// doors: the app's native sheet, which ends in the same device session the
+// PKCE code exchange issues (ADR 0041), and the web (apple_web.go), which
+// ends in a browser session. It also holds the account's Apple consent:
+// what a sign-in keeps, and gives back to Apple when nothing kept it.
 type AppleAuthService struct {
-	pool     *pgxpool.Pool
-	q        *db.Queries
-	desktop  *DesktopAuthService
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	desktop *DesktopAuthService
+	// verifier checks the app's identity tokens (its bundle ids); nil keeps
+	// the native door closed (NativeEnabled).
 	verifier AppleTokenVerifier
 	client   AppleTokenClient
 	sealer   auth.SecretSealer
@@ -73,11 +78,15 @@ type AppleAuthService struct {
 	// render/out are nil-safe: without SetMail no alert goes out.
 	render mail.Renderer
 	out    mail.Enqueuer
+	// auth and web are the web door, set by SetWeb; until then it is closed
+	// (WebEnabled).
+	auth *AuthService
+	web  AppleWeb
 }
 
 // NewAppleAuthService seals the kept refresh token with the server's one
 // sealer (main.go builds it from the JWT secret, as for MFA secrets); client
-// may be nil.
+// may be nil, and so may verifier when only the web door is configured.
 func NewAppleAuthService(pool *pgxpool.Pool, q *db.Queries, desktop *DesktopAuthService, verifier AppleTokenVerifier, client AppleTokenClient, sealer auth.SecretSealer) *AppleAuthService {
 	return &AppleAuthService{pool: pool, q: q, desktop: desktop, verifier: verifier, client: client, sealer: sealer, log: slog.Default()}
 }
@@ -131,6 +140,11 @@ func (s *AppleAuthService) mailer() signInMailer {
 // ponytail: retire once every mobile build in use calls /auth/native/apple;
 // reviewed by 2027-01-31 (spec §3.6).
 func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (DesktopSession, error) {
+	if !s.NativeEnabled() {
+		// The handler answers 503 before this; a web-only deployment has no
+		// verifier for the app's tokens.
+		return DesktopSession{}, errors.New("apple native sign-in is not configured")
+	}
 	if !s.desktop.clientAllowed(in.ClientID, in.DeploymentID) {
 		return DesktopSession{}, Invalid("invalid native sign-in client")
 	}

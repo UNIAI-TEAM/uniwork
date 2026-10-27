@@ -114,8 +114,9 @@ WHERE id = $1 AND deleted_at IS NULL AND apple_id IS NOT NULL
 RETURNING *;
 
 -- name: SetAppleRefreshToken :exec
--- The sealed refresh token of the account's Apple consent and the bundle id it
--- was issued to: account deletion revokes it with that client id.
+-- The sealed refresh token of the account's Apple consent and the client it
+-- was issued to (the app's bundle id, or the web's Services ID): account
+-- deletion revokes it with that client id.
 UPDATE users SET apple_client_id = $2, apple_refresh_token_enc = $3, updated_at = now()
 WHERE id = $1 AND apple_id IS NOT NULL;
 

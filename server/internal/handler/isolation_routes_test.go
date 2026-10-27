@@ -438,14 +438,20 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/auth/google/callback":      {class: isoPublic, reason: reasonAuth},
 	"GET /api/v1/auth/google/start":         {class: isoPublic, reason: reasonAuth},
 	"POST /api/v1/auth/apple/native":        {class: isoPublic, reason: "authentication: Apple's identity token, signed for this app's bundle id and carrying the hash of the request's nonce, is the credential; it names no tenant row"},
-	"POST /api/v1/auth/login":               {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/logout":              {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/mfa/verify":          {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/password/forgot":     {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/password/reset":      {class: isoPublic, reason: reasonAuth},
-	"GET /api/v1/auth/providers":            {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/refresh":             {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/register":            {class: isoPublic, reason: reasonAuth},
+	// Sign in with Apple on the web (ADR 0047 §7): the state sealed in the
+	// browser's cookie, and the identity token Apple answers the code with,
+	// are the credential; the result cookie the finish reads is sealed too.
+	"GET /api/v1/auth/apple/start":      {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/apple/callback":  {class: isoPublic, reason: reasonProvider},
+	"GET /api/v1/auth/apple/finish":     {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/login":           {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/logout":          {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/mfa/verify":      {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/password/forgot": {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/password/reset":  {class: isoPublic, reason: reasonAuth},
+	"GET /api/v1/auth/providers":        {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/refresh":         {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/register":        {class: isoPublic, reason: reasonAuth},
 	// The choice screen of a provider sign-in that found no account (ADR
 	// 0047): the sealed ticket in the HttpOnly cookie is the credential, the
 	// identity a provider just proved; it names no tenant row.
@@ -543,6 +549,7 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/me/sign-in-methods":                          {class: isoSelf, reason: reasonSelf},
 	"PUT /api/v1/me/password":                                 {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/sign-in-methods/google/link":             {class: isoSelf, reason: "starts a link into the caller's own account; the link token it answers names that account and session, nothing taken from the request"},
+	"POST /api/v1/me/sign-in-methods/apple/link":              {class: isoSelf, reason: "starts a link into the caller's own account; the link token it answers names that account and session, nothing taken from the request"},
 	"POST /api/v1/me/sign-in-methods/google/unlink":           {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/sign-in-methods/apple/unlink":            {class: isoSelf, reason: reasonSelf},
 	"GET /api/v1/me/notification-preferences":                 {class: isoSelf, reason: reasonSelf},

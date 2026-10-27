@@ -87,7 +87,8 @@ func (h *handlers) setPassword(w http.ResponseWriter, r *http.Request) {
 // signInMethodLink starts linking provider from the browser that is signed
 // in: the answer is the provider's start with intent=link and a five-minute
 // link token bound to this account and browser session. The round trip
-// ends back on return_to with sign_in_method and result (google.go).
+// ends back on return_to with sign_in_method and result (google.go,
+// apple_web.go).
 func (h *handlers) signInMethodLink(provider string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		noStore(w)
@@ -96,6 +97,10 @@ func (h *handlers) signInMethodLink(provider string) http.HandlerFunc {
 		}
 		if provider == service.ProviderGoogle && h.Google == nil {
 			respondError(w, http.StatusServiceUnavailable, "google_not_configured", "Google sign-in is not configured")
+			return
+		}
+		if provider == service.ProviderApple && !h.AppleAuth.WebEnabled() {
+			respondError(w, http.StatusServiceUnavailable, "apple_not_configured", "Sign in with Apple on the web is not configured")
 			return
 		}
 		var in sdi.LinkSignInMethodSDI

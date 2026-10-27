@@ -1366,8 +1366,9 @@ type SetAppleRefreshTokenParams struct {
 	AppleRefreshTokenEnc pgtype.Text `json:"apple_refresh_token_enc"`
 }
 
-// The sealed refresh token of the account's Apple consent and the bundle id it
-// was issued to: account deletion revokes it with that client id.
+// The sealed refresh token of the account's Apple consent and the client it
+// was issued to (the app's bundle id, or the web's Services ID): account
+// deletion revokes it with that client id.
 func (q *Queries) SetAppleRefreshToken(ctx context.Context, arg SetAppleRefreshTokenParams) error {
 	_, err := q.db.Exec(ctx, setAppleRefreshToken, arg.ID, arg.AppleClientID, arg.AppleRefreshTokenEnc)
 	return err
