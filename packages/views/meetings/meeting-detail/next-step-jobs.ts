@@ -128,7 +128,8 @@ export function nextStepJobs(input: StripInput): StripJob[] {
     case "MISSED":
       return [{ kind: "missed", canAct: input.canHost }];
     case "SCHEDULED":
-      return input.hasInvitation && !input.canHost
+      // In person, a clerk who may record (an invited secretary too) records instead of answering.
+      return input.hasInvitation && !input.canHost && !(input.inPerson && input.canRecord)
         ? [{ kind: "rsvp" }]
         : [
             {

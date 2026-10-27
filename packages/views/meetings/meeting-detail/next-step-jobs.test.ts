@@ -35,6 +35,18 @@ describe("nextStepJobs", () => {
     });
   });
 
+  it("lets an invited secretary record an in-person meeting instead of answering", () => {
+    const secretary = { ...base, viewer: "secretary" as const, canHost: false, isClerk: true, hasInvitation: true };
+    expect(nextStepJobs({ ...secretary, inPerson: true, canRecord: true })[0]).toMatchObject({
+      kind: "start",
+      inPerson: true,
+      canRecord: true,
+    });
+    // Online, or with no recording to offer, the invitation is still answered.
+    expect(nextStepJobs(secretary)).toEqual([{ kind: "rsvp" }]);
+    expect(nextStepJobs({ ...secretary, inPerson: true, canRecord: false })).toEqual([{ kind: "rsvp" }]);
+  });
+
   it("lets only the runner end, extend, restore or reschedule", () => {
     expect(nextStepJobs({ ...base, status: "IN_PROGRESS", liveNeed: 2 })).toEqual([{ kind: "live", need: 2, canEnd: true }]);
     expect(nextStepJobs({ ...base, status: "IN_PROGRESS", canHost: false, viewer: "member" })[0]).toMatchObject({ canEnd: false });

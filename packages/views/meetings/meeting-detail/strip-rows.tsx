@@ -138,7 +138,8 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
       actions={
         <>
           <MeetingCalendarButton meetingId={meeting.id} title={meeting.title} className={lg(kitButton.ghost)} />
-          {job.canStart && now >= startsAt ? (
+          {/* Any clerk may record it held (the server's RecordHeld); online keeps the runner's gate. */}
+          {(job.canStart || (job.inPerson && job.canRecord)) && now >= startsAt ? (
             <MeetingRecordHeldButton
               workspaceId={workspaceId}
               meeting={meeting}
