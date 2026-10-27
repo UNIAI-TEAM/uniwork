@@ -1,0 +1,17 @@
+$ export NEXT_PUBLIC_API_URL=http://localhost:18656 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18656 DEV_VERIFICATION_CODE=123456; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test e2e/documents-folder-contents-access.spec.ts --reporter=list > /tmp/fca5-new.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/fca5-new.log | grep -A60 -E "^\s+[0-9]+\) " | head -n 300; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/fca5-new.log; tail -n 40 /tmp/fca5-new.log; echo; echo "E2E_FCA_EXIT=$rc"
+  1 skipped
+  3 passed (19.3s)
+
+Running 4 tests using 1 worker
+
+(node:29986) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 documents-folder-contents-access.spec.ts:186:1 › merge: dry run counts the skipped document, apply writes the subtree and leaves the foreign page alone (5.5s)
+  ✓  2 documents-folder-contents-access.spec.ts:230:1 › replace: Confirm waits for a workspace choice, then the shares are exactly the chosen set (6.9s)
+  ✓  3 documents-folder-contents-access.spec.ts:309:1 › card menu: the home folder card menu opens the same dialog (4.5s)
+  -  4 documents-folder-contents-access.spec.ts:340:1 › 202 background batch: progress bar and toast on completion
+
+  1 skipped
+  3 passed (19.3s)
+
+E2E_FCA_EXIT=0

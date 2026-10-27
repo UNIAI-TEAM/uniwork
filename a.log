@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^208e2bbd1" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=208e2bbd16d8ed5eac01ea0fee561cc9333e61d5
+208e2bbd1 test(documents): no loss when the replace keeps the workspace at View (UNI-2244)
+9ff97963d test(documents): folder access e2e follows fix2 labels, card and header menus, home share for to_private (UNI-2244)
+12cc2793f Merge commit '3cfe6727d' into feature/UNI-2244-folder-bulk-access-e2e
+3cfe6727d feat(documents): offer Chia sẻ on the folder card and open-folder menus, retitle the folder access dialog with a folder subtitle
