@@ -1,0 +1,2 @@
+$ npx playwright install chromium; rc=$?; echo E05_EXIT=$rc; [ $rc -eq 0 ]
+E05_EXIT=0
