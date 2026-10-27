@@ -35,8 +35,10 @@ export interface LibraryToolbarProps {
   /** Gần đây only: the Tất cả / Đã mở / Đã sửa segment; absent, no segment. */
   activity?: ActivityFilter;
   onActivity?: (activity: ActivityFilter) => void;
-  /** What a screen adds after Cập nhật (Lưu trữ's "Lưu trữ bởi" and its sort note). */
+  /** What a screen adds after Cập nhật (Lưu trữ's "Lưu trữ bởi" chip). */
   children?: ReactNode;
+  /** A line under the chips, inside the filter zone, so the search box stays on the chip row (Lưu trữ's loaded-only note). */
+  note?: ReactNode;
   /** The search box pushed to the right end of the filter row (UNI-2205). */
   search?: ReactNode;
   className?: string;
@@ -69,6 +71,7 @@ export function LibraryToolbar({
   activity,
   onActivity,
   children,
+  note,
   search,
   className,
 }: LibraryToolbarProps) {
@@ -99,6 +102,7 @@ export function LibraryToolbar({
         />
         {children}
         <TypeChips types={types} onTypes={onTypes} focusTrigger={() => typeTrigger.current?.focus()} />
+        {note ? <div className="basis-full">{note}</div> : null}
       </div>
       {search}
     </div>
