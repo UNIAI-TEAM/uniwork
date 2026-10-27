@@ -14641,6 +14641,8 @@
       "group": {
         "toggle": "Nhóm theo thư mục",
         "toggle_hint": "Gom tệp theo thư mục chứa chúng trên Drive",
+        "count_one": "{{count}} tệp",
+        "count_other": "{{count}} tệp",
         "header_aria_one": "{{name}}, {{count}} tệp",
         "header_aria_other": "{{name}}, {{count}} tệp",
         "unnamed": "Thư mục trên Drive · {{id}}",

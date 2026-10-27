@@ -14715,6 +14715,8 @@
       "group": {
         "toggle": "Group by folder",
         "toggle_hint": "Group files by the Drive folder they sit in",
+        "count_one": "{{count}} file",
+        "count_other": "{{count}} files",
         "header_aria_one": "{{name}}, {{count}} file",
         "header_aria_other": "{{name}}, {{count}} files",
         "unnamed": "Drive folder · {{id}}",

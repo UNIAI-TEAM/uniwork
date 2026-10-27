@@ -143,7 +143,7 @@ describe("drive-library endpoints", () => {
     );
     const out = await listDriveFiles("ws1");
     expect(out.files.map((f) => f.id)).toEqual(["a", "b", "c", "d", "e"]);
-    expect(out.files.map((f) => f.drive_folder)).toEqual([null, null, null, null, null]);
+    expect(out.files.map((f) => f.drive_folder)).toEqual([null, null, null, { id: "fld4", name: null }, null]);
   });
 
   it("getDriveFile carries drive_folder and survives a malformed one", async () => {

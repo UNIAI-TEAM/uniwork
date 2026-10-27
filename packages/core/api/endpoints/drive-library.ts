@@ -51,7 +51,7 @@ export type DriveTaskCreationGroup = z.infer<typeof DriveTaskCreationGroupSchema
 // whole file; `name` null means the folder name is not readable under `drive.file`.
 const DriveFolderWireSchema = z.object({
   id: z.string().min(1),
-  name: z.string().nullish().transform((v) => v ?? null),
+  name: z.unknown().optional().transform((v) => (typeof v === "string" ? v : null)),
 });
 export type DriveFolderRef = z.infer<typeof DriveFolderWireSchema>;
 

@@ -236,7 +236,7 @@ export function DriveLibraryTable({
                       <ChevronRight aria-hidden className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", !collapsed && "rotate-90")} />
                       <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 truncate">{label}</span>
-                      <span aria-hidden className="font-mono tabular-nums text-muted-foreground">{group.files.length}</span>
+                      <span aria-hidden className="tabular-nums text-muted-foreground">{t("driveLibrary.list.group.count", { count: group.files.length })}</span>
                     </button>
                   </th>
                 </tr>

@@ -7,7 +7,7 @@ import type { StorageAdapter } from "../types/storage";
 
 const GROUP_BY_FOLDER_KEY = "uniwork_drive_group_by_folder";
 
-export function groupByFolderStorageKey(userId: string): string {
+function groupByFolderStorageKey(userId: string): string {
   return `${GROUP_BY_FOLDER_KEY}:${userId}`;
 }
 
@@ -41,7 +41,7 @@ export function writeGroupByFolder(
 // (`sessionStorageAdapter`): `uniwork_drive_collapsed_folders:{userId}` → JSON array of folder-group keys.
 const COLLAPSED_KEY = "uniwork_drive_collapsed_folders";
 
-export function collapsedFoldersStorageKey(userId: string): string {
+function collapsedFoldersStorageKey(userId: string): string {
   return `${COLLAPSED_KEY}:${userId}`;
 }
 
