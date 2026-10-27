@@ -242,6 +242,8 @@ export function OrgInviteLinkPanel({ orgSlug, orgId }: { orgSlug: string; orgId:
             value={workspaceIds}
             onChange={setWorkspaceIds}
             disabled={pending || !!active}
+            label={t("inviteLink.workspacesLabel")}
+            hint={t("inviteLink.workspacesHint")}
           />
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="min-w-0 flex-1">

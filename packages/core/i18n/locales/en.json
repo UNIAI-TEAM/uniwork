@@ -600,6 +600,8 @@
     "workspaceDescription": "Create a link so many people can join this workspace as Member.",
     "orgTitle": "Invite by link",
     "orgDescription": "Create a link so people can join the organization and the workspaces you pick.",
+    "workspacesLabel": "Workspaces on the link",
+    "workspacesHint": "Pick at least one workspace. Anyone who opens the link joins the organization and those workspaces as Member.",
     "expiry": "Link expiration",
     "expiryDays_one": "{{count}} day",
     "expiryDays_other": "{{count}} days",

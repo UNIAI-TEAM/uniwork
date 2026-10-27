@@ -599,6 +599,8 @@
     "workspaceDescription": "Tạo một đường dẫn để nhiều người cùng gia nhập workspace này với vai trò Thành viên.",
     "orgTitle": "Mời bằng liên kết",
     "orgDescription": "Tạo đường dẫn để người nhận gia nhập tổ chức và các workspace bạn chọn.",
+    "workspacesLabel": "Workspace trên liên kết",
+    "workspacesHint": "Chọn ít nhất một workspace. Người mở liên kết sẽ gia nhập tổ chức và các workspace đã chọn với vai trò Thành viên.",
     "expiry": "Thời hạn liên kết",
     "expiryDays_one": "{{count}} ngày",
     "expiryDays_other": "{{count}} ngày",
