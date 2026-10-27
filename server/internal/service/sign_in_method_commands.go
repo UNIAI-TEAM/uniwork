@@ -72,20 +72,26 @@ func errLinkSessionMismatch() error {
 }
 
 // PasswordInput is PUT /me/password: the new password, and the proof —
-// the current password when the account has one, else a step-up token
-// (which an account with a password may send instead).
+// the current password when the account has one and no second factor, else
+// a step-up token (which an account with a password may send instead).
 type PasswordInput struct {
 	New         string
 	Current     string
 	StepUpToken string
 }
 
-// SetPassword sets the account's first password or changes it. A change
+// SetPassword sets the account's first password or changes it. The proof is
+// a step-up token, or, to change the password of an account without a second
+// factor, the current one (with a factor on, only that factor proves the
+// owner: ADR 0047 §5); the bearer's session must be live either way. A change
 // always signs out every other session (browser, device, MCP grant: the
 // server decides, no client flag) and refuses browser tokens issued before
 // it on sensitive commands (MarkCredentialsRevoked); a first password takes
-// nothing away. Audited auth.password_set or auth.password_changed via
-// settings, told to the owner.
+// nothing away. The proof is weighed (and the new password hashed) before
+// the account's row lock; under it the bearer is judged again
+// (requireBearerUnderLock), and a current password stands only while it is
+// still the one stored and no second factor came on. Audited
+// auth.password_set or auth.password_changed via settings, told to the owner.
 func (s *SignInMethodsService) SetPassword(ctx context.Context, userID string, in PasswordInput) (SignInMethodsChange, error) {
 	if err := validatePassword(in.New); err != nil {
 		return SignInMethodsChange{}, err
@@ -97,15 +103,24 @@ func (s *SignInMethodsService) SetPassword(ctx context.Context, userID string, i
 	if err != nil {
 		return SignInMethodsChange{}, err
 	}
+	byPassword := false
 	switch {
 	case in.StepUpToken != "":
 		if err := s.auth.requireStepUp(ctx, s.q, userID, in.StepUpToken); err != nil {
 			return SignInMethodsChange{}, err
 		}
-	case u.PasswordHash.Valid && in.Current != "":
+	case u.PasswordHash.Valid && in.Current != "" && !u.MfaEnabledAt.Valid:
+		at, err := stepUpBearer(ctx, userID)
+		if err != nil {
+			return SignInMethodsChange{}, err
+		}
+		if _, err := liveBearerSession(ctx, s.q, at); err != nil {
+			return SignInMethodsChange{}, err
+		}
 		if err := s.auth.legacyPassword(ctx, userID, in.Current); err != nil {
 			return SignInMethodsChange{}, err
 		}
+		byPassword = true
 	default:
 		return SignInMethodsChange{}, errProofRequiredFor(s.auth.signInMethods(u, bearerChannel(ctx)))
 	}
@@ -122,6 +137,19 @@ func (s *SignInMethodsService) SetPassword(ctx context.Context, userID string, i
 	locked, err := lockLiveUser(ctx, q, userID)
 	if err != nil {
 		return SignInMethodsChange{}, err
+	}
+	if err := requireBearerUnderLock(ctx, q, locked); err != nil {
+		return SignInMethodsChange{}, err
+	}
+	if byPassword {
+		switch {
+		case locked.MfaEnabledAt.Valid:
+			return SignInMethodsChange{}, errProofRequiredFor(s.auth.signInMethods(locked, bearerChannel(ctx)))
+		case locked.PasswordHash != u.PasswordHash:
+			// Replaced while this request was on its way: the password it
+			// proved is not the current one any more.
+			return SignInMethodsChange{}, errPasswordIncorrect()
+		}
 	}
 	updated, err := q.SetUserPassword(ctx, db.SetUserPasswordParams{ID: userID, PasswordHash: pgtype.Text{String: hash, Valid: true}})
 	if err != nil {
@@ -278,10 +306,15 @@ func (s *SignInMethodsService) OpenLinkToken(sealed string) (LinkIntent, error) 
 // Settings tells that the browser carrying it is still the session that
 // asked (spec §3.4). The handler never reads the database itself.
 func (s *AuthService) LiveWebSession(ctx context.Context, rawRefresh string) (userID, sessionID string, ok bool) {
+	return liveWebSession(ctx, s.q, rawRefresh)
+}
+
+// liveWebSession is LiveWebSession read through q.
+func liveWebSession(ctx context.Context, q *db.Queries, rawRefresh string) (userID, sessionID string, ok bool) {
 	if rawRefresh == "" {
 		return "", "", false
 	}
-	rt, err := s.q.GetRefreshTokenByHash(ctx, hashToken(rawRefresh))
+	rt, err := q.GetRefreshTokenByHash(ctx, hashToken(rawRefresh))
 	if err != nil {
 		return "", "", false
 	}
@@ -292,7 +325,12 @@ func (s *AuthService) LiveWebSession(ctx context.Context, rawRefresh string) (us
 // cookie must open the very session the link token names, else
 // session_mismatch.
 func (s *SignInMethodsService) CheckLinkSession(ctx context.Context, li LinkIntent, rawRefresh string) error {
-	uid, sid, ok := s.auth.LiveWebSession(ctx, rawRefresh)
+	return checkLinkSession(ctx, s.q, li, rawRefresh)
+}
+
+// checkLinkSession is CheckLinkSession read through q.
+func checkLinkSession(ctx context.Context, q *db.Queries, li LinkIntent, rawRefresh string) error {
+	uid, sid, ok := liveWebSession(ctx, q, rawRefresh)
 	if !ok || uid != li.UserID || sid != li.SessionID {
 		return errLinkSessionMismatch()
 	}
@@ -311,8 +349,8 @@ type BrowserLink struct {
 // LinkFromBrowser finishes a link from Settings once the provider proved
 // id: the browser must still be signed in to the session that started it
 // (CheckLinkSession again: the cookie may have changed hands during the
-// round trip), then attachIdentity links it into that account, audited via
-// settings. A link_required, taken or already-linked answer is attach's own.
+// round trip, and once more under the account's row lock), then
+// attachIdentity links it into that account, audited via settings. A link_required, taken or already-linked answer is attach's own.
 // An Apple consent the proof brought and nothing kept (a refusal other than
 // movable, whose ticket carries it on) goes back to Apple unless the Apple ID
 // opens an account.
@@ -336,6 +374,11 @@ func (s *SignInMethodsService) LinkFromBrowser(ctx context.Context, li LinkInten
 	q := s.q.WithTx(tx)
 	caller, err := lockLiveUser(ctx, q, li.UserID)
 	if err != nil {
+		return BrowserLink{}, err
+	}
+	// Again under the lock: a reclaim or a credential change that committed
+	// meanwhile ended the session that asked.
+	if err := checkLinkSession(ctx, q, li, rawRefresh); err != nil {
 		return BrowserLink{}, err
 	}
 	a, err := s.auth.attachIdentity(ctx, q, caller, id, linkViaSettings, false)
@@ -383,8 +426,9 @@ type AppLink struct {
 // session are 401, a missing token 403 proof_required); then the token,
 // checked by the app's verifier of that provider (403 provider_token_invalid,
 // never 401: the caller is signed in), and attachIdentity links it into the
-// account, audited via settings — taken, movable and already-linked are
-// attach's own answers. An Apple consent the proof brought and nothing kept
+// account under its row lock, where the bearer is judged again
+// (requireBearerUnderLock), audited via settings — taken, movable and
+// already-linked are attach's own answers. An Apple consent the proof brought and nothing kept
 // goes back to Apple unless the Apple ID opens an account.
 func (s *SignInMethodsService) LinkFromApp(ctx context.Context, userID, provider string, in AppLink) (out SignInMethodsChange, err error) {
 	if provider != ProviderGoogle && provider != ProviderApple {
@@ -422,6 +466,9 @@ func (s *SignInMethodsService) LinkFromApp(ctx context.Context, userID, provider
 	q := s.q.WithTx(tx)
 	caller, err := lockLiveUser(ctx, q, userID)
 	if err != nil {
+		return SignInMethodsChange{}, err
+	}
+	if err := requireBearerUnderLock(ctx, q, caller); err != nil {
 		return SignInMethodsChange{}, err
 	}
 	a, err := s.auth.attachIdentity(ctx, q, caller, id, linkViaSettings, in.Move)
@@ -462,7 +509,7 @@ func (s *SignInMethodsService) appIdentity(ctx context.Context, provider string,
 }
 
 // Unlink is POST /me/sign-in-methods/{provider}/unlink, with a step-up
-// token. Under the row lock: the account's last way in stays (409
+// token, judged under the row lock like the rest: the account's last way in stays (409
 // sign_in_method_last), and so does Apple when the account's own address is
 // Apple's relay (409 sign_in_method_relay_email). The subject is kept as
 // *_unlinked_sub, so it is never linked back by address; every other session
@@ -474,9 +521,6 @@ func (s *SignInMethodsService) Unlink(ctx context.Context, userID, provider, ste
 	if provider != ProviderGoogle && provider != ProviderApple {
 		return SignInMethodsChange{}, Invalid("nhà cung cấp không hợp lệ")
 	}
-	if err := s.auth.requireStepUp(ctx, s.q, userID, stepUpToken); err != nil {
-		return SignInMethodsChange{}, err
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return SignInMethodsChange{}, err
@@ -485,6 +529,11 @@ func (s *SignInMethodsService) Unlink(ctx context.Context, userID, provider, ste
 	q := s.q.WithTx(tx)
 	locked, err := lockLiveUser(ctx, q, userID)
 	if err != nil {
+		return SignInMethodsChange{}, err
+	}
+	// The step-up's gates run under the lock, so a credential change that
+	// committed while this waited is what they judge.
+	if err := s.auth.requireStepUp(ctx, q, userID, stepUpToken); err != nil {
 		return SignInMethodsChange{}, err
 	}
 	if linked, _ := linkedSubject(locked, provider); !linked.Valid {

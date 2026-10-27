@@ -30,8 +30,8 @@ type StepUpTokenSDI struct {
 // SetPasswordSDI is PUT /api/v1/me/password.
 type SetPasswordSDI struct {
 	NewPassword     string `json:"new_password" minLength:"8" description:"Mật khẩu mới, tối thiểu 8 ký tự" example:"new-password-2026"`
-	CurrentPassword string `json:"current_password,omitempty" description:"Đổi mật khẩu: mật khẩu hiện tại là bằng chứng" example:"password123"`
-	StepUpToken     string `json:"step_up_token,omitempty" description:"Đặt mật khẩu lần đầu (tài khoản chưa có mật khẩu): token từ POST /me/step-up; đổi mật khẩu cũng nhận thay cho current_password" example:"q1h8u3WbF0tA…"`
+	CurrentPassword string `json:"current_password,omitempty" description:"Đổi mật khẩu của tài khoản không bật xác thực hai lớp: mật khẩu hiện tại là bằng chứng (bật hai lớp thì 403 proof_required, dùng step_up_token từ mã TOTP)" example:"password123"`
+	StepUpToken     string `json:"step_up_token,omitempty" description:"Đặt mật khẩu lần đầu (tài khoản chưa có mật khẩu) hay đổi mật khẩu khi bật xác thực hai lớp: token từ POST /me/step-up; đổi mật khẩu cũng nhận thay cho current_password" example:"q1h8u3WbF0tA…"`
 }
 
 // LinkSignInMethodSDI is POST /api/v1/me/sign-in-methods/{provider}/link.

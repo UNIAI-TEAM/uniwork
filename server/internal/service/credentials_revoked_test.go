@@ -24,9 +24,9 @@ func webToken(ctx context.Context, uid, sid string, iat time.Time) context.Conte
 	return auth.WithAccessToken(ctx, auth.AccessToken{UserID: uid, SessionID: sid, Web: true, IssuedAt: iat})
 }
 
-// liveWebSession starts a browser session for uid (its first refresh token)
+// startWebSession starts a browser session for uid (its first refresh token)
 // and answers its id.
-func liveWebSession(t *testing.T, q *db.Queries, uid string) string {
+func startWebSession(t *testing.T, q *db.Queries, uid string) string {
 	t.Helper()
 	sid := util.NewID()
 	if _, err := q.CreateRefreshToken(context.Background(), db.CreateRefreshTokenParams{
@@ -57,7 +57,7 @@ func TestCredentialsRevokedAtRefusesOlderWebTokens(t *testing.T) {
 	t.Run("desktop consent", func(t *testing.T) {
 		f := newIdentityFixture(t)
 		u := registerVerified(t, f.q, f.auth, "creds-desktop@example.com", "Creds")
-		sid := liveWebSession(t, f.q, u.ID)
+		sid := startWebSession(t, f.q, u.ID)
 		if err := f.q.MarkCredentialsRevoked(f.ctx, u.ID); err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +125,7 @@ func TestCredentialsRevokedAtRefusesOlderWebTokens(t *testing.T) {
 		w := newMcpWorld(t)
 		w.enable(t)
 		c := w.publicClient(t, "https://x.test/cb")
-		sid := liveWebSession(t, w.q, w.owner.ID)
+		sid := startWebSession(t, w.q, w.owner.ID)
 		if err := w.q.MarkCredentialsRevoked(w.ctx, w.owner.ID); err != nil {
 			t.Fatal(err)
 		}

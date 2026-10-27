@@ -89,3 +89,31 @@ func requireLiveBearer(ctx context.Context, q *db.Queries) error {
 	_, err := liveBearerSession(ctx, q, at)
 	return err
 }
+
+// requireBearerUnderLock re-runs, once a sign-in method command holds its
+// account's row lock (locked), the bearer gates it checked before taking it:
+// a reclaim, a password change or reset, or an unlink takes that lock first
+// and commits its revocations under it, so a command that passed its gates
+// while one was in flight would otherwise write into the account it left
+// behind — a squatter's link into the reclaimed account, a stolen session's
+// password over the owner's new one. Under the lock the browser token is
+// judged against the mark again (bearerAfterMark) and the session must still
+// be live (liveBearerSession): 401 invalid_token. A bearer of another
+// account, or none, is not this command's to judge, nor a token that names
+// no session (see requireLiveBearer).
+func requireBearerUnderLock(ctx context.Context, q *db.Queries, locked db.User) error {
+	at, ok := auth.AccessTokenFrom(ctx)
+	if !ok || at.UserID != locked.ID {
+		return nil
+	}
+	if at.Web {
+		if err := bearerAfterMark(ctx, q, at, locked); err != nil {
+			return err
+		}
+	}
+	if at.SessionID == "" {
+		return nil
+	}
+	_, err := liveBearerSession(ctx, q, at)
+	return err
+}

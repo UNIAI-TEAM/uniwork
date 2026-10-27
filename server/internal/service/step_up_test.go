@@ -538,6 +538,36 @@ func TestPasswordChangeRevokesEveryOtherSession(t *testing.T) {
 	if !strings.Contains(m.Text, "Các thiết bị khác đã được đăng xuất") {
 		t.Fatalf("the owner's notice: %s", m.Text)
 	}
+
+	// The current password is a proof only while the session asking is live,
+	// and only on an account without a second factor: with one on, that
+	// factor alone proves the owner (ADR 0047 §5), through a step-up token.
+	gone, err := f.auth.Login(f.ctx, u.Email, "brand-new-pass-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.auth.Logout(f.ctx, gone.RefreshToken); err != nil {
+		t.Fatal(err)
+	}
+	_, err = methods.SetPassword(f.bearer(t, gone), u.ID, PasswordInput{New: "signed-out-pass-1", Current: "brand-new-pass-1"})
+	wantStatusCode(t, err, "invalid_token", http.StatusUnauthorized)
+	mfa, secret, _ := f.mfaAccount(t, "change-mfa@example.com")
+	mctx, _ := f.browser(t, mfa.ID)
+	_, other = f.browser(t, mfa.ID)
+	_, err = methods.SetPassword(mctx, mfa.ID, PasswordInput{New: "brand-new-pass-1", Current: "password123"})
+	if got := proofsOf(t, err); got != ProofTOTP {
+		t.Fatalf("an account with a second factor changing its password by the current one: proofs %q", got)
+	}
+	if !f.live(t, "refresh_tokens", f.tokenID(t, other)) || f.user(t, mfa.ID).CredentialsRevokedAt.Valid {
+		t.Fatal("a refused change signed someone out")
+	}
+	g, err := f.auth.StepUp(mctx, mfa.ID, StepUpProof{Code: totpNow(t, secret)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := methods.SetPassword(mctx, mfa.ID, PasswordInput{New: "brand-new-pass-1", StepUpToken: g.Token}); err != nil {
+		t.Fatalf("with the second factor's step-up: %v", err)
+	}
 }
 
 // The doors kept only for shipped apps — the legacy proofs they send in

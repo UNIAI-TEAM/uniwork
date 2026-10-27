@@ -93,6 +93,24 @@ func (s *AuthService) ConfirmTOTP(ctx context.Context, userID, code, stepUpToken
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.q.WithTx(tx)
+	// Under the row lock again: a credential change that committed while
+	// this was on its way ended the session that asked, and the factor
+	// turned on is the secret the code was checked against.
+	locked, err := lockLiveUser(ctx, qtx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireBearerUnderLock(ctx, qtx, locked); err != nil {
+		return nil, err
+	}
+	switch {
+	case !locked.EmailVerifiedAt.Valid:
+		return nil, ErrEmailUnverified
+	case locked.MfaEnabledAt.Valid:
+		return nil, ErrConflict
+	case locked.TotpSecret != u.TotpSecret:
+		return nil, ErrInvalidCode
+	}
 	if _, err := qtx.EnableUserMFA(ctx, db.EnableUserMFAParams{ID: userID, MfaRecoveryCodes: hashes}); err != nil {
 		return nil, err
 	}

@@ -484,7 +484,15 @@ chỉ ghi `user` vào phiên khi parse đúng, không thì gọi lại `/me` (kh
 | `POST /me/sign-in-methods/apple/native` | `step_up_token`, `identity_token`, `nonce`, `authorization_code?`, `move?` | `SignInMethodsChangeSDO` |
 | `POST /me/sign-in-methods/google/unlink`, `…/apple/unlink` | `step_up_token` | `SignInMethodsChangeSDO` |
 
-- `PUT /me/password`: có mật khẩu → `current_password` là bằng chứng (không cần token); chưa có → `step_up_token`.
+- `PUT /me/password`: có mật khẩu và **không** bật MFA → `current_password` là bằng chứng (không cần token, nhưng phiên
+  của bearer phải còn sống: `401 invalid_token`); chưa có mật khẩu, hay ⚑ (phản biện lát 5) bật MFA → `step_up_token`
+  (bật MFA thì `proof_required` với proofs `[totp]`: "bật hai lớp thì chỉ yếu tố đó", ADR 0047 §5).
+- ⚑ (phản biện lát 5) Mọi lệnh phương thức đăng nhập (`PUT /me/password`, liên kết từ Cài đặt/app/vé, gỡ, bật MFA) xét
+  lại bearer **dưới khoá hàng `users`** (`requireBearerUnderLock`: dấu `credentials_revoked_at`, phiên còn sống;
+  liên kết từ trình duyệt xét lại cookie refresh): thu hồi, đổi mật khẩu, reset và gỡ khoá hàng đó trước khi thu hồi,
+  nên lệnh đã qua cổng trong lúc chúng đang chạy không ghi được vào tài khoản sau đó. Lệnh vé và gỡ chạy cả cổng sau
+  khoá; đặt mật khẩu bằng mật khẩu hiện tại còn đòi hash đã chứng minh vẫn là hash đang lưu.
+  `TestSignInMethodCommandsJudgeTheBearerUnderTheLock`.
   `validatePassword` như đăng ký. ⚑ Đổi mật khẩu **luôn** (server quyết, không có cờ client) thu hồi mọi phiên khác
   qua helper mới `revokeOtherUserSessions(ctx, q, uid, keepSessionID)` cạnh `revokeAllUserSessions` (cùng thứ tự khoá:
   device_sessions trừ family đang giữ, refresh_tokens khác `session_id`, push thiết bị, lease Office;

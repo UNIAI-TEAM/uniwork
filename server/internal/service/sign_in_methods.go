@@ -403,7 +403,9 @@ type TicketLink struct {
 // step-up token of the bearer's session (spec §3.7: an older session, or
 // Settings confirming a move after a link callback answered movable); with
 // neither, 403 proof_required. The command is sensitive, so a browser token
-// older than the account's last credential change is refused first.
+// older than the account's last credential change is refused first. Every
+// gate runs under the account's row lock, taken first: a reclaim or a
+// credential change that commits while this waits is what the gates see.
 func (s *SignInTicketService) Link(ctx context.Context, sealed string, b TicketBinding, in TicketLink) (SignInMethodsChange, error) {
 	t, err := s.auth.openSignInTicket(sealed, b)
 	if err != nil {
@@ -422,17 +424,17 @@ func (s *SignInTicketService) Link(ctx context.Context, sealed string, b TicketB
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.q.WithTx(tx)
-	if err := requireCurrentCredentials(ctx, q); err != nil {
-		return SignInMethodsChange{}, err
-	}
-	if err := s.provenSince(ctx, q, at, t, in.StepUpToken); err != nil {
-		return SignInMethodsChange{}, err
-	}
 	caller, err := q.GetUserForUpdate(ctx, at.UserID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SignInMethodsChange{}, ErrNotFound
 	}
 	if err != nil {
+		return SignInMethodsChange{}, err
+	}
+	if err := requireCurrentCredentials(ctx, q); err != nil {
+		return SignInMethodsChange{}, err
+	}
+	if err := s.provenSince(ctx, q, at, t, in.StepUpToken); err != nil {
 		return SignInMethodsChange{}, err
 	}
 	a, err := s.auth.attachIdentity(ctx, q, caller, t.Identity, linkViaTicket, in.Move)
