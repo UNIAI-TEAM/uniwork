@@ -285,3 +285,38 @@ func TestSignInMethodChangedRendersEveryChangeInBothLocales(t *testing.T) {
 		}
 	}
 }
+
+// The code of "I was invited with another address" (ADR 0047) goes to an
+// address that may have no account: it names no user, says which provider
+// waits on it and for how long, and warns that the code opens the account.
+func TestSignInEmailClaimRendersBothLocales(t *testing.T) {
+	r := Renderer{AppURL: "http://localhost:3000"}
+	for loc, want := range map[string][3]string{
+		"vi": {"là mã đăng nhập UniWork", "15 phút", "ai có mã này sẽ vào được tài khoản"},
+		"en": {"is your UniWork sign-in code", "15 minutes", "whoever has this code can open your UniWork account"},
+	} {
+		m, err := r.SignInEmailClaim("an@company.vn", loc, SignInEmailClaimData{Code: "482913", Expires: 15 * time.Minute, Method: SignInMethodApple})
+		if err != nil || m.Kind != KindSignInEmailClaim || m.UserID != "" || m.Locale != loc || m.To != "an@company.vn" {
+			t.Fatalf("%s: %v %+v", loc, err, m)
+		}
+		if !strings.HasPrefix(m.Subject, "482913 ") || !strings.Contains(m.Subject, want[0]) {
+			t.Fatalf("%s: subject %q", loc, m.Subject)
+		}
+		for _, body := range []string{m.HTML, m.Text} {
+			for _, s := range []string{"482913", "Apple", want[1], want[2]} {
+				if !strings.Contains(body, s) {
+					t.Fatalf("%s: body misses %q: %s", loc, s, body)
+				}
+			}
+			if strings.Contains(body, "{{") || strings.Contains(body, "<no value>") {
+				t.Fatalf("%s: unrendered template: %s", loc, body)
+			}
+		}
+	}
+	// Only a provider sign-in waits on an address.
+	for _, method := range []string{"", SignInMethodPassword, "github"} {
+		if _, err := r.SignInEmailClaim("a@example.com", "vi", SignInEmailClaimData{Code: "1", Expires: time.Minute, Method: method}); err == nil {
+			t.Fatalf("method %q rendered", method)
+		}
+	}
+}

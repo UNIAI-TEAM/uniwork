@@ -1,0 +1,11 @@
+Subject: {{.Data.Code}} is your UniWork sign-in code
+
+Confirm your email
+
+Someone is signing in to UniWork with {{.Data.MethodName}} and said this is their work email. Enter the code below to link {{.Data.MethodName}} to the UniWork account with this address, or to create an account with it:
+
+    {{.Data.Code}}
+
+The code is valid for {{expires .Data.Expires .Locale}} and can be used once.
+
+Only enter it if you are the one signing in right now: whoever has this code can open your UniWork account. Never share it, not even with someone who says they are from UniWork. If you did not just sign in to UniWork, ignore this email — nothing changes without the code.

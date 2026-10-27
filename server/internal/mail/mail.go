@@ -27,6 +27,10 @@ const (
 	// set or changed, the second factor locked after repeated guesses. It
 	// replaces apple_linked, which only told of an Apple link.
 	KindSignInMethodChanged = "sign_in_method_changed"
+	// The code that proves an address typed during a provider sign-in no
+	// account matched ("I was invited with another address", ADR 0047). The
+	// address may have no account, so the mail names no user.
+	KindSignInEmailClaim = "sign_in_email_claim"
 )
 
 type Message struct {

@@ -1,0 +1,11 @@
+Subject: {{.Data.Code}} là mã đăng nhập UniWork của bạn
+
+Xác nhận email
+
+Có người đang đăng nhập UniWork bằng {{.Data.MethodName}} và cho biết đây là email công việc của họ. Nhập mã dưới đây để liên kết {{.Data.MethodName}} với tài khoản UniWork mang địa chỉ này, hoặc tạo tài khoản mới với địa chỉ này:
+
+    {{.Data.Code}}
+
+Mã có hiệu lực trong {{expires .Data.Expires .Locale}} và chỉ dùng được một lần.
+
+Chỉ nhập mã khi chính bạn đang đăng nhập: ai có mã này sẽ vào được tài khoản UniWork của bạn. Đừng chia sẻ mã với ai, kể cả người tự nhận là UniWork. Nếu bạn không vừa đăng nhập UniWork, bỏ qua email này, không có gì thay đổi nếu không có mã.
