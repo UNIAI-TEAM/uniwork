@@ -3,6 +3,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@uniwork/core/api";
 import { useMarkDocumentTemplate, useUnmarkDocumentTemplate } from "@uniwork/core/documents/hooks-templates";
 import { DocumentTemplateWidenDialog } from "./document-template-widen-dialog";
 import type { DocumentSummaryRow } from "./library-rows";
@@ -14,7 +15,6 @@ export interface TemplateCommands {
   onMarkTemplate: (doc: TemplateTarget) => void;
   /** Bỏ khỏi Mẫu: the document stays where it is. */
   onUnmarkTemplate: (doc: TemplateTarget) => void;
-  isBusy: (documentId: string) => boolean;
   /** The widen confirmation, rendered beside the other row dialogs. */
   dialog: ReactNode;
 }
@@ -29,23 +29,17 @@ export function useTemplateCommands(wsId: string): TemplateCommands {
   const unmark = useUnmarkDocumentTemplate(wsId);
   const [widening, setWidening] = useState<TemplateTarget | null>(null);
   const busyRef = useRef<Set<string>>(new Set());
-  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
-  const track = (id: string, on: boolean) => {
-    if (on) busyRef.current.add(id);
-    else busyRef.current.delete(id);
-    setBusy(new Set(busyRef.current));
-  };
 
   const run = (doc: TemplateTarget, send: () => Promise<unknown>, okKey: string, failKey: string) => {
     if (busyRef.current.has(doc.id)) return;
-    track(doc.id, true);
+    busyRef.current.add(doc.id);
     const title = doc.title || t("documents.detail.untitled");
     void send()
       .then(
         () => toast.success(t(okKey, { title })),
-        () => toast.error(t(failKey)),
+        (error: unknown) => toast.error(apiErrorMessage(error) ?? t(failKey)),
       )
-      .finally(() => track(doc.id, false));
+      .finally(() => busyRef.current.delete(doc.id));
   };
 
   const onMarkTemplate = (doc: TemplateTarget) => {
@@ -61,7 +55,6 @@ export function useTemplateCommands(wsId: string): TemplateCommands {
   return {
     onMarkTemplate,
     onUnmarkTemplate,
-    isBusy: (documentId) => busy.has(documentId),
     dialog: widening ? (
       <DocumentTemplateWidenDialog
         open

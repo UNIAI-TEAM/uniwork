@@ -294,6 +294,17 @@ describe("docRowMenu: template marks", () => {
     expect(ids(docRowMenu(documentRow(row), c)).at(-1)).toEqual(["unmark-template"]);
   });
 
+  it("on Templates offers rename at edit level only, with no move, duplicate or trash", () => {
+    // The Templates screen wires rename and the template marks, not the other row commands.
+    const c = ctx({ handlers: { onRename: vi.fn(), onMarkTemplate: vi.fn(), onUnmarkTemplate: vi.fn(), onShare: vi.fn() } });
+    const marked = { template_marked_at: "2026-10-27T03:00:00Z" };
+    const edit = flat(doc({ ...marked, my_level: "edit" }), c);
+    expect(edit).toContain("rename");
+    expect(edit).toContain("unmark-template");
+    for (const id of ["move", "duplicate", "trash", "shelve"]) expect(edit).not.toContain(id);
+    expect(flat(doc({ ...marked, my_level: "view" }), c)).not.toContain("rename");
+  });
+
   it("keeps the trash item beside it on a screen that wires archive", () => {
     const row = doc({ template_marked_at: "2026-10-27T03:00:00Z" });
     expect(ids(docRowMenu(documentRow(row), withTemplate())).at(-1)).toEqual(["shelve", "unmark-template", "trash"]);

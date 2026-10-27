@@ -127,6 +127,13 @@ describe("useTemplateCommands", () => {
     expect(requestMock.mock.calls[0]![1]).toMatchObject({ method: "DELETE" });
   });
 
+  it("shows the server's message when a mark is refused", async () => {
+    requestMock.mockRejectedValue(new ApiError("Tài liệu đã ở thùng rác", "document_deleted", 409));
+    render(wrap(<Harness visibility="workspace" />));
+    fireEvent.click(screen.getByText("mark"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Tài liệu đã ở thùng rác"));
+  });
+
   it("says nothing changed when unmark fails", async () => {
     requestMock.mockRejectedValue(new ApiError("", "internal", 500));
     render(wrap(<Harness visibility="workspace" />));

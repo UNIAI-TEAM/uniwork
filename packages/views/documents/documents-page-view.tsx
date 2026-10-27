@@ -265,13 +265,15 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onSaveSource: rowDialogs.onSaveSource,
     onNewSubfolder: rowCommands ? rowDialogs.onNewSubfolder : undefined,
     canCreateInside: (doc) => canCreateInsideFolder(doc, permissionCtx).allowed,
-    onRename: rowCommands ? rowDialogs.onRename : undefined,
+    // Templates keep rename (the menu checks the edit level per row), not the other row commands.
+    onRename: rowCommands || view.kind === "templates" ? rowDialogs.onRename : undefined,
     onMove: rowCommands ? rowDialogs.onMove : undefined,
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
     // Any reader may open Share from a row (UNI-2009); it is not gated by canCreate like the commands above.
     onShare: rowDialogs.onShare,
     onShelve: rowCommands ? (doc) => shelvedActions.onShelve(doc) : undefined,
-    ...(canCreate ? { onMarkTemplate: templateCommands.onMarkTemplate, onUnmarkTemplate: templateCommands.onUnmarkTemplate } : {}),
+    // Like Share, the template marks are not gated by canCreate: the menu checks level and visibility per row.
+    onMarkTemplate: templateCommands.onMarkTemplate, onUnmarkTemplate: templateCommands.onUnmarkTemplate,
     // Link and download are reads, offered to any reader; the copy needs edit, which the menu checks per row.
     onCopyLink: fileCommands.onCopyLink,
     onDownload: fileCommands.onDownload,
