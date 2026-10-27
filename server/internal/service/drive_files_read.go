@@ -132,6 +132,62 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 	}, nil
 }
 
+// ListFolders returns the aggregate list of parent Drive folders across active
+// Drive files in workspaceID for which the caller has a row in drive_file_access
+// (GET /api/v1/workspaces/{workspaceID}/drive-folders; UNI-2221).
+func (s *DriveFileService) ListFolders(ctx context.Context, actor Actor, workspaceID, connectionID string) ([]DriveFolderGroupView, error) {
+	ws, _, err := s.workspaceAndMember(ctx, actor, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if !s.flagEnabledForMember(ctx, actor.ID, ws.OrganizationID) {
+		return nil, errDriveFeatureDisabled()
+	}
+
+	var connIDFilter pgtype.Text
+	if cid := strings.TrimSpace(connectionID); cid != "" {
+		if _, cerr := s.q.GetDriveConnectionAnyState(ctx, db.GetDriveConnectionAnyStateParams{
+			ID:             cid,
+			OrganizationID: ws.OrganizationID,
+			UserID:         actor.ID,
+		}); cerr != nil {
+			if errors.Is(cerr, pgx.ErrNoRows) {
+				return nil, ErrNotFound
+			}
+			return nil, cerr
+		}
+		connIDFilter = pgtype.Text{String: cid, Valid: true}
+	}
+
+	rows, err := s.q.ListMyDriveFolders(ctx, db.ListMyDriveFoldersParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+		ViewerUserID:   actor.ID,
+		ConnectionID:   connIDFilter,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]DriveFolderGroupView, 0, len(rows))
+	for _, r := range rows {
+		var idPtr, namePtr *string
+		if r.DriveFolderID.Valid && strings.TrimSpace(r.DriveFolderID.String) != "" {
+			fid := strings.TrimSpace(r.DriveFolderID.String)
+			idPtr = &fid
+			if fname := strings.TrimSpace(r.DriveFolderName); fname != "" {
+				namePtr = &fname
+			}
+		}
+		out = append(out, DriveFolderGroupView{
+			ID:        idPtr,
+			Name:      namePtr,
+			FileCount: r.FileCount,
+		})
+	}
+	return out, nil
+}
+
 // Get returns the full detail of a Drive file reference in workspaceID
 // (GET /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID};
 // spec §7.6a, §7.7, §8.8). Returns 404 when the caller has neither a row in

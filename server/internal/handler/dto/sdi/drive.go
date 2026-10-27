@@ -33,6 +33,11 @@ type ListDriveFilesSDI struct {
 	Limit        int32  `query:"limit" description:"Kích thước trang (mặc định 50, tối đa 100)" example:"50"`
 }
 
+// ListDriveFoldersSDI documents the query parameters of GET /api/v1/workspaces/{workspaceID}/drive-folders (UNI-2221).
+type ListDriveFoldersSDI struct {
+	DriveConnectionID string `query:"drive_connection_id" description:"Lọc theo ULID kết nối Google Drive trong dòng truy cập của người gọi; bỏ trống = mọi kết nối của tôi" example:"01J8X4DRVCONN0N1P2Q3R4S5T6"`
+}
+
 // GrantDriveFileAccessSDI is POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access
 // ("Cho UniWork đọc tệp") and PUT /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access
 // ("Đổi tài khoản đọc").

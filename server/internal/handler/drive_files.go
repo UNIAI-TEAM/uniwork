@@ -161,6 +161,36 @@ func (h *handlers) ListDriveFiles(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ListDriveFolders returns the aggregate list of parent Drive folders for the
+// caller's Drive library in the workspace
+// (GET /api/v1/workspaces/{workspaceID}/drive-folders; UNI-2221).
+func (h *handlers) ListDriveFolders(w http.ResponseWriter, r *http.Request) {
+	if h.DriveFiles == nil {
+		h.mapServiceError(w, service.ErrDriveNotConfigured)
+		return
+	}
+	connID := strings.TrimSpace(r.URL.Query().Get("drive_connection_id"))
+	rows, err := h.DriveFiles.ListFolders(
+		r.Context(),
+		service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"),
+		connID,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	folders := make([]sdo.DriveFolderGroupDTO, 0, len(rows))
+	for _, row := range rows {
+		folders = append(folders, sdo.DriveFolderGroupDTO{
+			ID:        row.ID,
+			Name:      row.Name,
+			FileCount: row.FileCount,
+		})
+	}
+	respondJSON(w, http.StatusOK, sdo.DriveFolderListSDO{Folders: folders})
+}
+
 // GetDriveFile returns the detail of a Drive file reference in the workspace
 // (GET /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}; spec §7.6a, §7.7).
 func (h *handlers) GetDriveFile(w http.ResponseWriter, r *http.Request) {

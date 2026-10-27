@@ -26,6 +26,7 @@ import (
 //	PUT    /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access
 //	POST   /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind
 //	POST   /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name
+//	GET    /api/v1/workspaces/{workspaceID}/drive-folders
 //	GET    /api/v1/tasks/{taskID}/drive-files
 //	DELETE /api/v1/tasks/{taskID}/drive-files/{driveFileID}
 //	POST   /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals
@@ -110,6 +111,12 @@ func registerDriveConnections(r api, h Routes, flags *featureflag.Service, conne
 			"và cập nhật `drive_folder_name` cho mọi tệp đang liên kết trong workspace có cùng `drive_folder_id` (UNI-2221). " +
 			"Trả lỗi Google Drive theo §5.7 (`drive_grant_required`, `blocked_by_workspace_admin`, `drive_file_not_accessible`, `auth_failed`, `drive_unavailable`) mà không làm thay đổi dữ liệu đã lưu.",
 		tags: []string{"drive"}, sdi: sdi.NameDriveFolderSDI{}, sdo: sdo.DriveFolderNamedSDO{}, auth: true,
+	})
+	d.Get("/workspaces/{workspaceID}/drive-folders", h.ListDriveFolders, apiOp{
+		summary: "List caller's Google Drive parent folder groups",
+		description: "Danh sách nhóm thư mục cha trên Google Drive gom theo các tệp đang hoạt động mà người gọi có dòng `drive_file_access` trong workspace (UNI-2221). " +
+			"Sắp xếp theo thư mục đã có tên (A–Z), thư mục chưa có tên (theo `id`), và cuối cùng là nhóm tệp không có thư mục cha (`id: null`). Không phân trang.",
+		tags: []string{"drive"}, sdi: sdi.ListDriveFoldersSDI{}, sdo: sdo.DriveFolderListSDO{}, auth: true,
 	})
 	d.Get("/tasks/{taskID}/drive-files", h.ListTaskDriveFiles, apiOp{
 		summary: "List Google Drive files attached to a task",

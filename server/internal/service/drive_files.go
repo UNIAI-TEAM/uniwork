@@ -106,6 +106,13 @@ type DriveFolderNamedResult struct {
 	UpdatedFiles int
 }
 
+// DriveFolderGroupView is one aggregate parent-folder entry returned by DriveFileService.ListFolders (UNI-2221).
+type DriveFolderGroupView struct {
+	ID        *string
+	Name      *string
+	FileCount int64
+}
+
 // DriveFileView is the service-layer representation of sdo.DriveFileDTO (spec §6.2, §7.6, §7.7, §8.8).
 type DriveFileView struct {
 	ID                     string

@@ -288,3 +288,15 @@ type DriveFolderNamedSDO struct {
 	DriveFolder  DriveFolderRefDTO `json:"drive_folder" description:"Thư mục cha trên Google Drive sau khi đồng bộ tên" example:"{\"id\":\"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8\",\"name\":\"Tài liệu dự án Q4\"}"`
 	UpdatedFiles int               `json:"updated_files" description:"Số tệp đang liên kết trong workspace có cùng thư mục cha đã được cập nhật tên thư mục" example:"3"`
 }
+
+// DriveFolderGroupDTO is one parent folder aggregate entry in DriveFolderListSDO (UNI-2221).
+type DriveFolderGroupDTO struct {
+	ID        *string `json:"id" description:"ID thư mục cha trên Google Drive; null đối với nhóm tệp không có thư mục cha" example:"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8"`
+	Name      *string `json:"name" description:"Tên thư mục cha trên Google Drive; null khi chưa đặt tên hoặc thuộc nhóm không có thư mục cha" example:"Tài liệu dự án Q4"`
+	FileCount int64   `json:"file_count" description:"Số tệp đang hoạt động mà người xem có dòng truy cập trong nhóm thư mục này" example:"3"`
+}
+
+// DriveFolderListSDO is GET /api/v1/workspaces/{workspaceID}/drive-folders (UNI-2221).
+type DriveFolderListSDO struct {
+	Folders []DriveFolderGroupDTO `json:"folders" description:"Danh sách nhóm thư mục cha trên Google Drive của người gọi trong workspace (sắp xếp: có tên A-Z, chưa đặt tên theo id, cuối cùng là id = null)" example:"[{\"id\":\"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8\",\"name\":\"Tài liệu dự án Q4\",\"file_count\":3},{\"id\":null,\"name\":null,\"file_count\":1}]"`
+}
