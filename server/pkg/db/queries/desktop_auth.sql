@@ -18,8 +18,11 @@ WHERE id = $1 AND (user_id IS NULL OR user_id = $2)
 RETURNING *;
 
 -- name: ApproveDesktopAuthAttempt :one
+-- approver_signed_in_at is when the approving session signed in, which the
+-- device session the code opens inherits (ADR 0047).
 UPDATE desktop_auth_attempts
-SET user_id = $2, code_digest = $3, code_expires_at = $4, approved_at = now(), csrf_digest = NULL
+SET user_id = $2, code_digest = $3, code_expires_at = $4, approved_at = now(), csrf_digest = NULL,
+    approver_signed_in_at = $5
 WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND cancelled_at IS NULL AND approved_at IS NULL AND expires_at > now()
 RETURNING *;
 
@@ -44,8 +47,8 @@ RETURNING *;
 -- name: CreateDeviceSession :one
 INSERT INTO device_sessions (
   id, user_id, session_family_id, client_id, deployment_id, device_label,
-  platform, build, refresh_token_digest, expires_at, created_by_kind
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+  platform, build, refresh_token_digest, expires_at, created_by_kind, signed_in_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetDeviceSession :one

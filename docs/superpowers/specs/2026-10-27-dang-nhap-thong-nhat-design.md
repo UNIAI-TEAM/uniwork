@@ -199,8 +199,12 @@ key_hash, intent, iat, exp}` — TTL 15 phút.
   gắn subject khác (địa chỉ nhà cung cấp không phải của tài khoản nên không khớp lại theo email). Mail `linked` gửi
   chủ tài khoản và email nhà cung cấp khi khác và không phải relay.
 - ⚑ **`link` từ vé chỉ nhận phiên mới hơn vé**: web — thời điểm tạo phiên (`MIN(refresh_tokens.created_at)` theo
-  `session_id` của access token) ≥ `ticket.iat`; native — `device_sessions.created_at` ≥ `ticket.iat` và cùng
-  `client_id`/`deployment_id`. Không thì `403 proof_required` (dùng step-up token, 3.7). Kênh lệch → `400
+  `session_id` của access token) ≥ `ticket.iat`; native — `device_sessions.signed_in_at` ≥ `ticket.iat` và cùng
+  `client_id`/`deployment_id`. ⚑ (phản biện lát 5) Không dùng `created_at` của hàng thiết bị: đồng ý desktop/PKCE
+  biến bất kỳ token trình duyệt nào còn sống thành một hàng thiết bị mới. `signed_in_at` là lúc người sau phiên chứng
+  minh thông tin đăng nhập: đăng nhập của chính app (`NativeSignInService.open`, route Apple cũ), hay lúc phiên trình
+  duyệt đã duyệt lượt đồng ý bắt đầu (`desktop_auth_attempts.approver_signed_in_at`, ghi lúc duyệt, chuyển sang hàng
+  thiết bị lúc đổi mã). Hàng cũ để NULL: không bao giờ tính là mới hơn vé. `TestAppTicketLinkNeedsASignInNotAConsent`. Không thì `403 proof_required` (dùng step-up token, 3.7). Kênh lệch → `400
   sign_in_ticket_channel`. Phiên của bearer không còn sống (đã đăng xuất, thiết bị bị thu hồi) → `401 invalid_token`;
   token web cũ hơn `credentials_revoked_at` cũng vậy (3.7); tài khoản chưa xác minh email → `403 email_unverified`;
   đã liên kết đúng subject này → thành công, không ghi gì.

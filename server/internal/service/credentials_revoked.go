@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -74,20 +75,22 @@ func bearerAfterMark(ctx context.Context, q *db.Queries, at auth.AccessToken, u 
 // must also still be live (liveBearerSession, 401 invalid_token), so the
 // last minutes of an access token whose session was signed out or revoked
 // (sign out other sessions, a password change or reset, a reclaim) cannot
-// buy a device session or a grant that outlives it. Without a token on the
-// context there is nothing to judge, nor in a token that names no session:
-// nothing mints one any more (every sign-in names its session), and the
-// bearer middleware lets the shape through as it always has.
-func requireLiveBearer(ctx context.Context, q *db.Queries) error {
+// buy a device session or a grant that outlives it. It answers when that
+// session signed in, which the device session a consent opens inherits.
+// Without a token on the context there is nothing to judge, nor in a token
+// that names no session: nothing mints one any more (every sign-in names its
+// session), and the bearer middleware lets the shape through as it always
+// has; the answer is then the zero time, never a sign-in.
+func requireLiveBearer(ctx context.Context, q *db.Queries) (time.Time, error) {
 	if err := requireCurrentCredentials(ctx, q); err != nil {
-		return err
+		return time.Time{}, err
 	}
 	at, ok := auth.AccessTokenFrom(ctx)
 	if !ok || at.SessionID == "" {
-		return nil
+		return time.Time{}, nil
 	}
-	_, err := liveBearerSession(ctx, q, at)
-	return err
+	sess, err := liveBearerSession(ctx, q, at)
+	return sess.signedInAt, err
 }
 
 // requireBearerUnderLock re-runs, once a sign-in method command holds its

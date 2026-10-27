@@ -219,7 +219,7 @@ func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (Des
 	}
 	sess, err := s.desktop.issueDeviceSession(ctx, q, u.ID, nativeDevice{
 		ClientID: in.ClientID, DeploymentID: in.DeploymentID, Label: sanitizeDesktopLabel(in.DeviceLabel),
-		Platform: sanitizeMetadata(in.Platform), Build: sanitizeMetadata(in.Build),
+		Platform: sanitizeMetadata(in.Platform), Build: sanitizeMetadata(in.Build), SignedInAt: s.desktop.now(),
 	})
 	if err != nil {
 		return DesktopSession{}, err

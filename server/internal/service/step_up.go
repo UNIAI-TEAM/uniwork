@@ -223,8 +223,13 @@ func stepUpBearer(ctx context.Context, userID string) (auth.AccessToken, error) 
 }
 
 // bearerSession is the bearer's session as the database has it now.
+// signedInAt is when the person behind it last proved a credential: a
+// browser session's start (its first refresh token, every one a sign-in
+// writes), or a device session's signed_in_at — the app's own sign-in, or
+// the start of the browser session whose consent issued it; zero when the
+// row predates the column.
 type bearerSession struct {
-	startedAt              time.Time
+	signedInAt             time.Time
 	clientID, deploymentID string
 }
 
@@ -241,7 +246,7 @@ func liveBearerSession(ctx context.Context, q *db.Queries, at auth.AccessToken) 
 		if !row.Live || !row.StartedAt.Valid {
 			return bearerSession{}, errCredentialsRevoked()
 		}
-		return bearerSession{startedAt: row.StartedAt.Time}, nil
+		return bearerSession{signedInAt: row.StartedAt.Time}, nil
 	}
 	d, err := q.GetDeviceSession(ctx, at.SessionID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -253,7 +258,11 @@ func liveBearerSession(ctx context.Context, q *db.Queries, at auth.AccessToken) 
 	if d.UserID != at.UserID || d.RevokedAt.Valid {
 		return bearerSession{}, errCredentialsRevoked()
 	}
-	return bearerSession{startedAt: d.CreatedAt.Time, clientID: d.ClientID, deploymentID: d.DeploymentID}, nil
+	out := bearerSession{clientID: d.ClientID, deploymentID: d.DeploymentID}
+	if d.SignedInAt.Valid {
+		out.signedInAt = d.SignedInAt.Time
+	}
+	return out, nil
 }
 
 // StepUp turns one proof into a step-up token for the bearer's session

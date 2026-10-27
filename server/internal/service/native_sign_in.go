@@ -552,7 +552,9 @@ func (s *NativeSignInService) open(ctx context.Context, q *db.Queries, u db.User
 	if err != nil {
 		return DesktopSession{}, false, err
 	}
-	sess, err := s.desktop.issueDeviceSession(ctx, q, u.ID, c.device())
+	d := c.device()
+	d.SignedInAt = s.desktop.now()
+	sess, err := s.desktop.issueDeviceSession(ctx, q, u.ID, d)
 	if err != nil {
 		return DesktopSession{}, false, err
 	}

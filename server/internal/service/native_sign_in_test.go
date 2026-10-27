@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"slices"
@@ -382,6 +384,64 @@ func TestNativeTicketNeedsTheNonce(t *testing.T) {
 	}
 	if f.linkAudits(t, owner.ID, ProviderGoogle, linkViaTicket) != 1 {
 		t.Fatal("the link is audited via ticket")
+	}
+}
+
+// consentDevice is the app's browser sign-in (PKCE) finished by the browser
+// session on bearer: the consent it approves, exchanged for a device session
+// of the app.
+func (f *nativeFixture) consentDevice(t *testing.T, bearer context.Context, uid, state string) DesktopSession {
+	t.Helper()
+	verifier := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+	sum := sha256.Sum256([]byte(verifier))
+	attempt, err := f.desktop.Start(f.ctx, DesktopStartInput{ClientID: app.ClientID, CodeChallenge: base64.RawURLEncoding.EncodeToString(sum[:]), CodeChallengeMethod: "S256", State: state, RedirectURI: "uniworkchat://auth/callback", DeploymentID: app.DeploymentID, DeviceLabel: "Pixel", Platform: "android", Build: "2.1.0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	consent, err := f.desktop.Consent(f.ctx, uid, attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, _, err := f.desktop.Approve(bearer, uid, attempt.ID, consent.CSRFToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := f.desktop.Exchange(f.ctx, app.ClientID, code, verifier, "uniworkchat://auth/callback", app.DeploymentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+// A device session counts as signed in after an app's ticket by when its
+// person signed in (ADR 0047 §3, spec §3.2): the app's own sign-in, or the
+// start of the browser session whose consent issued it — never by when its
+// row was written, since a consent turns any live browser token into a new
+// device session. A stolen browser token exchanged that way after the
+// thief's own ticket is no proof of the account (proof_required, nothing
+// linked); a consent from a browser that signed in after the ticket (the
+// Android app's Apple sign-in goes through the browser) is.
+func TestAppTicketLinkNeedsASignInNotAConsent(t *testing.T) {
+	f := newNativeFixture(t)
+	victim := registerVerified(t, f.q, f.auth, "victim@company.vn", "Victim")
+	stolen := f.webSession(t, victim.Email)
+	f.backdate(t, stolen)
+	res, nonce, err := f.google(t, "g-app-link", "app.link@gmail.com", "")
+	if err != nil || res.Ticket == "" {
+		t.Fatalf("a ticket in the app: %+v %v", res, err)
+	}
+	device := f.consentDevice(t, f.bearer(t, stolen), victim.ID, "stolen")
+	_, err = f.doors.LinkTicket(f.native(t, device), res.Ticket, nonce, TicketLink{}, app)
+	wantStatusCode(t, err, "proof_required", http.StatusForbidden)
+	if f.user(t, victim.ID).GoogleID.Valid {
+		t.Fatal("a consent from a stolen browser token linked the ticket's Google")
+	}
+
+	fresh := f.webSession(t, victim.Email)
+	own := f.consentDevice(t, f.bearer(t, fresh), victim.ID, "fresh")
+	linked, err := f.doors.LinkTicket(f.native(t, own), res.Ticket, nonce, TicketLink{}, app)
+	if err != nil || linked.User.GoogleID.String != "g-app-link" {
+		t.Fatalf("a consent from a browser that signed in after the ticket: %+v %v", linked, err)
 	}
 }
 

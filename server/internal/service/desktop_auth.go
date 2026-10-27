@@ -241,7 +241,8 @@ func (s *DesktopAuthService) Approve(ctx context.Context, userID, attemptID, csr
 	if userID == "" || attemptID == "" || csrf == "" {
 		return "", "", desktopCSRFError()
 	}
-	if err := requireLiveBearer(ctx, s.q); err != nil {
+	signedIn, err := requireLiveBearer(ctx, s.q)
+	if err != nil {
 		return "", "", err
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -266,8 +267,9 @@ func (s *DesktopAuthService) Approve(ctx context.Context, userID, attemptID, csr
 	}
 	approved, err := q.ApproveDesktopAuthAttempt(ctx, db.ApproveDesktopAuthAttemptParams{
 		ID: attemptID, UserID: pgtype.Text{String: userID, Valid: true},
-		CodeDigest:    pgtype.Text{String: digest(code), Valid: true},
-		CodeExpiresAt: pgtype.Timestamptz{Time: s.now().Add(s.cfg.DesktopAuthCodeTTL), Valid: true},
+		CodeDigest:         pgtype.Text{String: digest(code), Valid: true},
+		CodeExpiresAt:      pgtype.Timestamptz{Time: s.now().Add(s.cfg.DesktopAuthCodeTTL), Valid: true},
+		ApproverSignedInAt: pgtype.Timestamptz{Time: signedIn, Valid: !signedIn.IsZero()},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", "", desktopAuthCodeInvalid()
@@ -355,8 +357,11 @@ func (s *DesktopAuthService) Exchange(ctx context.Context, clientID, code, verif
 	if err != nil {
 		return DesktopSession{}, err
 	}
+	// The device session signed in when the browser session that approved
+	// it did, not now: a consent is no sign-in of its own.
 	sess, err := s.issueDeviceSession(ctx, q, user.ID, nativeDevice{
 		ClientID: row.ClientID, DeploymentID: row.DeploymentID, Label: row.DeviceLabel, Platform: row.Platform, Build: row.Build,
+		SignedInAt: row.ApproverSignedInAt.Time,
 	})
 	if err != nil {
 		return DesktopSession{}, err
@@ -369,8 +374,12 @@ func (s *DesktopAuthService) Exchange(ctx context.Context, clientID, code, verif
 
 // nativeDevice is what a new device session records about the app that asked
 // for it: the PKCE attempt's fields, or a native Sign in with Apple's.
+// SignedInAt is when the person behind it last proved a credential (the
+// app's own sign-in, or the approving browser session's start); zero when
+// nothing says, which no sign-in ticket takes for one.
 type nativeDevice struct {
 	ClientID, DeploymentID, Label, Platform, Build string
+	SignedInAt                                     time.Time
 }
 
 // issueDeviceSession opens a device session of its own family for userID in
@@ -399,7 +408,7 @@ func (s *DesktopAuthService) issueDeviceSession(ctx context.Context, q *db.Queri
 		ID: deviceID, UserID: userID, SessionFamilyID: deviceID, ClientID: d.ClientID,
 		DeploymentID: d.DeploymentID, DeviceLabel: d.Label, Platform: d.Platform,
 		Build: d.Build, RefreshTokenDigest: hashToken(refresh), ExpiresAt: pgtype.Timestamptz{Time: expires, Valid: true},
-		CreatedByKind: string(audit.KindHuman),
+		CreatedByKind: string(audit.KindHuman), SignedInAt: pgtype.Timestamptz{Time: d.SignedInAt, Valid: !d.SignedInAt.IsZero()},
 	}); err != nil {
 		return DesktopSession{}, err
 	}

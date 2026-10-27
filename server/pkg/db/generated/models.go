@@ -725,6 +725,7 @@ type DesktopAuthAttempt struct {
 	UsedAt              pgtype.Timestamptz `json:"used_at"`
 	CancelledAt         pgtype.Timestamptz `json:"cancelled_at"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	ApproverSignedInAt  pgtype.Timestamptz `json:"approver_signed_in_at"`
 }
 
 type DeviceSession struct {
@@ -742,6 +743,7 @@ type DeviceSession struct {
 	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt          pgtype.Timestamptz `json:"revoked_at"`
 	CreatedByKind      string             `json:"created_by_kind"`
+	SignedInAt         pgtype.Timestamptz `json:"signed_in_at"`
 }
 
 type Document struct {

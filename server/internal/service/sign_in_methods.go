@@ -398,8 +398,10 @@ type TicketLink struct {
 // attachIdentity, audited via ticket (move when it moved out of an empty
 // account). The bearer must be of the ticket's channel. What proves that
 // whoever proved the identity also just proved the account is a session that
-// started after the ticket was issued — a browser session's first refresh
-// token, a device session's creation (same client and deployment) — or a
+// signed in after the ticket was issued — a browser session's first refresh
+// token, a device session's signed_in_at (the app's own sign-in, or the start
+// of the browser session whose consent issued it; same client and
+// deployment) — or a
 // step-up token of the bearer's session (spec §3.7: an older session, or
 // Settings confirming a move after a link callback answered movable); with
 // neither, 403 proof_required. The command is sensitive, so a browser token
@@ -463,9 +465,12 @@ func (s *SignInTicketService) provenSince(ctx context.Context, q *db.Queries, at
 	if !at.Web && (sess.clientID != t.ClientID || sess.deploymentID != t.DeploymentID) {
 		return errSignInTicketChannel()
 	}
-	// The ticket's iat has one-second precision: a session that started in
-	// the second the ticket was issued counts as after it.
-	if sess.startedAt.Unix() >= t.IssuedAt {
+	// The ticket's iat has one-second precision: a session that signed in in
+	// the second the ticket was issued counts as after it. A device session
+	// counts by its sign-in, not its row: a consent writes a fresh row for
+	// any live browser token, and only one that signed in after the ticket
+	// proves the account just now.
+	if !sess.signedInAt.IsZero() && sess.signedInAt.Unix() >= t.IssuedAt {
 		return nil
 	}
 	if stepUpToken != "" {

@@ -207,7 +207,7 @@ func (s *McpAuthService) flag(ctx context.Context, key, userID, orgID string) bo
 // credential change, and one whose session has ended, are refused first
 // (requireLiveBearer, ADR 0047).
 func (s *McpAuthService) Approve(ctx context.Context, userID, attemptID, csrf, organizationID string, write bool) (string, error) {
-	if err := requireLiveBearer(ctx, s.q); err != nil {
+	if _, err := requireLiveBearer(ctx, s.q); err != nil {
 		return "", err
 	}
 	if _, err := s.orgs.RequireMember(ctx, organizationID, userID); err != nil {
