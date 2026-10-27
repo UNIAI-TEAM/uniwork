@@ -26,6 +26,7 @@ import {
   DocumentTypeIcon,
   documentFormatLabel,
 } from "../../../documents/document-type-icon";
+import { DriveConsentHint } from "../../../integrations/drive-consent-hint";
 import {
   useDrivePicker,
   type DrivePickerAdapter,
@@ -465,6 +466,7 @@ export function DriveTaskFileCard({
               </AlertDescription>
             </Alert>
           ) : null}
+          {connectPopup.notice?.code !== "scope_not_granted" ? <DriveConsentHint /> : null}
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
