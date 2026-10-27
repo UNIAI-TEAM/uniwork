@@ -398,6 +398,10 @@ var catalogue = []EventDef{
 	// workspace_id is the workspace of the first document the call moved (id
 	// order) so the grouped notice lands in a workspace Inbox (FE-R1-3).
 	{Topic: "document.owners_bulk_transferred", Version: 1, Payload: []string{"organization_id", "user_id", "bulk_id", "from_user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Folder bulk access (UNI-2244 §6): emitted when a background batch
+	// finishes so open clients refresh the batch progress and workspace
+	// document queries.
+	{Topic: "document_access_batch.completed", Version: 1, Payload: []string{"batch_id", "folder_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
 	// holder's own connections. revoked makes an online device lock its copy

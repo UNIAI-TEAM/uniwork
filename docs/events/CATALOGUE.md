@@ -201,6 +201,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.unshelved` | 1 | `document_id`, `workspace_id`, `shelve_batch_id` | — | workspace | outbox |
 | `document.deleted` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.change_noticed` | 1 | `document_id`, `workspace_id`, `verb` | — | - | outbox |
+| `document_access_batch.completed` | 1 | `batch_id`, `folder_id`, `workspace_id` | — | workspace | outbox |
 | `drive_connection.changed` | 1 | `connection_id`, `user_id` | — | user | outbox |
 | `drive_file.access_changed` | 1 | `drive_file_id`, `workspace_id`, `user_id` | — | user | outbox |
 | `drive_file.linked` | 1 | `drive_file_id`, `workspace_id` | — | workspace | outbox |

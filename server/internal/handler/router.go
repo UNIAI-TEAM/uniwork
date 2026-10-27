@@ -1002,6 +1002,8 @@ func New(d Deps) http.Handler {
 		CreateDocumentShare:            h.createDocumentShare,
 		CreateDocumentShareBatch:       h.createDocumentShareBatch,
 		UpdateDocumentAccess:           h.updateDocumentAccess,
+		UpdateFolderContentsAccess:     h.updateFolderContentsAccess,
+		GetFolderContentsAccessBatch:   h.getFolderContentsAccessBatch,
 		RevokeDocumentShare:            h.revokeDocumentShare,
 		CreateDocumentAccessRequest:    h.createDocumentAccessRequest,
 		ListDocumentAccessRequests:     h.listDocumentAccessRequests,

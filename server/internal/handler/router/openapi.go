@@ -542,6 +542,15 @@ func pathParamSDI(path string) any {
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 		}{}
+	case "folderID":
+		return struct {
+			FolderID string `path:"folderID" description:"ULID thư mục gốc" example:"01J8X4FLD0N1P2Q3R4S5T6U7"`
+		}{}
+	case "folderID,batchID":
+		return struct {
+			FolderID string `path:"folderID" description:"ULID thư mục gốc" example:"01J8X4FLD0N1P2Q3R4S5T6U7"`
+			BatchID  string `path:"batchID" description:"ULID lô cập nhật quyền truy cập hàng loạt" example:"01J8X4FAB0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "sessionID":
 		return struct {
 			SessionID string `path:"sessionID" description:"ULID phiên tải lên nhiều phần" example:"01JA09K3N1P2Q3R4S5T6U7V8"`

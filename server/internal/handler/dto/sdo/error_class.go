@@ -207,6 +207,16 @@ var errorClassByCode = map[string]string{
 //	  bytes that are not a valid target OOXML package (UNI-2213, C5). The
 //	  desktop app surfaces the conversion error directly without running
 //	  conflict or permission recovery.
+//	not_a_folder (422) PUT /documents/{folderID}/contents-access was called
+//	  on a document whose kind is not folder (UNI-2244 §1). Like
+//	  folder_not_shareable, a refusal of the request itself with no recovery
+//	  class.
+//	folder_access_batch_running (409, fields.batch_id) the folder already has
+//	  an active bulk access batch running or queued (UNI-2244 §3.1). The
+//	  client attaches its progress bar to fields.batch_id instead of running
+//	  a generic reload-and-retry conflict path.
+//	not_implemented (501) a contract-first route stub before its service
+//	  wiring lands (UNI-2244 BE-1).
 //
 // ErrorClassFor returns the error_class a wire code carries, "" when the code
 // is unclassified - the field is then omitted from the envelope.
