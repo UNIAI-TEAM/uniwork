@@ -25,7 +25,7 @@ import { useFolderContentsAccess } from "./use-folder-contents-access";
 // the core fixtures; the dialog is mounted the way hosts mount it, through
 // useFolderContentsAccess, so a background batch outliving the dialog is real.
 
-const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), loading: vi.fn(), dismiss: vi.fn() }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), loading: vi.fn(), dismiss: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
 const { t } = initI18n();
@@ -175,7 +175,7 @@ describe("folder contents access dialog", () => {
         { principal_type: "organization", principal_id: "org1", level: "view" },
       ],
     });
-    expect(summary).toHaveTextContent("Sẽ đổi 37 tài liệu · bỏ qua 5 bạn không quản lý");
+    expect(summary).toHaveTextContent("Sẽ đổi 37 tài liệu · bỏ qua 5 tài liệu bạn không quản lý");
     expect(summary).not.toHaveTextContent("mất quyền");
     expect(within(dialog).getByRole("button", { name: t("documents.folderAccess.apply") })).not.toHaveAttribute("aria-disabled");
     expect(within(dialog).queryByRole("button", { name: t("documents.folderAccess.apply_replace") })).toBeNull();
@@ -194,7 +194,7 @@ describe("folder contents access dialog", () => {
     const { user, dialog } = await openDialog();
     await pick(user, dialog, /Nguyễn An/);
     await user.click(within(dialog).getByRole("button", { name: t("documents.folderAccess.confirm") }));
-    expect(await within(dialog).findByTestId("folder-access-summary")).toHaveTextContent("Will change 1 document · skip 1 you don't manage");
+    expect(await within(dialog).findByTestId("folder-access-summary")).toHaveTextContent("Will change 1 document · skip 1 document you don't manage");
   });
 
   it("exposes the stable test ids the e2e lane drives", async () => {
@@ -312,6 +312,19 @@ describe("folder contents access dialog", () => {
     expect(puts(calls).map((c) => c.body?.dry_run)).toEqual([true, false]);
     expect(puts(calls)[1]?.body?.items).toEqual(puts(calls)[0]?.body?.items);
     expect(toast.success).toHaveBeenCalledWith("Đã đổi quyền 37 tài liệu", { description: "Bỏ qua 5 tài liệu bạn không quản lý." });
+  });
+
+  it("closes with a neutral toast, not a stuck summary, when the apply answer cannot be read", async () => {
+    const calls = transport({ real: () => ({ unexpected: "shape" }) });
+    const { user, dialog } = await openDialog();
+    await pick(user, dialog, /Nguyễn An/);
+    await review(user, dialog);
+    await user.click(within(dialog).getByRole("button", { name: t("documents.folderAccess.apply") }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(puts(calls).map((c) => c.body?.dry_run)).toEqual([true, false]);
+    expect(toast.info).toHaveBeenCalledWith("Đã gửi thay đổi quyền. Mở các tài liệu để kiểm tra kết quả.");
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("shows the progress of a background batch, lets the dialog close, and toasts when it completes", async () => {

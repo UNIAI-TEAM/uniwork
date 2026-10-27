@@ -185,6 +185,10 @@ export function FolderContentsAccessDialog({
       } else if (result.kind === "sync") {
         toasts.applied(result);
         onOpenChange(false);
+      } else {
+        // An unreadable 200: the write may have happened, so close with a neutral line instead of leaving the summary as if nothing was sent.
+        toasts.unknown();
+        onOpenChange(false);
       }
     } catch (err) {
       handleError(err, summary.items);
