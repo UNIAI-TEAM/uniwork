@@ -849,4 +849,60 @@ func TestDriveFolderHTTPFlow(t *testing.T) {
 	if badFilterRes.StatusCode != http.StatusNotFound {
 		t.Fatalf("ListDriveFolders with peer drive_connection_id = %d, want 404", badFilterRes.StatusCode)
 	}
+
+	// UNI-2221 part C: drive_folder_id filter and top-level drive_folder_id echo on GET /drive-files.
+	// 1. Unfiltered list response echoes top-level "drive_folder_id": null.
+	if dfIDVal, hasDFID := listAfterOut["drive_folder_id"]; !hasDFID || dfIDVal != nil {
+		t.Fatalf("unfiltered ListDriveFiles drive_folder_id = (%v, exists=%v), want (nil, true)", dfIDVal, hasDFID)
+	}
+
+	// 2. ?drive_folder_id=fld-http-1 returns only the 2 files in fld-http-1, total_count=2, drive_folder_id="fld-http-1".
+	fltFolderRes, fltFolderOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files?drive_folder_id=fld-http-1", e.ownerTk, nil)
+	if fltFolderRes.StatusCode != http.StatusOK {
+		t.Fatalf("ListDriveFiles ?drive_folder_id=fld-http-1 = %d %v", fltFolderRes.StatusCode, fltFolderOut)
+	}
+	if fltFolderOut["drive_folder_id"] != "fld-http-1" || fltFolderOut["total_count"] != float64(2) {
+		t.Fatalf("ListDriveFiles ?drive_folder_id=fld-http-1 = %+v, want drive_folder_id=fld-http-1 total_count=2", fltFolderOut)
+	}
+	fltFolderFiles := jsonArrayAt(t, fltFolderOut, "files")
+	if len(fltFolderFiles) != 2 {
+		t.Fatalf("len(files) for fld-http-1 = %d, want 2", len(fltFolderFiles))
+	}
+	for _, raw := range fltFolderFiles {
+		fobj := raw.(map[string]any)
+		dfMap, ok := fobj["drive_folder"].(map[string]any)
+		if !ok || dfMap["id"] != "fld-http-1" {
+			t.Fatalf("filtered file drive_folder = %+v, want id=fld-http-1", fobj["drive_folder"])
+		}
+	}
+
+	// 3. ?drive_folder_id=none returns only the 1 parentless file, total_count=1, drive_folder_id="none".
+	fltNoneRes, fltNoneOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files?drive_folder_id=none", e.ownerTk, nil)
+	if fltNoneRes.StatusCode != http.StatusOK {
+		t.Fatalf("ListDriveFiles ?drive_folder_id=none = %d %v", fltNoneRes.StatusCode, fltNoneOut)
+	}
+	if fltNoneOut["drive_folder_id"] != "none" || fltNoneOut["total_count"] != float64(1) {
+		t.Fatalf("ListDriveFiles ?drive_folder_id=none = %+v, want drive_folder_id=none total_count=1", fltNoneOut)
+	}
+	fltNoneFiles := jsonArrayAt(t, fltNoneOut, "files")
+	if len(fltNoneFiles) != 1 || fltNoneFiles[0].(map[string]any)["external_file_id"] != "ext-http-root" {
+		t.Fatalf("files for drive_folder_id=none = %+v, want [ext-http-root]", fltNoneFiles)
+	}
+
+	// 4. Unknown well-shaped folder ID -> 200 empty page, drive_folder_id echoed, never 404.
+	fltUnknownRes, fltUnknownOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files?drive_folder_id=fld-unknown-00", e.ownerTk, nil)
+	if fltUnknownRes.StatusCode != http.StatusOK {
+		t.Fatalf("ListDriveFiles unknown folder ID = %d %v, want 200", fltUnknownRes.StatusCode, fltUnknownOut)
+	}
+	if fltUnknownOut["drive_folder_id"] != "fld-unknown-00" || fltUnknownOut["total_count"] != float64(0) || len(jsonArrayAt(t, fltUnknownOut, "files")) != 0 {
+		t.Fatalf("ListDriveFiles unknown folder ID = %+v, want empty page with echoed drive_folder_id", fltUnknownOut)
+	}
+
+	// 5. Invalid drive_folder_id values ("x", "none2", "a/b") -> 400 invalid_request envelope.
+	for _, bad := range []string{"x", "none2", "a%2Fb"} {
+		badRes, badOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files?drive_folder_id="+bad, e.ownerTk, nil)
+		if badRes.StatusCode != http.StatusBadRequest || errorCode(badOut) != "invalid_request" {
+			t.Fatalf("ListDriveFiles ?drive_folder_id=%s = %d %v, want 400 invalid_request", bad, badRes.StatusCode, badOut)
+		}
+	}
 }

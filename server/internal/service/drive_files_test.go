@@ -2018,3 +2018,238 @@ func TestListDriveFoldersAggregate(t *testing.T) {
 		t.Fatalf("ListFolders with unknown connection = %v, want ErrNotFound", err)
 	}
 }
+
+// TestValidateDriveFolderFilter (UNI-2221 part C) verifies without a database
+// that parseDriveFolderFilter accepts empty (no filter), "none", and Google-id
+// shaped values (^[A-Za-z0-9_-]{10,256}$), while rejecting short, malformed, or
+// overlong values with a 400 invalid_request CodedError.
+func TestValidateDriveFolderFilter(t *testing.T) {
+	t.Parallel()
+
+	sqlArg, echo, err := parseDriveFolderFilter("")
+	if err != nil || sqlArg.Valid || echo != nil {
+		t.Fatalf("empty filter = (%+v, %v, %v), want invalid Text and nil echo", sqlArg, echo, err)
+	}
+
+	sqlArg, echo, err = parseDriveFolderFilter("none")
+	if err != nil || !sqlArg.Valid || sqlArg.String != "none" || echo == nil || *echo != "none" {
+		t.Fatalf("none filter = (%+v, %v, %v), want 'none'", sqlArg, echo, err)
+	}
+
+	for _, validID := range []string{
+		"fld-http-1",
+		"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8",
+		strings.Repeat("a", 256),
+	} {
+		sqlArg, echo, err = parseDriveFolderFilter(validID)
+		if err != nil || !sqlArg.Valid || sqlArg.String != validID || echo == nil || *echo != validID {
+			t.Fatalf("valid filter %q = (%+v, %v, %v)", validID, sqlArg, echo, err)
+		}
+	}
+
+	for _, bad := range []string{
+		"x",
+		"none2",
+		"123456789",
+		"a/b",
+		"fld-bad/id-123",
+		"fld bad space",
+		strings.Repeat("a", 257),
+	} {
+		_, _, err = parseDriveFolderFilter(bad)
+		var ve ValidationError
+		if !errors.As(err, &ve) || ve.Msg == "" {
+			t.Fatalf("bad filter %q err = %T (%v), want ValidationError", bad, err, err)
+		}
+	}
+}
+
+// TestListMineDriveFolderFilter (UNI-2221 part C) verifies on PostgreSQL:
+//   - filtering by folder ID returns only that parent's files, filtered TotalCount,
+//     echoed DriveFolderID, and cursor pagination with Limit=1 over the filtered set
+//   - filtering by "none" returns only parentless files (drive_folder_id IS NULL)
+//   - combining drive_folder_id with ConnectionID narrows to files matching both
+//   - an unknown well-shaped folder ID returns 200 empty page (TotalCount=0), never 404
+//   - bad values ("x", "none2", "a/b") return 400 invalid_request
+//   - for every group of ListFolders (including id == nil -> "none"),
+//     group.FileCount == ListMine(filter).TotalCount.
+func TestListMineDriveFolderFilter(t *testing.T) {
+	env := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+	conn1 := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-owner-flt-1", "owner-flt1@example.com")
+	conn2 := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-owner-flt-2", "owner-flt2@example.com")
+
+	env.googleSrv.SetFile("fld-alpha-01", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-alpha-01", Name: "Alpha Folder", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("fld-beta-002", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-beta-002", Name: "Beta Folder", MimeType: DriveMimeGoogleFolder},
+	})
+
+	for _, f := range []struct {
+		id      string
+		parents []string
+	}{
+		{id: "flt-a-1", parents: []string{"fld-alpha-01"}},
+		{id: "flt-a-2", parents: []string{"fld-alpha-01"}},
+		{id: "flt-b-1", parents: []string{"fld-beta-002"}},
+		{id: "flt-u-1", parents: []string{"fld-unnam-01"}},
+		{id: "flt-r-1", parents: nil},
+		{id: "flt-r-2", parents: nil},
+	} {
+		env.googleSrv.SetFile(f.id, FakeGoogleDriveFile{
+			Metadata: googleDriveFileJSON{
+				ID:       f.id,
+				Name:     "Doc " + f.id,
+				MimeType: DriveMimeGoogleDoc,
+				Parents:  f.parents,
+			},
+		})
+	}
+
+	if _, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    conn1.ID,
+		ExternalFileIDs: []string{"flt-a-1", "flt-b-1", "flt-u-1", "flt-r-1"},
+	}); err != nil {
+		t.Fatalf("Link conn1: %v", err)
+	}
+	if _, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    conn2.ID,
+		ExternalFileIDs: []string{"flt-a-2", "flt-r-2"},
+	}); err != nil {
+		t.Fatalf("Link conn2: %v", err)
+	}
+
+	// 1. Unfiltered ListMine returns all 6 files and DriveFolderID == nil.
+	allRes, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{})
+	if err != nil {
+		t.Fatalf("ListMine unfiltered: %v", err)
+	}
+	if allRes.TotalCount != 6 || len(allRes.Files) != 6 || allRes.DriveFolderID != nil {
+		t.Fatalf("ListMine unfiltered = total=%d len=%d folderID=%v, want 6, 6, nil", allRes.TotalCount, len(allRes.Files), allRes.DriveFolderID)
+	}
+
+	// 2. Filter by folder ID ("fld-alpha-01") returns only its 2 files, TotalCount=2, DriveFolderID="fld-alpha-01".
+	alphaRes, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+		DriveFolderID: "fld-alpha-01",
+	})
+	if err != nil {
+		t.Fatalf("ListMine fld-alpha-01: %v", err)
+	}
+	if alphaRes.TotalCount != 2 || len(alphaRes.Files) != 2 || alphaRes.DriveFolderID == nil || *alphaRes.DriveFolderID != "fld-alpha-01" {
+		t.Fatalf("ListMine fld-alpha-01 = %+v, want 2 files and echo fld-alpha-01", alphaRes)
+	}
+	for _, f := range alphaRes.Files {
+		if f.DriveFolder == nil || f.DriveFolder.ID != "fld-alpha-01" {
+			t.Fatalf("ListMine fld-alpha-01 returned wrong parent: %+v", f.DriveFolder)
+		}
+	}
+
+	// 3. Cursor paging over the filtered set with Limit=1 preserves sort order and filtered TotalCount.
+	page1, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+		DriveFolderID: "fld-alpha-01",
+		Limit:         1,
+	})
+	if err != nil {
+		t.Fatalf("ListMine fld-alpha-01 page1: %v", err)
+	}
+	if page1.TotalCount != 2 || len(page1.Files) != 1 || page1.NextCursor == nil || page1.Files[0].ID != alphaRes.Files[0].ID {
+		t.Fatalf("page1 = %+v, want 1st file of alphaRes and non-nil NextCursor", page1)
+	}
+	page2, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+		DriveFolderID: "fld-alpha-01",
+		Cursor:        *page1.NextCursor,
+		Limit:         1,
+	})
+	if err != nil {
+		t.Fatalf("ListMine fld-alpha-01 page2: %v", err)
+	}
+	if page2.TotalCount != 2 || len(page2.Files) != 1 || page2.NextCursor != nil || page2.Files[0].ID != alphaRes.Files[1].ID {
+		t.Fatalf("page2 = %+v, want 2nd file of alphaRes and nil NextCursor", page2)
+	}
+
+	// 4. Filter by "none" returns only parentless files (flt-r-1, flt-r-2).
+	noneRes, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+		DriveFolderID: "none",
+	})
+	if err != nil {
+		t.Fatalf("ListMine none: %v", err)
+	}
+	if noneRes.TotalCount != 2 || len(noneRes.Files) != 2 || noneRes.DriveFolderID == nil || *noneRes.DriveFolderID != "none" {
+		t.Fatalf("ListMine none = %+v, want 2 files and echo none", noneRes)
+	}
+	for _, f := range noneRes.Files {
+		if f.DriveFolder != nil {
+			t.Fatalf("ListMine none returned file with folder: %+v", f.DriveFolder)
+		}
+	}
+
+	// 5. Combined with ConnectionID narrows to files matching both connection and folder filter.
+	alphaConn1, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+		ConnectionID:  conn1.ID,
+		DriveFolderID: "fld-alpha-01",
+	})
+	if err != nil {
+		t.Fatalf("ListMine conn1 + fld-alpha-01: %v", err)
+	}
+	if alphaConn1.TotalCount != 1 || len(alphaConn1.Files) != 1 || alphaConn1.Files[0].ExternalFileID != "flt-a-1" {
+		t.Fatalf("ListMine conn1 + fld-alpha-01 = %+v, want only flt-a-1", alphaConn1)
+	}
+	noneConn2, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+		ConnectionID:  conn2.ID,
+		DriveFolderID: "none",
+	})
+	if err != nil {
+		t.Fatalf("ListMine conn2 + none: %v", err)
+	}
+	if noneConn2.TotalCount != 1 || len(noneConn2.Files) != 1 || noneConn2.Files[0].ExternalFileID != "flt-r-2" {
+		t.Fatalf("ListMine conn2 + none = %+v, want only flt-r-2", noneConn2)
+	}
+
+	// 6. Unknown well-shaped folder ID -> 200 empty page, never 404.
+	unknownRes, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+		DriveFolderID: "fld-unknown-99",
+	})
+	if err != nil {
+		t.Fatalf("ListMine unknown folder ID: %v", err)
+	}
+	if unknownRes.TotalCount != 0 || len(unknownRes.Files) != 0 || unknownRes.NextCursor != nil || unknownRes.DriveFolderID == nil || *unknownRes.DriveFolderID != "fld-unknown-99" {
+		t.Fatalf("ListMine unknown folder ID = %+v, want empty page with echoed id", unknownRes)
+	}
+
+	// 7. Bad values ("x", "none2", "a/b") -> 400 invalid_request.
+	for _, bad := range []string{"x", "none2", "a/b"} {
+		_, berr := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+			DriveFolderID: bad,
+		})
+		var ve ValidationError
+		if !errors.As(berr, &ve) || ve.Msg == "" {
+			t.Fatalf("ListMine bad drive_folder_id %q = %T (%v), want ValidationError", bad, berr, berr)
+		}
+	}
+
+	// 8. For every group of ListFolders (including id == nil -> "none"),
+	// group.FileCount == ListMine(filter).TotalCount across both unfiltered and connection-filtered calls.
+	for _, cid := range []string{"", conn1.ID, conn2.ID} {
+		groups, gerr := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, cid)
+		if gerr != nil {
+			t.Fatalf("ListFolders(%q): %v", cid, gerr)
+		}
+		for _, g := range groups {
+			folderParam := "none"
+			if g.ID != nil {
+				folderParam = *g.ID
+			}
+			filtered, ferr := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+				ConnectionID:  cid,
+				DriveFolderID: folderParam,
+			})
+			if ferr != nil {
+				t.Fatalf("ListMine(conn=%q, folder=%q): %v", cid, folderParam, ferr)
+			}
+			if filtered.TotalCount != g.FileCount || int64(len(filtered.Files)) != g.FileCount {
+				t.Fatalf("conn=%q folder=%q: ListFolders.FileCount=%d != ListMine.TotalCount=%d (len=%d)", cid, folderParam, g.FileCount, filtered.TotalCount, len(filtered.Files))
+			}
+		}
+	}
+}
