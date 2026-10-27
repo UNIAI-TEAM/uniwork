@@ -9,6 +9,9 @@ type SessionSDO struct {
 	// LinkSkipped is set only by POST /auth/mfa/verify when the challenge
 	// carried a pending provider link that could not be written (ADR 0047).
 	LinkSkipped string `json:"link_skipped,omitempty" description:"Chỉ có ở /auth/mfa/verify: đăng nhập thành công nhưng chưa liên kết được Google/Apple đang chờ, kèm mã lý do (sign_in_method_taken, link_required, sign_in_account_conflict, sign_in_account_unverified, sign_in_email_unverified, sign_in_failed); client gợi ý liên kết lại trong Cài đặt" example:"sign_in_method_taken"`
+	// Reclaimed is set only when this session took the account back from
+	// whoever registered the address before proving it (a reset link).
+	Reclaimed bool `json:"reclaimed,omitempty" description:"Chỉ có khi true: phiên này vừa lấy lại tài khoản đăng ký trước khi email được xác minh (mật khẩu cũ, xác thực hai lớp và mọi phiên của người đăng ký trước đã bị xoá); client báo một lần" example:"true"`
 }
 
 // UserSDO wraps the current user.

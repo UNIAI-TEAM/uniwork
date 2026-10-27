@@ -130,6 +130,10 @@ type Session struct {
 	// provider link: why the identity was not linked (ADR 0047, spec §3.3).
 	// The sign-in itself succeeded; the client offers Settings instead.
 	LinkSkipped string
+	// Reclaimed: this sign-in took the account back from whoever registered
+	// the address before proving it (a reset link on an unverified account);
+	// the client says so once.
+	Reclaimed bool
 }
 
 // MFAPending reports whether the caller must still answer the TOTP challenge.

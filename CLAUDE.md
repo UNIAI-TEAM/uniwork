@@ -559,6 +559,19 @@ database and never reveal whether an id exists to a non-member.
   `TestProviderSignInTrustsOnlyAuthoritativeEmail`, `TestProviderSignInReclaimsAnUnverifiedAccount`,
   `TestReclaimNeverAsksTheSquattersSecondFactor`, `TestAnUnlinkedProviderIsNotRelinkedByEmail` and
   `TestSealedBlobsDoNotCrossPurposes` hold it.
+- The second factor (ADR 0047 §4): a challenge token names its channel (`chn`; none reads as web) and the browser's
+  `POST /auth/mfa/verify` takes only a web one. An identity that would link into an account with a second factor
+  rides in the challenge (`pl`, sealed) and is linked only in the transaction that opens the session once the
+  factor passed, after resolving it again (else the sign-in succeeds with `link_skipped`). Every code is weighed
+  under the account's row lock in `weighSecondFactor` (`server/internal/service/second_factor.go`): the tenth wrong
+  one in a row locks the factor 15 minutes and mails the owner, and while locked nothing is checked (429
+  `second_factor_locked`, `retry_after`). An account that never verified its address cannot enrol, and a reset
+  link on such an account takes it back like a provider that owns the address. Desktop and MCP consent refuse a
+  browser token issued before `users.credentials_revoked_at` (401 `invalid_token`; the bearer middleware puts the
+  verified token, `iat` included, on the context). `TestMFAChallengeIsBoundToItsChannel`,
+  `TestLinkWaitsForTheSecondFactor`, `TestSecondFactorLocksAfterTenFailures`,
+  `TestUnverifiedAccountsCannotEnrolMFAOrLink`, `TestAResetLinkReclaimsAnUnverifiedAccount` and
+  `TestCredentialsRevokedAtRefusesOlderWebTokens` hold it.
 - A revoke of a user's sessions goes through one of two helpers in `server/internal/service/desktop_auth.go`, which
   take the locks in one order (device rows, then refresh tokens, pushes, offline leases): `revokeAllUserSessions`
   for every session, `revokeOtherUserSessions` for all but the caller's (its device family kept whole), which

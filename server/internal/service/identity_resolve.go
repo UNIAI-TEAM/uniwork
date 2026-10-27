@@ -364,7 +364,7 @@ func createProviderUser(ctx context.Context, q *db.Queries, id ProviderIdentity,
 	return u, err
 }
 
-// reclaimed is what reclaimAccount leaves for after the commit.
+// reclaimed is what a reclaim leaves for after the commit.
 type reclaimed struct {
 	user db.User
 	// leases is the count of Office leases revoked, for the metric.
@@ -375,61 +375,84 @@ type reclaimed struct {
 	queued                    bool
 }
 
-// reclaimAccount is resolution 4 (spec §3.1): the owner of the mailbox takes
-// back an account someone registered with the address before proving it.
-// The second factor is never asked: whoever registered set it up. In the
-// caller's transaction everything that person could have left goes —
-// password, TOTP, recovery codes, every provider link, the AI consent
-// answer, every session and device session, MCP grant, push subscription
-// (browsers included), open desktop and MCP consent, reset link and mailed
-// code — older access tokens are refused from now on, and the address is
-// verified. Then the identity is linked. The caller issues a session without
+// reclaimMailbox is what every reclaim shares, whichever proof of the
+// mailbox it follows: a provider that owns the address (reclaimAccount), or
+// a reset link mailed to it (PasswordResetService.Reset). The owner of the
+// mailbox takes back an account someone registered with the address before
+// proving it, and the second factor is never asked: whoever registered set
+// it up. In the caller's transaction, under the row lock, everything that
+// person could have left goes — password, TOTP, recovery codes, every
+// provider link, the AI consent answer, every session and device session,
+// MCP grant, push subscription (browsers included), open desktop and MCP
+// consent, reset link and mailed code — older access tokens are refused from
+// now on, the address is verified, and the session revoke is audited
+// (reason reclaimed). The caller then writes what its proof brings (the
+// identity, the new password), audits and mails it, issues a session without
 // a second factor and, after commit, revokes the Apple token it is handed.
-func reclaimAccount(ctx context.Context, q *db.Queries, u db.User, id ProviderIdentity, m signInMailer, device string) (reclaimed, error) {
+// A row that is no longer an unverified live account is ErrNoRows.
+func reclaimMailbox(ctx context.Context, q *db.Queries, userID string) (reclaimed, error) {
 	// Read under the row lock: the Apple token revoked after commit is the
 	// one the reclaim clears.
-	locked, err := q.GetUserForUpdate(ctx, u.ID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return reclaimed{}, errSignInAccountConflict()
-	}
+	locked, err := q.GetUserForUpdate(ctx, userID)
 	if err != nil {
 		return reclaimed{}, err
 	}
 	out := reclaimed{appleClientID: locked.AppleClientID.String, appleToken: locked.AppleRefreshTokenEnc.String}
-	if _, err := q.ReclaimUnverifiedUser(ctx, u.ID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			// Verified (or deleted) since it was resolved: not a reclaim now.
-			return reclaimed{}, errSignInAccountConflict()
-		}
+	if out.user, err = q.ReclaimUnverifiedUser(ctx, userID); err != nil {
+		// pgx.ErrNoRows: verified (or deleted) since it was resolved.
 		return reclaimed{}, err
 	}
-	if out.leases, err = revokeAllUserSessions(ctx, q, u.ID); err != nil {
+	if out.leases, err = revokeAllUserSessions(ctx, q, userID); err != nil {
 		return reclaimed{}, err
 	}
-	if err := q.RevokeAllPushSubscriptionsForUser(ctx, u.ID); err != nil {
+	if err := q.RevokeAllPushSubscriptionsForUser(ctx, userID); err != nil {
 		return reclaimed{}, err
 	}
-	grants, err := revokeAllMcpGrantsForUser(ctx, q, u.ID)
+	grants, err := revokeAllMcpGrantsForUser(ctx, q, userID)
 	if err != nil {
 		return reclaimed{}, err
 	}
-	desktopAttempts, err := q.CancelOpenDesktopAuthAttemptsForUser(ctx, pgtype.Text{String: u.ID, Valid: true})
+	desktopAttempts, err := q.CancelOpenDesktopAuthAttemptsForUser(ctx, pgtype.Text{String: userID, Valid: true})
 	if err != nil {
 		return reclaimed{}, err
 	}
-	mcpAttempts, err := q.CancelOpenMcpAuthAttemptsForUser(ctx, pgtype.Text{String: u.ID, Valid: true})
+	mcpAttempts, err := q.CancelOpenMcpAuthAttemptsForUser(ctx, pgtype.Text{String: userID, Valid: true})
 	if err != nil {
 		return reclaimed{}, err
 	}
-	if err := q.ExpirePasswordResetTokensForUser(ctx, u.ID); err != nil {
+	if err := q.ExpirePasswordResetTokensForUser(ctx, userID); err != nil {
 		return reclaimed{}, err
 	}
 	for _, purpose := range []string{codePurposeVerifyEmail, codePurposeStepUp} {
-		if err := q.DeleteEmailVerificationCodesForUser(ctx, db.DeleteEmailVerificationCodesForUserParams{UserID: u.ID, Purpose: purpose}); err != nil {
+		if err := q.DeleteEmailVerificationCodesForUser(ctx, db.DeleteEmailVerificationCodesForUserParams{UserID: userID, Purpose: purpose}); err != nil {
 			return reclaimed{}, err
 		}
 	}
-	if err := q.MarkCredentialsRevoked(ctx, u.ID); err != nil {
+	if err := q.MarkCredentialsRevoked(ctx, userID); err != nil {
+		return reclaimed{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: audit.NoOrganization, Actor: audit.User(userID),
+		Action: audit.ActionAuthSessionRevoked, ResourceType: "user", ResourceID: userID,
+		Metadata: map[string]any{
+			"scope": "all", "reason": "reclaimed", "mcp_grants_revoked": grants,
+			"desktop_attempts_cancelled": desktopAttempts, "mcp_attempts_cancelled": mcpAttempts,
+		},
+	}, sessionRevoked(userID, "")); err != nil {
+		return reclaimed{}, err
+	}
+	return out, nil
+}
+
+// reclaimAccount is resolution 4 (spec §3.1): a provider that owns the
+// address proves the mailbox, so reclaimMailbox takes the account back and
+// the identity is linked, audited (via reclaim) and told to the owner.
+func reclaimAccount(ctx context.Context, q *db.Queries, u db.User, id ProviderIdentity, m signInMailer, device string) (reclaimed, error) {
+	out, err := reclaimMailbox(ctx, q, u.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return reclaimed{}, errSignInAccountConflict()
+	}
+	if err != nil {
 		return reclaimed{}, err
 	}
 	if out.user, err = linkIdentity(ctx, q, u.ID, id); err != nil {
@@ -440,16 +463,6 @@ func reclaimAccount(ctx context.Context, q *db.Queries, u db.User, id ProviderId
 		Action: audit.ActionAuthSignInMethodLinked, ResourceType: "user", ResourceID: u.ID,
 		Metadata: map[string]any{"provider": id.Provider, "via": "reclaim"},
 	}); err != nil {
-		return reclaimed{}, err
-	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: audit.NoOrganization, Actor: audit.User(u.ID),
-		Action: audit.ActionAuthSessionRevoked, ResourceType: "user", ResourceID: u.ID,
-		Metadata: map[string]any{
-			"scope": "all", "reason": "reclaimed", "mcp_grants_revoked": grants,
-			"desktop_attempts_cancelled": desktopAttempts, "mcp_attempts_cancelled": mcpAttempts,
-		},
-	}, sessionRevoked(u.ID, "")); err != nil {
 		return reclaimed{}, err
 	}
 	out.queued, err = m.queue(ctx, q, out.user, mail.SignInMethodChangedData{

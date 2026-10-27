@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
@@ -215,5 +217,46 @@ func TestAResetLinkMailedBeforeDeletionIsDead(t *testing.T) {
 	}
 	if u, _ := q.GetUserByID(ctx, gone.ID); u.PasswordHash.Valid {
 		t.Fatal("a deleted account got a password")
+	}
+}
+
+// A reset link is the first proof of the mailbox an unverified account ever
+// got, so the reset takes the account back from whoever registered the
+// address (ADR 0047 §2, spec §3.1): everything they left goes — their
+// second factor, provider links, sessions, devices, pushes, consents — the
+// address is verified, the owner is told, and the session comes without the
+// squatter's second factor.
+func TestAResetLinkReclaimsAnUnverifiedAccount(t *testing.T) {
+	f := newIdentityFixture(t)
+	reset := NewPasswordResetService(f.pool, f.q, f.auth, mail.Renderer{AppURL: "http://localhost:3000"}, f.out)
+	s := f.squat(t, "mailbox@example.com")
+	if !s.user.MfaEnabledAt.Valid {
+		t.Fatal("the squatter has a second factor")
+	}
+	sess, err := reset.Reset(f.ctx, s.resetTokenRaw, "owner-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sess.Reclaimed || sess.MFAPending() || sess.RefreshToken == "" || sess.User.ID != s.user.ID {
+		t.Fatalf("the owner is signed in, no second factor asked: %+v", sess)
+	}
+	f.assertTakenBack(t, s, "mailbox@example.com")
+	u := f.user(t, s.user.ID)
+	if !u.PasswordHash.Valid || !u.PasswordChangedAt.Valid || u.GoogleID.Valid || u.AppleID.Valid || u.AppleRefreshTokenEnc.Valid {
+		t.Fatalf("the owner's password is the one way in: %+v", u)
+	}
+	if _, err := f.auth.Login(f.ctx, "mailbox@example.com", "owner-password"); err != nil {
+		t.Fatalf("the owner's password: %v", err)
+	}
+	if n := f.count(t, `SELECT count(*) FROM audit_events WHERE action = $1 AND actor_id = $2
+		AND metadata::jsonb->>'via' = 'reset_token' AND metadata::jsonb->>'reclaimed' = 'true'`, audit.ActionAuthPasswordChanged, u.ID); n != 1 {
+		t.Fatalf("%d reclaiming password_changed rows, want 1", n)
+	}
+	if notice := f.mailOfKind(t, "mailbox@example.com", mail.KindSignInMethodChanged); !strings.Contains(notice.Text, "liên kết đặt lại mật khẩu") {
+		t.Fatalf("the notice names the reset link as the proof: %+v", notice)
+	}
+	// The link is spent: it cannot take the account a second time.
+	if _, err := reset.Reset(f.ctx, s.resetTokenRaw, "another-password"); err != ErrInvalidToken {
+		t.Fatalf("the link reused: %v", err)
 	}
 }

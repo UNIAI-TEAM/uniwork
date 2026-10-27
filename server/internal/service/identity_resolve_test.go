@@ -388,13 +388,25 @@ func (f *identityFixture) squat(t *testing.T, email string) squatter {
 }
 
 // assertGone checks that nothing the squatter left on the account survived
-// the reclaim, and that the account is now the owner's.
+// a provider's reclaim, which leaves no password at all, and that the
+// account is now the owner's.
 func (f *identityFixture) assertGone(t *testing.T, s squatter, email string) {
+	t.Helper()
+	if u := f.user(t, s.user.ID); u.PasswordHash.Valid || u.PasswordChangedAt.Valid {
+		t.Fatalf("the squatter's password survived: %+v", u)
+	}
+	f.assertTakenBack(t, s, email)
+}
+
+// assertTakenBack is what every reclaim leaves, whichever proof of the
+// mailbox it followed: the squatter's second factor, sessions, devices,
+// pushes, consents, links and codes are gone and the owner was told.
+func (f *identityFixture) assertTakenBack(t *testing.T, s squatter, email string) {
 	t.Helper()
 	ctx := f.ctx
 	u := f.user(t, s.user.ID)
-	if u.PasswordHash.Valid || u.PasswordChangedAt.Valid || u.TotpSecret.Valid || u.MfaEnabledAt.Valid || len(u.MfaRecoveryCodes) != 0 {
-		t.Fatalf("the squatter's password or second factor survived: %+v", u)
+	if u.TotpSecret.Valid || u.MfaEnabledAt.Valid || len(u.MfaRecoveryCodes) != 0 {
+		t.Fatalf("the squatter's second factor survived: %+v", u)
 	}
 	if u.AiConsentVersion.Valid || u.AiConsentAt.Valid || u.AiOptOutAt.Valid {
 		t.Fatalf("the squatter's AI answer survived: %+v", u)

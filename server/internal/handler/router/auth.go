@@ -45,7 +45,7 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	})
 	v1.With(credentialLimit).Post("/auth/password/reset", h.ResetPassword, apiOp{
 		summary:     "Reset password",
-		description: "Đổi mật khẩu bằng token trong link email, thu hồi mọi refresh token và trả về phiên mới.",
+		description: "Đổi mật khẩu bằng token trong link email, thu hồi mọi refresh token và trả về phiên mới. Tài khoản chưa xác minh email thì link là bằng chứng hộp thư: lấy lại tài khoản (xoá xác thực hai lớp, mã khôi phục, liên kết Google/Apple và mọi phiên của người đăng ký trước, đánh dấu email đã xác minh), phiên không hỏi bước hai và mang reclaimed: true (ADR 0047).",
 		tags:        []string{"auth"},
 		sdi:         sdi.ResetPasswordSDI{},
 		sdo:         sdo.SessionSDO{},

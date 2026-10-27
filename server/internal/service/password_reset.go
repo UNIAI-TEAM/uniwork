@@ -114,6 +114,13 @@ func (s *PasswordResetService) Request(ctx context.Context, email string) error 
 // every MCP grant (Ruling 49: an AI app connected by whoever held the old
 // password must not outlive it) and returns a fresh session so the user lands
 // in the app.
+//
+// On an account that never proved its address the link is the first proof
+// of the mailbox, so the reset takes the account back (ADR 0047 §2, spec
+// §3.1): reclaimMailbox clears what whoever registered it left — their
+// second factor and recovery codes, every provider link, every session —
+// and verifies the address, the new password is set, the owner is mailed,
+// and the session comes without a second factor (Session.Reclaimed).
 func (s *PasswordResetService) Reset(ctx context.Context, token, password string) (Session, error) {
 	if err := validatePassword(password); err != nil {
 		return Session{}, err
@@ -135,8 +142,9 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	}
 	defer tx.Rollback(ctx)
 	qtx := s.q.WithTx(tx)
-	u, err := qtx.SetUserPassword(ctx, db.SetUserPasswordParams{ID: t.UserID, PasswordHash: pgtype.Text{String: hash, Valid: true}})
-	if errors.Is(err, pgx.ErrNoRows) {
+	// The row lock settles verified or not for the whole command.
+	locked, err := qtx.GetUserForUpdate(ctx, t.UserID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && locked.DeletedAt.Valid) {
 		// The account was deleted after the link went out.
 		return Session{}, ErrInvalidToken
 	}
@@ -149,6 +157,16 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	}
 	if rows == 0 {
 		return Session{}, ErrInvalidToken
+	}
+	if !locked.EmailVerifiedAt.Valid {
+		return s.resetReclaim(ctx, tx, qtx, t.UserID, hash)
+	}
+	u, err := qtx.SetUserPassword(ctx, db.SetUserPasswordParams{ID: t.UserID, PasswordHash: pgtype.Text{String: hash, Valid: true}})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, ErrInvalidToken
+	}
+	if err != nil {
+		return Session{}, err
 	}
 	leases, err := revokeAllUserSessions(ctx, qtx, t.UserID)
 	if err != nil {
@@ -185,4 +203,53 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	}
 	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
 	return s.auth.SessionFor(ctx, u)
+}
+
+// resetReclaim is Reset on an account that never proved its address, in
+// Reset's transaction with the token already burnt: reclaimMailbox (which
+// also expires every other reset link), the new password, the audit row
+// (via reset_token, reclaimed) and the owner's notice, then a session
+// without a second factor: reclaimMailbox cleared the one whoever
+// registered set up.
+func (s *PasswordResetService) resetReclaim(ctx context.Context, tx pgx.Tx, qtx *db.Queries, userID, hash string) (Session, error) {
+	back, err := reclaimMailbox(ctx, qtx, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, ErrInvalidToken
+	}
+	if err != nil {
+		return Session{}, err
+	}
+	u, err := qtx.SetUserPassword(ctx, db.SetUserPasswordParams{ID: userID, PasswordHash: pgtype.Text{String: hash, Valid: true}})
+	if err != nil {
+		return Session{}, err
+	}
+	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
+		OrganizationID: audit.NoOrganization,
+		Actor:          audit.User(userID),
+		Action:         audit.ActionAuthPasswordChanged,
+		ResourceType:   "user", ResourceID: userID,
+		Metadata: map[string]any{"via": "reset_token", "reclaimed": true},
+	}); err != nil {
+		return Session{}, err
+	}
+	m := signInMailer{render: s.render, out: s.out, now: s.now}
+	queued, err := m.queue(ctx, qtx, u, mail.SignInMethodChangedData{
+		Change: mail.SignInChangeReclaimed, Method: mail.SignInMethodPassword,
+		Device: mail.SafeField(sessionMetaFrom(ctx).UserAgent),
+	})
+	if err != nil {
+		return Session{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Session{}, err
+	}
+	m.kick(queued)
+	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, back.leases)
+	s.auth.apple.revokeAfterCommit(ctx, userID, back.appleClientID, back.appleToken)
+	sess, err := s.auth.mintAudited(ctx, u, map[string]any{"via": "reset_token", "reclaimed": true})
+	if err != nil {
+		return Session{}, err
+	}
+	sess.Reclaimed = true
+	return sess, nil
 }
