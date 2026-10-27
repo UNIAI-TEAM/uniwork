@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import {
+  isFolderAccessBatchRunningError,
   isNotAFolderError,
   parseFolderAccessBatchRunning,
   type FolderContentsAccessMode,
@@ -143,6 +144,12 @@ export function FolderContentsAccessDialog({
     const running = parseFolderAccessBatchRunning(err);
     if (running) {
       showBatch(running.batch_id, true);
+      return;
+    }
+    if (isFolderAccessBatchRunningError(err)) {
+      // A 409 without a batch id: a sync update holds the folder lock. Nothing to follow; the choices stay and Confirm is usable again.
+      setFormError(t("documents.folderAccess.busy"));
+      setStage("form");
       return;
     }
     const rejected = parseDocumentAccessRejected(err);

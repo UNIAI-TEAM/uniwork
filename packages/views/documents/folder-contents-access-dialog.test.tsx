@@ -362,6 +362,29 @@ describe("folder contents access dialog", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("says the folder is busy on a 409 without a batch id: no progress, no batch query, choices kept, Confirm usable again", async () => {
+    const calls = transport({ real: () => apiError({ error: { code: "folder_access_batch_running", message: "busy" } }, 409) });
+    const { user, dialog } = await openDialog();
+    await pick(user, dialog, /Nguyễn An/);
+    await user.click(within(dialog).getByRole("combobox", { name: t("documents.share.level_for", { name: "Nguyễn An" }) }));
+    await user.click(await screen.findByRole("option", { name: "Chỉnh sửa" }));
+    await review(user, dialog);
+    await user.click(within(dialog).getByTestId("folder-access-apply"));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(t("documents.folderAccess.busy"));
+    expect(within(dialog).queryByTestId("folder-access-progress")).toBeNull();
+    expect(calls.some((c) => c.method === "GET" && c.path.startsWith(`${FOLDER_PATH}/`))).toBe(false);
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole("combobox", { name: t("documents.share.level_for", { name: "Nguyễn An" }) })).toHaveTextContent("Chỉnh sửa");
+    expect(confirmButton(dialog)).not.toHaveAttribute("aria-disabled");
+
+    // Confirm runs the dry run again with the same choices.
+    await user.click(confirmButton(dialog));
+    expect(await within(dialog).findByTestId("folder-access-summary")).toBeInTheDocument();
+    expect(puts(calls).map((c) => c.body?.dry_run)).toEqual([true, false, true]);
+    expect(puts(calls)[2]?.body?.items).toEqual([{ principal_type: "user", principal_id: "u2", level: "edit" }]);
+  });
+
   it("marks the rejected row on a 422 and sends the person back to the list", async () => {
     transport({ dry: () => apiError(errorAccessRejected, 422) });
     const { user, dialog } = await openDialog();

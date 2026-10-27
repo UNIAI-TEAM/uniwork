@@ -9,6 +9,8 @@ import {
   useAttachDriveFileToTask,
   useDriveFile,
   useDriveFiles,
+  useDriveFolders,
+  useNameDriveFolder,
   useRebindDriveFile,
   useUnlinkDriveFile,
 } from "./hooks";
@@ -214,5 +216,54 @@ describe("driveLibraryKeys and hooks", () => {
     expect(qc.getQueryState(driveLibraryKeys.detail("ws1", "df1"))?.isInvalidated).toBe(true);
     expect(qc.getQueryState(driveLibraryKeys.list("ws1"))?.isInvalidated).toBe(true);
     expect(qc.getQueryState(driveLibraryKeys.task("ws1", "t1"))?.isInvalidated).toBe(true);
+  });
+  it("keys the folder lists under the workspace Drive prefix, per connection", () => {
+    expect(driveLibraryKeys.folderLists("ws-1")).toEqual(["drive", "ws-1", "library-folders"]);
+    expect(driveLibraryKeys.folders("ws-1", "c1")).toEqual(["drive", "ws-1", "library-folders", "c1"]);
+    expect(driveLibraryKeys.folders("ws-1")).toEqual(["drive", "ws-1", "library-folders", "all"]);
+  });
+
+  it("useDriveFolders reads the list of one connection and stays idle without a workspace", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ folders: [{ id: "fld1", name: "Hợp đồng", file_count: 2 }] }));
+    const { result } = renderHook(() => useDriveFolders("ws1", "conn1"), { wrapper: makeWrapper(qc) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual([{ id: "fld1", name: "Hợp đồng", file_count: 2 }]);
+    renderHook(() => useDriveFolders("", "conn1"), { wrapper: makeWrapper(qc) });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+  });
+
+  it("useNameDriveFolder awaits the server, then marks folder lists, file lists and details stale", async () => {
+    const folderKey = driveLibraryKeys.folders("ws1", "conn1");
+    const listKey = driveLibraryKeys.list("ws1", "conn1");
+    const detailKey = driveLibraryKeys.detail("ws1", "df1");
+    const otherKey = ["drive", "ws1", "connections"] as const;
+    qc.setQueryData(folderKey, []);
+    qc.setQueryData(listKey, { pages: [], pageParams: [] });
+    qc.setQueryData(detailKey, null);
+    qc.setQueryData(otherKey, []);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ drive_folder: { id: "fld1", name: "Hợp đồng" }, updated_count: 3 }));
+    const { result } = renderHook(() => useNameDriveFolder("ws1"), { wrapper: makeWrapper(qc) });
+    const out = await result.current.mutateAsync({ folderId: "fld1", connectionId: "conn1" });
+
+    expect(out.updated_count).toBe(3);
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/workspaces/ws1/drive-folders/fld1/name");
+    expect(JSON.parse(String(init?.body))).toEqual({ drive_connection_id: "conn1" });
+    for (const key of [folderKey, listKey, detailKey]) {
+      expect(qc.getQueryState(key)?.isInvalidated).toBe(true);
+    }
+    expect(qc.getQueryState(otherKey)?.isInvalidated).toBe(false);
+  });
+
+  it("useNameDriveFolder leaves the caches alone when the server refuses", async () => {
+    const folderKey = driveLibraryKeys.folders("ws1", "conn1");
+    qc.setQueryData(folderKey, []);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "drive_folder_not_found", message: "x" } }, 404));
+    const { result } = renderHook(() => useNameDriveFolder("ws1"), { wrapper: makeWrapper(qc) });
+    await expect(result.current.mutateAsync({ folderId: "fld1", connectionId: "conn1" })).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(qc.getQueryState(folderKey)?.isInvalidated).toBe(false);
   });
 });

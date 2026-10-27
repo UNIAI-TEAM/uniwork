@@ -120,6 +120,8 @@ export interface LibraryRowHandlers
   personName: (userId: string, kind: string) => string | null;
   /** The folder a document sits in, for the Name cell's location line; absent draws none. */
   locationName?: (doc: DocumentSummaryRow) => string | null;
+  /** A search hit's ancestor path line under the name; when present it replaces `locationName`. */
+  searchPath?: (doc: { path?: { id: string; title: string }[] }) => { display: string; full: string; srText: string } | null;
   desktopOpen?: LibraryDesktopOpen;
 }
 
@@ -270,12 +272,14 @@ export function LibraryRowView({
   ) : null;
 
   const screenColumn = docListSpec(screen).screenColumn;
+  const resolvedSearchPath = doc ? (handlers.searchPath?.(doc) ?? null) : null;
   const nameCell = (
     <DocNameCell
       kind={folder ? "folder" : (doc?.kind ?? "file")}
       format={folder ? "folder" : format}
       title={title}
-      location={doc && screen !== "workspace" ? (handlers.locationName?.(doc) ?? null) : null}
+      searchPath={resolvedSearchPath}
+      location={!resolvedSearchPath && doc && screen !== "workspace" ? (handlers.locationName?.(doc) ?? null) : null}
       badges={
         <>
           {/* The Star action carries a starred row's state; the marker stays only where no Star action is drawn (N4). */}
@@ -285,8 +289,8 @@ export function LibraryRowView({
           {trashed && screen !== "trash" ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}
-          {/* U-11: a shelved row that also sits in the trash keeps its "Đã lưu trữ" label. */}
-          {screen === "trash" && isShelved(doc) ? (
+          {/* U-6 / U-11: a shelved row that sits in the trash or in search results on a live list keeps its "Đã lưu trữ" label. */}
+          {screen !== "shelved" && isShelved(doc) ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.shelved_list.badge")}</Badge>
           ) : null}
           {doc?.edit_lock && !doc.edit_lock.held_by_me ? (

@@ -33,6 +33,7 @@ function makeFile(over: Partial<DriveFile> = {}): DriveFile {
     created_at: "2026-10-26T08:00:00Z",
     updated_at: "2026-10-26T08:00:00Z",
     viewer_access: "granted",
+    drive_folder: null,
     viewer_connection_id: "conn1",
     viewer_account_email: "uni@gmail.com",
     can_unlink: true,

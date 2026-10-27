@@ -209,6 +209,11 @@ export function parseFolderAccessBatchRunning(err: unknown): { batch_id: string 
   return typeof id === "string" && id !== "" ? { batch_id: id } : null;
 }
 
+/** Any 409 folder_access_batch_running, with or without a batch id (a sync update holding the folder lock sends none). */
+export function isFolderAccessBatchRunningError(err: unknown): boolean {
+  return err instanceof ApiError && err.code === "folder_access_batch_running";
+}
+
 /** 422 not_a_folder: the id names a document that is not a folder. */
 export function isNotAFolderError(err: unknown): boolean {
   return err instanceof ApiError && err.code === "not_a_folder";

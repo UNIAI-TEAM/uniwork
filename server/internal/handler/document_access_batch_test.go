@@ -342,11 +342,11 @@ func TestFolderShareCandidatesReaderAccessOverHTTP(t *testing.T) {
 
 	// 2. Same reader on a non-folder document they cannot administer gets 403.
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+pageID+"/share-candidates", readerToken, nil)
-	wantErr(t, res, out, 403, "forbidden", "")
+	wantErr(t, res, out, 403, "forbidden", "permission")
 
 	// 3. Non-member gets 404 refusal on the folder.
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+folderID+"/share-candidates", outsiderToken, nil)
-	wantErr(t, res, out, 404, "not_found", "")
+	wantErr(t, res, out, 404, "not_found", "missing")
 
 	// 4. Write routes on the folder still refuse with 422 folder_not_shareable.
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/documents/"+folderID+"/access", w.token, map[string]any{
