@@ -227,7 +227,7 @@ export function PeopleFilter({
             {t("trash.people_cap", { max: TRASH_MAX_DELETERS })}
           </p>
         ) : null}
-        <div role="group" aria-label={label} className="max-h-64 overflow-y-auto">
+        <div role="group" aria-label={label} className="max-h-64 overflow-x-hidden overflow-y-auto">
           {shown.length === 0 ? (
             <p className="px-2 py-3 text-caption text-muted-foreground">{t("trash.no_people")}</p>
           ) : (
