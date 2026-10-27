@@ -123,7 +123,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   // rest fold into "More" so the bar fits a 375px screen without scrolling.
   const secondaryInMenu = mobile;
   // While recording, the control names what pressing it does next.
-  const recordLabel = recording ? t("meetings.stopRecording") : t("meetings.record");
+  const recordLabel = recording ? t("meetings.stopRecording") : t("meetings.recordVideo");
 
   const toggleRecording = () => {
     if (recording) {

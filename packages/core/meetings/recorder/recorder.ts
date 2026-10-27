@@ -30,7 +30,7 @@ type RecorderDeps = {
   now?: () => number;
   newId?: () => string;
   timesliceMs?: number;
-  /** The first part's `startedAt` when this continues a recording still on the device. */
+  /** The first part's `startedAt` when this continues a recording still on the device; read when `start()` runs. */
   baseStartedAt?: number;
 };
 
@@ -57,7 +57,7 @@ export function createMeetingRecorder(deps: RecorderDeps): MeetingRecorder {
   let state: RecorderState = "idle";
   let error: unknown = null;
   let live: LivePart | null = null;
-  let baseStartedAt = deps.baseStartedAt;
+  let baseStartedAt: number | undefined;
   let language: Language | null = null;
   let recordedMs = 0;
   let runningSince: number | null = null;
@@ -105,7 +105,7 @@ export function createMeetingRecorder(deps: RecorderDeps): MeetingRecorder {
       const mimeType = MIME_TYPES.find((type) => Recorder.isTypeSupported?.(type));
       const media = new Recorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 48_000 });
       const startedAt = now();
-      const base = baseStartedAt ?? startedAt;
+      const base = baseStartedAt ?? deps.baseStartedAt ?? startedAt;
       const part: RecordingPart = {
         id: newId(), userId: deps.userId, meetingId: deps.meetingId, startedAt, lastChunkAt: startedAt,
         endedAt: null, mimeType: media.mimeType || mimeType || "", bytes: 0, language: language ?? deps.language,

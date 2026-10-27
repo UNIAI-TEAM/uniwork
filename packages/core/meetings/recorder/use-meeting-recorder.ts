@@ -20,7 +20,14 @@ type Language = RecordingPart["language"];
  * stays on the device. A new `userId`, `meetingId` or `store` is a new recorder, so
  * pass a stable store.
  */
-export function useMeetingRecorder(opts: { userId: string; meetingId: string; language: Language; store?: RecordingStore }): {
+export function useMeetingRecorder(opts: {
+  userId: string;
+  meetingId: string;
+  language: Language;
+  /** The first stored part's `startedAt` when this continues a recording still on the device; read at `start()`. */
+  baseStartedAt?: number;
+  store?: RecordingStore;
+}): {
   recorder: MeetingRecorder;
   state: RecorderState;
   activeMs: number;
@@ -29,6 +36,8 @@ export function useMeetingRecorder(opts: { userId: string; meetingId: string; la
   const { userId, meetingId, store } = opts;
   const language = useRef(opts.language);
   language.current = opts.language;
+  const baseStartedAt = useRef(opts.baseStartedAt);
+  baseStartedAt.current = opts.baseStartedAt;
   const recorder = useMemo(
     () =>
       createMeetingRecorder({
@@ -37,6 +46,9 @@ export function useMeetingRecorder(opts: { userId: string; meetingId: string; la
         meetingId,
         get language() {
           return language.current;
+        },
+        get baseStartedAt() {
+          return baseStartedAt.current;
         },
         getUserMedia: (constraints) => navigator.mediaDevices.getUserMedia(constraints),
         MediaRecorderCtor: globalThis.MediaRecorder,

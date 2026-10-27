@@ -132,6 +132,8 @@ export const paths = {
       documentVersions: (id: string) => `${base}/documents/${id}?panel=versions`,
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
+      /** An in-person meeting's recorder; `send` opens it on sending what this device holds. */
+      record: (id: string, opts?: { send?: boolean }) => `${base}/meetings/${id}/record${opts?.send ? "?send=1" : ""}`,
       chat: () => `${base}/chat`,
       /** Chat's direct messages and groups, which belong to the organization (UniChat's Tin nhắn). */
       chatMessages: () => `${base}/chat?view=messages`,
