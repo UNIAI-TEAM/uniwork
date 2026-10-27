@@ -1,0 +1,8 @@
+$ npm run typecheck > /tmp/fw1-tc.log 2>&1; rc=$?; tail -5 /tmp/fw1-tc.log; echo; echo "TYPECHECK_EXIT=$rc"; [ $rc -eq 0 ]
+
+
+> @genoffice/html@0.1.0 typecheck
+> tsc --noEmit
+
+
+TYPECHECK_EXIT=0

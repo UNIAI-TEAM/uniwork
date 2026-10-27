@@ -1,0 +1,3 @@
+$ npx eslint apps/shell/src/renderer/src/AppFrame.tsx apps/shell/src/renderer/src/uniwork-share/FolderBatchEndHost.tsx apps/shell/src/renderer/src/uniwork-share/use-folder-batch-end.ts apps/shell/src/renderer/src/uniwork-share/folder-contents-access-store.ts apps/shell/src/renderer/src/uniwork-folders/UniworkBrowser.tsx apps/shell/src/renderer/src/uniwork-home/DocumentsHome.tsx apps/shell/tests/uniwork-folder-batch-end-host.test.ts apps/shell/tests/uniwork-folder-contents-access-ui.test.ts apps/shell/tests/uniwork-folder-contents-access-home-ui.test.ts apps/shell/tests/uniwork-folders-ui.test.ts > /tmp/fw1-lint.log 2>&1; rc=$?; tail -30 /tmp/fw1-lint.log; echo; echo "LINT_EXIT=$rc"; [ $rc -eq 0 ]
+
+LINT_EXIT=0

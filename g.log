@@ -1,0 +1,5 @@
+$ npx prettier --check apps/shell/src/renderer/src/AppFrame.tsx apps/shell/src/renderer/src/uniwork-share/FolderBatchEndHost.tsx apps/shell/src/renderer/src/uniwork-share/use-folder-batch-end.ts apps/shell/src/renderer/src/uniwork-share/folder-contents-access-store.ts apps/shell/src/renderer/src/uniwork-folders/UniworkBrowser.tsx apps/shell/src/renderer/src/uniwork-home/DocumentsHome.tsx apps/shell/tests/uniwork-folder-batch-end-host.test.ts apps/shell/tests/uniwork-folder-contents-access-ui.test.ts apps/shell/tests/uniwork-folder-contents-access-home-ui.test.ts apps/shell/tests/uniwork-folders-ui.test.ts > /tmp/fw1-pr.log 2>&1; rc=$?; tail -15 /tmp/fw1-pr.log; echo; echo "PRETTIER_EXIT=$rc"; [ $rc -eq 0 ]
+Checking formatting...
+All matched files use Prettier code style!
+
+PRETTIER_EXIT=0

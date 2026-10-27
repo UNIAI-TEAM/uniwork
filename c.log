@@ -1,0 +1,5 @@
+$ cd apps/shell && npx vitest run tests/uniwork-folder-batch-end-host.test.ts tests/uniwork-folder-contents-access-ui.test.ts tests/uniwork-folder-contents-access-home-ui.test.ts tests/uniwork-folder-contents-access-cap.test.ts tests/uniwork-folders-ui.test.ts tests/uniwork-documents-home-model.test.ts --reporter verbose > /tmp/fw1-unit.log 2>&1; rc=$?; grep -nE "×|FAIL|Tests |Test Files" /tmp/fw1-unit.log | head -60; echo; echo "UNIT_SHELL_EXIT=$rc"; [ $rc -eq 0 ]
+336: Test Files  6 passed (6)
+337:      Tests  235 passed (235)
+
+UNIT_SHELL_EXIT=0
