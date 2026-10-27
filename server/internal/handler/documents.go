@@ -305,6 +305,7 @@ func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 		Filename:       file.FileName(),
 		Body:           part,
 		Visibility:     strings.TrimSpace(fields["visibility"]),
+		Template:       strings.EqualFold(strings.TrimSpace(fields["template"]), "true"),
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 	})
 	if err != nil {
@@ -975,6 +976,7 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 		by := doc.ShelvedBy.String
 		out.ShelvedBy = &by
 	}
+	out.TemplateMarkedAt, out.TemplateMarkedBy = templateMarkFields(doc)
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)
 	}

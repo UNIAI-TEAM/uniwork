@@ -37,6 +37,24 @@ type CreateDocumentFileSDI struct {
 	ParentID    *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Destination *string `formData:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
 	Title       *string `formData:"title" description:"Tiêu đề hiển thị; mặc định tên tệp" example:"bao-cao-thang-9.pdf"`
+	Template    *string `formData:"template" description:"true = tải lên như một mẫu văn bản của workspace (Mẫu): tệp ở gốc, hiển thị workspace; dùng cùng parent_id hoặc destination -> 400 invalid_request; bỏ trống hoặc false = tệp thường" example:"true"`
+}
+
+// MarkDocumentTemplateSDI documents POST /api/v1/documents/{documentID}/template
+// (UNI-2225). The body may be empty, which reads as widen_to_workspace=false.
+type MarkDocumentTemplateSDI struct {
+	WidenToWorkspace bool `json:"widen_to_workspace" description:"true = đồng ý đổi tệp restricted thành hiển thị workspace để đánh dấu mẫu; bỏ trống hoặc false trên tệp restricted -> 409 template_widens_visibility" example:"false"`
+}
+
+// ListTemplateDocumentsSDI documents GET
+// /api/v1/workspaces/{workspaceID}/documents/templates (UNI-2225): the
+// workspace's templates as list rows, newest mark first, paged by keyset.
+type ListTemplateDocumentsSDI struct {
+	Cursor *string  `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0xMC0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	Limit  *int32   `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
+	Kind   *string  `query:"kind" description:"Lọc page, file, folder hoặc document" example:"file"`
+	Format *string  `query:"format" description:"Lọc theo định dạng tệp: docx, xlsx, pptx, pdf, md, html hoặc txt; giá trị khác -> 400 invalid_filter" example:"docx"`
+	Type   []string `query:"type" description:"Lọc theo loại tài liệu, lặp tham số (?type=docx&type=xlsx); giá trị lạ hoặc rỗng -> 400 invalid_type" example:"[\"docx\",\"xlsx\"]"`
 }
 
 // PatchDocumentSDI is PATCH /api/v1/documents/{documentID}: autosave and

@@ -858,6 +858,19 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		content: []byte("# " + m + " file body\n"),
 	})
 	tn.ids["fileDocument"] = isoID(t, out, "document")
+	// UNI-2225: dedicated files for the template pair - marking "fileDocument"
+	// would change what every later control reads from it. One workspace file
+	// not yet marked (POST) and one uploaded as a template (DELETE).
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": m + " Template file", "visibility": "workspace"}, filename: strings.ToLower(m) + "-tpl.md", contentType: "text/markdown",
+		content: []byte("# " + m + " template file body\n"),
+	})
+	tn.ids["templateDocument"] = isoID(t, out, "document")
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": m + " Marked template", "template": "true"}, filename: strings.ToLower(m) + "-marked.md", contentType: "text/markdown",
+		content: []byte("# " + m + " marked template body\n"),
+	})
+	tn.ids["markedTemplateDocument"] = isoID(t, out, "document")
 	// A zip download job (UNI-2045 SV-9) the tenant's owner created and nobody
 	// built: the poll answers it, the download route has no file yet.
 	tn.ids["downloadJob"] = util.NewID()

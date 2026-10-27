@@ -91,6 +91,9 @@ import (
 //	POST   /api/v1/documents/{documentID}/comments/{commentID}/reactions
 //	DELETE /api/v1/documents/{documentID}/comments/{commentID}/reactions
 //	GET    /api/v1/documents/{documentID}/mention-candidates     (G8-06)
+//	POST   /api/v1/documents/{documentID}/template                (UNI-2225)
+//	DELETE /api/v1/documents/{documentID}/template                (UNI-2225)
+//	GET    /api/v1/workspaces/{workspaceID}/documents/templates   (UNI-2225)
 //	POST   /api/v1/documents/{documentID}/favorite
 //	DELETE /api/v1/documents/{documentID}/favorite
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
@@ -515,6 +518,21 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
+	d.Post("/documents/{documentID}/template", h.MarkDocumentTemplate, apiOp{
+		summary:     "Mark a document as a template",
+		description: "Đánh dấu tệp là mẫu văn bản của workspace (UNI-2225): người có quyền xem tệp đánh dấu được; thư mục, trang và tệp ở thùng rác hoặc đã lưu trữ không đánh dấu được. Tệp restricted cần widen_to_workspace=true (mẫu hiển thị cho cả workspace) và quyền manage, thiếu -> 409 template_widens_visibility. Thân có thể bỏ trống (= widen_to_workspace false). Lặp lại không lỗi, không ghi audit lần hai. Trả DocumentSDO.",
+		tags:        []string{"documents"},
+		sdi:         sdi.MarkDocumentTemplateSDI{},
+		sdo:         sdo.DocumentSDO{},
+		auth:        true,
+	})
+	d.Delete("/documents/{documentID}/template", h.UnmarkDocumentTemplate, apiOp{
+		summary:     "Unmark a document as a template",
+		description: "Bỏ đánh dấu mẫu (UNI-2225); tệp giữ nguyên visibility. Tệp chưa là mẫu vẫn trả 200 không đổi gì (idempotent). Tài liệu đã lưu trữ thì không bỏ đánh dấu được. Trả DocumentSDO.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentSDO{},
+		auth:        true,
+	})
 	d.Get("/orgs/{orgID}/documents/favorites", h.ListDocumentFavorites, apiOp{
 		summary:     "List my favorite documents",
 		description: "Tài liệu người gọi đã lưu trong một tổ chức, mới nhất trước; mỗi dòng kiểm lại quyền đọc hiện tại nên chia sẻ bị thu hồi tự rụng khỏi danh sách. Không phải thành viên -> 404.",
@@ -549,6 +567,14 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		description: "Tài liệu người gọi đã gắn sao trong workspace này, mỗi dòng là DocumentSummaryDTO kèm favorited_at (người gọi gắn sao khi nào), mới gắn trước (sort=starred mặc định giảm dần). type lặp (?type=docx&type=xlsx) lọc như danh sách phẳng, giá trị lạ hoặc rỗng -> 400 invalid_type. Chỉ trả dòng người gọi còn đọc được: chia sẻ bị thu hồi hoặc tài liệu vào thùng rác rụng khỏi danh sách, dòng sao vẫn còn và quay lại khi có quyền. Lọc kind, format như danh sách phẳng (giá trị lạ -> 400 invalid_filter); cursor keyset gắn với sort/order; agent -> 403. Route favorites cấp tổ chức (/orgs/{orgID}/documents/favorites) giữ nguyên.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListFavoriteDocumentsSDI{},
+		sdo:         sdo.DocumentListSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/templates", h.ListTemplateDocuments, apiOp{
+		summary:     "List document templates in a workspace",
+		description: "Mẫu văn bản (Mẫu) của workspace: các tệp đã được đánh dấu là mẫu, mỗi dòng là DocumentSummaryDTO kèm template_marked_at/template_marked_by. Chỉ trả tệp người gọi còn đọc được; tệp vào thùng rác rụng khỏi danh sách. Lọc kind, format, type như danh sách phẳng (giá trị lạ -> 400 invalid_filter, type lạ hoặc rỗng -> 400 invalid_type); cursor keyset; agent -> 403.",
+		tags:        []string{"documents"},
+		sdi:         sdi.ListTemplateDocumentsSDI{},
 		sdo:         sdo.DocumentListSDO{},
 		auth:        true,
 	})
