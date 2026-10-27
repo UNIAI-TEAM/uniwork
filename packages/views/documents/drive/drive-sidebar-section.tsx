@@ -96,7 +96,7 @@ export function DriveSidebarSection({
                 setExpanded((prev) => !prev);
               }
             }}
-            className="relative z-10 flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground pointer-coarse:-ml-5 pointer-coarse:-mr-2 pointer-coarse:size-11"
+            className="relative z-10 flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground before:absolute before:content-[''] before:-inset-1 pointer-coarse:before:-left-2 pointer-coarse:before:-right-5 pointer-coarse:before:-top-3.5 pointer-coarse:before:-bottom-3.5"
           >
             <ChevronRight
               aria-hidden

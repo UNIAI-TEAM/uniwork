@@ -284,7 +284,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(driveChevron).toHaveAttribute("aria-expanded", "true");
     expect(driveChevron).not.toHaveAttribute("tabindex", "-1");
     expect(driveChevron).not.toHaveClass("outline-none");
-    expect(driveChevron).toHaveClass("size-4", "shrink-0", "pointer-coarse:size-11");
+    expect(driveChevron).toHaveClass("size-4", "shrink-0", "before:-inset-1", "pointer-coarse:before:-left-2", "pointer-coarse:before:-right-5");
     expect(driveBtn).toHaveTextContent("6");
     expect(driveBtn).toHaveClass("gap-2", "min-w-0", "flex-1");
     expect(driveBtn.firstElementChild).toHaveClass("size-5", "shrink-0");

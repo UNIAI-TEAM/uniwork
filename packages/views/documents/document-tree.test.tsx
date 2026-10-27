@@ -504,9 +504,12 @@ describe("DocumentTree", () => {
       "-mr-1",
       "relative",
       "z-10",
-      "pointer-coarse:size-11",
-      "pointer-coarse:-ml-5",
-      "pointer-coarse:-mr-3",
+      "before:absolute",
+      "before:-inset-1",
+      "pointer-coarse:before:-left-2",
+      "pointer-coarse:before:-right-5",
+      "pointer-coarse:before:-top-3.5",
+      "pointer-coarse:before:-bottom-3.5",
     );
     expect(rootChevron).not.toHaveClass("outline-none");
     expect(rootChevron.nextElementSibling).toHaveClass("size-5", "shrink-0");
