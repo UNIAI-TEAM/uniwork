@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { isShelved, type DocumentTreeNode } from "@uniwork/core/types/document";
@@ -19,6 +20,10 @@ import {
 } from "./library-rows";
 import { foldSearchText, formatSearchPath } from "./search-path";
 import { useDocumentsSearch, type UseDocumentsSearchResult } from "./use-documents-search";
+
+/** Maximum Recent pages auto-fetched while searching on Gần đây (10 pages = 500 rows). */
+const RECENT_SEARCH_AUTO_PAGE_CAP = 10;
+
 export interface SearchViewState {
   rows: LibraryRow[];
   folders: DocumentTreeNode[];
@@ -46,9 +51,10 @@ export interface BuildSearchViewStateInput {
   libraryLoadMore: () => void;
   libraryRefetch: () => void;
   starredIds: ReadonlySet<string>;
+  starredLoading?: boolean;
+  starredFailure?: "error" | "permission" | null;
+  recentAutoPaging?: boolean;
   shelvedBy: string | null;
-  activity: ActivityFilter;
-  userId: string | null;
   tree: DocumentTreeNode[];
   myFolderId: string | null;
   myFolderLabel: string;
@@ -70,15 +76,11 @@ function matchesSearchViewScope(
     viewKind,
     shelvedBy,
     starredIds,
-    activity,
-    userId,
     loadedById,
   }: {
     viewKind: string;
     shelvedBy: string | null;
     starredIds: ReadonlySet<string>;
-    activity: ActivityFilter;
-    userId: string | null;
     loadedById: ReadonlyMap<string, DocumentSummaryRow>;
   },
 ): boolean {
@@ -91,8 +93,6 @@ function matchesSearchViewScope(
     }
     case "starred":
       return Boolean(doc.favorited_at) || starredIds.has(doc.id) || loaded !== undefined;
-    case "shared":
-      return Boolean(doc.shared) || doc.via === "share" || loaded !== undefined;
     case "sharedByMe": {
       if (doc.kind === "folder" || doc.system_kind === "my_folder") return false;
       if (doc.is_owner === false) return false;
@@ -106,18 +106,6 @@ function matchesSearchViewScope(
         );
       }
       return doc.visibility === "workspace" || loaded !== undefined;
-    }
-    case "recent": {
-      const activityInfo = doc.last_activity ?? loaded?.last_activity;
-      if (activity === "edited") {
-        return activityInfo?.kind === "edited" || (Boolean(userId) && doc.updated_by === userId);
-      }
-      if (activity === "opened") {
-        // Without a loaded access-log entry on the hit, keep workspace matches unscoped
-        // rather than silently dropping unloaded pages.
-        return activityInfo ? activityInfo.kind === "opened" || activityInfo.kind === "owned" : true;
-      }
-      return true;
     }
     default:
       return true;
@@ -136,9 +124,10 @@ export function buildSearchViewState({
   libraryLoadMore,
   libraryRefetch,
   starredIds,
+  starredLoading = false,
+  starredFailure = null,
+  recentAutoPaging = false,
   shelvedBy,
-  activity,
-  userId,
   tree,
   myFolderId,
   myFolderLabel,
@@ -183,6 +172,37 @@ export function buildSearchViewState({
     };
   }
 
+  // Gần đây (viewKind === "recent", KLV-6): `/documents/recent` ignores `q`, so
+  // search filters the Recent screen's rows client-side by folded title while
+  // auto-paging up to RECENT_SEARCH_AUTO_PAGE_CAP pages (500 rows).
+  if (viewKind === "recent") {
+    const foldedQuery = foldSearchText(search.committedQuery);
+    const rows = foldedQuery
+      ? libraryRows.filter(
+          (row) => row.type === "document" && foldSearchText(row.doc.title).includes(foldedQuery),
+        )
+      : libraryRows;
+    const docById = new Map<string, DocumentSummaryRow>();
+    for (const row of rows) {
+      if (row.type === "document") docById.set(row.doc.id, row.doc);
+    }
+    const loading = libraryLoading || (rows.length === 0 && (recentAutoPaging || libraryLoadingMore));
+    return {
+      rows,
+      folders: [],
+      docById,
+      loading,
+      failure: libraryFailure,
+      hasMore: !recentAutoPaging && libraryHasMore,
+      loadingMore: libraryLoadingMore,
+      loadMore: libraryLoadMore,
+      refetch: libraryRefetch,
+      query: search.committedQuery,
+      onClearSearch,
+      searchPath,
+    };
+  }
+
   const loadedById = new Map<string, DocumentSummaryRow>();
   for (const row of libraryRows) {
     if (row.type === "document") loadedById.set(row.doc.id, row.doc);
@@ -194,8 +214,6 @@ export function buildSearchViewState({
         viewKind,
         shelvedBy,
         starredIds,
-        activity,
-        userId,
         loadedById,
       }),
     )
@@ -247,22 +265,25 @@ export function buildSearchViewState({
   const docById = new Map<string, DocumentSummaryRow>(
     items.map((doc): [string, DocumentSummaryRow] => [doc.id, doc]),
   );
-  const failure = search.isError
+  const searchFailure = search.isError
     ? classifyDocumentError(search.error).cls === "permission"
       ? "permission"
       : "error"
     : null;
+  const starredView = viewKind === "starred";
+  const failure = searchFailure ?? (starredView ? starredFailure : null);
+  const loading = search.loading || (starredView && starredLoading);
 
   return {
-    rows,
+    rows: loading || failure ? [] : rows,
     folders,
     docById,
-    loading: search.loading,
+    loading,
     failure,
     hasMore: search.hasMore,
     loadingMore: search.loadingMore,
     loadMore: search.loadMore,
-    refetch: search.retry,
+    refetch: starredView && starredFailure && !searchFailure ? libraryRefetch : search.retry,
     query: search.committedQuery,
     onClearSearch,
     searchPath,
@@ -275,6 +296,9 @@ export interface UseDocumentsSearchViewLibraryInput {
   treeLoading: boolean;
   docById: Map<string, DocumentSummaryRow>;
   starredIds: ReadonlySet<string>;
+  starredLoading: boolean;
+  starredFailure: "error" | "permission" | null;
+  recentPageCount: number;
   shelvedBy: string | null;
   activity: ActivityFilter;
   editor: string;
@@ -295,7 +319,6 @@ export interface UseDocumentsSearchViewInput {
   library: UseDocumentsSearchViewLibraryInput;
   myFolderId: string | null;
   myFolderLabel: string;
-  userId: string | null;
   onNavigateFolder: (folderId: string) => void;
   onClearLibraryFilters: () => void;
 }
@@ -310,13 +333,13 @@ export function useDocumentsSearchView({
   library,
   myFolderId,
   myFolderLabel,
-  userId,
   onNavigateFolder,
   onClearLibraryFilters,
 }: UseDocumentsSearchViewInput) {
   const { t } = useTranslation();
   const viewKind = view.kind;
-  const search = useDocumentsSearch(wsId, enabled, {
+  const searchEnabled = enabled && viewKind !== "sources" && viewKind !== "recent" && viewKind !== "archived";
+  const search = useDocumentsSearch(wsId, searchEnabled, {
     types,
     updatedBy: library.editorId,
     updatedFrom: library.updatedSince,
@@ -324,6 +347,19 @@ export function useDocumentsSearchView({
     sharedByMe: viewKind === "sharedByMe",
   });
   const searching = search.active && viewKind !== "archived";
+  const recentAutoPaging =
+    searching &&
+    viewKind === "recent" &&
+    library.state.hasMore &&
+    !library.state.failure &&
+    library.recentPageCount > 0 &&
+    library.recentPageCount < RECENT_SEARCH_AUTO_PAGE_CAP;
+  useEffect(() => {
+    if (recentAutoPaging && !library.state.loadingMore) {
+      library.state.loadMore();
+    }
+  }, [recentAutoPaging, library.state]);
+
   const clearAndFocus = () => {
     search.clear();
     search.focusInput();
@@ -340,9 +376,10 @@ export function useDocumentsSearchView({
     libraryLoadMore: library.state.loadMore,
     libraryRefetch: library.state.refetch,
     starredIds: library.starredIds,
+    starredLoading: library.starredLoading,
+    starredFailure: library.starredFailure,
+    recentAutoPaging,
     shelvedBy: library.shelvedBy,
-    activity: library.activity,
-    userId,
     tree: library.tree,
     myFolderId,
     myFolderLabel,
@@ -356,16 +393,23 @@ export function useDocumentsSearchView({
     library.editor !== "any" ||
     library.updated !== "any" ||
     (viewKind === "recent" && library.activity !== "all");
+  // "filtered" answers "is a filter on" (the filter bar of every list screen):
+  // it gates the folder's subfolders-only suppression (TV-4), the root's empty
+  // copy and the no-results state, so all three read the same flag.
   const filtered = metaFiltered || types.length > 0;
   const filteredBy = searchState
-    ? ("server" as const)
+    ? viewKind === "recent"
+      ? ("client" as const)
+      : ("server" as const)
     : filtered
       ? library.clientFiltered
         ? ("client" as const)
         : ("server" as const)
       : null;
   const state = searchState ?? library.state;
+  // At home and in a folder the folders are cards above the table.
   const tableRows = homeView ? nonFolderRows(state.rows) : state.rows;
+  // The date groups (W11) while the rows sit in their screen's own order; a flat list otherwise.
   const listScreen = docListScreenOfView(view);
   const groupScreen = docListGroupScreen(listScreen);
   const groups =
@@ -373,22 +417,29 @@ export function useDocumentsSearchView({
       ? groupRowsByDate(tableRows, groupScreen, new Date())
       : [{ key: "all", rows: tableRows }];
   const subfolders = searchState ? searchState.folders : subfoldersOf(library.tree, folderId);
+  // The root's folders come from the tree query: until it answers, an empty root
+  // list cannot tell "no folders" from "folders not here yet".
   const rootTreePending =
     !searchState && homeView && !folderId && !filtered && library.treeLoading && tableRows.length === 0;
   const listLoading = state.loading || (!searchState && Boolean(folderId) && folderPending) || rootTreePending;
+  // UNI-1994: folders on screen but no loose root document is not an empty workspace.
   const outsideFolders = !folderId && !filtered && !searchState && subfolders.length > 0;
   const rootEmpty = outsideFolders ? "outside_folders_" : "";
+  // Gần đây's Mở tiếp cards (recent-canvas): only while no filter or search narrows the list, and while the rows
+  // sit in their screen's own order.
   const cards =
     viewKind === "recent" && !filtered && !searching && library.ownOrderShown
       ? continueCards(state.rows)
       : [];
+  // TV-4: a folder whose children are only subfolders is not empty, so it shows
+  // no "Tài liệu 0" and no empty copy; the same applies when a search matches
+  // folders only (KLR-4). Filters, loading and failure keep their own states.
   const hideDocuments =
     (searching || (Boolean(folderId) && !filtered)) &&
     subfolders.length > 0 &&
     tableRows.length === 0 &&
     !listLoading &&
     !state.failure;
-
   const openFolderFromList = (targetFolderId: string) => {
     if (searching) search.clear();
     onNavigateFolder(targetFolderId);
@@ -401,6 +452,7 @@ export function useDocumentsSearchView({
     onClearLibraryFilters();
   };
 
+  const recentMorePages = viewKind === "recent" && Boolean(searchState?.hasMore);
   return {
     search,
     searching,
@@ -408,7 +460,7 @@ export function useDocumentsSearchView({
     state,
     activeDocById: searchState ? searchState.docById : library.docById,
     activeRows: searchState ? searchState.rows : library.state.rows,
-    metaFiltered,
+    metaFiltered: (metaFiltered && !searchState) || (Boolean(searchState) && viewKind === "recent"),
     filteredBy,
     tableRows,
     listScreen,
@@ -422,10 +474,12 @@ export function useDocumentsSearchView({
     openFolderFromList,
     clearFiltersOrSearch,
     emptyFiltered: searchState
-      ? {
-          title: t("documents.home.search.no_results_title", { query: searchState.query }),
-          description: undefined,
-        }
+      ? recentMorePages
+        ? { title: t("documents.home.search.no_results_title", { query: searchState.query }) }
+        : {
+            title: t("documents.home.search.no_results_title", { query: searchState.query }),
+            description: undefined,
+          }
       : undefined,
     clearFiltersLabel: searchState ? t("documents.home.search.clear") : undefined,
   };

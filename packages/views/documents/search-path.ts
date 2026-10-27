@@ -41,8 +41,8 @@ export function formatSearchPath(
 
 /**
  * Normalises a string the way the backend's `uw_fold_search` / `foldForSearch`
- * does for `match=title`: NFD decomposition, combining marks dropped, Vietnamese
- * `đ`/`Đ` mapped to `d`, lowercase, and whitespace collapsed.
+ * does: NFD decomposition, combining marks dropped, Vietnamese `đ`/`Đ` mapped
+ * to `d`, lowercase, and whitespace collapsed.
  */
 export function foldSearchText(value: string): string {
   return value

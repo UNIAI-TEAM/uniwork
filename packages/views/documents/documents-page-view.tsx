@@ -212,7 +212,6 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     library,
     myFolderId,
     myFolderLabel,
-    userId: permissionCtx.userId,
     onNavigateFolder: (id) => goHome({ kind: "home" }, id),
     onClearLibraryFilters: () => {
       setTypes([]);
@@ -385,7 +384,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       loading={listLoading}
       failure={state.failure}
       filteredBy={filteredBy}
-      metaFiltered={metaFiltered && !searchState}
+      metaFiltered={metaFiltered}
       cardsShown={canCreate && homeView && !searchState}
       emptyFiltered={searchView.emptyFiltered}
       clearFiltersLabel={searchView.clearFiltersLabel}
