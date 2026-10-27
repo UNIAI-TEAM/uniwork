@@ -3,8 +3,12 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // A meeting is online (a room) or in person (recorded in the room); the venue
@@ -100,4 +104,132 @@ func TestMeetingVenue(t *testing.T) {
 			t.Fatalf("ended: %v", err)
 		}
 	})
+}
+
+func inPersonMeeting(t *testing.T, s *MeetingService, userID, workspaceID string) db.Meeting {
+	t.Helper()
+	start := time.Now().Add(time.Hour).Truncate(time.Second)
+	m, err := s.Create(context.Background(), userID, workspaceID, CreateMeetingInput{
+		Title: "Họp tại phòng", StartsAt: start, EndsAt: start.Add(time.Hour), Venue: MeetingVenueInPerson,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+// An in-person meeting is recorded in the room, never held in one.
+func TestInPersonMeetingNeverOpensARoom(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	m := inPersonMeeting(t, s, ua.ID, w.ID)
+	if _, err := s.Start(context.Background(), ua.ID, m.ID); !codedIs(err, "meeting_in_person") {
+		t.Fatalf("start in person: %v", err)
+	}
+	if n := countWhere(t, s, `SELECT count(*) FROM meeting_conference_sessions WHERE meeting_id = $1`, m.ID); n != 0 {
+		t.Fatalf("conference sessions = %d", n)
+	}
+}
+
+func TestInstantInPersonStaysScheduled(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	in := InstantMeetingInput{Title: "Họp nhanh", Venue: MeetingVenueInPerson, IdempotencyKey: "k1"}
+	m, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Status != MeetingScheduled || m.MeetingType != MeetingTypeInstant || m.Venue != MeetingVenueInPerson {
+		t.Fatalf("instant in person = %s %s %s", m.Status, m.MeetingType, m.Venue)
+	}
+	if n := countWhere(t, s, `SELECT count(*) FROM meeting_conference_sessions WHERE meeting_id = $1`, m.ID); n != 0 {
+		t.Fatalf("conference sessions = %d", n)
+	}
+	if n := countWhere(t, s, `SELECT count(*) FROM outbox_events WHERE topic = 'provider.ensure_session' AND payload::jsonb->>'meeting_id' = $1`, m.ID); n != 0 {
+		t.Fatalf("provider.ensure_session rows = %d", n)
+	}
+	if n := countWhere(t, s, `SELECT count(*) FROM outbox_events WHERE topic = 'meeting.created' AND payload::jsonb->>'meeting_id' = $1`, m.ID); n != 1 {
+		t.Fatalf("meeting.created rows = %d", n)
+	}
+	replayed, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, in)
+	if err != nil || replayed.ID != m.ID || replayed.Status != MeetingScheduled {
+		t.Fatalf("replay = %s %s %v, want %s SCHEDULED", replayed.ID, replayed.Status, err, m.ID)
+	}
+	online := in
+	online.Venue = MeetingVenueOnline
+	if _, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, online); !codedIs(err, "idempotency_payload_mismatch") {
+		t.Fatalf("same key, another venue: %v", err)
+	}
+	var ve ValidationError
+	if _, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, InstantMeetingInput{Venue: "hybrid"}); !errors.As(err, &ve) {
+		t.Fatalf("hybrid: %v", err)
+	}
+}
+
+func TestCalendarInviteOfAnInPersonMeetingHasNoDialIn(t *testing.T) {
+	s, _, ua, _, online := dialInFixture(t)
+	ctx := context.Background()
+	m := inPersonMeeting(t, s, ua.ID, online.WorkspaceID)
+	ics, err := s.CalendarICS(ctx, ua.ID, m.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(ics), "Gọi vào bằng điện thoại") {
+		t.Fatalf("in-person invite carries the dial-in line:\n%s", ics)
+	}
+	if ics, _ := s.CalendarICS(ctx, ua.ID, online.ID, ""); !strings.Contains(string(ics), "Gọi vào bằng điện thoại") {
+		t.Fatalf("online invite lost the dial-in line:\n%s", ics)
+	}
+}
+
+func TestSecretaryRecordsTheMeetingHeld(t *testing.T) {
+	s, ua, ub, w := meetingFixture(t)
+	ctx := context.Background()
+	addMember(t, s, w.ID, ub.ID)
+	uc, err := s.q.CreateUser(ctx, db.CreateUserParams{ID: util.NewID(), Email: "venue-c@example.com", DisplayName: "C", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addMember(t, s, w.ID, uc.ID)
+	m := inPersonMeeting(t, s, ua.ID, w.ID)
+	sec, err := s.Invite(ctx, ua.ID, m.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Invite(ctx, ua.ID, m.ID, uc.ID); err != nil {
+		t.Fatal(err)
+	}
+	yes := true
+	if _, err := s.UpdateParticipantDuties(ctx, ua.ID, m.ID, sec.ID, ParticipantDutiesInput{IsSecretary: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	began := time.Now().Add(-2 * time.Hour).Truncate(time.Second)
+	if _, err := s.RecordHeld(ctx, uc.ID, m.ID, began, began.Add(time.Hour)); !codedIs(err, "not_meeting_clerk") {
+		t.Fatalf("plain member: %v", err)
+	}
+	if ended, err := s.RecordHeld(ctx, ub.ID, m.ID, began, began.Add(time.Hour)); err != nil || ended.Status != MeetingEnded {
+		t.Fatalf("secretary: %s %v", ended.Status, err)
+	}
+}
+
+// The held times come from the server's clock: the browser sends only how
+// long it recorded.
+func TestRecordHeldNowUsesServerClock(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	m := inPersonMeeting(t, s, ua.ID, w.ID)
+	for _, d := range []time.Duration{0, -time.Minute} {
+		if _, err := s.RecordHeldNow(ctx, ua.ID, m.ID, d); !codedIs(err, "invalid_held_times") {
+			t.Fatalf("d = %v: %v", d, err)
+		}
+	}
+	ended, err := s.RecordHeldNow(ctx, ua.ID, m.ID, 42*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skew := time.Since(ended.ActualEndAt.Time); skew < -5*time.Second || skew > 5*time.Second {
+		t.Fatalf("actual_end_at %v is %v from now", ended.ActualEndAt.Time, skew)
+	}
+	if got := ended.ActualEndAt.Time.Sub(ended.ActualStartAt.Time); got != 42*time.Minute {
+		t.Fatalf("held for %v, want 42m", got)
+	}
 }

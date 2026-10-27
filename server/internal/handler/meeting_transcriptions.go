@@ -21,11 +21,18 @@ func (h *handlers) recordMeetingHeld(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	// An unreadable time stays zero: the service refuses it (422) only after
-	// it has authorized the caller, so a stranger learns nothing either way.
-	started, _ := time.Parse(time.RFC3339, in.StartedAt)
-	ended, _ := time.Parse(time.RFC3339, in.EndedAt)
-	m, err := h.Meetings.RecordHeld(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), started, ended)
+	userID, meetingID := middleware.UserID(r.Context()), chi.URLParam(r, "meetingID")
+	var m db.Meeting
+	var err error
+	if in.DurationSeconds > 0 && in.StartedAt == "" && in.EndedAt == "" {
+		m, err = h.Meetings.RecordHeldNow(r.Context(), userID, meetingID, time.Duration(in.DurationSeconds)*time.Second)
+	} else {
+		// An unreadable time stays zero: the service refuses it (422) only after
+		// it has authorized the caller, so a stranger learns nothing either way.
+		started, _ := time.Parse(time.RFC3339, in.StartedAt)
+		ended, _ := time.Parse(time.RFC3339, in.EndedAt)
+		m, err = h.Meetings.RecordHeld(r.Context(), userID, meetingID, started, ended)
+	}
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

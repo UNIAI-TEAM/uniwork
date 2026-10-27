@@ -132,7 +132,7 @@ func TestRecordHeld(t *testing.T) {
 	began := time.Now().Add(-3 * time.Hour).Truncate(time.Second)
 	if _, err := s.RecordHeld(ctx, ub.ID, m.ID, began, began.Add(time.Hour)); err == nil {
 		t.Fatal("a plain member recorded the meeting as held")
-	} else if code, _ := codedOf(err); code != "not_meeting_host" {
+	} else if code, _ := codedOf(err); code != "not_meeting_clerk" {
 		t.Fatalf("a plain member: %v", err)
 	}
 	for name, times := range map[string][2]time.Time{

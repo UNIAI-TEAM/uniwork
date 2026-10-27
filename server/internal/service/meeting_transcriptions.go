@@ -99,11 +99,11 @@ func (s *MeetingService) requireTranscription(ctx context.Context, orgID string)
 }
 
 // RecordHeld is "Ghi nhận đã họp" (D10): a meeting held in person without a
-// room goes SCHEDULED → ENDED at the times the host reports, with no
+// room goes SCHEDULED → ENDED at the times a clerk reports, with no
 // conference session. It emits meeting.ended like End, so what follows an
 // ended meeting follows this one too.
 func (s *MeetingService) RecordHeld(ctx context.Context, userID, meetingID string, startedAt, endedAt time.Time) (db.Meeting, error) {
-	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
+	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
 	if err != nil {
 		return db.Meeting{}, err
 	}
@@ -149,6 +149,17 @@ func (s *MeetingService) RecordHeld(ctx context.Context, userID, meetingID strin
 	}
 	s.count("ended")
 	return ended, nil
+}
+
+// RecordHeldNow is RecordHeld for a meeting recorded in the room: it ends
+// now, on the server's clock, after d (the browser's clock may be off).
+func (s *MeetingService) RecordHeldNow(ctx context.Context, userID, meetingID string, d time.Duration) (db.Meeting, error) {
+	if d <= 0 {
+		// A zero start is refused by RecordHeld after it authorizes the caller.
+		return s.RecordHeld(ctx, userID, meetingID, time.Time{}, time.Time{})
+	}
+	end := time.Now()
+	return s.RecordHeld(ctx, userID, meetingID, end.Add(-d), end)
 }
 
 // OpenAudioUploadSession opens the large upload session for a recording of

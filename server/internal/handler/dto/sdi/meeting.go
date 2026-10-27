@@ -36,6 +36,7 @@ type ListMeetingsSDI struct {
 
 type CreateInstantMeetingSDI struct {
 	Title string `json:"title" example:"Họp nhanh"`
+	Venue string `json:"venue,omitempty" enum:"online,in_person" description:"Hình thức: online mở phòng họp ngay; in_person ghi âm tại phòng, không mở phòng" example:"online"`
 }
 
 // PatchMeetingSDI is PATCH /api/v1/meetings/{meetingID}.
@@ -326,8 +327,9 @@ type CreateMinutesSDI struct {
 // RecordMeetingHeldSDI is POST /api/v1/meetings/{meetingID}/held: the actual
 // times of a meeting held in person without a room (UNI-2001).
 type RecordMeetingHeldSDI struct {
-	StartedAt string `json:"started_at" format:"date-time" description:"Giờ bắt đầu thực tế (RFC 3339)" example:"2026-10-20T01:30:00Z"`
-	EndedAt   string `json:"ended_at" format:"date-time" description:"Giờ kết thúc thực tế; sau started_at và không ở tương lai" example:"2026-10-20T03:00:00Z"`
+	StartedAt       string `json:"started_at" format:"date-time" description:"Giờ bắt đầu thực tế (RFC 3339)" example:"2026-10-20T01:30:00Z"`
+	EndedAt         string `json:"ended_at" format:"date-time" description:"Giờ kết thúc thực tế; sau started_at và không ở tương lai" example:"2026-10-20T03:00:00Z"`
+	DurationSeconds int    `json:"duration_seconds,omitempty" description:"Thời lượng đã họp (giây), khi bỏ trống hai giờ: kết thúc lúc server nhận" example:"2520"`
 }
 
 // RequestTranscriptionSDI is POST /api/v1/meetings/{meetingID}/transcriptions.

@@ -36,8 +36,9 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Post("/workspaces/{workspaceID}/meetings/instant", h.CreateInstantMeeting, apiOp{
 		summary: "Create instant meeting", tags: []string{"meetings"},
-		description: "Header Idempotency-Key (tùy chọn): gửi lại cùng khóa trả lại đúng phòng đã mở, không mở phòng thứ hai; người khác dùng cùng khóa -> 409 idempotency_key_reuse.",
-		sdi:         sdi.CreateInstantMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+		description: "Header Idempotency-Key (tùy chọn): gửi lại cùng khóa trả lại đúng phòng đã mở, không mở phòng thứ hai; người khác dùng cùng khóa -> 409 idempotency_key_reuse. " +
+			"venue in_person: không mở phòng, cuộc họp ở SCHEDULED cho tới khi được ghi nhận đã họp.",
+		sdi: sdi.CreateInstantMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}", h.GetMeeting, apiOp{
 		summary: "Get meeting", tags: []string{"meetings"}, sdo: sdo.MeetingSDO{}, auth: true,
@@ -51,6 +52,7 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Post("/meetings/{meetingID}/start", h.StartMeeting, apiOp{
 		summary: "Start meeting", tags: []string{"meetings"}, sdo: sdo.MeetingSDO{}, auth: true,
+		description: "Cuộc họp trực tiếp (venue in_person) không mở phòng: 409 meeting_in_person.",
 	})
 	r.Post("/meetings/{meetingID}/end", h.EndMeeting, apiOp{
 		summary: "End meeting", tags: []string{"meetings"}, sdo: sdo.MeetingSDO{}, auth: true,
@@ -243,8 +245,8 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Post("/meetings/{meetingID}/held", h.RecordMeetingHeld, apiOp{
 		summary: "Record a meeting held in person without a room",
-		description: "Chủ trì hoặc quản trị workspace. Chỉ từ SCHEDULED (khác -> 409 invalid_meeting_state): ghi giờ thực tế, chuyển ENDED, không mở phòng. " +
-			"ended_at phải sau started_at và không ở tương lai, không thì 422 invalid_held_times. Ghi audit meeting.held_recorded, dòng thời gian MEETING_RECORDED_HELD, phát meeting.ended.",
+		description: "Chủ trì, thư ký hoặc quản trị workspace (khác -> 403 not_meeting_clerk). Chỉ từ SCHEDULED (khác -> 409 invalid_meeting_state): ghi giờ thực tế, chuyển ENDED, không mở phòng. " +
+			"ended_at phải sau started_at và không ở tương lai, không thì 422 invalid_held_times. Bỏ trống hai giờ và gửi duration_seconds > 0: kết thúc lúc server nhận, bắt đầu trước đó duration_seconds giây. Ghi audit meeting.held_recorded, dòng thời gian MEETING_RECORDED_HELD, phát meeting.ended.",
 		tags: []string{"meetings"}, sdi: sdi.RecordMeetingHeldSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/audio-upload-sessions", h.CreateMeetingAudioUpload, apiOp{

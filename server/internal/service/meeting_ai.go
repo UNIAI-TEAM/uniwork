@@ -1225,12 +1225,15 @@ func (s *MeetingService) CalendarICS(ctx context.Context, userID, meetingID, fro
 		joinURL = strings.TrimSuffix(frontendOrigin, "/") + "/" + ws.OrganizationSlug + "/" + ws.Slug + "/meetings/" + m.ID
 	}
 	// The invite carries the dial-in line too (spec §10), for the people
-	// it is forwarded to; m is this call's copy.
-	if d, err := s.dialInInfo(ctx, m); err == nil && d.Enabled {
-		if m.Description != "" {
-			m.Description += "\n\n"
+	// it is forwarded to; m is this call's copy. An in-person meeting opens
+	// no room to dial into.
+	if m.Venue != MeetingVenueInPerson {
+		if d, err := s.dialInInfo(ctx, m); err == nil && d.Enabled {
+			if m.Description != "" {
+				m.Description += "\n\n"
+			}
+			m.Description += "Gọi vào bằng điện thoại: " + d.Number + " · Mã PIN: " + d.Pin
 		}
-		m.Description += "Gọi vào bằng điện thoại: " + d.Number + " · Mã PIN: " + d.Pin
 	}
 	return renderICS(m, joinURL, time.Now()), nil
 }

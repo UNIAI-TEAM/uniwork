@@ -162,6 +162,10 @@ func (s *MeetingService) attendanceReport(ctx context.Context, q *db.Queries, m 
 				first = &f
 			}
 			row.Status, row.Source = suggestAttendance(anchor, first), AttendanceSourceSuggested
+			if m.Venue == MeetingVenueInPerson {
+				// Nobody joins a room in person: the clerk marks the absent.
+				row.Status = AttendancePresent
+			}
 			row.JoinedAfterFinalize = finalized
 		}
 		rep.Rows = append(rep.Rows, row)

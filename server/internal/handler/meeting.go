@@ -108,8 +108,8 @@ func (h *handlers) createInstantMeeting(w http.ResponseWriter, r *http.Request) 
 	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	m, err := h.Meetings.CreateInstantKeyed(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), in.Title,
-		r.Header.Get("Idempotency-Key"))
+	m, err := h.Meetings.CreateInstantKeyed(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"),
+		service.InstantMeetingInput{Title: in.Title, Venue: in.Venue, IdempotencyKey: r.Header.Get("Idempotency-Key")})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
