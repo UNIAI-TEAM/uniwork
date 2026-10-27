@@ -233,3 +233,25 @@ func TestRecordHeldNowUsesServerClock(t *testing.T) {
 		t.Fatalf("held for %v, want 42m", got)
 	}
 }
+
+// An in-person meeting opens no room, so nobody can call into it: no number,
+// no PIN shown, none drawn or rotated, no SIP rule.
+func TestInPersonMeetingTakesNoDialIn(t *testing.T) {
+	s, _, ua, _, online := dialInFixture(t)
+	ctx := context.Background()
+	m := inPersonMeeting(t, s, ua.ID, online.WorkspaceID)
+	before := reloadMeeting(t, s, m.ID).DialInPin
+	d, err := s.DialIn(ctx, ua.ID, m.ID)
+	if err != nil || d.Enabled || d.Pin != "" || d.Number != "" {
+		t.Fatalf("dial-in of an in-person meeting = %+v, %v", d, err)
+	}
+	if _, err := s.RotateDialInPin(ctx, ua.ID, m.ID); !codedIs(err, "invalid_meeting_state") {
+		t.Fatalf("rotate: %v", err)
+	}
+	if after := reloadMeeting(t, s, m.ID); after.DialInPin != before || after.SipDispatchRuleID.Valid {
+		t.Fatalf("pin %v -> %v, rule %v", before, after.DialInPin, after.SipDispatchRuleID)
+	}
+	if d, err := s.DialIn(ctx, ua.ID, online.ID); err != nil || !d.Enabled {
+		t.Fatalf("online meeting lost dial-in: %+v, %v", d, err)
+	}
+}
