@@ -6,6 +6,7 @@ import type { Meeting } from "@uniwork/core/types";
 import { formatMeetingWindow, meetingLocale } from "../meeting-datetime";
 import { MeetingRoomAvatarsProvider } from "../meeting-room-avatars";
 import { canRejoin, type ExitMedia, type RoomExit } from "./exit-model";
+import { ExitEnded } from "./exit-ended";
 import { ExitHandedOver } from "./exit-handed-over";
 import { ExitHostLeft } from "./exit-host-left";
 import { BackToMeetingButton, ExitLeft } from "./exit-left";
@@ -53,7 +54,17 @@ export function MeetingExitScreen(props: MeetingExitScreenProps) {
   const presenceCard = <ExitPresenceCard people={presence.people} startedAt={meeting?.actual_start_at} />;
 
   let body;
-  if (kind === "ended") {
+  if (kind === "ended" && meeting && props.workspaceId && !props.guestMode) {
+    body = (
+      <ExitEnded
+        meeting={meeting}
+        workspaceId={props.workspaceId}
+        meetingsHref={props.meetingsHref}
+        rating={rating}
+        onBackToMeeting={props.onBackToMeeting}
+      />
+    );
+  } else if (kind === "ended") {
     body = (
       <>
         <ExitMark className="bg-success-soft text-success-soft-foreground">
