@@ -47,6 +47,19 @@ func mcpOfficeText(d attachtext.Doc) (string, bool) {
 	// EstimateTokens counts a token per 3 characters.
 	text, read, total := attachtext.Fit(d, mcpMaxItemRunes/3)
 	cut := read < total
+	if read == 0 && total > 0 {
+		// One part longer than the whole budget: show its start rather than a bare marker.
+		for _, part := range d.Parts {
+			if part.Text == "" {
+				continue
+			}
+			first := part.Text
+			if part.Label != "" {
+				first = part.Label + "\n" + part.Text
+			}
+			return capRunes(first, mcpMaxItemRunes, mcpItemCut), true
+		}
+	}
 	if capped := capRunes(text, mcpMaxItemRunes, mcpItemCut); capped != text {
 		return capped, true
 	}

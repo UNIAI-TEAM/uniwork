@@ -59,3 +59,12 @@ func TestMcpOfficeText(t *testing.T) {
 		t.Errorf("long: cut=%v runes=%d", cut, utf8.RuneCountInString(text))
 	}
 }
+
+// One part longer than the whole budget still shows its start.
+func TestMcpOfficeTextShowsTheStartOfAnOversizedPart(t *testing.T) {
+	d := attachtext.Doc{Parts: []attachtext.Part{{Text: strings.Repeat("a", 20000)}}}
+	text, cut := mcpOfficeText(d)
+	if !cut || !strings.HasPrefix(text, "aaa") || utf8.RuneCountInString(text) > mcpMaxItemRunes || !strings.HasSuffix(text, mcpItemCut) {
+		t.Errorf("oversized part: cut=%v runes=%d", cut, utf8.RuneCountInString(text))
+	}
+}

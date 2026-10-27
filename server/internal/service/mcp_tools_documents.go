@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/attachtext"
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/document"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
@@ -202,7 +203,7 @@ func (s *McpToolService) GetDocument(ctx context.Context, p McpPrincipal, in mcp
 	case v.File != nil:
 		out.Filename, out.MimeType = v.File.Filename, v.File.MimeType
 		if !mcpTextFile(v.File.MimeType, v.File.Filename) {
-			out.Note = "this is not a text file (md, html, txt), so only its name and type are shown"
+			s.officeDocument(ctx, p, v, &out)
 			break
 		}
 		raw, err := s.fileHead(ctx, p, v.Document.ID)
@@ -221,6 +222,64 @@ func (s *McpToolService) GetDocument(ctx context.Context, p McpPrincipal, in mcp
 		out.Format, out.Content, out.Truncated = "text", text, truncated
 	}
 	return out, nil
+}
+
+const (
+	mcpOfficeNote           = "only the text of this file is shown (paragraphs, table rows, slides or sheet rows); formatting, images and layout are not"
+	mcpOfficeEmptyNote      = "this file holds no text to show (pictures or empty pages only)"
+	mcpOfficeUnreadableNote = "the text of this file could not be read (damaged, encrypted or too complex), so only its name and type are shown"
+	mcpOfficeTooLargeNote   = "this file is larger than 20 MiB, so only its name and type are shown; open it in UniWork"
+	mcpNotTextNote          = "this file type cannot be read as text here (md, html, txt, docx, xlsx, pptx, odt and csv can), so only its name and type are shown"
+	mcpOfficeBusyNote       = "the text of this file could not be read just now, so only its name and type are shown; try again later"
+)
+
+// officeDocument fills out with the text of an Office file, or with the note
+// that says why it could not be shown.
+func (s *McpToolService) officeDocument(ctx context.Context, p McpPrincipal, v DocumentView, out *McpDocument) {
+	mimeType, ok := mcpOfficeMIME(v.File.MimeType, v.File.Filename)
+	if !ok {
+		out.Note = mcpNotTextNote
+		return
+	}
+	if !mcpOfficeReadable(v.File.SizeBytes) {
+		out.Note = mcpOfficeTooLargeNote
+		return
+	}
+	raw, err := s.fileBytes(ctx, p, v.Document.ID)
+	if err == nil && len(raw) > mcpOfficeReadBytes {
+		err = errors.New("file larger than the read ceiling")
+	}
+	var doc attachtext.Doc
+	if err == nil {
+		doc, err = attachtext.Extract(mimeType, bytes.NewReader(raw), int64(len(raw)))
+	}
+	if errors.Is(err, attachtext.ErrUnreadable) {
+		out.Note = mcpOfficeUnreadableNote
+		return
+	}
+	if err != nil {
+		// The name and type were readable; the bytes not being so is no reason to fail the call.
+		slog.WarnContext(ctx, "mcp get_document: office text not read", "error", err, "document_id", v.Document.ID)
+		out.Note = mcpOfficeBusyNote
+		return
+	}
+	out.Format = "extracted"
+	if text, truncated := mcpOfficeText(doc); text == "" {
+		out.Note = mcpOfficeEmptyNote
+	} else {
+		out.Content, out.Truncated, out.Note = text, truncated, mcpOfficeNote
+	}
+}
+
+// fileBytes reads a file document's current version, as the person, up to one
+// byte past mcpOfficeReadBytes so that "too large" is known.
+func (s *McpToolService) fileBytes(ctx context.Context, p McpPrincipal, documentID string) ([]byte, error) {
+	f, err := s.docs.OpenDocumentFile(ctx, Human(p.UserID), documentID, 0, DocumentByteRange{Length: mcpOfficeReadBytes + 1}, DocumentAccessDownload)
+	if err != nil {
+		return nil, hidden(err)
+	}
+	defer f.Reader.Close()
+	return io.ReadAll(io.LimitReader(f.Reader.Body, mcpOfficeReadBytes+1))
 }
 
 // fileHead reads the start of a file document's current version, as the
@@ -604,7 +663,7 @@ func mcpDocumentTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpListDocumentsIn) (any, error) {
 				return s.ListDocuments(ctx, p, in)
 			}),
-		mcpReadTool("get_document", "Get document", "One document the user may read. A page comes as Markdown in content, with its revision. lossy true means the page holds something Markdown cannot carry back exactly (a blank paragraph, a merged table cell, formatting Markdown cannot express, or more than "+strconv.Itoa(document.MaxMarkdownRunes)+" characters), so it can only be appended to, never replaced. content is cut at "+strconv.Itoa(mcpMaxItemRunes)+" characters and truncated says so; a cut page cannot be replaced either. A text file (md, html, txt) comes as text, cut the same way; any other file comes as filename and mime_type only, with a note saying why, and so does a text file whose text cannot be read at that moment. A folder has no content: list_documents with its id as parent_id shows what is in it.", mcpSchemaDocument,
+		mcpReadTool("get_document", "Get document", "One document the user may read. A page comes as Markdown in content, with its revision. lossy true means the page holds something Markdown cannot carry back exactly (a blank paragraph, a merged table cell, formatting Markdown cannot express, or more than "+strconv.Itoa(document.MaxMarkdownRunes)+" characters), so it can only be appended to, never replaced. content is cut at "+strconv.Itoa(mcpMaxItemRunes)+" characters and truncated says so; a cut page cannot be replaced either. A text file (md, html, txt) comes as text, cut the same way; a docx, xlsx, pptx, odt or csv file comes as the text taken out of it with format extracted, cut the same way (formatting, images and layout are not shown); a pdf or any other file comes as filename and mime_type only, with a note saying why, and so does a file whose text cannot be read at that moment. A folder has no content: list_documents with its id as parent_id shows what is in it.", mcpSchemaDocument,
 			func(ctx context.Context, p McpPrincipal, in mcpDocumentRef) (any, error) {
 				return s.GetDocument(ctx, p, in)
 			}),
