@@ -1,0 +1,6 @@
+$ pnpm install --frozen-lockfile > /tmp/dq2-ci.log 2>&1; rc=$?; tail -3 /tmp/dq2-ci.log; echo; echo "INSTALL_EXIT=$rc"; [ $rc -eq 0 ]
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 5.3s using pnpm v10.28.2
+
+INSTALL_EXIT=0
