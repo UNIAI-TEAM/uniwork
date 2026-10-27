@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -1430,6 +1431,33 @@ func TestDriveFakeProviderLinkAndCreateTaskWithDriveFiles(t *testing.T) {
 		taskFile.OwnerDisplay != "Fake Drive Owner" ||
 		taskFile.SharingState != DriveSharingStateShared {
 		t.Fatalf("CreateTask stored Drive file = %+v", taskFile)
+	}
+}
+
+// TestDriveFileServiceDefaultFlagEnabled verifies that with a real flag service
+// and no DB override, FF_* env, or YAML rule, DriveFileService evaluates
+// drive_connector at its catalogue default (true), and refuses with 404
+// feature_disabled when FF_DRIVE_CONNECTOR=false.
+func TestDriveFileServiceDefaultFlagEnabled(t *testing.T) {
+	isolateDriveConnectorFlagSources(t)
+	env := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+
+	realFlags, _, err := featureflags.NewService(env.q, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.svc.SetFlags(realFlags)
+	env.fileSvc.SetFlags(realFlags)
+
+	if _, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{}); err != nil {
+		t.Fatalf("ListMine with default flag (no override/env/YAML): %v, want nil", err)
+	}
+
+	t.Setenv("FF_DRIVE_CONNECTOR", "false")
+	var ce CodedError
+	if _, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{}); !errors.As(err, &ce) || ce.Status != http.StatusNotFound || ce.Code != "feature_disabled" {
+		t.Fatalf("ListMine with FF_DRIVE_CONNECTOR=false = %v, want 404 feature_disabled", err)
 	}
 }
 
