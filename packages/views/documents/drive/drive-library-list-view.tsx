@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
-import { CircleAlert, FolderOpen, Folders, Plus, RefreshCw, TriangleAlert } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CircleAlert, FolderOpen, Plus, RefreshCw, Search, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDriveFiles } from "@uniwork/core/drive-library";
-import { groupDriveFilesByFolder } from "@uniwork/core/drive-library/folder-groups";
-import { paths } from "@uniwork/core/paths";
+import { driveFilesInFolder } from "@uniwork/core/drive-library/folders";
+import { useDriveAccountFolders } from "@uniwork/core/drive-library/use-account-folders";
+import { DRIVE_ACCOUNT_PARAM, DRIVE_FOLDER_PARAM, paths } from "@uniwork/core/paths";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@uniwork/ui/components/ui/breadcrumb";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { Toggle } from "@uniwork/ui/components/ui/toggle";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
   useDrivePicker,
@@ -18,8 +26,10 @@ import {
 import { CollectionPageState } from "../../layout/collection-page";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink, useNavigation } from "../../navigation";
+import { fold } from "../../settings/components/member-search";
+import { driveFolderLabel } from "./drive-folder-label";
+import { DriveLibrarySearch } from "./drive-library-search";
 import { DriveLibraryTable } from "./drive-library-table";
-import { useDriveFolderGrouping } from "./use-drive-folder-grouping";
 import {
   useDriveLibraryConnections,
   type DriveConnectionSummary,
@@ -28,6 +38,8 @@ import {
 export interface DriveLibraryListViewProps {
   wsId: string;
   accountId: string | null;
+  /** Drive folder inside the selected account (`driveFolder` search param); an unknown id shows the account. */
+  folderId?: string | null;
   connections?: readonly DriveConnectionSummary[];
   /** Optional mobile sidebar opener button rendered in the header. */
   navButton?: ReactNode;
@@ -93,7 +105,7 @@ function DriveLibraryLoadingTable() {
 }
 
 /**
- * 4.1 Documents › Google Drive list screen (`?view=drive[&account=<id>]`, spec §7.6, §7.10, §7.11).
+ * 4.1 Documents › Google Drive list screen (`?view=drive[&account=<id>[&driveFolder=<id>]]`, spec §7.6, §7.10, §7.11).
  * Thin gate wrapper: checks `useDriveLibraryConnections` first and mounts `DriveLibraryListBody`
  * (which calls `useDrivePicker` + `useDriveFiles`) only when `driveAvailable && !configWaitForDrive`.
  */
@@ -126,7 +138,8 @@ export function DriveLibraryListView(props: DriveLibraryListViewProps) {
     strippedGateRef.current = true;
     const nextParams = new URLSearchParams(searchParams.toString());
     nextParams.delete("view");
-    nextParams.delete("account");
+    nextParams.delete(DRIVE_ACCOUNT_PARAM);
+    nextParams.delete(DRIVE_FOLDER_PARAM);
     nextParams.delete("pick");
     const qs = nextParams.toString();
     replace(qs ? `${wsPaths.documents()}?${qs}` : wsPaths.documents());
@@ -161,6 +174,7 @@ interface DriveLibraryListBodyProps extends DriveLibraryListViewProps {
 function DriveLibraryListBody({
   wsId,
   accountId,
+  folderId = null,
   connections,
   connectionsLoading,
   navButton,
@@ -194,13 +208,38 @@ function DriveLibraryListBody({
   const effectiveAccountId = selectedConnection ? selectedConnection.id : null;
   const brokenAccount = Boolean(selectedConnection?.needs_reconnect);
 
-  const query = useDriveFiles(wsId, {
-    connectionId: effectiveAccountId,
-    enabled: !waitForConnections,
+  const accountScoped = effectiveAccountId !== null;
+  const rootQuery = useDriveFiles(wsId, {
+    connectionId: null,
+    enabled: !waitForConnections && !accountScoped,
   });
-  const files = query.data?.pages.flatMap((p) => p.files) ?? [];
-  const grouping = useDriveFolderGrouping();
-  const groups = grouping.groupByFolder ? groupDriveFilesByFolder(files, i18n.language) : null;
+  const account = useDriveAccountFolders(wsId, effectiveAccountId, {
+    enabled: !waitForConnections,
+    locale: i18n.language,
+  });
+  // The node on show: the Google Drive root (all accounts), one account (folder rows, then the
+  // files without a folder) or one folder of it. An unknown folder id falls back to the account.
+  const selectedFolder = accountScoped && folderId ? account.folders.find((f) => f.id === folderId) ?? null : null;
+  const folderResolving = accountScoped && Boolean(folderId) && !selectedFolder && account.isLoadingMore;
+  const nodeFolders = accountScoped && !selectedFolder ? account.folders : [];
+  const nodeFiles = !accountScoped
+    ? rootQuery.data?.pages.flatMap((p) => p.files) ?? []
+    : selectedFolder
+      ? driveFilesInFolder(account.files, selectedFolder.id)
+      : account.unfiled;
+  const isPending = waitForConnections || folderResolving || (accountScoped ? account.isPending : rootQuery.isPending);
+  const isError = accountScoped ? account.isError && account.files.length === 0 : rootQuery.isError && nodeFiles.length === 0;
+  const refetch = accountScoped ? account.refetch : () => void rootQuery.refetch();
+
+  const nodeKey = `${effectiveAccountId ?? ""}|${selectedFolder?.id ?? ""}`;
+  const [searchState, setSearchState] = useState({ key: nodeKey, text: "" });
+  const search = searchState.key === nodeKey ? searchState.text : "";
+  const foldedSearch = fold(search);
+  const shownFolders = foldedSearch
+    ? nodeFolders.filter((f) => fold(driveFolderLabel(f, t)).includes(foldedSearch))
+    : nodeFolders;
+  const shownFiles = foldedSearch ? nodeFiles.filter((f) => fold(f.name).includes(foldedSearch)) : nodeFiles;
+  const nodeEmpty = nodeFolders.length === 0 && nodeFiles.length === 0;
 
   // §7.11: `?pick=1` only moves focus to the "Thêm từ…" button, then is removed with `replace`.
   // It never opens the Picker automatically.
@@ -260,7 +299,37 @@ function DriveLibraryListBody({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 basis-72 items-start justify-between gap-2">
           <div className="flex min-w-0 flex-col gap-1">
-            <h1 className="truncate text-title font-semibold">{title}</h1>
+            {selectedConnection && selectedFolder ? (
+              <>
+                <h1 className="sr-only">{driveFolderLabel(selectedFolder, t)}</h1>
+                <Breadcrumb aria-label={t("driveLibrary.list.breadcrumb_label")}>
+                  <BreadcrumbList className="text-title">
+                    <BreadcrumbItem>
+                      <BreadcrumbLink render={<AppLink href={wsPaths.documentsDrive()} />}>
+                        {t("driveLibrary.list.title_all")}
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem className="min-w-0">
+                      <BreadcrumbLink
+                        render={<AppLink href={wsPaths.documentsDrive(selectedConnection.id)} />}
+                        className="truncate"
+                      >
+                        {selectedConnection.google_email}
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem className="min-w-0">
+                      <BreadcrumbPage className="truncate font-semibold">
+                        {driveFolderLabel(selectedFolder, t)}
+                      </BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </BreadcrumbList>
+                </Breadcrumb>
+              </>
+            ) : (
+              <h1 className="truncate text-title font-semibold">{title}</h1>
+            )}
             <p className="text-caption text-muted-foreground">{subtitle}</p>
           </div>
           {navButton ? <div className="shrink-0">{navButton}</div> : null}
@@ -288,9 +357,9 @@ function DriveLibraryListBody({
         </div>
       </div>
 
-      {waitForConnections || query.isPending ? (
+      {isPending ? (
         <DriveLibraryLoadingTable />
-      ) : query.isError && files.length === 0 ? (
+      ) : isError ? (
         <CollectionPageState
           icon={CircleAlert}
           tone="destructive"
@@ -298,13 +367,13 @@ function DriveLibraryListBody({
           title={t("driveLibrary.list.error_title")}
           description={t("driveLibrary.list.error_description")}
           actions={
-            <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
+            <Button type="button" variant="outline" size="sm" onClick={refetch}>
               <RefreshCw aria-hidden className="size-3.5" />
               {t("driveLibrary.list.retry")}
             </Button>
           }
         />
-      ) : files.length === 0 ? (
+      ) : nodeEmpty ? (
         <CollectionPageState
           icon={FolderOpen}
           title={t("driveLibrary.list.empty_title")}
@@ -326,30 +395,25 @@ function DriveLibraryListBody({
         />
       ) : (
         <>
-          <div className="flex justify-end">
-            <Toggle
-              variant="outline"
-              size="sm"
-              pressed={grouping.groupByFolder}
-              onPressedChange={grouping.setGroupByFolder}
-              title={t("driveLibrary.list.group.toggle_hint")}
-              className="pointer-coarse:min-h-11"
-            >
-              <Folders aria-hidden className="size-4" />
-              {t("driveLibrary.list.group.toggle")}
-            </Toggle>
-          </div>
-          <DriveLibraryTable
-            files={files}
-            groups={groups}
-            connectionById={connectionById}
-            reconnectHref={reconnectHref}
-            fileHref={wsPaths.documentsDriveFile}
-            isCollapsed={grouping.isCollapsed}
-            onToggleGroup={grouping.toggleCollapsed}
-          />
+          <DriveLibrarySearch value={search} onChange={(text) => setSearchState({ key: nodeKey, text })} />
+          {shownFolders.length === 0 && shownFiles.length === 0 ? (
+            <CollectionPageState
+              icon={Search}
+              title={t("driveLibrary.list.no_results_title")}
+              description={t("driveLibrary.list.no_results_description", { query: search.trim() })}
+            />
+          ) : (
+            <DriveLibraryTable
+              folders={shownFolders}
+              files={shownFiles}
+              connectionById={connectionById}
+              reconnectHref={reconnectHref}
+              fileHref={wsPaths.documentsDriveFile}
+              folderHref={(id) => wsPaths.documentsDrive(effectiveAccountId, id)}
+            />
+          )}
 
-          {query.isFetchNextPageError ? (
+          {(accountScoped ? account.isLoadMoreError : rootQuery.isFetchNextPageError) ? (
             <div
               role="alert"
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-caption text-destructive"
@@ -359,24 +423,24 @@ function DriveLibraryListBody({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => void query.fetchNextPage()}
+                onClick={() => (accountScoped ? account.retryLoadMore() : void rootQuery.fetchNextPage())}
               >
                 <RefreshCw aria-hidden className="size-3.5" />
                 {t("driveLibrary.list.retry")}
               </Button>
             </div>
-          ) : query.hasNextPage ? (
+          ) : !accountScoped && rootQuery.hasNextPage ? (
             <div className="flex justify-center">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={query.isFetchingNextPage}
-                aria-busy={query.isFetchingNextPage || undefined}
-                onClick={() => void query.fetchNextPage()}
+                disabled={rootQuery.isFetchingNextPage}
+                aria-busy={rootQuery.isFetchingNextPage || undefined}
+                onClick={() => void rootQuery.fetchNextPage()}
               >
-                {query.isFetchingNextPage ? <Spinner aria-hidden role="presentation" /> : null}
-                {t(query.isFetchingNextPage ? "driveLibrary.list.loading_more" : "driveLibrary.list.load_more")}
+                {rootQuery.isFetchingNextPage ? <Spinner aria-hidden role="presentation" /> : null}
+                {t(rootQuery.isFetchingNextPage ? "driveLibrary.list.loading_more" : "driveLibrary.list.load_more")}
               </Button>
             </div>
           ) : null}

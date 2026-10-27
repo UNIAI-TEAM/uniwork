@@ -33,7 +33,7 @@ export type LibraryView =
   | { kind: "shelved" }
   | { kind: "archived" }
   | { kind: "sources"; source: DocumentSourceKind | null }
-  | { kind: "drive"; account: string | null };
+  | { kind: "drive"; account: string | null; folder: string | null };
 
 export const SOURCE_KINDS: readonly DocumentSourceKind[] = ["chat", "meeting", "email", "task"];
 
@@ -229,7 +229,7 @@ export function DocumentsSidebar({
         wsId={wsId}
         connections={driveConnections}
         view={view}
-        onSelect={(account) => onView({ kind: "drive", account })}
+        onSelect={(account, folder) => onView({ kind: "drive", account, folder })}
       />
       {folderTree ?? <DocumentTree
         wsId={wsId}

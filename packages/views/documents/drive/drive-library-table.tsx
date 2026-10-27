@@ -1,12 +1,14 @@
 "use client";
 
-import { ChevronRight, Folder, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DriveFile } from "@uniwork/core/drive-library";
-import type { DriveFolderGroup } from "@uniwork/core/drive-library/folder-groups";
+import type { DriveFolderEntry } from "@uniwork/core/drive-library/folders";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../../navigation";
 import { DocumentTypeIcon } from "../document-type-icon";
+import { DOCUMENTS_NAV_ICONS } from "../documents-nav-icons";
+import { driveFolderLabel } from "./drive-folder-label";
 import type { DriveConnectionSummary } from "./use-drive-library-connections";
 
 type Translate = (key: string, opts?: Record<string, unknown>) => string;
@@ -60,36 +62,55 @@ function formatUsedIn(
 }
 
 interface DriveLibraryTableProps {
+  /** Folder rows drawn before the files (account view); empty elsewhere. */
+  folders: readonly DriveFolderEntry[];
   files: readonly DriveFile[];
-  /** Folder groups, or null for the flat list (grouping off, or every parent unknown). */
-  groups: readonly DriveFolderGroup<DriveFile>[] | null;
   connectionById: ReadonlyMap<string, DriveConnectionSummary>;
   reconnectHref: string;
   fileHref: (fileId: string) => string;
-  isCollapsed: (key: string) => boolean;
-  onToggleGroup: (key: string) => void;
+  folderHref: (folderId: string) => string;
+}
+
+function DriveFolderRow({ folder, href }: { folder: DriveFolderEntry; href: string }) {
+  const { t } = useTranslation();
+  const label = driveFolderLabel(folder, t);
+  const count = t("driveLibrary.folder.count", { count: folder.fileCount });
+  return (
+    <tr className="hover:bg-accent/40">
+      <td className="w-full max-w-0 px-4 py-3 md:min-w-48">
+        <div className="flex min-w-0 items-start gap-3 md:items-center">
+          <DOCUMENTS_NAV_ICONS.folder aria-hidden className="mt-0.5 size-6 shrink-0 text-muted-foreground md:mt-0" />
+          <div className="flex min-w-0 flex-1 flex-col gap-1 md:gap-0">
+            <AppLink
+              href={href}
+              title={label}
+              className="inline-flex min-h-6 min-w-0 max-w-full items-center font-medium text-foreground hover:underline pointer-coarse:min-h-11"
+            >
+              <span className="min-w-0 truncate">{label}</span>
+            </AppLink>
+            <span className="text-caption text-muted-foreground md:hidden">{count}</span>
+          </div>
+        </div>
+      </td>
+      <td colSpan={COLUMN_COUNT - 1} className="hidden whitespace-nowrap px-4 py-3 text-caption text-muted-foreground md:table-cell">
+        {count}
+      </td>
+    </tr>
+  );
 }
 
 const COLUMN_COUNT = 5;
-
-function groupLabel(group: DriveFolderGroup<DriveFile>, t: Translate): string {
-  if (group.kind === "named") return group.name ?? "";
-  if (group.kind === "unnamed") return t("driveLibrary.list.group.unnamed", { id: group.shortId });
-  return t("driveLibrary.list.group.unknown");
-}
 
 function DriveFileRow({
   file,
   connectionById,
   reconnectHref,
   fileHref,
-  grouped,
 }: {
   file: DriveFile;
   connectionById: ReadonlyMap<string, DriveConnectionSummary>;
   reconnectHref: string;
   fileHref: (fileId: string) => string;
-  grouped: boolean;
 }) {
   const { t } = useTranslation();
   const badge = formatSharingBadge(file, t);
@@ -104,7 +125,7 @@ function DriveFileRow({
 
   return (
     <tr className="hover:bg-accent/40">
-      <td className={cn("w-full max-w-0 px-4 py-3 md:min-w-48", grouped && "md:pl-10")}>
+      <td className="w-full max-w-0 px-4 py-3 md:min-w-48">
         <div className="flex min-w-0 items-start gap-3 md:items-center">
           <DocumentTypeIcon format={file.icon_kind} className="mt-0.5 size-6 shrink-0 md:mt-0" />
           <div className="flex min-w-0 flex-1 flex-col gap-1 md:gap-0">
@@ -176,26 +197,14 @@ function DriveFileRow({
 }
 
 export function DriveLibraryTable({
+  folders,
   files,
-  groups,
   connectionById,
   reconnectHref,
   fileHref,
-  isCollapsed,
-  onToggleGroup,
+  folderHref,
 }: DriveLibraryTableProps) {
   const { t } = useTranslation();
-  const row = (file: DriveFile, grouped: boolean) => (
-    <DriveFileRow
-      key={file.id}
-      file={file}
-      connectionById={connectionById}
-      reconnectHref={reconnectHref}
-      fileHref={fileHref}
-      grouped={grouped}
-    />
-  );
-
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-background">
       <table className="w-full table-fixed border-collapse text-body md:table-auto md:min-w-[44rem]">
@@ -218,35 +227,20 @@ export function DriveLibraryTable({
             </th>
           </tr>
         </thead>
-        {groups ? (
-          groups.map((group) => {
-            const collapsed = isCollapsed(group.key);
-            const label = groupLabel(group, t);
-            return (
-              <tbody key={group.key} className="divide-y divide-border" data-drive-folder-group={group.key}>
-                <tr className="border-t border-border bg-muted/40 first:border-t-0">
-                  <th scope="rowgroup" colSpan={COLUMN_COUNT} className="px-4 py-1.5 text-left text-caption font-medium text-foreground">
-                    <button
-                      type="button"
-                      aria-expanded={!collapsed}
-                      aria-label={t("driveLibrary.list.group.header_aria", { name: label, count: group.files.length })}
-                      onClick={() => onToggleGroup(group.key)}
-                      className="-mx-1 inline-flex max-w-full items-center gap-1.5 rounded-sm px-1 font-medium transition-colors hover:text-foreground pointer-coarse:min-h-11"
-                    >
-                      <ChevronRight aria-hidden className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", !collapsed && "rotate-90")} />
-                      <Folder aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 truncate">{label}</span>
-                      <span aria-hidden className="tabular-nums text-muted-foreground">{t("driveLibrary.list.group.count", { count: group.files.length })}</span>
-                    </button>
-                  </th>
-                </tr>
-                {collapsed ? null : group.files.map((file) => row(file, true))}
-              </tbody>
-            );
-          })
-        ) : (
-          <tbody className="divide-y divide-border">{files.map((file) => row(file, false))}</tbody>
-        )}
+        <tbody className="divide-y divide-border">
+          {folders.map((folder) => (
+            <DriveFolderRow key={`folder:${folder.id}`} folder={folder} href={folderHref(folder.id)} />
+          ))}
+          {files.map((file) => (
+            <DriveFileRow
+              key={file.id}
+              file={file}
+              connectionById={connectionById}
+              reconnectHref={reconnectHref}
+              fileHref={fileHref}
+            />
+          ))}
+        </tbody>
       </table>
     </div>
   );

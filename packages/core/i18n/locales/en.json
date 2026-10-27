@@ -14656,7 +14656,16 @@
     "sidebar": {
       "google_drive": "Google Drive",
       "account_row": "Drive: {{email}}",
-      "disconnected": "Disconnected"
+      "disconnected": "Disconnected",
+      "folders_loading": "Loading folders…",
+      "folders_error": "Could not load folders"
+    },
+    "folder": {
+      "unnamed": "Drive folder · {{id}}",
+      "count_one": "{{count}} file",
+      "count_other": "{{count}} files",
+      "name_action": "Name this folder",
+      "menu_aria": "Actions for folder {{name}}"
     },
     "file_types": {
       "google_doc": "Google Docs",
@@ -14712,16 +14721,11 @@
       "retry": "Try again",
       "load_more": "Load more",
       "loading_more": "Loading more…",
-      "group": {
-        "toggle": "Group by folder",
-        "toggle_hint": "Group files by the Drive folder they sit in",
-        "count_one": "{{count}} file",
-        "count_other": "{{count}} files",
-        "header_aria_one": "{{name}}, {{count}} file",
-        "header_aria_other": "{{name}}, {{count}} files",
-        "unnamed": "Drive folder · {{id}}",
-        "unknown": "Folder unknown"
-      }
+      "search_label": "Search this Drive list",
+      "search_placeholder": "Search by name",
+      "no_results_title": "No results",
+      "no_results_description": "No folder or file matches “{{query}}”.",
+      "breadcrumb_label": "Location in Google Drive"
     },
     "detail": {
       "breadcrumb_documents": "Documents",

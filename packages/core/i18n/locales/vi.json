@@ -14582,7 +14582,16 @@
     "sidebar": {
       "google_drive": "Google Drive",
       "account_row": "Drive: {{email}}",
-      "disconnected": "Mất kết nối"
+      "disconnected": "Mất kết nối",
+      "folders_loading": "Đang tải thư mục…",
+      "folders_error": "Không tải được thư mục"
+    },
+    "folder": {
+      "unnamed": "Thư mục trên Drive · {{id}}",
+      "count_one": "{{count}} tệp",
+      "count_other": "{{count}} tệp",
+      "name_action": "Đặt tên theo Drive",
+      "menu_aria": "Thao tác với thư mục {{name}}"
     },
     "file_types": {
       "google_doc": "Google Docs",
@@ -14638,16 +14647,11 @@
       "retry": "Thử lại",
       "load_more": "Tải thêm",
       "loading_more": "Đang tải thêm…",
-      "group": {
-        "toggle": "Nhóm theo thư mục",
-        "toggle_hint": "Gom tệp theo thư mục chứa chúng trên Drive",
-        "count_one": "{{count}} tệp",
-        "count_other": "{{count}} tệp",
-        "header_aria_one": "{{name}}, {{count}} tệp",
-        "header_aria_other": "{{name}}, {{count}} tệp",
-        "unnamed": "Thư mục trên Drive · {{id}}",
-        "unknown": "Chưa rõ thư mục"
-      }
+      "search_label": "Tìm trong danh sách Drive",
+      "search_placeholder": "Tìm theo tên",
+      "no_results_title": "Không có kết quả",
+      "no_results_description": "Không có thư mục hoặc tệp nào khớp với “{{query}}”.",
+      "breadcrumb_label": "Vị trí trong Google Drive"
     },
     "detail": {
       "breadcrumb_documents": "Tài liệu",
