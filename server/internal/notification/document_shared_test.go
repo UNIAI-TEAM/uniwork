@@ -653,6 +653,14 @@ func TestDocumentSharedFolderContentsBatchGrouping(t *testing.T) {
 	if p["document"] != "Hồ sơ Dự án X" || p["document_id"] != folderID || p["level"] != "edit" || p["batch_id"] != res.BatchID || p["count"] != "2" {
 		t.Fatalf("notification params = %v, want folder title + folder_id + batch_id + count=2", p)
 	}
+	wantTitleVI := p["actor"] + ` đã chia sẻ 2 tài liệu trong thư mục "Hồ sơ Dự án X" với bạn. Quyền: Chỉnh sửa.`
+	if gotTitleVI := Title("vi", n.Kind, p); gotTitleVI != wantTitleVI {
+		t.Fatalf("Title(vi, batch) = %q, want %q", gotTitleVI, wantTitleVI)
+	}
+	wantTitleEN := p["actor"] + ` shared 2 document(s) in folder "Hồ sơ Dự án X" with you (Edit).`
+	if gotTitleEN := Title("en", n.Kind, p); gotTitleEN != wantTitleEN {
+		t.Fatalf("Title(en, batch) = %q, want %q", gotTitleEN, wantTitleEN)
+	}
 
 	// Workspace member f.member should NOT receive per-document document_changed notifications from the bulk folder operation.
 	for _, item := range f.inbox(t, f.member.ID) {

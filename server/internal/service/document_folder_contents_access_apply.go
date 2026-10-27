@@ -73,10 +73,11 @@ func (s *DocumentService) previewFolderContentsAccess(
 ) (FolderContentsAccessResult, error) {
 	q := s.q
 	var (
-		changed              int
-		unchanged            int
-		skippedNotManageable int
-		skippedLocked        int
+		changed               int
+		unchanged             int
+		skippedNotManageable  int
+		skippedLocked         int
+		hadHomeWorkspaceShare bool
 	)
 	var allMembers []string
 	var losingSet, downgradedSet map[string]bool
@@ -141,6 +142,9 @@ func (s *DocumentService) previewFolderContentsAccess(
 			unchanged++
 		}
 
+		if docHasHomeWorkspaceShare(doc, sharesBefore) {
+			hadHomeWorkspaceShare = true
+		}
 		if mode == FolderContentsAccessModeReplace && len(allMembers) > 0 {
 			beforeMap, err := s.resolveLevelsInTenantWithShares(ctx, q, doc, sharesBefore, allMembers)
 			if err != nil {
@@ -165,7 +169,7 @@ func (s *DocumentService) previewFolderContentsAccess(
 
 	losingUsers := len(losingSet)
 	downgradedUsers := len(downgradedSet)
-	warnings := computeFolderContentsWarnings(folder.WorkspaceID, mode, items, len(docIDs), changed, losingUsers, downgradedUsers)
+	warnings := computeFolderContentsWarnings(folder.WorkspaceID, mode, items, len(docIDs), changed, losingUsers, downgradedUsers, hadHomeWorkspaceShare)
 
 	return FolderContentsAccessResult{
 		DryRun: true,
@@ -190,6 +194,7 @@ func computeFolderContentsWarnings(
 	changed int,
 	losingUsers int,
 	downgradedUsers int,
+	hadHomeWorkspaceShare bool,
 ) []string {
 	warnings := make([]string, 0, 3)
 	hasWide := false
@@ -206,10 +211,18 @@ func computeFolderContentsWarnings(
 	if mode == FolderContentsAccessModeReplace && len(items) > 0 && (losingUsers > 0 || downgradedUsers > 0) {
 		warnings = append(warnings, FolderContentsAccessWarningDowngrade)
 	}
-	if mode == FolderContentsAccessModeReplace && len(items) == 0 && changed > 0 {
+	if mode == FolderContentsAccessModeReplace && len(items) == 0 && changed > 0 && hadHomeWorkspaceShare {
 		warnings = append(warnings, FolderContentsAccessWarningToPrivate)
 	}
 	return warnings
+}
+
+// docHasHomeWorkspaceShare reports whether doc currently has a home-workspace
+// share at any level (via visibility='workspace' or a legacy home-workspace
+// share row).
+func docHasHomeWorkspaceShare(doc db.Document, sharesBefore []db.DocumentShare) bool {
+	_, hasHome := currentHomeWorkspaceLevel(doc, filterHomeWorkspaceShares(sharesBefore, doc.WorkspaceID))
+	return hasHome
 }
 
 func decideFolderContentsDocWouldChange(

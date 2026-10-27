@@ -10,8 +10,8 @@ import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { Progress, ProgressLabel } from "@uniwork/ui/components/ui/progress";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 
-/** The two result toasts of a change: a settled one (a sync answer, or a background batch that completed) and a batch that stopped part-way. */
-export function useFolderAccessToasts(): { applied: (counts: FolderContentsAccessCounts) => void; failed: () => void } {
+/** The result toasts of a change: a settled one (a sync answer, or a background batch that completed), a batch that stopped part-way, and an apply whose answer could not be read. */
+export function useFolderAccessToasts(): { applied: (counts: FolderContentsAccessCounts) => void; failed: () => void; unknown: () => void } {
   const { t } = useTranslation();
   return useMemo(
     () => ({
@@ -23,6 +23,7 @@ export function useFolderAccessToasts(): { applied: (counts: FolderContentsAcces
         toast.success(t("documents.folderAccess.toast_done", { count: counts.changed }), { description: lines.length > 0 ? lines.join(" ") : undefined });
       },
       failed: () => toast.error(t("documents.folderAccess.batch_failed")),
+      unknown: () => toast.info(t("documents.folderAccess.toast_unknown")),
     }),
     [t],
   );
