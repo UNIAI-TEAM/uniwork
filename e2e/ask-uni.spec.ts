@@ -246,14 +246,14 @@ test("docked Ask UNI answers with a source, proposes a task, applies it and undo
 
     // 1. A read question: the answer comes with its sources.
     await box.fill(`việc có nguồn ${stamp} thế nào?`);
-    await dock.getByRole("button", { name: "Gửi" }).click();
+    await dock.getByRole("button", { name: "Hỏi", exact: true }).click();
     await dock.getByRole("button", { name: /^Nguồn \(\d+\)$/ }).click({ timeout: 15_000 });
     await expect(dock.getByRole("list", { name: "Nguồn" }).getByRole("link").first()).toBeVisible();
 
     // 2. A write request: a proposal card, and nothing is created yet.
     const made = `Soạn báo cáo ${stamp}`;
     await box.fill(`Tạo task ${made}`);
-    await dock.getByRole("button", { name: "Gửi" }).click();
+    await dock.getByRole("button", { name: "Hỏi", exact: true }).click();
     const card = dock.getByRole("region", { name: "UNI đề xuất · cần bạn xác nhận" });
     await expect(card).toBeVisible({ timeout: 15_000 });
     await expect(card.getByText(made)).toBeVisible();
@@ -291,7 +291,7 @@ test("docked Ask UNI remembers a preference, uses it, and the memory screen edit
 
     // 1. A stated preference: a card, and nothing is remembered until the asker says so.
     await box.fill("Từ giờ trả lời tôi bằng gạch đầu dòng");
-    await dock.getByRole("button", { name: "Gửi" }).click();
+    await dock.getByRole("button", { name: "Hỏi", exact: true }).click();
     const card = dock.getByRole("region", { name: "Đề xuất bộ nhớ" });
     await expect(card).toBeVisible({ timeout: 15_000 });
     await expect(card.getByText("Từ giờ trả lời tôi bằng gạch đầu dòng")).toBeVisible();
@@ -300,7 +300,7 @@ test("docked Ask UNI remembers a preference, uses it, and the memory screen edit
 
     // 2. A new question: the answer says it used the memory.
     await box.fill("việc nào đang trễ?");
-    await dock.getByRole("button", { name: "Gửi" }).click();
+    await dock.getByRole("button", { name: "Hỏi", exact: true }).click();
     await expect(dock.getByRole("button", { name: /Dùng \d+ mục bộ nhớ/ })).toBeVisible({ timeout: 15_000 });
 
     // 3. The memory screen: edit the line, then delete it.
