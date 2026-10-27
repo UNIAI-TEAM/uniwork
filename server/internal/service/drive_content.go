@@ -311,7 +311,7 @@ func (s *DriveContentService) ReadForAI(
 
 	case driveReadKindGoogleSheet:
 		raw, err := s.callDriveBytes(ctx, conn, func(token string) ([]byte, error) {
-			return s.api.driveExportFile(ctx, token, row.ExternalFileID, "text/csv", DriveExportMaxBytes)
+			return s.api.driveExportFile(ctx, s.tokens, token, row.ExternalFileID, "text/csv", DriveExportMaxBytes)
 		})
 		if err != nil {
 			s.maybeRecordAccessLost(ctx, requesterID, workspaceID, row.DriveFileID, conn.ID, err)
@@ -321,7 +321,7 @@ func (s *DriveContentService) ReadForAI(
 
 	case driveReadKindGoogleSlides:
 		raw, err := s.callDriveBytes(ctx, conn, func(token string) ([]byte, error) {
-			return s.api.driveExportFile(ctx, token, row.ExternalFileID, "text/plain", DriveExportMaxBytes)
+			return s.api.driveExportFile(ctx, s.tokens, token, row.ExternalFileID, "text/plain", DriveExportMaxBytes)
 		})
 		if err != nil {
 			s.maybeRecordAccessLost(ctx, requesterID, workspaceID, row.DriveFileID, conn.ID, err)
@@ -331,7 +331,7 @@ func (s *DriveContentService) ReadForAI(
 
 	case driveReadKindPlainText:
 		raw, err := s.callDriveBytes(ctx, conn, func(token string) ([]byte, error) {
-			return s.api.driveDownloadMedia(ctx, token, row.ExternalFileID, DrivePlainTextMaxBytes)
+			return s.api.driveDownloadMedia(ctx, s.tokens, token, row.ExternalFileID, DrivePlainTextMaxBytes)
 		})
 		if err != nil {
 			s.maybeRecordAccessLost(ctx, requesterID, workspaceID, row.DriveFileID, conn.ID, err)
@@ -341,7 +341,7 @@ func (s *DriveContentService) ReadForAI(
 
 	case driveReadKindPDF:
 		raw, err := s.callDriveBytes(ctx, conn, func(token string) ([]byte, error) {
-			return s.api.driveDownloadMedia(ctx, token, row.ExternalFileID, DrivePDFMaxBytes)
+			return s.api.driveDownloadMedia(ctx, s.tokens, token, row.ExternalFileID, DrivePDFMaxBytes)
 		})
 		if err != nil {
 			s.maybeRecordAccessLost(ctx, requesterID, workspaceID, row.DriveFileID, conn.ID, err)
@@ -357,7 +357,7 @@ func (s *DriveContentService) ReadForAI(
 			return partial, ErrDriveExtractUnavailable
 		}
 		raw, err := s.callDriveBytes(ctx, conn, func(token string) ([]byte, error) {
-			return s.api.driveDownloadMedia(ctx, token, row.ExternalFileID, DriveOfficeExtractMaxBytes)
+			return s.api.driveDownloadMedia(ctx, s.tokens, token, row.ExternalFileID, DriveOfficeExtractMaxBytes)
 		})
 		if err != nil {
 			s.maybeRecordAccessLost(ctx, requesterID, workspaceID, row.DriveFileID, conn.ID, err)
@@ -429,7 +429,7 @@ func classifyDriveContentMime(mimeType string) (driveReadKind, office.ExtractFor
 // "Google Docs: files.export text/markdown (lùi về text/plain)").
 func (s *DriveContentService) exportGoogleDoc(ctx context.Context, conn db.DriveConnection, externalFileID string) ([]byte, error) {
 	raw, err := s.callDriveBytes(ctx, conn, func(token string) ([]byte, error) {
-		return s.api.driveExportFile(ctx, token, externalFileID, DriveMimeMarkdown, DriveExportMaxBytes)
+		return s.api.driveExportFile(ctx, s.tokens, token, externalFileID, DriveMimeMarkdown, DriveExportMaxBytes)
 	})
 	if err == nil {
 		return raw, nil
@@ -437,7 +437,7 @@ func (s *DriveContentService) exportGoogleDoc(ctx context.Context, conn db.Drive
 	var apiErr *DriveAPIError
 	if errors.As(err, &apiErr) && apiErr.HTTPStatus == http.StatusBadRequest {
 		return s.callDriveBytes(ctx, conn, func(token string) ([]byte, error) {
-			return s.api.driveExportFile(ctx, token, externalFileID, DriveMimePlainText, DriveExportMaxBytes)
+			return s.api.driveExportFile(ctx, s.tokens, token, externalFileID, DriveMimePlainText, DriveExportMaxBytes)
 		})
 	}
 	return nil, err

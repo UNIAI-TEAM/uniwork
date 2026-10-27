@@ -32,6 +32,7 @@ import { ContentEditor, FileDropOverlay, useFileDropZone, useUploadGate, type Co
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { CreateTaskDriveChips } from "./create-task-drive-attachments";
 import { CreateTaskSubmitButton } from "./create-task-submit-button";
+import { appendDrivePromptHint, DrivePromptHints } from "./drive-prompt-hints";
 import { DriveProposalErrorNotice, DriveRecreateWarning, resolveDriveProposalError, useDriveProposalReview, type DriveProposalErrorResolution } from "./drive-task-proposal-popover";
 import { PriorityIcon } from "./icons/priority-icon";
 import { CreateTaskDateField } from "./pickers/create-task-overflow-fields";
@@ -353,60 +354,24 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
         </div>
         <TooltipProvider delay={300}>
           <div className="flex shrink-0 items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
-                  onClick={() => setIsExpanded(!isExpanded)}
-                />
-              }
-            >
-              {isExpanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-                  aria-label={t("tasks.create.save_draft")}
-                  aria-disabled={isUploading || isProposing || undefined}
-                  onClick={saveCurrentDraft}
-                />
-              }
-            >
-              <PanelBottomClose className="size-4" aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("tasks.create.save_draft")}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label={t("common.close")}
-                  onClick={() => { if (isProposing) cancelProposalReading(); onClose(); }}
-                />
-              }
-            >
-              <X className="size-4" aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("common.close")}</TooltipContent>
-          </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")} onClick={() => setIsExpanded(!isExpanded)} />}>
+                {isExpanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50" aria-label={t("tasks.create.save_draft")} aria-disabled={isUploading || isProposing || undefined} onClick={saveCurrentDraft} />}>
+                <PanelBottomClose className="size-4" aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("tasks.create.save_draft")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label={t("common.close")} onClick={() => { if (isProposing) cancelProposalReading(); onClose(); }} />}>
+                <X className="size-4" aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("common.close")}</TooltipContent>
+            </Tooltip>
           </div>
         </TooltipProvider>
       </div>
@@ -426,60 +391,75 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
         )}
       </div>
 
-      <div {...dropZoneProps} className="relative flex min-h-[140px] flex-1 overflow-y-auto px-5 pb-3">
-        <ContentEditor
-          key={draft.idempotencyKey}
-          ref={editorRef}
-          defaultValue={draft.agentPrompt ?? ""}
-          ariaLabel={t("tasks.create.agent_prompt_aria")}
-          placeholder={t("tasks.create.agent_prompt_placeholder")}
-          onDocumentChange={(prompt) => { setHasContent(prompt.trim().length > 0); updateDraft({ agentPrompt: prompt }); }}
-          onSubmit={submit}
-          onUploadFile={uploadFile}
-          onUploadingChange={uploadGate.onUploadingChange}
-          attachments={draft.attachments}
-        />
-        {isDragOver ? <FileDropOverlay /> : null}
-      </div>
-
-      {hasDriveChip ? (
-        <div className="flex shrink-0 flex-col gap-2 pb-2">
-          <CreateTaskDriveChips
-            driveFiles={draft.driveFiles}
-            onRemove={(df) => {
-              if (isProposing) return;
-              const remaining = (draft.driveFiles ?? []).filter((item) => !(item.connectionId === df.connectionId && item.externalFileId === df.externalFileId));
-              setProposalError(null);
-              updateDraft({ driveFiles: remaining.length ? remaining : undefined });
-            }}
+      <div data-testid="create-task-agent-body" className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div {...dropZoneProps} className="relative flex min-h-[140px] max-sm:min-h-[88px] flex-1 overflow-y-auto px-5 pb-3">
+          <ContentEditor
+            key={draft.idempotencyKey}
+            ref={editorRef}
+            defaultValue={draft.agentPrompt ?? ""}
+            ariaLabel={t("tasks.create.agent_prompt_aria")}
+            placeholder={hasDriveChip ? t("drive.proposals.prompt_placeholder") : t("tasks.create.agent_prompt_placeholder")}
+            onDocumentChange={(prompt) => { setHasContent(prompt.trim().length > 0); updateDraft({ agentPrompt: prompt }); }}
+            onSubmit={submit}
+            onUploadFile={uploadFile}
+            onUploadingChange={uploadGate.onUploadingChange}
+            attachments={draft.attachments}
           />
-          <p data-testid="create-task-agent-drive-reader-line" className="px-5 text-caption text-muted-foreground">
-            {readerAccountEmail ? t("drive.proposals.reader_line", { email: readerAccountEmail }) : t("drive.proposals.reader_line_no_email")}
-          </p>
-          <div className={hasPriorCreations ? "px-5" : "sr-only"}>
-            <DriveRecreateWarning id={warningId} tasksCreated={tasksCreated} detailHref={detailHref} />
-          </div>
-          {proposalError ? <div className="px-5"><DriveProposalErrorNotice error={proposalError} openUrl={resolvedDriveFile?.open_url} /></div> : null}
+          {isDragOver ? <FileDropOverlay /> : null}
         </div>
-      ) : null}
 
-      <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 pb-2">
-        <CreateTaskProjectField items={projectItems} value={draft.projectId} noneLabel={t("tasks.create.project_none")} searchPlaceholder={t("tasks.create.project_search_placeholder")} noResultsLabel={t("tasks.create.options_no_results")} clearLabel={t("common.delete")} onChange={(projectId) => updateDraft({ projectId })} />
-        {!hasDriveChip && showPriority ? <PriorityPicker appearance="pill" value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>} ariaLabel={t("tasks.priority")} onChange={(priority) => updateDraft({ priority })} /> : null}
-        {!hasDriveChip && showDueDate ? <CreateTaskDateField value={draft.dueDate} label={t("tasks.dueDate")} kind="due" open={dueDateOpen} onOpenChange={setDueDateOpen} onChange={(dueDate) => updateDraft({ dueDate })} /> : null}
-        {!hasDriveChip && (!showPriority || !showDueDate) ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<PillButton aria-label={t("tasks.create.more_fields")} />}><Ellipsis className="size-3.5" aria-hidden /></DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-44">
-              {!showPriority ? <DropdownMenuItem onClick={() => setShowPriority(true)}><PriorityIcon priority="none" className="size-3.5" />{t("tasks.create.agent_set_priority")}</DropdownMenuItem> : null}
-              {!showDueDate ? <DropdownMenuItem onClick={() => { setShowDueDate(true); setTimeout(() => setDueDateOpen(true), 0); }}><CalendarDays className="size-3.5 text-muted-foreground" aria-hidden />{t("tasks.create.agent_set_due_date")}</DropdownMenuItem> : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {hasDriveChip ? (
+          <div className="flex shrink-0 flex-col gap-2 pb-2">
+            <DrivePromptHints
+              className="px-5"
+              disabled={isProposing || isDriveSendBlocked || Boolean(proposalError?.isAccessRequired)}
+              onSelectHint={(hint) => {
+                if (isProposing || isDriveSendBlocked || isUploading || proposalError?.isAccessRequired) return;
+                const currentPrompt = editorRef.current?.getMarkdown() ?? draftRef.current.agentPrompt ?? "";
+                const nextPrompt = appendDrivePromptHint(currentPrompt, hint);
+                editorRef.current?.adoptContent(nextPrompt);
+                editorRef.current?.focus("end");
+                setHasContent(nextPrompt.trim().length > 0);
+                updateDraft({ agentPrompt: nextPrompt });
+              }}
+            />
+            <CreateTaskDriveChips
+              driveFiles={draft.driveFiles}
+              onRemove={(df) => {
+                if (isProposing) return;
+                const remaining = (draft.driveFiles ?? []).filter((item) => !(item.connectionId === df.connectionId && item.externalFileId === df.externalFileId));
+                setProposalError(null);
+                updateDraft({ driveFiles: remaining.length ? remaining : undefined });
+              }}
+            />
+            <p data-testid="create-task-agent-drive-reader-line" className="px-5 text-caption text-muted-foreground">
+              {readerAccountEmail ? t("drive.proposals.reader_line", { email: readerAccountEmail }) : t("drive.proposals.reader_line_no_email")}
+            </p>
+            <div className={hasPriorCreations ? "px-5" : "sr-only"}>
+              <DriveRecreateWarning id={warningId} tasksCreated={tasksCreated} detailHref={detailHref} />
+            </div>
+            {proposalError ? <div className="px-5"><DriveProposalErrorNotice error={proposalError} openUrl={resolvedDriveFile?.open_url} /></div> : null}
+          </div>
         ) : null}
-        {parent ? <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground">{t("tasks.create.agent_subtask_of", { identifier: parent.identifier })}</span> : null}
+
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 pb-2">
+          <CreateTaskProjectField items={projectItems} value={draft.projectId} noneLabel={t("tasks.create.project_none")} searchPlaceholder={t("tasks.create.project_search_placeholder")} noResultsLabel={t("tasks.create.options_no_results")} clearLabel={t("common.delete")} onChange={(projectId) => updateDraft({ projectId })} />
+          {!hasDriveChip && showPriority ? <PriorityPicker appearance="pill" value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>} ariaLabel={t("tasks.priority")} onChange={(priority) => updateDraft({ priority })} /> : null}
+          {!hasDriveChip && showDueDate ? <CreateTaskDateField value={draft.dueDate} label={t("tasks.dueDate")} kind="due" open={dueDateOpen} onOpenChange={setDueDateOpen} onChange={(dueDate) => updateDraft({ dueDate })} /> : null}
+          {!hasDriveChip && (!showPriority || !showDueDate) ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<PillButton aria-label={t("tasks.create.more_fields")} />}><Ellipsis className="size-3.5" aria-hidden /></DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-44">
+                {!showPriority ? <DropdownMenuItem onClick={() => setShowPriority(true)}><PriorityIcon priority="none" className="size-3.5" />{t("tasks.create.agent_set_priority")}</DropdownMenuItem> : null}
+                {!showDueDate ? <DropdownMenuItem onClick={() => { setShowDueDate(true); setTimeout(() => setDueDateOpen(true), 0); }}><CalendarDays className="size-3.5 text-muted-foreground" aria-hidden />{t("tasks.create.agent_set_due_date")}</DropdownMenuItem> : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+          {parent ? <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground">{t("tasks.create.agent_subtask_of", { identifier: parent.identifier })}</span> : null}
+        </div>
       </div>
 
-      <div className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-2.5 border-t border-surface-border/50 px-4 py-3 sm:flex sm:flex-wrap">
+      <div data-testid="create-task-agent-footer" className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-2.5 border-t border-surface-border/50 px-4 py-3 sm:flex sm:flex-wrap">
         <div className="flex min-h-7 items-center gap-2 sm:mr-auto">{!hasDriveChip ? <FileUploadButton size="sm" multiple onSelect={(file) => editorRef.current?.uploadFile(file)} /> : null}</div>
         <button type="button" disabled={isUploading || isProposing} aria-disabled={isUploading || isProposing || undefined} aria-busy={isUploading || isProposing || undefined} title={t("tasks.create.switch_to_manual")} className="flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm px-2 py-1 text-caption text-muted-foreground transition-colors pointer-coarse:min-h-11 hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50" onClick={switchToManual}>
           <ArrowLeftRight className="size-3.5" aria-hidden />{t("tasks.create.switch_to_manual")}

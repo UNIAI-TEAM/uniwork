@@ -481,3 +481,80 @@ func (f *FakeDriveProvider) FilesGet(_ context.Context, _, externalFileID string
 		Trashed:        false,
 	}, nil
 }
+
+const (
+	fakeDriveExportMarkdown = "# Kế hoạch công việc từ tài liệu\n" +
+		"- [ ] Chốt phạm vi tính năng beta trước 2026-11-15\n" +
+		"- [ ] Xử lý gấp lỗi đồng bộ thông báo trên mobile\n" +
+		"- [ ] Chuẩn bị kịch bản nghiệm thu với nhóm sản phẩm\n"
+
+	fakeDriveExportPlainText = "Kế hoạch công việc từ tài liệu\n" +
+		"- Chốt phạm vi tính năng beta trước 2026-11-15\n" +
+		"- Xử lý gấp lỗi đồng bộ thông báo trên mobile\n" +
+		"- Chuẩn bị kịch bản nghiệm thu với nhóm sản phẩm\n"
+
+	fakeDriveExportCSV = "Hạng mục,Hạn hoàn thành,Ghi chú\n" +
+		"Chốt phạm vi tính năng beta,2026-11-15,Trước mốc beta\n" +
+		"Xử lý gấp lỗi đồng bộ thông báo,,Cần xử lý gấp\n"
+)
+
+// ExportFile returns deterministic in-memory exported bytes for a Google Workspace
+// file under DRIVE_FAKE_PROVIDER=1 without calling Google (markdown, text/plain,
+// or text/csv), enforcing maxBytes like DriveAPIClient.doGET.
+func (f *FakeDriveProvider) ExportFile(_ context.Context, _, externalFileID, exportMimeType string, maxBytes int64) ([]byte, error) {
+	if strings.TrimSpace(externalFileID) == "" {
+		return nil, &DriveAPIError{
+			Class:          DriveErrorClassFileNotAccessible,
+			HTTPStatus:     http.StatusNotFound,
+			GoogleReason:   "notFound",
+			MarkAccessLost: true,
+			Err:            ErrDriveFileNotAccessible,
+		}
+	}
+	mime := strings.ToLower(strings.TrimSpace(exportMimeType))
+	if semi := strings.IndexByte(mime, ';'); semi >= 0 {
+		mime = strings.TrimSpace(mime[:semi])
+	}
+	var content string
+	switch mime {
+	case DriveMimeMarkdown, DriveMimeXMarkdown:
+		content = fakeDriveExportMarkdown
+	case DriveMimePlainText:
+		content = fakeDriveExportPlainText
+	case "text/csv":
+		content = fakeDriveExportCSV
+	default:
+		return nil, &DriveAPIError{
+			Class:      DriveErrorClassUnavailable,
+			HTTPStatus: http.StatusBadRequest,
+			Err:        ErrDriveUnavailable,
+		}
+	}
+	return fakeDriveCapBytes([]byte(content), maxBytes)
+}
+
+// DownloadMedia returns deterministic in-memory plain-text media bytes
+// under DRIVE_FAKE_PROVIDER=1 without calling Google, enforcing maxBytes
+// like DriveAPIClient.doGET.
+func (f *FakeDriveProvider) DownloadMedia(_ context.Context, _, externalFileID string, maxBytes int64) ([]byte, error) {
+	if strings.TrimSpace(externalFileID) == "" {
+		return nil, &DriveAPIError{
+			Class:          DriveErrorClassFileNotAccessible,
+			HTTPStatus:     http.StatusNotFound,
+			GoogleReason:   "notFound",
+			MarkAccessLost: true,
+			Err:            ErrDriveFileNotAccessible,
+		}
+	}
+	return fakeDriveCapBytes([]byte(fakeDriveExportPlainText), maxBytes)
+}
+
+func fakeDriveCapBytes(data []byte, maxBytes int64) ([]byte, error) {
+	if maxBytes <= 0 {
+		maxBytes = driveMetadataMaxBytes
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, ErrDriveFileTooLarge
+	}
+	return data, nil
+}

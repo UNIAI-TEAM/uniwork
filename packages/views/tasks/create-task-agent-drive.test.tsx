@@ -15,6 +15,7 @@ import { shortDateFormat } from "../common/date-pill";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { CreateTaskDialog } from "./create-task-dialog";
+import { appendDrivePromptHint } from "./drive-prompt-hints";
 import {
   DriveProposalReviewProvider,
   DriveProposeTasksPopover,
@@ -139,6 +140,10 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     expect(screen.queryByTestId("create-task-agent-created-by-uni")).toBeNull();
     expect(screen.getByRole("button", { name: "Thêm trường" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Đính kèm tệp" })).toBeInTheDocument();
+    expect(screen.queryByTestId("drive-prompt-hints")).toBeNull();
+    expect(
+      document.querySelector('[data-placeholder="Mô tả việc cần agent thực hiện…"]'),
+    ).not.toBeNull();
     const submitBtn = screen.getByRole("button", { name: /Gửi cho agent/ });
     expect(submitBtn).toHaveAttribute("aria-disabled", "true");
   });
@@ -1173,6 +1178,303 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     expect(screen.queryByLabelText("Gợi ý cho UNI (tùy chọn)")).toBeNull();
     expect(proposeCalled).toBe(false);
   });
+
+  it("renders prompt hints and Drive-mode placeholder with Drive chip, appends hint text into empty and non-empty prompts, sends it in B5 request, and hides hints when gated (UNI-2219)", async () => {
+    expect(
+      appendDrivePromptHint("", "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này"),
+    ).toBe("Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này");
+    expect(
+      appendDrivePromptHint("Tạo việc mục 2", "Chỉ lấy việc của nhóm BE"),
+    ).toBe("Tạo việc mục 2. Chỉ lấy việc của nhóm BE");
+    expect(
+      appendDrivePromptHint("Tạo việc mục 2.", "Ưu tiên cao cho việc gấp"),
+    ).toBe("Tạo việc mục 2. Ưu tiên cao cho việc gấp");
+
+    useCreateTaskDraftStore.getState().setDraft("ws1", {
+      title: "",
+      idempotencyKey: "draft_drive_hints",
+      agentPrompt: "",
+      driveFiles: [
+        {
+          connectionId: "dc_1",
+          externalFileId: "gdoc_1",
+          driveFileId: "df_1",
+          name: "Kế hoạch ra mắt Q4",
+          mimeType: "application/vnd.google-apps.document",
+          iconKind: "google_doc",
+        },
+      ],
+    });
+
+    const slowGate = Promise.withResolvers<{ proposal: DriveTaskProposal }>();
+    let canPropose = true;
+    let callCount = 0;
+
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string }) => {
+        if (path.endsWith("/ai/capabilities")) return { enabled: true };
+        if (path.endsWith("/agents")) return { agents: [] };
+        if (path.endsWith("/projects")) return { projects: [], total: 0 };
+        if (path.endsWith("/tasks")) return { tasks: [] };
+        if (path === "/api/v1/workspaces/ws1/drive-connections") {
+          return { connections: [] };
+        }
+        if (
+          path === "/api/v1/workspaces/ws1/drive-files/df_1" ||
+          path === "/api/v1/workspaces/ws1/drive-files/df_blocked_1"
+        ) {
+          return {
+            file: {
+              id: path.endsWith("df_blocked_1") ? "df_blocked_1" : "df_1",
+              organization_id: "o1",
+              workspace_id: "ws1",
+              external_file_id: "gdoc_1",
+              name: "Kế hoạch ra mắt Q4",
+              mime_type: "application/vnd.google-apps.document",
+              icon_kind: "google_doc",
+              web_view_link: "https://docs.google.com/document/d/gdoc_1/edit",
+              open_url: "https://docs.google.com/document/d/gdoc_1/edit",
+              owner_display: "Lan",
+              sharing_state: "shared",
+              connection_id: "dc_1",
+              bound_account_email: "uni-work1@gmail.com",
+              bound_connection_lost: false,
+              bound_by_id: "u1",
+              bound_by_name: "Lan",
+              created_by: "u1",
+              created_by_kind: "human",
+              created_by_name: "Lan",
+              created_at: "2026-10-26T08:00:00Z",
+              updated_at: "2026-10-26T08:00:00Z",
+              viewer_access: canPropose ? "granted" : "missing",
+              can_unlink: false,
+              can_rebind: false,
+              can_propose: canPropose,
+              can_ask: canPropose,
+              used_in_count: 0,
+              used_in_tasks: [],
+              tasks_created: { count: 0 },
+            },
+          };
+        }
+        if (
+          path === "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals" &&
+          init?.method === "POST"
+        ) {
+          callCount += 1;
+          if (callCount === 1) return slowGate.promise;
+          return { proposal: makeProposal({ id: "dtp_hints_1" }) };
+        }
+        return {};
+      },
+    );
+
+    const onReviewOpen = vi.fn();
+    const { unmount } = render(
+      renderInWorkspace(
+        <DriveProposalReviewProvider onOpen={onReviewOpen}>
+          <CreateTaskDialog
+            workspaceId="ws1"
+            open
+            showTrigger={false}
+            initialMode="agent"
+            onOpenChange={() => {}}
+          />
+        </DriveProposalReviewProvider>,
+      ),
+    );
+
+    const hintsGroup = await screen.findByRole(
+      "group",
+      { name: "Gợi ý mẫu cho UNI" },
+      QUERY_WAIT_OPTIONS,
+    );
+    expect(
+      document.querySelector(
+        '[data-placeholder="Ví dụ: người phụ trách, hạn hoàn thành, độ ưu tiên hoặc phạm vi cần lấy…"]',
+      ),
+    ).not.toBeNull();
+
+    const chip1 = within(hintsGroup).getByRole("button", {
+      name: "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này",
+    });
+    const chip2 = within(hintsGroup).getByRole("button", {
+      name: "Chỉ lấy việc của nhóm BE",
+    });
+    const chip3 = within(hintsGroup).getByRole("button", {
+      name: "Ưu tiên cao cho việc gấp",
+    });
+    expect(chip1).toBeInTheDocument();
+    expect(chip2).toBeInTheDocument();
+    expect(chip3).toBeInTheDocument();
+    expect(hintsGroup.className).toContain("flex-wrap");
+    expect(hintsGroup.className).toContain("pointer-coarse:gap-1");
+    expect(chip1.className).toContain("w-auto");
+    expect(chip1.className).toContain("max-w-full");
+
+    const agentBody = screen.getByTestId("create-task-agent-body");
+    expect(agentBody).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
+    expect(agentBody.contains(hintsGroup)).toBe(true);
+    expect(agentBody.contains(screen.getByTestId("create-task-drive-chips"))).toBe(true);
+
+    const agentFooter = screen.getByTestId("create-task-agent-footer");
+    expect(agentFooter).toHaveClass("shrink-0", "border-surface-border/50");
+    expect(agentBody.contains(agentFooter)).toBe(false);
+    expect(
+      within(agentFooter).getByRole("button", { name: "Chuyển sang thủ công" }),
+    ).toBeInTheDocument();
+    expect(
+      within(agentFooter).getByRole("button", { name: /Gửi cho agent/ }),
+    ).toBeInTheDocument();
+    const proseMirror = document.querySelector(".ProseMirror") as HTMLElement & {
+      editor?: {
+        state: {
+          doc: { content: { size: number } };
+          selection: { from: number; to: number; empty: boolean };
+        };
+      };
+    };
+    expect(proseMirror?.editor).toBeDefined();
+
+    // Click first chip into empty prompt -> selection collapsed at doc end (F1)
+    fireEvent.click(chip1);
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.agentPrompt).toBe(
+      "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này",
+    );
+    expect(proseMirror.editor!.state.selection.empty).toBe(true);
+    expect(proseMirror.editor!.state.selection.from).toBe(
+      proseMirror.editor!.state.doc.content.size - 1,
+    );
+    expect(proseMirror.editor!.state.selection.to).toBe(
+      proseMirror.editor!.state.doc.content.size - 1,
+    );
+
+    // Click second chip into non-empty prompt -> appends, keeps prior text, selection collapsed at doc end (F1)
+    fireEvent.click(chip2);
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.agentPrompt).toBe(
+      "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này. Chỉ lấy việc của nhóm BE",
+    );
+    expect(proseMirror.editor!.state.selection.empty).toBe(true);
+    expect(proseMirror.editor!.state.selection.from).toBe(
+      proseMirror.editor!.state.doc.content.size - 1,
+    );
+    expect(proseMirror.editor!.state.selection.to).toBe(
+      proseMirror.editor!.state.doc.content.size - 1,
+    );
+
+    // Gate hint click on in-flight file upload (F2)
+    const uploadGate = Promise.withResolvers<{
+      attachment: {
+        id: string;
+        filename: string;
+        content_type: string;
+        size: number;
+        url: string;
+      };
+    }>();
+    const prevImpl = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string }) => {
+        if (
+          path === "/api/v1/workspaces/ws1/attachments" &&
+          init?.method === "POST"
+        ) {
+          return uploadGate.promise;
+        }
+        return prevImpl(path, init);
+      },
+    );
+    fireEvent.paste(proseMirror, {
+      clipboardData: {
+        files: [new File(["spec"], "spec.pdf", { type: "application/pdf" })],
+        getData: () => "",
+      },
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Chuyển sang thủ công" }),
+      ).toBeDisabled();
+    });
+    fireEvent.click(chip3);
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.agentPrompt).toBe(
+      "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này. Chỉ lấy việc của nhóm BE",
+    );
+    await act(async () => {
+      uploadGate.resolve({
+        attachment: {
+          id: "att_1",
+          filename: "spec.pdf",
+          content_type: "application/pdf",
+          size: 4,
+          url: "/api/v1/attachments/att_1/download",
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Chuyển sang thủ công" }),
+      ).not.toBeDisabled();
+    });
+
+    // Submit -> while request is pending, no clickable hint chips render
+    const submitBtn = screen.getByRole("button", { name: /Gửi cho agent/ });
+    fireEvent.click(submitBtn);
+    expect(await screen.findByText("UNI đang đọc tài liệu…")).toBeInTheDocument();
+    expect(screen.queryByTestId("drive-prompt-hints")).toBeNull();
+
+    await act(async () => {
+      slowGate.resolve({ proposal: makeProposal({ id: "dtp_hints_1" }) });
+    });
+    await waitFor(() => {
+      expect(onReviewOpen).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "dtp_hints_1" }),
+      );
+    }, QUERY_WAIT_OPTIONS);
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.objectContaining({
+          prompt:
+            "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này. Chỉ lấy việc của nhóm BE",
+        }),
+      }),
+    );
+    unmount();
+
+    // Gated by can_propose === false -> no clickable hint chips
+    canPropose = false;
+    useCreateTaskDraftStore.getState().setDraft("ws1", {
+      title: "",
+      idempotencyKey: "draft_drive_blocked",
+      driveFiles: [
+        {
+          connectionId: "dc_1",
+          externalFileId: "gdoc_blocked_1",
+          driveFileId: "df_blocked_1",
+          name: "Kế hoạch ra mắt Q4",
+          mimeType: "application/vnd.google-apps.document",
+        },
+      ],
+    });
+    render(
+      renderInWorkspace(
+        <CreateTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          initialMode="agent"
+          onOpenChange={() => {}}
+        />,
+      ),
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByText("Cần cho UniWork đọc tệp trước"),
+      ).toBeInTheDocument();
+    }, QUERY_WAIT_OPTIONS);
+    expect(screen.queryByTestId("drive-prompt-hints")).toBeNull();
+  });
 });
 
 describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, §8.2, §8.8)", () => {
@@ -1382,5 +1684,119 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
       expect(res.isFormatUnsupported).toBe(isFormatUnsupported);
       expect(res.isAccessRequired).toBe(isAccessRequired);
     }
+  });
+
+  it("renders prompt hint chips in popover, inserts into empty and non-empty prompt, focuses textarea at end, sends in B5 request, and hides when gated (UNI-2219)", async () => {
+    const slowGate = Promise.withResolvers<{ proposal: DriveTaskProposal }>();
+    let callCount = 0;
+
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string }) => {
+        if (path.endsWith("/ai/capabilities")) return { enabled: true };
+        if (
+          path === "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals" &&
+          init?.method === "POST"
+        ) {
+          callCount += 1;
+          if (callCount === 1) return slowGate.promise;
+          throw new ApiError("access required", "drive_access_required", 403);
+        }
+        return {};
+      },
+    );
+
+    const onReviewOpen = vi.fn();
+    render(
+      renderInWorkspace(
+        <DriveProposalReviewProvider onOpen={onReviewOpen}>
+          <DriveProposeTasksPopover workspaceId="ws1" driveFileId="df_1" />
+        </DriveProposalReviewProvider>,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tạo việc từ tài liệu" }));
+
+    const promptInput = (await screen.findByLabelText(
+      "Gợi ý cho UNI (tùy chọn)",
+    )) as HTMLTextAreaElement;
+    expect(promptInput).toHaveAttribute(
+      "placeholder",
+      "Ví dụ: người phụ trách, hạn hoàn thành, độ ưu tiên hoặc phạm vi cần lấy…",
+    );
+
+    const hintsGroup = screen.getByRole("group", { name: "Gợi ý mẫu cho UNI" });
+    const chip1 = within(hintsGroup).getByRole("button", {
+      name: "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này",
+    });
+    const chip3 = within(hintsGroup).getByRole("button", {
+      name: "Ưu tiên cao cho việc gấp",
+    });
+    expect(hintsGroup.className).toContain("flex-wrap");
+    expect(chip1.className).toContain("w-auto");
+    expect(chip1.className).toContain("max-w-full");
+
+    // Click into empty prompt -> inserts, focuses, caret at end
+    fireEvent.click(chip1);
+    expect(promptInput.value).toBe(
+      "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này",
+    );
+    expect(document.activeElement).toBe(promptInput);
+    expect(promptInput.selectionStart).toBe(promptInput.value.length);
+    expect(promptInput.selectionEnd).toBe(promptInput.value.length);
+
+    // Type additional text and click another chip -> appends with separator, keeps typed text
+    fireEvent.change(promptInput, { target: { value: "Lấy phần Mobile" } });
+    fireEvent.click(chip3);
+    expect(promptInput.value).toBe("Lấy phần Mobile. Ưu tiên cao cho việc gấp");
+    expect(document.activeElement).toBe(promptInput);
+    expect(promptInput.selectionStart).toBe(promptInput.value.length);
+
+    // Submit -> while reading, hint chips are hidden
+    fireEvent.click(screen.getByRole("button", { name: "Gửi cho agent" }));
+    expect(await screen.findByText("UNI đang đọc tài liệu…")).toBeInTheDocument();
+    expect(screen.queryByTestId("drive-prompt-hints")).toBeNull();
+
+    await act(async () => {
+      slowGate.resolve({ proposal: makeProposal({ id: "dtp_pop_hints" }) });
+    });
+
+    await waitFor(() => {
+      expect(onReviewOpen).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "dtp_pop_hints" }),
+      );
+    }, QUERY_WAIT_OPTIONS);
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.objectContaining({
+          prompt: "Lấy phần Mobile. Ưu tiên cao cho việc gấp",
+        }),
+      }),
+    );
+
+    // Re-open popover and trigger access-blocked error -> hint chips hidden
+    fireEvent.click(screen.getByRole("button", { name: "Tạo việc từ tài liệu" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Gửi cho agent" }));
+    expect(
+      await screen.findByText(
+        "Bạn chưa cho UniWork đọc tệp này. Hãy cấp quyền đọc tệp trước khi tạo việc.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("drive-prompt-hints")).toBeNull();
+
+    // English locale copy check (F4, F5)
+    await act(async () => {
+      await setLocale("en");
+    });
+    expect(t("drive.proposals.prompt_hints.assignee_deadline")).toBe(
+      "Assign to the owner named in the document, due this week",
+    );
+    expect(t("drive.proposals.prompt_hints.scope")).toBe(
+      "Only take tasks for the BE team",
+    );
+    expect(t("drive.proposals.prompt_hints.priority")).toBe(
+      "Set high priority for urgent items",
+    );
   });
 });
