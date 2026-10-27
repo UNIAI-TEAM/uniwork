@@ -24,7 +24,7 @@ func TestFolderContentsAccessOverHTTP(t *testing.T) {
 	folderID := folderOut["document"].(map[string]any)["id"].(string)
 
 	_, page1 := docsCreatePageBody(t, w, w.token, map[string]any{
-		"title": "Tài liệu A", "kind": "page", "visibility": "restricted", "parent_id": folderID,
+		"title": "Tài liệu A", "kind": "page", "visibility": "workspace", "parent_id": folderID,
 	})
 	_, page2 := docsCreatePageBody(t, w, w.token, map[string]any{
 		"title": "Tài liệu B", "kind": "page", "visibility": "restricted", "parent_id": folderID,
@@ -32,6 +32,7 @@ func TestFolderContentsAccessOverHTTP(t *testing.T) {
 	_ = page2
 
 	memberToken, memberID := docsJoinWorkspace(t, w, "fca-http-member@example.com")
+	_, _ = docsJoinWorkspace(t, w, "fca-http-member2@example.com")
 	outsiderToken, _ := filesRegister(t, w.srv, "fca-http-outsider@example.com")
 
 	// 1. Non-folder root -> 422 not_a_folder.
@@ -101,6 +102,27 @@ func TestFolderContentsAccessOverHTTP(t *testing.T) {
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+folderID+"/contents-access/01J8X4NONEXISTENT0000000000", w.token, nil)
 	wantErr(t, res, out, http.StatusNotFound, "not_found", "missing")
 
+	// 6b. Dry-run replace with user-only items (omitting the home-workspace row) when page1 had a home-workspace share:
+	// member2 loses workspace access (losing_users == 1), memberID stays at edit (downgraded_users == 0),
+	// and warnings is ["to_private"] (to_private present, downgrade absent).
+	res, replacePreviewOut := doJSON(t, w.srv, "PUT", "/api/v1/documents/"+folderID+"/contents-access", w.token, map[string]any{
+		"mode":    "replace",
+		"dry_run": true,
+		"items": []any{
+			map[string]any{"principal_type": "user", "principal_id": memberID, "level": "edit"},
+		},
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("dry_run replace user-only PUT: %d %v", res.StatusCode, replacePreviewOut)
+	}
+	replacePreview, _ := replacePreviewOut["preview"].(map[string]any)
+	if replacePreview["losing_users"] != float64(1) || replacePreview["downgraded_users"] != float64(0) {
+		t.Fatalf("dry_run replace user-only counts = %v, want losing_users=1 downgraded_users=0", replacePreview)
+	}
+	gotWarnings, _ := replacePreview["warnings"].([]any)
+	if len(gotWarnings) != 1 || gotWarnings[0] != "to_private" {
+		t.Fatalf("dry_run replace user-only warnings = %v, want [\"to_private\"]", gotWarnings)
+	}
 	// 7. Background execution (threshold overridden to 1) -> 202 {batch_id, mode:"background", total:2}, and 409 while queued.
 	w.docs.SetFolderContentsAccessSyncMax(1)
 	t.Cleanup(func() { w.docs.SetFolderContentsAccessSyncMax(0) })
