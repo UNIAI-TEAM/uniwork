@@ -423,12 +423,8 @@ func (s *TaskService) detectParentCycle(ctx context.Context, taskID, newParentID
 	return coded(http.StatusUnprocessableEntity, "parent_cycle", "quan hệ cha/con tạo chu trình")
 }
 
-// detectDependencyCycle walks the "depends-on" graph after adding the candidate edge.
+// detectDependencyCycleQ walks the "depends-on" graph after adding the candidate edge.
 // blocked_by(A,B): A depends on B → edge A→B. blocks(A,B): A blocks B → edge B→A.
-func (s *TaskService) detectDependencyCycle(ctx context.Context, orgID, workspaceID, taskID, dependsOnID, depType string) error {
-	return detectDependencyCycleQ(ctx, s.q, orgID, workspaceID, taskID, dependsOnID, depType)
-}
-
 func detectDependencyCycleQ(ctx context.Context, q *db.Queries, orgID, workspaceID, taskID, dependsOnID, depType string) error {
 	edges, err := q.ListTaskDependenciesInWorkspace(ctx, db.ListTaskDependenciesInWorkspaceParams{
 		OrganizationID: orgID,

@@ -2,11 +2,20 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -140,5 +149,603 @@ func TestDriveProposalSeamHelpersAndOrgLifecycleDiscards(t *testing.T) {
 		e.org.ID, peerProp.ID,
 	).Scan(&peerDiscardReason); err != nil || peerDiscardReason != "source_disconnected" {
 		t.Fatalf("peer proposal discard audit reason after Deactivate = %q (err=%v), want source_disconnected", peerDiscardReason, err)
+	}
+}
+
+// TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback exercises
+// DriveTaskProposalService.CreateTasksFromProposal at the service layer (spec §8.5):
+//   - Subset conversion (items[0] and items[2]), intra-batch dependencies (blocked_by),
+//     cycle refusal (parent_cycle), and reference to unselected index refusal.
+//   - Batch duplicate refusal (open task + intra-batch duplicate) with item_indexes,
+//     and allow_duplicate override (batch-level and item-level).
+//   - Full rollback when any step fails (no tasks, no dependencies, no links,
+//     proposal remains ready with items intact).
+//   - Proposal state transitions (status=converted, items=NULL), 409 proposal_not_ready
+//     on second submit or after discard, 409 proposal_expired after expires_at,
+//     and 409 drive_source_changed when connection/file/access changed.
+//   - Concurrent double-submit serialization via FOR UPDATE (1 x success, 1 x 409 proposal_not_ready).
+//   - Audit rows and outbox events (task.created, task.updated for dependencies,
+//     task.drive_file_linked + drive_file.task_linked per task, and
+//     drive_task_proposal.tasks_created + drive_file.updated with zero document text).
+func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testing.T) {
+	e := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+
+	var aiText string
+	gw := ai.NewGateway(e.q, &provider.Fake{
+		Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+			if aiText != "" {
+				return provider.CompletionResponse{Text: aiText, Model: "fake"}
+			}
+			return provider.CompletionResponse{
+				Text: `{"items":[
+					{"title":"Task Alpha","assignee_member_id":"","assignee_basis":"","priority":"high","priority_basis":"Doc","start_date":"2026-10-27","start_basis":"","due_date":"2026-11-05","due_basis":"","label_ids":[],"label_basis":"","goal":"Goal A","checklist":["Step A"],"excerpt":{"section":"S1","quote":"Quote A"},"blocked_by_indexes":[]},
+					{"title":"Task Beta","assignee_member_id":"","assignee_basis":"","priority":"medium","priority_basis":"Doc","start_date":"","start_basis":"","due_date":"","due_basis":"","label_ids":[],"label_basis":"","goal":"Goal B","checklist":[],"excerpt":{"section":"S2","quote":"Quote B"},"blocked_by_indexes":[0]},
+					{"title":"Task Gamma","assignee_member_id":"","assignee_basis":"","priority":"low","priority_basis":"Doc","start_date":"","start_basis":"","due_date":"","due_basis":"","label_ids":[],"label_basis":"","goal":"Goal C","checklist":[],"excerpt":{"section":"S3","quote":"Quote C"},"blocked_by_indexes":[0,1]}
+				]}`,
+				Model: "fake",
+			}
+		},
+	}, NewAIQuota(NewEntitlementService(e.pool, e.q)), nil, ai.Options{})
+
+	propSvc := NewDriveTaskProposalService(e.pool, e.q, e.ws, e.fileSvc, e.svc, e.contentSvc, gw)
+	propSvc.SetTasks(e.taskSvc)
+	e.fileSvc.SetTaskCreationsLoader(e.fileSvc)
+	propSvc.SetTaskCreationsLoader(e.fileSvc)
+
+	ownerConn := e.connectAccount(t, e.owner.ID, e.wsA.ID, "sub-b6-owner", "b6-owner@example.com")
+	e.googleSrv.SetFile("ext-b6-doc", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-b6-doc", Name: "B6 Launch Spec", MimeType: DriveMimeGoogleDoc},
+		ExportByMime: map[string][]byte{
+			DriveMimeMarkdown: []byte("# B6 Launch Spec\nSECRET_B6_DOC_CONTENT_DO_NOT_LEAK"),
+		},
+	})
+	linked, err := e.fileSvc.Link(ctx, Human(e.owner.ID), e.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    ownerConn.ID,
+		ExternalFileIDs: []string{"ext-b6-doc"},
+	})
+	if err != nil || len(linked) != 1 || linked[0].File == nil {
+		t.Fatalf("Link = %+v, err=%v", linked, err)
+	}
+	fileID := linked[0].File.ID
+
+	prop, err := propSvc.Propose(ctx, Human(e.owner.ID), e.wsA.ID, fileID, ProposeDriveTasksInput{
+		Prompt: "Extract B6 tasks",
+	})
+	if err != nil || len(prop.Items) != 3 {
+		t.Fatalf("Propose = %+v, err=%v", prop, err)
+	}
+
+	// 1. Peer (non-requester) and Guest are refused before touching the proposal.
+	if _, err := propSvc.CreateTasksFromProposal(ctx, Human(e.peer.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{{Index: 0, Title: "Peer attempt"}},
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("peer CreateTasksFromProposal = %v, want ErrNotFound", err)
+	}
+	as := NewAuthService(e.pool, e.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	guest := registerVerified(t, e.q, as, "guest-b6-"+util.NewID()+"@example.com", "Guest B6")
+	addOrgMember(t, e.q, e.org.ID, guest.ID)
+	e.guests[guest.ID] = true
+	if _, err := propSvc.CreateTasksFromProposal(ctx, Human(guest.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{{Index: 0, Title: "Guest attempt"}},
+	}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("guest CreateTasksFromProposal = %v, want ErrForbidden", err)
+	}
+
+	// 2. Validation and rollback:
+	// - blocked_by_indexes pointing to unselected item index 1 -> 400 Invalid
+	if _, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{
+			{Index: 0, Title: "Task Alpha"},
+			{Index: 2, Title: "Task Gamma", BlockedByIndexes: []int{1}},
+		},
+	}); err == nil {
+		t.Fatal("expected error when blocked_by_indexes references unselected item index 1")
+	}
+	// - intra-batch dependency cycle (0 -> 2 and 2 -> 0) -> 422 parent_cycle
+	if _, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{
+			{Index: 0, Title: "Task Alpha", BlockedByIndexes: []int{2}},
+			{Index: 2, Title: "Task Gamma", BlockedByIndexes: []int{0}},
+		},
+	}); !isCodedError(err, http.StatusUnprocessableEntity, "parent_cycle") {
+		t.Fatalf("dependency cycle err = %v, want 422 parent_cycle", err)
+	}
+	// - self dependency (0 -> 0) -> 422 parent_cycle
+	if _, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{
+			{Index: 0, Title: "Task Alpha", BlockedByIndexes: []int{0}},
+		},
+	}); !isCodedError(err, http.StatusUnprocessableEntity, "parent_cycle") {
+		t.Fatalf("self dependency err = %v, want 422 parent_cycle", err)
+	}
+	// - mid-transaction rollback: item 0 has valid assignee, item 2 has non-member assignee -> 422 assignee_not_member, 0 tasks created, proposal still ready.
+	var tasksBefore int
+	_ = e.pool.QueryRow(ctx, `SELECT count(*) FROM tasks WHERE workspace_id = $1`, e.wsA.ID).Scan(&tasksBefore)
+	badAssignee := "01NONEXISTENTUSER000000000"
+	if _, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{
+			{Index: 0, Title: "Task Alpha", AssigneeMemberID: &e.owner.ID},
+			{Index: 2, Title: "Task Gamma", AssigneeMemberID: &badAssignee},
+		},
+	}); !isCodedError(err, http.StatusUnprocessableEntity, "assignee_not_member") {
+		t.Fatalf("non-member assignee err = %v, want 422 assignee_not_member", err)
+	}
+	var tasksAfter int
+	_ = e.pool.QueryRow(ctx, `SELECT count(*) FROM tasks WHERE workspace_id = $1`, e.wsA.ID).Scan(&tasksAfter)
+	if tasksAfter != tasksBefore {
+		t.Fatalf("tasks count after rollback = %d, want %d", tasksAfter, tasksBefore)
+	}
+
+	// 3. Duplicate refusal (existing open task + intra-batch duplicate) with item_indexes.
+	existingOpen, err := e.taskSvc.Create(ctx, Human(e.owner.ID), e.wsA.ID, CreateTaskInput{
+		Title: "Existing Open Duplicate",
+	})
+	if err != nil {
+		t.Fatalf("Create existingOpen: %v", err)
+	}
+	_, dupErr := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{
+			{Index: 0, Title: "  existing   OPEN duplicate "},
+			{Index: 1, Title: "Repeated In Batch"},
+			{Index: 2, Title: "repeated in batch"},
+		},
+	})
+	var ce CodedError
+	if !errors.As(dupErr, &ce) || ce.Status != http.StatusConflict || ce.Code != "active_duplicate_task" {
+		t.Fatalf("duplicate batch err = %v, want 409 active_duplicate_task", dupErr)
+	}
+	if gotIdx, ok := ce.Fields["item_indexes"].([]int); !ok || !reflect.DeepEqual(gotIdx, []int{0, 1, 2}) {
+		t.Fatalf("active_duplicate_task item_indexes = %#v, want []int{0, 1, 2}", ce.Fields["item_indexes"])
+	}
+	if ce.Fields["task_id"] != existingOpen.ID {
+		t.Fatalf("active_duplicate_task task_id = %v, want %s", ce.Fields["task_id"], existingOpen.ID)
+	}
+
+	// 4. Successful conversion of subset (items 0 and 2, with item 2 blocked by item 0, and AllowDuplicate on item 0).
+	startDate := "2026-10-27"
+	dueDate := "2026-11-05"
+	created, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{
+			{
+				Index:            0,
+				Title:            "Existing Open Duplicate",
+				Description:      "Body for item 0",
+				AssigneeMemberID: &e.owner.ID,
+				Priority:         "high",
+				StartDate:        &startDate,
+				DueDate:          &dueDate,
+				BlockedByIndexes: []int{},
+				AllowDuplicate:   true,
+			},
+			{
+				Index:            2,
+				Title:            "Task Gamma Final",
+				Description:      "Body for item 2",
+				AssigneeMemberID: &e.peer.ID,
+				Priority:         "low",
+				BlockedByIndexes: []int{0},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateTasksFromProposal = %v", err)
+	}
+	if len(created.TaskIDs) != 2 || len(created.Items) != 2 {
+		t.Fatalf("created = %+v, want 2 tasks", created)
+	}
+	if created.Items[0].Index != 0 || created.Items[0].TaskID != created.TaskIDs[0] ||
+		created.Items[1].Index != 2 || created.Items[1].TaskID != created.TaskIDs[1] {
+		t.Fatalf("created.Items = %+v, TaskIDs = %+v", created.Items, created.TaskIDs)
+	}
+
+	// Verify origin_type and origin_id on created tasks.
+	for _, tid := range created.TaskIDs {
+		taskRow, terr := e.taskSvc.Get(ctx, e.owner.ID, tid)
+		if terr != nil {
+			t.Fatalf("Get task %s: %v", tid, terr)
+		}
+		if taskRow.OriginType.String != "drive_task_proposal" || taskRow.OriginID.String != prop.ID {
+			t.Fatalf("task %s origin = (%q, %q), want (drive_task_proposal, %s)", tid, taskRow.OriginType.String, taskRow.OriginID.String, prop.ID)
+		}
+	}
+
+	// Verify dependency row: task[1] (item 2) is blocked_by task[0] (item 0).
+	var depType string
+	if err := e.pool.QueryRow(ctx,
+		`SELECT type FROM task_dependencies WHERE workspace_id = $1 AND task_id = $2 AND depends_on_task_id = $3`,
+		e.wsA.ID, created.TaskIDs[1], created.TaskIDs[0],
+	).Scan(&depType); err != nil || depType != "blocked_by" {
+		t.Fatalf("task_dependencies row = %q (err=%v), want blocked_by", depType, err)
+	}
+
+	// Verify drive_file_task_links and drive_task_proposal_links rows.
+	var fileLinkCount, propLinkCount int
+	_ = e.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE drive_file_id = $1 AND task_id = ANY($2)`, fileID, created.TaskIDs).Scan(&fileLinkCount)
+	_ = e.pool.QueryRow(ctx, `SELECT count(*) FROM drive_task_proposal_links WHERE proposal_id = $1`, prop.ID).Scan(&propLinkCount)
+	if fileLinkCount != 2 || propLinkCount != 2 {
+		t.Fatalf("links count: drive_file_task_links=%d drive_task_proposal_links=%d, want 2 and 2", fileLinkCount, propLinkCount)
+	}
+
+	// Verify proposal row is now status='converted' and items IS NULL.
+	var propStatus string
+	var propItems []byte
+	if err := e.pool.QueryRow(ctx, `SELECT status, items FROM drive_task_proposals WHERE id = $1`, prop.ID).Scan(&propStatus, &propItems); err != nil {
+		t.Fatalf("query proposal after convert: %v", err)
+	}
+	if propStatus != DriveProposalStatusConverted || propItems != nil {
+		t.Fatalf("proposal after convert: status=%q items=%v, want converted and nil", propStatus, propItems)
+	}
+
+	// Verify audit row drive_task_proposal.tasks_created carries metadata and zero doc text.
+	var rawMeta []byte
+	if err := e.pool.QueryRow(ctx,
+		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = 'drive_task_proposal.tasks_created' AND resource_id = $2`,
+		e.org.ID, prop.ID,
+	).Scan(&rawMeta); err != nil {
+		t.Fatalf("query drive_task_proposal.tasks_created audit: %v", err)
+	}
+	if strings.Contains(string(rawMeta), "SECRET_B6_DOC_CONTENT_DO_NOT_LEAK") {
+		t.Fatalf("audit metadata leaked document content: %s", string(rawMeta))
+	}
+	var meta map[string]any
+	_ = json.Unmarshal(rawMeta, &meta)
+	if meta["drive_file_id"] != fileID || meta["google_email"] != "b6-owner@example.com" || meta["google_sub"] != "sub-b6-owner" {
+		t.Fatalf("audit metadata = %+v", meta)
+	}
+
+	// 5. Re-submitting the converted proposal returns 409 proposal_not_ready.
+	if _, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{{Index: 0, Title: "Again"}},
+	}); !isCodedError(err, http.StatusConflict, "proposal_not_ready") {
+		t.Fatalf("resubmit converted proposal = %v, want 409 proposal_not_ready", err)
+	}
+
+	// 6. Expired proposal returns 409 proposal_expired.
+	propExp, err := propSvc.Propose(ctx, Human(e.owner.ID), e.wsA.ID, fileID, ProposeDriveTasksInput{})
+	if err != nil {
+		t.Fatalf("Propose for expiry: %v", err)
+	}
+	if _, err := e.pool.Exec(ctx, `UPDATE drive_task_proposals SET expires_at = now() - interval '1 minute' WHERE id = $1`, propExp.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, propExp.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{{Index: 0, Title: "Expired"}},
+	}); !isCodedError(err, http.StatusConflict, "proposal_expired") {
+		t.Fatalf("expired proposal = %v, want 409 proposal_expired", err)
+	}
+
+	// 7. Concurrent double-submit on a ready proposal: exactly one succeeds (201), one gets 409 proposal_not_ready.
+	propRace, err := propSvc.Propose(ctx, Human(e.owner.ID), e.wsA.ID, fileID, ProposeDriveTasksInput{})
+	if err != nil {
+		t.Fatalf("Propose for race: %v", err)
+	}
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for g := range 2 {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			_, errs[idx] = propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, propRace.ID, CreateTasksFromProposalInput{
+				AllowDuplicate: true,
+				Items: []CreateTasksFromProposalItemInput{
+					{Index: 0, Title: fmt.Sprintf("Race Task %d", idx)},
+				},
+			})
+		}(g)
+	}
+	wg.Wait()
+	successes, notReady := 0, 0
+	for _, rerr := range errs {
+		if rerr == nil {
+			successes++
+		} else if isCodedError(rerr, http.StatusConflict, "proposal_not_ready") {
+			notReady++
+		} else {
+			t.Fatalf("unexpected concurrent CreateTasksFromProposal error: %v", rerr)
+		}
+	}
+	if successes != 1 || notReady != 1 {
+		t.Fatalf("concurrent double-submit: successes=%d notReady=%d (errs=%v), want 1 and 1", successes, notReady, errs)
+	}
+}
+
+// TestDriveTasksCreatedFromDocumentProvenanceAndPrivacy verifies §8.8:
+//   - tasks_created summary and task_creations / prior_creations groups across
+//     GET /drive-files, GET /drive-files/{id}, GET /tasks/{id}/drive-files,
+//     POST /task-proposals, and GET /drive-task-proposals/{id}.
+//   - Unlinking a task from the Drive file (DELETE /tasks/{id}/drive-files/{fileID})
+//     removes it from used_in_tasks but preserves it in tasks_created and task_creations.
+//   - Unlinking and relinking the same external_file_id in the workspace preserves
+//     prior tasks_created and task_creations via external_file_id.
+//   - Deleting a task (TaskService.Delete) drops it from tasks_created and omits empty groups.
+//   - Task visibility filtering (DriveTaskAccessPolicy.CanViewTask) hides tasks a viewer
+//     may not see from both tasks_created.count and task_creations / prior_creations.
+func TestDriveTasksCreatedFromDocumentProvenanceAndPrivacy(t *testing.T) {
+	e := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+
+	gw := ai.NewGateway(e.q, &provider.Fake{
+		Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+			return provider.CompletionResponse{
+				Text: `{"items":[
+					{"title":"Provenance Task 1","assignee_member_id":"","assignee_basis":"","priority":"medium","priority_basis":"","start_date":"","start_basis":"","due_date":"","due_basis":"","label_ids":[],"label_basis":"","goal":"","checklist":[],"excerpt":{"section":"S1","quote":"Q1"},"blocked_by_indexes":[]},
+					{"title":"Provenance Task 2","assignee_member_id":"","assignee_basis":"","priority":"medium","priority_basis":"","start_date":"","start_basis":"","due_date":"","due_basis":"","label_ids":[],"label_basis":"","goal":"","checklist":[],"excerpt":{"section":"S2","quote":"Q2"},"blocked_by_indexes":[]}
+				]}`,
+				Model: "fake",
+			}
+		},
+	}, NewAIQuota(NewEntitlementService(e.pool, e.q)), nil, ai.Options{})
+
+	propSvc := NewDriveTaskProposalService(e.pool, e.q, e.ws, e.fileSvc, e.svc, e.contentSvc, gw)
+	propSvc.SetTasks(e.taskSvc)
+	e.fileSvc.SetTaskCreationsLoader(e.fileSvc)
+	propSvc.SetTaskCreationsLoader(e.fileSvc)
+
+	ownerConn := e.connectAccount(t, e.owner.ID, e.wsA.ID, "sub-prov-owner", "prov-owner@example.com")
+	const extID = "ext-prov-doc-88"
+	e.googleSrv.SetFile(extID, FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: extID, Name: "Provenance Spec", MimeType: DriveMimeGoogleDoc},
+		ExportByMime: map[string][]byte{
+			DriveMimeMarkdown: []byte("# Provenance Spec\nBody"),
+		},
+	})
+	linked, err := e.fileSvc.Link(ctx, Human(e.owner.ID), e.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    ownerConn.ID,
+		ExternalFileIDs: []string{extID},
+	})
+	if err != nil || len(linked) != 1 || linked[0].File == nil {
+		t.Fatalf("Link = %+v, err=%v", linked, err)
+	}
+	fileID1 := linked[0].File.ID
+
+	// Batch 1: create 2 tasks from proposal 1.
+	prop1, err := propSvc.Propose(ctx, Human(e.owner.ID), e.wsA.ID, fileID1, ProposeDriveTasksInput{})
+	if err != nil {
+		t.Fatalf("Propose 1: %v", err)
+	}
+	res1, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop1.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{
+			{Index: 0, Title: "Prov Batch 1 Task A"},
+			{Index: 1, Title: "Prov Batch 1 Task B"},
+		},
+	})
+	if err != nil || len(res1.TaskIDs) != 2 {
+		t.Fatalf("CreateTasksFromProposal 1 = %+v, err=%v", res1, err)
+	}
+	taskA, taskB := res1.TaskIDs[0], res1.TaskIDs[1]
+
+	// 1. RemoveFromTask on taskA: unlinks drive_file_task_links, so used_in_count drops to 1,
+	// but tasks_created.count stays 2 and task_creations still lists both taskA and taskB!
+	if err := e.fileSvc.RemoveFromTask(ctx, Human(e.owner.ID), taskA, fileID1); err != nil {
+		t.Fatalf("RemoveFromTask(taskA): %v", err)
+	}
+	detail1, err := e.fileSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, fileID1)
+	if err != nil {
+		t.Fatalf("Get(fileID1): %v", err)
+	}
+	if detail1.UsedInCount != 1 || detail1.TasksCreated.Count != 2 {
+		t.Fatalf("after RemoveFromTask: UsedInCount=%d TasksCreated.Count=%d, want 1 and 2", detail1.UsedInCount, detail1.TasksCreated.Count)
+	}
+	if len(detail1.TaskCreations) != 1 || len(detail1.TaskCreations[0].Tasks) != 2 {
+		t.Fatalf("after RemoveFromTask: TaskCreations = %+v, want 1 group with 2 tasks", detail1.TaskCreations)
+	}
+
+	// 2. Unlink fileID1 from workspace and relink the same external_file_id -> new drive_files.id,
+	// but tasks_created and task_creations survive because they are keyed by (workspace_id, external_file_id)!
+	if err := e.fileSvc.Unlink(ctx, Human(e.owner.ID), e.wsA.ID, fileID1); err != nil {
+		t.Fatalf("Unlink(fileID1): %v", err)
+	}
+	relinked, err := e.fileSvc.Link(ctx, Human(e.owner.ID), e.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    ownerConn.ID,
+		ExternalFileIDs: []string{extID},
+		TaskID:          &taskB,
+	})
+	if err != nil || len(relinked) != 1 || relinked[0].File == nil {
+		t.Fatalf("Relink = %+v, err=%v", relinked, err)
+	}
+	fileID2 := relinked[0].File.ID
+	if fileID2 == fileID1 {
+		t.Fatalf("expected new drive_files.id after unlink+relink, got same %s", fileID2)
+	}
+
+	detail2, err := e.fileSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, fileID2)
+	if err != nil {
+		t.Fatalf("Get(fileID2): %v", err)
+	}
+	if detail2.TasksCreated.Count != 2 || detail2.TasksCreated.LastCreatedAt == nil || detail2.TasksCreated.LastCreatedByName == nil {
+		t.Fatalf("after relink TasksCreated = %+v, want Count=2 with non-nil LastCreatedAt/ByName", detail2.TasksCreated)
+	}
+	if len(detail2.TaskCreations) != 1 || detail2.TaskCreations[0].ProposalID != prop1.ID || len(detail2.TaskCreations[0].Tasks) != 2 {
+		t.Fatalf("after relink TaskCreations = %+v, want 1 group for prop1 with 2 tasks", detail2.TaskCreations)
+	}
+
+	// Check ListMine and ListForTask also carry tasks_created.count == 2.
+	mine, err := e.fileSvc.ListMine(ctx, Human(e.owner.ID), e.wsA.ID, ListDriveFilesFilter{})
+	if err != nil || len(mine.Files) != 1 || mine.Files[0].TasksCreated.Count != 2 {
+		t.Fatalf("ListMine = %+v, err=%v", mine, err)
+	}
+	cards, err := e.fileSvc.ListForTask(ctx, Human(e.owner.ID), taskB)
+	if err != nil || len(cards) != 1 || cards[0].TasksCreated.Count != 2 {
+		t.Fatalf("ListForTask(taskB) = %+v, err=%v", cards, err)
+	}
+
+	// Check Propose and Get on a second proposal for the relinked file include prior_creations and tasks_created!
+	prop2, err := propSvc.Propose(ctx, Human(e.owner.ID), e.wsA.ID, fileID2, ProposeDriveTasksInput{})
+	if err != nil {
+		t.Fatalf("Propose 2: %v", err)
+	}
+	if prop2.TasksCreated.Count != 2 || len(prop2.PriorCreations) != 1 || prop2.PriorCreations[0].ProposalID != prop1.ID {
+		t.Fatalf("Propose 2 prior_creations = %+v / %+v, want count=2 and prop1 group", prop2.TasksCreated, prop2.PriorCreations)
+	}
+	gotProp2, err := propSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, prop2.ID)
+	if err != nil {
+		t.Fatalf("Get(prop2): %v", err)
+	}
+	if gotProp2.TasksCreated.Count != 2 || len(gotProp2.PriorCreations) != 1 {
+		t.Fatalf("Get(prop2) prior_creations = %+v / %+v", gotProp2.TasksCreated, gotProp2.PriorCreations)
+	}
+
+	// 3. Task visibility filtering: restrict viewer from seeing taskA -> count becomes 1, group has only taskB;
+	// restrict viewer from seeing both taskA and taskB -> count becomes 0, group is dropped!
+	e.fileSvc.SetTaskAccessPolicy(DriveTaskAccessPolicy{
+		CanViewTask: func(_ context.Context, _ string, _ db.WorkspaceMember, tID string) bool {
+			return tID != taskA
+		},
+	})
+	filteredOne, err := e.fileSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, fileID2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filteredOne.TasksCreated.Count != 1 || len(filteredOne.TaskCreations) != 1 || len(filteredOne.TaskCreations[0].Tasks) != 1 || filteredOne.TaskCreations[0].Tasks[0].TaskID != taskB {
+		t.Fatalf("filteredOne = count:%d groups:%+v, want count=1 with [taskB]", filteredOne.TasksCreated.Count, filteredOne.TaskCreations)
+	}
+
+	e.fileSvc.SetTaskAccessPolicy(DriveTaskAccessPolicy{
+		CanViewTask: func(_ context.Context, _ string, _ db.WorkspaceMember, _ string) bool {
+			return false
+		},
+	})
+	filteredAll, err := e.fileSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, fileID2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filteredAll.TasksCreated.Count != 0 || filteredAll.TasksCreated.LastCreatedAt != nil || len(filteredAll.TaskCreations) != 0 {
+		t.Fatalf("filteredAll = summary:%+v groups:%+v, want count=0 and empty groups", filteredAll.TasksCreated, filteredAll.TaskCreations)
+	}
+	e.fileSvc.SetTaskAccessPolicy(DriveTaskAccessPolicy{})
+
+	// 4. Deleting taskA via TaskService.Delete removes it from tasks_created and task_creations;
+	// deleting taskB too drops the empty group and resets count to 0.
+	if err := e.taskSvc.Delete(ctx, e.owner.ID, taskA); err != nil {
+		t.Fatalf("Delete(taskA): %v", err)
+	}
+	afterDelA, err := e.fileSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, fileID2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterDelA.TasksCreated.Count != 1 || len(afterDelA.TaskCreations) != 1 || len(afterDelA.TaskCreations[0].Tasks) != 1 {
+		t.Fatalf("after Delete(taskA): summary=%+v groups=%+v, want count=1 and 1 task", afterDelA.TasksCreated, afterDelA.TaskCreations)
+	}
+	if err := e.taskSvc.Delete(ctx, e.owner.ID, taskB); err != nil {
+		t.Fatalf("Delete(taskB): %v", err)
+	}
+	afterDelBoth, err := e.fileSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, fileID2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterDelBoth.TasksCreated.Count != 0 || len(afterDelBoth.TaskCreations) != 0 {
+		t.Fatalf("after Delete(taskB): summary=%+v groups=%+v, want count=0 and 0 groups", afterDelBoth.TasksCreated, afterDelBoth.TaskCreations)
+	}
+
+	// 5. Verify 5-group cap on task_creations / prior_creations when >5 proposal batches convert.
+	for b := range 6 {
+		pb, perr := propSvc.Propose(ctx, Human(e.owner.ID), e.wsA.ID, fileID2, ProposeDriveTasksInput{})
+		if perr != nil {
+			t.Fatalf("Propose batch %d: %v", b, perr)
+		}
+		if _, cerr := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, pb.ID, CreateTasksFromProposalInput{
+			Items: []CreateTasksFromProposalItemInput{
+				{Index: 0, Title: fmt.Sprintf("Cap Batch %d Task", b)},
+			},
+		}); cerr != nil {
+			t.Fatalf("CreateTasksFromProposal batch %d: %v", b, cerr)
+		}
+	}
+	cappedDetail, err := e.fileSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, fileID2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cappedDetail.TasksCreated.Count != 6 || len(cappedDetail.TaskCreations) != 5 {
+		t.Fatalf("6 batches: TasksCreated.Count=%d len(TaskCreations)=%d, want 6 and 5", cappedDetail.TasksCreated.Count, len(cappedDetail.TaskCreations))
+	}
+}
+
+func isCodedError(err error, wantStatus int, wantCode string) bool {
+	var ce CodedError
+	if !errors.As(err, &ce) {
+		return false
+	}
+	return ce.Status == wantStatus && ce.Code == wantCode
+}
+
+// TestValidateAndNormalizeProposalCreateItemsUnit exercises pure item validation,
+// 0-based index bounds, duplicate index refusal, date/priority normalization,
+// intra-batch dependency cycle detection, and batch project/parent ID resolution
+// without requiring a database connection.
+func TestValidateAndNormalizeProposalCreateItemsUnit(t *testing.T) {
+	t.Parallel()
+
+	// 1. Empty items -> 400 Invalid.
+	if _, err := validateAndNormalizeProposalCreateItems(nil, 5); err == nil {
+		t.Fatal("expected error on empty items")
+	}
+
+	// 2. Out-of-range index (< 0 or >= storedCount) -> 400 Invalid.
+	if _, err := validateAndNormalizeProposalCreateItems([]CreateTasksFromProposalItemInput{
+		{Index: -1, Title: "Negative"},
+	}, 5); err == nil {
+		t.Fatal("expected error on negative index")
+	}
+	if _, err := validateAndNormalizeProposalCreateItems([]CreateTasksFromProposalItemInput{
+		{Index: 3, Title: "Beyond stored count"},
+	}, 3); err == nil {
+		t.Fatal("expected error on index >= storedCount")
+	}
+
+	// 3. Duplicate index in same request -> 400 Invalid.
+	if _, err := validateAndNormalizeProposalCreateItems([]CreateTasksFromProposalItemInput{
+		{Index: 1, Title: "First"},
+		{Index: 1, Title: "Second"},
+	}, 5); err == nil {
+		t.Fatal("expected error on duplicate item index")
+	}
+
+	// 4. Unselected dependency index -> 400 Invalid.
+	if _, err := validateAndNormalizeProposalCreateItems([]CreateTasksFromProposalItemInput{
+		{Index: 0, Title: "Zero"},
+		{Index: 2, Title: "Two", BlockedByIndexes: []int{1}},
+	}, 5); err == nil {
+		t.Fatal("expected error on unselected blocked_by_indexes")
+	}
+
+	// 5. Self dependency -> 422 parent_cycle.
+	if _, err := validateAndNormalizeProposalCreateItems([]CreateTasksFromProposalItemInput{
+		{Index: 0, Title: "Self", BlockedByIndexes: []int{0}},
+	}, 5); !isCodedError(err, http.StatusUnprocessableEntity, "parent_cycle") {
+		t.Fatalf("self dependency = %v, want 422 parent_cycle", err)
+	}
+
+	// 6. 3-node dependency cycle (0 -> 2 -> 4 -> 0) -> 422 parent_cycle.
+	if _, err := validateAndNormalizeProposalCreateItems([]CreateTasksFromProposalItemInput{
+		{Index: 0, Title: "N0", BlockedByIndexes: []int{2}},
+		{Index: 2, Title: "N2", BlockedByIndexes: []int{4}},
+		{Index: 4, Title: "N4", BlockedByIndexes: []int{0}},
+	}, 5); !isCodedError(err, http.StatusUnprocessableEntity, "parent_cycle") {
+		t.Fatalf("3-node cycle = %v, want 422 parent_cycle", err)
+	}
+
+	// 7. Valid subset with DAG (4 blocked by 0 and 2; 2 blocked by 0; duplicate dep deduplicated).
+	start := "2026-10-27"
+	due := "2026-11-05"
+	batch, err := validateAndNormalizeProposalCreateItems([]CreateTasksFromProposalItemInput{
+		{Index: 0, Title: "  Root Task  ", Priority: "HIGH", StartDate: &start, DueDate: &due},
+		{Index: 2, Title: "Middle Task", BlockedByIndexes: []int{0, 0}},
+		{Index: 4, Title: "Leaf Task", BlockedByIndexes: []int{0, 2}, AllowDuplicate: true},
+	}, 5)
+	if err != nil {
+		t.Fatalf("valid subset = %v", err)
+	}
+	if len(batch.orderedItems) != 3 || len(batch.taskInputs) != 3 {
+		t.Fatalf("batch len = %d / %d, want 3", len(batch.orderedItems), len(batch.taskInputs))
+	}
+	if batch.taskInputs[0].Title != "Root Task" || batch.taskInputs[0].Priority != "high" {
+		t.Fatalf("taskInputs[0] = %+v", batch.taskInputs[0])
+	}
+	if !reflect.DeepEqual(batch.orderedItems[1].BlockedByIndexes, []int{0}) {
+		t.Fatalf("orderedItems[1].BlockedByIndexes = %v, want [0]", batch.orderedItems[1].BlockedByIndexes)
+	}
+	if !reflect.DeepEqual(batch.orderedItems[2].BlockedByIndexes, []int{0, 2}) || !batch.taskInputs[2].AllowDuplicate {
+		t.Fatalf("orderedItems[2] = %+v, taskInputs[2] = %+v", batch.orderedItems[2], batch.taskInputs[2])
 	}
 }

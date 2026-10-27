@@ -175,6 +175,9 @@ func newDriveProposalHTTPTestEnv(t *testing.T) *driveProposalHTTPTestEnv {
 	base.deps.DriveTaskProposals.SetFlags(base.deps.FeatureFlags)
 	base.deps.DriveTaskProposals.SetMetrics(env.metrics)
 	base.deps.Audit.SetDriveProposalHistoryAuthorizer(base.deps.DriveTaskProposals.AuthorizeHistory)
+	base.deps.DriveTaskProposals.SetTasks(base.deps.Tasks)
+	base.deps.DriveFiles.SetTaskCreationsLoader(base.deps.DriveFiles)
+	base.deps.DriveTaskProposals.SetTaskCreationsLoader(base.deps.DriveFiles)
 
 	srv := httptest.NewServer(New(base.deps))
 	t.Cleanup(srv.Close)
@@ -481,7 +484,7 @@ func TestDriveProposalEndToEndNormalizationDuplicatesAndAudit(t *testing.T) {
 			}},
 		}},
 	})
-	defer e.deps.DriveTaskProposals.SetTaskCreationsLoader(nil)
+	defer e.deps.DriveTaskProposals.SetTaskCreationsLoader(e.deps.DriveFiles)
 
 	getPath := fmt.Sprintf("/api/v1/workspaces/%s/drive-task-proposals/%s", e.wsID, prop.ID)
 	getRes, getOut := doJSON(t, e.srv, "GET", getPath, e.ownerTk, nil)
@@ -563,6 +566,11 @@ func TestDriveProposalOnlyItsRequester(t *testing.T) {
 	}
 	if r, o := doJSON(t, e.srv, "DELETE", propPath, e.peerTk, nil); r.StatusCode != http.StatusNotFound || jsonErrCode(o) != "not_found" {
 		t.Fatalf("peer DELETE proposal = %d %v, want 404 not_found", r.StatusCode, o)
+	}
+	if r, o := doJSON(t, e.srv, "POST", propPath+"/tasks", e.peerTk, map[string]any{
+		"items": []any{map[string]any{"index": 0, "title": "Peer task", "description": "Body"}},
+	}); r.StatusCode != http.StatusNotFound || jsonErrCode(o) != "not_found" {
+		t.Fatalf("peer POST tasks = %d %v, want 404 not_found", r.StatusCode, o)
 	}
 
 	beforeSelects := e.auditCounter.resourceSelects.Load()
@@ -840,4 +848,205 @@ func TestDriveProposalErrorMappings(t *testing.T) {
 		t.Fatalf("flag off = %d %v, want 404 feature_disabled (calls=%d)", r.StatusCode, o, callCount.Load())
 	}
 	e.flagRules.Set("drive_connector", featureflag.Rule{Default: true})
+}
+
+// TestCreateTasksFromDriveProposalHTTPAndProvenance verifies the HTTP contract
+// of POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks
+// (spec §8.5, §8.8):
+//   - 201 sdo.DriveProposalTasksCreatedSDO with task_ids and 0-based items[{index, task_id}].
+//   - Intra-batch dependency edge created in the same transaction.
+//   - 409 active_duplicate_task with fields.item_indexes, and allow_duplicate override.
+//   - 422 parent_cycle on cyclic blocked_by_indexes.
+//   - 400 invalid_request on unselected blocked_by_indexes or out-of-range index.
+//   - 409 proposal_not_ready on second submit, 409 proposal_expired on expired proposal,
+//     and 409 drive_source_changed when the caller's access is lost before convert.
+//   - tasks_created and task_creations / prior_creations populated on GET /drive-files,
+//     GET /drive-files/{id}, GET /tasks/{id}/drive-files, and subsequent POST /task-proposals.
+func TestCreateTasksFromDriveProposalHTTPAndProvenance(t *testing.T) {
+	e := newDriveProposalHTTPTestEnv(t)
+	ownerConn := e.seedConnection(t, e.ownerID, "sub-http-b6", "http-b6@example.com")
+	linked := e.linkFile(t, e.ownerTk, ownerConn, "ext-http-b6", "")
+	fileID := jsonStr(linked, "id")
+
+	e.aiMu.Lock()
+	e.aiReply = func(provider.CompletionRequest) (provider.CompletionResponse, error) {
+		return provider.CompletionResponse{
+			Text: `{"items":[
+				{"title":"HTTP Task 0","assignee_member_id":"","assignee_basis":"","priority":"high","priority_basis":"","start_date":"2026-10-27","start_basis":"","due_date":"2026-11-05","due_basis":"","label_ids":[],"label_basis":"","goal":"G0","checklist":["C0"],"excerpt":{"section":"S0","quote":"Q0"},"blocked_by_indexes":[]},
+				{"title":"HTTP Task 1","assignee_member_id":"","assignee_basis":"","priority":"medium","priority_basis":"","start_date":"","start_basis":"","due_date":"","due_basis":"","label_ids":[],"label_basis":"","goal":"G1","checklist":[],"excerpt":{"section":"S1","quote":"Q1"},"blocked_by_indexes":[0]}
+			]}`,
+			Model: "fake",
+		}, nil
+	}
+	e.aiMu.Unlock()
+
+	proposePath := fmt.Sprintf("/api/v1/workspaces/%s/drive-files/%s/task-proposals", e.wsID, fileID)
+	propRes, propOut := doJSON(t, e.srv, "POST", proposePath, e.ownerTk, map[string]any{"prompt": "Extract HTTP tasks"})
+	if propRes.StatusCode != http.StatusCreated {
+		t.Fatalf("POST task-proposals = %d %v, want 201", propRes.StatusCode, propOut)
+	}
+	proposalID := jsonStr(jsonMap(propOut, "proposal"), "id")
+	tasksPath := fmt.Sprintf("/api/v1/workspaces/%s/drive-task-proposals/%s/tasks", e.wsID, proposalID)
+
+	// 1. Cycle in blocked_by_indexes -> 422 parent_cycle.
+	if r, o := doJSON(t, e.srv, "POST", tasksPath, e.ownerTk, map[string]any{
+		"items": []any{
+			map[string]any{"index": 0, "title": "Cycle 0", "description": "D0", "blocked_by_indexes": []int{1}},
+			map[string]any{"index": 1, "title": "Cycle 1", "description": "D1", "blocked_by_indexes": []int{0}},
+		},
+	}); r.StatusCode != http.StatusUnprocessableEntity || jsonErrCode(o) != "parent_cycle" {
+		t.Fatalf("cycle POST tasks = %d %v, want 422 parent_cycle", r.StatusCode, o)
+	}
+
+	// 2. Reference to unselected index -> 400 invalid_request.
+	if r, o := doJSON(t, e.srv, "POST", tasksPath, e.ownerTk, map[string]any{
+		"items": []any{
+			map[string]any{"index": 1, "title": "Only 1", "description": "D1", "blocked_by_indexes": []int{0}},
+		},
+	}); r.StatusCode != http.StatusBadRequest || jsonErrCode(o) != "invalid_request" {
+		t.Fatalf("unselected blocked_by POST tasks = %d %v, want 400 invalid_request", r.StatusCode, o)
+	}
+
+	// 3. Duplicate refusal -> 409 active_duplicate_task with fields.item_indexes.
+	_ = e.createTask(t, e.ownerTk, "Existing Duplicate HTTP Task")
+	dupRes, dupOut := doJSON(t, e.srv, "POST", tasksPath, e.ownerTk, map[string]any{
+		"items": []any{
+			map[string]any{"index": 0, "title": "existing duplicate http task", "description": "D0"},
+			map[string]any{"index": 1, "title": "Fresh Task 1", "description": "D1"},
+		},
+	})
+	if dupRes.StatusCode != http.StatusConflict || jsonErrCode(dupOut) != "active_duplicate_task" {
+		t.Fatalf("duplicate POST tasks = %d %v, want 409 active_duplicate_task", dupRes.StatusCode, dupOut)
+	}
+	errFields := jsonMap(jsonMap(dupOut, "error"), "fields")
+	itemIndexes := jsonArray(errFields, "item_indexes")
+	if len(itemIndexes) != 1 || itemIndexes[0] != float64(0) {
+		t.Fatalf("active_duplicate_task fields.item_indexes = %v, want [0]", itemIndexes)
+	}
+
+	// 4. Successful batch create (with allow_duplicate: true on item 0 and blocked_by_indexes: [0] on item 1) -> 201 Created.
+	createRes, createOut := doJSON(t, e.srv, "POST", tasksPath, e.ownerTk, map[string]any{
+		"items": []any{
+			map[string]any{
+				"index":              0,
+				"title":              "Existing Duplicate HTTP Task",
+				"description":        "Confirmed body 0",
+				"priority":           "high",
+				"start_date":         "2026-10-27",
+				"due_date":           "2026-11-05",
+				"allow_duplicate":    true,
+				"blocked_by_indexes": []int{},
+			},
+			map[string]any{
+				"index":              1,
+				"title":              "Confirmed HTTP Task 1",
+				"description":        "Confirmed body 1",
+				"priority":           "medium",
+				"blocked_by_indexes": []int{0},
+			},
+		},
+	})
+	if createRes.StatusCode != http.StatusCreated {
+		t.Fatalf("POST tasks = %d %v, want 201", createRes.StatusCode, createOut)
+	}
+	var createdSDO sdo.DriveProposalTasksCreatedSDO
+	rawCreated, _ := json.Marshal(createOut)
+	if err := json.Unmarshal(rawCreated, &createdSDO); err != nil {
+		t.Fatalf("unmarshal DriveProposalTasksCreatedSDO: %v", err)
+	}
+	if len(createdSDO.TaskIDs) != 2 || len(createdSDO.Items) != 2 ||
+		createdSDO.Items[0].Index != 0 || createdSDO.Items[0].TaskID != createdSDO.TaskIDs[0] ||
+		createdSDO.Items[1].Index != 1 || createdSDO.Items[1].TaskID != createdSDO.TaskIDs[1] {
+		t.Fatalf("createdSDO = %+v", createdSDO)
+	}
+
+	// 5. Re-submitting the converted proposal -> 409 proposal_not_ready.
+	if r, o := doJSON(t, e.srv, "POST", tasksPath, e.ownerTk, map[string]any{
+		"items": []any{map[string]any{"index": 0, "title": "Retry", "description": "D"}},
+	}); r.StatusCode != http.StatusConflict || jsonErrCode(o) != sdo.DriveErrProposalNotReady {
+		t.Fatalf("second POST tasks = %d %v, want 409 proposal_not_ready", r.StatusCode, o)
+	}
+
+	// 6. Verify §8.8 on GET /drive-files/{id}, GET /drive-files, GET /tasks/{id}/drive-files, and next POST /task-proposals.
+	fileRes, fileOut := doJSON(t, e.srv, "GET", fmt.Sprintf("/api/v1/workspaces/%s/drive-files/%s", e.wsID, fileID), e.ownerTk, nil)
+	if fileRes.StatusCode != http.StatusOK {
+		t.Fatalf("GET drive-file = %d %v, want 200", fileRes.StatusCode, fileOut)
+	}
+	fileDTO := jsonMap(fileOut, "file")
+	tcSummary := jsonMap(fileDTO, "tasks_created")
+	if tcSummary["count"] != float64(2) || jsonStr(tcSummary, "last_created_at") == "" {
+		t.Fatalf("GET drive-file tasks_created = %v, want count=2 and last_created_at", tcSummary)
+	}
+	tcGroups := jsonArray(fileDTO, "task_creations")
+	if len(tcGroups) != 1 {
+		t.Fatalf("GET drive-file task_creations = %v, want 1 group", tcGroups)
+	}
+
+	taskCardsRes, taskCardsOut := doJSON(t, e.srv, "GET", fmt.Sprintf("/api/v1/tasks/%s/drive-files", createdSDO.TaskIDs[0]), e.ownerTk, nil)
+	if taskCardsRes.StatusCode != http.StatusOK {
+		t.Fatalf("GET task drive-files = %d %v, want 200", taskCardsRes.StatusCode, taskCardsOut)
+	}
+	cardList := jsonArray(taskCardsOut, "files")
+	if len(cardList) != 1 || jsonMap(cardList[0].(map[string]any), "tasks_created")["count"] != float64(2) {
+		t.Fatalf("GET task drive-files cards = %v, want 1 card with tasks_created.count=2", cardList)
+	}
+
+	// Next proposal on the same file includes prior_creations and tasks_created!
+	prop2Res, prop2Out := doJSON(t, e.srv, "POST", proposePath, e.ownerTk, map[string]any{})
+	if prop2Res.StatusCode != http.StatusCreated {
+		t.Fatalf("POST second task-proposals = %d %v, want 201", prop2Res.StatusCode, prop2Out)
+	}
+	prop2Obj := jsonMap(prop2Out, "proposal")
+	if jsonMap(prop2Obj, "tasks_created")["count"] != float64(2) || len(jsonArray(prop2Obj, "prior_creations")) != 1 {
+		t.Fatalf("second proposal prior_creations = %v / %v, want count=2 and 1 group", jsonMap(prop2Obj, "tasks_created"), jsonArray(prop2Obj, "prior_creations"))
+	}
+
+	// Mark access lost on fileID -> POST .../tasks on prop2 returns 409 drive_source_changed.
+	prop2ID := jsonStr(prop2Obj, "id")
+	_, _ = e.q.MarkDriveFileAccessLost(context.Background(), db.MarkDriveFileAccessLostParams{
+		OrganizationID: e.orgID,
+		WorkspaceID:    e.wsID,
+		DriveFileID:    fileID,
+		UserID:         e.ownerID,
+		ConnectionID:   ownerConn,
+	})
+	if r, o := doJSON(t, e.srv, "POST", fmt.Sprintf("/api/v1/workspaces/%s/drive-task-proposals/%s/tasks", e.wsID, prop2ID), e.ownerTk, map[string]any{
+		"items": []any{map[string]any{"index": 0, "title": "After access lost", "description": "D"}},
+	}); r.StatusCode != http.StatusConflict || jsonErrCode(o) != sdo.DriveErrSourceChanged {
+		t.Fatalf("POST tasks after access lost = %d %v, want 409 drive_source_changed", r.StatusCode, o)
+	}
+}
+
+func TestCreateTasksFromDriveProposalUnavailableAndBodyValidation(t *testing.T) {
+	t.Parallel()
+	h := &handlers{}
+
+	// 1. Nil DriveTaskProposals service -> 503 drive_unavailable.
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workspaces/w1/drive-task-proposals/p1/tasks", strings.NewReader(`{"items":[{"index":0,"title":"T","description":"D"}]}`))
+	h.CreateTasksFromDriveProposal(rec, req)
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), sdo.DriveErrUnavailable) {
+		t.Fatalf("nil service = %d %s, want 503 %s", rec.Code, rec.Body.String(), sdo.DriveErrUnavailable)
+	}
+
+	// 2. Malformed JSON with non-nil service -> 400 invalid_request via decode.
+	hWithSvc := &handlers{Deps: Deps{DriveTaskProposals: &service.DriveTaskProposalService{}}}
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/workspaces/w1/drive-task-proposals/p1/tasks", strings.NewReader(`{not-json`))
+	hWithSvc.CreateTasksFromDriveProposal(rec2, req2)
+	if rec2.Code != http.StatusBadRequest {
+		t.Fatalf("malformed JSON = %d %s, want 400", rec2.Code, rec2.Body.String())
+	}
+
+	// 3. toDriveProposalTasksCreatedSDO maps nil TaskIDs to empty slice [] and preserves 0-based index mappings.
+	sdoOut := toDriveProposalTasksCreatedSDO(service.CreateTasksFromProposalResult{
+		TaskIDs: nil,
+		Items: []service.CreatedDriveProposalTask{
+			{Index: 0, TaskID: "01TASK0"},
+			{Index: 3, TaskID: "01TASK3"},
+		},
+	})
+	if sdoOut.TaskIDs == nil || len(sdoOut.TaskIDs) != 0 || len(sdoOut.Items) != 2 || sdoOut.Items[1].Index != 3 || sdoOut.Items[1].TaskID != "01TASK3" {
+		t.Fatalf("toDriveProposalTasksCreatedSDO = %+v", sdoOut)
+	}
 }
