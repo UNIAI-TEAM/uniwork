@@ -92,6 +92,10 @@ type DesktopStartInput struct {
 	DeviceLabel         string
 	Platform            string
 	Build               string
+	// Provider is the optional sign-in the app's button asked for (google or
+	// apple, spec §3.5): the web page sends a signed-out person straight to
+	// that provider instead of the login form. Empty for older clients.
+	Provider string
 }
 
 type DesktopAttempt struct {
@@ -171,8 +175,13 @@ func (s *DesktopAuthService) Start(ctx context.Context, in DesktopStartInput) (D
 		return DesktopAttempt{}, err
 	}
 	// The attempt id is opaque and cannot approve or redeem anything. State and
-	// verifier stay in the native host; neither is copied into this URL.
-	return DesktopAttempt{ID: id, AuthorizationURL: strings.TrimRight(s.cfg.FrontendOrigin, "/") + "/auth/desktop/authorize?attempt_id=" + url.QueryEscape(id), ExpiresAt: expires}, nil
+	// verifier stay in the native host; neither is copied into this URL. The
+	// provider hint only picks the first screen; it grants nothing.
+	params := url.Values{"attempt_id": {id}}
+	if in.Provider != "" {
+		params.Set("provider", in.Provider)
+	}
+	return DesktopAttempt{ID: id, AuthorizationURL: strings.TrimRight(s.cfg.FrontendOrigin, "/") + "/auth/desktop/authorize?" + params.Encode(), ExpiresAt: expires}, nil
 }
 
 func (s *DesktopAuthService) Consent(ctx context.Context, userID, attemptID string) (DesktopConsent, error) {
@@ -813,7 +822,12 @@ func (s *DesktopAuthService) validateStart(in DesktopStartInput) error {
 	if !s.allowed(in.ClientID, in.RedirectURI, in.DeploymentID) || in.State == "" || in.CodeChallengeMethod != desktopPKCEChallengeMethod || !validChallenge(in.CodeChallenge) {
 		return Invalid("invalid desktop authorization request")
 	}
-	return nil
+	switch in.Provider {
+	case "", ProviderGoogle, ProviderApple:
+		return nil
+	default:
+		return Invalid("provider must be google or apple")
+	}
 }
 
 // allowed reports whether clientID is a configured client, redirectURI is one

@@ -97,7 +97,7 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 		sdo:         sdo.DesktopSessionSDO{},
 	})
 	v1.With(credentialLimit).Get("/auth/desktop/start", h.DesktopStart, apiOp{
-		summary: "Start desktop authorization", description: "Khởi tạo pending attempt PKCE; không phát code hoặc phê duyệt thiết bị.", tags: []string{"auth"}, sdi: sdi.DesktopStartSDI{}, sdo: sdo.DesktopStartSDO{},
+		summary: "Start desktop authorization", description: "Khởi tạo pending attempt PKCE; không phát code hoặc phê duyệt thiết bị. provider (google | apple, tuỳ chọn) được nối vào authorization_url để trang web đưa người chưa đăng nhập thẳng tới nhà cung cấp; giá trị khác → 400 invalid_request.", tags: []string{"auth"}, sdi: sdi.DesktopStartSDI{}, sdo: sdo.DesktopStartSDO{},
 	})
 	v1.With(credentialLimit).Post("/auth/desktop/exchange", h.DesktopExchange, apiOp{
 		summary: "Exchange desktop code", description: "Đổi authorization code một lần lấy phiên thiết bị và token xoay vòng.", tags: []string{"auth"}, sdi: sdi.DesktopExchangeSDI{}, sdo: sdo.DesktopSessionSDO{},

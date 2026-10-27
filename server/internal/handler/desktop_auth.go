@@ -32,7 +32,7 @@ func (h *handlers) desktopStart(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	a, err := h.DesktopAuth.Start(r.Context(), service.DesktopStartInput{
-		ClientID: q.Get("client_id"), CodeChallenge: q.Get("code_challenge"), CodeChallengeMethod: q.Get("code_challenge_method"), State: q.Get("state"), RedirectURI: q.Get("redirect_uri"), DeploymentID: q.Get("deployment_id"), DeviceLabel: q.Get("device_label"), Platform: q.Get("platform"), Build: q.Get("build"),
+		ClientID: q.Get("client_id"), CodeChallenge: q.Get("code_challenge"), CodeChallengeMethod: q.Get("code_challenge_method"), State: q.Get("state"), RedirectURI: q.Get("redirect_uri"), DeploymentID: q.Get("deployment_id"), DeviceLabel: q.Get("device_label"), Platform: q.Get("platform"), Build: q.Get("build"), Provider: q.Get("provider"),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)

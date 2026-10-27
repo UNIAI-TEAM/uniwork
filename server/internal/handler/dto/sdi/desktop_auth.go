@@ -14,6 +14,7 @@ type DesktopStartSDI struct {
 	DeviceLabel         string `query:"device_label" description:"Nhãn thiết bị đã sanitize, không phải định danh tài khoản" example:"Mai laptop"`
 	Platform            string `query:"platform" description:"Metadata nền tảng host, có giới hạn độ dài" example:"windows"`
 	Build               string `query:"build" description:"Metadata bản dựng desktop, có giới hạn độ dài" example:"1.0.0"`
+	Provider            string `query:"provider" enum:"google,apple" description:"Tuỳ chọn: nút nhà cung cấp người dùng bấm trong app (google hoặc apple); được nối vào authorization_url để trang web đưa người chưa đăng nhập thẳng tới nhà cung cấp; giá trị khác → 400 invalid_request" example:"apple"`
 }
 
 // DesktopExchangeSDI is POST /api/v1/auth/desktop/exchange. The verifier is
