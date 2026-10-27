@@ -25,6 +25,16 @@ function treeRowPaddingLeft(depth: number): number {
   return Math.min(8 + depth * 20, 120);
 }
 
+/**
+ * From this depth on, the star, share-scope badge and row menu stop taking
+ * width in the row: at the 224px row of a 240px sidebar the name keeps
+ * 168px - indent (80px at depth 4) instead of 132px - indent, and the slots
+ * appear as an overlay on hover, keyboard focus or an open menu. The indent
+ * step is untouched. On coarse pointers there is no hover, so the slots stay
+ * in the row there.
+ */
+const TREE_SLOT_OVERLAY_DEPTH = 2;
+
 interface TreeRowItemProps {
   wsId: string;
   row: TreeRow;
@@ -59,6 +69,7 @@ export function TreeRowItem({
   // is the wrong role inside a tree. Keyboard navigation is the tree's own.
   const { listeners } = drag;
   const label = (myFolder ? t("documents.home.my_folder.label") : row.node.title) || t("documents.detail.untitled");
+  const overlaySlots = row.depth >= TREE_SLOT_OVERLAY_DEPTH;
 
   return (
     <div
@@ -97,8 +108,9 @@ export function TreeRowItem({
         onOpen();
       }}
       className={cn(
-        "group/row flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-body",
+        "group/row relative flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-body",
         "pointer-coarse:min-h-11",
+        overlaySlots && "pr-1 pointer-coarse:pr-2",
         "hover:bg-accent/60",
         (focused || current) && "bg-accent",
         current && "font-medium",
@@ -142,26 +154,57 @@ export function TreeRowItem({
         )}
       </span>
       <span title={label} className="min-w-0 flex-1 truncate">{label}</span>
-      {starred ? (
-        <Star role="img" aria-label={t("documents.home.row.starred")} className="ml-1 size-3.5 shrink-0 fill-current text-brand" />
-      ) : null}
-      <DocumentShareScopeBadge
-        shareScope={row.node.kind === "folder" ? null : (shareScope ?? row.node.share_scope)}
-        compact
-        focusable={false}
-        className="ml-1"
-      />
-      <DocumentTreeRowMenu
-        wsId={wsId}
-        node={row.node}
-        focused={focused}
-        starred={starred}
-        open={menuOpen}
-        onOpenChange={setMenuOpen}
-        onOpen={onOpen}
-        actions={menuActions}
-      />
+      <TreeRowTrailing overlay={overlaySlots} revealed={focused || menuOpen}>
+        {starred ? (
+          <Star
+            role="img"
+            aria-label={t("documents.home.row.starred")}
+            className={cn("size-3.5 shrink-0 fill-current text-brand", !overlaySlots && "ml-1")}
+          />
+        ) : null}
+        <DocumentShareScopeBadge
+          shareScope={row.node.kind === "folder" ? null : (shareScope ?? row.node.share_scope)}
+          compact
+          focusable={false}
+          className={overlaySlots ? undefined : "ml-1"}
+        />
+        <DocumentTreeRowMenu
+          wsId={wsId}
+          node={row.node}
+          focused={focused}
+          starred={starred}
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          onOpen={onOpen}
+          actions={menuActions}
+        />
+      </TreeRowTrailing>
       {moving ? <span className="sr-only">{t("documents.tree.moving")}</span> : null}
     </div>
+  );
+}
+
+/**
+ * The row's trailing slots. In a deep row they are an absolutely positioned
+ * overlay (no width in the flex row) that shows on hover, focus within, the
+ * roving-focus row or an open menu; children stay in the accessibility tree.
+ */
+function TreeRowTrailing({
+  overlay, revealed, children,
+}: { overlay: boolean; revealed: boolean; children: React.ReactNode }) {
+  if (!overlay) return <>{children}</>;
+  return (
+    <span
+      data-row-trailing
+      className={cn(
+        "pointer-events-none absolute inset-y-0 right-1 z-10 flex items-center gap-1 rounded-md bg-accent pl-1 opacity-0 transition-opacity",
+        "group-hover/row:pointer-events-auto group-hover/row:opacity-100",
+        "group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100",
+        revealed && "pointer-events-auto opacity-100",
+        "pointer-coarse:pointer-events-auto pointer-coarse:static pointer-coarse:bg-transparent pointer-coarse:pl-0 pointer-coarse:opacity-100",
+      )}
+    >
+      {children}
+    </span>
   );
 }
