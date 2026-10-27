@@ -81,9 +81,10 @@ UPDATE desktop_auth_attempts SET cancelled_at = now()
 WHERE user_id = $1 AND used_at IS NULL AND cancelled_at IS NULL
 `
 
-// An account taken back by the owner of its mailbox (ADR 0047): every attempt
-// the previous holder claimed or approved and nobody redeemed yet dies, so an
-// approved code cannot open a device session after the reclaim.
+// An account taken back by the owner of its mailbox, or whose password a reset
+// link replaced (ADR 0047): every attempt claimed or approved before and
+// nobody redeemed yet dies, so an approved code cannot open a device session
+// after the reclaim or the reset.
 func (q *Queries) CancelOpenDesktopAuthAttemptsForUser(ctx context.Context, userID pgtype.Text) (int64, error) {
 	result, err := q.db.Exec(ctx, cancelOpenDesktopAuthAttemptsForUser, userID)
 	if err != nil {

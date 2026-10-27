@@ -427,6 +427,12 @@ Mọi route: công khai, `Cache-Control: no-store`, ⚑ chỉ nhận `client_id`
   mọi request; helper `requireCurrentCredentials` đọc hàng `users` của chính chủ token. Token native không xét ở đây
   (thu hồi thì phiên thiết bị chết, middleware đã chặn); không có token trong context (job, test gọi thẳng service) thì
   không có gì để xét. Đồng ý desktop và MCP dùng nó từ lát 1.
+- ⚑ (phản biện lát 5) Link reset trên tài khoản đã xác minh cũng đánh dấu `credentials_revoked_at` (trước khi đặt mật
+  khẩu, nên phiên reset cấp mang dấu) và huỷ lượt đồng ý desktop/MCP đang mở (kể cả đã duyệt mà chưa đổi mã), đếm vào
+  audit `auth.session_revoked {reason:"password_reset", desktop_attempts_cancelled, mcp_attempts_cancelled}`. Đồng ý
+  desktop/MCP còn đòi phiên của bearer còn sống (`requireLiveBearer`): access token của phiên đã đăng xuất, bị "đăng
+  xuất phiên khác", đổi mật khẩu, reset hay thu hồi không đổi được phút cuối thành phiên thiết bị hay grant.
+  `TestAResetLinkEndsWhatTheOldPasswordLetIn`.
 - Lát 3 (server): `step_up.go` là chỗ duy nhất kiểm bằng chứng của người đã đăng nhập, gồm cả bằng chứng cũ app đã
   phát hành gửi. Token là blob `step_up` `{uid, sid, web, method, iat, exp}`; không tiêu khi dùng (một token dùng cho
   mọi lệnh trong 10 phút). Bằng chứng sai đếm vào `second_factor_failures` như MFA (`weighProof`); provider token sai

@@ -56,3 +56,24 @@ func requireCurrentCredentials(ctx context.Context, q *db.Queries) error {
 	}
 	return nil
 }
+
+// requireLiveBearer is requireCurrentCredentials for a command that hands
+// out a session of its own — desktop and MCP consent: the bearer's session
+// must also still be live (liveBearerSession, 401 invalid_token), so the
+// last minutes of an access token whose session was signed out or revoked
+// (sign out other sessions, a password change or reset, a reclaim) cannot
+// buy a device session or a grant that outlives it. Without a token on the
+// context there is nothing to judge, nor in a token that names no session:
+// nothing mints one any more (every sign-in names its session), and the
+// bearer middleware lets the shape through as it always has.
+func requireLiveBearer(ctx context.Context, q *db.Queries) error {
+	if err := requireCurrentCredentials(ctx, q); err != nil {
+		return err
+	}
+	at, ok := auth.AccessTokenFrom(ctx)
+	if !ok || at.SessionID == "" {
+		return nil
+	}
+	_, err := liveBearerSession(ctx, q, at)
+	return err
+}

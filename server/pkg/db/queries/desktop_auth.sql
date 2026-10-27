@@ -28,9 +28,10 @@ UPDATE desktop_auth_attempts SET cancelled_at = now()
 WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND cancelled_at IS NULL AND expires_at > now();
 
 -- name: CancelOpenDesktopAuthAttemptsForUser :execrows
--- An account taken back by the owner of its mailbox (ADR 0047): every attempt
--- the previous holder claimed or approved and nobody redeemed yet dies, so an
--- approved code cannot open a device session after the reclaim.
+-- An account taken back by the owner of its mailbox, or whose password a reset
+-- link replaced (ADR 0047): every attempt claimed or approved before and
+-- nobody redeemed yet dies, so an approved code cannot open a device session
+-- after the reclaim or the reset.
 UPDATE desktop_auth_attempts SET cancelled_at = now()
 WHERE user_id = $1 AND used_at IS NULL AND cancelled_at IS NULL;
 

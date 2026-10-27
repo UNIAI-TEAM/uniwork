@@ -126,10 +126,13 @@ func (s *PasswordResetService) Request(ctx context.Context, email string) error 
 
 // Reset sets the password, burns the token, revokes every refresh token and
 // every MCP grant (Ruling 49: an AI app connected by whoever held the old
-// password must not outlive it) and returns a fresh session so the user lands
-// in the app. On an account that had no password the link sets its first
-// one: auth.password_set instead of auth.password_changed, both via
-// reset_token.
+// password must not outlive it), cancels every desktop and MCP consent still
+// open (one approved by whoever held the old password must not be redeemed
+// after it), marks credentials_revoked_at so the sensitive commands refuse a
+// browser token issued before (ADR 0047 §5), and returns a fresh session so
+// the user lands in the app. On an account that had no password the link
+// sets its first one: auth.password_set instead of auth.password_changed,
+// both via reset_token.
 //
 // On an account that never proved its address the link is the first proof
 // of the mailbox, so the reset takes the account back (ADR 0047 §2, spec
@@ -178,6 +181,11 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	if !locked.EmailVerifiedAt.Valid {
 		return s.resetReclaim(ctx, tx, qtx, t.UserID, hash, action)
 	}
+	// Marked before the password is set, so the row SetUserPassword returns
+	// (and the session below is opened on) already carries the mark.
+	if err := qtx.MarkCredentialsRevoked(ctx, t.UserID); err != nil {
+		return Session{}, err
+	}
 	u, err := qtx.SetUserPassword(ctx, db.SetUserPasswordParams{ID: t.UserID, PasswordHash: pgtype.Text{String: hash, Valid: true}})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, ErrInvalidToken
@@ -193,9 +201,17 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	if err != nil {
 		return Session{}, err
 	}
+	desktopAttempts, err := qtx.CancelOpenDesktopAuthAttemptsForUser(ctx, pgtype.Text{String: t.UserID, Valid: true})
+	if err != nil {
+		return Session{}, err
+	}
+	mcpAttempts, err := qtx.CancelOpenMcpAuthAttemptsForUser(ctx, pgtype.Text{String: t.UserID, Valid: true})
+	if err != nil {
+		return Session{}, err
+	}
 	// One command, two audited facts: the password changed and every existing
-	// session died with it, MCP grants included (counted on the revocation
-	// row, not one mcp_grant.revoked row each). A reader of the log should not
+	// session died with it, MCP grants and open consents included (counted on
+	// the revocation row, not one row each). A reader of the log should not
 	// have to know that the second follows from the first.
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: audit.NoOrganization,
@@ -211,7 +227,10 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 		Actor:          audit.User(t.UserID),
 		Action:         audit.ActionAuthSessionRevoked,
 		ResourceType:   "user", ResourceID: t.UserID,
-		Metadata: map[string]any{"scope": "all", "reason": "password_reset", "mcp_grants_revoked": mcpGrants},
+		Metadata: map[string]any{
+			"scope": "all", "reason": "password_reset", "mcp_grants_revoked": mcpGrants,
+			"desktop_attempts_cancelled": desktopAttempts, "mcp_attempts_cancelled": mcpAttempts,
+		},
 	}, sessionRevoked(t.UserID, "")); err != nil {
 		return Session{}, err
 	}

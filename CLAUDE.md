@@ -623,12 +623,13 @@ database and never reveal whether an id exists to a non-member.
   one in a row locks the factor 15 minutes and mails the owner, and while locked nothing is checked (429
   `second_factor_locked`, `retry_after`). An account that never verified its address cannot enrol, and a reset
   link on such an account takes it back like a provider that owns the address. Desktop and MCP consent refuse a
-  browser token issued before `users.credentials_revoked_at` (401 `invalid_token`; the bearer middleware puts the
-  verified token, `iat` included, on the context). `TestMFAChallengeIsBoundToItsChannel`,
+  browser token issued before `users.credentials_revoked_at`, and any token whose session has ended (401
+  `invalid_token`; the bearer middleware puts the verified token, `iat` included, on the context); a reset link marks
+  the column and cancels the consents still open, like a reclaim. `TestMFAChallengeIsBoundToItsChannel`,
   `TestAChallengeDiesWithTheFirstFactorItFollowed`,
   `TestLinkWaitsForTheSecondFactor`, `TestSecondFactorLocksAfterTenFailures`,
-  `TestUnverifiedAccountsCannotEnrolMFAOrLink`, `TestAResetLinkReclaimsAnUnverifiedAccount` and
-  `TestCredentialsRevokedAtRefusesOlderWebTokens` hold it.
+  `TestUnverifiedAccountsCannotEnrolMFAOrLink`, `TestAResetLinkReclaimsAnUnverifiedAccount`,
+  `TestAResetLinkEndsWhatTheOldPasswordLetIn` and `TestCredentialsRevokedAtRefusesOlderWebTokens` hold it.
 - Every change to how an account signs in, and every command its owner cannot undo alone, takes a step-up token
   (ADR 0047 §5): setting or changing the password, linking or unlinking a provider, turning the second factor on,
   deleting the account, handing an organization over (transfer, the invitation switch). `POST /me/step-up` in
