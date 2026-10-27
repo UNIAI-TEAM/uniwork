@@ -1625,6 +1625,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-2225: the template pair, on a workspace file.
+		audit.ActionDocumentTemplateMarked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			if _, err := svc.MarkDocumentTemplate(f.ctx, Human(f.owner.ID), docID, MarkDocumentTemplateInput{WidenToWorkspace: true}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentTemplateUnmarked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			if _, err := svc.MarkDocumentTemplate(f.ctx, Human(f.owner.ID), docID, MarkDocumentTemplateInput{WidenToWorkspace: true}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UnmarkDocumentTemplate(f.ctx, Human(f.owner.ID), docID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// ARCHIVE-01 (UNI-1845): the shelve pair.
 		audit.ActionDocumentShelved: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
@@ -2566,6 +2582,8 @@ func auditActions() []string {
 		audit.ActionDocumentRestored,
 		audit.ActionDocumentShelved,
 		audit.ActionDocumentUnshelved,
+		audit.ActionDocumentTemplateMarked,
+		audit.ActionDocumentTemplateUnmarked,
 		audit.ActionDocumentDeleted,
 		audit.ActionDocumentVersionsCompacted,
 		audit.ActionDocumentAssetPurged,

@@ -12,7 +12,7 @@ import (
 )
 
 const listArchivedDocumentsPage = `-- name: ListArchivedDocumentsPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind,
        sk.name_key AS sort_name, sk.size_key AS sort_size,
        sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
        sk.ts_key AS sort_at
@@ -334,6 +334,9 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 			&i.Document.ShelvedBy,
 			&i.Document.ShelvedByKind,
 			&i.Document.ShelveBatchID,
+			&i.Document.TemplateMarkedAt,
+			&i.Document.TemplateMarkedBy,
+			&i.Document.TemplateMarkedByKind,
 			&i.SortName,
 			&i.SortSize,
 			&i.SortEditor,
@@ -431,7 +434,7 @@ func (q *Queries) ListDocumentAncestors(ctx context.Context, arg ListDocumentAnc
 }
 
 const listDocumentsByIDs = `-- name: ListDocumentsByIDs :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind
 FROM documents d
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
@@ -503,6 +506,9 @@ func (q *Queries) ListDocumentsByIDs(ctx context.Context, arg ListDocumentsByIDs
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 		); err != nil {
 			return nil, err
 		}
@@ -515,7 +521,7 @@ func (q *Queries) ListDocumentsByIDs(ctx context.Context, arg ListDocumentsByIDs
 }
 
 const listDocumentsByParentPage = `-- name: ListDocumentsByParentPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind,
        sk.name_key AS sort_name, sk.size_key AS sort_size,
        sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
 FROM documents d
@@ -905,6 +911,9 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 			&i.Document.ShelvedBy,
 			&i.Document.ShelvedByKind,
 			&i.Document.ShelveBatchID,
+			&i.Document.TemplateMarkedAt,
+			&i.Document.TemplateMarkedBy,
+			&i.Document.TemplateMarkedByKind,
 			&i.SortName,
 			&i.SortSize,
 			&i.SortEditor,
@@ -922,7 +931,7 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 
 const listDocumentsPage = `-- name: ListDocumentsPage :many
 
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind,
        COALESCE(CASE WHEN $1::text IS NULL THEN NULL::text
                      WHEN NOT (NOT $2::boolean
                  OR d.visibility <> 'restricted'
@@ -1314,6 +1323,9 @@ type ListDocumentsPageRow struct {
 	ShelvedBy            pgtype.Text        `json:"shelved_by"`
 	ShelvedByKind        pgtype.Text        `json:"shelved_by_kind"`
 	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
+	TemplateMarkedAt     pgtype.Timestamptz `json:"template_marked_at"`
+	TemplateMarkedBy     pgtype.Text        `json:"template_marked_by"`
+	TemplateMarkedByKind pgtype.Text        `json:"template_marked_by_kind"`
 	Snippet              string             `json:"snippet"`
 	SortName             string             `json:"sort_name"`
 	SortSize             int64              `json:"sort_size"`
@@ -1478,6 +1490,9 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 			&i.Snippet,
 			&i.SortName,
 			&i.SortSize,
@@ -1585,7 +1600,7 @@ func (q *Queries) ListFoldersHoldingReadableDocuments(ctx context.Context, arg L
 }
 
 const listRecentDocumentsPage = `-- name: ListRecentDocumentsPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind,
        sk.name_key AS sort_name, sk.size_key AS sort_size,
        sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
        sk.ts_key AS sort_at, act.kind AS activity_kind, act.last_at AS activity_at
@@ -1925,6 +1940,9 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 			&i.Document.ShelvedBy,
 			&i.Document.ShelvedByKind,
 			&i.Document.ShelveBatchID,
+			&i.Document.TemplateMarkedAt,
+			&i.Document.TemplateMarkedBy,
+			&i.Document.TemplateMarkedByKind,
 			&i.SortName,
 			&i.SortSize,
 			&i.SortEditor,
@@ -1944,7 +1962,7 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 }
 
 const listShelvedDocumentsPage = `-- name: ListShelvedDocumentsPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind,
        sk.name_key AS sort_name, sk.size_key AS sort_size,
        sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
        sk.ts_key AS sort_at
@@ -2315,6 +2333,9 @@ func (q *Queries) ListShelvedDocumentsPage(ctx context.Context, arg ListShelvedD
 			&i.Document.ShelvedBy,
 			&i.Document.ShelvedByKind,
 			&i.Document.ShelveBatchID,
+			&i.Document.TemplateMarkedAt,
+			&i.Document.TemplateMarkedBy,
+			&i.Document.TemplateMarkedByKind,
 			&i.SortName,
 			&i.SortSize,
 			&i.SortEditor,
@@ -2332,7 +2353,7 @@ func (q *Queries) ListShelvedDocumentsPage(ctx context.Context, arg ListShelvedD
 }
 
 const listTreeDocuments = `-- name: ListTreeDocuments :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind
 FROM documents d
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
@@ -2454,6 +2475,9 @@ func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsPa
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 		); err != nil {
 			return nil, err
 		}
