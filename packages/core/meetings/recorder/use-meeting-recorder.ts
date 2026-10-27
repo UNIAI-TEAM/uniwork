@@ -1,9 +1,9 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { createMeetingRecorder, type MeetingRecorder, type RecorderState } from "./recorder";
-import { openRecordingStore, type RecordingPart, type RecordingStore } from "./store";
+import { isLivePart, openRecordingStore, type RecordingPart, type RecordingStore } from "./store";
 
 let sharedStore: RecordingStore | null = null;
 export function defaultStore(): RecordingStore {
@@ -116,23 +116,41 @@ export function useMeetingRecorder(opts: {
   return { recorder, state, activeMs: recorder.activeMs(), wakeLockHeld };
 }
 
-/** The recordings still on this device for the account (and meeting), oldest first. */
+/**
+ * The recordings still on this device for the account (and meeting), oldest first. `seconds`,
+ * `savedAt` and `discard` leave out a part another tab is still writing (`isLivePart`); while one
+ * is, the list is read again every 5 s, so it settles once that tab stops.
+ */
 export function useUnsentRecordings(userId: string | undefined, meetingId?: string, store?: RecordingStore): {
   parts: RecordingPart[];
+  /** Recorded seconds of the parts no tab is writing. */
   seconds: number;
+  /** The last save of the parts no tab is writing; null when there are none. */
   savedAt: number | null;
   /** The device store has not answered yet: `parts` is not known to be empty. */
   isPending: boolean;
-  refresh: () => void;
+  /** Reads the device again; resolves with every part. */
+  refresh: () => Promise<RecordingPart[]>;
+  /** Deletes the parts no tab is writing, then reads the device again. */
+  discard: () => Promise<void>;
 } {
-  const queryClient = useQueryClient();
-  const queryKey = ["meeting-recordings-local", userId, meetingId];
-  const { data: parts = [], isPending } = useQuery({
-    queryKey,
+  const { data: parts = [], isPending, refetch } = useQuery({
+    queryKey: ["meeting-recordings-local", userId, meetingId],
     queryFn: () => (store ?? defaultStore()).listParts(userId!, meetingId),
     enabled: userId !== undefined,
+    // The device, not the network: always read it afresh (another screen of this tab may have written it).
+    staleTime: 0,
+    refetchInterval: (query) => (query.state.data?.some((p) => isLivePart(p, Date.now())) ? 5_000 : false),
   });
-  const seconds = parts.reduce((sum, p) => sum + ((p.endedAt ?? p.lastChunkAt) - p.startedAt) / 1000, 0);
-  const savedAt = parts.length ? Math.max(...parts.map((p) => p.lastChunkAt)) : null;
-  return { parts, seconds, savedAt, isPending, refresh: () => void queryClient.invalidateQueries({ queryKey }) };
+  const now = Date.now();
+  const settled = parts.filter((p) => !isLivePart(p, now));
+  const seconds = settled.reduce((sum, p) => sum + ((p.endedAt ?? p.lastChunkAt) - p.startedAt) / 1000, 0);
+  const savedAt = settled.length ? Math.max(...settled.map((p) => p.lastChunkAt)) : null;
+  const refresh = async () => (userId === undefined ? [] : ((await refetch()).data ?? []));
+  const discard = async () => {
+    const target = store ?? defaultStore();
+    await Promise.all(settled.map((p) => target.deletePart(p.id)));
+    await refresh();
+  };
+  return { parts, seconds, savedAt, isPending, refresh, discard };
 }

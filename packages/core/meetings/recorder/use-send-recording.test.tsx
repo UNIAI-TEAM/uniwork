@@ -331,6 +331,22 @@ describe("useSendRecording", () => {
     expect(open.body).toMatchObject({ filename: `ghi-am-p-${run}.webm`, duration_seconds: 61 });
   });
 
+  it("send skips a part another tab is still writing", async () => {
+    const store = memoryRecordingStore();
+    await twoParts(store);
+    run += 1;
+    // Another tab's part: open, its last chunk saved a moment ago.
+    const now = Date.now();
+    await store.createPart({ id: `live-${run}`, userId: "u1", meetingId: "m1", startedAt: now - 60_000, lastChunkAt: now - 2_000, endedAt: null, mimeType: "audio/webm", bytes: 0, language: "vi", offsetSeconds: 0 });
+    const server = fakeServer();
+    const { result } = renderSend(store, "ENDED");
+    await act(() => result.current.send());
+
+    expect(result.current.phase).toBe("done");
+    expect(server.calls.filter((c) => c.path.endsWith("/transcriptions"))).toHaveLength(2);
+    expect((await store.listParts("u1", "m1")).map((p) => p.id)).toEqual([`live-${run}`]);
+  });
+
   it("stop leaves the parts on the device", async () => {
     const store = memoryRecordingStore();
     await twoParts(store);

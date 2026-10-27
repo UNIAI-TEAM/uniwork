@@ -86,9 +86,31 @@ describe("useUnsentRecordings", () => {
     expect(result.current.savedAt).toBe(120_000);
 
     await store.deletePart("a");
-    result.current.refresh();
+    await result.current.refresh();
     await waitFor(() => expect(result.current.parts).toHaveLength(1));
     expect(result.current.seconds).toBe(30);
+  });
+
+  it("leaves out a part another tab is still writing, and discards only the rest", async () => {
+    const store = memoryRecordingStore();
+    const now = Date.now();
+    await store.createPart(part({ id: "a", startedAt: now - 600_000, lastChunkAt: now - 540_000, endedAt: now - 540_000 }));
+    // Open but quiet for 20 s: the tab that wrote it is gone.
+    await store.createPart(part({ id: "b", startedAt: now - 500_000, lastChunkAt: now - 20_000 }));
+    // Open and written 3 s ago: another tab is recording it.
+    await store.createPart(part({ id: "c", startedAt: now - 10_000, lastChunkAt: now - 3_000 }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
+
+    const { result } = renderHook(() => useUnsentRecordings("u1", "m1", store), { wrapper });
+    await waitFor(() => expect(result.current.parts).toHaveLength(3));
+    expect(result.current.seconds).toBe(540);
+    expect(result.current.savedAt).toBe(now - 20_000);
+
+    await result.current.discard();
+    expect((await store.listParts("u1", "m1")).map((p) => p.id)).toEqual(["c"]);
+    await waitFor(() => expect(result.current.parts.map((p) => p.id)).toEqual(["c"]));
+    expect(result.current.savedAt).toBeNull();
   });
 
   it("has nothing without a user", () => {

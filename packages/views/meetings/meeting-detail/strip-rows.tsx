@@ -15,7 +15,7 @@ import { ScheduleFollowUpButton } from "../schedule-follow-up-button";
 import { dueWords } from "./close-out/action-item-row";
 import { useDetail } from "./detail-context";
 import { clock, dayWord, shortDay, untilWords } from "./format";
-import { NameSpeakersButton, TranscribingRow } from "./in-person-rows";
+import { NameSpeakersButton, TranscribingRow, UnsentRow } from "./in-person-rows";
 import type { StripJob } from "./next-step-jobs";
 import { PhonePrimary, usePhoneBar } from "./phone-frame";
 import { kitButton } from "./ui/kit-buttons";
@@ -467,6 +467,8 @@ export function StripJobRow({ job, handlers }: { job: StripJob; handlers: StripH
       return <MemberItemsRow job={job} h={handlers} />;
     case "transcribing":
       return <TranscribingRow job={job} h={handlers} />;
+    case "unsent":
+      return <UnsentRow job={job} h={handlers} />;
     case "outsider":
       return <OutsiderRow />;
     default:

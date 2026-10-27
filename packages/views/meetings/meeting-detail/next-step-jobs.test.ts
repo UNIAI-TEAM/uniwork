@@ -140,6 +140,32 @@ describe("nextStepJobs", () => {
     });
   });
 
+  describe("a recording left on this device (UNI-2247)", () => {
+    const unsent = { seconds: 2112, savedAt: 1_000 };
+
+    it("comes first, and before the start it is the only row", () => {
+      expect(nextStepJobs({ ...base, inPerson: true, canRecord: true, unsent })).toEqual([
+        { kind: "unsent", seconds: 2112, savedAt: 1_000, canContinue: true, canSend: true },
+      ]);
+      expect(nextStepJobs({ ...base, viewer: "member", canHost: false, hasInvitation: true, unsent })).toEqual([
+        expect.objectContaining({ kind: "unsent" }),
+      ]);
+      const ended = nextStepJobs({ ...base, status: "ENDED", inPerson: true, minutes: "none", unsent });
+      expect(ended.map((j) => j.kind)).toEqual(["unsent", "closeOut"]);
+    });
+
+    it("continues only while the meeting is open, and sends unless it was called off", () => {
+      const of = (status: StripInput["status"]) => nextStepJobs({ ...base, status, inPerson: true, unsent })[0];
+      expect(of("MISSED")).toMatchObject({ kind: "unsent", canContinue: true, canSend: true });
+      expect(of("ENDED")).toMatchObject({ kind: "unsent", canContinue: false, canSend: true });
+      expect(of("CANCELED")).toMatchObject({ kind: "unsent", canContinue: false, canSend: false });
+    });
+
+    it("draws nothing without one", () => {
+      expect(nextStepJobs({ ...base, unsent: null })[0]).toMatchObject({ kind: "start" });
+    });
+  });
+
   it("tells a member their own items: assigned, waiting and the nearest due", () => {
     const items = [
       item({ title: "A", status: "CONVERTED", task: { assignee_id: "u-minh", due_date: "2026-11-05" } }),

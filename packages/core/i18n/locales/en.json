@@ -3929,7 +3929,16 @@
       "summarySteps": "Recording received ✓ · Transcript · Summary and suggested items",
       "unnamedSpeakers_one": "{{count}} speaker without a name",
       "unnamedSpeakers_other": "{{count}} speakers without a name",
-      "unnamedHint": "Name them so the transcript, summary and minutes credit the right people."
+      "unnamedHint": "Name them so the transcript, summary and minutes credit the right people.",
+      "unsentTitle": "A {{duration}} recording is still unsent on this device",
+      "unsentSub": "Saved at {{time}} · only you see it on this device",
+      "deleteLocal": "Delete the recording on this device…",
+      "deleteLocalConfirm": "Delete this recording from the device? It cannot be recovered.",
+      "logoutTitle_one": "{{count}} recording not sent yet",
+      "logoutTitle_other": "{{count}} recordings not sent yet",
+      "logoutBody": "The recordings stay on this device. Sign in again to send them.",
+      "logoutAnyway": "Sign out anyway",
+      "stay": "Stay"
     },
     "startRecording": "Start recording",
     "stopRecording": "Stop recording",

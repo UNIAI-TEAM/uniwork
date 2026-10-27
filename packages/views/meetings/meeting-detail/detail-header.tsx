@@ -87,11 +87,14 @@ function clockTail(meeting: Meeting, status: DetailStatus, shown: { startsAt: st
 export function DetailHeader({
   meeting: source,
   status,
+  statusOverride,
   now: nowMs,
   menu,
 }: {
   meeting: Meeting;
   status: DetailStatus;
+  /** What the pill says instead of `status`, which still decides the clock line. */
+  statusOverride?: DetailStatus;
   now: number;
   menu?: React.ReactNode;
 }) {
@@ -133,7 +136,7 @@ export function DetailHeader({
         {menu ? <div className="-mt-0.75 flex flex-none gap-2">{menu}</div> : null}
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-body text-muted-foreground *:inline-flex *:items-center *:gap-1.5 [&_svg]:size-3.5 [&_svg]:shrink-0 @max-[37.5rem]/meeting:gap-x-3 @max-[37.5rem]/meeting:gap-y-1.5 @max-[37.5rem]/meeting:text-caption">
-        <MeetingStatusPill status={status} minutes={pillTime || undefined} />
+        <MeetingStatusPill status={statusOverride ?? status} minutes={statusOverride ? undefined : pillTime || undefined} />
         {meetingVenue(meeting) === "in_person" ? <MeetingVenuePill /> : null}
         <span>
           <Calendar aria-hidden />

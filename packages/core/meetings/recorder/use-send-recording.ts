@@ -7,7 +7,7 @@ import { ApiError, errorCode } from "../../api/http";
 import type { Meeting } from "../../types/meeting";
 import { meetingKeys } from "../hooks";
 import { useRecordMeetingHeld, useUploadMeetingRecording } from "../transcription-hooks";
-import type { RecordingPart, RecordingStore } from "./store";
+import { isLivePart, type RecordingPart, type RecordingStore } from "./store";
 import { defaultStore } from "./use-meeting-recorder";
 
 export type SendPhase = "idle" | "holding" | "uploading" | "waiting" | "failed" | "done";
@@ -87,7 +87,9 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
     stopped.current = false;
     setError(null);
     try {
-      const parts = await store.listParts(userId, meeting.id);
+      // Never a part another tab is still writing: it would be cut short and deleted under that tab.
+      const now = Date.now();
+      const parts = (await store.listParts(userId, meeting.id)).filter((p) => !isLivePart(p, now));
       setTotals({
         doneBytes: sent.current.bytes,
         totalBytes: sent.current.bytes + parts.reduce((sum, p) => sum + p.bytes, 0),

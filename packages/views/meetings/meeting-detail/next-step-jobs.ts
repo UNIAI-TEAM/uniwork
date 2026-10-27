@@ -45,6 +45,11 @@ export type StripJob =
     }
   /** In person, after the recording was sent: Thư ký UNI is transcribing it (UNI-2247). */
   | { kind: "transcribing"; minutes: number; etaMinutes: number }
+  /**
+   * This account's recording still on this device (UNI-2247, board p11), ahead of every other row:
+   * continued while the meeting is open, sent unless it was called off, deleted always.
+   */
+  | { kind: "unsent"; seconds: number; savedAt: number; canContinue: boolean; canSend: boolean }
   /** After the end, a member's own items. */
   | { kind: "memberItems"; mine: number; assigned: number; waiting: number; nearest: { title: string; due: string } | null };
 
@@ -76,6 +81,8 @@ export type StripInput = {
   transcribing?: Transcribing | null;
   /** In person: speaker labels with neither a member nor a name. */
   unnamedSpeakers?: number;
+  /** This account's recording on this device that no tab is still writing; null when there is none. */
+  unsent?: { seconds: number; savedAt: number } | null;
 };
 
 /** The recording's length and what of it is still being transcribed, in seconds. */
@@ -144,6 +151,20 @@ function memberItems(input: StripInput): StripJob | null {
 
 /** The strip's rows, in reading order, before the cap. */
 export function nextStepJobs(input: StripInput): StripJob[] {
+  const jobs = stateJobs(input);
+  const { unsent, status } = input;
+  if (!unsent) return jobs;
+  const job: StripJob = {
+    kind: "unsent",
+    ...unsent,
+    canContinue: status !== "ENDED" && status !== "CANCELED",
+    canSend: status !== "CANCELED",
+  };
+  // Before the start, the recording is the meeting: when it starts and who has not answered say nothing more (board p11).
+  return [job, ...(status === "SCHEDULED" ? [] : jobs)];
+}
+
+function stateJobs(input: StripInput): StripJob[] {
   const { status, viewer } = input;
   const live = status === "IN_PROGRESS" || status === "OVERTIME";
   if (viewer === "outsider" && (live || status === "ENDED")) return [{ kind: "outsider" }];

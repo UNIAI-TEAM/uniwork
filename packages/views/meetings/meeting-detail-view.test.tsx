@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import { meetingKeys } from "@uniwork/core/meetings";
+import { memoryRecordingStore, type RecordingPart, type RecordingStore } from "@uniwork/core/meetings/recorder";
 import { toast } from "sonner";
 import type { NavigationAdapter } from "../navigation";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -23,6 +24,16 @@ import {
 } from "./meeting-detail/test-fixtures";
 
 initI18n();
+
+// The page reads this device's recordings from the shared store; each test hands it a fresh one.
+const device = vi.hoisted(() => ({ store: undefined as RecordingStore | undefined }));
+vi.mock("@uniwork/core/meetings/recorder", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@uniwork/core/meetings/recorder")>();
+  return {
+    ...actual,
+    useUnsentRecordings: (userId: string | undefined, meetingId?: string) => actual.useUnsentRecordings(userId, meetingId, device.store),
+  };
+});
 
 const MINUTES_ON = { "/api/v1/config": { flags: { office_engine: false, meeting_minutes: true } } };
 
@@ -73,6 +84,7 @@ const strip = async () => screen.findByRole("region", { name: /Việc tiếp the
 
 beforeEach(() => {
   requestMock.mockReset();
+  device.store = memoryRecordingStore();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(DEMO_NOW);
 });
@@ -544,6 +556,98 @@ describe("MeetingDetailView › in person, after the recording was sent (UNI-224
     expect(row).not.toHaveTextContent("người nói chưa có tên");
     expect(asked("transcriptions")).toBe(false);
     expect(asked("speaker-labels")).toBe(false);
+  });
+});
+
+describe("MeetingDetailView › a recording left on this device (UNI-2247)", () => {
+  const m3 = fixtureMeeting("m3");
+  const caps = { [`/api/v1/workspaces/${demoWorkspace.id}/meeting-capabilities`]: { transcription: true } };
+  const inPerson = (over: Record<string, unknown> = {}) => ({
+    [`/api/v1/meetings/${m3.id}`]: { meeting: { ...m3, venue: "in_person", ...over } },
+    ...caps,
+  });
+  /** 35:12 recorded, the last chunk saved `agoMs` before now; open (`endedAt` null) unless `ended`. */
+  const store = async (over: Partial<RecordingPart> = {}, { agoMs = 600_000, ended = true } = {}) => {
+    const savedAt = DEMO_NOW - agoMs;
+    await device.store!.createPart({
+      id: "p1",
+      userId: demo.users.lan.id,
+      meetingId: m3.id,
+      startedAt: savedAt - 2_112_000,
+      lastChunkAt: savedAt,
+      endedAt: ended ? savedAt : null,
+      mimeType: "audio/webm",
+      bytes: 10,
+      language: "vi",
+      offsetSeconds: 0,
+      ...over,
+    });
+    return savedAt;
+  };
+
+  it("an unsent recording comes first", async () => {
+    const savedAt = await store();
+    const onRecord = vi.fn();
+    open("m3", { extra: inPerson(), props: { onRecord } });
+    const row = await strip();
+    expect(await within(row).findByText("Còn bản ghi 35:12 chưa gửi trên máy này")).toBeInTheDocument();
+    expect(within(row).getByText(`Lưu lúc ${clock(new Date(savedAt).toISOString())} · chỉ bạn thấy trên máy này`)).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "Ghi tiếp" }));
+    expect(onRecord).toHaveBeenLastCalledWith();
+    fireEvent.click(within(row).getByRole("button", { name: "Kết thúc và gửi" }));
+    expect(onRecord).toHaveBeenLastCalledWith({ send: true });
+    // The recording is the meeting now: no start row, no calendar, no one to chase.
+    expect(within(row).queryByRole("button", { name: "Thêm vào lịch" })).not.toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Bắt đầu ghi âm" })).not.toBeInTheDocument();
+    expect(row).not.toHaveTextContent(/chưa phản hồi/);
+    expect(screen.getByText("Đang diễn ra")).toBeInTheDocument();
+  });
+
+  it("another account on this device sees none of it", async () => {
+    await store({ userId: demo.users.minh.id });
+    open("m3", { extra: inPerson(), props: { onRecord: vi.fn() } });
+    const row = await strip();
+    expect(await within(row).findByRole("button", { name: "Bắt đầu ghi âm" })).toBeInTheDocument();
+    expect(row).not.toHaveTextContent(/chưa gửi trên máy này/);
+    expect(screen.queryByText("Đang diễn ra")).not.toBeInTheDocument();
+  });
+
+  it("leaves out a part another tab is still writing", async () => {
+    await store({}, { agoMs: 3_000, ended: false });
+    open("m3", { extra: inPerson(), props: { onRecord: vi.fn() } });
+    const row = await strip();
+    expect(await within(row).findByRole("button", { name: "Bắt đầu ghi âm" })).toBeInTheDocument();
+    expect(row).not.toHaveTextContent(/chưa gửi trên máy này/);
+  });
+
+  it("sends but no longer continues once the meeting ended, and only deletes once it was called off", async () => {
+    await store();
+    open("m3", { extra: inPerson({ status: "ENDED" }), props: { onRecord: vi.fn() } });
+    let row = await strip();
+    expect(await within(row).findByRole("button", { name: "Kết thúc và gửi" })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Ghi tiếp" })).not.toBeInTheDocument();
+    cleanup();
+
+    open("m3", { extra: inPerson({ status: "CANCELED" }), props: { onRecord: vi.fn() } });
+    row = await strip();
+    expect(await within(row).findByText("Còn bản ghi 35:12 chưa gửi trên máy này")).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Kết thúc và gửi" })).not.toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Ghi tiếp" })).not.toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: /Thao tác khác/ })).toBeInTheDocument();
+  });
+
+  it("deletes the local recording after confirming", async () => {
+    await store();
+    open("m3", { extra: inPerson(), props: { onRecord: vi.fn() } });
+    const row = await strip();
+    await within(row).findByText("Còn bản ghi 35:12 chưa gửi trên máy này");
+    fireEvent.click(within(row).getByRole("button", { name: /Thao tác khác/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Xóa bản ghi trên máy…" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Xóa bản ghi này khỏi máy? Không lấy lại được." });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Xóa" }));
+    await waitFor(async () => expect(await device.store!.listParts(demo.users.lan.id)).toEqual([]));
+    expect(await within(await strip()).findByRole("button", { name: "Bắt đầu ghi âm" })).toBeInTheDocument();
+    expect(screen.queryByText(/chưa gửi trên máy này/)).not.toBeInTheDocument();
   });
 });
 

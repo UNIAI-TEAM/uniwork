@@ -21,6 +21,15 @@ export type RecordingPart = {
   offsetSeconds: number;
 };
 
+/** Chunks land every 5 s: an open part written within 15 s is still being recorded, maybe by another tab. */
+const LIVE_MS = 15_000;
+
+export function isLivePart(part: RecordingPart, now: number): boolean {
+  const age = now - part.lastChunkAt;
+  // A chunk stamped ahead of now was saved before the device clock moved back: nobody is writing it now.
+  return part.endedAt === null && age >= 0 && age < LIVE_MS;
+}
+
 export interface RecordingStore {
   createPart(part: RecordingPart): Promise<void>;
   /** Saves one chunk and moves the part's `bytes` and `lastChunkAt` with it. */

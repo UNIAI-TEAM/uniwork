@@ -3928,7 +3928,16 @@
       "summarySteps": "Nhận bản ghi ✓ · Ghi lời · Tóm tắt và việc đề xuất",
       "unnamedSpeakers_one": "{{count}} người nói chưa có tên",
       "unnamedSpeakers_other": "{{count}} người nói chưa có tên",
-      "unnamedHint": "Gán tên để lời thoại, tóm tắt và biên bản ghi đúng người."
+      "unnamedHint": "Gán tên để lời thoại, tóm tắt và biên bản ghi đúng người.",
+      "unsentTitle": "Còn bản ghi {{duration}} chưa gửi trên máy này",
+      "unsentSub": "Lưu lúc {{time}} · chỉ bạn thấy trên máy này",
+      "deleteLocal": "Xóa bản ghi trên máy…",
+      "deleteLocalConfirm": "Xóa bản ghi này khỏi máy? Không lấy lại được.",
+      "logoutTitle_one": "Còn {{count}} bản ghi chưa gửi",
+      "logoutTitle_other": "Còn {{count}} bản ghi chưa gửi",
+      "logoutBody": "Bản ghi vẫn nằm trên máy này. Đăng nhập lại để gửi.",
+      "logoutAnyway": "Vẫn đăng xuất",
+      "stay": "Ở lại"
     },
     "startRecording": "Bắt đầu ghi hình",
     "stopRecording": "Dừng ghi hình",

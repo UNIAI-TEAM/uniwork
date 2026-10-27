@@ -100,7 +100,7 @@ export function MeetingDetailView({
   const { canHost, canCancel } = useMeetingPermissions(meeting ?? null, workspaceId);
   // Host, secretary or workspace admin: the summary and the action items (spec D3).
   const { isClerk } = useMeetingClerk(meeting ?? null, workspaceId);
-  const inPersonStrip = useInPersonStrip(workspaceId, meeting, isClerk);
+  const inPersonStrip = useInPersonStrip(workspaceId, meeting, isClerk, user.id);
   // The organization's own answer: an override for it turns the minutes on.
   const minutesOn = useMeetingMinutesEnabled(workspace.organization_id);
   const end = useEndMeeting(workspaceId);
@@ -312,6 +312,8 @@ export function MeetingDetailView({
               <DetailHeader
                 meeting={meeting}
                 status={status}
+                // A recording on this device says the meeting is under way before anyone recorded it held (board p11).
+                statusOverride={status === "SCHEDULED" && inPersonStrip.unsent ? "IN_PROGRESS" : undefined}
                 now={now}
                 menu={isPhone ? null : menuNode}
               />
