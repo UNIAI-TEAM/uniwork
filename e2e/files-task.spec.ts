@@ -217,6 +217,17 @@ test("gỡ một trong nhiều tệp đính kèm", async ({ page }) => {
   });
 });
 
+/**
+ * A refused upload never becomes an attachment. The Attachments section
+ * (UNI-2190 / c533c526e) renders for anyone who can add files, so after a
+ * refusal it is present but shows only its empty state and never the file.
+ */
+async function expectNotAttached(page: Page, filename: string): Promise<void> {
+  const section = page.getByRole("region", { name: "Đính kèm" });
+  await expect(section.getByTestId("task-attachments-empty")).toBeVisible();
+  await expect(section.getByText(filename)).toHaveCount(0);
+}
+
 test("tệp trên 25 MiB bị từ chối", async ({ page }) => {
   const w = workspaceFor("cap");
   await onboardToWorkspace(page, w);
@@ -226,7 +237,7 @@ test("tệp trên 25 MiB bị từ chối", async ({ page }) => {
   await descriptionUpload(page).setInputFiles(file);
 
   await expect(page.getByText(/Không tải lên được/)).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByRole("region", { name: "Đính kèm" })).toHaveCount(0);
+  await expectNotAttached(page, path.basename(file));
 });
 
 test("loại tệp không được hỗ trợ bị từ chối", async ({ page }) => {
@@ -256,7 +267,7 @@ test("loại tệp không được hỗ trợ bị từ chối", async ({ page }
   expect(((await response.json()) as { error?: { code?: string } }).error?.code).toBe("attachment_mime_rejected");
 
   await expect(page.getByText(/Không tải lên được/)).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByRole("region", { name: "Đính kèm" })).toHaveCount(0);
+  await expectNotAttached(page, `payload-${stamp}.zip`);
 });
 
 test("tổ chức khác đoán URL tệp thì bị chặn", async ({ browser }) => {
