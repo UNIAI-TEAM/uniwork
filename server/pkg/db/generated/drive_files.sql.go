@@ -1032,6 +1032,7 @@ JOIN tasks t
   ON t.id = l.task_id
  AND t.organization_id = l.organization_id
  AND t.workspace_id = l.workspace_id
+ AND t.trashed_at IS NULL
 WHERE l.organization_id = $1
   AND l.workspace_id = $2
   AND l.drive_file_id = ANY($3::text[])
