@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, configure, fireEvent, getConfig, render, screen, waitFor, within } from "@testing-library/react";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import {
@@ -18,6 +18,15 @@ import { DocumentsPageView } from "./documents-page-view";
 import type { LibraryDesktopOpen } from "./documents-library-row";
 
 const { t } = initI18n();
+
+// Under CI load this file runs for over a minute and the 1 s default misses the first
+// debounced search result. A failure still fails, just later.
+let asyncUtilTimeout = 0;
+beforeAll(() => {
+  asyncUtilTimeout = getConfig().asyncUtilTimeout;
+  configure({ asyncUtilTimeout: 8_000 });
+});
+afterAll(() => configure({ asyncUtilTimeout }));
 
 const WS = "ws1";
 const LIST_BASE = `/api/v1/workspaces/${WS}/documents`;
@@ -209,7 +218,7 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "hop dong" } });
 
-    expect(await screen.findByText("Hợp đồng mẫu.docx", undefined, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText("Hợp đồng mẫu.docx")).toBeInTheDocument();
     expect(screen.getByText("Hợp đồng nháp")).toBeInTheDocument();
     expect(screen.getByText("Hợp đồng đối tác")).toBeInTheDocument();
 
@@ -459,7 +468,7 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "dich" } });
 
-    const docCell = (await screen.findByText("Tài liệu đích", undefined, { timeout: 5000 })).closest("button")!;
+    const docCell = (await screen.findByText("Tài liệu đích")).closest("button")!;
     fireEvent.click(docCell);
 
     expect(onOpen).toHaveBeenCalledTimes(1);
