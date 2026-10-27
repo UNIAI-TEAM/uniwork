@@ -1181,8 +1181,8 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
 
   it("renders prompt hints and Drive-mode placeholder with Drive chip, appends hint text into empty and non-empty prompts, sends it in B5 request, and hides hints when gated (UNI-2219)", async () => {
     expect(
-      appendDrivePromptHint("", "Giao theo người phụ trách, hạn trong tuần này"),
-    ).toBe("Giao theo người phụ trách, hạn trong tuần này");
+      appendDrivePromptHint("", "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này"),
+    ).toBe("Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này");
     expect(
       appendDrivePromptHint("Tạo việc mục 2", "Chỉ lấy việc của nhóm BE"),
     ).toBe("Tạo việc mục 2. Chỉ lấy việc của nhóm BE");
@@ -1296,7 +1296,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     ).not.toBeNull();
 
     const chip1 = within(hintsGroup).getByRole("button", {
-      name: "Giao theo người phụ trách, hạn trong tuần này",
+      name: "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này",
     });
     const chip2 = within(hintsGroup).getByRole("button", {
       name: "Chỉ lấy việc của nhóm BE",
@@ -1307,18 +1307,99 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     expect(chip1).toBeInTheDocument();
     expect(chip2).toBeInTheDocument();
     expect(chip3).toBeInTheDocument();
+    expect(hintsGroup.className).toContain("flex-wrap");
+    expect(chip1.className).toContain("w-auto");
+    expect(chip1.className).toContain("max-w-full");
 
-    // Click first chip into empty prompt
+    const proseMirror = document.querySelector(".ProseMirror") as HTMLElement & {
+      editor?: {
+        state: {
+          doc: { content: { size: number } };
+          selection: { from: number; to: number; empty: boolean };
+        };
+      };
+    };
+    expect(proseMirror?.editor).toBeDefined();
+
+    // Click first chip into empty prompt -> selection collapsed at doc end (F1)
     fireEvent.click(chip1);
     expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.agentPrompt).toBe(
-      "Giao theo người phụ trách, hạn trong tuần này",
+      "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này",
+    );
+    expect(proseMirror.editor!.state.selection.empty).toBe(true);
+    expect(proseMirror.editor!.state.selection.from).toBe(
+      proseMirror.editor!.state.doc.content.size - 1,
+    );
+    expect(proseMirror.editor!.state.selection.to).toBe(
+      proseMirror.editor!.state.doc.content.size - 1,
     );
 
-    // Click second chip into non-empty prompt (appends, keeps prior text)
+    // Click second chip into non-empty prompt -> appends, keeps prior text, selection collapsed at doc end (F1)
     fireEvent.click(chip2);
     expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.agentPrompt).toBe(
-      "Giao theo người phụ trách, hạn trong tuần này. Chỉ lấy việc của nhóm BE",
+      "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này. Chỉ lấy việc của nhóm BE",
     );
+    expect(proseMirror.editor!.state.selection.empty).toBe(true);
+    expect(proseMirror.editor!.state.selection.from).toBe(
+      proseMirror.editor!.state.doc.content.size - 1,
+    );
+    expect(proseMirror.editor!.state.selection.to).toBe(
+      proseMirror.editor!.state.doc.content.size - 1,
+    );
+
+    // Gate hint click on in-flight file upload (F2)
+    const uploadGate = Promise.withResolvers<{
+      attachment: {
+        id: string;
+        filename: string;
+        content_type: string;
+        size: number;
+        url: string;
+      };
+    }>();
+    const prevImpl = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation(
+      async (path: string, init?: { method?: string }) => {
+        if (
+          path === "/api/v1/workspaces/ws1/attachments" &&
+          init?.method === "POST"
+        ) {
+          return uploadGate.promise;
+        }
+        return prevImpl(path, init);
+      },
+    );
+    fireEvent.paste(proseMirror, {
+      clipboardData: {
+        files: [new File(["spec"], "spec.pdf", { type: "application/pdf" })],
+        getData: () => "",
+      },
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Chuyển sang thủ công" }),
+      ).toBeDisabled();
+    });
+    fireEvent.click(chip3);
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.agentPrompt).toBe(
+      "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này. Chỉ lấy việc của nhóm BE",
+    );
+    await act(async () => {
+      uploadGate.resolve({
+        attachment: {
+          id: "att_1",
+          filename: "spec.pdf",
+          content_type: "application/pdf",
+          size: 4,
+          url: "/api/v1/attachments/att_1/download",
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Chuyển sang thủ công" }),
+      ).not.toBeDisabled();
+    });
 
     // Submit -> while request is pending, no clickable hint chips render
     const submitBtn = screen.getByRole("button", { name: /Gửi cho agent/ });
@@ -1340,7 +1421,7 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
         method: "POST",
         body: expect.objectContaining({
           prompt:
-            "Giao theo người phụ trách, hạn trong tuần này. Chỉ lấy việc của nhóm BE",
+            "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này. Chỉ lấy việc của nhóm BE",
         }),
       }),
     );
@@ -1630,16 +1711,19 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
 
     const hintsGroup = screen.getByRole("group", { name: "Gợi ý mẫu cho UNI" });
     const chip1 = within(hintsGroup).getByRole("button", {
-      name: "Giao theo người phụ trách, hạn trong tuần này",
+      name: "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này",
     });
     const chip3 = within(hintsGroup).getByRole("button", {
       name: "Ưu tiên cao cho việc gấp",
     });
+    expect(hintsGroup.className).toContain("flex-wrap");
+    expect(chip1.className).toContain("w-auto");
+    expect(chip1.className).toContain("max-w-full");
 
     // Click into empty prompt -> inserts, focuses, caret at end
     fireEvent.click(chip1);
     expect(promptInput.value).toBe(
-      "Giao theo người phụ trách, hạn trong tuần này",
+      "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này",
     );
     expect(document.activeElement).toBe(promptInput);
     expect(promptInput.selectionStart).toBe(promptInput.value.length);
@@ -1685,5 +1769,19 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
       ),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("drive-prompt-hints")).toBeNull();
+
+    // English locale copy check (F4, F5)
+    await act(async () => {
+      await setLocale("en");
+    });
+    expect(t("drive.proposals.prompt_hints.assignee_deadline")).toBe(
+      "Assign to the owner named in the document, due this week",
+    );
+    expect(t("drive.proposals.prompt_hints.scope")).toBe(
+      "Only take tasks for the BE team",
+    );
+    expect(t("drive.proposals.prompt_hints.priority")).toBe(
+      "Set high priority for urgent items",
+    );
   });
 });

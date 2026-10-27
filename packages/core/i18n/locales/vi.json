@@ -14472,7 +14472,7 @@
       "prompt_placeholder": "Ví dụ: người phụ trách, hạn hoàn thành, độ ưu tiên hoặc phạm vi cần lấy…",
       "prompt_hints": {
         "group_aria": "Gợi ý mẫu cho UNI",
-        "assignee_deadline": "Giao theo người phụ trách, hạn trong tuần này",
+        "assignee_deadline": "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này",
         "scope": "Chỉ lấy việc của nhóm BE",
         "priority": "Ưu tiên cao cho việc gấp"
       },

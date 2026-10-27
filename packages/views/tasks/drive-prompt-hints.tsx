@@ -58,7 +58,7 @@ export function DrivePromptHints({
             type="button"
             variant="outline"
             size="xs"
-            className="h-auto min-h-6 max-w-full py-1 text-left whitespace-normal text-muted-foreground hover:text-foreground"
+            className="h-auto min-h-6 w-auto max-w-full py-1 text-left whitespace-normal text-muted-foreground hover:text-foreground"
             onClick={() => onSelectHint(text)}
           >
             {text}

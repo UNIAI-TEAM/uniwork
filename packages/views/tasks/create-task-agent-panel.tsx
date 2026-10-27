@@ -413,11 +413,11 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
             className="px-5"
             disabled={isProposing || isDriveSendBlocked || Boolean(proposalError?.isAccessRequired)}
             onSelectHint={(hint) => {
-              if (isProposing || isDriveSendBlocked || proposalError?.isAccessRequired) return;
+              if (isProposing || isDriveSendBlocked || isUploading || proposalError?.isAccessRequired) return;
               const currentPrompt = editorRef.current?.getMarkdown() ?? draftRef.current.agentPrompt ?? "";
               const nextPrompt = appendDrivePromptHint(currentPrompt, hint);
               editorRef.current?.adoptContent(nextPrompt);
-              editorRef.current?.focus();
+              editorRef.current?.focus("end");
               setHasContent(nextPrompt.trim().length > 0);
               updateDraft({ agentPrompt: nextPrompt });
             }}
