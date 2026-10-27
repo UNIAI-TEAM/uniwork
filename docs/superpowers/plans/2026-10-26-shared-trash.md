@@ -1,6 +1,6 @@
 # Thùng rác chung — kế hoạch thực hiện
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt thiết kế 2026-10-26 và yêu cầu làm ngay; Task 1–5 xong trên nhánh `feature/UNI-2171-thung-rac-cho-task-va-du-an` (UNI-2171), kiểm tay trên app local 2026-10-27 (ba loại: lọc, khôi phục, xóa vĩnh viễn); chờ review cuối và PR.
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt thiết kế 2026-10-26 và yêu cầu làm ngay; Task 1–6 xong trên nhánh `feature/UNI-2171-thung-rac-cho-task-va-du-an` (UNI-2171), kiểm tay trên app local 2026-10-27 (ba loại: lọc chọn nhiều, khôi phục, xóa vĩnh viễn), đã review cả nhánh; chờ PR.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
