@@ -335,6 +335,21 @@ describe("Name this folder", () => {
     expect(namePosts()).toHaveLength(0);
   });
 
+  it("ignores a second request while the name is still being posted", async () => {
+    serve({ name: () => new Promise(() => {}) });
+    const adapter = createFakeDrivePickerAdapter(pickedFolder(UNNAMED.id));
+    renderList(UNNAMED_URL, UNNAMED.id, adapter);
+    const user = userEvent.setup();
+    const action = await screen.findByRole("button", { name: t("driveLibrary.folder.name_action") });
+    await user.click(action);
+    await waitFor(() => expect(namePosts()).toHaveLength(1));
+
+    await user.click(action);
+    await user.click(action);
+    expect(adapter.calls).toHaveLength(1);
+    expect(namePosts()).toHaveLength(1);
+  });
+
   it("does nothing when the Picker is cancelled", async () => {
     const error = vi.spyOn(toast, "error");
     const adapter = createFakeDrivePickerAdapter({ status: "cancelled" });

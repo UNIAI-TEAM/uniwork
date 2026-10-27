@@ -7,7 +7,7 @@ import { ApiError, errorCode } from "@uniwork/core/api";
 import { useNameDriveFolder } from "@uniwork/core/drive-library/hooks";
 import { useDrivePicker, type DrivePickerAdapter } from "../../integrations/drive-picker";
 
-export interface NameDriveFolderFlow {
+interface NameDriveFolderFlow {
   /** Opens the folder Picker for an unnamed folder, then names it from what Google answers. */
   nameFolder: (folderId: string, connectionId: string) => void;
   pending: boolean;
@@ -37,7 +37,7 @@ function nameErrorKey(err: unknown): string {
 export function useNameDriveFolderFlow(wsId: string, adapter?: DrivePickerAdapter): NameDriveFolderFlow {
   const { t } = useTranslation();
   const naming = useNameDriveFolder(wsId);
-  const { mutateAsync } = naming;
+  const { mutateAsync, isPending: namingPending } = naming;
   const wantedRef = useRef<string | null>(null);
 
   const picker = useDrivePicker({
@@ -61,10 +61,12 @@ export function useNameDriveFolderFlow(wsId: string, adapter?: DrivePickerAdapte
 
   const nameFolder = useCallback(
     (folderId: string, connectionId: string) => {
+      // One request at a time: a second Picker over a running POST would race the first's refetch.
+      if (namingPending) return;
       wantedRef.current = folderId;
       open({ connectionId, folder: true });
     },
-    [open],
+    [open, namingPending],
   );
 
   return { nameFolder, pending: picker.pending || naming.isPending, dialogs: picker.dialogs };

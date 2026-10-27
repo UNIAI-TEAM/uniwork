@@ -254,7 +254,7 @@ const DriveFolderNamedWireSchema = z.object({
   drive_folder: DriveFolderWireSchema.nullish().catch(null).transform((v) => v ?? null),
   updated_count: z.number().catch(0),
 });
-export type DriveFolderNamed = z.infer<typeof DriveFolderNamedWireSchema>;
+type DriveFolderNamed = z.infer<typeof DriveFolderNamedWireSchema>;
 
 /**
  * GET /api/v1/workspaces/{workspaceID}/drive-folders — the caller's Drive parent folders with file
