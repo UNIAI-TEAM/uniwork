@@ -52,6 +52,37 @@ func createTestPageInParent(t *testing.T, f *docPermFixture, actor Actor, wsID, 
 	return v.Document
 }
 
+// runFolderContentsAccessBatchChunk locks batchID with FOR UPDATE SKIP LOCKED
+// (LockDocumentAccessBatchForChunk) and runs one worker chunk on that specific
+// batch, returning true when the batch was queued/running and processed, or
+// false when the batch was already terminal. Tests that verify a specific
+// batch's chunk progression use this helper so foreign queued batches left in
+// the shared test database cannot steal a worker tick or be mutated.
+func runFolderContentsAccessBatchChunk(t *testing.T, f *docPermFixture, batchID string, chunkSize int) bool {
+	t.Helper()
+	tx, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatalf("begin batch chunk tx (%s): %v", batchID, err)
+	}
+	defer func() { _ = tx.Rollback(f.ctx) }()
+	q := f.svc.q.WithTx(tx)
+
+	batch, err := q.LockDocumentAccessBatchForChunk(f.ctx, batchID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false
+	}
+	if err != nil {
+		t.Fatalf("lock batch %s for chunk: %v", batchID, err)
+	}
+	if err := f.svc.processFolderContentsAccessChunk(f.ctx, q, batch, chunkSize); err != nil {
+		t.Fatalf("process batch %s chunk: %v", batchID, err)
+	}
+	if err := tx.Commit(f.ctx); err != nil {
+		t.Fatalf("commit batch %s chunk: %v", batchID, err)
+	}
+	return true
+}
+
 // TestFolderContentsAccessModesAndSubtreeScope covers UNI-2244 §1–§3, §6:
 //   - merge mode (keep max level, never downgrade, merge home workspace into visibility+workspace_level)
 //   - replace mode (set exact target set, revoke others, missing home workspace -> restricted, empty items -> private)
@@ -397,12 +428,8 @@ func TestFolderContentsAccessBackgroundWorkerAndRecovery(t *testing.T) {
 	}
 
 	// 4. Worker chunk 1 (chunkSize=2): processes first 2 documents, status='running', cursor_id=docIDs[1].
-	worker := NewDocumentAccessBatchWorker(f.svc, nil)
-	worker.ChunkSize = 2
-
-	worked, err := worker.RunOnce(f.ctx)
-	if err != nil || !worked {
-		t.Fatalf("chunk 1: worked=%v, err=%v", worked, err)
+	if !runFolderContentsAccessBatchChunk(t, f, res.BatchID, 2) {
+		t.Fatal("chunk 1: batch not claimed")
 	}
 	prog1, err := f.svc.GetFolderContentsAccessBatch(f.ctx, actor, folderID, res.BatchID)
 	if err != nil {
@@ -412,13 +439,9 @@ func TestFolderContentsAccessBackgroundWorkerAndRecovery(t *testing.T) {
 		t.Fatalf("progress after chunk 1 = %+v, want status=running processed=2 changed=2", prog1)
 	}
 
-	// Simulate server restart: a new worker instance picks up the 'running' batch from cursor_id without repeating docIDs[0..1].
-	workerAfterRestart := NewDocumentAccessBatchWorker(f.svc, nil)
-	workerAfterRestart.ChunkSize = 2
-
-	// Chunk 2: processes docIDs[2..3].
-	if worked, err := workerAfterRestart.RunOnce(f.ctx); err != nil || !worked {
-		t.Fatalf("chunk 2 after restart: worked=%v, err=%v", worked, err)
+	// Chunk 2: resumes the 'running' batch from cursor_id without repeating docIDs[0..1].
+	if !runFolderContentsAccessBatchChunk(t, f, res.BatchID, 2) {
+		t.Fatal("chunk 2 after restart: batch not claimed")
 	}
 	prog2, err := f.svc.GetFolderContentsAccessBatch(f.ctx, actor, folderID, res.BatchID)
 	if err != nil {
@@ -429,8 +452,8 @@ func TestFolderContentsAccessBackgroundWorkerAndRecovery(t *testing.T) {
 	}
 
 	// Chunk 3: processes docIDs[4] and completes the batch.
-	if worked, err := workerAfterRestart.RunOnce(f.ctx); err != nil || !worked {
-		t.Fatalf("chunk 3: worked=%v, err=%v", worked, err)
+	if !runFolderContentsAccessBatchChunk(t, f, res.BatchID, 2) {
+		t.Fatal("chunk 3: batch not claimed")
 	}
 	prog3, err := f.svc.GetFolderContentsAccessBatch(f.ctx, actor, folderID, res.BatchID)
 	if err != nil {
@@ -440,9 +463,9 @@ func TestFolderContentsAccessBackgroundWorkerAndRecovery(t *testing.T) {
 		t.Fatalf("progress after chunk 3 = %+v, want completed processed=5 changed=5 finished_at!=nil", prog3)
 	}
 
-	// Next worker poll finds nothing left to do.
-	if worked, err := workerAfterRestart.RunOnce(f.ctx); err != nil || worked {
-		t.Fatalf("post-completion poll: worked=%v, err=%v, want false", worked, err)
+	// Re-locking the completed batch finds nothing left to do.
+	if runFolderContentsAccessBatchChunk(t, f, res.BatchID, 2) {
+		t.Fatal("post-completion chunk lock claimed completed batch, want false")
 	}
 
 	// Verify each of the 5 documents was granted exactly once and outsider has edit on all 5.
@@ -507,6 +530,56 @@ func TestFolderContentsAccessBackgroundWorkerAndRecovery(t *testing.T) {
 	}
 	if gotPayload["batch_id"] != res.BatchID || gotPayload["folder_id"] != folderID || gotPayload["workspace_id"] != tn.wsA {
 		t.Fatalf("completedPayload = %v, want batch_id=%s folder_id=%s workspace_id=%s", gotPayload, res.BatchID, folderID, tn.wsA)
+	}
+
+	// 5. Exercise the production RunOnce / ClaimNextDocumentAccessBatch loop across
+	// restart/resume without assuming no other batch exists in the database:
+	// backdate created_at so this batch is deterministically oldest in the claim order.
+	claimFolder := createTestFolder(t, f, actor, tn.wsA, "BG Claim Folder", nil)
+	claimFolderID := claimFolder.ID
+	for i := 1; i <= 3; i++ {
+		_ = createTestPageInParent(t, f, actor, tn.wsA, fmt.Sprintf("BG Claim Doc %d", i), "restricted", &claimFolderID)
+	}
+	claimRes, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, claimFolderID, UpdateFolderContentsAccessInput{
+		Mode: FolderContentsAccessModeMerge,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
+		},
+	})
+	if err != nil || claimRes.ExecMode != FolderContentsAccessExecBackground {
+		t.Fatalf("queue claim batch = %+v, err = %v", claimRes, err)
+	}
+	t.Cleanup(func() {
+		_, _ = f.pool.Exec(f.ctx, `DELETE FROM document_access_batches WHERE id = $1`, claimRes.BatchID)
+	})
+	if _, err := f.pool.Exec(f.ctx,
+		`UPDATE document_access_batches SET created_at = '2000-01-01T00:00:00Z' WHERE id = $1`,
+		claimRes.BatchID); err != nil {
+		t.Fatal(err)
+	}
+	worker := NewDocumentAccessBatchWorker(f.svc, nil)
+	worker.ChunkSize = 2
+	if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+		t.Fatalf("claim worker chunk 1: worked=%v err=%v", worked, err)
+	}
+	claimProg1, err := f.svc.GetFolderContentsAccessBatch(f.ctx, actor, claimFolderID, claimRes.BatchID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimProg1.Status != FolderContentsAccessBatchStatusRunning || claimProg1.Processed != 2 {
+		t.Fatalf("claim batch after chunk 1 = %+v, want running processed=2", claimProg1)
+	}
+	workerAfterRestart := NewDocumentAccessBatchWorker(f.svc, nil)
+	workerAfterRestart.ChunkSize = 2
+	if worked, err := workerAfterRestart.RunOnce(f.ctx); err != nil || !worked {
+		t.Fatalf("claim worker chunk 2 after restart: worked=%v err=%v", worked, err)
+	}
+	claimProg2, err := f.svc.GetFolderContentsAccessBatch(f.ctx, actor, claimFolderID, claimRes.BatchID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimProg2.Status != FolderContentsAccessBatchStatusCompleted || claimProg2.Processed != 3 {
+		t.Fatalf("claim batch after chunk 2 = %+v, want completed processed=3", claimProg2)
 	}
 }
 
@@ -723,9 +796,8 @@ func TestFolderContentsAccessChildDOC05SkipsRestrictedSelfGrant(t *testing.T) {
 	if err != nil || bgRes.ExecMode != FolderContentsAccessExecBackground {
 		t.Fatalf("queue bg (%+v): %v", bgRes, err)
 	}
-	worker := NewDocumentAccessBatchWorker(f.svc, nil)
-	if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
-		t.Fatalf("bg worker RunOnce: worked=%v err=%v", worked, err)
+	if !runFolderContentsAccessBatchChunk(t, f, bgRes.BatchID, FolderContentsAccessChunkSize) {
+		t.Fatal("bg worker chunk did not claim batch")
 	}
 	prog, err := f.svc.GetFolderContentsAccessBatch(f.ctx, wsAdmin, rootID, bgRes.BatchID)
 	if err != nil {
@@ -802,10 +874,8 @@ func TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot(t *testing.
 			t.Fatalf("queue batch: %v", err)
 		}
 
-		worker := NewDocumentAccessBatchWorker(f.svc, nil)
-		worker.ChunkSize = 1
-		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
-			t.Fatalf("chunk 1: worked=%v err=%v", worked, err)
+		if !runFolderContentsAccessBatchChunk(t, f, res.BatchID, 1) {
+			t.Fatal("chunk 1: batch not claimed")
 		}
 
 		// Remove actor's read access on the root folder while keeping actor's
@@ -816,8 +886,8 @@ func TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot(t *testing.
 			t.Fatal(err)
 		}
 
-		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
-			t.Fatalf("chunk 2 after lost root read: worked=%v err=%v", worked, err)
+		if !runFolderContentsAccessBatchChunk(t, f, res.BatchID, 1) {
+			t.Fatal("chunk 2 after lost root read: batch not claimed")
 		}
 
 		var status, errCode string
@@ -867,10 +937,8 @@ func TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot(t *testing.
 			t.Fatalf("queue batch: %v", err)
 		}
 
-		worker := NewDocumentAccessBatchWorker(f.svc, nil)
-		worker.ChunkSize = 1
-		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
-			t.Fatalf("chunk 1: worked=%v err=%v", worked, err)
+		if !runFolderContentsAccessBatchChunk(t, f, res.BatchID, 1) {
+			t.Fatal("chunk 1: batch not claimed")
 		}
 
 		// Archive root folder directly so docIDs[1] stays unarchived, proving
@@ -879,8 +947,8 @@ func TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot(t *testing.
 			t.Fatal(err)
 		}
 
-		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
-			t.Fatalf("chunk 2 after root archived: worked=%v err=%v", worked, err)
+		if !runFolderContentsAccessBatchChunk(t, f, res.BatchID, 1) {
+			t.Fatal("chunk 2 after root archived: batch not claimed")
 		}
 
 		var status, errCode string
@@ -971,10 +1039,8 @@ func TestFolderContentsAccessSubtreeRecheckAndForeignMyFolder(t *testing.T) {
 		t.Fatalf("queue batch = %+v, err = %v", res, err)
 	}
 
-	worker := NewDocumentAccessBatchWorker(f.svc, nil)
-	worker.ChunkSize = 1
-	if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
-		t.Fatalf("chunk 1: worked=%v err=%v", worked, err)
+	if !runFolderContentsAccessBatchChunk(t, f, res.BatchID, 1) {
+		t.Fatal("chunk 1: batch not claimed")
 	}
 
 	// Move docIDs[1] out of rootFolder (to workspace root) and docIDs[2] into member's My Folder.
@@ -987,8 +1053,8 @@ func TestFolderContentsAccessSubtreeRecheckAndForeignMyFolder(t *testing.T) {
 	arrivedAfter := createTestPageInParent(t, f, actor, tn.wsA, "Arrived After Snapshot", "restricted", &rootID)
 
 	for step := 2; step <= 3; step++ {
-		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
-			t.Fatalf("chunk %d: worked=%v err=%v", step, worked, err)
+		if !runFolderContentsAccessBatchChunk(t, f, res.BatchID, 1) {
+			t.Fatalf("chunk %d: batch not claimed", step)
 		}
 	}
 

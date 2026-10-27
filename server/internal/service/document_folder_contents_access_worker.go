@@ -109,17 +109,39 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 		return false, err
 	}
 
+	if err := s.processFolderContentsAccessChunk(ctx, q, batch, chunkSize); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// processFolderContentsAccessChunk processes one chunk of up to chunkSize
+// documents for an already-locked document_access_batches row inside q's
+// transaction, updating or completing/failing the row before returning.
+func (s *DocumentService) processFolderContentsAccessChunk(
+	ctx context.Context,
+	q *db.Queries,
+	batch db.DocumentAccessBatch,
+	chunkSize int,
+) error {
+	if chunkSize <= 0 {
+		chunkSize = FolderContentsAccessChunkSize
+	}
+
 	// Acquire the per-folder advisory xact lock so a concurrent PUT on the same
 	// folder serializes with this chunk transaction.
 	if err := q.LockFolderAccessBatch(ctx, batch.FolderID); err != nil {
-		return false, err
+		return err
 	}
 
 	// Acquire the workspace tree lock before any document row lock so chunk
 	// execution serializes with MoveDocument in the same lock order (F4) and
 	// sees a stable ancestry for the root and subtree checks (F2, F3).
 	if err := q.LockDocumentTree(ctx, batch.WorkspaceID); err != nil {
-		return false, err
+		return err
 	}
 
 	actor := Actor{
@@ -134,51 +156,36 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 	folder, _, err := s.authorizeDocumentQ(ctx, q, actor, batch.FolderID, DocumentLevelView)
 	if err != nil {
 		if isGateRefusal(err) {
-			if _, failErr := q.FailDocumentAccessBatch(ctx, db.FailDocumentAccessBatchParams{
+			_, failErr := q.FailDocumentAccessBatch(ctx, db.FailDocumentAccessBatchParams{
 				ID:             batch.ID,
 				OrganizationID: batch.OrganizationID,
 				WorkspaceID:    batch.WorkspaceID,
 				ErrorCode:      nullText("root_access_lost"),
-			}); failErr != nil {
-				return false, failErr
-			}
-			if err := tx.Commit(ctx); err != nil {
-				return false, err
-			}
-			return true, nil
+			})
+			return failErr
 		}
-		return false, err
+		return err
 	}
 	if folder.OrganizationID != batch.OrganizationID || folder.WorkspaceID != batch.WorkspaceID ||
 		folder.Kind != DocumentKindFolder || folder.ArchivedAt.Valid {
-		if _, failErr := q.FailDocumentAccessBatch(ctx, db.FailDocumentAccessBatchParams{
+		_, failErr := q.FailDocumentAccessBatch(ctx, db.FailDocumentAccessBatchParams{
 			ID:             batch.ID,
 			OrganizationID: batch.OrganizationID,
 			WorkspaceID:    batch.WorkspaceID,
 			ErrorCode:      nullText("root_access_lost"),
-		}); failErr != nil {
-			return false, failErr
-		}
-		if err := tx.Commit(ctx); err != nil {
-			return false, err
-		}
-		return true, nil
+		})
+		return failErr
 	}
 	var items []FolderContentsAccessItem
 	if len(batch.Items) > 0 {
 		if err := json.Unmarshal(batch.Items, &items); err != nil {
-			if _, failErr := q.FailDocumentAccessBatch(ctx, db.FailDocumentAccessBatchParams{
+			_, failErr := q.FailDocumentAccessBatch(ctx, db.FailDocumentAccessBatchParams{
 				ID:             batch.ID,
 				OrganizationID: batch.OrganizationID,
 				WorkspaceID:    batch.WorkspaceID,
 				ErrorCode:      nullText("invalid_batch_items"),
-			}); failErr != nil {
-				return false, failErr
-			}
-			if err := tx.Commit(ctx); err != nil {
-				return false, err
-			}
-			return true, nil
+			})
+			return failErr
 		}
 	}
 
@@ -222,7 +229,7 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 		MaxLevel:       subtreeMaxLevel(),
 	})
 	if err != nil {
-		return false, err
+		return err
 	}
 	inLiveSubtree := make(map[string]bool, len(liveSubtreeIDs))
 	for _, id := range liveSubtreeIDs {
@@ -256,7 +263,7 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 			continue
 		}
 		if err != nil {
-			return false, err
+			return err
 		}
 		if doc.OrganizationID != batch.OrganizationID || doc.WorkspaceID != batch.WorkspaceID {
 			outcome.Processed++
@@ -268,7 +275,7 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 		}
 		res, err := s.applyFolderContentsAccessToLockedDoc(ctx, q, actor, folder, batch.ID, batch.Mode, items, userItemIDs, doc, notifiedLevels)
 		if err != nil {
-			return false, err
+			return err
 		}
 		outcome.Processed += res.Processed
 		outcome.Changed += res.Changed
@@ -279,7 +286,7 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 
 	notifiedJSON, err := json.Marshal(notifiedLevels)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	if isLastChunk {
@@ -295,10 +302,10 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 			CursorID:             cursorID,
 			NotifiedLevels:       notifiedJSON,
 		}); err != nil {
-			return false, err
+			return err
 		}
 		if err := recordFolderContentsBatchCompletedAudit(ctx, q, actor, folder, batch.ID, batch.Mode, items, int(batch.Total), outcome, FolderContentsAccessExecBackground); err != nil {
-			return false, err
+			return err
 		}
 	} else {
 		if _, err := q.AdvanceDocumentAccessBatchChunk(ctx, db.AdvanceDocumentAccessBatchChunkParams{
@@ -313,12 +320,8 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 			CursorID:             cursorID,
 			NotifiedLevels:       notifiedJSON,
 		}); err != nil {
-			return false, err
+			return err
 		}
 	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return false, err
-	}
-	return true, nil
+	return nil
 }
