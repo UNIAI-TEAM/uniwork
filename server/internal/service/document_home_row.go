@@ -23,7 +23,8 @@ type documentHomeRowMove struct {
 	WorkspaceLevel string
 	// BatchID rides the audit metadata when the write belongs to a batched
 	// command (SH-S2's PUT /access); empty on a single command.
-	BatchID string
+	BatchID   string
+	BatchMeta documentShareBatchMeta
 	// KeepRevision leaves the row's revision where it is: the caller's
 	// command already bumped it (a PATCH that wrote the document's fields in
 	// the same request), and one successful command bumps the revision once
@@ -88,19 +89,28 @@ func writeDocumentHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc d
 			map[string]any{"visibility": updated.Visibility, "workspace_level": updated.WorkspaceLevel},
 		),
 	}
-	if move.BatchID != "" {
-		entry.Metadata = map[string]any{"batch_id": move.BatchID}
+	meta := move.BatchMeta
+	if meta.BatchID == "" && move.BatchID != "" {
+		meta.BatchID = move.BatchID
 	}
-	if err := auditRecorder.Record(ctx, q, entry, audit.Event{
+	if meta.BatchID != "" || meta.Via != "" {
+		beforeLvl, _ := currentHomeWorkspaceLevel(doc, legacy)
+		entry.Metadata = meta.apply(map[string]any{}, string(beforeLvl))
+	}
+	events := []audit.Event{{
 		Topic: "document.workspace_access_changed",
 		Payload: map[string]string{
 			"document_id": updated.ID, "workspace_id": updated.WorkspaceID,
 		},
-	}, documentChangeNotice(updated.ID, updated.WorkspaceID, docNoticeAccessChanged)); err != nil {
+	}}
+	if meta.Via != FolderContentsAccessVia {
+		events = append(events, documentChangeNotice(updated.ID, updated.WorkspaceID, docNoticeAccessChanged))
+	}
+	if err := auditRecorder.Record(ctx, q, entry, events...); err != nil {
 		return db.Document{}, err
 	}
 	for _, sh := range legacy {
-		if err := revokeDocumentShareRowWithBatch(ctx, q, actor, updated, sh, move.BatchID); err != nil {
+		if err := revokeDocumentShareRowWithMeta(ctx, q, actor, updated, sh, meta); err != nil {
 			return db.Document{}, err
 		}
 	}

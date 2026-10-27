@@ -179,6 +179,10 @@ const (
 	ActionDocumentLinkCreated            = "document.link_created"
 	ActionDocumentLinkRevoked            = "document.link_revoked"
 	ActionDocumentSettingsChanged        = "document.settings_changed"
+	// Folder bulk access (UNI-2244 §6): one row per completed bulk access
+	// batch (sync in the command's transaction; background when the worker
+	// finishes), with the folder as the resource and the outcome counts.
+	ActionDocumentContentsAccessUpdated = "document.contents_access_updated"
 	// ActionDocumentsAccessReportExported is one access report export
 	// (UNI-1643): ids, the filter and counts, never a name.
 	ActionDocumentsAccessReportExported = "documents.access_report_exported"

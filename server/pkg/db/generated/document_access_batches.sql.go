@@ -260,6 +260,28 @@ func (q *Queries) FailDocumentAccessBatch(ctx context.Context, arg FailDocumentA
 	return i, err
 }
 
+const getDocumentAccessBatchFolderID = `-- name: GetDocumentAccessBatchFolderID :one
+SELECT folder_id
+FROM document_access_batches
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+`
+
+type GetDocumentAccessBatchFolderIDParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// Looks up the root folder_id of a bulk access batch for the notification consumer (spec §6).
+func (q *Queries) GetDocumentAccessBatchFolderID(ctx context.Context, arg GetDocumentAccessBatchFolderIDParams) (string, error) {
+	row := q.db.QueryRow(ctx, getDocumentAccessBatchFolderID, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	var folder_id string
+	err := row.Scan(&folder_id)
+	return folder_id, err
+}
+
 const getDocumentAccessBatchForCreator = `-- name: GetDocumentAccessBatchForCreator :one
 SELECT id, organization_id, workspace_id, folder_id, created_by, created_by_kind, mode, items, document_ids, notified_levels, status, total, processed, changed, unchanged, skipped_not_manageable, skipped_locked, cursor_id, error_code, created_at, updated_at, finished_at
 FROM document_access_batches
@@ -430,6 +452,36 @@ func (q *Queries) InsertDocumentAccessBatch(ctx context.Context, arg InsertDocum
 		&i.FinishedAt,
 	)
 	return i, err
+}
+
+const listActiveOrgMemberUserIDsForAccessBatch = `-- name: ListActiveOrgMemberUserIDsForAccessBatch :many
+SELECT user_id
+FROM organization_members
+WHERE organization_id = $1
+  AND deactivated_at IS NULL
+ORDER BY user_id
+`
+
+// Lists every active human member user_id of the organization so dry-run preview
+// can evaluate losing_users and downgraded_users across a folder subtree (spec §3.1).
+func (q *Queries) ListActiveOrgMemberUserIDsForAccessBatch(ctx context.Context, organizationID string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listActiveOrgMemberUserIDsForAccessBatch, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listFolderContentsAccessSubtreeIDs = `-- name: ListFolderContentsAccessSubtreeIDs :many

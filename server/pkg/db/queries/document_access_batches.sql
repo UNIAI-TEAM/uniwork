@@ -56,6 +56,15 @@ WHERE d.organization_id = sqlc.arg(organization_id)
             ) mfs WHERE mfs.document_id = d.id))
 ORDER BY d.id COLLATE "C";
 
+
+-- Lists every active human member user_id of the organization so dry-run preview
+-- can evaluate losing_users and downgraded_users across a folder subtree (spec §3.1).
+-- name: ListActiveOrgMemberUserIDsForAccessBatch :many
+SELECT user_id
+FROM organization_members
+WHERE organization_id = sqlc.arg(organization_id)
+  AND deactivated_at IS NULL
+ORDER BY user_id;
 -- Inserts a new queued (or sync-completed) document_access_batches row (spec §3.1, §5).
 -- name: InsertDocumentAccessBatch :one
 INSERT INTO document_access_batches (
@@ -82,6 +91,14 @@ WHERE id = sqlc.arg(id)
   AND folder_id = sqlc.arg(folder_id)
   AND created_by = sqlc.arg(created_by)
   AND created_by_kind = sqlc.arg(created_by_kind);
+
+-- Looks up the root folder_id of a bulk access batch for the notification consumer (spec §6).
+-- name: GetDocumentAccessBatchFolderID :one
+SELECT folder_id
+FROM document_access_batches
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id);
 
 -- Claims one queued or interrupted running batch for the worker loop (spec §4, §5).
 -- name: ClaimNextDocumentAccessBatch :one
