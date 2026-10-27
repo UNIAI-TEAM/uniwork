@@ -14236,6 +14236,9 @@
     "trashed_by_me": "Me",
     "search_people": "Search people",
     "no_people": "No one found",
+    "people_cap": "You can pick up to {{max}} people",
+    "former_members_one": "{{count}} former member",
+    "former_members_other": "{{count}} former members",
     "table_label": "Items in the trash",
     "columns": {
       "name": "Name",

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -149,7 +150,7 @@ func (s *TrashService) List(ctx context.Context, actor Actor, workspaceID string
 		}
 	}
 	if len(in.Filter.TrashedBy) > trashMaxDeleters {
-		return TrashPage[TrashItem]{}, coded(http.StatusBadRequest, "invalid_filter", "trashed_by có tối đa 100 người")
+		return TrashPage[TrashItem]{}, coded(http.StatusBadRequest, "invalid_filter", fmt.Sprintf("trashed_by có tối đa %d người", trashMaxDeleters))
 	}
 	for _, id := range in.Filter.TrashedBy {
 		if strings.TrimSpace(id) == "" {

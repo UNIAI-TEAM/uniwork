@@ -219,6 +219,14 @@ describe("TrashTab", () => {
     const chip = screen.getByRole("button", { name: "Loại: Công việc, Dự án" });
     expect(chip).toHaveTextContent("Công việc, Dự án");
     expect(chip).toHaveAttribute("title", "Công việc, Dự án");
+    // Every row ends in a box, ticked only when picked, like the people list.
+    for (const [name, on] of [["Công việc", true], ["Dự án", true], ["Tài liệu", false]] as const) {
+      const row = screen.getByRole("menuitemcheckbox", { name });
+      expect(row).toHaveAttribute("aria-checked", String(on));
+      const box = row.lastElementChild as HTMLElement;
+      expect(box).toHaveAttribute("data-slot", "trash-filter-check");
+      expect(box.hasAttribute("data-checked")).toBe(on);
+    }
   });
 
   it("clears a kind filter from the × on its chip without opening the list", async () => {
@@ -244,7 +252,12 @@ describe("TrashTab", () => {
     const list = await screen.findByRole("dialog");
     const boxes = within(list).getAllByRole("checkbox");
     expect(boxes).toHaveLength(3);
-    ["Tôi", "Bình", "Lan"].forEach((name, i) => expect(boxes[i]).toHaveAccessibleName(name));
+    ["Tôi", "Bình", "Lan"].forEach((name, i) => {
+      expect(boxes[i]).toHaveAccessibleName(name);
+      // The box comes after the name, on the right as in the Loại list.
+      const text = within(boxes[i]!.closest("label")!).getByText(name);
+      expect(text.compareDocumentPosition(boxes[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
     fireEvent.change(within(list).getByRole("searchbox", { name: "Tìm người" }), { target: { value: "binh" } });
     await waitFor(() => expect(within(list).queryByRole("checkbox", { name: "Lan" })).not.toBeInTheDocument());
     await pickPerson("Bình");
@@ -267,7 +280,11 @@ describe("TrashTab", () => {
     fireEvent.change(box, { target: { value: "zzz" } });
     await waitFor(() => expect(trashGets()).toContain("/api/v1/workspaces/ws1/trash?q=zzz"));
     const before = trashGets().length;
-    fireEvent.click(screen.getByRole("button", { name: "Xóa tìm kiếm" }));
+    const clear = screen.getByRole("button", { name: "Xóa tìm kiếm" });
+    // jsdom cannot press: a translate-centred × jumps off the pointer when the
+    // Button's press shift replaces its translate, and the click never lands.
+    expect(clear.className).not.toMatch(/-translate-[xy]/);
+    fireEvent.click(clear);
     expect(box).toHaveValue("");
     expect(box).toHaveFocus();
     expect(screen.queryByRole("button", { name: "Xóa tìm kiếm" })).not.toBeInTheDocument();

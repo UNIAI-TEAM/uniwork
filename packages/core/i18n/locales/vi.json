@@ -14162,6 +14162,9 @@
     "trashed_by_me": "Tôi",
     "search_people": "Tìm người",
     "no_people": "Không tìm thấy ai",
+    "people_cap": "Chọn được tối đa {{max}} người",
+    "former_members_one": "{{count}} thành viên cũ",
+    "former_members_other": "{{count}} thành viên cũ",
     "table_label": "Mục trong thùng rác",
     "columns": {
       "name": "Tên",

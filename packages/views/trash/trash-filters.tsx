@@ -3,10 +3,10 @@
 import { useRef } from "react";
 import { Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { TrashKind } from "@uniwork/core/trash";
+import { TRASH_KINDS, type TrashKind } from "@uniwork/core/trash";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { KindFilter, PeopleFilter, TRASH_KIND_ORDER } from "./trash-filter-chips";
+import { KindFilter, PeopleFilter } from "./trash-filter-chips";
 
 /** Empty means "no filter": the endpoint leaves it off the URL. */
 export interface TrashFilterValues {
@@ -38,7 +38,7 @@ export function TrashFilters({
 }) {
   const { t } = useTranslation();
   const searchRef = useRef<HTMLInputElement>(null);
-  const kinds = documentsEnabled ? TRASH_KIND_ORDER : TRASH_KIND_ORDER.filter((k) => k !== "document");
+  const kinds = documentsEnabled ? TRASH_KINDS : TRASH_KINDS.filter((k) => k !== "document");
 
   return (
     <div role="search" aria-label={t("trash.filters_label")} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -58,7 +58,9 @@ export function TrashFilters({
             variant="ghost"
             size="icon-xs"
             aria-label={t("trash.clear_search")}
-            className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
+            // Centred by margins, not translate: the Button's press shift replaces
+            // `translate`, so the × would jump off the pointer between down and up.
+            className="absolute inset-y-0 right-1 my-auto text-muted-foreground"
             onClick={() => {
               onChange({ ...filters, q: "" });
               searchRef.current?.focus();

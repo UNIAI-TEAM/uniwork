@@ -2,7 +2,12 @@ import { z } from "zod";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
 
-export type TrashKind = "task" | "project" | "document";
+/** Every kind, in the order the filter lists them and the request names them. */
+export const TRASH_KINDS = ["task", "project", "document"] as const;
+export type TrashKind = (typeof TRASH_KINDS)[number];
+
+/** The most deleters one request may name; the server answers 400 invalid_filter past it (trashMaxDeleters). */
+export const TRASH_MAX_DELETERS = 100;
 
 // Lenient: `kind` stays a plain string so a kind a later server adds does not drop the whole page.
 const TrashItemSchema = z.object({
