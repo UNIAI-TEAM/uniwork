@@ -28,7 +28,7 @@ function treeRowPaddingLeft(depth: number): number {
 /**
  * From this depth on, the star, share-scope badge and row menu stop taking
  * width in the row: at the 224px row of a 240px sidebar the name keeps
- * 168px - indent (80px at depth 4) instead of 132px - indent, and the slots
+ * 172px - indent (84px at depth 4) instead of 132px - indent, and the slots
  * appear as an overlay on hover, keyboard focus or an open menu. The indent
  * step is untouched. On coarse pointers there is no hover, so the slots stay
  * in the row there.

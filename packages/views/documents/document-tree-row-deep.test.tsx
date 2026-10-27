@@ -126,4 +126,17 @@ describe("DocumentTree deep rows", () => {
     expect(row).toHaveAttribute("aria-selected", "true");
     expect(trailing).toHaveClass("opacity-100", "pointer-events-auto");
   });
+  it("opens the row menu on Shift+F10 on a deep row and keeps the overlay revealed while it is open", async () => {
+    const rowAt = await renderExpandedChain();
+    const row = rowAt(3);
+    const full = `Cấp 3 ${LONG_NAME}`;
+    const trailing = row.querySelector("[data-row-trailing]");
+    const menu = await within(row).findByRole("button", { name: t("documents.home.row.menu", { title: full }) });
+
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+
+    expect(menu).toHaveAttribute("aria-expanded", "true");
+    expect(trailing).toHaveClass("opacity-100", "pointer-events-auto");
+  });
 });
