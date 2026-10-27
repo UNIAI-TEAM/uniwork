@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page, type Request, type Response } from "@playwright/test";
-import { createFolder, createPage, folderCard } from "./documents-folders-fixtures";
+import { createFolder, createPage } from "./documents-folders-fixtures";
 import {
   buildShareScene,
   grantAccess,
@@ -30,8 +30,9 @@ let s: ShareScene;
 
 /** Every locator of the dialog in one place, so a rename in the views touches only this block. */
 const L = {
-  cardMenu: (page: Page, title: string): Locator =>
-    folderCard(page, title).getByRole("button", { name: `Thao tác cho ${title}`, exact: true }),
+  tree: (page: Page): Locator => page.getByRole("tree", { name: "Cây tài liệu" }),
+  treeMenu: (page: Page, title: string): Locator =>
+    L.tree(page).getByRole("button", { name: `Thao tác cho ${title}`, exact: true }),
   menuItem: (page: Page): Locator => page.getByTestId("folder-access-menu-item"),
   dialog: (page: Page): Locator => page.getByTestId("folder-access-dialog"),
   mode: (dialog: Locator): Locator => dialog.getByTestId("folder-access-mode"),
@@ -134,13 +135,13 @@ async function signInMember(page: Page): Promise<void> {
   await loginViaUi(page, s.member.email);
 }
 
-/** The folder card menu on the library home, then the bulk item: returns the open dialog. */
+/** The folder's row menu in the sidebar tree (the card menu has no such item), then the bulk item: returns the open dialog. */
 async function openFolderAccess(page: Page, folderTitle: string): Promise<Locator> {
   await page.goto(`/${s.m.aOwner.orgSlug}/${s.m.aOwner.wsSlug}/documents`);
-  const card = folderCard(page, folderTitle);
-  await expect(card).toBeVisible({ timeout: 60_000 });
-  await card.hover();
-  await L.cardMenu(page, folderTitle).click();
+  const row = L.tree(page).getByRole("treeitem", { name: folderTitle });
+  await expect(row).toBeVisible({ timeout: 60_000 });
+  await row.hover();
+  await L.treeMenu(page, folderTitle).click();
   await expect(L.menuItem(page)).toHaveText(MENU_LABEL);
   await L.menuItem(page).click();
   const dialog = L.dialog(page);
@@ -190,7 +191,7 @@ test("merge: dry run counts the skipped document, apply writes the subtree and l
   expect(dryReq.mode).toBe("merge");
   expect(dryReq.items).toEqual([{ principal_type: "user", principal_id: s.other.id, level: "edit" }]);
   await expect(L.summary(dialog)).toContainText("Sẽ đổi 2 tài liệu");
-  await expect(L.summary(dialog)).toContainText("bỏ qua 1 bạn không quản lý");
+  await expect(L.summary(dialog)).toContainText("bỏ qua 1 tài liệu bạn không quản lý");
   // A dry run writes nothing.
   for (const id of tree.managed) expect((await accessOf(page, s.member.token, id)).shares).toEqual([]);
 
@@ -263,7 +264,7 @@ test("replace: Confirm waits for a workspace choice, then the shares are exactly
   expect(dryBody.preview).toMatchObject({ changed: 2, skipped_not_manageable: 1, losing_users: 1 });
   expect(dryBody.preview.warnings).not.toContain("to_private");
   await expect(L.warning(dialog, "to_private")).toHaveCount(0);
-  await expect(L.summary(dialog)).toContainText("bỏ qua 1 bạn không quản lý");
+  await expect(L.summary(dialog)).toContainText("bỏ qua 1 tài liệu bạn không quản lý");
   // Nothing was written by the dry runs.
   for (const id of tree.managed) expect((await accessOf(page, s.member.token, id)).shares).toContain(`user:${s.other.id}:edit`);
 
