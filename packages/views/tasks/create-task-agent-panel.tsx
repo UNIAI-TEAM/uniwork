@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, CalendarDays, Maximize2, Minimize2, Ellipsis, PanelBottomClose, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -49,6 +49,7 @@ export type CreateTaskAgentPanelProps = {
   setIsExpanded: (expanded: boolean) => void;
   createAnother: boolean;
   setCreateAnother: (createAnother: boolean) => void;
+  cancelReadingRef?: MutableRefObject<(() => boolean) | null>;
 };
 
 function initialOf(name: string): string {
@@ -110,7 +111,7 @@ function AgentPicker({ agents, selected, onChange }: { agents: Agent[]; selected
 }
 
 /** Agent quick-create remains capability-gated until the runtime API lands. */
-export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode, isExpanded, setIsExpanded, createAnother, setCreateAnother }: CreateTaskAgentPanelProps) {
+export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode, isExpanded, setIsExpanded, createAnother, setCreateAnother, cancelReadingRef }: CreateTaskAgentPanelProps) {
   const { t } = useTranslation();
   const workspaceContext = useOptionalWorkspace();
   const workspaceName = workspaceContext?.workspace.name ?? t("tasks.new");
@@ -166,8 +167,15 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
     enabled: hasDriveChip && Boolean(resolvedDriveFileId),
   });
   const resolvedDriveFile = driveFileDetailQuery.data ?? matchingLibraryFile;
-  const isDriveSendBlocked = aiCaps.data?.enabled === false || resolvedDriveFile?.can_propose === false;
-
+  const isAiDisabled = hasDriveChip && aiCaps.data?.enabled === false;
+  const isDriveAccessBlocked = hasDriveChip && !isAiDisabled && resolvedDriveFile?.can_propose === false;
+  const isDriveSendBlocked = isAiDisabled || isDriveAccessBlocked;
+  const driveBlockedHintId = `create-task-agent-drive-blocked-hint-${draft.idempotencyKey}`;
+  const driveBlockedReason = isAiDisabled
+    ? t("drive.proposals.errors.ai_disabled")
+    : isDriveAccessBlocked
+      ? t("drive.card.blocked_action_hint")
+      : undefined;
   const linkDriveFilesMutation = useLinkDriveFiles(workspaceId);
   const createProposalMutation = useCreateDriveTaskProposal(workspaceId);
   const isProposing = abortController !== null && (linkDriveFilesMutation.isPending || createProposalMutation.isPending);
@@ -231,8 +239,12 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
   });
   const isUploading = uploadCount > 0 || uploadGate.uploading;
 
-  const cancelProposalReading = () => { abortRef.current?.abort(); abortRef.current = null; setAbortController(null); linkDriveFilesMutation.reset(); createProposalMutation.reset(); };
-
+  const cancelProposalReading = useCallback(() => { abortRef.current?.abort(); abortRef.current = null; setAbortController(null); linkDriveFilesMutation.reset(); createProposalMutation.reset(); }, [createProposalMutation, linkDriveFilesMutation]);
+  useEffect(() => {
+    if (!cancelReadingRef) return;
+    cancelReadingRef.current = isProposing ? () => { cancelProposalReading(); return true; } : null;
+    return () => { cancelReadingRef.current = null; };
+  }, [cancelProposalReading, cancelReadingRef, isProposing]);
   const submitDriveProposal = async () => {
     if (!primaryDriveChip || isDriveSendBlocked || isProposing || isUploading || uploadGate.isBlocked()) return;
     if (!proposalReview.isMounted) { toast.error(t("drive.proposals.errors.review_unavailable")); return; }
@@ -332,7 +344,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 pb-2">
         <div className="min-w-0">
-          <DialogTitle className="truncate text-body font-medium">
+          <DialogTitle className="break-words text-body font-medium">
             <span className="font-normal text-muted-foreground">{workspaceName}</span>
             <span className="mx-1.5 text-muted-foreground" aria-hidden>›</span>
             <span className="text-foreground">{t("tasks.create.agent_breadcrumb")}</span>
@@ -484,6 +496,11 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
           </span>
           {isProposing ? <Button type="button" variant="outline" size="sm" onClick={cancelProposalReading}>{t("drive.proposals.cancel_reading")}</Button> : null}
         </div>
+        {!isProposing && driveBlockedReason ? (
+          <span id={driveBlockedHintId} className="justify-self-end text-caption text-muted-foreground">
+            {driveBlockedReason}
+          </span>
+        ) : null}
         {!isProposing ? (
           <CreateTaskSubmitButton
             type="button"
@@ -491,7 +508,8 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
             busy={isUploading}
             label={submitLabel}
             shortcut={sendShortcut}
-            ariaDescribedBy={hasPriorCreations ? warningId : undefined}
+            ariaDescribedBy={[hasPriorCreations ? warningId : undefined, driveBlockedReason ? driveBlockedHintId : undefined].filter(Boolean).join(" ") || undefined}
+            title={driveBlockedReason}
             onClick={submit}
           />
         ) : null}

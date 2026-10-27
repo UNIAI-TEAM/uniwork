@@ -185,6 +185,22 @@ vi.mock("@uniwork/core/feature-flags", async (importOriginal) => {
   };
 });
 
+const aiCapsState = vi.hoisted(() => ({
+  enabled: true,
+}));
+
+vi.mock("@uniwork/core/ai", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    useAiCapabilities: () => ({
+      data: { enabled: aiCapsState.enabled },
+      isLoading: false,
+      isError: false,
+    }),
+  };
+});
+
 vi.mock("@uniwork/core/api/http", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/api/http")>();
   return {
@@ -192,7 +208,6 @@ vi.mock("@uniwork/core/api/http", async (importOriginal) => {
     requestBlob: vi.fn().mockResolvedValue(new Blob(["x"], { type: "image/png" })),
   };
 });
-
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
@@ -273,6 +288,7 @@ beforeEach(() => {
   uploadMutateAsync.mockClear();
   linkDriveFilesMutateAsync.mockClear();
   mockUseTaskDriveFiles.mockClear();
+  aiCapsState.enabled = true;
   attachmentsState.data = [];
   attachmentsState.isError = false;
   attachmentsState.isLoading = false;
@@ -767,5 +783,31 @@ describe("TaskDetailAttachmentsSection", () => {
     expect(
       within(warning).getByRole("link", { name: "Xem các việc đã tạo" }),
     ).toHaveAttribute("href", "/org/team/documents/drive/df_granted#drive-tasks-created");
+
+    // F5: When AI is disabled on the workspace, the granted card's propose button is aria-disabled with the ai_disabled hint
+    aiCapsState.enabled = false;
+    driveState.files = [
+      {
+        ...sampleDriveCard,
+        id: "df_ai_off",
+        name: "Tệp khi AI tắt",
+        viewer_access: "granted",
+        can_propose: true,
+      },
+    ];
+    render(
+      shell(<TaskDetailAttachmentsSection workspaceId="w1" taskId="t1" />, {
+        driveFlag: true,
+      }),
+    );
+    const aiOffBtns = screen.getAllByRole("button", { name: "Tạo việc từ tài liệu" });
+    const aiOffBtn = aiOffBtns[aiOffBtns.length - 1]!;
+    expect(aiOffBtn).toHaveAttribute("aria-disabled", "true");
+    expect(aiOffBtn).toHaveAttribute("title", "AI chưa khả dụng trên workspace này.");
+    const aiHintId = aiOffBtn.getAttribute("aria-describedby");
+    expect(aiHintId).toBeTruthy();
+    expect(document.getElementById(aiHintId!)).toHaveTextContent(
+      "AI chưa khả dụng trên workspace này.",
+    );
   });
 });

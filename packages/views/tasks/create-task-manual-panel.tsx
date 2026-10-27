@@ -169,7 +169,7 @@ export function CreateTaskManualPanel({
     >
       <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 pb-2">
         <div className="min-w-0">
-          <DialogTitle className="truncate text-body font-medium">
+          <DialogTitle className="break-words text-body font-medium">
             <span className="font-normal text-muted-foreground">{workspaceName}</span>
             <span className="mx-1.5 text-muted-foreground" aria-hidden>
               ›

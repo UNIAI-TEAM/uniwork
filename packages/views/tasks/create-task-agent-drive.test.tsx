@@ -1038,11 +1038,14 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     fireEvent.click(await screen.findByRole("button", { name: /Gửi cho agent/ }));
     expect(await screen.findByText("UNI đang đọc tài liệu…")).toBeInTheDocument();
 
-    unmount();
+    // F7: Pressing Escape while "UNI đang đọc tài liệu…" cancels reading, aborts signal, and keeps dialog + draft open
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(capturedSignal?.aborted).toBe(true);
+    expect(await screen.findByRole("button", { name: /Gửi cho agent/ })).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
 
     await act(async () => {
-      slowGate.resolve({ proposal: makeProposal({ id: "dtp_after_unmount" }) });
+      slowGate.resolve({ proposal: makeProposal({ id: "dtp_after_esc" }) });
     });
 
     expect(onReviewOpen).not.toHaveBeenCalled();
@@ -1050,6 +1053,8 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.idempotencyKey).toBe(
       "draft_unmount_abort",
     );
+
+    unmount();
   });
 
   it("gates Drive-mode send when AI capability is disabled or can_propose is false (F5)", async () => {
@@ -1121,13 +1126,16 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
 
     render(
       renderInWorkspace(
-        <CreateTaskDialog
-          workspaceId="ws1"
-          open
-          showTrigger={false}
-          initialMode="agent"
-          onOpenChange={() => {}}
-        />,
+        <>
+          <DriveProposeTasksPopover workspaceId="ws1" driveFileId="df_1" />
+          <CreateTaskDialog
+            workspaceId="ws1"
+            open
+            showTrigger={false}
+            initialMode="agent"
+            onOpenChange={() => {}}
+          />
+        </>,
       ),
     );
 
@@ -1139,8 +1147,30 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     await waitFor(() => {
       expect(submitBtn).toHaveAttribute("aria-disabled", "true");
     }, QUERY_WAIT_OPTIONS);
+    expect(submitBtn).toHaveAttribute(
+      "title",
+      "AI chưa khả dụng trên workspace này.",
+    );
+    const agentHintId = submitBtn.getAttribute("aria-describedby");
+    expect(agentHintId).toBeTruthy();
+    expect(document.getElementById(agentHintId!)).toHaveTextContent(
+      "AI chưa khả dụng trên workspace này.",
+    );
 
     fireEvent.click(submitBtn);
+    expect(proposeCalled).toBe(false);
+
+    // Popover trigger is also aria-disabled with visible ai_disabled hint and aria-describedby
+    const popTrigger = screen.getByRole("button", { name: "Tạo việc từ tài liệu", hidden: true });
+    expect(popTrigger).toHaveAttribute("aria-disabled", "true");
+    expect(popTrigger).toHaveAttribute("title", "AI chưa khả dụng trên workspace này.");
+    const popHintId = popTrigger.getAttribute("aria-describedby");
+    expect(popHintId).toBeTruthy();
+    expect(document.getElementById(popHintId!)).toHaveTextContent(
+      "AI chưa khả dụng trên workspace này.",
+    );
+    fireEvent.click(popTrigger);
+    expect(screen.queryByLabelText("Gợi ý cho UNI (tùy chọn)")).toBeNull();
     expect(proposeCalled).toBe(false);
   });
 });
@@ -1156,13 +1186,13 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
     const lastCreatedAt = "2026-10-25T10:00:00Z";
     requestMock.mockImplementation(
       async (path: string, init?: { method?: string }) => {
+        if (path.endsWith("/ai/capabilities")) return { enabled: true };
         if (
           path === "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals" &&
           init?.method === "POST"
         ) {
           return { proposal: makeProposal({ id: "dtp_pop_1" }) };
         }
-        return {};
       },
     );
 
@@ -1234,6 +1264,7 @@ describe("DriveProposeTasksPopover & resolveDriveProposalError (§7.10, §8.1, �
 
     requestMock.mockImplementation(
       async (path: string, init?: { method?: string; signal?: AbortSignal }) => {
+        if (path.endsWith("/ai/capabilities")) return { enabled: true };
         if (
           path === "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals" &&
           init?.method === "POST"

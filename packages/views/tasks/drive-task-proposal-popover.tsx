@@ -1,9 +1,10 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { CircleAlert, ExternalLink, Sparkles, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useAiCapabilities } from "@uniwork/core/ai";
 import { ApiError, errorCode } from "@uniwork/core/api";
 import { useCreateDriveTaskProposal, type DriveTaskProposal, type DriveTasksCreatedSummary } from "@uniwork/core/drive";
 import { paths } from "@uniwork/core/paths";
@@ -285,6 +286,10 @@ export function DriveProposeTasksPopover({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  const aiCaps = useAiCapabilities(workspaceId, Boolean(workspaceId));
+  const isAiDisabled = aiCaps.data?.enabled === false;
+  const aiDisabledHintId = `drive-propose-ai-disabled-hint-${driveFileId}`;
+  const aiDisabledMessage = t("drive.proposals.errors.ai_disabled");
   const proposeMutation = useCreateDriveTaskProposal(workspaceId);
   const isReading = abortController !== null && proposeMutation.isPending;
   const defaultDetailHref = workspaceContext
@@ -307,6 +312,7 @@ export function DriveProposeTasksPopover({
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen && isAiDisabled) return;
     if (!nextOpen && isReading) {
       handleCancelReading();
     }
@@ -317,7 +323,7 @@ export function DriveProposeTasksPopover({
   };
 
   const handleSubmit = async () => {
-    if (isReading) return;
+    if (isReading || isAiDisabled) return;
     if (!proposalReview.isMounted) {
       toast.error(t("drive.proposals.errors.review_unavailable"));
       return;
@@ -356,8 +362,31 @@ export function DriveProposeTasksPopover({
     }
   };
 
+  if (isAiDisabled) {
+    const disabledProps = {
+      "aria-disabled": "true" as const,
+      "aria-describedby": aiDisabledHintId,
+      title: aiDisabledMessage,
+    };
+    return (
+      <div className="inline-flex flex-wrap items-center gap-2">
+        {trigger && isValidElement(trigger) ? (
+          cloneElement(trigger as ReactElement<Record<string, unknown>>, disabledProps)
+        ) : (
+          <Button type="button" variant="outline" size="sm" {...disabledProps}>
+            <Sparkles className="size-3.5" aria-hidden />
+            {t("drive.proposals.propose_button")}
+          </Button>
+        )}
+        <span id={aiDisabledHintId} className="text-caption text-muted-foreground">
+          {aiDisabledMessage}
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open && !isAiDisabled} onOpenChange={handleOpenChange}>
       <PopoverTrigger
         render={
           trigger ?? (

@@ -489,6 +489,7 @@ describe("DriveFileDetailView (4.2)", () => {
     // 2. Error + retry + ?propose=1 & ?ask=1 with can_propose & can_ask = true
     let calls = 0;
     requestMock.mockImplementation((path: string) => {
+      if (path.endsWith("/ai/capabilities")) return Promise.resolve({ enabled: true });
       if (path === DETAIL_URL) {
         calls += 1;
         if (calls <= 2) return Promise.reject(new ApiError("boom", "internal", 500));
@@ -713,6 +714,7 @@ describe("DriveFileDetailView (4.2)", () => {
 
   it("opens the 'Tạo việc từ tài liệu' popover via ?propose=1, scrolls #drive-tasks-created into view when hash matches, and hands proposal to DriveProposalReviewProvider (§8.1, §8.8)", async () => {
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path.endsWith("/ai/capabilities")) return Promise.resolve({ enabled: true });
       if (path === `${DETAIL_URL}/task-proposals` && opts?.method === "POST") {
         return Promise.resolve({
           proposal: {
@@ -795,5 +797,44 @@ describe("DriveFileDetailView (4.2)", () => {
       window.location.hash = "";
       HTMLElement.prototype.scrollIntoView = prevScrollIntoView;
     }
+  });
+
+  it("renders 'Tạo việc từ tài liệu' aria-disabled with ai_disabled hint on 4.2 when AI capability is disabled (F5)", async () => {
+    let proposeCalled = false;
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path.endsWith("/ai/capabilities")) return Promise.resolve({ enabled: false });
+      if (path === `${DETAIL_URL}/task-proposals` && opts?.method === "POST") {
+        proposeCalled = true;
+        return Promise.resolve({});
+      }
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({
+            can_propose: true,
+            viewer_access: "granted",
+          }),
+        });
+      }
+      return Promise.resolve({ events: [] });
+    });
+
+    render(withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />));
+
+    await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
+    const proposeBtn = await screen.findByRole("button", {
+      name: t("driveLibrary.detail.propose_tasks"),
+    });
+    await waitFor(() => {
+      expect(proposeBtn).toHaveAttribute("aria-disabled", "true");
+    });
+    expect(proposeBtn).toHaveAttribute("title", t("drive.proposals.errors.ai_disabled"));
+    const hintId = proposeBtn.getAttribute("aria-describedby");
+    expect(hintId).toBeTruthy();
+    expect(document.getElementById(hintId!)).toHaveTextContent(
+      t("drive.proposals.errors.ai_disabled"),
+    );
+    fireEvent.click(proposeBtn);
+    expect(screen.queryByLabelText(t("drive.proposals.prompt_label"))).toBeNull();
+    expect(proposeCalled).toBe(false);
   });
 });

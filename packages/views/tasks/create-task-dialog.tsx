@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentProps } from "react";
+import { useRef, useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import type { CreateTaskBody } from "@uniwork/core/tasks";
 import {
@@ -71,7 +71,7 @@ export function CreateTaskDialog({
   const [isExpanded, setIsExpanded] = useState(false);
   const [createAnother, setCreateAnother] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
-
+  const cancelAgentReadingRef = useRef<(() => boolean) | null>(null);
   const switchTo = (next: CreateTaskMode) => (nextCarry?: Record<string, unknown> | null) => {
     setCarry(nextCarry ?? null);
     setMode(next);
@@ -103,8 +103,14 @@ export function CreateTaskDialog({
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) setOpen(true);
-    else requestClose();
+    if (nextOpen) {
+      setOpen(true);
+      return;
+    }
+    if (cancelAgentReadingRef.current?.()) {
+      return;
+    }
+    requestClose();
   };
 
   return (
@@ -139,6 +145,7 @@ export function CreateTaskDialog({
               setIsExpanded={setIsExpanded}
               createAnother={createAnother}
               setCreateAnother={setCreateAnother}
+              cancelReadingRef={cancelAgentReadingRef}
             />
           )}
         </DialogContent>
