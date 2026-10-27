@@ -13,6 +13,7 @@ import {
 } from "@uniwork/core/drive";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { ConfirmDialog } from "../../common/form-dialog";
+import { DriveConsentHint } from "../../integrations/drive-consent-hint";
 import { useOAuthPopup, type OAuthPopupOutcome } from "../../integrations/use-oauth-popup";
 import { useWorkspace } from "../../layout/workspace-context";
 import { toastApiError } from "../../toast-api-error";
@@ -328,6 +329,8 @@ export function DriveIntegrationView({
         }
       >
         <div className="space-y-6">
+          <DriveConsentHint />
+
           {notice && !firstConnectFetching ? (
             <DriveCallbackAlert notice={notice} />
           ) : null}
