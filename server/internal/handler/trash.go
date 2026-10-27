@@ -13,6 +13,10 @@ import (
 )
 
 func (h *handlers) listTrash(w http.ResponseWriter, r *http.Request) {
+	if h.Trash == nil {
+		respondError(w, http.StatusNotImplemented, "not_implemented", "trash is not configured")
+		return
+	}
 	q := r.URL.Query()
 	page, err := h.Trash.List(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"),
 		service.ListTrashInput{

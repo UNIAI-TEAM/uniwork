@@ -5,7 +5,7 @@ package sdi
 // position.
 type ListSharedTrashSDI struct {
 	Kind      string `query:"kind" enum:"task,project,document" description:"Chỉ một loại; bỏ trống là mọi loại. Giá trị khác -> 400 invalid_filter" example:"project"`
-	Q         string `query:"q" description:"Tìm theo tên, không phân biệt hoa thường" example:"báo cáo"`
-	TrashedBy string `query:"trashed_by" description:"ULID người xoá" example:"01J8X4USERN1P2Q3R4S5T6U7"`
+	Q         string `query:"q" description:"Tìm theo tên hiển thị trên dòng (lô công việc: tên công việc gốc), không phân biệt hoa thường và dấu" example:"báo cáo"`
+	TrashedBy string `query:"trashed_by" description:"ULID người xóa" example:"01J8X4USERN1P2Q3R4S5T6U7"`
 	Cursor    string `query:"cursor" description:"next_cursor của trang trước; bỏ trống cho trang đầu. Hỏng -> 400" example:"eyJ0IjoiMTc5MDAwMDAwMDAwMDAwMC4wMUo4WDRUQVNLIn0"`
 }

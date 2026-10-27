@@ -1,9 +1,21 @@
 package handler
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"testing"
 )
+
+// TestTrashRouteUnwiredAnswers501: without the task service there is no trash
+// service, and the route fails closed instead of panicking.
+func TestTrashRouteUnwiredAnswers501(t *testing.T) {
+	w := httptest.NewRecorder()
+	(&handlers{}).listTrash(w, httptest.NewRequest("GET", "/api/v1/workspaces/w/trash", nil))
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("unwired trash = %d, want 501", w.Code)
+	}
+}
 
 func TestTrashRouteAnswersTheSharedPage(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
