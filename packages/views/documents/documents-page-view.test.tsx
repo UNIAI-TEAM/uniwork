@@ -1650,7 +1650,7 @@ describe("DocumentsPageView", () => {
       renderView(onOpen, { desktopOpen: desktopOpenWith(createSession) });
 
       const legacyRow = await rowOf("Hợp đồng cũ.doc");
-      fireEvent.click(within(legacyRow).getByRole("button", { name: /^File Hợp đồng cũ\.doc/ }));
+      fireEvent.click(within(legacyRow).getByRole("button", { name: /^(Word document|Tài liệu Word) Hợp đồng cũ\.doc/ }));
 
       expect(onOpen).not.toHaveBeenCalled();
       const dialog = await screen.findByRole("dialog", { name: t("office.legacy.title") });
