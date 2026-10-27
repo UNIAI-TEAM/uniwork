@@ -34,8 +34,8 @@ interface DriveSidebarAccountProps {
   onToggle: () => void;
   onSelect: (account: string, folder: string | null) => void;
   /**
-   * "Name this folder" on an unnamed node. Passed only when the server route that names a folder
-   * exists; without it the row menu is not drawn.
+   * "Name this folder" on an unnamed node. A host passes it when it can open the Google Picker;
+   * without it the row menu is not drawn.
    */
   onNameFolder?: (folder: DriveFolderEntry, connectionId: string) => void;
 }
@@ -91,7 +91,11 @@ export function DriveSidebarAccount({
 }: DriveSidebarAccountProps) {
   const { t, i18n } = useTranslation();
   const groupId = useId();
-  const folders = useDriveAccountFolders(wsId, connection.id, { enabled: expanded, locale: i18n.language });
+  const folders = useDriveAccountFolders(wsId, connection.id, {
+    enabled: expanded,
+    locale: i18n.language,
+    withFiles: false,
+  });
   const accountLabel = t("driveLibrary.sidebar.account_row", { email: connection.google_email });
   const disconnectedLabel = t("driveLibrary.sidebar.disconnected");
   // An unknown folder id shows the account view, so the account row is the current node then.

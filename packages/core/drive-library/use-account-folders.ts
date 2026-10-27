@@ -33,6 +33,8 @@ interface DriveAccountFolders {
   files: DriveFile[];
   /** Nothing to show yet: the folder list, or the first page of files when those are needed. */
   isPending: boolean;
+  /** The folder set will not change any more: from the server list, or once the page walk it is derived from ended. */
+  foldersComplete: boolean;
   /** Pages are still being fetched, so `files` can still grow (and derived folders with them). */
   isLoadingMore: boolean;
   /** Fetching a later page failed: what is loaded stays usable, `retryLoadMore` continues the walk. */
@@ -94,6 +96,7 @@ export function useDriveAccountFolders(
     unfiled,
     files,
     isPending: active && ((!serverList && foldersQuery.isPending) || (walk && query.isPending)),
+    foldersComplete: serverList || !(walk && Boolean(hasNextPage) && !capped && !isFetchNextPageError),
     isLoadingMore: walk && Boolean(hasNextPage) && !capped && !isFetchNextPageError,
     isLoadMoreError: walk && isFetchNextPageError,
     isError: walk && (query.isError || capped),

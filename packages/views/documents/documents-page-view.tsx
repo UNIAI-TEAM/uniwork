@@ -52,6 +52,7 @@ import { useTrashActions } from "./use-trash-actions";
 import { useShelvedActions } from "./use-shelved-actions";
 import { buildDocumentsViewUrl, sameDocumentsView, viewFromSearchParams } from "./documents-view-url";
 import { buildDocumentsDriveBranch, type DriveConnectionSummary } from "./drive/documents-drive-branch";
+import { NameDriveFolderHost, useNameFolderLauncher } from "./drive/name-drive-folder-host";
 
 // Thùng rác has no filter bar: its library reads no type.
 const NO_TYPES: DocumentTypeFilter[] = [];
@@ -327,6 +328,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       }
     : { title: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_title`), description: t(`documents.home.empty.${view.kind === "sharedByMe" ? "shared_by_me" : view.kind}_description`) };
 
+  const nameDriveFolder = useNameFolderLauncher();
   const sidebar = {
     wsId,
     view,
@@ -339,6 +341,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     newFolderPending: creator.folderPending,
     accessReportHref: wsPaths.documentsAccessReport(),
     ...sidebarDriveProps,
+    onNameDriveFolder: (folder: { id: string }, connectionId: string) => nameDriveFolder.launch(folder.id, connectionId),
     onView: (next: LibraryView) => goHome(next),
     onFolder: (id: string) => goHome({ kind: "home" }, id),
     onMyFolder: openMyFolder,
@@ -547,6 +550,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       <DocumentsSidebarSheet open={navOpen} onOpenChange={setNavOpen} {...sidebar} />
 
       {uploads.dialogs}
+
+      {nameDriveFolder.request ? <NameDriveFolderHost wsId={wsId} request={nameDriveFolder.request} /> : null}
 
       {officeViewer.dialog}
 

@@ -168,7 +168,7 @@ describe("Drive folder tree in the sidebar", () => {
 
     const alpha = await screen.findByRole("button", { name: /Alpha/ });
     const beta = screen.getByRole("button", { name: /Dự án Beta/ });
-    const unnamed = screen.getByRole("button", { name: new RegExp(UNNAMED_LABEL) });
+    const unnamed = screen.getByRole("button", { name: new RegExp(`^${UNNAMED_LABEL}`) });
     expect(alpha.compareDocumentPosition(beta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(beta.compareDocumentPosition(unnamed) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(alpha).toHaveTextContent("1");

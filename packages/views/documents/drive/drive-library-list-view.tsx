@@ -1,12 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CircleAlert, FolderOpen, Plus, RefreshCw, Search, TriangleAlert } from "lucide-react";
+import { CircleAlert, FolderOpen, Pencil, Plus, RefreshCw, Search, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDriveFiles } from "@uniwork/core/drive-library";
 import { driveFilesInFolder } from "@uniwork/core/drive-library/folders";
 import { useDriveAccountFolders } from "@uniwork/core/drive-library/use-account-folders";
-import { DRIVE_ACCOUNT_PARAM, DRIVE_FOLDER_PARAM, paths } from "@uniwork/core/paths";
+import {
+  DRIVE_ACCOUNT_PARAM,
+  DRIVE_FOLDER_PARAM,
+  DRIVE_NAME_FOLDER_PARAM,
+  parseDriveNameFolderRequest,
+  paths,
+} from "@uniwork/core/paths";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -30,6 +36,7 @@ import { fold } from "../../settings/components/member-search";
 import { driveFolderLabel } from "./drive-folder-label";
 import { DriveLibrarySearch } from "./drive-library-search";
 import { DriveLibraryTable } from "./drive-library-table";
+import { NameDriveFolderHost, useNameFolderLauncher } from "./name-drive-folder-host";
 import {
   useDriveLibraryConnections,
   type DriveConnectionSummary,
@@ -220,14 +227,18 @@ function DriveLibraryListBody({
   // The node on show: the Google Drive root (all accounts), one account (folder rows, then the
   // files without a folder) or one folder of it. An unknown folder id falls back to the account.
   const selectedFolder = accountScoped && folderId ? account.folders.find((f) => f.id === folderId) ?? null : null;
-  const folderResolving = accountScoped && Boolean(folderId) && !selectedFolder && account.isLoadingMore;
+  const folderResolving = accountScoped && Boolean(folderId) && !selectedFolder && !account.foldersComplete;
   const nodeFolders = accountScoped && !selectedFolder ? account.folders : [];
   const nodeFiles = !accountScoped
     ? rootQuery.data?.pages.flatMap((p) => p.files) ?? []
     : selectedFolder
       ? driveFilesInFolder(account.files, selectedFolder.id)
       : account.unfiled;
-  const isPending = waitForConnections || folderResolving || (accountScoped ? account.isPending : rootQuery.isPending);
+  // The folder list can be known before the files of its pages have arrived: an empty node is not "empty" yet.
+  const filesArriving =
+    accountScoped && account.isLoadingMore && nodeFiles.length === 0 && (selectedFolder !== null || nodeFolders.length === 0);
+  const isPending =
+    waitForConnections || folderResolving || filesArriving || (accountScoped ? account.isPending : rootQuery.isPending);
   const isError = accountScoped ? account.isError && account.files.length === 0 : rootQuery.isError && nodeFiles.length === 0;
   const refetch = accountScoped ? account.refetch : () => void rootQuery.refetch();
 
@@ -253,6 +264,28 @@ function DriveLibraryListBody({
     const qs = nextParams.toString();
     replace(qs ? `${wsPaths.documents()}?${qs}` : wsPaths.documents());
   }, [pickParam, searchParams, replace, wsPaths]);
+
+  // "Name this folder" (contract v3 item 3): the header action of an unnamed folder, and the `nameFolder=1`
+  // request the desktop app hands off with. The request is dropped from the URL once it was looked at,
+  // so the Picker opens at most once.
+  const { request: nameRequest, launch: launchName } = useNameFolderLauncher();
+  const canNameFolder = selectedFolder !== null && selectedFolder.name === null && !brokenAccount;
+  const nameRequested = parseDriveNameFolderRequest(searchParams);
+  const nameSettled = !waitForConnections && (!accountScoped || account.isError || (!account.isPending && account.foldersComplete));
+  const nameHandledRef = useRef(false);
+  useEffect(() => {
+    if (!nameRequested) {
+      nameHandledRef.current = false;
+      return;
+    }
+    // The ref holds the request until the URL has really dropped it (a navigation commits later).
+    if (!nameSettled || nameHandledRef.current) return;
+    nameHandledRef.current = true;
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete(DRIVE_NAME_FOLDER_PARAM);
+    replace(`${wsPaths.documents()}?${nextParams.toString()}`);
+    if (canNameFolder && effectiveAccountId) launchName(selectedFolder.id, effectiveAccountId);
+  }, [nameRequested, nameSettled, canNameFolder, effectiveAccountId, selectedFolder, launchName, searchParams, replace, wsPaths]);
 
   const title = selectedConnection
     ? t("driveLibrary.list.title_account", { email: selectedConnection.google_email })
@@ -354,6 +387,17 @@ function DriveLibraryListBody({
           >
             {t("driveLibrary.list.manage_connections")}
           </AppLink>
+          {canNameFolder && effectiveAccountId ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => launchName(selectedFolder.id, effectiveAccountId)}
+            >
+              <Pencil aria-hidden className="size-3.5" />
+              {t("driveLibrary.folder.name_action")}
+            </Button>
+          ) : null}
           {addButton}
         </div>
       </div>
@@ -450,6 +494,9 @@ function DriveLibraryListBody({
         </>
       )}
       {picker.dialogs}
+      {nameRequest ? (
+        <NameDriveFolderHost wsId={wsId} request={nameRequest} adapter={pickerAdapter} />
+      ) : null}
     </div>
   );
 }
