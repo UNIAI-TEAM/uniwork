@@ -231,8 +231,41 @@ func (s *DocumentService) applyDocumentShare(ctx context.Context, q *db.Queries,
 }
 
 func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput, batchID, notifyUserID string) (db.DocumentShare, error) {
+	return s.applyDocumentShareWithMeta(ctx, q, actor, doc, access, in, documentShareBatchMeta{BatchID: batchID}, notifyUserID)
+}
+
+// documentShareBatchMeta carries optional batch and folder-contents provenance
+// for audit rows written by applyDocumentShare*, writeDocumentHomeRow and
+// revokeDocumentShareRow* (SH-S2, UNI-2244 §6).
+type documentShareBatchMeta struct {
+	BatchID  string
+	Via      string
+	FolderID string
+	Mode     string
+}
+
+func (m documentShareBatchMeta) apply(meta map[string]any, beforeLevel string) map[string]any {
+	if m.BatchID != "" {
+		meta["batch_id"] = m.BatchID
+	}
+	if m.Via != "" {
+		meta["via"] = m.Via
+	}
+	if m.FolderID != "" {
+		meta["folder_id"] = m.FolderID
+	}
+	if m.Mode != "" {
+		meta["mode"] = m.Mode
+	}
+	if m.Via != "" {
+		meta["before_level"] = beforeLevel
+	}
+	return meta
+}
+
+func (s *DocumentService) applyDocumentShareWithMeta(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, in DocumentShareInput, batchMeta documentShareBatchMeta, notifyUserID string) (db.DocumentShare, error) {
 	if in.PrincipalType == DocumentPrincipalWorkspace && in.PrincipalID == doc.WorkspaceID {
-		return mergeDocumentShareIntoHomeRow(ctx, q, actor, doc, access, in.Level, batchID)
+		return mergeDocumentShareIntoHomeRowWithMeta(ctx, q, actor, doc, access, in.Level, batchMeta)
 	}
 	if in.PrincipalType == DocumentPrincipalOrganization && in.Level == DocumentLevelManage {
 		return db.DocumentShare{}, errOrgShareLevelNotAllowed()
@@ -299,9 +332,11 @@ func (s *DocumentService) applyDocumentShareWithBatch(ctx context.Context, q *db
 		"principal_id":   sh.PrincipalID,
 		"origin":         sh.Origin,
 	}
-	if batchID != "" {
-		meta["batch_id"] = batchID
+	beforeLevel := ""
+	if hasPrev {
+		beforeLevel = prev.Level
 	}
+	batchMeta.apply(meta, beforeLevel)
 	payload := map[string]string{
 		"document_id":  doc.ID,
 		"workspace_id": doc.WorkspaceID,
@@ -361,6 +396,10 @@ func priorManualLevelForChatGrant(hasPrev bool, prev db.DocumentShare, sourceKin
 // refuses manage, and DOC-05 refuses an AdminScope-only caller the widening
 // of a restricted document, exactly as the PATCH and the self-share rule do.
 func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, level DocumentLevel, batchID string) (db.DocumentShare, error) {
+	return mergeDocumentShareIntoHomeRowWithMeta(ctx, q, actor, doc, access, level, documentShareBatchMeta{BatchID: batchID})
+}
+
+func mergeDocumentShareIntoHomeRowWithMeta(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, level DocumentLevel, batchMeta documentShareBatchMeta) (db.DocumentShare, error) {
 	if err := refuseFolderShare(doc); err != nil {
 		return db.DocumentShare{}, err
 	}
@@ -371,7 +410,7 @@ func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Act
 		return db.DocumentShare{}, errBreakGlassRequired()
 	}
 	updated, err := writeDocumentHomeRow(ctx, q, actor, doc, documentHomeRowMove{
-		Visibility: documentVisibilityWorkspace, WorkspaceLevel: string(level), BatchID: batchID,
+		Visibility: documentVisibilityWorkspace, WorkspaceLevel: string(level), BatchID: batchMeta.BatchID, BatchMeta: batchMeta,
 	})
 	if err != nil {
 		return db.DocumentShare{}, err
@@ -461,13 +500,17 @@ func revokeDocumentShareRow(ctx context.Context, q *db.Queries, actor Actor, doc
 }
 
 func revokeDocumentShareRowWithBatch(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sh db.DocumentShare, batchID string) error {
+	return revokeDocumentShareRowWithMeta(ctx, q, actor, doc, sh, documentShareBatchMeta{BatchID: batchID})
+}
+
+func revokeDocumentShareRowWithMeta(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, sh db.DocumentShare, batchMeta documentShareBatchMeta) error {
 	if err := q.RevokeDocumentShare(ctx, db.RevokeDocumentShareParams{
 		ID: sh.ID, OrganizationID: sh.OrganizationID, WorkspaceID: sh.WorkspaceID,
 		DocumentID: sh.DocumentID, RevokedBy: nullText(actor.ID),
 	}); err != nil {
 		return err
 	}
-	rec := documentShareRevokeRecord(actor, doc, sh, batchID)
+	rec := documentShareRevokeRecordWithMeta(actor, doc, sh, batchMeta)
 	return auditRecorder.Record(ctx, q, rec.Entry, rec.Events...)
 }
 

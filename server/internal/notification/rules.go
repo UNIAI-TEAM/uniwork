@@ -160,7 +160,7 @@ var rules = map[string]rule{
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
 	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
 	// effective level on the document.
-	"document.shared": both(ruleDocumentShared, docChangeRule(docVerbAccessChanged)),
+	"document.shared": both(ruleDocumentShared, ruleDocumentSharedAccessChange),
 	// DOC-07 (UNI-1631): a person asked a document's managers for access, and
 	// the answer that reaches the requester wherever they are.
 	"document.access_requested":       ruleDocumentAccessRequested,
@@ -181,7 +181,7 @@ var rules = map[string]rule{
 	// keep no consumer here and stay on the realtime lane (BE-R1-1).
 	"document.moved":          ruleDocumentMovedChange,
 	"document.deleted":        ruleDocumentDeletedChange,
-	"document.share_revoked":  docChangeRule(docVerbAccessChanged),
+	"document.share_revoked":  ruleDocumentShareRevokedAccessChange,
 	"document.change_noticed": ruleDocumentChangeNoticed,
 
 	"participant.invited":    ruleParticipantInvited,
@@ -1030,6 +1030,42 @@ func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]
 		level = revoked.Level
 	default:
 		return nil, err
+	}
+	if meta, err := auditMetadata(ctx, e.q, ev, audit.ActionDocumentShared, doc.ID); err != nil {
+		return nil, err
+	} else if via, _ := meta["via"].(string); via == "folder_contents" {
+		batchID, _ := meta["batch_id"].(string)
+		if batchID != "" {
+			folderID, err := e.q.GetDocumentAccessBatchFolderID(ctx, db.GetDocumentAccessBatchFolderIDParams{
+				ID:             batchID,
+				OrganizationID: doc.OrganizationID,
+				WorkspaceID:    doc.WorkspaceID,
+			})
+			if err == nil && folderID != "" {
+				folder, err := e.q.GetDocumentByID(ctx, folderID)
+				if err == nil && folder.OrganizationID == doc.OrganizationID && folder.WorkspaceID == doc.WorkspaceID {
+					return []Draft{{
+						UserID:         uid,
+						OrganizationID: doc.OrganizationID,
+						WorkspaceID:    doc.WorkspaceID,
+						Kind:           KindDocumentShared,
+						GroupKey:       "document_access_batch:" + batchID + ":" + uid + ":" + level,
+						ResourceType:   "document",
+						ResourceID:     folder.ID,
+						ActorKind:      actorKindOf(ev),
+						ActorID:        ev.ActorID.String,
+						OncePerGroup:   true,
+						Params: map[string]string{
+							"actor":       actorName(ctx, e.q, ev),
+							"document":    folder.Title,
+							"document_id": folder.ID,
+							"level":       level,
+							"batch_id":    batchID,
+						},
+					}}, nil
+				}
+			}
+		}
 	}
 	return []Draft{{
 		UserID:         uid,

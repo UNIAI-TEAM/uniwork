@@ -291,3 +291,68 @@ func TestDocumentAccessBatchAndCandidatesOverHTTP(t *testing.T) {
 		t.Fatalf("422 fields.rejected leaked foreign tenant name: %s", rawRej)
 	}
 }
+
+// TestFolderShareCandidatesReaderAccessOverHTTP covers UNI-2244 Amendment A1:
+// GET /api/v1/documents/{folderID}/share-candidates admits any reader of a
+// folder (blanking direct_level for non-administer readers while keeping
+// is_home_workspace), keeps the 403 refusal for a reader on a non-folder
+// document they cannot administer, and refuses a non-member with 404.
+func TestFolderShareCandidatesReaderAccessOverHTTP(t *testing.T) {
+	w := newDocsWorld(t)
+	res, folderOut := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents", w.token, map[string]any{
+		"title": "A1 Folder", "kind": "folder",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("create folder: %d %v", res.StatusCode, folderOut)
+	}
+	folderID := folderOut["document"].(map[string]any)["id"].(string)
+
+	_, pageID := docsCreatePageBody(t, w, w.token, map[string]any{
+		"title": "A1 Page", "kind": "page", "visibility": "workspace",
+	})
+
+	readerToken, _ := docsJoinWorkspace(t, w, "docs-a1-reader@example.com")
+	outsiderToken, _ := filesRegister(t, w.srv, "docs-a1-outsider@example.com")
+
+	// 1. Reader (non-admin member) of a folder gets 200 candidates with direct_level=null and is_home_workspace preserved.
+	res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+folderID+"/share-candidates", readerToken, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("folder reader share-candidates = %d %v, want 200", res.StatusCode, out)
+	}
+	items, _ := out["items"].([]any)
+	if len(items) == 0 {
+		t.Fatalf("folder reader share-candidates items = %v, want non-empty", items)
+	}
+	var sawHomeWS bool
+	for _, raw := range items {
+		cand := raw.(map[string]any)
+		if cand["direct_level"] != nil {
+			t.Fatalf("folder reader candidate leaked direct_level: %v", cand)
+		}
+		if cand["principal_type"] == "workspace" && cand["principal_id"] == w.wsID {
+			if cand["is_home_workspace"] != true {
+				t.Fatalf("home workspace candidate = %v, want is_home_workspace=true", cand)
+			}
+			sawHomeWS = true
+		}
+	}
+	if !sawHomeWS {
+		t.Fatalf("home workspace missing from folder reader candidates: %v", items)
+	}
+
+	// 2. Same reader on a non-folder document they cannot administer gets 403.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+pageID+"/share-candidates", readerToken, nil)
+	wantErr(t, res, out, 403, "forbidden", "")
+
+	// 3. Non-member gets 404 refusal on the folder.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+folderID+"/share-candidates", outsiderToken, nil)
+	wantErr(t, res, out, 404, "not_found", "")
+
+	// 4. Write routes on the folder still refuse with 422 folder_not_shareable.
+	res, out = doJSON(t, w.srv, "PUT", "/api/v1/documents/"+folderID+"/access", w.token, map[string]any{
+		"items": []any{
+			map[string]any{"principal_type": "workspace", "principal_id": w.wsID, "level": "view"},
+		},
+	})
+	wantErr(t, res, out, 422, "folder_not_shareable", "")
+}
