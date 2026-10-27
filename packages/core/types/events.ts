@@ -91,6 +91,7 @@ export const WS_EVENT_TYPES = [
   "document.edit_request_answered",
   "document.access_requested",
   "document.access_request_decided",
+  "document_access_batch.completed",
   "drive_connection.changed",
   "drive_file.access_changed",
   "drive_file.linked",

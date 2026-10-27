@@ -793,6 +793,31 @@ type Document struct {
 	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
 }
 
+type DocumentAccessBatch struct {
+	ID                   string             `json:"id"`
+	OrganizationID       string             `json:"organization_id"`
+	WorkspaceID          string             `json:"workspace_id"`
+	FolderID             string             `json:"folder_id"`
+	CreatedBy            string             `json:"created_by"`
+	CreatedByKind        string             `json:"created_by_kind"`
+	Mode                 string             `json:"mode"`
+	Items                []byte             `json:"items"`
+	DocumentIds          []string           `json:"document_ids"`
+	NotifiedLevels       []byte             `json:"notified_levels"`
+	Status               string             `json:"status"`
+	Total                int32              `json:"total"`
+	Processed            int32              `json:"processed"`
+	Changed              int32              `json:"changed"`
+	Unchanged            int32              `json:"unchanged"`
+	SkippedNotManageable int32              `json:"skipped_not_manageable"`
+	SkippedLocked        int32              `json:"skipped_locked"`
+	CursorID             string             `json:"cursor_id"`
+	ErrorCode            pgtype.Text        `json:"error_code"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	FinishedAt           pgtype.Timestamptz `json:"finished_at"`
+}
+
 type DocumentAccessLog struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

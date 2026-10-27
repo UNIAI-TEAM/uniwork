@@ -776,14 +776,16 @@ type Routes struct {
 	PurgeDocument                  http.HandlerFunc
 	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, read-only and
 	// kept forever - "archive" is the trash.
-	ShelveDocument              http.HandlerFunc
-	UnshelveDocument            http.HandlerFunc
-	ListDocumentShares          http.HandlerFunc
-	ListDocumentShareCandidates http.HandlerFunc
-	CreateDocumentShare         http.HandlerFunc
-	CreateDocumentShareBatch    http.HandlerFunc
-	UpdateDocumentAccess        http.HandlerFunc
-	RevokeDocumentShare         http.HandlerFunc
+	ShelveDocument               http.HandlerFunc
+	UnshelveDocument             http.HandlerFunc
+	ListDocumentShares           http.HandlerFunc
+	ListDocumentShareCandidates  http.HandlerFunc
+	CreateDocumentShare          http.HandlerFunc
+	CreateDocumentShareBatch     http.HandlerFunc
+	UpdateDocumentAccess         http.HandlerFunc
+	UpdateFolderContentsAccess   http.HandlerFunc
+	GetFolderContentsAccessBatch http.HandlerFunc
+	RevokeDocumentShare          http.HandlerFunc
 	// DOC-07 (UNI-1631): a person asks a document's managers for access; the
 	// managers list, approve and decline. The create answer is uniform (202)
 	// so the route never proves the document exists.

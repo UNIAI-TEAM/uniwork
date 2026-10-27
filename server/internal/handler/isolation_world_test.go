@@ -916,6 +916,18 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		util.NewID(), tn.ids["folderUploadFileKey"], tn.orgID, tn.wsID, tn.ids["folderUpload"], tn.ids["folder"], strings.ToLower(m)+"-upload.md"); err != nil {
 		t.Fatalf("folder upload file: %v", err)
 	}
+	// A completed folder bulk access batch (UNI-2244) of the tenant's owner on
+	// the seeded folder, so GET /documents/{folderID}/contents-access/{batchID}
+	// has a real row for the owner control and refuses every other tenant.
+	tn.ids["folderAccessBatch"] = util.NewID()
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO document_access_batches
+		(id, organization_id, workspace_id, folder_id, created_by, created_by_kind,
+		 mode, items, document_ids, notified_levels, status, total, processed, changed, unchanged, finished_at)
+		VALUES ($1, $2, $3, $4, $5, 'human', 'merge', '[]'::jsonb, ARRAY[]::text[], '{}'::jsonb,
+		        'completed', 1, 1, 1, 0, now())`,
+		tn.ids["folderAccessBatch"], tn.orgID, tn.wsID, tn.ids["folder"], tn.userID); err != nil {
+		t.Fatalf("folder access batch: %v", err)
+	}
 	// A comment on the file document itself: the office launch session's
 	// own-rows control must name a comment of the document its path names
 	// (R1-1 binds the ticket's comment to its document).

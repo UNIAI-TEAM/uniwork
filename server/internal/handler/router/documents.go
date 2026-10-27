@@ -784,6 +784,27 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		sdo:  sdo.DocumentAccessBatchSDO{},
 		auth: true,
 	})
+	d.Put("/documents/{folderID}/contents-access", h.UpdateFolderContentsAccess, apiOp{
+		summary: "Bulk update access for all manageable documents in a folder subtree",
+		description: "Đổi quyền truy cập hàng loạt cho mọi tài liệu sống (khác folder) trong cây con của thư mục gốc mà người gọi có quyền quản trị chia sẻ (UNI-2244 §1–§3). " +
+			"Hai chế độ mode: merge (thêm vào quyền đã có, lấy mức cao hơn, không bao giờ hạ) và replace (đặt đúng tập đã chọn và gỡ phần còn lại; thiếu dòng workspace gốc -> về Riêng tư; items rỗng chỉ hợp lệ với replace). " +
+			"Tài liệu không quản lý được -> bỏ qua và đếm vào skipped_not_manageable; tài liệu thuộc Work Product đang khóa -> bỏ qua và đếm vào skipped_locked; loại trừ Thùng rác và cây My Folder của người khác; không đụng chủ sở hữu ACL hay liên kết công khai. " +
+			"Gốc không phải thư mục -> 422 not_a_folder; mục lỗi ngữ nghĩa (principal_not_in_organization, level_not_allowed, duplicate_principal, break_glass_required, hoặc items rỗng với merge / quá 100 mục) -> 422 document_access_rejected kèm fields.rejected[] và không ghi gì; đang có lô cập nhật cho thư mục này -> 409 folder_access_batch_running (fields.batch_id là tùy chọn: có mặt khi có lô queued/running, vắng mặt khi hết thời gian chờ khóa vì một thao tác đồng bộ đang giữ thư mục để client thử lại); không đọc được thư mục -> 403/404. " +
+			"dry_run=true -> 200 {total, preview{changed, unchanged, skipped_not_manageable, skipped_locked, losing_users, downgraded_users, warnings[]}} (chỉ số đếm, không lộ tên tài liệu hay người dùng). " +
+			"dry_run=false: khi total <= ngưỡng đồng bộ (500) -> ghi ngay trong một transaction và trả 200 {batch_id, mode:\"sync\", total, changed, unchanged, skipped_not_manageable, skipped_locked}; khi lớn hơn -> xếp hàng chạy nền và trả 202 {batch_id, mode:\"background\", total} (hợp đồng trả 501 not_implemented cho tới khi BE-2 hoàn tất).",
+		tags: []string{"documents"},
+		sdi:  sdi.UpdateFolderContentsAccessSDI{},
+		sdo:  sdo.FolderContentsAccessResultSDO{},
+		auth: true,
+	})
+	d.Get("/documents/{folderID}/contents-access/{batchID}", h.GetFolderContentsAccessBatch, apiOp{
+		summary: "Get progress of a folder bulk access batch",
+		description: "Tiến độ và số đếm kết quả của một lô đổi quyền hàng loạt theo thư mục (UNI-2244 §3.2): {batch_id, status \"queued|running|completed|failed\", total, processed, changed, unchanged, skipped_not_manageable, skipped_locked, finished_at?}. " +
+			"Chỉ người tạo lô đọc được; người khác, lô không thuộc thư mục hoặc thuộc tổ chức khác -> 404 not_found (hợp đồng trả 501 not_implemented cho tới khi BE-2 hoàn tất).",
+		tags: []string{"documents"},
+		sdo:  sdo.FolderContentsAccessBatchSDO{},
+		auth: true,
+	})
 	d.Delete("/documents/{documentID}/shares/{shareID}", h.RevokeDocumentShare, apiOp{
 		summary:     "Revoke a document share",
 		description: "Thu hồi một grant đang sống (ghi revoked_at, giữ lịch sử). Chỉ manage; share không thuộc tài liệu -> 404.",

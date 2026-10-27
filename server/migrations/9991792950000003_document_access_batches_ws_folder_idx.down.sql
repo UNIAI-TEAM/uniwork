@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_document_access_batches_ws_folder;

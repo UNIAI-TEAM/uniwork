@@ -506,6 +506,7 @@ var isoTenantParams = map[string]bool{
 	"{workspaceID}": true, "{orgID}": true, "{org}": true, "{taskID}": true, "{meetingID}": true,
 	"{documentID}": true, "{commentID}": true, "{attachmentID}": true, "{agentID}": true,
 	"{conversationID}": true, "{requestId}": true, "{fileID}": true,
+	"{folderID}": true,
 	// A launch receipt names a document of one organization; revoke answers
 	// 404 to every account but its creator.
 	"{launchSessionID}": true,
@@ -741,6 +742,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 			return tn.get(t, "restrictedDocument")
 		}
 		return tn.get(t, "document")
+	case "{folderID}":
+		return tn.get(t, "folder")
 	case "{lockID}":
 		return tn.get(t, "docEditLock")
 	case "{requestID}":
@@ -794,6 +797,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		}
 		return tn.get(t, "officeJob")
 	case "{batchID}":
+		if under("/contents-access/") {
+			return tn.get(t, "folderAccessBatch")
+		}
 		// The folder upload batch (UNI-2052) of the tenant's owner.
 		return tn.get(t, "folderUpload")
 	case "{fileKey}":

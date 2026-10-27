@@ -388,6 +388,14 @@ var isoReferences = []isoReference{
 		"items": []any{map[string]any{"principal_type": "workspace", "principal_id": isoRef("ws"), "level": "view"}}}},
 	{method: "PUT", pattern: "/api/v1/documents/{documentID}/access", what: "organization principal", body: map[string]any{
 		"items": []any{map[string]any{"principal_type": "organization", "principal_id": isoRef("org"), "level": "view"}}}},
+	// UNI-2244: folder bulk access principals.
+	{method: "PUT", pattern: "/api/v1/documents/{folderID}/contents-access", what: "user principal",
+		body:   map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}}},
+		covers: []string{"FolderContentsAccessItemSDI.principal_id"}},
+	{method: "PUT", pattern: "/api/v1/documents/{folderID}/contents-access", what: "workspace principal",
+		body: map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "workspace", "principal_id": isoRef("ws"), "level": "view"}}}},
+	{method: "PUT", pattern: "/api/v1/documents/{folderID}/contents-access", what: "organization principal",
+		body: map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "organization", "principal_id": isoRef("org"), "level": "view"}}}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "reply parent", body: map[string]any{
 		"body": "ref", "type": "comment", "parent_id": isoRef("docComment")}, covers: []string{"CreateDocumentCommentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "anchor base version", docKey: "anchorDoc", body: map[string]any{
