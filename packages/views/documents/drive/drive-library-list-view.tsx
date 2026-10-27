@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { CircleAlert, FolderOpen, Plus, RefreshCw, TriangleAlert } from "lucide-react";
+import { CircleAlert, FolderOpen, Folders, Plus, RefreshCw, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useDriveFiles, type DriveFile } from "@uniwork/core/drive-library";
+import { useDriveFiles } from "@uniwork/core/drive-library";
+import { groupDriveFilesByFolder } from "@uniwork/core/drive-library/folder-groups";
 import { paths } from "@uniwork/core/paths";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { Toggle } from "@uniwork/ui/components/ui/toggle";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
   useDrivePicker,
@@ -16,7 +18,8 @@ import {
 import { CollectionPageState } from "../../layout/collection-page";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink, useNavigation } from "../../navigation";
-import { DocumentTypeIcon } from "../document-type-icon";
+import { DriveLibraryTable } from "./drive-library-table";
+import { useDriveFolderGrouping } from "./use-drive-folder-grouping";
 import {
   useDriveLibraryConnections,
   type DriveConnectionSummary,
@@ -32,54 +35,6 @@ export interface DriveLibraryListViewProps {
   onAddFromDrive?: (connectionId: string | null) => void;
   /** Optional Google Picker adapter for deterministic testing. */
   pickerAdapter?: DrivePickerAdapter;
-}
-
-function formatSharingBadge(
-  file: DriveFile,
-  t: (key: string, opts?: Record<string, unknown>) => string,
-): { label: string; className: string } {
-  if (file.drive_id) {
-    return {
-      label: t("driveLibrary.list.access.shared_drive"),
-      className: "bg-muted text-foreground",
-    };
-  }
-  switch (file.sharing_state) {
-    case "private":
-      return {
-        label: t("driveLibrary.list.access.private"),
-        className: "bg-warning/15 text-warning",
-      };
-    case "shared":
-      return {
-        label:
-          typeof file.shared_user_count === "number"
-            ? t("driveLibrary.list.access.shared_count", { count: file.shared_user_count })
-            : t("driveLibrary.list.access.shared"),
-        className: "bg-success/15 text-success",
-      };
-    default:
-      return {
-        label: t("driveLibrary.list.access.unknown"),
-        className: "bg-muted text-muted-foreground",
-      };
-  }
-}
-
-function formatUsedIn(
-  file: DriveFile,
-  t: (key: string, opts?: Record<string, unknown>) => string,
-): string {
-  const first = file.used_in_tasks[0];
-  const total = Math.max(file.used_in_count, file.used_in_tasks.length);
-  if (!first || total === 0) {
-    return t("driveLibrary.list.used_in.none");
-  }
-  const remaining = total - 1;
-  if (remaining <= 0) {
-    return t("driveLibrary.list.used_in.single", { identifier: first.identifier });
-  }
-  return t("driveLibrary.list.used_in.more", { identifier: first.identifier, count: remaining });
 }
 
 function DriveLibraryLoadingTable() {
@@ -212,7 +167,7 @@ function DriveLibraryListBody({
   onAddFromDrive,
   pickerAdapter,
 }: DriveLibraryListBodyProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // W8-R3-01: wait for connections only when an `accountId` is selected so the
   // plain "all accounts" list fires its GET immediately without a waterfall.
   const waitForConnections = connectionsLoading && Boolean(accountId);
@@ -244,6 +199,8 @@ function DriveLibraryListBody({
     enabled: !waitForConnections,
   });
   const files = query.data?.pages.flatMap((p) => p.files) ?? [];
+  const grouping = useDriveFolderGrouping();
+  const groups = grouping.groupByFolder ? groupDriveFilesByFolder(files, i18n.language) : null;
 
   // §7.11: `?pick=1` only moves focus to the "Thêm từ…" button, then is removed with `replace`.
   // It never opens the Picker automatically.
@@ -369,114 +326,28 @@ function DriveLibraryListBody({
         />
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-border bg-background">
-            <table className="w-full table-fixed border-collapse text-body md:table-auto md:min-w-[44rem]">
-              <thead>
-                <tr className="border-b border-border text-left text-caption text-muted-foreground">
-                  <th scope="col" className="w-full px-4 py-3 font-medium">
-                    {t("driveLibrary.list.columns.name")}
-                  </th>
-                  <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-                    {t("driveLibrary.list.columns.account")}
-                  </th>
-                  <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-                    {t("driveLibrary.list.columns.access")}
-                  </th>
-                  <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-                    {t("driveLibrary.list.columns.used_in")}
-                  </th>
-                  <th scope="col" className="hidden whitespace-nowrap px-4 py-3 font-medium md:table-cell">
-                    {t("driveLibrary.list.columns.tasks_created")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {files.map((file) => {
-                  const badge = formatSharingBadge(file, t);
-                  const viewerConn = file.viewer_connection_id
-                    ? connectionById.get(file.viewer_connection_id)
-                    : undefined;
-                  const rowNeedsReconnect =
-                    file.viewer_access === "connection_lost" || Boolean(viewerConn?.needs_reconnect);
-                  const accountEmail =
-                    file.viewer_account_email || t("driveLibrary.list.no_account_value");
-                  const createdCount = file.tasks_created?.count ?? 0;
-
-                  return (
-                    <tr key={file.id} className="hover:bg-accent/40">
-                      <td className="w-full max-w-0 px-4 py-3">
-                        <div className="flex min-w-0 items-start gap-3 md:items-center">
-                          <DocumentTypeIcon format={file.icon_kind} className="mt-0.5 size-6 shrink-0 md:mt-0" />
-                          <div className="flex min-w-0 flex-1 flex-col gap-1 md:gap-0">
-                            <AppLink
-                              href={wsPaths.documentsDriveFile(file.id)}
-                              title={file.name}
-                              className="inline-flex min-h-6 min-w-0 max-w-full items-center font-medium text-foreground hover:underline pointer-coarse:min-h-11"
-                            >
-                              <span className="min-w-0 truncate">{file.name}</span>
-                            </AppLink>
-                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-caption text-muted-foreground md:hidden">
-                              <span className="truncate text-foreground">{accountEmail}</span>
-                              <span aria-hidden>·</span>
-                              <span
-                                className={cn(
-                                  "inline-flex items-center rounded-md px-2 py-0.5 text-caption font-medium",
-                                  badge.className,
-                                )}
-                              >
-                                {badge.label}
-                              </span>
-                              {rowNeedsReconnect ? (
-                                <AppLink
-                                  href={reconnectHref}
-                                  className="inline-flex min-h-6 basis-full items-center gap-1 text-caption text-warning hover:underline pointer-coarse:min-h-11"
-                                >
-                                  <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
-                                  <span>{t("driveLibrary.list.reconnect_inline")}</span>
-                                </AppLink>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="hidden whitespace-nowrap px-4 py-3 md:table-cell">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-caption text-foreground">{accountEmail}</span>
-                          {rowNeedsReconnect ? (
-                            <AppLink
-                              href={reconnectHref}
-                              className="inline-flex min-h-6 items-center gap-1 text-caption text-warning hover:underline pointer-coarse:min-h-11"
-                            >
-                              <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
-                              <span>{t("driveLibrary.list.reconnect_inline")}</span>
-                            </AppLink>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="hidden whitespace-nowrap px-4 py-3 md:table-cell">
-                        <span
-                          className={cn(
-                            "inline-flex items-center rounded-md px-2 py-0.5 text-caption font-medium",
-                            badge.className,
-                          )}
-                        >
-                          {badge.label}
-                        </span>
-                      </td>
-                      <td className="hidden whitespace-nowrap px-4 py-3 text-caption text-muted-foreground md:table-cell">
-                        {formatUsedIn(file, t)}
-                      </td>
-                      <td className="hidden whitespace-nowrap px-4 py-3 text-caption text-muted-foreground md:table-cell">
-                        {createdCount > 0
-                          ? t("driveLibrary.list.tasks_created", { count: createdCount })
-                          : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="flex justify-end">
+            <Toggle
+              variant="outline"
+              size="sm"
+              pressed={grouping.groupByFolder}
+              onPressedChange={grouping.setGroupByFolder}
+              title={t("driveLibrary.list.group.toggle_hint")}
+              className="pointer-coarse:min-h-11"
+            >
+              <Folders aria-hidden className="size-4" />
+              {t("driveLibrary.list.group.toggle")}
+            </Toggle>
           </div>
+          <DriveLibraryTable
+            files={files}
+            groups={groups}
+            connectionById={connectionById}
+            reconnectHref={reconnectHref}
+            fileHref={wsPaths.documentsDriveFile}
+            isCollapsed={grouping.isCollapsed}
+            onToggleGroup={grouping.toggleCollapsed}
+          />
 
           {query.isFetchNextPageError ? (
             <div

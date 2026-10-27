@@ -14637,7 +14637,15 @@
       "error_description": "Kiểm tra kết nối mạng rồi thử lại.",
       "retry": "Thử lại",
       "load_more": "Tải thêm",
-      "loading_more": "Đang tải thêm…"
+      "loading_more": "Đang tải thêm…",
+      "group": {
+        "toggle": "Nhóm theo thư mục",
+        "toggle_hint": "Gom tệp theo thư mục chứa chúng trên Drive",
+        "header_aria_one": "{{name}}, {{count}} tệp",
+        "header_aria_other": "{{name}}, {{count}} tệp",
+        "unnamed": "Thư mục trên Drive · {{id}}",
+        "unknown": "Chưa rõ thư mục"
+      }
     },
     "detail": {
       "breadcrumb_documents": "Tài liệu",

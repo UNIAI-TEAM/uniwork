@@ -14711,7 +14711,15 @@
       "error_description": "Check your connection and try again.",
       "retry": "Try again",
       "load_more": "Load more",
-      "loading_more": "Loading more…"
+      "loading_more": "Loading more…",
+      "group": {
+        "toggle": "Group by folder",
+        "toggle_hint": "Group files by the Drive folder they sit in",
+        "header_aria_one": "{{name}}, {{count}} file",
+        "header_aria_other": "{{name}}, {{count}} files",
+        "unnamed": "Drive folder · {{id}}",
+        "unknown": "Folder unknown"
+      }
     },
     "detail": {
       "breadcrumb_documents": "Documents",
