@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^29ab6b3bc" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=29ab6b3bc73191b0051474b11ee78eff1ec71a05
+29ab6b3bc Merge commit 'f4a800c4e' into feature/UNI-2244-folder-bulk-access-e2e
+f4a800c4e test(documents): find every folder access test id
+d7c93d3c8 feat(documents): add stable data-testid ids to the folder contents access dialog and menu item
+c81bb4c4f test(documents): cover the unchosen workspace row in replace mode

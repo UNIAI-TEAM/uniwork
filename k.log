@@ -1,0 +1,25 @@
+$ P=$(ps -eo pid=,cmd= | awk '/next-server|sh -c next start|bin\/server/ && !/awk/ {print $1}'); for p in $P; do kill $p 2>/dev/null; done; tail -20 /tmp/fca-web.log; tail -20 /tmp/fca-server.log; true
+
+> @uniwork/web@0.0.0 start /workspace/apps/web
+> next start
+
+▲ Next.js 16.4.2
+- Local:         http://localhost:3000
+- Network:       http://172.30.0.2:3000
+✓ Ready in 108ms
+✓ Running next.config.mjs took 228ms
+Error: Could not find a production build in the '.next' directory. Try building your app with 'next build' before starting the production server. https://nextjs.org/docs/messages/production-start-no-build-id
+    at ignore-listed frames
+/workspace/apps/web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/web@0.0.0 start: `next start`
+Exit status 1
+13:15:34.729 INF feature flags initialised component=server file="" rules=0 env_prefix=FF_
+13:15:34.729 INF local storage adapter ready dir=/tmp/uniwork-uploads
+13:15:34.744 INF minio storage adapter ready endpoint=http://localhost:9000 bucket=uniwork-test versioned=false
+redis: 2026/10/27 13:15:34 redis.go:2022: failed to initialize maintnotifications: failed to register handler for MOVING: handler register failed for 'MOVING': cannot overwrite existing handler
+13:15:34.748 INF mail: log mode, messages are printed component=server
+13:15:34.748 WRN DEV_VERIFICATION_CODE is set: any user can verify with it component=server app_env=development
+13:15:34.749 INF uniwork ai transcript store not configured component=server
+13:15:35.590 INF mail: outbox worker started component=server tick=5s
+13:15:35.590 INF listening component=server port=18644 swagger=http://localhost:18644/swagger/index.html
+13:20:25.629 INF shutting down component=server signal=terminated

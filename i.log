@@ -1,0 +1,3 @@
+$ export NEXT_PUBLIC_API_URL=http://localhost:18644 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18644 DEV_VERIFICATION_CODE=123456; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test e2e/documents-folder-contents-access.spec.ts --reporter=list > /tmp/fca-new.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/fca-new.log | grep -A60 -E "^\s+[0-9]+\) " | head -n 300; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/fca-new.log; echo; echo "E2E_FCA_EXIT=$rc"
+
+E2E_FCA_EXIT=1
