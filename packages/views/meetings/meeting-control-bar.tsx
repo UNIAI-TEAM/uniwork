@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useStartRecording, useStopRecording } from "@uniwork/core/meetings";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
+import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
 import {
@@ -45,6 +46,7 @@ import {
   ReactionsControl,
 } from "./meeting-control-bar-controls";
 import { MEETING_DARK_BAR } from "./meeting-dark-bar";
+import { MeetingHostLeaveDialog } from "./meeting-host-leave-dialog";
 import { MeetingLeaveConfirmDialog } from "./meeting-leave-confirm-dialog";
 import { MeetingRecordConfirmDialog } from "./meeting-record-confirm-dialog";
 import { roomShortcutLabel, useRoomMediaShortcuts } from "./meeting-room-shortcuts";
@@ -63,11 +65,14 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   captionsOn = false,
   captionsAvailable = false,
   onToggleCaptions,
+  hostLeave,
 }: {
   className?: string;
   onLeave: () => void;
   meetingId?: string;
   canHost?: boolean;
+  /** Set for a host or admin of a live meeting: Leave then asks how, not just whether. Keep it memoized. */
+  hostLeave?: { meeting: Meeting; workspaceId: string };
   recordingEnabled?: boolean;
   recording?: boolean;
   captionsOn?: boolean;
@@ -339,14 +344,28 @@ export const MeetingControlBar = memo(function MeetingControlBar({
         onOpenChange={setRecordConfirmOpen}
         onConfirm={confirmStartRecording}
       />
-      <MeetingLeaveConfirmDialog
-        open={leaveConfirmOpen}
-        onOpenChange={setLeaveConfirmOpen}
-        onConfirm={() => {
-          setLeaveConfirmOpen(false);
-          onLeave();
-        }}
-      />
+      {hostLeave ? (
+        <MeetingHostLeaveDialog
+          open={leaveConfirmOpen}
+          onOpenChange={setLeaveConfirmOpen}
+          meeting={hostLeave.meeting}
+          workspaceId={hostLeave.workspaceId}
+          recording={recording}
+          onLeave={() => {
+            setLeaveConfirmOpen(false);
+            onLeave();
+          }}
+        />
+      ) : (
+        <MeetingLeaveConfirmDialog
+          open={leaveConfirmOpen}
+          onOpenChange={setLeaveConfirmOpen}
+          onConfirm={() => {
+            setLeaveConfirmOpen(false);
+            onLeave();
+          }}
+        />
+      )}
     </>
   );
 });

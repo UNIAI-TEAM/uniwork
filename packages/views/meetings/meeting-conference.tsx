@@ -50,6 +50,7 @@ import {
   ScribeAnnouncer,
   useMeetingChatUnread,
 } from "./meeting-room-announcers";
+import { MeetingHostChangeToasts } from "./meeting-host-presence";
 import { MeetingRoomAvatarsProvider } from "./meeting-room-avatars";
 import { MeetingScheduleBanner } from "./meeting-schedule-banner";
 import { MeetingVotePrompt } from "./meeting-vote-prompt";
@@ -306,12 +307,18 @@ function ConferenceStage({
     [resolvedMeetingId, captionsOn, scribeCaptioning, scribeJoining, stageFrame, handleCaptionsError],
   );
   const recordingEnabled = caps?.recording === true;
+  const hostLeave = useMemo(
+    () =>
+      canHost.allowed && !guestMode && workspaceId && meeting?.status === "IN_PROGRESS" ? { meeting, workspaceId } : undefined,
+    [canHost.allowed, guestMode, workspaceId, meeting],
+  );
   const controlBar = useMemo(
     () => (
       <MeetingControlBar
         onLeave={leave}
         meetingId={resolvedMeetingId || undefined}
         canHost={canHost.allowed}
+        hostLeave={hostLeave}
         recordingEnabled={recordingEnabled}
         recording={recording}
         captionsAvailable={scribeInRoom || scribeJoining || captionsSupported()}
@@ -319,7 +326,7 @@ function ConferenceStage({
         onToggleCaptions={toggleCaptions}
       />
     ),
-    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, scribeJoining, captionsOn, toggleCaptions],
+    [leave, resolvedMeetingId, canHost.allowed, hostLeave, recordingEnabled, recording, scribeInRoom, scribeJoining, captionsOn, toggleCaptions],
   );
 
   return (
@@ -448,6 +455,7 @@ function ConferenceStage({
       <ParticipantPresenceAnnouncer />
       <ScreenShareAnnouncer />
       <ScribeAnnouncer meeting={meeting} />
+      {meeting && !guestMode ? <MeetingHostChangeToasts meeting={meeting} /> : null}
       <ChatMessageAnnouncer latest={chatUnread.latest} visible={chatVisible} />
       <LiveItemsAnnouncer count={liveItems.count} latest={liveItems.latest} seeing={liveItemsSeeing} />
     </div>
