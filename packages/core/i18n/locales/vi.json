@@ -14552,7 +14552,7 @@
         "duplicate_keep": "Vẫn tạo",
         "duplicate_kept": "Đã chọn Vẫn tạo dù trùng tiêu đề.",
         "assignee_no_access": "{{name}} chưa xem được tài liệu trên Google Drive. Sau khi tạo, {{name}} thấy việc và tên tài liệu, kèm nút mở tài liệu trên Google Drive để xin quyền chủ sở hữu.",
-        "footer_note": "UNI điền sẵn các trường, bạn sửa được trước khi tạo. Dòng chữ dưới trường là căn cứ của UNI; trường nào UNI không chắc thì để trống. Mỗi việc có liên kết về tài liệu.",
+        "footer_note": "Bạn sửa được mọi trường trước khi tạo; dòng dưới mỗi trường là căn cứ của UNI.",
         "cancel": "Hủy",
         "create_one": "Tạo {{count}} việc",
         "create_other": "Tạo {{count}} việc",
@@ -14573,7 +14573,8 @@
         "toast_created_no_parent_one": "Đã tạo {{count}} việc từ {{fileName}}",
         "toast_created_no_parent_other": "Đã tạo {{count}} việc từ {{fileName}}",
         "toast_view_parent": "Xem {{parent}}",
-        "toast_view_tasks": "Xem công việc"
+        "toast_view_tasks": "Xem công việc",
+        "toast_created_unconfirmed": "Chưa xác nhận được việc đã tạo, kiểm tra lại danh sách."
       }
     }
   },

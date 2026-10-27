@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -13,10 +12,10 @@ import {
 } from "@uniwork/core/drive";
 import { paths } from "@uniwork/core/paths";
 import { useProjects, useTaskLabels, useTasks } from "@uniwork/core/tasks";
-import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { Dialog, DialogContent } from "@uniwork/ui/components/ui/dialog";
 import { Sheet, SheetContent } from "@uniwork/ui/components/ui/sheet";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
+import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { useOptionalNavigation } from "../../navigation";
 import {
@@ -307,6 +306,9 @@ export function DriveProposalReviewDialog({
         },
       });
       if (!created) {
+        const unconfirmedMsg = t("drive.proposals.review.toast_created_unconfirmed");
+        setLiveAnnouncement(unconfirmedMsg);
+        toast(unconfirmedMsg);
         onOpenChange(false);
         return;
       }
@@ -343,6 +345,13 @@ export function DriveProposalReviewDialog({
       const resolved = resolveDriveProposalCreateError(err, t);
       setCreateError(resolved);
       setLiveAnnouncement(resolved.message);
+      setTimeout(() => {
+        const alertEl = document.querySelector<HTMLElement>(
+          '[data-testid="drive-proposal-create-error"]',
+        );
+        alertEl?.scrollIntoView?.({ block: "nearest" });
+        alertEl?.focus?.();
+      }, 0);
     }
   };
 
@@ -356,7 +365,12 @@ export function DriveProposalReviewDialog({
     : t("drive.proposals.review.title_loading");
 
   const bodyContent = (
-    <div className="flex max-h-[calc(100svh-2rem)] min-h-0 flex-1 flex-col overflow-hidden">
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col overflow-hidden",
+        isMobile ? "h-full max-h-full" : "max-h-[calc(100svh-2rem)]",
+      )}
+    >
       <DriveProposalReviewHeader
         isMobile={isMobile}
         headingText={headingText}
@@ -376,38 +390,44 @@ export function DriveProposalReviewDialog({
         <DriveProposalStatusView kind={nonReadyState} onClose={() => onOpenChange(false)} />
       ) : activeProposal ? (
         <>
-          <DriveProposalBatchSection
-            workspaceId={workspaceId}
-            projectItems={projectItems}
-            parentItems={parentItems}
-            projectId={projectId}
-            parentTaskId={parentTaskId}
-            statusKey={statusKey}
-            disabled={isBusy}
-            onProjectChange={handleProjectChange}
-            onParentChange={handleParentChange}
-            onStatusChange={setStatusKey}
-          />
+          {!isMobile ? (
+            <DriveProposalBatchSection
+              workspaceId={workspaceId}
+              projectItems={projectItems}
+              parentItems={parentItems}
+              projectId={projectId}
+              parentTaskId={parentTaskId}
+              statusKey={statusKey}
+              disabled={isBusy}
+              onProjectChange={handleProjectChange}
+              onParentChange={handleParentChange}
+              onStatusChange={setStatusKey}
+            />
+          ) : null}
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-4">
+            {isMobile ? (
+              <DriveProposalBatchSection
+                workspaceId={workspaceId}
+                projectItems={projectItems}
+                parentItems={parentItems}
+                projectId={projectId}
+                parentTaskId={parentTaskId}
+                statusKey={statusKey}
+                disabled={isBusy}
+                onProjectChange={handleProjectChange}
+                onParentChange={handleParentChange}
+                onStatusChange={setStatusKey}
+                className="-mx-6 -mt-4 mb-1"
+              />
+            ) : null}
+
             {showPriorCreationsBanner ? (
               <DriveProposalPriorCreationsBanner
                 priorCreatedCount={priorCreatedCount}
                 priorCreationsHref={priorCreationsHref}
               />
             ) : null}
-
-            {createError ? (
-              <Alert
-                variant="destructiveSoft"
-                role="alert"
-                data-testid="drive-proposal-create-error"
-              >
-                <CircleAlert className="size-4 shrink-0" aria-hidden />
-                <AlertDescription>{createError.message}</AlertDescription>
-              </Alert>
-            ) : null}
-
             {itemDrafts.length === 0 ? (
               <p className="py-6 text-center text-body text-muted-foreground">
                 {t("drive.proposals.review.state_empty")}
@@ -444,6 +464,7 @@ export function DriveProposalReviewDialog({
             isBusy={isBusy}
             isCreating={createTasksMutation.isPending}
             createButtonLabel={createButtonLabel}
+            errorMessage={createError?.message ?? null}
             onCancel={requestClose}
             onSubmit={() => void handleCreateBatch()}
           />
@@ -474,7 +495,7 @@ export function DriveProposalReviewDialog({
           side="bottom"
           showCloseButton={false}
           closeLabel={t("drive.proposals.review.close_aria")}
-          className="flex h-svh max-h-svh w-full flex-col gap-0 p-0"
+          className="inset-0 flex !h-dvh max-h-dvh w-full flex-col gap-0 !border-t-0 p-0"
         >
           {bodyContent}
         </SheetContent>

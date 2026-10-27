@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarClock, CalendarDays, ChevronDown, ChevronUp, Tags, TriangleAlert } from "lucide-react";
+import { CalendarClock, CalendarDays, ChevronDown, ChevronUp, Tags, TriangleAlert, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskLabel, TaskPriority } from "@uniwork/core/types";
+import { Avatar, AvatarFallback, AvatarImage } from "@uniwork/ui/components/ui/avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Switch } from "@uniwork/ui/components/ui/switch";
@@ -148,6 +149,7 @@ export function DriveProposalItemCard({
             checked={isIncluded}
             disabled={disabled}
             onCheckedChange={handleToggleSwitch}
+            className="after:-inset-x-3 after:-inset-y-4 pointer-coarse:after:-inset-y-4"
             aria-label={t("drive.proposals.review.item_switch_aria", {
               title: draft.title.trim() || t("drive.proposals.review.item_title_placeholder"),
             })}
@@ -189,13 +191,32 @@ export function DriveProposalItemCard({
                 unassignedLabel={t("tasks.unassigned")}
                 searchPlaceholder={t("tasks.assignee_search_placeholder")}
                 noResultsLabel={t("tasks.assignee_no_results")}
-                triggerRender={<PillButton className="min-h-11 w-full max-w-none justify-start rounded-lg bg-background px-2.5" />}
+                triggerClassName="min-h-11 w-full justify-start gap-1.5 rounded-lg border border-border/80 bg-background px-2.5 text-caption font-medium text-foreground"
                 onChange={(next) =>
                   onUpdate({
                     assigneeId: next?.id,
                   })
                 }
-              />
+              >
+                {assigneeOption ? (
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <Avatar aria-hidden className="size-4 shrink-0">
+                      {assigneeOption.avatarUrl ? (
+                        <AvatarImage src={assigneeOption.avatarUrl} alt="" />
+                      ) : null}
+                      <AvatarFallback className="text-micro">
+                        {assigneeOption.name.trim().slice(0, 1).toUpperCase() || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="truncate">{assigneeOption.name}</span>
+                  </span>
+                ) : (
+                  <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                    <UserRound className="size-3.5 shrink-0" aria-hidden />
+                    <span className="truncate">{t("tasks.unassigned")}</span>
+                  </span>
+                )}
+              </AssigneePicker>
               <BasisLine basis={draft.assigneeBasis} />
             </div>
 
@@ -245,14 +266,14 @@ export function DriveProposalItemCard({
             </div>
 
             <div className="flex min-w-0 flex-col gap-1">
-              <span className="text-caption text-muted-foreground">{t("tasks.detail.labels")}</span>
+              <span className="text-caption text-muted-foreground">{t("ai.proposal.field.labels")}</span>
               <LabelPicker
                 labels={labels}
                 selectedIds={selectedLabelIds}
                 disabled={disabled}
-                ariaLabel={t("tasks.detail.labels")}
+                ariaLabel={t("ai.proposal.field.labels")}
                 valueLabel={labelSummary || undefined}
-                emptyLabel={t("tasks.detail.labels_empty")}
+                emptyLabel={t("tasks.table.labels_empty")}
                 searchPlaceholder={t("tasks.create.label_search_placeholder")}
                 noResultsLabel={t("tasks.create.options_no_results")}
                 triggerClassName="min-h-11 w-full justify-start rounded-lg border border-border/80 bg-background px-2.5 text-caption font-medium text-foreground"

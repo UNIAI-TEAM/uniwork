@@ -20,6 +20,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
+import { cn } from "@uniwork/ui/lib/utils";
 import {
   SheetDescription,
   SheetTitle,
@@ -55,11 +56,11 @@ export function DriveProposalReviewHeader({
       <div className="flex items-center gap-2.5">
         <Sparkles className="size-5 shrink-0 text-primary" aria-hidden />
         {isMobile ? (
-          <SheetTitle className="min-w-0 flex-1 truncate text-title font-semibold text-foreground">
+          <SheetTitle className="min-w-0 flex-1 break-words text-title font-semibold text-foreground">
             {headingText}
           </SheetTitle>
         ) : (
-          <DialogTitle className="min-w-0 flex-1 truncate text-title font-semibold text-foreground">
+          <DialogTitle className="min-w-0 flex-1 break-words text-title font-semibold text-foreground">
             {headingText}
           </DialogTitle>
         )}
@@ -141,6 +142,7 @@ export interface DriveProposalBatchSectionProps {
   onProjectChange: (next: string | undefined) => void;
   onParentChange: (next: string | undefined) => void;
   onStatusChange: (next: string) => void;
+  className?: string;
 }
 
 export function DriveProposalBatchSection({
@@ -154,6 +156,7 @@ export function DriveProposalBatchSection({
   onProjectChange,
   onParentChange,
   onStatusChange,
+  className,
 }: DriveProposalBatchSectionProps) {
   const { t } = useTranslation();
   const [parentPickerOpen, setParentPickerOpen] = useState(false);
@@ -161,7 +164,10 @@ export function DriveProposalBatchSection({
   return (
     <section
       aria-label={t("drive.proposals.review.batch_section")}
-      className="flex shrink-0 flex-col gap-2.5 border-b border-border bg-muted/30 px-6 py-3.5"
+      className={cn(
+        "flex shrink-0 flex-col gap-2.5 border-b border-border bg-muted/30 px-6 py-3.5",
+        className,
+      )}
     >
       <div className="text-caption font-semibold text-muted-foreground">
         {t("drive.proposals.review.batch_section")}
@@ -269,6 +275,7 @@ export interface DriveProposalReviewFooterProps {
   isBusy: boolean;
   isCreating: boolean;
   createButtonLabel: string;
+  errorMessage?: string | null;
   onCancel: () => void;
   onSubmit: () => void;
 }
@@ -278,37 +285,51 @@ export function DriveProposalReviewFooter({
   isBusy,
   isCreating,
   createButtonLabel,
+  errorMessage,
   onCancel,
   onSubmit,
 }: DriveProposalReviewFooterProps) {
   const { t } = useTranslation();
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-3 border-t border-border bg-muted/30 px-6 py-4">
-      <p className="min-w-60 flex-1 text-caption text-muted-foreground">
-        {t("drive.proposals.review.footer_note")}
-      </p>
-      <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={isBusy}
-          className="min-h-11"
-          onClick={onCancel}
+    <div className="flex shrink-0 flex-col gap-2.5 border-t border-border bg-muted/30 px-6 py-3.5">
+      {errorMessage ? (
+        <Alert
+          variant="destructiveSoft"
+          role="alert"
+          tabIndex={-1}
+          data-testid="drive-proposal-create-error"
         >
-          {t("drive.proposals.review.cancel")}
-        </Button>
-        <Button
-          type="button"
-          data-testid="drive-proposal-submit"
-          aria-disabled={selectedCount === 0 || isBusy || undefined}
-          aria-busy={isCreating || undefined}
-          className="min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-          onClick={onSubmit}
-        >
-          {isCreating ? <Spinner className="size-4" /> : null}
-          <span aria-live="polite">{createButtonLabel}</span>
-        </Button>
+          <CircleAlert className="size-4 shrink-0" aria-hidden />
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="min-w-60 flex-1 text-caption text-muted-foreground">
+          {t("drive.proposals.review.footer_note")}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isBusy}
+            className="min-h-11"
+            onClick={onCancel}
+          >
+            {t("drive.proposals.review.cancel")}
+          </Button>
+          <Button
+            type="button"
+            data-testid="drive-proposal-submit"
+            aria-disabled={selectedCount === 0 || isBusy || undefined}
+            aria-busy={isCreating || undefined}
+            className="min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            onClick={onSubmit}
+          >
+            {isCreating ? <Spinner className="size-4" /> : null}
+            <span aria-live="polite">{createButtonLabel}</span>
+          </Button>
+        </div>
       </div>
     </div>
   );

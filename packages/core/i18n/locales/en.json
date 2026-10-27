@@ -14626,7 +14626,7 @@
         "duplicate_keep": "Create anyway",
         "duplicate_kept": "Chosen to create anyway despite matching title.",
         "assignee_no_access": "{{name}} can't view the document on Google Drive yet. After creation, {{name}} will see the task and file name, with a button to open the document on Google Drive and request access from the owner.",
-        "footer_note": "UNI pre-filled these fields; you can edit them before creating. The line below each field shows UNI's basis; fields UNI wasn't sure about are left blank. Each task links back to the document.",
+        "footer_note": "You can edit any field before creating; the line below each field shows UNI's basis.",
         "cancel": "Cancel",
         "create_one": "Create {{count}} task",
         "create_other": "Create {{count}} tasks",
@@ -14647,7 +14647,8 @@
         "toast_created_no_parent_one": "Created {{count}} task from {{fileName}}",
         "toast_created_no_parent_other": "Created {{count}} tasks from {{fileName}}",
         "toast_view_parent": "View {{parent}}",
-        "toast_view_tasks": "View tasks"
+        "toast_view_tasks": "View tasks",
+        "toast_created_unconfirmed": "Could not confirm the created tasks, check the list."
       }
     }
   },

@@ -22,12 +22,13 @@ import {
   resolveDriveProposalCreateError,
 } from "./index";
 
+const toastNeutral = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
 const toastSuccess = vi.hoisted(() => vi.fn());
 const isMobileState = vi.hoisted(() => ({ value: false }));
 
 vi.mock("sonner", () => ({
-  toast: { error: toastError, success: toastSuccess },
+  toast: Object.assign(toastNeutral, { error: toastError, success: toastSuccess }),
 }));
 
 vi.mock("@uniwork/ui/hooks/use-mobile", () => ({
@@ -208,12 +209,36 @@ function defaultMockRoutes(path: string) {
       ],
     };
   }
+  if (path.endsWith("/ai/capabilities")) {
+    return { enabled: true };
+  }
   if (path.endsWith("/task-labels") || path.endsWith("/labels")) {
     return {
       labels: [
-        { id: "lbl_prod", workspace_id: "ws1", name: "Sản phẩm", color: "#2563EB" },
-        { id: "lbl_risk", workspace_id: "ws1", name: "Rủi ro", color: "#DC2626" },
+        {
+          id: "lbl_prod",
+          organization_id: "o1",
+          workspace_id: "ws1",
+          name: "Sản phẩm",
+          description: "",
+          color: "#2563EB",
+          usage_count: 1,
+          created_at: "2026-10-26T00:00:00Z",
+          updated_at: "2026-10-26T00:00:00Z",
+        },
+        {
+          id: "lbl_risk",
+          organization_id: "o1",
+          workspace_id: "ws1",
+          name: "Rủi ro",
+          description: "",
+          color: "#DC2626",
+          usage_count: 0,
+          created_at: "2026-10-26T00:00:00Z",
+          updated_at: "2026-10-26T00:00:00Z",
+        },
       ],
+      total: 2,
     };
   }
   if (path.endsWith("/members")) {
@@ -270,9 +295,9 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
   beforeEach(async () => {
     await setLocale("vi");
     isMobileState.value = false;
+    toastNeutral.mockReset();
     toastError.mockReset();
     toastSuccess.mockReset();
-    requestMock.mockReset();
     requestMock.mockImplementation(async (path: string) => defaultMockRoutes(path));
     resetAuthStoreForTests();
     setSessionUser(defaultUser);
@@ -334,6 +359,31 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
       "Bị chặn bởi: Chốt phạm vi tính năng beta",
     );
 
+    // F1: Labels caption and trigger aria-label render translated text ("Nhãn"), never raw key "tasks.detail.labels"
+    const item0 = screen.getByTestId("drive-proposal-item-0");
+    expect(within(item0).getByText("Nhãn")).toBeInTheDocument();
+    expect(
+      await within(item0).findByRole("button", { name: "Nhãn: Sản phẩm" }, QUERY_WAIT_OPTIONS),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/tasks\.detail\.labels/)).toBeNull();
+
+    // F2: Assignee trigger renders avatar + name when assigned, and "Chưa giao" with accessible name when unassigned
+    const assigneeBtn0 = within(item0).getByRole("button", { name: "Người phụ trách: Lan" });
+    expect(assigneeBtn0).toHaveTextContent("Lan");
+    fireEvent.click(assigneeBtn0);
+    fireEvent.click(await screen.findByRole("button", { name: "Chưa giao" }));
+    const unassignedBtn0 = await within(item0).findByRole("button", {
+      name: "Người phụ trách: Chưa giao",
+    });
+    expect(unassignedBtn0).toHaveTextContent("Chưa giao");
+
+    // F6: Per-item switch hit area class and 44x44 wrapper
+    const switch0 = within(item0).getByRole("switch", {
+      name: "Tạo việc: Chốt phạm vi tính năng beta",
+    });
+    expect(switch0).toHaveClass("after:-inset-y-4");
+    expect(switch0.parentElement).toHaveClass("min-h-11", "min-w-11");
+
     // Assignee without Drive access notice on item 1 (Mai has assignee_drive_access = unknown)
     expect(
       await screen.findByTestId("drive-proposal-assignee-access-1", {}, QUERY_WAIT_OPTIONS),
@@ -342,7 +392,6 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
     );
 
     // Expand description on item 0 -> shows goal, checklist, and excerpt link
-    const item0 = screen.getByTestId("drive-proposal-item-0");
     const descBtn = within(item0).getByRole("button", { name: /Mô tả/ });
     expect(descBtn).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(descBtn);
@@ -455,6 +504,12 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
       "UNI-999 · Phạm vi beta cũ",
     );
     expect(screen.queryByTestId("drive-proposal-duplicate-1")).toBeNull();
+
+    // F10: Clearing parent task removes the clear (×) button when parent is empty
+    const clearRemainingBtns = within(batchSection).getAllByRole("button", { name: "Xóa" });
+    expect(clearRemainingBtns).toHaveLength(1);
+    fireEvent.click(clearRemainingBtns[0]!);
+    expect(within(batchSection).queryByRole("button", { name: "Xóa" })).toBeNull();
   });
 
   it("asks confirmation before discarding proposal, calls DELETE on confirm, and closes dialog", async () => {
@@ -769,6 +824,12 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
     expect(errorAlert).toHaveTextContent(
       "Có việc đang mở trùng tiêu đề trong cùng dự án và task cha. Hãy chọn Vẫn tạo hoặc Bỏ việc này.",
     );
+    // F3: Error alert sits inside the pinned footer beside the submit button and receives focus
+    const submitBtn = screen.getByTestId("drive-proposal-submit");
+    expect(submitBtn.parentElement?.parentElement?.parentElement).toContainElement(errorAlert);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(errorAlert);
+    });
     expect(screen.getByTestId("drive-proposal-live-region")).toHaveTextContent(
       "Có việc đang mở trùng tiêu đề trong cùng dự án và task cha. Hãy chọn Vẫn tạo hoặc Bỏ việc này.",
     );
@@ -802,7 +863,7 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
     expect(batchItems[0]?.blocked_by_indexes).toEqual([]);
   });
 
-  it("closes dialog without retryable error when B6 create returns 2xx with null/unparseable body (F2)", async () => {
+  it("shows neutral unconfirmed toast before closing when B6 create returns 2xx with null/empty body (F4)", async () => {
     requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
       if (
         path === "/api/v1/workspaces/ws1/drive-task-proposals/dtp_1/tasks" &&
@@ -842,6 +903,9 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
     await waitFor(() => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
     }, QUERY_WAIT_OPTIONS);
+    expect(toastNeutral).toHaveBeenCalledWith(
+      "Chưa xác nhận được việc đã tạo, kiểm tra lại danh sách.",
+    );
     expect(screen.queryByTestId("drive-proposal-create-error")).toBeNull();
     expect(toastError).not.toHaveBeenCalled();
   });
