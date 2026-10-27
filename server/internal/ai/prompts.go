@@ -982,11 +982,11 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 - Write every string in the language named by the caller.
 `
 
-const driveTaskProposalExcerptSchema = `{"type":"object","properties":{"section":{"type":"string"},"quote":{"type":"string"}},"required":["section","quote"],"additionalProperties":false}`
+const driveTaskProposalExcerptSchema = `{"type":"object","properties":{"section":{"type":"string"},"quote":{"type":"string","maxLength":300}},"required":["section","quote"],"additionalProperties":false}`
 
-const driveTaskProposalItemSchema = `{"type":"object","properties":{"title":{"type":"string"},"assignee_member_id":{"type":"string"},"assignee_basis":{"type":"string"},"priority":{"type":"string"},"priority_basis":{"type":"string"},"start_date":{"type":"string"},"start_basis":{"type":"string"},"due_date":{"type":"string"},"due_basis":{"type":"string"},"label_ids":{"type":"array","items":{"type":"string"}},"label_basis":{"type":"string"},"goal":{"type":"string"},"checklist":{"type":"array","items":{"type":"string"}},"excerpt":` + driveTaskProposalExcerptSchema + `,"blocked_by_indexes":{"type":"array","items":{"type":"integer"}}},"required":["title","assignee_member_id","assignee_basis","priority","priority_basis","start_date","start_basis","due_date","due_basis","label_ids","label_basis","goal","checklist","excerpt","blocked_by_indexes"],"additionalProperties":false}`
+const driveTaskProposalItemSchema = `{"type":"object","properties":{"title":{"type":"string"},"assignee_member_id":{"type":"string"},"assignee_basis":{"type":"string"},"priority":{"type":"string"},"priority_basis":{"type":"string"},"start_date":{"type":"string"},"start_basis":{"type":"string"},"due_date":{"type":"string"},"due_basis":{"type":"string"},"label_ids":{"type":"array","items":{"type":"string"}},"label_basis":{"type":"string"},"goal":{"type":"string"},"checklist":{"type":"array","maxItems":10,"items":{"type":"string"}},"excerpt":` + driveTaskProposalExcerptSchema + `,"blocked_by_indexes":{"type":"array","items":{"type":"integer"}}},"required":["title","assignee_member_id","assignee_basis","priority","priority_basis","start_date","start_basis","due_date","due_basis","label_ids","label_basis","goal","checklist","excerpt","blocked_by_indexes"],"additionalProperties":false}`
 
-const driveTaskProposalsSchema = `{"type":"object","properties":{"items":{"type":"array","items":` + driveTaskProposalItemSchema + `}},"required":["items"],"additionalProperties":false}`
+const driveTaskProposalsSchema = `{"type":"object","properties":{"items":{"type":"array","maxItems":20,"items":` + driveTaskProposalItemSchema + `}},"required":["items"],"additionalProperties":false}`
 
 func renderDriveTaskProposals(vars map[string]any) string {
 	var b strings.Builder

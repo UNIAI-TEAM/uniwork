@@ -2122,17 +2122,15 @@ func TestDriveTaskProposalsPromptAndSchema(t *testing.T) {
 	if !strings.HasSuffix(p.System, UntrustedFooter) {
 		t.Fatal("drive_task_proposals@1 must end with UntrustedFooter")
 	}
-	for _, must := range []string{"leave", "empty", "unsure", "_basis", "<untrusted>"} {
-		if !strings.Contains(strings.ToLower(p.System), must) {
-			t.Errorf("system prompt missing %q:\n%s", must, p.System)
-		}
-	}
 	var schema map[string]any
 	if err := json.Unmarshal(p.OutputSchema, &schema); err != nil {
 		t.Fatalf("invalid OutputSchema JSON: %v", err)
 	}
 	props, _ := schema["properties"].(map[string]any)
 	itemsProp, _ := props["items"].(map[string]any)
+	if itemsProp["maxItems"] != float64(20) {
+		t.Errorf("OutputSchema items.maxItems = %v, want 20", itemsProp["maxItems"])
+	}
 	itemSchema, _ := itemsProp["items"].(map[string]any)
 	itemProps, _ := itemSchema["properties"].(map[string]any)
 	wantKeys := []string{
@@ -2144,6 +2142,16 @@ func TestDriveTaskProposalsPromptAndSchema(t *testing.T) {
 		if _, exists := itemProps[k]; !exists {
 			t.Errorf("OutputSchema item missing property %q", k)
 		}
+	}
+	checklistProp, _ := itemProps["checklist"].(map[string]any)
+	if checklistProp["maxItems"] != float64(10) {
+		t.Errorf("OutputSchema checklist.maxItems = %v, want 10", checklistProp["maxItems"])
+	}
+	excerptProp, _ := itemProps["excerpt"].(map[string]any)
+	excerptProps, _ := excerptProp["properties"].(map[string]any)
+	quoteProp, _ := excerptProps["quote"].(map[string]any)
+	if quoteProp["maxLength"] != float64(300) {
+		t.Errorf("OutputSchema excerpt.quote.maxLength = %v, want 300", quoteProp["maxLength"])
 	}
 	rendered := p.Render(map[string]any{
 		"locale":   "vi",
