@@ -1,6 +1,6 @@
 # Mục "Mẫu văn bản" trong Tài liệu (kế hoạch 2 — Phần 2) Implementation Plan
 
-> **Trạng thái:** in-progress — kế hoạch 2 của spec Hỏi UNI soạn tệp Office; chờ chủ sản phẩm duyệt rồi mới triển khai; issue UNI-2225 (con của UNI-415), nhánh `feature/UNI-2225-hoi-uni-soan-tep-office-muc-mau-van-ban`.
+> **Trạng thái:** in-progress — đã triển khai trên nhánh, chờ PR; kế hoạch 2 của spec Hỏi UNI soạn tệp Office; issue UNI-2225 (con của UNI-415), nhánh `feature/UNI-2225-hoi-uni-soan-tep-office-muc-mau-van-ban`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

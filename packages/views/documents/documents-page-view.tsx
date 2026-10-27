@@ -51,6 +51,7 @@ import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchResults } from "./documents-search-results";
 import { useDocumentsSearch } from "./use-documents-search";
 import { useFocusClaim } from "./use-focus-claim";
+import { useTemplateCommands } from "./use-template-commands";
 import { useTemplatesDrop } from "./use-template-upload";
 import { useTrashActions } from "./use-trash-actions";
 import { useShelvedActions } from "./use-shelved-actions";
@@ -202,6 +203,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const fileCommands = useLibraryRowFileCommands({ wsId, documentHref: wsPaths.document });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   const shelvedActions = useShelvedActions({ wsId, rows: library.state.rows });
+  const templateCommands = useTemplateCommands(wsId);
   // The bulk bar (UNI-2045 W9) on every list screen but the sources view; a
   // new folder, view or filter starts a fresh selection.
   const bulkCommands = useDocListBulkCommands({ wsId, tree: library.tree, onDownloadOne: fileCommands.onDownload });
@@ -269,6 +271,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     // Any reader may open Share from a row (UNI-2009); it is not gated by canCreate like the commands above.
     onShare: rowDialogs.onShare,
     onShelve: rowCommands ? (doc) => shelvedActions.onShelve(doc) : undefined,
+    ...(canCreate ? { onMarkTemplate: templateCommands.onMarkTemplate, onUnmarkTemplate: templateCommands.onUnmarkTemplate } : {}),
     // Link and download are reads, offered to any reader; the copy needs edit, which the menu checks per row.
     onCopyLink: fileCommands.onCopyLink,
     onDownload: fileCommands.onDownload,
@@ -563,6 +566,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       {trashActions.dialog}
 
       {shelvedActions.dialog}
+
+      {templateCommands.dialog}
 
       {bulkCommands.dialogs}
 

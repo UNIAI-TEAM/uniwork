@@ -13663,7 +13663,18 @@
       "upload_failed": "Không tải mẫu lên được. Chưa có gì thay đổi.",
       "too_large": "Tệp lớn hơn {{size}} nên không tải thẳng vào Mẫu văn bản được. Hãy tải vào một thư mục rồi đánh dấu là mẫu.",
       "no_folders": "Mẫu văn bản chỉ nhận tệp, không nhận thư mục.",
-      "drop_hint": "Thả tệp để thêm vào Mẫu văn bản"
+      "drop_hint": "Thả tệp để thêm vào Mẫu văn bản",
+      "mark": "Đánh dấu là mẫu",
+      "unmark": "Bỏ khỏi Mẫu",
+      "marked": "Đã đánh dấu {{title}} là mẫu",
+      "unmarked": "Đã bỏ {{title}} khỏi Mẫu",
+      "mark_failed": "Không đánh dấu được. Chưa có gì thay đổi.",
+      "unmark_failed": "Không bỏ khỏi Mẫu được. Chưa có gì thay đổi.",
+      "widen": {
+        "title": "Mở tài liệu này cho cả workspace?",
+        "body": "Hiện chỉ những người được chia sẻ mới xem được {{title}}. Khi thành mẫu, mọi thành viên workspace sẽ xem và sửa được nó.",
+        "confirm": "Mở cho workspace và đánh dấu"
+      }
     },
     "scope": {
       "private": "Riêng tư",
