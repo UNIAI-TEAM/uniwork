@@ -122,7 +122,8 @@ func registerWorkspaces(r api, h Routes) {
 			"của bản xem trước; mọi bước rời / chuyển quyền / đóng tổ chức cũ và tham gia tổ chức mới chạy trong một transaction. " +
 			"409 organization_switch_required kèm conflicts mới nhất; 410 invitation_expired | invitation_revoked | invitation_accepted; " +
 			"403 organization_suspended | organization_deletion_scheduled khi tổ chức mời không nhận thêm người; " +
-			"bước chuyển quyền sai mật khẩu trả 403 password_incorrect, chưa có mật khẩu trả 403 password_required; " +
+			"bước chuyển quyền cần step_up_token của phiên này (POST /me/step-up, action transfer_ownership khi chứng minh bằng mã email), app đã phát hành còn gửi password (xem lại 2027-01-31); " +
+			"thiếu bằng chứng → 403 proof_required kèm proofs (thay password_required), sai mật khẩu → 403 password_incorrect (tính vào khoá bước hai); " +
 			"gọi lại sau khi đã thành công trả 200 như lần đầu.",
 		tags: []string{"workspaces"},
 		sdi:  sdi.AcceptInvitationSDI{},
