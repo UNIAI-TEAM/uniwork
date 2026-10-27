@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^342a03ad7" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=342a03ad77026e0b2a120c306184e0ace602feba
+342a03ad7 Merge remote-tracking branch 'origin/feature/UNI-2244-web-fix1' into feature/UNI-2244-folder-bulk-access-web
+20c371b4d fix(documents): close the folder access dialog with a neutral toast on an unreadable apply answer, name the noun in the vi skipped summary
+027fa7ebf Merge commit 'f2910159b' into feature/UNI-2244-folder-bulk-access-web

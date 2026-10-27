@@ -1,0 +1,5 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; pnpm --filter @uniwork/core test > /tmp/u2244c3-core.log 2>&1; rc=$?; grep -E "FAIL|Test Files|Tests |ERROR: Coverage|threshold" /tmp/u2244c3-core.log | head -60; echo; echo "TEST_CORE_EXIT=$rc"
+ Test Files  364 passed (364)
+      Tests  4259 passed (4259)
+
+TEST_CORE_EXIT=0

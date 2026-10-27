@@ -1,0 +1,8 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; pnpm --filter @uniwork/views test > /tmp/u2244c3-views.log 2>&1; rc=$?; grep -E "FAIL|Test Files|Tests |ERROR: Coverage|threshold" /tmp/u2244c3-views.log | head -60; echo; echo "TEST_VIEWS_EXIT=$rc"
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  layout/sidebar-pins.test.tsx > AppSidebar pinned items > keeps the pins one click away in the icon rail, behind a counted menu
+ Test Files  1 failed | 863 passed (864)
+      Tests  1 failed | 9038 passed (9039)
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @uniwork/views@0.0.0 test: `vitest run --coverage`
+
+TEST_VIEWS_EXIT=1
