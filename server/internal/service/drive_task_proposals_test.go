@@ -12,9 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -1105,5 +1108,98 @@ func TestValidateAndNormalizeProposalCreateItemsUnit(t *testing.T) {
 	}
 	if err := errDriveProposalItemAlreadyConverted(); !isCodedError(err, http.StatusConflict, "proposal_item_already_converted") || !errors.Is(err, ErrDriveProposalItemAlreadyConverted) {
 		t.Fatalf("errDriveProposalItemAlreadyConverted() = %v, want 409 proposal_item_already_converted", err)
+	}
+}
+
+// TestDriveFakeProviderOfflineReadForAIAndPropose verifies that with
+// DRIVE_FAKE_PROVIDER=1 and the fake AI gateway (AI_PROVIDER=fake -> ai.FakeReply),
+// linking a Drive file, reading its content via ReadForAI, and calling Propose
+// runs 100% offline (zero outbound HTTP calls) and produces a ready proposal
+// with normalized items.
+func TestDriveFakeProviderOfflineReadForAIAndPropose(t *testing.T) {
+	fx := newDriveTestFixture(t)
+	ctx := context.Background()
+
+	fx.svc.ConfigureOAuth(config.Config{
+		AppEnv:            "development",
+		DriveFakeProvider: true,
+		FrontendOrigin:    "http://localhost:3000",
+		APIPublicURL:      "http://localhost:8080",
+	})
+
+	apiClient := NewDriveAPIClient()
+	apiClient.httpClient.Transport = failingDriveRoundTripper{t: t}
+
+	fileSvc := NewDriveFileService(fx.pool, fx.q, fx.ws, fx.svc, apiClient)
+	fileSvc.SetFlags(fx.svc.flags)
+
+	contentSvc := NewDriveContentService(fx.pool, fx.q, fx.ws, fileSvc, fx.svc, apiClient, nil)
+
+	var capturedDocPrompt string
+	gw := ai.NewGateway(fx.q, &provider.Fake{
+		Reply: func(req provider.CompletionRequest) provider.CompletionResponse {
+			if len(req.Messages) > 0 {
+				capturedDocPrompt = req.Messages[len(req.Messages)-1].Content
+			}
+			return ai.FakeReply(req)
+		},
+	}, NewAIQuota(NewEntitlementService(fx.pool, fx.q)), nil, ai.Options{})
+
+	propSvc := NewDriveTaskProposalService(fx.pool, fx.q, fx.ws, fileSvc, fx.svc, contentSvc, gw)
+	propSvc.SetFlags(fx.svc.flags)
+
+	refEnc, err := fx.svc.sealSecret("tok-r-fake-propose")
+	if err != nil {
+		t.Fatal(err)
+	}
+	accEnc, err := fx.svc.sealSecret("tok-a-fake-propose")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := fx.q.CreateDriveConnection(ctx, db.CreateDriveConnectionParams{
+		ID:              util.NewID(),
+		OrganizationID:  fx.org.ID,
+		UserID:          fx.user.ID,
+		Provider:        "google",
+		GoogleSub:       "sub-fake-propose-" + util.NewID(),
+		GoogleEmail:     "fake-propose@example.com",
+		RefreshTokenEnc: refEnc,
+		AccessTokenEnc:  accEnc,
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(time.Hour), Valid: true},
+		Scopes:          "openid email " + DriveGoogleScope,
+	})
+	if err != nil {
+		t.Fatalf("CreateDriveConnection: %v", err)
+	}
+
+	extID := "ext-fake-propose-doc"
+	linked, err := fileSvc.Link(ctx, Human(fx.user.ID), fx.work.ID, LinkDriveFilesInput{
+		ConnectionID:    conn.ID,
+		ExternalFileIDs: []string{extID},
+	})
+	if err != nil || len(linked) != 1 || linked[0].File == nil {
+		t.Fatalf("Link under DRIVE_FAKE_PROVIDER=1 = %+v, err=%v", linked, err)
+	}
+	driveFileID := linked[0].File.ID
+
+	dc, err := contentSvc.ReadForAI(ctx, fx.user.ID, fx.work.ID, driveFileID, DriveContentPurposeTaskProposal)
+	if err != nil {
+		t.Fatalf("ReadForAI under DRIVE_FAKE_PROVIDER=1: %v", err)
+	}
+	if dc.Text != fakeDriveExportMarkdown || dc.Truncated {
+		t.Fatalf("ReadForAI text = %q (truncated=%v), want %q", dc.Text, dc.Truncated, fakeDriveExportMarkdown)
+	}
+
+	proposal, err := propSvc.Propose(ctx, Human(fx.user.ID), fx.work.ID, driveFileID, ProposeDriveTasksInput{
+		Prompt: "Tạo việc từ tài liệu fake",
+	})
+	if err != nil {
+		t.Fatalf("Propose under DRIVE_FAKE_PROVIDER=1 + AI_PROVIDER=fake: %v", err)
+	}
+	if proposal.Status != DriveProposalStatusReady || len(proposal.Items) == 0 {
+		t.Fatalf("proposal = %+v, want status=ready with non-empty items", proposal)
+	}
+	if !strings.Contains(capturedDocPrompt, "Chốt phạm vi tính năng beta trước 2026-11-15") {
+		t.Fatalf("expected AI prompt to include fake exported markdown, got %q", capturedDocPrompt)
 	}
 }

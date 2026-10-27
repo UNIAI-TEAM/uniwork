@@ -12,7 +12,7 @@ Connector Google Drive (UNI-2172) dùng OAuth client riêng (`GOOGLE_DRIVE_CLIEN
 
 ## Kiểm tra
 
-1. Biến môi trường trên server: `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, `GOOGLE_DRIVE_PICKER_API_KEY`, `GOOGLE_DRIVE_APP_ID`, `DRIVE_CREDENTIAL_KEY` (32 byte base64, khác hoàn toàn `EMAIL_HUB_CREDENTIAL_KEY` và `CALENDAR_CREDENTIAL_KEY`). Trên môi trường dev/E2E không gọi Google thật có thể đặt `DRIVE_FAKE_PROVIDER=1` (server từ chối khởi động nếu bật khi `APP_ENV=production`).
+1. Biến môi trường trên server: `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, `GOOGLE_DRIVE_PICKER_API_KEY`, `GOOGLE_DRIVE_APP_ID`, `DRIVE_CREDENTIAL_KEY` (32 byte base64, khác hoàn toàn `EMAIL_HUB_CREDENTIAL_KEY` và `CALENDAR_CREDENTIAL_KEY`). Trên môi trường dev/E2E không gọi Google thật có thể đặt `DRIVE_FAKE_PROVIDER=1` (giả lập trong bộ nhớ cả OAuth, metadata lẫn đọc nội dung tệp; server từ chối khởi động nếu bật khi `APP_ENV=production`).
 2. Cờ `drive_connector` trong `/admin/flags` (mặc định `false`; bật theo tổ chức hoặc toàn cục khi triển khai).
 3. Chỉ số Prometheus:
    - `drive_token_refresh_failures_total`: số lần đổi refresh token lấy access token thất bại (xem [`DriveTokenRefreshFailuresHigh.md`](DriveTokenRefreshFailuresHigh.md)).

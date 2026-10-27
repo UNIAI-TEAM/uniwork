@@ -130,7 +130,7 @@ func TestNormalizeDriveProposalItems(t *testing.T) {
 			},
 		},
 		{
-			name: "missing, invalid, or past start_date filled with today and default basis; future start kept; due_date < start_date dropped and due_date == start_date kept; priority without basis or invalid dropped",
+			name: "missing, invalid, or past start_date filled with today and default basis; today or future start kept with model basis; due_date < start_date dropped and due_date == start_date kept; priority without basis or invalid dropped",
 			raw: []driveProposalRawItem{
 				{
 					Title:         "Việc có ngày và độ ưu tiên sai định dạng",
@@ -166,10 +166,17 @@ func TestNormalizeDriveProposalItems(t *testing.T) {
 					DueDate:    "2026-11-05",
 					DueBasis:   "Hạn 05/11 trước ngày bắt đầu",
 				},
+				{
+					Title:      "Việc bắt đầu đúng hôm nay giữ nguyên căn cứ từ tài liệu",
+					StartDate:  "2026-10-27",
+					StartBasis: `Mục 1: "Khởi động ngay hôm nay 27/10"`,
+					DueDate:    "2026-10-30",
+					DueBasis:   "Hoàn tất trước 30/10",
+				},
 			},
 			check: func(t *testing.T, got []DriveTaskProposalItem) {
-				if len(got) != 4 {
-					t.Fatalf("len(got) = %d, want 4", len(got))
+				if len(got) != 5 {
+					t.Fatalf("len(got) = %d, want 5", len(got))
 				}
 				wantBasis := "Không thấy ngày bắt đầu trong tài liệu, đặt hôm nay"
 				// Item 0: invalid priority -> empty; invalid start_date -> today + default basis; invalid due_date -> nil.
@@ -212,6 +219,14 @@ func TestNormalizeDriveProposalItems(t *testing.T) {
 				}
 				if it3.DueDate != nil || it3.DueBasis != "" {
 					t.Errorf("due_date < future start_date must be dropped: %v / %q", it3.DueDate, it3.DueBasis)
+				}
+				// Item 4: start_date == today -> kept with the model's start_basis (not DriveProposalDefaultStartBasis).
+				it4 := got[4]
+				if it4.StartDate == nil || *it4.StartDate != "2026-10-27" || it4.StartBasis != `Mục 1: "Khởi động ngay hôm nay 27/10"` {
+					t.Errorf("start_date == today = %v / %q, want 2026-10-27 with model start_basis", it4.StartDate, it4.StartBasis)
+				}
+				if it4.DueDate == nil || *it4.DueDate != "2026-10-30" || it4.DueBasis != "Hoàn tất trước 30/10" {
+					t.Errorf("item 4 due_date = %v / %q, want 2026-10-30 with basis", it4.DueDate, it4.DueBasis)
 				}
 			},
 		},
