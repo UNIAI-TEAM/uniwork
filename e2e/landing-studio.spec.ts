@@ -1,4 +1,4 @@
-import { selectWorkspaceFeature, openManualPreview } from "./landing-catalog-helpers";
+import { selectWorkspaceFeature, openManualPreview, openMeetingList } from "./landing-catalog-helpers";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
@@ -71,6 +71,7 @@ for (const scenario of [
     await page.locator('[data-scene="character"]').scrollIntoViewIfNeeded();
     await expect(page.locator('[data-scene="character"]')).toBeVisible();
     await selectWorkspaceFeature(page, "meetings");
+    await openMeetingList(page);
     await page.locator(".meeting-follow-up [data-slot=accordion-trigger]").click();
     const video = page.locator(".workflow-film video");
     await video.scrollIntoViewIfNeeded();

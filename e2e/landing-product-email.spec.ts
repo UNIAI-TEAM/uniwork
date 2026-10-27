@@ -5,8 +5,8 @@ import { gotoLanding, landingReady } from "./landing-ready";
 async function emailReady(page: Page, manual = false) {
   await landingReady(page);
   await page.waitForLoadState("networkidle");
-  await expect(page.locator('.product-demo-shell')).toHaveAttribute('data-demo-feature', 'email');
-  if (manual) await page.locator('[data-action="toggle-presentation"]').click();
+  await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute('data-demo-feature', 'email');
+  if (manual) await page.locator('#product-preview [data-action="toggle-presentation"]').click();
 }
 
 for (const sample of [{ width: 1680, locale: "en" }, { width: 1440, locale: "vi", dark: true }, { width: 768, locale: "vi" }, { width: 390, locale: "vi" }] as const) {
@@ -20,7 +20,7 @@ for (const sample of [{ width: 1680, locale: "en" }, { width: 1440, locale: "vi"
     await expect(player.locator('[data-thread-row]')).toHaveCount(13);
     await expect(player.locator('.product-email-reader')).toHaveCount(0);
     await expect(player.locator('.lovable-viewport')).toHaveCount(0);
-    expect(await page.locator('.product-demo-content').evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(1);
+    expect(await page.locator('#product-preview .product-demo-content').evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(1);
     expect(await player.locator('.product-email-workspace').evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     await expect(page.locator('#product-preview')).not.toContainText(/(?:email_hub|landing|common)\.[a-z][\w.]+/);
