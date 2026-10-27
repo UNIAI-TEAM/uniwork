@@ -379,6 +379,29 @@ Mọi route: công khai, `Cache-Control: no-store`, ⚑ chỉ nhận `client_id`
   mọi request; helper `requireCurrentCredentials` đọc hàng `users` của chính chủ token. Token native không xét ở đây
   (thu hồi thì phiên thiết bị chết, middleware đã chặn); không có token trong context (job, test gọi thẳng service) thì
   không có gì để xét. Đồng ý desktop và MCP dùng nó từ lát 1.
+- Lát 3 (server): `step_up.go` là chỗ duy nhất kiểm bằng chứng của người đã đăng nhập, gồm cả bằng chứng cũ app đã
+  phát hành gửi. Token là blob `step_up` `{uid, sid, web, method, iat, exp}`; không tiêu khi dùng (một token dùng cho
+  mọi lệnh trong 10 phút). Bằng chứng sai đếm vào `second_factor_failures` như MFA (`weighProof`); provider token sai
+  (chữ ký, nonce, subject khác, `iat` quá 5 phút) → `403 provider_token_invalid` (mã spec chưa nêu). `proof_required`
+  mang `fields.proofs`. Bằng chứng provider chỉ có trong `proofs` khi server kiểm được: Apple từ khi `SetApple`, Google
+  khi lát 5 gọi `SetGoogleProofVerifier`. Mã email: purpose `step_up` + `action`, 10 phút, 5 lần thử, `429
+  rate_limited` + `retry_after` khi gửi lại < 60 s hay quá 5 mã/24 h; dọn mã hết hạn giữ hàng `step_up` một ngày cho
+  cổng 5 mã; tài khoản bật MFA không xin được mã (`proof_required`, proofs `[totp]`). Lệnh dùng token kiểm theo thứ
+  tự: `credentials_revoked_at` (401), phiên của bearer còn sống (401), rồi token (403). Bật MFA: kiểm email đã xác
+  minh và MFA chưa bật trước, rồi mới đòi token. Tắt MFA cũng qua khoá bước hai.
+- Lát 3: `PUT /me/password` nhận `step_up_token` thay `current_password` cả khi đã có mật khẩu. `PUT /me/password`,
+  liên kết và gỡ dùng `SignInMethodsService` (`service/sign_in_method_commands.go`; `sign_in_methods.go` giữ phần
+  dùng chung và lệnh liên kết từ vé). Gỡ một nhà cung cấp chưa liên kết → 200 trạng thái hiện tại, không ghi gì.
+  Liên kết từ Cài đặt bằng bearer của app → `400 invalid_request`. Kết quả `taken`/`movable` kèm `masked_email`;
+  `movable` để lại cookie vé (`link_required`) để Cài đặt xác nhận chuyển bằng `POST /auth/sign-in-ticket/link
+  {move:true, step_up_token}` mà không đi Google lần nữa; route vé nhận `step_up_token` thay cho phiên mới hơn vé.
+  `POST /me/sign-in-methods/apple/link` để lát 4 (cần Apple web); `/me/sign-in-methods/{google,apple}/native` để
+  lát 5. Đổi mật khẩu và gỡ: audit `auth.session_revoked {scope:"others", reason:"password_changed" |
+  "sign_in_method_unlinked", count, device_sessions, mcp_grants_revoked}`.
+- Lát 3, bằng chứng cũ (xem lại 2027-01-31, `TestLegacyProofDoorsAreReviewed`): `POST /me/delete` không có token thì
+  đọc đúng một bằng chứng như trước (mật khẩu nếu có, không thì mã MFA, không thì gõ lại email), mật khẩu và mã qua
+  khoá bước hai; chuyển quyền và chuyển tổ chức còn nhận `password` vì app đã phát hành gửi nó trong luồng xoá tài
+  khoản. Không có gì → `403 proof_required` (thay `password_required`).
 
 **Phương thức đăng nhập** (`service/sign_in_methods.go`, bearer):
 
@@ -441,6 +464,11 @@ Ba bucket có tên trong `router.go`, mỗi cái dưới một trần theo đị
   user của bearer (10/phút).
 - Route mới còn lại dùng `credentialLimit`. `router/ratelimit_test.go` ghim từng route; đoạn rate limit trong
   `CLAUDE.md` cập nhật.
+- Lát 3: ba bucket ở `router/sign_in_budgets.go`, mỗi cái dưới trần 600/phút/địa chỉ (`*-ip`). Email đọc từ body
+  (tối đa 8 KiB, trả lại nguyên body cho handler), chuẩn hoá như login rồi băm; token MFA kiểm chữ ký, từ body hay
+  cookie `uniwork_mfa`; không đọc được thì khoá theo địa chỉ. `/auth/login` và `/auth/mfa/verify` ra khỏi limiter
+  chung 300/phút/địa chỉ (như refresh native), không thì trần 600 không bao giờ tới. Lát 5 gắn `budgets.password` /
+  `budgets.mfa` vào `/auth/native/password`, `/auth/native/mfa` và thêm hai đường đó vào danh sách bỏ qua.
 
 ### 3.10 Biến môi trường (`.env.example`, danh sách xoá env của `config_test.go`)
 
@@ -675,7 +703,9 @@ Một nhánh, commit theo lát, mỗi lát để server chạy được:
    `/auth/providers` có `apple_web`, `google_native` (luôn `false` tới lát 4, 5). Còn lại: step-up thay
    `proof_required` khi phiên cũ hơn vé (lát 3), route native vé (lát 5).
 3. Step-up + phương thức đăng nhập + mật khẩu + quên mật khẩu không mật khẩu + xoá tài khoản/chuyển quyền dùng step-up +
-   mail + ngân sách thử.
+   mail + ngân sách thử. Lát 3 (server) xong, trừ liên kết Apple từ Cài đặt (lát 4) và lệnh liên kết native (lát 5).
+   Quên mật khẩu đặt lần đầu ghi `auth.password_set` (cả khi là thu hồi tài khoản chưa xác minh mà chưa có mật
+   khẩu), không thì `auth.password_changed`.
 4. Apple web.
 5. Route native + Google ID token + bộ chuyển mã route Apple cũ.
 6. Web (4.x). 7. Mobile (5.x).
