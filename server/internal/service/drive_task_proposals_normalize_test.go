@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -158,12 +159,12 @@ func TestNormalizeDriveProposalItems(t *testing.T) {
 			},
 		},
 		{
-			name: "empty title items dropped before assigning dense 0-based indexes",
+			name: "empty title items dropped before assigning dense 0-based indexes and translating blocked_by_indexes",
 			raw: []driveProposalRawItem{
 				{Title: "   "},
 				{Title: "Việc đầu tiên", AssigneeMemberID: "mem-minh", AssigneeBasis: "Minh"},
 				{Title: ""},
-				{Title: "Việc thứ hai", BlockedByIndexes: []int{0}},
+				{Title: "Việc thứ hai", BlockedByIndexes: []int{1}},
 			},
 			check: func(t *testing.T, got []DriveTaskProposalItem) {
 				if len(got) != 2 {
@@ -173,7 +174,98 @@ func TestNormalizeDriveProposalItems(t *testing.T) {
 					t.Errorf("got[0] = %+v", got[0])
 				}
 				if got[1].Index != 1 || got[1].Title != "Việc thứ hai" || !reflect.DeepEqual(got[1].BlockedByIndexes, []int{0}) {
-					t.Errorf("got[1] = %+v", got[1])
+					t.Errorf("got[1] = %+v, want Index=1 Title=%q BlockedByIndexes=[0]", got[1], "Việc thứ hai")
+				}
+			},
+		},
+		{
+			name: "reference to dropped blank item disappears and shifted targets remap accurately",
+			raw: []driveProposalRawItem{
+				{Title: "  "},
+				{Title: "Task A"},
+				{Title: "Task B", BlockedByIndexes: []int{1}},
+			},
+			check: func(t *testing.T, got []DriveTaskProposalItem) {
+				if len(got) != 2 {
+					t.Fatalf("len(got) = %d, want 2", len(got))
+				}
+				if got[0].Index != 0 || got[0].Title != "Task A" || !reflect.DeepEqual(got[0].BlockedByIndexes, []int{}) {
+					t.Errorf("Task A = %+v, want Index=0 BlockedByIndexes=[]", got[0])
+				}
+				if got[1].Index != 1 || got[1].Title != "Task B" || !reflect.DeepEqual(got[1].BlockedByIndexes, []int{0}) {
+					t.Errorf("Task B = %+v, want Index=1 BlockedByIndexes=[0] (raw 1 -> dense 0)", got[1])
+				}
+
+				// Subcase 2: [A(blocked by raw 1), blank, B] -> A must have [] (raw 1 was dropped, not B)
+				got2 := normalizeDriveProposalItems([]driveProposalRawItem{
+					{Title: "Task A", BlockedByIndexes: []int{1}},
+					{Title: ""},
+					{Title: "Task B"},
+				}, members, labels)
+				if len(got2) != 2 || got2[0].Title != "Task A" || !reflect.DeepEqual(got2[0].BlockedByIndexes, []int{}) {
+					t.Errorf("subcase 2: Task A = %+v, want BlockedByIndexes=[] (target raw 1 was dropped)", got2)
+				}
+
+				// Subcase 3: [blank, A, B, C(blocked by raw 1)] -> C must point to [0] (Task A), not [1] (Task B)
+				got3 := normalizeDriveProposalItems([]driveProposalRawItem{
+					{Title: " "},
+					{Title: "Task A"},
+					{Title: "Task B"},
+					{Title: "Task C", BlockedByIndexes: []int{1}},
+				}, members, labels)
+				if len(got3) != 3 || got3[2].Title != "Task C" || !reflect.DeepEqual(got3[2].BlockedByIndexes, []int{0}) {
+					t.Errorf("subcase 3: Task C = %+v, want BlockedByIndexes=[0] (Task A)", got3)
+				}
+			},
+		},
+		{
+			name: "caps at 20 kept items with interspersed blanks and drops dependencies on discarded items",
+			raw: func() []driveProposalRawItem {
+				var items []driveProposalRawItem
+				// Raw 0: blank
+				items = append(items, driveProposalRawItem{Title: "   "})
+				// Add 22 non-empty tasks with another blank after the 5th task.
+				for k := 1; k <= 22; k++ {
+					if k == 6 {
+						items = append(items, driveProposalRawItem{Title: ""})
+					}
+					var deps []int
+					switch k {
+					case 2:
+						// Depends on raw 1 (Task 1 -> dense 0) and raw 0 (blank -> dropped)
+						deps = []int{0, 1}
+					case 20:
+						// Depends on raw 6 (blank -> dropped), raw 7 (Task 6 -> dense 5),
+						// and raw 22 (Task 21, capped out -> dropped)
+						deps = []int{6, 7, 22, 23}
+					}
+					items = append(items, driveProposalRawItem{
+						Title:            fmt.Sprintf("Task %d", k),
+						BlockedByIndexes: deps,
+					})
+				}
+				return items
+			}(),
+			check: func(t *testing.T, got []DriveTaskProposalItem) {
+				if len(got) != 20 {
+					t.Fatalf("len(got) = %d, want 20", len(got))
+				}
+				for i, it := range got {
+					wantTitle := fmt.Sprintf("Task %d", i+1)
+					if it.Index != i || it.Title != wantTitle {
+						t.Fatalf("got[%d] = {Index:%d Title:%q}, want {Index:%d Title:%q}", i, it.Index, it.Title, i, wantTitle)
+					}
+					for _, dep := range it.BlockedByIndexes {
+						if dep < 0 || dep >= 20 {
+							t.Fatalf("got[%d] has out-of-bounds dependency %d", i, dep)
+						}
+					}
+				}
+				if !reflect.DeepEqual(got[1].BlockedByIndexes, []int{0}) {
+					t.Errorf("got[1].BlockedByIndexes = %v, want [0]", got[1].BlockedByIndexes)
+				}
+				if !reflect.DeepEqual(got[19].BlockedByIndexes, []int{5}) {
+					t.Errorf("got[19].BlockedByIndexes = %v, want [5] (dependencies on blank and past-cap items dropped)", got[19].BlockedByIndexes)
 				}
 			},
 		},
@@ -250,15 +342,56 @@ func TestNormalizeDriveProposalItems(t *testing.T) {
 }
 
 func TestParseDriveProposalRawItems(t *testing.T) {
-	items, err := parseDriveProposalRawItems(`{"items":[{"title":"Việc A","label_ids":[],"checklist":[],"excerpt":{"section":"Mục 1","quote":"Trích"},"blocked_by_indexes":[]}]}`)
-	if err != nil || len(items) != 1 || items[0].Title != "Việc A" {
+	nominal := `{"items":[{"title":"Việc A","assignee_member_id":"mem-lan","assignee_basis":"Mục 1","priority":"high","priority_basis":"Gấp","start_date":"2026-10-28","start_basis":"Mục 1","due_date":"2026-11-05","due_basis":"Mục 1","label_ids":["lbl-prod"],"label_basis":"Sản phẩm","goal":"Hoàn thành việc A.","checklist":["Bước 1"],"excerpt":{"section":"Mục 1","quote":"Trích"},"blocked_by_indexes":[]}]}`
+	items, err := parseDriveProposalRawItems(nominal)
+	if err != nil || len(items) != 1 || items[0].Title != "Việc A" || items[0].Goal != "Hoàn thành việc A." {
 		t.Fatalf("parseDriveProposalRawItems valid JSON: %+v %v", items, err)
 	}
-	for _, bad := range []string{"not json", `{}`, `{"items":"nope"}`} {
+	for _, bad := range []string{"not json", `[]`, `{}`, `{"items":null}`, `{"items":"nope"}`, `{"items":[123]}`} {
 		if _, err := parseDriveProposalRawItems(bad); !errors.Is(err, ai.ErrOutputInvalid) {
 			t.Errorf("parseDriveProposalRawItems(%q) = %v, want ErrOutputInvalid", bad, err)
 		}
 	}
+
+	t.Run("missing optional or nested fields degrade to empty and normalize cleanly", func(t *testing.T) {
+		raw, err := parseDriveProposalRawItems(`{"items":[{"title":"Task without goal, checklist, excerpt, or dependencies"}]}`)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got := normalizeDriveProposalItems(raw, nil, nil)
+		if len(got) != 1 || got[0].Title != "Task without goal, checklist, excerpt, or dependencies" || got[0].Goal != "" || len(got[0].Checklist) != 0 || len(got[0].BlockedByIndexes) != 0 {
+			t.Fatalf("unexpected normalized output: %+v", got)
+		}
+	})
+
+	t.Run("null item in items array is skipped without panic", func(t *testing.T) {
+		raw, err := parseDriveProposalRawItems(`{"items":[null]}`)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got := normalizeDriveProposalItems(raw, nil, nil)
+		if len(got) != 0 {
+			t.Fatalf("expected 0 items, got %+v", got)
+		}
+	})
+
+	t.Run("null fields degrade to empty and empty title item is dropped", func(t *testing.T) {
+		raw, err := parseDriveProposalRawItems(`{"items":[{"title":null}]}`)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got := normalizeDriveProposalItems(raw, nil, nil)
+		if len(got) != 0 {
+			t.Fatalf("expected 0 items, got %+v", got)
+		}
+	})
+
+	t.Run("unknown properties are ignored", func(t *testing.T) {
+		raw, err := parseDriveProposalRawItems(`{"items":[],"unexpected":"extra property"}`)
+		if err != nil || len(raw) != 0 {
+			t.Fatalf("expected empty items and nil error, got %+v %v", raw, err)
+		}
+	})
 }
 
 func TestDriveTaskProposalItemJSONShape(t *testing.T) {

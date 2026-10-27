@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -95,53 +96,59 @@ type driveProposalRawItem struct {
 
 // parseDriveProposalRawItems decodes the JSON output of drive_task_proposals@1
 // and returns ai.ErrOutputInvalid when the output is not a JSON object with an
-// "items" array (contract §2.4).
+// "items" array or fails to decode (contract §2.4).
 func parseDriveProposalRawItems(text string) ([]driveProposalRawItem, error) {
-	cleaned := strings.TrimSpace(text)
-	if strings.HasPrefix(cleaned, "```") {
-		if nl := strings.IndexByte(cleaned, '\n'); nl >= 0 {
-			cleaned = cleaned[nl+1:]
-		}
-		if end := strings.LastIndex(cleaned, "```"); end >= 0 {
-			cleaned = cleaned[:end]
-		}
-		cleaned = strings.TrimSpace(cleaned)
+	start := strings.Index(text, "{")
+	end := strings.LastIndex(text, "}")
+	if start < 0 || end <= start {
+		return nil, fmt.Errorf("%w: no JSON object in response", ai.ErrOutputInvalid)
 	}
 	var payload struct {
-		Items *[]driveProposalRawItem `json:"items"`
+		Items *[]*driveProposalRawItem `json:"items"`
 	}
-	if err := json.Unmarshal([]byte(cleaned), &payload); err != nil {
-		return nil, ai.ErrOutputInvalid
+	if err := json.Unmarshal([]byte(text[start:end+1]), &payload); err != nil {
+		return nil, fmt.Errorf("%w: %w", ai.ErrOutputInvalid, err)
 	}
 	if payload.Items == nil {
-		return nil, ai.ErrOutputInvalid
+		return nil, fmt.Errorf("%w: missing items array", ai.ErrOutputInvalid)
 	}
-	return *payload.Items, nil
+	out := make([]driveProposalRawItem, 0, len(*payload.Items))
+	for _, item := range *payload.Items {
+		if item == nil {
+			continue
+		}
+		out = append(out, *item)
+	}
+	return out, nil
 }
 
 // normalizeDriveProposalItems normalizes the model's raw task proposal items
 // (spec §8.2 step 5, contract §2.5, seam §2):
 //   - drops items with an empty title first, caps at 20 items, and assigns
 //     dense 0-based indexes 0..n-1;
+//   - translates blocked_by_indexes from raw item coordinates into dense
+//     0..n-1 indexes (dropping references to empty-title or capped-out items)
+//     before removing out-of-range, self-referential, duplicate, or cycle edges;
 //   - drops assignee_member_id and label_ids not present in the workspace maps;
 //   - drops start_date and due_date that are not valid YYYY-MM-DD dates;
 //   - clears priority outside low|medium|high|urgent;
 //   - clears the corresponding *_basis whenever a field is empty or dropped;
-//   - truncates excerpt.quote to 300 runes and checklist to 10 items;
-//   - removes blocked_by_indexes that are out of range, self-referential,
-//     duplicated, or would close a dependency cycle.
+//   - truncates excerpt.quote to 300 runes and checklist to 10 items.
 func normalizeDriveProposalItems(raw []driveProposalRawItem, members map[string]bool, labels map[string]bool) []DriveTaskProposalItem {
 	type keptRaw struct {
-		item driveProposalRawItem
+		rawIndex int
+		item     driveProposalRawItem
 	}
 	kept := make([]keptRaw, 0, min(len(raw), driveMaxProposalItems))
-	for _, r := range raw {
+	rawToDense := make(map[int]int, min(len(raw), driveMaxProposalItems))
+	for rawIdx, r := range raw {
 		title := strings.TrimSpace(r.Title)
 		if title == "" {
 			continue
 		}
 		r.Title = title
-		kept = append(kept, keptRaw{item: r})
+		rawToDense[rawIdx] = len(kept)
+		kept = append(kept, keptRaw{rawIndex: rawIdx, item: r})
 		if len(kept) == driveMaxProposalItems {
 			break
 		}
@@ -154,7 +161,6 @@ func normalizeDriveProposalItems(raw []driveProposalRawItem, members map[string]
 	for i, kr := range kept {
 		r := kr.item
 		rawBlocked[i] = r.BlockedByIndexes
-
 		var assigneeID *string
 		var assigneeBasis string
 		if id := strings.TrimSpace(r.AssigneeMemberID); id != "" && members[id] {
@@ -232,14 +238,16 @@ func normalizeDriveProposalItems(raw []driveProposalRawItem, members map[string]
 		}
 	}
 
-	// Clean blocked_by_indexes: drop out-of-range, self, duplicates, and any
+	// Translate blocked_by_indexes from raw coordinates to dense indexes, then
+	// drop unmapped (dropped/capped), out-of-range, self, duplicates, and any
 	// edge that would close a cycle in the accepted dependency graph.
 	adj := make([][]int, n)
 	for i := range n {
 		seen := make(map[int]bool, len(rawBlocked[i]))
 		cleaned := make([]int, 0, len(rawBlocked[i]))
-		for _, dep := range rawBlocked[i] {
-			if dep < 0 || dep >= n || dep == i || seen[dep] {
+		for _, rawDep := range rawBlocked[i] {
+			dep, ok := rawToDense[rawDep]
+			if !ok || dep < 0 || dep >= n || dep == i || seen[dep] {
 				continue
 			}
 			if driveProposalReachable(adj, dep, i) {
