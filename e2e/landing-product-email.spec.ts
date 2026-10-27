@@ -47,8 +47,8 @@ test('mail can be searched, filtered, starred, archived and composed locally', a
   await manual.getByRole('button', { name: vi.email_hub.filters.attachments, exact: true }).click();
   await list.locator('[data-thread-row="demo-mail-0"]').click();
   await expect(manual.locator('.product-email-reader')).toBeVisible();
-  await manual.getByRole('button', { name: vi.email_hub.star, exact: true }).click();
-  await expect(manual.getByRole('button', { name: vi.email_hub.star, exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await manual.locator('.product-email-reader').getByRole('button', { name: vi.email_hub.star, exact: true }).click();
+  await expect(manual.locator('.product-email-reader').getByRole('button', { name: vi.email_hub.star, exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Escape');
   await manual.getByRole('navigation', { name: vi.email_hub.folders_nav }).getByRole('button', { name: vi.email_hub.folders.starred, exact: true }).click();
   // The seed already stars one other thread, so the Starred folder holds two.
@@ -84,7 +84,7 @@ test('phone folder navigation and reading actions remain usable', async ({ page 
   await emailReady(page, true);
   const manual = page.locator('.manual-preview:not([hidden]) .product-email-workspace');
   await manual.locator('[data-thread-row="demo-mail-0"]').click();
-  await manual.getByRole('button', { name: vi.email_hub.star, exact: true }).click();
+  await manual.locator('.product-email-reader').getByRole('button', { name: vi.email_hub.star, exact: true }).click();
   await manual.getByRole('button', { name: vi.email_hub.back_to_list, exact: true }).click();
   await manual.getByRole('button', { name: vi.email_hub.folder_menu.replace('{{folder}}', vi.email_hub.folders.inbox), exact: true }).click();
   await page.getByRole('menuitem', { name: vi.email_hub.folders.starred, exact: true }).click();

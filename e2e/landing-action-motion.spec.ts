@@ -80,7 +80,8 @@ for (const sample of [
     expect(keyframes[0].transform).not.toBe("translate(0px, 0px)");
     expect(keyframes[1].transform).toBe("translate(0, 0)");
     await expect(player.locator('[data-demo-item="design"]')).toHaveCount(1);
-    await expect(player.locator('[data-status="done"] [data-slot="status-heading"]')).toContainText("1");
+    // The seed already has one done card (DEMO-108); the moved design card makes two.
+    await expect(player.locator('[data-status="done"] [data-slot="status-heading"]')).toContainText("2");
     await player.locator("[data-action='toggle-playback']").click();
     await expect(player).toHaveAttribute("data-running", "false");
     expect(await player.locator(".action-stage").evaluate(element => element.getAnimations({ subtree: true }).filter(animation => animation.playState === "running").length)).toBe(0);

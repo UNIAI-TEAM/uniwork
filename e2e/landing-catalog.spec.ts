@@ -13,8 +13,8 @@ test("catalog covers 25 reference entries without implying illustrations are wor
   const illustrations = ["workflows", "outputs", "approvals", "knowledge", "automation", "agents", "ai-brain", "skills", "work-catalog", "decisions", "decision-history", "ai-market", "reports"];
   for (const key of Object.values(workspaceGroups).flat()) {
     await selectWorkspaceFeature(page, key);
-    // Every destination stays mounted (keepMounted), hidden; exactly one panel is shown.
-    await expect(stage.locator("[role=tabpanel]:not([hidden])")).toHaveCount(1);
+    // Every destination stays mounted (keepMounted), hidden; exactly one top-level panel is shown (features nest their own tabs).
+    await expect(stage.locator(".preview-main > [role=tabpanel]:not([hidden])")).toHaveCount(1);
     await expect(stage.locator(`.product-demo-shell[data-demo-feature="${key}"]`)).toHaveCount(1);
     if (illustrations.includes(key)) {
       // Features without a current screen stay a labelled illustration, not a working module.
