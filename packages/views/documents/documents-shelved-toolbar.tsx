@@ -1,15 +1,7 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { Label } from "@uniwork/ui/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@uniwork/ui/components/ui/select";
-import { LibraryToolbar, type LibraryToolbarProps } from "./documents-library-toolbar";
+import { FilterSelect, LibraryToolbar, type LibraryToolbarProps } from "./documents-library-toolbar";
 
 /** The Select value of the system row (a shelved item whose `shelved_by` is
  *  null — a batch or daemon write, not a member). User ids never collide with
@@ -26,7 +18,7 @@ export interface ShelvedByOption {
   label: string;
 }
 
-export interface ShelvedToolbarProps extends Omit<LibraryToolbarProps, "activity" | "onActivity" | "children" | "className"> {
+export interface ShelvedToolbarProps extends Omit<LibraryToolbarProps, "activity" | "onActivity" | "children" | "note" | "className"> {
   /** The "Lưu trữ bởi" options: members + former members seen on loaded rows + system. */
   shelvedByOptions: ShelvedByOption[];
   /** The active member filter: null (anyone), a user id, or SHELVED_BY_SYSTEM. */
@@ -37,9 +29,10 @@ export interface ShelvedToolbarProps extends Omit<LibraryToolbarProps, "activity
 /**
  * The toolbar of the Lưu trữ list (Archive.dc, ARCHIVE-01 U-2): the filter
  * bar every list screen carries (UNI-2045 W10), then the "Lưu trữ bởi" member
- * filter — the server has no `shelved_by` parameter and SV-8's `updated_by` is
- * the last editor, not who shelved the item, so it narrows only the loaded
- * pages and says so. The sort is the table headers' (UNI-2045 W12).
+ * filter as a chip of the same FilterSelect as Người sửa — the server has no
+ * `shelved_by` parameter and SV-8's `updated_by` is the last editor, not who
+ * shelved the item, so it narrows only the loaded pages and says so in a note
+ * under the chips while it is active. The sort is the table headers' (UNI-2045 W12).
  */
 export function ShelvedToolbar({ shelvedByOptions, shelvedBy, onShelvedBy, ...bar }: ShelvedToolbarProps) {
   const { t } = useTranslation();
@@ -47,38 +40,17 @@ export function ShelvedToolbar({ shelvedByOptions, shelvedBy, onShelvedBy, ...ba
     { value: SHELVED_BY_ANY, label: t("documents.shelved_list.filter_by_any") },
     ...shelvedByOptions.map((option) => ({ value: option.value, label: option.label })),
   ];
-  const selected = shelvedBy ?? SHELVED_BY_ANY;
   return (
-    <LibraryToolbar {...bar}>
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <div className="flex items-center gap-2">
-          <Label htmlFor="documents-shelved-by" className="shrink-0 text-caption text-muted-foreground">
-            {t("documents.shelved_list.filter_by_label")}
-          </Label>
-          <Select
-            value={selected}
-            onValueChange={(next) => {
-              const value = next === SHELVED_BY_ANY ? null : next;
-              if (value !== shelvedBy) onShelvedBy(value);
-            }}
-            items={items}
-          >
-            <SelectTrigger id="documents-shelved-by" size="sm" variant="subtle" className="w-44" aria-label={t("documents.shelved_list.filter_by_label")}>
-              <SelectValue>{items.find((item) => item.value === selected)?.label}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {items.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {shelvedBy !== null ? (
-          <span className="text-caption text-muted-foreground">{t("documents.shelved_list.filter_loaded_only")}</span>
-        ) : null}
-      </div>
+    <LibraryToolbar
+      {...bar}
+      note={shelvedBy !== null ? <span className="text-caption text-muted-foreground">{t("documents.shelved_list.filter_loaded_only")}</span> : undefined}
+    >
+      <FilterSelect
+        label={t("documents.shelved_list.filter_by_label")}
+        value={shelvedBy ?? SHELVED_BY_ANY}
+        items={items}
+        onPick={(next) => onShelvedBy(next === SHELVED_BY_ANY ? null : next)}
+      />
     </LibraryToolbar>
   );
 }

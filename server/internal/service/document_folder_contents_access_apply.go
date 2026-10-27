@@ -23,6 +23,46 @@ type folderContentsOutcome struct {
 	SkippedLocked        int
 }
 
+func isFolderContentsDocLocked(doc db.Document) bool {
+	return doc.OwnerKind.Valid || (doc.OwnerID.Valid && doc.OwnerID.String != "")
+}
+
+// childRequiresBreakGlass reports whether applying any item in items to doc
+// would require break-glass under DOC-05 (an AdminScope caller below manage
+// widening a restricted document's home row or granting a principal that
+// reaches themselves). Such children are skipped as skipped_not_manageable
+// rather than failing the whole folder batch or bypassing break-glass (F1).
+func (s *DocumentService) childRequiresBreakGlass(
+	ctx context.Context,
+	q *db.Queries,
+	doc db.Document,
+	access DocumentAccess,
+	actor Actor,
+	items []FolderContentsAccessItem,
+) (bool, error) {
+	if access.Level.AtLeast(DocumentLevelManage) {
+		return false, nil
+	}
+	for _, it := range items {
+		if it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == doc.WorkspaceID &&
+			doc.Visibility == documentVisibilityRestricted {
+			return true, nil
+		}
+		err := s.refuseAdminSelfShare(ctx, q, doc, access, actor, DocumentShareInput{
+			PrincipalType: it.PrincipalType,
+			PrincipalID:   it.PrincipalID,
+			Level:         it.Level,
+		})
+		if err != nil {
+			if codedIs(err, "break_glass_required") {
+				return true, nil
+			}
+			return false, err
+		}
+	}
+	return false, nil
+}
+
 func (s *DocumentService) previewFolderContentsAccess(
 	ctx context.Context,
 	actor Actor,
@@ -65,7 +105,7 @@ func (s *DocumentService) previewFolderContentsAccess(
 		if doc.ArchivedAt.Valid || doc.Kind == DocumentKindFolder || isMyFolder(doc) {
 			continue
 		}
-		if doc.OwnerID.Valid && doc.OwnerID.String != "" {
+		if isFolderContentsDocLocked(doc) {
 			skippedLocked++
 			continue
 		}
@@ -82,6 +122,14 @@ func (s *DocumentService) previewFolderContentsAccess(
 			return FolderContentsAccessResult{}, err
 		}
 		if !acc.canAdminister() {
+			skippedNotManageable++
+			continue
+		}
+		needBG, err := s.childRequiresBreakGlass(ctx, q, doc, acc, actor, items)
+		if err != nil {
+			return FolderContentsAccessResult{}, err
+		}
+		if needBG {
 			skippedNotManageable++
 			continue
 		}
@@ -329,7 +377,7 @@ func (s *DocumentService) executeFolderContentsAccessSync(
 	itemsJSON []byte,
 	docIDs []string,
 ) (FolderContentsAccessResult, error) {
-	notifiedLevels := make(map[string]string)
+	notifiedLevels := make(map[string]FolderContentsRecipientNotice)
 	var outcome folderContentsOutcome
 
 	userItemIDs := make([]string, 0, len(items))
@@ -339,15 +387,42 @@ func (s *DocumentService) executeFolderContentsAccessSync(
 		}
 	}
 
+	// Acquire the workspace tree lock before any document row lock so bulk
+	// access updates serialize with MoveDocument in the same lock order (F4),
+	// then intersect the snapshot with the live permitted subtree (F3).
+	if err := q.LockDocumentTree(ctx, folder.WorkspaceID); err != nil {
+		return FolderContentsAccessResult{}, err
+	}
+	liveSubtreeIDs, err := q.ListFolderContentsAccessSubtreeIDs(ctx, db.ListFolderContentsAccessSubtreeIDsParams{
+		OrganizationID: folder.OrganizationID,
+		WorkspaceID:    folder.WorkspaceID,
+		FolderID:       folder.ID,
+		ActorID:        actor.ID,
+		MaxLevel:       subtreeMaxLevel(),
+	})
+	if err != nil {
+		return FolderContentsAccessResult{}, err
+	}
+	inLiveSubtree := make(map[string]bool, len(liveSubtreeIDs))
+	for _, id := range liveSubtreeIDs {
+		inLiveSubtree[id] = true
+	}
+
 	for _, docID := range docIDs {
+		if !inLiveSubtree[docID] {
+			outcome.Processed++
+			continue
+		}
 		doc, err := q.LockDocumentByID(ctx, docID)
 		if errors.Is(err, pgx.ErrNoRows) {
+			outcome.Processed++
 			continue
 		}
 		if err != nil {
 			return FolderContentsAccessResult{}, err
 		}
 		if doc.OrganizationID != folder.OrganizationID || doc.WorkspaceID != folder.WorkspaceID {
+			outcome.Processed++
 			continue
 		}
 		res, err := s.applyFolderContentsAccessToLockedDoc(ctx, q, actor, folder, batchID, mode, items, userItemIDs, doc, notifiedLevels)
@@ -426,12 +501,12 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 	items []FolderContentsAccessItem,
 	userItemIDs []string,
 	doc db.Document,
-	notifiedLevels map[string]string,
+	notifiedLevels map[string]FolderContentsRecipientNotice,
 ) (folderContentsOutcome, error) {
 	if doc.ArchivedAt.Valid || doc.Kind == DocumentKindFolder || isMyFolder(doc) {
-		return folderContentsOutcome{}, nil
+		return folderContentsOutcome{Processed: 1}, nil
 	}
-	if doc.OwnerID.Valid && doc.OwnerID.String != "" {
+	if isFolderContentsDocLocked(doc) {
 		return folderContentsOutcome{Processed: 1, SkippedLocked: 1}, nil
 	}
 
@@ -450,18 +525,26 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 	if !acc.canAdminister() {
 		return folderContentsOutcome{Processed: 1, SkippedNotManageable: 1}, nil
 	}
+	needBG, err := s.childRequiresBreakGlass(ctx, q, doc, acc, actor, items)
+	if err != nil {
+		return folderContentsOutcome{}, err
+	}
+	if needBG {
+		return folderContentsOutcome{Processed: 1, SkippedNotManageable: 1}, nil
+	}
 
 	if !decideFolderContentsDocWouldChange(doc, sharesBefore, mode, items) {
 		return folderContentsOutcome{Processed: 1, Unchanged: 1}, nil
 	}
 
-	// Compute notify recipients before mutating the document's ACL: a user item
-	// notifies only when its final effective level strictly exceeds its before
-	// effective level AND notifiedLevels[uid] != string(afterLevel) (spec §6).
-	notifyUserByID := make(map[string]string, len(userItemIDs))
-	var beforeLevels map[string]DocumentAccess
-	if len(userItemIDs) > 0 {
-		beforeLevels, err = s.resolveLevelsInTenantWithShares(ctx, q, doc, sharesBefore, userItemIDs)
+	// Accumulate per-recipient effective-level increases in notifiedLevels so
+	// completion emits a single N-document summary per recipient (spec §6, F5).
+	// Per-share notifications are suppressed for via=folder_contents; a recipient
+	// is recorded whenever their effective level on the child strictly rises,
+	// even when their direct user share row was unchanged and a home/group row
+	// caused the rise (scenario 3).
+	if notifiedLevels != nil && len(userItemIDs) > 0 {
+		beforeLevels, err := s.resolveLevelsInTenantWithShares(ctx, q, doc, sharesBefore, userItemIDs)
 		if err != nil {
 			return folderContentsOutcome{}, err
 		}
@@ -471,21 +554,28 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 			return folderContentsOutcome{}, err
 		}
 		for _, uid := range userItemIDs {
-			if uid == actor.ID {
+			if actor.Kind == audit.KindHuman && uid == actor.ID {
 				continue
 			}
 			b := beforeLevels[uid].Level
 			a := afterLevels[uid].Level
-			if a.rank() > b.rank() && notifiedLevels[uid] != string(a) {
-				notifyUserByID[uid] = uid
-				notifiedLevels[uid] = string(a)
+			if a.rank() > b.rank() {
+				notice := notifiedLevels[uid]
+				notice.Count++
+				if DocumentLevel(notice.Level).rank() < a.rank() {
+					notice.Level = string(a)
+				}
+				notice.DocIDs = append(notice.DocIDs, doc.ID)
+				notifiedLevels[uid] = notice
 			}
 		}
 	}
 
 	batchMeta := documentShareBatchMeta{
-		BatchID: batchID,
-		Via:     FolderContentsAccessVia,
+		BatchID:  batchID,
+		Via:      FolderContentsAccessVia,
+		FolderID: folder.ID,
+		Mode:     mode,
 	}
 
 	legacyHome := filterHomeWorkspaceShares(sharesBefore, doc.WorkspaceID)
@@ -528,15 +618,11 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 			if sh, ok := liveByKey[k]; ok && DocumentLevel(sh.Level).rank() >= it.Level.rank() {
 				continue
 			}
-			notifyUID := ""
-			if it.PrincipalType == DocumentPrincipalUser {
-				notifyUID = notifyUserByID[it.PrincipalID]
-			}
 			if _, err := s.applyDocumentShareWithMeta(ctx, q, actor, updatedDoc, acc, DocumentShareInput{
 				PrincipalType: it.PrincipalType,
 				PrincipalID:   it.PrincipalID,
 				Level:         it.Level,
-			}, batchMeta, notifyUID); err != nil {
+			}, batchMeta, ""); err != nil {
 				return folderContentsOutcome{}, err
 			}
 		}
@@ -611,21 +697,32 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 			if sh, ok := liveByKey[k]; ok && DocumentLevel(sh.Level) == it.Level {
 				continue
 			}
-			notifyUID := ""
-			if it.PrincipalType == DocumentPrincipalUser {
-				notifyUID = notifyUserByID[it.PrincipalID]
-			}
 			if _, err := s.applyDocumentShareWithMeta(ctx, q, actor, updatedDoc, acc, DocumentShareInput{
 				PrincipalType: it.PrincipalType,
 				PrincipalID:   it.PrincipalID,
 				Level:         it.Level,
-			}, batchMeta, notifyUID); err != nil {
+			}, batchMeta, ""); err != nil {
 				return folderContentsOutcome{}, err
 			}
 		}
 	}
 
 	return folderContentsOutcome{Processed: 1, Changed: 1}, nil
+}
+
+// DocumentAccessBatchCompletedTopic is the outbox topic emitted when a
+// background folder-contents access batch finishes (UNI-2244 §6).
+const DocumentAccessBatchCompletedTopic = "document_access_batch.completed"
+
+func folderContentsBatchCompletedEvent(batchID, folderID, workspaceID string) audit.Event {
+	return audit.Event{
+		Topic: DocumentAccessBatchCompletedTopic,
+		Payload: map[string]string{
+			"batch_id":     batchID,
+			"folder_id":    folderID,
+			"workspace_id": workspaceID,
+		},
+	}
 }
 
 func recordFolderContentsBatchCompletedAudit(
@@ -648,16 +745,8 @@ func recordFolderContentsBatchCompletedAudit(
 			"level":          string(it.Level),
 		}
 	}
-	var events []audit.Event
-	if execution == FolderContentsAccessExecBackground {
-		events = append(events, audit.Event{
-			Topic: "document.access_batch_completed",
-			Payload: map[string]string{
-				"batch_id":     batchID,
-				"folder_id":    folder.ID,
-				"workspace_id": folder.WorkspaceID,
-			},
-		})
+	events := []audit.Event{
+		folderContentsBatchCompletedEvent(batchID, folder.ID, folder.WorkspaceID),
 	}
 	return auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: folder.OrganizationID,

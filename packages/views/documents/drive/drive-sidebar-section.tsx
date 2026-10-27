@@ -1,12 +1,14 @@
 "use client";
 
-import { ChevronRight, TriangleAlert } from "lucide-react";
-import { useId, useState } from "react";
+import { ChevronRight } from "lucide-react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDriveFiles } from "@uniwork/core/drive-library";
+import type { DriveFolderEntry } from "@uniwork/core/drive-library/folders";
 import { cn } from "@uniwork/ui/lib/utils";
 import { GoogleDriveMark } from "../../common/provider-icons";
 import type { LibraryView } from "../documents-sidebar";
+import { DriveSidebarAccount } from "./drive-sidebar-account";
 import {
   useDriveLibraryConnections,
   type DriveConnectionSummary,
@@ -16,13 +18,16 @@ export interface DriveSidebarSectionProps {
   wsId: string;
   connections?: readonly DriveConnectionSummary[];
   view: LibraryView;
-  onSelect: (account: string | null) => void;
+  onSelect: (account: string | null, folder: string | null) => void;
+  /** "Name this folder" on an unnamed folder node; omit while the server route does not exist. */
+  onNameFolder?: (folder: DriveFolderEntry, connectionId: string) => void;
 }
 
 /**
  * Sidebar section for Documents › Google Drive (spec §7.6, 4.1).
  * Renders "Google Drive" right under "Thư mục của tôi" with the total count,
- * followed by one child row per connected account.
+ * followed by one expandable row per connected account whose children are that account's Drive
+ * folders (drive-folder contract v2).
  * Shown when `driveAvailable` and the viewer has at least one connection or at least
  * one linked Drive file (so disconnected users can still reach their `bound_connection_lost`
  * files and reconnect). Hidden when both are empty or while the fallback files check is loading.
@@ -33,9 +38,27 @@ export function DriveSidebarSection({
   connections: connectionsProp,
   view,
   onSelect,
+  onNameFolder,
 }: DriveSidebarSectionProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
+  const selectedAccount = view.kind === "drive" ? view.account : null;
+  const selectedFolder = view.kind === "drive" ? view.folder : null;
+  // Accounts open for this session; the selected account is always among them so a reload or
+  // Back/Forward onto a folder shows where it sits.
+  const [openAccounts, setOpenAccounts] = useState<ReadonlySet<string>>(
+    () => new Set(selectedAccount ? [selectedAccount] : []),
+  );
+  useEffect(() => {
+    if (!selectedAccount) return;
+    setOpenAccounts((prev) => (prev.has(selectedAccount) ? prev : new Set(prev).add(selectedAccount)));
+  }, [selectedAccount]);
+  const toggleAccount = (id: string) =>
+    setOpenAccounts((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
   const accountsGroupId = useId();
   const {
     connections: defaultConnections,
@@ -103,7 +126,7 @@ export function DriveSidebarSection({
         <button
           type="button"
           aria-current={isAllCurrent ? "page" : undefined}
-          onClick={() => onSelect(null)}
+          onClick={() => onSelect(null, null)}
           className="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-md text-left pointer-coarse:min-h-11"
         >
           <span aria-hidden className="flex size-5 shrink-0 items-center justify-center">
@@ -118,43 +141,19 @@ export function DriveSidebarSection({
 
       {hasChildren ? (
         <div id={accountsGroupId} hidden={!expanded} className="flex flex-col gap-0.5">
-          {connections.map((conn) => {
-            const isCurrent = view.kind === "drive" && view.account === conn.id;
-            const accountLabel = t("driveLibrary.sidebar.account_row", { email: conn.google_email });
-            const disconnectedLabel = t("driveLibrary.sidebar.disconnected");
-            const rowTitle = conn.needs_reconnect
-              ? `${accountLabel} · ${disconnectedLabel}`
-              : accountLabel;
-            return (
-              <button
-                key={conn.id}
-                type="button"
-                title={rowTitle}
-                aria-current={isCurrent ? "page" : undefined}
-                onClick={() => onSelect(conn.id)}
-                // Email starts at x=56px, exactly under the "Google Drive" label: 8 (px-2) + 16 chevron + 4 gap + 20 icon + 8 gap. No icon on account rows.
-                style={{ paddingLeft: "56px" }}
-                className={cn(
-                  "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md pr-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
-                  isCurrent && "bg-brand-subtle font-medium text-brand-subtle-foreground hover:bg-brand-subtle",
-                )}
-              >
-                <span className="sr-only">{accountLabel}</span>
-                <span aria-hidden className="min-w-0 flex-1 truncate">
-                  {conn.google_email}
-                </span>
-                {conn.needs_reconnect ? (
-                  <span className="inline-flex shrink-0 items-center text-warning">
-                    <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
-                    <span className="sr-only">{disconnectedLabel}</span>
-                  </span>
-                ) : null}
-                <span className="ml-auto shrink-0 font-mono text-caption tabular-nums text-muted-foreground">
-                  {conn.linked_file_count}
-                </span>
-              </button>
-            );
-          })}
+          {connections.map((conn) => (
+            <DriveSidebarAccount
+              key={conn.id}
+              wsId={wsId}
+              connection={conn}
+              accountCurrent={view.kind === "drive" && selectedAccount === conn.id}
+              currentFolderId={selectedAccount === conn.id ? selectedFolder : null}
+              expanded={openAccounts.has(conn.id)}
+              onToggle={() => toggleAccount(conn.id)}
+              onSelect={onSelect}
+              onNameFolder={onNameFolder}
+            />
+          ))}
         </div>
       ) : null}
     </div>

@@ -1,9 +1,5 @@
 -- Folder bulk access batches and subtree scope queries (UNI-2244 §1–§5).
 
--- Try-locks the folder for a bulk contents-access update (spec §3.1 step 2).
--- name: TryLockFolderAccessBatch :one
-SELECT pg_try_advisory_xact_lock(hashtextextended('document-folder-access:' || sqlc.arg(folder_id)::text, 0)) AS locked;
-
 -- Locks the folder for a bulk contents-access update when serializing queue insertion.
 -- name: LockFolderAccessBatch :exec
 SELECT pg_advisory_xact_lock(hashtextextended('document-folder-access:' || sqlc.arg(folder_id)::text, 0));
@@ -49,11 +45,10 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.kind <> 'folder'
   AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder')
   AND d.archived_at IS NULL
-  AND (d.acl_owner_id = sqlc.arg(actor_id)::text
-       OR NOT EXISTS (
-            SELECT 1 FROM uw_my_folder_foreign_ids(
-              sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
-            ) mfs WHERE mfs.document_id = d.id))
+  AND NOT EXISTS (
+        SELECT 1 FROM uw_my_folder_foreign_ids(
+          sqlc.arg(actor_id), sqlc.arg(organization_id), sqlc.arg(workspace_id), sqlc.arg(max_level)::int
+        ) mfs WHERE mfs.document_id = d.id)
 ORDER BY d.id COLLATE "C";
 
 
@@ -92,9 +87,9 @@ WHERE id = sqlc.arg(id)
   AND created_by = sqlc.arg(created_by)
   AND created_by_kind = sqlc.arg(created_by_kind);
 
--- Looks up the root folder_id of a bulk access batch for the notification consumer (spec §6).
--- name: GetDocumentAccessBatchFolderID :one
-SELECT folder_id
+-- Reads a completed bulk access batch for the notification consumer (spec §6).
+-- name: GetDocumentAccessBatchForNotification :one
+SELECT *
 FROM document_access_batches
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)

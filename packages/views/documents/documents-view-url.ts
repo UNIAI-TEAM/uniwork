@@ -1,3 +1,4 @@
+import { parseDriveLibrarySelection } from "@uniwork/core/paths";
 import { SOURCE_KINDS, type LibraryView } from "./documents-sidebar";
 
 /** The sidebar view the `?view`/`?source`/`?folder` search params name. */
@@ -22,10 +23,8 @@ export function viewFromSearchParams(searchParams: URLSearchParams): LibraryView
           : null;
       return { kind: "sources", source };
     }
-    case "drive": {
-      const rawAccount = searchParams.get("account");
-      return { kind: "drive", account: rawAccount || null };
-    }
+    case "drive":
+      return { kind: "drive", ...parseDriveLibrarySelection(searchParams) };
     default:
       return { kind: "home" };
   }
@@ -36,7 +35,7 @@ export function buildDocumentsViewUrl(
   wsPaths: {
     documents: () => string;
     documentsFolder: (folderId: string) => string;
-    documentsDrive?: (accountId?: string | null) => string;
+    documentsDrive?: (accountId?: string | null, folderId?: string | null) => string;
   },
   next: LibraryView,
   nextFolder: string | null,
@@ -47,7 +46,7 @@ export function buildDocumentsViewUrl(
   if (next.kind === "home") return base;
   if (next.kind === "sources") return next.source ? `${base}?view=sources&source=${encodeURIComponent(next.source)}` : `${base}?view=sources`;
   if (next.kind === "drive") {
-    if (wsPaths.documentsDrive) return wsPaths.documentsDrive(next.account);
+    if (wsPaths.documentsDrive) return wsPaths.documentsDrive(next.account, next.folder);
     return next.account ? `${base}?view=drive&account=${encodeURIComponent(next.account)}` : `${base}?view=drive`;
   }
   return `${base}?view=${next.kind === "sharedByMe" ? "shared-by-me" : next.kind}`;
@@ -58,6 +57,6 @@ export function sameDocumentsView(a: LibraryView, b: LibraryView): boolean {
   return (
     a.kind === b.kind &&
     (a.kind !== "sources" || b.kind !== "sources" || a.source === b.source) &&
-    (a.kind !== "drive" || b.kind !== "drive" || a.account === b.account)
+    (a.kind !== "drive" || b.kind !== "drive" || (a.account === b.account && a.folder === b.folder))
   );
 }
