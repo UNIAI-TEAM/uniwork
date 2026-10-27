@@ -8,6 +8,7 @@ import {
   listEmailHubThreads,
   moveEmailHubThread,
   patchEmailHubThread,
+  sendEmailHub,
   startEmailHubOAuth,
   syncEmailHub,
 } from "../api/endpoints/email-hub";
@@ -26,6 +27,7 @@ import {
   useEmailHubThreads,
   useMarkEmailHubRead,
   useMoveEmailHubThread,
+  useSendEmailHub,
   useSnoozeEmailHubThread,
   useStartEmailHubOAuth,
   useSyncEmailHub,
@@ -58,6 +60,7 @@ vi.mock("../api/endpoints/email-hub", async (importOriginal) => ({
     }),
   ),
   startEmailHubOAuth: vi.fn(() => Promise.resolve("https://accounts.google.com/o/oauth2/auth?state=s1")),
+  sendEmailHub: vi.fn(() => Promise.resolve(null)),
   syncEmailHub: vi.fn(() => Promise.resolve({ synced: true })),
 }));
 
@@ -370,6 +373,43 @@ describe("email hub thread detail cache", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(getEmailHubThread).not.toHaveBeenCalled();
     expect(emailHubHasReadableBody(result.current.data)).toBe(true);
+  });
+});
+
+describe("useSendEmailHub", () => {
+  it("prepends a scheduled send to the scheduled-sends cache for the sending mailbox", async () => {
+    vi.mocked(sendEmailHub).mockResolvedValueOnce({
+      scheduled: true,
+      id: "sch1",
+      send_at: "2026-10-26T12:00:00Z",
+      subject: "Later",
+      to: ["a@b.com"],
+      account_id: "acc-b",
+    });
+    const qc = new QueryClient();
+    const { result } = renderHook(() => useSendEmailHub("ws1"), { wrapper: wrapperFor(qc) });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        accountId: "acc-b",
+        to: ["a@b.com"],
+        subject: "Later",
+        bodyText: "Hi",
+        sendAt: "2026-10-26T12:00:00Z",
+      });
+    });
+
+    expect(qc.getQueryData(emailHubKeys.scheduledSends("ws1", "acc-b"))).toEqual({
+      scheduled: [
+        {
+          id: "sch1",
+          send_at: "2026-10-26T12:00:00Z",
+          subject: "Later",
+          to: ["a@b.com"],
+          status: "pending",
+        },
+      ],
+    });
   });
 });
 

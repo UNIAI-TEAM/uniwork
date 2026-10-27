@@ -110,13 +110,13 @@ describe("tasks-suite endpoints", () => {
   it("batchUpdateTasks / batchDeleteTasks return counts and 0 on drift", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json({ updated: 3 }))
-      .mockResolvedValueOnce(json({ deleted: 2 }))
+      .mockResolvedValueOnce(json({ deleted: 2, trash_batch_id: "b1" }))
       .mockResolvedValueOnce(json({}))
       .mockResolvedValueOnce(json({}));
     expect(await batchUpdateTasks("ws1", { task_ids: ["t1"], updates: { status: "done" } })).toBe(3);
-    expect(await batchDeleteTasks("ws1", ["t1"])).toBe(2);
+    expect(await batchDeleteTasks("ws1", ["t1"])).toEqual({ deleted: 2, trash_batch_id: "b1" });
     expect(await batchUpdateTasks("ws1", { task_ids: ["t1"], updates: {} })).toBe(0);
-    expect(await batchDeleteTasks("ws1", ["t1"])).toBe(0);
+    expect(await batchDeleteTasks("ws1", ["t1"])).toEqual({ deleted: 0, trash_batch_id: "" });
   });
 
   it("setTaskDependency returns null on drift", async () => {

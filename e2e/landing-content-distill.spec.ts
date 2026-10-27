@@ -52,8 +52,8 @@ for (const sample of [{ width: 1440, locale: "vi", theme: "light" }, { width: 39
         section = page.locator("#plan-offer");
         await expect(page.locator(".pricing-introduction")).toHaveCount(0);
         await expect(section.locator(".pricing-offer")).toBeVisible();
-        await expect(section.locator(".pricing-quotas li")).toHaveCount(8);
-        await expect(page.locator(".chapter-table tbody tr")).toHaveCount(2);
+        await expect(section.locator(".public-pricing-plan")).toHaveCount(3);
+        await expect(section.locator(".public-pricing-comparison")).toHaveCount(0);
         await expect(page.locator("main p").filter({ hasText: messages.landing.pricing.status })).toHaveCount(1);
       }
       if (route === "why-uniwork") {

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/billing"
 	"github.com/unicomhub/uniwork/server/internal/config"
@@ -378,6 +379,54 @@ type countingBillingMetrics struct{ n int }
 
 func (m *countingBillingMetrics) IncWebhookDead() { m.n++ }
 
+func TestApplyProviderEventSamePlanExtendsPeriod(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "paid_team", 500000, nil)
+	planID := "01TESTPLANpaid_team"
+	periodEnd := time.Now().UTC().Add(20 * 24 * time.Hour)
+	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET plan_id = $2,
+		current_period_start = now() - interval '10 days',
+		current_period_end = $3
+		WHERE organization_id = $1`, f.orgID, planID, periodEnd); err != nil {
+		t.Fatal(err)
+	}
+	intentID := "01TESTVNAPYINTENT00002"
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO billing_payment_intents (
+		id, organization_id, subscription_id, plan_id, provider, provider_txn_ref,
+		amount, currency, status, expires_at
+	) SELECT $1, s.organization_id, s.id, $2, 'vnpay', $1, 500000, 'VND', 'pending', now() + interval '15 minutes'
+	  FROM subscriptions s WHERE s.organization_id = $3`,
+		intentID, planID, f.orgID); err != nil {
+		t.Fatal(err)
+	}
+	prov := billing.FromConfig(config.Config{BillingProvider: "vnpay", VNPayTMNCode: "TMN", VNPayHashSecret: "secret"})
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, prov)
+	ev := billing.Event{
+		ProviderEventID: "renew-same-plan-1",
+		ProviderTxnRef:  intentID,
+		Type:            "invoice.paid",
+		Paid:            true,
+		Amount:          500000,
+		Currency:        "VND",
+	}
+	if err := f.billing.ApplyProviderEvent(f.ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := f.billing.Current(f.ctx, f.owner.ID, f.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !snap.Subscription.CurrentPeriodEnd.Valid {
+		t.Fatal("missing period end")
+	}
+	wantEnd := subscriptionPeriodEnd(periodEnd, snap.Plan.BillingPeriod)
+	gotEnd := snap.Subscription.CurrentPeriodEnd.Time.UTC().Truncate(time.Microsecond)
+	want := wantEnd.Time.UTC().Truncate(time.Microsecond)
+	if !gotEnd.Equal(want) {
+		t.Fatalf("period_end got %v want %v", gotEnd, want)
+	}
+}
+
 func TestHandleProviderWebhookQueuesNonTerminalFailure(t *testing.T) {
 	f := newBillingFixture(t)
 	intentID := "01TESTVNAPYINTENT00010"
@@ -457,12 +506,45 @@ func TestListInvoicesRequiresMember(t *testing.T) {
 	if _, err := f.billing.ListInvoices(f.ctx, outsider.ID, f.orgID, 10, 0); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("outsider: got %v", err)
 	}
+	member := registerVerified(t, f.q, f.auth, "inv-member@example.com", "Member")
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`, f.orgID, member.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.billing.ListInvoices(f.ctx, member.ID, f.orgID, 10, 0); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("member: got %v", err)
+	}
 	rows, err := f.billing.ListInvoices(f.ctx, f.owner.ID, f.orgID, 10, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(rows) != 0 {
 		t.Fatalf("want empty, got %d", len(rows))
+	}
+}
+
+func TestHandleProviderWebhookLeavesNoPendingRowOnUnknownTxn(t *testing.T) {
+	f := newBillingFixture(t)
+	prov := billing.FromConfig(config.Config{BillingProvider: "vnpay", VNPayTMNCode: "TMN", VNPayHashSecret: "secret"})
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, prov)
+	ev := billing.Event{
+		ProviderEventID: "unknown-txn-ipn-1",
+		ProviderTxnRef:  "01UNKNOWNVNPTXNREF01",
+		Type:            "invoice.paid",
+		Paid:            true,
+		Amount:          500000,
+		Currency:        "VND",
+	}
+	payload, err := ProviderWebhookPayloadJSON(ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err := f.billing.HandleProviderWebhook(f.ctx, ev, payload)
+	if err != nil || code != vnpayIPNOrderNotFound {
+		t.Fatalf("code=%s err=%v", code, err)
+	}
+	var rows int
+	if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM webhook_inbox WHERE provider = 'vnpay' AND provider_event_id = $1`, ev.ProviderEventID).Scan(&rows); err != nil || rows != 0 {
+		t.Fatalf("inbox rows=%d err=%v, want 0", rows, err)
 	}
 }
 

@@ -1,7 +1,11 @@
 -- name: ListTaskPins :many
 SELECT * FROM task_pins
-WHERE organization_id = $1 AND workspace_id = $2 AND user_id = $3
-ORDER BY position ASC, created_at ASC;
+WHERE task_pins.organization_id = $1 AND task_pins.workspace_id = $2 AND task_pins.user_id = $3
+  AND NOT (task_pins.item_type = 'task' AND EXISTS (
+    SELECT 1 FROM tasks t WHERE t.id = task_pins.item_id AND t.trashed_at IS NOT NULL))
+  AND NOT (task_pins.item_type = 'project' AND EXISTS (
+    SELECT 1 FROM projects p WHERE p.id = task_pins.item_id AND p.trashed_at IS NOT NULL))
+ORDER BY task_pins.position ASC, task_pins.created_at ASC;
 
 -- name: CreateTaskPin :one
 INSERT INTO task_pins (

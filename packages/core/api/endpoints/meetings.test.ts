@@ -9,6 +9,7 @@ import {
   createJoinRequest,
   createMeeting,
   deleteMeeting,
+  deleteNote,
   fetchMeetingCalendar,
   getMeeting,
   getMeetingCapabilities,
@@ -26,6 +27,7 @@ import {
   startRecording,
   stopRecording,
   updateMeeting,
+  updateNote,
   setMeetingScribe,
   setMeetingAISharing,
   extendMeeting,
@@ -139,6 +141,28 @@ describe("meetings endpoints", () => {
     await expect(deleteMeeting("m1")).resolves.toBeUndefined();
     await expect(addNote("m1", "ghi chú")).resolves.toBeUndefined();
     expect(JSON.parse(vi.mocked(fetch).mock.calls[1]![1]!.body as string)).toEqual({ body: "ghi chú" });
+  });
+
+  it("updateNote patches the body and deleteNote deletes, both resolving whatever the answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ note: null })).mockResolvedValueOnce(json("drift"));
+    await expect(updateNote("m1", "n1", "đã sửa")).resolves.toBeUndefined();
+    await expect(deleteNote("m1", "n1")).resolves.toBeUndefined();
+    const [patchUrl, patch] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(patchUrl)).toBe("http://api.test/api/v1/meetings/m1/notes/n1");
+    expect(patch!.method).toBe("PATCH");
+    expect(JSON.parse(patch!.body as string)).toEqual({ body: "đã sửa" });
+    const [deleteUrl, del] = vi.mocked(fetch).mock.calls[1]!;
+    expect(String(deleteUrl)).toBe("http://api.test/api/v1/meetings/m1/notes/n1");
+    expect(del!.method).toBe("DELETE");
+  });
+
+  it("listNotes keeps edited_at and reads a drifted one as never edited", async () => {
+    const note = { id: "n1", meeting_id: "m1", author_id: "u1", body: "x" };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ notes: [{ ...note, edited_at: "2026-10-27T03:00:00Z" }, { ...note, id: "n2", edited_at: null }] }))
+      .mockResolvedValueOnce(json({ notes: [{ ...note, edited_at: 42 }] }));
+    expect((await listNotes("m1")).map((n) => n.edited_at)).toEqual(["2026-10-27T03:00:00Z", null]);
+    expect((await listNotes("m1"))[0]?.edited_at).toBeUndefined();
   });
 
   it("listNotes returns [] on drift", async () => {

@@ -208,12 +208,14 @@ WITH RECURSIVE ancestors AS (
     AND child.workspace_id = sqlc.arg('workspace_id')
     AND parent.organization_id = sqlc.arg('organization_id')
     AND parent.workspace_id = sqlc.arg('workspace_id')
+    AND parent.trashed_at IS NULL
   UNION ALL
   SELECT parent.id, parent.parent_task_id
   FROM tasks parent
   INNER JOIN ancestors child ON child.parent_task_id = parent.id
   WHERE parent.organization_id = sqlc.arg('organization_id')
     AND parent.workspace_id = sqlc.arg('workspace_id')
+    AND parent.trashed_at IS NULL
 )
 SELECT subscriber.*
 FROM task_subscribers subscriber
@@ -250,5 +252,6 @@ WITH RECURSIVE tree AS (
   INNER JOIN tree p ON c.parent_task_id = p.id
     AND c.organization_id = p.organization_id
     AND c.workspace_id = p.workspace_id
+    AND c.trashed_at IS NULL
 )
 SELECT tree.id FROM tree;

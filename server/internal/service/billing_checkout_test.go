@@ -254,3 +254,56 @@ func TestApplyProviderEventAcceptsPaidExpiredIntent(t *testing.T) {
 		t.Fatalf("newer intent status = %q (%v), want pending", sibling, err)
 	}
 }
+
+func TestCheckoutReturnsPlanLookupErrorNotNotFound(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "paid_team", 500000, nil)
+	ctx, cancel := context.WithCancel(f.ctx)
+	cancel()
+	_, err := f.billing.Checkout(ctx, f.owner.ID, f.orgID, "paid_team", "/ok", "127.0.0.1")
+	if err == nil || errors.Is(err, ErrNotFound) {
+		t.Fatalf("want plan lookup error, not 404: %v", err)
+	}
+}
+
+func TestCheckoutComparesTiersAcrossBillingPeriods(t *testing.T) {
+	f := newBillingFixture(t)
+	f.seedPlan(t, "team_m", 500000, nil)
+	f.seedPlan(t, "biz_m", 1499000, nil)
+	f.seedPlan(t, "team_y", 4990000, nil)
+	for _, row := range []struct {
+		code, period string
+		sort         int
+	}{
+		{"team_m", "month", 20},
+		{"biz_m", "month", 30},
+		{"team_y", "year", 20},
+	} {
+		if _, err := f.pool.Exec(f.ctx,
+			`UPDATE plans SET billing_period = $2, sort_order = $3 WHERE id = $1`,
+			"01TESTPLAN"+row.code, row.period, row.sort,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec := &recordingCheckout{}
+	f.billing = NewBillingService(f.pool, f.q, f.orgs, rec)
+	admin := registerVerified(t, f.q, f.auth, "period-checkout@example.com", "Admin")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET platform_role = 'admin' WHERE id = $1`, admin.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.assignPlan(t, admin.ID, "team_y")
+	if _, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "biz_m", "/ok", "127.0.0.1"); err != nil {
+		t.Fatalf("year team to monthly business: %v", err)
+	}
+	f.assignPlan(t, admin.ID, "biz_m")
+	_, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "team_y", "/ok", "127.0.0.1")
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "downgrade_not_allowed" {
+		t.Fatalf("monthly business to year team: got %v", err)
+	}
+	f.assignPlan(t, admin.ID, "team_m")
+	if _, err := f.billing.Checkout(f.ctx, f.owner.ID, f.orgID, "team_y", "/ok", "127.0.0.1"); err != nil {
+		t.Fatalf("monthly team to year team: %v", err)
+	}
+}

@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import {
@@ -70,6 +71,10 @@ const tet: Project = {
   created_at: "2026-06-02T00:00:00Z",
 };
 
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
+
 let listedProjects: Project[] = [launch, tet];
 
 function manyProjects(count: number): Project[] {
@@ -125,6 +130,8 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  vi.mocked(toast.success).mockReset();
+  vi.mocked(toast.error).mockReset();
   resetAuthStoreForTests();
   resetProjectViewStoreForTests();
   setSessionUser(me);
@@ -414,6 +421,36 @@ describe("ProjectsListPage", () => {
     },
   );
 
+  it("says a deleted project goes to the trash and Hoàn tác restores that project", async () => {
+    listedProjects = [launch];
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Thao tác dự án" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Xóa" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Chuyển vào thùng rác?")).toBeInTheDocument();
+    expect(within(dialog).getByText(/^Có thể khôi phục trong 30 ngày\./)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển vào thùng rác" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+    const [message, options] = vi.mocked(toast.success).mock.calls[0]!;
+    expect(message).toBe("Đã chuyển vào thùng rác");
+    const action = (options as { action: { label: string; onClick: () => void } }).action;
+    expect(action.label).toBe("Hoàn tác");
+    action.onClick();
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/workspaces/w1/projects/p1/restore",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  it("has no trash button: the shared trash lives in settings", async () => {
+    renderPage();
+    expect(await screen.findByRole("heading", { level: 1, name: "Dự án" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Thùng rác" })).toBeNull();
+  });
+
   it("clamps to the last valid page when deletion shrinks the result", async () => {
     listedProjects = manyProjects(21);
     renderPage();
@@ -423,7 +460,7 @@ describe("ProjectsListPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Thao tác dự án" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Xóa" }));
-    fireEvent.click(screen.getByRole("button", { name: "Xóa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Chuyển vào thùng rác" }));
 
     await waitFor(() => expect(screen.queryByText("Project 01")).not.toBeInTheDocument());
     expect(screen.queryByText("Trang 2 / 2")).not.toBeInTheDocument();

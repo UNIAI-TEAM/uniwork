@@ -11,7 +11,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../toast-api-error";
 import { useScribeInRoom, useScribePaused } from "./meeting-scribe-captions";
 
-type ScribeChipState = "on" | "paused" | "joining" | "failed" | "off";
+export type ScribeChipState = "on" | "paused" | "joining" | "failed" | "off";
 
 /**
  * What the chip says: the agent in the room wins over what the server last
@@ -36,7 +36,7 @@ const LABEL_KEY: Record<ScribeChipState, string> = {
 };
 
 /** The mark moves while the scribe transcribes or joins; paused fades, failed greys, off is the outline. */
-const MARK_STATE: Record<ScribeChipState, ScribeMarkState> = {
+export const MARK_STATE: Record<ScribeChipState, ScribeMarkState> = {
   on: "live",
   paused: "paused",
   joining: "joining",

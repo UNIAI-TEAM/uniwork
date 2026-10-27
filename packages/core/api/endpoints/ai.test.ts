@@ -60,6 +60,24 @@ describe("ai endpoints", () => {
     await expect(askUni("ws1", { question: "?" })).rejects.toThrow("ai_output_invalid");
   });
 
+  it("askUni passes the abort signal to the request and keeps it out of the body", async () => {
+    // fetch rejects the way a browser does once the signal aborts.
+    vi.mocked(fetch).mockImplementationOnce(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        }),
+    );
+    const ctrl = new AbortController();
+    const pending = askUni("ws1", { question: "q" }, { signal: ctrl.signal });
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(init.method).toBe("POST");
+    expect(init.signal).toBe(ctrl.signal);
+    expect(JSON.parse(init.body as string)).toEqual({ question: "q" });
+    ctrl.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+
   it("chatCatchUp posts room focus and degrades malformed payloads", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({

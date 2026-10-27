@@ -284,6 +284,11 @@ func TestCloseWaitsForAnAcceptanceIntoTheSameOrganization(t *testing.T) {
 	o := f.soloOrganization(t)
 	joiner := registerVerified(t, f.q, f.auth, "joiner@example.com", "Joiner")
 	token := f.inviteToOrg(t, o.ID, f.other.ID, "joiner@example.com")
+	// members.max unlimited skips LockLiveSubscription in Consume (snapshot fast path);
+	// a finite cap keeps the acceptance parked on the subscription row we hold below.
+	if _, err := f.pool.Exec(f.ctx, `UPDATE subscriptions SET overrides = '{"members.max": 10}'::jsonb WHERE organization_id = $1`, o.ID); err != nil {
+		t.Fatal(err)
+	}
 
 	// Holding the subscription row parks the acceptance in Consume, after
 	// it has locked the invitation and before it adds the member.

@@ -1,0 +1,974 @@
+{
+  "schemaVersion": 1,
+  "version": "1.10.0",
+  "date": "2026-10-26",
+  "ready": true,
+  "sourceRef": "f0d143e1bf6c0c4e12c30d3cd6f180f3c02ea40a",
+  "previousSourceRef": "42a543eee4c12d2612f4619acd5b0a02bac821e3",
+  "title": {
+    "vi": "Chuyển chủ sở hữu tài liệu, giao diện chia khung và lịch gửi email đồng bộ hơn",
+    "en": "Document ownership transfer, a panel layout and better-synced scheduled email"
+  },
+  "summary": {
+    "vi": "Tài liệu cho phép chuyển chủ sở hữu từng tài liệu hoặc mọi tài liệu của một thành viên, lọc nhiều loại cùng lúc, và chuyển vào thùng rác không còn bị chặn bởi trang hay tệp con bạn không quản lý được. Trên máy tính, thanh trên, thanh bên, trang chính và Hỏi UNI được chia thành các khung riêng. Email Hub cập nhật ngay thư mục Đã lên lịch sau khi hẹn giờ gửi.",
+    "en": "Documents lets you transfer ownership of one document or all of a member's documents, filter by several types at once, and move items to the trash without being blocked by sub-pages or files you cannot manage. On desktop, the top bar, sidebar, main page and Ask UNI are split into separate panels. Email Hub updates the Scheduled folder right away after you schedule an email."
+  },
+  "note": {
+    "vi": "Giao diện chia khung áp dụng trên màn hình rộng; điện thoại, máy tính bảng và UniChat giữ giao diện cũ.",
+    "en": "The panel layout applies on wide screens; phones, tablets and UniChat keep the previous layout."
+  },
+  "changes": [
+    {
+      "commit": "b5b5a4d27997f2739105fe1ae660a041322effb1",
+      "subject": "UNI-2142: Hotfix main — build production đỏ vì re-export newerRoomPageParam không tồn tại (#418)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #418 (mô tả PR) merge vào main: bỏ một re-export không tồn tại làm build production đỏ và sửa kiểu trong test; sửa build, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/418"
+      }
+    },
+    {
+      "commit": "e48f308436e3dcb7cb653e4756cc41bd3c1f9510",
+      "subject": "test(chat-mobile): a created frame for a cached message costs no GET, whoever the viewer is (#421)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #421 (mô tả PR) merge vào main: cherry-pick sửa test realtime của app mobile; chỉ sửa test.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/421"
+      }
+    },
+    {
+      "commit": "2bd80248d26888637dbce900e935f92b39a462fe",
+      "subject": "docs: mô tả nút xóa tổ chức trên console admin",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop (chỉ đi qua PR release #463 vào main, mô tả trống); diff chỉ là tài liệu thiết kế cho nút xóa và hoàn tác xóa tổ chức trên console quản trị nội bộ của UniWork; công cụ vận hành của nhân viên UniWork, không phải tính năng người dùng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "docs/superpowers/specs/2026-10-23-admin-organization-deletion-design.md"
+        ]
+      }
+    },
+    {
+      "commit": "617bd1cd19af146a8dc255545f85ff073f8b15f5",
+      "subject": "feat(admin): xếp xóa tổ chức bằng hàng đợi riêng tư đang có",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff thêm service xếp lịch xóa tổ chức từ console: nút xóa và hoàn tác xóa tổ chức trên console quản trị nội bộ của UniWork; công cụ vận hành của nhân viên UniWork, không phải tính năng người dùng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/admin.go",
+          "server/internal/service/tenant_delete.go",
+          "server/internal/service/tenant_delete_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "7f0136ac7fe71dc335f1523a46131239c128264e",
+      "subject": "docs: mô tả log text có màu khi xem từ Docker",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff chỉ là tài liệu về định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "docs/superpowers/specs/2026-10-23-dev-log-format-design.md"
+        ]
+      }
+    },
+    {
+      "commit": "48e7b8b02e591a6e3e260b1d069ba9bb9198144c",
+      "subject": "UNI-2142: develop → main — mở khoá build Android 0.3.1 (#427)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #427 (mô tả PR): release develop → main để build Android 0.3.1; các thay đổi bên trong đã được xét qua PR gốc trên develop ở các phiên bản trước.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/427"
+      }
+    },
+    {
+      "commit": "fb12c58ce744e8d67b7e88b49d4a44e575bad6b6",
+      "subject": "UNI-2141: develop → main — UniChat mobile đợt 2 và các bản sửa CI (deploy production) (#443)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #443 (mô tả PR): release develop → main (UniChat mobile đợt 2 và sửa CI); các thay đổi bên trong đã được xét qua PR gốc trên develop ở v1.9.0.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/443"
+      }
+    },
+    {
+      "commit": "c1aad64f7d8d33b12e65f711f1136d6e76a1890e",
+      "subject": "feat(billing): fix billing audit backlog UNI-1282–UNI-1304",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #457 (mô tả PR): mô tả chỉ có một dòng liệt kê chủ đề (VNPay/checkout, lọc và hoàn tiền hóa đơn cho admin, bậc giá công khai, đồng hồ hạn mức, chặn hủy khi không có kỳ), phần Thay đổi gì/Kiểm chứng để trống, không nêu ảnh hưởng người dùng. Chưa đưa vào bản công khai để tránh suy diễn về giá/thanh toán; CHANGES_REQUESTED: người duyệt hoặc tác giả PR cần làm rõ thay đổi nào người dùng thấy.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/457"
+      }
+    },
+    {
+      "commit": "237c9664f624469bf0ad7d288d4612b0d5ed657b",
+      "subject": "fix(billing): correct pgtype.Text vs Timestamptz in admin invoice filters",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #457: sửa kiểu dữ liệu trong bộ lọc hóa đơn của admin, thuộc cùng PR billing đang chờ làm rõ (c1aad64f7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/457"
+      }
+    },
+    {
+      "commit": "31ab986bf986db20106e1157e08c351484e7901c",
+      "subject": "UNI-2159: Hỏi UNI P4: sửa lỗi bộ nhớ tìm thấy khi test trên Chrome (#458)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #458 (mô tả PR): sửa lỗi P4 bộ nhớ Hỏi UNI khi test trên Chrome; tính năng bộ nhớ của Hỏi UNI nằm sau cờ ask_uni_memory mặc định tắt (theo PR #455 đã xét ở v1.9.0); chưa đến tay người dùng nên chưa công bố. Người duyệt xác nhận nếu cờ đã bật cho mọi người.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/458"
+      }
+    },
+    {
+      "commit": "22d484cd6682ff339bb8e575e213adc36a30e613",
+      "subject": "UNI-2155: Changelog v1.9.0 — duyệt nội dung Việt/Anh (#453)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR công bố Changelog v1.9.0 (#453), chỉ đổi các file Changelog, không phải thay đổi ứng dụng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/453"
+      }
+    },
+    {
+      "commit": "a6714faf79e3eb2e5b258b1f5cb96cfdc1f7cd99",
+      "subject": "UNI-2162: Shell kiểu ClickUp: header trên nền chung, sidebar, main và dock Hỏi UNI thành ba khung (#460)",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Giao diện trên máy tính được chia thành các khung: thanh trên chạy ngang toàn ứng dụng, gồm ô chọn tổ chức và workspace, tìm kiếm, Hỏi UNI, thông báo, tạo mới và tài khoản; thanh bên là một khung riêng thu gọn được (phím ⌘B vẫn dùng được); trang chính và Hỏi UNI là hai khung cạnh nhau, kéo được để đổi độ rộng. Nút Tạo việc trên thanh trên dùng biểu tượng cặp hồ sơ có dấu cộng, và mọi biểu tượng có nét dày như nhau ở mọi cỡ.",
+        "en": "The desktop layout is split into panels: a top bar runs across the whole app with the organization and workspace switcher, search, Ask UNI, notifications, create and your account; the sidebar is its own panel you can collapse (⌘B still works); the main page and Ask UNI sit side by side as two panels you can drag to resize. The Create task button in the top bar uses a briefcase-with-plus icon, and all icons have the same stroke weight at every size."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/460"
+      }
+    },
+    {
+      "commit": "f259cb89f02a9fe3d01c4310dfd784cadd822d9a",
+      "subject": "UNI-2163: Icon: nét cố định 1.5px ở mọi cỡ và guard quy ước (#461)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #461 (mô tả PR): nét biểu tượng cố định 1.5px ở mọi cỡ; nội dung người dùng thấy đã gộp vào mục giao diện mới (a6714faf7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/461"
+      }
+    },
+    {
+      "commit": "faf019f8a2996da53d213f5048bf3e687ccc3281",
+      "subject": "UNI-2161: Phụ đề Thư ký UNI trong phòng họp: chữ hiện dần, đường sáng theo giọng nói, chọn ngôn ngữ dạng trượt (#462)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #462 (mô tả PR): làm lại phụ đề của Thư ký UNI trong phòng họp và sửa agent. Thư ký UNI chạy theo cờ meeting_scribe của từng tổ chức và chưa được công bố; cấu hình production mới bật agent qua commit đẩy thẳng 31b77e94d. Chưa công bố; người duyệt xác nhận nếu Thư ký UNI đã mở cho mọi tổ chức.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/462"
+      }
+    },
+    {
+      "commit": "11e606fd13d04cb865c4943a79a7e834c6dfb99a",
+      "subject": "fix(billing): CI audit cancel period, cancel_at compare, admin invoice rows",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #457: sửa kỳ hủy, so sánh cancel_at và dòng hóa đơn admin, thuộc cùng PR billing đang chờ làm rõ (c1aad64f7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/457"
+      }
+    },
+    {
+      "commit": "8afa151f167da97b992e621a2e7fc4ded1cda9f4",
+      "subject": "docs: mô tả log text có màu khi xem từ Docker",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff chỉ là tài liệu về định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "docs/superpowers/specs/2026-10-23-dev-log-format-design.md"
+        ]
+      }
+    },
+    {
+      "commit": "bea5b2f3dda630eb5e63a9a03edcc6016f7dd645",
+      "subject": "docs: siết spec log dev và thêm plan triển khai",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff chỉ là spec/plan của định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "docs/superpowers/specs/2026-10-23-dev-log-format-design.md",
+          "docs/superpowers/plans/2026-10-23-dev-log-format.md"
+        ]
+      }
+    },
+    {
+      "commit": "a6315b3e5aaba00ef9df436e13131362762c6552",
+      "subject": "test(server): pin when dev logs emit colour",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; chỉ thêm test cho định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/logger/text_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "ced0d7f37e57127c47fe02f870547a5b7f89e6a1",
+      "subject": "feat(server): print dev logs with ids faded at the end of the line",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff đổi định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/logger/text.go"
+        ]
+      }
+    },
+    {
+      "commit": "9e32fa5584481771f80e1d33c2ccf882c5e9bf5c",
+      "subject": "fix(server): colour grouped dev logs with the same flag as the text handler",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff sửa định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/logger/text.go"
+        ]
+      }
+    },
+    {
+      "commit": "53e0477cfa4f525985c284e327cdf1fa76d96377",
+      "subject": "feat(admin): route xóa và hoàn tác tổ chức trên console",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff thêm route cho nút xóa và hoàn tác xóa tổ chức trên console quản trị nội bộ của UniWork; công cụ vận hành của nhân viên UniWork, không phải tính năng người dùng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/handler/admin.go",
+          "server/internal/handler/router/admin.go"
+        ]
+      }
+    },
+    {
+      "commit": "5f3c718c4b54ead8d31c5495bfd998750a345ffc",
+      "subject": "feat(core): endpoint xóa và hoàn tác tổ chức cho console",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff thêm endpoint client cho nút xóa và hoàn tác xóa tổ chức trên console quản trị nội bộ của UniWork; công cụ vận hành của nhân viên UniWork, không phải tính năng người dùng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/core/api/endpoints/admin.ts",
+          "packages/core/admin/hooks.ts"
+        ]
+      }
+    },
+    {
+      "commit": "dc59c569d0c1fc7b88b3eafa2e90f6e8591ea1ab",
+      "subject": "change values config",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff chỉ đổi giá trị Helm chart: cấu hình triển khai/hạ tầng; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app/uniwork/values.yaml"
+        ]
+      }
+    },
+    {
+      "commit": "58e7e5ae734433b0e0906059b9083821cecea5f1",
+      "subject": "fix(server): quote only unsafe dev-log messages and flatten groups",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff sửa định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/logger/text.go"
+        ]
+      }
+    },
+    {
+      "commit": "c1cbca0b9ce37f066907514ceec1ecdfc177195d",
+      "subject": "feat(admin): nút xóa và hoàn tác tổ chức trên trang chi tiết",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff thêm giao diện cho nút xóa và hoàn tác xóa tổ chức trên console quản trị nội bộ của UniWork; công cụ vận hành của nhân viên UniWork, không phải tính năng người dùng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/views/admin/organization-deletion.tsx",
+          "packages/views/admin/organization-detail.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "f01e00afb65e02e891eff32c8006ff33eb18a3a8",
+      "subject": "UNI-2164: Header: icon tạo công việc đổi sang briefcase-plus (#464)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #464 (mô tả PR): nút Tạo việc trên thanh trên dùng biểu tượng briefcase-plus, kèm nâng lucide-react; nội dung người dùng thấy đã gộp vào mục giao diện mới (a6714faf7).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/464"
+      }
+    },
+    {
+      "commit": "9d9b7f8240611331d125eefd8bf025521c68dcc6",
+      "subject": "fix(server): resolve grouped log values before reading their attrs",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff sửa định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/logger/text.go"
+        ]
+      }
+    },
+    {
+      "commit": "71a57d33fc5ce4bc054829058675084f3bcbd336",
+      "subject": "fix(server): detect a LogValue panic only on a valuer",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff sửa định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/logger/text.go"
+        ]
+      }
+    },
+    {
+      "commit": "24bf6865c7df3a5a68de7fc433dd01bb33817768",
+      "subject": "fix(server): read a valuer error once, under recover",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff sửa định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/logger/text.go"
+        ]
+      }
+    },
+    {
+      "commit": "bb929e90e0afc5d889883c16c1811fe15b48e379",
+      "subject": "feat(server): colour dev logs when docker captures stderr",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff thêm màu cho định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/logger/text.go"
+        ]
+      }
+    },
+    {
+      "commit": "57db119f5bf28e1af6650b40c685005ea342f905",
+      "subject": "fix(server): keep http head values bright in dev logs",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff sửa định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/logger/text.go"
+        ]
+      }
+    },
+    {
+      "commit": "ff1565bff4af07e4de8e5ba1c66438ba9500a0f6",
+      "subject": "fix(server): stop an empty NO_COLOR from blanking Node tools",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff sửa biến NO_COLOR trong định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/logger/text.go"
+        ]
+      }
+    },
+    {
+      "commit": "cb2888ad5e206068e0d60a77f378efebefc8ea0c",
+      "subject": "fix(admin): xếp xóa tổ chức qua cửa hẹp",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff gom luồng xóa tổ chức của console qua một cửa, kèm ADR và test kiến trúc: nút xóa và hoàn tác xóa tổ chức trên console quản trị nội bộ của UniWork; công cụ vận hành của nhân viên UniWork, không phải tính năng người dùng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/admin.go",
+          "docs/adr/README.md",
+          "server/internal/arch_admin_takedown_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "9f7c3046356c3008e37eaa2c11b3f3f8f3a23541",
+      "subject": "fix(email-hub): sync scheduled list after compose schedule",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Email Hub: sau khi hẹn giờ gửi một email, hộp thư đang mở chuyển sang đúng tài khoản gửi email đó, thư mục Đã lên lịch tải lại khi mở, và danh sách cùng số đếm ở thanh bên cập nhật ngay.",
+        "en": "Email Hub: after you schedule an email, the open mailbox switches to the account that sends it, the Scheduled folder refreshes when you open it, and the list and the sidebar count update right away."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/465"
+      }
+    },
+    {
+      "commit": "b86272e70161417dedd8e3969ad7b03c74269765",
+      "subject": "(fix): design log format",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff chỉ sửa tài liệu về định dạng log text có màu cho môi trường dev của máy chủ; công cụ cho lập trình viên, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "docs/superpowers/specs/2026-10-23-dev-log-format-design.md"
+        ]
+      }
+    },
+    {
+      "commit": "0915b4c636cb69a6f37b0a6d8548465f868ebefc",
+      "subject": "test(scripts): exempt develop dc59c569d from commit-msg history check",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit trong nhánh của PR #465: miễn trừ commit dc59c569d trong test lịch sử commit-msg; quy tắc repo.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/465"
+      }
+    },
+    {
+      "commit": "60f5293ad2f8ca8e6192e77ad3b2e8b7f9dd382f",
+      "subject": "test(scripts): exempt develop b86272e70 from commit-msg history check",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit trong nhánh của PR #465: miễn trừ commit b86272e70 trong test lịch sử commit-msg; quy tắc repo.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/465"
+      }
+    },
+    {
+      "commit": "850e2653b0ceae916a383ca190b516fcd026e911",
+      "subject": "fix(deploy): schedule UniWork on the app and exam pools",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff đổi lịch đặt pod sang pool app/exam: cấu hình triển khai/hạ tầng; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app/uniwork/templates/_helpers.tpl",
+          "deploy/app/uniwork/values.yaml"
+        ]
+      }
+    },
+    {
+      "commit": "fdb4577e6ce90336c32dacce2bf15a04c8c63f0b",
+      "subject": "fix(deploy): scale the meeting agent at 75% CPU",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff đổi ngưỡng tự co giãn của meeting agent: cấu hình triển khai/hạ tầng; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app/uniwork/templates/deployment-meeting-agent.yaml"
+        ]
+      }
+    },
+    {
+      "commit": "9adc9f9f0c491460aaffd9339f836fec3659316a",
+      "subject": "refactor(logger): replace tint with in-house text slog handler",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit trong nhánh của PR #465 (đến từ nhánh log dev): thay thư viện tint bằng handler log text tự viết cho môi trường dev; refactor kỹ thuật, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/465"
+      }
+    },
+    {
+      "commit": "f1edf84d2619b7d3c5dbef0af0c0b2241a3c2da1",
+      "subject": "docs: spec the meeting agent on the app-dev host",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; chỉ là spec chạy meeting agent trên máy app-dev; tài liệu hạ tầng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "docs/superpowers/specs/2026-10-26-meeting-agent-app-dev-design.md"
+        ]
+      }
+    },
+    {
+      "commit": "929e3529aefe1429eb7a0d7b652416aee02f3e11",
+      "subject": "docs: plan the meeting agent on the app-dev host",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; chỉ là plan chạy meeting agent trên máy app-dev; tài liệu hạ tầng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "docs/superpowers/plans/2026-10-26-meeting-agent-app-dev.md"
+        ]
+      }
+    },
+    {
+      "commit": "6a9198f744a591376aaeecf03e81208384c22ff6",
+      "subject": "UNI-2160: Hỏi UNI P4: làm lại giao diện Bộ nhớ (đưa vào develop) (#469)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #469 (mô tả PR): đưa giao diện Bộ nhớ của Hỏi UNI (UNI-2160) vào develop; tính năng bộ nhớ của Hỏi UNI nằm sau cờ ask_uni_memory mặc định tắt (theo PR #455 đã xét ở v1.9.0); chưa đến tay người dùng nên chưa công bố. Người duyệt xác nhận nếu cờ đã bật cho mọi người.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/469"
+      }
+    },
+    {
+      "commit": "91ff4ddf9a398efaea2aead8c94d655bf7b885cd",
+      "subject": "feat(deploy): enable the meeting scribe on app-dev",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff bật thư ký họp trên môi trường app-dev: cấu hình triển khai/hạ tầng; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app-dev/env/uniwork-meeting-agent.env",
+          "deploy/app-dev/env/uniwork-be.env"
+        ]
+      }
+    },
+    {
+      "commit": "b85d1f08d2bd77b949ce09d6ed583875b5fb7fb8",
+      "subject": "fix(ci): align chart render checks with nodeAffinity scheduling",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit trong nhánh của PR #465: chỉnh kiểm tra render Helm chart theo nodeAffinity; CI.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/465"
+      }
+    },
+    {
+      "commit": "37d151e13e15e4744b9ce57b606266e426f01d74",
+      "subject": "feat(deploy): run the meeting agent in app-dev compose",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff thêm meeting agent vào docker compose app-dev: cấu hình triển khai/hạ tầng; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app-dev/docker-compose.yml"
+        ]
+      }
+    },
+    {
+      "commit": "b7badc47263a99a4a318a4bd03947dc9d191f2ea",
+      "subject": "ci: build the meeting agent image for app-dev",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; pipeline build image meeting agent cho app-dev; CI.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "ci/Jenkinsfile.app-dev.groovy",
+          "scripts/app-dev-env.test.mjs"
+        ]
+      }
+    },
+    {
+      "commit": "d4abf739ec878a7313f4eaf461ce5c069eea4a3e",
+      "subject": "ci: stop the meeting-agent workflow from pushing images",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; workflow meeting agent thôi đẩy image; CI.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          ".github/workflows/meeting-agent-verify.yml",
+          "ci/Jenkinsfile.production-app.groovy"
+        ]
+      }
+    },
+    {
+      "commit": "712b7b41be822bb3fb69ca342768f29dab82baf5",
+      "subject": "docs: correct the app-dev scribe restart and env comment",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; chỉ sửa tài liệu và chú thích env của app-dev; tài liệu hạ tầng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app-dev/.env.example",
+          "docs/superpowers/specs/2026-10-26-meeting-agent-app-dev-design.md"
+        ]
+      }
+    },
+    {
+      "commit": "5d0e40f00620ae51190e98956aab62cff5389030",
+      "subject": "UNI-2142: đồng bộ main vào develop và sửa 3 lỗi CI của release #463 (#467)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #467 (mô tả PR): đồng bộ main vào develop và sửa ba lỗi CI của release #463 (script chart, miễn trừ test commit, tên icon); không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/467"
+      }
+    },
+    {
+      "commit": "7533aeb307e84a85397a6819b99631fcf207fca8",
+      "subject": "UNI-2142: ghi main vào lịch sử develop, cây không đổi — MERGE COMMIT, không squash (#470)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #470 (mô tả PR): merge commit ghi main vào lịch sử develop, cây không đổi; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/470"
+      }
+    },
+    {
+      "commit": "237fc6d47c92be3f0abdf2c6d40c893d6acfc3af",
+      "subject": "UNI-923: Office G5-G7 owner transfer, Type filter, install pages and trash relocation (PR 8) (#468)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tài liệu: chuyển chủ sở hữu một tài liệu cho người khác, hoặc chuyển cùng lúc mọi tài liệu của một thành viên sang thành viên khác; chủ sở hữu mới nhận được thông báo. Bộ lọc Loại chọn được nhiều loại cùng lúc, hiện thành các thẻ bỏ được từng thẻ. Khi chuyển một trang, tệp hoặc thư mục vào thùng rác, trang và tệp con mà bạn không quản lý được sẽ được chuyển ra gốc workspace thay vì chặn cả thao tác; thư mục con bạn không xem hoặc không quản lý được vẫn chặn thao tác. Trang cài UniWork Office có thêm cách cài qua kho apt và một lệnh cài nhanh bên cạnh tệp .deb, và trình xem tệp nguồn Office có nút phóng to.",
+        "en": "Documents: transfer ownership of one document to someone else, or move all of a member's documents to another member at once; the new owner gets a notification. The Type filter accepts several types at once, shown as chips you can remove one by one. When you move a page, file or folder to the trash, sub-pages and files you cannot manage are moved to the workspace root instead of blocking the whole action; a sub-folder you cannot view or manage still blocks it. The UniWork Office install page adds installing from the apt repository and a one-command install next to the .deb file, and the Office source viewer has a maximize button."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/468"
+      }
+    },
+    {
+      "commit": "2d5136e80d21307a0fad9a9ef52bdcdd6f28e1b6",
+      "subject": "fix(deploy): leave the scribe metrics directory to LiveKit",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff bỏ cấu hình thư mục metrics của scribe trên app-dev: cấu hình triển khai/hạ tầng; không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app-dev/env/uniwork-meeting-agent.env",
+          "scripts/app-dev-env.test.mjs"
+        ]
+      }
+    },
+    {
+      "commit": "20250f68e4c2a7f897773a62d85b9cf67836be66",
+      "subject": "(fix): migration sql",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff sửa migration để giữ đủ giá trị ràng buộc khi chạy lệch thứ tự; kỹ thuật cơ sở dữ liệu, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/migrations/9991792700000005_meeting_audio_uploads.up.sql",
+          "server/migrations/9991792700000005_meeting_audio_uploads.down.sql"
+        ]
+      }
+    },
+    {
+      "commit": "31b77e94dc70fbd2015d51aae5a98f2f9a32d7e7",
+      "subject": "(deploy): enabled uniwork-scribe agent",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit đẩy thẳng lên develop, không có PR vào develop; diff bật meeting agent (Thư ký UNI) trong cấu hình production. Đây là cấu hình triển khai; tính năng vẫn theo cờ meeting_scribe của từng tổ chức nên chưa công bố (xem faf019f8a).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "deploy/app/env/uniwork-be.env",
+          "deploy/app/uniwork/values.yaml"
+        ]
+      }
+    },
+    {
+      "commit": "afc930202fc66a5cf3a0b60d77e4d379096fce44",
+      "subject": "fix(billing): checkout errors, tests, and public pricing copy",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #471 (mô tả PR): báo lỗi tra cứu gói thay vì 404, thêm test checkout/hoàn tiền và sửa câu hỏi thường gặp trên landing theo bảng giá Team/Business. Phần Thay đổi gì để trống; nội dung chạm vào giá công khai nên chưa đưa vào bản công khai khi chưa được làm rõ (CHANGES_REQUESTED).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/471"
+      }
+    },
+    {
+      "commit": "38b55bb8fa0f55f34043c3ee3ae4a7e983f71bc3",
+      "subject": "fix(ci): pass meeting-agent image digest in chart render test",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit trong PR #471: truyền digest image meeting agent vào test render chart; CI.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/471"
+      }
+    },
+    {
+      "commit": "764da465faa9cadb53f653f88f92bc9d5232a9dd",
+      "subject": "test(governance): pin two develop commits with non-conventional subjects",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit trong PR #471: pin hai commit develop có subject không theo quy ước trong test governance; quy tắc repo.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/471"
+      }
+    }
+  ]
+}

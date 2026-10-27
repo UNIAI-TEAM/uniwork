@@ -680,6 +680,19 @@ func (w *isoWorld) buildTasks(t *testing.T, tn *isoTenant) {
 		"resource_type": "github_repo", "resource_ref": map[string]any{"url": "https://github.com/acme/" + strings.ToLower(m)}, "label": m + " Resource",
 	})
 	tn.ids["projectResource"] = isoID(t, out, "resource")
+	// Trashed rows: restore and purge only answer for a row in the trash, so
+	// an attack on them must meet one. Each route ends its row (restore leaves
+	// the trash, purge leaves the database), so each gets its own.
+	for key, kind := range map[string]string{"trashedTask": "Restore", "purgeTask": "Purge"} {
+		out = w.call(t, "POST", ws+"/tasks", tn.token, map[string]any{"title": m + " Trashed Task " + kind})
+		tn.ids[key] = isoID(t, out, "task")
+		w.call(t, "DELETE", "/api/v1/tasks/"+tn.ids[key], tn.token, nil)
+	}
+	for key, kind := range map[string]string{"trashedProject": "Restore", "purgeProject": "Purge"} {
+		out = w.call(t, "POST", ws+"/projects", tn.token, map[string]any{"title": m + " Trashed Project " + kind})
+		tn.ids[key] = isoID(t, out, "project")
+		w.call(t, "DELETE", ws+"/projects/"+tn.ids[key], tn.token, nil)
+	}
 }
 
 func (w *isoWorld) buildMeetings(t *testing.T, tn *isoTenant) {

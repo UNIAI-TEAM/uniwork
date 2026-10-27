@@ -9,6 +9,7 @@ import {
 } from "../../types/task";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
+import { parseTrashResult, type TrashResult } from "./tasks-trash";
 
 const TasksResponse = z.object({ tasks: z.array(TaskSchema) });
 const TaskResponse = z.object({ task: TaskSchema });
@@ -100,8 +101,10 @@ export async function updateTask(taskId: string, patch: TaskPatch): Promise<Task
   })?.task ?? null;
 }
 
-export async function deleteTask(taskId: string): Promise<void> {
-  await request(`/api/v1/tasks/${enc(taskId)}`, { method: "DELETE" });
+/** Moves the task and its subtasks to the trash; the result names the batch an undo restores. */
+export async function deleteTask(taskId: string): Promise<TrashResult> {
+  const raw = await request(`/api/v1/tasks/${enc(taskId)}`, { method: "DELETE" });
+  return parseTrashResult(raw, "DELETE /api/v1/tasks/{id}");
 }
 
 export async function listComments(taskId: string): Promise<TaskComment[]> {

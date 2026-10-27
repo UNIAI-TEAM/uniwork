@@ -140,6 +140,24 @@ func (h *handlers) adminRefundInvoice(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.AdminInvoiceSDO{Invoice: adminInvoiceDTOFromInvoice(inv, meta)})
 }
 
+func (h *handlers) adminRevertInvoiceRefund(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ReasonSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	inv, err := h.Admin.RevertInvoiceRefund(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "invoiceID"), in.Reason)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	meta, err := h.Admin.GetInvoiceMeta(r.Context(), inv.ID)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.AdminInvoiceSDO{Invoice: adminInvoiceDTOFromInvoice(inv, meta)})
+}
+
 func (h *handlers) adminConfirmInvoiceRefund(w http.ResponseWriter, r *http.Request) {
 	var in sdi.ReasonSDI
 	if !decode(w, r, &in, maxJSONBody) {

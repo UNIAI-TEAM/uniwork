@@ -41,6 +41,8 @@
 @media (min-width: 1100px) {
   .apt-ways { flex-direction: row; align-items: stretch; gap: 20px; }
   .apt-ways > .apt-block { flex: 1; }
+  /* The shorter box grows to the taller one's height; stacked, each keeps its own. */
+  .apt-ways > .apt-block > .apt-code { flex: 1; }
   .marketing-site .apt-or { flex-direction: column; }
   .apt-or::before, .apt-or::after { width: 1px; height: auto; }
 }

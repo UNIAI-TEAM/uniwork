@@ -48,6 +48,9 @@ import { useMessageTaskLinkDialogs } from "./use-message-task-link-dialogs";
 import { useNativeChatMessageActions } from "./use-native-chat-message-actions";
 import { useAnchorWindowLoad, useChatHighlightFlash, useOwnSendFollowsLatest, useTypingKeepsPinned } from "./use-chat-anchor-follow";
 import type { ChatDocumentDesktopOpen } from "./chat-document-menu";
+import { ChatMessageSelectionContext } from "./chat-message-selection-context";
+import { useChatPanelSelection } from "./use-chat-panel-selection";
+import type { ChatMessageSelectionBarState } from "./use-chat-message-selection-actions";
 
 const EMPTY_LINKS: ReadonlyMap<string, ChatMessageLinkRecord[]> = new Map();
 
@@ -83,6 +86,7 @@ export function NativeChatMessagePanel({
   roomTitle,
   intro,
   desktopOpen,
+  onSelectionChange,
 }: {
   workspaceId: string;
   roomId: string;
@@ -118,6 +122,8 @@ export function NativeChatMessagePanel({
   onCloseThread?: () => void;
   /** The thread open beside this timeline: its root stays highlighted. */
   openThreadRootId?: string | null;
+  /** Multi-select bar state for the host (replaces the composer while active). */
+  onSelectionChange?: (bar: ChatMessageSelectionBarState | null) => void;
   /** Under the thread bar's title (the room's name, in the side panel). */
   threadSubtitle?: string;
   /** The room's name, for the create-task dialog's quote (the side panel's subtitle when unset). */
@@ -276,6 +282,21 @@ export function NativeChatMessagePanel({
     canModerate,
   });
 
+  const {
+    selectionUi,
+    selectionActive,
+    selectedIds,
+    onToggleSelect,
+    dialogs: selectionDialogs,
+  } = useChatPanelSelection({
+    workspaceId,
+    roomId,
+    currentUserId,
+    messages,
+    canModerate,
+    onSelectionChange,
+  });
+
   useEffect(() => {
     if (!threadsEnabled && threadRoot) {
       setThreadRoot(null);
@@ -405,6 +426,9 @@ export function NativeChatMessagePanel({
     threadRoot,
     highlightMessageId,
     openThreadRootId,
+    selectionActive,
+    selectedIds,
+    onToggleSelect,
   });
 
   const scrollToLatest = () => {
@@ -484,29 +508,31 @@ export function NativeChatMessagePanel({
             <ChatLinkPreviewsProvider workspaceId={workspaceId} roomId={roomId} messages={messages}>
               <ChatMessageLinksProvider value={linksValue}>
                 <ChatPeerReadAtContext.Provider value={receiptReadAt}>
-                  <ChatForwardContext.Provider value={actions.onForward ?? null}>
-                    <VirtualChatMessageList
-                      key={roomId}
-                      messages={messages}
-                      getItemKey={getVirtualRowKey}
-                      getEstimateSize={getVirtualRowEstimate}
-                      scrollRef={scrollRef}
-                      stickToBottomRef={stickToBottomRef}
-                      programmaticScrollRef={programmaticScrollRef}
-                      olderPrefetchSentinelRef={olderPrefetchSentinelRef}
-                      highlightMessageId={highlightMessageId}
-                      onHighlightShown={handleHighlightShown}
-                      header={listHeader}
-                      empty={
-                        latestPending ? (
-                          <ChatMessagesSkeleton className="px-0" />
-                        ) : (
-                          (intro ?? <p className="py-6 text-center text-body text-pretty text-muted-foreground">{emptyLabel}</p>)
-                        )
-                      }
-                      renderMessage={renderMessage}
-                    />
-                  </ChatForwardContext.Provider>
+                  <ChatMessageSelectionContext.Provider value={selectionUi}>
+                    <ChatForwardContext.Provider value={actions.onForward ?? null}>
+                      <VirtualChatMessageList
+                        key={roomId}
+                        messages={messages}
+                        getItemKey={getVirtualRowKey}
+                        getEstimateSize={getVirtualRowEstimate}
+                        scrollRef={scrollRef}
+                        stickToBottomRef={stickToBottomRef}
+                        programmaticScrollRef={programmaticScrollRef}
+                        olderPrefetchSentinelRef={olderPrefetchSentinelRef}
+                        highlightMessageId={highlightMessageId}
+                        onHighlightShown={handleHighlightShown}
+                        header={listHeader}
+                        empty={
+                          latestPending ? (
+                            <ChatMessagesSkeleton className="px-0" />
+                          ) : (
+                            (intro ?? <p className="py-6 text-center text-body text-pretty text-muted-foreground">{emptyLabel}</p>)
+                          )
+                        }
+                        renderMessage={renderMessage}
+                      />
+                    </ChatForwardContext.Provider>
+                  </ChatMessageSelectionContext.Provider>
                 </ChatPeerReadAtContext.Provider>
               </ChatMessageLinksProvider>
             </ChatLinkPreviewsProvider>
@@ -526,6 +552,7 @@ export function NativeChatMessagePanel({
       </div>
       {actionDialogs}
       {taskLinkDialogs}
+      {selectionDialogs}
     </div>
   );
 }

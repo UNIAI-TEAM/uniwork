@@ -35,11 +35,14 @@ func (s *BillingService) Checkout(ctx context.Context, userID, orgID, planCode, 
 		return billing.CheckoutSession{}, err
 	}
 	plan, err := s.q.GetPlanByCode(ctx, planCode)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !plan.IsActive) {
-		return billing.CheckoutSession{}, ErrNotFound
-	}
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return billing.CheckoutSession{}, ErrNotFound
+		}
 		return billing.CheckoutSession{}, err
+	}
+	if !plan.IsActive {
+		return billing.CheckoutSession{}, ErrNotFound
 	}
 	if !plan.PriceAmount.Valid || plan.PriceAmount.Int64 <= 0 {
 		return billing.CheckoutSession{}, CodedError{Code: "checkout_not_available", Status: http.StatusBadRequest,

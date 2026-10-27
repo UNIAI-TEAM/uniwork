@@ -205,6 +205,8 @@ describe("useRealtimeSync", () => {
       ["task.updated", { task_id: "tB" }],
       ["task.created", { task_id: "tB" }],
       ["task.deleted", { task_id: "tB" }],
+      ["task.trashed", { task_id: "tB" }],
+      ["task.restored", { task_id: "tB" }],
       ["chat.thread.linked", { room_id: "r1", thread_root_id: "m1", task_id: "tA" }],
       ["chat.thread.unlinked", { room_id: "r1", thread_root_id: "m1", task_id: "tA" }],
     ])("%s refreshes an open graph panel now and again after the projector lag", (type, payload) => {
@@ -1300,6 +1302,7 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["meeting-stats", "ws1"]),
         JSON.stringify(["meeting-join-requests"]),
         JSON.stringify(["documents", "ws1"]),
+        JSON.stringify(["trash", "ws1"]),
         JSON.stringify(["chat", "room-members", "ws1"]),
         JSON.stringify(["chat", "follow-ups", "ws1"]),
         JSON.stringify(["chat", "followed-threads", "ws1"]),
@@ -1383,7 +1386,7 @@ describe("useRealtimeSync › meeting summary", () => {
     expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-minutes", "m1"])]));
   });
 
-  it.each(["task.updated", "task.deleted"])("refreshes only the action item lists that hold the task on %s", (type) => {
+  it.each(["task.updated", "task.deleted", "task.trashed"])("refreshes only the action item lists that hold the task on %s", (type) => {
     vi.useFakeTimers();
     const { qc, invalidate, client } = setup();
     const list = (taskId: string) => ({
@@ -1402,9 +1405,23 @@ describe("useRealtimeSync › meeting summary", () => {
     expect(keys).not.toContain(JSON.stringify(["meeting-action-items"]));
   });
 
+  it("refreshes every action item list on task.restored, since a trashed task's item names no task", () => {
+    vi.useFakeTimers();
+    const { qc, invalidate, client } = setup();
+    qc.setQueryData(["meeting-action-items", "m1"], {
+      items: [{ id: "a1", title: "x", status: "PENDING", evidence: [], task: null }],
+      counts: { pending: 1, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 },
+    });
+    client.emit({ type: "task.restored", payload: { task_id: "t1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["meeting-action-items"]));
+  });
+
   // A conversion in another meeting creates the task; finishing or deleting
   // it takes it off the list.
-  it.each(["task.created", "task.updated", "task.deleted"])("refreshes every open carried-over list on %s", (type) => {
+  it.each(["task.created", "task.updated", "task.deleted", "task.trashed", "task.restored"])("refreshes every open carried-over list on %s", (type) => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type, payload: { task_id: "t1", workspace_id: "ws1" } } as WSMessage);
@@ -1412,6 +1429,22 @@ describe("useRealtimeSync › meeting summary", () => {
       vi.advanceTimersByTime(250);
     });
     expect(keysCalled(invalidate)).toEqual(expect.arrayContaining([JSON.stringify(["meeting-carried-over"])]));
+  });
+});
+
+describe("useRealtimeSync › trash frames", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(["task.trashed", "task.restored"])("%s refreshes the calendar like a task change", (type) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { task_id: "t1", workspace_id: "ws1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate).some((k) => k.includes("calendar"))).toBe(true);
   });
 });
 
@@ -1424,6 +1457,16 @@ describe("useRealtimeSync › meeting scribe", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
     client.emit({ type: "note.created", payload: { meeting_id: "m1", version: "3", note_id: "n1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(["notes", "m1"])]);
+  });
+
+  it.each(["note.updated", "note.deleted"])("refreshes the notes on %s", (type) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { meeting_id: "m1", version: "4", note_id: "n1" } } as WSMessage);
     act(() => {
       vi.advanceTimersByTime(250);
     });
@@ -1750,5 +1793,44 @@ describe("useRealtimeSync › own organization membership", () => {
     expect(keys).not.toContain(organizations);
     expect(keys).not.toContain(workspaces);
     expect(fetchMe).not.toHaveBeenCalled();
+  });
+});
+
+describe("shared trash frames", () => {
+  const trashRoot = JSON.stringify(["trash", "ws1"]);
+
+  it.each([
+    "task.trashed",
+    "task.restored",
+    "task.deleted",
+    "project.trashed",
+    "project.restored",
+    "project.deleted",
+    "document.archived",
+    "document.restored",
+    "document.deleted",
+  ] as const)("invalidates the shared trash on %s", (type) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({
+      type,
+      payload: { task_id: "t1", project_id: "p1", document_id: "d1", workspace_id: "ws1" },
+    } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(trashRoot);
+    vi.useRealTimers();
+  });
+
+  it("ignores a trash frame stamped for another workspace", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "document.archived", payload: { document_id: "d1", workspace_id: "ws2" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(trashRoot);
+    vi.useRealTimers();
   });
 });

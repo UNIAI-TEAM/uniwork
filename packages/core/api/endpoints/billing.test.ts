@@ -40,6 +40,21 @@ describe("billing endpoints", () => {
     await expect(listPlans()).resolves.toEqual([]);
   });
 
+  it("reads the public catalog without a session and preserves configured prices and quotas", async () => {
+    setAccessToken(null);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ plans: [{
+      ...plan, name: "Configured plan", price_amount: 789000, billing_period: "year",
+      features: [{ feature_key: "members.max", enabled: true, quota_limit: 42 }],
+    }] }));
+    const [configured] = await listPlans();
+    expect(configured?.price_amount).toBe(789000);
+    expect(configured?.billing_period).toBe("year");
+    expect(configured?.features[0]?.quota_limit).toBe(42);
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(url).toBe("http://api.test/api/v1/plans");
+    expect(new Headers(init?.headers).has("Authorization")).toBe(false);
+  });
+
   it("getSubscription returns the view, lets an unknown status through, and null when malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ subscription: { ...subscription, status: "mystery" }, entitlements: [entitlement] }));
     const view = await getSubscription("o1");

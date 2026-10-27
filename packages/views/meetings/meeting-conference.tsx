@@ -19,10 +19,11 @@ import {
 import { useIsCompact } from "@uniwork/ui/hooks/use-mobile";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Notice } from "../common/notice";
-import { copilotPanelShown } from "./conference-layout";
+import { copilotPanelShown, liveItemsInView } from "./conference-layout";
 import { catchUpLateMinutes, firstJoinedAt } from "./meeting-copilot/meeting-catch-up-card";
 import { LiveItemsAnnouncer, useUnseenLiveItems } from "./meeting-copilot/live-items-unseen";
-import type { CopilotSection } from "./meeting-room-copilot-tab";
+import type { MeetingFeedFilter } from "./meeting-copilot/feed-filter-chips";
+import type { UniView } from "./meeting-copilot/uni-status-row";
 import {
   captionsErrorKey,
   captionsSupported,
@@ -178,8 +179,19 @@ function ConferenceStage({
     [compact],
   );
   const openPeople = useCallback(() => openSidebarTab("participants"), [openSidebarTab]);
-  const openMotions = useCallback(() => openSidebarTab("motions"), [openSidebarTab]);
+  // The prompt's card goes away under its own button once Votes is on screen,
+  // so the keyboard follows to the Votes tab.
+  const [dockFocusRequest, setDockFocusRequest] = useState(0);
+  const openMotions = useCallback(() => {
+    openSidebarTab("motions");
+    setDockFocusRequest((n) => n + 1);
+  }, [openSidebarTab]);
   const toggleSidebar = useCallback(() => setSidebarPinned((v) => !v), []);
+  // The panel's own collapse button leaves with the panel; the header's toggle reopens it.
+  const collapseSidebar = useCallback(() => {
+    setSidebarPinned(false);
+    stageFrame?.querySelector<HTMLElement>("[data-panel-toggle]")?.focus();
+  }, [stageFrame]);
   const openSidebarSheet = useCallback(() => setSidebarSheetOpen(true), []);
   const toggleCaptions = useCallback(() => {
     setCaptionsError(null);
@@ -192,28 +204,44 @@ function ConferenceStage({
     sheetOpen: sidebarSheetOpen,
     pinned: sidebarPinned,
   });
-  const toggleCopilot = useCallback(() => {
-    if (!copilotActive) {
-      openSidebarTab("copilot");
-      return;
-    }
-    if (compact) setSidebarSheetOpen(false);
-    else setSidebarPinned(false);
-  }, [compact, copilotActive, openSidebarTab]);
   // Once the UNI panel has been on screen, the catch-up is no longer news.
   const [catchUpSeen, setCatchUpSeen] = useState(false);
   if (copilotActive && lateMinutes !== null && !catchUpSeen) setCatchUpSeen(true);
   const copilotBadge = lateMinutes !== null && !catchUpSeen;
   const chatVisible = sidebarTab === "chat" && panelShown;
-  // The live items the scribe writes are seen once the UNI panel's Việc section is on screen.
-  const [copilotSection, setCopilotSection] = useState<CopilotSection>("insights");
-  const liveItemsSeeing = copilotActive && copilotSection === "actions";
+  // The Votes tab carries the same ballot as the stage's prompt: one on screen at a time.
+  const votesTabShown = sidebarTab === "motions" && panelShown;
+  // The live items the scribe writes are seen once the UNI highlights show them (all kinds, or the tasks).
+  const [uniView, setUniView] = useState<UniView>("feed");
+  const [uniFilter, setUniFilter] = useState<MeetingFeedFilter>("all");
+  const onUniViewChange = useCallback((view: UniView, filter: MeetingFeedFilter) => {
+    setUniView(view);
+    setUniFilter(filter);
+  }, []);
+  const liveItemsSeeing = liveItemsInView(copilotActive, uniView, uniFilter);
   const liveItems = useUnseenLiveItems(guestMode ? undefined : resolvedMeetingId || undefined, liveItemsSeeing);
   const chatUnread = useMeetingChatUnread(resolvedMeetingId || undefined, chatVisible);
+  // What waits in UNI behind a closed panel rides on the header's panel button (the Main board has no UNI button in the dock).
+  const panelNews = panelShown
+    ? null
+    : copilotBadge
+      ? t("meetings.aiCopilotCatchUp")
+      : liveItems.count > 0
+        ? t("meetings.aiCopilotLiveItems", { count: liveItems.count })
+        : null;
 
   const sheetClose = useMemo(
     () => (
-      <SheetClose render={<Button type="button" variant="ghost" size="icon-sm" className="mt-0.5 shrink-0" />}>
+      <SheetClose
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-11 shrink-0 rounded-xl bg-surface-hover text-foreground"
+          />
+        }
+      >
         <X aria-hidden className="size-4" />
         <span className="sr-only">{t("common.close")}</span>
       </SheetClose>
@@ -225,11 +253,10 @@ function ConferenceStage({
   const scribeInRoom = useScribeInRoom();
   const scribePaused = useScribePaused();
   const scribeCaptioning = scribeInRoom && !scribePaused;
-  // On its way in (the chip's "joining"), the scribe's own box says so rather
-  // than handing the viewer device captions for its first seconds.
-  const scribeOnItsWay =
-    caps?.scribe === true && !!meeting && scribeChipState(meeting, scribeInRoom, scribePaused) === "joining";
-  const scribeJoining = useScribeJoinWait(scribeOnItsWay);
+  // What the scribe is doing (the UNI tab's status row), where the workspace has one. On its way in
+  // ("joining"), the scribe's own box says so rather than handing the viewer device captions for its first seconds.
+  const scribeState = caps?.scribe === true && meeting ? scribeChipState(meeting, scribeInRoom, scribePaused) : undefined;
+  const scribeJoining = useScribeJoinWait(scribeState === "joining");
   const renderSidebar = (tabsEnd?: ReactNode) => (
     <RoomSidebar
       meetingId={resolvedMeetingId || undefined}
@@ -244,15 +271,21 @@ function ConferenceStage({
       onDismissCatchUp={dismissCatchUp}
       className="h-full w-full"
       tabsEnd={tabsEnd}
+      onCollapse={compact ? undefined : collapseSidebar}
       scribeOn={scribeInRoom}
+      scribeState={scribeState}
       liveItemsUnseen={liveItems.count}
-      onCopilotSectionChange={setCopilotSection}
+      liveItemIds={liveItems.ids}
+      onUniViewChange={onUniViewChange}
     />
   );
 
   const prompt = useMemo(
-    () => (resolvedMeetingId ? <MeetingVotePrompt meetingId={resolvedMeetingId} onOpenTab={openMotions} /> : null),
-    [resolvedMeetingId, openMotions],
+    () =>
+      resolvedMeetingId ? (
+        <MeetingVotePrompt meetingId={resolvedMeetingId} onOpenTab={openMotions} hidden={votesTabShown} />
+      ) : null,
+    [resolvedMeetingId, openMotions, votesTabShown],
   );
   const captions = useMemo(
     () =>
@@ -284,13 +317,9 @@ function ConferenceStage({
         captionsAvailable={scribeInRoom || scribeJoining || captionsSupported()}
         captionsOn={captionsOn}
         onToggleCaptions={toggleCaptions}
-        onToggleCopilot={toggleCopilot}
-        copilotActive={copilotActive}
-        copilotBadge={copilotBadge}
-        copilotLiveItems={liveItems.count}
       />
     ),
-    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, scribeJoining, captionsOn, toggleCaptions, toggleCopilot, copilotActive, copilotBadge, liveItems.count],
+    [leave, resolvedMeetingId, canHost.allowed, recordingEnabled, recording, scribeInRoom, scribeJoining, captionsOn, toggleCaptions],
   );
 
   return (
@@ -318,6 +347,7 @@ function ConferenceStage({
               sidebarOpen={sidebarPinned}
               onToggleSidebar={compact ? undefined : toggleSidebar}
               onOpenSidebar={compact ? openSidebarSheet : undefined}
+              panelNews={panelNews}
               onOpenPeople={openPeople}
               peopleOpen={sidebarTab === "participants" && panelShown}
             />
@@ -381,6 +411,7 @@ function ConferenceStage({
         {!compact ? (
           <MeetingSidebarDock
             open={sidebarPinned}
+            focusRequest={dockFocusRequest}
             className="min-h-0 w-[22rem] shrink-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-surface-border xl:w-[24rem]"
           >
             {renderSidebar()}
@@ -394,8 +425,15 @@ function ConferenceStage({
 
       {compact ? (
         <Sheet open={sidebarSheetOpen} onOpenChange={setSidebarSheetOpen}>
-          {/* Full width on a phone (the sheet's own max-w-sm caps it from sm up): 24rem left a sliver of stage. */}
-          <SheetContent side="right" className="p-0 data-[side=right]:w-full" showCloseButton={false}>
+          {/* Rises from the bottom over the stage, leaving its top in view. */}
+          <SheetContent
+            side="bottom"
+            // The room stays in sight behind the sheet, neither blurred nor dimmed (Phone board).
+            overlayClassName="bg-transparent supports-backdrop-filter:backdrop-blur-none"
+            className="gap-0 overflow-hidden rounded-t-[22px] border-t-0 bg-surface p-0 data-[side=bottom]:h-[72dvh]"
+            showCloseButton={false}
+          >
+            <div aria-hidden className="mx-auto mt-2 mb-1 h-[5px] w-10 shrink-0 rounded-[3px] bg-border" />
             <SheetHeader className="sr-only">
               <SheetTitle>{t("meetings.roomPanel")}</SheetTitle>
             </SheetHeader>

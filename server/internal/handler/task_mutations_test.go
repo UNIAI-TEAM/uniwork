@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -37,6 +39,12 @@ func doJSONHeaders(t *testing.T, srv *httptest.Server, method, path, token strin
 
 func suiteMutationWorld(t *testing.T) (*httptest.Server, string, string, *db.Queries) {
 	t.Helper()
+	srv, token, wsID, q, _ := suiteMutationWorldPool(t)
+	return srv, token, wsID, q
+}
+
+func suiteMutationWorldPool(t *testing.T) (*httptest.Server, string, string, *db.Queries, *pgxpool.Pool) {
+	t.Helper()
 	d, pool := newTestDeps(t, nil, discardOutbox{})
 	q := db.New(pool)
 	srv := httptest.NewServer(New(d))
@@ -66,7 +74,7 @@ func suiteMutationWorld(t *testing.T) (*httptest.Server, string, string, *db.Que
 		t.Fatalf("create ws: %d %v", res.StatusCode, out)
 	}
 	wsID := out["workspace"].(map[string]any)["id"].(string)
-	return srv, token, wsID, q
+	return srv, token, wsID, q, pool
 }
 
 func TestPutTaskSuiteStaleIfMatchConflict(t *testing.T) {

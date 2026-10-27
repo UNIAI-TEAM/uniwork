@@ -16,6 +16,7 @@ export function EmailHubViewDialogs({
   onComposeOpenChange,
   composeMode,
   composeSource,
+  onScheduledCreated,
   onOpenScheduled,
 }: {
   wsId: string;
@@ -28,6 +29,7 @@ export function EmailHubViewDialogs({
   onComposeOpenChange: (open: boolean) => void;
   composeMode: ComposeMode;
   composeSource: EmailHubThread | null;
+  onScheduledCreated: (accountId: string) => void;
   onOpenScheduled: () => void;
 }) {
   return (
@@ -49,6 +51,7 @@ export function EmailHubViewDialogs({
         onOpenChange={onComposeOpenChange}
         mode={composeMode}
         sourceThread={composeSource}
+        onScheduledCreated={onScheduledCreated}
         onOpenScheduled={onOpenScheduled}
       />
     </>

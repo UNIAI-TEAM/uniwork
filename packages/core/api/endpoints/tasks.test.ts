@@ -148,9 +148,12 @@ describe("tasks endpoints", () => {
     expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual(schedule);
   });
 
-  it("deleteTask resolves with no body", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
-    await expect(deleteTask("t1")).resolves.toBeUndefined();
+  it("deleteTask returns the trash batch and degrades on drift", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ trash_batch_id: "b1", ids: ["t1", "t2"] }))
+      .mockResolvedValueOnce(json({ status: "ok" }));
+    await expect(deleteTask("t1")).resolves.toEqual({ trash_batch_id: "b1", ids: ["t1", "t2"] });
+    await expect(deleteTask("t1")).resolves.toEqual({ trash_batch_id: "", ids: [] });
   });
 
   it("listComments returns [] on drift", async () => {

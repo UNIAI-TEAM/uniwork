@@ -113,8 +113,12 @@ func (q *Queries) GetMaxTaskPinPosition(ctx context.Context, arg GetMaxTaskPinPo
 
 const listTaskPins = `-- name: ListTaskPins :many
 SELECT id, organization_id, workspace_id, user_id, item_type, item_id, position, created_at, updated_at FROM task_pins
-WHERE organization_id = $1 AND workspace_id = $2 AND user_id = $3
-ORDER BY position ASC, created_at ASC
+WHERE task_pins.organization_id = $1 AND task_pins.workspace_id = $2 AND task_pins.user_id = $3
+  AND NOT (task_pins.item_type = 'task' AND EXISTS (
+    SELECT 1 FROM tasks t WHERE t.id = task_pins.item_id AND t.trashed_at IS NOT NULL))
+  AND NOT (task_pins.item_type = 'project' AND EXISTS (
+    SELECT 1 FROM projects p WHERE p.id = task_pins.item_id AND p.trashed_at IS NOT NULL))
+ORDER BY task_pins.position ASC, task_pins.created_at ASC
 `
 
 type ListTaskPinsParams struct {

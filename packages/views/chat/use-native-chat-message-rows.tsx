@@ -34,6 +34,9 @@ export function useNativeChatMessageRows({
   threadRoot,
   highlightMessageId,
   openThreadRootId,
+  selectionActive = false,
+  selectedIds,
+  onToggleSelect,
 }: {
   messages: ChatMessage[];
   workspaceId: string;
@@ -52,6 +55,9 @@ export function useNativeChatMessageRows({
   threadRoot: ChatMessage | null;
   highlightMessageId: string | null;
   openThreadRootId: string | null;
+  selectionActive?: boolean;
+  selectedIds?: ReadonlySet<string>;
+  onToggleSelect?: (messageId: string) => void;
 }) {
   const layout = useMemo(
     () =>
@@ -105,10 +111,23 @@ export function useNativeChatMessageRows({
           context={rowContext}
           highlighted={message.id === highlightMessageId || message.id === openThreadRootId}
           isTimelineTail={index === messages.length - 1}
+          selectionActive={selectionActive}
+          selected={selectedIds?.has(message.id) ?? false}
+          onToggleSelect={onToggleSelect}
         />
       );
     },
-    [getVirtualRowKey, highlightMessageId, layout, messages, openThreadRootId, rowContext],
+    [
+      getVirtualRowKey,
+      highlightMessageId,
+      layout,
+      messages,
+      onToggleSelect,
+      openThreadRootId,
+      rowContext,
+      selectedIds,
+      selectionActive,
+    ],
   );
 
   const senderLabelOf = useCallback(

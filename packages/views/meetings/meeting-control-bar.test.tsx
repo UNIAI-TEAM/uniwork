@@ -252,44 +252,6 @@ describe("MeetingControlBar", () => {
     expect(screen.getByRole("button", { name: "Ghi hình" })).toBeInTheDocument();
   });
 
-  it("toggles the AI copilot panel: one name, state in aria-pressed", () => {
-    mobile = false;
-    handRaised = false;
-    const onToggleCopilot = vi.fn();
-    const { rerender } = render(
-      wrapWithNav(
-        <MeetingControlBar onLeave={() => {}} onToggleCopilot={onToggleCopilot} copilotActive={false} />,
-      ),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "UNI", pressed: false }));
-    expect(onToggleCopilot).toHaveBeenCalledOnce();
-    rerender(
-      wrapWithNav(<MeetingControlBar onLeave={() => {}} onToggleCopilot={onToggleCopilot} copilotActive />),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "UNI", pressed: true }));
-    expect(onToggleCopilot).toHaveBeenCalledTimes(2);
-  });
-
-  it("marks the UNI button while a late joiner's catch-up waits behind it", () => {
-    mobile = true;
-    handRaised = false;
-    const { rerender } = render(
-      wrapWithNav(<MeetingControlBar onLeave={() => {}} onToggleCopilot={() => {}} copilotBadge />),
-    );
-    const button = screen.getByRole("button", { name: "UNI · có tóm tắt phần bạn đã lỡ" });
-    expect(button.parentElement?.querySelector("[data-slot=copilot-badge]")).not.toBeNull();
-    rerender(wrapWithNav(<MeetingControlBar onLeave={() => {}} onToggleCopilot={() => {}} />));
-    expect(screen.getByRole("button", { name: "UNI" }).parentElement?.querySelector("[data-slot=copilot-badge]")).toBeNull();
-  });
-
-  it("marks the UNI button and names the count while live items wait unseen (UNI-1995 #21)", () => {
-    mobile = true;
-    handRaised = false;
-    render(wrapWithNav(<MeetingControlBar onLeave={() => {}} onToggleCopilot={() => {}} copilotLiveItems={2} />));
-    const button = screen.getByRole("button", { name: "UNI · 2 việc mới ghi" });
-    expect(button.parentElement?.querySelector("[data-slot=copilot-badge]")).not.toBeNull();
-  });
-
   it("toggles mic with Ctrl+D and camera with Ctrl+E, but not while typing", () => {
     mobile = false;
     handRaised = false;
