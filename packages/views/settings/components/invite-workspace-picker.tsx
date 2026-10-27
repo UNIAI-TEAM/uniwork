@@ -21,15 +21,22 @@ export function InviteWorkspacePicker({
   value,
   onChange,
   disabled,
+  label,
+  hint,
 }: {
   id: string;
   orgId: string;
   value: string[];
   onChange: (ids: string[]) => void;
   disabled: boolean;
+  /** Defaults to the email-invitation copy (UNI-1582). */
+  label?: string;
+  hint?: string;
 }) {
   const { t } = useTranslation();
   const { data: workspaces, isPending, isError, refetch } = useOrgWorkspaces(orgId);
+  const legend = label ?? t("org.invitations.workspaces_label");
+  const description = hint ?? t("org.invitations.workspaces_hint");
   const toggle = (wsId: string, on: boolean) =>
     onChange(on ? [...value.filter((v) => v !== wsId), wsId] : value.filter((v) => v !== wsId));
 
@@ -72,9 +79,9 @@ export function InviteWorkspacePicker({
   return (
     <FieldSet className="gap-2">
       <FieldLegend variant="label" className="mb-0">
-        {t("org.invitations.workspaces_label")}
+        {legend}
       </FieldLegend>
-      <FieldDescription>{t("org.invitations.workspaces_hint")}</FieldDescription>
+      <FieldDescription>{description}</FieldDescription>
       {body}
     </FieldSet>
   );

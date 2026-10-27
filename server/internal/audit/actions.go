@@ -37,6 +37,10 @@ const (
 	ActionDepartmentArchived = "department.archived"
 	ActionPeopleExported     = "people.exported"
 	ActionInvitationRevoked  = "invitation.revoked"
+	// Shareable membership invite links (UNI-2226): create and revoke only;
+	// joining still writes member.joined.
+	ActionMembershipInviteLinkCreated = "membership_invite_link.created"
+	ActionMembershipInviteLinkRevoked = "membership_invite_link.revoked"
 
 	ActionWorkspaceCreated         = "workspace.created"
 	ActionWorkspaceUpdated         = "workspace.updated"

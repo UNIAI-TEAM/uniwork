@@ -882,6 +882,12 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		if strings.HasPrefix(pattern, "/api/v1/documents/") {
 			return tn.get(t, "docLink")
 		}
+		if strings.Contains(pattern, "/invite-links/") {
+			if strings.Contains(pattern, "/orgs/") {
+				return tn.get(t, "membershipOrgInviteLink")
+			}
+			return tn.get(t, "membershipInviteLink")
+		}
 		return tn.get(t, "chatLink")
 	case "{resourceID}":
 		if under("/projects/") {

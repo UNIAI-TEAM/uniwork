@@ -984,5 +984,11 @@ var isoRoutes = map[string]isoSpec{
 	// Tenant rows named in the body rather than the path.
 	"GET /api/v1/invitations/{token}":         {class: isoScoped, skipControl: "the invitation is addressed to an invitee outside the tenant; only that verified mailbox may read it"},
 	"POST /api/v1/invitations/{token}/accept": {class: isoScoped, skipControl: "accepting consumes the invitation"},
-	"POST /api/v1/chat/voice/token":           {body: isoWith(map[string]string{"room_id": "room", "call_id": "callID"}, nil)},
+	"POST /api/v1/membership-invite-links/preview": {class: isoScoped, skipControl: "link_id+secret is the grant; holding both reveals only the linked org/workspace names", body: isoJSON(map[string]any{
+		"link_id": "01J8X4LNK0N1P2Q3R4S5T6U7V", "secret": "not-a-real-secret",
+	})},
+	"POST /api/v1/membership-invite-links/join": {class: isoScoped, skipControl: "link_id+secret is the grant; join creates membership only when the link is Active", body: isoJSON(map[string]any{
+		"link_id": "01J8X4LNK0N1P2Q3R4S5T6U7V", "secret": "not-a-real-secret",
+	})},
+	"POST /api/v1/chat/voice/token": {body: isoWith(map[string]string{"room_id": "room", "call_id": "callID"}, nil)},
 }

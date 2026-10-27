@@ -105,6 +105,52 @@ func registerWorkspaces(r api, h Routes) {
 		sdo:         sdo.InvitationCreateSDO{},
 		auth:        true,
 	})
+	r.Get("/workspaces/{workspaceID}/invite-links", h.ListWorkspaceInviteLinks, apiOp{
+		summary:     "List workspace invite links",
+		description: "Danh sách liên kết mời shareable của workspace. Chỉ owner/admin. Secret chỉ có khi link còn Active.",
+		tags:        []string{"workspaces"},
+		sdo:         sdo.MembershipInviteLinkListSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/invite-links", h.CreateWorkspaceInviteLink, apiOp{
+		summary:     "Create workspace invite link",
+		description: "Tạo liên kết mời vào đúng workspace này, vai trò Member, mặc định hết hạn sau 7 ngày (1–30).",
+		tags:        []string{"workspaces"},
+		sdi:         sdi.CreateMembershipInviteLinkSDI{},
+		sdo:         sdo.MembershipInviteLinkSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/invite-links/regenerate", h.RegenerateWorkspaceInviteLink, apiOp{
+		summary:     "Regenerate workspace invite link",
+		description: "Thu hồi link Active hiện có (nếu có) và tạo link mới cho workspace.",
+		tags:        []string{"workspaces"},
+		sdi:         sdi.CreateMembershipInviteLinkSDI{},
+		sdo:         sdo.MembershipInviteLinkSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/invite-links/{linkID}/revoke", h.RevokeWorkspaceInviteLink, apiOp{
+		summary:     "Revoke workspace invite link",
+		description: "Thu hồi một liên kết Active. Thành viên đã gia nhập không bị ảnh hưởng.",
+		tags:        []string{"workspaces"},
+		sdo:         sdo.MembershipInviteLinkSDO{},
+		auth:        true,
+	})
+	r.Post("/membership-invite-links/preview", h.PreviewMembershipInviteLink, apiOp{
+		summary:     "Preview membership invite link",
+		description: "Xem tổ chức/workspace gắn với link và trạng thái thành viên của người gọi. Không tạo membership.",
+		tags:        []string{"workspaces"},
+		sdi:         sdi.PreviewMembershipInviteLinkSDI{},
+		sdo:         sdo.MembershipInvitePreviewSDO{},
+		auth:        true,
+	})
+	r.Post("/membership-invite-links/join", h.JoinMembershipInviteLink, apiOp{
+		summary:     "Join via membership invite link",
+		description: "Gia nhập tổ chức và các workspace còn thiếu trong phạm vi link. Body resolve giống accept invitation khi cần chuyển tổ chức.",
+		tags:        []string{"workspaces"},
+		sdi:         sdi.JoinMembershipInviteLinkSDI{},
+		sdo:         sdo.MembershipInviteJoinSDO{},
+		auth:        true,
+	})
 	r.Get("/invitations/{token}", h.PreviewInvitation, apiOp{
 		summary: "Preview invitation",
 		description: "Lời mời theo token, ở mọi trạng thái (pending | expired | revoked | accepted), cho đúng tài khoản " +
