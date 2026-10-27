@@ -113,6 +113,11 @@ async function chooseMode(user: ReturnType<typeof userEvent.setup>, dialog: HTML
   await user.click(await screen.findByRole("option", { name: label }));
 }
 
+async function chooseWorkspaceLevel(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, label: string) {
+  await user.click(within(dialog).getByRole("combobox", { name: t("documents.folderAccess.workspace_level_label") }));
+  await user.click(await screen.findByRole("option", { name: label }));
+}
+
 const confirmButton = (dialog: HTMLElement) => within(dialog).getByRole("button", { name: t("documents.folderAccess.confirm") });
 
 async function review(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) {
@@ -192,18 +197,43 @@ describe("folder contents access dialog", () => {
     expect(await within(dialog).findByTestId("folder-access-summary")).toHaveTextContent("Will change 1 document · skip 1 you don't manage");
   });
 
-  it("shows the workspace row and the destructive Thay thế quyền in Replace mode, with who loses access", async () => {
+  it("starts the workspace row unchosen in Replace mode and holds Confirm until a level or Riêng tư is picked", async () => {
     const calls = transport({ dry: () => dryRunReplace });
+    const { user, dialog } = await openDialog();
+    await chooseMode(user, dialog, "Thay thế quyền cũ");
+    const workspaceSelect = within(dialog).getByRole("combobox", { name: t("documents.folderAccess.workspace_level_label") });
+    expect(workspaceSelect).toHaveTextContent(t("documents.folderAccess.workspace_level_choose"));
+    expect(workspaceSelect).not.toHaveTextContent("Riêng tư");
+    expect(confirmButton(dialog)).toHaveAttribute("aria-disabled", "true");
+    await user.click(confirmButton(dialog));
+    expect(puts(calls)).toHaveLength(0);
+
+    await chooseWorkspaceLevel(user, dialog, "Chỉ xem");
+    expect(workspaceSelect).toHaveTextContent("Chỉ xem");
+    expect(confirmButton(dialog)).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("lets Replace go on once Riêng tư is picked, and sends no workspace row", async () => {
+    const calls = transport({ dry: () => dryRunReplace });
+    const { user, dialog } = await openDialog();
+    await chooseMode(user, dialog, "Thay thế quyền cũ");
+    expect(confirmButton(dialog)).toHaveAttribute("aria-disabled", "true");
+    await chooseWorkspaceLevel(user, dialog, "Riêng tư");
+    expect(confirmButton(dialog)).not.toHaveAttribute("aria-disabled");
+    await review(user, dialog);
+    expect(puts(calls)[0]?.body).toEqual({ mode: "replace", dry_run: true, items: [] });
+  });
+
+  it("shows the workspace row and the destructive Thay thế quyền in Replace mode, with who loses access", async () => {
+    transport({ dry: () => dryRunReplace });
     const { user, dialog } = await openDialog();
     await chooseMode(user, dialog, "Thay thế quyền cũ");
     const row = within(dialog).getByTestId("folder-access-workspace-row");
     expect(row).toHaveTextContent(t("documents.folderAccess.workspace_row_unnamed"));
     expect(row).toHaveTextContent(t("documents.share.home_badge"));
-    expect(within(row).getByRole("combobox", { name: t("documents.folderAccess.workspace_level_label") })).toHaveTextContent("Riêng tư");
 
-    // Replace may be empty: it removes everyone else.
+    await chooseWorkspaceLevel(user, dialog, "Riêng tư");
     const summary = await review(user, dialog);
-    expect(puts(calls)[0]?.body).toEqual({ mode: "replace", dry_run: true, items: [] });
     expect(summary).toHaveTextContent("12 người mất quyền ở ít nhất một tài liệu");
     const apply = within(dialog).getByRole("button", { name: t("documents.folderAccess.apply_replace") });
     expect(apply.className).toMatch(/destructive/);
@@ -214,8 +244,7 @@ describe("folder contents access dialog", () => {
     const calls = transport({ dry: () => dryRunReplace });
     const { user, dialog } = await openDialog();
     await chooseMode(user, dialog, "Thay thế quyền cũ");
-    await user.click(within(dialog).getByRole("combobox", { name: t("documents.folderAccess.workspace_level_label") }));
-    await user.click(await screen.findByRole("option", { name: "Chỉnh sửa" }));
+    await chooseWorkspaceLevel(user, dialog, "Chỉnh sửa");
     await review(user, dialog);
     expect(puts(calls)[0]?.body?.items).toEqual([{ principal_type: "workspace", principal_id: WS, level: "edit" }]);
   });
@@ -224,6 +253,7 @@ describe("folder contents access dialog", () => {
     transport({ dry: () => dryRunReplace });
     const { user, dialog } = await openDialog();
     await chooseMode(user, dialog, "Thay thế quyền cũ");
+    await chooseWorkspaceLevel(user, dialog, "Riêng tư");
     const summary = await review(user, dialog);
     expect(within(summary).getByTestId("folder-access-warning-wide_scope")).toHaveTextContent(t("documents.folderAccess.warning_wide_scope"));
     expect(within(summary).getByTestId("folder-access-warning-to_private")).toHaveTextContent(t("documents.folderAccess.warning_to_private"));
