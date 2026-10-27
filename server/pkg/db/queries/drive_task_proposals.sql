@@ -148,6 +148,7 @@ JOIN tasks t
   ON t.id = l.task_id
  AND t.organization_id = l.organization_id
  AND t.workspace_id = l.workspace_id
+ AND t.trashed_at IS NULL
 LEFT JOIN users u
   ON u.id = l.created_by
 WHERE l.organization_id = sqlc.arg('organization_id')
@@ -175,6 +176,7 @@ JOIN tasks t
   ON t.id = l.task_id
  AND t.organization_id = l.organization_id
  AND t.workspace_id = l.workspace_id
+ AND t.trashed_at IS NULL
 LEFT JOIN users u
   ON u.id = l.created_by
 WHERE l.organization_id = sqlc.arg('organization_id')
