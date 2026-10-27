@@ -59,6 +59,10 @@ CREATE TABLE sign_in_email_claims (
 ```
 
 - `sign_in_email_claims` vào `tenantExemptTables` (lý do: danh tính, chưa có tổ chức, như `email_verification_codes`).
+  Lát 2 thêm `idx_sign_in_email_claims_ticket (ticket_hash, created_at DESC)` trong file riêng, `CONCURRENTLY` (cổng
+  gửi lại và kiểm mã đều đọc theo vé); `GetActiveSignInEmailClaim` khoá hàng (`FOR UPDATE`) để các lần đoán đồng thời
+  xếp hàng. `CreateGoogleUser`/`CreateAppleUser` nhận địa chỉ nhà cung cấp (`google_email`/`apple_email`) riêng với
+  địa chỉ tài khoản: tài khoản tạo qua "email khác" mang địa chỉ công việc, liên kết giữ địa chỉ nhà cung cấp.
 - `*_linked_at`, `password_changed_at` để NULL ở hàng cũ: SDO cho phép null, giao diện có câu không ngày.
 - Query mới chỉ chạm `users` / `email_verification_codes` / `sign_in_email_claims` (đều miễn tenant) nên ⚑ **không**
   mang dòng `-- tenant:` (`TestTenantReasonsSitOnTenantQueries` từ chối dòng thừa).
@@ -146,7 +150,9 @@ key_hash, intent, iat, exp}` — TTL 15 phút.
 
 - **Web**: chỉ trong cookie `uniwork_sign_in_ticket` (HttpOnly, `Path=/api/v1/auth`, `SameSite=Lax`,
   `Secure=Cfg.SecureCookies`, 900 s). Mọi đăng nhập thành công **không ở chế độ liên kết** và mọi lần đăng xuất xoá
-  cookie này.
+  cookie này. Chế độ liên kết được nói ra như sau: `POST /auth/login`, `/auth/mfa/verify`, `/auth/password/reset`
+  nhận `keep_sign_in_ticket: true` (trang `/login?link=1` gửi); đăng nhập nhà cung cấp giữ vé khi `next` là
+  `/auth/continue?step=link…`; `/auth/register` luôn xoá; bước có thử thách MFA chưa xoá (chưa có phiên).
 - **Native**: chỉ trong JSON. ⚑ `key_hash` = SHA-256 của nonce gốc mà app đã dùng cho sheet Apple/Google; mọi lệnh
   dùng vé native phải gửi lại `nonce` gốc. Vé lọt ra log không dùng được nếu không có nonce.
 
@@ -162,17 +168,34 @@ key_hash, intent, iat, exp}` — TTL 15 phút.
 | `POST /api/v1/auth/native/sign-in-ticket/claim-email` (+ `/verify`) | — | `{ticket, nonce, email[, code, display_name]}` | như web, kết quả `NativeSignInSDO` |
 | `POST /api/v1/auth/native/sign-in-ticket/link` | bearer native | `{ticket, nonce, move?}` | `SignInMethodsChangeSDO` |
 
-- `create`: chỉ với vé `kind=unmatched`; email đã có người (xuất hiện sau khi cấp vé) → `409 sign_in_account_conflict`.
-  `display_name` bắt buộc khi `identity.name` rỗng.
+- Vé thiếu, hết hạn, hỏng hay niêm phong cho purpose khác → `404 sign_in_ticket_missing` ở mọi route vé (web xoá
+  cookie); vé native gửi thiếu hay sai `nonce`, `client_id`, `deployment_id`, hoặc vé của kênh kia →
+  `400 sign_in_ticket_channel`. Lõi của các lệnh (`createQ`, `claimQ`, `attachIdentity`, binding native và kiểm
+  `key_hash`) đã có từ lát 2; route native (lát 5) chỉ thêm handler và phiên thiết bị.
+- `create`: chỉ với vé `kind=unmatched` (vé `link_required` → `409 sign_in_account_conflict`); email đã có người
+  (xuất hiện sau khi cấp vé) → `409 sign_in_account_conflict`. `display_name` bắt buộc khi `identity.name` rỗng (tối đa
+  100 ký tự). Danh tính đã mở một tài khoản (cùng vé đã tạo ở tab khác) thì đăng nhập vào đó — đó là tính idempotent.
+  Audit `auth.login_succeeded {via:"ticket", provider, account: created|subject}` trong giao dịch.
 - ⚑ `intent=sign_up` (từ `/register` web và màn đăng ký của app): `unmatched` tạo tài khoản ngay, không màn chọn.
 - ⚑ **Email khác** (người được mời bằng email công việc, khác Apple/Google ID): mã 6 số gửi tới địa chỉ nhập, 15 phút,
   5 lần thử, gửi lại sau 60 s, mail `sign_in_email_claim`. Đúng mã: địa chỉ đó có tài khoản đã xác minh → liên kết danh
   tính vào đó (bật MFA thì qua bước hai với `pl`); có tài khoản chưa xác minh → `reclaim` vào đó (hộp thư đã được chứng
   minh); không có → tạo tài khoản với địa chỉ đó (`email_verified_at` có) rồi liên kết. Audit `via:"email_claim"`.
+  Mã không bao giờ nhận `DEV_VERIFICATION_CODE` (nó chứng minh hộp thư của người khác và mở một tài khoản). Gửi lại
+  sớm → `429 rate_limited` kèm `retry_after` (giới hạn theo vé, mọi địa chỉ, để một vé không rải mã); sai mã →
+  `400 invalid_code`; năm lần sai thì mã chết; địa chỉ không hợp lệ → `400 invalid_request`. Lúc xác nhận mà danh tính
+  đã mở một tài khoản: cùng địa chỉ → đăng nhập vào đó; khác → `409 sign_in_method_taken`. Tài khoản của địa chỉ đã
+  gắn subject khác của nhà cung cấp → `409 sign_in_method_already_linked`. Tạo mới lấy tên `display_name`, không có thì
+  tên nhà cung cấp, không có nữa thì phần trước @: không hỏi tên trước khi mã đúng, để không lộ địa chỉ có tài khoản
+  hay không. `pl` của nhánh MFA mang `via: email_claim`: sau bước hai chỉ kiểm subject chưa thuộc ai và tài khoản chưa
+  gắn subject khác (địa chỉ nhà cung cấp không phải của tài khoản nên không khớp lại theo email). Mail `linked` gửi
+  chủ tài khoản và email nhà cung cấp khi khác và không phải relay.
 - ⚑ **`link` từ vé chỉ nhận phiên mới hơn vé**: web — thời điểm tạo phiên (`MIN(refresh_tokens.created_at)` theo
   `session_id` của access token) ≥ `ticket.iat`; native — `device_sessions.created_at` ≥ `ticket.iat` và cùng
   `client_id`/`deployment_id`. Không thì `403 proof_required` (dùng step-up token, 3.7). Kênh lệch → `400
-  sign_in_ticket_channel`.
+  sign_in_ticket_channel`. Phiên của bearer không còn sống (đã đăng xuất, thiết bị bị thu hồi) → `401 invalid_token`;
+  token web cũ hơn `credentials_revoked_at` cũng vậy (3.7); tài khoản chưa xác minh email → `403 email_unverified`;
+  đã liên kết đúng subject này → thành công, không ghi gì.
 - Quy tắc liên kết như 3.7: subject đã thuộc người khác → `409 sign_in_method_taken` (hoặc `sign_in_method_movable`,
   xem dưới); người dùng đã gắn subject khác của nhà cung cấp đó → `409 sign_in_method_already_linked`. Audit
   `via:"ticket"`. Mail `linked` gửi chủ tài khoản, và tới email của nhà cung cấp khi khác và không phải relay.
@@ -181,7 +204,19 @@ key_hash, intent, iat, exp}` — TTL 15 phút.
   Gửi lại với `move: true` (chỉ khi danh tính vừa được chứng minh: vé, callback liên kết, token native): trong một
   giao dịch gỡ danh tính khỏi tài khoản rỗng, ẩn danh hoá nó (`AnonymizeUser` + thu hồi phiên), liên kết vào người gọi;
   audit `via:"move"` trên cả hai; mail cả hai. Tài khoản kia không rỗng → `sign_in_method_taken` kèm email đã che, để
-  người dùng biết đăng nhập vào đâu mà gỡ.
+  người dùng biết đăng nhập vào đâu mà gỡ. Cụ thể (lát 2): "rỗng" = không hàng `organization_members` nào **và** không
+  hàng audit `organization_member` (`member.joined`/`member.left`) nào, vì rời tổ chức xoá hàng thành viên còn audit
+  thì không; kiểm dưới `LockUserMembership` của tài khoản rỗng. Chuyển = xoá như xoá tài khoản (ẩn danh hoá, thu hồi
+  phiên, thiết bị, push, MCP grant, lượt đồng ý desktop/MCP đang mở, link reset, mã email; nhả ảnh đại diện); audit
+  trên tài khoản rỗng `auth.sign_in_method_unlinked {provider, via:"move", moved_to}` (action có từ lát này),
+  `auth.session_revoked {reason:"moved"}` (+ `session.revoked`), `user.deleted {reason:"moved"}`; trên người gọi
+  `auth.sign_in_method_linked {via:"move", moved_from}`. Chuyển Apple thì token Apple đi theo danh tính; chuyển Google
+  thì token Apple của tài khoản rỗng (nếu có) được trả lại Apple sau commit. Mail `moved` tới địa chỉ cũ của tài khoản
+  rỗng (chiều đi) và người gọi (chiều đến); địa chỉ nhà cung cấp chỉ khi khác cả hai và không phải relay.
+- `DELETE` ("Hủy") trả lại Apple token vé mang (nếu có), như route Apple cũ trả token của một lần đăng nhập không thành;
+  trừ khi Apple ID đó đã mở một tài khoản (cùng vé đã tạo ở tab khác), tài khoản ấy giữ token.
+- `SignInMethodsSDO.proofs` tính sẵn từ lát 2 (`totp` khi bật MFA; không thì `password` nếu có, `email_code`, và trên
+  app `apple`/`google` đã liên kết); step-up dùng nó ở lát 3.
 
 ### 3.3 Thử thách MFA gắn kênh, liên kết chờ, khoá khi đoán
 
@@ -257,7 +292,11 @@ Mã lỗi trên `/login`: `google_denied`, `google_failed`, `google_unverified`,
 **Chống login CSRF** ⚑: route công khai đặt cookie hay mở phiên (`/auth/login`, `/auth/register`, `/auth/mfa/verify`,
 `/auth/password/reset`, `/auth/sign-in-ticket*`) qua middleware `mw.SameSiteJSON`: từ chối `Sec-Fetch-Site: cross-site`
 và Content-Type không phải `application/json` → `415`/`403 cross_site_request`. Client native không gửi
-`Sec-Fetch-Site` nên không bị ảnh hưởng. `TestCredentialRoutesRefuseCrossSiteForms`.
+`Sec-Fetch-Site` nên không bị ảnh hưởng. `TestCredentialRoutesRefuseCrossSiteForms`. Lát 2: `Sec-Fetch-Site:
+cross-site` → `403 cross_site_request`; body (POST/PUT/PATCH) không phải `application/json`, kể cả thiếu Content-Type
+→ `415 unsupported_media_type`; GET/DELETE chỉ xét dòng đầu. Middleware chạy trước ngân sách credential, nên form một
+trang khác đẩy tới không tiêu ngân sách của địa chỉ. Áp cả cho `POST /auth/sign-in-ticket/link` (bearer, tiêu cookie
+vé).
 
 ### 3.5 Gợi ý nhà cung cấp cho PKCE
 
@@ -632,6 +671,9 @@ Một nhánh, commit theo lát, mỗi lát để server chạy được:
    Google web (3.3), khoá bước hai, cổng `credentials_revoked_at` cho đồng ý desktop/MCP, `revokeOtherUserSessions`.
 2. Vé + màn chọn server (create, claim-email, link, move, `intent=sign_up`), `pl` cho vé và "email khác", chống login
    CSRF, `/auth/providers`, gợi ý PKCE. Từ lát này `unmatched` ra vé — **cùng PR** với trang `/auth/continue` của web.
+   Lát 2 (server) đã làm phần route web; `link_required` của Google web cũng ra vé (bỏ lời từ chối tạm của lát 1).
+   `/auth/providers` có `apple_web`, `google_native` (luôn `false` tới lát 4, 5). Còn lại: step-up thay
+   `proof_required` khi phiên cũ hơn vé (lát 3), route native vé (lát 5).
 3. Step-up + phương thức đăng nhập + mật khẩu + quên mật khẩu không mật khẩu + xoá tài khoản/chuyển quyền dùng step-up +
    mail + ngân sách thử.
 4. Apple web.
