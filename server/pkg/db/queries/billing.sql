@@ -323,7 +323,6 @@ ORDER BY updated_at, id
 LIMIT $1;
 
 -- name: TouchInvoiceRefundReconcile :exec
--- tenant: parent organization_id
 UPDATE invoices SET updated_at = now()
 WHERE id = $1 AND organization_id = $2
   AND status IN ('refund_pending', 'partial_refund_pending');

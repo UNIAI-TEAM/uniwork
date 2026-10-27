@@ -1768,7 +1768,6 @@ type TouchInvoiceRefundReconcileParams struct {
 	OrganizationID string `json:"organization_id"`
 }
 
-// tenant: parent organization_id
 func (q *Queries) TouchInvoiceRefundReconcile(ctx context.Context, arg TouchInvoiceRefundReconcileParams) error {
 	_, err := q.db.Exec(ctx, touchInvoiceRefundReconcile, arg.ID, arg.OrganizationID)
 	return err
