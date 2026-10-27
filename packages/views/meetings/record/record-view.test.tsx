@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
+import { meetingKeys } from "@uniwork/core/meetings";
 import { memoryRecordingStore, type RecordingStore } from "@uniwork/core/meetings/recorder";
 import type { Meeting, User } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../../test/api-mock";
@@ -60,10 +62,12 @@ function route({
   transcription = true,
   over = {},
   capsFail = false,
-}: { transcription?: boolean; over?: Partial<Meeting>; capsFail?: boolean } = {}) {
+  rosterFail = () => false,
+}: { transcription?: boolean; over?: Partial<Meeting>; capsFail?: boolean; rosterFail?: () => boolean } = {}) {
   requestMock.mockImplementation(async (path: string) => {
     if (path === "/api/v1/meetings/m1") return { meeting: { ...meeting, ...over } };
     if (path === "/api/v1/meetings/m1/participants") {
+      if (rosterFail()) throw new TypeError("Failed to fetch");
       return {
         participants: [
           { id: "p1", meeting_id: "m1", principal_type: "USER", user_id: USER.id, status: "ACTIVE", role: "HOST" },
@@ -81,10 +85,12 @@ function route({
   });
 }
 
-function renderView(store: RecordingStore, onBack = vi.fn()) {
+function renderView(store: RecordingStore, onBack = vi.fn(), client?: QueryClient) {
   render(
     wrapWithNav(
       <MeetingRecordView workspaceId="w1" meetingId="m1" store={store} onBack={onBack} onSent={vi.fn()} meetingsHref="/o/w/meetings" />,
+      undefined,
+      client,
     ),
   );
   return onBack;
@@ -203,11 +209,26 @@ describe("MeetingRecordView", () => {
     ["the viewer is not a clerk", { over: { host_user_id: "u-ha", created_by: "u-ha" } }],
     ["the meeting is online", { over: { venue: "online" } }],
     ["the capabilities cannot be read", { capsFail: true }],
+    ["the roster cannot be read", { rosterFail: () => true }],
   ] as const)("sends the viewer back to the meeting when %s", async (_why, opts) => {
     route(opts);
     const onBack = renderView(memoryRecordingStore());
     await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
     expect(screen.queryByText("Đang ghi âm")).not.toBeInTheDocument();
+  });
+
+  it("a refetch error while recording keeps recording", async () => {
+    let rosterDown = false;
+    route({ rosterFail: () => rosterDown });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const onBack = renderView(memoryRecordingStore(), vi.fn(), client);
+    await startRecording();
+
+    rosterDown = true;
+    await act(() => client.invalidateQueries({ queryKey: meetingKeys.participants("m1") }));
+    await waitFor(() => expect(client.getQueryState(meetingKeys.participants("m1"))?.status).toBe("error"));
+    expect(screen.getByText("Đang ghi âm")).toBeInTheDocument();
+    expect(onBack).not.toHaveBeenCalled();
   });
 
   it("holds the start until the device has said what it already holds", async () => {
