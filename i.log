@@ -1,0 +1,116 @@
+$ export NEXT_PUBLIC_API_URL=http://localhost:18646 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:18646 DEV_VERIFICATION_CODE=123456; rm -rf e2e/test-results; pnpm --filter @uniwork/e2e exec playwright test e2e/documents-folder-contents-access.spec.ts --reporter=list > /tmp/fca2-new.log 2>&1; rc=$?; grep -vE "^\s+at " /tmp/fca2-new.log | grep -A60 -E "^\s+[0-9]+\) " | head -n 300; grep -E "^\s+[0-9]+ (passed|failed|skipped|flaky|did not run)" /tmp/fca2-new.log; tail -n 40 /tmp/fca2-new.log; echo; echo "E2E_FCA_EXIT=$rc"
+  1) documents-folder-contents-access.spec.ts:170:1 › merge: dry run counts the skipped document, apply writes the subtree and leaves the foreign page alone 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: getByTestId('folder-access-menu-item')
+    Expected: "Chia sẻ các tài liệu bên trong…"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for getByTestId('folder-access-menu-item')
+
+
+      142 |   await card.hover();
+      143 |   await L.cardMenu(page, folderTitle).click();
+    > 144 |   await expect(L.menuItem(page)).toHaveText(MENU_LABEL);
+          |                                  ^
+      145 |   await L.menuItem(page).click();
+      146 |   const dialog = L.dialog(page);
+      147 |   await expect(dialog).toBeVisible({ timeout: 30_000 });
+
+    Error Context: test-results/documents-folder-contents--f0bb0-aves-the-foreign-page-alone/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folder-contents--f0bb0-aves-the-foreign-page-alone/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folder-contents--f0bb0-aves-the-foreign-page-alone/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) documents-folder-contents-access.spec.ts:214:1 › replace: Confirm waits for a workspace choice, then the shares are exactly the chosen set 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: getByTestId('folder-access-menu-item')
+    Expected: "Chia sẻ các tài liệu bên trong…"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for getByTestId('folder-access-menu-item')
+
+
+      142 |   await card.hover();
+      143 |   await L.cardMenu(page, folderTitle).click();
+    > 144 |   await expect(L.menuItem(page)).toHaveText(MENU_LABEL);
+          |                                  ^
+      145 |   await L.menuItem(page).click();
+      146 |   const dialog = L.dialog(page);
+      147 |   await expect(dialog).toBeVisible({ timeout: 30_000 });
+
+    Error Context: test-results/documents-folder-contents--da1ef--are-exactly-the-chosen-set/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folder-contents--da1ef--are-exactly-the-chosen-set/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folder-contents--da1ef--are-exactly-the-chosen-set/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    documents-folder-contents-access.spec.ts:170:1 › merge: dry run counts the skipped document, apply writes the subtree and leaves the foreign page alone 
+    documents-folder-contents-access.spec.ts:214:1 › replace: Confirm waits for a workspace choice, then the shares are exactly the chosen set 
+  1 skipped
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test e2e/documents-folder-contents-access.spec.ts --reporter=list
+  2 failed
+  1 skipped
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: getByTestId('folder-access-menu-item')
+    Expected: "Chia sẻ các tài liệu bên trong…"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" with timeout 5000ms
+      - waiting for getByTestId('folder-access-menu-item')
+
+
+      142 |   await card.hover();
+      143 |   await L.cardMenu(page, folderTitle).click();
+    > 144 |   await expect(L.menuItem(page)).toHaveText(MENU_LABEL);
+          |                                  ^
+      145 |   await L.menuItem(page).click();
+      146 |   const dialog = L.dialog(page);
+      147 |   await expect(dialog).toBeVisible({ timeout: 30_000 });
+        at openFolderAccess (/workspace/e2e/documents-folder-contents-access.spec.ts:144:34)
+        at /workspace/e2e/documents-folder-contents-access.spec.ts:222:18
+
+    Error Context: test-results/documents-folder-contents--da1ef--are-exactly-the-chosen-set/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/documents-folder-contents--da1ef--are-exactly-the-chosen-set/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/documents-folder-contents--da1ef--are-exactly-the-chosen-set/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    documents-folder-contents-access.spec.ts:170:1 › merge: dry run counts the skipped document, apply writes the subtree and leaves the foreign page alone 
+    documents-folder-contents-access.spec.ts:214:1 › replace: Confirm waits for a workspace choice, then the shares are exactly the chosen set 
+  1 skipped
+undefined
+/workspace/e2e:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: playwright test e2e/documents-folder-contents-access.spec.ts --reporter=list
+
+E2E_FCA_EXIT=1

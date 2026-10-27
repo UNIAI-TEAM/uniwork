@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^7b10f4f17" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=7b10f4f1773fa1e9a70d935e27e851c8ee4c4108
+7b10f4f17 Merge commit 'f37f8c926' into feature/UNI-2244-folder-bulk-access-e2e
+f37f8c926 feat(documents): compact the search view destructure to keep documents-page-view under max-lines
+29ab6b3bc Merge commit 'f4a800c4e' into feature/UNI-2244-folder-bulk-access-e2e
+3c8747ee2 test(documents): cover the folder access 409 without a batch id
