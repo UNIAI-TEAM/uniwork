@@ -490,6 +490,15 @@ describe("DriveTaskFileCard", () => {
       "Kết nối Google Drive mai-lost@gmail.com đã hết hạn.",
     );
 
+    const cardHint = screen.getByTestId("drive-consent-hint");
+    expect(cardHint).toHaveTextContent(
+      "Ở màn hình của Google, hãy tick ô quyền truy cập tệp Google Drive rồi bấm Tiếp tục.",
+    );
+    expect(
+      cardHint.compareDocumentPosition(screen.getByRole("button", { name: "Kết nối lại" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
     fireEvent.click(screen.getByRole("button", { name: "Kết nối lại" }));
 
     await waitFor(() => {

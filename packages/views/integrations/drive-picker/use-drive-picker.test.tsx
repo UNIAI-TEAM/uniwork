@@ -438,11 +438,16 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
       "true",
     );
     expect(within(lostRow).getByText("Mất kết nối")).toBeInTheDocument();
+    const lostReconnectBtn = within(lostRow).getByRole("button", {
+      name: "Kết nối lại expired@vietants.vn",
+    });
+    expect(lostReconnectBtn).toBeInTheDocument();
+    // The dialog shows the consent hint above the account list, before Reconnect opens Google.
     expect(
-      within(lostRow).getByRole("button", {
-        name: "Kết nối lại expired@vietants.vn",
-      }),
-    ).toBeInTheDocument();
+      screen
+        .getByTestId("drive-consent-hint")
+        .compareDocumentPosition(lostReconnectBtn) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     // Clicking the locked radio does not select it
     fireEvent.click(within(lostRow).getByRole("radio"));
@@ -536,6 +541,17 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
     expect(
       within(emptyDialog).getByRole("heading", { name: "Kết nối Google Drive" }),
     ).toBeInTheDocument();
+
+    // The consent hint is in the dialog before the Connect button leads to Google.
+    const pickerHint = within(emptyDialog).getByTestId("drive-consent-hint");
+    expect(pickerHint).toHaveTextContent(
+      "Ở màn hình của Google, hãy tick ô quyền truy cập tệp Google Drive rồi bấm Tiếp tục.",
+    );
+    expect(
+      pickerHint.compareDocumentPosition(
+        within(emptyDialog).getByRole("button", { name: "Kết nối Google Drive" }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     // Click "Kết nối Google Drive" inside the dialog -> opens popup & posts start without reconnect_connection_id
     fireEvent.click(
