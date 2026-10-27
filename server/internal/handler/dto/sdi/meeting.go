@@ -15,6 +15,7 @@ type CreateMeetingSDI struct {
 	AllowJoinRequest  *bool     `json:"allow_join_request"`
 	ProjectID         string    `json:"project_id" example:""`
 	AttendeeUserIDs   []string  `json:"attendee_user_ids"`
+	Venue             string    `json:"venue" enum:"online,in_person" description:"Hình thức: online có phòng họp; in_person ghi âm tại phòng" example:"online"`
 	PreviousMeetingID string    `json:"previous_meeting_id,omitempty" description:"ULID cuộc họp mà cuộc họp này là buổi tiếp theo: cuộc họp mới vào cùng chuỗi, việc chưa xong được mang sang theo chuỗi" example:""`
 }
 
@@ -46,6 +47,7 @@ type PatchMeetingSDI struct {
 	Timezone         *string    `json:"timezone"`
 	AllowJoinRequest *bool      `json:"allow_join_request"`
 	ProjectID        *string    `json:"project_id"`
+	Venue            *string    `json:"venue" enum:"online,in_person" description:"Hình thức: online có phòng họp; in_person ghi âm tại phòng" example:"online"`
 	QuorumPercent    *int       `json:"quorum_percent" minimum:"0" maximum:"100" description:"Tỉ lệ có mặt tối thiểu (%); 0 = bỏ yêu cầu" example:"60"`
 }
 

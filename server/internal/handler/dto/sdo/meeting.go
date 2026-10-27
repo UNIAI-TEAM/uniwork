@@ -28,6 +28,7 @@ type MeetingDTO struct {
 	CreatedAt        string `json:"created_at" example:"2026-08-28T02:00:00Z"`
 	Status           string `json:"status" example:"SCHEDULED"`
 	MeetingType      string `json:"meeting_type" example:"SCHEDULED"`
+	Venue            string `json:"venue" enum:"online,in_person" description:"Hình thức: online có phòng họp; in_person ghi âm tại phòng" example:"online"`
 	HostUserID       string `json:"host_user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	Timezone         string `json:"timezone" example:"UTC"`
 	AllowJoinRequest bool   `json:"allow_join_request"`

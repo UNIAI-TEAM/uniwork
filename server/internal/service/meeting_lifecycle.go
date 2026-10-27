@@ -57,7 +57,7 @@ func (s *MeetingService) CreateInstantKeyed(ctx context.Context, userID, workspa
 		EndsAt:   pgtype.Timestamptz{Time: now.Add(time.Hour), Valid: true},
 		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeInstant,
-		HostUserID: userID, Timezone: tz, AllowJoinRequest: true,
+		HostUserID: userID, Timezone: tz, AllowJoinRequest: true, Venue: MeetingVenueOnline,
 	})
 	if err != nil {
 		return db.Meeting{}, err

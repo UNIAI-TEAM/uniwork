@@ -27,7 +27,7 @@ func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
 	d := sdo.MeetingDTO{
 		ID: m.ID, WorkspaceID: m.WorkspaceID, Title: m.Title, Description: m.Description,
 		StartsAt: rfc3339(m.StartsAt), EndsAt: rfc3339(m.EndsAt),
-		RoomName: m.RoomName, CreatedBy: m.CreatedBy, CreatedAt: rfc3339(m.CreatedAt), Status: m.Status, MeetingType: m.MeetingType,
+		RoomName: m.RoomName, CreatedBy: m.CreatedBy, CreatedAt: rfc3339(m.CreatedAt), Status: m.Status, MeetingType: m.MeetingType, Venue: m.Venue,
 		HostUserID: m.HostUserID, Timezone: m.Timezone, AllowJoinRequest: m.AllowJoinRequest,
 		ProjectID: m.ProjectID.String, ActualStartAt: rfc3339(m.ActualStartAt), ActualEndAt: rfc3339(m.ActualEndAt),
 		Version: m.Version, ScribeEnabled: !m.ScribeOffAt.Valid, AIContentShared: m.AiContentSharedAt.Valid,
@@ -93,7 +93,7 @@ func (h *handlers) createMeeting(w http.ResponseWriter, r *http.Request) {
 		service.CreateMeetingInput{
 			Title: in.Title, Description: in.Description, StartsAt: in.StartsAt, EndsAt: in.EndsAt,
 			Timezone: in.Timezone, AllowJoinRequest: in.AllowJoinRequest, ProjectID: in.ProjectID,
-			AttendeeUserIDs: in.AttendeeUserIDs, FollowUpOf: in.PreviousMeetingID,
+			AttendeeUserIDs: in.AttendeeUserIDs, FollowUpOf: in.PreviousMeetingID, Venue: in.Venue,
 			IdempotencyKey: r.Header.Get("Idempotency-Key"),
 		})
 	if err != nil {
@@ -143,7 +143,7 @@ func (h *handlers) updateMeeting(w http.ResponseWriter, r *http.Request) {
 		service.UpdateMeetingInput{
 			Title: in.Title, Description: in.Description, StartsAt: in.StartsAt, EndsAt: in.EndsAt,
 			Timezone: in.Timezone, AllowJoinRequest: in.AllowJoinRequest, ProjectID: in.ProjectID,
-			QuorumPercent: in.QuorumPercent,
+			QuorumPercent: in.QuorumPercent, Venue: in.Venue,
 		})
 	if err != nil {
 		h.mapServiceError(w, err)
