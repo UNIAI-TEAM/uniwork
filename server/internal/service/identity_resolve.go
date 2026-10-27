@@ -549,7 +549,7 @@ func reclaimMailbox(ctx context.Context, q *db.Queries, userID string) (reclaime
 			return reclaimed{}, err
 		}
 	}
-	if err := q.MarkCredentialsRevoked(ctx, userID); err != nil {
+	if err := markCredentialsRevoked(ctx, q, userID); err != nil {
 		return reclaimed{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{

@@ -1092,15 +1092,21 @@ func (q *Queries) ListUserAvatarFileIDs(ctx context.Context, fileIds []string) (
 }
 
 const markCredentialsRevoked = `-- name: MarkCredentialsRevoked :exec
-UPDATE users SET credentials_revoked_at = date_trunc('second', now()), updated_at = now()
-WHERE id = $1
+UPDATE users SET credentials_revoked_at = $1::timestamptz, updated_at = now()
+WHERE id = $2
 `
 
+type MarkCredentialsRevokedParams struct {
+	MarkedAt pgtype.Timestamptz `json:"marked_at"`
+	ID       string             `json:"id"`
+}
+
 // Sensitive commands refuse an access token issued before this (ADR 0047).
-// Truncated to the second because a token's iat is: the session the same
-// command hands out is not older than the mark.
-func (q *Queries) MarkCredentialsRevoked(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, markCredentialsRevoked, id)
+// The caller passes the second of its own clock, the one every token's iat
+// comes from, so the session the same command hands out is never older than
+// the mark however far the database's clock runs from the server's.
+func (q *Queries) MarkCredentialsRevoked(ctx context.Context, arg MarkCredentialsRevokedParams) error {
+	_, err := q.db.Exec(ctx, markCredentialsRevoked, arg.MarkedAt, arg.ID)
 	return err
 }
 

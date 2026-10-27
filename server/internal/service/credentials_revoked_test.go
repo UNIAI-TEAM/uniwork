@@ -58,7 +58,7 @@ func TestCredentialsRevokedAtRefusesOlderWebTokens(t *testing.T) {
 		f := newIdentityFixture(t)
 		u := registerVerified(t, f.q, f.auth, "creds-desktop@example.com", "Creds")
 		sid := startWebSession(t, f.q, u.ID)
-		if err := f.q.MarkCredentialsRevoked(f.ctx, u.ID); err != nil {
+		if err := markCredentialsRevoked(f.ctx, f.q, u.ID); err != nil {
 			t.Fatal(err)
 		}
 		mark := f.user(t, u.ID).CredentialsRevokedAt.Time
@@ -126,7 +126,7 @@ func TestCredentialsRevokedAtRefusesOlderWebTokens(t *testing.T) {
 		w.enable(t)
 		c := w.publicClient(t, "https://x.test/cb")
 		sid := startWebSession(t, w.q, w.owner.ID)
-		if err := w.q.MarkCredentialsRevoked(w.ctx, w.owner.ID); err != nil {
+		if err := markCredentialsRevoked(w.ctx, w.q, w.owner.ID); err != nil {
 			t.Fatal(err)
 		}
 		owner, err := w.q.GetUserByID(w.ctx, w.owner.ID)
@@ -234,5 +234,44 @@ func TestAResetLinkEndsWhatTheOldPasswordLetIn(t *testing.T) {
 	refusedAsRevoked(t, err)
 	if _, err := f.approveFrom(t, owner, u.ID, "kept"); err != nil {
 		t.Fatalf("the session that signed the others out approves: %v", err)
+	}
+}
+
+// The mark and a token's iat are compared at one-second precision, so both
+// come from one clock, the server's, which mints every iat (ADR 0047): a
+// change marked just before the server's second turns is stamped with that
+// second, not the next one because the database's clock runs ahead, which
+// would make the session the same change kept, refreshed right after, older
+// than its own mark and refused on every sensitive command.
+func TestTheCredentialMarkIsTheServersSecond(t *testing.T) {
+	f := newIdentityFixture(t)
+	u := registerVerified(t, f.q, f.auth, "mark-clock@example.com", "Mark")
+	ctx, sess := f.browser(t, u.ID)
+	for i := 0; i < 3; i++ {
+		time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second - 40*time.Millisecond)))
+		before := time.Now().Truncate(time.Second)
+		tx, err := f.pool.Begin(f.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := signOthersOut(ctx, f.q.WithTx(tx), u.ID, "password_changed"); err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.Commit(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		after := time.Now()
+		if mark := f.user(t, u.ID).CredentialsRevokedAt.Time; mark.Before(before) || mark.After(after) {
+			t.Fatalf("change %d marked %v, outside the server's [%v, %v]", i+1, mark, before, after)
+		}
+		refreshed, err := f.auth.Refresh(f.ctx, sess.RefreshToken)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sess = refreshed
+		ctx = WithSessionMeta(f.bearer(t, refreshed), SessionMeta{UserAgent: "Firefox/140", IP: "10.0.0.9"})
+		if _, err := f.auth.StepUp(ctx, u.ID, StepUpProof{Password: "password123"}); err != nil {
+			t.Fatalf("change %d: the kept session, refreshed, is refused: %v", i+1, err)
+		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -25,6 +26,18 @@ func errCredentialsRevoked() error {
 		Code: "invalid_token", Status: http.StatusUnauthorized,
 		Msg: "this session started before the account's sign-in changed; sign in again", Err: ErrCredentialsRevoked,
 	}
+}
+
+// markCredentialsRevoked marks userID's credentials as changed now, in q's
+// transaction: the sensitive commands refuse a browser token issued before.
+// The mark is this server's clock, truncated to the second as a token's iat
+// is — the clock TokenMinter stamps iat with — so a token the same command
+// (or anything after it) mints is never older than the mark, whatever the
+// database's clock says.
+func markCredentialsRevoked(ctx context.Context, q *db.Queries, userID string) error {
+	return q.MarkCredentialsRevoked(ctx, db.MarkCredentialsRevokedParams{
+		ID: userID, MarkedAt: pgtype.Timestamptz{Time: time.Now().Truncate(time.Second), Valid: true},
+	})
 }
 
 // requireCurrentCredentials is the gate of the sensitive commands (ADR 0047

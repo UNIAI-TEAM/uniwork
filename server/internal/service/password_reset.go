@@ -183,7 +183,7 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	}
 	// Marked before the password is set, so the row SetUserPassword returns
 	// (and the session below is opened on) already carries the mark.
-	if err := qtx.MarkCredentialsRevoked(ctx, t.UserID); err != nil {
+	if err := markCredentialsRevoked(ctx, qtx, t.UserID); err != nil {
 		return Session{}, err
 	}
 	u, err := qtx.SetUserPassword(ctx, db.SetUserPasswordParams{ID: t.UserID, PasswordHash: pgtype.Text{String: hash, Valid: true}})

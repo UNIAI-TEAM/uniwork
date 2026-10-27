@@ -513,9 +513,12 @@ chỉ ghi `user` vào phiên khi parse đúng, không thì gọi lại `/me` (kh
   chối (`401 invalid_credentials`) khi tài khoản đã xoá hay `credentials_revoked_at` đổi từ lúc bước đầu đọc hàng
   (mật khẩu đúng nhưng thu hồi/đổi mật khẩu vừa commit). `POST /auth/refresh` thành một giao dịch: giữ hàng, đọc lại
   token dưới khoá (thu hồi vừa commit thì token đã chết), rồi xoay. Thu hồi khoá `FOR UPDATE` trước khi thu hồi, nên
-  hoặc nó chờ phiên mới rồi thu hồi luôn, hoặc phiên mới thấy nó. Dấu vẫn lấy `now()` của giao dịch (không đổi sang
-  `clock_timestamp()`): không phiên nào khác sinh được giữa dấu và commit, còn dấu muộn hơn chỉ làm phiên chính lệnh
-  đó cấp (đồng hồ app) dễ bị coi là cũ hơn. `TestSessionsOpenedDuringARevocationDoNotOutliveIt`.
+  hoặc nó chờ phiên mới rồi thu hồi luôn, hoặc phiên mới thấy nó. `TestSessionsOpenedDuringARevocationDoNotOutliveIt`.
+- ⚑ (phản biện lát 5) Dấu `credentials_revoked_at` lấy **đồng hồ của server** (giây của `time.Now()`, đồng hồ đóng `iat`
+  của mọi token), không lấy `now()` của Postgres (không đổi sang `clock_timestamp()` như phản biện gợi ý): hai đồng hồ
+  lệch nhau (Postgres trong Docker chạy trước vài chục ms) thì dấu đặt sát lúc đổi giây mang giây sau, và phiên chính
+  lệnh đó giữ lại, refresh ngay sau, bị coi là cũ hơn dấu. Không phiên nào khác sinh được giữa dấu và commit nữa (khoá
+  hàng ở trên). `TestTheCredentialMarkIsTheServersSecond`.
   `validatePassword` như đăng ký. ⚑ Đổi mật khẩu **luôn** (server quyết, không có cờ client) thu hồi mọi phiên khác
   qua helper mới `revokeOtherUserSessions(ctx, q, uid, keepSessionID)` cạnh `revokeAllUserSessions` (cùng thứ tự khoá:
   device_sessions trừ family đang giữ, refresh_tokens khác `session_id`, push thiết bị, lease Office;

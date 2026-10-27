@@ -177,10 +177,11 @@ RETURNING *;
 
 -- name: MarkCredentialsRevoked :exec
 -- Sensitive commands refuse an access token issued before this (ADR 0047).
--- Truncated to the second because a token's iat is: the session the same
--- command hands out is not older than the mark.
-UPDATE users SET credentials_revoked_at = date_trunc('second', now()), updated_at = now()
-WHERE id = $1;
+-- The caller passes the second of its own clock, the one every token's iat
+-- comes from, so the session the same command hands out is never older than
+-- the mark however far the database's clock runs from the server's.
+UPDATE users SET credentials_revoked_at = sqlc.arg(marked_at)::timestamptz, updated_at = now()
+WHERE id = sqlc.arg(id);
 
 -- name: RecordSecondFactorFailure :one
 -- One more wrong second factor or step-up proof (ADR 0047). The failure that

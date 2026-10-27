@@ -214,7 +214,7 @@ func signOthersOut(ctx context.Context, q *db.Queries, userID, reason string) (i
 	if err != nil {
 		return 0, err
 	}
-	if err := q.MarkCredentialsRevoked(ctx, userID); err != nil {
+	if err := markCredentialsRevoked(ctx, q, userID); err != nil {
 		return 0, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
