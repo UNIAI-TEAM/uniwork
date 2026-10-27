@@ -868,7 +868,7 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     renderSearchView(createNav("view=shelved"));
     expect(await screen.findByText("Hồ sơ lưu trữ ban đầu")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: t("documents.shelved_list.filter_by_label") })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.shelved_list.filter_by_label")}`) })).toBeInTheDocument();
 
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     searchInput.focus();
@@ -878,7 +878,7 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toBe(searchInput);
     expect(document.activeElement).toBe(searchInput);
     expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: t("documents.shelved_list.filter_by_label") })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.shelved_list.filter_by_label")}`) })).toBeInTheDocument();
     expect(await screen.findByText("Kết quả tìm kiếm Lưu trữ")).toBeInTheDocument();
     expect(screen.queryByText("Tài liệu chưa lưu trữ")).toBeNull();
     expect(screen.queryByText("Hồ sơ lưu trữ ban đầu")).toBeNull();
