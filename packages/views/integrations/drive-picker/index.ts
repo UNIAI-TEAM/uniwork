@@ -3,7 +3,10 @@ export {
   type DrivePickedFile,
   type DrivePickerAdapter,
 } from "./drive-picker-adapter";
-export { DrivePickerDisclosure } from "./drive-picker-dialogs";
+export {
+  DrivePickerDisclosure,
+  DrivePickerTaskConfirmDialog,
+} from "./drive-picker-dialogs";
 export {
   driveLinkErrorReason,
   useDrivePicker,
