@@ -51,16 +51,18 @@ export function useCheckoutReturn(orgId: string, checkout: CheckoutReturnState) 
     setConfirming(true);
     setTimedOut(false);
     let polls = 0;
+    let id = 0;
     const tick = () => {
       void qc.invalidateQueries({ queryKey: billingKeys.current(orgId) });
       polls += 1;
       if (polls >= MAX_POLLS) {
+        window.clearInterval(id);
         setConfirming(false);
         setTimedOut(true);
       }
     };
+    id = window.setInterval(tick, POLL_INTERVAL_MS);
     tick();
-    const id = window.setInterval(tick, POLL_INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [checkout, orgId, qc]);
 

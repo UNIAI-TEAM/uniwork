@@ -7896,6 +7896,10 @@
       "confirm_refund_title": "Xác nhận hoàn HĐ {{number}}",
       "confirm_refund_description": "Thường không cần: server tự đối chiếu VNPay mỗi ~2 phút. Chỉ dùng khi HĐ vẫn “Chờ hoàn” sau khi VNPay đã duyệt.",
       "confirm_refund_success": "Đã chuyển hóa đơn sang Đã hoàn tiền.",
+      "revert_refund_action": "Hủy yêu cầu hoàn tiền",
+      "revert_refund_title": "Hủy yêu cầu hoàn HĐ {{number}}",
+      "revert_refund_description": "Dùng khi VNPay từ chối hoàn hoặc yêu cầu gửi nhầm — hóa đơn trở lại Đã thanh toán.",
+      "revert_refund_success": "Đã hủy yêu cầu hoàn tiền.",
       "detail": {
         "empty": "—",
         "invoice_description": "Hóa đơn billing trên tổ chức.",

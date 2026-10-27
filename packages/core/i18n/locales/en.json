@@ -7956,6 +7956,10 @@
       "confirm_refund_title": "Confirm refund {{number}}",
       "confirm_refund_description": "Usually unnecessary — the server reconciles with VNPay about every 2 minutes. Use only if the invoice stays pending after VNPay approval.",
       "confirm_refund_success": "Invoice marked as refunded.",
+      "revert_refund_action": "Cancel refund request",
+      "revert_refund_title": "Cancel refund request {{number}}",
+      "revert_refund_description": "Use when VNPay refused the refund or the request was sent by mistake — invoice returns to Paid.",
+      "revert_refund_success": "Refund request cancelled.",
       "detail": {
         "empty": "—",
         "invoice_description": "Organization billing invoice.",

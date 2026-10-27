@@ -127,8 +127,6 @@ export function BillingTab() {
     if (returnPoll.confirmed) {
       toast.success(t("checkout_success"));
       clearCheckoutQuery();
-    } else if (returnPoll.timedOut) {
-      clearCheckoutQuery();
     } else if (returnPoll.canceled) {
       toast.message(t("checkout_cancelled"));
       clearCheckoutQuery();

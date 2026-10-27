@@ -301,6 +301,27 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionBillingInvoiceRefundReverted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			f.suspend(t, OrganizationActive)
+			var subID string
+			if err := f.pool.QueryRow(f.ctx, `SELECT id FROM subscriptions WHERE organization_id = $1`, f.orgID).Scan(&subID); err != nil {
+				t.Fatal(err)
+			}
+			invID := util.NewID()
+			now := time.Now().UTC()
+			if _, err := f.pool.Exec(f.ctx, `INSERT INTO invoices (
+				id, organization_id, subscription_id, provider, number, status,
+				amount_due, amount_paid, currency, period_start, period_end, paid_at,
+				refund_requested_at
+			) VALUES ($1, $2, $3, 'manual', 'UW-AUDIT-REVERT', 'refund_pending', 1000, 1000, 'VND', $4, $4, $4, $4)`,
+				invID, f.orgID, subID, now); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.admin.RevertInvoiceRefund(f.ctx, f.third.ID, invID, "audit coverage revert refund request"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionTaskUpdated: func(t *testing.T, f *auditFixture) {
 			task := f.newTask(t)
 			status := "in_progress"
@@ -2410,6 +2431,7 @@ func auditActions() []string {
 		audit.ActionDesktopDeviceRevoked,
 		audit.ActionSubscriptionChanged,
 		audit.ActionBillingInvoiceRefunded,
+		audit.ActionBillingInvoiceRefundReverted,
 		audit.ActionDocumentCreated,
 		audit.ActionOfficeLaunchSessionCreated,
 		audit.ActionOfficeLaunchSessionRedeemed,

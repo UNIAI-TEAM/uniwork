@@ -1,7 +1,14 @@
--- Dev/test: bật lại gói trả phí và đưa tổ chức về Starter để mua lại Team/Business.
---   psql "$DATABASE_URL" -v org_slug=sd -f scripts/billing-reset-org-checkout.sql
--- Hoặc theo id (slug rỗng):
---   psql "$DATABASE_URL" -v org_slug= -v org_id=01M1X4ZV9GQTT0G59XEY9YZWAW -f scripts/billing-reset-org-checkout.sql
+-- Dev/test only — do not run on production.
+-- Reset paid checkout state so an org can buy Team/Business again.
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v org_slug=sd -f scripts/billing-reset-org-checkout.sql
+-- Or by id:
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v org_slug= -v org_id=01M1X4ZV9GQTT0G59XEY9YZWAW -f scripts/billing-reset-org-checkout.sql
+
+\set ON_ERROR_STOP on
+\if :{?org_slug} \else \set org_slug '' \endif
+\if :{?org_id} \else \set org_id '' \endif
+
+BEGIN;
 
 UPDATE plans
 SET is_active = true, updated_at = now()
@@ -37,3 +44,5 @@ UPDATE billing_payment_intents pi
 SET status = 'expired', updated_at = now()
 FROM target t
 WHERE pi.organization_id = t.id AND pi.status = 'pending';
+
+COMMIT;

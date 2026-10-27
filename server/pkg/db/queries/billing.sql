@@ -319,8 +319,14 @@ SELECT id, organization_id, subscription_id, provider, number, status, amount_pa
 FROM invoices
 WHERE status IN ('refund_pending', 'partial_refund_pending')
   AND provider = 'vnpay'
-ORDER BY refund_requested_at NULLS LAST, updated_at
+ORDER BY updated_at, id
 LIMIT $1;
+
+-- name: TouchInvoiceRefundReconcile :exec
+-- tenant: parent organization_id
+UPDATE invoices SET updated_at = now()
+WHERE id = $1 AND organization_id = $2
+  AND status IN ('refund_pending', 'partial_refund_pending');
 
 -- name: ConfirmInvoiceRefundFromProvider :one
 UPDATE invoices SET
