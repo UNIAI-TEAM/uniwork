@@ -41,7 +41,6 @@ VALUES ($1, $2, $3)
 ON CONFLICT DO NOTHING;
 
 -- name: ListMembershipInviteLinkWorkspaces :many
--- tenant: parent organization_id
 SELECT w.id, w.name, w.slug, w.organization_id, lw.link_id
 FROM membership_invite_link_workspaces lw
 JOIN workspaces w ON w.id = lw.workspace_id AND w.organization_id = lw.organization_id
