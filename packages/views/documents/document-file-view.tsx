@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ComponentType } from "react";
-import { Download, FileText, RotateCcwClock, Upload } from "lucide-react";
+import { Download, FileText, RotateCcwClock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDocumentVersions } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
@@ -13,7 +13,10 @@ import { useOfficeFormatName } from "../office/format-name";
 import { HeaderActionsFill } from "../layout/header-actions-slot";
 import { leaveGuardAllows } from "../navigation";
 import { DocumentFileMenuItems, useDocumentFileActions } from "./document-file-actions";
-import { readonlyKeys, readonlyReaderCanComment } from "./document-readonly-copy";
+import { DocumentFileCard, formatFileSize } from "./document-file-card";
+import { DocumentMediaViewer } from "./document-media-viewer";
+import { isImageDocument } from "./document-media-kind";
+import { readonlyReaderCanComment } from "./document-readonly-copy";
 import { DocumentSaveIndicator } from "./document-save-indicator";
 
 export interface DocumentFileViewProps {
@@ -47,31 +50,6 @@ function reasonLabel(
 ): string {
   const key = REASON_KEY[version.reason];
   return key ? t(`documents.file.${key}`) : t("documents.file.unknown_reason");
-}
-
-/** "1,2 MB" in the reader's locale; a size is read, not parsed. */
-function formatFileSize(bytes: number, locale: string): string {
-  const safe = Number.isFinite(bytes) && bytes > 0 ? bytes : 0;
-  if (safe < 1024) return `${safe.toLocaleString(locale)} B`;
-  const units = ["KB", "MB", "GB"];
-  let value = safe / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toLocaleString(locale, { maximumFractionDigits: 1 })} ${units[unit]}`;
-}
-
-function Fact({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-label text-muted-foreground">{label}</dt>
-      <dd className={mono ? "mt-0.5 truncate font-mono text-caption text-foreground" : "mt-0.5 truncate text-body text-foreground"}>
-        {value}
-      </dd>
-    </div>
-  );
 }
 
 /**
@@ -157,7 +135,9 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
   const file = doc.file;
   // A comment-level reader is read-only but not "view only" (UNI-1994).
   const canComment = readonlyReaderCanComment(doc);
-  const versions = useDocumentVersions(wsId, doc.id);
+  // An image opens in the viewer, which has no version list: history is the page menu's sheet.
+  const isImage = isImageDocument(doc);
+  const versions = useDocumentVersions(wsId, doc.id, { enabled: !isImage });
   const actions = useDocumentFileActions(wsId, doc);
   const { download, downloading } = actions;
   // The gate's one resolved format, so the body, the layout and the host agree.
@@ -186,6 +166,26 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
     );
   }
 
+  if (isImage) {
+    // Same shape as the Office editor: the viewer fills the page and its file
+    // commands live in the page overflow menu beside "Lịch sử phiên bản".
+    return (
+      <>
+        <HeaderActionsFill menuItems={<DocumentFileMenuItems actions={actions} readonly={readonly} />} />
+        <DocumentMediaViewer
+          wsId={wsId}
+          doc={doc}
+          file={file}
+          actions={actions}
+          readonly={readonly}
+          canComment={canComment}
+          permissionNoticeShown={permissionNoticeShown}
+        />
+        {actions.uploadDialog}
+      </>
+    );
+  }
+
   const rows = versions.data?.pages.flatMap((page) => page.versions) ?? [];
   // A host is mounted and the format is an Office one, so the card stands in for
   // the editor and says why: checking, could not check, or turned off.
@@ -194,50 +194,7 @@ function DocumentFileBody({ wsId, doc, readonly, officeEditorHost: OfficeEditorH
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-border">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <FileText aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-            <div className="min-w-0">
-              <p className="truncate text-body font-medium text-foreground">{file.filename}</p>
-              <p className="text-caption text-muted-foreground">
-                {file.mime_type} · {formatFileSize(file.size_bytes, i18n.language)}
-              </p>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={downloading !== null}
-              aria-busy={downloading === "live" || undefined}
-              onClick={() => void download()}
-            >
-              <Download aria-hidden className="size-3.5" />
-              {t("documents.file.download")}
-            </Button>
-            {!readonly ? (
-              <Button type="button" size="sm" onClick={actions.openUpload}>
-                <Upload aria-hidden className="size-3.5" />
-                {t("documents.file.new_version")}
-              </Button>
-            ) : null}
-          </div>
-        </div>
-        <dl className="grid grid-cols-2 gap-3 px-4 py-3 sm:grid-cols-4">
-          <Fact label={t("documents.file.version")} value={String(file.version)} />
-          <Fact label={t("documents.file.size")} value={formatFileSize(file.size_bytes, i18n.language)} />
-          <Fact label={t("documents.file.mime")} value={file.mime_type} />
-          <Fact label={t("documents.file.checksum")} value={file.checksum_sha256} mono />
-        </dl>
-        {/* The permission reason, kept apart from the format/editor reason below. */}
-        {readonly && !permissionNoticeShown ? (
-          <p className="border-t border-border px-4 py-2 text-caption text-muted-foreground" data-testid="document-file-readonly">
-            {t(readonlyKeys(canComment).fileHint)}
-          </p>
-        ) : null}
-      </div>
+      <DocumentFileCard file={file} actions={actions} readonly={readonly} canComment={canComment} permissionNoticeShown={permissionNoticeShown} />
 
       {officeCardState === "off" ? (
         <Notice tone="info" icon={FileText} layout="inline">

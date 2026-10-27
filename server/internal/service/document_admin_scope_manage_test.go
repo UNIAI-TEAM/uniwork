@@ -120,20 +120,33 @@ func TestAdminScopeCanAdministerRestrictedWithoutRead(t *testing.T) {
 	if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET parent_id = $1 WHERE id = $2`, docR.ID, child.ID); err != nil {
 		t.Fatal(err)
 	}
+	// The admin administers the root without reading it, and still trashes
+	// it. The child they cannot read is not theirs to trash (UNI-2074, ADR
+	// 0037 point 5 for every root): it leaves for the workspace root, counted
+	// as relocated, and restoring the root brings back the root alone.
 	impact, err := f.svc.ArchiveImpact(f.ctx, admin, docR.ID)
-	if err != nil || impact.Total != 2 {
-		t.Fatalf("admin ArchiveImpact = %+v, %v; want total 2", impact, err)
+	if err != nil || impact.Total != 1 || impact.Relocated != 1 {
+		t.Fatalf("admin ArchiveImpact = %+v, %v; want total 1, relocated 1", impact, err)
 	}
 	arch, err := f.svc.ArchiveDocument(f.ctx, admin, docR.ID, ArchiveDocumentInput{IdempotencyKey: util.NewID()})
 	if err != nil {
 		t.Fatalf("admin ArchiveDocument: %v", err)
 	}
 	noRead(t, "archive result", arch.View.Access)
+	if got := f.live(t, child.ID); got.ParentID.Valid || got.ArchivedAt.Valid {
+		t.Fatalf("restricted child = parent %q archived %v, want live at the workspace root", got.ParentID.String, got.ArchivedAt.Valid)
+	}
 	rest, err := f.svc.RestoreDocument(f.ctx, admin, docR.ID, ArchiveDocumentInput{IdempotencyKey: util.NewID()})
 	if err != nil {
 		t.Fatalf("admin RestoreDocument: %v", err)
 	}
 	noRead(t, "restore result", rest.View.Access)
+	if len(rest.Affected) != 1 || rest.Affected[0] != docR.ID {
+		t.Fatalf("admin restore brought back %v, want the root alone", rest.Affected)
+	}
+	if got := f.live(t, child.ID); got.ParentID.Valid {
+		t.Fatalf("restricted child moved back under %q on restore, want it to stay at the root", got.ParentID.String)
+	}
 
 	// A reader below manage without AdminScope is still refused, a stranger
 	// still not found.

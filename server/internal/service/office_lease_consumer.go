@@ -16,7 +16,8 @@ import (
 // OfficeLeaseRevoker is the outbox consumer that revokes offline leases when
 // access is taken away by something other than a session revoke (G5-D1 row
 // 8, threat model T3, T4, T5): a deactivation, a removal from a workspace or
-// the organization, a share revoke, a move, a delete and a suspension. Each
+// the organization, a share revoke, an owner transfer, a move, a delete and a
+// suspension. Each
 // revoke writes its audit row and office_lease.revoked event in the same
 // transaction (recordOfficeLeaseRevokes).
 //
@@ -54,6 +55,7 @@ func (*OfficeLeaseRevoker) Topics() []string {
 	return []string{
 		"member.deactivated", "member.left", "member.removed",
 		"document.share_revoked", "document.moved", "document.deleted",
+		"document.owner_transferred",
 		"organization.suspended",
 	}
 }
@@ -84,6 +86,11 @@ func (c *OfficeLeaseRevoker) Handle(ctx context.Context, ev outbox.Row) error {
 		// enumeration: see recheckUserInOrganization.
 		return c.recheckUserInOrganization(ctx, orgID, userID)
 	case "document.share_revoked":
+		return c.recheckDocument(ctx, orgID, documentID, OfficeLeaseRevokeShareRevoked)
+	case "document.owner_transferred":
+		// The previous owner is demoted by the transfer, with no share revoke.
+		// The reason column's CHECK has no owner value (a migration would be
+		// needed), and the lease lost its holder's ACL grant: share_revoked.
 		return c.recheckDocument(ctx, orgID, documentID, OfficeLeaseRevokeShareRevoked)
 	case "document.moved":
 		return c.recheckDocument(ctx, orgID, documentID, OfficeLeaseRevokeDocumentMoved)

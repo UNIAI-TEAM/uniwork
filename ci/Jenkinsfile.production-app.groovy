@@ -166,7 +166,8 @@ pipeline {
           steps {
             script {
               // The AI scribe worker (apps/meeting-agent, ADR 0045); its directory is the context.
-              // .github/workflows/meeting-agent-verify.yml builds and pip-audits it on every PR.
+              // .github/workflows/meeting-agent-verify.yml runs ruff, pytest and pip-audit.
+              // This Jenkinsfile builds the image and the rollout pins the digest.
               def serviceTag = 'uniwork-meeting-agent'
               def imageName = "${env.REGISTRY}/${serviceTag}:${env.IMAGE_TAG}"
               sh """

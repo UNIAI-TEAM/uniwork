@@ -609,7 +609,8 @@
     "projects": "Projects",
     "calendar": "Calendar",
     "squads": "Squads",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "trash": "Trash"
   },
   "topbar": {
     "search": "Search…",
@@ -754,7 +755,9 @@
         "document_access_declined": "Document access request declined",
         "document_shared": "Documents shared with you",
         "document_trashed_by_other": "Your document moved to the trash",
-        "document_changed": "Changes to your documents and documents shared with you"
+        "document_changed": "Changes to your documents and documents shared with you",
+        "document_owner_transferred": "Document ownership transferred to you",
+        "document_owners_bulk_transferred": "A member's documents transferred to you"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
@@ -795,7 +798,8 @@
         "connectedApps": "AI apps",
         "aiAccess": "AI access",
         "taskStatuses": "Task statuses",
-        "taskLabels": "Labels"
+        "taskLabels": "Labels",
+        "trash": "Trash"
       },
       "nav_label": "Settings sections",
       "section_picker": "Choose a settings section",
@@ -2574,11 +2578,9 @@
       "cancel": "Cancel",
       "update_success": "Updated {{count}} tasks",
       "update_failed": "Could not update tasks",
-      "delete_success": "Deleted {{count}} tasks",
       "delete_failed": "Could not delete tasks",
-      "delete_dialog_title": "Delete {{count}} tasks?",
-      "delete_dialog_desc": "These tasks will be permanently deleted.",
-      "delete_dialog_warning": "This cannot be undone."
+      "delete_dialog_title": "Move to trash?",
+      "delete_dialog_desc": "You can restore it within 30 days."
     },
     "row_actions": {
       "open": "Open",
@@ -2590,11 +2592,10 @@
       "change_assignee": "Change assignee",
       "set_parent": "Set parent task…",
       "delete": "Delete",
-      "delete_dialog_title": "Delete this task?",
-      "delete_dialog_desc": "\"{{title}}\" will be permanently deleted. This cannot be undone.",
-      "delete_confirm": "Delete task",
+      "delete_dialog_title": "Move to trash?",
+      "delete_dialog_desc": "You can restore it within 30 days.",
+      "delete_confirm": "Move to trash",
       "cancel": "Cancel",
-      "delete_success": "Task deleted",
       "delete_failed": "Could not delete task",
       "assignees_loading": "Loading members…",
       "assignees_failed": "Could not load members"
@@ -7277,8 +7278,15 @@
       "document_changed_relocated_many": "{{actor}} moved the folder holding {{document_count}} of your documents to trash; the documents are now at the workspace root",
       "document_changed_relocated_one": "{{actor}} moved the folder holding \"{{document}}\" to trash; the document is now at the workspace root",
       "document_changed_relocated_untitled": "{{actor}} moved the folder holding one of your documents to trash; the document is now at the workspace root",
+      "document_changed_relocated_from_page_many": "{{actor}} moved the page holding {{document_count}} of your documents to trash; the documents are now at the workspace root",
+      "document_changed_relocated_from_page_one": "{{actor}} moved the page holding \"{{document}}\" to trash; the document is now at the workspace root",
+      "document_changed_relocated_from_page_untitled": "{{actor}} moved the page holding one of your documents to trash; the document is now at the workspace root",
       "document_changed_generic_one": "{{actor}} changed \"{{document}}\"",
-      "document_changed_generic_untitled": "{{actor}} changed a document"
+      "document_changed_generic_untitled": "{{actor}} changed a document",
+      "document_owner_transferred": "{{actor}} transferred ownership of \"{{document}}\" to you.",
+      "document_owner_transferred_untitled": "{{actor}} transferred ownership of a document to you.",
+      "document_owners_bulk_transferred": "{{actor}} transferred {{name}}'s documents to you.",
+      "document_owners_bulk_transferred_untitled": "{{actor}} transferred a member's documents to you."
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",
@@ -7293,7 +7301,9 @@
       "document_access_declined": "Request declined",
       "document_shared": "Document shared",
       "document_trashed_by_other": "Your document was moved to trash",
-      "document_changed": "Documents changed"
+      "document_changed": "Documents changed",
+      "document_owner_transferred": "You now own a document",
+      "document_owners_bulk_transferred": "You now own documents"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",
@@ -8659,9 +8669,9 @@
       "sidebar_label": "Project details"
     },
     "delete_dialog": {
-      "title": "Delete project",
-      "description": "This will delete the project. Tasks will not be deleted but will be unlinked.",
-      "confirm": "Delete",
+      "title": "Move to trash?",
+      "description": "You can restore it within 30 days. Tasks in the project are kept and only unlinked.",
+      "confirm": "Move to trash",
       "cancel": "Cancel"
     },
     "create_dialog": {
@@ -10678,7 +10688,7 @@
       "q7": "Has UniWork launched?",
       "a7": "UniWork is in pre-launch. This page separates current capabilities from the roadmap; some features need configuration or a connected service before use.",
       "q8": "What does it cost?",
-      "a8": "Starter is free at this stage. Commercial plans and limits are still being finalized; this is not a promise of unlimited free use forever.",
+      "a8": "Starter is free with clear limits; Team is 499,000 VND/month and Business is 1,499,000 VND/month. Prices and quotas match the in-app catalog — see the public pricing page or Settings › Plan after sign-up.",
       "q9": "Can it run on our own infrastructure?",
       "a9": "Not today. An on-premise install through Docker Compose or Helm is on the roadmap, along with any OIDC provider, MinIO storage and models running in house.",
       "q10": "Is there an API?",
@@ -11158,8 +11168,8 @@
         "rows": [
           {
             "subject": "Current plan",
-            "current": "Starter is free during the current stage.",
-            "confirm": "Commercial plans and limits are being finalized; this is not a long-term unlimited-free commitment."
+            "current": "Starter is free; Team and Business are paid monthly on the public pricing page.",
+            "confirm": "Compare limits (members, workspaces, AI, meetings) with your team size before upgrading."
           },
           {
             "subject": "AI and resources",
@@ -11473,7 +11483,81 @@
         "version": "Version {{version}}",
         "requirements": "Requires: {{value}}",
         "unsigned": "This build is not code-signed, so your system may warn you the first time you open it.",
-        "unavailable": "No installer has been published yet."
+        "unavailable": "No installer has been published yet.",
+        "channelsLabel": "Release channel",
+        "channel": {
+          "stable": "Stable",
+          "beta": "Beta",
+          "dev": "Dev"
+        },
+        "channelHint": {
+          "stable": "For everyday use.",
+          "beta": "A preview of what is headed for Stable.",
+          "dev": "The newest builds, possibly unstable."
+        },
+        "soon": "Coming soon",
+        "cta": "Download for {{label}}",
+        "released": "Version {{version}} · {{date}}",
+        "chip": {
+          "win": "Windows",
+          "mac_arm": "macOS Apple Silicon",
+          "mac_intel": "macOS Intel",
+          "deb": "Linux .deb",
+          "appimage": "Linux .AppImage"
+        },
+        "picker": {
+          "recommended": "Recommended"
+        },
+        "notes": {
+          "title": "What's new in {{version}}",
+          "empty": "This version has no release notes.",
+          "more": "Show more",
+          "less": "Show less"
+        },
+        "history": {
+          "title": "Earlier versions",
+          "none": "This channel has no earlier versions yet.",
+          "open": "Show details for version {{version}}",
+          "files": "Downloads",
+          "build": {
+            "win": ".exe",
+            "mac_arm": "Apple Silicon",
+            "mac_intel": "Intel",
+            "deb": ".deb",
+            "appimage": ".AppImage"
+          }
+        },
+        "states": {
+          "loading": "Loading the list of versions…",
+          "soonTitle": "The {{channel}} channel is coming soon",
+          "soonBody": "No version has been released on the {{channel}} channel yet. It will show up here once there is one.",
+          "soonAction": "See the {{channel}} channel",
+          "emptyTitle": "No version has been released yet",
+          "emptyBody": "Meanwhile you can still open and edit Office files on the web, under Documents.",
+          "error": "Could not load the list of versions.",
+          "errorFallback": "Below are the current installers, which may not be the latest."
+        },
+        "update": {
+          "notice": "A new version, {{version}}, is out on the {{channel}} channel.",
+          "action": "Reload",
+          "dismiss": "Dismiss notice"
+        }
+      },
+      "apt": {
+        "title": "Install with apt",
+        "intro": "Install on Ubuntu or Debian either way.",
+        "script": "Use the install script",
+        "or": "or",
+        "quick": "Download and install the .deb",
+        "copy": "Copy",
+        "copyStep": "Copy command: {{step}}",
+        "copied": "Copied",
+        "copyFailed": "Couldn't copy. Select the commands and copy them yourself.",
+        "manual": "Manual setup",
+        "setup": "1. Add the repository",
+        "install": "2. Install",
+        "deb": "If you installed the .deb, this file already exists and you can skip step 1.",
+        "fingerprint": "Key fingerprint"
       },
       "works": {
         "title": "Works with UniWork",
@@ -12323,6 +12407,7 @@
         "refusal_title_files": "These files can’t be uploaded",
         "share_toggle": "Share with workspace",
         "share_hint": "Applies to every file in this upload. The folders stay private.",
+        "share_hint_workspace": "Applies to every file in this upload. The new folders are visible to the whole workspace.",
         "share_hint_files": "Applies to every file in this upload.",
         "share_inherited": "The destination folder is shared with the workspace, so the files are too.",
         "cancel": "Cancel",
@@ -12544,6 +12629,17 @@
       "upload_failed": "Could not upload the file",
       "commit_failed": "Could not save the new version",
       "missing_file": "This document has no file yet."
+    },
+    "media": {
+      "loading": "Opening file…",
+      "retry": "Try again",
+      "error_title": "Couldn't open the file to view.",
+      "error_description": "The file content didn't load. Try again, or download it from the More actions menu.",
+      "unsupported_title": "This browser can't open this image.",
+      "unsupported_description": "The browser can't show this format, or the file is damaged (for example HEIC or TIFF). Download it to open in an app on your computer.",
+      "fullscreen_enter": "Full screen",
+      "fullscreen_exit": "Exit full screen",
+      "dimensions": "{{width}} × {{height}} px"
     },
     "editor": {
       "aria_label": "Document content",
@@ -12979,7 +13075,7 @@
       "archive_submitting": "Moving to trash…",
       "archive_failed": "Could not move to trash. Nothing changed.",
       "archive_toast": "Moved to trash",
-      "archive_forbidden": "A child you cannot manage blocks the whole group from the trash.",
+      "archive_forbidden": "You cannot move this to trash: you do not manage it or a subfolder inside it.",
       "restore_title": "Restore document",
       "restore_description": "Restores this item and the items inside it that you manage. It lands back in its old folder if the folder is still there, otherwise at the workspace root.",
       "restore_confirm": "Restore",
@@ -12995,9 +13091,12 @@
       "delete_documents_other": "{{count}} documents",
       "delete_body": "{{subfolders}} and {{documents}} will move to the trash and can be restored within 30 days.",
       "delete_relocated": "Other people's documents in this folder go back to their owners, with their access unchanged.",
+      "archive_relocated": "Other people's documents inside this item go back to their owners, with their access unchanged.",
       "delete_loading": "Counting what's in the folder…",
       "delete_impact_error": "Couldn't count what's in the folder. Try again before deleting.",
       "delete_too_large": "The folder holds more than {{max}} items, so it can't go to the trash in one go. Delete what's inside in parts first.",
+      "archive_impact_error": "Couldn't count what's inside this item. Try again before moving it to the trash.",
+      "archive_too_large": "This item holds more than {{max}} items, so it can't go to the trash in one go. Delete what's inside in parts first.",
       "delete_confirm": "Delete",
       "delete_submitting": "Deleting…",
       "delete_failed": "Couldn't delete. Nothing changed."
@@ -13369,6 +13468,9 @@
       "filters": {
         "editor": "Edited by",
         "updated": "Updated",
+        "type": "Type",
+        "type_count_other": "{{count}} types",
+        "type_remove": "Remove {{type}} filter",
         "editor_any": "Any",
         "editor_me": "Me",
         "updated_any": "Any time",
@@ -13415,7 +13517,6 @@
         "meeting": "Meetings",
         "email": "Email"
       },
-      "chips_label": "Filter by type",
       "chips": {
         "all": "All types",
         "page": "UniNote",
@@ -13462,6 +13563,8 @@
         "go_to_source_named": "View where attached: {{title}}",
         "preview_failed": "Could not open the file. Try again.",
         "preview_close": "Close",
+        "preview_expand": "Expand to full width",
+        "preview_restore": "Restore size",
         "view_only_notice": "View only · changes will not be saved",
         "download": "Download",
         "save_to_folder": "Save to folder",
@@ -13696,6 +13799,7 @@
     "canvas": {
       "zoom_in": "Zoom in",
       "zoom_out": "Zoom out",
+      "zoom_level": "Zoom level",
       "zoom_fit": "Fit to view",
       "zoom_actual": "Actual size"
     },
@@ -13911,7 +14015,7 @@
           "appimage": ".AppImage",
           "win_zip": "Portable ZIP",
           "win_zip_hint": "No install needed",
-          "mac_intel_hint": "Older Macs",
+          "mac_intel_hint": "Macs with an Intel chip",
           "appimage_hint": "Runs on any x64 distribution"
         },
         "req": {
@@ -14322,5 +14426,74 @@
     "data": "Data and AI",
     "privacy": "Privacy policy",
     "terms": "Terms of use"
+  },
+  "trash": {
+    "title": "Trash",
+    "move_confirm": "Move to trash",
+    "moved": "Moved to trash",
+    "undo": "Undo",
+    "restore": "Restore",
+    "restored": "Restored",
+    "restore_failed": "Could not restore",
+    "purge": "Delete forever",
+    "purge_title": "Delete forever?",
+    "purge_desc": "\"{{title}}\" will be deleted forever. This cannot be undone.",
+    "purged": "Deleted forever",
+    "purge_failed": "Could not delete forever",
+    "cancel": "Cancel",
+    "unknown_member": "Former member",
+    "load_more": "Load more",
+    "error_title": "Could not load the trash",
+    "errors": {
+      "trash_too_large": "Too many tasks for one move to the trash. Select fewer tasks and try again.",
+      "duplicate_project_title": "A project with the same title already exists in this workspace. Choose another title or rename that project, then try again."
+    },
+    "description": "Deleted items stay here for 30 days, then are deleted forever.",
+    "filters_label": "Filter the trash",
+    "search": "Search by name…",
+    "clear_search": "Clear search",
+    "clear_filter": "Clear the {{name}} filter",
+    "kind_label": "Type",
+    "kinds": {
+      "task": "Task",
+      "project": "Project",
+      "document": "Document"
+    },
+    "trashed_by_label": "Deleted by",
+    "trashed_by_me": "Me",
+    "search_people": "Search people",
+    "no_people": "No one found",
+    "people_cap": "You can pick up to {{max}} people",
+    "former_members_one": "{{count}} former member",
+    "former_members_other": "{{count}} former members",
+    "table_label": "Items in the trash",
+    "columns": {
+      "name": "Name",
+      "location": "Location",
+      "trashed_at": "Deleted",
+      "trashed_by": "Deleted by",
+      "left": "Left",
+      "actions": "Actions"
+    },
+    "days_left_one": "{{count}} day",
+    "days_left_other": "{{count}} days",
+    "sub": {
+      "task_with_one": "Task · with {{count}} subtask",
+      "task_with_other": "Task · with {{count}} subtasks",
+      "project_with_one": "Project · {{count}} task is reattached on restore",
+      "project_with_other": "Project · {{count}} tasks are reattached on restore",
+      "page": "Page",
+      "file": "File",
+      "folder": "Folder"
+    },
+    "row_actions": "Actions for {{title}}",
+    "locked": {
+      "project": "Only the creator, the lead or an admin can restore or delete this project forever.",
+      "document": "You need permission to manage this document."
+    },
+    "empty_title": "The trash is empty",
+    "no_match_title": "No items match",
+    "clear_filters": "Clear filters",
+    "untitled": "Untitled"
   }
 }

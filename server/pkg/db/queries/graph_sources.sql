@@ -2,7 +2,7 @@
 -- query is scoped by the organization the projection runs for.
 
 -- name: GraphSourceTask :one
-SELECT * FROM tasks WHERE organization_id = sqlc.arg(organization_id) AND id = sqlc.arg(id);
+SELECT * FROM tasks WHERE organization_id = sqlc.arg(organization_id) AND id = sqlc.arg(id) AND trashed_at IS NULL;
 
 -- name: GraphSourceTaskDependencies :many
 -- related is not projected: the vocabulary has no RELATED_TO.
@@ -30,7 +30,7 @@ WHERE organization_id = sqlc.arg(organization_id) AND meeting_id = sqlc.arg(meet
 ORDER BY 1;
 
 -- name: GraphSourceProject :one
-SELECT * FROM projects WHERE organization_id = sqlc.arg(organization_id) AND id = sqlc.arg(id);
+SELECT * FROM projects WHERE organization_id = sqlc.arg(organization_id) AND id = sqlc.arg(id) AND trashed_at IS NULL;
 
 -- name: GraphSourceMember :one
 -- A projection read, not a membership decision (that stays in RequireMember).
@@ -56,7 +56,7 @@ WHERE organization_id = sqlc.arg(organization_id) AND room_id = sqlc.arg(room_id
 ORDER BY user_id;
 
 -- name: GraphRebuildTaskIDs :many
-SELECT id FROM tasks WHERE organization_id = sqlc.arg(organization_id) AND id > sqlc.arg(after_id)::text
+SELECT id FROM tasks WHERE organization_id = sqlc.arg(organization_id) AND id > sqlc.arg(after_id)::text AND trashed_at IS NULL
 ORDER BY id LIMIT sqlc.arg(limit_n)::int;
 
 -- name: GraphRebuildMeetingIDs :many
@@ -64,7 +64,7 @@ SELECT id FROM meetings WHERE organization_id = sqlc.arg(organization_id) AND id
 ORDER BY id LIMIT sqlc.arg(limit_n)::int;
 
 -- name: GraphRebuildProjectIDs :many
-SELECT id FROM projects WHERE organization_id = sqlc.arg(organization_id) AND id > sqlc.arg(after_id)::text
+SELECT id FROM projects WHERE organization_id = sqlc.arg(organization_id) AND id > sqlc.arg(after_id)::text AND trashed_at IS NULL
 ORDER BY id LIMIT sqlc.arg(limit_n)::int;
 
 -- name: GraphRebuildMemberIDs :many

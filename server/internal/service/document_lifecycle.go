@@ -23,12 +23,12 @@ import (
 // Document lifecycle (C-01 §5.1/§6.3, G1-04b, UNI-678): archive, restore and
 // the retention sweeps.
 //
-// Archive stamps the whole subtree in one transaction after a manage check
-// on EVERY affected node - a restricted child the caller cannot manage makes
-// the whole command fail rather than leaving a live orphan behind an
-// archived parent. A workspace folder is the exception (ADR 0037 point 5,
-// document_folder_trash.go): what its caller cannot manage moves to the
-// workspace root instead. One archive_batch_id groups the operation's rows; restore
+// Archive stamps the subtree in one transaction and never leaves a live
+// orphan behind an archived parent: a page or file below the root that the
+// caller cannot manage moves to the workspace root with its own subtree
+// (ADR 0037 point 5, every root since UNI-2074, document_trash_relocate.go),
+// and a folder below it they cannot read or manage refuses the whole
+// command. One archive_batch_id groups the operation's rows; restore
 // brings back exactly that batch and re-roots a node whose own parent stayed
 // in the trash.
 //
@@ -81,9 +81,10 @@ func errDocumentNotInTrash() error {
 }
 
 // requireManageOnSubtree refuses (ErrForbidden) unless the actor holds manage
-// on every live node of the subtree. One query names the nodes a human actor
-// does not trivially manage (workspace owner/admin, ACL owner, a user or
-// organization manage share) over the bounded id set the archive walk already
+// on every live node of the subtree - the shelve's gate; the archive takes the
+// relocation plan instead (planSubtreeTrash). One query names the nodes a human
+// actor does not trivially manage (workspace owner/admin, ACL owner, a user or
+// organization manage share) over the bounded id set the shelve walk already
 // read - it never walks the tree a second time; only those get the full
 // effectiveLevel, and the first refusal ends the walk. Anyone else is checked
 // node by node, bounded by documentArchiveMaxNodes.
@@ -277,9 +278,12 @@ type archiveReplay struct {
 	BatchID    string `json:"batch_id"`
 }
 
-// ArchiveDocument moves a document and its subtree into the trash. Every
-// live node of the subtree must be manageable by the caller; the command
-// refuses a subtree that contains one it cannot manage.
+// ArchiveDocument moves a document and its subtree into the trash. The root
+// must be manageable by the caller. A page or file below it that the caller
+// cannot manage is not trashed: it leaves for the workspace root with its own
+// subtree (planSubtreeTrash, ADR 0037 point 5 as amended). A non-workspace
+// folder the caller cannot manage still refuses the whole command, as it is
+// never relocated.
 func (s *DocumentService) ArchiveDocument(ctx context.Context, actor Actor, documentID string, in ArchiveDocumentInput) (DocumentArchiveResult, error) {
 	var archiveLockOps *editLockOps
 	res, err := s.archiveDocument(ctx, actor, documentID, in, &archiveLockOps)
@@ -327,16 +331,18 @@ func (s *DocumentService) archiveDocument(ctx context.Context, actor Actor, docu
 
 // archiveLockedSubtree is the archive command's write half over a live root
 // the caller has locked (tree lock, then row lock) and whose root gate it has
-// passed: the bounded subtree walk, the manage check on every node, one stamp
+// passed: the bounded subtree walk, the relocation plan over every node (what
+// the caller cannot manage leaves for the workspace root), one stamp
 // statement, one audit + document.archived row per node and the edit lock
-// releases. rootOnly skips the subtree manage check when the root is the whole
-// live subtree, for a gate that already decided the root alone (a pristine
-// copy, a chat upload deleted by its sender). The lock ops move their
-// counters only after the caller commits. Every refusal it answers (the
-// bound's folder_too_large, the subtree manage check) comes before the stamp;
+// releases. rootOnly skips the plan when the root is the whole live subtree,
+// for a gate that already decided the root alone (a pristine copy, a chat
+// upload deleted by its sender). The lock ops move their counters only after
+// the caller commits. Every refusal it answers (the bound's folder_too_large,
+// the plan's unmanaged folder or owned node) comes before the first write
+// (the relocations, then the stamp);
 // after it only plain failures abort. archiveChatUploadInTx relies on that to
-// read a refusal as "nothing was trashed": keep any new refusal above the
-// stamp.
+// read a refusal as "nothing was written": keep any new refusal above the
+// relocations.
 func (s *DocumentService) archiveLockedSubtree(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, rootOnly bool) ([]string, string, *editLockOps, error) {
 	// One bounded read of the live subtree: a huge folder is refused before
 	// any lock-holding work, and the access check below is one query over
@@ -357,23 +363,21 @@ func (s *DocumentService) archiveLockedSubtree(ctx context.Context, q *db.Querie
 	sort.Strings(live)
 	trash := live
 	var relocate []db.Document
-	if isWorkspaceFolder(doc) {
-		// ADR 0037 point 5: a workspace folder is trashed whatever it holds;
-		// what the caller cannot manage leaves for the workspace root.
-		if trash, relocate, err = s.planFolderTrash(ctx, q, actor, doc, live); err != nil {
+	if !rootOnly || len(live) != 1 || live[0] != doc.ID {
+		// ADR 0037 point 5, every root (UNI-2074): the root is trashed
+		// whatever it holds; what the caller cannot manage leaves for the
+		// workspace root, never trashed by them and never left live under an
+		// archived parent. A root-only gate covers a file with nothing under
+		// it; anything else takes the plan.
+		if err := s.requireManageOnRootOnlyGate(ctx, q, actor, doc, rootOnly); err != nil {
 			return nil, "", nil, err
 		}
-	} else if !rootOnly || len(live) != 1 || live[0] != doc.ID {
-		// Never archive a restricted child the caller cannot manage: refuse
-		// the whole command, never leave the child orphaned live. A root-only
-		// gate covers a file with nothing under it; anything else takes the
-		// full check.
-		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
+		if trash, relocate, err = s.planSubtreeTrash(ctx, q, actor, doc, live); err != nil {
 			return nil, "", nil, err
 		}
 	}
 	batch := util.NewID()
-	if err := s.relocateOutOfTrashedFolder(ctx, q, actor, doc, batch, relocate); err != nil {
+	if err := s.relocateOutOfTrashedRoot(ctx, q, actor, doc, batch, relocate); err != nil {
 		return nil, "", nil, err
 	}
 	if folderTrashAfterRelocate != nil {
@@ -420,6 +424,18 @@ func (s *DocumentService) archiveLockedSubtree(ctx context.Context, q *db.Querie
 	return stamped, batch, ops, nil
 }
 
+// requireManageOnRootOnlyGate keeps a root-only gate (a pristine copy's or a
+// chat upload's creator, who may trash the root without manage) to the root
+// alone: once the root holds a live subtree, the caller must manage the root
+// itself before the plan runs, as the full subtree check required before the
+// plan covered every root. The plan never asks about the root.
+func (s *DocumentService) requireManageOnRootOnlyGate(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, rootOnly bool) error {
+	if !rootOnly {
+		return nil
+	}
+	return s.requireManageOn(ctx, q, actor, doc)
+}
+
 // documentArchiveImpactTx is the FD-04 test seam: it runs inside the impact
 // read transaction, after the subtree walk and before the bound check, the
 // manage gate and the count, so a test can read the transaction's own
@@ -429,7 +445,7 @@ func (s *DocumentService) archiveLockedSubtree(ctx context.Context, q *db.Querie
 var documentArchiveImpactTx func(ctx context.Context, tx pgx.Tx)
 
 // folderTrashAfterRelocate is the UNI-2055 test seam: it runs inside the
-// archive transaction right after a workspace folder's relocations are
+// archive transaction right after a trashed root's relocations are
 // written, and an error it returns aborts the command. Never set in
 // production.
 var folderTrashAfterRelocate func(ctx context.Context) error
@@ -449,7 +465,7 @@ type DocumentArchiveImpact struct {
 	// walk stopped after the bound, so no count is known and none is claimed.
 	TooLarge bool
 	// Relocated is how many documents the archive would move to the
-	// workspace root instead of the trash (ADR 0037 point 5): a number only,
+	// workspace root instead of the trash (ADR 0037 point 5, every root): a number only,
 	// never which ones - the caller may not be able to read them.
 	Relocated int
 }
@@ -458,7 +474,7 @@ type DocumentArchiveImpact struct {
 // doing it. The checks run the archive command's own root gate (not found,
 // owned, then manage - the same order, so the read can never show counts for a
 // delete the command refuses), then the same bounded subtree walk, then the
-// same manage gate on every node of that id set, then the count. All three
+// same relocation plan over that id set, then the count. All three
 // steps after the root gate run in ONE REPEATABLE READ, read-only transaction:
 // under READ COMMITTED each statement takes its own snapshot, and the promise
 // that the ids, the access check and the numbers describe one moment would not
@@ -514,22 +530,21 @@ func (s *DocumentService) ArchiveImpact(ctx context.Context, actor Actor, docume
 	// The walk cannot sort (that would evaluate the whole CTE): sorting here
 	// keeps the gate's refusal order as stable as the command's.
 	sort.Strings(live)
-	// (3) the archive command's own gate on exactly this id set: one node the
-	// caller cannot manage refuses the whole read, and the body never carries
-	// a number. A workspace folder takes the command's plan instead: what
-	// would relocate is counted, never named.
-	// The pristine-copy root holds nothing under it (the command's own skip).
+	// (3) the archive command's own plan on exactly this id set: what would
+	// relocate is counted, never named, and a refusal of the plan (a folder
+	// the caller cannot read or manage, an owned node) refuses the whole read
+	// with no number in the body. The pristine-copy root holds nothing under
+	// it (the command's own skip).
 	trash := live
-	if isWorkspaceFolder(doc) {
+	if !pristine || len(live) != 1 || live[0] != doc.ID {
+		if err := s.requireManageOnRootOnlyGate(ctx, q, actor, doc, pristine); err != nil {
+			return DocumentArchiveImpact{}, err
+		}
 		var relocate []db.Document
-		if trash, relocate, err = s.planFolderTrash(ctx, q, actor, doc, live); err != nil {
+		if trash, relocate, err = s.planSubtreeTrash(ctx, q, actor, doc, live); err != nil {
 			return DocumentArchiveImpact{}, err
 		}
 		out.Relocated = len(relocate)
-	} else if !pristine || len(live) != 1 || live[0] != doc.ID {
-		if err := s.requireManageOnSubtree(ctx, q, actor, doc, live); err != nil {
-			return DocumentArchiveImpact{}, err
-		}
 	}
 	// (4) count on exactly the id set the archive would stamp. page and file
 	// are both "documents" to the dialog; the root is counted only in the

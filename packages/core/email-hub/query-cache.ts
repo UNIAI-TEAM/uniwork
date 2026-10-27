@@ -22,6 +22,7 @@ export const emailHubKeys = {
   sidebarCounts: (wsId: string, accountId: string) =>
     ["email-hub", wsId, "sidebar-counts", accountId] as const,
   imapLabels: (wsId: string, accountId: string) => ["email-hub", wsId, "imap-labels", accountId] as const,
+  scheduledSends: (wsId: string, accountId: string) => ["email-hub", wsId, "scheduled", accountId] as const,
 };
 
 export function threadDetailKey(wsId: string, accountId: string, threadId: string) {

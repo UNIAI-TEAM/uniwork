@@ -111,7 +111,7 @@ func TestBatchUpdateTasksUpdatesThree(t *testing.T) {
 	}
 }
 
-func TestBatchDeleteTasksRemovesThree(t *testing.T) {
+func TestBatchDeleteTasksTrashesThree(t *testing.T) {
 	s, _, ua, _, w := taskFixture(t)
 	ctx := context.Background()
 
@@ -130,10 +130,19 @@ func TestBatchDeleteTasksRemovesThree(t *testing.T) {
 	if n != 3 {
 		t.Fatalf("deleted: got %d want 3", n)
 	}
+	batch := ""
 	for _, id := range ids {
 		if _, err := s.Get(ctx, ua.ID, id); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("task %s still visible: %v", id, err)
 		}
+		row, err := s.q.GetTaskByIDIncludingTrashed(ctx, id)
+		if err != nil || !row.TrashBatchID.Valid {
+			t.Fatalf("task %s = %+v %v, want kept in the trash", id, row.TrashBatchID, err)
+		}
+		if batch != "" && row.TrashBatchID.String != batch {
+			t.Fatalf("task %s in batch %s, want one batch %s", id, row.TrashBatchID.String, batch)
+		}
+		batch = row.TrashBatchID.String
 	}
 }
 

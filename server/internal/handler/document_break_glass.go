@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -88,7 +89,7 @@ func (h *handlers) getDocumentAdminSummary(w http.ResponseWriter, r *http.Reques
 		Document: sdo.DocumentAdminSummaryDocumentDTO{
 			ID: doc.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 			Kind: doc.Kind, Title: doc.Title, Visibility: doc.Visibility, SizeBytes: sum.SizeBytes,
-			CreatedBy: doc.CreatedBy,
+			CreatedBy: doc.CreatedBy, Revision: strconv.FormatInt(doc.Revision, 10),
 		},
 		MyLevel:    string(sum.My.Level),
 		Via:        string(sum.My.Via),
@@ -103,6 +104,9 @@ func (h *handlers) getDocumentAdminSummary(w http.ResponseWriter, r *http.Reques
 	if doc.ArchivedAt.Valid {
 		at := doc.ArchivedAt.Time.UTC().Format(time.RFC3339)
 		out.Document.ArchivedAt = &at
+	}
+	if doc.OwnerKind.Valid {
+		out.Document.OwnerKind = &doc.OwnerKind.String
 	}
 	if doc.CreatedAt.Valid {
 		out.Document.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)

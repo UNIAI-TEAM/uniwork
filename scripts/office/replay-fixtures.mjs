@@ -20,6 +20,7 @@
 // absent; 3 a --require'd capability did not report pass.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { REPO_ROOT } from '../office-g0/paths.mjs';
@@ -251,5 +252,5 @@ async function main() {
   if (report.requiredUnmet.length) { console.error('required but not passing: ' + report.requiredUnmet.join(', ')); process.exit(3); }
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) main().catch((e) => { console.error(e.message); process.exit(1); });

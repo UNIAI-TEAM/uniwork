@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { MeetingActionItems } from "../api/endpoints/meeting-action-items";
 import { meetingKeys } from "../meetings/hooks";
+import { isTaskLifecycleEvent } from "../tasks/cache-coordinator";
 
 type Keys = (readonly unknown[])[];
 
@@ -12,14 +13,17 @@ export function meetingTaskFrameKeys(qc: QueryClient, type: string, taskId: stri
   const keys: Keys = [];
   // A converted action item shows its task's state; only cached lists that
   // hold this task refetch.
-  if ((type === "task.updated" || type === "task.deleted") && taskId) {
+  if ((type === "task.updated" || type === "task.deleted" || type === "task.trashed") && taskId) {
     for (const [key, data] of qc.getQueriesData<MeetingActionItems>({ queryKey: meetingKeys.actionItemsRoot })) {
       if (data?.items.some((it) => it.task?.id === taskId)) keys.push(key);
     }
   }
+  // While its task sits in the trash an item reads as pending with no task,
+  // so no list names the restored task: every action item list refetches.
+  if (type === "task.restored") keys.push(meetingKeys.actionItemsRoot);
   // Carried-over lists read other meetings' tasks: a conversion creates one,
   // finishing or deleting one takes it off.
-  if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
+  if (isTaskLifecycleEvent(type)) {
     keys.push(meetingKeys.carriedOverRoot);
   }
   return keys;

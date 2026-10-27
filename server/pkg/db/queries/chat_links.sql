@@ -44,6 +44,7 @@ FROM (
   GROUP BY target_id
 ) l
 JOIN tasks t ON t.id = l.target_id AND t.workspace_id = sqlc.arg(workspace_id)
+  AND t.trashed_at IS NULL
 LEFT JOIN users u ON t.assignee_kind = 'human' AND u.id = t.assignee_id
 LEFT JOIN agents a ON t.assignee_kind = 'agent' AND a.id = t.assignee_id
 ORDER BY l.linked_at DESC, t.id DESC

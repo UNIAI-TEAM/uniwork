@@ -8,6 +8,7 @@ SELECT t.* FROM tasks t
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = sqlc.arg('organization_id')
   AND t.workspace_id = sqlc.arg('workspace_id')
+  AND t.trashed_at IS NULL
   AND t.assignee_id = sqlc.arg('user_id')
   AND t.assignee_kind = 'human'
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
@@ -33,6 +34,7 @@ FROM tasks t
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = sqlc.arg('organization_id')
   AND t.workspace_id = sqlc.arg('workspace_id')
+  AND t.trashed_at IS NULL
   AND t.assignee_id = sqlc.arg('user_id')
   AND t.assignee_kind = 'human'
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled');

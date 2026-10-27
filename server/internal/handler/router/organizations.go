@@ -17,6 +17,8 @@ import (
 //	PATCH /api/v1/orgs/{org}/members/{userID}
 //	POST /api/v1/orgs/{org}/members/{userID}/deactivate
 //	POST /api/v1/orgs/{org}/members/{userID}/reactivate
+//	GET  /api/v1/orgs/{org}/members/{userID}/document-ownership
+//	POST /api/v1/orgs/{org}/members/{userID}/document-ownership
 //	POST /api/v1/orgs/{org}/leave
 //	POST /api/v1/orgs/{org}/close
 //	POST /api/v1/orgs/{org}/transfer-ownership
@@ -129,6 +131,28 @@ func registerOrganizations(r api, h Routes) {
 		tags:        []string{"organizations"},
 		sdo:         sdo.OrgMemberSDO{},
 		auth:        true,
+	})
+	// DOC-06b (UNI-2092, addendum §2.2, §4.2): the documents a member holds
+	// the ACL owner slot of, and their transfer in batches of 500.
+	r.Get("/orgs/{org}/members/{userID}/document-ownership", h.GetMemberDocumentOwnership, apiOp{
+		summary: "Count an organization member's documents",
+		description: "Owner/admin tổ chức xem thành viên (đang hoạt động hoặc đã vô hiệu hóa) là chủ sở hữu bao nhiêu tài liệu, theo workspace; chỉ đếm, không trả tiêu đề. " +
+			"Tính cả tài liệu trong thùng rác chưa xóa hẳn; không tính tài liệu thuộc Work Product và thư mục gốc My Folder. " +
+			"403 khi người gọi không phải owner/admin, hoặc là admin xem admin khác/owner; 404 khi thành viên không thuộc tổ chức.",
+		tags: []string{"organizations"},
+		sdo:  sdo.MemberDocumentOwnershipSDO{},
+		auth: true,
+	})
+	r.Post("/orgs/{org}/members/{userID}/document-ownership", h.TransferMemberDocuments, apiOp{
+		summary: "Transfer an organization member's documents",
+		description: "Owner/admin tổ chức chuyển tối đa 500 tài liệu của thành viên cho một người nhận mỗi lần gọi; còn nữa thì has_more + cursor, gọi tiếp với bulk_id và cursor đó. " +
+			"Tài liệu ở workspace người nhận chưa tham gia, và tài liệu hạn chế người gọi tự nhận mà không có quyền quản lý, được bỏ qua và đếm trong skipped. Chủ cũ không giữ quyền. " +
+			"400 invalid_request khi thiếu to_user_id hoặc bulk_id/cursor không phải ULID; 403 khi người gọi không phải owner/admin, hoặc là admin thao tác trên admin khác/owner; " +
+			"404 khi thành viên không thuộc tổ chức; 422 owner_target_not_member khi người nhận trùng thành viên nguồn hoặc không phải thành viên đang hoạt động của tổ chức.",
+		tags: []string{"organizations"},
+		sdi:  sdi.TransferMemberDocumentsSDI{},
+		sdo:  sdo.MemberDocumentsTransferSDO{},
+		auth: true,
 	})
 	r.Post("/orgs/{org}/transfer-ownership", h.TransferOrgOwnership, apiOp{
 		summary: "Transfer organization ownership",

@@ -910,28 +910,16 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 	return task, nil
 }
 
+// Delete moves the task and its subtasks to the trash (UNI-2171); Purge is
+// the delete that removes rows.
 func (s *TaskService) Delete(ctx context.Context, userID, taskID string) error {
-	task, err := s.authorize(ctx, userID, taskID)
-	if err != nil {
-		return err
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, task.WorkspaceID)
-	if err != nil {
-		return err
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	if err := s.deleteTaskInTx(ctx, s.q.WithTx(tx), userID, task, ws); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	_, err := s.Trash(ctx, Human(userID), taskID)
+	return err
 }
 
-// deleteTaskInTx removes the task and writes audit/outbox using q (caller owns the tx).
-func (s *TaskService) deleteTaskInTx(ctx context.Context, q *db.Queries, userID string, task db.Task, ws db.Workspace) error {
+// purgeTaskInTx removes the task row and writes audit/outbox using q (caller
+// owns the tx): the delete path of a purge, by a person or the purge worker.
+func (s *TaskService) purgeTaskInTx(ctx context.Context, q *db.Queries, task db.Task, actor audit.Actor) error {
 	if s.files != nil {
 		// File-backed attachments bound to the task lose their hold here —
 		// the release records it in the same transaction that drops the task.
@@ -982,8 +970,8 @@ func (s *TaskService) deleteTaskInTx(ctx context.Context, q *db.Queries, userID 
 	// The row is gone, so the audit entry is the only remaining record of what
 	// it held: keep the title, which is what a person searching the log reads.
 	return auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: ws.OrganizationID, WorkspaceID: task.WorkspaceID,
-		Actor:        audit.User(userID),
+		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+		Actor:        actor,
 		Action:       audit.ActionTaskDeleted,
 		ResourceType: "task", ResourceID: task.ID,
 		Metadata: map[string]any{"title": task.Title, "status": task.Status},

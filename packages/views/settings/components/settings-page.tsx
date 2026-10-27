@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Tag,
+  Trash,
   User,
   Users,
   type LucideIcon,
@@ -73,6 +74,7 @@ const PreferencesTab = lazy(() => import("./preferences-tab").then((m) => ({ def
 const WorkspaceTab = lazy(() => import("./workspace-tab").then((m) => ({ default: m.WorkspaceTab })));
 const TaskStatusesTab = lazy(() => import("./task-statuses-tab").then((m) => ({ default: m.TaskStatusesTab })));
 const TaskLabelsTab = lazy(() => import("./task-labels-tab").then((m) => ({ default: m.TaskLabelsTab })));
+const TrashTab = lazy(() => import("./trash-tab").then((m) => ({ default: m.TrashTab })));
 
 type Gate = "billing" | "audit" | "workspace_admin" | "org_admin" | "org_owner" | "mcp";
 
@@ -131,6 +133,7 @@ const GROUPS: readonly { id: GroupId; tabs: readonly TabDef[] }[] = [
       { value: "task-labels", label: "taskLabels", icon: Tag, Panel: TaskLabelsTab },
       { value: "integrations", label: "integrations", icon: Plug, Panel: IntegrationsTab },
       { value: "ai", label: "ai", icon: Sparkles, Panel: AiTab, gate: "workspace_admin" },
+      { value: "trash", label: "trash", icon: Trash, Panel: TrashTab, wide: true },
     ],
   },
 ];

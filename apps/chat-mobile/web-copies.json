@@ -40,7 +40,7 @@
     "apps/chat-mobile/data/chat-api.ts": {
       "packages/core/api/endpoints/chat-follow-ups.ts": "eb59130cb4ae1ded248f7e3794b954b46a00e0de5fedef4140b03903a80a6e90",
       "packages/core/api/endpoints/chat-links.ts": "f5873a68d8c42fbcbf45a3f2056f2bc6332d63f15d4dc8ee2c9fd58d3b4568d9",
-      "packages/core/api/endpoints/tasks.ts": "22da34793d4599aef6323d57e5bee4fa3be33b84038fe0af60dd67e1447350ec",
+      "packages/core/api/endpoints/tasks.ts": "5860bb2693ea899fb79cdeda9660aab3e88e5d46986e6bbd6ccf1180befb975e",
       "packages/core/api/endpoints/workspaces.ts": "9a01a8b55ffe7b3165cd67c7a1181a298838c1cfb4ee67acdfa688a200c32359"
     },
     "apps/chat-mobile/data/chat-send.ts": {
@@ -51,7 +51,7 @@
       "packages/core/chat/thread-hooks.ts": "5bc995cb60f1b595b879ec635a88e236c60458976213e9a1573dbe39ab147e91"
     },
     "apps/chat-mobile/data/realtime/chat-realtime.ts": {
-      "packages/core/realtime/use-realtime-sync.ts": "0cb40dcba46fcdc3e524e5eff6ca397de77586335324c9862e410ff7c3a5a68c"
+      "packages/core/realtime/use-realtime-sync.ts": "5da657b467011b46a2ba0f0b75d65f8a413860f3260ab53e145ec088347d8df4"
     },
     "apps/chat-mobile/data/realtime/use-chat-scopes.ts": {
       "packages/core/realtime/use-chat-room-scopes.ts": "877a7d7c7a8600e70460626be873ba771668627c7243beddf340c613ba9dfb18"

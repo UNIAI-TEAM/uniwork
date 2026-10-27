@@ -6,6 +6,7 @@ import {
   listDocumentFavorites,
   unfavoriteDocument,
 } from "../api/endpoints/document-favorites";
+import { documentFilterKey } from "./hooks-collections";
 import { documentKeys } from "./keys";
 import { requireVerifiableFavorite, requireVerifiableStatus } from "./verify";
 
@@ -27,7 +28,7 @@ function invalidateFavorites(qc: QueryClient) {
     qc.invalidateQueries({ queryKey: documentKeys.favoritesRoot }),
     qc.invalidateQueries({
       queryKey: documentKeys.all,
-      predicate: (query) => query.queryKey.length === 3 && query.queryKey[2] === "favorites",
+      predicate: (query) => query.queryKey.length >= 3 && query.queryKey[2] === "favorites",
     }),
   ]);
 }
@@ -40,12 +41,13 @@ export function useDocumentFavorites(orgId: string, opts?: { enabled?: boolean }
   });
 }
 
-/** The workspace's starred rows, newest star first, paged on the server's cursor. */
-export function useWorkspaceFavoriteDocuments(wsId: string, opts?: { enabled?: boolean }) {
+/** The workspace's starred rows, newest star first, paged on the server's cursor; the Type picks (UNI-2113) key the entry. */
+export function useWorkspaceFavoriteDocuments(wsId: string, opts?: { enabled?: boolean; types?: string[] }) {
+  const types = opts?.types?.length ? opts.types : undefined;
   return useInfiniteQuery({
-    queryKey: documentKeys.favoriteList(wsId),
+    queryKey: documentKeys.favoriteList(wsId, types ? documentFilterKey({ types }) : ""),
     queryFn: ({ pageParam, signal }) =>
-      listFavoriteDocuments(wsId, { cursor: pageParam || undefined, limit: FAVORITE_PAGE_SIZE }, signal),
+      listFavoriteDocuments(wsId, { cursor: pageParam || undefined, limit: FAVORITE_PAGE_SIZE, types }, signal),
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: (opts?.enabled ?? true) && !!wsId,

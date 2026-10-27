@@ -124,6 +124,10 @@ type Routes struct {
 	LeaveOrganization   http.HandlerFunc
 	CloseOrganization   http.HandlerFunc
 
+	// DOC-06b: the documents an organization member owns, and their bulk transfer.
+	GetMemberDocumentOwnership http.HandlerFunc
+	TransferMemberDocuments    http.HandlerFunc
+
 	InviteToOrganization http.HandlerFunc
 	ListOrgInvitations   http.HandlerFunc
 	RevokeOrgInvitation  http.HandlerFunc
@@ -146,6 +150,7 @@ type Routes struct {
 	UploadWorkspaceIcon http.HandlerFunc
 	RemoveWorkspaceIcon http.HandlerFunc
 	GetWorkspaceMe      http.HandlerFunc
+	ListTrash           http.HandlerFunc
 	ListMembers         http.HandlerFunc
 	PatchMember         http.HandlerFunc
 	DeleteMember        http.HandlerFunc
@@ -161,6 +166,9 @@ type Routes struct {
 	UpdateTask            http.HandlerFunc
 	PutTaskSuite          http.HandlerFunc
 	DeleteTask            http.HandlerFunc
+	RestoreTask           http.HandlerFunc
+	PurgeTask             http.HandlerFunc
+	ListTaskTrash         http.HandlerFunc
 	ListComments          http.HandlerFunc
 	CreateComment         http.HandlerFunc
 	QueryTasks            http.HandlerFunc
@@ -256,6 +264,9 @@ type Routes struct {
 	GetProject            http.HandlerFunc
 	PutProject            http.HandlerFunc
 	DeleteProject         http.HandlerFunc
+	RestoreProject        http.HandlerFunc
+	PurgeProject          http.HandlerFunc
+	ListProjectTrash      http.HandlerFunc
 	ListProjectResources  http.HandlerFunc
 	CreateProjectResource http.HandlerFunc
 	PutProjectResource    http.HandlerFunc
@@ -768,6 +779,9 @@ type Routes struct {
 	ListDocumentAccessRequests   http.HandlerFunc
 	ApproveDocumentAccessRequest http.HandlerFunc
 	DeclineDocumentAccessRequest http.HandlerFunc
+	// DOC-06 (UNI-2084): hand one document's ACL owner slot to another
+	// effective member of its workspace.
+	TransferDocumentOwner http.HandlerFunc
 	// Emergency view access for a workspace admin on a restricted document
 	// (DOC-05; UNI-1628).
 	CreateDocumentBreakGlass http.HandlerFunc

@@ -31,6 +31,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const root = path.resolve(import.meta.dirname, "..");
 export const APP = "apps/chat-mobile";
@@ -190,7 +191,7 @@ export function drift(copies = scanCopies(), manifest = readManifest()) {
   return out;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const copies = scanCopies();
   if (process.argv.includes("--write")) {
     const size = copiedCodeChars(copies);

@@ -2439,6 +2439,9 @@ type Project struct {
 	CreatedByKind  string             `json:"created_by_kind"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	TrashedAt      pgtype.Timestamptz `json:"trashed_at"`
+	TrashedBy      pgtype.Text        `json:"trashed_by"`
+	PurgeAfter     pgtype.Timestamptz `json:"purge_after"`
 }
 
 type ProjectResource struct {
@@ -2555,6 +2558,11 @@ type Task struct {
 	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
 	StartAt            pgtype.Timestamptz `json:"start_at"`
 	DueAt              pgtype.Timestamptz `json:"due_at"`
+	TrashedAt          pgtype.Timestamptz `json:"trashed_at"`
+	TrashedBy          pgtype.Text        `json:"trashed_by"`
+	PurgeAfter         pgtype.Timestamptz `json:"purge_after"`
+	TrashBatchID       pgtype.Text        `json:"trash_batch_id"`
+	TrashedProjectID   pgtype.Text        `json:"trashed_project_id"`
 }
 
 type TaskComment struct {

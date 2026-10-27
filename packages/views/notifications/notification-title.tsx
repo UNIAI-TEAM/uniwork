@@ -54,6 +54,8 @@ export function notificationTitleKey(n: Notification): string {
   // The requester was never allowed to read the title, so a declined request's
   // sentence has no document to drop (access addendum §3.4).
   if (n.kind === "document_access_declined") return n.title_key;
+  // A bulk transfer row names the source member; once the name is gone the sentence reads "a member's".
+  if (n.kind === "document_owners_bulk_transferred" && !n.params.name?.trim()) return `${n.title_key}_untitled`;
   // A batch not from one meeting (or a row from before the meeting param)
   // reads without it, never `cuộc họp ""` (server titles.go).
   if (n.kind === "tasks_assigned" && !n.params.meeting?.trim()) return `${n.title_key}_nomeeting`;

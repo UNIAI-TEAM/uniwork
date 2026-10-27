@@ -263,7 +263,7 @@ func TestFSDeleteStagedAttachmentCancelsTheSession(t *testing.T) {
 	fileErrCode(t, err, files.CodeUploadCanceled)
 }
 
-func TestFSDeleteTaskReleasesItsAttachments(t *testing.T) {
+func TestFSPurgeTaskReleasesItsAttachments(t *testing.T) {
 	s, fake, _, ua, _, w := taskFixtureWithFiles(t)
 	ctx := context.Background()
 	task := newTask(t, s, ua, w)
@@ -273,6 +273,9 @@ func TestFSDeleteTaskReleasesItsAttachments(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := s.Delete(ctx, ua.ID, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Purge(ctx, Human(ua.ID), task.ID); err != nil {
 		t.Fatal(err)
 	}
 	listed, err := s.ListTaskAttachments(ctx, Human(ua.ID), task.ID)

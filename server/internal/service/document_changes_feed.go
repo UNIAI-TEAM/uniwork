@@ -84,6 +84,12 @@ import (
 //     user, a workspace they are in, or their organization) and must not read
 //     through any other path now. A caller who still reads another way gets the
 //     upsert, never a removal.
+//   - owner transfer (document.owner_transferred): the ACL owner slot moves and
+//     the previous owner keeps only the share they were asked to keep, so a
+//     previous owner left with nothing gets no document.share_revoked row.
+//     The audit row names them (metadata.from_user_id); if they cannot read
+//     the document now they get the removal, and one who kept a share reads it
+//     and gets the upsert. The new owner reads through the slot: an upsert.
 //   - visibility demotion: the REAL command is a PATCH through UpdateDocument
 //     with Visibility set. Since SH-S1 it writes document.workspace_access_changed
 //     with a changes.visibility {from,to} diff (the home row turning on or
@@ -195,6 +201,9 @@ var feedDocumentActions = map[string]bool{
 	"document.shared":           true,
 	"document.share_revoked":    true,
 	"document.settings_changed": true,
+	// DOC-06: the owner slot moved; the new owner reads it, the previous
+	// owner may no longer (removalByAudit).
+	"document.owner_transferred": true,
 	// SH-S1: the home row turned on, off, or changed level.
 	"document.workspace_access_changed": true,
 }
@@ -203,7 +212,8 @@ var feedDocumentActions = map[string]bool{
 // someone: a document created (its creator reads it), a share granted, or the
 // home row turning on - a merged share (a share naming the document's own
 // workspace) writes document.workspace_access_changed, not document.shared,
-// and it is the grant that admits every member of that workspace. One of
+// and it is the grant that admits every member of that workspace - or an
+// owner transfer, which makes its recipient the ACL owner. One of
 // these on the page means a caller's readership cannot be proven to predate
 // their snapshot, so a removal whose evidence the change destroyed (a purge, a
 // document becoming an owner's) answers 410 instead of guessing.
@@ -211,6 +221,7 @@ var feedGrantActions = map[string]bool{
 	"document.created":                  true,
 	"document.shared":                   true,
 	"document.workspace_access_changed": true,
+	"document.owner_transferred":        true,
 }
 
 // DocumentChangeFeedRow is one incremental-feed row. It carries ids, the
@@ -572,7 +583,8 @@ func feedCandidateHasGrant(c *feedCandidate) bool {
 
 // removalByAudit answers whether a row on the page itself proves the caller
 // lost a level they held: a share revoke of a principal that admitted them
-// (metadata principal_type/principal_id), or a visibility demotion whose prior
+// (metadata principal_type/principal_id), an owner transfer away from them
+// (metadata from_user_id), or a visibility demotion whose prior
 // visibility did. undecided is true for a visibility change that does not name
 // the prior visibility: the removal may be due and cannot be proven either way,
 // so the caller answers 410 (never a silent skip).
@@ -581,6 +593,13 @@ func removalByAudit(c *feedCandidate, scope documentListScope, userID string) (r
 		switch action {
 		case "document.share_revoked":
 			if feedShareAdmitsActor(c.metadata[i], scope, userID) {
+				return true, false
+			}
+		case "document.owner_transferred":
+			// This arm only runs for a caller who cannot read the document
+			// now, so the previous owner named here was left with nothing; one
+			// who kept a share reads it and got the upsert before this ran.
+			if auditString(c.metadata[i], "from_user_id") == userID {
 				return true, false
 			}
 		case "document.settings_changed":

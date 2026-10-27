@@ -310,12 +310,30 @@ describe("documents endpoints", () => {
     expect(documentAssetPath("d1", "a1")).toBe("/api/v1/documents/d1/assets/a1");
     expect(documentDownloadPath("d1")).toBe("/api/v1/documents/d1/download");
     expect(documentDownloadPath("d1", 2)).toBe("/api/v1/documents/d1/download?version=2");
+    expect(documentDownloadPath("d1", undefined, "view")).toBe(
+      "/api/v1/documents/d1/download?intent=view",
+    );
+    expect(documentDownloadPath("d1", 2, "view")).toBe(
+      "/api/v1/documents/d1/download?version=2&intent=view",
+    );
+    expect(documentDownloadPath("d1", undefined, "download")).toBe(
+      "/api/v1/documents/d1/download",
+    );
   });
 
   it("downloadDocumentFile and getDocumentAsset return blobs", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])));
     const blob = await downloadDocumentFile("d1", 2);
     expect(blob.size).toBe(3);
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toBe(
+      "http://api.test/api/v1/documents/d1/download?version=2",
+    );
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(new Uint8Array([4, 5])));
+    const viewBlob = await downloadDocumentFile("d1", undefined, undefined, "view");
+    expect(viewBlob.size).toBe(2);
+    expect(String(vi.mocked(fetch).mock.calls[1]?.[0])).toBe(
+      "http://api.test/api/v1/documents/d1/download?intent=view",
+    );
     vi.mocked(fetch).mockResolvedValueOnce(new Response(new Uint8Array([9])));
     const asset = await getDocumentAsset("d1", "a1");
     expect(asset.size).toBe(1);
@@ -408,6 +426,12 @@ describe("documents endpoints", () => {
       name: "ApiError",
       code: "forbidden",
       status: 403,
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("not-json-at-all", { status: 502 }));
+    await expect(downloadDocumentFile("d1", undefined, undefined, "view")).rejects.toMatchObject({
+      name: "ApiError",
+      code: "internal",
+      status: 502,
     });
   });
 
