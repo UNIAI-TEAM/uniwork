@@ -423,7 +423,10 @@ Mọi route: công khai, `Cache-Control: no-store`, ⚑ chỉ nhận `client_id`
   chủ chỉ có Google/Apple chứng minh bằng mã email). `TestSignInMethodChangesNeedAProof` phủ tất cả.
 - ⚑ Lệnh nhạy cảm (step-up, mọi lệnh phương thức đăng nhập, đồng ý desktop/MCP) từ chối access token web có `iat` trước
   `credentials_revoked_at` (`401 invalid_token`). Cả hai đều tính bằng giây nên chỉ từ chối token **cũ hơn hẳn**; phiên
-  chính lệnh đó cấp thì qua. Middleware bearer đặt token đã kiểm (kèm `iat`) vào context, nên không thêm lượt đọc DB cho
+  chính lệnh đó cấp thì qua. (Phản biện lát 5) Token **cùng giây** với dấu có thể là phiên lệnh đó cấp hay một phiên lệnh
+  đó vừa kết thúc, nên phải còn phiên sống (`bearerAfterMark`). Cổng email đã xác minh (`requireVerifiedEmail`: hoàn tất
+  onboarding, lập tổ chức, mời, xem và nhận lời mời) xét token web của chính người gọi theo cùng luật: thu hồi xác minh
+  địa chỉ, nên token sót lại của kẻ chiếm trước không mở được thứ chỉ địa chỉ đã xác minh mới mở. Middleware bearer đặt token đã kiểm (kèm `iat`) vào context, nên không thêm lượt đọc DB cho
   mọi request; helper `requireCurrentCredentials` đọc hàng `users` của chính chủ token. Token native không xét ở đây
   (thu hồi thì phiên thiết bị chết, middleware đã chặn); không có token trong context (job, test gọi thẳng service) thì
   không có gì để xét. Đồng ý desktop và MCP dùng nó từ lát 1.

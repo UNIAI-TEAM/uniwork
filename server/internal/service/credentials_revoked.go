@@ -29,11 +29,9 @@ func errCredentialsRevoked() error {
 // requireCurrentCredentials is the gate of the sensitive commands (ADR 0047
 // §5, spec §3.7: step-up and every command that takes its token, the
 // sign-in method commands, desktop and MCP consent): a browser access token
-// issued before its
-// account's credentials_revoked_at is refused. The mark and a token's iat
-// are both whole seconds, so a token is refused only when strictly older:
-// the session the same command hands out passes. It judges the bearer's own
-// account, the one whose credentials the mark is about.
+// issued before its account's credentials_revoked_at is refused
+// (bearerAfterMark). It judges the bearer's own account, the one whose
+// credentials the mark is about.
 //
 // A native device token is not judged here: a revoke ends its device
 // session, which the auth middleware checks on every request. Without a
@@ -51,10 +49,24 @@ func requireCurrentCredentials(ctx context.Context, q *db.Queries) error {
 	if err != nil {
 		return err
 	}
-	if u.CredentialsRevokedAt.Valid && at.IssuedAt.Before(u.CredentialsRevokedAt.Time) {
+	return bearerAfterMark(ctx, q, at, u)
+}
+
+// bearerAfterMark judges the browser bearer at against u, its account's row:
+// a token issued before u's credentials_revoked_at is refused. The mark and
+// a token's iat are both whole seconds, so a token of the mark's own second
+// is either the session the change itself handed out or one the change
+// ended; only the session tells them apart, so it must still be live
+// (liveBearerSession). A token issued after the mark passes unread.
+func bearerAfterMark(ctx context.Context, q *db.Queries, at auth.AccessToken, u db.User) error {
+	if !u.CredentialsRevokedAt.Valid || at.IssuedAt.After(u.CredentialsRevokedAt.Time) {
+		return nil
+	}
+	if at.IssuedAt.Before(u.CredentialsRevokedAt.Time) {
 		return errCredentialsRevoked()
 	}
-	return nil
+	_, err := liveBearerSession(ctx, q, at)
+	return err
 }
 
 // requireLiveBearer is requireCurrentCredentials for a command that hands

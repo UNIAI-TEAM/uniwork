@@ -92,6 +92,35 @@ func TestCredentialsRevokedAtRefusesOlderWebTokens(t *testing.T) {
 			t.Fatalf("a device token is not judged by the mark: %v", err)
 		}
 	})
+	t.Run("verified-only commands", func(t *testing.T) {
+		// A reclaim verifies the address, and the gate of what a verified
+		// address unlocks (the invitations sent to it, founding an
+		// organization) must not open to the squatter's leftover token.
+		f := newIdentityFixture(t)
+		s := f.squat(t, "verified-only@gmail.com")
+		squatter, held := f.browser(t, s.user.ID)
+		res, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-verified-only", Email: "verified-only@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn)
+		if err != nil || res.Session.AccessToken == "" || !res.Reclaimed {
+			t.Fatalf("the owner's reclaim: %+v %v", res, err)
+		}
+		mark := f.user(t, s.user.ID).CredentialsRevokedAt.Time
+		orgs := NewOrganizationService(f.pool, f.q)
+		ws := NewWorkspaceService(f.pool, f.q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, f.out)
+		_, err = ws.PendingInvitations(squatter, s.user.ID)
+		refusedAsRevoked(t, err)
+		_, err = orgs.Create(squatter, s.user.ID, "Squat", "squat-org")
+		refusedAsRevoked(t, err)
+		// The mark's own second holds the owner's new session and, maybe, one
+		// the reclaim ended: the session tells them apart.
+		_, err = ws.PendingInvitations(webToken(f.ctx, s.user.ID, held.SessionID, mark), s.user.ID)
+		refusedAsRevoked(t, err)
+		if _, err := ws.PendingInvitations(webToken(f.ctx, s.user.ID, res.Session.SessionID, mark), s.user.ID); err != nil {
+			t.Fatalf("the reclaim's own session in the mark's second: %v", err)
+		}
+		if _, err := orgs.Create(f.bearer(t, res.Session), s.user.ID, "Owner", "owner-org"); err != nil {
+			t.Fatalf("the owner founds an organization: %v", err)
+		}
+	})
 	t.Run("mcp consent", func(t *testing.T) {
 		w := newMcpWorld(t)
 		w.enable(t)

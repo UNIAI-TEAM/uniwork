@@ -624,7 +624,9 @@ database and never reveal whether an id exists to a non-member.
   `second_factor_locked`, `retry_after`). An account that never verified its address cannot enrol, and a reset
   link on such an account takes it back like a provider that owns the address. Desktop and MCP consent refuse a
   browser token issued before `users.credentials_revoked_at`, and any token whose session has ended (401
-  `invalid_token`; the bearer middleware puts the verified token, `iat` included, on the context); a reset link marks
+  `invalid_token`; the bearer middleware puts the verified token, `iat` included, on the context); a token of the
+  mark's own second passes only while its session lives, and the verified-address gate (`requireVerifiedEmail`)
+  judges the caller's browser token the same way, since a reclaim is what verifies the address. A reset link marks
   the column and cancels the consents still open, like a reclaim. `TestMFAChallengeIsBoundToItsChannel`,
   `TestAChallengeDiesWithTheFirstFactorItFollowed`,
   `TestLinkWaitsForTheSecondFactor`, `TestSecondFactorLocksAfterTenFailures`,
