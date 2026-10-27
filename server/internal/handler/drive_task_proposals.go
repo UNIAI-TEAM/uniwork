@@ -119,6 +119,53 @@ func (h *handlers) CheckDriveTaskProposalDuplicates(w http.ResponseWriter, r *ht
 	respondJSON(w, http.StatusOK, toDriveProposalDuplicatesSDO(dups))
 }
 
+// CreateTasksFromDriveProposal converts confirmed items of a Google Drive task
+// proposal batch owned by the caller into workspace tasks, attaches intra-batch
+// dependencies, links the Drive file and durable provenance rows, and marks the
+// proposal converted in a single transaction (POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks, spec §8.5).
+func (h *handlers) CreateTasksFromDriveProposal(w http.ResponseWriter, r *http.Request) {
+	if h.DriveTaskProposals == nil {
+		respondError(w, http.StatusServiceUnavailable, sdo.DriveErrUnavailable, "Tính năng Google Drive đang tạm thời không khả dụng.")
+		return
+	}
+	var in sdi.CreateTasksFromDriveProposalSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	items := make([]service.CreateTasksFromProposalItemInput, 0, len(in.Items))
+	for _, it := range in.Items {
+		items = append(items, service.CreateTasksFromProposalItemInput{
+			Index:            it.Index,
+			Title:            it.Title,
+			Description:      it.Description,
+			AssigneeMemberID: it.AssigneeID,
+			Priority:         it.Priority,
+			StartDate:        it.StartDate,
+			DueDate:          it.DueDate,
+			LabelIDs:         it.LabelIDs,
+			BlockedByIndexes: it.BlockedByIndexes,
+			AllowDuplicate:   it.AllowDuplicate,
+		})
+	}
+	res, err := h.DriveTaskProposals.CreateTasksFromProposal(
+		r.Context(),
+		service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "proposalID"),
+		service.CreateTasksFromProposalInput{
+			ProjectID:    in.ProjectID,
+			ParentTaskID: in.ParentTaskID,
+			Status:       in.Status,
+			Items:        items,
+		},
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusCreated, toDriveProposalTasksCreatedSDO(res))
+}
+
 func toDriveTaskProposalSDO(v service.DriveTaskProposalView) sdo.DriveTaskProposalSDO {
 	items := make([]sdo.DriveTaskProposalItemDTO, 0, len(v.Items))
 	for _, it := range v.Items {
@@ -210,4 +257,22 @@ func toDriveProposalDuplicatesSDO(in []service.DriveProposalDuplicateItem) sdo.D
 		})
 	}
 	return sdo.DriveProposalDuplicatesSDO{Duplicates: out}
+}
+
+func toDriveProposalTasksCreatedSDO(v service.CreateTasksFromProposalResult) sdo.DriveProposalTasksCreatedSDO {
+	taskIDs := v.TaskIDs
+	if taskIDs == nil {
+		taskIDs = []string{}
+	}
+	items := make([]sdo.DriveProposalCreatedTaskItemDTO, 0, len(v.Items))
+	for _, it := range v.Items {
+		items = append(items, sdo.DriveProposalCreatedTaskItemDTO{
+			Index:  it.Index,
+			TaskID: it.TaskID,
+		})
+	}
+	return sdo.DriveProposalTasksCreatedSDO{
+		TaskIDs: taskIDs,
+		Items:   items,
+	}
 }

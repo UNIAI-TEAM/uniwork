@@ -279,6 +279,9 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.DriveTaskProposals = service.NewDriveTaskProposalService(pool, q, d.Workspaces, d.DriveFiles, d.DriveConnections, driveContentSvc, d.Meetings.AI)
 	d.DriveTaskProposals.SetFlags(d.FeatureFlags)
 	d.Audit.SetDriveProposalHistoryAuthorizer(d.DriveTaskProposals.AuthorizeHistory)
+	d.DriveTaskProposals.SetTasks(d.Tasks)
+	d.DriveFiles.SetTaskCreationsLoader(d.DriveFiles)
+	d.DriveTaskProposals.SetTaskCreationsLoader(d.DriveFiles)
 	// Ask UNI files (UNI-2119): the upload route is offered only where the turn
 	// runs the agent, so Ask UNI gets the file store, the flags (the loop below
 	// turns every one on) and the read tools, as main.go wires them. The asks
@@ -1314,6 +1317,17 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		m+" proposal prompt", fmt.Sprintf(`[{"index":0,"title":"%s proposed task","label_ids":[],"goal":"%s goal","checklist":[],"excerpt":{"section":"Sec 1","quote":"%s quote"},"blocked_by_indexes":[]}]`, m, m, m)); err != nil {
 		t.Fatalf("drive task proposal: %v", err)
 	}
+	for _, propKey := range []string{"driveProposalRefProject", "driveProposalRefParent", "driveProposalRefAssignee", "driveProposalRefLabel"} {
+		tn.ids[propKey] = util.NewID()
+		if _, err := w.pool.Exec(ctx, `INSERT INTO drive_task_proposals
+			(id, organization_id, workspace_id, drive_file_id, connection_id, requested_by, requested_by_kind,
+			 prompt, items, truncated, usage_event_id, status, expires_at)
+			VALUES ($1, $2, $3, $4, $5, $6, 'human', $7, $8, false, 'usage-iso-ref', 'ready', now() + interval '7 days')`,
+			tn.ids[propKey], tn.orgID, tn.wsID, tn.ids["driveFile"], tn.ids["driveConnection"], tn.userID,
+			m+" proposal prompt "+propKey, fmt.Sprintf(`[{"index":0,"title":"%s proposed task %s","label_ids":[],"goal":"%s goal","checklist":[],"excerpt":{"section":"Sec 1","quote":"%s quote"},"blocked_by_indexes":[]}]`, m, propKey, m, m)); err != nil {
+			t.Fatalf("drive task proposal %s: %v", propKey, err)
+		}
+	}
 	tn.ids["peerDriveProposal"] = util.NewID()
 	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_task_proposals
 		(id, organization_id, workspace_id, drive_file_id, connection_id, requested_by, requested_by_kind,
@@ -1323,11 +1337,20 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		m+" peer proposal prompt", fmt.Sprintf(`[{"index":0,"title":"%s peer proposed task","label_ids":[],"goal":"%s peer goal","checklist":[],"excerpt":{"section":"Sec 1","quote":"%s peer quote"},"blocked_by_indexes":[]}]`, m, m, m)); err != nil {
 		t.Fatalf("peer drive task proposal: %v", err)
 	}
+	tn.ids["convertedDriveProposal"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_task_proposals
+		(id, organization_id, workspace_id, drive_file_id, connection_id, requested_by, requested_by_kind,
+		 prompt, items, truncated, usage_event_id, status, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'human', $7, NULL, false, 'usage-iso-conv', 'converted', now() + interval '7 days')`,
+		tn.ids["convertedDriveProposal"], tn.orgID, tn.wsID, tn.ids["driveFile"], tn.ids["driveConnection"], tn.userID,
+		m+" converted proposal prompt"); err != nil {
+		t.Fatalf("converted drive task proposal: %v", err)
+	}
 	tn.ids["driveProposalLink"] = util.NewID()
 	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_task_proposal_links
 		(id, organization_id, workspace_id, proposal_id, item_index, task_id, drive_file_id, external_file_id, created_by, created_by_kind)
 		VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8, 'human')`,
-		tn.ids["driveProposalLink"], tn.orgID, tn.wsID, tn.ids["driveProposal"], tn.ids["task"], tn.ids["driveFile"], extFileID, tn.userID); err != nil {
+		tn.ids["driveProposalLink"], tn.orgID, tn.wsID, tn.ids["convertedDriveProposal"], tn.ids["task"], tn.ids["driveFile"], extFileID, tn.userID); err != nil {
 		t.Fatalf("drive task proposal link: %v", err)
 	}
 }

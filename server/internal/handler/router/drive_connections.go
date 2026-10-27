@@ -9,7 +9,7 @@ import (
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
-// tag: drive - Google Drive connector (UNI-2172): OAuth 2.0 connection
+// Drive connections, Picker token, file references, and task proposals (Cards B2 / UNI-2178, B4 / UNI-2180, B5 / UNI-2181, B6 / UNI-2182):
 // management, refresh, disconnect, picker token, and file references
 // (cards B2 / UNI-2178, B4 / UNI-2180).
 //
@@ -31,6 +31,7 @@ import (
 //	GET    /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}
 //	DELETE /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}
 //	POST   /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates
+//	POST   /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks
 func registerDriveConnections(r api, h Routes, flags *featureflag.Service, connectLimit, proposalLimit func(http.Handler) http.Handler) {
 	d := r.With(mw.RequireFeatureFlag(flags, "drive_connector"))
 	d.With(connectLimit).Post("/workspaces/{workspaceID}/drive-connections/google/start", h.StartDriveGoogleOAuth, apiOp{
@@ -133,6 +134,11 @@ func registerDriveConnections(r api, h Routes, flags *featureflag.Service, conne
 		summary:     "Recheck duplicate tasks for edited Google Drive proposal titles",
 		description: "Kiểm tra lại công việc đang mở trùng tiêu đề chuẩn hóa sau khi người dùng sửa tiêu đề hoặc đổi dự án / công việc cha trên màn hình xem trước (spec §8.4).",
 		tags:        []string{"drive"}, sdi: sdi.CheckDriveTaskProposalDuplicatesSDI{}, sdo: sdo.DriveProposalDuplicatesSDO{}, auth: true,
+	})
+	d.Post("/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks", h.CreateTasksFromDriveProposal, apiOp{
+		summary:     "Create workspace tasks from a Google Drive task proposal batch",
+		description: "Tạo hàng loạt 1–20 công việc từ bản đề xuất `ready` của chính người gọi, gắn phụ thuộc trong lô (`blocked_by`), gắn tệp Google Drive và lưu nguồn gốc bền `drive_task_proposal_links` trong một giao dịch (spec §8.5).",
+		tags:        []string{"drive"}, sdi: sdi.CreateTasksFromDriveProposalSDI{}, sdo: sdo.DriveProposalTasksCreatedSDO{}, auth: true,
 	})
 }
 

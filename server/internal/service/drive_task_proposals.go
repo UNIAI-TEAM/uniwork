@@ -95,6 +95,7 @@ type DriveTaskProposalService struct {
 	q           *db.Queries
 	ws          *WorkspaceService
 	files       *DriveFileService
+	tasks       *TaskService
 	connections *DriveConnectionService
 	content     DriveContentReader
 	ai          *ai.Gateway
@@ -157,6 +158,13 @@ func (s *DriveTaskProposalService) SetMetrics(m DriveProposalMetrics) {
 func (s *DriveTaskProposalService) SetTaskCreationsLoader(loader DriveTaskCreationsLoader) {
 	if s != nil {
 		s.creations = loader
+	}
+}
+
+// SetTasks attaches the TaskService used by CreateTasksFromProposal (B6, spec §8.5).
+func (s *DriveTaskProposalService) SetTasks(tasks *TaskService) {
+	if s != nil {
+		s.tasks = tasks
 	}
 }
 

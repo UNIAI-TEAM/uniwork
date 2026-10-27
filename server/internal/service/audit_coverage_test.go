@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"slices"
 	"testing"
 	"time"
 
@@ -2343,6 +2344,50 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalDiscarded, propDisconn.ID, linked2[0].File.ID, "drive-prop-disc2@example.com", "fake-sub-prop-disc-2", "source_disconnected", "SECRET_DOC_BODY_DISCARD")
 		},
+		audit.ActionDriveTaskProposalTasksCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			propSvc, fileSvc, connSvc, googleSrv := newAuditDriveProposalService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-prop-tasks", "drive-prop-tasks@example.com")
+			googleSrv.SetFile("ext-audit-prop-tasks", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-prop-tasks", Name: "Tasks From Proposal Doc", MimeType: DriveMimeGoogleDoc},
+				ExportByMime: map[string][]byte{
+					DriveMimeMarkdown: []byte("# Plan\nSECRET_DOC_BODY_CONVERT"),
+				},
+			})
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-prop-tasks"},
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			prop, err := propSvc.Propose(f.ctx, Human(f.owner.ID), w.ID, res[0].File.ID, ProposeDriveTasksInput{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantConvertedPayload := map[string]string{
+				"proposal_id":  prop.ID,
+				"workspace_id": w.ID,
+			}
+			beforeConverted := auditOutboxCountMap(t, f, "drive_task_proposal.converted", wantConvertedPayload)
+			created, err := propSvc.CreateTasksFromProposal(f.ctx, Human(f.owner.ID), w.ID, prop.ID, CreateTasksFromProposalInput{
+				Items: []CreateTasksFromProposalItemInput{
+					{
+						Index:       0,
+						Title:       "Follow up on plan",
+						Description: "Detailed task body",
+						Priority:    "high",
+					},
+				},
+			})
+			if err != nil || len(created.TaskIDs) != 1 {
+				t.Fatalf("CreateTasksFromProposal = %+v, err=%v", created, err)
+			}
+			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalTasksCreated, prop.ID, res[0].File.ID, "drive-prop-tasks@example.com", "fake-sub-prop-tasks", "", "SECRET_DOC_BODY_CONVERT")
+			assertDriveProposalTasksCreatedAuditSixKeys(t, f, prop.ID, res[0].File.ID, 1, []int{0}, created.TaskIDs, "drive-prop-tasks@example.com", "fake-sub-prop-tasks")
+			assertTaskCreatedDriveProposalAuditMetadata(t, f, created.TaskIDs[0], res[0].File.ID)
+			assertAuditOutboxTopicAfter(t, f, beforeConverted, "drive_task_proposal.converted", wantConvertedPayload)
+		},
 		// UNI-1853 M7: the host generates the meeting's AI summary.
 		audit.ActionMeetingSummaryCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2886,6 +2931,7 @@ func auditActions() []string {
 		audit.ActionTaskDriveFileUnlinked,
 		audit.ActionDriveTaskProposalCreated,
 		audit.ActionDriveTaskProposalDiscarded,
+		audit.ActionDriveTaskProposalTasksCreated,
 		audit.ActionMcpGrantCreated,
 		audit.ActionMcpGrantRevoked,
 		audit.ActionMcpGrantScopeChanged,
@@ -3759,6 +3805,9 @@ func newAuditDriveProposalService(t *testing.T, f *auditFixture) (*DriveTaskProp
 		}
 	}}, NewAIQuota(NewEntitlementService(f.pool, f.q)), nil, ai.Options{})
 	propSvc := NewDriveTaskProposalService(f.pool, f.q, f.ws, fileSvc, connSvc, contentSvc, gw)
+	propSvc.SetTasks(f.tasks)
+	fileSvc.SetTaskCreationsLoader(fileSvc)
+	propSvc.SetTaskCreationsLoader(fileSvc)
 	return propSvc, fileSvc, connSvc, googleSrv
 }
 
@@ -3783,6 +3832,60 @@ func assertDriveProposalAuditMetadata(t *testing.T, f *auditFixture, action, pro
 	}
 	if wantReason != "" && meta["reason"] != wantReason {
 		t.Fatalf("%s metadata reason = %v, want %q", action, meta["reason"], wantReason)
+	}
+}
+
+func assertDriveProposalTasksCreatedAuditSixKeys(
+	t *testing.T,
+	f *auditFixture,
+	proposalID, wantFileID string,
+	wantCount int,
+	wantIndexes []int,
+	wantTaskIDs []string,
+	wantEmail, wantSub string,
+) {
+	t.Helper()
+	var rawMeta []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = $2 AND resource_type = 'drive_task_proposal' AND resource_id = $3 LIMIT 1`,
+		f.orgID, audit.ActionDriveTaskProposalTasksCreated, proposalID,
+	).Scan(&rawMeta); err != nil {
+		t.Fatalf("query tasks_created audit metadata (%s): %v", proposalID, err)
+	}
+	var meta struct {
+		DriveFileID string   `json:"drive_file_id"`
+		Count       *int     `json:"count"`
+		ItemIndexes []int    `json:"item_indexes"`
+		TaskIDs     []string `json:"task_ids"`
+		GoogleEmail string   `json:"google_email"`
+		GoogleSub   string   `json:"google_sub"`
+	}
+	if err := json.Unmarshal(rawMeta, &meta); err != nil {
+		t.Fatalf("unmarshal tasks_created audit metadata: %v", err)
+	}
+	if meta.DriveFileID != wantFileID || meta.Count == nil || *meta.Count != wantCount ||
+		!slices.Equal(meta.ItemIndexes, wantIndexes) || !slices.Equal(meta.TaskIDs, wantTaskIDs) ||
+		meta.GoogleEmail != wantEmail || meta.GoogleSub != wantSub {
+		t.Fatalf("tasks_created metadata = %s, want drive_file_id=%q count=%d item_indexes=%v task_ids=%v google_email=%q google_sub=%q",
+			string(rawMeta), wantFileID, wantCount, wantIndexes, wantTaskIDs, wantEmail, wantSub)
+	}
+}
+
+func assertTaskCreatedDriveProposalAuditMetadata(t *testing.T, f *auditFixture, taskID, wantFileID string) {
+	t.Helper()
+	var rawMeta []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = $2 AND resource_type = 'task' AND resource_id = $3 LIMIT 1`,
+		f.orgID, audit.ActionTaskCreated, taskID,
+	).Scan(&rawMeta); err != nil {
+		t.Fatalf("query task.created audit metadata (%s): %v", taskID, err)
+	}
+	var meta map[string]any
+	if err := json.Unmarshal(rawMeta, &meta); err != nil {
+		t.Fatalf("unmarshal task.created audit metadata (%s): %v", taskID, err)
+	}
+	if meta["source"] != "drive_task_proposal" || meta["drive_file_id"] != wantFileID {
+		t.Fatalf("task.created (%s) metadata = %+v, want source=\"drive_task_proposal\" drive_file_id=%q", taskID, meta, wantFileID)
 	}
 }
 
