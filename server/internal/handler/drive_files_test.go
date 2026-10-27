@@ -898,11 +898,24 @@ func TestDriveFolderHTTPFlow(t *testing.T) {
 		t.Fatalf("ListDriveFiles unknown folder ID = %+v, want empty page with echoed drive_folder_id", fltUnknownOut)
 	}
 
-	// 5. Invalid drive_folder_id values ("x", "none2", "a/b") -> 400 invalid_request envelope.
-	for _, bad := range []string{"x", "none2", "a%2Fb"} {
+	// 5. Invalid drive_folder_id values ("x", "none2", "a/b", "%20none%20") -> 400 invalid_request envelope.
+	for _, bad := range []string{"x", "none2", "a%2Fb", "%20none%20"} {
 		badRes, badOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files?drive_folder_id="+bad, e.ownerTk, nil)
 		if badRes.StatusCode != http.StatusBadRequest || errorCode(badOut) != "invalid_request" {
 			t.Fatalf("ListDriveFiles ?drive_folder_id=%s = %d %v, want 400 invalid_request", bad, badRes.StatusCode, badOut)
+		}
+	}
+
+	// 6. ?drive_connection_id=<own conn> filters GET /drive-files the same as ?connection_id=<own conn>.
+	ownerConn2 := e.seedConnection(t, e.ownerID, "sub-owner-fldr-http-2", "owner-fldr-http2@example.com")
+	for _, cid := range []string{ownerConn, ownerConn2} {
+		byConnRes, byConnOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files?connection_id="+cid, e.ownerTk, nil)
+		byAliasRes, byAliasOut := doJSON(t, e.srv, "GET", "/api/v1/workspaces/"+e.wsID+"/drive-files?drive_connection_id="+cid, e.ownerTk, nil)
+		if byConnRes.StatusCode != http.StatusOK || byAliasRes.StatusCode != http.StatusOK {
+			t.Fatalf("ListDriveFiles connection_id vs drive_connection_id (%s) statuses = (%d, %d), want (200, 200)", cid, byConnRes.StatusCode, byAliasRes.StatusCode)
+		}
+		if byAliasOut["total_count"] != byConnOut["total_count"] || len(jsonArrayAt(t, byAliasOut, "files")) != len(jsonArrayAt(t, byConnOut, "files")) {
+			t.Fatalf("ListDriveFiles drive_connection_id=%s = %+v, want match connection_id = %+v", cid, byAliasOut, byConnOut)
 		}
 	}
 }

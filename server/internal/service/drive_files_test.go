@@ -2076,6 +2076,10 @@ func TestValidateDriveFolderFilter(t *testing.T) {
 	}
 
 	for _, bad := range []string{
+		" ",
+		" none ",
+		" fld-http-1 ",
+		"\tnone\n",
 		"x",
 		"none2",
 		"123456789",
@@ -2279,5 +2283,43 @@ func TestListMineDriveFolderFilter(t *testing.T) {
 				t.Fatalf("conn=%q folder=%q: ListFolders.FileCount=%d != ListMine.TotalCount=%d (len=%d)", cid, folderParam, g.FileCount, filtered.TotalCount, len(filtered.Files))
 			}
 		}
+	}
+
+	// 9. Stale metadata on a folder-filtered ListMine call skips opportunistic refresh:
+	// returns flt-a-1 with drive_folder.id == fld-alpha-01, total_count unchanged, and
+	// does not rewrite the stored drive_files row when the provider reports another parent.
+	staleFileID := alphaConn1.Files[0].ID
+	env.googleSrv.SetFile("flt-a-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "flt-a-1",
+			Name:     "Doc flt-a-1 Moved",
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-beta-002"},
+		},
+	})
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, staleFileID); err != nil {
+		t.Fatalf("age metadata_refreshed_at on flt-a-1: %v", err)
+	}
+	staleAlphaRes, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{
+		DriveFolderID: "fld-alpha-01",
+	})
+	if err != nil {
+		t.Fatalf("ListMine fld-alpha-01 with stale metadata: %v", err)
+	}
+	if staleAlphaRes.TotalCount != 2 || len(staleAlphaRes.Files) != 2 {
+		t.Fatalf("ListMine fld-alpha-01 with stale metadata = total=%d len=%d, want 2, 2", staleAlphaRes.TotalCount, len(staleAlphaRes.Files))
+	}
+	for _, f := range staleAlphaRes.Files {
+		if f.DriveFolder == nil || f.DriveFolder.ID != "fld-alpha-01" {
+			t.Fatalf("ListMine fld-alpha-01 with stale metadata file %s drive_folder = %+v, want id=fld-alpha-01", f.ExternalFileID, f.DriveFolder)
+		}
+	}
+	var storedParentID *string
+	var stillStale bool
+	if err := env.pool.QueryRow(ctx, `SELECT drive_folder_id, metadata_refreshed_at < now() - interval '10 minutes' FROM drive_files WHERE id = $1`, staleFileID).Scan(&storedParentID, &stillStale); err != nil {
+		t.Fatalf("query stored drive_files row for flt-a-1: %v", err)
+	}
+	if storedParentID == nil || *storedParentID != "fld-alpha-01" || !stillStale {
+		t.Fatalf("stored row after filtered ListMine = (drive_folder_id=%v, stillStale=%v), want (fld-alpha-01, true)", storedParentID, stillStale)
 	}
 }
