@@ -50,12 +50,17 @@ test("a task made from a meeting shows where it came from and who owned it", asy
   await loginViaUi(page, host.email);
   await page.goto(`/${host.orgSlug}/${host.wsSlug}/tasks/${taskId}`);
   const related = page.getByTestId("graph-related");
+  // A task made from a meeting names its source in the header line, and the
+  // Related panel does not repeat it (the screen already shows the origin).
+  await expect(page.getByRole("link", { name: /Từ cuộc họp\s*Giao ban đồ thị/ })).toBeVisible({ timeout: 30_000 });
   // The graph trails its sources by seconds: reload until the projection lands.
+  // The owner is the neighbor that proves it did; the origin edge is projected
+  // before it, so its absence below is not a race.
   await expect(async () => {
     await page.reload();
-    await expect(related.getByText("Xuất phát từ")).toBeVisible({ timeout: 2_000 });
+    await expect(related.getByText("Người phụ trách")).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
-  await expect(related.getByRole("link", { name: "Giao ban đồ thị" })).toBeVisible();
+  await expect(related.getByText("Xuất phát từ")).toHaveCount(0);
 
   const timeline = page.getByTestId("graph-history");
   await expect(timeline.getByText(/^Giao cho /)).toHaveCount(2);
