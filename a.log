@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^851c75a10" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=851c75a1046e1224eb48ddba8f941362ec118cc6
+851c75a10 fix(drive): classify Drive tables for the tenant export
+5354ae8d8 test(drive): exempt non-FileService Drive id columns from reference catalogue
+9f054cdf7 Merge the G5-G7 root c465dd332 into B4 drive refs (UNI-2180)
+a55b61610 test(drive): mint web sessions in isolation world and serve PUT drive-file access as peer
