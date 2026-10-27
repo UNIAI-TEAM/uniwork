@@ -242,7 +242,15 @@ export function useCreateTaskManualState({
     const currentDraft = draftRef.current;
     const title = currentDraft.title.trim();
     if (!title) return;
-    const submitted = { ...currentDraft, title };
+    // The project remembered from the last task may have been deleted since: the server would
+    // answer 404 and the picker already shows "no project", so send what it shows. Only the
+    // remembered one: a project a surface passes in may simply be newer than the cached list.
+    const projectGone =
+      Boolean(currentDraft.projectId) &&
+      currentDraft.projectId === (ownDrafts ? settingsFor(workspaceId)?.projectId : undefined) &&
+      projectList !== undefined &&
+      !projectList.projects.some((project) => project.id === currentDraft.projectId);
+    const submitted = { ...currentDraft, title, ...(projectGone ? { projectId: undefined } : {}) };
     const body: CreateTaskBody = {
       title,
       description: currentDraft.description?.trim() || undefined,
@@ -250,7 +258,7 @@ export function useCreateTaskManualState({
       priority: currentDraft.priority,
       assignee_id: currentDraft.assigneeId || null,
       assignee_kind: currentDraft.assigneeId ? currentDraft.assigneeKind ?? "human" : undefined,
-      project_id: currentDraft.projectId || null,
+      project_id: submitted.projectId || null,
       parent_task_id: currentDraft.parentTaskId || null,
       stage: (() => {
         if (!currentDraft.stage) return null;
