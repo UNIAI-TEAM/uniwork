@@ -23,8 +23,8 @@ export const PROJECT_STATUS_CONFIG: Record<
     label: "In Progress",
     color: "text-warning",
     dotColor: "bg-warning",
-    badgeBg: "bg-warning",
-    badgeText: "text-white",
+    badgeBg: "bg-warning-solid",
+    badgeText: "text-on-solid",
   },
   paused: {
     label: "Paused",
@@ -37,8 +37,8 @@ export const PROJECT_STATUS_CONFIG: Record<
     label: "Completed",
     color: "text-info",
     dotColor: "bg-info",
-    badgeBg: "bg-info",
-    badgeText: "text-white",
+    badgeBg: "bg-info-solid",
+    badgeText: "text-on-solid",
   },
   cancelled: {
     label: "Cancelled",

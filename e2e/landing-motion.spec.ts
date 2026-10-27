@@ -1,5 +1,6 @@
-import { selectWorkspaceFeature, openManualPreview } from "./landing-catalog-helpers";
+import { selectWorkspaceFeature, openManualPreview, openMeetingList, workspaceGroups } from "./landing-catalog-helpers";
 import { expect, test } from "@playwright/test";
+import vi from "../packages/core/i18n/locales/vi.json" with { type: "json" };
 import { landingReady, gotoLanding } from "./landing-ready";
 
 test("landing demo controls perform the actions they advertise without workspace writes", async ({ page }) => {
@@ -10,19 +11,21 @@ test("landing demo controls perform the actions they advertise without workspace
   const writes: string[] = [];
   // The app shell refreshes auth and sends RUM; neither is a workspace mutation.
   page.on("request", request => { const path = new URL(request.url()).pathname; if (request.method() !== "GET" && path.startsWith("/api/v1/") && !path.includes("/auth/") && path !== "/api/v1/rum") writes.push(request.url()); });
-  await demo.getByRole("searchbox").fill("phạm vi");
-  await expect(demo.locator(".preview-task")).toHaveCount(1);
-  await demo.getByRole("searchbox").clear();
+  await demo.getByRole("button", { name: vi.landing.productDemo.board.filter, exact: true }).click();
+  await demo.getByRole("searchbox", { name: vi.landing.demo.search }).fill("phạm vi");
+  await expect(demo.locator(".product-task-open")).toHaveCount(1);
+  await demo.getByRole("searchbox", { name: vi.landing.demo.search }).clear();
   await demo.getByRole("button", { name: /Thiết kế trải nghiệm/ }).click();
   await demo.getByRole("button", { name: "Đánh dấu hoàn thành", exact: true }).click();
-  await expect(demo.locator(".status-done").locator("..")).toContainText("Thiết kế trải nghiệm");
+  await expect(demo.locator('.product-task-column[data-status="done"]')).toContainText("Thiết kế trải nghiệm");
   await selectWorkspaceFeature(page, "chat");
-  await demo.getByRole("textbox", { name: "Tin nhắn minh họa" }).fill("Nhóm mình đã sẵn sàng");
+  await demo.getByRole("textbox", { name: vi.landing.demo.messagePlaceholder }).fill("Nhóm mình đã sẵn sàng");
   await demo.getByRole("button", { name: "Gửi tin nhắn", exact: true }).click();
-  await expect(demo.getByRole("tabpanel", { name: "Trao đổi", exact: true }).locator(".preview-message").last()).toContainText("Nhóm mình đã sẵn sàng");
+  await expect(demo.getByRole("tabpanel", { name: vi.nav.chat, exact: true }).locator(".product-chat-messages")).toContainText("Nhóm mình đã sẵn sàng");
   await selectWorkspaceFeature(page, "ask");
-  await demo.getByRole("button", { name: "Ai đang phụ trách?", exact: true }).click();
-  await expect(demo.locator(".preview-answer")).toContainText("Hoàng Anh");
+  await demo.getByRole("textbox", { name: vi.ai.input_label }).fill(vi.landing.demo.ownerQuestion);
+  await demo.getByRole("textbox", { name: vi.ai.input_label }).press("Enter");
+  await expect(demo.locator(".product-ask-preview")).toContainText("Bảo Lâm phụ trách");
   expect(writes).toEqual([]);
 });
 
@@ -42,6 +45,7 @@ test("product showcase, cinematic playback and reduced motion remain usable", as
   await expect(character).toHaveAttribute('data-motion', 'paused');
   await expect(character.getByRole("button")).toHaveCount(0);
   await selectWorkspaceFeature(page, "meetings");
+  await openMeetingList(page);
   await page.locator(".meeting-follow-up [data-slot=accordion-trigger]").click();
   const film = page.locator(".workflow-film");
   await film.scrollIntoViewIfNeeded();
@@ -63,9 +67,8 @@ test("hero offers registration and a demo request in a minimal opening", async (
   await expect(hero.locator('.hero-product-feature')).toHaveCount(0);
   const preview = page.locator("#product-preview");
   await openManualPreview(page);
-  await expect(preview.locator(".workspace-group-button")).toHaveCount(6);
-  // Work & projects: Dashboard, Tasks, Projects, Today, Calendar, Workflows.
-  await expect(preview.getByRole("tab")).toHaveCount(6);
+  // The app menu lists every destination: the 25 features plus the inbox.
+  await expect(preview.getByRole("tab")).toHaveCount(Object.values(workspaceGroups).flat().length + 1);
   await expect(hero.getByRole("tab")).toHaveCount(0);
   await expect(preview.locator(".preview-sidebar")).toHaveCount(0);
   await expect(page.locator(".landing-product-story > section")).toHaveCount(4);
@@ -78,13 +81,12 @@ test("Starter and FAQ signals animate only while visible and respect reduced mot
   const pricing = page.locator("#bang-gia");
   const faq = page.locator(".landing-faq");
   await pricing.scrollIntoViewIfNeeded();
-  // Live offers stay readable without waiting for decorative diagram playback.
+  // Live offers stay readable; the decorative pricing diagram was removed with the live billing catalog (ad0a7e7d9).
   await expect(pricing.locator(".public-pricing-plan").first()).toBeVisible();
   await expect(pricing.locator(".public-pricing-plan").first()).toContainText("Starter");
 
   await faq.scrollIntoViewIfNeeded();
   await expect(pricing).toHaveAttribute("data-motion-visible", "false");
-  await expect.poll(() => pricing.locator(".pricing-diagram-lines path").first().evaluate(element => getComputedStyle(element).animationName)).toBe("none");
   await expect(faq).toHaveAttribute("data-motion-visible", "true");
   await expect(faq.locator(".faq-story-wiring path")).toHaveCount(3);
   await expect.poll(() => faq.locator(".faq-story-wiring path").first().evaluate(element => getComputedStyle(element).animationPlayState)).toBe("running");
@@ -153,6 +155,7 @@ test("nonessential motion stops offscreen", async ({ page }) => {
   await selectWorkspaceFeature(page, "meetings");
   await openManualPreview(page);
   await expect(page.locator("#product-preview")).toHaveAttribute("data-presentation", "explore");
+  await openMeetingList(page);
   await page.locator(".meeting-follow-up [data-slot=accordion-trigger]").click();
   const film = page.locator(".workflow-film");
   await film.scrollIntoViewIfNeeded();
@@ -187,7 +190,7 @@ test("GPU unavailable leaves the product showcase and demo intact", async ({ pag
   await selectWorkspaceFeature(page, "chat");
   await openManualPreview(page);
   await expect(page.locator("#product-preview")).toHaveAttribute("data-presentation", "explore");
-  await expect(page.getByRole("textbox", { name: "Tin nhắn minh họa" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: vi.landing.demo.messagePlaceholder })).toBeVisible();
   const character = page.locator('[data-scene="character"]');
   await character.scrollIntoViewIfNeeded();
   await expect(character.locator('img')).toBeVisible();
