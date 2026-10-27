@@ -236,6 +236,15 @@ func (s *DriveConnectionService) ForceRefreshAccessToken(ctx context.Context, co
 func (c *DriveAPIClient) FilesGetWithConnection(ctx context.Context, tokens DriveTokenSource, conn db.DriveConnection, externalFileID string) (DriveFileMetadata, error) {
 	var meta DriveFileMetadata
 	err := c.withConnectionToken(ctx, tokens, conn, func(accessToken string) error {
+		if c == nil || c.baseURL == driveGoogleAPIBaseURL {
+			if dcs, ok := tokens.(*DriveConnectionService); ok && dcs != nil {
+				if fp, ok := dcs.Provider().(*FakeDriveProvider); ok && fp != nil {
+					var callErr error
+					meta, callErr = fp.FilesGet(ctx, accessToken, externalFileID)
+					return callErr
+				}
+			}
+		}
 		var callErr error
 		meta, callErr = c.FilesGet(ctx, accessToken, externalFileID)
 		return callErr

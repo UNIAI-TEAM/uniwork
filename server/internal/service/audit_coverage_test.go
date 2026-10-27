@@ -2037,6 +2037,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			googleSrv.SetFile("ext-audit-link", FakeGoogleDriveFile{
 				Metadata: googleDriveFileJSON{ID: "ext-audit-link", Name: "Spec Doc", MimeType: DriveMimeGoogleDoc},
 			})
+			beforeOutbox := auditOutboxCount(t, f, "drive_file.linked", "drive_file_id", "")
 			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
 				ConnectionID:    conn.ID,
 				ExternalFileIDs: []string{"ext-audit-link"},
@@ -2044,7 +2045,10 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil || len(res) != 1 || res[0].Outcome != DriveFileLinkOutcomeLinked {
 				t.Fatalf("Link = %+v, err=%v", res, err)
 			}
-			assertAuditOutboxTopic(t, f, "drive_file.linked", "drive_file_id", res[0].File.ID)
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.linked", map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+			})
 		},
 		audit.ActionDriveFileAccessGranted: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2070,10 +2074,16 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
+			wantPayload := map[string]string{
+				"drive_file_id": fileID,
+				"workspace_id":  w.ID,
+				"user_id":       f.owner.ID,
+			}
+			beforeOutbox := auditOutboxCountMap(t, f, "drive_file.access_changed", wantPayload)
 			if _, err := fileSvc.GrantAccess(f.ctx, Human(f.owner.ID), w.ID, fileID, conn.ID); err != nil {
 				t.Fatal(err)
 			}
-			assertAuditOutboxTopic(t, f, "drive_file.access_changed", "drive_file_id", fileID)
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.access_changed", wantPayload)
 		},
 		audit.ActionDriveFileAccessChanged: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2099,10 +2109,16 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if _, err := fileSvc.GrantAccess(f.ctx, Human(f.member.ID), w.ID, fileID, connPeer1.ID); err != nil {
 				t.Fatal(err)
 			}
+			wantPayload := map[string]string{
+				"drive_file_id": fileID,
+				"workspace_id":  w.ID,
+				"user_id":       f.member.ID,
+			}
+			beforeOutbox := auditOutboxCountMap(t, f, "drive_file.access_changed", wantPayload)
 			if _, err := fileSvc.ChangeReadAccount(f.ctx, Human(f.member.ID), w.ID, fileID, connPeer2.ID); err != nil {
 				t.Fatal(err)
 			}
-			assertAuditOutboxTopic(t, f, "drive_file.access_changed", "drive_file_id", fileID)
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.access_changed", wantPayload)
 		},
 		audit.ActionDriveFileAccessLost: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2118,11 +2134,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil || len(res) != 1 || res[0].File == nil {
 				t.Fatalf("Link = %+v, err=%v", res, err)
 			}
+			wantAccessPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+				"user_id":       f.owner.ID,
+			}
+			wantUpdatedPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+			}
+			beforeAccess := auditOutboxCountMap(t, f, "drive_file.access_changed", wantAccessPayload)
+			beforeUpdated := auditOutboxCountMap(t, f, "drive_file.updated", wantUpdatedPayload)
 			if err := fileSvc.RecordFileAccessLost(f.ctx, f.owner.ID, w.ID, res[0].File.ID, conn.ID); err != nil {
 				t.Fatal(err)
 			}
-			assertAuditOutboxTopic(t, f, "drive_file.access_changed", "drive_file_id", res[0].File.ID)
-			assertAuditOutboxTopic(t, f, "drive_file.updated", "drive_file_id", res[0].File.ID)
+			assertAuditOutboxTopicAfter(t, f, beforeAccess, "drive_file.access_changed", wantAccessPayload)
+			assertAuditOutboxTopicAfter(t, f, beforeUpdated, "drive_file.updated", wantUpdatedPayload)
 		},
 		audit.ActionDriveFileUnlinked: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2138,10 +2165,15 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil || len(res) != 1 || res[0].File == nil {
 				t.Fatalf("Link = %+v, err=%v", res, err)
 			}
+			wantPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+			}
+			beforeOutbox := auditOutboxCountMap(t, f, "drive_file.unlinked", wantPayload)
 			if err := fileSvc.Unlink(f.ctx, Human(f.owner.ID), w.ID, res[0].File.ID); err != nil {
 				t.Fatal(err)
 			}
-			assertAuditOutboxTopic(t, f, "drive_file.unlinked", "drive_file_id", res[0].File.ID)
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.unlinked", wantPayload)
 		},
 		audit.ActionDriveFileRebound: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2158,11 +2190,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil || len(res) != 1 || res[0].File == nil {
 				t.Fatalf("Link = %+v, err=%v", res, err)
 			}
+			wantUpdatedPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+			}
+			wantAccessPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+				"user_id":       f.owner.ID,
+			}
+			beforeUpdated := auditOutboxCountMap(t, f, "drive_file.updated", wantUpdatedPayload)
+			beforeAccess := auditOutboxCountMap(t, f, "drive_file.access_changed", wantAccessPayload)
 			if _, err := fileSvc.Rebind(f.ctx, Human(f.owner.ID), w.ID, res[0].File.ID, conn2.ID); err != nil {
 				t.Fatal(err)
 			}
-			assertAuditOutboxTopic(t, f, "drive_file.updated", "drive_file_id", res[0].File.ID)
-			assertAuditOutboxTopic(t, f, "drive_file.access_changed", "drive_file_id", res[0].File.ID)
+			assertAuditOutboxTopicAfter(t, f, beforeUpdated, "drive_file.updated", wantUpdatedPayload)
+			assertAuditOutboxTopicAfter(t, f, beforeAccess, "drive_file.access_changed", wantAccessPayload)
 		},
 		audit.ActionTaskDriveFileLinked: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2173,6 +2216,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			})
 			task := f.newTask(t)
 			taskID := task.ID
+			beforeOutbox := auditOutboxCount(t, f, "drive_file.task_linked", "task_id", task.ID)
 			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
 				ConnectionID:    conn.ID,
 				ExternalFileIDs: []string{"ext-audit-task-link"},
@@ -2182,7 +2226,11 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatalf("Link = %+v, err=%v", res, err)
 			}
 			assertTaskDriveAuditMetadata(t, f, audit.ActionTaskDriveFileLinked, task.ID, res[0].File.ID, "Task Link Doc", "drive-tasklink@example.com")
-			assertAuditOutboxTopic(t, f, "drive_file.task_linked", "task_id", task.ID)
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.task_linked", map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"task_id":       task.ID,
+				"workspace_id":  w.ID,
+			})
 		},
 		audit.ActionTaskDriveFileUnlinked: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2201,11 +2249,17 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil || len(res) != 1 || res[0].File == nil {
 				t.Fatalf("Link = %+v, err=%v", res, err)
 			}
+			wantPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"task_id":       task.ID,
+				"workspace_id":  w.ID,
+			}
+			beforeOutbox := auditOutboxCountMap(t, f, "drive_file.task_linked", wantPayload)
 			if err := fileSvc.RemoveFromTask(f.ctx, Human(f.owner.ID), task.ID, res[0].File.ID); err != nil {
 				t.Fatal(err)
 			}
 			assertTaskDriveAuditMetadata(t, f, audit.ActionTaskDriveFileUnlinked, task.ID, res[0].File.ID, "Task Unlink Doc", "drive-taskunlink@example.com")
-			assertAuditOutboxTopic(t, f, "drive_file.task_linked", "task_id", task.ID)
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.task_linked", wantPayload)
 		},
 		audit.ActionDriveTaskProposalCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -3730,13 +3784,38 @@ func assertDriveProposalAuditMetadata(t *testing.T, f *auditFixture, action, pro
 	}
 }
 
-func assertAuditOutboxTopic(t *testing.T, f *auditFixture, topic, key, wantVal string) {
+func auditOutboxCount(t *testing.T, f *auditFixture, topic, key, wantVal string) int {
 	t.Helper()
+	if wantVal == "" {
+		var count int
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE topic = $1`, topic).Scan(&count); err != nil {
+			t.Fatalf("outbox count topic %s: %v", topic, err)
+		}
+		return count
+	}
+	return auditOutboxCountMap(t, f, topic, map[string]string{key: wantVal})
+}
+
+func auditOutboxCountMap(t *testing.T, f *auditFixture, topic string, wantPayload map[string]string) int {
+	t.Helper()
+	raw, err := json.Marshal(wantPayload)
+	if err != nil {
+		t.Fatalf("marshal outbox payload filter: %v", err)
+	}
 	var count int
 	if err := f.pool.QueryRow(f.ctx,
-		`SELECT count(*) FROM outbox_events WHERE topic = $1 AND payload::jsonb->>$2 = $3`,
-		topic, key, wantVal,
-	).Scan(&count); err != nil || count == 0 {
-		t.Fatalf("outbox topic %s (%s=%s) count = %d, err=%v, want >= 1", topic, key, wantVal, count, err)
+		`SELECT count(*) FROM outbox_events WHERE topic = $1 AND payload::jsonb @> $2::jsonb`,
+		topic, string(raw),
+	).Scan(&count); err != nil {
+		t.Fatalf("outbox topic %s (%s) count err=%v", topic, string(raw), err)
+	}
+	return count
+}
+
+func assertAuditOutboxTopicAfter(t *testing.T, f *auditFixture, before int, topic string, wantPayload map[string]string) {
+	t.Helper()
+	after := auditOutboxCountMap(t, f, topic, wantPayload)
+	if after != before+1 {
+		t.Fatalf("outbox topic %s (%v) count = %d after command (before = %d), want %d", topic, wantPayload, after, before, before+1)
 	}
 }

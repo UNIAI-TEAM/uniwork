@@ -518,9 +518,9 @@ func TestDriveResourceHistoryGate(t *testing.T) {
 	// member and an unknown/foreign connection get identical 404s without running the
 	// resource audit SELECT.
 	_, err := e.pool.Exec(context.Background(), `INSERT INTO audit_events
-		(id, organization_id, workspace_id, actor_id, actor_kind, action, resource_type, resource_id, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, 'drive_connection', $7, '{}')`,
-		util.NewID(), e.orgID, e.wsID, e.ownerID, string(audit.KindHuman), "drive_connection.connected", ownerConn)
+		(id, organization_id, workspace_id, actor_id, actor_kind, action, resource_type, resource_id, correlation_id, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, 'drive_connection', $7, $8, '{}')`,
+		util.NewID(), e.orgID, e.wsID, e.ownerID, string(audit.KindHuman), "drive_connection.connected", ownerConn, util.NewID())
 	if err != nil {
 		t.Fatalf("seed connection audit event: %v", err)
 	}
@@ -558,9 +558,9 @@ func TestDriveResourceHistoryGate(t *testing.T) {
 	// and denied requests never run ListResourceAuditEvents.
 	proposalID := util.NewID()
 	_, err = e.pool.Exec(context.Background(), `INSERT INTO audit_events
-		(id, organization_id, workspace_id, actor_id, actor_kind, action, resource_type, resource_id, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6, 'drive_task_proposal', $7, '{}')`,
-		util.NewID(), e.orgID, e.wsID, e.ownerID, string(audit.KindHuman), "drive_task_proposal.created", proposalID)
+		(id, organization_id, workspace_id, actor_id, actor_kind, action, resource_type, resource_id, correlation_id, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, 'drive_task_proposal', $7, $8, '{}')`,
+		util.NewID(), e.orgID, e.wsID, e.ownerID, string(audit.KindHuman), "drive_task_proposal.created", proposalID, util.NewID())
 	if err != nil {
 		t.Fatalf("seed proposal audit event: %v", err)
 	}
