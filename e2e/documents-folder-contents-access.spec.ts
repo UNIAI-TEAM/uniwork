@@ -282,7 +282,9 @@ test("replace: Confirm waits for a workspace choice, then the shares are exactly
   const dry = await clickAndWaitPut(page, L.confirm(dialog), tree.folder.id, true);
   expect(dry.status(), await dry.text()).toBe(200);
   const dryBody = (await dry.json()) as DryRunBody;
-  expect(dryBody.preview).toMatchObject({ changed: 2, skipped_not_manageable: 1, losing_users: 1 });
+  // The other member is a workspace member: with the workspace kept at View they still read every page, so nobody
+  // loses access here (r4 cloud: losing_users 0); the Private dry run above is the loss case.
+  expect(dryBody.preview).toMatchObject({ changed: 2, skipped_not_manageable: 1, losing_users: 0 });
   expect(dryBody.preview.warnings).not.toContain("to_private");
   await expect(L.warning(dialog, "to_private")).toHaveCount(0);
   await expect(L.summary(dialog)).toContainText("bỏ qua 1 tài liệu bạn không quản lý");
