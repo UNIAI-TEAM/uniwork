@@ -36,7 +36,7 @@ export interface LibraryRowDialogs {
   onArchive: (doc: DocumentSummaryRow) => void;
   /** Opens the Share dialog on a row; a row that fails the Share gate (canShareRow) opens nothing. */
   onShare: (doc: DocumentSummaryRow) => void;
-  /** Opens "Chia sẻ các tài liệu bên trong…" on a folder row; any other row opens nothing. */
+  /** Opens "Chia sẻ" on a folder row; any other row opens nothing. */
   onShareContents: (doc: DocumentSummaryRow) => void;
   dialogs: ReactNode;
 }

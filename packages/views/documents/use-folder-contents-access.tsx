@@ -8,7 +8,7 @@ import { FolderContentsAccessWatcher } from "./folder-contents-access-progress";
 import type { DocumentSummaryRow } from "./library-rows";
 
 export interface FolderContentsAccessCommand {
-  /** Opens "Chia sẻ các tài liệu bên trong…" on a folder row. */
+  /** Opens "Chia sẻ" on a folder row. */
   onShareContents: (folder: DocumentSummaryRow) => void;
   /** The dialog plus one watcher per background batch; mount it once beside the host's other dialogs. */
   dialogs: ReactNode;

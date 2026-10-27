@@ -12066,9 +12066,10 @@
       }
     },
     "folderAccess": {
-      "menu": "Share documents inside…",
-      "title": "Share documents in “{{title}}”",
-      "title_untitled": "Share documents in this folder",
+      "menu": "Share",
+      "title": "Share",
+      "subtitle": "Applies to the documents in folder \"{{folder}}\" and its subfolders.",
+      "subtitle_untitled": "Applies to the documents in this folder and its subfolders.",
       "fixed_sentence": "Applies to the documents that exist now. Documents added later do not get this access.",
       "mode_label": "How to apply",
       "mode_merge": "Add to existing access",

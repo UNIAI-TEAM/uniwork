@@ -404,7 +404,7 @@ describe("size column", () => {
 });
 
 describe("folder contents access menu item (UNI-2244)", () => {
-  it("offers Chia sẻ các tài liệu bên trong… on a folder row under a stable test id, and hands the folder over", async () => {
+  it("offers Chia sẻ on a folder row under a stable test id, and hands the folder over", async () => {
     const onShareContents = vi.fn();
     renderList([doc("fo1", "Hợp đồng", { kind: "folder" })], { onShareContents });
     await openMenu("fo1", "Hợp đồng");
