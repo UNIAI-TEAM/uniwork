@@ -62,12 +62,14 @@ const BATCH_STATUSES: readonly FolderContentsAccessBatchStatus[] = ["queued", "r
 const WARNINGS: readonly FolderContentsAccessWarning[] = ["wide_scope", "downgrade", "to_private"];
 
 const count = z.number().int().nonnegative().catch(0);
+const strictCount = z.number().int().nonnegative();
 const optionalId = z.string().min(1).optional().catch(undefined);
 
-const warningsField = z
-  .array(z.unknown())
-  .catch([])
-  .transform((list) => WARNINGS.filter((w) => list.includes(w)));
+// Strict on purpose: `warnings` and the user counts are what the replace
+// confirm dialog warns with. One unreadable value must not read as "nobody
+// loses access", so it fails the whole preview closed (see PreviewSchema).
+// Unknown warning names inside a readable array are still dropped.
+const warningsField = z.array(z.unknown()).transform((list) => WARNINGS.filter((w) => list.includes(w)));
 
 const EMPTY_PREVIEW: FolderContentsAccessPreview = {
   changed: 0,
@@ -79,14 +81,17 @@ const EMPTY_PREVIEW: FolderContentsAccessPreview = {
   warnings: [],
 };
 
+// `unchanged` and `skipped_*` only describe; zeroing them is harmless. A bad
+// `losing_users`, `downgraded_users` or `warnings` drops the whole preview to
+// EMPTY_PREVIEW, which has `changed: 0`, so Apply stays disabled.
 const PreviewSchema = z
   .object({
     changed: count,
     unchanged: count,
     skipped_not_manageable: count,
     skipped_locked: count,
-    losing_users: count,
-    downgraded_users: count,
+    losing_users: strictCount,
+    downgraded_users: strictCount,
     warnings: warningsField,
   })
   .catch(EMPTY_PREVIEW);
@@ -139,8 +144,9 @@ const BatchSchema = z.object({
  * onto every managed document under the folder. `dryRun` answers counts only
  * and writes nothing. The kind comes from the body: a `preview` is a dry run,
  * `mode: "background"` is a queued batch, any other body with a `batch_id` is
- * the sync result. A body that cannot be read is a dry run with zero counts
- * ("nothing to change"); it never throws. Refusals reject as ApiError:
+ * the sync result. A malformed JSON body is a dry run with zero counts
+ * ("nothing to change") and never throws; an empty body does reject (a
+ * SyntaxError from http.ts). Refusals reject as ApiError:
  * 422 not_a_folder / document_access_rejected, 409 folder_access_batch_running.
  */
 export async function updateFolderContentsAccess(

@@ -105,6 +105,18 @@ describe("useApplyFolderContentsAccess", () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 
+  it("invalidates on a malformed 200: dry_run from apply means the result is unknown", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json("oops"));
+    const { invalidate, wrapper } = setup();
+    const { result } = renderHook(() => useApplyFolderContentsAccess("w1"), { wrapper });
+    let out: unknown;
+    await act(async () => {
+      out = await result.current.mutateAsync(vars);
+    });
+    expect(out).toMatchObject({ kind: "dry_run", total: 0 });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: documentKeys.workspace("w1") });
+  });
+
   it("rejects with the 409 error and invalidates nothing", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(errorBatchRunning, 409));
     const { invalidate, wrapper } = setup();
@@ -172,6 +184,27 @@ describe("useFolderContentsAccessBatch", () => {
     expect(result.current.data?.status).toBe("failed");
     await tick(10_000);
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("stops polling when a refetch fails after a running read", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(batchRunning))
+      .mockResolvedValueOnce(json({ error: { code: "not_found", message: "batch not found" } }, 404));
+    const { qc, invalidate, wrapper } = setup();
+    const { result } = renderHook(() => useFolderContentsAccessBatch("w1", "f1", batchRunning.batch_id), { wrapper });
+    await tick(0);
+    expect(result.current.data?.status).toBe("running");
+    await tick(2000);
+    await tick(10);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    // The failed refetch keeps the last data, which is why `running` alone must not keep the poll alive.
+    const state = qc.getQueryState(folderContentsAccessKeys.batch("w1", "f1", batchRunning.batch_id));
+    expect(state?.status).toBe("error");
+    expect(state?.data).toMatchObject({ status: "running" });
+    await tick(10_000);
+    expect(fetch).toHaveBeenCalledTimes(2);
     expect(invalidate).not.toHaveBeenCalled();
   });
 

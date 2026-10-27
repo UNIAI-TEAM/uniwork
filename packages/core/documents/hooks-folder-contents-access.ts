@@ -37,8 +37,10 @@ export function usePreviewFolderContentsAccess(wsId: string) {
 
 /**
  * Apply: resolves `sync` (written in the request) or `background` (queued).
- * A sync write changed documents now, so the workspace documents refetch; a
+ * Every result but `background` refetches the workspace documents; a
  * background batch refreshes them when it completes (`useFolderContentsAccessBatch`).
+ * `dry_run` from apply means "result unknown": the 200 body was unreadable and
+ * the write may have happened, so callers must not read it as "no changes".
  */
 export function useApplyFolderContentsAccess(wsId: string) {
   const qc = useQueryClient();
@@ -46,7 +48,7 @@ export function useApplyFolderContentsAccess(wsId: string) {
     mutationKey: [...folderContentsAccessKeys.all(wsId), "apply"],
     mutationFn: ({ folderId, input }: FolderContentsAccessVars) => updateFolderContentsAccess(folderId, input, { dryRun: false }),
     onSuccess: async (result) => {
-      if (result.kind === "sync") await qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
+      if (result.kind !== "background") await qc.invalidateQueries({ queryKey: documentKeys.workspace(wsId) });
     },
   });
 }
@@ -64,6 +66,8 @@ export function useFolderContentsAccessBatch(wsId: string, folderId: string, bat
     enabled: !!wsId && !!folderId && batchId !== null,
     refetchOnWindowFocus: false,
     refetchInterval: (q) => {
+      // A failed refetch keeps the last data; without this a 404 after `running` would poll forever.
+      if (q.state.status === "error") return false;
       const status = q.state.data?.status;
       return status === "queued" || status === "running" ? BATCH_POLL_MS : false;
     },

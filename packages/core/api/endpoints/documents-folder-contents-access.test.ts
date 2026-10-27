@@ -116,9 +116,20 @@ describe("updateFolderContentsAccess", () => {
     await expect(updateFolderContentsAccess("f1", input, { dryRun: true })).resolves.toEqual(emptyDryRun);
   });
 
-  it("zeroes a count that is missing or mistyped and keeps the rest of the preview", async () => {
+  it("zeroes an unchanged or skipped count that is mistyped and keeps the rest of the preview", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      json({ total: 9, preview: { changed: 4, unchanged: "none", skipped_locked: -1, losing_users: 2.5, warnings: ["to_private"] } }),
+      json({
+        total: 9,
+        preview: {
+          changed: 4,
+          unchanged: "none",
+          skipped_not_manageable: null,
+          skipped_locked: -1,
+          losing_users: 2,
+          downgraded_users: 1,
+          warnings: ["to_private"],
+        },
+      }),
     );
     const out = await updateFolderContentsAccess("f1", input, { dryRun: true });
     expect(out).toEqual({
@@ -129,11 +140,22 @@ describe("updateFolderContentsAccess", () => {
         unchanged: 0,
         skipped_not_manageable: 0,
         skipped_locked: 0,
-        losing_users: 0,
-        downgraded_users: 0,
+        losing_users: 2,
+        downgraded_users: 1,
         warnings: ["to_private"],
       },
     });
+  });
+
+  it.each([
+    ["losing_users that is not an integer", { losing_users: 2.5 }],
+    ["losing_users sent as a string", { losing_users: "12" }],
+    ["losing_users that is missing", { losing_users: undefined }],
+    ["downgraded_users that is negative", { downgraded_users: -1 }],
+  ])("fails the whole preview closed on %s: Apply has nothing to change", async (_name, bad) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ total: 9, preview: { ...dryRunReplace.preview, changed: 37, ...bad } }));
+    const out = await updateFolderContentsAccess("f1", { mode: "replace", items: [] }, { dryRun: true });
+    expect(out).toEqual({ ...emptyDryRun, total: 9 });
   });
 
   it("drops an unknown warning and keeps the known ones", async () => {
@@ -144,10 +166,17 @@ describe("updateFolderContentsAccess", () => {
     expect(out.kind === "dry_run" && out.preview.warnings).toEqual(["wide_scope", "downgrade"]);
   });
 
-  it("reads warnings that are not a list as none", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ total: 1, preview: { ...dryRunMerge.preview, warnings: "wide_scope" } }));
-    const out = await updateFolderContentsAccess("f1", input, { dryRun: true });
-    expect(out.kind === "dry_run" && out.preview.warnings).toEqual([]);
+  it("fails the whole preview closed when warnings is not a list", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ total: 9, preview: { ...dryRunReplace.preview, changed: 37, warnings: "to_private" } }),
+    );
+    const out = await updateFolderContentsAccess("f1", { mode: "replace", items: [] }, { dryRun: true });
+    expect(out).toEqual({ ...emptyDryRun, total: 9 });
+  });
+
+  it("rejects on a 202 with an empty body: http.ts only special-cases 204", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("", { status: 202 }));
+    await expect(updateFolderContentsAccess("f1", input, { dryRun: false })).rejects.toBeInstanceOf(SyntaxError);
   });
 
   it("rejects with the ApiError of a refusal", async () => {
