@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
+import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../layout/workspace-context";
@@ -16,6 +17,7 @@ const { t } = initI18n();
 const WS = "ws1";
 const CONFIG_URL = "/api/v1/config";
 const DRIVE_LIST_URL = `/api/v1/workspaces/${WS}/drive-files`;
+const FOLDERS_URL = `/api/v1/workspaces/${WS}/drive-folders`;
 const TREE_URL = `/api/v1/workspaces/${WS}/documents/tree`;
 const LIST_BASE = `/api/v1/workspaces/${WS}/documents`;
 const DRIVE_HOME = "/acme/doi/documents?view=drive";
@@ -101,15 +103,53 @@ const FILES_BY_ACCOUNT: Record<string, ReturnType<typeof driveFile>[]> = {
   ],
 };
 
-function serve(filesByAccount: Record<string, unknown[]> = FILES_BY_ACCOUNT) {
+interface Serve {
+  folders?: () => Promise<unknown>;
+  /** Server page size: smaller than the 50 the client asks for, so a short list still has a second page. */
+  pageSize?: number;
+}
+
+/** The folder groups of one account as `GET drive-folders` answers them: counts per parent, `null` for no parent. */
+function folderGroups(files: Array<{ drive_folder?: { id: string; name: string | null } | null }>) {
+  const groups = new Map<string | null, { id: string | null; name: string | null; file_count: number }>();
+  for (const f of files) {
+    const id = f.drive_folder?.id ?? null;
+    const group = groups.get(id) ?? { id, name: f.drive_folder?.name ?? null, file_count: 0 };
+    group.file_count += 1;
+    groups.set(id, group);
+  }
+  return { folders: [...groups.values()] };
+}
+
+/**
+ * A server that answers GET drive-folders from the files and filters GET drive-files by connection and
+ * `drive_folder_id` (`none` = no parent), with its own page size, filtered total and the echo.
+ */
+function serve(filesByAccount: Record<string, unknown[]> = FILES_BY_ACCOUNT, opts: Serve = {}) {
+  type Row = ReturnType<typeof driveFile>;
   requestMock.mockImplementation((path: string) => {
     if (path === CONFIG_URL) {
       return Promise.resolve({ flags: { documents: true, drive_connector: true }, rum_sample_rate: 0, drive: { available: true } });
     }
+    const params = new URLSearchParams(path.split("?")[1] ?? "");
+    if (path.startsWith(FOLDERS_URL)) {
+      if (opts.folders) return opts.folders();
+      return Promise.resolve(folderGroups((filesByAccount[params.get("drive_connection_id") ?? ""] ?? []) as Row[]));
+    }
     if (path.startsWith(DRIVE_LIST_URL)) {
-      const account = new URLSearchParams(path.split("?")[1] ?? "").get("connection_id") ?? "";
-      const files = account ? (filesByAccount[account] ?? []) : Object.values(filesByAccount).flat();
-      return Promise.resolve({ files, total_count: files.length, next_cursor: null });
+      const account = params.get("connection_id") ?? "";
+      const all = (account ? (filesByAccount[account] ?? []) : Object.values(filesByAccount).flat()) as Row[];
+      const folder = params.get("drive_folder_id");
+      const files = folder === null ? all : all.filter((f) => (folder === "none" ? !f.drive_folder?.id : f.drive_folder?.id === folder));
+      const offset = Number(params.get("cursor") ?? 0);
+      const size = Math.min(Number(params.get("limit") ?? 50), opts.pageSize ?? 50);
+      const more = offset + size < files.length;
+      return Promise.resolve({
+        files: files.slice(offset, offset + size),
+        total_count: files.length,
+        next_cursor: more ? String(offset + size) : null,
+        drive_folder_id: folder,
+      });
     }
     if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
     if (path.startsWith(LIST_BASE)) return Promise.resolve({ documents: [], next_cursor: null });
@@ -149,6 +189,16 @@ const listedAccounts = () =>
     .map(([path]) => String(path))
     .filter((path) => path.startsWith(DRIVE_LIST_URL))
     .map((path) => new URLSearchParams(path.split("?")[1] ?? "").get("connection_id") ?? "");
+
+/** The `connection_id`/`drive_folder_id` of every GET drive-files so far, in order. */
+const listedFilters = () =>
+  requestMock.mock.calls
+    .map(([path]) => String(path))
+    .filter((path) => path.startsWith(DRIVE_LIST_URL))
+    .map((path) => {
+      const params = new URLSearchParams(path.split("?")[1] ?? "");
+      return [params.get("connection_id"), params.get("drive_folder_id"), params.get("cursor")] as const;
+    });
 
 beforeEach(() => {
   requestMock.mockReset();
@@ -283,22 +333,62 @@ describe("Drive account and folder views in the main list", () => {
     expect(await screen.findByRole("button", { name: /Drive: uni-work1@gmail\.com/ })).toHaveAttribute("aria-current", "page");
   });
 
-  it("an old server without drive_folder gives today's flat account list and no folder nodes", async () => {
-    serve({
-      conn1: [driveFile("f1", "Kế hoạch Beta", "conn1"), driveFile("f2", "Tệp ở gốc", "conn1")].map((f) => {
-        const { drive_folder: _unused, ...rest } = f as typeof f & { drive_folder?: unknown };
-        void _unused;
-        return rest;
-      }),
+  it("the account view asks the server for the files with no parent only, with no page walk", async () => {
+    renderDocuments(`${DRIVE_HOME}&account=conn1`);
+    await readyTable("Tệp ở gốc");
+    expect(listedFilters()).toEqual([["conn1", "none", null]]);
+  });
+
+  it("a folder view asks the server for that folder's files only, never the whole account", async () => {
+    renderDocuments(`${DRIVE_HOME}&account=conn1&driveFolder=fld-beta`);
+    const table = await readyTable("Kế hoạch Beta");
+    expect(within(table).getByRole("link", { name: "Ngân sách Beta" })).toBeInTheDocument();
+    expect(listedFilters()).toEqual([["conn1", "fld-beta", null]]);
+  });
+
+  it("an unknown folder id never becomes a query of its own: the account view's files are asked for", async () => {
+    renderDocuments(`${DRIVE_HOME}&account=conn1&driveFolder=does-not-exist`);
+    await readyTable("Tệp ở gốc");
+    expect(listedFilters()).toEqual([["conn1", "none", null]]);
+  });
+
+  it("pages a folder with Load more from the server's cursor", async () => {
+    serve(FILES_BY_ACCOUNT, { pageSize: 1 });
+    renderDocuments(`${DRIVE_HOME}&account=conn1&driveFolder=fld-beta`);
+    const table = await readyTable("Kế hoạch Beta");
+    expect(within(table).queryByRole("link", { name: "Ngân sách Beta" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: t("driveLibrary.list.load_more") }));
+    await screen.findByRole("link", { name: "Ngân sách Beta" });
+    expect(screen.getByRole("link", { name: "Kế hoạch Beta" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: t("driveLibrary.list.load_more") })).toBeNull();
+    expect(listedFilters()).toEqual([["conn1", "fld-beta", null], ["conn1", "fld-beta", "1"]]);
+  });
+
+  it("a folder whose filtered page is empty shows the empty copy", async () => {
+    serve(FILES_BY_ACCOUNT, {
+      folders: () => Promise.resolve({ folders: [{ id: "fld-ghost-0001", name: "Trống", file_count: 3 }] }),
+    });
+    renderDocuments(`${DRIVE_HOME}&account=conn1&driveFolder=fld-ghost-0001`);
+    expect(await screen.findByText(t("driveLibrary.list.empty_title"))).toBeInTheDocument();
+    expect(listedFilters()).toEqual([["conn1", "fld-ghost-0001", null]]);
+  });
+
+  it("a failed folder list is an error with a retry, and asks for no files until it answers", async () => {
+    let calls = 0;
+    serve(FILES_BY_ACCOUNT, {
+      folders: () =>
+        ++calls === 1
+          ? Promise.reject(new ApiError("not found", "not_found", 404))
+          : Promise.resolve(folderGroups(FILES_BY_ACCOUNT.conn1 as Parameters<typeof folderGroups>[0])),
     });
     renderDocuments(`${DRIVE_HOME}&account=conn1`);
-    const table = await readyTable("Kế hoạch Beta");
-    expect(within(table).getByRole("link", { name: "Tệp ở gốc" })).toBeInTheDocument();
-    expect(within(table).getAllByRole("row")).toHaveLength(3);
-    // The account is open (it is selected) but has no folder children.
-    expect(screen.queryByRole("button", { name: new RegExp(t("driveLibrary.folder.unnamed", { id: "" })) })).toBeNull();
-    // Known to have no folders: the chevron is gone.
-    await waitFor(() => expect(screen.getByRole("button", { name: /Drive: uni-work1@gmail\.com/ }).parentElement?.querySelector("[data-chevron]")).toHaveAttribute("hidden"));
+    expect(await screen.findByText(t("driveLibrary.list.error_title"))).toBeInTheDocument();
+    expect(listedFilters()).toEqual([]);
+
+    fireEvent.click(screen.getAllByRole("button", { name: t("driveLibrary.list.retry") })[0]!);
+    await readyTable("Tệp ở gốc");
+    expect(listedFilters()).toEqual([["conn1", "none", null]]);
   });
 
   it("account search is flat over every file of the account (folder rows hidden); folder view only its files", async () => {
@@ -307,8 +397,12 @@ describe("Drive account and folder views in the main list", () => {
     const box = screen.getByRole("searchbox", { name: t("driveLibrary.list.search_label") });
 
     // A file inside a folder is found by name, diacritics folded; folder rows are not shown.
+    expect(listedFilters()).toEqual([["conn1", "none", null]]);
     fireEvent.change(box, { target: { value: "ke hoach" } });
+    // The account-wide list is only asked for once a search is typed.
+    await screen.findByRole("link", { name: "Kế hoạch Beta" });
     expect(within(screen.getByRole("table")).getByRole("link", { name: "Kế hoạch Beta" })).toBeInTheDocument();
+    expect(listedFilters()).toEqual([["conn1", "none", null], ["conn1", null, null]]);
     expect(within(screen.getByRole("table")).queryByRole("link", { name: "Dự án Beta" })).toBeNull();
     expect(within(screen.getByRole("table")).queryByRole("link", { name: "Tệp ở gốc" })).toBeNull();
 
@@ -342,22 +436,6 @@ describe("Drive account and folder views in the main list", () => {
 });
 
 describe("Name this folder", () => {
-  /** Answers GET drive-folders like a server that has the list; `serve()` alone is the fallback path. */
-  function serveFolderList() {
-    const base = requestMock.getMockImplementation()!;
-    requestMock.mockImplementation((path: string, init?: unknown) =>
-      path.startsWith(`/api/v1/workspaces/${WS}/drive-folders`)
-        ? Promise.resolve({
-            folders: [
-              { id: ALPHA.id, name: ALPHA.name, file_count: 1 },
-              { id: BETA.id, name: BETA.name, file_count: 2 },
-              { id: UNNAMED.id, name: null, file_count: 1 },
-            ],
-          })
-        : base(path, init),
-    );
-  }
-
   function renderSection(onNameFolder?: (folder: { id: string }, connectionId: string) => void) {
     const nav = fakeNav(`${DRIVE_HOME}&account=conn1`);
     render(
@@ -374,14 +452,7 @@ describe("Name this folder", () => {
     );
   }
 
-  it("is hidden on the derived fallback, where the server has no folder list to name from", async () => {
-    renderSection(vi.fn());
-    await screen.findByRole("button", { name: /Dự án Beta/ });
-    expect(screen.queryByRole("button", { name: /Thao tác với thư mục/ })).toBeNull();
-  });
-
   it("is hidden while the server route does not exist (no handler)", async () => {
-    serveFolderList();
     renderSection();
     await screen.findByRole("button", { name: /Dự án Beta/ });
     expect(screen.queryByRole("button", { name: /Thao tác với thư mục/ })).toBeNull();
@@ -389,7 +460,6 @@ describe("Name this folder", () => {
 
   it("offers the action on unnamed folders only and hands the folder to the handler", async () => {
     const onNameFolder = vi.fn();
-    serveFolderList();
     renderSection(onNameFolder);
     await screen.findByRole("button", { name: /Dự án Beta/ });
     expect(screen.queryByRole("button", { name: t("driveLibrary.folder.menu_aria", { name: "Alpha" }) })).toBeNull();

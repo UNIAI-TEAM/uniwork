@@ -42,24 +42,29 @@ const DRIVE_FILES_PAGE_SIZE = 50;
 
 export interface UseDriveFilesOpts {
   connectionId?: string | null;
+  /** Only the files directly in this Drive folder, or `none` for the files with no known parent folder. */
+  driveFolderId?: string | null;
   limit?: number;
   enabled?: boolean;
 }
 
 /**
- * Infinite query for the caller's Google Drive files in the workspace (4.1).
+ * Infinite query for the caller's Google Drive files in the workspace (4.1), optionally narrowed by
+ * connection and by parent folder (the server filters and counts; each folder has its own cache entry).
  * Refetches on window focus so external changes (or desktop handoff) appear on return.
  */
 export function useDriveFiles(wsId: string, opts?: UseDriveFilesOpts) {
   const connectionId = opts?.connectionId ?? null;
+  const driveFolderId = opts?.driveFolderId || null;
   const limit = opts?.limit ?? DRIVE_FILES_PAGE_SIZE;
   return useInfiniteQuery({
-    queryKey: driveLibraryKeys.list(wsId, connectionId),
+    queryKey: driveLibraryKeys.list(wsId, connectionId, driveFolderId),
     queryFn: ({ pageParam, signal }) =>
       listDriveFiles(
         wsId,
         {
           connection_id: connectionId || undefined,
+          drive_folder_id: driveFolderId || undefined,
           cursor: pageParam || undefined,
           limit,
         },
@@ -178,8 +183,7 @@ export function useAttachDriveFileToTask(wsId: string) {
 /**
  * The folder groups of one connected account from `GET .../drive-folders` (one request, no page
  * walk). Data is null when the server answered without a folder list; a failed request leaves no
- * data: `useDriveAccountFolders` then derives folders from the files. A 4xx is not retried, so an
- * older server (no such route) falls back at once.
+ * data. A 4xx is not retried.
  */
 export function useDriveFolders(wsId: string, connectionId: string | null, opts?: { enabled?: boolean }) {
   return useQuery({

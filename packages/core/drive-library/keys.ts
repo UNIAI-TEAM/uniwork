@@ -10,8 +10,11 @@ import { driveKeys } from "../drive/keys";
 export const driveLibraryKeys = {
   workspace: (wsId: string) => driveKeys.workspace(wsId),
   lists: (wsId: string) => [...driveLibraryKeys.workspace(wsId), "library-files"] as const,
-  list: (wsId: string, connectionId?: string | null) =>
-    [...driveLibraryKeys.lists(wsId), connectionId || "all"] as const,
+  /** `driveFolderId` is a Drive folder id or `none`; omitted = the whole list (no folder filter). */
+  list: (wsId: string, connectionId?: string | null, driveFolderId?: string | null) =>
+    driveFolderId
+      ? ([...driveLibraryKeys.lists(wsId), connectionId || "all", driveFolderId] as const)
+      : ([...driveLibraryKeys.lists(wsId), connectionId || "all"] as const),
   folderLists: (wsId: string) => [...driveLibraryKeys.workspace(wsId), "library-folders"] as const,
   folders: (wsId: string, connectionId?: string | null) =>
     [...driveLibraryKeys.folderLists(wsId), connectionId || "all"] as const,

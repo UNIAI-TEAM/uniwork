@@ -110,12 +110,16 @@ const DriveFileListWireSchema = z.object({
   files: z.array(DriveFileWireSchema).nullish().transform((v) => v ?? []),
   total_count: z.number(),
   next_cursor: z.string().nullable(),
+  // Echo of the applied `drive_folder_id` filter: a string, or null/absent when none applied.
+  drive_folder_id: z.string().nullish().catch(null).transform((v) => v ?? null),
 });
 
 export interface DriveFileList {
   files: DriveFile[];
   total_count: number;
   next_cursor: string | null;
+  /** The folder filter the server applied (a Drive folder id or `none`); null when the list is unfiltered. */
+  drive_folder_id: string | null;
 }
 
 const DriveFileEnvelopeWireSchema = z.object({
@@ -130,6 +134,8 @@ export interface ListDriveFilesQuery {
   connection_id?: string;
   cursor?: string;
   limit?: number;
+  /** A Google Drive parent folder id, or `none` for the files with no known parent folder. */
+  drive_folder_id?: string;
 }
 
 export interface RebindDriveFileBody {
@@ -151,6 +157,7 @@ function listQueryString(query?: ListDriveFilesQuery): string {
   if (!query) return "";
   const params = new URLSearchParams();
   if (query.connection_id) params.set("connection_id", query.connection_id);
+  if (query.drive_folder_id) params.set("drive_folder_id", query.drive_folder_id);
   if (query.cursor) params.set("cursor", query.cursor);
   if (query.limit !== undefined) params.set("limit", String(query.limit));
   const qs = params.toString();
@@ -170,13 +177,14 @@ export async function listDriveFiles(
   const parsed = parseWithFallback<z.infer<typeof DriveFileListWireSchema>>(
     raw,
     DriveFileListWireSchema,
-    { files: [], total_count: 0, next_cursor: null },
+    { files: [], total_count: 0, next_cursor: null, drive_folder_id: null },
     { endpoint: "GET /api/v1/workspaces/{ws}/drive-files" },
   );
   return {
     files: parsed.files.map(narrowDriveFile),
     total_count: parsed.total_count,
     next_cursor: parsed.next_cursor,
+    drive_folder_id: parsed.drive_folder_id,
   };
 }
 

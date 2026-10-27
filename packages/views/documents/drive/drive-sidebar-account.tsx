@@ -106,7 +106,6 @@ export function DriveSidebarAccount({
   const folders = useDriveAccountFolders(wsId, connection.id, {
     enabled: expanded,
     locale: i18n.language,
-    withFiles: false,
   });
   const accountLabel = t("driveLibrary.sidebar.account_row", { email: connection.google_email });
   const disconnectedLabel = t("driveLibrary.sidebar.disconnected");
@@ -168,22 +167,10 @@ export function DriveSidebarAccount({
             {t("driveLibrary.sidebar.folders_loading")}
           </div>
         ) : null}
-        {expanded && folders.isError && folders.files.length === 0 ? (
+        {expanded && folders.isError ? (
           <p role="alert" style={{ paddingLeft: "56px" }} className="pr-2 py-1.5 text-caption text-destructive">
             {t("driveLibrary.sidebar.folders_error")}
           </p>
-        ) : null}
-        {expanded && folders.isLoadMoreError ? (
-          <div
-            role="alert"
-            style={{ paddingLeft: "56px" }}
-            className="flex flex-wrap items-center gap-2 py-1.5 pr-2 text-caption text-destructive"
-          >
-            <span>{t("driveLibrary.sidebar.folders_error")}</span>
-            <Button type="button" variant="outline" size="sm" onClick={folders.retryLoadMore}>
-              {t("driveLibrary.list.retry")}
-            </Button>
-          </div>
         ) : null}
         {folders.folders.map((folder) => (
           <FolderRow
@@ -192,7 +179,7 @@ export function DriveSidebarAccount({
             current={currentFolderId === folder.id}
             onSelect={() => onSelect(connection.id, folder.id)}
             menu={
-              onNameFolder && folders.serverList && folder.name === null ? (
+              onNameFolder && folder.name === null ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={

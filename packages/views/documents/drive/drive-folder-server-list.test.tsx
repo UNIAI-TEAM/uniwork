@@ -132,7 +132,12 @@ function serve(opts: Serve = {}) {
       return (opts.name ?? (() => Promise.resolve({ drive_folder: { id: UNNAMED.id, name: "Hợp đồng" }, updated_count: 1 })))(init.body);
     }
     if (path.startsWith(FOLDERS_URL)) return (opts.folders ?? (() => Promise.resolve(FOLDER_GROUPS)))();
-    if (path.startsWith(DRIVE_LIST_URL)) return Promise.resolve({ files: FILES, total_count: FILES.length, next_cursor: null });
+    if (path.startsWith(DRIVE_LIST_URL)) {
+      // Like the server: the folder filter (`none` = no parent) narrows the files and the total.
+      const folder = new URLSearchParams(path.split("?")[1] ?? "").get("drive_folder_id");
+      const files = folder === null ? FILES : FILES.filter((f) => (folder === "none" ? !f.drive_folder : f.drive_folder?.id === folder));
+      return Promise.resolve({ files, total_count: files.length, next_cursor: null, drive_folder_id: folder });
+    }
     if (path === `/api/v1/workspaces/${WS}/drive-connections`) {
       return Promise.resolve({ connections: opts.connectionList ?? [connectionWire] });
     }
@@ -153,6 +158,9 @@ const folderGets = () => callsTo(FOLDERS_URL).filter(([, init]) => (init as { me
 const namePosts = () => callsTo(FOLDERS_URL, "POST");
 const filesOfAccount = () =>
   callsTo(DRIVE_LIST_URL).filter(([path]) => new URLSearchParams(String(path).split("?")[1] ?? "").get("connection_id") === "conn1");
+/** The `drive_folder_id` of each GET drive-files for the account, in order (null = no filter). */
+const folderFilters = () =>
+  filesOfAccount().map(([path]) => new URLSearchParams(String(path).split("?")[1] ?? "").get("drive_folder_id"));
 
 function withFlag(ui: React.ReactElement, nav = fakeNav()) {
   const service = new FeatureFlagService(
@@ -232,19 +240,17 @@ describe("folder tree from the server list", () => {
   });
 
   it.each([
-    ["404 (an older server)", () => Promise.reject(new ApiError("not found", "not_found", 404))],
-    ["a 500", () => Promise.reject(new ApiError("boom", "internal", 500))],
+    ["a 404", () => Promise.reject(new ApiError("not found", "not_found", 404))],
     ["an answer with no list", () => Promise.resolve({ unexpected: true })],
-  ])("falls back to deriving folders from the files on %s", async (_label, folders) => {
+  ])("shows the folder error on %s and derives nothing from the files", async (_label, folders) => {
     serve({ folders });
     renderDocuments(DRIVE_HOME);
     await screen.findByRole("button", { name: /Drive: uni-work1@gmail\.com/ });
     expandAccount();
 
-    const beta = await screen.findByRole("button", { name: /Dự án Beta/ });
-    // Derived from the five files, not from a server count.
-    expect(beta).toHaveTextContent("2");
-    await waitFor(() => expect(filesOfAccount().length).toBeGreaterThan(0));
+    expect(await screen.findByText(t("driveLibrary.sidebar.folders_error"))).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Dự án Beta/ })).toBeNull();
+    expect(filesOfAccount()).toHaveLength(0);
   });
 
   it("an empty list is a valid answer and shows no folders", async () => {
@@ -272,17 +278,19 @@ describe("account view with the server list", () => {
     expect(within(table).queryByRole("link", { name: "Biên bản chưa xếp" })).toBeNull();
   });
 
-  it("an unknown folder id shows the account view without waiting for the page walk", async () => {
+  it("an unknown folder id shows the account view and never asks the server for that folder", async () => {
     renderDocuments(`${DRIVE_HOME}&account=conn1&driveFolder=nope`);
     await screen.findByRole("link", { name: "Tệp ở gốc" });
     expect(screen.queryByRole("navigation", { name: t("driveLibrary.list.breadcrumb_label") })).toBeNull();
+    expect(folderFilters()).toEqual(["none"]);
   });
 
-  it("a folder view shows its own files, picked from the walk", async () => {
+  it("a folder view shows the files the server filtered to that folder, in one request", async () => {
     renderDocuments(`${DRIVE_HOME}&account=conn1&driveFolder=${BETA.id}`);
     await screen.findByRole("link", { name: "Kế hoạch Beta" });
     expect(screen.getByRole("link", { name: "Ngân sách Beta" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Tệp ở gốc" })).toBeNull();
+    expect(folderFilters()).toEqual([BETA.id]);
   });
 });
 
@@ -290,13 +298,6 @@ describe("Name this folder", () => {
   it("offers the header action on an unnamed folder only", async () => {
     renderList(UNNAMED_URL, UNNAMED.id);
     expect(await screen.findByRole("button", { name: t("driveLibrary.folder.name_action") })).toBeInTheDocument();
-  });
-
-  it("does not offer it when the folder list came from the fallback (no folder list on the server)", async () => {
-    serve({ folders: () => Promise.reject(new ApiError("x", "not_found", 404)) });
-    renderList(UNNAMED_URL, UNNAMED.id);
-    await screen.findByRole("link", { name: "Biên bản chưa xếp" });
-    expect(screen.queryByRole("button", { name: t("driveLibrary.folder.name_action") })).toBeNull();
   });
 
   it("does not offer it on a named folder", async () => {
@@ -430,14 +431,6 @@ describe("Name this folder from the sidebar", () => {
     expect(unnamedCount).toHaveClass("group-hover/row:invisible", "group-focus-within/row:invisible");
     const betaCount = screen.getByRole("button", { name: /^Dự án Beta/ }).querySelector(".font-mono");
     expect(betaCount).not.toHaveClass("group-hover/row:invisible");
-  });
-
-
-  it("draws no menu on a derived folder when the server has no folder list", async () => {
-    serve({ folders: () => Promise.reject(new ApiError("x", "not_found", 404)) });
-    renderDocuments(`${DRIVE_HOME}&account=conn1`);
-    await screen.findByRole("button", { name: new RegExp(`^${UNNAMED_LABEL}`) });
-    expect(screen.queryByRole("button", { name: t("driveLibrary.folder.menu_aria", { name: UNNAMED_LABEL }) })).toBeNull();
   });
 
   it("opens the Picker from the unnamed node's menu and names the folder", async () => {
