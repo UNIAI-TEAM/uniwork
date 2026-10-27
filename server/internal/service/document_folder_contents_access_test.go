@@ -269,11 +269,12 @@ func TestFolderContentsAccessModesAndSubtreeScope(t *testing.T) {
 		t.Fatalf("sync document_access_batch.completed count = %d (err=%v), want 1", syncCompletedEvents, err)
 	}
 
-	// 6. Dry-run replace mode with downgrade warning and empty-items to_private warning:
+	// 6. Dry-run replace mode with downgrade + to_private warnings and empty-items to_private warning:
 	// Replace with only outsider=view (omitting home workspace and bMember):
 	// - bMember loses access on page1 (losing_users >= 1), workspace members without direct shares lose access on page1/subPage1/page2
 	// - outsider is downgraded from edit -> view on page1 (downgraded_users >= 1)
-	// -> warnings includes "downgrade".
+	// - page1/subPage1/page2 lose their home-workspace share (visibility workspace -> restricted)
+	// -> warnings includes both "downgrade" and "to_private".
 	dryReplaceDowngrade, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, rootID, UpdateFolderContentsAccessInput{
 		Mode:   FolderContentsAccessModeReplace,
 		DryRun: true,
@@ -285,8 +286,9 @@ func TestFolderContentsAccessModesAndSubtreeScope(t *testing.T) {
 		t.Fatalf("dry_run replace downgrade: %v", err)
 	}
 	if dryReplaceDowngrade.Preview.LosingUsers == 0 || dryReplaceDowngrade.Preview.DowngradedUsers == 0 ||
-		!slices.Contains(dryReplaceDowngrade.Preview.Warnings, FolderContentsAccessWarningDowngrade) {
-		t.Fatalf("dryReplaceDowngrade = %+v, want losing>0, downgraded>0 and warning downgrade", dryReplaceDowngrade.Preview)
+		!slices.Contains(dryReplaceDowngrade.Preview.Warnings, FolderContentsAccessWarningDowngrade) ||
+		!slices.Contains(dryReplaceDowngrade.Preview.Warnings, FolderContentsAccessWarningToPrivate) {
+		t.Fatalf("dryReplaceDowngrade = %+v, want losing>0, downgraded>0 and warnings downgrade+to_private", dryReplaceDowngrade.Preview)
 	}
 
 	// Dry-run replace with empty items -> warning "to_private".
@@ -657,6 +659,55 @@ func TestFolderContentsAccessChildDOC05SkipsRestrictedSelfGrant(t *testing.T) {
 				t.Fatalf("colleagueRestricted folder_contents audit rows after %s = %d (err=%v), want 0", tc.name, auditCount, err)
 			}
 		})
+	}
+
+	// V1-6: skipped_not_manageable must not depend on whether the home-workspace
+	// row is in items. On this same fixture, wsAdmin holds manage on adminPage
+	// and only AdminScope (level none < manage) on colleagueRestricted; two dry
+	// runs (items with and without the home-workspace row) and a real run
+	// granting another user without the home-workspace row must all report
+	// SkippedNotManageable=1 and leave colleagueRestricted untouched.
+	dryWithWSRow, err := f.svc.UpdateFolderContentsAccess(f.ctx, wsAdmin, rootID, UpdateFolderContentsAccessInput{
+		Mode:   FolderContentsAccessModeReplace,
+		DryRun: true,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsA, Level: DocumentLevelView},
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dry_run replace with ws row: %v", err)
+	}
+	dryWithoutWSRow, err := f.svc.UpdateFolderContentsAccess(f.ctx, wsAdmin, rootID, UpdateFolderContentsAccessInput{
+		Mode:   FolderContentsAccessModeReplace,
+		DryRun: true,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dry_run replace without ws row: %v", err)
+	}
+	if dryWithWSRow.Preview.SkippedNotManageable != 1 ||
+		dryWithoutWSRow.Preview.SkippedNotManageable != dryWithWSRow.Preview.SkippedNotManageable ||
+		dryWithoutWSRow.Preview.Changed != 1 {
+		t.Fatalf("V1-6 dry_run skipped_not_manageable varied with items: withWS=%+v withoutWS=%+v, want both SkippedNotManageable=1 Changed=1",
+			dryWithWSRow.Preview, dryWithoutWSRow.Preview)
+	}
+	syncWithoutWSRow, err := f.svc.UpdateFolderContentsAccess(f.ctx, wsAdmin, rootID, UpdateFolderContentsAccessInput{
+		Mode: FolderContentsAccessModeReplace,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
+		},
+	})
+	if err != nil {
+		t.Fatalf("sync replace without ws row: %v", err)
+	}
+	if syncWithoutWSRow.SkippedNotManageable != 1 || syncWithoutWSRow.Changed != 1 {
+		t.Fatalf("V1-6 sync replace without ws row = %+v, want SkippedNotManageable=1 Changed=1", syncWithoutWSRow)
+	}
+	if got := level(t, f, H(tn.outsider.ID), reloadDoc(t, f, colleagueRestricted.ID)); got != DocumentLevelNone {
+		t.Fatalf("outsider level on colleagueRestricted after sync without ws row = %q, want none", got)
 	}
 
 	// Also verify the background worker skips colleagueRestricted as skipped_not_manageable.
@@ -1055,13 +1106,22 @@ func TestFolderContentsAccessLockTimeoutErrorMapping(t *testing.T) {
 }
 
 // TestFolderContentsAccessToPrivateWarningRequiresHomeWorkspaceShare covers
-// UNI-2244 Amendment A1 (U2244-V1-1, DB-free unit check):
-// replace-with-nobody (items empty) raises warning "to_private" only when at
-// least one in-scope manageable document had a home-workspace share (any level)
-// before the replace; an all-private (restricted) subtree with only direct user
-// shares changes (changed > 0) without raising "to_private".
+// UNI-2244 warnings and Amendment A1 (V1-1, DB-free unit check):
+//   - replace with empty items or fewer users on an all-private (restricted)
+//     subtree with direct user shares never raises "to_private" or "downgrade"
+//     when downgraded_users == 0;
+//   - replace with empty items OR user-only items (omitting the home-workspace
+//     row) on a document that had a home-workspace share loses that share in the
+//     simulated after state and raises "to_private" (without "downgrade" when
+//     downgraded_users == 0);
+//   - replace keeping the home-workspace row does not lose the home-workspace
+//     share (no "to_private"), raises "downgrade" when downgraded_users > 0, and
+//     raises neither when users only lose access (downgraded_users == 0);
+//   - merge mode never raises "downgrade" or "to_private".
 func TestFolderContentsAccessToPrivateWarningRequiresHomeWorkspaceShare(t *testing.T) {
 	wsID := "01J8X4WS0N1P2Q3R4S5T6U7V8"
+	u1ID := "01J8X4USER0000000000000001"
+	u2ID := "01J8X4USER0000000000000002"
 	privateDoc := db.Document{
 		ID:          "01J8X4DOCPRIVATE0000000000",
 		WorkspaceID: wsID,
@@ -1072,8 +1132,14 @@ func TestFolderContentsAccessToPrivateWarningRequiresHomeWorkspaceShare(t *testi
 		{
 			DocumentID:    privateDoc.ID,
 			PrincipalType: DocumentPrincipalUser,
-			PrincipalID:   "01J8X4USER0000000000000000",
+			PrincipalID:   u1ID,
 			Level:         string(DocumentLevelEdit),
+		},
+		{
+			DocumentID:    privateDoc.ID,
+			PrincipalType: DocumentPrincipalUser,
+			PrincipalID:   u2ID,
+			Level:         string(DocumentLevelView),
 		},
 	}
 	if !decideFolderContentsDocWouldChange(privateDoc, directUserShares, FolderContentsAccessModeReplace, nil) {
@@ -1083,12 +1149,28 @@ func TestFolderContentsAccessToPrivateWarningRequiresHomeWorkspaceShare(t *testi
 		t.Fatal("docHasHomeWorkspaceShare(privateDoc with only direct user share) = true, want false")
 	}
 	warningsAllPrivate := computeFolderContentsWarnings(
-		wsID, FolderContentsAccessModeReplace, nil, 2, 2, 1, 0,
+		wsID, FolderContentsAccessModeReplace, nil, 2, 2, 2, 0,
 		docHasHomeWorkspaceShare(privateDoc, directUserShares),
 	)
-	if slices.Contains(warningsAllPrivate, FolderContentsAccessWarningToPrivate) {
-		t.Fatalf("replace-with-nobody on all-private subtree with direct user shares warnings = %v, must not contain %q",
-			warningsAllPrivate, FolderContentsAccessWarningToPrivate)
+	if slices.Contains(warningsAllPrivate, FolderContentsAccessWarningToPrivate) ||
+		slices.Contains(warningsAllPrivate, FolderContentsAccessWarningDowngrade) {
+		t.Fatalf("replace-with-nobody on all-private subtree warnings = %v, want empty", warningsAllPrivate)
+	}
+
+	// V1-1: private doc + user shares, replace keeping only u1=edit (dropping u2, losingUsers=1, downgradedUsers=0) -> neither to_private nor downgrade.
+	userOnlyItems := []FolderContentsAccessItem{
+		{PrincipalType: DocumentPrincipalUser, PrincipalID: u1ID, Level: DocumentLevelEdit},
+	}
+	simPrivAfter, simPrivShares := simulateFolderContentsDocAfter(privateDoc, directUserShares, FolderContentsAccessModeReplace, userOnlyItems)
+	privLosesHome := docHasHomeWorkspaceShare(privateDoc, directUserShares) && !docHasHomeWorkspaceShare(simPrivAfter, simPrivShares)
+	if privLosesHome {
+		t.Fatal("privateDoc simulated replace with userOnlyItems reported losing home-workspace share")
+	}
+	warningsPrivateFewerUsers := computeFolderContentsWarnings(
+		wsID, FolderContentsAccessModeReplace, userOnlyItems, 2, 1, 1, 0, privLosesHome,
+	)
+	if len(warningsPrivateFewerUsers) != 0 {
+		t.Errorf("V1-1 private doc replace with fewer users warnings = %v, want empty (no to_private, no downgrade)", warningsPrivateFewerUsers)
 	}
 
 	wsSharedDoc := db.Document{
@@ -1109,14 +1191,74 @@ func TestFolderContentsAccessToPrivateWarningRequiresHomeWorkspaceShare(t *testi
 		t.Fatalf("replace-with-nobody with workspace-shared doc warnings = %v, want %q",
 			warningsWithWSShare, FolderContentsAccessWarningToPrivate)
 	}
+
+	// Reported defect shape: replace with user-only items (no home-workspace row) on workspace-shared doc,
+	// losingUsers=1, downgradedUsers=0 -> to_private present, downgrade absent.
+	simWSAfterUserOnly, simWSSharesUserOnly := simulateFolderContentsDocAfter(wsSharedDoc, nil, FolderContentsAccessModeReplace, userOnlyItems)
+	wsLosesHomeOnUserOnly := docHasHomeWorkspaceShare(wsSharedDoc, nil) && !docHasHomeWorkspaceShare(simWSAfterUserOnly, simWSSharesUserOnly)
+	if !wsLosesHomeOnUserOnly {
+		t.Fatal("wsSharedDoc simulated replace with userOnlyItems did not lose home-workspace share")
+	}
+	warningsUserOnlyNoWS := computeFolderContentsWarnings(
+		wsID, FolderContentsAccessModeReplace, userOnlyItems, 7, 7, 1, 0, wsLosesHomeOnUserOnly,
+	)
+	if !slices.Contains(warningsUserOnlyNoWS, FolderContentsAccessWarningToPrivate) ||
+		slices.Contains(warningsUserOnlyNoWS, FolderContentsAccessWarningDowngrade) {
+		t.Errorf("replace user-only on workspace-shared doc (losing=1, downgraded=0) warnings = %v, want [to_private] without downgrade",
+			warningsUserOnlyNoWS)
+	}
+
+	// Replace keeping the home-workspace row: simulated doc still has home-workspace share -> no to_private.
+	keepWSItems := []FolderContentsAccessItem{
+		{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: wsID, Level: DocumentLevelView},
+		{PrincipalType: DocumentPrincipalUser, PrincipalID: u1ID, Level: DocumentLevelView},
+	}
+	simWSAfterKeep, simWSSharesKeep := simulateFolderContentsDocAfter(wsSharedDoc, nil, FolderContentsAccessModeReplace, keepWSItems)
+	wsLosesHomeOnKeep := docHasHomeWorkspaceShare(wsSharedDoc, nil) && !docHasHomeWorkspaceShare(simWSAfterKeep, simWSSharesKeep)
+	if wsLosesHomeOnKeep {
+		t.Fatal("wsSharedDoc simulated replace keeping home-workspace row reported losing home-workspace share")
+	}
+	// Lowering a user (downgradedUsers=1) while keeping home-workspace row -> downgrade present, to_private absent.
+	warningsKeepWSDowngrade := computeFolderContentsWarnings(
+		wsID, FolderContentsAccessModeReplace, keepWSItems, 2, 2, 0, 1, wsLosesHomeOnKeep,
+	)
+	if !slices.Contains(warningsKeepWSDowngrade, FolderContentsAccessWarningDowngrade) ||
+		slices.Contains(warningsKeepWSDowngrade, FolderContentsAccessWarningToPrivate) {
+		t.Fatalf("replace keeping home ws with downgradedUsers=1 warnings = %v, want [downgrade] without to_private",
+			warningsKeepWSDowngrade)
+	}
+	// User only losing access (losingUsers=1, downgradedUsers=0) while keeping home-workspace row -> neither warning.
+	warningsKeepWSLosingOnly := computeFolderContentsWarnings(
+		wsID, FolderContentsAccessModeReplace, keepWSItems, 2, 2, 1, 0, wsLosesHomeOnKeep,
+	)
+	if len(warningsKeepWSLosingOnly) != 0 {
+		t.Errorf("replace keeping home ws with losingUsers=1 downgradedUsers=0 warnings = %v, want empty",
+			warningsKeepWSLosingOnly)
+	}
+
+	// Merge mode never raises downgrade or to_private.
+	warningsMerge := computeFolderContentsWarnings(
+		wsID, FolderContentsAccessModeMerge, userOnlyItems, 2, 2, 1, 1, true,
+	)
+	if len(warningsMerge) != 0 {
+		t.Fatalf("merge mode warnings = %v, want empty", warningsMerge)
+	}
 }
 
 // TestFolderContentsAccessDryRunToPrivateOnlyWhenHomeWorkspaceShared covers
-// UNI-2244 Amendment A1 (U2244-V1-1) end-to-end against UpdateFolderContentsAccess(dry_run=true):
-//   - replace with empty items on an all-private subtree that has direct user
-//     shares reports changed > 0 and losing_users > 0, but does NOT emit "to_private";
-//   - once one document in the subtree has a home-workspace share, the same
-//     dry-run emits "to_private".
+// UNI-2244 warnings and Amendment A1 (V1-1) end-to-end against UpdateFolderContentsAccess(dry_run=true):
+//   - replace with empty items or fewer users on an all-private subtree that has
+//     direct user shares reports changed > 0 and losing_users > 0, but emits
+//     neither "to_private" nor "downgrade" when downgraded_users == 0;
+//   - once a document in the subtree has a home-workspace share:
+//   - replace with empty items emits "to_private";
+//   - replace with user-only items (omitting the home-workspace row) emits
+//     "to_private" and not "downgrade" when downgraded_users == 0;
+//   - replace that lowers a user while keeping the home-workspace row emits
+//     "downgrade" and not "to_private";
+//   - replace keeping the home-workspace row where a user only loses access
+//     emits neither "downgrade" nor "to_private";
+//   - merge mode never emits "downgrade" or "to_private".
 func TestFolderContentsAccessDryRunToPrivateOnlyWhenHomeWorkspaceShared(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "fcav11")
@@ -1128,16 +1270,22 @@ func TestFolderContentsAccessDryRunToPrivateOnlyWhenHomeWorkspaceShared(t *testi
 	p1 := createTestPageInParent(t, f, actor, tn.wsA, "V1-1 Private 1", "restricted", &folderID)
 	p2 := createTestPageInParent(t, f, actor, tn.wsA, "V1-1 Private 2", "restricted", &folderID)
 
-	// Grant direct user shares on both restricted pages (neither has a home-workspace share).
+	// Grant direct user shares on both restricted pages (neither has a home-workspace share):
+	// outsider has edit on p1 and p2; bMember has view on p1.
 	for _, docID := range []string{p1.ID, p2.ID} {
 		if _, err := f.svc.ShareDocument(f.ctx, actor, docID, DocumentShareInput{
 			PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelEdit,
 		}); err != nil {
-			t.Fatalf("share %s: %v", docID, err)
+			t.Fatalf("share outsider on %s: %v", docID, err)
 		}
 	}
+	if _, err := f.svc.ShareDocument(f.ctx, actor, p1.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: tn.bMember.ID, Level: DocumentLevelView,
+	}); err != nil {
+		t.Fatalf("share bMember on p1: %v", err)
+	}
 
-	// 1. All-private subtree with direct user shares -> no "to_private".
+	// 1a. All-private subtree, replace with empty items -> no "to_private", no "downgrade".
 	dryAllPrivate, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
 		Mode:   FolderContentsAccessModeReplace,
 		DryRun: true,
@@ -1149,8 +1297,28 @@ func TestFolderContentsAccessDryRunToPrivateOnlyWhenHomeWorkspaceShared(t *testi
 	if dryAllPrivate.Preview.Changed != 2 {
 		t.Fatalf("dryAllPrivate Changed = %d, want 2", dryAllPrivate.Preview.Changed)
 	}
-	if slices.Contains(dryAllPrivate.Preview.Warnings, FolderContentsAccessWarningToPrivate) {
-		t.Fatalf("dryAllPrivate warnings = %v, must not include to_private when all docs were already private", dryAllPrivate.Preview.Warnings)
+	if slices.Contains(dryAllPrivate.Preview.Warnings, FolderContentsAccessWarningToPrivate) ||
+		slices.Contains(dryAllPrivate.Preview.Warnings, FolderContentsAccessWarningDowngrade) {
+		t.Fatalf("dryAllPrivate warnings = %v, must not include to_private or downgrade when all docs were already private", dryAllPrivate.Preview.Warnings)
+	}
+
+	// 1b. V1-1: All-private subtree, replace with fewer users (keep outsider=edit, drop bMember) ->
+	// losing_users == 1, downgraded_users == 0, neither "to_private" nor "downgrade".
+	dryPrivateFewerUsers, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+		Mode:   FolderContentsAccessModeReplace,
+		DryRun: true,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelEdit},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dry_run all-private fewer users: %v", err)
+	}
+	if dryPrivateFewerUsers.Preview.Changed != 1 || dryPrivateFewerUsers.Preview.LosingUsers != 1 || dryPrivateFewerUsers.Preview.DowngradedUsers != 0 {
+		t.Fatalf("dryPrivateFewerUsers preview = %+v, want Changed=1 LosingUsers=1 DowngradedUsers=0", dryPrivateFewerUsers.Preview)
+	}
+	if len(dryPrivateFewerUsers.Preview.Warnings) != 0 {
+		t.Fatalf("dryPrivateFewerUsers warnings = %v, want empty (no to_private, no downgrade)", dryPrivateFewerUsers.Preview.Warnings)
 	}
 
 	// 2. Give p2 a home-workspace share (view) -> dry-run replace with empty items now emits "to_private".
@@ -1170,7 +1338,80 @@ func TestFolderContentsAccessDryRunToPrivateOnlyWhenHomeWorkspaceShared(t *testi
 	if err != nil {
 		t.Fatalf("dry_run with workspace share: %v", err)
 	}
-	if !slices.Contains(dryWithWS.Preview.Warnings, FolderContentsAccessWarningToPrivate) {
-		t.Fatalf("dryWithWS warnings = %v, want to_private when a doc had a home-workspace share", dryWithWS.Preview.Warnings)
+	if !slices.Contains(dryWithWS.Preview.Warnings, FolderContentsAccessWarningToPrivate) ||
+		slices.Contains(dryWithWS.Preview.Warnings, FolderContentsAccessWarningDowngrade) {
+		t.Fatalf("dryWithWS warnings = %v, want [to_private] without downgrade", dryWithWS.Preview.Warnings)
+	}
+
+	// 3. Replace with users only (outsider=edit, no home-workspace row) when p2 has a home-workspace share ->
+	// losing_users >= 1, downgraded_users == 0, "to_private" present, "downgrade" absent.
+	dryUserOnlyNoWS, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+		Mode:   FolderContentsAccessModeReplace,
+		DryRun: true,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelEdit},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dry_run replace user-only without home ws: %v", err)
+	}
+	if dryUserOnlyNoWS.Preview.Changed != 2 || dryUserOnlyNoWS.Preview.LosingUsers == 0 || dryUserOnlyNoWS.Preview.DowngradedUsers != 0 {
+		t.Fatalf("dryUserOnlyNoWS preview = %+v, want Changed=2 LosingUsers>0 DowngradedUsers=0", dryUserOnlyNoWS.Preview)
+	}
+	if !slices.Contains(dryUserOnlyNoWS.Preview.Warnings, FolderContentsAccessWarningToPrivate) ||
+		slices.Contains(dryUserOnlyNoWS.Preview.Warnings, FolderContentsAccessWarningDowngrade) {
+		t.Fatalf("dryUserOnlyNoWS warnings = %v, want [to_private] without downgrade", dryUserOnlyNoWS.Preview.Warnings)
+	}
+
+	// 4. Replace that lowers a user (outsider edit -> view) while keeping the home-workspace row ->
+	// "downgrade" present, "to_private" absent.
+	dryKeepWSDowngrade, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+		Mode:   FolderContentsAccessModeReplace,
+		DryRun: true,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsA, Level: DocumentLevelView},
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dry_run replace keeping home ws with user downgrade: %v", err)
+	}
+	if dryKeepWSDowngrade.Preview.DowngradedUsers == 0 ||
+		!slices.Contains(dryKeepWSDowngrade.Preview.Warnings, FolderContentsAccessWarningDowngrade) ||
+		slices.Contains(dryKeepWSDowngrade.Preview.Warnings, FolderContentsAccessWarningToPrivate) {
+		t.Fatalf("dryKeepWSDowngrade preview = %+v, want DowngradedUsers>0 and [downgrade] without to_private", dryKeepWSDowngrade.Preview)
+	}
+
+	// 5. Replace keeping the home-workspace row while a user only loses access (outsider stays edit, bMember dropped) ->
+	// losing_users >= 1, downgraded_users == 0, neither "downgrade" nor "to_private".
+	dryKeepWSLosingOnly, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+		Mode:   FolderContentsAccessModeReplace,
+		DryRun: true,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsA, Level: DocumentLevelView},
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelEdit},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dry_run replace keeping home ws with losing user only: %v", err)
+	}
+	if dryKeepWSLosingOnly.Preview.LosingUsers == 0 || dryKeepWSLosingOnly.Preview.DowngradedUsers != 0 ||
+		len(dryKeepWSLosingOnly.Preview.Warnings) != 0 {
+		t.Fatalf("dryKeepWSLosingOnly preview = %+v, want LosingUsers>0 DowngradedUsers=0 and empty warnings", dryKeepWSLosingOnly.Preview)
+	}
+
+	// 6. Merge mode never raises "downgrade" or "to_private".
+	dryMergeUserOnly, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+		Mode:   FolderContentsAccessModeMerge,
+		DryRun: true,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dry_run merge user-only: %v", err)
+	}
+	if len(dryMergeUserOnly.Preview.Warnings) != 0 {
+		t.Fatalf("dryMergeUserOnly warnings = %v, want empty", dryMergeUserOnly.Preview.Warnings)
 	}
 }
