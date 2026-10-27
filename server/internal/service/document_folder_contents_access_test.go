@@ -749,6 +749,7 @@ func TestFolderContentsAccessChildDOC05SkipsRestrictedSelfGrant(t *testing.T) {
 func TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "fcaf2")
+	foreign := f.tenant(t, "fcaf2f")
 	H := Human
 	actor := H(tn.aclOwner.ID)
 
@@ -756,6 +757,34 @@ func TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot(t *testing.
 	t.Cleanup(func() { f.svc.SetFolderContentsAccessSyncMax(0) })
 
 	t.Run("revoke_creator_root_read_between_chunks", func(t *testing.T) {
+		// Seed an older queued batch in another tenant/folder before queuing
+		// this subtest's batch. Without per-batch chunk execution, chunk 1 of
+		// a global ClaimNextDocumentAccessBatch worker claims and completes this
+		// older 1-chunk foreign batch (worked=true), leaving res.BatchID at
+		// processed=0 when root read is revoked before chunk 2.
+		foreignActor := H(foreign.aclOwner.ID)
+		foreignFolder := createTestFolder(t, f, foreignActor, foreign.wsA, "F2 Foreign Folder", nil)
+		foreignFolderID := foreignFolder.ID
+		fd1 := createTestPageInParent(t, f, foreignActor, foreign.wsA, "F2 Foreign Doc 1", "restricted", &foreignFolderID)
+		_ = createTestPageInParent(t, f, foreignActor, foreign.wsA, "F2 Foreign Doc 2", "restricted", &foreignFolderID)
+		foreignRes, err := f.svc.UpdateFolderContentsAccess(f.ctx, foreignActor, foreignFolderID, UpdateFolderContentsAccessInput{
+			Mode: FolderContentsAccessModeMerge,
+			Items: []FolderContentsAccessItem{
+				{PrincipalType: DocumentPrincipalUser, PrincipalID: foreign.outsider.ID, Level: DocumentLevelView},
+			},
+		})
+		if err != nil {
+			t.Fatalf("queue foreign batch: %v", err)
+		}
+		t.Cleanup(func() {
+			_, _ = f.pool.Exec(f.ctx, `DELETE FROM document_access_batches WHERE id = $1`, foreignRes.BatchID)
+		})
+		if _, err := f.pool.Exec(f.ctx,
+			`UPDATE document_access_batches SET document_ids = ARRAY[$2], total = 1, created_at = now() - interval '1 minute' WHERE id = $1`,
+			foreignRes.BatchID, fd1.ID); err != nil {
+			t.Fatal(err)
+		}
+
 		folder := createTestFolder(t, f, actor, tn.wsA, "F2 Revoke Root", nil)
 		folderID := folder.ID
 		d1 := createTestPageInParent(t, f, actor, tn.wsA, "F2 Doc 1", "restricted", &folderID)
@@ -807,6 +836,16 @@ func TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot(t *testing.
 		}
 		if got := level(t, f, H(tn.outsider.ID), reloadDoc(t, f, docIDs[1])); got != DocumentLevelNone {
 			t.Fatalf("chunk 2 doc %s outsider level = %q, want none (untouched)", docIDs[1], got)
+		}
+		var foreignStatus string
+		var foreignProcessed int
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT status, processed FROM document_access_batches WHERE id = $1`,
+			foreignRes.BatchID).Scan(&foreignStatus, &foreignProcessed); err != nil {
+			t.Fatal(err)
+		}
+		if foreignStatus != FolderContentsAccessBatchStatusQueued || foreignProcessed != 0 {
+			t.Fatalf("foreign batch = status=%q processed=%d, want queued/0 (untouched)", foreignStatus, foreignProcessed)
 		}
 	})
 
