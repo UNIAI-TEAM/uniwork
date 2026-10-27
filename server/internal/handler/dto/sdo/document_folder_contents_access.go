@@ -17,8 +17,12 @@ const (
 	FolderContentsAccessWarningDowngrade = "downgrade"
 	FolderContentsAccessWarningToPrivate = "to_private"
 
-	FolderContentsAccessErrNotAFolder            = "not_a_folder"
-	FolderContentsAccessErrAccessRejected        = "document_access_rejected"
+	FolderContentsAccessErrNotAFolder     = "not_a_folder"
+	FolderContentsAccessErrAccessRejected = "document_access_rejected"
+	// FolderContentsAccessErrBatchRunning is the 409 conflict code when the
+	// folder already has a bulk access update in flight; error.fields.batch_id
+	// is optional (present when a queued/running batch row exists, omitted on a
+	// synchronous lock timeout).
 	FolderContentsAccessErrBatchRunning          = "folder_access_batch_running"
 	FolderContentsAccessErrNotFound              = "not_found"
 	FolderContentsAccessErrNotImplemented        = "not_implemented"
@@ -38,7 +42,7 @@ type FolderContentsAccessPreviewSDO struct {
 	SkippedLocked        int      `json:"skipped_locked" description:"Số tài liệu thuộc Work Product đang khóa quyền bị bỏ qua" example:"1"`
 	LosingUsers          int      `json:"losing_users" description:"Số người dùng mất quyền truy cập ở ít nhất một tài liệu (chế độ replace)" example:"12"`
 	DowngradedUsers      int      `json:"downgraded_users" description:"Số người dùng bị hạ mức quyền hiệu lực ở ít nhất một tài liệu (chế độ replace)" example:"3"`
-	Warnings             []string `json:"warnings" description:"Mã cảnh báo áp dụng cho lô: wide_scope, downgrade, to_private" example:"[\"wide_scope\",\"to_private\"]"`
+	Warnings             []string `json:"warnings" description:"Mã cảnh báo áp dụng cho lô: wide_scope, downgrade, to_private (to_private chỉ phát sinh khi ít nhất một tài liệu quản lý được trong phạm vi đang có chia sẻ cho không gian làm việc gốc trước khi replace về rỗng)" example:"[\"wide_scope\",\"to_private\"]"`
 }
 
 // FolderContentsAccessDryRunSDO is the 200 response of

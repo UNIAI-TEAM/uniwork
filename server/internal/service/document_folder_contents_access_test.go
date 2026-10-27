@@ -1053,3 +1053,124 @@ func TestFolderContentsAccessLockTimeoutErrorMapping(t *testing.T) {
 		t.Fatalf("non-55P03 error = %v, want original %v", gotOther, otherPgErr)
 	}
 }
+
+// TestFolderContentsAccessToPrivateWarningRequiresHomeWorkspaceShare covers
+// UNI-2244 Amendment A1 (U2244-V1-1, DB-free unit check):
+// replace-with-nobody (items empty) raises warning "to_private" only when at
+// least one in-scope manageable document had a home-workspace share (any level)
+// before the replace; an all-private (restricted) subtree with only direct user
+// shares changes (changed > 0) without raising "to_private".
+func TestFolderContentsAccessToPrivateWarningRequiresHomeWorkspaceShare(t *testing.T) {
+	wsID := "01J8X4WS0N1P2Q3R4S5T6U7V8"
+	privateDoc := db.Document{
+		ID:          "01J8X4DOCPRIVATE0000000000",
+		WorkspaceID: wsID,
+		Kind:        DocumentKindPage,
+		Visibility:  documentVisibilityRestricted,
+	}
+	directUserShares := []db.DocumentShare{
+		{
+			DocumentID:    privateDoc.ID,
+			PrincipalType: DocumentPrincipalUser,
+			PrincipalID:   "01J8X4USER0000000000000000",
+			Level:         string(DocumentLevelEdit),
+		},
+	}
+	if !decideFolderContentsDocWouldChange(privateDoc, directUserShares, FolderContentsAccessModeReplace, nil) {
+		t.Fatal("decideFolderContentsDocWouldChange(privateDoc with direct user share, replace empty) = false, want true")
+	}
+	if docHasHomeWorkspaceShare(privateDoc, directUserShares) {
+		t.Fatal("docHasHomeWorkspaceShare(privateDoc with only direct user share) = true, want false")
+	}
+	warningsAllPrivate := computeFolderContentsWarnings(
+		wsID, FolderContentsAccessModeReplace, nil, 2, 2, 1, 0,
+		docHasHomeWorkspaceShare(privateDoc, directUserShares),
+	)
+	if slices.Contains(warningsAllPrivate, FolderContentsAccessWarningToPrivate) {
+		t.Fatalf("replace-with-nobody on all-private subtree with direct user shares warnings = %v, must not contain %q",
+			warningsAllPrivate, FolderContentsAccessWarningToPrivate)
+	}
+
+	wsSharedDoc := db.Document{
+		ID:             "01J8X4DOCWSSHARED000000000",
+		WorkspaceID:    wsID,
+		Kind:           DocumentKindPage,
+		Visibility:     documentVisibilityWorkspace,
+		WorkspaceLevel: string(DocumentLevelView),
+	}
+	if !docHasHomeWorkspaceShare(wsSharedDoc, nil) {
+		t.Fatal("docHasHomeWorkspaceShare(wsSharedDoc) = false, want true")
+	}
+	warningsWithWSShare := computeFolderContentsWarnings(
+		wsID, FolderContentsAccessModeReplace, nil, 2, 2, 1, 0,
+		docHasHomeWorkspaceShare(wsSharedDoc, nil),
+	)
+	if !slices.Contains(warningsWithWSShare, FolderContentsAccessWarningToPrivate) {
+		t.Fatalf("replace-with-nobody with workspace-shared doc warnings = %v, want %q",
+			warningsWithWSShare, FolderContentsAccessWarningToPrivate)
+	}
+}
+
+// TestFolderContentsAccessDryRunToPrivateOnlyWhenHomeWorkspaceShared covers
+// UNI-2244 Amendment A1 (U2244-V1-1) end-to-end against UpdateFolderContentsAccess(dry_run=true):
+//   - replace with empty items on an all-private subtree that has direct user
+//     shares reports changed > 0 and losing_users > 0, but does NOT emit "to_private";
+//   - once one document in the subtree has a home-workspace share, the same
+//     dry-run emits "to_private".
+func TestFolderContentsAccessDryRunToPrivateOnlyWhenHomeWorkspaceShared(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "fcav11")
+	H := Human
+	actor := H(tn.aclOwner.ID)
+
+	folder := createTestFolder(t, f, actor, tn.wsA, "V1-1 Folder", nil)
+	folderID := folder.ID
+	p1 := createTestPageInParent(t, f, actor, tn.wsA, "V1-1 Private 1", "restricted", &folderID)
+	p2 := createTestPageInParent(t, f, actor, tn.wsA, "V1-1 Private 2", "restricted", &folderID)
+
+	// Grant direct user shares on both restricted pages (neither has a home-workspace share).
+	for _, docID := range []string{p1.ID, p2.ID} {
+		if _, err := f.svc.ShareDocument(f.ctx, actor, docID, DocumentShareInput{
+			PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelEdit,
+		}); err != nil {
+			t.Fatalf("share %s: %v", docID, err)
+		}
+	}
+
+	// 1. All-private subtree with direct user shares -> no "to_private".
+	dryAllPrivate, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+		Mode:   FolderContentsAccessModeReplace,
+		DryRun: true,
+		Items:  []FolderContentsAccessItem{},
+	})
+	if err != nil {
+		t.Fatalf("dry_run all-private: %v", err)
+	}
+	if dryAllPrivate.Preview.Changed != 2 {
+		t.Fatalf("dryAllPrivate Changed = %d, want 2", dryAllPrivate.Preview.Changed)
+	}
+	if slices.Contains(dryAllPrivate.Preview.Warnings, FolderContentsAccessWarningToPrivate) {
+		t.Fatalf("dryAllPrivate warnings = %v, must not include to_private when all docs were already private", dryAllPrivate.Preview.Warnings)
+	}
+
+	// 2. Give p2 a home-workspace share (view) -> dry-run replace with empty items now emits "to_private".
+	viewLvl := DocumentLevelView
+	if _, err := f.svc.UpdateDocumentAccess(f.ctx, actor, p2.ID, UpdateDocumentAccessInput{
+		Items: []DocumentAccessBatchItem{
+			{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsA, Level: &viewLvl, OnExisting: DocumentAccessOnExistingUpdate},
+		},
+	}); err != nil {
+		t.Fatalf("grant home workspace on p2: %v", err)
+	}
+	dryWithWS, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+		Mode:   FolderContentsAccessModeReplace,
+		DryRun: true,
+		Items:  []FolderContentsAccessItem{},
+	})
+	if err != nil {
+		t.Fatalf("dry_run with workspace share: %v", err)
+	}
+	if !slices.Contains(dryWithWS.Preview.Warnings, FolderContentsAccessWarningToPrivate) {
+		t.Fatalf("dryWithWS warnings = %v, want to_private when a doc had a home-workspace share", dryWithWS.Preview.Warnings)
+	}
+}

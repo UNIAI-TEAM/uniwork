@@ -478,6 +478,9 @@ func TestFolderContentsAccessOpenAPISpec(t *testing.T) {
 			t.Errorf("PUT %s description missing error code %q", putPath, code)
 		}
 	}
+	if !strings.Contains(putOp.Description, "fields.batch_id là tùy chọn") {
+		t.Errorf("PUT %s description = %q, want optional fields.batch_id documented", putPath, putOp.Description)
+	}
 	putSchema := putOp.Responses["200"].Content["application/json"].Schema
 	if name, ok := strings.CutPrefix(putSchema.Ref, "#/components/schemas/"); ok {
 		putSchema = spec.Components.Schemas[name]

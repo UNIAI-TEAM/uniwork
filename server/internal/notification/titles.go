@@ -58,6 +58,7 @@ var titles = map[string]map[string]string{
 		KindDocumentAccessApproved:        "{{actor}} đã cấp cho bạn quyền truy cập \"{{document}}\".",
 		KindDocumentAccessDeclined:        "Yêu cầu truy cập tài liệu của bạn đã bị từ chối.",
 		KindDocumentShared:                "{{actor}} đã chia sẻ tài liệu \"{{document}}\" với bạn. Quyền: {{level}}.",
+		documentSharedBatchTitleKey:       "{{actor}} đã chia sẻ {{count}} tài liệu trong thư mục \"{{document}}\" với bạn. Quyền: {{level}}.",
 		KindDocumentTrashedByOther:        "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
 		KindDocumentChanged:               "{{actor}} đã thay đổi {{document_count}} tài liệu",
 		KindDocumentOwnerTransferred:      "{{actor}} đã chuyển cho bạn quyền sở hữu tài liệu \"{{document}}\".",
@@ -109,6 +110,7 @@ var titles = map[string]map[string]string{
 		KindDocumentAccessApproved:        "{{actor}} gave you access to \"{{document}}\".",
 		KindDocumentAccessDeclined:        "Your request to access a document was declined.",
 		KindDocumentShared:                "{{actor}} shared \"{{document}}\" with you ({{level}}).",
+		documentSharedBatchTitleKey:       "{{actor}} shared {{count}} documents in the folder \"{{document}}\" with you ({{level}}).",
 		KindDocumentTrashedByOther:        "{{actor}} moved your document to trash. Restore it before {{date}}",
 		KindDocumentChanged:               "{{actor}} changed {{document_count}} documents",
 		KindDocumentOwnerTransferred:      "{{actor}} transferred ownership of \"{{document}}\" to you.",
@@ -201,6 +203,11 @@ const recapMinutesTitleKey = KindMeetingRecapReady + "_minutes"
 // (params.stage = "overdue"); it is not a kind.
 const taskOverdueTitleKey = KindMeetingTaskDue + "_overdue"
 
+// documentSharedBatchTitleKey keys the document_shared sentence for a grouped
+// folder-contents batch notification (UNI-2244 §6, F5: params.count set); it is
+// not a kind.
+const documentSharedBatchTitleKey = KindDocumentShared + "_batch"
+
 // Title renders the kind's title in locale with params, i18next-style
 // {{name}} substitution. Unknown locale falls back to en.
 func Title(locale, kind string, params map[string]string) string {
@@ -224,12 +231,15 @@ func Title(locale, kind string, params map[string]string) string {
 	if kind == KindTasksAssigned && strings.TrimSpace(params["meeting"]) == "" {
 		kind = tasksAssignedNoMeetingTitleKey
 	}
+	if kind == KindDocumentShared && strings.TrimSpace(params["count"]) != "" {
+		kind = documentSharedBatchTitleKey
+	}
 	s := loc[kind]
 	if s == "" {
 		return kind
 	}
 	for k, v := range params {
-		if k == "level" && kind == KindDocumentShared {
+		if k == "level" && (kind == KindDocumentShared || kind == documentSharedBatchTitleKey) {
 			if label := documentLevelLabels[locale][v]; label != "" {
 				v = label
 			}
