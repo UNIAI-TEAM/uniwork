@@ -4,11 +4,14 @@ import (
 	"archive/zip"
 	"bytes"
 	"hash/crc32"
+	"io"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filescontract"
+	"github.com/unicomhub/uniwork/server/internal/zipbound"
 )
 
 // detectBody types body the way an upload does: the head first, then the
@@ -82,6 +85,39 @@ func TestDetectBodyContentTypeLargeFirstEntry(t *testing.T) {
 	broken := mediaFirstPackage(t, big, "word/document.xml")
 	if got := detectBody(broken[:len(broken)-10], "a.docx"); got != "application/zip" {
 		t.Errorf("truncated archive: got %q", got)
+	}
+}
+
+type countingReaderAt struct {
+	r     io.ReaderAt
+	bytes int64
+}
+
+func (c *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	n, err := c.r.ReadAt(p, off)
+	c.bytes += int64(n)
+	return n, err
+}
+
+func TestDetectBodyContentTypeRefusesHugeDirectoryWithinBoundedReads(t *testing.T) {
+	const big = files.DetectHeadBytes + 4096
+	parts := make([]string, 0, 1501)
+	bigName := strings.Repeat("a", 900)
+	for i := range 1500 {
+		parts = append(parts, "word/media/"+strconv.Itoa(i)+"_"+bigName)
+	}
+	parts = append(parts, "word/document.xml")
+	body := mediaFirstPackage(t, big, parts...)
+	head := body[:files.DetectHeadBytes]
+	cr := &countingReaderAt{r: bytes.NewReader(body)}
+
+	got := files.DetectBodyContentType(head, "a.docx", cr, int64(len(body)))
+	if got != "application/zip" {
+		t.Fatalf("got %q, want application/zip when directory exceeds budget", got)
+	}
+	maxAllowed := zipbound.MaxDirectoryBytes + zipbound.EndRecordWindowBytes
+	if cr.bytes > maxAllowed {
+		t.Fatalf("read %d bytes, want <= %d", cr.bytes, maxAllowed)
 	}
 }
 
