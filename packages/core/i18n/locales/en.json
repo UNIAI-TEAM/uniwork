@@ -5318,6 +5318,14 @@
       "optionClose": "Remove {{name}}",
       "rollHint": "Set a minimum attendance. Falling short only warns; it never blocks the meeting."
     },
+    "venue": {
+      "label": "Format",
+      "online": "Online",
+      "onlineHint": "A meeting room with a link",
+      "inPerson": "In person",
+      "inPersonHint": "Recorded in the room",
+      "prepare": "Prepare the recording"
+    },
     "instantDialog": {
       "titlePlaceholder": "Instant meeting",
       "titleHint": "Optional. Left empty, it is called “Instant meeting”.",

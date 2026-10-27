@@ -103,6 +103,7 @@ export function buildCreatePlan(draft: MeetingDraft, ctx: PlanContext): SubmitPl
   const slot = scheduleWindowIso(draft.date, draft.start, draft.end, draft.timezone);
   const create: CreateMeetingBody = {
     title: draft.title.trim(),
+    venue: draft.venue,
     description: draft.description.trim(),
     starts_at: slot.starts_at,
     ends_at: slot.ends_at,
@@ -143,6 +144,8 @@ export function buildEditPlan(
     const slot = scheduleWindowIso(draft.date, draft.start, draft.end, draft.timezone);
     Object.assign(patch, { starts_at: slot.starts_at, ends_at: slot.ends_at, timezone: draft.timezone });
   }
+  // Only when changed: the server refuses any venue on a live meeting, even the same one.
+  if (draft.venue !== snapshot.venue) patch.venue = draft.venue;
   if (draft.allowJoin !== snapshot.allowJoin) patch.allow_join_request = draft.allowJoin;
   // "" clears the project on update.
   if (draft.projectId !== snapshot.projectId) patch.project_id = draft.projectId;

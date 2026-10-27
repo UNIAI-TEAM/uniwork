@@ -161,7 +161,7 @@ function FollowUpBody(p: BodyProps & { previous: Meeting; previousParticipants: 
 /** What changes when someone else saves: the server version, or the fields themselves. */
 function revisionOf(m: Meeting): string {
   if (m.version !== undefined) return String(m.version);
-  return JSON.stringify([m.title, m.description, m.starts_at, m.ends_at, m.timezone, m.allow_join_request, m.status, m.quorum_percent, m.project_id]);
+  return JSON.stringify([m.title, m.description, m.starts_at, m.ends_at, m.timezone, m.allow_join_request, m.status, m.quorum_percent, m.project_id, m.venue]);
 }
 
 function EditBody(p: BodyProps & { meeting: Meeting }) {

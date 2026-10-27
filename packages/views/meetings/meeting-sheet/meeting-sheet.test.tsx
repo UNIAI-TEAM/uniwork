@@ -164,6 +164,27 @@ describe("MeetingSheet · create", () => {
     expect(within(chips).getAllByRole("button")).toHaveLength(3);
   });
 
+  it("creates an in-person meeting: no room door, no outside guests", async () => {
+    serve((path) => (path.endsWith("/meeting-capabilities") ? { scribe: true, scribe_policy: "on", transcription: true } : undefined));
+    const onDone = vi.fn();
+    const dialog = openCreate(onDone);
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Giao ban" } });
+    fireEvent.click(await within(dialog).findByRole("radio", { name: /Trực tiếp/ }));
+    expect(within(dialog).queryByRole("button", { name: /^Vào phòng/ })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Khách bên ngoài" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"));
+    expect((posts("/workspaces/w1/meetings")[0]![1] as Init).body).toMatchObject({ title: "Giao ban", venue: "in_person" });
+  });
+
+  it("hides the venue without transcription", async () => {
+    const dialog = openCreate();
+    await within(dialog).findByRole("group", { name: "Thêm tùy chọn" });
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(within(dialog).queryByRole("radiogroup", { name: "Hình thức" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: /^Vào phòng/ })).toBeInTheDocument();
+  });
+
   it("says who reads the scribe's notes on one chip and changes it from its menu", async () => {
     const dialog = openCreate();
     fireEvent.click(await within(dialog).findByRole("button", { name: "Ai xem được tóm tắt và lời thoại: Người dự họp, đổi" }));
@@ -409,6 +430,24 @@ describe("MeetingSheet · edit", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã lưu thay đổi", expect.anything()));
     const patch = requestMock.mock.calls.find((c) => String(c[0]) === "/api/v1/meetings/m3" && (c[1] as Init)?.method === "PATCH");
     expect((patch![1] as Init).body).toEqual({ title: "Duyệt kịch bản mới" });
+  });
+
+  it("keeps an in-person meeting's venue in view without transcription and PATCHes only what changed", async () => {
+    openEdit({ ...meeting, venue: "in_person" });
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByRole("radio", { name: /Trực tiếp/ })).toHaveAttribute("aria-checked", "true");
+    expect(within(dialog).getByRole("radio", { name: /Online/ })).not.toHaveAttribute("aria-disabled");
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Mới" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const patch = requestMock.mock.calls.find((c) => String(c[0]) === "/api/v1/meetings/m3" && (c[1] as Init)?.method === "PATCH");
+    expect((patch![1] as Init).body).toEqual({ title: "Mới" });
+  });
+
+  it("locks the venue of a live meeting", async () => {
+    openEdit({ ...meeting, venue: "in_person", status: "IN_PROGRESS" });
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByRole("radio", { name: /Online/ })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("locks the time of a live meeting and the quorum of a finalized roll", async () => {

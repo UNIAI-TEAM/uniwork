@@ -6,6 +6,7 @@ import type {
   MotionBase,
   MotionThreshold,
 } from "@uniwork/core/types/meeting";
+import { meetingVenue, type MeetingVenue } from "@uniwork/core/meetings/venue";
 import { splitIsoLocal } from "../meeting-datetime";
 
 /**
@@ -34,6 +35,7 @@ export type MotionDraft = {
 
 export type MeetingDraft = {
   title: string;
+  venue: MeetingVenue;
   description: string;
   /** Wall date "YYYY-MM-DD" and "HH:MM" times in `timezone`. */
   date: string;
@@ -99,6 +101,7 @@ export function emptyDraft(nowMs: number, zone: string): MeetingDraft {
   const timezone = canonicalZone(zone);
   return {
     title: "",
+    venue: "online",
     description: "",
     ...defaultWindow(nowMs, timezone),
     timezone,
@@ -156,6 +159,7 @@ export function draftFromMeeting(
   const to = splitIsoLocal(meeting.ends_at, timezone);
   return {
     title: meeting.title,
+    venue: meetingVenue(meeting),
     description: meeting.description ?? "",
     date: from.date,
     start: from.time,
@@ -178,7 +182,7 @@ function motionChanged(a: MotionDraft, b: MotionDraft): boolean {
   return MOTION_FIELDS.some((f) => (typeof a[f] === "string" ? a[f].trim() : a[f]) !== (typeof b[f] === "string" ? b[f].trim() : b[f]));
 }
 
-const SCALARS = ["title", "description", "date", "start", "end", "timezone", "projectId", "allowJoin", "scribe", "aiShared", "quorum"] as const;
+const SCALARS = ["title", "venue", "description", "date", "start", "end", "timezone", "projectId", "allowJoin", "scribe", "aiShared", "quorum"] as const;
 
 function same(a: unknown, b: unknown): boolean {
   return (typeof a === "string" && typeof b === "string" ? a.trim() === b.trim() : a === b);

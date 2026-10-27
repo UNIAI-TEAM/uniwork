@@ -5317,6 +5317,14 @@
       "optionClose": "Bỏ {{name}}",
       "rollHint": "Đặt tỉ lệ có mặt tối thiểu. Chưa đủ chỉ cảnh báo, không chặn cuộc họp."
     },
+    "venue": {
+      "label": "Hình thức",
+      "online": "Online",
+      "onlineHint": "Phòng họp có link",
+      "inPerson": "Trực tiếp",
+      "inPersonHint": "Ghi âm tại phòng",
+      "prepare": "Chuẩn bị ghi âm"
+    },
     "instantDialog": {
       "titlePlaceholder": "Cuộc họp tức thì",
       "titleHint": "Không bắt buộc. Để trống sẽ là “Cuộc họp tức thì”.",

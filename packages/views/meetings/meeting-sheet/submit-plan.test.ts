@@ -50,6 +50,20 @@ describe("buildCreatePlan", () => {
     expect(plan.steps.find((s) => s.kind === "link")).toMatchObject({ name: "Liên kết 21:18 23/10/26" });
     expect(buildCreatePlan({ ...d, scribe: true }, ctx).steps.some((s) => s.kind === "scribe")).toBe(false);
   });
+
+  it("sends the venue", () => {
+    expect(buildCreatePlan(fullDraft(), ctx).create?.venue).toBe("online");
+    expect(buildCreatePlan({ ...fullDraft(), venue: "in_person" }, ctx).create?.venue).toBe("in_person");
+  });
+});
+
+describe("buildEditPlan · venue", () => {
+  // The server refuses any venue on a live meeting, even an unchanged one: send it only when it changed.
+  it("patches the venue only when it changed", () => {
+    const snap: MeetingDraft = { ...fullDraft(), links: [], motions: [], venue: "in_person" };
+    expect(buildEditPlan({ id: "m3" }, { ...snap, title: "Mới" }, snap, { ...ctx, timeLocked: true }).patch).toEqual({ title: "Mới" });
+    expect(buildEditPlan({ id: "m3" }, { ...snap, venue: "online" }, snap, { ...ctx, timeLocked: false }).patch).toEqual({ venue: "online" });
+  });
 });
 
 describe("buildEditPlan", () => {

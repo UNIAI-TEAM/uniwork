@@ -9,6 +9,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { clock } from "../meeting-detail/format";
 import { TextButton } from "../meeting-detail/ui/text-button";
 import { scheduleWindowIso } from "../meeting-datetime";
+import { MeetingVenuePicker } from "../meeting-venue-picker";
 import { newGuestLink, newMotion } from "./draft-model";
 import type { DraftIssue } from "./draft-validation";
 import type { MeetingDraftState } from "./use-meeting-draft";
@@ -88,6 +89,7 @@ export function SheetFields(p: SheetFieldsProps) {
     placeholder: t("meetings.sheet.agendaPlaceholder"),
     onChange: (e: ChangeEvent<HTMLTextAreaElement>) => patch({ description: e.target.value }),
   };
+  const inPerson = draft.venue === "in_person";
   const timeChecksPast = p.mode !== "edit" || (["date", "start", "end", "timezone"] as const).some((k) => draft[k] !== snapshot[k]);
   return (
     <>
@@ -141,6 +143,11 @@ export function SheetFields(p: SheetFieldsProps) {
           </p>
         ) : null}
       </div>
+
+      {/* Recording in the room needs transcription; a meeting already in person keeps its venue in view. */}
+      {p.caps?.transcription === true || snapshot.venue === "in_person" ? (
+        <MeetingVenuePicker className="mt-6" value={draft.venue} onChange={(venue) => patch({ venue })} readOnly={p.readOnly || Boolean(p.live)} />
+      ) : null}
 
       <div className="mt-6">
         {p.live ? (
@@ -243,6 +250,7 @@ export function SheetFields(p: SheetFieldsProps) {
         onProject={(projectId) => patch({ projectId })}
         allowJoin={draft.allowJoin}
         onAllowJoin={(allowJoin) => patch({ allowJoin })}
+        showJoin={!inPerson}
         readOnly={p.readOnly}
         className={p.carried ? "mt-6.5" : undefined}
       />
@@ -321,7 +329,7 @@ export function SheetFields(p: SheetFieldsProps) {
             },
           },
           { key: "roll" as const, icon: UserCheck, label: t("meetings.governance.attendanceTitle"), hint: t("meetings.sheet.rollHint"), onOpen: () => setRollOpen(true) },
-        ].filter((chip) => !show[chip.key])}
+        ].filter((chip) => !show[chip.key] && !(inPerson && chip.key === "guests"))}
       />
     </>
   );

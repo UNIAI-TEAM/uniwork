@@ -1,12 +1,13 @@
 "use client";
 import { cloneElement, useId, useState, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactElement } from "react";
-import { CircleAlert, X, Zap } from "lucide-react";
+import { CircleAlert, Mic, X, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAuthStore } from "@uniwork/core/auth";
 import { inviteParticipant, setMeetingScribe } from "@uniwork/core/api/endpoints/meetings";
 import { errorCode } from "@uniwork/core/api/http";
 import { useCreateInstantMeeting, useMeetingCapabilities } from "@uniwork/core/meetings";
+import { meetingVenue, type MeetingVenue } from "@uniwork/core/meetings/venue";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -14,6 +15,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { apiErrorCopy } from "../api-error-copy";
 import { kitButton } from "./meeting-detail/ui/kit-buttons";
 import { Dialog440 } from "./meeting-detail/ui/overlay";
+import { MeetingVenuePicker } from "./meeting-venue-picker";
 import type { DraftPerson } from "./meeting-sheet/draft-model";
 import { PeopleField } from "./meeting-sheet/people-field";
 import { ScribeBlock, scribeAvailability, scribePolicyDefault } from "./meeting-sheet/scribe-block";
@@ -28,6 +30,8 @@ const newKey = () => globalThis.crypto?.randomUUID?.() ?? `k${Date.now()}${Math.
  * (AUDIT S9), opens the room, then invites. A failed start stays in the dialog
  * as one line (ERR-10); a retry reuses the idempotency key, so a lost answer
  * never opens a second room (ERR-02). It closes without asking (AB-09).
+ * In person (UNI-2247) there is no room: the meeting is only scheduled and
+ * the caller opens the recorder instead.
  */
 export function InstantMeetingDialog({
   workspaceId,
@@ -35,7 +39,7 @@ export function InstantMeetingDialog({
   trigger,
 }: {
   workspaceId: string;
-  onStarted: (meetingId: string) => void;
+  onStarted: (meetingId: string, venue: MeetingVenue) => void;
   trigger?: ReactElement<{ onClick?: (e: MouseEvent) => void }>;
 }) {
   const { t } = useTranslation();
@@ -53,7 +57,15 @@ export function InstantMeetingDialog({
   );
 }
 
-function InstantForm({ workspaceId, onStarted, onClose }: { workspaceId: string; onStarted: (id: string) => void; onClose: () => void }) {
+function InstantForm({
+  workspaceId,
+  onStarted,
+  onClose,
+}: {
+  workspaceId: string;
+  onStarted: (id: string, venue: MeetingVenue) => void;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const id = useId().replace(/:/g, "");
   const create = useCreateInstantMeeting(workspaceId);
@@ -63,11 +75,13 @@ function InstantForm({ workspaceId, onStarted, onClose }: { workspaceId: string;
   const [title, setTitle] = useState("");
   const [people, setPeople] = useState<DraftPerson[]>([]);
   const [scribe, setScribe] = useState<boolean | null>(null);
+  const [venue, setVenue] = useState<MeetingVenue>("online");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [key] = useState(newKey);
   const policy = scribePolicyDefault(caps);
   const scribeOn = scribe ?? policy;
+  const inPerson = venue === "in_person";
   const nameOf = (userId: string) => members.find((m) => m.user_id === userId)?.display_name ?? t("meetings.formerMember");
   const host = { userId: user?.id ?? "", name: user?.display_name ?? "", avatarUrl: user?.avatar_url };
 
@@ -105,10 +119,12 @@ function InstantForm({ workspaceId, onStarted, onClose }: { workspaceId: string;
     setBusy(true);
     setError(null);
     let meetingId: string;
+    let started: MeetingVenue;
     try {
-      const meeting = await create.mutateAsync({ title: title.trim() || undefined, idempotencyKey: key });
+      const meeting = await create.mutateAsync({ title: title.trim() || undefined, venue, idempotencyKey: key });
       if (!meeting) throw new Error("meeting_invalid");
       meetingId = meeting.id;
+      started = meetingVenue(meeting);
     } catch (err) {
       // The same key with another title: the first answer was lost and that meeting may already be running.
       setError(
@@ -121,7 +137,7 @@ function InstantForm({ workspaceId, onStarted, onClose }: { workspaceId: string;
     }
     if (scribeAvailability(caps) === "on" && scribeOn !== policy) await switchScribe(meetingId, scribeOn);
     onClose();
-    onStarted(meetingId);
+    onStarted(meetingId, started);
     void invite(meetingId, people.map((p) => p.userId));
   };
 
@@ -167,8 +183,8 @@ function InstantForm({ workspaceId, onStarted, onClose }: { workspaceId: string;
             aria-keyshortcuts="Meta+Enter Control+Enter"
             className={cn(kitButton.base, "aria-disabled:opacity-100 max-sm:h-11 max-sm:flex-1")}
           >
-            {busy ? <Spinner className="size-3.5" /> : <Zap aria-hidden />}
-            {t(busy ? "meetings.starting" : "meetings.instant")}
+            {busy ? <Spinner className="size-3.5" /> : inPerson ? <Mic aria-hidden /> : <Zap aria-hidden />}
+            {t(busy ? "meetings.starting" : inPerson ? "meetings.venue.prepare" : "meetings.instant")}
           </Button>
         </>
       }
@@ -210,6 +226,7 @@ function InstantForm({ workspaceId, onStarted, onClose }: { workspaceId: string;
             {t("meetings.instantDialog.titleHint")}
           </p>
         </div>
+        {caps?.transcription === true ? <MeetingVenuePicker value={venue} onChange={setVenue} readOnly={busy} /> : null}
         {/* Kit `.pchip`: 500 weight and a 22px remove square (the chips row is the one ul that is not the listbox). */}
         <div className="[&_ul:not([role=listbox])>li]:font-medium [&_ul:not([role=listbox])>li>button]:size-5.5">
           <PeopleField
@@ -222,7 +239,7 @@ function InstantForm({ workspaceId, onStarted, onClose }: { workspaceId: string;
             readOnly={busy}
             variant="chips"
           />
-          <p className="mt-2 text-caption text-muted-foreground">{t("meetings.instantDialog.notifyNote")}</p>
+          {inPerson ? null : <p className="mt-2 text-caption text-muted-foreground">{t("meetings.instantDialog.notifyNote")}</p>}
         </div>
         <ScribeBlock
           caps={caps}

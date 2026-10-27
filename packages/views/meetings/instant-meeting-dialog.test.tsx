@@ -126,6 +126,29 @@ describe("InstantMeetingDialog", () => {
     expect(calls("/meetings/instant")).toHaveLength(1);
   });
 
+  it("in person prepares the recording", async () => {
+    serve((path) => {
+      if (path.endsWith("/meeting-capabilities")) return { scribe: true, scribe_policy: "on", transcription: true };
+      if (path.endsWith("/meetings/instant")) return { meeting: { ...meeting, status: "SCHEDULED", venue: "in_person" } };
+      return undefined;
+    });
+    const onStarted = vi.fn();
+    const dialog = renderDialog(onStarted);
+    expect(within(dialog).getByText("Người được chọn nhận thông báo khi phòng mở.")).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề nhanh"), { target: { value: "Họp với đại lý" } });
+    fireEvent.click(await within(dialog).findByRole("radio", { name: /Trực tiếp/ }));
+    expect(within(dialog).queryByText("Người được chọn nhận thông báo khi phòng mở.")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuẩn bị ghi âm" }));
+    await waitFor(() => expect(onStarted).toHaveBeenCalledWith("m9", "in_person"));
+    expect((calls("/meetings/instant")[0]![1] as Init).body).toEqual({ title: "Họp với đại lý", venue: "in_person" });
+  });
+
+  it("offers no venue without transcription", async () => {
+    const dialog = renderDialog();
+    expect(await within(dialog).findByText("Thư ký UNI")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("radiogroup")).toBeNull();
+  });
+
   it("names who was not invited and offers Mời lại", async () => {
     const onStarted = vi.fn();
     serve((path, init) =>
@@ -135,7 +158,7 @@ describe("InstantMeetingDialog", () => {
     await pick(dialog, "An");
     await pick(dialog, "Bình");
     fireEvent.click(within(dialog).getByRole("button", { name: "Họp ngay" }));
-    await waitFor(() => expect(onStarted).toHaveBeenCalledWith("m9"));
+    await waitFor(() => expect(onStarted).toHaveBeenCalledWith("m9", "online"));
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
         "Chưa mời được: Bình.",
@@ -179,7 +202,7 @@ describe("InstantMeetingDialog", () => {
     const onStarted = vi.fn();
     const dialog = renderDialog(onStarted, client);
     fireEvent.click(within(dialog).getByRole("button", { name: "Họp ngay" }));
-    await waitFor(() => expect(onStarted).toHaveBeenCalledWith("m9"));
+    await waitFor(() => expect(onStarted).toHaveBeenCalledWith("m9", "online"));
     const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
     expect(keys).toEqual(
       expect.arrayContaining([JSON.stringify(["meetings", "w1"]), JSON.stringify(["meeting-stats", "w1"]), JSON.stringify(["calendar", "w1"])]),
@@ -201,7 +224,7 @@ describe("InstantMeetingDialog", () => {
     fireEvent.click(toggle);
     expect(within(dialog).getByText("Bạn đã đổi · Thư ký UNI sẽ rời phòng ngay khi phòng mở.")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Họp ngay" }));
-    await waitFor(() => expect(onStarted).toHaveBeenCalledWith("m9"));
+    await waitFor(() => expect(onStarted).toHaveBeenCalledWith("m9", "online"));
     expect(order).toEqual(["scribe", "room"]);
     expect((calls("/scribe")[0]![1] as Init).body).toEqual({ enabled: false });
   });
