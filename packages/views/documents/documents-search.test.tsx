@@ -955,16 +955,52 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(searchUrls).toEqual([]);
   });
 
-  it("shows search hits that are not in the loaded library page on Shared with me (including via='member' with no shared object) and Shared by me (KLR-3, KLR-12)", async () => {
+  it("scopes Được chia sẻ với tôi (view=shared) search to Shared-with-me rows only (excluding own and workspace-only docs), auto-fetches next pages, handles page failure with retry loading, and keeps Shared by me server search (KLV-9, KLR-3, KLR-20)", async () => {
+    const searchUrls: string[] = [];
+    let sharedPage2Calls = 0;
+    let failSharedPage2 = false;
+    let resolveSharedPage2: ((val: unknown) => void) | null = null;
+    let resolveSharedRetry: ((val: unknown) => void) | null = null;
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(`${LIST_BASE}/shared-with-me`)) {
-        return Promise.resolve({
-          documents: [summary({ id: "sh-page1", title: "Chia sẻ trang 1", via: "share" })],
-          next_cursor: "cursor-page-2",
-        });
+        const cursor = queryOf(path).get("cursor");
+        if (!cursor) {
+          if (resolveSharedRetry) {
+            const { promise, resolve } = Promise.withResolvers<unknown>();
+            resolveSharedRetry = resolve;
+            return promise;
+          }
+          return Promise.resolve({
+            documents: [summary({ id: "sh-page1", title: "Chia sẻ trang 1", via: "share", path: [] })],
+            next_cursor: "cursor-page-2",
+          });
+        }
+        if (cursor === "cursor-page-2") {
+          sharedPage2Calls += 1;
+          if (failSharedPage2) {
+            return Promise.reject(new ApiError("shared page 2 failed", "internal", 500));
+          }
+          if (resolveSharedPage2) {
+            const { promise, resolve } = Promise.withResolvers<unknown>();
+            resolveSharedPage2 = resolve;
+            return promise;
+          }
+          return Promise.resolve({
+            documents: [
+              summary({
+                id: "sh-page2",
+                title: "Hợp đồng chia sẻ từ Nhung",
+                via: "share",
+                path: [{ id: "fo-sh", title: "Đối tác" }],
+              }),
+            ],
+            next_cursor: null,
+          });
+        }
       }
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
+        searchUrls.push(path);
         const qParams = queryOf(path);
         if (qParams.get("shared_by_me") === "true") {
           return Promise.resolve({
@@ -983,16 +1019,17 @@ describe("Documents search keeps layout (UNI-2205)", () => {
         return Promise.resolve({
           documents: [
             summary({
-              id: "unloaded-share-hit",
-              title: "Hợp đồng ở trang 2 chưa tải",
-              via: "share",
+              id: "own-doc-hit",
+              title: "Hợp đồng mẫu gốc của tôi",
+              is_owner: true,
               updated_by: "u1",
             }),
             summary({
-              id: "member-via-hit",
-              title: "Hợp đồng chia sẻ cùng quyền qua member",
+              id: "ws-only-hit",
+              title: "Đối soát hợp đồng chưa mở",
               via: "member",
-              updated_by: "u1",
+              visibility: "workspace",
+              updated_by: "u2",
             }),
           ],
           next_cursor: null,
@@ -1001,15 +1038,70 @@ describe("Documents search keeps layout (UNI-2205)", () => {
       return Promise.resolve({ documents: [], next_cursor: null });
     });
 
-    // 1. Shared with me: hits with via="share" AND via="member" (no shared object) not in loaded page 1 both show (KLR-12)
+    // 1. Shared with me: auto-fetches page 2 while showing loading state (never empty), shows only the shared row with its path line, and never requests workspace search or shows own / workspace-only docs (KLV-9)
+    resolveSharedPage2 = () => {};
     const { unmount: unmountShared } = renderSearchView(createNav("view=shared"));
     expect(await screen.findByText("Chia sẻ trang 1")).toBeInTheDocument();
+
     fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "hop dong" } });
-    expect(await screen.findByText("Hợp đồng ở trang 2 chưa tải")).toBeInTheDocument();
-    expect(screen.getByText("Hợp đồng chia sẻ cùng quyền qua member")).toBeInTheDocument();
+
+    await waitFor(() => expect(sharedPage2Calls).toBe(1));
+    expect(screen.getByLabelText(t("documents.library.loading"))).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.search.no_results_title", { query: "hop dong" }))).toBeNull();
+
+    act(() => {
+      resolveSharedPage2?.({
+        documents: [
+          summary({
+            id: "sh-page2",
+            title: "Hợp đồng chia sẻ từ Nhung",
+            via: "share",
+            path: [{ id: "fo-sh", title: "Đối tác" }],
+          }),
+        ],
+        next_cursor: null,
+      });
+    });
+    resolveSharedPage2 = null;
+
+    expect(await screen.findByText("Hợp đồng chia sẻ từ Nhung")).toBeInTheDocument();
+    expect(screen.getByTitle("Đối tác")).toHaveTextContent("Đối tác");
+    expect(screen.queryByText("Hợp đồng mẫu gốc của tôi")).toBeNull();
+    expect(screen.queryByText("Đối soát hợp đồng chưa mở")).toBeNull();
+    expect(searchUrls).toEqual([]);
     unmountShared();
 
-    // 2. Shared by me: sends shared_by_me=true to server and shows page 2 hit
+    // 2. Shared with me: failed page 2 stops auto-paging and shows error/retry; retry shows loading indicator while in flight and recovers (KLV-9, KLR-20)
+    sharedPage2Calls = 0;
+    failSharedPage2 = true;
+    const { unmount: unmountSharedErr } = renderSearchView(createNav("view=shared"));
+    expect(await screen.findByText("Chia sẻ trang 1")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "hop dong" } });
+
+    const alertState = await screen.findByRole("alert");
+    expect(within(alertState).getByText(t("documents.library.error_title"))).toBeInTheDocument();
+    expect(sharedPage2Calls).toBe(1);
+
+    failSharedPage2 = false;
+    resolveSharedRetry = () => {};
+    fireEvent.click(within(alertState).getByRole("button", { name: t("documents.library.retry") }));
+
+    expect(await screen.findByLabelText(t("documents.library.loading"))).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    act(() => {
+      const finish = resolveSharedRetry;
+      resolveSharedRetry = null;
+      finish?.({
+        documents: [summary({ id: "sh-page1", title: "Chia sẻ trang 1", via: "share", path: [] })],
+        next_cursor: "cursor-page-2",
+      });
+    });
+    expect(await screen.findByText("Hợp đồng chia sẻ từ Nhung")).toBeInTheDocument();
+    unmountSharedErr();
+
+    // 3. Shared by me: sends shared_by_me=true to server and shows page 2 hit
     renderSearchView(createNav("view=shared-by-me"));
     fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "trang 2" } });
     expect(await screen.findByText("Chia sẻ bởi tôi trang 2")).toBeInTheDocument();
@@ -1151,15 +1243,21 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(fetchedPages).toBe(11);
   });
 
-  it("stops Recent auto-fetch when page 2 fails (no loop), shows error/retry when nothing matched or matches plus Tải thêm when page 1 matched, and recovers on retry (KLR-15)", async () => {
+  it("stops Recent auto-fetch when page 2 fails (no loop), shows error/retry when nothing matched or matches plus Tải thêm when page 1 matched, and recovers on retry with loading feedback (KLR-15, KLR-20, KLR-21)", async () => {
     let page2Calls = 0;
     let failPage2 = true;
     let page1Title = "Tài liệu trang 1";
+    let resolveRetryPage1: ((val: unknown) => void) | null = null;
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(`${LIST_BASE}/recent`)) {
         const cursor = queryOf(path).get("cursor");
         if (!cursor) {
+          if (resolveRetryPage1) {
+            const { promise, resolve } = Promise.withResolvers<unknown>();
+            resolveRetryPage1 = resolve;
+            return promise;
+          }
           return Promise.resolve({
             documents: [
               summary({
@@ -1193,7 +1291,7 @@ describe("Documents search keeps layout (UNI-2205)", () => {
       return Promise.resolve({ documents: [], next_cursor: null });
     });
 
-    // 1. Nothing matched on page 1, page 2 fails -> exactly 1 page-2 request, error state with working retry
+    // 1. Nothing matched on page 1, page 2 fails -> exactly 1 page-2 request, error state, loading indicator while retry is in flight (KLR-20), then recovery
     const { unmount } = renderSearchView(createNav("view=recent"));
     expect((await screen.findAllByText("Tài liệu trang 1")).length).toBeGreaterThanOrEqual(1);
 
@@ -1208,11 +1306,31 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     expect(page2Calls).toBe(1);
 
     failPage2 = false;
+    resolveRetryPage1 = () => {};
     fireEvent.click(within(alertState).getByRole("button", { name: t("documents.library.retry") }));
+
+    expect(await screen.findByLabelText(t("documents.library.loading"))).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    act(() => {
+      const finish = resolveRetryPage1;
+      resolveRetryPage1 = null;
+      finish?.({
+        documents: [
+          summary({
+            id: "rec-p1",
+            title: page1Title,
+            path: [],
+            last_activity: { kind: "opened", at: "2026-10-26T03:00:00Z" },
+          }),
+        ],
+        next_cursor: "cursor-2",
+      });
+    });
     expect(await screen.findByText("Báo cáo trang 2 sau thử lại")).toBeInTheDocument();
     unmount();
 
-    // 2. Page 1 matched, page 2 fails -> stops auto-paging (1 page-2 request), shows page-1 match + Tải thêm as retry
+    // 2. Page 1 matched, page 2 fails -> stops auto-paging (deterministic 1 page-2 request after promises settle, KLR-21), shows page-1 match + Tải thêm as retry
     page2Calls = 0;
     failPage2 = true;
     page1Title = "Báo cáo trang 1 khớp";
@@ -1223,9 +1341,12 @@ describe("Documents search keeps layout (UNI-2205)", () => {
       target: { value: "bao cao" },
     });
 
-    await waitFor(() => expect(page2Calls).toBe(1));
     const loadMoreBtn = await screen.findByRole("button", { name: t("documents.library.load_more") });
     expect(screen.getByText("Báo cáo trang 1 khớp")).toBeInTheDocument();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(page2Calls).toBe(1);
 
     failPage2 = false;
