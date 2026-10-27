@@ -116,7 +116,7 @@ async function openAgentModeAndProposeFromPickedDriveFile(
   await expect(createDialog.getByTestId("create-task-agent-drive-reader-line")).toBeVisible();
 
   if (prompt) {
-    await createDialog.getByRole("textbox", { name: "Nội dung giao cho agent" }).fill(prompt);
+    await createDialog.getByRole("textbox", { name: "Yêu cầu cho agent" }).fill(prompt);
   }
 
   const proposalResPromise = page.waitForResponse(
@@ -834,7 +834,8 @@ test("Part 2 — batch create tasks from Drive proposal", async ({ page }) => {
   await expect(page.getByText(editedTitle).first()).toBeVisible({ timeout: 20_000 });
   const attachmentsSection = page.getByRole("region", { name: "Đính kèm" });
   await expect(attachmentsSection).toBeVisible({ timeout: 20_000 });
-  await expect(attachmentsSection.getByText(fakeDriveName(seedFile.id))).toBeVisible({
+  const createdCard = attachmentsSection.locator('[data-testid^="task-drive-card-"]').first();
+  await expect(createdCard.getByText(fakeDriveName(seedFile.id))).toBeVisible({
     timeout: 20_000,
   });
 });
