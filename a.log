@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^e71ea17cb" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=e71ea17cb34cf108bf3c75b20157649ee04f4f66
+e71ea17cb fix(meetings): guard FakeProvider join state for concurrent joins
+2dc02400c Merge UNI-2175 Google consent hint (tick the Drive box) into the G5-G7 root
+e3dd0e3d3 Merge UNI-2222 web (Drive folder views on the server filter) into the G5-G7 root
+4659c2621 Merge UNI-2192 SL-V2-01 web (deep Drive tree rows) into the G5-G7 root
