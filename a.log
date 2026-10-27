@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^1a9d339a3" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=1a9d339a344fe969bba33ba1cd0ab6caa55224ac
+1a9d339a3 Merge root 898ec2ccc (drive_connector default on, fake content reads) into UNI-2221
+898ec2ccc feat(drive): turn the drive_connector flag on by default
+488c13be0 Merge UNI-2192 follow-up (attach-dialog dedup: shared task search card) into the G5-G7 root
+4d634e7d6 chore(chat-mobile): record privacy-content.ts after reviewing its two phone copies
