@@ -268,6 +268,22 @@ Code redirect của cả hai luồng sống trong `handler/web_sign_in.go` (help
 - Config: `APPLE_SIWA_WEB_CLIENT_ID`. Bật khi có nó **và** `AppleClient` (team, key id, khoá) dựng được. Verifier web và
   native là hai instance với hai danh sách audience (`TestWebAndNativeAppleAudiencesStayApart`). Liên kết/tạo từ web lưu
   `apple_client_id = Services ID`.
+- Lát 4 (server): `AppleAuthService` có hai cửa (`service/apple_web.go` cho web, `SetWeb`); dựng khi có
+  `APPLE_SIWA_AUDIENCES` **hoặc** Services ID, verifier native để nil khi chỉ có web (`POST /auth/apple/native` → `503
+  apple_auth_unavailable`). `/auth/providers`: `apple` = cửa native, `apple_web` = cửa web. Config từ chối khởi động
+  khi Services ID nằm trong `APPLE_SIWA_AUDIENCES` (token của cửa này mở được cửa kia). Chưa cấu hình: `start` và `POST
+  /me/sign-in-methods/apple/link` → `503 apple_not_configured`. Google và Apple web dùng chung một lõi đăng nhập
+  (`AuthService.webProviderSignIn`, `service/web_provider_sign_in.go`); audit `auth.login_succeeded {via:"provider"}`
+  thêm `provider`. Callback: mọi lỗi → `apple_failed` (kể cả body quá 64 KiB, thiếu code), riêng
+  `user_cancelled_authorize` → `apple_denied`; với `intent=link` → `return_to` + `result=denied|failed`. Callback 303
+  tới `/api/v1/auth/apple/finish` (đường tương đối, cùng host). Cookie kết quả chỉ xoá khi finish đọc, không có bảng
+  nên không chặn được dùng lại trong 2 phút; nó HttpOnly, `Secure`, chỉ gửi tới `/api/v1/auth/apple`. Token Apple
+  (consent) của lượt web: tài khoản mở được giữ nó (`apple_client_id = Services ID`); `matched` không MFA giữ token mới
+  hơn (như route cũ), `matched` còn nợ MFA không ghi gì (giữ token cũ); `link` vào tài khoản MFA mang token trong `pl`;
+  vé mang nó; lượt bị từ chối (đăng nhập hay liên kết từ Cài đặt) trả lại Apple trừ khi Apple ID đã mở một tài khoản
+  (`giveBack`, dùng chung với "Hủy" của vé); token của identity token không qua kiểm thì bỏ, không thu hồi (không biết
+  của ai). Tài khoản tạo từ web (`intent=sign_up`) xác minh email chỉ khi email thuộc Apple (iCloud/relay), như Google.
+  OpenAPI ghi response 302/303 cho các route redirect.
 
 **`finishWebSignIn`** (Google callback và Apple finish):
 
@@ -706,6 +722,6 @@ Một nhánh, commit theo lát, mỗi lát để server chạy được:
    mail + ngân sách thử. Lát 3 (server) xong, trừ liên kết Apple từ Cài đặt (lát 4) và lệnh liên kết native (lát 5).
    Quên mật khẩu đặt lần đầu ghi `auth.password_set` (cả khi là thu hồi tài khoản chưa xác minh mà chưa có mật
    khẩu), không thì `auth.password_changed`.
-4. Apple web.
+4. Apple web. Lát 4 (server) xong, gồm `POST /me/sign-in-methods/apple/link`; câu trả lời ghi ở 3.4.
 5. Route native + Google ID token + bộ chuyển mã route Apple cũ.
 6. Web (4.x). 7. Mobile (5.x).
