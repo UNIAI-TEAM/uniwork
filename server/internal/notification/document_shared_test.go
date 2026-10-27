@@ -592,3 +592,62 @@ func TestDocumentSharedChatGrantEventCreatesNoNotice(t *testing.T) {
 		}
 	}
 }
+
+// TestDocumentSharedFolderContentsBatchGrouping covers UNI-2244 §6:
+// a folder bulk access update that raises a user's effective level across
+// multiple subtree documents emits at most one KindDocumentShared notification
+// per (batch_id, user_id, new_level), with resource_id = folder_id,
+// params.document = folder.Title, params.batch_id = batch_id, OncePerGroup
+// deduplication, and no per-document KindDocumentChanged noise.
+func TestDocumentSharedFolderContentsBatchGrouping(t *testing.T) {
+	f := newDocumentFixture(t)
+	recipient := f.addOrgOutsider(t, "folder-batch-recipient@example.com", "Người Nhận Thư Mục")
+	folderID := f.node(t, "folder", "Hồ sơ Dự án X", f.owner.ID, nil)
+	doc1 := f.page(t, "Tài liệu 1", f.owner.ID, &folderID)
+	doc2 := f.page(t, "Tài liệu 2", f.owner.ID, &folderID)
+	_ = doc1
+	_ = doc2
+
+	res, err := f.docs.UpdateFolderContentsAccess(f.ctx, service.Human(f.owner.ID), folderID, service.UpdateFolderContentsAccessInput{
+		Mode: service.FolderContentsAccessModeMerge,
+		Items: []service.FolderContentsAccessItem{
+			{PrincipalType: service.DocumentPrincipalUser, PrincipalID: recipient.ID, Level: service.DocumentLevelEdit},
+			{PrincipalType: service.DocumentPrincipalWorkspace, PrincipalID: f.wsID, Level: service.DocumentLevelView},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateFolderContentsAccess: %v", err)
+	}
+
+	for _, ev := range f.events(t, "document.shared") {
+		if err := f.consumer.Handle(f.ctx, ev); err != nil {
+			t.Fatalf("handle document.shared: %v", err)
+		}
+	}
+	for _, ev := range f.events(t, "document.change_noticed") {
+		if err := f.consumer.Handle(f.ctx, ev); err != nil {
+			t.Fatalf("handle document.change_noticed: %v", err)
+		}
+	}
+
+	got := f.sharedNotifications(t, recipient.ID)
+	if len(got) != 1 {
+		t.Fatalf("recipient shared notifications = %d, want 1", len(got))
+	}
+	n := got[0]
+	wantGroupKey := "document_access_batch:" + res.BatchID + ":" + recipient.ID + ":edit"
+	if n.GroupKey != wantGroupKey || n.ResourceType != "document" || n.ResourceID != folderID {
+		t.Fatalf("notification = %+v, want group_key=%q resource_id=%q", n, wantGroupKey, folderID)
+	}
+	p := decodeNotificationParams(t, n)
+	if p["document"] != "Hồ sơ Dự án X" || p["document_id"] != folderID || p["level"] != "edit" || p["batch_id"] != res.BatchID {
+		t.Fatalf("notification params = %v, want folder title + folder_id + batch_id", p)
+	}
+
+	// Workspace member f.member should NOT receive per-document document_changed notifications from the bulk folder operation.
+	for _, item := range f.inbox(t, f.member.ID) {
+		if item.Kind == KindDocumentChanged {
+			t.Fatalf("member received unexpected document_changed from folder bulk access: %+v", item)
+		}
+	}
+}

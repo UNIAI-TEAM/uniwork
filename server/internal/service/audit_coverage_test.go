@@ -1332,6 +1332,29 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDocumentContentsAccessUpdated: func(t *testing.T, f *auditFixture) {
+			svc, _ := f.document(t)
+			folder, err := svc.CreatePage(f.ctx, Human(f.owner.ID), f.workspace.ID, CreatePageInput{
+				Title: "Audit bulk access folder", Kind: DocumentKindFolder,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			parentID := folder.Document.ID
+			if _, err := svc.CreatePage(f.ctx, Human(f.owner.ID), f.workspace.ID, CreatePageInput{
+				Title: "Audit bulk access child", Kind: DocumentKindPage, ParentID: parentID,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UpdateFolderContentsAccess(f.ctx, Human(f.owner.ID), parentID, UpdateFolderContentsAccessInput{
+				Mode: FolderContentsAccessModeMerge,
+				Items: []FolderContentsAccessItem{
+					{PrincipalType: DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: DocumentLevelView},
+				},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// SH-S1 (UNI-1780): the workspace home row's visibility/level pair.
 		// Two commands move it and both write this one action - the PATCH
 		// with visibility set, and a share for the document's own workspace,
@@ -2906,6 +2929,7 @@ func auditActions() []string {
 		audit.ActionDocumentLinkCreated,
 		audit.ActionDocumentLinkRevoked,
 		audit.ActionDocumentSettingsChanged,
+		audit.ActionDocumentContentsAccessUpdated,
 		audit.ActionDocumentUpdated,
 		audit.ActionDocumentEditLockAcquired,
 		audit.ActionDocumentEditLockReleased,

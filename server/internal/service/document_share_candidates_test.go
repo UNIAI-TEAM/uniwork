@@ -183,7 +183,13 @@ func TestListDocumentShareCandidates(t *testing.T) {
 	})
 
 	t.Run("A1 folder share candidates admits any reader and blanks direct_level for non-administer readers", func(t *testing.T) {
-		folder := f.doc(t, tn, docSpec{ws: tn.wsA, kind: DocumentKindFolder, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		folderView, err := f.svc.CreatePage(f.ctx, mgr, tn.wsA, CreatePageInput{
+			Title: "A1 Folder", Kind: DocumentKindFolder,
+		})
+		if err != nil {
+			t.Fatalf("create folder: %v", err)
+		}
+		folder := folderView.Document
 
 		// Plain workspace member (reader, not manager/AdminScope) on a workspace folder -> admitted, DirectLevel blanked, IsHomeWorkspace preserved.
 		readerPage, err := f.svc.ListShareCandidates(f.ctx, H(tn.member.ID), folder.ID, DocumentShareCandidateFilter{Limit: 50})
