@@ -1,0 +1,7 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server; go test -p 1 ./internal/service/... -count=1 -timeout 60m > /tmp/b5-svc.log 2>&1; rc=$?; grep -E "^\s*--- (FAIL|SKIP)|^(FAIL|ok|panic)|_test.go:[0-9]+:" /tmp/b5-svc.log | cut -c1-400 | head -60; echo; echo "GO_SVC_EXIT=$rc"
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+ok  	github.com/unicomhub/uniwork/server/internal/service	870.068s
+ok  	github.com/unicomhub/uniwork/server/internal/service/backfill	6.866s
+
+GO_SVC_EXIT=0
