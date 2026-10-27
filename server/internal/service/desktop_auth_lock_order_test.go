@@ -118,6 +118,45 @@ func TestDesktopConcurrentRevokeAllAndLogoutNeverDeadlock(t *testing.T) {
 	}
 }
 
+// Revoking every session but the caller's takes the same locks in the same
+// order as RevokeAll (revokeOtherUserSessions), so it races a device logout
+// without a deadlock either. The kept session here is a browser session
+// that does not exist, so everything else ends.
+func TestDesktopConcurrentRevokeOthersAndLogoutNeverDeadlock(t *testing.T) {
+	ctx := context.Background()
+	svc, authSvc := newDesktopTestServices(t)
+	for i := range 8 {
+		owner, sess := desktopTestSession(t, svc, authSvc, fmt.Sprintf("desktop-others-race-%d@example.com", i))
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		errs := make([]error, 2)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, errs[0] = authSvc.RevokeOtherSessions(ctx, owner, "web-session-kept")
+		}()
+		go func() {
+			defer wg.Done()
+			<-start
+			errs[1] = svc.Logout(ctx, owner, sess.DeviceSessionID, "default", "device")
+		}()
+		close(start)
+		wg.Wait()
+		for j, err := range errs {
+			if err == nil || (j == 1 && errors.Is(err, ErrDesktopDeviceRevoked)) {
+				continue
+			}
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "40P01" {
+				t.Fatalf("round %d: deadlock between RevokeOtherSessions and Logout: %v", i, err)
+			}
+			t.Fatalf("round %d call %d: %v", i, j, err)
+		}
+		assertUserFullyRevoked(t, svc, owner)
+	}
+}
+
 // waitForDesktopLockWaiter returns once some backend other than holder (and this
 // watcher) is blocked on a lock, or fails if the call under test returned
 // first: it must queue behind the logout, not run past it.
@@ -159,19 +198,36 @@ func assertUserFullyRevoked(t *testing.T, svc *DesktopAuthService, owner string)
 	}
 }
 
-// The two halves of a user-wide revoke are referenced only by
-// revokeAllUserSessions - once each, device sessions first - so no caller can
-// take refresh_tokens first or leave the device sessions live. The scan is on the
-// syntax tree: any identifier with either name counts, so a method value
+// The two halves of a user-wide revoke are referenced only by their helper -
+// once each, device sessions first - so no caller can take refresh_tokens
+// first or leave the device sessions live. There are two such revokes, each
+// with its own helper and halves: every session of the user
+// (revokeAllUserSessions), and every one but the caller's
+// (revokeOtherUserSessions, ADR 0047). The scan is on the syntax tree: any
+// identifier with a half's name counts, so a method value
 // (f := q.RevokeAllDeviceSessions), a method expression, an alias or a call
 // through a struct field escapes no more than a plain call does.
-var userWideRevokeHalves = []string{"RevokeAllDeviceSessions", "RevokeAllRefreshTokensForUser"}
+type userWideRevoke struct {
+	helper string
+	halves [2]string // device sessions first, then refresh tokens
+}
 
-const userWideRevokeHelper = "revokeAllUserSessions"
+var userWideRevokes = []userWideRevoke{
+	{helper: "revokeAllUserSessions", halves: [2]string{"RevokeAllDeviceSessions", "RevokeAllRefreshTokensForUser"}},
+	{helper: "revokeOtherUserSessions", halves: [2]string{"RevokeOtherDeviceSessions", "RevokeOtherSessionsForUser"}},
+}
 
 // userWideRevokeViolations returns one line per reference to a half that sits
-// outside the helper, plus any way the helper itself breaks the order.
+// outside its helper, plus any way a helper itself breaks the order.
 func userWideRevokeViolations(fset *token.FileSet, file *ast.File) []string {
+	var found []string
+	for _, rv := range userWideRevokes {
+		found = append(found, rv.violations(fset, file)...)
+	}
+	return found
+}
+
+func (rv userWideRevoke) violations(fset *token.FileSet, file *ast.File) []string {
 	var found []string
 	positions := map[string][]token.Pos{}
 	helperDefined := false
@@ -180,20 +236,20 @@ func userWideRevokeViolations(fset *token.FileSet, file *ast.File) []string {
 		ast.Inspect(n, func(node ast.Node) bool {
 			switch node := node.(type) {
 			case *ast.FuncDecl:
-				if node.Recv == nil && node.Name.Name == userWideRevokeHelper {
+				if node.Recv == nil && node.Name.Name == rv.helper {
 					helperDefined = true
 					inspect(node.Body, true)
 					return false
 				}
 			case *ast.Ident:
-				for _, half := range userWideRevokeHalves {
+				for _, half := range rv.halves {
 					if node.Name != half {
 						continue
 					}
 					if inHelper {
 						positions[half] = append(positions[half], node.Pos())
 					} else {
-						found = append(found, fset.Position(node.Pos()).String()+": "+half+" referenced outside "+userWideRevokeHelper)
+						found = append(found, fset.Position(node.Pos()).String()+": "+half+" referenced outside "+rv.helper)
 					}
 				}
 			}
@@ -204,13 +260,14 @@ func userWideRevokeViolations(fset *token.FileSet, file *ast.File) []string {
 	// Keyed on the helper being defined here, not on a half being seen: a helper that
 	// references neither half is as broken as one that references only one.
 	if helperDefined {
-		for _, half := range userWideRevokeHalves {
+		for _, half := range rv.halves {
 			if len(positions[half]) != 1 {
-				found = append(found, fmt.Sprintf("%s: %s referenced %d times in %s; want once", fset.Position(file.Pos()).Filename, half, len(positions[half]), userWideRevokeHelper))
+				found = append(found, fmt.Sprintf("%s: %s referenced %d times in %s; want once", fset.Position(file.Pos()).Filename, half, len(positions[half]), rv.helper))
 			}
 		}
-		if len(positions[userWideRevokeHalves[0]]) == 1 && len(positions[userWideRevokeHalves[1]]) == 1 && positions[userWideRevokeHalves[0]][0] > positions[userWideRevokeHalves[1]][0] {
-			found = append(found, userWideRevokeHelper+" takes refresh_tokens before the device session rows")
+		devices, tokens := positions[rv.halves[0]], positions[rv.halves[1]]
+		if len(devices) == 1 && len(tokens) == 1 && devices[0] > tokens[0] {
+			found = append(found, rv.helper+" takes refresh_tokens before the device session rows")
 		}
 	}
 	return found
@@ -218,7 +275,7 @@ func userWideRevokeViolations(fset *token.FileSet, file *ast.File) []string {
 
 func TestUserWideRevokeGoesThroughOneHelper(t *testing.T) {
 	root := filepath.Join("..", "..") // server/; the generated queries (pkg/db) define the halves
-	helpers := 0
+	helpers := map[string]int{}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -238,11 +295,11 @@ func TestUserWideRevokeGoesThroughOneHelper(t *testing.T) {
 			return err
 		}
 		for _, line := range userWideRevokeViolations(fset, file) {
-			t.Errorf("%s; a user-wide revoke goes through %s", line, userWideRevokeHelper)
+			t.Errorf("%s; a user-wide revoke goes through its helper", line)
 		}
 		for _, decl := range file.Decls {
-			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && fn.Name.Name == userWideRevokeHelper {
-				helpers++
+			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil {
+				helpers[fn.Name.Name]++
 			}
 		}
 		return nil
@@ -250,13 +307,16 @@ func TestUserWideRevokeGoesThroughOneHelper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if helpers != 1 {
-		t.Fatalf("found %d definitions of %s; want exactly 1", helpers, userWideRevokeHelper)
+	for _, rv := range userWideRevokes {
+		if helpers[rv.helper] != 1 {
+			t.Errorf("found %d definitions of %s; want exactly 1", helpers[rv.helper], rv.helper)
+		}
 	}
 }
 
 // The guard itself: calls, method values, aliases and method expressions of a
-// half outside the helper are all reported, and the helper's order is checked.
+// half outside its helper are all reported, and each helper's order is
+// checked; one helper's halves inside the other's helper count as outside.
 func TestUserWideRevokeGuardSeesMethodValuesAndAliases(t *testing.T) {
 	check := func(src string) []string {
 		fset := token.NewFileSet()
@@ -266,19 +326,27 @@ func TestUserWideRevokeGuardSeesMethodValuesAndAliases(t *testing.T) {
 		}
 		return userWideRevokeViolations(fset, file)
 	}
-	clean := `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllRefreshTokensForUser() }`
+	all := `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllRefreshTokensForUser() }`
+	others := `func revokeOtherUserSessions(q *Q) { _ = q.RevokeOtherDeviceSessions(); _ = q.RevokeOtherSessionsForUser() }`
+	clean := all + "; " + others
 	if got := check(clean); len(got) != 0 {
-		t.Fatalf("the helper alone must pass, got %v", got)
+		t.Fatalf("the helpers alone must pass, got %v", got)
 	}
 	for name, src := range map[string]string{
-		"call":                clean + `; func f(q *Q) { _ = q.RevokeAllRefreshTokensForUser() }`,
-		"method value":        clean + `; func f(q *Q) { g := q.RevokeAllDeviceSessions; _ = g }`,
-		"alias var":           clean + `; var alias = (*Q).RevokeAllRefreshTokensForUser`,
-		"passed as a value":   clean + `; func f(q *Q) { run(q.RevokeAllDeviceSessions) }`,
-		"helper order":        `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllRefreshTokensForUser(); _ = q.RevokeAllDeviceSessions() }`,
-		"helper twice":        `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllRefreshTokensForUser() }`,
-		"helper missing one":  `func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions() }`,
-		"helper missing both": `func revokeAllUserSessions(q *Q) {}`,
+		"call":                 clean + `; func f(q *Q) { _ = q.RevokeAllRefreshTokensForUser() }`,
+		"method value":         clean + `; func f(q *Q) { g := q.RevokeAllDeviceSessions; _ = g }`,
+		"alias var":            clean + `; var alias = (*Q).RevokeAllRefreshTokensForUser`,
+		"passed as a value":    clean + `; func f(q *Q) { run(q.RevokeAllDeviceSessions) }`,
+		"helper order":         others + `; func revokeAllUserSessions(q *Q) { _ = q.RevokeAllRefreshTokensForUser(); _ = q.RevokeAllDeviceSessions() }`,
+		"helper twice":         others + `; func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllRefreshTokensForUser() }`,
+		"helper missing one":   others + `; func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions() }`,
+		"helper missing both":  others + `; func revokeAllUserSessions(q *Q) {}`,
+		"others call":          clean + `; func f(q *Q) { _ = q.RevokeOtherSessionsForUser() }`,
+		"others method value":  clean + `; func f(q *Q) { g := q.RevokeOtherDeviceSessions; _ = g }`,
+		"others order":         all + `; func revokeOtherUserSessions(q *Q) { _ = q.RevokeOtherSessionsForUser(); _ = q.RevokeOtherDeviceSessions() }`,
+		"others missing one":   all + `; func revokeOtherUserSessions(q *Q) { _ = q.RevokeOtherDeviceSessions() }`,
+		"all's half in others": all + `; func revokeOtherUserSessions(q *Q) { _ = q.RevokeOtherDeviceSessions(); _ = q.RevokeOtherSessionsForUser(); _ = q.RevokeAllRefreshTokensForUser() }`,
+		"others' half in all":  others + `; func revokeAllUserSessions(q *Q) { _ = q.RevokeAllDeviceSessions(); _ = q.RevokeAllRefreshTokensForUser(); _ = q.RevokeOtherSessionsForUser() }`,
 	} {
 		if got := check(src); len(got) == 0 {
 			t.Errorf("%s: the guard let it through", name)

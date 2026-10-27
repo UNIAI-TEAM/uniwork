@@ -741,6 +741,45 @@ func revokeAllUserSessions(ctx context.Context, q *db.Queries, userID string) (i
 	return revokeOfficeLeasesForUser(ctx, q, userID)
 }
 
+// revokeOtherUserSessions is revokeAllUserSessions minus the caller's own
+// session, in the same order and so with the same deadlock freedom: the
+// device rows outside the kept family first (in id order), then the refresh
+// tokens of every other session, the pushes those devices registered, then
+// the offline leases those devices hold. keepSessionID is the caller's
+// session as its token names it: a browser session id, or a device id, whose
+// family is kept whole (its refresh chain and siblings share the family id).
+// POST /me/sessions/revoke-others and, with the sign-in methods, a password
+// change or an unlink go through here. It returns how many refresh tokens
+// (every other session's, browser or device) and device sessions it ended,
+// and the leases it revoked for the caller to count after its commit
+// (observeOfficeLeaseRevokes).
+func revokeOtherUserSessions(ctx context.Context, q *db.Queries, userID, keepSessionID string) (tokens, devices int64, leases int, err error) {
+	keep := keepSessionID
+	if keepSessionID != "" {
+		// Browser sessions share the sid namespace and have no device row.
+		d, lookupErr := q.GetDeviceSession(ctx, keepSessionID)
+		switch {
+		case lookupErr == nil && d.UserID == userID:
+			keep = d.SessionFamilyID
+		case lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows):
+			return 0, 0, 0, lookupErr
+		}
+	}
+	if devices, err = q.RevokeOtherDeviceSessions(ctx, db.RevokeOtherDeviceSessionsParams{UserID: userID, KeepFamilyID: keep}); err != nil {
+		return 0, 0, 0, err
+	}
+	if tokens, err = q.RevokeOtherSessionsForUser(ctx, db.RevokeOtherSessionsForUserParams{UserID: userID, SessionID: keep}); err != nil {
+		return 0, 0, 0, err
+	}
+	if err = q.RevokeOtherDevicePushSubscriptionsForUser(ctx, db.RevokeOtherDevicePushSubscriptionsForUserParams{UserID: userID, KeepFamilyID: keep}); err != nil {
+		return 0, 0, 0, err
+	}
+	if leases, err = revokeOfficeLeasesForOtherFamilies(ctx, q, userID, keep); err != nil {
+		return 0, 0, 0, err
+	}
+	return tokens, devices, leases, nil
+}
+
 func (s *DesktopAuthService) RevokeAll(ctx context.Context, userID string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

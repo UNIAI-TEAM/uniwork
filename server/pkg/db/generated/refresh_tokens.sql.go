@@ -176,6 +176,10 @@ type RevokeOtherSessionsForUserParams struct {
 	SessionID string `json:"session_id"`
 }
 
+// Second half of revoking every session but the caller's: call
+// revokeOtherUserSessions (service), which closes the other device sessions
+// first so the locks come in one order. session_id is the kept session (a
+// browser session id, or the caller's device family).
 func (q *Queries) RevokeOtherSessionsForUser(ctx context.Context, arg RevokeOtherSessionsForUserParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeOtherSessionsForUser, arg.UserID, arg.SessionID)
 	if err != nil {

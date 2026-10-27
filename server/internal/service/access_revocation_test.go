@@ -189,10 +189,13 @@ func TestEndingASessionAnnouncesWhichOneToDisconnect(t *testing.T) {
 	if err := as.RevokeSession(ctx, userID, web2.SessionID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := as.RevokeOtherSessions(ctx, userID, "none-kept"); err != nil {
+	// The device logs out before "sign out other sessions", which ends device
+	// sessions too (TestRevokeOthersEndsDeviceSessions) and would leave the
+	// logout nothing to announce.
+	if err := desk.Logout(ctx, userID, device.DeviceSessionID, device.DeploymentID, "device"); err != nil {
 		t.Fatal(err)
 	}
-	if err := desk.Logout(ctx, userID, device.DeviceSessionID, device.DeploymentID, "device"); err != nil {
+	if _, err := as.RevokeOtherSessions(ctx, userID, "none-kept"); err != nil {
 		t.Fatal(err)
 	}
 	if err := desk.RevokeAll(ctx, userID); err != nil {
@@ -202,7 +205,7 @@ func TestEndingASessionAnnouncesWhichOneToDisconnect(t *testing.T) {
 	got := outboxPayloads(t, desk.pool, "session.revoked")
 	// RevokeOtherSessions ends sessions it cannot name, so it closes every
 	// socket; the caller's own reconnects after refreshing.
-	want := []string{web1.SessionID, web2.SessionID, "", device.DeviceSessionID, ""}
+	want := []string{web1.SessionID, web2.SessionID, device.DeviceSessionID, "", ""}
 	if len(got) != len(want) {
 		t.Fatalf("session.revoked events = %v, want sessions %q", got, want)
 	}

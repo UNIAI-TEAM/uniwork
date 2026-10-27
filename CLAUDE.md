@@ -559,6 +559,11 @@ database and never reveal whether an id exists to a non-member.
   `TestProviderSignInTrustsOnlyAuthoritativeEmail`, `TestProviderSignInReclaimsAnUnverifiedAccount`,
   `TestReclaimNeverAsksTheSquattersSecondFactor`, `TestAnUnlinkedProviderIsNotRelinkedByEmail` and
   `TestSealedBlobsDoNotCrossPurposes` hold it.
+- A revoke of a user's sessions goes through one of two helpers in `server/internal/service/desktop_auth.go`, which
+  take the locks in one order (device rows, then refresh tokens, pushes, offline leases): `revokeAllUserSessions`
+  for every session, `revokeOtherUserSessions` for all but the caller's (its device family kept whole), which
+  "sign out other sessions" uses, the apps included. `TestUserWideRevokeGoesThroughOneHelper` keeps each helper
+  the only caller of its two halves; `TestRevokeOthersEndsDeviceSessions` holds the second.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
 - `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get

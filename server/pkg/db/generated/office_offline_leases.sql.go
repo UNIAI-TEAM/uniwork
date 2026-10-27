@@ -721,6 +721,60 @@ func (q *Queries) RevokeOfficeOfflineLeasesForOrganization(ctx context.Context, 
 	return items, nil
 }
 
+const revokeOfficeOfflineLeasesForOtherFamilies = `-- name: RevokeOfficeOfflineLeasesForOtherFamilies :many
+UPDATE office_offline_leases l
+SET revoked_at = now(), revoke_reason = $1::text, updated_at = now()
+WHERE l.user_id = $2 AND l.revoked_at IS NULL
+  AND l.device_session_id NOT IN (
+    SELECT d.id FROM device_sessions d
+    WHERE d.user_id = $2 AND d.session_family_id = $3
+  )
+RETURNING l.id, l.organization_id, l.workspace_id, l.document_id, l.user_id
+`
+
+type RevokeOfficeOfflineLeasesForOtherFamiliesParams struct {
+	Reason       string `json:"reason"`
+	UserID       string `json:"user_id"`
+	KeepFamilyID string `json:"keep_family_id"`
+}
+
+type RevokeOfficeOfflineLeasesForOtherFamiliesRow struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+	UserID         string `json:"user_id"`
+}
+
+// tenant: self
+// Every lease of the user held by a device outside the kept family, in every
+// organization (revokeOtherUserSessions).
+func (q *Queries) RevokeOfficeOfflineLeasesForOtherFamilies(ctx context.Context, arg RevokeOfficeOfflineLeasesForOtherFamiliesParams) ([]RevokeOfficeOfflineLeasesForOtherFamiliesRow, error) {
+	rows, err := q.db.Query(ctx, revokeOfficeOfflineLeasesForOtherFamilies, arg.Reason, arg.UserID, arg.KeepFamilyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RevokeOfficeOfflineLeasesForOtherFamiliesRow{}
+	for rows.Next() {
+		var i RevokeOfficeOfflineLeasesForOtherFamiliesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.UserID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokeOfficeOfflineLeasesForUser = `-- name: RevokeOfficeOfflineLeasesForUser :many
 UPDATE office_offline_leases
 SET revoked_at = now(), revoke_reason = $1::text, updated_at = now()

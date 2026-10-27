@@ -73,6 +73,22 @@ FROM (
 ) live
 WHERE d.id = live.id;
 
+-- name: RevokeOtherDeviceSessions :execrows
+-- First half of revoking every session but the caller's
+-- (revokeOtherUserSessions; the refresh tokens follow): every live device of
+-- the user outside the kept family, locked in id order like
+-- RevokeAllDeviceSessions, so the two and a logout take locks in one order.
+-- A browser caller keeps no family: its session id names none.
+UPDATE device_sessions d SET revoked_at = COALESCE(d.revoked_at, now())
+FROM (
+  SELECT l.id FROM device_sessions l
+  WHERE l.user_id = sqlc.arg(user_id) AND l.revoked_at IS NULL
+    AND l.session_family_id <> sqlc.arg(keep_family_id)
+  ORDER BY l.id
+  FOR UPDATE
+) live
+WHERE d.id = live.id;
+
 -- name: RevokeDeviceSessionFamily :execrows
 -- Closes every live device session of the family, locking them in id order
 -- (see RevokeAllDeviceSessions). The caller already holds its own row, so with

@@ -23,6 +23,10 @@ UPDATE refresh_tokens SET revoked_at = now()
 WHERE user_id = $1 AND session_id = $2 AND revoked_at IS NULL;
 
 -- name: RevokeOtherSessionsForUser :execrows
+-- Second half of revoking every session but the caller's: call
+-- revokeOtherUserSessions (service), which closes the other device sessions
+-- first so the locks come in one order. session_id is the kept session (a
+-- browser session id, or the caller's device family).
 UPDATE refresh_tokens SET revoked_at = now()
 WHERE user_id = $1 AND session_id <> $2 AND revoked_at IS NULL;
 

@@ -581,6 +581,36 @@ func (q *Queries) RevokeDeviceSessionFamily(ctx context.Context, arg RevokeDevic
 	return result.RowsAffected(), nil
 }
 
+const revokeOtherDeviceSessions = `-- name: RevokeOtherDeviceSessions :execrows
+UPDATE device_sessions d SET revoked_at = COALESCE(d.revoked_at, now())
+FROM (
+  SELECT l.id FROM device_sessions l
+  WHERE l.user_id = $1 AND l.revoked_at IS NULL
+    AND l.session_family_id <> $2
+  ORDER BY l.id
+  FOR UPDATE
+) live
+WHERE d.id = live.id
+`
+
+type RevokeOtherDeviceSessionsParams struct {
+	UserID       string `json:"user_id"`
+	KeepFamilyID string `json:"keep_family_id"`
+}
+
+// First half of revoking every session but the caller's
+// (revokeOtherUserSessions; the refresh tokens follow): every live device of
+// the user outside the kept family, locked in id order like
+// RevokeAllDeviceSessions, so the two and a logout take locks in one order.
+// A browser caller keeps no family: its session id names none.
+func (q *Queries) RevokeOtherDeviceSessions(ctx context.Context, arg RevokeOtherDeviceSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeOtherDeviceSessions, arg.UserID, arg.KeepFamilyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const rotateDeviceSessionToken = `-- name: RotateDeviceSessionToken :one
 UPDATE device_sessions SET refresh_token_digest = $2, last_used_at = now()
 WHERE id = $1 AND refresh_token_digest = $3 AND revoked_at IS NULL AND expires_at > now()
