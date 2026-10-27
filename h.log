@@ -1,0 +1,8 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/web lint > /tmp/u2244c2-lint-web.log 2>&1; rc=$?; grep -E "error|warning" /tmp/u2244c2-lint-web.log | head -60; tail -5 /tmp/u2244c2-lint-web.log; echo; echo "LINT_WEB_EXIT=$rc"
+> eslint . --max-warnings 0
+
+> @uniwork/web@0.0.0 lint /workspace/apps/web
+> eslint . --max-warnings 0
+
+
+LINT_WEB_EXIT=0

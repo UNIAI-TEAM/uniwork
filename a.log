@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^f37f8c926" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=f37f8c926a6fe8da97dc516c75b15777547fd627
+f37f8c926 feat(documents): compact the search view destructure to keep documents-page-view under max-lines
+3c8747ee2 test(documents): cover the folder access 409 without a batch id
+d30f2163c feat(documents): show a busy notice on a folder access 409 without a batch id
