@@ -297,18 +297,24 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, visible = t
 
   if (query.isError && !query.data) {
     return (
-      <div className={cn("space-y-2 p-3", className)}>
-        <p className="text-caption text-muted-foreground">{t("documents.tree.error_title")}</p>
-        <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
-          <RefreshCw aria-hidden className="size-3.5" />
-          {t("documents.tree.retry")}
-        </Button>
+      <div className={cn("space-y-2 p-2", className)}>
+        <div className="space-y-2 px-2 py-1">
+          <p className="text-caption text-muted-foreground">{t("documents.tree.error_title")}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void query.refetch()}>
+            <RefreshCw aria-hidden className="size-3.5" />
+            {t("documents.tree.retry")}
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (rows.length === 0) {
-    return <p className={cn("px-3 py-4 text-caption text-muted-foreground", className)}>{emptyLabel ?? t("documents.tree.empty")}</p>;
+    return (
+      <div className={cn("p-2", className)}>
+        <p className="px-2 py-2 text-caption text-muted-foreground">{emptyLabel ?? t("documents.tree.empty")}</p>
+      </div>
+    );
   }
 
   const activeStopId =

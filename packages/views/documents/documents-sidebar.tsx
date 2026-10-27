@@ -82,6 +82,7 @@ function NavItem({
   count,
   current,
   disabled,
+  leadingSlot = false,
   href,
   onClick,
 }: {
@@ -93,6 +94,8 @@ function NavItem({
   count?: number | null;
   current: boolean;
   disabled?: boolean;
+  /** Reserves the 16px tree chevron slot + 4px gap so the icon sits at x = 28px. */
+  leadingSlot?: boolean;
   /** A row that opens its own page: a real link, not a view switch. */
   href?: string;
   onClick?: () => void;
@@ -103,6 +106,7 @@ function NavItem({
   );
   const content = (
     <>
+      {leadingSlot ? <span aria-hidden data-chevron-placeholder className="-mr-1 size-4 shrink-0" /> : null}
       {module ? (
         <IconTile icon={MODULE_ICONS[module]} size="xs" variant="solid" tone={moduleTone(module)} />
       ) : Icon ? (
@@ -217,6 +221,7 @@ export function DocumentsSidebar({
           label={t("documents.home.my_folder.label")}
           current={false}
           disabled={myFolderPending}
+          leadingSlot
           onClick={onMyFolder}
         />
       ) : null}
