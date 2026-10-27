@@ -150,6 +150,12 @@ RETURNING *;
 -- Serializes the commands that change how the account signs in.
 SELECT * FROM users WHERE id = $1 FOR UPDATE;
 
+-- name: GetUserForShare :one
+-- Held by a session being opened until it commits, so a revocation (which
+-- takes the row FOR UPDATE first) either ends that session too or commits
+-- before it, and the session then sees the revocation (ADR 0047).
+SELECT * FROM users WHERE id = $1 FOR SHARE;
+
 -- name: ReclaimUnverifiedUser :one
 -- The owner of the mailbox takes an account someone registered with their
 -- address before proving it (ADR 0047): whatever that person set up goes —

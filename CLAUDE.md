@@ -641,7 +641,9 @@ database and never reveal whether an id exists to a non-member.
   code), or on the app a fresh token of a linked provider. A wrong proof is a 403 with its own code, never 401, and
   counts toward the second-factor lockout; a token of another session, purpose or past its ten minutes is 403
   `proof_required`, and one whose session ended is 401; each command judges its bearer again under the account's
-  row lock, which a reclaim or credential change holds while it revokes. The last way into an account is never removed, nor Apple
+  row lock, which a reclaim or credential change holds while it revokes, and a session (a sign-in, a browser
+  refresh) is opened holding that row `FOR SHARE`, refused when the credentials changed since its first factor read
+  it. The last way into an account is never removed, nor Apple
   from an account whose address is Apple's relay; a password change or an unlink signs every other session out
   (`revokeOtherUserSessions`, MCP grants, `credentials_revoked_at`). A link from Settings goes through the browser
   that asked: its `link_token` is bound to the account and browser session, and the provider's start and callback
@@ -650,7 +652,8 @@ database and never reveal whether an id exists to a non-member.
   2027-01-31 with the legacy `POST /auth/apple/native` (`TestLegacyProofDoorsAreReviewed`). `TestSignInMethodChangesNeedAProof`, `TestMFAEnrolmentNeedsAProof`,
   `TestStepUpTokenDiesWithItsSession`, `TestStepUpCodeNamesItsActionAndIgnoresTheDevCode`,
   `TestTheLastSignInMethodCannotBeRemoved`, `TestARelayAccountKeepsApple`, `TestPasswordChangeRevokesEveryOtherSession`,
-  `TestSignInMethodCommandsJudgeTheBearerUnderTheLock` and `TestLinkStartNeedsTheSameBrowserSession` hold it.
+  `TestSignInMethodCommandsJudgeTheBearerUnderTheLock`, `TestSessionsOpenedDuringARevocationDoNotOutliveIt` and
+  `TestLinkStartNeedsTheSameBrowserSession` hold it.
 - A revoke of a user's sessions goes through one of two helpers in `server/internal/service/desktop_auth.go`, which
   take the locks in one order (device rows, then refresh tokens, pushes, offline leases): `revokeAllUserSessions`
   for every session, `revokeOtherUserSessions` for all but the caller's (its device family kept whole), which

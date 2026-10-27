@@ -539,10 +539,15 @@ func (s *NativeSignInService) signInAs(ctx context.Context, u db.User, c NativeC
 
 // open issues the app's device session on u in q's transaction and writes
 // its auth.login_succeeded row (meta names the door: via, and what else it
-// knows), with the channel. It reports whether the account had a session or
-// a device before this one, read before this one is written: refresh tokens
-// are never deleted, so any session the account ever had counts.
+// knows), with the channel, holding the account's row for it like a browser
+// session (holdAccountForSession). It reports whether the account had a
+// session or a device before this one, read before this one is written:
+// refresh tokens are never deleted, so any session the account ever had
+// counts.
 func (s *NativeSignInService) open(ctx context.Context, q *db.Queries, u db.User, c NativeClient, meta map[string]any) (DesktopSession, bool, error) {
+	if err := holdAccountForSession(ctx, q, u); err != nil {
+		return DesktopSession{}, false, err
+	}
 	n, err := q.CountRefreshTokensForUser(ctx, u.ID)
 	if err != nil {
 		return DesktopSession{}, false, err

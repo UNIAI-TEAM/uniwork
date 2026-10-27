@@ -494,6 +494,14 @@ chỉ ghi `user` vào phiên khi parse đúng, không thì gọi lại `/me` (kh
   nên lệnh đã qua cổng trong lúc chúng đang chạy không ghi được vào tài khoản sau đó. Lệnh vé và gỡ chạy cả cổng sau
   khoá; đặt mật khẩu bằng mật khẩu hiện tại còn đòi hash đã chứng minh vẫn là hash đang lưu.
   `TestSignInMethodCommandsJudgeTheBearerUnderTheLock`.
+- ⚑ (phản biện lát 5) Phiên mới không sinh vào tài khoản đang bị thu hồi: mở phiên (web `openSession`, app
+  `NativeSignInService.open`, route Apple cũ) giữ hàng `users` `FOR SHARE` tới khi commit (`GetUserForShare`) và từ
+  chối (`401 invalid_credentials`) khi tài khoản đã xoá hay `credentials_revoked_at` đổi từ lúc bước đầu đọc hàng
+  (mật khẩu đúng nhưng thu hồi/đổi mật khẩu vừa commit). `POST /auth/refresh` thành một giao dịch: giữ hàng, đọc lại
+  token dưới khoá (thu hồi vừa commit thì token đã chết), rồi xoay. Thu hồi khoá `FOR UPDATE` trước khi thu hồi, nên
+  hoặc nó chờ phiên mới rồi thu hồi luôn, hoặc phiên mới thấy nó. Dấu vẫn lấy `now()` của giao dịch (không đổi sang
+  `clock_timestamp()`): không phiên nào khác sinh được giữa dấu và commit, còn dấu muộn hơn chỉ làm phiên chính lệnh
+  đó cấp (đồng hồ app) dễ bị coi là cũ hơn. `TestSessionsOpenedDuringARevocationDoNotOutliveIt`.
   `validatePassword` như đăng ký. ⚑ Đổi mật khẩu **luôn** (server quyết, không có cờ client) thu hồi mọi phiên khác
   qua helper mới `revokeOtherUserSessions(ctx, q, uid, keepSessionID)` cạnh `revokeAllUserSessions` (cùng thứ tự khoá:
   device_sessions trừ family đang giữ, refresh_tokens khác `session_id`, push thiết bị, lease Office;

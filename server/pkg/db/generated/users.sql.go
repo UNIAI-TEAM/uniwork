@@ -739,6 +739,62 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 	return i, err
 }
 
+const getUserForShare = `-- name: GetUserForShare :one
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off, google_email, google_linked_at, google_unlinked_sub, apple_email, apple_linked_at, apple_unlinked_sub, password_changed_at, credentials_revoked_at, second_factor_failures, second_factor_locked_until FROM users WHERE id = $1 FOR SHARE
+`
+
+// Held by a session being opened until it commits, so a revocation (which
+// takes the row FOR UPDATE first) either ends that session too or commits
+// before it, and the session then sees the revocation (ADR 0047).
+func (q *Queries) GetUserForShare(ctx context.Context, id string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserForShare, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+		&i.AvatarFileID,
+		&i.AiConsentVersion,
+		&i.AiConsentAt,
+		&i.PushPreviewsHiddenAt,
+		&i.AiOptOutAt,
+		&i.AppleID,
+		&i.AppleClientID,
+		&i.AppleRefreshTokenEnc,
+		&i.AskUniMode,
+		&i.AskUniMemoryOff,
+		&i.GoogleEmail,
+		&i.GoogleLinkedAt,
+		&i.GoogleUnlinkedSub,
+		&i.AppleEmail,
+		&i.AppleLinkedAt,
+		&i.AppleUnlinkedSub,
+		&i.PasswordChangedAt,
+		&i.CredentialsRevokedAt,
+		&i.SecondFactorFailures,
+		&i.SecondFactorLockedUntil,
+	)
+	return i, err
+}
+
 const getUserForUpdate = `-- name: GetUserForUpdate :one
 SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off, google_email, google_linked_at, google_unlinked_sub, apple_email, apple_linked_at, apple_unlinked_sub, password_changed_at, credentials_revoked_at, second_factor_failures, second_factor_locked_until FROM users WHERE id = $1 FOR UPDATE
 `

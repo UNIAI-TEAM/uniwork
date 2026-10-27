@@ -269,7 +269,7 @@ func (s *AuthService) sessionOrChallenge(ctx context.Context, u db.User, meta ma
 // the sessions it ended would make the owner's own browser read as new. The
 // reclaim cleared the second factor, so no challenge is owed.
 func (s *AuthService) reclaimedSession(ctx context.Context, u db.User, meta map[string]any) (Session, error) {
-	sess, _, err := s.openSession(ctx, s.q, u, "", "")
+	sess, _, err := s.openSessionTx(ctx, u, "", "")
 	if err != nil {
 		return Session{}, err
 	}
@@ -289,24 +289,54 @@ func (s *AuthService) challengeOn(ctx context.Context, u db.User, ch auth.MFACha
 	return Session{User: s.decorateAvatar(ctx, u), MFAToken: tok}, nil
 }
 
+// Refresh rotates a browser session's refresh token. It runs in one
+// transaction under the account's row held FOR SHARE, which every
+// account-wide revocation (a reclaim, a password change or reset, an unlink)
+// takes FOR UPDATE before it revokes: the token is read again once the row
+// is held, so a revocation that committed meanwhile ended it, and one that
+// comes after waits for the successor and ends it too. Two refreshes of the
+// same token at once still both rotate, as before.
 func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, error) {
-	rt, err := s.q.GetRefreshTokenByHash(ctx, hashToken(rawToken))
+	hash := hashToken(rawToken)
+	rt, err := s.q.GetRefreshTokenByHash(ctx, hash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, ErrInvalidCredentials
 	}
 	if err != nil {
 		return Session{}, err
 	}
-	if err := s.q.RevokeRefreshToken(ctx, rt.TokenHash); err != nil {
-		return Session{}, err
-	}
-	u, err := s.q.GetUserByID(ctx, rt.UserID)
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Session{}, err
 	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	q := s.q.WithTx(tx)
+	u, err := q.GetUserForShare(ctx, rt.UserID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, ErrInvalidCredentials
+	}
+	if err != nil {
+		return Session{}, err
+	}
+	if _, err := q.GetRefreshTokenByHash(ctx, hash); errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, ErrInvalidCredentials
+	} else if err != nil {
+		return Session{}, err
+	}
+	if err := q.RevokeRefreshToken(ctx, hash); err != nil {
+		return Session{}, err
+	}
 	// Rotation stays inside the session: same id, same browser string; the
-	// address is whatever the client is on now.
-	return s.mintSession(ctx, u, rt.SessionID, rt.UserAgent)
+	// address is whatever the client is on now. A rotation is never a new
+	// device, so there is no alert to send.
+	sess, _, err := s.openSession(ctx, q, u, rt.SessionID, rt.UserAgent)
+	if err != nil {
+		return Session{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Session{}, err
+	}
+	return sess, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, rawToken string) error {
@@ -455,7 +485,7 @@ func (s *AuthService) SessionFor(ctx context.Context, u db.User) (Session, error
 // from a browser string this account has never used gets the alert mail;
 // the very first session of an account (registration) does not.
 func (s *AuthService) mintSession(ctx context.Context, u db.User, sessionID, inheritedUA string) (Session, error) {
-	sess, newDevice, err := s.openSession(ctx, s.q, u, sessionID, inheritedUA)
+	sess, newDevice, err := s.openSessionTx(ctx, u, sessionID, inheritedUA)
 	if err != nil {
 		return Session{}, err
 	}
@@ -465,12 +495,61 @@ func (s *AuthService) mintSession(ctx context.Context, u db.User, sessionID, inh
 	return sess, nil
 }
 
+// openSessionTx is openSession in a transaction of its own, for a first
+// factor that wrote nothing else: the account's row is held until the
+// session commits (holdAccountForSession).
+func (s *AuthService) openSessionTx(ctx context.Context, u db.User, sessionID, inheritedUA string) (Session, bool, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Session{}, false, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	sess, newDevice, err := s.openSession(ctx, s.q.WithTx(tx), u, sessionID, inheritedUA)
+	if err != nil {
+		return Session{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Session{}, false, err
+	}
+	return sess, newDevice, nil
+}
+
+// holdAccountForSession holds u's row FOR SHARE in q's transaction until it
+// commits, so opening a session and an account-wide revocation (which takes
+// the row FOR UPDATE before it revokes) never interleave: the revocation
+// either ends this session too or commits first, and this then sees it. u
+// is the row the session's first factor was judged against (a password, a
+// provider, a reset link, a second step); when the account was erased since,
+// or its credentials changed since (credentials_revoked_at moved: a reclaim,
+// a password change or reset, an unlink), that judgement no longer stands
+// and the answer is invalid_credentials.
+func holdAccountForSession(ctx context.Context, q *db.Queries, u db.User) error {
+	held, err := q.GetUserForShare(ctx, u.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrInvalidCredentials
+	}
+	if err != nil {
+		return err
+	}
+	same := held.CredentialsRevokedAt.Valid == u.CredentialsRevokedAt.Valid &&
+		(!held.CredentialsRevokedAt.Valid || held.CredentialsRevokedAt.Time.Equal(u.CredentialsRevokedAt.Time))
+	if held.DeletedAt.Valid || !same {
+		return ErrInvalidCredentials
+	}
+	return nil
+}
+
 // openSession is mintSession in the caller's transaction (q), for a
 // command whose session commits together with what it wrote (the link a
-// second factor finishes). It reports whether the browser is new to the
-// account instead of mailing: the alert is best-effort, and a failed insert
-// would abort the caller's transaction, so the caller mails after commit.
+// second factor finishes). It holds the account's row for the session
+// (holdAccountForSession), so q must be a transaction's. It reports whether
+// the browser is new to the account instead of mailing: the alert is
+// best-effort, and a failed insert would abort the caller's transaction, so
+// the caller mails after commit.
 func (s *AuthService) openSession(ctx context.Context, q *db.Queries, u db.User, sessionID, inheritedUA string) (Session, bool, error) {
+	if err := holdAccountForSession(ctx, q, u); err != nil {
+		return Session{}, false, err
+	}
 	u = s.decorateAvatar(ctx, u)
 	meta := sessionMetaFrom(ctx)
 	if sessionID != "" {

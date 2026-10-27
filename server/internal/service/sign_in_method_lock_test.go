@@ -31,16 +31,17 @@ func (f *identityFixture) inFlight(t *testing.T, uid string, change func(q *db.Q
 	return tx
 }
 
-// afterTheLock starts op, waits for it to queue on the account row the
-// transaction in flight holds, commits that transaction and answers what op
-// did once it got the row.
+// afterTheLock starts op, waits for it to queue on a row the transaction in
+// flight holds, commits that transaction and answers what op did once it got
+// the row.
 func (f *identityFixture) afterTheLock(t *testing.T, open pgx.Tx, op func() error) error {
 	t.Helper()
 	done := inBackground(op)
 	waited := false
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline) && !waited; time.Sleep(20 * time.Millisecond) {
+		// A row lock wait (other packages queue on an advisory lock).
 		waited = f.count(t, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()
-			AND wait_event_type = 'Lock' AND query ILIKE '%users%'`) > 0
+			AND wait_event_type = 'Lock' AND wait_event IN ('transactionid', 'tuple')`) > 0
 	}
 	if !waited {
 		t.Error("the command never queued on the account's row lock: it ran past a change it could not see")
@@ -161,6 +162,116 @@ func TestSignInMethodCommandsJudgeTheBearerUnderTheLock(t *testing.T) {
 		wantStatusCode(t, err, "invalid_token", http.StatusUnauthorized)
 		if f.user(t, u.ID).MfaEnabledAt.Valid {
 			t.Fatal("the stolen session locked the owner out behind its own second factor")
+		}
+	})
+}
+
+// A session is never born into an account a revocation is ending (ADR 0047
+// §2, §5): opening one holds the account's row FOR SHARE, which a reclaim (or
+// a password change, a reset, an unlink) takes FOR UPDATE before it revokes.
+// A squatter's browser refresh and password sign-in, on the web or in the
+// app, that run while the owner's reclaim commits are invalid_credentials,
+// and leave no live session behind. A desktop code exchange that issued its
+// device session first already holds the account's row (its refresh token
+// row references it), so the reclaim waits for it and ends that session with
+// the rest; the last case keeps it so.
+func TestSessionsOpenedDuringARevocationDoNotOutliveIt(t *testing.T) {
+	squat := func(t *testing.T, f *identityFixture, email string) Session {
+		t.Helper()
+		reg, err := f.auth.Register(f.ctx, email, "squatter-pass", "Kẻ chiếm", "vi")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return reg
+	}
+	reclaim := func(f *identityFixture, uid string) func(q *db.Queries) error {
+		return func(q *db.Queries) error { _, err := reclaimMailbox(f.ctx, q, uid); return err }
+	}
+	liveSessions := func(t *testing.T, f *identityFixture, uid string) int {
+		t.Helper()
+		return f.count(t, `SELECT count(*) FROM refresh_tokens WHERE user_id = $1 AND revoked_at IS NULL`, uid) +
+			f.count(t, `SELECT count(*) FROM device_sessions WHERE user_id = $1 AND revoked_at IS NULL`, uid)
+	}
+
+	t.Run("a browser refresh", func(t *testing.T) {
+		f := newIdentityFixture(t)
+		reg := squat(t, f, "race-refresh@gmail.com")
+		err := f.afterTheLock(t, f.inFlight(t, reg.User.ID, reclaim(f, reg.User.ID)), func() error {
+			_, err := f.auth.Refresh(f.ctx, reg.RefreshToken)
+			return err
+		})
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("a refresh racing the reclaim: %v", err)
+		}
+		if n := liveSessions(t, f, reg.User.ID); n != 0 {
+			t.Fatalf("%d sessions outlived the reclaim", n)
+		}
+	})
+
+	t.Run("a password sign-in", func(t *testing.T) {
+		f := newIdentityFixture(t)
+		reg := squat(t, f, "race-login@gmail.com")
+		err := f.afterTheLock(t, f.inFlight(t, reg.User.ID, reclaim(f, reg.User.ID)), func() error {
+			_, err := f.auth.Login(f.ctx, "race-login@gmail.com", "squatter-pass")
+			return err
+		})
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("a sign-in racing the reclaim: %v", err)
+		}
+		if n := liveSessions(t, f, reg.User.ID); n != 0 {
+			t.Fatalf("%d sessions outlived the reclaim", n)
+		}
+	})
+
+	t.Run("the app's password sign-in", func(t *testing.T) {
+		f := newIdentityFixture(t)
+		reg := squat(t, f, "race-app@gmail.com")
+		doors := NewNativeSignInService(f.pool, f.q, f.auth, f.desktop, f.tickets())
+		err := f.afterTheLock(t, f.inFlight(t, reg.User.ID, reclaim(f, reg.User.ID)), func() error {
+			_, err := doors.Password(f.ctx, "race-app@gmail.com", "squatter-pass", app)
+			return err
+		})
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("the app's sign-in racing the reclaim: %v", err)
+		}
+		if n := liveSessions(t, f, reg.User.ID); n != 0 {
+			t.Fatalf("%d sessions outlived the reclaim", n)
+		}
+	})
+
+	t.Run("a desktop code exchange", func(t *testing.T) {
+		f := newIdentityFixture(t)
+		reg := squat(t, f, "race-exchange@gmail.com")
+		code, err := f.approveFrom(t, f.ctx, reg.User.ID, "exchange")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The exchange in flight: its consent redeemed and its device
+		// session issued, uncommitted.
+		exchange, err := f.pool.Begin(f.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = exchange.Rollback(context.Background()) })
+		if _, err := exchange.Exec(f.ctx, `UPDATE desktop_auth_attempts SET used_at = now() WHERE code_digest = $1`, digest(code)); err != nil {
+			t.Fatal(err)
+		}
+		d, err := f.desktop.issueDeviceSession(f.ctx, f.q.WithTx(exchange), reg.User.ID, nativeDevice{ClientID: "uniwork-office", DeploymentID: "default", Label: "Laptop", Platform: "windows", Build: "1.0"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = f.afterTheLock(t, exchange, func() error {
+			res, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-race-exchange", Email: "race-exchange@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn)
+			if err == nil && !res.Reclaimed {
+				t.Errorf("the owner's sign-in reclaimed nothing: %+v", res)
+			}
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.live(t, "device_sessions", d.DeviceSessionID) {
+			t.Fatal("the device session an exchange opened while the reclaim ran outlived it")
 		}
 	})
 }

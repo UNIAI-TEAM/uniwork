@@ -214,6 +214,9 @@ func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (Des
 			return DesktopSession{}, err
 		}
 	}
+	if err := holdAccountForSession(ctx, q, u); err != nil {
+		return DesktopSession{}, err
+	}
 	sess, err := s.desktop.issueDeviceSession(ctx, q, u.ID, nativeDevice{
 		ClientID: in.ClientID, DeploymentID: in.DeploymentID, Label: sanitizeDesktopLabel(in.DeviceLabel),
 		Platform: sanitizeMetadata(in.Platform), Build: sanitizeMetadata(in.Build),
