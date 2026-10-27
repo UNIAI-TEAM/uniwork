@@ -122,7 +122,10 @@ type ProviderIdentity struct {
   dịch. Rồi cấp phiên trực tiếp (không MFA). Người vừa lấy lại thấy thông báo một lần
   (`reclaimed: true` trong kết quả).
 - ⚑ **Quên mật khẩu trên tài khoản chưa xác minh** cũng là `reclaim` theo hộp thư: `Reset` đánh dấu đã xác minh, xoá
-  TOTP, mã khôi phục, danh tính nhà cung cấp, rồi cấp phiên không MFA.
+  TOTP, mã khôi phục, danh tính nhà cung cấp, rồi cấp phiên không MFA. Cùng phần dọn với `reclaim` của nhà cung cấp
+  (`reclaimMailbox`), rồi đặt mật khẩu mới; audit `auth.password_changed {via:"reset_token", reclaimed:true}` và
+  `auth.session_revoked {reason:"reclaimed"}`; mail `sign_in_method_changed` (`change: reclaimed`, `method: password`);
+  `SessionSDO` mang `reclaimed: true` (trường tuỳ chọn) để client báo một lần.
 - ⚑ Tài khoản chưa xác minh **không** bật được MFA và không liên kết được nhà cung cấp (`403 email_unverified`): kẻ
   chiếm trước không cài được thứ gì sống sót qua `reclaim`.
 - `link` theo email: audit `auth.sign_in_method_linked {via:"email_match"}`, mail `linked`.
@@ -188,10 +191,19 @@ key_hash, intent, iat, exp}` — TTL 15 phút.
   lệch body. Cả hai: `401 invalid_credentials`.
 - Đúng mã và có `pl`: chạy lại `resolveIdentity`; còn `link` cho đúng user ấy thì ghi liên kết trong giao dịch cấp
   phiên. Không thì đăng nhập vẫn thành công và kết quả mang `link_skipped: "<mã>"` để client nói "Chưa liên kết được
-  Apple — thử lại trong Cài đặt".
+  Apple — thử lại trong Cài đặt". Mã: lỗi của bộ khớp (`sign_in_email_unverified`, `sign_in_account_unverified`,
+  `sign_in_account_conflict` — cả khi email đã sang tài khoản khác), `sign_in_method_taken` (danh tính đã mở tài
+  khoản khác), `link_required` (chủ tài khoản vừa gỡ đúng subject này), `sign_in_failed` (không mở được `pl`). Đã
+  liên kết đúng tài khoản ấy rồi (cùng thử thách gửi hai lần) thì không làm gì, không có `link_skipped`. Liên kết chạy
+  trong savepoint: DB từ chối (subject vừa bị lấy) cũng không làm hỏng giao dịch mở phiên. Trên web `link_skipped` là
+  trường tuỳ chọn của `SessionSDO` ở `POST /auth/mfa/verify` (đường cookie `uniwork_mfa` của Google/Apple web).
 - ⚑ Đếm sai: mỗi lần sai mã MFA hay bằng chứng step-up tăng `second_factor_failures`; đến 10 thì
   `second_factor_locked_until = now + 15 phút`, gửi mail `sign_in_method_changed` (`change: second_factor_locked`), mọi
-  lần thử trong lúc khoá → `429 second_factor_locked` (kèm `retry_after`). Đúng mã thì về 0.
+  lần thử trong lúc khoá → `429 second_factor_locked` (kèm `retry_after`). Đúng mã thì về 0. Một helper
+  (`weighSecondFactor`, `service/second_factor.go`) cho MFA web, step-up và MFA native, chạy dưới khoá hàng `users`
+  (`FOR UPDATE`) nên các lần đoán đồng thời xếp hàng. Lần sai thứ 10 trả luôn `429` (không phải `401`). Trong lúc khoá
+  không kiểm gì: mã đúng cũng `429`, mã khôi phục không bị tiêu. Bộ đếm theo tài khoản, không theo token: thử thách mới
+  cũng bị khoá. Token MFA từ kênh khác bị từ chối trước khi đọc tài khoản nên không tính là một lần đoán.
 
 ### 3.4 Web: Google (sửa), Apple (mới), kết thúc chung
 
@@ -323,7 +335,11 @@ Mọi route: công khai, `Cache-Control: no-store`, ⚑ chỉ nhận `client_id`
   xem lại cùng hạn 2027-01-31), **chuyển quyền sở hữu** và chuyển tổ chức khi nhận lời mời (thay `password_required`:
   chủ chỉ có Google/Apple chứng minh bằng mã email). `TestSignInMethodChangesNeedAProof` phủ tất cả.
 - ⚑ Lệnh nhạy cảm (step-up, mọi lệnh phương thức đăng nhập, đồng ý desktop/MCP) từ chối access token web có `iat` trước
-  `credentials_revoked_at` (`401 invalid_token`).
+  `credentials_revoked_at` (`401 invalid_token`). Cả hai đều tính bằng giây nên chỉ từ chối token **cũ hơn hẳn**; phiên
+  chính lệnh đó cấp thì qua. Middleware bearer đặt token đã kiểm (kèm `iat`) vào context, nên không thêm lượt đọc DB cho
+  mọi request; helper `requireCurrentCredentials` đọc hàng `users` của chính chủ token. Token native không xét ở đây
+  (thu hồi thì phiên thiết bị chết, middleware đã chặn); không có token trong context (job, test gọi thẳng service) thì
+  không có gì để xét. Đồng ý desktop và MCP dùng nó từ lát 1.
 
 **Phương thức đăng nhập** (`service/sign_in_methods.go`, bearer):
 
@@ -612,10 +628,10 @@ Một nhánh, commit theo lát, mỗi lát để server chạy được:
 1. Dữ liệu + sqlc; sealer theo purpose; `resolveIdentity` với `reclaim`; Google web đi qua nó (PKCE, nonce, `next`);
    cổng `requireVerifiedEmail` cho MFA/liên kết; quên mật khẩu chưa xác minh = reclaim; helper thu hồi; khoá bước hai.
    Lát này còn tạo ngay khi `unmatched` (như cũ) để không có trang 404; `link_required` chưa có vé nên Google web từ
-   chối (`/login?error=sign_in_conflict`, không liên kết), và tài khoản bật MFA được hỏi bước hai mà không liên kết
-   (cho tới khi có liên kết chờ `pl`, 3.3).
-2. Vé + màn chọn server (create, claim-email, link, move, `intent=sign_up`), MFA gắn kênh + `pl`, chống login CSRF,
-   `/auth/providers`, gợi ý PKCE. Từ lát này `unmatched` ra vé — **cùng PR** với trang `/auth/continue` của web.
+   chối (`/login?error=sign_in_conflict`, không liên kết). Lát 1b thêm token MFA gắn kênh và liên kết chờ `pl` cho
+   Google web (3.3), khoá bước hai, cổng `credentials_revoked_at` cho đồng ý desktop/MCP, `revokeOtherUserSessions`.
+2. Vé + màn chọn server (create, claim-email, link, move, `intent=sign_up`), `pl` cho vé và "email khác", chống login
+   CSRF, `/auth/providers`, gợi ý PKCE. Từ lát này `unmatched` ra vé — **cùng PR** với trang `/auth/continue` của web.
 3. Step-up + phương thức đăng nhập + mật khẩu + quên mật khẩu không mật khẩu + xoá tài khoản/chuyển quyền dùng step-up +
    mail + ngân sách thử.
 4. Apple web.
