@@ -355,6 +355,20 @@ export async function confirmAdminInvoiceRefund(invoiceId: string, reason: strin
   return parsed.invoice;
 }
 
+export async function revertAdminInvoiceRefund(invoiceId: string, reason: string): Promise<AdminInvoice> {
+  const raw = await request(`/api/v1/admin/invoices/${encodeURIComponent(invoiceId)}/revert-refund`, {
+    method: "POST",
+    body: { reason },
+  });
+  const parsed = parseWithFallback(
+    raw,
+    InvoiceResponse,
+    adminInvoiceCommandFallback(invoiceId),
+    { endpoint: "POST /api/v1/admin/invoices/{invoiceID}/revert-refund" },
+  );
+  return parsed.invoice;
+}
+
 export async function listAdminPaymentIntents(query: AdminBillingQuery = {}): Promise<AdminPaymentIntentPage> {
   const raw = await request(`/api/v1/admin/billing/payment-intents${billingQueryString(query)}`);
   const parsed = parseWithFallback<{

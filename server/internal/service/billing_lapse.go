@@ -137,9 +137,6 @@ func (s *BillingService) markPastDue(ctx context.Context, sub db.Subscription) e
 	if err != nil {
 		return err
 	}
-	if !plan.PriceAmount.Valid || plan.PriceAmount.Int64 <= 0 {
-		return nil
-	}
 	actor := audit.System("billing")
 	after, err := q.MarkSubscriptionPastDue(ctx, db.MarkSubscriptionPastDueParams{
 		ID: locked.ID, OrganizationID: locked.OrganizationID,

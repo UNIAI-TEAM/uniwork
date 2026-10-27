@@ -584,6 +584,9 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/admin/invoices/{invoiceID}/confirm-refund": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"reason": "isolation matrix fixture",
 	})},
+	"POST /api/v1/admin/invoices/{invoiceID}/revert-refund": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
+		"reason": "isolation matrix fixture",
+	})},
 	"POST /api/v1/admin/plans": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"code": "iso_test_plan", "name": "ISO", "description": "", "billing_period": "none",
 		"price_currency": "VND", "is_active": false, "sort_order": 99, "reason": "isolation matrix fixture",

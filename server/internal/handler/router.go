@@ -298,6 +298,7 @@ func New(d Deps) http.Handler {
 		AdminListPaymentIntents:           h.adminListPaymentIntents,
 		AdminRefundInvoice:                h.adminRefundInvoice,
 		AdminConfirmInvoiceRefund:         h.adminConfirmInvoiceRefund,
+		AdminRevertInvoiceRefund:          h.adminRevertInvoiceRefund,
 		WS:                                h.ws,
 
 		McpProtectedResource:   h.mcpProtectedResource,

@@ -42,6 +42,7 @@ type Routes struct {
 	AdminListPaymentIntents           http.HandlerFunc
 	AdminRefundInvoice                http.HandlerFunc
 	AdminConfirmInvoiceRefund         http.HandlerFunc
+	AdminRevertInvoiceRefund          http.HandlerFunc
 
 	// MCP connector: OAuth discovery and endpoints, and /mcp itself (ADR
 	// 0031), mounted by registerMCP.

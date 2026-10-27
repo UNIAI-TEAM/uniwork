@@ -127,10 +127,9 @@ export function canCreateWorkspaceInOrg(ctx: PermissionContext): Decision {
 
 /**
  * See the organization's plan, entitlements and usage.
- * Backend: BillingService.Current only needs organization membership
- * (server/internal/service/billing.go); the tab is shown to owners and
- * admins, who are the ones who act on it — a member sees the quota error
- * where it happens instead.
+ * Backend: BillingService.Current needs membership; ListInvoices also requires
+ * org owner or admin (server/internal/service/billing_invoices.go). The tab
+ * matches owner/admin; members see quota errors where they happen instead.
  */
 export function canViewBilling(ctx: PermissionContext): Decision {
   if (ctx.userId === null) return deny("not_authenticated", "Sign in to continue.");

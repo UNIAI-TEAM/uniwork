@@ -186,7 +186,11 @@ func (s *BillingService) applyProviderEvent(ctx context.Context, q *db.Queries, 
 		return err
 	}
 	start := time.Now().UTC()
-	periodEnd := subscriptionPeriodEnd(start, plan.BillingPeriod)
+	base := start
+	if intent.PlanID == sub.PlanID && sub.CurrentPeriodEnd.Valid && sub.CurrentPeriodEnd.Time.After(start) {
+		base = sub.CurrentPeriodEnd.Time
+	}
+	periodEnd := subscriptionPeriodEnd(base, plan.BillingPeriod)
 	actor := audit.System("billing")
 	beforePlan, err := q.GetPlanByID(ctx, sub.PlanID)
 	if err != nil {

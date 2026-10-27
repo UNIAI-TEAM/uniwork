@@ -6,7 +6,7 @@
 
 - Alert `BILLING_VNPAY_WEBHOOK`: `sum(increase(uniwork_billing_webhook_dead_total[15m])) > 0`.
 - Owner đã trả trên VNPay nhưng tab Thanh toán không đổi gói / không có hóa đơn mới.
-- Hàng `webhook_inbox` ở `DEAD_LETTER` với `provider = vnpay` (hoặc `stripe` / `payos` trên cùng worker billing).
+- Hàng `webhook_inbox` ở `DEAD_LETTER` với `provider = vnpay` (worker billing retry sau khi IPN queue `PENDING`).
 
 ## Kiểm tra
 
@@ -24,7 +24,7 @@
 | IPN không tới | Sửa tunnel / firewall; restart API sau khi đổi `API_PUBLIC_URL`. |
 | Intent `expired`, khách đã trả đúng số tiền | Apply nhận IPN: intent thành `completed`, có hóa đơn, gói đổi, `RspCode` `00`. Không cần sửa tay. |
 | Intent `expired`, số tiền lệch | Intent chuyển `failed`, `RspCode` `04`, gói không đổi. Đối chiếu merchant portal rồi hoàn tiền thủ công. |
-| Row DEAD sau bug code | Hotfix, deploy; replay inbox `PENDING` hoặc `ApplyProviderEvent` từ payload đã lưu (idempotent khi intent `completed`). |
+| Row DEAD sau lỗi áp gói lặp lại | Hotfix, deploy; worker billing tự retry từ `PENDING` hoặc gọi `ApplyProviderEvent` từ payload đã lưu (idempotent khi intent `completed`). Alert `uniwork_billing_webhook_dead_total` chỉ tăng khi hàng vào `DEAD_LETTER`. |
 
 Sau khi xử lý, counter `uniwork_billing_webhook_dead_total` không tăng thêm; org owner thấy gói và hóa đơn đúng.
 
