@@ -38,6 +38,7 @@ type CreateTasksFromProposalItemInput struct {
 	DueDate          *string
 	LabelIDs         []string
 	BlockedByIndexes []int
+	AllowDuplicate   bool
 }
 
 // CreateTasksFromProposalInput carries the batch project/parent overrides,
@@ -45,6 +46,7 @@ type CreateTasksFromProposalItemInput struct {
 type CreateTasksFromProposalInput struct {
 	ProjectID      *string
 	ParentTaskID   *string
+	Status         string
 	AllowDuplicate bool
 	Items          []CreateTasksFromProposalItemInput
 }
@@ -176,12 +178,17 @@ func (s *DriveTaskProposalService) CreateTasksFromProposal(
 			}
 
 			originID := locked.ID
+			batchStatus := strings.TrimSpace(in.Status)
+			if batchStatus == "" {
+				batchStatus = "todo"
+			}
 			for i := range normalizedItems.taskInputs {
 				normalizedItems.taskInputs[i].ProjectID = validatedProject
 				normalizedItems.taskInputs[i].ParentTaskID = validatedParent
+				normalizedItems.taskInputs[i].Status = batchStatus
 				normalizedItems.taskInputs[i].OriginType = driveProposalOriginType
 				normalizedItems.taskInputs[i].OriginID = &originID
-				normalizedItems.taskInputs[i].AllowDuplicate = in.AllowDuplicate
+				normalizedItems.taskInputs[i].AllowDuplicate = in.AllowDuplicate || normalizedItems.orderedItems[i].AllowDuplicate
 			}
 
 			if !in.AllowDuplicate {
@@ -412,6 +419,7 @@ func validateAndNormalizeProposalCreateItems(
 			DueDate:          dueDate,
 			LabelIDs:         raw.LabelIDs,
 			BlockedByIndexes: raw.BlockedByIndexes,
+			AllowDuplicate:   raw.AllowDuplicate,
 		}
 	}
 
@@ -444,14 +452,15 @@ func validateAndNormalizeProposalCreateItems(
 	taskInputs := make([]CreateTaskInput, len(ordered))
 	for i, it := range ordered {
 		taskInputs[i] = CreateTaskInput{
-			Title:       it.Title,
-			Description: it.Description,
-			Status:      "todo",
-			Priority:    it.Priority,
-			AssigneeID:  it.AssigneeMemberID,
-			StartDate:   it.StartDate,
-			DueDate:     it.DueDate,
-			LabelIDs:    it.LabelIDs,
+			Title:          it.Title,
+			Description:    it.Description,
+			Status:         "todo",
+			Priority:       it.Priority,
+			AssigneeID:     it.AssigneeMemberID,
+			StartDate:      it.StartDate,
+			DueDate:        it.DueDate,
+			LabelIDs:       it.LabelIDs,
+			AllowDuplicate: it.AllowDuplicate,
 		}
 	}
 
@@ -551,30 +560,34 @@ func refuseProposalBatchDuplicates(
 		if norm == "" {
 			continue
 		}
-		dup, err := q.FindActiveDuplicateTask(ctx, db.FindActiveDuplicateTaskParams{
-			OrganizationID:  ws.OrganizationID,
-			WorkspaceID:     ws.ID,
-			ProjectID:       projectID,
-			ParentTaskID:    parentTaskID,
-			NormalizedTitle: norm,
-		})
-		switch {
-		case err == nil:
-			if firstDup == nil {
-				d := dup
-				firstDup = &d
+		if !it.AllowDuplicate {
+			dup, err := q.FindActiveDuplicateTask(ctx, db.FindActiveDuplicateTaskParams{
+				OrganizationID:  ws.OrganizationID,
+				WorkspaceID:     ws.ID,
+				ProjectID:       projectID,
+				ParentTaskID:    parentTaskID,
+				NormalizedTitle: norm,
+			})
+			switch {
+			case err == nil:
+				if firstDup == nil {
+					d := dup
+					firstDup = &d
+				}
+				addIndex(it.Index)
+			case errors.Is(err, pgx.ErrNoRows):
+			default:
+				return err
 			}
-			addIndex(it.Index)
-		case errors.Is(err, pgx.ErrNoRows):
-		default:
-			return err
 		}
 		if prevIdx, repeated := seenInBatch[norm]; repeated {
-			if firstInBatchTitle == "" {
-				firstInBatchTitle = strings.TrimSpace(it.Title)
+			if !it.AllowDuplicate {
+				if firstInBatchTitle == "" {
+					firstInBatchTitle = strings.TrimSpace(it.Title)
+				}
+				addIndex(prevIdx)
+				addIndex(it.Index)
 			}
-			addIndex(prevIdx)
-			addIndex(it.Index)
 		} else {
 			seenInBatch[norm] = it.Index
 		}

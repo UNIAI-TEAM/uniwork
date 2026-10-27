@@ -267,6 +267,7 @@ type Routes struct {
 	GetDriveTaskProposal             http.HandlerFunc
 	DiscardDriveTaskProposal         http.HandlerFunc
 	CheckDriveTaskProposalDuplicates http.HandlerFunc
+	CreateTasksFromDriveProposal     http.HandlerFunc
 	ListPins                         http.HandlerFunc
 	CreatePin                        http.HandlerFunc
 	DeletePin                        http.HandlerFunc

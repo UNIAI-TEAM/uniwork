@@ -212,6 +212,14 @@ func classifyServiceError(err error) serviceFailure {
 		return serviceFailure{status: http.StatusServiceUnavailable, code: sdo.DriveErrUnavailable, msg: "Google Drive connector is not configured"}
 	case errors.Is(err, service.ErrDriveReauthRequired):
 		return serviceFailure{status: http.StatusConflict, code: sdo.DriveErrAuthFailed, msg: "Google Drive connection needs to be reconnected"}
+	case errors.Is(err, service.ErrDriveSourceChanged):
+		return serviceFailure{status: http.StatusConflict, code: sdo.DriveErrSourceChanged, msg: "Kết nối hoặc tệp Google Drive đã thay đổi trong khi xử lý. Vui lòng thử lại."}
+	case errors.Is(err, service.ErrDriveProposalNotReady):
+		return serviceFailure{status: http.StatusConflict, code: sdo.DriveErrProposalNotReady, msg: "Đề xuất công việc này đã được xử lý hoặc đã hủy."}
+	case errors.Is(err, service.ErrDriveProposalExpired):
+		return serviceFailure{status: http.StatusConflict, code: sdo.DriveErrProposalExpired, msg: "Đề xuất công việc này đã hết hạn. Vui lòng tạo đề xuất mới."}
+	case errors.Is(err, service.ErrDriveProposalItemAlreadyConverted):
+		return serviceFailure{status: http.StatusConflict, code: sdo.DriveErrProposalItemAlreadyConverted, msg: "Mục đề xuất này đã được tạo thành công việc."}
 	case errors.Is(err, service.ErrCalendarProviderNotConfigured):
 		return serviceFailure{status: http.StatusServiceUnavailable, code: "calendar_provider_not_configured", msg: "Calendar provider is not configured"}
 	}

@@ -419,6 +419,7 @@ func TestDriveConnectionsRequireFeatureFlag(t *testing.T) {
 		{http.MethodGet, "/workspaces/w1/drive-task-proposals/p1"},
 		{http.MethodDelete, "/workspaces/w1/drive-task-proposals/p1"},
 		{http.MethodPost, "/workspaces/w1/drive-task-proposals/p1/duplicates"},
+		{http.MethodPost, "/workspaces/w1/drive-task-proposals/p1/tasks"},
 	} {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))

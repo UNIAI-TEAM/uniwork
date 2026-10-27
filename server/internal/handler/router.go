@@ -480,6 +480,7 @@ func New(d Deps) http.Handler {
 		GetDriveTaskProposal:             h.GetDriveTaskProposal,
 		DiscardDriveTaskProposal:         h.DiscardDriveTaskProposal,
 		CheckDriveTaskProposalDuplicates: h.CheckDriveTaskProposalDuplicates,
+		CreateTasksFromDriveProposal:     h.CreateTasksFromDriveProposal,
 		ListTaskChildren:                 h.listTaskChildren,
 		ListChildrenByParents:            h.listChildrenByParents,
 		ChildTaskProgress:                h.childTaskProgress,
