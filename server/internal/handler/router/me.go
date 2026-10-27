@@ -266,21 +266,19 @@ func registerSignInMethods(r api, h Routes, credentialLimit, stepUpLimit func(ht
 		sdo:  sdo.AuthorizationURLSDO{},
 		auth: true,
 	})
-	for _, p := range []struct {
-		path, provider string
-		handler        http.HandlerFunc
-	}{
-		{"/me/sign-in-methods/google/unlink", "Google", h.UnlinkGoogle},
-		{"/me/sign-in-methods/apple/unlink", "Apple", h.UnlinkApple},
-	} {
-		r.With(credentialLimit).Post(p.path, p.handler, apiOp{
-			summary: "Unlink " + p.provider,
-			description: "Gỡ " + p.provider + " khỏi tài khoản, với step_up_token. Không gỡ cách đăng nhập cuối cùng (409 sign_in_method_last); không gỡ Apple khi email tài khoản là email ẩn của Apple (409 sign_in_method_relay_email). " +
+	unlink := func(provider string) apiOp {
+		return apiOp{
+			summary: "Unlink " + provider,
+			description: "Gỡ " + provider + " khỏi tài khoản, với step_up_token. Không gỡ cách đăng nhập cuối cùng (409 sign_in_method_last); không gỡ Apple khi email tài khoản là email ẩn của Apple (409 sign_in_method_relay_email). " +
 				"Danh tính đã gỡ không tự liên kết lại theo email. Đăng xuất mọi phiên khác (web, thiết bị, kết nối AI qua MCP); gỡ Apple trả lại quyền Apple của tài khoản. Ghi audit auth.sign_in_method_unlinked (via settings) và gửi mail. Chưa liên kết thì trả trạng thái hiện tại, không ghi gì.",
 			tags: []string{"me"},
 			sdi:  sdi.StepUpTokenSDI{},
 			sdo:  sdo.SignInMethodsChangeSDO{},
 			auth: true,
-		})
+		}
 	}
+	// Literal paths, one per provider: scripts/mobile-route-catalogue.mjs
+	// reads every registration's path from the source.
+	r.With(credentialLimit).Post("/me/sign-in-methods/google/unlink", h.UnlinkGoogle, unlink("Google"))
+	r.With(credentialLimit).Post("/me/sign-in-methods/apple/unlink", h.UnlinkApple, unlink("Apple"))
 }
