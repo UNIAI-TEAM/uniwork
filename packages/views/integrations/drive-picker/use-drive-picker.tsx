@@ -17,7 +17,7 @@ import { paths } from "@uniwork/core/paths";
 import { defaultStorage } from "@uniwork/core/platform";
 import type { StorageAdapter } from "@uniwork/core/types/storage";
 import { apiErrorCopy } from "../../api-error-copy";
-import { useWorkspace } from "../../layout/workspace-context";
+import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { toastApiError } from "../../toast-api-error";
 import { useDriveConnectPopup } from "../use-drive-connect-popup";
 import {
@@ -188,6 +188,11 @@ export interface DrivePickerOpenRequest {
    * Defaults to true.
    */
   linkOnPick?: boolean;
+  /**
+   * Folder mode ("Name this folder"): the Picker is limited to folders and selects one, never links
+   * and never asks the task confirmation; `onPicked` receives the picked folder (single pick).
+   */
+  folder?: { parentId?: string };
 }
 
 export interface UseDrivePickerOptions {
@@ -239,7 +244,7 @@ export function useDrivePicker({
   onPicked,
 }: UseDrivePickerOptions): UseDrivePickerReturn {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "drive.picker" });
-  const { workspace } = useWorkspace();
+  const workspace = useOptionalWorkspace()?.workspace;
   const connectionsQuery = useDriveConnections(wsId);
   const pickerTokenMutation = useDrivePickerToken(wsId);
   const linkFilesMutation = useLinkDriveFiles(wsId);
@@ -253,7 +258,8 @@ export function useDrivePicker({
   const activeRequestRef = useRef<DrivePickerOpenRequest>({});
   const busyRef = useRef(false);
 
-  const reconnectHref = `${paths.workspace(workspace.organization_slug, workspace.slug).settings()}?tab=integrations&connect=drive`;
+  // Without a workspace context (a bare host) the slugs fall back the way the Drive list screen does.
+  const reconnectHref = `${paths.workspace(workspace?.organization_slug || "org", workspace?.slug || wsId).settings()}?tab=integrations&connect=drive`;
 
   const rememberConnection = useCallback(
     (connectionId: string) => {
@@ -385,8 +391,9 @@ export function useDrivePicker({
         appId: tokenData.app_id,
         locale: (i18n.resolvedLanguage ?? i18n.language ?? "vi").split("-")[0] || "vi",
         fileIds: req.fileIds,
-        multiselect: req.multiselect ?? true,
-        title: t("title"),
+        multiselect: req.folder ? false : (req.multiselect ?? true),
+        title: t(req.folder ? "folder_title" : "title"),
+        selectFolder: req.folder,
       });
       busyRef.current = false;
       setPickerRunning(false);
@@ -407,8 +414,8 @@ export function useDrivePicker({
       const files = result.files;
       if (files.length === 0) return;
 
-      const linkOnPick = req.linkOnPick ?? true;
-      const isTaskTarget = forTask ?? Boolean(taskId);
+      const linkOnPick = req.folder ? false : (req.linkOnPick ?? true);
+      const isTaskTarget = !req.folder && (forTask ?? Boolean(taskId));
       if (isTaskTarget && requiresTaskLinkConfirmation(files)) {
         setPendingConfirm({ connectionId, files, linkOnPick });
         return;

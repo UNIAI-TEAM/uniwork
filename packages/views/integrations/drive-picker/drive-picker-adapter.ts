@@ -31,6 +31,11 @@ export interface DrivePickerOpenOptions {
   fileIds?: string[];
   multiselect?: boolean;
   title?: string;
+  /**
+   * Folder mode ("Name this folder"): one folder-only view where a folder can be selected, optionally
+   * opened inside `parentId`. `fileIds` is ignored.
+   */
+  selectFolder?: { parentId?: string };
 }
 
 export type DrivePickerOpenResult =
@@ -57,6 +62,8 @@ interface GoogleDocsViewInstance {
   setOwnedByMe(owned: boolean): GoogleDocsViewInstance;
   setEnableDrives(enabled: boolean): GoogleDocsViewInstance;
   setFileIds(ids: string): GoogleDocsViewInstance;
+  setMimeTypes(mimeTypes: string): GoogleDocsViewInstance;
+  setParent(parentId: string): GoogleDocsViewInstance;
 }
 
 interface GooglePickerBuilderInstance {
@@ -312,6 +319,17 @@ function configureNoFolderSelection(view: GoogleDocsViewInstance): GoogleDocsVie
   return view;
 }
 
+const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
+
+/** A single view limited to folders, where a folder itself can be selected (Name this folder). */
+function configureFolderSelection(view: GoogleDocsViewInstance, parentId?: string): GoogleDocsViewInstance {
+  view.setIncludeFolders?.(true);
+  view.setSelectFolderEnabled?.(true);
+  view.setMimeTypes?.(FOLDER_MIME_TYPE);
+  if (parentId) view.setParent?.(parentId);
+  return view;
+}
+
 /**
  * Real Google Picker adapter that loads `https://apis.google.com/js/api.js` once,
  * calls `gapi.load("picker")`, and configures My Drive, Shared with me, and
@@ -346,12 +364,16 @@ export const googleDrivePickerAdapter: DrivePickerAdapter = {
       if (picker.Feature?.SUPPORT_DRIVES) {
         builder.enableFeature(picker.Feature.SUPPORT_DRIVES);
       }
-      if ((options.multiselect ?? true) && picker.Feature?.MULTISELECT_ENABLED) {
+      if ((options.multiselect ?? true) && !options.selectFolder && picker.Feature?.MULTISELECT_ENABLED) {
         builder.enableFeature(picker.Feature.MULTISELECT_ENABLED);
       }
 
       const fileIds = (options.fileIds ?? []).filter((id) => id.trim().length > 0);
-      if (fileIds.length > 0) {
+      if (options.selectFolder) {
+        builder.addView(
+          configureFolderSelection(new picker.DocsView(picker.ViewId?.DOCS), options.selectFolder.parentId),
+        );
+      } else if (fileIds.length > 0) {
         const preselectedView = configureNoFolderSelection(
           new picker.DocsView(picker.ViewId?.DOCS),
         );
