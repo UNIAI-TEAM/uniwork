@@ -389,15 +389,12 @@ func priorManualLevelForChatGrant(hasPrev bool, prev db.DocumentShare, sourceKin
 	return prev.PriorManualLevel
 }
 
-// mergeDocumentShareIntoHomeRow is a share whose principal is the document's
+// mergeDocumentShareIntoHomeRowWithMeta is a share whose principal is the document's
 // own workspace (BR-04, L1): no document_shares row is written - the home row
 // carries that workspace's grant - so the command moves visibility to
 // 'workspace' at the requested level through the one home-row writer. Q-S1
 // refuses manage, and DOC-05 refuses an AdminScope-only caller the widening
 // of a restricted document, exactly as the PATCH and the self-share rule do.
-func mergeDocumentShareIntoHomeRow(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, level DocumentLevel, batchID string) (db.DocumentShare, error) {
-	return mergeDocumentShareIntoHomeRowWithMeta(ctx, q, actor, doc, access, level, documentShareBatchMeta{BatchID: batchID})
-}
 
 func mergeDocumentShareIntoHomeRowWithMeta(ctx context.Context, q *db.Queries, actor Actor, doc db.Document, access DocumentAccess, level DocumentLevel, batchMeta documentShareBatchMeta) (db.DocumentShare, error) {
 	if err := refuseFolderShare(doc); err != nil {

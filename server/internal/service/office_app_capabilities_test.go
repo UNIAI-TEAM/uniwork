@@ -98,6 +98,7 @@ func (p *trueThenFalseFlagProvider) Lookup(_ context.Context, key string) (featu
 // provider reads false without panicking, and that a non-member is still
 // refused by RequireMember (spec §17.1, plan B10).
 func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
+	isolateDriveConnectorFlagSources(t)
 	ctx := context.Background()
 	pool := testutil.DB(t)
 	q := db.New(pool)
@@ -202,9 +203,8 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 		t.Fatal("provider unavailable: DriveConnector = true, want false")
 	}
 
-	// 4. Flag off + provider available -> false. The flag defaults on, so
-	// "off" is an explicit override.
-	setOverride(featureflags.ScopeGlobal, "", false)
+	// 4. Default (no override/env/YAML) -> true when provider available; explicit off -> false.
+	clearOverride(featureflags.ScopeGlobal, "")
 	driveSvc := availableDrive()
 	driveSvc.SetFlags(flags)
 	svc.SetDrive(driveSvc)
@@ -212,10 +212,17 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !caps.DriveConnector {
+		t.Fatal("default (no override/env/YAML) + provider available: DriveConnector = false, want true")
+	}
+	setOverride(featureflags.ScopeGlobal, "", false)
+	caps, err = svc.Get(ctx, owner.ID, org.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if caps.DriveConnector {
 		t.Fatal("flag off: DriveConnector = true, want false")
 	}
-
 	// 5. Flag on (global) + provider available -> true.
 	setOverride(featureflags.ScopeGlobal, "", true)
 	caps, err = svc.Get(ctx, owner.ID, org.ID)
@@ -227,7 +234,7 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 	}
 
 	// 6. Organization override: global off, org on -> true; org off -> false.
-	clearOverride(featureflags.ScopeGlobal, "")
+	setOverride(featureflags.ScopeGlobal, "", false)
 	setOverride(featureflags.ScopeOrganization, org.ID, true)
 	if caps, err = svc.Get(ctx, owner.ID, org.ID); err != nil || !caps.DriveConnector {
 		t.Fatalf("org override on: %+v err=%v, want DriveConnector=true", caps, err)
@@ -236,7 +243,6 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 	if caps, err = svc.Get(ctx, owner.ID, org.ID); err != nil || caps.DriveConnector {
 		t.Fatalf("org override off: %+v err=%v, want DriveConnector=false", caps, err)
 	}
-
 	// 7. Per-user override on for owner only -> true for owner, false for member of the same org.
 	setOverride(featureflags.ScopeUser, owner.ID, true)
 	ownerCaps, err := svc.Get(ctx, owner.ID, org.ID)

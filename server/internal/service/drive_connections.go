@@ -19,6 +19,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	"github.com/unicomhub/uniwork/server/internal/util/secretbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -274,12 +275,21 @@ func (s *DriveConnectionService) AvailableForContext(ctx context.Context) bool {
 	return s.flagEnabled(ctx)
 }
 
+// driveConnectorFlagDefault returns the declared catalogue default for
+// drive_connector (false if missing from the catalogue).
+func driveConnectorFlagDefault() bool {
+	if f, ok := featureflags.Lookup("drive_connector"); ok {
+		return f.Default
+	}
+	return false
+}
+
 func (s *DriveConnectionService) flagEnabled(ctx context.Context) bool {
 	if s == nil || s.flags == nil {
-		// Default of drive_connector in featureflags.Catalogue() is false.
+		// Without a wired featureflag.Service, DriveConnectionService stays closed.
 		return false
 	}
-	return s.flags.IsEnabled(ctx, "drive_connector", false)
+	return s.flags.IsEnabled(ctx, "drive_connector", driveConnectorFlagDefault())
 }
 
 func (s *DriveConnectionService) flagEnabledForMember(ctx context.Context, userID, orgID string) bool {
@@ -287,7 +297,7 @@ func (s *DriveConnectionService) flagEnabledForMember(ctx context.Context, userI
 		return false
 	}
 	ec := featureflag.EvalContext{UserID: userID, OrganizationID: orgID}
-	return s.flags.IsEnabled(featureflag.WithEvalContext(ctx, ec), "drive_connector", false)
+	return s.flags.IsEnabled(featureflag.WithEvalContext(ctx, ec), "drive_connector", driveConnectorFlagDefault())
 }
 
 func (s *DriveConnectionService) workspace(ctx context.Context, actor Actor, workspaceID string) (db.Workspace, error) {

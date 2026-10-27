@@ -23,8 +23,22 @@ export type DocumentIconFormat =
   | "google_sheet"
   | "google_slide";
 
+// Legacy Office formats draw a lighter copy of their modern format's mark.
+const LEGACY_MARK_FORMATS: Record<string, "docx" | "xlsx" | "pptx"> = {
+  doc: "docx",
+  dot: "docx",
+  rtf: "docx",
+  xls: "xlsx",
+  xlt: "xlsx",
+  ppt: "pptx",
+  pps: "pptx",
+  pot: "pptx",
+};
+
 function normalizeFormat(raw: string | null | undefined): string {
   const lower = raw?.toLowerCase() ?? "file";
+  const modern = LEGACY_MARK_FORMATS[lower];
+  if (modern) return modern;
   if (lower === "markdown") return "md";
   if (lower === "text") return "txt";
   if (lower === "generic") return "file";
@@ -69,9 +83,10 @@ export function DocumentTypeIcon({
   const { t } = useTranslation();
   const normalized = normalizeFormat(format);
   const label = labelFor(normalized, t);
+  const legacy = Boolean(LEGACY_MARK_FORMATS[format?.toLowerCase() ?? ""]);
   if (isFileMarkFormat(normalized)) {
     return (
-      <span {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": label })} className={cn("inline-flex shrink-0", className)}>
+      <span {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": label })} className={cn("inline-flex shrink-0", legacy && "opacity-55", className)}>
         <FileTypeMark format={normalized} className="size-full" />
       </span>
     );

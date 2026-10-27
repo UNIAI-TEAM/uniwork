@@ -1424,4 +1424,117 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
     ]);
     expect(cancelRes).toEqual({ status: "cancelled" });
   });
+  it("folder mode asks the adapter for a single folder pick and hands it over without linking or the task confirmation", async () => {
+    const linkHandler = vi.fn(() => Promise.resolve({ results: [] }));
+    const onPicked = vi.fn();
+    const fakeAdapter = createFakeDrivePickerAdapter({
+      status: "picked",
+      files: [
+        {
+          id: "fld_1",
+          name: "Hợp đồng",
+          mimeType: "application/vnd.google-apps.folder",
+          sharingState: "private",
+        },
+      ],
+    });
+    renderHarness({
+      adapter: fakeAdapter,
+      taskId: "task_1",
+      linkHandler,
+      onPicked,
+      openRequest: { connectionId: "dc_1", folder: true },
+    });
+
+    fireEvent.click(screen.getByTestId("open-picker-btn"));
+
+    await waitFor(() => expect(onPicked).toHaveBeenCalledTimes(1));
+    expect(fakeAdapter.calls[0]).toMatchObject({
+      multiselect: false,
+      selectFolder: true,
+      title: "Chọn thư mục cần lấy tên",
+    });
+    expect(onPicked.mock.calls[0]![0]).toMatchObject({ connectionId: "dc_1" });
+    expect(linkHandler).not.toHaveBeenCalled();
+    // A private folder would have asked the task confirmation for a file; a folder never does.
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("googleDrivePickerAdapter folder mode builds the three folder-only views (My Drive, Shared with me, Shared Drives) that select folders", async () => {
+    const views: Array<Record<string, unknown>> = [];
+    const features: string[] = [];
+    class FakeDocsView {
+      state: Record<string, unknown> = {};
+      setIncludeFolders(v: boolean) {
+        this.state.includeFolders = v;
+        return this;
+      }
+      setSelectFolderEnabled(v: boolean) {
+        this.state.selectFolder = v;
+        return this;
+      }
+      setMimeTypes(v: string) {
+        this.state.mimeTypes = v;
+        return this;
+      }
+      setOwnedByMe(v: boolean) {
+        this.state.ownedByMe = v;
+        return this;
+      }
+      setEnableDrives(v: boolean) {
+        this.state.enableDrives = v;
+        return this;
+      }
+    }
+    class FakePickerBuilder {
+      cb: ((data: { action: string; docs?: Array<Record<string, unknown>> }) => void) | null = null;
+      setOAuthToken() { return this; }
+      setDeveloperKey() { return this; }
+      setAppId() { return this; }
+      setLocale() { return this; }
+      setTitle() { return this; }
+      enableFeature(f: string) { features.push(f); return this; }
+      addView(v: FakeDocsView) { views.push(v.state); return this; }
+      setCallback(cb: FakePickerBuilder["cb"]) { this.cb = cb; return this; }
+      build() {
+        return {
+          setVisible: () =>
+            this.cb?.({
+              action: "picked",
+              docs: [{ id: "fld_9", name: "Hợp đồng", mimeType: "application/vnd.google-apps.folder" }],
+            }),
+        };
+      }
+    }
+    window.google = {
+      picker: {
+        ViewId: { DOCS: "docs" },
+        Feature: { MULTISELECT_ENABLED: "multiselect", SUPPORT_DRIVES: "support_drives" },
+        Action: { PICKED: "picked", CANCEL: "cancel", ERROR: "error" },
+        Document: { ID: "id", NAME: "name", MIME_TYPE: "mimeType" },
+        DocsView: FakeDocsView as unknown as never,
+        PickerBuilder: FakePickerBuilder as unknown as never,
+      },
+    };
+
+    const result = await googleDrivePickerAdapter.open({
+      token: "tok",
+      developerKey: "dev",
+      appId: "app",
+      locale: "vi",
+      multiselect: true,
+      fileIds: ["ignored"],
+      selectFolder: true,
+    });
+
+    const folderView = { includeFolders: true, selectFolder: true, mimeTypes: "application/vnd.google-apps.folder" };
+    expect(views).toEqual([
+      { ...folderView, ownedByMe: true },
+      { ...folderView, ownedByMe: false },
+      { ...folderView, enableDrives: true },
+    ]);
+    // One pick only: multiselect is never enabled for a folder.
+    expect(features).toEqual(["support_drives"]);
+    expect(result).toMatchObject({ status: "picked", files: [{ id: "fld_9", mimeType: "application/vnd.google-apps.folder" }] });
+  });
 });

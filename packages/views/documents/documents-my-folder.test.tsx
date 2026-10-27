@@ -521,8 +521,8 @@ describe("guards on the My Folder row", () => {
 
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "  thư mục của " } });
-    const list = await screen.findByRole("list", { name: t("documents.home.search.label") });
-    const viButtons = within(list).getAllByRole("button");
+    const foldersSection = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} 1$`) });
+    const viButtons = within(foldersSection).getAllByRole("button", { name: new RegExp(`^${label()}`) });
     expect(viButtons).toHaveLength(1);
     expect(viButtons[0]).toHaveTextContent("Thư mục của tôi");
     expect(posts(MY_FOLDER_URL)).toHaveLength(0);
@@ -540,8 +540,8 @@ describe("guards on the My Folder row", () => {
       });
       const searchInputEn = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
       fireEvent.change(searchInputEn, { target: { value: "my fold" } });
-      const listEn = await screen.findByRole("list", { name: t("documents.home.search.label") });
-      const enButtons = within(listEn).getAllByRole("button");
+      const foldersSectionEn = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} 1$`) });
+      const enButtons = within(foldersSectionEn).getAllByRole("button", { name: /^My Folder/ });
       expect(enButtons).toHaveLength(1);
       expect(enButtons[0]).toHaveTextContent("My Folder");
       expect(posts(MY_FOLDER_URL)).toHaveLength(0);

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
+import { resetAccessBatchRefreshClaims } from "./access-batch-refresh";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import {
   backgroundAccepted,
@@ -44,6 +45,7 @@ const requestBody = (call: number) => JSON.parse(String(vi.mocked(fetch).mock.ca
 const pathOf = (call: number) => new URL(String(vi.mocked(fetch).mock.calls[call]![0])).pathname;
 
 beforeEach(() => {
+  resetAccessBatchRefreshClaims();
   setAccessToken("tok");
   vi.stubGlobal("fetch", vi.fn());
   configureRuntime({ apiUrl: "http://api.test" });

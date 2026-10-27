@@ -284,7 +284,7 @@ describe("shelved nav + list", () => {
     await openShelved();
     await rowOf("Bởi người khác");
 
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: t("documents.shelved_list.filter_by_label") }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.shelved_list.filter_by_label")}`) }));
     const option = await screen.findByRole("option", { name: "Mai Trường" });
     // Base UI's select commits on a pointer press, not on a bare click.
     fireEvent.pointerDown(option, { pointerType: "mouse" });
@@ -294,6 +294,60 @@ describe("shelved nav + list", () => {
     await waitFor(() => expect(screen.queryByText("Bởi người khác")).toBeNull());
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
     expect(screen.getByText(t("documents.shelved_list.filter_loaded_only"))).toBeInTheDocument();
+  });
+
+  it("renders 'Lưu trữ bởi' as the same chip as Người sửa, on the same row as the search box, and keeps the loaded-only note off the chip row", async () => {
+    route({
+      list: () => [shelved()],
+      members: () => [member(), member({ user_id: "u3", display_name: "Đạt Đặng" })],
+    });
+    renderView();
+    await openShelved();
+    await rowOf("Kế hoạch Q4");
+
+    const editorChip = screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.editor")}`) });
+    const shelvedByChip = screen.getByRole("combobox", { name: `${t("documents.shelved_list.filter_by_label")}: ${t("documents.shelved_list.filter_by_any")}` });
+    expect(shelvedByChip.tagName).toBe(editorChip.tagName);
+    expect(shelvedByChip.className).toBe(editorChip.className);
+    expect(shelvedByChip.getAttribute("data-size")).toBe(editorChip.getAttribute("data-size"));
+    expect(shelvedByChip.textContent).toContain(`${t("documents.shelved_list.filter_by_label")}: ${t("documents.shelved_list.filter_by_any")}`);
+    expect(shelvedByChip.parentElement).toBe(editorChip.parentElement);
+    expect(document.getElementById("documents-shelved-by")).toBeNull();
+    expect(screen.queryByText(t("documents.shelved_list.filter_loaded_only"))).toBeNull();
+
+    // The search box sits in the toolbar slot every list screen uses: beside the filter zone, never inside it.
+    const zone = editorChip.closest<HTMLElement>('[data-slot="documents-filter-zone"]')!;
+    const search = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    expect(zone.contains(search)).toBe(false);
+    expect(zone.parentElement!.contains(search)).toBe(true);
+    expect(search.closest('[data-slot="documents-search-slot"]')!.parentElement).toBe(zone.parentElement);
+
+    // Active: the chip names the pick, and the note lives in the filter zone under the chips, not between chip and search.
+    fireEvent.mouseDown(shelvedByChip);
+    const option = await screen.findByRole("option", { name: "Mai Trường" });
+    fireEvent.pointerDown(option, { pointerType: "mouse" });
+    fireEvent.pointerUp(option, { pointerType: "mouse" });
+    fireEvent.click(option);
+    const note = await screen.findByText(t("documents.shelved_list.filter_loaded_only"));
+    expect(zone.contains(note)).toBe(true);
+    expect(screen.getByRole("combobox", { name: `${t("documents.shelved_list.filter_by_label")}: Mai Trường` })).toBe(shelvedByChip);
+  });
+
+  it("keeps the search input mounted and focused while typing on Lưu trữ with a Lưu trữ bởi pick", async () => {
+    route({
+      list: () => [shelved()],
+      members: () => [member()],
+    });
+    renderView();
+    await openShelved();
+    await rowOf("Kế hoạch Q4");
+
+    const search = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    search.focus();
+    fireEvent.change(search, { target: { value: "k" } });
+    expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toBe(search);
+    expect(document.activeElement).toBe(search);
+    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.shelved_list.filter_by_label")}`) })).toBeInTheDocument();
   });
 
   // RAR-16: a "Lưu trữ bởi" filter that matches nothing still counts as a
@@ -308,7 +362,7 @@ describe("shelved nav + list", () => {
     await openShelved();
     await rowOf("Kế hoạch Q4");
 
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: t("documents.shelved_list.filter_by_label") }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.shelved_list.filter_by_label")}`) }));
     const option = await screen.findByRole("option", { name: "Đạt Đặng" });
     fireEvent.pointerDown(option, { pointerType: "mouse" });
     fireEvent.pointerUp(option, { pointerType: "mouse" });
@@ -336,7 +390,7 @@ describe("shelved nav + list", () => {
     await openShelved();
     await rowOf("Bởi người khác");
 
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: t("documents.shelved_list.filter_by_label") }));
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.shelved_list.filter_by_label")}`) }));
     const option = await screen.findByRole("option", { name: "Mai Trường" });
     fireEvent.pointerDown(option, { pointerType: "mouse" });
     fireEvent.pointerUp(option, { pointerType: "mouse" });

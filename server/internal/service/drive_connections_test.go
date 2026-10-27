@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -52,6 +53,18 @@ func driveConnectorFlags(t *testing.T, on bool) *featureflag.Service {
 		t.Fatal(err)
 	}
 	return flags
+}
+
+// isolateDriveConnectorFlagSources clears FEATURE_FLAGS_FILE and unsets
+// FF_DRIVE_CONNECTOR (after registering restoration via t.Setenv) so tests of
+// the catalogue default are not masked by inherited process environment.
+func isolateDriveConnectorFlagSources(t *testing.T) {
+	t.Helper()
+	t.Setenv("FEATURE_FLAGS_FILE", "")
+	t.Setenv("FF_DRIVE_CONNECTOR", "")
+	if err := os.Unsetenv("FF_DRIVE_CONNECTOR"); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func testDriveBox(t *testing.T) *secretbox.Box {
@@ -3222,5 +3235,43 @@ func TestDriveProviderLaneAndOrganizationClosePostCommit(t *testing.T) {
 	revResB, err := fx.q.GetDriveGrantRevocationForUpdate(ctx, "fake-sub-res-bgt-b")
 	if err != nil || revResB.ResolvedAt.Valid || revResB.AttemptID.Valid || !revResB.RefreshTokenEnc.Valid {
 		t.Fatalf("sub 2 after resolve budget expiry must stay untouched/pending: %+v, err=%v", revResB, err)
+	}
+}
+
+// TestDriveConnectionServiceDefaultFlagEnabled verifies that with a real flag
+// service and no DB override, FF_* env, or YAML rule, DriveConnectionService
+// evaluates drive_connector at its catalogue default (true), and refuses with
+// 404 feature_disabled when FF_DRIVE_CONNECTOR=false.
+func TestDriveConnectionServiceDefaultFlagEnabled(t *testing.T) {
+	isolateDriveConnectorFlagSources(t)
+	fx := newDriveTestFixture(t)
+	ctx := context.Background()
+
+	realFlags, _, err := featureflags.NewService(fx.q, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fx.svc.SetFlags(realFlags)
+
+	if !fx.svc.AvailableForContext(ctx) {
+		t.Fatal("AvailableForContext with no override/env/YAML = false, want true")
+	}
+	if _, _, err := fx.svc.StartOAuth(ctx, Human(fx.user.ID), fx.work.ID, ""); err != nil {
+		t.Fatalf("StartOAuth with default flag: %v, want nil", err)
+	}
+	if _, err := fx.svc.List(ctx, Human(fx.user.ID), fx.work.ID); err != nil {
+		t.Fatalf("List with default flag: %v, want nil", err)
+	}
+
+	t.Setenv("FF_DRIVE_CONNECTOR", "false")
+	if fx.svc.AvailableForContext(ctx) {
+		t.Fatal("AvailableForContext with FF_DRIVE_CONNECTOR=false = true, want false")
+	}
+	var ce CodedError
+	if _, _, err := fx.svc.StartOAuth(ctx, Human(fx.user.ID), fx.work.ID, ""); !errors.As(err, &ce) || ce.Status != http.StatusNotFound || ce.Code != "feature_disabled" {
+		t.Fatalf("StartOAuth with FF_DRIVE_CONNECTOR=false = %v, want 404 feature_disabled", err)
+	}
+	if _, err := fx.svc.List(ctx, Human(fx.user.ID), fx.work.ID); !errors.As(err, &ce) || ce.Status != http.StatusNotFound || ce.Code != "feature_disabled" {
+		t.Fatalf("List with FF_DRIVE_CONNECTOR=false = %v, want 404 feature_disabled", err)
 	}
 }

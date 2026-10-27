@@ -260,28 +260,6 @@ func (q *Queries) FailDocumentAccessBatch(ctx context.Context, arg FailDocumentA
 	return i, err
 }
 
-const getDocumentAccessBatchFolderID = `-- name: GetDocumentAccessBatchFolderID :one
-SELECT folder_id
-FROM document_access_batches
-WHERE id = $1
-  AND organization_id = $2
-  AND workspace_id = $3
-`
-
-type GetDocumentAccessBatchFolderIDParams struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-}
-
-// Looks up the root folder_id of a bulk access batch for the notification consumer (spec §6).
-func (q *Queries) GetDocumentAccessBatchFolderID(ctx context.Context, arg GetDocumentAccessBatchFolderIDParams) (string, error) {
-	row := q.db.QueryRow(ctx, getDocumentAccessBatchFolderID, arg.ID, arg.OrganizationID, arg.WorkspaceID)
-	var folder_id string
-	err := row.Scan(&folder_id)
-	return folder_id, err
-}
-
 const getDocumentAccessBatchForCreator = `-- name: GetDocumentAccessBatchForCreator :one
 SELECT id, organization_id, workspace_id, folder_id, created_by, created_by_kind, mode, items, document_ids, notified_levels, status, total, processed, changed, unchanged, skipped_not_manageable, skipped_locked, cursor_id, error_code, created_at, updated_at, finished_at
 FROM document_access_batches
@@ -312,6 +290,51 @@ func (q *Queries) GetDocumentAccessBatchForCreator(ctx context.Context, arg GetD
 		arg.CreatedBy,
 		arg.CreatedByKind,
 	)
+	var i DocumentAccessBatch
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.FolderID,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.Mode,
+		&i.Items,
+		&i.DocumentIds,
+		&i.NotifiedLevels,
+		&i.Status,
+		&i.Total,
+		&i.Processed,
+		&i.Changed,
+		&i.Unchanged,
+		&i.SkippedNotManageable,
+		&i.SkippedLocked,
+		&i.CursorID,
+		&i.ErrorCode,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const getDocumentAccessBatchForNotification = `-- name: GetDocumentAccessBatchForNotification :one
+SELECT id, organization_id, workspace_id, folder_id, created_by, created_by_kind, mode, items, document_ids, notified_levels, status, total, processed, changed, unchanged, skipped_not_manageable, skipped_locked, cursor_id, error_code, created_at, updated_at, finished_at
+FROM document_access_batches
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+`
+
+type GetDocumentAccessBatchForNotificationParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// Reads a completed bulk access batch for the notification consumer (spec §6).
+func (q *Queries) GetDocumentAccessBatchForNotification(ctx context.Context, arg GetDocumentAccessBatchForNotificationParams) (DocumentAccessBatch, error) {
+	row := q.db.QueryRow(ctx, getDocumentAccessBatchForNotification, arg.ID, arg.OrganizationID, arg.WorkspaceID)
 	var i DocumentAccessBatch
 	err := row.Scan(
 		&i.ID,
@@ -510,11 +533,10 @@ WHERE d.organization_id = $1
   AND d.kind <> 'folder'
   AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder')
   AND d.archived_at IS NULL
-  AND (d.acl_owner_id = $4::text
-       OR NOT EXISTS (
-            SELECT 1 FROM uw_my_folder_foreign_ids(
-              $4, $1, $2, $5::int
-            ) mfs WHERE mfs.document_id = d.id))
+  AND NOT EXISTS (
+        SELECT 1 FROM uw_my_folder_foreign_ids(
+          $4, $1, $2, $5::int
+        ) mfs WHERE mfs.document_id = d.id)
 ORDER BY d.id COLLATE "C"
 `
 
@@ -597,25 +619,13 @@ func (q *Queries) LockDocumentAccessBatchForChunk(ctx context.Context, id string
 }
 
 const lockFolderAccessBatch = `-- name: LockFolderAccessBatch :exec
+
 SELECT pg_advisory_xact_lock(hashtextextended('document-folder-access:' || $1::text, 0))
 `
 
+// Folder bulk access batches and subtree scope queries (UNI-2244 §1–§5).
 // Locks the folder for a bulk contents-access update when serializing queue insertion.
 func (q *Queries) LockFolderAccessBatch(ctx context.Context, folderID string) error {
 	_, err := q.db.Exec(ctx, lockFolderAccessBatch, folderID)
 	return err
-}
-
-const tryLockFolderAccessBatch = `-- name: TryLockFolderAccessBatch :one
-
-SELECT pg_try_advisory_xact_lock(hashtextextended('document-folder-access:' || $1::text, 0)) AS locked
-`
-
-// Folder bulk access batches and subtree scope queries (UNI-2244 §1–§5).
-// Try-locks the folder for a bulk contents-access update (spec §3.1 step 2).
-func (q *Queries) TryLockFolderAccessBatch(ctx context.Context, folderID string) (bool, error) {
-	row := q.db.QueryRow(ctx, tryLockFolderAccessBatch, folderID)
-	var locked bool
-	err := row.Scan(&locked)
-	return locked, err
 }

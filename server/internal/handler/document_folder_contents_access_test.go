@@ -38,7 +38,7 @@ func TestFolderContentsAccessOverHTTP(t *testing.T) {
 	res, out := doJSON(t, w.srv, "PUT", "/api/v1/documents/"+page1+"/contents-access", w.token, map[string]any{
 		"mode": "replace", "items": []any{},
 	})
-	wantErr(t, res, out, http.StatusUnprocessableEntity, "not_a_folder", "unprocessable")
+	wantErr(t, res, out, http.StatusUnprocessableEntity, "not_a_folder", "")
 
 	// 2. Unreadable root -> 404 not_found.
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/documents/"+folderID+"/contents-access", outsiderToken, map[string]any{
@@ -54,7 +54,7 @@ func TestFolderContentsAccessOverHTTP(t *testing.T) {
 			map[string]any{"principal_type": "user", "principal_id": memberID, "level": "edit"},
 		},
 	})
-	wantErr(t, res, out, http.StatusUnprocessableEntity, "document_access_rejected", "unprocessable")
+	wantErr(t, res, out, http.StatusUnprocessableEntity, "document_access_rejected", "")
 
 	// 4. dry_run=true -> 200 {total, preview{changed, unchanged, skipped_not_manageable, skipped_locked, losing_users, downgraded_users, warnings[]}}.
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/documents/"+folderID+"/contents-access", w.token, map[string]any{
@@ -122,7 +122,7 @@ func TestFolderContentsAccessOverHTTP(t *testing.T) {
 		"mode":  "replace",
 		"items": []any{},
 	})
-	wantErr(t, res, conflictOut, http.StatusConflict, "folder_access_batch_running", "conflict")
+	wantErr(t, res, conflictOut, http.StatusConflict, "folder_access_batch_running", "")
 	errObj, _ := conflictOut["error"].(map[string]any)
 	fields, _ := errObj["fields"].(map[string]any)
 	if fields["batch_id"] != bgBatchID {
