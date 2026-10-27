@@ -1,6 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import { resetAuthStoreForTests, setSessionUser, useAuthStore } from "@uniwork/core/auth";
 import {
   FeatureFlagService,
   FeatureFlagsProvider,
@@ -74,7 +74,10 @@ describe("TaskDetailEditors link context (DOC7-W03)", () => {
     vi.spyOn(window, "open").mockImplementation(() => null);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // useSession() starts a refresh on mount; let it settle inside its own test, or a
+    // refresh left over from an unauthenticated case lands on the next test's seeded user.
+    await useAuthStore.getState().initialize();
     resetAuthStoreForTests();
   });
 

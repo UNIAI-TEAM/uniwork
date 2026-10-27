@@ -28,6 +28,7 @@ import {
 } from "@uniwork/ui/components/ui/select";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import type { SelectedShareCandidate } from "./share-add-section";
+import { foldSearchText } from "./search-path";
 
 export interface ShareMembersDirectory {
   rows: readonly OrgMember[];
@@ -50,15 +51,6 @@ export function SharePrincipalIcon({
 }) {
   const Icon = principalType === "user" ? User : principalType === "workspace" ? FolderKanban : BuildingComplex;
   return <Icon aria-hidden className={className} />;
-}
-
-export function foldSearchText(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[đĐ]/g, "d")
-    .toLowerCase()
-    .trim();
 }
 
 /**

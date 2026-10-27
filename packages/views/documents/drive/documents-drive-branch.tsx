@@ -39,6 +39,7 @@ export function buildDocumentsDriveBranch({
         <DriveLibraryListView
           wsId={wsId}
           accountId={view.account}
+          folderId={view.folder}
           connections={driveConnections}
           navButton={navButton}
           onAddFromDrive={onAddFromDrive}
