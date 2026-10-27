@@ -617,7 +617,7 @@ database and never reveal whether an id exists to a non-member.
   `POST /auth/mfa/verify` takes only a web one. An identity that would link into an account with a second factor
   rides in the challenge (`pl`, sealed) and is linked only in the transaction that opens the session once the
   factor passed, after resolving it again (else the sign-in succeeds with `link_skipped`). A challenge dies with the
-  first factor that bought it: one not issued after the account's `credentials_revoked_at`, or for a factor the
+  first factor that bought it: one issued before the account's `credentials_revoked_at`, or for a factor the
   account no longer has, is refused, never answered with a session for no code. Every code is weighed
   under the account's row lock in `weighSecondFactor` (`server/internal/service/second_factor.go`): the tenth wrong
   one in a row locks the factor 15 minutes and mails the owner, and while locked nothing is checked (429

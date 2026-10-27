@@ -217,13 +217,13 @@ type passedSecondStep struct {
 	link pendingLinkOutcome
 }
 
-// challengePredatesCredentials: ch was minted no later than the second u's
-// credentials last changed. The mark and a token's iat are both whole
-// seconds, and nothing a credential change does mints a challenge, so a
-// challenge of the mark's own second is refused with the older ones: it may
-// be the first factor the change just ended.
+// challengePredatesCredentials: ch was minted before u's credentials last
+// changed. The mark and a token's iat are both whole seconds, and a reset
+// link on an account with a second factor answers with a challenge minted in
+// its own second, so a challenge of the mark's second passes: it still owes
+// the factor, which a reclaim (the change that clears it) leaves nothing of.
 func challengePredatesCredentials(ch auth.MFAChallenge, u db.User) bool {
-	return u.CredentialsRevokedAt.Valid && !ch.IssuedAt.After(u.CredentialsRevokedAt.Time)
+	return u.CredentialsRevokedAt.Valid && ch.IssuedAt.Before(u.CredentialsRevokedAt.Time)
 }
 
 // secondStep is what the browser's and the app's second step share (ADR 0047
@@ -233,12 +233,12 @@ func challengePredatesCredentials(ch auth.MFAChallenge, u db.User) bool {
 // lockout (weighSecondFactor), and the provider identity the first step left
 // waiting is linked if it still resolves to this account (finishPendingLink).
 // A challenge is what its first factor bought, so it dies with what that
-// factor was: one minted no later than the second of the account's last
-// credential change (a reclaim, a password change or reset, an unlink) is
-// invalid_credentials, and so is one whose account no longer has a second
-// factor to ask — a reclaim cleared it, or the owner turned it off — rather
-// than a session for no code at all: the person signs in again with what the
-// account takes now. A wrong code is counted, so secondStep commits tx
+// factor was: one minted before the account's last credential change (a
+// reclaim, a password change or reset, an unlink) is invalid_credentials,
+// and so is one whose account no longer has a second factor to ask — a
+// reclaim cleared it, or the owner turned it off — rather than a session for
+// no code at all: the person signs in again with what the account takes
+// now. A wrong code is counted, so secondStep commits tx
 // itself, kicks the lockout notice, audits the failure and answers the
 // refusal (invalid_credentials, or 429 second_factor_locked); on success the
 // caller opens its session in tx, audits and commits.

@@ -85,15 +85,17 @@ func TestMFAChallengeIsBoundToItsChannel(t *testing.T) {
 
 // A challenge is what its first factor bought, and dies with it (ADR 0047
 // §4-5): once the account's credentials change — the owner changes the
-// password from another session — a challenge minted before (or in the
-// change's own second) opens nothing even with the right code, and a fresh
-// one does. A challenge for a factor the account turned off in between is
-// refused too, not answered with a session for no code: the person signs in
-// again with what the account takes now.
+// password from another session — a challenge minted before opens nothing
+// even with the right code, and a fresh one does. A challenge for a factor
+// the account turned off in between is refused too, not answered with a
+// session for no code: the person signs in again with what the account takes
+// now.
 func TestAChallengeDiesWithTheFirstFactorItFollowed(t *testing.T) {
 	f := newIdentityFixture(t)
 	u, secret, codes := f.mfaAccount(t, "follows@example.com")
 	stale := f.challenge(t, u.Email)
+	// The mark and iat are whole seconds: the change comes in a later one.
+	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
 
 	owner, _ := f.browser(t, u.ID)
 	g, err := f.auth.StepUp(owner, u.ID, StepUpProof{Code: totpNow(t, secret)})
@@ -109,7 +111,6 @@ func TestAChallengeDiesWithTheFirstFactorItFollowed(t *testing.T) {
 	if n := f.failures(t, u.ID); n != 0 {
 		t.Fatalf("a refused challenge counted as a guess: %d", n)
 	}
-	time.Sleep(time.Until(f.user(t, u.ID).CredentialsRevokedAt.Time.Add(time.Second)))
 	first, err := f.auth.Login(f.ctx, u.Email, "a-new-password")
 	if err != nil || !first.MFAPending() {
 		t.Fatalf("the new password's first step: %+v %v", first, err)
@@ -130,6 +131,24 @@ func TestAChallengeDiesWithTheFirstFactorItFollowed(t *testing.T) {
 	}
 	if sess, err := f.auth.Login(f.ctx, u.Email, "a-new-password"); err != nil || sess.MFAPending() || sess.RefreshToken == "" {
 		t.Fatalf("signing in again takes the password alone: %+v %v", sess, err)
+	}
+
+	// A reset link marks the account and, with a factor on, answers with a
+	// challenge minted in the mark's own second: that one still takes it.
+	m, msecret, _ := f.mfaAccount(t, "follows-reset@example.com")
+	raw := util.NewID() + util.NewID()
+	if _, err := f.q.CreatePasswordResetToken(f.ctx, db.CreatePasswordResetTokenParams{
+		ID: util.NewID(), UserID: m.ID, TokenHash: hashToken(raw),
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reset, err := NewPasswordResetService(f.pool, f.q, f.auth, mail.Renderer{AppURL: "http://localhost:3000"}, f.out).Reset(f.ctx, raw, "reset-password-1")
+	if err != nil || !reset.MFAPending() {
+		t.Fatalf("a reset on an account with a second factor: %+v %v", reset, err)
+	}
+	if sess, err := f.auth.VerifyMFA(f.ctx, reset.MFAToken, totpNow(t, msecret)); err != nil || sess.RefreshToken == "" {
+		t.Fatalf("the reset's own challenge: %+v %v", sess, err)
 	}
 }
 
