@@ -10,6 +10,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -41,7 +42,7 @@ func (s *AuthService) SetupTOTP(ctx context.Context, userID, stepUpToken string)
 	if u.MfaEnabledAt.Valid {
 		return MFASetup{}, ErrConflict
 	}
-	if err := s.requireStepUp(ctx, s.q, userID, stepUpToken); err != nil {
+	if err := s.requireStepUp(ctx, s.q, userID, stepUpToken, mail.StepUpActionEnableMFA); err != nil {
 		return MFASetup{}, err
 	}
 	secret, err := auth.NewTOTPSecret()
@@ -73,7 +74,7 @@ func (s *AuthService) ConfirmTOTP(ctx context.Context, userID, code, stepUpToken
 	if u.MfaEnabledAt.Valid {
 		return nil, ErrConflict
 	}
-	if err := s.requireStepUp(ctx, s.q, userID, stepUpToken); err != nil {
+	if err := s.requireStepUp(ctx, s.q, userID, stepUpToken, mail.StepUpActionEnableMFA); err != nil {
 		return nil, err
 	}
 	if !u.TotpSecret.Valid || !s.totpMatches(u, code) {

@@ -439,7 +439,11 @@ Mọi route: công khai, `Cache-Control: no-store`, ⚑ chỉ nhận `client_id`
   `TestAResetLinkEndsWhatTheOldPasswordLetIn`.
 - Lát 3 (server): `step_up.go` là chỗ duy nhất kiểm bằng chứng của người đã đăng nhập, gồm cả bằng chứng cũ app đã
   phát hành gửi. Token là blob `step_up` `{uid, sid, web, method, iat, exp}`; không tiêu khi dùng (một token dùng cho
-  mọi lệnh trong 10 phút). Bằng chứng sai đếm vào `second_factor_failures` như MFA (`weighProof`); provider token sai
+  mọi lệnh trong 10 phút). ⚑ (phản biện lát 5) Trừ token mua bằng mã email: blob mang thêm `action` của mã và chỉ dùng
+  cho lệnh của việc đó (`set_password`/`change_password` cho `PUT /me/password`, `link_<p>` cho liên kết từ Cài đặt,
+  app hay vé, `unlink_<p>`, `enable_mfa`, `delete_account`, `transfer_ownership` cho chuyển quyền và chuyển tổ chức);
+  lệnh khác → `403 proof_required`, vì mail đã nói mã chỉ cho phép việc đó. Mật khẩu, TOTP và token nhà cung cấp vẫn
+  mua token dùng cho mọi lệnh. `TestStepUpCodeNamesItsActionAndIgnoresTheDevCode`. Bằng chứng sai đếm vào `second_factor_failures` như MFA (`weighProof`); provider token sai
   (chữ ký, nonce, subject khác, `iat` quá 5 phút) → `403 provider_token_invalid` (mã spec chưa nêu). `proof_required`
   mang `fields.proofs`. Bằng chứng provider chỉ có trong `proofs` khi server kiểm được: Apple từ khi `SetApple`, Google
   khi lát 5 gọi `SetGoogleProofVerifier`. Mã email: purpose `step_up` + `action`, 10 phút, 5 lần thử, `429

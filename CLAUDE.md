@@ -638,7 +638,7 @@ database and never reveal whether an id exists to a non-member.
   `server/internal/service/step_up.go`, the one place a signed-in person's proof is checked, turns one proof the
   account takes into a ten-minute token sealed for `step_up` and bound to the bearer's session: with a second factor
   on only that factor; otherwise the password, a six-digit code mailed for one named action (never the development
-  code), or on the app a fresh token of a linked provider. A wrong proof is a 403 with its own code, never 401, and
+  code; the token it buys serves that action's commands only), or on the app a fresh token of a linked provider. A wrong proof is a 403 with its own code, never 401, and
   counts toward the second-factor lockout; a token of another session, purpose or past its ten minutes is 403
   `proof_required`, and one whose session ended is 401; each command judges its bearer again under the account's
   row lock, which a reclaim or credential change holds while it revokes, and a session (a sign-in, a browser

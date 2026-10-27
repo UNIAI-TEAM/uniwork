@@ -83,6 +83,16 @@ func (f *identityFixture) stepUpByMail(t *testing.T, ctx context.Context, u db.U
 	return g
 }
 
+// letNextCode moves uid's step-up codes a couple of minutes back, so the
+// next one is not refused as asked too soon.
+func (f *identityFixture) letNextCode(t *testing.T, uid string) {
+	t.Helper()
+	if _, err := f.pool.Exec(f.ctx, `UPDATE email_verification_codes SET created_at = created_at - interval '2 minutes'
+		WHERE user_id = $1 AND purpose = 'step_up'`, uid); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (f *identityFixture) failures(t *testing.T, uid string) int {
 	t.Helper()
 	return int(f.user(t, uid).SecondFactorFailures)
@@ -343,6 +353,20 @@ func TestStepUpCodeNamesItsActionAndIgnoresTheDevCode(t *testing.T) {
 	}
 	_, err = f.auth.StepUp(ctx, u.ID, StepUpProof{Code: code, Action: mail.StepUpActionDeleteAccount})
 	wantStatusCode(t, err, "step_up_code_incorrect", http.StatusForbidden)
+	// The token a code buys serves the action its mail named, and nothing
+	// else: the owner who read the code out for one thing gave no other.
+	methods := NewSignInMethodsService(f.pool, f.q, f.auth)
+	_, err = methods.SetPassword(ctx, u.ID, PasswordInput{New: "not-what-the-mail-said", StepUpToken: g.Token})
+	wantProofRequired(t, err, "a delete_account code's token setting a password")
+	_, err = methods.Unlink(ctx, u.ID, ProviderGoogle, g.Token)
+	wantProofRequired(t, err, "a delete_account code's token unlinking Google")
+	wantProofRequired(t, f.auth.proveOwner(ctx, u.ID, OwnerProof{StepUpToken: g.Token}), "a delete_account code's token handing an organization over")
+	if err := f.auth.proveDeletion(ctx, f.user(t, u.ID), DeleteAccountInput{StepUpToken: g.Token}); err != nil {
+		t.Fatalf("the token for the action its code named: %v", err)
+	}
+	if got := f.user(t, u.ID); got.PasswordHash.Valid || !got.GoogleID.Valid {
+		t.Fatalf("a refused command wrote: %+v", got)
+	}
 
 	// Five a day: four more sent hours ago, and the sixth waits.
 	for i := 0; i < 4; i++ {
@@ -385,7 +409,7 @@ func TestTheLastSignInMethodCannotBeRemoved(t *testing.T) {
 	f := newIdentityFixture(t)
 	methods := NewSignInMethodsService(f.pool, f.q, f.auth)
 	u := f.googleOnly(t, "last@gmail.com")
-	ctx, _ := f.browser(t, u.ID)
+	ctx, own := f.browser(t, u.ID)
 	_, otherSess := f.browser(t, u.ID)
 	g := f.stepUpByMail(t, ctx, u, mail.StepUpActionUnlinkGoogle)
 
@@ -394,7 +418,8 @@ func TestTheLastSignInMethodCannotBeRemoved(t *testing.T) {
 	if !f.user(t, u.ID).GoogleID.Valid {
 		t.Fatal("the last way in was removed")
 	}
-	set, err := methods.SetPassword(ctx, u.ID, PasswordInput{New: "first-password-1", StepUpToken: g.Token})
+	f.letNextCode(t, u.ID)
+	set, err := methods.SetPassword(ctx, u.ID, PasswordInput{New: "first-password-1", StepUpToken: f.stepUpByMail(t, ctx, u, mail.StepUpActionSetPassword).Token})
 	if err != nil || !set.Methods.PasswordSet || !set.Methods.Google.Linked {
 		t.Fatalf("set a password: %+v %v", set.Methods, err)
 	}
@@ -423,7 +448,14 @@ func TestTheLastSignInMethodCannotBeRemoved(t *testing.T) {
 	if !told {
 		t.Fatalf("the owner is not told of the unlink: %v", f.mailsTo(u.Email))
 	}
-	// Unlinking what is not linked writes nothing and answers how it is.
+	// Unlinking what is not linked writes nothing and answers how it is. The
+	// unlink marked the account, so the session that made it refreshes first:
+	// its older access token is refused on sensitive commands.
+	refreshed, err := f.auth.Refresh(f.ctx, own.RefreshToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx = f.bearer(t, refreshed)
 	before := f.count(t, `SELECT count(*) FROM audit_events WHERE actor_id = $1`, u.ID)
 	if again, err := methods.Unlink(ctx, u.ID, ProviderGoogle, g.Token); err != nil || again.Methods.Google.Linked {
 		t.Fatalf("unlink twice: %+v %v", again.Methods, err)
@@ -461,7 +493,11 @@ func TestARelayAccountKeepsApple(t *testing.T) {
 	if err != nil || !set.Methods.AccountEmailIsRelay || !set.Methods.Apple.PrivateRelay {
 		t.Fatalf("set a password: %+v %v", set.Methods, err)
 	}
-	_, err = methods.Unlink(ctx, u.ID, ProviderApple, g.Token)
+	byPassword, err := f.auth.StepUp(ctx, u.ID, StepUpProof{Password: "relay-password-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = methods.Unlink(ctx, u.ID, ProviderApple, byPassword.Token)
 	wantStatusCode(t, err, "sign_in_method_relay_email", http.StatusConflict)
 	if !f.user(t, u.ID).AppleID.Valid {
 		t.Fatal("Apple was unlinked from a relay account")

@@ -54,7 +54,7 @@ func stepUpFor(t *testing.T, s *AuthService, ctx context.Context, userID string)
 	if err != nil {
 		t.Fatal(err)
 	}
-	g, err := s.mintStepUp(at, ProofPassword)
+	g, err := s.mintStepUp(at, ProofPassword, "")
 	if err != nil {
 		t.Fatal(err)
 	}

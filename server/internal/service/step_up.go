@@ -77,12 +77,17 @@ type StepUpGrant struct {
 }
 
 // stepUpClaims is the step_up blob (spec §3.7): whose, for which session
-// (a browser session id, or a native device id), and until when.
+// (a browser session id, or a native device id), and until when. Action is
+// the action a mailed code named, set only when the code bought the token:
+// the mail told the owner the code allows that one thing, so the token
+// serves only the commands of that action. A password, a second factor or a
+// provider's token proves the owner for every command of the window.
 type stepUpClaims struct {
 	UserID    string `json:"uid"`
 	SessionID string `json:"sid"`
 	Web       bool   `json:"web,omitempty"`
 	Method    string `json:"method"`
+	Action    string `json:"action,omitempty"`
 	IssuedAt  int64  `json:"iat"`
 	ExpiresAt int64  `json:"exp"`
 }
@@ -301,7 +306,7 @@ func (s *AuthService) StepUp(ctx context.Context, userID string, p StepUpProof) 
 	if !v.ok {
 		return StepUpGrant{}, wrongProof(method)
 	}
-	return s.mintStepUp(at, method)
+	return s.mintStepUp(at, method, p.Action)
 }
 
 // proofCheck picks the proof p offers that u takes on the bearer's channel
@@ -386,11 +391,17 @@ func (s *AuthService) matchProviderProof(ctx context.Context, u db.User, p Provi
 	return sub == linked.String && age < providerProofMaxAge && age > -time.Minute
 }
 
-func (s *AuthService) mintStepUp(at auth.AccessToken, method string) (StepUpGrant, error) {
+// mintStepUp seals the token of a proof of method that passed; action is
+// the one a mailed code named, and binds the token only when the code bought
+// it.
+func (s *AuthService) mintStepUp(at auth.AccessToken, method, action string) (StepUpGrant, error) {
 	now := s.now()
 	c := stepUpClaims{
 		UserID: at.UserID, SessionID: at.SessionID, Web: at.Web, Method: method,
 		IssuedAt: now.Unix(), ExpiresAt: now.Add(stepUpTokenTTL).Unix(),
+	}
+	if method == ProofEmailCode {
+		c.Action = action
 	}
 	raw, err := json.Marshal(c)
 	if err != nil {
@@ -408,10 +419,11 @@ func (s *AuthService) mintStepUp(at auth.AccessToken, method string) (StepUpGran
 // (401), the bearer's session must still be live (401: a session that was
 // signed out or revoked takes its tokens with it), and the token must be one
 // this server sealed for step_up, for this account and this very session,
-// and not expired — else 403 proof_required naming the proofs the account
-// takes. A token is not spent by use: the same one serves every command of
-// its ten minutes.
-func (s *AuthService) requireStepUp(ctx context.Context, q *db.Queries, userID, token string) error {
+// not expired, and — when a mailed code bought it — for one of actions, the
+// step-up actions the command is (a code's mail names what it allows) — else
+// 403 proof_required naming the proofs the account takes. A token is not
+// spent by use: the same one serves its ten minutes.
+func (s *AuthService) requireStepUp(ctx context.Context, q *db.Queries, userID, token string, actions ...string) error {
 	at, err := stepUpBearer(ctx, userID)
 	if err != nil {
 		return err
@@ -422,14 +434,31 @@ func (s *AuthService) requireStepUp(ctx context.Context, q *db.Queries, userID, 
 	if _, err := liveBearerSession(ctx, q, at); err != nil {
 		return err
 	}
-	if s.stepUpTokenFor(at, token) {
+	if s.stepUpTokenFor(at, token, actions) {
 		return nil
 	}
 	return s.proofRequired(ctx, q, userID)
 }
 
-// stepUpTokenFor opens token and holds it to at's account and session.
-func (s *AuthService) stepUpTokenFor(at auth.AccessToken, token string) bool {
+// linkAction and unlinkAction are the step-up actions of linking and
+// unlinking provider.
+func linkAction(provider string) string {
+	if provider == ProviderApple {
+		return mail.StepUpActionLinkApple
+	}
+	return mail.StepUpActionLinkGoogle
+}
+
+func unlinkAction(provider string) string {
+	if provider == ProviderApple {
+		return mail.StepUpActionUnlinkApple
+	}
+	return mail.StepUpActionUnlinkGoogle
+}
+
+// stepUpTokenFor opens token and holds it to at's account and session, and a
+// token a mailed code bought to one of actions.
+func (s *AuthService) stepUpTokenFor(at auth.AccessToken, token string, actions []string) bool {
 	if token == "" {
 		return false
 	}
@@ -439,6 +468,9 @@ func (s *AuthService) stepUpTokenFor(at auth.AccessToken, token string) bool {
 	}
 	var c stepUpClaims
 	if err := json.Unmarshal([]byte(raw), &c); err != nil {
+		return false
+	}
+	if c.Method == ProofEmailCode && !slices.Contains(actions, c.Action) {
 		return false
 	}
 	return c.UserID == at.UserID && c.SessionID == at.SessionID && c.Web == at.Web && s.now().Unix() < c.ExpiresAt
@@ -562,7 +594,7 @@ func (s *AuthService) proveOwner(ctx context.Context, userID string, p OwnerProo
 		return errProofRequired()
 	}
 	if p.StepUpToken != "" {
-		return s.requireStepUp(ctx, s.q, userID, p.StepUpToken)
+		return s.requireStepUp(ctx, s.q, userID, p.StepUpToken, mail.StepUpActionTransferOwnership)
 	}
 	u, err := s.q.GetUserByID(ctx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -604,7 +636,7 @@ func (s *AuthService) legacyPassword(ctx context.Context, userID, password strin
 // request that carries none is proof_required.
 func (s *AuthService) proveDeletion(ctx context.Context, u db.User, in DeleteAccountInput) error {
 	if in.StepUpToken != "" {
-		return s.requireStepUp(ctx, s.q, u.ID, in.StepUpToken)
+		return s.requireStepUp(ctx, s.q, u.ID, in.StepUpToken, mail.StepUpActionDeleteAccount)
 	}
 	if in.Password == "" && strings.TrimSpace(in.Code) == "" && strings.TrimSpace(in.EmailConfirmation) == "" {
 		return errProofRequiredFor(s.signInMethods(u, bearerChannel(ctx)))

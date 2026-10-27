@@ -215,7 +215,7 @@ func registerMe(r api, h Routes, credentialLimit, stepUpLimit func(http.Handler)
 func registerSignInMethods(r api, h Routes, credentialLimit, stepUpLimit func(http.Handler) http.Handler) {
 	r.With(stepUpLimit).Post("/me/step-up", h.StepUp, apiOp{
 		summary: "Confirm it is you",
-		description: "Đổi một bằng chứng lấy step_up_token 10 phút, gắn với phiên đang gọi (phiên web hay thiết bị; phiên bị thu hồi hay đăng xuất là token chết), dùng cho mọi lệnh nhạy cảm: đặt/đổi mật khẩu, liên kết, gỡ liên kết, bật MFA, xoá tài khoản, chuyển quyền sở hữu. " +
+		description: "Đổi một bằng chứng lấy step_up_token 10 phút, gắn với phiên đang gọi (phiên web hay thiết bị; phiên bị thu hồi hay đăng xuất là token chết), dùng cho mọi lệnh nhạy cảm: đặt/đổi mật khẩu, liên kết, gỡ liên kết, bật MFA, xoá tài khoản, chuyển quyền sở hữu; token mua bằng mã email chỉ dùng cho việc mã nêu (action), lệnh khác → 403 proof_required. " +
 			"Bằng chứng nhận (sign_in_methods.proofs): bật xác thực hai lớp → chỉ code là mã TOTP hay mã khôi phục; không thì password (nếu có), code + action (mã từ POST /me/step-up/email-code; không bao giờ nhận mã dev), và trên app provider_token (Apple/Google vừa lấy, của đúng danh tính đã liên kết). " +
 			"Sai → 403 password_incorrect / mfa_code_incorrect / step_up_code_incorrect / provider_token_invalid; bằng chứng tài khoản không nhận hay thiếu → 403 proof_required kèm proofs; mười lần sai (cộng chung với bước hai khi đăng nhập) → 429 second_factor_locked kèm retry_after. " +
 			"Token web cũ hơn lần đổi thông tin đăng nhập, hay phiên đã kết thúc → 401 invalid_token. Không bao giờ 401 cho bằng chứng sai.",

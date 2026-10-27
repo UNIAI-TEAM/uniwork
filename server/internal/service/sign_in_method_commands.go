@@ -106,7 +106,7 @@ func (s *SignInMethodsService) SetPassword(ctx context.Context, userID string, i
 	byPassword := false
 	switch {
 	case in.StepUpToken != "":
-		if err := s.auth.requireStepUp(ctx, s.q, userID, in.StepUpToken); err != nil {
+		if err := s.auth.requireStepUp(ctx, s.q, userID, in.StepUpToken, mail.StepUpActionSetPassword, mail.StepUpActionChangePassword); err != nil {
 			return SignInMethodsChange{}, err
 		}
 	case u.PasswordHash.Valid && in.Current != "" && !u.MfaEnabledAt.Valid:
@@ -273,7 +273,7 @@ func (s *SignInMethodsService) StartLink(ctx context.Context, userID, provider, 
 	if linked, _ := linkedSubject(u, provider); linked.Valid {
 		return "", errSignInMethodAlreadyLinked()
 	}
-	if err := s.auth.requireStepUp(ctx, s.q, userID, stepUpToken); err != nil {
+	if err := s.auth.requireStepUp(ctx, s.q, userID, stepUpToken, linkAction(provider)); err != nil {
 		return "", err
 	}
 	li := LinkIntent{
@@ -446,7 +446,7 @@ func (s *SignInMethodsService) LinkFromApp(ctx context.Context, userID, provider
 	if !u.EmailVerifiedAt.Valid {
 		return SignInMethodsChange{}, ErrEmailUnverified
 	}
-	if err := s.auth.requireStepUp(ctx, s.q, userID, in.StepUpToken); err != nil {
+	if err := s.auth.requireStepUp(ctx, s.q, userID, in.StepUpToken, linkAction(provider)); err != nil {
 		return SignInMethodsChange{}, err
 	}
 	id, err := s.appIdentity(ctx, provider, in)
@@ -533,7 +533,7 @@ func (s *SignInMethodsService) Unlink(ctx context.Context, userID, provider, ste
 	}
 	// The step-up's gates run under the lock, so a credential change that
 	// committed while this waited is what they judge.
-	if err := s.auth.requireStepUp(ctx, q, userID, stepUpToken); err != nil {
+	if err := s.auth.requireStepUp(ctx, q, userID, stepUpToken, unlinkAction(provider)); err != nil {
 		return SignInMethodsChange{}, err
 	}
 	if linked, _ := linkedSubject(locked, provider); !linked.Valid {

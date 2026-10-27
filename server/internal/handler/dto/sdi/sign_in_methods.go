@@ -24,7 +24,7 @@ type StepUpEmailCodeSDI struct {
 // StepUpTokenSDI is a command whose only input is the owner's proof:
 // POST /me/mfa/setup, POST /me/sign-in-methods/{provider}/unlink.
 type StepUpTokenSDI struct {
-	StepUpToken string `json:"step_up_token" description:"Token từ POST /me/step-up (10 phút, gắn với phiên đang gọi); thiếu hay hết hạn → 403 proof_required" example:"q1h8u3WbF0tA…"`
+	StepUpToken string `json:"step_up_token" description:"Token từ POST /me/step-up (10 phút, gắn với phiên đang gọi; mua bằng mã email thì chỉ cho việc mã nêu); thiếu, hết hạn hay của việc khác → 403 proof_required" example:"q1h8u3WbF0tA…"`
 }
 
 // SetPasswordSDI is PUT /api/v1/me/password.

@@ -469,7 +469,7 @@ func (s *SignInTicketService) provenSince(ctx context.Context, q *db.Queries, at
 		return nil
 	}
 	if stepUpToken != "" {
-		return s.auth.requireStepUp(ctx, q, at.UserID, stepUpToken)
+		return s.auth.requireStepUp(ctx, q, at.UserID, stepUpToken, linkAction(t.Identity.Provider))
 	}
 	return errProofRequired()
 }
