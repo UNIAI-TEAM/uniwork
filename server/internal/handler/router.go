@@ -725,6 +725,7 @@ func New(d Deps) http.Handler {
 		SetCaptionLanguage:             h.setCaptionLanguage,
 		ListTranscript:                 h.listTranscript,
 		AppendChatMessage:              h.appendChatMessage,
+		RateCall:                       h.rateCall,
 		ListChatMessages:               h.listChatMessages,
 		GetMeetingSummary:              h.getMeetingSummary,
 		CreateSummary:                  h.createSummary,

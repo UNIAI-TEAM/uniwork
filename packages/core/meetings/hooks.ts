@@ -339,6 +339,13 @@ export function useSetParticipantPublish(meetingId: string) {
   });
 }
 
+/** The leave screens' Tốt / Tạm / Kém; nothing to refetch afterwards. */
+export function useRateCall(meetingId: string) {
+  return useMutation({
+    mutationFn: (rating: meetings.CallRating) => meetings.rateCall(meetingId, rating),
+  });
+}
+
 export function useTransferHost(workspaceId: string, meetingId: string) {
   const qc = useQueryClient();
   return useMutation({

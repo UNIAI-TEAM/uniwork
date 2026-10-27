@@ -299,6 +299,13 @@ export async function approveJoinRequest(requestId: string): Promise<void> {
   await request(`/api/v1/meeting-join-requests/${enc(requestId)}/approve`, { method: "POST" });
 }
 
+export type CallRating = "good" | "ok" | "poor";
+
+/** How the call sounded and looked, as someone leaves it; the server only counts it. */
+export async function rateCall(meetingId: string, rating: CallRating): Promise<void> {
+  await request(`/api/v1/meetings/${enc(meetingId)}/call-rating`, { method: "POST", body: { rating } });
+}
+
 export async function rejectJoinRequest(requestId: string, reason?: string): Promise<void> {
   await request(`/api/v1/meeting-join-requests/${enc(requestId)}/reject`, {
     method: "POST",

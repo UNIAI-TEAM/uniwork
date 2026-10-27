@@ -22,6 +22,7 @@ import {
   listParticipants,
   listRecordings,
   meetingToken,
+  rateCall,
   resolveInviteLink,
   restoreMeeting,
   setParticipantPublish,
@@ -215,6 +216,15 @@ describe("meetings endpoints", () => {
     const drifted = await resolveInviteLink("l1", "sec");
     expect(drifted?.link_id).toBe("l1");
     expect(drifted?.started_at).toBeUndefined();
+  });
+
+  it("rateCall posts the rating and shrugs off a drifted answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ unexpected: true }));
+    await expect(rateCall("m1", "poor")).resolves.toBeUndefined();
+    const [url, init] = vi.mocked(fetch).mock.calls.at(-1)!;
+    expect(String(url)).toContain("/api/v1/meetings/m1/call-rating");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ rating: "poor" });
   });
 
   it("listParticipants reads presence and removal, and an older server reads as not in the room", async () => {
