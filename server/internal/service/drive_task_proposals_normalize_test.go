@@ -130,7 +130,7 @@ func TestNormalizeDriveProposalItems(t *testing.T) {
 			},
 		},
 		{
-			name: "bad dates and invalid priority dropped with basis cleared",
+			name: "missing, invalid, or past start_date filled with today and default basis; future start kept; due_date < start_date dropped and due_date == start_date kept; priority without basis or invalid dropped",
 			raw: []driveProposalRawItem{
 				{
 					Title:         "Việc có ngày và độ ưu tiên sai định dạng",
@@ -141,20 +141,77 @@ func TestNormalizeDriveProposalItems(t *testing.T) {
 					DueDate:       "2026-02-30",
 					DueBasis:      "Ngày không tồn tại trên lịch",
 				},
+				{
+					Title:         "Việc không có ngày bắt đầu và hạn trước hôm nay",
+					Priority:      "medium",
+					PriorityBasis: "   ",
+					StartDate:     "",
+					StartBasis:    "",
+					DueDate:       "2026-10-20",
+					DueBasis:      "Hạn cũ trong tài liệu",
+				},
+				{
+					Title:         "Việc có ngày bắt đầu trong quá khứ và hạn bằng hôm nay",
+					Priority:      "urgent",
+					PriorityBasis: `Tài liệu ghi "gấp"`,
+					StartDate:     "2026-09-07",
+					StartBasis:    "Cột ngày bắt đầu ghi 07/09",
+					DueDate:       "2026-10-27",
+					DueBasis:      "Chốt trong hôm nay 27/10",
+				},
+				{
+					Title:      "Việc bắt đầu trong tương lai nhưng hạn trước ngày bắt đầu",
+					StartDate:  "2026-11-10",
+					StartBasis: "Bắt đầu ngày 10/11",
+					DueDate:    "2026-11-05",
+					DueBasis:   "Hạn 05/11 trước ngày bắt đầu",
+				},
 			},
 			check: func(t *testing.T, got []DriveTaskProposalItem) {
-				if len(got) != 1 {
-					t.Fatalf("len(got) = %d, want 1", len(got))
+				if len(got) != 4 {
+					t.Fatalf("len(got) = %d, want 4", len(got))
 				}
-				it := got[0]
-				if it.Priority != "" || it.PriorityBasis != "" {
-					t.Errorf("invalid priority must clear priority and basis: %q / %q", it.Priority, it.PriorityBasis)
+				wantBasis := "Không thấy ngày bắt đầu trong tài liệu, đặt hôm nay"
+				// Item 0: invalid priority -> empty; invalid start_date -> today + default basis; invalid due_date -> nil.
+				it0 := got[0]
+				if it0.Priority != "" || it0.PriorityBasis != "" {
+					t.Errorf("invalid priority must clear priority and basis: %q / %q", it0.Priority, it0.PriorityBasis)
 				}
-				if it.StartDate != nil || it.StartBasis != "" {
-					t.Errorf("invalid start_date must clear date and basis: %v / %q", it.StartDate, it.StartBasis)
+				if it0.StartDate == nil || *it0.StartDate != "2026-10-27" || it0.StartBasis != wantBasis {
+					t.Errorf("invalid start_date must fill today and default basis: %v / %q", it0.StartDate, it0.StartBasis)
 				}
-				if it.DueDate != nil || it.DueBasis != "" {
-					t.Errorf("invalid due_date must clear date and basis: %v / %q", it.DueDate, it.DueBasis)
+				if it0.DueDate != nil || it0.DueBasis != "" {
+					t.Errorf("invalid due_date must clear date and basis: %v / %q", it0.DueDate, it0.DueBasis)
+				}
+				// Item 1: priority without basis -> dropped; missing start_date -> today + default basis; due_date < start_date (after fill) -> dropped + basis cleared.
+				it1 := got[1]
+				if it1.Priority != "" || it1.PriorityBasis != "" {
+					t.Errorf("priority without basis must be dropped: %q / %q", it1.Priority, it1.PriorityBasis)
+				}
+				if it1.StartDate == nil || *it1.StartDate != "2026-10-27" || it1.StartBasis != wantBasis {
+					t.Errorf("missing start_date must fill today and default basis: %v / %q", it1.StartDate, it1.StartBasis)
+				}
+				if it1.DueDate != nil || it1.DueBasis != "" {
+					t.Errorf("due_date before filled start_date must be dropped and basis cleared: %v / %q", it1.DueDate, it1.DueBasis)
+				}
+				// Item 2: priority with basis -> kept; past start_date -> today + default basis; due_date == start_date -> kept with basis.
+				it2 := got[2]
+				if it2.Priority != "urgent" || it2.PriorityBasis != `Tài liệu ghi "gấp"` {
+					t.Errorf("priority with basis = %q / %q, want urgent with basis", it2.Priority, it2.PriorityBasis)
+				}
+				if it2.StartDate == nil || *it2.StartDate != "2026-10-27" || it2.StartBasis != wantBasis {
+					t.Errorf("past start_date must fill today and default basis: %v / %q", it2.StartDate, it2.StartBasis)
+				}
+				if it2.DueDate == nil || *it2.DueDate != "2026-10-27" || it2.DueBasis != "Chốt trong hôm nay 27/10" {
+					t.Errorf("due_date == start_date must be kept: %v / %q", it2.DueDate, it2.DueBasis)
+				}
+				// Item 3: future start_date -> kept with model basis; due_date < future start_date -> dropped + basis cleared.
+				it3 := got[3]
+				if it3.StartDate == nil || *it3.StartDate != "2026-11-10" || it3.StartBasis != "Bắt đầu ngày 10/11" {
+					t.Errorf("future start_date = %v / %q, want 2026-11-10 with model basis", it3.StartDate, it3.StartBasis)
+				}
+				if it3.DueDate != nil || it3.DueBasis != "" {
+					t.Errorf("due_date < future start_date must be dropped: %v / %q", it3.DueDate, it3.DueBasis)
 				}
 			},
 		},
@@ -201,7 +258,7 @@ func TestNormalizeDriveProposalItems(t *testing.T) {
 					{Title: "Task A", BlockedByIndexes: []int{1}},
 					{Title: ""},
 					{Title: "Task B"},
-				}, members, labels)
+				}, members, labels, "2026-10-27")
 				if len(got2) != 2 || got2[0].Title != "Task A" || !reflect.DeepEqual(got2[0].BlockedByIndexes, []int{}) {
 					t.Errorf("subcase 2: Task A = %+v, want BlockedByIndexes=[] (target raw 1 was dropped)", got2)
 				}
@@ -212,7 +269,7 @@ func TestNormalizeDriveProposalItems(t *testing.T) {
 					{Title: "Task A"},
 					{Title: "Task B"},
 					{Title: "Task C", BlockedByIndexes: []int{1}},
-				}, members, labels)
+				}, members, labels, "2026-10-27")
 				if len(got3) != 3 || got3[2].Title != "Task C" || !reflect.DeepEqual(got3[2].BlockedByIndexes, []int{0}) {
 					t.Errorf("subcase 3: Task C = %+v, want BlockedByIndexes=[0] (Task A)", got3)
 				}
@@ -335,7 +392,7 @@ func TestNormalizeDriveProposalItems(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := normalizeDriveProposalItems(tc.raw, members, labels)
+			got := normalizeDriveProposalItems(tc.raw, members, labels, "2026-10-27")
 			tc.check(t, got)
 		})
 	}
@@ -358,7 +415,7 @@ func TestParseDriveProposalRawItems(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		got := normalizeDriveProposalItems(raw, nil, nil)
+		got := normalizeDriveProposalItems(raw, nil, nil, "2026-10-27")
 		if len(got) != 1 || got[0].Title != "Task without goal, checklist, excerpt, or dependencies" || got[0].Goal != "" || len(got[0].Checklist) != 0 || len(got[0].BlockedByIndexes) != 0 {
 			t.Fatalf("unexpected normalized output: %+v", got)
 		}
@@ -372,7 +429,7 @@ func TestParseDriveProposalRawItems(t *testing.T) {
 		if len(raw) != 1 || raw[0].Title != "" {
 			t.Fatalf("expected 1 empty placeholder raw item, got %+v", raw)
 		}
-		got := normalizeDriveProposalItems(raw, nil, nil)
+		got := normalizeDriveProposalItems(raw, nil, nil, "2026-10-27")
 		if len(got) != 0 {
 			t.Fatalf("expected 0 items, got %+v", got)
 		}
@@ -385,7 +442,7 @@ func TestParseDriveProposalRawItems(t *testing.T) {
 		if len(rawShifted) != 3 {
 			t.Fatalf("len(rawShifted) = %d, want 3 (null kept in raw array)", len(rawShifted))
 		}
-		gotShifted := normalizeDriveProposalItems(rawShifted, nil, nil)
+		gotShifted := normalizeDriveProposalItems(rawShifted, nil, nil, "2026-10-27")
 		if len(gotShifted) != 2 {
 			t.Fatalf("len(gotShifted) = %d, want 2: %+v", len(gotShifted), gotShifted)
 		}
@@ -402,7 +459,7 @@ func TestParseDriveProposalRawItems(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		got := normalizeDriveProposalItems(raw, nil, nil)
+		got := normalizeDriveProposalItems(raw, nil, nil, "2026-10-27")
 		if len(got) != 0 {
 			t.Fatalf("expected 0 items, got %+v", got)
 		}
@@ -424,7 +481,7 @@ func TestDriveTaskProposalItemJSONShape(t *testing.T) {
 			Checklist: []string{"Bước 1"},
 			Excerpt:   driveProposalRawExcerpt{Section: "Mục 2", Quote: "Trích đoạn"},
 		},
-	}, nil, nil)
+	}, nil, nil, "2026-10-27")
 	b, err := json.Marshal(items[0])
 	if err != nil {
 		t.Fatal(err)
@@ -433,12 +490,12 @@ func TestDriveTaskProposalItemJSONShape(t *testing.T) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		t.Fatal(err)
 	}
-	for _, requiredKey := range []string{"index", "title", "label_ids", "goal", "checklist", "excerpt", "blocked_by_indexes"} {
+	for _, requiredKey := range []string{"index", "title", "start_date", "start_basis", "label_ids", "goal", "checklist", "excerpt", "blocked_by_indexes"} {
 		if _, ok := m[requiredKey]; !ok {
 			t.Errorf("marshaled JSON missing required key %q: %s", requiredKey, string(b))
 		}
 	}
-	for _, omittedKey := range []string{"assignee_member_id", "assignee_basis", "priority", "priority_basis", "start_date", "start_basis", "due_date", "due_basis", "label_basis", "possible_duplicate"} {
+	for _, omittedKey := range []string{"assignee_member_id", "assignee_basis", "priority", "priority_basis", "due_date", "due_basis", "label_basis", "possible_duplicate"} {
 		if _, ok := m[omittedKey]; ok {
 			t.Errorf("marshaled JSON should omit empty key %q: %s", omittedKey, string(b))
 		}
