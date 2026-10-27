@@ -237,10 +237,13 @@ Một chỗ duy nhất để xem và lấy lại mọi thứ đã xóa trong wor
   - tài liệu đã xóa cũng hiện trong thùng rác chung;
   - khi workspace không dùng được Tài liệu thì thùng rác chung không có dòng tài liệu và không có lựa chọn "Tài liệu" trong bộ lọc.
 - **Đầu trang:** tiêu đề "Thùng rác", một câu nói mục đã xóa nằm ở đây 30 ngày rồi tự xóa vĩnh viễn.
-- **Thanh lọc:**
-  - ô tìm theo tên;
-  - lọc Loại: Tất cả, Công việc, Dự án, Tài liệu;
-  - lọc Người xóa: Mọi người, Tôi, hoặc một thành viên.
+- **Thanh lọc** (chủ sản phẩm chốt thêm 2026-10-27):
+  - ô tìm theo tên, có nút × ngay trong ô để xóa chữ đã gõ;
+  - lọc Loại và lọc Người xóa là hai chip, mỗi chip chọn được nhiều giá trị:
+    - chưa chọn gì thì chip chỉ ghi "Loại" hoặc "Người xóa", nghĩa là không lọc;
+    - bấm chip mở danh sách có ô đánh dấu từng mục: Loại gồm Công việc, Dự án, Tài liệu; Người xóa gồm Tôi rồi đến các thành viên, có ô tìm người;
+    - đã chọn thì chip đổi màu, ghi các giá trị đã chọn nối bằng dấu phẩy ("Công việc, Dự án") và có nút × ngay trên chip để bỏ lọc đó;
+    - các giá trị trong một chip cộng nhau (hoặc), hai chip và ô tìm thu hẹp nhau (và).
 - **Bảng**, một dòng cho mỗi lần xóa, mục mới xóa nằm trên cùng, cuộn hoặc bấm để tải thêm:
   - Tên: biểu tượng của loại, tên, mã task với công việc; dòng phụ nói loại và phần đi kèm ("kèm 1 việc con", "1 công việc sẽ gắn lại khi khôi phục", "kèm 12 mục");
   - Vị trí: dự án của công việc lúc bị xóa, tên workspace với dự án, đường dẫn thư mục với tài liệu;

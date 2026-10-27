@@ -159,3 +159,26 @@ Chữ (vi / en), đặt dưới `trash.*` và `settings.page.tabs.trash`, `nav.t
 - [ ] **Step 1:** Kiểm tĩnh: gofmt, `go vet`, staticcheck trên gói đã đụng, `go build -o /dev/null ./cmd/server`; `pnpm typecheck`, `pnpm lint`, `pnpm knip`; `node --test scripts/events-catalogue.test.mjs`. Bộ test Go đầy đủ và E2E để CI chạy (chủ sản phẩm dặn).
 - [ ] **Step 2:** Mở app local trong Chrome bằng tài khoản test local: xóa một task có việc con, một dự án có task, một tài liệu; mở menu avatar → Thùng rác; thấy ba dòng đúng thứ tự; lọc Loại, tìm tên, lọc người xóa; khôi phục từng loại; xóa vĩnh viễn từng loại (chỉ dữ liệu vừa tạo). Xác nhận trang Công việc và Dự án không còn nút "Thùng rác", trang Tài liệu vẫn có thùng rác của nó.
 - [ ] **Step 3:** Cập nhật dòng trạng thái; **Commit** `docs: shared trash plan status`.
+
+### Task 6: Lọc chọn nhiều và nút xóa ngay trong ô (chủ sản phẩm thêm 2026-10-27)
+
+Spec §8.1.1 › Thanh lọc (bản 2026-10-27).
+
+**Files:**
+- Modify (server): `server/internal/handler/dto/sdi/trash.go` (`Kind []string`, `TrashedBy []string`, tham số lặp `?kind=task&kind=project`, như `type` của danh sách tài liệu), `server/internal/handler/trash.go`, `server/internal/service/trash.go` (`TrashFilter.TrashedBy []string`), `server/internal/service/trash_list.go` (`ListTrashInput.Kinds []TrashKind`), `server/pkg/db/queries/task_trash.sql` và truy vấn tài liệu đã xóa (`archived_by` thành mảng), `make sqlc`; test service và handler tương ứng.
+- Modify (core): `packages/core/api/endpoints/trash.ts` (`listTrash(wsId, { kinds?: TrashKind[]; q?: string; trashedBy?: string[]; cursor?: string })`, lặp tham số, bỏ giá trị rỗng), `packages/core/trash/hooks.ts` (`TrashFilters { kinds?: TrashKind[]; q?: string; trashedBy?: string[] }`, khóa lọc dùng mảng đã sắp xếp), test.
+- Modify (views): `packages/views/trash/trash-filters.tsx` (ô tìm có nút ×; hai chip chọn nhiều), `packages/views/settings/components/trash-tab.tsx`, `trash-tab.test.tsx`, `packages/core/i18n/locales/vi.json`, `en.json`.
+
+**Quyết định:**
+- Không chọn gì = không lọc. Giá trị lạ hoặc rỗng → 400 `invalid_filter`; quá 100 người xóa → 400 `invalid_filter`.
+- Chip theo kiểu `PILL` / `PILL_ON` sẵn có (`packages/views/documents/documents-library-toolbar.tsx`); nút × là một nút riêng cạnh nút mở danh sách, nằm trong cùng viên chip, nhãn đọc được "Bỏ lọc Loại" / "Bỏ lọc Người xóa". Chip đã chọn cắt chữ dài bằng dấu …, tên đầy đủ trong `title`.
+- Loại: menu ô đánh dấu (`DropdownMenuCheckboxItem`, như `CheckFilter` của báo cáo truy cập), có biểu tượng từng loại như cột Tên; Tài liệu ẩn khi cờ `documents` tắt.
+- Người xóa: popover có ô tìm và danh sách ô đánh dấu: Tôi trước, rồi thành viên theo tên.
+- Ô tìm: nút × hiện khi có chữ, bấm thì xóa chữ và trả focus về ô; không dựa vào nút × riêng của trình duyệt.
+- Bỏ các mục "Tất cả" và "Mọi người".
+
+- [ ] **Step 1:** Test hỏng: service `TestTrashListKindAndFilters` thêm hai loại cùng lúc và hai người xóa; handler nhận `?kind=task&kind=document&trashed_by=a&trashed_by=b` và từ chối `kind=label`; `listTrash` lặp tham số; `trash-tab.test.tsx`: chọn Công việc rồi Dự án → gọi `kind=task&kind=project` không cursor, chip ghi "Công việc, Dự án"; bấm × trên chip → gọi lại không `kind`; gõ tìm rồi bấm × trong ô → ô rỗng, gọi lại không `q`; chọn Tôi và một thành viên → hai `trashed_by`.
+- [ ] **Step 2:** Chạy các test trên → FAIL.
+- [ ] **Step 3:** Cài.
+- [ ] **Step 4:** Test trên → PASS; vet, staticcheck, gofmt, `pnpm typecheck`, `pnpm knip`, eslint các file đã đụng sạch.
+- [ ] **Step 5: Commit** `feat(trash): filter by several kinds and deleters, clear in place`.
