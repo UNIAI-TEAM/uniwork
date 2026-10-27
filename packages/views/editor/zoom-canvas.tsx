@@ -14,6 +14,7 @@
 
 import { useCallback, type ReactNode, type RefObject } from "react";
 import { Frame, Maximize, Minus, Plus } from "lucide-react";
+import { Slider } from "@uniwork/ui/components/ui/slider";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
   Tooltip,
@@ -32,17 +33,21 @@ const ZOOM_IN_SHORTCUT = createShortcutChord("Plus");
 const ZOOM_OUT_SHORTCUT = createShortcutChord("Minus");
 const FIT_SHORTCUT = createShortcutChord("0");
 
-function ToolbarButton({
+/** One icon button of the zoom toolbar; a surface adds its own (fullscreen) beside ZoomControls. */
+export function ZoomToolbarButton({
   onClick,
   disabled,
   label,
   shortcut,
+  compact,
   children,
 }: {
   onClick: () => void;
   disabled?: boolean;
   label: string;
   shortcut?: ShortcutChord;
+  /** 24px target for a status bar (the genoffice frames' bar height); coarse pointers still get 44px. */
+  compact?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -54,7 +59,7 @@ function ToolbarButton({
             onClick={onClick}
             disabled={disabled}
             aria-label={label}
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            className={cn("flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40", compact ? "size-6 pointer-coarse:size-11" : "size-7")}
           />
         }
       >
@@ -72,55 +77,94 @@ export function ZoomControls({
   canvas,
   disabled,
   className,
+  compact,
+  slider,
+  children,
 }: {
   canvas: ZoomCanvasApi;
   /** Set while the surface shows something other than the canvas (e.g. source view). */
   disabled?: boolean;
   className?: string;
+  /** The status-bar size: 24px buttons and 14px glyphs instead of 28px and 16px. */
+  compact?: boolean;
+  /** Opt-in PDF-frame style range slider (`[−] [slider] [+] [NN%]`); default false keeps `− NN% +`. */
+  slider?: boolean;
+  /** Extra toolbar buttons (a ZoomToolbarButton) placed after the zoom group, inside its tooltip provider. */
+  children?: ReactNode;
 }) {
   const { t } = useTranslation();
+  const icon = compact ? "size-3.5" : "size-4";
+  const minPercent = Math.round(canvas.minScale * 100);
+  const maxPercent = Math.round(canvas.maxScale * 100);
+  const percentReadout = (
+    <span
+      className="w-12 select-none text-center text-caption tabular-nums text-muted-foreground"
+      aria-live="polite"
+    >
+      {canvas.zoomPercent}%
+    </span>
+  );
 
   return (
     <TooltipProvider delay={300}>
       <div className={cn("flex items-center gap-0.5", className)}>
-        <ToolbarButton
+        <ZoomToolbarButton
           onClick={canvas.zoomOut}
+          compact={compact}
           disabled={!canvas.canZoomOut || disabled}
           label={t("editor.canvas.zoom_out")}
           shortcut={ZOOM_OUT_SHORTCUT}
         >
-          <Minus className="size-4" />
-        </ToolbarButton>
-        {/* Fixed width so the toolbar doesn't jitter as digits change. */}
-        <span
-          className="w-12 select-none text-center text-caption tabular-nums text-muted-foreground"
-          aria-live="polite"
-        >
-          {canvas.zoomPercent}%
-        </span>
-        <ToolbarButton
+          <Minus className={icon} />
+        </ZoomToolbarButton>
+        {slider ? (
+          <Slider
+            className="mx-1 shrink-0 data-horizontal:w-24 [&_[data-slot=slider-control]]:pointer-coarse:min-h-11 [&_[data-slot=slider-thumb]]:pointer-coarse:after:-inset-4 [&_[data-slot=slider-track]]:bg-input"
+            min={minPercent}
+            max={maxPercent}
+            step={5}
+            value={[canvas.zoomPercent]}
+            disabled={disabled}
+            thumbAlignment="center"
+            aria-label={t("editor.canvas.zoom_level")}
+            onValueChange={(values) => {
+              const next = Array.isArray(values) ? values[0] : values;
+              if (typeof next === "number" && Number.isFinite(next)) {
+                canvas.zoomTo(next / 100);
+              }
+            }}
+          />
+        ) : (
+          percentReadout
+        )}
+        <ZoomToolbarButton
           onClick={canvas.zoomIn}
+          compact={compact}
           disabled={!canvas.canZoomIn || disabled}
           label={t("editor.canvas.zoom_in")}
           shortcut={ZOOM_IN_SHORTCUT}
         >
-          <Plus className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton
+          <Plus className={icon} />
+        </ZoomToolbarButton>
+        {slider ? percentReadout : null}
+        <ZoomToolbarButton
           onClick={canvas.fit}
+          compact={compact}
           disabled={disabled}
           label={t("editor.canvas.zoom_fit")}
           shortcut={FIT_SHORTCUT}
         >
-          <Frame className="size-4" />
-        </ToolbarButton>
-        <ToolbarButton
+          <Frame className={icon} />
+        </ZoomToolbarButton>
+        <ZoomToolbarButton
           onClick={canvas.zoomToActualSize}
+          compact={compact}
           disabled={disabled}
           label={t("editor.canvas.zoom_actual")}
         >
-          <Maximize className="size-4" />
-        </ToolbarButton>
+          <Maximize className={icon} />
+        </ZoomToolbarButton>
+        {children}
       </div>
     </TooltipProvider>
   );

@@ -206,7 +206,7 @@ func TestDocumentFolders(t *testing.T) {
 		wantCode(t, err, "folder_not_supported")
 		_, err = env.svc.UploadDocumentAsset(ctx, member, f.ID, DocumentUploadInput{Filename: "x.png", Body: bytes.NewReader(nil)})
 		wantCode(t, err, "folder_not_supported")
-		_, err = env.svc.OpenDocumentFile(ctx, member, f.ID, 0, DocumentByteRange{})
+		_, err = env.svc.OpenDocumentFile(ctx, member, f.ID, 0, DocumentByteRange{}, DocumentAccessDownload)
 		wantCode(t, err, "folder_not_supported")
 		_, err = env.svc.CopyDocument(ctx, member, f.ID, CopyDocumentInput{Consent: documentCopyConsent})
 		wantCode(t, err, "folder_not_supported")

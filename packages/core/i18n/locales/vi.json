@@ -11265,21 +11265,79 @@
         "version": "Phiên bản {{version}}",
         "requirements": "Yêu cầu: {{value}}",
         "unsigned": "Bản này chưa ký số nên hệ điều hành có thể cảnh báo khi mở lần đầu.",
-        "unavailable": "Chưa có bản cài đặt nào được phát hành."
+        "unavailable": "Chưa có bản cài đặt nào được phát hành.",
+        "channelsLabel": "Kênh phát hành",
+        "channel": {
+          "stable": "Ổn định",
+          "beta": "Beta",
+          "dev": "Dev"
+        },
+        "channelHint": {
+          "stable": "Dành cho dùng hằng ngày.",
+          "beta": "Bản thử trước khi lên kênh Ổn định.",
+          "dev": "Bản mới nhất, có thể chưa ổn định."
+        },
+        "soon": "Sắp có",
+        "cta": "Tải cho {{label}}",
+        "released": "Phiên bản {{version}} · {{date}}",
+        "chip": {
+          "win": "Windows",
+          "mac_arm": "macOS chip Apple",
+          "mac_intel": "macOS chip Intel",
+          "deb": "Linux .deb",
+          "appimage": "Linux .AppImage"
+        },
+        "picker": {
+          "recommended": "Đề xuất"
+        },
+        "notes": {
+          "title": "Có gì mới ở {{version}}",
+          "empty": "Phiên bản này chưa có ghi chú.",
+          "more": "Xem thêm",
+          "less": "Thu gọn"
+        },
+        "history": {
+          "title": "Các phiên bản trước",
+          "none": "Kênh này chưa có phiên bản trước.",
+          "open": "Xem chi tiết phiên bản {{version}}",
+          "files": "Tải về",
+          "build": {
+            "win": ".exe",
+            "mac_arm": "Chip Apple",
+            "mac_intel": "Chip Intel",
+            "deb": ".deb",
+            "appimage": ".AppImage"
+          }
+        },
+        "states": {
+          "loading": "Đang tải danh sách phiên bản…",
+          "soonTitle": "Kênh {{channel}} sắp có",
+          "soonBody": "Chưa có phiên bản nào được phát hành ở kênh {{channel}}. Khi có, nó sẽ hiện ở đây.",
+          "soonAction": "Xem kênh {{channel}}",
+          "emptyTitle": "Chưa có phiên bản nào được phát hành",
+          "emptyBody": "Trong lúc chờ, bạn vẫn mở và sửa file Office ngay trên web, trong mục Tài liệu.",
+          "error": "Không tải được danh sách phiên bản.",
+          "errorFallback": "Bên dưới là các bản cài đặt hiện hành, có thể chưa phải bản mới nhất."
+        },
+        "update": {
+          "notice": "Có phiên bản mới {{version}} ở kênh {{channel}}.",
+          "action": "Tải lại",
+          "dismiss": "Bỏ qua thông báo"
+        }
       },
       "apt": {
         "title": "Cài qua apt",
-        "intro": "Trên Ubuntu và Debian (amd64), cài theo cách nào cũng được; các phiên bản sau đó đến qua sudo apt update && sudo apt upgrade.",
-        "script": "Cách 1: script cài đặt",
-        "scriptNote": "Script thêm kho apt của UniWork Office rồi cài ứng dụng.",
-        "quick": "Cách 2: tải gói .deb",
-        "quickNote": "Gói tự thêm kho, nên các phiên bản sau đến qua apt.",
+        "intro": "Cài trên Ubuntu hoặc Debian bằng một trong hai cách.",
+        "script": "Dùng script cài đặt",
+        "or": "hoặc",
+        "quick": "Tải và cài gói .deb",
+        "copy": "Sao chép",
+        "copyStep": "Sao chép lệnh: {{step}}",
+        "copied": "Đã sao chép",
+        "copyFailed": "Không sao chép được. Hãy chọn đoạn lệnh và tự sao chép.",
         "manual": "Cài thủ công",
         "setup": "1. Thêm kho",
         "install": "2. Cài đặt",
-        "copy": "Sao chép lệnh: {{step}}",
-        "copied": "Đã sao chép",
-        "copyFailed": "Không sao chép được. Hãy chọn đoạn lệnh và tự sao chép.",
         "deb": "Nếu bạn đã cài tệp .deb, tệp này đã có sẵn và bạn có thể bỏ qua bước 1.",
         "fingerprint": "Dấu vân tay của khóa"
       },
@@ -12348,6 +12406,17 @@
       "upload_failed": "Không tải được tệp lên",
       "commit_failed": "Không lưu được phiên bản mới",
       "missing_file": "Tài liệu này chưa có tệp."
+    },
+    "media": {
+      "loading": "Đang mở tệp…",
+      "retry": "Thử lại",
+      "error_title": "Không mở được tệp để xem.",
+      "error_description": "Chưa tải được nội dung tệp. Thử lại, hoặc tải tệp về từ mục Hành động khác.",
+      "unsupported_title": "Trình duyệt chưa mở được ảnh này.",
+      "unsupported_description": "Trình duyệt không hiển thị được định dạng này, hoặc tệp bị lỗi (ví dụ HEIC hoặc TIFF). Tải về để mở bằng ứng dụng trên máy tính.",
+      "fullscreen_enter": "Toàn màn hình",
+      "fullscreen_exit": "Thoát toàn màn hình",
+      "dimensions": "{{width}} × {{height}} px"
     },
     "editor": {
       "aria_label": "Nội dung tài liệu",
@@ -13501,6 +13570,7 @@
     "canvas": {
       "zoom_in": "Phóng to",
       "zoom_out": "Thu nhỏ",
+      "zoom_level": "Mức thu phóng",
       "zoom_fit": "Vừa khung",
       "zoom_actual": "Kích thước thật"
     },
@@ -13716,7 +13786,7 @@
           "appimage": ".AppImage",
           "win_zip": "ZIP portable",
           "win_zip_hint": "Không cần cài",
-          "mac_intel_hint": "Mac đời cũ",
+          "mac_intel_hint": "Mac dùng chip Intel",
           "appimage_hint": "Chạy trên mọi bản phân phối x64"
         },
         "req": {

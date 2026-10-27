@@ -321,7 +321,7 @@ func (e *docStorageEnv) sessionStatus(t *testing.T, id string) string {
 
 func (e *docStorageEnv) read(t *testing.T, actor Actor, docID string, version int32, rng DocumentByteRange) []byte {
 	t.Helper()
-	dl, err := e.svc.OpenDocumentFile(context.Background(), actor, docID, version, rng)
+	dl, err := e.svc.OpenDocumentFile(context.Background(), actor, docID, version, rng, DocumentAccessDownload)
 	if err != nil {
 		t.Fatalf("open %s v%d: %v", docID, version, err)
 	}

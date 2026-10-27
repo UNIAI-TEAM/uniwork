@@ -1,0 +1,237 @@
+/*
+ * The Download section of /apps/office (UNI-2098 r6). Tokens only; selectors carry
+ * .office-site .office-dl so they outrank marketing-pages.css's page-wide heading,
+ * paragraph and list rules. It extends office.css / apps.css (.app-dl-*), it adds no new look.
+ */
+.office-site .office-dl { display: flex; flex-direction: column; }
+.office-site .office-dl-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 32px; margin-bottom: 32px; }
+.office-site .office-dl-head .office-heading { margin-bottom: 0; gap: 8px; }
+.office-site .office-dl-head .office-heading p { margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
+.office-site .office-dl-panel { display: flex; flex-direction: column; gap: 16px; }
+.office-site .office-dl-muted { margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
+
+/* Channel switch: the overview's tab look, on the heading line. */
+.office-site .office-dl-channels { width: auto; flex-wrap: nowrap; gap: 6px; padding: 4px; border-radius: 14px; background: var(--muted); }
+.office-site .office-dl-channel { min-height: 44px; padding-inline: 18px; border-radius: 10px; font-weight: 600; }
+.office-site .office-dl-channel small { padding: 1px 8px; border-radius: 999px; background: var(--background); font-size: var(--text-caption); font-weight: 500; color: var(--muted-foreground); }
+.office-site .office-dl-channel[data-active] small { background: color-mix(in srgb, var(--brand) 14%, var(--background)); color: var(--brand); }
+.office-site .office-dl-hint-skeleton { width: 240px; max-width: 70%; height: 22px; }
+.office-site .office-dl-channels-skeleton { display: flex; gap: 6px; }
+.office-site .office-dl-channel-skeleton { width: 104px; height: 52px; border-radius: 12px; }
+
+/* OS cards: all three systems when the visitor's is unknown, fixed order; the picker below is the other case. */
+.office-site .office-dl-others { display: flex; flex-direction: column; gap: 14px; }
+/* "Nền tảng khác": one container; the row is its header and the opened picker its body (no gap, one border, one radius). */
+.office-site .office-dl-others.is-secondary { gap: 0; border: 1px solid var(--border); border-radius: 24px; background: var(--surface-raised); }
+.office-site .office-dl-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.office-site .office-dl-others.is-secondary .office-dl-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.office-site .office-dl-group, .office-site .office-dl-group-body { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.office-site .office-dl-group { padding: 24px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface-raised); }
+.office-site .office-dl-group-head { display: flex; align-items: center; gap: 14px; }
+.office-site .office-dl-os { display: grid; place-items: center; width: 48px; height: 48px; flex: none; border-radius: 14px; background: var(--muted); color: var(--foreground); }
+.office-site .office-dl-os svg { width: 22px; height: 22px; }
+.office-site .office-dl-group-name { flex: 1; min-width: 0; }
+.office-site .office-dl-group-name h3 { margin: 0; font-size: var(--text-title); font-weight: 800; letter-spacing: -.02em; }
+.office-site .office-dl-sub { margin: 2px 0 0; font-size: var(--text-caption); line-height: 1.45; color: var(--muted-foreground); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.office-site .office-dl-builds { display: flex; flex-direction: column; gap: 10px; }
+.office-site .office-dl-build { width: 100%; min-width: 0; justify-content: flex-start; padding-inline: 18px; font-size: var(--text-body); }
+.office-site .office-dl-build.has-caption { min-height: 60px; padding-block: 8px; }
+.office-site .office-dl-build-text { display: flex; flex-direction: column; align-items: flex-start; text-align: left; line-height: 1.25; }
+.office-site .office-dl-build-text small { font-size: var(--text-caption); font-weight: 400; opacity: .85; }
+.office-site .office-dl-size { white-space: nowrap; }
+/* Brand-filled hero: fill, label, icon and hint line are all the semantic pair (--brand on --brand-foreground), the hint at full strength. */
+.office-site .office-dl-build.is-hero { border-color: var(--brand); background-color: var(--brand); color: var(--brand-foreground); }
+.office-site .office-dl-build.is-hero:hover { background-color: color-mix(in srgb, var(--brand) 90%, var(--background)); color: var(--brand-foreground); }
+.office-site .office-dl-build.is-hero small { opacity: 1; color: var(--brand-foreground); }
+.office-site .office-dl-phone { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; padding: 18px 22px; border: 1px solid var(--input); border-radius: 18px; background: var(--surface-raised); }
+.office-site .office-dl-phone p { margin: 0; font-size: var(--text-body); line-height: 1.5; }
+
+/* Spotlight: the visitor's own system as the hero; copy left, the real editor bleeding off the right edge. */
+.office-site .office-dl-spot { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr); column-gap: 40px; overflow: hidden; border: 1px solid var(--border); border-radius: 32px;
+  background: radial-gradient(90% 120% at 100% 100%, color-mix(in srgb, var(--landing-cyan) 85%, transparent), transparent 62%), radial-gradient(70% 90% at 0% 0%, color-mix(in srgb, var(--brand) 10%, transparent), transparent 60%), var(--surface-raised);
+  box-shadow: 0 30px 60px -44px color-mix(in srgb, var(--foreground) 45%, transparent); }
+.office-site .office-dl-spot-copy { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 18px; min-width: 0; padding: 52px 0 52px 52px; }
+.office-site .office-dl-spot-eyebrow { display: inline-flex; align-items: center; gap: 10px; margin: 0; padding: 5px 14px 5px 5px; border-radius: 999px; background: var(--brand-subtle); color: var(--brand-subtle-foreground); font-size: var(--text-label); font-weight: 600; }
+.office-site .office-dl-spot-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; background: var(--brand); color: var(--brand-foreground); }
+.office-site .office-dl-spot-mark svg { width: 14px; height: 14px; }
+.marketing-site .office-dl-spot h3 { margin: 0; max-width: 16ch; font-size: var(--text-display); line-height: 1.1; font-weight: 800; letter-spacing: -.035em; text-wrap: balance; }
+.office-site .office-dl-spot-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: -6px 0 6px; font-size: var(--text-body-lg); color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.office-site .office-dl-spot-channel { padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--background); color: var(--foreground); font-size: var(--text-caption); font-weight: 600; }
+.office-site .office-dl-spot-builds { display: grid; grid-template-columns: minmax(0, 380px); gap: 12px; width: 100%; }
+.office-site .office-dl-spot-builds .office-dl-build { width: 100%; min-height: 60px; padding-inline: 22px; border-radius: 14px; }
+.office-site .office-dl-spot-builds .office-dl-build:not(.is-hero) { background: var(--background); }
+.office-site .office-dl-build.is-hero { padding-inline: 28px; font-size: var(--text-title-sm); box-shadow: 0 14px 30px -14px color-mix(in srgb, var(--brand) 75%, transparent); }
+.office-site .office-dl-build.is-hero svg { width: 20px; height: 20px; }
+.office-site .office-dl-spot .app-dl-help { margin: -6px 0 0; }
+.office-site .office-dl-spot-media { align-self: end; min-width: 0; padding-top: 48px; }
+.office-site .office-dl-window { width: 118%; overflow: hidden; border: 1px solid var(--border); border-bottom: 0; border-radius: 16px 0 0 0; background: var(--surface-raised); box-shadow: 0 30px 70px -30px color-mix(in srgb, var(--foreground) 40%, transparent); animation: office-dl-rise .6s cubic-bezier(.2,.7,.2,1) both; }
+.office-site .office-dl-window-bar { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--muted); }
+.office-site .office-dl-window-bar i { width: 10px; height: 10px; border-radius: 999px; background: var(--input); }
+.office-site .office-dl-window img { display: block; width: 100%; height: 400px; object-fit: cover; object-position: left top; }
+.office-site .office-dl-window .office-dl-shot-dark, .dark .office-site .office-dl-window .office-dl-shot-light { display: none; }
+.dark .office-site .office-dl-window .office-dl-shot-dark { display: block; }
+.dark .office-site .office-dl-spot { background: radial-gradient(90% 120% at 100% 100%, color-mix(in srgb, var(--landing-cyan) 90%, transparent), transparent 62%), radial-gradient(70% 90% at 0% 0%, color-mix(in srgb, var(--brand) 18%, transparent), transparent 60%), var(--surface-raised); }
+.office-site .office-dl-spot.has-extra .office-dl-spot-media { padding-bottom: 28px; }
+.office-site .office-dl-spot.has-extra .office-dl-window { border-bottom: 1px solid var(--border); border-radius: 16px 0 0 16px; }
+.office-site .office-dl-spot > .apt-install { grid-column: 1 / -1; margin: 0 28px 28px; }
+@keyframes office-dl-rise { from { opacity: 0; transform: translateY(18px); } }
+
+/* Other systems: one closed row; opened, the OS picker (tiles, chips, one info box, one outline button). */
+.office-site .office-dl-others-title { margin: 0; font-size: inherit; }
+.office-site .office-dl-others-trigger { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 64px; padding: 0 24px; border: 0; border-radius: 23px; background: transparent; color: var(--foreground); font-size: var(--text-title-sm); font-weight: 700; text-align: left; cursor: pointer; }
+.office-site .office-dl-others-trigger:hover { background: var(--surface-hover); }
+.office-site .office-dl-others-trigger[data-panel-open] { border-radius: 23px 23px 0 0; }
+.office-site .office-dl-others-marks { display: inline-flex; align-items: center; gap: 12px; margin-right: auto; color: var(--muted-foreground); }
+.office-site .office-dl-others-marks svg { width: 18px; height: 18px; }
+.office-site .office-dl-others-trigger > svg { width: 20px; height: 20px; flex: none; color: var(--muted-foreground); transition: transform .2s; }
+.office-site .office-dl-others-trigger[data-panel-open] > svg { transform: rotate(180deg); }
+.office-site .office-dl-picker { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 28px 44px; padding: 28px 32px 32px; border-top: 1px solid var(--border); }
+.office-site .office-dl-picker-pick { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.office-site .office-dl-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-top: 10px; }
+.office-site .office-dl-tile { position: relative; min-height: 112px; min-width: 0; cursor: pointer; }
+.office-site .office-dl-tile-body { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; padding: 16px 8px; pointer-events: none; font-size: var(--text-body-lg); font-weight: 600; }
+.office-site .office-dl-tile-body svg { width: 28px; height: 28px; }
+.office-site .office-dl-tile-tag { position: absolute; z-index: 1; top: -10px; left: 50%; translate: -50% 0; padding: 1px 12px; border-radius: 999px; background: var(--brand); color: var(--brand-foreground); font-size: var(--text-caption); font-weight: 600; white-space: nowrap; pointer-events: none; }
+.office-site .office-dl-picker-label { margin: 12px 0 0; font-size: var(--text-label); font-weight: 600; }
+.office-site .office-dl-chip-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.office-site .office-dl-chip-pick { position: relative; min-width: 168px; min-height: 60px; cursor: pointer; }
+.office-site .office-dl-chip-body { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 1px; height: 100%; padding: 10px 18px; pointer-events: none; }
+.office-site .office-dl-chip-body strong { font-size: var(--text-body); font-weight: 600; }
+.office-site .office-dl-chip-body small { font-size: var(--text-caption); color: var(--muted-foreground); }
+.office-site .office-dl-picker .app-dl-help { margin: 0; }
+.office-site .office-dl-picker-act { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding-top: 10px; }
+.office-site .office-dl-picker-info { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--muted) 55%, var(--surface-raised)); }
+.office-site .office-dl-picker-info p { margin: 0; font-size: var(--text-body); line-height: 1.5; }
+.office-site .office-dl-picker-info .office-dl-picker-version { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.office-site .office-dl-picker-button { width: 100%; min-height: 60px; padding-inline: 22px; border-radius: 14px; border-width: 2px; border-color: var(--foreground); font-size: var(--text-title-sm); font-weight: 600; }
+.office-site .office-dl-picker-button svg { width: 20px; height: 20px; }
+/* apt: inside the Linux spotlight, the picker when Linux is picked, or under the three cards. */
+.office-site .office-dl-picker > .apt-install { grid-column: 1 / -1; padding: 20px 24px; }
+.office-site .office-dl-others > .apt-install { padding: 20px 24px; }
+
+/* What's new: short, folded when long. */
+.office-site .office-dl-whatsnew { margin-top: 24px; padding: 28px 32px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface-raised); }
+.office-site .office-dl-whatsnew h3, .office-site .office-dl-history > h3 { margin: 0 0 14px; font-size: var(--text-title-sm); font-weight: 700; letter-spacing: -.015em; }
+.office-site .office-dl-notes-body[data-folded] { position: relative; max-height: 9.5em; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent); }
+.office-site .office-dl-more { margin: 8px 0 -6px -12px; font-weight: 600; color: var(--brand); }
+.office-site .office-dl-notes-md { display: flex; flex-direction: column; gap: 10px; font-size: var(--text-body); line-height: 1.6; }
+.office-site .office-dl-notes-md h4 { margin: 8px 0 0; font-size: var(--text-body); font-weight: 700; }
+.office-site .office-dl-notes-md h4:first-child { margin-top: 0; }
+.office-site .office-dl-notes-md p { margin: 0; font-size: inherit; color: var(--muted-foreground); }
+.office-site .office-dl-notes-md ul, .office-site .office-dl-notes-md ol { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-left: 20px; }
+.office-site .office-dl-notes-md ul { list-style: disc; }
+.office-site .office-dl-notes-md ol { list-style: decimal; }
+.office-site .office-dl-notes-md li { color: var(--foreground); }
+.office-site .office-dl-notes-md li::marker { color: var(--faint-foreground); }
+.office-site .office-dl-notes-md code { padding: 1px 6px; border-radius: 6px; background: var(--background); font-family: var(--font-mono); font-size: .88em; }
+.office-site .office-dl-notes-md a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+
+/* Earlier versions: one line each until opened. */
+.office-site .office-dl-history { margin-top: 16px; }
+.office-site .office-dl-history-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; overflow: hidden; border: 1px solid var(--input); border-radius: 20px; background: var(--surface-raised); }
+.office-site .office-dl-history-item + .office-dl-history-item { border-top: 1px solid var(--border); }
+.office-site .office-dl-history-trigger { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 20px; align-items: center; gap: 16px; width: 100%; min-height: 60px; padding: 0 24px; border: 0; background: none; color: var(--foreground); text-align: left; cursor: pointer; font-size: var(--text-body); }
+.office-site .office-dl-history-trigger:hover { background: var(--surface-hover); }
+.office-site .office-dl-history-trigger strong { font-size: var(--text-body-lg); font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.office-site .office-dl-history-trigger time { color: var(--muted-foreground); }
+.office-site .office-dl-history-trigger > svg { width: 18px; height: 18px; color: var(--muted-foreground); transition: transform .2s; }
+.office-site .office-dl-history-trigger[data-panel-open] > svg { transform: rotate(180deg); }
+.office-site .office-dl-history-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px 32px; padding: 4px 24px 24px; }
+.office-site .office-dl-history-files h4 { margin: 0 0 10px; font-size: var(--text-body); font-weight: 700; }
+.office-site .office-dl-past { display: flex; flex-direction: column; margin: 0; }
+.office-site .office-dl-past-row { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--border); }
+.office-site .office-dl-past-row:first-child { border-top: 0; }
+.office-site .office-dl-past dt { display: flex; align-items: center; gap: 10px; font-size: var(--text-body); font-weight: 600; }
+.office-site .office-dl-past dt svg { width: 18px; height: 18px; flex: none; }
+.office-site .office-dl-past dd { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.office-site .office-dl-past-link { min-height: 44px; }
+
+/* States. */
+.office-site .office-dl-quiet-alert { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border: 1px solid var(--input); border-radius: 16px; background: var(--surface-raised); }
+.office-site .office-dl-quiet-alert > svg { width: 20px; height: 20px; flex: none; color: var(--destructive-soft-foreground); }
+.office-site .office-dl-quiet-alert > div { flex: 1; }
+.office-site .office-dl-quiet-alert p { margin: 0; font-size: var(--text-body); line-height: 1.55; color: var(--foreground); }
+.office-site .office-dl-quiet-alert .office-dl-muted { color: var(--muted-foreground); }
+.office-site .office-dl-state { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 56px 24px; border: 1px solid var(--input); border-radius: 24px; background: var(--surface-raised); text-align: center; }
+.office-site .office-dl-state h3 { margin: 0; font-size: var(--text-title-lg); font-weight: 700; }
+.office-site .office-dl-state p { margin: 0; max-width: 52ch; font-size: var(--text-body-lg); line-height: 1.6; color: var(--muted-foreground); }
+.office-site .office-dl-state-icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; background: var(--muted); color: var(--muted-foreground); }
+.office-site .office-dl-state-icon svg { width: 26px; height: 26px; }
+
+/* Loading: same boxes as the loaded section. */
+.office-site .office-dl-row-skeleton { height: 64px; border-radius: 20px; }
+.office-site .office-dl-spot.is-skeleton { background: var(--surface-raised); box-shadow: none; }
+.office-site .office-dl-pill-skeleton { width: 140px; height: 38px; border-radius: 999px; }
+.office-site .office-dl-title-skeleton { width: 80%; height: 44px; }
+.office-site .office-dl-hero-skeleton { width: 260px; height: 60px; border-radius: 14px; }
+.office-site .office-dl-media-skeleton { width: 118%; height: 440px; border-radius: 16px 0 0 0; }
+.office-site .office-dl-line-skeleton.is-short { width: 50%; height: 14px; margin-top: 8px; }
+.office-site .office-dl-skeleton { display: flex; flex-direction: column; gap: 16px; }
+.office-site .office-dl-loading { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-body); color: var(--muted-foreground); }
+
+/* New-version notice: fixed, non-modal, never shifts the page. */
+.office-site .office-dl-notice { position: fixed; z-index: 60; inset-inline: 0; bottom: 24px; display: flex; align-items: center; gap: 14px; width: fit-content; max-width: calc(100vw - 32px); margin-inline: auto; padding: 10px 10px 10px 20px; border: 1px solid var(--input); border-radius: 16px; background: var(--surface-raised); box-shadow: 0 18px 40px -16px color-mix(in srgb, var(--foreground) 45%, transparent); }
+.office-site .office-dl-notice p { margin: 0; font-size: var(--text-body); font-weight: 500; color: var(--foreground); }
+.office-site .office-dl-notice-dot { width: 10px; height: 10px; flex: none; border-radius: 999px; background: var(--brand); }
+.office-site .office-dl-notice button { flex: none; }
+
+@media (max-width: 1099px) {
+  .office-site .office-dl-spot { grid-template-columns: minmax(0, 1fr); }
+  .office-site .office-dl-picker { grid-template-columns: minmax(0, 1fr); padding: 24px; }
+  .office-site .office-dl-spot-copy { padding: 32px 28px 0; }
+  .office-site .office-dl-spot-media { padding: 28px 0 0 28px; }
+  .office-site .office-dl-others.is-secondary .office-dl-groups { grid-template-columns: minmax(0, 1fr); }
+  .office-site .office-dl-history-panel { grid-template-columns: minmax(0, 1fr); }
+  /* Stacked: the visitor's own group comes first (the order is fixed, side by side, above this width). */
+  .office-site .office-dl-groups { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 767px) {
+  .office-site .office-dl-head { align-items: stretch; margin-bottom: 24px; }
+  .office-site .office-dl-channels { width: 100%; }
+  .office-site .office-dl-channel { flex: 1; flex-direction: column; gap: 0; min-width: 0; min-height: 52px; padding-inline: 6px; }
+  .office-site .office-dl-channel small { padding: 0; background: none; font-size: var(--text-caption); }
+  .office-site .office-dl-channel[data-active] small { background: none; }
+  .office-site .office-dl-channels-skeleton { width: 100%; }
+  .office-site .office-dl-channel-skeleton { flex: 1; width: auto; }
+  .office-site .office-dl-whatsnew { padding: 18px; border-radius: 18px; }
+  .office-site .office-dl-group { padding: 20px; border-radius: 20px; }
+  .office-site .office-dl-past-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .office-site .office-dl-history-trigger { grid-template-columns: minmax(0, 1fr) 20px; grid-template-rows: auto auto; row-gap: 2px; min-height: 68px; padding: 10px 16px; }
+  .office-site .office-dl-history-trigger strong { grid-column: 1; }
+  .office-site .office-dl-history-trigger time { grid-column: 1; grid-row: 2; }
+  .office-site .office-dl-history-trigger > svg { grid-column: 2; grid-row: 1 / span 2; }
+  .office-site .office-dl-history-panel { padding: 4px 16px 20px; }
+  .office-site .office-dl-quiet-alert { flex-wrap: wrap; }
+  .office-site .office-dl-quiet-alert > button { width: 100%; }
+  .office-site .office-dl-state { padding: 40px 18px; }
+  .office-site .office-dl-notice { inset-inline: 12px; bottom: 12px; width: auto; max-width: none; flex-wrap: wrap; padding: 14px; }
+  .office-site .office-dl-notice p { flex: 1 1 calc(100% - 32px); }
+  .office-site .office-dl-notice > button:nth-of-type(1) { flex: 1; }
+}
+/* Phone: the editor capture is illegible at this width and only crops badly, so the spotlight is copy + the one button; the apt block gets the room. */
+@media (max-width: 639px) {
+  .office-site .office-dl-spot { border-radius: 24px; }
+  .office-site .office-dl-spot-copy { padding: 28px 20px 28px; }
+  .office-site .office-dl-spot-media { display: none; }
+  .office-site .office-dl-spot > .apt-install { margin: 0 12px 12px; }
+  .office-site .office-dl-others.is-secondary { border-radius: 20px; }
+  .office-site .office-dl-others-trigger { padding: 0 16px; gap: 12px; border-radius: 19px; }
+  .office-site .office-dl-others-trigger[data-panel-open] { border-radius: 19px 19px 0 0; }
+  .office-site .office-dl-picker { padding: 20px 16px 24px; gap: 20px; }
+  .office-site .office-dl-tiles { gap: 8px; }
+  .office-site .office-dl-tile { min-height: 104px; }
+  .office-site .office-dl-picker > .apt-install { padding: 14px; }
+  .office-site .office-dl-others > .apt-install { padding: 14px; }
+}
+@media (max-width: 479px) {
+  /* A long label ("Download for macOS Apple Silicon") wraps inside its button instead of being clipped. */
+  .office-site .office-dl-build { height: auto; white-space: normal; }
+  .office-site .office-dl-build-text { min-width: 0; overflow-wrap: anywhere; }
+  .office-site .office-dl-build.is-hero { padding-inline: 20px; font-size: var(--text-body-lg); }
+  .office-site .office-dl-chip-pick { flex: 1 1 100%; min-width: 0; }
+  .office-site .office-dl-spot-builds { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .office-site .office-dl-history-trigger > svg, .office-site .office-dl-others-trigger > svg { transition: none; }
+  .office-site .office-dl-window { animation: none; }
+}

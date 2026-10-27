@@ -64,3 +64,5 @@ f07ff3170f0930a54471b54d0dd5ca54be11bfad:server/internal/service/drive_connectio
 # fac735ad tried to allowlist the Drive fixtures above but spelled a fake
 # Google token in the comment; gitleaks matched that prose line.
 fac735ad2867bce5eead2275f774f74f16203ad2:.gitleaksignore:generic-api-key:59
+# UNI-2178 stop WIP 1367c172a: one more fake test value in the same file.
+1367c172ab089055f9cdcd04e69a268cec675c92:server/internal/service/drive_connections_test.go:generic-api-key:1492

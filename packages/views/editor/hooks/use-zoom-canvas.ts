@@ -68,6 +68,10 @@ export interface ZoomCanvasApi {
   transform: ZoomTransform;
   /** Whole-percent zoom for the toolbar readout. */
   zoomPercent: number;
+  /** Lower zoom bound for the current content/viewport pair (dynamic fit floor). */
+  minScale: number;
+  /** Upper zoom bound. */
+  maxScale: number;
   canZoomIn: boolean;
   canZoomOut: boolean;
   isPanning: boolean;
@@ -79,6 +83,8 @@ export interface ZoomCanvasApi {
   isAnimated: boolean;
   zoomIn: () => void;
   zoomOut: () => void;
+  /** Zooms to an explicit scale (1 = 100%) about the viewport center, clamped to min..max. */
+  zoomTo: (scale: number) => void;
   zoomToActualSize: () => void;
   fit: () => void;
   handlePointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -205,10 +211,14 @@ export function useZoomCanvas({
     setIsAnimated(true);
     setTransform(zoomByAtCenter(t, factor, c, v));
   }, []);
-
   const zoomIn = useCallback(() => zoomBy(ZOOM_STEP), [zoomBy]);
   const zoomOut = useCallback(() => zoomBy(1 / ZOOM_STEP), [zoomBy]);
-
+  const zoomTo = useCallback((scale: number) => {
+    const { transform: t, contentSize: c, viewport: v, ready: r } = stateRef.current;
+    if (!r) return;
+    setIsAnimated(false);
+    setTransform(zoomToAt(t, scale, { x: v.width / 2, y: v.height / 2 }, c, v));
+  }, []);
   // Wheel must be a native non-passive listener: React routes `onWheel` through
   // a passive root listener, where preventDefault is ignored and the page would
   // scroll behind the dialog instead of the diagram zooming.
@@ -405,18 +415,23 @@ export function useZoomCanvas({
     [localPoint],
   );
 
+  const minScale = computeMinScale(contentSize, viewport);
+
   return {
     setViewportNode,
     transform,
     zoomPercent: Math.round(transform.scale * 100),
+    minScale,
+    maxScale: MAX_SCALE,
     canZoomIn: transform.scale < MAX_SCALE - 0.001,
     // Against the dynamic floor, not MIN_SCALE: for content that only fits
     // below 25% the button must stay live all the way down to that fit scale.
-    canZoomOut: transform.scale > computeMinScale(contentSize, viewport) + 0.001,
+    canZoomOut: transform.scale > minScale + 0.001,
     isPanning,
     isAnimated,
     zoomIn,
     zoomOut,
+    zoomTo,
     zoomToActualSize,
     fit,
     handlePointerDown,
