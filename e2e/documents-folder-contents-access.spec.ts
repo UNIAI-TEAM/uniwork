@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Request, type Response } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Request, type Response, type TestInfo } from "@playwright/test";
 import { createFolder, createPage, folderCard } from "./documents-folders-fixtures";
 import {
   buildShareScene,
@@ -342,4 +342,235 @@ test("202 background batch: progress bar and toast on completion", async () => {
     true,
     "FolderContentsAccessSyncMax=500 is a Go const with no runtime or env override (SetFolderContentsAccessSyncMax is test-only); the 202 path is covered by the Go handler and service tests",
   );
+});
+
+declare global {
+  interface Window {
+    /** Test-only log of every toast rendered, filled by recordToasts. */
+    __fcaToasts?: string[];
+  }
+}
+
+type BatchStatus = "running" | "completed" | "failed";
+
+const BATCH_TOTAL = 1800;
+/** Same wire shapes as packages/core/documents/folder-contents-access.fixtures.ts (batchRunningWire / batchCompleted / batchFailed). */
+const BATCH_BODY: Record<BatchStatus, Record<string, unknown>> = {
+  running: { status: "running", total: BATCH_TOTAL, processed: 600, changed: 590, unchanged: 0, skipped_not_manageable: 10, skipped_locked: 0 },
+  completed: {
+    status: "completed",
+    total: BATCH_TOTAL,
+    processed: BATCH_TOTAL,
+    changed: 1750,
+    unchanged: 20,
+    skipped_not_manageable: 25,
+    skipped_locked: 5,
+    finished_at: "2026-10-27T10:15:00Z",
+  },
+  failed: {
+    status: "failed",
+    total: BATCH_TOTAL,
+    processed: 800,
+    changed: 780,
+    unchanged: 0,
+    skipped_not_manageable: 20,
+    skipped_locked: 0,
+    finished_at: "2026-10-27T10:05:00Z",
+  },
+};
+
+/** documents.folderAccess.toast_done (count = changed) and .batch_failed in packages/core/i18n/locales/vi.json. */
+const APPLIED_TOAST = /Đã đổi quyền 1[.,\s]?750 tài liệu/;
+const FAILED_TOAST = "Việc áp dụng quyền dừng giữa chừng. Chạy lại để hoàn tất.";
+
+/** nav.workspace_group / nav.tasks / nav.documents: the workspace shell sidebar, which stays mounted across modules. */
+const MODULE_NAV = (page: Page): Locator => page.getByRole("navigation", { name: "Điều hướng workspace" });
+
+/** Sonner's toaster is a region labelled "Notifications …"; each toast is one [data-sonner-toast] under it. */
+const toastItem = (page: Page, text: string | RegExp): Locator =>
+  page.getByRole("region", { name: /Notifications/ }).locator("[data-sonner-toast]").filter({ hasText: text });
+
+/**
+ * Records the text of every toast the page ever rendered (toasts auto-dismiss, so a count of the toasts on screen
+ * cannot prove "once"). The log lives on the document: a reload starts it empty.
+ */
+async function recordToasts(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const log: string[] = [];
+    window.__fcaToasts = log;
+    const seen = new WeakSet<Element>();
+    const take = (node: Node): void => {
+      if (!(node instanceof Element)) return;
+      const found = node.matches("[data-sonner-toast]") ? [node] : Array.from(node.querySelectorAll("[data-sonner-toast]"));
+      for (const el of found) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+        log.push(el.textContent ?? "");
+      }
+    };
+    new MutationObserver((records) => {
+      for (const r of records) r.addedNodes.forEach(take);
+    }).observe(document, { childList: true, subtree: true });
+  });
+}
+
+/** How many toasts with this text this document has rendered so far. */
+async function toastsRendered(page: Page, text: string | RegExp): Promise<number> {
+  const log = (await page.evaluate(() => window.__fcaToasts)) ?? [];
+  return log.filter((t) => (typeof text === "string" ? t.includes(text) : text.test(t))).length;
+}
+
+interface BatchMock {
+  /** The next real apply PUT answers 202 with this batch id; the batch reads `running` until `settle`. */
+  start(batchId: string): void;
+  settle(batchId: string, status: "completed" | "failed"): void;
+  /** Batch GETs the page has made for this id. */
+  polls(batchId: string): number;
+}
+
+/**
+ * Mocks only the two background-batch answers of the folder contents-access endpoints: the apply PUT (dry_run false)
+ * answers 202, GET .../contents-access/{batchID} answers the status the test set. The dry-run PUT falls through to the
+ * real server, so the dialog's preview is the real one. The API is another origin than the web app, so every answer
+ * carries the CORS headers the browser demands (and the preflight is answered here too).
+ */
+async function mockBackgroundBatch(page: Page, folderId: string): Promise<BatchMock> {
+  const status = new Map<string, BatchStatus>();
+  const polls = new Map<string, number>();
+  let next = "";
+  const cors = (req: Request): Record<string, string> => ({
+    "access-control-allow-origin": req.headers()["origin"] ?? "*",
+    "access-control-allow-credentials": "true",
+    "access-control-allow-methods": "GET,PUT,POST,PATCH,DELETE,OPTIONS",
+    "access-control-allow-headers": req.headers()["access-control-request-headers"] ?? "*",
+    vary: "origin",
+  });
+  const base = `/api/v1/documents/${folderId}/contents-access`;
+
+  await page.route(
+    (url) => url.pathname === base,
+    async (route) => {
+      const req = route.request();
+      if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors(req) });
+      if (req.method() !== "PUT" || sentBody(req).dry_run) return route.fallback();
+      return route.fulfill({
+        status: 202,
+        headers: { ...cors(req), "content-type": "application/json" },
+        body: JSON.stringify({ batch_id: next, mode: "background", total: BATCH_TOTAL }),
+      });
+    },
+  );
+  await page.route(
+    (url) => url.pathname.startsWith(`${base}/`),
+    async (route) => {
+      const req = route.request();
+      if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors(req) });
+      const batchId = decodeURIComponent(new URL(req.url()).pathname.slice(base.length + 1));
+      const current = status.get(batchId);
+      if (req.method() !== "GET" || current === undefined) return route.fallback();
+      polls.set(batchId, (polls.get(batchId) ?? 0) + 1);
+      return route.fulfill({
+        status: 200,
+        headers: { ...cors(req), "content-type": "application/json" },
+        body: JSON.stringify({ batch_id: batchId, ...BATCH_BODY[current] }),
+      });
+    },
+  );
+
+  return {
+    start: (batchId) => {
+      next = batchId;
+      status.set(batchId, "running");
+      polls.set(batchId, 0);
+    },
+    settle: (batchId, to) => status.set(batchId, to),
+    polls: (batchId) => polls.get(batchId) ?? 0,
+  };
+}
+
+async function shot(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  const path = testInfo.outputPath(`${name}.png`);
+  await page.screenshot({ path });
+  await testInfo.attach(name, { path, contentType: "image/png" });
+}
+
+/**
+ * In the open dialog: pick a member, preview (real server), apply (mocked 202), close the dialog, then leave Documents
+ * through the sidebar. Returns once the page is on Tasks and the watcher has polled the running batch from there.
+ */
+async function applyThenLeaveDocuments(
+  page: Page,
+  testInfo: TestInfo,
+  dialog: Locator,
+  folderId: string,
+  mock: BatchMock,
+  batchId: string,
+  shotPrefix: string,
+): Promise<void> {
+  mock.start(batchId);
+  await pickCandidate(dialog, s.other.name, who(s.other.name));
+  await expect(L.principalRow(dialog, s.other.id)).toBeVisible();
+
+  const dry = await clickAndWaitPut(page, L.confirm(dialog), folderId, true);
+  expect(dry.status(), await dry.text()).toBe(200);
+  const applied = await clickAndWaitPut(page, L.apply(dialog), folderId, false);
+  expect(applied.status(), await applied.text()).toBe(202);
+  expect(await applied.json()).toMatchObject({ batch_id: batchId, mode: "background" });
+  await expect(dialog).toContainText("Tiến độ áp dụng quyền");
+
+  // The dialog closes without cancelling the batch; the page that started it is then left for another module.
+  await dialog.getByRole("button", { name: "Xong", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await MODULE_NAV(page).getByRole("link", { name: "Công việc", exact: true }).click();
+  await expect(page).toHaveURL(/\/tasks(\/|\?|$)/, { timeout: 30_000 });
+  await expect(L.tree(page)).toHaveCount(0);
+
+  // The poll goes on from the other module: the 2 s watcher asks the batch again after the page is gone.
+  const before = mock.polls(batchId);
+  await expect.poll(() => mock.polls(batchId), { timeout: 15_000 }).toBeGreaterThan(before);
+  await expect(toastItem(page, APPLIED_TOAST)).toHaveCount(0);
+  await shot(page, testInfo, `${shotPrefix}-1-left-documents-running`);
+}
+
+test("background batch: the toast lands after leaving Documents, once (M2)", async ({ page }, testInfo) => {
+  const tree = await seedTree(page);
+  await recordToasts(page);
+  await signInMember(page);
+  const mock = await mockBackgroundBatch(page, tree.folder.id);
+
+  // Completed: the "applied" toast shows on Tasks, then Documents does not repeat it.
+  const completedId = `${tag}-completed`;
+  const dialog = await openFolderAccess(page, tree.folder.title);
+  await applyThenLeaveDocuments(page, testInfo, dialog, tree.folder.id, mock, completedId, "completed");
+
+  mock.settle(completedId, "completed");
+  await expect(toastItem(page, APPLIED_TOAST)).toBeVisible({ timeout: 30_000 });
+  await expect(toastItem(page, APPLIED_TOAST)).toContainText("Bỏ qua 25 tài liệu bạn không quản lý.");
+  await expect(page).toHaveURL(/\/tasks(\/|\?|$)/);
+  await shot(page, testInfo, "completed-2-toast-on-tasks");
+
+  await MODULE_NAV(page).getByRole("link", { name: "Tài liệu", exact: true }).click();
+  await expect(page).toHaveURL(/\/documents(\/|\?|$)/, { timeout: 30_000 });
+  await expect(L.tree(page)).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(3_000);
+  expect(await toastsRendered(page, APPLIED_TOAST)).toBe(1);
+  expect(await toastsRendered(page, FAILED_TOAST)).toBe(0);
+  await shot(page, testInfo, "completed-3-back-on-documents");
+
+  // Failed: the dialog was closed, so the failure reads as a toast, also off Documents and also once.
+  const failedId = `${tag}-failed`;
+  const again = await openFolderAccess(page, tree.folder.title);
+  await applyThenLeaveDocuments(page, testInfo, again, tree.folder.id, mock, failedId, "failed");
+
+  mock.settle(failedId, "failed");
+  await expect(toastItem(page, FAILED_TOAST)).toBeVisible({ timeout: 30_000 });
+  await expect(page).toHaveURL(/\/tasks(\/|\?|$)/);
+  await shot(page, testInfo, "failed-2-toast-on-tasks");
+
+  await MODULE_NAV(page).getByRole("link", { name: "Tài liệu", exact: true }).click();
+  await expect(page).toHaveURL(/\/documents(\/|\?|$)/, { timeout: 30_000 });
+  await page.waitForTimeout(3_000);
+  expect(await toastsRendered(page, FAILED_TOAST)).toBe(1);
+  expect(await toastsRendered(page, APPLIED_TOAST)).toBe(0);
+  await shot(page, testInfo, "failed-3-back-on-documents");
 });
