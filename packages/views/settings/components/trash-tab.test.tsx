@@ -144,11 +144,16 @@ const posts = () =>
   requestMock.mock.calls.filter(([, init]) => (init as Init)?.method === "POST").map(([path]) => String(path));
 const rowOf = (title: string) => screen.getByText(title).closest("tr") as HTMLElement;
 
-async function pick(comboboxName: string, optionName: string) {
-  fireEvent.click(screen.getByRole("combobox", { name: comboboxName }));
-  const option = await screen.findByRole("option", { name: optionName });
-  fireEvent.pointerDown(option);
-  fireEvent.click(option);
+/** Ticks one kind in the Loại list; the list stays open for the next pick. */
+async function pickKind(name: string) {
+  if (!screen.queryByRole("menu")) fireEvent.click(screen.getByRole("button", { name: /^Loại/ }));
+  fireEvent.click(await screen.findByRole("menuitemcheckbox", { name }));
+}
+
+/** Ticks one person in the Người xóa list. */
+async function pickPerson(name: string) {
+  if (!screen.queryByRole("dialog")) fireEvent.click(screen.getByRole("button", { name: /^Người xóa/ }));
+  fireEvent.click(await screen.findByRole("checkbox", { name }));
 }
 
 async function openRowMenu(title: string) {
@@ -197,7 +202,7 @@ describe("TrashTab", () => {
     expect(within(doc).getByText("Team")).toBeInTheDocument();
   });
 
-  it("asks the server again from page one when the kind changes, even after Tải thêm", async () => {
+  it("picks several kinds, asks again from page one even after Tải thêm, and names them on the chip", async () => {
     listFor = (url) =>
       url.includes("cursor=c2")
         ? { items: [taskRow({ id: "t9", title: "Việc cũ hơn" })], next_cursor: "" }
@@ -206,16 +211,68 @@ describe("TrashTab", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Tải thêm" }));
     expect(await screen.findByText("Việc cũ hơn")).toBeInTheDocument();
     expect(trashGets()).toContain("/api/v1/workspaces/ws1/trash?cursor=c2");
-    await pick("Loại", "Dự án");
-    await waitFor(() => expect(trashGets()).toContain("/api/v1/workspaces/ws1/trash?kind=project"));
+    expect(screen.queryByRole("button", { name: "Bỏ lọc Loại" })).not.toBeInTheDocument();
+    await pickKind("Công việc");
+    await pickKind("Dự án");
+    await waitFor(() => expect(trashGets()).toContain("/api/v1/workspaces/ws1/trash?kind=task&kind=project"));
     expect(trashGets().filter((url) => url.includes("kind=")).every((url) => !url.includes("cursor"))).toBe(true);
+    const chip = screen.getByRole("button", { name: "Loại: Công việc, Dự án" });
+    expect(chip).toHaveTextContent("Công việc, Dự án");
+    expect(chip).toHaveAttribute("title", "Công việc, Dự án");
   });
 
-  it("filters by who deleted, with Tôi as the current person", async () => {
+  it("clears a kind filter from the × on its chip without opening the list", async () => {
     renderTab();
     await screen.findByText("Thử thùng rác cha");
-    await pick("Người xóa", "Tôi");
-    await waitFor(() => expect(trashGets()).toContain("/api/v1/workspaces/ws1/trash?trashed_by=u1"));
+    await pickKind("Dự án");
+    await waitFor(() => expect(trashGets()).toContain("/api/v1/workspaces/ws1/trash?kind=project"));
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    const before = trashGets().length;
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ lọc Loại" }));
+    await waitFor(() => expect(trashGets().length).toBeGreaterThan(before));
+    expect(trashGets().slice(before).every((url) => url === "/api/v1/workspaces/ws1/trash")).toBe(true);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Loại" })).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Bỏ lọc Loại" })).not.toBeInTheDocument();
+  });
+
+  it("filters by several deleters, Tôi first, then the others by name, searchable", async () => {
+    renderTab();
+    await screen.findByText("Thử thùng rác cha");
+    fireEvent.click(screen.getByRole("button", { name: "Người xóa" }));
+    const list = await screen.findByRole("dialog");
+    const boxes = within(list).getAllByRole("checkbox");
+    expect(boxes).toHaveLength(3);
+    ["Tôi", "Bình", "Lan"].forEach((name, i) => expect(boxes[i]).toHaveAccessibleName(name));
+    fireEvent.change(within(list).getByRole("searchbox", { name: "Tìm người" }), { target: { value: "binh" } });
+    await waitFor(() => expect(within(list).queryByRole("checkbox", { name: "Lan" })).not.toBeInTheDocument());
+    await pickPerson("Bình");
+    fireEvent.change(within(list).getByRole("searchbox", { name: "Tìm người" }), { target: { value: "" } });
+    await pickPerson("Tôi");
+    await waitFor(() => expect(trashGets()).toContain("/api/v1/workspaces/ws1/trash?trashed_by=u1&trashed_by=u3"));
+    expect(screen.getByRole("button", { name: "Người xóa: Tôi, Bình" })).toBeInTheDocument();
+
+    const before = trashGets().length;
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ lọc Người xóa" }));
+    await waitFor(() => expect(trashGets().length).toBeGreaterThan(before));
+    expect(trashGets().slice(before).every((url) => url === "/api/v1/workspaces/ws1/trash")).toBe(true);
+  });
+
+  it("clears the search from its own × and puts the cursor back in the box", async () => {
+    renderTab();
+    await screen.findByText("Thử thùng rác cha");
+    const box = screen.getByRole("searchbox", { name: "Tìm theo tên…" });
+    expect(screen.queryByRole("button", { name: "Xóa tìm kiếm" })).not.toBeInTheDocument();
+    fireEvent.change(box, { target: { value: "zzz" } });
+    await waitFor(() => expect(trashGets()).toContain("/api/v1/workspaces/ws1/trash?q=zzz"));
+    const before = trashGets().length;
+    fireEvent.click(screen.getByRole("button", { name: "Xóa tìm kiếm" }));
+    expect(box).toHaveValue("");
+    expect(box).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Xóa tìm kiếm" })).not.toBeInTheDocument();
+    await waitFor(() => expect(trashGets().length).toBeGreaterThan(before));
+    expect(trashGets().slice(before).every((url) => url === "/api/v1/workspaces/ws1/trash")).toBe(true);
   });
 
   it("says nothing matches a filter and clears it on Bỏ lọc", async () => {
@@ -410,14 +467,14 @@ describe("TrashTab", () => {
   it("offers Tài liệu in the kind filter only while documents are on", async () => {
     const { unmount } = renderTab();
     await screen.findByText("Thử thùng rác cha");
-    fireEvent.click(screen.getByRole("combobox", { name: "Loại" }));
-    expect(await screen.findByRole("option", { name: "Tài liệu" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Loại" }));
+    expect(await screen.findByRole("menuitemcheckbox", { name: "Tài liệu" })).toBeInTheDocument();
     unmount();
 
     renderTab({ documents: false });
     await screen.findByText("Thử thùng rác cha");
-    fireEvent.click(screen.getByRole("combobox", { name: "Loại" }));
-    expect(await screen.findByRole("option", { name: "Dự án" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Tài liệu" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Loại" }));
+    expect(await screen.findByRole("menuitemcheckbox", { name: "Dự án" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Tài liệu" })).not.toBeInTheDocument();
   });
 });

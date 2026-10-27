@@ -36,21 +36,24 @@ describe("listTrash", () => {
 
   it("omits empty filters", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: [], next_cursor: "" }));
-    await listTrash("ws 1", { q: "", trashedBy: "" });
+    await listTrash("ws 1", { kinds: [], q: "", trashedBy: [""] });
     expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/workspaces/ws%201/trash");
   });
 
-  it("sends every filter and the cursor", async () => {
+  it("repeats the kinds and deleters and sends the cursor", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: [item], next_cursor: "c2" }));
-    const page = await listTrash("ws1", { kind: "document", q: "hợp", trashedBy: "u1", cursor: "c1" });
-    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
-    expect(url.pathname).toBe("/api/v1/workspaces/ws1/trash");
-    expect(Object.fromEntries(url.searchParams)).toEqual({
-      kind: "document",
+    const page = await listTrash("ws1", {
+      kinds: ["task", "document"],
       q: "hợp",
-      trashed_by: "u1",
+      trashedBy: ["u1", "u2"],
       cursor: "c1",
     });
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(url.pathname).toBe("/api/v1/workspaces/ws1/trash");
+    expect(url.searchParams.getAll("kind")).toEqual(["task", "document"]);
+    expect(url.searchParams.getAll("trashed_by")).toEqual(["u1", "u2"]);
+    expect(url.searchParams.get("q")).toBe("hợp");
+    expect(url.searchParams.get("cursor")).toBe("c1");
     expect(page.items[0]).toMatchObject({ id: "d1", parent_id: "f1", location_path: ["Tài liệu", "Pháp lý"], can_manage: true });
     expect(page.next_cursor).toBe("c2");
   });

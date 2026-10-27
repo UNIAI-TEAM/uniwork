@@ -9,7 +9,7 @@ import { useDeleteTask } from "../tasks/hooks";
 import { useDeleteProject } from "../tasks/hooks-projects";
 import { useBatchDeleteTasks } from "../tasks/hooks-suite";
 import { usePurgeProject, usePurgeTask, useRestoreProject, useRestoreTask } from "../tasks/hooks-trash";
-import { useTrashList } from "./hooks";
+import { type TrashFilters, useTrashList } from "./hooks";
 import { trashKeys } from "./keys";
 
 const WS = "ws1";
@@ -62,7 +62,7 @@ describe("shared trash hooks", () => {
       .mockResolvedValueOnce(json({ items: [], next_cursor: "c2" }))
       .mockResolvedValueOnce(json({ items: [], next_cursor: "" }));
     const { wrapper } = setup();
-    const { result } = renderHook(() => useTrashList(WS, { kind: "task", q: "a" }), { wrapper });
+    const { result } = renderHook(() => useTrashList(WS, { kinds: ["task"], q: "a" }), { wrapper });
     await waitFor(() => expect(result.current.data?.pages).toHaveLength(1));
     expect(result.current.hasNextPage).toBe(true);
     await act(async () => {
@@ -73,6 +73,19 @@ describe("shared trash hooks", () => {
     expect(second).toContain("kind=task");
     expect(second).toContain("q=a");
     await waitFor(() => expect(result.current.hasNextPage).toBe(false));
+  });
+
+  it("useTrashList treats the same picks in another order as the same list", async () => {
+    vi.mocked(fetch).mockResolvedValue(json({ items: [], next_cursor: "" }));
+    const { wrapper } = setup();
+    const { result, rerender } = renderHook(({ filters }) => useTrashList(WS, filters), {
+      wrapper,
+      initialProps: { filters: { kinds: ["project", "task"], trashedBy: ["u2", "u1"] } as TrashFilters },
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    rerender({ filters: { kinds: ["task", "project"], trashedBy: ["u1", "u2"] } });
+    expect(result.current.isPlaceholderData).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("useTrashList keeps the previous rows on screen while a new filter loads", async () => {

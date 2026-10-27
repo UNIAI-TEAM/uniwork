@@ -36,15 +36,11 @@ export function TrashTab() {
   const typed = useDebouncedValue(filters.q.trim(), SEARCH_DEBOUNCE_MS);
   // Clearing the box applies at once; only typing waits.
   const q = filters.q.trim() ? typed : "";
-  const list = useTrashList(workspace.id, {
-    kind: filters.kind || undefined,
-    q: q || undefined,
-    trashedBy: filters.trashedBy || undefined,
-  });
+  const list = useTrashList(workspace.id, { kinds: filters.kinds, q: q || undefined, trashedBy: filters.trashedBy });
 
   const rows = list.data?.pages.flatMap((page) => page.items) ?? [];
   const actions = useTrashRowActions(workspace.id, rows);
-  const filtering = Boolean(filters.kind || q || filters.trashedBy);
+  const filtering = Boolean(filters.kinds.length || q || filters.trashedBy.length);
 
   let body;
   if (list.isLoading) {

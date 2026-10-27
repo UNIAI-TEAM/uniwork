@@ -32,18 +32,21 @@ const TrashPageSchema = z
 export type TrashPage = z.output<typeof TrashPageSchema>;
 
 export interface TrashListOptions {
-  kind?: TrashKind;
+  kinds?: TrashKind[];
   q?: string;
-  trashedBy?: string;
+  trashedBy?: string[];
   cursor?: string;
 }
 
-/** One list over tasks, projects and documents in the trash; empty filters are left off the URL. */
+/**
+ * One list over tasks, projects and documents in the trash. kind and trashed_by repeat (OR within each);
+ * empty filters and empty values are left off the URL, since the server refuses an empty value.
+ */
 export async function listTrash(workspaceId: string, opts: TrashListOptions = {}): Promise<TrashPage> {
   const params = new URLSearchParams();
-  if (opts.kind) params.set("kind", opts.kind);
+  for (const kind of opts.kinds ?? []) if (kind) params.append("kind", kind);
   if (opts.q) params.set("q", opts.q);
-  if (opts.trashedBy) params.set("trashed_by", opts.trashedBy);
+  for (const id of opts.trashedBy ?? []) if (id) params.append("trashed_by", id);
   if (opts.cursor) params.set("cursor", opts.cursor);
   const qs = params.toString();
   const raw = await request(

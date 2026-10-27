@@ -1,21 +1,27 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { useRef } from "react";
+import { Search, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TrashKind } from "@uniwork/core/trash";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { Select } from "@uniwork/ui/components/ui/select";
+import { KindFilter, PeopleFilter, TRASH_KIND_ORDER } from "./trash-filter-chips";
 
-/** Empty strings mean "no filter": the endpoint leaves them off the URL. */
+/** Empty means "no filter": the endpoint leaves it off the URL. */
 export interface TrashFilterValues {
   q: string;
-  kind: TrashKind | "";
-  trashedBy: string;
+  kinds: TrashKind[];
+  trashedBy: string[];
 }
 
-export const EMPTY_TRASH_FILTERS: TrashFilterValues = { q: "", kind: "", trashedBy: "" };
+export const EMPTY_TRASH_FILTERS: TrashFilterValues = { q: "", kinds: [], trashedBy: [] };
 
-/** One row above the trash: name search, kind and deleter. Each applies as it changes. */
+/**
+ * One row above the trash: name search, then the Loại and Người xóa chips.
+ * Values within a chip are OR-ed; the chips and the search narrow each other.
+ * Each applies as it changes.
+ */
 export function TrashFilters({
   filters,
   onChange,
@@ -25,51 +31,50 @@ export function TrashFilters({
 }: {
   filters: TrashFilterValues;
   onChange: (next: TrashFilterValues) => void;
-  members: readonly { user_id: string; display_name: string }[];
+  members: readonly { user_id: string; display_name: string; email?: string; avatar_url?: unknown }[];
   meId: string;
   /** Off, the kind filter has no Tài liệu: the server lists no documents then. */
   documentsEnabled: boolean;
 }) {
   const { t } = useTranslation();
-  const kinds = [
-    { value: "", label: t("trash.kind_all") },
-    { value: "task", label: t("trash.kinds.task") },
-    { value: "project", label: t("trash.kinds.project") },
-    ...(documentsEnabled ? [{ value: "document", label: t("trash.kinds.document") }] : []),
-  ];
-  const people = [
-    { value: "", label: t("trash.trashed_by_anyone") },
-    { value: meId, label: t("trash.trashed_by_me") },
-    ...members.filter((m) => m.user_id !== meId).map((m) => ({ value: m.user_id, label: m.display_name })),
-  ];
+  const searchRef = useRef<HTMLInputElement>(null);
+  const kinds = documentsEnabled ? TRASH_KIND_ORDER : TRASH_KIND_ORDER.filter((k) => k !== "document");
 
   return (
     <div role="search" aria-label={t("trash.filters_label")} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
       <div className="relative sm:w-64">
         <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          ref={searchRef}
           type="search"
           aria-label={t("trash.search")}
           placeholder={t("trash.search")}
           value={filters.q}
           onChange={(e) => onChange({ ...filters, q: e.target.value })}
-          className="pl-8"
+          className="pr-8 pl-8 pointer-coarse:pr-12 [&::-webkit-search-cancel-button]:hidden"
         />
+        {filters.q ? (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={t("trash.clear_search")}
+            className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
+            onClick={() => {
+              onChange({ ...filters, q: "" });
+              searchRef.current?.focus();
+            }}
+          >
+            <X aria-hidden />
+          </Button>
+        ) : null}
       </div>
-      <div className="sm:w-44">
-        <Select
-          aria-label={t("trash.kind_label")}
-          items={kinds}
-          value={filters.kind}
-          onValueChange={(value) => onChange({ ...filters, kind: (value ?? "") as TrashFilterValues["kind"] })}
-        />
-      </div>
-      <div className="sm:w-52">
-        <Select
-          aria-label={t("trash.trashed_by_label")}
-          items={people}
-          value={filters.trashedBy}
-          onValueChange={(value) => onChange({ ...filters, trashedBy: value ?? "" })}
+      <div className="flex flex-wrap items-center gap-2">
+        <KindFilter kinds={filters.kinds} options={kinds} onChange={(next) => onChange({ ...filters, kinds: next })} />
+        <PeopleFilter
+          trashedBy={filters.trashedBy}
+          members={members}
+          meId={meId}
+          onChange={(next) => onChange({ ...filters, trashedBy: next })}
         />
       </div>
     </div>

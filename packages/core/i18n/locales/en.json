@@ -14224,16 +14224,18 @@
     "description": "Deleted items stay here for 30 days, then are deleted forever.",
     "filters_label": "Filter the trash",
     "search": "Search by name…",
+    "clear_search": "Clear search",
+    "clear_filter": "Clear the {{name}} filter",
     "kind_label": "Type",
-    "kind_all": "All",
     "kinds": {
       "task": "Task",
       "project": "Project",
       "document": "Document"
     },
     "trashed_by_label": "Deleted by",
-    "trashed_by_anyone": "Anyone",
     "trashed_by_me": "Me",
+    "search_people": "Search people",
+    "no_people": "No one found",
     "table_label": "Items in the trash",
     "columns": {
       "name": "Name",

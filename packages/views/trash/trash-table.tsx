@@ -38,7 +38,8 @@ function daysLeft(purgeAfter: string): number {
   return Number.isFinite(ms) ? Math.max(0, Math.ceil(ms / DAY_MS)) : 0;
 }
 
-const KIND_ICONS: Record<string, LucideIcon> = {
+/** The mark of each kind, in the Tên column and in the Loại filter. */
+export const KIND_ICONS: Record<string, LucideIcon> = {
   task: MODULE_ICONS.tasks,
   project: MODULE_ICONS.projects,
   document: MODULE_ICONS.documents,

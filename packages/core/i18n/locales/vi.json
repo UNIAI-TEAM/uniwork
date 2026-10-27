@@ -14150,16 +14150,18 @@
     "description": "Mục đã xóa nằm ở đây 30 ngày, sau đó tự xóa vĩnh viễn.",
     "filters_label": "Lọc thùng rác",
     "search": "Tìm theo tên…",
+    "clear_search": "Xóa tìm kiếm",
+    "clear_filter": "Bỏ lọc {{name}}",
     "kind_label": "Loại",
-    "kind_all": "Tất cả",
     "kinds": {
       "task": "Công việc",
       "project": "Dự án",
       "document": "Tài liệu"
     },
     "trashed_by_label": "Người xóa",
-    "trashed_by_anyone": "Mọi người",
     "trashed_by_me": "Tôi",
+    "search_people": "Tìm người",
+    "no_people": "Không tìm thấy ai",
     "table_label": "Mục trong thùng rác",
     "columns": {
       "name": "Tên",
