@@ -39,6 +39,8 @@ func BuildDriveOpenURL(webViewLink, externalFileID, viewerEmail string) string {
 
 type normalizedDriveMetadataParams struct {
 	DriveID                pgtype.Text
+	DriveFolderID          pgtype.Text
+	DriveFolderName        pgtype.Text
 	Name                   string
 	MimeType               string
 	IconKind               string
@@ -91,8 +93,17 @@ func normalizeMetadataForDB(meta DriveFileMetadata, externalFileID string, refre
 	if meta.SharedUserCount != nil {
 		sharedCount = pgtype.Int4{Int32: int32(*meta.SharedUserCount), Valid: true}
 	}
+	var folderID, folderName pgtype.Text
+	if fid := strings.TrimSpace(meta.ParentFolderID); fid != "" {
+		folderID = pgtype.Text{String: fid, Valid: true}
+		if fname := strings.TrimSpace(meta.ParentFolderName); fname != "" {
+			folderName = pgtype.Text{String: fname, Valid: true}
+		}
+	}
 	return normalizedDriveMetadataParams{
 		DriveID:                driveID,
+		DriveFolderID:          folderID,
+		DriveFolderName:        folderName,
 		Name:                   name,
 		MimeType:               mime,
 		IconKind:               iconKind,
@@ -202,6 +213,8 @@ func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, 
 	params := normalizeMetadataForDB(meta, externalFileID, s.nowUTC())
 	if _, err := s.q.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
+		DriveFolderID:          params.DriveFolderID,
+		DriveFolderName:        params.DriveFolderName,
 		Name:                   params.Name,
 		MimeType:               params.MimeType,
 		IconKind:               params.IconKind,
@@ -283,6 +296,8 @@ func (s *DriveFileService) maybeRefreshTaskCardRow(ctx context.Context, viewerID
 		return r, false
 	}
 	r.DriveID = detail.DriveID
+	r.DriveFolderID = detail.DriveFolderID
+	r.DriveFolderName = detail.DriveFolderName
 	r.Name = detail.Name
 	r.MimeType = detail.MimeType
 	r.IconKind = detail.IconKind
@@ -328,6 +343,8 @@ func detailRowToListRow(d db.GetDriveFileEnrichedRow) db.ListMyDriveFilesEnriche
 		UnlinkedAt:             d.UnlinkedAt,
 		UnlinkedBy:             d.UnlinkedBy,
 		UnlinkedByKind:         d.UnlinkedByKind,
+		DriveFolderID:          d.DriveFolderID,
+		DriveFolderName:        d.DriveFolderName,
 		BoundAccountEmail:      d.BoundAccountEmail,
 		BoundConnectionLost:    d.BoundConnectionLost,
 		BoundByName:            d.BoundByName,
@@ -377,6 +394,17 @@ func (s *DriveFileService) buildDriveFileViewFromDetailRow(
 		v := r.DriveID.String
 		driveID = &v
 	}
+	var driveFolder *DriveFolderRefView
+	if r.DriveFolderID.Valid && strings.TrimSpace(r.DriveFolderID.String) != "" {
+		ref := &DriveFolderRefView{
+			ID: strings.TrimSpace(r.DriveFolderID.String),
+		}
+		if r.DriveFolderName.Valid && strings.TrimSpace(r.DriveFolderName.String) != "" {
+			fname := strings.TrimSpace(r.DriveFolderName.String)
+			ref.Name = &fname
+		}
+		driveFolder = ref
+	}
 	var modifiedAt *time.Time
 	if r.DriveModifiedAt.Valid {
 		t := r.DriveModifiedAt.Time.UTC()
@@ -415,6 +443,7 @@ func (s *DriveFileService) buildDriveFileViewFromDetailRow(
 		WorkspaceID:            r.WorkspaceID,
 		ExternalFileID:         r.ExternalFileID,
 		DriveID:                driveID,
+		DriveFolder:            driveFolder,
 		Name:                   r.Name,
 		MimeType:               r.MimeType,
 		IconKind:               r.IconKind,
@@ -485,6 +514,8 @@ func (s *DriveFileService) buildDriveFileViewFromListRow(
 		UnlinkedAt:             r.UnlinkedAt,
 		UnlinkedBy:             r.UnlinkedBy,
 		UnlinkedByKind:         r.UnlinkedByKind,
+		DriveFolderID:          r.DriveFolderID,
+		DriveFolderName:        r.DriveFolderName,
 		BoundAccountEmail:      r.BoundAccountEmail,
 		BoundConnectionLost:    r.BoundConnectionLost,
 		BoundByName:            r.BoundByName,

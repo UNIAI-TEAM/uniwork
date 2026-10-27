@@ -107,6 +107,8 @@ func (s *DriveFileService) GrantAccess(ctx context.Context, actor Actor, workspa
 	} else {
 		if _, err := qtx.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 			DriveID:                params.DriveID,
+			DriveFolderID:          params.DriveFolderID,
+			DriveFolderName:        params.DriveFolderName,
 			Name:                   params.Name,
 			MimeType:               params.MimeType,
 			IconKind:               params.IconKind,
@@ -267,6 +269,8 @@ func (s *DriveFileService) ChangeReadAccount(ctx context.Context, actor Actor, w
 	params := normalizeMetadataForDB(meta, lockedFile.ExternalFileID, s.nowUTC())
 	if _, err := qtx.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
+		DriveFolderID:          params.DriveFolderID,
+		DriveFolderName:        params.DriveFolderName,
 		Name:                   params.Name,
 		MimeType:               params.MimeType,
 		IconKind:               params.IconKind,
@@ -423,6 +427,8 @@ func (s *DriveFileService) rebindFileInTx(
 		ConnectionID:           conn.ID,
 		BoundBy:                actor.ID,
 		DriveID:                params.DriveID,
+		DriveFolderID:          params.DriveFolderID,
+		DriveFolderName:        params.DriveFolderName,
 		Name:                   params.Name,
 		MimeType:               params.MimeType,
 		IconKind:               params.IconKind,

@@ -452,6 +452,8 @@ func (s *DriveFileService) RecordFileMetadataRefresh(ctx context.Context, worksp
 	params := normalizeMetadataForDB(meta, meta.ExternalFileID, s.nowUTC())
 	_, _ = s.q.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
+		DriveFolderID:          params.DriveFolderID,
+		DriveFolderName:        params.DriveFolderName,
 		Name:                   params.Name,
 		MimeType:               params.MimeType,
 		IconKind:               params.IconKind,

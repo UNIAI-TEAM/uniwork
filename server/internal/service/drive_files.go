@@ -94,6 +94,12 @@ type DriveTaskCreationGroup struct {
 	Tasks         []DriveLinkedTaskRef
 }
 
+// DriveFolderRefView is the parent Google Drive folder reference on a DriveFileView (UNI-2221).
+type DriveFolderRefView struct {
+	ID   string
+	Name *string
+}
+
 // DriveFileView is the service-layer representation of sdo.DriveFileDTO (spec §6.2, §7.6, §7.7, §8.8).
 type DriveFileView struct {
 	ID                     string
@@ -101,6 +107,7 @@ type DriveFileView struct {
 	WorkspaceID            string
 	ExternalFileID         string
 	DriveID                *string
+	DriveFolder            *DriveFolderRefView
 	Name                   string
 	MimeType               string
 	IconKind               string

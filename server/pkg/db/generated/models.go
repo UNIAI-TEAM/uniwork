@@ -1187,6 +1187,8 @@ type DriveFile struct {
 	UnlinkedAt             pgtype.Timestamptz `json:"unlinked_at"`
 	UnlinkedBy             pgtype.Text        `json:"unlinked_by"`
 	UnlinkedByKind         pgtype.Text        `json:"unlinked_by_kind"`
+	DriveFolderID          pgtype.Text        `json:"drive_folder_id"`
+	DriveFolderName        pgtype.Text        `json:"drive_folder_name"`
 }
 
 type DriveFileAccess struct {

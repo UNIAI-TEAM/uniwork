@@ -272,6 +272,8 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 			WorkspaceID:            ws.ID,
 			ExternalFileID:         externalFileID,
 			DriveID:                params.DriveID,
+			DriveFolderID:          params.DriveFolderID,
+			DriveFolderName:        params.DriveFolderName,
 			ConnectionID:           conn.ID,
 			BoundBy:                actor.ID,
 			CreatedBy:              actor.ID,
@@ -373,6 +375,8 @@ func (s *DriveFileService) linkExistingFileInTx(
 ) (linkedExistingResult, error) {
 	fileRow, err := qtx.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
+		DriveFolderID:          params.DriveFolderID,
+		DriveFolderName:        params.DriveFolderName,
 		Name:                   params.Name,
 		MimeType:               params.MimeType,
 		IconKind:               params.IconKind,

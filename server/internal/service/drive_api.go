@@ -23,7 +23,9 @@ const (
 
 	// driveFilesGetFields is the exact field mask spec §6.2 and §7.2 step 2 require
 	// when reading a linked Google Drive file's metadata.
-	driveFilesGetFields = "id,name,mimeType,webViewLink,iconLink,driveId,owners(displayName),lastModifyingUser(displayName),modifiedTime,shared,trashed,permissions(id)"
+	driveFilesGetFields   = "id,name,mimeType,webViewLink,iconLink,driveId,parents,owners(displayName),lastModifyingUser(displayName),modifiedTime,shared,trashed,permissions(id)"
+	driveFolderGetFields  = "id,name,mimeType,trashed"
+	DriveMimeGoogleFolder = "application/vnd.google-apps.folder"
 )
 
 var (
@@ -120,6 +122,8 @@ type DriveFileMetadata struct {
 	SharingState      string // "private" | "shared" | "unknown"
 	SharedUserCount   *int
 	Trashed           bool
+	ParentFolderID    string
+	ParentFolderName  string
 }
 
 // DriveAPIClient calls Google Drive REST v3 over a 15-second HTTP client that
@@ -235,7 +239,9 @@ func (s *DriveConnectionService) ForceRefreshAccessToken(ctx context.Context, co
 // token, refreshing once on 401/authError and classifying any error per §5.7.
 func (c *DriveAPIClient) FilesGetWithConnection(ctx context.Context, tokens DriveTokenSource, conn db.DriveConnection, externalFileID string) (DriveFileMetadata, error) {
 	var meta DriveFileMetadata
+	var usedToken string
 	err := c.withConnectionToken(ctx, tokens, conn, func(accessToken string) error {
+		usedToken = accessToken
 		if c == nil || c.baseURL == driveGoogleAPIBaseURL {
 			if dcs, ok := tokens.(*DriveConnectionService); ok && dcs != nil {
 				if fp, ok := dcs.Provider().(*FakeDriveProvider); ok && fp != nil {
@@ -249,7 +255,96 @@ func (c *DriveAPIClient) FilesGetWithConnection(ctx context.Context, tokens Driv
 		meta, callErr = c.FilesGet(ctx, accessToken, externalFileID)
 		return callErr
 	})
-	return meta, err
+	if err != nil {
+		return meta, err
+	}
+	if meta.ParentFolderID != "" && meta.ParentFolderName == "" && c != nil {
+		meta.ParentFolderName = c.tryResolveParentFolderName(ctx, tokens, usedToken, meta.ParentFolderID)
+	}
+	return meta, nil
+}
+
+// FolderNameWithConnection fetches the name of a Google Drive folder using conn's OAuth token,
+// refreshing once on 401/authError and classifying any error per §5.7 (UNI-2221).
+func (c *DriveAPIClient) FolderNameWithConnection(ctx context.Context, tokens DriveTokenSource, conn db.DriveConnection, folderID string) (string, error) {
+	var name string
+	err := c.withConnectionToken(ctx, tokens, conn, func(accessToken string) error {
+		if c == nil || c.baseURL == driveGoogleAPIBaseURL {
+			if dcs, ok := tokens.(*DriveConnectionService); ok && dcs != nil {
+				if fp, ok := dcs.Provider().(*FakeDriveProvider); ok && fp != nil {
+					var callErr error
+					name, callErr = fp.FolderNameGet(ctx, accessToken, folderID)
+					return callErr
+				}
+			}
+		}
+		var callErr error
+		name, callErr = c.FolderNameGet(ctx, accessToken, folderID)
+		return callErr
+	})
+	return name, err
+}
+
+func (c *DriveAPIClient) tryResolveParentFolderName(ctx context.Context, tokens DriveTokenSource, accessToken, folderID string) string {
+	if c.baseURL == driveGoogleAPIBaseURL {
+		if dcs, ok := tokens.(*DriveConnectionService); ok && dcs != nil {
+			if fp, ok := dcs.Provider().(*FakeDriveProvider); ok && fp != nil {
+				name, err := fp.FolderNameGet(ctx, accessToken, folderID)
+				if err == nil {
+					return name
+				}
+				return ""
+			}
+		}
+	}
+	name, err := c.FolderNameGet(ctx, accessToken, folderID)
+	if err != nil {
+		return ""
+	}
+	return name
+}
+
+// FolderNameGet fetches a Drive folder's name from GET /drive/v3/files/{folderId}
+// with supportsAllDrives=true and fields=id,name,mimeType,trashed (UNI-2221).
+func (c *DriveAPIClient) FolderNameGet(ctx context.Context, accessToken, folderID string) (string, error) {
+	folderID = strings.TrimSpace(folderID)
+	if folderID == "" {
+		return "", &DriveAPIError{
+			Class:        DriveErrorClassFileNotAccessible,
+			HTTPStatus:   http.StatusNotFound,
+			GoogleReason: "notFound",
+			Err:          ErrDriveFileNotAccessible,
+		}
+	}
+	q := url.Values{
+		"supportsAllDrives": {"true"},
+		"fields":            {driveFolderGetFields},
+	}
+	endpoint := c.endpoint("/files/"+url.PathEscape(folderID), q)
+	body, err := c.doGET(ctx, accessToken, endpoint, driveMetadataMaxBytes)
+	if err != nil {
+		return "", err
+	}
+	var raw googleDriveFileJSON
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return "", &DriveAPIError{
+			Class: DriveErrorClassUnavailable,
+			Err:   ErrDriveUnavailable,
+		}
+	}
+	if raw.Trashed || (strings.TrimSpace(raw.MimeType) != "" && strings.TrimSpace(raw.MimeType) != DriveMimeGoogleFolder) {
+		return "", &DriveAPIError{
+			Class:        DriveErrorClassFileNotAccessible,
+			HTTPStatus:   http.StatusNotFound,
+			GoogleReason: "notFound",
+			Err:          ErrDriveFileNotAccessible,
+		}
+	}
+	name := strings.TrimSpace(raw.Name)
+	if name == "" {
+		name = folderID
+	}
+	return name, nil
 }
 
 func (c *DriveAPIClient) withConnectionToken(ctx context.Context, tokens DriveTokenSource, conn db.DriveConnection, fn func(accessToken string) error) error {
@@ -308,12 +403,13 @@ func mapTokenSourceError(err error) error {
 }
 
 type googleDriveFileJSON struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	MimeType    string `json:"mimeType"`
-	WebViewLink string `json:"webViewLink"`
-	IconLink    string `json:"iconLink"`
-	DriveID     string `json:"driveId"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	MimeType    string   `json:"mimeType"`
+	WebViewLink string   `json:"webViewLink"`
+	IconLink    string   `json:"iconLink"`
+	DriveID     string   `json:"driveId"`
+	Parents     []string `json:"parents"`
 	Owners      []struct {
 		DisplayName string `json:"displayName"`
 	} `json:"owners"`
@@ -404,6 +500,10 @@ func normalizeDriveFileMetadata(raw googleDriveFileJSON, fallbackID string) Driv
 		n := len(raw.Permissions)
 		sharedCount = &n
 	}
+	parentID := ""
+	if len(raw.Parents) > 0 {
+		parentID = strings.TrimSpace(raw.Parents[0])
+	}
 	return DriveFileMetadata{
 		ExternalFileID:    id,
 		DriveID:           driveID,
@@ -417,6 +517,7 @@ func normalizeDriveFileMetadata(raw googleDriveFileJSON, fallbackID string) Driv
 		SharingState:      sharingState,
 		SharedUserCount:   sharedCount,
 		Trashed:           raw.Trashed,
+		ParentFolderID:    parentID,
 	}
 }
 
