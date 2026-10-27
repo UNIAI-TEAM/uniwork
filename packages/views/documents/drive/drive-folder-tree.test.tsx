@@ -228,8 +228,9 @@ describe("Drive folder tree in the sidebar", () => {
     expect(unnamed).toHaveTextContent("Thư mục · 1xYz9Q");
     expect(unnamed).not.toHaveTextContent(UNNAMED_LABEL);
     expect(unnamed).toHaveAttribute("title", UNNAMED_LABEL);
-    // Same tree grid: icon starts at x=56 under the account email, 20px icon box, name, count.
-    expect(beta).toHaveStyle({ paddingLeft: "56px" });
+    // Same tree grid: the icon box sits on the icon column of the depth-1 folder-tree row (48px in the row), not
+    // 8px to its right as it did at 56px; 20px icon box, name, count.
+    expect(beta).toHaveStyle({ paddingLeft: "48px" });
     expect(beta.firstElementChild).toHaveClass("size-5", "shrink-0");
     expect(screen.getByRole("button", { name: t("documents.tree.collapse", { title: "uni-work1@gmail.com" }) })).toHaveAttribute("aria-expanded", "true");
     expect(listedAccounts()).not.toContain("conn2");
