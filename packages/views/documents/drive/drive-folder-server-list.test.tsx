@@ -9,6 +9,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
 import type { User, Workspace } from "@uniwork/core/types";
 import { createFakeDrivePickerAdapter } from "../../integrations/drive-picker";
+import type { DrivePickerOpenResult } from "../../integrations/drive-picker/drive-picker-adapter";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
 import { DocumentsPageView } from "../documents-page-view";
@@ -191,8 +192,10 @@ function renderList(url: string, folderId: string | null, adapter = createFakeDr
 const expandAccount = () =>
   fireEvent.click(screen.getByRole("button", { name: t("documents.tree.expand", { title: "uni-work1@gmail.com" }) }));
 
-const pickedFolder = (id: string) =>
-  ({ status: "picked", files: [{ id, name: "Hợp đồng", mimeType: "application/vnd.google-apps.folder", sharingState: "private" }] }) as const;
+const pickedFolder = (id: string): DrivePickerOpenResult => ({
+  status: "picked",
+  files: [{ id, name: "Hợp đồng", mimeType: "application/vnd.google-apps.folder", sharingState: "private" }],
+});
 
 const UNNAMED_URL = `${DRIVE_HOME}&account=conn1&driveFolder=${UNNAMED.id}`;
 
