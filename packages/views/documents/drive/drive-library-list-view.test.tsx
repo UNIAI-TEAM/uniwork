@@ -272,19 +272,22 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(driveBtn).toHaveAttribute("aria-current", "page");
     expect(driveBtn).toHaveClass("bg-brand-subtle", "text-brand-subtle-foreground");
     expect(driveBtn).toHaveTextContent("6");
+    expect(driveBtn).toHaveClass("px-2", "gap-2");
+    expect(driveBtn.firstElementChild).toHaveClass("size-5");
 
     const acct1Btn = screen.getAllByRole("button", { name: /Drive: uni-work1@gmail\.com/ })[0]!;
     expect(acct1Btn).not.toHaveAttribute("aria-current");
     expect(acct1Btn).toHaveAttribute("title", "Drive: uni-work1@gmail.com");
+    expect(acct1Btn).toHaveClass("pl-9", "pr-2", "gap-2");
     expect(acct1Btn).toHaveTextContent("3");
 
     const acct3Btn = screen.getAllByRole("button", { name: /Drive: uni-work3@gmail\.com/ })[0]!;
+    expect(acct3Btn).toHaveClass("pl-9", "pr-2", "gap-2");
     expect(acct3Btn).toHaveTextContent(t("driveLibrary.sidebar.disconnected"));
     expect(acct3Btn).toHaveAttribute(
       "title",
       `Drive: uni-work3@gmail.com · ${t("driveLibrary.sidebar.disconnected")}`,
     );
-
     expect(screen.queryByText(/Người khác liên kết/)).toBeNull();
 
     fireEvent.click(acct1Btn);

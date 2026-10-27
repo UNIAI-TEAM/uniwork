@@ -1,12 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { Archive, Clock, Folder, FolderLock, House, Share2, ShieldCheck, Star, Trash, Users } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
+import {
+  FeatureFlagsProvider,
+  FeatureFlagService,
+  StaticProvider,
+} from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
 import enLocale from "@uniwork/core/i18n/locales/en.json";
 import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
-import { fakeNav, wrap, wrapWithNav } from "../test/api-mock";
+import { fakeNav, requestMock, wrap, wrapWithNav } from "../test/api-mock";
 import { DOCUMENTS_NAV_ICONS } from "./documents-nav-icons";
 import { DocumentsSidebar, type DocumentsSidebarProps, type LibraryView } from "./documents-sidebar";
 
@@ -232,8 +237,92 @@ describe("DocumentsSidebar icons", () => {
       expect(svg?.innerHTML).toBe(glyphOf(DOCUMENTS_NAV_ICONS[icon]));
     }
   });
-});
 
+  it("aligns top-level folder rows, Drive rows, Drive account sub-rows, and module source rows on the same x=8/x=36 grid", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/config") {
+        return Promise.resolve({
+          flags: { documents: true, drive_connector: true },
+          rum_sample_rate: 0,
+          drive: { available: true },
+        });
+      }
+      if (path.startsWith("/api/v1/workspaces/ws1/documents/tree")) {
+        return Promise.resolve({
+          documents: [
+            {
+              id: "f-root",
+              title: "Hợp đồng",
+              kind: "folder",
+              position: 0,
+              children: [
+                { id: "f-child", title: "Phụ lục", kind: "folder", parent_id: "f-root", position: 0, children: [] },
+              ],
+            },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    const flagService = new FeatureFlagService(
+      new StaticProvider({
+        documents: { default: true },
+        drive_connector: { default: true },
+      }),
+    );
+    render(
+      wrap(
+        <FeatureFlagsProvider service={flagService}>
+          <DocumentsSidebar
+            wsId="ws1"
+            view={{ kind: "home" }}
+            folderId={null}
+            starredCount={5}
+            sourcesAvailable
+            canCreate
+            driveConnections={[
+              { id: "conn1", google_email: "an@example.com", needs_reconnect: false, linked_file_count: 2 },
+            ]}
+            onView={vi.fn()}
+            onFolder={vi.fn()}
+            onNewFolder={vi.fn()}
+          />
+        </FeatureFlagsProvider>,
+      ),
+    );
+
+    const driveRow = await screen.findByRole("button", { name: /^Google Drive/ });
+    const driveAccountRow = screen.getByRole("button", { name: /Drive: an@example\.com/ });
+    const rootFolderRow = await screen.findByRole("treeitem", { name: /Hợp đồng/ });
+    const chatSourceRow = screen.getByRole("button", { name: t("documents.home.origin.chat") });
+
+    // Reference grid: px-2 (8px) + size-5 (20px) + gap-2 (8px) -> label at x = 36px.
+    expect(driveRow).toHaveClass("px-2", "gap-2");
+    expect(driveRow.firstElementChild).toHaveClass("size-5");
+    expect(chatSourceRow).toHaveClass("px-2", "gap-2");
+    expect(chatSourceRow.firstElementChild).toHaveClass("size-5");
+
+    // Top-level folder row shares the exact same icon/name x as the Google Drive row.
+    expect(rootFolderRow).toHaveStyle({ paddingLeft: "8px" });
+    expect(rootFolderRow).toHaveClass("px-2", "gap-2");
+    expect(rootFolderRow.firstElementChild).toHaveClass("size-5");
+
+    // Drive account sub-row label starts at x = 36px (pl-9) with right-aligned count (pr-2).
+    expect(driveAccountRow).toHaveClass("pl-9", "pr-2");
+
+    // Child folder indents by one 28px step (paddingLeft = 36px, icon sits under parent's name).
+    fireEvent.click(
+      screen.getByRole("button", { name: t("documents.tree.expand", { title: "Hợp đồng" }) }),
+    );
+    const childFolderRow = await screen.findByRole("treeitem", { name: /Phụ lục/ });
+    expect(childFolderRow).toHaveStyle({ paddingLeft: "36px" });
+    expect(
+      Number.parseFloat(childFolderRow.style.paddingLeft) -
+        Number.parseFloat(rootFolderRow.style.paddingLeft),
+    ).toBe(28);
+  });
+});
 describe("DOCUMENTS_NAV_ICONS", () => {
   // Rows the sidebar does not draw yet (myFolders, archive, folder) are pinned
   // here so a wrong glyph cannot pass unseen.

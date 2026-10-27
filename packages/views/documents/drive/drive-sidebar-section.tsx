@@ -98,7 +98,7 @@ export function DriveSidebarSection({
             aria-current={isCurrent ? "page" : undefined}
             onClick={() => onSelect(conn.id)}
             className={cn(
-              "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md pl-8 pr-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
+              "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md pl-9 pr-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
               isCurrent && "bg-brand-subtle font-medium text-brand-subtle-foreground hover:bg-brand-subtle",
             )}
           >

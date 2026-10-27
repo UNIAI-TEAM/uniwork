@@ -475,7 +475,7 @@ describe("DocumentTree", () => {
     expect(screen.getByRole("treeitem", { name: /Nhóm/ })).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("caps visual indent at deep levels so a depth-20 row stays readable and gives every row label a title", async () => {
+  it("steps 28px per level through depth 4, places the chevron in a trailing slot with a placeholder for leaves, and caps deep levels <= 150px", async () => {
     let deep: DocumentTreeNode[] = [node({ id: "L20", title: "Tầng 20" })];
     for (let d = 19; d >= 1; d -= 1) {
       deep = [node({ id: `L${d}`, title: `Tầng ${d}`, children: deep })];
@@ -486,8 +486,19 @@ describe("DocumentTree", () => {
     renderTree();
 
     const rootRow = await screen.findByRole("treeitem", { name: /Tầng 1/ });
-    expect(rootRow).toHaveStyle({ paddingLeft: "4px" });
+    expect(rootRow).toHaveStyle({ paddingLeft: "8px" });
+    expect(rootRow).toHaveClass("px-2", "gap-2");
     expect(screen.getByText("Tầng 1")).toHaveAttribute("title", "Tầng 1");
+    // Leading child is the size-5 icon box, not the chevron; chevron sits in the trailing slot before the row menu.
+    expect(rootRow.firstElementChild).toHaveClass("size-5");
+    const rootChevron = within(rootRow).getByRole("button", {
+      name: t("documents.tree.expand", { title: "Tầng 1" }),
+    });
+    const rootMenu = within(rootRow).getByRole("button", {
+      name: t("documents.home.row.menu", { title: "Tầng 1" }),
+    });
+    expect(rootChevron).toHaveAttribute("data-chevron");
+    expect(rootChevron.nextElementSibling).toBe(rootMenu);
 
     for (let d = 1; d < 20; d += 1) {
       fireEvent.click(
@@ -495,12 +506,24 @@ describe("DocumentTree", () => {
       );
     }
 
+    // Child = parent + 28px through depth 4 (levels 1..5 -> depths 0..4).
+    for (let d = 1; d <= 4; d += 1) {
+      const parentRow = screen.getByRole("treeitem", { name: new RegExp(`^Tầng ${d}$`) });
+      const childRow = screen.getByRole("treeitem", { name: new RegExp(`^Tầng ${d + 1}$`) });
+      const parentPad = Number.parseFloat(parentRow.style.paddingLeft);
+      const childPad = Number.parseFloat(childRow.style.paddingLeft);
+      expect(childPad - parentPad).toBe(28);
+    }
+
     const row20 = await screen.findByRole("treeitem", { name: /Tầng 20/ });
     expect(row20).toHaveAttribute("aria-level", "20");
-    // Uncapped 19 * 12 + 4 = 232px leaves 0px for the label in a 256px sidebar; must be capped <= 140px.
+    // Leaf row keeps a trailing placeholder of the same width so names and menus do not shift.
+    expect(row20.querySelector("[data-chevron]")).toBeNull();
+    const placeholder = row20.querySelector("[data-chevron-placeholder]");
+    expect(placeholder).toHaveClass("size-6", "shrink-0");
+    // Uncapped 19 * 28 + 8 = 540px overflows the 256px sidebar; compressed past depth 4 to 150px at depth 19.
     const padLeft = Number.parseFloat(row20.style.paddingLeft);
-    expect(padLeft).toBeGreaterThan(0);
-    expect(padLeft).toBeLessThanOrEqual(140);
+    expect(padLeft).toBe(150);
     expect(screen.getByText("Tầng 20")).toHaveAttribute("title", "Tầng 20");
   });
 

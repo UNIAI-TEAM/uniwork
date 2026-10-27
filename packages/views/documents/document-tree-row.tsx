@@ -18,14 +18,13 @@ import type { TreeRow } from "./document-tree-model";
 /**
  * Caps visual indent so deep branches (up to TREE_MAX_LEVEL = 20) keep a
  * readable label inside the 256px sidebar without horizontal scroll:
- * 12px/level through depth 6, 4px/level through depth 14, and 2px/level past
- * that (120px at depth 19).
+ * 28px/level (icon box 20 + gap 8) through depth 4 so each child's icon sits
+ * under its parent's label, then 2px/level past that (150px at depth 19).
  */
 function treeRowPaddingLeft(depth: number): number {
-  const full = Math.min(depth, 6) * 12;
-  const medium = Math.min(Math.max(depth - 6, 0), 8) * 4;
-  const compact = Math.max(depth - 14, 0) * 2;
-  return 4 + full + medium + compact;
+  const full = Math.min(depth, 4) * 28;
+  const compact = Math.max(depth - 4, 0) * 2;
+  return 8 + full + compact;
 }
 
 interface TreeRowItemProps {
@@ -100,7 +99,7 @@ export function TreeRowItem({
         onOpen();
       }}
       className={cn(
-        "group/row flex min-h-9 w-full cursor-pointer items-center gap-1 rounded-md pr-1 text-body",
+        "group/row flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-body",
         "pointer-coarse:min-h-11",
         "hover:bg-accent/60",
         (focused || current) && "bg-accent",
@@ -110,30 +109,6 @@ export function TreeRowItem({
       )}
       style={{ paddingLeft: `${treeRowPaddingLeft(row.depth)}px` }}
     >
-      {row.hasChildren ? (
-        <button
-          type="button"
-          data-chevron
-          tabIndex={-1}
-          aria-label={
-            expanded
-              ? t("documents.tree.collapse", { title: row.node.title })
-              : t("documents.tree.expand", { title: row.node.title })
-          }
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggle();
-          }}
-          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground pointer-coarse:-mx-2.5 pointer-coarse:size-11"
-        >
-          <ChevronRight
-            aria-hidden
-            className={cn("size-3.5 transition-transform", expanded && "rotate-90")}
-          />
-        </button>
-      ) : (
-        <span aria-hidden className="size-6 shrink-0" />
-      )}
       <span aria-hidden className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
         {myFolder ? (
           // The personal root keeps its own glyph now that it lives only in the tree.
@@ -154,16 +129,42 @@ export function TreeRowItem({
         focusable={false}
         className="ml-1"
       />
-      <DocumentTreeRowMenu
-        wsId={wsId}
-        node={row.node}
-        focused={focused}
-        starred={starred}
-        open={menuOpen}
-        onOpenChange={setMenuOpen}
-        onOpen={onOpen}
-        actions={menuActions}
-      />
+      <div className="ml-auto flex shrink-0 items-center gap-0.5">
+        {row.hasChildren ? (
+          <button
+            type="button"
+            data-chevron
+            tabIndex={-1}
+            aria-label={
+              expanded
+                ? t("documents.tree.collapse", { title: row.node.title })
+                : t("documents.tree.expand", { title: row.node.title })
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggle();
+            }}
+            className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground pointer-coarse:-mx-2.5 pointer-coarse:size-11"
+          >
+            <ChevronRight
+              aria-hidden
+              className={cn("size-3.5 transition-transform", expanded && "rotate-90")}
+            />
+          </button>
+        ) : (
+          <span aria-hidden data-chevron-placeholder className="size-6 shrink-0" />
+        )}
+        <DocumentTreeRowMenu
+          wsId={wsId}
+          node={row.node}
+          focused={focused}
+          starred={starred}
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          onOpen={onOpen}
+          actions={menuActions}
+        />
+      </div>
       {moving ? <span className="sr-only">{t("documents.tree.moving")}</span> : null}
     </div>
   );
