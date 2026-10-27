@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Archive, Clock, Folder, FolderLock, House, Share2, ShieldCheck, Star, Trash, Users } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -383,10 +384,15 @@ describe("DocumentsSidebar icons", () => {
     expect(driveChevron).toHaveAttribute("aria-expanded", "false");
     expect(driveChevron).toHaveAccessibleName(t("documents.tree.expand", { title: "Google Drive" }));
     expect(screen.queryByRole("button", { name: /Drive: an@example\.com/ })).toBeNull();
-    fireEvent.keyDown(driveChevron, { key: "Enter" });
+    const accountsGroup = document.getElementById(driveChevron.getAttribute("aria-controls") ?? "");
+    expect(accountsGroup).not.toBeNull();
+    expect(accountsGroup).not.toBeVisible();
+    const user = userEvent.setup();
+    driveChevron.focus();
+    await user.keyboard("{Enter}");
     expect(driveChevron).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("button", { name: /Drive: an@example\.com/ })).toBeInTheDocument();
-    fireEvent.keyDown(driveChevron, { key: " " });
+    await user.keyboard(" ");
     expect(driveChevron).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("button", { name: /Drive: an@example\.com/ })).toBeNull();
     fireEvent.click(driveChevron);

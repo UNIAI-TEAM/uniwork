@@ -90,12 +90,6 @@ export function DriveSidebarSection({
                 : t("documents.tree.expand", { title: driveTitle })
             }
             onClick={() => setExpanded((prev) => !prev)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                setExpanded((prev) => !prev);
-              }
-            }}
             className="relative z-10 flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground before:absolute before:content-[''] before:-inset-1 pointer-coarse:before:-left-2 pointer-coarse:before:-right-5 pointer-coarse:before:-top-3.5 pointer-coarse:before:-bottom-3.5"
           >
             <ChevronRight
@@ -122,8 +116,8 @@ export function DriveSidebarSection({
         </button>
       </div>
 
-      {hasChildren && expanded ? (
-        <div id={accountsGroupId} className="flex flex-col gap-0.5">
+      {hasChildren ? (
+        <div id={accountsGroupId} hidden={!expanded} className="flex flex-col gap-0.5">
           {connections.map((conn) => {
             const isCurrent = view.kind === "drive" && view.account === conn.id;
             const accountLabel = t("driveLibrary.sidebar.account_row", { email: conn.google_email });

@@ -343,6 +343,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(driveChevron).toHaveAttribute("aria-expanded", "false");
     expect(driveChevron).toHaveAccessibleName(t("documents.tree.expand", { title: "Google Drive" }));
     expect(within(driveRowWrapper.parentElement!).queryByRole("button", { name: /Drive: uni-work1@gmail\.com/ })).toBeNull();
+    expect(within(driveRowWrapper.parentElement!).getByRole("button", { name: /Drive: uni-work1@gmail\.com/, hidden: true })).not.toBeVisible();
     expect(nav.push).toHaveBeenCalledTimes(1);
 
     fireEvent.click(driveChevron);
