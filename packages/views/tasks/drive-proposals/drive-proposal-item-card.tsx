@@ -211,7 +211,7 @@ export function DriveProposalItemCard({
                 >
                   <span className="min-w-0 truncate">{quoteSourceParts.quotePart}</span>
                   {quoteSourceParts.fileTailPart ? (
-                    <span className="max-w-[50%] shrink-0 truncate">
+                    <span className="max-w-[50%] shrink-0 overflow-hidden text-ellipsis whitespace-pre">
                       {quoteSourceParts.fileTailPart}
                     </span>
                   ) : null}

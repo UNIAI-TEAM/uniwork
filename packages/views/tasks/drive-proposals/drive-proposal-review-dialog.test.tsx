@@ -1112,8 +1112,15 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
       'UNI · "Nhóm sản phẩm chốt phạm vi beta trước 05/11."',
     );
     expect(quote0Spans[0]).toHaveClass("min-w-0", "truncate");
-    expect(quote0Spans[1]).toHaveTextContent("— Kế hoạch ra mắt Q4");
-    expect(quote0Spans[1]).toHaveClass("shrink-0", "max-w-[50%]", "truncate");
+    expect(quote0Spans[1]?.textContent).toBe(" — Kế hoạch ra mắt Q4");
+    expect(quote0Spans[1]).toHaveClass(
+      "shrink-0",
+      "max-w-[50%]",
+      "overflow-hidden",
+      "text-ellipsis",
+      "whitespace-pre",
+    );
+    expect(quote0Spans[1]).not.toHaveClass("truncate");
 
     // F3: Collapsed "Mô tả" button shows only label ("Mô tả"), not the duplicate draft.goal preview
     const item0 = screen.getByTestId("drive-proposal-item-0");
