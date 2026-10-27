@@ -34,6 +34,7 @@ export function RecordPrep({
   language,
   onLanguageChange,
   failed = false,
+  ready = true,
   onStart,
   onBack,
 }: {
@@ -48,6 +49,8 @@ export function RecordPrep({
   onLanguageChange: (language: RecordLanguage) => void;
   /** The last start could not open the microphone. */
   failed?: boolean;
+  /** Recordings already on this device are known: starting before then would restart their offsets at 0. */
+  ready?: boolean;
   onStart: () => void;
   onBack: () => void;
 }) {
@@ -74,7 +77,8 @@ export function RecordPrep({
             <div aria-hidden className="relative grid size-[184px] shrink-0 place-items-center">
               <span className="absolute inset-0 rounded-full bg-primary/10" />
               <span className="absolute inset-[26px] rounded-full bg-primary/20" />
-              <span className="relative grid size-24 place-items-center rounded-full bg-primary text-primary-foreground">
+              {/* White in both modes, as board 4: the dark scheme's primary-foreground is near black. */}
+              <span className="relative grid size-24 place-items-center rounded-full bg-primary text-on-solid">
                 <Mic className="size-10" />
               </span>
             </div>
@@ -167,7 +171,8 @@ export function RecordPrep({
             type="button"
             variant="brand"
             className="h-11 w-full"
-            aria-disabled={!consent || undefined}
+            aria-disabled={!consent || !ready || undefined}
+            aria-busy={!ready || undefined}
             aria-describedby={consent ? undefined : `${id}-reason`}
             onClick={onStart}
           >

@@ -81,7 +81,8 @@ export function MeetingRecordView({
   const back = useRef(onBack);
   back.current = onBack;
   const settled = Boolean(meeting && caps.data && !member.isLoading && roster.data);
-  const refused = meetingQuery.isError || (settled && !canRecord && state === "idle");
+  // Fail closed (spec D5): a capability or roster that cannot be read is no permission to record.
+  const refused = meetingQuery.isError || caps.isError || roster.isError || (settled && !canRecord && state === "idle");
   useEffect(() => {
     if (refused) back.current();
   }, [refused]);
@@ -103,6 +104,7 @@ export function MeetingRecordView({
           language={language}
           onLanguageChange={setLanguage}
           failed={state === "failed"}
+          ready={!unsent.isPending}
           onStart={() => {
             setPriorMs(unsent.seconds * 1000);
             void recorder.start(deviceId);

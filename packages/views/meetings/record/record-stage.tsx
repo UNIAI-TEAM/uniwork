@@ -18,6 +18,8 @@ import type { MediaDevice } from "../meeting-media-controls";
 import { NARROW, RecordWave } from "./record-wave";
 import { useMicLevels } from "./use-mic-levels";
 
+/** Pause / resume is the bar's main control: a lighter fill than the device chip beside it (board 13). */
+const PRIMARY_CHIP = "bg-meeting-bar-chip-hover hover:brightness-125";
 const CHIP = "inline-flex h-7 items-center gap-1.5 rounded-full bg-meeting-bar-chip-bg px-2.5 text-caption font-medium text-meeting-bar-foreground";
 
 /**
@@ -117,10 +119,13 @@ export function RecordStage({
                 className="flex size-full flex-col items-center justify-center gap-5 overflow-hidden rounded-2xl text-meeting-stage-foreground ring-1 ring-meeting-bar-border min-[600px]:aspect-video min-[600px]:h-auto min-[600px]:w-[min(100cqw,calc(100cqh*16/9))] min-[600px]:gap-7"
               >
                 {interrupted ? (
-                  <div role="alert" className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
+                  <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
                     <IconTile icon={MicOff} size="lg" tone="destructive" />
-                    <h2 className="text-title font-semibold">{t("meetings.record.interrupted")}</h2>
-                    <p className="text-body text-meeting-bar-muted-foreground">{t("meetings.record.savedUpTo", { time: clock })}</p>
+                    {/* The message alone is announced; the buttons are what to do about it. */}
+                    <div role="alert" className="flex flex-col items-center gap-3">
+                      <h2 className="text-title font-semibold">{t("meetings.record.interrupted")}</h2>
+                      <p className="text-body text-meeting-bar-muted-foreground">{t("meetings.record.savedUpTo", { time: clock })}</p>
+                    </div>
                     <div className="mt-2 flex flex-wrap justify-center gap-2">
                       <Button type="button" variant="brand" onClick={onResumeAfterInterrupt}>
                         <Play aria-hidden />
@@ -133,7 +138,7 @@ export function RecordStage({
                   </div>
                 ) : (
                   <>
-                    <p className={cn("flex items-center gap-2.5 text-body font-semibold", paused ? "text-warning" : "text-destructive")}>
+                    <p role="status" className={cn("flex items-center gap-2.5 text-body font-semibold", paused ? "text-warning" : "text-destructive")}>
                       {paused ? (
                         <Pause aria-hidden className="size-4" />
                       ) : (
@@ -185,11 +190,11 @@ export function RecordStage({
           <div className="flex shrink-0 justify-center pt-6 pb-3">
             <div className={MEETING_DARK_BAR}>
               {interrupted ? null : paused ? (
-                <IconControl label={t("meetings.record.resume")} onClick={onResume}>
+                <IconControl label={t("meetings.record.resume")} onClick={onResume} className={PRIMARY_CHIP}>
                   <Play aria-hidden />
                 </IconControl>
               ) : (
-                <IconControl label={t("meetings.record.pause")} onClick={onPause}>
+                <IconControl label={t("meetings.record.pause")} onClick={onPause} className={PRIMARY_CHIP}>
                   <Pause aria-hidden />
                 </IconControl>
               )}
@@ -197,7 +202,7 @@ export function RecordStage({
               {narrow ? null : <DeviceControl mics={mics} deviceId={deviceId} onDeviceChange={onDeviceChange} />}
               {interrupted && narrow ? null : <span aria-hidden className="mx-0.5 h-8 w-px shrink-0 bg-meeting-bar-border" />}
               <IconControl tone="off" label={t("meetings.record.end")} onClick={onEnd}>
-                <Square aria-hidden className="size-3.5 fill-current" />
+                <Square aria-hidden className="size-3 fill-current" />
               </IconControl>
             </div>
           </div>

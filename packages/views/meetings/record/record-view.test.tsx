@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { memoryRecordingStore, type RecordingStore } from "@uniwork/core/meetings/recorder";
 import type { Meeting, User } from "@uniwork/core/types";
@@ -55,9 +56,13 @@ class FakeRecorder {
   }
 }
 
-function route(transcription = true) {
+function route({
+  transcription = true,
+  over = {},
+  capsFail = false,
+}: { transcription?: boolean; over?: Partial<Meeting>; capsFail?: boolean } = {}) {
   requestMock.mockImplementation(async (path: string) => {
-    if (path === "/api/v1/meetings/m1") return { meeting };
+    if (path === "/api/v1/meetings/m1") return { meeting: { ...meeting, ...over } };
     if (path === "/api/v1/meetings/m1/participants") {
       return {
         participants: [
@@ -66,7 +71,10 @@ function route(transcription = true) {
         ],
       };
     }
-    if (path === "/api/v1/workspaces/w1/meeting-capabilities") return { transcription };
+    if (path === "/api/v1/workspaces/w1/meeting-capabilities") {
+      if (capsFail) throw new ApiError("lỗi máy chủ", "internal", 500);
+      return { transcription };
+    }
     if (path === "/api/v1/workspaces/w1/me") return { membership: { user_id: USER.id, role: "member", source: "membership" } };
     if (path === "/api/v1/workspaces/w1/members") return { members: [{ user_id: USER.id, role: "member" }] };
     return {};
@@ -126,7 +134,10 @@ describe("MeetingRecordView", () => {
     expect(start).toHaveAttribute("aria-disabled", "true");
     expect(start).toHaveAccessibleDescription("Tích ô xác nhận ở trên để bắt đầu");
     fireEvent.click(start);
+    // Give a start that slipped through every chance to open a part.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
     expect(screen.queryByText("Đang ghi âm")).not.toBeInTheDocument();
+    expect(await store.listParts(USER.id, "m1")).toEqual([]);
 
     await startRecording();
     expect(screen.getByRole("timer")).toHaveTextContent("0:00");
@@ -187,9 +198,34 @@ describe("MeetingRecordView", () => {
     expect(parts[1]!.offsetSeconds).toBeGreaterThanOrEqual(600);
   });
 
-  it("sends a viewer who cannot record back to the meeting", async () => {
-    route(false);
+  it.each([
+    ["the organization cannot transcribe", { transcription: false }],
+    ["the viewer is not a clerk", { over: { host_user_id: "u-ha", created_by: "u-ha" } }],
+    ["the meeting is online", { over: { venue: "online" } }],
+    ["the capabilities cannot be read", { capsFail: true }],
+  ] as const)("sends the viewer back to the meeting when %s", async (_why, opts) => {
+    route(opts);
     const onBack = renderView(memoryRecordingStore());
     await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Đang ghi âm")).not.toBeInTheDocument();
+  });
+
+  it("holds the start until the device has said what it already holds", async () => {
+    const memory = memoryRecordingStore();
+    let answer: () => void = () => {};
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    const store: RecordingStore = { ...memory, listParts: async (...args) => (await answered, memory.listParts(...args)) };
+    renderView(store);
+    fireEvent.click(await screen.findByRole("checkbox", { name: /Tôi đã thông báo cho người dự họp về việc ghi âm/ }));
+    const start = screen.getByRole("button", { name: "Bắt đầu ghi âm" });
+    expect(start).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(start);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(screen.queryByText("Đang ghi âm")).not.toBeInTheDocument();
+
+    answer();
+    await waitFor(() => expect(start).not.toHaveAttribute("aria-disabled"));
+    fireEvent.click(start);
+    expect(await screen.findByText("Đang ghi âm")).toBeInTheDocument();
   });
 });

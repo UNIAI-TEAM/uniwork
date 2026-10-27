@@ -37,7 +37,7 @@ describe("RecordStage", () => {
   it("reads out the clock, what is saved, the screen lock and the attendees", () => {
     renderStage();
     expect(screen.getByRole("timer")).toHaveTextContent("42:18");
-    expect(screen.getByText("Đang ghi âm")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Đang ghi âm");
     expect(screen.getAllByText("Đã lưu trên máy")).toHaveLength(2);
     expect(screen.getByText("Màn hình luôn sáng")).toBeInTheDocument();
     expect(screen.getByText("7 người dự")).toBeInTheDocument();
@@ -55,6 +55,14 @@ describe("RecordStage", () => {
     expect(screen.getByRole("timer")).toHaveClass("text-warning");
     fireEvent.click(screen.getByRole("button", { name: "Ghi tiếp" }));
     expect(h.onResume).toHaveBeenCalled();
+  });
+
+  it("announces an interruption without reading the buttons out", () => {
+    renderStage({ state: "interrupted" });
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Ghi âm bị ngắt42:18 đã lưu an toàn");
+    expect(alert.querySelector("button")).toBeNull();
+    expect(screen.getByRole("button", { name: "Kết thúc và gửi" })).toBeInTheDocument();
   });
 
   it("ends from the header and from the bar", () => {

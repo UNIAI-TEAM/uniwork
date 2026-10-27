@@ -121,16 +121,18 @@ export function useUnsentRecordings(userId: string | undefined, meetingId?: stri
   parts: RecordingPart[];
   seconds: number;
   savedAt: number | null;
+  /** The device store has not answered yet: `parts` is not known to be empty. */
+  isPending: boolean;
   refresh: () => void;
 } {
   const queryClient = useQueryClient();
   const queryKey = ["meeting-recordings-local", userId, meetingId];
-  const { data: parts = [] } = useQuery({
+  const { data: parts = [], isPending } = useQuery({
     queryKey,
     queryFn: () => (store ?? defaultStore()).listParts(userId!, meetingId),
     enabled: userId !== undefined,
   });
   const seconds = parts.reduce((sum, p) => sum + ((p.endedAt ?? p.lastChunkAt) - p.startedAt) / 1000, 0);
   const savedAt = parts.length ? Math.max(...parts.map((p) => p.lastChunkAt)) : null;
-  return { parts, seconds, savedAt, refresh: () => void queryClient.invalidateQueries({ queryKey }) };
+  return { parts, seconds, savedAt, isPending, refresh: () => void queryClient.invalidateQueries({ queryKey }) };
 }
