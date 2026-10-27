@@ -1,0 +1,4 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/views exec vitest run documents/documents-page-view.test.tsx > /tmp/tt-dpv.log 2>&1; rc=$?; grep -E "FAIL|AssertionError|Expected|Received|Unable to find|Tests  " /tmp/tt-dpv.log | head -40; echo; echo "DPV_EXIT=$rc"; [ $rc -eq 0 ]
+      Tests  70 passed (70)
+
+DPV_EXIT=0

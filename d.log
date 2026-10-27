@@ -1,0 +1,4 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm exec turbo typecheck --concurrency=1 --filter=@uniwork/core --filter=@uniwork/views --filter=@uniwork/ui --filter=@uniwork/web > /tmp/tt-tc.log 2>&1; rc=$?; grep -E "error TS|Tasks:|Failed" /tmp/tt-tc.log | head -40; echo; echo "TYPECHECK_EXIT=$rc"; [ $rc -eq 0 ]
+ Tasks:    4 successful, 4 total
+
+TYPECHECK_EXIT=0
