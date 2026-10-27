@@ -100,6 +100,12 @@ type DriveFolderRefView struct {
 	Name *string
 }
 
+// DriveFolderNamedResult is the service-layer result of DriveFileService.NameFolder (UNI-2221).
+type DriveFolderNamedResult struct {
+	DriveFolder  DriveFolderRefView
+	UpdatedFiles int
+}
+
 // DriveFileView is the service-layer representation of sdo.DriveFileDTO (spec §6.2, §7.6, §7.7, §8.8).
 type DriveFileView struct {
 	ID                     string

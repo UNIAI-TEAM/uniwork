@@ -474,6 +474,7 @@ func New(d Deps) http.Handler {
 		GrantDriveFileAccess:             h.GrantDriveFileAccess,
 		ChangeDriveFileReadAccount:       h.ChangeDriveFileReadAccount,
 		RebindDriveFile:                  h.RebindDriveFile,
+		NameDriveFolder:                  h.NameDriveFolder,
 		ListTaskDriveFiles:               h.ListTaskDriveFiles,
 		RemoveTaskDriveFile:              h.RemoveTaskDriveFile,
 		CreateDriveTaskProposal:          h.CreateDriveTaskProposal,

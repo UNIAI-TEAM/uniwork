@@ -261,6 +261,7 @@ type Routes struct {
 	GrantDriveFileAccess             http.HandlerFunc
 	ChangeDriveFileReadAccount       http.HandlerFunc
 	RebindDriveFile                  http.HandlerFunc
+	NameDriveFolder                  http.HandlerFunc
 	ListTaskDriveFiles               http.HandlerFunc
 	RemoveTaskDriveFile              http.HandlerFunc
 	CreateDriveTaskProposal          http.HandlerFunc

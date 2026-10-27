@@ -45,6 +45,11 @@ type RebindDriveFileSDI struct {
 	ConnectionID string `json:"connection_id" minLength:"1" description:"ULID kết nối Google Drive mới của người gọi dùng làm tài khoản gắn cho tệp" example:"01J8X4DRVCONN0N1P2Q3R4S5T6"`
 }
 
+// NameDriveFolderSDI is POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name (UNI-2221).
+type NameDriveFolderSDI struct {
+	DriveConnectionID string `json:"drive_connection_id" minLength:"1" description:"ULID kết nối Google Drive đang hoạt động của chính người gọi đã chọn thư mục qua Picker" example:"01J8X4DRVCONN0N1P2Q3R4S5T6"`
+}
+
 // CreateDriveTaskProposalSDI is POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals.
 type CreateDriveTaskProposalSDI struct {
 	Prompt        string  `json:"prompt,omitempty" maxLength:"2000" description:"Yêu cầu bổ sung của người dùng cho UNI khi đọc tài liệu; có thể để trống" example:"Tách việc cho nhóm sản phẩm và marketing"`

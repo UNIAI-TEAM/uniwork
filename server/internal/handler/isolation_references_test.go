@@ -594,6 +594,9 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind", what: "connection", body: map[string]any{
 		"connection_id": isoRef("driveConnection")},
 		covers: []string{"RebindDriveFileSDI.connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name", what: "connection", body: map[string]any{
+		"drive_connection_id": isoRef("driveConnection")},
+		covers: []string{"NameDriveFolderSDI.drive_connection_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "project",
 		wantAttackStatus: 404,
 		body:             map[string]any{"project_id": isoRef("project")},

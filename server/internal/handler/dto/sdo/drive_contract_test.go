@@ -21,6 +21,7 @@ var driveSDITypes = map[string]reflect.Type{
 	"ListDriveFilesSDI":                   reflect.TypeFor[sdi.ListDriveFilesSDI](),
 	"GrantDriveFileAccessSDI":             reflect.TypeFor[sdi.GrantDriveFileAccessSDI](),
 	"RebindDriveFileSDI":                  reflect.TypeFor[sdi.RebindDriveFileSDI](),
+	"NameDriveFolderSDI":                  reflect.TypeFor[sdi.NameDriveFolderSDI](),
 	"CreateDriveTaskProposalSDI":          reflect.TypeFor[sdi.CreateDriveTaskProposalSDI](),
 	"CheckDriveTaskProposalDuplicatesSDI": reflect.TypeFor[sdi.CheckDriveTaskProposalDuplicatesSDI](),
 	"DriveProposalTaskItemSDI":            reflect.TypeFor[sdi.DriveProposalTaskItemSDI](),
@@ -56,6 +57,7 @@ var driveSDOTypes = map[string]reflect.Type{
 	"DriveProposalDuplicatesSDO":      reflect.TypeFor[sdo.DriveProposalDuplicatesSDO](),
 	"DriveProposalCreatedTaskItemDTO": reflect.TypeFor[sdo.DriveProposalCreatedTaskItemDTO](),
 	"DriveProposalTasksCreatedSDO":    reflect.TypeFor[sdo.DriveProposalTasksCreatedSDO](),
+	"DriveFolderNamedSDO":             reflect.TypeFor[sdo.DriveFolderNamedSDO](),
 }
 
 // TestDriveLinkReceiptOmitsOtherMemberIdentities (R1-1 / R1-13) ensures that the

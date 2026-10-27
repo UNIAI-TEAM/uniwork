@@ -280,6 +280,39 @@ func (h *handlers) RebindDriveFile(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, sdo.DriveFileSDO{File: toDriveFileDTO(v)})
 }
 
+// NameDriveFolder resolves a Google Drive folder's name using the caller's own
+// active connection and sets drive_folder_name on all active drive_files in the
+// workspace with that parent folder ID
+// (POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name; UNI-2221).
+func (h *handlers) NameDriveFolder(w http.ResponseWriter, r *http.Request) {
+	if h.DriveFiles == nil {
+		h.mapServiceError(w, service.ErrDriveNotConfigured)
+		return
+	}
+	var in sdi.NameDriveFolderSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	res, err := h.DriveFiles.NameFolder(
+		r.Context(),
+		service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "driveFolderID"),
+		in.DriveConnectionID,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.DriveFolderNamedSDO{
+		DriveFolder: sdo.DriveFolderRefDTO{
+			ID:   res.DriveFolder.ID,
+			Name: res.DriveFolder.Name,
+		},
+		UpdatedFiles: res.UpdatedFiles,
+	})
+}
+
 // ListTaskDriveFiles returns the Google Drive file cards attached to a task
 // (GET /api/v1/tasks/{taskID}/drive-files; spec §7.3).
 func (h *handlers) ListTaskDriveFiles(w http.ResponseWriter, r *http.Request) {

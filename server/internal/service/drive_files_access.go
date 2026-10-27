@@ -594,6 +594,106 @@ func (s *DriveFileService) Unlink(ctx context.Context, actor Actor, workspaceID,
 	return tx.Commit(ctx)
 }
 
+// NameFolder resolves a Google Drive folder's name using the caller's own active
+// connection (after the caller picks that folder in Google Picker) and updates
+// drive_folder_name on every active drive_files row in workspaceID whose
+// drive_folder_id matches driveFolderID (POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name;
+// UNI-2221).
+func (s *DriveFileService) NameFolder(ctx context.Context, actor Actor, workspaceID, driveFolderID, connectionID string) (DriveFolderNamedResult, error) {
+	ws, member, err := s.workspaceAndMember(ctx, actor, workspaceID)
+	if err != nil {
+		return DriveFolderNamedResult{}, err
+	}
+	if !s.flagEnabledForMember(ctx, actor.ID, ws.OrganizationID) {
+		return DriveFolderNamedResult{}, errDriveFeatureDisabled()
+	}
+	if !s.isNotGuest(member) {
+		return DriveFolderNamedResult{}, ErrForbidden
+	}
+	driveFolderID = strings.TrimSpace(driveFolderID)
+	if driveFolderID == "" {
+		return DriveFolderNamedResult{}, ErrNotFound
+	}
+	connectionID = strings.TrimSpace(connectionID)
+	if connectionID == "" {
+		return DriveFolderNamedResult{}, Invalid("drive_connection_id không được để trống")
+	}
+
+	conn, err := s.requireCallerConnection(ctx, s.q, ws.OrganizationID, actor.ID, connectionID)
+	if err != nil {
+		return DriveFolderNamedResult{}, err
+	}
+
+	folderName, err := s.api.FolderNameWithConnection(ctx, s.connections, conn, driveFolderID)
+	if err != nil {
+		return DriveFolderNamedResult{}, DriveErrToCodedError(err)
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return DriveFolderNamedResult{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := s.q.WithTx(tx)
+
+	lockedConn, err := s.requireCallerConnectionForShare(ctx, qtx, ws.OrganizationID, actor.ID, conn.ID)
+	if err != nil {
+		return DriveFolderNamedResult{}, err
+	}
+	conn = lockedConn
+
+	updatedIDs, err := qtx.SetDriveFolderNameInWorkspace(ctx, db.SetDriveFolderNameInWorkspaceParams{
+		DriveFolderName: folderName,
+		OrganizationID:  ws.OrganizationID,
+		WorkspaceID:     ws.ID,
+		DriveFolderID:   driveFolderID,
+	})
+	if err != nil {
+		return DriveFolderNamedResult{}, err
+	}
+
+	events := make([]audit.Event, 0, len(updatedIDs))
+	for _, fileID := range updatedIDs {
+		events = append(events, audit.Event{
+			Topic:   "drive_file.updated",
+			Version: 1,
+			Payload: map[string]string{
+				"drive_file_id": fileID,
+				"workspace_id":  ws.ID,
+			},
+		})
+	}
+
+	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+		Actor:          actor,
+		Action:         audit.ActionDriveFolderNamed,
+		ResourceType:   "drive_folder",
+		ResourceID:     driveFolderID,
+		Metadata: map[string]any{
+			"drive_folder_id": driveFolderID,
+			"updated_files":   len(updatedIDs),
+			"connection_id":   conn.ID,
+		},
+	}, events...); err != nil {
+		return DriveFolderNamedResult{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return DriveFolderNamedResult{}, err
+	}
+
+	nameCopy := folderName
+	return DriveFolderNamedResult{
+		DriveFolder: DriveFolderRefView{
+			ID:   driveFolderID,
+			Name: &nameCopy,
+		},
+		UpdatedFiles: len(updatedIDs),
+	}, nil
+}
+
 func errDriveUseRebind() error {
 	return CodedError{
 		Status: http.StatusConflict, Code: "use_rebind",

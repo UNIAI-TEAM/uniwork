@@ -282,3 +282,9 @@ type DriveProposalTasksCreatedSDO struct {
 	TaskIDs []string                          `json:"task_ids" description:"Danh sách ULID các công việc vừa tạo, theo thứ tự gửi lên" example:"[\"01J8X4TASKN1P2Q3R4S5T6U7V8\"]"`
 	Items   []DriveProposalCreatedTaskItemDTO `json:"items" description:"Ánh xạ từng mục đề xuất sang ULID công việc vừa tạo" example:"[{\"index\":0,\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\"}]"`
 }
+
+// DriveFolderNamedSDO is POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name (UNI-2221).
+type DriveFolderNamedSDO struct {
+	DriveFolder  DriveFolderRefDTO `json:"drive_folder" description:"Thư mục cha trên Google Drive sau khi đồng bộ tên" example:"{\"id\":\"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8\",\"name\":\"Tài liệu dự án Q4\"}"`
+	UpdatedFiles int               `json:"updated_files" description:"Số tệp đang liên kết trong workspace có cùng thư mục cha đã được cập nhật tên thư mục" example:"3"`
+}

@@ -333,6 +333,7 @@ const (
 	ActionDriveTaskProposalCreated      = "drive_task_proposal.created"
 	ActionDriveTaskProposalDiscarded    = "drive_task_proposal.discarded"
 	ActionDriveTaskProposalTasksCreated = "drive_task_proposal.tasks_created"
+	ActionDriveFolderNamed              = "drive_folder.named"
 
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
