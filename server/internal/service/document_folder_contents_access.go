@@ -57,12 +57,34 @@ func errNotAFolder() error {
 }
 
 func errFolderAccessBatchRunning(batchID string) error {
+	var fields map[string]any
+	if batchID != "" {
+		fields = map[string]any{"batch_id": batchID}
+	}
 	return CodedError{
 		Code:   "folder_access_batch_running",
 		Status: http.StatusConflict,
 		Msg:    "thư mục đang có một lô cập nhật quyền truy cập chạy nền",
-		Fields: map[string]any{"batch_id": batchID},
+		Fields: fields,
 	}
+}
+
+// MapFolderAccessLockError maps a lock error from LockFolderAccessBatch
+// (UNI-2244 §3.1 step 2, F9): a SQLSTATE 55P03 lock timeout never surfaces as
+// 500; it maps to 409 folder_access_batch_running with fields.batch_id when a
+// queued/running row is visible after the timeout, or without fields.batch_id
+// when a synchronous update still holds the folder lock.
+func MapFolderAccessLockError(err error, lookupRunning func() (string, error)) error {
+	var pe *pgconn.PgError
+	if errors.As(err, &pe) && pe.Code == "55P03" {
+		if lookupRunning != nil {
+			if runningID, qErr := lookupRunning(); qErr == nil && runningID != "" {
+				return errFolderAccessBatchRunning(runningID)
+			}
+		}
+		return errFolderAccessBatchRunning("")
+	}
+	return err
 }
 
 // FolderContentsAccessItem is one principal grant in UpdateFolderContentsAccessInput.
@@ -247,19 +269,14 @@ func (s *DocumentService) UpdateFolderContentsAccess(
 		return FolderContentsAccessResult{}, err
 	}
 	if err := q.LockFolderAccessBatch(ctx, folder.ID); err != nil {
-		var pe *pgconn.PgError
-		if errors.As(err, &pe) && pe.Code == "55P03" {
+		return FolderContentsAccessResult{}, MapFolderAccessLockError(err, func() (string, error) {
 			_ = tx.Rollback(ctx)
-			runningID, qErr := s.q.GetRunningDocumentAccessBatchForFolder(ctx, db.GetRunningDocumentAccessBatchForFolderParams{
+			return s.q.GetRunningDocumentAccessBatchForFolder(ctx, db.GetRunningDocumentAccessBatchForFolderParams{
 				OrganizationID: folder.OrganizationID,
 				WorkspaceID:    folder.WorkspaceID,
 				FolderID:       folder.ID,
 			})
-			if qErr == nil && runningID != "" {
-				return FolderContentsAccessResult{}, errFolderAccessBatchRunning(runningID)
-			}
-		}
-		return FolderContentsAccessResult{}, err
+		})
 	}
 	if _, err := tx.Exec(ctx, `SET LOCAL lock_timeout = 0`); err != nil {
 		return FolderContentsAccessResult{}, err

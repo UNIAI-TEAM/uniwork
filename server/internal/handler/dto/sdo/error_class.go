@@ -211,10 +211,12 @@ var errorClassByCode = map[string]string{
 //	  on a document whose kind is not folder (UNI-2244 §1). Like
 //	  folder_not_shareable, a refusal of the request itself with no recovery
 //	  class.
-//	folder_access_batch_running (409, fields.batch_id) the folder already has
-//	  an active bulk access batch running or queued (UNI-2244 §3.1). The
-//	  client attaches its progress bar to fields.batch_id instead of running
-//	  a generic reload-and-retry conflict path.
+//	folder_access_batch_running (409, optional fields.batch_id) the folder
+//	  already has an active bulk access batch running or queued, or a folder
+//	  lock timeout occurred while another synchronous update held the folder
+//	  (UNI-2244 §3.1, F9). When a queued/running batch exists, fields.batch_id
+//	  is present so the client can attach its progress bar; otherwise
+//	  fields.batch_id is omitted and the client retries.
 //	not_implemented (501) a contract-first route stub before its service
 //	  wiring lands (UNI-2244 BE-1).
 //
