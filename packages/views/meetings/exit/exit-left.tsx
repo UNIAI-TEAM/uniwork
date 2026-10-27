@@ -31,6 +31,16 @@ export function ExitMediaChips({ media }: { media: ExitMedia }) {
   );
 }
 
+/** A phone's upper part: the story, centred in the space the bottom actions leave. */
+export function ExitStory({ children }: { children: ReactNode }) {
+  return <div className="flex w-full flex-1 flex-col items-center justify-center gap-6">{children}</div>;
+}
+
+/** A phone's actions, pinned to the bottom within thumb reach. */
+export function ExitBottom({ children }: { children: ReactNode }) {
+  return <div className="flex w-full flex-col items-center gap-3">{children}</div>;
+}
+
 /** "Vào lại" and "Về trang cuộc họp": side by side on a desktop, stacked full width on a phone. */
 export function ExitActions({ primary, secondary }: { primary: ReactNode; secondary: ReactNode }) {
   const phone = useIsMobile();
@@ -78,7 +88,8 @@ export function ExitLeft({
   onBackToMeeting: () => void;
 }) {
   const { t } = useTranslation();
-  return (
+  const phone = useIsMobile();
+  const story = (
     <>
       <ExitMark>
         <LogOut aria-hidden />
@@ -87,11 +98,33 @@ export function ExitLeft({
         {meetingTitle ? <p className="text-body-lg text-muted-foreground">{meetingTitle}</p> : null}
       </ExitHeading>
       {presence}
+    </>
+  );
+  const actions = (
+    <ExitActions
+      primary={<RejoinButton onClick={onRejoin} />}
+      secondary={<BackToMeetingButton onClick={onBackToMeeting} />}
+    />
+  );
+  if (phone) {
+    return (
+      <>
+        <ExitStory>
+          {story}
+          <ExitMediaChips media={media} />
+        </ExitStory>
+        <ExitBottom>
+          {actions}
+          {rating}
+        </ExitBottom>
+      </>
+    );
+  }
+  return (
+    <>
+      {story}
       <div className="flex w-full flex-col items-center gap-3">
-        <ExitActions
-          primary={<RejoinButton onClick={onRejoin} />}
-          secondary={<BackToMeetingButton onClick={onBackToMeeting} />}
-        />
+        {actions}
         <ExitMediaChips media={media} />
       </div>
       <div aria-hidden className="h-px w-full bg-border" />
