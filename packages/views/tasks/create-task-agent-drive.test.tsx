@@ -1308,9 +1308,24 @@ describe("CreateTaskAgentPanel with Drive chip (W6, spec §8.1, §8.2, §8.8)", 
     expect(chip2).toBeInTheDocument();
     expect(chip3).toBeInTheDocument();
     expect(hintsGroup.className).toContain("flex-wrap");
+    expect(hintsGroup.className).toContain("pointer-coarse:gap-1");
     expect(chip1.className).toContain("w-auto");
     expect(chip1.className).toContain("max-w-full");
 
+    const agentBody = screen.getByTestId("create-task-agent-body");
+    expect(agentBody).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
+    expect(agentBody.contains(hintsGroup)).toBe(true);
+    expect(agentBody.contains(screen.getByTestId("create-task-drive-chips"))).toBe(true);
+
+    const agentFooter = screen.getByTestId("create-task-agent-footer");
+    expect(agentFooter).toHaveClass("shrink-0", "border-surface-border/50");
+    expect(agentBody.contains(agentFooter)).toBe(false);
+    expect(
+      within(agentFooter).getByRole("button", { name: "Chuyển sang thủ công" }),
+    ).toBeInTheDocument();
+    expect(
+      within(agentFooter).getByRole("button", { name: /Gửi cho agent/ }),
+    ).toBeInTheDocument();
     const proseMirror = document.querySelector(".ProseMirror") as HTMLElement & {
       editor?: {
         state: {

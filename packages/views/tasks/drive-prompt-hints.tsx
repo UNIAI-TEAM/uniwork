@@ -48,7 +48,7 @@ export function DrivePromptHints({
       role="group"
       aria-label={t("drive.proposals.prompt_hints.group_aria")}
       data-testid="drive-prompt-hints"
-      className={cn("flex flex-wrap items-center gap-1.5", className)}
+      className={cn("flex flex-wrap items-center gap-1.5 pointer-coarse:gap-1", className)}
     >
       {DRIVE_PROMPT_HINT_KEYS.map((key) => {
         const text = t(key);
