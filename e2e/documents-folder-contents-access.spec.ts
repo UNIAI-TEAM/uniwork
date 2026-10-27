@@ -57,7 +57,7 @@ const L = {
 
 /** documents.folderAccess.title / .subtitle in packages/core/i18n/locales/vi.json. */
 const DIALOG_TITLE = "Chia sẻ";
-const subtitleOf = (folderTitle: string): string => `Áp dụng cho các tài liệu trong thư mục "${folderTitle}" và thư mục con.`;
+const subtitleOf = (folderTitle: string): string => `Các tài liệu trong thư mục "${folderTitle}" và các thư mục con.`;
 
 interface Tree {
   folder: { id: string; title: string };
