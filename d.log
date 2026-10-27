@@ -1,0 +1,7 @@
+$ . scripts/local-env.sh; cd server && { go build ./... && go vet ./... && go tool staticcheck ./internal/service/... ./internal/ ./cmd/... ./pkg/... && go test -count=1 ./internal/ && echo "GOFMT_FILES=[$(gofmt -l ./internal ./pkg ./cmd ./migrations)]" && test -z "$(gofmt -l ./internal ./pkg ./cmd ./migrations)"; } > /tmp/db25-static.log 2>&1; rc=$?; tail -30 /tmp/db25-static.log; echo; echo "GO_STATIC_ARCH_EXIT=$rc"; [ $rc -eq 0 ]
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+internal/service/document_folder_contents_access_test.go:109:2: this value of subPage1 is never used (SA4006)
+internal/service/document_shares.go:398:6: func mergeDocumentShareIntoHomeRow is unused (U1000)
+
+GO_STATIC_ARCH_EXIT=1

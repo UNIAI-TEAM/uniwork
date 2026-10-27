@@ -1,0 +1,15 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server && go test -count=1 -v ./internal/notification/ ./internal/outbox/ ./cmd/server/ -timeout 30m > /tmp/db25-notif.log 2>&1; rc=$?; grep -E -- '^--- (FAIL|SKIP)|^--- PASS: TestDocumentShared' /tmp/db25-notif.log | sed 's/ (.*//' | head -60; grep -B2 -A25 -- '--- FAIL' /tmp/db25-notif.log | head -100; grep -E '^ok|^FAIL|panic' /tmp/db25-notif.log; echo; echo "GO_NOTIF_OUTBOX_EXIT=$rc"; [ $rc -eq 0 ]
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- PASS: TestDocumentSharedGrantNewAndRaiseNotifiesRecipient
+--- PASS: TestDocumentSharedSkipsWorkspaceOrgAndExistingHigherOrEqualAccess
+--- PASS: TestDocumentSharedDropsWhenRecipientLostReadBeforeSend
+--- PASS: TestDocumentSharedBatchNotifiesEachRisenUser
+--- PASS: TestDocumentSharedBatchLevelRecoveredByShareID
+--- PASS: TestDocumentSharedChatGrantEventCreatesNoNotice
+--- PASS: TestDocumentSharedFolderContentsBatchGrouping
+ok  	github.com/unicomhub/uniwork/server/internal/notification	94.330s
+ok  	github.com/unicomhub/uniwork/server/internal/outbox	10.318s
+ok  	github.com/unicomhub/uniwork/server/cmd/server	0.023s
+
+GO_NOTIF_OUTBOX_EXIT=0
