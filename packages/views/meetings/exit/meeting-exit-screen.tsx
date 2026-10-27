@@ -6,6 +6,8 @@ import type { Meeting } from "@uniwork/core/types";
 import { formatMeetingWindow, meetingLocale } from "../meeting-datetime";
 import { MeetingRoomAvatarsProvider } from "../meeting-room-avatars";
 import { canRejoin, type ExitMedia, type RoomExit } from "./exit-model";
+import { ExitHandedOver } from "./exit-handed-over";
+import { ExitHostLeft } from "./exit-host-left";
 import { BackToMeetingButton, ExitLeft } from "./exit-left";
 import { ExitPresenceCard } from "./exit-presence-card";
 import { ExitRating } from "./exit-rating";
@@ -48,6 +50,7 @@ export function MeetingExitScreen(props: MeetingExitScreenProps) {
     ? formatMeetingWindow(meeting.starts_at, meeting.ends_at, meetingLocale(i18n.language), t)
     : undefined;
   const rating = <ExitRating meetingId={meetingId} />;
+  const presenceCard = <ExitPresenceCard people={presence.people} startedAt={meeting?.actual_start_at} />;
 
   let body;
   if (kind === "ended") {
@@ -73,12 +76,39 @@ export function MeetingExitScreen(props: MeetingExitScreenProps) {
         <BackToMeetingButton onClick={props.onBackToMeeting} />
       </>
     );
+  } else if (exit.kind === "leftHost" && meeting && props.workspaceId) {
+    const { media } = exit;
+    body = (
+      <ExitHostLeft
+        meeting={meeting}
+        workspaceId={props.workspaceId}
+        media={media}
+        presence={presenceCard}
+        participants={presence.all}
+        onRejoin={() => props.onRejoin(media)}
+        onEndForAll={props.onEndForAll}
+        onHandedOver={(toUserId, toName) => props.onExitChange?.({ kind: "handedOver", media, toUserId, toName })}
+        onRefreshPresence={presence.refetch}
+      />
+    );
+  } else if (exit.kind === "handedOver") {
+    const { media } = exit;
+    body = (
+      <ExitHandedOver
+        toName={exit.toName}
+        meetingTitle={title}
+        presence={presenceCard}
+        rating={rating}
+        onRejoin={() => props.onRejoin(media)}
+        onBackToMeeting={props.onBackToMeeting}
+      />
+    );
   } else if (canRejoin(exit)) {
     body = (
       <ExitLeft
         meetingTitle={title}
         media={exit.media}
-        presence={<ExitPresenceCard people={presence.people} startedAt={meeting?.actual_start_at} />}
+        presence={presenceCard}
         rating={rating}
         onRejoin={() => props.onRejoin(exit.media)}
         onBackToMeeting={props.onBackToMeeting}

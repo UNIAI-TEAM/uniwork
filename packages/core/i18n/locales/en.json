@@ -3587,7 +3587,27 @@
         "poorLabel": "Sound and picture were poor",
         "thanks": "Thanks for telling us"
       },
-      "ending": "Ending the meeting…"
+      "ending": "Ending the meeting…",
+      "hostLeft": {
+        "stillHost": "You're still the host",
+        "waiting": "Waiting for you",
+        "knocking_one": "{{count}} person asking to join",
+        "knocking_other": "{{count}} people asking to join",
+        "admit": "Admit",
+        "recording": "Recording",
+        "stopRecording": "Stop recording",
+        "handover": "Hand over…"
+      },
+      "handover": {
+        "pickTitle": "Hand over hosting",
+        "pickConfirm": "Hand to {{name}}"
+      },
+      "handedOver": {
+        "title": "{{name}} is hosting",
+        "sub": "You handed over and left the room",
+        "asParticipant": "You rejoin as a participant",
+        "arrow": "Hosting passed from you to {{name}}"
+      }
     },
     "canceledCannotJoin": "This meeting was canceled",
     "micOn": "Turn mic on",

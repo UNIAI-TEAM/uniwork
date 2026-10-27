@@ -3586,7 +3586,27 @@
         "poorLabel": "Âm thanh, hình ảnh kém",
         "thanks": "Cảm ơn bạn đã cho biết"
       },
-      "ending": "Đang kết thúc cuộc họp…"
+      "ending": "Đang kết thúc cuộc họp…",
+      "hostLeft": {
+        "stillHost": "Bạn vẫn là chủ trì",
+        "waiting": "Đang chờ bạn",
+        "knocking_one": "{{count}} người xin vào",
+        "knocking_other": "{{count}} người xin vào",
+        "admit": "Cho vào",
+        "recording": "Đang ghi hình",
+        "stopRecording": "Dừng ghi",
+        "handover": "Chuyển quyền…"
+      },
+      "handover": {
+        "pickTitle": "Chuyển quyền chủ trì",
+        "pickConfirm": "Chuyển cho {{name}}"
+      },
+      "handedOver": {
+        "title": "{{name}} đang chủ trì",
+        "sub": "Bạn đã chuyển quyền và rời phòng",
+        "asParticipant": "Vào lại với vai người tham dự",
+        "arrow": "Quyền chủ trì chuyển từ bạn sang {{name}}"
+      }
     },
     "canceledCannotJoin": "Cuộc họp đã bị hủy",
     "micOn": "Bật mic",
