@@ -176,16 +176,15 @@ function DriveFileRow({
       </td>
       <td className="hidden px-3 py-3 md:table-cell">
         <span
-          title={badge.label}
           className={cn(
-            "inline-block max-w-full truncate rounded-md px-2 py-0.5 align-middle text-caption font-medium",
+            "inline-block max-w-full whitespace-normal break-words rounded-md px-2 py-0.5 align-middle text-caption font-medium",
             badge.className,
           )}
         >
           {badge.label}
         </span>
       </td>
-      <td className="hidden px-3 py-3 text-caption text-muted-foreground md:table-cell">
+      <td className="hidden px-3 py-3 text-caption text-muted-foreground break-words md:table-cell">
         {formatUsedIn(file, t)}
       </td>
       <td className="hidden whitespace-nowrap px-3 py-3 text-caption text-muted-foreground md:table-cell">

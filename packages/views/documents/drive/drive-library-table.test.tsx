@@ -123,7 +123,7 @@ describe("DriveLibraryTable column widths", () => {
     expect(tasks).toHaveClass("whitespace-nowrap");
   });
 
-  it("truncates the Opens with email and the Access badge and keeps the full value in title", () => {
+  it("truncates the Opens with email (full value in title) and lets the Access badge wrap", () => {
     renderTable();
     const [, account, access] = fileRowCells();
 
@@ -133,9 +133,10 @@ describe("DriveLibraryTable column widths", () => {
     expect(email.className).not.toMatch(/max-w-48/);
 
     const badgeLabel = t("driveLibrary.list.access.shared_count", { count: 12 });
-    const badge = within(access).getByTitle(badgeLabel);
-    expect(badge).toHaveTextContent(badgeLabel);
-    expect(badge).toHaveClass("inline-block", "max-w-full", "truncate");
+    const badge = within(access).getByText(badgeLabel);
+    expect(badge).toHaveClass("inline-block", "max-w-full", "whitespace-normal", "break-words");
+    expect(badge).not.toHaveClass("truncate");
+    expect(badge).not.toHaveAttribute("title");
   });
 
   it("keeps the folder row count under the four non-name columns", () => {
