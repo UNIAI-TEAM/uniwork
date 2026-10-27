@@ -21,7 +21,9 @@ import {
   type AssigneeOption,
 } from "../pickers";
 import {
+  formatDriveProposalQuoteSourceLine,
   formatDriveProposalSourceLine,
+  formatDriveProposalSummaryLine,
   type DriveProposalItemDraft,
   type DuplicateDecision,
 } from "./drive-proposal-helpers";
@@ -128,6 +130,16 @@ export function DriveProposalItemCard({
     t,
   );
 
+  const summaryLineText = formatDriveProposalSummaryLine(
+    draft.goal,
+    draft.checklist,
+    t,
+  );
+  const quoteSourceLineText = formatDriveProposalQuoteSourceLine(
+    draft.excerpt,
+    fileName,
+    t,
+  );
   const itemNumber = draft.index + 1;
 
   return (
@@ -175,6 +187,29 @@ export function DriveProposalItemCard({
               </span>
             ) : null}
           </div>
+          {summaryLineText || quoteSourceLineText ? (
+            <div className="flex min-w-0 flex-col gap-0.5">
+              {summaryLineText ? (
+                <p
+                  data-testid={`drive-proposal-summary-${draft.index}`}
+                  title={summaryLineText}
+                  className="truncate text-caption text-muted-foreground"
+                >
+                  {summaryLineText}
+                </p>
+              ) : null}
+              {quoteSourceLineText ? (
+                <p
+                  data-testid={`drive-proposal-quote-source-${draft.index}`}
+                  title={quoteSourceLineText}
+                  className="truncate text-caption text-muted-foreground"
+                >
+                  {quoteSourceLineText}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
 
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
             <div className="flex min-w-0 flex-col gap-1">

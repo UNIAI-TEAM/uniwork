@@ -985,4 +985,187 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
       "Chốt phạm vi tính năng beta",
     );
   });
+  it("renders summary line and quote source line under each task title (including when switched off), handles partial/empty variants and en pluralisation, carries full text in title attribute, and keeps B6 body unchanged (UNI-2220)", async () => {
+    const proposal = makeProposal({
+      drive_file_name: "Kế hoạch ra mắt Q4",
+      items: [
+        {
+          index: 0,
+          title: "Việc đủ mục tiêu và việc con",
+          label_ids: [],
+          goal: "Chốt danh sách tính năng vào bản beta nội bộ ngày 10/11.",
+          checklist: ["Liệt kê tính năng ứng viên", "Họp chốt với nhóm sản phẩm"],
+          excerpt: {
+            section: "Mục 2",
+            quote: "Nhóm sản phẩm chốt phạm vi beta trước 05/11.",
+          },
+          blocked_by_indexes: [],
+        },
+        {
+          index: 1,
+          title: "Việc chỉ có mục tiêu",
+          label_ids: [],
+          goal: "Soạn thông cáo báo chí cho đối tác.",
+          checklist: ["   ", ""],
+          excerpt: {
+            section: "Mục 3",
+            quote: "",
+          },
+          blocked_by_indexes: [],
+        },
+        {
+          index: 2,
+          title: "Việc chỉ có 1 việc con",
+          label_ids: [],
+          goal: "   ",
+          checklist: ["Kiểm tra tài khoản demo"],
+          excerpt: {
+            section: "",
+            quote: "Chuẩn bị sẵn tài khoản demo trước buổi trình bày.",
+          },
+          blocked_by_indexes: [],
+        },
+        {
+          index: 3,
+          title: "Việc chỉ có nhiều việc con",
+          label_ids: [],
+          goal: "",
+          checklist: ["Bước 1", "Bước 2", "Bước 3"],
+          excerpt: {
+            section: "",
+            quote: "   ",
+          },
+          blocked_by_indexes: [],
+        },
+        {
+          index: 4,
+          title: "Việc trống cả mục tiêu lẫn việc con",
+          label_ids: [],
+          goal: "",
+          checklist: [],
+          excerpt: {
+            section: "",
+            quote: "",
+          },
+          blocked_by_indexes: [],
+        },
+      ],
+    });
+
+    const { rerender } = render(
+      renderInWorkspace(
+        <DriveProposalReviewDialog
+          workspaceId="ws1"
+          open
+          onOpenChange={() => {}}
+          proposal={proposal}
+        />,
+      ),
+    );
+
+    // Item 0: goal + count + quote source line
+    const summary0 = await screen.findByTestId("drive-proposal-summary-0");
+    const expectedSummary0Vi =
+      "Mục tiêu: Chốt danh sách tính năng vào bản beta nội bộ ngày 10/11. · 2 việc con";
+    expect(summary0).toHaveTextContent(expectedSummary0Vi);
+    expect(summary0).toHaveAttribute("title", expectedSummary0Vi);
+    expect(summary0).toHaveClass("truncate", "text-caption", "text-muted-foreground");
+
+    const quote0 = screen.getByTestId("drive-proposal-quote-source-0");
+    const expectedQuote0 =
+      'UNI · "Nhóm sản phẩm chốt phạm vi beta trước 05/11." — Kế hoạch ra mắt Q4';
+    expect(quote0).toHaveTextContent(expectedQuote0);
+    expect(quote0).toHaveAttribute("title", expectedQuote0);
+    expect(quote0).toHaveClass("truncate", "text-caption", "text-muted-foreground");
+
+    // Item 1: goal only, quote absent
+    const summary1 = screen.getByTestId("drive-proposal-summary-1");
+    const expectedSummary1Vi = "Mục tiêu: Soạn thông cáo báo chí cho đối tác.";
+    expect(summary1).toHaveTextContent(expectedSummary1Vi);
+    expect(summary1).toHaveAttribute("title", expectedSummary1Vi);
+    expect(screen.queryByTestId("drive-proposal-quote-source-1")).toBeNull();
+
+    // Item 2: count only (1 item) + quote present
+    const summary2 = screen.getByTestId("drive-proposal-summary-2");
+    expect(summary2).toHaveTextContent("1 việc con");
+    expect(summary2).toHaveAttribute("title", "1 việc con");
+    const quote2 = screen.getByTestId("drive-proposal-quote-source-2");
+    const expectedQuote2 =
+      'UNI · "Chuẩn bị sẵn tài khoản demo trước buổi trình bày." — Kế hoạch ra mắt Q4';
+    expect(quote2).toHaveTextContent(expectedQuote2);
+    expect(quote2).toHaveAttribute("title", expectedQuote2);
+
+    // Item 3: count only (3 items), quote absent
+    const summary3 = screen.getByTestId("drive-proposal-summary-3");
+    expect(summary3).toHaveTextContent("3 việc con");
+    expect(summary3).toHaveAttribute("title", "3 việc con");
+    expect(screen.queryByTestId("drive-proposal-quote-source-3")).toBeNull();
+
+    // Item 4: neither goal nor count, nor quote -> both lines omitted
+    expect(screen.queryByTestId("drive-proposal-summary-4")).toBeNull();
+    expect(screen.queryByTestId("drive-proposal-quote-source-4")).toBeNull();
+
+    // Switching item 0 off keeps the summary and quote lines visible under the title
+    const switch0 = screen.getByRole("switch", {
+      name: "Tạo việc: Việc đủ mục tiêu và việc con",
+    });
+    fireEvent.click(switch0);
+    expect(screen.getByTestId("drive-proposal-item-0")).toHaveAttribute("data-selected", "false");
+    expect(screen.getByTestId("drive-proposal-summary-0")).toHaveTextContent(expectedSummary0Vi);
+    expect(screen.getByTestId("drive-proposal-quote-source-0")).toHaveTextContent(expectedQuote0);
+
+    // Switch item 0 back on and verify editable title and B6 body are unchanged
+    fireEvent.click(switch0);
+    expect(screen.getByRole("textbox", { name: "Tiêu đề việc 1" })).toHaveValue(
+      "Việc đủ mục tiêu và việc con",
+    );
+
+    const drafts = createItemDraftsFromProposal(proposal.items);
+    const batchItemsVi = buildBatchCreateItems(
+      drafts,
+      proposal.drive_file_name,
+      "/acme/team/documents/drive/df_1",
+      t,
+    );
+    expect(batchItemsVi[0]?.title).toBe("Việc đủ mục tiêu và việc con");
+    expect(batchItemsVi[0]?.description).toBe(
+      [
+        "**Mục tiêu:** Chốt danh sách tính năng vào bản beta nội bộ ngày 10/11.",
+        "**Việc cần làm**\n- [ ] Liệt kê tính năng ứng viên\n- [ ] Họp chốt với nhóm sản phẩm",
+        'Nguồn: Mục 2: "Nhóm sản phẩm chốt phạm vi beta trước 05/11." · [Kế hoạch ra mắt Q4](/acme/team/documents/drive/df_1)',
+      ].join("\n\n"),
+    );
+
+    // Switch locale to English and verify singular ("1 subtask") / plural ("2 subtasks", "3 subtasks") and "Goal: <goal>"
+    await act(async () => {
+      await setLocale("en");
+    });
+    rerender(
+      renderInWorkspace(
+        <DriveProposalReviewDialog
+          workspaceId="ws1"
+          open
+          onOpenChange={() => {}}
+          proposal={proposal}
+        />,
+      ),
+    );
+
+    const expectedSummary0En =
+      "Goal: Chốt danh sách tính năng vào bản beta nội bộ ngày 10/11. · 2 subtasks";
+    expect(screen.getByTestId("drive-proposal-summary-0")).toHaveTextContent(expectedSummary0En);
+    expect(screen.getByTestId("drive-proposal-summary-0")).toHaveAttribute(
+      "title",
+      expectedSummary0En,
+    );
+    expect(screen.getByTestId("drive-proposal-summary-1")).toHaveTextContent(
+      "Goal: Soạn thông cáo báo chí cho đối tác.",
+    );
+    expect(screen.getByTestId("drive-proposal-summary-2")).toHaveTextContent("1 subtask");
+    expect(screen.getByTestId("drive-proposal-summary-2")).toHaveAttribute("title", "1 subtask");
+    expect(screen.getByTestId("drive-proposal-summary-3")).toHaveTextContent("3 subtasks");
+    expect(screen.getByTestId("drive-proposal-summary-3")).toHaveAttribute("title", "3 subtasks");
+    expect(screen.getByTestId("drive-proposal-quote-source-0")).toHaveTextContent(expectedQuote0);
+  });
+
 });

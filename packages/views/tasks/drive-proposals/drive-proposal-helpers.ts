@@ -129,6 +129,46 @@ export function formatDriveProposalSourceLine(
   });
 }
 
+export function formatDriveProposalSummaryLine(
+  goal: string,
+  checklist: readonly string[],
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  const normalizedGoal = goal.replace(/\s+/g, " ").trim();
+  const subtaskCount = checklist.filter((item) => item.trim().length > 0).length;
+
+  const goalPart = normalizedGoal
+    ? t("drive.proposals.review.summary_goal", { goal: normalizedGoal })
+    : "";
+  const subtasksPart =
+    subtaskCount > 0
+      ? t("drive.proposals.review.summary_subtasks", { count: subtaskCount })
+      : "";
+
+  if (goalPart && subtasksPart) {
+    return t("drive.proposals.review.summary_goal_with_subtasks", {
+      goalPart,
+      subtasksPart,
+    });
+  }
+  return goalPart || subtasksPart;
+}
+
+export function formatDriveProposalQuoteSourceLine(
+  excerpt: DriveProposalExcerpt,
+  fileName: string,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  const normalizedQuote = excerpt.quote.replace(/\s+/g, " ").trim();
+  if (!normalizedQuote) {
+    return "";
+  }
+  return t("drive.proposals.review.summary_quote_source", {
+    quote: normalizedQuote,
+    fileName: fileName.trim(),
+  });
+}
+
 /**
  * Builds the task description from the item's goal, checklist, excerpt, and
  * source document link (spec §8.4, §8.5, Q3: excerpt always stays in the
