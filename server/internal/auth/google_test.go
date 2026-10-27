@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -74,6 +75,7 @@ func newFakeOIDC(t *testing.T) *fakeOIDC {
 	f.claims = jwt.MapClaims{
 		"iss": f.srv.URL, "aud": "client-id", "sub": "sub-1",
 		"email": "a@example.com", "email_verified": true, "name": "A", "picture": "https://img/a.png",
+		"hd": "example.com", "nonce": "n0nce",
 		"iat": time.Now().Unix(), "exp": time.Now().Add(time.Hour).Unix(),
 	}
 	return f
@@ -88,10 +90,13 @@ func newGoogle(t *testing.T, f *fakeOIDC) *GoogleOAuth {
 	return g
 }
 
-func TestGoogleAuthCodeURLCarriesStateAndScopes(t *testing.T) {
+// pkceVerifier is a fixed RFC 7636 verifier; its S256 challenge is below.
+const pkceVerifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+
+func TestGoogleAuthCodeURLCarriesStateNonceChallengeAndScopes(t *testing.T) {
 	f := newFakeOIDC(t)
 	g := newGoogle(t, f)
-	u, err := url.Parse(g.AuthCodeURL("st4te"))
+	u, err := url.Parse(g.AuthCodeURL("st4te", "n0nce", pkceVerifier))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,6 +106,10 @@ func TestGoogleAuthCodeURLCarriesStateAndScopes(t *testing.T) {
 	}
 	if q.Get("redirect_uri") != "http://api.test/api/v1/auth/google/callback" || q.Get("prompt") != "select_account" {
 		t.Fatalf("query = %v", q)
+	}
+	// RFC 7636 appendix B: this verifier's S256 challenge.
+	if q.Get("nonce") != "n0nce" || q.Get("code_challenge_method") != "S256" || q.Get("code_challenge") != "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM" {
+		t.Fatalf("nonce and PKCE = %v", q)
 	}
 	for _, scope := range []string{"openid", "email", "profile"} {
 		if !strings.Contains(q.Get("scope"), scope) {
@@ -112,26 +121,45 @@ func TestGoogleAuthCodeURLCarriesStateAndScopes(t *testing.T) {
 func TestGoogleExchangeVerifiesIDTokenAndReturnsClaims(t *testing.T) {
 	f := newFakeOIDC(t)
 	g := newGoogle(t, f)
-	c, err := g.Exchange(context.Background(), "good-code")
+	c, err := g.Exchange(context.Background(), "good-code", pkceVerifier, "n0nce")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Sub != "sub-1" || c.Email != "a@example.com" || !c.EmailVerified || c.Name != "A" || c.Picture != "https://img/a.png" {
+	if c.Sub != "sub-1" || c.Email != "a@example.com" || !c.EmailVerified || c.Name != "A" || c.Picture != "https://img/a.png" || c.HD != "example.com" {
 		t.Fatalf("claims = %+v", c)
 	}
-	if f.lastForm.Get("redirect_uri") != "http://api.test/api/v1/auth/google/callback" || f.lastForm.Get("grant_type") != "authorization_code" {
+	if f.lastForm.Get("redirect_uri") != "http://api.test/api/v1/auth/google/callback" || f.lastForm.Get("grant_type") != "authorization_code" ||
+		f.lastForm.Get("code_verifier") != pkceVerifier {
 		t.Fatalf("token request = %v", f.lastForm)
+	}
+}
+
+// The ID token must echo the nonce this sign-in put in the authorization
+// request (ADR 0047): a token minted for another sign-in, or with none, is
+// refused even though Google signed it.
+func TestGoogleExchangeRefusesAnotherNonce(t *testing.T) {
+	f := newFakeOIDC(t)
+	g := newGoogle(t, f)
+	if _, err := g.Exchange(context.Background(), "good-code", pkceVerifier, "another"); !errors.Is(err, ErrGoogleNonce) {
+		t.Fatalf("another nonce: %v", err)
+	}
+	if _, err := g.Exchange(context.Background(), "good-code", pkceVerifier, ""); !errors.Is(err, ErrGoogleNonce) {
+		t.Fatalf("no nonce expected: %v", err)
+	}
+	delete(f.claims, "nonce")
+	if _, err := g.Exchange(context.Background(), "good-code", pkceVerifier, "n0nce"); !errors.Is(err, ErrGoogleNonce) {
+		t.Fatalf("token without a nonce: %v", err)
 	}
 }
 
 func TestGoogleExchangeRejectsBadCodeAndWrongAudience(t *testing.T) {
 	f := newFakeOIDC(t)
 	g := newGoogle(t, f)
-	if _, err := g.Exchange(context.Background(), "bad-code"); err == nil {
+	if _, err := g.Exchange(context.Background(), "bad-code", pkceVerifier, "n0nce"); err == nil {
 		t.Fatal("bad code accepted")
 	}
 	f.claims["aud"] = "someone-else"
-	if _, err := g.Exchange(context.Background(), "good-code"); err == nil {
+	if _, err := g.Exchange(context.Background(), "good-code", pkceVerifier, "n0nce"); err == nil {
 		t.Fatal("token for another audience accepted")
 	}
 }
@@ -140,7 +168,7 @@ func TestGoogleExchangeRejectsExpiredToken(t *testing.T) {
 	f := newFakeOIDC(t)
 	g := newGoogle(t, f)
 	f.claims["exp"] = time.Now().Add(-time.Hour).Unix()
-	if _, err := g.Exchange(context.Background(), "good-code"); err == nil {
+	if _, err := g.Exchange(context.Background(), "good-code", pkceVerifier, "n0nce"); err == nil {
 		t.Fatal("expired token accepted")
 	}
 }

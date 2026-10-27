@@ -535,17 +535,30 @@ database and never reveal whether an id exists to a non-member.
   `TestMCPAddressCeilingStopsRotatingTokens`. The credential routes carry
   their own small budget in `server/internal/handler/router/router.go`,
   whose tests pin all of it.
-- A bearer route never answers with a redirect: only the Google sign-in,
-  MCP OAuth authorize and Swagger entry handlers call `http.Redirect`
-  (`TestOnlyBrowserFlowsRedirect` in `server/internal/arch_test.go`), since a
-  native client's HTTP stack may carry `Authorization` to wherever a 3xx points.
+- A bearer route never answers with a redirect: only the browser sign-in
+  handlers (`server/internal/handler/google.go` and the finish they share,
+  `server/internal/handler/web_sign_in.go`), MCP OAuth authorize and Swagger
+  entry handlers call `http.Redirect` (`TestOnlyBrowserFlowsRedirect` in
+  `server/internal/arch_test.go`), since a native client's HTTP stack may
+  carry `Authorization` to wherever a 3xx points.
 - Sign in with Apple (ADR 0041) enters only through `POST /api/v1/auth/apple/native`: `auth.AppleVerifier` checks
   Apple's signature against its JWKS, `iss`, `exp`, an `aud` listed in `APPLE_SIWA_AUDIENCES` and a `nonce` equal to
-  the SHA-256 of the raw nonce the app sent. An Apple identity links by `users.apple_id`, by email only when Apple's
-  address is not a private relay and the account's address is verified, never to an MFA account; account deletion
-  revokes the Apple token the sign-in kept, sealed. `TestAppleVerifierRefusesWhatAppleDidNotIssueForThisApp`,
+  the SHA-256 of the raw nonce the app sent. The route keeps the codes the shipped app reads (`mfa_required`, never
+  linking an MFA account; `apple_token_invalid`; `apple_account_conflict`); account deletion revokes the Apple token
+  the sign-in kept, sealed. `TestAppleVerifierRefusesWhatAppleDidNotIssueForThisApp`,
   `TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay`,
-  `TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking` and `TestDeleteAccountRevokesTheAppleToken` hold it.
+  `TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking`, `TestLegacyAppleNativeKeepsItsCodes` and
+  `TestDeleteAccountRevokesTheAppleToken` hold it.
+- Every provider sign-in (Google on the web, Apple) finds its account through `resolveIdentity` in
+  `server/internal/service/identity_resolve.go` (ADR 0047): the provider subject first, then the address only when
+  the provider vouches for it. An address the provider owns (Gmail or the Workspace `hd`; iCloud or Apple's relay)
+  links to a verified account, or takes back an account that never proved the address — everything its registrant
+  left goes, and their second factor is never asked; any other address, or a subject the owner unlinked, joins no
+  account by itself, and a link never verifies an address. Blobs handed to a client are sealed per purpose
+  (`SecretSealer.SealFor`); the Google web flow adds PKCE and a nonce. `TestProviderSignInLinksByEmailOnlyWhenBothSidesVerified`,
+  `TestProviderSignInTrustsOnlyAuthoritativeEmail`, `TestProviderSignInReclaimsAnUnverifiedAccount`,
+  `TestReclaimNeverAsksTheSquattersSecondFactor`, `TestAnUnlinkedProviderIsNotRelinkedByEmail` and
+  `TestSealedBlobsDoNotCrossPurposes` hold it.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).
 - `server/cmd/server/main.go` shuts down on SIGTERM/SIGINT: in-flight requests get

@@ -139,12 +139,18 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	adminSvc.SetSystemSources(readiness, nil, nil)
 	ents := service.NewEntitlementService(pool, q)
 	aiCredentials := service.NewAICredentialService(pool, q, orgs, ents, testEmailHubSecretBox(t))
+	sealer, err := auth.NewSecretSealer(minter.Secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authSvc.SetSealer(sealer)
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),
 		Minter:        minter,
 		Auth:          authSvc,
-		GoogleAuth:    service.NewGoogleAuthService(q, authSvc),
+		Sealer:        sealer,
+		GoogleAuth:    service.NewGoogleAuthService(pool, q, authSvc),
 		Verification:  verification,
 		PasswordReset: service.NewPasswordResetService(pool, q, authSvc, mail.Renderer{AppURL: "http://localhost:3000"}, out),
 		Google:        google,

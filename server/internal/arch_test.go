@@ -558,6 +558,7 @@ func TestOnlyBrowserFlowsRedirect(t *testing.T) {
 	redirect := regexp.MustCompile(`http\.Redirect\(|http\.Status(MovedPermanently|Found|SeeOther|TemporaryRedirect|PermanentRedirect)\b|Header\(\)\.Set\("Location"`)
 	allowed := map[string]bool{
 		"handler/google.go":         true,
+		"handler/web_sign_in.go":    true,
 		"handler/mcp_oauth.go":      true,
 		"handler/router/openapi.go": true,
 	}

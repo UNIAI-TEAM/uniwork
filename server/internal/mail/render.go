@@ -15,7 +15,7 @@ import (
 //go:embed templates/*.html templates/*.txt
 var templateFS embed.FS
 
-var kinds = []string{KindVerificationCode, KindPasswordReset, KindWorkspaceInvite, KindOrganizationInvite, KindWelcome, KindNotificationDigest, KindNewLogin, KindAppleLinked}
+var kinds = []string{KindVerificationCode, KindPasswordReset, KindWorkspaceInvite, KindOrganizationInvite, KindWelcome, KindNotificationDigest, KindNewLogin, KindSignInMethodChanged}
 var locales = []string{"vi", "en"}
 
 // One parsed pair per kind×locale; a missing file panics at boot, which is

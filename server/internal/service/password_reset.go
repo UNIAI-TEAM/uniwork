@@ -135,7 +135,11 @@ func (s *PasswordResetService) Reset(ctx context.Context, token, password string
 	}
 	defer tx.Rollback(ctx)
 	qtx := s.q.WithTx(tx)
-	u, err := qtx.UpdateUserPassword(ctx, db.UpdateUserPasswordParams{ID: t.UserID, PasswordHash: pgtype.Text{String: hash, Valid: true}})
+	u, err := qtx.SetUserPassword(ctx, db.SetUserPasswordParams{ID: t.UserID, PasswordHash: pgtype.Text{String: hash, Valid: true}})
+	if errors.Is(err, pgx.ErrNoRows) {
+		// The account was deleted after the link went out.
+		return Session{}, ErrInvalidToken
+	}
 	if err != nil {
 		return Session{}, err
 	}

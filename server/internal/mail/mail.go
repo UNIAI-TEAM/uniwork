@@ -22,9 +22,11 @@ const (
 	// A sign-in from a browser the account has never used (F-01), or a new
 	// phone session on an account that already had one (ADR 0041).
 	KindNewLogin = "new_login"
-	// Sign in with Apple was linked to an existing account by its address
-	// (ADR 0041): a new way in that the owner did not set up from Settings.
-	KindAppleLinked = "apple_linked"
+	// A way into the account changed (ADR 0047): a provider linked, unlinked
+	// or moved, the account taken back by its mailbox's owner, the password
+	// set or changed, the second factor locked after repeated guesses. It
+	// replaces apple_linked, which only told of an Apple link.
+	KindSignInMethodChanged = "sign_in_method_changed"
 )
 
 type Message struct {

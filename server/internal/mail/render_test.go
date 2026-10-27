@@ -208,23 +208,80 @@ func TestNewLoginFromTheAppNamesTheDevice(t *testing.T) {
 	}
 }
 
-func TestAppleLinkedRendersBothLocales(t *testing.T) {
+// One kind tells of every change to the ways into an account (ADR 0047), in
+// both languages: the change in the subject, where it came from, the security
+// settings and, if it was not the owner, the password reset. It replaced
+// apple_linked, which only told of an Apple link.
+func TestSignInMethodChangedRendersEveryChangeInBothLocales(t *testing.T) {
 	r := Renderer{AppURL: "http://localhost:3000"}
-	for _, loc := range []string{"vi", "en"} {
-		m, err := r.AppleLinked("a@example.com", loc, "u1", AppleLinkedData{
-			Device: "iPhone của An", IP: "10.0.0.1", At: time.Date(2026, 10, 23, 9, 30, 0, 0, time.UTC),
-			SessionsURL: "http://localhost:3000/settings?tab=security",
-		})
-		if err != nil || m.Kind != KindAppleLinked || m.UserID != "u1" || m.Locale != loc {
-			t.Fatalf("%s: %v %+v", loc, err, m)
-		}
-		if !strings.Contains(m.Subject, "Apple") || strings.ContainsAny(m.Subject, "\r\n") {
-			t.Fatalf("%s: subject %q", loc, m.Subject)
-		}
-		for _, body := range []string{m.HTML, m.Text} {
-			if !strings.Contains(body, "iPhone của An") || !strings.Contains(body, "10.0.0.1") || !strings.Contains(body, "/settings?tab=security") {
-				t.Fatalf("%s: body misses the device, address or sessions link: %s", loc, body)
+	at := time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
+	cases := []struct {
+		change, method string
+		away           bool
+		subject        map[string]string
+	}{
+		{SignInChangeLinked, SignInMethodApple, false, map[string]string{"vi": "Apple đã được liên kết", "en": "Apple was linked"}},
+		{SignInChangeUnlinked, SignInMethodGoogle, false, map[string]string{"vi": "Google đã được gỡ", "en": "Google was unlinked"}},
+		{SignInChangeReclaimed, SignInMethodGoogle, false, map[string]string{"vi": "lấy lại tài khoản", "en": "took back your UniWork account"}},
+		{SignInChangeReclaimed, SignInMethodPassword, false, map[string]string{"vi": "lấy lại tài khoản", "en": "took back your UniWork account"}},
+		{SignInChangeMoved, SignInMethodApple, false, map[string]string{"vi": "chuyển vào tài khoản", "en": "moved into your"}},
+		{SignInChangeMoved, SignInMethodApple, true, map[string]string{"vi": "chuyển sang một tài khoản", "en": "moved to another"}},
+		{SignInChangePasswordSet, SignInMethodPassword, false, map[string]string{"vi": "Đã đặt mật khẩu", "en": "password was set"}},
+		{SignInChangePasswordChanged, SignInMethodPassword, false, map[string]string{"vi": "Mật khẩu tài khoản UniWork đã được đổi", "en": "password was changed"}},
+		{SignInChangeSecondFactorLocked, "", false, map[string]string{"vi": "Tạm dừng", "en": "paused"}},
+	}
+	for _, tc := range cases {
+		for _, loc := range []string{"vi", "en"} {
+			m, err := r.SignInMethodChanged("a@example.com", loc, "u1", SignInMethodChangedData{
+				Change: tc.change, Method: tc.method, MovedAway: tc.away,
+				Device: "iPhone của An", IP: "10.0.0.1", At: at, LockedFor: 15 * time.Minute,
+			})
+			if err != nil || m.Kind != KindSignInMethodChanged || m.UserID != "u1" || m.Locale != loc || m.To != "a@example.com" {
+				t.Fatalf("%s/%s: %v %+v", tc.change, loc, err, m)
 			}
+			if !strings.Contains(m.Subject, tc.subject[loc]) || strings.ContainsAny(m.Subject, "\r\n") {
+				t.Fatalf("%s/%s: subject %q", tc.change, loc, m.Subject)
+			}
+			for _, body := range []string{m.HTML, m.Text} {
+				for _, want := range []string{"iPhone của An", "10.0.0.1", "http://localhost:3000/settings?tab=security", "http://localhost:3000/forgot-password"} {
+					if !strings.Contains(body, want) {
+						t.Fatalf("%s/%s: body misses %q: %s", tc.change, loc, want, body)
+					}
+				}
+				if strings.Contains(body, "{{") || strings.Contains(body, "<no value>") {
+					t.Fatalf("%s/%s: unrendered template: %s", tc.change, loc, body)
+				}
+			}
+			if tc.change == SignInChangeSecondFactorLocked && !strings.Contains(m.Text, map[string]string{"vi": "15 phút", "en": "15 minutes"}[loc]) {
+				t.Fatalf("%s: the lockout names its length: %s", loc, m.Text)
+			}
+			if tc.change == SignInChangeReclaimed && tc.method == SignInMethodPassword && !strings.Contains(m.Text, map[string]string{"vi": "liên kết đặt lại mật khẩu", "en": "password reset link"}[loc]) {
+				t.Fatalf("%s: a reclaim by reset link says so: %s", loc, m.Text)
+			}
+		}
+	}
+
+	// Where the change came from is optional; the time never is.
+	m, err := r.SignInMethodChanged("a@example.com", "en", "u1", SignInMethodChangedData{Change: SignInChangePasswordSet, Method: SignInMethodPassword, At: at})
+	if err != nil || strings.Contains(m.Text, "Device:") || strings.Contains(m.Text, "IP address:") || !strings.Contains(m.Text, "When: 2026-10-27 09:30") {
+		t.Fatalf("no device or address: %v %s", err, m.Text)
+	}
+	// User-controlled fields stay text.
+	m, _ = r.SignInMethodChanged("a@example.com", "vi", "u1", SignInMethodChangedData{Change: SignInChangeLinked, Method: SignInMethodGoogle, Device: "<script>x</script>", At: at})
+	if strings.Contains(m.HTML, "<script>") {
+		t.Fatalf("device not escaped: %s", m.HTML)
+	}
+	// A change it does not know, or a method the change cannot name, is an
+	// error rather than an empty mail.
+	for _, d := range []SignInMethodChangedData{
+		{Change: "apple_linked", Method: SignInMethodApple},
+		{Change: SignInChangeLinked, Method: SignInMethodPassword},
+		{Change: SignInChangeLinked},
+		{Change: SignInChangePasswordSet, Method: SignInMethodGoogle},
+		{Change: SignInChangeSecondFactorLocked, Method: SignInMethodPassword},
+	} {
+		if _, err := r.SignInMethodChanged("a@example.com", "vi", "u1", d); err == nil {
+			t.Fatalf("%+v rendered", d)
 		}
 	}
 }

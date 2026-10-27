@@ -196,8 +196,16 @@ func main() {
 	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, mailOutbox)
 	orgMemberSvc.SetMail(renderer, mailOutbox)
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
+	// The one sealer (ADR 0047): TOTP secrets and the kept Apple token at
+	// rest, and every blob the server hands a client, sealed per purpose.
+	sealer, err := auth.NewSecretSealer([]byte(cfg.JWTSecret))
+	if err != nil {
+		log.Error("secret sealer", "err", err)
+		os.Exit(1)
+	}
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
 	authSvc.SetMail(renderer, mailOutbox)
+	authSvc.SetSealer(sealer)
 	desktopAuthSvc := service.NewDesktopAuthService(pool, q, minter, cfg)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, mailOutbox)
 	var conference meetings.ConferenceProvider
@@ -737,7 +745,7 @@ func main() {
 			log.Warn("sign in with apple: APPLE_SIWA_TEAM_ID, APPLE_SIWA_KEY_ID or APPLE_SIWA_PRIVATE_KEY unset; account deletion cannot revoke Apple tokens")
 		}
 		verifier := auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, cfg.AppleSignInAudiences, nil)
-		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, verifier, appleClient)
+		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, verifier, appleClient, sealer)
 		appleAuth.SetMail(renderer, mailOutbox)
 		authSvc.SetApple(appleAuth)
 		log.Info("sign in with apple enabled", "audiences", strings.Join(cfg.AppleSignInAudiences, ","))
@@ -852,7 +860,8 @@ func main() {
 		AppleAuth:           appleAuth,
 		Verification:        verification,
 		PasswordReset:       passwordReset,
-		GoogleAuth:          service.NewGoogleAuthService(q, authSvc),
+		GoogleAuth:          service.NewGoogleAuthService(pool, q, authSvc),
+		Sealer:              sealer,
 		Google:              google,
 		Organizations:       orgSvc,
 		OrgMembers:          orgMemberSvc,

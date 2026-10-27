@@ -76,6 +76,22 @@ func (q *Queries) CancelDesktopAuthAttempt(ctx context.Context, arg CancelDeskto
 	return result.RowsAffected(), nil
 }
 
+const cancelOpenDesktopAuthAttemptsForUser = `-- name: CancelOpenDesktopAuthAttemptsForUser :execrows
+UPDATE desktop_auth_attempts SET cancelled_at = now()
+WHERE user_id = $1 AND used_at IS NULL AND cancelled_at IS NULL
+`
+
+// An account taken back by the owner of its mailbox (ADR 0047): every attempt
+// the previous holder claimed or approved and nobody redeemed yet dies, so an
+// approved code cannot open a device session after the reclaim.
+func (q *Queries) CancelOpenDesktopAuthAttemptsForUser(ctx context.Context, userID pgtype.Text) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelOpenDesktopAuthAttemptsForUser, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countLiveDeviceSessionsInFamily = `-- name: CountLiveDeviceSessionsInFamily :one
 SELECT count(*) FROM device_sessions
 WHERE user_id = $1 AND session_family_id = $2 AND revoked_at IS NULL

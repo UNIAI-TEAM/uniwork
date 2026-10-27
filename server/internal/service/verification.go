@@ -24,6 +24,14 @@ const (
 	verificationResend  = 60 * time.Second
 )
 
+// The purposes a mailed six-digit code proves the mailbox for
+// (email_verification_codes.purpose, ADR 0047): every read names one, so a
+// step-up code never verifies an address and the other way round.
+const (
+	codePurposeVerifyEmail = "verify_email"
+	codePurposeStepUp      = "step_up"
+)
+
 // VerificationService issues and checks the email verification code a user
 // receives after registering. Codes are stored hashed; the active-code query
 // enforces single use, expiry and the attempt cap.
@@ -54,7 +62,7 @@ func (s *VerificationService) Send(ctx context.Context, userID string) error {
 	if u.EmailVerifiedAt.Valid {
 		return ErrConflict
 	}
-	latest, err := s.q.GetLatestEmailVerificationCode(ctx, userID)
+	latest, err := s.q.GetLatestEmailVerificationCode(ctx, db.GetLatestEmailVerificationCodeParams{UserID: userID, Purpose: codePurposeVerifyEmail})
 	if err == nil && s.now().Sub(latest.CreatedAt.Time) < verificationResend {
 		return ErrRateLimited
 	}
@@ -69,6 +77,7 @@ func (s *VerificationService) Send(ctx context.Context, userID string) error {
 		ID: util.NewID(), UserID: userID, CodeHash: hashToken(code),
 		ExpiresAt: pgtype.Timestamptz{Time: s.now().Add(verificationCodeTTL), Valid: true},
 		CreatedAt: pgtype.Timestamptz{Time: s.now(), Valid: true},
+		Purpose:   codePurposeVerifyEmail,
 	})
 	if err != nil {
 		return err
@@ -91,7 +100,7 @@ func (s *VerificationService) Send(ctx context.Context, userID string) error {
 // verified. Wrong, expired and exhausted codes all return ErrInvalidCode.
 func (s *VerificationService) Confirm(ctx context.Context, userID, code string) (db.User, error) {
 	code = strings.TrimSpace(code)
-	active, err := s.q.GetActiveEmailVerificationCode(ctx, userID)
+	active, err := s.q.GetActiveEmailVerificationCode(ctx, db.GetActiveEmailVerificationCodeParams{UserID: userID, Purpose: codePurposeVerifyEmail})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.User{}, ErrInvalidCode
 	}
@@ -114,7 +123,7 @@ func (s *VerificationService) Confirm(ctx context.Context, userID, code string) 
 	if err != nil {
 		return db.User{}, err
 	}
-	if err := s.q.DeleteEmailVerificationCodesForUser(ctx, userID); err != nil {
+	if err := s.q.DeleteEmailVerificationCodesForUser(ctx, db.DeleteEmailVerificationCodesForUserParams{UserID: userID, Purpose: codePurposeVerifyEmail}); err != nil {
 		slog.Warn("delete verification codes", "user", userID, "err", err)
 	}
 	return u, nil

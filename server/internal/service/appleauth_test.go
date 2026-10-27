@@ -70,7 +70,11 @@ func newAppleFixture(t *testing.T) *appleFixture {
 	issuer := appletest.New(t)
 	client := &fakeAppleClient{}
 	verifier := auth.NewAppleVerifier(auth.AppleIssuer, issuer.JWKSURL, []string{appleBundle, appleBundle + ".staging"}, nil)
-	apple := NewAppleAuthService(pool, q, desktop, verifier, client)
+	sealer, err := auth.NewSecretSealer([]byte("apple-test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	apple := NewAppleAuthService(pool, q, desktop, verifier, client, sealer)
 	as.SetApple(apple)
 	out := &fakeOutbox{}
 	apple.SetMail(mail.Renderer{AppURL: "http://localhost:3000"}, out)
@@ -116,6 +120,7 @@ func TestAppleSignInCreatesARelayAccountAndFindsItAgainBySubject(t *testing.T) {
 		t.Fatal(err)
 	}
 	if u.Email != "q7x@privaterelay.appleid.com" || u.DisplayName != "Ngọc Trần" || u.AppleID.String != "apple-sub-1" ||
+		u.AppleEmail.String != "q7x@privaterelay.appleid.com" || !u.AppleLinkedAt.Valid ||
 		!u.EmailVerifiedAt.Valid || u.PasswordHash.Valid || u.OnboardedAt.Valid || u.Locale != "vi" {
 		t.Fatalf("created user = %+v", u)
 	}
@@ -142,24 +147,27 @@ func TestAppleSignInCreatesARelayAccountAndFindsItAgainBySubject(t *testing.T) {
 	}
 }
 
+// Apple joins an existing account by its address only when both sides proved
+// it and Apple owns it (an iCloud address, ADR 0047), never through a private
+// relay address someone else holds.
 func TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay(t *testing.T) {
 	f := newAppleFixture(t)
 	ctx := context.Background()
-	verified, err := f.auth.Register(ctx, "mai@example.com", "password123", "Mai", "vi")
+	verified, err := f.auth.Register(ctx, "mai@icloud.com", "password123", "Mai", "vi")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(ctx, `UPDATE users SET email_verified_at = now() WHERE id = $1`, verified.User.ID); err != nil {
 		t.Fatal(err)
 	}
-	sess, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-mai", "MAI@example.com", false, "n"), "n"))
+	sess, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-mai", "MAI@icloud.com", false, "n"), "n"))
 	if err != nil || sess.AccountID != verified.User.ID {
 		t.Fatalf("verified address links: %+v %v", sess, err)
 	}
 	if u, _ := f.q.GetUserByID(ctx, verified.User.ID); u.AppleID.String != "apple-mai" || u.DisplayName != "Mai" {
 		t.Fatalf("linked user = %+v", u)
 	}
-	if _, err := f.auth.Login(ctx, "mai@example.com", "password123"); err != nil {
+	if _, err := f.auth.Login(ctx, "mai@icloud.com", "password123"); err != nil {
 		t.Fatalf("the password still works: %v", err)
 	}
 
@@ -170,7 +178,7 @@ func TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay(t *testing.T) {
 			t.Fatalf("want apple_account_conflict, got %v", err)
 		}
 	}
-	t.Run("unverified address", func(t *testing.T) {
+	t.Run("unverified address Apple does not own", func(t *testing.T) {
 		reg, err := f.auth.Register(ctx, "typed@example.com", "password123", "T", "vi")
 		if err != nil {
 			t.Fatal(err)
@@ -179,6 +187,20 @@ func TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay(t *testing.T) {
 		conflict(t, err)
 		if u, _ := f.q.GetUserByID(ctx, reg.User.ID); u.AppleID.Valid {
 			t.Fatal("no link on a conflict")
+		}
+	})
+	t.Run("verified address Apple does not own", func(t *testing.T) {
+		reg, err := f.auth.Register(ctx, "owner@gmail.com", "password123", "O", "vi")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.pool.Exec(ctx, `UPDATE users SET email_verified_at = now() WHERE id = $1`, reg.User.ID); err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-gmail", "owner@gmail.com", false, "n"), "n"))
+		conflict(t, err)
+		if u, _ := f.q.GetUserByID(ctx, reg.User.ID); u.AppleID.Valid {
+			t.Fatal("an Apple ID on a Gmail address linked by itself")
 		}
 	})
 	t.Run("relay address someone registered", func(t *testing.T) {
@@ -193,7 +215,7 @@ func TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay(t *testing.T) {
 		conflict(t, err)
 	})
 	t.Run("address linked to another Apple subject", func(t *testing.T) {
-		_, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-other", "mai@example.com", false, "n"), "n"))
+		_, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-other", "mai@icloud.com", false, "n"), "n"))
 		conflict(t, err)
 	})
 }
@@ -280,25 +302,26 @@ func TestAppleSignInTellsTheOwnerOfTheLinkAndOfEveryNewSession(t *testing.T) {
 	}
 
 	// Linking an account made with a password tells its owner once, with the device.
-	reg, err := f.auth.Register(ctx, "owner@example.com", "password123", "O", "vi")
+	reg, err := f.auth.Register(ctx, "owner@icloud.com", "password123", "O", "vi")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(ctx, `UPDATE users SET email_verified_at = now() WHERE id = $1`, reg.User.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-owner", "owner@example.com", false, "d"), "d")); err != nil {
+	if _, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-owner", "owner@icloud.com", false, "d"), "d")); err != nil {
 		t.Fatal(err)
 	}
-	if got := kinds(); len(got) != 2 || got[1] != "apple_linked owner@example.com" {
+	if got := kinds(); len(got) != 2 || got[1] != "sign_in_method_changed owner@icloud.com" {
 		t.Fatalf("the link is told to the owner, and only once: %v", got)
 	}
-	if m := f.out.last(t); !strings.Contains(m.Text, "UniChat (iOS)") || !strings.Contains(m.Text, "/settings?tab=security") || m.UserID != reg.User.ID {
-		t.Fatalf("the link mail names the device and the sessions page: %+v", m)
+	if m := f.out.last(t); !strings.Contains(m.Subject, "Apple") || !strings.Contains(m.Text, "UniChat (iOS)") || !strings.Contains(m.Text, "10.0.0.7") ||
+		!strings.Contains(m.Text, "/settings?tab=security") || m.UserID != reg.User.ID {
+		t.Fatalf("the link mail names Apple, the device, the address and the security page: %+v", m)
 	}
 
 	// A refused sign-in tells nobody anything.
-	if _, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-thief", "owner@example.com", false, "e"), "e")); !errors.Is(err, ErrAppleAccountConflict) {
+	if _, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-thief", "owner@icloud.com", false, "e"), "e")); !errors.Is(err, ErrAppleAccountConflict) {
 		t.Fatalf("want conflict, got %v", err)
 	}
 	if got := kinds(); len(got) != 2 {
@@ -309,14 +332,14 @@ func TestAppleSignInTellsTheOwnerOfTheLinkAndOfEveryNewSession(t *testing.T) {
 func TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking(t *testing.T) {
 	f := newAppleFixture(t)
 	ctx := context.Background()
-	reg, err := f.auth.Register(ctx, "mfa@example.com", "password123", "M", "vi")
+	reg, err := f.auth.Register(ctx, "mfa@icloud.com", "password123", "M", "vi")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(ctx, `UPDATE users SET email_verified_at = now(), mfa_enabled_at = now() WHERE id = $1`, reg.User.ID); err != nil {
 		t.Fatal(err)
 	}
-	_, err = f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-mfa", "mfa@example.com", false, "n"), "n"))
+	_, err = f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-mfa", "mfa@icloud.com", false, "n"), "n"))
 	var ce CodedError
 	if !errors.Is(err, ErrMFARequired) || !errors.As(err, &ce) || ce.Status != http.StatusForbidden {
 		t.Fatalf("want mfa_required, got %v", err)
@@ -394,11 +417,14 @@ func TestAppleRevokeIsBestEffort(t *testing.T) {
 	}
 }
 
-func TestAppleDisplayNameFallsBackToTheAddress(t *testing.T) {
-	if got := appleDisplayName("", " ", "hidden@privaterelay.appleid.com"); got != "hidden" {
+func TestProviderDisplayNameFallsBackToTheAddress(t *testing.T) {
+	if got := providerDisplayName(" ", "hidden@privaterelay.appleid.com"); got != "hidden" {
 		t.Fatalf("got %q", got)
 	}
-	if got := appleDisplayName(strings.Repeat("a", 120), "", "a@b.c"); len([]rune(got)) != maxDisplayNameRunes {
+	if got := providerDisplayName(" Ngọc   Trần ", "a@b.c"); got != "Ngọc Trần" {
+		t.Fatalf("got %q", got)
+	}
+	if got := providerDisplayName(strings.Repeat("a", 120), "a@b.c"); len([]rune(got)) != maxDisplayNameRunes {
 		t.Fatalf("capped to %d runes, got %d", maxDisplayNameRunes, len([]rune(got)))
 	}
 }

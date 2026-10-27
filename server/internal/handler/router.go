@@ -38,6 +38,10 @@ type Deps struct {
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
 	Google GoogleExchanger
+	// Sealer is the server's one sealer (main.go); the browser sign-ins seal
+	// their OAuth state cookie with it (ADR 0047). A zero sealer refuses to
+	// seal, so a provider start answers its failure instead of a weak cookie.
+	Sealer auth.SecretSealer
 	// AppleAuth is nil unless APPLE_SIWA_AUDIENCES is set: the native Sign in
 	// with Apple route answers 503 and /auth/providers reports apple=false.
 	AppleAuth           *service.AppleAuthService

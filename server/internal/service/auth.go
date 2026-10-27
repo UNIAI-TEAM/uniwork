@@ -32,6 +32,8 @@ type AuthService struct {
 	verification *VerificationService
 	// sealer keeps TOTP secrets unreadable at rest; keyed from the JWT
 	// secret so no second secret has to be configured (spec F-01 §2 I2).
+	// main.go injects the server's one sealer (SetSealer); the one derived
+	// here from the minter's secret is the same key, for the tests.
 	sealer auth.SecretSealer
 	// render/out are nil-safe: without SetMail no new-login mail goes out.
 	render mail.Renderer
@@ -53,10 +55,15 @@ func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, 
 	return &AuthService{pool: pool, q: q, minter: minter, refreshTTL: refreshTTL, verification: verification, sealer: sealer, now: time.Now}
 }
 
-// SetMail enables the new-device login alert (spec F-01 §2 I8).
+// SetMail enables the new-device login alert (spec F-01 §2 I8) and the
+// sign-in method notices the provider sign-ins built on this service queue.
 func (s *AuthService) SetMail(r mail.Renderer, out mail.Enqueuer) {
 	s.render, s.out = r, out
 }
+
+// SetSealer hands the service the server's one sealer, which main.go builds
+// from the JWT secret and every service shares (ADR 0047).
+func (s *AuthService) SetSealer(sealer auth.SecretSealer) { s.sealer = sealer }
 
 // SetEmailHub lets DeleteAccount revoke the refresh tokens it removes; main
 // wires it once EmailHubService exists.

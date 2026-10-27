@@ -43,14 +43,15 @@ type ResetPasswordSDI struct {
 
 // GoogleStartSDI is GET /api/v1/auth/google/start.
 type GoogleStartSDI struct {
-	Next string `query:"next" description:"Đường dẫn cùng origin sau khi đăng nhập" example:"/acme/team"`
+	Next   string `query:"next" description:"Đường dẫn cùng origin sau khi đăng nhập" example:"/acme/team"`
+	Intent string `query:"intent" description:"sign_in (mặc định) từ trang đăng nhập hoặc sign_up từ trang đăng ký; giá trị khác chuyển về /login?error=google_failed" example:"sign_in"`
 }
 
 // GoogleCallbackSDI is GET /api/v1/auth/google/callback.
 type GoogleCallbackSDI struct {
-	Code  string `query:"code" description:"Mã ủy quyền Google trả về"`
-	State string `query:"state" description:"CSRF state khớp cookie uniwork_oauth_state"`
-	Error string `query:"error" description:"Lỗi OAuth khi người dùng từ chối, ví dụ access_denied"`
+	Code  string `query:"code" description:"Mã ủy quyền Google trả về" example:"4/0AeanS0b"`
+	State string `query:"state" description:"CSRF state khớp state trong cookie niêm phong uniwork_oauth_state" example:"9f2c4e1ab37d"`
+	Error string `query:"error" description:"Lỗi OAuth khi người dùng từ chối, ví dụ access_denied" example:"access_denied"`
 }
 
 // MFAVerifySDI is POST /api/v1/auth/mfa/verify. mfa_token may be omitted

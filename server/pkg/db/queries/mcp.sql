@@ -58,6 +58,12 @@ RETURNING *;
 UPDATE mcp_auth_attempts SET cancelled_at = now()
 WHERE id = $1 AND approved_at IS NULL AND cancelled_at IS NULL;
 
+-- name: CancelOpenMcpAuthAttemptsForUser :execrows
+-- An account taken back by the owner of its mailbox (ADR 0047): consents the
+-- previous holder opened or approved and no client redeemed yet die with it.
+UPDATE mcp_auth_attempts SET cancelled_at = now()
+WHERE user_id = $1 AND used_at IS NULL AND cancelled_at IS NULL;
+
 -- name: RedeemMcpAuthAttempt :one
 UPDATE mcp_auth_attempts SET used_at = now()
 WHERE code_digest = $1 AND client_id = $2 AND redirect_uri = $3 AND code_challenge = $4

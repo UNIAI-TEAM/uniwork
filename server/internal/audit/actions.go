@@ -111,6 +111,10 @@ const (
 	ActionAuthDesktopSessionRevoked   = "auth.desktop_session_revoked"
 	ActionAuthMFAEnabled              = "auth.mfa_enabled"
 	ActionAuthMFADisabled             = "auth.mfa_disabled"
+	// A Google or Apple identity now opens the account (ADR 0047); metadata
+	// names the provider and how: email_match, reclaim (the mailbox's owner
+	// took back an account registered before the address was proved).
+	ActionAuthSignInMethodLinked = "auth.sign_in_method_linked"
 	// The person asked for their account to be erased (Nghị định 13); the
 	// row is anonymised and this is the last event that names it (F-01).
 	ActionUserDeleted = "user.deleted"

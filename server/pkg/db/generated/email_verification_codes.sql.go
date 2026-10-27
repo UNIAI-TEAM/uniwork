@@ -12,9 +12,10 @@ import (
 )
 
 const createEmailVerificationCode = `-- name: CreateEmailVerificationCode :one
-INSERT INTO email_verification_codes (id, user_id, code_hash, expires_at, created_at)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, user_id, code_hash, expires_at, used_at, attempts, created_at
+
+INSERT INTO email_verification_codes (id, user_id, code_hash, expires_at, created_at, purpose, action)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, user_id, code_hash, expires_at, used_at, attempts, created_at, purpose, action
 `
 
 type CreateEmailVerificationCodeParams struct {
@@ -23,8 +24,13 @@ type CreateEmailVerificationCodeParams struct {
 	CodeHash  string             `json:"code_hash"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	Purpose   string             `json:"purpose"`
+	Action    pgtype.Text        `json:"action"`
 }
 
+// A code proves the mailbox for one purpose (ADR 0047): verify_email, or a
+// step_up proof whose action names what it allows. Every read and the delete
+// name the purpose, so a code mailed for one never answers the other.
 func (q *Queries) CreateEmailVerificationCode(ctx context.Context, arg CreateEmailVerificationCodeParams) (EmailVerificationCode, error) {
 	row := q.db.QueryRow(ctx, createEmailVerificationCode,
 		arg.ID,
@@ -32,6 +38,8 @@ func (q *Queries) CreateEmailVerificationCode(ctx context.Context, arg CreateEma
 		arg.CodeHash,
 		arg.ExpiresAt,
 		arg.CreatedAt,
+		arg.Purpose,
+		arg.Action,
 	)
 	var i EmailVerificationCode
 	err := row.Scan(
@@ -42,16 +50,23 @@ func (q *Queries) CreateEmailVerificationCode(ctx context.Context, arg CreateEma
 		&i.UsedAt,
 		&i.Attempts,
 		&i.CreatedAt,
+		&i.Purpose,
+		&i.Action,
 	)
 	return i, err
 }
 
 const deleteEmailVerificationCodesForUser = `-- name: DeleteEmailVerificationCodesForUser :exec
-DELETE FROM email_verification_codes WHERE user_id = $1
+DELETE FROM email_verification_codes WHERE user_id = $1 AND purpose = $2
 `
 
-func (q *Queries) DeleteEmailVerificationCodesForUser(ctx context.Context, userID string) error {
-	_, err := q.db.Exec(ctx, deleteEmailVerificationCodesForUser, userID)
+type DeleteEmailVerificationCodesForUserParams struct {
+	UserID  string `json:"user_id"`
+	Purpose string `json:"purpose"`
+}
+
+func (q *Queries) DeleteEmailVerificationCodesForUser(ctx context.Context, arg DeleteEmailVerificationCodesForUserParams) error {
+	_, err := q.db.Exec(ctx, deleteEmailVerificationCodesForUser, arg.UserID, arg.Purpose)
 	return err
 }
 
@@ -65,16 +80,21 @@ func (q *Queries) DeleteExpiredEmailVerificationCodes(ctx context.Context) error
 }
 
 const getActiveEmailVerificationCode = `-- name: GetActiveEmailVerificationCode :one
-SELECT id, user_id, code_hash, expires_at, used_at, attempts, created_at FROM email_verification_codes
-WHERE user_id = $1 AND used_at IS NULL AND expires_at > now() AND attempts < 5
+SELECT id, user_id, code_hash, expires_at, used_at, attempts, created_at, purpose, action FROM email_verification_codes
+WHERE user_id = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > now() AND attempts < 5
 ORDER BY created_at DESC
 LIMIT 1
 `
 
+type GetActiveEmailVerificationCodeParams struct {
+	UserID  string `json:"user_id"`
+	Purpose string `json:"purpose"`
+}
+
 // Single-use, expiry and the attempt cap are all decided here so callers
 // cannot forget one of them.
-func (q *Queries) GetActiveEmailVerificationCode(ctx context.Context, userID string) (EmailVerificationCode, error) {
-	row := q.db.QueryRow(ctx, getActiveEmailVerificationCode, userID)
+func (q *Queries) GetActiveEmailVerificationCode(ctx context.Context, arg GetActiveEmailVerificationCodeParams) (EmailVerificationCode, error) {
+	row := q.db.QueryRow(ctx, getActiveEmailVerificationCode, arg.UserID, arg.Purpose)
 	var i EmailVerificationCode
 	err := row.Scan(
 		&i.ID,
@@ -84,20 +104,27 @@ func (q *Queries) GetActiveEmailVerificationCode(ctx context.Context, userID str
 		&i.UsedAt,
 		&i.Attempts,
 		&i.CreatedAt,
+		&i.Purpose,
+		&i.Action,
 	)
 	return i, err
 }
 
 const getLatestEmailVerificationCode = `-- name: GetLatestEmailVerificationCode :one
-SELECT id, user_id, code_hash, expires_at, used_at, attempts, created_at FROM email_verification_codes
-WHERE user_id = $1
+SELECT id, user_id, code_hash, expires_at, used_at, attempts, created_at, purpose, action FROM email_verification_codes
+WHERE user_id = $1 AND purpose = $2
 ORDER BY created_at DESC
 LIMIT 1
 `
 
+type GetLatestEmailVerificationCodeParams struct {
+	UserID  string `json:"user_id"`
+	Purpose string `json:"purpose"`
+}
+
 // Newest row regardless of state: powers the resend gate.
-func (q *Queries) GetLatestEmailVerificationCode(ctx context.Context, userID string) (EmailVerificationCode, error) {
-	row := q.db.QueryRow(ctx, getLatestEmailVerificationCode, userID)
+func (q *Queries) GetLatestEmailVerificationCode(ctx context.Context, arg GetLatestEmailVerificationCodeParams) (EmailVerificationCode, error) {
+	row := q.db.QueryRow(ctx, getLatestEmailVerificationCode, arg.UserID, arg.Purpose)
 	var i EmailVerificationCode
 	err := row.Scan(
 		&i.ID,
@@ -107,6 +134,8 @@ func (q *Queries) GetLatestEmailVerificationCode(ctx context.Context, userID str
 		&i.UsedAt,
 		&i.Attempts,
 		&i.CreatedAt,
+		&i.Purpose,
+		&i.Action,
 	)
 	return i, err
 }

@@ -789,6 +789,13 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionAuthSignInMethodLinked: func(t *testing.T, f *auditFixture) {
+			registerVerified(t, f.q, f.auth, "audit-link@gmail.com", "Link")
+			google := NewGoogleAuthService(f.pool, f.q, f.auth)
+			if _, err := google.SignIn(f.ctx, GoogleClaims{Sub: "audit-google", Email: "audit-link@gmail.com", EmailVerified: true}, "vi"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionUserDeleted: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			if err := f.auth.DeleteAccount(f.ctx, f.member.ID, DeleteAccountInput{Password: auditPassword}); err != nil {
@@ -2444,6 +2451,7 @@ func auditActions() []string {
 		audit.ActionAuthDesktopSessionRevoked,
 		audit.ActionAuthMFAEnabled,
 		audit.ActionAuthMFADisabled,
+		audit.ActionAuthSignInMethodLinked,
 		audit.ActionUserDeleted,
 		audit.ActionUserAIConsentGranted,
 		audit.ActionUserAIConsentWithdrawn,

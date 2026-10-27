@@ -11,6 +11,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -75,7 +76,7 @@ func TestPasswordResetIgnoresGoogleOnly(t *testing.T) {
 	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "x"}, out)
 	ctx := context.Background()
-	if _, err := q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{ID: "g1", Email: "g@example.com", DisplayName: "G", GoogleID: pgtype.Text{String: "sub", Valid: true}, Locale: "vi"}); err != nil {
+	if _, err := q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{ID: "g1", Email: "g@example.com", DisplayName: "G", GoogleID: pgtype.Text{String: "sub", Valid: true}, EmailVerified: true, Locale: "vi"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Request(ctx, "g@example.com"); err != nil || len(out.queued) != 0 {
@@ -163,5 +164,56 @@ func TestPasswordResetDailyCap(t *testing.T) {
 	s.now = func() time.Time { return base.Add(time.Duration(passwordResetDailyCap) * 61 * time.Second) }
 	if err := s.Request(ctx, "cap@example.com"); err != nil || len(out.queued) != passwordResetDailyCap {
 		t.Fatalf("6th request must be silently dropped: %v %d", err, len(out.queued))
+	}
+}
+
+// A reset link mailed before the account was erased sets no password on the
+// anonymised row (spec 2026-10-27 §2): the deletion expires every link, and
+// the password write refuses a deleted account even for a link that slipped
+// past it. A reset records when the password changed.
+func TestAResetLinkMailedBeforeDeletionIsDead(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	out := &fakeOutbox{}
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	s := NewPasswordResetService(pool, q, as, mail.Renderer{AppURL: "http://localhost:3000"}, out)
+	ctx := context.Background()
+
+	kept := registerVerified(t, q, as, "kept@example.com", "K")
+	if err := s.Request(ctx, "kept@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := s.Reset(ctx, resetToken.FindStringSubmatch(out.last(t).Text)[1], "newpassword1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u, _ := q.GetUserByID(ctx, kept.ID); !u.PasswordChangedAt.Valid || sess.User.ID != kept.ID {
+		t.Fatalf("a reset records when the password changed: %+v", u)
+	}
+
+	gone := registerVerified(t, q, as, "gone@example.com", "G")
+	if err := s.Request(ctx, "gone@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	mailed := resetToken.FindStringSubmatch(out.last(t).Text)[1]
+	if err := as.DeleteAccount(ctx, gone.ID, DeleteAccountInput{Password: "password123"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Reset(ctx, mailed, "newpassword1"); err != ErrInvalidToken {
+		t.Fatalf("a link mailed before the deletion: %v", err)
+	}
+	// A link the deletion did not see (written after it, as a race would).
+	late := util.NewID() + util.NewID()
+	if _, err := q.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
+		ID: util.NewID(), UserID: gone.ID, TokenHash: hashToken(late),
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Reset(ctx, late, "newpassword1"); err != ErrInvalidToken {
+		t.Fatalf("a link to a deleted account: %v", err)
+	}
+	if u, _ := q.GetUserByID(ctx, gone.ID); u.PasswordHash.Valid {
+		t.Fatal("a deleted account got a password")
 	}
 }

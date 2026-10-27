@@ -77,21 +77,21 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	})
 	v1.With(credentialLimit).Get("/auth/google/start", h.GoogleStart, apiOp{
 		summary:     "Start Google sign-in",
-		description: "Ghi cookie CSRF rồi chuyển tới Google. Query next là đường dẫn cùng origin sau khi đăng nhập.",
+		description: "Ghi cookie niêm phong uniwork_oauth_state (state, nonce, PKCE verifier, next, intent) rồi chuyển tới Google với PKCE S256, nonce và prompt=select_account (ADR 0047). Query next là đường dẫn cùng origin sau khi đăng nhập.",
 		tags:        []string{"auth"},
 		sdi:         sdi.GoogleStartSDI{},
 		status:      302,
 	})
 	v1.With(credentialLimit).Get("/auth/google/callback", h.GoogleCallback, apiOp{
 		summary:     "Google sign-in callback",
-		description: "Đổi mã Google lấy phiên, ghi cookie refresh, rồi chuyển về frontend /auth/callback.",
+		description: "Kiểm state, đổi mã Google kèm PKCE verifier, kiểm nonce của ID token, khớp tài khoản theo quy tắc chung (ADR 0047) rồi 303: phiên → cookie refresh và /auth/callback?next= (reclaimed=1 khi vừa lấy lại tài khoản); cần MFA → cookie uniwork_mfa và /login?mfa=1&next=; lỗi → /login?error=<mã>&next= (google_denied, google_failed, google_unverified, sign_in_conflict, sign_in_account_unverified).",
 		tags:        []string{"auth"},
 		sdi:         sdi.GoogleCallbackSDI{},
-		status:      302,
+		status:      303,
 	})
 	v1.With(credentialLimit).Post("/auth/apple/native", h.AppleSignIn, apiOp{
 		summary:     "Sign in with Apple (native)",
-		description: "App iPhone gửi identity token của Sign in with Apple (kèm nonce gốc, authorization code và tên ở lần đầu); server kiểm theo JWKS của Apple (iss, aud là bundle id, exp, nonce) rồi trả phiên thiết bị native như exchange (ADR 0041). Tài khoản bật MFA nhận 403 mfa_required; email thuộc tài khoản khác không được gộp nhận 409 apple_account_conflict.",
+		description: "App iPhone gửi identity token của Sign in with Apple (kèm nonce gốc, authorization code và tên ở lần đầu); server kiểm theo JWKS của Apple (iss, aud là bundle id, exp, nonce), khớp tài khoản theo quy tắc chung (ADR 0047) rồi trả phiên thiết bị native như exchange (ADR 0041). Giữ mã cũ cho bản app đã phát hành: tài khoản bật MFA nhận 403 mfa_required; email không dùng được nhận 401 apple_token_invalid; email thuộc tài khoản mà danh tính này không được tự gộp nhận 409 apple_account_conflict.",
 		tags:        []string{"auth"},
 		sdi:         sdi.AppleSignInSDI{},
 		sdo:         sdo.DesktopSessionSDO{},
