@@ -256,7 +256,8 @@ test("docked Ask UNI answers with a source, proposes a task, applies it and undo
     await dock.getByRole("button", { name: "Hỏi", exact: true }).click();
     const card = dock.getByRole("region", { name: "UNI đề xuất · cần bạn xác nhận" });
     await expect(card).toBeVisible({ timeout: 15_000 });
-    await expect(card.getByText(made)).toBeVisible();
+    // The card names the task twice (its heading line and the field list), so one match is enough.
+    await expect(card.getByText(made).first()).toBeVisible();
     await expect(page.getByText(made).and(page.locator(":not(aside *)"))).toHaveCount(0);
 
     // 3. Apply: the row turns applied and the task exists.
