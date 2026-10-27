@@ -142,6 +142,7 @@ const historicalCommitExceptions = new Map([
   ["b86272e70161417dedd8e3969ad7b03c74269765", "(fix): design log format"],
   ["31b77e94dc70fbd2015d51aae5a98f2f9a32d7e7", "(deploy): enabled uniwork-scribe agent"],
   ["20250f68e4c2a7f897773a62d85b9cf67836be66", "(fix): migration sql"],
+  ["e5a9f2ce29beedeeaf986246e9ed3fe3e4d0ef45", "(deploy): config down office"],
 ]);
 
 function rejectedCommitSubjects(commits, types) {
@@ -159,7 +160,7 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   //
   // e88a055 landed on develop via PR #62; c416bc6, e6eaf72d5, d95c9fe14,
   // 78e441abd, 9c94b49eb, 30b6eb6b6, 4b7e81b2a, 874a6e438, 3adf1f657, ff4fd6912,
-  // 6025d564c, 30167c4cd, dc59c569d and b86272e70 were pushed straight to develop without a conventional prefix.
+  // 6025d564c, 30167c4cd, dc59c569d, b86272e70 and e5a9f2ce2 were pushed straight to develop without a conventional prefix.
   // Shared history cannot be rewritten; pin both SHA and subject so a new
   // commit cannot reuse an exempt subject to escape this check.
   const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8" })
