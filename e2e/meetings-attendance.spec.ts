@@ -79,5 +79,8 @@ test("attendance: secretary marks in the roll drawer, finalize locks and shows i
   await expect(drawer).toBeHidden();
   await page.getByRole("button", { name: "Lịch sử thao tác", exact: true }).click();
   const history = page.getByRole("dialog", { name: "Lịch sử thao tác" });
-  await expect(history.getByText("att-member đã chốt điểm danh", { exact: true })).toBeVisible();
+  // A row names its actor and its action in separate elements.
+  const finalized = history.getByRole("listitem").filter({ hasText: "đã chốt điểm danh" });
+  await expect(finalized.getByText("att-member", { exact: true })).toBeVisible();
+  await expect(finalized.getByText("đã chốt điểm danh", { exact: true })).toBeVisible();
 });
