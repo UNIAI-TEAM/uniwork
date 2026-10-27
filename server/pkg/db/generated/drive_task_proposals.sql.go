@@ -670,3 +670,33 @@ func (q *Queries) SetDriveTaskProposalStatus(ctx context.Context, arg SetDriveTa
 	)
 	return i, err
 }
+
+const sweepDriveTaskProposals = `-- name: SweepDriveTaskProposals :execrows
+DELETE FROM drive_task_proposals
+WHERE id IN (
+  SELECT p.id FROM drive_task_proposals p
+  WHERE p.expires_at < COALESCE($1::timestamptz, now())
+     OR p.status <> 'ready'
+  ORDER BY p.expires_at ASC, p.id ASC
+  LIMIT $2
+  FOR UPDATE SKIP LOCKED
+)
+`
+
+type SweepDriveTaskProposalsParams struct {
+	Now        pgtype.Timestamptz `json:"now"`
+	BatchLimit int32              `json:"batch_limit"`
+}
+
+// Retention sweep of expired or settled Drive task proposal batches (UNI-2182,
+// spec §8.6). Deletes at most batch_limit rows per round (default 500) where
+// expires_at < now() OR status <> 'ready'; SKIP LOCKED lets multiple replicas
+// split the work without blocking (ADR 0025). Never touches drive_task_proposal_links.
+// tenant: system
+func (q *Queries) SweepDriveTaskProposals(ctx context.Context, arg SweepDriveTaskProposalsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, sweepDriveTaskProposals, arg.Now, arg.BatchLimit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

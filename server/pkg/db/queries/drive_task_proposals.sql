@@ -181,3 +181,19 @@ WHERE l.organization_id = sqlc.arg('organization_id')
   AND l.workspace_id = sqlc.arg('workspace_id')
   AND l.external_file_id = sqlc.arg('external_file_id')
 ORDER BY l.created_at DESC, l.proposal_id DESC, l.item_index ASC, l.id ASC;
+
+-- Retention sweep of expired or settled Drive task proposal batches (UNI-2182,
+-- spec §8.6). Deletes at most batch_limit rows per round (default 500) where
+-- expires_at < now() OR status <> 'ready'; SKIP LOCKED lets multiple replicas
+-- split the work without blocking (ADR 0025). Never touches drive_task_proposal_links.
+-- name: SweepDriveTaskProposals :execrows
+-- tenant: system
+DELETE FROM drive_task_proposals
+WHERE id IN (
+  SELECT p.id FROM drive_task_proposals p
+  WHERE p.expires_at < COALESCE(sqlc.narg('now')::timestamptz, now())
+     OR p.status <> 'ready'
+  ORDER BY p.expires_at ASC, p.id ASC
+  LIMIT sqlc.arg('batch_limit')
+  FOR UPDATE SKIP LOCKED
+);
