@@ -1,0 +1,3 @@
+$ for i in $(seq 1 90); do curl -sf http://localhost:18660/healthz >/dev/null && curl -sf http://localhost:3000 >/dev/null && break; sleep 2; done; curl -sf http://localhost:18660/readyz && echo READY; true
+{"ready":true,"checks":[{"name":"db","ok":true},{"name":"migrations","ok":true,"detail":"9991792950000003_document_access_batches_ws_folder_idx"},{"name":"redis","ok":true},{"name":"storage","ok":true}]}
+READY
