@@ -261,7 +261,8 @@ test("3. Documents › Google Drive (4.1) for A lists that file (all accounts + 
 
   const table = page.getByRole("table");
   await expect(table.getByRole("link", { name: fakeDriveName(seedFile.id) })).toBeVisible({ timeout: 20_000 });
-  await expect(table.getByText(googleEmail)).toBeVisible();
+  // The row renders the email twice: an md:hidden mobile line and the desktop account cell.
+  await expect(table.getByText(googleEmail).filter({ visible: true })).toBeVisible();
   await expect(table.getByText(taskIdentifier)).toBeVisible();
 
   await sidebarAccountBtn.click();
