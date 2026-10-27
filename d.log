@@ -1,0 +1,6 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/views exec vitest run documents/folder-contents-access-dialog.test.tsx > /tmp/ow-fca.log 2>&1; rc=$?; grep -E "FAIL|AssertionError|Expected|Received|Unable to find|timed out|Tests  " /tmp/ow-fca.log | head -40; echo; echo "FCA_EXIT=$rc"; [ $rc -eq 0 ]
+ FAIL  documents/folder-contents-access-dialog.test.tsx > folder contents access dialog > exposes the stable test ids the e2e lane drives
+      Tests  1 failed | 25 passed (26)
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run documents/folder-contents-access-dialog.test.tsx
+
+FCA_EXIT=1
