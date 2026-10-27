@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^08d4441c0" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=08d4441c0b4c9aee75c91a9319afbb636e37a74f
+08d4441c0 chore(documents): merge G5-G7 root e5b113266 into fix/UNI-2244-warnings
+7801e3101 fix(documents): fix folder contents-access preview warnings and manageability (UNI-2244)
+7bb6adbfe test(documents): cover folder contents-access preview warnings and manageability (UNI-2244)
+c986c6eab Merge UNI-2205 fix-e2e (documents-folders e2e follows the search-keeps-layout DOM) into the G5-G7 root
