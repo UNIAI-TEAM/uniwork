@@ -267,6 +267,21 @@ describe("home layout (Main.dc)", () => {
       ).toBe(true),
     );
   });
+
+  it("offers Chia sẻ on a folder card and opens the dialog on that folder", async () => {
+    route({
+      tree: () => [treeNode({ id: "fo1", title: "Sai đẹp chiêu" })],
+      list: () => [summary({ id: "fo1", kind: "folder", title: "Sai đẹp chiêu", my_level: "view" })],
+    });
+    renderView();
+    const section = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} [0-9]+$`) });
+    fireEvent.click(await within(section).findByRole("button", { name: t("documents.home.row.menu", { title: "Sai đẹp chiêu" }) }));
+    const item = await screen.findByTestId("folder-access-menu-item");
+    expect(item).toHaveTextContent(t("documents.folderAccess.menu"));
+    fireEvent.click(item);
+    const dialog = await screen.findByTestId("folder-access-dialog");
+    expect(dialog).toHaveTextContent(`${t("documents.folderAccess.title")}${t("documents.folderAccess.subtitle", { folder: "Sai đẹp chiêu" })}`);
+  });
 });
 
 describe("folder layout (Folder.dc)", () => {
@@ -290,6 +305,16 @@ describe("folder layout (Folder.dc)", () => {
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.folder.menu") }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.accessReport.menu_folder") }));
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/documents/access-report?folder=fo1");
+  });
+
+  it("offers Chia sẻ in the open folder's menu and opens the dialog on it", async () => {
+    route({ ...folderRoutes(), detail: (id: string) => (id === "fo1" ? folderDetail({ my_level: "edit", breadcrumbs: [] }) : null) });
+    renderView(`/acme/doi/documents?folder=fo1`);
+    await screen.findByText("Báo giá.docx");
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.folder.menu") }));
+    fireEvent.click(await screen.findByTestId("folder-access-menu-item"));
+    const dialog = await screen.findByTestId("folder-access-dialog");
+    expect(dialog).toHaveTextContent(`${t("documents.folderAccess.title")}${t("documents.folderAccess.subtitle", { folder: "Dự án CCB" })}`);
   });
 
   it("keeps the folder report out of the menu for a reader who does not manage the folder", async () => {

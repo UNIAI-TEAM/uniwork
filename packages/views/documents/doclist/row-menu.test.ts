@@ -231,7 +231,7 @@ describe("docRowMenu: folder rows", () => {
   });
 
   // UNI-2244: the bulk command is the folder's only sharing item; a document has the single Share instead.
-  it("offers Chia sẻ các tài liệu bên trong… on a folder of any level, and runs it with the folder", () => {
+  it("offers Chia sẻ on a folder of any level, and runs it with the folder", () => {
     const onShareContents = vi.fn();
     for (const level of ["view", "edit", "manage"] as const) {
       const c = ctx();

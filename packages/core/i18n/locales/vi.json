@@ -12004,9 +12004,10 @@
       }
     },
     "folderAccess": {
-      "menu": "Chia sẻ các tài liệu bên trong…",
-      "title": "Chia sẻ tài liệu trong “{{title}}”",
-      "title_untitled": "Chia sẻ tài liệu trong thư mục",
+      "menu": "Chia sẻ",
+      "title": "Chia sẻ",
+      "subtitle": "Áp dụng cho các tài liệu trong thư mục \"{{folder}}\" và thư mục con.",
+      "subtitle_untitled": "Áp dụng cho các tài liệu trong thư mục này và thư mục con.",
       "fixed_sentence": "Áp dụng cho các tài liệu hiện có. Tài liệu thêm sau không tự nhận quyền.",
       "mode_label": "Cách áp dụng",
       "mode_merge": "Thêm vào quyền đã có",

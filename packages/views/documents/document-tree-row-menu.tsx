@@ -46,7 +46,7 @@ export interface TreeRowMenuActions {
   onDelete: (node: DocumentTreeNode) => void;
   /** Opens the folder's access report; absent where the host cannot navigate. */
   onAccessReport?: (node: DocumentTreeNode) => void;
-  /** Opens "Chia sẻ các tài liệu bên trong…" on the folder; absent where the host mounts no dialog. */
+  /** Opens "Chia sẻ" on the folder; absent where the host mounts no dialog. */
   onShareContents?: (node: DocumentTreeNode) => void;
   /** Stars or unstars the folder (`starred` is its current state); absent where the host knows no organization. */
   onToggleStar?: (node: DocumentTreeNode, starred: boolean) => void;

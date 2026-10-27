@@ -18,10 +18,11 @@ import {
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../test/api-mock";
 import { DocumentTree } from "./document-tree";
+import { FolderContentsAccessDialog } from "./folder-contents-access-dialog";
 import type { DocumentSummaryRow } from "./library-rows";
 import { useFolderContentsAccess } from "./use-folder-contents-access";
 
-// UNI-2244: "Chia sẻ các tài liệu bên trong…". The transport is the fake of
+// UNI-2244: "Chia sẻ" on a folder (bulk access for the documents inside). The transport is the fake of
 // the core fixtures; the dialog is mounted the way hosts mount it, through
 // useFolderContentsAccess, so a background batch outliving the dialog is real.
 
@@ -136,7 +137,8 @@ describe("folder contents access dialog", () => {
   it("opens in Add mode with the fixed sentence, no workspace row, and Confirm held until someone is picked", async () => {
     const calls = transport();
     const { user, dialog } = await openDialog();
-    expect(within(dialog).getByRole("heading", { name: t("documents.folderAccess.title", { title: "Hợp đồng" }) })).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "Chia sẻ" })).toBeInTheDocument();
+    expect(dialog).toHaveAccessibleDescription(t("documents.folderAccess.subtitle", { folder: "Hợp đồng" }));
     expect(dialog).toHaveTextContent("Áp dụng cho các tài liệu hiện có. Tài liệu thêm sau không tự nhận quyền.");
     expect(within(dialog).getByRole("combobox", { name: t("documents.folderAccess.mode_label") })).toHaveTextContent("Thêm vào quyền đã có");
     expect(within(dialog).queryByTestId("folder-access-workspace-row")).toBeNull();
@@ -446,7 +448,26 @@ describe("folder contents access from the sidebar tree", () => {
     fireEvent.contextMenu(await screen.findByRole("treeitem", { name: /Hợp đồng/ }));
     await user.click(await screen.findByRole("menuitem", { name: t("documents.folderAccess.menu") }));
     const dialog = await screen.findByRole("dialog");
-    expect(dialog).toHaveTextContent(t("documents.folderAccess.title", { title: "Hợp đồng" }));
+    expect(within(dialog).getByRole("heading", { name: "Chia sẻ" })).toBeInTheDocument();
+    expect(dialog).toHaveAccessibleDescription(t("documents.folderAccess.subtitle", { folder: "Hợp đồng" }));
     expect(dialog).toHaveTextContent(t("documents.folderAccess.fixed_sentence"));
+  });
+});
+
+describe("folder contents access dialog subtitle", () => {
+  it("names the dialog by the folder, or by 'this folder' when it has no title", async () => {
+    await setLocale("vi");
+    transport();
+    for (const [title, subtitle] of [
+      ["", t("documents.folderAccess.subtitle_untitled")],
+      ["Hợp đồng", t("documents.folderAccess.subtitle", { folder: "Hợp đồng" })],
+    ] as const) {
+      const { unmount } = render(
+        wrap(<FolderContentsAccessDialog wsId={WS} folder={{ id: "f1", title, workspace_id: WS }} onOpenChange={vi.fn()} onTrackBatch={vi.fn()} />),
+      );
+      expect(await screen.findByRole("dialog")).toHaveAccessibleDescription(subtitle);
+      unmount();
+    }
+    expect(t("documents.folderAccess.subtitle_untitled")).toBe("Áp dụng cho các tài liệu trong thư mục này và thư mục con.");
   });
 });

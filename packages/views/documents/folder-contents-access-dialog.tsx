@@ -58,7 +58,7 @@ export interface TrackedFolderBatch {
 type Stage = "form" | "summary" | "progress";
 
 /**
- * "Chia sẻ các tài liệu bên trong…" (UNI-2244): the bulk mode of the share
+ * "Chia sẻ" (UNI-2244): the bulk mode of the share
  * popup. One access list is written onto every document of the folder's subtree
  * the person manages. Confirm runs a dry run and shows what would change;
  * Apply either answers at once (a toast) or becomes a background batch with a
@@ -199,14 +199,16 @@ export function FolderContentsAccessDialog({
     value === "replace" ? t("documents.folderAccess.mode_replace") : t("documents.folderAccess.mode_merge");
   const ids = { mode: `${baseId}-mode`, modeHint: `${baseId}-mode-hint`, input: `${baseId}-input`, listbox: `${baseId}-listbox`, principals: `${baseId}-principals` };
   const replacing = summary?.mode === "replace";
-  const title = folder.title ? t("documents.folderAccess.title", { title: folder.title }) : t("documents.folderAccess.title_untitled");
+  const title = t("documents.folderAccess.title");
+  const subtitle = folder.title ? t("documents.folderAccess.subtitle", { folder: folder.title }) : t("documents.folderAccess.subtitle_untitled");
 
   return (
     <Dialog open onOpenChange={(next) => (!next && busy ? undefined : onOpenChange(next))}>
       <DialogContent data-testid="folder-access-dialog" closeLabel={t("common.close")} className="max-h-[85vh] overflow-y-auto sm:max-w-lg [&>*]:min-w-0">
         <DialogHeader>
           <DialogTitle className="break-words">{title}</DialogTitle>
-          <DialogDescription>{t("documents.folderAccess.fixed_sentence")}</DialogDescription>
+          <DialogDescription>{subtitle}</DialogDescription>
+          <p className="text-body text-muted-foreground">{t("documents.folderAccess.fixed_sentence")}</p>
         </DialogHeader>
 
         {stage === "form" ? (

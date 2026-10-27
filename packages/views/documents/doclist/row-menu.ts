@@ -52,7 +52,7 @@ export interface RowMenuHandlers {
   /** Absent outside an organization (no favorites there). */
   onToggleStar?: (documentId: string, starred: boolean) => void;
   onShare?: (doc: DocumentSummaryRow) => void;
-  /** "Chia sẻ các tài liệu bên trong…": a folder row's bulk access dialog; absent hides the item. */
+  /** "Chia sẻ": a folder row's bulk access dialog; absent hides the item. */
   onShareContents?: (doc: DocumentSummaryRow) => void;
   onNewSubfolder?: (doc: DocumentSummaryRow) => void;
   /** UNI-2055 W3: may the viewer create inside this folder (a workspace folder takes every member); absent = the edit level. */
