@@ -126,6 +126,10 @@ type Session struct {
 	// MFAToken is set instead of the tokens above when the account has MFA
 	// on: the first factor passed, the second is still owed (spec F-01 §2 I4).
 	MFAToken string
+	// LinkSkipped, after a second factor whose challenge carried a pending
+	// provider link: why the identity was not linked (ADR 0047, spec §3.3).
+	// The sign-in itself succeeded; the client offers Settings instead.
+	LinkSkipped string
 }
 
 // MFAPending reports whether the caller must still answer the TOTP challenge.
@@ -202,7 +206,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (Sessio
 // on means a challenge token, otherwise a session plus the login audit row.
 func (s *AuthService) sessionOrChallenge(ctx context.Context, u db.User, meta map[string]any) (Session, error) {
 	if u.MfaEnabledAt.Valid {
-		tok, err := s.minter.MintMFA(u.ID)
+		tok, err := s.minter.MintMFA(auth.MFAChallenge{UserID: u.ID, Channel: auth.MFAChannelWeb})
 		if err != nil {
 			return Session{}, err
 		}
@@ -382,6 +386,22 @@ func (s *AuthService) SessionFor(ctx context.Context, u db.User) (Session, error
 // from a browser string this account has never used gets the alert mail;
 // the very first session of an account (registration) does not.
 func (s *AuthService) mintSession(ctx context.Context, u db.User, sessionID, inheritedUA string) (Session, error) {
+	sess, newDevice, err := s.openSession(ctx, s.q, u, sessionID, inheritedUA)
+	if err != nil {
+		return Session{}, err
+	}
+	if newDevice {
+		s.sendNewLoginMail(ctx, sess.User, sessionMetaFrom(ctx))
+	}
+	return sess, nil
+}
+
+// openSession is mintSession in the caller's transaction (q), for a
+// command whose session commits together with what it wrote (the link a
+// second factor finishes). It reports whether the browser is new to the
+// account instead of mailing: the alert is best-effort, and a failed insert
+// would abort the caller's transaction, so the caller mails after commit.
+func (s *AuthService) openSession(ctx context.Context, q *db.Queries, u db.User, sessionID, inheritedUA string) (Session, bool, error) {
 	u = s.decorateAvatar(ctx, u)
 	meta := sessionMetaFrom(ctx)
 	if sessionID != "" {
@@ -390,42 +410,47 @@ func (s *AuthService) mintSession(ctx context.Context, u db.User, sessionID, inh
 	newDevice := false
 	if sessionID == "" {
 		sessionID = util.NewID()
-		newDevice = s.isNewDevice(ctx, u.ID, meta.UserAgent)
+		newDevice = s.isNewDevice(ctx, q, u.ID, meta.UserAgent)
 	}
 	access, err := s.minter.MintWebSession(u.ID, sessionID)
 	if err != nil {
-		return Session{}, err
+		return Session{}, false, err
 	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
-		return Session{}, err
+		return Session{}, false, err
 	}
 	refresh := hex.EncodeToString(raw)
 	exp := s.now().Add(s.refreshTTL)
-	_, err = s.q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
+	_, err = q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
 		ID: util.NewID(), UserID: u.ID, TokenHash: hashToken(refresh),
 		ExpiresAt: pgtype.Timestamptz{Time: exp, Valid: true},
 		SessionID: sessionID, UserAgent: meta.UserAgent, Ip: meta.IP,
 	})
 	if err != nil {
-		return Session{}, err
+		return Session{}, false, err
 	}
-	if newDevice {
-		s.sendNewLoginMail(ctx, u, meta)
-	}
-	return Session{User: u, AccessToken: access, RefreshToken: refresh, RefreshExpiresAt: exp, SessionID: sessionID}, nil
+	return Session{User: u, AccessToken: access, RefreshToken: refresh, RefreshExpiresAt: exp, SessionID: sessionID}, newDevice, nil
 }
 
-func (s *AuthService) isNewDevice(ctx context.Context, userID, ua string) bool {
+// isNewDevice reads in q, the caller's transaction when there is one, so it
+// sees what that transaction wrote and holds no second connection.
+func (s *AuthService) isNewDevice(ctx context.Context, q *db.Queries, userID, ua string) bool {
 	if s.out == nil {
 		return false
 	}
-	total, err := s.q.CountRefreshTokensForUser(ctx, userID)
+	total, err := q.CountRefreshTokensForUser(ctx, userID)
 	if err != nil || total == 0 {
 		return false
 	}
-	same, err := s.q.CountRefreshTokensForUserAgent(ctx, db.CountRefreshTokensForUserAgentParams{UserID: userID, UserAgent: ua})
+	same, err := q.CountRefreshTokensForUserAgent(ctx, db.CountRefreshTokensForUserAgentParams{UserID: userID, UserAgent: ua})
 	return err == nil && same == 0
+}
+
+// signInMailer is where this service's sign-in commands queue their
+// sign_in_method_changed notices (nil-safe without SetMail).
+func (s *AuthService) signInMailer() signInMailer {
+	return signInMailer{render: s.render, out: s.out, now: s.now}
 }
 
 // sendNewLoginMail is best-effort: a login must not fail because the alert

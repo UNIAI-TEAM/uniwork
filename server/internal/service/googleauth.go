@@ -37,9 +37,7 @@ type ProviderSignInResult struct {
 	Reclaimed bool
 }
 
-func (s *GoogleAuthService) mailer() signInMailer {
-	return signInMailer{render: s.auth.render, out: s.auth.out, now: s.auth.now}
-}
+func (s *GoogleAuthService) mailer() signInMailer { return s.auth.signInMailer() }
 
 // SignIn resolves the account with resolveIdentity, inside one transaction
 // with whatever the answer writes:
@@ -52,13 +50,13 @@ func (s *GoogleAuthService) mailer() signInMailer {
 //     is taken back, its second factor never asked;
 //   - link: a verified account with the address Google owns gets the link,
 //     audited and told to its owner. An account with a second factor is not
-//     linked: it gets its challenge and stays as it was.
+//     linked yet: it gets its challenge, which carries the identity, and the
+//     link is written once the second factor passes (VerifyMFA, spec §3.3).
 //
 // link_required refuses (sign_in_account_conflict): the account is someone's
 // and only its owner, signed in, may add Google to it.
 // ponytail: unmatched and link_required become a sign-in ticket and the
-// choice screen (spec §3.2), and the MFA account's link waits for the second
-// factor (spec §3.3); until then this creates and refuses as above.
+// choice screen (spec §3.2); until then this creates and refuses as above.
 func (s *GoogleAuthService) SignIn(ctx context.Context, c GoogleClaims, locale string) (ProviderSignInResult, error) {
 	id := googleIdentity(c)
 	m := s.mailer()
@@ -77,6 +75,8 @@ func (s *GoogleAuthService) SignIn(ctx context.Context, c GoogleClaims, locale s
 		u       db.User
 		queued  bool
 		reclaim reclaimed
+		// pending: the link waits for the account's second factor.
+		pending bool
 	)
 	switch res.kind {
 	case identityMatched:
@@ -92,7 +92,7 @@ func (s *GoogleAuthService) SignIn(ctx context.Context, c GoogleClaims, locale s
 		u, queued = reclaim.user, reclaim.queued
 	case identityLink:
 		if res.user.MfaEnabledAt.Valid {
-			u = res.user
+			u, pending = res.user, true
 			break
 		}
 		if u, queued, err = linkByEmail(ctx, q, res.user, id, m, device); err != nil {
@@ -117,6 +117,13 @@ func (s *GoogleAuthService) SignIn(ctx context.Context, c GoogleClaims, locale s
 		if err := s.auth.verification.Send(ctx, u.ID); err != nil {
 			slog.Warn("send verification code after google sign-up", "user", u.ID, "err", err)
 		}
+	}
+	if pending {
+		sess, err := s.auth.challengeWithPendingLink(ctx, u, id)
+		if err != nil {
+			return ProviderSignInResult{}, err
+		}
+		return ProviderSignInResult{Session: sess}, nil
 	}
 	// A reclaim cleared the second factor in the transaction above, so the
 	// session comes without a challenge: whoever registered set it up.

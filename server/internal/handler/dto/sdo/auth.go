@@ -6,6 +6,9 @@ import "encoding/json"
 type SessionSDO struct {
 	User        UserDTO `json:"user"`
 	AccessToken string  `json:"access_token" description:"JWT access token, gửi kèm Authorization Bearer" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.example"`
+	// LinkSkipped is set only by POST /auth/mfa/verify when the challenge
+	// carried a pending provider link that could not be written (ADR 0047).
+	LinkSkipped string `json:"link_skipped,omitempty" description:"Chỉ có ở /auth/mfa/verify: đăng nhập thành công nhưng chưa liên kết được Google/Apple đang chờ, kèm mã lý do (sign_in_method_taken, link_required, sign_in_account_conflict, sign_in_account_unverified, sign_in_email_unverified, sign_in_failed); client gợi ý liên kết lại trong Cài đặt" example:"sign_in_method_taken"`
 }
 
 // UserSDO wraps the current user.

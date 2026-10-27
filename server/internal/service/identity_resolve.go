@@ -33,20 +33,23 @@ const (
 // the provider's token passed its checks (ADR 0047). Every provider reaches
 // accounts through resolveIdentity with one of these, so the matching rules
 // live in one place.
+//
+// The JSON names are what a sealed blob carries it under (the pending link
+// of a challenge token, spec §3.3; the sign-in ticket, spec §3.2).
 type ProviderIdentity struct {
-	Provider      string // ProviderGoogle | ProviderApple
-	Subject       string
-	Email         string // lower + trim
-	EmailVerified bool
+	Provider      string `json:"provider"` // ProviderGoogle | ProviderApple
+	Subject       string `json:"subject"`
+	Email         string `json:"email"` // lower + trim
+	EmailVerified bool   `json:"email_verified"`
 	// EmailAuthoritative: the provider owns the address's domain (Gmail or
 	// the Workspace hd; iCloud or Apple's relay), so its word on the address
 	// is the mailbox's. Only such an address links or reclaims by itself.
-	EmailAuthoritative bool
-	PrivateRelay       bool   // Apple Hide My Email
-	Name               string // at most maxProviderNameRunes
-	Picture            string // Google, at most maxProviderPictureLen bytes
-	AppleClientID      string // the audience of an Apple token (bundle id or Services ID)
-	AppleRefresh       string // the sealed Apple refresh token, may be empty
+	EmailAuthoritative bool   `json:"email_authoritative,omitempty"`
+	PrivateRelay       bool   `json:"private_relay,omitempty"`   // Apple Hide My Email
+	Name               string `json:"name,omitempty"`            // at most maxProviderNameRunes
+	Picture            string `json:"picture,omitempty"`         // Google, at most maxProviderPictureLen bytes
+	AppleClientID      string `json:"apple_client_id,omitempty"` // the audience of an Apple token (bundle id or Services ID)
+	AppleRefresh       string `json:"apple_refresh,omitempty"`   // the sealed Apple refresh token, may be empty
 }
 
 // emailUsable: the provider vouches for an address that has a mailbox part.

@@ -41,6 +41,10 @@ func TestMFALoginIsTwoSteps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Only a verified address enrols (TestUnverifiedAccountsCannotEnrolMFAOrLink).
+	if _, err := s.q.MarkEmailVerified(ctx, sess.User.ID); err != nil {
+		t.Fatal(err)
+	}
 	secret, codes := enrol(t, s, ctx, sess.User.ID)
 	if _, err := s.SetupTOTP(ctx, sess.User.ID); !errors.Is(err, ErrConflict) {
 		t.Fatalf("setup while enabled: %v", err)

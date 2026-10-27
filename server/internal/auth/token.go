@@ -54,31 +54,80 @@ func (m TokenMinter) mintAccess(userID, sessionID string, web bool) (string, err
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.Secret)
 }
 
-// MintMFA issues the five-minute challenge token for userID.
-func (m TokenMinter) MintMFA(userID string) (string, error) {
+// The channels a challenge token is bound to (ADR 0047 §4): the browser's
+// POST /auth/mfa/verify takes only a web one, the app's route only a native
+// one minted for the same client and deployment.
+const (
+	MFAChannelWeb    = "web"
+	MFAChannelNative = "native"
+)
+
+// MFAChallenge is what a challenge token says besides its expiry: whose
+// second factor is owed, on which channel (with the native client and
+// deployment), and the identity a provider sign-in left waiting to be linked
+// once the factor passes (PendingLink, sealed for mfa_pending_link; empty
+// when nothing waits).
+type MFAChallenge struct {
+	UserID       string
+	Channel      string
+	ClientID     string
+	DeploymentID string
+	PendingLink  string
+}
+
+// mfaClaims is the challenge token's body. The short names keep the token,
+// and the uniwork_mfa cookie that carries it, small.
+type mfaClaims struct {
+	jwt.RegisteredClaims
+	Channel      string `json:"chn,omitempty"`
+	ClientID     string `json:"cid,omitempty"`
+	DeploymentID string `json:"dep,omitempty"`
+	PendingLink  string `json:"pl,omitempty"`
+}
+
+// MintMFA issues the five-minute challenge token for c.UserID. An empty
+// channel is minted as web.
+func (m TokenMinter) MintMFA(c MFAChallenge) (string, error) {
+	if c.Channel == "" {
+		c.Channel = MFAChannelWeb
+	}
+	if c.Channel != MFAChannelWeb && c.Channel != MFAChannelNative {
+		return "", fmt.Errorf("mfa token: unknown channel %q", c.Channel)
+	}
 	now := time.Now()
-	claims := jwt.RegisteredClaims{
-		Subject:   userID,
-		Audience:  jwt.ClaimStrings{mfaAudience},
-		IssuedAt:  jwt.NewNumericDate(now),
-		ExpiresAt: jwt.NewNumericDate(now.Add(mfaTokenTTL)),
+	claims := mfaClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   c.UserID,
+			Audience:  jwt.ClaimStrings{mfaAudience},
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(mfaTokenTTL)),
+		},
+		Channel: c.Channel, ClientID: c.ClientID, DeploymentID: c.DeploymentID, PendingLink: c.PendingLink,
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.Secret)
 }
 
-func (m TokenMinter) parse(token string) (*accessClaims, error) {
-	parsed, err := jwt.ParseWithClaims(token, &accessClaims{}, func(t *jwt.Token) (any, error) {
+// parseInto verifies token's HS256 signature and expiry into claims and
+// refuses one without a subject.
+func (m TokenMinter) parseInto(token string, claims jwt.Claims) error {
+	if _, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method")
 		}
 		return m.Secret, nil
-	})
-	if err != nil {
-		return nil, err
+	}); err != nil {
+		return err
 	}
-	claims, ok := parsed.Claims.(*accessClaims)
-	if !ok || claims.Subject == "" {
-		return nil, fmt.Errorf("invalid claims")
+	if sub, err := claims.GetSubject(); err != nil || sub == "" {
+		return fmt.Errorf("invalid claims")
+	}
+	return nil
+}
+
+func (m TokenMinter) parse(token string) (*accessClaims, error) {
+	claims := &accessClaims{}
+	if err := m.parseInto(token, claims); err != nil {
+		return nil, err
 	}
 	return claims, nil
 }
@@ -128,16 +177,26 @@ func (m TokenMinter) ParseAccessToken(token string) (AccessToken, error) {
 	return at, nil
 }
 
-// ParseMFA returns the user id of a challenge token and nothing else.
-func (m TokenMinter) ParseMFA(token string) (string, error) {
-	claims, err := m.parse(token)
-	if err != nil {
-		return "", err
+// ParseMFA returns what a challenge token carries. A token minted before
+// tokens named their channel reads as web, the only channel there was.
+func (m TokenMinter) ParseMFA(token string) (MFAChallenge, error) {
+	claims := &mfaClaims{}
+	if err := m.parseInto(token, claims); err != nil {
+		return MFAChallenge{}, err
 	}
+	isMFA := false
 	for _, a := range claims.Audience {
-		if a == mfaAudience {
-			return claims.Subject, nil
-		}
+		isMFA = isMFA || a == mfaAudience
 	}
-	return "", fmt.Errorf("not an mfa token")
+	if !isMFA {
+		return MFAChallenge{}, fmt.Errorf("not an mfa token")
+	}
+	c := MFAChallenge{
+		UserID: claims.Subject, Channel: claims.Channel, ClientID: claims.ClientID,
+		DeploymentID: claims.DeploymentID, PendingLink: claims.PendingLink,
+	}
+	if c.Channel == "" {
+		c.Channel = MFAChannelWeb
+	}
+	return c, nil
 }

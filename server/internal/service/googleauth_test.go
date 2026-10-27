@@ -6,7 +6,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -97,27 +96,9 @@ func TestGoogleSignInLinksAVerifiedPasswordAccountByEmail(t *testing.T) {
 	}
 }
 
-// The first factor alone never adds a way into an account with a second
-// factor: the challenge comes first and nothing is linked.
-// ponytail: spec §3.3 links once the second factor passes (the pending link
-// rides in the challenge); until then the link waits for Settings.
-func TestGoogleSignInChallengesAnMFAAccountWithoutLinking(t *testing.T) {
-	f := newIdentityFixture(t)
-	reg := registerVerified(t, f.q, f.auth, "mfa@gmail.com", "M")
-	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET mfa_enabled_at = now() WHERE id = $1`, reg.ID); err != nil {
-		t.Fatal(err)
-	}
-	res, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "sub-mfa", Email: "mfa@gmail.com", EmailVerified: true}, "vi")
-	if err != nil || !res.Session.MFAPending() || res.Session.RefreshToken != "" {
-		t.Fatalf("want the challenge: %+v %v", res, err)
-	}
-	if u := f.user(t, reg.ID); u.GoogleID.Valid {
-		t.Fatalf("nothing is linked before the second factor: %+v", u)
-	}
-	if f.count(t, `SELECT count(*) FROM audit_events WHERE action = $1 AND actor_id = $2`, audit.ActionAuthSignInMethodLinked, reg.ID) != 0 {
-		t.Fatal("no link audited")
-	}
-}
+// An account with a second factor is not linked by the first factor alone:
+// TestLinkWaitsForTheSecondFactor (second_factor_test.go) holds it, and the
+// link written once the second factor passes.
 
 func TestGoogleSignInRejectsUnverifiedEmailAndForeignLink(t *testing.T) {
 	g, _, q := newGoogleFixture(t)

@@ -69,7 +69,9 @@ func (h *handlers) openJSON(purpose, blob string, v any) error {
 // finishWebSignIn answers a provider sign-in the service accepted:
 //
 //   - a second factor owed: the challenge in the uniwork_mfa cookie (a
-//     redirect has no JSON body, spec F-01 §2 I5), then /login?mfa=1;
+//     redirect has no JSON body, spec F-01 §2 I5), then /login?mfa=1; the
+//     challenge carries the identity when it waits to be linked, and POST
+//     /auth/mfa/verify links it (or answers link_skipped);
 //   - a session: the refresh cookie, then /auth/callback, which reads the
 //     session and goes on to next; reclaimed=1 when the sign-in took the
 //     account back, for the one-time notice.

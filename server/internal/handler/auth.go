@@ -78,6 +78,7 @@ func (h *handlers) sessionResponse(w http.ResponseWriter, sess service.Session) 
 	h.setRefreshCookie(w, sess.RefreshToken, sess.RefreshExpiresAt)
 	out := sdo.SessionSDO{
 		User: toUserDTO(sess.User), AccessToken: sess.AccessToken,
+		LinkSkipped: sess.LinkSkipped,
 	}
 	respondJSON(w, http.StatusOK, out)
 }

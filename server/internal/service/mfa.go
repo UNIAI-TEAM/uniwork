@@ -23,12 +23,18 @@ type MFASetup struct {
 	OTPAuthURL string
 }
 
-// SetupTOTP starts (or restarts) enrolment. ErrConflict while MFA is on:
-// disable first, so a stolen session cannot silently swap the secret.
+// SetupTOTP starts (or restarts) enrolment. ErrEmailUnverified until the
+// account proved its address: a second factor set up by whoever registered
+// someone else's address must not exist to survive the owner's reclaim (ADR
+// 0047). ErrConflict while MFA is on: disable first, so a stolen session
+// cannot silently swap the secret.
 func (s *AuthService) SetupTOTP(ctx context.Context, userID string) (MFASetup, error) {
 	u, err := s.Me(ctx, userID)
 	if err != nil {
 		return MFASetup{}, err
+	}
+	if !u.EmailVerifiedAt.Valid {
+		return MFASetup{}, ErrEmailUnverified
 	}
 	if u.MfaEnabledAt.Valid {
 		return MFASetup{}, ErrConflict
@@ -48,11 +54,16 @@ func (s *AuthService) SetupTOTP(ctx context.Context, userID string) (MFASetup, e
 }
 
 // ConfirmTOTP proves the app was enrolled and turns MFA on. The recovery
-// codes are returned exactly once; only their hashes are kept.
+// codes are returned exactly once; only their hashes are kept. The same
+// verified-address gate as SetupTOTP: a secret planted before the gate
+// existed is not turned on either.
 func (s *AuthService) ConfirmTOTP(ctx context.Context, userID, code string) ([]string, error) {
 	u, err := s.Me(ctx, userID)
 	if err != nil {
 		return nil, err
+	}
+	if !u.EmailVerifiedAt.Valid {
+		return nil, ErrEmailUnverified
 	}
 	if u.MfaEnabledAt.Valid {
 		return nil, ErrConflict
@@ -120,30 +131,89 @@ func (s *AuthService) DisableTOTP(ctx context.Context, userID, code string) (db.
 	return u, tx.Commit(ctx)
 }
 
-// VerifyMFA is the second step of login: the challenge token from the first
-// factor plus a TOTP or recovery code buys the session.
+// VerifyMFA is the browser's second step of login: the challenge token
+// from the first factor plus a TOTP or recovery code buys the session. Only
+// a web challenge is taken; one minted for an app is refused like a wrong
+// code (ADR 0047 §4). Under the account's row lock the attempt is weighed
+// against the lockout (weighSecondFactor), and a provider identity the first
+// step left waiting (the token's pending link) is linked in the transaction
+// that opens the session, if it still resolves to this account; else the
+// sign-in still succeeds and Session.LinkSkipped says why.
 func (s *AuthService) VerifyMFA(ctx context.Context, mfaToken, code string) (Session, error) {
-	userID, err := s.minter.ParseMFA(mfaToken)
-	if err != nil {
+	ch, err := s.minter.ParseMFA(mfaToken)
+	if err != nil || ch.Channel != auth.MFAChannelWeb {
 		return Session{}, ErrInvalidCredentials
 	}
-	u, err := s.q.GetUserByID(ctx, userID)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Session{}, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	q := s.q.WithTx(tx)
+	u, err := q.GetUserForUpdate(ctx, ch.UserID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, ErrInvalidCredentials
 	}
 	if err != nil {
 		return Session{}, err
 	}
-	if !u.MfaEnabledAt.Valid {
-		// MFA was switched off between the two steps; the first factor alone
-		// is what the account now requires.
-		return s.mintAudited(ctx, u, map[string]any{"mfa": false})
-	}
-	if !s.secondFactorMatches(ctx, u, code) {
-		s.recordAuth(ctx, audit.ActionAuthLoginFailed, u.ID, map[string]any{"reason": "bad_mfa"})
+	if u.DeletedAt.Valid {
+		// Erased between the two steps: the challenge died with the account.
 		return Session{}, ErrInvalidCredentials
 	}
-	return s.mintAudited(ctx, u, map[string]any{"mfa": true})
+	// MFA switched off between the two steps: the first factor alone is what
+	// the account now requires.
+	mfa := u.MfaEnabledAt.Valid
+	if mfa {
+		v, err := s.weighSecondFactor(ctx, q, u, code)
+		if err != nil {
+			return Session{}, err
+		}
+		if !v.ok {
+			// The failure is counted (and may have started the lockout), so it
+			// commits; the refusal follows.
+			if err := tx.Commit(ctx); err != nil {
+				return Session{}, err
+			}
+			s.signInMailer().kick(v.queued)
+			meta := map[string]any{"reason": "bad_mfa", "locked": v.started}
+			if v.locked != nil && !v.started {
+				meta = map[string]any{"reason": "second_factor_locked"}
+			}
+			s.recordAuth(ctx, audit.ActionAuthLoginFailed, u.ID, meta)
+			if v.locked != nil {
+				return Session{}, v.locked
+			}
+			return Session{}, ErrInvalidCredentials
+		}
+	}
+	var link pendingLinkOutcome
+	if ch.PendingLink != "" {
+		if link, err = s.finishPendingLink(ctx, tx, u, ch.PendingLink); err != nil {
+			return Session{}, err
+		}
+		u = link.user
+	}
+	sess, newDevice, err := s.openSession(ctx, q, u, "", "")
+	if err != nil {
+		return Session{}, err
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: audit.NoOrganization, Actor: audit.User(u.ID),
+		Action: audit.ActionAuthLoginSucceeded, ResourceType: "user", ResourceID: u.ID,
+		Metadata: map[string]any{"mfa": mfa},
+	}); err != nil {
+		return Session{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Session{}, err
+	}
+	s.signInMailer().kick(link.queued)
+	if newDevice {
+		s.sendNewLoginMail(ctx, sess.User, sessionMetaFrom(ctx))
+	}
+	sess.LinkSkipped = link.skipped
+	return sess, nil
 }
 
 func (s *AuthService) mintAudited(ctx context.Context, u db.User, meta map[string]any) (Session, error) {
@@ -163,10 +233,21 @@ func (s *AuthService) totpMatches(u db.User, code string) bool {
 // secondFactorMatches accepts a live TOTP code or burns one recovery code.
 // Six digits can only be TOTP; anything else is tried as a recovery code.
 func (s *AuthService) secondFactorMatches(ctx context.Context, u db.User, code string) bool {
+	ok, err := s.secondFactorMatchesQ(ctx, s.q, u, code)
+	return err == nil && ok
+}
+
+// secondFactorMatchesQ is secondFactorMatches in the caller's transaction,
+// with the failed statement told apart from a wrong code: inside a
+// transaction a failed statement aborts it, so the caller must not commit.
+func (s *AuthService) secondFactorMatchesQ(ctx context.Context, q *db.Queries, u db.User, code string) (bool, error) {
 	code = strings.TrimSpace(code)
 	if len(code) == 6 && u.TotpSecret.Valid {
-		return s.totpMatches(u, code)
+		return s.totpMatches(u, code), nil
 	}
-	n, err := s.q.ConsumeUserRecoveryCode(ctx, db.ConsumeUserRecoveryCodeParams{ID: u.ID, Column2: auth.HashRecoveryCode(code)})
-	return err == nil && n == 1
+	n, err := q.ConsumeUserRecoveryCode(ctx, db.ConsumeUserRecoveryCodeParams{ID: u.ID, Column2: auth.HashRecoveryCode(code)})
+	if err != nil {
+		return false, err
+	}
+	return n == 1, nil
 }

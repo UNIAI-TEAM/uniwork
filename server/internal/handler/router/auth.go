@@ -52,7 +52,7 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	})
 	v1.With(credentialLimit).Post("/auth/mfa/verify", h.MFAVerify, apiOp{
 		summary:     "Verify MFA",
-		description: "Bước hai của đăng nhập: đổi mfa_token (body hoặc cookie uniwork_mfa) cùng mã TOTP hoặc mã khôi phục lấy phiên.",
+		description: "Bước hai của đăng nhập trên web: đổi mfa_token (body hoặc cookie uniwork_mfa) cùng mã TOTP hoặc mã khôi phục lấy phiên. Chỉ nhận token thử thách của kênh web (token của app → 401 invalid_credentials). Mười lần sai liên tiếp khoá bước hai 15 phút và gửi mail cho chủ tài khoản; trong lúc khoá → 429 second_factor_locked kèm retry_after. Token mang liên kết Google/Apple đang chờ thì liên kết được ghi cùng giao dịch mở phiên; không ghi được thì vẫn đăng nhập và trả link_skipped (ADR 0047).",
 		tags:        []string{"auth"},
 		sdi:         sdi.MFAVerifySDI{},
 		sdo:         sdo.SessionSDO{},
@@ -84,7 +84,7 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	})
 	v1.With(credentialLimit).Get("/auth/google/callback", h.GoogleCallback, apiOp{
 		summary:     "Google sign-in callback",
-		description: "Kiểm state, đổi mã Google kèm PKCE verifier, kiểm nonce của ID token, khớp tài khoản theo quy tắc chung (ADR 0047) rồi 303: phiên → cookie refresh và /auth/callback?next= (reclaimed=1 khi vừa lấy lại tài khoản); cần MFA → cookie uniwork_mfa và /login?mfa=1&next=; lỗi → /login?error=<mã>&next= (google_denied, google_failed, google_unverified, sign_in_conflict, sign_in_account_unverified).",
+		description: "Kiểm state, đổi mã Google kèm PKCE verifier, kiểm nonce của ID token, khớp tài khoản theo quy tắc chung (ADR 0047) rồi 303: phiên → cookie refresh và /auth/callback?next= (reclaimed=1 khi vừa lấy lại tài khoản); cần MFA → cookie uniwork_mfa (token mang liên kết đang chờ khi email khớp tài khoản đã xác minh; liên kết chỉ ghi sau bước hai) và /login?mfa=1&next=; lỗi → /login?error=<mã>&next= (google_denied, google_failed, google_unverified, sign_in_conflict, sign_in_account_unverified).",
 		tags:        []string{"auth"},
 		sdi:         sdi.GoogleCallbackSDI{},
 		status:      303,
