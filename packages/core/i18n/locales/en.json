@@ -3685,7 +3685,8 @@
       },
       "handover": {
         "pickTitle": "Hand over hosting",
-        "pickConfirm": "Hand to {{name}}"
+        "pickConfirm": "Hand to {{name}}",
+        "left": "{{name}} just left the room. Pick someone else"
       },
       "handedOver": {
         "title": "{{name}} is hosting",

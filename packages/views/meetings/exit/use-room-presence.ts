@@ -14,12 +14,12 @@ const PRESENCE_POLL_MS = 15_000;
 export function useRoomPresence(
   meetingId: string,
   opts: { enabled: boolean; selfParticipantId: string | null },
-): { people: MeetingParticipant[]; all: MeetingParticipant[]; loading: boolean; refetch: () => void } {
+): { people: MeetingParticipant[]; all: MeetingParticipant[]; loading: boolean; refetch: () => Promise<MeetingParticipant[]> } {
   const { data, isLoading, refetch } = useParticipants(opts.enabled ? meetingId : "", { refetchInterval: PRESENCE_POLL_MS });
   const people = useMemo(
     () =>
       (data ?? []).filter((p) => p.in_room === true && p.status === "ACTIVE" && p.id !== opts.selfParticipantId),
     [data, opts.selfParticipantId],
   );
-  return { people, all: data ?? [], loading: isLoading, refetch: () => void refetch() };
+  return { people, all: data ?? [], loading: isLoading, refetch: () => refetch().then((r) => r.data ?? []) };
 }

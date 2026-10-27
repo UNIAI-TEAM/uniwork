@@ -8,6 +8,9 @@ import { useRateCall } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
 
+// Stable, so it focuses once on mount and not on every re-render.
+const focusOnMount = (el: HTMLElement | null) => el?.focus();
+
 const RATINGS: { value: CallRating; icon: LucideIcon }[] = [
   { value: "good", icon: ThumbsUp },
   { value: "ok", icon: FaceNeutral },
@@ -26,7 +29,7 @@ export function ExitRating({ meetingId }: { meetingId: string }) {
   const [rated, setRated] = useState(false);
   if (rated) {
     return (
-      <p role="status" className="text-label text-muted-foreground">
+      <p role="status" tabIndex={-1} ref={focusOnMount} className="text-label text-muted-foreground">
         {t("meetings.exit.rate.thanks")}
       </p>
     );

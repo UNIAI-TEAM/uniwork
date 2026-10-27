@@ -3684,7 +3684,8 @@
       },
       "handover": {
         "pickTitle": "Chuyển quyền chủ trì",
-        "pickConfirm": "Chuyển cho {{name}}"
+        "pickConfirm": "Chuyển cho {{name}}",
+        "left": "{{name}} vừa rời phòng, chọn người khác"
       },
       "handedOver": {
         "title": "{{name}} đang chủ trì",

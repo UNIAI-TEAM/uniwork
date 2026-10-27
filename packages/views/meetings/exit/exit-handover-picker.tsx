@@ -2,6 +2,7 @@
 
 import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { useTransferHost } from "@uniwork/core/meetings";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -27,8 +28,9 @@ import { PARTICIPANT_IDENTITY_PREFIX } from "../meeting-signals";
 
 /**
  * "Chuyển quyền…" from outside the room: the same people the in-room dialog
- * offers (workspace people in the room now, the secretary first). The server
- * refuses someone who left meanwhile; the roster is asked again then.
+ * offers (workspace people in the room now, the secretary first). The roster
+ * on screen can be 15s old, so it is asked again before handing over; the
+ * server still refuses someone who left in between.
  */
 export function ExitHandoverPicker({
   open,
@@ -45,7 +47,7 @@ export function ExitHandoverPicker({
   workspaceId: string;
   participants: readonly MeetingParticipant[];
   onHandedOver: (userId: string, name: string) => void;
-  onRefresh: () => void;
+  onRefresh: () => Promise<readonly MeetingParticipant[]>;
 }) {
   const { t, i18n } = useTranslation();
   const id = useId();
@@ -60,17 +62,28 @@ export function ExitHandoverPicker({
   const [picked, setPicked] = useState<string | null>(null);
   const target = candidates.find((p) => p.user_id === picked) ?? candidates[0];
   const name = target?.display_name_snapshot ?? "";
+  const [checking, setChecking] = useState(false);
+  const busy = checking || transfer.isPending;
 
   const confirm = () => {
-    if (!target?.user_id || transfer.isPending) return;
+    if (!target?.user_id || busy) return;
     const userId = target.user_id;
-    transfer.mutateAsync(userId).then(
-      () => onHandedOver(userId, name),
-      (err: unknown) => {
-        toastApiError(err, t("common.error"));
-        onRefresh();
-      },
-    );
+    setChecking(true);
+    void onRefresh().then((fresh) => {
+      setChecking(false);
+      // The fresh roster drops them from the list, so the next pick is someone still here.
+      if (!fresh.some((p) => p.user_id === userId && p.in_room === true)) {
+        toast.error(t("meetings.exit.handover.left", { name }));
+        return;
+      }
+      transfer.mutateAsync(userId).then(
+        () => onHandedOver(userId, name),
+        (err: unknown) => {
+          toastApiError(err, t("common.error"));
+          void onRefresh();
+        },
+      );
+    });
   };
 
   return (
@@ -118,11 +131,11 @@ export function ExitHandoverPicker({
           {target ? (
             <Button
               type="button"
-              aria-disabled={transfer.isPending || undefined}
-              aria-busy={transfer.isPending || undefined}
+              aria-disabled={busy || undefined}
+              aria-busy={busy || undefined}
               onClick={confirm}
             >
-              {transfer.isPending ? <Spinner data-icon="inline-start" /> : null}
+              {busy ? <Spinner data-icon="inline-start" /> : null}
               {t("meetings.exit.handover.pickConfirm", { name })}
             </Button>
           ) : null}

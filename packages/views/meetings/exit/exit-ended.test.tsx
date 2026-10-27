@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -120,5 +120,15 @@ describe("leave screen D: the meeting ended", () => {
     expect(onBackToMeeting).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("link", { name: "Về danh sách cuộc họp" }));
     expect(nav.push).toHaveBeenCalledWith("/demo/team/meetings");
+  });
+
+  it("counts one rating and hands focus to the thanks, since the button pressed is gone", async () => {
+    renderEnded();
+    fireEvent.click(await screen.findByRole("button", { name: "Tốt" }));
+    const thanks = await screen.findByText("Cảm ơn bạn đã cho biết");
+    expect(thanks).toHaveFocus();
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/call-rating", expect.objectContaining({ method: "POST", body: { rating: "good" } })),
+    );
   });
 });

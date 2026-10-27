@@ -108,7 +108,7 @@ export function ExitHostLeft({
   onRejoin: () => void;
   onEndForAll?: () => void;
   onHandedOver: (userId: string, name: string) => void;
-  onRefreshPresence: () => void;
+  onRefreshPresence: () => Promise<readonly MeetingParticipant[]>;
 }) {
   const { t } = useTranslation();
   const phone = useIsMobile();

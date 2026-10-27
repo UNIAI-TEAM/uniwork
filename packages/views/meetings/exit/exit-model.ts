@@ -31,3 +31,8 @@ export function participantIdFromToken(token: string | undefined): string | null
     return null;
   }
 }
+
+/** A signed-in visitor who came by an invite link polls that link, as a guest does, to learn the meeting ended. */
+export function linkInvite(body?: { invite_link_id?: string; secret?: string }): { linkId: string; secret: string } | undefined {
+  return body?.invite_link_id && body.secret ? { linkId: body.invite_link_id, secret: body.secret } : undefined;
+}

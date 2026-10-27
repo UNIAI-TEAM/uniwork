@@ -20,7 +20,7 @@ import { useMeetingLobbySync, useMeetingScope } from "@uniwork/core/realtime";
 import { LogoLoader } from "@uniwork/ui/brand";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { participantIdFromToken, type ExitMedia, type RoomExit } from "./exit/exit-model";
+import { canRejoin, linkInvite, participantIdFromToken, type ExitMedia, type RoomExit } from "./exit/exit-model";
 import { MeetingExitScreen } from "./exit/meeting-exit-screen";
 import { GuestTallyProbe, newGuestTally } from "./exit/use-guest-tally";
 import { MeetingConference } from "./meeting-conference";
@@ -271,7 +271,9 @@ export function MeetingRoomView({
     retryJoin();
   }, [choice, retryJoin, initialJoinDecision]);
 
-  const settledDecision = join.data ?? initialJoinDecision;
+  // The invite page's decision is spent by the first join of our own: a failed
+  // "Vào lại" must not fall back to its stale token.
+  const settledDecision = join.data ?? (join.isIdle ? initialJoinDecision : undefined);
   if (isJoinAdmitted(settledDecision)) {
     lastAdmittedRef.current = settledDecision;
     lastLobbyRef.current = undefined;
@@ -327,7 +329,7 @@ export function MeetingRoomView({
   // screen that says why; focus moves there too instead of staying on a tile
   // that no longer exists.
   const lobbyView = exit
-    ? `exit:${exit.kind}`
+    ? `exit:${exit.kind}:${canRejoin(exit) && meeting?.status === "ENDED" ? "ended" : ""}`
     : closedReason
     ? `closed:${closedReason}`
     : !choice
@@ -340,7 +342,7 @@ export function MeetingRoomView({
   useMeetingScheduleDeadline({
     endsAt: meeting?.ends_at,
     status: meeting?.status,
-    admitted,
+    admitted: admitted && !exit,
     onClosed: closeRoom,
   });
 
@@ -361,7 +363,7 @@ export function MeetingRoomView({
           onBackToMeeting={onLeave}
           onEndForAll={guestMode ? undefined : endForAll}
           onExitChange={setExit}
-          invite={invite}
+          invite={invite ?? linkInvite(joinBody)}
           guestTally={guestMode ? guestTally : undefined}
         />
         {endingCover}

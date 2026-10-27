@@ -56,11 +56,12 @@ export function ExitShell({
         )}
       </header>
       {/* A phone pins the actions to the bottom (PhoneLeft/PhoneEnded boards): the column fills the height. */}
-      <main className={cn("flex flex-1 flex-col items-center px-4", phone ? "pb-6" : "justify-center pb-14")}>
+      {/* Not a <main>: the room page already sits inside the app's own. */}
+      <div className={cn("flex flex-1 flex-col items-center px-4", phone ? "pb-6" : "justify-center pb-14")}>
         <div className={cn("flex w-full max-w-[35rem] flex-col items-center text-center", phone ? "flex-1 gap-6" : "gap-7")}>
           {children}
         </div>
-      </main>
+      </div>
       {footer}
     </div>
   );

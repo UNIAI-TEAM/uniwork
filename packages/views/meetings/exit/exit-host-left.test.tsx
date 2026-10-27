@@ -39,6 +39,7 @@ const person = (id: string, name: string, inRoom: boolean, extra: object = {}) =
   id, meeting_id: "m1", principal_type: "USER", user_id: `u-${id}`, display_name_snapshot: name,
   role: "ATTENDEE", status: "ACTIVE", in_room: inRoom, ...extra,
 });
+let roster: unknown[] = [];
 const participants = [
   person("host", "Demo UniChat", false),
   person("minh", "Võ Minh", true),
@@ -57,12 +58,13 @@ beforeAll(() => {
 beforeEach(() => {
   pending = [];
   recordings = [];
+  roster = participants;
   transfer = () => Promise.resolve({ meeting });
   vi.mocked(toast.error).mockClear();
   setSessionUser(me);
   requestMock.mockReset();
   requestMock.mockImplementation((path: string) => {
-    if (path.endsWith("/participants")) return Promise.resolve({ participants });
+    if (path.endsWith("/participants")) return Promise.resolve({ participants: roster });
     if (path.endsWith("/join-requests")) return Promise.resolve({ join_requests: pending });
     if (path.endsWith("/recordings")) return Promise.resolve({ recordings });
     if (path.endsWith("/host-transfer")) return transfer();
@@ -140,6 +142,18 @@ describe("leave screen B: the host stepped out", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(onExitChange).not.toHaveBeenCalled();
     await waitFor(() => expect(calls("/participants").length).toBeGreaterThan(before));
+  });
+
+  it("asks again who is in the room before handing over, and keeps B when the pick just left", async () => {
+    const { onExitChange } = renderExit({ kind: "leftHost", media });
+    fireEvent.click(await screen.findByRole("button", { name: "Chuyển quyền…" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(await within(dialog).findByRole("radio", { name: /Võ Minh/ }));
+    roster = [participants[0], { ...(participants[1] as object), in_room: false }, participants[2]];
+    fireEvent.click(within(dialog).getByRole("button", { name: "Chuyển cho Võ Minh" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Võ Minh vừa rời phòng, chọn người khác"));
+    expect(calls("/host-transfer")).toHaveLength(0);
+    expect(onExitChange).not.toHaveBeenCalled();
   });
 
   it("ends the meeting for everyone through the room", async () => {

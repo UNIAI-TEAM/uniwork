@@ -14,17 +14,25 @@ import { MeetingRoomView } from "./room-view";
 
 type RoomProps = {
   children: ReactNode;
+  token?: string;
   onDisconnected?: (reason?: DisconnectReason) => void;
   audio?: unknown;
   video?: unknown;
 };
 
-const room = vi.hoisted(() => ({ props: null as null | RoomProps, mounts: 0 }));
+const room = vi.hoisted(() => ({ props: null as null | RoomProps, mounts: 0, tokens: [] as string[] }));
+const deadline = vi.hoisted(() => ({ admitted: [] as boolean[] }));
+vi.mock("./use-meeting-schedule-deadline", () => ({
+  useMeetingScheduleDeadline: (opts: { admitted: boolean }) => {
+    deadline.admitted.push(opts.admitted);
+  },
+}));
 
 vi.mock("@livekit/components-styles", () => ({}));
 vi.mock("@livekit/components-react", () => ({
   LiveKitRoom: function LiveKitRoom(props: RoomProps) {
     room.props = props;
+    if (props.token && room.tokens.at(-1) !== props.token) room.tokens.push(props.token);
     useEffect(() => {
       room.mounts += 1;
     }, []);
@@ -87,6 +95,8 @@ beforeAll(() => {
 beforeEach(() => {
   room.props = null;
   room.mounts = 0;
+  room.tokens = [];
+  deadline.admitted = [];
   status = "IN_PROGRESS";
   joins = 0;
   endAnswer = () => Promise.resolve({ meeting: { ...meeting, status: "ENDED" } });
@@ -219,5 +229,83 @@ describe("MeetingRoomView leave screen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Vào lại" }));
     expect(await screen.findByText(GUEST_EXPIRED)).toBeInTheDocument();
     expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
+  });
+
+  it("moves focus to the ended screen when the meeting ends while the viewer is out", async () => {
+    const { client } = renderRoom();
+    await leave();
+    await screen.findByRole("heading", { name: "Bạn đã rời phòng" });
+    status = "ENDED";
+    await act(() => client.invalidateQueries({ queryKey: ["meeting", "m1"] }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Cuộc họp đã kết thúc" })).toHaveFocus());
+  });
+
+  it("draws no second main landmark inside the app's own", async () => {
+    renderRoom();
+    await leave();
+    await screen.findByRole("heading", { name: "Bạn đã rời phòng" });
+    expect(screen.queryByRole("main")).not.toBeInTheDocument();
+  });
+
+  it("stops the schedule deadline once the viewer is out of the room", async () => {
+    renderRoom();
+    await screen.findByRole("button", { name: "leave-room" });
+    expect(deadline.admitted.at(-1)).toBe(true);
+    await leave();
+    await screen.findByRole("heading", { name: "Bạn đã rời phòng" });
+    expect(deadline.admitted.at(-1)).toBe(false);
+  });
+});
+
+describe("MeetingRoomView guest rejoin", () => {
+  const cached = { decision: "ADMIT", server_url: "wss://lk.test", participant_token: "tok-cached" };
+
+  function renderGuest(props: Partial<Parameters<typeof MeetingRoomView>[0]> = {}) {
+    render(
+      wrapWithNav(
+        <MeetingRoomView
+          meetingId="m1"
+          guestMode
+          meetingTitle="Tổng kết dự án Sao Mai"
+          initialJoinDecision={cached}
+          initialChoice={{ audio: true, video: true }}
+          onLeave={vi.fn()}
+          {...props}
+        />,
+      ),
+    );
+  }
+
+  it("rejoins on a fresh token, never the one cached from the invite page", async () => {
+    renderGuest({ invite: { linkId: "l1", secret: "sec" } });
+    expect(room.tokens).toEqual(["tok-cached"]);
+    await leave();
+    await screen.findByRole("heading", { name: "Bạn đã rời phòng" });
+    fireEvent.click(screen.getByRole("button", { name: "Vào lại" }));
+    await waitFor(() => expect(room.tokens.at(-1)).toBe("tok-1"));
+    expect(room.tokens).toEqual(["tok-cached", "tok-1"]);
+  });
+
+  it("shows the lobby's explanation when the guest session ran out, with the cached decision in play", async () => {
+    renderGuest({ invite: { linkId: "l1", secret: "sec" } });
+    await leave();
+    await screen.findByRole("heading", { name: "Bạn đã rời phòng" });
+    requestMock.mockImplementation((path: string) =>
+      path.endsWith("/join") ? Promise.reject(new ApiError("expired", "unauthorized", 401)) : Promise.resolve({}),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Vào lại" }));
+    expect(await screen.findByText(GUEST_EXPIRED)).toBeInTheDocument();
+    expect(room.tokens).toEqual(["tok-cached"]);
+  });
+
+  it("lets a signed-in link visitor learn from the link that the meeting ended", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path.endsWith("/meeting-invite-links/resolve"))
+        return Promise.resolve({ link_id: "l1", title: "Tổng kết dự án Sao Mai", starts_at: "2026-10-27T08:40:00Z", access_mode: "AUTO_ADMIT", expired: false, meeting_state: "ended" });
+      return Promise.resolve({});
+    });
+    renderGuest({ joinBody: { invite_link_id: "l1", secret: "sec" } });
+    await leave();
+    expect(await screen.findByRole("heading", { name: "Cảm ơn bạn đã tham gia" })).toBeInTheDocument();
   });
 });
