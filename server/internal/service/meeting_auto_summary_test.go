@@ -672,3 +672,47 @@ func TestAutoSummaryWaitsForOpenTranscriptions(t *testing.T) {
 		t.Fatal("the row outlived the summary")
 	}
 }
+
+// An in-app recording records the meeting held before its parts are uploaded:
+// summarizing then would read the notes alone and keep the recording out for
+// good, so RecordHeldNow queues nothing and the transcribed part queues it.
+func TestRecordHeldNowLeavesTheSummaryToTheRecording(t *testing.T) {
+	e := transcriptionFixture(t)
+	s, ctx := e.s, context.Background()
+	calls := &atomic.Int32{}
+	s.AI = ai.NewGateway(s.q, autoSummaryReply(calls), NewAIQuota(s.ent), nil, ai.Options{Cloud: ai.CloudTools{MeetingTranscriber: e.vendor}})
+	m := inPersonMeeting(t, s, e.host.ID, e.m.WorkspaceID)
+	if _, err := s.AddNote(ctx, e.host.ID, m.ID, "Chốt ngân sách quý."); err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.RecordHeldNow(ctx, e.host.ID, m.ID, 42*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, queued := autoQueue(t, s, m.ID); queued {
+		t.Fatal("record-held queued a summary before the recording was uploaded")
+	}
+	tr, err := s.RequestTranscription(ctx, e.host.ID, m.ID, TranscriptionRequest{UploadID: e.uploadFor(t, m, e.host.ID, "phan-1.mp3", mp3(60, util.NewID())), Consent: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 { // submit, then the poll that completes it
+		due(t, s, m.ID)
+		if err := s.runTranscriptions(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := transcription(t, s, tr.ID); got.Status != TranscriptionComplete {
+		t.Fatalf("part is %s", got.Status)
+	}
+	if _, queued := autoQueue(t, s, m.ID); !queued {
+		t.Fatal("the transcribed part queued no summary")
+	}
+	makeAutoDue(t, s, m.ID)
+	if err := s.claimAutoSummaries(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := countSummaryRows(t, s, `SELECT count(*) FROM meeting_summaries WHERE meeting_id = $1`, m.ID); n != 1 || calls.Load() != 1 {
+		t.Fatalf("summaries = %d, model calls %d; want one of each", n, calls.Load())
+	}
+}

@@ -103,6 +103,12 @@ func (s *MeetingService) requireTranscription(ctx context.Context, orgID string)
 // conference session. It emits meeting.ended like End, so what follows an
 // ended meeting follows this one too.
 func (s *MeetingService) RecordHeld(ctx context.Context, userID, meetingID string, startedAt, endedAt time.Time) (db.Meeting, error) {
+	return s.recordHeld(ctx, userID, meetingID, startedAt, endedAt, true)
+}
+
+// recordHeld is RecordHeld; queueSummary false leaves the auto summary to the
+// recording's completed transcription.
+func (s *MeetingService) recordHeld(ctx context.Context, userID, meetingID string, startedAt, endedAt time.Time, queueSummary bool) (db.Meeting, error) {
 	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
 	if err != nil {
 		return db.Meeting{}, err
@@ -137,8 +143,10 @@ func (s *MeetingService) RecordHeld(ctx context.Context, userID, meetingID strin
 	}
 	// As endMeeting does (A5). With no notes or transcript yet (the audio is
 	// usually uploaded later) the run settles quietly as summary_no_source.
-	if err := s.queueAutoSummary(ctx, q, ended); err != nil {
-		return db.Meeting{}, err
+	if queueSummary {
+		if err := s.queueAutoSummary(ctx, q, ended); err != nil {
+			return db.Meeting{}, err
+		}
 	}
 	s.recordAction(ctx, q, ended, audit.User(userID), audit.ActionMeetingHeldRecorded, "meeting.ended", nil,
 		audit.Diff(map[string]any{"status": MeetingScheduled}, map[string]any{
@@ -152,14 +160,17 @@ func (s *MeetingService) RecordHeld(ctx context.Context, userID, meetingID strin
 }
 
 // RecordHeldNow is RecordHeld for a meeting recorded in the room: it ends
-// now, on the server's clock, after d (the browser's clock may be off).
+// now, on the server's clock, after d (the browser's clock may be off). It
+// queues no auto summary: the app records the meeting held before it uploads
+// the parts, and a summary made then would keep the recording out for good;
+// the completed transcription queues it instead.
 func (s *MeetingService) RecordHeldNow(ctx context.Context, userID, meetingID string, d time.Duration) (db.Meeting, error) {
 	if d <= 0 {
-		// A zero start is refused by RecordHeld after it authorizes the caller.
-		return s.RecordHeld(ctx, userID, meetingID, time.Time{}, time.Time{})
+		// A zero start is refused by recordHeld after it authorizes the caller.
+		return s.recordHeld(ctx, userID, meetingID, time.Time{}, time.Time{}, false)
 	}
 	end := time.Now()
-	return s.RecordHeld(ctx, userID, meetingID, end.Add(-d), end)
+	return s.recordHeld(ctx, userID, meetingID, end.Add(-d), end, false)
 }
 
 // OpenAudioUploadSession opens the large upload session for a recording of
