@@ -1,0 +1,23 @@
+$ . scripts/local-env.sh; unset OPENAI_API_KEY OPENAI_BASE_URL; export REDIS_TEST_URL=redis://localhost:6379/1 AI_PROVIDER=fake; bash scripts/ensure-postgres.sh >/dev/null 2>&1; cd server && go test -race -count=1 -v ./internal/service -run 'DriveFile|DriveFolder|ListDriveFolders|DriveAPI|CreateTaskWithDriveFiles|DriveContent' -timeout 40m > /tmp/db23-race.log 2>&1; rc=$?; grep -E -- '^--- (PASS|FAIL|SKIP)' /tmp/db23-race.log | sed 's/ (.*//'; grep -A30 'WARNING: DATA RACE' /tmp/db23-race.log | head -60; grep -E '^ok|^FAIL|panic' /tmp/db23-race.log; echo; echo "GO_SERVICE_RACE_EXIT=$rc"; [ $rc -eq 0 ]
+warning: STORAGE_BACKEND is unset and MINIO_* is empty; the server will refuse to start.
+         set STORAGE_BACKEND=local with LOCAL_UPLOAD_DIR, or configure MinIO (see .env.example).
+--- PASS: TestDriveFileLinkTwoMembersNoCrossEmailLeakAndConcurrentRace
+--- PASS: TestDriveFileLinkSameMemberOverrideRuleAndRebind
+--- PASS: TestDriveFileVisibilityGateGrantAccessAndUnlinkReLink
+--- PASS: TestCreateTaskWithDriveFilesAtomicRollback
+--- PASS: TestDriveFilePrincipalIsolationGuestAndDeactivatedMember
+--- PASS: TestDriveFakeProviderLinkAndCreateTaskWithDriveFiles
+--- PASS: TestDriveFolderParentAndNameFolder
+--- PASS: TestListDriveFoldersAggregate
+--- PASS: TestWrapTaskCreateDriveFileErrorAndPermissions
+--- PASS: TestDriveContentReadForAIHonorsFlagAndProviderAvailability
+--- PASS: TestDriveContentReadsUseTheCallersConnection
+--- PASS: TestDriveContentOfficeExtractAndAccessLostRecording
+--- PASS: TestDriveAPIErrorMappingS4Reasons
+--- PASS: TestDriveAPIFilesGetMetadataAndRedirectGuard
+--- PASS: TestDriveContentFormatTableAndTruncation
+--- PASS: TestDriveAPIFolderParentAndFolderNameResolution
+--- PASS: TestDriveContentSizeCeilings
+ok  	github.com/unicomhub/uniwork/server/internal/service	5.474s
+
+GO_SERVICE_RACE_EXIT=0
