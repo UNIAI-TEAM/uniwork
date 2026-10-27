@@ -1,0 +1,6 @@
+$ node --test scripts/*.test.mjs > /tmp/tt-scripts.log 2>&1; rc=$?; grep -E "^# (tests|pass|fail)|^not ok" /tmp/tt-scripts.log | head -30; echo; echo "SCRIPTS_EXIT=$rc"; [ $rc -eq 0 ]
+# tests 392
+# pass 392
+# fail 0
+
+SCRIPTS_EXIT=0

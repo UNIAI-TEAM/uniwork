@@ -1,0 +1,4 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; GATE_LEVEL=strict pnpm exec turbo lint --concurrency=1 --filter=@uniwork/core --filter=@uniwork/views --filter=@uniwork/web > /tmp/tt-lint.log 2>&1; rc=$?; grep -E "  error |  warning |problems|Tasks:|Failed" /tmp/tt-lint.log | head -60; echo; echo "LINT_EXIT=$rc"; [ $rc -eq 0 ]
+ Tasks:    3 successful, 3 total
+
+LINT_EXIT=0
