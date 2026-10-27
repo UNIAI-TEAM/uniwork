@@ -18,6 +18,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -1201,5 +1202,72 @@ func TestDriveFakeProviderOfflineReadForAIAndPropose(t *testing.T) {
 	}
 	if !strings.Contains(capturedDocPrompt, "Chốt phạm vi tính năng beta trước 2026-11-15") {
 		t.Fatalf("expected AI prompt to include fake exported markdown, got %q", capturedDocPrompt)
+	}
+}
+
+// TestDriveTaskProposalServiceDefaultFlagEnabled verifies that with a real flag
+// service and no DB override, FF_* env, or YAML rule, DriveTaskProposalService
+// evaluates drive_connector at its catalogue default (true), and refuses with
+// 404 feature_disabled when FF_DRIVE_CONNECTOR=false.
+func TestDriveTaskProposalServiceDefaultFlagEnabled(t *testing.T) {
+	e := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+
+	realFlags, _, err := featureflags.NewService(e.q, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.svc.SetFlags(realFlags)
+	e.fileSvc.SetFlags(realFlags)
+
+	gw := ai.NewGateway(e.q, &provider.Fake{
+		Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+			return provider.CompletionResponse{
+				Text:  `{"items":[{"title":"Default flag task","assignee_member_id":"","assignee_basis":"","priority":"medium","priority_basis":"Doc","start_date":"","start_basis":"","due_date":"","due_basis":"","label_ids":[],"label_basis":"","goal":"Goal","checklist":[],"excerpt":{"section":"S1","quote":"Quote"},"blocked_by_indexes":[]}]}`,
+				Model: "fake",
+			}
+		},
+	}, NewAIQuota(NewEntitlementService(e.pool, e.q)), nil, ai.Options{})
+
+	propSvc := NewDriveTaskProposalService(e.pool, e.q, e.ws, e.fileSvc, e.svc, e.contentSvc, gw)
+	propSvc.SetFlags(realFlags)
+
+	ownerConn := e.connectAccount(t, e.owner.ID, e.wsA.ID, "sub-def-flag-owner", "def-flag-owner@example.com")
+	e.googleSrv.SetFile("ext-def-flag-doc", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-def-flag-doc", Name: "Default Flag Doc", MimeType: DriveMimeGoogleDoc},
+		ExportByMime: map[string][]byte{
+			DriveMimeMarkdown: []byte("# Default Flag Doc\nContent"),
+		},
+	})
+	linked, err := e.fileSvc.Link(ctx, Human(e.owner.ID), e.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    ownerConn.ID,
+		ExternalFileIDs: []string{"ext-def-flag-doc"},
+	})
+	if err != nil || len(linked) != 1 || linked[0].File == nil {
+		t.Fatalf("Link = %+v, err=%v", linked, err)
+	}
+	fileID := linked[0].File.ID
+
+	propView, err := propSvc.Propose(ctx, Human(e.owner.ID), e.wsA.ID, fileID, ProposeDriveTasksInput{
+		Prompt: "Extract default flag tasks",
+	})
+	if err != nil {
+		t.Fatalf("Propose with default flag (no override/env/YAML): %v, want nil", err)
+	}
+
+	// Also verify direct evaluation on propSvc when s.files is nil (fallback branch).
+	propSvcNoFiles := NewDriveTaskProposalService(e.pool, e.q, e.ws, nil, e.svc, e.contentSvc, gw)
+	propSvcNoFiles.SetFlags(realFlags)
+	if _, err := propSvcNoFiles.Get(ctx, Human(e.owner.ID), e.wsA.ID, propView.ID); err != nil {
+		t.Fatalf("Get with default flag (no files service): %v, want nil", err)
+	}
+
+	t.Setenv("FF_DRIVE_CONNECTOR", "false")
+	var ce CodedError
+	if _, err := propSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, propView.ID); !errors.As(err, &ce) || ce.Status != http.StatusNotFound || ce.Code != "feature_disabled" {
+		t.Fatalf("Get with FF_DRIVE_CONNECTOR=false = %v, want 404 feature_disabled", err)
+	}
+	if _, err := propSvcNoFiles.Get(ctx, Human(e.owner.ID), e.wsA.ID, propView.ID); !errors.As(err, &ce) || ce.Status != http.StatusNotFound || ce.Code != "feature_disabled" {
+		t.Fatalf("Get (no files service) with FF_DRIVE_CONNECTOR=false = %v, want 404 feature_disabled", err)
 	}
 }

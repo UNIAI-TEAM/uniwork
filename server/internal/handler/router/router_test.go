@@ -387,8 +387,8 @@ func TestDriveOAuthRateLimits(t *testing.T) {
 	}
 }
 
-// When drive_connector is off (its catalogue default), every authenticated
-// /drive-connections route answers 404 feature_disabled (spec §5.1, §10).
+// When drive_connector is off, every authenticated /drive-connections route
+// answers 404 feature_disabled (spec §5.1, §10).
 func TestDriveConnectionsRequireFeatureFlag(t *testing.T) {
 	pass := func(next http.Handler) http.Handler { return next }
 	provider := featureflag.NewStaticProvider()

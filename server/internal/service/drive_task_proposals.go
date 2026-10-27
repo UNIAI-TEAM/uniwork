@@ -199,11 +199,12 @@ func (s *DriveTaskProposalService) flagEnabledForMember(ctx context.Context, use
 		UserID:         userID,
 		OrganizationID: orgID,
 	})
+	def := driveConnectorFlagDefault()
 	if s.flags != nil {
-		return s.flags.IsEnabled(evalCtx, "drive_connector", false)
+		return s.flags.IsEnabled(evalCtx, "drive_connector", def)
 	}
 	if s.connections != nil && s.connections.flags != nil {
-		return s.connections.flags.IsEnabled(evalCtx, "drive_connector", false)
+		return s.connections.flags.IsEnabled(evalCtx, "drive_connector", def)
 	}
 	return false
 }

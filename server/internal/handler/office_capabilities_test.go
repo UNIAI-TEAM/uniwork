@@ -386,8 +386,9 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 	}
 
 	// Router fallback (OfficeCapabilities left nil, available DriveConnections):
-	// flag off -> false; flag on -> 200 and drive_connector == true.
-	setFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "", false)
+	// default (no override/env/YAML) -> 200 and drive_connector == true;
+	// flag off -> false; flag on -> true.
+	clearFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "")
 	availDrive := service.NewDriveConnectionService(pool, q, d.Workspaces, box)
 	availDrive.ConfigureOAuth(config.Config{
 		AppEnv:            "development",
@@ -400,6 +401,10 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 	fallbackDeps.DriveConnections = availDrive
 	fallbackSrv := httptest.NewServer(New(fallbackDeps))
 	t.Cleanup(fallbackSrv.Close)
+	if !getDriveCapFrom(fallbackSrv, ownerToken) {
+		t.Fatal("default (no override/env/YAML) + provider available (router fallback): drive_connector = false, want true")
+	}
+	setFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "", false)
 	if getDriveCapFrom(fallbackSrv, ownerToken) {
 		t.Fatal("flag off: drive_connector = true, want false")
 	}
@@ -409,7 +414,6 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 	if !getDriveCapFrom(fallbackSrv, ownerToken) {
 		t.Fatal("flag on + provider available (router fallback): drive_connector = false, want true")
 	}
-
 	// Explicit service SetDrive(nil) and typed-nil *DriveConnectionService -> false even when flag is on.
 	capsSvc := service.NewOfficeCapabilitiesService(d.Organizations, d.FeatureFlags)
 	capsSvc.SetDrive(availDrive)
@@ -428,7 +432,7 @@ func TestOfficeAppCapabilitiesDriveConnector(t *testing.T) {
 	}
 
 	// Organization override: global off, org on -> true; org off -> false.
-	clearFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "")
+	setFlagOverride(t, "drive_connector", featureflags.ScopeGlobal, "", false)
 	setFlagOverride(t, "drive_connector", featureflags.ScopeOrganization, orgID, true)
 	if !getDriveCapFrom(fallbackSrv, ownerToken) {
 		t.Fatal("org override on: drive_connector = false, want true")
