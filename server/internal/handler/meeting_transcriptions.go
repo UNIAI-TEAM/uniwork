@@ -65,7 +65,7 @@ func toTranscriptionDTO(t db.MeetingTranscription) sdo.MeetingTranscriptionDTO {
 	return sdo.MeetingTranscriptionDTO{
 		ID: t.ID, MeetingID: t.MeetingID, FileID: t.FileID, Filename: t.Filename, SizeBytes: t.SizeBytes,
 		Language: t.Language, Status: t.Status, ErrorCode: t.ErrorCode, Attempts: t.Attempts,
-		StartsAt: rfc3339(t.StartsAt), AudioSeconds: t.AudioSeconds.Int32, CreatedBy: t.CreatedBy,
+		StartsAt: rfc3339(t.StartsAt), EstimatedSeconds: t.EstimatedSeconds, AudioSeconds: t.AudioSeconds.Int32, CreatedBy: t.CreatedBy,
 		CreatedAt: rfc3339(t.CreatedAt), CompletedAt: rfc3339(t.CompletedAt),
 	}
 }

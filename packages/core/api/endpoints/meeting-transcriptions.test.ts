@@ -16,10 +16,13 @@ const transcription = {
   status: "RUNNING",
   attempts: 1,
   starts_at: "2026-10-20T01:30:00Z",
+  estimated_seconds: 2538,
   created_by: "u1",
   created_at: "2026-10-20T04:00:00Z",
 };
 const malformed = [null, [], "nope", { transcription: { id: 3 } }, { transcriptions: "x" }, { meeting: { id: 1 } }];
+// A length that is not a number: the list degrades rather than drawing "NaN phút".
+const badLength = { transcriptions: [{ ...transcription, estimated_seconds: "2538" }] };
 
 describe("meeting transcription endpoints", () => {
   beforeEach(() => {
@@ -78,6 +81,7 @@ describe("meeting transcription endpoints", () => {
     const list = await listMeetingTranscriptions("m1");
     expect(list.map((t) => t.id)).toEqual(["t1", "t0"]);
     expect(list[1]?.error_code).toBe("timeout");
+    expect(list[0]?.estimated_seconds).toBe(2538);
   });
 
   it("degrades malformed responses instead of throwing", async () => {
@@ -89,5 +93,7 @@ describe("meeting transcription endpoints", () => {
       vi.mocked(fetch).mockResolvedValueOnce(json(bad));
       await expect(listMeetingTranscriptions("m1")).resolves.toEqual([]);
     }
+    vi.mocked(fetch).mockResolvedValueOnce(json(badLength));
+    await expect(listMeetingTranscriptions("m1")).resolves.toEqual([]);
   });
 });
