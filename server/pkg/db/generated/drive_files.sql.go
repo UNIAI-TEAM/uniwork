@@ -989,6 +989,30 @@ func (q *Queries) GetDriveFileEnriched(ctx context.Context, arg GetDriveFileEnri
 	return i, err
 }
 
+const getWorkspaceDriveFolderName = `-- name: GetWorkspaceDriveFolderName :one
+SELECT drive_folder_name
+FROM drive_files
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND drive_folder_id = $3::text
+  AND drive_folder_name IS NOT NULL
+  AND unlinked_at IS NULL
+LIMIT 1
+`
+
+type GetWorkspaceDriveFolderNameParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DriveFolderID  string `json:"drive_folder_id"`
+}
+
+func (q *Queries) GetWorkspaceDriveFolderName(ctx context.Context, arg GetWorkspaceDriveFolderNameParams) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceDriveFolderName, arg.OrganizationID, arg.WorkspaceID, arg.DriveFolderID)
+	var drive_folder_name pgtype.Text
+	err := row.Scan(&drive_folder_name)
+	return drive_folder_name, err
+}
+
 const listLinkedTasksByDriveFileIDs = `-- name: ListLinkedTasksByDriveFileIDs :many
 SELECT l.drive_file_id,
        t.id AS task_id,

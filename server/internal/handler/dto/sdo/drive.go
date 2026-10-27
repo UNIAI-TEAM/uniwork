@@ -286,7 +286,7 @@ type DriveProposalTasksCreatedSDO struct {
 // DriveFolderNamedSDO is POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name (UNI-2221).
 type DriveFolderNamedSDO struct {
 	DriveFolder  DriveFolderRefDTO `json:"drive_folder" description:"Thư mục cha trên Google Drive sau khi đồng bộ tên" example:"{\"id\":\"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8\",\"name\":\"Tài liệu dự án Q4\"}"`
-	UpdatedFiles int               `json:"updated_files" description:"Số tệp đang liên kết trong workspace có cùng thư mục cha đã được cập nhật tên thư mục" example:"3"`
+	UpdatedCount int               `json:"updated_count" description:"Số tệp đang liên kết trong workspace có cùng thư mục cha đã được cập nhật tên thư mục" example:"3"`
 }
 
 // DriveFolderGroupDTO is one parent folder aggregate entry in DriveFolderListSDO (UNI-2221).

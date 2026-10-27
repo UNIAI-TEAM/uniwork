@@ -339,7 +339,7 @@ func (h *handlers) NameDriveFolder(w http.ResponseWriter, r *http.Request) {
 			ID:   res.DriveFolder.ID,
 			Name: res.DriveFolder.Name,
 		},
-		UpdatedFiles: res.UpdatedFiles,
+		UpdatedCount: res.UpdatedCount,
 	})
 }
 

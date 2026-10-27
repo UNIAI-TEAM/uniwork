@@ -186,7 +186,7 @@ func (s *DriveFileService) isMetadataStale(refreshedAt pgtype.Timestamptz) bool 
 	return s.nowUTC().Sub(refreshedAt.Time.UTC()) >= driveMetadataRefreshInterval
 }
 
-func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, viewerID string, ws db.Workspace, driveFileID, externalFileID, viewerConnID string) bool {
+func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, viewerID string, ws db.Workspace, driveFileID, externalFileID, viewerConnID string, parentCache map[string]string) bool {
 	if s == nil || s.api == nil || s.connections == nil || viewerConnID == "" {
 		return false
 	}
@@ -205,7 +205,7 @@ func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, 
 	}); err != nil {
 		return false
 	}
-	meta, err := s.api.FilesGetWithConnection(ctx, s.connections, conn, externalFileID)
+	meta, err := s.api.filesGetWithConnectionAndParentCache(ctx, s.connections, conn, externalFileID, parentCache)
 	if err != nil {
 		s.maybeRecordAccessLost(ctx, viewerID, ws.OrganizationID, ws.ID, driveFileID, conn.ID, err)
 		return true
@@ -241,11 +241,11 @@ func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, 
 	return true
 }
 
-func (s *DriveFileService) maybeRefreshEnrichedRow(ctx context.Context, viewerID string, ws db.Workspace, r db.ListMyDriveFilesEnrichedRow) (db.ListMyDriveFilesEnrichedRow, bool) {
+func (s *DriveFileService) maybeRefreshEnrichedRow(ctx context.Context, viewerID string, ws db.Workspace, r db.ListMyDriveFilesEnrichedRow, parentCache map[string]string) (db.ListMyDriveFilesEnrichedRow, bool) {
 	if r.ViewerAccessState != "granted" || !r.ViewerConnectionActive || !s.isMetadataStale(r.MetadataRefreshedAt) {
 		return r, false
 	}
-	if !s.refreshFileWithViewerConnection(ctx, viewerID, ws, r.ID, r.ExternalFileID, r.ViewerConnectionID) {
+	if !s.refreshFileWithViewerConnection(ctx, viewerID, ws, r.ID, r.ExternalFileID, r.ViewerConnectionID, parentCache) {
 		return r, false
 	}
 	detail, err := s.q.GetDriveFileEnriched(ctx, db.GetDriveFileEnrichedParams{
@@ -264,7 +264,7 @@ func (s *DriveFileService) maybeRefreshDetailRow(ctx context.Context, viewerID s
 	if r.ViewerAccessState.String != "granted" || !r.ViewerConnectionActive || !s.isMetadataStale(r.MetadataRefreshedAt) {
 		return r, false
 	}
-	if !s.refreshFileWithViewerConnection(ctx, viewerID, ws, r.ID, r.ExternalFileID, r.ViewerConnectionID.String) {
+	if !s.refreshFileWithViewerConnection(ctx, viewerID, ws, r.ID, r.ExternalFileID, r.ViewerConnectionID.String, nil) {
 		return r, false
 	}
 	detail, err := s.q.GetDriveFileEnriched(ctx, db.GetDriveFileEnrichedParams{
@@ -279,11 +279,11 @@ func (s *DriveFileService) maybeRefreshDetailRow(ctx context.Context, viewerID s
 	return detail, true
 }
 
-func (s *DriveFileService) maybeRefreshTaskCardRow(ctx context.Context, viewerID string, ws db.Workspace, r db.ListTaskDriveFilesEnrichedRow) (db.ListTaskDriveFilesEnrichedRow, bool) {
+func (s *DriveFileService) maybeRefreshTaskCardRow(ctx context.Context, viewerID string, ws db.Workspace, r db.ListTaskDriveFilesEnrichedRow, parentCache map[string]string) (db.ListTaskDriveFilesEnrichedRow, bool) {
 	if r.ViewerAccessState.String != "granted" || !r.ViewerConnectionActive || !s.isMetadataStale(r.MetadataRefreshedAt) {
 		return r, false
 	}
-	if !s.refreshFileWithViewerConnection(ctx, viewerID, ws, r.ID, r.ExternalFileID, r.ViewerConnectionID.String) {
+	if !s.refreshFileWithViewerConnection(ctx, viewerID, ws, r.ID, r.ExternalFileID, r.ViewerConnectionID.String, parentCache) {
 		return r, false
 	}
 	detail, err := s.q.GetDriveFileEnriched(ctx, db.GetDriveFileEnrichedParams{

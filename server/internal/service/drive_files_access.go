@@ -626,7 +626,7 @@ func (s *DriveFileService) NameFolder(ctx context.Context, actor Actor, workspac
 
 	folderName, err := s.api.FolderNameWithConnection(ctx, s.connections, conn, driveFolderID)
 	if err != nil {
-		return DriveFolderNamedResult{}, DriveErrToCodedError(err)
+		return DriveFolderNamedResult{}, DriveFolderErrToCodedError(err)
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -673,7 +673,7 @@ func (s *DriveFileService) NameFolder(ctx context.Context, actor Actor, workspac
 		ResourceID:     driveFolderID,
 		Metadata: map[string]any{
 			"drive_folder_id": driveFolderID,
-			"updated_files":   len(updatedIDs),
+			"updated_count":   len(updatedIDs),
 			"connection_id":   conn.ID,
 		},
 	}, events...); err != nil {
@@ -690,7 +690,7 @@ func (s *DriveFileService) NameFolder(ctx context.Context, actor Actor, workspac
 			ID:   driveFolderID,
 			Name: &nameCopy,
 		},
-		UpdatedFiles: len(updatedIDs),
+		UpdatedCount: len(updatedIDs),
 	}, nil
 }
 

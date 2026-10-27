@@ -464,6 +464,16 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND unlinked_at IS NULL
 RETURNING id;
 
+-- name: GetWorkspaceDriveFolderName :one
+SELECT drive_folder_name
+FROM drive_files
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND drive_folder_id = sqlc.arg('drive_folder_id')::text
+  AND drive_folder_name IS NOT NULL
+  AND unlinked_at IS NULL
+LIMIT 1;
+
 -- name: ListMyDriveFolders :many
 SELECT f.drive_folder_id,
        COALESCE(max(f.drive_folder_name), '')::text AS drive_folder_name,

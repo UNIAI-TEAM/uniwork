@@ -109,7 +109,7 @@ func registerDriveConnections(r api, h Routes, flags *featureflag.Service, conne
 		summary: "Name a Google Drive parent folder in the workspace",
 		description: "Đọc tên thư mục Google Drive qua `files.get(driveFolderID)` bằng kết nối `active` của chính người gọi (sau khi người gọi chọn thư mục đó trong Google Picker) " +
 			"và cập nhật `drive_folder_name` cho mọi tệp đang liên kết trong workspace có cùng `drive_folder_id` (UNI-2221). " +
-			"Trả lỗi Google Drive theo §5.7 (`drive_grant_required`, `blocked_by_workspace_admin`, `drive_file_not_accessible`, `auth_failed`, `drive_unavailable`) mà không làm thay đổi dữ liệu đã lưu.",
+			"Trả 404 `drive_folder_not_found` khi Google trả 404 hoặc 403 (hoặc tên thư mục rỗng), 422 `drive_folder_not_folder` khi mục được chọn không phải thư mục hoặc đã nằm trong thùng rác, và các mã lỗi `auth_failed`, `drive_unavailable` mà không làm thay đổi dữ liệu đã lưu.",
 		tags: []string{"drive"}, sdi: sdi.NameDriveFolderSDI{}, sdo: sdo.DriveFolderNamedSDO{}, auth: true,
 	})
 	d.Get("/workspaces/{workspaceID}/drive-folders", h.ListDriveFolders, apiOp{

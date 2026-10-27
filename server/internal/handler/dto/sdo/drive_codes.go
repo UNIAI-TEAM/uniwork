@@ -73,4 +73,6 @@ const (
 	DriveErrProposalItemAlreadyConverted = "proposal_item_already_converted"
 	DriveErrActiveDuplicateTask          = "active_duplicate_task"
 	DriveErrFeatureDisabled              = "feature_disabled"
+	DriveErrFolderNotFound               = "drive_folder_not_found"
+	DriveErrFolderNotFolder              = "drive_folder_not_folder"
 )

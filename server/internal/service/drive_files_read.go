@@ -91,8 +91,9 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 	}
 
 	// Opportunistically refresh stale metadata (> 10 min) using the caller's own connection.
+	parentCache := make(map[string]string, len(rows))
 	for i := range rows {
-		if refreshed, ok := s.maybeRefreshEnrichedRow(ctx, actor.ID, ws, rows[i]); ok {
+		if refreshed, ok := s.maybeRefreshEnrichedRow(ctx, actor.ID, ws, rows[i], parentCache); ok {
 			rows[i] = refreshed
 		}
 	}
@@ -296,8 +297,9 @@ func (s *DriveFileService) ListForTask(ctx context.Context, actor Actor, taskID 
 		return nil, err
 	}
 
+	parentCache := make(map[string]string, len(rows))
 	for i := range rows {
-		if refreshed, ok := s.maybeRefreshTaskCardRow(ctx, actor.ID, ws, rows[i]); ok {
+		if refreshed, ok := s.maybeRefreshTaskCardRow(ctx, actor.ID, ws, rows[i], parentCache); ok {
 			rows[i] = refreshed
 		}
 	}

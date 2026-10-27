@@ -103,7 +103,7 @@ type DriveFolderRefView struct {
 // DriveFolderNamedResult is the service-layer result of DriveFileService.NameFolder (UNI-2221).
 type DriveFolderNamedResult struct {
 	DriveFolder  DriveFolderRefView
-	UpdatedFiles int
+	UpdatedCount int
 }
 
 // DriveFolderGroupView is one aggregate parent-folder entry returned by DriveFileService.ListFolders (UNI-2221).
