@@ -17,6 +17,7 @@ import {
   FormDialogHeader,
 } from "../../common/form-dialog";
 import { GoogleDriveMark } from "../../common/provider-icons";
+import { DriveConsentHint } from "../drive-consent-hint";
 import {
   driveConnectCallbackKey,
   type DriveConnectCallbackNotice,
@@ -233,6 +234,11 @@ export function DrivePickerAccountDialog({
                 </Button>
               ) : null}
             </div>
+          ) : null}
+
+          {(!hasConnections || connections.some(isConnectionLost)) &&
+          connectNotice?.code !== "scope_not_granted" ? (
+            <DriveConsentHint />
           ) : null}
 
           {hasConnections ? (

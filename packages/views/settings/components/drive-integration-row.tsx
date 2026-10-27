@@ -14,6 +14,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { GoogleDriveMark } from "../../common/provider-icons";
+import { DriveConsentHint } from "../../integrations/drive-consent-hint";
 import { useOAuthPopup, type OAuthPopupOutcome } from "../../integrations/use-oauth-popup";
 import { useWorkspace } from "../../layout/workspace-context";
 import { SettingsBadge, SettingsListItem } from "./settings-layout";
@@ -207,6 +208,8 @@ export function DriveIntegrationRow({
 
   const brokenCount = connections.filter((c) => isDriveConnectionLost(c)).length;
   const busy = popup.pending || startConnect.isPending;
+  // The Connect button only exists while the list loaded and holds no account.
+  const showConsentHint = !connectionsQuery.isLoading && !connectionsQuery.isError && count === 0;
 
   const handleConnect = () => {
     setNotice(null);
@@ -306,6 +309,8 @@ export function DriveIntegrationRow({
           ) : null}
 
           <p className="text-caption text-pretty text-muted-foreground">{t("meta")}</p>
+
+          {showConsentHint && notice?.code !== "scope_not_granted" ? <DriveConsentHint /> : null}
         </div>
       }
     />

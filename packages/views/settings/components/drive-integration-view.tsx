@@ -13,6 +13,7 @@ import {
 } from "@uniwork/core/drive";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { ConfirmDialog } from "../../common/form-dialog";
+import { DriveConsentHint } from "../../integrations/drive-consent-hint";
 import { useOAuthPopup, type OAuthPopupOutcome } from "../../integrations/use-oauth-popup";
 import { useWorkspace } from "../../layout/workspace-context";
 import { toastApiError } from "../../toast-api-error";
@@ -276,6 +277,13 @@ export function DriveIntegrationView({
   const busy = popup.pending || startConnect.isPending;
   const firstConnectFetching =
     justConnectedRef.current && connectionsQuery.isFetching && connections.length === 0;
+  // The hint sits by the connect actions (header + Reconnect), which are usable
+  // only once the list loaded; the scope_not_granted notice carries the same line.
+  const showConsentHint =
+    !connectionsQuery.isLoading &&
+    !connectionsQuery.isError &&
+    !firstConnectFetching &&
+    !(notice && notice.code === "scope_not_granted");
 
   const handleConnect = (reconnect?: DriveConnection) => {
     setNotice(null);
@@ -351,6 +359,7 @@ export function DriveIntegrationView({
           ) : null}
 
           <SettingsSection title={t("view.accounts_title")}>
+            {showConsentHint ? <DriveConsentHint /> : null}
             {connectionsQuery.isLoading || firstConnectFetching ? (
               <SettingsSkeletonRows rows={2} />
             ) : connectionsQuery.isError ? (

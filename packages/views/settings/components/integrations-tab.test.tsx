@@ -288,11 +288,50 @@ describe("IntegrationsTab", () => {
           "Liên kết tài liệu Google Drive vào việc, chỉ với tệp bạn tự chọn; UNI đọc và đề xuất việc để bạn duyệt, UniWork chỉ lưu liên kết và không xóa tệp của bạn.",
         ),
       ).toBeInTheDocument();
-      expect(rowEl.querySelectorAll("p")).toHaveLength(1);
+      // The meta line plus the consent hint.
+      expect(rowEl.querySelectorAll("p")).toHaveLength(2);
       expect(within(rowEl).getByText("Google Drive").parentElement).toHaveClass("min-h-8");
       expect(within(rowEl).getByText("Google Drive").closest("li")?.firstElementChild).toHaveClass("mt-0.5");
       const connectBtn = await within(rowEl).findByRole("button", { name: "Kết nối Google Drive" });
       expect(connectBtn.parentElement).toHaveClass("mt-0.5");
+    });
+
+    it("shows the Google consent hint on the not-connected row next to the Connect action", async () => {
+      renderTab([], { driveFlag: true, driveAvailable: true });
+      const rowEl = await screen.findByTestId("drive-integration-row");
+      const connectBtn = await within(rowEl).findByRole("button", { name: "Kết nối Google Drive" });
+      const hint = within(rowEl).getByTestId("drive-consent-hint");
+      expect(hint).toHaveTextContent(
+        "Ở màn hình của Google, hãy tick ô quyền truy cập tệp Google Drive rồi bấm Tiếp tục.",
+      );
+      // The hint shares the row with the Connect action, so it is on screen when the person clicks.
+      expect(rowEl).toContainElement(hint);
+      expect(rowEl).toContainElement(connectBtn);
+      // The descriptive meta line comes first, the instruction after it.
+      const metaLine = within(rowEl).getByText(/^Liên kết tài liệu Google Drive vào việc/);
+      expect(metaLine.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("does not show the consent hint on the row once an account is connected", async () => {
+      renderTab([], {
+        driveFlag: true,
+        driveAvailable: true,
+        driveConnections: [
+          {
+            id: "dc_1",
+            provider: "google",
+            google_email: "uni-work1@gmail.com",
+            status: "active",
+            needs_reconnect: false,
+            linked_file_count: 0,
+            connected_at: "2026-10-26T09:42:00Z",
+            updated_at: "2026-10-26T09:42:00Z",
+          },
+        ],
+      });
+      const rowEl = await screen.findByTestId("drive-integration-row");
+      expect(await within(rowEl).findByRole("button", { name: "Quản lý" })).toBeInTheDocument();
+      expect(within(rowEl).queryByTestId("drive-consent-hint")).not.toBeInTheDocument();
     });
 
     it("shows 'Quản lý' on the connected row, opens the Drive view with push (focusing heading), and uses navigation.back() on close to return focus to 'Quản lý' (R4-5, R5-2)", async () => {
@@ -386,7 +425,7 @@ describe("IntegrationsTab", () => {
       [
         "scope_not_granted",
         false,
-        "Bạn chưa cấp quyền chọn tệp Google Drive cho UniWork. Kết nối lại và đánh dấu quyền truy cập tệp khi Google hỏi.",
+        "Bạn chưa cấp quyền chọn tệp Google Drive cho UniWork. Kết nối lại; ở màn hình của Google, hãy tick ô quyền truy cập tệp Google Drive rồi bấm Tiếp tục.",
       ],
       [
         "account_mismatch",
@@ -423,6 +462,19 @@ describe("IntegrationsTab", () => {
         expect(screen.getByTestId("drive-integration-row")).toBeInTheDocument();
         expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
       }
+    });
+
+    it("hides the plain consent hint on the row while the scope_not_granted notice carries the same instruction", async () => {
+      const { popup } = setupFakePopup();
+      renderTab([], { driveFlag: true, driveAvailable: true });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Kết nối Google Drive" }));
+      await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
+      postDriveOAuthMessage(popup, false, "scope_not_granted");
+
+      const rowEl = screen.getByTestId("drive-integration-row");
+      expect(await within(rowEl).findByRole("alert")).toHaveTextContent("hãy tick ô quyền truy cập tệp Google Drive");
+      expect(within(rowEl).queryByTestId("drive-consent-hint")).not.toBeInTheDocument();
     });
 
     it("shows the closed notice on the row when the popup window closes before completing and refetches connections", async () => {
@@ -604,6 +656,16 @@ describe("IntegrationsTab", () => {
       expect(within(viewEl).getByText("4 tài liệu đã liên kết")).toBeInTheDocument();
       expect(within(viewEl).getByText("Chỉ liên kết, không lưu nội dung")).toBeInTheDocument();
       expect(within(viewEl).getByRole("button", { name: "Kết nối thêm tài khoản" })).toBeInTheDocument();
+      // The same hint sits above the account list, so it is on screen before both
+      // "Kết nối thêm tài khoản" and the per-account "Kết nối lại" open Google.
+      const viewHint = within(viewEl).getByTestId("drive-consent-hint");
+      expect(viewHint).toHaveTextContent(
+        "Ở màn hình của Google, hãy tick ô quyền truy cập tệp Google Drive rồi bấm Tiếp tục.",
+      );
+      const lostReconnect = within(viewEl).getByRole("button", {
+        name: "Kết nối lại minh.nguyen.rat.dai.de.thu.overflow@vietants.vn",
+      });
+      expect(viewHint.compareDocumentPosition(lostReconnect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
       // "Kết nối thêm tài khoản" sends body: {} (no reconnect_connection_id)
       fireEvent.click(within(viewEl).getByRole("button", { name: "Kết nối thêm tài khoản" }));
@@ -697,6 +759,36 @@ describe("IntegrationsTab", () => {
       expect(screen.queryByTestId("drive-integration-view")).not.toBeInTheDocument();
     });
 
+    it("hides the plain consent hint in the Drive view while the scope_not_granted notice is shown", async () => {
+      const { popup } = setupFakePopup();
+      renderTab([], {
+        driveFlag: true,
+        driveAvailable: true,
+        driveConnections: [
+          {
+            id: "dc_1",
+            provider: "google",
+            google_email: "uni-work1@gmail.com",
+            status: "active",
+            needs_reconnect: false,
+            linked_file_count: 2,
+            connected_at: "2026-10-26T09:42:00Z",
+            updated_at: "2026-10-26T09:42:00Z",
+          },
+        ],
+        navAdapter: fakeNav("/acme/team/settings?tab=integrations&integration=drive"),
+      });
+
+      const viewEl = await screen.findByTestId("drive-integration-view");
+      expect(await within(viewEl).findByTestId("drive-consent-hint")).toBeInTheDocument();
+      fireEvent.click(within(viewEl).getByRole("button", { name: "Kết nối thêm tài khoản" }));
+      await waitFor(() => expect(popup.location.href).toBe(AUTH_URL));
+      postDriveOAuthMessage(popup, false, "scope_not_granted");
+
+      expect(await within(viewEl).findByRole("alert")).toHaveTextContent("hãy tick ô quyền truy cập tệp Google Drive");
+      expect(within(viewEl).queryByTestId("drive-consent-hint")).not.toBeInTheDocument();
+    });
+
     it("shows load error with retry inside the Drive view and recovers to the accounts list", async () => {
       let loadingView = true;
       let failLoad = true;
@@ -751,6 +843,8 @@ describe("IntegrationsTab", () => {
       // F2: while loading, count tile shows "—" instead of claiming "0 tài liệu đã liên kết"
       expect(within(viewEl).getByText("—")).toBeInTheDocument();
       expect(within(viewEl).queryByText("0 tài liệu đã liên kết")).not.toBeInTheDocument();
+      // No account list yet, so no connect action to explain: no consent hint either.
+      expect(within(viewEl).queryByTestId("drive-consent-hint")).not.toBeInTheDocument();
       loadingView = false;
       await act(async () => {
         rejectLoad(new Error("network error"));
@@ -759,9 +853,11 @@ describe("IntegrationsTab", () => {
       // F2: while failed, count tile shows "—" instead of claiming "0 tài liệu đã liên kết"
       expect(within(viewEl).getByText("—")).toBeInTheDocument();
       expect(within(viewEl).queryByText("0 tài liệu đã liên kết")).not.toBeInTheDocument();
+      expect(within(viewEl).queryByTestId("drive-consent-hint")).not.toBeInTheDocument();
       failLoad = false;
       fireEvent.click(within(viewEl).getByRole("button", { name: "Thử lại" }));
       expect(await within(viewEl).findByText("uni-work1@gmail.com")).toBeInTheDocument();
+      expect(within(viewEl).getByTestId("drive-consent-hint")).toBeInTheDocument();
       expect(within(viewEl).getByText("2 tài liệu đã liên kết")).toBeInTheDocument();
     });
 

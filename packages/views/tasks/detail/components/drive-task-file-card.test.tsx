@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DriveTaskFileCard as DriveTaskFileCardDTO } from "@uniwork/core/drive";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
+import { runtimeConfig } from "@uniwork/core/runtime-config";
 import type { User, Workspace } from "@uniwork/core/types";
 import { createFakeDrivePickerAdapter } from "../../../integrations/drive-picker";
 import { DRIVE_OAUTH_MESSAGE_TYPE } from "../../../integrations/use-drive-connect-popup";
@@ -490,6 +491,15 @@ describe("DriveTaskFileCard", () => {
       "Kết nối Google Drive mai-lost@gmail.com đã hết hạn.",
     );
 
+    const cardHint = screen.getByTestId("drive-consent-hint");
+    expect(cardHint).toHaveTextContent(
+      "Ở màn hình của Google, hãy tick ô quyền truy cập tệp Google Drive rồi bấm Tiếp tục.",
+    );
+    expect(
+      cardHint.compareDocumentPosition(screen.getByRole("button", { name: "Kết nối lại" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
     fireEvent.click(screen.getByRole("button", { name: "Kết nối lại" }));
 
     await waitFor(() => {
@@ -514,6 +524,66 @@ describe("DriveTaskFileCard", () => {
         }),
       );
     });
+
+    openSpy.mockRestore();
+  });
+
+  it("hides the plain consent hint on the lost-connection card while the scope_not_granted notice is shown", async () => {
+    const fakePopup = {
+      closed: false,
+      focus: vi.fn(),
+      close: vi.fn(),
+      location: { href: "about:blank" },
+    };
+    const openSpy = vi
+      .spyOn(window, "open")
+      .mockReturnValue(fakePopup as unknown as Window);
+
+    requestMock.mockImplementation((url: string, opts?: { method?: string }) => {
+      if (url === "/api/v1/workspaces/ws1/drive-connections") {
+        return Promise.resolve({ connections: [LOST_CONN] });
+      }
+      if (
+        url === "/api/v1/workspaces/ws1/drive-connections/google/start" &&
+        opts?.method === "POST"
+      ) {
+        return Promise.resolve({
+          authorization_url: "https://accounts.google.com/o/oauth2/auth?state=s1",
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    renderCard(
+      makeCard({
+        viewer_access: "connection_lost",
+        viewer_connection_id: "dc_lost",
+        viewer_account_email: "mai-lost@gmail.com",
+      }),
+    );
+
+    expect(await screen.findByTestId("drive-consent-hint")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Kết nối lại" }));
+    await waitFor(() => expect(fakePopup.location.href).not.toBe("about:blank"));
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          origin: new URL(runtimeConfig().apiUrl, window.location.href).origin,
+          source: fakePopup as unknown as Window,
+          data: {
+            type: DRIVE_OAUTH_MESSAGE_TYPE,
+            ok: false,
+            code: "scope_not_granted",
+          },
+        }),
+      );
+    });
+
+    expect(
+      await screen.findByTestId("task-drive-card-connect-notice-df_1"),
+    ).toHaveTextContent("hãy tick ô quyền truy cập tệp Google Drive");
+    expect(screen.queryByTestId("drive-consent-hint")).not.toBeInTheDocument();
 
     openSpy.mockRestore();
   });
