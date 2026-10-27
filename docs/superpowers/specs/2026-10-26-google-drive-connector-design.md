@@ -514,7 +514,7 @@ Văn bản cắt ở 200.000 ký tự, `Request.Truncated = true`, hộp duyệt
 
 ## 10. Flag, cấu hình, quan sát
 
-- Flag `drive_connector` (`keys.go`): `Default: false`, `Public: true`, `Owner: "work"`, `ReviewAt: day(2027, 4, 30)`, mô tả "Connector Google Drive: kết nối, liên kết tệp, UNI đề xuất việc (UNI-2172, ADR 0047)". Tắt flag ẩn mọi lối vào web và route trả 404 `feature_disabled`; tham chiếu và kết nối giữ nguyên.
+- Flag `drive_connector` (`keys.go`): `Default: true` (**USER 2026-10-27:** không bật dần theo tổ chức; tính năng lên là mọi tổ chức dùng được, không cần set env; lối vào vẫn chỉ hiện khi server có OAuth Drive và khóa mã hóa; `FF_DRIVE_CONNECTOR=false` là công tắc tắt khẩn cấp), `Public: true`, `Owner: "work"`, `ReviewAt: day(2027, 4, 30)`, mô tả "Connector Google Drive: kết nối, liên kết tệp, UNI đề xuất việc (UNI-2172, ADR 0047)". Tắt flag ẩn mọi lối vào web và route trả 404 `feature_disabled`; tham chiếu và kết nối giữ nguyên.
 - Env: `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET`, `GOOGLE_DRIVE_PICKER_API_KEY`, `GOOGLE_DRIVE_APP_ID`, `DRIVE_CREDENTIAL_KEY` → `.env.example`, `config.Config`, `main.go` (cùng nhóm với khóa Calendar).
 - `GET /api/v1/config` báo `drive.available` (provider sẵn sàng + flag) cho web.
 - Metric Prometheus: `drive_api_requests_total{op, status}`, `drive_token_refresh_failures_total`, `drive_task_proposals_total{result}`. Log chỉ id (`scripts/no-pii-log.test.mjs`): không email Google, không tên tệp, không nội dung.

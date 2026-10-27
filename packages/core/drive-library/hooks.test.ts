@@ -6,6 +6,7 @@ import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { setAccessToken } from "../api/session";
 import {
   driveLibraryKeys,
+  useAttachDriveFileToTask,
   useDriveFile,
   useDriveFiles,
   useRebindDriveFile,
@@ -169,5 +170,49 @@ describe("driveLibraryKeys and hooks", () => {
     );
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["drive", "ws1"] });
     expect(qc.getQueryState(siblingKey)?.isInvalidated).toBe(true);
+  });
+
+  it("useAttachDriveFileToTask posts to /drive-files with task_id and invalidates detail, list, and task drive-files keys", async () => {
+    qc.setQueryData(driveLibraryKeys.detail("ws1", "df1"), sampleFile());
+    qc.setQueryData(driveLibraryKeys.list("ws1"), { pages: [], pageParams: [] });
+    qc.setQueryData(driveLibraryKeys.task("ws1", "t1"), []);
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        results: [
+          {
+            external_file_id: "ext1",
+            outcome: "already_linked",
+            account_email: "minh@gmail.com",
+          },
+        ],
+      }),
+    );
+
+    const { result } = renderHook(() => useAttachDriveFileToTask("ws1"), {
+      wrapper: makeWrapper(qc),
+    });
+
+    await result.current.mutateAsync({
+      driveFileId: "df1",
+      connectionId: "conn1",
+      externalFileId: "ext1",
+      taskId: "t1",
+    });
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      "http://api.test/api/v1/workspaces/ws1/drive-files",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          connection_id: "conn1",
+          external_file_ids: ["ext1"],
+          task_id: "t1",
+        }),
+      }),
+    );
+    expect(qc.getQueryState(driveLibraryKeys.detail("ws1", "df1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(driveLibraryKeys.list("ws1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(driveLibraryKeys.task("ws1", "t1"))?.isInvalidated).toBe(true);
   });
 });

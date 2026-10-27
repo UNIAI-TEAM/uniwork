@@ -194,6 +194,67 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(screen.queryByRole("button", { name: /Google Drive/ })).toBeNull();
   });
 
+  it("keeps the Google Drive sidebar section reachable and shows 'Mất kết nối · kết nối lại' in 4.1 when the viewer has zero connections and a bound_connection_lost file", async () => {
+    const { promise: listPromise, resolve: resolveList } = Promise.withResolvers<unknown>();
+    requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path === DRIVE_CONNECTIONS_URL) return Promise.resolve({ connections: [] });
+      if (path.startsWith(DRIVE_LIST_URL)) return listPromise;
+      if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE)) return Promise.resolve({ documents: [], next_cursor: null });
+      return Promise.resolve({});
+    });
+
+    const nav = fakeNav("/acme/doi/documents");
+    render(withFlag(<DocumentsPageView wsId={WS} onOpen={vi.fn()} />, true, nav));
+
+    await screen.findByText(t("documents.home.empty.title"));
+    // Hidden while the fallback drive-files query is still loading (no flash)
+    expect(screen.queryByRole("button", { name: /^Google Drive/ })).toBeNull();
+
+    resolveList({
+      files: [
+        driveFile({
+          id: "df_lost",
+          name: "Báo cáo sau khi ngắt kết nối",
+          bound_connection_lost: true,
+          viewer_access: "connection_lost",
+          viewer_connection_id: "conn_disconnected",
+          viewer_account_email: "disconnected@gmail.com",
+        }),
+      ],
+      total_count: 1,
+      next_cursor: null,
+    });
+
+    const driveBtn = (await screen.findAllByRole("button", { name: /^Google Drive/ }))[0]!;
+    expect(driveBtn).toHaveTextContent("1");
+    expect(screen.queryByRole("button", { name: /Drive:/ })).toBeNull();
+    // Zero accounts -> Drive row keeps an empty 16px chevron placeholder slot (no chevron button) so icon/name stay aligned.
+    const driveRowWrapper = driveBtn.parentElement!;
+    expect(driveRowWrapper).toHaveClass("px-2", "gap-1");
+    expect(driveRowWrapper.querySelector("[data-chevron]")).toBeNull();
+    expect(driveRowWrapper.firstElementChild).toHaveAttribute("data-chevron-placeholder");
+    expect(driveRowWrapper.firstElementChild).toHaveClass("size-4", "shrink-0");
+
+    // Clicking the all-accounts row navigates to 4.1 and renders the lost file with reconnect link
+    fireEvent.click(driveBtn);
+    expect(nav.push).toHaveBeenCalledWith("/acme/doi/documents?view=drive");
+
+    const fileLink = await screen.findByRole("link", { name: "Báo cáo sau khi ngắt kết nối" });
+    expect(fileLink).toHaveAttribute("href", "/acme/doi/documents/drive/df_lost");
+    const table = screen.getByRole("table");
+    expect(within(table).getAllByText("disconnected@gmail.com").length).toBeGreaterThan(0);
+    const reconnectLinks = within(table).getAllByRole("link", {
+      name: t("driveLibrary.list.reconnect_inline"),
+    });
+    expect(reconnectLinks.length).toBeGreaterThan(0);
+    expect(reconnectLinks[0]).toHaveAttribute(
+      "href",
+      "/acme/doi/settings?tab=integrations&connect=drive",
+    );
+  });
+
   it("renders Google Drive and per-account children in the sidebar with counts, disconnected warning, aria-current, and no 'Người khác liên kết'", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
@@ -214,20 +275,59 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     );
 
     const driveBtn = (await screen.findAllByRole("button", { name: /^Google Drive/ }))[0]!;
+    const driveRowWrapper = driveBtn.parentElement!;
+    const driveChevron = within(driveRowWrapper).getByRole("button", {
+      name: t("documents.tree.collapse", { title: "Google Drive" }),
+    });
     expect(driveBtn).toHaveAttribute("aria-current", "page");
-    expect(driveBtn).toHaveClass("bg-brand-subtle", "text-brand-subtle-foreground");
+    expect(driveRowWrapper).toHaveClass("bg-brand-subtle", "text-brand-subtle-foreground", "px-2", "gap-1");
+    expect(driveChevron).toHaveAttribute("aria-expanded", "true");
+    expect(driveChevron).not.toHaveAttribute("tabindex", "-1");
+    expect(driveChevron).not.toHaveClass("outline-none");
+    expect(driveChevron).toHaveClass("size-4", "shrink-0", "before:-inset-1", "pointer-coarse:before:-left-2", "pointer-coarse:before:-right-5");
     expect(driveBtn).toHaveTextContent("6");
+    expect(driveBtn).toHaveClass("gap-2", "min-w-0", "flex-1");
+    expect(driveBtn.firstElementChild).toHaveClass("size-5", "shrink-0");
+    expect(driveBtn.lastElementChild).toHaveClass(
+      "ml-auto",
+      "shrink-0",
+      "font-mono",
+      "text-caption",
+      "tabular-nums",
+      "text-muted-foreground",
+    );
 
     const acct1Btn = screen.getAllByRole("button", { name: /Drive: uni-work1@gmail\.com/ })[0]!;
     expect(acct1Btn).not.toHaveAttribute("aria-current");
     expect(acct1Btn).toHaveAttribute("title", "Drive: uni-work1@gmail.com");
+    expect(acct1Btn).toHaveStyle({ paddingLeft: "56px" });
+    expect(acct1Btn.querySelector("svg, img")).toBeNull();
+    expect(acct1Btn).toHaveClass("pr-2", "gap-2");
     expect(acct1Btn).toHaveTextContent("3");
+    expect(acct1Btn.lastElementChild).toHaveClass(
+      "ml-auto",
+      "shrink-0",
+      "font-mono",
+      "text-caption",
+      "tabular-nums",
+      "text-muted-foreground",
+    );
 
     const acct3Btn = screen.getAllByRole("button", { name: /Drive: uni-work3@gmail\.com/ })[0]!;
+    expect(acct3Btn).toHaveStyle({ paddingLeft: "56px" });
+    expect(acct3Btn).toHaveClass("pr-2", "gap-2");
     expect(acct3Btn).toHaveTextContent(t("driveLibrary.sidebar.disconnected"));
     expect(acct3Btn).toHaveAttribute(
       "title",
       `Drive: uni-work3@gmail.com · ${t("driveLibrary.sidebar.disconnected")}`,
+    );
+    expect(acct3Btn.lastElementChild).toHaveClass(
+      "ml-auto",
+      "shrink-0",
+      "font-mono",
+      "text-caption",
+      "tabular-nums",
+      "text-muted-foreground",
     );
 
     expect(screen.queryByText(/Người khác liên kết/)).toBeNull();
@@ -237,6 +337,47 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(acct1Btn).toHaveAttribute("aria-current", "page");
     expect(acct1Btn).toHaveClass("bg-brand-subtle", "text-brand-subtle-foreground");
     expect(driveBtn).not.toHaveAttribute("aria-current");
+
+    // Drive chevron collapses and expands the account rows without navigating; native button handles click (including Enter/Space activation).
+    fireEvent.click(driveChevron);
+    expect(driveChevron).toHaveAttribute("aria-expanded", "false");
+    expect(driveChevron).toHaveAccessibleName(t("documents.tree.expand", { title: "Google Drive" }));
+    expect(within(driveRowWrapper.parentElement!).queryByRole("button", { name: /Drive: uni-work1@gmail\.com/ })).toBeNull();
+    expect(within(driveRowWrapper.parentElement!).getByRole("button", { name: /Drive: uni-work1@gmail\.com/, hidden: true })).not.toBeVisible();
+    expect(nav.push).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(driveChevron);
+    expect(driveChevron).toHaveAttribute("aria-expanded", "true");
+    expect(within(driveRowWrapper.parentElement!).getByRole("button", { name: /Drive: uni-work1@gmail\.com/ })).toBeInTheDocument();
+  });
+
+  it("does not show a reconnect link for a bound_connection_lost file when the viewer's own access is granted on a healthy connection", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      return Promise.resolve({
+        files: [
+          driveFile({
+            id: "df_binder_lost",
+            name: "Tệp do người khác liên kết",
+            bound_connection_lost: true,
+            viewer_access: "granted",
+            viewer_connection_id: "conn1",
+          }),
+        ],
+        total_count: 1,
+        next_cursor: null,
+      });
+    });
+
+    render(
+      withFlag(<DriveLibraryListView wsId={WS} accountId={null} connections={connections} />),
+    );
+
+    await screen.findByRole("link", { name: "Tệp do người khác liên kết" });
+    const table = screen.getByRole("table");
+    expect(
+      within(table).queryByRole("link", { name: t("driveLibrary.list.reconnect_inline") }),
+    ).toBeNull();
   });
 
   it("renders a real table with all 5 columns, sharing states, used-in counts, tasks created, and pagination", async () => {
@@ -653,6 +794,10 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(screen.getAllByRole("button", { name: /Drive: one@gmail\.com/ })[0]).toHaveTextContent("4");
     const brokenRow = screen.getAllByRole("button", { name: /Drive: broken@gmail\.com/ })[0]!;
     expect(brokenRow).toHaveTextContent(t("driveLibrary.sidebar.disconnected"));
+    // Connected users do not trigger the fallback /drive-files query in the sidebar
+    expect(
+      requestMock.mock.calls.filter(([p]) => String(p).startsWith(DRIVE_LIST_URL)),
+    ).toHaveLength(0);
     unmount();
 
     // 2. Single account
@@ -732,6 +877,10 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(screen.queryByRole("button", { name: /^Google Drive/ })).toBeNull();
     expect(
       requestMock.mock.calls.filter(([p]) => String(p).startsWith(DRIVE_CONNECTIONS_URL)),
+    ).toHaveLength(0);
+    // The sidebar fallback must not fetch /drive-files either when Drive is unavailable
+    expect(
+      requestMock.mock.calls.filter(([p]) => String(p).startsWith(DRIVE_LIST_URL)),
     ).toHaveLength(0);
     loadingRender.unmount();
     requestMock.mockClear();

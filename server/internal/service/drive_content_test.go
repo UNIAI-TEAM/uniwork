@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -2569,4 +2570,218 @@ func TestDriveContentReadForAIHonorsFlagAndProviderAvailability(t *testing.T) {
 	if !updatedRow.DriveFolderID.Valid || updatedRow.DriveFolderID.String != "fld-f01" || !updatedRow.DriveFolderName.Valid || updatedRow.DriveFolderName.String != "F01 Folder" {
 		t.Fatalf("memDB.files[%s] folder = (%+v, %+v), want (fld-f01, F01 Folder)", driveFileID, updatedRow.DriveFolderID, updatedRow.DriveFolderName)
 	}
+}
+
+// TestFakeDriveProviderContentMethodsAndNonFakeHTTPBranch verifies:
+//  1. FakeDriveProvider.ExportFile (markdown, text/plain, text/csv, unsupported mime, empty id, maxBytes cap/cap+1).
+//  2. FakeDriveProvider.DownloadMedia (plain text todo list, empty id, maxBytes cap/cap+1).
+//  3. The fake branch in driveExportFile / driveDownloadMedia is ONLY taken when the
+//     client uses the default Google API base URL AND the connection's provider is
+//     *FakeDriveProvider; a non-fake provider (*GoogleDriveProvider) or a custom
+//     httptest base URL still goes to HTTP.
+func TestFakeDriveProviderContentMethodsAndNonFakeHTTPBranch(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fp := NewFakeDriveProvider(config.Config{
+		GoogleDriveClientID:     "fake-cid",
+		GoogleDriveClientSecret: "fake-sec",
+	})
+
+	// 1. ExportFile MIME switch + content cues (due date + priority cue "gấp") + maxBytes.
+	mdBytes, err := fp.ExportFile(ctx, "tok", "ext-doc-1", DriveMimeMarkdown, DriveExportMaxBytes)
+	if err != nil {
+		t.Fatalf("ExportFile(markdown): %v", err)
+	}
+	mdStr := string(mdBytes)
+	if !strings.Contains(mdStr, "2026-11-15") || !strings.Contains(strings.ToLower(mdStr), "gấp") || strings.Count(mdStr, "- [ ]") < 3 {
+		t.Fatalf("ExportFile(markdown) missing expected todo items/cues: %q", mdStr)
+	}
+	if _, err := fp.ExportFile(ctx, "tok", "ext-doc-1", DriveMimeMarkdown, int64(len(mdBytes))); err != nil {
+		t.Fatalf("ExportFile(markdown exact maxBytes): %v", err)
+	}
+	if _, err := fp.ExportFile(ctx, "tok", "ext-doc-1", DriveMimeMarkdown, int64(len(mdBytes)-1)); !errors.Is(err, ErrDriveFileTooLarge) {
+		t.Fatalf("ExportFile(markdown maxBytes-1) = %v, want ErrDriveFileTooLarge", err)
+	}
+
+	txtBytes, err := fp.ExportFile(ctx, "tok", "ext-slide-1", DriveMimePlainText, DriveExportMaxBytes)
+	if err != nil {
+		t.Fatalf("ExportFile(text/plain): %v", err)
+	}
+	if !strings.Contains(string(txtBytes), "2026-11-15") || !strings.Contains(strings.ToLower(string(txtBytes)), "gấp") {
+		t.Fatalf("ExportFile(text/plain) unexpected content: %q", string(txtBytes))
+	}
+
+	csvBytes, err := fp.ExportFile(ctx, "tok", "ext-sheet-1", "text/csv", DriveExportMaxBytes)
+	if err != nil {
+		t.Fatalf("ExportFile(text/csv): %v", err)
+	}
+	csvLines := strings.Split(strings.TrimSpace(string(csvBytes)), "\n")
+	if len(csvLines) < 2 || len(csvLines) > 4 || !strings.Contains(string(csvBytes), ",") {
+		t.Fatalf("ExportFile(text/csv) expected 2-3 CSV rows, got %d: %q", len(csvLines), string(csvBytes))
+	}
+
+	if _, err := fp.ExportFile(ctx, "tok", "ext-doc-1", "application/zip", DriveExportMaxBytes); err == nil {
+		t.Fatal("ExportFile(unsupported mime) expected error, got nil")
+	}
+	if _, err := fp.ExportFile(ctx, "tok", "   ", DriveMimeMarkdown, DriveExportMaxBytes); !errors.Is(err, ErrDriveFileNotAccessible) {
+		t.Fatalf("ExportFile(empty id) = %v, want ErrDriveFileNotAccessible", err)
+	}
+
+	// 2. DownloadMedia plain text + maxBytes + empty id.
+	mediaBytes, err := fp.DownloadMedia(ctx, "tok", "ext-txt-1", DrivePlainTextMaxBytes)
+	if err != nil {
+		t.Fatalf("DownloadMedia: %v", err)
+	}
+	if string(mediaBytes) != string(txtBytes) {
+		t.Fatalf("DownloadMedia = %q, want same plain text todo list %q", string(mediaBytes), string(txtBytes))
+	}
+	if _, err := fp.DownloadMedia(ctx, "tok", "ext-txt-1", int64(len(mediaBytes))); err != nil {
+		t.Fatalf("DownloadMedia(exact maxBytes): %v", err)
+	}
+	if _, err := fp.DownloadMedia(ctx, "tok", "ext-txt-1", int64(len(mediaBytes)-1)); !errors.Is(err, ErrDriveFileTooLarge) {
+		t.Fatalf("DownloadMedia(maxBytes-1) = %v, want ErrDriveFileTooLarge", err)
+	}
+	if _, err := fp.DownloadMedia(ctx, "tok", "", DrivePlainTextMaxBytes); !errors.Is(err, ErrDriveFileNotAccessible) {
+		t.Fatalf("DownloadMedia(empty id) = %v, want ErrDriveFileNotAccessible", err)
+	}
+
+	// 3. Prove the fake branch is ONLY taken for *FakeDriveProvider on the default
+	// Google base URL, and a non-fake provider (*GoogleDriveProvider) still goes to HTTP.
+	const (
+		orgID       = "01ORG0000000000000000000F2"
+		wsID        = "01WS00000000000000000000F2"
+		userID      = "01USER000000000000000000F2"
+		connID      = "01CONN000000000000000000F2"
+		driveFileID = "01DFILE00000000000000000F2"
+		extFileID   = "ext-nonfake-http-doc"
+	)
+	box := testDriveBox(t)
+	connSvc := NewDriveConnectionService(nil, nil, nil, box)
+	accEnc, err := connSvc.sealSecret("tok-nonfake-http")
+	if err != nil {
+		t.Fatal(err)
+	}
+	refEnc, err := connSvc.sealSecret("ref-nonfake-http")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn := db.DriveConnection{
+		ID:              connID,
+		OrganizationID:  orgID,
+		UserID:          userID,
+		Provider:        "google",
+		GoogleSub:       "sub-nonfake-http",
+		GoogleEmail:     "nonfake@example.com",
+		RefreshTokenEnc: refEnc,
+		AccessTokenEnc:  accEnc,
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(time.Hour), Valid: true},
+		Scopes:          "openid email " + DriveGoogleScope,
+	}
+	lookup := &fakeDriveFileAccessLookup{
+		rows: map[string]driveFileAccessRow{
+			userID + "|" + wsID + "|" + driveFileID: {
+				DriveFileID:    driveFileID,
+				OrganizationID: orgID,
+				WorkspaceID:    wsID,
+				ExternalFileID: extFileID,
+				Name:           "Spec Doc",
+				MimeType:       DriveMimeGoogleDoc,
+				HasAccessRow:   true,
+				AccessState:    "granted",
+				Connection:     conn,
+			},
+		},
+	}
+	ws := newTestDriveWorkspaceService(map[string]string{wsID + "|" + userID: orgID})
+
+	// 3a. With FakeDriveProvider and default DriveAPIClient (driveGoogleAPIBaseURL) whose
+	// transport fails on any network call, ReadForAI succeeds purely in memory.
+	connSvc.ConfigureOAuth(config.Config{
+		AppEnv:            "development",
+		DriveFakeProvider: true,
+	})
+	fakeClient := NewDriveAPIClient()
+	fakeClient.httpClient.Transport = failingDriveRoundTripper{t: t}
+	fakeContentSvc := NewDriveContentService(nil, nil, ws, lookup, connSvc, fakeClient, nil)
+	fakeContentSvc.auditHook = func(_ context.Context, _ audit.Entry) error { return nil }
+
+	dcFake, err := fakeContentSvc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeTaskProposal)
+	if err != nil {
+		t.Fatalf("ReadForAI with FakeDriveProvider: %v", err)
+	}
+	if dcFake.Text != fakeDriveExportMarkdown || dcFake.Truncated {
+		t.Fatalf("ReadForAI with FakeDriveProvider text = %q, want %q", dcFake.Text, fakeDriveExportMarkdown)
+	}
+
+	// 3b. With a non-fake provider (*GoogleDriveProvider, DriveFakeProvider=false) on a
+	// client whose baseURL is driveGoogleAPIBaseURL and whose transport routes to an
+	// httptest server, ReadForAI goes through HTTP (both files.get and files.export).
+	var httpOps []string
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/export"):
+			httpOps = append(httpOps, "export:"+r.URL.Query().Get("mimeType"))
+			w.Header().Set("Content-Type", DriveMimeMarkdown)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("# From real HTTP server\n- HTTP task"))
+		case r.URL.Query().Get("alt") == "media":
+			httpOps = append(httpOps, "media")
+			w.Header().Set("Content-Type", DriveMimePlainText)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("media from HTTP"))
+		default:
+			httpOps = append(httpOps, "get")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(googleDriveFileJSON{
+				ID:       extFileID,
+				Name:     "HTTP Spec Doc",
+				MimeType: DriveMimeGoogleDoc,
+			})
+		}
+	}))
+	t.Cleanup(httpSrv.Close)
+
+	connSvc.ConfigureOAuth(config.Config{
+		AppEnv:                  "development",
+		DriveFakeProvider:       false,
+		GoogleDriveClientID:     "real-cid",
+		GoogleDriveClientSecret: "real-sec",
+	})
+	srvURL, err := url.Parse(httpSrv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	realClient := NewDriveAPIClient()
+	realClient.httpClient.Transport = rewriteHostRoundTripper{
+		target: srvURL,
+		base:   httpSrv.Client().Transport,
+	}
+	realContentSvc := NewDriveContentService(nil, nil, ws, lookup, connSvc, realClient, nil)
+	realContentSvc.auditHook = func(_ context.Context, _ audit.Entry) error { return nil }
+
+	dcReal, err := realContentSvc.ReadForAI(ctx, userID, wsID, driveFileID, DriveContentPurposeTaskProposal)
+	if err != nil {
+		t.Fatalf("ReadForAI with non-fake GoogleDriveProvider: %v", err)
+	}
+	if dcReal.Text != "# From real HTTP server\n- HTTP task" {
+		t.Fatalf("ReadForAI with non-fake provider text = %q, want HTTP server response", dcReal.Text)
+	}
+	if !reflect.DeepEqual(httpOps, []string{"get", "export:text/markdown"}) {
+		t.Fatalf("non-fake provider HTTP ops = %v, want [get export:text/markdown]", httpOps)
+	}
+}
+
+type rewriteHostRoundTripper struct {
+	target *url.URL
+	base   http.RoundTripper
+}
+
+func (r rewriteHostRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	clone.URL.Scheme = r.target.Scheme
+	clone.URL.Host = r.target.Host
+	clone.Host = r.target.Host
+	return r.base.RoundTrip(clone)
 }

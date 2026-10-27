@@ -641,8 +641,8 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       clearContent: () => {
         editor?.commands.clearContent();
       },
-      focus: () => {
-        if (editor) editor.commands.focus();
+      focus: (position?: "end") => {
+        if (editor) editor.commands.focus(position);
         // Editor not mounted yet — defer the focus to `onCreate`.
         else focusOnReadyRef.current = true;
       },

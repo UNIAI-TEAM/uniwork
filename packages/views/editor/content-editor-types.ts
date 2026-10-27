@@ -159,7 +159,7 @@ export type ContentEditorProps = ContentEditorBaseProps & ContentEditorValueProp
 export interface ContentEditorRef {
   getMarkdown: () => string;
   clearContent: () => void;
-  focus: () => void;
+  focus: (position?: "end") => void;
   /**
    * Focus and place the caret at the document position under the given
    * viewport coordinates. Used by readonly-first hosts so the click that

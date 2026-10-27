@@ -266,14 +266,10 @@ func (c *DriveAPIClient) filesGetWithConnectionAndParentCache(
 	var usedToken string
 	err := c.withConnectionToken(ctx, tokens, conn, func(accessToken string) error {
 		usedToken = accessToken
-		if c == nil || c.baseURL == driveGoogleAPIBaseURL {
-			if dcs, ok := tokens.(*DriveConnectionService); ok && dcs != nil {
-				if fp, ok := dcs.Provider().(*FakeDriveProvider); ok && fp != nil {
-					var callErr error
-					meta, callErr = fp.FilesGet(ctx, accessToken, externalFileID)
-					return callErr
-				}
-			}
+		if fp := c.fakeProviderForTokens(tokens); fp != nil {
+			var callErr error
+			meta, callErr = fp.FilesGet(ctx, accessToken, externalFileID)
+			return callErr
 		}
 		var callErr error
 		meta, callErr = c.FilesGet(ctx, accessToken, externalFileID)
@@ -593,10 +589,24 @@ func DriveIconKindForMimeType(mimeType string) string {
 	}
 }
 
+func (c *DriveAPIClient) fakeProviderForTokens(tokens DriveTokenSource) *FakeDriveProvider {
+	if c == nil || c.baseURL == driveGoogleAPIBaseURL {
+		if dcs, ok := tokens.(*DriveConnectionService); ok && dcs != nil {
+			if fp, ok := dcs.Provider().(*FakeDriveProvider); ok && fp != nil {
+				return fp
+			}
+		}
+	}
+	return nil
+}
+
 // driveExportFile calls GET /drive/v3/files/{fileId}/export?mimeType=... and
 // reads at most maxBytes of exported content. Only drive_content.go may call
 // this function (enforced by TestDriveContentOnlyFromDriveContent in arch_test.go).
-func (c *DriveAPIClient) driveExportFile(ctx context.Context, accessToken, externalFileID, exportMimeType string, maxBytes int64) ([]byte, error) {
+func (c *DriveAPIClient) driveExportFile(ctx context.Context, tokens DriveTokenSource, accessToken, externalFileID, exportMimeType string, maxBytes int64) ([]byte, error) {
+	if fp := c.fakeProviderForTokens(tokens); fp != nil {
+		return fp.ExportFile(ctx, accessToken, externalFileID, exportMimeType, maxBytes)
+	}
 	q := url.Values{
 		"mimeType": {exportMimeType},
 	}
@@ -607,7 +617,10 @@ func (c *DriveAPIClient) driveExportFile(ctx context.Context, accessToken, exter
 // driveDownloadMedia calls GET /drive/v3/files/{fileId}?alt=media&supportsAllDrives=true
 // and reads at most maxBytes of raw file bytes in memory. Only drive_content.go
 // may call this function (enforced by TestDriveContentOnlyFromDriveContent in arch_test.go).
-func (c *DriveAPIClient) driveDownloadMedia(ctx context.Context, accessToken, externalFileID string, maxBytes int64) ([]byte, error) {
+func (c *DriveAPIClient) driveDownloadMedia(ctx context.Context, tokens DriveTokenSource, accessToken, externalFileID string, maxBytes int64) ([]byte, error) {
+	if fp := c.fakeProviderForTokens(tokens); fp != nil {
+		return fp.DownloadMedia(ctx, accessToken, externalFileID, maxBytes)
+	}
 	q := url.Values{
 		"alt":               {"media"},
 		"supportsAllDrives": {"true"},
