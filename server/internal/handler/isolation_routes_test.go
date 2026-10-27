@@ -973,7 +973,7 @@ var isoRoutes = map[string]isoSpec{
 		return isoBody{json: map[string]any{"connection_id": tn.ids["driveConnection"], "external_file_ids": []string{"iso-drive-" + strings.ToLower(tn.tag)}}}
 	}},
 	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":             {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
-	"PUT /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":              {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil), control: []int{http.StatusConflict}, reason: "the owner is bound_by on the seeded file, so their own PUT answers 409 use_rebind after passing the workspace and visibility gates; an outsider is refused 403/404"},
+	"PUT /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":              {controlAs: "peer", body: isoWith(map[string]string{"connection_id": "peerDriveConnection"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind":             {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals":     {body: isoJSON(map[string]any{"prompt": "Extract tasks"})},
 	"POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates": {body: isoJSON(map[string]any{"titles": []string{"Chốt phạm vi beta"}})},

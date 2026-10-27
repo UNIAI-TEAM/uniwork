@@ -1072,17 +1072,6 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		t.Fatalf("email account: %v", err)
 	}
 	tn.ids["emailAccount"] = acc.ID
-	driveConn, err := w.q.CreateDriveConnection(ctx, db.CreateDriveConnectionParams{
-		ID: util.NewID(), OrganizationID: tn.orgID, UserID: tn.userID, Provider: "google",
-		GoogleSub: "google-sub-" + strings.ToLower(m), GoogleEmail: strings.ToLower(m) + "-drive@example.com",
-		RefreshTokenEnc: "enc", AccessTokenEnc: "enc",
-		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
-		Scopes:          "openid email https://www.googleapis.com/auth/drive.file",
-	})
-	if err != nil {
-		t.Fatalf("drive connection: %v", err)
-	}
-	tn.ids["driveConnection"] = driveConn.ID
 	th, err := w.q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
 		ID: util.NewID(), AccountID: acc.ID, OrganizationID: tn.orgID, Folder: "INBOX", ImapUid: 1,
 		Subject: m + " mail subject", Snippet: m + " mail snippet", FromAddr: "sender@example.com",
@@ -1291,6 +1280,12 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		VALUES ($1, $2, $3, 'google', $4, $5, $6, $6, now() + interval '1 hour', 1, 'openid email https://www.googleapis.com/auth/drive.file')`,
 		tn.ids["peerDriveConnection"], tn.orgID, tn.peerID, "sub-peer-"+strings.ToLower(m), strings.ToLower(m)+"-peer-drive@example.com", base64.StdEncoding.EncodeToString(tokenEnc)); err != nil {
 		t.Fatalf("peer drive connection: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_file_access
+		(id, organization_id, workspace_id, drive_file_id, user_id, connection_id, state)
+		VALUES ($1, $2, $3, $4, $5, $6, 'granted')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["driveFile"], tn.peerID, tn.ids["peerDriveConnection"]); err != nil {
+		t.Fatalf("peer access on drive file: %v", err)
 	}
 	tn.ids["peerBoundDriveFile"] = util.NewID()
 	peerExtFileID := "ext-drive-peer-" + strings.ToLower(m)
