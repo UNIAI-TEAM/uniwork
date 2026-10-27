@@ -2,6 +2,7 @@
 
 import { TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useDriveFiles } from "@uniwork/core/drive-library";
 import { cn } from "@uniwork/ui/lib/utils";
 import { GoogleDriveMark } from "../../common/provider-icons";
 import type { LibraryView } from "../documents-sidebar";
@@ -21,7 +22,10 @@ export interface DriveSidebarSectionProps {
  * Sidebar section for Documents › Google Drive (spec §7.6, 4.1).
  * Renders "Google Drive" right under "Thư mục của tôi" with the total count,
  * followed by one child row per connected account.
- * Hidden when the viewer has no connection. Never renders "Người khác liên kết" (Q6).
+ * Shown when `driveAvailable` and the viewer has at least one connection or at least
+ * one linked Drive file (so disconnected users can still reach their `bound_connection_lost`
+ * files and reconnect). Hidden when both are empty or while the fallback files check is loading.
+ * Never renders "Người khác liên kết" (Q6).
  */
 export function DriveSidebarSection({
   wsId,
@@ -30,16 +34,35 @@ export function DriveSidebarSection({
   onSelect,
 }: DriveSidebarSectionProps) {
   const { t } = useTranslation();
-  const { connections: defaultConnections, driveAvailable } = useDriveLibraryConnections(wsId, {
+  const {
+    connections: defaultConnections,
+    isLoading: defaultConnectionsLoading,
+    driveAvailable,
+  } = useDriveLibraryConnections(wsId, {
     enabled: connectionsProp === undefined,
   });
+  const connectionsLoading = connectionsProp === undefined && defaultConnectionsLoading;
   const connections = driveAvailable ? (connectionsProp ?? defaultConnections) : [];
+  const needFilesCheck = driveAvailable && !connectionsLoading && connections.length === 0;
+  const filesQuery = useDriveFiles(wsId, {
+    connectionId: null,
+    enabled: needFilesCheck,
+  });
+  const firstPage = filesQuery.data?.pages[0];
+  const fallbackFileCount = Math.max(firstPage?.total_count ?? 0, firstPage?.files.length ?? 0);
+  const hasLinkedFiles = fallbackFileCount > 0;
 
-  if (!driveAvailable || connections.length === 0) {
+  if (
+    !driveAvailable ||
+    (connections.length === 0 && (connectionsLoading || filesQuery.isLoading || !hasLinkedFiles))
+  ) {
     return null;
   }
 
-  const resolvedTotal = connections.reduce((sum, conn) => sum + Math.max(0, conn.linked_file_count), 0);
+  const resolvedTotal =
+    connections.length > 0
+      ? connections.reduce((sum, conn) => sum + Math.max(0, conn.linked_file_count), 0)
+      : fallbackFileCount;
   const isAllCurrent = view.kind === "drive" && !view.account;
 
   return (

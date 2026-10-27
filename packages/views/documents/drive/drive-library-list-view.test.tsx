@@ -194,6 +194,61 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(screen.queryByRole("button", { name: /Google Drive/ })).toBeNull();
   });
 
+  it("keeps the Google Drive sidebar section reachable and shows 'Mất kết nối · kết nối lại' in 4.1 when the viewer has zero connections and a bound_connection_lost file", async () => {
+    const { promise: listPromise, resolve: resolveList } = Promise.withResolvers<unknown>();
+    requestMock.mockImplementation((path: string) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path === DRIVE_CONNECTIONS_URL) return Promise.resolve({ connections: [] });
+      if (path.startsWith(DRIVE_LIST_URL)) return listPromise;
+      if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(LIST_BASE)) return Promise.resolve({ documents: [], next_cursor: null });
+      return Promise.resolve({});
+    });
+
+    const nav = fakeNav("/acme/doi/documents");
+    render(withFlag(<DocumentsPageView wsId={WS} onOpen={vi.fn()} />, true, nav));
+
+    await screen.findByText(t("documents.home.empty.title"));
+    // Hidden while the fallback drive-files query is still loading (no flash)
+    expect(screen.queryByRole("button", { name: /^Google Drive/ })).toBeNull();
+
+    resolveList({
+      files: [
+        driveFile({
+          id: "df_lost",
+          name: "Báo cáo sau khi ngắt kết nối",
+          bound_connection_lost: true,
+          viewer_access: "connection_lost",
+          viewer_connection_id: "conn_disconnected",
+          viewer_account_email: "disconnected@gmail.com",
+        }),
+      ],
+      total_count: 1,
+      next_cursor: null,
+    });
+
+    const driveBtn = (await screen.findAllByRole("button", { name: /^Google Drive/ }))[0]!;
+    expect(driveBtn).toHaveTextContent("1");
+    expect(screen.queryByRole("button", { name: /Drive:/ })).toBeNull();
+
+    // Clicking the all-accounts row navigates to 4.1 and renders the lost file with reconnect link
+    fireEvent.click(driveBtn);
+    expect(nav.push).toHaveBeenCalledWith("/acme/doi/documents?view=drive");
+
+    const fileLink = await screen.findByRole("link", { name: "Báo cáo sau khi ngắt kết nối" });
+    expect(fileLink).toHaveAttribute("href", "/acme/doi/documents/drive/df_lost");
+    const table = screen.getByRole("table");
+    expect(within(table).getAllByText("disconnected@gmail.com").length).toBeGreaterThan(0);
+    const reconnectLinks = within(table).getAllByRole("link", {
+      name: t("driveLibrary.list.reconnect_inline"),
+    });
+    expect(reconnectLinks.length).toBeGreaterThan(0);
+    expect(reconnectLinks[0]).toHaveAttribute(
+      "href",
+      "/acme/doi/settings?tab=integrations&connect=drive",
+    );
+  });
+
   it("renders Google Drive and per-account children in the sidebar with counts, disconnected warning, aria-current, and no 'Người khác liên kết'", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
@@ -653,6 +708,10 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(screen.getAllByRole("button", { name: /Drive: one@gmail\.com/ })[0]).toHaveTextContent("4");
     const brokenRow = screen.getAllByRole("button", { name: /Drive: broken@gmail\.com/ })[0]!;
     expect(brokenRow).toHaveTextContent(t("driveLibrary.sidebar.disconnected"));
+    // Connected users do not trigger the fallback /drive-files query in the sidebar
+    expect(
+      requestMock.mock.calls.filter(([p]) => String(p).startsWith(DRIVE_LIST_URL)),
+    ).toHaveLength(0);
     unmount();
 
     // 2. Single account

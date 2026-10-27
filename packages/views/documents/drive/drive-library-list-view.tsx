@@ -397,7 +397,9 @@ function DriveLibraryListBody({
                     ? connectionById.get(file.viewer_connection_id)
                     : undefined;
                   const rowNeedsReconnect =
-                    file.viewer_access === "connection_lost" || Boolean(viewerConn?.needs_reconnect);
+                    file.viewer_access === "connection_lost" ||
+                    file.bound_connection_lost ||
+                    Boolean(viewerConn?.needs_reconnect);
                   const accountEmail =
                     file.viewer_account_email || t("driveLibrary.list.no_account_value");
                   const createdCount = file.tasks_created?.count ?? 0;
