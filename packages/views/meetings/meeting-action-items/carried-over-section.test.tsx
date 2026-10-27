@@ -57,12 +57,12 @@ function respond(carried: unknown) {
   });
 }
 
-function renderSection() {
+function renderSection(props: { variant?: "compact" | "room"; defaultOpen?: boolean } = {}) {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
         <div data-testid="host">
-          <MeetingCarriedOverSection workspaceId="w1" meetingId="m1" variant="compact" />
+          <MeetingCarriedOverSection workspaceId="w1" meetingId="m1" variant={props.variant ?? "compact"} defaultOpen={props.defaultOpen} />
         </div>
       </WorkspaceProvider>,
     ),
@@ -132,5 +132,24 @@ describe("MeetingCarriedOverSection", () => {
     await userEvent.click(toggle);
     expect(await screen.findByText("Gửi báo giá")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Từ cuộc họp Giao ban tuần 41" })).toBeInTheDocument();
+  });
+
+  it("folds into one dashed row in the room, that opens onto the same groups", async () => {
+    respond({ items });
+    renderSection({ variant: "room" });
+    const toggle = await screen.findByRole("button", { name: "Từ lần họp trước · 3" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Gửi báo giá")).not.toBeInTheDocument();
+    await userEvent.click(toggle);
+    expect(await screen.findByText("Gửi báo giá")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Từ cuộc họp Giao ban tuần 41" })).toBeInTheDocument();
+  });
+
+  it("starts open in the room when asked", async () => {
+    respond({ items, total: 105 });
+    renderSection({ variant: "room", defaultOpen: true });
+    expect(await screen.findByRole("button", { name: "Từ lần họp trước · 105" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Gửi báo giá")).toBeInTheDocument();
+    expect(screen.getByText("Còn 102 việc nữa chưa hiện ở đây.")).toBeInTheDocument();
   });
 });

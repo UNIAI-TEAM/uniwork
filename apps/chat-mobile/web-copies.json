@@ -51,7 +51,7 @@
       "packages/core/chat/thread-hooks.ts": "5bc995cb60f1b595b879ec635a88e236c60458976213e9a1573dbe39ab147e91"
     },
     "apps/chat-mobile/data/realtime/chat-realtime.ts": {
-      "packages/core/realtime/use-realtime-sync.ts": "5da657b467011b46a2ba0f0b75d65f8a413860f3260ab53e145ec088347d8df4"
+      "packages/core/realtime/use-realtime-sync.ts": "09621cc19c30a7b724f6a0c945178865e9416d47a3f1bb103f3b68f45b6f414c"
     },
     "apps/chat-mobile/data/realtime/use-chat-scopes.ts": {
       "packages/core/realtime/use-chat-room-scopes.ts": "877a7d7c7a8600e70460626be873ba771668627c7243beddf340c613ba9dfb18"
@@ -102,7 +102,7 @@
       "packages/views/chat/voice-call-log-row.tsx": "f0d3c2f9f083520eaa880abd7b2c89dc9d4450fa2280e4c5903ee8a34445fe53"
     },
     "apps/chat-mobile/lib/message-format.ts": {
-      "packages/views/chat/chat-message-body.tsx": "c8d39c21e4ec3c3fa6747a622628b32fee7f40a26504d8ca01ca80e81556b7b8"
+      "packages/views/chat/chat-message-body.tsx": "c28a7948d8bd3a2f5bca39a54b4492671434bc5bf0b2aeacc0640ada11034531"
     },
     "apps/chat-mobile/lib/people-display.ts": {
       "packages/views/chat/chat-page-utils.ts": "63980c22641b82a6582aa9cabcdaaad16011c87f1a6fb5d462201ef3ecbeec99",

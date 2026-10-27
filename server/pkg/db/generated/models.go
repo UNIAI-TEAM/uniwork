@@ -1977,6 +1977,7 @@ type MeetingNote struct {
 	Body           string             `json:"body"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	OrganizationID string             `json:"organization_id"`
+	EditedAt       pgtype.Timestamptz `json:"edited_at"`
 }
 
 type MeetingParticipant struct {

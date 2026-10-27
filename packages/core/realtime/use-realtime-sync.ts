@@ -353,10 +353,6 @@ function keysFor(
       if (payload.meeting_id) push(meetingKeys.detail(payload.meeting_id));
       break;
     }
-    case "note.created": {
-      if (payload.meeting_id) push(meetingKeys.notes(payload.meeting_id));
-      break;
-    }
     case "transcript.appended": {
       if (payload.meeting_id) push(meetingKeys.transcript(payload.meeting_id));
       break;

@@ -4114,7 +4114,7 @@
       "assignNone": "Assign tasks",
       "pickReason": "Pick at least one pending item",
       "nothingPending": "Nothing left to assign",
-      "add": "Add task",
+      "add": "Add item",
       "addHeading": "Meeting follow-up",
       "editAssign": "Edit & assign",
       "priorityValue": "{{priority}} priority",
@@ -5114,6 +5114,163 @@
       "reinvite": "Invite again",
       "scribeOffFailed": "Could not turn off UNI Scribe. UNI Scribe is transcribing.",
       "scribeOnFailed": "Could not turn on UNI Scribe. This meeting is not being transcribed."
+    },
+    "panel": {
+      "transcript": {
+        "search": "Search the transcript",
+        "latest": "Jump to latest",
+        "speaking": "speaking",
+        "becameDecision": "Became a decision",
+        "newItem": "New item",
+        "newItemOwner": "New item · {{owner}}"
+      },
+      "collapse": "Collapse panel",
+      "status": {
+        "listening": "Listening",
+        "live": "Taking notes",
+        "paused": "Paused",
+        "joining": "Joining",
+        "failed": "Couldn't join",
+        "off": "Off"
+      },
+      "views": {
+        "label": "View",
+        "feed": "Highlights",
+        "transcript": "Transcript"
+      },
+      "summary": {
+        "title": "Summary so far",
+        "update": "Update summary",
+        "copy": "Copy summary",
+        "none": "No summary yet",
+        "create": "Create",
+        "sourcesHelp": "What the AI read"
+      },
+      "filters": {
+        "label": "Filter by kind",
+        "all": "All"
+      },
+      "kind": {
+        "decision": "Decision",
+        "task": "Action item",
+        "question": "Open question",
+        "note": "Note",
+        "recording": "Recording",
+        "countLabel": "{{kind}}, {{count}}"
+      },
+      "feed": {
+        "label": "Meeting highlights",
+        "open": "Open",
+        "new": "New",
+        "playRecording": "Play recording",
+        "playRecordingAt": "Play recording from {{time}}",
+        "addDue": "+ Due",
+        "jumpToLine": "See what was said at {{time}}",
+        "chipDecision": "Decided",
+        "chipTask": "To-do",
+        "chipQuestion": "Asked",
+        "note": {
+          "actions": "Actions for note: {{text}}",
+          "edit": "Edit",
+          "delete": "Delete note",
+          "field": "Note text",
+          "edited": "· edited",
+          "deleteTitle": "Delete this note?",
+          "deleteBody": "No one in the meeting will see this note any more."
+        }
+      },
+      "empty": {
+        "title": "UNI Scribe is listening",
+        "line": "Key points show up here as soon as someone speaks.",
+        "decided": "Decided",
+        "todo": "To-do",
+        "asked": "Asked",
+        "carried_one": "{{count}} open item",
+        "carried_other": "{{count}} open items",
+        "carriedFrom": "From earlier meetings"
+      },
+      "composer": {
+        "modeLabel": "Input mode",
+        "ask": "Ask",
+        "note": "Note",
+        "askPlaceholder": "Ask UNI privately about this meeting…",
+        "followupPlaceholder": "Ask a follow-up…",
+        "notePlaceholder": "Note for everyone…",
+        "askLabel": "Ask UNI privately about this meeting",
+        "noteLabel": "Note for everyone",
+        "scope": "This meeting",
+        "scopeLabel": "Scope: this meeting",
+        "mention": "Mention a task, person or document",
+        "send": "Send",
+        "saveNote": "Save note",
+        "stop": "Stop",
+        "reading": "Reading the meeting…",
+        "readingNotes_one": "Reading the transcript and {{count}} note…",
+        "readingNotes_other": "Reading the transcript and {{count}} notes…",
+        "private": "Only you",
+        "everyone": "Everyone",
+        "outOfCredit": "Ask UNI is out of credit this month",
+        "askOff": "Ask UNI is off",
+        "blockedHelp": "Why, and what to do",
+        "askPlaceholderShort": "Ask UNI privately…"
+      },
+      "suggest": {
+        "last5": "Last 5 minutes",
+        "last5Q": "Summarize the last 5 minutes.",
+        "decided": "What was decided?",
+        "decidedQ": "What has this meeting decided so far?",
+        "mine": "My items",
+        "mineQ": "What was I asked to do in this meeting?",
+        "lastTime": "Decided last time?",
+        "lastTimeQ": "What did the previous meeting decide?",
+        "goal": "Goal of this meeting?",
+        "goalQ": "What is the goal of this meeting?"
+      },
+      "answer": {
+        "title": "Ask UNI",
+        "share": "Share to chat",
+        "continue": "Continue"
+      },
+      "actions": {
+        "selectAll": "Select all pending items",
+        "selected_one": "{{count}} selected",
+        "selected_other": "{{count}} selected",
+        "clear": "Clear",
+        "carried": "From earlier meetings · {{count}}",
+        "pending": "Pending · {{count}}",
+        "converted": "Assigned · {{count}}",
+        "editLabel": "Edit & assign \"{{title}}\"",
+        "selectedRegion": "Selected items"
+      },
+      "people": {
+        "waiting_one": "{{count}} person waiting",
+        "waiting_other": "{{count}} people waiting",
+        "admit": "Admit",
+        "showWaiting": "Show each person",
+        "waitingAlone": "is waiting",
+        "waitingOthers_one": "and {{count}} other",
+        "waitingOthers_other": "and {{count}} others",
+        "admitAll": "Admit all {{count}}",
+        "hands": "Hands raised · {{count}}",
+        "lowerMine": "Lower hand",
+        "inRoom": "In the room · {{count}}",
+        "scribeRole": "AI assistant · taking notes",
+        "you": "you",
+        "micOn": "Mic on"
+      },
+      "votes": {
+        "next": "Up next",
+        "done": "Done",
+        "missing_one": "{{count}} person hasn't voted",
+        "missing_other": "{{count}} people haven't voted",
+        "rulesHelp": "How votes count",
+        "secret": "Secret",
+        "progress": "{{cast}} of {{roll}} voted",
+        "open": "Open"
+      },
+      "chat": {
+        "placeholder": "Message everyone…"
+      }
     }
   },
   "calendar": {

@@ -661,6 +661,8 @@ func New(d Deps) http.Handler {
 		TransferHost:                   h.transferHost,
 		ListNotes:                      h.listNotes,
 		CreateNote:                     h.createNote,
+		UpdateNote:                     h.updateNote,
+		DeleteNote:                     h.deleteNote,
 		MeetingToken:                   h.meetingToken,
 		JoinMeeting:                    h.joinMeeting,
 		ListParticipants:               h.listParticipants,

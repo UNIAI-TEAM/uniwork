@@ -10,7 +10,6 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { AskUniMessageTurn } from "@uniwork/views/ai/ask-uni-legacy-panel";
 import { MeetingPersonAvatar } from "@uniwork/views/meetings/meeting-person";
 import { MeetingUnderlineTabs } from "@uniwork/views/meetings/meeting-underline-tabs";
-import { MeetingCopilotHeader } from "@uniwork/views/meetings/meeting-copilot/meeting-copilot-header";
 
 export const DEMO_MEETING_PEOPLE = [DEMO_MEMBERS[1]!.name, DEMO_MEMBERS[2]!.name, DEMO_MEMBERS[3]!.name, DEMO_MEMBERS[0]!.name];
 const MEETING_DEMO_TABS = ["copilot", "chat", "participants", "motions", "recordings"] as const;
@@ -40,7 +39,7 @@ export function ProductMeetingPanel({ tab, onTab, onClose, onTask, compact, stat
     <div className="product-meeting-panel-tabs"><MeetingUnderlineTabs tabs={MEETING_DEMO_TABS} value={tab} onChange={onTab} label={label} panelId={value => `${id}-${value}`} />{compact && <Button size="icon" variant="ghost" aria-label={t("common.close")} onClick={onClose}><X aria-hidden /></Button>}</div>
     <div className="product-meeting-panel-content" role="tabpanel" id={`${id}-${tab}`} aria-label={label(tab)}>
       {tab === "copilot" && <>
-        <MeetingCopilotHeader />
+        <h2 className="sr-only">{t("meetings.aiCopilot")}</h2>
         <MeetingUnderlineTabs tabs={COPILOT_SECTIONS} value={section} onChange={setSection} label={sectionLabel} />
         <div className="product-meeting-copilot-body">
           {/* As shipped: the summary arrives by itself, and Ask UNI answers from this meeting. */}

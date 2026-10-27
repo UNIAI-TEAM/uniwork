@@ -3607,7 +3607,7 @@
     "searchMembers": "Nhập tên hoặc email",
     "invitedMembers_one": "Đã mời {{count}} thành viên",
     "invitedMembers_other": "Đã mời {{count}} thành viên",
-    "searchPeople": "Tìm người tham dự",
+    "searchPeople": "Tìm người",
     "inTheMeeting": "Trong cuộc họp",
     "contributors": "Người tham gia",
     "meetingHost": "Chủ trì cuộc họp",
@@ -4113,7 +4113,7 @@
       "assignNone": "Giao việc",
       "pickReason": "Chọn ít nhất một việc đang chờ xử lý",
       "nothingPending": "Không còn việc nào chờ giao",
-      "add": "Thêm task",
+      "add": "Thêm việc",
       "addHeading": "Task sau họp",
       "editAssign": "Sửa & giao",
       "priorityValue": "ưu tiên {{priority}}",
@@ -5113,6 +5113,163 @@
       "reinvite": "Mời lại",
       "scribeOffFailed": "Chưa tắt được Thư ký UNI. Thư ký UNI đang ghi lời thoại.",
       "scribeOnFailed": "Chưa bật được Thư ký UNI. Cuộc họp này chưa được ghi lời thoại."
+    },
+    "panel": {
+      "transcript": {
+        "search": "Tìm trong lời thoại",
+        "latest": "Về mới nhất",
+        "speaking": "đang nói",
+        "becameDecision": "Đã thành quyết định",
+        "newItem": "Việc mới",
+        "newItemOwner": "Việc mới · {{owner}}"
+      },
+      "collapse": "Thu gọn bảng",
+      "status": {
+        "listening": "Đang nghe",
+        "live": "Đang ghi",
+        "paused": "Tạm dừng",
+        "joining": "Đang vào",
+        "failed": "Chưa vào được",
+        "off": "Tắt"
+      },
+      "views": {
+        "label": "Cách xem",
+        "feed": "Tổng hợp",
+        "transcript": "Lời thoại"
+      },
+      "summary": {
+        "title": "Tóm tắt đến giờ",
+        "update": "Cập nhật tóm tắt",
+        "copy": "Sao chép tóm tắt",
+        "none": "Chưa có tóm tắt",
+        "create": "Tạo",
+        "sourcesHelp": "AI viết từ đâu"
+      },
+      "filters": {
+        "label": "Lọc theo loại",
+        "all": "Tất cả"
+      },
+      "kind": {
+        "decision": "Quyết định",
+        "task": "Việc cần làm",
+        "question": "Câu hỏi còn mở",
+        "note": "Ghi chú",
+        "recording": "Bản ghi",
+        "countLabel": "{{kind}}, {{count}}"
+      },
+      "feed": {
+        "label": "Diễn biến cuộc họp",
+        "open": "Chưa chốt",
+        "new": "Mới",
+        "playRecording": "Phát bản ghi",
+        "playRecordingAt": "Phát bản ghi lúc {{time}}",
+        "addDue": "+ Hạn",
+        "jumpToLine": "Xem câu nói lúc {{time}}",
+        "chipDecision": "Chốt",
+        "chipTask": "Việc",
+        "chipQuestion": "Hỏi",
+        "note": {
+          "actions": "Thao tác với ghi chú: {{text}}",
+          "edit": "Sửa",
+          "delete": "Xóa ghi chú",
+          "field": "Nội dung ghi chú",
+          "edited": "· đã sửa",
+          "deleteTitle": "Xóa ghi chú này?",
+          "deleteBody": "Mọi người trong cuộc họp sẽ không thấy ghi chú này nữa."
+        }
+      },
+      "empty": {
+        "title": "Thư ký UNI đang nghe",
+        "line": "Ý chính sẽ hiện ở đây ngay khi có người nói.",
+        "decided": "Chốt",
+        "todo": "Việc",
+        "asked": "Hỏi",
+        "carried_one": "{{count}} việc còn mở",
+        "carried_other": "{{count}} việc còn mở",
+        "carriedFrom": "Từ lần họp trước"
+      },
+      "composer": {
+        "modeLabel": "Chế độ ô nhập",
+        "ask": "Hỏi",
+        "note": "Ghi chú",
+        "askPlaceholder": "Hỏi riêng UNI về cuộc họp…",
+        "followupPlaceholder": "Hỏi tiếp…",
+        "notePlaceholder": "Ghi chú cho cả phòng…",
+        "askLabel": "Hỏi riêng UNI về cuộc họp",
+        "noteLabel": "Ghi chú cho cả phòng",
+        "scope": "Họp này",
+        "scopeLabel": "Phạm vi: cuộc họp này",
+        "mention": "Nhắc tới việc, người, tài liệu",
+        "send": "Gửi",
+        "saveNote": "Lưu ghi chú",
+        "stop": "Dừng",
+        "reading": "Đang đọc cuộc họp…",
+        "readingNotes_one": "Đang đọc lời thoại và {{count}} ghi chú…",
+        "readingNotes_other": "Đang đọc lời thoại và {{count}} ghi chú…",
+        "private": "Riêng bạn",
+        "everyone": "Cả phòng",
+        "outOfCredit": "Hết lượt Hỏi UNI tháng này",
+        "askOff": "Hỏi UNI chưa bật",
+        "blockedHelp": "Vì sao và cách xử lý",
+        "askPlaceholderShort": "Hỏi riêng UNI…"
+      },
+      "suggest": {
+        "last5": "5 phút qua",
+        "last5Q": "Tóm tắt 5 phút vừa qua.",
+        "decided": "Đã chốt gì?",
+        "decidedQ": "Cuộc họp đã chốt những gì?",
+        "mine": "Việc của tôi",
+        "mineQ": "Tôi được giao những việc gì trong cuộc họp này?",
+        "lastTime": "Lần trước chốt gì?",
+        "lastTimeQ": "Lần họp trước đã chốt gì?",
+        "goal": "Mục tiêu buổi này?",
+        "goalQ": "Mục tiêu của cuộc họp này là gì?"
+      },
+      "answer": {
+        "title": "Hỏi UNI",
+        "share": "Gửi vào Chat",
+        "continue": "Tiếp"
+      },
+      "actions": {
+        "selectAll": "Chọn tất cả việc chờ xử lý",
+        "selected_one": "{{count}} đã chọn",
+        "selected_other": "{{count}} đã chọn",
+        "clear": "Bỏ chọn",
+        "carried": "Từ lần họp trước · {{count}}",
+        "pending": "Chờ xử lý · {{count}}",
+        "converted": "Đã giao · {{count}}",
+        "editLabel": "Sửa & giao \"{{title}}\"",
+        "selectedRegion": "Việc đã chọn"
+      },
+      "people": {
+        "waiting_one": "{{count}} người đang chờ",
+        "waiting_other": "{{count}} người đang chờ",
+        "admit": "Cho vào",
+        "showWaiting": "Xem từng người",
+        "waitingAlone": "đang chờ",
+        "waitingOthers_one": "và {{count}} người khác",
+        "waitingOthers_other": "và {{count}} người khác",
+        "admitAll": "Cho vào cả {{count}} người",
+        "hands": "Giơ tay · {{count}}",
+        "lowerMine": "Hạ tay",
+        "inRoom": "Trong phòng · {{count}}",
+        "scribeRole": "Trợ lý AI · đang ghi",
+        "you": "bạn",
+        "micOn": "Mic đang bật"
+      },
+      "votes": {
+        "next": "Tiếp theo",
+        "done": "Đã xong",
+        "missing_one": "Còn {{count}} người chưa bỏ phiếu",
+        "missing_other": "Còn {{count}} người chưa bỏ phiếu",
+        "rulesHelp": "Cách tính phiếu",
+        "secret": "Kín",
+        "progress": "{{cast}}/{{roll}} đã bỏ phiếu",
+        "open": "Mở"
+      },
+      "chat": {
+        "placeholder": "Nhắn cho mọi người…"
+      }
     }
   },
   "calendar": {

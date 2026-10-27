@@ -53,6 +53,10 @@ type CreateNoteSDI struct {
 	Body string `json:"body" minLength:"1" description:"Nội dung ghi chú" example:"Quyết định ship vào thứ Sáu."`
 }
 
+type UpdateNoteSDI struct {
+	Body string `json:"body" minLength:"1" description:"Nội dung mới của ghi chú" example:"Quyết định ship vào thứ Hai."`
+}
+
 type InviteParticipantSDI struct {
 	UserID string `json:"user_id" minLength:"1" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 }

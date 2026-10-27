@@ -248,7 +248,7 @@ func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (M
 const createMeetingNote = `-- name: CreateMeetingNote :one
 INSERT INTO meeting_notes (id, meeting_id, author_id, body, organization_id)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, meeting_id, author_id, body, created_at, organization_id
+RETURNING id, meeting_id, author_id, body, created_at, organization_id, edited_at
 `
 
 type CreateMeetingNoteParams struct {
@@ -275,8 +275,28 @@ func (q *Queries) CreateMeetingNote(ctx context.Context, arg CreateMeetingNotePa
 		&i.Body,
 		&i.CreatedAt,
 		&i.OrganizationID,
+		&i.EditedAt,
 	)
 	return i, err
+}
+
+const deleteMeetingNote = `-- name: DeleteMeetingNote :execrows
+DELETE FROM meeting_notes
+WHERE organization_id = $1 AND meeting_id = $2 AND id = $3
+`
+
+type DeleteMeetingNoteParams struct {
+	OrganizationID string `json:"organization_id"`
+	MeetingID      string `json:"meeting_id"`
+	ID             string `json:"id"`
+}
+
+func (q *Queries) DeleteMeetingNote(ctx context.Context, arg DeleteMeetingNoteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMeetingNote, arg.OrganizationID, arg.MeetingID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const endMeeting = `-- name: EndMeeting :one
@@ -398,6 +418,32 @@ func (q *Queries) GetMeeting(ctx context.Context, id string) (Meeting, error) {
 	return i, err
 }
 
+const getMeetingNote = `-- name: GetMeetingNote :one
+SELECT id, meeting_id, author_id, body, created_at, organization_id, edited_at FROM meeting_notes
+WHERE organization_id = $1 AND meeting_id = $2 AND id = $3
+`
+
+type GetMeetingNoteParams struct {
+	OrganizationID string `json:"organization_id"`
+	MeetingID      string `json:"meeting_id"`
+	ID             string `json:"id"`
+}
+
+func (q *Queries) GetMeetingNote(ctx context.Context, arg GetMeetingNoteParams) (MeetingNote, error) {
+	row := q.db.QueryRow(ctx, getMeetingNote, arg.OrganizationID, arg.MeetingID, arg.ID)
+	var i MeetingNote
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.AuthorID,
+		&i.Body,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.EditedAt,
+	)
+	return i, err
+}
+
 const getMeetingSeriesNeighbors = `-- name: GetMeetingSeriesNeighbors :one
 SELECT
   COALESCE((
@@ -448,7 +494,7 @@ func (q *Queries) GetMeetingSeriesNeighbors(ctx context.Context, arg GetMeetingS
 }
 
 const listMeetingNotes = `-- name: ListMeetingNotes :many
-SELECT n.id, n.meeting_id, n.author_id, n.body, n.created_at, u.display_name, u.avatar_url, u.avatar_file_id
+SELECT n.id, n.meeting_id, n.author_id, n.body, n.created_at, n.edited_at, u.display_name, u.avatar_url, u.avatar_file_id
 FROM meeting_notes n JOIN users u ON u.id = n.author_id
 WHERE n.meeting_id = $1 ORDER BY n.created_at
 `
@@ -459,6 +505,7 @@ type ListMeetingNotesRow struct {
 	AuthorID     string             `json:"author_id"`
 	Body         string             `json:"body"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	EditedAt     pgtype.Timestamptz `json:"edited_at"`
 	DisplayName  string             `json:"display_name"`
 	AvatarUrl    pgtype.Text        `json:"avatar_url"`
 	AvatarFileID pgtype.Text        `json:"avatar_file_id"`
@@ -480,6 +527,7 @@ func (q *Queries) ListMeetingNotes(ctx context.Context, meetingID string) ([]Lis
 			&i.AuthorID,
 			&i.Body,
 			&i.CreatedAt,
+			&i.EditedAt,
 			&i.DisplayName,
 			&i.AvatarUrl,
 			&i.AvatarFileID,
@@ -1045,6 +1093,39 @@ func (q *Queries) UpdateMeeting(ctx context.Context, arg UpdateMeetingParams) (M
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+	)
+	return i, err
+}
+
+const updateMeetingNoteBody = `-- name: UpdateMeetingNoteBody :one
+UPDATE meeting_notes SET body = $1, edited_at = now()
+WHERE organization_id = $2 AND meeting_id = $3 AND id = $4
+RETURNING id, meeting_id, author_id, body, created_at, organization_id, edited_at
+`
+
+type UpdateMeetingNoteBodyParams struct {
+	Body           string `json:"body"`
+	OrganizationID string `json:"organization_id"`
+	MeetingID      string `json:"meeting_id"`
+	ID             string `json:"id"`
+}
+
+func (q *Queries) UpdateMeetingNoteBody(ctx context.Context, arg UpdateMeetingNoteBodyParams) (MeetingNote, error) {
+	row := q.db.QueryRow(ctx, updateMeetingNoteBody,
+		arg.Body,
+		arg.OrganizationID,
+		arg.MeetingID,
+		arg.ID,
+	)
+	var i MeetingNote
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.AuthorID,
+		&i.Body,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.EditedAt,
 	)
 	return i, err
 }

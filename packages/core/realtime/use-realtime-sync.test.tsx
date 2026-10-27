@@ -1421,6 +1421,16 @@ describe("useRealtimeSync › meeting scribe", () => {
     expect(keysCalled(invalidate)).toEqual([JSON.stringify(["notes", "m1"])]);
   });
 
+  it.each(["note.updated", "note.deleted"])("refreshes the notes on %s", (type) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { meeting_id: "m1", version: "4", note_id: "n1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toEqual([JSON.stringify(["notes", "m1"])]);
+  });
+
   it("refreshes only the open series details on meeting.created, so a series learns its next meeting", () => {
     vi.useFakeTimers();
     const { qc, invalidate, client } = setup();
