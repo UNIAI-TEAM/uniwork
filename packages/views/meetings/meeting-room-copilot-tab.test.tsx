@@ -28,7 +28,8 @@ const summary = {
   meeting_id: "m1",
   summary: "- Chốt lịch phát hành",
   decisions: [{ text: "Phát hành thứ Sáu", evidence: [{ kind: "segment", id: "t1" }] }],
-  created_at: "2026-09-22T07:05:00Z",
+  // In the same local frame as at(), so the transcript precedes it in every time zone (CI runs UTC).
+  created_at: at(14, 5),
 };
 
 const segment = { id: "t1", meeting_id: "m1", text: "Chốt phát hành thứ Sáu nhé", spoken_at: at(9, 5), speaker_name: "Lan" };
@@ -388,8 +389,7 @@ describe("MeetingRoomCopilotTab › summary", () => {
     serve({ transcript: ok({ segments: [segment] }) });
     renderTab();
     const card = (await screen.findByRole("heading", { name: "Tóm tắt đến giờ" })).closest("section")!;
-    // The label waits on every source query; on a loaded CI runner that took 1.5s.
-    await waitFor(() => expect(card).toHaveTextContent(/lời thoại/i), { timeout: 3000 });
+    await waitFor(() => expect(card).toHaveTextContent(/lời thoại/i));
     expect(card).not.toHaveTextContent(/ghi chú|tin nhắn/);
   });
 
