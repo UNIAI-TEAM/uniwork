@@ -10,6 +10,7 @@ import (
 type Drive struct {
 	TokenRefreshFailures prometheus.Counter
 	RevocationAbandoned  prometheus.Counter
+	TaskProposals        *prometheus.CounterVec
 }
 
 func NewDrive() *Drive {
@@ -22,6 +23,10 @@ func NewDrive() *Drive {
 			Name: "drive_revocation_abandoned_total",
 			Help: "Google Drive OAuth grant revocations abandoned after 24 hours of retries.",
 		}),
+		TaskProposals: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "drive_task_proposals_total",
+			Help: "Google Drive task proposal requests by outcome.",
+		}, []string{"result"}),
 	}
 }
 
@@ -29,7 +34,7 @@ func (m *Drive) Collectors() []prometheus.Collector {
 	if m == nil {
 		return nil
 	}
-	return []prometheus.Collector{m.TokenRefreshFailures, m.RevocationAbandoned}
+	return []prometheus.Collector{m.TokenRefreshFailures, m.RevocationAbandoned, m.TaskProposals}
 }
 
 func (m *Drive) ObserveTokenRefreshFailure() {
@@ -41,5 +46,11 @@ func (m *Drive) ObserveTokenRefreshFailure() {
 func (m *Drive) ObserveRevocationAbandoned() {
 	if m != nil {
 		m.RevocationAbandoned.Inc()
+	}
+}
+
+func (m *Drive) ObserveTaskProposal(result string) {
+	if m != nil && m.TaskProposals != nil {
+		m.TaskProposals.WithLabelValues(result).Inc()
 	}
 }

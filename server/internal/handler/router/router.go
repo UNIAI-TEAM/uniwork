@@ -285,7 +285,8 @@ func New(d Deps, h Routes) http.Handler {
 			// (UNI-1197): per signed-in person and route, 10 per 10 minutes.
 			emailHubConnectLimit := mw.RateLimitPerRoute(d.Redis, 10, 10*time.Minute, proxies, bearerUser(d.Minter))
 			registerEmailHub(authed, h, emailHubConnectLimit)
-			registerDriveConnections(authed.With(mw.FlagOrganization(d.DriveOrganization)), h, d.FeatureFlags, emailHubConnectLimit)
+			driveProposalLimit := mw.RateLimitByIdentityBucket(d.Redis, "drive-proposals", 10, 10*time.Minute, proxies, bearerUser(d.Minter))
+			registerDriveConnections(authed.With(mw.FlagOrganization(d.DriveOrganization)), h, d.FeatureFlags, emailHubConnectLimit, driveProposalLimit)
 			registerAudit(authed, h)
 			registerPrivacy(authed, h)
 			registerGraph(authed, h)

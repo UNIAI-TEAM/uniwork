@@ -483,6 +483,11 @@ func pathParamSDI(path string) any {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 			DriveFileID string `path:"driveFileID" description:"ULID bản ghi tệp Google Drive đã liên kết" example:"01J8X4DRVFIL0N1P2Q3R4S5T6"`
 		}{}
+	case "workspaceID,proposalID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ProposalID  string `path:"proposalID" description:"ULID bản đề xuất công việc từ tệp Google Drive" example:"01J8X4DRVPRP0N1P2Q3R4S5T6"`
+		}{}
 	case "taskID,driveFileID":
 		return struct {
 			TaskID      string `path:"taskID" description:"ULID công việc hoặc identifier PREFIX-N (không phân biệt hoa thường)" example:"01J8X4TASKN1P2Q3R4S5T6U7"`

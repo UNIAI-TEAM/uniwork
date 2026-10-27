@@ -557,6 +557,9 @@ func (s *DriveFileService) Unlink(ctx context.Context, actor Actor, workspaceID,
 	}); err != nil {
 		return err
 	}
+	if err := discardReadyProposalsForFileInTx(ctx, qtx, actor, lockedFile.ID, boundEmail, boundSub); err != nil {
+		return err
+	}
 
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: ws.OrganizationID,

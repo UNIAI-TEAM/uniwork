@@ -177,7 +177,11 @@ func classifyServiceError(err error) serviceFailure {
 		}
 		return f
 	case errors.As(err, &aiErr):
-		return serviceFailure{status: aiErr.Status, code: aiErr.Code, msg: aiErr.Msg}
+		f := serviceFailure{status: aiErr.Status, code: aiErr.Code, msg: aiErr.Msg, fields: aiErr.Fields}
+		if retry, ok := uniworkRetrySeconds(aiErr.Fields); ok {
+			f.retryAfter = retry
+		}
+		return f
 	case errors.Is(err, service.ErrNotFound):
 		return serviceFailure{status: 404, code: "not_found", msg: "not found"}
 	case errors.Is(err, service.ErrForbidden):

@@ -359,7 +359,7 @@ func TestDriveOAuthRateLimits(t *testing.T) {
 
 	mux := chi.NewRouter()
 	apiRoot := newAPI(mux, &apiCatalog{})
-	registerDriveConnections(apiRoot, stubRoutes(), flags, refuse)
+	registerDriveConnections(apiRoot, stubRoutes(), flags, refuse, refuse)
 	registerDriveGoogleCallback(apiRoot, stubRoutes(), refuse)
 
 	rec := httptest.NewRecorder()
@@ -396,7 +396,7 @@ func TestDriveConnectionsRequireFeatureFlag(t *testing.T) {
 	flags := featureflag.NewService(provider)
 
 	mux := chi.NewRouter()
-	registerDriveConnections(newAPI(mux, &apiCatalog{}), stubRoutes(), flags, pass)
+	registerDriveConnections(newAPI(mux, &apiCatalog{}), stubRoutes(), flags, pass, pass)
 
 	for _, tc := range []struct {
 		method string
@@ -415,6 +415,10 @@ func TestDriveConnectionsRequireFeatureFlag(t *testing.T) {
 		{http.MethodPost, "/workspaces/w1/drive-files/df1/rebind"},
 		{http.MethodGet, "/tasks/t1/drive-files"},
 		{http.MethodDelete, "/tasks/t1/drive-files/df1"},
+		{http.MethodPost, "/workspaces/w1/drive-files/df1/task-proposals"},
+		{http.MethodGet, "/workspaces/w1/drive-task-proposals/p1"},
+		{http.MethodDelete, "/workspaces/w1/drive-task-proposals/p1"},
+		{http.MethodPost, "/workspaces/w1/drive-task-proposals/p1/duplicates"},
 	} {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))

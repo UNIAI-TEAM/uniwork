@@ -587,6 +587,21 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind", what: "connection", body: map[string]any{
 		"connection_id": isoRef("driveConnection")},
 		covers: []string{"RebindDriveFileSDI.connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "project", body: map[string]any{
+		"project_id": isoRef("project")},
+		covers: []string{"CreateDriveTaskProposalSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "parent task", body: map[string]any{
+		"parent_task_id": isoRef("task")},
+		covers: []string{"CreateDriveTaskProposalSDI.parent_task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "context task", body: map[string]any{
+		"context_task_id": isoRef("task")},
+		covers: []string{"CreateDriveTaskProposalSDI.context_task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates", what: "project", body: map[string]any{
+		"project_id": isoRef("project"), "titles": []any{"Chốt phạm vi beta"}},
+		covers: []string{"CheckDriveTaskProposalDuplicatesSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates", what: "parent task", body: map[string]any{
+		"parent_task_id": isoRef("task"), "titles": []any{"Chốt phạm vi beta"}},
+		covers: []string{"CheckDriveTaskProposalDuplicatesSDI.parent_task_id"}},
 }
 
 // referenceControls sends each reference case with B's own rows: the request
@@ -748,17 +763,12 @@ var isoRefFieldExempt = map[string]string{
 	// LinkDriveFilesSDI, GrantDriveFileAccessSDI, RebindDriveFileSDI; B5:
 	// CreateDriveTaskProposalSDI, CheckDriveTaskProposalDuplicatesSDI; B6:
 	// CreateTasksFromDriveProposalSDI, DriveProposalTaskItemSDI).
-	"CreateTaskDriveFileSDI.external_file_id":            "id of the file on Google Drive, not a UniWork tenant row (spec §13)",
-	"LinkDriveFilesSDI.external_file_ids":                "ids of files on Google Drive, not UniWork tenant rows (spec §13)",
-	"CreateDriveTaskProposalSDI.project_id":              "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
-	"CreateDriveTaskProposalSDI.parent_task_id":          "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
-	"CreateDriveTaskProposalSDI.context_task_id":         "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
-	"CheckDriveTaskProposalDuplicatesSDI.project_id":     "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
-	"CheckDriveTaskProposalDuplicatesSDI.parent_task_id": "contract-first DTO (UNI-2177); route and isoReferences case register in B5 (UNI-2181)",
-	"CreateTasksFromDriveProposalSDI.project_id":         "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
-	"CreateTasksFromDriveProposalSDI.parent_task_id":     "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
-	"DriveProposalTaskItemSDI.assignee_id":               "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
-	"DriveProposalTaskItemSDI.label_ids":                 "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
+	"CreateTaskDriveFileSDI.external_file_id":        "id of the file on Google Drive, not a UniWork tenant row (spec §13)",
+	"LinkDriveFilesSDI.external_file_ids":            "ids of files on Google Drive, not UniWork tenant rows (spec §13)",
+	"CreateTasksFromDriveProposalSDI.project_id":     "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
+	"CreateTasksFromDriveProposalSDI.parent_task_id": "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
+	"DriveProposalTaskItemSDI.assignee_id":           "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
+	"DriveProposalTaskItemSDI.label_ids":             "contract-first DTO (UNI-2177); route and isoReferences case register in B6 (UNI-2182)",
 }
 
 // A body field that names another row is an attack surface the path passes
