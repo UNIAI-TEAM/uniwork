@@ -3,6 +3,10 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -123,5 +127,58 @@ func TestFolderContentsAccessIsolationClassification(t *testing.T) {
 	}
 	if stale := isoStaleRows(routes); len(stale) > 0 {
 		t.Fatalf("isoStaleRows: %v", stale)
+	}
+}
+
+// UNI-2244 F9 (R2-02): verifies that a folder lock timeout (SQLSTATE 55P03)
+// mapped through service.MapFolderAccessLockError and h.mapServiceError
+// produces HTTP 409 folder_access_batch_running — with fields.batch_id when a
+// running batch row is visible, and without fields.batch_id when a synchronous
+// update holds the lock with no visible batch row — never HTTP 500.
+func TestFolderContentsAccessLockTimeoutEnvelope(t *testing.T) {
+	h := handlers{Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	lockTimeoutErr := &pgconn.PgError{Code: "55P03", Message: "canceling statement due to lock timeout"}
+
+	// 1. Timeout with visible queued/running batch -> 409 with error.fields.batch_id.
+	recWithBatch := httptest.NewRecorder()
+	h.mapServiceError(recWithBatch, service.MapFolderAccessLockError(lockTimeoutErr, func() (string, error) {
+		return "01J8X4BATCHRUNNING00000000", nil
+	}))
+	if recWithBatch.Code != http.StatusConflict {
+		t.Fatalf("with visible batch: status = %d, want 409 (body=%s)", recWithBatch.Code, recWithBatch.Body.String())
+	}
+	var envWithBatch map[string]any
+	if err := json.Unmarshal(recWithBatch.Body.Bytes(), &envWithBatch); err != nil {
+		t.Fatalf("unmarshal with-batch body: %v", err)
+	}
+	errObjWith, _ := envWithBatch["error"].(map[string]any)
+	if errObjWith["code"] != service.ErrCodeFolderAccessBatchRunning {
+		t.Fatalf("with visible batch: error.code = %v, want %s", errObjWith["code"], service.ErrCodeFolderAccessBatchRunning)
+	}
+	fieldsWith, _ := errObjWith["fields"].(map[string]any)
+	if fieldsWith["batch_id"] != "01J8X4BATCHRUNNING00000000" {
+		t.Fatalf("with visible batch: error.fields = %v, want batch_id=01J8X4BATCHRUNNING00000000", fieldsWith)
+	}
+
+	// 2. Timeout without visible queued/running batch -> 409 folder_access_batch_running WITHOUT batch_id (never 500).
+	recNoBatch := httptest.NewRecorder()
+	h.mapServiceError(recNoBatch, service.MapFolderAccessLockError(lockTimeoutErr, func() (string, error) {
+		return "", pgx.ErrNoRows
+	}))
+	if recNoBatch.Code != http.StatusConflict {
+		t.Fatalf("without visible batch: status = %d, want 409 (body=%s)", recNoBatch.Code, recNoBatch.Body.String())
+	}
+	var envNoBatch map[string]any
+	if err := json.Unmarshal(recNoBatch.Body.Bytes(), &envNoBatch); err != nil {
+		t.Fatalf("unmarshal no-batch body: %v", err)
+	}
+	errObjNo, _ := envNoBatch["error"].(map[string]any)
+	if errObjNo["code"] != service.ErrCodeFolderAccessBatchRunning {
+		t.Fatalf("without visible batch: error.code = %v, want %s", errObjNo["code"], service.ErrCodeFolderAccessBatchRunning)
+	}
+	if fieldsNo, hasFields := errObjNo["fields"].(map[string]any); hasFields {
+		if _, hasBatchID := fieldsNo["batch_id"]; hasBatchID {
+			t.Fatalf("without visible batch: error.fields = %v, must not contain batch_id", fieldsNo)
+		}
 	}
 }

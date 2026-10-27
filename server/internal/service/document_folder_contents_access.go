@@ -65,6 +65,19 @@ func errFolderAccessBatchRunning(batchID string) error {
 	}
 }
 
+// MapFolderAccessLockError maps a lock error from LockFolderAccessBatch (UNI-2244 §3.1 step 2, F9).
+func MapFolderAccessLockError(err error, lookupRunning func() (string, error)) error {
+	var pe *pgconn.PgError
+	if errors.As(err, &pe) && pe.Code == "55P03" {
+		if lookupRunning != nil {
+			if runningID, qErr := lookupRunning(); qErr == nil && runningID != "" {
+				return errFolderAccessBatchRunning(runningID)
+			}
+		}
+	}
+	return err
+}
+
 // FolderContentsAccessItem is one principal grant in UpdateFolderContentsAccessInput.
 type FolderContentsAccessItem struct {
 	PrincipalType string        `json:"principal_type"`

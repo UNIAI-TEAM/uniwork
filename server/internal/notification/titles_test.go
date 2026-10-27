@@ -77,3 +77,42 @@ func TestTitleDocumentNameVerbatim(t *testing.T) {
 		t.Fatalf("PushTitle short = %q, want %q", got, want)
 	}
 }
+
+// TestDocumentSharedFolderBatchTitle covers UNI-2244 §6 (F5, R2-01):
+// a grouped folder-batch notification carrying params.count renders the
+// batch variant containing the count and folder name in both vi and en
+// (with translated share level), while the single-document path (no count)
+// remains unchanged.
+func TestDocumentSharedFolderBatchTitle(t *testing.T) {
+	batchParams := map[string]string{
+		"actor":       "An",
+		"document":    "Hồ sơ Dự án X",
+		"document_id": "01FOLDER000000000000000000",
+		"level":       "edit",
+		"batch_id":    "01BATCH0000000000000000000",
+		"count":       "37",
+	}
+	wantVI := `An đã chia sẻ 37 tài liệu trong thư mục "Hồ sơ Dự án X" với bạn. Quyền: Chỉnh sửa.`
+	if got := Title("vi", KindDocumentShared, batchParams); got != wantVI {
+		t.Fatalf("Title(vi, batch count=37) = %q, want %q", got, wantVI)
+	}
+	wantEN := `An shared 37 documents in the folder "Hồ sơ Dự án X" with you (Edit).`
+	if got := Title("en", KindDocumentShared, batchParams); got != wantEN {
+		t.Fatalf("Title(en, batch count=37) = %q, want %q", got, wantEN)
+	}
+
+	singleParams := map[string]string{
+		"actor":       "An",
+		"document":    "Báo cáo Quý 4",
+		"document_id": "01DOC000000000000000000000",
+		"level":       "view",
+	}
+	wantSingleVI := `An đã chia sẻ tài liệu "Báo cáo Quý 4" với bạn. Quyền: Chỉ xem.`
+	if got := Title("vi", KindDocumentShared, singleParams); got != wantSingleVI {
+		t.Fatalf("Title(vi, single) = %q, want %q", got, wantSingleVI)
+	}
+	wantSingleEN := `An shared "Báo cáo Quý 4" with you (View).`
+	if got := Title("en", KindDocumentShared, singleParams); got != wantSingleEN {
+		t.Fatalf("Title(en, single) = %q, want %q", got, wantSingleEN)
+	}
+}

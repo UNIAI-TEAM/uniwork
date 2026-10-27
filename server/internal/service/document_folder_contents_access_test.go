@@ -4,8 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
@@ -997,4 +1001,55 @@ func TestFolderContentsAccessAuditProvenanceAndSequentialSyncs(t *testing.T) {
 	}
 	assertFiveMetaKeys(t, audit.ActionDocumentShareRevoked, sync3.BatchID, FolderContentsAccessModeReplace, string(DocumentLevelEdit))
 	assertFiveMetaKeys(t, audit.ActionDocumentWorkspaceAccessChanged, sync3.BatchID, FolderContentsAccessModeReplace, string(DocumentLevelEdit))
+}
+
+// TestFolderContentsAccessLockTimeoutErrorMapping covers UNI-2244 §3.1 step 2 (F9, R2-02):
+// a SQLSTATE 55P03 lock_not_available timeout on the folder advisory lock maps
+// to 409 folder_access_batch_running:
+//   - with fields.batch_id when a queued/running batch row is visible after the timeout;
+//   - without fields.batch_id when no queued/running batch row is visible (e.g. a
+//     synchronous update still holds the folder lock; never raw 55P03 / HTTP 500);
+//   - non-55P03 errors pass through untouched.
+func TestFolderContentsAccessLockTimeoutErrorMapping(t *testing.T) {
+	lockTimeoutErr := &pgconn.PgError{Code: "55P03", Message: "canceling statement due to lock timeout"}
+
+	// 1. Timeout with visible queued/running batch -> 409 folder_access_batch_running with fields.batch_id.
+	withBatchErr := MapFolderAccessLockError(lockTimeoutErr, func() (string, error) {
+		return "01J8X4BATCHRUNNING00000000", nil
+	})
+	var ceWithBatch CodedError
+	if !errors.As(withBatchErr, &ceWithBatch) {
+		t.Fatalf("timeout with visible batch: err = %T (%v), want CodedError", withBatchErr, withBatchErr)
+	}
+	if ceWithBatch.Status != http.StatusConflict || ceWithBatch.Code != ErrCodeFolderAccessBatchRunning {
+		t.Fatalf("timeout with visible batch: status=%d code=%q, want 409 %q", ceWithBatch.Status, ceWithBatch.Code, ErrCodeFolderAccessBatchRunning)
+	}
+	if ceWithBatch.Fields["batch_id"] != "01J8X4BATCHRUNNING00000000" {
+		t.Fatalf("timeout with visible batch: fields = %v, want batch_id=01J8X4BATCHRUNNING00000000", ceWithBatch.Fields)
+	}
+
+	// 2. Timeout with no visible queued/running batch (pgx.ErrNoRows) -> 409 folder_access_batch_running WITHOUT batch_id.
+	noRowErr := MapFolderAccessLockError(lockTimeoutErr, func() (string, error) {
+		return "", pgx.ErrNoRows
+	})
+	var ceNoRow CodedError
+	if !errors.As(noRowErr, &ceNoRow) {
+		t.Fatalf("timeout without visible batch: err = %T (%v), want CodedError (not raw 55P03)", noRowErr, noRowErr)
+	}
+	if ceNoRow.Status != http.StatusConflict || ceNoRow.Code != ErrCodeFolderAccessBatchRunning {
+		t.Fatalf("timeout without visible batch: status=%d code=%q, want 409 %q", ceNoRow.Status, ceNoRow.Code, ErrCodeFolderAccessBatchRunning)
+	}
+	if _, hasBatchID := ceNoRow.Fields["batch_id"]; hasBatchID {
+		t.Fatalf("timeout without visible batch: fields = %v, must not include batch_id", ceNoRow.Fields)
+	}
+
+	// 3. Non-55P03 database error is not remapped.
+	otherPgErr := &pgconn.PgError{Code: "40001", Message: "serialization_failure"}
+	gotOther := MapFolderAccessLockError(otherPgErr, func() (string, error) {
+		t.Fatal("lookupRunning must not be called for non-55P03 error")
+		return "", nil
+	})
+	if gotOther != otherPgErr {
+		t.Fatalf("non-55P03 error = %v, want original %v", gotOther, otherPgErr)
+	}
 }
