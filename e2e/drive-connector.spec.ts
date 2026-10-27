@@ -24,6 +24,10 @@ import {
  * - Web build: `NEXT_PUBLIC_DRIVE_FAKE_PICKER=1` baked at `next build`.
  */
 test.describe.configure({ timeout: 240_000 });
+// Flip to true when drive-be serves Drive content offline under DRIVE_FAKE_PROVIDER=1 (export/download fake).
+const DRIVE_CONTENT_FAKE_ON_ROOT = false;
+const DRIVE_CONTENT_FAKE_REASON =
+  "Missing offline fake for driveExportFile / driveDownloadMedia under DRIVE_FAKE_PROVIDER=1 (server/internal/service/drive_api.go:453-471, owner drive-be)";
 // Drive-be's fake files.get (DRIVE_FAKE_PROVIDER=1) echoes the external id as the file name; change here if its fake changes.
 const fakeDriveName = (externalFileId: string) => externalFileId;
 
@@ -650,7 +654,7 @@ test("6b. Contrast + focus on Documents › Google Drive (4.1) and the Drive fil
 // === Part 2 (B5/B6/B7 + W6/W7): UNI reads Drive document & proposes tasks ===
 
 test("Part 2 — agent mode sends a Drive file -> proposals", async ({ page }) => {
-  test.fixme(true, "Missing offline fake for DriveAPIClient.driveExportFile / driveDownloadMedia under DRIVE_FAKE_PROVIDER=1 in server/internal/service/drive_api.go:453-471 (owner: drive-be UNI-2179/UNI-2181)");
+  test.fixme(!DRIVE_CONTENT_FAKE_ON_ROOT, DRIVE_CONTENT_FAKE_REASON);
   await page.setViewportSize({ width: 1440, height: 900 });
   const account = await signInAndOpenSettingsIntegrations(page, "drive-q1p2-agent-propose");
   const { googleEmail } = await connectDriveForCurrentUser(page);
@@ -692,7 +696,7 @@ test("Part 2 — agent mode sends a Drive file -> proposals", async ({ page }) =
 });
 
 test("Part 2 — proposal review dialog", async ({ page }) => {
-  test.fixme(true, "Missing offline fake for DriveAPIClient.driveExportFile / driveDownloadMedia under DRIVE_FAKE_PROVIDER=1 in server/internal/service/drive_api.go:453-471 (owner: drive-be UNI-2179/UNI-2181)");
+  test.fixme(!DRIVE_CONTENT_FAKE_ON_ROOT, DRIVE_CONTENT_FAKE_REASON);
   await page.setViewportSize({ width: 1440, height: 900 });
   const account = await signInAndOpenSettingsIntegrations(page, "drive-q1p2-review-dialog");
   await connectDriveForCurrentUser(page);
@@ -781,7 +785,7 @@ test("Part 2 — proposal review dialog", async ({ page }) => {
 });
 
 test("Part 2 — batch create tasks from Drive proposal", async ({ page }) => {
-  test.fixme(true, "Missing offline fake for DriveAPIClient.driveExportFile / driveDownloadMedia under DRIVE_FAKE_PROVIDER=1 in server/internal/service/drive_api.go:453-471 (owner: drive-be UNI-2179/UNI-2181)");
+  test.fixme(!DRIVE_CONTENT_FAKE_ON_ROOT, DRIVE_CONTENT_FAKE_REASON);
   await page.setViewportSize({ width: 1440, height: 900 });
   const account = await signInAndOpenSettingsIntegrations(page, "drive-q1p2-batch-create");
   await connectDriveForCurrentUser(page);
@@ -838,7 +842,7 @@ test("Part 2 — batch create tasks from Drive proposal", async ({ page }) => {
 test("Part 2 — second-create warning when tasks were already created from the document", async ({
   page,
 }) => {
-  test.fixme(true, "Missing offline fake for DriveAPIClient.driveExportFile / driveDownloadMedia under DRIVE_FAKE_PROVIDER=1 in server/internal/service/drive_api.go:453-471 (owner: drive-be UNI-2179/UNI-2181)");
+  test.fixme(!DRIVE_CONTENT_FAKE_ON_ROOT, DRIVE_CONTENT_FAKE_REASON);
   await page.setViewportSize({ width: 1440, height: 900 });
   const account = await signInAndOpenSettingsIntegrations(page, "drive-q1p2-recreate-warn");
   await connectDriveForCurrentUser(page);
@@ -918,7 +922,7 @@ test("Part 2 — second-create warning when tasks were already created from the 
 });
 
 test("Part 2 — 'Tasks created' block on 4.2 Drive file detail page", async ({ page }) => {
-  test.fixme(true, "Missing offline fake for DriveAPIClient.driveExportFile / driveDownloadMedia under DRIVE_FAKE_PROVIDER=1 in server/internal/service/drive_api.go:453-471 (owner: drive-be UNI-2179/UNI-2181)");
+  test.fixme(!DRIVE_CONTENT_FAKE_ON_ROOT, DRIVE_CONTENT_FAKE_REASON);
   await page.setViewportSize({ width: 1440, height: 900 });
   const account = await signInAndOpenSettingsIntegrations(page, "drive-q1p2-42-created-block");
   await connectDriveForCurrentUser(page);
