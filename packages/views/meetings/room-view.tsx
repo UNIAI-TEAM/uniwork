@@ -17,6 +17,7 @@ import {
 } from "@uniwork/core/meetings";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { useMeetingLobbySync, useMeetingScope } from "@uniwork/core/realtime";
+import { LogoLoader } from "@uniwork/ui/brand";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { participantIdFromToken, type ExitMedia, type RoomExit } from "./exit/exit-model";
@@ -214,13 +215,23 @@ export function MeetingRoomView({
     [retryJoin, setExit],
   );
 
+  // Ending for everyone covers the room with the pulsing mark until the server
+  // answers (board E); a refusal lifts it and keeps the room.
   const endMeeting = useEndMeeting(resolvedWorkspaceId);
+  const [ending, setEnding] = useState(false);
   const endForAll = useCallback(() => {
+    setEnding(true);
     endMeeting.mutateAsync(meetingId).then(
       () => (onEnded ?? onLeave)(),
-      (err: unknown) => toastApiError(err, t("common.error")),
+      (err: unknown) => {
+        setEnding(false);
+        toastApiError(err, t("common.error"));
+      },
     );
   }, [endMeeting, meetingId, onEnded, onLeave, t]);
+  const endingCover = ending ? (
+    <LogoLoader fullScreen label={t("meetings.exit.ending")} className="fixed inset-0 z-50" />
+  ) : null;
 
   const requestAgain = useCallback(() => {
     mutateJoin({ ...joinArgs, request_again: true });
@@ -348,6 +359,7 @@ export function MeetingRoomView({
           onEndForAll={guestMode ? undefined : endForAll}
           onExitChange={setExit}
         />
+        {endingCover}
       </MeetingRoomShell>
     );
   }
@@ -548,6 +560,7 @@ export function MeetingRoomView({
           }
         />
       </LiveKitRoom>
+      {endingCover}
     </MeetingRoomShell>
   );
 }

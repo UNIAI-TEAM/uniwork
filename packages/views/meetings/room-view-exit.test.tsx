@@ -2,6 +2,8 @@ import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { DisconnectReason } from "livekit-client";
+import { toast } from "sonner";
+import { ApiError } from "@uniwork/core/api";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -32,12 +34,18 @@ vi.mock("@livekit/components-react", () => ({
 }));
 vi.mock("./meeting-proactive-token-refresh", () => ({ MeetingProactiveTokenRefresh: () => null }));
 vi.mock("./meeting-conference", () => ({
-  MeetingConference: ({ onExit }: { onExit: (exit: RoomExit) => void }) => (
-    <button type="button" onClick={() => onExit({ kind: "left", media: { audio: true, video: false } })}>
-      leave-room
-    </button>
+  MeetingConference: ({ onExit, onEndForAll }: { onExit: (exit: RoomExit) => void; onEndForAll?: () => void }) => (
+    <>
+      <button type="button" onClick={() => onExit({ kind: "left", media: { audio: true, video: false } })}>
+        leave-room
+      </button>
+      <button type="button" onClick={() => onEndForAll?.()}>
+        end-for-all
+      </button>
+    </>
   ),
 }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), dismiss: vi.fn() } }));
 
 const me: User = {
   id: "u-me",
@@ -79,6 +87,8 @@ beforeEach(() => {
   room.mounts = 0;
   status = "IN_PROGRESS";
   joins = 0;
+  endAnswer = () => Promise.resolve({ meeting: { ...meeting, status: "ENDED" } });
+  vi.mocked(toast.error).mockClear();
   setSessionUser(me);
   requestMock.mockReset();
   requestMock.mockImplementation((path: string) => {
@@ -92,11 +102,14 @@ beforeEach(() => {
       });
     }
     if (path.endsWith("/meetings/m1")) return Promise.resolve({ meeting: { ...meeting, status } });
+    if (path.endsWith("/meetings/m1/end")) return endAnswer();
     return Promise.resolve({});
   });
 });
 
-function renderRoom(onLeave = vi.fn()) {
+let endAnswer: () => Promise<unknown> = () => Promise.resolve({ meeting: { ...meeting, status: "ENDED" } });
+
+function renderRoom(onLeave = vi.fn(), onEnded?: () => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     wrapWithNav(
@@ -105,6 +118,7 @@ function renderRoom(onLeave = vi.fn()) {
         workspaceId="w1"
         initialChoice={{ audio: true, video: true }}
         onLeave={onLeave}
+        onEnded={onEnded}
       />,
       fakeNav(),
       client,
@@ -157,5 +171,28 @@ describe("MeetingRoomView leave screen", () => {
     expect(onLeave).not.toHaveBeenCalled();
     fireEvent.click(await screen.findByRole("button", { name: "Về trang cuộc họp" }));
     expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it("covers the room with the logo while ending for everyone, then hands off", async () => {
+    let finish: (value: unknown) => void = () => {};
+    endAnswer = () => new Promise((resolve) => (finish = resolve));
+    const onEnded = vi.fn();
+    renderRoom(vi.fn(), onEnded);
+    fireEvent.click(await screen.findByRole("button", { name: "end-for-all" }));
+    expect(await screen.findByText("Đang kết thúc cuộc họp…")).toBeInTheDocument();
+    expect(onEnded).not.toHaveBeenCalled();
+    await act(async () => finish({ meeting: { ...meeting, status: "ENDED" } }));
+    await waitFor(() => expect(onEnded).toHaveBeenCalledOnce());
+  });
+
+  it("lifts the cover and keeps the room when ending fails", async () => {
+    endAnswer = () => Promise.reject(new ApiError("boom", "internal", 500));
+    const onEnded = vi.fn();
+    renderRoom(vi.fn(), onEnded);
+    fireEvent.click(await screen.findByRole("button", { name: "end-for-all" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.queryByText("Đang kết thúc cuộc họp…")).not.toBeInTheDocument();
+    expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
+    expect(onEnded).not.toHaveBeenCalled();
   });
 });
