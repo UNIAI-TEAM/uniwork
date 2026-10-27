@@ -1,0 +1,6 @@
+$ pnpm install --frozen-lockfile > /tmp/tt-ci.log 2>&1; rc=$?; tail -3 /tmp/tt-ci.log; echo; echo "INSTALL_EXIT=$rc"; [ $rc -eq 0 ]
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 6.6s using pnpm v10.28.2
+
+INSTALL_EXIT=0
