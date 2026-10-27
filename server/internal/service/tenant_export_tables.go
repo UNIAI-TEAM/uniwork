@@ -50,6 +50,7 @@ var tenantExportExcluded = map[string]string{
 	"document_download_jobs":         "Job tải zip nhiều tài liệu (UNI-2045), trạng thái tạm sống một giờ; bản zip nằm trong kho tệp, không phải nội dung.",
 	"document_folder_uploads":        "Lô tải thư mục (UNI-2052), trạng thái tạm sống 24 giờ, xóa sau 7 ngày; thư mục và tài liệu nó tạo nằm trong documents.",
 	"document_folder_upload_files":   "Từng tệp của lô tải thư mục (UNI-2052), trạng thái tạm; tài liệu tạo ra nằm trong documents.",
+	"document_access_batches":        "Lô đổi quyền hàng loạt theo thư mục (UNI-2244), trạng thái tạm; quyền đã ghi nằm trong documents và document_shares.",
 	"mcp_tokens":                     "Token của ứng dụng AI đã kết nối, chỉ lưu digest; là bí mật phiên.",
 	"drive_connections":              "Kết nối Google Drive của từng người: token OAuth đã niêm phong, là bí mật phiên; nội dung tệp nằm trên Google Drive.",
 	"drive_file_access":              "Trạng thái quyền đọc Google Drive của từng người, gắn với kết nối đã niêm phong; không phải nội dung.",

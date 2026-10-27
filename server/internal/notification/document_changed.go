@@ -92,6 +92,32 @@ func docChangeRule(verb string) rule {
 	}
 }
 
+// ruleDocumentSharedAccessChange and ruleDocumentShareRevokedAccessChange skip
+// per-document document_changed notices when the share write belongs to a
+// folder bulk access batch (metadata.via = "folder_contents", UNI-2244 §6).
+func ruleDocumentSharedAccessChange(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if isFolderContentsShareEvent(ctx, e.q, ev, audit.ActionDocumentShared, p["document_id"]) {
+		return nil, nil
+	}
+	return documentChangeDrafts(ctx, e, ev, p, docVerbAccessChanged, docChangeOpts{anyPrivacy: true})
+}
+
+func ruleDocumentShareRevokedAccessChange(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if isFolderContentsShareEvent(ctx, e.q, ev, audit.ActionDocumentShareRevoked, p["document_id"]) {
+		return nil, nil
+	}
+	return documentChangeDrafts(ctx, e, ev, p, docVerbAccessChanged, docChangeOpts{anyPrivacy: true})
+}
+
+func isFolderContentsShareEvent(ctx context.Context, q *db.Queries, ev outbox.Row, action, docID string) bool {
+	meta, err := auditMetadata(ctx, q, ev, action, docID)
+	if err != nil || meta == nil {
+		return false
+	}
+	via, _ := meta["via"].(string)
+	return via == "folder_contents"
+}
+
 // noticedVerbs are the verbs a command may write on document.change_noticed;
 // the command already decided the change is in scope (a new title, an
 // uploaded version), so the rule only addresses it.

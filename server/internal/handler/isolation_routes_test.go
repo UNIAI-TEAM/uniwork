@@ -751,17 +751,9 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/shares":                                   {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
 	"POST /api/v1/documents/{documentID}/shares/batch":                             {body: isoWith(map[string]string{}, map[string]any{"principal_ids": []any{"01J8X4K2M0N1P2Q3R4S5T6U7V8"}, "level": "view"})},
 	"PUT /api/v1/documents/{documentID}/access":                                    {body: isoWith(map[string]string{}, map[string]any{"items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}})},
-	// UNI-2244 BE-1 contract stubs: both routes answer 501 not_implemented until
-	// BE-2 wires the service, so the owner control is skipped and 501 counts as a
-	// refusal alongside 403/404.
+	// UNI-2244: folder bulk access update and batch progress.
 	"PUT /api/v1/documents/{folderID}/contents-access": {
-		body:        isoWith(map[string]string{}, map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}}),
-		skipControl: "contract-first route stub (UNI-2244 BE-1): answers 501 not_implemented until BE-2 wires the service",
-		refusedAlso: []int{http.StatusNotImplemented},
-	},
-	"GET /api/v1/documents/{folderID}/contents-access/{batchID}": {
-		skipControl: "contract-first route stub (UNI-2244 BE-1): answers 501 not_implemented until BE-2 wires the service",
-		refusedAlso: []int{http.StatusNotImplemented},
+		body: isoWith(map[string]string{}, map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}}),
 	},
 	// DOC-05: a valid reason, so the cross-tenant refusal is the gate and never the 422.
 	"POST /api/v1/documents/{documentID}/break-glass": {body: isoJSON(map[string]any{"reason": "Kiểm tra theo yêu cầu của kiểm toán"})},
