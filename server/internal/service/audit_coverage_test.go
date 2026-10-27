@@ -792,7 +792,32 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionAuthSignInMethodLinked: func(t *testing.T, f *auditFixture) {
 			registerVerified(t, f.q, f.auth, "audit-link@gmail.com", "Link")
 			google := NewGoogleAuthService(f.pool, f.q, f.auth)
-			if _, err := google.SignIn(f.ctx, GoogleClaims{Sub: "audit-google", Email: "audit-link@gmail.com", EmailVerified: true}, "vi"); err != nil {
+			if _, err := google.SignIn(f.ctx, GoogleClaims{Sub: "audit-google", Email: "audit-link@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// A provider identity moved out of the empty account that held it
+		// (ADR 0047): the empty account records the unlink via move.
+		audit.ActionAuthSignInMethodUnlinked: func(t *testing.T, f *auditFixture) {
+			google := NewGoogleAuthService(f.pool, f.q, f.auth)
+			tickets := NewSignInTicketService(f.pool, f.q, f.auth, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+			res, err := google.SignIn(f.ctx, GoogleClaims{Sub: "audit-move", Email: "audit-move@gmail.com", EmailVerified: true, Name: "M"}, "vi", SignInIntentSignIn)
+			if err != nil || res.Ticket == "" {
+				t.Fatalf("ticket: %+v %v", res, err)
+			}
+			if _, err := tickets.Create(f.ctx, res.Ticket, WebTicket(), "", "vi"); err != nil {
+				t.Fatal(err)
+			}
+			registerVerified(t, f.q, f.auth, "audit-move-owner@example.com", "Owner")
+			sess, err := f.auth.Login(f.ctx, "audit-move-owner@example.com", "password123")
+			if err != nil {
+				t.Fatal(err)
+			}
+			at, err := f.auth.minter.ParseAccessToken(sess.AccessToken)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := tickets.Link(authpkg.WithAccessToken(f.ctx, at), res.Ticket, WebTicket(), true); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -2452,6 +2477,7 @@ func auditActions() []string {
 		audit.ActionAuthMFAEnabled,
 		audit.ActionAuthMFADisabled,
 		audit.ActionAuthSignInMethodLinked,
+		audit.ActionAuthSignInMethodUnlinked,
 		audit.ActionUserDeleted,
 		audit.ActionUserAIConsentGranted,
 		audit.ActionUserAIConsentWithdrawn,

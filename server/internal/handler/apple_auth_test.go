@@ -113,17 +113,21 @@ func TestAppleSignInRefusals(t *testing.T) {
 	}
 }
 
+// /auth/providers only ever gains flags (ADR 0047 §10): apple keeps meaning
+// the native iPhone sign-in the shipped app reads, and the web Apple and the
+// app's Google SDK report false until their routes exist, whatever else is
+// configured.
 func TestAuthProvidersReportsApple(t *testing.T) {
 	srv, _ := newAppleTestServer(t)
 	res, out := doJSON(t, srv, http.MethodGet, "/api/v1/auth/providers", "", nil)
-	if res.StatusCode != http.StatusOK || out["apple"] != true || out["google"] != false {
+	if res.StatusCode != http.StatusOK || out["apple"] != true || out["google"] != false || out["apple_web"] != false || out["google_native"] != false {
 		t.Fatalf("providers = %d %v", res.StatusCode, out)
 	}
 	// Without the service (no APPLE_SIWA_AUDIENCES) the provider is off.
 	rec := httptest.NewRecorder()
 	(&handlers{}).authProviders(rec, httptest.NewRequest(http.MethodGet, "/auth/providers", nil))
-	if !strings.Contains(rec.Body.String(), `"apple":false`) {
-		t.Fatalf("providers without apple = %s", rec.Body.String())
+	if body := rec.Body.String(); !strings.Contains(body, `"apple":false`) || !strings.Contains(body, `"apple_web":false`) || !strings.Contains(body, `"google_native":false`) {
+		t.Fatalf("providers without apple = %s", body)
 	}
 }
 

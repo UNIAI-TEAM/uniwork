@@ -34,46 +34,66 @@ const (
 	linkSkippedFailed = "sign_in_failed"
 )
 
-// pendingLinkBlob is what the pending link seals; v versions the shape.
+// pendingLinkBlob is what the pending link seals; v versions the shape. Via
+// is how the first step tied the identity to the account: email_match (the
+// provider owns the address the account holds; empty in a challenge minted
+// before via existed) or email_claim (a code mailed to the account's address
+// proved it, "I was invited with another address").
 type pendingLinkBlob struct {
 	V        int              `json:"v"`
 	Identity ProviderIdentity `json:"identity"`
+	Via      string           `json:"via,omitempty"`
 }
 
 const pendingLinkVersion = 1
 
-func (s *AuthService) sealPendingLink(id ProviderIdentity) (string, error) {
-	raw, err := json.Marshal(pendingLinkBlob{V: pendingLinkVersion, Identity: id})
+// pendingLink is an opened pending link.
+type pendingLink struct {
+	identity ProviderIdentity
+	via      string
+}
+
+func (s *AuthService) sealPendingLink(id ProviderIdentity, via string) (string, error) {
+	raw, err := json.Marshal(pendingLinkBlob{V: pendingLinkVersion, Identity: id, Via: via})
 	if err != nil {
 		return "", err
 	}
 	return s.sealer.SealFor(auth.PurposeMFAPendingLink, string(raw))
 }
 
-func (s *AuthService) openPendingLink(sealed string) (ProviderIdentity, error) {
+func (s *AuthService) openPendingLink(sealed string) (pendingLink, error) {
 	raw, err := s.sealer.OpenFor(auth.PurposeMFAPendingLink, sealed)
 	if err != nil {
-		return ProviderIdentity{}, err
+		return pendingLink{}, err
 	}
 	var b pendingLinkBlob
 	if err := json.Unmarshal([]byte(raw), &b); err != nil {
-		return ProviderIdentity{}, err
+		return pendingLink{}, err
 	}
 	if b.V != pendingLinkVersion || b.Identity.Subject == "" {
-		return ProviderIdentity{}, fmt.Errorf("pending link: unknown shape v%d", b.V)
+		return pendingLink{}, fmt.Errorf("pending link: unknown shape v%d", b.V)
 	}
-	return b.Identity, nil
+	switch b.Via {
+	case "", linkViaEmailMatch:
+		return pendingLink{identity: b.Identity, via: linkViaEmailMatch}, nil
+	case linkViaEmailClaim:
+		return pendingLink{identity: b.Identity, via: linkViaEmailClaim}, nil
+	default:
+		return pendingLink{}, fmt.Errorf("pending link: unknown via %q", b.Via)
+	}
 }
 
-// challengeWithPendingLink answers a provider sign-in that resolved to a
-// link into u, whose second factor is on: the web challenge, carrying the
-// identity to link once the factor passes.
-func (s *AuthService) challengeWithPendingLink(ctx context.Context, u db.User, id ProviderIdentity) (Session, error) {
-	blob, err := s.sealPendingLink(id)
+// challengeWithPendingLink answers a sign-in that resolved to a link into
+// u, whose second factor is on: the challenge for ch's channel, carrying the
+// identity to link once the factor passes and how the first step tied it to
+// u (via).
+func (s *AuthService) challengeWithPendingLink(ctx context.Context, u db.User, id ProviderIdentity, via string, ch auth.MFAChallenge) (Session, error) {
+	blob, err := s.sealPendingLink(id, via)
 	if err != nil {
 		return Session{}, err
 	}
-	tok, err := s.minter.MintMFA(auth.MFAChallenge{UserID: u.ID, Channel: auth.MFAChannelWeb, PendingLink: blob})
+	ch.UserID, ch.PendingLink = u.ID, blob
+	tok, err := s.minter.MintMFA(ch)
 	if err != nil {
 		return Session{}, err
 	}
@@ -93,14 +113,14 @@ type pendingLinkOutcome struct {
 
 // finishPendingLink links the identity a challenge carried into u (locked by
 // the caller in tx) after its second factor passed. Five minutes went by
-// since the first step, so the identity is resolved again and linked only
-// when it still resolves to a link into this very account; any other answer
-// skips the link and the sign-in goes on. It runs in a savepoint: a link the
-// database refuses (the subject taken meanwhile) must not abort the
-// transaction the session is opened in.
+// since the first step, so the link is decided again and written only when
+// it still holds for this very account; any other answer skips the link and
+// the sign-in goes on. It runs in a savepoint: a link the database refuses
+// (the subject taken meanwhile) must not abort the transaction the session is
+// opened in.
 func (s *AuthService) finishPendingLink(ctx context.Context, tx pgx.Tx, u db.User, sealed string) (pendingLinkOutcome, error) {
 	out := pendingLinkOutcome{user: u}
-	id, err := s.openPendingLink(sealed)
+	pl, err := s.openPendingLink(sealed)
 	if err != nil {
 		out.skipped = linkSkippedFailed
 		return out, nil
@@ -111,6 +131,10 @@ func (s *AuthService) finishPendingLink(ctx context.Context, tx pgx.Tx, u db.Use
 	}
 	defer sp.Rollback(ctx) //nolint:errcheck
 	q := s.q.WithTx(sp)
+	if pl.via == linkViaEmailClaim {
+		return s.finishClaimedLink(ctx, sp, q, u, pl.identity)
+	}
+	id := pl.identity
 	var refused CodedError
 	res, err := resolveIdentity(ctx, q, id)
 	if errors.As(err, &refused) {
@@ -141,6 +165,49 @@ func (s *AuthService) finishPendingLink(ctx context.Context, tx pgx.Tx, u db.Use
 		out.skipped = refused.Code
 		return out, nil
 	}
+	if err != nil {
+		return out, err
+	}
+	if err := sp.Commit(ctx); err != nil {
+		return out, err
+	}
+	out.user, out.queued = linked, queued
+	return out, nil
+}
+
+// finishClaimedLink is finishPendingLink for an identity a mailed code tied
+// to u ("I was invited with another address"): the provider's address is not
+// u's, so resolving it again proves nothing; the code proved u's mailbox, and
+// what is left to check is that the identity still opens no account and u
+// holds no other subject of the provider. sp is the savepoint q runs in.
+func (s *AuthService) finishClaimedLink(ctx context.Context, sp pgx.Tx, q *db.Queries, u db.User, id ProviderIdentity) (pendingLinkOutcome, error) {
+	out := pendingLinkOutcome{user: u}
+	holder, err := userBySubject(ctx, q, id)
+	switch {
+	case err == nil && holder.ID == u.ID:
+		return out, nil
+	case err == nil:
+		out.skipped = linkSkippedTaken
+		return out, nil
+	case !errors.Is(err, pgx.ErrNoRows):
+		return out, err
+	}
+	linked, err := linkIdentity(ctx, q, u.ID, id)
+	var refused CodedError
+	if errors.As(err, &refused) {
+		out.skipped = refused.Code
+		return out, nil
+	}
+	if err != nil {
+		return out, err
+	}
+	if err := keepAppleConsent(ctx, q, u.ID, id); err != nil {
+		return out, err
+	}
+	if err := recordLinked(ctx, q, u.ID, id.Provider, linkViaEmailClaim, nil); err != nil {
+		return out, err
+	}
+	queued, err := queueLinkedNotices(ctx, q, s.signInMailer(), linked, id, mail.SignInChangeLinked, mail.SafeField(sessionMetaFrom(ctx).UserAgent))
 	if err != nil {
 		return out, err
 	}

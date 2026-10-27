@@ -223,6 +223,7 @@ func New(d Deps, h Routes) http.Handler {
 				desktop.Use(mw.RequireAuth(d.Minter))
 			}
 			registerDesktopAuth(desktop, h)
+			registerSignInTicketLink(desktop, h, credentialLimit)
 		})
 		v1.Group(func(pub api) {
 			pub.Use(mw.OptionalAuth(d.Minter))

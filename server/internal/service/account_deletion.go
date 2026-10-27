@@ -29,6 +29,12 @@ type DeleteAccountInput struct {
 
 const deletedDisplayName = "Người dùng đã xóa"
 
+// deletedEmail is the address an erased account keeps: unique, and on a
+// domain no mail can reach (RFC 2606 .invalid).
+func deletedEmail(userID string) string {
+	return "deleted-" + strings.ToLower(userID) + "@deleted.uniwork.invalid"
+}
+
 // DeleteAccount anonymises the user (Nghị định 13) and closes every door:
 // memberships deactivated, profiles scrubbed, sessions and push revoked.
 // Content they authored stays under the anonymised row; audit_events stay
@@ -110,7 +116,7 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 		}
 	}
 	if _, err := qtx.AnonymizeUser(ctx, db.AnonymizeUserParams{
-		ID: userID, Email: "deleted-" + strings.ToLower(userID) + "@deleted.uniwork.invalid", DisplayName: deletedDisplayName,
+		ID: userID, Email: deletedEmail(userID), DisplayName: deletedDisplayName,
 	}); err != nil {
 		return err
 	}

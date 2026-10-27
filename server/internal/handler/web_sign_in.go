@@ -24,15 +24,17 @@ const (
 	webIntentSignUp = "sign_up"
 )
 
-// webSignInIntent reads the start's intent; empty is a sign-in.
+// webSignInIntent reads the start's intent; empty is a sign-in. sign_up
+// (the register screen) creates an unmatched identity's account at once
+// instead of the choice screen's ticket.
 // ponytail: intent=link (linking from Settings with a link_token) lands with
 // the sign-in methods slice; until then it is refused like any unknown one.
 func webSignInIntent(raw string) (string, bool) {
 	switch raw {
 	case "", webIntentSignIn:
-		return webIntentSignIn, true
+		return service.SignInIntentSignIn, true
 	case webIntentSignUp:
-		return webIntentSignUp, true
+		return service.SignInIntentSignUp, true
 	default:
 		return "", false
 	}
@@ -68,18 +70,28 @@ func (h *handlers) openJSON(purpose, blob string, v any) error {
 
 // finishWebSignIn answers a provider sign-in the service accepted:
 //
+//   - no account to sign in to (unmatched, link_required): the ticket in the
+//     uniwork_sign_in_ticket cookie, then the choice screen /auth/continue
+//     (spec §3.2);
 //   - a second factor owed: the challenge in the uniwork_mfa cookie (a
 //     redirect has no JSON body, spec F-01 §2 I5), then /login?mfa=1; the
 //     challenge carries the identity when it waits to be linked, and POST
 //     /auth/mfa/verify links it (or answers link_skipped);
 //   - a session: the refresh cookie, then /auth/callback, which reads the
 //     session and goes on to next; reclaimed=1 when the sign-in took the
-//     account back, for the one-time notice.
+//     account back, for the one-time notice. A pending ticket goes, unless
+//     next is the choice screen's link step: this sign-in is the account
+//     that ticket is about to be linked into.
 func (h *handlers) finishWebSignIn(w http.ResponseWriter, r *http.Request, res service.ProviderSignInResult, next string) {
 	sess := res.Session
 	params := url.Values{}
 	if next != "" {
 		params.Set("next", next)
+	}
+	if res.Ticket != "" {
+		h.setSignInTicketCookie(w, res.Ticket)
+		h.redirectWeb(w, r, "/auth/continue", params)
+		return
 	}
 	if sess.MFAPending() {
 		h.setMFACookie(w, sess.MFAToken)
@@ -88,6 +100,9 @@ func (h *handlers) finishWebSignIn(w http.ResponseWriter, r *http.Request, res s
 		return
 	}
 	h.setRefreshCookie(w, sess.RefreshToken, sess.RefreshExpiresAt)
+	if !keepsSignInTicket(next) {
+		h.clearSignInTicket(w)
+	}
 	if res.Reclaimed {
 		params.Set("reclaimed", "1")
 	}

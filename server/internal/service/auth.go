@@ -210,11 +210,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (Sessio
 // on means a challenge token, otherwise a session plus the login audit row.
 func (s *AuthService) sessionOrChallenge(ctx context.Context, u db.User, meta map[string]any) (Session, error) {
 	if u.MfaEnabledAt.Valid {
-		tok, err := s.minter.MintMFA(auth.MFAChallenge{UserID: u.ID, Channel: auth.MFAChannelWeb})
-		if err != nil {
-			return Session{}, err
-		}
-		return Session{User: s.decorateAvatar(ctx, u), MFAToken: tok}, nil
+		return s.challengeOn(ctx, u, auth.MFAChallenge{Channel: auth.MFAChannelWeb})
 	}
 	sess, err := s.mintSession(ctx, u, "", "")
 	if err != nil {
@@ -222,6 +218,18 @@ func (s *AuthService) sessionOrChallenge(ctx context.Context, u db.User, meta ma
 	}
 	s.recordAuth(ctx, audit.ActionAuthLoginSucceeded, u.ID, meta)
 	return sess, nil
+}
+
+// challengeOn answers a first factor that passed on an account with a
+// second factor: the challenge token for ch's channel (and native client),
+// in place of a session.
+func (s *AuthService) challengeOn(ctx context.Context, u db.User, ch auth.MFAChallenge) (Session, error) {
+	ch.UserID = u.ID
+	tok, err := s.minter.MintMFA(ch)
+	if err != nil {
+		return Session{}, err
+	}
+	return Session{User: s.decorateAvatar(ctx, u), MFAToken: tok}, nil
 }
 
 func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, error) {

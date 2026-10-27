@@ -11,6 +11,9 @@ type RegisterSDI struct {
 type LoginSDI struct {
 	Email    string `json:"email" format:"email" minLength:"1" description:"Email tài khoản" example:"an@acme.vn"`
 	Password string `json:"password" minLength:"1" description:"Mật khẩu tài khoản" example:"password123"`
+	// KeepSignInTicket is the choice screen's "I already have an account":
+	// this sign-in is the one the pending Google/Apple identity links into.
+	KeepSignInTicket bool `json:"keep_sign_in_ticket,omitempty" description:"true khi đăng nhập để liên kết Google/Apple đang chờ (màn chọn, /login?link=1): giữ cookie vé uniwork_sign_in_ticket; mặc định đăng nhập thành công xoá vé" example:"false"`
 }
 
 // PatchMeSDI is PATCH /api/v1/me.
@@ -37,14 +40,37 @@ type ForgotPasswordSDI struct {
 
 // ResetPasswordSDI is POST /api/v1/auth/password/reset.
 type ResetPasswordSDI struct {
-	Token    string `json:"token" minLength:"1" description:"Token trong link email" example:"01J8X4…"`
-	Password string `json:"password" minLength:"8" description:"Mật khẩu mới, tối thiểu 8 ký tự" example:"password123"`
+	Token            string `json:"token" minLength:"1" description:"Token trong link email" example:"01J8X4…"`
+	Password         string `json:"password" minLength:"8" description:"Mật khẩu mới, tối thiểu 8 ký tự" example:"password123"`
+	KeepSignInTicket bool   `json:"keep_sign_in_ticket,omitempty" description:"true khi đặt lại mật khẩu giữa lúc liên kết Google/Apple đang chờ: giữ cookie vé uniwork_sign_in_ticket; mặc định xoá vé" example:"false"`
 }
 
 // GoogleStartSDI is GET /api/v1/auth/google/start.
 type GoogleStartSDI struct {
-	Next   string `query:"next" description:"Đường dẫn cùng origin sau khi đăng nhập" example:"/acme/team"`
-	Intent string `query:"intent" description:"sign_in (mặc định) từ trang đăng nhập hoặc sign_up từ trang đăng ký; giá trị khác chuyển về /login?error=google_failed" example:"sign_in"`
+	Next   string `query:"next" description:"Đường dẫn cùng origin sau khi đăng nhập; /auth/continue?step=link&… (đăng nhập để liên kết vé đang chờ) giữ cookie vé" example:"/acme/team"`
+	Intent string `query:"intent" description:"sign_in (mặc định) từ trang đăng nhập: không khớp tài khoản nào thì ra vé và màn chọn; sign_up từ trang đăng ký: không khớp thì tạo tài khoản ngay; giá trị khác chuyển về /login?error=google_failed" example:"sign_in"`
+}
+
+// SignInTicketCreateSDI is POST /api/v1/auth/sign-in-ticket/create.
+type SignInTicketCreateSDI struct {
+	DisplayName string `json:"display_name,omitempty" maxLength:"100" description:"Tên hiển thị; bắt buộc khi nhà cung cấp không cho tên (vé có name rỗng), bỏ trống thì dùng tên nhà cung cấp" example:"Nguyễn Văn An"`
+}
+
+// SignInEmailClaimSDI is POST /api/v1/auth/sign-in-ticket/claim-email.
+type SignInEmailClaimSDI struct {
+	Email string `json:"email" format:"email" minLength:"3" maxLength:"254" description:"Email công việc tổ chức đã mời; mã 6 số được gửi tới đây dù địa chỉ có tài khoản hay không" example:"an@acme.vn"`
+}
+
+// SignInEmailClaimVerifySDI is POST /api/v1/auth/sign-in-ticket/claim-email/verify.
+type SignInEmailClaimVerifySDI struct {
+	Email       string `json:"email" format:"email" minLength:"3" maxLength:"254" description:"Địa chỉ đã nhận mã, như lúc gửi" example:"an@acme.vn"`
+	Code        string `json:"code" minLength:"6" description:"Mã 6 số trong email" example:"482913"`
+	DisplayName string `json:"display_name,omitempty" maxLength:"100" description:"Tên hiển thị khi địa chỉ chưa có tài khoản và một tài khoản mới được tạo; bỏ trống thì dùng tên nhà cung cấp hoặc phần trước @" example:"Nguyễn Văn An"`
+}
+
+// SignInTicketLinkSDI is POST /api/v1/auth/sign-in-ticket/link.
+type SignInTicketLinkSDI struct {
+	Move bool `json:"move,omitempty" description:"true để chuyển danh tính từ tài khoản trống đang giữ nó (sau 409 sign_in_method_movable) sang tài khoản đang đăng nhập; tài khoản trống bị xoá" example:"false"`
 }
 
 // GoogleCallbackSDI is GET /api/v1/auth/google/callback.
@@ -57,8 +83,9 @@ type GoogleCallbackSDI struct {
 // MFAVerifySDI is POST /api/v1/auth/mfa/verify. mfa_token may be omitted
 // when the challenge arrived as the uniwork_mfa cookie (Google, reset).
 type MFAVerifySDI struct {
-	MFAToken string `json:"mfa_token" description:"Token thử thách từ bước đăng nhập; bỏ trống nếu đã có cookie uniwork_mfa" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.mfa"`
-	Code     string `json:"code" minLength:"6" description:"Mã 6 số từ ứng dụng xác thực, hoặc mã khôi phục dạng xxxxx-xxxxx" example:"123456"`
+	MFAToken         string `json:"mfa_token" description:"Token thử thách từ bước đăng nhập; bỏ trống nếu đã có cookie uniwork_mfa" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.mfa"`
+	Code             string `json:"code" minLength:"6" description:"Mã 6 số từ ứng dụng xác thực, hoặc mã khôi phục dạng xxxxx-xxxxx" example:"123456"`
+	KeepSignInTicket bool   `json:"keep_sign_in_ticket,omitempty" description:"true khi bước hai này thuộc lần đăng nhập để liên kết Google/Apple đang chờ: giữ cookie vé uniwork_sign_in_ticket; mặc định xoá vé" example:"false"`
 }
 
 // MFACodeSDI is POST /api/v1/me/mfa/confirm and /me/mfa/disable.

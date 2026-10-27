@@ -52,10 +52,61 @@ type MobileSecurityPolicySDO struct {
 	CanManage          bool `json:"can_manage" description:"true khi người gọi là owner/admin và đổi được chính sách" example:"true"`
 }
 
-// AuthProvidersSDO is GET /api/v1/auth/providers.
+// AuthProvidersSDO is GET /api/v1/auth/providers. Flags are only ever
+// added: apple keeps the meaning the shipped iPhone app reads (ADR 0047 §10).
 type AuthProvidersSDO struct {
-	Google bool `json:"google" description:"true khi Google sign-in được cấu hình trên server" example:"true"`
-	Apple  bool `json:"apple" description:"true khi Sign in with Apple native (app iPhone) được cấu hình trên server" example:"true"`
+	Google       bool `json:"google" description:"true khi đăng nhập Google trên web được cấu hình trên server" example:"true"`
+	Apple        bool `json:"apple" description:"true khi Sign in with Apple native (app iPhone) được cấu hình trên server" example:"true"`
+	AppleWeb     bool `json:"apple_web" description:"true khi Sign in with Apple trên web (Services ID) được cấu hình trên server" example:"false"`
+	GoogleNative bool `json:"google_native" description:"true khi đăng nhập Google bằng SDK trong app điện thoại được cấu hình trên server" example:"false"`
+}
+
+// SignInTicketSDO is GET /api/v1/auth/sign-in-ticket: the pending provider
+// sign-in the choice screen shows (ADR 0047).
+type SignInTicketSDO struct {
+	Provider     string `json:"provider" enum:"google,apple" description:"Nhà cung cấp của lượt đăng nhập đang chờ" example:"apple"`
+	Kind         string `json:"kind" enum:"unmatched,link_required" description:"unmatched: không tài khoản nào khớp (ba lựa chọn); link_required: email đã có tài khoản, đăng nhập vào đó để liên kết" example:"unmatched"`
+	Email        string `json:"email" description:"Email nhà cung cấp cho; có thể là email ẩn của Apple" example:"an@icloud.com"`
+	Name         string `json:"name" description:"Tên nhà cung cấp cho; rỗng thì màn tạo tài khoản hỏi tên hiển thị" example:"Nguyễn Văn An"`
+	PrivateRelay bool   `json:"private_relay" description:"true khi email là địa chỉ ẩn của Apple (Hide My Email)" example:"false"`
+}
+
+// SignInPasswordSDO is the password row of SignInMethodsSDO.
+type SignInPasswordSDO struct {
+	Set       bool    `json:"set" description:"true khi tài khoản có mật khẩu" example:"true"`
+	ChangedAt *string `json:"changed_at" description:"Lần đặt hay đổi mật khẩu gần nhất (RFC3339); null khi chưa ghi nhận" example:"2026-10-12T08:00:00Z"`
+}
+
+// SignInProviderSDO is the Google row of SignInMethodsSDO.
+type SignInProviderSDO struct {
+	Linked   bool    `json:"linked" description:"true khi nhà cung cấp mở được tài khoản này" example:"true"`
+	Email    *string `json:"email" description:"Email nhà cung cấp cho lúc liên kết; null khi chưa liên kết" example:"an@gmail.com"`
+	LinkedAt *string `json:"linked_at" description:"Thời điểm liên kết (RFC3339); null khi chưa liên kết hoặc liên kết từ trước khi được ghi nhận" example:"2026-10-27T08:00:00Z"`
+}
+
+// SignInAppleSDO is the Apple row of SignInMethodsSDO.
+type SignInAppleSDO struct {
+	Linked       bool    `json:"linked" description:"true khi Apple mở được tài khoản này" example:"false"`
+	Email        *string `json:"email" description:"Email Apple cho lúc liên kết; null khi chưa liên kết" example:"q7x2@privaterelay.appleid.com"`
+	LinkedAt     *string `json:"linked_at" description:"Thời điểm liên kết (RFC3339); null khi chưa liên kết hoặc liên kết từ trước khi được ghi nhận" example:"2026-10-27T08:00:00Z"`
+	PrivateRelay bool    `json:"private_relay" description:"true khi email Apple là địa chỉ ẩn (Hide My Email)" example:"false"`
+}
+
+// SignInMethodsSDO is how an account signs in (spec §3.7).
+type SignInMethodsSDO struct {
+	Password            SignInPasswordSDO `json:"password"`
+	Google              SignInProviderSDO `json:"google"`
+	Apple               SignInAppleSDO    `json:"apple"`
+	AccountEmailIsRelay bool              `json:"account_email_is_relay" description:"true khi email đăng nhập của tài khoản là địa chỉ ẩn của Apple" example:"false"`
+	Proofs              []string          `json:"proofs" description:"Các cách xác nhận là bạn mà lệnh nhạy cảm nhận: totp (khi bật xác thực hai lớp, chỉ cách này), password, email_code, và trên app apple/google" example:"[\"password\",\"email_code\"]"`
+}
+
+// SignInMethodsChangeSDO answers a command that changed how the account
+// signs in. The client stores user only when it parses; otherwise it reads
+// /me again, never a fallback user.
+type SignInMethodsChangeSDO struct {
+	User          UserDTO          `json:"user"`
+	SignInMethods SignInMethodsSDO `json:"sign_in_methods"`
 }
 
 // MFAChallengeSDO replaces SessionSDO on login when the account has MFA on.

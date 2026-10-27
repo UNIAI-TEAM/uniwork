@@ -155,7 +155,7 @@ func TestProviderSignInLinksByEmailOnlyWhenBothSidesVerified(t *testing.T) {
 	ctx := WithSessionMeta(f.ctx, SessionMeta{UserAgent: "Firefox", IP: "10.0.0.9"})
 
 	owner := registerVerified(t, f.q, f.auth, "an@gmail.com", "An")
-	res, err := f.google.SignIn(ctx, GoogleClaims{Sub: "g-an", Email: " AN@gmail.com ", EmailVerified: true, Picture: "https://img/a.png"}, "vi")
+	res, err := f.google.SignIn(ctx, GoogleClaims{Sub: "g-an", Email: " AN@gmail.com ", EmailVerified: true, Picture: "https://img/a.png"}, "vi", SignInIntentSignIn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestProviderSignInLinksByEmailOnlyWhenBothSidesVerified(t *testing.T) {
 
 	// The provider does not vouch for the address.
 	binh := registerVerified(t, f.q, f.auth, "binh@gmail.com", "Bình")
-	_, err = f.google.SignIn(ctx, GoogleClaims{Sub: "g-binh", Email: "binh@gmail.com", EmailVerified: false}, "vi")
+	_, err = f.google.SignIn(ctx, GoogleClaims{Sub: "g-binh", Email: "binh@gmail.com", EmailVerified: false}, "vi", SignInIntentSignIn)
 	refused(t, err, ErrSignInEmailUnverified)
 	if f.user(t, binh.ID).GoogleID.Valid {
 		t.Fatal("an address Google does not vouch for links nothing")
@@ -191,7 +191,7 @@ func TestProviderSignInLinksByEmailOnlyWhenBothSidesVerified(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = f.google.SignIn(ctx, GoogleClaims{Sub: "g-chi", Email: "chi@example.com", EmailVerified: true}, "vi")
+	_, err = f.google.SignIn(ctx, GoogleClaims{Sub: "g-chi", Email: "chi@example.com", EmailVerified: true}, "vi", SignInIntentSignIn)
 	refused(t, err, ErrSignInAccountUnverified)
 	if u := f.user(t, typed.User.ID); u.GoogleID.Valid || u.EmailVerifiedAt.Valid || !u.PasswordHash.Valid {
 		t.Fatalf("an unverified account is neither linked nor verified by a sign-in: %+v", u)
@@ -264,14 +264,17 @@ func TestProviderSignInTrustsOnlyAuthoritativeEmail(t *testing.T) {
 	f := newIdentityFixture(t)
 	work := registerVerified(t, f.q, f.auth, "an@company.vn", "An")
 	// A consumer Google account that uses a company address: Google does not
-	// own company.vn, so the account is not joined.
-	_, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-consumer", Email: "an@company.vn", EmailVerified: true}, "vi")
-	refused(t, err, ErrSignInAccountConflict)
+	// own company.vn, so the account is not joined; the choice screen asks
+	// its owner to sign in to it and link from there.
+	consumer, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-consumer", Email: "an@company.vn", EmailVerified: true}, "vi", SignInIntentSignIn)
+	if err != nil || consumer.TicketKind != TicketKindLinkRequired || consumer.Session.AccessToken != "" {
+		t.Fatalf("a non-authoritative address gets the link_required ticket: %+v %v", consumer, err)
+	}
 	if f.user(t, work.ID).GoogleID.Valid {
 		t.Fatal("a non-authoritative address linked")
 	}
 	// The company's own Workspace account: its hd is the address's domain.
-	res, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-workspace", Email: "an@company.vn", EmailVerified: true, HD: "company.vn"}, "vi")
+	res, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-workspace", Email: "an@company.vn", EmailVerified: true, HD: "company.vn"}, "vi", SignInIntentSignIn)
 	if err != nil || res.Session.User.ID != work.ID {
 		t.Fatalf("the Workspace account links: %+v %v", res, err)
 	}
@@ -287,7 +290,7 @@ func TestProviderSignInTrustsOnlyAuthoritativeEmail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-chi", Email: "chi@outlook.com", EmailVerified: true}, "vi")
+	_, err = f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-chi", Email: "chi@outlook.com", EmailVerified: true}, "vi", SignInIntentSignIn)
 	refused(t, err, ErrSignInAccountUnverified)
 	if u := f.user(t, typed.User.ID); !u.PasswordHash.Valid || u.EmailVerifiedAt.Valid {
 		t.Fatalf("a non-authoritative address reclaimed: %+v", u)
@@ -465,7 +468,7 @@ func TestProviderSignInReclaimsAnUnverifiedAccount(t *testing.T) {
 	t.Run("google", func(t *testing.T) {
 		f := newIdentityFixture(t)
 		s := f.squat(t, "victim@gmail.com")
-		res, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "victim-google", Email: "victim@gmail.com", EmailVerified: true, Name: "Nạn nhân"}, "vi")
+		res, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "victim-google", Email: "victim@gmail.com", EmailVerified: true, Name: "Nạn nhân"}, "vi", SignInIntentSignIn)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -484,9 +487,11 @@ func TestProviderSignInReclaimsAnUnverifiedAccount(t *testing.T) {
 		if _, err := f.auth.Refresh(f.ctx, res.Session.RefreshToken); err != nil {
 			t.Fatalf("the owner's session: %v", err)
 		}
-		// The identities the squatter linked open other, new accounts now.
-		other, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "squatter-google", Email: "squatter@gmail.com", EmailVerified: true}, "vi")
-		if err != nil || other.Session.User.ID == u.ID {
+		// The identities the squatter linked no longer open the account: the
+		// Google one matches nothing now, the Apple one opens a new account
+		// on the shipped app's route.
+		other, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "squatter-google", Email: "squatter@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn)
+		if err != nil || other.TicketKind != TicketKindUnmatched || other.Session.User.ID == u.ID {
 			t.Fatalf("the squatter's Google account: %+v %v", other, err)
 		}
 		if sess, err := f.appleSignIn(t, "squatter-apple", "squatter@privaterelay.appleid.com", true); err != nil || sess.AccountID == u.ID {
@@ -527,7 +532,7 @@ func TestReclaimNeverAsksTheSquattersSecondFactor(t *testing.T) {
 	if !s.user.MfaEnabledAt.Valid {
 		t.Fatal("the squatter has a second factor")
 	}
-	res, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "owner-google", Email: "owner@gmail.com", EmailVerified: true}, "vi")
+	res, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "owner-google", Email: "owner@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn)
 	if err != nil || res.Session.MFAPending() || res.Session.RefreshToken == "" {
 		t.Fatalf("the reclaim asks no second factor: %+v %v", res, err)
 	}
@@ -547,7 +552,7 @@ func TestReclaimNeverAsksTheSquattersSecondFactor(t *testing.T) {
 	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET mfa_enabled_at = now() WHERE id = $1`, s.user.ID); err != nil {
 		t.Fatal(err)
 	}
-	again, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "owner-google", Email: "owner@gmail.com", EmailVerified: true}, "vi")
+	again, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "owner-google", Email: "owner@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn)
 	if err != nil || !again.Session.MFAPending() || again.Reclaimed {
 		t.Fatalf("a verified account's second factor is asked: %+v %v", again, err)
 	}
@@ -559,15 +564,17 @@ func TestReclaimNeverAsksTheSquattersSecondFactor(t *testing.T) {
 func TestAnUnlinkedProviderIsNotRelinkedByEmail(t *testing.T) {
 	f := newIdentityFixture(t)
 	owner := registerVerified(t, f.q, f.auth, "an@gmail.com", "An")
-	if _, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-an", Email: "an@gmail.com", EmailVerified: true}, "vi"); err != nil {
+	if _, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-an", Email: "an@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn); err != nil {
 		t.Fatal(err)
 	}
 	u, err := f.q.UnlinkGoogleAccount(f.ctx, owner.ID)
 	if err != nil || u.GoogleID.Valid || u.GoogleEmail.Valid || u.GoogleUnlinkedSub.String != "g-an" {
 		t.Fatalf("unlink = %+v %v", u, err)
 	}
-	_, err = f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-an", Email: "an@gmail.com", EmailVerified: true}, "vi")
-	refused(t, err, ErrSignInAccountConflict)
+	again, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "g-an", Email: "an@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn)
+	if err != nil || again.TicketKind != TicketKindLinkRequired || again.Session.AccessToken != "" {
+		t.Fatalf("an unlinked subject gets the link_required ticket, not the account: %+v %v", again, err)
+	}
 	if f.user(t, owner.ID).GoogleID.Valid {
 		t.Fatal("an unlinked Google account was linked back by its address")
 	}

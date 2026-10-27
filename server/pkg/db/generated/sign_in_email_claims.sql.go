@@ -68,6 +68,7 @@ SELECT id, ticket_hash, email, code_hash, expires_at, attempts, used_at, created
 WHERE ticket_hash = $1 AND email = $2 AND used_at IS NULL AND expires_at > now() AND attempts < 5
 ORDER BY created_at DESC
 LIMIT 1
+FOR UPDATE
 `
 
 type GetActiveSignInEmailClaimParams struct {
@@ -76,7 +77,8 @@ type GetActiveSignInEmailClaimParams struct {
 }
 
 // Single use, expiry and the attempt cap are decided here, as for
-// email_verification_codes.
+// email_verification_codes. The row lock queues parallel guesses at one
+// code, so none of them reads a count the others have not raised yet.
 func (q *Queries) GetActiveSignInEmailClaim(ctx context.Context, arg GetActiveSignInEmailClaimParams) (SignInEmailClaim, error) {
 	row := q.db.QueryRow(ctx, getActiveSignInEmailClaim, arg.TicketHash, arg.Email)
 	var i SignInEmailClaim
@@ -124,6 +126,17 @@ UPDATE sign_in_email_claims SET attempts = attempts + 1 WHERE id = $1
 
 func (q *Queries) IncrementSignInEmailClaimAttempts(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, incrementSignInEmailClaimAttempts, id)
+	return err
+}
+
+const lockSignInEmailClaims = `-- name: LockSignInEmailClaims :exec
+SELECT pg_advisory_xact_lock(hashtextextended('sign-in-email-claim:' || $1::text, 0))
+`
+
+// Serializes the sends of one ticket (keyed by its hash), so two at once
+// cannot both pass the resend gate below.
+func (q *Queries) LockSignInEmailClaims(ctx context.Context, ticketHash string) error {
+	_, err := q.db.Exec(ctx, lockSignInEmailClaims, ticketHash)
 	return err
 }
 

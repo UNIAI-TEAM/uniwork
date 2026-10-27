@@ -1175,3 +1175,27 @@ func (q *Queries) UpdateOrganizationMemberRole(ctx context.Context, arg UpdateOr
 	)
 	return i, err
 }
+
+const userEverJoinedAnOrganization = `-- name: UserEverJoinedAnOrganization :one
+SELECT (
+  EXISTS (SELECT 1 FROM organization_members m WHERE m.user_id = $1::text)
+  OR EXISTS (
+    SELECT 1 FROM audit_events a
+    WHERE a.resource_type = 'organization_member' AND a.resource_id = $1::text
+  )
+)::bool AS joined
+`
+
+// tenant: token
+// Whether an account ever belonged to an organization: a membership row
+// (deactivated ones included), or the member.joined / member.left audit row
+// every join and leave writes, since leaving deletes the membership row and
+// audit_events is append-only. A sign-in identity moves only out of an
+// account that never did (ADR 0047); the caller reached that account through
+// the provider identity it just proved, and only a yes or no comes back.
+func (q *Queries) UserEverJoinedAnOrganization(ctx context.Context, userID string) (bool, error) {
+	row := q.db.QueryRow(ctx, userEverJoinedAnOrganization, userID)
+	var joined bool
+	err := row.Scan(&joined)
+	return joined, err
+}

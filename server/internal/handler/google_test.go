@@ -184,7 +184,17 @@ func googleCallback(t *testing.T, srv *httptest.Server, query string, cookie *ht
 
 func googleStart(t *testing.T, srv *httptest.Server, next string) (*http.Cookie, googleState) {
 	t.Helper()
-	start, err := noRedirectClient(srv).Get(srv.URL + "/api/v1/auth/google/start?next=" + url.QueryEscape(next))
+	return googleStartWith(t, srv, next, "")
+}
+
+// googleStartWith starts with an intent (sign_up from the register screen).
+func googleStartWith(t *testing.T, srv *httptest.Server, next, intent string) (*http.Cookie, googleState) {
+	t.Helper()
+	q := url.Values{"next": {next}}
+	if intent != "" {
+		q.Set("intent", intent)
+	}
+	start, err := noRedirectClient(srv).Get(srv.URL + "/api/v1/auth/google/start?" + q.Encode())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,17 +202,37 @@ func googleStart(t *testing.T, srv *httptest.Server, next string) (*http.Cookie,
 	return c, openGoogleState(t, c)
 }
 
+// seedGoogleAccount is an account Google already opens (google_id set).
+func seedGoogleAccount(t *testing.T, id, email, sub string) {
+	t.Helper()
+	if _, err := testPool.Exec(context.Background(), `INSERT INTO users (id, email, display_name, google_id, google_email, email_verified_at, locale)
+		VALUES ($1, $2, 'G', $3, $2, now(), 'en')`, id, email, sub); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestGoogleCallbackSignsInAndRedirectsToWeb(t *testing.T) {
 	g := &fakeGoogle{claims: auth.GoogleClaims{Sub: "sub-1", Email: "g@gmail.com", EmailVerified: true, Name: "G"}}
 	srv := newTestServerWithGoogle(t, g)
+	seedGoogleAccount(t, "01GOOGLESIGNSIN", "g@gmail.com", "sub-1")
 	cookie, st := googleStart(t, srv, "/acme/team")
 
-	res := googleCallback(t, srv, "code=good&state="+st.State, cookie)
+	req, _ := http.NewRequest("GET", srv.URL+"/api/v1/auth/google/callback?code=good&state="+st.State, nil)
+	req.AddCookie(cookie)
+	// A ticket an earlier sign-in left goes with this one.
+	req.AddCookie(&http.Cookie{Name: signInTicketCookie, Value: "stale"})
+	res, err := noRedirectClient(srv).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if res.StatusCode != http.StatusSeeOther {
 		t.Fatalf("status = %d", res.StatusCode)
 	}
 	if got := res.Header.Get("Location"); got != "http://localhost:3000/auth/callback?next=%2Facme%2Fteam" {
 		t.Fatalf("location = %q", got)
+	}
+	if c := cookieNamed(res, signInTicketCookie); c == nil || c.MaxAge >= 0 {
+		t.Fatalf("a sign-in drops the pending ticket: %+v", c)
 	}
 	if verifier, nonce := g.seen(); verifier != st.Verifier || nonce != st.Nonce {
 		t.Fatalf("the exchange is handed the sealed verifier and nonce: %q %q, state %+v", verifier, nonce, st)
@@ -215,7 +245,7 @@ func TestGoogleCallbackSignsInAndRedirectsToWeb(t *testing.T) {
 		t.Fatalf("state cookie must be cleared, got %+v", c)
 	}
 	// The refresh cookie starts a normal session.
-	req, _ := http.NewRequest("POST", srv.URL+"/api/v1/auth/refresh", nil)
+	req, _ = http.NewRequest("POST", srv.URL+"/api/v1/auth/refresh", nil)
 	req.AddCookie(refresh)
 	res2, _ := srv.Client().Do(req)
 	if res2.StatusCode != 200 {
@@ -245,8 +275,8 @@ func TestGoogleCallbackSaysAReclaimHappened(t *testing.T) {
 func TestGoogleCallbackSendsAnMFAAccountToTheSecondStep(t *testing.T) {
 	g := &fakeGoogle{claims: auth.GoogleClaims{Sub: "sub-m", Email: "m@gmail.com", EmailVerified: true}}
 	srv := newTestServerWithGoogle(t, g)
-	cookie, st := googleStart(t, srv, "")
-	if res := googleCallback(t, srv, "code=good&state="+st.State, cookie); res.StatusCode != http.StatusSeeOther {
+	cookie, st := googleStartWith(t, srv, "", "sign_up")
+	if res := googleCallback(t, srv, "code=good&state="+st.State, cookie); res.StatusCode != http.StatusSeeOther || cookieNamed(res, refreshCookie) == nil {
 		t.Fatalf("first sign-in: %d", res.StatusCode)
 	}
 	if _, err := testPool.Exec(context.Background(), `UPDATE users SET mfa_enabled_at = now() WHERE google_id = 'sub-m'`); err != nil {

@@ -104,7 +104,7 @@ func (h *handlers) googleCallback(w http.ResponseWriter, r *http.Request) {
 		h.redirectLoginError(w, r, "google_failed", st.Next)
 		return
 	}
-	res, err := h.GoogleAuth.SignIn(h.authCtx(r).Context(), claims, requestLocale(r))
+	res, err := h.GoogleAuth.SignIn(h.authCtx(r).Context(), claims, requestLocale(r), st.Intent)
 	if err != nil {
 		code := webSignInError(service.ProviderGoogle, err)
 		var ce service.CodedError

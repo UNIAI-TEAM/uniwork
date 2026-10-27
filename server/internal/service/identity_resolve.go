@@ -175,6 +175,28 @@ func (id ProviderIdentity) subject() pgtype.Text {
 	return pgtype.Text{String: id.Subject, Valid: true}
 }
 
+// userBySubject is the account the identity's subject is linked to;
+// pgx.ErrNoRows when none is.
+func userBySubject(ctx context.Context, q *db.Queries, id ProviderIdentity) (db.User, error) {
+	switch id.Provider {
+	case ProviderGoogle:
+		return q.GetUserByGoogleID(ctx, id.subject())
+	case ProviderApple:
+		return q.GetUserByAppleID(ctx, id.subject())
+	default:
+		return db.User{}, errors.New("provider identity without a provider")
+	}
+}
+
+// linkedSubject is the subject of the identity's provider u is linked to,
+// and the one u unlinked last.
+func linkedSubject(u db.User, provider string) (linked, unlinked pgtype.Text) {
+	if provider == ProviderApple {
+		return u.AppleID, u.AppleUnlinkedSub
+	}
+	return u.GoogleID, u.GoogleUnlinkedSub
+}
+
 // resolveIdentity is the one set of matching rules every provider sign-in
 // goes through (ADR 0047 §2, spec §3.1), evaluated in this fixed order:
 //
@@ -197,15 +219,7 @@ func resolveIdentity(ctx context.Context, q *db.Queries, id ProviderIdentity) (r
 	if id.Subject == "" || (id.Provider != ProviderGoogle && id.Provider != ProviderApple) {
 		return resolution{}, errors.New("provider identity without a provider or subject")
 	}
-	var (
-		u   db.User
-		err error
-	)
-	if id.Provider == ProviderGoogle {
-		u, err = q.GetUserByGoogleID(ctx, id.subject())
-	} else {
-		u, err = q.GetUserByAppleID(ctx, id.subject())
-	}
+	u, err := userBySubject(ctx, q, id)
 	if err == nil {
 		return resolution{kind: identityMatched, user: u}, nil
 	}
@@ -228,10 +242,7 @@ func resolveIdentity(ctx context.Context, q *db.Queries, id ProviderIdentity) (r
 		}
 		return resolution{}, errSignInAccountUnverified()
 	}
-	linked, unlinked := u.GoogleID, u.GoogleUnlinkedSub
-	if id.Provider == ProviderApple {
-		linked, unlinked = u.AppleID, u.AppleUnlinkedSub
-	}
+	linked, unlinked := linkedSubject(u, id.Provider)
 	if linked.Valid {
 		return resolution{}, errSignInAccountConflict()
 	}
@@ -312,6 +323,57 @@ func linkIdentity(ctx context.Context, q *db.Queries, userID string, id Provider
 	return u, err
 }
 
+// The ways an identity comes to be linked, as audit metadata.via names them
+// (ADR 0047): the provider owns the address a verified account holds, a
+// reclaim by the mailbox's owner, the choice screen's "I already have an
+// account", a code mailed to another address, a move out of an empty
+// account.
+const (
+	linkViaEmailMatch = "email_match"
+	linkViaReclaim    = "reclaim"
+	linkViaTicket     = "ticket"
+	linkViaEmailClaim = "email_claim"
+	linkViaMove       = "move"
+)
+
+// recordLinked writes the auth.sign_in_method_linked row of a link into
+// userID; extra metadata rides beside provider and via.
+func recordLinked(ctx context.Context, q *db.Queries, userID, provider, via string, extra map[string]any) error {
+	meta := map[string]any{"provider": provider, "via": via}
+	for k, v := range extra {
+		meta[k] = v
+	}
+	return auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: audit.NoOrganization, Actor: audit.User(userID),
+		Action: audit.ActionAuthSignInMethodLinked, ResourceType: "user", ResourceID: userID,
+		Metadata: meta,
+	})
+}
+
+// queueLinkedNotices tells the owner of u that id now opens the account
+// (change linked, or moved into it), and the provider's own address too when
+// it is another mailbox the person holds: not the account's, not one of the
+// addresses already told, and not an Apple relay, which forwards to a
+// mailbox no one chose to be told at. The provider's address names no
+// account, so its mail names no user.
+func queueLinkedNotices(ctx context.Context, q *db.Queries, m signInMailer, u db.User, id ProviderIdentity, change, device string, told ...string) (bool, error) {
+	d := mail.SignInMethodChangedData{Change: change, Method: id.Provider, Device: device}
+	queued, err := m.queue(ctx, q, u, d)
+	if err != nil {
+		return false, err
+	}
+	if id.Email == "" || id.PrivateRelay || strings.EqualFold(id.Email, u.Email) {
+		return queued, nil
+	}
+	for _, addr := range told {
+		if strings.EqualFold(id.Email, addr) {
+			return queued, nil
+		}
+	}
+	other, err := m.queue(ctx, q, db.User{Email: id.Email, Locale: u.Locale}, d)
+	return queued || other, err
+}
+
 // linkByEmail is resolution 9: the provider owns the address a verified
 // account holds, so the identity joins it, audited, and the owner hears of
 // the new way in. The caller has already decided the account's second
@@ -321,11 +383,10 @@ func linkByEmail(ctx context.Context, q *db.Queries, u db.User, id ProviderIdent
 	if err != nil {
 		return db.User{}, false, err
 	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: audit.NoOrganization, Actor: audit.User(u.ID),
-		Action: audit.ActionAuthSignInMethodLinked, ResourceType: "user", ResourceID: u.ID,
-		Metadata: map[string]any{"provider": id.Provider, "via": "email_match"},
-	}); err != nil {
+	if err := keepAppleConsent(ctx, q, u.ID, id); err != nil {
+		return db.User{}, false, err
+	}
+	if err := recordLinked(ctx, q, u.ID, id.Provider, linkViaEmailMatch, nil); err != nil {
 		return db.User{}, false, err
 	}
 	queued, err := m.queue(ctx, q, linked, mail.SignInMethodChangedData{
@@ -334,25 +395,56 @@ func linkByEmail(ctx context.Context, q *db.Queries, u db.User, id ProviderIdent
 	return linked, queued, err
 }
 
+// keepAppleConsent stores the Apple refresh token an Apple identity arrived
+// with (sealed) on the account it was just linked to or created for, so
+// account deletion can give it back to Apple (ADR 0041).
+func keepAppleConsent(ctx context.Context, q *db.Queries, userID string, id ProviderIdentity) error {
+	if id.Provider != ProviderApple || id.AppleRefresh == "" || id.AppleClientID == "" {
+		return nil
+	}
+	return q.SetAppleRefreshToken(ctx, db.SetAppleRefreshTokenParams{
+		ID: userID, AppleClientID: pgtype.Text{String: id.AppleClientID, Valid: true},
+		AppleRefreshTokenEnc: pgtype.Text{String: id.AppleRefresh, Valid: true},
+	})
+}
+
+// newProviderAccount is the account createProviderAccount opens: its address
+// (the provider's own, or another one a mailed code proved), the name it
+// shows and whether the address starts verified.
+type newProviderAccount struct {
+	email, name, locale string
+	verified            bool
+}
+
 // createProviderUser opens a password-less account for an identity no
-// account matched; verified says whether its address starts verified.
+// account matched, with the provider's address; verified says whether that
+// address starts verified.
 func createProviderUser(ctx context.Context, q *db.Queries, id ProviderIdentity, locale string, verified bool) (db.User, error) {
+	return createProviderAccount(ctx, q, id, newProviderAccount{
+		email: id.Email, name: providerDisplayName(id.Name, id.Email), locale: locale, verified: verified,
+	})
+}
+
+// createProviderAccount opens a password-less account the identity is
+// linked to from the start. The link keeps the provider's address whatever
+// address the account carries.
+func createProviderAccount(ctx context.Context, q *db.Queries, id ProviderIdentity, a newProviderAccount) (db.User, error) {
 	var (
 		u   db.User
 		err error
 	)
-	name := providerDisplayName(id.Name, id.Email)
+	providerEmail := pgtype.Text{String: id.Email, Valid: id.Email != ""}
 	switch id.Provider {
 	case ProviderGoogle:
 		u, err = q.CreateGoogleUser(ctx, db.CreateGoogleUserParams{
-			ID: util.NewID(), Email: id.Email, DisplayName: name, GoogleID: id.subject(),
+			ID: util.NewID(), Email: a.email, DisplayName: a.name, GoogleID: id.subject(), GoogleEmail: providerEmail,
 			AvatarUrl:     pgtype.Text{String: id.Picture, Valid: id.Picture != ""},
-			EmailVerified: verified, Locale: NormalizeLocale(locale),
+			EmailVerified: a.verified, Locale: NormalizeLocale(a.locale),
 		})
 	case ProviderApple:
 		u, err = q.CreateAppleUser(ctx, db.CreateAppleUserParams{
-			ID: util.NewID(), Email: id.Email, DisplayName: name, AppleID: id.subject(),
-			EmailVerified: verified, Locale: NormalizeLocale(locale),
+			ID: util.NewID(), Email: a.email, DisplayName: a.name, AppleID: id.subject(), AppleEmail: providerEmail,
+			EmailVerified: a.verified, Locale: NormalizeLocale(a.locale),
 		})
 	default:
 		return db.User{}, errors.New("create: unknown provider")
@@ -446,8 +538,10 @@ func reclaimMailbox(ctx context.Context, q *db.Queries, userID string) (reclaime
 
 // reclaimAccount is resolution 4 (spec §3.1): a provider that owns the
 // address proves the mailbox, so reclaimMailbox takes the account back and
-// the identity is linked, audited (via reclaim) and told to the owner.
-func reclaimAccount(ctx context.Context, q *db.Queries, u db.User, id ProviderIdentity, m signInMailer, device string) (reclaimed, error) {
+// the identity is linked, audited (via reclaim) and told to the owner. A
+// code mailed to the address proves it too ("I was invited with another
+// address"): via names which proof it was.
+func reclaimAccount(ctx context.Context, q *db.Queries, u db.User, id ProviderIdentity, m signInMailer, device, via string) (reclaimed, error) {
 	out, err := reclaimMailbox(ctx, q, u.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return reclaimed{}, errSignInAccountConflict()
@@ -458,11 +552,10 @@ func reclaimAccount(ctx context.Context, q *db.Queries, u db.User, id ProviderId
 	if out.user, err = linkIdentity(ctx, q, u.ID, id); err != nil {
 		return reclaimed{}, err
 	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: audit.NoOrganization, Actor: audit.User(u.ID),
-		Action: audit.ActionAuthSignInMethodLinked, ResourceType: "user", ResourceID: u.ID,
-		Metadata: map[string]any{"provider": id.Provider, "via": "reclaim"},
-	}); err != nil {
+	if err := keepAppleConsent(ctx, q, u.ID, id); err != nil {
+		return reclaimed{}, err
+	}
+	if err := recordLinked(ctx, q, u.ID, id.Provider, via, nil); err != nil {
 		return reclaimed{}, err
 	}
 	out.queued, err = m.queue(ctx, q, out.user, mail.SignInMethodChangedData{

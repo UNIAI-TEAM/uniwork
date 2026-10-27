@@ -65,6 +65,7 @@ type caller struct {
 	guestID string // signed with the server secret
 	forged  string // raw uw_guest cookie value, never signed
 	device  string // X-UniWork-Device header, never verified
+	json    bool   // Content-Type: application/json, as the routes behind mw.SameSiteJSON need
 }
 
 func (c caller) send(h http.Handler, method, path string) int {
@@ -81,6 +82,9 @@ func (c caller) send(h http.Handler, method, path string) int {
 	}
 	if c.device != "" {
 		req.Header.Set("X-UniWork-Device", c.device)
+	}
+	if c.json {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -293,6 +297,35 @@ func TestAppleNativeSignInRidesTheCredentialBudget(t *testing.T) {
 	c := caller{ip: "10.20.9.1"}
 	c.spend(t, h, http.MethodPost, "/api/v1/auth/apple/native", 60)
 	c.wantRefused(t, h, http.MethodPost, "/api/v1/auth/apple/native", "credential budget: 60 a minute")
+}
+
+// The choice screen of a provider sign-in (ADR 0047) turns a ticket into an
+// account or a session, so each of its routes rides the credential budget:
+// 60 a minute per address and path. The login-CSRF guard runs first, so a
+// form another site makes the browser post is refused without spending the
+// address's budget.
+func TestSignInTicketRoutesRideTheCredentialBudget(t *testing.T) {
+	h, minter := limitedMux(t)
+	for i, r := range []struct{ method, path string }{
+		{http.MethodGet, "/api/v1/auth/sign-in-ticket"},
+		{http.MethodDelete, "/api/v1/auth/sign-in-ticket"},
+		{http.MethodPost, "/api/v1/auth/sign-in-ticket/create"},
+		{http.MethodPost, "/api/v1/auth/sign-in-ticket/claim-email"},
+		{http.MethodPost, "/api/v1/auth/sign-in-ticket/claim-email/verify"},
+		{http.MethodPost, "/api/v1/auth/sign-in-ticket/link"},
+	} {
+		c := caller{ip: fmt.Sprintf("10.20.12.%d", i+1), json: true, bearer: mustMint(t, minter, "user-ticket")}
+		form := caller{ip: c.ip, bearer: c.bearer}
+		if r.method == http.MethodPost {
+			for j := 0; j < 70; j++ {
+				if code := form.send(h, r.method, r.path); code != http.StatusUnsupportedMediaType {
+					t.Fatalf("%s %s as a form: %d, want 415", r.method, r.path, code)
+				}
+			}
+		}
+		c.spend(t, h, r.method, r.path, 60)
+		c.wantRefused(t, h, r.method, r.path, "credential budget: 60 a minute")
+	}
 }
 
 // OAuth endpoints for external MCP clients (ADR 0031): authorize, token and

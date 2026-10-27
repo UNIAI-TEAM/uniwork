@@ -861,6 +861,7 @@ func main() {
 		Verification:        verification,
 		PasswordReset:       passwordReset,
 		GoogleAuth:          service.NewGoogleAuthService(pool, q, authSvc),
+		SignInTickets:       service.NewSignInTicketService(pool, q, authSvc, renderer, mailOutbox),
 		Sealer:              sealer,
 		Google:              google,
 		Organizations:       orgSvc,

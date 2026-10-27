@@ -57,12 +57,14 @@ WHERE deleted_at IS NULL
   AND avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
 -- name: CreateGoogleUser :one
--- The address starts verified only when Google owns its domain (ADR 0047);
--- the link records the address it was made with.
+-- The caller says whether the address starts verified (ADR 0047): Google
+-- owns its domain, or a mailed code proved it. The link records the address
+-- Google gave, which differs from the account's when a code proved another
+-- one ("I was invited with another address").
 INSERT INTO users (id, email, display_name, avatar_url, google_id, google_email, google_linked_at, email_verified_at, locale)
 VALUES (
   sqlc.arg('id'), sqlc.arg('email'), sqlc.arg('display_name'), sqlc.narg('avatar_url'), sqlc.arg('google_id'),
-  sqlc.arg('email'), now(), CASE WHEN sqlc.arg('email_verified')::bool THEN now() END, sqlc.arg('locale')
+  sqlc.arg('google_email'), now(), CASE WHEN sqlc.arg('email_verified')::bool THEN now() END, sqlc.arg('locale')
 )
 RETURNING *;
 
@@ -72,11 +74,12 @@ SELECT * FROM users WHERE google_id = $1;
 -- name: CreateAppleUser :one
 -- Sign in with Apple (ADR 0041): no password, onboarding still ahead
 -- (onboarded_at stays NULL). The caller says whether the address starts
--- verified (ADR 0047); the link records the address it was made with.
+-- verified (ADR 0047); the link records the address Apple gave, which
+-- differs from the account's when a mailed code proved another one.
 INSERT INTO users (id, email, display_name, apple_id, apple_email, apple_linked_at, email_verified_at, locale)
 VALUES (
   sqlc.arg('id'), sqlc.arg('email'), sqlc.arg('display_name'), sqlc.arg('apple_id'),
-  sqlc.arg('email'), now(), CASE WHEN sqlc.arg('email_verified')::bool THEN now() END, sqlc.arg('locale')
+  sqlc.arg('apple_email'), now(), CASE WHEN sqlc.arg('email_verified')::bool THEN now() END, sqlc.arg('locale')
 )
 RETURNING *;
 

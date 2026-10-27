@@ -559,6 +559,22 @@ database and never reveal whether an id exists to a non-member.
   `TestProviderSignInTrustsOnlyAuthoritativeEmail`, `TestProviderSignInReclaimsAnUnverifiedAccount`,
   `TestReclaimNeverAsksTheSquattersSecondFactor`, `TestAnUnlinkedProviderIsNotRelinkedByEmail` and
   `TestSealedBlobsDoNotCrossPurposes` hold it.
+- A provider sign-in that finds no account to sign in to creates none (ADR 0047 §2c): it answers a sign-in ticket
+  (`server/internal/service/sign_in_ticket.go`; 15 minutes, sealed for `sign_in_ticket`, nothing stored) for the
+  choice screen — the browser's only in the HttpOnly `uniwork_sign_in_ticket` cookie, an app's only in JSON with
+  the SHA-256 of its nonce — and only "Create a new account" there, or the register screen's `intent=sign_up`,
+  opens one. Linking from a ticket takes a bearer of its channel whose session started after the ticket (else 403
+  `proof_required`); an identity another account holds moves only out of an account that never belonged to an
+  organization, and only on `move: true`. A code mailed to another address ("invited with another address") links,
+  reclaims or creates by that address. `TestProviderSignInWithoutAMatchIssuesATicketNotAnAccount`,
+  `TestSignUpIntentCreatesWithoutTheChoice`, `TestSignInTicketIsBoundToItsChannel`,
+  `TestTicketLinkNeedsASessionStartedAfterTheTicket`, `TestEmailClaimLinksCreatesOrReclaims` and
+  `TestAProviderIdentityMovesOnlyFromAnEmptyAccount` hold it.
+- The public routes that open a session or spend a sign-in cookie (`/auth/login`, `/auth/register`,
+  `/auth/mfa/verify`, `/auth/password/reset`, `/auth/sign-in-ticket*`) go through `mw.SameSiteJSON`: a request
+  marked `Sec-Fetch-Site: cross-site` is 403 `cross_site_request` and a body that is not `application/json` is 415,
+  so another site cannot sign a browser in (login CSRF). Native clients send no fetch metadata and post JSON.
+  `TestCredentialRoutesRefuseCrossSiteForms` holds it.
 - The second factor (ADR 0047 §4): a challenge token names its channel (`chn`; none reads as web) and the browser's
   `POST /auth/mfa/verify` takes only a web one. An identity that would link into an account with a second factor
   rides in the challenge (`pl`, sealed) and is linked only in the transaction that opens the session once the

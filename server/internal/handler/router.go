@@ -35,6 +35,9 @@ type Deps struct {
 	PasswordReset *service.PasswordResetService
 	DemoRequests  *service.DemoRequestService
 	GoogleAuth    *service.GoogleAuthService
+	// SignInTickets runs the choice screen of a provider sign-in that found
+	// no account to sign in to (ADR 0047): /api/v1/auth/sign-in-ticket*.
+	SignInTickets *service.SignInTicketService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
 	Google GoogleExchanger
@@ -333,6 +336,12 @@ func New(d Deps) http.Handler {
 		AuthProviders:         h.authProviders,
 		GoogleStart:           h.googleStart,
 		GoogleCallback:        h.googleCallback,
+		SignInTicket:          h.signInTicket,
+		SignInTicketCreate:    h.signInTicketCreate,
+		SignInTicketClaim:     h.signInTicketClaimEmail,
+		SignInTicketVerify:    h.signInTicketClaimEmailVerify,
+		SignInTicketDiscard:   h.signInTicketDiscard,
+		SignInTicketLink:      h.signInTicketLink,
 		AppleSignIn:           h.appleSignIn,
 		DesktopStart:          h.desktopStart,
 		DesktopConsent:        h.desktopConsent,

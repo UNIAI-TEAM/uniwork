@@ -62,7 +62,7 @@ func (h *handlers) mfaVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.setMFACookie(w, "")
-	h.sessionResponse(w, sess)
+	h.signedIn(w, sess, in.KeepSignInTicket)
 }
 
 func (h *handlers) mfaSetup(w http.ResponseWriter, r *http.Request) {

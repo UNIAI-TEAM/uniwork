@@ -36,7 +36,7 @@ func TestDeleteAccountRefusesAWrongProofWithout401(t *testing.T) {
 	})
 
 	t.Run("two-factor code", func(t *testing.T) {
-		res, err := g.SignIn(ctx, GoogleClaims{Sub: "xoa-mfa", Email: "xoa-mfa@gmail.com", EmailVerified: true}, "vi")
+		res, err := g.SignIn(ctx, GoogleClaims{Sub: "xoa-mfa", Email: "xoa-mfa@gmail.com", EmailVerified: true}, "vi", SignInIntentSignUp)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -47,7 +47,7 @@ func TestDeleteAccountRefusesAWrongProofWithout401(t *testing.T) {
 	})
 
 	t.Run("typed email", func(t *testing.T) {
-		res, err := g.SignIn(ctx, GoogleClaims{Sub: "xoa-email", Email: "xoa-email@gmail.com", EmailVerified: true}, "vi")
+		res, err := g.SignIn(ctx, GoogleClaims{Sub: "xoa-email", Email: "xoa-email@gmail.com", EmailVerified: true}, "vi", SignInIntentSignUp)
 		if err != nil {
 			t.Fatal(err)
 		}

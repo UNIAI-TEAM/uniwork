@@ -51,3 +51,13 @@ SELECT count(*) FROM refresh_tokens WHERE user_id = $1 AND user_agent = $2;
 
 -- name: CountRefreshTokensForUser :one
 SELECT count(*) FROM refresh_tokens WHERE user_id = $1;
+
+-- name: GetWebSessionStart :one
+-- When a browser session started (its first refresh token: rotation keeps
+-- the session id and no row is ever deleted) and whether any of its tokens
+-- is still live. A sign-in ticket links only into a session that started
+-- after the ticket was issued (ADR 0047).
+SELECT min(created_at)::timestamptz AS started_at,
+       COALESCE(bool_or(revoked_at IS NULL AND expires_at > now()), false)::bool AS live
+FROM refresh_tokens
+WHERE user_id = $1 AND session_id = $2;

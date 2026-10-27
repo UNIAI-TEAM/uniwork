@@ -411,6 +411,7 @@ const (
 	reasonLink       = "the link secret in the path or body is the credential; holding it is the grant"
 	reasonPlatform   = "platform console: across tenants by design, closed without users.platform_role"
 	reasonStub       = "catalogue stub: the same 422 capability_unavailable for every caller and id"
+	reasonTicket     = "authentication: the sealed sign-in ticket in the caller's HttpOnly cookie is the credential; there is no tenant before sign-in"
 )
 
 // isoRoutes holds every route that is not plain isoScoped-with-no-body.
@@ -445,6 +446,15 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/auth/providers":            {class: isoPublic, reason: reasonAuth},
 	"POST /api/v1/auth/refresh":             {class: isoPublic, reason: reasonAuth},
 	"POST /api/v1/auth/register":            {class: isoPublic, reason: reasonAuth},
+	// The choice screen of a provider sign-in that found no account (ADR
+	// 0047): the sealed ticket in the HttpOnly cookie is the credential, the
+	// identity a provider just proved; it names no tenant row.
+	"GET /api/v1/auth/sign-in-ticket":                     {class: isoPublic, reason: reasonTicket},
+	"DELETE /api/v1/auth/sign-in-ticket":                  {class: isoPublic, reason: reasonTicket},
+	"POST /api/v1/auth/sign-in-ticket/create":             {class: isoPublic, reason: reasonTicket},
+	"POST /api/v1/auth/sign-in-ticket/claim-email":        {class: isoPublic, reason: reasonTicket},
+	"POST /api/v1/auth/sign-in-ticket/claim-email/verify": {class: isoPublic, reason: reasonTicket},
+	"POST /api/v1/auth/sign-in-ticket/link":               {class: isoSelf, reason: "links the ticket's identity into the caller's own account only; the account is the bearer's, the identity the sealed ticket the caller's browser holds, and no id is taken from the request"},
 
 	// MCP connector OAuth server (ADR 0031): a client is a program, and the
 	// code, verifier, refresh token or client secret is the credential.

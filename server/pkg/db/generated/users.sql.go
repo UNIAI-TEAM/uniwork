@@ -124,7 +124,7 @@ const createAppleUser = `-- name: CreateAppleUser :one
 INSERT INTO users (id, email, display_name, apple_id, apple_email, apple_linked_at, email_verified_at, locale)
 VALUES (
   $1, $2, $3, $4,
-  $2, now(), CASE WHEN $5::bool THEN now() END, $6
+  $5, now(), CASE WHEN $6::bool THEN now() END, $7
 )
 RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off, google_email, google_linked_at, google_unlinked_sub, apple_email, apple_linked_at, apple_unlinked_sub, password_changed_at, credentials_revoked_at, second_factor_failures, second_factor_locked_until
 `
@@ -134,19 +134,22 @@ type CreateAppleUserParams struct {
 	Email         string      `json:"email"`
 	DisplayName   string      `json:"display_name"`
 	AppleID       pgtype.Text `json:"apple_id"`
+	AppleEmail    pgtype.Text `json:"apple_email"`
 	EmailVerified bool        `json:"email_verified"`
 	Locale        string      `json:"locale"`
 }
 
 // Sign in with Apple (ADR 0041): no password, onboarding still ahead
 // (onboarded_at stays NULL). The caller says whether the address starts
-// verified (ADR 0047); the link records the address it was made with.
+// verified (ADR 0047); the link records the address Apple gave, which
+// differs from the account's when a mailed code proved another one.
 func (q *Queries) CreateAppleUser(ctx context.Context, arg CreateAppleUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, createAppleUser,
 		arg.ID,
 		arg.Email,
 		arg.DisplayName,
 		arg.AppleID,
+		arg.AppleEmail,
 		arg.EmailVerified,
 		arg.Locale,
 	)
@@ -201,7 +204,7 @@ const createGoogleUser = `-- name: CreateGoogleUser :one
 INSERT INTO users (id, email, display_name, avatar_url, google_id, google_email, google_linked_at, email_verified_at, locale)
 VALUES (
   $1, $2, $3, $4, $5,
-  $2, now(), CASE WHEN $6::bool THEN now() END, $7
+  $6, now(), CASE WHEN $7::bool THEN now() END, $8
 )
 RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id, ai_consent_version, ai_consent_at, push_previews_hidden_at, ai_opt_out_at, apple_id, apple_client_id, apple_refresh_token_enc, ask_uni_mode, ask_uni_memory_off, google_email, google_linked_at, google_unlinked_sub, apple_email, apple_linked_at, apple_unlinked_sub, password_changed_at, credentials_revoked_at, second_factor_failures, second_factor_locked_until
 `
@@ -212,12 +215,15 @@ type CreateGoogleUserParams struct {
 	DisplayName   string      `json:"display_name"`
 	AvatarUrl     pgtype.Text `json:"avatar_url"`
 	GoogleID      pgtype.Text `json:"google_id"`
+	GoogleEmail   pgtype.Text `json:"google_email"`
 	EmailVerified bool        `json:"email_verified"`
 	Locale        string      `json:"locale"`
 }
 
-// The address starts verified only when Google owns its domain (ADR 0047);
-// the link records the address it was made with.
+// The caller says whether the address starts verified (ADR 0047): Google
+// owns its domain, or a mailed code proved it. The link records the address
+// Google gave, which differs from the account's when a code proved another
+// one ("I was invited with another address").
 func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, createGoogleUser,
 		arg.ID,
@@ -225,6 +231,7 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 		arg.DisplayName,
 		arg.AvatarUrl,
 		arg.GoogleID,
+		arg.GoogleEmail,
 		arg.EmailVerified,
 		arg.Locale,
 	)

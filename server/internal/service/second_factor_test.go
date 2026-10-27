@@ -181,7 +181,7 @@ func TestLinkWaitsForTheSecondFactor(t *testing.T) {
 	ctx := WithSessionMeta(f.ctx, SessionMeta{UserAgent: "Safari/18", IP: "10.0.0.8"})
 	u, secret, _ := f.mfaAccount(t, "mfa@gmail.com")
 
-	res, err := f.google.SignIn(ctx, GoogleClaims{Sub: "sub-mfa", Email: "mfa@gmail.com", EmailVerified: true, Picture: "https://img/m.png"}, "vi")
+	res, err := f.google.SignIn(ctx, GoogleClaims{Sub: "sub-mfa", Email: "mfa@gmail.com", EmailVerified: true, Picture: "https://img/m.png"}, "vi", SignInIntentSignIn)
 	if err != nil || !res.Session.MFAPending() || res.Session.RefreshToken != "" {
 		t.Fatalf("want the challenge: %+v %v", res, err)
 	}
@@ -230,7 +230,7 @@ func TestLinkWaitsForTheSecondFactor(t *testing.T) {
 	// The subject went to another account while the challenge was out: the
 	// sign-in goes on, the link is skipped and says why.
 	taken, takenSecret, _ := f.mfaAccount(t, "taken@gmail.com")
-	res, err = f.google.SignIn(ctx, GoogleClaims{Sub: "sub-taken", Email: "taken@gmail.com", EmailVerified: true}, "vi")
+	res, err = f.google.SignIn(ctx, GoogleClaims{Sub: "sub-taken", Email: "taken@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn)
 	if err != nil || !res.Session.MFAPending() {
 		t.Fatalf("challenge: %+v %v", res, err)
 	}
@@ -248,7 +248,7 @@ func TestLinkWaitsForTheSecondFactor(t *testing.T) {
 	// The account linked another Google account meanwhile: the resolver's
 	// own refusal is the reason.
 	other, otherSecret, _ := f.mfaAccount(t, "other@gmail.com")
-	res, err = f.google.SignIn(ctx, GoogleClaims{Sub: "sub-other", Email: "other@gmail.com", EmailVerified: true}, "vi")
+	res, err = f.google.SignIn(ctx, GoogleClaims{Sub: "sub-other", Email: "other@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn)
 	if err != nil || !res.Session.MFAPending() {
 		t.Fatalf("challenge: %+v %v", res, err)
 	}
@@ -292,6 +292,19 @@ func TestUnverifiedAccountsCannotEnrolMFAOrLink(t *testing.T) {
 	}
 	if u := f.user(t, uid); u.MfaEnabledAt.Valid {
 		t.Fatal("a refused confirm turned MFA on")
+	}
+	// Nor does it take a provider link (the choice screen's "I already have
+	// an account"; the Settings link joins it with the sign-in methods).
+	ticket := f.googleTicket(t, GoogleClaims{Sub: "g-unproved", Email: "unproved.personal@gmail.com", EmailVerified: true, Name: "U"}, TicketKindUnmatched)
+	fresh, err := f.auth.Login(f.ctx, "unproved@example.com", "password123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.tickets().Link(f.bearer(t, fresh), ticket, WebTicket(), false); !errors.Is(err, ErrEmailUnverified) {
+		t.Fatalf("a link into an unverified account: %v, want email_unverified", err)
+	}
+	if u := f.user(t, uid); u.GoogleID.Valid {
+		t.Fatal("a refused link wrote")
 	}
 	// Proved, the same account enrols.
 	if _, err := f.q.MarkEmailVerified(f.ctx, uid); err != nil {

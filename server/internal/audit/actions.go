@@ -113,8 +113,15 @@ const (
 	ActionAuthMFADisabled             = "auth.mfa_disabled"
 	// A Google or Apple identity now opens the account (ADR 0047); metadata
 	// names the provider and how: email_match, reclaim (the mailbox's owner
-	// took back an account registered before the address was proved).
+	// took back an account registered before the address was proved),
+	// ticket (the choice screen's "I already have an account"), email_claim
+	// (a code mailed to another address proved it), move (it left an empty
+	// account for this one).
 	ActionAuthSignInMethodLinked = "auth.sign_in_method_linked"
+	// A Google or Apple identity no longer opens the account (ADR 0047);
+	// metadata names the provider and how: move (the person who proved the
+	// identity moved it into another account and this empty one was erased).
+	ActionAuthSignInMethodUnlinked = "auth.sign_in_method_unlinked"
 	// The person asked for their account to be erased (Nghị định 13); the
 	// row is anonymised and this is the last event that names it (F-01).
 	ActionUserDeleted = "user.deleted"

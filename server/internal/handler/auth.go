@@ -93,6 +93,7 @@ func (h *handlers) register(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
+	h.clearSignInTicket(w)
 	h.sessionResponse(w, sess)
 }
 
@@ -105,6 +106,16 @@ func (h *handlers) login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
+	}
+	h.signedIn(w, sess, in.KeepSignInTicket)
+}
+
+// signedIn answers a sign-in route: the session (or its challenge), and a
+// pending sign-in ticket dropped once a session opens, unless the request
+// says it is the sign-in that ticket is about to be linked into.
+func (h *handlers) signedIn(w http.ResponseWriter, sess service.Session, keepTicket bool) {
+	if !sess.MFAPending() && !keepTicket {
+		h.clearSignInTicket(w)
 	}
 	h.sessionResponse(w, sess)
 }
@@ -128,6 +139,7 @@ func (h *handlers) logout(w http.ResponseWriter, r *http.Request) {
 		_ = h.Auth.Logout(r.Context(), c.Value)
 	}
 	h.setRefreshCookie(w, "", time.Unix(0, 0))
+	h.clearSignInTicket(w)
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

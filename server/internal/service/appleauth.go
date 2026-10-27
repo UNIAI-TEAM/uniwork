@@ -258,7 +258,7 @@ func (s *AppleAuthService) resolveLegacy(ctx context.Context, q *db.Queries, id 
 		u, err := createProviderUser(ctx, q, id, locale, true)
 		return legacyAppleAccount{user: u, how: "created"}, err
 	case identityReclaim:
-		r, err := reclaimAccount(ctx, q, res.user, id, s.mailer(), device)
+		r, err := reclaimAccount(ctx, q, res.user, id, s.mailer(), device, linkViaReclaim)
 		return legacyAppleAccount{user: r.user, how: "reclaim", reclaim: r, queued: r.queued}, err
 	case identityLink:
 		if res.user.MfaEnabledAt.Valid {
