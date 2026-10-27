@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -159,10 +160,16 @@ type Config struct {
 	// and .p8 key that sign the client secret Apple's token and revoke
 	// endpoints take. No audiences: the route answers 503 and
 	// /auth/providers reports apple=false.
-	AppleSignInAudiences          []string
-	AppleSignInTeamID             string
-	AppleSignInKeyID              string
-	AppleSignInPrivateKey         string
+	AppleSignInAudiences  []string
+	AppleSignInTeamID     string
+	AppleSignInKeyID      string
+	AppleSignInPrivateKey string
+	// Sign in with Apple on the web (ADR 0047 §7): the Services ID, grouped
+	// with the app's primary App ID so a person's subject is the same on both
+	// (APPLE_SIWA_WEB_CLIENT_ID). The web's identity tokens are issued to it
+	// alone, and its code exchange needs the client secret the key above
+	// signs: on only with both (AppleWebConfigured).
+	AppleSignInWebClientID        string
 	MicrosoftCalendarClientID     string
 	MicrosoftCalendarClientSecret string
 	// Email Hub signs in with its own OAuth clients, never the login or
@@ -294,6 +301,19 @@ func (c Config) AppleSignInEnabled() bool { return len(c.AppleSignInAudiences) >
 // sign-in keeps a refresh token and account deletion can revoke it.
 func (c Config) AppleRevokeConfigured() bool {
 	return c.AppleSignInTeamID != "" && c.AppleSignInKeyID != "" && c.AppleSignInPrivateKey != ""
+}
+
+// AppleWebConfigured: the Services ID and the key that signs its client
+// secret are both set. main.go turns the web's Sign in with Apple on only
+// once that key also parses.
+func (c Config) AppleWebConfigured() bool {
+	return c.AppleSignInWebClientID != "" && c.AppleRevokeConfigured()
+}
+
+// AppleWebRedirectURL is the return URL of Sign in with Apple on the web,
+// registered on the Services ID; Apple matches it byte for byte.
+func (c Config) AppleWebRedirectURL() string {
+	return strings.TrimRight(c.APIPublicURL, "/") + "/api/v1/auth/apple/callback"
 }
 
 func (c Config) GoogleRedirectURL() string {
@@ -503,6 +523,7 @@ func Load() (Config, error) {
 		AppleSignInTeamID:             os.Getenv("APPLE_SIWA_TEAM_ID"),
 		AppleSignInKeyID:              os.Getenv("APPLE_SIWA_KEY_ID"),
 		AppleSignInPrivateKey:         os.Getenv("APPLE_SIWA_PRIVATE_KEY"),
+		AppleSignInWebClientID:        strings.TrimSpace(os.Getenv("APPLE_SIWA_WEB_CLIENT_ID")),
 		MicrosoftCalendarClientID:     os.Getenv("MICROSOFT_CALENDAR_CLIENT_ID"),
 		MicrosoftCalendarClientSecret: os.Getenv("MICROSOFT_CALENDAR_CLIENT_SECRET"),
 		EmailHubGoogleClientID:        os.Getenv("EMAIL_HUB_GOOGLE_CLIENT_ID"),
@@ -558,6 +579,11 @@ func Load() (Config, error) {
 	}
 	if c.DatabaseURL == "" {
 		return c, fmt.Errorf("DATABASE_URL is required")
+	}
+	if c.AppleSignInWebClientID != "" && slices.Contains(c.AppleSignInAudiences, c.AppleSignInWebClientID) {
+		// The two doors verify tokens for different audiences (ADR 0047 §7):
+		// listed in both, a token the web was issued would open the app's.
+		return c, fmt.Errorf("APPLE_SIWA_WEB_CLIENT_ID %q must not be listed in APPLE_SIWA_AUDIENCES: the web and the app take tokens for different audiences", c.AppleSignInWebClientID)
 	}
 	if c.JWTSecret == "" {
 		return c, fmt.Errorf("JWT_SECRET is required")

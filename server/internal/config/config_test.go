@@ -22,7 +22,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("PREVIEW_ASSET_MAX_BYTES", "10485760")
 	// make check exports the app's .env; pin everything Load reads so a local
 	// value (API_PUBLIC_URL on another port, a dev code) cannot leak in.
-	for _, k := range []string{"APP_ENV", "EXPO_ACCESS_TOKEN", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK", "FOLDER_UPLOAD_MAX_FILES", "FOLDER_UPLOAD_MAX_BYTES", "APPLE_SIWA_AUDIENCES", "APPLE_SIWA_TEAM_ID", "APPLE_SIWA_KEY_ID", "APPLE_SIWA_PRIVATE_KEY", "APNS_KEY_ID", "APNS_TEAM_ID", "APNS_PRIVATE_KEY", "APNS_VOIP_TOPIC"} {
+	for _, k := range []string{"APP_ENV", "EXPO_ACCESS_TOKEN", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK", "FOLDER_UPLOAD_MAX_FILES", "FOLDER_UPLOAD_MAX_BYTES", "APPLE_SIWA_AUDIENCES", "APPLE_SIWA_TEAM_ID", "APPLE_SIWA_KEY_ID", "APPLE_SIWA_PRIVATE_KEY", "APPLE_SIWA_WEB_CLIENT_ID", "APNS_KEY_ID", "APNS_TEAM_ID", "APNS_PRIVATE_KEY", "APNS_VOIP_TOPIC"} {
 		t.Setenv(k, "")
 	}
 }
@@ -638,6 +638,45 @@ func TestAppleSettingsLoadAndStayOffWhenUnset(t *testing.T) {
 	}
 	if !c.AppleRevokeConfigured() || c.AppleSignInPrivateKey != pemText || c.APNSPrivateKey != pemText || c.APNSKeyID != "APNSKEY123" {
 		t.Fatalf("with the Secret: revoke %v, keys %q %q", c.AppleRevokeConfigured(), c.AppleSignInPrivateKey, c.APNSPrivateKey)
+	}
+}
+
+// Sign in with Apple on the web (ADR 0047 §7) needs the Services ID and the
+// key that signs its client secret: its code exchange cannot run without one.
+// Either alone leaves it off, and the server still starts. The Services ID is
+// never one of the app's audiences, or a token issued to the web would open
+// the app's door.
+func TestAppleWebNeedsTheServicesIDAndTheKey(t *testing.T) {
+	setRequired(t)
+	t.Setenv("API_PUBLIC_URL", "https://api.example.com/")
+	t.Setenv("APPLE_SIWA_WEB_CLIENT_ID", " com.uniworkos.web ")
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("the Services ID alone must still load: %v", err)
+	}
+	if c.AppleSignInWebClientID != "com.uniworkos.web" || c.AppleWebConfigured() {
+		t.Fatalf("Services ID without the key: %q configured %v", c.AppleSignInWebClientID, c.AppleWebConfigured())
+	}
+	if got := c.AppleWebRedirectURL(); got != "https://api.example.com/api/v1/auth/apple/callback" {
+		t.Fatalf("return URL = %q", got)
+	}
+
+	t.Setenv("APPLE_SIWA_TEAM_ID", "XJAM488A6D")
+	t.Setenv("APPLE_SIWA_KEY_ID", "SIWAKEY123")
+	t.Setenv("APPLE_SIWA_PRIVATE_KEY", "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n")
+	if c, err = Load(); err != nil || !c.AppleWebConfigured() || c.AppleSignInEnabled() {
+		t.Fatalf("Services ID and key: configured %v, native %v, %v", c.AppleWebConfigured(), c.AppleSignInEnabled(), err)
+	}
+
+	t.Setenv("APPLE_SIWA_WEB_CLIENT_ID", "")
+	if c, err = Load(); err != nil || c.AppleWebConfigured() {
+		t.Fatalf("the key without a Services ID: configured %v, %v", c.AppleWebConfigured(), err)
+	}
+
+	t.Setenv("APPLE_SIWA_WEB_CLIENT_ID", "com.uniworkos.web")
+	t.Setenv("APPLE_SIWA_AUDIENCES", "com.uniworkos.chat,com.uniworkos.web")
+	if _, err = Load(); err == nil || !strings.Contains(err.Error(), "APPLE_SIWA_AUDIENCES") {
+		t.Fatalf("the Services ID among the app's audiences: %v", err)
 	}
 }
 

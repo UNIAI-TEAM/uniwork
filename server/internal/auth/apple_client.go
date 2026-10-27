@@ -60,7 +60,8 @@ func NewAppleClient(teamID, keyID, privateKeyPEM, baseURL string) (*AppleClient,
 }
 
 // clientSecret is the JWT Apple takes as client_secret for clientID (the
-// bundle id the identity token was issued to). Short-lived: one per call.
+// bundle id or the web's Services ID the identity token was issued to).
+// Short-lived: one per call.
 func (c *AppleClient) clientSecret(clientID string) (string, error) {
 	now := c.now()
 	tok := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.RegisteredClaims{
@@ -129,6 +130,56 @@ func (c *AppleClient) RefreshTokenForCode(ctx context.Context, clientID, code st
 		return "", AppleClientError{Op: "token", Status: resp.StatusCode, Code: "no_refresh_token"}
 	}
 	return out.RefreshToken, nil
+}
+
+// AppleWebTokens is what Apple's token endpoint answers a web authorization
+// code with: the identity token to verify, and the refresh token tied to the
+// person's consent (empty when Apple sent none).
+type AppleWebTokens struct {
+	IDToken      string
+	RefreshToken string
+}
+
+// ExchangeWebCode redeems the authorization code Apple posted to the web's
+// return URL (valid five minutes, once) for clientID, the Services ID (ADR
+// 0047 §7). Unlike a native code, a web code was issued for a redirect_uri,
+// and Apple refuses the exchange unless it names that very URI again.
+func (c *AppleClient) ExchangeWebCode(ctx context.Context, clientID, code, redirectURI string) (AppleWebTokens, error) {
+	secret, err := c.clientSecret(clientID)
+	if err != nil {
+		return AppleWebTokens{}, err
+	}
+	resp, err := c.post(ctx, "token", "/auth/token", url.Values{
+		"client_id": {clientID}, "client_secret": {secret},
+		"code": {code}, "grant_type": {"authorization_code"}, "redirect_uri": {redirectURI},
+	})
+	if err != nil {
+		return AppleWebTokens{}, err
+	}
+	defer resp.Body.Close()
+	var out struct {
+		IDToken      string `json:"id_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil || out.IDToken == "" {
+		return AppleWebTokens{}, AppleClientError{Op: "token", Status: resp.StatusCode, Code: "no_id_token"}
+	}
+	return AppleWebTokens{IDToken: out.IDToken, RefreshToken: out.RefreshToken}, nil
+}
+
+// AppleWebAuthorizeURL is where a browser starts Sign in with Apple on the
+// web (ADR 0047 §7): Apple asks for the name and the address (scope), which
+// it answers only as a form POST to redirectURI (response_mode=form_post),
+// and puts nonceHash in the identity token. issuer is AppleIssuer outside
+// tests.
+func AppleWebAuthorizeURL(issuer, clientID, redirectURI, state, nonceHash string) string {
+	q := url.Values{
+		"response_type": {"code"}, "response_mode": {"form_post"}, "client_id": {clientID},
+		"redirect_uri": {redirectURI}, "scope": {"name email"}, "state": {state}, "nonce": {nonceHash},
+	}
+	// Encode writes a space as '+' and a literal '+' as %2B; Apple's own
+	// examples write the scope's space as %20.
+	return strings.TrimRight(issuer, "/") + "/auth/authorize?" + strings.ReplaceAll(q.Encode(), "+", "%20")
 }
 
 // Revoke tells Apple the refresh token, and with it the person's consent for

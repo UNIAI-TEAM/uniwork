@@ -285,3 +285,99 @@ func TestAppleClientReportsAnAnswerWithoutRefreshToken(t *testing.T) {
 		t.Fatal("an unreachable Apple must be an error")
 	}
 }
+
+// A web authorization code was issued for the return URL, and Apple refuses
+// the exchange unless it names that URI again (ADR 0047 §7): the form carries
+// redirect_uri and a client secret signed for the Services ID; the answer is
+// the identity token to verify and the refresh token to keep.
+func TestAppleClientExchangesAWebCodeForItsReturnURL(t *testing.T) {
+	p8, key := testP8(t)
+	var form url.Values
+	answer := `{"access_token":"a","refresh_token":"r-web","id_token":"id.token.web"}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		form = r.PostForm
+		if _, err := jwt.Parse(r.PostForm.Get("client_secret"), func(*jwt.Token) (any, error) { return &key.PublicKey, nil },
+			jwt.WithValidMethods([]string{"ES256"}), jwt.WithSubject("com.uniworkos.web")); err != nil {
+			t.Errorf("the client secret is signed for the Services ID: %v", err)
+		}
+		if r.URL.Path != "/auth/token" || r.PostForm.Get("code") != "web-code" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+			return
+		}
+		_, _ = w.Write([]byte(answer))
+	}))
+	defer srv.Close()
+	c, err := NewAppleClient("XJAM488A6D", "KEY123", p8, srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const back = "https://api.example.com/api/v1/auth/apple/callback"
+	got, err := c.ExchangeWebCode(context.Background(), "com.uniworkos.web", "web-code", back)
+	if err != nil || got != (AppleWebTokens{IDToken: "id.token.web", RefreshToken: "r-web"}) {
+		t.Fatalf("tokens = %+v err = %v", got, err)
+	}
+	if form.Get("redirect_uri") != back || form.Get("grant_type") != "authorization_code" || form.Get("client_id") != "com.uniworkos.web" {
+		t.Fatalf("token form = %v", form)
+	}
+	_, err = c.ExchangeWebCode(context.Background(), "com.uniworkos.web", "spent-code", back)
+	var ce AppleClientError
+	if !errors.As(err, &ce) || ce.Code != "invalid_grant" || strings.Contains(err.Error(), "spent-code") {
+		t.Fatalf("bad code: %v", err)
+	}
+	// An answer without an identity token proves no one.
+	answer = `{"access_token":"a","refresh_token":"r"}`
+	if _, err = c.ExchangeWebCode(context.Background(), "com.uniworkos.web", "web-code", back); !errors.As(err, &ce) || ce.Code != "no_id_token" {
+		t.Fatalf("no id_token: %v", err)
+	}
+	// A refresh token is best effort: its absence is not a failure.
+	answer = `{"id_token":"id.only"}`
+	if got, err = c.ExchangeWebCode(context.Background(), "com.uniworkos.web", "web-code", back); err != nil || got.RefreshToken != "" || got.IDToken != "id.only" {
+		t.Fatalf("no refresh token: %+v %v", got, err)
+	}
+}
+
+// The authorize URL asks for the name and the address, answered as a form
+// POST to the return URL, with the nonce's hash, never the raw nonce.
+func TestAppleWebAuthorizeURLAsksForAFormPost(t *testing.T) {
+	raw := AppleWebAuthorizeURL(AppleIssuer+"/", "com.uniworkos.web", "https://api.example.com/api/v1/auth/apple/callback", "st+te", AppleNonceHash("raw"))
+	if !strings.HasPrefix(raw, "https://appleid.apple.com/auth/authorize?") || !strings.Contains(raw, "scope=name%20email") {
+		t.Fatalf("url = %s", raw)
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := u.Query()
+	if q.Get("response_type") != "code" || q.Get("response_mode") != "form_post" || q.Get("client_id") != "com.uniworkos.web" ||
+		q.Get("redirect_uri") != "https://api.example.com/api/v1/auth/apple/callback" || q.Get("scope") != "name email" ||
+		q.Get("state") != "st+te" || q.Get("nonce") != AppleNonceHash("raw") {
+		t.Fatalf("query = %v", q)
+	}
+}
+
+// The app's verifier takes its bundle ids and the web's only the Services ID
+// (ADR 0047 §7): a token issued to one door is refused at the other.
+func TestAppleVerifiersOfTheTwoDoorsRefuseEachOthersTokens(t *testing.T) {
+	keys := newAppleTestKeys(t)
+	native := NewAppleVerifier(AppleIssuer, keys.srv.URL, []string{"com.uniworkos.chat"}, nil)
+	web := NewAppleVerifier(AppleIssuer, keys.srv.URL, []string{"com.uniworkos.web"}, nil)
+	app := keys.sign(t, appleClaims("n", nil))
+	site := keys.sign(t, appleClaims("n", func(c jwt.MapClaims) { c["aud"] = "com.uniworkos.web" }))
+	if c, err := native.Verify(context.Background(), app, "n"); err != nil || c.Audience != "com.uniworkos.chat" {
+		t.Fatalf("app token at the app's door: %+v %v", c, err)
+	}
+	if c, err := web.Verify(context.Background(), site, "n"); err != nil || c.Audience != "com.uniworkos.web" {
+		t.Fatalf("web token at the web's door: %+v %v", c, err)
+	}
+	for name, try := range map[string]func() error{
+		"web token at the app's door": func() error { _, err := native.Verify(context.Background(), site, "n"); return err },
+		"app token at the web's door": func() error { _, err := web.Verify(context.Background(), app, "n"); return err },
+	} {
+		var te AppleTokenError
+		if err := try(); !errors.As(err, &te) || te.Reason != "audience" {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+}
