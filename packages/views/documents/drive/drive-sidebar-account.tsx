@@ -15,7 +15,7 @@ import {
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DOCUMENTS_NAV_ICONS } from "../documents-nav-icons";
-import { treeIconLeft, treeRowPaddingLeft } from "../document-tree-indent";
+import { treeIconLeft, treeNameLeft, treeRowPaddingLeft } from "../document-tree-indent";
 import { driveFolderLabel, driveFolderShortLabel } from "./drive-folder-label";
 import type { DriveConnectionSummary } from "./use-drive-library-connections";
 
@@ -25,6 +25,7 @@ import type { DriveConnectionSummary } from "./use-drive-library-connections";
 const DRIVE_TREE_DEPTH = 1;
 const DRIVE_ACCOUNT_PADDING_LEFT = treeRowPaddingLeft(DRIVE_TREE_DEPTH);
 const DRIVE_FOLDER_PADDING_LEFT = treeIconLeft(DRIVE_TREE_DEPTH);
+const DRIVE_FOLDER_NAME_LEFT = treeNameLeft(DRIVE_TREE_DEPTH);
 
 const COUNT_CLASS = "ml-auto shrink-0 font-mono text-caption tabular-nums text-muted-foreground";
 const ROW_CLASS =
@@ -172,12 +173,14 @@ export function DriveSidebarAccount({
             style={{ paddingLeft: `${DRIVE_FOLDER_PADDING_LEFT}px` }}
             className="flex min-h-9 items-center gap-2 pr-2 text-caption text-muted-foreground"
           >
-            <Spinner aria-hidden role="presentation" />
+            <span aria-hidden className="flex size-5 shrink-0 items-center justify-center">
+              <Spinner aria-hidden role="presentation" />
+            </span>
             {t("driveLibrary.sidebar.folders_loading")}
           </div>
         ) : null}
         {expanded && folders.isError ? (
-          <p role="alert" style={{ paddingLeft: `${DRIVE_FOLDER_PADDING_LEFT}px` }} className="pr-2 py-1.5 text-caption text-destructive">
+          <p role="alert" style={{ paddingLeft: `${DRIVE_FOLDER_NAME_LEFT}px` }} className="pr-2 py-1.5 text-caption text-destructive">
             {t("driveLibrary.sidebar.folders_error")}
           </p>
         ) : null}

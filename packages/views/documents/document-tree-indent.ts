@@ -13,6 +13,7 @@ export function treeRowPaddingLeft(depth: number): number {
 const TREE_CHEVRON_SLOT = 16;
 const TREE_CHEVRON_PULL = 4;
 const TREE_ROW_GAP = 8;
+const TREE_ICON_BOX = 20;
 
 /**
  * Left edge of the icon box of a tree row at `depth`, from the row's own
@@ -22,4 +23,13 @@ const TREE_ROW_GAP = 8;
  */
 export function treeIconLeft(depth: number): number {
   return treeRowPaddingLeft(depth) + TREE_CHEVRON_SLOT - TREE_CHEVRON_PULL + TREE_ROW_GAP;
+}
+
+/**
+ * Left edge of the name of a tree row at `depth`: the icon box plus the row gap
+ * after `treeIconLeft`. A Drive folder row's name, and the loading and error
+ * text under an account, start here.
+ */
+export function treeNameLeft(depth: number): number {
+  return treeIconLeft(depth) + TREE_ICON_BOX + TREE_ROW_GAP;
 }

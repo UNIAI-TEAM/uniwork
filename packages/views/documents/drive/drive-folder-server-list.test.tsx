@@ -248,9 +248,24 @@ describe("folder tree from the server list", () => {
     await screen.findByRole("button", { name: /Drive: uni-work1@gmail\.com/ });
     expandAccount();
 
-    expect(await screen.findByText(t("driveLibrary.sidebar.folders_error"))).toBeInTheDocument();
+    const error = await screen.findByText(t("driveLibrary.sidebar.folders_error"));
+    expect(error).toBeInTheDocument();
+    // The error text starts on the folder-name column (76px in the row), not the icon column (48px).
+    expect(error).toHaveStyle({ paddingLeft: "76px" });
     expect(screen.queryByRole("button", { name: /Dự án Beta/ })).toBeNull();
     expect(filesOfAccount()).toHaveLength(0);
+  });
+
+  it("the loading row keeps its spinner on the icon column and its text on the folder-name column", async () => {
+    serve({ folders: () => new Promise(() => {}) });
+    renderDocuments(DRIVE_HOME);
+    await screen.findByRole("button", { name: /Drive: uni-work1@gmail\.com/ });
+    expandAccount();
+
+    const row = await screen.findByRole("status");
+    expect(row).toHaveStyle({ paddingLeft: "48px" });
+    // 20px icon slot + 8px gap puts the text at 76px, the name column of a folder row.
+    expect(row.firstElementChild).toHaveClass("size-5", "shrink-0");
   });
 
   it("an empty list is a valid answer and shows no folders", async () => {
