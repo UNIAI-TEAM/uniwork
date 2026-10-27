@@ -1,0 +1,4 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; pnpm --filter @uniwork/views exec vitest run documents/folder-contents-access-dialog.test.tsx > /tmp/ow-fca.log 2>&1; rc=$?; grep -E "FAIL|AssertionError|Expected|Received|Unable to find|timed out|Tests  " /tmp/ow-fca.log | head -40; echo; echo "FCA_EXIT=$rc"; [ $rc -eq 0 ]
+      Tests  26 passed (26)
+
+FCA_EXIT=0

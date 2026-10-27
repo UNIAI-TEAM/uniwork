@@ -1,0 +1,5 @@
+$ export NODE_OPTIONS=--max-old-space-size=6144; NEXT_PUBLIC_API_URL=http://localhost:18700 NEXT_PUBLIC_WS_URL=ws://localhost:18700 NEXT_PUBLIC_APP_URL=http://localhost:3000 pnpm --filter @uniwork/web build > /tmp/tt-build.log 2>&1; rc=$?; grep -E "Failed|Error|error|Compiled|Route \(app\)" /tmp/tt-build.log | head -30; echo; echo "WEB_BUILD_EXIT=$rc"; [ $rc -eq 0 ]
+✓ Compiled successfully in 34.6s
+Route (app)
+
+WEB_BUILD_EXIT=0
