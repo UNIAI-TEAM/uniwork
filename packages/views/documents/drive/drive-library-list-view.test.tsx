@@ -711,6 +711,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
 
     requestMock.mockImplementation((path: string) => {
       if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path.startsWith(`/api/v1/workspaces/${WS}/drive-folders`)) return Promise.resolve({ folders: [] });
       if (path.startsWith(DRIVE_LIST_URL)) {
         return Promise.resolve({
           files: [driveFile({ id: "df1", name: "Tệp của conn2", connection_id: "conn2" })],
@@ -745,7 +746,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
       requestMock.mock.calls.filter(([p]) => String(p).startsWith(DRIVE_LIST_URL)),
     ).toHaveLength(0);
 
-    // Once connections resolve, query fires with connection_id=conn2 and header renders account title
+    // Once connections resolve, the account's files without a folder are asked for with connection_id=conn2 and the header renders the account title
     connSpy.mockReturnValue({
       connections,
       isLoading: false,
@@ -763,7 +764,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     );
     expect(accountListCalls).toHaveLength(1);
     expect(accountListCalls[0]?.[0]).toBe(
-      `/api/v1/workspaces/${WS}/drive-files?connection_id=conn2&limit=50`,
+      `/api/v1/workspaces/${WS}/drive-files?connection_id=conn2&drive_folder_id=none&limit=50`,
     );
 
     connSpy.mockRestore();
@@ -972,6 +973,7 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
           app_id: "app-id",
         });
       }
+      if (path.startsWith(`/api/v1/workspaces/${WS}/drive-folders`)) return Promise.resolve({ folders: [] });
       if (path === DRIVE_LIST_URL && init?.method === "POST") {
         linked = true;
         return Promise.resolve({

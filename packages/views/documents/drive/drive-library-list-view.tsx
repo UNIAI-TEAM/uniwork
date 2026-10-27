@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CircleAlert, FolderOpen, Pencil, Plus, RefreshCw, Search, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDriveFiles } from "@uniwork/core/drive-library";
-import { driveFilesInFolder } from "@uniwork/core/drive-library/folders";
 import { useDriveAccountFolders } from "@uniwork/core/drive-library/use-account-folders";
 import {
   DRIVE_ACCOUNT_PARAM,
@@ -227,31 +226,48 @@ function DriveLibraryListBody({
   // The node on show: the Google Drive root (all accounts), one account (folder rows, then the
   // files without a folder) or one folder of it. An unknown folder id falls back to the account.
   const selectedFolder = accountScoped && folderId ? account.folders.find((f) => f.id === folderId) ?? null : null;
-  const folderResolving = accountScoped && Boolean(folderId) && !selectedFolder && !account.foldersComplete;
   const nodeFolders = accountScoped && !selectedFolder ? account.folders : [];
-  const nodeFiles = !accountScoped
-    ? rootQuery.data?.pages.flatMap((p) => p.files) ?? []
-    : selectedFolder
-      ? driveFilesInFolder(account.files, selectedFolder.id)
-      : account.unfiled;
-  // The folder list can be known before the files of its pages have arrived: an empty node is not "empty" yet.
-  const filesArriving =
-    accountScoped && account.isLoadingMore && nodeFiles.length === 0 && (selectedFolder !== null || nodeFolders.length === 0);
+  // The node's files come from the server's folder filter: the folder's own files, or `none` (the
+  // account's files without a known parent). It waits for the folder list so an unknown folder id
+  // never fires a query of its own.
+  const foldersReady = accountScoped && !account.isPending && !account.isError;
+  const nodeQuery = useDriveFiles(wsId, {
+    connectionId: effectiveAccountId,
+    driveFolderId: selectedFolder ? selectedFolder.id : "none",
+    enabled: !waitForConnections && foldersReady,
+  });
+  const nodeFiles = (accountScoped ? nodeQuery : rootQuery).data?.pages.flatMap((p) => p.files) ?? [];
   const isPending =
-    waitForConnections || folderResolving || filesArriving || (accountScoped ? account.isPending : rootQuery.isPending);
-  const isError = accountScoped ? account.isError && account.files.length === 0 : rootQuery.isError && nodeFiles.length === 0;
-  const refetch = accountScoped ? account.refetch : () => void rootQuery.refetch();
+    waitForConnections || (accountScoped ? account.isPending || (foldersReady && nodeQuery.isPending) : rootQuery.isPending);
+  const isError = accountScoped
+    ? account.isError || (nodeQuery.isError && nodeFiles.length === 0)
+    : rootQuery.isError && nodeFiles.length === 0;
+  const refetch = () => {
+    if (!accountScoped) void rootQuery.refetch();
+    else if (account.isError) account.refetch();
+    else void nodeQuery.refetch();
+  };
 
   const nodeKey = `${effectiveAccountId ?? ""}|${selectedFolder?.id ?? ""}`;
   const [searchState, setSearchState] = useState({ key: nodeKey, text: "" });
   const search = searchState.key === nodeKey ? searchState.text : "";
   const foldedSearch = fold(search);
-  // Account view with a query: flat search over every file of the account, folder rows hidden.
+  // Account view with a query: flat search over the files of the whole account (its own list, paged
+  // with Load more), folder rows hidden. The query only runs while a search is typed.
   const flatAccountSearch = foldedSearch !== "" && accountScoped && !selectedFolder;
+  const accountSearchQuery = useDriveFiles(wsId, {
+    connectionId: effectiveAccountId,
+    enabled: !waitForConnections && flatAccountSearch,
+  });
+  const accountSearchFiles = accountSearchQuery.data?.pages.flatMap((p) => p.files) ?? [];
+  const searchLoading = flatAccountSearch && accountSearchQuery.isPending;
+  const searchFailed = flatAccountSearch && accountSearchQuery.isError && accountSearchFiles.length === 0;
   const shownFolders = flatAccountSearch ? [] : nodeFolders;
-  const searchedFiles = flatAccountSearch ? account.files : nodeFiles;
+  const searchedFiles = flatAccountSearch ? accountSearchFiles : nodeFiles;
   const shownFiles = foldedSearch ? searchedFiles.filter((f) => fold(f.name).includes(foldedSearch)) : nodeFiles;
   const nodeEmpty = nodeFolders.length === 0 && nodeFiles.length === 0;
+  // The list whose next page the Load more control fetches.
+  const pager = flatAccountSearch ? accountSearchQuery : accountScoped ? nodeQuery : rootQuery;
 
   // §7.11: `?pick=1` only moves focus to the "Thêm từ…" button, then is removed with `replace`.
   // It never opens the Picker automatically.
@@ -269,9 +285,9 @@ function DriveLibraryListBody({
   // request the desktop app hands off with. The request is dropped from the URL once it was looked at,
   // so the Picker opens at most once.
   const { request: nameRequest, launch: launchName } = useNameFolderLauncher();
-  const canNameFolder = selectedFolder !== null && selectedFolder.name === null && !brokenAccount && account.serverList;
+  const canNameFolder = selectedFolder !== null && selectedFolder.name === null && !brokenAccount;
   const nameRequested = parseDriveNameFolderRequest(searchParams);
-  const nameSettled = !waitForConnections && (!accountScoped || account.isError || (!account.isPending && account.foldersComplete));
+  const nameSettled = !waitForConnections && (!accountScoped || account.isError || !account.isPending);
   const nameHandledRef = useRef(false);
   useEffect(() => {
     if (!nameRequested) {
@@ -327,6 +343,22 @@ function DriveLibraryListBody({
   );
 
   const connectionById = new Map(connections.map((c) => [c.id, c]));
+
+  const errorState = (onRetry: () => void) => (
+    <CollectionPageState
+      icon={CircleAlert}
+      tone="destructive"
+      role="alert"
+      title={t("driveLibrary.list.error_title")}
+      description={t("driveLibrary.list.error_description")}
+      actions={
+        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+          <RefreshCw aria-hidden className="size-3.5" />
+          {t("driveLibrary.list.retry")}
+        </Button>
+      }
+    />
+  );
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
@@ -405,19 +437,7 @@ function DriveLibraryListBody({
       {isPending ? (
         <DriveLibraryLoadingTable />
       ) : isError ? (
-        <CollectionPageState
-          icon={CircleAlert}
-          tone="destructive"
-          role="alert"
-          title={t("driveLibrary.list.error_title")}
-          description={t("driveLibrary.list.error_description")}
-          actions={
-            <Button type="button" variant="outline" size="sm" onClick={refetch}>
-              <RefreshCw aria-hidden className="size-3.5" />
-              {t("driveLibrary.list.retry")}
-            </Button>
-          }
-        />
+        errorState(refetch)
       ) : nodeEmpty ? (
         <CollectionPageState
           icon={FolderOpen}
@@ -441,7 +461,11 @@ function DriveLibraryListBody({
       ) : (
         <>
           <DriveLibrarySearch value={search} onChange={(text) => setSearchState({ key: nodeKey, text })} />
-          {shownFolders.length === 0 && shownFiles.length === 0 ? (
+          {searchLoading ? (
+            <DriveLibraryLoadingTable />
+          ) : searchFailed ? (
+            errorState(() => void accountSearchQuery.refetch())
+          ) : shownFolders.length === 0 && shownFiles.length === 0 ? (
             <CollectionPageState
               icon={Search}
               title={t("driveLibrary.list.no_results_title")}
@@ -458,34 +482,29 @@ function DriveLibraryListBody({
             />
           )}
 
-          {(accountScoped ? account.isLoadMoreError : rootQuery.isFetchNextPageError) ? (
+          {pager.isFetchNextPageError ? (
             <div
               role="alert"
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-caption text-destructive"
             >
               <span>{t("driveLibrary.list.error_title")}</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => (accountScoped ? account.retryLoadMore() : void rootQuery.fetchNextPage())}
-              >
+              <Button type="button" variant="outline" size="sm" onClick={() => void pager.fetchNextPage()}>
                 <RefreshCw aria-hidden className="size-3.5" />
                 {t("driveLibrary.list.retry")}
               </Button>
             </div>
-          ) : !accountScoped && rootQuery.hasNextPage ? (
+          ) : pager.hasNextPage ? (
             <div className="flex justify-center">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={rootQuery.isFetchingNextPage}
-                aria-busy={rootQuery.isFetchingNextPage || undefined}
-                onClick={() => void rootQuery.fetchNextPage()}
+                disabled={pager.isFetchingNextPage}
+                aria-busy={pager.isFetchingNextPage || undefined}
+                onClick={() => void pager.fetchNextPage()}
               >
-                {rootQuery.isFetchingNextPage ? <Spinner aria-hidden role="presentation" /> : null}
-                {t(rootQuery.isFetchingNextPage ? "driveLibrary.list.loading_more" : "driveLibrary.list.load_more")}
+                {pager.isFetchingNextPage ? <Spinner aria-hidden role="presentation" /> : null}
+                {t(pager.isFetchingNextPage ? "driveLibrary.list.loading_more" : "driveLibrary.list.load_more")}
               </Button>
             </div>
           ) : null}
