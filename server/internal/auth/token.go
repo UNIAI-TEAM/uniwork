@@ -100,12 +100,16 @@ func (m TokenMinter) ParseSession(token string) (userID, sessionID string, err e
 type AccessToken struct {
 	UserID, SessionID string
 	Web               bool
-	ExpiresAt         time.Time
+	// IssuedAt is the token's iat, at its one-second precision: a sensitive
+	// command refuses a browser token issued before the account's
+	// credentials_revoked_at (ADR 0047).
+	IssuedAt  time.Time
+	ExpiresAt time.Time
 }
 
 // ParseAccessToken returns what a verified access token says: user, session,
-// the browser-session mark and the expiry (for a holder that outlives one
-// request, a WebSocket).
+// the browser-session mark, when it was issued and its expiry (for a holder
+// that outlives one request, a WebSocket).
 func (m TokenMinter) ParseAccessToken(token string) (AccessToken, error) {
 	claims, err := m.parse(token)
 	if err != nil {
@@ -115,6 +119,9 @@ func (m TokenMinter) ParseAccessToken(token string) (AccessToken, error) {
 		return AccessToken{}, fmt.Errorf("not an access token")
 	}
 	at := AccessToken{UserID: claims.Subject, SessionID: claims.ID, Web: claims.Web}
+	if claims.IssuedAt != nil {
+		at.IssuedAt = claims.IssuedAt.Time
+	}
 	if claims.ExpiresAt != nil {
 		at.ExpiresAt = claims.ExpiresAt.Time
 	}

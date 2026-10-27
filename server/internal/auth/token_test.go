@@ -76,3 +76,18 @@ func TestMFATokenNeverPassesAsAccessToken(t *testing.T) {
 		t.Fatalf("ParseSession: %q %q %v", uid, sid, err)
 	}
 }
+
+// The access token carries its iat, which the credentials_revoked_at gate
+// compares at one-second precision.
+func TestAccessTokenCarriesItsIssuedAt(t *testing.T) {
+	m := TokenMinter{Secret: []byte("test-secret"), TTL: time.Minute}
+	before := time.Now().Truncate(time.Second)
+	tok, err := m.MintWebSession("u1", "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at, err := m.ParseAccessToken(tok)
+	if err != nil || at.IssuedAt.Before(before) || at.IssuedAt.After(time.Now()) || !at.IssuedAt.Equal(at.IssuedAt.Truncate(time.Second)) {
+		t.Fatalf("IssuedAt = %v (minted after %v) %v", at.IssuedAt, before, err)
+	}
+}

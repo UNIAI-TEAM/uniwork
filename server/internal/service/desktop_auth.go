@@ -219,9 +219,16 @@ func (s *DesktopAuthService) Consent(ctx context.Context, userID, attemptID stri
 		Build: row.Build, CSRFToken: raw}, nil
 }
 
+// Approve issues the one-time code for an attempt the caller claimed. A
+// browser token older than the account's last credential change is refused
+// (requireCurrentCredentials): approving opens a device session, which is
+// exactly what a reclaimed account's previous holder must not get.
 func (s *DesktopAuthService) Approve(ctx context.Context, userID, attemptID, csrf string) (string, string, error) {
 	if userID == "" || attemptID == "" || csrf == "" {
 		return "", "", desktopCSRFError()
+	}
+	if err := requireCurrentCredentials(ctx, s.q); err != nil {
+		return "", "", err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

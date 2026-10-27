@@ -203,8 +203,12 @@ func (s *McpAuthService) flag(ctx context.Context, key, userID, orgID string) bo
 // Approve records the person's consent for one organization and issues the
 // authorization code. The grant, the code and the audit row commit together.
 // write is the person's tick; it only counts when the app asked for write and
-// the organization allows it.
+// the organization allows it. A browser token older than the account's last
+// credential change is refused first (requireCurrentCredentials, ADR 0047).
 func (s *McpAuthService) Approve(ctx context.Context, userID, attemptID, csrf, organizationID string, write bool) (string, error) {
+	if err := requireCurrentCredentials(ctx, s.q); err != nil {
+		return "", err
+	}
 	if _, err := s.orgs.RequireMember(ctx, organizationID, userID); err != nil {
 		return "", err
 	}

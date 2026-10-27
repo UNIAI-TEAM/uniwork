@@ -97,3 +97,38 @@ func TestRequireAuthWithDeviceSkipsTheLookupForWebSessions(t *testing.T) {
 		t.Fatalf("checker called=%v status=%d sid=%q, want false 200 sess-1", called, rec.Code, gotSID)
 	}
 }
+
+// Both bearer middlewares put the verified token on the context, iat and the
+// browser mark included, so a sensitive command can refuse a browser token
+// older than the account's credentials_revoked_at without a read per
+// request (ADR 0047).
+func TestBearerMiddlewaresPutTheAccessTokenOnTheContext(t *testing.T) {
+	minter := auth.TokenMinter{Secret: []byte("test-secret"), TTL: time.Minute}
+	web, err := minter.MintWebSession("user-1", "sess-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	device, err := minter.MintSession("user-1", "device-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := func(context.Context, string, string) error { return nil }
+	for name, mw := range map[string]func(http.Handler) http.Handler{
+		"RequireAuth":           RequireAuth(minter),
+		"RequireAuthWithDevice": RequireAuthWithDevice(minter, live),
+	} {
+		for token, wantWeb := range map[string]bool{web: true, device: false} {
+			var got auth.AccessToken
+			var ok bool
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				got, ok = auth.AccessTokenFrom(r.Context())
+			})
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			mw(next).ServeHTTP(httptest.NewRecorder(), req)
+			if !ok || got.UserID != "user-1" || got.Web != wantWeb || got.IssuedAt.IsZero() {
+				t.Fatalf("%s web=%v: token on the context = %+v %v", name, wantWeb, got, ok)
+			}
+		}
+	}
+}
