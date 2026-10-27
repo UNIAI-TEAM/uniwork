@@ -24,8 +24,8 @@ import {
  * - Web build: `NEXT_PUBLIC_DRIVE_FAKE_PICKER=1` baked at `next build`.
  */
 test.describe.configure({ timeout: 240_000 });
-// Flip to true when drive-be serves Drive content offline under DRIVE_FAKE_PROVIDER=1 (export/download fake).
-const DRIVE_CONTENT_FAKE_ON_ROOT = false;
+// The offline Drive content fake (DRIVE_FAKE_PROVIDER=1, UNI-2198 sub) is on the root: Part 2 runs.
+const DRIVE_CONTENT_FAKE_ON_ROOT = true;
 const DRIVE_CONTENT_FAKE_REASON =
   "Missing offline fake for driveExportFile / driveDownloadMedia under DRIVE_FAKE_PROVIDER=1 (server/internal/service/drive_api.go:453-471, owner drive-be)";
 // Drive-be's fake files.get (DRIVE_FAKE_PROVIDER=1) echoes the external id as the file name; change here if its fake changes.
