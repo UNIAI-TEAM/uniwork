@@ -54,13 +54,18 @@ type TrashItem struct {
 	CanManage bool
 }
 
-// ListTrashInput is one page request: Kind empty lists every kind. The same
-// Kind and Filter must accompany every page of one list.
+// ListTrashInput is one page request: Kinds empty lists every kind, otherwise
+// only the kinds named are read. The same Kinds and Filter must accompany
+// every page of one list.
 type ListTrashInput struct {
-	Kind   TrashKind
+	Kinds  []TrashKind
 	Filter TrashFilter
 	Cursor string
 }
+
+// trashMaxDeleters bounds Filter.TrashedBy: a workspace's people fit, and the
+// query parameter stays short.
+const trashMaxDeleters = 100
 
 // TrashService reads the shared trash.
 type TrashService struct {
@@ -138,8 +143,18 @@ func (s *TrashService) List(ctx context.Context, actor Actor, workspaceID string
 	if err != nil {
 		return TrashPage[TrashItem]{}, err
 	}
-	if in.Kind != "" && !slices.Contains(trashKinds, in.Kind) {
-		return TrashPage[TrashItem]{}, coded(http.StatusBadRequest, "invalid_filter", "kind phải là task, project hoặc document")
+	for _, k := range in.Kinds {
+		if !slices.Contains(trashKinds, k) {
+			return TrashPage[TrashItem]{}, coded(http.StatusBadRequest, "invalid_filter", "kind phải là task, project hoặc document")
+		}
+	}
+	if len(in.Filter.TrashedBy) > trashMaxDeleters {
+		return TrashPage[TrashItem]{}, coded(http.StatusBadRequest, "invalid_filter", "trashed_by có tối đa 100 người")
+	}
+	for _, id := range in.Filter.TrashedBy {
+		if strings.TrimSpace(id) == "" {
+			return TrashPage[TrashItem]{}, coded(http.StatusBadRequest, "invalid_filter", "trashed_by không được rỗng")
+		}
 	}
 	cur, err := decodeTrashCursor(in.Cursor)
 	if err != nil {
@@ -150,7 +165,7 @@ func (s *TrashService) List(ctx context.Context, actor Actor, workspaceID string
 	docsOn := s.docs != nil && documentsFlagOn(ctx, s.flags, actor.ID, view.OrganizationID)
 	var srcs []trashSourcePage
 	for _, k := range trashKinds {
-		if (in.Kind != "" && k != in.Kind) || (k == TrashKindDocument && !docsOn) || slices.Contains(cur.Done, k) {
+		if (len(in.Kinds) > 0 && !slices.Contains(in.Kinds, k)) || (k == TrashKindDocument && !docsOn) || slices.Contains(cur.Done, k) {
 			continue
 		}
 		src, err := s.read(ctx, actor, view, k, in.Filter, *cur.of(k))

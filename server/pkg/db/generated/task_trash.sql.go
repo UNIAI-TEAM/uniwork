@@ -244,7 +244,7 @@ WHERE organization_id = $1
   AND ($3::timestamptz IS NULL
        OR (trashed_at, id) < ($3, $4::text))
   AND ($5::text IS NULL OR uw_fold_search(title) ILIKE '%' || $5 || '%')
-  AND ($6::text IS NULL OR trashed_by = $6)
+  AND (COALESCE(cardinality($6::text[]), 0) = 0 OR trashed_by = ANY($6::text[]))
 ORDER BY trashed_at DESC, id DESC
 LIMIT $7
 `
@@ -255,7 +255,7 @@ type ListProjectTrashPageParams struct {
 	BeforeTrashedAt pgtype.Timestamptz `json:"before_trashed_at"`
 	BeforeID        pgtype.Text        `json:"before_id"`
 	Query           pgtype.Text        `json:"query"`
-	TrashedBy       pgtype.Text        `json:"trashed_by"`
+	TrashedBy       []string           `json:"trashed_by"`
 	MaxRows         int32              `json:"max_rows"`
 }
 
@@ -385,7 +385,7 @@ WITH RECURSIVE page AS (
     AND ($3::timestamptz IS NULL
          OR (t.trashed_at, t.id) < ($3, $4::text))
     AND ($5::text IS NULL OR uw_fold_search(t.title) ILIKE '%' || $5 || '%')
-    AND ($6::text IS NULL OR t.trashed_by = $6)
+    AND (COALESCE(cardinality($6::text[]), 0) = 0 OR t.trashed_by = ANY($6::text[]))
   ORDER BY t.trashed_at DESC, t.id DESC
   LIMIT $7
 ),
@@ -420,7 +420,7 @@ type ListTaskTrashPageParams struct {
 	BeforeTrashedAt pgtype.Timestamptz `json:"before_trashed_at"`
 	BeforeID        pgtype.Text        `json:"before_id"`
 	Query           pgtype.Text        `json:"query"`
-	TrashedBy       pgtype.Text        `json:"trashed_by"`
+	TrashedBy       []string           `json:"trashed_by"`
 	MaxRows         int32              `json:"max_rows"`
 }
 

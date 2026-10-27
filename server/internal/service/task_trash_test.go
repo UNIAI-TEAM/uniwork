@@ -552,7 +552,7 @@ func TestTaskTrashListFiltersByNameAndDeleter(t *testing.T) {
 	if len(byName.Items) != 1 || byName.Items[0].ID != report.ID {
 		t.Fatalf("query list = %+v, want only %s", byName.Items, report.ID)
 	}
-	byDeleter, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{TrashedBy: ub.ID}, "")
+	byDeleter, err := s.ListTrash(ctx, ua.ID, w.ID, TrashFilter{TrashedBy: []string{ub.ID}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -566,7 +566,7 @@ func TestTaskTrashListFiltersByNameAndDeleter(t *testing.T) {
 	if _, err := s.TrashMany(ctx, Human(ub.ID), w.ID, roots); err != nil {
 		t.Fatal(err)
 	}
-	f := TrashFilter{TrashedBy: ub.ID}
+	f := TrashFilter{TrashedBy: []string{ub.ID}}
 	first, err := s.ListTrash(ctx, ua.ID, w.ID, f, "")
 	if err != nil {
 		t.Fatal(err)

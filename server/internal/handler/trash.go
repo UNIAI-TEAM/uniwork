@@ -18,10 +18,19 @@ func (h *handlers) listTrash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
+	// kind and trashed_by repeat; the service refuses an empty or unknown value.
+	var kinds []service.TrashKind
+	for _, k := range q["kind"] {
+		kinds = append(kinds, service.TrashKind(strings.TrimSpace(k)))
+	}
+	var trashedBy []string
+	for _, id := range q["trashed_by"] {
+		trashedBy = append(trashedBy, strings.TrimSpace(id))
+	}
 	page, err := h.Trash.List(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"),
 		service.ListTrashInput{
-			Kind:   service.TrashKind(strings.TrimSpace(q.Get("kind"))),
-			Filter: service.TrashFilter{Query: q.Get("q"), TrashedBy: strings.TrimSpace(q.Get("trashed_by"))},
+			Kinds:  kinds,
+			Filter: service.TrashFilter{Query: q.Get("q"), TrashedBy: trashedBy},
 			Cursor: strings.TrimSpace(q.Get("cursor")),
 		})
 	if err != nil {

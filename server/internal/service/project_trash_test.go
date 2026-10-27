@@ -520,11 +520,11 @@ func TestProjectTrashCanManageFollowsRestoreRule(t *testing.T) {
 	if err != nil || len(byName.Items) != 0 {
 		t.Fatalf("query with no match = %+v, %v", byName.Items, err)
 	}
-	byDeleter, err := s.ListProjectTrash(ctx, uc.ID, w.ID, TrashFilter{TrashedBy: ub.ID, Query: "của b"}, "")
+	byDeleter, err := s.ListProjectTrash(ctx, uc.ID, w.ID, TrashFilter{TrashedBy: []string{ub.ID}, Query: "của b"}, "")
 	if err != nil || len(byDeleter.Items) != 1 {
 		t.Fatalf("filter by deleter and name = %+v, %v", byDeleter.Items, err)
 	}
-	byOther, err := s.ListProjectTrash(ctx, uc.ID, w.ID, TrashFilter{TrashedBy: uc.ID}, "")
+	byOther, err := s.ListProjectTrash(ctx, uc.ID, w.ID, TrashFilter{TrashedBy: []string{uc.ID}}, "")
 	if err != nil || len(byOther.Items) != 0 {
 		t.Fatalf("filter by another deleter = %+v, %v", byOther.Items, err)
 	}

@@ -52,19 +52,20 @@ type ProjectTrashRow struct {
 }
 
 // TrashFilter narrows a trash list. Query matches the name, case-insensitive
-// and by containment; TrashedBy is the id of whoever deleted the row. Empty
-// means no filter. The same filter must accompany every page of one list: a
-// cursor only marks the position.
+// and by containment; TrashedBy is the ids of whoever deleted the row, any of
+// them. Empty means no filter. The same filter must accompany every page of
+// one list: a cursor only marks the position.
 type TrashFilter struct {
-	Query, TrashedBy string
+	Query     string
+	TrashedBy []string
 }
 
-// args is the filter as the nullable sqlc parameters: Query is folded (case,
-// accents) as the SQL compares uw_fold_search, and its LIKE wildcards are
-// escaped so they match literally.
-func (f TrashFilter) args() (query, trashedBy pgtype.Text) {
+// args is the filter as the sqlc parameters: Query is folded (case, accents)
+// as the SQL compares uw_fold_search, and its LIKE wildcards are escaped so
+// they match literally; an empty TrashedBy matches every deleter.
+func (f TrashFilter) args() (query pgtype.Text, trashedBy []string) {
 	if q := strings.TrimSpace(f.Query); q != "" {
 		query = pgtype.Text{String: escapeLikeQuery(q), Valid: true}
 	}
-	return query, nullText(f.TrashedBy)
+	return query, f.TrashedBy
 }

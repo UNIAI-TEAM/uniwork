@@ -704,13 +704,13 @@ func TestArchivedDocumentsFilterByArchiver(t *testing.T) {
 		t.Fatal(err)
 	}
 	listFilterSameSet(t, "no archiver filter", listIDs(both), []string{byA.ID, byB.ID})
-	only, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Archived: true, ArchivedBy: tn.member.ID, Limit: 50})
+	only, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{Archived: true, ArchivedBy: []string{tn.member.ID}, Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
 	listFilterSameSet(t, "archived_by member", listIDs(only), []string{byB.ID})
 	// ArchivedBy means nothing outside the trash view.
-	live, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{ArchivedBy: tn.member.ID, Limit: 50})
+	live, err := f.svc.ListDocuments(f.ctx, owner, tn.wsA, ListDocumentsInput{ArchivedBy: []string{tn.member.ID}, Limit: 50})
 	if err != nil {
 		t.Fatal(err)
 	}

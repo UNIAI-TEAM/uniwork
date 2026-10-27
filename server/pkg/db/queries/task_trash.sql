@@ -100,7 +100,7 @@ WITH RECURSIVE page AS (
     AND (sqlc.narg(before_trashed_at)::timestamptz IS NULL
          OR (t.trashed_at, t.id) < (sqlc.narg(before_trashed_at), sqlc.narg(before_id)::text))
     AND (sqlc.narg(query)::text IS NULL OR uw_fold_search(t.title) ILIKE '%' || sqlc.narg(query) || '%')
-    AND (sqlc.narg(trashed_by)::text IS NULL OR t.trashed_by = sqlc.narg(trashed_by))
+    AND (COALESCE(cardinality(sqlc.arg(trashed_by)::text[]), 0) = 0 OR t.trashed_by = ANY(sqlc.arg(trashed_by)::text[]))
   ORDER BY t.trashed_at DESC, t.id DESC
   LIMIT sqlc.arg(max_rows)
 ),
@@ -248,7 +248,7 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND (sqlc.narg(before_trashed_at)::timestamptz IS NULL
        OR (trashed_at, id) < (sqlc.narg(before_trashed_at), sqlc.narg(before_id)::text))
   AND (sqlc.narg(query)::text IS NULL OR uw_fold_search(title) ILIKE '%' || sqlc.narg(query) || '%')
-  AND (sqlc.narg(trashed_by)::text IS NULL OR trashed_by = sqlc.narg(trashed_by))
+  AND (COALESCE(cardinality(sqlc.arg(trashed_by)::text[]), 0) = 0 OR trashed_by = ANY(sqlc.arg(trashed_by)::text[]))
 ORDER BY trashed_at DESC, id DESC
 LIMIT sqlc.arg(max_rows);
 

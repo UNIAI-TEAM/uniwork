@@ -675,7 +675,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND (sqlc.narg(kind)::text IS NULL OR d.kind = sqlc.narg(kind))
   AND (sqlc.narg(exclude_kind)::text IS NULL OR d.kind <> sqlc.narg(exclude_kind))
   AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
-  AND (sqlc.narg(archived_by)::text IS NULL OR d.archived_by = sqlc.narg(archived_by))
+  AND (COALESCE(cardinality(sqlc.arg(archived_by)::text[]), 0) = 0 OR d.archived_by = ANY(sqlc.arg(archived_by)::text[]))
   AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.archived_at >= sqlc.narg(updated_from))
   AND (sqlc.narg(updated_to)::timestamptz IS NULL OR d.archived_at < sqlc.narg(updated_to))
   AND (sqlc.narg(format)::text IS NULL

@@ -255,13 +255,15 @@ func TestTrashListLocksProjectsForPlainMembers(t *testing.T) {
 
 func TestTrashListKindAndFilters(t *testing.T) {
 	x := newTrashListFixture(t, nil)
-	owner, member := x.tn.owner, x.tn.member
+	owner, member, creator := x.tn.owner, x.tn.member, x.tn.creator
 	x.trashTask(t, owner, "", "Báo cáo việc")
 	x.trashTask(t, member, "", "Khác việc")
+	x.trashTask(t, creator, "", "Thứ ba việc")
 	x.trashProject(t, member, "Báo cáo dự án")
 	x.trashProject(t, owner, "Khác dự án")
 	x.trashDoc(t, member, treeDocSpec{title: "Báo cáo tài liệu"})
 	x.trashDoc(t, owner, treeDocSpec{title: "Khác tài liệu"})
+	x.trashDoc(t, creator, treeDocSpec{title: "Thứ ba tài liệu"})
 
 	titles := func(items []TrashItem) []string {
 		out := make([]string, len(items))
@@ -271,27 +273,57 @@ func TestTrashListKindAndFilters(t *testing.T) {
 		slices.Sort(out)
 		return out
 	}
-	projects := x.list(t, owner, ListTrashInput{Kind: TrashKindProject})
+	projects := x.list(t, owner, ListTrashInput{Kinds: []TrashKind{TrashKindProject}})
 	if !slices.Equal(trashKindsOf(projects.Items), []TrashKind{TrashKindProject, TrashKindProject}) {
 		t.Fatalf("kind=project = %+v", projects.Items)
+	}
+	// Kinds within one filter are OR-ed: tasks and documents, no project.
+	twoKinds := x.list(t, owner, ListTrashInput{Kinds: []TrashKind{TrashKindDocument, TrashKindTask}})
+	if got := titles(twoKinds.Items); !slices.Equal(got, []string{
+		"Báo cáo tài liệu", "Báo cáo việc", "Khác tài liệu", "Khác việc", "Thứ ba tài liệu", "Thứ ba việc",
+	}) {
+		t.Fatalf("kind=task&kind=document = %v", got)
 	}
 	byName := x.list(t, owner, ListTrashInput{Filter: TrashFilter{Query: " báo cáo "}})
 	if got := titles(byName.Items); !slices.Equal(got, []string{"Báo cáo dự án", "Báo cáo tài liệu", "Báo cáo việc"}) {
 		t.Fatalf("q=báo cáo = %v", got)
 	}
-	byMember := x.list(t, owner, ListTrashInput{Filter: TrashFilter{TrashedBy: member.ID}})
+	byMember := x.list(t, owner, ListTrashInput{Filter: TrashFilter{TrashedBy: []string{member.ID}}})
 	if got := titles(byMember.Items); !slices.Equal(got, []string{"Báo cáo dự án", "Báo cáo tài liệu", "Khác việc"}) {
 		t.Fatalf("trashed_by=member = %v", got)
 	}
-	both := x.list(t, owner, ListTrashInput{Kind: TrashKindDocument, Filter: TrashFilter{Query: "khác", TrashedBy: owner.ID}})
+	// Deleters are OR-ed too: the member's and the creator's rows, not the owner's.
+	byTwo := x.list(t, owner, ListTrashInput{Filter: TrashFilter{TrashedBy: []string{member.ID, creator.ID}}})
+	if got := titles(byTwo.Items); !slices.Equal(got, []string{
+		"Báo cáo dự án", "Báo cáo tài liệu", "Khác việc", "Thứ ba tài liệu", "Thứ ba việc",
+	}) {
+		t.Fatalf("trashed_by=member&trashed_by=creator = %v", got)
+	}
+	// The two filters and the search narrow each other.
+	both := x.list(t, owner, ListTrashInput{
+		Kinds:  []TrashKind{TrashKindTask, TrashKindDocument},
+		Filter: TrashFilter{Query: "khác", TrashedBy: []string{owner.ID, creator.ID}},
+	})
 	if got := titles(both.Items); !slices.Equal(got, []string{"Khác tài liệu"}) {
-		t.Fatalf("kind=document q=khác trashed_by=owner = %v", got)
+		t.Fatalf("kind=task,document q=khác trashed_by=owner,creator = %v", got)
 	}
 
-	for _, bad := range []ListTrashInput{{Kind: "label"}, {Cursor: "garbage"}} {
-		if _, err := x.svc.List(x.ctx, Human(owner.ID), x.w.ID, bad); err == nil {
-			t.Fatalf("List(%+v) accepted", bad)
+	tooMany := make([]string, 101)
+	for i := range tooMany {
+		tooMany[i] = fmt.Sprintf("user-%d", i)
+	}
+	for _, bad := range []ListTrashInput{
+		{Kinds: []TrashKind{"label"}},
+		{Kinds: []TrashKind{TrashKindTask, ""}},
+		{Filter: TrashFilter{TrashedBy: []string{member.ID, " "}}},
+		{Filter: TrashFilter{TrashedBy: tooMany}},
+	} {
+		if _, err := x.svc.List(x.ctx, Human(owner.ID), x.w.ID, bad); !codedIs(err, "invalid_filter") {
+			t.Fatalf("List(%+v) = %v, want invalid_filter", bad, err)
 		}
+	}
+	if _, err := x.svc.List(x.ctx, Human(owner.ID), x.w.ID, ListTrashInput{Cursor: "garbage"}); err == nil {
+		t.Fatal("a garbage cursor was accepted")
 	}
 	if _, err := x.svc.List(x.ctx, Human(x.tn.outsider.ID), x.w.ID, ListTrashInput{}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("outsider List = %v, want ErrNotFound", err)
@@ -310,7 +342,7 @@ func TestTrashListSkipsDocumentsWhenTheFlagIsOff(t *testing.T) {
 	if got := trashKindsOf(x.list(t, x.tn.owner, ListTrashInput{}).Items); !slices.Equal(got, []TrashKind{TrashKindTask}) {
 		t.Fatalf("flag off: kinds %v, want the task only", got)
 	}
-	if page := x.list(t, x.tn.owner, ListTrashInput{Kind: TrashKindDocument}); len(page.Items) != 0 || page.NextCursor != "" {
+	if page := x.list(t, x.tn.owner, ListTrashInput{Kinds: []TrashKind{TrashKindDocument}}); len(page.Items) != 0 || page.NextCursor != "" {
 		t.Fatalf("flag off, kind=document = %+v", page)
 	}
 }
@@ -329,7 +361,7 @@ func TestTrashListNameSearchIgnoresAccentsForEveryKind(t *testing.T) {
 func TestTrashListTaskWithoutProjectIsLocatedInTheWorkspace(t *testing.T) {
 	x := newTrashListFixture(t, nil)
 	x.trashTask(t, x.tn.owner, "", "Việc lẻ")
-	page := x.list(t, x.tn.owner, ListTrashInput{Kind: TrashKindTask})
+	page := x.list(t, x.tn.owner, ListTrashInput{Kinds: []TrashKind{TrashKindTask}})
 	if len(page.Items) != 1 || page.Items[0].LocationTitle != x.w.Name {
 		t.Fatalf("task row = %+v, want location %q", page.Items, x.w.Name)
 	}

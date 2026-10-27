@@ -60,7 +60,8 @@ func registerWorkspaces(r api, h Routes) {
 		summary: "List shared trash",
 		description: "Thùng rác chung của workspace: lô công việc (chỉ công việc gốc), dự án và tài liệu đã xóa, mới xóa trước, 50 mỗi trang. " +
 			"Mỗi loại giữ luật quyền của nó; dòng tài liệu là đúng những gì thùng rác tài liệu trả cho người gọi, và vắng khi cờ documents tắt. " +
-			"Query: kind, q, trashed_by, cursor; kind lạ -> 400 invalid_filter, cursor hỏng -> 400. Người ngoài workspace -> 404.",
+			"Query: kind và trashed_by lặp được (các giá trị trong một tham số cộng nhau, các tham số và q thu hẹp nhau), q, cursor; " +
+			"kind lạ hoặc rỗng, trashed_by rỗng hoặc quá 100 giá trị -> 400 invalid_filter, cursor hỏng -> 400. Người ngoài workspace -> 404.",
 		tags: []string{"workspaces"},
 		sdi:  sdi.ListSharedTrashSDI{},
 		sdo:  sdo.TrashPageSDO{},

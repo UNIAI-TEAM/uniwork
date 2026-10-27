@@ -58,9 +58,9 @@ type ListDocumentsInput struct {
 	Kind     string
 	Match    string
 	Archived bool
-	// ArchivedBy narrows the trash view to what this user archived; it means
-	// nothing without Archived.
-	ArchivedBy  string
+	// ArchivedBy narrows the trash view to what any of these users archived;
+	// empty is no filter, and it means nothing without Archived.
+	ArchivedBy  []string
 	Shelved     bool
 	UpdatedBy   string
 	UpdatedFrom time.Time
@@ -636,7 +636,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
 			AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelEdit),
 			ShareWorkspaces: scope.shareWorkspaces,
-			Kind:            kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, ArchivedBy: nullText(in.ArchivedBy), UpdatedFrom: from, UpdatedTo: to,
+			Kind:            kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, ArchivedBy: in.ArchivedBy, UpdatedFrom: from, UpdatedTo: to,
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
 			FormatMimes: files.DocumentFormatMimes(),
 			TypePage:    filters.typePage, TypeFormats: filters.typeFormats, TypeMimes: filters.typeMimes, Access: nullText(filters.access),

@@ -69,7 +69,7 @@ WHERE d.organization_id = $2
   AND ($13::text IS NULL OR d.kind = $13)
   AND ($14::text IS NULL OR d.kind <> $14)
   AND ($15::text IS NULL OR d.updated_by = $15)
-  AND ($16::text IS NULL OR d.archived_by = $16)
+  AND (COALESCE(cardinality($16::text[]), 0) = 0 OR d.archived_by = ANY($16::text[]))
   AND ($17::timestamptz IS NULL OR d.archived_at >= $17)
   AND ($18::timestamptz IS NULL OR d.archived_at < $18)
   AND ($19::text IS NULL
@@ -198,7 +198,7 @@ type ListArchivedDocumentsPageParams struct {
 	Kind            pgtype.Text        `json:"kind"`
 	ExcludeKind     pgtype.Text        `json:"exclude_kind"`
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
-	ArchivedBy      pgtype.Text        `json:"archived_by"`
+	ArchivedBy      []string           `json:"archived_by"`
 	UpdatedFrom     pgtype.Timestamptz `json:"updated_from"`
 	UpdatedTo       pgtype.Timestamptz `json:"updated_to"`
 	Format          pgtype.Text        `json:"format"`

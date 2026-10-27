@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -57,9 +59,24 @@ func TestTrashRouteAnswersTheSharedPage(t *testing.T) {
 		t.Fatalf("kinds = %v", kinds)
 	}
 
-	_, out = doJSON(t, srv, "GET", base+"/trash?kind=project&q=bin&trashed_by=", token, nil)
+	_, out = doJSON(t, srv, "GET", base+"/trash?kind=project&q=bin", token, nil)
 	if items := trashItems(t, out); len(items) != 1 || items[0].(map[string]any)["id"] != projectID {
 		t.Fatalf("kind=project: %v", out)
+	}
+
+	// Repeated kind and trashed_by are each OR-ed, and narrow each other.
+	me := items[0].(map[string]any)["trashed_by"].(string)
+	_, out = doJSON(t, srv, "GET", base+"/trash?kind=document&kind=task&trashed_by=01J8X4NOBODY0000000000000&trashed_by="+me, token, nil)
+	if items := trashItems(t, out); len(items) != 1 || items[0].(map[string]any)["id"] != taskID {
+		t.Fatalf("kind=document&kind=task&trashed_by=other&trashed_by=me: %v", out)
+	}
+	_, out = doJSON(t, srv, "GET", base+"/trash?kind=project&kind=task&trashed_by="+me, token, nil)
+	if items := trashItems(t, out); len(items) != 2 {
+		t.Fatalf("kind=project&kind=task: %v", out)
+	}
+	_, out = doJSON(t, srv, "GET", base+"/trash?kind=task&kind=project&trashed_by=01J8X4NOBODY0000000000000", token, nil)
+	if items := trashItems(t, out); len(items) != 0 {
+		t.Fatalf("trashed_by=other: %v", out)
 	}
 }
 
@@ -67,9 +84,15 @@ func TestTrashRouteRejectsAnUnknownKind(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
 	base := "/api/v1/workspaces/" + wsID + "/trash"
 
-	res, out := doJSON(t, srv, "GET", base+"?kind=label", token, nil)
-	if e, _ := out["error"].(map[string]any); res.StatusCode != 400 || e["code"] != "invalid_filter" {
-		t.Fatalf("kind=label: %d %v, want 400 invalid_filter", res.StatusCode, out)
+	var tooMany strings.Builder
+	for i := range 101 {
+		fmt.Fprintf(&tooMany, "&trashed_by=user-%d", i)
+	}
+	for _, query := range []string{"?kind=label", "?kind=task&kind=label", "?kind=", "?trashed_by=", "?trashed_by=a&trashed_by=", "?kind=task" + tooMany.String()} {
+		res, out := doJSON(t, srv, "GET", base+query, token, nil)
+		if e, _ := out["error"].(map[string]any); res.StatusCode != 400 || e["code"] != "invalid_filter" {
+			t.Fatalf("%s: %d %v, want 400 invalid_filter", query, res.StatusCode, out)
+		}
 	}
 	if res, _ := doJSON(t, srv, "GET", base+"?cursor=garbage", token, nil); res.StatusCode != 400 {
 		t.Fatalf("bad cursor = %d, want 400", res.StatusCode)
