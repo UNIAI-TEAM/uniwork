@@ -24,10 +24,13 @@ import (
 // keep that file alive for the collector.
 var fileServiceTables = map[string]bool{"files": true, "file_upload_sessions": true, "file_multipart_uploads": true, "file_jobs": true, "file_backfill_items": true, "file_derivatives": true}
 
-// nonFileServiceIDColumns lists columns matching *file_id that store Google
-// Drive file or reference IDs (ADR 0047, no object-storage bytes in UniWork)
-// rather than FileService file IDs.
+// nonFileServiceIDColumns are *_file_id columns that hold external provider
+// ids or non-FileService table row ids rather than FileService file ids, so
+// they must not join managedFileReferenceSources.
 var nonFileServiceIDColumns = map[string]string{
+	"drive_files.external_file_id":               "Google Drive file id, not a FileService id",
+	"drive_file_access.drive_file_id":            "drive_files row id, not a FileService id",
+	"drive_file_task_links.drive_file_id":        "drive_files row id, not a FileService id",
 	"drive_task_proposals.drive_file_id":         "Drive ids, not FileService ids",
 	"drive_task_proposal_links.drive_file_id":    "Drive ids, not FileService ids",
 	"drive_task_proposal_links.external_file_id": "Drive ids, not FileService ids",
@@ -84,17 +87,12 @@ func TestEveryFileIDColumnHasAReferenceSource(t *testing.T) {
 			t.Errorf("%s.%s has no tenant query", src.Table, src.Column)
 		}
 	}
-	for col, reason := range nonFileServiceIDColumns {
-		if strings.TrimSpace(reason) == "" {
-			t.Errorf("nonFileServiceIDColumns[%s] has an empty reason", col)
-		}
-		if !columns[col] {
-			t.Errorf("nonFileServiceIDColumns lists %s, which no migration creates", col)
-		}
-	}
 	for col := range columns {
 		table := strings.SplitN(col, ".", 2)[0]
-		if fileServiceTables[table] || nonFileServiceIDColumns[col] != "" {
+		if fileServiceTables[table] {
+			continue
+		}
+		if _, ok := nonFileServiceIDColumns[col]; ok {
 			continue
 		}
 		if !catalogue[col] {
@@ -104,6 +102,17 @@ func TestEveryFileIDColumnHasAReferenceSource(t *testing.T) {
 	for col := range catalogue {
 		if !columns[col] {
 			t.Errorf("catalogue lists %s, which no migration creates", col)
+		}
+	}
+	for col, reason := range nonFileServiceIDColumns {
+		if strings.TrimSpace(reason) == "" {
+			t.Errorf("nonFileServiceIDColumns[%q] has an empty reason", col)
+		}
+		if !columns[col] {
+			t.Errorf("nonFileServiceIDColumns lists %s, which no migration creates", col)
+		}
+		if catalogue[col] {
+			t.Errorf("%s is in both managedFileReferenceSources and nonFileServiceIDColumns", col)
 		}
 	}
 }
