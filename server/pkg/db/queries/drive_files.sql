@@ -323,6 +323,11 @@ WHERE va.organization_id = sqlc.arg('organization_id')
   AND f.unlinked_at IS NULL
   AND (sqlc.narg('connection_id')::text IS NULL OR va.connection_id = sqlc.narg('connection_id'))
   AND (
+    sqlc.narg('folder_filter')::text IS NULL
+    OR (sqlc.narg('folder_filter') = 'none' AND f.drive_folder_id IS NULL)
+    OR (sqlc.narg('folder_filter') <> 'none' AND f.drive_folder_id = sqlc.narg('folder_filter'))
+  )
+  AND (
     sqlc.narg('cursor_created_at')::timestamptz IS NULL
     OR f.created_at < sqlc.narg('cursor_created_at')::timestamptz
     OR (f.created_at = sqlc.narg('cursor_created_at')::timestamptz AND f.id < sqlc.narg('cursor_id')::text)
@@ -341,7 +346,12 @@ WHERE va.organization_id = sqlc.arg('organization_id')
   AND va.workspace_id = sqlc.arg('workspace_id')
   AND va.user_id = sqlc.arg('viewer_user_id')
   AND f.unlinked_at IS NULL
-  AND (sqlc.narg('connection_id')::text IS NULL OR va.connection_id = sqlc.narg('connection_id'));
+  AND (sqlc.narg('connection_id')::text IS NULL OR va.connection_id = sqlc.narg('connection_id'))
+  AND (
+    sqlc.narg('folder_filter')::text IS NULL
+    OR (sqlc.narg('folder_filter') = 'none' AND f.drive_folder_id IS NULL)
+    OR (sqlc.narg('folder_filter') <> 'none' AND f.drive_folder_id = sqlc.narg('folder_filter'))
+  );
 
 -- name: CountDriveFilesByUserConnections :many
 SELECT va.connection_id, count(*)::bigint AS file_count

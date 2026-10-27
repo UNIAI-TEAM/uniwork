@@ -136,14 +136,19 @@ func (h *handlers) ListDriveFiles(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "invalid_request", "limit phải là số nguyên dương")
 		return
 	}
+	connID := strings.TrimSpace(q.Get("connection_id"))
+	if connID == "" {
+		connID = strings.TrimSpace(q.Get("drive_connection_id"))
+	}
 	res, err := h.DriveFiles.ListMine(
 		r.Context(),
 		service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"),
 		service.ListDriveFilesFilter{
-			ConnectionID: q.Get("connection_id"),
-			Cursor:       q.Get("cursor"),
-			Limit:        limit,
+			ConnectionID:  connID,
+			DriveFolderID: q.Get("drive_folder_id"),
+			Cursor:        q.Get("cursor"),
+			Limit:         limit,
 		},
 	)
 	if err != nil {
@@ -155,9 +160,10 @@ func (h *handlers) ListDriveFiles(w http.ResponseWriter, r *http.Request) {
 		files = append(files, toDriveFileDTO(f))
 	}
 	respondJSON(w, http.StatusOK, sdo.DriveFileListSDO{
-		Files:      files,
-		TotalCount: res.TotalCount,
-		NextCursor: res.NextCursor,
+		Files:         files,
+		TotalCount:    res.TotalCount,
+		NextCursor:    res.NextCursor,
+		DriveFolderID: res.DriveFolderID,
 	})
 }
 
