@@ -21,17 +21,20 @@ export interface VisitorDevice {
   /** The desktop system, when the browser proves or strongly suggests one. */
   desktop: DesktopOS | null;
   guess: DesktopPlatformGuess;
+  /** False until the browser has answered, so a layout that depends on the system can wait instead of jumping. */
+  settled: boolean;
 }
 
 /** Where the visitor is reading from, for "Download for macOS" style labels. */
 export function useVisitorDevice(): VisitorDevice {
   const phone = useVisitorPhone();
   const [guess, setGuess] = useState<DesktopPlatformGuess>(UNKNOWN_PLATFORM);
+  const [settled, setSettled] = useState(false);
   useEffect(() => {
     let live = true;
-    void readBrowserPlatformGuess().then((value) => { if (live) setGuess(value); }, () => {});
+    void readBrowserPlatformGuess().then((value) => { if (live) { setGuess(value); setSettled(true); } }, () => { if (live) setSettled(true); });
     return () => { live = false; };
   }, []);
   const desktop = !phone && guess.platform ? DESKTOP_INSTALLER_KINDS[guess.platform].os : null;
-  return { phone, desktop, guess };
+  return { phone, desktop, guess, settled };
 }

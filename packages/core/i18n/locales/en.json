@@ -286,6 +286,38 @@
           "cc1def6d37a298966b36f85f4dbaaac952240b6ab": "Ask UNI answers show only the status name you see on screen, without an internal status code in brackets such as \"To do (todo)\". Asking for tasks by a status name your team created, such as \"Waiting for QA\", also finds the right tasks.",
           "cc8f02e00827170d00e7198c4e86696d603f9e452": "Chat call recording: when two people start recording the same call at the same time, the call now gets one recording instead of two duplicates."
         }
+      },
+      "v1_10_0": {
+        "title": "Document ownership transfer, a panel layout and better-synced scheduled email",
+        "summary": "Documents lets you transfer ownership of one document or all of a member's documents, filter by several types at once, and move items to the trash without being blocked by sub-pages or files you cannot manage. On desktop, the top bar, sidebar, main page and Ask UNI are split into separate panels. Email Hub updates the Scheduled folder right away after you schedule an email.",
+        "note": "The panel layout applies on wide screens; phones, tablets and UniChat keep the previous layout.",
+        "features": {
+          "c237fc6d47c92be3f0abdf2c6d40c893d6acfc3af": "Documents: transfer ownership of one document to someone else, or move all of a member's documents to another member at once; the new owner gets a notification. The Type filter accepts several types at once, shown as chips you can remove one by one. When you move a page, file or folder to the trash, sub-pages and files you cannot manage are moved to the workspace root instead of blocking the whole action; a sub-folder you cannot view or manage still blocks it. The UniWork Office install page adds installing from the apt repository and a one-command install next to the .deb file, and the Office source viewer has a maximize button."
+        },
+        "improvements": {
+          "ca6714faf79e3eb2e5b258b1f5cb96cfdc1f7cd99": "The desktop layout is split into panels: a top bar runs across the whole app with the organization and workspace switcher, search, Ask UNI, notifications, create and your account; the sidebar is its own panel you can collapse (⌘B still works); the main page and Ask UNI sit side by side as two panels you can drag to resize. The Create task button in the top bar uses a briefcase-with-plus icon, and all icons have the same stroke weight at every size."
+        },
+        "fixes": {
+          "c9f7c3046356c3008e37eaa2c11b3f3f8f3a23541": "Email Hub: after you schedule an email, the open mailbox switches to the account that sends it, the Scheduled folder refreshes when you open it, and the list and the sidebar count update right away."
+        }
+      },
+      "v1_11_0": {
+        "title": "Trash for tasks and projects, multi-select in Chat and Ask UNI reads Office files",
+        "summary": "Deleted tasks and projects go to the trash for 30 days, with one shared trash for the whole workspace. Chat lets you select several messages to copy, forward or delete. Ask UNI can read the text in Word, Excel and PowerPoint files in Documents. The meeting room has a new right-hand panel and notes you can edit or delete; Documents opens images right on the page. The Pricing page takes plans and prices from the plan catalog in the app.",
+        "note": "Ask UNI and the MCP connector need the organization's AI features to be set up, and only read documents you have access to. Selecting several messages is not yet available in the UniChat phone app.",
+        "features": {
+          "c1806f58e5085aff30d6df82bb89a5016a8372ff7": "Documents: image files open in a view-only viewer right on the page, with a zoom slider, instead of only a download card; opening an image is logged as a view in the access log. The UniWork Office page (/apps/office) gains a download section: pick a release channel, your operating system is preselected, install steps for each operating system, installing with apt, release notes and the version history.",
+          "c6170e52b6303ce4f1b355da788e2e88b40f8f8a7": "Deleting a task or project now moves it to the trash for 30 days instead of removing it right away: a deleted task takes its subtasks with it, a deleted project keeps its tasks and reattaches them when restored, and an Undo button shows for 10 seconds; items older than 30 days are deleted permanently. A shared trash opens from the avatar menu › Trash (Settings › Workspace › Trash) and brings tasks, projects and documents together, with filters by name (typing without Vietnamese accents still matches), type and who deleted it; each row has Restore and Delete permanently, following each type's permissions. The separate Trash buttons on the Tasks and Projects pages are gone; Documents keeps its own trash. Also: table row lines are easier to see in dark mode, and creating a task no longer fails when the project remembered from last time was deleted.",
+          "ca2f978c3f4a333d2077ea2efc12da4d529c1a08d": "Chat: select several messages with Select in a message's menu, then copy the selected messages as text, forward them, or delete the ones you sent (with a confirmation first). A conversation's custom wallpaper no longer reloads every time the room list refreshes.",
+          "c55a0ab3e61e9836c1202fd055f9fff991ad5d962": "Ask UNI can read the text in Word, Excel, PowerPoint and OpenDocument files (docx, xlsx, pptx, odt) stored in Documents, paragraph by paragraph, row by row and slide by slide; the MCP connector for outside AI assistants reads them the same way. Ask UNI can also browse the items in a folder of the workspace you are asking from. PDF files, files larger than 20 MiB and damaged files still return only the file name and type, with the reason."
+        },
+        "improvements": {
+          "c0a454a4d96fee86ef8eb10dc6c25b51bc8543b6b": "Meeting room: the right-hand panel is redesigned with a row of UNI, Chat, People and Votes tabs with badges, and the UNI tab has filters by type and a new Ask/Note input; on phones the panel opens as a bottom sheet. Meeting notes can now be edited and deleted (deleting asks for confirmation), and an edited note shows \"edited\"; only the author, the host, the meeting clerk or a workspace admin can do this. The ✦ UNI button on the control bar is removed; new UNI messages show as a dot on the button that opens the panel.",
+          "cad0a7e7d964c14765e525e02083097d1eb8721e4": "The Pricing page shows plans, prices, limits and features straight from the plan catalog published in the app instead of hand-written copy, so it matches Billing; it adds a feature comparison by plan and says clearly when prices are loading or could not be loaded."
+        },
+        "fixes": {
+          "cf9e65a0f7a8a8387d6ddf7ba8acee85c6c039c63": "VNPay payments: when you come back from VNPay without completing the payment, the Billing page shows it as cancelled right away instead of waiting for confirmation."
+        }
       }
     }
   },
@@ -581,6 +613,40 @@
       "goToWorkspaces": "See my workspaces"
     }
   },
+  "inviteLink": {
+    "workspaceTitle": "Invite by link",
+    "workspaceDescription": "Create a link so many people can join this workspace as Member.",
+    "orgTitle": "Invite by link",
+    "orgDescription": "Create a link so people can join the organization and the workspaces you pick.",
+    "workspacesLabel": "Workspaces on the link",
+    "workspacesHint": "Pick at least one workspace. Anyone who opens the link joins the organization and those workspaces as Member.",
+    "expiry": "Link expiration",
+    "expiryDays_one": "{{count}} day",
+    "expiryDays_other": "{{count}} days",
+    "create": "Create link",
+    "copy": "Copy link",
+    "copied": "Link copied",
+    "created": "Invite link created",
+    "regenerate": "Regenerate",
+    "regenerated": "New invite link created",
+    "revoke": "Revoke",
+    "revoked": "Invite link revoked",
+    "revokeTitle": "Revoke invite link?",
+    "revokeBody": "People who have not joined yet will not be able to use this link. Existing members are not affected.",
+    "status": {
+      "active": "Active",
+      "expired": "Expired",
+      "revoked": "Revoked"
+    },
+    "joinTitle": "Join workspace",
+    "joinOrgTitle": "Join organization & workspaces",
+    "joinAction": "Join",
+    "joined": "Joined",
+    "notJoined": "Not joined",
+    "joining": "Joining…",
+    "invalid": "This invite link is invalid or no longer active.",
+    "loginHint": "Sign in or register to continue with this invite link."
+  },
   "nav": {
     "home": "Home",
     "inbox": "Inbox",
@@ -609,7 +675,8 @@
     "projects": "Projects",
     "calendar": "Calendar",
     "squads": "Squads",
-    "runtimes": "Runtimes"
+    "runtimes": "Runtimes",
+    "trash": "Trash"
   },
   "topbar": {
     "search": "Search…",
@@ -754,7 +821,9 @@
         "document_access_declined": "Document access request declined",
         "document_shared": "Documents shared with you",
         "document_trashed_by_other": "Your document moved to the trash",
-        "document_changed": "Changes to your documents and documents shared with you"
+        "document_changed": "Changes to your documents and documents shared with you",
+        "document_owner_transferred": "Document ownership transferred to you",
+        "document_owners_bulk_transferred": "A member's documents transferred to you"
       },
       "all_kinds": "All kinds",
       "channel_all": "{{channel}} for every kind",
@@ -795,7 +864,8 @@
         "connectedApps": "AI apps",
         "aiAccess": "AI access",
         "taskStatuses": "Task statuses",
-        "taskLabels": "Labels"
+        "taskLabels": "Labels",
+        "trash": "Trash"
       },
       "nav_label": "Settings sections",
       "section_picker": "Choose a settings section",
@@ -2574,11 +2644,9 @@
       "cancel": "Cancel",
       "update_success": "Updated {{count}} tasks",
       "update_failed": "Could not update tasks",
-      "delete_success": "Deleted {{count}} tasks",
       "delete_failed": "Could not delete tasks",
-      "delete_dialog_title": "Delete {{count}} tasks?",
-      "delete_dialog_desc": "These tasks will be permanently deleted.",
-      "delete_dialog_warning": "This cannot be undone."
+      "delete_dialog_title": "Move to trash?",
+      "delete_dialog_desc": "You can restore it within 30 days."
     },
     "row_actions": {
       "open": "Open",
@@ -2590,11 +2658,10 @@
       "change_assignee": "Change assignee",
       "set_parent": "Set parent task…",
       "delete": "Delete",
-      "delete_dialog_title": "Delete this task?",
-      "delete_dialog_desc": "\"{{title}}\" will be permanently deleted. This cannot be undone.",
-      "delete_confirm": "Delete task",
+      "delete_dialog_title": "Move to trash?",
+      "delete_dialog_desc": "You can restore it within 30 days.",
+      "delete_confirm": "Move to trash",
       "cancel": "Cancel",
-      "delete_success": "Task deleted",
       "delete_failed": "Could not delete task",
       "assignees_loading": "Loading members…",
       "assignees_failed": "Could not load members"
@@ -4099,7 +4166,7 @@
       "assignNone": "Assign tasks",
       "pickReason": "Pick at least one pending item",
       "nothingPending": "Nothing left to assign",
-      "add": "Add task",
+      "add": "Add item",
       "addHeading": "Meeting follow-up",
       "editAssign": "Edit & assign",
       "priorityValue": "{{priority}} priority",
@@ -5099,6 +5166,163 @@
       "reinvite": "Invite again",
       "scribeOffFailed": "Could not turn off UNI Scribe. UNI Scribe is transcribing.",
       "scribeOnFailed": "Could not turn on UNI Scribe. This meeting is not being transcribed."
+    },
+    "panel": {
+      "transcript": {
+        "search": "Search the transcript",
+        "latest": "Jump to latest",
+        "speaking": "speaking",
+        "becameDecision": "Became a decision",
+        "newItem": "New item",
+        "newItemOwner": "New item · {{owner}}"
+      },
+      "collapse": "Collapse panel",
+      "status": {
+        "listening": "Listening",
+        "live": "Taking notes",
+        "paused": "Paused",
+        "joining": "Joining",
+        "failed": "Couldn't join",
+        "off": "Off"
+      },
+      "views": {
+        "label": "View",
+        "feed": "Highlights",
+        "transcript": "Transcript"
+      },
+      "summary": {
+        "title": "Summary so far",
+        "update": "Update summary",
+        "copy": "Copy summary",
+        "none": "No summary yet",
+        "create": "Create",
+        "sourcesHelp": "What the AI read"
+      },
+      "filters": {
+        "label": "Filter by kind",
+        "all": "All"
+      },
+      "kind": {
+        "decision": "Decision",
+        "task": "Action item",
+        "question": "Open question",
+        "note": "Note",
+        "recording": "Recording",
+        "countLabel": "{{kind}}, {{count}}"
+      },
+      "feed": {
+        "label": "Meeting highlights",
+        "open": "Open",
+        "new": "New",
+        "playRecording": "Play recording",
+        "playRecordingAt": "Play recording from {{time}}",
+        "addDue": "+ Due",
+        "jumpToLine": "See what was said at {{time}}",
+        "chipDecision": "Decided",
+        "chipTask": "To-do",
+        "chipQuestion": "Asked",
+        "note": {
+          "actions": "Actions for note: {{text}}",
+          "edit": "Edit",
+          "delete": "Delete note",
+          "field": "Note text",
+          "edited": "· edited",
+          "deleteTitle": "Delete this note?",
+          "deleteBody": "No one in the meeting will see this note any more."
+        }
+      },
+      "empty": {
+        "title": "UNI Scribe is listening",
+        "line": "Key points show up here as soon as someone speaks.",
+        "decided": "Decided",
+        "todo": "To-do",
+        "asked": "Asked",
+        "carried_one": "{{count}} open item",
+        "carried_other": "{{count}} open items",
+        "carriedFrom": "From earlier meetings"
+      },
+      "composer": {
+        "modeLabel": "Input mode",
+        "ask": "Ask",
+        "note": "Note",
+        "askPlaceholder": "Ask UNI privately about this meeting…",
+        "followupPlaceholder": "Ask a follow-up…",
+        "notePlaceholder": "Note for everyone…",
+        "askLabel": "Ask UNI privately about this meeting",
+        "noteLabel": "Note for everyone",
+        "scope": "This meeting",
+        "scopeLabel": "Scope: this meeting",
+        "mention": "Mention a task, person or document",
+        "send": "Send",
+        "saveNote": "Save note",
+        "stop": "Stop",
+        "reading": "Reading the meeting…",
+        "readingNotes_one": "Reading the transcript and {{count}} note…",
+        "readingNotes_other": "Reading the transcript and {{count}} notes…",
+        "private": "Only you",
+        "everyone": "Everyone",
+        "outOfCredit": "Ask UNI is out of credit this month",
+        "askOff": "Ask UNI is off",
+        "blockedHelp": "Why, and what to do",
+        "askPlaceholderShort": "Ask UNI privately…"
+      },
+      "suggest": {
+        "last5": "Last 5 minutes",
+        "last5Q": "Summarize the last 5 minutes.",
+        "decided": "What was decided?",
+        "decidedQ": "What has this meeting decided so far?",
+        "mine": "My items",
+        "mineQ": "What was I asked to do in this meeting?",
+        "lastTime": "Decided last time?",
+        "lastTimeQ": "What did the previous meeting decide?",
+        "goal": "Goal of this meeting?",
+        "goalQ": "What is the goal of this meeting?"
+      },
+      "answer": {
+        "title": "Ask UNI",
+        "share": "Share to chat",
+        "continue": "Continue"
+      },
+      "actions": {
+        "selectAll": "Select all pending items",
+        "selected_one": "{{count}} selected",
+        "selected_other": "{{count}} selected",
+        "clear": "Clear",
+        "carried": "From earlier meetings · {{count}}",
+        "pending": "Pending · {{count}}",
+        "converted": "Assigned · {{count}}",
+        "editLabel": "Edit & assign \"{{title}}\"",
+        "selectedRegion": "Selected items"
+      },
+      "people": {
+        "waiting_one": "{{count}} person waiting",
+        "waiting_other": "{{count}} people waiting",
+        "admit": "Admit",
+        "showWaiting": "Show each person",
+        "waitingAlone": "is waiting",
+        "waitingOthers_one": "and {{count}} other",
+        "waitingOthers_other": "and {{count}} others",
+        "admitAll": "Admit all {{count}}",
+        "hands": "Hands raised · {{count}}",
+        "lowerMine": "Lower hand",
+        "inRoom": "In the room · {{count}}",
+        "scribeRole": "AI assistant · taking notes",
+        "you": "you",
+        "micOn": "Mic on"
+      },
+      "votes": {
+        "next": "Up next",
+        "done": "Done",
+        "missing_one": "{{count}} person hasn't voted",
+        "missing_other": "{{count}} people haven't voted",
+        "rulesHelp": "How votes count",
+        "secret": "Secret",
+        "progress": "{{cast}} of {{roll}} voted",
+        "open": "Open"
+      },
+      "chat": {
+        "placeholder": "Message everyone…"
+      }
     }
   },
   "calendar": {
@@ -5842,6 +6066,23 @@
     "action_more": "More",
     "action_copy": "Copy",
     "action_delete": "Delete",
+    "action_select": "Select",
+    "selection": {
+      "select_message": "Select message",
+      "selected": "Selected",
+      "selected_count_one": "{{count}} selected",
+      "selected_count_other": "{{count}} selected",
+      "copy_selected": "Copy selected as text",
+      "forward_selected": "Forward selected",
+      "delete_selected": "Delete selected",
+      "clear": "Clear selection",
+      "toolbar_aria": "Selected messages",
+      "delete_confirm_title": "Delete selected messages?",
+      "delete_confirm_description_one": "Delete {{count}} message you sent? This cannot be undone.",
+      "delete_confirm_description_other": "Delete {{count}} messages you sent? This cannot be undone.",
+      "deleted_one": "Deleted {{count}} message",
+      "deleted_other": "Deleted {{count}} messages"
+    },
     "edit_dialog_title": "Edit message",
     "edit_dialog_save": "Save",
     "edit_dialog_cancel": "Cancel",
@@ -5909,6 +6150,10 @@
     "forward": {
       "action": "Forward",
       "title": "Forward message",
+      "title_many_one": "Forward {{count}} message",
+      "title_many_other": "Forward {{count}} messages",
+      "preview_many_one": "{{count}} message selected",
+      "preview_many_other": "{{count}} messages selected",
       "description": "Recipients see who wrote it, not which conversation it came from.",
       "search_label": "Send to",
       "search_placeholder": "Search people, groups or channels",
@@ -7120,8 +7365,15 @@
       "document_changed_relocated_many": "{{actor}} moved the folder holding {{document_count}} of your documents to trash; the documents are now at the workspace root",
       "document_changed_relocated_one": "{{actor}} moved the folder holding \"{{document}}\" to trash; the document is now at the workspace root",
       "document_changed_relocated_untitled": "{{actor}} moved the folder holding one of your documents to trash; the document is now at the workspace root",
+      "document_changed_relocated_from_page_many": "{{actor}} moved the page holding {{document_count}} of your documents to trash; the documents are now at the workspace root",
+      "document_changed_relocated_from_page_one": "{{actor}} moved the page holding \"{{document}}\" to trash; the document is now at the workspace root",
+      "document_changed_relocated_from_page_untitled": "{{actor}} moved the page holding one of your documents to trash; the document is now at the workspace root",
       "document_changed_generic_one": "{{actor}} changed \"{{document}}\"",
-      "document_changed_generic_untitled": "{{actor}} changed a document"
+      "document_changed_generic_untitled": "{{actor}} changed a document",
+      "document_owner_transferred": "{{actor}} transferred ownership of \"{{document}}\" to you.",
+      "document_owner_transferred_untitled": "{{actor}} transferred ownership of a document to you.",
+      "document_owners_bulk_transferred": "{{actor}} transferred {{name}}'s documents to you.",
+      "document_owners_bulk_transferred_untitled": "{{actor}} transferred a member's documents to you."
     },
     "kindTitle": {
       "document_mentioned": "You were mentioned in a comment",
@@ -7136,7 +7388,9 @@
       "document_access_declined": "Request declined",
       "document_shared": "Document shared",
       "document_trashed_by_other": "Your document was moved to trash",
-      "document_changed": "Documents changed"
+      "document_changed": "Documents changed",
+      "document_owner_transferred": "You now own a document",
+      "document_owners_bulk_transferred": "You now own documents"
     },
     "archived_one": "Archived {{count}} notification",
     "archived_other": "Archived {{count}} notifications",
@@ -7850,7 +8104,7 @@
         },
         "price": "Price (smallest unit; empty = contact us)",
         "sort_order": "Sort order",
-        "is_active": "Visible on billing page"
+        "is_active": "Publish in pricing and billing"
       },
       "col": {
         "feature_key": "Key",
@@ -7945,6 +8199,10 @@
       "confirm_refund_title": "Confirm refund {{number}}",
       "confirm_refund_description": "Usually unnecessary — the server reconciles with VNPay about every 2 minutes. Use only if the invoice stays pending after VNPay approval.",
       "confirm_refund_success": "Invoice marked as refunded.",
+      "revert_refund_action": "Cancel refund request",
+      "revert_refund_title": "Cancel refund request {{number}}",
+      "revert_refund_description": "Use when VNPay refused the refund or the request was sent by mistake — invoice returns to Paid.",
+      "revert_refund_success": "Refund request cancelled.",
       "detail": {
         "empty": "—",
         "invoice_description": "Organization billing invoice.",
@@ -8502,9 +8760,9 @@
       "sidebar_label": "Project details"
     },
     "delete_dialog": {
-      "title": "Delete project",
-      "description": "This will delete the project. Tasks will not be deleted but will be unlinked.",
-      "confirm": "Delete",
+      "title": "Move to trash?",
+      "description": "You can restore it within 30 days. Tasks in the project are kept and only unlinked.",
+      "confirm": "Move to trash",
       "cancel": "Cancel"
     },
     "create_dialog": {
@@ -9247,8 +9505,8 @@
         "AI reads within permissions; model choice depends on configuration."
       ],
       "enterpriseCta": "Explore organization management",
-      "pricingTitle": "Start with Starter.",
-      "pricingDescription": "Free Starter plus paid Team and Business tiers — limits and prices match the in-app catalog.",
+      "pricingTitle": "Choose a plan for your team.",
+      "pricingDescription": "Compare the current plans, their resource limits and included features. Choose what fits your organization.",
       "solutionLabel": "Solutions",
       "resourcesLabel": "Get started and learn"
     },
@@ -10468,34 +10726,52 @@
       "ent4": "SCIM and data retention policy"
     },
     "pricing": {
-      "title": "Three plans for every team size.",
-      "sub": "Start free with clear limits; upgrade when you need more members, meetings, and AI.",
-      "p1": {
-        "name": "Starter",
-        "price": "Free",
-        "desc": "Up to 5 members and 2 workspaces — for trials and small teams."
-      },
-      "p2": {
-        "name": "Team",
-        "price": "499,000 VND / month",
-        "desc": "Up to 30 members, meeting recording, public document links, and 2M AI tokens per month."
-      },
-      "p3": {
-        "name": "Business",
-        "price": "1,499,000 VND / month",
-        "desc": "Up to 150 members, SSO, and higher storage and meeting minutes for growing organizations."
-      },
-      "quotasLabel": "Starter limits (default when you sign up)",
-      "q1": "5 organization members",
-      "q2": "2 workspaces",
-      "q3": "200 tasks",
-      "q4": "3,000 meeting participant minutes",
-      "q5": "Meeting recording and AI summary (by plan)",
-      "q6": "100,000 AI tokens",
-      "q7": "5 GB storage",
-      "q8": "Public document links (SSO on paid Business only)",
-      "status": "Prices and limits match the in-app catalog; after sign-up you can upgrade and pay through VNPay.",
-      "cta": "Create a workspace"
+      "title": "Choose a plan for your team.",
+      "sub": "Compare members, workspace capacity, meetings and AI in one place.",
+      "defaultPlan": "Default on sign-up",
+      "perOrganization": "per organization",
+      "perOrganizationPeriod": "per organization / {{period}}",
+      "startWithPlan": "Start with {{name}}",
+      "contact": "Talk to UniWork",
+      "compareFeatures": "Compare included features",
+      "feature": "Feature",
+      "included": "Included",
+      "notSpecified": "Not specified",
+      "loading": "Loading current plans…",
+      "errorTitle": "We couldn’t load the current prices.",
+      "emptyTitle": "No plans are published yet.",
+      "unavailableDescription": "Try loading again, or contact UniWork to confirm the available plans and prices.",
+      "status": "After sign-up, the organization owner reviews and confirms plan changes in Billing.",
+      "usageNote": "Meeting participant minutes count each attendee. Transcription minutes have a separate limit. Features also depend on your organization’s service configuration.",
+      "deploymentTitle": "Have deployment questions?",
+      "deploymentDescription": "Tell us about your team size, workflows and setup so we can discuss the available options.",
+      "labels": {
+        "price_free": "Free",
+        "price_contact": "Contact us for pricing",
+        "period": {
+          "month": "month",
+          "year": "year",
+          "none": "no term"
+        },
+        "unlimited": "unlimited",
+        "plan_line_storage_gb": "{{n}} GB",
+        "not_in_plan": "Not in this plan",
+        "retry": "Retry",
+        "features": {
+          "members_max": "Organization members",
+          "workspaces_max": "Workspaces",
+          "tasks_max": "Tasks",
+          "storage_bytes": "Storage",
+          "meeting_participant_minutes": "Meeting participant minutes",
+          "ai_tokens": "AI tokens",
+          "meeting_recording": "Meeting recording",
+          "meeting_ai_summary": "AI meeting summaries",
+          "documents_public_links": "Public links for documents",
+          "meeting_transcription": "Meeting transcription minutes",
+          "office_ai_byok": "Office AI with your own key",
+          "office_ai_cloud": "Office cloud AI tools"
+        }
+      }
     },
     "final": {
       "compactTitle": "Bring your team's work together.",
@@ -10521,7 +10797,7 @@
       "q7": "Has UniWork launched?",
       "a7": "UniWork is in pre-launch. This page separates current capabilities from the roadmap; some features need configuration or a connected service before use.",
       "q8": "What does it cost?",
-      "a8": "Starter is free at this stage. Commercial plans and limits are still being finalized; this is not a promise of unlimited free use forever.",
+      "a8": "See the pricing page for the plans currently available, their prices and resource limits. After sign-up, the organization owner can review and confirm plan changes in Billing.",
       "q9": "Can it run on our own infrastructure?",
       "a9": "Not today. An on-premise install through Docker Compose or Helm is on the roadmap, along with any OIDC provider, MinIO storage and models running in house.",
       "q10": "Is there an API?",
@@ -10993,16 +11269,16 @@
         "closing": "Bring your team’s working rhythm to UniWork."
       },
       "pricing": {
-        "viewPlan": "See Starter",
+        "viewPlan": "Compare plans",
         "checkTitle": "Understand today. Confirm what comes next.",
         "checkDescription": "Compare Starter, Team and Business with your deployment needs, AI setup and team size.",
         "enterpriseLink": "Explore enterprise foundations",
-        "closing": "Explore UniWork with Starter.",
+        "closing": "Bring your team into UniWork.",
         "rows": [
           {
             "subject": "Current plan",
-            "current": "Starter is free during the current stage.",
-            "confirm": "Commercial plans and limits are being finalized; this is not a long-term unlimited-free commitment."
+            "current": "Starter is free; Team and Business are paid monthly on the public pricing page.",
+            "confirm": "Compare limits (members, workspaces, AI, meetings) with your team size before upgrading."
           },
           {
             "subject": "AI and resources",
@@ -11316,7 +11592,81 @@
         "version": "Version {{version}}",
         "requirements": "Requires: {{value}}",
         "unsigned": "This build is not code-signed, so your system may warn you the first time you open it.",
-        "unavailable": "No installer has been published yet."
+        "unavailable": "No installer has been published yet.",
+        "channelsLabel": "Release channel",
+        "channel": {
+          "stable": "Stable",
+          "beta": "Beta",
+          "dev": "Dev"
+        },
+        "channelHint": {
+          "stable": "For everyday use.",
+          "beta": "A preview of what is headed for Stable.",
+          "dev": "The newest builds, possibly unstable."
+        },
+        "soon": "Coming soon",
+        "cta": "Download for {{label}}",
+        "released": "Version {{version}} · {{date}}",
+        "chip": {
+          "win": "Windows",
+          "mac_arm": "macOS Apple Silicon",
+          "mac_intel": "macOS Intel",
+          "deb": "Linux .deb",
+          "appimage": "Linux .AppImage"
+        },
+        "picker": {
+          "recommended": "Recommended"
+        },
+        "notes": {
+          "title": "What's new in {{version}}",
+          "empty": "This version has no release notes.",
+          "more": "Show more",
+          "less": "Show less"
+        },
+        "history": {
+          "title": "Earlier versions",
+          "none": "This channel has no earlier versions yet.",
+          "open": "Show details for version {{version}}",
+          "files": "Downloads",
+          "build": {
+            "win": ".exe",
+            "mac_arm": "Apple Silicon",
+            "mac_intel": "Intel",
+            "deb": ".deb",
+            "appimage": ".AppImage"
+          }
+        },
+        "states": {
+          "loading": "Loading the list of versions…",
+          "soonTitle": "The {{channel}} channel is coming soon",
+          "soonBody": "No version has been released on the {{channel}} channel yet. It will show up here once there is one.",
+          "soonAction": "See the {{channel}} channel",
+          "emptyTitle": "No version has been released yet",
+          "emptyBody": "Meanwhile you can still open and edit Office files on the web, under Documents.",
+          "error": "Could not load the list of versions.",
+          "errorFallback": "Below are the current installers, which may not be the latest."
+        },
+        "update": {
+          "notice": "A new version, {{version}}, is out on the {{channel}} channel.",
+          "action": "Reload",
+          "dismiss": "Dismiss notice"
+        }
+      },
+      "apt": {
+        "title": "Install with apt",
+        "intro": "Install on Ubuntu or Debian either way.",
+        "script": "Use the install script",
+        "or": "or",
+        "quick": "Download and install the .deb",
+        "copy": "Copy",
+        "copyStep": "Copy command: {{step}}",
+        "copied": "Copied",
+        "copyFailed": "Couldn't copy. Select the commands and copy them yourself.",
+        "manual": "Manual setup",
+        "setup": "1. Add the repository",
+        "install": "2. Install",
+        "deb": "If you installed the .deb, this file already exists and you can skip step 1.",
+        "fingerprint": "Key fingerprint"
       },
       "works": {
         "title": "Works with UniWork",
@@ -12166,6 +12516,7 @@
         "refusal_title_files": "These files can’t be uploaded",
         "share_toggle": "Share with workspace",
         "share_hint": "Applies to every file in this upload. The folders stay private.",
+        "share_hint_workspace": "Applies to every file in this upload. The new folders are visible to the whole workspace.",
         "share_hint_files": "Applies to every file in this upload.",
         "share_inherited": "The destination folder is shared with the workspace, so the files are too.",
         "cancel": "Cancel",
@@ -12387,6 +12738,17 @@
       "upload_failed": "Could not upload the file",
       "commit_failed": "Could not save the new version",
       "missing_file": "This document has no file yet."
+    },
+    "media": {
+      "loading": "Opening file…",
+      "retry": "Try again",
+      "error_title": "Couldn't open the file to view.",
+      "error_description": "The file content didn't load. Try again, or download it from the More actions menu.",
+      "unsupported_title": "This browser can't open this image.",
+      "unsupported_description": "The browser can't show this format, or the file is damaged (for example HEIC or TIFF). Download it to open in an app on your computer.",
+      "fullscreen_enter": "Full screen",
+      "fullscreen_exit": "Exit full screen",
+      "dimensions": "{{width}} × {{height}} px"
     },
     "editor": {
       "aria_label": "Document content",
@@ -12822,7 +13184,7 @@
       "archive_submitting": "Moving to trash…",
       "archive_failed": "Could not move to trash. Nothing changed.",
       "archive_toast": "Moved to trash",
-      "archive_forbidden": "A child you cannot manage blocks the whole group from the trash.",
+      "archive_forbidden": "You cannot move this to trash: you do not manage it or a subfolder inside it.",
       "restore_title": "Restore document",
       "restore_description": "Restores this item and the items inside it that you manage. It lands back in its old folder if the folder is still there, otherwise at the workspace root.",
       "restore_confirm": "Restore",
@@ -12838,9 +13200,12 @@
       "delete_documents_other": "{{count}} documents",
       "delete_body": "{{subfolders}} and {{documents}} will move to the trash and can be restored within 30 days.",
       "delete_relocated": "Other people's documents in this folder go back to their owners, with their access unchanged.",
+      "archive_relocated": "Other people's documents inside this item go back to their owners, with their access unchanged.",
       "delete_loading": "Counting what's in the folder…",
       "delete_impact_error": "Couldn't count what's in the folder. Try again before deleting.",
       "delete_too_large": "The folder holds more than {{max}} items, so it can't go to the trash in one go. Delete what's inside in parts first.",
+      "archive_impact_error": "Couldn't count what's inside this item. Try again before moving it to the trash.",
+      "archive_too_large": "This item holds more than {{max}} items, so it can't go to the trash in one go. Delete what's inside in parts first.",
       "delete_confirm": "Delete",
       "delete_submitting": "Deleting…",
       "delete_failed": "Couldn't delete. Nothing changed."
@@ -13212,6 +13577,9 @@
       "filters": {
         "editor": "Edited by",
         "updated": "Updated",
+        "type": "Type",
+        "type_count_other": "{{count}} types",
+        "type_remove": "Remove {{type}} filter",
         "editor_any": "Any",
         "editor_me": "Me",
         "updated_any": "Any time",
@@ -13258,7 +13626,6 @@
         "meeting": "Meetings",
         "email": "Email"
       },
-      "chips_label": "Filter by type",
       "chips": {
         "all": "All types",
         "page": "UniNote",
@@ -13305,6 +13672,8 @@
         "go_to_source_named": "View where attached: {{title}}",
         "preview_failed": "Could not open the file. Try again.",
         "preview_close": "Close",
+        "preview_expand": "Expand to full width",
+        "preview_restore": "Restore size",
         "view_only_notice": "View only · changes will not be saved",
         "download": "Download",
         "save_to_folder": "Save to folder",
@@ -13539,6 +13908,7 @@
     "canvas": {
       "zoom_in": "Zoom in",
       "zoom_out": "Zoom out",
+      "zoom_level": "Zoom level",
       "zoom_fit": "Fit to view",
       "zoom_actual": "Actual size"
     },
@@ -13754,7 +14124,7 @@
           "appimage": ".AppImage",
           "win_zip": "Portable ZIP",
           "win_zip_hint": "No install needed",
-          "mac_intel_hint": "Older Macs",
+          "mac_intel_hint": "Macs with an Intel chip",
           "appimage_hint": "Runs on any x64 distribution"
         },
         "req": {
@@ -14165,5 +14535,74 @@
     "data": "Data and AI",
     "privacy": "Privacy policy",
     "terms": "Terms of use"
+  },
+  "trash": {
+    "title": "Trash",
+    "move_confirm": "Move to trash",
+    "moved": "Moved to trash",
+    "undo": "Undo",
+    "restore": "Restore",
+    "restored": "Restored",
+    "restore_failed": "Could not restore",
+    "purge": "Delete forever",
+    "purge_title": "Delete forever?",
+    "purge_desc": "\"{{title}}\" will be deleted forever. This cannot be undone.",
+    "purged": "Deleted forever",
+    "purge_failed": "Could not delete forever",
+    "cancel": "Cancel",
+    "unknown_member": "Former member",
+    "load_more": "Load more",
+    "error_title": "Could not load the trash",
+    "errors": {
+      "trash_too_large": "Too many tasks for one move to the trash. Select fewer tasks and try again.",
+      "duplicate_project_title": "A project with the same title already exists in this workspace. Choose another title or rename that project, then try again."
+    },
+    "description": "Deleted items stay here for 30 days, then are deleted forever.",
+    "filters_label": "Filter the trash",
+    "search": "Search by name…",
+    "clear_search": "Clear search",
+    "clear_filter": "Clear the {{name}} filter",
+    "kind_label": "Type",
+    "kinds": {
+      "task": "Task",
+      "project": "Project",
+      "document": "Document"
+    },
+    "trashed_by_label": "Deleted by",
+    "trashed_by_me": "Me",
+    "search_people": "Search people",
+    "no_people": "No one found",
+    "people_cap": "You can pick up to {{max}} people",
+    "former_members_one": "{{count}} former member",
+    "former_members_other": "{{count}} former members",
+    "table_label": "Items in the trash",
+    "columns": {
+      "name": "Name",
+      "location": "Location",
+      "trashed_at": "Deleted",
+      "trashed_by": "Deleted by",
+      "left": "Left",
+      "actions": "Actions"
+    },
+    "days_left_one": "{{count}} day",
+    "days_left_other": "{{count}} days",
+    "sub": {
+      "task_with_one": "Task · with {{count}} subtask",
+      "task_with_other": "Task · with {{count}} subtasks",
+      "project_with_one": "Project · {{count}} task is reattached on restore",
+      "project_with_other": "Project · {{count}} tasks are reattached on restore",
+      "page": "Page",
+      "file": "File",
+      "folder": "Folder"
+    },
+    "row_actions": "Actions for {{title}}",
+    "locked": {
+      "project": "Only the creator, the lead or an admin can restore or delete this project forever.",
+      "document": "You need permission to manage this document."
+    },
+    "empty_title": "The trash is empty",
+    "no_match_title": "No items match",
+    "clear_filters": "Clear filters",
+    "untitled": "Untitled"
   }
 }

@@ -213,6 +213,7 @@ func New(d Deps, h Routes) http.Handler {
 		// Outside authed: the provider redirects the popup here with no bearer.
 		registerEmailHubCallback(v1, h, credentialLimit)
 		registerBillingWebhooks(v1, h)
+		registerPublicPlans(v1, h)
 		registerMeetingAgent(v1, h, mw.RequireMeetingAgentToken([]byte(d.Cfg.JWTSecret)), meetingAgentLimit(
 			mw.RateLimitByIdentityBucket(d.Redis, "meeting-agent-ip", 6000, time.Minute, proxies, nil),
 			mw.RateLimitByIdentityBucket(d.Redis, "meeting-agent", 600, time.Minute, proxies, mw.MeetingAgentRateKey)))

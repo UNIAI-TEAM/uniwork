@@ -3,7 +3,6 @@ import {
   DocumentSourceListSchema,
   type DocumentSourceKind,
   type DocumentSourceList,
-  type DocumentSourceType,
 } from "../../documents/sources-schema";
 import { request, requestBlob } from "../http";
 import type { DocumentSortColumn, DocumentSortOrder } from "./documents-collections";
@@ -19,7 +18,8 @@ const enc = encodeURIComponent;
 
 export interface ListDocumentSourcesOpts {
   source?: DocumentSourceKind;
-  type?: DocumentSourceType;
+  /** The Type picks: one `type=` per value, OR-ed server-side (UNI-2113). */
+  types?: string[];
   q?: string;
   /** The column the table sorts by (UNI-2038); left out keeps newest first. */
   sort?: DocumentSortColumn;
@@ -39,7 +39,7 @@ function sourcesQuery(opts?: ListDocumentSourcesOpts): string {
   if (!opts) return "";
   const p = new URLSearchParams();
   if (opts.source) p.set("source", opts.source);
-  if (opts.type) p.set("type", opts.type);
+  for (const type of opts.types ?? []) p.append("type", type);
   if (opts.q) p.set("q", opts.q);
   if (opts.sort) p.set("sort", opts.sort);
   if (opts.order) p.set("order", opts.order);

@@ -76,6 +76,7 @@ export function AdminInvoicesTable({
   onDetail,
   onRefund,
   onConfirmRefund,
+  onRevertRefund,
 }: {
   rows: AdminInvoice[];
   emptyLabel: string;
@@ -84,6 +85,7 @@ export function AdminInvoicesTable({
   onDetail: (row: AdminInvoice) => void;
   onRefund: (row: AdminInvoice) => void;
   onConfirmRefund: (row: AdminInvoice) => void;
+  onRevertRefund: (row: AdminInvoice) => void;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "admin.invoices" });
   const th = adminBillingTableHeadClass();
@@ -181,9 +183,14 @@ export function AdminInvoicesTable({
                     ) : null}
                     {canRefund &&
                     (inv.status === "refund_pending" || inv.status === "partial_refund_pending") ? (
-                      <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => onConfirmRefund(inv)}>
-                        {t("confirm_refund_action")}
-                      </Button>
+                      <>
+                        <Button type="button" variant="secondary" size="sm" className="h-8" onClick={() => onConfirmRefund(inv)}>
+                          {t("confirm_refund_action")}
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => onRevertRefund(inv)}>
+                          {t("revert_refund_action")}
+                        </Button>
+                      </>
                     ) : null}
                   </div>
                 </TableCell>

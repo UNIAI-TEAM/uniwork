@@ -60,7 +60,7 @@ func newBuilder(q Query) *builder {
 
 // tenant is the mandatory tenant clause for alias (ADR 0020).
 func tenant(alias string) string {
-	return alias + ".organization_id = $1 AND " + alias + ".workspace_id = $2"
+	return alias + ".organization_id = $1 AND " + alias + ".workspace_id = $2 AND " + alias + ".trashed_at IS NULL"
 }
 
 // membership is the full membership predicate for alias: tenant, filter,

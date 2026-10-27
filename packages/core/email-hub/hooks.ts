@@ -347,7 +347,7 @@ export function useStartEmailHubOAuth(wsId: string) {
 
 export function useEmailHubScheduledSends(wsId: string, accountId: string | null) {
   return useQuery({
-    queryKey: ["email-hub", wsId, "scheduled", accountId ?? ""] as const,
+    queryKey: emailHubKeys.scheduledSends(wsId, accountId ?? ""),
     queryFn: () => api.listEmailHubScheduledSends(wsId, accountId!),
     enabled: !!accountId,
     staleTime: 10_000,

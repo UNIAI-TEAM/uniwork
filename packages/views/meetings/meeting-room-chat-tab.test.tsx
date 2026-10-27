@@ -1,7 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { toast } from "sonner";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
+import { CHAT_WALL_DOT_CLASS } from "@uniwork/core/chat/chat-wallpaper-resolve";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingRoomChatTab } from "./meeting-room-chat-tab";
@@ -109,6 +110,27 @@ describe("MeetingRoomChatTab (persisted)", () => {
     expect(box).toHaveValue("Xin chào");
   });
 
+  it("does not send from the inactive button: empty draft, or while a message is on its way", async () => {
+    const post = vi.fn(() => new Promise<unknown>(() => {}));
+    chatRespond(() => Promise.resolve({ messages: [] }), post);
+    render(wrapWithNav(<MeetingRoomChatTab meetingId="m1" />));
+    await screen.findByText(EMPTY);
+
+    const button = screen.getByRole("button", { name: "Gửi" });
+    fireEvent.click(button);
+    await act(async () => {});
+    expect(post).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Trò chuyện" }), { target: { value: "Xin chào" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(post).toHaveBeenCalledOnce());
+    await waitFor(() => expect(button).toHaveAttribute("aria-disabled", "true"));
+
+    fireEvent.click(button);
+    await act(async () => {});
+    expect(post).toHaveBeenCalledOnce();
+  });
+
   it("does not send on the Enter that ends an IME composition", async () => {
     const post = vi.fn(() => Promise.resolve({}));
     chatRespond(() => Promise.resolve({ messages: [] }), post);
@@ -186,7 +208,7 @@ describe("MeetingRoomChatTab auto-scroll", () => {
 });
 
 describe("MeetingRoomChatTab bubbles", () => {
-  it("paints bubbles like the chat module: the brand fill for mine, the white bubble for theirs", () => {
+  it("paints the brand fill for mine and the grey bubble for theirs on the plain panel", () => {
     liveMessages = [
       { id: "a", message: "Chào cả nhà", timestamp: 1_000, from: { identity: "u-other", name: "Lan" } },
       { id: "b", message: "Chào Lan", timestamp: 2_000, from: { identity: "u-me", name: "Tôi", isLocal: true } },
@@ -196,6 +218,83 @@ describe("MeetingRoomChatTab bubbles", () => {
     const mine = screen.getByText("Chào Lan");
     expect(mine).toHaveClass("bg-chat-bubble-own", "text-chat-bubble-own-foreground");
     expect(mine).not.toHaveClass("text-foreground");
-    expect(theirs).toHaveClass("bg-chat-bubble-other");
+    expect(theirs).toHaveClass("bg-surface-hover", "text-foreground", "rounded-tl-[4px]");
+    expect(mine).toHaveClass("rounded-tr-[4px]");
+  });
+
+  it("makes a web address in a message a link that opens apart", () => {
+    liveMessages = [
+      { id: "a", message: "Báo cáo QA: https://qa.saomai.vn/r/1043", timestamp: 1_000, from: { identity: "u-other", name: "Tuấn" } },
+    ];
+    render(wrapWithNav(<MeetingRoomChatTab />));
+    const link = screen.getByRole("link", { name: "https://qa.saomai.vn/r/1043" });
+    expect(link).toHaveAttribute("href", "https://qa.saomai.vn/r/1043");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).toHaveClass("underline", "text-brand-subtle-foreground");
+  });
+
+  it("names the sender of my own messages for screen readers, with no visible name", () => {
+    liveMessages = [
+      { id: "b", message: "Chào Lan", timestamp: 2_000, from: { identity: "u-me", name: "Tôi", isLocal: true } },
+    ];
+    render(wrapWithNav(<MeetingRoomChatTab />));
+    const own = screen.getByText("Chào Lan").closest("li")!;
+    const name = within(own).getByText("Bạn");
+    expect(name).toHaveClass("sr-only");
+  });
+});
+
+describe("MeetingRoomChatTab look", () => {
+  const DAY = 86_400_000;
+
+  it("draws no day divider when every message is from one day", () => {
+    const now = Date.now();
+    liveMessages = [
+      { id: "a", message: "Một", timestamp: now, from: { identity: "u-other", name: "Lan" } },
+      { id: "b", message: "Hai", timestamp: now, from: { identity: "u-me", name: "Tôi", isLocal: true } },
+    ];
+    render(wrapWithNav(<MeetingRoomChatTab />));
+    expect(screen.getByText("Một")).toBeInTheDocument();
+    expect(screen.queryByText("Hôm nay")).not.toBeInTheDocument();
+  });
+
+  it("draws day dividers when the messages span two days", () => {
+    const now = Date.now();
+    liveMessages = [
+      { id: "a", message: "Hôm trước", timestamp: now - DAY, from: { identity: "u-other", name: "Lan" } },
+      { id: "b", message: "Hôm nay nói", timestamp: now, from: { identity: "u-other", name: "Lan" } },
+    ];
+    render(wrapWithNav(<MeetingRoomChatTab />));
+    expect(screen.getByText("Hôm qua")).toBeInTheDocument();
+    expect(screen.getByText("Hôm nay")).toBeInTheDocument();
+  });
+
+  it("puts the messages on the plain panel, not the dotted chat wall", () => {
+    liveMessages = live(1);
+    render(wrapWithNav(<MeetingRoomChatTab />));
+    const list = screen.getByRole("list");
+    for (const cls of CHAT_WALL_DOT_CLASS.split(" ")) expect(list).not.toHaveClass(cls);
+  });
+
+  it("types into a 16px gradient-edge box with a round 32px send button, no beam and no modes", () => {
+    render(wrapWithNav(<MeetingRoomChatTab />));
+    const box = screen.getByRole("textbox", { name: "Trò chuyện" });
+    expect(box).toHaveAttribute("placeholder", "Nhắn cho mọi người…");
+    const frame = box.closest<HTMLElement>(".ai-edge");
+    expect(frame).not.toBeNull();
+    expect(frame).not.toHaveClass("border-beam-ai");
+    expect(frame).not.toHaveClass("ai-edge-note");
+    expect(frame!.style.getPropertyValue("--ai-edge-radius")).toBe("16px");
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+
+    const sendButton = within(frame!).getByRole("button", { name: "Gửi" });
+    expect(sendButton).toHaveClass("size-8", "rounded-full", "pointer-coarse:size-11");
+    expect(sendButton.querySelector("svg.lucide-arrow-up")).not.toBeNull();
+    expect(sendButton).toHaveAttribute("aria-disabled", "true");
+    expect(sendButton).not.toHaveClass("bg-brand");
+
+    fireEvent.change(box, { target: { value: "Xin chào" } });
+    expect(sendButton).not.toHaveAttribute("aria-disabled");
+    expect(sendButton).toHaveClass("bg-brand", "text-brand-foreground");
   });
 });

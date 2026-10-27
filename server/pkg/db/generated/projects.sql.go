@@ -11,41 +11,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const clearTasksProjectID = `-- name: ClearTasksProjectID :many
-UPDATE tasks SET project_id = NULL, revision = revision + 1, updated_at = now()
-WHERE project_id = $1 AND organization_id = $2 AND workspace_id = $3
-RETURNING id
-`
-
-type ClearTasksProjectIDParams struct {
-	ProjectID      pgtype.Text `json:"project_id"`
-	OrganizationID string      `json:"organization_id"`
-	WorkspaceID    string      `json:"workspace_id"`
-}
-
-func (q *Queries) ClearTasksProjectID(ctx context.Context, arg ClearTasksProjectIDParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, clearTasksProjectID, arg.ProjectID, arg.OrganizationID, arg.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const countSearchProjects = `-- name: CountSearchProjects :one
 SELECT count(*)::bigint FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
+  AND trashed_at IS NULL
   AND (
     title ILIKE '%' || $3 || '%'
     OR description ILIKE '%' || $3 || '%'
@@ -84,7 +53,7 @@ INSERT INTO projects (
   $1, $2, $3, $4, $5, $6, $7, $8,
   $9, $10, $11, $12, $13, $14, $15
 )
-RETURNING id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after
 `
 
 type CreateProjectParams struct {
@@ -142,6 +111,9 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
 	)
 	return i, err
 }
@@ -309,8 +281,9 @@ func (q *Queries) DeleteTaskViewsByProjectScope(ctx context.Context, arg DeleteT
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at FROM projects
+SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after FROM projects
 WHERE id = $1 AND organization_id = $2 AND workspace_id = $3
+  AND trashed_at IS NULL
 `
 
 type GetProjectParams struct {
@@ -340,6 +313,9 @@ func (q *Queries) GetProject(ctx context.Context, arg GetProjectParams) (Project
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
 	)
 	return i, err
 }
@@ -431,6 +407,7 @@ SELECT project_id,
 FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
+  AND trashed_at IS NULL
   AND project_id = ANY($3::text[])
 GROUP BY project_id
 `
@@ -516,6 +493,7 @@ const listProjectTitlesForDuplicateCheck = `-- name: ListProjectTitlesForDuplica
 SELECT id, title FROM projects
 WHERE organization_id = $1
   AND workspace_id = $2
+  AND trashed_at IS NULL
 ORDER BY created_at, id
 `
 
@@ -550,8 +528,9 @@ func (q *Queries) ListProjectTitlesForDuplicateCheck(ctx context.Context, arg Li
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at FROM projects
+SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
+  AND trashed_at IS NULL
   AND ($3::text IS NULL OR status = $3)
   AND ($4::text IS NULL OR priority = $4)
 ORDER BY updated_at DESC, id
@@ -596,6 +575,9 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]P
 			&i.CreatedByKind,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TrashedAt,
+			&i.TrashedBy,
+			&i.PurgeAfter,
 		); err != nil {
 			return nil, err
 		}
@@ -624,6 +606,7 @@ SELECT
   count(*) OVER ()::bigint AS total_count
 FROM projects
 WHERE organization_id = $1 AND workspace_id = $2
+  AND trashed_at IS NULL
   AND (
     title ILIKE '%' || $3 || '%'
     OR description ILIKE '%' || $3 || '%'
@@ -735,7 +718,7 @@ WHERE id = $13
   AND organization_id = $14
   AND workspace_id = $15
   AND revision = $16
-RETURNING id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after
 `
 
 type UpdateProjectParams struct {
@@ -795,6 +778,9 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
 	)
 	return i, err
 }

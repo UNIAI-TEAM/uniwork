@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import { setAccessToken } from "../api/session";
 import { DocumentNotVerifiableError } from "../types/document";
+import { documentFilterKey } from "./hooks-collections";
 import { documentKeys } from "./keys";
 import {
   useDocumentFavorites,
@@ -105,6 +106,29 @@ describe("document favorite hooks", () => {
     expect(cached?.pages.flatMap((p) => p.documents.map((d) => d.id))).toEqual(["d1", "d2"]);
     // Under the workspace root, so a document.* frame refreshes it like every other list.
     expect(documentKeys.favoriteList("w1").slice(0, 2)).toEqual(documentKeys.workspace("w1"));
+  });
+
+  it("the starred list sends the repeated type, keys the picks, and a star toggle refreshes that entry too (UNI-2113)", async () => {
+    vi.mocked(fetch).mockImplementation((input) =>
+      Promise.resolve(String(input).includes("/favorites?") ? json({ documents: [], next_cursor: null }) : json({ favorite: favoriteBody(), status: "ok" })),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const wrapper = wrapperFor(qc);
+    const list = renderHook(() => useWorkspaceFavoriteDocuments("w1", { types: ["docx", "xlsx"] }), { wrapper });
+    await waitFor(() => expect(list.result.current.isSuccess).toBe(true));
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(url.searchParams.getAll("type")).toEqual(["docx", "xlsx"]);
+    const key = documentKeys.favoriteList("w1", documentFilterKey({ types: ["docx", "xlsx"] }));
+    expect(key).not.toEqual(documentKeys.favoriteList("w1"));
+    expect(qc.getQueryData(key)).toBeDefined();
+    const favorite = renderHook(() => useFavoriteDocument(), { wrapper });
+    await act(async () => {
+      await favorite.result.current.mutateAsync("d1");
+    });
+    // The mounted keyed entry is refetched (invalidated), not left stale.
+    await waitFor(() =>
+      expect(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("/favorites?")).length).toBeGreaterThanOrEqual(2),
+    );
   });
 
   it("favorite/unfavorite also refresh every workspace starred list", async () => {

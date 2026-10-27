@@ -185,6 +185,23 @@ export function useAddNote(meetingId: string) {
   });
 }
 
+/** Awaits the server (no optimistic edit), then refetches the notes. */
+export function useUpdateNote(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ noteId, body }: { noteId: string; body: string }) => meetings.updateNote(meetingId, noteId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: meetingKeys.notes(meetingId) }),
+  });
+}
+
+export function useDeleteNote(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (noteId: string) => meetings.deleteNote(meetingId, noteId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: meetingKeys.notes(meetingId) }),
+  });
+}
+
 /** @deprecated Prefer {@link useJoinMeeting}. */
 export function useMeetingToken() {
   return useMutation({

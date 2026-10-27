@@ -126,9 +126,9 @@ func seedVnpayPaidInvoice(t *testing.T, queryURL, secret, invID, intentID, email
 	now := time.Now().UTC()
 	if _, err := f.pool.Exec(f.ctx, `INSERT INTO invoices (
 		id, organization_id, subscription_id, provider, number, status,
-		amount_due, amount_paid, currency, period_start, period_end, paid_at
-	) VALUES ($1, $2, $3, 'vnpay', $4, 'paid', 1000000, 1000000, 'VND', $5, $5, $5)`,
-		invID, f.orgID, subID, "UW-"+intentID, now); err != nil {
+		amount_due, amount_paid, currency, period_start, period_end, paid_at, payment_intent_id
+	) VALUES ($1, $2, $3, 'vnpay', $4, 'paid', 1000000, 1000000, 'VND', $5, $5, $5, $6)`,
+		invID, f.orgID, subID, "UW-"+intentID, now, intentID); err != nil {
 		t.Fatal(err)
 	}
 	_ = email

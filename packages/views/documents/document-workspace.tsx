@@ -29,6 +29,7 @@ import { TakeOverDialog } from "./take-over-dialog";
 import { useDocumentEditLockUi } from "./use-document-edit-lock-ui";
 import type { DocumentEditorHandle } from "./document-editor";
 import { DocumentFileView, useDocumentOfficeGate, usesOfficeEditor } from "./document-file-view";
+import { isImageDocument } from "./document-media-kind";
 import { DocumentSaveIndicator } from "./document-save-indicator";
 import { DocumentPageHeader } from "./document-page-header";
 import { readonlyKeys, readonlyReaderCanComment } from "./document-readonly-copy";
@@ -107,6 +108,8 @@ export function DocumentWorkspace({
   // One live gate for the layout and the file view: a pending leave guard keeps both on the editor (R3).
   const officeGate = useDocumentOfficeGate(doc);
   const officeEditorMounted = doc.kind !== "page" && usesOfficeEditor(officeGate.editorOpen, Boolean(officeEditorHost), officeGate.format);
+  // The image viewer fills the page like the editor does, without taking the edit lock.
+  const surfaceFillsPage = officeEditorMounted || isImageDocument(doc);
   // ARCHIVE-01: a shelved document is read-only at every level, and so is one whose autosave was just
   // refused with document_shelved (someone shelved it while this page was open): the unsaved editor
   // content stays, nothing more is sent, and the document is read again. The save machine lives in the
@@ -579,7 +582,7 @@ export function DocumentWorkspace({
         className={
           doc.kind === "page"
             ? `min-h-0 min-w-0 flex-1 overflow-y-auto bg-background pt-12 pb-32 md:pt-16 ${PAGE_GUTTER}`
-            : officeEditorMounted
+            : surfaceFillsPage
               ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
               : `min-h-0 flex-1 overflow-y-auto py-4 ${PAGE_GUTTER}`
         }

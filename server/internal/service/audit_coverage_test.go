@@ -172,6 +172,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionMembershipInviteLinkCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			if _, err := f.ws.CreateWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, nil); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMembershipInviteLinkRevoked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			link, err := f.ws.CreateWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.ws.RevokeWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, link.Link.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionOrganizationOwnershipChanged: func(t *testing.T, f *auditFixture) {
 			f.addMember(t)
 			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, auditPassword); err != nil {
@@ -298,6 +314,27 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err := f.admin.RefundInvoice(f.ctx, f.third.ID, invID, "audit coverage manual refund", "REF-AUDIT", "127.0.0.1", 0); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionBillingInvoiceRefundReverted: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			f.suspend(t, OrganizationActive)
+			var subID string
+			if err := f.pool.QueryRow(f.ctx, `SELECT id FROM subscriptions WHERE organization_id = $1`, f.orgID).Scan(&subID); err != nil {
+				t.Fatal(err)
+			}
+			invID := util.NewID()
+			now := time.Now().UTC()
+			if _, err := f.pool.Exec(f.ctx, `INSERT INTO invoices (
+				id, organization_id, subscription_id, provider, number, status,
+				amount_due, amount_paid, currency, period_start, period_end, paid_at,
+				refund_requested_at
+			) VALUES ($1, $2, $3, 'manual', 'UW-AUDIT-REVERT', 'refund_pending', 1000, 1000, 'VND', $4, $4, $4, $4)`,
+				invID, f.orgID, subID, now); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.admin.RevertInvoiceRefund(f.ctx, f.third.ID, invID, "audit coverage revert refund request"); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -428,8 +465,27 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionTaskTrashed: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t) // build the fixture before reading f.owner
+			if _, err := f.tasks.Trash(f.ctx, Human(f.owner.ID), task.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionTaskRestored: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			if _, err := f.tasks.Trash(f.ctx, Human(f.owner.ID), task.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.tasks.Restore(f.ctx, Human(f.owner.ID), task.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionTaskDeleted: func(t *testing.T, f *auditFixture) {
-			if err := f.tasks.Delete(f.ctx, f.owner.ID, f.newTask(t).ID); err != nil {
+			task := f.newTask(t)
+			if _, err := f.tasks.Trash(f.ctx, Human(f.owner.ID), task.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.Purge(f.ctx, Human(f.owner.ID), task.ID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -614,7 +670,33 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := f.tasks.DeleteProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
+			if err := f.tasks.TrashProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.PurgeProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionProjectTrashed: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			p, err := f.tasks.CreateProject(f.ctx, Human(f.owner.ID), w.ID, CreateProjectInput{Title: "Trash"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.TrashProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionProjectRestored: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			p, err := f.tasks.CreateProject(f.ctx, Human(f.owner.ID), w.ID, CreateProjectInput{Title: "Restore"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.TrashProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.RestoreProject(f.ctx, Human(f.owner.ID), w.ID, p.ID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1457,6 +1539,21 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatalf("want access_request_closed, got %v", err)
 			}
 		},
+		audit.ActionDocumentOwnerTransferred: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			f.addMember(t)
+			if _, err := svc.TransferOwner(f.ctx, Human(f.owner.ID), docID, DocumentOwnerTransferInput{UserID: f.member.ID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentOwnersBulkTransferred: func(t *testing.T, f *auditFixture) {
+			svc, _ := f.document(t)
+			f.addMember(t)
+			bulk := NewOrganizationMemberDocumentService(f.orgMem, svc)
+			if _, err := bulk.TransferMemberDocuments(f.ctx, Human(f.owner.ID), f.orgID, f.owner.ID, MemberDocumentsTransferInput{ToUserID: f.member.ID}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentEditRequestAnswered: func(t *testing.T, f *auditFixture) {
 			svc, docID, req := f.documentEditRequest(t)
 			if _, err := svc.AnswerDocumentEditRequest(f.ctx, Human(f.owner.ID), docID, req.Request.ID, AnswerDocumentEditRequestInput{Decision: "decline", LockID: req.Request.LockID}); err != nil {
@@ -1506,6 +1603,27 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'reason' = $3 AND metadata::jsonb->>'from_folder_id' = $4`,
 				audit.ActionDocumentMoved, owners.Document.ID, audit.ReasonFolderTrashed, wsFolder.Document.ID).Scan(&n); err != nil || n != 1 {
 				t.Fatalf("folder trash wrote %d folder_trashed document.moved rows (%v), want 1", n, err)
+			}
+			// UNI-2074: trashing a page root relocates the same way and names
+			// the root's kind (from_kind).
+			pageRoot, err := svc.CreatePage(f.ctx, Human(f.member.ID), f.workspace.ID, CreatePageInput{Title: "Trang của thành viên"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			under, err := svc.CreatePage(f.ctx, Human(f.owner.ID), f.workspace.ID, CreatePageInput{Title: "Trang riêng dưới trang"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET parent_id = $1 WHERE id = $2`, pageRoot.Document.ID, under.Document.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.member.ID), pageRoot.Document.ID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'reason' = $3 AND metadata::jsonb->>'from_folder_id' = $4 AND metadata::jsonb->>'from_kind' = 'page'`,
+				audit.ActionDocumentMoved, under.Document.ID, audit.ReasonFolderTrashed, pageRoot.Document.ID).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("page-root trash wrote %d folder_trashed document.moved rows with from_kind page (%v), want 1", n, err)
 			}
 		},
 		audit.ActionDocumentArchived: func(t *testing.T, f *auditFixture) {
@@ -2000,6 +2118,37 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-2217: the author edits and deletes a shared note.
+		audit.ActionMeetingNoteUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			n, err := s.AddNote(f.ctx, f.owner.ID, m.ID, "Ghi chú")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.UpdateNote(f.ctx, f.owner.ID, m.ID, n.ID, "Ghi chú đã sửa"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingNoteDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			n, err := s.AddNote(f.ctx, f.owner.ID, m.ID, "Ghi chú")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := s.DeleteNote(f.ctx, f.owner.ID, m.ID, n.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-2024: a clerk names a speaker label of the shared microphone.
 		audit.ActionMeetingSpeakerLabelAssigned: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2310,7 +2459,12 @@ func auditActions() []string {
 		audit.ActionWorkspaceMemberRemoved,
 		audit.ActionTaskCreated,
 		audit.ActionTaskUpdated,
+		audit.ActionTaskTrashed,
+		audit.ActionTaskRestored,
 		audit.ActionTaskDeleted,
+		audit.ActionProjectTrashed,
+		audit.ActionProjectRestored,
+		audit.ActionProjectDeleted,
 		audit.ActionTaskCommentAdded,
 		audit.ActionTaskCommentUpdated,
 		audit.ActionTaskCommentDeleted,
@@ -2374,6 +2528,7 @@ func auditActions() []string {
 		audit.ActionDesktopDeviceRevoked,
 		audit.ActionSubscriptionChanged,
 		audit.ActionBillingInvoiceRefunded,
+		audit.ActionBillingInvoiceRefundReverted,
 		audit.ActionDocumentCreated,
 		audit.ActionOfficeLaunchSessionCreated,
 		audit.ActionOfficeLaunchSessionRedeemed,
@@ -2406,6 +2561,8 @@ func auditActions() []string {
 		audit.ActionDocumentAccessRequestApproved,
 		audit.ActionDocumentAccessRequestDeclined,
 		audit.ActionDocumentAccessRequestCancelled,
+		audit.ActionDocumentOwnerTransferred,
+		audit.ActionDocumentOwnersBulkTransferred,
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
 		audit.ActionDocumentCommitIntentRenewed,
@@ -2459,6 +2616,8 @@ func auditActions() []string {
 		audit.ActionMeetingSharedMicToggled,
 		audit.ActionMeetingSpeakerLabelAssigned,
 		audit.ActionMeetingNoteAdded,
+		audit.ActionMeetingNoteUpdated,
+		audit.ActionMeetingNoteDeleted,
 		audit.ActionMeetingHeldRecorded,
 		audit.ActionMeetingTranscriptionRequested,
 		audit.ActionMeetingTranscriptionCompleted,

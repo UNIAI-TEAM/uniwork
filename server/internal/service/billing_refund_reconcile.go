@@ -40,18 +40,27 @@ func (s *BillingService) ProcessRefundPendingReconcile(ctx context.Context) erro
 }
 
 func (s *BillingService) reconcileOneRefundPending(ctx context.Context, vnp *billing.VNPay, inv db.ListInvoicesRefundPendingForReconcileRow) error {
+	touch := func() {
+		_ = s.q.TouchInvoiceRefundReconcile(ctx, db.TouchInvoiceRefundReconcileParams{
+			ID: inv.ID, OrganizationID: inv.OrganizationID,
+		})
+	}
 	intent, err := s.paymentIntentForInvoice(ctx, s.q, invoiceIntentLookupFromReconcileRow(inv))
 	if errors.Is(err, pgx.ErrNoRows) {
+		touch()
 		return nil
 	}
 	if err != nil {
+		touch()
 		return err
 	}
 	ev, _, err := s.vnpayQueryDR(ctx, vnp, intent, "")
 	if err != nil {
+		touch()
 		return err
 	}
 	if !billing.QueryDRRefundSettled(ev.RawParams) {
+		touch()
 		return nil
 	}
 	return s.confirmInvoiceRefundFromProvider(ctx, inv.ID, inv.OrganizationID, inv.Number, inv.AmountPaid, inv.Status)

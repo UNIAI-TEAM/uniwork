@@ -65,6 +65,7 @@ Runbook vận hành (không gắn alert, mở theo bước deploy):
 | [unichat-mobile-release.md](unichat-mobile-release.md) | Thiết lập, cắt, OTA, rollback bản mobile UniChat (tag `chat-mobile-v*`, EAS, nightly Maestro, UNI-1836) |
 | [unichat-tls-pins.md](unichat-tls-pins.md) | Ghim khoá TLS của UniChat mobile: job `chat-mobile-tls-pins.yml` đỏ/vàng, đổi CA hay host đã ghim, gia hạn pin-set, sự cố app bị khoá (UNI-2141) |
 | [unichat-pilot.md](unichat-pilot.md) | Pilot nội bộ UniChat: chuẩn bị, triage mỗi sáng, đo người dùng hằng ngày và `uniwork_push_suppressed_total`, điều kiện dừng (UNI-1838) |
+| [browser-notifications.md](browser-notifications.md) | Bật thông báo hệ thống của trình duyệt và Web Push (VAPID) khi deploy, nghiệm thu thủ công (UNI-1965) |
 
 Alert `Office*` và `UniworkAi*` (G7-07) chỉ đọc metric mà code server D đăng ký (`scripts/office/alert-metrics.test.mjs`).
 Ngưỡng của chúng là đề xuất theo load profile, **pending G7-D1** (người dùng chốt). Các mục vận hành không có alert

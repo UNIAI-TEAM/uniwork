@@ -39,6 +39,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useOptionalNavigation } from "../navigation";
 import { toastApiError } from "../toast-api-error";
+import { useToastMovedToTrash } from "../trash/use-toast-moved-to-trash";
 import {
   CONTEXT_PARTS,
   DROPDOWN_PARTS,
@@ -62,6 +63,7 @@ export function useRowActionModel(
 ): RowActionModel {
   const { t } = useTranslation();
   const actions = useTaskSurfaceActionsOptional();
+  const toastMovedToTrash = useToastMovedToTrash();
   const workspaceContext = useOptionalWorkspace();
   const navigation = useOptionalNavigation();
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -112,7 +114,7 @@ export function useRowActionModel(
     void actions
       .batchDelete([task.id])
       .then(
-        () => toast.success(t("tasks.row_actions.delete_success")),
+        () => toastMovedToTrash(() => actions.restoreTask(task.id)),
         (error: unknown) =>
           toastApiError(error, t("tasks.row_actions.delete_failed")),
       )
@@ -201,9 +203,7 @@ function DeleteTaskDialog({ model }: { model: RowActionModel }) {
             {t("tasks.row_actions.delete_dialog_title")}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {t("tasks.row_actions.delete_dialog_desc", {
-              title: model.task.title,
-            })}
+            {t("tasks.row_actions.delete_dialog_desc")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

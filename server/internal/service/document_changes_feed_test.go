@@ -94,10 +94,16 @@ func (w *feedWorld) drainFeedFor(t *testing.T, user, cursor string, limit int) [
 // snapshot page's next cursor) plus the documents the snapshot held.
 func (w *feedWorld) snapshotThenFeed(t *testing.T, limit int) (string, map[string]bool) {
 	t.Helper()
+	return w.snapshotThenFeedFor(t, w.tn.member.ID, limit)
+}
+
+// snapshotThenFeedFor is snapshotThenFeed for one user.
+func (w *feedWorld) snapshotThenFeedFor(t *testing.T, user string, limit int) (string, map[string]bool) {
+	t.Helper()
 	var cursor string
 	held := map[string]bool{}
 	for i := 0; ; i++ {
-		page, err := w.list(t, w.tn.member.ID, cursor, limit)
+		page, err := w.list(t, user, cursor, limit)
 		if err != nil {
 			t.Fatalf("snapshot page %d: %v", i, err)
 		}
@@ -1172,4 +1178,65 @@ func TestDocumentChangesFeedSettingsChangedWithoutAPriorIs410(t *testing.T) {
 	if _, err := w.list(t, w.tn.member.ID, feedCursor, 200); !codedIs(err, "change_cursor_expired") {
 		t.Fatalf("a settings change with no prior = %v, want 410 change_cursor_expired (never a silent skip)", err)
 	}
+}
+
+// TestDocumentChangesFeedOwnerTransfer pins the feed against the DOC-06 owner
+// transfer (R1-1): the command moves read access without a document.shared or
+// document.share_revoked row for the person who loses it, so the feed has to
+// read document.owner_transferred itself. The previous owner who now reads
+// nothing gets the ids-only removal, the new owner of a restricted document
+// who held no share gets the upsert, and a previous owner who kept a share
+// still reads, so they get an upsert, never a removal.
+func TestDocumentChangesFeedOwnerTransfer(t *testing.T) {
+	w := newFeedWorld(t, "chgownertransfer")
+	prev, next := w.tn.aclOwner.ID, w.tn.member.ID
+	restricted := func() db.Document {
+		return w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: "restricted", aclOwner: prev, createdBy: prev})
+	}
+
+	t.Run("previous owner left with nothing gets the removal, the new owner an upsert", func(t *testing.T) {
+		doc := restricted()
+		prevCursor, prevHeld := w.snapshotThenFeedFor(t, prev, 200)
+		nextCursor, nextHeld := w.snapshotThenFeedFor(t, next, 200)
+		if !prevHeld[doc.ID] || nextHeld[doc.ID] {
+			t.Fatalf("the fixture is wrong: previous owner holds %v, new owner holds %v", prevHeld[doc.ID], nextHeld[doc.ID])
+		}
+
+		if _, err := w.f.svc.TransferOwner(w.f.ctx, Human(prev), doc.ID, DocumentOwnerTransferInput{UserID: next, PreviousOwnerLevel: "none"}); err != nil {
+			t.Fatalf("transfer: %v", err)
+		}
+		got, ok := feedRowsByDoc(w.drainFeedFor(t, prev, prevCursor, 200))[doc.ID]
+		if !ok {
+			t.Fatal("the transfer did not reach the previous owner who lost the document")
+		}
+		if got.ChangeKind != DocumentChangeKindRemoval || got.Removal != DocumentChangeRemovalPermissionRevoked {
+			t.Fatalf("previous owner row = %+v, want removal permission_revoked", got)
+		}
+		got, ok = feedRowsByDoc(w.drainFeedFor(t, next, nextCursor, 200))[doc.ID]
+		if !ok {
+			t.Fatal("the transfer did not reach the new owner")
+		}
+		if got.ChangeKind != DocumentChangeKindUpsert {
+			t.Fatalf("new owner row = %+v, want an upsert", got)
+		}
+	})
+
+	t.Run("previous owner who kept edit gets an upsert", func(t *testing.T) {
+		doc := restricted()
+		prevCursor, prevHeld := w.snapshotThenFeedFor(t, prev, 200)
+		if !prevHeld[doc.ID] {
+			t.Fatal("the fixture is wrong: the previous owner does not hold the document")
+		}
+
+		if _, err := w.f.svc.TransferOwner(w.f.ctx, Human(prev), doc.ID, DocumentOwnerTransferInput{UserID: next, PreviousOwnerLevel: "edit"}); err != nil {
+			t.Fatalf("transfer: %v", err)
+		}
+		got, ok := feedRowsByDoc(w.drainFeedFor(t, prev, prevCursor, 200))[doc.ID]
+		if !ok {
+			t.Fatal("the transfer did not reach the previous owner")
+		}
+		if got.ChangeKind != DocumentChangeKindUpsert || got.Removal != "" {
+			t.Fatalf("previous owner row = %+v, want an upsert (never a removal)", got)
+		}
+	})
 }

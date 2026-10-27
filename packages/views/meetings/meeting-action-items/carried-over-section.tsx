@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, RotateCcwClock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingCarriedOverItems, type MeetingCarriedOverItem } from "@uniwork/core/meetings/action-items";
 import { paths } from "@uniwork/core/paths";
@@ -78,19 +78,22 @@ function CarriedOverGroups({ workspaceId, items }: { workspaceId: string; items:
  * how many more lie beyond the page. Nothing renders until there is something
  * to carry, and a failed load says so with a retry instead of vanishing. The
  * detail page draws the same query as `meeting-detail/scheduled/carried-over-brief`.
+ * In the room (`room`) the fold is one dashed row under the clerk's list.
  */
 export function MeetingCarriedOverSection({
   workspaceId,
   meetingId,
+  variant = "compact",
+  defaultOpen = false,
 }: {
   workspaceId: string;
   meetingId: string;
-  /** The room still names the variant; the Copilot's folded group is the only one left. */
-  variant?: "compact";
+  variant?: "compact" | "room";
+  defaultOpen?: boolean;
 }) {
   const { t } = useTranslation();
   const query = useMeetingCarriedOverItems(meetingId);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const items = query.data?.items ?? [];
   const total = query.data?.total ?? items.length;
   const more = total - items.length;
@@ -102,10 +105,24 @@ export function MeetingCarriedOverSection({
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger
         render={
-          <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
-            {t("meetings.carriedOver.compactToggle", { count: total })}
-            <ChevronDown aria-hidden className={cn("transition-transform duration-standard", open && "rotate-180")} />
-          </Button>
+          variant === "room" ? (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border px-3 py-2.5 text-left text-label font-medium text-foreground hover:bg-surface-hover pointer-coarse:min-h-11"
+            >
+              <RotateCcwClock aria-hidden className="size-4 text-muted-foreground" />
+              <span className="flex-1">{t("meetings.panel.actions.carried", { count: total })}</span>
+              <ChevronDown
+                aria-hidden
+                className={cn("size-4 text-faint-foreground transition-transform duration-standard", open && "rotate-180")}
+              />
+            </button>
+          ) : (
+            <Button type="button" size="sm" variant="ghost" className="-ml-2 text-muted-foreground">
+              {t("meetings.carriedOver.compactToggle", { count: total })}
+              <ChevronDown aria-hidden className={cn("transition-transform duration-standard", open && "rotate-180")} />
+            </Button>
+          )
         }
       />
       <CollapsibleContent>

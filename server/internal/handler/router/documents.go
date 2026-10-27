@@ -63,6 +63,7 @@ import (
 //	GET    /api/v1/documents/{documentID}/access-requests                   (DOC-07)
 //	POST   /api/v1/documents/{documentID}/access-requests/{requestID}/approve (DOC-07)
 //	POST   /api/v1/documents/{documentID}/access-requests/{requestID}/decline (DOC-07)
+//	PUT    /api/v1/documents/{documentID}/owner                             (DOC-06)
 //	GET    /api/v1/documents/{documentID}/download          (?meta=1 | bytes; HEAD)
 //	POST   /api/v1/documents/{documentID}/uploads
 //	POST   /api/v1/workspaces/{workspaceID}/documents/upload-sessions   (BIGUP-S1)
@@ -287,6 +288,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Get("/documents/{documentID}/download", h.DownloadDocument, apiOp{
 		summary: "Download a file document",
 		description: "?meta=1 trả descriptor JSON {document_id, file, disposition}; ngược lại stream bytes của version hiện tại (hoặc ?version=N). " +
+			"?intent=view ghi nhật ký truy cập action=view (mặc định khi bỏ trống hoặc ?intent=download là download; giá trị khác -> 400 invalid_request). " +
 			"Luôn Content-Disposition: attachment. Hỗ trợ HEAD, Range (206), 416 kèm Content-Range: bytes */size, X-Checksum-Sha256. Page document -> 400/422 theo spec.",
 		tags: []string{"documents"},
 		sdi:  sdi.DownloadDocumentSDI{},
@@ -296,8 +298,10 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.r.Head("/documents/{documentID}/download", h.DownloadDocument)
 	d.cat.add(http.MethodHead, joinRoute(d.prefix, "/documents/{documentID}/download"), apiOp{
 		summary:     "Headers of a document download",
-		description: "Như GET nhưng không có body: Content-Length, Content-Type, Accept-Ranges, Content-Range khi có Range, X-Checksum-Sha256. Kiểm quyền giống GET.",
+		description: "Như GET nhưng không có body: Content-Length, Content-Type, Accept-Ranges, Content-Range khi có Range, X-Checksum-Sha256. Nhận cùng query ?version, ?meta, ?intent và kiểm quyền giống GET.",
 		tags:        []string{"documents"},
+		sdi:         sdi.DownloadDocumentSDI{},
+		auth:        true,
 	})
 	d.Get("/documents/{documentID}/assets/{assetID}", h.GetDocumentAsset, apiOp{
 		summary: "Stream a document asset",
@@ -526,7 +530,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		summary: "List documents",
 		description: "Danh sách tài liệu workspace, mới sửa trước. parent_id = một cấp cây theo position; q = tìm toàn workspace kèm snippet; shared_by_me=true = tài liệu sống người gọi làm ACL owner đang chia sẻ (dùng cùng parent_id -> 400 invalid_filter); kind/archived/updated_by/updated_from/updated_to là filter. " +
 			"format (docx, xlsx, pptx, pdf, md, html, txt) lọc theo định dạng của phiên bản hiện tại (MIME đã xác minh, nếu không có thì theo phần mở rộng tiêu đề; thư mục luôn ở lại, trang không khớp) và access (manage, edit, restricted) lọc theo quyền của người gọi trên dòng, cùng cấp mà my_level báo. " +
-			"Giá trị lạ, format cùng kind=page, và access=manage/edit trên thùng rác -> 400 invalid_filter. Quyền và cả hai filter được lọc trong query trước limit nên cursor ổn định và trang luôn đầy khi còn dòng khớp; archived=1 chỉ manage.",
+			"Giá trị lạ, format cùng kind=page, và access=manage/edit trên thùng rác -> 400 invalid_filter. type lặp được (?type=docx&type=xlsx; page hoặc một định dạng, cộng nhau) và thu hẹp thêm cùng kind/format, giá trị lạ hoặc rỗng -> 400 invalid_type. Quyền và cả hai filter được lọc trong query trước limit nên cursor ổn định và trang luôn đầy khi còn dòng khớp; archived=1 chỉ manage.",
 		tags: []string{"documents"},
 		sdi:  sdi.ListDocumentsSDI{},
 		sdo:  sdo.DocumentListSDO{},
@@ -534,7 +538,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Get("/workspaces/{workspaceID}/documents/recent", h.ListRecentDocuments, apiOp{
 		summary:     "List recent documents",
-		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. format và access nhận như danh sách phẳng (giá trị lạ -> 400 invalid_filter). include_owned=true thêm cả tài liệu người gọi sở hữu. Agent không có \"gần đây\" -> 403.",
+		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. format, access và type lặp nhận như danh sách phẳng (giá trị lạ -> 400 invalid_filter, type lạ -> 400 invalid_type). include_owned=true thêm cả tài liệu người gọi sở hữu. Agent không có \"gần đây\" -> 403.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListRecentDocumentsSDI{},
 		sdo:         sdo.DocumentListSDO{},
@@ -542,7 +546,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Get("/workspaces/{workspaceID}/documents/favorites", h.ListFavoriteDocuments, apiOp{
 		summary:     "List my favorite documents in a workspace",
-		description: "Tài liệu người gọi đã gắn sao trong workspace này, mỗi dòng là DocumentSummaryDTO kèm favorited_at (người gọi gắn sao khi nào), mới gắn trước (sort=starred mặc định giảm dần). Chỉ trả dòng người gọi còn đọc được: chia sẻ bị thu hồi hoặc tài liệu vào thùng rác rụng khỏi danh sách, dòng sao vẫn còn và quay lại khi có quyền. Lọc kind, format như danh sách phẳng (giá trị lạ -> 400 invalid_filter); cursor keyset gắn với sort/order; agent -> 403. Route favorites cấp tổ chức (/orgs/{orgID}/documents/favorites) giữ nguyên.",
+		description: "Tài liệu người gọi đã gắn sao trong workspace này, mỗi dòng là DocumentSummaryDTO kèm favorited_at (người gọi gắn sao khi nào), mới gắn trước (sort=starred mặc định giảm dần). type lặp (?type=docx&type=xlsx) lọc như danh sách phẳng, giá trị lạ hoặc rỗng -> 400 invalid_type. Chỉ trả dòng người gọi còn đọc được: chia sẻ bị thu hồi hoặc tài liệu vào thùng rác rụng khỏi danh sách, dòng sao vẫn còn và quay lại khi có quyền. Lọc kind, format như danh sách phẳng (giá trị lạ -> 400 invalid_filter); cursor keyset gắn với sort/order; agent -> 403. Route favorites cấp tổ chức (/orgs/{orgID}/documents/favorites) giữ nguyên.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListFavoriteDocumentsSDI{},
 		sdo:         sdo.DocumentListSDO{},
@@ -558,7 +562,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Get("/workspaces/{workspaceID}/documents/shared-with-me", h.ListSharedWithMe, apiOp{
 		summary:     "List documents shared with me",
-		description: "Tài liệu người gọi nhận qua share, gồm workspace khác trong tổ chức; một share đã thu hồi hoặc không còn hiệu lực sẽ biến mất. Duyệt ứng viên bằng keyset và lọc quyền trước khi xếp trang nên ứng viên bị từ chối không chiếm suất; cursor ổn định như các list khác. format và access (cấp người gọi nhận qua share) nhận như danh sách phẳng, giá trị lạ -> 400 invalid_filter. Workspace trên URL là ngữ cảnh thành viên, danh sách trải theo tổ chức.",
+		description: "Tài liệu người gọi nhận qua share, gồm workspace khác trong tổ chức; một share đã thu hồi hoặc không còn hiệu lực sẽ biến mất. Duyệt ứng viên bằng keyset và lọc quyền trước khi xếp trang nên ứng viên bị từ chối không chiếm suất; cursor ổn định như các list khác. format và access (cấp người gọi nhận qua share) nhận như danh sách phẳng, giá trị lạ -> 400 invalid_filter; type lặp (?type=docx&type=xlsx) lọc như danh sách phẳng, giá trị lạ hoặc rỗng -> 400 invalid_type. Workspace trên URL là ngữ cảnh thành viên, danh sách trải theo tổ chức.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListSharedWithMeSDI{},
 		sdo:         sdo.DocumentListSDO{},
@@ -691,7 +695,7 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	})
 	d.Post("/documents/{documentID}/archive", h.ArchiveDocument, apiOp{
 		summary:     "Archive a document subtree",
-		description: "Đưa tài liệu (hoặc thư mục) và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh — trừ thư mục chung của workspace (ADR 0037): chỉ người tạo và admin workspace/tổ chức bỏ được, mọi thư mục con vào thùng rác cùng lô, còn trang/tệp người gọi không manage được (không thấy, hoặc thấy mà không quản lý) chuyển về gốc workspace kèm cây con, giữ nguyên quyền và tên, mỗi tài liệu một audit document.moved (metadata.reason=folder_trashed); quá 1000 node sống -> 422 folder_too_large (hãy lưu trữ từng phần). Idempotency-Key replay trả kết quả đã lưu.",
+		description: "Đưa tài liệu (trang, tệp hoặc thư mục) và cây con vào thùng rác trong một transaction (ADR 0037 điểm 5, mọi loại gốc): người qua được cổng manage của gốc bỏ được gốc dù bên trong có gì; trang/tệp bên dưới người gọi không manage được (không thấy, hoặc thấy mà không quản lý) chuyển về gốc workspace kèm cây con, giữ nguyên quyền và tên, kể cả khi gốc nằm trong My Folder, mỗi tài liệu một audit document.moved (metadata.reason=folder_trashed, from_folder_id = gốc, from_kind = loại gốc); thư mục chung bên dưới luôn vào thùng rác cùng lô; thư mục khác bên dưới người gọi không đọc hoặc không manage được -> 403 cả lệnh, không ghi gì. Thư mục chung chỉ người tạo và admin workspace/tổ chức bỏ được. Quá 1000 node sống -> 422 folder_too_large (hãy lưu trữ từng phần). Idempotency-Key replay trả kết quả đã lưu.",
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentArchiveSDO{},
 		auth:        true,
@@ -699,8 +703,8 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 	d.Get("/documents/{documentID}/archive-impact", h.ArchiveImpact, apiOp{
 		summary: "Read the archive impact of a subtree",
 		description: "Số đếm cho hộp thoại xóa (FD-04): {folders, documents, total, max_nodes, too_large, relocated_count}, đọc trong một transaction RepeatableRead read-only nên id, quyền và số đến từ một snapshot. " +
-			"Cùng thứ tự kiểm với lệnh lưu trữ: manage trên gốc (không đủ -> cùng 403/404), cây con sống giới hạn 1000 nút, manage trên từng nút của đúng tập id đó. " +
-			"folders/documents không gồm gốc (trang con trong trang tính là documents); total gồm gốc = số dòng lệnh lưu trữ sẽ ghi. Thư mục chung của workspace: relocated_count = số tài liệu sẽ chuyển về gốc workspace thay vì vào thùng rác (chỉ con số), folders/documents/total chỉ đếm phần vào thùng rác. Vượt trần -> {too_large: true, max_nodes: 1000}, không có số đếm. Không ghi audit.",
+			"Cùng thứ tự kiểm với lệnh lưu trữ: manage trên gốc (không đủ -> cùng 403/404), cây con sống giới hạn 1000 nút, rồi cùng kế hoạch chuyển trên đúng tập id đó (thư mục bên dưới không đọc hoặc không manage được -> 403, không có số). " +
+			"folders/documents không gồm gốc (trang con trong trang tính là documents); total gồm gốc = số dòng lệnh lưu trữ sẽ ghi. Mọi loại gốc (thư mục, trang, tệp): relocated_count = số trang/tệp sẽ chuyển về gốc workspace thay vì vào thùng rác (chỉ con số), folders/documents/total chỉ đếm phần vào thùng rác. Vượt trần -> {too_large: true, max_nodes: 1000}, không có số đếm. Không ghi audit.",
 		tags: []string{"documents"},
 		sdo:  sdo.DocumentArchiveImpactSDO{},
 		auth: true,
@@ -878,6 +882,17 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		tags:        []string{"documents"},
 		sdo:         sdo.DocumentAccessRequestDecisionSDO{},
 		auth:        true,
+	})
+	// DOC-06 (UNI-2084, §2.1, §4.2): hand one document's ACL owner slot to an
+	// effective member of its workspace, through the administer gate.
+	d.Put("/documents/{documentID}/owner", h.TransferDocumentOwner, apiOp{
+		summary: "Transfer document ownership",
+		description: "Người quản trị tài liệu (manage hoặc quản trị workspace) chuyển ACL owner cho một người là thành viên đang hoạt động của workspace chứa tài liệu; chủ cũ giữ share user ở mức previous_owner_level (edit mặc định, comment, view; none = không giữ; chỉ nâng, không hạ share sẵn có; chủ cũ đã bị vô hiệu hóa -> bỏ qua). Không tăng revision; tài liệu đã archive vẫn chuyển được. " +
+			"Người nhận đã là chủ -> 200, không ghi gì. Người nhận không phải người/không hoạt động/không là thành viên workspace -> 422 owner_target_not_member. Admin chỉ có AdminScope tự nhận tài liệu restricted -> 403 break_glass_required. Tài liệu thuộc Work Product -> 409 document_owned_by_work_product; Thư mục của tôi -> 409 my_folder_locked. previous_owner_level lạ -> 400 invalid_request. Người đọc thấp hơn manage -> 403 forbidden; không thấy tài liệu -> 404.",
+		tags: []string{"documents"},
+		sdi:  sdi.TransferDocumentOwnerSDI{},
+		sdo:  sdo.DocumentOwnerSDO{},
+		auth: true,
 	})
 	d.Get("/orgs/{orgID}/documents/settings", h.GetDocumentSettings, apiOp{
 		summary:     "Read the organization public-link switch",

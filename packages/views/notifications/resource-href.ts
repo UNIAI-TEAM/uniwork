@@ -94,6 +94,9 @@ export function resourceHref(n: Notification, workspace: Workspace, workspaces: 
     }
     case "email_account":
       return ws.email();
+    case "organization_member":
+      // The grouped notice of a bulk document transfer (DOC-06b): the recipient's documents home.
+      return ws.documents();
     default:
       return ws.inbox();
   }

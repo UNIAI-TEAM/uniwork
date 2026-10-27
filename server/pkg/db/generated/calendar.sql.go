@@ -84,6 +84,7 @@ FROM tasks t
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = $1
   AND t.workspace_id = $2
+  AND t.trashed_at IS NULL
   AND t.assignee_kind = 'human'
   AND t.assignee_id = $3
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
@@ -155,6 +156,7 @@ FROM tasks t
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = $1
   AND t.workspace_id = $2
+  AND t.trashed_at IS NULL
   AND (t.status = 'backlog' OR ts.category = 'backlog')
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
 ORDER BY t.created_at, t.id
@@ -255,6 +257,7 @@ FROM tasks t
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = $1
   AND t.workspace_id = $2
+  AND t.trashed_at IS NULL
   AND t.priority IN ('urgent', 'high')
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
 ORDER BY
@@ -311,6 +314,7 @@ FROM tasks t
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE t.organization_id = $1
   AND t.workspace_id = $2
+  AND t.trashed_at IS NULL
   AND t.due_date IS NOT NULL
   AND t.due_date <= $3::date
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
@@ -370,6 +374,7 @@ SELECT id, title, status, priority, project_id, start_date, due_date, start_at, 
 FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
+  AND trashed_at IS NULL
   AND due_date IS NOT NULL
   AND due_date >= $3::date
   AND COALESCE(start_date, due_date) <= $4::date

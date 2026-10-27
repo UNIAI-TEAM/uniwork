@@ -139,6 +139,10 @@ func TestErrorClassTable(t *testing.T) {
 		// ADR 0037 §6 (UNI-2055): a workspace folder never enters My Folder
 		// (422); a refusal of the request, like folder_not_shareable.
 		"folder_into_my_folder",
+		// DOC-06 (UNI-2084, §4.2, R1-1): the chosen recipient cannot own the
+		// document (422); the picker shows it in place - neither a lost
+		// permission nor a state conflict.
+		"owner_target_not_member",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {
@@ -170,6 +174,8 @@ func TestErrorClassTable(t *testing.T) {
 		// access_request_cooldown are emitted here, so the table above and this
 		// scan stay in step.
 		"document_access_requests.go",
+		// DOC-06's owner transfer (UNI-2084): owner_target_not_member.
+		"document_owner_transfer.go",
 	} {
 		src, err := os.ReadFile("../../../service/" + name)
 		if errors.Is(err, fs.ErrNotExist) && name == "document_break_glass.go" {

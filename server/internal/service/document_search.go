@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -52,11 +53,14 @@ const (
 //     the caller can view, keyset shelved_at DESC, id DESC, filters allowed.
 //     Shelved with Archived is 400 invalid_filter.
 type ListDocumentsInput struct {
-	ParentID    *string
-	Query       string
-	Kind        string
-	Match       string
-	Archived    bool
+	ParentID *string
+	Query    string
+	Kind     string
+	Match    string
+	Archived bool
+	// ArchivedBy narrows the trash view to what any of these users archived;
+	// empty is no filter, and it means nothing without Archived.
+	ArchivedBy  []string
 	Shelved     bool
 	UpdatedBy   string
 	UpdatedFrom time.Time
@@ -68,6 +72,14 @@ type ListDocumentsInput struct {
 	// manage/edit on the trash are 400 invalid_filter (resolveListFilters).
 	Format string
 	Access string
+	// Types is the repeated ?type= filter (UNI-2113): "page" and/or file
+	// formats, OR-ed with each other and AND-ed with Kind and Format - type
+	// narrows like any other filter, so type=docx with format=pdf is empty and
+	// with kind=page is empty too. Nil is no constraint; any value outside
+	// page + the seven formats, the empty string included, is 400 invalid_type.
+	// Like Format, folders stay in a file-format answer and a page-only answer
+	// has none.
+	Types  []string
 	Cursor string
 	Limit  int
 	// Sort is the optional column sort (UNI-2038 S3); the zero value keeps the
@@ -77,6 +89,10 @@ type ListDocumentsInput struct {
 	// favorites narrows the flat list to the caller's own stars in the
 	// workspace (ListFavoriteDocuments sets it; no handler input reaches it).
 	favorites bool
+	// withPaths resolves Path on every row, not only on a search: the shared
+	// trash names each document's folders (TrashService sets it; no handler
+	// input reaches it).
+	withPaths bool
 	// WithEditors resolves updated_by_user on every row (UNI-2045 SV-6); the
 	// HTTP list routes set it, internal callers (MCP, Ask UNI) skip the lookup.
 	WithEditors bool
@@ -143,14 +159,55 @@ type documentListFilters struct {
 	access       string
 	formatMime   string
 	accessLevels []string
+	// typePage, typeFormats and typeMimes are the repeated ?type= filter
+	// (UNI-2113): the page leg, the file formats, and the MIME each verified
+	// upload of those formats carries. The legs are OR-ed in SQL and the whole
+	// is AND-ed with format/kind. typeFormats and typeMimes are never nil: pgx
+	// writes a nil slice as NULL, which the SQL's cardinality() cannot read.
+	typePage    bool
+	typeFormats []string
+	typeMimes   []string
 }
 
-// resolveListFilters parses ?format= and ?access= strictly (UNI-1868). An
-// unknown value, format together with kind=page, and manage/edit on the trash
-// view are 400 invalid_filter; the trash is manage-only, so its one access
-// filter is restricted.
-func resolveListFilters(format, access, kind string, archived bool) (documentListFilters, error) {
+// DocumentTypePage is the ?type= value for pages; every other accepted value is
+// a file format of internal/files.
+const DocumentTypePage = "page"
+
+// resolveListTypes parses the repeated ?type= values strictly (UNI-2113): each
+// is "page" or one of the seven file formats, exactly as written. An unknown,
+// empty or differently-cased value is 400 invalid_type; a repeat counts once.
+func resolveListTypes(types []string) (page bool, formats, mimes []string, err error) {
+	formats, mimes = []string{}, []string{}
+	for _, typ := range types {
+		if typ == DocumentTypePage {
+			page = true
+			continue
+		}
+		mime, ok := files.DocumentFormatMime(typ)
+		if !ok {
+			return false, nil, nil, coded(http.StatusBadRequest, "invalid_type", "type phải là page, docx, xlsx, pptx, pdf, md, html hoặc txt")
+		}
+		if slices.Contains(formats, typ) {
+			continue
+		}
+		formats = append(formats, typ)
+		mimes = append(mimes, mime)
+	}
+	return page, formats, mimes, nil
+}
+
+// resolveListFilters parses ?format=, ?access= and ?type= strictly (UNI-1868,
+// UNI-2113). An unknown value, format together with kind=page, and manage/edit
+// on the trash view are 400 invalid_filter (a bad type is 400 invalid_type);
+// the trash is manage-only, so its one access filter is restricted. type
+// narrows beside kind and format - the three are AND-ed - and adds no refusal
+// of its own: type=docx with kind=page is simply an empty answer.
+func resolveListFilters(format, access, kind string, archived bool, types []string) (documentListFilters, error) {
 	var out documentListFilters
+	var err error
+	if out.typePage, out.typeFormats, out.typeMimes, err = resolveListTypes(types); err != nil {
+		return documentListFilters{}, err
+	}
 	if format != "" {
 		if kind == DocumentKindPage {
 			return out, coded(http.StatusBadRequest, "invalid_filter", "format không dùng được cùng kind=page")
@@ -444,7 +501,7 @@ func (s *DocumentService) ListFavoriteDocuments(ctx context.Context, actor Actor
 		in.Sort = DocumentSort{Key: DocumentSortStarred, Desc: true}
 	}
 	return s.ListDocuments(ctx, actor, workspaceID, ListDocumentsInput{
-		Kind: in.Kind, Format: in.Format, Cursor: in.Cursor, Limit: in.Limit, Sort: in.Sort, favorites: true,
+		Kind: in.Kind, Format: in.Format, Types: in.Types, Cursor: in.Cursor, Limit: in.Limit, Sort: in.Sort, favorites: true,
 		WithEditors: in.WithEditors,
 	})
 }
@@ -541,7 +598,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 		}
 		excludeKind = pgtype.Text{String: DocumentKindFolder, Valid: true}
 	}
-	filters, err := resolveListFilters(in.Format, in.Access, in.Kind, in.Archived)
+	filters, err := resolveListFilters(in.Format, in.Access, in.Kind, in.Archived, in.Types)
 	if err != nil {
 		return DocumentListPage{}, err
 	}
@@ -579,9 +636,10 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
 			AllowShares: scope.allowShares, ShareLevels: shareLevelsFor(DocumentLevelEdit),
 			ShareWorkspaces: scope.shareWorkspaces,
-			Kind:            kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
+			Kind:            kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, ArchivedBy: in.ArchivedBy, UpdatedFrom: from, UpdatedTo: to,
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
-			FormatMimes: files.DocumentFormatMimes(), Access: nullText(filters.access),
+			FormatMimes: files.DocumentFormatMimes(),
+			TypePage:    filters.typePage, TypeFormats: filters.typeFormats, TypeMimes: filters.typeMimes, Access: nullText(filters.access),
 			Query: query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
 			SortKey: sortArg.key, SortDesc: sortArg.desc, SortCursorID: sortArg.id, SortCursorAt: sortArg.at,
@@ -622,7 +680,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			Kind:        kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
 			FormatMimes: files.DocumentFormatMimes(),
-			Access:      nullText(filters.access), AccessLevels: filters.accessLevels,
+			TypePage:    filters.typePage, TypeFormats: filters.typeFormats, TypeMimes: filters.typeMimes,
+			Access: nullText(filters.access), AccessLevels: filters.accessLevels,
 			SharedByMe: in.SharedByMe,
 			Query:      query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
@@ -661,7 +720,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
 			FormatMimes: files.DocumentFormatMimes(),
-			Access:      nullText(filters.access), AccessLevels: filters.accessLevels, Agent: agent,
+			TypePage:    filters.typePage, TypeFormats: filters.typeFormats, TypeMimes: filters.typeMimes,
+			Access: nullText(filters.access), AccessLevels: filters.accessLevels, Agent: agent,
 			Query: query, MatchTitle: matchTitle,
 			CursorPosition: cursorPos, CursorID: cursorID, PageLimit: int32(limit + 1),
 			SortKey: sortArg.key, SortDesc: sortArg.desc, SortCursorID: sortArg.id, SortCursorAt: sortArg.at,
@@ -697,7 +757,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			Kind: kind, ExcludeKind: excludeKind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
 			Format: nullText(filters.format), FormatMime: nullText(filters.formatMime),
 			FormatMimes: files.DocumentFormatMimes(),
-			Access:      nullText(filters.access), AccessLevels: filters.accessLevels, Agent: agent,
+			TypePage:    filters.typePage, TypeFormats: filters.typeFormats, TypeMimes: filters.typeMimes,
+			Access: nullText(filters.access), AccessLevels: filters.accessLevels, Agent: agent,
 			SharedByMe: in.SharedByMe,
 			Query:      query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
@@ -734,7 +795,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			return DocumentListPage{}, err
 		}
 	}
-	if query.Valid {
+	if query.Valid || in.withPaths {
 		if err := s.attachListPaths(ctx, scope, workspaceID, agent, out.Items); err != nil {
 			return DocumentListPage{}, err
 		}
@@ -930,7 +991,7 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 	default:
 		return DocumentListPage{}, Invalid("match phải là title")
 	}
-	filters, err := resolveListFilters(in.Format, in.Access, in.Kind, false)
+	filters, err := resolveListFilters(in.Format, in.Access, in.Kind, false, in.Types)
 	if err != nil {
 		return DocumentListPage{}, err
 	}
@@ -965,6 +1026,7 @@ func (s *DocumentService) listRecentDocumentsPage(ctx context.Context, actor Act
 		ShareWorkspaces: scope.shareWorkspaces,
 		Format:          nullText(filters.format), FormatMime: nullText(filters.formatMime),
 		FormatMimes: files.DocumentFormatMimes(),
+		TypePage:    filters.typePage, TypeFormats: filters.typeFormats, TypeMimes: filters.typeMimes,
 		// The recent list is human-only, so the home-row leg never needs the
 		// agent cap.
 		Access: nullText(filters.access), AccessLevels: filters.accessLevels, Agent: false,

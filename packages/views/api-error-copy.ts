@@ -25,6 +25,8 @@ const API_ERROR_KEYS: Readonly<Record<string, string>> = {
   minutes_finalized: "meetings.minutes.errors.minutes_finalized",
   email_hub_reauth_required: "email_hub.reconnect.error",
   email_hub_smtp_disabled: "email_hub.connect.error_smtp_disabled",
+  trash_too_large: "trash.errors.trash_too_large",
+  duplicate_project_title: "trash.errors.duplicate_project_title",
   // The generic codes errors.go answers with an English placeholder
   // ("forbidden", "internal error") whatever language the person reads.
   forbidden: "errors.api.forbidden",

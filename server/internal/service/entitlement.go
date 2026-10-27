@@ -307,7 +307,14 @@ func (s *EntitlementService) RecordUsage(ctx context.Context, q *db.Queries, in 
 }
 
 func (s *EntitlementService) consume(ctx context.Context, q *db.Queries, in ConsumeInput, enforce bool) error {
-	sub, e, err := s.entitlement(ctx, q, in.OrganizationID, in.Meter, enforce)
+	lock := enforce
+	if enforce {
+		_, pre, err := s.entitlement(ctx, q, in.OrganizationID, in.Meter, false)
+		if err == nil && pre.MeterMode == "snapshot" && pre.Limit == nil {
+			return nil
+		}
+	}
+	sub, e, err := s.entitlement(ctx, q, in.OrganizationID, in.Meter, lock)
 	if err != nil {
 		if !enforce && (errors.Is(err, ErrEntitlementRequired) || errors.Is(err, ErrSubscriptionInactive)) {
 			return nil // nothing to meter against; the plan does not know this meter

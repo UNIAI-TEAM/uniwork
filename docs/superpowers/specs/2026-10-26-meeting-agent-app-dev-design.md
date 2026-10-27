@@ -132,8 +132,12 @@ LIVEKIT_URL=wss://livekit.ubos.vn
 SCRIBE_HEALTH_PORT=8081
 SCRIBE_METRICS_PORT=9100
 SCRIBE_DRAIN_TIMEOUT_S=20
-PROMETHEUS_MULTIPROC_DIR=/tmp/scribe-metrics
 ```
+
+Không đặt `PROMETHEUS_MULTIPROC_DIR`. `scribe/config.py` vẫn mặc định
+`/tmp/scribe-metrics`, và LiveKit tạo thư mục khi worker khởi động. Đặt biến
+này từ lúc process chạy thì `prometheus_client` mở file mmap ngay lúc import,
+khi thư mục chưa có, và container thoát.
 
 Hai base URL để trống: `scribe/config.py` chọn
 `wss://streaming.assemblyai.com` (Mỹ). File này không chứa

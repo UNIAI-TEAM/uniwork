@@ -194,6 +194,7 @@ func main() {
 	}
 	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
 	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, mailOutbox)
+	service.SetMembershipInviteKey([]byte(cfg.JWTSecret))
 	orgMemberSvc.SetMail(renderer, mailOutbox)
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
@@ -444,6 +445,9 @@ func main() {
 	docWorkers := documentSvc.NewDocumentWorkers()
 	officeLaunchSvc := service.NewOfficeLaunchService(documentSvc, cfg)
 	docWorkers.SetOfficeLaunchService(officeLaunchSvc)
+	// The trash sweep (UNI-2171) purges tasks and projects past their 30
+	// days; awaited in the shutdown sequence below like the document worker.
+	trashWorker := service.NewTrashWorker(pool, q, taskSvc, time.Now)
 	officeSvc := service.NewDocumentOfficeService(service.DocumentOfficeOptions{
 		Pool: pool, Queries: q, Files: fileSvc, Engine: officeEngine, Documents: documentSvc, Metrics: officeMetrics,
 		MaxDeadline: officeCfg.MaxJobDeadline, ReconcileInterval: officeCfg.ReconcileInterval, Log: log,
@@ -668,6 +672,8 @@ func main() {
 	// sweep) stops with runCancel and is awaited below like the file collector.
 	docWorkersDone := make(chan struct{})
 	go func() { docWorkers.Run(runCtx); close(docWorkersDone) }()
+	trashWorkerDone := make(chan struct{})
+	go func() { trashWorker.Run(runCtx); close(trashWorkerDone) }()
 	// The change-feed snapshot sweep (G5-01a) stops with runCancel and is
 	// awaited below.
 	docChangesSweepDone := make(chan struct{})
@@ -1022,6 +1028,11 @@ func main() {
 	case <-docWorkersDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("documents: maintenance worker did not stop in time")
+	}
+	select {
+	case <-trashWorkerDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("tasks: trash purge worker did not stop in time")
 	}
 	select {
 	case <-docChangesSweepDone:

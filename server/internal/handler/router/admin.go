@@ -77,6 +77,7 @@ func registerAdmin(r api, h Routes, limit, support, admin func(http.Handler) htt
 			w.Put("/plans/{code}/features/{key}", h.AdminUpdatePlanFeature, apiOp{summary: "Admin: update plan feature", description: "Bật/tắt feature hoặc quota_limit trên một gói. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.PlanFeatureSDI{}, sdo: sdo.AdminPlanSDO{}, auth: true})
 			w.Post("/invoices/{invoiceID}/refund", h.AdminRefundInvoice, apiOp{summary: "Admin: refund invoice", description: "Hoàn tiền HĐ đã thanh toán: manual ghi refunded; VNPay gọi API refund rồi chuyển refund_pending. reason ≥ 10 ký tự.", tags: tags, sdi: sdi.AdminInvoiceRefundSDI{}, sdo: sdo.AdminInvoiceSDO{}, auth: true})
 			w.Post("/invoices/{invoiceID}/confirm-refund", h.AdminConfirmInvoiceRefund, apiOp{summary: "Admin: confirm invoice refund", description: "Xác nhận hoàn tiền sau khi VNPay merchant duyệt (refund_pending → refunded). reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminInvoiceSDO{}, auth: true})
+			w.Post("/invoices/{invoiceID}/revert-refund", h.AdminRevertInvoiceRefund, apiOp{summary: "Admin: revert invoice refund request", description: "Hủy yêu cầu hoàn tiền (refund_pending → paid). reason ≥ 10 ký tự.", tags: tags, sdi: sdi.ReasonSDI{}, sdo: sdo.AdminInvoiceSDO{}, auth: true})
 		})
 	})
 }

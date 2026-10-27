@@ -14,7 +14,6 @@ import {
   Ellipsis,
   PanelBottom,
   PhoneOff,
-  Sparkles,
   Square,
   Video,
   VideoOff,
@@ -64,10 +63,6 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   captionsOn = false,
   captionsAvailable = false,
   onToggleCaptions,
-  onToggleCopilot,
-  copilotActive = false,
-  copilotBadge = false,
-  copilotLiveItems = 0,
 }: {
   className?: string;
   onLeave: () => void;
@@ -78,13 +73,6 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   captionsOn?: boolean;
   captionsAvailable?: boolean;
   onToggleCaptions?: () => void;
-  /** Opens the AI Copilot panel, or closes it when it is the one on screen. */
-  onToggleCopilot?: () => void;
-  copilotActive?: boolean;
-  /** Something waits in the UNI panel for this viewer (a late joiner's catch-up). */
-  copilotBadge?: boolean;
-  /** Live items the scribe wrote that this viewer has not seen in the UNI panel. */
-  copilotLiveItems?: number;
 }) {
   const { t } = useTranslation();
   const mobile = useIsMobile();
@@ -288,32 +276,6 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                   <DeviceSettingsControl />
                   {handControl(false)}
                 </>
-              ) : null}
-              {onToggleCopilot ? (
-                <span className="relative inline-flex">
-                  <IconControl
-                    label={
-                      copilotBadge
-                        ? t("meetings.aiCopilotCatchUp")
-                        : copilotLiveItems > 0
-                          ? t("meetings.aiCopilotLiveItems", { count: copilotLiveItems })
-                          : t("meetings.aiCopilot")
-                    }
-                    tooltip={copilotActive ? t("meetings.aiCopilotClose") : t("meetings.aiCopilotToggle")}
-                    pressed={copilotActive}
-                    tone={copilotActive ? "active" : undefined}
-                    onClick={onToggleCopilot}
-                  >
-                    <Sparkles aria-hidden />
-                  </IconControl>
-                  {copilotBadge || copilotLiveItems > 0 ? (
-                    <span
-                      aria-hidden
-                      data-slot="copilot-badge"
-                      className="pointer-events-none absolute top-1 right-1 size-2.5 rounded-full bg-brand ring-2 ring-meeting-bar-bg"
-                    />
-                  ) : null}
-                </span>
               ) : null}
               {!secondaryInMenu ? (
                 <>

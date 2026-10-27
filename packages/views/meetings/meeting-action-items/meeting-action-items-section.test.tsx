@@ -369,7 +369,7 @@ describe("MeetingActionItemsSection", () => {
 
   it("adds a task through the task screen's composer: a hand-added item, converted with what was typed", async () => {
     renderSection({ projectId: "p1" });
-    fireEvent.click(await screen.findByRole("button", { name: "Thêm task" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Thêm việc" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Task sau họp")).toBeInTheDocument();
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Tiêu đề issue" }), { target: { value: " Gọi khách " } });
@@ -381,14 +381,14 @@ describe("MeetingActionItemsSection", () => {
       action_item_id: "a9", title: "Gọi khách", project_id: "p1",
     });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole("button", { name: "Thêm task" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Thêm việc" })).toHaveFocus());
   });
 
   it("invites a clerk to add the first item when there is none", async () => {
     respond({ items: () => ({ items: [], counts: { pending: 0, converted: 0, dismissed: 0, tasks_done: 0, tasks_overdue: 0 } }) });
     renderSection();
     expect(await screen.findByText("Chưa có việc cần làm. Thêm việc để giao sau họp.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Thêm task" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Thêm việc" })).toBeInTheDocument();
   });
 });
 
@@ -455,7 +455,7 @@ describe("MeetingActionItemsSection focus", () => {
     renderSection();
     fireEvent.click(await screen.findByRole("button", { name: 'Bỏ qua "Đặt phòng"' }));
     fireEvent.click(await screen.findByRole("button", { name: "Bỏ qua việc" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Thêm task" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Thêm việc" })).toHaveFocus());
   });
 
   it("follows a restored item back to its pending row", async () => {

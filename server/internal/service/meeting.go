@@ -482,6 +482,87 @@ func (s *MeetingService) AddNote(ctx context.Context, userID, meetingID, body st
 	return n, nil
 }
 
+// authorizeNoteChange lets the note's author or a meeting clerk change it
+// (UNI-2217). A note of another meeting is ErrNotFound, like a missing one.
+func (s *MeetingService) authorizeNoteChange(ctx context.Context, userID, meetingID, noteID string) (db.Meeting, db.MeetingNote, error) {
+	m, mem, err := s.authorize(ctx, userID, meetingID)
+	if err != nil {
+		return db.Meeting{}, db.MeetingNote{}, err
+	}
+	n, err := s.q.GetMeetingNote(ctx, db.GetMeetingNoteParams{OrganizationID: m.OrganizationID, MeetingID: m.ID, ID: noteID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Meeting{}, db.MeetingNote{}, ErrNotFound
+	}
+	if err != nil {
+		return db.Meeting{}, db.MeetingNote{}, err
+	}
+	if n.AuthorID != userID {
+		clerk, err := s.isMeetingClerk(ctx, m, mem, userID)
+		if err != nil {
+			return db.Meeting{}, db.MeetingNote{}, err
+		}
+		if !clerk {
+			return db.Meeting{}, db.MeetingNote{}, ErrForbidden
+		}
+	}
+	return m, n, nil
+}
+
+// UpdateNote replaces a note's body and stamps edited_at; the audit row and
+// the ids-only note.updated never carry the text.
+func (s *MeetingService) UpdateNote(ctx context.Context, userID, meetingID, noteID, body string) (db.MeetingNote, error) {
+	m, n, err := s.authorizeNoteChange(ctx, userID, meetingID, noteID)
+	if err != nil {
+		return db.MeetingNote{}, err
+	}
+	if strings.TrimSpace(body) == "" {
+		return db.MeetingNote{}, Invalid("nội dung không được để trống")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.MeetingNote{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	n, err = q.UpdateMeetingNoteBody(ctx, db.UpdateMeetingNoteBodyParams{
+		OrganizationID: m.OrganizationID, MeetingID: m.ID, ID: n.ID, Body: body,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.MeetingNote{}, ErrNotFound
+	}
+	if err != nil {
+		return db.MeetingNote{}, err
+	}
+	s.recordResource(ctx, q, m, audit.User(userID), "note.updated", meetingRelatedPayload(m, map[string]string{"note_id": n.ID}), nil, "meeting_note", n.ID)
+	if err := tx.Commit(ctx); err != nil {
+		return db.MeetingNote{}, err
+	}
+	return n, nil
+}
+
+// DeleteNote hard-deletes a note; the audit row is the record that it existed.
+func (s *MeetingService) DeleteNote(ctx context.Context, userID, meetingID, noteID string) error {
+	m, n, err := s.authorizeNoteChange(ctx, userID, meetingID, noteID)
+	if err != nil {
+		return err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	rows, err := q.DeleteMeetingNote(ctx, db.DeleteMeetingNoteParams{OrganizationID: m.OrganizationID, MeetingID: m.ID, ID: n.ID})
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	s.recordResource(ctx, q, m, audit.User(userID), "note.deleted", meetingRelatedPayload(m, map[string]string{"note_id": n.ID}), nil, "meeting_note", n.ID)
+	return tx.Commit(ctx)
+}
+
 // SetFiles attaches the shared FileService for both avatar URL emission and
 // the recording pipeline; nil keeps the legacy paths byte-identical.
 func (s *MeetingService) SetFiles(f files.Service) { s.files = f }
@@ -535,6 +616,8 @@ var meetingActionFor = map[string]string{
 	"scribe.updated":        audit.ActionMeetingScribeToggled,
 	"speaker_label.updated": audit.ActionMeetingSpeakerLabelAssigned,
 	"note.created":          audit.ActionMeetingNoteAdded,
+	"note.updated":          audit.ActionMeetingNoteUpdated,
+	"note.deleted":          audit.ActionMeetingNoteDeleted,
 }
 
 // record writes the meeting command's audit row and puts its realtime event on

@@ -156,8 +156,9 @@ func (s *ChatService) applyDocumentMessageDelete(ctx context.Context, q *db.Quer
 // trash it without manage, the way the creator of a pristine copy may (the
 // archive command's own exception), because the USER rule is that deleting
 // the upload removes the file whoever has edited it since. A document owned
-// by a work product or a My Folder still refuses. Manage on a subtree under
-// the root is still required.
+// by a work product or a My Folder still refuses. A root holding a subtree
+// still requires manage on the root, and what below it the sender cannot
+// manage leaves for the workspace root (the archive's plan, ADR 0037 point 5).
 func (s *DocumentService) archiveChatUploadInTx(ctx context.Context, q *db.Queries, actor Actor, doc db.Document) (bool, *editLockOps, error) {
 	if doc.ArchivedAt.Valid {
 		return false, nil, nil
@@ -176,8 +177,8 @@ func (s *DocumentService) archiveChatUploadInTx(ctx context.Context, q *db.Queri
 	_, _, ops, err := s.archiveLockedSubtree(ctx, q, actor, doc, rootOnly)
 	if err != nil {
 		if isDocumentRefusal(err) {
-			// Refused before any write: the subtree check and the bound
-			// run before the stamp.
+			// Refused before any write: the root check, the plan and the bound
+			// run before the relocations and the stamp.
 			return false, nil, nil
 		}
 		return false, nil, err

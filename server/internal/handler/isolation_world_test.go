@@ -638,6 +638,19 @@ func (w *isoWorld) buildTasks(t *testing.T, tn *isoTenant) {
 		"resource_type": "github_repo", "resource_ref": map[string]any{"url": "https://github.com/acme/" + strings.ToLower(m)}, "label": m + " Resource",
 	})
 	tn.ids["projectResource"] = isoID(t, out, "resource")
+	// Trashed rows: restore and purge only answer for a row in the trash, so
+	// an attack on them must meet one. Each route ends its row (restore leaves
+	// the trash, purge leaves the database), so each gets its own.
+	for key, kind := range map[string]string{"trashedTask": "Restore", "purgeTask": "Purge"} {
+		out = w.call(t, "POST", ws+"/tasks", tn.token, map[string]any{"title": m + " Trashed Task " + kind})
+		tn.ids[key] = isoID(t, out, "task")
+		w.call(t, "DELETE", "/api/v1/tasks/"+tn.ids[key], tn.token, nil)
+	}
+	for key, kind := range map[string]string{"trashedProject": "Restore", "purgeProject": "Purge"} {
+		out = w.call(t, "POST", ws+"/projects", tn.token, map[string]any{"title": m + " Trashed Project " + kind})
+		tn.ids[key] = isoID(t, out, "project")
+		w.call(t, "DELETE", ws+"/projects/"+tn.ids[key], tn.token, nil)
+	}
 }
 
 func (w *isoWorld) buildMeetings(t *testing.T, tn *isoTenant) {
@@ -803,6 +816,21 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		t.Fatal(err)
 	}
 	tn.ids["breakGlassGrant"] = grantID
+	// DOC-06b (UNI-2092): one unrestricted page the tenant's peer owns, for the
+	// bulk transfer control only (POST /orgs/{org}/members/{userID}/document-
+	// ownership names the peer as the source and the owner as the recipient):
+	// without it the peer's one document is the restricted one above, which the
+	// owner skips as self_restricted, and the control would move nothing. No
+	// other route names it; it is a workspace-visible page the owner already
+	// reads, so no list or count of the owner's changes shape.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Peer-owned page", "kind": "page", "visibility": "workspace",
+	})
+	tn.ids["peerOwnedDocument"] = isoID(t, out, "document")
+	if _, err := w.pool.Exec(context.Background(),
+		`UPDATE documents SET acl_owner_id = $2 WHERE id = $1`, tn.ids["peerOwnedDocument"], tn.peerID); err != nil {
+		t.Fatal(err)
+	}
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/documents/settings", tn.token, map[string]any{"public_links_enabled": true})
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/meetings/settings", tn.token, map[string]any{"auto_summary_enabled": false})
 	out = w.call(t, "POST", dp+"/links", tn.token, map[string]any{})
@@ -916,6 +944,16 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	for _, inv := range isoList(t, out, "invitations") {
 		tn.ids["orgInvitation"] = inv["id"].(string)
 	}
+	// Shareable membership invite links (UNI-2226): one workspace-scoped row
+	// and one org-scoped row that also fills membership_invite_link_workspaces.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/invite-links", tn.token, map[string]any{"expires_in_days": 7})
+	tn.ids["membershipInviteLink"] = isoID(t, out, "invite_link")
+	tn.ids["membershipInviteSecret"] = isoString(t, out, "invite_link", "secret")
+	out = w.call(t, "POST", org+"/invite-links", tn.token, map[string]any{
+		"workspace_ids": []string{tn.wsID}, "expires_in_days": 7,
+	})
+	tn.ids["membershipOrgInviteLink"] = isoID(t, out, "invite_link")
+	tn.ids["membershipOrgInviteSecret"] = isoString(t, out, "invite_link", "secret")
 	inviteeToken, _ := w.register(t, invitee, m+" Invitee")
 	out = w.call(t, "GET", "/api/v1/me/invitations", inviteeToken, nil)
 	for _, inv := range isoList(t, out, "invitations") {
