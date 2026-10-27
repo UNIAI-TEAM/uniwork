@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 // fakeSummaries stands in for MeetingService: the test DB's default plan
@@ -210,5 +212,42 @@ func TestRuleMeetingEndedWaitsForTheAutoSummary(t *testing.T) {
 	f.handleLast(t, "meeting.ended")
 	if n := len(f.inbox(t, f.owner.ID)); n != 1 {
 		t.Fatalf("reminders = %d, want 1", n)
+	}
+}
+
+// An in-person meeting recorded in the app is held before its parts upload;
+// its transcription queues the summary and summary.created tells the host.
+// A nudge to summarize by hand now would summarize the notes alone and keep
+// the recording out (G4), so its end reminds nobody. An online meeting in
+// the same state still does.
+func TestInPersonMeetingEndedSendsNoSummaryReminder(t *testing.T) {
+	for venue, want := range map[string]int{service.MeetingVenueInPerson: 0, service.MeetingVenueOnline: 1} {
+		t.Run(venue, func(t *testing.T) {
+			f := newFixture(t)
+			f.consumer.SetMeetingSummaries(fakeSummaries{on: true})
+			start := time.Now().Add(time.Hour)
+			m, err := f.meetings.Create(f.ctx, f.owner.ID, f.wsID, service.CreateMeetingInput{
+				Title: "Họp " + venue, StartsAt: start, EndsAt: start.Add(time.Hour), Venue: venue,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.meetings.AddNote(f.ctx, f.owner.ID, m.ID, "Chốt ngân sách quý."); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.meetings.RecordHeldNow(f.ctx, f.owner.ID, m.ID, 42*time.Minute); err != nil {
+				t.Fatal(err)
+			}
+			f.handleLast(t, "meeting.ended")
+			got := 0
+			for _, n := range f.inbox(t, f.owner.ID) {
+				if n.Kind == KindMeetingSummaryReminder && n.ResourceID == m.ID {
+					got++
+				}
+			}
+			if got != want {
+				t.Fatalf("summary reminders = %d, want %d", got, want)
+			}
+		})
 	}
 }
