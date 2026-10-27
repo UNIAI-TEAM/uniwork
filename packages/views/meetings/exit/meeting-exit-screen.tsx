@@ -1,12 +1,14 @@
 "use client";
 
 import { CalendarCheck } from "lucide-react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
 import { formatMeetingWindow, meetingLocale } from "../meeting-datetime";
 import { MeetingRoomAvatarsProvider } from "../meeting-room-avatars";
 import { canRejoin, type ExitMedia, type RoomExit } from "./exit-model";
 import { ExitEnded } from "./exit-ended";
+import { GuestExitEnded, GuestExitLeft } from "./exit-guest";
 import { ExitHandedOver } from "./exit-handed-over";
 import { ExitHostLeft } from "./exit-host-left";
 import { BackToMeetingButton, ExitLeft } from "./exit-left";
@@ -14,6 +16,7 @@ import { ExitPresenceCard } from "./exit-presence-card";
 import { ExitRemoved } from "./exit-removed";
 import { ExitRating } from "./exit-rating";
 import { ExitHeading, ExitMark, ExitShell } from "./exit-shell";
+import type { GuestTally } from "./use-guest-tally";
 import { useRoomPresence } from "./use-room-presence";
 
 export type MeetingExitScreenProps = {
@@ -30,6 +33,10 @@ export type MeetingExitScreenProps = {
   onBackToMeeting: () => void;
   onEndForAll?: () => void;
   onExitChange?: (exit: RoomExit) => void;
+  /** Public-link credentials of a guest: their leave screen asks the link whether the meeting ended. */
+  invite?: { linkId: string; secret: string };
+  /** A guest's own count of their visit, for the thank-you screen. */
+  guestTally?: GuestTally;
 };
 
 /**
@@ -53,6 +60,31 @@ export function MeetingExitScreen(props: MeetingExitScreenProps) {
     : undefined;
   const rating = <ExitRating meetingId={meetingId} />;
   const presenceCard = <ExitPresenceCard people={presence.people} startedAt={meeting?.actual_start_at} />;
+
+  const withAvatars = (node: ReactNode) => (
+    <MeetingRoomAvatarsProvider participants={presence.all} workspaceId={props.guestMode ? "" : (props.workspaceId ?? "")}>
+      {node}
+    </MeetingRoomAvatarsProvider>
+  );
+  // Guests get the light public pages (boards G and H), not the room's dark frame.
+  if (props.guestMode && exit.kind === "ended") {
+    return withAvatars(<GuestExitEnded meetingTitle={title} at={exit.at} tally={props.guestTally} rating={rating} />);
+  }
+  if (props.guestMode && canRejoin(exit)) {
+    const { media } = exit;
+    return withAvatars(
+      <GuestExitLeft
+        invite={props.invite}
+        meetingTitle={title}
+        media={media}
+        presence={(startedAt) => <ExitPresenceCard people={presence.people} startedAt={startedAt} />}
+        rating={rating}
+        onRejoin={() => props.onRejoin(media)}
+        onChangeSetup={props.onBackToMeeting}
+        onEnded={(next) => props.onExitChange?.(next)}
+      />,
+    );
+  }
 
   let body;
   if (kind === "ended" && meeting && props.workspaceId && !props.guestMode) {
@@ -130,11 +162,9 @@ export function MeetingExitScreen(props: MeetingExitScreenProps) {
     );
   }
 
-  return (
-    <MeetingRoomAvatarsProvider participants={presence.all} workspaceId={props.guestMode ? "" : (props.workspaceId ?? "")}>
-      <ExitShell meetingsHref={props.guestMode ? undefined : props.meetingsHref} dateLine={dateLine}>
-        {body}
-      </ExitShell>
-    </MeetingRoomAvatarsProvider>
+  return withAvatars(
+    <ExitShell meetingsHref={props.guestMode ? undefined : props.meetingsHref} dateLine={dateLine}>
+      {body}
+    </ExitShell>,
   );
 }

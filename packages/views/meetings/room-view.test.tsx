@@ -45,6 +45,7 @@ vi.mock("@livekit/components-react", () => ({
     }, []);
     return <div data-testid="livekit-room">{props.children}</div>;
   },
+  useParticipants: () => [],
   useRoomContext: () => room.lkRoom,
   useLocalParticipant: () => ({
     localParticipant: { setMicrophoneEnabled: vi.fn(), setCameraEnabled: vi.fn() },

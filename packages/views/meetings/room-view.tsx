@@ -22,6 +22,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { participantIdFromToken, type ExitMedia, type RoomExit } from "./exit/exit-model";
 import { MeetingExitScreen } from "./exit/meeting-exit-screen";
+import { GuestTallyProbe, newGuestTally } from "./exit/use-guest-tally";
 import { MeetingConference } from "./meeting-conference";
 import { MeetingProactiveTokenRefresh } from "./meeting-proactive-token-refresh";
 import { MeetingLobby } from "./meeting-lobby";
@@ -140,6 +141,8 @@ export function MeetingRoomView({
   // Out of the room but still on its route: the leave screens (spec 2026-10-27).
   // The ref answers onDisconnected, which fires as the room unmounts.
   const [exit, setExitState] = useState<RoomExit | null>(null);
+  // A guest's own count of their visit (time in the room, people seen) for their thank-you screen.
+  const [guestTally] = useState(newGuestTally);
   const exitRef = useRef<RoomExit | null>(null);
   const setExit = useCallback((next: RoomExit | null) => {
     exitRef.current = next;
@@ -358,6 +361,8 @@ export function MeetingRoomView({
           onBackToMeeting={onLeave}
           onEndForAll={guestMode ? undefined : endForAll}
           onExitChange={setExit}
+          invite={invite}
+          guestTally={guestMode ? guestTally : undefined}
         />
         {endingCover}
       </MeetingRoomShell>
@@ -537,6 +542,7 @@ export function MeetingRoomView({
         }}
       >
         <MeetingSharpShares />
+        {guestMode ? <GuestTallyProbe tally={guestTally} /> : null}
         <MeetingProactiveTokenRefresh
           expiresAt={decision.expires_at}
           onRefresh={refreshLiveKitCredential}

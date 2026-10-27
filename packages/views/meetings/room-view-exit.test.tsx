@@ -30,6 +30,7 @@ vi.mock("@livekit/components-react", () => ({
     }, []);
     return <div data-testid="livekit-room">{props.children}</div>;
   },
+  useParticipants: () => [],
   useRoomContext: () => ({ remoteParticipants: new Map(), on: vi.fn(), off: vi.fn() }),
 }));
 vi.mock("./meeting-proactive-token-refresh", () => ({ MeetingProactiveTokenRefresh: () => null }));
@@ -76,6 +77,7 @@ const person = (id: string, name: string, inRoom: boolean) => ({
 });
 
 let status = "IN_PROGRESS";
+const GUEST_EXPIRED = "Phiên tham gia đã hết hạn. Mở lại liên kết mời để vào tiếp.";
 let joins = 0;
 
 beforeAll(() => {
@@ -194,5 +196,28 @@ describe("MeetingRoomView leave screen", () => {
     expect(screen.queryByText("Đang kết thúc cuộc họp…")).not.toBeInTheDocument();
     expect(screen.getByTestId("livekit-room")).toBeInTheDocument();
     expect(onEnded).not.toHaveBeenCalled();
+  });
+
+  it("sends a guest whose session ran out to the lobby's explanation, not a spinner", async () => {
+    render(
+      wrapWithNav(
+        <MeetingRoomView
+          meetingId="m1"
+          guestMode
+          invite={{ linkId: "l1", secret: "sec" }}
+          meetingTitle="Tổng kết dự án Sao Mai"
+          initialChoice={{ audio: true, video: true }}
+          onLeave={vi.fn()}
+        />,
+      ),
+    );
+    await leave();
+    expect(await screen.findByRole("heading", { name: "Bạn đã rời phòng" })).toBeInTheDocument();
+    requestMock.mockImplementation((path: string) =>
+      path.endsWith("/join") ? Promise.reject(new ApiError("expired", "unauthorized", 401)) : Promise.resolve({}),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Vào lại" }));
+    expect(await screen.findByText(GUEST_EXPIRED)).toBeInTheDocument();
+    expect(screen.queryByTestId("livekit-room")).not.toBeInTheDocument();
   });
 });

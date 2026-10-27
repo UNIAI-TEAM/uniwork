@@ -3636,6 +3636,22 @@
         "line": "{{name}} · {{time}} · {{title}}",
         "lineNoName": "{{time}} · {{title}}"
       },
+      "guest": {
+        "changeSetup": "Change name or devices",
+        "madeWith": "Meeting on",
+        "brand": "UniWork",
+        "teamCta": "Use it for your team",
+        "thanks": "Thanks for joining",
+        "endedAt": "The meeting ended at {{time}} · {{title}}",
+        "minutes_one": "{{count}} minute",
+        "minutes_other": "{{count}} minutes",
+        "minutesLabel": "you were in the room",
+        "people_one": "{{count}} person",
+        "people_other": "{{count}} people",
+        "peopleLabel": "in the meeting",
+        "pitch": "Meet, take minutes and hand out tasks in one place",
+        "tryCta": "Try UniWork"
+      },
       "rejoin": "Rejoin",
       "mediaGroup": "Rejoin with your last devices",
       "micOn": "Mic on",

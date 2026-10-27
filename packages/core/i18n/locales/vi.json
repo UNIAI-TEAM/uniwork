@@ -3635,6 +3635,22 @@
         "line": "{{name}} · {{time}} · {{title}}",
         "lineNoName": "{{time}} · {{title}}"
       },
+      "guest": {
+        "changeSetup": "Đổi tên hoặc thiết bị",
+        "madeWith": "Họp bằng",
+        "brand": "UniWork",
+        "teamCta": "Dùng cho đội của bạn",
+        "thanks": "Cảm ơn bạn đã tham gia",
+        "endedAt": "Cuộc họp đã kết thúc lúc {{time}} · {{title}}",
+        "minutes_one": "{{count}} phút",
+        "minutes_other": "{{count}} phút",
+        "minutesLabel": "bạn ở trong phòng",
+        "people_one": "{{count}} người",
+        "people_other": "{{count}} người",
+        "peopleLabel": "cùng họp",
+        "pitch": "Họp, ghi biên bản và giao việc trong một chỗ",
+        "tryCta": "Dùng thử UniWork"
+      },
       "rejoin": "Vào lại",
       "mediaGroup": "Vào lại với thiết bị lần trước",
       "micOn": "Mic bật",
