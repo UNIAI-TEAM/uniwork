@@ -2,8 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 import { createInstantMeeting, createRecordingAccount, loginViaUi, type RecordingAccount } from "./meeting-recording-fixture";
 
 // The redesigned room panel (UNI-2173): the icon tab row, the UNI tab's one
-// composer writing a note into the feed, the view switch, the People tab, and
-// the bottom sheet on a phone. Needs LiveKit (E2E_LIVEKIT=1) and `make start`.
+// composer writing a note into the feed (then editing and deleting it,
+// UNI-2217), the view switch, the People tab, and the bottom sheet on a phone.
+// Needs LiveKit (E2E_LIVEKIT=1) and `make start`.
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 const livekitEnabled = process.env.E2E_LIVEKIT === "1";
 
@@ -31,7 +32,7 @@ test.describe("the room panel", () => {
     // From 1280px the side panel starts docked.
     test.use({ viewport: { width: 1440, height: 900 } });
 
-    test("the host writes a note into the UNI feed, switches views and finds themself in People", async ({ page }) => {
+    test("the host writes a note into the UNI feed, switches views, edits and deletes the note and finds themself in People", async ({ page }) => {
       test.slow();
       await enterRoom(page, "panel-host");
 
@@ -55,6 +56,20 @@ test.describe("the room panel", () => {
       await expect(uni.getByTestId("meeting-copilot-scroll")).toHaveCount(0);
       await views.getByRole("radio", { name: "Tổng hợp" }).click();
       await expect(uni.getByTestId("meeting-copilot-scroll").getByText("Chốt lịch thứ Sáu")).toBeVisible();
+
+      // UNI-2217: the author edits the note in place, then deletes it.
+      const feed = uni.getByTestId("meeting-copilot-scroll");
+      await feed.getByRole("button", { name: "Thao tác với ghi chú: Chốt lịch thứ Sáu" }).click();
+      await page.getByRole("menuitem", { name: "Sửa" }).click();
+      const editor = feed.getByRole("textbox", { name: "Nội dung ghi chú" });
+      await editor.fill("Chốt lịch thứ Bảy");
+      await editor.press("Enter");
+      await expect(feed.getByText("Chốt lịch thứ Bảy")).toBeVisible({ timeout: 15_000 });
+      await expect(feed.getByText("· đã sửa")).toBeVisible();
+      await feed.getByRole("button", { name: "Thao tác với ghi chú: Chốt lịch thứ Bảy" }).click();
+      await page.getByRole("menuitem", { name: "Xóa ghi chú" }).click();
+      await page.getByRole("alertdialog", { name: "Xóa ghi chú này?" }).getByRole("button", { name: "Xóa" }).click();
+      await expect(page.getByText("Chốt lịch thứ Bảy")).toHaveCount(0, { timeout: 15_000 });
 
       await tabs.getByRole("tab", { name: /^Mọi người/ }).click();
       const people = page.getByRole("tabpanel", { name: "Mọi người" });

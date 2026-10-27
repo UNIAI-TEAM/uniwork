@@ -5153,7 +5153,16 @@
         "jumpToLine": "See what was said at {{time}}",
         "chipDecision": "Decided",
         "chipTask": "To-do",
-        "chipQuestion": "Asked"
+        "chipQuestion": "Asked",
+        "note": {
+          "actions": "Actions for note: {{text}}",
+          "edit": "Edit",
+          "delete": "Delete note",
+          "field": "Note text",
+          "edited": "· edited",
+          "deleteTitle": "Delete this note?",
+          "deleteBody": "No one in the meeting will see this note any more."
+        }
       },
       "empty": {
         "title": "UNI Scribe is listening",

@@ -5152,7 +5152,16 @@
         "jumpToLine": "Xem câu nói lúc {{time}}",
         "chipDecision": "Chốt",
         "chipTask": "Việc",
-        "chipQuestion": "Hỏi"
+        "chipQuestion": "Hỏi",
+        "note": {
+          "actions": "Thao tác với ghi chú: {{text}}",
+          "edit": "Sửa",
+          "delete": "Xóa ghi chú",
+          "field": "Nội dung ghi chú",
+          "edited": "· đã sửa",
+          "deleteTitle": "Xóa ghi chú này?",
+          "deleteBody": "Mọi người trong cuộc họp sẽ không thấy ghi chú này nữa."
+        }
       },
       "empty": {
         "title": "Thư ký UNI đang nghe",

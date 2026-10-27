@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Clock, PencilLine } from "lucide-react";
+import { Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MeetingFeedEntry } from "@uniwork/core/meetings/feed";
 import type { Tint } from "@uniwork/ui/components/common/icon-tile";
@@ -13,6 +13,7 @@ import { TOUCH_TARGET } from "../touch-target";
 import { meetingAvatarTint } from "../meeting-detail/avatar-tint";
 import { useMemberIndex } from "../use-member-index";
 import { FeedKindMark } from "./feed-filter-chips";
+import { FeedNoteContent } from "./feed-note";
 
 type MemberOf = ReturnType<typeof useMemberIndex>["memberOf"];
 type TintOf = (userId: string | null | undefined) => Tint;
@@ -47,13 +48,15 @@ export function MeetingFeedList({
   const [playing, setPlaying] = useState<string | null>(null);
   return (
     <>
-      <ol aria-label={t("meetings.panel.feed.label")} className="divide-y divide-border">
+      {/* Focusable so a deleted note's row can hand focus to the list when no row follows. */}
+      <ol aria-label={t("meetings.panel.feed.label")} tabIndex={-1} className="divide-y divide-border">
         {entries.map((entry) => (
           <FeedRow
             key={entry.id}
             entry={entry}
             isNew={entry.actionItem ? unseen.has(entry.actionItem.id) : false}
             canClerk={canClerk}
+            meetingId={meetingId}
             memberOf={memberOf}
             tintOf={tintOf}
             onJumpToSegment={onJumpToSegment}
@@ -80,6 +83,7 @@ function FeedRow({
   entry,
   isNew,
   canClerk,
+  meetingId,
   memberOf,
   tintOf,
   onJumpToSegment,
@@ -89,6 +93,7 @@ function FeedRow({
   entry: MeetingFeedEntry;
   isNew: boolean;
   canClerk: boolean;
+  meetingId: string;
   memberOf: MemberOf;
   tintOf: TintOf;
   onJumpToSegment: (segmentId: string) => void;
@@ -102,7 +107,7 @@ function FeedRow({
   const time = Number.isFinite(ms) ? formatMessageTime(ms, locale) : null;
   const { note, recording, segmentId } = entry;
   return (
-    <li className="flex gap-2.5 px-0.5 py-2.5">
+    <li className="group/note flex gap-2.5 px-0.5 py-2.5">
       {note ? (
         <span role="img" aria-label={kindLabel} className="shrink-0">
           <MeetingPersonAvatar name={note.display_name ?? ""} avatarUrl={note.avatar_url} tint={tintOf(note.author_id)} size={26} />
@@ -113,8 +118,10 @@ function FeedRow({
       <div className="min-w-0 flex-1">
         {recording ? (
           <PlayRecordingButton time={time} onPlay={() => onPlay(recording.id)} />
+        ) : note ? (
+          <FeedNoteContent note={note} canClerk={canClerk} meetingId={meetingId} />
         ) : (
-          <p className={note ? "text-body text-pretty text-foreground" : "text-body font-medium text-pretty text-foreground"}>{entry.text}</p>
+          <p className="text-body font-medium text-pretty text-foreground">{entry.text}</p>
         )}
         {entry.actionItem ? (
           <TaskMeta item={entry.actionItem} canClerk={canClerk} memberOf={memberOf} tintOf={tintOf} onEditItem={onEditItem} />
@@ -122,11 +129,6 @@ function FeedRow({
           <span className="mt-1.5 inline-flex h-5 items-center rounded-md bg-warning-soft px-1.75 text-micro font-medium text-warning-soft-foreground">
             {t("meetings.panel.feed.open")}
           </span>
-        ) : note ? (
-          <p className="mt-1.5 flex items-center gap-1 text-caption text-muted-foreground">
-            <PencilLine aria-hidden className="size-3" />
-            {note.display_name}
-          </p>
         ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-2 text-caption text-faint-foreground tabular-nums">
