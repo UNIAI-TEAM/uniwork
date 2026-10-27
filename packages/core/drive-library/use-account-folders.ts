@@ -5,6 +5,9 @@ import type { DriveFile } from "../api/endpoints/drive-library";
 import { deriveDriveFolders, type DriveFolderDerivation } from "./folders";
 import { useDriveFiles } from "./hooks";
 
+/** Page walk bound: past it the account is treated as incomplete rather than shown as a partial tree. */
+const MAX_ACCOUNT_PAGES = 40;
+
 interface UseDriveAccountFoldersOpts {
   enabled?: boolean;
   /** Locale of the folder order (named A-Z). */
@@ -40,15 +43,18 @@ export function useDriveAccountFolders(
   const enabled = (opts?.enabled ?? true) && Boolean(connectionId);
   const query = useDriveFiles(wsId, { connectionId, enabled });
   const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = query;
+  const pages = query.data?.pages;
+  const pageCount = pages?.length ?? 0;
+  const capped = Boolean(hasNextPage) && pageCount >= MAX_ACCOUNT_PAGES;
 
   useEffect(() => {
-    if (enabled && hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
+    if (enabled && hasNextPage && !capped && !isFetchingNextPage && !isFetchNextPageError) {
       void fetchNextPage();
     }
-  }, [enabled, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
+    // pageCount re-runs the walk when a fast page lands between two renders and the flags look unchanged.
+  }, [enabled, hasNextPage, capped, pageCount, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
-  const pages = query.data?.pages;
-  const files = useMemo(() => pages?.flatMap((p) => p.files) ?? [], [pages]);
+  const files = useMemo(() => (capped ? [] : pages?.flatMap((p) => p.files) ?? []), [pages, capped]);
   const derived = useMemo(() => deriveDriveFolders(files, opts?.locale), [files, opts?.locale]);
   const { refetch } = query;
 
@@ -56,9 +62,9 @@ export function useDriveAccountFolders(
     ...derived,
     files,
     isPending: enabled && query.isPending,
-    isLoadingMore: Boolean(hasNextPage) && !isFetchNextPageError,
+    isLoadingMore: Boolean(hasNextPage) && !capped && !isFetchNextPageError,
     isLoadMoreError: isFetchNextPageError,
-    isError: query.isError,
+    isError: query.isError || capped,
     refetch: () => void refetch(),
     retryLoadMore: () => void fetchNextPage(),
   };

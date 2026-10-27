@@ -114,4 +114,37 @@ describe("useDriveAccountFolders", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.files).toEqual([]);
   });
+
+  it("keeps what is loaded and offers a retry when a later page fails", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ files: [inFolder("a", "fld-1", "Dự án Beta")], total_count: 2, next_cursor: "c2" }))
+      .mockResolvedValueOnce(json({ error: "boom" }, 500))
+      .mockResolvedValueOnce(json({ files: [inFolder("b", "fld-1", "Dự án Beta")], total_count: 2, next_cursor: null }));
+    const { result } = renderHook(() => useDriveAccountFolders("ws1", "conn1", { locale: "vi" }), {
+      wrapper: makeWrapper(qc),
+    });
+    await waitFor(() => expect(result.current.isLoadMoreError).toBe(true));
+    expect(result.current.isLoadingMore).toBe(false);
+    expect(result.current.files).toHaveLength(1);
+
+    result.current.retryLoadMore();
+    await waitFor(() => expect(result.current.files).toHaveLength(2));
+    expect(result.current.isLoadMoreError).toBe(false);
+  });
+
+  it("stops after 40 pages and reports the account as incomplete, with no partial tree", async () => {
+    let n = 0;
+    vi.mocked(fetch).mockImplementation(() => {
+      n += 1;
+      return Promise.resolve(json({ files: [inFolder(`f${n}`, "fld-1", "Dự án Beta")], total_count: 99, next_cursor: `c${n + 1}` }));
+    });
+    const { result } = renderHook(() => useDriveAccountFolders("ws1", "conn1", { locale: "vi" }), {
+      wrapper: makeWrapper(qc),
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 8000 });
+    expect(fetch).toHaveBeenCalledTimes(40);
+    expect(result.current.isLoadingMore).toBe(false);
+    expect(result.current.folders).toEqual([]);
+    expect(result.current.files).toEqual([]);
+  });
 });
