@@ -313,7 +313,7 @@ func TestDriveProposalRetentionSweepMultiRoundOver500(t *testing.T) {
 	spy := &driveProposalPurgeMetricsSpy{}
 	propSvc.SetMetrics(&combinedDriveProposalMetricsSpy{purge: spy})
 
-	w := propSvc.NewRetentionSweeper()
+	w := NewDriveProposalRetentionSweeper(propSvc, nil)
 	w.SetClock(func() time.Time { return now })
 	var roundCounts []int64
 	w.testBeforeRoundCommit = func(_ int, deleted int64) {

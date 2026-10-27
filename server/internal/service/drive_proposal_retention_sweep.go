@@ -90,15 +90,6 @@ func NewDriveProposalRetentionSweeper(svc *DriveTaskProposalService, log *slog.L
 	return w
 }
 
-// NewRetentionSweeper constructs a DriveProposalRetentionSweeper bound to s.
-func (s *DriveTaskProposalService) NewRetentionSweeper() *DriveProposalRetentionSweeper {
-	var log *slog.Logger
-	if s != nil {
-		log = s.log
-	}
-	return NewDriveProposalRetentionSweeper(s, log)
-}
-
 // SetMetrics attaches the Prometheus counter for purged proposal rows.
 func (w *DriveProposalRetentionSweeper) SetMetrics(m DriveProposalRetentionMetrics) {
 	if w != nil {
@@ -164,19 +155,6 @@ func (w *DriveProposalRetentionSweeper) Sweep(ctx context.Context) (int64, error
 			return total, nil
 		}
 	}
-}
-
-// SweepDriveTaskProposals runs one retention pass on s using the given cutoff
-// time (or PostgreSQL now() when now is zero).
-func (s *DriveTaskProposalService) SweepDriveTaskProposals(ctx context.Context, now time.Time) (int64, error) {
-	if s == nil || s.q == nil {
-		return 0, nil
-	}
-	w := s.NewRetentionSweeper()
-	if !now.IsZero() {
-		w.SetClock(func() time.Time { return now })
-	}
-	return w.Sweep(ctx)
 }
 
 func (w *DriveProposalRetentionSweeper) sweepRound(ctx context.Context, round int, batchLimit int32) (int64, error) {
