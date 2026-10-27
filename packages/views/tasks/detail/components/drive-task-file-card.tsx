@@ -466,7 +466,7 @@ export function DriveTaskFileCard({
               </AlertDescription>
             </Alert>
           ) : null}
-          <DriveConsentHint />
+          {connectPopup.notice?.code !== "scope_not_granted" ? <DriveConsentHint /> : null}
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"

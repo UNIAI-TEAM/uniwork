@@ -236,7 +236,10 @@ export function DrivePickerAccountDialog({
             </div>
           ) : null}
 
-          {!hasConnections || connections.some(isConnectionLost) ? <DriveConsentHint /> : null}
+          {(!hasConnections || connections.some(isConnectionLost)) &&
+          connectNotice?.code !== "scope_not_granted" ? (
+            <DriveConsentHint />
+          ) : null}
 
           {hasConnections ? (
             <div

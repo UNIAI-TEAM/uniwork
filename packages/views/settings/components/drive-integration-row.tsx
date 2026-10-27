@@ -308,9 +308,9 @@ export function DriveIntegrationRow({
             </div>
           ) : null}
 
-          {showConsentHint ? <DriveConsentHint /> : null}
-
           <p className="text-caption text-pretty text-muted-foreground">{t("meta")}</p>
+
+          {showConsentHint && notice?.code !== "scope_not_granted" ? <DriveConsentHint /> : null}
         </div>
       }
     />
