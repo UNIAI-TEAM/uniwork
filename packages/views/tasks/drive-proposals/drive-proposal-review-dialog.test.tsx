@@ -830,9 +830,27 @@ describe("DriveProposalReviewDialog & helpers (W7, spec §7.10, §8.4–§8.8)",
     await waitFor(() => {
       expect(document.activeElement).toBe(errorAlert);
     });
-    expect(screen.getByTestId("drive-proposal-live-region")).toHaveTextContent(
-      "Có việc đang mở trùng tiêu đề trong cùng dự án và task cha. Hãy chọn Vẫn tạo hoặc Bỏ việc này.",
+    // role="alert" announces the error; the live region does not repeat it.
+    expect(screen.getByTestId("drive-proposal-live-region")).toBeEmptyDOMElement();
+  });
+
+  it("does not focus an item title on open, so a phone keyboard stays down (N2)", async () => {
+    render(
+      renderInWorkspace(
+        <DriveProposalReviewDialog
+          workspaceId="ws1"
+          open
+          onOpenChange={() => {}}
+          proposal={makeProposal()}
+        />,
+      ),
     );
+
+    const titleInput = await screen.findByRole("textbox", { name: /Tiêu đề việc 1/ });
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    expect(document.activeElement).not.toBe(titleInput);
+    expect(document.activeElement?.tagName).not.toBe("INPUT");
   });
 
   it("builds description and filters blocked_by_indexes to items included in the batch", () => {

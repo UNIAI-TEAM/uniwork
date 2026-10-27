@@ -35,7 +35,6 @@ export interface DriveProposalItemCardProps {
   labels: TaskLabel[];
   taskHref: (taskId: string) => string | null;
   disabled?: boolean;
-  autoFocusTitle?: boolean;
   onUpdate: (patch: Partial<DriveProposalItemDraft>) => void;
   onDuplicateDecision: (decision: DuplicateDecision) => void;
 }
@@ -63,7 +62,6 @@ export function DriveProposalItemCard({
   labels,
   taskHref,
   disabled = false,
-  autoFocusTitle = false,
   onUpdate,
   onDuplicateDecision,
 }: DriveProposalItemCardProps) {
@@ -161,7 +159,6 @@ export function DriveProposalItemCard({
             <Input
               value={draft.title}
               disabled={disabled}
-              autoFocus={autoFocusTitle}
               aria-label={t("drive.proposals.review.item_title_aria", { index: itemNumber })}
               placeholder={t("drive.proposals.review.item_title_placeholder")}
               onChange={(e) => onUpdate({ title: e.target.value })}

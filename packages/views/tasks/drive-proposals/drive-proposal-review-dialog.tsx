@@ -97,10 +97,19 @@ export function DriveProposalReviewDialog({
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
   const initializedProposalIdRef = useRef<string | null>(null);
   const duplicateReqSeqRef = useRef(0);
+  const createErrorRef = useRef<HTMLDivElement>(null);
 
   const deleteMutation = useDeleteDriveTaskProposal(workspaceId);
   const duplicatesMutation = useCheckDriveTaskProposalDuplicates(workspaceId);
   const createTasksMutation = useCreateTasksFromDriveProposal(workspaceId);
+
+  // The footer is pinned, so the alert is already in view; focus makes it the next thing read.
+  // `role="alert"` announces it, so the message is not also pushed to the live region.
+  useEffect(() => {
+    if (createError) {
+      createErrorRef.current?.focus();
+    }
+  }, [createError]);
 
   useEffect(() => {
     if (!open) {
@@ -344,14 +353,7 @@ export function DriveProposalReviewDialog({
     } catch (err) {
       const resolved = resolveDriveProposalCreateError(err, t);
       setCreateError(resolved);
-      setLiveAnnouncement(resolved.message);
-      setTimeout(() => {
-        const alertEl = document.querySelector<HTMLElement>(
-          '[data-testid="drive-proposal-create-error"]',
-        );
-        alertEl?.scrollIntoView?.({ block: "nearest" });
-        alertEl?.focus?.();
-      }, 0);
+      setLiveAnnouncement("");
     }
   };
 
@@ -433,7 +435,7 @@ export function DriveProposalReviewDialog({
                 {t("drive.proposals.review.state_empty")}
               </p>
             ) : (
-              itemDrafts.map((draft, idx) => {
+              itemDrafts.map((draft) => {
                 const blockedTitles = draft.blockedByIndexes
                   .map((bIdx) => titleByIndex.get(bIdx))
                   .filter((val): val is string => Boolean(val));
@@ -448,7 +450,6 @@ export function DriveProposalReviewDialog({
                     labels={labelsQuery.data?.labels ?? []}
                     taskHref={(tId) => (wsPaths ? wsPaths.task(tId) : null)}
                     disabled={isBusy}
-                    autoFocusTitle={idx === 0}
                     onUpdate={(patch) => updateItemDraft(draft.index, patch)}
                     onDuplicateDecision={(decision) =>
                       handleDuplicateDecision(draft.index, decision)
@@ -465,6 +466,7 @@ export function DriveProposalReviewDialog({
             isCreating={createTasksMutation.isPending}
             createButtonLabel={createButtonLabel}
             errorMessage={createError?.message ?? null}
+            errorRef={createErrorRef}
             onCancel={requestClose}
             onSubmit={() => void handleCreateBatch()}
           />

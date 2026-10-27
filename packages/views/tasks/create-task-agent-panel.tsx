@@ -481,7 +481,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
 
       <div className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-2.5 border-t border-surface-border/50 px-4 py-3 sm:flex sm:flex-wrap">
         <div className="flex min-h-7 items-center gap-2 sm:mr-auto">{!hasDriveChip ? <FileUploadButton size="sm" multiple onSelect={(file) => editorRef.current?.uploadFile(file)} /> : null}</div>
-        <button type="button" disabled={isUploading || isProposing} aria-disabled={isUploading || isProposing || undefined} aria-busy={isUploading || isProposing || undefined} title={t("tasks.create.switch_to_manual")} className="flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50" onClick={switchToManual}>
+        <button type="button" disabled={isUploading || isProposing} aria-disabled={isUploading || isProposing || undefined} aria-busy={isUploading || isProposing || undefined} title={t("tasks.create.switch_to_manual")} className="flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm px-2 py-1 text-caption text-muted-foreground transition-colors pointer-coarse:min-h-11 hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50" onClick={switchToManual}>
           <ArrowLeftRight className="size-3.5" aria-hidden />{t("tasks.create.switch_to_manual")}
         </button>
         {!hasDriveChip ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import { CircleAlert, Sparkles, TriangleAlert, X } from "lucide-react";
 import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { useTranslation } from "react-i18next";
@@ -276,6 +276,7 @@ export interface DriveProposalReviewFooterProps {
   isCreating: boolean;
   createButtonLabel: string;
   errorMessage?: string | null;
+  errorRef?: Ref<HTMLDivElement>;
   onCancel: () => void;
   onSubmit: () => void;
 }
@@ -286,6 +287,7 @@ export function DriveProposalReviewFooter({
   isCreating,
   createButtonLabel,
   errorMessage,
+  errorRef,
   onCancel,
   onSubmit,
 }: DriveProposalReviewFooterProps) {
@@ -296,6 +298,7 @@ export function DriveProposalReviewFooter({
       {errorMessage ? (
         <Alert
           variant="destructiveSoft"
+          ref={errorRef}
           role="alert"
           tabIndex={-1}
           data-testid="drive-proposal-create-error"
