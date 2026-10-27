@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -66,6 +67,7 @@ func (s *DriveFileService) Link(ctx context.Context, actor Actor, workspaceID st
 		}
 	}
 
+	parentCache := make(map[string]string, len(in.ExternalFileIDs))
 	results := make([]DriveFileLinkItemResult, 0, len(in.ExternalFileIDs))
 	for _, rawExtID := range in.ExternalFileIDs {
 		extID := strings.TrimSpace(rawExtID)
@@ -79,7 +81,7 @@ func (s *DriveFileService) Link(ctx context.Context, actor Actor, workspaceID st
 			})
 			continue
 		}
-		meta, ferr := s.api.FilesGetWithConnection(ctx, s.connections, conn, extID)
+		meta, ferr := s.api.filesGetWithConnectionAndParentCache(ctx, s.connections, conn, extID, parentCache)
 		if ferr != nil {
 			s.maybeRecordAccessLostByExternalID(ctx, actor.ID, ws.OrganizationID, ws.ID, extID, conn.ID, ferr)
 			code, msg := driveErrorCodeAndMessage(ferr)
@@ -141,6 +143,7 @@ func (s *DriveFileService) linkFilesForTaskCreateInTx(
 	if !s.isNotGuest(member) {
 		return ErrForbidden
 	}
+	parentCache := make(map[string]string, len(driveFiles))
 	for idx, df := range driveFiles {
 		extID := strings.TrimSpace(df.ExternalFileID)
 		connID := strings.TrimSpace(df.ConnectionID)
@@ -151,7 +154,7 @@ func (s *DriveFileService) linkFilesForTaskCreateInTx(
 		if extID == "" {
 			return wrapTaskCreateDriveFileError(idx, df.ExternalFileID, ErrDriveFileNotAccessible)
 		}
-		meta, err := s.api.FilesGetWithConnection(ctx, s.connections, conn, extID)
+		meta, err := s.api.filesGetWithConnectionAndParentCache(ctx, s.connections, conn, extID, parentCache)
 		if err != nil {
 			return wrapTaskCreateDriveFileError(idx, extID, err)
 		}
@@ -266,12 +269,23 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 	viewerEmail := conn.GoogleEmail
 	accountEmailOnAlreadyLinked := ""
 	if !hasExisting {
+		if params.DriveFolderID.Valid && !params.DriveFolderName.Valid {
+			if sibName, serr := qtx.GetWorkspaceDriveFolderName(ctx, db.GetWorkspaceDriveFolderNameParams{
+				OrganizationID: ws.OrganizationID,
+				WorkspaceID:    ws.ID,
+				DriveFolderID:  params.DriveFolderID.String,
+			}); serr == nil && sibName.Valid && strings.TrimSpace(sibName.String) != "" {
+				params.DriveFolderName = pgtype.Text{String: strings.TrimSpace(sibName.String), Valid: true}
+			}
+		}
 		fileRow, err = qtx.CreateDriveFile(ctx, db.CreateDriveFileParams{
 			ID:                     util.NewID(),
 			OrganizationID:         ws.OrganizationID,
 			WorkspaceID:            ws.ID,
 			ExternalFileID:         externalFileID,
 			DriveID:                params.DriveID,
+			DriveFolderID:          params.DriveFolderID,
+			DriveFolderName:        params.DriveFolderName,
 			ConnectionID:           conn.ID,
 			BoundBy:                actor.ID,
 			CreatedBy:              actor.ID,
@@ -373,6 +387,8 @@ func (s *DriveFileService) linkExistingFileInTx(
 ) (linkedExistingResult, error) {
 	fileRow, err := qtx.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
+		DriveFolderID:          params.DriveFolderID,
+		DriveFolderName:        params.DriveFolderName,
 		Name:                   params.Name,
 		MimeType:               params.MimeType,
 		IconKind:               params.IconKind,

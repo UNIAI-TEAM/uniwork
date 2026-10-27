@@ -43,6 +43,7 @@ FOR SHARE;
 -- name: CreateDriveFile :one
 INSERT INTO drive_files (
   id, organization_id, workspace_id, external_file_id, drive_id,
+  drive_folder_id, drive_folder_name,
   connection_id, bound_by, created_by, created_by_kind,
   name, mime_type, icon_kind, web_view_link, owner_display,
   drive_modified_at, drive_modified_by_display, sharing_state,
@@ -53,6 +54,8 @@ INSERT INTO drive_files (
   sqlc.arg('workspace_id'),
   sqlc.arg('external_file_id'),
   sqlc.narg('drive_id'),
+  sqlc.narg('drive_folder_id'),
+  sqlc.narg('drive_folder_name'),
   sqlc.arg('connection_id'),
   sqlc.arg('bound_by'),
   sqlc.arg('created_by'),
@@ -73,6 +76,13 @@ RETURNING *;
 -- name: UpdateDriveFileMetadata :one
 UPDATE drive_files
 SET drive_id = sqlc.narg('drive_id'),
+    drive_folder_id = sqlc.narg('drive_folder_id'),
+    drive_folder_name = CASE
+      WHEN sqlc.narg('drive_folder_id')::text IS NULL THEN NULL
+      WHEN sqlc.narg('drive_folder_name')::text IS NOT NULL THEN sqlc.narg('drive_folder_name')::text
+      WHEN drive_files.drive_folder_id IS NOT DISTINCT FROM sqlc.narg('drive_folder_id')::text THEN drive_files.drive_folder_name
+      ELSE NULL
+    END,
     name = sqlc.arg('name'),
     mime_type = sqlc.arg('mime_type'),
     icon_kind = sqlc.arg('icon_kind'),
@@ -108,6 +118,13 @@ SET connection_id = sqlc.arg('connection_id'),
     bound_by = sqlc.arg('bound_by'),
     access_lost_at = NULL,
     drive_id = sqlc.narg('drive_id'),
+    drive_folder_id = sqlc.narg('drive_folder_id'),
+    drive_folder_name = CASE
+      WHEN sqlc.narg('drive_folder_id')::text IS NULL THEN NULL
+      WHEN sqlc.narg('drive_folder_name')::text IS NOT NULL THEN sqlc.narg('drive_folder_name')::text
+      WHEN drive_files.drive_folder_id IS NOT DISTINCT FROM sqlc.narg('drive_folder_id')::text THEN drive_files.drive_folder_name
+      ELSE NULL
+    END,
     name = sqlc.arg('name'),
     mime_type = sqlc.arg('mime_type'),
     icon_kind = sqlc.arg('icon_kind'),
@@ -436,3 +453,47 @@ FROM drive_connections
 WHERE id = sqlc.arg('id')
   AND organization_id = sqlc.arg('organization_id')
   AND user_id = sqlc.arg('user_id');
+
+-- name: SetDriveFolderNameInWorkspace :many
+UPDATE drive_files
+SET drive_folder_name = sqlc.arg('drive_folder_name')::text,
+    updated_at = now()
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND drive_folder_id = sqlc.arg('drive_folder_id')::text
+  AND unlinked_at IS NULL
+RETURNING id;
+
+-- name: GetWorkspaceDriveFolderName :one
+SELECT drive_folder_name
+FROM drive_files
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND drive_folder_id = sqlc.arg('drive_folder_id')::text
+  AND drive_folder_name IS NOT NULL
+  AND unlinked_at IS NULL
+LIMIT 1;
+
+-- name: ListMyDriveFolders :many
+SELECT f.drive_folder_id,
+       COALESCE(max(f.drive_folder_name), '')::text AS drive_folder_name,
+       count(*)::bigint AS file_count
+FROM drive_file_access va
+JOIN drive_files f
+  ON f.id = va.drive_file_id
+ AND f.organization_id = va.organization_id
+ AND f.workspace_id = va.workspace_id
+WHERE va.organization_id = sqlc.arg('organization_id')
+  AND va.workspace_id = sqlc.arg('workspace_id')
+  AND va.user_id = sqlc.arg('viewer_user_id')
+  AND f.unlinked_at IS NULL
+  AND (sqlc.narg('connection_id')::text IS NULL OR va.connection_id = sqlc.narg('connection_id'))
+GROUP BY f.drive_folder_id
+ORDER BY
+  CASE
+    WHEN f.drive_folder_id IS NULL THEN 2
+    WHEN max(f.drive_folder_name) IS NULL THEN 1
+    ELSE 0
+  END ASC,
+  lower(COALESCE(max(f.drive_folder_name), '')) ASC,
+  COALESCE(f.drive_folder_id, '') ASC;

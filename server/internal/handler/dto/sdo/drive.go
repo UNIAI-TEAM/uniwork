@@ -61,6 +61,12 @@ type DriveTaskCreationGroupDTO struct {
 	Tasks         []DriveLinkedTaskRefDTO `json:"tasks" description:"Danh sách công việc thuộc lần tạo này mà người xem được phép thấy" example:"[{\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\",\"identifier\":\"UNI-1042\",\"title\":\"Chuẩn bị kế hoạch ra mắt Q4\",\"status\":\"todo\"}]"`
 }
 
+// DriveFolderRefDTO identifies the parent Google Drive folder of a linked file (UNI-2221).
+type DriveFolderRefDTO struct {
+	ID   string  `json:"id" description:"ID thư mục cha trên Google Drive" example:"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8"`
+	Name *string `json:"name" description:"Tên thư mục cha trên Google Drive; null khi chưa đặt tên hoặc không đọc được tên dưới quyền drive.file" example:"Tài liệu dự án Q4"`
+}
+
 // DriveFileDTO is a Google Drive file reference in the workspace (list row on 4.1 and detail on 4.2; spec §6.2, §7.6, §7.7, §8.8).
 type DriveFileDTO struct {
 	ID                     string                      `json:"id" description:"ULID tham chiếu tệp Drive trong UniWork" example:"01J8X4DRVFILE0N1P2Q3R4S5T6"`
@@ -68,6 +74,7 @@ type DriveFileDTO struct {
 	WorkspaceID            string                      `json:"workspace_id" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 	ExternalFileID         string                      `json:"external_file_id" description:"ID tệp trên Google Drive" example:"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"`
 	DriveID                *string                     `json:"drive_id,omitempty" description:"ID Bộ nhớ dùng chung (Shared Drive) nếu tệp nằm trong Bộ nhớ dùng chung; null nếu ở Drive cá nhân" example:"0AJ8X4SHAREDDRV001"`
+	DriveFolder            *DriveFolderRefDTO          `json:"drive_folder" description:"Thư mục cha trên Google Drive; null khi không có thư mục cha hoặc chưa làm mới metadata" example:"{\"id\":\"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8\",\"name\":\"Tài liệu dự án Q4\"}"`
 	Name                   string                      `json:"name" description:"Tên tệp chụp từ Google Drive" example:"Kế hoạch ra mắt Q4"`
 	MimeType               string                      `json:"mime_type" description:"MIME type của tệp trên Google Drive" example:"application/vnd.google-apps.document"`
 	IconKind               string                      `json:"icon_kind" description:"Loại biểu tượng hiển thị: google_doc, google_sheet, google_slide, pdf, docx, xlsx, pptx, text, markdown hoặc generic" example:"google_doc"`
@@ -274,4 +281,22 @@ type DriveProposalCreatedTaskItemDTO struct {
 type DriveProposalTasksCreatedSDO struct {
 	TaskIDs []string                          `json:"task_ids" description:"Danh sách ULID các công việc vừa tạo, theo thứ tự gửi lên" example:"[\"01J8X4TASKN1P2Q3R4S5T6U7V8\"]"`
 	Items   []DriveProposalCreatedTaskItemDTO `json:"items" description:"Ánh xạ từng mục đề xuất sang ULID công việc vừa tạo" example:"[{\"index\":0,\"task_id\":\"01J8X4TASKN1P2Q3R4S5T6U7V8\"}]"`
+}
+
+// DriveFolderNamedSDO is POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name (UNI-2221).
+type DriveFolderNamedSDO struct {
+	DriveFolder  DriveFolderRefDTO `json:"drive_folder" description:"Thư mục cha trên Google Drive sau khi đồng bộ tên" example:"{\"id\":\"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8\",\"name\":\"Tài liệu dự án Q4\"}"`
+	UpdatedCount int               `json:"updated_count" description:"Số tệp đang liên kết trong workspace có cùng thư mục cha đã được cập nhật tên thư mục" example:"3"`
+}
+
+// DriveFolderGroupDTO is one parent folder aggregate entry in DriveFolderListSDO (UNI-2221).
+type DriveFolderGroupDTO struct {
+	ID        *string `json:"id" description:"ID thư mục cha trên Google Drive; null đối với nhóm tệp không có thư mục cha" example:"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8"`
+	Name      *string `json:"name" description:"Tên thư mục cha trên Google Drive; null khi chưa đặt tên hoặc thuộc nhóm không có thư mục cha" example:"Tài liệu dự án Q4"`
+	FileCount int64   `json:"file_count" description:"Số tệp đang hoạt động mà người xem có dòng truy cập trong nhóm thư mục này" example:"3"`
+}
+
+// DriveFolderListSDO is GET /api/v1/workspaces/{workspaceID}/drive-folders (UNI-2221).
+type DriveFolderListSDO struct {
+	Folders []DriveFolderGroupDTO `json:"folders" description:"Danh sách nhóm thư mục cha trên Google Drive của người gọi trong workspace (sắp xếp: có tên A-Z, chưa đặt tên theo id, cuối cùng là id = null)" example:"[{\"id\":\"1FldrJ8X4DRV0N1P2Q3R4S5T6U7V8\",\"name\":\"Tài liệu dự án Q4\",\"file_count\":3},{\"id\":null,\"name\":null,\"file_count\":1}]"`
 }

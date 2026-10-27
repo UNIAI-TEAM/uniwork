@@ -2388,6 +2388,46 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			assertTaskCreatedDriveProposalAuditMetadata(t, f, created.TaskIDs[0], res[0].File.ID)
 			assertAuditOutboxTopicAfter(t, f, beforeConverted, "drive_task_proposal.converted", wantConvertedPayload)
 		},
+		audit.ActionDriveFolderNamed: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-folder-name", "drive-foldername@example.com")
+			googleSrv.SetFile("ext-audit-folder-child", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{
+					ID:       "ext-audit-folder-child",
+					Name:     "Child In Folder",
+					MimeType: DriveMimeGoogleDoc,
+					Parents:  []string{"fld-audit-1"},
+				},
+			})
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-folder-child"},
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			googleSrv.SetFile("fld-audit-1", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{
+					ID:       "fld-audit-1",
+					Name:     "Thư mục Kế hoạch",
+					MimeType: DriveMimeGoogleFolder,
+				},
+			})
+			wantPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+			}
+			beforeUpdated := auditOutboxCountMap(t, f, "drive_file.updated", wantPayload)
+			named, err := fileSvc.NameFolder(f.ctx, Human(f.owner.ID), w.ID, "fld-audit-1", conn.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if named.UpdatedCount != 1 || named.DriveFolder.Name == nil || *named.DriveFolder.Name != "Thư mục Kế hoạch" {
+				t.Fatalf("NameFolder = %+v, want UpdatedCount=1 Name=Thư mục Kế hoạch", named)
+			}
+			assertAuditOutboxTopicAfter(t, f, beforeUpdated, "drive_file.updated", wantPayload)
+		},
 		// UNI-1853 M7: the host generates the meeting's AI summary.
 		audit.ActionMeetingSummaryCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2932,6 +2972,7 @@ func auditActions() []string {
 		audit.ActionDriveTaskProposalCreated,
 		audit.ActionDriveTaskProposalDiscarded,
 		audit.ActionDriveTaskProposalTasksCreated,
+		audit.ActionDriveFolderNamed,
 		audit.ActionMcpGrantCreated,
 		audit.ActionMcpGrantRevoked,
 		audit.ActionMcpGrantScopeChanged,

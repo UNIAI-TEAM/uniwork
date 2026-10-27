@@ -73,6 +73,7 @@ func TestOfficeAppCapabilityFlagKeysAreDeclared(t *testing.T) {
 	if f, ok := featureflags.Lookup("drive_connector"); !ok {
 		t.Error("drive_connector is delegated by OfficeCapabilitiesService.Get but is not declared in the flag registry")
 	} else if !f.Default {
+		// On for everyone once the server has Drive OAuth (USER 2026-10-27).
 		t.Errorf("drive_connector default = %v, want true", f.Default)
 	}
 }
