@@ -315,6 +315,9 @@ type CreateFileDocumentInput struct {
 	Body           io.Reader
 	Visibility     string
 	IdempotencyKey string
+	// Template uploads the file as a workspace template (UNI-2225): a root
+	// file, workspace-visible with edit, marked in the same transaction.
+	Template bool
 	// engine is the provenance of bytes the Office engine produced (blank
 	// create); set only inside the service, never from a request.
 	engine DocumentEngineInfo
@@ -326,7 +329,7 @@ type CreateFileDocumentInput struct {
 
 const idempotencyScopeDocumentFileCreate = "documents.files.create"
 
-func fileCreateFingerprint(workspaceID, parentID, title, checksum, visibility, destination string) string {
+func fileCreateFingerprint(workspaceID, parentID, title, checksum, visibility, destination string, template bool) string {
 	parts := []string{idempotencyScopeDocumentFileCreate, workspaceID, parentID, title, checksum}
 	if visibility != "" {
 		// Only a named visibility joins the fingerprint: a retry in flight
@@ -336,6 +339,10 @@ func fileCreateFingerprint(workspaceID, parentID, title, checksum, visibility, d
 	}
 	if destination != "" {
 		parts = append(parts, "destination:"+destination)
+	}
+	if template {
+		// Only a template joins, so every fingerprint minted before stays valid.
+		parts = append(parts, "template")
 	}
 	return IdempotencyFingerprint(parts...)
 }
@@ -357,6 +364,9 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	}
 	if err := validateDocumentDestination(in.Destination, in.ParentID); err != nil {
 		return DocumentFileResult{}, err
+	}
+	if in.Template && (in.ParentID != "" || in.Destination != "") {
+		return DocumentFileResult{}, Invalid("mẫu chỉ tải lên ở gốc Tài liệu của workspace")
 	}
 	// The request is checked before its bytes are staged, like the page route:
 	// a bad visibility must not leave a claimed upload behind.
@@ -388,7 +398,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		return DocumentFileResult{}, err
 	}
 	opts := IdempotencyOptions{
-		Fingerprint:        fileCreateFingerprint(workspaceID, in.ParentID, title, up.File.ChecksumSHA256, in.Visibility, in.Destination),
+		Fingerprint:        fileCreateFingerprint(workspaceID, in.ParentID, title, up.File.ChecksumSHA256, in.Visibility, in.Destination, in.Template),
 		RequireFingerprint: true,
 	}
 
@@ -449,6 +459,11 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		parent = &p
 	}
 	visibility, workspaceLevel := createHomeRow(in.Visibility, parent)
+	if in.Template {
+		// createHomeRow gives a root workspace file view; a template is for the
+		// whole workspace to open, edit and copy.
+		visibility, workspaceLevel = documentVisibilityWorkspace, string(DocumentLevelEdit)
+	}
 	if err := s.consumeStorage(ctx, q, actor, orgID, workspaceID, file); err != nil {
 		return DocumentFileResult{}, err
 	}
@@ -499,6 +514,11 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		"document_id": doc.ID, "workspace_id": workspaceID,
 	}}); err != nil {
 		return DocumentFileResult{}, err
+	}
+	if in.Template {
+		if doc, err = s.recordTemplateMark(ctx, q, actor, doc); err != nil {
+			return DocumentFileResult{}, err
+		}
 	}
 	access, err := s.effectiveLevel(ctx, q, actor, doc)
 	if err != nil {

@@ -267,6 +267,189 @@ func TestCopiedTemplateIsNotATemplate(t *testing.T) {
 	}
 }
 
+// templateFile uploads a workspace template as the ACL owner.
+func (w templateWorld) templateFile(t *testing.T, name string, body []byte) db.Document {
+	t.Helper()
+	res, err := w.f.svc.CreateFileDocument(w.f.ctx, Human(w.tn.aclOwner.ID), w.tn.wsA, CreateFileDocumentInput{
+		Filename: name, Body: bytes.NewReader(body), Template: true, IdempotencyKey: util.NewID(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.Document
+}
+
+func (w templateWorld) listTemplates(t *testing.T, actor Actor) map[string]db.Document {
+	t.Helper()
+	page, err := w.f.svc.ListTemplateDocuments(w.f.ctx, actor, w.tn.wsA, ListDocumentsInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]db.Document{}
+	for _, it := range page.Items {
+		out[it.Document.ID] = it.Document
+	}
+	return out
+}
+
+func TestListTemplateDocuments(t *testing.T) {
+	w := newTemplateWorld(t, "tpllist")
+	member := Human(w.tn.member.ID)
+	owner := Human(w.tn.aclOwner.ID)
+	docx := w.templateFile(t, "bao-gia.docx", docxBody(t, util.NewID()))
+	xlsx := w.templateFile(t, "don-hang.xlsx", officeFile(t, officeXLSXParts))
+	plain := w.file(t, documentVisibilityWorkspace)
+	hidden := w.file(t, documentVisibilityRestricted)
+	if _, err := w.f.pool.Exec(w.f.ctx, `UPDATE documents SET template_marked_at = now(), template_marked_by = $2,
+		template_marked_by_kind = 'human' WHERE id = $1`, hidden.ID, w.tn.aclOwner.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	got := w.listTemplates(t, member)
+	if _, ok := got[docx.ID]; !ok || len(got) != 2 {
+		t.Fatalf("member's templates = %v, want exactly the docx and xlsx", got)
+	}
+	if _, ok := got[xlsx.ID]; !ok {
+		t.Fatal("xlsx template missing")
+	}
+	if _, ok := got[plain.ID]; ok {
+		t.Fatal("a plain file is listed as a template")
+	}
+	if _, ok := got[hidden.ID]; ok {
+		t.Fatal("a restricted template the caller cannot read is listed")
+	}
+	if own := w.listTemplates(t, owner); len(own) != 3 {
+		t.Fatalf("owner's templates = %d, want 3 (the restricted one is theirs)", len(own))
+	}
+
+	if _, err := w.f.svc.ArchiveDocument(w.f.ctx, owner, docx.ID, ArchiveDocumentInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := w.listTemplates(t, member)[docx.ID]; ok {
+		t.Fatal("a trashed template stays listed")
+	}
+	if _, err := w.f.svc.RestoreDocument(w.f.ctx, owner, docx.ID, ArchiveDocumentInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := w.listTemplates(t, member)[docx.ID]; !ok {
+		t.Fatal("a restored template is not back in the list")
+	}
+
+	agent := Actor{Kind: audit.KindAgent, ID: w.tn.agent}
+	if _, err := w.f.svc.ListTemplateDocuments(w.f.ctx, agent, w.tn.wsA, ListDocumentsInput{}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("agent = %v, want ErrForbidden", err)
+	}
+}
+
+func TestListTemplateDocumentsKeepsTheMarkOnRows(t *testing.T) {
+	w := newTemplateWorld(t, "tplrows")
+	w.templateFile(t, "bao-gia.docx", docxBody(t, util.NewID()))
+	member := Human(w.tn.member.ID)
+	rows := w.listTemplates(t, member)
+	if len(rows) != 1 {
+		t.Fatalf("templates = %d, want 1", len(rows))
+	}
+	for id, d := range rows {
+		if !d.TemplateMarkedAt.Valid || d.TemplateMarkedBy.String != w.tn.aclOwner.ID || d.TemplateMarkedByKind.String != "human" {
+			t.Fatalf("row %s lost its mark: %+v", id, d)
+		}
+	}
+	// The flat list carries it too (listRowDocument copies the columns).
+	page, err := w.f.svc.ListDocuments(w.f.ctx, member, w.tn.wsA, ListDocumentsInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var marked int
+	for _, it := range page.Items {
+		if it.Document.TemplateMarkedAt.Valid {
+			marked++
+		}
+	}
+	if marked != 1 {
+		t.Fatalf("flat list rows with a mark = %d, want 1", marked)
+	}
+}
+
+func TestCreateFileDocumentAsTemplate(t *testing.T) {
+	w := newTemplateWorld(t, "tplcreate")
+	doc := w.templateFile(t, "bao-gia.docx", docxBody(t, util.NewID()))
+	got := w.reload(t, doc.ID)
+	if got.ParentID.Valid || got.Visibility != documentVisibilityWorkspace || got.WorkspaceLevel != string(DocumentLevelEdit) ||
+		got.AclOwnerID.String != w.tn.aclOwner.ID {
+		t.Fatalf("template home row = parent %v %q/%q owner %q", got.ParentID, got.Visibility, got.WorkspaceLevel, got.AclOwnerID.String)
+	}
+	if !got.TemplateMarkedAt.Valid || got.TemplateMarkedBy.String != w.tn.aclOwner.ID {
+		t.Fatalf("mark = %+v", got)
+	}
+	for _, action := range []string{audit.ActionDocumentCreated, audit.ActionDocumentTemplateMarked} {
+		if n := w.auditCount(t, action, doc.ID); n != 1 {
+			t.Fatalf("%s audit rows = %d, want 1", action, n)
+		}
+	}
+	if n := w.outboxCount(t, audit.ActionDocumentTemplateMarked, doc.ID); n != 1 {
+		t.Fatalf("outbox rows = %d, want 1", n)
+	}
+}
+
+func TestCreateFileDocumentAsTemplateOnlyAtTheRoot(t *testing.T) {
+	w := newTemplateWorld(t, "tplroot")
+	owner := Human(w.tn.aclOwner.ID)
+	page := w.f.doc(t, w.tn, docSpec{ws: w.tn.wsA, visibility: documentVisibilityWorkspace, aclOwner: w.tn.aclOwner.ID, createdBy: w.tn.aclOwner.ID})
+	for name, in := range map[string]CreateFileDocumentInput{
+		"parent":      {ParentID: page.ID},
+		"destination": {Destination: DocumentSystemKindMyFolder},
+	} {
+		in.Template, in.Filename, in.Body = true, "mau.pdf", bytes.NewReader(pdfBody(util.NewID()))
+		if _, err := w.f.svc.CreateFileDocument(w.f.ctx, owner, w.tn.wsA, in); !isInvalid(err) {
+			t.Fatalf("%s = %v, want a validation error", name, err)
+		}
+	}
+	var n int
+	if err := w.f.pool.QueryRow(w.f.ctx, `SELECT count(*) FROM documents WHERE workspace_id = $1 AND kind = 'file'`, w.tn.wsA).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("files created = %d %v, want 0", n, err)
+	}
+}
+
+func TestCreateFileDocumentAsTemplateIsIdempotent(t *testing.T) {
+	w := newTemplateWorld(t, "tplidem")
+	owner := Human(w.tn.aclOwner.ID)
+	body := pdfBody(util.NewID())
+	create := func(template bool) (DocumentFileResult, error) {
+		return w.f.svc.CreateFileDocument(w.f.ctx, owner, w.tn.wsA, CreateFileDocumentInput{
+			Filename: "mau.pdf", Body: bytes.NewReader(body), Template: template, IdempotencyKey: "tpl-key-1",
+		})
+	}
+	first, err := create(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := create(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Document.ID != second.Document.ID {
+		t.Fatalf("replay made a second document: %s vs %s", first.Document.ID, second.Document.ID)
+	}
+	for _, action := range []string{audit.ActionDocumentCreated, audit.ActionDocumentTemplateMarked} {
+		if n := w.auditCount(t, action, first.Document.ID); n != 1 {
+			t.Fatalf("%s audit rows = %d, want 1", action, n)
+		}
+	}
+	if _, err := create(false); !codedIs(err, "idempotency_payload_mismatch") {
+		t.Fatalf("same key without Template = %v, want idempotency_payload_mismatch", err)
+	}
+}
+
+func TestFileCreateFingerprintChangesOnlyForATemplate(t *testing.T) {
+	plain := fileCreateFingerprint("ws", "", "t", "sum", "", "", false)
+	if plain != IdempotencyFingerprint(idempotencyScopeDocumentFileCreate, "ws", "", "t", "sum") {
+		t.Fatal("a non-template fingerprint changed")
+	}
+	if plain == fileCreateFingerprint("ws", "", "t", "sum", "", "", true) {
+		t.Fatal("a template shares the plain fingerprint")
+	}
+}
+
 func TestArchivedTemplateKeepsItsMark(t *testing.T) {
 	w := newTemplateWorld(t, "tplarchive")
 	doc := w.file(t, documentVisibilityWorkspace)

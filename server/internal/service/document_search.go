@@ -89,6 +89,9 @@ type ListDocumentsInput struct {
 	// favorites narrows the flat list to the caller's own stars in the
 	// workspace (ListFavoriteDocuments sets it; no handler input reaches it).
 	favorites bool
+	// templates narrows the flat list to files marked as templates
+	// (ListTemplateDocuments sets it; no handler input reaches it).
+	templates bool
 	// withPaths resolves Path on every row, not only on a search: the shared
 	// trash names each document's folders (TrashService sets it; no handler
 	// input reaches it).
@@ -506,6 +509,21 @@ func (s *DocumentService) ListFavoriteDocuments(ctx context.Context, actor Actor
 	})
 }
 
+// ListTemplateDocuments is the workspace's Templates section (UNI-2225): the
+// files marked as templates the caller can read, newest update first, through
+// the flat list's query and permission predicate (a template the caller cannot
+// read, or one in the trash, is simply not there). Kind, format, type and the
+// cursor narrow it; only a person reads the library.
+func (s *DocumentService) ListTemplateDocuments(ctx context.Context, actor Actor, workspaceID string, in ListDocumentsInput) (DocumentListPage, error) {
+	if actor.Kind != audit.KindHuman {
+		return DocumentListPage{}, ErrForbidden
+	}
+	return s.ListDocuments(ctx, actor, workspaceID, ListDocumentsInput{
+		Kind: in.Kind, Format: in.Format, Types: in.Types, Cursor: in.Cursor, Limit: in.Limit, Sort: in.Sort, templates: true,
+		WithEditors: in.WithEditors,
+	})
+}
+
 // ListDocuments pages the workspace document list. The permission filter is
 // inside the query; a page boundary is the (ordering value, id) pair of the
 // last row, so rows created or moved while the client pages change neither
@@ -612,6 +630,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 	}
 	cursorID := nullText(cursor.ID)
 	agent := actor.Kind == audit.KindAgent
+	templatesOnly := pgtype.Bool{Bool: in.templates, Valid: in.templates}
 	var favoritesUser pgtype.Text
 	if in.favorites {
 		favoritesUser = nullText(actor.ID)
@@ -762,8 +781,8 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 			SharedByMe: in.SharedByMe,
 			Query:      query, MatchTitle: matchTitle,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
-			FavoritesUser: favoritesUser,
-			SortKey:       sortArg.key, SortDesc: sortArg.desc, SortCursorID: sortArg.id, SortCursorAt: sortArg.at,
+			FavoritesUser: favoritesUser, TemplatesOnly: templatesOnly,
+			SortKey: sortArg.key, SortDesc: sortArg.desc, SortCursorID: sortArg.id, SortCursorAt: sortArg.at,
 			SortCursorNum: sortArg.num, SortCursorText: sortArg.text, SortCursorNull: sortArg.null,
 		})
 		if err != nil {
@@ -1085,5 +1104,6 @@ func listRowDocument(r db.ListDocumentsPageRow) db.Document {
 		ShelvedBy:     r.ShelvedBy,
 		ShelvedByKind: r.ShelvedByKind, ShelveBatchID: r.ShelveBatchID,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		TemplateMarkedAt: r.TemplateMarkedAt, TemplateMarkedBy: r.TemplateMarkedBy, TemplateMarkedByKind: r.TemplateMarkedByKind,
 	}
 }
