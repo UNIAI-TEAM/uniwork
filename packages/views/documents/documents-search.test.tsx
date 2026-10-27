@@ -13,6 +13,7 @@ import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { requestMock, wrap } from "../test/api-mock";
+import { pickTypeFilter, typeFilterSelect } from "../test/type-filter";
 import { DocumentsPageView } from "./documents-page-view";
 import type { LibraryDesktopOpen } from "./documents-library-row";
 
@@ -20,6 +21,7 @@ const { t } = initI18n();
 
 const WS = "ws1";
 const LIST_BASE = `/api/v1/workspaces/${WS}/documents`;
+const MEMBERS_URL = `/api/v1/workspaces/${WS}/members`;
 const user: User = {
   id: "u1",
   email: "an@example.com",
@@ -38,7 +40,7 @@ const workspace: Workspace = {
   organization_name: "Acme",
 };
 
-function summary(over: Record<string, unknown> = {}) {
+function summary(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: "d1",
     workspace_id: WS,
@@ -68,7 +70,7 @@ function createNav(initialSearch = ""): NavigationAdapter {
 
 function renderSearchView(nav: NavigationAdapter = createNav(), onOpen = vi.fn(), desktopOpen?: LibraryDesktopOpen) {
   const service = new FeatureFlagService(new StaticProvider({ documents: { default: true } }));
-  render(
+  const { unmount } = render(
     wrap(
       <NavigationProvider value={nav}>
         <WorkspaceProvider workspace={workspace} user={user}>
@@ -79,7 +81,7 @@ function renderSearchView(nav: NavigationAdapter = createNav(), onOpen = vi.fn()
       </NavigationProvider>,
     ),
   );
-  return { nav, onOpen };
+  return { nav, onOpen, unmount };
 }
 
 beforeEach(() => {
@@ -88,11 +90,18 @@ beforeEach(() => {
   setSessionUser(user);
 });
 
-describe("Documents unified search (FD-10)", () => {
-  it("typing 'hop dong' queries q=hop dong & match=title and renders folders and documents with paths", async () => {
+describe("Documents search keeps layout (UNI-2205)", () => {
+  it("keeps the page layout while searching at home: header, Quick create, filter row, Thư mục N cards and Tài liệu N table with match counts, path line on subfolder matches, and no All/Folders/Documents pill row", async () => {
     const searchUrls: string[] = [];
     requestMock.mockImplementation((path: string) => {
-      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(`${LIST_BASE}/tree`)) {
+        return Promise.resolve({
+          documents: [
+            { id: "fo-root", title: "Pháp chế", kind: "folder", position: 0, children: [] },
+            { id: "fo-other", title: "Khác", kind: "folder", position: 1, children: [] },
+          ],
+        });
+      }
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
         searchUrls.push(path);
         return Promise.resolve({
@@ -107,6 +116,7 @@ describe("Documents unified search (FD-10)", () => {
               id: "doc-hd",
               kind: "file",
               title: "Hợp đồng lao động.docx",
+              format: "docx",
               path: [
                 { id: "fo-root", title: "Pháp chế" },
                 { id: "fo-hd", title: "Hợp đồng 2026" },
@@ -131,34 +141,64 @@ describe("Documents unified search (FD-10)", () => {
     expect(await screen.findByText("Hợp đồng 2026")).toBeInTheDocument();
     expect(screen.getByText("Hợp đồng lao động.docx")).toBeInTheDocument();
     expect(screen.queryByText("Tài liệu gốc")).toBeNull();
+    // Quick create and filter controls remain visible
+    expect(screen.getByRole("region", { name: t("documents.home.quick_create.label") })).toBeInTheDocument();
+    expect(typeFilterSelect()).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.editor")}`) })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.updated")}`) })).toBeInTheDocument();
 
+    // No All / Folders / Documents pill row
+    expect(screen.queryByRole("radiogroup", { name: /Lọc kết quả|Filter results/i })).toBeNull();
+
+    // Folder cards section and Documents table section show match counts (1 folder card, 1 document row)
+    const foldersSection = screen.getByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} 1$`) });
+    expect(within(foldersSection).getByRole("button", { name: /^Hợp đồng 2026/ })).toBeInTheDocument();
+    expect(within(foldersSection).queryByText("Khác")).toBeNull();
+    const docsSection = screen.getByRole("region", { name: new RegExp(`^${t("documents.home.sections.documents")} 1$`) });
+    expect(within(docsSection).getByRole("table")).toBeInTheDocument();
+    expect(within(docsSection).getByText("Hợp đồng lao động.docx")).toBeInTheDocument();
+    // Folder hit is in the folder cards section, not in the table
+    expect(within(within(docsSection).getByRole("table")).queryByText("Hợp đồng 2026")).toBeNull();
+
+    // Search query params
     expect(searchUrls.length).toBeGreaterThanOrEqual(1);
     const params = queryOf(searchUrls.at(-1)!);
     expect(params.get("q")).toBe("hop dong");
     expect(params.get("match")).toBe("title");
     expect(params.get("kind")).toBeNull();
 
-    expect(screen.getByTitle("Pháp chế › Hợp đồng 2026")).toBeInTheDocument();
+    // Subfolder match path is shown on the card and on the row, with screen-reader full path
+    expect(within(foldersSection).getByTitle("Pháp chế")).toHaveTextContent("Pháp chế");
+    expect(within(docsSection).getByTitle("Pháp chế › Hợp đồng 2026")).toHaveTextContent("Pháp chế › Hợp đồng 2026");
+    expect(screen.getByText(t("documents.home.search.path", { path: "Pháp chế › Hợp đồng 2026" }))).toBeInTheDocument();
   });
 
-  it("selecting the Folders chip sends kind=folder and shows only folders", async () => {
+  it("combines active filters (Loại, Người sửa, Cập nhật, Lưu trữ bởi) with the search query", async () => {
     const searchUrls: string[] = [];
     requestMock.mockImplementation((path: string) => {
+      if (path === MEMBERS_URL) {
+        return Promise.resolve({
+          members: [{ workspace_id: WS, user_id: "u2", role: "member", email: "dung@example.com", display_name: "Dũng" }],
+        });
+      }
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
         searchUrls.push(path);
-        const kind = queryOf(path).get("kind");
-        if (kind === "folder") {
-          return Promise.resolve({
-            documents: [summary({ id: "fo-1", kind: "folder", title: "Hợp đồng đối tác", path: [] })],
-            next_cursor: null,
-          });
-        }
+        const q = queryOf(path);
+        const type = q.get("type");
+        const updatedBy = q.get("updated_by");
+        const docs = [
+          summary({ id: "fo-1", kind: "folder", title: "Hợp đồng đối tác", updated_by: "u2", path: [] }),
+          summary({ id: "doc-docx", kind: "file", title: "Hợp đồng mẫu.docx", format: "docx", updated_by: "u2", path: [] }),
+          summary({ id: "doc-page", kind: "page", title: "Hợp đồng nháp", updated_by: "u1", path: [] }),
+        ];
         return Promise.resolve({
-          documents: [
-            summary({ id: "fo-1", kind: "folder", title: "Hợp đồng đối tác", path: [] }),
-            summary({ id: "doc-1", kind: "page", title: "Hợp đồng mẫu", path: [] }),
-          ],
+          documents: docs.filter((d) => {
+            if (updatedBy && d.updated_by !== updatedBy) return false;
+            if (type === "docx") return d.kind === "folder" || d.format === "docx";
+            if (type === "page") return d.kind === "page";
+            return true;
+          }),
           next_cursor: null,
         });
       }
@@ -169,60 +209,135 @@ describe("Documents unified search (FD-10)", () => {
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "hop dong" } });
 
-    expect(await screen.findByText("Hợp đồng mẫu")).toBeInTheDocument();
+    expect(await screen.findByText("Hợp đồng mẫu.docx")).toBeInTheDocument();
+    expect(screen.getByText("Hợp đồng nháp")).toBeInTheDocument();
+    expect(screen.getByText("Hợp đồng đối tác")).toBeInTheDocument();
 
-    const group = screen.getByRole("radiogroup", { name: t("documents.home.search.filter_label") });
-    const folderRadio = within(group).getByRole("radio", { name: t("documents.home.search.filter_folder") });
-    fireEvent.click(folderRadio);
+    // Pick Loại: .docx -> sends type=docx with q=hop dong; folders stay at home root
+    await pickTypeFilter("docx");
+    await waitFor(() => {
+      expect(searchUrls.some((u) => queryOf(u).get("q") === "hop dong" && queryOf(u).get("type") === "docx")).toBe(true);
+    });
+    expect(await screen.findByText("Hợp đồng mẫu.docx")).toBeInTheDocument();
+    expect(screen.queryByText("Hợp đồng nháp")).toBeNull();
+
+    // Pick Người sửa: Dũng -> sends updated_by=u2 with q=hop dong
+    fireEvent.click(await screen.findByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.editor")}`) }));
+    const dungOpt = within(await screen.findByRole("listbox")).getByText("Dũng");
+    fireEvent.pointerDown(dungOpt);
+    fireEvent.click(dungOpt);
 
     await waitFor(() => {
-      expect(searchUrls.some((u) => queryOf(u).get("kind") === "folder" && queryOf(u).get("match") === "title")).toBe(true);
+      expect(searchUrls.some((u) => queryOf(u).get("q") === "hop dong" && queryOf(u).get("updated_by") === "u2")).toBe(true);
     });
-    expect(await screen.findByText("Hợp đồng đối tác")).toBeInTheDocument();
-    expect(screen.queryByText("Hợp đồng mẫu")).toBeNull();
   });
 
-  it("arrow keys move and select chips in the radiogroup with roving tabindex", async () => {
+  it("renders matches in list views (Gần đây and Có gắn sao) using their own table layout without folder cards or Mở tiếp cards, and narrows to the view's own scope", async () => {
     const searchUrls: string[] = [];
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(`${LIST_BASE}/recent`)) {
+        return Promise.resolve({
+          documents: [
+            summary({
+              id: "r1",
+              kind: "file",
+              title: "Báo cáo tuần.docx",
+              format: "docx",
+              last_activity: { kind: "edited", at: "2026-10-26T03:00:00Z" },
+            }),
+            summary({
+              id: "r2",
+              kind: "page",
+              title: "Ghi chú nội bộ",
+              last_activity: { kind: "opened", at: "2026-10-25T03:00:00Z" },
+            }),
+          ],
+          next_cursor: null,
+        });
+      }
+      if (path.includes("/documents/favorites")) {
+        return Promise.resolve({
+          favorites: [{ document_id: "s1", workspace_id: WS, title: "Tài liệu gắn sao", kind: "page" }],
+          documents: [summary({ id: "s1", title: "Tài liệu gắn sao", favorited_at: "2026-10-26T03:00:00Z" })],
+          next_cursor: null,
+        });
+      }
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
         searchUrls.push(path);
-        return Promise.resolve({ documents: [summary({ id: "fo-1", kind: "folder", title: "Hợp đồng" })], next_cursor: null });
+        return Promise.resolve({
+          documents: [
+            summary({
+              id: "r1",
+              kind: "file",
+              title: "Báo cáo tuần.docx",
+              format: "docx",
+              path: [{ id: "fo-1", title: "Kinh doanh" }],
+              last_activity: { kind: "edited", at: "2026-10-26T03:00:00Z" },
+            }),
+            summary({
+              id: "s1",
+              kind: "page",
+              title: "Tài liệu gắn sao",
+              path: [],
+              favorited_at: "2026-10-26T03:00:00Z",
+            }),
+            summary({
+              id: "unstarred-hit",
+              kind: "page",
+              title: "Tài liệu chưa gắn sao",
+              path: [],
+            }),
+          ],
+          next_cursor: null,
+        });
       }
       return Promise.resolve({ documents: [], next_cursor: null });
     });
 
-    renderSearchView();
+    const { unmount } = renderSearchView(createNav("view=recent"));
+    expect((await screen.findAllByText("Báo cáo tuần.docx")).length).toBeGreaterThanOrEqual(1);
+    // Mở tiếp cards show before search
+    expect(screen.getByRole("region", { name: t("documents.recent.continue_title") })).toBeInTheDocument();
+
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
-    fireEvent.change(searchInput, { target: { value: "hop" } });
+    fireEvent.change(searchInput, { target: { value: "bao cao" } });
 
-    const group = await screen.findByRole("radiogroup", { name: t("documents.home.search.filter_label") });
-    const allRadio = within(group).getByRole("radio", { name: t("documents.home.search.filter_all") });
-    const folderRadio = within(group).getByRole("radio", { name: t("documents.home.search.filter_folder") });
-    const docRadio = within(group).getByRole("radio", { name: t("documents.home.search.filter_document") });
+    // Mở tiếp hides while searching, Recent table columns stay (including Lần mở gần nhất)
+    await waitFor(() => expect(screen.queryByRole("region", { name: t("documents.recent.continue_title") })).toBeNull());
+    expect(await screen.findByText("Báo cáo tuần.docx")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: t("documents.list.screen_column.activity") })).toBeInTheDocument();
+    expect(screen.getByTitle("Kinh doanh")).toHaveTextContent("Kinh doanh");
+    // Activity segment stays visible in toolbar on Recent
+    expect(screen.getByRole("radiogroup", { name: t("documents.home.filters.activity_label") })).toBeInTheDocument();
+    unmount();
 
-    expect(allRadio).toHaveAttribute("aria-checked", "true");
-    expect(allRadio).toHaveAttribute("tabindex", "0");
-    expect(folderRadio).toHaveAttribute("tabindex", "-1");
-    expect(allRadio.className).toContain("min-w-11");
+    // Có gắn sao view: keeps Starred table with Ngày gắn sao column and only shows starred matches
+    renderSearchView(createNav("view=starred"));
+    expect(await screen.findByText("Tài liệu gắn sao")).toBeInTheDocument();
+    const starredSearchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    fireEvent.change(starredSearchInput, { target: { value: "tai lieu" } });
 
-    allRadio.focus();
-    fireEvent.keyDown(allRadio, { key: "ArrowRight" });
-
-    expect(folderRadio).toHaveAttribute("aria-checked", "true");
-    expect(folderRadio).toHaveAttribute("tabindex", "0");
-    expect(allRadio).toHaveAttribute("tabindex", "-1");
-    await waitFor(() => expect(searchUrls.some((u) => queryOf(u).get("kind") === "folder")).toBe(true));
-
-    fireEvent.keyDown(folderRadio, { key: "ArrowRight" });
-    expect(docRadio).toHaveAttribute("aria-checked", "true");
-    await waitFor(() => expect(searchUrls.some((u) => queryOf(u).get("kind") === "document")).toBe(true));
+    expect(await screen.findByText("Tài liệu gắn sao")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: t("documents.list.screen_column.starred") })).toBeInTheDocument();
+    expect(screen.queryByText("Tài liệu chưa gắn sao")).toBeNull();
   });
 
-  it("pressing Escape or clearing the search box returns to the folder that was open", async () => {
+  it("pressing Escape or clicking clear X returns to the open folder without reload", async () => {
     requestMock.mockImplementation((path: string) => {
-      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
+      if (path.startsWith(`${LIST_BASE}/tree`)) {
+        return Promise.resolve({
+          documents: [
+            {
+              id: "fo-open",
+              title: "Thư mục đang mở",
+              kind: "folder",
+              position: 0,
+              children: [{ id: "sub-1", title: "Thư mục con A", kind: "folder", position: 0, children: [] }],
+            },
+          ],
+        });
+      }
       if (path === "/api/v1/documents/fo-open") {
         return Promise.resolve({
           document: {
@@ -238,13 +353,13 @@ describe("Documents unified search (FD-10)", () => {
       }
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
         return Promise.resolve({
-          documents: [summary({ id: "hit-1", title: "Kết quả tìm kiếm" })],
+          documents: [summary({ id: "hit-1", title: "Kết quả tìm kiếm", path: [{ id: "fo-open", title: "Thư mục đang mở" }] })],
           next_cursor: null,
         });
       }
       if (path.startsWith(LIST_BASE) && queryOf(path).get("parent_id") === "fo-open") {
         return Promise.resolve({
-          documents: [summary({ id: "in-folder", title: "Tài liệu trong thư mục" })],
+          documents: [summary({ id: "in-folder", title: "Tài liệu trong thư mục", parent_id: "fo-open" })],
           next_cursor: null,
         });
       }
@@ -255,12 +370,15 @@ describe("Documents unified search (FD-10)", () => {
     renderSearchView(nav);
 
     expect(await screen.findByText("Tài liệu trong thư mục")).toBeInTheDocument();
+    expect(screen.getByText("Thư mục con A")).toBeInTheDocument();
 
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "ket qua" } });
 
     expect(await screen.findByText("Kết quả tìm kiếm")).toBeInTheDocument();
     expect(screen.queryByText("Tài liệu trong thư mục")).toBeNull();
+    // Subfolder card that didn't match is hidden while searching
+    expect(screen.queryByText("Thư mục con A")).toBeNull();
 
     const clearBtn = screen.getAllByRole("button", { name: t("documents.home.search.clear") })[0]!;
     expect(clearBtn.className).not.toContain("-translate-y-1/2");
@@ -270,7 +388,9 @@ describe("Documents unified search (FD-10)", () => {
 
     expect(searchInput).toHaveValue("");
     expect(await screen.findByText("Tài liệu trong thư mục")).toBeInTheDocument();
+    expect(screen.getByText("Thư mục con A")).toBeInTheDocument();
     expect(screen.queryByText("Kết quả tìm kiếm")).toBeNull();
+    expect(nav.push).not.toHaveBeenCalled();
   });
 
   it("ignores input while IME isComposing and sends the query on compositionend", async () => {
@@ -316,7 +436,7 @@ describe("Documents unified search (FD-10)", () => {
     expect(queryOf(searchUrls[0]!).get("match")).toBe("title");
   });
 
-  it("activating a folder result navigates to the folder URL and a document result navigates to the document URL", async () => {
+  it("activating a matched folder card navigates to the folder URL and a matched document row navigates to the document URL", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
@@ -338,22 +458,21 @@ describe("Documents unified search (FD-10)", () => {
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "dich" } });
 
-    const docBtn = await screen.findByRole("button", { name: /Tài liệu đích/ });
-    fireEvent.click(docBtn);
+    const docCell = (await screen.findByText("Tài liệu đích")).closest("button")!;
+    fireEvent.click(docCell);
 
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onOpen).toHaveBeenCalledWith("doc-target");
     expect(nav.push).toHaveBeenCalledTimes(1);
     expect(nav.push).toHaveBeenCalledWith(wsPaths.document("doc-target"));
 
-    const folderBtn = screen.getByRole("button", { name: /Thư mục đích/ });
-    fireEvent.keyDown(folderBtn, { key: "Enter" });
+    const folderBtn = screen.getByRole("button", { name: /^Thư mục đích/ });
     fireEvent.click(folderBtn);
     expect(nav.push).toHaveBeenCalledTimes(2);
     expect(nav.push).toHaveBeenLastCalledWith(wsPaths.documentsFolder("fo-target"));
   });
 
-  it("renders CollectionPageState when search results are empty or when the query errors, without telling touch users to press Esc", async () => {
+  it("renders the list's empty state with the query in the title and a clear search action when no results match, and the list's error state with retry on failure", async () => {
     let shouldFail = true;
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
@@ -361,26 +480,34 @@ describe("Documents unified search (FD-10)", () => {
         if (shouldFail) return Promise.reject(new ApiError("boom", "internal", 500));
         return Promise.resolve({ documents: [], next_cursor: null });
       }
-      return Promise.resolve({ documents: [], next_cursor: null });
+      return Promise.resolve({ documents: [summary({ id: "root-1", title: "Tài liệu ban đầu" })], next_cursor: null });
     });
 
     renderSearchView();
+    expect(await screen.findByText("Tài liệu ban đầu")).toBeInTheDocument();
+
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "khong co" } });
 
+    // List error state with retry
     const alertState = await screen.findByRole("alert");
-    expect(within(alertState).getByText(t("documents.home.search.error_title"))).toBeInTheDocument();
+    expect(within(alertState).getByText(t("documents.library.error_title"))).toBeInTheDocument();
 
     shouldFail = false;
     fireEvent.click(within(alertState).getByRole("button", { name: t("documents.library.retry") }));
 
-    expect(await screen.findByText(t("documents.home.search.empty_title"))).toBeInTheDocument();
-    const emptyDesc = t("documents.home.search.empty_description");
-    expect(emptyDesc).not.toMatch(/Esc/i);
-    expect(screen.getByText(emptyDesc)).toBeInTheDocument();
+    // Empty state with the query in the title and a clear search button
+    const expectedTitle = t("documents.home.search.no_results_title", { query: "khong co" });
+    expect(await screen.findByText(expectedTitle)).toBeInTheDocument();
+    const statusRegion = screen.getByRole("status");
+    const clearAction = within(statusRegion).getByRole("button", { name: t("documents.home.search.clear") });
+    fireEvent.click(clearAction);
+
+    expect(searchInput).toHaveValue("");
+    expect(await screen.findByText("Tài liệu ban đầu")).toBeInTheDocument();
   });
 
-  it("prioritizes the title in result rows and truncates long paths from the left (applying per-segment cap only when the path does not fit)", async () => {
+  it("truncates long ancestor paths from the left on matched rows and cards while keeping the full path in title and sr-only text", async () => {
     const longAncestor = "Thư mục Dự án Chuyển đổi Số Toàn diện Tập đoàn Quốc tế 2026";
     const fittingAncestor = "Thư mục Dự án Chuyển đổi Số 2026"; // 32 chars (> 24, <= 36)
     requestMock.mockImplementation((path: string) => {
@@ -427,13 +554,9 @@ describe("Documents unified search (FD-10)", () => {
     expect(titleEl).toBeInTheDocument();
 
     const fullPath = "Khối Vận hành › Phòng Tài chính › Ban Kế toán › Năm 2026 › Quý 4";
-    // Visual truncated path starts with ellipsis from the left and keeps the full path in `title`
     const pathEl = screen.getByTitle(fullPath);
     expect(pathEl.textContent).toBe("… › Năm 2026 › Quý 4");
-    expect(pathEl.className).not.toContain("shrink-0");
-    // Title comes before path in DOM order so title keeps priority
     expect(titleEl.compareDocumentPosition(pathEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // Screen reader text has the full path
     expect(screen.getByText(t("documents.home.search.path", { path: fullPath }))).toBeInTheDocument();
 
     const longAncestorEl = screen.getByTitle(longAncestor);
@@ -441,7 +564,6 @@ describe("Documents unified search (FD-10)", () => {
     expect(longAncestorEl.textContent!.length).toBeLessThan(longAncestor.length);
     expect(screen.getByText(t("documents.home.search.path", { path: longAncestor }))).toBeInTheDocument();
 
-    // FE-R2-N2: a single 25-36 char ancestor that fits (<= 2 segments, <= 36 chars) is NOT capped at 24 chars
     const fittingAncestorEl = screen.getByTitle(fittingAncestor);
     expect(fittingAncestorEl.textContent).toBe(fittingAncestor);
   });
@@ -474,9 +596,8 @@ describe("Documents unified search (FD-10)", () => {
     vi.useFakeTimers();
     try {
       fireEvent.change(searchInput, { target: { value: "hop dong" } });
-      // Previous result stays visible during debounce instead of flashing skeletons.
       expect(screen.getByText("Hợp đồng khung")).toBeInTheDocument();
-      expect(screen.queryByLabelText(t("documents.home.search.loading"))).toBeNull();
+      expect(screen.queryByLabelText(t("documents.library.loading"))).toBeNull();
       act(() => {
         vi.advanceTimersByTime(250);
       });
@@ -485,51 +606,6 @@ describe("Documents unified search (FD-10)", () => {
     }
 
     expect(await screen.findByText("Hợp đồng phụ lục")).toBeInTheDocument();
-  });
-
-  it("drops previousItems when switching from All to Folders chip so the skeleton shows instead of wrong-kind document rows while pending (FE-R2-N1)", async () => {
-    let resolveFolderSearch: ((v: unknown) => void) | null = null;
-    requestMock.mockImplementation((path: string) => {
-      if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
-      if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
-        if (queryOf(path).get("kind") === "folder") {
-          return new Promise((resolve) => {
-            resolveFolderSearch = resolve;
-          });
-        }
-        return Promise.resolve({
-          documents: [
-            summary({ id: "fo-1", kind: "folder", title: "Thư mục Hợp đồng" }),
-            summary({ id: "doc-1", kind: "page", title: "Tài liệu Hợp đồng" }),
-          ],
-          next_cursor: null,
-        });
-      }
-      return Promise.resolve({ documents: [], next_cursor: null });
-    });
-
-    renderSearchView();
-    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
-    fireEvent.change(searchInput, { target: { value: "hop dong" } });
-
-    expect(await screen.findByText("Tài liệu Hợp đồng")).toBeInTheDocument();
-
-    const group = screen.getByRole("radiogroup", { name: t("documents.home.search.filter_label") });
-    fireEvent.click(within(group).getByRole("radio", { name: t("documents.home.search.filter_folder") }));
-
-    // While the Folders response is pending, the skeleton is shown and document rows from All are dropped.
-    expect(await screen.findByLabelText(t("documents.home.search.loading"))).toBeInTheDocument();
-    expect(screen.queryByText("Tài liệu Hợp đồng")).toBeNull();
-
-    act(() => {
-      resolveFolderSearch?.({
-        documents: [summary({ id: "fo-1", kind: "folder", title: "Thư mục Hợp đồng" })],
-        next_cursor: null,
-      });
-    });
-
-    expect(await screen.findByText("Thư mục Hợp đồng")).toBeInTheDocument();
-    expect(screen.queryByText("Tài liệu Hợp đồng")).toBeNull();
   });
 
   it("places the search box on the filter row (right end) on home, open folder, and list screens, not in the head row (UNI-2205)", async () => {
@@ -654,7 +730,7 @@ describe("Documents unified search (FD-10)", () => {
     expect(shelvedFilterZone.parentElement!.contains(shelvedSearchInput)).toBe(true);
     unmountList();
 
-    // Folder-invalid state (?folder=missing): search box is rendered above the error state and keeps its DOM node + focus when typing (DSR-3, DSR-8)
+    // Folder-invalid state (?folder=missing): search box is rendered above the error state and keeps its DOM node + focus when typing
     render(
       wrap(
         <NavigationProvider value={createNav("folder=missing")}>
@@ -684,7 +760,7 @@ describe("Documents unified search (FD-10)", () => {
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toBe(invalidSearchInput);
   });
 
-  it("widens the search box on focus and while non-empty, returns to rest width when empty and blurred, and keeps focus across the active toggle (UNI-2205)", async () => {
+  it("widens the search box on focus and while non-empty, keeps filter controls and Quick create visible while active, and keeps focus across the active toggle (UNI-2205)", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
@@ -703,7 +779,6 @@ describe("Documents unified search (FD-10)", () => {
     const searchBox = searchInput.closest<HTMLElement>('[data-slot="documents-search-box"]')!;
     const searchSlot = searchInput.closest<HTMLElement>('[data-slot="documents-search-slot"]')!;
 
-    // Before search is active: filter zone (holding the comboboxes) and DocumentsHomeNote (quick create strip) are visible
     expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
     const filterZone = document.querySelector<HTMLElement>('[data-slot="documents-filter-zone"]')!;
     const filterRow = filterZone.parentElement!;
@@ -711,23 +786,11 @@ describe("Documents unified search (FD-10)", () => {
     expect(filterZone.contains(searchSlot)).toBe(false);
     expect(screen.getByRole("region", { name: t("documents.home.quick_create.label") })).toBeInTheDocument();
 
-    // At rest: outer slot has constant 20rem footprint (@min-[48rem]:w-80 shrink-0) so filters never shift on focus (DSR-10);
-    // inner box is 14rem at rest and animates to full slot width (20rem), and below 48rem stays right-aligned 14rem -> 20rem at >= 24rem (DSV-5)
     expect(searchSlot).toHaveAttribute("data-expanded", "false");
-    expect(searchSlot.className).toContain("justify-end");
-    expect(searchSlot.className).toContain("@min-[48rem]:w-80");
-    expect(searchSlot.className).toContain("@min-[48rem]:shrink-0");
     expect(searchBox).toHaveAttribute("data-expanded", "false");
-    expect(searchBox.className).toContain("@min-[24rem]:w-56");
-    expect(searchBox.className).toContain("@min-[24rem]:focus-within:w-80");
-    expect(searchBox.className).toContain("@min-[24rem]:data-[expanded=true]:w-80");
-    expect(searchBox.className).toContain("@min-[48rem]:w-56");
-    expect(searchBox.className).toContain("@min-[48rem]:focus-within:w-full");
-    expect(searchBox.className).toContain("transition-[width]");
-    expect(searchBox.className).toContain("motion-reduce:transition-none");
 
-    // Focus input and type first character -> search becomes active, same input & box elements stay mounted and focused;
-    // filter zone and DocumentsHomeNote hide while active (DSR-1, DSR-6, fix2)
+    // Focus input and type first character -> search becomes active, same input & box elements stay mounted and focused,
+    // AND filter zone and DocumentsHomeNote (Quick create) STAY visible!
     searchInput.focus();
     expect(document.activeElement).toBe(searchInput);
 
@@ -740,11 +803,9 @@ describe("Documents unified search (FD-10)", () => {
     expect(searchSlot).toHaveAttribute("data-expanded", "true");
     expect(searchBox).toHaveAttribute("data-expanded", "true");
     expect(searchInput.className).toContain("pr-8");
-    expect(filterZone.isConnected).toBe(false);
-    expect(filterRow.children).toHaveLength(1);
-    expect(filterRow.firstElementChild).toBe(searchSlot);
-    expect(screen.queryByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeNull();
-    expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
+    expect(filterZone.isConnected).toBe(true);
+    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: t("documents.home.quick_create.label") })).toBeInTheDocument();
 
     expect(await screen.findByText("Hợp đồng tìm thấy")).toBeInTheDocument();
     expect(document.activeElement).toBe(searchInput);
@@ -753,26 +814,29 @@ describe("Documents unified search (FD-10)", () => {
     searchInput.blur();
     expect(searchSlot).toHaveAttribute("data-expanded", "true");
     expect(searchBox).toHaveAttribute("data-expanded", "true");
-    expect(searchBox.className).toContain("@min-[48rem]:data-[expanded=true]:w-full");
 
-    // Clearing via clear button returns to rest state and restores filter controls and DocumentsHomeNote
+    // Clearing via clear button returns to rest state and restores initial items
     const clearBtn = screen.getByRole("button", { name: t("documents.home.search.clear") });
     fireEvent.click(clearBtn);
     expect(searchInput).toHaveValue("");
     expect(searchSlot).toHaveAttribute("data-expanded", "false");
     expect(searchBox).toHaveAttribute("data-expanded", "false");
-    expect(document.querySelector('[data-slot="documents-filter-zone"]')).not.toBeNull();
-    expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: t("documents.home.quick_create.label") })).toBeInTheDocument();
     expect(await screen.findByText("Tài liệu ban đầu")).toBeInTheDocument();
   });
 
-  it("keeps the same input focused on Lưu trữ while hiding filter controls and the shelved list, and never shows search results on Thùng rác (DSR-1, DSR-4, DSR-6)", async () => {
+  it("keeps the same input focused on Lưu trữ while keeping filter controls and the shelved table visible, and never shows search on Thùng rác", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
         return Promise.resolve({
-          documents: [summary({ id: "hit-shelved", title: "Kết quả tìm kiếm Lưu trữ" })],
+          documents: [
+            summary({
+              id: "hit-shelved",
+              title: "Kết quả tìm kiếm Lưu trữ",
+              shelved_at: "2026-10-10T03:00:00Z",
+              shelved_by: "u1",
+            }),
+          ],
           next_cursor: null,
         });
       }
@@ -800,21 +864,20 @@ describe("Documents unified search (FD-10)", () => {
     searchInput.focus();
     fireEvent.change(searchInput, { target: { value: "k" } });
 
-    // Same input element stays mounted and focused; shelved list and filter controls hide while search results render
+    // Same input element stays mounted and focused; filter controls and shelved table stay visible with matched shelved row
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toBe(searchInput);
     expect(document.activeElement).toBe(searchInput);
-    expect(screen.queryByText("Hồ sơ lưu trữ ban đầu")).toBeNull();
-    expect(screen.queryByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeNull();
-    expect(screen.queryByRole("combobox", { name: t("documents.shelved_list.filter_by_label") })).toBeNull();
-    expect(await screen.findByText("Kết quả tìm kiếm Lưu trữ")).toBeInTheDocument();
-
-    // Clear query -> shelved list and filter controls return
-    fireEvent.click(screen.getByRole("button", { name: t("documents.home.search.clear") }));
-    expect(await screen.findByText("Hồ sơ lưu trữ ban đầu")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.type")}`) })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: t("documents.shelved_list.filter_by_label") })).toBeInTheDocument();
+    expect(await screen.findByText("Kết quả tìm kiếm Lưu trữ")).toBeInTheDocument();
+    expect(screen.queryByText("Hồ sơ lưu trữ ban đầu")).toBeNull();
+    expect(screen.getByRole("columnheader", { name: t("documents.list.screen_column.shelved") })).toBeInTheDocument();
 
-    // Type query again, then switch to Thùng rác -> Trash renders its own table, never search results (DSR-4)
+    // Clear query -> initial shelved row returns
+    fireEvent.click(screen.getByRole("button", { name: t("documents.home.search.clear") }));
+    expect(await screen.findByText("Hồ sơ lưu trữ ban đầu")).toBeInTheDocument();
+
+    // Type query again, then switch to Thùng rác -> Trash renders its own table, never search results
     fireEvent.change(searchInput, { target: { value: "k" } });
     expect(await screen.findByText("Kết quả tìm kiếm Lưu trữ")).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: new RegExp(t("documents.home.sidebar.trash")) })[0]!);
@@ -825,11 +888,10 @@ describe("Documents unified search (FD-10)", () => {
   });
 });
 
-
 // ARCHIVE-01 (UNI-1845) U-6 + UI-AR8: a shelved search hit wears the "Đã lưu
 // trữ" badge beside its name; the order is the server's.
 describe("shelved search results (U-6)", () => {
-  it("badges a shelved hit and leaves un-shelved hits unmarked", async () => {
+  it("badges a shelved hit and leaves un-shelved hits unmarked in the library table", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path.startsWith(`${LIST_BASE}/tree`)) return Promise.resolve({ documents: [] });
       if (path.startsWith(LIST_BASE) && queryOf(path).get("q")) {
@@ -848,10 +910,10 @@ describe("shelved search results (U-6)", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: t("documents.home.search.label") }), { target: { value: "hop dong" } });
 
     const old = await screen.findByText("Hợp đồng cũ.docx");
-    const row = old.closest("li");
+    const row = old.closest("tr");
     expect(row && within(row as HTMLElement).getByText(t("documents.shelved_list.badge"))).toBeTruthy();
     const fresh = await screen.findByText("Hợp đồng mới.docx");
-    const freshRow = fresh.closest("li");
+    const freshRow = fresh.closest("tr");
     expect(freshRow && within(freshRow as HTMLElement).queryByText(t("documents.shelved_list.badge"))).toBeNull();
   });
 
