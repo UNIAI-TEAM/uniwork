@@ -510,11 +510,10 @@ WHERE d.organization_id = $1
   AND d.kind <> 'folder'
   AND (d.system_kind IS NULL OR d.system_kind <> 'my_folder')
   AND d.archived_at IS NULL
-  AND (d.acl_owner_id = $4::text
-       OR NOT EXISTS (
-            SELECT 1 FROM uw_my_folder_foreign_ids(
-              $4, $1, $2, $5::int
-            ) mfs WHERE mfs.document_id = d.id))
+  AND NOT EXISTS (
+        SELECT 1 FROM uw_my_folder_foreign_ids(
+          $4, $1, $2, $5::int
+        ) mfs WHERE mfs.document_id = d.id)
 ORDER BY d.id COLLATE "C"
 `
 

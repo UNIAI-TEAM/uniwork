@@ -27,6 +27,42 @@ func isFolderContentsDocLocked(doc db.Document) bool {
 	return doc.OwnerKind.Valid || (doc.OwnerID.Valid && doc.OwnerID.String != "")
 }
 
+// childRequiresBreakGlass reports whether applying any item in items to doc
+// would require break-glass under DOC-05 (an AdminScope caller below manage
+// widening a restricted document's home row or granting a principal that
+// reaches themselves). Such children are skipped as skipped_not_manageable
+// rather than failing the whole folder batch or bypassing break-glass (F1).
+func (s *DocumentService) childRequiresBreakGlass(
+	ctx context.Context,
+	q *db.Queries,
+	doc db.Document,
+	access DocumentAccess,
+	actor Actor,
+	items []FolderContentsAccessItem,
+) (bool, error) {
+	if access.Level.AtLeast(DocumentLevelManage) {
+		return false, nil
+	}
+	for _, it := range items {
+		if it.PrincipalType == DocumentPrincipalWorkspace && it.PrincipalID == doc.WorkspaceID &&
+			doc.Visibility == documentVisibilityRestricted {
+			return true, nil
+		}
+		err := s.refuseAdminSelfShare(ctx, q, doc, access, actor, DocumentShareInput{
+			PrincipalType: it.PrincipalType,
+			PrincipalID:   it.PrincipalID,
+			Level:         it.Level,
+		})
+		if err != nil {
+			if codedIs(err, "break_glass_required") {
+				return true, nil
+			}
+			return false, err
+		}
+	}
+	return false, nil
+}
+
 func (s *DocumentService) previewFolderContentsAccess(
 	ctx context.Context,
 	actor Actor,
@@ -86,6 +122,14 @@ func (s *DocumentService) previewFolderContentsAccess(
 			return FolderContentsAccessResult{}, err
 		}
 		if !acc.canAdminister() {
+			skippedNotManageable++
+			continue
+		}
+		needBG, err := s.childRequiresBreakGlass(ctx, q, doc, acc, actor, items)
+		if err != nil {
+			return FolderContentsAccessResult{}, err
+		}
+		if needBG {
 			skippedNotManageable++
 			continue
 		}
@@ -343,15 +387,42 @@ func (s *DocumentService) executeFolderContentsAccessSync(
 		}
 	}
 
+	// Acquire the workspace tree lock before any document row lock so bulk
+	// access updates serialize with MoveDocument in the same lock order (F4),
+	// then intersect the snapshot with the live permitted subtree (F3).
+	if err := q.LockDocumentTree(ctx, folder.WorkspaceID); err != nil {
+		return FolderContentsAccessResult{}, err
+	}
+	liveSubtreeIDs, err := q.ListFolderContentsAccessSubtreeIDs(ctx, db.ListFolderContentsAccessSubtreeIDsParams{
+		OrganizationID: folder.OrganizationID,
+		WorkspaceID:    folder.WorkspaceID,
+		FolderID:       folder.ID,
+		ActorID:        actor.ID,
+		MaxLevel:       subtreeMaxLevel(),
+	})
+	if err != nil {
+		return FolderContentsAccessResult{}, err
+	}
+	inLiveSubtree := make(map[string]bool, len(liveSubtreeIDs))
+	for _, id := range liveSubtreeIDs {
+		inLiveSubtree[id] = true
+	}
+
 	for _, docID := range docIDs {
+		if !inLiveSubtree[docID] {
+			outcome.Processed++
+			continue
+		}
 		doc, err := q.LockDocumentByID(ctx, docID)
 		if errors.Is(err, pgx.ErrNoRows) {
+			outcome.Processed++
 			continue
 		}
 		if err != nil {
 			return FolderContentsAccessResult{}, err
 		}
 		if doc.OrganizationID != folder.OrganizationID || doc.WorkspaceID != folder.WorkspaceID {
+			outcome.Processed++
 			continue
 		}
 		res, err := s.applyFolderContentsAccessToLockedDoc(ctx, q, actor, folder, batchID, mode, items, userItemIDs, doc, notifiedLevels)
@@ -433,7 +504,7 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 	notifiedLevels map[string]string,
 ) (folderContentsOutcome, error) {
 	if doc.ArchivedAt.Valid || doc.Kind == DocumentKindFolder || isMyFolder(doc) {
-		return folderContentsOutcome{}, nil
+		return folderContentsOutcome{Processed: 1}, nil
 	}
 	if isFolderContentsDocLocked(doc) {
 		return folderContentsOutcome{Processed: 1, SkippedLocked: 1}, nil
@@ -452,6 +523,13 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 		return folderContentsOutcome{}, err
 	}
 	if !acc.canAdminister() {
+		return folderContentsOutcome{Processed: 1, SkippedNotManageable: 1}, nil
+	}
+	needBG, err := s.childRequiresBreakGlass(ctx, q, doc, acc, actor, items)
+	if err != nil {
+		return folderContentsOutcome{}, err
+	}
+	if needBG {
 		return folderContentsOutcome{Processed: 1, SkippedNotManageable: 1}, nil
 	}
 

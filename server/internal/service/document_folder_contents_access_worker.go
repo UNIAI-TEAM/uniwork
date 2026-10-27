@@ -115,18 +115,47 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 		return false, err
 	}
 
-	// Verify the root folder still exists in the workspace and is still a folder.
-	folder, err := q.GetDocument(ctx, db.GetDocumentParams{
-		ID:             batch.FolderID,
-		OrganizationID: batch.OrganizationID,
-		WorkspaceID:    batch.WorkspaceID,
-	})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && folder.Kind != DocumentKindFolder) {
+	// Acquire the workspace tree lock before any document row lock so chunk
+	// execution serializes with MoveDocument in the same lock order (F4) and
+	// sees a stable ancestry for the root and subtree checks (F2, F3).
+	if err := q.LockDocumentTree(ctx, batch.WorkspaceID); err != nil {
+		return false, err
+	}
+
+	actor := Actor{
+		ID:   batch.CreatedBy,
+		Kind: audit.Kind(batch.CreatedByKind),
+	}
+
+	// Re-authorize the creator's READ access on the live, non-archived root
+	// folder at the start of every chunk (F2). A gate refusal or archived/non-folder
+	// root marks the batch failed while keeping previously committed chunks;
+	// infrastructure errors return an error so the transaction rolls back and retries.
+	folder, _, err := s.authorizeDocumentQ(ctx, q, actor, batch.FolderID, DocumentLevelView)
+	if err != nil {
+		if isGateRefusal(err) {
+			if _, failErr := q.FailDocumentAccessBatch(ctx, db.FailDocumentAccessBatchParams{
+				ID:             batch.ID,
+				OrganizationID: batch.OrganizationID,
+				WorkspaceID:    batch.WorkspaceID,
+				ErrorCode:      nullText("root_access_lost"),
+			}); failErr != nil {
+				return false, failErr
+			}
+			if err := tx.Commit(ctx); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+		return false, err
+	}
+	if folder.OrganizationID != batch.OrganizationID || folder.WorkspaceID != batch.WorkspaceID ||
+		folder.Kind != DocumentKindFolder || folder.ArchivedAt.Valid {
 		if _, failErr := q.FailDocumentAccessBatch(ctx, db.FailDocumentAccessBatchParams{
 			ID:             batch.ID,
 			OrganizationID: batch.OrganizationID,
 			WorkspaceID:    batch.WorkspaceID,
-			ErrorCode:      nullText("folder_not_found"),
+			ErrorCode:      nullText("root_access_lost"),
 		}); failErr != nil {
 			return false, failErr
 		}
@@ -135,10 +164,6 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 		}
 		return true, nil
 	}
-	if err != nil {
-		return false, err
-	}
-
 	var items []FolderContentsAccessItem
 	if len(batch.Items) > 0 {
 		if err := json.Unmarshal(batch.Items, &items); err != nil {
@@ -186,11 +211,23 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 		isLastChunk = false
 	}
 
-	actor := Actor{
-		ID:   batch.CreatedBy,
-		Kind: audit.Kind(batch.CreatedByKind),
+	// Intersect chunk IDs with the current live permitted subtree (excluding
+	// foreign My Folders unconditionally) so documents moved out between chunks
+	// are skipped without modification while advancing cursor_id (F3).
+	liveSubtreeIDs, err := q.ListFolderContentsAccessSubtreeIDs(ctx, db.ListFolderContentsAccessSubtreeIDsParams{
+		OrganizationID: batch.OrganizationID,
+		WorkspaceID:    batch.WorkspaceID,
+		FolderID:       batch.FolderID,
+		ActorID:        actor.ID,
+		MaxLevel:       subtreeMaxLevel(),
+	})
+	if err != nil {
+		return false, err
 	}
-
+	inLiveSubtree := make(map[string]bool, len(liveSubtreeIDs))
+	for _, id := range liveSubtreeIDs {
+		inLiveSubtree[id] = true
+	}
 	userItemIDs := make([]string, 0, len(items))
 	for _, it := range items {
 		if it.PrincipalType == DocumentPrincipalUser {
@@ -209,6 +246,10 @@ func (s *DocumentService) ProcessNextFolderContentsAccessChunk(ctx context.Conte
 	cursorID := batch.CursorID
 	for _, docID := range chunk {
 		cursorID = docID
+		if !inLiveSubtree[docID] {
+			outcome.Processed++
+			continue
+		}
 		doc, err := q.LockDocumentByID(ctx, docID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			outcome.Processed++

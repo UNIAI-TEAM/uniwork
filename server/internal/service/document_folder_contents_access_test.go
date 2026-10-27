@@ -532,3 +532,350 @@ func TestFolderContentsAccessSkipsLockedOwnedDocument(t *testing.T) {
 		t.Fatalf("lockedDoc outcome = %+v, want Processed=1 SkippedLocked=1", out)
 	}
 }
+
+// TestFolderContentsAccessChildDOC05SkipsRestrictedSelfGrant covers F1 (B2-R-01):
+// a workspace/organization admin who has manage on a workspace folder but only
+// AdminScope (no read level, no break-glass) on another member's restricted
+// child document cannot use folder bulk access (merge or replace, granting
+// their own user, the home workspace, or the organization) to grant themselves
+// access on that restricted child. The restricted child is untouched, counted
+// in skipped_not_manageable in dry-run, sync and background worker, and writes
+// no audit row.
+func TestFolderContentsAccessChildDOC05SkipsRestrictedSelfGrant(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "fcaf1")
+	H := Human
+	wsAdmin := H(tn.wsAdmin.ID)
+	colleague := H(tn.member.ID)
+
+	rootFolder := createTestFolder(t, f, wsAdmin, tn.wsA, "F1 Root Folder", nil)
+	rootID := rootFolder.ID
+
+	adminPage := createTestPageInParent(t, f, wsAdmin, tn.wsA, "Admin Own Page", "restricted", &rootID)
+	colleagueRestricted := createTestPageInParent(t, f, colleague, tn.wsA, "Colleague Restricted Page", "restricted", &rootID)
+
+	// Sanity check: single-document share by wsAdmin to themselves on colleagueRestricted requires break-glass.
+	if _, err := f.svc.ShareDocument(f.ctx, wsAdmin, colleagueRestricted.ID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: tn.wsAdmin.ID, Level: DocumentLevelView,
+	}); !codedIs(err, "break_glass_required") {
+		t.Fatalf("single-doc self-share err = %v, want break_glass_required", err)
+	}
+
+	cases := []struct {
+		name string
+		item FolderContentsAccessItem
+	}{
+		{
+			name: "self_user",
+			item: FolderContentsAccessItem{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.wsAdmin.ID, Level: DocumentLevelView},
+		},
+		{
+			name: "home_workspace",
+			item: FolderContentsAccessItem{PrincipalType: DocumentPrincipalWorkspace, PrincipalID: tn.wsA, Level: DocumentLevelView},
+		},
+		{
+			name: "organization",
+			item: FolderContentsAccessItem{PrincipalType: DocumentPrincipalOrganization, PrincipalID: tn.orgID, Level: DocumentLevelView},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dry, err := f.svc.UpdateFolderContentsAccess(f.ctx, wsAdmin, rootID, UpdateFolderContentsAccessInput{
+				Mode:   FolderContentsAccessModeMerge,
+				DryRun: true,
+				Items:  []FolderContentsAccessItem{tc.item},
+			})
+			if err != nil {
+				t.Fatalf("dry_run merge (%s): %v", tc.name, err)
+			}
+			if dry.Total != 2 || dry.Preview.SkippedNotManageable != 1 {
+				t.Fatalf("dry_run (%s) = %+v, want Total=2 SkippedNotManageable=1", tc.name, dry)
+			}
+
+			syncRes, err := f.svc.UpdateFolderContentsAccess(f.ctx, wsAdmin, rootID, UpdateFolderContentsAccessInput{
+				Mode:  FolderContentsAccessModeMerge,
+				Items: []FolderContentsAccessItem{tc.item},
+			})
+			if err != nil {
+				t.Fatalf("sync merge (%s): %v", tc.name, err)
+			}
+			if syncRes.Total != 2 || syncRes.SkippedNotManageable != 1 {
+				t.Fatalf("sync (%s) = %+v, want Total=2 SkippedNotManageable=1", tc.name, syncRes)
+			}
+
+			reloaded := reloadDoc(t, f, colleagueRestricted.ID)
+			if reloaded.Visibility != documentVisibilityRestricted {
+				t.Fatalf("colleagueRestricted visibility after %s = %q, want restricted", tc.name, reloaded.Visibility)
+			}
+			if got := level(t, f, wsAdmin, reloaded); got != DocumentLevelNone {
+				t.Fatalf("wsAdmin level on colleagueRestricted after %s = %q, want none", tc.name, got)
+			}
+			var auditCount int
+			if err := f.pool.QueryRow(f.ctx,
+				`SELECT count(*) FROM audit_events WHERE resource_id = $1 AND metadata::jsonb->>'via' = $2`,
+				colleagueRestricted.ID, FolderContentsAccessVia).Scan(&auditCount); err != nil || auditCount != 0 {
+				t.Fatalf("colleagueRestricted folder_contents audit rows after %s = %d (err=%v), want 0", tc.name, auditCount, err)
+			}
+		})
+	}
+
+	// Also verify the background worker skips colleagueRestricted as skipped_not_manageable.
+	f.svc.SetFolderContentsAccessSyncMax(1)
+	t.Cleanup(func() { f.svc.SetFolderContentsAccessSyncMax(0) })
+
+	bgRes, err := f.svc.UpdateFolderContentsAccess(f.ctx, wsAdmin, rootID, UpdateFolderContentsAccessInput{
+		Mode: FolderContentsAccessModeMerge,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.wsAdmin.ID, Level: DocumentLevelEdit},
+		},
+	})
+	if err != nil || bgRes.ExecMode != FolderContentsAccessExecBackground {
+		t.Fatalf("queue bg (%+v): %v", bgRes, err)
+	}
+	worker := NewDocumentAccessBatchWorker(f.svc, nil)
+	if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+		t.Fatalf("bg worker RunOnce: worked=%v err=%v", worked, err)
+	}
+	prog, err := f.svc.GetFolderContentsAccessBatch(f.ctx, wsAdmin, rootID, bgRes.BatchID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prog.Status != FolderContentsAccessBatchStatusCompleted || prog.SkippedNotManageable != 1 {
+		t.Fatalf("bg progress = %+v, want completed SkippedNotManageable=1", prog)
+	}
+	if got := level(t, f, wsAdmin, reloadDoc(t, f, colleagueRestricted.ID)); got != DocumentLevelNone {
+		t.Fatalf("wsAdmin level on colleagueRestricted after bg = %q, want none", got)
+	}
+	_ = adminPage
+}
+
+// TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot covers F2 (B2-R-02):
+// at the start of each chunk transaction the worker re-authorizes the creator's
+// READ access on the live, non-archived root folder; if root read is lost or
+// the root folder is archived between chunks, the batch transitions to 'failed'
+// (error_code = 'root_access_lost'), preserving earlier committed chunks and
+// leaving remaining children untouched.
+func TestFolderContentsAccessWorkerFailsOnLostRootReadOrArchivedRoot(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "fcaf2")
+	H := Human
+	actor := H(tn.aclOwner.ID)
+
+	f.svc.SetFolderContentsAccessSyncMax(1)
+	t.Cleanup(func() { f.svc.SetFolderContentsAccessSyncMax(0) })
+
+	t.Run("revoke_creator_root_read_between_chunks", func(t *testing.T) {
+		folder := createTestFolder(t, f, actor, tn.wsA, "F2 Revoke Root", nil)
+		folderID := folder.ID
+		d1 := createTestPageInParent(t, f, actor, tn.wsA, "F2 Doc 1", "restricted", &folderID)
+		d2 := createTestPageInParent(t, f, actor, tn.wsA, "F2 Doc 2", "restricted", &folderID)
+		docIDs := []string{d1.ID, d2.ID}
+		slices.Sort(docIDs)
+
+		res, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+			Mode: FolderContentsAccessModeMerge,
+			Items: []FolderContentsAccessItem{
+				{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
+			},
+		})
+		if err != nil {
+			t.Fatalf("queue batch: %v", err)
+		}
+
+		worker := NewDocumentAccessBatchWorker(f.svc, nil)
+		worker.ChunkSize = 1
+		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+			t.Fatalf("chunk 1: worked=%v err=%v", worked, err)
+		}
+
+		// Remove actor's read access on the root folder while keeping actor's
+		// ownership of docIDs[1] (make root restricted and owned by tn.member).
+		if _, err := f.pool.Exec(f.ctx,
+			`UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`,
+			folderID, tn.member.ID); err != nil {
+			t.Fatal(err)
+		}
+
+		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+			t.Fatalf("chunk 2 after lost root read: worked=%v err=%v", worked, err)
+		}
+
+		var status, errCode string
+		var processed, changed int
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT status, COALESCE(error_code, ''), processed, changed FROM document_access_batches WHERE id = $1`,
+			res.BatchID).Scan(&status, &errCode, &processed, &changed); err != nil {
+			t.Fatal(err)
+		}
+		if status != FolderContentsAccessBatchStatusFailed || errCode != "root_access_lost" || processed != 1 || changed != 1 {
+			t.Fatalf("batch after lost root read = status=%q error_code=%q processed=%d changed=%d, want failed/root_access_lost/1/1",
+				status, errCode, processed, changed)
+		}
+		if got := level(t, f, H(tn.outsider.ID), reloadDoc(t, f, docIDs[0])); got != DocumentLevelView {
+			t.Fatalf("chunk 1 doc %s outsider level = %q, want view (retained)", docIDs[0], got)
+		}
+		if got := level(t, f, H(tn.outsider.ID), reloadDoc(t, f, docIDs[1])); got != DocumentLevelNone {
+			t.Fatalf("chunk 2 doc %s outsider level = %q, want none (untouched)", docIDs[1], got)
+		}
+	})
+
+	t.Run("archive_root_between_chunks", func(t *testing.T) {
+		folder := createTestFolder(t, f, actor, tn.wsA, "F2 Archive Root", nil)
+		folderID := folder.ID
+		d1 := createTestPageInParent(t, f, actor, tn.wsA, "F2 Arch Doc 1", "restricted", &folderID)
+		d2 := createTestPageInParent(t, f, actor, tn.wsA, "F2 Arch Doc 2", "restricted", &folderID)
+		docIDs := []string{d1.ID, d2.ID}
+		slices.Sort(docIDs)
+
+		res, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, folderID, UpdateFolderContentsAccessInput{
+			Mode: FolderContentsAccessModeMerge,
+			Items: []FolderContentsAccessItem{
+				{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
+			},
+		})
+		if err != nil {
+			t.Fatalf("queue batch: %v", err)
+		}
+
+		worker := NewDocumentAccessBatchWorker(f.svc, nil)
+		worker.ChunkSize = 1
+		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+			t.Fatalf("chunk 1: worked=%v err=%v", worked, err)
+		}
+
+		// Archive root folder directly so docIDs[1] stays unarchived, proving
+		// the root liveness check itself stops chunk 2.
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET archived_at = now() WHERE id = $1`, folderID); err != nil {
+			t.Fatal(err)
+		}
+
+		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+			t.Fatalf("chunk 2 after root archived: worked=%v err=%v", worked, err)
+		}
+
+		var status, errCode string
+		var processed, changed int
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT status, COALESCE(error_code, ''), processed, changed FROM document_access_batches WHERE id = $1`,
+			res.BatchID).Scan(&status, &errCode, &processed, &changed); err != nil {
+			t.Fatal(err)
+		}
+		if status != FolderContentsAccessBatchStatusFailed || errCode != "root_access_lost" || processed != 1 || changed != 1 {
+			t.Fatalf("batch after root archived = status=%q error_code=%q processed=%d changed=%d, want failed/root_access_lost/1/1",
+				status, errCode, processed, changed)
+		}
+		if got := level(t, f, H(tn.outsider.ID), reloadDoc(t, f, docIDs[0])); got != DocumentLevelView {
+			t.Fatalf("chunk 1 doc %s outsider level = %q, want view (retained)", docIDs[0], got)
+		}
+		if got := level(t, f, H(tn.outsider.ID), reloadDoc(t, f, docIDs[1])); got != DocumentLevelNone {
+			t.Fatalf("chunk 2 doc %s outsider level = %q, want none (untouched)", docIDs[1], got)
+		}
+	})
+}
+
+// TestFolderContentsAccessSubtreeRecheckAndForeignMyFolder covers F3 (B2-R-03):
+//   - documents inside another person's My Folder are excluded unconditionally
+//     even when acl_owner_id = actor.ID;
+//   - between worker chunks, saved IDs are intersected with the current live
+//     permitted subtree: a page moved out of the folder or moved under a
+//     foreign My Folder is skipped without modification while advancing
+//     cursor_id, and newly arrived pages are never added.
+func TestFolderContentsAccessSubtreeRecheckAndForeignMyFolder(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "fcaf3")
+	H := Human
+	actor := H(tn.aclOwner.ID)
+
+	memberMF, _, err := f.svc.EnsureMyFolder(f.ctx, H(tn.member.ID), tn.wsA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mfID := memberMF.Document.ID
+
+	// 1. A folder inside another member's My Folder that is readable by actor
+	// and contains an actor-owned page still excludes that page unconditionally.
+	foreignSubFolder := createTestFolder(t, f, H(tn.member.ID), tn.wsA, "Foreign MF Subfolder", &mfID)
+	if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET visibility = 'workspace', workspace_level = 'view' WHERE id = $1`, foreignSubFolder.ID); err != nil {
+		t.Fatal(err)
+	}
+	foreignSubID := foreignSubFolder.ID
+	actorPageInForeignMF := createTestPageInParent(t, f, H(tn.member.ID), tn.wsA, "Actor Owned In Foreign MF", "restricted", &foreignSubID)
+	if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET acl_owner_id = $2 WHERE id = $1`, actorPageInForeignMF.ID, tn.aclOwner.ID); err != nil {
+		t.Fatal(err)
+	}
+	dryForeign, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, foreignSubID, UpdateFolderContentsAccessInput{
+		Mode:   FolderContentsAccessModeMerge,
+		DryRun: true,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dry_run on foreign MF subfolder: %v", err)
+	}
+	if dryForeign.Total != 0 {
+		t.Fatalf("dryForeign.Total = %d, want 0 (unconditional foreign My Folder exclusion)", dryForeign.Total)
+	}
+
+	// 2. Mid-batch moves: queue 3 pages under rootFolder, process chunk 1, then
+	// move docIDs[1] to workspace root and docIDs[2] under member's My Folder,
+	// plus add a new page under rootFolder after the snapshot.
+	f.svc.SetFolderContentsAccessSyncMax(1)
+	t.Cleanup(func() { f.svc.SetFolderContentsAccessSyncMax(0) })
+
+	rootFolder := createTestFolder(t, f, actor, tn.wsA, "F3 Root Folder", nil)
+	rootID := rootFolder.ID
+	p1 := createTestPageInParent(t, f, actor, tn.wsA, "F3 Page 1", "restricted", &rootID)
+	p2 := createTestPageInParent(t, f, actor, tn.wsA, "F3 Page 2", "restricted", &rootID)
+	p3 := createTestPageInParent(t, f, actor, tn.wsA, "F3 Page 3", "restricted", &rootID)
+	docIDs := []string{p1.ID, p2.ID, p3.ID}
+	slices.Sort(docIDs)
+
+	res, err := f.svc.UpdateFolderContentsAccess(f.ctx, actor, rootID, UpdateFolderContentsAccessInput{
+		Mode: FolderContentsAccessModeMerge,
+		Items: []FolderContentsAccessItem{
+			{PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelEdit},
+		},
+	})
+	if err != nil || res.Total != 3 {
+		t.Fatalf("queue batch = %+v, err = %v", res, err)
+	}
+
+	worker := NewDocumentAccessBatchWorker(f.svc, nil)
+	worker.ChunkSize = 1
+	if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+		t.Fatalf("chunk 1: worked=%v err=%v", worked, err)
+	}
+
+	// Move docIDs[1] out of rootFolder (to workspace root) and docIDs[2] into member's My Folder.
+	if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET parent_id = NULL WHERE id = $1`, docIDs[1]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET parent_id = $2 WHERE id = $1`, docIDs[2], mfID); err != nil {
+		t.Fatal(err)
+	}
+	arrivedAfter := createTestPageInParent(t, f, actor, tn.wsA, "Arrived After Snapshot", "restricted", &rootID)
+
+	for step := 2; step <= 3; step++ {
+		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+			t.Fatalf("chunk %d: worked=%v err=%v", step, worked, err)
+		}
+	}
+
+	prog, err := f.svc.GetFolderContentsAccessBatch(f.ctx, actor, rootID, res.BatchID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prog.Status != FolderContentsAccessBatchStatusCompleted || prog.Total != 3 || prog.Processed != 3 || prog.Changed != 1 {
+		t.Fatalf("final progress = %+v, want completed Total=3 Processed=3 Changed=1", prog)
+	}
+	if got := level(t, f, H(tn.outsider.ID), reloadDoc(t, f, docIDs[0])); got != DocumentLevelEdit {
+		t.Fatalf("docIDs[0] outsider level = %q, want edit", got)
+	}
+	for _, untouchedID := range []string{docIDs[1], docIDs[2], arrivedAfter.ID} {
+		if got := level(t, f, H(tn.outsider.ID), reloadDoc(t, f, untouchedID)); got != DocumentLevelNone {
+			t.Fatalf("untouched doc %s outsider level = %q, want none", untouchedID, got)
+		}
+	}
+}
