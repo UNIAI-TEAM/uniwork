@@ -40,6 +40,8 @@ export const MeetingSchema = z.object({
   previous_meeting_id: z.string().optional().catch(undefined),
   /** Detail only: the series' earliest uncanceled meeting starting after this one. */
   next_meeting_id: z.string().optional().catch(undefined),
+  /** online | in_person (read through meetingVenue); absent on an older server. */
+  venue: z.string().optional().catch(undefined),
 });
 export type Meeting = z.infer<typeof MeetingSchema>;
 

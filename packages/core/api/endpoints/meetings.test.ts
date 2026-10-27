@@ -34,6 +34,7 @@ import {
   setMeetingAISharing,
   extendMeeting,
 } from "./meetings";
+import { meetingVenue } from "../../meetings/venue";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -113,6 +114,28 @@ describe("meetings endpoints", () => {
     expect(drifted?.next_meeting_id).toBeUndefined();
   });
 
+  it("getMeeting reads the venue and drops an unknown one", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ meeting: { ...meeting, venue: "in_person" } }))
+      .mockResolvedValueOnce(json({ meeting: { ...meeting, venue: 7 } }));
+    expect((await getMeeting("m1"))?.venue).toBe("in_person");
+    const drifted = await getMeeting("m1");
+    expect(drifted?.id).toBe("m1");
+    expect(drifted?.venue).toBeUndefined();
+    expect(meetingVenue(drifted)).toBe("online");
+    expect(meetingVenue({ venue: "x" })).toBe("online");
+    expect(meetingVenue({ venue: "in_person" })).toBe("in_person");
+    expect(meetingVenue(null)).toBe("online");
+  });
+
+  it("createInstantMeeting sends the venue", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meeting })).mockResolvedValueOnce(json({ meeting: "x" }));
+    await createInstantMeeting("ws1", { title: "Họp nhanh", venue: "in_person" });
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual({ title: "Họp nhanh", venue: "in_person" });
+    await expect(createInstantMeeting("ws1", {})).resolves.toBeNull();
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[1]![1]!.body as string)).toEqual({ title: "" });
+  });
+
   it("createMeeting / createInstantMeeting send the Idempotency-Key only when given", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json({ meeting }))
@@ -120,8 +143,8 @@ describe("meetings endpoints", () => {
       .mockResolvedValueOnce(json({ meeting: "x" }));
     const body = { title: "Sync", starts_at: meeting.starts_at, ends_at: meeting.ends_at };
     await createMeeting("ws1", body, { idempotencyKey: "k1" });
-    await createInstantMeeting("ws1", "Sync", { idempotencyKey: "k2" });
-    await expect(createInstantMeeting("ws1")).resolves.toBeNull();
+    await createInstantMeeting("ws1", { title: "Sync" }, { idempotencyKey: "k2" });
+    await expect(createInstantMeeting("ws1", {})).resolves.toBeNull();
     const headers = (i: number) => new Headers(vi.mocked(fetch).mock.calls[i]![1]!.headers as HeadersInit);
     expect(headers(0).get("Idempotency-Key")).toBe("k1");
     expect(headers(1).get("Idempotency-Key")).toBe("k2");

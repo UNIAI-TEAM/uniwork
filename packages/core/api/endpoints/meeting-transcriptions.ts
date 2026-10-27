@@ -15,10 +15,13 @@ import { parseWithFallback } from "../schema";
 const enc = encodeURIComponent;
 const base = (meetingId: string) => `/api/v1/meetings/${enc(meetingId)}`;
 
-/** SCHEDULED → ENDED at the times the host reports (RFC 3339). */
+/**
+ * SCHEDULED → ENDED at the times the host reports (RFC 3339), or, with
+ * duration_seconds alone, ending now on the server's clock.
+ */
 export async function recordMeetingHeld(
   meetingId: string,
-  body: { started_at: string; ended_at: string },
+  body: { started_at?: string; ended_at?: string; duration_seconds?: number },
 ): Promise<Meeting | null> {
   const raw = await request(`${base(meetingId)}/held`, { method: "POST", body });
   return (
@@ -38,10 +41,14 @@ export async function listMeetingTranscriptions(meetingId: string): Promise<Meet
   ).transcriptions;
 }
 
-/** consent: the clerk told attendees the meeting was recorded. */
+/**
+ * consent: the clerk told attendees the meeting was recorded. offset_seconds:
+ * where the part starts from the meeting's actual start (422 invalid_offset
+ * when out of range).
+ */
 export async function requestMeetingTranscription(
   meetingId: string,
-  body: { upload_id: string; language: string; consent: boolean; duration_seconds?: number },
+  body: { upload_id: string; language: string; consent: boolean; duration_seconds?: number; offset_seconds?: number },
 ): Promise<MeetingTranscription | null> {
   const raw = await request(`${base(meetingId)}/transcriptions`, { method: "POST", body });
   return (

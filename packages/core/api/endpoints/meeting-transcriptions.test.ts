@@ -59,6 +59,20 @@ describe("meeting transcription endpoints", () => {
     expect(JSON.parse(String(init!.body))).toEqual({ upload_id: "f1", language: "vi", consent: true });
   });
 
+  it("recordMeetingHeld sends duration_seconds", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meeting: { id: 1 } }));
+    await expect(recordMeetingHeld("m1", { duration_seconds: 3600 })).resolves.toBeNull();
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body))).toEqual({ duration_seconds: 3600 });
+  });
+
+  it("requestMeetingTranscription sends offset_seconds", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ transcription }, 201)).mockResolvedValueOnce(json({ transcription: { id: 3 } }));
+    const body = { upload_id: "f1", language: "vi", consent: true, duration_seconds: 300, offset_seconds: 0 };
+    expect((await requestMeetingTranscription("m1", body))?.id).toBe("t1");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body))).toEqual(body);
+    await expect(requestMeetingTranscription("m1", { ...body, offset_seconds: 300 })).resolves.toBeNull();
+  });
+
   it("listMeetingTranscriptions reads the list", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ transcriptions: [transcription, { ...transcription, id: "t0", status: "FAILED", error_code: "timeout" }] }));
     const list = await listMeetingTranscriptions("m1");
