@@ -103,6 +103,60 @@ describe("drive-library endpoints", () => {
     expect(out.next_cursor).toBeNull();
   });
 
+  it("reads drive_folder leniently: named, unnamed, absent and null parents", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        files: [
+          validFile({ id: "a", drive_folder: { id: "fld1", name: "Dự án Alpha" } }),
+          validFile({ id: "b", drive_folder: { id: "fld2", name: null } }),
+          validFile({ id: "c", drive_folder: { id: "fld3" } }),
+          validFile({ id: "d", drive_folder: null }),
+          validFile({ id: "e" }),
+        ],
+        total_count: 5,
+        next_cursor: null,
+      }),
+    );
+    const out = await listDriveFiles("ws1");
+    expect(out.files.map((f) => f.drive_folder)).toEqual([
+      { id: "fld1", name: "Dự án Alpha" },
+      { id: "fld2", name: null },
+      { id: "fld3", name: null },
+      null,
+      null,
+    ]);
+  });
+
+  it("treats a malformed drive_folder as unknown without dropping the file or the page", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        files: [
+          validFile({ id: "a", drive_folder: "fld1" }),
+          validFile({ id: "b", drive_folder: { id: 7, name: "x" } }),
+          validFile({ id: "c", drive_folder: { id: "", name: "x" } }),
+          validFile({ id: "d", drive_folder: { id: "fld4", name: 12 } }),
+          validFile({ id: "e", drive_folder: [] }),
+        ],
+        total_count: 5,
+        next_cursor: null,
+      }),
+    );
+    const out = await listDriveFiles("ws1");
+    expect(out.files.map((f) => f.id)).toEqual(["a", "b", "c", "d", "e"]);
+    expect(out.files.map((f) => f.drive_folder)).toEqual([null, null, null, null, null]);
+  });
+
+  it("getDriveFile carries drive_folder and survives a malformed one", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ file: validFile({ drive_folder: { id: "fld1", name: "Hồ sơ" } }) }),
+    );
+    await expect(getDriveFile("ws1", "df1")).resolves.toMatchObject({
+      drive_folder: { id: "fld1", name: "Hồ sơ" },
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ file: validFile({ drive_folder: 5 }) }));
+    await expect(getDriveFile("ws1", "df1")).resolves.toMatchObject({ drive_folder: null });
+  });
+
   it("listDriveFiles degrades to an empty page on a malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ files: "invalid" }));
     await expect(listDriveFiles("ws1")).resolves.toEqual({

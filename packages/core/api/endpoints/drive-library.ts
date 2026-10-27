@@ -46,11 +46,21 @@ const DriveTaskCreationGroupSchema = z.object({
 });
 export type DriveTaskCreationGroup = z.infer<typeof DriveTaskCreationGroupSchema>;
 
+// `drive_folder` is the Google parent folder of a linked file (UNI-2172 drive-folder contract).
+// Absent, null or malformed all read as "parent unknown" (null), never as a parse failure of the
+// whole file; `name` null means the folder name is not readable under `drive.file`.
+const DriveFolderWireSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().nullish().transform((v) => v ?? null),
+});
+export type DriveFolderRef = z.infer<typeof DriveFolderWireSchema>;
+
 const DriveFileWireSchema = z.object({
   id: z.string(),
   organization_id: z.string(),
   workspace_id: z.string(),
   external_file_id: z.string(),
+  drive_folder: DriveFolderWireSchema.nullish().catch(null).transform((v) => v ?? null),
   drive_id: z.string().optional(),
   name: z.string(),
   mime_type: z.string(),
