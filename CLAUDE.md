@@ -415,13 +415,11 @@ behind its own gate and never reaches content.
 - `/api/v1/admin/*` is guarded only by `middleware.RequirePlatformRole`
   (`users.platform_role`: `support` reads, `admin` writes; no role → 404). It
   never goes through `RequireMember` and never returns task bodies, messages
-  or files. Only `server/internal/service/admin.go`,
-  `server/internal/service/admin_flags.go`, and the billing admin files
-  (`admin_billing.go`, `admin_billing_refund.go`, `admin_billing_refund_vnpay.go`)
-  call the queries in `server/pkg/db/queries/admin.sql`; only `admin.go` and
-  `admin_flags.go` call `feature_flags.sql`. No `service/admin*.go` file touches
-  a content service — `TestAdminQueriesStayInAdminService` in
-  `server/internal/arch_test.go`. One exception
+  or files. Only `server/internal/service/admin.go` and
+  `server/internal/service/admin_flags.go` call the queries in
+  `server/pkg/db/queries/admin.sql` and `server/pkg/db/queries/feature_flags.sql`, and neither
+  touches a content service
+  — `TestAdminQueriesStayInAdminService` in `server/internal/arch_test.go`. One exception
   (ADR 0042): the operator's takedown of a reported chat message goes through
   `ReportedContentRemover.RemoveReportedMessageQ`, which `server/cmd/server/main.go` wires
   to `ChatService`; it returns no content. The second (ADR 0046): scheduling or cancelling an
