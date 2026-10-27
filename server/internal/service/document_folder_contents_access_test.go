@@ -60,6 +60,7 @@ func TestFolderContentsAccessModesAndSubtreeScope(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "fca1")
 	foreign := f.tenant(t, "fca1f")
+	f.withLinks(t)
 	H := Human
 	actor := H(tn.aclOwner.ID)
 
@@ -87,7 +88,6 @@ func TestFolderContentsAccessModesAndSubtreeScope(t *testing.T) {
 	//     ├── subFolder
 	//     │     ├── page2 (manageable by aclOwner, restricted)
 	//     │     ├── unmanageablePage (created/owned by member, restricted -> aclOwner cannot administer)
-	//     │     ├── lockedPage (Work Product owner_id set -> skipped_locked)
 	//     │     └── trashedPage (archived -> excluded from total)
 	rootFolder := createTestFolder(t, f, actor, tn.wsA, "Root Folder", nil)
 	rootID := rootFolder.ID
@@ -115,11 +115,9 @@ func TestFolderContentsAccessModesAndSubtreeScope(t *testing.T) {
 
 	unmanageablePage := createTestPageInParent(t, f, H(tn.member.ID), tn.wsA, "Member Private Page", "restricted", &subFolderID)
 
-	lockedPage := createTestPageInParent(t, f, actor, tn.wsA, "Work Product Page", "restricted", &subFolderID)
-	if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET owner_kind = 'work_product', owner_id = $2 WHERE id = $1`, lockedPage.ID, util.NewID()); err != nil {
-		t.Fatal(err)
-	}
-
+	// Note: Work Product documents (owner_kind = 'work_product') cannot sit inside a folder
+	// subtree per documents_owned_no_parent_check; the skipped_locked branch is covered by
+	// TestFolderContentsAccessSkipsLockedOwnedDocument below.
 	trashedPage := createTestPageInParent(t, f, actor, tn.wsA, "Trashed Page", "restricted", &subFolderID)
 	if _, err := f.svc.ArchiveDocument(f.ctx, actor, trashedPage.ID, ArchiveDocumentInput{}); err != nil {
 		t.Fatal(err)
@@ -146,8 +144,8 @@ func TestFolderContentsAccessModesAndSubtreeScope(t *testing.T) {
 	}
 
 	// 4. Dry-run preview on merge mode:
-	// Total in subtree = 5 (page1, subPage1, page2, unmanageablePage, lockedPage; rootFolder & subFolder & trashedPage excluded).
-	// Manageable = 3 (page1, subPage1, page2), skipped_not_manageable = 1, skipped_locked = 1.
+	// Total in subtree = 4 (page1, subPage1, page2, unmanageablePage; rootFolder & subFolder & trashedPage excluded).
+	// Manageable = 3 (page1, subPage1, page2), skipped_not_manageable = 1, skipped_locked = 0.
 	// Granting outsider view + home workspace edit:
 	// - page1: outsider already has edit (kept at edit), home workspace restricted -> workspace/edit (changed)
 	// - subPage1: outsider none -> view, home workspace view -> edit (changed)
@@ -163,8 +161,8 @@ func TestFolderContentsAccessModesAndSubtreeScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dry_run merge: %v", err)
 	}
-	if !dryMerge.DryRun || dryMerge.Total != 5 || dryMerge.Preview.Changed != 3 || dryMerge.Preview.Unchanged != 0 ||
-		dryMerge.Preview.SkippedNotManageable != 1 || dryMerge.Preview.SkippedLocked != 1 ||
+	if !dryMerge.DryRun || dryMerge.Total != 4 || dryMerge.Preview.Changed != 3 || dryMerge.Preview.Unchanged != 0 ||
+		dryMerge.Preview.SkippedNotManageable != 1 || dryMerge.Preview.SkippedLocked != 0 ||
 		dryMerge.Preview.LosingUsers != 0 || dryMerge.Preview.DowngradedUsers != 0 || len(dryMerge.Preview.Warnings) != 0 {
 		t.Fatalf("dryMerge = %+v", dryMerge)
 	}
@@ -187,8 +185,8 @@ func TestFolderContentsAccessModesAndSubtreeScope(t *testing.T) {
 		t.Fatalf("sync merge: %v", err)
 	}
 	if syncMerge.ExecMode != FolderContentsAccessExecSync || syncMerge.BatchID == "" ||
-		syncMerge.Total != 5 || syncMerge.Changed != 3 || syncMerge.Unchanged != 0 ||
-		syncMerge.SkippedNotManageable != 1 || syncMerge.SkippedLocked != 1 {
+		syncMerge.Total != 4 || syncMerge.Changed != 3 || syncMerge.Unchanged != 0 ||
+		syncMerge.SkippedNotManageable != 1 || syncMerge.SkippedLocked != 0 {
 		t.Fatalf("syncMerge = %+v", syncMerge)
 	}
 
@@ -217,17 +215,23 @@ func TestFolderContentsAccessModesAndSubtreeScope(t *testing.T) {
 	if got := level(t, f, H(tn.creator.ID), reloadDoc(t, f, page2.ID)); got != DocumentLevelEdit {
 		t.Fatalf("page2 workspace member level after merge = %q, want edit", got)
 	}
+	if got := level(t, f, H(tn.outsider.ID), reloadDoc(t, f, subPage1.ID)); got != DocumentLevelView {
+		t.Fatalf("subPage1 outsider level after merge = %q, want view", got)
+	}
+	if got := level(t, f, H(tn.creator.ID), reloadDoc(t, f, subPage1.ID)); got != DocumentLevelEdit {
+		t.Fatalf("subPage1 workspace member level after merge = %q, want edit", got)
+	}
 
 	// Verify audit rows: child documents carry batch_id + via:"folder_contents"; folder carries document.contents_access_updated.
 	var viaVal string
 	if err := f.pool.QueryRow(f.ctx,
-		`SELECT metadata->>'via' FROM audit_events WHERE resource_id = $1 AND metadata->>'batch_id' = $2 LIMIT 1`,
+		`SELECT metadata::jsonb->>'via' FROM audit_events WHERE resource_id = $1 AND metadata::jsonb->>'batch_id' = $2 LIMIT 1`,
 		page2.ID, syncMerge.BatchID).Scan(&viaVal); err != nil || viaVal != FolderContentsAccessVia {
 		t.Fatalf("child audit metadata.via = %q (err=%v), want %q", viaVal, err, FolderContentsAccessVia)
 	}
 	var folderAuditMeta string
 	if err := f.pool.QueryRow(f.ctx,
-		`SELECT metadata FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata->>'batch_id' = $3`,
+		`SELECT metadata FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'batch_id' = $3`,
 		audit.ActionDocumentContentsAccessUpdated, rootID, syncMerge.BatchID).Scan(&folderAuditMeta); err != nil {
 		t.Fatalf("folder contents_access_updated audit row missing: %v", err)
 	}
@@ -283,7 +287,7 @@ func TestFolderContentsAccessModesAndSubtreeScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sync replace to private: %v", err)
 	}
-	if syncReplace.Changed != 3 || syncReplace.SkippedNotManageable != 1 || syncReplace.SkippedLocked != 1 {
+	if syncReplace.Changed != 3 || syncReplace.SkippedNotManageable != 1 || syncReplace.SkippedLocked != 0 {
 		t.Fatalf("syncReplace = %+v", syncReplace)
 	}
 	p1After := reloadDoc(t, f, page1.ID)
@@ -421,7 +425,7 @@ func TestFolderContentsAccessBackgroundWorkerAndRecovery(t *testing.T) {
 		}
 		var shareAuditCount int
 		if err := f.pool.QueryRow(f.ctx,
-			`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata->>'batch_id' = $3`,
+			`SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2 AND metadata::jsonb->>'batch_id' = $3`,
 			audit.ActionDocumentShared, id, res.BatchID).Scan(&shareAuditCount); err != nil || shareAuditCount != 1 {
 			t.Fatalf("doc %s share audit count = %d (err=%v), want 1 (no duplicate write across chunks)", id, shareAuditCount, err)
 		}
@@ -489,5 +493,42 @@ func TestFolderContentsBatchCompletedEventMatchesCatalogue(t *testing.T) {
 	slices.Sort(wantKeys)
 	if !slices.Equal(gotKeys, wantKeys) {
 		t.Fatalf("%s payload keys = %v, want catalogue keys %v", DocumentAccessBatchCompletedTopic, gotKeys, wantKeys)
+	}
+}
+
+// TestFolderContentsAccessSkipsLockedOwnedDocument covers the skipped_locked
+// decision at the narrow DB-free service seam (UNI-2244 F7): Work Product
+// documents cannot have a parent_id in the database schema, so the owned-row
+// skip branch is verified directly without violating documents_owned_no_parent_check.
+func TestFolderContentsAccessSkipsLockedOwnedDocument(t *testing.T) {
+	var svc DocumentService
+	lockedDoc := db.Document{
+		ID:             util.NewID(),
+		Kind:           DocumentKindPage,
+		OwnerKind:      nullText("work_product"),
+		OwnerID:        nullText(util.NewID()),
+		Visibility:     documentVisibilityRestricted,
+		WorkspaceLevel: string(DocumentLevelView),
+	}
+	if !isFolderContentsDocLocked(lockedDoc) {
+		t.Fatal("isFolderContentsDocLocked(work_product) = false, want true")
+	}
+	plainDoc := db.Document{
+		ID:         util.NewID(),
+		Kind:       DocumentKindPage,
+		Visibility: documentVisibilityRestricted,
+	}
+	if isFolderContentsDocLocked(plainDoc) {
+		t.Fatal("isFolderContentsDocLocked(plainDoc) = true, want false")
+	}
+	out, err := svc.applyFolderContentsAccessToLockedDoc(
+		t.Context(), nil, Human("01USER00000000000000000000"), db.Document{},
+		"01BATCH0000000000000000000", FolderContentsAccessModeMerge, nil, nil, lockedDoc, nil,
+	)
+	if err != nil {
+		t.Fatalf("applyFolderContentsAccessToLockedDoc(lockedDoc): %v", err)
+	}
+	if out.Processed != 1 || out.SkippedLocked != 1 || out.Changed != 0 || out.Unchanged != 0 || out.SkippedNotManageable != 0 {
+		t.Fatalf("lockedDoc outcome = %+v, want Processed=1 SkippedLocked=1", out)
 	}
 }

@@ -23,6 +23,10 @@ type folderContentsOutcome struct {
 	SkippedLocked        int
 }
 
+func isFolderContentsDocLocked(doc db.Document) bool {
+	return doc.OwnerKind.Valid || (doc.OwnerID.Valid && doc.OwnerID.String != "")
+}
+
 func (s *DocumentService) previewFolderContentsAccess(
 	ctx context.Context,
 	actor Actor,
@@ -65,7 +69,7 @@ func (s *DocumentService) previewFolderContentsAccess(
 		if doc.ArchivedAt.Valid || doc.Kind == DocumentKindFolder || isMyFolder(doc) {
 			continue
 		}
-		if doc.OwnerID.Valid && doc.OwnerID.String != "" {
+		if isFolderContentsDocLocked(doc) {
 			skippedLocked++
 			continue
 		}
@@ -431,7 +435,7 @@ func (s *DocumentService) applyFolderContentsAccessToLockedDoc(
 	if doc.ArchivedAt.Valid || doc.Kind == DocumentKindFolder || isMyFolder(doc) {
 		return folderContentsOutcome{}, nil
 	}
-	if doc.OwnerID.Valid && doc.OwnerID.String != "" {
+	if isFolderContentsDocLocked(doc) {
 		return folderContentsOutcome{Processed: 1, SkippedLocked: 1}, nil
 	}
 

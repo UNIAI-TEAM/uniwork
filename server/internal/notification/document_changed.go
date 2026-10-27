@@ -85,13 +85,6 @@ func both(a, b rule) rule {
 	}
 }
 
-// docChangeRule is the rule of a topic whose verb never depends on the row.
-func docChangeRule(verb string) rule {
-	return func(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
-		return documentChangeDrafts(ctx, e, ev, p, verb, docChangeOpts{anyPrivacy: verb == docVerbAccessChanged})
-	}
-}
-
 // ruleDocumentSharedAccessChange and ruleDocumentShareRevokedAccessChange skip
 // per-document document_changed notices when the share write belongs to a
 // folder bulk access batch (metadata.via = "folder_contents", UNI-2244 §6).
