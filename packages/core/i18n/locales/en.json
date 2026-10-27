@@ -300,6 +300,24 @@
         "fixes": {
           "c9f7c3046356c3008e37eaa2c11b3f3f8f3a23541": "Email Hub: after you schedule an email, the open mailbox switches to the account that sends it, the Scheduled folder refreshes when you open it, and the list and the sidebar count update right away."
         }
+      },
+      "v1_11_0": {
+        "title": "Trash for tasks and projects, multi-select in Chat and Ask UNI reads Office files",
+        "summary": "Deleted tasks and projects go to the trash for 30 days, with one shared trash for the whole workspace. Chat lets you select several messages to copy, forward or delete. Ask UNI can read the text in Word, Excel and PowerPoint files in Documents. The meeting room has a new right-hand panel and notes you can edit or delete; Documents opens images right on the page. The Pricing page takes plans and prices from the plan catalog in the app.",
+        "note": "Ask UNI and the MCP connector need the organization's AI features to be set up, and only read documents you have access to. Selecting several messages is not yet available in the UniChat phone app.",
+        "features": {
+          "c1806f58e5085aff30d6df82bb89a5016a8372ff7": "Documents: image files open in a view-only viewer right on the page, with a zoom slider, instead of only a download card; opening an image is logged as a view in the access log. The UniWork Office page (/apps/office) gains a download section: pick a release channel, your operating system is preselected, install steps for each operating system, installing with apt, release notes and the version history.",
+          "c6170e52b6303ce4f1b355da788e2e88b40f8f8a7": "Deleting a task or project now moves it to the trash for 30 days instead of removing it right away: a deleted task takes its subtasks with it, a deleted project keeps its tasks and reattaches them when restored, and an Undo button shows for 10 seconds; items older than 30 days are deleted permanently. A shared trash opens from the avatar menu › Trash (Settings › Workspace › Trash) and brings tasks, projects and documents together, with filters by name (typing without Vietnamese accents still matches), type and who deleted it; each row has Restore and Delete permanently, following each type's permissions. The separate Trash buttons on the Tasks and Projects pages are gone; Documents keeps its own trash. Also: table row lines are easier to see in dark mode, and creating a task no longer fails when the project remembered from last time was deleted.",
+          "ca2f978c3f4a333d2077ea2efc12da4d529c1a08d": "Chat: select several messages with Select in a message's menu, then copy the selected messages as text, forward them, or delete the ones you sent (with a confirmation first). A conversation's custom wallpaper no longer reloads every time the room list refreshes.",
+          "c55a0ab3e61e9836c1202fd055f9fff991ad5d962": "Ask UNI can read the text in Word, Excel, PowerPoint and OpenDocument files (docx, xlsx, pptx, odt) stored in Documents, paragraph by paragraph, row by row and slide by slide; the MCP connector for outside AI assistants reads them the same way. Ask UNI can also browse the items in a folder of the workspace you are asking from. PDF files, files larger than 20 MiB and damaged files still return only the file name and type, with the reason."
+        },
+        "improvements": {
+          "c0a454a4d96fee86ef8eb10dc6c25b51bc8543b6b": "Meeting room: the right-hand panel is redesigned with a row of UNI, Chat, People and Votes tabs with badges, and the UNI tab has filters by type and a new Ask/Note input; on phones the panel opens as a bottom sheet. Meeting notes can now be edited and deleted (deleting asks for confirmation), and an edited note shows \"edited\"; only the author, the host, the meeting clerk or a workspace admin can do this. The ✦ UNI button on the control bar is removed; new UNI messages show as a dot on the button that opens the panel.",
+          "cad0a7e7d964c14765e525e02083097d1eb8721e4": "The Pricing page shows plans, prices, limits and features straight from the plan catalog published in the app instead of hand-written copy, so it matches Billing; it adds a feature comparison by plan and says clearly when prices are loading or could not be loaded."
+        },
+        "fixes": {
+          "cf9e65a0f7a8a8387d6ddf7ba8acee85c6c039c63": "VNPay payments: when you come back from VNPay without completing the payment, the Billing page shows it as cancelled right away instead of waiting for confirmation."
+        }
       }
     }
   },
