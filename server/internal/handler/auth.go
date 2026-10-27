@@ -217,7 +217,7 @@ func classifyServiceError(err error) serviceFailure {
 	case errors.Is(err, service.ErrDriveProposalNotReady):
 		return serviceFailure{status: http.StatusConflict, code: sdo.DriveErrProposalNotReady, msg: "Đề xuất công việc này đã được xử lý hoặc đã hủy."}
 	case errors.Is(err, service.ErrDriveProposalExpired):
-		return serviceFailure{status: http.StatusConflict, code: sdo.DriveErrProposalExpired, msg: "Đề xuất công việc này đã hết hạn. Vui lòng tạo đề xuất mới."}
+		return serviceFailure{status: http.StatusGone, code: sdo.DriveErrProposalExpired, msg: "Đề xuất công việc này đã hết hạn. Vui lòng tạo đề xuất mới."}
 	case errors.Is(err, service.ErrDriveProposalItemAlreadyConverted):
 		return serviceFailure{status: http.StatusConflict, code: sdo.DriveErrProposalItemAlreadyConverted, msg: "Mục đề xuất này đã được tạo thành công việc."}
 	case errors.Is(err, service.ErrCalendarProviderNotConfigured):

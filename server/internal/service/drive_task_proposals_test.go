@@ -161,12 +161,12 @@ func TestDriveProposalSeamHelpersAndOrgLifecycleDiscards(t *testing.T) {
 //   - Full rollback when any step fails (no tasks, no dependencies, no links,
 //     proposal remains ready with items intact).
 //   - Proposal state transitions (status=converted, items=NULL), 409 proposal_not_ready
-//     on second submit or after discard, 409 proposal_expired after expires_at,
+//     on second submit or after discard, 410 proposal_expired after expires_at,
 //     and 409 drive_source_changed when connection/file/access changed.
 //   - Concurrent double-submit serialization via FOR UPDATE (1 x success, 1 x 409 proposal_not_ready).
-//   - Audit rows and outbox events (task.created, task.updated for dependencies,
-//     task.drive_file_linked + drive_file.task_linked per task, and
-//     drive_task_proposal.tasks_created + drive_file.updated with zero document text).
+//   - Audit rows and outbox events (task.created with source="drive_task_proposal" and drive_file_id,
+//     task.updated for dependencies, task.drive_file_linked + drive_file.task_linked per task, and
+//     drive_task_proposal.tasks_created + drive_task_proposal.converted with zero document text).
 func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testing.T) {
 	e := newDriveFilesTestEnv(t)
 	ctx := context.Background()
@@ -339,7 +339,7 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 		t.Fatalf("created.Items = %+v, TaskIDs = %+v", created.Items, created.TaskIDs)
 	}
 
-	// Verify origin_type and origin_id on created tasks.
+	// Verify origin_type, origin_id, and single task.created audit row with source="drive_task_proposal" and drive_file_id on each created task.
 	for _, tid := range created.TaskIDs {
 		taskRow, terr := e.taskSvc.Get(ctx, e.owner.ID, tid)
 		if terr != nil {
@@ -347,6 +347,21 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 		}
 		if taskRow.OriginType.String != "drive_task_proposal" || taskRow.OriginID.String != prop.ID {
 			t.Fatalf("task %s origin = (%q, %q), want (drive_task_proposal, %s)", tid, taskRow.OriginType.String, taskRow.OriginID.String, prop.ID)
+		}
+		var taskCreatedCount int
+		var rawTaskMeta []byte
+		if err := e.pool.QueryRow(ctx,
+			`SELECT count(*), min(metadata::text)::bytea FROM audit_events WHERE organization_id = $1 AND action = 'task.created' AND resource_type = 'task' AND resource_id = $2`,
+			e.org.ID, tid,
+		).Scan(&taskCreatedCount, &rawTaskMeta); err != nil || taskCreatedCount != 1 {
+			t.Fatalf("task.created audit count for %s = %d (err=%v), want 1", tid, taskCreatedCount, err)
+		}
+		var taskMeta map[string]any
+		if err := json.Unmarshal(rawTaskMeta, &taskMeta); err != nil {
+			t.Fatalf("unmarshal task.created metadata (%s): %v", tid, err)
+		}
+		if taskMeta["source"] != "drive_task_proposal" || taskMeta["drive_file_id"] != fileID {
+			t.Fatalf("task.created (%s) metadata = %+v, want source=\"drive_task_proposal\" drive_file_id=%q", tid, taskMeta, fileID)
 		}
 	}
 
@@ -377,7 +392,8 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 		t.Fatalf("proposal after convert: status=%q items=%v, want converted and nil", propStatus, propItems)
 	}
 
-	// Verify audit row drive_task_proposal.tasks_created carries metadata and zero doc text.
+	// Verify audit row drive_task_proposal.tasks_created carries all 6 required keys and zero doc text,
+	// and outbox row drive_task_proposal.converted {proposal_id, workspace_id} is emitted.
 	var rawMeta []byte
 	if err := e.pool.QueryRow(ctx,
 		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = 'drive_task_proposal.tasks_created' AND resource_id = $2`,
@@ -388,10 +404,28 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 	if strings.Contains(string(rawMeta), "SECRET_B6_DOC_CONTENT_DO_NOT_LEAK") {
 		t.Fatalf("audit metadata leaked document content: %s", string(rawMeta))
 	}
-	var meta map[string]any
-	_ = json.Unmarshal(rawMeta, &meta)
-	if meta["drive_file_id"] != fileID || meta["google_email"] != "b6-owner@example.com" || meta["google_sub"] != "sub-b6-owner" {
-		t.Fatalf("audit metadata = %+v", meta)
+	var meta struct {
+		DriveFileID string   `json:"drive_file_id"`
+		Count       *int     `json:"count"`
+		ItemIndexes []int    `json:"item_indexes"`
+		TaskIDs     []string `json:"task_ids"`
+		GoogleEmail string   `json:"google_email"`
+		GoogleSub   string   `json:"google_sub"`
+	}
+	if err := json.Unmarshal(rawMeta, &meta); err != nil {
+		t.Fatalf("unmarshal drive_task_proposal.tasks_created metadata: %v", err)
+	}
+	if meta.DriveFileID != fileID || meta.Count == nil || *meta.Count != 2 ||
+		!reflect.DeepEqual(meta.ItemIndexes, []int{0, 2}) || !reflect.DeepEqual(meta.TaskIDs, created.TaskIDs) ||
+		meta.GoogleEmail != "b6-owner@example.com" || meta.GoogleSub != "sub-b6-owner" {
+		t.Fatalf("drive_task_proposal.tasks_created metadata = %s, want drive_file_id=%q count=2 item_indexes=[0 2] task_ids=%v", string(rawMeta), fileID, created.TaskIDs)
+	}
+	var convertedOutboxCount int
+	if err := e.pool.QueryRow(ctx,
+		`SELECT count(*) FROM outbox_events WHERE topic = 'drive_task_proposal.converted' AND payload::jsonb @> jsonb_build_object('proposal_id', $1::text, 'workspace_id', $2::text)`,
+		prop.ID, e.wsA.ID,
+	).Scan(&convertedOutboxCount); err != nil || convertedOutboxCount != 1 {
+		t.Fatalf("outbox drive_task_proposal.converted count = %d (err=%v), want 1", convertedOutboxCount, err)
 	}
 
 	// 5. Re-submitting the converted proposal returns 409 proposal_not_ready.
@@ -401,7 +435,7 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 		t.Fatalf("resubmit converted proposal = %v, want 409 proposal_not_ready", err)
 	}
 
-	// 6. Expired proposal returns 409 proposal_expired.
+	// 6. Expired proposal returns 410 proposal_expired.
 	propExp, err := propSvc.Propose(ctx, Human(e.owner.ID), e.wsA.ID, fileID, ProposeDriveTasksInput{})
 	if err != nil {
 		t.Fatalf("Propose for expiry: %v", err)
@@ -411,8 +445,8 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 	}
 	if _, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, propExp.ID, CreateTasksFromProposalInput{
 		Items: []CreateTasksFromProposalItemInput{{Index: 0, Title: "Expired"}},
-	}); !isCodedError(err, http.StatusConflict, "proposal_expired") {
-		t.Fatalf("expired proposal = %v, want 409 proposal_expired", err)
+	}); !isCodedError(err, http.StatusGone, "proposal_expired") {
+		t.Fatalf("expired proposal = %v, want 410 proposal_expired", err)
 	}
 
 	// 7. Concurrent double-submit on a ready proposal: exactly one succeeds (201), one gets 409 proposal_not_ready.
@@ -747,5 +781,16 @@ func TestValidateAndNormalizeProposalCreateItemsUnit(t *testing.T) {
 	}
 	if !reflect.DeepEqual(batch.orderedItems[2].BlockedByIndexes, []int{0, 2}) || !batch.taskInputs[2].AllowDuplicate {
 		t.Fatalf("orderedItems[2] = %+v, taskInputs[2] = %+v", batch.orderedItems[2], batch.taskInputs[2])
+	}
+
+	// 8. Coded error constructors: expired proposal maps to HTTP 410 Gone (proposal_expired).
+	if err := errDriveProposalExpired(); !isCodedError(err, http.StatusGone, "proposal_expired") || !errors.Is(err, ErrDriveProposalExpired) {
+		t.Fatalf("errDriveProposalExpired() = %v, want 410 proposal_expired wrapping ErrDriveProposalExpired", err)
+	}
+	if err := errDriveProposalNotReady(); !isCodedError(err, http.StatusConflict, "proposal_not_ready") || !errors.Is(err, ErrDriveProposalNotReady) {
+		t.Fatalf("errDriveProposalNotReady() = %v, want 409 proposal_not_ready", err)
+	}
+	if err := errDriveProposalItemAlreadyConverted(); !isCodedError(err, http.StatusConflict, "proposal_item_already_converted") || !errors.Is(err, ErrDriveProposalItemAlreadyConverted) {
+		t.Fatalf("errDriveProposalItemAlreadyConverted() = %v, want 409 proposal_item_already_converted", err)
 	}
 }

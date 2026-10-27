@@ -858,7 +858,7 @@ func TestDriveProposalErrorMappings(t *testing.T) {
 //   - 409 active_duplicate_task with fields.item_indexes, and allow_duplicate override.
 //   - 422 parent_cycle on cyclic blocked_by_indexes.
 //   - 400 invalid_request on unselected blocked_by_indexes or out-of-range index.
-//   - 409 proposal_not_ready on second submit, 409 proposal_expired on expired proposal,
+//   - 409 proposal_not_ready on second submit, 410 proposal_expired on expired proposal,
 //     and 409 drive_source_changed when the caller's access is lost before convert.
 //   - tasks_created and task_creations / prior_creations populated on GET /drive-files,
 //     GET /drive-files/{id}, GET /tasks/{id}/drive-files, and subsequent POST /task-proposals.
@@ -999,6 +999,21 @@ func TestCreateTasksFromDriveProposalHTTPAndProvenance(t *testing.T) {
 	prop2Obj := jsonMap(prop2Out, "proposal")
 	if jsonMap(prop2Obj, "tasks_created")["count"] != float64(2) || len(jsonArray(prop2Obj, "prior_creations")) != 1 {
 		t.Fatalf("second proposal prior_creations = %v / %v, want count=2 and 1 group", jsonMap(prop2Obj, "tasks_created"), jsonArray(prop2Obj, "prior_creations"))
+	}
+
+	// Expired proposal -> 410 proposal_expired.
+	propExpRes, propExpOut := doJSON(t, e.srv, "POST", proposePath, e.ownerTk, map[string]any{})
+	if propExpRes.StatusCode != http.StatusCreated {
+		t.Fatalf("POST expired task-proposals = %d %v, want 201", propExpRes.StatusCode, propExpOut)
+	}
+	propExpID := jsonStr(jsonMap(propExpOut, "proposal"), "id")
+	if _, err := e.pool.Exec(context.Background(), `UPDATE drive_task_proposals SET expires_at = now() - interval '1 minute' WHERE id = $1`, propExpID); err != nil {
+		t.Fatalf("expire proposal %s: %v", propExpID, err)
+	}
+	if r, o := doJSON(t, e.srv, "POST", fmt.Sprintf("/api/v1/workspaces/%s/drive-task-proposals/%s/tasks", e.wsID, propExpID), e.ownerTk, map[string]any{
+		"items": []any{map[string]any{"index": 0, "title": "After expiry", "description": "D"}},
+	}); r.StatusCode != http.StatusGone || jsonErrCode(o) != sdo.DriveErrProposalExpired {
+		t.Fatalf("POST tasks on expired proposal = %d %v, want 410 proposal_expired", r.StatusCode, o)
 	}
 
 	// Mark access lost on fileID -> POST .../tasks on prop2 returns 409 drive_source_changed.

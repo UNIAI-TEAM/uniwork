@@ -189,6 +189,10 @@ func (s *DriveTaskProposalService) CreateTasksFromProposal(
 				normalizedItems.taskInputs[i].OriginType = driveProposalOriginType
 				normalizedItems.taskInputs[i].OriginID = &originID
 				normalizedItems.taskInputs[i].AllowDuplicate = in.AllowDuplicate || normalizedItems.orderedItems[i].AllowDuplicate
+				normalizedItems.taskInputs[i].AuditMetadata = map[string]any{
+					"source":        driveProposalOriginType,
+					"drive_file_id": locked.DriveFileID,
+				}
 			}
 
 			if !in.AllowDuplicate {
@@ -294,7 +298,7 @@ func (s *DriveTaskProposalService) CreateTasksFromProposal(
 				return err
 			}
 
-			// 4. Record drive_task_proposal.tasks_created and emit drive_file.updated in the same transaction.
+			// 4. Record drive_task_proposal.tasks_created and emit drive_task_proposal.converted in the same transaction.
 			if err := auditRecorder.Record(ctx, q, audit.Entry{
 				OrganizationID: ws.OrganizationID,
 				WorkspaceID:    ws.ID,
@@ -308,15 +312,16 @@ func (s *DriveTaskProposalService) CreateTasksFromProposal(
 					"connection_id":   locked.ConnectionID,
 					"google_email":    googleEmail,
 					"google_sub":      googleSub,
+					"count":           len(taskIDs),
 					"task_ids":        taskIDs,
 					"item_indexes":    itemIndexes,
 				},
 			}, audit.Event{
-				Topic:   "drive_file.updated",
+				Topic:   "drive_task_proposal.converted",
 				Version: 1,
 				Payload: map[string]string{
-					"drive_file_id": fileRow.ID,
-					"workspace_id":  ws.ID,
+					"proposal_id":  locked.ID,
+					"workspace_id": ws.ID,
 				},
 			}); err != nil {
 				return err
@@ -680,7 +685,7 @@ func errDriveProposalNotReady() error {
 func errDriveProposalExpired() error {
 	return CodedError{
 		Code:   "proposal_expired",
-		Status: http.StatusConflict,
+		Status: http.StatusGone,
 		Msg:    "Đề xuất công việc này đã hết hạn. Vui lòng tạo đề xuất mới.",
 		Err:    ErrDriveProposalExpired,
 	}

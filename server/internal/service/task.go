@@ -79,6 +79,8 @@ type CreateTaskInput struct {
 	Properties    map[string]json.RawMessage
 	// AllowDuplicate skips the active-title guard (CLI / explicit override).
 	AllowDuplicate bool
+	// AuditMetadata, when non-empty, is recorded on the task.created audit entry (e.g. Drive proposal provenance, spec §8.5).
+	AuditMetadata map[string]any
 
 	// order is set by CreateManyWith when the batch keeps its input order.
 	order *createOrder
@@ -624,7 +626,8 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		Actor:        actor,
 		Action:       audit.ActionTaskCreated,
 		ResourceType: "task", ResourceID: task.ID,
-		Changes: audit.Diff(nil, taskAuditFields(task)),
+		Changes:  audit.Diff(nil, taskAuditFields(task)),
+		Metadata: in.AuditMetadata,
 	}, emit...); err != nil {
 		return db.Task{}, err
 	}
