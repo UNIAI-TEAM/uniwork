@@ -62,7 +62,7 @@ export function useNameDriveFolderFlow(wsId: string, adapter?: DrivePickerAdapte
   const nameFolder = useCallback(
     (folderId: string, connectionId: string) => {
       wantedRef.current = folderId;
-      open({ connectionId, folder: { parentId: folderId } });
+      open({ connectionId, folder: true });
     },
     [open],
   );

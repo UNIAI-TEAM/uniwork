@@ -192,7 +192,7 @@ export interface DrivePickerOpenRequest {
    * Folder mode ("Name this folder"): the Picker is limited to folders and selects one, never links
    * and never asks the task confirmation; `onPicked` receives the picked folder (single pick).
    */
-  folder?: { parentId?: string };
+  folder?: boolean;
 }
 
 export interface UseDrivePickerOptions {

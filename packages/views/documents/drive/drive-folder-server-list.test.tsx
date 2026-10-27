@@ -307,7 +307,7 @@ describe("Name this folder", () => {
 
     await waitFor(() => expect(namePosts()).toHaveLength(1));
     expect(adapter.calls).toHaveLength(1);
-    expect(adapter.calls[0]).toMatchObject({ selectFolder: { parentId: UNNAMED.id }, multiselect: false });
+    expect(adapter.calls[0]).toMatchObject({ selectFolder: true, multiselect: false });
     expect(String(namePosts()[0]![0])).toBe(`${FOLDERS_URL}/${UNNAMED.id}/name`);
     expect((namePosts()[0]![1] as { body: unknown }).body).toEqual({ drive_connection_id: "conn1" });
     await waitFor(() => expect(success).toHaveBeenCalledWith(t("driveLibrary.folder.name_done")));
@@ -367,7 +367,7 @@ describe("nameFolder=1", () => {
     const { nav } = renderList(`${UNNAMED_URL}&nameFolder=1`, UNNAMED.id, adapter);
 
     await waitFor(() => expect(adapter.calls).toHaveLength(1));
-    expect(adapter.calls[0]).toMatchObject({ selectFolder: { parentId: UNNAMED.id } });
+    expect(adapter.calls[0]).toMatchObject({ selectFolder: true });
     expect(nav.replace).toHaveBeenCalledTimes(1);
     const url = String(vi.mocked(nav.replace).mock.calls[0]![0]);
     expect(url).not.toContain("nameFolder");

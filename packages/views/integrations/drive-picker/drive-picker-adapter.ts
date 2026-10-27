@@ -32,10 +32,10 @@ export interface DrivePickerOpenOptions {
   multiselect?: boolean;
   title?: string;
   /**
-   * Folder mode ("Name this folder"): one folder-only view where a folder can be selected, optionally
-   * opened inside `parentId`. `fileIds` is ignored.
+   * Folder mode ("Name this folder"): the same three views as the file mode (My Drive, Shared with me,
+   * Shared Drives), listing folders only and letting a folder be selected. `fileIds` is ignored.
    */
-  selectFolder?: { parentId?: string };
+  selectFolder?: boolean;
 }
 
 export type DrivePickerOpenResult =
@@ -63,7 +63,6 @@ interface GoogleDocsViewInstance {
   setEnableDrives(enabled: boolean): GoogleDocsViewInstance;
   setFileIds(ids: string): GoogleDocsViewInstance;
   setMimeTypes(mimeTypes: string): GoogleDocsViewInstance;
-  setParent(parentId: string): GoogleDocsViewInstance;
 }
 
 interface GooglePickerBuilderInstance {
@@ -321,12 +320,11 @@ function configureNoFolderSelection(view: GoogleDocsViewInstance): GoogleDocsVie
 
 const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 
-/** A single view limited to folders, where a folder itself can be selected (Name this folder). */
-function configureFolderSelection(view: GoogleDocsViewInstance, parentId?: string): GoogleDocsViewInstance {
+/** A view limited to folders, where a folder itself can be selected (Name this folder). */
+function configureFolderSelection(view: GoogleDocsViewInstance): GoogleDocsViewInstance {
   view.setIncludeFolders?.(true);
   view.setSelectFolderEnabled?.(true);
   view.setMimeTypes?.(FOLDER_MIME_TYPE);
-  if (parentId) view.setParent?.(parentId);
   return view;
 }
 
@@ -369,35 +367,25 @@ export const googleDrivePickerAdapter: DrivePickerAdapter = {
       }
 
       const fileIds = (options.fileIds ?? []).filter((id) => id.trim().length > 0);
-      if (options.selectFolder) {
-        builder.addView(
-          configureFolderSelection(new picker.DocsView(picker.ViewId?.DOCS), options.selectFolder.parentId),
-        );
-      } else if (fileIds.length > 0) {
+      if (!options.selectFolder && fileIds.length > 0) {
         const preselectedView = configureNoFolderSelection(
           new picker.DocsView(picker.ViewId?.DOCS),
         );
         preselectedView.setFileIds?.(fileIds.join(","));
         builder.addView(preselectedView);
       } else {
-        // 1. My files (owned by me)
-        const myDriveView = configureNoFolderSelection(
-          new picker.DocsView(picker.ViewId?.DOCS),
-        );
+        // 1. My files (owned by me), 2. Shared with me, 3. Shared Drives. Folder mode only swaps the
+        // per-view setup, so a folder in a Shared Drive or owned by someone else can be picked too.
+        const configure = options.selectFolder ? configureFolderSelection : configureNoFolderSelection;
+        const myDriveView = configure(new picker.DocsView(picker.ViewId?.DOCS));
         myDriveView.setOwnedByMe?.(true);
         builder.addView(myDriveView);
 
-        // 2. Shared with me
-        const sharedWithMeView = configureNoFolderSelection(
-          new picker.DocsView(picker.ViewId?.DOCS),
-        );
+        const sharedWithMeView = configure(new picker.DocsView(picker.ViewId?.DOCS));
         sharedWithMeView.setOwnedByMe?.(false);
         builder.addView(sharedWithMeView);
 
-        // 3. Shared Drives
-        const sharedDrivesView = configureNoFolderSelection(
-          new picker.DocsView(picker.ViewId?.DOCS),
-        );
+        const sharedDrivesView = configure(new picker.DocsView(picker.ViewId?.DOCS));
         sharedDrivesView.setEnableDrives?.(true);
         builder.addView(sharedDrivesView);
       }

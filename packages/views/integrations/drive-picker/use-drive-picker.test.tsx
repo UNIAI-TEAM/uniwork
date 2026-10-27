@@ -1443,7 +1443,7 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
       taskId: "task_1",
       linkHandler,
       onPicked,
-      openRequest: { connectionId: "dc_1", folder: { parentId: "fld_1" } },
+      openRequest: { connectionId: "dc_1", folder: true },
     });
 
     fireEvent.click(screen.getByTestId("open-picker-btn"));
@@ -1451,7 +1451,7 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
     await waitFor(() => expect(onPicked).toHaveBeenCalledTimes(1));
     expect(fakeAdapter.calls[0]).toMatchObject({
       multiselect: false,
-      selectFolder: { parentId: "fld_1" },
+      selectFolder: true,
       title: "Chọn thư mục cần lấy tên",
     });
     expect(onPicked.mock.calls[0]![0]).toMatchObject({ connectionId: "dc_1" });
@@ -1460,7 +1460,7 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("googleDrivePickerAdapter folder mode builds one folder-only view that selects folders inside the parent", async () => {
+  it("googleDrivePickerAdapter folder mode builds the three folder-only views (My Drive, Shared with me, Shared Drives) that select folders", async () => {
     const views: Array<Record<string, unknown>> = [];
     const features: string[] = [];
     class FakeDocsView {
@@ -1477,8 +1477,12 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
         this.state.mimeTypes = v;
         return this;
       }
-      setParent(v: string) {
-        this.state.parent = v;
+      setOwnedByMe(v: boolean) {
+        this.state.ownedByMe = v;
+        return this;
+      }
+      setEnableDrives(v: boolean) {
+        this.state.enableDrives = v;
         return this;
       }
     }
@@ -1520,16 +1524,14 @@ describe("useDrivePicker & DrivePickerAdapter (W3, UNI-2187)", () => {
       locale: "vi",
       multiselect: true,
       fileIds: ["ignored"],
-      selectFolder: { parentId: "fld_9" },
+      selectFolder: true,
     });
 
+    const folderView = { includeFolders: true, selectFolder: true, mimeTypes: "application/vnd.google-apps.folder" };
     expect(views).toEqual([
-      {
-        includeFolders: true,
-        selectFolder: true,
-        mimeTypes: "application/vnd.google-apps.folder",
-        parent: "fld_9",
-      },
+      { ...folderView, ownedByMe: true },
+      { ...folderView, ownedByMe: false },
+      { ...folderView, enableDrives: true },
     ]);
     // One pick only: multiselect is never enabled for a folder.
     expect(features).toEqual(["support_drives"]);
