@@ -144,6 +144,9 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		t.Fatal(err)
 	}
 	authSvc.SetSealer(sealer)
+	orgMembers := service.NewOrganizationMemberService(pool, q, orgs)
+	orgMembers.SetStepUp(authSvc)
+	ws.SetStepUp(authSvc)
 	d := Deps{
 		Cfg:           config.Config{FrontendOrigin: "http://localhost:3000", JWTSecret: "test"},
 		Log:           slog.Default(),
@@ -152,11 +155,12 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Sealer:        sealer,
 		GoogleAuth:    service.NewGoogleAuthService(pool, q, authSvc),
 		SignInTickets: service.NewSignInTicketService(pool, q, authSvc, mail.Renderer{AppURL: "http://localhost:3000"}, out),
+		SignInMethods: service.NewSignInMethodsService(pool, q, authSvc),
 		Verification:  verification,
 		PasswordReset: service.NewPasswordResetService(pool, q, authSvc, mail.Renderer{AppURL: "http://localhost:3000"}, out),
 		Google:        google,
 		Organizations: orgs,
-		OrgMembers:    service.NewOrganizationMemberService(pool, q, orgs),
+		OrgMembers:    orgMembers,
 		People:        service.NewPeopleService(pool, q, orgs),
 		Departments:   service.NewDepartmentService(pool, q, orgs),
 		Workspaces:    ws,

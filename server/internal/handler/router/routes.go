@@ -104,6 +104,13 @@ type Routes struct {
 	RevokeSession       http.HandlerFunc
 	RevokeOtherSessions http.HandlerFunc
 	DeleteAccount       http.HandlerFunc
+	StepUp              http.HandlerFunc
+	StepUpEmailCode     http.HandlerFunc
+	SignInMethods       http.HandlerFunc
+	SetPassword         http.HandlerFunc
+	LinkGoogle          http.HandlerFunc
+	UnlinkGoogle        http.HandlerFunc
+	UnlinkApple         http.HandlerFunc
 	SetAIConsent        http.HandlerFunc
 	WithdrawAIConsent   http.HandlerFunc
 	SetPushPreviews     http.HandlerFunc

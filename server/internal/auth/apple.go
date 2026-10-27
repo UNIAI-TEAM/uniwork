@@ -42,6 +42,9 @@ type AppleClaims struct {
 	// Audience is the bundle id the token was issued to, one of the
 	// configured audiences: the client id the code exchange and the revoke use.
 	Audience string
+	// IssuedAt is the token's iat: a step-up takes only a token the app just
+	// got from Apple's sheet (ADR 0047 §5).
+	IssuedAt time.Time
 }
 
 // AppleVerifier checks a native Sign in with Apple identity token: Apple's
@@ -112,7 +115,7 @@ func (v *AppleVerifier) Verify(ctx context.Context, rawToken, rawNonce string) (
 	}
 	return AppleClaims{
 		Sub: tok.Subject, Email: c.Email, EmailVerified: bool(c.EmailVerified),
-		PrivateEmail: bool(c.PrivateEmail), Audience: audience,
+		PrivateEmail: bool(c.PrivateEmail), Audience: audience, IssuedAt: tok.IssuedAt,
 	}, nil
 }
 

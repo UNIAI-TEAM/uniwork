@@ -34,9 +34,9 @@ const (
 	maxEmailLength = 254
 )
 
-// errEmailClaimTooSoon is 429 rate_limited with retry_after, the whole
-// seconds until the ticket may mail another code.
-func errEmailClaimTooSoon(wait time.Duration) error {
+// errCodeTooSoon is 429 rate_limited with retry_after, the whole seconds
+// until another code may be mailed (a ticket's email claim, a step-up).
+func errCodeTooSoon(wait time.Duration) error {
 	retry := int(math.Ceil(wait.Seconds()))
 	if retry < 1 {
 		retry = 1
@@ -88,7 +88,7 @@ func (s *SignInTicketService) SendEmailClaim(ctx context.Context, sealed string,
 	latest, err := q.GetLatestSignInEmailClaim(ctx, hash)
 	if err == nil {
 		if since := now.Sub(latest.CreatedAt.Time); since < emailClaimResend {
-			return errEmailClaimTooSoon(emailClaimResend - since)
+			return errCodeTooSoon(emailClaimResend - since)
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return err

@@ -103,6 +103,10 @@ func New(d Deps, h Routes) http.Handler {
 		// Native refresh skips it for the same reason: phones behind one
 		// carrier address would share 300 a minute; it has its own
 		// per-device budget under an address ceiling (refreshLimit).
+		// The password and second-factor steps of a sign-in skip it too:
+		// an office behind one NAT signs in on a budget per person under a
+		// ceiling of 600 a minute per address (signInBudgets), which the
+		// global 300 would otherwise cap.
 		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, globalIdentity(d.Minter, d.FrameIdentity))
 		// The scribe agent's routes skip it too (isMeetingAgentPath): one agent
 		// pod sends every meeting it serves from one address; they have their
@@ -111,7 +115,8 @@ func New(d Deps, h Routes) http.Handler {
 		// The folder upload content route skips it too: one folder of 500
 		// files sends 500 PUTs; it has its own per-person budget
 		// (folder-upload-content, 600/min).
-		r.Use(exceptFolderUploadContent(mw.ExceptPaths(global, "/healthz", "/readyz", apiHealthPath, "/mcp", "/api/v1/auth/desktop/refresh", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath)))
+		r.Use(exceptFolderUploadContent(mw.ExceptPaths(global, "/healthz", "/readyz", apiHealthPath, "/mcp", "/api/v1/auth/desktop/refresh",
+			"/api/v1/auth/login", "/api/v1/auth/mfa/verify", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath)))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
 	// Native refresh: per (address, device) under a ceiling per address; the
@@ -128,6 +133,9 @@ func New(d Deps, h Routes) http.Handler {
 		return mw.ClientIP(r, proxies) + ":" + id
 	})
 	refreshLimit := func(next http.Handler) http.Handler { return refreshCeiling(refreshPerDevice(next)) }
+	// The guesses at a secret (a password, a second factor, a signed-in
+	// person's proof) budget per account under a ceiling per address.
+	budgets := newSignInBudgets(d.Redis, proxies, d.Minter)
 	// In-room limiters budget per verified person, not per address: a formal
 	// meeting often sits behind one office NAT. They run after OptionalAuth.
 	inRoom := meetingCaller([]byte(d.Cfg.JWTSecret))
@@ -208,7 +216,7 @@ func New(d Deps, h Routes) http.Handler {
 	root.Route("/api/v1", func(v1 api) {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
 		registerAPIHealth(v1, h)
-		registerAuth(v1, h, credentialLimit, refreshLimit)
+		registerAuth(v1, h, credentialLimit, refreshLimit, budgets)
 		registerDemoRequests(v1, h, mw.RateLimit(d.Redis, 5, time.Hour, proxies))
 		// Outside authed: the provider redirects the popup here with no bearer.
 		registerEmailHubCallback(v1, h, credentialLimit)
@@ -257,10 +265,10 @@ func New(d Deps, h Routes) http.Handler {
 			} else {
 				authed.Use(mw.RequireAuth(d.Minter))
 			}
-			registerMe(authed, h, credentialLimit)
+			registerMe(authed, h, credentialLimit, budgets.stepUp)
 			registerMobileEvents(authed, h)
 			registerConnect(authed, h)
-			registerOrganizations(authed, h)
+			registerOrganizations(authed, h, budgets.stepUp)
 			registerPeople(authed, h)
 			registerDepartments(authed, h)
 			registerWorkspaces(authed, h)

@@ -27,8 +27,10 @@ type MFASetup struct {
 // account proved its address: a second factor set up by whoever registered
 // someone else's address must not exist to survive the owner's reclaim (ADR
 // 0047). ErrConflict while MFA is on: disable first, so a stolen session
-// cannot silently swap the secret.
-func (s *AuthService) SetupTOTP(ctx context.Context, userID string) (MFASetup, error) {
+// cannot silently swap the secret. Then a step-up token of the bearer's
+// session (requireStepUp): a second factor locks the account to whoever
+// holds it, so a stolen session alone must not be able to turn one on.
+func (s *AuthService) SetupTOTP(ctx context.Context, userID, stepUpToken string) (MFASetup, error) {
 	u, err := s.Me(ctx, userID)
 	if err != nil {
 		return MFASetup{}, err
@@ -38,6 +40,9 @@ func (s *AuthService) SetupTOTP(ctx context.Context, userID string) (MFASetup, e
 	}
 	if u.MfaEnabledAt.Valid {
 		return MFASetup{}, ErrConflict
+	}
+	if err := s.requireStepUp(ctx, s.q, userID, stepUpToken); err != nil {
+		return MFASetup{}, err
 	}
 	secret, err := auth.NewTOTPSecret()
 	if err != nil {
@@ -55,9 +60,9 @@ func (s *AuthService) SetupTOTP(ctx context.Context, userID string) (MFASetup, e
 
 // ConfirmTOTP proves the app was enrolled and turns MFA on. The recovery
 // codes are returned exactly once; only their hashes are kept. The same
-// verified-address gate as SetupTOTP: a secret planted before the gate
-// existed is not turned on either.
-func (s *AuthService) ConfirmTOTP(ctx context.Context, userID, code string) ([]string, error) {
+// verified-address gate and step-up as SetupTOTP: a secret planted before
+// the gates existed is not turned on either.
+func (s *AuthService) ConfirmTOTP(ctx context.Context, userID, code, stepUpToken string) ([]string, error) {
 	u, err := s.Me(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -67,6 +72,9 @@ func (s *AuthService) ConfirmTOTP(ctx context.Context, userID, code string) ([]s
 	}
 	if u.MfaEnabledAt.Valid {
 		return nil, ErrConflict
+	}
+	if err := s.requireStepUp(ctx, s.q, userID, stepUpToken); err != nil {
+		return nil, err
 	}
 	if !u.TotpSecret.Valid || !s.totpMatches(u, code) {
 		return nil, ErrInvalidCode
@@ -100,7 +108,8 @@ func (s *AuthService) ConfirmTOTP(ctx context.Context, userID, code string) ([]s
 	return codes, nil
 }
 
-// DisableTOTP turns MFA off after a valid TOTP or recovery code.
+// DisableTOTP turns MFA off after a valid TOTP or recovery code, weighed
+// against the second-factor lockout like every other guess at it.
 func (s *AuthService) DisableTOTP(ctx context.Context, userID, code string) (db.User, error) {
 	u, err := s.Me(ctx, userID)
 	if err != nil {
@@ -109,7 +118,13 @@ func (s *AuthService) DisableTOTP(ctx context.Context, userID, code string) (db.
 	if !u.MfaEnabledAt.Valid {
 		return db.User{}, ErrConflict
 	}
-	if !s.secondFactorMatches(ctx, u, code) {
+	out, err := s.weighProofOnce(ctx, userID, func(q *db.Queries, locked db.User) (bool, error) {
+		return s.secondFactorMatchesQ(ctx, q, locked, code)
+	})
+	if err != nil {
+		return db.User{}, err
+	}
+	if !out.ok {
 		return db.User{}, ErrInvalidCode
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -230,16 +245,11 @@ func (s *AuthService) totpMatches(u db.User, code string) bool {
 	return err == nil && auth.ValidTOTP(secret, code, s.now())
 }
 
-// secondFactorMatches accepts a live TOTP code or burns one recovery code.
-// Six digits can only be TOTP; anything else is tried as a recovery code.
-func (s *AuthService) secondFactorMatches(ctx context.Context, u db.User, code string) bool {
-	ok, err := s.secondFactorMatchesQ(ctx, s.q, u, code)
-	return err == nil && ok
-}
-
-// secondFactorMatchesQ is secondFactorMatches in the caller's transaction,
-// with the failed statement told apart from a wrong code: inside a
-// transaction a failed statement aborts it, so the caller must not commit.
+// secondFactorMatchesQ accepts a live TOTP code or burns one recovery code,
+// in the caller's transaction (weighSecondFactor, weighProofOnce). Six
+// digits can only be TOTP; anything else is tried as a recovery code. A
+// failed statement is told apart from a wrong code: inside a transaction it
+// aborts it, so the caller must not commit.
 func (s *AuthService) secondFactorMatchesQ(ctx context.Context, q *db.Queries, u db.User, code string) (bool, error) {
 	code = strings.TrimSpace(code)
 	if len(code) == 6 && u.TotpSecret.Valid {

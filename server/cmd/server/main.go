@@ -206,6 +206,10 @@ func main() {
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
 	authSvc.SetMail(renderer, mailOutbox)
 	authSvc.SetSealer(sealer)
+	// The hand-overs (transfer, the invitation switch) take the owner's proof
+	// through the one step-up checker (ADR 0047 §5).
+	orgMemberSvc.SetStepUp(authSvc)
+	wsSvc.SetStepUp(authSvc)
 	desktopAuthSvc := service.NewDesktopAuthService(pool, q, minter, cfg)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, mailOutbox)
 	var conference meetings.ConferenceProvider
@@ -862,6 +866,7 @@ func main() {
 		PasswordReset:       passwordReset,
 		GoogleAuth:          service.NewGoogleAuthService(pool, q, authSvc),
 		SignInTickets:       service.NewSignInTicketService(pool, q, authSvc, renderer, mailOutbox),
+		SignInMethods:       service.NewSignInMethodsService(pool, q, authSvc),
 		Sealer:              sealer,
 		Google:              google,
 		Organizations:       orgSvc,

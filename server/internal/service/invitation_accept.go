@@ -27,14 +27,17 @@ type AcceptResult struct {
 
 // SwitchResolution is what the person chose to do with one organization that
 // stands between them and the invitation (spec §4.4). Action is the conflict's
-// required_action; a transfer names the new owner and carries the password, a
-// close carries the organization's slug typed back.
+// required_action; a transfer names the new owner and carries the owner's
+// proof, a close carries the organization's slug typed back.
 type SwitchResolution struct {
 	OrganizationID   string
 	Action           string
 	TransferToUserID string
-	Password         string
-	ConfirmSlug      string
+	// StepUpToken (or, from shipped apps, Password) proves the owner before
+	// a transfer hands the organization over (OwnerProof).
+	StepUpToken string
+	Password    string
+	ConfirmSlug string
 }
 
 // sameMailbox: addresses are stored lower-cased, so the comparison is exact.
@@ -180,13 +183,13 @@ func (s *WorkspaceService) AcceptInvite(ctx context.Context, userID, token strin
 	if err != nil {
 		return AcceptResult{}, err
 	}
-	// The password is checked before the transaction, as TransferOwnership
-	// does, so no row lock is held across bcrypt. An invitation that no
-	// longer admits anybody answers that instead.
+	// The owner's proof is checked before the transaction, as
+	// TransferOwnership does, so no row lock is held across it. An
+	// invitation that no longer admits anybody answers that instead.
 	if invitationStatus(inv.AcceptedAt, inv.RevokedAt, inv.ExpiresAt) == InvitationPending {
 		for _, r := range resolve {
 			if r.Action == SwitchActionTransfer {
-				if err := checkOwnerPassword(ctx, s.q, userID, r.Password); err != nil {
+				if err := s.members.stepUp.proveOwner(ctx, userID, OwnerProof{StepUpToken: r.StepUpToken, Password: r.Password}); err != nil {
 					return AcceptResult{}, err
 				}
 				break

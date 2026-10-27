@@ -12,10 +12,10 @@ import (
 // tag: auth — public session routes (no Bearer).
 //
 //	POST   /api/v1/auth/register   (same-site JSON, credential rate limit)
-//	POST   /api/v1/auth/login      (same-site JSON, credential rate limit)
+//	POST   /api/v1/auth/login      (same-site JSON, sign-in-password budget)
 //	POST   /api/v1/auth/password/forgot  (credential rate limit)
 //	POST   /api/v1/auth/password/reset   (same-site JSON, credential rate limit)
-//	POST   /api/v1/auth/mfa/verify   (same-site JSON, credential rate limit)
+//	POST   /api/v1/auth/mfa/verify   (same-site JSON, sign-in-mfa budget)
 //	POST   /api/v1/auth/refresh
 //	POST   /api/v1/auth/logout
 //	GET    /api/v1/auth/providers
@@ -31,8 +31,10 @@ import (
 // Same-site JSON (mw.SameSiteJSON) is the login-CSRF guard of every public
 // route that opens a session or spends a sign-in cookie (ADR 0047 §9). It
 // runs before the budget, so what another site makes a browser send never
-// spends that browser's address's budget.
-func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Handler) http.Handler) {
+// spends that browser's address's budget. A password and a second factor
+// are guessed on their named budgets (signInBudgets), the rest of the doors
+// on the credential budget.
+func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Handler) http.Handler, budgets signInBudgets) {
 	sessionDoor := v1.With(mw.SameSiteJSON, credentialLimit)
 	sessionDoor.Post("/auth/register", h.Register, apiOp{
 		summary:     "Register",
@@ -41,9 +43,9 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 		sdi:         sdi.RegisterSDI{},
 		sdo:         sdo.SessionSDO{},
 	})
-	sessionDoor.Post("/auth/login", h.Login, apiOp{
+	v1.With(mw.SameSiteJSON, budgets.password).Post("/auth/login", h.Login, apiOp{
 		summary:     "Login",
-		description: "Đổi email và mật khẩu lấy access token cùng cookie refresh. Tài khoản bật MFA nhận {mfa_required:true, mfa_token} thay cho phiên. Đăng nhập thành công xoá cookie vé uniwork_sign_in_ticket, trừ khi keep_sign_in_ticket (đăng nhập để liên kết Google/Apple đang chờ). Chỉ nhận body application/json và từ chối Sec-Fetch-Site: cross-site (403 cross_site_request; body khác JSON → 415 unsupported_media_type) để chống login CSRF.",
+		description: "Đổi email và mật khẩu lấy access token cùng cookie refresh. Tài khoản bật MFA nhận {mfa_required:true, mfa_token} thay cho phiên. Đăng nhập thành công xoá cookie vé uniwork_sign_in_ticket, trừ khi keep_sign_in_ticket (đăng nhập để liên kết Google/Apple đang chờ). Chỉ nhận body application/json và từ chối Sec-Fetch-Site: cross-site (403 cross_site_request; body khác JSON → 415 unsupported_media_type) để chống login CSRF. Ngân sách sign-in-password: 20 lần/phút theo địa chỉ + email, dưới trần 600/phút theo địa chỉ (429 rate_limited).",
 		tags:        []string{"auth"},
 		sdi:         sdi.LoginSDI{},
 		sdo:         sdo.SessionSDO{},
@@ -62,9 +64,9 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 		sdi:         sdi.ResetPasswordSDI{},
 		sdo:         sdo.SessionSDO{},
 	})
-	sessionDoor.Post("/auth/mfa/verify", h.MFAVerify, apiOp{
+	v1.With(mw.SameSiteJSON, budgets.mfa).Post("/auth/mfa/verify", h.MFAVerify, apiOp{
 		summary:     "Verify MFA",
-		description: "Bước hai của đăng nhập trên web: đổi mfa_token (body hoặc cookie uniwork_mfa) cùng mã TOTP hoặc mã khôi phục lấy phiên. Chỉ nhận token thử thách của kênh web (token của app → 401 invalid_credentials). Mười lần sai liên tiếp khoá bước hai 15 phút và gửi mail cho chủ tài khoản; trong lúc khoá → 429 second_factor_locked kèm retry_after. Token mang liên kết Google/Apple đang chờ thì liên kết được ghi cùng giao dịch mở phiên; không ghi được thì vẫn đăng nhập và trả link_skipped (ADR 0047). Xoá cookie vé uniwork_sign_in_ticket trừ khi keep_sign_in_ticket. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site.",
+		description: "Bước hai của đăng nhập trên web: đổi mfa_token (body hoặc cookie uniwork_mfa) cùng mã TOTP hoặc mã khôi phục lấy phiên. Chỉ nhận token thử thách của kênh web (token của app → 401 invalid_credentials). Mười lần sai liên tiếp khoá bước hai 15 phút và gửi mail cho chủ tài khoản; trong lúc khoá → 429 second_factor_locked kèm retry_after. Token mang liên kết Google/Apple đang chờ thì liên kết được ghi cùng giao dịch mở phiên; không ghi được thì vẫn đăng nhập và trả link_skipped (ADR 0047). Xoá cookie vé uniwork_sign_in_ticket trừ khi keep_sign_in_ticket. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site. Ngân sách sign-in-mfa: 10 lần/phút theo địa chỉ + tài khoản của token thử thách, dưới trần 600/phút theo địa chỉ.",
 		tags:        []string{"auth"},
 		sdi:         sdi.MFAVerifySDI{},
 		sdo:         sdo.SessionSDO{},
@@ -89,14 +91,14 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	})
 	v1.With(credentialLimit).Get("/auth/google/start", h.GoogleStart, apiOp{
 		summary:     "Start Google sign-in",
-		description: "Ghi cookie niêm phong uniwork_oauth_state (state, nonce, PKCE verifier, next, intent) rồi chuyển tới Google với PKCE S256, nonce và prompt=select_account (ADR 0047). Query next là đường dẫn cùng origin sau khi đăng nhập; intent=sign_up (trang đăng ký) tạo tài khoản ngay khi không khớp tài khoản nào.",
+		description: "Ghi cookie niêm phong uniwork_oauth_state (state, nonce, PKCE verifier, next, intent) rồi chuyển tới Google với PKCE S256, nonce và prompt=select_account (ADR 0047). Query next là đường dẫn cùng origin sau khi đăng nhập; intent=sign_up (trang đăng ký) tạo tài khoản ngay khi không khớp tài khoản nào. intent=link kèm link_token (từ POST /me/sign-in-methods/google/link): chỉ bắt đầu khi cookie refresh của trình duyệt thuộc đúng phiên đã xin token, không thì 303 về return_to với sign_in_method=google&result=session_mismatch (token hỏng/hết hạn: result=failed).",
 		tags:        []string{"auth"},
 		sdi:         sdi.GoogleStartSDI{},
 		status:      302,
 	})
 	v1.With(credentialLimit).Get("/auth/google/callback", h.GoogleCallback, apiOp{
 		summary:     "Google sign-in callback",
-		description: "Kiểm state, đổi mã Google kèm PKCE verifier, kiểm nonce của ID token, khớp tài khoản theo quy tắc chung (ADR 0047) rồi 303: phiên → cookie refresh và /auth/callback?next= (reclaimed=1 khi vừa lấy lại tài khoản; xoá cookie vé trừ khi next là /auth/continue?step=link); cần MFA → cookie uniwork_mfa (token mang liên kết đang chờ khi email khớp tài khoản đã xác minh; liên kết chỉ ghi sau bước hai) và /login?mfa=1&next=; không khớp tài khoản nào (intent sign_in) hoặc email đã có tài khoản mà danh tính chưa được tự liên kết → cookie vé uniwork_sign_in_ticket (15 phút) và màn chọn /auth/continue?next=, không tạo tài khoản; lỗi → /login?error=<mã>&next= (google_denied, google_failed, google_unverified, sign_in_conflict, sign_in_account_unverified).",
+		description: "Kiểm state, đổi mã Google kèm PKCE verifier, kiểm nonce của ID token, khớp tài khoản theo quy tắc chung (ADR 0047) rồi 303: phiên → cookie refresh và /auth/callback?next= (reclaimed=1 khi vừa lấy lại tài khoản; xoá cookie vé trừ khi next là /auth/continue?step=link); cần MFA → cookie uniwork_mfa (token mang liên kết đang chờ khi email khớp tài khoản đã xác minh; liên kết chỉ ghi sau bước hai) và /login?mfa=1&next=; không khớp tài khoản nào (intent sign_in) hoặc email đã có tài khoản mà danh tính chưa được tự liên kết → cookie vé uniwork_sign_in_ticket (15 phút) và màn chọn /auth/continue?next=, không tạo tài khoản; lỗi → /login?error=<mã>&next= (google_denied, google_failed, google_unverified, sign_in_conflict, sign_in_account_unverified). Liên kết từ Cài đặt (intent=link): kiểm lại cookie refresh thuộc đúng phiên đã bắt đầu, liên kết vào tài khoản đó (audit via settings) rồi 303 về return_to với sign_in_method=google&result=linked|denied|failed|taken|movable|already_linked|session_mismatch (taken/movable kèm masked_email; movable còn để cookie vé để Cài đặt xác nhận chuyển qua POST /auth/sign-in-ticket/link {move:true, step_up_token}).",
 		tags:        []string{"auth"},
 		sdi:         sdi.GoogleCallbackSDI{},
 		status:      303,
@@ -160,7 +162,7 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 func registerSignInTicketLink(authed api, h Routes, credentialLimit func(http.Handler) http.Handler) {
 	authed.With(mw.SameSiteJSON, credentialLimit).Post("/auth/sign-in-ticket/link", h.SignInTicketLink, apiOp{
 		summary:     "Link the pending sign-in",
-		description: "Liên kết danh tính Google/Apple của vé (cookie uniwork_sign_in_ticket) vào tài khoản đang đăng nhập (bearer web). Phiên của bearer phải bắt đầu sau khi vé được cấp, không thì 403 proof_required; bearer khác kênh vé → 400 sign_in_ticket_channel; token web cũ hơn lần đổi thông tin đăng nhập → 401 invalid_token. Danh tính đang mở tài khoản khác: tài khoản chưa từng vào tổ chức nào → 409 sign_in_method_movable kèm masked_email (gửi lại move: true để chuyển sang đây, tài khoản trống bị xoá), không thì 409 sign_in_method_taken kèm masked_email; tài khoản đã liên kết tài khoản khác của nhà cung cấp → 409 sign_in_method_already_linked; email tài khoản chưa xác minh → 403 email_unverified. Thành công trả user và phương thức đăng nhập, xoá cookie vé; audit via ticket (hoặc move).",
+		description: "Liên kết danh tính Google/Apple của vé (cookie uniwork_sign_in_ticket) vào tài khoản đang đăng nhập (bearer web). Phiên của bearer phải bắt đầu sau khi vé được cấp, hoặc gửi step_up_token của phiên này (POST /me/step-up), không thì 403 proof_required; bearer khác kênh vé → 400 sign_in_ticket_channel; token web cũ hơn lần đổi thông tin đăng nhập → 401 invalid_token. Danh tính đang mở tài khoản khác: tài khoản chưa từng vào tổ chức nào → 409 sign_in_method_movable kèm masked_email (gửi lại move: true để chuyển sang đây, tài khoản trống bị xoá), không thì 409 sign_in_method_taken kèm masked_email; tài khoản đã liên kết tài khoản khác của nhà cung cấp → 409 sign_in_method_already_linked; email tài khoản chưa xác minh → 403 email_unverified. Thành công trả user và phương thức đăng nhập, xoá cookie vé; audit via ticket (hoặc move).",
 		tags:        []string{"auth"},
 		sdi:         sdi.SignInTicketLinkSDI{},
 		sdo:         sdo.SignInMethodsChangeSDO{},

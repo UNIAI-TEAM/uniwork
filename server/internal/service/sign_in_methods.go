@@ -20,8 +20,9 @@ import (
 
 // The ways into an account and the commands that change them (ADR 0047,
 // spec §3.7). Linking an identity the person just proved into the account
-// they are signed in to — from a sign-in ticket today, from Settings and the
-// app's sheets with the sign-in methods slice — goes through attachIdentity.
+// they are signed in to — from a sign-in ticket, from Settings through the
+// browser (sign_in_method_commands.go), and from the app's sheets with the
+// native routes — goes through attachIdentity.
 
 // LinkedProvider is one provider's row of SignInMethods.
 type LinkedProvider struct {
@@ -384,17 +385,26 @@ func (s *AuthService) afterAttach(ctx context.Context, a attached) {
 	s.apple.revokeAfterCommit(ctx, a.moved.holderID, a.moved.appleClientID, a.moved.appleToken)
 }
 
+// TicketLink is how the choice screen's "I already have an account" links
+// the ticket: Move asks for the identity to leave the empty account holding
+// it, StepUpToken stands in for a session younger than the ticket.
+type TicketLink struct {
+	Move        bool
+	StepUpToken string
+}
+
 // Link is "I already have an account" once the person signed in (spec
 // §3.2): the ticket's identity joins the bearer's account through
 // attachIdentity, audited via ticket (move when it moved out of an empty
-// account). The bearer must be of the ticket's channel. Its session must have
+// account). The bearer must be of the ticket's channel. What proves that
+// whoever proved the identity also just proved the account is a session that
 // started after the ticket was issued — a browser session's first refresh
-// token, a device session's creation (same client and deployment) — which is
-// what proves that whoever proved the identity also just proved the account;
-// an older session is 403 proof_required. The command is sensitive, so a
-// browser token older than the account's last credential change is refused
-// first.
-func (s *SignInTicketService) Link(ctx context.Context, sealed string, b TicketBinding, move bool) (SignInMethodsChange, error) {
+// token, a device session's creation (same client and deployment) — or a
+// step-up token of the bearer's session (spec §3.7: an older session, or
+// Settings confirming a move after a link callback answered movable); with
+// neither, 403 proof_required. The command is sensitive, so a browser token
+// older than the account's last credential change is refused first.
+func (s *SignInTicketService) Link(ctx context.Context, sealed string, b TicketBinding, in TicketLink) (SignInMethodsChange, error) {
 	t, err := s.auth.openSignInTicket(sealed, b)
 	if err != nil {
 		return SignInMethodsChange{}, err
@@ -415,7 +425,7 @@ func (s *SignInTicketService) Link(ctx context.Context, sealed string, b TicketB
 	if err := requireCurrentCredentials(ctx, q); err != nil {
 		return SignInMethodsChange{}, err
 	}
-	if err := s.sessionStartedAfter(ctx, q, at, t); err != nil {
+	if err := s.provenSince(ctx, q, at, t, in.StepUpToken); err != nil {
 		return SignInMethodsChange{}, err
 	}
 	caller, err := q.GetUserForUpdate(ctx, at.UserID)
@@ -425,7 +435,7 @@ func (s *SignInTicketService) Link(ctx context.Context, sealed string, b TicketB
 	if err != nil {
 		return SignInMethodsChange{}, err
 	}
-	a, err := s.auth.attachIdentity(ctx, q, caller, t.Identity, linkViaTicket, move)
+	a, err := s.auth.attachIdentity(ctx, q, caller, t.Identity, linkViaTicket, in.Move)
 	if err != nil {
 		return SignInMethodsChange{}, err
 	}
@@ -436,45 +446,28 @@ func (s *SignInTicketService) Link(ctx context.Context, sealed string, b TicketB
 		return SignInMethodsChange{}, err
 	}
 	s.auth.afterAttach(ctx, a)
-	return SignInMethodsChange{User: s.auth.decorateAvatar(ctx, a.user), Methods: signInMethodsOf(a.user, t.Channel)}, nil
+	return SignInMethodsChange{User: s.auth.decorateAvatar(ctx, a.user), Methods: s.auth.signInMethods(a.user, t.Channel)}, nil
 }
 
-// sessionStartedAfter holds a ticket link to a session younger than the
-// ticket. A session that is no longer live is the bearer's own problem (401
-// invalid_token: the client refreshes, which fails, and signs in again).
-// ponytail: a step-up token minted for this session is the other proof the
-// spec allows (§3.7); the sign-in methods slice accepts it here.
-func (s *SignInTicketService) sessionStartedAfter(ctx context.Context, q *db.Queries, at auth.AccessToken, t signInTicket) error {
-	var started time.Time
-	if at.Web {
-		row, err := q.GetWebSessionStart(ctx, db.GetWebSessionStartParams{UserID: at.UserID, SessionID: at.SessionID})
-		if err != nil {
-			return err
-		}
-		if !row.Live || !row.StartedAt.Valid {
-			return errCredentialsRevoked()
-		}
-		started = row.StartedAt.Time
-	} else {
-		d, err := q.GetDeviceSession(ctx, at.SessionID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return errCredentialsRevoked()
-		}
-		if err != nil {
-			return err
-		}
-		if d.UserID != at.UserID || d.RevokedAt.Valid {
-			return errCredentialsRevoked()
-		}
-		if d.ClientID != t.ClientID || d.DeploymentID != t.DeploymentID {
-			return errSignInTicketChannel()
-		}
-		started = d.CreatedAt.Time
+// provenSince holds a ticket link to a session younger than the ticket, or
+// to a step-up token of the bearer's session. A session that is no longer
+// live is the bearer's own problem (401 invalid_token: the client
+// refreshes, which fails, and signs in again).
+func (s *SignInTicketService) provenSince(ctx context.Context, q *db.Queries, at auth.AccessToken, t signInTicket, stepUpToken string) error {
+	sess, err := liveBearerSession(ctx, q, at)
+	if err != nil {
+		return err
+	}
+	if !at.Web && (sess.clientID != t.ClientID || sess.deploymentID != t.DeploymentID) {
+		return errSignInTicketChannel()
 	}
 	// The ticket's iat has one-second precision: a session that started in
 	// the second the ticket was issued counts as after it.
-	if started.Unix() < t.IssuedAt {
-		return errProofRequired()
+	if sess.startedAt.Unix() >= t.IssuedAt {
+		return nil
 	}
-	return nil
+	if stepUpToken != "" {
+		return s.auth.requireStepUp(ctx, q, at.UserID, stepUpToken)
+	}
+	return errProofRequired()
 }

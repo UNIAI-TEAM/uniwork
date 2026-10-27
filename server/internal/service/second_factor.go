@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/mail"
@@ -57,18 +58,28 @@ type secondFactorVerdict struct {
 }
 
 // weighSecondFactor is the one place a second-factor code is checked
-// against the lockout: the web MFA step today, step-up and the native MFA
-// route through it later. u must be the row the caller locked in q's
-// transaction (GetUserForUpdate), so concurrent guesses queue behind each
-// other instead of all reading an open lock. A wrong code is counted, so the
-// caller commits whenever it gets no error, refusal or not; an error is a
-// failed statement and the transaction is to be rolled back.
+// against the lockout: the web MFA step, a TOTP step-up, and the native MFA
+// route later. u must be the row the caller locked in q's transaction
+// (GetUserForUpdate), so concurrent guesses queue behind each other instead
+// of all reading an open lock. A wrong code is counted, so the caller commits
+// whenever it gets no error, refusal or not; an error is a failed statement
+// and the transaction is to be rolled back.
 func (s *AuthService) weighSecondFactor(ctx context.Context, q *db.Queries, u db.User, code string) (secondFactorVerdict, error) {
+	return s.weighProof(ctx, q, u, func() (bool, error) { return s.secondFactorMatchesQ(ctx, q, u, code) })
+}
+
+// weighProof is weighSecondFactor for any proof a signed-in person or a
+// second step offers (ADR 0047 §4, spec §3.3): a second-factor code, a
+// password or a mailed code re-entered for a step-up. One counter per
+// account, so no mix of proofs buys more than ten guesses; while it is
+// locked nothing is checked (check is not called, a recovery code is not
+// spent), and a match starts the count over.
+func (s *AuthService) weighProof(ctx context.Context, q *db.Queries, u db.User, check func() (bool, error)) (secondFactorVerdict, error) {
 	now := s.now()
 	if u.SecondFactorLockedUntil.Valid && u.SecondFactorLockedUntil.Time.After(now) {
 		return secondFactorVerdict{locked: errSecondFactorLocked(u.SecondFactorLockedUntil.Time, now)}, nil
 	}
-	matched, err := s.secondFactorMatchesQ(ctx, q, u, code)
+	matched, err := check()
 	if err != nil {
 		return secondFactorVerdict{}, err
 	}
@@ -95,4 +106,46 @@ func (s *AuthService) weighSecondFactor(ctx context.Context, q *db.Queries, u db
 		return secondFactorVerdict{}, err
 	}
 	return secondFactorVerdict{locked: errSecondFactorLocked(until, now), started: true, queued: queued}, nil
+}
+
+// proofOutcome is how weighProofOnce ended for a caller that keeps no
+// transaction open around the proof.
+type proofOutcome struct {
+	// user is the account as it was locked for the proof.
+	user db.User
+	ok   bool
+}
+
+// weighProofOnce runs one proof against the lockout in a transaction of its
+// own, for a command that checks the proof before its own transaction (no
+// row lock held across bcrypt or the command's work): it locks userID's row,
+// lets check (in that transaction) decide, and commits what weighProof
+// counted either way, then kicks the lockout notice. A deleted account is
+// ErrNotFound; a locked factor is its 429, returned as the error.
+func (s *AuthService) weighProofOnce(ctx context.Context, userID string, check func(q *db.Queries, u db.User) (bool, error)) (proofOutcome, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return proofOutcome{}, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	q := s.q.WithTx(tx)
+	u, err := q.GetUserForUpdate(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && u.DeletedAt.Valid) {
+		return proofOutcome{}, ErrNotFound
+	}
+	if err != nil {
+		return proofOutcome{}, err
+	}
+	v, err := s.weighProof(ctx, q, u, func() (bool, error) { return check(q, u) })
+	if err != nil {
+		return proofOutcome{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return proofOutcome{}, err
+	}
+	s.signInMailer().kick(v.queued)
+	if v.locked != nil {
+		return proofOutcome{}, v.locked
+	}
+	return proofOutcome{user: u, ok: v.ok}, nil
 }

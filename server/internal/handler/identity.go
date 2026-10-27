@@ -66,7 +66,14 @@ func (h *handlers) mfaVerify(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) mfaSetup(w http.ResponseWriter, r *http.Request) {
-	out, err := h.Auth.SetupTOTP(r.Context(), middleware.UserID(r.Context()))
+	// A body-less POST (clients from before the step-up) reads as one
+	// without a token: 403 proof_required, not 400.
+	emptyBodyAsObject(r)
+	var in sdi.StepUpTokenSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	out, err := h.Auth.SetupTOTP(r.Context(), middleware.UserID(r.Context()), in.StepUpToken)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -75,11 +82,11 @@ func (h *handlers) mfaSetup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) mfaConfirm(w http.ResponseWriter, r *http.Request) {
-	var in sdi.MFACodeSDI
+	var in sdi.MFAConfirmSDI
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	codes, err := h.Auth.ConfirmTOTP(r.Context(), middleware.UserID(r.Context()), in.Code)
+	codes, err := h.Auth.ConfirmTOTP(r.Context(), middleware.UserID(r.Context()), in.Code, in.StepUpToken)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -182,8 +189,9 @@ func (h *handlers) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	err := h.Auth.DeleteAccount(r.Context(), middleware.UserID(r.Context()), service.DeleteAccountInput{
-		Password: in.Password, Code: in.Code, EmailConfirmation: in.EmailConfirmation, CloseOrganization: in.CloseOrganization,
+	err := h.Auth.DeleteAccount(h.authCtx(r).Context(), middleware.UserID(r.Context()), service.DeleteAccountInput{
+		StepUpToken: in.StepUpToken, Password: in.Password, Code: in.Code, EmailConfirmation: in.EmailConfirmation,
+		CloseOrganization: in.CloseOrganization,
 	})
 	if err != nil {
 		h.mapServiceError(w, err)

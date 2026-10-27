@@ -276,7 +276,7 @@ func TestUnverifiedAccountsCannotEnrolMFAOrLink(t *testing.T) {
 		t.Fatal(err)
 	}
 	uid := reg.User.ID
-	if _, err := f.auth.SetupTOTP(f.ctx, uid); !errors.Is(err, ErrEmailUnverified) {
+	if _, err := f.auth.SetupTOTP(f.ctx, uid, ""); !errors.Is(err, ErrEmailUnverified) {
 		t.Fatalf("setup on an unverified account: %v, want email_unverified", err)
 	}
 	if u := f.user(t, uid); u.TotpSecret.Valid {
@@ -287,7 +287,7 @@ func TestUnverifiedAccountsCannotEnrolMFAOrLink(t *testing.T) {
 	if err := f.q.SetUserTOTPSecret(f.ctx, db.SetUserTOTPSecretParams{ID: uid, TotpSecret: pgtype.Text{String: sealed, Valid: true}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.auth.ConfirmTOTP(f.ctx, uid, totpNow(t, secret)); !errors.Is(err, ErrEmailUnverified) {
+	if _, err := f.auth.ConfirmTOTP(f.ctx, uid, totpNow(t, secret), ""); !errors.Is(err, ErrEmailUnverified) {
 		t.Fatalf("confirm on an unverified account: %v, want email_unverified", err)
 	}
 	if u := f.user(t, uid); u.MfaEnabledAt.Valid {
@@ -300,11 +300,30 @@ func TestUnverifiedAccountsCannotEnrolMFAOrLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.tickets().Link(f.bearer(t, fresh), ticket, WebTicket(), false); !errors.Is(err, ErrEmailUnverified) {
+	if _, err := f.tickets().Link(f.bearer(t, fresh), ticket, WebTicket(), TicketLink{}); !errors.Is(err, ErrEmailUnverified) {
 		t.Fatalf("a link into an unverified account: %v, want email_unverified", err)
 	}
 	if u := f.user(t, uid); u.GoogleID.Valid {
 		t.Fatal("a refused link wrote")
+	}
+	// Nor from Settings: the link never starts, and a callback that comes
+	// back for it anyway writes nothing.
+	methods := NewSignInMethodsService(f.pool, f.q, f.auth)
+	bctx, bsess := f.browser(t, uid)
+	grant, err := f.auth.StepUp(bctx, uid, StepUpProof{Password: "password123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := methods.StartLink(bctx, uid, ProviderGoogle, grant.Token, "/settings?tab=security"); !errors.Is(err, ErrEmailUnverified) {
+		t.Fatalf("a Settings link from an unverified account: %v, want email_unverified", err)
+	}
+	li := LinkIntent{UserID: uid, SessionID: bsess.SessionID, Provider: ProviderGoogle}
+	id := GoogleIdentity(GoogleClaims{Sub: "g-unproved-settings", Email: "unproved.settings@gmail.com", EmailVerified: true})
+	if _, err := methods.LinkFromBrowser(bctx, li, id, bsess.RefreshToken); !errors.Is(err, ErrEmailUnverified) {
+		t.Fatalf("a Settings callback into an unverified account: %v, want email_unverified", err)
+	}
+	if u := f.user(t, uid); u.GoogleID.Valid {
+		t.Fatal("a refused Settings link wrote")
 	}
 	// Proved, the same account enrols.
 	if _, err := f.q.MarkEmailVerified(f.ctx, uid); err != nil {

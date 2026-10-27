@@ -255,7 +255,7 @@ func TestSignInTicketIsBoundToItsChannel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tickets.Link(f.bearer(t, sess), native, nativeApp, false); !errors.Is(err, ErrSignInTicketChannel) {
+	if _, err := tickets.Link(f.bearer(t, sess), native, nativeApp, TicketLink{}); !errors.Is(err, ErrSignInTicketChannel) {
 		t.Fatalf("a native ticket with a browser bearer: %v", err)
 	}
 	device := f.deviceSignIn(t, owner.ID, "state-device")
@@ -263,7 +263,7 @@ func TestSignInTicketIsBoundToItsChannel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tickets.Link(auth.WithAccessToken(f.ctx, at), web, WebTicket(), false); !errors.Is(err, ErrSignInTicketChannel) {
+	if _, err := tickets.Link(auth.WithAccessToken(f.ctx, at), web, WebTicket(), TicketLink{}); !errors.Is(err, ErrSignInTicketChannel) {
 		t.Fatalf("a web ticket with a device bearer: %v", err)
 	}
 	if f.user(t, owner.ID).GoogleID.Valid {
@@ -288,20 +288,43 @@ func TestTicketLinkNeedsASessionStartedAfterTheTicket(t *testing.T) {
 	f.backdate(t, before)
 	ticket := f.googleTicket(t, GoogleClaims{Sub: "g-an", Email: "an.personal@gmail.com", EmailVerified: true, Name: "An"}, TicketKindUnmatched)
 
-	_, err = tickets.Link(f.bearer(t, before), ticket, WebTicket(), false)
+	_, err = tickets.Link(f.bearer(t, before), ticket, WebTicket(), TicketLink{})
 	wantStatusCode(t, err, "proof_required", http.StatusForbidden)
-	if _, err := tickets.Link(f.ctx, ticket, WebTicket(), false); !errors.Is(err, ErrProofRequired) {
+	if _, err := tickets.Link(f.ctx, ticket, WebTicket(), TicketLink{}); !errors.Is(err, ErrProofRequired) {
 		t.Fatalf("no bearer on the context: %v", err)
 	}
 	if f.user(t, owner.ID).GoogleID.Valid {
 		t.Fatal("an older session linked")
+	}
+	// An older session may still link once it proves it is the owner now
+	// (spec §3.7): with a step-up token of that very session, not another's.
+	dung := registerVerified(t, f.q, f.auth, "dung@company.vn", "Dũng")
+	older, err := f.auth.Login(ctx, dung.Email, "password123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.backdate(t, older)
+	dungTicket := f.googleTicket(t, GoogleClaims{Sub: "g-dung", Email: "dung.personal@gmail.com", EmailVerified: true, Name: "D"}, TicketKindUnmatched)
+	otherCtx, _ := f.browser(t, dung.ID)
+	otherGrant, err := f.auth.StepUp(otherCtx, dung.ID, StepUpProof{Password: "password123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tickets.Link(f.bearer(t, older), dungTicket, WebTicket(), TicketLink{StepUpToken: otherGrant.Token})
+	wantStatusCode(t, err, "proof_required", http.StatusForbidden)
+	grant, err := f.auth.StepUp(f.bearer(t, older), dung.ID, StepUpProof{Password: "password123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, err := tickets.Link(f.bearer(t, older), dungTicket, WebTicket(), TicketLink{StepUpToken: grant.Token}); err != nil || !out.Methods.Google.Linked {
+		t.Fatalf("an older session with its own step-up token: %+v %v", out.Methods, err)
 	}
 
 	after, err := f.auth.Login(ctx, owner.Email, "password123")
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := tickets.Link(WithSessionMeta(f.bearer(t, after), SessionMeta{UserAgent: "Firefox/140", IP: "10.0.0.7"}), ticket, WebTicket(), false)
+	out, err := tickets.Link(WithSessionMeta(f.bearer(t, after), SessionMeta{UserAgent: "Firefox/140", IP: "10.0.0.7"}), ticket, WebTicket(), TicketLink{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +346,7 @@ func TestTicketLinkNeedsASessionStartedAfterTheTicket(t *testing.T) {
 		}
 	}
 	// Twice (a second tab) is nothing new.
-	if _, err := tickets.Link(f.bearer(t, after), ticket, WebTicket(), false); err != nil || f.linkAudits(t, owner.ID, ProviderGoogle, "ticket") != 1 {
+	if _, err := tickets.Link(f.bearer(t, after), ticket, WebTicket(), TicketLink{}); err != nil || f.linkAudits(t, owner.ID, ProviderGoogle, "ticket") != 1 {
 		t.Fatalf("the same link twice: %v", err)
 	}
 
@@ -337,7 +360,7 @@ func TestTicketLinkNeedsASessionStartedAfterTheTicket(t *testing.T) {
 	if err := f.auth.Logout(f.ctx, gone.RefreshToken); err != nil {
 		t.Fatal(err)
 	}
-	_, err = tickets.Link(f.bearer(t, gone), ticket, WebTicket(), false)
+	_, err = tickets.Link(f.bearer(t, gone), ticket, WebTicket(), TicketLink{})
 	wantStatusCode(t, err, "invalid_token", http.StatusUnauthorized)
 
 	// An account that never proved its address takes no link.
@@ -345,7 +368,7 @@ func TestTicketLinkNeedsASessionStartedAfterTheTicket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tickets.Link(f.bearer(t, unproved), ticket, WebTicket(), false); !errors.Is(err, ErrEmailUnverified) {
+	if _, err := tickets.Link(f.bearer(t, unproved), ticket, WebTicket(), TicketLink{}); !errors.Is(err, ErrEmailUnverified) {
 		t.Fatalf("an unverified account: %v", err)
 	}
 	// An account linked to another Google account already.
@@ -353,7 +376,7 @@ func TestTicketLinkNeedsASessionStartedAfterTheTicket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = tickets.Link(f.bearer(t, fresh), ticket, WebTicket(), false)
+	_, err = tickets.Link(f.bearer(t, fresh), ticket, WebTicket(), TicketLink{})
 	wantStatusCode(t, err, "sign_in_method_already_linked", http.StatusConflict)
 	if f.count(t, `SELECT count(*) FROM users WHERE google_id = 'g-binh'`) != 0 {
 		t.Fatal("refused links wrote")
@@ -535,7 +558,7 @@ func TestAProviderIdentityMovesOnlyFromAnEmptyAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = tickets.Link(f.bearer(t, sess), ticket, WebTicket(), false)
+	_, err = tickets.Link(f.bearer(t, sess), ticket, WebTicket(), TicketLink{})
 	if ce := wantStatusCode(t, err, "sign_in_method_movable", http.StatusConflict); ce.Fields["masked_email"] != "m•••@gmail.com" {
 		t.Fatalf("masked = %v", ce.Fields)
 	}
@@ -543,7 +566,7 @@ func TestAProviderIdentityMovesOnlyFromAnEmptyAccount(t *testing.T) {
 		t.Fatal("nothing moves without move")
 	}
 
-	out, err := tickets.Link(f.bearer(t, sess), ticket, WebTicket(), true)
+	out, err := tickets.Link(f.bearer(t, sess), ticket, WebTicket(), TicketLink{Move: true})
 	if err != nil || out.User.GoogleID.String != "g-move" {
 		t.Fatalf("move: %+v %v", out, err)
 	}
@@ -617,7 +640,7 @@ func TestAProviderIdentityMovesOnlyFromAnEmptyAccount(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, move := range []bool{false, true} {
-				_, err := tickets.Link(f.bearer(t, sess), ticket, WebTicket(), move)
+				_, err := tickets.Link(f.bearer(t, sess), ticket, WebTicket(), TicketLink{Move: move})
 				if ce := wantStatusCode(t, err, "sign_in_method_taken", http.StatusConflict); ce.Fields["masked_email"] != "g•••@gmail.com" {
 					t.Fatalf("masked = %v", ce.Fields)
 				}

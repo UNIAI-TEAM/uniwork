@@ -44,6 +44,11 @@ type ProviderSignInResult struct {
 
 func (s *GoogleAuthService) mailer() signInMailer { return s.auth.signInMailer() }
 
+// GoogleIdentity is the person a verified Google ID token vouches for, as
+// every provider sign-in and link reads it (ADR 0047): the address is
+// Google's to vouch for only on Gmail or the Workspace's own domain (hd).
+func GoogleIdentity(c GoogleClaims) ProviderIdentity { return googleIdentity(c) }
+
 // SignIn resolves the account with resolveIdentity, inside one transaction
 // with whatever the answer writes:
 //

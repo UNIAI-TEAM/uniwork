@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
@@ -21,12 +23,15 @@ import (
 //	POST /api/v1/orgs/{org}/members/{userID}/document-ownership
 //	POST /api/v1/orgs/{org}/leave
 //	POST /api/v1/orgs/{org}/close
-//	POST /api/v1/orgs/{org}/transfer-ownership
+//	POST /api/v1/orgs/{org}/transfer-ownership   (step-up budget)
 //	GET  /api/v1/orgs/{orgID}/office/capabilities
 //	GET  /api/v1/orgs/{org}/invitations
 //	POST /api/v1/orgs/{org}/invitations
 //	DELETE /api/v1/orgs/{org}/invitations/{invitationId}
-func registerOrganizations(r api, h Routes) {
+//
+// stepUpLimit is the step-up budget (signInBudgets) of the hand-over, which
+// takes the owner's proof.
+func registerOrganizations(r api, h Routes, stepUpLimit func(http.Handler) http.Handler) {
 	r.Get("/orgs", h.ListOrganizations, apiOp{
 		summary:     "List organizations",
 		description: "Các tổ chức người gọi thuộc về, kèm vai trò trong tổ chức.",
@@ -154,10 +159,10 @@ func registerOrganizations(r api, h Routes) {
 		sdo:  sdo.MemberDocumentsTransferSDO{},
 		auth: true,
 	})
-	r.Post("/orgs/{org}/transfer-ownership", h.TransferOrgOwnership, apiOp{
+	r.With(stepUpLimit).Post("/orgs/{org}/transfer-ownership", h.TransferOrgOwnership, apiOp{
 		summary: "Transfer organization ownership",
-		description: "Chủ sở hữu chuyển quyền cho một thành viên đang hoạt động; owner cũ thành admin trong cùng transaction. Cần nhập lại mật khẩu: " +
-			"403 password_incorrect khi sai (không phải 401, để client không làm mới phiên rồi gửi lại), 403 password_required khi tài khoản chưa có mật khẩu.",
+		description: "Chủ sở hữu chuyển quyền cho một thành viên đang hoạt động; owner cũ thành admin trong cùng transaction. Cần step_up_token của phiên này (POST /me/step-up, action transfer_ownership khi chứng minh bằng mã email: chủ chỉ có Google/Apple dùng cách này); " +
+			"app đã phát hành còn gửi password (xem lại 2027-01-31). Thiếu bằng chứng → 403 proof_required kèm proofs (thay password_required); sai mật khẩu → 403 password_incorrect (không phải 401, để client không làm mới phiên rồi gửi lại), tính vào khoá bước hai.",
 		tags: []string{"organizations"},
 		sdi:  sdi.TransferOwnershipSDI{},
 		sdo:  sdo.OrgMemberSDO{},

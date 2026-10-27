@@ -174,7 +174,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionOrganizationOwnershipChanged: func(t *testing.T, f *auditFixture) {
 			f.addMember(t)
-			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, auditPassword); err != nil {
+			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, OwnerProof{Password: auditPassword}); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -778,6 +778,21 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		audit.ActionAuthPasswordChanged: func(t *testing.T, f *auditFixture) { f.resetPassword(t) },
+		// An account that signs in only with Google sets its first password
+		// from Settings, with a step-up (ADR 0047).
+		audit.ActionAuthPasswordSet: func(t *testing.T, f *auditFixture) {
+			u, err := f.q.CreateGoogleUser(f.ctx, db.CreateGoogleUserParams{
+				ID: util.NewID(), Email: "audit-set@gmail.com", DisplayName: "Set", Locale: "vi",
+				GoogleID: pgtype.Text{String: "audit-set", Valid: true}, EmailVerified: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, token := stepUpFor(t, f.auth, f.ctx, u.ID)
+			if _, err := NewSignInMethodsService(f.pool, f.q, f.auth).SetPassword(ctx, u.ID, PasswordInput{New: "first-password-1", StepUpToken: token}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionAuthMFAEnabled: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			enrol(t, f.auth, f.ctx, f.member.ID)
@@ -817,7 +832,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := tickets.Link(authpkg.WithAccessToken(f.ctx, at), res.Ticket, WebTicket(), true); err != nil {
+			if _, err := tickets.Link(authpkg.WithAccessToken(f.ctx, at), res.Ticket, WebTicket(), TicketLink{Move: true}); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -2467,6 +2482,7 @@ func auditActions() []string {
 		audit.ActionAuthLoginFailed,
 		audit.ActionAuthPasswordResetRequested,
 		audit.ActionAuthPasswordChanged,
+		audit.ActionAuthPasswordSet,
 		audit.ActionAuthSessionRevoked,
 		audit.ActionAuthDesktopStarted,
 		audit.ActionAuthDesktopConsentApproved,
@@ -2729,6 +2745,8 @@ func newAuditFixture(t *testing.T) *auditFixture {
 	ws := NewWorkspaceService(pool, q, orgs, renderer, &fakeOutbox{})
 	orgMembers := NewOrganizationMemberService(pool, q, orgs)
 	orgMembers.SetMail(renderer, &fakeOutbox{})
+	orgMembers.SetStepUp(auth)
+	ws.SetStepUp(auth)
 	tasks := NewTaskService(pool, q, ws, newMemStorage())
 	chat := NewChatService(pool, q, ws, NopPublisher{})
 	chat.SetTasks(tasks)

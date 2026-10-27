@@ -30,14 +30,24 @@ type GoogleExchanger interface {
 // googleState is the uniwork_oauth_state cookie, sealed for
 // oauth_state:google (ADR 0047): the CSRF state, the nonce the ID token must
 // echo, the PKCE verifier, where to land after, the intent, and its own
-// expiry so a copied cookie value dies with the attempt.
+// expiry so a copied cookie value dies with the attempt. A link from
+// Settings also carries the account and browser session the link token
+// named, and where to go back to.
 type googleState struct {
 	State    string `json:"state"`
 	Nonce    string `json:"nonce"`
 	Verifier string `json:"verifier"`
 	Next     string `json:"next,omitempty"`
 	Intent   string `json:"intent"`
+	UserID   string `json:"uid,omitempty"`
+	Session  string `json:"sid,omitempty"`
+	ReturnTo string `json:"return_to,omitempty"`
 	Exp      int64  `json:"exp"`
+}
+
+// linkIntent is the link from Settings a state cookie carries.
+func (st googleState) linkIntent() service.LinkIntent {
+	return service.LinkIntent{UserID: st.UserID, SessionID: st.Session, Provider: service.ProviderGoogle, ReturnTo: st.ReturnTo, ExpectUser: st.UserID}
 }
 
 func (h *handlers) googleStart(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +63,29 @@ func (h *handlers) googleStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	st := googleState{Next: next, Intent: intent, Exp: time.Now().Add(oauthStateTTL).Unix()}
+	if intent == webIntentLink {
+		// A link from Settings (spec §3.4): the link token names the account
+		// and browser session that asked, and this browser's refresh cookie
+		// must open that very session, or no provider round trip starts.
+		if h.SignInMethods == nil {
+			h.redirectLinkResult(w, r, defaultLinkReturn, service.ProviderGoogle, service.ErrLinkTokenInvalid)
+			return
+		}
+		li, err := h.SignInMethods.OpenLinkToken(q.Get("link_token"))
+		if err == nil && li.Provider != service.ProviderGoogle {
+			err = service.ErrLinkTokenInvalid
+		}
+		if err != nil {
+			h.redirectLinkResult(w, r, defaultLinkReturn, service.ProviderGoogle, err)
+			return
+		}
+		li.ReturnTo = sanitizeNext(li.ReturnTo)
+		if err := h.SignInMethods.CheckLinkSession(r.Context(), li, refreshCookieOf(r)); err != nil {
+			h.redirectLinkResult(w, r, li.ReturnTo, service.ProviderGoogle, err)
+			return
+		}
+		st.Next, st.UserID, st.Session, st.ReturnTo = "", li.UserID, li.SessionID, li.ReturnTo
+	}
 	var err error
 	for _, v := range []*string{&st.State, &st.Nonce, &st.Verifier} {
 		if *v, err = randomHex(32); err != nil {
@@ -86,6 +119,15 @@ func (h *handlers) googleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
+	if st.Intent == webIntentLink {
+		// A link from Settings never ends in a sign-in, whatever happens.
+		if h.SignInMethods == nil {
+			h.redirectLinkResult(w, r, st.ReturnTo, service.ProviderGoogle, service.ErrLinkTokenInvalid)
+			return
+		}
+		h.googleLinkCallback(w, r, st)
+		return
+	}
 	if subtle.ConstantTimeCompare([]byte(q.Get("state")), []byte(st.State)) != 1 {
 		h.redirectLoginError(w, r, "google_failed", st.Next)
 		return
@@ -119,6 +161,47 @@ func (h *handlers) googleCallback(w http.ResponseWriter, r *http.Request) {
 	h.finishWebSignIn(w, r, res, st.Next)
 }
 
+// googleLinkCallback ends a link from Settings: every answer goes back to
+// the Settings page that started it with sign_in_method=google and a result,
+// never to a sign-in. The service checks again that this browser is still
+// signed in to the session that asked (the cookie may have changed during
+// the round trip) before it links; an empty account holding the identity
+// leaves its ticket in the cookie, for Settings to confirm the move.
+func (h *handlers) googleLinkCallback(w http.ResponseWriter, r *http.Request, st googleState) {
+	q := r.URL.Query()
+	fail := errors.New("google link failed")
+	if subtle.ConstantTimeCompare([]byte(q.Get("state")), []byte(st.State)) != 1 {
+		h.redirectLinkResult(w, r, st.ReturnTo, service.ProviderGoogle, fail)
+		return
+	}
+	if e := q.Get("error"); e != "" {
+		if e == "access_denied" {
+			fail = errLinkDenied
+		}
+		h.redirectLinkResult(w, r, st.ReturnTo, service.ProviderGoogle, fail)
+		return
+	}
+	claims, err := h.Google.Exchange(r.Context(), q.Get("code"), st.Verifier, st.Nonce)
+	if err != nil {
+		h.Log.Warn("google link exchange", "err", err)
+		h.redirectLinkResult(w, r, st.ReturnTo, service.ProviderGoogle, fail)
+		return
+	}
+	res, err := h.SignInMethods.LinkFromBrowser(h.authCtx(r).Context(), st.linkIntent(), service.GoogleIdentity(claims), refreshCookieOf(r))
+	if res.Ticket != "" {
+		h.setSignInTicketCookie(w, res.Ticket)
+	}
+	var ce service.CodedError
+	switch {
+	case err == nil:
+	case errors.As(err, &ce):
+		h.Log.Info("google link refused", "code", ce.Code)
+	default:
+		h.Log.Error("google link", "err", err)
+	}
+	h.redirectLinkResult(w, r, st.ReturnTo, service.ProviderGoogle, err)
+}
+
 // googleState opens the state cookie; false when it is missing, was not
 // sealed by this server for this purpose, or has expired.
 func (h *handlers) googleState(r *http.Request) (googleState, bool) {
@@ -133,7 +216,10 @@ func (h *handlers) googleState(r *http.Request) (googleState, bool) {
 	if st.State == "" || st.Nonce == "" || st.Verifier == "" || time.Now().Unix() > st.Exp {
 		return googleState{}, false
 	}
-	st.Next = sanitizeNext(st.Next)
+	st.Next, st.ReturnTo = sanitizeNext(st.Next), sanitizeNext(st.ReturnTo)
+	if st.Intent == webIntentLink && (st.UserID == "" || st.Session == "") {
+		return googleState{}, false
+	}
 	return st, true
 }
 

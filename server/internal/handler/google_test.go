@@ -160,7 +160,7 @@ func TestGoogleStartDropsUnsafeNext(t *testing.T) {
 // An intent the start does not know is refused on the login page, next kept.
 func TestGoogleStartRefusesAnUnknownIntent(t *testing.T) {
 	srv := newTestServerWithGoogle(t, &fakeGoogle{})
-	res, _ := noRedirectClient(srv).Get(srv.URL + "/api/v1/auth/google/start?intent=link&next=/acme/team")
+	res, _ := noRedirectClient(srv).Get(srv.URL + "/api/v1/auth/google/start?intent=merge&next=/acme/team")
 	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != "http://localhost:3000/login?error=google_failed&next=%2Facme%2Fteam" {
 		t.Fatalf("status = %d location = %q", res.StatusCode, res.Header.Get("Location"))
 	}

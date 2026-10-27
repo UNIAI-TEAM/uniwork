@@ -59,6 +59,10 @@ func NewWorkspaceService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationSe
 		members: NewOrganizationMemberService(pool, q, orgs)}
 }
 
+// SetStepUp lets an invitation switch that hands an organization over check
+// the owner's proof (OrganizationMemberService.SetStepUp).
+func (s *WorkspaceService) SetStepUp(a *AuthService) { s.members.SetStepUp(a) }
+
 // SetEmailHub lets an invitation switch revoke the OAuth grants of the
 // mailboxes it disconnects from the organizations left behind, as Leave does.
 func (s *WorkspaceService) SetEmailHub(h *EmailHubService) { s.members.SetEmailHub(h) }

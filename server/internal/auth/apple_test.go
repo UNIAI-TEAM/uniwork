@@ -81,7 +81,10 @@ func TestAppleVerifierAcceptsAGoodTokenAndReadsStringBooleans(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := AppleClaims{Sub: "001234.abc.0987", Email: "x7ab@privaterelay.appleid.com", EmailVerified: true, PrivateEmail: true, Audience: "com.uniworkos.chat"}
-	if got != want {
+	if got.IssuedAt.IsZero() || time.Since(got.IssuedAt) > time.Minute {
+		t.Fatalf("iat = %v, want the token's", got.IssuedAt)
+	}
+	if got.IssuedAt = (time.Time{}); got != want {
 		t.Fatalf("claims = %+v, want %+v", got, want)
 	}
 	// Booleans as JSON booleans, and the staging bundle id as audience.

@@ -129,7 +129,8 @@ func (h *handlers) signInTicketLink(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	out, err := h.SignInTickets.Link(h.authCtx(r).Context(), signInTicketFrom(r), service.WebTicket(), in.Move)
+	out, err := h.SignInTickets.Link(h.authCtx(r).Context(), signInTicketFrom(r), service.WebTicket(),
+		service.TicketLink{Move: in.Move, StepUpToken: in.StepUpToken})
 	if err != nil {
 		h.ticketRefused(w, err)
 		return

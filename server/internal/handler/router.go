@@ -38,6 +38,10 @@ type Deps struct {
 	// SignInTickets runs the choice screen of a provider sign-in that found
 	// no account to sign in to (ADR 0047): /api/v1/auth/sign-in-ticket*.
 	SignInTickets *service.SignInTicketService
+	// SignInMethods runs Settings › Sign-in methods (ADR 0047 §5-6): the
+	// password, links through the signed-in browser, unlinks. nil answers
+	// 503 on those routes, and a provider start refuses intent=link.
+	SignInMethods *service.SignInMethodsService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
 	Google GoogleExchanger
@@ -364,6 +368,13 @@ func New(d Deps) http.Handler {
 		RevokeSession:       h.revokeSession,
 		RevokeOtherSessions: h.revokeOtherSessions,
 		DeleteAccount:       h.deleteAccount,
+		StepUp:              h.stepUp,
+		StepUpEmailCode:     h.stepUpEmailCode,
+		SignInMethods:       h.signInMethods,
+		SetPassword:         h.setPassword,
+		LinkGoogle:          h.signInMethodLink(service.ProviderGoogle),
+		UnlinkGoogle:        h.signInMethodUnlink(service.ProviderGoogle),
+		UnlinkApple:         h.signInMethodUnlink(service.ProviderApple),
 		SetAIConsent:        h.setAIConsent,
 		WithdrawAIConsent:   h.withdrawAIConsent,
 		SetPushPreviews:     h.setPushPreviews,

@@ -9,18 +9,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
-	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// DeleteAccountInput is the re-authentication for erasure (spec F-01 §2 I9):
-// the password when the account has one, else a TOTP code when MFA is on,
-// else the typed email address. CloseOrganization is the slug of the
+// DeleteAccountInput is the re-authentication for erasure (ADR 0047 §5): a
+// step-up token, or the one proof shipped apps send (proveDeletion) — the
+// password when the account has one, else a TOTP code when MFA is on, else
+// the typed email address. CloseOrganization is the slug of the
 // organization the account owns alone, typed again: that organization is
 // closed (archived, as OrganizationMemberService.Close does) in the same
 // transaction as the erasure.
 type DeleteAccountInput struct {
+	StepUpToken       string
 	Password          string
 	Code              string
 	EmailConfirmation string
@@ -46,22 +47,8 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	// The caller is signed in, so a wrong proof is never 401 (see
 	// ErrPasswordIncorrect): each one answers its own code.
-	switch {
-	case u.PasswordHash.Valid:
-		if !auth.CheckPassword(u.PasswordHash.String, in.Password) {
-			return errPasswordIncorrect()
-		}
-	case u.MfaEnabledAt.Valid:
-		if !s.secondFactorMatches(ctx, u, in.Code) {
-			return errMfaCodeIncorrect()
-		}
-	default:
-		// ponytail: a Google-only account without MFA has no secret to ask
-		// for; typing the address is the confirmation. Add an emailed code
-		// when a product owner asks for it.
-		if !strings.EqualFold(strings.TrimSpace(in.EmailConfirmation), u.Email) {
-			return errEmailConfirmationMismatch()
-		}
+	if err := s.proveDeletion(ctx, u, in); err != nil {
+		return err
 	}
 	owned, err := s.q.CountOwnedOrganizationsForUser(ctx, userID)
 	if err != nil {

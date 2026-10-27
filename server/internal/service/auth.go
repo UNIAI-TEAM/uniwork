@@ -48,6 +48,9 @@ type AuthService struct {
 	// apple is optional: wired, DeleteAccount revokes the Sign in with Apple
 	// token the account kept (ADR 0041).
 	apple *AppleAuthService
+	// proofVerifiers check the provider tokens the app offers as a step-up
+	// proof, by provider; one is offered only once its verifier is here.
+	proofVerifiers map[string]ProviderProofVerifier
 }
 
 func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
@@ -69,9 +72,21 @@ func (s *AuthService) SetSealer(sealer auth.SecretSealer) { s.sealer = sealer }
 // wires it once EmailHubService exists.
 func (s *AuthService) SetEmailHub(h *EmailHubService) { s.emailHub = h }
 
-// SetApple lets DeleteAccount revoke the account's Sign in with Apple token;
-// main wires it when Sign in with Apple is configured.
-func (s *AuthService) SetApple(a *AppleAuthService) { s.apple = a }
+// SetApple lets DeleteAccount revoke the account's Sign in with Apple token,
+// and a fresh identity token from the iPhone's Apple sheet prove an
+// Apple-linked account in a step-up; main wires it when Sign in with Apple is
+// configured.
+func (s *AuthService) SetApple(a *AppleAuthService) {
+	s.apple = a
+	if a == nil || a.verifier == nil {
+		s.setProofVerifier(ProviderApple, nil)
+		return
+	}
+	s.setProofVerifier(ProviderApple, func(ctx context.Context, token, nonce string) (string, time.Time, error) {
+		c, err := a.verifier.Verify(ctx, token, nonce)
+		return c.Sub, c.IssuedAt, err
+	})
+}
 
 // SessionMeta is what a session remembers about the client that opened it.
 // The handler puts it on the context; every path that mints a session

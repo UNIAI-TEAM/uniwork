@@ -12,9 +12,9 @@ import (
 )
 
 // ErrCredentialsRevoked: the bearer is a browser access token issued before
-// the account's credentials last changed (a reclaim today; a password change
-// or an unlink with the sign-in methods). It still reads, until it expires,
-// but no sensitive command takes it.
+// the account's credentials last changed (a reclaim, a password change, an
+// unlink), or its session has ended. It still reads, until it expires, but no
+// sensitive command takes it.
 var ErrCredentialsRevoked = errors.New("credentials_revoked")
 
 // errCredentialsRevoked is 401 invalid_token: the client refreshes, which
@@ -27,8 +27,9 @@ func errCredentialsRevoked() error {
 }
 
 // requireCurrentCredentials is the gate of the sensitive commands (ADR 0047
-// §5, spec §3.7: desktop and MCP consent today; step-up and the sign-in
-// method commands with them): a browser access token issued before its
+// §5, spec §3.7: step-up and every command that takes its token, the
+// sign-in method commands, desktop and MCP consent): a browser access token
+// issued before its
 // account's credentials_revoked_at is refused. The mark and a token's iat
 // are both whole seconds, so a token is refused only when strictly older:
 // the session the same command hands out passes. It judges the bearer's own

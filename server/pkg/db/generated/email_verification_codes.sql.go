@@ -11,6 +11,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countEmailVerificationCodesSince = `-- name: CountEmailVerificationCodesSince :one
+SELECT count(*)::int AS n, min(created_at)::timestamptz AS oldest
+FROM email_verification_codes
+WHERE user_id = $1 AND purpose = $2 AND created_at > $3
+`
+
+type CountEmailVerificationCodesSinceParams struct {
+	UserID    string             `json:"user_id"`
+	Purpose   string             `json:"purpose"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type CountEmailVerificationCodesSinceRow struct {
+	N      int32              `json:"n"`
+	Oldest pgtype.Timestamptz `json:"oldest"`
+}
+
+// How many codes of a purpose went to the user since a moment, and the
+// oldest of them: the step-up daily cap and when it lets the next one out.
+func (q *Queries) CountEmailVerificationCodesSince(ctx context.Context, arg CountEmailVerificationCodesSinceParams) (CountEmailVerificationCodesSinceRow, error) {
+	row := q.db.QueryRow(ctx, countEmailVerificationCodesSince, arg.UserID, arg.Purpose, arg.CreatedAt)
+	var i CountEmailVerificationCodesSinceRow
+	err := row.Scan(&i.N, &i.Oldest)
+	return i, err
+}
+
 const createEmailVerificationCode = `-- name: CreateEmailVerificationCode :one
 
 INSERT INTO email_verification_codes (id, user_id, code_hash, expires_at, created_at, purpose, action)
@@ -71,9 +97,12 @@ func (q *Queries) DeleteEmailVerificationCodesForUser(ctx context.Context, arg D
 }
 
 const deleteExpiredEmailVerificationCodes = `-- name: DeleteExpiredEmailVerificationCodes :exec
-DELETE FROM email_verification_codes WHERE expires_at < now() - interval '1 hour'
+DELETE FROM email_verification_codes
+WHERE expires_at < now() - interval '1 hour'
+  AND (purpose <> 'step_up' OR created_at < now() - interval '1 day')
 `
 
+// Step-up codes are kept for a day: their daily cap counts the rows.
 func (q *Queries) DeleteExpiredEmailVerificationCodes(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteExpiredEmailVerificationCodes)
 	return err

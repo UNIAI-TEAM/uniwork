@@ -47,8 +47,9 @@ type ResetPasswordSDI struct {
 
 // GoogleStartSDI is GET /api/v1/auth/google/start.
 type GoogleStartSDI struct {
-	Next   string `query:"next" description:"Đường dẫn cùng origin sau khi đăng nhập; /auth/continue?step=link&… (đăng nhập để liên kết vé đang chờ) giữ cookie vé" example:"/acme/team"`
-	Intent string `query:"intent" description:"sign_in (mặc định) từ trang đăng nhập: không khớp tài khoản nào thì ra vé và màn chọn; sign_up từ trang đăng ký: không khớp thì tạo tài khoản ngay; giá trị khác chuyển về /login?error=google_failed" example:"sign_in"`
+	Next      string `query:"next" description:"Đường dẫn cùng origin sau khi đăng nhập; /auth/continue?step=link&… (đăng nhập để liên kết vé đang chờ) giữ cookie vé" example:"/acme/team"`
+	Intent    string `query:"intent" description:"sign_in (mặc định) từ trang đăng nhập: không khớp tài khoản nào thì ra vé và màn chọn; sign_up từ trang đăng ký: không khớp thì tạo tài khoản ngay; link (kèm link_token, từ Cài đặt): liên kết vào tài khoản đang đăng nhập; giá trị khác chuyển về /login?error=google_failed" example:"sign_in"`
+	LinkToken string `query:"link_token" description:"Với intent=link: token từ POST /me/sign-in-methods/google/link (5 phút); cookie refresh của trình duyệt phải thuộc đúng phiên đã xin nó, không thì quay về return_to với result=session_mismatch" example:"Xb2u…"`
 }
 
 // SignInTicketCreateSDI is POST /api/v1/auth/sign-in-ticket/create.
@@ -70,7 +71,8 @@ type SignInEmailClaimVerifySDI struct {
 
 // SignInTicketLinkSDI is POST /api/v1/auth/sign-in-ticket/link.
 type SignInTicketLinkSDI struct {
-	Move bool `json:"move,omitempty" description:"true để chuyển danh tính từ tài khoản trống đang giữ nó (sau 409 sign_in_method_movable) sang tài khoản đang đăng nhập; tài khoản trống bị xoá" example:"false"`
+	Move        bool   `json:"move,omitempty" description:"true để chuyển danh tính từ tài khoản trống đang giữ nó (sau 409 sign_in_method_movable) sang tài khoản đang đăng nhập; tài khoản trống bị xoá" example:"false"`
+	StepUpToken string `json:"step_up_token,omitempty" description:"Token từ POST /me/step-up: thay cho phiên mới hơn vé (phiên bắt đầu trước khi vé được cấp, hay Cài đặt xác nhận chuyển sau khi liên kết trả movable)" example:"q1h8u3WbF0tA…"`
 }
 
 // GoogleCallbackSDI is GET /api/v1/auth/google/callback.
@@ -88,18 +90,20 @@ type MFAVerifySDI struct {
 	KeepSignInTicket bool   `json:"keep_sign_in_ticket,omitempty" description:"true khi bước hai này thuộc lần đăng nhập để liên kết Google/Apple đang chờ: giữ cookie vé uniwork_sign_in_ticket; mặc định xoá vé" example:"false"`
 }
 
-// MFACodeSDI is POST /api/v1/me/mfa/confirm and /me/mfa/disable.
+// MFACodeSDI is POST /api/v1/me/mfa/disable.
 type MFACodeSDI struct {
-	Code string `json:"code" minLength:"6" description:"Mã 6 số từ ứng dụng xác thực (disable cũng nhận mã khôi phục)" example:"123456"`
+	Code string `json:"code" minLength:"6" description:"Mã 6 số từ ứng dụng xác thực hoặc mã khôi phục" example:"123456"`
 }
 
-// DeleteAccountSDI is POST /api/v1/me/delete. Exactly one proof is read:
-// password when the account has one, else code when MFA is on, else the
-// typed email address.
+// DeleteAccountSDI is POST /api/v1/me/delete. The proof is step_up_token;
+// without it exactly one legacy proof is read (shipped apps, reviewed
+// 2027-01-31): password when the account has one, else code when MFA is on,
+// else the typed email address.
 type DeleteAccountSDI struct {
-	Password          string `json:"password" description:"Mật khẩu hiện tại (tài khoản có mật khẩu)" example:"password123"`
-	Code              string `json:"code" description:"Mã TOTP hoặc mã khôi phục (tài khoản chỉ Google, có MFA)" example:"123456"`
-	EmailConfirmation string `json:"email_confirmation" description:"Gõ lại email (tài khoản chỉ Google, không MFA)" example:"an@acme.vn"`
+	StepUpToken       string `json:"step_up_token,omitempty" description:"Token từ POST /me/step-up (action delete_account khi chứng minh bằng mã email); có thì ba trường cũ bên dưới bị bỏ qua" example:"q1h8u3WbF0tA…"`
+	Password          string `json:"password" description:"Cũ (app đã phát hành, xem lại 2027-01-31): mật khẩu hiện tại (tài khoản có mật khẩu)" example:"password123"`
+	Code              string `json:"code" description:"Cũ: mã TOTP hoặc mã khôi phục (tài khoản không mật khẩu, có MFA)" example:"123456"`
+	EmailConfirmation string `json:"email_confirmation" description:"Cũ: gõ lại email (tài khoản không mật khẩu, không MFA)" example:"an@acme.vn"`
 	CloseOrganization string `json:"close_organization,omitempty" description:"Địa chỉ (slug) của tổ chức mà tài khoản là chủ sở hữu và thành viên duy nhất, gõ lại: tổ chức được đóng (lưu trữ) cùng giao dịch với việc xóa tài khoản" example:"cong-ty-mot-minh"`
 }
 

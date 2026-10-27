@@ -532,9 +532,20 @@ database and never reveal whether an id exists to a non-member.
   database, so the token is not verified there) under a
   per-address ceiling (`mcp-ip`, 1200/min):
   `TestMCPBudgetsEachAccessTokenAndSkipsTheGlobalLimiter` and
-  `TestMCPAddressCeilingStopsRotatingTokens`. The credential routes carry
-  their own small budget in `server/internal/handler/router/router.go`,
-  whose tests pin all of it.
+  `TestMCPAddressCeilingStopsRotatingTokens`. A guess at a secret rides a
+  named budget under a ceiling of 600/min per address
+  (`server/internal/handler/router/sign_in_budgets.go`, ADR 0047 §9):
+  `sign-in-password` (`/auth/login`, 20/min per address and the hashed,
+  normalized email read from the body without consuming it) and
+  `sign-in-mfa` (`/auth/mfa/verify`, 10/min per address and the account of
+  the verified challenge token), both off the global limiter so an office
+  NAT signs in per person; `step-up` (`/me/step-up*`, `PUT /me/password`,
+  `POST /me/delete`, `POST /orgs/{org}/transfer-ownership`, 10/min per
+  bearer). `TestSignInPasswordBudgetIsPerAddressAndEmail`,
+  `TestSignInMFABudgetKeysTheChallengedAccount` and
+  `TestStepUpRoutesShareOneBudgetPerPerson` hold them. The other credential
+  routes carry their own small budget in
+  `server/internal/handler/router/router.go`, whose tests pin all of it.
 - A bearer route never answers with a redirect: only the browser sign-in
   handlers (`server/internal/handler/google.go` and the finish they share,
   `server/internal/handler/web_sign_in.go`), MCP OAuth authorize and Swagger
@@ -563,8 +574,8 @@ database and never reveal whether an id exists to a non-member.
   (`server/internal/service/sign_in_ticket.go`; 15 minutes, sealed for `sign_in_ticket`, nothing stored) for the
   choice screen — the browser's only in the HttpOnly `uniwork_sign_in_ticket` cookie, an app's only in JSON with
   the SHA-256 of its nonce — and only "Create a new account" there, or the register screen's `intent=sign_up`,
-  opens one. Linking from a ticket takes a bearer of its channel whose session started after the ticket (else 403
-  `proof_required`); an identity another account holds moves only out of an account that never belonged to an
+  opens one. Linking from a ticket takes a bearer of its channel whose session started after the ticket, or a
+  step-up token of that session (else 403 `proof_required`); an identity another account holds moves only out of an account that never belonged to an
   organization, and only on `move: true`. A code mailed to another address ("invited with another address") links,
   reclaims or creates by that address. `TestProviderSignInWithoutAMatchIssuesATicketNotAnAccount`,
   `TestSignUpIntentCreatesWithoutTheChoice`, `TestSignInTicketIsBoundToItsChannel`,
@@ -588,10 +599,28 @@ database and never reveal whether an id exists to a non-member.
   `TestLinkWaitsForTheSecondFactor`, `TestSecondFactorLocksAfterTenFailures`,
   `TestUnverifiedAccountsCannotEnrolMFAOrLink`, `TestAResetLinkReclaimsAnUnverifiedAccount` and
   `TestCredentialsRevokedAtRefusesOlderWebTokens` hold it.
+- Every change to how an account signs in, and every command its owner cannot undo alone, takes a step-up token
+  (ADR 0047 §5): setting or changing the password, linking or unlinking a provider, turning the second factor on,
+  deleting the account, handing an organization over (transfer, the invitation switch). `POST /me/step-up` in
+  `server/internal/service/step_up.go`, the one place a signed-in person's proof is checked, turns one proof the
+  account takes into a ten-minute token sealed for `step_up` and bound to the bearer's session: with a second factor
+  on only that factor; otherwise the password, a six-digit code mailed for one named action (never the development
+  code), or on the app a fresh token of a linked provider. A wrong proof is a 403 with its own code, never 401, and
+  counts toward the second-factor lockout; a token of another session, purpose or past its ten minutes is 403
+  `proof_required`, and one whose session ended is 401. The last way into an account is never removed, nor Apple
+  from an account whose address is Apple's relay; a password change or an unlink signs every other session out
+  (`revokeOtherUserSessions`, MCP grants, `credentials_revoked_at`). A link from Settings goes through the browser
+  that asked: its `link_token` is bound to the account and browser session, and the provider's start and callback
+  both check the refresh cookie opens that very session. The proofs shipped apps still send in place of a token
+  (`POST /me/delete`'s password, code or typed address; an owner's password on a hand-over) are reviewed by
+  2027-01-31 (`TestLegacyProofDoorsAreReviewed`). `TestSignInMethodChangesNeedAProof`, `TestMFAEnrolmentNeedsAProof`,
+  `TestStepUpTokenDiesWithItsSession`, `TestStepUpCodeNamesItsActionAndIgnoresTheDevCode`,
+  `TestTheLastSignInMethodCannotBeRemoved`, `TestARelayAccountKeepsApple`, `TestPasswordChangeRevokesEveryOtherSession`
+  and `TestLinkStartNeedsTheSameBrowserSession` hold it.
 - A revoke of a user's sessions goes through one of two helpers in `server/internal/service/desktop_auth.go`, which
   take the locks in one order (device rows, then refresh tokens, pushes, offline leases): `revokeAllUserSessions`
   for every session, `revokeOtherUserSessions` for all but the caller's (its device family kept whole), which
-  "sign out other sessions" uses, the apps included. `TestUserWideRevokeGoesThroughOneHelper` keeps each helper
+  "sign out other sessions", a password change and an unlink use, the apps included. `TestUserWideRevokeGoesThroughOneHelper` keeps each helper
   the only caller of its two halves; `TestRevokeOthersEndsDeviceSessions` holds the second.
 - `FRONTEND_ORIGIN` must be an absolute origin; its scheme decides the
   refresh cookie's `Secure` flag (`config.Config.SecureCookies`).

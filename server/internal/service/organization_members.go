@@ -58,6 +58,9 @@ type OrganizationMemberService struct {
 	// emailHub is optional: wired, Leave revokes the OAuth grants of the
 	// mailboxes it disconnects (spec §5.5).
 	emailHub *EmailHubService
+	// stepUp checks the owner's proof before a hand-over (proveOwner); nil
+	// takes no proof, so no organization changes hands.
+	stepUp *AuthService
 }
 
 func NewOrganizationMemberService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService) *OrganizationMemberService {
@@ -66,6 +69,10 @@ func NewOrganizationMemberService(pool *pgxpool.Pool, q *db.Queries, orgs *Organ
 
 // SetFiles selects the FileService path for avatar URL emission.
 func (s *OrganizationMemberService) SetFiles(f files.Service) { s.files = f }
+
+// SetStepUp gives the hand-overs (TransferOwnership, the invitation switch)
+// the one checker of a signed-in person's proof (ADR 0047 §5).
+func (s *OrganizationMemberService) SetStepUp(a *AuthService) { s.stepUp = a }
 
 // SetEmailHub lets Leave revoke the refresh tokens it removes; main wires it
 // once EmailHubService exists.

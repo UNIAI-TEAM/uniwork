@@ -22,22 +22,92 @@ import (
 const (
 	webIntentSignIn = "sign_in"
 	webIntentSignUp = "sign_up"
+	// webIntentLink is a link from Settings (spec §3.4): the start carries a
+	// link_token, and the round trip ends back on Settings, never in a
+	// sign-in.
+	webIntentLink = "link"
 )
 
 // webSignInIntent reads the start's intent; empty is a sign-in. sign_up
 // (the register screen) creates an unmatched identity's account at once
-// instead of the choice screen's ticket.
-// ponytail: intent=link (linking from Settings with a link_token) lands with
-// the sign-in methods slice; until then it is refused like any unknown one.
+// instead of the choice screen's ticket; link links into the account the
+// link token names.
 func webSignInIntent(raw string) (string, bool) {
 	switch raw {
 	case "", webIntentSignIn:
 		return service.SignInIntentSignIn, true
 	case webIntentSignUp:
 		return service.SignInIntentSignUp, true
+	case webIntentLink:
+		return webIntentLink, true
 	default:
 		return "", false
 	}
+}
+
+// defaultLinkReturn is where a link from Settings comes back to when its
+// link token named nothing usable.
+const defaultLinkReturn = "/settings?tab=security"
+
+// The result codes a link from Settings comes back with (spec §3.4).
+const (
+	linkResultLinked          = "linked"
+	linkResultDenied          = "denied"
+	linkResultFailed          = "failed"
+	linkResultTaken           = "taken"
+	linkResultMovable         = "movable"
+	linkResultAlreadyLinked   = "already_linked"
+	linkResultSessionMismatch = "session_mismatch"
+)
+
+// errLinkDenied: the person said no on the provider's page.
+var errLinkDenied = errors.New("link denied at the provider")
+
+// linkResultOf is the result code of a link the service answered.
+func linkResultOf(err error) string {
+	switch {
+	case err == nil:
+		return linkResultLinked
+	case errors.Is(err, errLinkDenied):
+		return linkResultDenied
+	case errors.Is(err, service.ErrSignInMethodTaken):
+		return linkResultTaken
+	case errors.Is(err, service.ErrSignInMethodMovable):
+		return linkResultMovable
+	case errors.Is(err, service.ErrSignInMethodAlreadyLinked):
+		return linkResultAlreadyLinked
+	case errors.Is(err, service.ErrLinkSessionMismatch):
+		return linkResultSessionMismatch
+	default:
+		return linkResultFailed
+	}
+}
+
+// redirectLinkResult sends a link from Settings back to returnTo (a
+// sanitized same-origin path) with sign_in_method and result merged into its
+// query, and the masked address of the account holding the identity when the
+// answer named one (taken, movable).
+func (h *handlers) redirectLinkResult(w http.ResponseWriter, r *http.Request, returnTo, provider string, err error) {
+	if returnTo == "" {
+		returnTo = defaultLinkReturn
+	}
+	params := url.Values{"sign_in_method": {provider}, "result": {linkResultOf(err)}}
+	var ce service.CodedError
+	if errors.As(err, &ce) {
+		if masked, ok := ce.Fields["masked_email"].(string); ok && masked != "" {
+			params.Set("masked_email", masked)
+		}
+	}
+	h.redirectWeb(w, r, returnTo, params)
+}
+
+// refreshCookieOf is the browser's uniwork_refresh cookie, which a link from
+// Settings holds to the session that started it.
+func refreshCookieOf(r *http.Request) string {
+	if c, err := r.Cookie(refreshCookie); err == nil {
+		return c.Value
+	}
+	return ""
 }
 
 // randomHex is n random bytes, hex: an OAuth state, a nonce or a PKCE

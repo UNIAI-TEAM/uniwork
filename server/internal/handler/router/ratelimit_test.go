@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -66,10 +67,12 @@ type caller struct {
 	forged  string // raw uw_guest cookie value, never signed
 	device  string // X-UniWork-Device header, never verified
 	json    bool   // Content-Type: application/json, as the routes behind mw.SameSiteJSON need
+	body    string // request body, for the budgets keyed by what it names
+	cookie  *http.Cookie
 }
 
 func (c caller) send(h http.Handler, method, path string) int {
-	req := httptest.NewRequest(method, path, nil)
+	req := httptest.NewRequest(method, path, strings.NewReader(c.body))
 	req.RemoteAddr = c.ip + ":40000"
 	if c.bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+c.bearer)
@@ -85,6 +88,9 @@ func (c caller) send(h http.Handler, method, path string) int {
 	}
 	if c.json {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if c.cookie != nil {
+		req.AddCookie(c.cookie)
 	}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -580,4 +586,117 @@ func TestDesktopRefreshBudgetsEachDeviceUnderAnAddressCeiling(t *testing.T) {
 	// start and exchange stay on the credential budget, untouched by the above.
 	caller{ip: carrier}.spend(t, h, http.MethodGet, "/api/v1/auth/desktop/start", 60)
 	caller{ip: carrier}.wantRefused(t, h, http.MethodGet, "/api/v1/auth/desktop/start", "credential budget still 60 a minute per address")
+}
+
+// A password is guessed on the sign-in-password budget (ADR 0047 §9): 20 a
+// minute per address and email, so people signing in behind one office NAT
+// each get their own, and the email is read the way login reads it (case and
+// spaces aside). One address trying a password on every account meets the
+// ceiling of 600 a minute whatever emails it names.
+func TestSignInPasswordBudgetIsPerAddressAndEmail(t *testing.T) {
+	h, _ := limitedMux(t)
+	const path = "/api/v1/auth/login"
+	office := "10.50.0.1"
+	an := caller{ip: office, json: true, body: `{"email":"an@acme.vn","password":"x"}`}
+	an.spend(t, h, http.MethodPost, path, 20)
+	an.wantRefused(t, h, http.MethodPost, path, "one address and email: 20 a minute")
+	caller{ip: office, json: true, body: `{"email":"  AN@acme.VN ","password":"y"}`}.
+		wantRefused(t, h, http.MethodPost, path, "the same email, however it is typed")
+	caller{ip: office, json: true, body: `{"email":"binh@acme.vn","password":"x"}`}.spend(t, h, http.MethodPost, path, 20)
+	caller{ip: "10.50.0.2", json: true, body: an.body}.spend(t, h, http.MethodPost, path, 1)
+
+	sweep := caller{ip: "10.50.0.3", json: true}
+	for i := 0; i < 600; i++ {
+		sweep.body = fmt.Sprintf(`{"email":"user%d@acme.vn","password":"x"}`, i)
+		if code := sweep.send(h, http.MethodPost, path); code == http.StatusTooManyRequests {
+			t.Fatalf("request %d of 600 refused", i+1)
+		}
+	}
+	sweep.body = `{"email":"fresh@acme.vn","password":"x"}`
+	sweep.wantRefused(t, h, http.MethodPost, path, "the address ceiling: 600 a minute whatever the email")
+
+	// A form another site posts is refused before it spends anything.
+	form := caller{ip: "10.50.0.4", body: an.body}
+	for i := 0; i < 30; i++ {
+		if code := form.send(h, http.MethodPost, path); code != http.StatusUnsupportedMediaType {
+			t.Fatalf("a form post: %d, want 415", code)
+		}
+	}
+	caller{ip: form.ip, json: true, body: an.body}.spend(t, h, http.MethodPost, path, 20)
+}
+
+// The second step of a sign-in is guessed on the sign-in-mfa budget: 10 a
+// minute per address and the account the challenge token names, whether the
+// token rides in the body or in the uniwork_mfa cookie. A token the server
+// did not sign keys by address, so making them up buys nothing.
+func TestSignInMFABudgetKeysTheChallengedAccount(t *testing.T) {
+	h, minter := limitedMux(t)
+	const path = "/api/v1/auth/mfa/verify"
+	challenge := func(uid string) string {
+		tok, err := minter.MintMFA(auth.MFAChallenge{UserID: uid})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tok
+	}
+	office := "10.51.0.1"
+	a := caller{ip: office, json: true, body: `{"mfa_token":"` + challenge("user-a") + `","code":"000000"}`}
+	a.spend(t, h, http.MethodPost, path, 10)
+	a.wantRefused(t, h, http.MethodPost, path, "one account's second step: 10 a minute")
+	caller{ip: office, json: true, body: `{"code":"000000"}`, cookie: &http.Cookie{Name: mfaCookieName, Value: challenge("user-a")}}.
+		wantRefused(t, h, http.MethodPost, path, "the cookie names the same account")
+	caller{ip: office, json: true, body: `{"mfa_token":"` + challenge("user-b") + `","code":"000000"}`}.spend(t, h, http.MethodPost, path, 10)
+
+	forged := auth.TokenMinter{Secret: []byte("not-the-server-secret"), TTL: time.Hour}
+	tok, _ := forged.MintMFA(auth.MFAChallenge{UserID: "user-c"})
+	made := caller{ip: "10.51.0.2", json: true, body: `{"mfa_token":"` + tok + `","code":"000000"}`}
+	made.spend(t, h, http.MethodPost, path, 10)
+	caller{ip: made.ip, json: true, body: `{"code":"000000"}`}.wantRefused(t, h, http.MethodPost, path, "a forged token shares the address's budget")
+}
+
+// Every route that takes a signed-in person's proof shares one step-up
+// budget per person (spec §3.9), so a stolen session cannot spread its
+// guesses across them; another person behind the same address has their own.
+func TestStepUpRoutesShareOneBudgetPerPerson(t *testing.T) {
+	h, minter := limitedMux(t)
+	routes := []struct{ method, path string }{
+		{http.MethodPost, "/api/v1/me/step-up"},
+		{http.MethodPost, "/api/v1/me/step-up/email-code"},
+		{http.MethodPut, "/api/v1/me/password"},
+		{http.MethodPost, "/api/v1/me/delete"},
+		{http.MethodPost, "/api/v1/orgs/o1/transfer-ownership"},
+	}
+	a := caller{ip: "10.52.0.1", bearer: mustMint(t, minter, "user-a")}
+	for i := 0; i < 10; i++ {
+		r := routes[i%len(routes)]
+		if code := a.send(h, r.method, r.path); code == http.StatusTooManyRequests {
+			t.Fatalf("%s %s: request %d of 10 refused", r.method, r.path, i+1)
+		}
+	}
+	for _, r := range routes {
+		a.wantRefused(t, h, r.method, r.path, "one step-up budget across every proof route")
+	}
+	b := caller{ip: a.ip, bearer: mustMint(t, minter, "user-b")}
+	b.spend(t, h, http.MethodPost, "/api/v1/me/step-up", 10)
+	// The sign-in method commands that take a token ride the credential budget.
+	a.spend(t, h, http.MethodPost, "/api/v1/me/sign-in-methods/google/unlink", 10)
+}
+
+// A budget key reads the body only to name it: the handler behind still
+// reads all of it, whatever its size.
+func TestBudgetKeysLeaveTheBodyWhole(t *testing.T) {
+	for _, body := range []string{`{"email":"an@acme.vn","password":"x"}`, strings.Repeat("x", signInPeekLimit+100), ""} {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
+		key := signInPasswordKey(nil)(req)
+		got, err := io.ReadAll(req.Body)
+		if err != nil || string(got) != body {
+			t.Fatalf("body after the key (%d bytes): %d bytes, %v", len(body), len(got), err)
+		}
+		if (key != "") != strings.HasPrefix(body, "{") {
+			t.Fatalf("key %q for a body of %d bytes", key, len(body))
+		}
+		if strings.Contains(key, "an@acme.vn") {
+			t.Fatalf("the key carries the email: %q", key)
+		}
+	}
 }
