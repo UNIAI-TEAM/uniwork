@@ -4,12 +4,21 @@ import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
 import { useMeeting, useMeetingCapabilities, useParticipants } from "@uniwork/core/meetings";
 import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
-import { useMeetingRecorder, useUnsentRecordings, type RecordingStore } from "@uniwork/core/meetings/recorder";
+import { formatVoiceCallDuration } from "@uniwork/core/chat/voice-call-duration";
+import {
+  useMeetingRecorder,
+  useSendRecording,
+  useUnsentRecordings,
+  type RecordingStore,
+} from "@uniwork/core/meetings/recorder";
+import type { Meeting } from "@uniwork/core/types";
 import { useCurrentMember } from "@uniwork/core/permissions";
 import { useMediaDevices } from "../meeting-media-controls";
 import { useInPersonStrip } from "../meeting-detail/use-in-person-strip";
+import { ConfirmDialog } from "../../common/form-dialog";
 import { useInertOutside } from "../use-inert-outside";
 import { RecordPrep, type RecordLanguage } from "./record-prep";
+import { RecordSendDialog } from "./record-send-dialog";
 import { RecordStage } from "./record-stage";
 
 function RecordShell({ children }: { children: ReactNode }) {
@@ -27,6 +36,70 @@ function RecordShell({ children }: { children: ReactNode }) {
 }
 
 /**
+ * Sends what this device holds for the meeting as soon as it mounts, once.
+ * Stopping or leaving it for later keeps the parts on the device.
+ */
+function RecordSend({
+  workspaceId,
+  meeting,
+  userId,
+  store,
+  onSent,
+  onBack,
+}: {
+  workspaceId: string;
+  meeting: Meeting;
+  userId: string;
+  store?: RecordingStore;
+  onSent: () => void;
+  onBack: () => void;
+}) {
+  const sender = useSendRecording({ workspaceId, meeting, userId, store });
+  const { phase, send } = sender;
+  // StrictMode runs a mount effect twice: one send only.
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    void send();
+  }, [send]);
+
+  const sent = useRef(onSent);
+  sent.current = onSent;
+  useEffect(() => {
+    if (phase === "done") sent.current();
+  }, [phase]);
+
+  // Leaving now would strand an upload the server never queues: the browser asks first.
+  const busy = phase === "holding" || phase === "uploading";
+  useEffect(() => {
+    if (!busy) return;
+    const ask = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Chrome before 119 only asks when returnValue is set.
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", ask);
+    return () => window.removeEventListener("beforeunload", ask);
+  }, [busy]);
+
+  const leave = () => void sender.stop().then(onBack);
+  return (
+    <RecordSendDialog
+      phase={phase}
+      percent={sender.percent}
+      sentBytes={sender.sentBytes}
+      totalBytes={sender.totalBytes}
+      seconds={sender.seconds}
+      error={sender.error}
+      onStop={leave}
+      onRetry={sender.retry}
+      onLater={leave}
+    />
+  );
+}
+
+/**
  * Records an in-person meeting from this browser (UNI-2247): the prep screen,
  * then the recording. Only a clerk of an in-person meeting, where the
  * organization can transcribe, gets here; anyone else is sent back to the
@@ -37,23 +110,25 @@ export function MeetingRecordView({
   workspaceId,
   meetingId,
   onBack,
+  onSent,
   workspaceLabel,
   meetingsHref,
+  send = false,
   store,
 }: {
   workspaceId: string;
   meetingId: string;
   /** Back to the meeting page. */
   onBack: () => void;
-  /** The recording reached the server (the send step, Task 10). */
+  /** The recording reached the server. */
   onSent: () => void;
   workspaceLabel?: string;
   meetingsHref?: string;
-  /** Opened to send what this device holds (`?send=1`); the send step reads it (Task 10). */
+  /** Opened to send what this device holds (`?send=1`): straight to the send dialog, or back when it holds nothing. */
   send?: boolean;
   store?: RecordingStore;
 }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const userId = useAuthStore((s) => s.user?.id) ?? "";
   const meetingQuery = useMeeting(meetingId);
   const meeting = meetingQuery.data ?? undefined;
@@ -89,10 +164,33 @@ export function MeetingRecordView({
     if (refused) back.current();
   }, [refused]);
 
-  // Task 10 turns this into the end confirm and the send dialog; for now what was recorded stays on the device.
-  const onEndRequested = () => {
-    void recorder.stop().then(() => back.current());
+  const [askEnd, setAskEnd] = useState(false);
+  const [sending, setSending] = useState(false);
+  // Every "Kết thúc" asks first; "Ghi tiếp" closes the question and the recording never stopped.
+  const onEndRequested = () => setAskEnd(true);
+  const endAndSend = () => {
+    setAskEnd(false);
+    void recorder.stop().then(() => setSending(true));
   };
+
+  // `?send=1`: once the meeting and what this device holds are known, send it, or go back with nothing to send.
+  const sendDecided = useRef(false);
+  const sendReady = send && Boolean(meeting) && !unsent.isPending;
+  const sendNothing = unsent.parts.length === 0;
+  useEffect(() => {
+    if (!sendReady || sendDecided.current) return;
+    sendDecided.current = true;
+    if (sendNothing) back.current();
+    else setSending(true);
+  }, [sendReady, sendNothing]);
+
+  const sendDialog =
+    sending && meeting ? (
+      <RecordSend workspaceId={workspaceId} meeting={meeting} userId={userId} store={store} onSent={onSent} onBack={onBack} />
+    ) : null;
+
+  // Sending what an earlier visit left: no prep screen to start a new recording behind the dialog.
+  if (send && state === "idle") return <RecordShell>{sendDialog}</RecordShell>;
 
   if (state === "idle" || state === "failed") {
     return (
@@ -140,6 +238,17 @@ export function MeetingRecordView({
         }}
         onEnd={onEndRequested}
       />
+      <ConfirmDialog
+        open={askEnd}
+        onOpenChange={setAskEnd}
+        destructive={false}
+        title={t("meetings.record.endTitle")}
+        description={t("meetings.record.endBody", { duration: formatVoiceCallDuration((priorMs + activeMs) / 1000) })}
+        confirmLabel={t("meetings.record.endAndSend")}
+        cancelLabel={t("meetings.record.continue")}
+        onConfirm={endAndSend}
+      />
+      {sendDialog}
     </RecordShell>
   );
 }

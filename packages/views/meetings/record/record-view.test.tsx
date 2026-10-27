@@ -1,5 +1,6 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
+import { StrictMode } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { ApiError } from "@uniwork/core/api";
@@ -54,6 +55,8 @@ class FakeRecorder {
   }
   stop() {
     this.state = "inactive";
+    // The last slice of audio, as a real recorder hands it over on stop.
+    this.ondataavailable?.({ data: new Blob(["audio"]) } as BlobEvent);
     this.onstop?.();
   }
 }
@@ -64,7 +67,25 @@ function route({
   capsFail = false,
   rosterFail = () => false,
 }: { transcription?: boolean; over?: Partial<Meeting>; capsFail?: boolean; rosterFail?: () => boolean } = {}) {
-  requestMock.mockImplementation(async (path: string) => {
+  requestMock.mockImplementation(async (path: string, init?: { method?: string }) => {
+    const method = init?.method ?? "GET";
+    if (path === "/api/v1/meetings/m1/held" && method === "POST") return { meeting: { ...meeting, ...over, status: "ENDED" } };
+    if (path === "/api/v1/meetings/m1/audio-upload-sessions" && method === "POST") {
+      return {
+        session_id: "s1",
+        part_size: 8 << 20,
+        total_parts: 1,
+        completed_parts: [],
+        parts: [{ part_number: 1, method: "PUT", url: "https://s3.test/part-1", headers: {}, expires_at: "2099-01-01T00:00:00Z" }],
+        expires_at: "2099-01-02T00:00:00Z",
+      };
+    }
+    if (path === "/api/v1/upload-sessions/s1/complete") {
+      return { upload_id: "up1", checksum_sha256: "a".repeat(64), size_bytes: 5, claim_expires_at: "2099-01-01T00:00:00Z" };
+    }
+    if (path === "/api/v1/meetings/m1/transcriptions" && method === "POST") {
+      return { transcription: { id: "t1", meeting_id: "m1", filename: "ghi-am.webm", status: "QUEUED" } };
+    }
     if (path === "/api/v1/meetings/m1") return { meeting: { ...meeting, ...over } };
     if (path === "/api/v1/meetings/m1/participants") {
       if (rosterFail()) throw new TypeError("Failed to fetch");
@@ -85,16 +106,40 @@ function route({
   });
 }
 
-function renderView(store: RecordingStore, onBack = vi.fn(), client?: QueryClient) {
+function renderView(store: RecordingStore, onBack = vi.fn(), client?: QueryClient, { send = false, onSent = vi.fn() } = {}) {
   render(
     wrapWithNav(
-      <MeetingRecordView workspaceId="w1" meetingId="m1" store={store} onBack={onBack} onSent={vi.fn()} meetingsHref="/o/w/meetings" />,
+      <StrictMode>
+        <MeetingRecordView
+          workspaceId="w1"
+          meetingId="m1"
+          store={store}
+          onBack={onBack}
+          onSent={onSent}
+          send={send}
+          meetingsHref="/o/w/meetings"
+        />
+      </StrictMode>,
       undefined,
       client,
     ),
   );
   return onBack;
 }
+
+/** One closed part of 5 minutes already on this device, as a closed tab leaves it. */
+async function storedPart(store: RecordingStore) {
+  const startedAt = Date.now() - 600_000;
+  await store.createPart({
+    id: "earlier", userId: USER.id, meetingId: "m1", startedAt, lastChunkAt: startedAt,
+    endedAt: null, mimeType: "audio/webm", bytes: 0, language: "vi", offsetSeconds: 0,
+  });
+  await store.appendChunk("earlier", 0, new Blob(["audio"]), startedAt + 300_000);
+  await store.finishPart("earlier", startedAt + 300_000);
+}
+
+const transcriptionPosts = () =>
+  requestMock.mock.calls.filter(([path, init]) => path === "/api/v1/meetings/m1/transcriptions" && (init as { method?: string } | undefined)?.method === "POST");
 
 async function startRecording() {
   fireEvent.click(await screen.findByRole("checkbox", { name: /Tôi đã thông báo cho người dự họp về việc ghi âm/ }));
@@ -112,6 +157,10 @@ beforeEach(() => {
   setSessionUser(USER);
   tracks = [];
   vi.stubGlobal("MediaRecorder", FakeRecorder);
+  // The part PUT goes through fetch (no XHR in jsdom); its resume record must not leak between tests.
+  localStorage.clear();
+  vi.stubGlobal("XMLHttpRequest", undefined);
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200, headers: { ETag: '"etag-1"' } })));
   Object.defineProperty(navigator, "mediaDevices", {
     configurable: true,
     value: {
@@ -248,5 +297,94 @@ describe("MeetingRecordView", () => {
     await waitFor(() => expect(start).not.toHaveAttribute("aria-disabled"));
     fireEvent.click(start);
     expect(await screen.findByText("Đang ghi âm")).toBeInTheDocument();
+  });
+
+  it("ending asks, then sends", async () => {
+    const store = memoryRecordingStore();
+    const onSent = vi.fn();
+    const onBack = renderView(store, vi.fn(), undefined, { onSent });
+    await startRecording();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Kết thúc" })[0]!);
+    let confirm = await screen.findByRole("alertdialog", { name: "Kết thúc và gửi bản ghi?" });
+    expect(confirm).toHaveTextContent("Bản ghi 0:00 được gửi để Thư ký UNI soạn tóm tắt, việc đề xuất và biên bản.");
+    fireEvent.click(within(confirm).getByRole("button", { name: "Ghi tiếp" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    // Cancelling the end goes on recording: it never pauses.
+    expect(screen.getByText("Đang ghi âm")).toBeInTheDocument();
+    expect(tracks.at(-1)!.stop).not.toHaveBeenCalled();
+
+    // The bar's red stop asks the same question.
+    fireEvent.click(screen.getAllByRole("button", { name: "Kết thúc" }).at(-1)!);
+    confirm = await screen.findByRole("alertdialog", { name: "Kết thúc và gửi bản ghi?" });
+    fireEvent.click(within(confirm).getByRole("button", { name: "Kết thúc và gửi" }));
+    expect(await screen.findByRole("dialog", { name: "Đang gửi bản ghi" })).toBeInTheDocument();
+    expect(tracks.at(-1)!.stop).toHaveBeenCalled();
+    await waitFor(() => expect(onSent).toHaveBeenCalledTimes(1));
+    expect(transcriptionPosts()).toHaveLength(1);
+    expect(await store.listParts(USER.id, "m1")).toEqual([]);
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it("the interrupted panel's end asks the same question", async () => {
+    renderView(memoryRecordingStore());
+    await startRecording();
+    act(() => void tracks.at(-1)!.dispatchEvent(new Event("ended")));
+    fireEvent.click(await screen.findByRole("button", { name: "Kết thúc và gửi" }));
+    expect(await screen.findByRole("alertdialog", { name: "Kết thúc và gửi bản ghi?" })).toBeInTheDocument();
+  });
+
+  it("send=1 sends what is on the device", async () => {
+    const store = memoryRecordingStore();
+    await storedPart(store);
+    const onSent = vi.fn();
+    const onBack = renderView(store, vi.fn(), undefined, { send: true, onSent });
+    await waitFor(() => expect(onSent).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("button", { name: "Bắt đầu ghi âm" })).not.toBeInTheDocument();
+    expect(transcriptionPosts()).toHaveLength(1);
+    expect(await store.listParts(USER.id, "m1")).toEqual([]);
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it("send=1 with nothing on the device goes back to the meeting", async () => {
+    const onSent = vi.fn();
+    const onBack = renderView(memoryRecordingStore(), vi.fn(), undefined, { send: true, onSent });
+    await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+    expect(onSent).not.toHaveBeenCalled();
+    expect(transcriptionPosts()).toHaveLength(0);
+  });
+
+  it("stopping the send keeps the recording on the device and goes back", async () => {
+    // The part PUT hangs until the upload is cancelled.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+          }),
+      ),
+    );
+    const store = memoryRecordingStore();
+    await storedPart(store);
+    const onBack = renderView(store, vi.fn(), undefined, { send: true });
+    const stop = await screen.findByRole("button", { name: "Dừng gửi" });
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    // Closing the tab mid-upload asks first.
+    const unload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+
+    fireEvent.click(stop);
+    await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+    expect(await store.listParts(USER.id, "m1")).toHaveLength(1);
+    expect(transcriptionPosts()).toHaveLength(0);
+  });
+
+  it("the breadcrumb is no way out while recording", async () => {
+    renderView(memoryRecordingStore());
+    await startRecording();
+    expect(screen.queryByRole("link", { name: "Cuộc họp" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("navigation", { name: "Cuộc họp" })).getByText("Cuộc họp")).toBeInTheDocument();
   });
 });

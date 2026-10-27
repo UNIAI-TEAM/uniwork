@@ -84,9 +84,14 @@ export function RecordStage({
                         <span aria-hidden className="mx-1.5 opacity-60">/</span>
                       </>
                     ) : null}
-                    <AppLink href={meetingsHref} className="hover:text-meeting-bar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      {t("meetings.title")}
-                    </AppLink>
+                    {/* No way out mid-recording but "Kết thúc", which asks first. */}
+                    {state === "stopped" ? (
+                      <AppLink href={meetingsHref} className="hover:text-meeting-bar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        {t("meetings.title")}
+                      </AppLink>
+                    ) : (
+                      <span>{t("meetings.title")}</span>
+                    )}
                   </nav>
                 ) : null}
                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">

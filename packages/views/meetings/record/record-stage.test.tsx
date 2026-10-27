@@ -41,6 +41,18 @@ describe("RecordStage", () => {
     expect(screen.getAllByText("Đã lưu trên máy")).toHaveLength(2);
     expect(screen.getByText("Màn hình luôn sáng")).toBeInTheDocument();
     expect(screen.getByText("7 người dự")).toBeInTheDocument();
+    // Mid-recording the breadcrumb is no way out: "Kết thúc" is, and it asks first.
+    expect(screen.queryByRole("link", { name: "Cuộc họp" })).not.toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Cuộc họp" })).toHaveTextContent("Vận hành/Cuộc họp");
+  });
+
+  it.each(["paused", "interrupted"] as const)("keeps the breadcrumb plain while %s", (state) => {
+    renderStage({ state });
+    expect(screen.queryByRole("link", { name: "Cuộc họp" })).not.toBeInTheDocument();
+  });
+
+  it("links the breadcrumb once the recording has stopped", () => {
+    renderStage({ state: "stopped" });
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toHaveAttribute("href", "/o/w/meetings");
   });
 
