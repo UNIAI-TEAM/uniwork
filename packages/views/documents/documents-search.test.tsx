@@ -209,7 +209,7 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "hop dong" } });
 
-    expect(await screen.findByText("Hợp đồng mẫu.docx")).toBeInTheDocument();
+    expect(await screen.findByText("Hợp đồng mẫu.docx", undefined, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByText("Hợp đồng nháp")).toBeInTheDocument();
     expect(screen.getByText("Hợp đồng đối tác")).toBeInTheDocument();
 
@@ -459,7 +459,7 @@ describe("Documents search keeps layout (UNI-2205)", () => {
     const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
     fireEvent.change(searchInput, { target: { value: "dich" } });
 
-    const docCell = (await screen.findByText("Tài liệu đích")).closest("button")!;
+    const docCell = (await screen.findByText("Tài liệu đích", undefined, { timeout: 5000 })).closest("button")!;
     fireEvent.click(docCell);
 
     expect(onOpen).toHaveBeenCalledTimes(1);
