@@ -606,7 +606,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 		token *string
 		id    string
 	}{{&tn.token, tn.userID}, {&tn.peerToken, tn.peerID}, {&tn.thirdToken, tn.thirdID}} {
-		tok, err := long.Mint(p.id)
+		tok, err := long.MintWebSession(p.id, "")
 		if err != nil {
 			t.Fatal(err)
 		}

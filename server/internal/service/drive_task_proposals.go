@@ -16,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
-	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
@@ -30,9 +29,9 @@ const (
 
 // Drive task proposal error sentinels (spec §8.2b, §8.3, seam §3).
 var (
-	ErrDriveProposalNotReady             = errors.New(sdo.DriveErrProposalNotReady)
-	ErrDriveProposalExpired              = errors.New(sdo.DriveErrProposalExpired)
-	ErrDriveProposalItemAlreadyConverted = errors.New(sdo.DriveErrProposalItemAlreadyConverted)
+	ErrDriveProposalNotReady             = errors.New("proposal_not_ready")
+	ErrDriveProposalExpired              = errors.New("proposal_expired")
+	ErrDriveProposalItemAlreadyConverted = errors.New("proposal_item_already_converted")
 )
 
 // DriveProposalMetrics records Prometheus counters for Drive task proposals (spec §10).
@@ -829,19 +828,6 @@ func (s *DriveTaskProposalService) Duplicates(
 	return out, nil
 }
 
-func (s *DriveTaskProposalService) checkProposalReadyAndUnexpired(row db.DriveTaskProposal) error {
-	if row.Status == DriveProposalStatusConverted {
-		return errDriveProposalItemAlreadyConverted()
-	}
-	if row.Status != DriveProposalStatusReady {
-		return errDriveProposalNotReady()
-	}
-	if !row.ExpiresAt.Valid || !row.ExpiresAt.Time.After(s.nowUTC()) {
-		return errDriveProposalExpired()
-	}
-	return nil
-}
-
 func (s *DriveTaskProposalService) validateOptionalProject(
 	ctx context.Context,
 	orgID, workspaceID string,
@@ -1193,7 +1179,7 @@ func buildDriveTaskProposalView(
 	}
 	sharingState := fileRow.SharingState
 	if sharingState == "" {
-		sharingState = sdo.DriveSharingStateUnknown
+		sharingState = DriveSharingStateUnknown
 	}
 	return DriveTaskProposalView{
 		ID:                 row.ID,
@@ -1230,36 +1216,9 @@ func textPtr(t pgtype.Text) *string {
 
 func errDriveSourceChanged() error {
 	return CodedError{
-		Code:   sdo.DriveErrSourceChanged,
+		Code:   "drive_source_changed",
 		Status: http.StatusConflict,
 		Msg:    "Kết nối hoặc tệp Google Drive đã thay đổi trong khi xử lý. Vui lòng thử lại.",
 		Err:    ErrDriveSourceChanged,
-	}
-}
-
-func errDriveProposalNotReady() error {
-	return CodedError{
-		Code:   sdo.DriveErrProposalNotReady,
-		Status: http.StatusConflict,
-		Msg:    "Bản đề xuất công việc không còn ở trạng thái sẵn sàng.",
-		Err:    ErrDriveProposalNotReady,
-	}
-}
-
-func errDriveProposalExpired() error {
-	return CodedError{
-		Code:   sdo.DriveErrProposalExpired,
-		Status: http.StatusGone,
-		Msg:    "Bản đề xuất công việc đã hết hạn sau 7 ngày.",
-		Err:    ErrDriveProposalExpired,
-	}
-}
-
-func errDriveProposalItemAlreadyConverted() error {
-	return CodedError{
-		Code:   sdo.DriveErrProposalItemAlreadyConverted,
-		Status: http.StatusConflict,
-		Msg:    "Bản đề xuất công việc này đã được chuyển thành công việc.",
-		Err:    ErrDriveProposalItemAlreadyConverted,
 	}
 }

@@ -2884,6 +2884,8 @@ func auditActions() []string {
 		audit.ActionDriveFileRebound,
 		audit.ActionTaskDriveFileLinked,
 		audit.ActionTaskDriveFileUnlinked,
+		audit.ActionDriveTaskProposalCreated,
+		audit.ActionDriveTaskProposalDiscarded,
 		audit.ActionMcpGrantCreated,
 		audit.ActionMcpGrantRevoked,
 		audit.ActionMcpGrantScopeChanged,
