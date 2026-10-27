@@ -29,6 +29,10 @@ const (
 	DriveAssigneeAccessUnknown = "unknown"
 )
 
+// DriveProposalDefaultStartBasis is the Vietnamese basis set on start_date when
+// the document states no valid start_date or states one before today (USER 2026-10-27, spec §8.2 / §8.4).
+const DriveProposalDefaultStartBasis = "Không thấy ngày bắt đầu trong tài liệu, đặt hôm nay"
+
 // DriveProposalExcerpt is the source section and quote UNI extracted for one
 // proposed task (spec §8.2). Its JSON shape matches sdo.DriveProposalExcerptDTO.
 type DriveProposalExcerpt struct {
@@ -122,18 +126,20 @@ func parseDriveProposalRawItems(text string) ([]driveProposalRawItem, error) {
 }
 
 // normalizeDriveProposalItems normalizes the model's raw task proposal items
-// (spec §8.2 step 5, contract §2.5, seam §2):
+// (spec §8.2 step 5, USER 2026-10-27):
 //   - drops items with an empty title first, caps at 20 items, and assigns
 //     dense 0-based indexes 0..n-1;
 //   - translates blocked_by_indexes from raw item coordinates into dense
 //     0..n-1 indexes (dropping references to empty-title or capped-out items)
 //     before removing out-of-range, self-referential, duplicate, or cycle edges;
 //   - drops assignee_member_id and label_ids not present in the workspace maps;
-//   - drops start_date and due_date that are not valid YYYY-MM-DD dates;
-//   - clears priority outside low|medium|high|urgent;
+//   - fills start_date with today and DriveProposalDefaultStartBasis when missing,
+//     invalid, or before today, keeping the model's basis when start_date >= today;
+//   - drops due_date that is not a valid YYYY-MM-DD date or is before start_date;
+//   - clears priority outside low|medium|high|urgent or when priority_basis is empty;
 //   - clears the corresponding *_basis whenever a field is empty or dropped;
 //   - truncates excerpt.quote to 300 runes and checklist to 10 items.
-func normalizeDriveProposalItems(raw []driveProposalRawItem, members map[string]bool, labels map[string]bool) []DriveTaskProposalItem {
+func normalizeDriveProposalItems(raw []driveProposalRawItem, members map[string]bool, labels map[string]bool, today string) []DriveTaskProposalItem {
 	type keptRaw struct {
 		rawIndex int
 		item     driveProposalRawItem
@@ -153,6 +159,7 @@ func normalizeDriveProposalItems(raw []driveProposalRawItem, members map[string]
 		}
 	}
 
+	todayDate, _ := normalizeDriveProposalDate(today)
 	n := len(kept)
 	out := make([]DriveTaskProposalItem, n)
 	rawBlocked := make([][]int, n)
@@ -168,25 +175,30 @@ func normalizeDriveProposalItems(raw []driveProposalRawItem, members map[string]
 		}
 
 		var priority, priorityBasis string
-		if p := normalizeDriveProposalPriority(r.Priority); p != "" {
+		if p, b := normalizeDriveProposalPriority(r.Priority), strings.TrimSpace(r.PriorityBasis); p != "" && b != "" {
 			priority = p
-			priorityBasis = strings.TrimSpace(r.PriorityBasis)
+			priorityBasis = b
 		}
 
 		var startDate *string
 		var startBasis string
-		if d, ok := normalizeDriveProposalDate(r.StartDate); ok {
+		if d, ok := normalizeDriveProposalDate(r.StartDate); ok && (todayDate == "" || d >= todayDate) {
 			startDate = &d
 			startBasis = strings.TrimSpace(r.StartBasis)
+		} else if todayDate != "" {
+			d := todayDate
+			startDate = &d
+			startBasis = DriveProposalDefaultStartBasis
 		}
 
 		var dueDate *string
 		var dueBasis string
 		if d, ok := normalizeDriveProposalDate(r.DueDate); ok {
-			dueDate = &d
-			dueBasis = strings.TrimSpace(r.DueBasis)
+			if startDate == nil || d >= *startDate {
+				dueDate = &d
+				dueBasis = strings.TrimSpace(r.DueBasis)
+			}
 		}
-
 		labelIDs := make([]string, 0, len(r.LabelIDs))
 		seenLabels := make(map[string]bool, len(r.LabelIDs))
 		for _, lid := range r.LabelIDs {

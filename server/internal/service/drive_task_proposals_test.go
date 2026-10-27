@@ -218,6 +218,55 @@ func TestDriveProposalSeamHelpersAndOrgLifecycleDiscards(t *testing.T) {
 	}
 }
 
+// TestDriveProposalProposeFillsTodayStartDateThroughFakeGateway verifies that
+// DriveTaskProposalService.Propose passes the ICT (UTC+7) today date to the
+// prompt and normalizer, so an item with no dates from the fake gateway comes
+// back with start_date = today and the Vietnamese default start_basis constant.
+func TestDriveProposalProposeFillsTodayStartDateThroughFakeGateway(t *testing.T) {
+	e := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+
+	gw := ai.NewGateway(e.q, &provider.Fake{Reply: ai.FakeReply}, NewAIQuota(NewEntitlementService(e.pool, e.q)), nil, ai.Options{})
+	propSvc := NewDriveTaskProposalService(e.pool, e.q, e.ws, e.fileSvc, e.svc, e.contentSvc, gw)
+	// 2026-10-26 20:30 UTC is 2026-10-27 03:30 in UTC+7 (ICT).
+	propSvc.now = func() time.Time {
+		return time.Date(2026, 10, 26, 20, 30, 0, 0, time.UTC)
+	}
+
+	ownerConn := e.connectAccount(t, e.owner.ID, e.wsA.ID, "sub-today-owner", "today-owner@example.com")
+	e.googleSrv.SetFile("ext-today-doc", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-today-doc", Name: "Today Sheet", MimeType: DriveMimeGoogleDoc},
+		ExportByMime: map[string][]byte{
+			DriveMimeMarkdown: []byte("# Today Sheet\n- Theo dõi nội dung tài liệu"),
+		},
+	})
+	linked, err := e.fileSvc.Link(ctx, Human(e.owner.ID), e.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    ownerConn.ID,
+		ExternalFileIDs: []string{"ext-today-doc"},
+	})
+	if err != nil || len(linked) != 1 || linked[0].File == nil {
+		t.Fatalf("Link = %+v, err=%v", linked, err)
+	}
+
+	propView, err := propSvc.Propose(ctx, Human(e.owner.ID), e.wsA.ID, linked[0].File.ID, ProposeDriveTasksInput{})
+	if err != nil {
+		t.Fatalf("Propose = %v", err)
+	}
+	if len(propView.Items) != 1 {
+		t.Fatalf("len(propView.Items) = %d, want 1", len(propView.Items))
+	}
+	it := propView.Items[0]
+	if it.StartDate == nil || *it.StartDate != "2026-10-27" {
+		t.Fatalf("item.StartDate = %v, want 2026-10-27 (ICT today)", it.StartDate)
+	}
+	if it.StartBasis != "Không thấy ngày bắt đầu trong tài liệu, đặt hôm nay" {
+		t.Fatalf("item.StartBasis = %q, want default Vietnamese basis", it.StartBasis)
+	}
+	if it.DueDate != nil || it.DueBasis != "" {
+		t.Fatalf("item.DueDate/DueBasis = %v / %q, want nil and empty", it.DueDate, it.DueBasis)
+	}
+}
+
 // TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback exercises
 // DriveTaskProposalService.CreateTasksFromProposal at the service layer (spec §8.5):
 //   - Subset conversion (items[0] and items[2]), intra-batch dependencies (blocked_by),

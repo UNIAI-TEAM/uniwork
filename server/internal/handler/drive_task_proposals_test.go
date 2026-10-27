@@ -435,8 +435,8 @@ func TestDriveProposalEndToEndNormalizationDuplicatesAndAudit(t *testing.T) {
 	if it1.Priority != "" || it1.PriorityBasis != "" {
 		t.Fatalf("item[1] priority/basis = %q/%q, want empty", it1.Priority, it1.PriorityBasis)
 	}
-	if it1.StartDate != nil || it1.StartBasis != "" || it1.DueDate != nil || it1.DueBasis != "" {
-		t.Fatalf("item[1] dates/basis = %+v, want nil and empty basis", it1)
+	if it1.StartDate == nil || *it1.StartDate == "" || it1.StartBasis != service.DriveProposalDefaultStartBasis || it1.DueDate != nil || it1.DueBasis != "" {
+		t.Fatalf("item[1] dates/basis = %+v, want today start_date with default basis and nil due_date", it1)
 	}
 	if len(it1.LabelIDs) != 0 || it1.LabelBasis != "" {
 		t.Fatalf("item[1] labels/basis = %v/%q, want empty", it1.LabelIDs, it1.LabelBasis)

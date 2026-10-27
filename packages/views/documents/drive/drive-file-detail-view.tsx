@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert, ExternalLink, FileX, RefreshCw, Sparkles, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import { DriveProposeTasksPopover } from "../../tasks/drive-task-proposal-popove
 import { DocumentTypeIcon } from "../document-type-icon";
 import { DocumentsGateState, useDocumentsGate } from "../documents-gate";
 import { DriveAskUniHeaderButton, useDriveAskUniSeam } from "./drive-ask-uni-seam";
+import { DriveAttachTaskDialog } from "./drive-attach-task-dialog";
 import {
   DriveFileActivitySection,
   DriveRebindSection,
@@ -140,6 +141,7 @@ export function DriveFileDetailView({
     [members.data],
   );
   const unlinkMutation = useUnlinkDriveFile(wsId);
+  const [attachDialogOpen, setAttachDialogOpen] = useState(false);
   const tasksCreatedSectionRef = useRef<HTMLDivElement | null>(null);
   const scrolledFileIdRef = useRef<string | null>(null);
   const { showAsk, askGranted, askDisabled, triggerAsk, proposePopoverOpen, setProposePopoverOpen } = useDriveAskUniSeam({
@@ -270,6 +272,9 @@ export function DriveFileDetailView({
       : file.owner_display;
 
   const showPropose = file.can_propose;
+  const canAttachToTask =
+    file.viewer_access === "granted" && Boolean(file.viewer_connection_id);
+  const showAttachToTask = Boolean(onAttachToTask) || canAttachToTask;
   const usedInTotal = Math.max(file.used_in_count, file.used_in_tasks.length);
   const creations = (file.task_creations ?? []).filter((g) => g.tasks.length > 0);
   const totalCreatedCount = file.tasks_created?.count ?? 0;
@@ -306,24 +311,14 @@ export function DriveFileDetailView({
         className="h-auto min-h-12 flex-wrap py-1.5 sm:h-12 sm:flex-nowrap sm:py-0"
         actionsClassName="basis-full max-w-none flex-wrap justify-end gap-x-2 gap-y-1 overflow-visible sm:basis-auto"
         actions={
-          <>
+          showAsk ? (
             <DriveAskUniHeaderButton
               showAsk={showAsk}
               askGranted={askGranted}
               askDisabled={askDisabled}
               onTriggerAsk={triggerAsk}
             />
-            <a
-              href={file.open_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={t("driveLibrary.detail.open_on_drive")}
-              className={cn(buttonVariants({ size: "sm" }), "gap-1.5 px-2 sm:px-2.5")}
-            >
-              <ExternalLink aria-hidden className="size-4" />
-              <span className="hidden sm:inline">{t("driveLibrary.detail.open_on_drive")}</span>
-            </a>
-          </>
+          ) : undefined
         }
       />
 
@@ -482,12 +477,12 @@ export function DriveFileDetailView({
               <h2 className="font-semibold text-foreground">
                 {t("driveLibrary.detail.used_in.title", { count: usedInTotal })}
               </h2>
-              {onAttachToTask ? (
+              {showAttachToTask ? (
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => onAttachToTask(file)}
+                  onClick={() => (onAttachToTask ? onAttachToTask(file) : setAttachDialogOpen(true))}
                 >
                   {t("driveLibrary.detail.used_in.attach_to_task")}
                 </Button>
@@ -532,6 +527,14 @@ export function DriveFileDetailView({
             />
           ) : null}
         </aside>
+        {canAttachToTask && !onAttachToTask ? (
+          <DriveAttachTaskDialog
+            open={attachDialogOpen}
+            onOpenChange={setAttachDialogOpen}
+            wsId={wsId}
+            file={file}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -509,9 +509,10 @@ func (s *DriveTaskProposalService) Propose(
 		locale = "en"
 	}
 	ict := time.FixedZone("ICT", 7*3600)
+	today := s.nowUTC().In(ict).Format("2006-01-02")
 	vars := map[string]any{
 		"locale":   locale,
-		"today":    s.nowUTC().In(ict).Format("2006-01-02"),
+		"today":    today,
 		"title":    content.Name,
 		"members":  promptMembers,
 		"labels":   promptLabels,
@@ -550,7 +551,7 @@ func (s *DriveTaskProposalService) Propose(
 		return DriveTaskProposalView{}, ai.ErrOutputInvalid
 	}
 
-	items := normalizeDriveProposalItems(rawItems, memberSet, labelSet)
+	items := normalizeDriveProposalItems(rawItems, memberSet, labelSet, today)
 
 	if s.testBeforeProposalCommit != nil {
 		s.testBeforeProposalCommit(ctx)

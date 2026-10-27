@@ -17,11 +17,17 @@ import {
  *
  * Requires:
  * - Server: `DRIVE_FAKE_PROVIDER=1`, `DRIVE_CREDENTIAL_KEY` (base64 32 bytes),
- *   `FF_DRIVE_CONNECTOR=true` (or global DB override from `documents-flag.setup.ts`).
+ *   `FF_DRIVE_CONNECTOR=true` (or global DB override from `documents-flag.setup.ts`),
+ *   `AI_PROVIDER=fake` (for Part 2 task proposal extraction; note: Part 2 remains
+ *   `test.fixme` until `drive-be` adds `FakeDriveProvider` offline content export /
+ *   download in `DriveAPIClient.driveExportFile` / `driveDownloadMedia`).
  * - Web build: `NEXT_PUBLIC_DRIVE_FAKE_PICKER=1` baked at `next build`.
  */
 test.describe.configure({ timeout: 240_000 });
-const B4_ON_ROOT = true; // UNI-2180 (B4 drive-files routes) is on the root
+// Flip to true when drive-be serves Drive content offline under DRIVE_FAKE_PROVIDER=1 (export/download fake).
+const DRIVE_CONTENT_FAKE_ON_ROOT = false;
+const DRIVE_CONTENT_FAKE_REASON =
+  "Missing offline fake for driveExportFile / driveDownloadMedia under DRIVE_FAKE_PROVIDER=1 (server/internal/service/drive_api.go:453-471, owner drive-be)";
 // Drive-be's fake files.get (DRIVE_FAKE_PROVIDER=1) echoes the external id as the file name; change here if its fake changes.
 const fakeDriveName = (externalFileId: string) => externalFileId;
 
@@ -53,6 +59,77 @@ function isCreateTaskPost(url: string, method: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isCreateDriveProposalPost(url: string, method: string): boolean {
+  if (method !== "POST") return false;
+  try {
+    const { pathname } = new URL(url);
+    return /\/api\/v1\/workspaces\/[^/]+\/drive-files\/[^/]+\/task-proposals$/.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
+function isCreateTasksFromProposalPost(url: string, method: string): boolean {
+  if (method !== "POST") return false;
+  try {
+    const { pathname } = new URL(url);
+    return /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+\/tasks$/.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
+async function openAgentModeAndProposeFromPickedDriveFile(
+  page: Page,
+  orgSlug: string,
+  wsSlug: string,
+  file: FakeDriveSeedFile,
+  prompt?: string,
+) {
+  await installFakeDrivePicker(page, [file]);
+  await page.goto(`/${orgSlug}/${wsSlug}/tasks`);
+  await page.getByRole("button", { name: "Tạo việc", exact: true }).click();
+  const createDialog = page.getByRole("dialog");
+  await expect(createDialog).toBeVisible({ timeout: 15_000 });
+
+  await createDialog.getByRole("button", { name: "Đính kèm tệp" }).click();
+  const pickerTokenRes = page.waitForResponse(
+    (r) =>
+      r.request().method() === "POST" &&
+      /\/api\/v1\/workspaces\/[^/]+\/drive-connections\/[^/]+\/picker-token$/.test(
+        new URL(r.url()).pathname,
+      ),
+    { timeout: 15_000 },
+  );
+  await page.getByRole("menuitem", { name: /Từ Google Drive/ }).click();
+  const tokenResp = await pickerTokenRes;
+  expect(tokenResp.ok(), await tokenResp.text()).toBeTruthy();
+
+  const chip = createDialog.getByTestId(`create-task-drive-chip-${file.id}`);
+  await expect(chip).toBeVisible({ timeout: 15_000 });
+  await expect(chip).toContainText(file.name);
+
+  await createDialog.getByRole("button", { name: "Chuyển sang agent" }).click();
+  await expect(createDialog.getByTestId("create-task-agent-created-by-uni")).toBeVisible();
+  await expect(createDialog.getByTestId("create-task-agent-drive-reader-line")).toBeVisible();
+
+  if (prompt) {
+    await createDialog.getByRole("textbox", { name: "Yêu cầu cho agent" }).fill(prompt);
+  }
+
+  const proposalResPromise = page.waitForResponse(
+    (r) => isCreateDriveProposalPost(r.url(), r.request().method()),
+    { timeout: 30_000 },
+  );
+  await createDialog.getByRole("button", { name: /^Gửi cho agent/ }).click();
+  const proposalRes = await proposalResPromise;
+  expect(proposalRes.ok(), await proposalRes.text()).toBeTruthy();
+
+  const reviewDialog = page.getByRole("dialog", { name: /UNI đề xuất .* việc từ tài liệu/ });
+  await expect(reviewDialog).toBeVisible({ timeout: 20_000 });
+  return { reviewDialog };
 }
 
 async function signInAndOpenSettingsIntegrations(page: Page, tag: string) {
@@ -187,10 +264,6 @@ test("1. User A connects Google Drive in Settings › Integrations through the f
 test("2. User A links a Drive file from the create-task dialog (paperclip / Attach -> fake Picker picked) and the task shows the Drive card", async ({
   page,
 }) => {
-  test.fixme(
-    !B4_ON_ROOT,
-    "Missing backend routes POST /drive-connections/{id}/picker-token, POST /workspaces/{ws}/drive-files, CreateTaskSDI.drive_files, and GET /tasks/{taskID}/drive-files (card B4 / UNI-2180 not merged on root 1c9bbb275)",
-  );
   await page.setViewportSize({ width: 1440, height: 900 });
   const account = await signInAndOpenSettingsIntegrations(page, "drive-q1-task-link");
   const { googleEmail } = await connectDriveForCurrentUser(page);
@@ -223,10 +296,6 @@ test("2. User A links a Drive file from the create-task dialog (paperclip / Atta
 test("3. Documents › Google Drive (4.1) for A lists that file (all accounts + the account view); the sidebar Google Drive section shows", async ({
   page,
 }) => {
-  test.fixme(
-    !B4_ON_ROOT,
-    "Missing backend route GET /api/v1/workspaces/{workspaceID}/drive-files and POST /drive-files to link a file (card B4 / UNI-2180 not merged on root 1c9bbb275)",
-  );
   await page.setViewportSize({ width: 1440, height: 900 });
   const account = await signInAndOpenSettingsIntegrations(page, "drive-q1-list-41");
   const { googleEmail } = await connectDriveForCurrentUser(page);
@@ -278,10 +347,6 @@ test("4. User B (same workspace, no connection): sees the file on the task card 
   page,
   browser,
 }) => {
-  test.fixme(
-    !B4_ON_ROOT,
-    "Missing backend routes GET /api/v1/tasks/{taskID}/drive-files and GET /api/v1/workspaces/{workspaceID}/drive-files (card B4 / UNI-2180 not merged on root 1c9bbb275)",
-  );
   await page.setViewportSize({ width: 1440, height: 900 });
   const accountA = await signInAndOpenSettingsIntegrations(page, "drive-q1-user-a");
   await connectDriveForCurrentUser(page);
@@ -354,10 +419,6 @@ test("5. A unlinks at the 4.2 file page; the card on the already-open task page 
   page,
   context,
 }) => {
-  test.fixme(
-    !B4_ON_ROOT,
-    "Missing backend routes GET/DELETE /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID} and drive_file.unlinked outbox emission (card B4 / UNI-2180 not merged on root 1c9bbb275)",
-  );
   await page.setViewportSize({ width: 1440, height: 900 });
   const account = await signInAndOpenSettingsIntegrations(page, "drive-q1-unlink-42");
   await connectDriveForCurrentUser(page);
@@ -514,10 +575,6 @@ test("6a. Contrast + focus on Settings › Integrations Drive row and connected 
 test("6b. Contrast + focus on Documents › Google Drive (4.1) and the Drive file detail page (4.2), light + dark", async ({
   page,
 }) => {
-  test.fixme(
-    !B4_ON_ROOT,
-    "Missing backend routes GET /api/v1/workspaces/{workspaceID}/drive-files and GET /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID} needed for 4.1 and 4.2 to render beyond their error state (card B4 / UNI-2180 not merged on root 1c9bbb275)",
-  );
   test.slow();
   await page.setViewportSize({ width: 1440, height: 900 });
   const account = await signInAndOpenSettingsIntegrations(page, "drive-q1-a11y-41-42");
@@ -594,66 +651,339 @@ test("6b. Contrast + focus on Documents › Google Drive (4.1) and the Drive fil
   }
 });
 
-// === Part 2 placeholders (after B5/B6 + W6/W7 land) ===
+// === Part 2 (B5/B6/B7 + W6/W7): UNI reads Drive document & proposes tasks ===
 
 test("Part 2 — agent mode sends a Drive file -> proposals", async ({ page }) => {
-  test.fixme(
-    true,
-    "Awaiting B5 (UNI-2181 POST /drive-files/{id}/task-proposals) and W6 (UNI-2190 agent mode + popover proposal trigger)",
+  test.fixme(!DRIVE_CONTENT_FAKE_ON_ROOT, DRIVE_CONTENT_FAKE_REASON);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const account = await signInAndOpenSettingsIntegrations(page, "drive-q1p2-agent-propose");
+  const { googleEmail } = await connectDriveForCurrentUser(page);
+
+  const seedFile: FakeDriveSeedFile = {
+    id: "fake_gdoc_q1p2_propose",
+    name: fakeDriveName("fake_gdoc_q1p2_propose"),
+    mimeType: "application/vnd.google-apps.document",
+    sharingState: "shared",
+  };
+  const { reviewDialog } = await openAgentModeAndProposeFromPickedDriveFile(
+    page,
+    account.orgSlug,
+    account.wsSlug,
+    seedFile,
+    "Tách việc cho nhóm sản phẩm",
   );
-  // Steps once the card lands:
-  // Link a Drive file and open its popover.
-  // Switch to agent mode and send the file to the agent.
-  // Expect task proposals to be returned and listed.
-  await page.goto("/");
+
+  await expect(
+    reviewDialog.getByText(
+      `Nguồn: ${fakeDriveName(seedFile.id)} (Google Docs · ${googleEmail})`,
+    ),
+  ).toBeVisible();
+  await expect(
+    reviewDialog.getByRole("region", { name: "Áp dụng cho cả lô" }),
+  ).toBeVisible();
+
+  const firstCard = reviewDialog.getByTestId("drive-proposal-item-0");
+  await expect(firstCard).toBeVisible();
+  await expect(firstCard).toHaveAttribute("data-selected", "true");
+  await expect(
+    firstCard.getByRole("textbox", { name: "Tiêu đề việc 1" }),
+  ).toHaveValue("Theo dõi nội dung tài liệu");
+  await expect(
+    firstCard.getByText("UNI · Không thấy ngày bắt đầu trong tài liệu, đặt hôm nay"),
+  ).toBeVisible();
+  await expect(firstCard.getByText("UNI · Mục 1")).toBeVisible();
+  await expect(reviewDialog.getByTestId("drive-proposal-submit")).toHaveText("Tạo 1 việc");
 });
 
 test("Part 2 — proposal review dialog", async ({ page }) => {
-  test.fixme(
-    true,
-    "Awaiting B5/B6 (UNI-2181/UNI-2182 proposal endpoints) and W7 (UNI-2191 Drive proposal review dialog)",
+  test.fixme(!DRIVE_CONTENT_FAKE_ON_ROOT, DRIVE_CONTENT_FAKE_REASON);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const account = await signInAndOpenSettingsIntegrations(page, "drive-q1p2-review-dialog");
+  await connectDriveForCurrentUser(page);
+
+  const seedFile: FakeDriveSeedFile = {
+    id: "fake_gdoc_q1p2_review",
+    name: fakeDriveName("fake_gdoc_q1p2_review"),
+    mimeType: "application/vnd.google-apps.document",
+    sharingState: "shared",
+  };
+  const { reviewDialog } = await openAgentModeAndProposeFromPickedDriveFile(
+    page,
+    account.orgSlug,
+    account.wsSlug,
+    seedFile,
   );
-  // Steps once the card lands:
-  // Produce proposals from a linked Drive file.
-  // Open the proposal review dialog.
-  // Expect each proposal with editable fields and accept / skip controls.
-  await page.goto("/");
+
+  const firstCard = reviewDialog.getByTestId("drive-proposal-item-0");
+  const titleInput = firstCard.getByRole("textbox", { name: "Tiêu đề việc 1" });
+  await expect(titleInput).toHaveValue("Theo dõi nội dung tài liệu");
+
+  // Expand collapsible description and edit goal + checklist while verifying source excerpt.
+  const descToggle = firstCard.getByRole("button", { name: /^Mô tả/ });
+  await expect(descToggle).toHaveAttribute("aria-expanded", "false");
+  await descToggle.click();
+  await expect(descToggle).toHaveAttribute("aria-expanded", "true");
+
+  const goalInput = firstCard.getByRole("textbox", { name: "Mục tiêu việc 1" });
+  await expect(goalInput).toHaveValue("Thực hiện công việc nêu trong tài liệu.");
+  await goalInput.fill("Hoàn thành rà soát kế hoạch Q4.");
+
+  const checklistInput = firstCard.getByRole("textbox", { name: "Việc cần làm 1" });
+  await expect(checklistInput).toHaveValue("Rà soát nội dung");
+  await checklistInput.fill("Rà soát nội dung\nChốt người phụ trách");
+
+  const excerptBlock = firstCard.getByTestId("drive-proposal-excerpt-0");
+  await expect(excerptBlock).toContainText('Nguồn: Mục 1: "Nội dung thử nghiệm."');
+  await expect(
+    excerptBlock.getByRole("link", { name: fakeDriveName(seedFile.id) }),
+  ).toBeVisible();
+
+  // Edit the proposed task title.
+  await titleInput.fill("Chốt phạm vi beta từ tài liệu Drive");
+
+  // Deselect the item via its switch -> submit button disables with "Chọn ít nhất 1 việc".
+  const itemSwitch = firstCard.getByRole("switch", {
+    name: /Tạo việc: Chốt phạm vi beta từ tài liệu Drive/,
+  });
+  await expect(itemSwitch).toBeChecked();
+  await itemSwitch.click();
+  await expect(firstCard).toHaveAttribute("data-selected", "false");
+
+  const submitBtn = reviewDialog.getByTestId("drive-proposal-submit");
+  await expect(submitBtn).toHaveAttribute("aria-disabled", "true");
+  await expect(submitBtn).toHaveText("Chọn ít nhất 1 việc");
+
+  // Re-select the item -> submit button re-enables with "Tạo 1 việc".
+  await itemSwitch.click();
+  await expect(firstCard).toHaveAttribute("data-selected", "true");
+  await expect(submitBtn).not.toHaveAttribute("aria-disabled", "true");
+  await expect(submitBtn).toHaveText("Tạo 1 việc");
+
+  // Closing / cancelling asks for confirmation ("Bỏ đề xuất này?"); "Ở lại" keeps the dialog open, "Bỏ đề xuất" discards it.
+  await reviewDialog.getByRole("button", { name: "Hủy", exact: true }).click();
+  const discardAlert = page.getByRole("alertdialog", { name: "Bỏ đề xuất này?" });
+  await expect(discardAlert).toBeVisible();
+  await expect(discardAlert.getByText("UNI sẽ không giữ lại danh sách.")).toBeVisible();
+  await discardAlert.getByRole("button", { name: "Ở lại" }).click();
+  await expect(discardAlert).toBeHidden();
+  await expect(reviewDialog).toBeVisible();
+
+  await reviewDialog.getByRole("button", { name: "Hủy", exact: true }).click();
+  await expect(discardAlert).toBeVisible();
+  const discardResPromise = page.waitForResponse(
+    (r) =>
+      r.request().method() === "DELETE" &&
+      /\/api\/v1\/workspaces\/[^/]+\/drive-task-proposals\/[^/]+$/.test(
+        new URL(r.url()).pathname,
+      ),
+    { timeout: 15_000 },
+  );
+  await discardAlert.getByRole("button", { name: "Bỏ đề xuất" }).click();
+  const discardRes = await discardResPromise;
+  expect(discardRes.status()).toBe(204);
+  await expect(reviewDialog).toBeHidden({ timeout: 15_000 });
 });
 
 test("Part 2 — batch create tasks from Drive proposal", async ({ page }) => {
-  test.fixme(
-    true,
-    "Awaiting B6 (UNI-2182 POST /drive-task-proposals/{id}/tasks) and W7 (UNI-2191 review dialog batch creation + toast)",
+  test.fixme(!DRIVE_CONTENT_FAKE_ON_ROOT, DRIVE_CONTENT_FAKE_REASON);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const account = await signInAndOpenSettingsIntegrations(page, "drive-q1p2-batch-create");
+  await connectDriveForCurrentUser(page);
+
+  const seedFile: FakeDriveSeedFile = {
+    id: "fake_gdoc_q1p2_batch",
+    name: fakeDriveName("fake_gdoc_q1p2_batch"),
+    mimeType: "application/vnd.google-apps.document",
+    sharingState: "shared",
+  };
+  const { reviewDialog } = await openAgentModeAndProposeFromPickedDriveFile(
+    page,
+    account.orgSlug,
+    account.wsSlug,
+    seedFile,
   );
-  // Steps once the card lands:
-  // Open the review dialog with proposals.
-  // Select proposals and confirm the batch create.
-  // Expect the tasks created and the success toast.
-  await page.goto("/");
+
+  const editedTitle = "Việc tạo từ đề xuất Drive Q1P2";
+  const firstCard = reviewDialog.getByTestId("drive-proposal-item-0");
+  await firstCard.getByRole("textbox", { name: "Tiêu đề việc 1" }).fill(editedTitle);
+
+  const createBatchResPromise = page.waitForResponse(
+    (r) => isCreateTasksFromProposalPost(r.url(), r.request().method()),
+    { timeout: 20_000 },
+  );
+  await reviewDialog.getByTestId("drive-proposal-submit").click();
+  const createBatchRes = await createBatchResPromise;
+  expect(createBatchRes.ok(), await createBatchRes.text()).toBeTruthy();
+
+  const createdRaw = (await createBatchRes.json()) as {
+    task_ids?: string[];
+    items?: { index: number; task_id: string }[];
+  };
+  expect(createdRaw.task_ids?.length).toBe(1);
+  const createdTaskId = createdRaw.task_ids?.[0] ?? "";
+  expect(createdTaskId).toBeTruthy();
+
+  await expect(reviewDialog).toBeHidden({ timeout: 15_000 });
+  await expect(
+    page.getByText(`Đã tạo 1 việc từ ${fakeDriveName(seedFile.id)}`),
+  ).toBeVisible({ timeout: 15_000 });
+
+  // The created task appears on the tasks surface and has the Drive file attached on its detail page.
+  await expect(page.getByText(editedTitle).first()).toBeVisible({ timeout: 20_000 });
+  await page.goto(`/${account.orgSlug}/${account.wsSlug}/tasks/${createdTaskId}`);
+  await expect(page.getByText(editedTitle).first()).toBeVisible({ timeout: 20_000 });
+  const attachmentsSection = page.getByRole("region", { name: "Đính kèm" });
+  await expect(attachmentsSection).toBeVisible({ timeout: 20_000 });
+  const createdCard = attachmentsSection.locator('[data-testid^="task-drive-card-"]').first();
+  await expect(createdCard.getByText(fakeDriveName(seedFile.id))).toBeVisible({
+    timeout: 20_000,
+  });
 });
 
 test("Part 2 — second-create warning when tasks were already created from the document", async ({
   page,
 }) => {
-  test.fixme(
-    true,
-    "Awaiting B6 (UNI-2182 tasks_created + prior_creations) and W6/W7 (UNI-2190/UNI-2191 recreate warning)",
+  test.fixme(!DRIVE_CONTENT_FAKE_ON_ROOT, DRIVE_CONTENT_FAKE_REASON);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const account = await signInAndOpenSettingsIntegrations(page, "drive-q1p2-recreate-warn");
+  await connectDriveForCurrentUser(page);
+
+  const seedFile: FakeDriveSeedFile = {
+    id: "fake_gdoc_q1p2_recreate",
+    name: fakeDriveName("fake_gdoc_q1p2_recreate"),
+    mimeType: "application/vnd.google-apps.document",
+    sharingState: "shared",
+  };
+
+  // First batch creation from the document.
+  const { reviewDialog: firstReview } = await openAgentModeAndProposeFromPickedDriveFile(
+    page,
+    account.orgSlug,
+    account.wsSlug,
+    seedFile,
   );
-  // Steps once the card lands:
-  // Create tasks from a document once.
-  // Create from the same document again.
-  // Expect the warning listing the prior creations before confirming.
-  await page.goto("/");
+  const firstCard = firstReview.getByTestId("drive-proposal-item-0");
+  await firstCard
+    .getByRole("textbox", { name: "Tiêu đề việc 1" })
+    .fill("Việc đợt 1 từ tài liệu Drive");
+
+  const firstBatchPromise = page.waitForResponse(
+    (r) => isCreateTasksFromProposalPost(r.url(), r.request().method()),
+    { timeout: 20_000 },
+  );
+  await firstReview.getByTestId("drive-proposal-submit").click();
+  const firstBatchRes = await firstBatchPromise;
+  expect(firstBatchRes.ok(), await firstBatchRes.text()).toBeTruthy();
+  await expect(firstReview).toBeHidden({ timeout: 15_000 });
+
+  // Open 4.2 for the same document and trigger "Tạo việc từ tài liệu" a second time.
+  await page.goto(`/${account.orgSlug}/${account.wsSlug}/documents?view=drive`);
+  const fileLink = page.getByRole("table").getByRole("link", { name: fakeDriveName(seedFile.id) });
+  await expect(fileLink).toBeVisible({ timeout: 20_000 });
+  await fileLink.click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: fakeDriveName(seedFile.id) }),
+  ).toBeVisible({ timeout: 30_000 });
+
+  await page.getByRole("button", { name: "Tạo việc từ tài liệu" }).click();
+  const warningBanner = page.getByTestId("drive-recreate-warning");
+  await expect(warningBanner).toBeVisible({ timeout: 15_000 });
+  await expect(warningBanner).toContainText(
+    "Tài liệu này đã được dùng để tạo 1 việc",
+  );
+  await expect(warningBanner).toContainText("Tạo thêm có thể trùng.");
+  await expect(
+    warningBanner.getByRole("button", { name: "Xem các việc đã tạo" }),
+  ).toBeVisible();
+
+  // The primary button switches to "Vẫn gửi cho UNI" and references the warning via aria-describedby.
+  const submitAnywayBtn = page.getByRole("button", { name: "Vẫn gửi cho UNI" });
+  await expect(submitAnywayBtn).toBeVisible();
+  const warningId = await warningBanner.getAttribute("id");
+  expect(warningId).toBeTruthy();
+  await expect(submitAnywayBtn).toHaveAttribute("aria-describedby", warningId!);
+
+  // Confirming "Vẫn gửi cho UNI" opens the review dialog with the prior-creations banner.
+  const secondProposalPromise = page.waitForResponse(
+    (r) => isCreateDriveProposalPost(r.url(), r.request().method()),
+    { timeout: 30_000 },
+  );
+  await submitAnywayBtn.click();
+  const secondProposalRes = await secondProposalPromise;
+  expect(secondProposalRes.ok(), await secondProposalRes.text()).toBeTruthy();
+
+  const secondReview = page.getByRole("dialog", { name: /UNI đề xuất .* việc từ tài liệu/ });
+  await expect(secondReview).toBeVisible({ timeout: 20_000 });
+  const priorBanner = secondReview.getByTestId("drive-proposal-prior-creations");
+  await expect(priorBanner).toBeVisible();
+  await expect(priorBanner).toContainText("Đã tạo 1 việc từ tài liệu này trước đây");
+  await expect(
+    priorBanner.getByRole("link", { name: "Xem các việc đã tạo" }),
+  ).toBeVisible();
 });
 
 test("Part 2 — 'Tasks created' block on 4.2 Drive file detail page", async ({ page }) => {
-  test.fixme(
-    true,
-    "Awaiting B4/B6 (UNI-2180/UNI-2182 GET /drive-files/{id} with task_creations populated after batch conversion)",
+  test.fixme(!DRIVE_CONTENT_FAKE_ON_ROOT, DRIVE_CONTENT_FAKE_REASON);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const account = await signInAndOpenSettingsIntegrations(page, "drive-q1p2-42-created-block");
+  await connectDriveForCurrentUser(page);
+
+  const seedFile: FakeDriveSeedFile = {
+    id: "fake_gdoc_q1p2_42_block",
+    name: fakeDriveName("fake_gdoc_q1p2_42_block"),
+    mimeType: "application/vnd.google-apps.document",
+    sharingState: "shared",
+  };
+  const { reviewDialog } = await openAgentModeAndProposeFromPickedDriveFile(
+    page,
+    account.orgSlug,
+    account.wsSlug,
+    seedFile,
   );
-  // Steps once the card lands:
-  // Create tasks from a Drive proposal in a batch.
-  // Open the 4.2 file detail page.
-  // Expect the 'Tasks created' block listing the new tasks.
-  await page.goto("/");
+
+  const createdTaskTitle = "Chuẩn bị tài liệu hướng dẫn triển khai";
+  await reviewDialog
+    .getByTestId("drive-proposal-item-0")
+    .getByRole("textbox", { name: "Tiêu đề việc 1" })
+    .fill(createdTaskTitle);
+
+  const batchResPromise = page.waitForResponse(
+    (r) => isCreateTasksFromProposalPost(r.url(), r.request().method()),
+    { timeout: 20_000 },
+  );
+  await reviewDialog.getByTestId("drive-proposal-submit").click();
+  const batchRes = await batchResPromise;
+  expect(batchRes.ok(), await batchRes.text()).toBeTruthy();
+  const batchBody = (await batchRes.json()) as { task_ids?: string[] };
+  const createdTaskId = batchBody.task_ids?.[0] ?? "";
+  expect(createdTaskId).toBeTruthy();
+  await expect(reviewDialog).toBeHidden({ timeout: 15_000 });
+
+  // 4.1 list shows "1 việc" in the "Đã tạo việc" column, and clicking the file opens 4.2.
+  await page.goto(`/${account.orgSlug}/${account.wsSlug}/documents?view=drive`);
+  const table = page.getByRole("table");
+  await expect(table.getByText("1 việc")).toBeVisible({ timeout: 20_000 });
+  await table.getByRole("link", { name: fakeDriveName(seedFile.id) }).click();
+
+  await expect(
+    page.getByRole("heading", { level: 1, name: fakeDriveName(seedFile.id) }),
+  ).toBeVisible({ timeout: 30_000 });
+
+  const createdBlock = page.locator("#drive-tasks-created");
+  await expect(createdBlock).toBeVisible({ timeout: 20_000 });
+  await expect(
+    createdBlock.getByRole("heading", { level: 2, name: "Việc đã tạo từ tài liệu" }),
+  ).toBeVisible();
+  await expect(createdBlock.getByText("Đã tạo 1 việc từ tài liệu này")).toBeVisible();
+  await expect(createdBlock.getByText(/· 1 việc/)).toBeVisible();
+
+  const taskLink = createdBlock.getByRole("link", {
+    name: new RegExp(createdTaskTitle),
+  });
+  await expect(taskLink).toBeVisible();
+  await taskLink.click();
+  await expect(page).toHaveURL(new RegExp(`/tasks/${createdTaskId}$`), {
+    timeout: 20_000,
+  });
+  await expect(page.getByText(createdTaskTitle).first()).toBeVisible({ timeout: 20_000 });
 });

@@ -63,4 +63,41 @@ describe("ContentEditor", () => {
     });
     expect(onUpdate).not.toHaveBeenCalled();
   });
+
+  it("focus('end') collapses selection at the document end after adoptContent", async () => {
+    const ref = createRef<ContentEditorRef>();
+    const { container } = render(
+      wrap(<ContentEditor ref={ref} defaultValue="" disableMentions />),
+    );
+    const surface = await waitFor(() => {
+      const el = container.querySelector(".ProseMirror") as HTMLElement & {
+        editor?: {
+          state: {
+            doc: { content: { size: number } };
+            selection: { from: number; to: number; empty: boolean };
+          };
+        };
+      };
+      expect(el?.editor).toBeDefined();
+      return el;
+    });
+
+    act(() => {
+      ref.current?.adoptContent("First sentence");
+      ref.current?.focus("end");
+    });
+    expect(surface.editor!.state.selection.empty).toBe(true);
+    expect(surface.editor!.state.selection.from).toBe(
+      surface.editor!.state.doc.content.size - 1,
+    );
+
+    act(() => {
+      ref.current?.adoptContent("First sentence. Second sentence");
+      ref.current?.focus("end");
+    });
+    expect(surface.editor!.state.selection.empty).toBe(true);
+    expect(surface.editor!.state.selection.from).toBe(
+      surface.editor!.state.doc.content.size - 1,
+    );
+  });
 });
