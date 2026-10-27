@@ -1,0 +1,6 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^098600e2f" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -4
+VM_HEAD_SHA=098600e2fd252a4a32f050158df73ae0948bd681
+098600e2f test(drive): cover drive_folder_id filter, validation, and SDO echo
+be366f739 feat(drive): add drive_folder_id filter and SDO echo on GET drive-files
+3589f4b00 docs(documents): spec the folder bulk access change (UNI-2244)
+fc463305c Merge UNI-2221 part B (Drive parent folder on drive_files, folder list + name route) into the G5-G7 root
