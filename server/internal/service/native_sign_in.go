@@ -269,7 +269,7 @@ func (s *NativeSignInService) VerifyMFA(ctx context.Context, mfaToken, code stri
 	if err != nil {
 		return NativeSignInResult{}, err
 	}
-	sess, had, err := s.open(ctx, q, step.user, c, map[string]any{"via": nativeViaMFA, "mfa": step.mfa})
+	sess, had, err := s.open(ctx, q, step.user, c, map[string]any{"via": nativeViaMFA, "mfa": true})
 	if err != nil {
 		return NativeSignInResult{}, err
 	}

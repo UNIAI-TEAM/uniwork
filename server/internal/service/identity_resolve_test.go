@@ -558,12 +558,34 @@ func TestReclaimNeverAsksTheSquattersSecondFactor(t *testing.T) {
 	if !s.user.MfaEnabledAt.Valid {
 		t.Fatal("the squatter has a second factor")
 	}
+	// The squatter keeps a challenge of their own at hand, on the web and on
+	// the app, from the password the reclaim is about to clear.
+	held, err := f.auth.Login(f.ctx, "owner@gmail.com", "squatter-pass")
+	if err != nil || !held.MFAPending() {
+		t.Fatalf("the squatter's first step: %+v %v", held, err)
+	}
+	doors := NewNativeSignInService(f.pool, f.q, f.auth, f.desktop, f.tickets())
+	heldApp, err := doors.Password(f.ctx, "owner@gmail.com", "squatter-pass", app)
+	if err != nil || heldApp.MFAToken == "" {
+		t.Fatalf("the squatter's first step on the app: %+v %v", heldApp, err)
+	}
 	res, err := f.google.SignIn(f.ctx, GoogleClaims{Sub: "owner-google", Email: "owner@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn)
 	if err != nil || res.Session.MFAPending() || res.Session.RefreshToken == "" {
 		t.Fatalf("the reclaim asks no second factor: %+v %v", res, err)
 	}
 	if u := f.user(t, s.user.ID); u.MfaEnabledAt.Valid || u.TotpSecret.Valid {
 		t.Fatalf("the squatter's second factor is gone: %+v", u)
+	}
+	// With the factor gone there is nothing left to ask, and the challenge
+	// does not stand in for it: the reclaimed account opens to no code.
+	if sess, err := f.auth.VerifyMFA(f.ctx, held.MFAToken, "000000"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("the squatter's challenge opened the reclaimed account: %+v %v", sess, err)
+	}
+	if out, err := doors.VerifyMFA(f.ctx, heldApp.MFAToken, "000000", app); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("the squatter's app challenge opened the reclaimed account: %+v %v", out, err)
+	}
+	if n := f.count(t, `SELECT count(*) FROM refresh_tokens WHERE user_id = $1 AND revoked_at IS NULL`, s.user.ID); n != 1 {
+		t.Fatalf("%d live sessions on the reclaimed account, want the owner's one", n)
 	}
 
 	phone := f.squat(t, "owner@icloud.com")

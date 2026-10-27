@@ -66,13 +66,16 @@ const (
 // second factor is owed, on which channel (with the native client and
 // deployment), and the identity a provider sign-in left waiting to be linked
 // once the factor passes (PendingLink, sealed for mfa_pending_link; empty
-// when nothing waits).
+// when nothing waits). IssuedAt is the token's iat as ParseMFA read it
+// (MintMFA stamps its own): the second step refuses a challenge minted
+// before the account's credentials last changed (ADR 0047).
 type MFAChallenge struct {
 	UserID       string
 	Channel      string
 	ClientID     string
 	DeploymentID string
 	PendingLink  string
+	IssuedAt     time.Time
 }
 
 // mfaClaims is the challenge token's body. The short names keep the token,
@@ -194,6 +197,9 @@ func (m TokenMinter) ParseMFA(token string) (MFAChallenge, error) {
 	c := MFAChallenge{
 		UserID: claims.Subject, Channel: claims.Channel, ClientID: claims.ClientID,
 		DeploymentID: claims.DeploymentID, PendingLink: claims.PendingLink,
+	}
+	if claims.IssuedAt != nil {
+		c.IssuedAt = claims.IssuedAt.Time
 	}
 	if c.Channel == "" {
 		c.Channel = MFAChannelWeb

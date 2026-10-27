@@ -616,13 +616,16 @@ database and never reveal whether an id exists to a non-member.
 - The second factor (ADR 0047 §4): a challenge token names its channel (`chn`; none reads as web) and the browser's
   `POST /auth/mfa/verify` takes only a web one. An identity that would link into an account with a second factor
   rides in the challenge (`pl`, sealed) and is linked only in the transaction that opens the session once the
-  factor passed, after resolving it again (else the sign-in succeeds with `link_skipped`). Every code is weighed
+  factor passed, after resolving it again (else the sign-in succeeds with `link_skipped`). A challenge dies with the
+  first factor that bought it: one not issued after the account's `credentials_revoked_at`, or for a factor the
+  account no longer has, is refused, never answered with a session for no code. Every code is weighed
   under the account's row lock in `weighSecondFactor` (`server/internal/service/second_factor.go`): the tenth wrong
   one in a row locks the factor 15 minutes and mails the owner, and while locked nothing is checked (429
   `second_factor_locked`, `retry_after`). An account that never verified its address cannot enrol, and a reset
   link on such an account takes it back like a provider that owns the address. Desktop and MCP consent refuse a
   browser token issued before `users.credentials_revoked_at` (401 `invalid_token`; the bearer middleware puts the
   verified token, `iat` included, on the context). `TestMFAChallengeIsBoundToItsChannel`,
+  `TestAChallengeDiesWithTheFirstFactorItFollowed`,
   `TestLinkWaitsForTheSecondFactor`, `TestSecondFactorLocksAfterTenFailures`,
   `TestUnverifiedAccountsCannotEnrolMFAOrLink`, `TestAResetLinkReclaimsAnUnverifiedAccount` and
   `TestCredentialsRevokedAtRefusesOlderWebTokens` hold it.

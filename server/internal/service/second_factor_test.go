@@ -83,6 +83,56 @@ func TestMFAChallengeIsBoundToItsChannel(t *testing.T) {
 	}
 }
 
+// A challenge is what its first factor bought, and dies with it (ADR 0047
+// §4-5): once the account's credentials change — the owner changes the
+// password from another session — a challenge minted before (or in the
+// change's own second) opens nothing even with the right code, and a fresh
+// one does. A challenge for a factor the account turned off in between is
+// refused too, not answered with a session for no code: the person signs in
+// again with what the account takes now.
+func TestAChallengeDiesWithTheFirstFactorItFollowed(t *testing.T) {
+	f := newIdentityFixture(t)
+	u, secret, codes := f.mfaAccount(t, "follows@example.com")
+	stale := f.challenge(t, u.Email)
+
+	owner, _ := f.browser(t, u.ID)
+	g, err := f.auth.StepUp(owner, u.ID, StepUpProof{Code: totpNow(t, secret)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewSignInMethodsService(f.pool, f.q, f.auth).SetPassword(owner, u.ID, PasswordInput{New: "a-new-password", StepUpToken: g.Token}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.auth.VerifyMFA(f.ctx, stale, totpNow(t, secret)); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("a challenge from before the password change: %v", err)
+	}
+	if n := f.failures(t, u.ID); n != 0 {
+		t.Fatalf("a refused challenge counted as a guess: %d", n)
+	}
+	time.Sleep(time.Until(f.user(t, u.ID).CredentialsRevokedAt.Time.Add(time.Second)))
+	first, err := f.auth.Login(f.ctx, u.Email, "a-new-password")
+	if err != nil || !first.MFAPending() {
+		t.Fatalf("the new password's first step: %+v %v", first, err)
+	}
+	if sess, err := f.auth.VerifyMFA(f.ctx, first.MFAToken, totpNow(t, secret)); err != nil || sess.RefreshToken == "" {
+		t.Fatalf("a challenge of the new password: %+v %v", sess, err)
+	}
+
+	pending, err := f.auth.Login(f.ctx, u.Email, "a-new-password")
+	if err != nil || !pending.MFAPending() {
+		t.Fatalf("first step: %+v %v", pending, err)
+	}
+	if _, err := f.auth.DisableTOTP(f.ctx, u.ID, codes[0]); err != nil {
+		t.Fatal(err)
+	}
+	if sess, err := f.auth.VerifyMFA(f.ctx, pending.MFAToken, "000000"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("a challenge for a factor turned off opened a session: %+v %v", sess, err)
+	}
+	if sess, err := f.auth.Login(f.ctx, u.Email, "a-new-password"); err != nil || sess.MFAPending() || sess.RefreshToken == "" {
+		t.Fatalf("signing in again takes the password alone: %+v %v", sess, err)
+	}
+}
+
 // Ten wrong second factors in a row lock the factor for fifteen minutes and
 // tell the owner once (ADR 0047 §4, spec §3.3). While locked nothing is
 // checked — the right code, a fresh challenge, a recovery code: all 429 with

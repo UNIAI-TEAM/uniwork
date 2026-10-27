@@ -226,6 +226,11 @@ key_hash, intent, iat, exp}` — TTL 15 phút.
   có `chn` (phát trước khi deploy) coi là `web`.
 - `POST /auth/mfa/verify` (web) từ chối `chn != web`; `POST /auth/native/mfa` từ chối `chn != native` hay `cid`/`dep`
   lệch body. Cả hai: `401 invalid_credentials`.
+- ⚑ (phản biện lát 5) Thử thách chết cùng bước đầu đã mua nó: token có `iat` không sau `credentials_revoked_at` (cùng
+  giây cũng bị từ chối, vì không lệnh đổi phương thức nào cấp thử thách) hay tài khoản không còn bật MFA (thu hồi đã
+  xoá, hay chủ vừa tắt) → `401 invalid_credentials`, không bao giờ là phiên không cần mã; người dùng đăng nhập lại.
+  Thử thách người chiếm trước giữ lúc thu hồi không mở được tài khoản đã lấy lại.
+  `TestAChallengeDiesWithTheFirstFactorItFollowed`, `TestReclaimNeverAsksTheSquattersSecondFactor`.
 - Đúng mã và có `pl`: chạy lại `resolveIdentity`; còn `link` cho đúng user ấy thì ghi liên kết trong giao dịch cấp
   phiên. Không thì đăng nhập vẫn thành công và kết quả mang `link_skipped: "<mã>"` để client nói "Chưa liên kết được
   Apple — thử lại trong Cài đặt". Mã: lỗi của bộ khớp (`sign_in_email_unverified`, `sign_in_account_unverified`,

@@ -177,7 +177,7 @@ func (s *AuthService) VerifyMFA(ctx context.Context, mfaToken, code string) (Ses
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: audit.NoOrganization, Actor: audit.User(u.ID),
 		Action: audit.ActionAuthLoginSucceeded, ResourceType: "user", ResourceID: u.ID,
-		Metadata: map[string]any{"mfa": step.mfa},
+		Metadata: map[string]any{"mfa": true},
 	}); err != nil {
 		return Session{}, err
 	}
@@ -193,12 +193,19 @@ func (s *AuthService) VerifyMFA(ctx context.Context, mfaToken, code string) (Ses
 }
 
 // passedSecondStep is what secondStep leaves the caller to open its session
-// on: the account (as the pending link left it), whether a second factor was
-// asked, and the link.
+// on: the account (as the pending link left it) and the link.
 type passedSecondStep struct {
 	user db.User
-	mfa  bool
 	link pendingLinkOutcome
+}
+
+// challengePredatesCredentials: ch was minted no later than the second u's
+// credentials last changed. The mark and a token's iat are both whole
+// seconds, and nothing a credential change does mints a challenge, so a
+// challenge of the mark's own second is refused with the older ones: it may
+// be the first factor the change just ended.
+func challengePredatesCredentials(ch auth.MFAChallenge, u db.User) bool {
+	return u.CredentialsRevokedAt.Valid && !ch.IssuedAt.After(u.CredentialsRevokedAt.Time)
 }
 
 // secondStep is what the browser's and the app's second step share (ADR 0047
@@ -207,11 +214,16 @@ type passedSecondStep struct {
 // (gone or erased: invalid_credentials), the code is weighed against the
 // lockout (weighSecondFactor), and the provider identity the first step left
 // waiting is linked if it still resolves to this account (finishPendingLink).
-// A second factor switched off between the two steps is not asked: the first
-// factor alone is what the account now requires. A wrong code is counted, so
-// secondStep commits tx itself, kicks the lockout notice, audits the failure
-// and answers the refusal (invalid_credentials, or 429 second_factor_locked);
-// on success the caller opens its session in tx, audits and commits.
+// A challenge is what its first factor bought, so it dies with what that
+// factor was: one minted no later than the second of the account's last
+// credential change (a reclaim, a password change or reset, an unlink) is
+// invalid_credentials, and so is one whose account no longer has a second
+// factor to ask — a reclaim cleared it, or the owner turned it off — rather
+// than a session for no code at all: the person signs in again with what the
+// account takes now. A wrong code is counted, so secondStep commits tx
+// itself, kicks the lockout notice, audits the failure and answers the
+// refusal (invalid_credentials, or 429 second_factor_locked); on success the
+// caller opens its session in tx, audits and commits.
 func (s *AuthService) secondStep(ctx context.Context, tx pgx.Tx, q *db.Queries, ch auth.MFAChallenge, code string) (passedSecondStep, error) {
 	u, err := q.GetUserForUpdate(ctx, ch.UserID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -224,34 +236,34 @@ func (s *AuthService) secondStep(ctx context.Context, tx pgx.Tx, q *db.Queries, 
 		// Erased between the two steps: the challenge died with the account.
 		return passedSecondStep{}, ErrInvalidCredentials
 	}
-	out := passedSecondStep{mfa: u.MfaEnabledAt.Valid}
-	if out.mfa {
-		v, err := s.weighSecondFactor(ctx, q, u, code)
-		if err != nil {
+	if !u.MfaEnabledAt.Valid || challengePredatesCredentials(ch, u) {
+		return passedSecondStep{}, ErrInvalidCredentials
+	}
+	v, err := s.weighSecondFactor(ctx, q, u, code)
+	if err != nil {
+		return passedSecondStep{}, err
+	}
+	if !v.ok {
+		// The failure is counted (and may have started the lockout), so it
+		// commits; the refusal follows.
+		if err := tx.Commit(ctx); err != nil {
 			return passedSecondStep{}, err
 		}
-		if !v.ok {
-			// The failure is counted (and may have started the lockout), so it
-			// commits; the refusal follows.
-			if err := tx.Commit(ctx); err != nil {
-				return passedSecondStep{}, err
-			}
-			s.signInMailer().kick(v.queued)
-			meta := map[string]any{"reason": "bad_mfa", "locked": v.started}
-			if v.locked != nil && !v.started {
-				meta = map[string]any{"reason": "second_factor_locked"}
-			}
-			if ch.Channel == auth.MFAChannelNative {
-				meta["channel"] = auth.MFAChannelNative
-			}
-			s.recordAuth(ctx, audit.ActionAuthLoginFailed, u.ID, meta)
-			if v.locked != nil {
-				return passedSecondStep{}, v.locked
-			}
-			return passedSecondStep{}, ErrInvalidCredentials
+		s.signInMailer().kick(v.queued)
+		meta := map[string]any{"reason": "bad_mfa", "locked": v.started}
+		if v.locked != nil && !v.started {
+			meta = map[string]any{"reason": "second_factor_locked"}
 		}
+		if ch.Channel == auth.MFAChannelNative {
+			meta["channel"] = auth.MFAChannelNative
+		}
+		s.recordAuth(ctx, audit.ActionAuthLoginFailed, u.ID, meta)
+		if v.locked != nil {
+			return passedSecondStep{}, v.locked
+		}
+		return passedSecondStep{}, ErrInvalidCredentials
 	}
-	out.user = u
+	out := passedSecondStep{user: u}
 	if ch.PendingLink != "" {
 		if out.link, err = s.finishPendingLink(ctx, tx, u, ch.PendingLink); err != nil {
 			return passedSecondStep{}, err
