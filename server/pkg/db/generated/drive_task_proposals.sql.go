@@ -107,7 +107,7 @@ SET status = 'discarded',
     status_changed_at = now()
 WHERE connection_id = $1
   AND status = 'ready'
-RETURNING id, workspace_id, organization_id, requested_by, drive_file_id
+RETURNING id, workspace_id, organization_id, requested_by, drive_file_id, connection_id
 `
 
 type DiscardReadyDriveTaskProposalsForConnectionRow struct {
@@ -116,6 +116,7 @@ type DiscardReadyDriveTaskProposalsForConnectionRow struct {
 	OrganizationID string `json:"organization_id"`
 	RequestedBy    string `json:"requested_by"`
 	DriveFileID    string `json:"drive_file_id"`
+	ConnectionID   string `json:"connection_id"`
 }
 
 // tenant: parent connection_id
@@ -134,6 +135,7 @@ func (q *Queries) DiscardReadyDriveTaskProposalsForConnection(ctx context.Contex
 			&i.OrganizationID,
 			&i.RequestedBy,
 			&i.DriveFileID,
+			&i.ConnectionID,
 		); err != nil {
 			return nil, err
 		}
@@ -152,7 +154,7 @@ SET status = 'discarded',
     status_changed_at = now()
 WHERE drive_file_id = $1
   AND status = 'ready'
-RETURNING id, workspace_id, organization_id, requested_by, drive_file_id
+RETURNING id, workspace_id, organization_id, requested_by, drive_file_id, connection_id
 `
 
 type DiscardReadyDriveTaskProposalsForFileRow struct {
@@ -161,6 +163,7 @@ type DiscardReadyDriveTaskProposalsForFileRow struct {
 	OrganizationID string `json:"organization_id"`
 	RequestedBy    string `json:"requested_by"`
 	DriveFileID    string `json:"drive_file_id"`
+	ConnectionID   string `json:"connection_id"`
 }
 
 // tenant: parent drive_file_id
@@ -179,6 +182,7 @@ func (q *Queries) DiscardReadyDriveTaskProposalsForFile(ctx context.Context, dri
 			&i.OrganizationID,
 			&i.RequestedBy,
 			&i.DriveFileID,
+			&i.ConnectionID,
 		); err != nil {
 			return nil, err
 		}

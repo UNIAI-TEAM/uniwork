@@ -57,7 +57,7 @@ SET status = 'discarded',
     status_changed_at = now()
 WHERE connection_id = sqlc.arg('connection_id')
   AND status = 'ready'
-RETURNING id, workspace_id, organization_id, requested_by, drive_file_id;
+RETURNING id, workspace_id, organization_id, requested_by, drive_file_id, connection_id;
 
 -- name: DiscardReadyDriveTaskProposalsForFile :many
 -- tenant: parent drive_file_id
@@ -67,7 +67,7 @@ SET status = 'discarded',
     status_changed_at = now()
 WHERE drive_file_id = sqlc.arg('drive_file_id')
   AND status = 'ready'
-RETURNING id, workspace_id, organization_id, requested_by, drive_file_id;
+RETURNING id, workspace_id, organization_id, requested_by, drive_file_id, connection_id;
 
 -- name: ListDriveProposalWorkspaceMembers :many
 -- Active workspace members (including organization owners and admins who are

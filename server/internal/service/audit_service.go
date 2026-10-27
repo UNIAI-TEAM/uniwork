@@ -169,6 +169,9 @@ func (s *AuditService) Get(ctx context.Context, userID, orgID, eventID string) (
 // part of it at all: a colleague's address is not activity, it is surveillance.
 func (s *AuditService) ResourceHistory(ctx context.Context, userID, workspaceID, resourceType, resourceID string, limit int32) ([]AuditEventView, error) {
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+		if resourceType == "drive_task_proposal" && (errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound)) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	// Google Drive resources carry google_email and google_sub in audit metadata
@@ -195,6 +198,9 @@ func (s *AuditService) ResourceHistory(ctx context.Context, userID, workspaceID,
 			return nil, ErrNotFound
 		}
 		if err := s.authorizeProposalHist(ctx, userID, workspaceID, resourceID); err != nil {
+			if errors.Is(err, ErrForbidden) || errors.Is(err, ErrNotFound) {
+				return nil, ErrNotFound
+			}
 			return nil, err
 		}
 	}

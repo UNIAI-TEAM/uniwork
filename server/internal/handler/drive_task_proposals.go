@@ -49,8 +49,9 @@ func (h *handlers) CreateDriveTaskProposal(w http.ResponseWriter, r *http.Reques
 	respondJSON(w, http.StatusCreated, toDriveTaskProposalSDO(v))
 }
 
-// GetDriveTaskProposal returns a ready, non-expired Google Drive task proposal
-// batch owned by the caller (GET /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}, spec §8.3).
+// GetDriveTaskProposal returns a Google Drive task proposal batch owned by the
+// caller in its current state (ready, converted, or discarded, including expired;
+// GET /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}, spec §8.3).
 func (h *handlers) GetDriveTaskProposal(w http.ResponseWriter, r *http.Request) {
 	if h.DriveTaskProposals == nil {
 		respondError(w, http.StatusServiceUnavailable, sdo.DriveErrUnavailable, "Tính năng Google Drive đang tạm thời không khả dụng.")
