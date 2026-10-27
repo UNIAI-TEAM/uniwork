@@ -73,7 +73,7 @@ func newIdentityFixture(t *testing.T) *identityFixture {
 	apple.SetMail(renderer, out)
 	as.SetApple(apple)
 	return &identityFixture{
-		ctx: context.Background(), pool: pool, q: q, auth: as, google: NewGoogleAuthService(pool, q, as),
+		ctx: context.Background(), pool: pool, q: q, auth: as, google: NewGoogleAuthService(as),
 		apple: apple, desktop: desktop, issuer: issuer, client: client, out: out, sealer: sealer,
 	}
 }

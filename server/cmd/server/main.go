@@ -864,7 +864,7 @@ func main() {
 		AppleAuth:           appleAuth,
 		Verification:        verification,
 		PasswordReset:       passwordReset,
-		GoogleAuth:          service.NewGoogleAuthService(pool, q, authSvc),
+		GoogleAuth:          service.NewGoogleAuthService(authSvc),
 		SignInTickets:       service.NewSignInTicketService(pool, q, authSvc, renderer, mailOutbox),
 		SignInMethods:       service.NewSignInMethodsService(pool, q, authSvc),
 		Sealer:              sealer,

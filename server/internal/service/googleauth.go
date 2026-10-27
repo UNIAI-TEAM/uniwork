@@ -2,13 +2,8 @@ package service
 
 import (
 	"context"
-	"log/slog"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
-	"github.com/unicomhub/uniwork/server/internal/mail"
-	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // GoogleClaims is what the handler extracts from a verified Google ID token.
@@ -16,141 +11,25 @@ type GoogleClaims = auth.GoogleClaims
 
 // GoogleAuthService turns verified Google identities into sessions. The
 // OAuth exchange and token verification (PKCE, nonce) happen in the handler
-// layer; this service only decides, through resolveIdentity, which account
-// the identity maps to. The owner alerts go through the AuthService's mail.
+// layer; this service only decides, through the provider sign-in every
+// browser door shares (webProviderSignIn), which account the identity maps
+// to. The owner alerts go through the AuthService's mail.
 type GoogleAuthService struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
 	auth *AuthService
 }
 
-func NewGoogleAuthService(pool *pgxpool.Pool, q *db.Queries, auth *AuthService) *GoogleAuthService {
-	return &GoogleAuthService{pool: pool, q: q, auth: auth}
+func NewGoogleAuthService(auth *AuthService) *GoogleAuthService {
+	return &GoogleAuthService{auth: auth}
 }
-
-// ProviderSignInResult is how a browser provider sign-in ended: a session,
-// or the MFA challenge in its place (Session.MFAPending), and whether it took
-// the account back from someone who registered the address before proving it
-// (the client says so once); or, when no account was found to sign in to, a
-// sign-in ticket for the choice screen in place of either (spec §3.2).
-type ProviderSignInResult struct {
-	Session   Session
-	Reclaimed bool
-	// Ticket is the sealed sign-in ticket (TicketKind unmatched or
-	// link_required); Session is empty when it is set.
-	Ticket     string
-	TicketKind string
-}
-
-func (s *GoogleAuthService) mailer() signInMailer { return s.auth.signInMailer() }
 
 // GoogleIdentity is the person a verified Google ID token vouches for, as
 // every provider sign-in and link reads it (ADR 0047): the address is
 // Google's to vouch for only on Gmail or the Workspace's own domain (hd).
 func GoogleIdentity(c GoogleClaims) ProviderIdentity { return googleIdentity(c) }
 
-// SignIn resolves the account with resolveIdentity, inside one transaction
-// with whatever the answer writes:
-//
-//   - matched: the account linked to the subject;
-//   - unmatched: no account is created (ADR 0047 §2c) but a sign-in ticket
-//     for the choice screen; from the register screen (intent sign_up) the
-//     account is created at once, its address verified only when Google owns
-//     it (else a verification code is mailed, as for a password sign-up);
-//   - link_required: a ticket too, the choice screen saying the address has
-//     an account to sign in to and link from;
-//   - reclaim: the account registered with the address before it was proved
-//     is taken back, its second factor never asked;
-//   - link: a verified account with the address Google owns gets the link,
-//     audited and told to its owner. An account with a second factor is not
-//     linked yet: it gets its challenge, which carries the identity, and the
-//     link is written once the second factor passes (VerifyMFA, spec §3.3).
+// SignIn is the Google callback's sign-in (webProviderSignIn): a session, an
+// MFA challenge, or a ticket for the choice screen; intent sign_up creates
+// an unmatched identity's account at once.
 func (s *GoogleAuthService) SignIn(ctx context.Context, c GoogleClaims, locale, intent string) (ProviderSignInResult, error) {
-	id := googleIdentity(c)
-	m := s.mailer()
-	device := mail.SafeField(sessionMetaFrom(ctx).UserAgent)
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return ProviderSignInResult{}, err
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	q := s.q.WithTx(tx)
-	res, err := resolveIdentity(ctx, q, id)
-	if err != nil {
-		return ProviderSignInResult{}, err
-	}
-	var (
-		u       db.User
-		queued  bool
-		reclaim reclaimed
-		// pending: the link waits for the account's second factor.
-		pending bool
-	)
-	switch res.kind {
-	case identityMatched:
-		u = res.user
-	case identityUnmatched:
-		if intent != SignInIntentSignUp {
-			return s.ticket(id, TicketKindUnmatched, intent)
-		}
-		if u, err = createProviderUser(ctx, q, id, locale, id.EmailAuthoritative); err != nil {
-			return ProviderSignInResult{}, err
-		}
-	case identityReclaim:
-		if reclaim, err = reclaimAccount(ctx, q, res.user, id, m, device, linkViaReclaim); err != nil {
-			return ProviderSignInResult{}, err
-		}
-		u, queued = reclaim.user, reclaim.queued
-	case identityLink:
-		if res.user.MfaEnabledAt.Valid {
-			u, pending = res.user, true
-			break
-		}
-		if u, queued, err = linkByEmail(ctx, q, res.user, id, m, device); err != nil {
-			return ProviderSignInResult{}, err
-		}
-	default: // identityLinkRequired
-		return s.ticket(id, TicketKindLinkRequired, intent)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		if isUniqueViolation(err) {
-			return ProviderSignInResult{}, errSignInAccountConflict()
-		}
-		return ProviderSignInResult{}, err
-	}
-	m.kick(queued)
-	reclaimedIt := res.kind == identityReclaim
-	if reclaimedIt {
-		observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, reclaim.leases)
-		s.auth.apple.revokeAfterCommit(ctx, u.ID, reclaim.appleClientID, reclaim.appleToken)
-	}
-	if !u.EmailVerifiedAt.Valid && res.kind == identityUnmatched && s.auth.verification != nil {
-		if err := s.auth.verification.Send(ctx, u.ID); err != nil {
-			slog.Warn("send verification code after google sign-up", "user", u.ID, "err", err)
-		}
-	}
-	if pending {
-		sess, err := s.auth.challengeWithPendingLink(ctx, u, id, linkViaEmailMatch, auth.MFAChallenge{Channel: auth.MFAChannelWeb})
-		if err != nil {
-			return ProviderSignInResult{}, err
-		}
-		return ProviderSignInResult{Session: sess}, nil
-	}
-	// A reclaim cleared the second factor in the transaction above, so the
-	// session comes without a challenge: whoever registered set it up.
-	sess, err := s.auth.SessionFor(ctx, u)
-	if err != nil {
-		return ProviderSignInResult{}, err
-	}
-	return ProviderSignInResult{Session: sess, Reclaimed: reclaimedIt}, nil
-}
-
-// ticket answers a browser sign-in that found no account to sign in to with
-// the web ticket for the choice screen. Nothing was written.
-func (s *GoogleAuthService) ticket(id ProviderIdentity, kind, intent string) (ProviderSignInResult, error) {
-	sealed, err := s.auth.issueSignInTicket(id, kind, intent, WebTicket())
-	if err != nil {
-		return ProviderSignInResult{}, err
-	}
-	return ProviderSignInResult{Ticket: sealed, TicketKind: kind}, nil
+	return s.auth.webProviderSignIn(ctx, googleIdentity(c), locale, intent)
 }

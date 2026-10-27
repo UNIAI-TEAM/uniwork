@@ -101,6 +101,60 @@ func (h *handlers) redirectLinkResult(w http.ResponseWriter, r *http.Request, re
 	h.redirectWeb(w, r, returnTo, params)
 }
 
+// openBrowserLink is the start of a link from Settings (spec §3.4): the link
+// token names the account and browser session that asked, and this
+// browser's refresh cookie must open that very session, or no provider round
+// trip starts. false: the browser was already sent back to Settings with
+// the result (failed for a token that is not one for provider,
+// session_mismatch for another browser).
+func (h *handlers) openBrowserLink(w http.ResponseWriter, r *http.Request, provider, rawToken string) (service.LinkIntent, bool) {
+	if h.SignInMethods == nil {
+		h.redirectLinkResult(w, r, defaultLinkReturn, provider, service.ErrLinkTokenInvalid)
+		return service.LinkIntent{}, false
+	}
+	li, err := h.SignInMethods.OpenLinkToken(rawToken)
+	if err == nil && li.Provider != provider {
+		err = service.ErrLinkTokenInvalid
+	}
+	if err != nil {
+		h.redirectLinkResult(w, r, defaultLinkReturn, provider, err)
+		return service.LinkIntent{}, false
+	}
+	li.ReturnTo = sanitizeNext(li.ReturnTo)
+	if err := h.SignInMethods.CheckLinkSession(r.Context(), li, refreshCookieOf(r)); err != nil {
+		h.redirectLinkResult(w, r, li.ReturnTo, provider, err)
+		return service.LinkIntent{}, false
+	}
+	return li, true
+}
+
+// finishBrowserLink ends a link from Settings once the provider proved id:
+// every answer goes back to the Settings page that started it with
+// sign_in_method and a result, never to a sign-in. The service checks again
+// that this browser is still signed in to the session that asked (the
+// cookie may have changed during the round trip) before it links; an empty
+// account holding the identity leaves its ticket in the cookie, for Settings
+// to confirm the move.
+func (h *handlers) finishBrowserLink(w http.ResponseWriter, r *http.Request, li service.LinkIntent, id service.ProviderIdentity) {
+	if h.SignInMethods == nil {
+		h.redirectLinkResult(w, r, li.ReturnTo, li.Provider, service.ErrLinkTokenInvalid)
+		return
+	}
+	res, err := h.SignInMethods.LinkFromBrowser(h.authCtx(r).Context(), li, id, refreshCookieOf(r))
+	if res.Ticket != "" {
+		h.setSignInTicketCookie(w, res.Ticket)
+	}
+	var ce service.CodedError
+	switch {
+	case err == nil:
+	case errors.As(err, &ce):
+		h.Log.Info("provider link refused", "provider", li.Provider, "code", ce.Code)
+	default:
+		h.Log.Error("provider link", "provider", li.Provider, "err", err)
+	}
+	h.redirectLinkResult(w, r, li.ReturnTo, li.Provider, err)
+}
+
 // refreshCookieOf is the browser's uniwork_refresh cookie, which a link from
 // Settings holds to the session that started it.
 func refreshCookieOf(r *http.Request) string {

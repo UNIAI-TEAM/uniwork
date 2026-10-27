@@ -806,7 +806,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionAuthSignInMethodLinked: func(t *testing.T, f *auditFixture) {
 			registerVerified(t, f.q, f.auth, "audit-link@gmail.com", "Link")
-			google := NewGoogleAuthService(f.pool, f.q, f.auth)
+			google := NewGoogleAuthService(f.auth)
 			if _, err := google.SignIn(f.ctx, GoogleClaims{Sub: "audit-google", Email: "audit-link@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn); err != nil {
 				t.Fatal(err)
 			}
@@ -814,7 +814,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		// A provider identity moved out of the empty account that held it
 		// (ADR 0047): the empty account records the unlink via move.
 		audit.ActionAuthSignInMethodUnlinked: func(t *testing.T, f *auditFixture) {
-			google := NewGoogleAuthService(f.pool, f.q, f.auth)
+			google := NewGoogleAuthService(f.auth)
 			tickets := NewSignInTicketService(f.pool, f.q, f.auth, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 			res, err := google.SignIn(f.ctx, GoogleClaims{Sub: "audit-move", Email: "audit-move@gmail.com", EmailVerified: true, Name: "M"}, "vi", SignInIntentSignIn)
 			if err != nil || res.Ticket == "" {

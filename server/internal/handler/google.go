@@ -64,24 +64,8 @@ func (h *handlers) googleStart(w http.ResponseWriter, r *http.Request) {
 	}
 	st := googleState{Next: next, Intent: intent, Exp: time.Now().Add(oauthStateTTL).Unix()}
 	if intent == webIntentLink {
-		// A link from Settings (spec §3.4): the link token names the account
-		// and browser session that asked, and this browser's refresh cookie
-		// must open that very session, or no provider round trip starts.
-		if h.SignInMethods == nil {
-			h.redirectLinkResult(w, r, defaultLinkReturn, service.ProviderGoogle, service.ErrLinkTokenInvalid)
-			return
-		}
-		li, err := h.SignInMethods.OpenLinkToken(q.Get("link_token"))
-		if err == nil && li.Provider != service.ProviderGoogle {
-			err = service.ErrLinkTokenInvalid
-		}
-		if err != nil {
-			h.redirectLinkResult(w, r, defaultLinkReturn, service.ProviderGoogle, err)
-			return
-		}
-		li.ReturnTo = sanitizeNext(li.ReturnTo)
-		if err := h.SignInMethods.CheckLinkSession(r.Context(), li, refreshCookieOf(r)); err != nil {
-			h.redirectLinkResult(w, r, li.ReturnTo, service.ProviderGoogle, err)
+		li, ok := h.openBrowserLink(w, r, service.ProviderGoogle, q.Get("link_token"))
+		if !ok {
 			return
 		}
 		st.Next, st.UserID, st.Session, st.ReturnTo = "", li.UserID, li.SessionID, li.ReturnTo
@@ -161,12 +145,9 @@ func (h *handlers) googleCallback(w http.ResponseWriter, r *http.Request) {
 	h.finishWebSignIn(w, r, res, st.Next)
 }
 
-// googleLinkCallback ends a link from Settings: every answer goes back to
-// the Settings page that started it with sign_in_method=google and a result,
-// never to a sign-in. The service checks again that this browser is still
-// signed in to the session that asked (the cookie may have changed during
-// the round trip) before it links; an empty account holding the identity
-// leaves its ticket in the cookie, for Settings to confirm the move.
+// googleLinkCallback ends a link from Settings (finishBrowserLink): every
+// answer goes back to the Settings page that started it with
+// sign_in_method=google and a result, never to a sign-in.
 func (h *handlers) googleLinkCallback(w http.ResponseWriter, r *http.Request, st googleState) {
 	q := r.URL.Query()
 	fail := errors.New("google link failed")
@@ -187,19 +168,7 @@ func (h *handlers) googleLinkCallback(w http.ResponseWriter, r *http.Request, st
 		h.redirectLinkResult(w, r, st.ReturnTo, service.ProviderGoogle, fail)
 		return
 	}
-	res, err := h.SignInMethods.LinkFromBrowser(h.authCtx(r).Context(), st.linkIntent(), service.GoogleIdentity(claims), refreshCookieOf(r))
-	if res.Ticket != "" {
-		h.setSignInTicketCookie(w, res.Ticket)
-	}
-	var ce service.CodedError
-	switch {
-	case err == nil:
-	case errors.As(err, &ce):
-		h.Log.Info("google link refused", "code", ce.Code)
-	default:
-		h.Log.Error("google link", "err", err)
-	}
-	h.redirectLinkResult(w, r, st.ReturnTo, service.ProviderGoogle, err)
+	h.finishBrowserLink(w, r, st.linkIntent(), service.GoogleIdentity(claims))
 }
 
 // googleState opens the state cookie; false when it is missing, was not
