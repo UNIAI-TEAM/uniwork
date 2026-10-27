@@ -333,7 +333,7 @@ test.describe.serial("chat file and voice messages", () => {
       buffer: Buffer.from("PK\u0003\u0004 khong-phai-tap-duoc-phep", "binary"),
     });
 
-    await expect(owner.getByText("Loại tệp không được hỗ trợ. Dùng ảnh, PDF hoặc văn bản thuần.")).toBeVisible({
+    await expect(owner.getByText("Loại tệp không được hỗ trợ. Dùng ảnh, PDF, văn bản thuần, CSV hoặc Markdown.")).toBeVisible({
       timeout: 15_000,
     });
     await expect(owner.locator('article[id^="chat-msg-"]').filter({ hasText: "tai-lieu.zip" })).toHaveCount(0);
