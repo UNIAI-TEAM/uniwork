@@ -20,6 +20,7 @@ import { driveLibraryKeys } from "./keys";
 
 export {
   driveLibraryKeys,
+  getDriveFile,
   type DriveFile,
   type DriveFileList,
   type DriveIconKind,

@@ -1,11 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { calendarKeys } from "../calendar/keys";
+import { taskKeys } from "../tasks/keys";
 import {
   driveKeys,
+  useCheckDriveTaskProposalDuplicates,
+  useCreateDriveTaskProposal,
+  useCreateTasksFromDriveProposal,
+  useDeleteDriveTaskProposal,
   useDisconnectDriveConnection,
   useDriveConnections,
   useDrivePickerToken,
+  useDriveTaskProposal,
   useGrantDriveFileAccess,
   useLinkDriveFiles,
   useRemoveTaskDriveFile,
@@ -28,11 +35,13 @@ describe("drive hooks", () => {
     requestMock.mockReset();
   });
 
-  it("nests connections and task keys under driveKeys.workspace(wsId) and driveKeys.all", () => {
+  it("nests connections, task, and proposal keys under driveKeys.workspace(wsId) and driveKeys.all", () => {
     expect(driveKeys.all).toEqual(["drive"]);
     expect(driveKeys.workspace("ws1")).toEqual(["drive", "ws1"]);
     expect(driveKeys.connections("ws1")).toEqual(["drive", "ws1", "connections"]);
     expect(driveKeys.task("ws1", "t1")).toEqual(["drive", "ws1", "tasks", "t1"]);
+    expect(driveKeys.proposals("ws1")).toEqual(["drive", "ws1", "proposals"]);
+    expect(driveKeys.proposal("ws1", "dtp_1")).toEqual(["drive", "ws1", "proposals", "dtp_1"]);
   });
 
   it("useDriveConnections fetches connections for the workspace and skips when disabled", async () => {
@@ -288,5 +297,223 @@ describe("drive hooks", () => {
     });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.task("ws1", "t1") });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: driveKeys.workspace("ws1") });
+  });
+
+  it("useCreateDriveTaskProposal posts to task-proposals, seeds driveKeys.proposal(wsId, id), and useDriveTaskProposal reads it", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    requestMock.mockResolvedValueOnce({
+      proposal: {
+        id: "dtp_1",
+        workspace_id: "ws1",
+        drive_file_id: "df_1",
+        drive_file_name: "Kế hoạch ra mắt Q4",
+        connection_id: "dc_1",
+        reader_account_email: "uni-work1@gmail.com",
+        requested_by: "u_1",
+        items: [{ index: 0, title: "Chốt phạm vi beta" }],
+        tasks_created: { count: 2, last_created_by_name: "Lan" },
+        prior_creations: [],
+        created_at: "2026-10-26T10:00:00Z",
+        expires_at: "2026-11-02T10:00:00Z",
+      },
+    });
+
+    const { result } = renderHook(() => useCreateDriveTaskProposal("ws1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      const proposal = await result.current.mutateAsync({
+        driveFileId: "df_1",
+        body: { prompt: "Chia việc", project_id: "p_1" },
+      });
+      expect(proposal.id).toBe("dtp_1");
+    });
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws1/drive-files/df_1/task-proposals",
+      {
+        method: "POST",
+        body: { prompt: "Chia việc", project_id: "p_1" },
+        signal: undefined,
+      },
+    );
+    expect(qc.getQueryData(driveKeys.proposal("ws1", "dtp_1"))).toEqual(
+      expect.objectContaining({ id: "dtp_1", drive_file_name: "Kế hoạch ra mắt Q4" }),
+    );
+
+    const queryHook = renderHook(() => useDriveTaskProposal("ws1", "dtp_1"), {
+      wrapper: createWrapper(qc),
+    });
+    await waitFor(() => expect(queryHook.result.current.isSuccess).toBe(true));
+    expect(queryHook.result.current.data?.id).toBe("dtp_1");
+  });
+
+  it("useDeleteDriveTaskProposal awaits the server and invalidates driveKeys.proposal(wsId, proposalId)", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    requestMock.mockResolvedValueOnce({ status: "ok" });
+
+    const { result } = renderHook(() => useDeleteDriveTaskProposal("ws1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ proposalId: "dtp_1" });
+    });
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/workspaces/ws1/drive-task-proposals/dtp_1",
+      { method: "DELETE", signal: undefined },
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: driveKeys.proposal("ws1", "dtp_1"),
+    });
+  });
+
+  it("useCheckDriveTaskProposalDuplicates posts to /duplicates and returns recomputed duplicate items", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    requestMock.mockResolvedValueOnce({
+      duplicates: [
+        {
+          index: 0,
+          possible_duplicate: {
+            task_id: "t_1037",
+            identifier: "UNI-1037",
+            title: "Soạn FAQ sản phẩm",
+          },
+        },
+      ],
+    });
+
+    const { result } = renderHook(() => useCheckDriveTaskProposalDuplicates("ws1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      const duplicates = await result.current.mutateAsync({
+        proposalId: "dtp_1",
+        body: {
+          project_id: "p_2",
+          parent_task_id: "t_1042",
+          titles: ["Soạn FAQ cho CS"],
+        },
+      });
+      expect(duplicates).toEqual([
+        {
+          index: 0,
+          possible_duplicate: {
+            task_id: "t_1037",
+            identifier: "UNI-1037",
+            title: "Soạn FAQ sản phẩm",
+          },
+        },
+      ]);
+    });
+  });
+
+  it("useCreateTasksFromDriveProposal awaits the server and invalidates proposal, workspace Drive keys, parent task, and task collections", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    requestMock.mockResolvedValueOnce({
+      task_ids: ["t_1", "t_2"],
+      items: [
+        { index: 0, task_id: "t_1" },
+        { index: 1, task_id: "t_2" },
+      ],
+    });
+
+    const { result } = renderHook(() => useCreateTasksFromDriveProposal("ws1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      const created = await result.current.mutateAsync({
+        proposalId: "dtp_1",
+        body: {
+          project_id: "p_1",
+          parent_task_id: "t_parent",
+          status: "todo",
+          items: [
+            { index: 0, title: "Việc 1", description: "Mô tả 1" },
+            { index: 1, title: "Việc 2", description: "Mô tả 2" },
+          ],
+        },
+      });
+      expect(created?.task_ids).toEqual(["t_1", "t_2"]);
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: driveKeys.proposal("ws1", "dtp_1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: driveKeys.workspace("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.detail("t_parent"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.children("t_parent"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.childProgress("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.list("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.queryRoot("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.myTasks("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.tableRoot("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: calendarKeys.all("ws1"),
+    });
+  });
+
+  it("useCreateTasksFromDriveProposal resolves null and still invalidates proposal and task keys when 2xx body fails schema (F2)", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    requestMock.mockResolvedValueOnce({ unexpected: "shape" });
+
+    const { result } = renderHook(() => useCreateTasksFromDriveProposal("ws1"), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      const created = await result.current.mutateAsync({
+        proposalId: "dtp_1",
+        body: {
+          project_id: "p_1",
+          parent_task_id: "t_parent",
+          status: "todo",
+          items: [{ index: 0, title: "Việc 1", description: "Mô tả 1" }],
+        },
+      });
+      expect(created).toBeNull();
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: driveKeys.proposal("ws1", "dtp_1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: driveKeys.workspace("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.detail("t_parent"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.children("t_parent"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.childProgress("ws1"),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: taskKeys.list("ws1"),
+    });
   });
 });

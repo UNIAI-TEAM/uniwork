@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
-import { useRebindDriveFile, type DriveFile } from "@uniwork/core/drive-library";
+import { useRebindDriveFile, type DriveFile, type DriveTaskCreationGroup } from "@uniwork/core/drive-library";
 import type { AuditEvent } from "@uniwork/core/types";
 import {
   AlertDialog,
@@ -485,29 +485,34 @@ export function DriveFileActivitySection({
   );
 }
 
-export interface DriveFileTasksCreatedSectionProps {
-  creations: DriveFile["task_creations"];
+export interface DriveTasksCreatedSectionProps {
+  sectionRef: RefObject<HTMLDivElement | null>;
+  creations: readonly DriveTaskCreationGroup[];
   totalCreatedCount: number;
-  taskHref: (taskId: string) => string;
   formatDate: (iso: string | undefined) => string;
+  taskHref: (taskId: string) => string;
 }
 
 /**
- * §8.8 "Việc đã tạo từ tài liệu" grouped task links card on 4.2.
+ * §8.8 "Việc đã tạo từ tài liệu" grouped task links card on 4.2. `creations` arrives already
+ * stripped of empty groups; the `#drive-tasks-created` anchor and `sectionRef` let the propose
+ * popover and the `?propose=1` hash scroll to it.
  */
-export function DriveFileTasksCreatedSection({
-  creations: rawCreations,
+export function DriveTasksCreatedSection({
+  sectionRef,
+  creations,
   totalCreatedCount,
-  taskHref,
   formatDate,
-}: DriveFileTasksCreatedSectionProps) {
+  taskHref,
+}: DriveTasksCreatedSectionProps) {
   const { t } = useTranslation();
-  const creations = (rawCreations ?? []).filter((g) => g.tasks.length > 0);
-  if (creations.length === 0 && totalCreatedCount <= 0) {
-    return null;
-  }
+  if (creations.length === 0 && totalCreatedCount <= 0) return null;
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4">
+    <div
+      id="drive-tasks-created"
+      ref={sectionRef}
+      className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-body font-semibold text-foreground">
           {t("driveLibrary.detail.tasks_created.title")}

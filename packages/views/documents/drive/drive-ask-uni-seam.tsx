@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiCapabilities } from "@uniwork/core/ai";
@@ -15,7 +15,6 @@ export interface UseDriveAskUniSeamOptions {
   driveFileId: string;
   file: DriveFile | null;
   detailHref: string;
-  onPropose?: (file: DriveFile) => void;
   onAsk?: (file: DriveFile) => void;
 }
 
@@ -24,6 +23,8 @@ export interface DriveAskUniSeamState {
   askGranted: boolean;
   askDisabled: boolean;
   triggerAsk: () => void;
+  proposePopoverOpen: boolean;
+  setProposePopoverOpen: (open: boolean) => void;
 }
 
 /**
@@ -35,7 +36,6 @@ export function useDriveAskUniSeam({
   driveFileId,
   file,
   detailHref,
-  onPropose,
   onAsk,
 }: UseDriveAskUniSeamOptions): DriveAskUniSeamState {
   const nav = useOptionalNavigation();
@@ -60,6 +60,7 @@ export function useDriveAskUniSeam({
   const proposeParam = searchParams?.get("propose") === "1";
   const askParam = searchParams?.get("ask") === "1";
   const handledProposeFileId = useRef<string | null>(null);
+  const [proposePopoverOpen, setProposePopoverOpen] = useState(false);
 
   useEffect(() => {
     if (!proposeParam) {
@@ -69,9 +70,9 @@ export function useDriveAskUniSeam({
 
   useEffect(() => {
     if (!file || (!proposeParam && !askParam)) return;
-    if (proposeParam && file.can_propose && onPropose && handledProposeFileId.current !== file.id) {
+    if (proposeParam && file.can_propose && handledProposeFileId.current !== file.id) {
       handledProposeFileId.current = file.id;
-      onPropose(file);
+      setProposePopoverOpen(true);
     }
     if (askParam && askCapsPending && !proposeParam) return;
     if (askParam && file.can_ask && file.viewer_access === "granted") {
@@ -86,8 +87,7 @@ export function useDriveAskUniSeam({
       replace(qs ? `${detailHref}?${qs}` : detailHref);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- defaultAskOpener is recreated per render; trigger once per file/param
-  }, [file, proposeParam, askParam, askCapsPending, onPropose, onAsk, hasDefaultAskOpener, replace, searchParams, detailHref]);
-
+  }, [file, proposeParam, askParam, askCapsPending, onAsk, hasDefaultAskOpener, replace, searchParams, detailHref]);
   const askGranted = file?.viewer_access === "granted";
   const showAsk = Boolean(file && hasAskSeam && (file.can_ask || !askGranted));
   const askDisabled = !askGranted || !file?.can_ask;
@@ -98,7 +98,14 @@ export function useDriveAskUniSeam({
     else defaultAskOpener?.();
   };
 
-  return { showAsk, askGranted, askDisabled, triggerAsk };
+  return {
+    showAsk,
+    askGranted,
+    askDisabled,
+    triggerAsk,
+    proposePopoverOpen,
+    setProposePopoverOpen,
+  };
 }
 
 export interface DriveAskUniHeaderButtonProps {

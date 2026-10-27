@@ -16,6 +16,7 @@ import {
 } from "../../integrations/drive-picker";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
+import { DriveProposalReviewProvider } from "../../tasks/drive-task-proposal-popover";
 import { DriveFileDetailView } from "./drive-file-detail-view";
 import type { DriveConnectionSummary } from "./use-drive-library-connections";
 
@@ -674,7 +675,6 @@ describe("DriveFileDetailView (4.2)", () => {
       return Promise.resolve({ events: [] });
     });
 
-    const onPropose = vi.fn();
     const onAsk = vi.fn();
     const nav = fakeNav(`/acme/doi/documents/drive/${FILE_ID}?propose=1&ask=1`);
 
@@ -684,7 +684,6 @@ describe("DriveFileDetailView (4.2)", () => {
           wsId={WS}
           driveFileId={FILE_ID}
           connections={connections}
-          onPropose={onPropose}
           onAsk={onAsk}
         />,
         true,
@@ -699,11 +698,11 @@ describe("DriveFileDetailView (4.2)", () => {
     expect(screen.queryByRole("button", { name: t("driveLibrary.detail.ask_uni") })).toBeNull();
 
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/acme/doi/documents/drive/${FILE_ID}`));
-    expect(onPropose).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText(t("drive.proposals.prompt_label"))).toBeNull();
     expect(onAsk).not.toHaveBeenCalled();
   });
 
-  it("shows loading skeleton and retryable error state on 4.2 (§7.10), and invokes onPropose/onAsk when ?propose=1 or ?ask=1 is passed with can_* true (§7.11)", async () => {
+  it("shows loading skeleton and retryable error state on 4.2 (§7.10), and opens propose popover + invokes onAsk when ?propose=1 or ?ask=1 is passed with can_* true (§7.11)", async () => {
     // 1. Loading skeleton
     requestMock.mockImplementation((path: string) => {
       if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
@@ -717,6 +716,7 @@ describe("DriveFileDetailView (4.2)", () => {
     let calls = 0;
     requestMock.mockImplementation((path: string) => {
       if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path.endsWith("/ai/capabilities")) return Promise.resolve({ enabled: true });
       if (path === DETAIL_URL) {
         calls += 1;
         if (calls <= 2) return Promise.reject(new ApiError("boom", "internal", 500));
@@ -725,7 +725,6 @@ describe("DriveFileDetailView (4.2)", () => {
       return Promise.resolve({ events: [] });
     });
 
-    const onPropose = vi.fn();
     const onAsk = vi.fn();
     const nav = fakeNav(`/acme/doi/documents/drive/${FILE_ID}?propose=1&ask=1`);
 
@@ -734,7 +733,6 @@ describe("DriveFileDetailView (4.2)", () => {
         <DriveFileDetailView
           wsId={WS}
           driveFileId={FILE_ID}
-          onPropose={onPropose}
           onAsk={onAsk}
         />,
         true,
@@ -746,7 +744,7 @@ describe("DriveFileDetailView (4.2)", () => {
     fireEvent.click(screen.getByRole("button", { name: t("driveLibrary.detail.error.retry") }));
 
     expect(await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" })).toBeInTheDocument();
-    await waitFor(() => expect(onPropose).toHaveBeenCalledTimes(1));
+    expect(await screen.findByLabelText(t("drive.proposals.prompt_label"))).toBeInTheDocument();
     expect(onAsk).toHaveBeenCalledTimes(1);
     expect(nav.replace).toHaveBeenCalledWith(`/acme/doi/documents/drive/${FILE_ID}`);
   });
@@ -910,7 +908,7 @@ describe("DriveFileDetailView (4.2)", () => {
     expect(nav.replace).toHaveBeenCalledWith(`/acme/doi/documents/drive/${FILE_ID}`);
   });
 
-  it("invokes onPropose at most once when ?propose=1&ask=1 is loaded while capabilities are pending", async () => {
+  it("opens the propose popover at most once when ?propose=1&ask=1 is loaded while capabilities are pending", async () => {
     const { promise: capsPromise, resolve: resolveCaps } = Promise.withResolvers<unknown>();
     requestMock.mockImplementation((path: string) => {
       if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
@@ -925,7 +923,6 @@ describe("DriveFileDetailView (4.2)", () => {
       return Promise.resolve({ events: [] });
     });
 
-    const onPropose = vi.fn();
     const baseNav = fakeNav(`/acme/doi/documents/drive/${FILE_ID}?propose=1&ask=1`);
     // Simulate a slow replace that has not yet updated searchParams when capabilities resolve
     const nav = {
@@ -943,7 +940,7 @@ describe("DriveFileDetailView (4.2)", () => {
       wrapWithNav(
         <WorkspaceProvider workspace={workspace} user={sessionUser}>
           <FeatureFlagsProvider service={service}>
-            <DriveFileDetailView wsId={WS} driveFileId={FILE_ID} onPropose={onPropose} />
+            <DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />
           </FeatureFlagsProvider>
         </WorkspaceProvider>,
         nav,
@@ -951,11 +948,143 @@ describe("DriveFileDetailView (4.2)", () => {
     );
 
     await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
-    await waitFor(() => expect(onPropose).toHaveBeenCalledTimes(1));
+    expect(await screen.findByLabelText(t("drive.proposals.prompt_label"))).toBeInTheDocument();
+
+    // Dismiss the popover before capabilities resolve -> it must not reopen when capabilities resolve
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByLabelText(t("drive.proposals.prompt_label"))).toBeNull());
 
     resolveCaps({ enabled: true, ask_uni: true });
     await waitFor(() => expect(useAiPanelStore.getState().open).toBe(true));
-    expect(onPropose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText(t("drive.proposals.prompt_label"))).toBeNull();
+  });
+
+  it("opens the 'Tạo việc từ tài liệu' popover via ?propose=1, scrolls #drive-tasks-created into view when hash matches, and hands proposal to DriveProposalReviewProvider (§8.1, §8.8)", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path.endsWith("/ai/capabilities")) return Promise.resolve({ enabled: true });
+      if (path === `${DETAIL_URL}/task-proposals` && opts?.method === "POST") {
+        return Promise.resolve({
+          proposal: {
+            id: "dtp_42",
+            workspace_id: WS,
+            drive_file_id: FILE_ID,
+            drive_file_name: "Kế hoạch ra mắt Q4",
+            connection_id: "conn1",
+            reader_account_email: "uni-work1@gmail.com",
+            requested_by: "u1",
+            items: [{ index: 0, title: "Chốt phạm vi beta" }],
+            tasks_created: { count: 4, last_created_by_name: "Minh Nguyễn" },
+            prior_creations: [],
+            created_at: "2026-10-26T10:00:00Z",
+            expires_at: "2026-11-02T10:00:00Z",
+          },
+        });
+      }
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({
+            can_propose: true,
+            viewer_access: "granted",
+            viewer_account_email: "uni-work1@gmail.com",
+            tasks_created: {
+              count: 4,
+              last_created_at: "2026-10-26T09:58:00Z",
+              last_created_by_name: "Minh Nguyễn",
+            },
+          }),
+        });
+      }
+      return Promise.resolve({ events: [] });
+    });
+
+    const scrollIntoViewMock = vi.fn();
+    const prevScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
+    window.location.hash = "#drive-tasks-created";
+
+    const onReviewOpen = vi.fn();
+    const nav = fakeNav(`/acme/doi/documents/drive/${FILE_ID}?propose=1`);
+
+    try {
+      render(
+        withFlag(
+          <DriveProposalReviewProvider onOpen={onReviewOpen}>
+            <DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />
+          </DriveProposalReviewProvider>,
+          true,
+          nav,
+        ),
+      );
+
+      await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
+      await waitFor(() => expect(nav.replace).toHaveBeenCalledWith(`/acme/doi/documents/drive/${FILE_ID}`));
+      await waitFor(() => expect(scrollIntoViewMock).toHaveBeenCalledWith({ behavior: "smooth", block: "start" }));
+
+      // Popover opened automatically via ?propose=1
+      expect(
+        await screen.findByText(
+          "UNI đọc tệp bằng tài khoản uni-work1@gmail.com rồi đưa ra danh sách việc để bạn duyệt. Chưa có việc nào được tạo trước khi bạn duyệt.",
+        ),
+      ).toBeInTheDocument();
+
+      const warning = screen.getByTestId("drive-recreate-warning");
+      expect(warning).toHaveAttribute("role", "status");
+      expect(within(warning).getByRole("button", { name: "Xem các việc đã tạo" })).toBeInTheDocument();
+
+      const submitBtn = screen.getByRole("button", { name: "Vẫn gửi cho UNI" });
+      expect(submitBtn).toHaveAttribute("aria-describedby", warning.id);
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(onReviewOpen).toHaveBeenCalledWith(
+          expect.objectContaining({ id: "dtp_42" }),
+        );
+      });
+    } finally {
+      window.location.hash = "";
+      HTMLElement.prototype.scrollIntoView = prevScrollIntoView;
+    }
+  });
+
+  it("renders 'Tạo việc từ tài liệu' aria-disabled with ai_disabled hint on 4.2 when AI capability is disabled (F5)", async () => {
+    let proposeCalled = false;
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === CONFIG_URL) return Promise.resolve(defaultConfigResponse(true));
+      if (path.endsWith("/ai/capabilities")) return Promise.resolve({ enabled: false });
+      if (path === `${DETAIL_URL}/task-proposals` && opts?.method === "POST") {
+        proposeCalled = true;
+        return Promise.resolve({});
+      }
+      if (path === DETAIL_URL) {
+        return Promise.resolve({
+          file: detailFile({
+            can_propose: true,
+            viewer_access: "granted",
+          }),
+        });
+      }
+      return Promise.resolve({ events: [] });
+    });
+
+    render(withFlag(<DriveFileDetailView wsId={WS} driveFileId={FILE_ID} />));
+
+    await screen.findByRole("heading", { level: 1, name: "Kế hoạch ra mắt Q4" });
+    const proposeBtn = await screen.findByRole("button", {
+      name: t("driveLibrary.detail.propose_tasks"),
+    });
+    await waitFor(() => {
+      expect(proposeBtn).toHaveAttribute("aria-disabled", "true");
+    });
+    expect(proposeBtn).toHaveAttribute("title", t("drive.proposals.errors.ai_disabled"));
+    const hintId = proposeBtn.getAttribute("aria-describedby");
+    expect(hintId).toBeTruthy();
+    expect(document.getElementById(hintId!)).toHaveTextContent(
+      t("drive.proposals.errors.ai_disabled"),
+    );
+    fireEvent.click(proposeBtn);
+    expect(screen.queryByLabelText(t("drive.proposals.prompt_label"))).toBeNull();
+    expect(proposeCalled).toBe(false);
   });
 
   it("enforces the W8-R1-05 gate on 4.2 (waits for config without flashing off, hides screen when flag or drive.available is off)", async () => {

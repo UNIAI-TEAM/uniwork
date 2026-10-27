@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { CircleAlert, ExternalLink, FileX, RefreshCw, Sparkles, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -19,13 +19,14 @@ import { CollectionPageState } from "../../layout/collection-page";
 import { useOptionalWorkspace } from "../../layout/workspace-context";
 import { AppLink, useOptionalNavigation } from "../../navigation";
 import { relativeTime } from "../../notifications/relative-time";
+import { DriveProposeTasksPopover } from "../../tasks/drive-task-proposal-popover";
 import { DocumentTypeIcon } from "../document-type-icon";
 import { DocumentsGateState, useDocumentsGate } from "../documents-gate";
 import { DriveAskUniHeaderButton, useDriveAskUniSeam } from "./drive-ask-uni-seam";
 import {
   DriveFileActivitySection,
-  DriveFileTasksCreatedSection,
   DriveRebindSection,
+  DriveTasksCreatedSection,
   DriveUnlinkConfirmSection,
   DriveViewerAccessBlock,
 } from "./drive-file-detail-sections";
@@ -39,8 +40,6 @@ export interface DriveFileDetailViewProps {
   driveFileId: string;
   /** Optional override for the caller's connected Google Drive accounts. */
   connections?: readonly DriveConnectionSummary[];
-  /** Seam for W6 "Tạo việc từ tài liệu": rendered only when `file.can_propose` AND `onPropose` is passed. */
-  onPropose?: (file: DriveFile) => void;
   /** Seam for W9 "Hỏi UNI": rendered only when `file.can_ask` AND `onAsk` is passed. */
   onAsk?: (file: DriveFile) => void;
   /** Optional Google Picker adapter for deterministic testing. */
@@ -92,7 +91,6 @@ export function DriveFileDetailView({
   wsId,
   driveFileId,
   connections: connectionsProp,
-  onPropose,
   onAsk,
   pickerAdapter,
   onGrantAccess,
@@ -142,14 +140,18 @@ export function DriveFileDetailView({
     [members.data],
   );
   const unlinkMutation = useUnlinkDriveFile(wsId);
-  const { showAsk, askGranted, askDisabled, triggerAsk } = useDriveAskUniSeam({
-    wsId,
-    driveFileId,
-    file,
-    detailHref: wsPaths.documentsDriveFile(driveFileId),
-    onPropose,
-    onAsk,
+  const tasksCreatedSectionRef = useRef<HTMLDivElement | null>(null);
+  const scrolledFileIdRef = useRef<string | null>(null);
+  const { showAsk, askGranted, askDisabled, triggerAsk, proposePopoverOpen, setProposePopoverOpen } = useDriveAskUniSeam({
+    wsId, driveFileId, file, detailHref: wsPaths.documentsDriveFile(driveFileId), onAsk,
   });
+
+  useEffect(() => {
+    if (!file || scrolledFileIdRef.current === file.id) return;
+    if (globalThis.location?.hash !== "#drive-tasks-created" || !tasksCreatedSectionRef.current) return;
+    scrolledFileIdRef.current = file.id;
+    tasksCreatedSectionRef.current.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [file]);
 
   if (gate !== "on") {
     return <DocumentsGateState gate={gate} retry={retryGate} className="mx-auto w-full max-w-3xl" />;
@@ -267,8 +269,9 @@ export function DriveFileDetailView({
       ? t("driveLibrary.detail.props.owner_shared_drive")
       : file.owner_display;
 
-  const showPropose = file.can_propose && Boolean(onPropose);
+  const showPropose = file.can_propose;
   const usedInTotal = Math.max(file.used_in_count, file.used_in_tasks.length);
+  const creations = (file.task_creations ?? []).filter((g) => g.tasks.length > 0);
   const totalCreatedCount = file.tasks_created?.count ?? 0;
   const handleUnlink = async (): Promise<boolean> => {
     try {
@@ -357,20 +360,29 @@ export function DriveFileDetailView({
               : t("driveLibrary.detail.explainer_no_account")}
           </p>
 
-          {showPropose && onPropose ? (
+          {showPropose ? (
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-              <Button type="button" variant="outline" onClick={() => onPropose(file)}>
-                <Sparkles aria-hidden className="size-4" />
-                {t("driveLibrary.detail.propose_tasks")}
-              </Button>
+              <DriveProposeTasksPopover
+                workspaceId={wsId}
+                driveFileId={file.id}
+                readerAccountEmail={file.viewer_account_email}
+                openUrl={file.open_url}
+                tasksCreated={file.tasks_created}
+                open={proposePopoverOpen}
+                onOpenChange={setProposePopoverOpen}
+                onAccessRequired={() => { void query.refetch(); }}
+                onViewCreatedTasks={creations.length > 0 || totalCreatedCount > 0 ? () => { tasksCreatedSectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }); } : undefined}
+                trigger={<Button type="button" variant="outline"><Sparkles aria-hidden className="size-4" />{t("driveLibrary.detail.propose_tasks")}</Button>}
+              />
             </div>
           ) : null}
 
-          <DriveFileTasksCreatedSection
-            creations={file.task_creations}
+          <DriveTasksCreatedSection
+            sectionRef={tasksCreatedSectionRef}
+            creations={creations}
             totalCreatedCount={totalCreatedCount}
-            taskHref={(taskId) => wsPaths.task(taskId)}
             formatDate={(iso) => formatShortDate(iso, i18n.language)}
+            taskHref={(taskId) => wsPaths.task(taskId)}
           />
         </section>
 
