@@ -230,6 +230,12 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     const driveBtn = (await screen.findAllByRole("button", { name: /^Google Drive/ }))[0]!;
     expect(driveBtn).toHaveTextContent("1");
     expect(screen.queryByRole("button", { name: /Drive:/ })).toBeNull();
+    // Zero accounts -> Drive row keeps an empty 16px chevron placeholder slot (no chevron button) so icon/name stay aligned.
+    const driveRowWrapper = driveBtn.parentElement!;
+    expect(driveRowWrapper).toHaveClass("px-2", "gap-1");
+    expect(driveRowWrapper.querySelector("[data-chevron]")).toBeNull();
+    expect(driveRowWrapper.firstElementChild).toHaveAttribute("data-chevron-placeholder");
+    expect(driveRowWrapper.firstElementChild).toHaveClass("size-4", "shrink-0");
 
     // Clicking the all-accounts row navigates to 4.1 and renders the lost file with reconnect link
     fireEvent.click(driveBtn);
@@ -269,25 +275,60 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     );
 
     const driveBtn = (await screen.findAllByRole("button", { name: /^Google Drive/ }))[0]!;
+    const driveRowWrapper = driveBtn.parentElement!;
+    const driveChevron = within(driveRowWrapper).getByRole("button", {
+      name: t("documents.tree.collapse", { title: "Google Drive" }),
+    });
     expect(driveBtn).toHaveAttribute("aria-current", "page");
-    expect(driveBtn).toHaveClass("bg-brand-subtle", "text-brand-subtle-foreground");
+    expect(driveRowWrapper).toHaveClass("bg-brand-subtle", "text-brand-subtle-foreground", "px-2", "gap-1");
+    expect(driveChevron).toHaveAttribute("aria-expanded", "true");
+    expect(driveChevron).not.toHaveAttribute("tabindex", "-1");
+    expect(driveChevron).not.toHaveClass("outline-none");
+    expect(driveChevron).toHaveClass("size-4", "shrink-0", "pointer-coarse:size-11");
     expect(driveBtn).toHaveTextContent("6");
-    expect(driveBtn).toHaveClass("px-2", "gap-2");
-    expect(driveBtn.firstElementChild).toHaveClass("size-5");
+    expect(driveBtn).toHaveClass("gap-2", "min-w-0", "flex-1");
+    expect(driveBtn.firstElementChild).toHaveClass("size-5", "shrink-0");
+    expect(driveBtn.lastElementChild).toHaveClass(
+      "ml-auto",
+      "shrink-0",
+      "font-mono",
+      "text-caption",
+      "tabular-nums",
+      "text-muted-foreground",
+    );
 
     const acct1Btn = screen.getAllByRole("button", { name: /Drive: uni-work1@gmail\.com/ })[0]!;
     expect(acct1Btn).not.toHaveAttribute("aria-current");
     expect(acct1Btn).toHaveAttribute("title", "Drive: uni-work1@gmail.com");
-    expect(acct1Btn).toHaveClass("pl-9", "pr-2", "gap-2");
+    expect(acct1Btn).toHaveStyle({ paddingLeft: "28px" });
+    expect(acct1Btn).toHaveClass("pr-2", "gap-2");
     expect(acct1Btn).toHaveTextContent("3");
+    expect(acct1Btn.lastElementChild).toHaveClass(
+      "ml-auto",
+      "shrink-0",
+      "font-mono",
+      "text-caption",
+      "tabular-nums",
+      "text-muted-foreground",
+    );
 
     const acct3Btn = screen.getAllByRole("button", { name: /Drive: uni-work3@gmail\.com/ })[0]!;
-    expect(acct3Btn).toHaveClass("pl-9", "pr-2", "gap-2");
+    expect(acct3Btn).toHaveStyle({ paddingLeft: "28px" });
+    expect(acct3Btn).toHaveClass("pr-2", "gap-2");
     expect(acct3Btn).toHaveTextContent(t("driveLibrary.sidebar.disconnected"));
     expect(acct3Btn).toHaveAttribute(
       "title",
       `Drive: uni-work3@gmail.com · ${t("driveLibrary.sidebar.disconnected")}`,
     );
+    expect(acct3Btn.lastElementChild).toHaveClass(
+      "ml-auto",
+      "shrink-0",
+      "font-mono",
+      "text-caption",
+      "tabular-nums",
+      "text-muted-foreground",
+    );
+
     expect(screen.queryByText(/Người khác liên kết/)).toBeNull();
 
     fireEvent.click(acct1Btn);
@@ -295,6 +336,17 @@ describe("DocumentsSidebar and 4.1 DriveLibraryListView", () => {
     expect(acct1Btn).toHaveAttribute("aria-current", "page");
     expect(acct1Btn).toHaveClass("bg-brand-subtle", "text-brand-subtle-foreground");
     expect(driveBtn).not.toHaveAttribute("aria-current");
+
+    // Drive chevron collapses and expands the account rows without navigating; native button handles click (including Enter/Space activation).
+    fireEvent.click(driveChevron);
+    expect(driveChevron).toHaveAttribute("aria-expanded", "false");
+    expect(driveChevron).toHaveAccessibleName(t("documents.tree.expand", { title: "Google Drive" }));
+    expect(within(driveRowWrapper.parentElement!).queryByRole("button", { name: /Drive: uni-work1@gmail\.com/ })).toBeNull();
+    expect(nav.push).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(driveChevron);
+    expect(driveChevron).toHaveAttribute("aria-expanded", "true");
+    expect(within(driveRowWrapper.parentElement!).getByRole("button", { name: /Drive: uni-work1@gmail\.com/ })).toBeInTheDocument();
   });
 
   it("does not show a reconnect link for a bound_connection_lost file when the viewer's own access is granted on a healthy connection", async () => {

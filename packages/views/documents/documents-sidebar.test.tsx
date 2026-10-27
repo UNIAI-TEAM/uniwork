@@ -117,6 +117,8 @@ describe("DocumentsSidebar sub-nav", () => {
     renderSidebar({ myFolderId: null, onMyFolder });
     const row = screen.getByRole("button", { name: t("documents.home.my_folder.label") });
     expect(row.nextElementSibling).toBe(screen.getByTestId("folder-tree"));
+    expect(row.firstElementChild).toHaveAttribute("data-chevron-placeholder");
+    expect(row.firstElementChild).toHaveClass("size-4", "shrink-0", "-mr-1");
     expect(row.querySelector("svg")?.innerHTML).toBe(glyphOf(DOCUMENTS_NAV_ICONS.myFolders));
     fireEvent.click(row);
     expect(onMyFolder).toHaveBeenCalledTimes(1);
@@ -238,7 +240,7 @@ describe("DocumentsSidebar icons", () => {
     }
   });
 
-  it("aligns top-level folder rows, Drive rows, Drive account sub-rows, and module source rows on the same x=8/x=36 grid", async () => {
+  it("aligns top-level folder rows, Drive tree node, Drive account sub-rows, and mobile sheet on the 3-column grid (chevron x=8, icon x=28, name x=56, +20px child step)", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path === "/api/v1/config") {
         return Promise.resolve({
@@ -258,6 +260,13 @@ describe("DocumentsSidebar icons", () => {
               children: [
                 { id: "f-child", title: "Phụ lục", kind: "folder", parent_id: "f-root", position: 0, children: [] },
               ],
+            },
+            {
+              id: "f-leaf",
+              title: "Tài chính",
+              kind: "folder",
+              position: 1,
+              children: [],
             },
           ],
         });
@@ -292,37 +301,96 @@ describe("DocumentsSidebar icons", () => {
       ),
     );
 
-    const driveRow = await screen.findByRole("button", { name: /^Google Drive/ });
+    const driveChevron = await screen.findByRole("button", {
+      name: t("documents.tree.collapse", { title: "Google Drive" }),
+    });
+    const driveRow = screen.getByRole("button", { name: /^Google Drive/ });
+    const driveRowWrapper = driveRow.parentElement!;
     const driveAccountRow = screen.getByRole("button", { name: /Drive: an@example\.com/ });
     const rootFolderRow = await screen.findByRole("treeitem", { name: /Hợp đồng/ });
-    const chatSourceRow = screen.getByRole("button", { name: t("documents.home.origin.chat") });
+    const leafFolderRow = screen.getByRole("treeitem", { name: /Tài chính/ });
 
-    // Reference grid: px-2 (8px) + size-5 (20px) + gap-2 (8px) -> label at x = 36px.
-    expect(driveRow).toHaveClass("px-2", "gap-2");
-    expect(driveRow.firstElementChild).toHaveClass("size-5");
-    expect(chatSourceRow).toHaveClass("px-2", "gap-2");
-    expect(chatSourceRow.firstElementChild).toHaveClass("size-5");
+    // Drive row wrapper and top-level folder row share the 3-column grid:
+    // px-2 (8px) -> size-4 chevron slot (16px) -> 4px gap -> size-5 icon box (20px, x=28) -> 8px gap -> flex-1 truncate name (x=56).
+    expect(driveRowWrapper).toHaveClass("px-2", "gap-1");
+    expect(driveRowWrapper.firstElementChild).toBe(driveChevron);
+    expect(driveChevron).toHaveClass(
+      "size-4",
+      "shrink-0",
+      "relative",
+      "z-10",
+      "pointer-coarse:size-11",
+      "pointer-coarse:-ml-5",
+      "pointer-coarse:-mr-2",
+    );
+    expect(driveChevron).not.toHaveClass("outline-none");
+    expect(driveChevron).toHaveAttribute("aria-expanded", "true");
+    expect(driveRow).toHaveClass("gap-2", "min-w-0", "flex-1");
+    expect(driveRow.firstElementChild).toHaveClass("size-5", "shrink-0");
+    expect(driveRow.children[1]).toHaveClass("min-w-0", "flex-1", "truncate");
+    expect(driveRow.lastElementChild).toHaveClass(
+      "ml-auto",
+      "shrink-0",
+      "font-mono",
+      "text-caption",
+      "tabular-nums",
+      "text-muted-foreground",
+    );
 
-    // Top-level folder row shares the exact same icon/name x as the Google Drive row.
+    // Top-level folder row has the same chevron/icon/name columns and right-aligned menu.
     expect(rootFolderRow).toHaveStyle({ paddingLeft: "8px" });
     expect(rootFolderRow).toHaveClass("px-2", "gap-2");
-    expect(rootFolderRow.firstElementChild).toHaveClass("size-5");
+    expect(rootFolderRow.firstElementChild).toHaveAttribute("data-chevron");
+    expect(rootFolderRow.firstElementChild).toHaveClass("size-4", "shrink-0", "-mr-1");
+    expect(rootFolderRow.children[1]).toHaveClass("size-5", "shrink-0");
+    expect(rootFolderRow.children[2]).toHaveClass("min-w-0", "flex-1", "truncate");
 
-    // Drive account sub-row label starts at x = 36px (pl-9) with right-aligned count (pr-2).
-    expect(driveAccountRow).toHaveClass("pl-9", "pr-2");
+    // Top-level leaf folder keeps the empty 16px chevron slot so its icon/name stay in the same columns.
+    expect(leafFolderRow).toHaveStyle({ paddingLeft: "8px" });
+    expect(leafFolderRow.firstElementChild).toHaveAttribute("data-chevron-placeholder");
+    expect(leafFolderRow.firstElementChild).toHaveClass("size-4", "shrink-0", "-mr-1");
+    expect(leafFolderRow.children[1]).toHaveClass("size-5", "shrink-0");
 
-    // Child folder indents by one 28px step (paddingLeft = 36px, icon sits under parent's name).
+    // Drive account sub-row indents by one 20px step (paddingLeft = 28px, starting under Drive's icon at x=28) with right-aligned count (pr-2).
+    expect(driveAccountRow).toHaveStyle({ paddingLeft: "28px" });
+    expect(driveAccountRow).toHaveClass("pr-2", "gap-2");
+    expect(driveAccountRow.lastElementChild).toHaveClass(
+      "ml-auto",
+      "shrink-0",
+      "font-mono",
+      "text-caption",
+      "tabular-nums",
+      "text-muted-foreground",
+    );
+
+    // Child folder indents by one 20px step (paddingLeft = 28px, chevron column starts under parent's icon at x=28).
     fireEvent.click(
       screen.getByRole("button", { name: t("documents.tree.expand", { title: "Hợp đồng" }) }),
     );
     const childFolderRow = await screen.findByRole("treeitem", { name: /Phụ lục/ });
-    expect(childFolderRow).toHaveStyle({ paddingLeft: "36px" });
+    expect(childFolderRow).toHaveStyle({ paddingLeft: "28px" });
     expect(
       Number.parseFloat(childFolderRow.style.paddingLeft) -
         Number.parseFloat(rootFolderRow.style.paddingLeft),
-    ).toBe(28);
+    ).toBe(20);
+
+    // Drive chevron collapses and re-expands account rows on click, Enter, and Space.
+    fireEvent.click(driveChevron);
+    expect(driveChevron).toHaveAttribute("aria-expanded", "false");
+    expect(driveChevron).toHaveAccessibleName(t("documents.tree.expand", { title: "Google Drive" }));
+    expect(screen.queryByRole("button", { name: /Drive: an@example\.com/ })).toBeNull();
+    fireEvent.keyDown(driveChevron, { key: "Enter" });
+    expect(driveChevron).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /Drive: an@example\.com/ })).toBeInTheDocument();
+    fireEvent.keyDown(driveChevron, { key: " " });
+    expect(driveChevron).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: /Drive: an@example\.com/ })).toBeNull();
+    fireEvent.click(driveChevron);
+    expect(driveChevron).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /Drive: an@example\.com/ })).toBeInTheDocument();
   });
 });
+
 describe("DOCUMENTS_NAV_ICONS", () => {
   // Rows the sidebar does not draw yet (myFolders, archive, folder) are pinned
   // here so a wrong glyph cannot pass unseen.

@@ -475,7 +475,7 @@ describe("DocumentTree", () => {
     expect(screen.getByRole("treeitem", { name: /Nhóm/ })).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("steps 28px per level through depth 4, places the chevron in a trailing slot with a placeholder for leaves, and caps deep levels <= 150px", async () => {
+  it("steps 20px per level through depth 6, places a 16px leading chevron slot with a placeholder for leaves, and caps deep levels <= 120px", async () => {
     let deep: DocumentTreeNode[] = [node({ id: "L20", title: "Tầng 20" })];
     for (let d = 19; d >= 1; d -= 1) {
       deep = [node({ id: `L${d}`, title: `Tầng ${d}`, children: deep })];
@@ -489,16 +489,29 @@ describe("DocumentTree", () => {
     expect(rootRow).toHaveStyle({ paddingLeft: "8px" });
     expect(rootRow).toHaveClass("px-2", "gap-2");
     expect(screen.getByText("Tầng 1")).toHaveAttribute("title", "Tầng 1");
-    // Leading child is the size-5 icon box, not the chevron; chevron sits in the trailing slot before the row menu.
-    expect(rootRow.firstElementChild).toHaveClass("size-5");
+    // Leading child is the 16px chevron button (+ -mr-1 so gap to icon is 4px), followed by the size-5 icon box and flex-1 label.
     const rootChevron = within(rootRow).getByRole("button", {
       name: t("documents.tree.expand", { title: "Tầng 1" }),
     });
     const rootMenu = within(rootRow).getByRole("button", {
       name: t("documents.home.row.menu", { title: "Tầng 1" }),
     });
+    expect(rootRow.firstElementChild).toBe(rootChevron);
     expect(rootChevron).toHaveAttribute("data-chevron");
-    expect(rootChevron.nextElementSibling).toBe(rootMenu);
+    expect(rootChevron).toHaveClass(
+      "size-4",
+      "shrink-0",
+      "-mr-1",
+      "relative",
+      "z-10",
+      "pointer-coarse:size-11",
+      "pointer-coarse:-ml-5",
+      "pointer-coarse:-mr-3",
+    );
+    expect(rootChevron).not.toHaveClass("outline-none");
+    expect(rootChevron.nextElementSibling).toHaveClass("size-5", "shrink-0");
+    expect(screen.getByText("Tầng 1")).toHaveClass("min-w-0", "flex-1", "truncate");
+    expect(rootMenu).toHaveClass("ml-auto", "shrink-0");
 
     for (let d = 1; d < 20; d += 1) {
       fireEvent.click(
@@ -506,24 +519,30 @@ describe("DocumentTree", () => {
       );
     }
 
-    // Child = parent + 28px through depth 4 (levels 1..5 -> depths 0..4).
-    for (let d = 1; d <= 4; d += 1) {
+    // Child = parent + 20px through depth 5 (levels 1..6 -> depths 0..5), and depth 6 reaches the 120px cap (112 -> 120).
+    for (let d = 1; d <= 5; d += 1) {
       const parentRow = screen.getByRole("treeitem", { name: new RegExp(`^Tầng ${d}$`) });
       const childRow = screen.getByRole("treeitem", { name: new RegExp(`^Tầng ${d + 1}$`) });
       const parentPad = Number.parseFloat(parentRow.style.paddingLeft);
       const childPad = Number.parseFloat(childRow.style.paddingLeft);
-      expect(childPad - parentPad).toBe(28);
+      expect(childPad - parentPad).toBe(20);
+    }
+    for (let d = 7; d <= 20; d += 1) {
+      const deepRow = screen.getByRole("treeitem", { name: new RegExp(`^Tầng ${d}$`) });
+      expect(Number.parseFloat(deepRow.style.paddingLeft)).toBe(120);
     }
 
     const row20 = await screen.findByRole("treeitem", { name: /Tầng 20/ });
     expect(row20).toHaveAttribute("aria-level", "20");
-    // Leaf row keeps a trailing placeholder of the same width so names and menus do not shift.
+    // Leaf row keeps an empty 16px leading chevron slot so icons and names stay in the same column.
     expect(row20.querySelector("[data-chevron]")).toBeNull();
     const placeholder = row20.querySelector("[data-chevron-placeholder]");
-    expect(placeholder).toHaveClass("size-6", "shrink-0");
-    // Uncapped 19 * 28 + 8 = 540px overflows the 256px sidebar; compressed past depth 4 to 150px at depth 19.
+    expect(row20.firstElementChild).toBe(placeholder);
+    expect(placeholder).toHaveClass("size-4", "shrink-0", "-mr-1");
+    expect(placeholder?.nextElementSibling).toHaveClass("size-5", "shrink-0");
+    // Hard cap <= 120px so deep levels never overflow the 256px sidebar.
     const padLeft = Number.parseFloat(row20.style.paddingLeft);
-    expect(padLeft).toBe(150);
+    expect(padLeft).toBe(120);
     expect(screen.getByText("Tầng 20")).toHaveAttribute("title", "Tầng 20");
   });
 
