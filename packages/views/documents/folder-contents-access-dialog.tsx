@@ -192,7 +192,7 @@ export function FolderContentsAccessDialog({
 
   return (
     <Dialog open onOpenChange={(next) => (!next && busy ? undefined : onOpenChange(next))}>
-      <DialogContent closeLabel={t("common.close")} className="max-h-[85vh] overflow-y-auto sm:max-w-lg [&>*]:min-w-0">
+      <DialogContent data-testid="folder-access-dialog" closeLabel={t("common.close")} className="max-h-[85vh] overflow-y-auto sm:max-w-lg [&>*]:min-w-0">
         <DialogHeader>
           <DialogTitle className="break-words">{title}</DialogTitle>
           <DialogDescription>{t("documents.folderAccess.fixed_sentence")}</DialogDescription>
@@ -203,12 +203,12 @@ export function FolderContentsAccessDialog({
             <div className="flex min-w-0 flex-col gap-1.5">
               <Label htmlFor={ids.mode}>{t("documents.folderAccess.mode_label")}</Label>
               <Select value={mode} items={MODES.map((value) => ({ value, label: modeLabel(value) }))} onValueChange={(value) => changeMode(value as FolderContentsAccessMode)}>
-                <SelectTrigger id={ids.mode} aria-describedby={ids.modeHint} className="w-full">
+                <SelectTrigger id={ids.mode} data-testid="folder-access-mode" aria-describedby={ids.modeHint} className="w-full">
                   <SelectValue className="min-w-0">{modeLabel(mode)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {MODES.map((value) => (
-                    <SelectItem key={value} value={value}>{modeLabel(value)}</SelectItem>
+                    <SelectItem key={value} value={value} data-testid={`folder-access-mode-${value}`}>{modeLabel(value)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -273,7 +273,7 @@ export function FolderContentsAccessDialog({
           {stage === "form" ? (
             <>
               <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
-              <Button type="button" aria-disabled={!canReview || busy || undefined} aria-busy={busy || undefined} onClick={() => void review()}>
+              <Button type="button" data-testid="folder-access-confirm" aria-disabled={!canReview || busy || undefined} aria-busy={busy || undefined} onClick={() => void review()}>
                 {busy ? <><Spinner aria-hidden role="presentation" />{t("documents.folderAccess.checking")}</> : t("documents.folderAccess.confirm")}
               </Button>
             </>
@@ -283,6 +283,7 @@ export function FolderContentsAccessDialog({
               <Button type="button" variant="outline" disabled={busy} onClick={() => setStage("form")}>{t("documents.folderAccess.back")}</Button>
               <Button
                 type="button"
+                data-testid="folder-access-apply"
                 variant={replacing ? "destructive" : "default"}
                 aria-disabled={!summary || summary.preview.changed === 0 || busy || undefined}
                 aria-busy={busy || undefined}

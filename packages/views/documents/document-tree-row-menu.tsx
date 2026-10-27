@@ -209,6 +209,7 @@ export function DocumentTreeRowMenu({
         ) : null}
         {actions?.onShareContents ? (
           <DropdownMenuItem
+            data-testid="folder-access-menu-item"
             className="gap-2 px-2 py-2 pointer-coarse:min-h-11"
             onClick={() => actions.onShareContents?.(node)}
           >

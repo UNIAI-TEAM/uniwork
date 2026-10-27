@@ -85,7 +85,7 @@ export function FolderAccessPrincipals({
             items={WORKSPACE_ROW_LEVELS.map((level) => ({ value: level, label: workspaceLabel(level) }))}
             onValueChange={(value) => onWorkspaceLevel(value as WorkspaceRowLevel)}
           >
-            <SelectTrigger aria-label={t("documents.folderAccess.workspace_level_label")} className="w-36 max-w-full">
+            <SelectTrigger data-testid="folder-access-workspace-level" aria-label={t("documents.folderAccess.workspace_level_label")} className="w-36 max-w-full">
               <SelectValue className="min-w-0" placeholder={t("documents.folderAccess.workspace_level_choose")}>
                 {workspaceLevel === null ? undefined : workspaceLabel(workspaceLevel)}
               </SelectValue>
@@ -106,6 +106,7 @@ export function FolderAccessPrincipals({
         return (
           <li
             key={item.key}
+            data-testid={`folder-access-principal-${candidate.principal_id}`}
             className={`${ROW_CLASS} ${rejected ? "border-destructive bg-destructive/10 text-destructive" : "border-border bg-muted/50 text-foreground"}`}
           >
             <span className={NAME_CLASS}>

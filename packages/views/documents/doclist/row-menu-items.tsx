@@ -58,6 +58,7 @@ interface MenuItemProps {
   variant?: "default" | "destructive";
   className?: string;
   onClick?: () => void;
+  "data-testid"?: string;
   children?: ReactNode;
 }
 
@@ -87,7 +88,13 @@ export function RowMenuItems({
           {group.map((item) => {
             const Icon = iconOf(item, row);
             return (
-              <Item key={item.id} variant={item.destructive ? "destructive" : "default"} className={ITEM_CLASS} onClick={item.run}>
+              <Item
+                key={item.id}
+                variant={item.destructive ? "destructive" : "default"}
+                className={ITEM_CLASS}
+                onClick={item.run}
+                data-testid={item.id === "share-contents" ? "folder-access-menu-item" : undefined}
+              >
                 <Icon aria-hidden className="size-3.5" />
                 {t(item.labelKey)}
               </Item>
