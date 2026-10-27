@@ -412,6 +412,8 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
     setEditor,
     updated: updated.filter,
     setUpdated,
+    editorId,
+    updatedSince,
     /** Gần đây's Tất cả / Đã mở / Đã sửa. */
     activity,
     setActivity,

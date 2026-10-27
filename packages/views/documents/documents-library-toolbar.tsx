@@ -39,8 +39,6 @@ export interface LibraryToolbarProps {
   children?: ReactNode;
   /** The search box pushed to the right end of the filter row (UNI-2205). */
   search?: ReactNode;
-  /** True while search results replace the list: hides the filter controls while keeping the search box mounted in place (UNI-2205). */
-  searching?: boolean;
   className?: string;
 }
 
@@ -72,7 +70,6 @@ export function LibraryToolbar({
   onActivity,
   children,
   search,
-  searching = false,
   className,
 }: LibraryToolbarProps) {
   const { t } = useTranslation();
@@ -85,26 +82,24 @@ export function LibraryToolbar({
   const updatedItems = UPDATED_FILTERS.map((value) => ({ value, label: t(`documents.home.filters.updated_${value}`) }));
   return (
     <div className={cn("@container flex flex-wrap items-start gap-2 @min-[48rem]:flex-nowrap", className)}>
-      {!searching ? (
-        <div data-slot="documents-filter-zone" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          {activity !== undefined ? <ActivitySegment activity={activity} onActivity={onActivity} /> : null}
-          <TypeFilterSelect types={types} onTypes={onTypes} triggerRef={typeTrigger} />
-          <FilterSelect
-            label={t("documents.home.filters.editor")}
-            value={editor}
-            items={editorItems}
-            onPick={(next) => onEditor?.(next)}
-          />
-          <FilterSelect
-            label={t("documents.home.filters.updated")}
-            value={updated}
-            items={updatedItems}
-            onPick={(next) => onUpdated?.(next as UpdatedFilter)}
-          />
-          {children}
-          <TypeChips types={types} onTypes={onTypes} focusTrigger={() => typeTrigger.current?.focus()} />
-        </div>
-      ) : null}
+      <div data-slot="documents-filter-zone" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        {activity !== undefined ? <ActivitySegment activity={activity} onActivity={onActivity} /> : null}
+        <TypeFilterSelect types={types} onTypes={onTypes} triggerRef={typeTrigger} />
+        <FilterSelect
+          label={t("documents.home.filters.editor")}
+          value={editor}
+          items={editorItems}
+          onPick={(next) => onEditor?.(next)}
+        />
+        <FilterSelect
+          label={t("documents.home.filters.updated")}
+          value={updated}
+          items={updatedItems}
+          onPick={(next) => onUpdated?.(next as UpdatedFilter)}
+        />
+        {children}
+        <TypeChips types={types} onTypes={onTypes} focusTrigger={() => typeTrigger.current?.focus()} />
+      </div>
       {search}
     </div>
   );

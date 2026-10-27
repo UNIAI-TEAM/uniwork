@@ -13621,17 +13621,9 @@
         "placeholder_folder": "Search in this folder",
         "label": "Search Documents",
         "clear": "Clear search",
-        "filter_label": "Filter results",
-        "filter_all": "All",
-        "filter_folder": "Folders",
-        "filter_document": "Documents",
         "path": "Path: {{path}}",
         "path_root": "Documents (root)",
-        "loading": "Searching…",
-        "empty_title": "No results",
-        "empty_description": "Try another name or change the filter. Clear the search to go back to the folder.",
-        "error_title": "Couldn't search",
-        "error_description": "Check your connection and try again."
+        "no_results_title": "No results for “{{query}}”"
       },
       "view_subtitle": {
         "recent": "Documents you opened or edited in the last 30 days",

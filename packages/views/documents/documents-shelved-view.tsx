@@ -7,7 +7,7 @@ import { DocumentsLibraryList } from "./documents-library-list";
 import type { LibraryRowHandlers } from "./documents-library-row";
 import type { DocListBulk } from "./doclist/bulk-actions";
 import { ShelvedToolbar, SHELVED_BY_SYSTEM, type ShelvedByOption } from "./documents-shelved-toolbar";
-import type { DocumentSummaryRow, DocumentTypeFilter } from "./library-rows";
+import type { DocumentSummaryRow, DocumentTypeFilter, LibraryRow } from "./library-rows";
 import type { useDocumentsLibrary } from "./use-documents-library";
 
 /** The commands a shelved row offers (ARCHIVE-01 U-3/U-4). The page owns the
@@ -35,8 +35,18 @@ export interface DocumentsShelvedViewProps {
   selectionKey?: string;
   /** The search box rendered at the right end of the filter row (UNI-2205). */
   search?: ReactNode;
-  /** False while search results replace the table below the toolbar (UNI-2205). */
-  showList?: boolean;
+  /** Active search state when a query is entered on Lưu trữ (UNI-2205). */
+  searchList?: {
+    rows: LibraryRow[];
+    loading: boolean;
+    failure: "error" | "permission" | null;
+    hasMore: boolean;
+    loadingMore: boolean;
+    loadMore: () => void;
+    refetch: () => void;
+    query: string;
+    onClearSearch: () => void;
+  } | null;
 }
 
 /**
@@ -47,9 +57,9 @@ export interface DocumentsShelvedViewProps {
  * trữ` · `Tải xuống` │ `Chuyển vào thùng rác`, flat in the server's
  * shelved_at-newest order (F1).
  */
-export function DocumentsShelvedView({ library, types, onTypes, members, handlers, actions, bulk, selectionKey, search, showList = true }: DocumentsShelvedViewProps) {
+export function DocumentsShelvedView({ library, types, onTypes, members, handlers, actions, bulk, selectionKey, search, searchList }: DocumentsShelvedViewProps) {
   const { t } = useTranslation();
-  const state = library.state;
+  const state = searchList ?? library.state;
   // The "Lưu trữ bởi" options (U-2/Q-UI2): the workspace members plus the
   // former-member ids the loaded rows still carry, and a system entry when a
   // row was shelved by nobody. Filtering itself runs client-side in
@@ -61,7 +71,7 @@ export function DocumentsShelvedView({ library, types, onTypes, members, handler
       .map((id) => ({ value: id, label: t("documents.shelved_list.shelved_by_former") })),
     ...(library.shelvedHasSystem ? [{ value: SHELVED_BY_SYSTEM, label: t("documents.shelved_list.shelved_by_system") }] : []),
   ];
-  const filtered = types.length > 0 || library.shelvedBy !== null || library.editor !== "any" || library.updated !== "any";
+  const filtered = Boolean(searchList) || types.length > 0 || library.shelvedBy !== null || library.editor !== "any" || library.updated !== "any";
   return (
     <>
       <ShelvedToolbar
@@ -76,35 +86,44 @@ export function DocumentsShelvedView({ library, types, onTypes, members, handler
         shelvedBy={library.shelvedBy}
         onShelvedBy={library.setShelvedBy}
         search={search}
-        searching={!showList}
       />
-      {showList ? (
-        <DocumentsLibraryList
-          groups={[{ key: "all", rows: state.rows }]}
-          loading={state.loading}
-          failure={state.failure}
-          filteredBy={filtered ? (library.clientFiltered ? "client" : "server") : null}
-          emptyFiltered={{
-            title: t("documents.shelved_list.no_matches_title"),
-            description: t("documents.shelved_list.no_matches_description"),
-          }}
-          screen="shelved"
-          sort={library.sortControl}
-          selectable={Boolean(bulk)}
-          bulk={bulk}
-          selectionKey={selectionKey}
-          hasMore={state.hasMore}
-          loadingMore={state.loadingMore}
-          onLoadMore={state.loadMore}
-          onRetry={state.refetch}
-          onClearFilters={() => {
-            onTypes([]);
-            library.clearFilters();
-          }}
-          handlers={{ ...handlers, onUnshelve: actions.onUnshelve, onArchive: actions.onTrash, isBusy: actions.isUnshelving }}
-          empty={{ title: t("documents.shelved_list.empty_title"), description: t("documents.shelved_list.empty_description") }}
-        />
-      ) : null}
+      <DocumentsLibraryList
+        groups={[{ key: "all", rows: state.rows }]}
+        loading={state.loading}
+        failure={state.failure}
+        filteredBy={filtered ? (!searchList && library.clientFiltered ? "client" : "server") : null}
+        emptyFiltered={
+          searchList
+            ? {
+                title: t("documents.home.search.no_results_title", { query: searchList.query }),
+                description: undefined,
+              }
+            : {
+                title: t("documents.shelved_list.no_matches_title"),
+                description: t("documents.shelved_list.no_matches_description"),
+              }
+        }
+        clearFiltersLabel={searchList ? t("documents.home.search.clear") : undefined}
+        screen="shelved"
+        sort={library.sortControl}
+        selectable={Boolean(bulk)}
+        bulk={bulk}
+        selectionKey={selectionKey}
+        hasMore={state.hasMore}
+        loadingMore={state.loadingMore}
+        onLoadMore={state.loadMore}
+        onRetry={state.refetch}
+        onClearFilters={() => {
+          if (searchList) {
+            searchList.onClearSearch();
+            return;
+          }
+          onTypes([]);
+          library.clearFilters();
+        }}
+        handlers={{ ...handlers, onUnshelve: actions.onUnshelve, onArchive: actions.onTrash, isBusy: actions.isUnshelving }}
+        empty={{ title: t("documents.shelved_list.empty_title"), description: t("documents.shelved_list.empty_description") }}
+      />
     </>
   );
 }

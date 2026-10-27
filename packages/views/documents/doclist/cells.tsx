@@ -21,6 +21,7 @@ export function DocNameCell({
   title,
   format,
   location,
+  searchPath,
   badges,
   children,
 }: {
@@ -30,7 +31,8 @@ export function DocNameCell({
   format?: string | null;
   /** The folder the document sits in, or where a file came from; absent draws no line. */
   location?: string | null;
-  /** Marks beside the title (star, lock holder, ...): they never truncate, the title does. */
+  /** A search hit's ancestor path: short display text, full path tooltip, and screen-reader announcement. */
+  searchPath?: { display: string; full: string; srText: string } | null;
   badges?: ReactNode;
   /** More lines under the location line: the narrow row's stand-ins for the columns that are off. */
   children?: ReactNode;
@@ -49,7 +51,19 @@ export function DocNameCell({
           </span>
           {badges}
         </span>
-        {location ? (
+        {searchPath ? (
+          <>
+            <span
+              aria-hidden
+              data-testid="doclist-location"
+              title={searchPath.full}
+              className="block truncate text-caption text-muted-foreground"
+            >
+              {searchPath.display}
+            </span>
+            <span className="sr-only">{searchPath.srText}</span>
+          </>
+        ) : location ? (
           <span data-testid="doclist-location" className="block truncate text-caption text-muted-foreground">
             {location}
           </span>

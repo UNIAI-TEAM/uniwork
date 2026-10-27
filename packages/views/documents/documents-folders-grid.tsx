@@ -34,7 +34,7 @@ export interface DocumentsFoldersGridProps {
   /** The table row handlers; a handler absent for the viewer hides its menu item too. */
   handlers: Pick<
     LibraryRowHandlers,
-    "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred" | "personName"
+    "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred" | "personName" | "searchPath"
   >;
   onOpenFolder: (folderId: string) => void;
 }
@@ -62,6 +62,7 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
           .filter(Boolean)
           .join(" · ");
         const starred = Boolean(doc && handlers.isStarred(doc.id));
+        const searchPath = doc ? (handlers.searchPath?.(doc) ?? null) : null;
         const menuItems = doc ? folderMenuItems(doc, handlers, t) : [];
         const canMenu = menuItems.length > 0 || Boolean(doc && handlers.onToggleStar);
         return (
@@ -86,6 +87,14 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
                     <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
                   ) : null}
                 </span>
+                {searchPath ? (
+                  <>
+                    <span aria-hidden title={searchPath.full} className="truncate text-caption text-muted-foreground">
+                      {searchPath.display}
+                    </span>
+                    <span className="sr-only">{searchPath.srText}</span>
+                  </>
+                ) : null}
                 {meta ? <span className="truncate text-caption text-muted-foreground">{meta}</span> : null}
               </span>
             </button>

@@ -27,7 +27,7 @@ import { useNavigation } from "../navigation";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { usePreferenceSavedToast } from "../layout/preference-toast";
 import { DocumentTypeIcon, documentIconFormat } from "../documents/document-type-icon";
-import { formatSearchPath } from "../documents/documents-search-results";
+import { formatSearchPath } from "../documents/use-documents-search";
 
 /** How many recent tasks the palette lists; the store keeps more. */
 const RECENT_TASKS_SHOWN = 5;
