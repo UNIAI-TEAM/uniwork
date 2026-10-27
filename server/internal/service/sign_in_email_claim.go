@@ -30,6 +30,13 @@ import (
 const (
 	emailClaimTTL    = 15 * time.Minute
 	emailClaimResend = 60 * time.Second
+	// An address's budget over a day, whichever tickets ask: tickets cost
+	// nothing to make (every provider round trip mints one), so a code that
+	// opens an account is capped by the address it proves — five codes, and
+	// ten wrong guesses across them, as a step-up's five codes a day are.
+	emailClaimWindow        = 24 * time.Hour
+	emailClaimDailyCap      = 5
+	emailClaimWrongGuessCap = 10
 	// maxEmailLength is RFC 5321's limit on a forward path.
 	maxEmailLength = 254
 )
@@ -62,7 +69,10 @@ func claimedAddress(raw string) (string, error) {
 // SendEmailClaim mails a code to the address typed on the choice screen. It
 // answers the same whether or not the address has an account: the code goes
 // to the address either way. One ticket mails at most one code a minute,
-// whatever the address, so a ticket cannot spray codes.
+// whatever the address, so a ticket cannot spray codes; and one address gets
+// at most five a day, whichever tickets ask, none once ten wrong guesses
+// were spent on it (emailClaimBudget), so fresh tickets cannot brute-force
+// the code of an address or flood its mailbox.
 func (s *SignInTicketService) SendEmailClaim(ctx context.Context, sealed string, b TicketBinding, email, locale string) error {
 	t, err := s.auth.openSignInTicket(sealed, b)
 	if err != nil {
@@ -91,6 +101,9 @@ func (s *SignInTicketService) SendEmailClaim(ctx context.Context, sealed string,
 			return errCodeTooSoon(emailClaimResend - since)
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if err := emailClaimBudget(ctx, q, email, now, true); err != nil {
 		return err
 	}
 	code, err := generateCode()
@@ -218,9 +231,37 @@ func (s *SignInTicketService) VerifyEmailClaim(ctx context.Context, sealed strin
 	return sess, nil
 }
 
+// emailClaimBudget is the address's half of the email claim's limits, under
+// the address's lock (taken here, in q's transaction, until it commits): over
+// the last day the address took at most emailClaimWrongGuessCap wrong
+// guesses, and, for a send, got fewer than emailClaimDailyCap codes —
+// whichever tickets asked. Spent, it is 429 rate_limited with retry_after
+// until the oldest of the day's claims leaves the window.
+func emailClaimBudget(ctx context.Context, q *db.Queries, email string, now time.Time, send bool) error {
+	if err := q.LockSignInEmailClaimAddress(ctx, email); err != nil {
+		return err
+	}
+	b, err := q.GetSignInEmailClaimBudget(ctx, db.GetSignInEmailClaimBudgetParams{
+		Email: email, CreatedAt: pgtype.Timestamptz{Time: now.Add(-emailClaimWindow), Valid: true},
+	})
+	if err != nil {
+		return err
+	}
+	if b.WrongGuesses >= emailClaimWrongGuessCap || (send && b.Codes >= emailClaimDailyCap) {
+		return errCodeDailyCap(b.Oldest.Time.Add(emailClaimWindow).Sub(now))
+	}
+	return nil
+}
+
 // claimQ checks the code and acts on the address in q's transaction. The
-// claim's row lock queues parallel guesses.
+// address's lock queues the guesses at it, whichever ticket makes them, and
+// once its day's wrong guesses are spent no code is checked
+// (emailClaimBudget); the claim's row lock queues parallel guesses at one
+// code.
 func (s *SignInTicketService) claimQ(ctx context.Context, q *db.Queries, t signInTicket, hash, email, code, displayName, locale string) (emailClaimOutcome, error) {
+	if err := emailClaimBudget(ctx, q, email, s.auth.now(), false); err != nil {
+		return emailClaimOutcome{}, err
+	}
 	claim, err := q.GetActiveSignInEmailClaim(ctx, db.GetActiveSignInEmailClaimParams{TicketHash: hash, Email: email})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return emailClaimOutcome{}, ErrInvalidCode

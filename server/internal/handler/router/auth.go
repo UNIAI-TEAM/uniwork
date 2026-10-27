@@ -130,14 +130,14 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	})
 	sessionDoor.Post("/auth/sign-in-ticket/claim-email", h.SignInTicketClaim, apiOp{
 		summary:     "Mail a code to another address",
-		description: "\"Tôi được mời bằng email khác\": gửi mã 6 số (15 phút, 5 lần thử) tới địa chỉ nhập. Luôn 200 {status: sent} dù địa chỉ có tài khoản hay không; một vé gửi tối đa một mã mỗi 60 giây (429 rate_limited kèm retry_after).",
+		description: "\"Tôi được mời bằng email khác\": gửi mã 6 số (15 phút, 5 lần thử) tới địa chỉ nhập. Luôn 200 {status: sent} dù địa chỉ có tài khoản hay không; một vé gửi tối đa một mã mỗi 60 giây, một địa chỉ nhận tối đa 5 mã mỗi 24 giờ và không nhận thêm khi đã có 10 lần đoán sai, dù vé nào xin (429 rate_limited kèm retry_after).",
 		tags:        []string{"auth"},
 		sdi:         sdi.SignInEmailClaimSDI{},
 		sdo:         sdo.StatusSDO{},
 	})
 	sessionDoor.Post("/auth/sign-in-ticket/claim-email/verify", h.SignInTicketVerify, apiOp{
 		summary:     "Prove the other address",
-		description: "Kiểm mã gửi tới địa chỉ đã nhập: địa chỉ có tài khoản đã xác minh → liên kết danh tính vào đó (tài khoản bật xác thực hai lớp nhận {mfa_required, mfa_token}, liên kết ghi sau bước hai); tài khoản chưa xác minh → lấy lại tài khoản (reclaimed: true); không có tài khoản → tạo tài khoản với địa chỉ đó (đã xác minh) rồi liên kết. Sai mã → 400 invalid_code; danh tính đã mở tài khoản khác → 409 sign_in_method_taken; tài khoản đã liên kết tài khoản khác của nhà cung cấp → 409 sign_in_method_already_linked. Trả như đăng nhập và xoá cookie vé; audit via email_claim.",
+		description: "Kiểm mã gửi tới địa chỉ đã nhập: địa chỉ có tài khoản đã xác minh → liên kết danh tính vào đó (tài khoản bật xác thực hai lớp nhận {mfa_required, mfa_token}, liên kết ghi sau bước hai); tài khoản chưa xác minh → lấy lại tài khoản (reclaimed: true); không có tài khoản → tạo tài khoản với địa chỉ đó (đã xác minh) rồi liên kết. Sai mã → 400 invalid_code; địa chỉ đã chịu 10 lần đoán sai trong 24 giờ → 429 rate_limited kèm retry_after (không kiểm mã); danh tính đã mở tài khoản khác → 409 sign_in_method_taken; tài khoản đã liên kết tài khoản khác của nhà cung cấp → 409 sign_in_method_already_linked. Trả như đăng nhập và xoá cookie vé; audit via email_claim.",
 		tags:        []string{"auth"},
 		sdi:         sdi.SignInEmailClaimVerifySDI{},
 		sdo:         sdo.SessionSDO{},
@@ -252,14 +252,14 @@ func registerNativeAuth(v1 api, h Routes, credentialLimit func(http.Handler) htt
 	})
 	door.Post("/auth/native/sign-in-ticket/claim-email", h.NativeTicketClaim, apiOp{
 		summary:     "Mail a code to another address (app)",
-		description: "\"Tôi được mời bằng email khác\" trong app: như POST /auth/sign-in-ticket/claim-email trên vé của app. Luôn 200 {status: sent} dù địa chỉ có tài khoản hay không; một vé gửi tối đa một mã mỗi 60 giây (429 rate_limited kèm retry_after). Vé thiếu hay hỏng → 404 sign_in_ticket_missing; nonce, client hay deployment lệch → 400 sign_in_ticket_channel. Chỉ nhận client_id trong NATIVE_SIGN_IN_CLIENTS. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site.",
+		description: "\"Tôi được mời bằng email khác\" trong app: như POST /auth/sign-in-ticket/claim-email trên vé của app. Luôn 200 {status: sent} dù địa chỉ có tài khoản hay không; một vé gửi tối đa một mã mỗi 60 giây, một địa chỉ nhận tối đa 5 mã mỗi 24 giờ và không nhận thêm khi đã có 10 lần đoán sai (429 rate_limited kèm retry_after). Vé thiếu hay hỏng → 404 sign_in_ticket_missing; nonce, client hay deployment lệch → 400 sign_in_ticket_channel. Chỉ nhận client_id trong NATIVE_SIGN_IN_CLIENTS. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site.",
 		tags:        []string{"auth"},
 		sdi:         sdi.NativeEmailClaimSDI{},
 		sdo:         sdo.StatusSDO{},
 	})
 	door.Post("/auth/native/sign-in-ticket/claim-email/verify", h.NativeTicketVerify, apiOp{
 		summary:     "Prove the other address (app)",
-		description: "Kiểm mã gửi tới địa chỉ đã nhập, như POST /auth/sign-in-ticket/claim-email/verify trên vé của app: liên kết vào tài khoản đã xác minh của địa chỉ (bật xác thực hai lớp thì mfa_required, liên kết ghi sau bước hai), lấy lại tài khoản chưa xác minh (reclaimed), hay tạo tài khoản với địa chỉ đó. Sai mã → 400 invalid_code; danh tính đã mở tài khoản khác → 409 sign_in_method_taken; tài khoản đã liên kết tài khoản khác của nhà cung cấp → 409 sign_in_method_already_linked. Audit via email_claim." + nativeAnswer,
+		description: "Kiểm mã gửi tới địa chỉ đã nhập, như POST /auth/sign-in-ticket/claim-email/verify trên vé của app: liên kết vào tài khoản đã xác minh của địa chỉ (bật xác thực hai lớp thì mfa_required, liên kết ghi sau bước hai), lấy lại tài khoản chưa xác minh (reclaimed), hay tạo tài khoản với địa chỉ đó. Sai mã → 400 invalid_code; địa chỉ đã chịu 10 lần đoán sai trong 24 giờ → 429 rate_limited kèm retry_after; danh tính đã mở tài khoản khác → 409 sign_in_method_taken; tài khoản đã liên kết tài khoản khác của nhà cung cấp → 409 sign_in_method_already_linked. Audit via email_claim." + nativeAnswer,
 		tags:        []string{"auth"},
 		sdi:         sdi.NativeEmailClaimVerifySDI{},
 		sdo:         sdo.NativeSignInSDO{},

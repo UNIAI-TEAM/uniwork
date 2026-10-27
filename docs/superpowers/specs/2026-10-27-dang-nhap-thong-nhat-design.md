@@ -185,7 +185,13 @@ key_hash, intent, iat, exp}` — TTL 15 phút.
   minh); không có → tạo tài khoản với địa chỉ đó (`email_verified_at` có) rồi liên kết. Audit `via:"email_claim"`.
   Mã không bao giờ nhận `DEV_VERIFICATION_CODE` (nó chứng minh hộp thư của người khác và mở một tài khoản). Gửi lại
   sớm → `429 rate_limited` kèm `retry_after` (giới hạn theo vé, mọi địa chỉ, để một vé không rải mã); sai mã →
-  `400 invalid_code`; năm lần sai thì mã chết; địa chỉ không hợp lệ → `400 invalid_request`. Lúc xác nhận mà danh tính
+  `400 invalid_code`; năm lần sai thì mã chết; địa chỉ không hợp lệ → `400 invalid_request`. ⚑ (phản biện lát 5) Vé
+  không tốn gì (mỗi lượt nhà cung cấp cấp một, token Google native dùng lại được trong 10 phút), nên còn một ngân sách
+  **theo địa chỉ**, dù vé nào xin, dưới khoá advisory của địa chỉ: tối đa 5 mã mỗi 24 giờ, và khi các mã của địa chỉ
+  trong 24 giờ đã chịu 10 lần đoán sai thì không gửi thêm và không kiểm mã nào nữa (cả mã đúng) → `429 rate_limited`
+  kèm `retry_after` (tới khi mã cũ nhất ra khỏi cửa sổ). Index `idx_sign_in_email_claims_email (email, created_at
+  DESC)` trong file riêng, `CONCURRENTLY`; dọn hàng giữ một ngày. Không đếm vào khoá bước hai của tài khoản (người lạ
+  sẽ khoá được bước hai của chủ) và không thêm bucket router theo email (ngân sách ở service không cần Redis). Lúc xác nhận mà danh tính
   đã mở một tài khoản: cùng địa chỉ → đăng nhập vào đó; khác → `409 sign_in_method_taken`. Tài khoản của địa chỉ đã
   gắn subject khác của nhà cung cấp → `409 sign_in_method_already_linked`. Tạo mới lấy tên `display_name`, không có thì
   tên nhà cung cấp, không có nữa thì phần trước @: không hỏi tên trước khi mã đúng, để không lộ địa chỉ có tài khoản

@@ -55,9 +55,11 @@ func (q *Queries) CreateSignInEmailClaim(ctx context.Context, arg CreateSignInEm
 }
 
 const deleteExpiredSignInEmailClaims = `-- name: DeleteExpiredSignInEmailClaims :exec
-DELETE FROM sign_in_email_claims WHERE expires_at < now() - interval '1 hour'
+DELETE FROM sign_in_email_claims WHERE created_at < now() - interval '1 day'
 `
 
+// A day of claims stays (each lives fifteen minutes): the address's budget
+// counts them.
 func (q *Queries) DeleteExpiredSignInEmailClaims(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteExpiredSignInEmailClaims)
 	return err
@@ -120,12 +122,52 @@ func (q *Queries) GetLatestSignInEmailClaim(ctx context.Context, ticketHash stri
 	return i, err
 }
 
+const getSignInEmailClaimBudget = `-- name: GetSignInEmailClaimBudget :one
+SELECT count(*)::int AS codes,
+       COALESCE(sum(attempts), 0)::int AS wrong_guesses,
+       COALESCE(min(created_at), now())::timestamptz AS oldest
+FROM sign_in_email_claims
+WHERE email = $1 AND created_at > $2
+`
+
+type GetSignInEmailClaimBudgetParams struct {
+	Email     string             `json:"email"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type GetSignInEmailClaimBudgetRow struct {
+	Codes        int32              `json:"codes"`
+	WrongGuesses int32              `json:"wrong_guesses"`
+	Oldest       pgtype.Timestamptz `json:"oldest"`
+}
+
+// An address's claims since the window opened, whichever ticket asked: the
+// codes it got, the wrong guesses they took (attempts counts only those), and
+// the oldest, the first to leave the window.
+func (q *Queries) GetSignInEmailClaimBudget(ctx context.Context, arg GetSignInEmailClaimBudgetParams) (GetSignInEmailClaimBudgetRow, error) {
+	row := q.db.QueryRow(ctx, getSignInEmailClaimBudget, arg.Email, arg.CreatedAt)
+	var i GetSignInEmailClaimBudgetRow
+	err := row.Scan(&i.Codes, &i.WrongGuesses, &i.Oldest)
+	return i, err
+}
+
 const incrementSignInEmailClaimAttempts = `-- name: IncrementSignInEmailClaimAttempts :exec
 UPDATE sign_in_email_claims SET attempts = attempts + 1 WHERE id = $1
 `
 
 func (q *Queries) IncrementSignInEmailClaimAttempts(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, incrementSignInEmailClaimAttempts, id)
+	return err
+}
+
+const lockSignInEmailClaimAddress = `-- name: LockSignInEmailClaimAddress :exec
+SELECT pg_advisory_xact_lock(hashtextextended('sign-in-email-claim-addr:' || $1::text, 0))
+`
+
+// Serializes the sends and the guesses of one address, whichever ticket asks,
+// so the address's budget below is read by one of them at a time.
+func (q *Queries) LockSignInEmailClaimAddress(ctx context.Context, email string) error {
+	_, err := q.db.Exec(ctx, lockSignInEmailClaimAddress, email)
 	return err
 }
 

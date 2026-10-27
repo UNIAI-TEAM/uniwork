@@ -13,6 +13,21 @@ RETURNING *;
 -- cannot both pass the resend gate below.
 SELECT pg_advisory_xact_lock(hashtextextended('sign-in-email-claim:' || sqlc.arg(ticket_hash)::text, 0));
 
+-- name: LockSignInEmailClaimAddress :exec
+-- Serializes the sends and the guesses of one address, whichever ticket asks,
+-- so the address's budget below is read by one of them at a time.
+SELECT pg_advisory_xact_lock(hashtextextended('sign-in-email-claim-addr:' || sqlc.arg(email)::text, 0));
+
+-- name: GetSignInEmailClaimBudget :one
+-- An address's claims since the window opened, whichever ticket asked: the
+-- codes it got, the wrong guesses they took (attempts counts only those), and
+-- the oldest, the first to leave the window.
+SELECT count(*)::int AS codes,
+       COALESCE(sum(attempts), 0)::int AS wrong_guesses,
+       COALESCE(min(created_at), now())::timestamptz AS oldest
+FROM sign_in_email_claims
+WHERE email = $1 AND created_at > $2;
+
 -- Newest claim of the ticket whatever the address or state: the resend gate,
 -- so one ticket cannot spray codes across addresses.
 -- name: GetLatestSignInEmailClaim :one
@@ -38,4 +53,6 @@ UPDATE sign_in_email_claims SET attempts = attempts + 1 WHERE id = $1;
 UPDATE sign_in_email_claims SET used_at = now() WHERE id = $1 AND used_at IS NULL;
 
 -- name: DeleteExpiredSignInEmailClaims :exec
-DELETE FROM sign_in_email_claims WHERE expires_at < now() - interval '1 hour';
+-- A day of claims stays (each lives fifteen minutes): the address's budget
+-- counts them.
+DELETE FROM sign_in_email_claims WHERE created_at < now() - interval '1 day';

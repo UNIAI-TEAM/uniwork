@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -527,6 +528,80 @@ func TestEmailClaimLinksCreatesOrReclaims(t *testing.T) {
 		}
 		if err := tickets.SendEmailClaim(ctx, ticket, WebTicket(), "not an address", "vi"); !errors.As(err, new(ValidationError)) {
 			t.Fatalf("an address that cannot be one: %v", err)
+		}
+	})
+
+	t.Run("an address's day", func(t *testing.T) {
+		// Tickets cost nothing (every provider round trip mints one), so the
+		// address bounds what any number of them can do to it: five codes a
+		// day, and once ten wrong guesses were spent on it, no more codes
+		// and no code checked — not even the right one.
+		owner := registerVerified(t, f.q, f.auth, "boss@company.vn", "Boss")
+		fresh := func(i int) string {
+			return f.googleTicket(t, GoogleClaims{Sub: fmt.Sprintf("g-flood-%d", i), Email: fmt.Sprintf("flood%d@gmail.com", i), EmailVerified: true, Name: "F"}, TicketKindUnmatched)
+		}
+		for i := 0; i < 5; i++ {
+			if err := tickets.SendEmailClaim(ctx, fresh(i), WebTicket(), "boss@company.vn", "vi"); err != nil {
+				t.Fatalf("code %d: %v", i+1, err)
+			}
+		}
+		err := tickets.SendEmailClaim(ctx, fresh(5), WebTicket(), "Boss@Company.vn", "vi")
+		if ce := wantStatusCode(t, err, "rate_limited", http.StatusTooManyRequests); ce.Fields["retry_after"] == nil {
+			t.Fatalf("the address's day names its wait: %+v", ce)
+		}
+		codes := 0
+		for _, m := range f.mailsTo("boss@company.vn") {
+			if m.Kind == mail.KindSignInEmailClaim {
+				codes++
+			}
+		}
+		if codes != 5 {
+			t.Fatalf("the address got %d codes, want 5", codes)
+		}
+
+		target := "guessed@company.vn"
+		guessed := registerVerified(t, f.q, f.auth, target, "Guessed")
+		// A code mailed earlier on a third ticket, still live, and known
+		// here: it stands for the one the guesses below are after.
+		pending := fresh(12)
+		if _, err := f.q.CreateSignInEmailClaim(f.ctx, db.CreateSignInEmailClaimParams{
+			ID: util.NewID(), TicketHash: ticketHash(pending), Email: target, CodeHash: hashToken("123456"),
+			ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(emailClaimTTL), Valid: true},
+			CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 2; i++ {
+			ticket := fresh(10 + i)
+			if err := tickets.SendEmailClaim(ctx, ticket, WebTicket(), target, "vi"); err != nil {
+				t.Fatal(err)
+			}
+			wrong := "000000"
+			if f.claimCode(t, target) == wrong {
+				wrong = "111111"
+			}
+			for j := 0; j < 5; j++ {
+				if _, err := tickets.VerifyEmailClaim(ctx, ticket, WebTicket(), target, wrong, "", "vi"); !errors.Is(err, ErrInvalidCode) {
+					t.Fatalf("guess %d: %v", 5*i+j+1, err)
+				}
+			}
+		}
+		_, err = tickets.VerifyEmailClaim(ctx, pending, WebTicket(), target, "123456", "", "vi")
+		wantStatusCode(t, err, "rate_limited", http.StatusTooManyRequests)
+		err = tickets.SendEmailClaim(ctx, fresh(20), WebTicket(), target, "vi")
+		wantStatusCode(t, err, "rate_limited", http.StatusTooManyRequests)
+		if u := f.user(t, guessed.ID); u.GoogleID.Valid {
+			t.Fatalf("a guessed address took an identity: %+v", u)
+		}
+		if f.user(t, owner.ID).GoogleID.Valid {
+			t.Fatal("a flooded address took an identity")
+		}
+		// The cleanup keeps the day the budget counts.
+		if err := f.q.DeleteExpiredSignInEmailClaims(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		if n := f.count(t, `SELECT count(*) FROM sign_in_email_claims WHERE email = 'boss@company.vn'`); n != 5 {
+			t.Fatalf("the day's claims kept: %d", n)
 		}
 	})
 }
