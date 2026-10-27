@@ -32,7 +32,7 @@ import {
   rejectedKeys,
   type FolderAccessSummary,
   type PickedPrincipal,
-  type WorkspaceRowLevel,
+  type WorkspaceRowChoice,
 } from "./folder-contents-access-model";
 import { FolderAccessPrincipals, useAccessLevelLabel } from "./folder-contents-access-principals";
 import { FolderContentsAccessProgress, useFolderAccessToasts } from "./folder-contents-access-progress";
@@ -89,7 +89,7 @@ export function FolderContentsAccessDialog({
   const [stage, setStage] = useState<Stage>("form");
   const [mode, setMode] = useState<FolderContentsAccessMode>("merge");
   const [picked, setPicked] = useState<PickedPrincipal[]>([]);
-  const [workspaceLevel, setWorkspaceLevel] = useState<WorkspaceRowLevel>("none");
+  const [workspaceLevel, setWorkspaceLevel] = useState<WorkspaceRowChoice>(null);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [rejectedByKey, setRejectedByKey] = useState<Record<string, DocumentAccessRejectedCode>>({});
@@ -117,8 +117,8 @@ export function FolderContentsAccessDialog({
   );
 
   const items = buildItems(mode, picked, folder.workspace_id, workspaceLevel);
-  // Merge needs a principal to add; replace may be empty (it removes whoever is not listed).
-  const canReview = mode === "replace" || items.length > 0;
+  // Merge needs a principal to add; replace may list nobody, but its workspace row must be answered (a level or Private).
+  const canReview = mode === "replace" ? workspaceLevel !== null : items.length > 0;
 
   const changeMode = (next: FolderContentsAccessMode) => {
     if (next === mode) return;

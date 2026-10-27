@@ -25,6 +25,9 @@ export interface PickedPrincipal {
 /** The workspace root row of the replace mode: `none` leaves it out, which makes the documents Private. */
 export type WorkspaceRowLevel = "none" | "view" | "comment" | "edit";
 
+/** The row's state: `null` is "not chosen yet", the replace mode starts there and holds Confirm until a level or Private is picked. */
+export type WorkspaceRowChoice = WorkspaceRowLevel | null;
+
 export const WORKSPACE_ROW_LEVELS: readonly WorkspaceRowLevel[] = ["none", "view", "comment", "edit"];
 
 /** What a dry run asked and answered, kept so Apply sends the very items the summary describes. */
@@ -55,14 +58,14 @@ export function buildItems(
   mode: FolderContentsAccessMode,
   picked: readonly PickedPrincipal[],
   workspaceId: string,
-  workspaceLevel: WorkspaceRowLevel,
+  workspaceLevel: WorkspaceRowChoice,
 ): FolderContentsAccessItem[] {
   const items: FolderContentsAccessItem[] = picked.map((p) => ({
     principal_type: p.candidate.principal_type,
     principal_id: p.candidate.principal_id,
     level: effectiveLevel(p),
   }));
-  if (mode === "replace" && workspaceLevel !== "none" && workspaceId) {
+  if (mode === "replace" && workspaceLevel !== null && workspaceLevel !== "none" && workspaceId) {
     items.push({ principal_type: "workspace", principal_id: workspaceId, level: workspaceLevel });
   }
   return items;

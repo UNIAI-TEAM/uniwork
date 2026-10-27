@@ -12011,6 +12011,7 @@
       "workspace_row": "Workspace \"{{name}}\"",
       "workspace_row_unnamed": "Workspace chứa thư mục",
       "workspace_level_label": "Mức quyền của workspace",
+      "workspace_level_choose": "Chọn mức quyền",
       "level_private": "Riêng tư",
       "confirm": "Xác nhận",
       "checking": "Đang kiểm tra…",
@@ -12047,7 +12048,7 @@
       "progress_close": "Xong",
       "batch_done_one": "Đã áp dụng quyền cho {{count}} tài liệu",
       "batch_done_other": "Đã áp dụng quyền cho {{count}} tài liệu",
-      "batch_failed": "Việc áp dụng quyền dừng giữa chừng. Chạy lại Thay thế quyền để hoàn tất.",
+      "batch_failed": "Việc áp dụng quyền dừng giữa chừng. Chạy lại để hoàn tất.",
       "error_not_a_folder": "Mục này không phải thư mục nên không đổi quyền hàng loạt được.",
       "error_generic": "Không áp dụng được quyền. Hãy thử lại.",
       "error_rejected": "Không áp dụng được cho một số đối tượng. Sửa các đối tượng được đánh dấu rồi thử lại."

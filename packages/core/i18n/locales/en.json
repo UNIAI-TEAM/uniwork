@@ -12073,6 +12073,7 @@
       "workspace_row": "Workspace \"{{name}}\"",
       "workspace_row_unnamed": "Workspace of this folder",
       "workspace_level_label": "Workspace access level",
+      "workspace_level_choose": "Choose access",
       "level_private": "Private",
       "confirm": "Confirm",
       "checking": "Checking…",
@@ -12109,7 +12110,7 @@
       "progress_close": "Done",
       "batch_done_one": "Access applied to {{count}} document",
       "batch_done_other": "Access applied to {{count}} documents",
-      "batch_failed": "The access change stopped part-way. Run Replace access again to finish it.",
+      "batch_failed": "The access change stopped part-way. Run it again to finish.",
       "error_not_a_folder": "This item is not a folder, so its documents cannot be changed in bulk.",
       "error_generic": "Could not apply access. Try again.",
       "error_rejected": "Access could not be applied for some people or groups. Fix the marked rows and try again."

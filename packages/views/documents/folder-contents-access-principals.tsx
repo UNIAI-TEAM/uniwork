@@ -13,6 +13,7 @@ import {
   effectiveLevel,
   WORKSPACE_ROW_LEVELS,
   type PickedPrincipal,
+  type WorkspaceRowChoice,
   type WorkspaceRowLevel,
 } from "./folder-contents-access-model";
 
@@ -49,7 +50,7 @@ export function FolderAccessPrincipals({
   mode: "merge" | "replace";
   picked: readonly PickedPrincipal[];
   workspaceName: string;
-  workspaceLevel: WorkspaceRowLevel;
+  workspaceLevel: WorkspaceRowChoice;
   rejectedByKey: Record<string, DocumentAccessRejectedCode>;
   disabled: boolean;
   onLevel: (key: string, level: DocumentAccessLevel) => void;
@@ -85,7 +86,9 @@ export function FolderAccessPrincipals({
             onValueChange={(value) => onWorkspaceLevel(value as WorkspaceRowLevel)}
           >
             <SelectTrigger aria-label={t("documents.folderAccess.workspace_level_label")} className="w-36 max-w-full">
-              <SelectValue className="min-w-0">{workspaceLabel(workspaceLevel)}</SelectValue>
+              <SelectValue className="min-w-0" placeholder={t("documents.folderAccess.workspace_level_choose")}>
+                {workspaceLevel === null ? undefined : workspaceLabel(workspaceLevel)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {WORKSPACE_ROW_LEVELS.map((level) => (
