@@ -80,46 +80,64 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 		limit = driveMaxListLimit
 	}
 
-	totalCount, err := s.q.CountMyDriveFiles(ctx, db.CountMyDriveFilesParams{
-		OrganizationID: ws.OrganizationID,
-		WorkspaceID:    ws.ID,
-		ViewerUserID:   actor.ID,
-		ConnectionID:   connIDFilter,
-		FolderFilter:   folderFilter,
-	})
-	if err != nil {
-		return DriveFileListResult{}, err
+	queryPage := func() (int64, []db.ListMyDriveFilesEnrichedRow, *string, error) {
+		cnt, qerr := s.q.CountMyDriveFiles(ctx, db.CountMyDriveFilesParams{
+			OrganizationID: ws.OrganizationID,
+			WorkspaceID:    ws.ID,
+			ViewerUserID:   actor.ID,
+			ConnectionID:   connIDFilter,
+			FolderFilter:   folderFilter,
+		})
+		if qerr != nil {
+			return 0, nil, nil, qerr
+		}
+		pageRows, qerr := s.q.ListMyDriveFilesEnriched(ctx, db.ListMyDriveFilesEnrichedParams{
+			OrganizationID:  ws.OrganizationID,
+			WorkspaceID:     ws.ID,
+			ViewerUserID:    actor.ID,
+			ConnectionID:    connIDFilter,
+			FolderFilter:    folderFilter,
+			CursorCreatedAt: cursorCreatedAt,
+			CursorID:        cursorID,
+			LimitN:          limit + 1,
+		})
+		if qerr != nil {
+			return 0, nil, nil, qerr
+		}
+		var cur *string
+		if int32(len(pageRows)) > limit {
+			last := pageRows[limit-1]
+			encoded := encodeDriveFilesCursor(last.CreatedAt.Time.UTC(), last.ID)
+			cur = &encoded
+			pageRows = pageRows[:limit]
+		}
+		return cnt, pageRows, cur, nil
 	}
 
-	rows, err := s.q.ListMyDriveFilesEnriched(ctx, db.ListMyDriveFilesEnrichedParams{
-		OrganizationID:  ws.OrganizationID,
-		WorkspaceID:     ws.ID,
-		ViewerUserID:    actor.ID,
-		ConnectionID:    connIDFilter,
-		FolderFilter:    folderFilter,
-		CursorCreatedAt: cursorCreatedAt,
-		CursorID:        cursorID,
-		LimitN:          limit + 1,
-	})
+	totalCount, rows, nextCursor, err := queryPage()
 	if err != nil {
 		return DriveFileListResult{}, err
-	}
-
-	var nextCursor *string
-	if int32(len(rows)) > limit {
-		last := rows[limit-1]
-		encoded := encodeDriveFilesCursor(last.CreatedAt.Time.UTC(), last.ID)
-		nextCursor = &encoded
-		rows = rows[:limit]
 	}
 
 	// Opportunistically refresh stale metadata (> 10 min) using the caller's own connection
-	// on unfiltered lists only; folder-filtered lists keep the stored parent population.
-	if !folderFilter.Valid {
+	// on unfiltered lists and on the parentless ("none") list; folder-ID-filtered lists keep
+	// the stored parent population so a refresh never moves a row out of the echoed folder.
+	isNoneFilter := folderFilter.Valid && folderFilter.String == driveFolderFilterNone
+	if !folderFilter.Valid || isNoneFilter {
 		parentCache := make(map[string]string, len(rows))
+		gainedParent := false
 		for i := range rows {
 			if refreshed, ok := s.maybeRefreshEnrichedRow(ctx, actor.ID, ws, rows[i], parentCache); ok {
 				rows[i] = refreshed
+				if isNoneFilter && refreshed.DriveFolderID.Valid && strings.TrimSpace(refreshed.DriveFolderID.String) != "" {
+					gainedParent = true
+				}
+			}
+		}
+		if isNoneFilter && gainedParent {
+			totalCount, rows, nextCursor, err = queryPage()
+			if err != nil {
+				return DriveFileListResult{}, err
 			}
 		}
 	}
