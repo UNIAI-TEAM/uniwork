@@ -200,6 +200,23 @@ describe("useDriveAccountFolders", () => {
       await waitFor(() => expect(result.current.files).toHaveLength(3));
       expect(result.current.folders.map((f) => f.fileCount)).toEqual([5, 2, 1]);
       expect(result.current.unfiled.map((f) => f.id)).toEqual(["b", "c"]);
+      expect(result.current.serverList).toBe(true);
+    });
+
+    it("keeps a file whose folder the list does not carry among the files without a folder", async () => {
+      serve(groups, [
+        () =>
+          json({
+            files: [inFolder("a", "fld-1", "Dự án Beta"), inFolder("b", "fld-new", "Mới"), inFolder("c", null)],
+            total_count: 3,
+            next_cursor: null,
+          }),
+      ]);
+      const { result } = renderHook(() => useDriveAccountFolders("ws1", "conn1", { locale: "vi" }), {
+        wrapper: makeWrapper(qc),
+      });
+      await waitFor(() => expect(result.current.files).toHaveLength(3));
+      expect(result.current.unfiled.map((f) => f.id)).toEqual(["b", "c"]);
     });
 
     it("an empty list is a valid answer: no folders, no derivation", async () => {
@@ -220,6 +237,7 @@ describe("useDriveAccountFolders", () => {
         wrapper: makeWrapper(qc),
       });
       await waitFor(() => expect(result.current.folders).toHaveLength(1));
+      expect(result.current.serverList).toBe(false);
       expect(result.current.folders[0]).toMatchObject({ id: "fld-1", name: "Dự án Beta", fileCount: 1 });
       expect(fileCalls()).toHaveLength(1);
     });

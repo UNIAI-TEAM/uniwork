@@ -27,10 +27,16 @@ interface UseDriveAccountFoldersOpts {
 interface DriveAccountFolders {
   /** Named A-Z (numeric collator), then unnamed by id. */
   folders: DriveFolderEntry[];
-  /** Files with no known parent folder, in incoming order; empty until the files are loaded. */
+  /**
+   * Files with no known parent folder, in incoming order; empty until the files are loaded. With the
+   * server list this includes a file whose folder the list does not carry (the two reads can be a
+   * moment apart): a file is never shown nowhere.
+   */
   unfiled: DriveFile[];
   /** Every file of the account, all pages; empty until loaded (and while `withFiles` is off and the server list serves). */
   files: DriveFile[];
+  /** The folders come from the server list (not derived from the files): only then can a folder be named. */
+  serverList: boolean;
   /** Nothing to show yet: the folder list, or the first page of files when those are needed. */
   isPending: boolean;
   /** The folder set will not change any more: from the server list, or once the page walk it is derived from ended. */
@@ -84,10 +90,11 @@ export function useDriveAccountFolders(
     () => (groups ? driveFoldersFromGroups(groups, opts?.locale) : []),
     [groups, opts?.locale],
   );
-  const unfiled = useMemo(
-    () => (serverList ? files.filter((f) => !f.drive_folder?.id) : derived.unfiled),
-    [serverList, files, derived.unfiled],
-  );
+  const unfiled = useMemo(() => {
+    if (!serverList) return derived.unfiled;
+    const known = new Set(fromServer.map((f) => f.id));
+    return files.filter((f) => !f.drive_folder?.id || !known.has(f.drive_folder.id));
+  }, [serverList, files, fromServer, derived.unfiled]);
   const { refetch: refetchFiles } = query;
   const { refetch: refetchFolders } = foldersQuery;
 
@@ -95,6 +102,7 @@ export function useDriveAccountFolders(
     folders: serverList ? fromServer : derived.folders,
     unfiled,
     files,
+    serverList,
     isPending: active && ((!serverList && foldersQuery.isPending) || (walk && query.isPending)),
     foldersComplete: serverList || !(walk && Boolean(hasNextPage) && !capped && !isFetchNextPageError),
     isLoadingMore: walk && Boolean(hasNextPage) && !capped && !isFetchNextPageError,
