@@ -55,7 +55,7 @@ function FolderRow({
   const { t } = useTranslation();
   const label = driveFolderLabel(folder, t);
   return (
-    <div className="group/row flex items-center rounded-md">
+    <div className="group/row relative flex items-center rounded-md">
       <button
         type="button"
         title={label}
@@ -69,7 +69,13 @@ function FolderRow({
           <DOCUMENTS_NAV_ICONS.folder className="size-4" />
         </span>
         <span className="min-w-0 flex-1 truncate">{label}</span>
-        <span className={COUNT_CLASS}>
+        {/* The action sits over the count, so the label keeps its full width; the count steps aside while it shows. */}
+        <span
+          className={cn(
+            COUNT_CLASS,
+            menu && "group-hover/row:invisible group-focus-within/row:invisible",
+          )}
+        >
           <span aria-hidden>{folder.fileCount}</span>
           <span className="sr-only">{t("driveLibrary.folder.count", { count: folder.fileCount })}</span>
         </span>
@@ -190,7 +196,7 @@ export function DriveSidebarAccount({
                         variant="ghost"
                         size="icon-sm"
                         aria-label={t("driveLibrary.folder.menu_aria", { name: driveFolderLabel(folder, t) })}
-                        className="shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+                        className="absolute end-1 top-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100"
                       />
                     }
                   >

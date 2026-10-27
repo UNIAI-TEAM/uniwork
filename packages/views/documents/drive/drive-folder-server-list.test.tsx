@@ -421,6 +421,18 @@ describe("nameFolder=1", () => {
 });
 
 describe("Name this folder from the sidebar", () => {
+  it("overlays the action on the count instead of reserving room beside it", async () => {
+    renderDocuments(`${DRIVE_HOME}&account=conn1`);
+    const trigger = await screen.findByRole("button", { name: t("driveLibrary.folder.menu_aria", { name: UNNAMED_LABEL }) });
+    expect(trigger).toHaveClass("absolute", "opacity-0", "group-hover/row:opacity-100", "group-focus-within/row:opacity-100");
+    // The unnamed row's count steps aside while the action shows; a named row keeps its count.
+    const unnamedCount = trigger.closest("div")!.querySelector("button .font-mono");
+    expect(unnamedCount).toHaveClass("group-hover/row:invisible", "group-focus-within/row:invisible");
+    const betaCount = screen.getByRole("button", { name: /^Dự án Beta/ }).querySelector(".font-mono");
+    expect(betaCount).not.toHaveClass("group-hover/row:invisible");
+  });
+
+
   it("draws no menu on a derived folder when the server has no folder list", async () => {
     serve({ folders: () => Promise.reject(new ApiError("x", "not_found", 404)) });
     renderDocuments(`${DRIVE_HOME}&account=conn1`);
