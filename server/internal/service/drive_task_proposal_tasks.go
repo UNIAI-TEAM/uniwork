@@ -26,6 +26,11 @@ const (
 	driveProposalMaxItemsPerCreate = 20
 )
 
+// testProposalAfterDepHook is an optional in-package test hook invoked inside
+// CreateTasksFromProposal's After callback right after each setDependencyTx call
+// to deterministically verify full transaction rollback on mid-After failures.
+var testProposalAfterDepHook func(ctx context.Context, q *db.Queries, tasks []db.Task) error
+
 // CreateTasksFromProposalItemInput is one edited proposal item submitted to
 // POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks (spec §8.5).
 type CreateTasksFromProposalItemInput struct {
@@ -241,6 +246,11 @@ func (s *DriveTaskProposalService) CreateTasksFromProposal(
 					depTask := taskByItemIndex[depIndex]
 					if _, err := s.tasks.setDependencyTx(ctx, q, actor, task, depTask, dependencyTypeBlockedBy); err != nil {
 						return err
+					}
+					if testProposalAfterDepHook != nil {
+						if err := testProposalAfterDepHook(ctx, q, tasks); err != nil {
+							return err
+						}
 					}
 				}
 			}

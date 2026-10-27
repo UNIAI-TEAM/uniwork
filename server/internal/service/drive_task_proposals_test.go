@@ -259,9 +259,8 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 	}); !isCodedError(err, http.StatusUnprocessableEntity, "parent_cycle") {
 		t.Fatalf("self dependency err = %v, want 422 parent_cycle", err)
 	}
-	// - mid-transaction rollback: item 0 has valid assignee, item 2 has non-member assignee -> 422 assignee_not_member, 0 tasks created, proposal still ready.
-	var tasksBefore int
-	_ = e.pool.QueryRow(ctx, `SELECT count(*) FROM tasks WHERE workspace_id = $1`, e.wsA.ID).Scan(&tasksBefore)
+	// - mid-transaction Before/create rollback: item 0 has valid assignee, item 2 has non-member assignee -> 422 assignee_not_member, all counts unchanged, proposal still ready.
+	beforeBadAssignee := snapshotProposalBatchCounts(t, ctx, e)
 	badAssignee := "01NONEXISTENTUSER000000000"
 	if _, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
 		Items: []CreateTasksFromProposalItemInput{
@@ -271,12 +270,73 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 	}); !isCodedError(err, http.StatusUnprocessableEntity, "assignee_not_member") {
 		t.Fatalf("non-member assignee err = %v, want 422 assignee_not_member", err)
 	}
-	var tasksAfter int
-	_ = e.pool.QueryRow(ctx, `SELECT count(*) FROM tasks WHERE workspace_id = $1`, e.wsA.ID).Scan(&tasksAfter)
-	if tasksAfter != tasksBefore {
-		t.Fatalf("tasks count after rollback = %d, want %d", tasksAfter, tasksBefore)
-	}
+	assertProposalBatchCountsUnchanged(t, ctx, e, beforeBadAssignee, "after non-member assignee rollback")
+	assertProposalReadyWithItems(t, ctx, e, prop.ID, 3)
 
+	// - R5a: mid-After dependency-step failure rollback: item 1 (blocked by 0) succeeds in setDependencyTx,
+	//   then a reverse edge (task[0] depends_on task[2]) is seeded inside the same transaction so the second
+	//   setDependencyTx call (item 2 blocked by 0) fails with 422 parent_cycle -> full rollback of tasks,
+	//   task_dependencies, drive_file_task_links, drive_task_proposal_links, audit_events, outbox_events,
+	//   and proposal remains ready with items intact.
+	beforeDepRollback := snapshotProposalBatchCounts(t, ctx, e)
+	hookCalls := 0
+	testProposalAfterDepHook = func(hctx context.Context, qtx *db.Queries, batchTasks []db.Task) error {
+		hookCalls++
+		if hookCalls == 1 && len(batchTasks) == 3 {
+			_, herr := qtx.CreateTaskDependency(hctx, db.CreateTaskDependencyParams{
+				ID:              util.NewID(),
+				OrganizationID:  e.org.ID,
+				WorkspaceID:     e.wsA.ID,
+				TaskID:          batchTasks[0].ID,
+				DependsOnTaskID: batchTasks[2].ID,
+				Type:            dependencyTypeBlockedBy,
+			})
+			return herr
+		}
+		return nil
+	}
+	_, depRollbackErr := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{
+			{Index: 0, Title: "Rollback Alpha"},
+			{Index: 1, Title: "Rollback Beta", BlockedByIndexes: []int{0}},
+			{Index: 2, Title: "Rollback Gamma", BlockedByIndexes: []int{0}},
+		},
+	})
+	testProposalAfterDepHook = nil
+	if hookCalls != 1 || !isCodedError(depRollbackErr, http.StatusUnprocessableEntity, "parent_cycle") {
+		t.Fatalf("mid-After dependency failure: hookCalls=%d err=%v, want hookCalls=1 and 422 parent_cycle", hookCalls, depRollbackErr)
+	}
+	assertProposalBatchCountsUnchanged(t, ctx, e, beforeDepRollback, "after mid-After dependency step failure")
+	assertProposalReadyWithItems(t, ctx, e, prop.ID, 3)
+
+	// - R5b + R6: late-After unique conflict on InsertDriveTaskProposalLink: seed an existing
+	//   drive_task_proposal_links row for (prop.ID, item_index=2), then submit [0, 2 (blocked_by: [0])]
+	//   so tasks, dependency edge, item 0's file/proposal links, and item 2's file link are written in After
+	//   before item 2's InsertDriveTaskProposalLink hits ON CONFLICT DO NOTHING -> 409 proposal_item_already_converted
+	//   and rolls back every table.
+	seedConflictLinkID := util.NewID()
+	if _, err := e.pool.Exec(ctx, `
+		INSERT INTO drive_task_proposal_links (
+			id, organization_id, workspace_id, proposal_id, item_index,
+			task_id, drive_file_id, external_file_id, created_by, created_by_kind
+		) VALUES ($1, $2, $3, $4, 2, '01SEEDTASK0000000000000000', $5, 'ext-b6-doc', $6, 'human')
+	`, seedConflictLinkID, e.org.ID, e.wsA.ID, prop.ID, fileID, e.owner.ID); err != nil {
+		t.Fatalf("seed conflicting proposal link: %v", err)
+	}
+	beforeConflictRollback := snapshotProposalBatchCounts(t, ctx, e)
+	if _, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
+		Items: []CreateTasksFromProposalItemInput{
+			{Index: 0, Title: "Conflict Rollback Item 0"},
+			{Index: 2, Title: "Conflict Rollback Item 2", BlockedByIndexes: []int{0}},
+		},
+	}); !isCodedError(err, http.StatusConflict, "proposal_item_already_converted") {
+		t.Fatalf("unique conflict on proposal_links err = %v, want 409 proposal_item_already_converted", err)
+	}
+	assertProposalBatchCountsUnchanged(t, ctx, e, beforeConflictRollback, "after proposal_item_already_converted rollback")
+	assertProposalReadyWithItems(t, ctx, e, prop.ID, 3)
+	if _, err := e.pool.Exec(ctx, `DELETE FROM drive_task_proposal_links WHERE id = $1`, seedConflictLinkID); err != nil {
+		t.Fatalf("remove seeded conflict link: %v", err)
+	}
 	// 3. Duplicate refusal (existing open task + intra-batch duplicate) with item_indexes.
 	existingOpen, err := e.taskSvc.Create(ctx, Human(e.owner.ID), e.wsA.ID, CreateTaskInput{
 		Title: "Existing Open Duplicate",
@@ -302,29 +362,32 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 		t.Fatalf("active_duplicate_task task_id = %v, want %s", ce.Fields["task_id"], existingOpen.ID)
 	}
 
-	// 4. Successful conversion of subset (items 0 and 2, with item 2 blocked by item 0, and AllowDuplicate on item 0).
+	// 4. Successful conversion of shuffled subset (items [2, 0] in non-ascending request order,
+	// with item 2 blocked by item 0, AllowDuplicate on item 0, and excerpt-bearing descriptions).
 	startDate := "2026-10-27"
 	dueDate := "2026-11-05"
+	wantDesc2 := "## Mục tiêu\nHoàn thiện tài liệu kỹ thuật\n\n## Checklist\n- [ ] Cập nhật sơ đồ\n\n> **Trích đoạn (S3):** \"Quote C — giữ nguyên sau khi xóa đề xuất\"\n\nNguồn: https://docs.google.com/document/d/ext-b6-doc/edit"
+	wantDesc0 := "  ## Mục tiêu\nKhởi chạy thử nghiệm\n\n> **Trích đoạn (S1):** \"Quote A\"  "
 	created, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop.ID, CreateTasksFromProposalInput{
 		Items: []CreateTasksFromProposalItemInput{
 			{
+				Index:            2,
+				Title:            "Task Gamma Final",
+				Description:      wantDesc2,
+				AssigneeMemberID: &e.peer.ID,
+				Priority:         "low",
+				BlockedByIndexes: []int{0},
+			},
+			{
 				Index:            0,
 				Title:            "Existing Open Duplicate",
-				Description:      "Body for item 0",
+				Description:      wantDesc0,
 				AssigneeMemberID: &e.owner.ID,
 				Priority:         "high",
 				StartDate:        &startDate,
 				DueDate:          &dueDate,
 				BlockedByIndexes: []int{},
 				AllowDuplicate:   true,
-			},
-			{
-				Index:            2,
-				Title:            "Task Gamma Final",
-				Description:      "Body for item 2",
-				AssigneeMemberID: &e.peer.ID,
-				Priority:         "low",
-				BlockedByIndexes: []int{0},
 			},
 		},
 	})
@@ -334,10 +397,13 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 	if len(created.TaskIDs) != 2 || len(created.Items) != 2 {
 		t.Fatalf("created = %+v, want 2 tasks", created)
 	}
-	if created.Items[0].Index != 0 || created.Items[0].TaskID != created.TaskIDs[0] ||
-		created.Items[1].Index != 2 || created.Items[1].TaskID != created.TaskIDs[1] {
-		t.Fatalf("created.Items = %+v, TaskIDs = %+v", created.Items, created.TaskIDs)
+	if created.Items[0].Index != 2 || created.Items[0].TaskID != created.TaskIDs[0] ||
+		created.Items[1].Index != 0 || created.Items[1].TaskID != created.TaskIDs[1] {
+		t.Fatalf("created.Items = %+v, TaskIDs = %+v, want [{Index:2 TaskID:%s} {Index:0 TaskID:%s}]",
+			created.Items, created.TaskIDs, created.TaskIDs[0], created.TaskIDs[1])
 	}
+	taskIDForItem2 := created.TaskIDs[0]
+	taskIDForItem0 := created.TaskIDs[1]
 
 	// Verify origin_type, origin_id, and single task.created audit row with source="drive_task_proposal" and drive_file_id on each created task.
 	for _, tid := range created.TaskIDs {
@@ -365,23 +431,52 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 		}
 	}
 
-	// Verify dependency row: task[1] (item 2) is blocked_by task[0] (item 0).
+	// Verify submitted descriptions (including excerpt text and whitespace) on created tasks before proposal purge.
+	gotTask2Before, err := e.taskSvc.Get(ctx, e.owner.ID, taskIDForItem2)
+	if err != nil || gotTask2Before.Description != wantDesc2 {
+		t.Fatalf("task[item 2] description before purge = %q (err=%v), want %q", gotTask2Before.Description, err, wantDesc2)
+	}
+	gotTask0Before, err := e.taskSvc.Get(ctx, e.owner.ID, taskIDForItem0)
+	if err != nil || gotTask0Before.Description != wantDesc0 {
+		t.Fatalf("task[item 0] description before purge = %q (err=%v), want %q", gotTask0Before.Description, err, wantDesc0)
+	}
+
+	// Verify dependency row: taskIDForItem2 (item 2) is blocked_by taskIDForItem0 (item 0).
 	var depType string
 	if err := e.pool.QueryRow(ctx,
 		`SELECT type FROM task_dependencies WHERE workspace_id = $1 AND task_id = $2 AND depends_on_task_id = $3`,
-		e.wsA.ID, created.TaskIDs[1], created.TaskIDs[0],
+		e.wsA.ID, taskIDForItem2, taskIDForItem0,
 	).Scan(&depType); err != nil || depType != "blocked_by" {
 		t.Fatalf("task_dependencies row = %q (err=%v), want blocked_by", depType, err)
 	}
 
-	// Verify drive_file_task_links and drive_task_proposal_links rows.
-	var fileLinkCount, propLinkCount int
-	_ = e.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE drive_file_id = $1 AND task_id = ANY($2)`, fileID, created.TaskIDs).Scan(&fileLinkCount)
-	_ = e.pool.QueryRow(ctx, `SELECT count(*) FROM drive_task_proposal_links WHERE proposal_id = $1`, prop.ID).Scan(&propLinkCount)
-	if fileLinkCount != 2 || propLinkCount != 2 {
-		t.Fatalf("links count: drive_file_task_links=%d drive_task_proposal_links=%d, want 2 and 2", fileLinkCount, propLinkCount)
+	// Verify drive_file_task_links count and exact persisted 0-based (item_index, task_id) pairs in drive_task_proposal_links (R7).
+	var fileLinkCount int
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE drive_file_id = $1 AND task_id = ANY($2)`, fileID, created.TaskIDs).Scan(&fileLinkCount); err != nil || fileLinkCount != 2 {
+		t.Fatalf("drive_file_task_links count = %d (err=%v), want 2", fileLinkCount, err)
 	}
-
+	linkRows, err := e.pool.Query(ctx, `SELECT item_index, task_id FROM drive_task_proposal_links WHERE proposal_id = $1 ORDER BY item_index ASC`, prop.ID)
+	if err != nil {
+		t.Fatalf("query drive_task_proposal_links: %v", err)
+	}
+	var persistedLinks []CreatedDriveProposalTask
+	for linkRows.Next() {
+		var idx int
+		var tid string
+		if err := linkRows.Scan(&idx, &tid); err != nil {
+			linkRows.Close()
+			t.Fatalf("scan drive_task_proposal_links: %v", err)
+		}
+		persistedLinks = append(persistedLinks, CreatedDriveProposalTask{Index: idx, TaskID: tid})
+	}
+	linkRows.Close()
+	wantPersistedLinks := []CreatedDriveProposalTask{
+		{Index: 0, TaskID: taskIDForItem0},
+		{Index: 2, TaskID: taskIDForItem2},
+	}
+	if !reflect.DeepEqual(persistedLinks, wantPersistedLinks) {
+		t.Fatalf("persisted drive_task_proposal_links = %+v, want %+v", persistedLinks, wantPersistedLinks)
+	}
 	// Verify proposal row is now status='converted' and items IS NULL.
 	var propStatus string
 	var propItems []byte
@@ -416,9 +511,9 @@ func TestCreateTasksFromProposalBatchDependenciesDuplicatesAndRollback(t *testin
 		t.Fatalf("unmarshal drive_task_proposal.tasks_created metadata: %v", err)
 	}
 	if meta.DriveFileID != fileID || meta.Count == nil || *meta.Count != 2 ||
-		!reflect.DeepEqual(meta.ItemIndexes, []int{0, 2}) || !reflect.DeepEqual(meta.TaskIDs, created.TaskIDs) ||
+		!reflect.DeepEqual(meta.ItemIndexes, []int{2, 0}) || !reflect.DeepEqual(meta.TaskIDs, created.TaskIDs) ||
 		meta.GoogleEmail != "b6-owner@example.com" || meta.GoogleSub != "sub-b6-owner" {
-		t.Fatalf("drive_task_proposal.tasks_created metadata = %s, want drive_file_id=%q count=2 item_indexes=[0 2] task_ids=%v", string(rawMeta), fileID, created.TaskIDs)
+		t.Fatalf("drive_task_proposal.tasks_created metadata = %s, want drive_file_id=%q count=2 item_indexes=[2 0] task_ids=%v", string(rawMeta), fileID, created.TaskIDs)
 	}
 	var convertedOutboxCount int
 	if err := e.pool.QueryRow(ctx,
@@ -533,15 +628,17 @@ func TestDriveTasksCreatedFromDocumentProvenanceAndPrivacy(t *testing.T) {
 	}
 	fileID1 := linked[0].File.ID
 
-	// Batch 1: create 2 tasks from proposal 1.
+	// Batch 1: create 2 tasks from proposal 1 with edited goal/checklist/excerpt/link descriptions (R9).
 	prop1, err := propSvc.Propose(ctx, Human(e.owner.ID), e.wsA.ID, fileID1, ProposeDriveTasksInput{})
 	if err != nil {
 		t.Fatalf("Propose 1: %v", err)
 	}
+	wantDescA := "## Mục tiêu\nTriển khai cổng thanh toán\n\n## Danh sách việc\n- [ ] Kiểm thử sandbox\n\n> **Trích đoạn (§2.1):** \"Thanh toán phải hoàn tất trước ngày 05/11.\"\n\nNguồn: https://docs.google.com/document/d/ext-prov-doc-88/edit"
+	wantDescB := "  ## Mục tiêu\nĐối soát hóa đơn\n\n> **Trích đoạn (§3.4):** \"Giữ nguyên văn bản trích dẫn khi xóa bản nháp.\"  "
 	res1, err := propSvc.CreateTasksFromProposal(ctx, Human(e.owner.ID), e.wsA.ID, prop1.ID, CreateTasksFromProposalInput{
 		Items: []CreateTasksFromProposalItemInput{
-			{Index: 0, Title: "Prov Batch 1 Task A"},
-			{Index: 1, Title: "Prov Batch 1 Task B"},
+			{Index: 0, Title: "Prov Batch 1 Task A", Description: wantDescA},
+			{Index: 1, Title: "Prov Batch 1 Task B", Description: wantDescB},
 		},
 	})
 	if err != nil || len(res1.TaskIDs) != 2 {
@@ -549,6 +646,50 @@ func TestDriveTasksCreatedFromDocumentProvenanceAndPrivacy(t *testing.T) {
 	}
 	taskA, taskB := res1.TaskIDs[0], res1.TaskIDs[1]
 
+	// Verify task descriptions before proposal row deletion (R9).
+	for tid, wantDesc := range map[string]string{taskA: wantDescA, taskB: wantDescB} {
+		gotTask, terr := e.taskSvc.Get(ctx, e.owner.ID, tid)
+		if terr != nil || gotTask.Description != wantDesc {
+			t.Fatalf("Get(%s) description before sweep = %q (err=%v), want %q", tid, gotTask.Description, terr, wantDesc)
+		}
+	}
+
+	// 0. Run B7 retention sweep to delete the converted proposal row (prop1) from drive_task_proposals,
+	// prove prop1 is gone, and verify that both task descriptions (R9) and tasks_created / task_creations
+	// across file detail, file list, and task cards (R8) remain unchanged!
+	sweeper := NewDriveProposalRetentionSweeper(propSvc, nil)
+	sweptCount, err := sweeper.Sweep(ctx)
+	if err != nil || sweptCount < 1 {
+		t.Fatalf("sweeper.Sweep after convert = %d, err=%v, want >= 1", sweptCount, err)
+	}
+	var prop1Remaining int
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM drive_task_proposals WHERE id = $1`, prop1.ID).Scan(&prop1Remaining); err != nil || prop1Remaining != 0 {
+		t.Fatalf("prop1 count in drive_task_proposals after sweep = %d (err=%v), want 0", prop1Remaining, err)
+	}
+	for tid, wantDesc := range map[string]string{taskA: wantDescA, taskB: wantDescB} {
+		gotTask, terr := e.taskSvc.Get(ctx, e.owner.ID, tid)
+		if terr != nil || gotTask.Description != wantDesc {
+			t.Fatalf("Get(%s) description after proposal row deleted = %q (err=%v), want %q", tid, gotTask.Description, terr, wantDesc)
+		}
+	}
+	detailAfterPurge, err := e.fileSvc.Get(ctx, Human(e.owner.ID), e.wsA.ID, fileID1)
+	if err != nil {
+		t.Fatalf("Get(fileID1) after proposal purge: %v", err)
+	}
+	if detailAfterPurge.TasksCreated.Count != 2 || detailAfterPurge.TasksCreated.LastCreatedAt == nil || detailAfterPurge.TasksCreated.LastCreatedByName == nil {
+		t.Fatalf("after proposal purge TasksCreated = %+v, want Count=2 with non-nil LastCreatedAt/ByName", detailAfterPurge.TasksCreated)
+	}
+	if len(detailAfterPurge.TaskCreations) != 1 || detailAfterPurge.TaskCreations[0].ProposalID != prop1.ID || len(detailAfterPurge.TaskCreations[0].Tasks) != 2 {
+		t.Fatalf("after proposal purge TaskCreations = %+v, want 1 group for prop1 with 2 tasks", detailAfterPurge.TaskCreations)
+	}
+	mineAfterPurge, err := e.fileSvc.ListMine(ctx, Human(e.owner.ID), e.wsA.ID, ListDriveFilesFilter{})
+	if err != nil || len(mineAfterPurge.Files) != 1 || mineAfterPurge.Files[0].TasksCreated.Count != 2 {
+		t.Fatalf("ListMine after proposal purge = %+v, err=%v", mineAfterPurge, err)
+	}
+	cardsAfterPurge, err := e.fileSvc.ListForTask(ctx, Human(e.owner.ID), taskA)
+	if err != nil || len(cardsAfterPurge) != 1 || cardsAfterPurge[0].TasksCreated.Count != 2 {
+		t.Fatalf("ListForTask(taskA) after proposal purge = %+v, err=%v", cardsAfterPurge, err)
+	}
 	// 1. RemoveFromTask on taskA: unlinks drive_file_task_links, so used_in_count drops to 1,
 	// but tasks_created.count stays 2 and task_creations still lists both taskA and taskB!
 	if err := e.fileSvc.RemoveFromTask(ctx, Human(e.owner.ID), taskA, fileID1); err != nil {
@@ -701,6 +842,63 @@ func isCodedError(err error, wantStatus int, wantCode string) bool {
 		return false
 	}
 	return ce.Status == wantStatus && ce.Code == wantCode
+}
+
+type proposalBatchTableCounts struct {
+	tasks             int
+	taskDependencies  int
+	driveFileLinks    int
+	driveProposalLink int
+	auditEvents       int
+	outboxEvents      int
+}
+
+func snapshotProposalBatchCounts(t *testing.T, ctx context.Context, e *driveFilesTestEnv) proposalBatchTableCounts {
+	t.Helper()
+	var c proposalBatchTableCounts
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM tasks WHERE workspace_id = $1`, e.wsA.ID).Scan(&c.tasks); err != nil {
+		t.Fatalf("count tasks: %v", err)
+	}
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM task_dependencies WHERE workspace_id = $1`, e.wsA.ID).Scan(&c.taskDependencies); err != nil {
+		t.Fatalf("count task_dependencies: %v", err)
+	}
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM drive_file_task_links WHERE workspace_id = $1`, e.wsA.ID).Scan(&c.driveFileLinks); err != nil {
+		t.Fatalf("count drive_file_task_links: %v", err)
+	}
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM drive_task_proposal_links WHERE workspace_id = $1`, e.wsA.ID).Scan(&c.driveProposalLink); err != nil {
+		t.Fatalf("count drive_task_proposal_links: %v", err)
+	}
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE organization_id = $1`, e.org.ID).Scan(&c.auditEvents); err != nil {
+		t.Fatalf("count audit_events: %v", err)
+	}
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM outbox_events WHERE organization_id = $1`, e.org.ID).Scan(&c.outboxEvents); err != nil {
+		t.Fatalf("count outbox_events: %v", err)
+	}
+	return c
+}
+
+func assertProposalBatchCountsUnchanged(t *testing.T, ctx context.Context, e *driveFilesTestEnv, before proposalBatchTableCounts, contextLabel string) {
+	t.Helper()
+	after := snapshotProposalBatchCounts(t, ctx, e)
+	if after != before {
+		t.Fatalf("%s: counts changed = %+v, want %+v", contextLabel, after, before)
+	}
+}
+
+func assertProposalReadyWithItems(t *testing.T, ctx context.Context, e *driveFilesTestEnv, proposalID string, wantItems int) {
+	t.Helper()
+	var status string
+	var rawItems []byte
+	if err := e.pool.QueryRow(ctx, `SELECT status, items FROM drive_task_proposals WHERE id = $1`, proposalID).Scan(&status, &rawItems); err != nil {
+		t.Fatalf("query proposal %s: %v", proposalID, err)
+	}
+	var items []DriveTaskProposalItem
+	if err := json.Unmarshal(rawItems, &items); err != nil {
+		t.Fatalf("unmarshal proposal %s items: %v", proposalID, err)
+	}
+	if status != DriveProposalStatusReady || len(items) != wantItems {
+		t.Fatalf("proposal %s state = (status=%q, len(items)=%d), want (ready, %d)", proposalID, status, len(items), wantItems)
+	}
 }
 
 // TestValidateAndNormalizeProposalCreateItemsUnit exercises pure item validation,

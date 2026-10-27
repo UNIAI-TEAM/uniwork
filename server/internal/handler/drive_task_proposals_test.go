@@ -924,13 +924,16 @@ func TestCreateTasksFromDriveProposalHTTPAndProvenance(t *testing.T) {
 		t.Fatalf("active_duplicate_task fields.item_indexes = %v, want [0]", itemIndexes)
 	}
 
-	// 4. Successful batch create (with allow_duplicate: true on item 0 and blocked_by_indexes: [0] on item 1) -> 201 Created.
+	// 4. Successful batch create (with allow_duplicate: true on item 0, blocked_by_indexes: [0] on item 1,
+	// and excerpt-bearing descriptions) -> 201 Created.
+	wantHTTPDesc0 := "## Mục tiêu\nMục HTTP 0\n\n> **Trích đoạn (S0):** \"Q0 — trích dẫn gốc giữ nguyên\""
+	wantHTTPDesc1 := "## Mục tiêu\nMục HTTP 1\n\n> **Trích đoạn (S1):** \"Q1\""
 	createRes, createOut := doJSON(t, e.srv, "POST", tasksPath, e.ownerTk, map[string]any{
 		"items": []any{
 			map[string]any{
 				"index":              0,
 				"title":              "Existing Duplicate HTTP Task",
-				"description":        "Confirmed body 0",
+				"description":        wantHTTPDesc0,
 				"priority":           "high",
 				"start_date":         "2026-10-27",
 				"due_date":           "2026-11-05",
@@ -940,7 +943,7 @@ func TestCreateTasksFromDriveProposalHTTPAndProvenance(t *testing.T) {
 			map[string]any{
 				"index":              1,
 				"title":              "Confirmed HTTP Task 1",
-				"description":        "Confirmed body 1",
+				"description":        wantHTTPDesc1,
 				"priority":           "medium",
 				"blocked_by_indexes": []int{0},
 			},
@@ -960,6 +963,22 @@ func TestCreateTasksFromDriveProposalHTTPAndProvenance(t *testing.T) {
 		t.Fatalf("createdSDO = %+v", createdSDO)
 	}
 
+	// 5. Re-submitting the converted proposal -> 409 proposal_not_ready.
+	if r, o := doJSON(t, e.srv, "POST", tasksPath, e.ownerTk, map[string]any{
+		"items": []any{map[string]any{"index": 0, "title": "Retry", "description": "D"}},
+	}); r.StatusCode != http.StatusConflict || jsonErrCode(o) != sdo.DriveErrProposalNotReady {
+		t.Fatalf("second POST tasks = %d %v, want 409 proposal_not_ready", r.StatusCode, o)
+	}
+
+	// Delete the converted proposal row (simulating hourly retention sweep) and verify task description
+	// with excerpt and §8.8 tasks_created / task_creations survive proposal deletion (R8, R9).
+	if _, err := e.pool.Exec(context.Background(), `DELETE FROM drive_task_proposals WHERE id = $1`, proposalID); err != nil {
+		t.Fatalf("delete converted proposal %s: %v", proposalID, err)
+	}
+	var gotTask0Desc string
+	if err := e.pool.QueryRow(context.Background(), `SELECT description FROM tasks WHERE id = $1`, createdSDO.TaskIDs[0]).Scan(&gotTask0Desc); err != nil || gotTask0Desc != wantHTTPDesc0 {
+		t.Fatalf("task[0] description after proposal delete = %q (err=%v), want %q", gotTask0Desc, err, wantHTTPDesc0)
+	}
 	// 5. Re-submitting the converted proposal -> 409 proposal_not_ready.
 	if r, o := doJSON(t, e.srv, "POST", tasksPath, e.ownerTk, map[string]any{
 		"items": []any{map[string]any{"index": 0, "title": "Retry", "description": "D"}},
