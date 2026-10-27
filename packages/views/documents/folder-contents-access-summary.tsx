@@ -38,9 +38,11 @@ export function FolderContentsAccessSummary({ summary }: { summary: FolderAccess
       {warnings.map((code) => (
         <Alert key={code} variant="warning" role="note" data-testid={`folder-access-warning-${code}`}>
           <TriangleAlert aria-hidden />
-          <AlertDescription className="break-words">
+          <AlertDescription className="text-pretty break-words">
             {code === "downgrade"
-              ? t("documents.folderAccess.warning_downgrade", { count: preview.downgraded_users })
+              ? preview.downgraded_users > 0
+                ? t("documents.folderAccess.warning_downgrade", { count: preview.downgraded_users })
+                : t("documents.folderAccess.warning_downgrade_generic")
               : t(`documents.folderAccess.warning_${code}`)}
           </AlertDescription>
         </Alert>

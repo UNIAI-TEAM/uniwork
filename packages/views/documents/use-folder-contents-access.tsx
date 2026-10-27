@@ -23,9 +23,12 @@ export function useFolderContentsAccess(wsId: string): FolderContentsAccessComma
   const { t } = useTranslation();
   const [folder, setFolder] = useState<DocumentSummaryRow | null>(null);
   const [tracked, setTracked] = useState<TrackedFolderBatch[]>([]);
+  // The batch the open dialog is showing: its failure reads inline there, so its watcher keeps the toast back.
+  const [shownBatchId, setShownBatchId] = useState<string | null>(null);
 
   const track = useCallback((batch: TrackedFolderBatch) => {
     setTracked((prev) => (prev.some((b) => b.batchId === batch.batchId) ? prev : [...prev, batch]));
+    setShownBatchId(batch.batchId);
   }, []);
   const settle = useCallback((batchId: string) => {
     setTracked((prev) => prev.filter((b) => b.batchId !== batchId));
@@ -42,13 +45,15 @@ export function useFolderContentsAccess(wsId: string): FolderContentsAccessComma
             wsId={wsId}
             folder={{ id: folder.id, title: isMyFolder(folder) ? t("documents.home.my_folder.label") : folder.title, workspace_id: folder.workspace_id }}
             onOpenChange={(next) => {
-              if (!next) setFolder(null);
+              if (next) return;
+              setFolder(null);
+              setShownBatchId(null);
             }}
             onTrackBatch={track}
           />
         ) : null}
         {tracked.map((batch) => (
-          <FolderContentsAccessWatcher key={batch.batchId} wsId={wsId} folderId={batch.folderId} batchId={batch.batchId} onSettled={settle} />
+          <FolderContentsAccessWatcher key={batch.batchId} wsId={wsId} folderId={batch.folderId} batchId={batch.batchId} inDialog={folder !== null && shownBatchId === batch.batchId} onSettled={settle} />
         ))}
       </>
     ),

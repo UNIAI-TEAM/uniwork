@@ -12006,8 +12006,8 @@
     "folderAccess": {
       "menu": "Chia sẻ",
       "title": "Chia sẻ",
-      "subtitle": "Áp dụng cho các tài liệu trong thư mục \"{{folder}}\" và thư mục con.",
-      "subtitle_untitled": "Áp dụng cho các tài liệu trong thư mục này và thư mục con.",
+      "subtitle": "Các tài liệu trong thư mục \"{{folder}}\" và các thư mục con.",
+      "subtitle_untitled": "Các tài liệu trong thư mục này và các thư mục con.",
       "fixed_sentence": "Áp dụng cho các tài liệu hiện có. Tài liệu thêm sau không tự nhận quyền.",
       "mode_label": "Cách áp dụng",
       "mode_merge": "Thêm vào quyền đã có",
@@ -12040,6 +12040,7 @@
       "warning_to_private": "Workspace không còn trong danh sách: các tài liệu sẽ chuyển về Riêng tư.",
       "warning_downgrade_one": "{{count}} người bị hạ mức quyền ở ít nhất một tài liệu.",
       "warning_downgrade_other": "{{count}} người bị hạ mức quyền ở ít nhất một tài liệu.",
+      "warning_downgrade_generic": "Một số quyền trên các tài liệu này sẽ bị hạ mức.",
       "nothing_to_change": "Không có gì thay đổi: quyền hiện tại đã đúng với danh sách này.",
       "toast_done_one": "Đã đổi quyền {{count}} tài liệu",
       "toast_done_other": "Đã đổi quyền {{count}} tài liệu",
