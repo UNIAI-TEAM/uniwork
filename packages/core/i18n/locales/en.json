@@ -3591,7 +3591,13 @@
         "toMeetings": "Back to meetings",
         "phoneLine": "{{name}} · {{time}} · {{duration}}"
       },
-      "removed": { "title": "You were removed from the room" },
+      "removed": {
+        "title": "You were removed from the room",
+        "locked": "You can't rejoin",
+        "message": "Message the host",
+        "line": "{{name}} · {{time}} · {{title}}",
+        "lineNoName": "{{time}} · {{title}}"
+      },
       "rejoin": "Rejoin",
       "mediaGroup": "Rejoin with your last devices",
       "micOn": "Mic on",

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarCheck, UserX } from "lucide-react";
+import { CalendarCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
 import { formatMeetingWindow, meetingLocale } from "../meeting-datetime";
@@ -11,6 +11,7 @@ import { ExitHandedOver } from "./exit-handed-over";
 import { ExitHostLeft } from "./exit-host-left";
 import { BackToMeetingButton, ExitLeft } from "./exit-left";
 import { ExitPresenceCard } from "./exit-presence-card";
+import { ExitRemoved } from "./exit-removed";
 import { ExitRating } from "./exit-rating";
 import { ExitHeading, ExitMark, ExitShell } from "./exit-shell";
 import { useRoomPresence } from "./use-room-presence";
@@ -77,15 +78,17 @@ export function MeetingExitScreen(props: MeetingExitScreenProps) {
         {rating}
       </>
     );
-  } else if (kind === "removed") {
+  } else if (exit.kind === "removed") {
     body = (
-      <>
-        <ExitMark className="bg-destructive-soft text-destructive-soft-foreground">
-          <UserX aria-hidden />
-        </ExitMark>
-        <ExitHeading title={t("meetings.exit.removed.title")} />
-        <BackToMeetingButton onClick={props.onBackToMeeting} />
-      </>
+      <ExitRemoved
+        meetingId={meetingId}
+        meetingTitle={title}
+        workspaceId={props.workspaceId}
+        guestMode={props.guestMode}
+        selfParticipantId={props.selfParticipantId}
+        at={exit.at}
+        onBackToMeeting={props.onBackToMeeting}
+      />
     );
   } else if (exit.kind === "leftHost" && meeting && props.workspaceId) {
     const { media } = exit;

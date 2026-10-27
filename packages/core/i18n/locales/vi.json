@@ -3590,7 +3590,13 @@
         "toMeetings": "Về danh sách cuộc họp",
         "phoneLine": "{{name}} · {{time}} · {{duration}}"
       },
-      "removed": { "title": "Bạn đã được mời ra khỏi phòng" },
+      "removed": {
+        "title": "Bạn đã được mời ra khỏi phòng",
+        "locked": "Không vào lại được",
+        "message": "Nhắn cho chủ trì",
+        "line": "{{name}} · {{time}} · {{title}}",
+        "lineNoName": "{{time}} · {{title}}"
+      },
       "rejoin": "Vào lại",
       "mediaGroup": "Vào lại với thiết bị lần trước",
       "micOn": "Mic bật",
