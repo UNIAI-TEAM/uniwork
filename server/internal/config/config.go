@@ -155,6 +155,18 @@ type Config struct {
 	APIPublicURL       string
 	GoogleClientID     string
 	GoogleClientSecret string
+	// GoogleNativeClientIDs are the app's own Google OAuth clients, iOS and
+	// Android, in the web client's Google Cloud project
+	// (GOOGLE_NATIVE_CLIENT_IDS, ADR 0047 §8): an ID token the app's SDK hands
+	// over must name one of them as its authorized party (azp). None keeps
+	// POST /auth/native/google at 503 and /auth/providers google_native false.
+	GoogleNativeClientIDs []string
+	// NativeSignInClients are the public native clients the app's own sign-in
+	// doors (/auth/native/*, POST /auth/apple/native) take
+	// (NATIVE_SIGN_IN_CLIENTS, default uniwork-chat-mobile). Each must also be
+	// a desktop auth client; the desktop apps and Office sign in through the
+	// web page instead.
+	NativeSignInClients []string
 	// Sign in with Apple on the phone (ADR 0041): the bundle ids an identity
 	// token may be issued to (APPLE_SIWA_AUDIENCES), and the team, key id
 	// and .p8 key that sign the client secret Apple's token and revoke
@@ -293,6 +305,10 @@ func (c Config) DevVerificationCode() string {
 func (c Config) GoogleEnabled() bool {
 	return c.GoogleClientID != "" && c.GoogleClientSecret != ""
 }
+
+// GoogleNativeEnabled: the app's Google clients are named, so the app's ID
+// tokens can be checked for an authorized party that is the app.
+func (c Config) GoogleNativeEnabled() bool { return len(c.GoogleNativeClientIDs) > 0 }
 
 // AppleSignInEnabled: at least one bundle id may sign in with Apple.
 func (c Config) AppleSignInEnabled() bool { return len(c.AppleSignInAudiences) > 0 }
@@ -519,6 +535,8 @@ func Load() (Config, error) {
 		APIPublicURL:                  getenv("API_PUBLIC_URL", "http://localhost:8080"),
 		GoogleClientID:                os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret:            os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GoogleNativeClientIDs:         splitList(os.Getenv("GOOGLE_NATIVE_CLIENT_IDS")),
+		NativeSignInClients:           splitList(getenv("NATIVE_SIGN_IN_CLIENTS", "uniwork-chat-mobile")),
 		AppleSignInAudiences:          splitList(os.Getenv("APPLE_SIWA_AUDIENCES")),
 		AppleSignInTeamID:             os.Getenv("APPLE_SIWA_TEAM_ID"),
 		AppleSignInKeyID:              os.Getenv("APPLE_SIWA_KEY_ID"),
@@ -584,6 +602,11 @@ func Load() (Config, error) {
 		// The two doors verify tokens for different audiences (ADR 0047 §7):
 		// listed in both, a token the web was issued would open the app's.
 		return c, fmt.Errorf("APPLE_SIWA_WEB_CLIENT_ID %q must not be listed in APPLE_SIWA_AUDIENCES: the web and the app take tokens for different audiences", c.AppleSignInWebClientID)
+	}
+	if c.GoogleClientID != "" && slices.Contains(c.GoogleNativeClientIDs, c.GoogleClientID) {
+		// The app's door takes only an app client as the authorized party
+		// (ADR 0047 §8): listed there, the web client's tokens would open it.
+		return c, fmt.Errorf("GOOGLE_CLIENT_ID %q must not be listed in GOOGLE_NATIVE_CLIENT_IDS: the web and the app take tokens issued to different clients", c.GoogleClientID)
 	}
 	if c.JWTSecret == "" {
 		return c, fmt.Errorf("JWT_SECRET is required")

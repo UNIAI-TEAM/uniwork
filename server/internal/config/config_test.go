@@ -22,7 +22,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("PREVIEW_ASSET_MAX_BYTES", "10485760")
 	// make check exports the app's .env; pin everything Load reads so a local
 	// value (API_PUBLIC_URL on another port, a dev code) cannot leak in.
-	for _, k := range []string{"APP_ENV", "EXPO_ACCESS_TOKEN", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK", "FOLDER_UPLOAD_MAX_FILES", "FOLDER_UPLOAD_MAX_BYTES", "APPLE_SIWA_AUDIENCES", "APPLE_SIWA_TEAM_ID", "APPLE_SIWA_KEY_ID", "APPLE_SIWA_PRIVATE_KEY", "APPLE_SIWA_WEB_CLIENT_ID", "APNS_KEY_ID", "APNS_TEAM_ID", "APNS_PRIVATE_KEY", "APNS_VOIP_TOPIC"} {
+	for _, k := range []string{"APP_ENV", "EXPO_ACCESS_TOKEN", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM", "DOCUMENT_COMMIT_INTENT_CLAIM_TTL", "DOCUMENT_COMMIT_INTENT_RETENTION", "DOCUMENT_COMMIT_INTENT_SWEEP_TICK", "FOLDER_UPLOAD_MAX_FILES", "FOLDER_UPLOAD_MAX_BYTES", "APPLE_SIWA_AUDIENCES", "APPLE_SIWA_TEAM_ID", "APPLE_SIWA_KEY_ID", "APPLE_SIWA_PRIVATE_KEY", "APPLE_SIWA_WEB_CLIENT_ID", "GOOGLE_NATIVE_CLIENT_IDS", "NATIVE_SIGN_IN_CLIENTS", "APNS_KEY_ID", "APNS_TEAM_ID", "APNS_PRIVATE_KEY", "APNS_VOIP_TOPIC"} {
 		t.Setenv(k, "")
 	}
 }
@@ -677,6 +677,48 @@ func TestAppleWebNeedsTheServicesIDAndTheKey(t *testing.T) {
 	t.Setenv("APPLE_SIWA_AUDIENCES", "com.uniworkos.chat,com.uniworkos.web")
 	if _, err = Load(); err == nil || !strings.Contains(err.Error(), "APPLE_SIWA_AUDIENCES") {
 		t.Fatalf("the Services ID among the app's audiences: %v", err)
+	}
+}
+
+// The app's own sign-in doors take only the native clients the server names
+// (ADR 0047 §8): UniChat mobile by default, never the desktop apps or Office,
+// which sign in through the web page.
+func TestNativeSignInClientsDefaultToTheMobileApp(t *testing.T) {
+	setRequired(t)
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.NativeSignInClients) != 1 || c.NativeSignInClients[0] != "uniwork-chat-mobile" {
+		t.Fatalf("default native clients = %v", c.NativeSignInClients)
+	}
+	t.Setenv("NATIVE_SIGN_IN_CLIENTS", " uniwork-chat-mobile , uniwork-chat-mobile-staging ")
+	if c, err = Load(); err != nil || len(c.NativeSignInClients) != 2 || c.NativeSignInClients[1] != "uniwork-chat-mobile-staging" {
+		t.Fatalf("configured native clients = %v %v", c.NativeSignInClients, err)
+	}
+}
+
+// The app's Google door is on once its iOS and Android clients are named, and
+// the web client is never one of them: the app's verifier takes only an app
+// client as the authorized party, so a token the web was issued would open
+// the app's door if it were listed (ADR 0047 §8).
+func TestGoogleNativeClientIDsNeverNameTheWebClient(t *testing.T) {
+	setRequired(t)
+	c, err := Load()
+	if err != nil || c.GoogleNativeEnabled() {
+		t.Fatalf("no app clients: enabled %v, %v", c.GoogleNativeEnabled(), err)
+	}
+	t.Setenv("GOOGLE_NATIVE_CLIENT_IDS", "ios.apps.googleusercontent.com, android.apps.googleusercontent.com")
+	if c, err = Load(); err != nil || !c.GoogleNativeEnabled() || len(c.GoogleNativeClientIDs) != 2 {
+		t.Fatalf("app clients without the web's: %v %v", c.GoogleNativeClientIDs, err)
+	}
+	t.Setenv("GOOGLE_CLIENT_ID", "web.apps.googleusercontent.com")
+	if _, err = Load(); err != nil {
+		t.Fatalf("a web client beside the app's: %v", err)
+	}
+	t.Setenv("GOOGLE_NATIVE_CLIENT_IDS", "ios.apps.googleusercontent.com,web.apps.googleusercontent.com")
+	if _, err = Load(); err == nil || !strings.Contains(err.Error(), "GOOGLE_NATIVE_CLIENT_IDS") {
+		t.Fatalf("the web client among the app's: %v", err)
 	}
 }
 
