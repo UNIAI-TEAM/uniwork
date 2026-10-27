@@ -832,6 +832,12 @@ func main() {
 		driveTaskProposalSvc.SetMetrics(reg.Drive)
 	}
 	auditSvc.SetDriveProposalHistoryAuthorizer(driveTaskProposalSvc.AuthorizeHistory)
+	driveProposalSweep := service.NewDriveProposalRetentionSweeper(driveTaskProposalSvc, log)
+	if reg != nil {
+		driveProposalSweep.SetMetrics(reg.Drive)
+	}
+	driveProposalSweepDone := make(chan struct{})
+	go func() { driveProposalSweep.Run(runCtx); close(driveProposalSweepDone) }()
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)
@@ -1104,6 +1110,11 @@ func main() {
 	case <-driveWorkersDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("drive: workers did not stop in time")
+	}
+	select {
+	case <-driveProposalSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("drive: proposal retention sweep did not stop in time")
 	}
 	select {
 	case <-officeDone:
