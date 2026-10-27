@@ -471,7 +471,7 @@ func TestAskAgentListsSayWhenCut(t *testing.T) {
 // Without SetReadTools a tool that reads through the connector is a server
 // fault, never a panic and never an answer the model could act on.
 func TestAskAgentToolsNeedTheReadPath(t *testing.T) {
-	needs := []string{"list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects", "get_project", "get_document", "list_members"}
+	needs := []string{"list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects", "get_project", "get_document", "list_documents", "list_members"}
 	for _, tool := range (&AskUNIService{}).agentTools() {
 		if !slices.Contains(needs, tool.Name) {
 			continue

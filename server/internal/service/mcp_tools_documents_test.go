@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -1827,5 +1828,34 @@ func TestMcpDocumentWriteSchemasHoldTheLimits(t *testing.T) {
 	}
 	if got, _ := json.Marshal(prop("update_document", "mode", "enum")); string(got) != `["append","replace"]` {
 		t.Errorf("update_document mode enum = %s", got)
+	}
+}
+
+// An Office read waits on the process's one file-read slot; when it cannot take
+// it the file is not opened, so no download row is written.
+func TestMcpGetDocumentOfficeReadNeedsTheFileReadSlot(t *testing.T) {
+	x := newMcpToolWorld(t)
+	const w = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"`
+	id := x.textFile(t, "bao-gia.docx", officeFile(t, map[string]string{"word/document.xml": `<w:document ` + w + `><w:body><w:p><w:r><w:t>Báo giá</w:t></w:r></w:p></w:body></w:document>`}))
+	x.tools.ask.fileReads <- struct{}{}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	d, err := x.tools.GetDocument(ctx, x.p, mcpDocumentRef{WorkspaceID: x.w.ID, DocumentID: id})
+	<-x.tools.ask.fileReads
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Note != mcpFileBusyNote || d.Content != "" {
+		t.Errorf("busy read = %+v", d)
+	}
+	var n int
+	if err := x.tools.ask.pool.QueryRow(context.Background(), `SELECT count(*) FROM document_access_logs WHERE document_id = $1 AND action = $2`, id, DocumentAccessDownload).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("a file that was not opened wrote %d download rows", n)
+	}
+	if d := x.getDoc(t, id); d.Content != "Báo giá" {
+		t.Errorf("read after the slot was freed = %+v", d)
 	}
 }

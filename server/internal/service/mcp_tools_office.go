@@ -49,16 +49,11 @@ func mcpOfficeText(d attachtext.Doc) (string, bool) {
 	cut := read < total
 	if read == 0 && total > 0 {
 		// One part longer than the whole budget: show its start rather than a bare marker.
-		for _, part := range d.Parts {
-			if part.Text == "" {
-				continue
-			}
-			first := part.Text
-			if part.Label != "" {
-				first = part.Label + "\n" + part.Text
-			}
-			return capRunes(first, mcpMaxItemRunes, mcpItemCut), true
-		}
+		return capRunes(firstUnit(d), mcpMaxItemRunes, mcpItemCut), true
+	}
+	if read == 0 && d.Omitted > 0 {
+		// Text exists but none of it was kept: a marker alone says nothing.
+		return "", true
 	}
 	if capped := capRunes(text, mcpMaxItemRunes, mcpItemCut); capped != text {
 		return capped, true

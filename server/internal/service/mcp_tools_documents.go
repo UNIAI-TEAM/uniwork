@@ -206,12 +206,12 @@ func (s *McpToolService) GetDocument(ctx context.Context, p McpPrincipal, in mcp
 			s.officeDocument(ctx, p, v, &out)
 			break
 		}
-		raw, err := s.fileHead(ctx, p, v.Document.ID)
+		raw, err := s.fileRead(ctx, p, v.Document.ID, mcpTextReadBytes+1)
 		if err != nil {
 			// The name and type were readable; the bytes not being so (storage down,
 			// a file not ready) is no reason to fail the call.
 			slog.WarnContext(ctx, "mcp get_document: file text not read", "error", err, "document_id", v.Document.ID)
-			out.Note = "the text of this file could not be read just now, so only its name and type are shown; try again later"
+			out.Note = mcpFileBusyNote
 			break
 		}
 		text, truncated, ok := mcpFileText(raw)
@@ -230,7 +230,7 @@ const (
 	mcpOfficeUnreadableNote = "the text of this file could not be read (damaged, encrypted or too complex), so only its name and type are shown"
 	mcpOfficeTooLargeNote   = "this file is larger than 20 MiB, so only its name and type are shown; open it in UniWork"
 	mcpNotTextNote          = "this file type cannot be read as text here (md, html, txt, docx, xlsx, pptx, odt and csv can), so only its name and type are shown"
-	mcpOfficeBusyNote       = "the text of this file could not be read just now, so only its name and type are shown; try again later"
+	mcpFileBusyNote         = "the text of this file could not be read just now, so only its name and type are shown; try again later"
 )
 
 // officeDocument fills out with the text of an Office file, or with the note
@@ -245,7 +245,15 @@ func (s *McpToolService) officeDocument(ctx context.Context, p McpPrincipal, v D
 		out.Note = mcpOfficeTooLargeNote
 		return
 	}
-	raw, err := s.fileBytes(ctx, p, v.Document.ID)
+	// Office reads share Ask UNI's one process-wide file-read slot: the pod is one
+	// 512 MiB process and a read holds up to 20 MiB plus its extraction.
+	if err := takeSlot(ctx, s.ask.fileReads); err != nil {
+		slog.WarnContext(ctx, "mcp get_document: file read slot not taken", "error", err, "document_id", v.Document.ID)
+		out.Note = mcpFileBusyNote
+		return
+	}
+	defer func() { <-s.ask.fileReads }()
+	raw, err := s.fileRead(ctx, p, v.Document.ID, mcpOfficeReadBytes+1)
 	if err == nil && len(raw) > mcpOfficeReadBytes {
 		err = errors.New("file larger than the read ceiling")
 	}
@@ -260,38 +268,32 @@ func (s *McpToolService) officeDocument(ctx context.Context, p McpPrincipal, v D
 	if err != nil {
 		// The name and type were readable; the bytes not being so is no reason to fail the call.
 		slog.WarnContext(ctx, "mcp get_document: office text not read", "error", err, "document_id", v.Document.ID)
-		out.Note = mcpOfficeBusyNote
+		out.Note = mcpFileBusyNote
 		return
 	}
 	out.Format = "extracted"
-	if text, truncated := mcpOfficeText(doc); text == "" {
+	text, truncated := mcpOfficeText(doc)
+	switch {
+	case text == "" && truncated:
+		// Text exists but none of it was kept (a first part over the retain cap).
+		out.Note = mcpOfficeUnreadableNote
+	case text == "":
 		out.Note = mcpOfficeEmptyNote
-	} else {
+	default:
 		out.Content, out.Truncated, out.Note = text, truncated, mcpOfficeNote
 	}
 }
 
-// fileBytes reads a file document's current version, as the person, up to one
-// byte past mcpOfficeReadBytes so that "too large" is known.
-func (s *McpToolService) fileBytes(ctx context.Context, p McpPrincipal, documentID string) ([]byte, error) {
-	f, err := s.docs.OpenDocumentFile(ctx, Human(p.UserID), documentID, 0, DocumentByteRange{Length: mcpOfficeReadBytes + 1}, DocumentAccessDownload)
-	if err != nil {
-		return nil, hidden(err)
-	}
-	defer f.Reader.Close()
-	return io.ReadAll(io.LimitReader(f.Reader.Body, mcpOfficeReadBytes+1))
-}
-
-// fileHead reads the start of a file document's current version, as the
-// person: at most mcpTextReadBytes+1 bytes, one more than shown so that "more
+// fileRead reads the start of a file document's current version, as the
+// person: at most n bytes. Callers pass one more than they show so that "more
 // came" is known.
-func (s *McpToolService) fileHead(ctx context.Context, p McpPrincipal, documentID string) ([]byte, error) {
-	f, err := s.docs.OpenDocumentFile(ctx, Human(p.UserID), documentID, 0, DocumentByteRange{Length: mcpTextReadBytes + 1}, DocumentAccessDownload)
+func (s *McpToolService) fileRead(ctx context.Context, p McpPrincipal, documentID string, n int64) ([]byte, error) {
+	f, err := s.docs.OpenDocumentFile(ctx, Human(p.UserID), documentID, 0, DocumentByteRange{Length: n}, DocumentAccessDownload)
 	if err != nil {
 		return nil, hidden(err)
 	}
 	defer f.Reader.Close()
-	return io.ReadAll(io.LimitReader(f.Reader.Body, mcpTextReadBytes+1))
+	return io.ReadAll(io.LimitReader(f.Reader.Body, n))
 }
 
 type mcpListDocumentsIn struct {

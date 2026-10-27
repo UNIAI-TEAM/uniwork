@@ -68,3 +68,29 @@ func TestMcpOfficeTextShowsTheStartOfAnOversizedPart(t *testing.T) {
 		t.Errorf("oversized part: cut=%v runes=%d", cut, utf8.RuneCountInString(text))
 	}
 }
+
+// Fit drops later parts yet the kept text is far under the cap: the cut is marked.
+func TestMcpOfficeTextMarksPartsFitLeftOut(t *testing.T) {
+	var d attachtext.Doc
+	for i := 0; i < 400; i++ {
+		d.Parts = append(d.Parts, attachtext.Part{Text: fmt.Sprintf("Dòng %03d %s", i, strings.Repeat("x", 100))})
+	}
+	text, cut := mcpOfficeText(d)
+	if !cut || !strings.HasSuffix(text, "\n"+mcpItemCut) || !strings.HasPrefix(text, "Dòng 000") || utf8.RuneCountInString(text) >= mcpMaxItemRunes {
+		t.Errorf("cut=%v runes=%d", cut, utf8.RuneCountInString(text))
+	}
+}
+
+// Text was counted but none of it kept: no marker-only answer.
+func TestMcpOfficeTextWithNothingKept(t *testing.T) {
+	if text, cut := mcpOfficeText(attachtext.Doc{Omitted: 1}); text != "" || !cut {
+		t.Errorf("nothing kept = %q, %v", text, cut)
+	}
+}
+
+// The too-large note quotes the cap in words; it must follow the constant.
+func TestMcpOfficeTooLargeNoteQuotesTheCap(t *testing.T) {
+	if mcpOfficeReadBytes != 20<<20 {
+		t.Errorf("mcpOfficeReadBytes = %d: update mcpOfficeTooLargeNote, which says 20 MiB", mcpOfficeReadBytes)
+	}
+}
