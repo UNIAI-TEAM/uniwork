@@ -130,12 +130,12 @@ export function DriveProposalItemCard({
     t,
   );
 
-  const summaryLineText = formatDriveProposalSummaryLine(
+  const summaryParts = formatDriveProposalSummaryLine(
     draft.goal,
     draft.checklist,
     t,
   );
-  const quoteSourceLineText = formatDriveProposalQuoteSourceLine(
+  const quoteSourceParts = formatDriveProposalQuoteSourceLine(
     draft.excerpt,
     fileName,
     t,
@@ -187,29 +187,38 @@ export function DriveProposalItemCard({
               </span>
             ) : null}
           </div>
-          {summaryLineText || quoteSourceLineText ? (
+          {summaryParts || quoteSourceParts ? (
             <div className="flex min-w-0 flex-col gap-0.5">
-              {summaryLineText ? (
+              {summaryParts ? (
                 <p
                   data-testid={`drive-proposal-summary-${draft.index}`}
-                  title={summaryLineText}
-                  className="truncate text-caption text-muted-foreground"
+                  title={summaryParts.fullText}
+                  className="flex min-w-0 items-center whitespace-pre text-caption text-muted-foreground"
                 >
-                  {summaryLineText}
+                  {summaryParts.goalPart ? (
+                    <span className="min-w-0 truncate">{summaryParts.goalPart}</span>
+                  ) : null}
+                  {summaryParts.tailPart ? (
+                    <span className="shrink-0">{summaryParts.tailPart}</span>
+                  ) : null}
                 </p>
               ) : null}
-              {quoteSourceLineText ? (
+              {quoteSourceParts ? (
                 <p
                   data-testid={`drive-proposal-quote-source-${draft.index}`}
-                  title={quoteSourceLineText}
-                  className="truncate text-caption text-muted-foreground"
+                  title={quoteSourceParts.fullText}
+                  className="flex min-w-0 items-center whitespace-pre text-caption text-muted-foreground"
                 >
-                  {quoteSourceLineText}
+                  <span className="min-w-0 truncate">{quoteSourceParts.quotePart}</span>
+                  {quoteSourceParts.fileTailPart ? (
+                    <span className="max-w-[50%] shrink-0 truncate">
+                      {quoteSourceParts.fileTailPart}
+                    </span>
+                  ) : null}
                 </p>
               ) : null}
             </div>
           ) : null}
-
 
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
             <div className="flex min-w-0 flex-col gap-1">
@@ -339,12 +348,9 @@ export function DriveProposalItemCard({
               type="button"
               aria-expanded={descOpen}
               onClick={() => setDescOpen((prev) => !prev)}
-              className="flex min-h-11 w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-caption text-foreground hover:bg-accent/40"
+              className="flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-caption text-foreground hover:bg-accent/40"
             >
               <span className="font-semibold">{t("drive.proposals.review.description_label")}</span>
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {draft.goal}
-              </span>
               {descOpen ? (
                 <ChevronUp className="size-4 shrink-0 text-muted-foreground" aria-hidden />
               ) : (

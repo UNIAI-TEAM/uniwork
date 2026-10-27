@@ -129,44 +129,69 @@ export function formatDriveProposalSourceLine(
   });
 }
 
+export interface DriveProposalSummaryParts {
+  goalPart: string;
+  tailPart: string;
+  fullText: string;
+}
+
 export function formatDriveProposalSummaryLine(
   goal: string,
   checklist: readonly string[],
   t: (key: string, opts?: Record<string, unknown>) => string,
-): string {
+): DriveProposalSummaryParts | null {
   const normalizedGoal = goal.replace(/\s+/g, " ").trim();
-  const subtaskCount = checklist.filter((item) => item.trim().length > 0).length;
+  const todoCount = checklist.filter((item) => item.trim().length > 0).length;
 
   const goalPart = normalizedGoal
     ? t("drive.proposals.review.summary_goal", { goal: normalizedGoal })
     : "";
-  const subtasksPart =
-    subtaskCount > 0
-      ? t("drive.proposals.review.summary_subtasks", { count: subtaskCount })
+  const todosText =
+    todoCount > 0
+      ? t("drive.proposals.review.summary_todos", { count: todoCount })
       : "";
+  const tailPart = todosText
+    ? goalPart
+      ? t("drive.proposals.review.summary_todos_tail", { todos: todosText })
+      : todosText
+    : "";
 
-  if (goalPart && subtasksPart) {
-    return t("drive.proposals.review.summary_goal_with_subtasks", {
-      goalPart,
-      subtasksPart,
-    });
+  const fullText = `${goalPart}${tailPart}`;
+  if (!fullText) {
+    return null;
   }
-  return goalPart || subtasksPart;
+  return { goalPart, tailPart, fullText };
+}
+
+export interface DriveProposalQuoteSourceParts {
+  quotePart: string;
+  fileTailPart: string;
+  fullText: string;
 }
 
 export function formatDriveProposalQuoteSourceLine(
   excerpt: DriveProposalExcerpt,
   fileName: string,
   t: (key: string, opts?: Record<string, unknown>) => string,
-): string {
+): DriveProposalQuoteSourceParts | null {
   const normalizedQuote = excerpt.quote.replace(/\s+/g, " ").trim();
   if (!normalizedQuote) {
-    return "";
+    return null;
   }
-  return t("drive.proposals.review.summary_quote_source", {
+  const quotePart = t("drive.proposals.review.summary_quote_only", {
     quote: normalizedQuote,
-    fileName: fileName.trim(),
   });
+  const trimmedFileName = fileName.replace(/\s+/g, " ").trim();
+  const fileTailPart = trimmedFileName
+    ? t("drive.proposals.review.summary_quote_file_tail", {
+        fileName: trimmedFileName,
+      })
+    : "";
+  return {
+    quotePart,
+    fileTailPart,
+    fullText: `${quotePart}${fileTailPart}`,
+  };
 }
 
 /**
