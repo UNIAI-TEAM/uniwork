@@ -664,6 +664,9 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		}
 		return tn.get(t, "message")
 	case "{proposalID}":
+		if under("/drive-task-proposals/") {
+			return tn.get(t, "driveProposal")
+		}
 		return tn.get(t, "aiProposal")
 	case "{memoryID}":
 		return tn.get(t, "aiMemory")

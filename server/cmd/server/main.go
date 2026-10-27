@@ -825,6 +825,13 @@ func main() {
 	driveContentSvc := service.NewDriveContentService(pool, q, wsSvc, driveFileSvc, driveConnectionSvc, nil, driveExtractor)
 	driveContentSvc.SetLogger(log)
 	askUNI.SetDriveContentReader(driveContentSvc)
+	driveTaskProposalSvc := service.NewDriveTaskProposalService(pool, q, wsSvc, driveFileSvc, driveConnectionSvc, driveContentSvc, gateway)
+	driveTaskProposalSvc.SetLogger(log)
+	driveTaskProposalSvc.SetFlags(flags)
+	if reg != nil {
+		driveTaskProposalSvc.SetMetrics(reg.Drive)
+	}
+	auditSvc.SetDriveProposalHistoryAuthorizer(driveTaskProposalSvc.AuthorizeHistory)
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)
@@ -898,6 +905,7 @@ func main() {
 		EmailHub:            emailHubSvc,
 		DriveConnections:    driveConnectionSvc,
 		DriveFiles:          driveFileSvc,
+		DriveTaskProposals:  driveTaskProposalSvc,
 		Agents:              agentSvc,
 		Actors:              actorSvc,
 		Audit:               auditSvc,

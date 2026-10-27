@@ -2261,6 +2261,88 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			assertTaskDriveAuditMetadata(t, f, audit.ActionTaskDriveFileUnlinked, task.ID, res[0].File.ID, "Task Unlink Doc", "drive-taskunlink@example.com")
 			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.task_linked", wantPayload)
 		},
+		audit.ActionDriveTaskProposalCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			propSvc, fileSvc, connSvc, googleSrv := newAuditDriveProposalService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-prop-create", "drive-prop-create@example.com")
+			googleSrv.SetFile("ext-audit-prop-create", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-prop-create", Name: "Proposal Plan", MimeType: DriveMimeGoogleDoc},
+				ExportByMime: map[string][]byte{
+					DriveMimeMarkdown: []byte("# Proposal Plan\nSECRET_DOC_BODY_CREATE"),
+				},
+			})
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-prop-create"},
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			prop, err := propSvc.Propose(f.ctx, Human(f.owner.ID), w.ID, res[0].File.ID, ProposeDriveTasksInput{
+				Prompt: "Extract tasks",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalCreated, prop.ID, res[0].File.ID, "drive-prop-create@example.com", "fake-sub-prop-create", "", "SECRET_DOC_BODY_CREATE")
+		},
+		audit.ActionDriveTaskProposalDiscarded: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			propSvc, fileSvc, connSvc, googleSrv := newAuditDriveProposalService(t, f)
+			conn1 := seedAuditDriveConnection(t, f, connSvc, "fake-sub-prop-disc-1", "drive-prop-disc1@example.com")
+			conn2 := seedAuditDriveConnection(t, f, connSvc, "fake-sub-prop-disc-2", "drive-prop-disc2@example.com")
+			for _, id := range []string{"ext-audit-prop-user", "ext-audit-prop-unlink", "ext-audit-prop-disconn"} {
+				googleSrv.SetFile(id, FakeGoogleDriveFile{
+					Metadata: googleDriveFileJSON{ID: id, Name: "Doc " + id, MimeType: DriveMimeGoogleDoc},
+					ExportByMime: map[string][]byte{
+						DriveMimeMarkdown: []byte("# Doc\nSECRET_DOC_BODY_DISCARD"),
+					},
+				})
+			}
+			linked1, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn1.ID,
+				ExternalFileIDs: []string{"ext-audit-prop-user", "ext-audit-prop-unlink"},
+			})
+			if err != nil || len(linked1) != 2 {
+				t.Fatalf("Link conn1 = %+v, err=%v", linked1, err)
+			}
+			linked2, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn2.ID,
+				ExternalFileIDs: []string{"ext-audit-prop-disconn"},
+			})
+			if err != nil || len(linked2) != 1 {
+				t.Fatalf("Link conn2 = %+v, err=%v", linked2, err)
+			}
+			// 1. User discard (DELETE).
+			propUser, err := propSvc.Propose(f.ctx, Human(f.owner.ID), w.ID, linked1[0].File.ID, ProposeDriveTasksInput{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := propSvc.Discard(f.ctx, Human(f.owner.ID), w.ID, propUser.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalDiscarded, propUser.ID, linked1[0].File.ID, "drive-prop-disc1@example.com", "fake-sub-prop-disc-1", "user", "SECRET_DOC_BODY_DISCARD")
+
+			// 2. Unlink discard hook (reason = source_unlinked).
+			propUnlink, err := propSvc.Propose(f.ctx, Human(f.owner.ID), w.ID, linked1[1].File.ID, ProposeDriveTasksInput{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := fileSvc.Unlink(f.ctx, Human(f.owner.ID), w.ID, linked1[1].File.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalDiscarded, propUnlink.ID, linked1[1].File.ID, "drive-prop-disc1@example.com", "fake-sub-prop-disc-1", "source_unlinked", "SECRET_DOC_BODY_DISCARD")
+
+			// 3. Disconnect discard hook (reason = source_disconnected).
+			propDisconn, err := propSvc.Propose(f.ctx, Human(f.owner.ID), w.ID, linked2[0].File.ID, ProposeDriveTasksInput{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := connSvc.Disconnect(f.ctx, Human(f.owner.ID), w.ID, conn2.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalDiscarded, propDisconn.ID, linked2[0].File.ID, "drive-prop-disc2@example.com", "fake-sub-prop-disc-2", "source_disconnected", "SECRET_DOC_BODY_DISCARD")
+		},
 		// UNI-1853 M7: the host generates the meeting's AI summary.
 		audit.ActionMeetingSummaryCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2802,6 +2884,8 @@ func auditActions() []string {
 		audit.ActionDriveFileRebound,
 		audit.ActionTaskDriveFileLinked,
 		audit.ActionTaskDriveFileUnlinked,
+		audit.ActionDriveTaskProposalCreated,
+		audit.ActionDriveTaskProposalDiscarded,
 		audit.ActionMcpGrantCreated,
 		audit.ActionMcpGrantRevoked,
 		audit.ActionMcpGrantScopeChanged,
@@ -3662,6 +3746,43 @@ func assertTaskDriveAuditMetadata(t *testing.T, f *auditFixture, action, taskID,
 	}
 	if _, hasSub := meta["google_sub"]; hasSub {
 		t.Fatalf("%s metadata on task resource must not include google_sub: %+v", action, meta)
+	}
+}
+func newAuditDriveProposalService(t *testing.T, f *auditFixture) (*DriveTaskProposalService, *DriveFileService, *DriveConnectionService, *FakeGoogleDriveServer) {
+	t.Helper()
+	fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+	contentSvc := NewDriveContentService(f.pool, f.q, f.ws, fileSvc, connSvc, googleSrv.Client, nil)
+	gw := ai.NewGateway(f.q, &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{
+			Text:  `{"items":[{"title":"Follow up on plan","assignee_member_id":"","assignee_basis":"","priority":"high","priority_basis":"Urgent in doc","start_date":"","start_basis":"","due_date":"","due_basis":"","label_ids":[],"label_basis":"","goal":"Complete follow up","checklist":["Step 1"],"excerpt":{"section":"Sec 1","quote":"Short quote"},"blocked_by_indexes":[]}]}`,
+			Model: "fake",
+		}
+	}}, NewAIQuota(NewEntitlementService(f.pool, f.q)), nil, ai.Options{})
+	propSvc := NewDriveTaskProposalService(f.pool, f.q, f.ws, fileSvc, connSvc, contentSvc, gw)
+	return propSvc, fileSvc, connSvc, googleSrv
+}
+
+func assertDriveProposalAuditMetadata(t *testing.T, f *auditFixture, action, proposalID, wantFileID, wantEmail, wantSub, wantReason, forbiddenContent string) {
+	t.Helper()
+	var rawMeta []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = $2 AND resource_type = 'drive_task_proposal' AND resource_id = $3 LIMIT 1`,
+		f.orgID, action, proposalID,
+	).Scan(&rawMeta); err != nil {
+		t.Fatalf("query audit metadata for %s (%s): %v", action, proposalID, err)
+	}
+	if forbiddenContent != "" && bytes.Contains(rawMeta, []byte(forbiddenContent)) {
+		t.Fatalf("%s metadata leaked document content %q: %s", action, forbiddenContent, string(rawMeta))
+	}
+	var meta map[string]any
+	if err := json.Unmarshal(rawMeta, &meta); err != nil {
+		t.Fatalf("unmarshal audit metadata for %s: %v", action, err)
+	}
+	if meta["drive_file_id"] != wantFileID || meta["google_email"] != wantEmail || meta["google_sub"] != wantSub {
+		t.Fatalf("%s metadata = %+v, want drive_file_id=%q google_email=%q google_sub=%q", action, meta, wantFileID, wantEmail, wantSub)
+	}
+	if wantReason != "" && meta["reason"] != wantReason {
+		t.Fatalf("%s metadata reason = %v, want %q", action, meta["reason"], wantReason)
 	}
 }
 

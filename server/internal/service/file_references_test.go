@@ -28,9 +28,12 @@ var fileServiceTables = map[string]bool{"files": true, "file_upload_sessions": t
 // ids or non-FileService table row ids rather than FileService file ids, so
 // they must not join managedFileReferenceSources.
 var nonFileServiceIDColumns = map[string]string{
-	"drive_files.external_file_id":        "Google Drive file id, not a FileService id",
-	"drive_file_access.drive_file_id":     "drive_files row id, not a FileService id",
-	"drive_file_task_links.drive_file_id": "drive_files row id, not a FileService id",
+	"drive_files.external_file_id":               "Google Drive file id, not a FileService id",
+	"drive_file_access.drive_file_id":            "drive_files row id, not a FileService id",
+	"drive_file_task_links.drive_file_id":        "drive_files row id, not a FileService id",
+	"drive_task_proposals.drive_file_id":         "Drive ids, not FileService ids",
+	"drive_task_proposal_links.drive_file_id":    "Drive ids, not FileService ids",
+	"drive_task_proposal_links.external_file_id": "Drive ids, not FileService ids",
 }
 
 var (

@@ -99,6 +99,8 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 		}
 		b, _ := json.Marshal(MediaAnalysis{Text: "Phân tích thử nghiệm của " + itoa(parts) + " tệp."})
 		text = string(b)
+	case strings.Contains(req.System, "You extract up to 20 concrete follow-up tasks from a Google Drive document"):
+		text = `{"items":[{"title":"Theo dõi nội dung tài liệu","assignee_member_id":"","assignee_basis":"","priority":"medium","priority_basis":"Mục 1","start_date":"","start_basis":"","due_date":"","due_basis":"","label_ids":[],"label_basis":"","goal":"Thực hiện công việc nêu trong tài liệu.","checklist":["Rà soát nội dung"],"excerpt":{"section":"Mục 1","quote":"Nội dung thử nghiệm."},"blocked_by_indexes":[]}]}`
 	default:
 		b, _ := json.Marshal(MeetingSummary{Summary: "Bản tóm tắt thử nghiệm.", Decisions: []Decision{}, ActionItems: fakeNoteActionItems(last)})
 		text = string(b)

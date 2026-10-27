@@ -944,6 +944,9 @@ func (s *DriveConnectionService) Disconnect(ctx context.Context, actor Actor, wo
 	if err := s.enqueueGrantRevocationInTx(ctx, qtx, old.GoogleSub, old.RefreshTokenEnc); err != nil {
 		return err
 	}
+	if err := discardReadyProposalsForConnectionInTx(ctx, qtx, actor, old.ID, old.GoogleEmail, old.GoogleSub); err != nil {
+		return err
+	}
 
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: ws.OrganizationID,
@@ -1068,6 +1071,9 @@ func disconnectDriveConnectionsForUserInTx(ctx context.Context, qtx *db.Queries,
 		}
 	}
 	for _, r := range rows {
+		if err := discardReadyProposalsForConnectionInTx(ctx, qtx, actor, r.ID, r.GoogleEmail, r.GoogleSub); err != nil {
+			return nil, err
+		}
 		if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 			OrganizationID: r.OrganizationID,
 			Actor:          actor,
