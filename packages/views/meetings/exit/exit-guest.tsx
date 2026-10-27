@@ -91,8 +91,10 @@ export function GuestExitLeft({
     };
   }, [linkId, secret]);
 
-  const when = link.startsAt
-    ? new Date(link.startsAt).toLocaleString(locale, { weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+  // "Thứ Ba 27/10, 15:40": the day first, as the invite page writes it.
+  const starts = link.startsAt ? new Date(link.startsAt) : null;
+  const when = starts
+    ? `${starts.toLocaleDateString(locale, { weekday: "long", day: "2-digit", month: "2-digit" }).replace(",", "")}, ${starts.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false })}`
     : null;
   const chip = (on: boolean, icon: ReactNode, label: string) => (
     <span
@@ -197,10 +199,10 @@ export function GuestExitEnded({
           </div>
         ) : null}
         {rating}
-        <div className="mt-4 flex w-full flex-wrap items-center gap-3.5 rounded-2xl border border-border px-4.5 py-4 text-left">
+        <div className="mt-4 flex w-full flex-wrap items-center gap-3 rounded-2xl border border-border px-4 py-4 text-left">
           <Logo variant="mark" size={26} decorative />
-          <span className="min-w-0 flex-[1_1_12rem] text-body text-foreground">{t("meetings.exit.guest.pitch")}</span>
-          <ButtonLink href={paths.register()} variant="outline" className="min-h-10">
+          <span className="min-w-0 flex-[1_1_12rem] text-label text-foreground">{t("meetings.exit.guest.pitch")}</span>
+          <ButtonLink href={paths.register()} variant="outline" className="min-h-10 px-3">
             {t("meetings.exit.guest.tryCta")}
           </ButtonLink>
         </div>

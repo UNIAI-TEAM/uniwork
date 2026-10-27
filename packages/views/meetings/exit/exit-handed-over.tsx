@@ -31,14 +31,14 @@ export function ExitHandedOver({
   const story = (
     <>
       <div role="img" aria-label={t("meetings.exit.handedOver.arrow", { name: toName })} className="flex items-center gap-4">
-        <span aria-hidden className="size-14 opacity-80">
-          <MeetingPersonAvatar name={myName} size="stage" />
+        <span aria-hidden className="block size-14 opacity-80 [container-type:size]">
+          <MeetingPersonAvatar name={myName} size="stage" className="size-full" />
         </span>
         <span aria-hidden className="flex size-10 items-center justify-center rounded-full bg-brand-subtle text-brand-subtle-foreground">
           <ArrowRight className="size-4" />
         </span>
-        <span aria-hidden className="relative size-18 rounded-full ring-[3px] ring-primary ring-offset-4 ring-offset-background">
-          <MeetingPersonAvatar name={toName} size="stage" />
+        <span aria-hidden className="relative block size-18 rounded-full ring-[3px] ring-primary ring-offset-4 ring-offset-background [container-type:size]">
+          <MeetingPersonAvatar name={toName} size="stage" className="size-full" />
           <span className="absolute -right-1.5 -bottom-1 flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground ring-[3px] ring-background">
             <Crown className="size-3.5" />
           </span>

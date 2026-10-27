@@ -31,8 +31,9 @@ export function GuestTallyProbe({ tally }: { tally: GuestTally }) {
       tally.since = null;
     };
   }, [tally]);
+  // The people the guest met: not themselves, and only once a name has arrived.
   useEffect(() => {
-    for (const p of people) tally.seen.set(p.identity, p.name || p.identity);
+    for (const p of people) if (!p.isLocal && p.name) tally.seen.set(p.identity, p.name);
   }, [people, tally]);
   return null;
 }
