@@ -5,6 +5,8 @@ import { setAccessToken } from "../session";
 import {
   getDriveFile,
   listDriveFiles,
+  listDriveFolders,
+  nameDriveFolder,
   rebindDriveFile,
   unlinkDriveFile,
 } from "./drive-library";
@@ -307,5 +309,92 @@ describe("drive-library endpoints", () => {
   it("rebindDriveFile returns null on a malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ file: null }));
     await expect(rebindDriveFile("ws1", "df1", { connection_id: "conn2" })).resolves.toBeNull();
+  });
+  it("listDriveFolders asks for one connection and parses the groups", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        folders: [
+          { id: "fld1", name: "Tài liệu dự án", file_count: 3 },
+          { id: "fld2", name: null, file_count: 1 },
+          { id: null, name: null, file_count: 2 },
+        ],
+      }),
+    );
+    const out = await listDriveFolders("ws1", { connection_id: "conn 1" });
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/ws1/drive-folders?drive_connection_id=conn+1",
+    );
+    expect(out).toEqual([
+      { id: "fld1", name: "Tài liệu dự án", file_count: 3 },
+      { id: "fld2", name: null, file_count: 1 },
+      { id: null, name: null, file_count: 2 },
+    ]);
+  });
+
+  it("listDriveFolders drops malformed entries and keeps the rest", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        folders: [
+          { id: "fld1", name: 7, file_count: 2 },
+          { id: 5, name: "x", file_count: 1 },
+          { id: "fld3", name: "y", file_count: "many" },
+          { id: "", name: "z", file_count: 1 },
+          "nope",
+          null,
+        ],
+      }),
+    );
+    await expect(listDriveFolders("ws1")).resolves.toEqual([{ id: "fld1", name: null, file_count: 2 }]);
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe("http://api.test/api/v1/workspaces/ws1/drive-folders");
+  });
+
+  it("listDriveFolders resolves null when the answer has no folder list", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ folders: "invalid" }));
+    await expect(listDriveFolders("ws1", { connection_id: "conn1" })).resolves.toBeNull();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ unexpected: true }));
+    await expect(listDriveFolders("ws1", { connection_id: "conn1" })).resolves.toBeNull();
+  });
+
+  it("listDriveFolders throws ApiError on 404 so the caller can fall back", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "not_found", message: "no" } }, 404));
+    await expect(listDriveFolders("ws1", { connection_id: "conn1" })).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("nameDriveFolder posts the connection and returns the named folder", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ drive_folder: { id: "fld/1", name: "Hợp đồng" }, updated_count: 4 }),
+    );
+    const out = await nameDriveFolder("ws1", "fld/1", { drive_connection_id: "conn1" });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/workspaces/ws1/drive-folders/fld%2F1/name");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ drive_connection_id: "conn1" });
+    expect(out).toEqual({ drive_folder: { id: "fld/1", name: "Hợp đồng" }, updated_count: 4 });
+  });
+
+  it("nameDriveFolder treats a malformed 200 as named with nothing to report", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ drive_folder: 5, updated_count: "x" }));
+    await expect(nameDriveFolder("ws1", "fld1", { drive_connection_id: "conn1" })).resolves.toEqual({
+      drive_folder: null,
+      updated_count: 0,
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json("ok"));
+    await expect(nameDriveFolder("ws1", "fld1", { drive_connection_id: "conn1" })).resolves.toEqual({
+      drive_folder: null,
+      updated_count: 0,
+    });
+  });
+
+  it("nameDriveFolder surfaces the server code on 404, 422 and 429", async () => {
+    for (const [status, code] of [
+      [404, "drive_folder_not_found"],
+      [422, "drive_folder_not_folder"],
+      [429, "drive_unavailable"],
+    ] as const) {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code, message: "x" } }, status));
+      await expect(nameDriveFolder("ws1", "fld1", { drive_connection_id: "conn1" })).rejects.toMatchObject({
+        status,
+      });
+    }
   });
 });

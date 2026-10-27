@@ -235,3 +235,72 @@ export async function rebindDriveFile(
   );
   return parsed ? narrowDriveFile(parsed.file) : null;
 }
+
+// One entry of GET drive-folders (drive-folder contract v3). `id` null is the group of files with no
+// parent folder; `name` null means the folder name is not readable yet.
+const DriveFolderGroupWireSchema = z.object({
+  id: z.string().min(1).nullable(),
+  name: z.unknown().optional().transform((v) => (typeof v === "string" ? v : null)),
+  file_count: z.number().int().nonnegative(),
+});
+export type DriveFolderGroup = z.infer<typeof DriveFolderGroupWireSchema>;
+
+// The list is parsed entry by entry so one bad entry is dropped instead of failing the whole list.
+const DriveFolderListWireSchema = z.object({
+  folders: z.array(z.unknown()),
+});
+
+const DriveFolderNamedWireSchema = z.object({
+  drive_folder: DriveFolderWireSchema.nullish().catch(null).transform((v) => v ?? null),
+  updated_count: z.number().catch(0),
+});
+export type DriveFolderNamed = z.infer<typeof DriveFolderNamedWireSchema>;
+
+/**
+ * GET /api/v1/workspaces/{workspaceID}/drive-folders — the caller's Drive parent folders with file
+ * counts, one account when `connection_id` is given. Resolves null when the answer has no folder
+ * list (an older server): callers then derive folders from the files list.
+ */
+export async function listDriveFolders(
+  wsId: string,
+  query?: { connection_id?: string | null },
+  signal?: AbortSignal,
+): Promise<DriveFolderGroup[] | null> {
+  const qs = query?.connection_id
+    ? `?${new URLSearchParams({ drive_connection_id: query.connection_id }).toString()}`
+    : "";
+  const raw = await request(`/api/v1/workspaces/${enc(wsId)}/drive-folders${qs}`, { signal });
+  const parsed = parseWithFallback<z.infer<typeof DriveFolderListWireSchema> | null>(
+    raw,
+    DriveFolderListWireSchema,
+    null,
+    { endpoint: "GET /api/v1/workspaces/{ws}/drive-folders" },
+  );
+  if (!parsed) return null;
+  return parsed.folders.flatMap((entry) => {
+    const group = DriveFolderGroupWireSchema.safeParse(entry);
+    return group.success ? [group.data] : [];
+  });
+}
+
+/**
+ * POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name — reads the folder name
+ * from Google with the caller's connection and stores it on every linked file under that folder.
+ * A 200 whose body cannot be read still means the folder was named, so it degrades to an empty answer.
+ */
+export async function nameDriveFolder(
+  wsId: string,
+  driveFolderId: string,
+  body: { drive_connection_id: string },
+): Promise<DriveFolderNamed> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(wsId)}/drive-folders/${enc(driveFolderId)}/name`,
+    { method: "POST", body },
+  );
+  return parseWithFallback<DriveFolderNamed>(
+    raw,
+    DriveFolderNamedWireSchema,
+    { drive_folder: null, updated_count: 0 },
+    { endpoint: "POST /api/v1/workspaces/{ws}/drive-folders/{id}/name" },
+  );
+}
