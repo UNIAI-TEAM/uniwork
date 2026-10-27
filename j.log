@@ -1,0 +1,5 @@
+$ unset OPENAI_API_KEY OPENAI_BASE_URL; pnpm --filter @uniwork/views test > /tmp/u2244c5-views.log 2>&1; rc=$?; grep -E "FAIL|Test Files|Tests |ERROR: Coverage|threshold" /tmp/u2244c5-views.log | head -60; echo; echo "TEST_VIEWS_EXIT=$rc"
+ Test Files  864 passed (864)
+      Tests  9046 passed (9046)
+
+TEST_VIEWS_EXIT=0

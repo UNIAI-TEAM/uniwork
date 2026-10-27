@@ -1,0 +1,5 @@
+$ git fetch -q --unshallow origin 2>/dev/null; echo "VM_HEAD_SHA=$(git rev-parse HEAD)"; git rev-parse HEAD | grep -q "^4055071cd" || { echo; echo "VM_SHA_EXIT=1"; exit 1; }; git log --oneline -3
+VM_HEAD_SHA=4055071cd97f2dd0c8499f20111a7af8ab6943be
+4055071cd fix(documents): count-free downgrade warning, fit workspace level trigger, no duplicate failure toast, full-width warning text, shorter folder access subtitle
+3cfe6727d feat(documents): offer Chia sẻ on the folder card and open-folder menus, retitle the folder access dialog with a folder subtitle
+342a03ad7 Merge remote-tracking branch 'origin/feature/UNI-2244-web-fix1' into feature/UNI-2244-folder-bulk-access-web
