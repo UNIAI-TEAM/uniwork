@@ -137,6 +137,20 @@ func (q *Queries) CompleteTranscription(ctx context.Context, arg CompleteTranscr
 	return i, err
 }
 
+const countOpenMeetingTranscriptions = `-- name: CountOpenMeetingTranscriptions :one
+SELECT count(*) FROM meeting_transcriptions
+WHERE meeting_id = $1 AND status IN ('QUEUED', 'RUNNING')
+`
+
+// tenant: system
+// The auto summary worker's check: parts of the meeting still to transcribe.
+func (q *Queries) CountOpenMeetingTranscriptions(ctx context.Context, meetingID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countOpenMeetingTranscriptions, meetingID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const failTranscription = `-- name: FailTranscription :one
 UPDATE meeting_transcriptions SET
   status = 'FAILED', error_code = $1, attempts = $2,

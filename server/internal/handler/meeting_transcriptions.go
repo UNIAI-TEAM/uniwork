@@ -76,7 +76,8 @@ func (h *handlers) requestMeetingTranscription(w http.ResponseWriter, r *http.Re
 		return
 	}
 	t, err := h.Meetings.RequestTranscription(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"),
-		service.TranscriptionRequest{UploadID: in.UploadID, Language: in.Language, Consent: in.Consent, DurationSeconds: in.DurationSeconds})
+		service.TranscriptionRequest{UploadID: in.UploadID, Language: in.Language, Consent: in.Consent, DurationSeconds: in.DurationSeconds,
+			OffsetSeconds: in.OffsetSeconds})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

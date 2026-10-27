@@ -338,6 +338,7 @@ type RequestTranscriptionSDI struct {
 	Language        string  `json:"language,omitempty" enum:"vi,en" description:"Ngôn ngữ chính của buổi họp; bỏ trống = vi" example:"vi"`
 	Consent         bool    `json:"consent" description:"Người tải lên xác nhận đã thông báo cho người dự họp về việc ghi âm (Nghị định 13/2023/NĐ-CP); false -> 422 recording_consent_required" example:"true"`
 	DurationSeconds float64 `json:"duration_seconds,omitempty" minimum:"0" description:"Thời lượng (giây) trình duyệt đọc từ metadata của tệp; bỏ trống khi không đọc được. Chỉ dùng để ước hạn mức trước (kẹp theo dung lượng tệp), phút tính phí lấy từ nhà cung cấp" example:"1080.5"`
+	OffsetSeconds   *int    `json:"offset_seconds,omitempty" minimum:"0" description:"Phần ghi này bắt đầu sau giờ bắt đầu thực tế của cuộc họp bao nhiêu giây; bỏ trống = nối sau các phần trước. Âm hoặc quá thời lượng cuộc họp thêm 60 giây -> 422 invalid_offset" example:"1200"`
 }
 
 // CreateMeetingAudioUploadSessionSDI is POST

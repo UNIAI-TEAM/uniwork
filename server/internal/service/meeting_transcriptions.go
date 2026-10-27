@@ -201,6 +201,9 @@ type TranscriptionRequest struct {
 	// DurationSeconds is what the browser read from the file's metadata;
 	// 0 when it could not. See estimateSeconds.
 	DurationSeconds float64
+	// OffsetSeconds is where this part starts, in seconds from the meeting's
+	// actual start; nil places it after every earlier part.
+	OffsetSeconds *int
 }
 
 // RequestTranscription claims an uploaded recording for the meeting and
@@ -219,6 +222,17 @@ func (s *MeetingService) RequestTranscription(ctx context.Context, userID, meeti
 	if !in.Consent {
 		return db.MeetingTranscription{}, coded(http.StatusUnprocessableEntity, "recording_consent_required",
 			"cần xác nhận đã thông báo cho người dự họp về việc ghi âm")
+	}
+	// A part's place on the meeting's clock, from the server's record of the
+	// meeting (actual start, else scheduled), never the device's clock.
+	base, end := m.ActualStartAt, m.ActualEndAt
+	if !base.Valid {
+		base, end = m.StartsAt, m.EndsAt
+	}
+	if in.OffsetSeconds != nil && (*in.OffsetSeconds < 0 ||
+		int64(*in.OffsetSeconds) > int64((end.Time.Sub(base.Time)+time.Minute)/time.Second)) {
+		return db.MeetingTranscription{}, coded(http.StatusUnprocessableEntity, "invalid_offset",
+			"thời điểm bắt đầu của phần ghi nằm ngoài thời gian cuộc họp")
 	}
 	if in.Language == "" {
 		in.Language = scribeLocale
@@ -265,17 +279,18 @@ func (s *MeetingService) RequestTranscription(ctx context.Context, userID, meeti
 	if err := s.checkTranscriptionQuota(ctx, q, m.OrganizationID, estimate); err != nil {
 		return db.MeetingTranscription{}, err
 	}
-	start, err := q.MeetingTranscriptionFileStart(ctx, db.MeetingTranscriptionFileStartParams{MeetingID: m.ID, FileID: string(f.ID)})
-	if err != nil {
-		return db.MeetingTranscription{}, err
-	}
-	startsAt := start.PreviousStart
-	if !startsAt.Valid {
-		base := m.ActualStartAt
-		if !base.Valid {
-			base = m.StartsAt
+	var startsAt pgtype.Timestamptz
+	if in.OffsetSeconds != nil {
+		startsAt = pgtype.Timestamptz{Time: base.Time.Add(time.Duration(*in.OffsetSeconds) * time.Second), Valid: true}
+	} else {
+		start, err := q.MeetingTranscriptionFileStart(ctx, db.MeetingTranscriptionFileStartParams{MeetingID: m.ID, FileID: string(f.ID)})
+		if err != nil {
+			return db.MeetingTranscription{}, err
 		}
-		startsAt = pgtype.Timestamptz{Time: base.Time.Add(time.Duration(start.EarlierSeconds) * time.Second), Valid: true}
+		startsAt = start.PreviousStart
+		if !startsAt.Valid {
+			startsAt = pgtype.Timestamptz{Time: base.Time.Add(time.Duration(start.EarlierSeconds) * time.Second), Valid: true}
+		}
 	}
 	t, err := q.InsertMeetingTranscription(ctx, db.InsertMeetingTranscriptionParams{
 		ID: util.NewID(), OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, MeetingID: m.ID,
