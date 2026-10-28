@@ -114,6 +114,7 @@ func (s *AskUNIService) askDocumentTools() []askWriteTool {
 			prepare: s.prepareAddDocumentComment, apply: s.applyAddDocumentComment, inverse: "delete_document_comment",
 		},
 		s.askOfficeTool(),
+		s.askSaveTemplateTool(),
 	}
 }
 

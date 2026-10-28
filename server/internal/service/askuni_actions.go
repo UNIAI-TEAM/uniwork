@@ -192,6 +192,8 @@ var askIDFields = map[string]askIDSpec{
 	"send_chat_message":    {},
 	// create_office_document takes no {{row:N.id}}: its ids are a template, an attachment and a folder that already exist.
 	"create_office_document": {},
+	// save_attachment_template takes only an attachment of the asker's own turn.
+	"save_attachment_template": {},
 }
 
 var askRowRefRe = regexp.MustCompile(`^\{\{row:([0-9]{1,3})\.id\}\}$`)

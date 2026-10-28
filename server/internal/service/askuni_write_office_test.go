@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/files"
@@ -335,5 +336,104 @@ func TestAskCreateOfficeCapsItsText(t *testing.T) {
 	}
 	if _, err := officePrepareErr(s, tc, fmt.Sprintf(`{"title":"A","format":"docx","outline":%q,"instructions":%q}`, strings.Repeat("a", 16000), strings.Repeat("b", 4000))); err != nil {
 		t.Errorf("text at the cap: %v", err)
+	}
+}
+
+// askAttach stores a file as the asker's attachment of a turn and returns its row.
+func askAttach(t *testing.T, x *mcpToolWorld, s *AskUNIService, convID, msgID, userID, name string, body []byte) db.AiInsertAttachmentParams {
+	t.Helper()
+	ctx := context.Background()
+	scope := files.Scope{OrganizationID: x.w.OrganizationID, WorkspaceID: x.w.ID}
+	up, err := x.files.Upload(ctx, files.UploadInput{Actor: Human(userID), Purpose: files.AiAttachment, Scope: scope, IdempotencyKey: util.NewID(), Filename: name, Body: bytes.NewReader(body)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := db.AiInsertAttachmentParams{
+		ID: util.NewID(), OrganizationID: x.w.OrganizationID, WorkspaceID: x.w.ID, UserID: userID, ConversationID: convID, MessageID: msgID,
+		FileID: string(up.File.ID), Name: up.File.Filename, Mime: up.File.ContentType, SizeBytes: up.File.SizeBytes, Kind: askAttachmentKind(up.File.ContentType),
+	}
+	if err := s.q.AiInsertAttachment(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestAskSaveAttachmentTemplate(t *testing.T) {
+	x, s, tc, docs := askOfficeWorld(t)
+	ctx := context.Background()
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	att := askAttach(t, x, s, convID, msgID, x.ua.ID, "bao-cao.pptx", docxLike(t, "ppt/presentation.xml", "ppt/slides/slide1.xml"))
+
+	row := askPrepare(t, s, tc, "save_attachment_template", fmt.Sprintf(`{"attachment_id":%q}`, att.ID))
+	if f, ok := officeField(row, "attachment_id"); row.Level != askLevel2 || !ok || f.Type != "text" || f.To != "bao-cao.pptx" {
+		t.Fatalf("row = %+v", row)
+	}
+	if f, ok := officeField(row, "title"); !ok || f.To != "bao-cao.pptx" || row.Preview.Target.Kind != "document" || row.Preview.Audience.Visibility != "workspace" {
+		t.Fatalf("preview = %+v", row.Preview)
+	}
+
+	p := applyOffice(t, s, tc, x.ua.ID, row)
+	id := p.Result.ObjectID
+	var vis, level, owner string
+	var parent *string
+	var marked *time.Time
+	if err := s.pool.QueryRow(ctx, `SELECT visibility, workspace_level, created_by, parent_id, template_marked_at FROM documents WHERE id = $1`, id).Scan(&vis, &level, &owner, &parent, &marked); err != nil {
+		t.Fatal(err)
+	}
+	if vis != "workspace" || level != "edit" || owner != x.ua.ID || parent != nil || marked == nil {
+		t.Fatalf("template: visibility %s level %s owner %s parent %v marked %v", vis, level, owner, parent, marked)
+	}
+	inList := func() bool {
+		page, err := docs.ListTemplateDocuments(ctx, Human(x.ua.ID), x.w.ID, ListDocumentsInput{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, it := range page.Items {
+			if it.Document.ID == id {
+				return true
+			}
+		}
+		return false
+	}
+	if !inList() {
+		t.Fatal("the template is not in the Templates list")
+	}
+
+	if u, err := s.UndoProposal(ctx, x.ua.ID, p.ID); err != nil || u.Status != "undone" {
+		t.Fatalf("undo: %+v, %v", u, err)
+	}
+	if n := x.count(t, `SELECT count(*) FROM documents WHERE id = $1 AND archived_at IS NOT NULL`, id); n != 1 {
+		t.Fatal("the template is not in the trash")
+	}
+	if inList() {
+		t.Fatal("a trashed template is still listed")
+	}
+}
+
+func TestAskSaveAttachmentTemplateRefuses(t *testing.T) {
+	x, s, tc, _ := askOfficeWorld(t)
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	member := x.member(t)
+	theirs := askAttach(t, x, s, convID, msgID, member.UserID, "cua-b.docx", docxBody(t, util.NewID()))
+	png := askAttach(t, x, s, convID, msgID, x.ua.ID, "anh.png", []byte("\x89PNG\r\n\x1a\n"))
+	mine := askAttach(t, x, s, convID, msgID, x.ua.ID, "cua-a.docx", docxBody(t, util.NewID()))
+	prep := func(args string) error {
+		_, err := s.prepareSaveAttachmentTemplate(context.Background(), tc, json.RawMessage(args), nil)
+		return err
+	}
+	byID := func(id string) string { return fmt.Sprintf(`{"attachment_id":%q}`, id) }
+	if err := prep(byID(theirs.ID)); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("someone else's attachment: %v, want not found", err)
+	}
+	if err := prep(byID(png.ID)); !isInvalidArgs(err) {
+		t.Fatalf("a .png attachment: %v, want invalid_args", err)
+	}
+	if err := prep(`{}`); !isInvalidArgs(err) {
+		t.Fatalf("no attachment_id: %v, want invalid_args", err)
+	}
+
+	x.flags.byOrg = map[string]bool{x.w.OrganizationID: false}
+	if err := prep(byID(mine.ID)); !errors.Is(err, errMcpDocumentsUnavailable) {
+		t.Fatalf("documents flag off: %v, want documents_unavailable", err)
 	}
 }

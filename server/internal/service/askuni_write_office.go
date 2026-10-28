@@ -289,3 +289,111 @@ func (s *AskUNIService) applyCreateOffice(ctx context.Context, p McpPrincipal, r
 	out := AskProposalResult{ObjectID: d.ID, Href: d.URL, Revision: res.Document.Revision}
 	return out, askInverseOrNote(&out, "archive_document", map[string]any{"workspace_id": ws, "document_id": d.ID, "revision": res.Document.Revision}), nil
 }
+
+// Ask UNI's save_attachment_template write tool: its card is the question
+// "save this file to Templates?". It shares nothing with create_office_document's
+// card, so skipping it does not block the working file.
+
+const mcpSchemaSaveAttachmentTemplate = `{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["attachment_id"],
+  "properties": {
+    "attachment_id": {"type": "string", "description": "The attachment_id of a file the asker attached in this conversation."},
+    "title": {"type": "string", "description": "Title of the template; omit to use the file name."}
+  }
+}`
+
+type askSaveTemplateIn struct {
+	WorkspaceID  string `json:"workspace_id"`
+	AttachmentID string `json:"attachment_id"`
+	Title        string `json:"title"`
+}
+
+func (s *AskUNIService) askSaveTemplateTool() askWriteTool {
+	return askWriteTool{
+		Tool: ai.Tool{
+			Name: "save_attachment_template",
+			Description: "Save a file the asker attached in this conversation into the workspace's Templates section, so everyone in the workspace can reuse it. " +
+				"Propose it when the asker attaches a file to use as a template and has not said whether to keep it; the card asks them. " +
+				"To use the file only this once, propose create_office_document with its attachment_id instead.",
+			Kind: ai.ToolWrite, Risk: ai.RiskMedium, Undo: "the asker moves the saved template to the trash",
+			Schema: askToolSchema(json.RawMessage(mcpSchemaSaveAttachmentTemplate), 10),
+		},
+		prepare: s.prepareSaveAttachmentTemplate, apply: s.applySaveAttachmentTemplate, inverse: "archive_document",
+	}
+}
+
+func (s *AskUNIService) prepareSaveAttachmentTemplate(ctx context.Context, tc ai.ToolContext, args json.RawMessage, _ []askDraftRow) (askDraftRow, error) {
+	var in askSaveTemplateIn
+	if err := decodeInto(args, &in); err != nil {
+		return askDraftRow{}, err
+	}
+	if in.AttachmentID == "" {
+		return askDraftRow{}, McpInvalidArgs{Msg: "attachment_id is required"}
+	}
+	if _, err := mcpID("attachment_id", in.AttachmentID); err != nil {
+		return askDraftRow{}, err
+	}
+	if _, err := s.officeDocs(); err != nil {
+		return askDraftRow{}, err
+	}
+	if !s.reads.documentsOn(ctx, principalOf(tc)) {
+		return askDraftRow{}, errMcpDocumentsUnavailable
+	}
+	att, err := s.ownAttachment(ctx, tc.ActorID, tc.WorkspaceID, in.AttachmentID)
+	if err != nil {
+		return askDraftRow{}, err
+	}
+	if _, ok := officeFormatOfMIME(att.MIME); !ok {
+		return askDraftRow{}, McpInvalidArgs{Msg: "the attached file is not a docx, xlsx, pptx, pdf, md or html file"}
+	}
+	// An empty title is CreateFileDocument's own default: the file name.
+	title := files.SanitizeFilename(att.Name)
+	if strings.TrimSpace(in.Title) != "" {
+		if title, err = mcpDocumentTitle(in.Title); err != nil {
+			return askDraftRow{}, err
+		}
+	}
+	stored, err := askStoredArgs(args, tc.WorkspaceID)
+	if err != nil {
+		return askDraftRow{}, err
+	}
+	return askDraftRow{
+		Tool: "save_attachment_template", Args: stored, TargetKind: "document", Level: askLevel2,
+		Preview: AskProposalPreview{
+			Target: AskContextRef{Kind: "document", Title: title},
+			Fields: []AskProposalField{{Field: "attachment_id", Type: "text", To: att.Name}, {Field: "title", Type: "text", To: title}},
+			Refs:   []int{}, Audience: AskAudience{Visibility: "workspace", Notifies: []AskContextRef{}},
+		},
+	}, nil
+}
+
+func (s *AskUNIService) applySaveAttachmentTemplate(ctx context.Context, p McpPrincipal, row askDraftRow) (AskProposalResult, *askInverse, error) {
+	docs, err := s.officeDocs()
+	if err != nil {
+		return AskProposalResult{}, nil, err
+	}
+	var in askSaveTemplateIn
+	if err := decodeInto(row.Args, &in); err != nil {
+		return AskProposalResult{}, nil, err
+	}
+	r, att, err := s.OpenAttachment(ctx, p.UserID, in.WorkspaceID, in.AttachmentID)
+	if err != nil {
+		return AskProposalResult{}, nil, err
+	}
+	defer r.Close()
+	res, err := docs.CreateFileDocument(ctx, Human(p.UserID), in.WorkspaceID, CreateFileDocumentInput{
+		Body: r.Body, Filename: att.Name, Title: in.Title, Template: true,
+	})
+	if err != nil {
+		return AskProposalResult{}, nil, err
+	}
+	base, err := s.base(ctx, in.WorkspaceID)
+	if err != nil {
+		return AskProposalResult{}, nil, err
+	}
+	d := s.reads.docOf(base, res.Document)
+	out := AskProposalResult{ObjectID: d.ID, Href: d.URL, Revision: res.Document.Revision}
+	return out, askInverseOrNote(&out, "archive_document", map[string]any{"workspace_id": in.WorkspaceID, "document_id": d.ID, "revision": res.Document.Revision}), nil
+}

@@ -2,7 +2,7 @@ package handler
 
 // ADR 0044 §2, the oracle: Ask UNI's agent loop never runs a business write
 // command. A dock turn in Ask mode whose scripted model calls every one of the
-// 15 write tools only records proposals; the tenant's digest (the isolation
+// 16 write tools only records proposals; the tenant's digest (the isolation
 // matrix's own tenantDigest + isoDiff, over the real router, the real gateway
 // and the real services) moves only in the AI bookkeeping tables, and no audit
 // row is written. The provider is the scripted fake: no live AI.
@@ -19,6 +19,8 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // askLoopPermitted is every table a proposal-only turn may change: the
@@ -65,6 +67,16 @@ func TestAskUniLoopNeverRunsAWriteCommand(t *testing.T) {
 	toCancel, cancelled := newMeeting("Sẽ hủy"), newMeeting("Đã hủy")
 	w.call(t, "POST", "/api/v1/meetings/"+cancelled+"/cancel", tn.token, map[string]any{})
 
+	// save_attachment_template reads only the asker's own attachment row, never
+	// its bytes at proposal time; the row is seeded before the digest is taken.
+	attachmentID := util.NewID()
+	if err := w.q.AiInsertAttachment(context.Background(), db.AiInsertAttachmentParams{
+		ID: attachmentID, OrganizationID: tn.orgID, WorkspaceID: tn.wsID, UserID: tn.userID, ConversationID: util.NewID(), MessageID: util.NewID(),
+		FileID: util.NewID(), Name: "mau.pptx", Mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", SizeBytes: 1, Kind: "text",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
 	// Each turn proposes at most ten rows, each round takes at most six calls,
 	// and one object gets one row (ADR 0044 §3, R11).
 	turns := [][][]provider.ToolCall{{{
@@ -85,6 +97,7 @@ func TestAskUniLoopNeverRunsAWriteCommand(t *testing.T) {
 		call(13, "restore_meeting", map[string]any{"meeting_id": cancelled}),
 		call(14, "send_chat_message", map[string]any{"room_id": tn.ids["room"], "body": "Tin oracle"}),
 		call(15, "create_office_document", map[string]any{"title": "Đề xuất oracle", "format": "docx", "outline": "## Mục 1"}),
+		call(16, "save_attachment_template", map[string]any{"attachment_id": attachmentID}),
 	}}}
 
 	before := uniworkProposalTake(t, w, tn)
@@ -124,7 +137,7 @@ func TestAskUniLoopNeverRunsAWriteCommand(t *testing.T) {
 	}
 	after := uniworkProposalTake(t, w, tn)
 
-	// Every one of the 15 tools left a pending row and nothing else.
+	// Every one of the 16 tools left a pending row and nothing else.
 	rows, err := w.pool.Query(context.Background(), `SELECT action_type, status FROM agent_action_proposals WHERE organization_id = $1 AND conversation_id = $2`, tn.orgID, conv)
 	if err != nil {
 		t.Fatal(err)
