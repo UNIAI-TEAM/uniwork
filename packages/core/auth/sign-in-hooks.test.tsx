@@ -224,12 +224,27 @@ describe("Settings › Sign-in methods", () => {
     await act(() => set.current.mutateAsync({ newPassword: "new-password-2026", currentPassword: "old" }));
     expect(methodsApi.setPassword).toHaveBeenLastCalledWith({ new_password: "new-password-2026", current_password: "old" });
     await act(() => set.current.mutateAsync({ newPassword: "new-password-2026" }));
-    expect(methodsApi.setPassword).toHaveBeenLastCalledWith({ new_password: "new-password-2026", step_up_token: undefined });
+    expect(methodsApi.setPassword).toHaveBeenLastCalledWith({ new_password: "new-password-2026" });
     rememberStepUp({ ...grant, method: "email_code" }, "change_password");
     await act(() => set.current.mutateAsync({ newPassword: "new-password-2026" }));
     expect(methodsApi.setPassword).toHaveBeenLastCalledWith({ new_password: "new-password-2026", step_up_token: "su" });
     expect(useAuthStore.getState().user?.has_password).toBe(true);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: authKeys.sessions() });
+  });
+
+  it("a held token proves the change even when the dialog also took the current password (an account with 2FA)", async () => {
+    vi.mocked(methodsApi.setPassword)
+      .mockRejectedValueOnce(new ApiError("", "proof_required", 403, undefined, { proofs: ["totp"] }))
+      .mockResolvedValueOnce({ user: user({ has_password: true }), methods: { ...methods, proofs: ["totp"] } });
+    const set = render(() => useSetPassword());
+    const input = { newPassword: "new-password-2026", currentPassword: "old" };
+    await expect(act(() => set.current.mutateAsync(input))).rejects.toMatchObject({ code: "proof_required" });
+    expect(methodsApi.setPassword).toHaveBeenLastCalledWith({ new_password: "new-password-2026", current_password: "old" });
+    // The proof dialog took the authenticator code; the same submit goes again.
+    rememberStepUp({ ...grant, method: "totp" }, "change_password");
+    await act(() => set.current.mutateAsync(input));
+    expect(methodsApi.setPassword).toHaveBeenLastCalledWith({ new_password: "new-password-2026", step_up_token: "su" });
+    expect(hasStepUp("change_password")).toBe(true);
   });
 
   it("starts a link with the held token and hands back where the browser goes", async () => {

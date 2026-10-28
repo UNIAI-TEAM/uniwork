@@ -144,20 +144,27 @@ export function useSignInMethods(options: { enabled?: boolean } = {}) {
 }
 
 /**
- * Set the first password, or change it. `currentPassword` is the proof of a
- * change on an account without a second factor; otherwise the held step-up
- * token (set_password / change_password). A change signs every other
- * session out, so the session list is read again.
+ * Set the first password, or change it. The held step-up token (set_password
+ * / change_password) is the proof whenever there is one: the server prefers
+ * it, and it is the only proof of an account with a second factor, which
+ * still types its current password in the change dialog. Without a token,
+ * `currentPassword` proves a change on an account without a second factor;
+ * with neither the server answers proof_required and the proofs. A change
+ * signs every other session out, so the session list is read again.
  */
 export function useSetPassword() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ newPassword, currentPassword }: { newPassword: string; currentPassword?: string }) =>
-      methods.setPassword(
-        currentPassword
-          ? { new_password: newPassword, current_password: currentPassword }
-          : { new_password: newPassword, step_up_token: stepUpToken("set_password") ?? undefined },
-      ),
+    mutationFn: ({ newPassword, currentPassword }: { newPassword: string; currentPassword?: string }) => {
+      const token = stepUpToken("set_password");
+      return methods.setPassword(
+        token
+          ? { new_password: newPassword, step_up_token: token }
+          : currentPassword
+            ? { new_password: newPassword, current_password: currentPassword }
+            : { new_password: newPassword },
+      );
+    },
     onError: forgetStepUpIfRefused,
     onSuccess: async (change) => {
       void qc.invalidateQueries({ queryKey: authKeys.sessions() });
