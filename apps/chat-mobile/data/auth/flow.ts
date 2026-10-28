@@ -5,12 +5,13 @@
 // (strict-fetch.ts) for the requests. Apple's and Google's sheets (apple.ts,
 // google.ts) are the other native wrappers, used by the doors of the app's
 // sign-in screen (sign-in.ts).
-import { createNativeSignInApi, type NativeClient } from "@uniwork/core/api/endpoints/sign-in-native-api";
+import { createNativeSignInApi, type NativeClient, type NativeLocale } from "@uniwork/core/api/endpoints/sign-in-native-api";
 import { NO_AUTH_PROVIDERS, readAuthProviders, type AuthProviders } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 import { buildLabel } from "@/lib/build-info";
+import { i18n } from "@/lib/i18n/singleton";
 import { signInOfferOf, type SignInOffer } from "@/lib/sign-in-offer";
 import { buildInfo } from "../build-info";
 import { secureSessionStorage } from "../secure-storage";
@@ -65,6 +66,11 @@ export const nativeClient: NativeClient = {
   device_label: authConfig.deviceLabel,
   platform: authConfig.platform,
   build: buildLabel(buildInfo()),
+  // The app's language as each door is called (it can change between two): the account a door creates and the
+  // codes it mails take it, since the app carries no uniwork-locale cookie to say it.
+  get locale(): NativeLocale {
+    return i18n.language === "en" ? "en" : "vi";
+  },
 };
 
 // The doors carry the password, the codes and the provider tokens: the same strict fetch as the session's routes.

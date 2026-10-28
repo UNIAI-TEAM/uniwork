@@ -33,6 +33,7 @@ vi.mock("./transport", async (importOriginal) => {
 });
 
 import { configureRuntime } from "@uniwork/core/runtime-config";
+import { i18n } from "@/lib/i18n/singleton";
 import { systemUiOpen } from "../system-ui";
 import { authConfig, nativeClient, nativeSignIn, openAuthBrowser, resolveAuthConfig, session, signInOffer } from "./flow";
 import { MobileSession } from "./session";
@@ -96,6 +97,7 @@ describe("auth flow composition", () => {
       device_label: "UniChat (Android)",
       platform: "android",
       build: "0.4.0 (17)",
+      locale: "vi",
     });
     configureRuntime({ apiUrl: "https://uniwork.example", appUrl: "https://uniwork.example" });
     strict.strictFetch.mockResolvedValueOnce(json(200, { status: "mfa_required", mfa_token: "m" }));
@@ -103,6 +105,25 @@ describe("auth flow composition", () => {
     const [url, init] = strict.strictFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://uniwork.example/api/v1/auth/native/password");
     expect(JSON.parse(String(init.body))).toEqual({ ...nativeClient, email: "a@b.c", password: "pw" });
+  });
+
+  it("says the app's language as each door is called, so the codes it mails are written in it", async () => {
+    configureRuntime({ apiUrl: "https://uniwork.example", appUrl: "https://uniwork.example" });
+    const sentLocale = () => {
+      const [, init] = strict.strictFetch.mock.calls.at(-1) as [string, RequestInit];
+      return (JSON.parse(String(init.body)) as { locale?: string }).locale;
+    };
+    strict.strictFetch.mockResolvedValueOnce(json(200, { status: "sent" }));
+    await nativeSignIn.sendTicketEmailCode({ ticket: "T", nonce: "raw", email: "an@acme.vn" });
+    expect(sentLocale()).toBe("vi");
+    await i18n.changeLanguage("en");
+    try {
+      strict.strictFetch.mockResolvedValueOnce(json(200, { status: "sent" }));
+      await nativeSignIn.sendTicketEmailCode({ ticket: "T", nonce: "raw", email: "an@acme.vn" });
+      expect(sentLocale()).toBe("en");
+    } finally {
+      await i18n.changeLanguage("vi");
+    }
   });
 
   it("sends Apple through the browser off the iPhone, without asking for Apple's sheet", async () => {
