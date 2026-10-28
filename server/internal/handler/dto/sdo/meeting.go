@@ -452,6 +452,11 @@ type ConvertActionItemsSDO struct {
 	Links []ActionItemLinkDTO `json:"links"`
 }
 
+// UndoConvertActionItemsSDO lists the items put back to pending.
+type UndoConvertActionItemsSDO struct {
+	Restored []string `json:"restored" description:"Các việc đã về chờ xử lý (task của chúng đã bị xoá); việc không đủ điều kiện không có ở đây" example:"[\"01J8X4AI0N1P2Q3R4S5T6U7V8W\"]"`
+}
+
 type TaskIDListSDO struct {
 	TaskIDs []string `json:"task_ids"`
 }

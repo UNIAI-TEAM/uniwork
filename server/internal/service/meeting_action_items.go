@@ -28,6 +28,9 @@ import (
 const (
 	// maxActionItemsPerConvert caps one conversion request.
 	maxActionItemsPerConvert = 50
+	// undoConvertWindow is how long a clerk may take a conversion back; the
+	// client's undo bar is shorter (8 s), this absorbs a slow request.
+	undoConvertWindow = 2 * time.Minute
 	// maxActionItemTitleRunes bounds a title a clerk types. Tasks have no
 	// title limit of their own; this one only keeps a typed row readable.
 	maxActionItemTitleRunes = 500
@@ -540,6 +543,71 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 		out = append(out, ActionItemLink{ActionItemID: ids[i], TaskID: t.ID})
 	}
 	return out, nil
+}
+
+// UndoConvertActionItems takes back the caller's fresh conversion (UNI-2285):
+// each named item they converted within undoConvertWindow into a task nobody
+// has touched since goes back to pending and its task is purged the way a
+// purge does it (task.deleted audit and event). Any other id (not converted,
+// converted by someone else or too long ago, a task edited, trashed or given
+// a subtask, an item linked to an older task, an id of another meeting) is
+// skipped without an error. Purges, unlinks and the batch's audit row commit
+// together. It returns the ids it restored.
+func (s *MeetingService) UndoConvertActionItems(ctx context.Context, userID, meetingID string, itemIDs []string) ([]string, error) {
+	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
+	if err != nil {
+		return nil, err
+	}
+	if s.Tasks == nil {
+		return nil, coded(http.StatusServiceUnavailable, "tasks_unavailable", "task service chưa sẵn sàng")
+	}
+	if len(itemIDs) == 0 {
+		return nil, Invalid("cần ít nhất một việc")
+	}
+	if len(itemIDs) > maxActionItemsPerConvert {
+		return nil, Invalid("tối đa 50 việc mỗi lần")
+	}
+	actor := Human(userID)
+	restored := []string{}
+	err = s.inTx(ctx, func(q *db.Queries) error {
+		if err := q.LockMeetingSummaryChanges(ctx, m.ID); err != nil {
+			return err
+		}
+		rows, err := q.LockUndoableConvertedActionItems(ctx, db.LockUndoableConvertedActionItemsParams{
+			OrganizationID: m.OrganizationID, MeetingID: m.ID, Ids: itemIDs,
+			ConvertedBy: userID, WindowSeconds: undoConvertWindow.Seconds(),
+		})
+		if err != nil || len(rows) == 0 {
+			return err
+		}
+		taskIDs := make([]string, 0, len(rows))
+		events := make([]audit.Event, 0, len(rows))
+		for _, r := range rows {
+			if err := s.Tasks.purgeTaskInTx(ctx, q, r.Task, actor); err != nil {
+				return err
+			}
+			if err := q.UnconvertMeetingActionItem(ctx, db.UnconvertMeetingActionItemParams{
+				OrganizationID: m.OrganizationID, ID: r.MeetingActionItem.ID,
+			}); err != nil {
+				return err
+			}
+			restored = append(restored, r.MeetingActionItem.ID)
+			taskIDs = append(taskIDs, r.Task.ID)
+			events = append(events, audit.Event{Topic: "action_item.restored", Payload: map[string]string{
+				"meeting_id": m.ID, "action_item_id": r.MeetingActionItem.ID, "workspace_id": m.WorkspaceID,
+			}})
+		}
+		return auditRecorder.Record(ctx, q, audit.Entry{
+			OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, Actor: actor,
+			Action:       audit.ActionMeetingActionItemsUnconverted,
+			ResourceType: "meeting", ResourceID: m.ID,
+			Metadata: map[string]any{"count": len(rows), "action_item_ids": restored, "task_ids": taskIDs},
+		}, events...)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return restored, nil
 }
 
 // refuseActionItemDuplicates finds, before any insert, every item the

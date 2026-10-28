@@ -54,6 +54,30 @@ UPDATE meeting_action_items
 SET task_id = sqlc.arg(task_id), converted_at = now(), converted_by = sqlc.arg(converted_by), updated_at = now()
 WHERE organization_id = sqlc.arg(organization_id) AND id = sqlc.arg(id);
 
+-- name: LockUndoableConvertedActionItems :many
+-- The named items of one meeting whose fresh conversion by converted_by can
+-- still be taken back (UNI-2285): converted within the window, into a task
+-- made in that same transaction (created_at = converted_at, so an item linked
+-- to an older task never counts) that is live, never updated and has no
+-- subtask. Items and tasks locked in item id order, after
+-- LockMeetingSummaryChanges like LockMeetingActionItems.
+SELECT sqlc.embed(i), sqlc.embed(t)
+FROM meeting_action_items i
+JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+WHERE i.organization_id = sqlc.arg(organization_id) AND i.meeting_id = sqlc.arg(meeting_id)
+  AND i.id = ANY(sqlc.arg(ids)::text[])
+  AND i.dismissed_at IS NULL AND i.converted_by = sqlc.arg(converted_by)::text
+  AND i.converted_at > now() - make_interval(secs => sqlc.arg(window_seconds)::float8)
+  AND t.trashed_at IS NULL AND t.created_at = i.converted_at AND t.updated_at = t.created_at
+  AND NOT EXISTS (SELECT 1 FROM tasks c WHERE c.organization_id = t.organization_id AND c.parent_task_id = t.id)
+ORDER BY i.id
+FOR UPDATE OF i, t;
+
+-- name: UnconvertMeetingActionItem :exec
+UPDATE meeting_action_items
+SET task_id = NULL, converted_at = NULL, converted_by = NULL, updated_at = now()
+WHERE organization_id = sqlc.arg(organization_id) AND id = sqlc.arg(id);
+
 -- name: DismissMeetingActionItem :exec
 UPDATE meeting_action_items
 SET dismissed_at = now(), dismissed_by = sqlc.arg(dismissed_by), dismiss_reason = sqlc.arg(dismiss_reason), updated_at = now()

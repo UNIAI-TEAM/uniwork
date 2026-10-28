@@ -273,6 +273,11 @@ type ConvertActionItemsSDI struct {
 	Locale string                 `json:"locale" description:"Ngôn ngữ nhãn trong mô tả task (Người phụ trách/Hạn): vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
 }
 
+// UndoConvertActionItemsSDI is POST /api/v1/meetings/{meetingID}/action-items/undo-convert.
+type UndoConvertActionItemsSDI struct {
+	ActionItemIDs []string `json:"action_item_ids" minItems:"1" maxItems:"50" description:"1–50 việc vừa giao; chỉ việc chính người gọi giao trong 2 phút gần nhất và task chưa bị sửa mới được đưa về chờ xử lý, việc khác bị bỏ qua" example:"[\"01J8X4AI0N1P2Q3R4S5T6U7V8W\"]"`
+}
+
 // RateCallSDI is POST /api/v1/meetings/{meetingID}/call-rating.
 type RateCallSDI struct {
 	Rating string `json:"rating" enum:"good,ok,poor" description:"Âm thanh, hình ảnh lúc rời phòng: good (tốt), ok (tạm), poor (kém)" example:"good"`

@@ -426,6 +426,10 @@ const (
 	// of creating one (follow-5, MeetingService.LinkActionItem, metadata
 	// task_id).
 	ActionMeetingActionItemLinked = "meeting.action_item_linked"
+	// A clerk took back their own fresh conversion (UNI-2285): one row for
+	// the batch, beside the task.deleted row of each task, metadata
+	// action_item_ids and task_ids (MeetingService.UndoConvertActionItems).
+	ActionMeetingActionItemsUnconverted = "meeting.action_items_unconverted"
 
 	// The minutes of a meeting (UNI-2003): a clerk made the minutes page
 	// (MeetingService.CreateMinutes, metadata document_id), finalized it as a

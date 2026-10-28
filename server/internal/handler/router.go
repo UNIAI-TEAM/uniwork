@@ -784,6 +784,7 @@ func New(d Deps) http.Handler {
 		RestoreActionItem:              h.restoreActionItem,
 		LinkActionItem:                 h.linkActionItem,
 		ConvertActionItems:             h.convertActionItems,
+		UndoConvertActionItems:         h.undoConvertActionItems,
 		MeetingCatchUp:                 h.meetingCatchUp,
 		StartRecording:                 h.startRecording,
 		StopRecording:                  h.stopRecording,

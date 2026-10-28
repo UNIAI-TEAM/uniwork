@@ -528,6 +528,7 @@ type Routes struct {
 	RestoreActionItem              http.HandlerFunc
 	LinkActionItem                 http.HandlerFunc
 	ConvertActionItems             http.HandlerFunc
+	UndoConvertActionItems         http.HandlerFunc
 	MeetingCatchUp                 http.HandlerFunc
 	StartRecording                 http.HandlerFunc
 	StopRecording                  http.HandlerFunc
