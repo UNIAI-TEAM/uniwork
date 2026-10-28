@@ -38,8 +38,10 @@ func TestCreateTaskFromMessageStripsMentionTitle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := "check [@Miên Thi](mention://member/" + ua.ID + ") giúp"
-	msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: body})
+	mention := "[@Miên Thi](mention://member/" + ua.ID + ")"
+	msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{
+		Body: "check " + mention + " giúp",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,15 +54,17 @@ func TestCreateTaskFromMessageStripsMentionTitle(t *testing.T) {
 		t.Fatalf("derived title: %q", fromBody.Title)
 	}
 	// Client still sending the stored markdown as the title: strip it too.
+	// A different plain title so the open-task uniqueness check does not fire.
 	msg2, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "khác"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	fromClient, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, msg2.ID, CreateTaskFromMessageInput{Title: body})
+	clientTitle := "nhờ " + mention + " xem báo cáo"
+	fromClient, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, msg2.ID, CreateTaskFromMessageInput{Title: clientTitle})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fromClient.Title != "check @Miên Thi giúp" {
+	if fromClient.Title != "nhờ @Miên Thi xem báo cáo" {
 		t.Fatalf("client title: %q", fromClient.Title)
 	}
 }
