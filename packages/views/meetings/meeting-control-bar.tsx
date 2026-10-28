@@ -14,13 +14,13 @@ import {
   Ellipsis,
   PanelBottom,
   PhoneOff,
-  Sparkles,
   Square,
   Video,
   VideoOff,
 } from "lucide-react";
 import { useStartRecording, useStopRecording } from "@uniwork/core/meetings";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
+import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
 import {
@@ -45,7 +45,9 @@ import {
   MenuControl,
   ReactionsControl,
 } from "./meeting-control-bar-controls";
+import type { RoomExit } from "./exit/exit-model";
 import { MEETING_DARK_BAR } from "./meeting-dark-bar";
+import { MeetingHostLeaveDialog } from "./meeting-host-leave-dialog";
 import { MeetingLeaveConfirmDialog } from "./meeting-leave-confirm-dialog";
 import { MeetingRecordConfirmDialog } from "./meeting-record-confirm-dialog";
 import { roomShortcutLabel, useRoomMediaShortcuts } from "./meeting-room-shortcuts";
@@ -56,7 +58,8 @@ import { useScreenShareControl } from "./use-screen-share-control";
 /** Memoized: the stage hands it stable callbacks, so tile and speaker updates pass it by. */
 export const MeetingControlBar = memo(function MeetingControlBar({
   className,
-  onLeave,
+  onExit,
+  onEndForAll,
   meetingId,
   canHost = false,
   recordingEnabled = false,
@@ -64,27 +67,21 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   captionsOn = false,
   captionsAvailable = false,
   onToggleCaptions,
-  onToggleCopilot,
-  copilotActive = false,
-  copilotBadge = false,
-  copilotLiveItems = 0,
+  hostLeave,
 }: {
   className?: string;
-  onLeave: () => void;
+  /** Leaving hands back how the mic and camera were, so "Vào lại" restores them. */
+  onExit: (exit: RoomExit) => void;
+  onEndForAll?: () => void;
   meetingId?: string;
   canHost?: boolean;
+  /** Set for a host or admin of a live meeting: Leave then asks how, not just whether. Keep it memoized. */
+  hostLeave?: { meeting: Meeting; workspaceId: string };
   recordingEnabled?: boolean;
   recording?: boolean;
   captionsOn?: boolean;
   captionsAvailable?: boolean;
   onToggleCaptions?: () => void;
-  /** Opens the AI Copilot panel, or closes it when it is the one on screen. */
-  onToggleCopilot?: () => void;
-  copilotActive?: boolean;
-  /** Something waits in the UNI panel for this viewer (a late joiner's catch-up). */
-  copilotBadge?: boolean;
-  /** Live items the scribe wrote that this viewer has not seen in the UNI panel. */
-  copilotLiveItems?: number;
 }) {
   const { t } = useTranslation();
   const mobile = useIsMobile();
@@ -289,32 +286,6 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                   {handControl(false)}
                 </>
               ) : null}
-              {onToggleCopilot ? (
-                <span className="relative inline-flex">
-                  <IconControl
-                    label={
-                      copilotBadge
-                        ? t("meetings.aiCopilotCatchUp")
-                        : copilotLiveItems > 0
-                          ? t("meetings.aiCopilotLiveItems", { count: copilotLiveItems })
-                          : t("meetings.aiCopilot")
-                    }
-                    tooltip={copilotActive ? t("meetings.aiCopilotClose") : t("meetings.aiCopilotToggle")}
-                    pressed={copilotActive}
-                    tone={copilotActive ? "active" : undefined}
-                    onClick={onToggleCopilot}
-                  >
-                    <Sparkles aria-hidden />
-                  </IconControl>
-                  {copilotBadge || copilotLiveItems > 0 ? (
-                    <span
-                      aria-hidden
-                      data-slot="copilot-badge"
-                      className="pointer-events-none absolute top-1 right-1 size-2.5 rounded-full bg-brand ring-2 ring-meeting-bar-bg"
-                    />
-                  ) : null}
-                </span>
-              ) : null}
               {!secondaryInMenu ? (
                 <>
                   {captionsControl(false)}
@@ -377,14 +348,33 @@ export const MeetingControlBar = memo(function MeetingControlBar({
         onOpenChange={setRecordConfirmOpen}
         onConfirm={confirmStartRecording}
       />
-      <MeetingLeaveConfirmDialog
-        open={leaveConfirmOpen}
-        onOpenChange={setLeaveConfirmOpen}
-        onConfirm={() => {
-          setLeaveConfirmOpen(false);
-          onLeave();
-        }}
-      />
+      {hostLeave ? (
+        <MeetingHostLeaveDialog
+          open={leaveConfirmOpen}
+          onOpenChange={setLeaveConfirmOpen}
+          meeting={hostLeave.meeting}
+          workspaceId={hostLeave.workspaceId}
+          recording={recording}
+          media={{ audio: mic.enabled, video: camera.enabled }}
+          onExit={(next) => {
+            setLeaveConfirmOpen(false);
+            onExit(next);
+          }}
+          onEndForAll={() => {
+            setLeaveConfirmOpen(false);
+            onEndForAll?.();
+          }}
+        />
+      ) : (
+        <MeetingLeaveConfirmDialog
+          open={leaveConfirmOpen}
+          onOpenChange={setLeaveConfirmOpen}
+          onConfirm={() => {
+            setLeaveConfirmOpen(false);
+            onExit({ kind: "left", media: { audio: mic.enabled, video: camera.enabled } });
+          }}
+        />
+      )}
     </>
   );
 });

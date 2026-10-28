@@ -219,6 +219,134 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   pointer-events: none;
 }
 
+/* The AI composer's edge says what it is doing (meeting room panel). Contract:
+   the element with `ai-edge` is the frame and its one direct child is the
+   opaque surface; the frame's background shows only through its padding, which
+   is the edge, and set `--ai-edge-radius` (not a rounded-* utility) so the
+   surface's corners follow. Modifiers sit on the same frame: `ai-edge-note` (ink edge, warm
+   surface) and `border-beam-ai` (UNI at work), which keeps the gradient edge
+   underneath so reduced motion still shows it with the beam standing still. */
+.ai-edge {
+  --ai-edge-radius: 18px;
+  --ai-edge-width: 1px;
+  border-radius: var(--ai-edge-radius);
+  padding: var(--ai-edge-width);
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--brand) 25%, var(--surface)) 0%,
+    color-mix(in oklab, var(--tint-violet-foreground) 18%, var(--surface)) 45%,
+    var(--border) 100%
+  );
+  box-shadow: 0 6px 20px color-mix(in oklab, var(--brand) 7%, transparent);
+}
+.ai-edge > * {
+  border-radius: calc(var(--ai-edge-radius) - var(--ai-edge-width));
+  background: var(--surface);
+}
+/* At work the beam is the state: the edge stays at rest under it even while Stop holds focus (Composer board, 3). */
+.ai-edge:not(.border-beam-ai):focus-within {
+  --ai-edge-width: 1.5px;
+  background: linear-gradient(135deg, var(--brand), var(--tint-violet-foreground));
+  box-shadow:
+    0 0 0 4px color-mix(in oklab, var(--brand) 10%, transparent),
+    0 10px 28px color-mix(in oklab, var(--tint-violet-foreground) 18%, transparent);
+}
+.ai-edge.ai-edge-note {
+  --ai-edge-width: 1.5px;
+  background: var(--foreground);
+  box-shadow: none;
+}
+.ai-edge.ai-edge-note:focus-within {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+.ai-edge.ai-edge-note > * {
+  background: color-mix(in oklab, var(--warning-soft) 35%, var(--surface));
+}
+
+/* UNI at work: a blue→violet beam runs the ring (::before, above the surface)
+   and a blurred bloom (::after) glows behind the frame. */
+.border-beam-ai {
+  --beam-bloom-alpha: 45%;
+  position: relative;
+  isolation: isolate;
+}
+/* On a dark surface the glow needs more ink to read (canvas: .55 against .45). */
+.dark .border-beam-ai {
+  --beam-bloom-alpha: 55%;
+}
+.border-beam-ai > * {
+  position: relative;
+  z-index: 1;
+}
+.border-beam-ai::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--border-beam-angle),
+    transparent 0%,
+    transparent 52%,
+    color-mix(in oklab, var(--brand) 35%, transparent) 60%,
+    var(--brand) 68%,
+    color-mix(in oklab, var(--brand) 50%, var(--tint-violet-foreground)) 76%,
+    var(--tint-violet-foreground) 82%,
+    color-mix(in oklab, var(--tint-violet-foreground) 30%, transparent) 88%,
+    transparent 94%
+  );
+  -webkit-mask:
+    linear-gradient(var(--foreground) 0 0) content-box,
+    linear-gradient(var(--foreground) 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: border-beam-rotate 2.4s linear infinite;
+  pointer-events: none;
+}
+.border-beam-ai::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  z-index: -1;
+  /* The bloom sits 5px outside the frame, so its corners round 6px wider (canvas: 24px on an 18px frame). */
+  border-radius: calc(var(--ai-edge-radius, 18px) + 6px);
+  background: conic-gradient(
+    from var(--border-beam-angle),
+    transparent 0%,
+    transparent 56%,
+    color-mix(in oklab, var(--brand) var(--beam-bloom-alpha), transparent) 68%,
+    color-mix(in oklab, color-mix(in oklab, var(--brand) 50%, var(--tint-violet-foreground)) var(--beam-bloom-alpha), transparent) 76%,
+    color-mix(in oklab, var(--tint-violet-foreground) calc(var(--beam-bloom-alpha) - 5%), transparent) 82%,
+    transparent 92%
+  );
+  filter: blur(12px);
+  animation: border-beam-rotate 2.4s linear infinite;
+  pointer-events: none;
+}
+
+/* Status text while UNI works: a brand→violet glint sweeps the muted words. */
+.ai-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted-foreground) 0%,
+    var(--muted-foreground) 35%,
+    var(--brand) 50%,
+    var(--tint-violet-foreground) 58%,
+    var(--muted-foreground) 72%,
+    var(--muted-foreground) 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ai-shimmer 1.8s linear infinite;
+}
+@keyframes ai-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -120% 0; }
+}
+
 /* A system-wide backstop rather than a per-class list, so every new
    animation is covered. The intent is to REDUCE, not to switch off: cut
    durations and infinite loops, but keep opacity and colour changes, which
@@ -266,6 +394,8 @@ input, textarea, [contenteditable] { caret-color: var(--brand); }
   .animate-caption-listening,
   .animate-caption-thumb-sweep { animation: none; }
   .border-beam::before { animation: none; }
+  .border-beam-ai::before, .border-beam-ai::after { animation: none; }
+  .ai-shimmer { animation: none; }
   /* Thư ký UNI's mark stands still; the words beside it carry the state. */
   [data-scribe-mark], [data-scribe-mark] * { animation: none !important; }
 }

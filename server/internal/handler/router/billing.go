@@ -6,7 +6,7 @@ import (
 )
 
 // tag: billing — plans, the organization's subscription and its effective
-// entitlements (F-02). Requires Bearer. Quota errors (entitlement_required,
+// entitlements (F-02). The plan catalog is public; subscription routes require Bearer. Quota errors (entitlement_required,
 // quota_exceeded) can come back from any gated endpoint, not only these.
 //
 //	GET   /api/v1/plans
@@ -16,14 +16,17 @@ import (
 //	POST  /api/v1/orgs/{orgID}/billing/resume
 //	POST  /api/v1/orgs/{orgID}/billing/checkout
 //	GET   /api/v1/orgs/{orgID}/billing/invoices
-func registerBilling(r api, h Routes) {
+func registerPublicPlans(r api, h Routes) {
 	r.Get("/plans", h.ListPlans, apiOp{
 		summary:     "List plans",
-		description: "Các gói đang mở, kèm entitlement từng gói.",
+		description: "Danh mục gói công khai đang mở, kèm giá và entitlement từng gói. Không trả thuê bao, usage hay hóa đơn của tổ chức.",
 		tags:        []string{"billing"},
 		sdo:         sdo.PlanListSDO{},
-		auth:        true,
+		auth:        false,
 	})
+}
+
+func registerBilling(r api, h Routes) {
 	r.Get("/orgs/{orgID}/billing", h.GetSubscription, apiOp{
 		summary:     "Get subscription",
 		description: "Thuê bao hiện tại, gói và entitlement hiệu lực kèm usage. Mọi thành viên tổ chức.",

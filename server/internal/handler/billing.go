@@ -73,6 +73,8 @@ func toSubscriptionSDO(s service.EntitlementSnapshot) sdo.SubscriptionSDO {
 }
 
 func (h *handlers) listPlans(w http.ResponseWriter, r *http.Request) {
+	// Prices are mutable through the platform catalog; shared HTTP caches must not freeze an old offer.
+	w.Header().Set("Cache-Control", "no-store")
 	plans, err := h.Billing.ListPlans(r.Context())
 	if err != nil {
 		h.mapServiceError(w, err)

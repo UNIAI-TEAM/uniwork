@@ -51,6 +51,8 @@ export const MeetingNoteSchema = z.object({
   display_name: z.string().optional(),
   avatar_url: z.string().nullish(),
   created_at: z.string().nullish(),
+  /** Last edit (UNI-2217); null when never edited. A drifted value reads as never edited. */
+  edited_at: z.string().nullish().catch(undefined),
 });
 export type MeetingNote = z.infer<typeof MeetingNoteSchema>;
 
@@ -82,6 +84,11 @@ export const ParticipantSchema = z.object({
   is_secretary: z.boolean().optional(),
   /** This participant's mic is the room's shared one: the AI scribe tells its speakers apart. */
   shared_mic: z.boolean().optional(),
+  /** Holds an open attendance session right now; an older server omits it. */
+  in_room: z.boolean().optional(),
+  /** Who removed this participant and when (RFC 3339); guests never get `removed_by`. */
+  removed_by: z.string().optional(),
+  removed_at: z.string().optional(),
 });
 export type MeetingParticipant = z.infer<typeof ParticipantSchema>;
 

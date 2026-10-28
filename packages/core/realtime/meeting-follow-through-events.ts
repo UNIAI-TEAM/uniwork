@@ -29,7 +29,7 @@ export function meetingTaskFrameKeys(qc: QueryClient, type: string, taskId: stri
   return keys;
 }
 
-/** The keys a summary, action_item.* or minutes.* frame invalidates; null for any other frame. */
+/** The keys a summary, action_item.*, minutes.* or note.* frame invalidates; null for any other frame. */
 export function followThroughFrameKeys(type: string, payload: Record<string, string>): Keys | null {
   const id = payload.meeting_id;
   switch (type) {
@@ -49,6 +49,11 @@ export function followThroughFrameKeys(type: string, payload: Record<string, str
       return id ? [meetingKeys.minutes(id)] : [];
     case "minutes.finalized":
       return id ? [meetingKeys.minutes(id), meetingKeys.activity(id)] : [];
+    // The shared notes the UNI feed lists: added, edited or deleted (UNI-2217).
+    case "note.created":
+    case "note.updated":
+    case "note.deleted":
+      return id ? [meetingKeys.notes(id)] : [];
     default:
       return null;
   }

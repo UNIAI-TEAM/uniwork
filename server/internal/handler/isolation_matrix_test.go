@@ -642,6 +642,8 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		return tn.get(t, "transcription")
 	case "{motionID}":
 		return tn.get(t, "motion")
+	case "{noteID}":
+		return tn.get(t, "meetingNote")
 	case "{actionItemID}":
 		return tn.get(t, "actionItem")
 	case "{invitationID}":
@@ -879,6 +881,12 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 	case "{linkID}":
 		if strings.HasPrefix(pattern, "/api/v1/documents/") {
 			return tn.get(t, "docLink")
+		}
+		if strings.Contains(pattern, "/invite-links/") {
+			if strings.Contains(pattern, "/orgs/") {
+				return tn.get(t, "membershipOrgInviteLink")
+			}
+			return tn.get(t, "membershipInviteLink")
 		}
 		return tn.get(t, "chatLink")
 	case "{resourceID}":

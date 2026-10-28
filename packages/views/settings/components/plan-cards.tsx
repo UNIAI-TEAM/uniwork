@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 import type { Entitlement, Plan } from "@uniwork/core/types";
+import { formatPrice, formatPlanQuotaLimit } from "@uniwork/core/billing";
+export { formatPrice } from "@uniwork/core/billing";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@uniwork/ui/components/ui/card";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -39,50 +41,8 @@ export function isDowngradePlan(current: Plan | undefined, target: Plan): boolea
   return planListPrice(target) < planListPrice(current);
 }
 
-/** Currencies whose minor unit is never shown (ISO 4217 exponent 0 in practice). */
-const ZERO_DECIMAL_CURRENCIES = new Set(["VND", "JPY", "KRW", "CLP", "ISK", "UGX", "XAF", "XOF"]);
-
-function formatAmount(amount: number, currency: string, locale: string): string {
-  const code = currency.toUpperCase();
-  const zeroDecimal = ZERO_DECIMAL_CURRENCIES.has(code);
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency: code,
-      ...(zeroDecimal ? { maximumFractionDigits: 0 } : {}),
-    }).format(amount);
-  } catch {
-    // An unknown currency code throws RangeError; a price must not take the
-    // whole tab down with it, so show the number and the raw code.
-    return `${amount.toLocaleString(locale)} ${currency}`.trim();
-  }
-}
-
-export function formatPrice(plan: Plan, locale: string, t: (k: string, o?: Record<string, unknown>) => string): string {
-  if (plan.price_amount === null) return t("price_contact");
-  if (plan.price_amount === 0) return t("price_free");
-  const amount = formatAmount(plan.price_amount, plan.price_currency, locale);
-  return plan.billing_period === "none"
-    ? amount
-    : t("price_per", { amount, period: t(`period.${plan.billing_period}`, { defaultValue: plan.billing_period }) });
-}
-
 /** The quota keys worth a line on a plan card, in this order. Flags follow. */
 const HEADLINE_QUOTAS = ["members.max", "workspaces.max", "tasks.max", "meeting.participant_minutes", "ai.tokens", "storage.bytes"];
-
-function formatPlanQuotaLimit(
-  featureKey: string,
-  limit: number | null,
-  locale: string,
-  t: (k: string, o?: Record<string, unknown>) => string,
-): string {
-  if (limit === null) return t("unlimited");
-  if (featureKey === "storage.bytes") {
-    const gb = limit / 1024 ** 3;
-    return t("plan_line_storage_gb", { n: gb.toLocaleString(locale, { maximumFractionDigits: 0 }) });
-  }
-  return limit.toLocaleString(locale);
-}
 
 function planLines(plan: Plan, known: Map<string, Entitlement>, locale: string, t: (k: string, o?: Record<string, unknown>) => string): string[] {
   const byKey = new Map(plan.features.map((f) => [f.feature_key, f]));

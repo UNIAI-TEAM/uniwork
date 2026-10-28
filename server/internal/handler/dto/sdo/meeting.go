@@ -49,13 +49,14 @@ type MeetingDTO struct {
 }
 
 type NoteDTO struct {
-	ID          string `json:"id" example:"01J8X4NOTE1P2Q3R4S5T6U7V8"`
-	MeetingID   string `json:"meeting_id" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
-	AuthorID    string `json:"author_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Body        string `json:"body" example:"Quyết định ship vào thứ Sáu."`
-	CreatedAt   string `json:"created_at" example:"2026-08-28T02:15:00Z"`
-	DisplayName string `json:"display_name" example:"Nguyễn Văn An"`
-	AvatarURL   string `json:"avatar_url,omitempty" example:"https://cdn.example.com/avatars/an.png"`
+	ID          string  `json:"id" example:"01J8X4NOTE1P2Q3R4S5T6U7V8"`
+	MeetingID   string  `json:"meeting_id" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+	AuthorID    string  `json:"author_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Body        string  `json:"body" example:"Quyết định ship vào thứ Sáu."`
+	CreatedAt   string  `json:"created_at" example:"2026-08-28T02:15:00Z"`
+	EditedAt    *string `json:"edited_at" description:"Lần sửa gần nhất; null khi chưa từng sửa" example:"2026-08-28T02:20:00Z"`
+	DisplayName string  `json:"display_name" example:"Nguyễn Văn An"`
+	AvatarURL   string  `json:"avatar_url,omitempty" example:"https://cdn.example.com/avatars/an.png"`
 }
 
 type NoteSDO struct {
@@ -96,6 +97,9 @@ type ParticipantDTO struct {
 	Standing            string `json:"standing" description:"MEMBER | OBSERVER" example:"MEMBER"`
 	IsSecretary         bool   `json:"is_secretary"`
 	SharedMic           bool   `json:"shared_mic" description:"Mic của người này là micro hội trường: thư ký AI tách người nói"`
+	InRoom              bool   `json:"in_room" description:"Người này đang có mặt trong phòng (có phiên điểm danh đang mở)" example:"true"`
+	RemovedBy           string `json:"removed_by,omitempty" description:"Người đã mời người này ra khỏi cuộc họp; không trả cho khách" example:"01J9Z3D4QH8M2X7N5K1C6V0B9A"`
+	RemovedAt           string `json:"removed_at,omitempty" description:"Lúc người này bị mời ra (RFC 3339)" example:"2026-10-27T08:52:00Z"`
 }
 
 type ParticipantListSDO struct {
@@ -145,6 +149,7 @@ type PublicInviteLinkSDO struct {
 	LinkState    string `json:"link_state" description:"Trạng thái liên kết: active, expired, revoked hoặc exhausted (hết lượt, chỉ với AUTO_ADMIT)" example:"active"`
 	MeetingState string `json:"meeting_state" description:"Cuộc họp còn vào được không: open, ended, canceled hoặc past_scheduled_end" example:"open"`
 	Scribe       bool   `json:"scribe" description:"Thư ký AI sẽ ghi lời cuộc họp này (bật cho cuộc họp và có cho tổ chức): trang mời báo cho khách trước khi vào" example:"true"`
+	StartedAt    string `json:"started_at,omitempty" description:"Lúc cuộc họp thực sự bắt đầu (RFC 3339); trống khi chưa bắt đầu" example:"2026-10-27T08:40:00Z"`
 }
 
 type JoinRequestDTO struct {

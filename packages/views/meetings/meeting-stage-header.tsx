@@ -33,6 +33,7 @@ import {
   formatRemaining,
   meetingLocale,
 } from "./meeting-datetime";
+import { MeetingHostAwayChip } from "./meeting-host-presence";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { OnOffAnnouncer } from "./meeting-room-announcers";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
@@ -134,6 +135,16 @@ function StageHeaderPeople({ peopleOpen, onOpenPeople }: { peopleOpen: boolean; 
   );
 }
 
+function PanelNewsDot() {
+  return (
+    <span
+      aria-hidden
+      data-slot="panel-news"
+      className="pointer-events-none absolute top-1 right-1 size-2 rounded-full bg-brand ring-2 ring-meeting-stage"
+    />
+  );
+}
+
 /** Memoized: the stage passes stable callbacks, so a tile or caption update never repaints it. */
 export const MeetingStageHeader = memo(function MeetingStageHeader({
   meeting,
@@ -147,6 +158,7 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
   sidebarOpen,
   onToggleSidebar,
   onOpenSidebar,
+  panelNews = null,
   onOpenPeople,
   peopleOpen = false,
 }: {
@@ -162,6 +174,8 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
   onOpenSidebar?: () => void;
+  /** What waits in the closed panel (UNI's catch-up or new items): a dot on the panel button, said in its name. */
+  panelNews?: string | null;
   onOpenPeople?: () => void;
   /** The people tab is on screen; the join-request panel steps aside. */
   peopleOpen?: boolean;
@@ -258,6 +272,8 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
               </span>
             ) : null}
 
+            {meeting && !guestMode ? <MeetingHostAwayChip meeting={meeting} canHost={showHostActions} /> : null}
+
             <MeetingScribeChip meeting={meeting} available={scribeAvailable} canSwitch={showHostActions} />
 
             {meeting?.ends_at ? <RemainingTimeChip endsAt={meeting.ends_at} /> : null}
@@ -315,11 +331,12 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
                 type="button"
                 variant="meetingChip"
                 size="icon"
-                className="size-9 lg:hidden"
-                aria-label={t("meetings.openSidebarPanel")}
+                className="relative size-9 lg:hidden"
+                aria-label={panelNews ? `${t("meetings.openSidebarPanel")}, ${panelNews}` : t("meetings.openSidebarPanel")}
                 onClick={onOpenSidebar}
               >
                 <PanelRightOpen aria-hidden />
+                {panelNews ? <PanelNewsDot /> : null}
               </Button>
             ) : null}
 
@@ -328,12 +345,20 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
                 type="button"
                 variant="meetingChip"
                 size="icon"
-                className="hidden size-9 lg:inline-flex"
-                aria-label={sidebarOpen ? t("meetings.closeSidebar") : t("meetings.openSidebarPanel")}
+                className="relative hidden size-9 lg:inline-flex"
+                data-panel-toggle
+                aria-label={
+                  sidebarOpen
+                    ? t("meetings.closeSidebar")
+                    : panelNews
+                      ? `${t("meetings.openSidebarPanel")}, ${panelNews}`
+                      : t("meetings.openSidebarPanel")
+                }
                 aria-pressed={sidebarOpen}
                 onClick={onToggleSidebar}
               >
                 {sidebarOpen ? <PanelRightClose aria-hidden /> : <PanelRightOpen aria-hidden />}
+                {!sidebarOpen && panelNews ? <PanelNewsDot /> : null}
               </Button>
             ) : null}
           </div>

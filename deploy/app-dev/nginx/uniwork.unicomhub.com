@@ -101,9 +101,9 @@ server {
         limit_except GET {
             deny all;
         }
-        rewrite ^/downloads/office/(.*)$ /OFFICE_DOWNLOADS_BUCKET/$1 break;
-        proxy_pass https://OFFICE_DOWNLOADS_S3_HOST;
-        proxy_set_header Host OFFICE_DOWNLOADS_S3_HOST;
+        rewrite ^/downloads/office/(.*)$ /uniwork-office-releases/$1 break;
+        proxy_pass https://s3.hn-2.cloud.cmctelecom.vn;
+        proxy_set_header Host s3.hn-2.cloud.cmctelecom.vn;
         proxy_ssl_server_name on;
         proxy_set_header Upgrade "";
         proxy_set_header Connection "";

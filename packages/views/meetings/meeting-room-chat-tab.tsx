@@ -1,25 +1,29 @@
 "use client";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { Send } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from "react";
+import { ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingChat, useOlderMeetingChat } from "@uniwork/core/meetings";
+import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../toast-api-error";
-import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, chatBubbleShape } from "../chat/chat-message-row";
+import { linkify } from "../chat/chat-message-body";
+import { CHAT_BUBBLE_OWN } from "../chat/chat-message-row";
 import { formatMessageDay, formatMessageTime, messageDayKey } from "../chat/chat-message-time";
-import { CHAT_WALL_DOT_CLASS } from "@uniwork/core/chat/chat-wallpaper-resolve";
-import { senderNameClass } from "../chat/sender-colors";
+import { INPUT_TYPE, ROUND } from "./composer-classes";
 import { groupChatMessages, type MeetingChatGroup, type MeetingChatItem } from "./meeting-chat";
 import { MeetingFeedLoadOlder } from "./meeting-feed-load-older";
 import { MeetingPersonAvatar } from "./meeting-person";
-import { useRoomAvatarOf } from "./meeting-room-avatars";
+import { useRoomAvatarOf, useRoomTintOf } from "./meeting-room-avatars";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 import { useEphemeralMeetingRoomChat } from "./use-ephemeral-meeting-room-chat";
 import { usePersistedMeetingRoomChat } from "./use-persisted-meeting-room-chat";
 
+// A link is the bubble's own colour on the brand bubble, the brand ink on the grey one (Chat board), as in Chat.
+const LINK_OWN = "font-medium underline decoration-1 underline-offset-2 hover:decoration-2 text-chat-bubble-own-foreground";
+const LINK_OTHER = "font-medium underline decoration-1 underline-offset-2 hover:decoration-2 text-brand-subtle-foreground";
 
 /** How close to the bottom (px) still counts as "reading the latest". */
 const STICK_THRESHOLD = 48;
@@ -43,6 +47,14 @@ function MeetingRoomChatSkeleton() {
     </MeetingSectionLoading>
   );
 }
+
+/** The Chat board's bubble: 16px corners, 4px at the top on the sender's side for a run's first, 6px where a run's bubbles meet. */
+function bubbleShape(own: boolean, first: boolean, last: boolean): string {
+  if (own) return cn("rounded-2xl", first ? "rounded-tr-[4px]" : "rounded-tr-[6px]", !last && "rounded-br-[6px]");
+  return cn("rounded-2xl", first ? "rounded-tl-[4px]" : "rounded-tl-[6px]", !last && "rounded-bl-[6px]");
+}
+
+const EDGE_RADIUS = { "--ai-edge-radius": "16px" } as CSSProperties;
 
 type ChatLoadState = { loading: boolean; failed: boolean; retry: () => void };
 
@@ -78,6 +90,7 @@ function MeetingRoomChatView({
   const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState("");
   const avatarOf = useRoomAvatarOf();
+  const tintOf = useRoomTintOf();
   const listRef = useRef<HTMLOListElement>(null);
   const sendLock = useRef(false);
   // Follow new messages only while the reader is at the bottom; someone who
@@ -85,6 +98,8 @@ function MeetingRoomChatView({
   const stickToBottom = useRef(true);
 
   const days = chatDays(items);
+  // A meeting is one day: the divider only earns its row once the chat crosses midnight.
+  const showDays = days.length > 1;
   const groupCount = days.reduce((n, d) => n + d.groups.length, 0);
   const lastIncoming = [...items].reverse().find((m) => !m.isLocal);
 
@@ -136,8 +151,9 @@ function MeetingRoomChatView({
       </p>
       <ol
         ref={listRef}
-        // The chat bubbles are white for others: they need the chat wall behind them.
-        className={cn("min-h-0 w-full flex-1 space-y-4 overflow-y-auto overscroll-contain rounded-xl p-2", CHAT_WALL_DOT_CLASS)}
+        // On top of the panel's own px-3 pt-2: the board's 14px sides and 16px top. A short conversation sits on
+        // the box, as on the Chat board: the first row's auto margin takes the free space and scrolls away with it.
+        className="flex min-h-0 w-full flex-1 flex-col space-y-3.5 overflow-y-auto overscroll-contain px-0.5 py-2 [&>li:first-child]:mt-auto"
         onScroll={(e) => {
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD;
@@ -160,17 +176,19 @@ function MeetingRoomChatView({
           <li className="text-caption text-muted-foreground">{t("meetings.chatEmpty")}</li>
         ) : (
           days.flatMap((day) => [
-            <li
-              key={`day-${day.day}`}
-              className="flex items-center gap-2 text-caption font-medium text-muted-foreground"
-            >
-              <span aria-hidden className="h-px flex-1 bg-border" />
-              {formatMessageDay(day.day, i18n.language, {
-                today: t("meetings.today"),
-                yesterday: t("meetings.yesterday"),
-              })}
-              <span aria-hidden className="h-px flex-1 bg-border" />
-            </li>,
+            showDays ? (
+              <li
+                key={`day-${day.day}`}
+                className="flex items-center gap-2 text-caption font-medium text-muted-foreground"
+              >
+                <span aria-hidden className="h-px flex-1 bg-border" />
+                {formatMessageDay(day.day, i18n.language, {
+                  today: t("meetings.today"),
+                  yesterday: t("meetings.yesterday"),
+                })}
+                <span aria-hidden className="h-px flex-1 bg-border" />
+              </li>
+            ) : null,
             ...day.groups.map((group) => (
               <li
                 key={`${group.fromIdentity}-${group.items[0]?.id ?? ""}`}
@@ -180,30 +198,31 @@ function MeetingRoomChatView({
                   <MeetingPersonAvatar
                     name={group.fromName}
                     avatarUrl={avatarOf(group.fromIdentity)}
-                    className="mt-0.5"
+                    tint={tintOf(group.fromIdentity)}
+                    size={28}
                   />
                 )}
                 <div
                   className={cn(
-                    "flex min-w-0 flex-1 flex-col gap-1",
+                    "flex min-w-0 flex-1 flex-col gap-0.75",
                     group.isLocal ? "items-end" : "items-start",
                   )}
                 >
-                  <div
-                    className={cn(
-                      "flex max-w-full items-baseline gap-1.5 px-0.5",
-                      group.isLocal && "flex-row-reverse",
+                  <div className="flex max-w-full items-baseline gap-1.5">
+                    {group.isLocal ? (
+                      // The board shows no name on own messages; a screen reader still hears who sent them.
+                      <span className="sr-only">{t("meetings.you")}</span>
+                    ) : (
+                      <span
+                        className={cn(
+                          "min-w-0 truncate text-caption font-semibold",
+                          group.isLocal ? "text-brand" : tintForegroundClass[tintOf(group.fromIdentity)],
+                        )}
+                      >
+                        {group.fromName}
+                      </span>
                     )}
-                  >
-                    <span
-                      className={cn(
-                        "min-w-0 truncate text-caption font-semibold",
-                        senderNameClass(group.fromIdentity, group.isLocal),
-                      )}
-                    >
-                      {group.isLocal ? t("meetings.you") : group.fromName}
-                    </span>
-                    <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
+                    <span className="shrink-0 text-micro tabular-nums text-faint-foreground">
                       {formatMessageTime(group.items[0]?.timestamp ?? 0, i18n.language)}
                     </span>
                   </div>
@@ -212,11 +231,11 @@ function MeetingRoomChatView({
                       key={msg.id}
                       className={cn(
                         "w-fit max-w-[85%] whitespace-pre-wrap px-3 py-2 text-pretty text-body text-foreground wrap-break-word",
-                        chatBubbleShape(group.isLocal, index === 0),
-                        group.isLocal ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
+                        bubbleShape(group.isLocal, index === 0, index === group.items.length - 1),
+                        group.isLocal ? CHAT_BUBBLE_OWN : "bg-surface-hover",
                       )}
                     >
-                      {msg.message}
+                      {linkify(msg.message, group.isLocal ? LINK_OWN : LINK_OTHER)}
                     </p>
                   ))}
                 </div>
@@ -225,27 +244,35 @@ function MeetingRoomChatView({
           ])
         )}
       </ol>
-      <form className="relative mt-3 w-full shrink-0" onSubmit={onSend}>
-        <Textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={onKeyDown}
-          rows={1}
-          placeholder={t("meetings.chatPlaceholder")}
-          aria-label={t("meetings.chat")}
-          className="field-sizing-content max-h-32 min-h-10 resize-none rounded-2xl bg-surface py-2.5 pr-11 pointer-coarse:min-h-14 pointer-coarse:pr-14"
-        />
-        <Button
-          type="submit"
-          size="icon"
-          variant="ghost"
-          disabled={isSending || !draft.trim()}
-          aria-label={t("meetings.send")}
-          className="absolute top-1.5 right-1.5 size-8 rounded-full"
-        >
-          <Send aria-hidden className="size-4" />
-        </Button>
-      </form>
+      <div className="ai-edge mt-2 w-full shrink-0" style={EDGE_RADIUS}>
+        <form className="flex items-end gap-1.5 py-1.25 pr-1.25 pl-3" onSubmit={onSend}>
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={onKeyDown}
+            rows={1}
+            placeholder={t("meetings.panel.chat.placeholder")}
+            aria-label={t("meetings.chat")}
+            className={cn(
+              "max-h-32 min-h-8 resize-none rounded-none border-0 bg-transparent px-0 py-1.25 focus-visible:ring-0 dark:bg-transparent",
+              INPUT_TYPE,
+            )}
+          />
+          <Button
+            type="submit"
+            aria-disabled={isSending || !draft.trim() || undefined}
+            aria-label={t("meetings.send")}
+            className={cn(
+              ROUND,
+              isSending || !draft.trim()
+                ? "bg-surface-hover text-faint-foreground"
+                : "bg-brand text-brand-foreground hover:bg-brand/90",
+            )}
+          >
+            <ArrowUp aria-hidden />
+          </Button>
+        </form>
+      </div>
     </>
   );
 }

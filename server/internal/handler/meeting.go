@@ -253,6 +253,29 @@ func (h *handlers) createNote(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, map[string]any{"note": n})
 }
 
+func (h *handlers) updateNote(w http.ResponseWriter, r *http.Request) {
+	var in sdi.UpdateNoteSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	n, err := h.Meetings.UpdateNote(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "meetingID"), chi.URLParam(r, "noteID"), in.Body)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, map[string]any{"note": n})
+}
+
+func (h *handlers) deleteNote(w http.ResponseWriter, r *http.Request) {
+	if err := h.Meetings.DeleteNote(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "meetingID"), chi.URLParam(r, "noteID")); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
+}
+
 func (h *handlers) meetingStatistics(w http.ResponseWriter, r *http.Request) {
 	st, err := h.Meetings.Statistics(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"))
 	if err != nil {

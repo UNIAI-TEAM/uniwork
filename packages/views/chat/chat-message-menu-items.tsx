@@ -7,11 +7,13 @@ import {
   FaceSlightlySmilingPlus,
   Forward,
   Link2,
+  ListChecks,
   MessageSquareText,
   Pencil,
   Pin,
   Reply,
   Trash,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -31,6 +33,7 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { ChatForwardContext, isForwardableChatMessage } from "./chat-forward-context";
+import { useChatMessageSelectionUi } from "./chat-message-selection-context";
 import type { ChatMessage } from "./chat-messages";
 import { ChatSeenByMenuItem } from "./chat-seen-by";
 
@@ -146,9 +149,43 @@ export function ChatMessageMenuItems({
 }) {
   const { t } = useTranslation();
   const onForward = useContext(ChatForwardContext);
+  const selection = useChatMessageSelectionUi();
   const mine = new Set(message.myReactions ?? []);
   const workHub = Boolean(onCreateTask || onLinkTask || onFollowUp);
   const attachment = (documentItems?.(P) ?? []).filter((item) => item != null && item !== false);
+
+  if (selection?.active) {
+    return (
+      <>
+        <P.Item onClick={() => onReply?.(message)} disabled={!onReply}>
+          <Reply className="size-4" aria-hidden />
+          {t("chat.action_reply")}
+        </P.Item>
+        <P.Item onClick={selection.copySelected}>
+          <Copy className="size-4" aria-hidden />
+          {t("chat.selection.copy_selected")}
+        </P.Item>
+        {selection.canForwardSelected ? (
+          <P.Item onClick={selection.forwardSelected}>
+            <Forward className="size-4" aria-hidden />
+            {t("chat.selection.forward_selected")}
+          </P.Item>
+        ) : null}
+        {selection.canDeleteSelected ? (
+          <P.Item variant="destructive" onClick={selection.deleteSelected}>
+            <Trash className="size-4" aria-hidden />
+            {t("chat.selection.delete_selected")}
+          </P.Item>
+        ) : null}
+        <P.Separator />
+        <P.Item onClick={selection.clear}>
+          <X className="size-4" aria-hidden />
+          {t("chat.selection.clear")}
+        </P.Item>
+      </>
+    );
+  }
+
   return (
     <>
       {onToggleReaction ? (
@@ -211,6 +248,12 @@ export function ChatMessageMenuItems({
         <P.Item onClick={() => onForward(message)}>
           <Forward className="size-4" aria-hidden />
           {t("chat.forward.action")}
+        </P.Item>
+      ) : null}
+      {selection ? (
+        <P.Item onClick={() => selection.enter(message)}>
+          <ListChecks className="size-4" aria-hidden />
+          {t("chat.action_select")}
         </P.Item>
       ) : null}
       {workHub ? (

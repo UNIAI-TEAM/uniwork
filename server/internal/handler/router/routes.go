@@ -162,6 +162,17 @@ type Routes struct {
 	RevokeOrgInvitation  http.HandlerFunc
 	TransferOrgOwnership http.HandlerFunc
 
+	ListOrgInviteLinks            http.HandlerFunc
+	CreateOrgInviteLink           http.HandlerFunc
+	RevokeOrgInviteLink           http.HandlerFunc
+	RegenerateOrgInviteLink       http.HandlerFunc
+	ListWorkspaceInviteLinks      http.HandlerFunc
+	CreateWorkspaceInviteLink     http.HandlerFunc
+	RevokeWorkspaceInviteLink     http.HandlerFunc
+	RegenerateWorkspaceInviteLink http.HandlerFunc
+	PreviewMembershipInviteLink   http.HandlerFunc
+	JoinMembershipInviteLink      http.HandlerFunc
+
 	ListPeople         http.HandlerFunc
 	GetPerson          http.HandlerFunc
 	PatchPersonProfile http.HandlerFunc
@@ -443,6 +454,8 @@ type Routes struct {
 	TransferHost                   http.HandlerFunc
 	ListNotes                      http.HandlerFunc
 	CreateNote                     http.HandlerFunc
+	UpdateNote                     http.HandlerFunc
+	DeleteNote                     http.HandlerFunc
 	MeetingToken                   http.HandlerFunc
 	JoinMeeting                    http.HandlerFunc
 	ListParticipants               http.HandlerFunc
@@ -505,6 +518,7 @@ type Routes struct {
 	SetCaptionLanguage             http.HandlerFunc
 	ListTranscript                 http.HandlerFunc
 	AppendChatMessage              http.HandlerFunc
+	RateCall                       http.HandlerFunc
 	ListChatMessages               http.HandlerFunc
 	GetMeetingSummary              http.HandlerFunc
 	CreateSummary                  http.HandlerFunc

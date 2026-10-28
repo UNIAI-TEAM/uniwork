@@ -78,6 +78,16 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 		summary: "Add note", tags: []string{"meetings"}, sdi: sdi.CreateNoteSDI{}, sdo: sdo.NoteSDO{}, auth: true,
 		description: "Thành viên workspace. Ghi audit meeting.note_added, phát note.created (chỉ id) tới người đang mở cuộc họp.",
 	})
+	r.Patch("/meetings/{meetingID}/notes/{noteID}", h.UpdateNote, apiOp{
+		summary: "Edit a note (author or clerk)", tags: []string{"meetings"}, sdi: sdi.UpdateNoteSDI{}, sdo: sdo.NoteSDO{}, auth: true,
+		description: "Người viết ghi chú, chủ tọa, thư ký hoặc quản trị workspace; người khác -> 403. Ghi chú không thuộc cuộc họp -> 404. Nội dung trống -> 422. " +
+			"Đặt edited_at, ghi audit meeting.note_updated (không chứa nội dung), phát note.updated (chỉ id) tới người đang mở cuộc họp.",
+	})
+	r.Delete("/meetings/{meetingID}/notes/{noteID}", h.DeleteNote, apiOp{
+		summary: "Delete a note (author or clerk)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+		description: "Người viết ghi chú, chủ tọa, thư ký hoặc quản trị workspace; người khác -> 403. Ghi chú không thuộc cuộc họp -> 404. " +
+			"Xoá hẳn; dòng audit meeting.note_deleted là bản ghi còn lại. Phát note.deleted (chỉ id) tới người đang mở cuộc họp.",
+	})
 	r.Post("/meetings/{meetingID}/token", h.MeetingToken, apiOp{
 		summary: "Mint LiveKit token (deprecated; uses admission)", tags: []string{"meetings"},
 		sdo: sdo.MeetingTokenSDO{}, auth: true,
@@ -438,6 +448,10 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 	r.With(joinLimit).Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
 		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
+	})
+	r.With(joinLimit).Post("/meetings/{meetingID}/call-rating", h.RateCall, apiOp{
+		summary: "Rate the call's sound and picture on leaving (member or active guest)", tags: []string{"meetings"},
+		sdi: sdi.RateCallSDI{}, sdo: sdo.StatusSDO{},
 	})
 	r.Get("/meetings/{meetingID}/motions", h.ListMotions, apiOp{
 		summary:     "List vote items (member or active guest)",

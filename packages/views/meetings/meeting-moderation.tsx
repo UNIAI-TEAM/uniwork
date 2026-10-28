@@ -358,12 +358,13 @@ export function MeetingMuteAllButton({ className }: { className?: string }) {
     <>
       <Button
         type="button"
-        variant="outline"
-        className={cn("h-9 w-full rounded-xl", className)}
+        variant="ghost"
+        size="icon"
+        className={cn("size-9 rounded-[11px]", className)}
+        aria-label={t("meetings.muteEveryone")}
         onClick={() => setConfirming(true)}
       >
         <MicOff aria-hidden className="size-4" />
-        {t("meetings.muteEveryone")}
       </Button>
       <ConfirmDialog
         open={confirming}

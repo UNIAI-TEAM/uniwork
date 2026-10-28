@@ -30,6 +30,7 @@ import {
   ChatMessageMenuItems,
   type ChatMessageActionHandlers,
 } from "./chat-message-menu-items";
+import { useChatMessageSelectionUi } from "./chat-message-selection-context";
 import { useActionsBarPlacement } from "./use-actions-bar-placement";
 
 /**
@@ -280,12 +281,13 @@ export function ChatMessageHoverActions({ message, isOwn, canEdit = true, overla
   const { t } = useTranslation();
   const barRef = useRef<HTMLDivElement>(null);
   const shared = useContext(MessagePickerContext);
+  const selection = useChatMessageSelectionUi();
   const [ownPickerOpen, setOwnPickerOpen] = useState(false);
   const pickerOpen = shared ? shared.pickerOpen : ownPickerOpen;
   const setPickerOpen = shared ? shared.setPickerOpen : setOwnPickerOpen;
   const [menuOpen, setMenuOpen] = useState(false);
   const { onReply, onReact, onToggleReaction } = handlers;
-  const canInteract = Boolean(onReply && onReact);
+  const canInteract = Boolean(onReply && onReact) && !selection?.active;
   useActionsBarPlacement(barRef, canInteract);
 
   if (!canInteract) return null;
@@ -475,9 +477,13 @@ export function ChatMessageActionsFrame({
 }: ActionsProps & { pending?: boolean; className?: string; children: ReactNode }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const picker = useMemo(() => ({ pickerOpen, setPickerOpen }), [pickerOpen]);
+  const selection = useChatMessageSelectionUi();
   const menuState: MessageMenuState = { message, isOwn, canEdit, handlers };
   const frame = cn("group/message relative", className);
-  if (pending || !handlers.onReply || !handlers.onReact) return <div className={frame}>{children}</div>;
+  const selectionActive = Boolean(selection?.active);
+  const hasMenu =
+    !pending && (selectionActive || Boolean(handlers.onReply && handlers.onReact) || Boolean(selection));
+  if (!hasMenu) return <div className={frame}>{children}</div>;
   return (
     <MessagePickerContext.Provider value={picker}>
       <MessageMenuContext.Provider value={menuState}>

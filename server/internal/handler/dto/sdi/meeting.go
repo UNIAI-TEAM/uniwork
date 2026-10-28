@@ -53,6 +53,10 @@ type CreateNoteSDI struct {
 	Body string `json:"body" minLength:"1" description:"Nội dung ghi chú" example:"Quyết định ship vào thứ Sáu."`
 }
 
+type UpdateNoteSDI struct {
+	Body string `json:"body" minLength:"1" description:"Nội dung mới của ghi chú" example:"Quyết định ship vào thứ Hai."`
+}
+
 type InviteParticipantSDI struct {
 	UserID string `json:"user_id" minLength:"1" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 }
@@ -264,6 +268,11 @@ type ConvertActionItemSDI struct {
 type ConvertActionItemsSDI struct {
 	Items  []ConvertActionItemSDI `json:"items" description:"1–50 việc đang chờ xử lý"`
 	Locale string                 `json:"locale" description:"Ngôn ngữ nhãn trong mô tả task (Người phụ trách/Hạn): vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
+}
+
+// RateCallSDI is POST /api/v1/meetings/{meetingID}/call-rating.
+type RateCallSDI struct {
+	Rating string `json:"rating" enum:"good,ok,poor" description:"Âm thanh, hình ảnh lúc rời phòng: good (tốt), ok (tạm), poor (kém)" example:"good"`
 }
 
 // AppendChatSDI is POST /api/v1/meetings/{meetingID}/chat.

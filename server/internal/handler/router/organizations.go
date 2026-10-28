@@ -197,6 +197,36 @@ func registerOrganizations(r api, h Routes, stepUpLimit func(http.Handler) http.
 		sdo:  sdo.OrgInvitationListSDO{},
 		auth: true,
 	})
+	r.Get("/orgs/{org}/invite-links", h.ListOrgInviteLinks, apiOp{
+		summary:     "List organization invite links",
+		description: "Danh sách liên kết mời shareable của tổ chức (gắn một hoặc nhiều workspace). Chỉ owner/admin.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.MembershipInviteLinkListSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/invite-links", h.CreateOrgInviteLink, apiOp{
+		summary:     "Create organization invite link",
+		description: "Tạo liên kết mời vào tổ chức và các workspace được chọn (bắt buộc ≥1). Vai trò mặc định Member.",
+		tags:        []string{"organizations"},
+		sdi:         sdi.CreateMembershipInviteLinkSDI{},
+		sdo:         sdo.MembershipInviteLinkSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/invite-links/{linkID}/revoke", h.RevokeOrgInviteLink, apiOp{
+		summary:     "Revoke organization invite link",
+		description: "Thu hồi một liên kết Active của tổ chức.",
+		tags:        []string{"organizations"},
+		sdo:         sdo.MembershipInviteLinkSDO{},
+		auth:        true,
+	})
+	r.Post("/orgs/{org}/invite-links/{linkID}/regenerate", h.RegenerateOrgInviteLink, apiOp{
+		summary:     "Regenerate organization invite link",
+		description: "Thu hồi link Active và tạo link mới với cùng danh sách workspace.",
+		tags:        []string{"organizations"},
+		sdi:         sdi.CreateMembershipInviteLinkSDI{},
+		sdo:         sdo.MembershipInviteLinkSDO{},
+		auth:        true,
+	})
 	r.Delete("/orgs/{org}/invitations/{invitationId}", h.RevokeOrgInvitation, apiOp{
 		summary:     "Revoke an organization invitation",
 		description: "Thu hồi lời mời chưa chấp nhận; dòng dữ liệu vẫn giữ để truy vết.",

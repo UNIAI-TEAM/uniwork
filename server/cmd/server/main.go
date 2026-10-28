@@ -194,6 +194,7 @@ func main() {
 	}
 	renderer := mail.Renderer{AppURL: cfg.FrontendOrigin}
 	wsSvc := service.NewWorkspaceService(pool, q, orgSvc, renderer, mailOutbox)
+	service.SetMembershipInviteKey([]byte(cfg.JWTSecret))
 	orgMemberSvc.SetMail(renderer, mailOutbox)
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
 	// The one sealer (ADR 0047): TOTP secrets and the kept Apple token at

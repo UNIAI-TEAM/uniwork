@@ -15,6 +15,12 @@ const SEGMENT: Record<BallotChoice, string> = {
   ABSTAIN: "bg-muted-foreground/40",
 };
 const COUNT_OF = { YES: "yes", NO: "no", ABSTAIN: "abstain" } as const;
+// The room's stacked bar: one colour per choice, the outcome chip carries pass/fail.
+const ROOM_SEGMENT: Record<BallotChoice, string> = {
+  YES: "bg-success-solid",
+  NO: "bg-destructive",
+  ABSTAIN: "bg-faint-foreground",
+};
 
 /**
  * Who chose what, read only once the result is unfolded: the list every
@@ -62,14 +68,86 @@ function MotionVotersList({ meetingId, motionId }: { meetingId: string; motionId
  * fetched on first unfold. A secret ballot says why there are no names
  * instead.
  */
-export function MeetingMotionResult({ meetingId, motion }: { meetingId: string; motion: MeetingMotion }) {
-  const { t } = useTranslation();
+export function MeetingMotionResult({
+  meetingId,
+  motion,
+  room = false,
+}: {
+  meetingId: string;
+  motion: MeetingMotion;
+  /** The room tab: a stacked bar of the ballots cast and a dot legend; the card shows the outcome. */
+  room?: boolean;
+}) {
+  const { t, i18n } = useTranslation();
   const [votersOpen, setVotersOpen] = useState(false);
   const result = motion.result;
   if (!result) return null;
   const denominator = motionDenominator(motion.base, motion.roll_size ?? 0, motion.total_members ?? 0);
   const passed = result.outcome === "PASSED";
   const secret = motion.ballot_mode === "SECRET";
+  const names = secret ? (
+    <p className="flex items-center gap-2 text-caption text-muted-foreground">
+      <EyeOff aria-hidden className="size-3.5 shrink-0" />
+      {t("meetings.governance.motionSecretNote")}
+    </p>
+  ) : (
+    <Collapsible open={votersOpen} onOpenChange={setVotersOpen}>
+      <CollapsibleTrigger className="flex items-center gap-1.5 rounded-md px-1 py-1 text-label text-muted-foreground transition-colors duration-fast hover:bg-surface-hover hover:text-foreground pointer-coarse:min-h-11">
+        <ChevronDown
+          aria-hidden
+          className={cn(
+            "size-4 transition-transform duration-fast motion-reduce:transition-none",
+            !votersOpen && "-rotate-90",
+          )}
+        />
+        {t("meetings.governance.motionVoters")}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        {votersOpen ? <MotionVotersList meetingId={meetingId} motionId={motion.id} /> : null}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+  if (room) {
+    if (denominator === 0) {
+      return (
+        <div className="space-y-2">
+          <p className="text-caption text-muted-foreground">{t("meetings.governance.motionNoVoters")}</p>
+          {names}
+        </div>
+      );
+    }
+    const tally = BALLOT_CHOICES.map((c) => ({ c, count: result[COUNT_OF[c]] }));
+    const required = t("meetings.governance.motionRequired", { required: result.required, base: denominator });
+    return (
+      <div className="space-y-2">
+        <div
+          role="img"
+          aria-label={`${tally
+            .map(({ c, count }) => `${count} ${t(`meetings.governance.choice_${c}`).toLocaleLowerCase(i18n.language)}`)
+            .join(", ")}. ${required}`}
+          className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-muted"
+        >
+          {tally.map(({ c, count }) =>
+            count > 0 ? (
+              // The share is data: each segment grows by its count.
+              <span key={c} className={cn("h-full", ROOM_SEGMENT[c])} style={{ flexGrow: count }} />
+            ) : null,
+          )}
+        </div>
+        {/* The bar's label already reads all of this. */}
+        <div aria-hidden className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground tabular-nums">
+          {tally.map(({ c, count }) => (
+            <span key={c} className="inline-flex items-center gap-1.5 font-medium">
+              <span className={cn("size-2 rounded-full", ROOM_SEGMENT[c])} />
+              {count}
+            </span>
+          ))}
+          <span className="ms-auto">{required}</span>
+        </div>
+        {names}
+      </div>
+    );
+  }
   return (
     <div className="@container space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -112,28 +190,7 @@ export function MeetingMotionResult({ meetingId, motion }: { meetingId: string; 
           </li>
         ))}
       </ul>
-      {secret ? (
-        <p className="flex items-center gap-2 text-caption text-muted-foreground">
-          <EyeOff aria-hidden className="size-3.5 shrink-0" />
-          {t("meetings.governance.motionSecretNote")}
-        </p>
-      ) : (
-        <Collapsible open={votersOpen} onOpenChange={setVotersOpen}>
-          <CollapsibleTrigger className="flex items-center gap-1.5 rounded-md px-1 py-1 text-label text-muted-foreground transition-colors duration-fast hover:bg-surface-hover hover:text-foreground pointer-coarse:min-h-11">
-            <ChevronDown
-              aria-hidden
-              className={cn(
-                "size-4 transition-transform duration-fast motion-reduce:transition-none",
-                !votersOpen && "-rotate-90",
-              )}
-            />
-            {t("meetings.governance.motionVoters")}
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            {votersOpen ? <MotionVotersList meetingId={meetingId} motionId={motion.id} /> : null}
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+      {names}
     </div>
   );
 }

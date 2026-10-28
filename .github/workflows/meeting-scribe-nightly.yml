@@ -146,7 +146,7 @@ jobs:
           grep -q "registered worker" /tmp/agent.log
       - run: pnpm --filter @uniwork/e2e exec playwright install --with-deps chromium
       - name: Scribe e2e
-        run: pnpm --filter @uniwork/e2e exec playwright test meeting-scribe.spec.ts
+        run: pnpm --filter @uniwork/e2e exec playwright test meeting-scribe.spec.ts meeting-room-panel.spec.ts
       - if: failure()
         run: |
           tail -n 100 /tmp/server.log /tmp/agent.log /tmp/web.log

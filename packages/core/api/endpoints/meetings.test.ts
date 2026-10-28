@@ -9,6 +9,7 @@ import {
   createJoinRequest,
   createMeeting,
   deleteMeeting,
+  deleteNote,
   fetchMeetingCalendar,
   getMeeting,
   getMeetingCapabilities,
@@ -18,14 +19,17 @@ import {
   listMeetingActivity,
   listMeetings,
   listNotes,
+  listParticipants,
   listRecordings,
   meetingToken,
+  rateCall,
   resolveInviteLink,
   restoreMeeting,
   setParticipantPublish,
   startRecording,
   stopRecording,
   updateMeeting,
+  updateNote,
   setMeetingScribe,
   setMeetingAISharing,
   extendMeeting,
@@ -141,6 +145,28 @@ describe("meetings endpoints", () => {
     expect(JSON.parse(vi.mocked(fetch).mock.calls[1]![1]!.body as string)).toEqual({ body: "ghi chú" });
   });
 
+  it("updateNote patches the body and deleteNote deletes, both resolving whatever the answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ note: null })).mockResolvedValueOnce(json("drift"));
+    await expect(updateNote("m1", "n1", "đã sửa")).resolves.toBeUndefined();
+    await expect(deleteNote("m1", "n1")).resolves.toBeUndefined();
+    const [patchUrl, patch] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(patchUrl)).toBe("http://api.test/api/v1/meetings/m1/notes/n1");
+    expect(patch!.method).toBe("PATCH");
+    expect(JSON.parse(patch!.body as string)).toEqual({ body: "đã sửa" });
+    const [deleteUrl, del] = vi.mocked(fetch).mock.calls[1]!;
+    expect(String(deleteUrl)).toBe("http://api.test/api/v1/meetings/m1/notes/n1");
+    expect(del!.method).toBe("DELETE");
+  });
+
+  it("listNotes keeps edited_at and reads a drifted one as never edited", async () => {
+    const note = { id: "n1", meeting_id: "m1", author_id: "u1", body: "x" };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ notes: [{ ...note, edited_at: "2026-10-27T03:00:00Z" }, { ...note, id: "n2", edited_at: null }] }))
+      .mockResolvedValueOnce(json({ notes: [{ ...note, edited_at: 42 }] }));
+    expect((await listNotes("m1")).map((n) => n.edited_at)).toEqual(["2026-10-27T03:00:00Z", null]);
+    expect((await listNotes("m1"))[0]?.edited_at).toBeUndefined();
+  });
+
   it("listNotes returns [] on drift", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ notes: [{ id: "n1", meeting_id: "m1", author_id: "u1", body: "x" }] }));
     expect(await listNotes("m1")).toHaveLength(1);
@@ -177,6 +203,44 @@ describe("meetings endpoints", () => {
     expect((await resolveInviteLink("l1", "sec"))?.link_state).toBeUndefined();
     vi.mocked(fetch).mockResolvedValueOnce(json({ link_id: "l1" }));
     await expect(resolveInviteLink("l1", "sec")).resolves.toBeNull();
+  });
+
+  it("resolveInviteLink carries started_at and drops a malformed one without losing the link", async () => {
+    const base = {
+      link_id: "l1", meeting_id: "m1", title: "Sync", starts_at: "2026-08-25T09:00:00Z",
+      access_mode: "AUTO_ADMIT", expired: false,
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...base, started_at: "2026-08-25T09:03:00Z" }));
+    expect((await resolveInviteLink("l1", "sec"))?.started_at).toBe("2026-08-25T09:03:00Z");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ ...base, started_at: 42 }));
+    const drifted = await resolveInviteLink("l1", "sec");
+    expect(drifted?.link_id).toBe("l1");
+    expect(drifted?.started_at).toBeUndefined();
+  });
+
+  it("rateCall posts the rating and shrugs off a drifted answer", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ unexpected: true }));
+    await expect(rateCall("m1", "poor")).resolves.toBeUndefined();
+    const [url, init] = vi.mocked(fetch).mock.calls.at(-1)!;
+    expect(String(url)).toContain("/api/v1/meetings/m1/call-rating");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({ rating: "poor" });
+  });
+
+  it("listParticipants reads presence and removal, and an older server reads as not in the room", async () => {
+    const row = { id: "p1", meeting_id: "m1", principal_type: "USER", role: "ATTENDEE", status: "ACTIVE" };
+    vi.mocked(fetch).mockResolvedValueOnce(json({
+      participants: [
+        { ...row, in_room: true },
+        { ...row, id: "p2", status: "REMOVED", in_room: false, removed_by: "u-host", removed_at: "2026-10-27T08:52:00Z" },
+        { ...row, id: "p3" },
+      ],
+    }));
+    const [inRoom, removed, older] = await listParticipants("m1");
+    expect(inRoom?.in_room).toBe(true);
+    expect(removed?.removed_by).toBe("u-host");
+    expect(removed?.removed_at).toBe("2026-10-27T08:52:00Z");
+    expect(older?.in_room ?? false).toBe(false);
   });
 
   it("updateMeeting / statistics / activity / invite-links / join-request degrade on drift", async () => {

@@ -172,6 +172,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionMembershipInviteLinkCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			if _, err := f.ws.CreateWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, nil); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMembershipInviteLinkRevoked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			link, err := f.ws.CreateWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.ws.RevokeWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, link.Link.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionOrganizationOwnershipChanged: func(t *testing.T, f *auditFixture) {
 			f.addMember(t)
 			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, OwnerProof{Password: auditPassword}); err != nil {
@@ -2149,6 +2165,37 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-2217: the author edits and deletes a shared note.
+		audit.ActionMeetingNoteUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			n, err := s.AddNote(f.ctx, f.owner.ID, m.ID, "Ghi chú")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.UpdateNote(f.ctx, f.owner.ID, m.ID, n.ID, "Ghi chú đã sửa"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMeetingNoteDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			s := NewMeetingService(f.pool, f.q, f.ws, NopPublisher{}, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: time.Minute, HMACKey: []byte("t")})
+			m, err := s.CreateInstant(f.ctx, f.owner.ID, w.ID, "Audit")
+			if err != nil {
+				t.Fatal(err)
+			}
+			n, err := s.AddNote(f.ctx, f.owner.ID, m.ID, "Ghi chú")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := s.DeleteNote(f.ctx, f.owner.ID, m.ID, n.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// UNI-2024: a clerk names a speaker label of the shared microphone.
 		audit.ActionMeetingSpeakerLabelAssigned: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2619,6 +2666,8 @@ func auditActions() []string {
 		audit.ActionMeetingSharedMicToggled,
 		audit.ActionMeetingSpeakerLabelAssigned,
 		audit.ActionMeetingNoteAdded,
+		audit.ActionMeetingNoteUpdated,
+		audit.ActionMeetingNoteDeleted,
 		audit.ActionMeetingHeldRecorded,
 		audit.ActionMeetingTranscriptionRequested,
 		audit.ActionMeetingTranscriptionCompleted,
