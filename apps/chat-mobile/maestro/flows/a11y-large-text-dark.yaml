@@ -46,11 +46,12 @@ tags:
 - assertVisible:
     id: login-button
 # The browser's way in can still sit below the fold once the button is on screen, and iOS leaves off-screen
-# text out of the hierarchy.
+# text out of the hierarchy. It is the last control, so it is scrolled fully into view by its id: the audit after
+# this flow measures each control's bounds as the screen draws them, and a button cut by the window's edge reads
+# as one drawn under 48 dp.
 - scrollUntilVisible:
     element:
-      text: "Sign in with a browser|Đăng nhập bằng trình duyệt"
+      id: login-browser
     direction: DOWN
-    visibilityPercentage: 50
     timeout: 10000
 - assertVisible: "Sign in with a browser|Đăng nhập bằng trình duyệt"
