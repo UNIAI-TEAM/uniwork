@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { CALLS_NATIVE_ONLY } from "./i18n-calls.mjs";
 import { COMPLIANCE_ONLY } from "./i18n-compliance.mjs";
 import { SECURITY_ONLY } from "./i18n-security.mjs";
+import { SIGN_IN_ONLY } from "./i18n-sign-in.mjs";
 import { UX_ONLY } from "./i18n-ux.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -45,6 +46,35 @@ const TABS_PATHS = [
   "settings.notifications.push_section",
   // M3 (UNI-1834): a task card under a message names its status as the tasks do.
   ...["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"].map((status) => `tasks.status_${status}`),
+];
+
+// ADR 0047 (spec §5.3): the phone's own sign-in screens say what the web's do — the provider buttons and their
+// errors, the choice screen, the second factor, email verification, the fields of the form, and Settings' sign-in
+// methods and "Xác nhận là bạn". What only the phone says is scripts/i18n-sign-in.mjs.
+const SIGN_IN_PATHS = [
+  "auth.social",
+  "auth.continue",
+  "auth.apple",
+  "auth.mfa",
+  "auth.verify",
+  ...[
+    "email",
+    "password",
+    "displayName",
+    "login",
+    "noAccount",
+    "hasAccount",
+    "signingIn",
+    "registering",
+    "emailPlaceholder",
+    "passwordMinHint",
+    "forgotPassword",
+    "emailRequired",
+    "emailInvalid",
+    "passwordRequired",
+  ].map((leaf) => `auth.${leaf}`),
+  "settings.security.signInMethods",
+  "settings.security.stepUp",
 ];
 
 // Chat strings only the phone needs (M2a), nested under chat.mobile so they
@@ -393,7 +423,7 @@ function set(obj, dotted, value) {
 function build(locale) {
   const core = JSON.parse(fs.readFileSync(path.join(coreLocales, `${locale}.json`), "utf8"));
   const out = {};
-  for (const dotted of [...PATHS, ...TABS_PATHS]) {
+  for (const dotted of [...PATHS, ...TABS_PATHS, ...SIGN_IN_PATHS]) {
     const value = get(core, dotted);
     if (value === undefined) throw new Error(`${locale}.json has no ${dotted}`);
     set(out, dotted, value);
@@ -402,7 +432,7 @@ function build(locale) {
   const mobile = MOBILE_ONLY[locale].mobile;
   return {
     ...out,
-    mobile: { ...mobile, ...RELEASE_ONLY[locale], ...COMPLIANCE_ONLY[locale], ...CALLS_NATIVE_ONLY[locale], ...UX_ONLY[locale], ...SECURITY_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } },
+    mobile: { ...mobile, ...RELEASE_ONLY[locale], ...COMPLIANCE_ONLY[locale], ...CALLS_NATIVE_ONLY[locale], ...UX_ONLY[locale], ...SECURITY_ONLY[locale], ...SIGN_IN_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } },
   };
 }
 
