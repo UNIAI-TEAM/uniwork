@@ -15,7 +15,7 @@ import { askRefHref } from "./ask-uni-context-chips";
 import { CHIP, entityKindIcon } from "./ask-uni-entity";
 import { isInAppHref } from "./ask-uni-links";
 import { AskUniProposalEdit, type EditCallbacks } from "./ask-uni-proposal-edit";
-import { fieldLabel, formatProposalValue, hasEditable } from "./ask-uni-proposal-values";
+import { applyLabelKey, bodyArg, fieldLabel, formatProposalValue, hasEditable } from "./ask-uni-proposal-values";
 
 const SAFE_CODE = /^[a-z_]+$/;
 const FADED = new Set(["rejected", "undone", "expired"]);
@@ -261,7 +261,7 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
               {selectable ? null : (
                 <Button type="button" size="sm" className="ms-2 me-1" disabled={disabled} onClick={onApply}>
                   <Check aria-hidden />
-                  {t("ai.proposal.apply")}
+                  {t(applyLabelKey(proposal.tool))}
                 </Button>
               )}
               {editable ? (
@@ -294,6 +294,7 @@ function Details({ proposal }: { proposal: AiProposal }) {
       ) : null}
       <Fields proposal={proposal} />
       {/* Verbatim and inert: the words that will be posted, line breaks kept, never parsed as markdown or html. */}
+      {preview.body !== "" && bodyArg(proposal.tool) === "outline" ? <p className="mt-2 text-caption font-medium text-muted-foreground">{t("ai.proposal.outline")}</p> : null}
       {preview.body !== "" ? (
         <p className="mt-2 max-h-48 overflow-auto border-l-2 border-muted-foreground/30 py-0.5 ps-2.5 text-body break-words whitespace-pre-wrap">{preview.body}</p>
       ) : null}

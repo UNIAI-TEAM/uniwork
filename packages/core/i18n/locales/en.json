@@ -3654,7 +3654,9 @@
       "recordingReady": "Ready"
     },
     "exit": {
-      "left": { "title": "You left the room" },
+      "left": {
+        "title": "You left the room"
+      },
       "ended": {
         "title": "The meeting has ended",
         "by": "{{name}} ended it at {{time}}",
@@ -8004,7 +8006,9 @@
         "update_document": "Update document",
         "add_document_comment": "Comment on document",
         "send_chat_message": "Send chat message",
-        "other": "Change"
+        "other": "Change",
+        "create_office_document": "Create a new file",
+        "save_attachment_template": "Save to Templates"
       },
       "field": {
         "title": "Title",
@@ -8027,14 +8031,31 @@
         "labels": "Labels",
         "attendee_ids": "Attendees",
         "user_ids": "Invited people",
-        "mode": "Content"
+        "mode": "Content",
+        "template_id": "Template",
+        "attachment_id": "Attached file",
+        "format": "Format",
+        "location": "Folder",
+        "visibility": "Who can see it",
+        "instructions": "Request"
       },
       "content_mode": {
         "append": "Added at the end of the document",
         "replace": "Replaces the whole document"
       },
       "details": "Show details",
-      "plan_skip_note": "Unticked steps are skipped"
+      "plan_skip_note": "Unticked steps are skipped",
+      "location": {
+        "my_folder": "My folder",
+        "workspace_root": "Workspace documents"
+      },
+      "visibility": {
+        "restricted": "Only me",
+        "workspace": "Whole workspace"
+      },
+      "apply_create_open": "Create and open",
+      "apply_save_template": "Save to Templates",
+      "outline": "Outline"
     },
     "memory": {
       "button": "Memory",

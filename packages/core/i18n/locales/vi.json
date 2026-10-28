@@ -3653,7 +3653,9 @@
       "recordingReady": "Sẵn sàng"
     },
     "exit": {
-      "left": { "title": "Bạn đã rời phòng" },
+      "left": {
+        "title": "Bạn đã rời phòng"
+      },
       "ended": {
         "title": "Cuộc họp đã kết thúc",
         "by": "{{name}} kết thúc lúc {{time}}",
@@ -7953,7 +7955,9 @@
         "update_document": "Sửa tài liệu",
         "add_document_comment": "Bình luận vào tài liệu",
         "send_chat_message": "Gửi tin nhắn",
-        "other": "Thay đổi"
+        "other": "Thay đổi",
+        "create_office_document": "Tạo tệp mới",
+        "save_attachment_template": "Lưu vào Mẫu văn bản"
       },
       "field": {
         "title": "Tiêu đề",
@@ -7976,14 +7980,31 @@
         "labels": "Nhãn",
         "attendee_ids": "Người tham dự",
         "user_ids": "Người được mời",
-        "mode": "Nội dung"
+        "mode": "Nội dung",
+        "template_id": "Mẫu",
+        "attachment_id": "Tệp đính kèm",
+        "format": "Định dạng",
+        "location": "Thư mục",
+        "visibility": "Ai xem được",
+        "instructions": "Yêu cầu"
       },
       "content_mode": {
         "append": "Thêm vào cuối tài liệu",
         "replace": "Thay toàn bộ tài liệu"
       },
       "details": "Xem chi tiết",
-      "plan_skip_note": "Bước bỏ tick sẽ bị bỏ qua"
+      "plan_skip_note": "Bước bỏ tick sẽ bị bỏ qua",
+      "location": {
+        "my_folder": "Thư mục của tôi",
+        "workspace_root": "Tài liệu của workspace"
+      },
+      "visibility": {
+        "restricted": "Chỉ mình tôi",
+        "workspace": "Cả workspace"
+      },
+      "apply_create_open": "Tạo và mở",
+      "apply_save_template": "Lưu vào Mẫu",
+      "outline": "Dàn ý"
     },
     "memory": {
       "button": "Bộ nhớ",

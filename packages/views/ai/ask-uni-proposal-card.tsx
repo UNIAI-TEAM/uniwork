@@ -11,8 +11,11 @@ import {
   useUndoAiProposal,
 } from "@uniwork/core/ai/proposals";
 import { errorCode } from "@uniwork/core/api/http";
-import type { AiMessage } from "@uniwork/core/types";
+import { paths } from "@uniwork/core/paths";
+import type { AiMessage, AiProposal } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { useOptionalWorkspace } from "../layout/workspace-context";
+import { useNavigation } from "../navigation";
 import { AskUniProposalRow } from "./ask-uni-proposal-row";
 
 /**
@@ -28,6 +31,8 @@ export function AskUniProposalCard({ message, conversationId, readOnly = false }
   const undo = useUndoAiProposal(conversationId);
   const edit = useEditAiProposal(conversationId);
   const applyMany = useApplyAiMessageProposals(conversationId);
+  const { push } = useNavigation();
+  const workspace = useOptionalWorkspace()?.workspace;
   // Plan rows are ticked until unticked here; errors are the last refused call per row.
   const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -44,10 +49,17 @@ export function AskUniProposalCard({ message, conversationId, readOnly = false }
   const inFlight = busyId !== "" || applyMany.isPending;
 
   // A refusal that carries rows repaints them (the hooks do that); the code still shows on the row it came from.
-  const go = (id: string, start: (cb: { onError: (e: unknown) => void; onSettled: () => void }) => void) => {
+  const go = (id: string, start: (cb: { onSuccess?: (rows: AiProposal | AiProposal[]) => void; onError: (e: unknown) => void; onSettled: () => void }) => void, onSuccess?: (rows: AiProposal | AiProposal[]) => void) => {
     setErrors((e) => ({ ...e, [id]: "" }));
     setBusyId(id);
-    start({ onError: (err) => setErrors((e) => ({ ...e, [id]: errorCode(err) ?? "default" })), onSettled: () => setBusyId("") });
+    start({ onSuccess, onError: (err) => setErrors((e) => ({ ...e, [id]: errorCode(err) ?? "default" })), onSettled: () => setBusyId("") });
+  };
+  // A single Apply of a new Office file opens it; plan approval never does, its rows keep their "Mở" link.
+  const openCreated = (rows: AiProposal | AiProposal[]) => {
+    const done = Array.isArray(rows) ? rows[0] : rows;
+    if (!done) return;
+    const id = done.result.object_id;
+    if (done.tool === "create_office_document" && done.status === "applied" && id && workspace) push(paths.workspace(workspace.organization_slug, workspace.slug).document(id));
   };
   const approve = (ids: string[]) => {
     setCardError("");
@@ -72,7 +84,7 @@ export function AskUniProposalCard({ message, conversationId, readOnly = false }
               readOnly={readOnly}
               selected={!unticked.has(p.id)}
               onToggle={() => setUnticked((s) => { const n = new Set(s); if (!n.delete(p.id)) n.add(p.id); return n; })}
-              onApply={() => go(p.id, (cb) => apply.mutate(p.id, cb))}
+              onApply={() => go(p.id, (cb) => apply.mutate(p.id, cb), openCreated)}
               onReject={() => go(p.id, (cb) => reject.mutate(p.id, cb))}
               onUndo={() => go(p.id, (cb) => undo.mutate(p.id, cb))}
               onEdit={(changes, cb) => {
