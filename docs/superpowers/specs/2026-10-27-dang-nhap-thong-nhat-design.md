@@ -1,6 +1,9 @@
 # Đăng nhập thống nhất: email + mật khẩu, Google, Apple trên web, máy tính và điện thoại
 
-> **Trạng thái:** in-progress
+> **Trạng thái:** in-progress — server (§3), web (§4) và mobile (§5) đã có trên nhánh `feature/auth-unified-sign-in`
+> (PR UNI-2263), có unit test. Còn: việc của chủ sản phẩm (§6: Services ID Apple, OAuth client Google iOS/Android và
+> biến build, biến well-known, domain gửi mail cho email ẩn của Apple), bản build native đầu tiên trong CI (module Google,
+> `android-smoke`, `android-e2e`, `ios-release`, flow Maestro), e2e Playwright trên CI. Chỉ ghi shipped sau khi PR merge.
 
 Quyết định: [ADR 0049](../../adr/0049-dang-nhap-thong-nhat-tren-moi-nen-tang.md). Spec này là hợp đồng giữa server,
 web và mobile: tên route, hình JSON, mã lỗi, luồng, màn hình và test. Đổi hợp đồng thì sửa spec trong cùng PR. Bản 2
@@ -618,7 +621,8 @@ vi/en; `.env.example`; `no-pii-log`.
 ## 4. Web
 
 > **Trạng thái:** in-progress — phần web (4.1–4.6) đã có trên nhánh `feature/auth-unified-sign-in`, có unit test;
-> e2e của 4.6 đã viết nhưng chưa chạy trên app thật. Chỉ ghi shipped sau khi PR merge.
+> e2e của 4.6 đã xanh trên bản build production ở máy, trừ các ca thêm sau vòng phản biện (no-shift 375 px của
+> `/auth/continue`, "Về trang đăng nhập" khi hết hạn), chưa chạy. Chỉ ghi shipped sau khi PR merge.
 
 ### 4.1 Nút nhà cung cấp ⚑
 
@@ -658,7 +662,8 @@ vùng kéo cửa sổ).
 - `next` sống qua `/verify` và `/onboarding`: trang đăng ký, xác minh và onboarding đọc và chuyển tiếp `next`, rồi đi
   tới nó sau cổng. `/auth/desktop/authorize` và `/auth/continue?step=link` được đi thẳng kể cả khi còn cổng (app đã xử lý
   tài khoản chưa có workspace). Tài khoản chưa onboard có lời mời đang chờ: `next` thắng `/invitations`
-  (`resolveLoggedInDestination`). Callback không có phiên về `paths.login({error: 'sign_in_failed', next})`.
+  (`resolveLoggedInDestination`). Callback không có phiên về `paths.login({error: 'sign_in_failed', next})`. `/invitations` và `/get-started` đưa người
+  chưa đăng nhập tới `/login?next=` chính trang đó (điện thoại mở chúng trong trình duyệt thường chưa có phiên web).
 - **Gợi ý nhà cung cấp của app (3.5)**: `/auth/desktop/authorize` gửi người chưa đăng nhập tới `paths.login({next,
   provider})`; `next` không mang `provider`, nên đăng nhập xong không lặp lại. `/login?provider=` gỡ tham số khỏi URL
   trước (history replace) rồi `location.replace` **một lần** tới `start` khi cờ (`google`, `apple_web`) bật; màn chờ là
@@ -666,7 +671,7 @@ vùng kéo cửa sổ).
   `apps/web/platform/auth/provider-handoff.tsx` (`providerHint`, `useDropProviderHint`, `ProviderHandoff`), vì
   `packages/views` không được chạm `location`.
 - **Trang đồng ý** (`/auth/desktop/authorize`): không có eyebrow; tiêu đề nêu nền tảng và hàng thiết bị có biểu tượng
-  `Monitor`/`Smartphone`. Bấm cho phép thì trang mở callback của app ngay (`location.assign`, cú bấm còn là cử chỉ mà
+  `Monitor`/`Smartphone`. Nút nêu app nó cho vào, "Cho phép {{app}}", trên mọi nền tảng. Bấm cho phép thì trang mở callback của app ngay (`location.assign`, cú bấm còn là cử chỉ mà
   custom scheme cần): app desktop chỉ nhận mã qua deep link và sheet của điện thoại chỉ đóng khi gặp nó, nên không có
   bước "quay lại" nào người phải tự làm. Mỗi kết quả là cuối của lượt đó và có tiêu đề theo điều đã xảy ra: "Đã cho
   phép {{app}}" ("Nếu {{app}} chưa mở, bấm "Mở {{app}}"."; tải lại mà không còn callback thì "Quay lại {{app}} để tiếp
@@ -787,7 +792,9 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập
   quyền): theo `proofs` — ô mật khẩu (kèm "Quên mật khẩu?" và nút hiện mật khẩu), ô "Mã từ ứng dụng xác thực", hay "Gửi mã
   tới {{email}}" + sáu ô mã như màn chọn (gửi khi đủ chữ số thứ sáu, "Xác nhận" vẫn còn cho bàn phím); có "Dùng cách khác" khi có hơn một cách. Gọi `/me/step-up` trước, giữ `step_up_token` trong bộ nhớ 10 phút
   (lệnh tiếp theo trong cửa sổ đó không hỏi lại; token mua bằng mã email chỉ dùng cho đúng việc đó, nên dòng gợi ý theo
-  cách xác nhận: `stepUpWindowHintKey`). Hộp mở với focus ở ô của cách xác nhận (hay nút "Gửi mã tới…"), không ở link
+  cách xác nhận: `stepUpWindowHintKey`). Hạn tính theo đồng hồ máy, trừ biên, nhưng token giữ ít nhất 60 s kể từ lúc mua
+  (`STEP_UP_FIRST_USE_MS`), cho mọi lệnh chứ không chỉ lệnh đã mua nó: đồng hồ lệch hay mạng chậm không vứt token vừa
+  mua; server vẫn quyết, token chết chỉ tốn một vòng `proof_required`. Hộp mở với focus ở ô của cách xác nhận (hay nút "Gửi mã tới…"), không ở link
   "Quên mật khẩu?" đứng trước ô; "Dùng cách khác" rộng hết hàng khi chân hộp xếp dọc trên điện thoại. Lỗi dưới ô,
   focus trả về ô. Mã email: trước khi gửi, nút "Gửi mã tới {{email}}"
   là hành động duy nhất của hộp (chân hộp chỉ còn "Hủy"); gửi rồi thì "Đã gửi mã tới…", ô mã và "Gửi lại sau {{count}}
@@ -870,27 +877,40 @@ hết hạn) ở hai chế độ, email ẩn không bao giờ in thô, và vùng
 
 ## 5. Mobile (`apps/chat-mobile`)
 
+> **Trạng thái:** in-progress — phần mobile (5.1–5.3) đã có trên nhánh `feature/auth-unified-sign-in`, có test vitest và
+> jest; module Google, sheet Apple/Google và các flow Maestro chưa chạy trên máy hay trong một bản build native nào.
+> Chỗ làm khác bản thiết kế ở 5.4.
+
 ### 5.1 Lớp dữ liệu
 
 - Kết quả issuer: `{kind:"session", session} | {kind:"mfa", token, context} | {kind:"choice", ticket, nonce, identity,
-  kind2}`; bước hai giữ trong store chỉ-bộ-nhớ `data/auth/pending-sign-in.ts` (không persist, không thành route param);
-  chỉ phiên đã có mới qua `loginWith`/`adoptIssued`. Tách `session.ts` trước khi thêm (đang 483 dòng).
-- `LoginMethod` thêm `password | google | ticket | register | email_claim`; mật khẩu vào issuer bằng closure, không bao
-  giờ nằm trong event/effect.
+  ticketKind}` (`ticketKind` là `unmatched` | `link_required`, như `SignInTicketKind` của core; `context` của bước hai là
+  `{method, email, provider}`); bước hai giữ trong store chỉ-bộ-nhớ `data/auth/pending-sign-in.ts` (không persist,
+  không thành route param); chỉ phiên đã có mới qua `loginWith`/`adoptIssued`. Tách `session.ts` trước khi thêm (đang 483 dòng).
+- `LoginMethod` thêm `password | google | ticket | register | email_claim | second_factor` (mã của bước hai là bằng
+  chứng khác bước một, nên có nhãn riêng); mật khẩu vào issuer bằng closure, không bao giờ nằm trong event/effect.
 - Route, mã mới vào `Route`/`SERVER_CODES`; `scripts/mobile-route-catalogue`, `server-contract.test.ts` (+
   `HANDLER_FILES`, `mobile-native-scope.mjs`, `E2E_PATHS`), `COMMAND_MODULES`.
-- Google: `@react-native-google-signin/google-signin` qua `expo install` (bọc trong `data/auth/google.ts`, mock được
-  trong vitest); nonce bắt buộc (SHA-256 hex của nonce gốc đưa cho SDK; chọn đường API có nonce — iOS GoogleSignIn ≥ 7.1,
-  Android Credential Manager); `GoogleSignin.signOut()` trước khi liên kết và khi đăng xuất UniChat; không có Play
-  Services → ẩn Google native, dùng trình duyệt. Dấu "G" là ảnh qua `expo-image`.
+- Google: module Expo riêng `modules/unichat-google-sign-in` (bọc trong `data/auth/google.ts`, mock được trong vitest),
+  không phải `@react-native-google-signin/google-signin`: bản miễn phí của gói đó không có nonce ở nền tảng nào (chỉ bản
+  trả phí có), mà server bắt buộc nonce. Module gọi thẳng API có nonce của Google: GoogleSignIn 8 trên iOS, Credential
+  Manager `GetSignInWithGoogleOption` trên Android; sheet nhận SHA-256 hex của nonce gốc; `pnpm-lock.yaml` không đổi.
+  Client id từ biến build `UNICHAT_GOOGLE_IOS_CLIENT_ID`, `UNICHAT_GOOGLE_WEB_CLIENT_ID`, ghi vào Info.plist và manifest
+  bằng `plugins/with-google-sign-in.js` (không qua `extra`: binary mang cấu hình của nó, OTA không làm lệch được). Đăng
+  xuất Google trước khi liên kết (Google hỏi chọn tài khoản) và khi đăng xuất UniChat; thiếu client id hay không có Play
+  Services → Google qua trình duyệt. Dấu "G" là ảnh qua `expo-image`.
 - `webcredentials:${APP_LINK_HOST}` trong `associatedDomains`; AASA thêm `webcredentials.apps`, assetlinks thêm
-  `get_login_creds` (`apps/web/platform/well-known.ts` + test) để AutoFill gợi ý mật khẩu đã lưu cho web.
+  `get_login_creds` (`apps/web/platform/well-known.ts` + test) để AutoFill gợi ý mật khẩu đã lưu cho web; chỉ id prod
+  `com.uniworkos.chat`, như `applinks`.
+- Mỗi cửa gửi `locale` của app (3.6), đọc lúc gọi (`nativeClient` › `locale`), nên tài khoản cửa tạo và mail cửa gửi
+  theo ngôn ngữ đang dùng trong app.
 
 ### 5.2 Màn hình
 
 - **Đăng nhập** (`app/(auth)/login.tsx` chỉ ghép, thành phần ở `components/auth/`): dấu UniChat, "Đăng nhập UniChat",
-  một dòng phụ; iPhone: nút Apple hệ thống (đen/trắng theo chế độ, cao 48, bo tròn) rồi Google; Android: Google rồi
-  Apple (pill trắng/đen có dấu Apple → PKCE `provider=apple`); vạch "hoặc dùng email"; ô Email
+  một dòng phụ; iPhone: nút Apple hệ thống (đen/trắng theo chế độ, bo tròn) rồi Google, hai nút một chiều cao theo cỡ
+  chữ (48 ở cỡ mặc định, tới 1.6×: `providerButtonHeight`); Android: Google rồi Apple (pill trắng/đen có dấu Apple →
+  PKCE `provider=apple`); vạch "hoặc dùng email"; ô Email
   (`textContentType="username"`, `autoComplete="email"`), ô Mật khẩu (hiện/ẩn, `textContentType="password"`),
   "Quên mật khẩu?" (mở `/forgot-password` trong trình duyệt), nút "Đăng nhập"; chân trang "Chưa có tài khoản? Tạo tài
   khoản" và nút chữ "Đăng nhập bằng trình duyệt". Bàn phím không che ô. Lỗi một dòng có biểu tượng, `role=alert`,
@@ -899,15 +919,20 @@ hết hạn) ở hai chế độ, email ẩn không bao giờ in thô, và vùng
   (và "để liên kết {{provider}}" khi có); `429 second_factor_locked` → đếm ngược.
 - **Màn chọn** (`continue.tsx`): như 4.3, thứ tự lựa chọn trên app: "Tôi được mời bằng email khác" và "Tôi đã có tài
   khoản" trước, "Tạo tài khoản mới" sau (app không tạo được tổ chức). Vé + nonce chỉ trong bộ nhớ; app bị tắt giữa
-  chừng thì lần mở sau nói "Lượt đăng nhập bằng Apple đã hết. Thử lại."
+  chừng thì máy chỉ còn dấu `{provider, at}` không bí mật, và lần mở sau trong một giờ nói "Lượt đăng nhập bằng
+  {{provider}} đã hết hạn." + "Thử lại" (lời của core, `auth.continue.expired.bodyProvider`).
 - **Đăng ký** (`register.tsx`): tên, email, mật khẩu (`newPassword`) + Apple/Google với `intent=sign_up` → đăng nhập →
   **xác minh email** (trong `(app)`): ô 6 số, gửi lại có đếm ngược, "Sai email? Đăng xuất", link Cài đặt (xoá tài
   khoản). Chưa xác minh thì không vào danh sách workspace.
 - **Chọn workspace khi rỗng**: liệt kê `GET /me/invitations` (tổ chức, workspace, người mời) + "Tham gia" →
   `POST /invitations/{token}/accept`; lời mời cấp tổ chức không kèm workspace → "Đã vào {{org}}. Quản trị viên sẽ thêm
-  bạn vào workspace."; `409 organization_switch_required` → mở `/invitations` (không phải `/invite/…`, tránh universal
-  link quay về app) trong trình duyệt. Không lời mời: "Chưa có lời mời nào gửi tới {{email}}." + "Tạo tổ chức trên
-  web". Deep link `/invite/{token}` giữ qua đăng nhập và mở màn xem trước (không tự nhận).
+  bạn vào workspace."; `409 organization_switch_required` → thẻ nói tham gia nghĩa là gì (`invitations.switch.description`
+  của core + "Bạn hoàn tất việc chuyển tổ chức trên web, rồi quay lại UniChat.") và nút "Tiếp tục trên web" mở
+  `/invitations` (không phải `/invite/…`, tránh universal link quay về app) trong trình duyệt: trình duyệt không tự
+  trượt lên sau "Tham gia". Không lời mời: "Chưa có lời mời nào gửi tới {{email}}." + "Tạo tổ chức trên web"; tài
+  khoản đã ở một tổ chức (đọc `GET /orgs`, ADR 0032) thì nhờ quản trị viên thêm vào workspace thay vì tạo tổ chức.
+  Danh sách lời mời đọc không được là lỗi + "Thử lại", không phải `[]` (rỗng nghĩa là không ai mời). Deep link
+  `/invite/{token}` giữ qua đăng nhập và mở màn xem trước (không tự nhận).
 - **Phương thức đăng nhập** (`components/settings/sign-in-methods-section.tsx`, tab Cài đặt workspace và `/account`):
   cùng ba hàng, cùng luật; bằng chứng bằng sheet (mật khẩu / mã TOTP / mã email / Apple-Google lại); bằng chứng kiểm
   **trước** khi mở sheet nhà cung cấp. Liên kết Google: SDK → `google/native`; Apple trên iPhone: sheet →
@@ -918,13 +943,50 @@ hết hạn) ở hai chế độ, email ẩn không bao giờ in thô, và vùng
 ### 5.3 Cổng và tài liệu mobile
 
 Chuỗi qua `t()`; dùng chung lời web qua `PATHS` của `sync-i18n.mjs` (`auth.social`, `auth.continue`, `auth.apple`,
-`settings.security.signInMethods`, `settings.security.stepUp`), chuỗi riêng app trong `scripts/i18n-sign-in.mjs`.
+`settings.security.signInMethods`, `settings.security.stepUp`, cùng `auth.mfa`, `auth.verify`, các nhánh lời mời
+`INVITATION_PATHS` và lời xoá tài khoản `settings.security.delete`, `org.close.consequences`), chuỗi riêng app trong
+`scripts/i18n-sign-in.mjs` và `scripts/i18n-invitations.mjs`.
 Maestro `sign-in.yaml`, `smoke-launch.yaml`, `a11y-large-text-dark.yaml` viết lại theo ô native (testID), và
-`upgrade-before.yaml` vẫn chạy được với bản cũ. Version app tăng; privacy manifest, `store/listing.md`,
-`android-permissions.json`, ngân sách bundle/khởi động. `apps/chat-mobile/CLAUDE.md` dòng đăng nhập;
+`upgrade-before.yaml` vẫn chạy được với bản cũ. Version app tăng (0.3.1 → 0.4.0, ghi chú ở `store/release-notes.md`);
+privacy manifest, `store/listing.md`, `android-permissions.json`, ngân sách bundle/khởi động. `apps/chat-mobile/CLAUDE.md`
+dòng đăng nhập;
 `docs/engineering/unichat-mobile-masvs.md` hàng MASVS-AUTH: RFC 8252 nói về app bên thứ ba lấy thông tin đăng nhập của
 dịch vụ khác; app first-party nhập mật khẩu của chính dịch vụ, bù bằng TLS pinning, mật khẩu chỉ trong bộ nhớ, không vào
 log/Sentry, bucket thử theo email, khoá bước hai.
+
+### 5.4 Chỗ làm khác bản thiết kế
+
+- Bước liên kết sau khi đăng nhập là route riêng `app/(app)/link-sign-in.tsx`: nhóm `(auth)` chỉ cho người chưa đăng
+  nhập, và Redirect thay cả ngăn `(auth)` nên không còn màn chọn cũ phía sau. Như `step=link` của 4.3: không ghi khi mở.
+- Chế độ liên kết trên điện thoại ẩn thêm "Chưa có tài khoản? Tạo tài khoản" và "Đăng nhập bằng trình duyệt" (phiên
+  trình duyệt cũ hơn vé sẽ gặp `proof_required`), không chỉ nút của nhà cung cấp đang chờ.
+- Rời màn chọn (Back, vuốt cạnh iOS, nút back Android ở bước đầu) là "Hủy": bỏ vé, trừ khi đã đăng nhập; trong bước
+  email hay mã thì Back của header và của Android lùi một bước, còn vuốt cạnh iOS tắt (native-stack đóng màn trước khi
+  JavaScript biết).
+- Bước hai có thêm nút "Xác nhận" cạnh tự gửi (chỗ cho trạng thái bận và thử lại; mã khôi phục chỉ gửi bằng nút); hết
+  năm phút của thử thách thì màn nói hết và đưa về đăng nhập, kể cả khi khoá 15 phút còn đếm.
+- Nút Google dùng font của app ở cỡ body và màu theo branding của Google, để nặng ngang nút Apple; nút đang đăng nhập
+  giữ dấu và chữ, spinner ở cuối, nhãn `auth.social.signingIn` cho cả hai nhà cung cấp.
+- Nút Apple hệ thống nói ngôn ngữ của iOS, không theo ngôn ngữ chọn trong app (`ASAuthorizationAppleIDButton` tự dịch);
+  pill Apple tự vẽ theo HIG cần ảnh logo của Apple (việc của chủ sản phẩm, 6).
+- Mọi điều khiển của màn đăng nhập vẽ đủ 48 dp trên Android, không hit slop, vì `android-smoke` đo màn này theo khung
+  vẽ; phần còn lại của app vẫn 44 pt + hit slop.
+- Xác minh email: 429 khi gửi lại là lỗi của form, không thêm câu đếm ngược (nút gửi lại đã đếm phút đó).
+- Chuyển từ Cài đặt mở sheet nhà cung cấp lần hai thay vì gửi lại token đầu: server trả lại đồng ý Apple khi trả lời
+  `movable`, và mã ủy quyền của Apple chỉ dùng được một lần.
+- Bằng chứng Google của step-up luôn hỏi chọn tài khoản, để tài khoản sai Google còn nhớ không bị đưa lại sau
+  `provider_token_invalid`.
+- Gỡ liên kết và chuyển xác nhận bằng `Alert` native, như mục thiết bị. Sheet bằng chứng nằm lồng trong sheet Xoá tài
+  khoản (iOS chỉ trình bày Modal trên Modal từ bên trong nó), và trên iOS sheet sau chờ sheet trước đóng hẳn.
+- Khoá app cất sheet bằng chứng đi rồi đưa lại đúng chỗ, mã đã gửi giữ mười phút cho việc của nó; trong sheet Xoá tài
+  khoản thì sheet bằng chứng đóng.
+- Xoá tài khoản: chủ sở hữu còn thành viên khác chuyển quyền ngay trong sheet (Apple 5.1.1(v)), nơi web bảo làm ở Cài
+  đặt; cả hai bằng chứng (`transfer_ownership`, `delete_account`) giữ đủ trước khi chuyển, nên mã gửi mail được gửi hai
+  lần; xoá hỏng sau khi đã chuyển thì sheet nói tổ chức đã sang người nhận. Bước đóng tổ chức được đọc lên thay vì đưa
+  focus vào ô, để bàn phím không che các dòng hậu quả.
+- Privacy manifest và `android-permissions.json` không cần thêm gì (bằng chứng ghi ở `IOS_PRIVACY_MANIFEST` và trường
+  `from` của hai quyền sinh trắc); `bundle-budget.json` nâng theo phép đo base/head; ngân sách khởi động để
+  `android-smoke` và `ios-release` đo.
 
 ## 6. Tài liệu đi kèm
 
@@ -933,10 +995,13 @@ log/Sentry, bucket thử theo email, khoá bước hai.
 - `docs/adr/README.md` (0049), dòng Trạng thái của 0041.
 - `docs/conventions.md` §2: "phương thức đăng nhập" / sign-in method; "liên kết" / "gỡ liên kết" (link/unlink account —
   khác "gắn"); "Đặt mật khẩu" / "Đổi mật khẩu"; "xác thực hai lớp"; "Ẩn địa chỉ email" (Hide My Email); "bằng chứng"
-  không lộ ra giao diện (giao diện nói "xác nhận là bạn"); Apple vào danh sách thương hiệu.
+  không lộ ra giao diện (giao diện nói "xác nhận là bạn"); Apple vào danh sách thương hiệu; tiếng Anh nói Sign in /
+  Sign up / Sign out ở mọi nơi (bỏ Log in / Log out, để một màn không trộn hai động từ).
 - Chính sách quyền riêng tư + `store/listing.md` + test: Apple trên web, máy tính, Android; Google SDK trên app.
-- Owner action (ADR 0049): Services ID, OAuth client iOS/Android, **đăng ký domain gửi mail với "Sign in with Apple for
-  Email Communication" + SPF/DKIM** (không có thì mã step-up không tới được tài khoản relay).
+- Owner action (ADR 0049, danh sách đủ ở Hệ quả): Services ID, OAuth client Google iOS/Android và biến của chúng (EAS,
+  `GOOGLE_NATIVE_CLIENT_IDS`), `UNICHAT_IOS_TEAM_ID` / `UNICHAT_ANDROID_SHA256` trên host phục vụ `app.uniworkos.com`,
+  **đăng ký domain gửi mail với "Sign in with Apple for Email Communication" + SPF/DKIM** (không có thì mã step-up
+  không tới được tài khoản relay).
 
 ## 7. Thứ tự giao
 
