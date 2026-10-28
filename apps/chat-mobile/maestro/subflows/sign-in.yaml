@@ -23,9 +23,12 @@ appId: com.uniworkos.chat.staging
       - tapOn:
           id: login-email
       - inputText: ${MAESTRO_TEST_EMAIL}
-      # The field's own "next" key moves to the password, as a person does. A tap would not: the keyboard the first
-      # tap opened covers the password field on a short screen, and Maestro taps where the field is drawn.
+      # The field's own "next" key moves to the password, which the screen then scrolls above the keyboard, as a
+      # person does. A tap straight away could land on the keyboard: on a short screen it covers the password field,
+      # and Maestro taps where the field is drawn. The tap after the key waits for that move, then types.
       - pressKey: Enter
+      - tapOn:
+          id: login-password
       - inputText: ${MAESTRO_TEST_PASSWORD}
       # And its "go" key submits the form, which the keyboard may cover too.
       - pressKey: Enter

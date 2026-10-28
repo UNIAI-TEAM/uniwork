@@ -105,14 +105,14 @@ afterEach(async () => {
 
 describe("the flows that open the app signed out", () => {
   const smoke = [...selectors("flows/smoke-launch.yaml"), ...selectors("flows/a11y-large-text-dark.yaml")];
-  // The subflow's first wait, and the native branch's field; its other branch is an older build's and the web's.
+  // The subflow's first wait, and the native branch's fields; its other branch is an older build's and the web's.
   const subflow = selectors("subflows/sign-in.yaml");
   const signIn = [...subflow.filter(({ kind }) => kind === "text").slice(0, 1), ...subflow.filter(({ kind, value }) => kind === "id" && value.startsWith("login-"))];
 
   it("read selectors out of the flows", () => {
     expect(smoke.filter(({ kind }) => kind === "text").length).toBeGreaterThan(3);
     expect(smoke.filter(({ kind }) => kind === "id").length).toBeGreaterThan(3);
-    expect(signIn.map(({ value }) => value)).toEqual(expect.arrayContaining(["login-email"]));
+    expect(signIn.map(({ value }) => value)).toEqual(expect.arrayContaining(["login-email", "login-password"]));
   });
 
   it.each(["vi", "en"] as const)("find every text and id they look for on the sign-in screen, in %s", async (language) => {
