@@ -1,6 +1,6 @@
 # Hỏi UNI giao việc cho AI trong trình soạn (kế hoạch 4 — Phần 4) Implementation Plan
 
-> **Trạng thái:** in-progress — kế hoạch 4 của spec Hỏi UNI soạn tệp Office, chờ chủ sản phẩm duyệt; issue UNI-2264 (con của UNI-415), nhánh `feature/UNI-2264-hoi-uni-soan-tep-office-giao-viec-cho-ai`.
+> **Trạng thái:** in-progress — đã triển khai trên nhánh, chờ PR; kế hoạch 4 của spec Hỏi UNI soạn tệp Office, issue UNI-2264 (con của UNI-415), nhánh `feature/UNI-2264-hoi-uni-soan-tep-office-giao-viec-cho-ai`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
