@@ -2,14 +2,15 @@
 // Manager fill (username + password, webcredentials:app.uniworkos.com), "Quên mật khẩu?" opening the web's reset
 // page in the browser, the failure line and the primary button at the thumb. A field the form can judge itself
 // (empty, not an address) is said under it and focused before any round trip; a wrong password is cleared and its
-// field focused again, the address kept.
+// field focused again, the address kept. Signing in to link an address that has an account, the address is filled
+// and the password is what is left to type (spec §4.4).
+import { emailError, passwordError, type FieldProblem } from "@uniwork/core/auth/sign-in-form";
 import { paths } from "@uniwork/core/paths/paths";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TextInput, View } from "react-native";
 import { useOpenWebPage } from "@/components/settings/use-open-web-page";
-import { emailError, passwordError, type FieldProblem } from "@uniwork/core/auth/sign-in-form";
 import { AuthField, PasswordField } from "./auth-field";
 import { FormAlert, SubmitButton, TextButton } from "./auth-layout";
 import type { SignInResult } from "./use-sign-in";
@@ -24,12 +25,14 @@ interface Props {
   /** a lock is counting down: the form waits */
   waiting?: boolean;
   onSubmit: (email: string, password: string) => Promise<SignInResult | null>;
+  /** the account's address to start from (a link_required sign-in, never Apple's hidden one): the password gets focus */
+  initialEmail?: string | null;
 }
 
-export function LoginForm({ busy, message, spoken = null, waiting = false, onSubmit }: Props) {
+export function LoginForm({ busy, message, spoken = null, waiting = false, onSubmit, initialEmail = null }: Props) {
   const { t } = useTranslation();
   const openWebPage = useOpenWebPage();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail ?? "");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: FieldProblem | null; password?: FieldProblem | null }>({});
   const emailInput = useRef<TextInput>(null);
@@ -86,6 +89,7 @@ export function LoginForm({ busy, message, spoken = null, waiting = false, onSub
           error={say(errors.password)}
           returnKeyType="go"
           onSubmitEditing={() => void submit()}
+          autoFocus={Boolean(initialEmail)}
           busy={!idle}
           testID="login-password"
         />

@@ -360,6 +360,21 @@ describe("the choice screen", () => {
     expect(usePendingSignIn.getState().choice).toBeNull();
     await waitFor(() => expect(routes.pathname()).toBe("/login"));
   });
+
+  it("fills the account's address on the way to sign in to link it, never Apple's hidden one", async () => {
+    holdChoice(googleIdentity, "link_required");
+    answers();
+    await renderRoutes(ROUTES, "/continue");
+    await act(async () => fireEvent.press(screen.getByTestId("continue-link-required")));
+    expect(await screen.findByTestId("login-link-mode")).toBeTruthy();
+    expect(screen.getByTestId("login-email").props.value).toBe("an@gmail.com");
+    expect(screen.getByTestId("login-password").props.autoFocus).toBe(true);
+    await cleanup();
+
+    holdChoice({ provider: "apple", email: "q7@privaterelay.appleid.com", name: "", private_relay: true }, "link_required");
+    await renderRoutes(ROUTES, "/login?link=1");
+    expect(screen.getByTestId("login-email").props.value).toBe("");
+  });
 });
 
 describe("the link step", () => {

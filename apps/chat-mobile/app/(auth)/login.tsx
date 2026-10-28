@@ -2,7 +2,8 @@
 // password, then the way to a new account and the browser for anyone the native doors cannot serve. A second factor
 // or a choice moves on to its screen (components/auth/use-sign-in.ts); signed in, the entry takes over. With link=1
 // and an identity held by the choice screen it is "Tôi đã có tài khoản": a notice says what will be linked, that
-// provider's own button is gone, and the sign-in ends on the link step.
+// provider's own button is gone, an address that already has an account is filled in, and the sign-in ends on the
+// link step.
 import { useQuery } from "@tanstack/react-query";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -33,6 +34,8 @@ export default function Login() {
   const signIn = useSignIn("sign_in", { linkMode });
   const { message, spoken, waiting } = useFailureMessage(signIn.shown);
   const idle = signIn.busy === null;
+  // "Email này đã có tài khoản UniWork": the provider's address is the account's, so it is filled (spec §4.4).
+  const prefill = linking?.ticketKind === "link_required" && !linking.identity.private_relay ? linking.identity.email : null;
 
   if (user) return <Redirect href={afterSignInHref({ linkMode, choiceHeld: choice !== null })} />;
 
@@ -67,6 +70,7 @@ export default function Login() {
         message={message}
         spoken={spoken}
         waiting={waiting}
+        initialEmail={prefill}
         onSubmit={(email, password) => signIn.run({ method: "password", email, password }, "password")}
       />
       <View className="flex-1" />
