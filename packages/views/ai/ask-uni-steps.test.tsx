@@ -19,6 +19,13 @@ describe("AskUniProgress", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/^Đang tìm…$/);
   });
 
+  it("names the document and template listing steps", () => {
+    const { rerender } = render(<AskUniProgress steps={[step("list_templates")]} running writing={false} />);
+    expect(screen.getByRole("status")).toHaveTextContent(/^Đang xem danh sách mẫu…$/);
+    rerender(<AskUniProgress steps={[step("list_documents", "báo giá")]} running writing={false} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Đang xem danh sách tài liệu “báo giá”…");
+  });
+
   it("renders a label as text, not html", () => {
     render(<AskUniProgress steps={[step("get_task", "<b>x</b>")]} running writing={false} />);
     expect(screen.getByRole("status")).toHaveTextContent("<b>x</b>");

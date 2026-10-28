@@ -3740,7 +3740,9 @@
       "recordingReady": "Sẵn sàng"
     },
     "exit": {
-      "left": { "title": "Bạn đã rời phòng" },
+      "left": {
+        "title": "Bạn đã rời phòng"
+      },
       "ended": {
         "title": "Cuộc họp đã kết thúc",
         "by": "{{name}} kết thúc lúc {{time}}",
@@ -7764,6 +7766,10 @@
       "list_members_label": "Đang xem danh sách thành viên “{{label}}”…",
       "member_workload": "Đang xem khối lượng việc của thành viên…",
       "member_workload_label": "Đang xem khối lượng việc của “{{label}}”…",
+      "list_documents": "Đang xem danh sách tài liệu…",
+      "list_documents_label": "Đang xem danh sách tài liệu “{{label}}”…",
+      "list_templates": "Đang xem danh sách mẫu…",
+      "list_templates_label": "Đang xem danh sách mẫu “{{label}}”…",
       "thinking": "UNI đang suy nghĩ…",
       "retry": "Đang kiểm tra lại câu trả lời…",
       "writing": "Đang viết câu trả lời…",
@@ -7795,6 +7801,10 @@
       "list_members_label": "Đã xem danh sách thành viên “{{label}}”",
       "member_workload": "Đã xem khối lượng việc của thành viên",
       "member_workload_label": "Đã xem khối lượng việc của “{{label}}”",
+      "list_documents": "Đã xem danh sách tài liệu",
+      "list_documents_label": "Đã xem danh sách tài liệu “{{label}}”",
+      "list_templates": "Đã xem danh sách mẫu",
+      "list_templates_label": "Đã xem danh sách mẫu “{{label}}”",
       "default": "Đã xử lý",
       "retry": "Đã kiểm tra lại câu trả lời",
       "summary_other": "Xong sau {{count}} bước",
@@ -8128,6 +8138,9 @@
         "ai_actions_disabled": "Hỏi UNI đang tắt hành động ghi. Nhờ quản trị tổ chức bật lại.",
         "ai_write_rate_limited": "Áp dụng quá nhanh. Đợi một phút rồi thử lại.",
         "undo_unavailable": "Không hoàn tác được: đã có người sửa sau đó.",
+        "template_unavailable": "Tài liệu này không còn là mẫu. Hỏi UNI chọn mẫu khác.",
+        "documents_unavailable": "Tài liệu đang tắt cho tổ chức của bạn.",
+        "office_not_configured": "Chưa tạo được tệp trống lúc này. Hãy thử lại sau.",
         "default": "Không áp dụng được. Hỏi lại UNI."
       },
       "tool": {
@@ -8145,7 +8158,9 @@
         "update_document": "Sửa tài liệu",
         "add_document_comment": "Bình luận vào tài liệu",
         "send_chat_message": "Gửi tin nhắn",
-        "other": "Thay đổi"
+        "other": "Thay đổi",
+        "create_office_document": "Tạo tệp mới",
+        "save_attachment_template": "Lưu vào Mẫu văn bản"
       },
       "field": {
         "title": "Tiêu đề",
@@ -8168,14 +8183,34 @@
         "labels": "Nhãn",
         "attendee_ids": "Người tham dự",
         "user_ids": "Người được mời",
-        "mode": "Nội dung"
+        "mode": "Nội dung",
+        "template_id": "Mẫu",
+        "attachment_id": "Tệp đính kèm",
+        "format": "Định dạng",
+        "location": "Thư mục",
+        "visibility": "Ai xem được",
+        "instructions": "Yêu cầu"
       },
       "content_mode": {
         "append": "Thêm vào cuối tài liệu",
         "replace": "Thay toàn bộ tài liệu"
       },
       "details": "Xem chi tiết",
-      "plan_skip_note": "Bước bỏ tick sẽ bị bỏ qua"
+      "plan_skip_note": "Bước bỏ tick sẽ bị bỏ qua",
+      "location": {
+        "my_folder": "Thư mục của tôi",
+        "workspace_root": "Tài liệu của workspace"
+      },
+      "visibility": {
+        "restricted": "Chỉ mình tôi",
+        "workspace": "Cả workspace"
+      },
+      "apply_create_open": "Tạo và mở",
+      "apply_save_template": "Lưu vào Mẫu",
+      "outline": "Dàn ý",
+      "edit_outline": "Sửa dàn ý",
+      "outline_save": "Lưu dàn ý",
+      "outline_label": "Dàn ý của tệp mới"
     },
     "memory": {
       "button": "Bộ nhớ",

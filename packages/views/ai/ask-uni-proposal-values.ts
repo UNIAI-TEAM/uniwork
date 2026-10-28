@@ -1,4 +1,5 @@
 import type { useTranslation } from "react-i18next";
+import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
 import type { AiProposal } from "@uniwork/core/types";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
@@ -45,6 +46,8 @@ export function formatProposalValue(v: unknown, type: string, field: string, t: 
     if (type === "enum" && field === "priority" && SAFE_KEY.test(v)) return t(`tasks.priority_${v}`, { defaultValue: v });
     if (type === "enum" && field === "status") return statusLabel(v, tool, t);
     if (type === "enum" && field === "mode" && SAFE_KEY.test(v)) return t(`ai.proposal.content_mode.${v}`, { defaultValue: v });
+    if (type === "enum" && (field === "visibility" || field === "location") && SAFE_KEY.test(v)) return t(`ai.proposal.${field}.${v}`, { defaultValue: v });
+    if (type === "enum" && field === "format") return v.toUpperCase();
     return clip(v);
   }
   if (typeof v === "number" || typeof v === "boolean") return String(v);
@@ -83,10 +86,31 @@ export function editKind(f: AiProposal["preview"]["fields"][number], tool: strin
 }
 
 /** The tool argument `preview.body` stands for: a page's content, a cancellation's reason, else the text it posts. */
-export const bodyArg = (tool: string) => (tool === "create_document" || tool === "update_document" ? "content" : tool === "cancel_meeting" ? "reason" : "body");
+export const bodyArg = (tool: string) =>
+  tool === "create_document" || tool === "update_document" ? "content" : tool === "cancel_meeting" ? "reason" : tool === "create_office_document" ? "outline" : "body";
+
+/** The Apply button's label key: a new Office file opens at once, a saved template says where it went. */
+export const applyLabelKey = (tool: string) =>
+  tool === "create_office_document" ? "ai.proposal.apply_create_open" : tool === "save_attachment_template" ? "ai.proposal.apply_save_template" : "ai.proposal.apply";
 
 /** The body "Sửa" may change: not one the server cut to fit the card, or saving it would cut the page. */
 export const bodyEditable = (p: AiProposal) => p.preview.body !== "" && !p.preview.body_truncated;
 
+/** The body the generic "Sửa" form edits: an outline has its own dialog (rich editor), so it is not in the form. */
+export const bodyInForm = (p: AiProposal) => bodyEditable(p) && bodyArg(p.tool) !== "outline";
+
 /** Whether "Sửa" has anything to open: an editable field, or the whole text the row will post. */
-export const hasEditable = (p: AiProposal) => bodyEditable(p) || p.preview.fields.some((f) => editKind(f, p.tool) !== null);
+export const hasEditable = (p: AiProposal) => bodyInForm(p) || p.preview.fields.some((f) => editKind(f, p.tool) !== null);
+
+/**
+ * How a refused edit reads. The server words an `invalid_args` refusal in English, for the model: it only names which
+ * of `keys` is wrong (`field`, "" when none), the text is ours.
+ */
+export function editRefusal(err: unknown, keys: string[], t: TFunction): { field: string; text: string } {
+  const code = errorCode(err) ?? "";
+  const message = apiErrorMessage(err) ?? "";
+  const field = keys.find((k) => new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(message)) ?? "";
+  const known = code !== "invalid_args" && SAFE_KEY.test(code) ? t(`ai.proposal.error.${code}`, { defaultValue: "" }) : "";
+  const invalid = field ? t("ai.proposal.edit_invalid_field", { field: fieldLabel(t, field) }) : t("ai.proposal.edit_invalid");
+  return { field, text: code === "invalid_args" ? invalid : known || t("ai.proposal.generic_error") };
+}

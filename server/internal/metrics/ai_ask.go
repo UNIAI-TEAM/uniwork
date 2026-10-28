@@ -25,7 +25,7 @@ var (
 	askTools = map[string]bool{
 		"search": true, "list_tasks": true, "get_task": true, "list_meetings": true,
 		"get_meeting": true, "list_projects": true, "get_project": true, "get_document": true,
-		"list_chat_rooms": true, "read_chat_room": true, "list_members": true, "member_workload": true,
+		"list_documents": true, "list_templates": true, "list_chat_rooms": true, "read_chat_room": true, "list_members": true, "member_workload": true,
 	}
 	askOutcomes   = map[string]bool{"answered": true, "agent_failed": true, "refused": true, "rate_limited": true, "busy": true, "timeout": true, "stopped": true, "interrupted": true, "rejected": true}
 	askStatuses   = map[string]bool{"ok": true, "error": true, "truncated": true}
@@ -33,7 +33,7 @@ var (
 		"create_task": true, "update_task": true, "add_comment": true, "create_project": true,
 		"update_project": true, "schedule_meeting": true, "update_meeting": true, "invite_to_meeting": true,
 		"cancel_meeting": true, "restore_meeting": true, "create_document": true, "update_document": true,
-		"add_document_comment": true, "send_chat_message": true,
+		"add_document_comment": true, "create_office_document": true, "save_attachment_template": true, "send_chat_message": true,
 	}
 	askMemoryOutcomes = map[string]bool{"proposed": true, "applied": true, "rejected": true, "undone": true, "expired": true, "used": true, "import_split": true, "import_saved": true}
 	askActionOutcomes = map[string]bool{"proposed": true, "auto_applied": true, "applied": true, "rejected": true, "failed": true, "undone": true}

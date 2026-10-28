@@ -14,8 +14,9 @@ import { AppLink } from "../navigation";
 import { askRefHref } from "./ask-uni-context-chips";
 import { CHIP, entityKindIcon } from "./ask-uni-entity";
 import { isInAppHref } from "./ask-uni-links";
+import { AskUniOutlineDialog } from "./ask-uni-outline-dialog";
 import { AskUniProposalEdit, type EditCallbacks } from "./ask-uni-proposal-edit";
-import { fieldLabel, formatProposalValue, hasEditable } from "./ask-uni-proposal-values";
+import { applyLabelKey, bodyArg, editRefusal, fieldLabel, formatProposalValue, hasEditable } from "./ask-uni-proposal-values";
 
 const SAFE_CODE = /^[a-z_]+$/;
 const FADED = new Set(["rejected", "undone", "expired"]);
@@ -79,6 +80,8 @@ function Fields({ proposal }: { proposal: AiProposal }) {
 function Audience({ proposal }: { proposal: AiProposal }) {
   const { t } = useTranslation();
   const a = proposal.preview.audience;
+  // A card that already lists "who can see it" as a field does not say it twice.
+  if (proposal.preview.fields.some((f) => f.field === "visibility")) return null;
   const who = SAFE_CODE.test(a.visibility) ? t(`ai.proposal.audience.${a.visibility}`, { count: a.room_members, defaultValue: "" }) : "";
   const names = a.notifies.map((n) => n.title).filter(Boolean).join(", ");
   const notifies = names ? t(a.notifies_more ? "ai.proposal.notifies_more" : "ai.proposal.notifies", { names }) : a.notifies_more ? t("ai.proposal.notifies_others") : "";
@@ -171,6 +174,8 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
   const { t } = useTranslation();
   const ws = useOptionalWorkspace()?.workspace;
   const [editing, setEditing] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [outlineError, setOutlineError] = useState("");
   const [open, setOpen] = useState(false);
   const { preview, status } = proposal;
   const tool = SAFE_CODE.test(proposal.tool) ? t(`ai.proposal.tool.${proposal.tool}`, { defaultValue: t("ai.proposal.tool.other") }) : t("ai.proposal.tool.other");
@@ -180,6 +185,7 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
   // made no result yet, so it opens the object it names, if any.
   const link = isInAppHref(href) ? href : status === "unknown" && preview.target.id ? (askRefHref(ws, preview.target) ?? "") : "";
   const editable = hasEditable(proposal);
+  const outlineEditable = bodyArg(proposal.tool) === "outline" && !preview.body_truncated;
   const disabled = busy || status === "applying" || status === "undoing";
   const settled = STATUS_ICON[status];
   const folded = Boolean(settled) && !open;
@@ -254,6 +260,19 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
         {editing && pending && onEdit ? (
           <AskUniProposalEdit proposal={proposal} busy={busy} onSave={onEdit} onDone={() => setEditing(false)} />
         ) : null}
+        {outlineEditable && onEdit ? (
+          <AskUniOutlineDialog
+            open={outlineOpen && pending}
+            markdown={preview.body}
+            busy={busy}
+            error={outlineError}
+            onOpenChange={setOutlineOpen}
+            onSave={(markdown) => {
+              setOutlineError("");
+              onEdit({ [bodyArg(proposal.tool)]: markdown }, { onSuccess: () => setOutlineOpen(false), onError: (err) => setOutlineError(editRefusal(err, [], t).text) });
+            }}
+          />
+        ) : null}
         <div className="mt-2 -ms-2 flex flex-wrap items-center gap-1 empty:hidden">
           {pending && !editing ? (
             <>
@@ -261,13 +280,19 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
               {selectable ? null : (
                 <Button type="button" size="sm" className="ms-2 me-1" disabled={disabled} onClick={onApply}>
                   <Check aria-hidden />
-                  {t("ai.proposal.apply")}
+                  {t(applyLabelKey(proposal.tool))}
                 </Button>
               )}
               {editable ? (
                 <Button type="button" size="sm" variant="ghost" className={QUIET} disabled={disabled} onClick={() => setEditing(true)}>
                   <Pencil aria-hidden />
                   {t("ai.proposal.edit")}
+                </Button>
+              ) : null}
+              {outlineEditable && onEdit ? (
+                <Button type="button" size="sm" variant="ghost" className={QUIET} disabled={disabled} onClick={() => { setOutlineError(""); setOutlineOpen(true); }}>
+                  <Pencil aria-hidden />
+                  {t("ai.proposal.edit_outline")}
                 </Button>
               ) : null}
               <Button type="button" size="sm" variant="ghost" className={QUIET} disabled={disabled} onClick={onReject}>
@@ -294,6 +319,7 @@ function Details({ proposal }: { proposal: AiProposal }) {
       ) : null}
       <Fields proposal={proposal} />
       {/* Verbatim and inert: the words that will be posted, line breaks kept, never parsed as markdown or html. */}
+      {preview.body !== "" && bodyArg(proposal.tool) === "outline" ? <p className="mt-2 text-caption font-medium text-muted-foreground">{t("ai.proposal.outline")}</p> : null}
       {preview.body !== "" ? (
         <p className="mt-2 max-h-48 overflow-auto border-l-2 border-muted-foreground/30 py-0.5 ps-2.5 text-body break-words whitespace-pre-wrap">{preview.body}</p>
       ) : null}
