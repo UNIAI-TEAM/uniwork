@@ -30,7 +30,7 @@ import {
   PendingChatVoiceInvitesSchema,
 } from "@uniwork/core/api/endpoints/chat-schemas";
 import { AuthProvidersSchema, SignInIdentitySchema, SignInMethodsSchema, StepUpGrantSchema } from "@uniwork/core/api/endpoints/sign-in-schemas";
-import { InvitationPreviewSchema } from "@uniwork/core/types/workspace";
+import { InvitationPreviewSchema, PendingInvitationSchema } from "@uniwork/core/types/workspace";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ERASED_ACCOUNT_NAME } from "@/lib/erased-account";
@@ -71,6 +71,8 @@ const HANDLER_FILES = [
   "organization_members.go",
   // GET /orgs: what the empty workspace picker says when no invitation waits.
   "organization.go",
+  // GET /me/invitations: the invitations the empty workspace picker answers.
+  "onboarding.go",
   // Unified sign-in (ADR 0047): the app's doors, Settings › Sign-in methods and step-up, /auth/providers.
   "native_sign_in.go",
   "sign_in_methods.go",
@@ -300,7 +302,7 @@ const CONTRACTS: Contract[] = [
   },
   { endpoint: "POST /me/step-up", schema: StepUpGrantSchema, sdo: "StepUpSDO", handlers: ["stepUp"] },
   // Boot, account and remote config: the shell, Settings and the kill switches (mobile_flags).
-  { endpoint: "GET|PATCH /me, PUT|DELETE /me/ai-consent, PUT /me/push-previews", schema: MeResponseSchema, sdo: { user: "UserDTO" }, handlers: ["me", "patchMe", "answerAIConsent", "setPushPreviews"] },
+  { endpoint: "GET|PATCH /me, PUT|DELETE /me/ai-consent, PUT /me/push-previews", schema: MeResponseSchema, sdo: { user: "UserDTO" }, handlers: ["me", "patchMe", "answerAIConsent", "setPushPreviews", "verifyEmail"] },
   { endpoint: "GET /workspaces", schema: WorkspacesResponseSchema, sdo: "WorkspaceListSDO", handlers: ["listWorkspaces"] },
   { endpoint: "GET /workspaces/{id}/members", schema: WorkspaceMembersSchema, sdo: "MemberListSDO", handlers: ["listMembers"], items: { members: WorkspaceMemberSchema } },
   { endpoint: "GET /config", schema: RemoteConfigSchema, sdo: "ConfigSDO", handlers: ["config"] },
@@ -416,6 +418,31 @@ describe("the app's response schemas against the server's SDOs and handlers", ()
       expect(answerOf(handlers, handler)).toEqual(expected(sdo));
     },
   );
+
+  // GET /me/invitations builds each row as a map literal (onboarding.go › myInvitations), which answerOf cannot
+  // follow into: every key core's PendingInvitationSchema reads is held to a key of that literal (and of the literals
+  // nested in it) here, and its workspaces to the struct toInvitationWorkspaceDTOs returns.
+  it("GET /me/invitations: every field the app reads is a key the server's rows write", () => {
+    const body = funcBody(handlers, "myInvitations") ?? "";
+    expect(answerOf(handlers, "myInvitations")).toEqual({ keys: { invitations: undefined } });
+    const written = new Set([...body.matchAll(/"(\w+)":|row\["(\w+)"\] =/g)].map((m) => m[1] ?? m[2] ?? ""));
+    const nestedKeys = (key: string): string[] => {
+      const literal = new RegExp(`(?:"${key}":|row\\["${key}"\\] =)\\s*map\\[string\\]string\\{([^}]*)\\}`).exec(body)?.[1] ?? "";
+      return [...literal.matchAll(/"(\w+)":/g)].map((m) => m[1] ?? "");
+    };
+    const missing = Object.entries(objectShape(PendingInvitationSchema) ?? {}).flatMap(([key, value]) => {
+      if (!written.has(key)) return [`${key} (no "${key}" key in myInvitations' row)`];
+      const inner = objectShape(value) ?? {};
+      if (key === "workspaces") {
+        if (!/"workspaces": toInvitationWorkspaceDTOs\(/.test(body)) return ["workspaces: no longer toInvitationWorkspaceDTOs"];
+        return drift(inner, returnStruct(handlers, "toInvitationWorkspaceDTOs") ?? "", structs, key);
+      }
+      return Object.keys(inner)
+        .filter((sub) => !nestedKeys(key).includes(sub))
+        .map((sub) => `${key}.${sub}`);
+    });
+    expect(missing).toEqual([]);
+  });
 
   // The calls kill switch (owner decision): a key the app reads that the server's catalogue does not
   // declare as a mobile flag never arrives, so the server could not switch it off.

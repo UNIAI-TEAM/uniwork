@@ -112,6 +112,8 @@ export const MOBILE_PATHS = [
   "server/internal/handler/organization_members.go",
   // GET /orgs: whether an account without a workspace already belongs to an organization (spec §5.2).
   "server/internal/handler/organization.go",
+  // GET /me/invitations: the invitations an account without a workspace answers, rows built as map literals.
+  "server/internal/handler/onboarding.go",
   // Unified sign-in (ADR 0047): the app's doors, Settings › Sign-in methods and step-up, /auth/providers.
   "server/internal/handler/native_sign_in.go",
   "server/internal/handler/sign_in_methods.go",
