@@ -102,7 +102,9 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
         // Both lengths on this device's clock, so a send hours later keeps the meeting's own time on the server.
         await recordHeld(secondsBetween(parts[0]!.startedAt, end), Math.max(0, secondsBetween(end, Date.now())));
       }
-      for (const part of parts) {
+      // Largest first: a summary queued when the first part completes then covers most of the meeting.
+      // shortcut: after an offline pause that follows the largest part, the summary may miss the small fragments; redo it on the last part when that matters.
+      for (const part of [...parts].sort((a, b) => b.bytes - a.bytes)) {
         if (stopped.current) break;
         setPhase("uploading");
         const file = inFlight.current?.id === part.id ? inFlight.current.file : partFile(part, await store.readPart(part.id));

@@ -171,6 +171,19 @@ describe("useSendRecording", () => {
     }
   });
 
+  it("sends the largest part first, each at its own offset", async () => {
+    const store = memoryRecordingStore();
+    const [, p2] = await twoParts(store);
+    // The second part is most of the meeting: its transcript must reach the summary first.
+    await store.appendChunk(p2, 1, new Blob(["most of the meeting"]), T0 + 2_538_000);
+    const server = fakeServer();
+    const { result } = renderSend(store, "ENDED");
+    await act(() => result.current.send());
+    expect(result.current.phase).toBe("done");
+    const queued = server.calls.filter((c) => c.path.endsWith("/transcriptions")).map((c) => c.body);
+    expect(queued).toMatchObject([{ offset_seconds: 1500 }, { offset_seconds: 0 }]);
+  });
+
   it("skips record-held when the meeting already ended", async () => {
     const store = memoryRecordingStore();
     await twoParts(store);
