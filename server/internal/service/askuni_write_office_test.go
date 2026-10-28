@@ -710,3 +710,28 @@ func TestAskCreateOfficeApplyWithoutEditorAIWritesNoHandoff(t *testing.T) {
 		t.Fatalf("%d handoff rows, want none", n)
 	}
 }
+
+// A card that did not promise drafting stays one for the asker to draft:
+// Apply writes no package even when the editor AI could run by then, for a
+// card that said why it could not and for an old card that said nothing.
+func TestAskCreateOfficeApplyWritesAHandoffOnlyForACardThatPromisedIt(t *testing.T) {
+	x, s, tc, _ := askOfficeWorld(t)
+	fake := &editorAIFake{reason: "credits"}
+	s.SetEditorAI(fake)
+	args := `{"title":"Đề xuất","format":"docx","outline":"## A\n## B","instructions":"Viết ngắn."}`
+	spent := askPrepare(t, s, tc, "create_office_document", args)
+	if f, _ := officeField(spent, "editor_ai"); f.To != "credits" {
+		t.Fatalf("editor_ai = %v, want credits", f.To)
+	}
+	fake.reason = ""
+	old := askPrepare(t, s, tc, "create_office_document", args)
+	old.Preview.Fields = slices.DeleteFunc(old.Preview.Fields, func(f AskProposalField) bool { return f.Field == "editor_ai" })
+	for name, row := range map[string]askDraftRow{"credits card": spent, "card without editor_ai": old} {
+		if p := applyOffice(t, s, tc, x.ua.ID, row); p.Result.ObjectID == "" || p.Result.HandoffID != "" {
+			t.Fatalf("%s: result = %+v, want a document and no handoff_id", name, p.Result)
+		}
+	}
+	if n := x.count(t, `SELECT count(*) FROM ai_office_handoffs WHERE organization_id = $1`, x.w.OrganizationID); n != 0 {
+		t.Fatalf("%d handoff rows, want none", n)
+	}
+}

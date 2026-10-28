@@ -59,12 +59,13 @@ func (s *AskUNIService) editorAIReason(ctx context.Context, userID, orgID, forma
 }
 
 // officeHandoffFor writes the package the editor AI drafts the new file from,
-// when it can run for it now, and returns its id; "" for none. The file stays
-// either way: without a package the asker drafts it themselves.
-func (s *AskUNIService) officeHandoffFor(ctx context.Context, p McpPrincipal, in askOfficeIn, format, documentID string) string {
+// when the card promised drafting and the editor AI can still run for it, and
+// returns its id; "" for none. The file stays either way: without a package
+// the asker drafts it themselves, as a card without the promise told them.
+func (s *AskUNIService) officeHandoffFor(ctx context.Context, p McpPrincipal, in askOfficeIn, card AskProposalPreview, format, documentID string) string {
 	via := audit.RequestFromContext(ctx).Via
 	// No via means no proposal ran this apply, and a package is bound to its proposal.
-	if via == nil || via.ProposalID == "" || s.editorAIReason(ctx, p.UserID, p.OrganizationID, format) != "" {
+	if via == nil || via.ProposalID == "" || !editorAIPromised(card) || s.editorAIReason(ctx, p.UserID, p.OrganizationID, format) != "" {
 		return ""
 	}
 	h, err := createOfficeHandoff(ctx, s.q, NewOfficeHandoff{
@@ -79,4 +80,12 @@ func (s *AskUNIService) officeHandoffFor(ctx context.Context, p McpPrincipal, in
 		return ""
 	}
 	return h.ID
+}
+
+// editorAIPromised is whether the card the asker approved said the editor AI
+// would draft (compose, or build a deck); an older card has no editor_ai field.
+func editorAIPromised(card AskProposalPreview) bool {
+	return slices.ContainsFunc(card.Fields, func(f AskProposalField) bool {
+		return f.Field == "editor_ai" && (f.To == "compose" || f.To == "build")
+	})
 }

@@ -379,7 +379,7 @@ func (s *AskUNIService) applyCreateOffice(ctx context.Context, p McpPrincipal, r
 	// The document services commit their own transactions, so the package is
 	// written after the file exists; checked again here, as the card may be old.
 	format := files.DocumentFormat(res.Version.MimeType.String, res.Document.Title)
-	out.HandoffID = s.officeHandoffFor(ctx, p, in, format, out.ObjectID)
+	out.HandoffID = s.officeHandoffFor(ctx, p, in, row.Preview, format, out.ObjectID)
 	return out, inv, nil
 }
 
