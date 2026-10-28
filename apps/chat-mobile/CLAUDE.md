@@ -56,7 +56,8 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   `.githooks/pre-commit` chặn ở mọi `GATE_LEVEL`); toast, alert, lời đọc cho trình đọc màn hình và chữ của thông báo
   trong file `.ts` cũng vậy (`copySyntax` của `eslint.config.mjs`); ngày giờ và số (`{{count}}`, cỡ tệp) chỉ qua
   `lib/locale-format.ts` (`formatSyntax`: không `toFixed`/`toLocale*`/`new Intl` ở nơi khác).
-- Vùng chạm 44 pt / 48 dp qua `useTapTarget` / `hitSlopFor`; tương phản AA ở cả hai chế độ (`lib/theme-contrast.test.ts`);
+- Vùng chạm 44 pt / 48 dp qua `useTapTarget` / `hitSlopFor` (màn đăng nhập vẽ đủ cỡ, không nhờ hit slop:
+  `scripts/mobile-a11y-audit.mjs` đo khung vẽ trên emulator); tương phản AA ở cả hai chế độ (`lib/theme-contrast.test.ts`);
   cỡ chữ theo vai trò (`lib/type-scale.test.ts`); hàng đặt tên, dấu và giờ cạnh nhau thì xếp chồng ở cỡ chữ trợ năng
   (`useLargeText`), menu/sheet dài thì cuộn trong chiều cao còn lại (`lib/action-menu-layout.ts`, `ActionSheet`).
 - Quyền native, dịch vụ nền và loại dữ liệu khớp `store/listing.md` (`android-manifest.test.ts`,
@@ -72,6 +73,14 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   tên `UniChatCallKit`, khác `UniChatCalls` của Android, và call center chỉ chạy khi Info.plist khai `voip`
   (`UNICHAT_IOS_CALLS=1`, `app.config.test.ts`). Hai nửa tới app qua một `NativeCallSession`
   (`data/calls/native-call-session.ts`, `native-call-session.test.ts`).
+- Đăng nhập trong app (ADR 0047): màn hình chỉ gọi `useAuthStore().login(request)` (`COMMAND_MODULES` cấm
+  `auth/sign-in`, `auth/methods-api`). Mật khẩu vào cửa qua closure, không vào event, effect, lỗi, log hay Sentry
+  (`data/auth/store.test.ts`, `data/auth/endpoint-request.test.ts`); thử thách bước hai, vé và nonce của màn chọn chỉ ở
+  bộ nhớ, không persist, không thành route param, máy chỉ giữ dấu `{provider, at}` để báo lượt bỏ dở
+  (`data/auth/pending-sign-in.test.ts`). Mỗi sheet Apple/Google một nonce mới: SDK nhận SHA-256, server nhận nonce gốc
+  (`data/auth/sign-in.test.ts`). Google chỉ qua module riêng `modules/unichat-google-sign-in` (bọc ở
+  `data/auth/google.ts`; gói npm không có nonce), không Play services hay client id thì qua trình duyệt. Flow Maestro tìm
+  màn đăng nhập theo testID và chữ nó thật sự vẽ (`test/routes/sign-in-flows.test.tsx`).
 - Mọi lệnh cần "xác nhận là bạn" (đặt/đổi mật khẩu, liên kết/gỡ liên kết, xoá tài khoản, chuyển quyền, liên kết vé)
   đi qua `components/settings/use-step-up.ts` (`run(action, command)`): token chỉ trong bộ nhớ
   (`data/auth/step-up-store.ts`), bằng chứng hỏi trước khi mở sheet của Apple/Google, lệnh ở `data/mutations` bọc
