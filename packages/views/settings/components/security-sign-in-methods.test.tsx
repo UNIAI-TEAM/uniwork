@@ -472,6 +472,33 @@ describe("SignInMethodsSection", () => {
     expect(calls("POST /api/v1/auth/sign-in-ticket/link")).toHaveLength(1);
   });
 
+  it("keeps the move open and says why when it fails on the way, so the same press tries again", async () => {
+    let links = 0;
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "GET /api/v1/auth/sign-in-ticket": APPLE_TICKET,
+      "POST /api/v1/auth/sign-in-ticket/link": () => {
+        links += 1;
+        return links === 1 ? Promise.reject(new TypeError("offline")) : CHANGE({ ...METHODS, apple: { ...METHODS.apple, linked: true } });
+      },
+    });
+    open("/settings?tab=security&sign_in_method=apple&result=movable&masked_email=b%E2%80%A2%E2%80%A2%E2%80%A2%40icloud.com");
+    let confirm = within(await screen.findByRole("alertdialog"));
+    fireEvent.click(confirm.getByRole("button", { name: "Chuyển sang đây" }));
+    // The pending sign-in is still there: the question stays, with the reason in it.
+    confirm = within(await screen.findByRole("alertdialog"));
+    expect(await confirm.findByRole("alert")).toHaveTextContent("Không kết nối được. Kiểm tra mạng rồi thử lại.");
+    expect(toast.error).not.toHaveBeenCalled();
+    fireEvent.click(confirm.getByRole("button", { name: "Chuyển sang đây" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã chuyển Apple sang tài khoản này."));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(calls("POST /api/v1/auth/sign-in-ticket/link").map(([, o]) => (o as { body?: unknown }).body)).toEqual([
+      { move: true },
+      { move: true },
+    ]);
+  });
+
   it("drops the move when the proof the server asked for is closed", async () => {
     route({
       "GET /api/v1/me/sign-in-methods": METHODS,

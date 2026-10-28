@@ -23,6 +23,7 @@ import {
   readSignInFailure,
   sentenceValues,
   type LinkResultNotice,
+  type SignInFailure,
 } from "@uniwork/core/auth/sign-in-errors";
 import { emailDisplay, remainingAfterUnlink, unlinkVerdict } from "@uniwork/core/auth/sign-in-rules";
 import { linkAction, unlinkAction } from "@uniwork/core/auth/step-up";
@@ -82,6 +83,11 @@ export function SignInMethodsSection() {
   const [linking, setLinking] = useState<SignInProvider | null>(null);
   const [unlinking, setUnlinking] = useState<SignInProvider | null>(null);
   const [move, setMove] = useState<LinkResultNotice | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const closeMove = () => {
+    setMove(null);
+    setMoveError(null);
+  };
   const [passwordMode, setPasswordMode] = useState<PasswordDialogMode>({ kind: "set", askCurrent: false });
   const [passwordOpen, setPasswordOpen] = useState(false);
   const handledResult = useRef<string | null>(null);
@@ -97,7 +103,12 @@ export function SignInMethodsSection() {
   const providerName = (p: SignInProvider) => tRoot(providerNameKey(p));
   const say = (notice: { key: string; provider?: SignInProvider | null; values: { masked?: string } }) =>
     tRoot(notice.key, sentenceValues(notice, tRoot));
-  const failed = (err: unknown) => toast.error(say(readSignInFailure(err, "methods")));
+  // A wait says how long, as every other sign-in failure does.
+  const sayFailure = (failure: SignInFailure) =>
+    failure.retry
+      ? `${say(failure)} ${tRoot(failure.retry.key, failure.retry.count === undefined ? {} : { count: failure.retry.count })}`
+      : say(failure);
+  const failed = (err: unknown) => toast.error(sayFailure(readSignInFailure(err, "methods")));
 
   // Back from a provider: say how the link ended, once, then take the result
   // off the URL so a reload or Back does not say it again. movable asks to
@@ -190,6 +201,7 @@ export function SignInMethodsSection() {
   const confirmMove = () => {
     const pending = move;
     if (!pending || linkTicket.isPending) return;
+    setMoveError(null);
     void gate.run({
       action: linkAction(pending.provider),
       // The session that started the link confirms it as it is (spec §3.7);
@@ -197,21 +209,29 @@ export function SignInMethodsSection() {
       upfront: false,
       command: () => linkTicket.mutateAsync({ provider: pending.provider, move: true }),
       onSuccess: () => {
-        setMove(null);
+        closeMove();
         toast.success(t("move.toast", { provider: providerName(pending.provider) }));
       },
       onError: (err) => {
-        setMove(null);
+        const read = readSignInFailure(err, "methods");
+        // Offline, a 5xx or a wait leaves the pending sign-in where it was:
+        // the question stays open, says why, and the same press tries again.
+        // Only an answer that ends the move closes it.
+        if (read.code === "network" || (read.status ?? 0) >= 500 || read.kind === "wait") {
+          setMoveError(sayFailure(read));
+          return;
+        }
+        closeMove();
         failed(err);
       },
-      onCancel: () => setMove(null),
+      onCancel: closeMove,
     });
   };
 
   // "Không chuyển": the pending identity is dropped rather than left in a cookie.
   const declineMove = () => {
     if (linkTicket.isPending) return;
-    setMove(null);
+    closeMove();
     discardTicket.mutate();
   };
 
@@ -432,6 +452,7 @@ export function SignInMethodsSection() {
         tone="warning"
         icon={ArrowRightLeft}
         pending={linkTicket.isPending}
+        error={moveError}
         onConfirm={confirmMove}
       />
     </SettingsSection>
