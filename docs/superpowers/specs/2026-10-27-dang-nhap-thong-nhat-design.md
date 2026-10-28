@@ -617,7 +617,7 @@ trên `/login`, một "Đăng ký" trên `/register`.
 
 - Một bảng mã → khoá i18n `auth.social.errors.<mã>` thay `GOOGLE_ERRORS`/`replace("google_", "")`; mã lạ bị bỏ qua.
   Alert cấp form. `AuthCallbackView` nói "Đang đăng nhập…"; tới đó mà không có phiên → `/login?error=sign_in_failed`.
-  `reclaimed=1` → toast một lần "Đã lấy lại tài khoản. Mật khẩu cũ (đặt khi email chưa xác minh) đã bị xoá."
+  `reclaimed=1` → toast một lần "Đã lấy lại tài khoản. Mật khẩu cũ, đặt khi email chưa được xác minh, đã bị xóa."
 - `next` sống qua `/verify` và `/onboarding`: trang đăng ký, xác minh và onboarding đọc và chuyển tiếp `next`, rồi đi
   tới nó sau cổng. `/auth/desktop/authorize` và `/auth/continue?step=link` được đi thẳng kể cả khi còn cổng (app đã xử lý
   tài khoản chưa có workspace).
@@ -644,8 +644,10 @@ Trạng thái và lời:
 - **`kind=link_required`**: tiêu đề "Email này đã có tài khoản UniWork"; mô tả "Đăng nhập vào {{email}} để liên kết
   {{provider}}."; một nút chính "Đăng nhập để liên kết" (→ như lựa chọn 1).
 - **Đang gửi** (mọi lựa chọn): nút bận `aria-busy`, các lựa chọn khác `aria-disabled`.
-- **Lỗi** `409 sign_in_account_conflict` → "Email này vừa có tài khoản. Đăng nhập để liên kết." + nút sang lựa chọn 1;
-  `429` → "Thử lại sau {{seconds}} giây."; mạng/5xx → "Không kết nối được. Thử lại." có nút thử lại.
+- **Lỗi** `409 sign_in_account_conflict` → "Email này vừa được dùng để tạo tài khoản. Đăng nhập để liên kết." + nút sang
+  lựa chọn 1; `429` → câu của bảng lỗi + "Thử lại sau {{count}} giây/phút/giờ." (`retryPhrase`; mã gửi qua email mà
+  hết lượt thì "Đã tạm dừng mã xác nhận cho địa chỉ này.", ngân sách của route thì "Bạn đã thử nhiều lần liền.");
+  mạng/5xx → "Không kết nối được. Kiểm tra mạng rồi thử lại." có nút thử lại.
 - **Đã đăng nhập sẵn** (có phiên): thay ba lựa chọn bằng "Liên kết {{provider}} với {{account}}" (→ `step=link`) và
   "Dùng tài khoản khác" (đăng xuất rồi về màn chọn).
 - Nút phụ "Hủy" → `DELETE /auth/sign-in-ticket` → `/login?next=`.
@@ -670,7 +672,7 @@ cách còn lại (mật khẩu, nhà cung cấp kia, MFA) giữ `next`. Bước 
 `/{org}/{ws}/settings` giữ `tab`; chưa có → trang bảo mật cấp tài khoản (`PageHeader` + `SecurityTab`), có builder
 `paths.securitySettings()`.
 
-Tiêu đề "Phương thức đăng nhập", mô tả "Những cách bạn dùng để vào UniWork trên web, máy tính và điện thoại." Ba hàng
+Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập UniWork trên web, máy tính và điện thoại." Ba hàng
 (`SettingsListItem`, ô 32 px):
 
 | Hàng | Meta | Huy hiệu | Hành động |
@@ -681,11 +683,12 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Những cách bạn dùng
 
 - Nhà cung cấp chưa liên kết mà deployment không bật thì ẩn hàng.
 - Gỡ phương thức cuối: `aria-disabled` + `SettingsRowReason` "Đây là cách đăng nhập duy nhất. Đặt mật khẩu hoặc liên kết
-  cách khác trước." Gỡ Apple của tài khoản relay: "Email đăng nhập của bạn là email ẩn của Apple, nên cần giữ Apple."
+  cách khác trước." Gỡ Apple của tài khoản relay: "Email tài khoản của bạn là email ẩn của Apple, nên không gỡ liên kết Apple được."
 - **Hộp bằng chứng** (`step-up-proof.tsx`, dùng chung cho mọi lệnh nhạy cảm, kể cả bật MFA, xoá tài khoản, chuyển
   quyền): theo `proofs` — ô mật khẩu (kèm "Quên mật khẩu?"), ô "Mã từ ứng dụng xác thực", hay "Gửi mã tới {{email}}" +
   ô mã; có "Dùng cách khác" khi có hơn một cách. Gọi `/me/step-up` trước, giữ `step_up_token` trong bộ nhớ 10 phút
-  (lệnh tiếp theo trong cửa sổ đó không hỏi lại). Lỗi dưới ô, focus trả về ô.
+  (lệnh tiếp theo trong cửa sổ đó không hỏi lại; token mua bằng mã email chỉ dùng cho đúng việc đó, nên dòng gợi ý theo
+  cách xác nhận: `stepUpWindowHintKey`). Lỗi dưới ô, focus trả về ô.
 - **Đặt/Đổi mật khẩu** (`FormDialog` md): đổi = mật khẩu hiện tại + mới, ghi chú "Các thiết bị khác sẽ đăng xuất."; đặt
   = bằng chứng + mới + "Bạn sẽ đăng nhập bằng {{email}}" (relay có nút sao chép). Thành công: ghi user, toast.
 - **Liên kết** (web): bằng chứng → `POST …/link` → `window.location.assign(authorization_url)`. Quay lại với
@@ -693,7 +696,7 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Những cách bạn dùng
 - **Gỡ liên kết**: `ConfirmDialog` destructive (ô `Unlink`), nói còn lại cách nào và "Các thiết bị khác sẽ đăng xuất."
 - **Shell UniChat desktop** (`getDesktopBridge()` có): "Liên kết trên web" (biểu tượng mở ngoài) mở
   `${appUrl}/settings?tab=security&expect_user=<id>` bằng `bridge.openExternal`; trang web thấy trình duyệt đăng nhập
-  người khác thì cảnh báo "Trình duyệt đang đăng nhập {{other}}, UniChat dùng {{me}}." Danh sách tải lại khi cửa sổ có
+  người khác thì cảnh báo "Trình duyệt đang đăng nhập {{other}}, còn UniChat dùng {{me}}." Danh sách tải lại khi cửa sổ có
   focus. Đổi mật khẩu và gỡ chạy tại chỗ.
 - Bỏ (không chỉ sửa lời) ngõ cụt `org.transfer.reason_no_password`, `org.transfer.no_password`,
   `invitations.switch.no_password_reason`: chuyển quyền và chuyển tổ chức dùng hộp bằng chứng. Xoá tài khoản dùng hộp
