@@ -108,7 +108,7 @@ const EMPTY_PREVIEW = {
   audience: { visibility: "", room_members: 0, notifies: [], notifies_more: false },
   refs: [],
 };
-const EMPTY_RESULT = { object_id: "", href: "", revision: 0, changes: [], note: "" };
+const EMPTY_RESULT = { object_id: "", href: "", revision: 0, changes: [], note: "", handoff_id: "" };
 
 /**
  * One row of a proposal card (server AiProposalDTO). Every field degrades on
@@ -159,6 +159,8 @@ export const AiProposalSchema = z.object({
       revision: z.number().catch(0),
       changes: z.array(z.object({ field: z.string().catch(""), from: z.unknown(), to: z.unknown() })).catch([]),
       note: z.string().catch(""),
+      /** A new Office file the editor AI is to draft: the id the editor frame presents; empty when none. */
+      handoff_id: z.string().catch(""),
     })
     .catch(EMPTY_RESULT),
   can_undo: z.boolean().catch(false),

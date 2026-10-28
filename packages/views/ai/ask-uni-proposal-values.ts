@@ -48,6 +48,9 @@ export function formatProposalValue(v: unknown, type: string, field: string, t: 
     if (type === "enum" && field === "mode" && SAFE_KEY.test(v)) return t(`ai.proposal.content_mode.${v}`, { defaultValue: v });
     if (type === "enum" && (field === "visibility" || field === "location") && SAFE_KEY.test(v)) return t(`ai.proposal.${field}.${v}`, { defaultValue: v });
     if (type === "enum" && field === "format") return v.toUpperCase();
+    // The approved material is listed whole, one source a line; the card shows it as plain text.
+    if (type === "markdown" && field === "sources") return v.replaceAll("**", "");
+    if (type === "enum" && field === "editor_ai" && SAFE_KEY.test(v)) return t(`ai.proposal.editor_ai.${v}`, { defaultValue: v });
     return clip(v);
   }
   if (typeof v === "number" || typeof v === "boolean") return String(v);
@@ -67,6 +70,8 @@ export type EditKind = "text" | "markdown" | "date" | "datetime" | "enum" | "obj
  * task or meeting (its options are workspace labels, not status keys) are shown but not edited.
  */
 export function editKind(f: AiProposal["preview"]["fields"][number], tool: string): EditKind | null {
+  // Display only: the editor AI's state, and the approved material (to change it, ask UNI).
+  if (f.field === "editor_ai" || f.field === "sources") return null;
   if (f.field.endsWith("_ids") || (f.type === "text" && f.field.endsWith("_id"))) return null;
   switch (f.type) {
     case "text":
@@ -89,9 +94,17 @@ export function editKind(f: AiProposal["preview"]["fields"][number], tool: strin
 export const bodyArg = (tool: string) =>
   tool === "create_document" || tool === "update_document" ? "content" : tool === "cancel_meeting" ? "reason" : tool === "create_office_document" ? "outline" : "body";
 
-/** The Apply button's label key: a new Office file opens at once, a saved template says where it went. */
-export const applyLabelKey = (tool: string) =>
-  tool === "create_office_document" ? "ai.proposal.apply_create_open" : tool === "save_attachment_template" ? "ai.proposal.apply_save_template" : "ai.proposal.apply";
+/**
+ * The Apply button's label key: a new Office file opens at once, says whether the editor AI will draft it (the card's
+ * `editor_ai` field), and a saved template says where it went. A card with no `editor_ai` is an older one.
+ */
+export function applyLabelKey(p: AiProposal): string {
+  if (p.tool === "save_attachment_template") return "ai.proposal.apply_save_template";
+  if (p.tool !== "create_office_document") return "ai.proposal.apply";
+  const reason = p.preview.fields.find((f) => f.field === "editor_ai")?.to;
+  if (typeof reason !== "string") return "ai.proposal.apply_create_open";
+  return reason === "compose" ? "ai.proposal.apply_open_compose" : reason === "build" ? "ai.proposal.apply_open_build" : "ai.proposal.apply_create_open_self";
+}
 
 /** The body "Sửa" may change: not one the server cut to fit the card, or saving it would cut the page. */
 export const bodyEditable = (p: AiProposal) => p.preview.body !== "" && !p.preview.body_truncated;

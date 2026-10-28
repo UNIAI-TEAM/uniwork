@@ -3,6 +3,7 @@
 import { useState, type ReactElement } from "react";
 import { ArrowRight, ArrowUpRight, Ban, Check, ChevronDown, CircleAlert, CircleCheck, Clock, Pencil, TriangleAlert, Undo2, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useOfficeHandoffStore } from "@uniwork/core/ai/office-handoff";
 import type { AiProposal } from "@uniwork/core/types";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
@@ -132,6 +133,18 @@ function StatusLine({ proposal, error }: { proposal: AiProposal; error?: string 
   );
 }
 
+/** Where the editor AI stands on the job this row handed over; nothing for a row that handed none. */
+function HandoffLine({ documentId }: { documentId: string }) {
+  const { t } = useTranslation();
+  const status = useOfficeHandoffStore((s) => (documentId ? s.byDocument[documentId]?.status : undefined));
+  if (!status || status === "pending") return null;
+  return (
+    <p role="status" className="mt-1 ps-5.5 text-caption text-muted-foreground">
+      {t(`ai.handoff.status.${status}`)}
+    </p>
+  );
+}
+
 /** The object a row acts on, as the answer's chips show one: a link when it already exists. */
 function TargetChip({ target }: { target: AiProposal["preview"]["target"] }) {
   const ws = useOptionalWorkspace()?.workspace;
@@ -235,6 +248,7 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
           </span>
         </div>
         {error ? <StatusLine proposal={proposal} error={error} /> : null}
+        <HandoffLine documentId={status === "applied" ? proposal.result.object_id : ""} />
         {folded ? null : (
           <div className="ps-5.5">
             <Details proposal={proposal} />
@@ -280,7 +294,7 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
               {selectable ? null : (
                 <Button type="button" size="sm" className="ms-2 me-1" disabled={disabled} onClick={onApply}>
                   <Check aria-hidden />
-                  {t(applyLabelKey(proposal.tool))}
+                  {t(applyLabelKey(proposal))}
                 </Button>
               )}
               {editable ? (

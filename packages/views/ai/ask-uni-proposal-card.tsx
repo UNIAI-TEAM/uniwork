@@ -10,6 +10,7 @@ import {
   useRejectAiProposal,
   useUndoAiProposal,
 } from "@uniwork/core/ai/proposals";
+import { useOfficeHandoffStore } from "@uniwork/core/ai/office-handoff";
 import { errorCode } from "@uniwork/core/api/http";
 import { paths } from "@uniwork/core/paths";
 import type { AiMessage, AiProposal } from "@uniwork/core/types";
@@ -59,7 +60,12 @@ export function AskUniProposalCard({ message, conversationId, readOnly = false }
     const done = Array.isArray(rows) ? rows[0] : rows;
     if (!done) return;
     const id = done.result.object_id;
-    if (done.tool === "create_office_document" && done.status === "applied" && id && workspace) push(paths.workspace(workspace.organization_slug, workspace.slug).document(id));
+    if (done.tool !== "create_office_document" || done.status !== "applied" || !id || !workspace) return;
+    // The editor frame takes the job once, by document id; it never rides the URL.
+    if (done.result.handoff_id) {
+      useOfficeHandoffStore.getState().queue(id, done.result.handoff_id, t("ai.handoff.start_text", { title: done.preview.target.title }));
+    }
+    push(paths.workspace(workspace.organization_slug, workspace.slug).document(id));
   };
   const approve = (ids: string[]) => {
     setCardError("");

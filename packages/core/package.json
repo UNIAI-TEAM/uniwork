@@ -53,6 +53,7 @@
     "./ai/attachments": "./ai/use-ask-attachments.ts",
     "./ai/model-choice": "./ai/model-choice-store.ts",
     "./ai/office": "./ai/office-hooks.ts",
+    "./ai/office-handoff": "./ai/office-handoff-store.ts",
     "./notifications": "./notifications/hooks.ts",
     "./notifications/push": "./notifications/push.ts",
     "./meetings": "./meetings/hooks.ts",

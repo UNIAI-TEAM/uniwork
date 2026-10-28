@@ -8015,6 +8015,15 @@
         "4": "Việc ưu tiên cao nào còn đang mở?"
       }
     },
+    "handoff": {
+      "start_text": "Soạn tài liệu theo việc Hỏi UNI giao: {{title}}",
+      "status": {
+        "sent": "Đã giao cho AI trong trình soạn",
+        "running": "AI trong trình soạn đang soạn…",
+        "idle": "AI trong trình soạn đã xong lượt. Xem tài liệu rồi bấm Lưu.",
+        "refused": "AI trong trình soạn không nhận việc. Bạn có thể tự soạn trong tài liệu."
+      }
+    },
     "proposal": {
       "header_ask": "UNI đề xuất · cần bạn xác nhận",
       "header_plan": "Kế hoạch của UNI · chọn bước cần làm",
@@ -8121,7 +8130,9 @@
         "format": "Định dạng",
         "location": "Thư mục",
         "visibility": "Ai xem được",
-        "instructions": "Yêu cầu"
+        "instructions": "Yêu cầu",
+        "editor_ai": "AI trong trình soạn",
+        "sources": "Tư liệu"
       },
       "content_mode": {
         "append": "Thêm vào cuối tài liệu",
@@ -8138,6 +8149,17 @@
         "workspace": "Cả workspace"
       },
       "apply_create_open": "Tạo và mở",
+      "apply_open_compose": "Mở và soạn",
+      "apply_open_build": "Mở và dựng",
+      "apply_create_open_self": "Tạo và mở để tự soạn",
+      "editor_ai": {
+        "compose": "Sẵn sàng soạn",
+        "build": "Sẵn sàng dựng",
+        "plan": "Gói của tổ chức chưa có AI trong trình soạn",
+        "off": "AI trong trình soạn chưa bật",
+        "format_off": "AI trong trình soạn chưa bật cho định dạng này",
+        "credits": "Tổ chức đã hết credit AI"
+      },
       "apply_save_template": "Lưu vào Mẫu",
       "outline": "Dàn ý",
       "edit_outline": "Sửa dàn ý",
