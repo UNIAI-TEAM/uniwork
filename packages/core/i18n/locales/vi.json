@@ -685,8 +685,7 @@
         "move": "Chuyển",
         "moving": "Đang chuyển…",
         "taken": "{{provider}} này đang dùng cho tài khoản {{masked}}. Đăng nhập vào đó để gỡ liên kết trước.",
-        "takenUnknown": "{{provider}} này đang dùng cho một tài khoản UniWork khác. Đăng nhập vào đó để gỡ liên kết trước.",
-        "confirmBySignIn": "Để liên kết, đăng nhập lại một lần để xác nhận là bạn."
+        "takenUnknown": "{{provider}} này đang dùng cho một tài khoản UniWork khác. Đăng nhập vào đó để gỡ liên kết trước."
       },
       "signedIn": {
         "linkTo": "Liên kết {{provider}} với {{account}}",

@@ -685,8 +685,7 @@
         "move": "Move",
         "moving": "Moving…",
         "taken": "This {{provider}} account is used by {{masked}}. Sign in there and unlink it first.",
-        "takenUnknown": "This {{provider}} account is used by another UniWork account. Sign in there and unlink it first.",
-        "confirmBySignIn": "To link it, sign in once more to confirm it's you."
+        "takenUnknown": "This {{provider}} account is used by another UniWork account. Sign in there and unlink it first."
       },
       "signedIn": {
         "linkTo": "Link {{provider}} to {{account}}",

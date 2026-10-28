@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser, useAuthStore } from "@uniwork/core/auth";
@@ -125,14 +125,53 @@ describe("ContinueLinkStep", () => {
     expect(screen.getByRole("button", { name: "Tiếp tục" })).toBeInTheDocument();
   });
 
-  it("sends a refused proof to one more sign-in that links, until the proof dialog serves here", async () => {
+  it("asks an older session to confirm it is the person, then links", async () => {
+    let links = 0;
+    route({
+      "GET /api/v1/auth/sign-in-ticket": TICKET,
+      "POST /api/v1/me/step-up": { step_up_token: "sut-1", expires_at: new Date(Date.now() + 600_000).toISOString(), method: "password" },
+      "POST /api/v1/auth/sign-in-ticket/link": () => {
+        links += 1;
+        return links === 1
+          ? Promise.reject(new ApiError("proof", "proof_required", 403, undefined, { proofs: ["password", "email_code"] }))
+          : { user: USER, sign_in_methods: METHODS };
+      },
+    });
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Xác nhận là bạn" }));
+    expect(dialog.getByText("Để bảo vệ tài khoản, xác nhận là bạn trước khi liên kết Google.")).toBeInTheDocument();
+    fireEvent.change(dialog.getByLabelText("Mật khẩu hiện tại"), { target: { value: "password123" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Đã liên kết Google. Lần sau chỉ cần Google."));
+    expect(linkCalls()[1]![1]).toMatchObject({ body: { step_up_token: "sut-1" } });
+  });
+
+  it("leaves the question as it was when the proof dialog is closed", async () => {
     route({
       "GET /api/v1/auth/sign-in-ticket": TICKET,
       "POST /api/v1/auth/sign-in-ticket/link": refusal("proof_required", 403, { proofs: ["password"] }),
     });
     open();
     fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Để liên kết, đăng nhập lại một lần để xác nhận là bạn.");
+    const dialog = within(await screen.findByRole("dialog", { name: "Xác nhận là bạn" }));
+    fireEvent.click(dialog.getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Liên kết" })).toBeInTheDocument();
+    expect(linkCalls()).toHaveLength(1);
+  });
+
+  it("sends an ended session to one more sign-in that links", async () => {
+    route({
+      "GET /api/v1/auth/sign-in-ticket": TICKET,
+      // invalid_token reads as an ended session whatever the status; a 401
+      // would first go through the transport's refresh, which this test is not about.
+      "POST /api/v1/auth/sign-in-ticket/link": refusal("invalid_token", 400),
+    });
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
+    await screen.findByRole("alert");
     expect(screen.getByRole("link", { name: "Đăng nhập để liên kết" })).toHaveAttribute(
       "href",
       `/login?next=${encodeURIComponent(LINK_STEP)}&link=1`,

@@ -4,11 +4,13 @@ import { useTranslation } from "react-i18next";
 import type { SignInTicket } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { useDiscardSignInTicket, useLinkSignInTicket } from "@uniwork/core/auth";
 import { readSignInFailure, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import { linkAction } from "@uniwork/core/auth/step-up";
 import { paths } from "@uniwork/core/paths";
 import type { User } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { AppLink } from "../navigation";
+import { useStepUpGate } from "../settings/components/step-up-proof";
 import { AUTH_PILL } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 import { FailureNotice, IdentityBlock, PILL_LINK, identityAddress, useProviderName, useWaitPhrase } from "./continue-parts";
@@ -27,7 +29,9 @@ type Phase = "ask" | "move" | "done";
  * signed in is asked, once, whether the waiting provider joins it. Opening
  * the page writes nothing; only "Liên kết" does. Success says so as a status
  * and focuses "Tiếp tục" instead of moving on by itself, so the person reads
- * it. Every failure still offers "Tiếp tục".
+ * it. Every failure still offers "Tiếp tục". A session older than the
+ * pending sign-in confirms it is the person ("Xác nhận là bạn", the shared
+ * proof dialog), and the link is sent again.
  */
 export function ContinueLinkStep({
   ticket,
@@ -43,6 +47,7 @@ export function ContinueLinkStep({
   const { t } = useTranslation();
   const link = useLinkSignInTicket();
   const discard = useDiscardSignInTicket();
+  const gate = useStepUpGate();
   const [phase, setPhase] = useState<Phase>("ask");
   const [failure, setFailure] = useState<SignInFailure | null>(null);
   const [masked, setMasked] = useState<string | null>(null);
@@ -64,25 +69,28 @@ export function ContinueLinkStep({
     if (phase === "done") continueRef.current?.focus();
   }, [phase]);
 
+  // A session that began before the pending sign-in is no proof by itself
+  // (403 proof_required): the proof dialog asks, then the link goes again.
+  // Closing the dialog leaves the question as it was.
   const send = (move: boolean) => {
-    if (busy || failure?.kind === "wait") return;
+    if (busy || gate.asking || failure?.kind === "wait") return;
     setFailure(null);
-    link.mutate(
-      { provider: ticket.provider, move },
-      {
-        onSuccess: () => setPhase("done"),
-        onError: (err) => {
-          const read = readSignInFailure(err, "ticket");
-          if (read.kind === "move" && !move) {
-            setMasked(read.maskedEmail);
-            setPhase("move");
-            return;
-          }
-          setPhase("ask");
-          setFailure(read);
-        },
+    void gate.run({
+      action: linkAction(ticket.provider),
+      upfront: false,
+      command: () => link.mutateAsync({ provider: ticket.provider, move }),
+      onSuccess: () => setPhase("done"),
+      onError: (err) => {
+        const read = readSignInFailure(err, "ticket");
+        if (read.kind === "move" && !move) {
+          setMasked(read.maskedEmail);
+          setPhase("move");
+          return;
+        }
+        setPhase("ask");
+        setFailure(read);
       },
-    );
+    });
   };
 
   // "Không liên kết", or "Tiếp tục" past a failure: the pending sign-in goes
@@ -99,7 +107,8 @@ export function ContinueLinkStep({
       : t("auth.continue.link.questionRelay", { provider, accountEmail });
 
   const finalFailure = failure !== null && (failure.kind === "restart" || FINAL.has(failure.code));
-  const relinkByLogin = failure?.kind === "step_up" || failure?.kind === "session";
+  // An ended session signs in again; a refused proof is asked again by pressing "Liên kết".
+  const relinkByLogin = failure?.kind === "session";
 
   return (
     <AuthShell
@@ -177,6 +186,7 @@ export function ContinueLinkStep({
           )}
         </div>
       </div>
+      {gate.dialog}
     </AuthShell>
   );
 }
@@ -184,14 +194,12 @@ export function ContinueLinkStep({
 /**
  * The link step names the provider and the holder in its own words (spec
  * §4.3) where the table's sentence is the Settings one ("Cách đăng nhập
- * này…"); a refused proof is a sign-in once more until the proof dialog
- * serves this step; a pending sign-in that went away is nothing left to do.
+ * này…"); a pending sign-in that went away is nothing left to do.
  */
 function linkFailureText(failure: SignInFailure): SignInFailure {
   if (failure.code === "sign_in_method_taken") {
     return { ...failure, key: failure.maskedEmail ? "auth.continue.link.taken" : "auth.continue.link.takenUnknown" };
   }
-  if (failure.kind === "step_up") return { ...failure, key: "auth.continue.link.confirmBySignIn" };
   if (failure.kind === "restart") return { ...failure, key: "auth.continue.link.nothingLeft" };
   return failure;
 }
