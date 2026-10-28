@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_drive_files_ws_external_active_uidx;

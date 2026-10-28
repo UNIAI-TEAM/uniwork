@@ -99,7 +99,6 @@ export function Pricing({ showIntroduction = true }: { showIntroduction?: boolea
           <div className="public-pricing-grid pricing-offer">{plans.map(plan => <PlanOffer key={plan.id} plan={plan} />)}</div>
           <p className="public-pricing-note">{t("landing.pricing.status")}</p>
           <PlanFeatures plans={plans} />
-          <p className="public-pricing-note">{t("landing.pricing.usageNote")}</p>
         </>}
     </Container>
   </section>;

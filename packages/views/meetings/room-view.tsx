@@ -2,16 +2,27 @@
 import { LiveKitRoom, useRoomContext } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, CalendarX2, UserX } from "lucide-react";
+import { ArrowLeft, CalendarX2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api";
 import type { JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
-import { isJoinAdmitted, useJoinMeeting, useMeeting, useMeetingCapabilities, useStartMeeting } from "@uniwork/core/meetings";
+import {
+  isJoinAdmitted,
+  useEndMeeting,
+  useJoinMeeting,
+  useMeeting,
+  useMeetingCapabilities,
+  useStartMeeting,
+} from "@uniwork/core/meetings";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { useMeetingLobbySync, useMeetingScope } from "@uniwork/core/realtime";
+import { LogoLoader } from "@uniwork/ui/brand";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { canRejoin, linkInvite, participantIdFromToken, type ExitMedia, type RoomExit } from "./exit/exit-model";
+import { MeetingExitScreen } from "./exit/meeting-exit-screen";
+import { GuestTallyProbe, newGuestTally } from "./exit/use-guest-tally";
 import { MeetingConference } from "./meeting-conference";
 import { MeetingProactiveTokenRefresh } from "./meeting-proactive-token-refresh";
 import { MeetingLobby } from "./meeting-lobby";
@@ -39,6 +50,7 @@ import { isRetryableJoinError } from "./room-connection";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 import { useWithdrawJoinRequestOnLeave } from "./use-withdraw-join-request";
 import { SCREEN_SHARE_PUBLISH_DEFAULTS, useSharpScreenShares } from "./share-adaptive-stream";
+import { toastApiError } from "../toast-api-error";
 
 function MeetingRoomShell({
   children,
@@ -77,6 +89,7 @@ export function MeetingRoomView({
   invite,
   guestScribe = false,
   onLeave,
+  onEnded,
   meetingsHref,
   workspaceLabel,
 }: {
@@ -93,7 +106,10 @@ export function MeetingRoomView({
   invite?: { linkId: string; secret: string };
   /** Guest mode: the invite page said the AI scribe would transcribe the meeting. */
   guestScribe?: boolean;
+  /** "Về trang cuộc họp": the only way off the room route once someone is out of the room. */
   onLeave: () => void;
+  /** The viewer ended the meeting for everyone; defaults to onLeave. */
+  onEnded?: () => void;
   meetingsHref?: string;
   workspaceLabel?: string;
 }) {
@@ -121,7 +137,24 @@ export function MeetingRoomView({
   const admittedRef = useRef(false);
   const credentialRefreshAttempts = useRef(0);
   const [mediaErrorKind, setMediaErrorKind] = useState<MediaDisconnectKind | null>(null);
-  const [closedReason, setClosedReason] = useState<"ended" | "canceled" | "removed" | null>(null);
+  const [closedReason, setClosedReason] = useState<"canceled" | null>(null);
+  // Out of the room but still on its route: the leave screens (spec 2026-10-27).
+  // The ref answers onDisconnected, which fires as the room unmounts.
+  const [exit, setExitState] = useState<RoomExit | null>(null);
+  // A guest's own count of their visit (time in the room, people seen) for their thank-you screen.
+  const [guestTally] = useState(newGuestTally);
+  const exitRef = useRef<RoomExit | null>(null);
+  const setExit = useCallback((next: RoomExit | null) => {
+    exitRef.current = next;
+    setExitState(next);
+  }, []);
+  const closeRoom = useCallback(
+    (reason: "ended" | "canceled" | "removed") => {
+      if (reason === "canceled") setClosedReason("canceled");
+      else setExit({ kind: reason, at: new Date().toISOString() });
+    },
+    [setExit],
+  );
   const [deviceFailures, setDeviceFailures] = useState<RoomDeviceFailures>({});
   const clearDeviceFailure = useCallback((kind: RoomDeviceKind) => {
     setDeviceFailures((prev) => {
@@ -173,6 +206,36 @@ export function MeetingRoomView({
     });
   }, [mutateJoin, joinArgs]);
 
+  // "Vào lại": straight back in, no prejoin, mic and camera as they were on leaving.
+  const rejoin = useCallback(
+    (media: ExitMedia) => {
+      setChoice((prev) => ({ ...prev, audio: media.audio, video: media.video }));
+      setMediaErrorKind(null);
+      credentialRefreshAttempts.current = 0;
+      setExit(null);
+      retryJoin();
+    },
+    [retryJoin, setExit],
+  );
+
+  // Ending for everyone covers the room with the pulsing mark until the server
+  // answers (board E); a refusal lifts it and keeps the room.
+  const endMeeting = useEndMeeting(resolvedWorkspaceId);
+  const [ending, setEnding] = useState(false);
+  const endForAll = useCallback(() => {
+    setEnding(true);
+    endMeeting.mutateAsync(meetingId).then(
+      () => (onEnded ?? onLeave)(),
+      (err: unknown) => {
+        setEnding(false);
+        toastApiError(err, t("common.error"));
+      },
+    );
+  }, [endMeeting, meetingId, onEnded, onLeave, t]);
+  const endingCover = ending ? (
+    <LogoLoader fullScreen label={t("meetings.exit.ending")} className="fixed inset-0 z-50" />
+  ) : null;
+
   const requestAgain = useCallback(() => {
     mutateJoin({ ...joinArgs, request_again: true });
   }, [mutateJoin, joinArgs]);
@@ -208,7 +271,9 @@ export function MeetingRoomView({
     retryJoin();
   }, [choice, retryJoin, initialJoinDecision]);
 
-  const settledDecision = join.data ?? initialJoinDecision;
+  // The invite page's decision is spent by the first join of our own: a failed
+  // "Vào lại" must not fall back to its stale token.
+  const settledDecision = join.data ?? (join.isIdle ? initialJoinDecision : undefined);
   if (isJoinAdmitted(settledDecision)) {
     lastAdmittedRef.current = settledDecision;
     lastLobbyRef.current = undefined;
@@ -263,7 +328,9 @@ export function MeetingRoomView({
   // Being removed, or the call closing around you, swaps the room for a
   // screen that says why; focus moves there too instead of staying on a tile
   // that no longer exists.
-  const lobbyView = closedReason
+  const lobbyView = exit
+    ? `exit:${exit.kind}:${canRejoin(exit) && meeting?.status === "ENDED" ? "ended" : ""}`
+    : closedReason
     ? `closed:${closedReason}`
     : !choice
     ? "prejoin"
@@ -275,9 +342,34 @@ export function MeetingRoomView({
   useMeetingScheduleDeadline({
     endsAt: meeting?.ends_at,
     status: meeting?.status,
-    admitted,
-    onClosed: setClosedReason,
+    admitted: admitted && !exit,
+    onClosed: closeRoom,
   });
+
+  const selfParticipantId = participantIdFromToken(lastAdmittedRef.current?.participant_token);
+  if (exit) {
+    return (
+      <MeetingRoomShell testId="meeting-exit-room">
+        <MeetingExitScreen
+          exit={exit}
+          meetingId={meetingId}
+          meeting={meeting ?? undefined}
+          meetingTitle={meetingTitle}
+          workspaceId={resolvedWorkspaceId}
+          guestMode={guestMode}
+          meetingsHref={meetingsHref}
+          selfParticipantId={selfParticipantId}
+          onRejoin={rejoin}
+          onBackToMeeting={onLeave}
+          onEndForAll={guestMode ? undefined : endForAll}
+          onExitChange={setExit}
+          invite={invite ?? linkInvite(joinBody)}
+          guestTally={guestMode ? guestTally : undefined}
+        />
+        {endingCover}
+      </MeetingRoomShell>
+    );
+  }
 
   if (!choice) {
     return (
@@ -348,21 +440,15 @@ export function MeetingRoomView({
     );
   }
 
+  // Ended and removed have their own leave screens; a call called off keeps this one.
   if (closedReason) {
-    const removed = closedReason === "removed";
     return (
       <MeetingRoomShell>
         <MeetingGateScreen
-          icon={removed ? UserX : CalendarX2}
-          tone={removed ? "destructive" : "muted"}
+          icon={CalendarX2}
+          tone="muted"
           meetingTitle={meeting?.title ?? meetingTitle}
-          title={t(
-            removed
-              ? "meetings.removedFromMeeting"
-              : closedReason === "canceled"
-                ? "meetings.canceledCannotJoin"
-                : "meetings.endedCannotJoin",
-          )}
+          title={t("meetings.canceledCannotJoin")}
           actions={
             <Button variant="outline" onClick={onLeave}>
               <ArrowLeft aria-hidden />
@@ -433,6 +519,8 @@ export function MeetingRoomView({
           setDeviceFailures((prev) => ({ ...prev, [kind]: roomDeviceFailure(failure) }));
         }}
         onDisconnected={(reason) => {
+          // Leaving unmounts the room on purpose; nothing about it is a failure.
+          if (exitRef.current) return;
           const kind = mediaDisconnectKind(reason);
           if (kind === "replaced") {
             setMediaErrorKind("replaced");
@@ -440,7 +528,7 @@ export function MeetingRoomView({
           }
           if (shouldLeaveOnDisconnect(reason)) {
             // Say why before sending anyone away: the host ended the call, or removed us.
-            setClosedReason(roomClosedReason(reason) ?? "ended");
+            closeRoom(roomClosedReason(reason) ?? "ended");
             return;
           }
           if (!admittedRef.current || !shouldRefreshCredentialOnDisconnect(reason)) {
@@ -456,6 +544,7 @@ export function MeetingRoomView({
         }}
       >
         <MeetingSharpShares />
+        {guestMode ? <GuestTallyProbe tally={guestTally} /> : null}
         <MeetingProactiveTokenRefresh
           expiresAt={decision.expires_at}
           onRefresh={refreshLiveKitCredential}
@@ -468,7 +557,8 @@ export function MeetingRoomView({
           meetingsHref={guestMode ? undefined : meetingsHref}
           workspaceLabel={guestMode ? undefined : workspaceLabel}
           guestMode={guestMode}
-          onLeave={onLeave}
+          onExit={setExit}
+          onEndForAll={guestMode ? undefined : endForAll}
           deviceNotice={
             <MeetingRoomDeviceNotice
               failures={deviceFailures}
@@ -478,6 +568,7 @@ export function MeetingRoomView({
           }
         />
       </LiveKitRoom>
+      {endingCover}
     </MeetingRoomShell>
   );
 }

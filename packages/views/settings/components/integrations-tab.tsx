@@ -1,8 +1,10 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Lock, Webhook } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useEmailHubAccounts } from "@uniwork/core/email-hub/hooks";
+import { EMPTY_CONFIG, useFlag, usePublicConfig } from "@uniwork/core/feature-flags";
 import { paths } from "@uniwork/core/paths";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -11,12 +13,25 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { MODULE_ICONS } from "../../layout/module-icons";
 import { moduleTone } from "../../layout/module-tones";
 import { useWorkspace } from "../../layout/workspace-context";
-import { AppLink } from "../../navigation";
-import { SettingsBadge, SettingsList, SettingsListItem, SettingsSection, SettingsTab } from "./settings-layout";
+import { AppLink, useNavigation } from "../../navigation";
+import { DRIVE_CONNECTOR_FLAG, DriveIntegrationRow, type CallbackNotice } from "./drive-integration-row";
+import { DriveIntegrationView } from "./drive-integration-view";
+import {
+  SettingsBadge,
+  SettingsList,
+  SettingsListItem,
+  SettingsSection,
+  SettingsTab,
+  SettingsTabSkeleton,
+} from "./settings-layout";
 
 /**
  * Only integrations the roadmap actually commits to; each cites its line.
  * Nothing here is clickable until it ships.
+ *
+ * Google Drive shipped into the available list with UNI-2186
+ * (docs/roadmap/FEATURE_ROADMAP.md C-20 / UNI-2172;
+ * docs/superpowers/specs/2026-10-26-google-drive-connector-design.md §5.2).
  */
 const PLANNED = [
   // docs/roadmap/FEATURE_ROADMAP.md A-07 (Webhook ký HMAC + SDK TypeScript),
@@ -71,13 +86,119 @@ function EmailHubRow() {
   );
 }
 
-export function IntegrationsTab() {
+const INTEGRATION_QUERY_KEY = "integration";
+
+export function IntegrationsTab({
+  focusDriveRow,
+  onDriveRowFocused,
+}: {
+  focusDriveRow?: boolean;
+  onDriveRowFocused?: () => void;
+} = {}) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings" });
+  const navigation = useNavigation();
+  const flagEnabled = useFlag(DRIVE_CONNECTOR_FLAG, false);
+  const publicConfigQuery = usePublicConfig();
+  const config = publicConfigQuery.data ?? EMPTY_CONFIG;
+  const driveAvailable = flagEnabled && Boolean(config.drive?.available);
+
+  const [initialDriveNotice, setInitialDriveNotice] = useState<CallbackNotice | null>(null);
+  const [focusViewHeading, setFocusViewHeading] = useState(false);
+  const [focusManageButton, setFocusManageButton] = useState(false);
+  const openedInSessionRef = useRef(false);
+  const prevWantsDriveViewRef = useRef(false);
+  const strippedIntegrationRef = useRef(false);
+  const clearFocusViewHeading = useCallback(() => setFocusViewHeading(false), []);
+  const clearFocusManageButton = useCallback(() => setFocusManageButton(false), []);
+
+  const activeIntegration = navigation.searchParams.get(INTEGRATION_QUERY_KEY);
+  const connectFromUrl = navigation.searchParams.get("connect");
+  const wantsDriveView =
+    activeIntegration === "drive" && !focusDriveRow && connectFromUrl !== "drive";
+  const configWaitForDrive =
+    wantsDriveView && publicConfigQuery.isLoading && publicConfigQuery.errorUpdateCount === 0;
+  const showDriveView = wantsDriveView && driveAvailable;
+
+  useEffect(() => {
+    if (activeIntegration !== "drive") {
+      strippedIntegrationRef.current = false;
+    }
+    if (!wantsDriveView || configWaitForDrive || driveAvailable || strippedIntegrationRef.current) {
+      return;
+    }
+    strippedIntegrationRef.current = true;
+    const params = new URLSearchParams(navigation.searchParams);
+    params.delete(INTEGRATION_QUERY_KEY);
+    if (!params.get("tab")) {
+      params.set("tab", "integrations");
+    }
+    const qs = params.toString();
+    navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
+  }, [activeIntegration, wantsDriveView, configWaitForDrive, driveAvailable, navigation]);
+
+  useEffect(() => {
+    if (prevWantsDriveViewRef.current && !wantsDriveView) {
+      if (openedInSessionRef.current) {
+        setFocusManageButton(true);
+      }
+      openedInSessionRef.current = false;
+    }
+    prevWantsDriveViewRef.current = wantsDriveView;
+  }, [wantsDriveView]);
+
+  const openDriveView = (notice?: CallbackNotice) => {
+    openedInSessionRef.current = true;
+    setInitialDriveNotice(notice ?? null);
+    setFocusViewHeading(true);
+    const params = new URLSearchParams(navigation.searchParams);
+    params.set("tab", "integrations");
+    params.set(INTEGRATION_QUERY_KEY, "drive");
+    navigation.push(`${navigation.pathname}?${params.toString()}`);
+  };
+
+  const closeDriveView = () => {
+    setInitialDriveNotice(null);
+    setFocusManageButton(true);
+    if (openedInSessionRef.current) {
+      openedInSessionRef.current = false;
+      navigation.back();
+      return;
+    }
+    const params = new URLSearchParams(navigation.searchParams);
+    params.delete(INTEGRATION_QUERY_KEY);
+    if (!params.get("tab")) {
+      params.set("tab", "integrations");
+    }
+    const qs = params.toString();
+    navigation.replace(qs ? `${navigation.pathname}?${qs}` : navigation.pathname);
+  };
+
+  if (configWaitForDrive) {
+    return <SettingsTabSkeleton />;
+  }
+
+  if (showDriveView) {
+    return (
+      <DriveIntegrationView
+        initialNotice={initialDriveNotice}
+        focusHeading={focusViewHeading}
+        onHeadingFocused={clearFocusViewHeading}
+        onBack={closeDriveView}
+      />
+    );
+  }
 
   return (
     <SettingsTab title={t("page.tabs.integrations")} description={t("integrations.description")}>
       <SettingsSection title={t("integrations.available")}>
         <SettingsList aria-label={t("integrations.available")}>
+          <DriveIntegrationRow
+            focusDriveRow={focusDriveRow}
+            onDriveRowFocused={onDriveRowFocused}
+            focusManageButton={focusManageButton}
+            onManageButtonFocused={clearFocusManageButton}
+            onOpenDriveView={openDriveView}
+          />
           <EmailHubRow />
         </SettingsList>
       </SettingsSection>

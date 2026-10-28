@@ -48,7 +48,7 @@ type askMemoryDraft struct{ Action, MemoryID, Kind, Body, BeforeKind, BeforeBody
 // turn is a dock turn with the agent on, ask_uni_memory on and the asker's
 // own switch on (R9); a failed read fails the turn like any other read.
 func (s *AskUNIService) turnMemory(ctx context.Context, tc ai.ToolContext, in AskInput) (*askMemoryTurn, error) {
-	if !in.Dock || s.memory == nil || !s.agentOn(ctx, tc) || !s.memory.AskMemoryEnabled(ctx, tc.ActorID, tc.OrganizationID) {
+	if !in.Dock || in.Transient || s.memory == nil || !s.agentOn(ctx, tc) || !s.memory.AskMemoryEnabled(ctx, tc.ActorID, tc.OrganizationID) {
 		return nil, nil
 	}
 	off, err := s.q.GetUserAskUniMemoryOff(ctx, tc.ActorID)

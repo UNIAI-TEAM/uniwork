@@ -406,6 +406,16 @@ Every command that changes business state writes an `audit_events` row and its
   `TestCallRingClosedSendsNoVoIPEndWhereNoRingIs` hold it.
 - Audit rows of Ask UNI memory never carry the entry text (spec 2026-10-24
   §5.10): `TestAiMemoryAuditCarriesNoText`.
+- Google Drive references store no Drive bytes in UniWork, and Drive content is
+  read only through `server/internal/service/drive_content.go` (`ReadForAI`)
+  using the requester's own `drive_file_access` connection — never another
+  member's connection — with OOXML text extracted in memory without an output
+  destination and Ask UNI turns with a `drive_file` focus never persisted (ADR
+  0047). `TestDriveContentOnlyFromDriveContent` (`server/internal/arch_test.go`),
+  `TestDriveContentReadsUseTheCallersConnection`,
+  `TestDriveOfficeExtractWritesNoObject`, `TestAskUniDriveFocusIsNotPersisted`
+  and `TestDriveTablesCarryNoObjectStorageColumns` (`server/migrations/lint_test.go`)
+  hold it.
 
 ## Platform Admin and Observability
 

@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ArrowLeftRight, Maximize2, Minimize2, PanelBottomClose, X } from "lucide-react";
 import { useShortcut } from "@uniwork/core/shortcuts";
 import type { CreateTaskBody } from "@uniwork/core/tasks";
-import type { CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
-import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
+import type {
+  CreateTaskDraft,
+  CreateTaskDraftDriveFile,
+} from "@uniwork/core/tasks/stores/create-task-draft-store";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogDescription, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
@@ -18,6 +20,15 @@ import {
   useUploadGate,
   type ContentEditorRef,
 } from "../editor";
+import type { DrivePickerAdapter } from "../integrations/drive-picker";
+import {
+  CreateTaskDriveChips,
+  CreateTaskPaperclipMenu,
+} from "./create-task-drive-attachments";
+import {
+  DrivePasteSuggestionChips,
+  useDrivePasteSuggestions,
+} from "./drive-paste-suggestion-chips";
 import { CreateTaskManualOverflow } from "./create-task-manual-overflow";
 import { CreateTaskSubmitButton } from "./create-task-submit-button";
 import { PriorityPicker, StatusPicker } from "./pickers";
@@ -42,6 +53,8 @@ export type CreateTaskManualPanelProps = {
   submitter?: CreateTaskSubmitter;
   /** Replaces "New task" after the workspace name (e.g. "Meeting follow-up"). */
   heading?: string;
+  /** Test / Storybook override for the Google Picker adapter. */
+  pickerAdapter?: DrivePickerAdapter;
 };
 
 export function CreateTaskManualPanel({
@@ -56,6 +69,7 @@ export function CreateTaskManualPanel({
   setCreateAnother,
   submitter,
   heading,
+  pickerAdapter,
 }: CreateTaskManualPanelProps) {
   const editorRef = useRef<ContentEditorRef>(null);
   const sendShortcut = useShortcut("send");
@@ -90,6 +104,42 @@ export function CreateTaskManualPanel({
     uploading,
     busy,
   } = state;
+  const handleDriveFilesPicked = (
+    connectionId: string,
+    pickedFiles: Array<{ id: string; name: string; mimeType: string }>,
+  ) => {
+    const existing = draft.driveFiles ?? [];
+    const next: CreateTaskDraftDriveFile[] = [...existing];
+    for (const file of pickedFiles) {
+      const idx = next.findIndex(
+        (df) =>
+          df.connectionId === connectionId && df.externalFileId === file.id,
+      );
+      const entry: CreateTaskDraftDriveFile = {
+        connectionId,
+        externalFileId: file.id,
+        name: file.name,
+        mimeType: file.mimeType,
+      };
+      if (idx >= 0) {
+        next[idx] = entry;
+      } else {
+        next.push(entry);
+      }
+    }
+    updateDraft({ driveFiles: next });
+  };
+  const existingDriveIds = useMemo(
+    () => (draft.driveFiles ?? []).map((df) => df.externalFileId),
+    [draft.driveFiles],
+  );
+  const drivePaste = useDrivePasteSuggestions({
+    existingFileIds: existingDriveIds,
+  });
+  const { reset: resetDrivePaste } = drivePaste;
+  useEffect(() => {
+    resetDrivePaste();
+  }, [resetDrivePaste, draft.idempotencyKey]);
   const uploadGate = useUploadGate(editorRef);
   const isUploading = uploading || uploadGate.uploading;
   const canSubmit = Boolean(draft.title.trim()) && !busy && !uploadGate.uploading;
@@ -119,7 +169,7 @@ export function CreateTaskManualPanel({
     >
       <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 pb-2">
         <div className="min-w-0">
-          <DialogTitle className="truncate text-body font-medium">
+          <DialogTitle className="break-words text-body font-medium">
             <span className="font-normal text-muted-foreground">{workspaceName}</span>
             <span className="mx-1.5 text-muted-foreground" aria-hidden>
               ›
@@ -227,10 +277,38 @@ export function CreateTaskManualPanel({
             onUploadFile={uploadFile}
             onUploadingChange={uploadGate.onUploadingChange}
             attachments={draft.attachments}
+            onPasteDriveFileIds={drivePaste.onPasteDriveFileIds}
+            className="[&_a]:wrap-anywhere"
           />
           {isDragOver ? <FileDropOverlay /> : null}
         </div>
 
+        <DrivePasteSuggestionChips
+          workspaceId={workspaceId}
+          suggestedFileIds={drivePaste.suggestedFileIds}
+          fileKindsById={drivePaste.fileKindsById}
+          onDismiss={drivePaste.dismissFileId}
+          onResolved={drivePaste.resolveFileId}
+          onDraftFilesPicked={handleDriveFilesPicked}
+          draftDriveFiles={draft.driveFiles}
+          pickerAdapter={pickerAdapter}
+          className="px-5 pt-2"
+        />
+        <CreateTaskDriveChips
+          driveFiles={draft.driveFiles}
+          onRemove={(df) => {
+            const remaining = (draft.driveFiles ?? []).filter(
+              (item) =>
+                !(
+                  item.connectionId === df.connectionId &&
+                  item.externalFileId === df.externalFileId
+                ),
+            );
+            updateDraft({
+              driveFiles: remaining.length ? remaining : undefined,
+            });
+          }}
+        />
         <div
           data-testid="create-task-property-toolbar"
           className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 py-2"
@@ -321,11 +399,12 @@ export function CreateTaskManualPanel({
         className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-2.5 border-t border-surface-border/50 px-4 py-3 sm:flex sm:flex-wrap"
       >
         <div className="flex min-h-7 items-center gap-2 sm:mr-auto">
-          <FileUploadButton
-            size="sm"
-            multiple
+          <CreateTaskPaperclipMenu
+            workspaceId={workspaceId}
             disabled={isUploading}
-            onSelect={(file) => editorRef.current?.uploadFile(file)}
+            pickerAdapter={pickerAdapter}
+            onUploadFile={(file) => editorRef.current?.uploadFile(file)}
+            onDriveFilesPicked={handleDriveFilesPicked}
           />
         </div>
         {submitter ? null : (

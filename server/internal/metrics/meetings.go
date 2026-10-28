@@ -20,8 +20,9 @@ type Meetings struct {
 	// ScribeRuns: ACTIVE scribe runs with people in the room (state=active)
 	// and those with no transcript line for 3 minutes (state=silent), set by
 	// every replica's sweep with the same fleet-wide numbers.
-	ScribeRuns *prometheus.GaugeVec
-	lifecycle  *prometheus.CounterVec
+	ScribeRuns  *prometheus.GaugeVec
+	CallRatings *prometheus.CounterVec
+	lifecycle   *prometheus.CounterVec
 }
 
 func NewMeetings() *Meetings {
@@ -70,6 +71,10 @@ func NewMeetings() *Meetings {
 			Name: "uniwork_meeting_scribe_runs",
 			Help: "ACTIVE scribe runs with people in the room, and those silent for 3 minutes, by state.",
 		}, []string{"state"}),
+		CallRatings: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_meeting_call_ratings_total",
+			Help: "How people rated a call's sound and picture as they left it (good, ok, poor).",
+		}, []string{"rating"}),
 		lifecycle: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_meetings_total",
 			Help: "Meeting lifecycle and AI outcomes by event (started, ended, auto_ended, summary_ok, summary_error).",
@@ -86,6 +91,12 @@ func (m *Meetings) Inc(event string) {
 func (m *Meetings) IncSummaryError(reason string) {
 	if m != nil && m.SummaryErrors != nil && reason != "" {
 		m.SummaryErrors.WithLabelValues(reason).Inc()
+	}
+}
+
+func (m *Meetings) IncCallRating(rating string) {
+	if m != nil && m.CallRatings != nil && rating != "" {
+		m.CallRatings.WithLabelValues(rating).Inc()
 	}
 }
 
@@ -166,6 +177,7 @@ func (m *Meetings) Collectors() []prometheus.Collector {
 		m.ProviderDesync,
 		m.SummaryErrors,
 		m.ScribeRuns,
+		m.CallRatings,
 		m.lifecycle,
 	}
 }

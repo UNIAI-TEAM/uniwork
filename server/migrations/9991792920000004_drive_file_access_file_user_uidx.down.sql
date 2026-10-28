@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_drive_file_access_file_user_uidx;

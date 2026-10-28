@@ -43,18 +43,32 @@ type DocumentShareCandidatePage struct {
 }
 
 // ListShareCandidates lists people, workspaces, and the organization itself
-// that may be granted access on one document (SH-S2, UNI-1781).
+// that may be granted access on one document (SH-S2, UNI-1781) or under a
+// folder's bulk access action (UNI-2244 §7, A1). On a non-folder document only
+// callers who can administer the document are admitted; on a folder any caller
+// who can read the folder (or holds AdminScope) is admitted, and a reader
+// below manage/AdminScope receives DirectLevel="" (since DocumentAccessList at
+// document_shares.go:606-608 hides the share list and home_workspace level from
+// non-administer readers, while workspace_id itself is returned by GET
+// /documents/{id} so IsHomeWorkspace stays populated).
 func (s *DocumentService) ListShareCandidates(
 	ctx context.Context,
 	actor Actor,
 	documentID string,
 	f DocumentShareCandidateFilter,
 ) (DocumentShareCandidatePage, error) {
-	doc, _, err := s.authorizeDocumentAdminister(ctx, actor, documentID)
+	doc, access, err := s.authorizeDocumentGate(ctx, s.q, actor, documentID, func(doc db.Document, access DocumentAccess) error {
+		if doc.Kind == DocumentKindFolder {
+			if access.canAdminister() {
+				return decideDocumentAdminister(doc, access)
+			}
+			return decideDocumentContent(doc, access, DocumentLevelView)
+		}
+		return decideDocumentAdminister(doc, access)
+	})
 	if err != nil {
 		return DocumentShareCandidatePage{}, err
 	}
-
 	limit := f.Limit
 	switch {
 	case limit <= 0:
@@ -121,14 +135,18 @@ func (s *DocumentService) ListShareCandidates(
 		r.AvatarUrl = pgtype.Text{String: url, Valid: true}
 	})
 
+	canAdmin := access.canAdminister()
 	items := make([]DocumentShareCandidate, 0, len(rows))
 	for _, r := range rows {
-		directLvl := r.DirectLevel
-		if r.IsHomeWorkspace {
-			if hasHomeLvl {
-				directLvl = string(homeLvl)
-			} else {
-				directLvl = ""
+		directLvl := ""
+		if canAdmin {
+			directLvl = r.DirectLevel
+			if r.IsHomeWorkspace {
+				if hasHomeLvl {
+					directLvl = string(homeLvl)
+				} else {
+					directLvl = ""
+				}
 			}
 		}
 		items = append(items, DocumentShareCandidate{

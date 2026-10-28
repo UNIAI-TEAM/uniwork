@@ -13,6 +13,7 @@ import {
   useDocumentVersions,
   useRestoreDocumentVersion,
 } from "@uniwork/core/documents/hooks-versions";
+import { isLegacyOfficeFormat } from "@uniwork/core/office/office-modules";
 import { isShelved, type Document, type DocumentVersion } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
 import { useMembers } from "@uniwork/core/workspaces";
@@ -41,6 +42,7 @@ import { documentErrorMessage } from "./document-error-message";
 import { formatBytes } from "./doclist/format";
 import { formatWhen } from "./document-format";
 import { reportWriteRefused } from "./edit-lock-refusal";
+import { LegacyFormatDialog, type LegacyFormatDesktopOpenProps } from "../office/legacy-format-dialog";
 import { VersionAuthor } from "./version-author";
 
 // The editor chunk only arrives when a page version is actually previewed, so
@@ -55,6 +57,8 @@ export interface VersionHistorySheetProps {
   wsId: string;
   /** The live document; its level and revision decide what the sheet may do. */
   doc: Document;
+  /** Host wiring for "Mở bằng UniWork Office" when a legacy version row is opened. */
+  desktopOpen?: LegacyFormatDesktopOpenProps;
 }
 
 /** The version reason is a schema identifier; only its label is translated. */
@@ -82,7 +86,7 @@ function reasonLabel(
  * working copy locally — the confirm dialog stays pending until the server
  * answers, and only the mutation's own answer moves the document cache.
  */
-export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHistorySheetProps) {
+export function VersionHistorySheet({ open, onOpenChange, wsId, doc, desktopOpen }: VersionHistorySheetProps) {
   const { t, i18n } = useTranslation();
   // A shelved document keeps its history readable but takes no new or restored version (ARCHIVE-01 §3).
   const shelved = isShelved(doc);
@@ -99,6 +103,7 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
   const [createError, setCreateError] = useState<string | null>(null);
   const createKeyRef = useRef<string | null>(null);
   const [previewNo, setPreviewNo] = useState<number | undefined>(undefined);
+  const [legacyVersionNo, setLegacyVersionNo] = useState<number | undefined>(undefined);
   const [restoreTarget, setRestoreTarget] = useState<DocumentVersion | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const restoreKeyRef = useRef<string | null>(null);
@@ -211,16 +216,22 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
               }}
             >
               <Label htmlFor="document-version-label">{t("documents.versions.name_label")}</Label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Input
                   id="document-version-label"
+                  className="min-w-0 sm:flex-1"
                   value={label}
                   maxLength={200}
                   placeholder={t("documents.versions.name_placeholder")}
                   disabled={create.isPending}
                   onChange={(event) => changeLabel(event.target.value)}
                 />
-                <Button type="submit" size="sm" disabled={create.isPending} aria-busy={create.isPending || undefined}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="w-full sm:w-auto sm:shrink-0"
+                  disabled={create.isPending}
+                  aria-busy={create.isPending || undefined}>
                   {create.isPending ? (
                     <>
                       <Spinner aria-hidden role="presentation" />
@@ -302,6 +313,17 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
                           <Eye aria-hidden className="size-3.5" />
                         </Button>
                       ) : null}
+                      {doc.kind === "file" && (isLegacyOfficeFormat({ mime_type: version.mime_type }) || (isLegacyOfficeFormat(doc.file) && !version.mime_type)) ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={t("documents.file.open_version", { no: version.version })}
+                          onClick={() => setLegacyVersionNo(version.version)}
+                        >
+                          <Eye aria-hidden className="size-3.5" />
+                        </Button>
+                      ) : null}
                       {doc.kind === "file" ? (
                         <Button
                           type="button"
@@ -369,6 +391,20 @@ export function VersionHistorySheet({ open, onOpenChange, wsId, doc }: VersionHi
               versionNo={previewNo}
             />
           </Suspense>
+        ) : null}
+        {open && legacyVersionNo !== undefined ? (
+          <LegacyFormatDialog
+            open
+            onOpenChange={(next) => {
+              if (!next) setLegacyVersionNo(undefined);
+            }}
+            documentId={doc.id}
+            filename={doc.file?.filename || doc.title}
+            savedVersion={doc.current_version || doc.file?.version}
+            version={legacyVersionNo}
+            operation="view"
+            desktopOpen={desktopOpen}
+          />
         ) : null}
 
         <AlertDialog

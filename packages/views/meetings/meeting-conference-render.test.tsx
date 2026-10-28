@@ -147,7 +147,7 @@ function tileOrder(): string[] {
 
 describe("MeetingConference render scoping", () => {
   it("follows only the track events that change a tile", () => {
-    render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onExit={() => {}} />));
     const [sources, options] = lk.tracksCalls[0] as [unknown, Record<string, unknown>];
     expect(sources).toEqual([
       { source: Track.Source.Camera, withPlaceholder: true },
@@ -161,7 +161,7 @@ describe("MeetingConference render scoping", () => {
   });
 
   it("repaints the tiles on a speaking change, and not the header, side panel or control bar", () => {
-    render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onExit={() => {}} />));
     const before = { ...lk.renders, tiles: new Map(lk.renders.tiles) };
     const tracksBefore = lk.tracksCalls.length;
 
@@ -180,7 +180,7 @@ describe("MeetingConference render scoping", () => {
   });
 
   it("swaps one speaker in from the strip, leaving the other tiles in place", () => {
-    render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onExit={() => {}} />));
     expect(tileOrder()).toEqual(["p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"]);
     act(() => lk.speaking.set(["p8"]));
     // p8 takes the last quiet main slot; p5 goes to where p8 was.
@@ -191,7 +191,7 @@ describe("MeetingConference render scoping", () => {
   });
 
   it("forgets who was hidden once the room is left, so the next visit starts clean", () => {
-    const { unmount } = render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    const { unmount } = render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onExit={() => {}} />));
     act(() => useMeetingViewSessionStore.getState().toggleHidden("p1"));
     expect(tileOrder()).not.toContain("p1");
     unmount();
@@ -201,7 +201,7 @@ describe("MeetingConference render scoping", () => {
 
 describe("MeetingConference caption source", () => {
   function renderRoom() {
-    return render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    return render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onExit={() => {}} />));
   }
 
   it("shows each viewer's device captions while there is no scribe", () => {
@@ -222,7 +222,7 @@ describe("MeetingConference caption source", () => {
       Promise.resolve(path.endsWith("/meeting-capabilities") ? { scribe: true } : undefined),
     );
     const meeting = { id: "m1", scribe_enabled: true, scribe_status: "DISPATCHED" } as Meeting;
-    render(wrapWithNav(<MeetingConference meetingId="m1" meeting={meeting} workspaceId="w1" onLeave={() => {}} />));
+    render(wrapWithNav(<MeetingConference meetingId="m1" meeting={meeting} workspaceId="w1" onExit={() => {}} />));
     expect(await screen.findByTestId("scribe-captions")).toBeInTheDocument();
     expect(screen.queryByTestId("device-captions")).not.toBeInTheDocument();
   });

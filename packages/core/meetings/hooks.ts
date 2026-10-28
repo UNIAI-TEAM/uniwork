@@ -256,11 +256,12 @@ export function useExtendMeeting(workspaceId: string) {
   });
 }
 
-export function useParticipants(meetingId: string) {
+export function useParticipants(meetingId: string, opts?: { refetchInterval?: number }) {
   return useQuery({
     queryKey: meetingKeys.participants(meetingId),
     queryFn: () => meetings.listParticipants(meetingId),
     enabled: !!meetingId,
+    refetchInterval: opts?.refetchInterval,
   });
 }
 
@@ -336,6 +337,13 @@ export function useSetParticipantPublish(meetingId: string) {
   return useMutation({
     mutationFn: (args: { participantId: string; enabled: boolean; source?: meetings.MeetingPublishSource }) =>
       meetings.setParticipantPublish(meetingId, args.participantId, args.enabled, args.source),
+  });
+}
+
+/** The leave screens' Tốt / Tạm / Kém; nothing to refetch afterwards. */
+export function useRateCall(meetingId: string) {
+  return useMutation({
+    mutationFn: (rating: meetings.CallRating) => meetings.rateCall(meetingId, rating),
   });
 }
 

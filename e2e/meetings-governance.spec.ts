@@ -224,7 +224,10 @@ test("votes: the secretary opens a drafted item from the strip, votes and closes
   const decisions = page.getByRole("region", { name: "Quyết định" });
   await expect(decisions.getByText(title, { exact: true })).toBeVisible({ timeout: 20_000 });
   await expect(decisions.getByText("Thông qua", { exact: true })).toBeVisible();
-  await expect(decisions.getByText("2 tán thành · 0 không tán thành · 0 không ý kiến")).toBeVisible();
+  // The tally is one chip per choice, not a single line.
+  await expect(decisions.getByText("2 tán thành", { exact: true })).toBeVisible();
+  await expect(decisions.getByText("0 không tán thành", { exact: true })).toBeVisible();
+  await expect(decisions.getByText("0 không ý kiến", { exact: true })).toBeVisible();
 
   // The history drawer (the rail's "Lịch sử thao tác") records both steps.
   await page.getByRole("button", { name: "Lịch sử thao tác", exact: true }).click();

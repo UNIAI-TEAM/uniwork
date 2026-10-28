@@ -11,6 +11,7 @@ import {
   FolderInput,
   FolderOpen,
   FolderPlus,
+  LayoutTemplate,
   Link2,
   MonitorUp,
   Pencil,
@@ -30,6 +31,7 @@ const ICONS: Record<Exclude<RowMenuItemId, "go-to-source">, LucideIcon> = {
   "open-folder": FolderOpen,
   "open-app": MonitorUp,
   share: Share2,
+  "share-contents": Share2,
   "copy-link": Link2,
   star: Star,
   "new-subfolder": FolderPlus,
@@ -44,6 +46,8 @@ const ICONS: Record<Exclude<RowMenuItemId, "go-to-source">, LucideIcon> = {
   restore: ArchiveRestore,
   "view-details": Eye,
   purge: Trash,
+  "mark-template": LayoutTemplate,
+  "unmark-template": LayoutTemplate,
 };
 
 function iconOf(item: RowMenuItem, row: LibraryRow): LucideIcon {
@@ -57,6 +61,7 @@ interface MenuItemProps {
   variant?: "default" | "destructive";
   className?: string;
   onClick?: () => void;
+  "data-testid"?: string;
   children?: ReactNode;
 }
 
@@ -86,7 +91,13 @@ export function RowMenuItems({
           {group.map((item) => {
             const Icon = iconOf(item, row);
             return (
-              <Item key={item.id} variant={item.destructive ? "destructive" : "default"} className={ITEM_CLASS} onClick={item.run}>
+              <Item
+                key={item.id}
+                variant={item.destructive ? "destructive" : "default"}
+                className={ITEM_CLASS}
+                onClick={item.run}
+                data-testid={item.id === "share-contents" ? "folder-access-menu-item" : undefined}
+              >
                 <Icon aria-hidden className="size-3.5" />
                 {t(item.labelKey)}
               </Item>

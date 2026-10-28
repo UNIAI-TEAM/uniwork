@@ -35,8 +35,12 @@ export interface LibraryToolbarProps {
   /** Gần đây only: the Tất cả / Đã mở / Đã sửa segment; absent, no segment. */
   activity?: ActivityFilter;
   onActivity?: (activity: ActivityFilter) => void;
-  /** What a screen adds after Cập nhật (Lưu trữ's "Lưu trữ bởi" and its sort note). */
+  /** What a screen adds after Cập nhật (Lưu trữ's "Lưu trữ bởi" chip). */
   children?: ReactNode;
+  /** A line under the chips, inside the filter zone, so the search box stays on the chip row (Lưu trữ's loaded-only note). */
+  note?: ReactNode;
+  /** The search box pushed to the right end of the filter row (UNI-2205). */
+  search?: ReactNode;
   className?: string;
 }
 
@@ -67,6 +71,8 @@ export function LibraryToolbar({
   activity,
   onActivity,
   children,
+  note,
+  search,
   className,
 }: LibraryToolbarProps) {
   const { t } = useTranslation();
@@ -78,23 +84,27 @@ export function LibraryToolbar({
   ];
   const updatedItems = UPDATED_FILTERS.map((value) => ({ value, label: t(`documents.home.filters.updated_${value}`) }));
   return (
-    <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      {activity !== undefined ? <ActivitySegment activity={activity} onActivity={onActivity} /> : null}
-      <TypeFilterSelect types={types} onTypes={onTypes} triggerRef={typeTrigger} />
-      <FilterSelect
-        label={t("documents.home.filters.editor")}
-        value={editor}
-        items={editorItems}
-        onPick={(next) => onEditor?.(next)}
-      />
-      <FilterSelect
-        label={t("documents.home.filters.updated")}
-        value={updated}
-        items={updatedItems}
-        onPick={(next) => onUpdated?.(next as UpdatedFilter)}
-      />
-      {children}
-      <TypeChips types={types} onTypes={onTypes} focusTrigger={() => typeTrigger.current?.focus()} />
+    <div className={cn("@container flex flex-wrap items-start gap-2 @min-[48rem]:flex-nowrap", className)}>
+      <div data-slot="documents-filter-zone" className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        {activity !== undefined ? <ActivitySegment activity={activity} onActivity={onActivity} /> : null}
+        <TypeFilterSelect types={types} onTypes={onTypes} triggerRef={typeTrigger} />
+        <FilterSelect
+          label={t("documents.home.filters.editor")}
+          value={editor}
+          items={editorItems}
+          onPick={(next) => onEditor?.(next)}
+        />
+        <FilterSelect
+          label={t("documents.home.filters.updated")}
+          value={updated}
+          items={updatedItems}
+          onPick={(next) => onUpdated?.(next as UpdatedFilter)}
+        />
+        {children}
+        <TypeChips types={types} onTypes={onTypes} focusTrigger={() => typeTrigger.current?.focus()} />
+        {note ? <div className="basis-full">{note}</div> : null}
+      </div>
+      {search}
     </div>
   );
 }

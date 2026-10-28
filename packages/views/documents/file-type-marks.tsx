@@ -14,7 +14,7 @@ interface MarkProps {
   className?: string;
 }
 
-export const FILE_MARK_FORMATS = ["page", "docx", "xlsx", "pptx", "md", "html", "pdf"] as const;
+export const FILE_MARK_FORMATS = ["page", "docx", "xlsx", "pptx", "md", "html", "pdf", "google_doc", "google_sheet", "google_slide"] as const;
 export type FileMarkFormat = (typeof FILE_MARK_FORMATS)[number];
 
 export function isFileMarkFormat(value: string | null | undefined): value is FileMarkFormat {
@@ -36,6 +36,12 @@ export function FileTypeMark({ format, className }: { format: FileMarkFormat; cl
       return <HtmlMark className={className} />;
     case "pdf":
       return <PdfMark className={className} />;
+    case "google_doc":
+      return <GoogleDocMark className={className} />;
+    case "google_sheet":
+      return <GoogleSheetMark className={className} />;
+    case "google_slide":
+      return <GoogleSlideMark className={className} />;
     default:
       return <PageMark className={className} />;
   }
@@ -107,4 +113,37 @@ function PdfMark({ className }: MarkProps) {
 
 function PageMark({ className }: MarkProps) {
   return <UniNoteIcon className={className} />;
+}
+
+function GoogleDocMark({ className }: MarkProps) {
+  return (
+    <svg aria-hidden focusable="false" className={className} viewBox="0 0 32 32" fill="none">
+      <path d="M9 2h11l7 7v19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#4285F4" />
+      <path d="M20 2v5a2 2 0 0 0 2 2h5z" fill="#A1C2FA" />
+      <rect x="11" y="14" width="12" height="1.8" rx=".5" fill="#fff" />
+      <rect x="11" y="18" width="12" height="1.8" rx=".5" fill="#fff" />
+      <rect x="11" y="22" width="8" height="1.8" rx=".5" fill="#fff" />
+    </svg>
+  );
+}
+
+function GoogleSheetMark({ className }: MarkProps) {
+  return (
+    <svg aria-hidden focusable="false" className={className} viewBox="0 0 32 32" fill="none">
+      <path d="M9 2h11l7 7v19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#0F9D58" />
+      <path d="M20 2v5a2 2 0 0 0 2 2h5z" fill="#87CEAC" />
+      <rect x="11" y="14" width="12" height="10" rx=".8" fill="#fff" />
+      <path d="M11 17.4h12M11 20.6h12M15.6 14v10" stroke="#0F9D58" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function GoogleSlideMark({ className }: MarkProps) {
+  return (
+    <svg aria-hidden focusable="false" className={className} viewBox="0 0 32 32" fill="none">
+      <path d="M9 2h11l7 7v19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#F4B400" />
+      <path d="M20 2v5a2 2 0 0 0 2 2h5z" fill="#FADA80" />
+      <rect x="11.4" y="14.4" width="11.2" height="8.4" rx=".8" fill="none" stroke="#fff" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
 }

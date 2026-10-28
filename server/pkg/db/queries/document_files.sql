@@ -11,6 +11,8 @@
 UPDATE documents
 SET file_version_id = sqlc.arg(file_version_id),
     current_version = sqlc.arg(current_version),
+    title = sqlc.arg(title),
+    search_text = sqlc.arg(search_text),
     revision = revision + 1,
     content_revision = revision + 1,
     updated_by = sqlc.arg(updated_by),

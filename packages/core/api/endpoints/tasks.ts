@@ -33,6 +33,11 @@ export interface TaskPatch {
   project_id?: string | null;
 }
 
+export interface CreateTaskDriveFileInput {
+  connection_id: string;
+  external_file_id: string;
+}
+
 export interface CreateTaskBody {
   title: string;
   description?: string;
@@ -50,6 +55,7 @@ export interface CreateTaskBody {
   stage?: number | null;
   label_ids?: string[];
   attachment_ids?: string[];
+  drive_files?: CreateTaskDriveFileInput[];
   properties?: Record<string, unknown>;
   /** Skip the active-title duplicate guard when the caller confirms. */
   allow_duplicate?: boolean;

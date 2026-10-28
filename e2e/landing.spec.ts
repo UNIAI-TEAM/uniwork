@@ -65,10 +65,11 @@ test.describe("landing", () => {
     await expect(page.locator('#security').getByRole('heading', { name: "Quyền theo tổ chức và workspace", exact: true })).toBeVisible();
     await access.click();
 
-    // Section nêu vấn đề đứng trước lưới năng lực.
-    await expect(
-      page.locator('[data-feature-group="communication"]'),
-    ).toBeVisible();
+    // Communication features remain available in the current product navigation.
+    const productNavigation = page.locator("#product-preview .product-demo-menu");
+    for (const feature of ["meetings", "chat", "email"]) {
+      await expect(productNavigation.locator(`[role=tab][data-feature="${feature}"]`)).toBeVisible();
+    }
 
     // Product vision is one disclosure inside the roadmap, not a shipped band.
     const wp = page.locator("#work-products [data-slot=accordion-trigger]");

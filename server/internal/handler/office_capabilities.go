@@ -38,6 +38,7 @@ func (h *handlers) officeAppCapabilities(w http.ResponseWriter, r *http.Request)
 		OfflineLibrary:   caps.OfflineLibrary,
 		AIUniwork:        caps.AIUniwork,
 		AIUniworkFormats: caps.AIUniworkFormats,
+		DriveConnector:   caps.DriveConnector,
 		TTLSeconds:       caps.TTLSeconds,
 	})
 }

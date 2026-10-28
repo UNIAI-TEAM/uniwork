@@ -14,6 +14,7 @@ import {
   useTrashedDocuments,
 } from "@uniwork/core/documents/hooks-collections";
 import { isEndpointMissing, useDocumentSources } from "@uniwork/core/documents/hooks-library";
+import { useTemplateDocuments } from "@uniwork/core/documents/hooks-templates";
 import type { DocumentList, DocumentTreeNode } from "@uniwork/core/types/document";
 import { myFolderFirst } from "./document-tree-model";
 import type { LibraryView } from "./documents-sidebar";
@@ -50,6 +51,7 @@ const NO_EDITOR_NAMES: EditorNames = new Map();
 interface InfiniteLike<T> {
   data?: { pages: T[] };
   isPending: boolean;
+  isFetching?: boolean;
   isError: boolean;
   error: unknown;
   hasNextPage: boolean;
@@ -98,7 +100,7 @@ function documentState(q: InfiniteLike<DocumentList>): LibraryState {
   const rows = (q.data?.pages.flatMap((page) => page.documents) ?? []).map(documentRow);
   return {
     rows,
-    loading: q.isPending,
+    loading: q.isPending || Boolean(rows.length === 0 && q.isError && q.isFetching),
     failure: q.isError && rows.length === 0 ? failureOf(q.error) : null,
     hasMore: Boolean(q.hasNextPage),
     loadingMore: q.isFetchingNextPage,
@@ -188,7 +190,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
     view.kind === "sharedByMe" ||
     view.kind === "shelved" ||
     view.kind === "sources";
-  const sortedOnClient = view.kind === "starred" || (home && Boolean(folderId));
+  const sortedOnClient = view.kind === "starred" || view.kind === "templates" || (home && Boolean(folderId));
   const serverSort = useMemo(() => (sortedOnServer ? serverSortParams(sort) : {}), [sortedOnServer, sort]);
   // Gần đây and Được chia sẻ với tôi group by date while in their own order
   // (UNI-2045 W11, rule §8): the screen column, newest first. Any other pick
@@ -232,6 +234,10 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
   // an open folder; it sends the Type picks but no other filter or sort (Ngày gắn sao is ordered here).
   const starredQuery = useWorkspaceFavoriteDocuments(wsId, { enabled: enabled && view.kind === "starred", types: typeParam });
   const starredAutoPaging = useLoadInFull(starredQuery, enabled && view.kind === "starred");
+  // Mẫu văn bản: every template of the workspace, loaded in full and grouped by format on the client;
+  // the screen has no filter bar, so the request carries no filter or sort.
+  const templatesQuery = useTemplateDocuments(wsId, { enabled: enabled && view.kind === "templates" });
+  const templatesAutoPaging = useLoadInFull(templatesQuery, enabled && view.kind === "templates");
   // Thùng rác: always `deleted` ascending (UNI-2045 Q2), fixed by the endpoint.
   // Thùng rác has no filter bar (the page passes no types).
   const archivedQuery = useTrashedDocuments(wsId, { enabled: enabled && archived, types: typeParam });
@@ -311,6 +317,9 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
       break;
     case "starred":
       state = wholeState(starredQuery, starredAutoPaging);
+      break;
+    case "templates":
+      state = wholeState(templatesQuery, templatesAutoPaging);
       break;
     case "sources":
       state = {
@@ -407,11 +416,20 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
     docById: new Map(state.rows.flatMap((row) => (row.type === "document" ? [[row.doc.id, row.doc]] : []))),
     starredIds: new Set(starred.map((fav) => fav.document_id)),
     starredCount: favorites.data ? starred.length : null,
+    starredLoading: favorites.isPending || Boolean(starred.length === 0 && favorites.isError && favorites.isFetching) || state.loading,
+    starredFailure: favorites.isError ? failureOf(favorites.error) : state.failure,
+    recentPageCount: recentQuery.data?.pages.length ?? 0,
+    recentFetchFailed: recentQuery.isError && (!recentQuery.isFetching || recentQuery.isFetchingNextPage),
+    sharedPageCount: sharedQuery.data?.pages.length ?? 0,
+    sharedFetchFailed: sharedQuery.isError && (!sharedQuery.isFetching || sharedQuery.isFetchingNextPage),
+    refetchFavorites: () => void favorites.refetch(),
     sourcesAvailable,
     editor,
     setEditor,
     updated: updated.filter,
     setUpdated,
+    editorId,
+    updatedSince,
     /** Gần đây's Tất cả / Đã mở / Đã sửa. */
     activity,
     setActivity,

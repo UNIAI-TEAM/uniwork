@@ -51,6 +51,8 @@ Kiểm tra → Khắc phục → Leo thang**.
 | `UniworkAiRunSecondsHigh` | 3 | p95 tuổi run UniWork AI > 64 s (pending G7-D1) | [UniworkAiRunSecondsHigh.md](UniworkAiRunSecondsHigh.md) |
 | `UniworkAiRunCreditsHigh` | 3 | p95 token mỗi run UniWork AI > 64.000 (pending G7-D1) | [UniworkAiRunCreditsHigh.md](UniworkAiRunCreditsHigh.md) |
 | `UniworkAiDroppedToolCalls` | 3 | > 20 tool call bị bỏ / lý do trong 15 phút (pending G7-D1) | [UniworkAiDroppedToolCalls.md](UniworkAiDroppedToolCalls.md) |
+| `DriveRevocationAbandoned` | 3 | thu hồi grant Google Drive bỏ cuộc sau 24 giờ thử lại | [DriveRevocationAbandoned.md](DriveRevocationAbandoned.md) |
+| `DriveTokenRefreshFailuresHigh` | 3 | lỗi làm mới access token Google Drive > 10 lần trong 15 phút | [DriveTokenRefreshFailuresHigh.md](DriveTokenRefreshFailuresHigh.md) |
 
 Hướng dẫn chung (chạy stack, env, sampling, `/readyz`): [`docs/ops/OBSERVABILITY.md`](../ops/OBSERVABILITY.md).
 
@@ -66,6 +68,7 @@ Runbook vận hành (không gắn alert, mở theo bước deploy):
 | [unichat-tls-pins.md](unichat-tls-pins.md) | Ghim khoá TLS của UniChat mobile: job `chat-mobile-tls-pins.yml` đỏ/vàng, đổi CA hay host đã ghim, gia hạn pin-set, sự cố app bị khoá (UNI-2141) |
 | [unichat-pilot.md](unichat-pilot.md) | Pilot nội bộ UniChat: chuẩn bị, triage mỗi sáng, đo người dùng hằng ngày và `uniwork_push_suppressed_total`, điều kiện dừng (UNI-1838) |
 | [browser-notifications.md](browser-notifications.md) | Bật thông báo hệ thống của trình duyệt và Web Push (VAPID) khi deploy, nghiệm thu thủ công (UNI-1965) |
+| [drive-connector.md](drive-connector.md) | Vận hành connector Google Drive: cấu hình OAuth/secretbox, cờ `drive_connector`, xử lý lỗi kết nối và hàng đợi thu hồi grant (UNI-2172) |
 
 Alert `Office*` và `UniworkAi*` (G7-07) chỉ đọc metric mà code server D đăng ký (`scripts/office/alert-metrics.test.mjs`).
 Ngưỡng của chúng là đề xuất theo load profile, **pending G7-D1** (người dùng chốt). Các mục vận hành không có alert

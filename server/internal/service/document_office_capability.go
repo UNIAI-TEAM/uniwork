@@ -186,6 +186,8 @@ func (s *DocumentOfficeService) formatForVersion(ctx context.Context, doc db.Doc
 		if prev := s.documents.versionFilename(ctx, doc, *ver, f.Filename); path.Ext(prev) != "" {
 			f.Filename = prev
 		}
+	} else {
+		f.Filename = s.documents.versionFilename(ctx, doc, *ver, f.Filename)
 	}
 	format, ok := officeFormatForFile(f)
 	if !ok {
@@ -515,7 +517,7 @@ func (s *DocumentOfficeService) replayBlank(ctx context.Context, actor Actor, or
 		(in.Visibility != "" && prev.Document.Visibility != in.Visibility) {
 		return DocumentFileResult{}, false, errIdempotencyPayloadMismatch()
 	}
-	fp := fileCreateFingerprint(workspaceID, in.ParentID, want, prev.File.ChecksumSHA256, in.Visibility, in.Destination)
+	fp := fileCreateFingerprint(workspaceID, in.ParentID, want, prev.File.ChecksumSHA256, in.Visibility, in.Destination, false)
 	if _, err := PeekIdempotent(ctx, s.q, orgID, workspaceID, idempotencyScopeDocumentFileCreate, key, actor.ID, IdempotencyOptions{
 		Fingerprint:        fp,
 		RequireFingerprint: true,

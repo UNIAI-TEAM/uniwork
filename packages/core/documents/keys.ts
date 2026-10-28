@@ -71,6 +71,13 @@ export const documentKeys = {
     filterKey
       ? ([...documentKeys.workspace(wsId), "shelved", filterKey] as const)
       : ([...documentKeys.workspace(wsId), "shelved"] as const),
+  // Templates section: GET .../documents/templates, a keyset-paged list under
+  // the workspace root so `document.template_*` frames and mark/unmark
+  // refreshes reach it.
+  templates: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "templates", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "templates"] as const),
   // The folders-only tree appends a segment, so the full tree's key stays
   // its prefix and one tree invalidation refreshes both.
   tree: (wsId: string, root: string = "", foldersOnly: boolean = false) =>

@@ -10,7 +10,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
-import { DEMO_CARD_PROPERTIES, DEMO_PEOPLE, DEMO_TASK_STATUSES, demoTaskRecord, type DemoTask, type DemoTaskStatus } from "./product-task-data";
+import { DEMO_CARD_PROPERTIES, DEMO_PEOPLE, DEMO_TASK_STATUSES, demoInitial, demoTaskRecord, type DemoTask, type DemoTaskStatus } from "./product-task-data";
 
 /** Production card content and status colours, shared by the film and the interactive board. */
 export function ProductTaskBoard({ tasks, query = "", onQuery, selected = "design", onSelect, onStatus, onChat, step, toolbarLeading, open, onOpenChange, hideEmptyStatuses = false }: {
@@ -67,7 +67,7 @@ export function ProductTaskBoard({ tasks, query = "", onQuery, selected = "desig
         <strong className="product-task-list-title">{title(task)}</strong>
         <span className="product-task-list-meta">
           {properties.project && <span><FolderKanban aria-hidden />{t("landing.studio.launchProject")}</span>}
-          {properties.assignee && <span className="product-task-assignee">{task.person ? <><i aria-hidden>{task.person.charAt(0)}</i>{DEMO_PEOPLE[task.person] ?? task.person}</> : t("tasks.unassigned")}</span>}
+          {properties.assignee && <span className="product-task-assignee">{task.person ? <><i aria-hidden>{demoInitial(task.person)}</i>{DEMO_PEOPLE[task.person] ?? task.person}</> : t("tasks.unassigned")}</span>}
         </span>
       </span> : <TaskBoardCardContent task={demoTaskRecord(task, title(task))} meta={{ projectName: t("landing.studio.launchProject") }} cardProperties={properties} reserveActionSpace={!automatic} />}
     </button>
@@ -92,9 +92,9 @@ export function ProductTaskBoard({ tasks, query = "", onQuery, selected = "desig
     </div>
     {detailOpen && current && <aside className="product-task-details" data-demo-detail="task"><header><span>{current.identifier ?? "DEMO-111"}</span><Button variant="ghost" size="icon" data-action="close-task" data-demo-target="task-close" aria-label={t("common.close")} onClick={() => changeOpen(false)}><X aria-hidden /></Button></header><h2>{title(current)}</h2>
       <dl><div><dt>{t("tasks.status")}</dt><dd><DropdownMenu><DropdownMenuTrigger render={<Button variant="outline" size="sm" />}><StatusIcon status={current.state} />{t(`tasks.status_${current.state}`)}<ChevronDown aria-hidden /></DropdownMenuTrigger><DropdownMenuContent>{DEMO_TASK_STATUSES.map(status => <DropdownMenuItem key={status} onClick={() => onStatus?.(current.key, status)}><StatusIcon status={status} />{t(`tasks.status_${status}`)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu></dd></div>
-      <div><dt>{t("landing.playback.assignee")}</dt><dd data-demo-target="assignee"><span className="product-task-assignee" data-demo-result={automatic && step >= 3 ? "assignee" : undefined}>{current.person ? <><i>{current.person.charAt(0)}</i>{DEMO_PEOPLE[current.person] ?? current.person}</> : t("tasks.unassigned")}</span></dd></div>
+      <div><dt>{t("landing.playback.assignee")}</dt><dd data-demo-target="assignee"><span className="product-task-assignee" data-demo-result={automatic && step >= 3 ? "assignee" : undefined}>{current.person ? <><i>{demoInitial(current.person)}</i>{DEMO_PEOPLE[current.person] ?? current.person}</> : t("tasks.unassigned")}</span></dd></div>
       <div><dt>{t("landing.playback.project")}</dt><dd>{t("landing.studio.launchProject")}</dd></div></dl>
-      {automatic && step === 2 && <div className="product-task-member-menu">{["TN", "HA", "ML"].map(person => <span key={person} data-demo-target={person === "HA" ? "member" : undefined}><i>{person.charAt(0)}</i>{DEMO_PEOPLE[person]}</span>)}</div>}
+      {automatic && step === 2 && <div className="product-task-member-menu">{["TN", "HA", "ML"].map(person => <span key={person} data-demo-target={person === "HA" ? "member" : undefined}><i>{demoInitial(person)}</i>{DEMO_PEOPLE[person]}</span>)}</div>}
       {!automatic && <div className="product-task-detail-actions"><Button variant="outline" size="sm" data-action="complete-task" onClick={() => onStatus?.(current.key, current.state === "done" ? "in_progress" : "done")}><Check aria-hidden />{t(current.state === "done" ? "landing.demo.reopen" : "landing.demo.complete")}</Button><Button variant="ghost" size="sm" onClick={onChat}><MessageSquare aria-hidden />{t("landing.demo.openDiscussion")}</Button></div>}
     </aside>}
   </div>;

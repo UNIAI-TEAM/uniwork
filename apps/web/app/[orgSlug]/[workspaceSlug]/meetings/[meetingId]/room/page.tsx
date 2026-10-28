@@ -17,6 +17,7 @@ export default function MeetingRoomPage() {
       meetingsHref={ws.meetings()}
       workspaceLabel={workspace.name}
       onLeave={() => replace(ws.meeting(meetingId))}
+      onEnded={() => replace(`${ws.meeting(meetingId)}?ended=1`)}
     />
   );
 }

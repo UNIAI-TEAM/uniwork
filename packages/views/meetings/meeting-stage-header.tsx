@@ -33,6 +33,7 @@ import {
   formatRemaining,
   meetingLocale,
 } from "./meeting-datetime";
+import { MeetingHostAwayChip } from "./meeting-host-presence";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { OnOffAnnouncer } from "./meeting-room-announcers";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
@@ -270,6 +271,8 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
                 {t("meetings.recording")}
               </span>
             ) : null}
+
+            {meeting && !guestMode ? <MeetingHostAwayChip meeting={meeting} canHost={showHostActions} /> : null}
 
             <MeetingScribeChip meeting={meeting} available={scribeAvailable} canSwitch={showHostActions} />
 

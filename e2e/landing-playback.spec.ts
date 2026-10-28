@@ -34,7 +34,7 @@ test("reduced motion is still by default and manual exploration retains local ac
   await landingReady(page);
   const player = page.locator(".product-playback");
   await expect(player).toHaveAttribute("data-running", "false");
-  await expect(player.locator('[data-demo-item="design"]')).toContainText("UNI-18");
+  await expect(player.locator('[data-demo-item="design"]')).toContainText("DEMO-106");
   await page.getByRole("button", { name: "Tự khám phá", exact: true }).click();
   const stage = page.locator("#product-preview");
   await stage.getByRole("tabpanel").getByRole("button", { name: "Bộ lọc", exact: true }).click();
@@ -85,7 +85,7 @@ for (const width of [1440]) {
       });
       expect.soft(fits, `${key} fits vertically`).toBe(true);
       if (key === "tasks") {
-        await expect(player.locator('[data-status="done"] [data-demo-result="task-moved"]')).toContainText("Hoàng Anh");
+        await expect(player.locator('[data-status="done"] [data-demo-result="task-moved"]')).toContainText("Khánh Vy");
         await expect(player.locator('[data-demo-item="design"]')).toHaveCount(1);
         await expect(player.locator('[data-status="done"] [data-slot="status-heading"]')).toContainText("1");
       }

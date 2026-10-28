@@ -36,6 +36,22 @@ type isoReference struct {
 	// meetingKey does the same for {meetingID} (a meeting held without a
 	// room, for the transcription case).
 	meetingKey string
+	// driveFileKey names the fixture Drive file the path's {driveFileID}
+	// should name instead of the owner-bound default (for PUT /access, a
+	// file bound by another member on which the owner holds granted access).
+	driveFileKey string
+	// proposalKey names the fixture Drive task proposal the path's {proposalID}
+	// should name instead of the default driveProposal (so each B6 control
+	// converts a distinct ready proposal row).
+	proposalKey string
+	// controlBody, when non-nil, is used instead of body in referenceControls
+	// (e.g. when the own-rows control switches to the caller's second
+	// connection while the attack names A's primary connection).
+	controlBody any
+	// wantAttackStatus, when non-zero, requires the cross-tenant and
+	// member-of-both reference attacks to answer with this exact HTTP status
+	// rather than any 4xx.
+	wantAttackStatus int
 	// noControl says why the own-ids request is not sent (it is
 	// destructive, or there is no own counterpart).
 	noControl string
@@ -135,9 +151,15 @@ func (c isoReference) build(w *isoWorld, own, ref *isoTenant) isoBody {
 // a file document, which a page is not.
 func (c isoReference) refPath(t *testing.T, tn *isoTenant) (string, bool) {
 	t.Helper()
-	path, ok := isoPath(t, c.pattern, tn)
+	path, ok := isoPath(t, c.method, c.pattern, tn)
 	if ok && c.meetingKey != "" {
 		path = strings.Replace(path, tn.ids["meeting"], tn.get(t, c.meetingKey), 1)
+	}
+	if ok && c.driveFileKey != "" {
+		path = strings.Replace(path, tn.ids["driveFile"], tn.get(t, c.driveFileKey), 1)
+	}
+	if ok && c.proposalKey != "" {
+		path = strings.Replace(path, tn.ids["driveProposal"], tn.get(t, c.proposalKey), 1)
 	}
 	if !ok || c.docKey == "" {
 		return path, ok
@@ -366,6 +388,14 @@ var isoReferences = []isoReference{
 		"items": []any{map[string]any{"principal_type": "workspace", "principal_id": isoRef("ws"), "level": "view"}}}},
 	{method: "PUT", pattern: "/api/v1/documents/{documentID}/access", what: "organization principal", body: map[string]any{
 		"items": []any{map[string]any{"principal_type": "organization", "principal_id": isoRef("org"), "level": "view"}}}},
+	// UNI-2244: folder bulk access principals.
+	{method: "PUT", pattern: "/api/v1/documents/{folderID}/contents-access", what: "user principal",
+		body:   map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "user", "principal_id": isoRef("peer"), "level": "view"}}},
+		covers: []string{"FolderContentsAccessItemSDI.principal_id"}},
+	{method: "PUT", pattern: "/api/v1/documents/{folderID}/contents-access", what: "workspace principal",
+		body: map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "workspace", "principal_id": isoRef("ws"), "level": "view"}}}},
+	{method: "PUT", pattern: "/api/v1/documents/{folderID}/contents-access", what: "organization principal",
+		body: map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "organization", "principal_id": isoRef("org"), "level": "view"}}}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "reply parent", body: map[string]any{
 		"body": "ref", "type": "comment", "parent_id": isoRef("docComment")}, covers: []string{"CreateDocumentCommentSDI.parent_id"}},
 	{method: "POST", pattern: "/api/v1/documents/{documentID}/comments", what: "anchor base version", docKey: "anchorDoc", body: map[string]any{
@@ -548,6 +578,78 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary/tasks", what: "project", body: map[string]any{
 		"account_id": isoOwn("emailAccount"), "items": []any{map[string]any{"title": isoUnique("ref"), "project_id": isoRef("project")}}},
 		covers: []string{"SummaryTaskItemSDI.project_id"}},
+
+	// Google Drive connector (UNI-2172 / B2 & B4).
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-connections/google/start", what: "reconnect connection", body: map[string]any{
+		"reconnect_connection_id": isoRef("driveConnection")},
+		covers: []string{"StartDriveGoogleOAuthSDI.reconnect_connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/tasks", what: "drive file connection", body: map[string]any{
+		"title":       isoUnique("ref-drive"),
+		"drive_files": []any{map[string]any{"connection_id": isoRef("driveConnection"), "external_file_id": "iso-drive-ref-task"}}},
+		covers: []string{"CreateTaskDriveFileSDI.connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files", what: "connection", body: map[string]any{
+		"connection_id": isoRef("driveConnection"), "external_file_ids": []any{"iso-drive-ref-conn"}},
+		covers: []string{"LinkDriveFilesSDI.connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files", what: "task", body: map[string]any{
+		"connection_id": isoOwn("driveConnection"), "external_file_ids": []any{"iso-drive-ref-tasklink"}, "task_id": isoRef("task")},
+		covers: []string{"LinkDriveFilesSDI.task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access", what: "connection", body: map[string]any{
+		"connection_id": isoRef("driveConnection")},
+		covers: []string{"GrantDriveFileAccessSDI.connection_id"}},
+	{method: "PUT", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access", what: "connection",
+		driveFileKey:     "peerBoundDriveFile",
+		body:             map[string]any{"connection_id": isoRef("driveConnection")},
+		controlBody:      map[string]any{"connection_id": isoOwn("driveConnection2")},
+		wantAttackStatus: 404,
+		covers:           []string{"GrantDriveFileAccessSDI.connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind", what: "connection", body: map[string]any{
+		"connection_id": isoRef("driveConnection")},
+		covers: []string{"RebindDriveFileSDI.connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name", what: "connection", body: map[string]any{
+		"drive_connection_id": isoRef("driveConnection")},
+		covers: []string{"NameDriveFolderSDI.drive_connection_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "project",
+		wantAttackStatus: 404,
+		body:             map[string]any{"project_id": isoRef("project")},
+		covers:           []string{"CreateDriveTaskProposalSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "parent task",
+		wantAttackStatus: 404,
+		body:             map[string]any{"parent_task_id": isoRef("task")},
+		covers:           []string{"CreateDriveTaskProposalSDI.parent_task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals", what: "context task",
+		wantAttackStatus: 404,
+		body:             map[string]any{"context_task_id": isoRef("task")},
+		covers:           []string{"CreateDriveTaskProposalSDI.context_task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates", what: "project",
+		wantAttackStatus: 404,
+		body:             map[string]any{"project_id": isoRef("project"), "titles": []any{"Chốt phạm vi beta"}},
+		covers:           []string{"CheckDriveTaskProposalDuplicatesSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates", what: "parent task",
+		wantAttackStatus: 404,
+		body:             map[string]any{"parent_task_id": isoRef("task"), "titles": []any{"Chốt phạm vi beta"}},
+		covers:           []string{"CheckDriveTaskProposalDuplicatesSDI.parent_task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks", what: "project", proposalKey: "driveProposalRefProject",
+		body: map[string]any{
+			"project_id": isoRef("project"),
+			"items":      []any{map[string]any{"index": 0, "title": isoUnique("ref-prop-project"), "description": "ref"}},
+		},
+		covers: []string{"CreateTasksFromDriveProposalSDI.project_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks", what: "parent task", proposalKey: "driveProposalRefParent",
+		body: map[string]any{
+			"parent_task_id": isoRef("task"),
+			"items":          []any{map[string]any{"index": 0, "title": isoUnique("ref-prop-parent"), "description": "ref"}},
+		},
+		covers: []string{"CreateTasksFromDriveProposalSDI.parent_task_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks", what: "assignee", proposalKey: "driveProposalRefAssignee",
+		body: map[string]any{
+			"items": []any{map[string]any{"index": 0, "title": isoUnique("ref-prop-assignee"), "description": "ref", "assignee_id": isoRef("peer")}},
+		},
+		covers: []string{"DriveProposalTaskItemSDI.assignee_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks", what: "label", proposalKey: "driveProposalRefLabel",
+		body: map[string]any{
+			"items": []any{map[string]any{"index": 0, "title": isoUnique("ref-prop-label"), "description": "ref", "label_ids": []any{isoRef("label")}}},
+		},
+		covers: []string{"DriveProposalTaskItemSDI.label_ids"}},
 }
 
 // referenceControls sends each reference case with B's own rows: the request
@@ -563,7 +665,11 @@ func (w *isoWorld) referenceControls(t *testing.T) {
 		if !ok {
 			continue
 		}
-		status, raw := w.do(t, c.method, path+isoQuery(c.query, w.bravo), w.bravo.token, c.build(w, w.bravo, w.bravo))
+		ctrl := c
+		if c.controlBody != nil {
+			ctrl.body = c.controlBody
+		}
+		status, raw := w.do(t, c.method, path+isoQuery(c.query, w.bravo), w.bravo.token, ctrl.build(w, w.bravo, w.bravo))
 		if status < 200 || status >= 300 {
 			t.Errorf("reference control %s %s %s with B's own rows = %d: %s", c.method, c.pattern, c.what, status, isoClip(raw))
 		} else if c.afterControl != nil {
@@ -698,6 +804,17 @@ var isoRefFieldExempt = map[string]string{
 	"CommitOfficeFrameVersionSDI.edit_lock_id": editLockIDExempt,
 	"AcquireDocumentEditLockSDI.editor_id":     "a client-minted editor instance id, not a row",
 	"TakeOverDocumentEditLockSDI.editor_id":    "a client-minted editor instance id, not a row",
+
+	// Google Drive connector (UNI-2172 §13): external_file_id(s) are Google's
+	// file ids, not UniWork tenant rows. The tenant-row id fields land in
+	// B1's contract-first DTOs (UNI-2177) before their routes exist; each
+	// moves from this list to an isoReferences case in the card that registers
+	// its route (B2: StartDriveGoogleOAuthSDI; B4: CreateTaskDriveFileSDI,
+	// LinkDriveFilesSDI, GrantDriveFileAccessSDI, RebindDriveFileSDI; B5:
+	// CreateDriveTaskProposalSDI, CheckDriveTaskProposalDuplicatesSDI; B6:
+	// CreateTasksFromDriveProposalSDI, DriveProposalTaskItemSDI).
+	"CreateTaskDriveFileSDI.external_file_id": "id of the file on Google Drive, not a UniWork tenant row (spec §13)",
+	"LinkDriveFilesSDI.external_file_ids":     "ids of files on Google Drive, not UniWork tenant rows (spec §13)",
 }
 
 // A body field that names another row is an attack surface the path passes

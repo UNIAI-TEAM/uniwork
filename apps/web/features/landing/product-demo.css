@@ -1,5 +1,5 @@
 /* A single frame keeps the product preview distinct without a decorative mat. */
-.landing-site .landing-product-story > .platform-section { width: min(1408px, calc(100% - var(--landing-scene-gutter) * 2)); padding: 0; border-radius: 12px; background: transparent; }
+.landing-site .landing-product-story > .platform-section { width: min(var(--landing-scene-width), calc(100% - var(--landing-scene-gutter) * 2)); padding: 0; border-radius: 12px; background: transparent; }
 .landing-site .landing-product-story > .platform-section > div { width: 100%; max-width: none; padding-inline: 0; }
 .unified-workspace.product-demo .workspace-explorer { display: block; border: 0; border-radius: 12px; box-shadow: none; }
 .product-demo .workspace-display { border-radius: 12px; }

@@ -124,3 +124,78 @@ func TestSetParticipantPublishSource(t *testing.T) {
 		t.Fatalf("host mic: %d %v", res.StatusCode, out)
 	}
 }
+
+// The leave screens read presence and removal off the participant list: every
+// row says whether it holds the room, and a removed row says who removed it
+// and when, to members only.
+func TestListParticipantsCarriesPresenceAndRemoval(t *testing.T) {
+	f := setupChatFixture(t, "presence")
+	res, out := doJSON(t, f.srv, "POST", "/api/v1/workspaces/"+f.wsID+"/meetings/instant", f.tokens["a"], map[string]string{"title": "Presence"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("instant meeting: %d %v", res.StatusCode, out)
+	}
+	meetingID := out["meeting"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, f.srv, "POST", "/api/v1/meetings/"+meetingID+"/invitations", f.tokens["a"], map[string]any{"user_id": f.ids["b"]})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("invite b: %d %v", res.StatusCode, out)
+	}
+	bPID := out["participant"].(map[string]any)["id"].(string)
+	if res, out = doJSON(t, f.srv, "DELETE", "/api/v1/meetings/"+meetingID+"/participants/"+bPID, f.tokens["a"], nil); res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
+		t.Fatalf("remove b: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, f.srv, "GET", "/api/v1/meetings/"+meetingID+"/participants", f.tokens["a"], nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list: %d %v", res.StatusCode, out)
+	}
+	var removed map[string]any
+	for _, raw := range out["participants"].([]any) {
+		row := raw.(map[string]any)
+		if _, ok := row["in_room"]; !ok {
+			t.Fatalf("row %v has no in_room", row["id"])
+		}
+		if row["id"] == bPID {
+			removed = row
+		}
+	}
+	if removed == nil {
+		t.Fatal("removed participant missing from the list")
+	}
+	if removed["removed_by"] != f.ids["a"] {
+		t.Fatalf("removed_by = %v, want %s", removed["removed_by"], f.ids["a"])
+	}
+	if at, _ := removed["removed_at"].(string); at == "" {
+		t.Fatal("removed_at missing")
+	} else if _, err := time.Parse(time.RFC3339, at); err != nil {
+		t.Fatalf("removed_at %q: %v", at, err)
+	}
+}
+
+// A guest outside the room shows how long the meeting has run: resolve says
+// when it actually started.
+func TestResolveInviteLinkCarriesStartedAt(t *testing.T) {
+	f := setupChatFixture(t, "resolvestart")
+	res, out := doJSON(t, f.srv, "POST", "/api/v1/workspaces/"+f.wsID+"/meetings/instant", f.tokens["a"], map[string]string{"title": "Started"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("instant meeting: %d %v", res.StatusCode, out)
+	}
+	meetingID := out["meeting"].(map[string]any)["id"].(string)
+	expires := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	res, out = doJSON(t, f.srv, "POST", "/api/v1/meetings/"+meetingID+"/invite-links", f.tokens["a"], map[string]any{
+		"name": "guest", "access_mode": "AUTO_ADMIT", "expires_at": expires,
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("create invite link: %d %v", res.StatusCode, out)
+	}
+	link := out["invite_link"].(map[string]any)
+	res, out = doJSON(t, f.srv, "POST", "/api/v1/public/meeting-invite-links/resolve", "", map[string]string{
+		"link_id": link["id"].(string), "secret": link["secret"].(string),
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("resolve: %d %v", res.StatusCode, out)
+	}
+	at, _ := out["started_at"].(string)
+	if _, err := time.Parse(time.RFC3339, at); err != nil {
+		t.Fatalf("started_at %q: %v", at, err)
+	}
+}

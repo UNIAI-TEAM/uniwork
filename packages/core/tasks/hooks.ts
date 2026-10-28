@@ -8,7 +8,7 @@ import { taskKeys } from "./keys";
 import { useRecentTasksStore } from "./stores/recent-tasks-store";
 import { applyTaskPatch, patchTableCaches } from "./table-cache-patch";
 
-export type { CreateTaskBody, TaskPatch } from "../api/endpoints/tasks";
+export type { CreateTaskBody, CreateTaskDriveFileInput, TaskPatch } from "../api/endpoints/tasks";
 export { taskKeys } from "./keys";
 export { planCacheUpdate } from "./cache-coordinator";
 export type { CacheUpdateEvent, CacheUpdatePlan } from "./cache-coordinator";

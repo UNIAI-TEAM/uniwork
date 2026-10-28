@@ -142,7 +142,6 @@ type ListMembershipInviteLinkWorkspacesRow struct {
 	LinkID         string `json:"link_id"`
 }
 
-// tenant: parent organization_id
 func (q *Queries) ListMembershipInviteLinkWorkspaces(ctx context.Context, arg ListMembershipInviteLinkWorkspacesParams) ([]ListMembershipInviteLinkWorkspacesRow, error) {
 	rows, err := q.db.Query(ctx, listMembershipInviteLinkWorkspaces, arg.LinkIds, arg.OrganizationIds)
 	if err != nil {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentProps } from "react";
+import { useRef, useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import type { CreateTaskBody } from "@uniwork/core/tasks";
 import {
@@ -25,7 +25,6 @@ import {
 } from "./create-task-dialog-classes";
 import { CreateTaskAgentPanel } from "./create-task-agent-panel";
 import { CreateTaskManualPanel, type CreateTaskManualPanelProps } from "./create-task-manual-panel";
-
 export type CreateTaskMode = "manual" | "agent";
 
 export type CreateTaskDialogProps = {
@@ -37,7 +36,7 @@ export type CreateTaskDialogProps = {
   initialMode?: CreateTaskMode;
   /** Where focus goes on close (Base UI `finalFocus`): the title's autoFocus hides the opener from it. */
   finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
-} & Pick<CreateTaskManualPanelProps, "submitter" | "heading">;
+} & Pick<CreateTaskManualPanelProps, "submitter" | "heading" | "pickerAdapter">;
 
 /**
  * Shell that owns the single Dialog + DialogContent for create-task.
@@ -53,6 +52,7 @@ export function CreateTaskDialog({
   initialMode,
   submitter,
   heading,
+  pickerAdapter,
   finalFocus,
 }: CreateTaskDialogProps) {
   const { t } = useTranslation();
@@ -71,7 +71,7 @@ export function CreateTaskDialog({
   const [isExpanded, setIsExpanded] = useState(false);
   const [createAnother, setCreateAnother] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
-
+  const cancelAgentReadingRef = useRef<(() => boolean) | null>(null);
   const switchTo = (next: CreateTaskMode) => (nextCarry?: Record<string, unknown> | null) => {
     setCarry(nextCarry ?? null);
     setMode(next);
@@ -103,8 +103,14 @@ export function CreateTaskDialog({
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) setOpen(true);
-    else requestClose();
+    if (nextOpen) {
+      setOpen(true);
+      return;
+    }
+    if (cancelAgentReadingRef.current?.()) {
+      return;
+    }
+    requestClose();
   };
 
   return (
@@ -127,6 +133,7 @@ export function CreateTaskDialog({
               setCreateAnother={setCreateAnother}
               submitter={submitter}
               heading={heading}
+              pickerAdapter={pickerAdapter}
             />
           ) : (
             <CreateTaskAgentPanel
@@ -138,6 +145,7 @@ export function CreateTaskDialog({
               setIsExpanded={setIsExpanded}
               createAnother={createAnother}
               setCreateAnother={setCreateAnother}
+              cancelReadingRef={cancelAgentReadingRef}
             />
           )}
         </DialogContent>

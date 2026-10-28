@@ -21,6 +21,12 @@ export interface RuntimeConfig {
   chatScopeSubscriptionLimit: number;
   /** `client_platform` the WebSocket handshake reports: "web", or "desktop" inside the UniChat shell. */
   clientPlatform: string;
+  /**
+   * Non-production opt-in that permits `window.__UNIWORK_FAKE_DRIVE_PICKER__`
+   * to replace the real Google Picker in E2E / dev. Defaults to false and
+   * stays false in production builds.
+   */
+  allowFakeDrivePicker: boolean;
 }
 
 const DEFAULTS: RuntimeConfig = {
@@ -29,6 +35,7 @@ const DEFAULTS: RuntimeConfig = {
   appUrl: "http://localhost:3000",
   chatScopeSubscriptionLimit: 25,
   clientPlatform: "web",
+  allowFakeDrivePicker: false,
 };
 
 let current: RuntimeConfig = { ...DEFAULTS };
