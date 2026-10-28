@@ -80,9 +80,11 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   (`data/auth/pending-sign-in.test.ts`); màn hình không import hàm đọc/giữ bí mật của `pending-sign-in` và
   `step-up-store` (`eslint.config.mjs`, `lib/lint-quality.test.ts`). Mỗi sheet Apple/Google một nonce mới: SDK nhận
   SHA-256, server nhận nonce gốc (`data/auth/sign-in.test.ts`). Google chỉ qua module riêng
-  `modules/unichat-google-sign-in` (bọc ở
-  `data/auth/google.ts`; gói npm không có nonce), không Play services hay client id thì qua trình duyệt. Flow Maestro tìm
-  màn đăng nhập theo testID và chữ nó thật sự vẽ (`test/routes/sign-in-flows.test.tsx`).
+  `modules/unichat-google-sign-in` (bọc ở `data/auth/google.ts`; gói npm không có nonce), không Play services hay client
+  id thì qua trình duyệt; sheet của Apple/Google lỗi thì thành `ProviderSheetError`, chỉ báo Sentry khi bản build sai
+  (`lib/provider-sheet-error.ts`). Flow Maestro tìm màn đăng nhập theo testID và chữ nó thật sự vẽ
+  (`test/routes/sign-in-flows.test.tsx`). Lệnh mang mật khẩu, mã hay token step-up khai `secret` (`data/mutations/command.ts`):
+  không còn trong MutationCache khi xong.
 - Mọi lệnh cần "xác nhận là bạn" (đặt/đổi mật khẩu, liên kết/gỡ liên kết, xoá tài khoản, chuyển quyền, liên kết vé)
   đi qua `components/settings/use-step-up.ts` (`run(action, command)`): token chỉ trong bộ nhớ
   (`data/auth/step-up-store.ts`), bằng chứng hỏi trước khi mở sheet của Apple/Google, lệnh ở `data/mutations` bọc
