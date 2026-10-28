@@ -128,6 +128,21 @@ describe("useCountdown", () => {
     const { result } = await renderHook(() => useCountdown(null));
     expect(result.current).toBe(0);
   });
+
+  it("counts a deadline that arrives late from the moment it arrives, from its first frame", async () => {
+    jest.useFakeTimers({ now: 1_000_000 });
+    const seen: number[] = [];
+    const { rerender } = await renderHook<void, { deadline: number | null }>(({ deadline }) => void seen.push(useCountdown(deadline)), {
+      initialProps: { deadline: null },
+    });
+    // The screen stayed open ten minutes, then a 429 asked for a minute.
+    jest.setSystemTime(1_600_000);
+    await rerender({ deadline: 1_660_000 });
+    expect(seen.slice(1)).not.toContain(660);
+    expect(seen.at(-1)).toBe(60);
+    await act(async () => jest.advanceTimersByTime(1_000));
+    expect(seen.at(-1)).toBe(59);
+  });
 });
 
 describe("useStepBack", () => {
