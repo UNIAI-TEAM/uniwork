@@ -207,7 +207,8 @@ export function MeetingStageToasts({
       aria-label={shown.length > 0 ? t("meetings.motion.room.notices") : undefined}
       data-testid="meeting-stage-toasts"
       data-open={open ? "" : undefined}
-      className={cn("absolute z-30 w-67 max-w-[calc(100%-2rem)]", className)}
+      // 312px: a knock card holds "<name> xin vào", its × and "Cho vào" on one line.
+      className={cn("absolute z-30 w-78 max-w-[calc(100%-2rem)]", className)}
       style={{ ...style, height: shown[0] ? heights[shown[0].id] : undefined }}
       onPointerEnter={() => hold(true)}
       onPointerLeave={() => hold(false)}
