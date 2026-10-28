@@ -108,6 +108,8 @@ describe("ContinueLinkStep", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
     const question = await screen.findByRole("group", { name: "Chuyển Google sang tài khoản này?" });
     expect(question).toHaveFocus();
+    // One question on screen: the line under the title says which account "this account" is.
+    expect(screen.getByRole("status")).toHaveTextContent("Bạn đang đăng nhập an@company.vn.");
     expect(question).toHaveTextContent("Tài khoản Google này đang được dùng cho tài khoản trống a•••@gmail.com.");
     // The heading asks; the sentence under it only says what is true.
     expect(question.textContent?.match(/sang tài khoản này\?/g)).toHaveLength(1);
@@ -125,12 +127,17 @@ describe("ContinueLinkStep", () => {
       "POST /api/v1/auth/sign-in-ticket/link": refusal("sign_in_method_taken", 409, { masked_email: "b•••@acme.vn" }),
     });
     open();
-    fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
+    const press = await screen.findByRole("button", { name: "Liên kết" });
+    press.focus();
+    fireEvent.click(press);
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Tài khoản Google này đang được dùng cho b•••@acme.vn. Đăng nhập vào đó và gỡ liên kết trước.",
     );
     expect(screen.queryByRole("button", { name: "Liên kết" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Tiếp tục" })).toBeInTheDocument();
+    // The button pressed is gone: focus is on what is left, not on <body>,
+    // and the question it would have answered is no longer asked.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tiếp tục" })).toHaveFocus());
+    expect(screen.getByRole("status")).toHaveTextContent("Chưa liên kết Google với an@company.vn.");
   });
 
   it("asks an older session to confirm it is the person, then links", async () => {
@@ -178,8 +185,11 @@ describe("ContinueLinkStep", () => {
       "POST /api/v1/auth/sign-in-ticket/link": refusal("invalid_token", 400),
     });
     open();
-    fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
+    const press = await screen.findByRole("button", { name: "Liên kết" });
+    press.focus();
+    fireEvent.click(press);
     await screen.findByRole("alert");
+    await waitFor(() => expect(screen.getByRole("link", { name: "Đăng nhập để liên kết" })).toHaveFocus());
     expect(screen.getByRole("link", { name: "Đăng nhập để liên kết" })).toHaveAttribute(
       "href",
       `/login?next=${encodeURIComponent(LINK_STEP)}&link=1`,

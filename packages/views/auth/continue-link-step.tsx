@@ -53,6 +53,8 @@ export function ContinueLinkStep({
   const [masked, setMasked] = useState<string | null>(null);
   const moveRef = useRef<HTMLDivElement>(null);
   const continueRef = useRef<HTMLButtonElement>(null);
+  const leaveRef = useRef<HTMLButtonElement>(null);
+  const signInRef = useRef<HTMLAnchorElement>(null);
   const provider = useProviderName(ticket.provider);
   const shown = identityAddress(ticket);
   const phrase = useWaitPhrase(failure, () => setFailure(null));
@@ -110,12 +112,36 @@ export function ContinueLinkStep({
   // An ended session signs in again; a refused proof is asked again by pressing "Liên kết".
   const relinkByLogin = failure?.kind === "session";
 
+  // Those two failures take away the button just pressed ("Liên kết",
+  // "Chuyển sang đây"), and focus would drop to <body>: it goes to what is
+  // left to press instead, while the alert says why. Only when it was lost:
+  // a person who moved on during the wait keeps their place.
+  useEffect(() => {
+    const lost = document.activeElement === null || document.activeElement === document.body;
+    if (!failure || !lost) return;
+    if (relinkByLogin) signInRef.current?.focus();
+    else if (finalFailure) leaveRef.current?.focus();
+  }, [failure, finalFailure, relinkByLogin]);
+
+  // The line under the title says where things stand: the question while
+  // "Liên kết" can answer it; in the move, whose own heading asks, which
+  // account "this account" is; past a failure nothing can fix here, that
+  // nothing was linked.
+  const status =
+    phase === "done"
+      ? t("auth.continue.link.done", { provider })
+      : phase === "move"
+        ? t("auth.continue.link.signedInAs", { accountEmail })
+        : finalFailure
+          ? t("auth.continue.link.notLinked", { provider, accountEmail })
+          : question;
+
   return (
     <AuthShell
       title={t("auth.continue.link.title", { provider })}
       // A live region from the start, so the question turning into "linked"
       // is announced; the question itself is read with the page.
-      description={<span role="status">{phase === "done" ? t("auth.continue.link.done", { provider }) : question}</span>}
+      description={<span role="status">{status}</span>}
     >
       <div className="flex flex-col gap-6">
         <IdentityBlock identity={ticket} linked={phase === "done"} />
@@ -152,7 +178,7 @@ export function ContinueLinkStep({
           ) : (
             <>
               {relinkByLogin ? (
-                <AppLink href={signInToLink} className={PILL_LINK}>
+                <AppLink ref={signInRef} href={signInToLink} className={PILL_LINK}>
                   {t("auth.continue.linkRequired.action")}
                 </AppLink>
               ) : finalFailure ? null : (
@@ -171,6 +197,7 @@ export function ContinueLinkStep({
                 </Button>
               )}
               <Button
+                ref={leaveRef}
                 type="button"
                 variant={finalFailure ? "default" : "outline"}
                 size="lg"
