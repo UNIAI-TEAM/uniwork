@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { prefetchEmailHubThread } from "@uniwork/core/email-hub/hooks";
 
-const EMAIL_HUB_LIST_PREFETCH_TOP = 5;
-const EMAIL_HUB_HOVER_PREFETCH_MS = 50;
+const EMAIL_HUB_LIST_PREFETCH_TOP = 2;
+const EMAIL_HUB_HOVER_PREFETCH_MS = 250;
 
 /**
  * Warms thread bodies before they are opened: the first few rows and the

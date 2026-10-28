@@ -99,19 +99,16 @@ export function useEmailHubThreadActions({
   const move = useCallback(
     (threadId: string, moveTo: EmailHubMoveTarget) => {
       if (!accountId) return;
-      moveThread
-        .mutateAsync({ accountId, threadId, moveTo })
-        .then(() => {
-          closeIfOpen(threadId);
-          const done = MOVE_DONE[moveTo];
-          toast.success(t(done.key), {
-            action:
-              moveTo === "INBOX"
-                ? undefined
-                : { label: t("email_hub.moved.open_folder"), onClick: () => setFolder(done.folder) },
-          });
-        })
-        .catch(fail);
+      // Optimistic cache already removed the row; close the reader immediately.
+      closeIfOpen(threadId);
+      const done = MOVE_DONE[moveTo];
+      toast.success(t(done.key), {
+        action:
+          moveTo === "INBOX"
+            ? undefined
+            : { label: t("email_hub.moved.open_folder"), onClick: () => setFolder(done.folder) },
+      });
+      moveThread.mutateAsync({ accountId, threadId, moveTo }).catch(fail);
     },
     [accountId, closeIfOpen, fail, moveThread, setFolder, t],
   );
@@ -139,13 +136,11 @@ export function useEmailHubThreadActions({
     (when: Date) => {
       if (!accountId || !selectedId) return;
       const threadId = selectedId;
+      setSnoozeDialogOpen(false);
+      closeIfOpen(threadId);
+      toast.success(t("email_hub.snooze.done"));
       snoozeThread
         .mutateAsync({ accountId, threadId, snoozeUntil: emailHubSnoozeToRFC3339(when) })
-        .then(() => {
-          setSnoozeDialogOpen(false);
-          closeIfOpen(threadId);
-          toast.success(t("email_hub.snooze.done"));
-        })
         .catch(fail);
     },
     [accountId, closeIfOpen, fail, selectedId, snoozeThread, t],
