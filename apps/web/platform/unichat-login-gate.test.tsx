@@ -9,7 +9,10 @@ import { UniChatLoginGate } from "./unichat-login-gate";
 const push = vi.fn();
 const replace = vi.fn();
 vi.mock("@uniwork/views/navigation", () => ({ useNavigation: () => ({ push, replace, searchParams: new URLSearchParams() }) }));
-vi.mock("@uniwork/views/auth/post-auth-redirect", () => ({ useLoggedInDestination: () => async () => "/workspaces" }));
+vi.mock("@uniwork/views/auth/post-auth-redirect", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/views/auth/post-auth-redirect")>()),
+  useLoggedInDestination: () => async () => "/workspaces",
+}));
 vi.mock("@uniwork/views/auth/login-view", () => ({ LoginView: () => <form data-testid="login-form" /> }));
 vi.mock("@uniwork/core", () => ({ api: { workspaces: { list: vi.fn(async () => []) } } }));
 
