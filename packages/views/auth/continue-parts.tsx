@@ -139,7 +139,11 @@ export function ChoiceRow({
     <>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="text-body font-medium text-foreground">{title}</span>
-        <span className="text-pretty text-caption text-muted-foreground">{busy && busyBody ? busyBody : body}</span>
+        {/* A line can carry the provider's address ("Dùng <email> để…"),
+            which has no break opportunity: it wraps inside the row. */}
+        <span className="text-pretty text-caption text-muted-foreground [overflow-wrap:anywhere]">
+          {busy && busyBody ? busyBody : body}
+        </span>
       </span>
       {busy ? (
         <Spinner className="shrink-0 text-muted-foreground" />

@@ -89,6 +89,31 @@ export async function expectReadable(page: Page, what: string): Promise<void> {
 }
 
 /**
+ * Text that runs out of its own box, as "text (px past)": an address with no
+ * break opportunity in a block that does not wrap it. A spill inside the
+ * gutters scrolls nothing, so sidewaysOverflow() alone cannot see it; it
+ * still crosses a row's border and the card's edge. Clipped boxes (an
+ * ellipsis) are left out.
+ */
+export async function spilledText(page: Page): Promise<string[]> {
+  return page.locator("main").evaluate((main) => {
+    const spills: string[] = [];
+    const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = node.textContent?.trim();
+      let box = node.parentElement;
+      while (box && getComputedStyle(box).display.startsWith("inline")) box = box.parentElement;
+      if (!text || !box || getComputedStyle(box).overflowX !== "visible") continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const past = range.getBoundingClientRect().right - box.getBoundingClientRect().right;
+      if (past > 1) spills.push(`${text.slice(0, 40)} (${Math.round(past)}px)`);
+    }
+    return spills;
+  });
+}
+
+/**
  * How far the page scrolls sideways, in px; 0 when nothing does. The auth
  * column is its own scroller (`main`, overflow-y-auto, which scrolls in x
  * too), so a too-wide child shows there and not on the document.

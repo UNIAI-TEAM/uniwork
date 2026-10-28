@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { settle } from "./contrast";
-import { expectReadable, pendingSignIn, risen, setMode, sidewaysOverflow, type PendingSignIn } from "./sign-in-page";
+import { expectReadable, pendingSignIn, risen, setMode, sidewaysOverflow, spilledText, type PendingSignIn } from "./sign-in-page";
 
 /**
  * The choice screen a Google or Apple sign-in that found no account lands on
@@ -136,6 +136,7 @@ test.describe("on a phone", () => {
     test(`fits the screen with full touch targets — ${state.name}`, async ({ page }) => {
       await open(page, state);
       expect(await sidewaysOverflow(page), `${state.name}: the page scrolls sideways`).toBe(0);
+      expect(await spilledText(page), `${state.name}: text runs out of its box`).toEqual([]);
 
       const actions = state.actions(page);
       for (const action of actions) await expect(action).toBeVisible();
