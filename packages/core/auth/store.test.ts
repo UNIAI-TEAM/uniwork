@@ -84,7 +84,7 @@ describe("auth store", () => {
   });
 
   it("logout forgets the address a link-mode reset was asked for", async () => {
-    rememberLinkReset("an@company.vn");
+    await rememberLinkReset("an@company.vn");
     useAuthStore.getState().setUser(user);
     await useAuthStore.getState().logout();
     expect(linkResetIntent()).toBeNull();
