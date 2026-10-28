@@ -2,10 +2,10 @@
 // password the system offers to generate and save (newPassword, the server's rules as passwordRules). Each field
 // the form can judge is said under it and focused first; an address that already has an account is said there too.
 // Signed in, the entry sends the account to prove its address (app/(app)/verify-email.tsx).
+import { PASSWORD_MIN, displayNameError, emailError, passwordError, type FieldProblem } from "@uniwork/core/auth/sign-in-form";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TextInput, View } from "react-native";
-import { PASSWORD_MIN, displayNameError, emailError, passwordError, type FieldProblem } from "@uniwork/core/auth/sign-in-form";
 import { AuthField, PasswordField } from "./auth-field";
 import { FormAlert, SubmitButton } from "./auth-layout";
 import type { SignInResult } from "./use-sign-in";

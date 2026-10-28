@@ -2,6 +2,7 @@
 // then the six-digit code mailed there, which signs in to that address's account (linking the Google or Apple
 // identity), takes back an account that never proved it, or opens one. The code can be asked again after a minute;
 // a code asked too often waits for the server's retry_after. The ticket and its nonce never leave memory.
+import { CODE_LENGTH, emailError } from "@uniwork/core/auth/sign-in-form";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TextInput, View } from "react-native";
@@ -9,7 +10,6 @@ import { useAnnounce } from "@/components/ui/a11y";
 import { Text } from "@/components/ui/text";
 import { useSendClaimCode } from "@/data/mutations/sign-in";
 import { signInFailureOf } from "@/lib/sign-in-failure";
-import { CODE_LENGTH, emailError } from "@uniwork/core/auth/sign-in-form";
 import { AuthField } from "./auth-field";
 import { AuthHeading, SubmitButton, TextButton } from "./auth-layout";
 import { CodeField } from "./code-field";

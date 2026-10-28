@@ -4,13 +4,13 @@
 // counts down (429 second_factor_locked, retry_after). A challenge that is gone (expired, the app restarted) says so,
 // with the way back to sign-in, as soon as its five minutes pass: a lock may count down longer than that, and a code
 // typed after it could not be sent. Leaving the screen any way (the back button, iOS's edge swipe) drops the challenge.
+import { CODE_LENGTH } from "@uniwork/core/auth/sign-in-form";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TextInput, View } from "react-native";
 import { clearSecondFactor, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { useAuthStore } from "@/data/auth/store";
-import { CODE_LENGTH } from "@uniwork/core/auth/sign-in-form";
 import { signInRoutes } from "@/lib/sign-in-routes";
 import { AuthField } from "./auth-field";
 import { AuthHeading, SubmitButton, TextButton } from "./auth-layout";

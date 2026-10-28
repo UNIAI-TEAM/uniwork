@@ -6,12 +6,12 @@
 // editable and takes no typing, so it keeps its focus and the keyboard and a refused code can be typed again at once
 // (a disabled native input drops the keyboard and cannot be focused before React commits the answer). A lock counting
 // down (`disabled`) takes the field away until it lifts.
+import { CODE_LENGTH, codeDigits } from "@uniwork/core/auth/sign-in-form";
 import { useState, type Ref } from "react";
 import { StyleSheet, TextInput, View } from "react-native";
 import { FieldNote } from "./auth-field";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
-import { CODE_LENGTH, codeDigits } from "@uniwork/core/auth/sign-in-form";
 import { THEME } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 

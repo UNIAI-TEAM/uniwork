@@ -6,6 +6,7 @@
 // (data/auth/pending-sign-in.ts); a choice that is gone, expired or never held after a restart says so, and its
 // "Thử lại" has the sign-in screen offer that provider again. Leaving the screen without signing in drops the
 // choice, as "Hủy" does.
+import { displayNameError } from "@uniwork/core/auth/sign-in-form";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,7 +15,6 @@ import { SignInLegalNote } from "@/components/settings/sign-in-legal-note";
 import { Text } from "@/components/ui/text";
 import { clearChoice, retryOnSignIn, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { useAuthStore } from "@/data/auth/store";
-import { displayNameError } from "@uniwork/core/auth/sign-in-form";
 import { signInRoutes } from "@/lib/sign-in-routes";
 import { AuthField } from "./auth-field";
 import { AuthHeading, AuthLayout, FormAlert, SubmitButton, TextButton } from "./auth-layout";

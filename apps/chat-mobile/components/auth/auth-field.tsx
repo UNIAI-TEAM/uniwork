@@ -8,6 +8,7 @@
 // moves on and Go submits with the keyboard still up, so a refusal does not drop the keyboard and raise it again. The
 // password field adds show/hide, a full 44 pt target inside the field.
 import { Ionicons } from "@expo/vector-icons";
+import { PASSWORD_MIN } from "@uniwork/core/auth/sign-in-form";
 import { useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, Pressable, TextInput, View, type TextInputProps } from "react-native";
@@ -17,7 +18,6 @@ import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { minTouchTarget } from "@/lib/platform-ui";
-import { PASSWORD_MIN } from "@uniwork/core/auth/sign-in-form";
 import { THEME } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 

@@ -3,6 +3,7 @@
 // arrives or a recovery code, a six-digit code mailed for this one action (sent on request, sent again after a
 // minute), and Apple's or Google's own sheet for the account linked here. Each says its refusal under its field.
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { CODE_LENGTH } from "@uniwork/core/auth/sign-in-form";
 import { useEffect, useRef, useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, type TextInput, View } from "react-native";
@@ -13,7 +14,6 @@ import { CodeField } from "@/components/auth/code-field";
 import { ProviderButton } from "@/components/auth/provider-buttons";
 import { useCountdown } from "@/components/auth/use-countdown";
 import { Text } from "@/components/ui/text";
-import { CODE_LENGTH } from "@uniwork/core/auth/sign-in-form";
 
 /** The brands' own words on their buttons (Google's branding allows "Continue with Google"); the sheet says why. */
 const CONTINUE_WITH: Record<SignInProvider, string> = {

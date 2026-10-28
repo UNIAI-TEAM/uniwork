@@ -10,6 +10,7 @@
 // front says what happened without moving anyone.
 import { useQuery } from "@tanstack/react-query";
 import { readSignInFailure, sentenceValues, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import { PASSWORD_MIN } from "@uniwork/core/auth/sign-in-form";
 import * as Clipboard from "expo-clipboard";
 import { router, useNavigation } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -28,7 +29,6 @@ import { useSetPassword } from "@/data/mutations/sign-in-methods";
 import { signInMethodsOptions } from "@/data/queries/sign-in";
 import { toast } from "@/data/stores/toast-store";
 import { isAppleRelayAddress } from "@/lib/apple-relay";
-import { PASSWORD_MIN } from "@uniwork/core/auth/sign-in-form";
 import { confirmsWithSecondFactor } from "@/lib/sign-in-methods";
 import { useStepUp } from "./use-step-up";
 
