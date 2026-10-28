@@ -83,7 +83,14 @@ func (f *fakeAppleWeb) revokedNow() []string {
 // with its own verifier; native false leaves the app's door closed.
 func newAppleWebTestServer(t *testing.T, native bool) (*httptest.Server, *fakeAppleWeb) {
 	t.Helper()
-	d, pool := newTestDeps(t, nil, discardOutbox{})
+	return newAppleWebTestServerWithGoogle(t, native, nil)
+}
+
+// newAppleWebTestServerWithGoogle is newAppleWebTestServer with Google on the
+// web beside Apple; nil leaves Google off.
+func newAppleWebTestServerWithGoogle(t *testing.T, native bool, google GoogleExchanger) (*httptest.Server, *fakeAppleWeb) {
+	t.Helper()
+	d, pool := newTestDeps(t, google, discardOutbox{})
 	q := db.New(pool)
 	cfg := config.Config{JWTSecret: "test", DesktopAuthClients: []config.DesktopAuthClient{{ID: "uniwork-chat-mobile", RedirectURIs: []string{"uniworkchat://auth/callback"}}}, DesktopAuthDeploymentIDs: []string{"default"}, RefreshTokenTTL: time.Hour}
 	desktop := service.NewDesktopAuthService(pool, q, d.Minter, cfg)
@@ -414,6 +421,39 @@ func TestAppleWebFinishSignsInThroughTheSharedFinish(t *testing.T) {
 	revoked := fake.revokedNow()
 	if len(revoked) != 1 || !strings.HasPrefix(revoked[0], testServicesID+" refresh-for-code-web-conflict-") {
 		t.Fatalf("the refused sign-in's consent goes back to Apple for the Services ID: %v", revoked)
+	}
+}
+
+// Link mode across providers (spec §3.4, §4.4): a Google sign-in waits to be
+// linked, the person takes Apple to reach the account it joins, and the Apple
+// ID opens no account either. The waiting ticket stays as it was, /login says
+// apple_no_account with next kept, nothing is created, and the consent Apple
+// gave for the sign-in that was given up goes back to Apple.
+func TestLinkModeKeepsTheWaitingTicketWhenAppleMatchesNothing(t *testing.T) {
+	g := &fakeGoogle{}
+	srv, fake := newAppleWebTestServerWithGoogle(t, false, g)
+	_, waiting := googleTicketCookie(t, srv, g, auth.GoogleClaims{Sub: "g-waits-apple", Email: "waits.apple@gmail.com", EmailVerified: true}, "")
+	next := "/auth/continue?" + url.Values{"step": {"link"}, "next": {"/acme"}}.Encode()
+
+	result := wantFinish(t, appleRoundTrip(t, srv, fake, url.Values{"next": {next}}.Encode(), "web-nobody", "nobody@icloud.com"))
+	res := getWith(t, srv, appleFinishPath, result, waiting)
+	want := "http://localhost:3000/login?" + url.Values{"error": {"apple_no_account"}, "next": {next}}.Encode()
+	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != want {
+		t.Fatalf("link mode, Apple matched nothing: %d %q", res.StatusCode, res.Header.Get("Location"))
+	}
+	wantCleared(t, res, appleResultCookie)
+	if cookieNamed(res, signInTicketCookie) != nil || cookieNamed(res, refreshCookie) != nil {
+		t.Fatalf("the waiting ticket is neither replaced nor dropped, and no session opens: %+v", res.Cookies())
+	}
+	if revoked := fake.revokedNow(); len(revoked) != 1 || !strings.HasPrefix(revoked[0], testServicesID+" refresh-for-code-web-nobody-") {
+		t.Fatalf("the given-up sign-in's consent goes back to Apple: %v", revoked)
+	}
+	if n := countUsersWithApple(t, "web-nobody"); n != 0 {
+		t.Fatalf("%d accounts for an Apple ID that matched nothing", n)
+	}
+	res, out := ticketRequest(t, srv, http.MethodGet, "/api/v1/auth/sign-in-ticket", "", []*http.Cookie{waiting}, nil)
+	if res.StatusCode != http.StatusOK || out["provider"] != "google" || out["email"] != "waits.apple@gmail.com" {
+		t.Fatalf("the waiting sign-in: %d %v", res.StatusCode, out)
 	}
 }
 

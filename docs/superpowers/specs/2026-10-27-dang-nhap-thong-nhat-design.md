@@ -310,11 +310,16 @@ Code redirect của cả hai luồng sống trong `handler/web_sign_in.go` (help
 | `intent=link` | `SignInMethodsService.LinkFromBrowser(uid, sid, identity, liveSessionCookie)` — kiểm lại phiên `sid` còn sống **và** cookie refresh hiện tại thuộc đúng phiên đó → `303 <return_to>` + `sign_in_method=<p>&result=linked\|<mã>` |
 | phiên thường | cookie refresh → `/auth/callback?next=` (+ `reclaimed=1` khi có) |
 | cần MFA | cookie `uniwork_mfa` (token có `pl` khi chờ liên kết) → `/login?mfa=1&next=` |
-| `unmatched`/`link_required` | cookie vé → `/auth/continue?next=` |
+| `unmatched`/`link_required` | cookie vé → `/auth/continue?next=`; ⚑ chế độ liên kết (`next` là bước liên kết, `keepsSignInTicket`) mà cookie còn một vé sống: vé đang chờ giữ nguyên (không `Set-Cookie`), vé mới bỏ (`Discard`: đồng ý Apple trả lại Apple) → `/login?error=<google\|apple>_no_account&next=` (`keepWaitingTicket`) |
 | lỗi | `/login?error=<mã>&next=` (sửa: không làm rơi `next`) |
 
 Mã lỗi trên `/login`: `google_denied`, `google_failed`, `google_unverified`, `apple_denied`, `apple_failed`,
-`sign_in_conflict`, `sign_in_unverified`, `sign_in_account_unverified`, `sign_in_failed`. Mã `result` của Cài đặt:
+`sign_in_conflict`, `sign_in_unverified`, `sign_in_account_unverified`, `sign_in_failed`, `google_no_account`,
+`apple_no_account` (chỉ ở chế độ liên kết, xem bảng; bảng mã của web là `LOGIN_REDIRECT_ERRORS`). Chỉ cookie vé của
+chính trình duyệt và danh tính mà trình duyệt đó vừa chứng minh ở nhà cung cấp (state, PKCE, nonce gắn cookie của nó)
+đi vào nhánh này, nên trang khác không đẩy được danh tính của mình vào để thay hay xoá vé đang chờ; nhánh chỉ bỏ vé
+mới. `TestLinkModeKeepsTheWaitingTicketWhenTheOtherWayMatchesNothing`,
+`TestLinkModeKeepsTheWaitingTicketWhenAppleMatchesNothing`. Mã `result` của Cài đặt:
 `linked`, `denied`, `failed`, `taken`, `movable`, `already_linked`, `session_mismatch`.
 
 **Bắt đầu liên kết từ trình duyệt** (`intent=link`): `link_token` (blob `link_token`, 5 phút,

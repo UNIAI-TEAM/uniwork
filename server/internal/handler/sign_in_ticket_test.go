@@ -271,47 +271,73 @@ func TestSignInTicketLinkOverHTTP(t *testing.T) {
 	}
 }
 
-// Link mode (/login?link=1, next the link step, spec §4.4): the person takes
-// the other provider to reach the account a waiting sign-in joins. One that
-// finds no account either never replaces the sign-in it came to link: that
-// ticket stays as it was, the new one is given up, and /login says this way
-// matched nothing, next kept. Without a waiting ticket the same round trip is
-// any unmatched one.
+// Link mode (/login?link=1, next the link step, spec §3.4, §4.4): the person
+// takes the other provider to reach the account a waiting sign-in joins. One
+// that finds no account to sign in to either — no account has it, or one
+// holds its address that it may not join by itself — never replaces the
+// sign-in it came to link: that ticket stays as it was (no Set-Cookie for
+// it), the new one is given up, and /login says this way matched nothing,
+// next kept. A cookie that is no live ticket waits for nothing, and outside
+// link mode a new sign-in is a new choice: either way the new ticket is set.
 func TestLinkModeKeepsTheWaitingTicketWhenTheOtherWayMatchesNothing(t *testing.T) {
 	g := &fakeGoogle{}
 	srv := newTestServerWithGoogle(t, g)
 	_, waiting := googleTicketCookie(t, srv, g, auth.GoogleClaims{Sub: "g-waits", Email: "waits@gmail.com", EmailVerified: true}, "")
 	next := "/auth/continue?" + url.Values{"step": {"link"}, "next": {"/acme"}}.Encode()
+	callback := func(claims auth.GoogleClaims, next string, cookies ...*http.Cookie) *http.Response {
+		t.Helper()
+		g.set(claims)
+		state, st := googleStart(t, srv, next)
+		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/auth/google/callback?code=good&state="+st.State, nil)
+		for _, c := range append([]*http.Cookie{state}, cookies...) {
+			if c != nil {
+				req.AddCookie(c)
+			}
+		}
+		res, err := noRedirectClient(srv).Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	nobody := auth.GoogleClaims{Sub: "g-nobody", Email: "nobody@gmail.com", EmailVerified: true}
+	filesRegister(t, srv, "held@company.vn")
+	for kind, claims := range map[string]auth.GoogleClaims{
+		"unmatched":     nobody,
+		"link_required": {Sub: "g-held", Email: "held@company.vn", EmailVerified: true},
+	} {
+		res := callback(claims, next, waiting)
+		want := "http://localhost:3000/login?" + url.Values{"error": {"google_no_account"}, "next": {next}}.Encode()
+		if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != want {
+			t.Fatalf("link mode, %s: %d %q", kind, res.StatusCode, res.Header.Get("Location"))
+		}
+		if c := cookieNamed(res, signInTicketCookie); c != nil || cookieNamed(res, refreshCookie) != nil {
+			t.Fatalf("link mode, %s: the waiting ticket is neither replaced nor dropped, and no session opens: %+v", kind, res.Cookies())
+		}
+		res, out := ticketRequest(t, srv, http.MethodGet, "/api/v1/auth/sign-in-ticket", "", []*http.Cookie{waiting}, nil)
+		if res.StatusCode != http.StatusOK || out["email"] != "waits@gmail.com" {
+			t.Fatalf("link mode, %s: the waiting sign-in: %d %v", kind, res.StatusCode, out)
+		}
+	}
 
-	g.set(auth.GoogleClaims{Sub: "g-nobody", Email: "nobody@gmail.com", EmailVerified: true})
-	cookie, st := googleStart(t, srv, next)
-	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/auth/google/callback?code=good&state="+st.State, nil)
-	req.AddCookie(cookie)
-	req.AddCookie(waiting)
-	res, err := noRedirectClient(srv).Do(req)
-	if err != nil {
-		t.Fatal(err)
+	choice := func(next string) string {
+		return "http://localhost:3000/auth/continue?" + url.Values{"next": {next}}.Encode()
 	}
-	want := "http://localhost:3000/login?" + url.Values{"error": {"google_no_account"}, "next": {next}}.Encode()
-	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != want {
-		t.Fatalf("link mode, nothing matched: %d %q", res.StatusCode, res.Header.Get("Location"))
-	}
-	if c := cookieNamed(res, signInTicketCookie); c != nil || cookieNamed(res, refreshCookie) != nil {
-		t.Fatalf("the waiting ticket is neither replaced nor dropped, and no session opens: %+v", res.Cookies())
-	}
-	res, out := ticketRequest(t, srv, http.MethodGet, "/api/v1/auth/sign-in-ticket", "", []*http.Cookie{waiting}, nil)
-	if res.StatusCode != http.StatusOK || out["email"] != "waits@gmail.com" {
-		t.Fatalf("the waiting sign-in: %d %v", res.StatusCode, out)
-	}
-
-	cookie, st = googleStart(t, srv, next)
-	res = googleCallback(t, srv, "code=good&state="+st.State, cookie)
-	choice := "http://localhost:3000/auth/continue?" + url.Values{"next": {next}}.Encode()
-	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != choice {
-		t.Fatalf("nothing waiting: %d %q", res.StatusCode, res.Header.Get("Location"))
-	}
-	if c := cookieNamed(res, signInTicketCookie); c == nil || c.Value == "" {
-		t.Fatalf("nothing waiting, the new ticket is set: %+v", c)
+	for why, tc := range map[string]struct {
+		next   string
+		cookie *http.Cookie
+	}{
+		"nothing waiting":      {next, nil},
+		"no live ticket waits": {next, &http.Cookie{Name: signInTicketCookie, Value: "forged"}},
+		"not link mode":        {"/acme", waiting},
+	} {
+		res := callback(nobody, tc.next, tc.cookie)
+		if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != choice(tc.next) {
+			t.Fatalf("%s: %d %q", why, res.StatusCode, res.Header.Get("Location"))
+		}
+		if c := cookieNamed(res, signInTicketCookie); c == nil || c.Value == "" || c.Value == waiting.Value {
+			t.Fatalf("%s: the new ticket is set: %+v", why, c)
+		}
 	}
 }
 
