@@ -321,6 +321,30 @@ describe("SignInMethodsSection", () => {
     expect(calls("POST /api/v1/me/sign-in-methods/apple/link")[1]![1]).toMatchObject({ body: { step_up_token: "sut-123456" } });
   });
 
+  it("says the failure when the server refuses the fresh proof too, and asks no third time", async () => {
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "POST /api/v1/me/step-up": GRANT,
+      "POST /api/v1/me/sign-in-methods/apple/link": refusal("proof_required", 403, { proofs: ["password"] }),
+    });
+    const nav = open();
+    fireEvent.click(await screen.findByRole("button", { name: "Liên kết Apple" }));
+    for (let i = 0; i < 2; i += 1) {
+      const dialog = await proofDialog();
+      fireEvent.change(dialog.getByLabelText("Mật khẩu hiện tại"), { target: { value: "password123" } });
+      fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
+      await waitFor(() => expect(calls("POST /api/v1/me/sign-in-methods/apple/link")).toHaveLength(i + 1));
+    }
+    // One retry after a refused proof, then the refusal is said: no loop of dialogs.
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(calls("POST /api/v1/me/step-up")).toHaveLength(2);
+    expect(calls("POST /api/v1/me/sign-in-methods/apple/link")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Liên kết Apple" })).not.toHaveAttribute("aria-busy");
+    expect(nav.openExternal).not.toHaveBeenCalled();
+  });
+
   /** Through the proof dialog with the password, to the unlink confirmation. */
   async function proveThenAskUnlink() {
     fireEvent.click(await screen.findByRole("button", { name: "Gỡ liên kết Google" }));
