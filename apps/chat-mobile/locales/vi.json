@@ -56,10 +56,13 @@
     "social": {
       "continueWithGoogle": "Tiếp tục với Google",
       "continueWithApple": "Tiếp tục với Apple",
+      "continueWithEmail": "Tiếp tục với email",
       "divider": "hoặc dùng email",
+      "or": "hoặc",
+      "browserOpened": "Trình duyệt đã mở trang đăng nhập {{provider}}",
       "groupLabel": "Đăng nhập bằng Google hoặc Apple",
       "signingIn": "Đang đăng nhập…",
-      "reclaimed": "Đã lấy lại tài khoản. Mật khẩu cũ (đặt khi email chưa xác minh) đã bị xóa.",
+      "reclaimed": "Đã lấy lại tài khoản. Mật khẩu cũ, đặt khi email chưa được xác minh, đã bị xóa.",
       "provider": {
         "google": "Google",
         "apple": "Apple"
@@ -73,7 +76,9 @@
         "seconds_one": "Thử lại sau {{count}} giây.",
         "seconds_other": "Thử lại sau {{count}} giây.",
         "minutes_one": "Thử lại sau {{count}} phút.",
-        "minutes_other": "Thử lại sau {{count}} phút."
+        "minutes_other": "Thử lại sau {{count}} phút.",
+        "hours_one": "Thử lại sau {{count}} giờ.",
+        "hours_other": "Thử lại sau {{count}} giờ."
       },
       "errors": {
         "generic": "Chưa đăng nhập được. Thử lại.",
@@ -87,21 +92,24 @@
         "provider_token_invalid": "Chưa xác nhận được tài khoản vừa chọn. Thử lại.",
         "provider_unavailable": "Cách đăng nhập này đang tạm tắt. Dùng cách khác.",
         "native_unavailable": "Đăng nhập trong app đang tạm tắt. Đăng nhập bằng trình duyệt.",
-        "email_taken": "Email này đã có tài khoản. Đăng nhập, hoặc chọn \"Quên mật khẩu?\".",
-        "register_invalid": "Kiểm tra lại email. Mật khẩu cần ít nhất 8 ký tự.",
+        "email_taken": "Email này đã có tài khoản. Đăng nhập, hoặc đặt lại mật khẩu nếu bạn quên.",
+        "register_invalid": "Kiểm tra lại địa chỉ email. Mật khẩu cần ít nhất 8 ký tự.",
         "google_denied": "Bạn đã hủy đăng nhập Google.",
         "google_failed": "Chưa đăng nhập được bằng Google. Thử lại, hoặc dùng email.",
         "google_unverified": "Google chưa xác minh email của tài khoản này. Dùng tài khoản Google khác, hoặc đăng nhập bằng email.",
         "apple_denied": "Bạn đã hủy đăng nhập Apple.",
         "apple_failed": "Chưa đăng nhập được bằng Apple. Thử lại, hoặc dùng email.",
         "sign_in_conflict": "Email này đã có tài khoản UniWork dùng một cách đăng nhập khác. Đăng nhập bằng cách đó.",
-        "sign_in_unverified": "Tài khoản này chưa có email đã xác minh. Dùng cách đăng nhập khác.",
+        "sign_in_unverified": "Email của tài khoản này chưa được xác minh. Dùng cách đăng nhập khác.",
         "sign_in_account_unverified": "Email này đã có tài khoản UniWork nhưng chưa được xác minh. Chọn \"Quên mật khẩu?\" để nhận link qua email và lấy lại tài khoản.",
-        "sign_in_failed": "Chưa hoàn tất đăng nhập. Thử lại."
+        "sign_in_failed": "Chưa hoàn tất đăng nhập. Thử lại.",
+        "google_no_account": "Chưa có tài khoản UniWork nào đăng nhập bằng tài khoản Google này. Đăng nhập bằng cách bạn vẫn dùng.",
+        "apple_no_account": "Chưa có tài khoản UniWork nào đăng nhập bằng tài khoản Apple này. Đăng nhập bằng cách bạn vẫn dùng."
       }
     },
     "continue": {
       "loading": "Đang tải lượt đăng nhập…",
+      "loadErrorTitle": "Chưa tải được lượt đăng nhập",
       "title": "Tiếp tục với {{provider}}",
       "description": "Tài khoản {{provider}} này chưa liên kết với tài khoản UniWork nào.",
       "identityLabel": "Tài khoản {{provider}}",
@@ -155,21 +163,25 @@
         "title": "Liên kết {{provider}}",
         "question": "Liên kết {{provider}} ({{providerEmail}}) với {{accountEmail}}?",
         "questionRelay": "Liên kết {{provider}} (email ẩn của Apple) với {{accountEmail}}?",
+        "signedInAs": "Bạn đang đăng nhập bằng {{accountEmail}}.",
         "body": "Sau đó bạn vào được bằng {{provider}} hoặc cách bạn vẫn dùng.",
         "confirm": "Liên kết",
         "decline": "Không liên kết",
         "linking": "Đang liên kết…",
         "done": "Đã liên kết {{provider}}. Lần sau chỉ cần {{provider}}.",
+        "notLinked": "Chưa liên kết {{provider}} với {{accountEmail}}.",
         "nothingLeft": "Không còn gì để liên kết. Tiếp tục vào UniWork.",
+        "nothingLeftTitle": "Đã xong",
         "continue": "Tiếp tục",
         "movableTitle": "Chuyển {{provider}} sang tài khoản này?",
-        "movable": "{{provider}} này đang dùng cho tài khoản trống {{masked}}. Chuyển sang tài khoản này?",
-        "movableUnknown": "{{provider}} này đang dùng cho một tài khoản trống. Chuyển sang tài khoản này?",
+        "movable": "Tài khoản {{provider}} này đang được dùng cho tài khoản trống {{masked}}.",
+        "movableUnknown": "Tài khoản {{provider}} này đang được dùng cho một tài khoản trống.",
         "movableNote": "Tài khoản trống đó chưa từng vào tổ chức nào và sẽ bị xóa.",
-        "move": "Chuyển",
+        "move": "Chuyển sang đây",
+        "moveDecline": "Không chuyển",
         "moving": "Đang chuyển…",
-        "taken": "{{provider}} này đang dùng cho tài khoản {{masked}}. Đăng nhập vào đó để gỡ liên kết trước.",
-        "takenUnknown": "{{provider}} này đang dùng cho một tài khoản UniWork khác. Đăng nhập vào đó để gỡ liên kết trước."
+        "taken": "Tài khoản {{provider}} này đang được dùng cho {{masked}}. Đăng nhập vào đó và gỡ liên kết trước.",
+        "takenUnknown": "Tài khoản {{provider}} này đang được dùng cho một tài khoản UniWork khác. Đăng nhập vào đó và gỡ liên kết trước."
       },
       "signedIn": {
         "linkTo": "Liên kết {{provider}} với {{account}}",
@@ -195,23 +207,23 @@
         "generic": "Chưa xong được bước này. Thử lại.",
         "expired": "Lượt đăng nhập này đã hết hạn. Bắt đầu lại.",
         "channel": "Lượt đăng nhập này thuộc về thiết bị khác. Bắt đầu lại ở đây.",
-        "conflict": "Email này vừa có tài khoản. Đăng nhập để liên kết.",
+        "conflict": "Email này vừa được dùng để tạo tài khoản. Đăng nhập để liên kết.",
         "invalidEmail": "Email chưa đúng định dạng.",
         "invalidCode": "Mã chưa đúng hoặc đã hết hạn. Nhập lại, hoặc gửi mã mới.",
-        "tooManyCodes": "Đã gửi nhiều mã tới địa chỉ này."
+        "tooManyCodes": "Đã tạm dừng mã xác nhận cho địa chỉ này."
       }
     },
     "apple": {
       "relayEmail": "Email ẩn của Apple",
       "hideMyEmail": "Ẩn địa chỉ email",
-      "relayHint": "Bạn đã chọn Ẩn địa chỉ email: Apple chuyển thư từ địa chỉ này tới hộp thư thật của bạn.",
+      "relayHint": "Bạn đã chọn Ẩn địa chỉ email: Apple chuyển thư gửi tới địa chỉ này vào hộp thư thật của bạn.",
       "signingIn": "Đang đăng nhập bằng Apple…"
     },
     "mfa": {
       "title": "Xác thực hai lớp",
       "subtitle": "Nhập mã 6 số từ ứng dụng xác thực, hoặc một mã khôi phục.",
       "codeLabel": "Mã xác thực",
-      "hint": "Mã 6 số từ ứng dụng, hoặc mã khôi phục dạng xxxxx-xxxxx.",
+      "hint": "Mã 6 số từ ứng dụng, hoặc mã khôi phục dạng xxxxx‑xxxxx.",
       "invalidCode": "Mã không đúng hoặc phiên xác thực đã hết hạn. Nhập lại hoặc đăng nhập lại.",
       "submit": "Xác nhận",
       "verifying": "Đang xác nhận…",
@@ -421,7 +433,7 @@
       },
       "signInMethods": {
         "title": "Phương thức đăng nhập",
-        "description": "Những cách bạn dùng để vào UniWork trên web, máy tính và điện thoại.",
+        "description": "Cách bạn đăng nhập UniWork trên web, máy tính và điện thoại.",
         "loadError": "Không tải được phương thức đăng nhập.",
         "retry": "Thử lại",
         "badge": {
@@ -467,14 +479,17 @@
           "linked": "Đã liên kết",
           "notLinked": "Liên kết để đăng nhập bằng {{provider}}",
           "link": "Liên kết",
+          "linkAria": "Liên kết {{provider}}",
           "unlink": "Gỡ liên kết",
+          "unlinkAria": "Gỡ liên kết {{provider}}",
           "linking": "Đang mở {{provider}}…",
           "linkOnWeb": "Liên kết trên web",
+          "linkOnWebAria": "Liên kết trên web cho {{provider}}",
           "linkOnWebHint": "Mở UniWork trong trình duyệt để liên kết {{provider}}."
         },
         "reasons": {
           "last": "Đây là cách đăng nhập duy nhất. Đặt mật khẩu hoặc liên kết cách khác trước.",
-          "relay": "Email đăng nhập của bạn là email ẩn của Apple, nên cần giữ Apple."
+          "relay": "Email tài khoản của bạn là email ẩn của Apple, nên không gỡ liên kết Apple được."
         },
         "unlink": {
           "title": "Gỡ liên kết {{provider}}?",
@@ -488,31 +503,33 @@
         },
         "move": {
           "title": "Chuyển {{provider}} sang tài khoản này?",
-          "body": "{{provider}} này đang dùng cho tài khoản trống {{masked}}. Tài khoản đó chưa từng vào tổ chức nào và sẽ bị xóa.",
-          "bodyUnknown": "{{provider}} này đang dùng cho một tài khoản trống. Tài khoản đó chưa từng vào tổ chức nào và sẽ bị xóa.",
+          "body": "Tài khoản {{provider}} này đang được dùng cho tài khoản trống {{masked}}. Tài khoản đó chưa từng vào tổ chức nào và sẽ bị xóa.",
+          "bodyUnknown": "Tài khoản {{provider}} này đang được dùng cho một tài khoản trống. Tài khoản đó chưa từng vào tổ chức nào và sẽ bị xóa.",
           "confirm": "Chuyển sang đây",
+          "decline": "Không chuyển",
           "pending": "Đang chuyển…",
           "toast": "Đã chuyển {{provider}} sang tài khoản này."
         },
         "results": {
           "linked": "Đã liên kết {{provider}}.",
-          "denied": "Bạn đã hủy liên kết {{provider}}.",
+          "denied": "Bạn đã dừng giữa chừng, {{provider}} chưa được liên kết.",
           "failed": "Chưa liên kết được {{provider}}. Thử lại.",
-          "taken": "{{provider}} này đang dùng cho tài khoản {{masked}}. Đăng nhập vào đó để gỡ liên kết trước.",
-          "takenUnknown": "{{provider}} này đang dùng cho một tài khoản UniWork khác. Đăng nhập vào đó để gỡ liên kết trước.",
-          "movable": "{{provider}} này đang dùng cho tài khoản trống {{masked}}.",
-          "movableUnknown": "{{provider}} này đang dùng cho một tài khoản trống.",
+          "taken": "Tài khoản {{provider}} này đang được dùng cho {{masked}}. Đăng nhập vào đó và gỡ liên kết trước.",
+          "takenUnknown": "Tài khoản {{provider}} này đang được dùng cho một tài khoản UniWork khác. Đăng nhập vào đó và gỡ liên kết trước.",
+          "movable": "Tài khoản {{provider}} này đang được dùng cho tài khoản trống {{masked}}.",
+          "movableUnknown": "Tài khoản {{provider}} này đang được dùng cho một tài khoản trống.",
           "already_linked": "Tài khoản này đã liên kết một tài khoản {{provider}} khác. Gỡ liên kết tài khoản đó trước rồi thử lại.",
           "session_mismatch": "Trình duyệt vừa đăng nhập một tài khoản khác. Đăng nhập lại đúng tài khoản rồi thử lại."
         },
-        "browserOtherAccount": "Trình duyệt đang đăng nhập {{other}}, UniChat dùng {{me}}.",
-        "browserOtherAccountHint": "Đăng xuất trên trình duyệt rồi đăng nhập {{me}} để liên kết đúng tài khoản.",
+        "browserOtherAccount": "Trình duyệt đang đăng nhập {{other}}, không phải tài khoản bạn dùng trong UniChat.",
+        "browserOtherAccountHint": "Đăng xuất ở đây, rồi đăng nhập tài khoản UniChat của bạn để liên kết đúng tài khoản.",
+        "signOut": "Đăng xuất",
         "errors": {
           "generic": "Chưa lưu được thay đổi. Thử lại.",
-          "taken": "Cách đăng nhập này đang dùng cho tài khoản {{masked}}. Đăng nhập vào đó để gỡ liên kết trước.",
-          "takenUnknown": "Cách đăng nhập này đang dùng cho một tài khoản UniWork khác. Đăng nhập vào đó để gỡ liên kết trước.",
-          "movable": "Cách đăng nhập này đang dùng cho tài khoản trống {{masked}}. Chuyển sang tài khoản này?",
-          "movableUnknown": "Cách đăng nhập này đang dùng cho một tài khoản trống. Chuyển sang tài khoản này?",
+          "taken": "Cách đăng nhập này đang được dùng cho {{masked}}. Đăng nhập vào đó và gỡ liên kết trước.",
+          "takenUnknown": "Cách đăng nhập này đang được dùng cho một tài khoản UniWork khác. Đăng nhập vào đó và gỡ liên kết trước.",
+          "movable": "Cách đăng nhập này đang được dùng cho tài khoản trống {{masked}}. Chuyển sang tài khoản này?",
+          "movableUnknown": "Cách đăng nhập này đang được dùng cho một tài khoản trống. Chuyển sang tài khoản này?",
           "alreadyLinked": "Tài khoản này đã liên kết một tài khoản khác cùng loại. Gỡ liên kết tài khoản đó trước rồi thử lại.",
           "emailUnverified": "Xác minh email của bạn trước, rồi liên kết.",
           "sessionMismatch": "Trình duyệt vừa đăng nhập một tài khoản khác. Đăng nhập lại đúng tài khoản rồi thử lại.",
@@ -524,6 +541,7 @@
         "description": "Để bảo vệ tài khoản, xác nhận là bạn trước khi {{action}}.",
         "descriptionGeneric": "Để bảo vệ tài khoản, xác nhận là bạn trước khi tiếp tục.",
         "windowHint": "Trong 10 phút tới, bạn không cần xác nhận lại.",
+        "windowHintOneAction": "Mã trong email chỉ xác nhận việc này.",
         "actions": {
           "set_password": "đặt mật khẩu",
           "change_password": "đổi mật khẩu",
@@ -542,7 +560,7 @@
         },
         "totp": {
           "label": "Mã từ ứng dụng xác thực",
-          "hint": "Mã 6 số, hoặc một mã khôi phục dạng xxxxx-xxxxx.",
+          "hint": "Mã 6 số, hoặc một mã khôi phục dạng xxxxx‑xxxxx.",
           "required": "Nhập mã từ ứng dụng xác thực."
         },
         "emailCode": {
@@ -551,6 +569,8 @@
           "sending": "Đang gửi mã…",
           "sent": "Đã gửi mã tới {{email}}. Mã có hiệu lực 10 phút.",
           "sentRelay": "Đã gửi mã tới email ẩn của Apple. Mã có hiệu lực 10 phút.",
+          "resent": "Đã gửi mã mới tới {{email}}. Mã có hiệu lực 10 phút.",
+          "resentRelay": "Đã gửi mã mới tới email ẩn của Apple. Mã có hiệu lực 10 phút.",
           "label": "Mã trong email",
           "required": "Nhập mã 6 số trong email.",
           "resend": "Gửi lại mã",
@@ -575,7 +595,7 @@
           "emailCodeIncorrect": "Mã chưa đúng hoặc đã hết hạn. Nhập lại, hoặc gửi mã mới.",
           "providerInvalid": "Tài khoản vừa chọn không phải tài khoản đã liên kết. Thử lại, hoặc dùng cách khác.",
           "locked": "Tạm khóa xác nhận vì nhập sai nhiều lần.",
-          "tooManyCodes": "Đã gửi nhiều mã cho tài khoản này."
+          "tooManyCodes": "Đã tạm dừng gửi mã tới email của bạn."
         }
       }
     },
