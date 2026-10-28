@@ -52,6 +52,20 @@ describe("the auth routes as core's EndpointRequest", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  // The error is all a crash report, a log line or a screen ever sees of a failed door: the password, and the address
+  // it was typed with, stay in the request that carried them.
+  it.each([
+    ["a refusal that echoes them", async () => json(401, { error: { code: "invalid_credentials", message: "hunter2-secret typed@example.com" } })],
+    ["a gateway's page", async () => new Response("<html>hunter2-secret</html>", { status: 502 })],
+    ["no network", async (): Promise<Response> => Promise.reject(new TypeError("Network request failed: hunter2-secret"))],
+  ] as const)("keeps what a password door was sent out of its error, through %s", async (_label, answer) => {
+    const sent = { email: "typed@example.com", password: "hunter2-secret" };
+    const error = await errorOf(createEndpointRequest({ fetch: answer })("/api/v1/auth/native/password", { method: "POST", body: sent }));
+    const seen = JSON.stringify({ ...error, message: error.message, stack: error.stack, cause: String(error.cause) });
+    expect(seen).not.toContain("hunter2-secret");
+    expect(seen).not.toContain("typed@example.com");
+  });
+
   it("rejects with the transport's own error, which core's sign-in errors read by its fields", async () => {
     const request = createEndpointRequest({ fetch: async () => json(429, { error: { code: "second_factor_locked", fields: { retry_after: 60 } } }) });
     expect(await errorOf(request("/api/v1/auth/native/mfa", { method: "POST", body: {} }))).toMatchObject({
