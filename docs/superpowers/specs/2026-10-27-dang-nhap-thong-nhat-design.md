@@ -607,13 +607,18 @@ vi/en; `.env.example`; `no-pii-log`.
 
 ## 4. Web
 
+> **Trạng thái:** in-progress — phần web (4.1–4.6) đã có trên nhánh `feature/auth-unified-sign-in`, có unit test;
+> e2e của 4.6 đã viết nhưng chưa chạy trên app thật. Chỉ ghi shipped sau khi PR merge.
+
 ### 4.1 Nút nhà cung cấp ⚑
 
 `packages/views/auth/social-sign-in.tsx` thay `google-button.tsx`, dùng ở đăng nhập và đăng ký, đặt **trên** form như
 mobile (cùng thứ bậc ở mọi nền tảng): các nút nhà cung cấp, rồi vạch "hoặc dùng email", rồi form. Một `<a>` cho mỗi
-nhà cung cấp bật (Google, Apple), pill `buttonVariants({variant:'outline',size:'lg'})` + `AUTH_PILL`; Apple: sáng =
-trắng viền, tối = `dark:bg-foreground dark:text-background` (trắng chữ đen, đúng HIG). Placeholder giữ chỗ cho tối đa
-hai nút khi `/auth/providers` đang tải. `AppleMark` (`fill="currentColor"`) trong `packages/views/common/provider-icons.tsx`.
+nhà cung cấp bật, Google trước Apple (thứ tự của Android; nhãn nhóm "Đăng nhập bằng Google hoặc Apple" giữ nguyên khi chỉ
+còn một nút), pill `buttonVariants({variant:'outline',size:'lg'})` + `AUTH_PILL`; Apple: sáng = trắng viền, tối =
+`dark:bg-foreground dark:text-background` (trắng chữ đen, đúng HIG). Placeholder vô hình giữ đúng chỗ của tối đa hai nút
+và vạch khi `/auth/providers` đang tải (không nhấp nháy skeleton; form không dịch khi nút tới). `AppleMark`
+(`fill="currentColor"`) trong `packages/views/common/provider-icons.tsx`.
 `paths.appleStart({next, intent})` cạnh `paths.googleStart`. Đăng ký truyền `intent=sign_up` và giữ `next`; link qua
 lại giữa đăng nhập và đăng ký giữ `next`. Playwright: nút nhà cung cấp là link nên vẫn chỉ có một *button* "Đăng nhập"
 trên `/login`, một "Đăng ký" trên `/register`.
@@ -632,11 +637,25 @@ vùng kéo cửa sổ).
 ### 4.2 Lỗi và `next` qua các cổng ⚑
 
 - Một bảng mã → khoá i18n `auth.social.errors.<mã>` thay `GOOGLE_ERRORS`/`replace("google_", "")`; mã lạ bị bỏ qua.
-  Alert cấp form. `AuthCallbackView` nói "Đang đăng nhập…"; tới đó mà không có phiên → `/login?error=sign_in_failed`.
+  Alert cấp form, trên các nút nhà cung cấp: người dùng tự hủy ở nhà cung cấp (`google_denied`, `apple_denied`) là
+  `Alert` muted `role=status`, mã khác là `destructiveSoft` `role=alert`. `AuthCallbackView` nói "Đang đăng nhập…"; tới
+  đó mà không có phiên → `/login?error=sign_in_failed`.
   `reclaimed=1` → toast một lần "Đã lấy lại tài khoản. Mật khẩu cũ, đặt khi email chưa được xác minh, đã bị xóa."
 - `next` sống qua `/verify` và `/onboarding`: trang đăng ký, xác minh và onboarding đọc và chuyển tiếp `next`, rồi đi
   tới nó sau cổng. `/auth/desktop/authorize` và `/auth/continue?step=link` được đi thẳng kể cả khi còn cổng (app đã xử lý
-  tài khoản chưa có workspace).
+  tài khoản chưa có workspace). Tài khoản chưa onboard có lời mời đang chờ: `next` thắng `/invitations`
+  (`resolveLoggedInDestination`). Callback không có phiên về `paths.login({error: 'sign_in_failed', next})`.
+- **Gợi ý nhà cung cấp của app (3.5)**: `/auth/desktop/authorize` gửi người chưa đăng nhập tới `paths.login({next,
+  provider})`; `next` không mang `provider`, nên đăng nhập xong không lặp lại. `/login?provider=` gỡ tham số khỏi URL
+  trước (history replace) rồi `location.replace` **một lần** tới `start` khi cờ (`google`, `apple_web`) bật; màn chờ là
+  "Đang đăng nhập…" của `AuthCallbackView`, cùng mặt phẳng trước và sau nhà cung cấp. Mã nằm ở
+  `apps/web/platform/auth/provider-handoff.tsx` (`providerHint`, `useDropProviderHint`, `ProviderHandoff`), vì
+  `packages/views` không được chạm `location`.
+- **Trang đồng ý** (`/auth/desktop/authorize`): không có eyebrow; tiêu đề nêu nền tảng và hàng thiết bị có biểu tượng
+  `Monitor`/`Smartphone`. Mỗi kết quả là cuối của lượt đó: đã cho phép, đã hủy và hết hạn ("Yêu cầu đã hết hạn. Quay lại
+  {{app}} và thử lại.") nói "Bạn có thể đóng tab này." (đã cho phép có thêm "Mở {{app}}" khi có callback); chỉ lỗi có
+  "Thử lại". Không có "Quay lại" hay "Đóng" (chúng đưa người đã đăng nhập về `/login`). "Không phải bạn? Dùng tài khoản
+  khác" đăng xuất, rồi trang đưa trình duyệt tới `/login` vẫn mang gợi ý nhà cung cấp của app.
 
 ### 4.3 Màn chọn `/auth/continue`
 
@@ -769,11 +788,17 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập
 
 Unit: mỗi endpoint mới có ca response hỏng (trừ `createFromSignInTicket` và claim-email verify, thêm vào danh sách
 "fail loudly" của `CLAUDE.md` cạnh login/register); `social-sign-in` (2 nút, placeholder, ẩn theo cờ, là `<a>`, giữ
-`next`/`intent`); `continue-view` (mọi trạng thái 4.3); `login-view` (chế độ liên kết, ẩn nút đang chờ, bảng lỗi,
-`provider` tự chuyển một lần); `security-sign-in-methods` (mỗi loại bằng chứng, cửa sổ step-up, phương thức cuối,
-relay, shell, kết quả trên URL); `/settings` (có/không workspace); chuyển quyền/xoá tài khoản với bằng chứng.
-E2E: stub `/api/v1/auth/providers` bằng `page.route` để đo tương phản và bố cục nút Apple hai chế độ màu; spec
-tương phản/bố cục cho `/auth/continue`; năm spec onboarding không sửa.
+`next`/`intent`); `continue-view`, `continue-link-step` (mọi trạng thái 4.3); `login-view`, `login-view.link` (chế độ
+liên kết, ẩn nút đang chờ, bảng lỗi); `provider` tự chuyển một lần ở `apps/web/platform/auth/provider-handoff.test.tsx`
+và `login-page.test.tsx` (phần đó sống ở `apps/web`, 4.2); `security-sign-in-methods`, `security-password-dialog` (mỗi
+loại bằng chứng, cửa sổ step-up, phương thức cuối, relay, shell, kết quả trên URL); `/settings`
+(`account-settings-view`, có/không workspace); `delete-account-dialog`, `transfer-ownership-dialog` và lời mời với bằng
+chứng. `packages/views/step-up-gate.test.ts` giữ luật mọi lệnh gửi token step-up đi qua `useStepUpGate()`.
+E2E (`/auth/providers` và `/auth/sign-in-ticket` stub bằng `page.route` qua `e2e/sign-in-page.ts`, giữ CORS của server):
+`e2e/auth-providers.spec.ts` đo tương phản `/login`, `/register` và hai loại lỗi `?error=` ở hai chế độ màu, màu Apple
+theo HIG (trắng chữ tối, dấu theo màu chữ), bố cục 1440/375 px và form không dịch khi nút tới;
+`e2e/auth-continue.spec.ts` đo tương phản `/auth/continue` (unmatched Google, unmatched Apple email ẩn, `link_required`,
+hết hạn) ở hai chế độ, email ẩn không bao giờ in thô, và vùng chạm 44 px ở 375 px. Năm spec onboarding không sửa.
 
 ## 5. Mobile (`apps/chat-mobile`)
 
