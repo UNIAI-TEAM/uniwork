@@ -248,10 +248,11 @@ function StepUpForm({
     setFocusTurn((n) => n + 1);
   };
 
+  // A lockout holds every proof (the server weighs them all), so it stays said across a switch.
   const switchTo = (next: StepUpProof) => {
     setPicked(next);
     setValue("");
-    setProblem(null);
+    if (!waiting) setProblem(null);
     setFocusTurn((n) => n + 1);
   };
 
@@ -388,6 +389,7 @@ function StepUpForm({
         </Button>
         {relay ? <p className="text-caption text-pretty text-muted-foreground">{t("emailCode.relayHint")}</p> : null}
         {sendError}
+        {error}
       </div>
     ) : (
       <div className="flex flex-col gap-3">

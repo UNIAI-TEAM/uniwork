@@ -1970,7 +1970,7 @@
           "unlinkAria": "Unlink {{provider}}",
           "linking": "Opening {{provider}}…",
           "linkOnWeb": "Link on the web",
-          "linkOnWebAria": "Link {{provider}} on the web",
+          "linkOnWebAria": "Link on the web for {{provider}}",
           "linkOnWebHint": "Open UniWork in your browser to link {{provider}}."
         },
         "reasons": {

@@ -234,6 +234,33 @@ describe("SignInMethodsSection", () => {
     await waitFor(() => expect(calls("POST /api/v1/me/sign-in-methods/apple/link")).toHaveLength(1));
   });
 
+  it("holds the dialog still while confirming is locked, and says for how long", async () => {
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "POST /api/v1/me/step-up": () =>
+        Promise.reject(new ApiError("locked", "second_factor_locked", 429, undefined, undefined, undefined, 900)),
+      "POST /api/v1/me/step-up/email-code": () =>
+        Promise.reject(new ApiError("slow", "rate_limited", 429, undefined, { retry_after: 3600 })),
+    });
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "Liên kết Apple" }));
+    const dialog = await proofDialog();
+    fireEvent.change(dialog.getByLabelText("Mật khẩu hiện tại"), { target: { value: "password123" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
+    const said = await dialog.findByText(/Tạm khóa xác nhận vì nhập sai nhiều lần\./);
+    expect(said).toHaveTextContent("Thử lại sau 15 phút.");
+    expect(dialog.getByRole("button", { name: "Xác nhận" })).toHaveAttribute("aria-disabled", "true");
+
+    // The mailed code has its own budget, and says so.
+    fireEvent.click(dialog.getByRole("button", { name: "Dùng cách khác" }));
+    fireEvent.click(dialog.getByRole("button", { name: "Gửi mã tới an@company.vn" }));
+    // The lockout is still said; the mailed code's own budget is said beside it.
+    expect(dialog.getByText(/Tạm khóa xác nhận vì nhập sai nhiều lần\./)).toBeInTheDocument();
+    expect(await dialog.findByText(/Đã tạm dừng gửi mã tới email của bạn\./)).toHaveTextContent("Thử lại sau 60 phút.");
+    expect(dialog.getByRole("button", { name: "Gửi mã tới an@company.vn" })).toHaveAttribute("aria-disabled", "true");
+  });
+
   it("offers the other way to confirm", async () => {
     route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
     open();
@@ -336,7 +363,7 @@ describe("SignInMethodsSection", () => {
     configureRuntime({ appUrl: "https://app.test" });
     route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
     open("/acme/team/chat/settings?tab=security");
-    const link = await screen.findByRole("button", { name: "Liên kết Apple trên web" });
+    const link = await screen.findByRole("button", { name: "Liên kết trên web cho Apple" });
     expect(screen.getByText("Mở UniWork trong trình duyệt để liên kết Apple.")).toBeInTheDocument();
     fireEvent.click(link);
     expect(openExternal).toHaveBeenCalledWith("https://app.test/settings?tab=security&expect_user=u1");

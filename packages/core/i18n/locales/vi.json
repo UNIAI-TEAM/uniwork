@@ -1969,7 +1969,7 @@
           "unlinkAria": "Gỡ liên kết {{provider}}",
           "linking": "Đang mở {{provider}}…",
           "linkOnWeb": "Liên kết trên web",
-          "linkOnWebAria": "Liên kết {{provider}} trên web",
+          "linkOnWebAria": "Liên kết trên web cho {{provider}}",
           "linkOnWebHint": "Mở UniWork trong trình duyệt để liên kết {{provider}}."
         },
         "reasons": {
