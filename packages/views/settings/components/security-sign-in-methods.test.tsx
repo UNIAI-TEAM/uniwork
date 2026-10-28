@@ -310,6 +310,97 @@ describe("SignInMethodsSection", () => {
     expect(calls("POST /api/v1/me/sign-in-methods/apple/link")[1]![1]).toMatchObject({ body: { step_up_token: "sut-123456" } });
   });
 
+  /** Through the proof dialog with the password, to the unlink confirmation. */
+  async function proveThenAskUnlink() {
+    fireEvent.click(await screen.findByRole("button", { name: "Gỡ liên kết Google" }));
+    const dialog = await proofDialog();
+    fireEvent.change(dialog.getByLabelText("Mật khẩu hiện tại"), { target: { value: "password123" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
+    return within(await screen.findByRole("alertdialog"));
+  }
+
+  it("says why the server refused an unlink, and closes the question", async () => {
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "POST /api/v1/me/step-up": GRANT,
+      // Another tab removed the password meanwhile: Google is the last way in.
+      "POST /api/v1/me/sign-in-methods/google/unlink": refusal("sign_in_method_last", 409),
+    });
+    open();
+    const confirm = await proveThenAskUnlink();
+    fireEvent.click(confirm.getByRole("button", { name: "Gỡ liên kết" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Đây là cách đăng nhập duy nhất. Đặt mật khẩu hoặc liên kết cách khác trước."),
+    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(calls("POST /api/v1/me/sign-in-methods/google/unlink")).toHaveLength(1);
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing more when the person closes the proof a refused token asked for", async () => {
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "POST /api/v1/me/step-up": GRANT,
+      "POST /api/v1/me/sign-in-methods/google/unlink": refusal("proof_required", 403, { proofs: ["password"] }),
+    });
+    open();
+    const confirm = await proveThenAskUnlink();
+    fireEvent.click(confirm.getByRole("button", { name: "Gỡ liên kết" }));
+    // The held token died: the dialog asks again, the question waits behind it.
+    const again = await proofDialog();
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    fireEvent.click(again.getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(calls("POST /api/v1/me/sign-in-methods/google/unlink")).toHaveLength(1);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("puts the link button back and says why when the link cannot start", async () => {
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "POST /api/v1/me/step-up": GRANT,
+      "POST /api/v1/me/sign-in-methods/apple/link": refusal("internal", 503),
+    });
+    const nav = open();
+    fireEvent.click(await screen.findByRole("button", { name: "Liên kết Apple" }));
+    const dialog = await proofDialog();
+    fireEvent.change(dialog.getByLabelText("Mật khẩu hiện tại"), { target: { value: "password123" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("UniWork đang gặp trục trặc. Thử lại sau ít phút."));
+    const link = await screen.findByRole("button", { name: "Liên kết Apple" });
+    expect(link).not.toHaveAttribute("aria-busy");
+    expect(screen.queryByText("Đang mở Apple…")).toBeNull();
+    expect(nav.openExternal).not.toHaveBeenCalled();
+  });
+
+  it("offers the proofs the step-up itself names when the account changed meanwhile", async () => {
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "POST /api/v1/me/step-up": (body: Record<string, unknown> | undefined) =>
+        body?.password
+          ? Promise.reject(new ApiError("proof", "proof_required", 403, undefined, { proofs: ["totp"] }))
+          : { ...GRANT, step_up_token: "sut-totp" },
+      "POST /api/v1/me/sign-in-methods/apple/link": { authorization_url: "https://api.test/start" },
+    });
+    const nav = open();
+    fireEvent.click(await screen.findByRole("button", { name: "Liên kết Apple" }));
+    const dialog = await proofDialog();
+    fireEvent.change(dialog.getByLabelText("Mật khẩu hiện tại"), { target: { value: "password123" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
+    // Two-factor was turned on elsewhere: the password is no longer a proof.
+    const code = await dialog.findByLabelText("Mã từ ứng dụng xác thực");
+    expect(dialog.queryByLabelText("Mật khẩu hiện tại")).toBeNull();
+    fireEvent.change(code, { target: { value: "123456" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
+    await waitFor(() => expect(nav.openExternal).toHaveBeenCalledWith("https://api.test/start"));
+    expect(calls("POST /api/v1/me/sign-in-methods/apple/link")[0]![1]).toMatchObject({ body: { step_up_token: "sut-totp" } });
+  });
+
   it("says how a link came back, once, and takes the result off the URL", async () => {
     route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
     const nav = open("/acme/team/settings?tab=security&sign_in_method=google&result=linked");
@@ -349,6 +440,41 @@ describe("SignInMethodsSection", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã chuyển Apple sang tài khoản này."));
     expect(calls("POST /api/v1/auth/sign-in-ticket/link")[0]![1]).toMatchObject({ body: { move: true } });
     expect(calls("POST /api/v1/me/step-up")).toHaveLength(0);
+  });
+
+  it.each([
+    ["is taken by an account with content", refusal("sign_in_method_taken", 409, { masked_email: "b•••@acme.vn" }),
+      "Cách đăng nhập này đang được dùng cho b•••@acme.vn. Đăng nhập vào đó và gỡ liên kết trước."],
+    ["expired meanwhile", refusal("sign_in_ticket_missing", 404), "Lượt đăng nhập này đã hết hạn. Bắt đầu lại."],
+  ])("closes the move and says so when the identity %s", async (_name, answer, sentence) => {
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "GET /api/v1/auth/sign-in-ticket": APPLE_TICKET,
+      "POST /api/v1/auth/sign-in-ticket/link": answer,
+    });
+    open("/settings?tab=security&sign_in_method=apple&result=movable&masked_email=b%E2%80%A2%E2%80%A2%E2%80%A2%40icloud.com");
+    const confirm = within(await screen.findByRole("alertdialog"));
+    fireEvent.click(confirm.getByRole("button", { name: "Chuyển sang đây" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(sentence));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(calls("POST /api/v1/auth/sign-in-ticket/link")).toHaveLength(1);
+  });
+
+  it("drops the move when the proof the server asked for is closed", async () => {
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "GET /api/v1/auth/sign-in-ticket": APPLE_TICKET,
+      "POST /api/v1/auth/sign-in-ticket/link": refusal("proof_required", 403, { proofs: ["password"] }),
+    });
+    open("/settings?tab=security&sign_in_method=apple&result=movable");
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Chuyển sang đây" }));
+    const dialog = await proofDialog();
+    fireEvent.click(dialog.getByRole("button", { name: "Hủy" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(calls("POST /api/v1/auth/sign-in-ticket/link")).toHaveLength(1);
   });
 
   it("asks a move only of a sign-in the server holds waiting, whatever the URL says", async () => {
