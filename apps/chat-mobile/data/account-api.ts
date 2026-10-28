@@ -1,5 +1,5 @@
 // The account endpoints Settings calls: erasing the account (POST
-// /api/v1/me/delete, as packages/core/api/endpoints/auth.ts › deleteAccount),
+// /api/v1/me/delete with a step-up token, as packages/core/api/endpoints/auth.ts › deleteAccount),
 // the answer to the AI processing notice (PUT / DELETE
 // /api/v1/me/ai-consent), the person's language (PATCH /api/v1/me, as
 // core's patchMe; data/locale-sync.ts), whether chat pushes show the message's
@@ -7,8 +7,9 @@
 // (GET /api/v1/orgs/{org}/push-preview-policy), handing an organization to another member before the account is
 // erased (POST /api/v1/orgs/{org}/transfer-ownership, as core's transferOwnership), and the organization's floor
 // under the phone's app lock and screen-capture choices (GET
-// /api/v1/orgs/{org}/mobile-security-policy). account-api.test.ts holds a
-// malformed-response case for each (CLAUDE.md › API Compatibility).
+// /api/v1/orgs/{org}/mobile-security-policy), and proving the account's address with the mailed code (POST
+// /api/v1/me/email/verify, POST /api/v1/me/email/resend, as core's verifyEmail and resendVerification).
+// account-api.test.ts holds a malformed-response case for each (CLAUDE.md › API Compatibility).
 import { parseWithFallback } from "@uniwork/core/api/schema";
 import type { User } from "@uniwork/core/types/user";
 import { z } from "zod";
@@ -45,7 +46,7 @@ export function createAccountApi(request: Request) {
   }
   return {
     /**
-     * Resolves once the server erased the account; a refusal (wrong proof,
+     * Resolves once the server erased the account; a refusal (proof_required,
      * owner_must_transfer, the rate limit) is the ApiError. Any 2xx is the
      * erasure, a drifted body included: the session is gone either way.
      */
@@ -54,13 +55,14 @@ export function createAccountApi(request: Request) {
       parseWithFallback(raw, StatusSchema, {}, { endpoint: "POST /api/v1/me/delete" });
     },
     /**
-     * Hands the organization to toUserId (the owner's password again, as on the web). Resolves on any 2xx, a drifted
-     * body included: the sheet reads nothing from it and erases the account next; a refusal is the ApiError.
+     * Hands the organization to toUserId, proved with a step-up token for transfer_ownership (ADR 0047 §5). Resolves
+     * on any 2xx, a drifted body included: the sheet reads nothing from it and erases the account next; a refusal is
+     * the ApiError.
      */
-    async transferOwnership(orgSlug: string, toUserId: string, password: string): Promise<void> {
+    async transferOwnership(orgSlug: string, toUserId: string, stepUpToken: string): Promise<void> {
       const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/transfer-ownership`, {
         method: "POST",
-        body: JSON.stringify({ to_user_id: toUserId, password }),
+        body: JSON.stringify({ to_user_id: toUserId, step_up_token: stepUpToken }),
       });
       parseWithFallback(raw, StatusSchema, {}, { endpoint: "POST /api/v1/orgs/{org}/transfer-ownership" });
     },
@@ -88,6 +90,15 @@ export function createAccountApi(request: Request) {
       return parseWithFallback<MobileSecurityPolicy | null>(raw, MobileSecurityPolicySchema, null, {
         endpoint: "GET /api/v1/orgs/{org}/mobile-security-policy",
       });
+    },
+    /** The verified user once the mailed code matched, or null when the answer drifted (the caller reloads /me). */
+    verifyEmail(code: string): Promise<User | null> {
+      return userOf(request("/api/v1/me/email/verify", { method: "POST", body: JSON.stringify({ code }) }), "POST /api/v1/me/email/verify");
+    },
+    /** A fresh code by mail; any 2xx is sent, a drifted body included. Within a minute of the last: 429 rate_limited. */
+    async resendVerification(): Promise<void> {
+      const raw = await request("/api/v1/me/email/resend", { method: "POST" });
+      parseWithFallback(raw, StatusSchema, {}, { endpoint: "POST /api/v1/me/email/resend" });
     },
     /** The language the server writes pushes and emails in (users.locale); null when the answer drifted. */
     setLocale(locale: "vi" | "en"): Promise<User | null> {

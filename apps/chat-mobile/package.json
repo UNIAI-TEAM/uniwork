@@ -1,6 +1,6 @@
 {
   "name": "@uniwork/chat-mobile",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "description": "UniChat mobile app: Expo (iOS + Android) client of the UniWork chat",
   "main": "index.ts",

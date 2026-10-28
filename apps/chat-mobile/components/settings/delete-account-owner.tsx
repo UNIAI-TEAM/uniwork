@@ -2,7 +2,7 @@
 // owner_must_transfer names (lib/owned-organization.ts › ownedOrganization; the state is use-owner-step.ts). The
 // only active member closes the organization together with the erasure, typing its address again (Apple 5.1.1(v):
 // deletion completes in the app); an owner whose organization has other members hands it over in the sheet
-// (delete-account-hand-over.tsx), or on the web when the account has no password.
+// (delete-account-hand-over.tsx), or on the web when an older server names no organization.
 import { Ionicons } from "@expo/vector-icons";
 import type { Ref } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,6 +11,7 @@ import { Text } from "@/components/ui/text";
 import type { OwnedOrganization } from "@/lib/owned-organization";
 import { continuousCorners } from "@/lib/radius";
 import { cn } from "@/lib/utils";
+import { NoticeCard } from "@/components/auth/auth-layout";
 import { HandOverPanel } from "./delete-account-hand-over";
 import type { Field, OwnerStep } from "./use-owner-step";
 
@@ -35,7 +36,8 @@ export function OwnerStepPanel({
   onSubmit: () => void;
   onOpenWeb: () => void;
 }) {
-  const { closing, handingOver, handOver, owner } = step;
+  const { t } = useTranslation();
+  const { closing, handingOver, handOver, owner, handedOver } = step;
   if (closing) {
     return (
       <CloseOrganizationField
@@ -73,30 +75,23 @@ export function OwnerStepPanel({
       />
     );
   }
-  return owner ? <OwnerTransferPanel organization={owner.organization} notice={owner.notice} foreground={foreground} onOpenWeb={onOpenWeb} /> : null;
+  if (owner) return <OwnerTransferPanel foreground={foreground} onOpenWeb={onOpenWeb} />;
+  // Handed over, and the erasure after it did not happen: the organization moved all the same, said until the sheet closes.
+  return handedOver && !busy ? (
+    <NoticeCard
+      message={t("mobile.account.transfer_done_not_deleted", { organization: handedOver.organization, name: handedOver.heir })}
+      testID="delete-account-handed-over"
+    />
+  ) : null;
 }
 
-/** An owner who cannot close: hand the organization over on the web (openWeb opens its settings there). */
-function OwnerTransferPanel({
-  organization,
-  notice,
-  foreground,
-  onOpenWeb,
-}: {
-  organization: OwnedOrganization | null;
-  /** Why closing stopped being offered (someone joined meanwhile), said above the way out. */
-  notice: string | null;
-  foreground: string;
-  onOpenWeb: () => void;
-}) {
+/** An owner the server named no organization for (an older server): hand it over on the web, which opens its settings. */
+function OwnerTransferPanel({ foreground, onOpenWeb }: { foreground: string; onOpenWeb: () => void }) {
   const { t } = useTranslation();
   return (
     <View accessibilityRole="alert" className="gap-2.5 rounded-xl border border-destructive/40 p-3.5" style={continuousCorners}>
       <Text className="text-body font-semibold text-foreground">{t("mobile.account.owner_title")}</Text>
-      {notice ? <Text className="text-subhead leading-[21px] text-destructive">{notice}</Text> : null}
-      <Text className="text-subhead leading-[21px] text-foreground">
-        {organization ? t("mobile.account.owner_body_named", { name: organization.name }) : t("mobile.account.owner_body")}
-      </Text>
+      <Text className="text-subhead leading-[21px] text-foreground">{t("mobile.account.owner_body")}</Text>
       <Pressable
         accessibilityRole="link"
         // The label, not the children: the icon's glyph is a character a screen reader would spell.
@@ -143,14 +138,18 @@ function CloseOrganizationField({
       <TextInput
         ref={inputRef}
         value={value}
-        onChangeText={onChangeText}
+        // Editable while a step runs, so a refusal about the address can focus it again with the keyboard up; what is
+        // typed meanwhile waits (the input shows its value again).
+        onChangeText={busy ? () => undefined : onChangeText}
+        accessibilityState={{ busy }}
         autoCapitalize="none"
         autoCorrect={false}
-        editable={!busy}
         placeholder={organization.slug}
         placeholderTextColor={placeholderColor}
         accessibilityLabel={label}
         returnKeyType="done"
+        // The key keeps the keyboard up: a mismatch refocuses this field rather than raising it again.
+        submitBehavior="submit"
         onSubmitEditing={onSubmit}
         testID="delete-account-close-slug"
         className={cn("min-h-12 rounded-xl border bg-muted px-3.5 py-3 text-body text-foreground", error ? "border-destructive" : "border-border")}

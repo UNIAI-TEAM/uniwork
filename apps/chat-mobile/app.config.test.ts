@@ -8,7 +8,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConfigContext } from "expo/config";
 import { createRequire } from "node:module";
-import createConfig, { ANDROID_KEEP_RULES, iosCallsBuilt, tlsPinning, type TlsPins } from "./app.config";
+import createConfig, { ANDROID_KEEP_RULES, googleSignInClients, iosCallsBuilt, tlsPinning, type TlsPins } from "./app.config";
 
 const build = (projectRoot?: string) => createConfig({ config: {}, projectRoot } as ConfigContext);
 
@@ -48,7 +48,7 @@ describe("app.config per UNICHAT_ENV", () => {
     expect(config.updates).toEqual({ enabled: false });
     // an update reaches only binaries with the same native fingerprint (OTA never crosses a native change)
     expect(config.runtimeVersion).toEqual({ policy: "fingerprint" });
-    expect(config.version).toBe("0.3.1");
+    expect(config.version).toBe("0.4.0");
     // One version everywhere (audit "store-assets-and-calibration-incomplete"): package.json said 0.1.0 for months.
     expect(JSON.parse(fs.readFileSync(path.join(__dirname, "package.json"), "utf8")).version).toBe(config.version);
     // knip's expo plugin and NativeWind both read it; "automatic" follows the OS.
@@ -58,7 +58,8 @@ describe("app.config per UNICHAT_ENV", () => {
     expect(config.scheme).toBe(scheme);
     expect(config.ios).toMatchObject({
       bundleIdentifier: appId,
-      associatedDomains: ["applinks:app.uniworkos.com"],
+      // Password AutoFill offers the web's saved passwords in the app's sign-in (spec §5.1).
+      associatedDomains: ["applinks:app.uniworkos.com", "webcredentials:app.uniworkos.com"],
       config: { usesNonExemptEncryption: false },
       // Mentions and missed calls break through Focus (server push_expo.go › timeSensitiveChannels).
       entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
@@ -423,6 +424,61 @@ describe("EAS project and release servers", () => {
     vi.stubEnv("UNICHAT_API_URL", undefined);
     vi.stubEnv("UNICHAT_APP_URL", undefined);
     expect(build().extra).toMatchObject({ apiUrl: "", appUrl: "", eas: { projectId: expect.any(String) } });
+  });
+});
+
+// ADR 0047 §8: the app opens Google's own sheet only with the client ids a build is given; without them it writes
+// nothing and the app signs in with Google through the browser.
+describe("Sign in with Google's clients", () => {
+  const IOS = "1234567890-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com";
+  const WEB = "1234567890-zyxwvutsrqponmlkjihgfedcba543210.apps.googleusercontent.com";
+  const plugin = createRequire(__filename)("./plugins/with-google-sign-in.js") as {
+    iosInfoPlist: (plist: Record<string, unknown>, o: { iosClientId?: string; webClientId?: string }) => Record<string, unknown>;
+    reversedClientId: (id: string) => string;
+    SERVER_CLIENT_ID: string;
+  };
+  const googlePlugin = (config: ReturnType<typeof build>) =>
+    (config.plugins ?? []).find((p): p is [string, Record<string, string>] => Array.isArray(p) && p[0] === "./plugins/with-google-sign-in")?.[1];
+  const stubClients = (ios: string | undefined, web: string | undefined) => {
+    vi.stubEnv("UNICHAT_GOOGLE_IOS_CLIENT_ID", ios);
+    vi.stubEnv("UNICHAT_GOOGLE_WEB_CLIENT_ID", web);
+  };
+
+  it("writes nothing without a client, and passes the ones set, trimmed", () => {
+    stubClients(undefined, "  ");
+    expect(googleSignInClients()).toBeNull();
+    expect(googlePlugin(build())).toBeUndefined();
+    stubClients(` ${IOS} `, WEB);
+    expect(googlePlugin(build())).toEqual({ iosClientId: IOS, webClientId: WEB });
+    stubClients(undefined, WEB);
+    expect(googlePlugin(build())).toEqual({ webClientId: WEB });
+    stubClients(IOS, undefined);
+    expect(googleSignInClients()).toEqual({ iosClientId: IOS });
+  });
+
+  it("gives iOS the two clients and registers the reversed iOS client as a URL scheme, once", () => {
+    const scheme = "com.googleusercontent.apps.1234567890-abcdefghijklmnopqrstuvwxyz012345";
+    expect(plugin.reversedClientId(IOS)).toBe(scheme);
+    const plist = plugin.iosInfoPlist({ CFBundleURLTypes: [{ CFBundleURLSchemes: ["uniworkchat"] }] }, { iosClientId: IOS, webClientId: WEB });
+    expect(plist).toMatchObject({ GIDClientID: IOS, GIDServerClientID: WEB });
+    const schemes = (p: Record<string, unknown>) => (p.CFBundleURLTypes as { CFBundleURLSchemes: string[] }[]).flatMap((t) => t.CFBundleURLSchemes);
+    expect(schemes(plist)).toEqual(["uniworkchat", scheme]);
+    expect(schemes(plugin.iosInfoPlist(plist, { iosClientId: IOS }))).toEqual(["uniworkchat", scheme]);
+    expect(plugin.iosInfoPlist({ a: 1 }, { webClientId: WEB })).toEqual({ a: 1 });
+  });
+
+  it("names the meta-data the Android module reads", () => {
+    const kotlin = fs.readFileSync(
+      path.join(__dirname, "modules/unichat-google-sign-in/android/src/main/java/expo/modules/unichatgooglesignin/UniChatGoogleSignInModule.kt"),
+      "utf8",
+    );
+    expect(kotlin).toContain(`const val SERVER_CLIENT_ID = "${plugin.SERVER_CLIENT_ID}"`);
+  });
+
+  it("refuses a value that is not a Google client id", () => {
+    const withGoogle = createRequire(__filename)("./plugins/with-google-sign-in.js") as (config: object, o: object) => object;
+    expect(() => withGoogle({}, { iosClientId: "my-ios-client" })).toThrow(/UNICHAT_GOOGLE_IOS_CLIENT_ID/);
+    expect(() => withGoogle({}, { webClientId: "https://accounts.google.com" })).toThrow(/UNICHAT_GOOGLE_WEB_CLIENT_ID/);
   });
 });
 

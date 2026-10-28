@@ -31,8 +31,13 @@ export type AuthStatus =
 type BootStage = "notStarted" | "reading" | "restoringStored" | "awaitingMe" | "restoringMe" | "wiping" | "idle";
 /** awaitingWipe: /me answered while a wipe is under way; the restore starts once it is done (`adoptee` waits) */
 type AdoptionStage = "idle" | "awaitingMe" | "awaitingWipe" | "restoring";
-/** How the person signs in: the browser (PKCE, the web sign-in page) or Apple's native sheet (iPhone, ADR 0041). */
-export type LoginMethod = "browser" | "apple";
+/**
+ * How the person signs in, a label only (ADR 0047 §8): the browser (PKCE, the web sign-in page), Apple's or Google's
+ * native sheet, email and password, a new account by email, the choice screen's new account (`ticket`) or its code
+ * mailed to another address (`email_claim`), and the second factor of any of them. What each needs (a password, a
+ * code) rides in a closure data/auth/store.ts arms, never in an event or an effect.
+ */
+export type LoginMethod = "browser" | "apple" | "google" | "password" | "register" | "ticket" | "email_claim" | "second_factor";
 
 /** Whose cache restore it is: the stored person's at boot, /me's person at boot (nobody stored), a sign-in's. */
 export type CacheFor = "stored" | "boot" | "adopt";

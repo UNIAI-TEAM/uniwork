@@ -1,0 +1,27 @@
+// Sign in with Google for UniChat on Android (ADR 0047 §8): Credential Manager's "Sign in with Google" option, whose
+// ID token carries the nonce the server checks. Built by the app's Gradle like any Expo module.
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.unichatgooglesignin'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.unichatgooglesignin"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+dependencies {
+  // Credential Manager, and its Google Play services provider for Android 13 and below.
+  implementation 'androidx.credentials:credentials:1.5.0'
+  implementation 'androidx.credentials:credentials-play-services-auth:1.5.0'
+  // GetSignInWithGoogleOption (setNonce) and GoogleIdTokenCredential.
+  implementation 'com.google.android.libraries.identity.googleid:googleid:1.1.1'
+  // GoogleApiAvailability: no Google Play services, no Google sheet (the app goes through the browser).
+  implementation 'com.google.android.gms:play-services-base:18.5.0'
+}

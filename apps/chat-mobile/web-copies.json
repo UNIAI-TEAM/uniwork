@@ -1,6 +1,6 @@
 {
   "$comment": "Written by scripts/mobile-web-copies.mjs --write after reviewing each copy against its web source. Do not edit by hand, except to raise copiedCodeChars (the ratchet) or move target in a reviewed PR.",
-  "copiedCodeChars": 140336,
+  "copiedCodeChars": 136363,
   "target": {
     "copiedCodeChars": 54000,
     "by": "2027-02-28",
@@ -61,10 +61,6 @@
     },
     "apps/chat-mobile/data/stores/chat-typing-store.ts": {
       "packages/core/chat/sidebar-typing-store.ts": "f1ac2f8deeced5f25c3cff51eb6fabe923505290f4ddb4c2eda4519c5aaee262"
-    },
-    "apps/chat-mobile/lib/account-deletion.ts": {
-      "packages/core/auth/errors.ts": "bbd6a653c4285358fc337fae13c90fe7c80ded613811b8d36f5466ebbd5427ca",
-      "packages/views/settings/components/delete-account-dialog.tsx": "2cc14fea7b44dfd08ce9c488a43b33949bd6fcbdec13bd9ed9bc4f8f210d34e2"
     },
     "apps/chat-mobile/lib/ai-consent.ts": {
       "apps/web/features/landing/privacy-content.ts": "80c269a2b0d7c05526a6bcf4e70a7654ceb5385025595a9e5f4591cc1f13854e"

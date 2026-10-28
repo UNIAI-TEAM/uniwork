@@ -1,7 +1,8 @@
 // An owner whose organization has other members hands it over from the phone before the account is erased (Apple
 // 5.1.1(v): deletion completes in the app), as the web's Settings › Organization does with POST
-// /api/v1/orgs/{org}/transfer-ownership (server OrganizationMemberService.TransferOwnership). Pure: who may take
-// over, and what a refused hand-over means; the sheet is components/settings/delete-account.tsx.
+// /api/v1/orgs/{org}/transfer-ownership (server OrganizationMemberService.TransferOwnership), confirmed with a
+// step-up token for transfer_ownership (ADR 0047 §5). Pure: who may take over, and what a refused hand-over means;
+// the sheet is components/settings/delete-account.tsx.
 import { pathOf } from "./unknown-shape";
 import { userKey } from "./user-id";
 
@@ -29,25 +30,16 @@ export function transferCandidates(members: readonly OrgMemberRow[], selfId: str
   return [...rows.filter((r) => r.admin), ...rows.filter((r) => !r.admin)];
 }
 
-export type TransferOwnershipFailure = "proof_refused" | "password_required" | "member_gone" | "rate_limited" | "offline" | "failed";
+export type TransferOwnershipFailure = "member_gone" | "rate_limited" | "offline" | "failed";
 
-/** The server codes transferOwnershipFailure turns into words: answers, not contract drift (data/report.ts). */
-export const TRANSFER_OWNERSHIP_HANDLED_CODES = [
-  "password_incorrect",
-  "invalid_credentials",
-  "password_required",
-  "member_deactivated",
-  "not_found",
-] as const;
+/**
+ * The server codes the sheet answers itself: answers, not contract drift (data/report.ts). proof_required is the
+ * proof sheet's (a step-up token for transfer_ownership, ADR 0047 §5): it asks again.
+ */
+export const TRANSFER_OWNERSHIP_HANDLED_CODES = ["member_deactivated", "not_found", "proof_required"] as const;
 
 export function transferOwnershipFailure(err: unknown): TransferOwnershipFailure {
   switch (pathOf(err, "body", "error", "code")) {
-    case "password_incorrect":
-    case "invalid_credentials":
-      return "proof_refused";
-    // An account with no password (Google sign-in) cannot hand over: the server asks for one first.
-    case "password_required":
-      return "password_required";
     case "member_deactivated":
     case "not_found":
       return "member_gone";

@@ -29,10 +29,13 @@ import {
   ChatUnreadSummarySchema,
   PendingChatVoiceInvitesSchema,
 } from "@uniwork/core/api/endpoints/chat-schemas";
+import { AuthProvidersSchema, SignInIdentitySchema, SignInMethodsSchema, StepUpGrantSchema } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { InvitationPreviewSchema, PendingInvitationSchema } from "@uniwork/core/types/workspace";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ERASED_ACCOUNT_NAME } from "@/lib/erased-account";
 import { MobileSecurityPolicySchema, PushPreviewPolicySchema } from "./account-api";
+import { AcceptedSchema, OrganizationsSchema } from "./invitations/api";
 import { OrgMemberRowSchema, OrgMembersPageSchema } from "./queries/org-members";
 import { ChatSyncSchema } from "./chat-sync/api";
 import {
@@ -57,7 +60,25 @@ const SERVER = path.resolve(__dirname, "../../../server/internal");
 const SDO_DIR = path.join(SERVER, "handler/dto/sdo");
 // The handler files the rows' handlers live in; each pattern is in scripts/mobile-native-scope.mjs › MOBILE_PATHS,
 // so a change to one runs this test (checked below).
-const HANDLER_FILES = ["chat*.go", "auth.go", "identity.go", "config.go", "push_preview_policy.go", "workspace.go", "task.go", "organization_members.go"];
+const HANDLER_FILES = [
+  "chat*.go",
+  "auth.go",
+  "identity.go",
+  "config.go",
+  "push_preview_policy.go",
+  "workspace.go",
+  "task.go",
+  "organization_members.go",
+  // GET /orgs: what the empty workspace picker says when no invitation waits.
+  "organization.go",
+  // GET /me/invitations: the invitations the empty workspace picker answers.
+  "onboarding.go",
+  // Unified sign-in (ADR 0047): the app's doors, Settings › Sign-in methods and step-up, /auth/providers.
+  "native_sign_in.go",
+  "sign_in_methods.go",
+  "sign_in_ticket.go",
+  "verification.go",
+];
 // Structs of other packages an SDO embeds as a field: ConfigSDO.unichat_stores is a config.UniChatStoreLinks.
 const FOREIGN_STRUCTS: Record<string, string> = { config: "config/unichat_downloads.go" };
 
@@ -199,7 +220,7 @@ function valueStruct(source: string, body: string, expression: string): string |
   return assigned ? returnStruct(source, assigned) : undefined;
 }
 
-/** What a handler answers 2xx with: its last `respondJSON`, or the `h.respond…` helper it hands the answer to. */
+/** What a handler answers 2xx with: its last `respondJSON`, or the `h.respond…` / `h.…Answer` helper it hands it to. */
 function answerOf(source: string, handler: string, seen = new Set<string>()): Answer {
   const body = funcBody(source, handler);
   if (!body || seen.has(handler)) return { unresolved: `no func ${handler}` };
@@ -207,7 +228,7 @@ function answerOf(source: string, handler: string, seen = new Set<string>()): An
   const responses = [...body.matchAll(/respondJSON\(w, [^,]+, (.*)$/gm)];
   const last = responses.at(-1)?.[1];
   if (last === undefined) {
-    const helper = /\bh\.(respond\w+)\(/.exec(body)?.[1];
+    const helper = /\bh\.(respond\w+|\w+Answer)\(/.exec(body)?.[1];
     return helper ? answerOf(source, helper, seen) : { unresolved: `${handler} has no respondJSON` };
   }
   const map = /^map\[string\]any\{(.*)\}\)\s*$/.exec(last);
@@ -236,9 +257,52 @@ interface Contract {
   items?: Record<string, z.ZodType>;
 }
 
+// Unified sign-in (ADR 0047): what the app reads around the schemas core exports. Core keeps the envelopes of
+// readNativeSignIn and readSignInMethodsChange module-private, so their keys are written out here with core's own
+// schemas nested; the session is what data/auth/transport.ts › parseSession reads, strictly, of DesktopSessionSDO.
+const SessionFields = z.object({
+  account_id: z.string(),
+  device_session_id: z.string(),
+  session_id: z.string(),
+  deployment_id: z.string(),
+  access_token: z.string(),
+  token_type: z.string(),
+  expires_in: z.number(),
+  refresh_token: z.string(),
+  refresh_expires_in: z.number(),
+});
+const NativeSignInFields = z.object({
+  status: z.string(),
+  session: SessionFields,
+  reclaimed: z.boolean(),
+  link_skipped: z.string(),
+  mfa_token: z.string(),
+  ticket: z.string(),
+  identity: SignInIdentitySchema,
+});
+const SignInMethodsChangeFields = z.object({ user: z.unknown(), sign_in_methods: SignInMethodsSchema });
+const SentFields = z.object({ status: z.string() });
+
 const CONTRACTS: Contract[] = [
+  // Sign-in (ADR 0047 §8): the app's doors, the providers it offers, Settings › Sign-in methods and step-up.
+  {
+    endpoint: "POST /auth/native/{password,mfa,google,apple,register}, …/sign-in-ticket/{create,claim-email/verify}",
+    schema: NativeSignInFields,
+    sdo: "NativeSignInSDO",
+    handlers: ["nativePassword", "nativeMFA", "nativeGoogle", "nativeApple", "nativeRegister", "nativeTicketCreate", "nativeTicketClaimEmailVerify"],
+  },
+  { endpoint: "POST /auth/native/sign-in-ticket/claim-email, /me/step-up/email-code", schema: SentFields, sdo: "StatusSDO", handlers: ["nativeTicketClaimEmail", "stepUpEmailCode"] },
+  { endpoint: "GET /auth/providers", schema: AuthProvidersSchema, sdo: "AuthProvidersSDO", handlers: ["authProviders"] },
+  { endpoint: "GET /me/sign-in-methods", schema: SignInMethodsSchema, sdo: "SignInMethodsSDO", handlers: ["signInMethods"] },
+  {
+    endpoint: "PUT /me/password, POST /me/sign-in-methods/{p}/{native,unlink}, /auth/native/sign-in-ticket/link",
+    schema: SignInMethodsChangeFields,
+    sdo: "SignInMethodsChangeSDO",
+    handlers: ["setPassword", "signInMethodUnlink", "signInMethodLinkNative", "nativeTicketLink"],
+  },
+  { endpoint: "POST /me/step-up", schema: StepUpGrantSchema, sdo: "StepUpSDO", handlers: ["stepUp"] },
   // Boot, account and remote config: the shell, Settings and the kill switches (mobile_flags).
-  { endpoint: "GET|PATCH /me, PUT|DELETE /me/ai-consent, PUT /me/push-previews", schema: MeResponseSchema, sdo: { user: "UserDTO" }, handlers: ["me", "patchMe", "answerAIConsent", "setPushPreviews"] },
+  { endpoint: "GET|PATCH /me, PUT|DELETE /me/ai-consent, PUT /me/push-previews", schema: MeResponseSchema, sdo: { user: "UserDTO" }, handlers: ["me", "patchMe", "answerAIConsent", "setPushPreviews", "verifyEmail"] },
   { endpoint: "GET /workspaces", schema: WorkspacesResponseSchema, sdo: "WorkspaceListSDO", handlers: ["listWorkspaces"] },
   { endpoint: "GET /workspaces/{id}/members", schema: WorkspaceMembersSchema, sdo: "MemberListSDO", handlers: ["listMembers"], items: { members: WorkspaceMemberSchema } },
   { endpoint: "GET /config", schema: RemoteConfigSchema, sdo: "ConfigSDO", handlers: ["config"] },
@@ -249,6 +313,12 @@ const CONTRACTS: Contract[] = [
     sdo: "MobileSecurityPolicySDO",
     handlers: ["orgMobileSecurityPolicy"],
   },
+  // The empty workspace picker (spec §5.2): an invitation's preview, where joining it led, and whether the account
+  // already belongs to an organization. GET /me/invitations answers rows built as map literals, not an SDO, so only
+  // core's schema reads them (its malformed case is data/invitations/api.test.ts).
+  { endpoint: "GET /invitations/{token}", schema: InvitationPreviewSchema, sdo: "InvitationPreviewSDO", handlers: ["previewInvitation"] },
+  { endpoint: "POST /invitations/{token}/accept", schema: AcceptedSchema, sdo: "AcceptInviteSDO", handlers: ["acceptInvitation"] },
+  { endpoint: "GET /orgs", schema: OrganizationsSchema, sdo: { organizations: "OrganizationDTO" }, handlers: ["listOrganizations"] },
   // Who an owner deleting the account can hand the organization to, and whom the contacts tab leaves out.
   {
     endpoint: "GET /orgs/{org}/members",
@@ -348,6 +418,31 @@ describe("the app's response schemas against the server's SDOs and handlers", ()
       expect(answerOf(handlers, handler)).toEqual(expected(sdo));
     },
   );
+
+  // GET /me/invitations builds each row as a map literal (onboarding.go › myInvitations), which answerOf cannot
+  // follow into: every key core's PendingInvitationSchema reads is held to a key of that literal (and of the literals
+  // nested in it) here, and its workspaces to the struct toInvitationWorkspaceDTOs returns.
+  it("GET /me/invitations: every field the app reads is a key the server's rows write", () => {
+    const body = funcBody(handlers, "myInvitations") ?? "";
+    expect(answerOf(handlers, "myInvitations")).toEqual({ keys: { invitations: undefined } });
+    const written = new Set([...body.matchAll(/"(\w+)":|row\["(\w+)"\] =/g)].map((m) => m[1] ?? m[2] ?? ""));
+    const nestedKeys = (key: string): string[] => {
+      const literal = new RegExp(`(?:"${key}":|row\\["${key}"\\] =)\\s*map\\[string\\]string\\{([^}]*)\\}`).exec(body)?.[1] ?? "";
+      return [...literal.matchAll(/"(\w+)":/g)].map((m) => m[1] ?? "");
+    };
+    const missing = Object.entries(objectShape(PendingInvitationSchema) ?? {}).flatMap(([key, value]) => {
+      if (!written.has(key)) return [`${key} (no "${key}" key in myInvitations' row)`];
+      const inner = objectShape(value) ?? {};
+      if (key === "workspaces") {
+        if (!/"workspaces": toInvitationWorkspaceDTOs\(/.test(body)) return ["workspaces: no longer toInvitationWorkspaceDTOs"];
+        return drift(inner, returnStruct(handlers, "toInvitationWorkspaceDTOs") ?? "", structs, key);
+      }
+      return Object.keys(inner)
+        .filter((sub) => !nestedKeys(key).includes(sub))
+        .map((sub) => `${key}.${sub}`);
+    });
+    expect(missing).toEqual([]);
+  });
 
   // The calls kill switch (owner decision): a key the app reads that the server's catalogue does not
   // declare as a mobile flag never arrives, so the server could not switch it off.

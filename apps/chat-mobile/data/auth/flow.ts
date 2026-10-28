@@ -1,17 +1,25 @@
 // Composition root of the native session. Expo / React Native APIs live here
 // and nowhere else in data/auth, so session.ts, transport.ts and pkce.ts stay
 // node-testable: Constants for the scheme and client ids, Platform for the
-// device label, WebBrowser for the modal system auth session, Apple's native sheet on iOS (apple.ts), expo/fetch
-// (strict-fetch.ts) for the requests.
+// device label, WebBrowser for the modal system auth session, expo/fetch
+// (strict-fetch.ts) for the requests. Apple's and Google's sheets (apple.ts,
+// google.ts) are the other native wrappers, used by the doors of the app's
+// sign-in screen (sign-in.ts).
+import { createNativeSignInApi, type NativeClient } from "@uniwork/core/api/endpoints/sign-in-native-api";
+import { NO_AUTH_PROVIDERS, readAuthProviders, type AuthProviders } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
+import { buildLabel } from "@/lib/build-info";
+import { signInOfferOf, type SignInOffer } from "@/lib/sign-in-offer";
+import { buildInfo } from "../build-info";
 import { secureSessionStorage } from "../secure-storage";
-import { appleSignInAvailable, signInWithApple } from "./apple";
-import { appleIssuer, createAppleTransport } from "./apple-transport";
 import { whileSystemUiOpen } from "../system-ui";
+import { appleSignInAvailable } from "./apple";
+import { googleSignInAvailable } from "./google";
 import { MobileSession, deviceLabel, type MobileSessionConfig } from "./session";
 import { strictFetch } from "./strict-fetch";
+import { createEndpointRequest } from "./endpoint-request";
 import { createTransport } from "./transport";
 
 interface ExpoConfigLike {
@@ -50,17 +58,32 @@ export const session = new MobileSession({
   openBrowser: openAuthBrowser,
 });
 
-// Sign in with Apple (ADR 0041; Apple 4.8 asks it of the iOS app): Apple's identity token goes the same strict way.
-const apple = createAppleTransport({ deploymentId: authConfig.deploymentId }, { fetch: strictFetch });
+/** NativeClientSDI: what every door of the app's sign-in screen says about the app (spec §3.6). */
+export const nativeClient: NativeClient = {
+  client_id: authConfig.clientId,
+  deployment_id: authConfig.deploymentId,
+  device_label: authConfig.deviceLabel,
+  platform: authConfig.platform,
+  build: buildLabel(buildInfo()),
+};
 
-/** Whether the sign-in screen offers Sign in with Apple: an iPhone that has it, and a server that takes it. */
-export async function appleSignInOffered(): Promise<boolean> {
-  const [device, server] = await Promise.all([appleSignInAvailable(Platform.OS), apple.enabled()]);
-  return device && server;
+// The doors carry the password, the codes and the provider tokens: the same strict fetch as the session's routes.
+const authRequest = createEndpointRequest({ fetch: strictFetch });
+
+/** The doors of the app's own sign-in screen (ADR 0047 §8), bound to this app and deployment. */
+export const nativeSignIn = createNativeSignInApi(authRequest, nativeClient);
+
+/** Which sign-ins this server offers; every one off when it cannot be asked (an older server, no network). */
+async function authProviders(): Promise<AuthProviders> {
+  try {
+    return readAuthProviders(await authRequest("/api/v1/auth/providers"));
+  } catch {
+    return NO_AUTH_PROVIDERS;
+  }
 }
 
-/** Sign in with Apple, on the iPhone only: Apple's sheet, then the native session (MobileSession.loginWith). */
-export async function loginWithApple(): Promise<void> {
-  if (Platform.OS !== "ios") return;
-  await session.loginWith(appleIssuer(apple, signInWithApple, authConfig));
+/** The ways in the sign-in screen offers besides email: what the server takes, and the sheets this phone can open. */
+export async function signInOffer(): Promise<SignInOffer> {
+  const [providers, appleNative, googleNative] = await Promise.all([authProviders(), appleSignInAvailable(Platform.OS), googleSignInAvailable()]);
+  return signInOfferOf({ os: Platform.OS, providers, appleNative, googleNative });
 }

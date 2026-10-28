@@ -15,8 +15,11 @@ vi.mock("expo-constants", () => ({
 vi.mock("react-native", () => ({ Platform: { OS: "android" } }));
 const apple = vi.hoisted(() => ({ isAvailableAsync: vi.fn(async () => true), signInAsync: vi.fn(), AppleAuthenticationScope: { FULL_NAME: 0, EMAIL: 1 } }));
 vi.mock("expo-apple-authentication", () => apple);
-const strict = vi.hoisted(() => ({ strictFetch: vi.fn() }));
+const strict = vi.hoisted(() => ({ strictFetch: vi.fn<(url: string, init: RequestInit) => Promise<Response>>() }));
 vi.mock("./strict-fetch", () => strict);
+vi.mock("../build-info", () => ({ buildInfo: () => ({ version: "0.4.0", build: "17" }) }));
+const google = vi.hoisted(() => ({ isAvailable: vi.fn(async () => false), signIn: vi.fn(), signOut: vi.fn() }));
+vi.mock("@/modules/unichat-google-sign-in", () => ({ UniChatGoogleSignIn: google }));
 const transportSpy = vi.hoisted(() => ({ calls: [] as unknown[][] }));
 vi.mock("./transport", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./transport")>();
@@ -29,9 +32,12 @@ vi.mock("./transport", async (importOriginal) => {
   };
 });
 
+import { configureRuntime } from "@uniwork/core/runtime-config";
 import { systemUiOpen } from "../system-ui";
-import { appleSignInOffered, authConfig, loginWithApple, openAuthBrowser, resolveAuthConfig, session } from "./flow";
+import { authConfig, nativeClient, nativeSignIn, openAuthBrowser, resolveAuthConfig, session, signInOffer } from "./flow";
 import { MobileSession } from "./session";
+
+const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 describe("auth flow composition", () => {
   it("builds the session config from app.config.ts extra, the scheme and Platform.OS", () => {
@@ -83,11 +89,37 @@ describe("auth flow composition", () => {
     expect(systemUiOpen()).toBe(false);
   });
 
-  it("offers no Sign in with Apple off the iPhone, and asks neither Apple nor the server", async () => {
-    expect(await appleSignInOffered()).toBe(false);
+  it("says who the app is to every door of the sign-in screen, and sends them through the strict fetch", async () => {
+    expect(nativeClient).toEqual({
+      client_id: "uniwork-chat-mobile",
+      deployment_id: "eu",
+      device_label: "UniChat (Android)",
+      platform: "android",
+      build: "0.4.0 (17)",
+    });
+    configureRuntime({ apiUrl: "https://uniwork.example", appUrl: "https://uniwork.example" });
+    strict.strictFetch.mockResolvedValueOnce(json(200, { status: "mfa_required", mfa_token: "m" }));
+    expect(await nativeSignIn.signInWithPassword({ email: "a@b.c", password: "pw" })).toEqual({ status: "mfa_required", mfa_token: "m" });
+    const [url, init] = strict.strictFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://uniwork.example/api/v1/auth/native/password");
+    expect(JSON.parse(String(init.body))).toEqual({ ...nativeClient, email: "a@b.c", password: "pw" });
+  });
+
+  it("sends Apple through the browser off the iPhone, without asking for Apple's sheet", async () => {
+    strict.strictFetch.mockResolvedValueOnce(json(200, { google: true, apple: true, apple_web: true, google_native: true }));
+    expect(await signInOffer()).toEqual({ apple: "browser", google: "browser" });
+    // Google's sheet where the build and Google Play services can open it
+    google.isAvailable.mockResolvedValueOnce(true);
+    strict.strictFetch.mockResolvedValueOnce(json(200, { google: true, apple: true, apple_web: true, google_native: true }));
+    expect(await signInOffer()).toEqual({ apple: "browser", google: "native" });
     expect(apple.isAvailableAsync).not.toHaveBeenCalled();
-    await loginWithApple();
-    expect(apple.signInAsync).not.toHaveBeenCalled();
-    expect(session.status()).toBe("signed-out");
+    expect(String(strict.strictFetch.mock.lastCall?.[0])).toMatch(/\/api\/v1\/auth\/providers$/);
+  });
+
+  it("offers nothing but email while the server cannot be asked", async () => {
+    strict.strictFetch.mockRejectedValueOnce(new TypeError("Network request failed"));
+    expect(await signInOffer()).toEqual({ apple: null, google: null });
+    strict.strictFetch.mockResolvedValueOnce(json(503, { error: { code: "internal" } }));
+    expect(await signInOffer()).toEqual({ apple: null, google: null });
   });
 });

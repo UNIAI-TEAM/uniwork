@@ -1,14 +1,15 @@
 // Ported from apps/chat-desktop/src/main/auth/transport.ts. The API origin is
 // read from runtimeConfig() per call (configureRuntime() runs at boot) and the
 // dev loopback rule is gone: a phone reaches the dev server over LAN http.
+import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
+import { SIGN_IN_VERDICTS, fieldsOf, type SignInVerdict, type TransportErrorFields } from "./sign-in-verdicts";
 
 /**
- * HTTP client for the four UniWork native auth routes (and, through createAuthRequest, Sign in with Apple's two in
- * apple-transport.ts). The only URLs it can
- * build are `apiUrl` + one of the routes below; responses are parsed strictly
- * from the server's snake_case DTOs and fail closed on a missing or mistyped
- * field.
+ * HTTP client for the four UniWork native auth routes and, through createAuthRequest (endpoint-request.ts for core's
+ * factories), the doors of the app's own sign-in screen (ADR 0047 §8) and /auth/providers. The only URLs it can build
+ * are `apiUrl` + one of the routes below; responses are parsed strictly from the server's snake_case DTOs and fail
+ * closed on a missing or mistyped field.
  */
 
 export type TransportErrorCode =
@@ -25,11 +26,7 @@ export type TransportErrorCode =
   | "desktop_auth_unavailable"
   | "invalid_request"
   | "forbidden"
-  // Sign in with Apple (ADR 0041, apple-transport.ts)
-  | "apple_token_invalid"
-  | "apple_account_conflict"
-  | "mfa_required"
-  | "apple_auth_unavailable";
+  | SignInVerdict;
 
 export class TransportError extends Error {
   readonly code: TransportErrorCode;
@@ -40,16 +37,18 @@ export class TransportError extends Error {
    * portal can answer 401 without the UniWork server ever seeing the call)
    */
   readonly fromServer: boolean;
-  /** `Retry-After` of a 429, in ms, when the server sent one in seconds */
+  /** `Retry-After` of a 429 (or the body's `retry_after`), in ms, when the server sent one in seconds */
   readonly retryAfterMs?: number;
-  constructor(code: TransportErrorCode, status?: number, fromServer = false, retryAfterMs?: number) {
-    // never carries a URL, body, or token: the code is the whole story
+  readonly fields: TransportErrorFields;
+  constructor(code: TransportErrorCode, status?: number, fromServer = false, retryAfterMs?: number, fields: TransportErrorFields = {}) {
+    // never carries a URL, a body or a token: the code and the few fields above are the whole story
     super(`uniwork request failed: ${code}`);
     this.name = "TransportError";
     this.code = code;
     this.status = status;
     this.fromServer = fromServer;
     this.retryAfterMs = retryAfterMs;
+    this.fields = fields;
   }
 }
 
@@ -71,6 +70,8 @@ interface StartRequest {
   redirectUri: string;
   deviceLabel?: string;
   platform?: string;
+  /** the provider button the person tapped (spec §3.5): the web sign-in page goes straight to it */
+  provider?: SignInProvider;
 }
 
 export interface Transport {
@@ -84,16 +85,23 @@ export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
-type Route =
+export type Route =
   | "/auth/desktop/start"
   | "/auth/desktop/exchange"
   | "/auth/desktop/refresh"
   | "/auth/desktop/logout"
-  | "/auth/apple/native"
-  | "/auth/providers";
+  | "/auth/providers"
+  | "/auth/native/password"
+  | "/auth/native/mfa"
+  | "/auth/native/google"
+  | "/auth/native/apple"
+  | "/auth/native/register"
+  | "/auth/native/sign-in-ticket/create"
+  | "/auth/native/sign-in-ticket/claim-email"
+  | "/auth/native/sign-in-ticket/claim-email/verify";
 
 /** server error code -> transport code; anything else falls back by status */
-const SERVER_CODES: ReadonlySet<string> = new Set([
+const SERVER_CODES: ReadonlySet<string> = new Set<TransportErrorCode>([
   "unauthorized",
   "auth_code_invalid",
   "device_revoked",
@@ -102,26 +110,26 @@ const SERVER_CODES: ReadonlySet<string> = new Set([
   "desktop_auth_unavailable",
   "invalid_request",
   "forbidden",
-  "apple_token_invalid",
-  "apple_account_conflict",
-  "mfa_required",
-  "apple_auth_unavailable",
+  ...SIGN_IN_VERDICTS,
 ]);
 
+const isServerCode = (code: unknown): code is TransportErrorCode => typeof code === "string" && SERVER_CODES.has(code);
+
 async function errorFromResponse(response: Response): Promise<TransportError> {
-  let code: unknown;
+  let error: Record<string, unknown> = {};
   try {
-    const body = (await response.json()) as { error?: { code?: unknown } } | null;
-    code = body?.error?.code;
+    const body: unknown = await response.json();
+    if (isRecord(body) && isRecord(body.error)) error = body.error;
   } catch {
     // no JSON body
   }
   const status = response.status;
+  const fields = fieldsOf(error.fields);
   const retryAfter = response.headers.get("Retry-After");
-  const retryAfterMs = retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) * 1000 : undefined;
-  if (typeof code === "string" && SERVER_CODES.has(code)) {
-    return new TransportError(code as TransportErrorCode, status, true, retryAfterMs);
-  }
+  const headerSeconds = retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : undefined;
+  const seconds = headerSeconds ?? fields.retry_after;
+  const retryAfterMs = seconds === undefined ? undefined : seconds * 1000;
+  if (isServerCode(error.code)) return new TransportError(error.code, status, true, retryAfterMs, fields);
   if (status === 429) return new TransportError("rate_limited", status, false, retryAfterMs);
   if (status >= 500) return new TransportError("server_error", status);
   if (status === 401) return new TransportError("unauthorized", status);
@@ -129,7 +137,7 @@ async function errorFromResponse(response: Response): Promise<TransportError> {
   return new TransportError("invalid_request", status);
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
@@ -237,6 +245,7 @@ export function createTransport(config: { deploymentId: string }, options: { fet
       });
       if (input.deviceLabel) query.set("device_label", input.deviceLabel);
       if (input.platform) query.set("platform", input.platform);
+      if (input.provider) query.set("provider", input.provider);
       const raw = await request("GET", "/auth/desktop/start", { query });
       if (!isRecord(raw)) throw new TransportError("malformed_response");
       let parsed: URL;

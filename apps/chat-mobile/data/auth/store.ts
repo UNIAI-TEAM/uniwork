@@ -35,18 +35,11 @@ import { hydrateReportedMessagesStore, useReportedMessagesStore } from "../store
 import { hydratePendingOpsStore, usePendingOpsStore } from "../stores/pending-ops-store";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { openDeviceStore } from "../storage/device-store";
-import { loginWithApple, session } from "./flow";
-import {
-  initialAuthModel,
-  reduce,
-  type AuthEffect,
-  type AuthEvent,
-  type AuthModel,
-  type AuthStatus,
-  type CacheFor,
-  type LoginMethod,
-} from "./machine";
+import { session } from "./flow";
+import { initialAuthModel, reduce, type AuthEffect, type AuthEvent, type AuthModel, type AuthStatus, type CacheFor } from "./machine";
 import { forgetLastUser, readLastUser, rememberUser } from "./last-user";
+import { restoreInterruptedSignIn } from "./pending-sign-in";
+import { forgetSignIn, runSignIn, type SignInOutcome, type SignInRequest } from "./sign-in";
 
 interface AuthState {
   user: User | null;
@@ -56,10 +49,12 @@ interface AuthState {
   /** boot: restore the stored session, then /me */
   initialize: () => Promise<void>;
   /**
-   * The browser sign-in (default) or Sign in with Apple, then /me; resolves without a user when the person dismissed
-   * it. Rejects when it failed: a Sign in with Apple verdict with its TransportError code (data/auth/transport.ts).
+   * One sign-in (data/auth/sign-in.ts: the browser by default, a sheet, email and password, a second factor, the
+   * choice screen's ways), then /me. Resolves with what came of it: signed in (with what to say once), a second factor
+   * or a choice now waiting (data/auth/pending-sign-in.ts), or nothing (a sheet closed). Rejects when it failed: a
+   * door's verdict with its TransportError code (data/auth/transport.ts), read by core's readSignInFailure.
    */
-  login: (method?: LoginMethod) => Promise<void>;
+  login: (request?: SignInRequest) => Promise<SignInOutcome>;
   /** a session adopted outside login() (a deep-link callback after a dismissed browser): /me, once, no restore */
   adoptSession: () => Promise<void>;
   /**
@@ -163,6 +158,8 @@ async function readStored(): Promise<AuthEvent> {
     readLastUser(),
     useWorkspaceStore.getState().restore(),
     hydrateDeviceState(),
+    // A choice screen the last run was closed on: the sign-in screen says so (pending-sign-in.ts).
+    restoreInterruptedSignIn(Date.now()).catch(bestEffort("auth", "interrupted sign-in not read", "breadcrumb")),
   ]);
   // A refresh the server refused while the rest was read already ended the session.
   return { type: "storedPersonRead", hasCredential, lastUser, sessionEnded: hasCredential && session.status() === "signed-out" };
@@ -173,10 +170,21 @@ async function restoreCache(user: User, purposes: readonly CacheFor[], sessionsE
   return { type: "cacheRestored", user, for: purposes, sessionEnded: session.status() === "signed-out", sessionsEnded };
 }
 
-async function signIn(method: LoginMethod): Promise<AuthEvent> {
-  await (method === "apple" ? loginWithApple() : session.login());
+/**
+ * The sign-in a login() call armed, taken by the sessionLogin effect it dispatches (perform runs a command's first
+ * effect before dispatch returns). The password or code it carries stays in this closure: the machine's events and
+ * effects name only the method.
+ */
+let armed: (() => Promise<void>) | null = null;
+
+async function signIn(): Promise<AuthEvent> {
+  const run = armed;
+  armed = null;
+  if (run) await run();
   return { type: "loginCompleted", signedIn: session.status() === "signed-in" };
 }
+
+const BROWSER: SignInRequest = { method: "browser" };
 
 const WIPED: AuthEvent = { type: "wiped" };
 
@@ -190,7 +198,7 @@ function perform(effect: AuthEffect): AuthEvent | undefined | Promise<AuthEvent 
     case "loadMe":
       return loadMe(effect.sessionsEnded);
     case "sessionLogin":
-      return signIn(effect.method);
+      return signIn();
     case "reportUser":
       setReportUser(effect.userId);
       return undefined;
@@ -203,6 +211,8 @@ function perform(effect: AuthEffect): AuthEvent | undefined | Promise<AuthEvent 
       forgetPushToken();
       return undefined;
     case "endSession":
+      // What a sign-in left waiting (a second step, a ticket) never outlives the session it was for.
+      forgetSignIn();
       return session.logout().then(() => undefined);
     case "wipeAccount":
       return forgetAccountLocally().then(() => WIPED);
@@ -280,9 +290,18 @@ export const useAuthStore = create<AuthState>(() => ({
     await settledWhen((m) => m.boot === "idle");
   },
 
-  login: async (method) => {
-    await dispatch({ type: "loginStarted", method }).settled;
+  login: async (request = BROWSER) => {
+    let outcome: SignInOutcome = { kind: "dismissed" };
+    armed = async () => {
+      outcome = await runSignIn(request);
+    };
+    try {
+      await dispatch({ type: "loginStarted", method: request.method }).settled;
+    } finally {
+      armed = null;
+    }
     await settledWhen((m) => m.adoption === "idle");
+    return outcome;
   },
 
   adoptSession: async () => {

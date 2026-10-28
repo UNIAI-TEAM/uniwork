@@ -6,12 +6,18 @@
     "lines": 90
   },
   "routes": {
-    "statements": 89,
-    "branches": 81,
-    "functions": 80,
-    "lines": 90
+    "statements": 90,
+    "branches": 82,
+    "functions": 83,
+    "lines": 92
   },
   "files": {
+    "components/app/chat-category-sync.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/app/i18n-provider.tsx": {
       "statements": 100,
       "branches": 100,
@@ -45,6 +51,114 @@
     "components/app/update-nudge.tsx": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/apple-sign-in-button.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/auth-field.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/auth-layout.tsx": {
+      "statements": 100,
+      "branches": 96,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/choice-parts.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/claim-steps.tsx": {
+      "statements": 97,
+      "branches": 91,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/code-field.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/continue-flow.tsx": {
+      "statements": 94,
+      "branches": 89,
+      "functions": 95,
+      "lines": 97
+    },
+    "components/auth/link-step.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/login-form.tsx": {
+      "statements": 100,
+      "branches": 95,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/provider-buttons.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/register-form.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/second-factor-step.tsx": {
+      "statements": 98,
+      "branches": 84,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/sign-in-notices.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/use-countdown.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/use-reader-focus.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/use-sign-in.ts": {
+      "statements": 100,
+      "branches": 96,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/use-step-back.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/auth/verify-email-step.tsx": {
+      "statements": 95,
+      "branches": 82,
       "functions": 100,
       "lines": 100
     },
@@ -114,6 +228,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/calls/use-system-mute.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/chat/ai-consent-notice.tsx": {
       "statements": 100,
       "branches": 100,
@@ -158,7 +278,7 @@
     },
     "components/chat/conversation.tsx": {
       "statements": 90,
-      "branches": 83,
+      "branches": 84,
       "functions": 81,
       "lines": 92
     },
@@ -223,12 +343,18 @@
       "lines": 100
     },
     "components/chat/message-row.tsx": {
-      "statements": 98,
-      "branches": 91,
-      "functions": 93,
-      "lines": 98
+      "statements": 100,
+      "branches": 92,
+      "functions": 100,
+      "lines": 100
     },
     "components/chat/pinned-bar.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/chat/poll-vote-activity-chip.tsx": {
       "statements": 100,
       "branches": 100,
       "functions": 100,
@@ -534,6 +660,18 @@
       "functions": 100,
       "lines": 100
     },
+    "components/settings/delete-account-actions.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/delete-account-consequences.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/settings/delete-account-hand-over.tsx": {
       "statements": 100,
       "branches": 100,
@@ -582,6 +720,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/settings/password-form.tsx": {
+      "statements": 97,
+      "branches": 97,
+      "functions": 100,
+      "lines": 98
+    },
     "components/settings/privacy-section.tsx": {
       "statements": 100,
       "branches": 100,
@@ -618,6 +762,30 @@
       "functions": 100,
       "lines": 100
     },
+    "components/settings/sign-in-method-row.tsx": {
+      "statements": 100,
+      "branches": 99,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/sign-in-methods-section.tsx": {
+      "statements": 97,
+      "branches": 80,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/step-up-proofs.tsx": {
+      "statements": 94,
+      "branches": 82,
+      "functions": 95,
+      "lines": 98
+    },
+    "components/settings/step-up-sheet.tsx": {
+      "statements": 98,
+      "branches": 94,
+      "functions": 100,
+      "lines": 100
+    },
     "components/settings/switch-row.tsx": {
       "statements": 100,
       "branches": 100,
@@ -633,6 +801,18 @@
     "components/settings/use-open-web-page.ts": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/use-owner-step.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/use-step-up.ts": {
+      "statements": 100,
+      "branches": 98,
       "functions": 100,
       "lines": 100
     },
@@ -768,6 +948,36 @@
       "functions": 100,
       "lines": 100
     },
+    "components/workspace/invitation-parts.tsx": {
+      "statements": 100,
+      "branches": 96,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/workspace/invitation-preview.tsx": {
+      "statements": 100,
+      "branches": 95,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/workspace/pending-invitations.tsx": {
+      "statements": 96,
+      "branches": 88,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/workspace/use-join-invitation.ts": {
+      "statements": 95,
+      "branches": 85,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/workspace/use-workspace-list.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/workspace/workspace-avatar.tsx": {
       "statements": 100,
       "branches": 92,
@@ -798,6 +1008,12 @@
       "functions": 100,
       "lines": 100
     },
+    "data/mutations/invitations.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "data/mutations/messages.ts": {
       "statements": 100,
       "branches": 100,
@@ -817,6 +1033,18 @@
       "lines": 100
     },
     "data/mutations/safety.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "data/mutations/sign-in-methods.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "data/mutations/sign-in.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,

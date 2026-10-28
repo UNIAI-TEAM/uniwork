@@ -52,5 +52,7 @@
   "api/endpoints/sign-in-methods-api",
   "auth/sign-in-errors",
   "auth/sign-in-rules",
-  "auth/step-up"
+  "auth/step-up",
+  "types/workspace",
+  "types/organization"
 ]

@@ -3,7 +3,8 @@
 //
 // There is no .env (the pre-commit hook refuses one). The only build-time knobs
 // are UNICHAT_ENV (dev | staging | production), UNICHAT_API_URL,
-// UNICHAT_APP_URL, UNICHAT_EAS_PROJECT_ID, SENTRY_DSN, UNICHAT_IOS_CALLS and, for an OTA only, UNICHAT_CRITICAL_UPDATE (TLS pins are
+// UNICHAT_APP_URL, UNICHAT_EAS_PROJECT_ID, SENTRY_DSN, UNICHAT_IOS_CALLS, the Google sign-in clients
+// (UNICHAT_GOOGLE_IOS_CLIENT_ID, UNICHAT_GOOGLE_WEB_CLIENT_ID) and, for an OTA only, UNICHAT_CRITICAL_UPDATE (TLS pins are
 // committed, tls-pins.json); the app reads the result from
 // `extra` via expo-constants and calls configureRuntime() at boot. Defaults are
 // the dev values; staging and production have none (eas.json, runbook
@@ -31,6 +32,10 @@ export const ANDROID_KEEP_RULES = [
   // database across app updates.
   "-keep class expo.modules.unichatbackground.** { *; }",
   "-keep class livekit.org.jni_zero.** { *; }",
+  // Google sign-in (modules/unichat-google-sign-in): the module, and the Google Play services provider Credential
+  // Manager builds from the class name its manifest names (Android's Credential Manager guide asks for this rule).
+  "-keep class expo.modules.unichatgooglesignin.** { *; }",
+  "-keep class androidx.credentials.playservices.** { *; }",
 ].join("\n");
 
 // The EAS project (not a secret), written here by the first-time setup in
@@ -78,6 +83,19 @@ export function iosCallsBuilt(projectRoot: string): boolean {
   return true;
 }
 
+/**
+ * Sign in with Google in the app (ADR 0047 §8, plugins/with-google-sign-in.js): this variant's iOS client (one per
+ * bundle id) and the web client the server verifies tokens for (its GOOGLE_CLIENT_ID; the iOS and Android clients go
+ * in its GOOGLE_NATIVE_CLIENT_IDS). Without the web client neither platform opens Google's sheet; without the iOS one
+ * the iPhone does not. The app then signs in with Google through the browser, so a build never breaks on them.
+ */
+export function googleSignInClients(): { iosClientId?: string; webClientId?: string } | null {
+  const iosClientId = process.env.UNICHAT_GOOGLE_IOS_CLIENT_ID?.trim() || undefined;
+  const webClientId = process.env.UNICHAT_GOOGLE_WEB_CLIENT_ID?.trim() || undefined;
+  if (!iosClientId && !webClientId) return null;
+  return { ...(iosClientId ? { iosClientId } : {}), ...(webClientId ? { webClientId } : {}) };
+}
+
 // What iOS shows when UniChat first asks for the photos, the camera and the microphone.
 // store/listing.md › Quyền quotes them for review (store-listing.test.ts holds the two equal).
 export const USAGE_VI = {
@@ -107,8 +125,10 @@ const collected = (type: string, linked: boolean, purpose: "AppFunctionality" | 
  * app and the libraries that ship no manifest of their own (React Native's core, MMKV, LiveKit) touch —
  * UserDefaults for the app's own settings (CA92.1), file timestamps of the app's container (C617.1) and of the
  * files the person picks to send (3B52.1), elapsed time since boot for timers and performance marks (35F9.1),
- * free space before an attachment is copied into the outbox (E174.1). Expo modules and Sentry ship theirs; Xcode
- * aggregates all of them into the archive's report (runbook › iOS privacy manifest).
+ * free space before an attachment is copied into the outbox (E174.1). Expo modules, Sentry and GoogleSignIn (with
+ * AppAuth, GTMAppAuth and GTMSessionFetcher, all on Apple's list of SDKs that must ship a signed manifest) ship
+ * theirs; Xcode aggregates all of them into the archive's report (runbook › iOS privacy manifest). Google's sheet adds
+ * no data type: the name, address and account id it hands over are the Name, EmailAddress and UserID rows below.
  */
 export const IOS_PRIVACY_MANIFEST = {
   NSPrivacyTracking: false,
@@ -266,6 +286,7 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
   // outside the fingerprint, so the update still reaches the binaries it was built for.
   const criticalUpdate = process.env.UNICHAT_CRITICAL_UPDATE === "1";
   const iosCalls = iosCallsBuilt(projectRoot ?? process.cwd());
+  const google = googleSignInClients();
 
   return {
     ...config,
@@ -273,10 +294,10 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
     // The EAS project belongs to the organization, not to whoever is signed in to eas-cli.
     owner: "uniai-team",
     slug: "uniwork-chat",
-    // The store version. 0.3.1: 0.3.0 shipped (TestFlight build 4, Play internal
-    // 11), and the R8 keep rule for WebRTC and the iOS autolinking exclusion
-    // change the binary again.
-    version: "0.3.1",
+    // The store version. 0.4.0: unified sign-in (ADR 0047) links the Google
+    // sign-in module (Credential Manager, GoogleSignIn) and the webcredentials
+    // domain, after 0.3.1 (the R8 keep rule for WebRTC, the iOS autolinking exclusion).
+    version: "0.4.0",
     orientation: "portrait",
     userInterfaceStyle: "automatic",
     // The server allowlists both redirects for client uniwork-chat-mobile
@@ -301,7 +322,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // first signing identity it finds and never revisits the choice.
       appleTeamId: process.env.EXPO_APPLE_TEAM_ID,
       bundleIdentifier: appId,
-      associatedDomains: [`applinks:${APP_LINK_HOST}`],
+      // webcredentials: the passwords the person saved for the web's sign-in are offered in the app's (Password
+      // AutoFill; the web's AASA names the app under webcredentials.apps, spec §5.1).
+      associatedDomains: [`applinks:${APP_LINK_HOST}`, `webcredentials:${APP_LINK_HOST}`],
       // Mentions and missed calls arrive "time-sensitive" (server notification/push_expo.go), which iOS lets through
       // Focus only with this capability; EAS turns it on for the App ID when it signs.
       entitlements: { "com.apple.developer.usernotifications.time-sensitive": true },
@@ -384,9 +407,11 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // later is this switch plus its translation.
       ["expo-localization", { supportedLocales: ["vi", "en"], supportsRTL: false }],
       "expo-web-browser",
-      // Sign in with Apple on iPhone (ADR 0041, Apple 4.8: the sign-in page offers Google): the
+      // Sign in with Apple on iPhone (ADR 0041, Apple 4.8: the sign-in offers Google): the
       // com.apple.developer.applesignin entitlement; EAS turns the capability on for the App ID when it signs.
       "expo-apple-authentication",
+      // Sign in with Google's client ids (googleSignInClients): none set, nothing written, Google through the browser.
+      ...(google ? [["./plugins/with-google-sign-in", google] as [string, typeof google]] : []),
       // Android draws a notification's small icon from its alpha channel only: a one-colour glyph (built by
       // `pnpm brand:build`), tinted with the brand blue. The plugin writes it as the `notification_icon` drawable,
       // which the call notifications look up too (modules/unichat-calls › CallNotifications.smallIcon).

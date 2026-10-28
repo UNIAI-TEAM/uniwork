@@ -9,7 +9,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CALLS_NATIVE_ONLY } from "./i18n-calls.mjs";
 import { COMPLIANCE_ONLY } from "./i18n-compliance.mjs";
+import { INVITATIONS_ONLY } from "./i18n-invitations.mjs";
 import { SECURITY_ONLY } from "./i18n-security.mjs";
+import { SIGN_IN_ONLY } from "./i18n-sign-in.mjs";
 import { UX_ONLY } from "./i18n-ux.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -45,6 +47,48 @@ const TABS_PATHS = [
   "settings.notifications.push_section",
   // M3 (UNI-1834): a task card under a message names its status as the tasks do.
   ...["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"].map((status) => `tasks.status_${status}`),
+];
+
+// ADR 0047 (spec §5.3): the phone's own sign-in screens say what the web's do — the provider buttons and their
+// errors, the choice screen, the second factor, email verification, the fields of the form, and Settings' sign-in
+// methods and "Xác nhận là bạn". What only the phone says is scripts/i18n-sign-in.mjs.
+const SIGN_IN_PATHS = [
+  "auth.social",
+  "auth.continue",
+  "auth.apple",
+  "auth.mfa",
+  "auth.verify",
+  ...[
+    "email",
+    "password",
+    "displayName",
+    "login",
+    "noAccount",
+    "hasAccount",
+    "signingIn",
+    "registering",
+    "emailPlaceholder",
+    "passwordMinHint",
+    "forgotPassword",
+    "emailRequired",
+    "emailInvalid",
+    "passwordRequired",
+  ].map((leaf) => `auth.${leaf}`),
+  "settings.security.signInMethods",
+  "settings.security.stepUp",
+];
+
+// Spec §5.2: an account without a workspace answers its invitations on the phone, in the web's words: the list,
+// the preview a link opens, why one no longer works, and the roles. What only the phone says is
+// scripts/i18n-invitations.mjs.
+const INVITATION_PATHS = [
+  ...["list_title", "invitedBy", "invited", "place", "join", "load_error", "expires_soon"].map((leaf) => `invitations.${leaf}`),
+  "invitations.preview",
+  "invitations.gone",
+  "invitations.switch.description",
+  "invitations.switch.busy",
+  "workspace.acceptInviteError",
+  ...["owner", "admin", "member"].map((role) => `people.role_${role}`),
 ];
 
 // Chat strings only the phone needs (M2a), nested under chat.mobile so they
@@ -88,13 +132,6 @@ const CHAT_MOBILE_ONLY = {
     call_add_person: "Thêm người vào cuộc gọi",
     call_summary_hint: "UNI sẽ tóm tắt vào chat sau cuộc gọi",
     call_back_to: "Quay lại cuộc gọi",
-    login_browser_hint: "Đăng nhập bằng tài khoản UniWork trong trình duyệt",
-    login_sample_in: "Chiều nay họp lúc 3 giờ được không?",
-    login_sample_out: "Được, em vào ngay",
-    // ADR 0041: Sign in with Apple on the iPhone, and why it can refuse.
-    login_apple_failed: "Không đăng nhập được bằng Apple. Thử lại.",
-    login_apple_conflict: "Email Apple của bạn đã thuộc một tài khoản UniWork khác. Hãy đăng nhập bằng trình duyệt.",
-    login_apple_mfa: "Tài khoản này bật xác thực hai bước. Hãy đăng nhập bằng trình duyệt.",
     thread_reply_placeholder: "Trả lời trong chủ đề…",
     back_to_conversation: "Quay lại cuộc trò chuyện",
     cancel_reply: "Hủy trả lời",
@@ -174,12 +211,6 @@ const CHAT_MOBILE_ONLY = {
     call_add_person: "Add someone to the call",
     call_summary_hint: "UNI will post a summary to the chat after the call",
     call_back_to: "Back to the call",
-    login_browser_hint: "Sign in with your UniWork account in the browser",
-    login_sample_in: "Can we meet at 3 this afternoon?",
-    login_sample_out: "Sure, joining now",
-    login_apple_failed: "Could not sign in with Apple. Try again.",
-    login_apple_conflict: "Your Apple email already belongs to another UniWork account. Sign in with the browser instead.",
-    login_apple_mfa: "This account uses two-step verification. Sign in with the browser instead.",
     thread_reply_placeholder: "Reply in thread…",
     back_to_conversation: "Back to the conversation",
     cancel_reply: "Cancel reply",
@@ -236,7 +267,6 @@ const MOBILE_ONLY = {
   vi: {
     mobile: {
       tab_calls: "Cuộc gọi",
-      login_hint: "Nhắn tin và gọi cho cả đội ngay trên điện thoại.",
       calls: {
         empty: "Chưa có cuộc gọi nào. Cuộc gọi trong các cuộc trò chuyện của bạn sẽ hiện ở đây.",
         outgoing: "Gọi đi",
@@ -271,7 +301,6 @@ const MOBILE_ONLY = {
   en: {
     mobile: {
       tab_calls: "Calls",
-      login_hint: "Message and call your team, right from your phone.",
       calls: {
         empty: "No calls yet. Calls in your conversations show up here.",
         outgoing: "Outgoing",
@@ -393,7 +422,7 @@ function set(obj, dotted, value) {
 function build(locale) {
   const core = JSON.parse(fs.readFileSync(path.join(coreLocales, `${locale}.json`), "utf8"));
   const out = {};
-  for (const dotted of [...PATHS, ...TABS_PATHS]) {
+  for (const dotted of [...PATHS, ...TABS_PATHS, ...SIGN_IN_PATHS, ...INVITATION_PATHS]) {
     const value = get(core, dotted);
     if (value === undefined) throw new Error(`${locale}.json has no ${dotted}`);
     set(out, dotted, value);
@@ -402,7 +431,7 @@ function build(locale) {
   const mobile = MOBILE_ONLY[locale].mobile;
   return {
     ...out,
-    mobile: { ...mobile, ...RELEASE_ONLY[locale], ...COMPLIANCE_ONLY[locale], ...CALLS_NATIVE_ONLY[locale], ...UX_ONLY[locale], ...SECURITY_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } },
+    mobile: { ...mobile, ...RELEASE_ONLY[locale], ...COMPLIANCE_ONLY[locale], ...CALLS_NATIVE_ONLY[locale], ...UX_ONLY[locale], ...SECURITY_ONLY[locale], ...SIGN_IN_ONLY[locale], ...INVITATIONS_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } },
   };
 }
 

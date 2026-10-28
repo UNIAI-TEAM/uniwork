@@ -1,70 +1,50 @@
 // Erasing the account from the phone (Apple 5.1.1(v), Google Play's account
-// deletion policy), ported from packages/views/settings/components/
-// delete-account-dialog.tsx and packages/core/auth/errors.ts ›
-// deleteAccountProofRefused. Pure: the sheet (components/settings/
-// delete-account.tsx) asks which proof to collect and what a failure
-// means; the request is data/account-api.ts. What an owner does on the phone
-// alone (close the organization, hand it over) is lib/owned-organization.ts.
-import type { User } from "@uniwork/core/types/user";
+// deletion policy), as packages/views/settings/components/
+// delete-account-dialog.tsx does: the person confirms it is them first (a
+// step-up token for delete_account, ADR 0047 §5; the proof sheet is
+// components/settings/step-up-sheet.tsx), then POST /api/v1/me/delete. Pure:
+// what a failure means; the sheet is components/settings/delete-account.tsx and
+// the request data/account-api.ts. What an owner does on the phone alone (close
+// the organization, hand it over) is lib/owned-organization.ts.
 import { pathOf } from "./unknown-shape";
 
-/** The one proof the server reads (spec F-01 §2 I9): the password, else a two-factor code, else the typed email. */
-export type DeleteProofMode = "password" | "code" | "email";
-
+/** The erasure's proof: the token the proof sheet bought for delete_account. */
 export interface DeleteAccountBody {
-  password?: string;
-  code?: string;
-  email_confirmation?: string;
-}
-
-export function deleteProofMode(user: Pick<User, "has_password" | "mfa_enabled_at"> | null | undefined): DeleteProofMode {
-  if (user?.has_password) return "password";
-  if (user?.mfa_enabled_at) return "code";
-  return "email";
-}
-
-/** A password is sent as typed; a code and an address lose the spaces a keyboard adds. */
-export function deleteProofBody(mode: DeleteProofMode, proof: string): DeleteAccountBody {
-  if (mode === "password") return { password: proof };
-  if (mode === "code") return { code: proof.trim() };
-  return { email_confirmation: proof.trim() };
+  step_up_token: string;
 }
 
 /** What a failed erasure tells the person; anything unrecognised is "failed" (try again later). */
-export type DeleteAccountFailure = "proof_refused" | "owner_must_transfer" | "rate_limited" | "offline" | "failed";
+export type DeleteAccountFailure = "owner_must_transfer" | "rate_limited" | "offline" | "failed";
 
-function errorCode(err: unknown): unknown {
-  return pathOf(err, "body", "error", "code");
-}
-
-function errorStatus(err: unknown): unknown {
-  return pathOf(err, "status");
-}
-
-/** The server codes deleteAccountFailure turns into words: answers, not contract drift (data/report.ts). */
-export const DELETE_ACCOUNT_HANDLED_CODES = [
-  "password_incorrect",
-  "mfa_code_incorrect",
-  "email_confirmation_mismatch",
-  "invalid_credentials",
-  "owner_must_transfer",
-] as const;
+/**
+ * The server codes the sheet answers itself: answers, not contract drift (data/report.ts). proof_required is the
+ * proof sheet's: the token ran out, and it asks again (components/settings/use-step-up.ts).
+ */
+export const DELETE_ACCOUNT_HANDLED_CODES = ["owner_must_transfer", "proof_required"] as const;
 
 export function deleteAccountFailure(err: unknown): DeleteAccountFailure {
-  switch (errorCode(err)) {
-    // A wrong password (403), two-factor code (403) or typed address (400);
-    // invalid_credentials is what an older server says for the same.
-    case "password_incorrect":
-    case "mfa_code_incorrect":
-    case "email_confirmation_mismatch":
-    case "invalid_credentials":
-      return "proof_refused";
-    // 409: the account still owns an organization (account_deletion.go).
-    case "owner_must_transfer":
-      return "owner_must_transfer";
-  }
-  // The route sits behind the credential rate limit; 0 is no answer at all (data/api.ts).
-  if (errorStatus(err) === 429) return "rate_limited";
-  if (errorStatus(err) === 0) return "offline";
+  // 409: the account still owns an organization (account_deletion.go).
+  if (pathOf(err, "body", "error", "code") === "owner_must_transfer") return "owner_must_transfer";
+  // The route sits behind the step-up budget; 0 is no answer at all (data/api.ts).
+  const status = pathOf(err, "status");
+  if (status === 429) return "rate_limited";
+  if (status === 0) return "offline";
   return "failed";
+}
+
+/**
+ * Where a refusal about no one field is said, in words (the i18n key): the rate limit, no connection, a proof the
+ * server kept refusing (proof_required), or anything else. The owner's step words its own refusals with it too.
+ */
+export function deleteFailureKey(failure: string): string {
+  switch (failure) {
+    case "rate_limited":
+      return "mobile.account.rate_limited";
+    case "offline":
+      return "mobile.account.offline";
+    case "proof_required":
+      return "settings.security.stepUp.errors.proofRequired";
+    default:
+      return "settings.security.delete.failed";
+  }
 }
