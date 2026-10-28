@@ -21,6 +21,7 @@ import { backIcon, minTouchTarget } from "@/lib/platform-ui";
 import { THEME } from "@/lib/theme";
 import { DISPLAY_MAX_FONT_SCALE } from "@/lib/type-scale";
 import { cn } from "@/lib/utils";
+import { useReaderFocus } from "./use-reader-focus";
 
 /** How far the focused field stays above the keyboard. */
 const KEYBOARD_GAP = 24;
@@ -59,10 +60,29 @@ export function KeyboardColumn({ children, className }: { children: ReactNode; c
 /**
  * A screen's title and its one line under it; the sign-in and register screens lead with the app's mark. The title
  * stops growing at DISPLAY_MAX_FONT_SCALE (one word per line at the largest sizes), the line under it keeps scaling.
+ * `announce`: the screen became another one in place (a refusal retitled it), so the reader's focus moves to the
+ * heading and hears both lines, as the web's AuthShell announces its new title.
  */
-export function AuthHeading({ title, subtitle, mark = false }: { title: string; subtitle?: string | null; mark?: boolean }) {
+export function AuthHeading({
+  title,
+  subtitle,
+  mark = false,
+  announce = false,
+}: {
+  title: string;
+  subtitle?: string | null;
+  mark?: boolean;
+  announce?: boolean;
+}) {
+  const ref = useReaderFocus(announce);
   return (
-    <View className={cn("gap-2", mark && "items-center")}>
+    <View
+      ref={ref}
+      accessible={announce || undefined}
+      accessibilityRole={announce ? "header" : undefined}
+      accessibilityLabel={announce ? [title, subtitle].filter(Boolean).join(" ") : undefined}
+      className={cn("gap-2", mark && "items-center")}
+    >
       {mark ? (
         <View className="pb-3" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <UniChatLogo size={64} />

@@ -1,6 +1,6 @@
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import { router, useNavigation } from "expo-router";
-import { BackHandler } from "react-native";
+import { AccessibilityInfo, BackHandler } from "react-native";
 import { forgetPendingSignIn, holdStep, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import type { SignInOutcome, SignInRequest } from "@/data/auth/sign-in";
 import { useAuthStore } from "@/data/auth/store";
@@ -86,13 +86,48 @@ describe("ContinueFlow", () => {
     expect(login).toHaveBeenCalledWith({ method: "ticket", displayName: "An" });
   });
 
-  it("says a choice that ran out, and goes back to sign in", async () => {
+  it("says a choice that ran out, and goes back to a sign-in screen that offers that provider again", async () => {
     signIn(transport("sign_in_expired"));
     await render(<ContinueFlow />);
     await act(async () => fireEvent.press(screen.getByTestId("choice-create")));
     expect(screen.getByText(viText("auth.continue.expired.bodyProvider", { provider: "Google" }))).toBeTruthy();
     await act(async () => fireEvent.press(screen.getByTestId("continue-retry")));
     expect(router.dismissAll).toHaveBeenCalled();
+    expect(usePendingSignIn.getState()).toMatchObject({ choice: null, interrupted: "google" });
+  });
+
+  it("becomes the sign-in-to-link screen when the address took an account meanwhile, and moves the reader there", async () => {
+    const focus = jest.spyOn(AccessibilityInfo, "sendAccessibilityEvent");
+    const login = signIn(transport("sign_in_account_conflict", 409));
+    await render(<ContinueFlow />);
+    await act(async () => fireEvent.press(screen.getByTestId("choice-create")));
+    expect(login).toHaveBeenCalledTimes(1);
+    // One way on: no create row to meet the same answer again, no second button below an alert.
+    expect(screen.queryByTestId("choice-create")).toBeNull();
+    expect(screen.queryByTestId("continue-failure")).toBeNull();
+    expect(screen.getByText(viText("auth.continue.linkRequired.title"))).toBeTruthy();
+    expect(focus).toHaveBeenCalledWith(expect.anything(), "focus");
+    await act(async () => fireEvent.press(screen.getByTestId("continue-link-required")));
+    expect(router.push).toHaveBeenCalledWith(expect.stringContaining("link"));
+  });
+
+  it("holds the create row through a wait, and offers no retry a refusal would only repeat", async () => {
+    const login = signIn(transport("rate_limited", 429, { retryAfterMs: 30_000 }));
+    await render(<ContinueFlow />);
+    await act(async () => fireEvent.press(screen.getByTestId("choice-create")));
+    expect(screen.getByText(new RegExp(viText("auth.social.errors.rate_limited")))).toBeTruthy();
+    expect(screen.getByTestId("choice-create")).toBeDisabled();
+    await act(async () => fireEvent.press(screen.getByTestId("choice-create")));
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("continue-retry-create")).toBeNull();
+  });
+
+  it("offers no retry for a refusal that is not the world's trouble", async () => {
+    signIn(transport("sign_in_email_unverified", 403));
+    await render(<ContinueFlow />);
+    await act(async () => fireEvent.press(screen.getByTestId("choice-create")));
+    expect(screen.getByTestId("continue-failure")).toBeTruthy();
+    expect(screen.queryByTestId("continue-retry-create")).toBeNull();
   });
 
   it("lets back leave once the ticket ran out on a step, by Android's button and the swipe", async () => {

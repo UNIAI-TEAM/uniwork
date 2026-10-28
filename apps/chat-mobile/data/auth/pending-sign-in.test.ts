@@ -12,6 +12,7 @@ import {
   pendingChallenge,
   pendingTicket,
   restoreInterruptedSignIn,
+  retryOnSignIn,
   usePendingSignIn,
 } from "./pending-sign-in";
 import type { PendingStep } from "./sign-in-step";
@@ -121,6 +122,15 @@ describe("a choice the app is closed on", () => {
     await restoreInterruptedSignIn(NOW);
     expect(usePendingSignIn.getState().interrupted).toBeNull();
     dismissInterrupted();
+    expect(usePendingSignIn.getState().interrupted).toBeNull();
+  });
+
+  it("offers a choice that ran out on screen again, as after a closed app", () => {
+    holdStep(choice, NOW);
+    clearChoice();
+    retryOnSignIn("google");
+    expect(usePendingSignIn.getState()).toMatchObject({ choice: null, interrupted: "google" });
+    holdStep(choice, NOW);
     expect(usePendingSignIn.getState().interrupted).toBeNull();
   });
 

@@ -33,7 +33,10 @@ interface PendingSecondFactorView {
 interface PendingSignInState {
   choice: PendingChoiceView | null;
   secondFactor: PendingSecondFactorView | null;
-  /** the provider whose choice screen the last run of the app was closed on, until the sign-in screen has said so */
+  /**
+   * the provider whose choice the sign-in screen offers to start again, until it has said so: the last run of the app
+   * was closed on its choice screen, or the choice ran out while the screen was open
+   */
   interrupted: SignInProvider | null;
 }
 
@@ -96,6 +99,11 @@ export function forgetChoiceMark(): void {
 export async function restoreInterruptedSignIn(now: number): Promise<void> {
   const provider = await takeInterruptedChoice(now);
   if (provider && !usePendingSignIn.getState().choice) usePendingSignIn.setState({ interrupted: provider });
+}
+
+/** The choice ran out on screen and the person asked to try again: the sign-in screen offers that provider, as after a kill. */
+export function retryOnSignIn(provider: SignInProvider): void {
+  usePendingSignIn.setState({ interrupted: provider });
 }
 
 /** The sign-in screen said it, or the person started again. */

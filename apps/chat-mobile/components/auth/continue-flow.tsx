@@ -1,16 +1,18 @@
 // The choice screen (spec §4.3 with the app's order, §5.2): a Google or Apple identity no account matched. The
 // person names what it is: invited with another (work) address, an account they already have (sign in once, and
 // the identity is linked), or a new account (last: the app cannot create an organization). An identity whose
-// address has an account that the provider cannot vouch for gets one way: sign in to link. The ticket and its
-// nonce stay in memory (data/auth/pending-sign-in.ts); a choice that is gone, expired or never held after a
-// restart says so with the way back. Leaving the screen without signing in drops the choice, as "Hủy" does.
+// address has an account that the provider cannot vouch for gets one way: sign in to link, and so does one whose
+// address took an account while the screen was open. The ticket and its nonce stay in memory
+// (data/auth/pending-sign-in.ts); a choice that is gone, expired or never held after a restart says so, and its
+// "Thử lại" has the sign-in screen offer that provider again. Leaving the screen without signing in drops the
+// choice, as "Hủy" does.
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TextInput, View } from "react-native";
 import { SignInLegalNote } from "@/components/settings/sign-in-legal-note";
 import { Text } from "@/components/ui/text";
-import { clearChoice, usePendingSignIn } from "@/data/auth/pending-sign-in";
+import { clearChoice, retryOnSignIn, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { useAuthStore } from "@/data/auth/store";
 import { displayNameError } from "@uniwork/core/auth/sign-in-form";
 import { signInRoutes } from "@/lib/sign-in-routes";
@@ -41,12 +43,16 @@ export function ContinueFlow() {
   const [nameError, setNameError] = useState<string | null>(null);
   const nameInput = useRef<TextInput>(null);
   const create = useSignIn("ticket");
-  const { message, spoken } = useFailureMessage(create.shown);
+  const { message, spoken, waiting } = useFailureMessage(create.shown);
   // The provider the screen opened for, to say whose sign-in ran out once the choice itself is gone.
   const [openedFor] = useState(choice?.identity.provider ?? null);
 
   const failure = create.shown?.failure;
   const expired = gone || !choice || failure?.kind === "restart";
+  // The address took an account since the ticket was issued (a colleague's invite, another device): "Tạo tài khoản
+  // mới" can only meet the same answer, so the screen becomes the one the address would have had from the start, with
+  // its one way on, and the reader is moved to its new title (spec §4.3, as the web does).
+  const conflicted = failure?.code === "sign_in_account_conflict";
   const stepBack = () => setStep(step === "code" ? "email" : "choices");
   // The expired view has no steps: back leaves the screen, by the swipe too.
   useStepBack(step !== "choices" && !expired, stepBack);
@@ -74,6 +80,8 @@ export function ContinueFlow() {
             label={t("auth.continue.expired.retry")}
             onPress={() => {
               clearChoice();
+              // The sign-in screen offers that provider again (its "Thử lại"), as after a closed app.
+              if (provider) retryOnSignIn(provider);
               backToSignIn();
             }}
             testID="continue-retry"
@@ -89,6 +97,8 @@ export function ContinueFlow() {
   const relay = identity.private_relay;
   const needsName = !identity.name.trim();
   const busy = create.busy !== null;
+  // Only the world's trouble is worth pressing again for; any other refusal would only answer the same.
+  const retryable = failure?.kind === "form" && (failure.code === "network" || (failure.status ?? 0) >= 500);
   const toLogin = () => router.push(signInRoutes.login({ link: true }));
   const cancel = () => {
     clearChoice();
@@ -123,7 +133,7 @@ export function ContinueFlow() {
   }
 
   const createAccount = async () => {
-    if (busy) return;
+    if (busy || waiting) return;
     if (needsName) {
       if (!naming) {
         setNaming(true);
@@ -140,10 +150,11 @@ export function ContinueFlow() {
     await create.run({ method: "ticket", ...(needsName ? { displayName: name } : {}) }, "create");
   };
 
-  if (choice.ticketKind === "link_required") {
+  if (choice.ticketKind === "link_required" || conflicted) {
     return (
       <AuthLayout testID="continue-screen" onBack={cancel}>
         <AuthHeading
+          announce={conflicted}
           title={t("auth.continue.linkRequired.title")}
           subtitle={
             relay
@@ -191,6 +202,7 @@ export function ContinueFlow() {
           body={relay ? t("auth.continue.create.bodyRelay") : t("auth.continue.create.body", { email: identity.email })}
           busy={create.busy === "create" && !naming}
           busyLabel={t("auth.continue.create.submitting")}
+          disabled={waiting}
           onPress={() => void createAccount()}
           testID="choice-create"
         >
@@ -218,6 +230,7 @@ export function ContinueFlow() {
                 label={t("auth.continue.create.submit")}
                 busyLabel={t("auth.continue.create.submitting")}
                 busy={create.busy === "create"}
+                disabled={waiting}
                 onPress={() => void createAccount()}
                 testID="choice-create-submit"
               />
@@ -227,9 +240,7 @@ export function ContinueFlow() {
         <SignInLegalNote />
       </View>
       <FormAlert message={message} spoken={spoken} testID="continue-failure" />
-      {failure?.code === "sign_in_account_conflict" ? (
-        <SubmitButton label={t("auth.continue.linkRequired.action")} variant="outline" onPress={toLogin} testID="continue-conflict" />
-      ) : failure?.kind === "form" ? (
+      {retryable ? (
         <SubmitButton
           label={t("common.retry")}
           variant="outline"
