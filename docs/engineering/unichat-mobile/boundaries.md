@@ -31,7 +31,8 @@ thêm vào `core-allowlist.json` và `exports` của core). Endpoint dùng chung
 `chat-endpoint-kit`; đăng nhập thống nhất, ADR 0049: `api/endpoints/sign-in-native-api` — các cửa `/auth/native/*`,
 bind vào transport đăng nhập ở `data/auth/flow.ts` — và `sign-in-methods-api` — Cài đặt và step-up, bind vào bearer
 qua `toChatRequest` ở `data/auth/methods-api.ts` —, cùng schema `sign-in-schemas`, bộ đọc `endpoint-request` và luật
-thuần `auth/{sign-in-errors,sign-in-rules,step-up}`: bảng lỗi đăng nhập, luật phương thức cuối, hạn của token step-up): web bind `request` của `http.ts` (file endpoint web chỉ còn dòng bind cộng phần multipart của
+thuần `auth/{sign-in-errors,sign-in-rules,sign-in-form,step-up}`: bảng lỗi đăng nhập, luật phương thức cuối, luật của
+từng ô trước khi gửi (tên, email, mật khẩu, mã), hạn của token step-up): web bind `request` của `http.ts` (file endpoint web chỉ còn dòng bind cộng phần multipart của
 trình duyệt), điện thoại bind transport của nó qua `toChatRequest` (`data/chat-api.ts`). Còn lại trong `data/chat-api.ts`:
 gửi multipart (phần tệp `{uri}` của React Native), câu trả lời chỉ điện thoại đọc (cuộc gọi đi, đang ghi âm) và bản đọc
 gọn của follow-up, liên kết tin, task, thành viên workspace — bản copy, `web-copies.json` đếm. Logic khác của web:
