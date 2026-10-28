@@ -361,69 +361,6 @@ describe("AskUniProposalCard", () => {
         ...over,
       });
     const applied = (over: Record<string, unknown> = {}) => office({ status: "applied", result: { object_id: "d9", href: "", revision: 1, changes: [], note: "" }, ...over });
-
-    it("shows Tạo và mở and the outline heading", () => {
-      mount([office()]);
-      expect(screen.getByRole("button", { name: "Tạo và mở" })).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Áp dụng" })).toBeNull();
-      expect(screen.getByText("Dàn ý")).toBeInTheDocument();
-      expect(screen.getByText("PPTX")).toBeInTheDocument();
-    });
-
-    it("opens the new document after a successful Apply", async () => {
-      const nav = fakeNav();
-      requestMock.mockResolvedValue(applied());
-      mount([office()], false, nav);
-      fireEvent.click(screen.getByRole("button", { name: "Tạo và mở" }));
-      await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/acme/team/documents/d9"));
-    });
-
-    it("does not navigate when Apply fails", async () => {
-      const nav = fakeNav();
-      requestMock.mockRejectedValue(new Error("boom"));
-      mount([office()], false, nav);
-      fireEvent.click(screen.getByRole("button", { name: "Tạo và mở" }));
-      await waitFor(() => expect(requestMock).toHaveBeenCalled());
-      await new Promise((r) => setTimeout(r, 0));
-      expect(nav.push).not.toHaveBeenCalled();
-    });
-
-    it("keeps Áp dụng and stays put for other tools", async () => {
-      const nav = fakeNav();
-      requestMock.mockResolvedValue(row({ status: "applied", result: { object_id: "d9", href: "", revision: 1, changes: [], note: "" } }));
-      mount([row({ tool: "create_document", preview: { target: { kind: "document", id: "", title: "T" }, fields: [], body: "x" } })], false, nav);
-      fireEvent.click(screen.getByRole("button", { name: "Áp dụng" }));
-      await waitFor(() => expect(requestMock).toHaveBeenCalled());
-      await new Promise((r) => setTimeout(r, 0));
-      expect(nav.push).not.toHaveBeenCalled();
-    });
-
-    it("never navigates when a plan is approved", async () => {
-      const nav = fakeNav();
-      requestMock.mockResolvedValue({ proposals: [applied({ mode: "plan" })] });
-      mount([office({ mode: "plan" })], false, nav);
-      fireEvent.click(screen.getByRole("button", { name: "Duyệt kế hoạch (1 bước)" }));
-      await waitFor(() => expect(requestMock).toHaveBeenCalled());
-      await new Promise((r) => setTimeout(r, 0));
-      expect(nav.push).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("create_office_document", () => {
-    const office = (over: Record<string, unknown> = {}) =>
-      row({
-        tool: "create_office_document",
-        preview: {
-          target: { kind: "document", id: "", title: "Báo cáo" },
-          fields: [{ field: "format", type: "enum", from: null, to: "pptx", options: ["docx", "pptx"] }],
-          body: "# Mở đầu",
-          body_truncated: false,
-          audience: { visibility: "private", room_members: 0, notifies: [], notifies_more: false },
-          refs: [],
-        },
-        ...over,
-      });
-    const applied = (over: Record<string, unknown> = {}) => office({ status: "applied", result: { object_id: "d9", href: "", revision: 1, changes: [], note: "" }, ...over });
     const settle = async () => {
       await waitFor(() => expect(requestMock).toHaveBeenCalled());
       await new Promise((r) => setTimeout(r, 0));
