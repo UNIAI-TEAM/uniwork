@@ -32,6 +32,11 @@ const (
 	MeetingTypeScheduled = "SCHEDULED"
 	MeetingTypeInstant   = "INSTANT"
 
+	// A meeting's venue: online meets in its room; in_person meets in a
+	// physical room and one device records the audio.
+	MeetingVenueOnline   = "online"
+	MeetingVenueInPerson = "in_person"
+
 	PrincipalUser  = "USER"
 	PrincipalGuest = "GUEST"
 
@@ -278,6 +283,8 @@ type CreateMeetingInput struct {
 	// new meeting joins that meeting's series. A meeting of another
 	// workspace, or none, is not found.
 	FollowUpOf string
+	// Venue is MeetingVenueOnline or MeetingVenueInPerson; "" is online.
+	Venue string
 	// IdempotencyKey (the Idempotency-Key header, UNI-2153): a retry with the
 	// same key replays the meeting the first call made. Empty skips the claim.
 	IdempotencyKey string
@@ -322,6 +329,13 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	if !in.EndsAt.After(in.StartsAt) {
 		return db.Meeting{}, Invalid("thời gian kết thúc phải sau thời gian bắt đầu")
 	}
+	venue := in.Venue
+	if venue == "" {
+		venue = MeetingVenueOnline
+	}
+	if err := validVenue(venue); err != nil {
+		return db.Meeting{}, err
+	}
 	tz := strings.TrimSpace(in.Timezone)
 	if tz == "" {
 		if tz, err = s.creatorTimezone(ctx, userID); err != nil {
@@ -348,9 +362,10 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 	// The same key with an edited body is a mismatch, not a replay of the first meeting.
-	fp := IdempotencyFingerprint(append([]string{idempotencyScopeMeetingCreate, strings.TrimSpace(in.Title), in.Description,
+	fpParts := append([]string{idempotencyScopeMeetingCreate, strings.TrimSpace(in.Title), in.Description,
 		in.StartsAt.UTC().Format(time.RFC3339Nano), in.EndsAt.UTC().Format(time.RFC3339Nano), strings.TrimSpace(in.Timezone),
-		strconv.FormatBool(allow), projectID, strings.TrimSpace(in.FollowUpOf)}, in.AttendeeUserIDs...)...)
+		strconv.FormatBool(allow), projectID, strings.TrimSpace(in.FollowUpOf)}, in.AttendeeUserIDs...)
+	fp := IdempotencyFingerprint(append(fpParts, venue)...)
 	replay, commit, err := BeginIdempotent(ctx, q, mem.OrganizationID, workspaceID, idempotencyScopeMeetingCreate, in.IdempotencyKey, userID, IdempotencyOptions{Fingerprint: fp})
 	if err != nil {
 		return db.Meeting{}, NormalizeIdempotencyError(err)
@@ -366,7 +381,7 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeScheduled,
 		HostUserID: userID, Timezone: tz, AllowJoinRequest: allow,
-		ProjectID: strText(projectID), SeriesID: strText(series),
+		ProjectID: strText(projectID), SeriesID: strText(series), Venue: venue,
 	})
 	if err != nil {
 		return db.Meeting{}, err
@@ -385,10 +400,10 @@ func (s *MeetingService) createScheduled(ctx context.Context, userID, workspaceI
 			return db.Meeting{}, err
 		}
 	}
-	if err := s.writeAudit(ctx, q, m, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"SCHEDULED"}`); err != nil {
+	if err := s.writeAudit(ctx, q, m, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"SCHEDULED","venue":"`+venue+`"}`); err != nil {
 		return db.Meeting{}, err
 	}
-	created := map[string]any{"meeting_type": MeetingTypeScheduled, "title": m.Title}
+	created := map[string]any{"meeting_type": MeetingTypeScheduled, "title": m.Title, "venue": m.Venue}
 	if series != "" {
 		created["series_id"] = series
 	}

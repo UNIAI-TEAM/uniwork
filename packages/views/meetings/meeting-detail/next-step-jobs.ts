@@ -9,8 +9,11 @@ import type { DetailStatus, DetailViewer } from "./detail-model";
 export type MinutesState = "off" | "none" | "draft" | "final";
 
 export type StripJob =
-  /** Before the meeting: when it starts and who has not answered; the runner starts it, anyone else joins. */
-  | { kind: "start"; canStart: boolean; pendingNames: string[] }
+  /**
+   * Before the meeting: when it starts and who has not answered; the runner starts it, anyone else joins.
+   * In person there is no room: a clerk records it (`canRecord`), nobody starts or joins.
+   */
+  | { kind: "start"; canStart: boolean; pendingNames: string[]; inPerson: boolean; canRecord: boolean }
   /** Before the meeting, an invitee who is not running it: package G's RSVP row. */
   | { kind: "rsvp" }
   /** Live: "Cần bạn · n" over the lobby and vote rows (package F), with End for the runner and Join. */
@@ -37,7 +40,16 @@ export type StripJob =
       minutes: MinutesState;
       canFinalize: boolean;
       canFollowUp: boolean;
+      /** In person: speakers nobody named yet, named before the minutes are finalized (absent when none). */
+      unnamedSpeakers?: number;
     }
+  /** In person, after the recording was sent: Thư ký UNI is transcribing it (UNI-2247). */
+  | { kind: "transcribing"; minutes: number; etaMinutes: number }
+  /**
+   * This account's recording still on this device (UNI-2247, board p11), ahead of every other row:
+   * continued while the meeting is open, sent unless it was called off, deleted always.
+   */
+  | { kind: "unsent"; seconds: number; savedAt: number; canContinue: boolean; canSend: boolean }
   /** After the end, a member's own items. */
   | { kind: "memberItems"; mine: number; assigned: number; waiting: number; nearest: { title: string; due: string } | null };
 
@@ -61,7 +73,32 @@ export type StripInput = {
   minutesEditable: boolean;
   /** The summary run is under way (AfterAIStates c1). */
   summaryRunning?: boolean;
+  /** Held in person, without a room (UNI-2247). */
+  inPerson?: boolean;
+  /** A clerk of an in-person meeting where the organization transcribes. */
+  canRecord?: boolean;
+  /** In person: the recording being transcribed (`transcribingOf`), null when no part is open. */
+  transcribing?: Transcribing | null;
+  /** In person: speaker labels with neither a member nor a name. */
+  unnamedSpeakers?: number;
+  /** This account's recording on this device that no tab is still writing; null when there is none. */
+  unsent?: { seconds: number; savedAt: number } | null;
 };
+
+/** The recording's length and what of it is still being transcribed, in seconds. */
+export type Transcribing = { seconds: number; openSeconds: number };
+
+const OPEN = new Set(["QUEUED", "RUNNING"]);
+
+/**
+ * An in-person recording is sent in parts, one transcription each (R23): it is being
+ * transcribed while any part is open; its length is every part that did not fail.
+ */
+export function transcribingOf(rows: readonly { status: string; estimated_seconds?: number }[] | undefined): Transcribing | null {
+  if (!rows?.some((r) => OPEN.has(r.status))) return null;
+  const sum = (keep: (status: string) => boolean) => rows.reduce((n, r) => n + (keep(r.status) ? (r.estimated_seconds ?? 0) : 0), 0);
+  return { seconds: sum((s) => s !== "FAILED"), openSeconds: sum((s) => OPEN.has(s)) };
+}
 
 /** The fields of an action item the strip reads. */
 export type StripItem = {
@@ -91,9 +128,11 @@ function closeOut(input: StripInput): StripJob | null {
     minutes: input.minutes,
     canFinalize: input.minutes === "draft" && input.minutesEditable,
     canFollowUp: input.canHost,
+    ...(input.inPerson && input.unnamedSpeakers ? { unnamedSpeakers: input.unnamedSpeakers } : {}),
   };
   // Nothing to say and nothing to press: no row.
-  const says = job.pending > 0 || job.minutes === "draft" || job.minutes === "none" || job.converted > 0 || job.drafting;
+  const says =
+    job.pending > 0 || job.minutes === "draft" || job.minutes === "none" || job.converted > 0 || job.drafting || Boolean(job.unnamedSpeakers);
   return says || job.canFollowUp ? job : null;
 }
 
@@ -112,6 +151,20 @@ function memberItems(input: StripInput): StripJob | null {
 
 /** The strip's rows, in reading order, before the cap. */
 export function nextStepJobs(input: StripInput): StripJob[] {
+  const jobs = stateJobs(input);
+  const { unsent, status } = input;
+  if (!unsent) return jobs;
+  const job: StripJob = {
+    kind: "unsent",
+    ...unsent,
+    canContinue: status !== "ENDED" && status !== "CANCELED",
+    canSend: status !== "CANCELED",
+  };
+  // Before the start, the recording is the meeting: when it starts and who has not answered say nothing more (board p11).
+  return [job, ...(status === "SCHEDULED" ? [] : jobs)];
+}
+
+function stateJobs(input: StripInput): StripJob[] {
   const { status, viewer } = input;
   const live = status === "IN_PROGRESS" || status === "OVERTIME";
   if (viewer === "outsider" && (live || status === "ENDED")) return [{ kind: "outsider" }];
@@ -121,14 +174,28 @@ export function nextStepJobs(input: StripInput): StripJob[] {
     case "MISSED":
       return [{ kind: "missed", canAct: input.canHost }];
     case "SCHEDULED":
-      return input.hasInvitation && !input.canHost
+      // In person, a clerk who may record (an invited secretary too) records instead of answering.
+      return input.hasInvitation && !input.canHost && !(input.inPerson && input.canRecord)
         ? [{ kind: "rsvp" }]
-        : [{ kind: "start", canStart: input.canHost, pendingNames: input.pendingNames }];
+        : [
+            {
+              kind: "start",
+              canStart: input.canHost,
+              pendingNames: input.pendingNames,
+              inPerson: input.inPerson === true,
+              canRecord: input.canRecord === true,
+            },
+          ];
     case "IN_PROGRESS":
       return [{ kind: "live", need: input.liveNeed, canEnd: input.canHost }];
     case "OVERTIME":
       return [{ kind: "overtime", canAct: input.canHost }];
     case "ENDED": {
+      const t = input.inPerson ? input.transcribing : null;
+      // Rounded, not ceiled: 42:18 reads "42 phút", as the header writes the meeting's length (board p07).
+      if (t) {
+        return [{ kind: "transcribing", minutes: Math.max(1, Math.round(t.seconds / 60)), etaMinutes: Math.max(1, Math.round(t.openSeconds / 600)) }];
+      }
       const job = input.isClerk ? closeOut(input) : memberItems(input);
       return job ? [job] : [];
     }

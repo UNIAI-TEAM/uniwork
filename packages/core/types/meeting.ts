@@ -40,6 +40,8 @@ export const MeetingSchema = z.object({
   previous_meeting_id: z.string().optional().catch(undefined),
   /** Detail only: the series' earliest uncanceled meeting starting after this one. */
   next_meeting_id: z.string().optional().catch(undefined),
+  /** online | in_person (read through meetingVenue); absent on an older server. */
+  venue: z.string().optional().catch(undefined),
 });
 export type Meeting = z.infer<typeof MeetingSchema>;
 
@@ -487,6 +489,8 @@ export const MeetingTranscriptionSchema = z.object({
   error_code: z.string().optional(),
   attempts: z.number().optional(),
   starts_at: z.string().optional(),
+  /** The length estimated when the file arrived, in seconds; known from QUEUED on. */
+  estimated_seconds: z.number().optional().catch(undefined),
   audio_seconds: z.number().optional(),
   created_by: z.string().optional(),
   created_at: z.string().optional(),

@@ -4,7 +4,7 @@ import { loadDictionary, type SupportedLocale } from "@uniwork/core/i18n/server"
 const MEETING_PREVIEW_KEYS = [
   "meetingTitle", "startsAt", "title", "join", "share", "recording", "roomPanel", "sharedScreen",
   "handRaised", "micIsOff", "youSuffix", "mic", "camera", "devices", "hand", "aiCopilot", "captions",
-  "stopRecording", "record", "more", "reactionThumbsUp", "adjustView", "controlBarAutoHide", "leave",
+  "stopRecording", "recordVideo", "more", "reactionThumbsUp", "adjustView", "controlBarAutoHide", "leave",
   "devicesSettingsTitle", "deviceMic", "deviceCamera", "deviceSpeaker", "chat", "participants", "people", "addNote", "recordingsTab",
   "insightsTab", "notes", "transcriptTab", "actionsTab", "aiSummary", "summaryEmpty", "notesInputLabel", "notesPlaceholder",
   "chatPlaceholder", "recordingsEmpty", "uniworkAi", "betaLabel", "summarizing", "regenerateSummary", "generateSummary",

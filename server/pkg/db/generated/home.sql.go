@@ -113,7 +113,7 @@ func (q *Queries) GetHomePreference(ctx context.Context, arg GetHomePreferencePa
 }
 
 const listHomeMeetings = `-- name: ListHomeMeetings :many
-SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind, m.quorum_percent, m.attendance_finalized_at, m.attendance_finalized_by, m.organization_id, m.scribe_off_at, m.scribe_off_by, m.minutes_document_id, m.minutes_finalized_at, m.minutes_finalized_by, m.minutes_finalized_version_id, m.dial_in_pin, m.sip_dispatch_rule_id, m.ai_content_shared_at, m.ai_content_shared_by, m.series_id FROM meetings m
+SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind, m.quorum_percent, m.attendance_finalized_at, m.attendance_finalized_by, m.organization_id, m.scribe_off_at, m.scribe_off_by, m.minutes_document_id, m.minutes_finalized_at, m.minutes_finalized_by, m.minutes_finalized_version_id, m.dial_in_pin, m.sip_dispatch_rule_id, m.ai_content_shared_at, m.ai_content_shared_by, m.series_id, m.venue FROM meetings m
 WHERE m.workspace_id = $1
   AND (
     m.status = 'IN_PROGRESS'
@@ -197,6 +197,7 @@ func (q *Queries) ListHomeMeetings(ctx context.Context, arg ListHomeMeetingsPara
 			&i.AiContentSharedAt,
 			&i.AiContentSharedBy,
 			&i.SeriesID,
+			&i.Venue,
 		); err != nil {
 			return nil, err
 		}

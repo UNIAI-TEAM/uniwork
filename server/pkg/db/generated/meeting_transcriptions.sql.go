@@ -137,6 +137,20 @@ func (q *Queries) CompleteTranscription(ctx context.Context, arg CompleteTranscr
 	return i, err
 }
 
+const countOpenMeetingTranscriptions = `-- name: CountOpenMeetingTranscriptions :one
+SELECT count(*) FROM meeting_transcriptions
+WHERE meeting_id = $1 AND status IN ('QUEUED', 'RUNNING')
+`
+
+// tenant: system
+// The auto summary worker's check: parts of the meeting still to transcribe.
+func (q *Queries) CountOpenMeetingTranscriptions(ctx context.Context, meetingID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countOpenMeetingTranscriptions, meetingID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const failTranscription = `-- name: FailTranscription :one
 UPDATE meeting_transcriptions SET
   status = 'FAILED', error_code = $1, attempts = $2,
@@ -588,7 +602,7 @@ UPDATE meetings SET
   updated_at = now(),
   version = version + 1
 WHERE id = $4 AND status = 'SCHEDULED' AND version = $5
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue
 `
 
 type RecordMeetingHeldParams struct {
@@ -654,6 +668,7 @@ func (q *Queries) RecordMeetingHeld(ctx context.Context, arg RecordMeetingHeldPa
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }

@@ -1,0 +1,2 @@
+ALTER TABLE meetings DROP CONSTRAINT IF EXISTS meetings_venue_check;
+ALTER TABLE meetings DROP COLUMN IF EXISTS venue;

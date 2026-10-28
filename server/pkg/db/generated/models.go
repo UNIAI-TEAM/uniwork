@@ -1897,6 +1897,7 @@ type Meeting struct {
 	AiContentSharedAt         pgtype.Timestamptz `json:"ai_content_shared_at"`
 	AiContentSharedBy         pgtype.Text        `json:"ai_content_shared_by"`
 	SeriesID                  pgtype.Text        `json:"series_id"`
+	Venue                     string             `json:"venue"`
 }
 
 type MeetingAccessGrant struct {

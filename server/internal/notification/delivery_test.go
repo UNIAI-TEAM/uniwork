@@ -147,7 +147,7 @@ func TestMeetingReminderOnce(t *testing.T) {
 	now := time.Now()
 	m, err := f.q.CreateMeeting(f.ctx, db.CreateMeetingParams{
 		ID: util.NewID(), WorkspaceID: f.wsID, OrganizationID: f.orgID, Title: "Standup", RoomName: "r", CreatedBy: f.owner.ID, CreatedByKind: "human",
-		Status: "SCHEDULED", MeetingType: "SCHEDULED", HostUserID: f.owner.ID, Timezone: "UTC", AllowJoinRequest: true,
+		Status: "SCHEDULED", MeetingType: "SCHEDULED", HostUserID: f.owner.ID, Timezone: "UTC", AllowJoinRequest: true, Venue: "online",
 		StartsAt: pgtype.Timestamptz{Time: now.Add(8 * time.Minute), Valid: true},
 		EndsAt:   pgtype.Timestamptz{Time: now.Add(38 * time.Minute), Valid: true},
 	})

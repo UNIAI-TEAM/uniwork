@@ -222,18 +222,18 @@ func TestMeetingCreateIdempotencyKey(t *testing.T) {
 		t.Fatalf("without a key: %d meetings, want 3", rows)
 	}
 
-	instant, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, "Họp ngay", "k-instant")
+	instant, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, InstantMeetingInput{Title: "Họp ngay", IdempotencyKey: "k-instant"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	replayed, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, "Họp ngay", "k-instant")
+	replayed, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, InstantMeetingInput{Title: "Họp ngay", IdempotencyKey: "k-instant"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if replayed.ID != instant.ID || replayed.Status != MeetingInProgress {
 		t.Fatalf("instant replay = %s %s, want %s IN_PROGRESS", replayed.ID, replayed.Status, instant.ID)
 	}
-	if _, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, "Họp gấp", "k-instant"); !codedIs(err, "idempotency_payload_mismatch") {
+	if _, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, InstantMeetingInput{Title: "Họp gấp", IdempotencyKey: "k-instant"}); !codedIs(err, "idempotency_payload_mismatch") {
 		t.Fatalf("instant, same key, another title: %v", err)
 	}
 	var instants, ensures int
@@ -247,7 +247,7 @@ func TestMeetingCreateIdempotencyKey(t *testing.T) {
 		t.Fatalf("instant replay: %d meetings, %d ensure rows; want 1 and 1", instants, ensures)
 	}
 	// The two routes keep separate scopes: the scheduled key does not replay an instant meeting.
-	if other, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, "Họp ngay", "k-sched"); err != nil || other.ID == first.ID {
+	if other, err := s.CreateInstantKeyed(ctx, ua.ID, w.ID, InstantMeetingInput{Title: "Họp ngay", IdempotencyKey: "k-sched"}); err != nil || other.ID == first.ID {
 		t.Fatalf("instant with the scheduled route's key: %v %v", other.ID, err)
 	}
 }

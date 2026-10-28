@@ -49,6 +49,7 @@ import { PhonePeopleRow } from "./meeting-detail/rail/phone-rail";
 import { Dialog440 } from "./meeting-detail/ui/overlay";
 import { kitButton } from "./meeting-detail/ui/kit-buttons";
 import { useDetailTab } from "./meeting-detail/use-detail-tab";
+import { useInPersonStrip } from "./meeting-detail/use-in-person-strip";
 import { useMemberIndex } from "./use-member-index";
 import { scrollSectionIntoView, useMeetingSectionDeepLink } from "./use-meeting-section-deep-link";
 import { useNow } from "./use-now";
@@ -69,6 +70,7 @@ export function MeetingDetailView({
   meetingId,
   onJoin,
   onDeleted,
+  onRecord,
   layout = "page",
   headerActions,
 }: {
@@ -76,6 +78,8 @@ export function MeetingDetailView({
   meetingId: string;
   onJoin: () => void;
   onDeleted: () => void;
+  /** Bắt đầu ghi âm of an in-person meeting (UNI-2247); absent, the page offers no recording. */
+  onRecord?: (opts?: { send?: boolean }) => void;
   layout?: "page" | "panel";
   headerActions?: ReactNode;
 }) {
@@ -96,6 +100,7 @@ export function MeetingDetailView({
   const { canHost, canCancel } = useMeetingPermissions(meeting ?? null, workspaceId);
   // Host, secretary or workspace admin: the summary and the action items (spec D3).
   const { isClerk } = useMeetingClerk(meeting ?? null, workspaceId);
+  const inPersonStrip = useInPersonStrip(workspaceId, meeting, isClerk, user.id);
   // The organization's own answer: an override for it turns the minutes on.
   const minutesOn = useMeetingMinutesEnabled(workspace.organization_id);
   const end = useEndMeeting(workspaceId);
@@ -172,7 +177,7 @@ export function MeetingDetailView({
     activeParticipants.find((p) => p.user_id === userId)?.display_name_snapshot ??
     "";
   const hostName = nameOf(meeting.host_user_id) || t("meetings.hostUnknown");
-  const sections = sectionFlags({ status, viewer, aiReadable, minutesOn, hasProject: Boolean(meeting.project_id) });
+  const sections = sectionFlags({ status, viewer, aiReadable, minutesOn, hasProject: Boolean(meeting.project_id), inPerson: inPersonStrip.inPerson });
   const myParticipant = activeParticipants.find((p) => p.user_id === user.id);
   const canceledRow = (activity ?? []).find((a) => a.event_type === "MEETING_CANCELED");
   const pendingJoins = (joinRequests ?? []).filter((r) => r.status === "PENDING").length;
@@ -197,10 +202,12 @@ export function MeetingDetailView({
     minutes: minutesState,
     minutesEditable: minutes?.can_edit === true,
     summaryRunning: summaryRun?.status === "running",
+    ...inPersonStrip,
   });
 
   const stripHandlers = {
     onJoin,
+    onRecord,
     onEnd: () => ask("end"),
     onReview: () => review(),
     onEdit: () => setEditOpen(true),
@@ -247,6 +254,7 @@ export function MeetingDetailView({
       review,
     },
     roll: { open: rollOpen, setOpen: setRollOpen },
+    transcribing: inPersonStrip.transcribing,
   };
 
   const scheduled = status === "SCHEDULED";
@@ -304,6 +312,8 @@ export function MeetingDetailView({
               <DetailHeader
                 meeting={meeting}
                 status={status}
+                // A recording on this device says the meeting is under way before anyone recorded it held (board p11).
+                statusOverride={status === "SCHEDULED" && inPersonStrip.unsent ? "IN_PROGRESS" : undefined}
                 now={now}
                 menu={isPhone ? null : menuNode}
               />

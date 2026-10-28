@@ -246,6 +246,37 @@ describe("TranscriptView (ported from the transcript panel)", () => {
     expect(within(list).getByText("Hai")).toBeInTheDocument();
   });
 
+  it("offers Gán người nói beside the speaker filter while some are unnamed", async () => {
+    const lines = {
+      "/transcript": {
+        segments: [seg("t1", "Một", 10, { speaker_name: "Người nói 1" }), seg("t2", "Hai", 11, { speaker_name: "Người nói 2" })],
+      },
+    };
+    const labels = (named: boolean) => ({
+      labels: [
+        { id: "l1", label_key: "upload:t1:A", number: 1 },
+        { id: "l2", label_key: "upload:t1:B", number: 2, ...(named ? { name: "Hà Vũ", assigned_name: "Hà Vũ" } : {}) },
+      ],
+    });
+    const inPerson = { ...meeting, venue: "in_person" } as Meeting;
+    respond({ ...lines, "/speaker-labels": labels(false) });
+    const first = view(inPerson, true);
+    await screen.findByRole("group", { name: "Lọc theo người nói" });
+    fireEvent.click(await screen.findByRole("button", { name: "Gán người nói" }));
+    expect(await screen.findByRole("dialog", { name: "Gán người nói" })).toBeInTheDocument();
+    first.unmount();
+
+    // Online, or not a clerk: the ⋯ keeps it, as before.
+    respond({ ...lines, "/speaker-labels": labels(false) });
+    const online = view(meeting, true);
+    await screen.findByRole("group", { name: "Lọc theo người nói" });
+    expect(screen.queryByRole("button", { name: "Gán người nói" })).not.toBeInTheDocument();
+    online.unmount();
+    view(inPerson, false);
+    await screen.findByRole("group", { name: "Lọc theo người nói" });
+    expect(screen.queryByRole("button", { name: "Gán người nói" })).not.toBeInTheDocument();
+  });
+
   it("plays the recording from a line's time (UNI-1995 #14)", async () => {
     respond({
       "/transcript": { segments: [seg("t1", "Một", 10, { speaker_name: "Lan" })] },
