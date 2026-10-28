@@ -145,6 +145,66 @@ describe("readSignInFailure", () => {
     });
   });
 
+  it("reads the app's bearer ApiError by the server's envelope", () => {
+    const bearer = (status: number, error?: Record<string, unknown>, retryAfterSeconds?: number) =>
+      Object.assign(new Error("request failed"), { status, body: error ? { error } : undefined, retryAfterSeconds });
+    expect(readSignInFailure(bearer(403, { code: "proof_required", fields: { proofs: ["password", "email_code"] } }), "methods")).toMatchObject({
+      code: "proof_required",
+      status: 403,
+      kind: "step_up",
+      proofs: ["password", "email_code"],
+    });
+    expect(readSignInFailure(bearer(409, { code: "sign_in_method_movable", fields: { masked_email: "a•••@icloud.com" } }), "methods")).toMatchObject({
+      kind: "move",
+      key: "settings.security.signInMethods.errors.movable",
+      maskedEmail: "a•••@icloud.com",
+    });
+    expect(readSignInFailure(bearer(403, { code: "password_incorrect" }), "step_up")).toMatchObject({ kind: "field" });
+    expect(readSignInFailure(bearer(429, { code: "rate_limited", fields: { retry_after: 45 } }), "step_up")).toMatchObject({
+      key: "settings.security.stepUp.errors.tooManyCodes",
+      retryAfterSeconds: 45,
+    });
+    expect(readSignInFailure(bearer(429, { code: "second_factor_locked" }, 600), "step_up").retryAfterSeconds).toBe(600);
+    // No HTTP answer (offline, timed out) is status 0 on the app.
+    expect(readSignInFailure(bearer(0), "methods")).toMatchObject({ code: "network", status: null, key: "auth.social.errors.network" });
+    // A body that is no envelope still falls back by status.
+    expect(readSignInFailure(Object.assign(new Error("x"), { status: 502, body: "Bad Gateway" }), "methods").key).toBe(
+      "auth.social.errors.server",
+    );
+  });
+
+  it("reads a 401 by its context, whether the server named it unauthorized or the app's transport only inferred it", () => {
+    const inferred = (code: string, status: number) =>
+      Object.assign(new Error(`uniwork request failed: ${code}`), { code, status, fromServer: false });
+    expect(readSignInFailure(inferred("unauthorized", 401), "sign_in")).toMatchObject({
+      code: "unauthorized",
+      kind: "field",
+      key: "auth.social.errors.invalid_credentials",
+    });
+    expect(readSignInFailure(inferred("unauthorized", 401), "step_up").kind).toBe("session");
+    expect(readSignInFailure(api("unauthorized", 401), "sign_in").kind).toBe("field");
+    expect(readSignInFailure(api("unauthorized", 401), "methods").kind).toBe("session");
+    // An inferred code never reads as the server's verdict of the same name.
+    expect(readSignInFailure(inferred("invalid_request", 409), "register").key).toBe("auth.social.errors.generic");
+    expect(readSignInFailure(inferred("rate_limited", 429), "claim").key).toBe("auth.social.errors.rate_limited");
+    // Without a status the transport's own code is all there is.
+    expect(readSignInFailure(Object.assign(new Error("x"), { code: "timeout", fromServer: false })).key).toBe("auth.social.errors.network");
+    expect(
+      readSignInFailure(Object.assign(new Error("x"), { code: "invalid_credentials", status: 401, fromServer: true }), "second_factor").key,
+    ).toBe("auth.social.errors.second_factor_invalid");
+  });
+
+  it("a proof locked after too many wrong tries never speaks of two-factor to a signed-in command", () => {
+    for (const context of ["password", "methods", "step_up"] as const) {
+      expect(readSignInFailure(api("second_factor_locked", 429, undefined, 900), context)).toMatchObject({
+        kind: "wait",
+        key: "settings.security.stepUp.errors.locked",
+        retry: { key: "auth.social.retry.minutes", count: 15 },
+      });
+    }
+    expect(readSignInFailure(api("second_factor_locked", 429), "second_factor").key).toBe("auth.social.errors.second_factor_locked");
+  });
+
   it("sends a gone ticket back to sign-in and an ended session to sign in again", () => {
     expect(readSignInFailure(api("sign_in_ticket_missing", 404), "ticket").kind).toBe("restart");
     expect(readSignInFailure(api("sign_in_ticket_channel", 400), "ticket").kind).toBe("restart");

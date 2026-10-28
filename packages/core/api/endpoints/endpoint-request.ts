@@ -18,8 +18,11 @@ export interface EndpointRequestOpts {
 
 /**
  * Resolves to the parsed JSON body (undefined for a 204) and rejects on a
- * failed response with the transport's own error, which carries the server's
- * `error.code` (and, where the transport keeps them, `status`, `fields` and
- * the Retry-After): auth/sign-in-errors.ts reads either platform's error.
+ * failed response with the transport's own error. auth/sign-in-errors.ts
+ * reads the server's code and fields from it by name: top-level `code` and
+ * `fields` (the web's ApiError), or the envelope kept as
+ * `body.error.{code, fields}` (the app's bearer ApiError); `status` (0 for no
+ * HTTP answer), the Retry-After as `retryAfterSeconds` or `retryAfterMs`, and
+ * `fromServer: false` on a code only inferred from the status.
  */
 export type EndpointRequest = (path: string, opts?: EndpointRequestOpts) => Promise<unknown>;

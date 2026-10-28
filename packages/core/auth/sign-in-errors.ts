@@ -7,8 +7,9 @@ import { maskedEmailOf } from "./sign-in-rules";
  * round trip lands /login with, the `?result=` a link from Settings comes
  * back with — to i18n keys and to what the screen does next. Both platforms
  * read their errors through it, so the same refusal says the same thing on
- * the web and on the phone. Pure: it reads a web ApiError or the app's
- * TransportError by their fields and never imports either.
+ * the web and on the phone. Pure: it reads the web's ApiError, the app's
+ * bearer ApiError (the server's envelope kept as `body`) and its auth
+ * TransportError by their fields, and never imports any of them.
  *
  * An unknown code never throws: it reads as the context's generic sentence.
  */
@@ -105,7 +106,8 @@ const BASE: Readonly<Record<string, Row>> = {
   apple_account_conflict: CONFLICT,
   conflict: row(`${SOCIAL}.email_taken`, "field"),
   invalid_token: SESSION_ENDED,
-  unauthorized: SESSION_ENDED,
+  // No `unauthorized`: a 401 under that name reads by its context (lookup),
+  // since on a sign-in screen it is a wrong credential, not an ended session.
   sign_in_ticket_missing: row(`${CONTINUE}.expired`, "restart"),
   sign_in_ticket_channel: row(`${CONTINUE}.channel`, "restart"),
   invalid_code: row(`${CONTINUE}.invalidCode`, "field"),
@@ -122,6 +124,15 @@ const BASE: Readonly<Record<string, Row>> = {
   step_up_code_incorrect: row(`${STEP_UP}.emailCodeIncorrect`, "field"),
 };
 
+/**
+ * Every typed proof a signed-in command weighs (a step-up, the current
+ * password of PUT /me/password, an owner's legacy password on a hand-over or
+ * a deletion) counts toward the same lockout, so its 429 second_factor_locked
+ * reaches accounts without a second factor too: it says "confirming is
+ * paused", never "two-factor authentication".
+ */
+const PROOF_LOCKED = row(`${STEP_UP}.locked`, "wait");
+
 /** Where a code reads differently from BASE. */
 const BY_CONTEXT: Readonly<Partial<Record<SignInContext, Readonly<Record<string, Row>>>>> = {
   second_factor: { invalid_credentials: row(`${SOCIAL}.second_factor_invalid`, "field") },
@@ -134,13 +145,15 @@ const BY_CONTEXT: Readonly<Partial<Record<SignInContext, Readonly<Record<string,
   step_up: {
     provider_token_invalid: row(`${STEP_UP}.providerInvalid`),
     rate_limited: row(`${STEP_UP}.tooManyCodes`, "wait"),
-    second_factor_locked: row(`${STEP_UP}.locked`, "wait"),
+    second_factor_locked: PROOF_LOCKED,
   },
   password: {
     invalid_request: row(`${METHODS}.password.tooShort`, "field"),
     password_incorrect: row(`${METHODS}.password.currentIncorrect`, "field"),
+    second_factor_locked: PROOF_LOCKED,
   },
   methods: {
+    second_factor_locked: PROOF_LOCKED,
     google_not_configured: row(`${METHODS}.errors.notConfigured`),
     apple_not_configured: row(`${METHODS}.errors.notConfigured`),
     apple_auth_unavailable: row(`${METHODS}.errors.notConfigured`),
@@ -159,7 +172,10 @@ const GENERIC: Readonly<Record<SignInContext, string>> = {
   methods: `${METHODS}.errors.generic`,
 };
 
-/** The contexts a 401 without a code means "your session ended" rather than "wrong credentials". */
+/**
+ * The contexts where a 401 the tables do not name (unauthorized included)
+ * means "your session ended" rather than "wrong credentials".
+ */
 const SIGNED_IN: ReadonlySet<SignInContext> = new Set(["step_up", "password", "methods"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -191,23 +207,38 @@ function lookup(code: string, status: number | null, context: SignInContext): Ro
   return row(GENERIC[context]);
 }
 
+function text(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
 /**
  * Read any failure of a sign-in call. `err` is whatever the transport threw:
- * the web's ApiError (code, status, fields, retryAfterSeconds), the app's
- * TransportError (code, status, retryAfterMs), a fetch TypeError (no answer:
- * "network"), or anything else ("unknown", the generic sentence).
+ * - the web's ApiError: `code`, `status`, `fields`, `retryAfterSeconds`;
+ * - the app's bearer ApiError (apps/chat-mobile/data/api.ts): `status`,
+ *   `retryAfterSeconds` and the server's envelope as `body`, whose
+ *   `error.code` and `error.fields` are read when there is no top-level code;
+ * - the app's auth TransportError: `code`, `status`, `retryAfterMs`, and
+ *   `fromServer` — false when the code was only inferred from the HTTP
+ *   status, which then decides as for an unknown code (a 401 on a sign-in
+ *   screen is a wrong credential, not an ended session);
+ * - a fetch TypeError, or a status of 0 (no HTTP answer: offline, timed
+ *   out): "network";
+ * - anything else: "unknown", the context's generic sentence.
  */
 export function readSignInFailure(err: unknown, context: SignInContext = "sign_in"): SignInFailure {
   const rec = isRecord(err) ? err : {};
-  const fields = isRecord(rec.fields) ? rec.fields : {};
-  const status = typeof rec.status === "number" ? rec.status : null;
-  let code = typeof rec.code === "string" && rec.code ? rec.code : "";
-  if (!code) code = err instanceof TypeError ? "network" : "unknown";
+  const envelope = isRecord(rec.body) && isRecord(rec.body.error) ? rec.body.error : {};
+  const fields = isRecord(rec.fields) ? rec.fields : isRecord(envelope.fields) ? envelope.fields : {};
+  const status = typeof rec.status === "number" && rec.status > 0 ? rec.status : null;
+  let code = text(rec.code) || text(envelope.code);
+  if (!code) code = err instanceof TypeError || rec.status === 0 ? "network" : "unknown";
+  // A code the app's transport inferred from the status is no verdict of the server's.
+  const verdict = rec.fromServer === false && status !== null ? "" : code;
   const msRetry = positive(rec.retryAfterMs);
   const retryAfterSeconds =
     positive(rec.retryAfterSeconds) ?? (msRetry === null ? null : Math.ceil(msRetry / 1000)) ?? positive(fields.retry_after);
   const maskedEmail = maskedEmailOf(fields.masked_email);
-  const found = lookup(code, status, context);
+  const found = lookup(verdict, status, context);
   const key = maskedEmail === null && found.keyUnmasked ? found.keyUnmasked : found.key;
   return {
     code,
