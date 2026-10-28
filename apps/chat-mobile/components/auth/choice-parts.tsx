@@ -16,7 +16,7 @@ import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { THEME } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
-export function ProviderMark({ provider }: { provider: SignInProvider }) {
+function ProviderMark({ provider }: { provider: SignInProvider }) {
   const { colorScheme } = useColorScheme();
   return (
     <View className="h-10 w-10 items-center justify-center rounded-xl border border-border bg-card">
