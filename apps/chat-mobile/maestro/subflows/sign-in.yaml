@@ -13,7 +13,7 @@
 appId: com.uniworkos.chat.staging
 ---
 - extendedWaitUntil:
-    visible: "Log in to UniChat|Đăng nhập UniChat|Sign in|Đăng nhập|Chat|Trò chuyện|Choose a workspace|Chọn workspace"
+    visible: "Sign in to UniChat|Đăng nhập UniChat|Sign in|Đăng nhập|Chat|Trò chuyện|Choose a workspace|Chọn workspace"
     timeout: 30000
 - runFlow:
     when:
@@ -62,7 +62,7 @@ appId: com.uniworkos.chat.staging
             - inputText: ${MAESTRO_TEST_EMAIL}
             - tapOn: "Password|Mật khẩu"
             - inputText: ${MAESTRO_TEST_PASSWORD}
-            # Enter submits the form; the page title and its button share "Log in".
+            # Enter submits the form; the page title and its button share "Sign in".
             - pressKey: Enter
       # The consent page opens on its title; its button sits below the app, device, account and server details,
       # off a phone's first screen, and the browser leaves off-screen elements out of the hierarchy.

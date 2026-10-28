@@ -270,7 +270,7 @@ workspace already. Do not translate it in one place and not another.
 | Create / New | Tạo / mới (`Việc mới`, `Workspace mới`) |
 | Continue / Back / Skip / Done | Tiếp tục / Quay lại / Bỏ qua / Xong |
 | Copy / Copied / Retry / Later | Sao chép / Đã sao chép / Thử lại / Để sau |
-| Log in / Sign up / Log out | Đăng nhập / Đăng ký / Đăng xuất |
+| Sign in / Sign up / Sign out | Đăng nhập / Đăng ký / Đăng xuất |
 | Email / Password / Display name | Email / Mật khẩu / Tên hiển thị |
 | Title / Description / Status / Priority | Tiêu đề / Mô tả / Trạng thái / Độ ưu tiên |
 | Board / List | Bảng / Danh sách |

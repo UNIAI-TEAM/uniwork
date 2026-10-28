@@ -57,7 +57,7 @@ export function origin(port, scheme = "http", host = "127.0.0.1") {
  * `http://localhost:port` for the web and the API a browser opens. Never
  * 127.0.0.1: Next 16 `next dev` blocks /_next/hmr from any other host
  * (allowedDevOrigins), so a page opened on 127.0.0.1 is server-rendered but never
- * hydrates and a click on "Log in" is a native GET submit (G7-06 cloud round 1).
+ * hydrates and a click on "Sign in" is a native GET submit (G7-06 cloud round 1).
  * Web and API share the host so the refresh cookie the API sets is same-site for
  * the page, as in the e2e suite (localhost:3000 against localhost:8080).
  */

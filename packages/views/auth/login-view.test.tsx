@@ -369,9 +369,9 @@ describe("LoginView", () => {
     const toEnglish = screen.getAllByRole("radio", { name: "English" }).at(-1)!;
     toEnglish.focus();
     fireEvent.click(toEnglish);
-    await screen.findByRole("heading", { name: "Log in" });
+    await screen.findByRole("heading", { name: "Sign in" });
 
-    expect(screen.getByRole("heading", { name: "Log in" })).not.toHaveFocus();
+    expect(screen.getByRole("heading", { name: "Sign in" })).not.toHaveFocus();
     // Whichever switch is visible/focused — not necessarily index 0 in DOM order.
     expect(document.activeElement).toHaveAccessibleName("English");
     expect(document.activeElement).toBeChecked();

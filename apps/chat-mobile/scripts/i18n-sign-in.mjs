@@ -44,14 +44,14 @@ export const SIGN_IN_ONLY = {
   },
   en: {
     sign_in: {
-      title: "Log in to UniChat",
+      title: "Sign in to UniChat",
       subtitle: "Use your UniWork account.",
       create_account: "Create an account",
-      browser: "Log in with a browser",
+      browser: "Sign in with a browser",
       browser_busy: "Opening the browser…",
       sign_up_with_apple: "Sign up with Apple",
       mfa: {
-        subtitle: "Logging in to {{email}}.",
+        subtitle: "Signing in to {{email}}.",
         code_hint: "The 6-digit code from your authenticator app.",
         use_recovery: "Use a recovery code",
         use_app: "Use your authenticator app",
@@ -68,7 +68,7 @@ export const SIGN_IN_ONLY = {
         wrong_email: "Wrong email?",
         delete_in_settings: "Delete the account in Settings",
       },
-      link_unmatched: "This {{provider}} account isn't linked to any UniWork account yet. Log in the way you usually do.",
+      link_unmatched: "This {{provider}} account isn't linked to any UniWork account yet. Sign in the way you usually do.",
     },
     step_up: {
       unavailable: "This phone can't confirm it's you the way your account does. Open UniWork on the web to continue.",

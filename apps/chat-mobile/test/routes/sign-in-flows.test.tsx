@@ -2,8 +2,8 @@
 // smoke (maestro/flows/smoke-launch.yaml), the largest-text one (a11y-large-text-dark.yaml) and the start of the
 // subflow every signed-in flow runs (maestro/subflows/sign-in.yaml). Maestro matches the whole text of an element
 // against each pattern, on a device in whichever language it runs, and lib/maestro-flows.test.ts only knows that a
-// pattern is some string of the app: "Sign in" is one, but the screen's button reads "Log in". This renders the
-// sign-in screen in both languages and holds those flows' texts and ids to what it draws.
+// pattern is some string of the app, not that this screen draws it. This renders the sign-in screen in both
+// languages and holds those flows' texts and ids to what it draws.
 import fs from "node:fs";
 import path from "node:path";
 import { cleanup, screen } from "@testing-library/react-native";

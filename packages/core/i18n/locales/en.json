@@ -394,9 +394,9 @@
     }
   },
   "auth": {
-    "login": "Log in",
+    "login": "Sign in",
     "register": "Sign up",
-    "logout": "Log out",
+    "logout": "Sign out",
     "email": "Email",
     "password": "Password",
     "displayName": "Display name",
@@ -535,7 +535,7 @@
       "sentTitle": "Check your inbox",
       "sentBody": "If {{email}} has a UniWork account, an email with a reset link is on its way. The link works for 60 minutes.",
       "googleHint": "Signed in with Google or Apple? Use that button on the sign-in page, no password needed. Want a password too? Enter your email above and we'll send a link to set one.",
-      "backToLogin": "Back to login",
+      "backToLogin": "Back to sign in",
       "spamHint": "No email? Check your spam folder.",
       "resend": "Resend link",
       "resendIn": "Resend in {{seconds}}s",
@@ -7650,7 +7650,7 @@
       "position": "Step {{current}} of {{total}}:"
     },
     "common": {
-      "log_out": "Log out"
+      "log_out": "Sign out"
     },
     "welcome": {
       "headline_line1": "Your team's work and meetings,",
@@ -14192,7 +14192,7 @@
       "collabEmptyDiscussion": "No discussion yet. Write what you’d like to talk about in this document.",
       "collabOffline": "Can’t reach UniWork. You can still read what’s already loaded, but you can’t send yet.",
       "collabServerError": "UniWork is having trouble. You can still read what’s already loaded, but you can’t send yet.",
-      "collabSignedOut": "Your session has ended. Log in again to send.",
+      "collabSignedOut": "Your session has ended. Sign in again to send.",
       "collabViewOnlyBadge": "View only",
       "collabViewOnly": "You have view access: you can read but not write.",
       "collabUpdatedAnnounce": "The content was updated.",
@@ -14256,7 +14256,7 @@
       "collabBodyMentionNoAccess": "{{names}} can't view this document, so they weren't notified.",
       "inboxDocGone": "This document no longer exists or was deleted.",
       "inboxDocNoAccess": "You don’t have access to this document.",
-      "inboxSessionExpired": "Your session has ended. Log in again to open this comment.",
+      "inboxSessionExpired": "Your session has ended. Sign in again to open this comment.",
       "inboxBack": "Back to $t(nav.inbox)"
     },
     "levels": {
@@ -15010,7 +15010,7 @@
           "mac_drag": "Drag UniWork Office into Applications.",
           "mac_unsigned": "On first launch: right-click the app → Open → Open (unsigned internal build).",
           "deb_install": "Open {{file}} in App Center, or run the following command.",
-          "deb_open": "Open UniWork Office from your applications. gnome-keyring (included with Ubuntu) is required to store your login.",
+          "deb_open": "Open UniWork Office from your applications. gnome-keyring (included with Ubuntu) is required to store your sign-in.",
           "appimage_run": "Make {{file}} executable, then launch it with the following command.",
           "appimage_fuse": "Ubuntu 22.04 / 24.04 requires libfuse2. If it is missing, run the following command.",
           "connect": "Once installed, come back to this page and choose Open in app. UniWork Office then connects to your UniWork."
@@ -15244,7 +15244,7 @@
       "start": "Sign in",
       "startHint": "The sign-in page opens in your browser.",
       "or": "or",
-      "cancel": "Cancel login",
+      "cancel": "Cancel sign-in",
       "useLocal": "Work with files on this computer",
       "localNote": "No sign-in needed. Files stay on this computer; you can sign in any time.",
       "signOut": "Sign out",

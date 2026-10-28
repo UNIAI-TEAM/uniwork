@@ -253,7 +253,7 @@ bản release do `android-manifest.test.ts` giữ.
 
 **Review notes (en):**
 
-> On the sign-in screen, enter the email and password above and tap "Log in".
+> On the sign-in screen, enter the email and password above and tap "Sign in".
 >
 > To test a call, open the room "Review" and tap the call button; the second account can be reached the same way from
 > another device or from https://app.uniworkos.com.

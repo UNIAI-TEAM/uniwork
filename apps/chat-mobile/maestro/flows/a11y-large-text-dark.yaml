@@ -22,7 +22,7 @@ tags:
 - launchApp:
     clearState: true
 - extendedWaitUntil:
-    visible: "Log in to UniChat|Đăng nhập UniChat"
+    visible: "Sign in to UniChat|Đăng nhập UniChat"
     timeout: 60000
 - scrollUntilVisible:
     element:
@@ -49,8 +49,8 @@ tags:
 # text out of the hierarchy.
 - scrollUntilVisible:
     element:
-      text: "Log in with a browser|Đăng nhập bằng trình duyệt"
+      text: "Sign in with a browser|Đăng nhập bằng trình duyệt"
     direction: DOWN
     visibilityPercentage: 50
     timeout: 10000
-- assertVisible: "Log in with a browser|Đăng nhập bằng trình duyệt"
+- assertVisible: "Sign in with a browser|Đăng nhập bằng trình duyệt"
