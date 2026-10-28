@@ -138,3 +138,11 @@
   .product-demo-document { padding: 16px; }
   .product-demo-inbox { padding: 20px 16px; }
 }
+/* On phones the search rests as its icon so the "illustrative" badge keeps its full label; focus expands it over the toolbar. */
+@media (max-width: 480px) {
+  .product-demo-search { flex: 0 0 44px; width: 44px; height: 44px; justify-content: center; padding-left: 0; }
+  .product-demo-search > svg { pointer-events: none; }
+  .product-demo-search input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; opacity: 0; }
+  .product-demo-search:focus-within { position: absolute; inset: 4px 8px; z-index: 25; width: auto; height: auto; justify-content: flex-start; padding-left: 10px; }
+  .product-demo-search:focus-within input { position: static; height: 44px; padding: 4px 4px 4px 0; opacity: 1; }
+}
