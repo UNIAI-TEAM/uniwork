@@ -18,6 +18,19 @@ jest.mock("@react-native-community/netinfo", () => {
 });
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn(async () => ({ type: "opened" })) }));
 jest.mock("@/data/mutations/sign-in", () => ({ useLinkPendingTicket: jest.fn() }));
+jest.mock("@/data/auth/methods-api", () => ({
+  stepUp: jest.fn(async (_proof: unknown, action: never, userId: string) => {
+    jest.requireActual<typeof import("@/data/auth/step-up-store")>("@/data/auth/step-up-store").holdStepUp(
+      { step_up_token: "su_1", expires_at: new Date(Date.now() + 600_000).toISOString(), method: "password" },
+      { userId, action },
+    );
+    return true;
+  }),
+  stepUpWithProvider: jest.fn(),
+  linkProvider: jest.fn(),
+  linkPendingTicket: jest.fn(),
+  signInMethodsApi: { getSignInMethods: jest.fn(async () => null), sendStepUpEmailCode: jest.fn(), setPassword: jest.fn(), unlink: jest.fn() },
+}));
 
 const field = (code: string) => ({ ok: false as const, failure: { code, kind: "field" } as never });
 const link = { mutateAsync: jest.fn(async (_input: { userId: string; move?: boolean }) => ({ user: null, methods: null })), isPending: false };
@@ -134,6 +147,34 @@ describe("LinkStep", () => {
     await render(<LinkStep />);
     await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
     expect(screen.getByTestId("link-nothing")).toBeTruthy();
+  });
+
+  it("asks a session older than the ticket to confirm it is you, then links", async () => {
+    useAuthStore.setState({ user: { id: "u1", email: "an@example.com", has_password: true } as never });
+    link.mutateAsync
+      .mockRejectedValueOnce(Object.assign(new Error("proof_required"), { name: "ApiError", status: 403, body: { error: { code: "proof_required", fields: { proofs: ["password"] } } } }))
+      .mockResolvedValueOnce({ user: null, methods: null });
+    await render(<LinkStep />);
+    await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
+    expect(screen.getByText(viText("settings.security.stepUp.description", { action: viText("settings.security.stepUp.actions.link_apple") }))).toBeTruthy();
+    await act(async () => fireEvent.changeText(screen.getByTestId("step-up-password"), "pw"));
+    await act(async () => fireEvent.press(screen.getByTestId("step-up-submit")));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(link.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("link-done")).toBeTruthy();
+    jest.requireActual<typeof import("@/data/auth/step-up-store")>("@/data/auth/step-up-store").forgetStepUp();
+  });
+
+  it("stays on the question when the proof sheet is closed", async () => {
+    link.mutateAsync.mockRejectedValueOnce(
+      Object.assign(new Error("proof_required"), { name: "ApiError", status: 403, body: { error: { code: "proof_required", fields: { proofs: ["password"] } } } }),
+    );
+    await render(<LinkStep />);
+    await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
+    await act(async () => fireEvent.press(screen.getByTestId("step-up-cancel")));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(screen.getByTestId("link-ask")).toBeTruthy();
+    expect(link.mutateAsync).toHaveBeenCalledTimes(1);
   });
 
   it("does nothing without someone signed in", async () => {

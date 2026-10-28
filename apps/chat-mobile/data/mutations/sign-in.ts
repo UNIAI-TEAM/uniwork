@@ -3,6 +3,7 @@
 // through the auth store's login (data/auth/sign-in.ts). Each refusal is one the screens say in their own words
 // (core's readSignInFailure), so none is reported as drift.
 import { linkPendingTicket } from "../auth/methods-api";
+import { withHeldStepUp } from "../auth/step-up-store";
 import { sendClaimCode } from "../auth/sign-in";
 import { useAuthStore } from "../auth/store";
 import { useCommand } from "./command";
@@ -15,13 +16,14 @@ export const useSendClaimCode = () =>
 
 /**
  * "Liên kết": the held identity joins the signed-in account (move: after sign_in_method_movable, out of the empty
- * account holding it); the account the server answers with replaces the signed-in user.
+ * account holding it); the account the server answers with replaces the signed-in user. A step-up token the server
+ * refuses is forgotten, so the proof sheet buys a fresh one.
  */
 export const useLinkPendingTicket = () =>
   useCommand(
     "sign_in.link_ticket",
     async (_qc, input: { userId: string; move?: boolean }) => {
-      const change = await linkPendingTicket(input);
+      const change = await withHeldStepUp(() => linkPendingTicket(input));
       if (change.user) useAuthStore.getState().setUser(change.user);
       return change;
     },

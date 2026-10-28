@@ -1,14 +1,17 @@
 // "Tôi đã có tài khoản", once signed in (spec §4.3 step=link, §5.2): never written on open, the screen asks whether
 // to link the Google or Apple identity the choice screen holds into the account just signed in to. Linked, it says
 // so (a status, the reader's focus on "Tiếp tục"); an identity on an empty account of its own asks to move it; one
-// another account holds says whose (masked) and that it is unlinked there first. Whatever happens, "Tiếp tục" goes
-// on into the app; a choice that is gone counts as done.
+// another account holds says whose (masked) and that it is unlinked there first. A session that signed in before the
+// ticket was issued (or a move) is asked to confirm it is you first, then the link goes on (use-step-up.ts). Whatever
+// happens, "Tiếp tục" goes on into the app; a choice that is gone counts as done.
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import type { SignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import { linkAction } from "@uniwork/core/auth/step-up";
 import { router } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
+import { useStepUp } from "@/components/settings/use-step-up";
 import { useAnnounce } from "@/components/ui/a11y";
 import { Text } from "@/components/ui/text";
 import { clearChoice, usePendingSignIn } from "@/data/auth/pending-sign-in";
@@ -33,6 +36,7 @@ export function LinkStep() {
   const accountEmail = useAuthStore((s) => s.user?.email ?? "");
   const choice = usePendingSignIn((s) => s.choice);
   const link = useLinkPendingTicket();
+  const stepUp = useStepUp();
   const [state, setState] = useState<LinkState>({ kind: "ask" });
   const linkedLine =
     state.kind === "linked" ? t("auth.continue.link.done", { provider: t(`auth.social.provider.${state.provider}`) }) : null;
@@ -42,8 +46,17 @@ export function LinkStep() {
   const run = async (move: boolean) => {
     const provider = choice?.identity.provider;
     if (!userId || !provider || link.isPending) return;
+    const attempt = () => link.mutateAsync({ userId, move });
     try {
-      await link.mutateAsync({ userId, move });
+      try {
+        await attempt();
+      } catch (error: unknown) {
+        // This session signed in before the ticket was issued, or the identity moves: confirm it is you, then link.
+        const first = signInFailureOf(error, "ticket");
+        if (first.kind !== "step_up") throw error;
+        const proved = await stepUp.run(linkAction(provider), attempt, { proofs: first.proofs ?? [] });
+        if (!proved.done) return;
+      }
       setState({ kind: "linked", provider });
     } catch (error: unknown) {
       const failure = signInFailureOf(error, "ticket");
@@ -100,6 +113,7 @@ export function LinkStep() {
         <View className="items-center">
           <TextButton label={t("auth.continue.link.decline")} tone="muted" disabled={link.isPending} onPress={decline} testID="link-decline" />
         </View>
+        {stepUp.sheet}
       </View>
     );
   }
@@ -143,6 +157,7 @@ export function LinkStep() {
           </View>
         </>
       )}
+      {stepUp.sheet}
     </View>
   );
 }
