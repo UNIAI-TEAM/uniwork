@@ -621,11 +621,14 @@ và vạch khi `/auth/providers` đang tải (không nhấp nháy skeleton; form
 (`fill="currentColor"`) trong `packages/views/common/provider-icons.tsx`.
 `paths.appleStart({next, intent})` cạnh `paths.googleStart`. Đăng ký truyền `intent=sign_up` và giữ `next`; link qua
 lại giữa đăng nhập và đăng ký giữ `next`. Playwright: nút nhà cung cấp là link nên vẫn chỉ có một *button* "Đăng nhập"
-trên `/login`, một "Đăng ký" trên `/register`.
+trên `/login`, một "Đăng ký" trên `/register`. Ô đầu của form chỉ nhận focus khi nó là cách vào duy nhất (không nhà cung
+cấp nào bật, `useFocusWhenFormIsTheOnlyWay`); có Google hay Apple ở trên thì trang bắt đầu từ đầu, để bàn phím và trình
+đọc màn hình gặp các nút đó trước.
 
 Trong shell UniChat desktop, `/login` là màn chào (`apps/web/platform/unichat-login-gate.tsx`) với cùng thứ bậc: "Tiếp
 tục với Google", "Tiếp tục với Apple" (cờ `google`, `apple_web`; cùng mặt pill qua `ProviderPillFace` và
-`providerPillClass`), vạch "hoặc", rồi "Tiếp tục với email" (nút chính). Đây là *nút* gọi
+`providerPillClass`), vạch "hoặc", rồi "Tiếp tục với email": cạnh nhà cung cấp nó cũng là pill viền (ba cách vào nặng
+như nhau, Apple không bao giờ trông yếu hơn một lựa chọn khác, đúng HIG); khi đứng một mình nó là nút chính. Đây là *nút* gọi
 `bridge.session.login({provider})`, không phải link: shell chạy PKCE trong trình duyệt hệ thống với `provider` (3.5), nên
 trình duyệt đi thẳng tới nhà cung cấp; email mở trang đăng nhập UniWork. Kênh `session:login` chỉ nhận không gì hoặc đúng
 `{provider: "google"|"apple"}`; shell đã cài trước đó bỏ qua tham số và mở trang đăng nhập. Bấm lại cùng cách khi trình
@@ -653,10 +656,14 @@ vùng kéo cửa sổ).
   `apps/web/platform/auth/provider-handoff.tsx` (`providerHint`, `useDropProviderHint`, `ProviderHandoff`), vì
   `packages/views` không được chạm `location`.
 - **Trang đồng ý** (`/auth/desktop/authorize`): không có eyebrow; tiêu đề nêu nền tảng và hàng thiết bị có biểu tượng
-  `Monitor`/`Smartphone`. Mỗi kết quả là cuối của lượt đó: đã cho phép, đã hủy và hết hạn ("Yêu cầu đã hết hạn. Quay lại
-  {{app}} và thử lại.") nói "Bạn có thể đóng tab này." (đã cho phép có thêm "Mở {{app}}" khi có callback); chỉ lỗi có
-  "Thử lại". Không có "Quay lại" hay "Đóng" (chúng đưa người đã đăng nhập về `/login`). "Không phải bạn? Dùng tài khoản
-  khác" đăng xuất, rồi trang đưa trình duyệt tới `/login` vẫn mang gợi ý nhà cung cấp của app.
+  `Monitor`/`Smartphone`. Mỗi kết quả là cuối của lượt đó và có tiêu đề theo điều đã xảy ra: "Đã cho phép {{app}}"
+  ("Quay lại {{app}} để tiếp tục."), "Đã hủy đăng nhập", "Yêu cầu đã hết hạn" ("Quay lại {{app}} và thử lại."), "Chưa
+  hoàn tất được đăng nhập" (kèm "Thử lại", kết quả duy nhất có nút này). Trang giữ lượt đọc gần nhất, nên thử lại mà gặp
+  410 vẫn nêu đúng app và nền tảng; lượt chưa từng đọc được thì nói trung tính ("Quay lại ứng dụng và thử lại."), không
+  đoán sản phẩm hay thiết bị. "Bạn có thể đóng tab này." chỉ cho lượt desktop (sheet đăng nhập của điện thoại không có
+  tab); đã cho phép có thêm "Mở {{app}}" khi có callback. Không có "Quay lại" hay "Đóng" (chúng đưa người đã đăng nhập về
+  `/login`). "Không phải bạn?" rồi link "Dùng tài khoản khác" (spinner + "Đang đăng xuất…" khi đang chạy) đăng xuất, rồi
+  trang đưa trình duyệt tới `/login` vẫn mang gợi ý nhà cung cấp của app.
 
 ### 4.3 Màn chọn `/auth/continue`
 
@@ -665,8 +672,15 @@ vùng kéo cửa sổ).
 
 Trạng thái và lời:
 
-- **Đang tải**: skeleton đúng hình khối danh tính, các lựa chọn và dòng điều khoản dưới chúng.
-- **Không có vé / hết hạn**: "Lượt đăng nhập bằng {{provider}} đã hết hạn." + nút "Thử lại" (về `/login?next=`).
+- **Đang tải**: skeleton đúng hình khối danh tính, các lựa chọn và dòng điều khoản dưới chúng, ở mọi độ rộng: tiêu đề,
+  dòng mô tả và chữ của từng hàng là chữ khả năng cao sẽ hiện, vẽ thành "xương" (`SkeletonText`, chữ trong suốt trên nền
+  muted, xuống dòng đúng chỗ chữ thật), dòng điều khoản là dòng thật (`inert` khi đang tải), "Hủy" giữ ô 44 px trên con trỏ
+  thô. Trên điện thoại thẻ không nhảy khi vé tới.
+- **Không có vé / hết hạn**: mở trang mà không có vé → "Lượt đăng nhập này đã hết hạn hoặc đã xong. Bắt đầu lại từ trang
+  đăng nhập." + nút "Về trang đăng nhập" (`/login?next=`). Vé mất giữa một lệnh → "Lượt đăng nhập bằng {{provider}} đã
+  hết hạn." + "Tiếp tục với {{provider}}" (bắt đầu lại nhà cung cấp đó, giữ `next`) và link "Về trang đăng nhập"; màn
+  này thay màn người dùng đang thao tác nên tiêu đề nhận focus (`announce`). Quay lại bằng Back từ trang nhà cung cấp
+  (bfcache) thì đọc lại vé thay vì đứng ở "Đang đăng nhập…".
 - **`kind=unmatched`**: tiêu đề "Tiếp tục với {{provider}}"; khối danh tính (dấu nhà cung cấp trong ô 40 px, tên, email;
   relay: "Email ẩn của Apple" thay địa chỉ). Ba lựa chọn là hàng lớn bấm được (tiêu đề + một dòng + mũi tên):
   1. **Tôi đã có tài khoản UniWork** — "Đăng nhập một lần để liên kết {{provider}}. Lần sau chỉ cần {{provider}}." →
@@ -679,10 +693,12 @@ Trạng thái và lời:
   Relay: một dòng gợi ý "Tổ chức mời bạn qua email công việc? Chọn "Tôi được mời bằng email khác"."
 - **`kind=link_required`**: tiêu đề "Email này đã có tài khoản UniWork"; mô tả "Đăng nhập vào {{email}} để liên kết
   {{provider}}."; một nút chính "Đăng nhập để liên kết" (→ như lựa chọn 1).
-- **Đang gửi** (mọi lựa chọn): nút bận `aria-busy`, các lựa chọn khác `aria-disabled`.
-- **Lỗi** `409 sign_in_account_conflict` → "Email này vừa được dùng để tạo tài khoản. Đăng nhập để liên kết." + nút sang
-  lựa chọn 1; `429` → câu của bảng lỗi + "Thử lại sau {{count}} giây/phút/giờ." (`retryPhrase`; mã gửi qua email mà
-  hết lượt thì "Đã tạm dừng mã xác nhận cho địa chỉ này.", ngân sách của route thì "Bạn đã thử nhiều lần liền.");
+- **Đang gửi** (mọi lựa chọn): nút bận `aria-busy`, các lựa chọn khác `aria-disabled`; "Tạo tài khoản mới" thay dòng của
+  nó bằng "Đang tạo tài khoản…" và nói điều đó qua một `role=status`.
+- **Lỗi** `409 sign_in_account_conflict` → màn thành bố cục `link_required` ("Email này đã có tài khoản UniWork", một nút
+  "Đăng nhập để liên kết"; tiêu đề mới nhận focus), không còn hàng "Tạo tài khoản mới" chỉ gặp lại cùng câu trả lời; `429` → câu của bảng lỗi + "Thử lại sau {{count}} giây/phút/giờ." (`retryPhrase`; mã gửi qua email mà
+  hết lượt thì "Đã tạm dừng mã xác nhận cho địa chỉ này.", ngân sách của route thì "Bạn đã thử nhiều lần liền."); nút
+  gửi lại đang chờ thì mờ và giữ (`AUTH_PILL_HELD`), quá một phút thì đọc "Gửi lại mã" và thông báo phía trên đếm phút/giờ;
   mạng/5xx → "Không kết nối được. Kiểm tra mạng rồi thử lại." có nút thử lại.
 - **Đã đăng nhập sẵn** (có phiên): thay ba lựa chọn bằng "Liên kết {{provider}} với {{account}}" (→ `step=link`) và
   "Dùng tài khoản khác" (đăng xuất rồi về màn chọn). Đăng xuất xoá vé (3.2), nên "Dùng tài khoản khác" đăng xuất rồi đi
@@ -692,11 +708,16 @@ Trạng thái và lời:
 - Sau khi lệnh đã mở phiên (vé đã tiêu), màn hình là "Đang đăng nhập…" của callback cho tới khi trang chuyển, không bao
   giờ loé "hết hạn". Đọc vé lỗi (mạng/5xx) → "Chưa tải được lượt đăng nhập" + câu của bảng lỗi + "Thử lại".
 - **`step=link`** (đã đăng nhập): **không tự ghi khi mở**. Hiện "Liên kết {{provider}} ({{provider_email}}) với
-  {{account_email}}?" + nút "Liên kết" và "Không liên kết". Thành công → `role=status` "Đã liên kết {{provider}}. Lần sau
+  {{account_email}}?" + nút "Liên kết" và "Không liên kết". Dòng dưới tiêu đề là `role=status`: câu hỏi khi "Liên kết"
+  còn trả lời được; trong bước chuyển (tiêu đề của nhóm đã hỏi) là "Bạn đang đăng nhập {{accountEmail}}."; sau lỗi cuối
+  là "Chưa liên kết {{provider}} với {{accountEmail}}.". Lỗi làm mất nút vừa bấm (lỗi cuối, phiên kết thúc) đưa focus tới
+  nút còn lại ("Tiếp tục", hay "Đăng nhập để liên kết"). Thành công → `role=status` "Đã liên kết {{provider}}. Lần sau
   chỉ cần {{provider}}.", khối danh tính có dấu kiểm (`CircleCheck`, tông success) + nút "Tiếp tục" được focus (không
   tự chuyển trang). Tải lại sau khi xong mà vé đã hết → coi như đã xong. `sign_in_method_movable` → nhóm có tiêu đề
-  "Chuyển {{provider}} sang tài khoản này?" (câu hỏi chỉ hỏi một lần), câu "{{provider}} này đang dùng cho tài khoản
-  trống {{masked}}." và ghi chú tài khoản trống sẽ bị xóa + "Chuyển" (gửi `move: true`). `taken` → nêu email đã che và "Đăng nhập vào đó để gỡ liên kết". Mọi lỗi
+  "Chuyển {{provider}} sang tài khoản này?" (câu hỏi chỉ hỏi một lần), câu "Tài khoản {{provider}} này đang được dùng cho
+  tài khoản trống {{masked}}." và ghi chú tài khoản trống sẽ bị xóa + "Chuyển sang đây" / "Không chuyển" (cùng cặp với
+  Cài đặt; "Chuyển sang đây" gửi `move: true`). `taken` → "Tài khoản {{provider}} này đang được dùng cho {{masked}}.
+  Đăng nhập vào đó và gỡ liên kết trước." Mọi lỗi
   vẫn có "Tiếp tục". Chưa đăng nhập mà vé còn → `/login?link=1&next=<bước này>`; không còn vé → "Đã xong" + "Không còn
   gì để liên kết. Tiếp tục vào UniWork." `proof_required` → hộp bằng chứng cho `link_<provider>` (4.5) trên các cách
   `fields.proofs` nêu, rồi gửi lại một lần; đóng hộp thì câu hỏi giữ nguyên, bấm "Liên kết" là hỏi lại. Phiên đã kết
@@ -707,9 +728,13 @@ Trạng thái và lời:
 `?link=1`: `Alert` thông tin trên form: "Đăng nhập vào tài khoản UniWork của bạn để liên kết {{provider}}
 ({{email}})." + nút "Không liên kết" (xoá vé, bỏ `link`). Nút của chính nhà cung cấp đang chờ bị ẩn (không lặp). Mọi
 cách còn lại (mật khẩu, nhà cung cấp kia, MFA) giữ `next`. Bước MFA có phụ đề "Đăng nhập vào {{email}} để liên kết
-{{provider}}". "Quên mật khẩu?" giữ `next`; reset thành công mà vé còn thì về `step=link`. Link reset trong mail không
-mang `next`, nên trang reset tự hỏi `GET /auth/sign-in-ticket`: còn vé thì gửi `keep_sign_in_ticket` và về
-`/auth/continue?step=link` (bật MFA: `/login?mfa=1&link=1&next=` bước đó). Vé `link_required` điền sẵn email của tài khoản
+{{provider}}". `next` là bước liên kết cũng là chế độ liên kết (quy tắc `keepsSignInTicket` của server): nhà cung cấp kia
+gặp MFA thì server trả về `/login?mfa=1&next=<bước liên kết>` không có `link=1`, và mã vẫn giữ vé. "Quên mật khẩu?" giữ
+`next`. Link reset trong mail không mang `next`; ở chế độ liên kết, trang quên mật khẩu nhớ (qua `StorageAdapter`, 15 phút
+như vé) địa chỉ đã gửi reset. Chỉ khi có điều đó trang reset mới hỏi `GET /auth/sign-in-ticket`, chờ câu trả lời rồi mới
+gửi (bấm sớm thì chờ), gửi `keep_sign_in_ticket` khi còn vé, và chỉ về `/auth/continue?step=link` khi reset mở đúng địa
+chỉ đó; địa chỉ khác thì xoá vé và đi tiếp như reset thường (bật MFA: `/login?mfa=1&link=1&next=` bước đó). Không có điều
+đó thì trang reset không đọc, không giữ vé nào: vé người khác bỏ lại trong trình duyệt không bao giờ được liên kết. Vé `link_required` điền sẵn email của tài khoản
 (trừ email ẩn của Apple) và đưa focus tới mật khẩu. "Đăng ký" ở chế độ này đi tới `next` của bước liên kết, vì đăng ký
 xoá vé.
 
@@ -737,8 +762,8 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập
 - Gỡ phương thức cuối: `aria-disabled` + `SettingsRowReason` "Đây là cách đăng nhập duy nhất. Đặt mật khẩu hoặc liên kết
   cách khác trước." Gỡ Apple của tài khoản relay: "Email tài khoản của bạn là email ẩn của Apple, nên không gỡ liên kết Apple được."
 - **Hộp bằng chứng** (`step-up-proof.tsx`, dùng chung cho mọi lệnh nhạy cảm, kể cả bật MFA, xoá tài khoản, chuyển
-  quyền): theo `proofs` — ô mật khẩu (kèm "Quên mật khẩu?"), ô "Mã từ ứng dụng xác thực", hay "Gửi mã tới {{email}}" +
-  ô mã; có "Dùng cách khác" khi có hơn một cách. Gọi `/me/step-up` trước, giữ `step_up_token` trong bộ nhớ 10 phút
+  quyền): theo `proofs` — ô mật khẩu (kèm "Quên mật khẩu?" và nút hiện mật khẩu), ô "Mã từ ứng dụng xác thực", hay "Gửi mã
+  tới {{email}}" + sáu ô mã như màn chọn (gửi khi đủ chữ số thứ sáu, "Xác nhận" vẫn còn cho bàn phím); có "Dùng cách khác" khi có hơn một cách. Gọi `/me/step-up` trước, giữ `step_up_token` trong bộ nhớ 10 phút
   (lệnh tiếp theo trong cửa sổ đó không hỏi lại; token mua bằng mã email chỉ dùng cho đúng việc đó, nên dòng gợi ý theo
   cách xác nhận: `stepUpWindowHintKey`). Hộp mở với focus ở ô của cách xác nhận (hay nút "Gửi mã tới…"), không ở link
   "Quên mật khẩu?" đứng trước ô; "Dùng cách khác" rộng hết hàng khi chân hộp xếp dọc trên điện thoại. Lỗi dưới ô,
@@ -748,12 +773,17 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập
   `proof_required` thì mở lại hộp trên `fields.proofs` và chạy lại một lần. Lệnh tự mang bằng chứng (đổi mật khẩu bằng
   mật khẩu hiện tại, xác nhận chuyển từ đúng phiên đã liên kết) dùng `upfront: false`: chỉ hỏi khi server đòi. Hộp mở
   từ trong một hộp khác thì nằm lồng trong hộp đó.
-- **Đặt/Đổi mật khẩu** (`FormDialog` md): đổi = mật khẩu hiện tại + mới, ghi chú "Các thiết bị khác sẽ đăng xuất."; đặt
+- **Đặt/Đổi mật khẩu** (`FormDialog` md): mọi ô mật khẩu có nút hiện/ẩn (`PasswordField size="form"`); đổi = mật khẩu
+  hiện tại (kèm "Quên mật khẩu?" trên hàng nhãn, hộp mở với focus ở ô) + mới, ghi chú "Các thiết bị khác sẽ đăng xuất."; đặt
   = bằng chứng + mới + "Bạn sẽ đăng nhập bằng {{email}}" (relay có nút sao chép). Bằng chứng của "đặt" hỏi khi bấm
   "Lưu mật khẩu" (hộp lồng). Tài khoản bật MFA, hay đang giữ token, thì "đổi" không hỏi mật khẩu hiện tại (server
   không nhận nó làm bằng chứng khi bật MFA). Thành công: ghi user, toast.
 - **Liên kết** (web): bằng chứng → `POST …/link` → `window.location.assign(authorization_url)`. Quay lại với
-  `?sign_in_method=&result=`: toast theo kết quả (`movable` mở hộp xác nhận chuyển), xoá tham số khỏi URL.
+  `?sign_in_method=&result=`: toast theo kết quả, xoá tham số khỏi URL. `denied` (người dùng dừng ở nhà cung cấp) là toast
+  thông tin, không phải lỗi: "Bạn đã dừng giữa chừng, {{provider}} chưa được liên kết." `movable` mở hộp xác nhận chuyển
+  chỉ khi `GET /auth/sign-in-ticket` xác nhận một vé `link_required` của đúng nhà cung cấp đó (không có thì "Chưa liên kết
+  được {{provider}}. Thử lại."), và email đã che từ URL chỉ được hiện khi đúng dạng server che (`urlMaskedEmailOf`). Back
+  từ trang nhà cung cấp (bfcache) trả hàng về nút "Liên kết".
 - **Gỡ liên kết**: bằng chứng trước, rồi `ConfirmDialog` destructive (ô `Unlink`), nói còn lại cách nào và "Các thiết bị
   khác sẽ đăng xuất."
 - **Chuyển** (`result=movable`): `ConfirmDialog` (ô `ArrowRightLeft`, tông cảnh báo) "Chuyển sang đây" / "Không chuyển";
@@ -761,7 +791,8 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập
 - **Shell UniChat desktop** (`getDesktopBridge()` có): "Liên kết trên web" (biểu tượng mở ngoài) mở
   `${appUrl}/settings?tab=security&expect_user=<id>` bằng `bridge.openExternal`; trang web thấy trình duyệt đăng nhập
   người khác thì cảnh báo "Trình duyệt đang đăng nhập {{other}}, không phải tài khoản bạn dùng trong UniChat." + "Đăng
-  xuất" (về `/login?next=` trang này). Trang web chỉ biết id của tài khoản UniChat, không biết email, nên câu không nêu
+  xuất" (về `/login?next=` trang này), và mọi hành động của các hàng `aria-disabled`, mô tả bởi cảnh báo đó, cho tới khi
+  hai tài khoản trùng. Trang web chỉ biết id của tài khoản UniChat, không biết email, nên câu không nêu
   `{{me}}`. Danh sách tải lại khi cửa sổ có focus (`bridge.onFocusChange`). Đổi mật khẩu và gỡ chạy tại chỗ.
 - Bỏ (không chỉ sửa lời) ngõ cụt `org.transfer.reason_no_password`, `org.transfer.no_password`,
   `invitations.switch.no_password_reason` (cùng `org.transfer.reason_password`, `org.transfer.wrong_password`,
