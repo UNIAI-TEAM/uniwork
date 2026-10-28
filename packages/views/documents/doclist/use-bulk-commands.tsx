@@ -26,6 +26,7 @@ import type { DocumentSummaryRow } from "../library-rows";
 import { MoveOutConfirmDialog } from "../move-out-confirm-dialog";
 import type { BulkActionId, BulkPlan, DocListBulk } from "./bulk-actions";
 import { BulkShareDialog } from "./bulk-share-dialog";
+import { saveJobZip } from "./save-zip";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -54,16 +55,6 @@ function BulkErrorList({ failures, titles, t }: { failures: BulkFailure[]; title
       {rest > 0 ? <li>{t("documents.list.bulk.more", { count: rest })}</li> : null}
     </ul>
   );
-}
-
-/** Opens the signed link of a ready zip job: the browser downloads it (the URL lives one hour). */
-function saveLink(url: string) {
-  const link = window.document.createElement("a");
-  link.href = url;
-  link.rel = "noopener";
-  window.document.body.append(link);
-  link.click();
-  link.remove();
 }
 
 type Pending = { plan: BulkPlan; done: () => void };
@@ -142,11 +133,12 @@ export function useDocListBulkCommands({
       const job = await zip.mutateAsync(plan.docs.slice(0, ZIP_MAX).map((doc) => doc.id));
       switch (job.status) {
         case "ready": {
+          // download_url only says the zip is ready; the route is a bearer route, so the bytes are fetched by id.
           if (!job.download_url) {
             toast.error(t("documents.list.bulk.zip.failed"), { id });
             break;
           }
-          saveLink(job.download_url);
+          await saveJobZip(wsId, job.id);
           const skipped = job.skipped.map((skip) => ({ id: skip.document_id, code: skip.reason }));
           report(plan, job.file_count ?? plan.docs.length - beyond.length - skipped.length, [...skipped, ...beyond, ...plan.skipped], id);
           break;
