@@ -1,19 +1,23 @@
 // "Xác nhận là bạn" on the phone (use-step-up.ts, step-up-sheet.tsx, step-up-proofs.tsx): a held token runs the
 // command at once; otherwise the sheet asks for the proof the server's list puts first, with "Dùng cách khác" for the
 // rest, and the command runs with the token it bought. Each refusal is said under its field; a lock counts down; a
-// token the server refused is asked for once more with the proofs it names.
+// token the server refused is asked for once more with the proofs it names. The app lock puts the sheet away and
+// brings it back where it was; on iOS the next sheet waits for the last one to finish closing.
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import type { StepUpAction, StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
-import { AccessibilityInfo, Pressable, Text } from "react-native";
+import { AccessibilityInfo, Platform, Pressable, Text } from "react-native";
 import { signInMethodsApi, stepUp, stepUpWithProvider } from "@/data/auth/methods-api";
 import { forgetStepUp, holdStepUp } from "@/data/auth/step-up-store";
 import { useAuthStore } from "@/data/auth/store";
+import { setAppLockEngaged } from "@/data/stores/app-lock-store";
+import { finishDismissals, holdDismissals } from "@/test/dismissing-modal";
 import { render, viText } from "@/test/render";
 import { useStepUp } from "./use-step-up";
 
+jest.mock("react-native/Libraries/Modal/Modal", () => jest.requireActual("@/test/dismissing-modal"));
 jest.mock("@react-native-community/netinfo", () => {
   const netInfo = { configure: () => undefined, addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
   return { __esModule: true, default: netInfo, ...netInfo, useNetInfo: () => ({ isConnected: true }) };
@@ -43,8 +47,15 @@ const holds = (method: StepUpProof) => async (_proof: unknown, action: StepUpAct
   return true;
 };
 
-function Harness({ action, command, proofs }: { action: StepUpAction; command: (token: string) => Promise<string>; proofs?: StepUpProof[] }) {
-  const gate = useStepUp();
+interface HarnessProps {
+  action: StepUpAction;
+  command: (token: string) => Promise<string>;
+  proofs?: StepUpProof[];
+  insideSheet?: boolean;
+}
+
+function Harness({ action, command, proofs, insideSheet = false }: HarnessProps) {
+  const gate = useStepUp({ insideSheet });
   const [out, setOut] = useState("");
   return (
     <>
@@ -68,8 +79,8 @@ function Harness({ action, command, proofs }: { action: StepUpAction; command: (
 
 const command = jest.fn(async (token: string) => token);
 const settle = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
-const open = async (props: { action?: StepUpAction; proofs?: StepUpProof[] } = {}) => {
-  await render(<Harness action={props.action ?? "unlink_google"} command={command} proofs={props.proofs} />);
+const open = async (props: { action?: StepUpAction; proofs?: StepUpProof[]; insideSheet?: boolean } = {}) => {
+  await render(<Harness action={props.action ?? "unlink_google"} command={command} proofs={props.proofs} insideSheet={props.insideSheet} />);
   await fireEvent.press(screen.getByTestId("run"));
   await settle();
 };
@@ -83,6 +94,8 @@ beforeEach(() => {
   jest.mocked(signInMethodsApi.getSignInMethods).mockResolvedValue(methods(["password", "email_code"]));
 });
 afterEach(() => {
+  finishDismissals();
+  setAppLockEngaged(false);
   forgetStepUp();
   resetRuntimeConfig();
   useAuthStore.setState({ user: null });
@@ -322,5 +335,142 @@ describe("useStepUp and the proof sheet", () => {
     await open({ proofs: ["apple"] });
     await settle();
     expect(screen.getByTestId("step-up-unavailable")).toHaveTextContent(viText("mobile.step_up.unavailable"));
+  });
+});
+
+describe("the proof sheet, the app lock and the sheet before it", () => {
+  const byMail = () => {
+    useAuthStore.setState({ user: { id: "u1", email: "an@gmail.com", display_name: "An", has_password: false } as never });
+    jest.mocked(signInMethodsApi.sendStepUpEmailCode).mockResolvedValue(true);
+    jest.mocked(stepUp).mockImplementation(holds("email_code"));
+  };
+  const lock = (engaged: boolean) => act(async () => setAppLockEngaged(engaged));
+
+  it("is put away under the lock and comes back on the code it mailed, without mailing another", async () => {
+    byMail();
+    await open({ action: "link_google", proofs: ["email_code"] });
+    await fireEvent.press(screen.getByTestId("step-up-send-code"));
+    await settle();
+    // The person left for Mail; the lock engaged on the way back.
+    await lock(true);
+    expect(screen.queryByTestId("step-up-sheet")).toBeNull();
+    expect(out()).toBe("");
+    await lock(false);
+    expect(screen.getByTestId("step-up-code-sent")).toBeOnTheScreen();
+    expect(screen.getByTestId("step-up-resend")).toBeDisabled();
+    await fireEvent.changeText(screen.getByTestId("step-up-email-code"), "654321");
+    await settle();
+    expect(signInMethodsApi.sendStepUpEmailCode).toHaveBeenCalledTimes(1);
+    expect(out()).toBe("done:su_email_code");
+  });
+
+  it("keeps the proof chosen with Dùng cách khác, and a proof under way, through the lock", async () => {
+    let answer: (result: "held") => void = () => undefined;
+    jest.mocked(stepUpWithProvider).mockImplementationOnce(async (_provider, action, userId) => {
+      await new Promise<"held">((resolve) => (answer = resolve));
+      await holds("google")(null, action, userId);
+      return "held";
+    });
+    await open({ proofs: ["password", "google"] });
+    await settle();
+    await fireEvent.press(screen.getByTestId("step-up-another"));
+    await fireEvent.press(screen.getByTestId("step-up-way-google"));
+    await lock(true);
+    await lock(false);
+    expect(screen.getByTestId("step-up-google")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("step-up-google"));
+    // Google's sheet paused the app and the lock engaged meanwhile: the busy sheet goes away all the same.
+    await lock(true);
+    expect(screen.queryByTestId("step-up-sheet")).toBeNull();
+    await act(async () => answer("held"));
+    await settle();
+    expect(out()).toBe("done:su_google");
+  });
+
+  it("closes under the lock inside another sheet, and opens again for the action on the code already mailed", async () => {
+    byMail();
+    await open({ action: "delete_account", proofs: ["email_code"], insideSheet: true });
+    await fireEvent.press(screen.getByTestId("step-up-send-code"));
+    await settle();
+    await lock(true);
+    await settle();
+    expect(out()).toBe("cancelled");
+    await lock(false);
+    await fireEvent.press(screen.getByTestId("run"));
+    await settle();
+    expect(screen.getByTestId("step-up-code-sent")).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByTestId("step-up-email-code"), "654321");
+    await settle();
+    expect(signInMethodsApi.sendStepUpEmailCode).toHaveBeenCalledTimes(1);
+    expect(out()).toBe("done:su_email_code");
+  });
+
+  it("mails again for an action whose code bought its token", async () => {
+    byMail();
+    await open({ action: "delete_account", proofs: ["email_code"] });
+    await fireEvent.press(screen.getByTestId("step-up-send-code"));
+    await settle();
+    await fireEvent.changeText(screen.getByTestId("step-up-email-code"), "654321");
+    await settle();
+    forgetStepUp();
+    await fireEvent.press(screen.getByTestId("run"));
+    await settle();
+    expect(screen.getByTestId("step-up-send-code")).toBeOnTheScreen();
+  });
+
+  /** Two holds, as the owner's hand-over asks them; `between` is the wait in between (the methods read again). */
+  function Chain({ between }: { between: () => Promise<void> }) {
+    const gate = useStepUp();
+    const [out, setOut] = useState("");
+    const chain = async () => {
+      const first = await gate.hold("transfer_ownership");
+      await between();
+      setOut(`${first}:${await gate.hold("delete_account")}`);
+    };
+    return (
+      <>
+        <Pressable accessibilityRole="button" testID="chain" onPress={() => void chain()}>
+          <Text>chain</Text>
+        </Pressable>
+        <Text testID="out">{out}</Text>
+        {gate.sheet}
+      </>
+    );
+  }
+  const describes = (action: StepUpAction) =>
+    viText("settings.security.stepUp.description", { action: viText(`settings.security.stepUp.actions.${action}`) });
+
+  it.each(["ios", "android"] as const)("on %s, presents the next ask once the last sheet is gone", async (os) => {
+    const was = Platform.OS;
+    Platform.OS = os;
+    try {
+      // A mailed code serves its own action only: the second hold needs a sheet of its own.
+      jest.mocked(stepUp).mockImplementation(holds("email_code"));
+      let goOn: () => void = () => undefined;
+      await render(<Chain between={() => new Promise<void>((resolve) => (goOn = resolve))} />);
+      await fireEvent.press(screen.getByTestId("chain"));
+      await settle();
+      expect(screen.getByText(describes("transfer_ownership"))).toBeOnTheScreen();
+      holdDismissals();
+      await fireEvent.changeText(screen.getByTestId("step-up-password"), "pw");
+      await fireEvent.press(screen.getByTestId("step-up-submit"));
+      await settle();
+      expect(screen.queryByTestId("step-up-sheet")).toBeNull();
+      // The second ask comes while the first sheet is still sliding away.
+      await act(async () => goOn());
+      await settle();
+      if (os === "ios") {
+        // iOS cannot present over a sheet that is still closing: the second waits for its onDismiss.
+        expect(screen.queryByTestId("step-up-sheet")).toBeNull();
+        await act(async () => finishDismissals());
+      }
+      expect(screen.getByText(describes("delete_account"))).toBeOnTheScreen();
+      await fireEvent.changeText(screen.getByTestId("step-up-password"), "pw");
+      await fireEvent.press(screen.getByTestId("step-up-submit"));
+      await settle();
+      expect(screen.getByTestId("out").props.children).toBe("true:true");
+    } finally {
+      Platform.OS = was;
+    }
   });
 });

@@ -167,7 +167,10 @@ export function SecondFactorProof(props: ProofProps & { onSubmit: (code: string)
 /** The server's gap between two mailed codes (POST /me/step-up/email-code). */
 const RESEND_GAP_MS = 60_000;
 
-/** A six-digit code mailed for this one action: sent on request, then typed; sent again once the minute is up. */
+/**
+ * A six-digit code mailed for this one action: sent on request, then typed; sent again once the minute is up. When it
+ * was sent is the ask's (`sentAt`), so a sheet back from Mail, or opened again for the action, waits on the code.
+ */
 export function EmailCodeProof({
   busy,
   message,
@@ -178,28 +181,32 @@ export function EmailCodeProof({
   email,
   relay,
   sending,
+  sentAt,
+  onSent,
   onSend,
   onSubmit,
 }: ProofProps & {
   email: string;
   relay: boolean;
   sending: boolean;
+  /** when a code still good was mailed for this action, or null */
+  sentAt: number | null;
+  onSent: (at: number) => void;
   /** resolves true once the server said sent */
   onSend: () => Promise<boolean>;
   onSubmit: (code: string) => void;
 }) {
   const { t } = useTranslation();
   const [code, setCode] = useClearedOnRefusal(refusals);
-  const [resendAtMs, setResendAtMs] = useState<number | null>(null);
-  const left = useCountdown(resendAtMs);
-  const sent = resendAtMs !== null;
+  const left = useCountdown(sentAt === null ? null : sentAt + RESEND_GAP_MS);
+  const sent = sentAt !== null;
   const asking = useRef(false);
   const send = async () => {
     if (asking.current || busy || waiting || left > 0) return;
     asking.current = true;
     try {
       if (await onSend()) {
-        setResendAtMs(Date.now() + RESEND_GAP_MS);
+        onSent(Date.now());
         setCode("");
       }
     } finally {

@@ -4,7 +4,8 @@
 // the second factor alone while it is on, else the password, Apple's or Google's own sheet, a mailed code), with
 // "Dùng cách khác" for the rest. A passing proof buys a ten-minute token held in memory, and the sheet closes on it;
 // a refusal is said under the field, which is cleared and focused; a lock counts down. A server that now asks for
-// another proof (two-factor turned on elsewhere) changes the list in place.
+// another proof (two-factor turned on elsewhere) changes the list in place. What the person chose and when a code was
+// mailed live in the ask (use-step-up.ts), not here: the sheet the app lock put away comes back on the same proof.
 import { useQuery } from "@tanstack/react-query";
 import type { StepUpAction, StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { paths } from "@uniwork/core/paths/paths";
@@ -19,6 +20,7 @@ import { haptics } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
 import { proofsFor } from "@/data/auth/step-up-store";
+import { appLockState } from "@/data/stores/app-lock-store";
 import { useSendStepUpCode, useStepUpProof, type ProofEntry } from "@/data/mutations/sign-in-methods";
 import { signInOfferOptions } from "@/data/queries/sign-in";
 import { isAppleRelayAddress } from "@/lib/apple-relay";
@@ -26,31 +28,51 @@ import { signInFailureOf } from "@/lib/sign-in-failure";
 import { EmailCodeProof, PasswordProof, ProviderProof, SecondFactorProof } from "./step-up-proofs";
 import { useOpenWebPage } from "./use-open-web-page";
 
-/** One request for a proof: the command it is for, and the server's freshest list of what it takes. */
+/** One request for a proof: the command it is for, and what the person did in the sheet so far. */
 export interface StepUpAsk {
   id: number;
   action: StepUpAction;
+  /** the server's freshest list of what it takes; a refusal that names others replaces it */
   proofs: readonly unknown[];
+  /** the proof chosen with "Dùng cách khác" (null: the list's first) */
+  picked: StepUpProof | null;
+  /** when a code was mailed for this action, within its ten minutes: the sheet waits on the code's field */
+  mailedAt: number | null;
 }
 
-export function StepUpSheet({ ask, onDone }: { ask: StepUpAsk | null; onDone: (held: boolean) => void }) {
-  // The last request stays drawn while the sheet slides away.
-  const last = useRef<StepUpAsk | null>(ask);
-  if (ask) last.current = ask;
-  const shown = ask ?? last.current;
+export type StepUpProgress = Partial<Pick<StepUpAsk, "proofs" | "picked" | "mailedAt">>;
+
+interface SheetProps {
+  /** the ask drawn: the one presented, kept while the sheet slides away */
+  ask: StepUpAsk | null;
+  visible: boolean;
+  /** inside another sheet, the app lock's close is an answer (the ask ends); else the gate puts the sheet away */
+  lockAnswers: boolean;
+  onDone: (held: boolean) => void;
+  onProgress: (id: number, patch: StepUpProgress) => void;
+  /** iOS: the sheet finished closing, so another may be presented */
+  onDismiss: () => void;
+}
+
+export function StepUpSheet({ ask, visible, lockAnswers, onDone, onProgress, onDismiss }: SheetProps) {
   const [busy, setBusy] = useState(false);
   return (
     <BottomSheet
-      visible={ask !== null}
+      visible={visible}
       onClose={() => {
+        // The lock took the sheet away, not the person: the ask waits under it (use-step-up.ts › away).
+        if (!lockAnswers && appLockState.getState().engaged) return;
         if (!busy) onDone(false);
       }}
+      onDismiss={onDismiss}
       dragFrom="handle"
       avoidKeyboard
       keyboardClassName="max-h-[92%]"
       testID="step-up-sheet"
     >
-      {shown ? <StepUpBody key={shown.id} ask={shown} onBusy={setBusy} onDone={onDone} /> : null}
+      {ask ? (
+        <StepUpBody key={ask.id} ask={ask} onBusy={setBusy} onDone={onDone} onProgress={(patch) => onProgress(ask.id, patch)} />
+      ) : null}
     </BottomSheet>
   );
 }
@@ -64,15 +86,21 @@ const PROOF_LABEL: Record<StepUpProof, string> = {
   google: "settings.security.stepUp.provider.google",
 };
 
-function StepUpBody({ ask, onBusy, onDone }: { ask: StepUpAsk; onBusy: (busy: boolean) => void; onDone: (held: boolean) => void }) {
+interface BodyProps {
+  ask: StepUpAsk;
+  onBusy: (busy: boolean) => void;
+  onDone: (held: boolean) => void;
+  onProgress: (patch: StepUpProgress) => void;
+}
+
+function StepUpBody({ ask, onBusy, onDone, onProgress }: BodyProps) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const offer = useQuery(signInOfferOptions()).data;
   const openWebPage = useOpenWebPage();
   const step = useStepUpProof();
   const sendCode = useSendStepUpCode();
-  const [proofs, setProofs] = useState<readonly unknown[]>(ask.proofs);
-  const [picked, setPicked] = useState<StepUpProof | null>(null);
+  const { proofs, picked } = ask;
   const [picking, setPicking] = useState(false);
   const [failure, setFailure] = useState<ShownFailure | null>(null);
   const [refusals, setRefusals] = useState(0);
@@ -88,10 +116,7 @@ function StepUpBody({ ask, onBusy, onDone }: { ask: StepUpAsk; onBusy: (busy: bo
   const fail = (error: unknown, start: "form" | "apple" | "google" = "form") => {
     const read = signInFailureOf(error, "step_up", start);
     // The server takes another proof now (the second factor turned on elsewhere): the sheet asks for that one.
-    if (read.kind === "step_up" && read.proofs?.length) {
-      setProofs(read.proofs);
-      setPicked(null);
-    }
+    if (read.kind === "step_up" && read.proofs?.length) onProgress({ proofs: read.proofs, picked: null });
     setFailure(shownFailure(read));
     setRefusals((n) => n + 1);
     haptics.failure();
@@ -139,6 +164,8 @@ function StepUpBody({ ask, onBusy, onDone }: { ask: StepUpAsk; onBusy: (busy: bo
         email={email}
         relay={isAppleRelayAddress(email)}
         sending={sendCode.isPending}
+        sentAt={ask.mailedAt}
+        onSent={(mailedAt) => onProgress({ mailedAt })}
         onSend={mailCode}
         onSubmit={(code) => void prove({ kind: "email_code", code })}
       />
@@ -175,7 +202,7 @@ function StepUpBody({ ask, onBusy, onDone }: { ask: StepUpAsk; onBusy: (busy: bo
               accessibilityRole="button"
               accessibilityState={{ selected: way === proof }}
               onPress={() => {
-                setPicked(way);
+                onProgress({ picked: way });
                 setPicking(false);
                 setFailure(null);
               }}

@@ -16,6 +16,8 @@ import { useToastStore } from "@/data/stores/toast-store";
 import { render, viText } from "@/test/render";
 import { DeleteAccountSection } from "./delete-account";
 
+// The sheets as iOS runs them: the owner's second proof sheet waits for the first to finish closing (use-step-up.ts).
+jest.mock("react-native/Libraries/Modal/Modal", () => jest.requireActual("@/test/dismissing-modal"));
 jest.mock("@/data/account-api", () => ({ accountApi: { deleteAccount: jest.fn(), transferOwnership: jest.fn() } }));
 const mockRequest = jest.fn<Promise<unknown>, [string, RequestInit | undefined]>();
 jest.mock("@/data/api", () => ({ api: { request: (path: string, init?: RequestInit) => mockRequest(path, init), getMe: jest.fn(async () => null) } }));

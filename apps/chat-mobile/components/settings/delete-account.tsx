@@ -45,7 +45,8 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
   const theme = THEME[colorScheme];
   const accountDeleted = useAuthStore((s) => s.accountDeleted);
   const openWebPage = useOpenWebPage();
-  const stepUp = useStepUp();
+  // The proof sheet opens inside this one: the app lock closes it, as it closes this one (use-step-up.ts).
+  const stepUp = useStepUp({ insideSheet: true });
   const [error, setError] = useState<{ message: string; field: Field } | null>(null);
   const [busy, setBusy] = useState<"transfer" | "erase" | null>(null);
   /** A step (the proof sheet, a hand-over, the erasure) is under way: one at a time. */
