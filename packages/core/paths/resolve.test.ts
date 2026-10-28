@@ -9,9 +9,7 @@ import {
   pendingAuthStep,
   resolveHomeDestination,
   resolvePostAuthDestination,
-  resolvePostAuthNavigation,
   sanitizeNextUrl,
-  withNextParam,
   workspacelessDestination,
 } from "./index";
 import type { Workspace } from "../types";
@@ -256,41 +254,13 @@ describe("noWorkspace", () => {
   });
 });
 
-describe("resolvePostAuthNavigation", () => {
-  const join = "/join/l1#secret=s3cret";
-  const invite = "/invite/tok";
-  const meeting = "/invite/meeting/m1";
-  const tasks = "/acme/team/tasks";
-
-  it("keeps next through verify so join survives email confirmation", () => {
-    expect(resolvePostAuthNavigation("/verify", join)).toBe(
-      `/verify?next=${encodeURIComponent(join)}`,
-    );
-  });
-
-  it("lets join and email-invite override onboarding", () => {
-    expect(resolvePostAuthNavigation("/onboarding", join)).toBe(join);
-    expect(resolvePostAuthNavigation("/onboarding", invite)).toBe(invite);
-    expect(resolvePostAuthNavigation("/onboarding", meeting)).toBe("/onboarding");
-    expect(resolvePostAuthNavigation("/onboarding", tasks)).toBe("/onboarding");
-  });
-
-  it("follows next once the gate is clear", () => {
-    expect(resolvePostAuthNavigation(tasks, join)).toBe(join);
-    expect(resolvePostAuthNavigation("/get-started", null)).toBe("/get-started");
-  });
-
-  it("nextOverridesOnboarding only for membership join and email invite", () => {
-    expect(nextOverridesOnboarding(join)).toBe(true);
-    expect(nextOverridesOnboarding(invite)).toBe(true);
-    expect(nextOverridesOnboarding(meeting)).toBe(false);
-    expect(nextOverridesOnboarding(tasks)).toBe(false);
+describe("nextOverridesOnboarding", () => {
+  it("only for a membership join link and an email invitation", () => {
+    expect(nextOverridesOnboarding("/join/l1#secret=s3cret")).toBe(true);
+    expect(nextOverridesOnboarding("/invite/tok")).toBe(true);
+    expect(nextOverridesOnboarding("/invite/meeting/m1")).toBe(false);
+    expect(nextOverridesOnboarding("/acme/team/tasks")).toBe(false);
     expect(nextOverridesOnboarding(null)).toBe(false);
-  });
-
-  it("withNextParam encodes the return path", () => {
-    expect(withNextParam("/register", join)).toBe(`/register?next=${encodeURIComponent(join)}`);
-    expect(withNextParam("/login", null)).toBe("/login");
   });
 });
 

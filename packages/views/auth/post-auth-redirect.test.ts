@@ -105,7 +105,13 @@ describe("resolveLoggedInDestination with next", () => {
   });
   it("carries next through /onboarding", async () => {
     fetchMy.mockResolvedValueOnce([]);
-    expect(await resolveWith(verified, [], qc, "/invite/tok")).toBe("/onboarding?next=%2Finvite%2Ftok");
+    expect(await resolveWith(verified, [], qc, "/invite/meeting/m1")).toBe("/onboarding?next=%2Finvite%2Fmeeting%2Fm1");
+  });
+  /** UNI-2226: accepting onboards the person; onboarding first would have them create an organization. */
+  it.each(["/join/l1#secret=s3cret", "/invite/tok"])("lets %s go before onboarding, never before /verify", async (next) => {
+    fetchMy.mockResolvedValueOnce([]);
+    expect(await resolveWith(verified, [], qc, next)).toBe(next);
+    expect(await resolveWith(unverified, [], qc, next)).toBe(`/verify?next=${encodeURIComponent(next)}`);
   });
   it("goes to next once the gates are behind the person", async () => {
     fetchOrgs.mockResolvedValueOnce([{ id: "o1", status: "active", role: "owner" }]);

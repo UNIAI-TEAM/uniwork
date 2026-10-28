@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { fetchOrganizations, organizationKeys } from "@uniwork/core/organizations";
 import {
+  nextOverridesOnboarding,
   paths,
   pendingAuthStep,
   resolvePostAuthDestination,
@@ -48,12 +49,15 @@ export function pastLinkStep(next: string | null | undefined): string | null {
 
 /**
  * Where `next` goes once a gate step is behind the person: the gate's own
- * page carries it, and it wins over every landing that is not a gate.
+ * page carries it, and it wins over every landing that is not a gate. A
+ * membership link or an email invitation goes before onboarding instead:
+ * accepting it onboards the person, and onboarding would have them create an
+ * organization first (UNI-2226).
  */
 function carryNext(destination: string, next: string | null): string {
   if (!next) return destination;
   if (destination === paths.verify()) return paths.verify({ next });
-  if (destination === paths.onboarding()) return paths.onboarding({ next });
+  if (destination === paths.onboarding()) return nextOverridesOnboarding(next) ? next : paths.onboarding({ next });
   return next;
 }
 
@@ -64,9 +68,9 @@ function carryNext(destination: string, next: string | null): string {
  * a failed organization list is ignored rather than blocking sign-in.
  *
  * `next` (sanitized again here: same-origin paths only) survives the gates:
- * /verify and /onboarding carry it and go on to it afterwards, and any other
- * landing gives way to it. The consent and link-step pages above skip the
- * gates altogether.
+ * /verify and /onboarding carry it and go on to it afterwards (a join or
+ * email-invite `next` skips onboarding), and any other landing gives way to
+ * it. The consent and link-step pages above skip the gates altogether.
  *
  * Both lookups go through the query cache under the keys the next screen
  * reads, so /invitations and /get-started open on the answer already fetched
