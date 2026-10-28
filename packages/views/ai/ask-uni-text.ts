@@ -44,22 +44,22 @@ function echoBefore(text: string, at: number, title: string): number {
 
 /**
  * A question (the composer's markdown) as one plain line, as the server titles a conversation
- * (`questionTitle`, askuni_title.go): no fence, quote or list markers, no inline marks, escapes read back.
+ * (`questionTitle`, askuni_title.go): no fence, quote or list markers, no inline marks (` * ~; the composer
+ * escapes a typed `_` and never marks with it), escapes and entities (`&amp;`, `&lt;`) read back.
  */
 export function questionPlainText(markdown: string): string {
-  return markdown
+  const text = markdown
     .split("\n")
     .filter((line) => !line.trim().startsWith("```"))
     .map((line) =>
       line
         .trim()
         .replace(/^(?:>\s?)*(?:[-*+]\s+|\d+[.)]\s+)?/, "")
-        .replace(/(?<!\\)(?:\*\*|~~|[`*_])/g, "")
+        .replace(/(?<!\\)[`*~]/g, "")
         .replace(/\\(.)/g, "$1"),
     )
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .join(" ");
+  return (new DOMParser().parseFromString(text, "text/html").documentElement.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
 /**

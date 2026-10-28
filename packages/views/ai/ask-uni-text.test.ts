@@ -12,6 +12,12 @@ describe("questionPlainText", () => {
     expect(questionPlainText("> Việc của:\n- Kiều\n2. Miên")).toBe("Việc của: Kiều Miên");
     expect(questionPlainText("Giá \\*ưu đãi\\* 2\\_3 `x`\n```\nconst a\n```")).toBe("Giá *ưu đãi* 2_3 x const a");
   });
+
+  // What the composer really sends for "R&D < 5", a typed `_` and a code span.
+  it("reads entities back and keeps underscores", () => {
+    expect(questionPlainText("Ai làm R&amp;D &lt; 5 việc?")).toBe("Ai làm R&D < 5 việc?");
+    expect(questionPlainText("Sửa user\\_id và `a_b`")).toBe("Sửa user_id và a_b");
+  });
 });
 
 describe("answerPlainText", () => {
