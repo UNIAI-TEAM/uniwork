@@ -16,6 +16,7 @@ import { ConfirmDialog } from "../common/form-dialog";
 import { useOptionalNavigation } from "../navigation";
 import { initials } from "../people/actor-chip";
 import { InviteForm, type InviteRole, type InviteSendResult } from "../settings/components/invite-form";
+import { WorkspaceInviteLinkPanel } from "../settings/components/membership-invite-link-panel";
 import { MemberSearch, matchesMember } from "../settings/components/member-search";
 import { decisionReason } from "../settings/components/permission-reason";
 import {
@@ -187,15 +188,18 @@ export function MembersView({ workspaceId }: { workspaceId: string }) {
       {permissionsLoading ? (
         <SettingsSkeletonRows rows={1} />
       ) : canInvite.allowed ? (
-        <SettingsSection title={t("settings.members.invite_title")} description={t("settings.members.invite_description")}>
-          <InviteForm
-            id="members-invite"
-            submitLabel={t("workspace.invite")}
-            roleLabel={t("settings.members.invite_role")}
-            pending={invite.isPending}
-            onSend={send}
-          />
-        </SettingsSection>
+        <>
+          <SettingsSection title={t("settings.members.invite_title")} description={t("settings.members.invite_description")}>
+            <InviteForm
+              id="members-invite"
+              submitLabel={t("workspace.invite")}
+              roleLabel={t("settings.members.invite_role")}
+              pending={invite.isPending}
+              onSend={send}
+            />
+          </SettingsSection>
+          <WorkspaceInviteLinkPanel workspaceId={workspaceId} />
+        </>
       ) : inviteReason ? (
         <SettingsSection title={t("settings.members.invite_title")}>
           <SettingsCard>

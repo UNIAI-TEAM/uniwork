@@ -227,6 +227,16 @@ func pathParamSDI(path string) any {
 			Org          string `path:"org" description:"Slug tổ chức" example:"acme"`
 			InvitationId string `path:"invitationId" description:"ULID lời mời" example:"01J8X4INV0N1P2Q3R4S5T6U7"`
 		}{}
+	case "org,linkID":
+		return struct {
+			Org    string `path:"org" description:"Slug tổ chức" example:"acme"`
+			LinkID string `path:"linkID" description:"ULID liên kết mời thành viên" example:"01J8X4LNK0N1P2Q3R4S5T6U7V"`
+		}{}
+	case "workspaceID,linkID":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			LinkID      string `path:"linkID" description:"ULID liên kết mời thành viên" example:"01J8X4LNK0N1P2Q3R4S5T6U7V"`
+		}{}
 	case "org,userID":
 		return struct {
 			Org    string `path:"org" description:"Slug tổ chức" example:"acme"`

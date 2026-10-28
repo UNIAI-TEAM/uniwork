@@ -70,6 +70,7 @@ export type CreateDocumentFileInput =
       meta?: {
         title?: string;
         visibility?: DocumentVisibility;
+        template?: true;
         parent_id?: string;
         parentId?: string;
         destination?: never;
@@ -82,6 +83,7 @@ export type CreateDocumentFileInput =
       meta?: {
         title?: string;
         visibility?: DocumentVisibility;
+        template?: true;
         destination?: DocumentCreateDestination;
         parent_id?: never;
         parentId?: never;
@@ -156,6 +158,8 @@ export function useCreateDocumentFile(wsId: string) {
       const extraMeta = {
         ...(title !== undefined ? { title } : {}),
         ...(visibility !== undefined ? { visibility } : {}),
+        // Only the Templates upload sets it; every other caller sends none.
+        ...(input.meta?.template ? { template: true as const } : {}),
       };
       const meta: CreateDocumentFileMeta | undefined =
         destination !== undefined

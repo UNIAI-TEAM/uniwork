@@ -134,6 +134,17 @@ type Routes struct {
 	RevokeOrgInvitation  http.HandlerFunc
 	TransferOrgOwnership http.HandlerFunc
 
+	ListOrgInviteLinks            http.HandlerFunc
+	CreateOrgInviteLink           http.HandlerFunc
+	RevokeOrgInviteLink           http.HandlerFunc
+	RegenerateOrgInviteLink       http.HandlerFunc
+	ListWorkspaceInviteLinks      http.HandlerFunc
+	CreateWorkspaceInviteLink     http.HandlerFunc
+	RevokeWorkspaceInviteLink     http.HandlerFunc
+	RegenerateWorkspaceInviteLink http.HandlerFunc
+	PreviewMembershipInviteLink   http.HandlerFunc
+	JoinMembershipInviteLink      http.HandlerFunc
+
 	ListPeople         http.HandlerFunc
 	GetPerson          http.HandlerFunc
 	PatchPersonProfile http.HandlerFunc
@@ -479,6 +490,7 @@ type Routes struct {
 	SetCaptionLanguage             http.HandlerFunc
 	ListTranscript                 http.HandlerFunc
 	AppendChatMessage              http.HandlerFunc
+	RateCall                       http.HandlerFunc
 	ListChatMessages               http.HandlerFunc
 	GetMeetingSummary              http.HandlerFunc
 	CreateSummary                  http.HandlerFunc
@@ -736,6 +748,10 @@ type Routes struct {
 	// ListFavoriteDocuments is GET /workspaces/{workspaceID}/documents/favorites (UNI-2045).
 	ListFavoriteDocuments http.HandlerFunc
 	ListDocumentChanges   http.HandlerFunc
+	// Document templates (UNI-2225): the Templates section and its mark.
+	MarkDocumentTemplate   http.HandlerFunc
+	UnmarkDocumentTemplate http.HandlerFunc
+	ListTemplateDocuments  http.HandlerFunc
 	// Offline lease of one desktop device on one document (G5-08s).
 	PutOfficeOfflineLease    http.HandlerFunc
 	DeleteOfficeOfflineLease http.HandlerFunc

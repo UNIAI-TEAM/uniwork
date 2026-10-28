@@ -1075,6 +1075,31 @@ describe("useRealtimeSync", () => {
       },
     );
 
+    // Templates section: marking/unmarking a template refreshes the workspace
+    // root, which the templates list key hangs off. Ids only.
+    it.each(["document.template_marked", "document.template_unmarked"] as const)(
+      "invalidates the workspace root and the templates list on %s, only for the open workspace",
+      (type) => {
+        vi.useFakeTimers();
+        const { qc, invalidate, client } = setup();
+        qc.setQueryData(documentKeys.templates("ws1"), { pages: [], pageParams: [""] });
+        qc.setQueryData(documentKeys.templates("ws2"), { pages: [], pageParams: [""] });
+        client.emit({ type, payload: { document_id: "d1", workspace_id: "ws2" } } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(250);
+        });
+        expect(keysCalled(invalidate)).not.toContain(docRoot);
+        client.emit({ type, payload: { document_id: "d1", workspace_id: "ws1" } } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(250);
+        });
+        expect(keysCalled(invalidate)).toContain(docRoot);
+        expect(qc.getQueryState(documentKeys.templates("ws1"))?.isInvalidated).toBe(true);
+        expect(qc.getQueryState(documentKeys.templates("ws2"))?.isInvalidated).toBe(false);
+        vi.useRealTimers();
+      },
+    );
+
     // Source files (chat, task attachment, recording, email) raise no
     // document.* frame: their own frames mark the sources list stale, the
     // chatty ones through a longer window. Keys only, no payload cached.

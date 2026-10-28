@@ -11,6 +11,7 @@ import {
   FolderInput,
   FolderOpen,
   FolderPlus,
+  LayoutTemplate,
   Link2,
   MonitorUp,
   Pencil,
@@ -44,6 +45,8 @@ const ICONS: Record<Exclude<RowMenuItemId, "go-to-source">, LucideIcon> = {
   restore: ArchiveRestore,
   "view-details": Eye,
   purge: Trash,
+  "mark-template": LayoutTemplate,
+  "unmark-template": LayoutTemplate,
 };
 
 function iconOf(item: RowMenuItem, row: LibraryRow): LucideIcon {

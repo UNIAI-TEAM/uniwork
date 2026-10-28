@@ -3,7 +3,7 @@
 import { useId, useMemo, useState } from "react";
 import { useParticipants as useLiveKitParticipants } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
-import { Hand, Search, UserPlus, UserRoundCheck } from "lucide-react";
+import { ArrowRightLeft, Hand, Search, UserPlus, UserRoundCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import { useParticipants } from "@uniwork/core/meetings";
@@ -11,6 +11,7 @@ import { useAttendanceFinalized, useMeetingClerk } from "@uniwork/core/meetings/
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { ScribeMark } from "@uniwork/ui/brand/scribe-mark";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@uniwork/ui/components/ui/input-group";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
 import { MeetingAttendancePanel } from "./meeting-attendance-panel";
@@ -29,6 +30,7 @@ import {
   participantRole,
   ROSTER_EVENTS,
 } from "./meeting-signals";
+import { TransferHostDialog } from "./transfer-host-dialog";
 import { useMeetingSignals } from "./use-meeting-signals";
 import { useWindowedList } from "./use-windowed-list";
 
@@ -98,6 +100,7 @@ export function MeetingRoomPeopleTab({
   const { data: apiParticipants } = useParticipants(meetingId ?? "");
   const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [handingOver, setHandingOver] = useState<{ userId: string; name: string } | null>(null);
   const { isClerk } = useMeetingClerk(guestMode ? null : (meeting ?? null), workspaceId ?? "");
   // Hosts and admins are clerks, so this is the roll the attendance view reads too.
   const rollFinalized = useAttendanceFinalized(meetingId ?? "", Boolean(canHost && !guestMode && meetingId));
@@ -322,6 +325,16 @@ export function MeetingRoomPeopleTab({
                                   standingOnly={meta.isHost}
                                 />
                               ) : null}
+                              {/* MeetingService.TransferHost takes only an active workspace person. */}
+                              {canHost && !meta.isHost && meta.userId && meta.api.status === "ACTIVE" &&
+                              meta.api.principal_type.toUpperCase() === "USER" ? (
+                                <DropdownMenuItem
+                                  onClick={() => setHandingOver({ userId: meta.userId!, name: displayName(participant) })}
+                                >
+                                  <ArrowRightLeft aria-hidden className="size-4" />
+                                  {t("meetings.transferHostMenu")}
+                                </DropdownMenuItem>
+                              ) : null}
                               {/* Never a phone line: the scribe would diarize it under the caller's id. */}
                               {isClerk && scribeInRoom && participantRole(participant, guests) !== "phone" ? (
                                 <MeetingSharedMicMenuItem
@@ -343,6 +356,14 @@ export function MeetingRoomPeopleTab({
           </div>
         </>
       )}
+      {canInvite && meetingId && workspaceId ? (
+        <TransferHostDialog
+          workspaceId={workspaceId}
+          meetingId={meetingId}
+          target={handingOver}
+          onClose={() => setHandingOver(null)}
+        />
+      ) : null}
       {canInvite && meetingId && workspaceId ? (
         <AddMeetingParticipantsDialog
           workspaceId={workspaceId}

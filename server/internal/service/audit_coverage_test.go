@@ -172,6 +172,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionMembershipInviteLinkCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			if _, err := f.ws.CreateWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, nil); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionMembershipInviteLinkRevoked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			link, err := f.ws.CreateWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.ws.RevokeWorkspaceInviteLink(f.ctx, f.owner.ID, w.ID, link.Link.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionOrganizationOwnershipChanged: func(t *testing.T, f *auditFixture) {
 			f.addMember(t)
 			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, auditPassword); err != nil {
@@ -1625,6 +1641,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-2225: the template pair, on a workspace file.
+		audit.ActionDocumentTemplateMarked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			if _, err := svc.MarkDocumentTemplate(f.ctx, Human(f.owner.ID), docID, MarkDocumentTemplateInput{WidenToWorkspace: true}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentTemplateUnmarked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			if _, err := svc.MarkDocumentTemplate(f.ctx, Human(f.owner.ID), docID, MarkDocumentTemplateInput{WidenToWorkspace: true}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UnmarkDocumentTemplate(f.ctx, Human(f.owner.ID), docID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// ARCHIVE-01 (UNI-1845): the shelve pair.
 		audit.ActionDocumentShelved: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
@@ -2566,6 +2598,8 @@ func auditActions() []string {
 		audit.ActionDocumentRestored,
 		audit.ActionDocumentShelved,
 		audit.ActionDocumentUnshelved,
+		audit.ActionDocumentTemplateMarked,
+		audit.ActionDocumentTemplateUnmarked,
 		audit.ActionDocumentDeleted,
 		audit.ActionDocumentVersionsCompacted,
 		audit.ActionDocumentAssetPurged,

@@ -72,7 +72,7 @@ func TestIsolationMatrix(t *testing.T) {
 				continue
 			}
 			for _, tn := range []*isoTenant{w.alpha, w.bravo} {
-				path, ok := isoPath(t, r.pattern, tn)
+				path, ok := isoPath(t, r.method, r.pattern, tn)
 				if !ok {
 					continue
 				}
@@ -99,7 +99,7 @@ func TestIsolationMatrix(t *testing.T) {
 			if !spec.class.tenantScoped() && spec.class != isoPlatform {
 				continue
 			}
-			path, ok := isoPath(t, r.pattern, w.alpha)
+			path, ok := isoPath(t, r.method, r.pattern, w.alpha)
 			if !ok {
 				continue
 			}
@@ -131,7 +131,7 @@ func TestIsolationMatrix(t *testing.T) {
 			if !spec.class.tenantScoped() && spec.class != isoPlatform {
 				continue
 			}
-			path, ok := isoPath(t, r.pattern, w.alpha)
+			path, ok := isoPath(t, r.method, r.pattern, w.alpha)
 			if !ok {
 				continue
 			}
@@ -150,7 +150,7 @@ func TestIsolationMatrix(t *testing.T) {
 			if spec.class != isoSelf || !strings.Contains(r.pattern, "{") {
 				continue
 			}
-			path, ok := isoPath(t, r.pattern, w.alpha)
+			path, ok := isoPath(t, r.method, r.pattern, w.alpha)
 			if !ok {
 				continue
 			}
@@ -174,7 +174,7 @@ func TestIsolationMatrix(t *testing.T) {
 			// A route whose only other id rides in the query string
 			// (?account_id=, ?call_id=) is mixed by that query.
 			if !ok && spec.class.tenantScoped() && isoQueryNamesRow(spec.query) {
-				path, ok = isoPath(t, r.pattern, w.bravo)
+				path, ok = isoPath(t, r.method, r.pattern, w.bravo)
 			}
 			if !ok || (spec.class == isoPublic && !isoHasTwoParams(r.pattern)) {
 				continue
@@ -280,7 +280,7 @@ func TestIsolationMatrix(t *testing.T) {
 			if r.method != http.MethodGet || spec.class == isoPublic || spec.class == isoPlatform || spec.class == isoRealtime {
 				continue
 			}
-			path, ok := isoPath(t, r.pattern, w.bravo)
+			path, ok := isoPath(t, r.method, r.pattern, w.bravo)
 			if !ok {
 				continue
 			}
@@ -365,7 +365,7 @@ func TestIsolationMatrix(t *testing.T) {
 		})
 		for _, r := range writes {
 			spec := isoSpecFor(r)
-			path, ok := isoPath(t, r.pattern, c)
+			path, ok := isoPath(t, r.method, r.pattern, c)
 			if !ok {
 				continue
 			}
@@ -559,14 +559,14 @@ func isoSpecFor(r isoRoute) isoSpec {
 
 // isoPath fills every parameter of pattern with the tenant's row for it; a
 // parameter the fixture cannot fill is reported and the route skipped.
-func isoPath(t *testing.T, pattern string, tn *isoTenant) (string, bool) {
+func isoPath(t *testing.T, method, pattern string, tn *isoTenant) (string, bool) {
 	t.Helper()
 	segs := strings.Split(pattern, "/")
 	for i, s := range segs {
 		if !strings.HasPrefix(s, "{") {
 			continue
 		}
-		v := isoParam(t, pattern, segs, i, tn)
+		v := isoParam(t, method, pattern, segs, i, tn)
 		if v == "" {
 			return "", false
 		}
@@ -578,7 +578,7 @@ func isoPath(t *testing.T, pattern string, tn *isoTenant) (string, bool) {
 // isoParam picks the row a parameter names. Most names are unambiguous; a few
 // ({id}, {commentID}, {linkID}, …) mean a different resource under a
 // different parent, so the segment before them decides.
-func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant) string {
+func isoParam(t *testing.T, method, pattern string, segs []string, i int, tn *isoTenant) string {
 	t.Helper()
 	prev := ""
 	if i > 0 {
@@ -709,6 +709,15 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		}
 		if pattern == "/api/v1/documents/{documentID}/unshelve" {
 			return tn.get(t, "unshelveDocument")
+		}
+		// UNI-2225: the template mark acts on a file that is not yet a
+		// template, the unmark on one that already is - marking "document"
+		// would turn the shared page into something every later pass reads.
+		if pattern == "/api/v1/documents/{documentID}/template" {
+			if method == http.MethodDelete {
+				return tn.get(t, "markedTemplateDocument")
+			}
+			return tn.get(t, "templateDocument")
 		}
 		// The large-upload session routes (BIGUP-S1): a markdown document on
 		// the frame family (the module its token opens) and the file document
@@ -882,6 +891,12 @@ func isoParam(t *testing.T, pattern string, segs []string, i int, tn *isoTenant)
 		if strings.HasPrefix(pattern, "/api/v1/documents/") {
 			return tn.get(t, "docLink")
 		}
+		if strings.Contains(pattern, "/invite-links/") {
+			if strings.Contains(pattern, "/orgs/") {
+				return tn.get(t, "membershipOrgInviteLink")
+			}
+			return tn.get(t, "membershipInviteLink")
+		}
 		return tn.get(t, "chatLink")
 	case "{resourceID}":
 		if under("/projects/") {
@@ -1033,7 +1048,7 @@ func isoMixedPath(t *testing.T, pattern, firstKey string, from, to *isoTenant) (
 		} else if !isoSharedParams[seg] {
 			mixed = true
 		}
-		v := isoParam(t, pattern, segs, i, tn)
+		v := isoParam(t, "", pattern, segs, i, tn)
 		if v == "" {
 			return "", false
 		}

@@ -858,6 +858,19 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		content: []byte("# " + m + " file body\n"),
 	})
 	tn.ids["fileDocument"] = isoID(t, out, "document")
+	// UNI-2225: dedicated files for the template pair - marking "fileDocument"
+	// would change what every later control reads from it. One workspace file
+	// not yet marked (POST) and one uploaded as a template (DELETE).
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": m + " Template file", "visibility": "workspace"}, filename: strings.ToLower(m) + "-tpl.md", contentType: "text/markdown",
+		content: []byte("# " + m + " template file body\n"),
+	})
+	tn.ids["templateDocument"] = isoID(t, out, "document")
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": m + " Marked template", "template": "true"}, filename: strings.ToLower(m) + "-marked.md", contentType: "text/markdown",
+		content: []byte("# " + m + " marked template body\n"),
+	})
+	tn.ids["markedTemplateDocument"] = isoID(t, out, "document")
 	// A zip download job (UNI-2045 SV-9) the tenant's owner created and nobody
 	// built: the poll answers it, the download route has no file yet.
 	tn.ids["downloadJob"] = util.NewID()
@@ -944,6 +957,16 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	for _, inv := range isoList(t, out, "invitations") {
 		tn.ids["orgInvitation"] = inv["id"].(string)
 	}
+	// Shareable membership invite links (UNI-2226): one workspace-scoped row
+	// and one org-scoped row that also fills membership_invite_link_workspaces.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/invite-links", tn.token, map[string]any{"expires_in_days": 7})
+	tn.ids["membershipInviteLink"] = isoID(t, out, "invite_link")
+	tn.ids["membershipInviteSecret"] = isoString(t, out, "invite_link", "secret")
+	out = w.call(t, "POST", org+"/invite-links", tn.token, map[string]any{
+		"workspace_ids": []string{tn.wsID}, "expires_in_days": 7,
+	})
+	tn.ids["membershipOrgInviteLink"] = isoID(t, out, "invite_link")
+	tn.ids["membershipOrgInviteSecret"] = isoString(t, out, "invite_link", "secret")
 	inviteeToken, _ := w.register(t, invitee, m+" Invitee")
 	out = w.call(t, "GET", "/api/v1/me/invitations", inviteeToken, nil)
 	for _, inv := range isoList(t, out, "invitations") {

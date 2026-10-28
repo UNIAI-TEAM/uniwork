@@ -79,7 +79,7 @@ describe("MeetingControlBar", () => {
     sharing.pending = true;
     toggles.microphone.mockClear();
     try {
-      render(wrapWithNav(<MeetingControlBar onLeave={() => {}} meetingId="m1" />));
+      render(wrapWithNav(<MeetingControlBar onExit={() => {}} meetingId="m1" />));
       const mic = screen.getByRole("button", { name: "Mic" });
       expect(mic).not.toBeDisabled();
       expect(mic).toHaveAttribute("aria-disabled", "true");
@@ -99,7 +99,7 @@ describe("MeetingControlBar", () => {
     render(
       wrapWithNav(
         <MeetingControlBar
-          onLeave={() => {}}
+          onExit={() => {}}
           meetingId="m1"
           canHost
           recordingEnabled
@@ -119,7 +119,7 @@ describe("MeetingControlBar", () => {
     render(
       wrapWithNav(
         <MeetingControlBar
-          onLeave={() => {}}
+          onExit={() => {}}
           meetingId="m1"
           canHost
           recordingEnabled
@@ -142,7 +142,7 @@ describe("MeetingControlBar", () => {
     render(
       wrapWithNav(
         <MeetingControlBar
-          onLeave={() => {}}
+          onExit={() => {}}
           meetingId="m1"
           canHost
           recordingEnabled
@@ -166,7 +166,7 @@ describe("MeetingControlBar", () => {
     render(
       wrapWithNav(
         <MeetingControlBar
-          onLeave={() => {}}
+          onExit={() => {}}
           meetingId="m1"
           captionsAvailable
           onToggleCaptions={() => {}}
@@ -183,7 +183,7 @@ describe("MeetingControlBar", () => {
     render(
       wrapWithNav(
         <MeetingControlBar
-          onLeave={() => {}}
+          onExit={() => {}}
           meetingId="m1"
           canHost
           recordingEnabled
@@ -207,7 +207,7 @@ describe("MeetingControlBar", () => {
     const { rerender } = render(
       wrapWithNav(
         <MeetingControlBar
-          onLeave={() => {}}
+          onExit={() => {}}
           meetingId="m1"
           canHost
           recordingEnabled
@@ -224,7 +224,7 @@ describe("MeetingControlBar", () => {
 
     rerender(
       wrapWithNav(
-        <MeetingControlBar onLeave={() => {}} meetingId="m1" canHost recordingEnabled />,
+        <MeetingControlBar onExit={() => {}} meetingId="m1" canHost recordingEnabled />,
       ),
     );
     expect(screen.queryByRole("button", { name: "Phụ đề" })).not.toBeInTheDocument();
@@ -236,7 +236,7 @@ describe("MeetingControlBar", () => {
     render(
       wrapWithNav(
         <MeetingControlBar
-          onLeave={() => {}}
+          onExit={() => {}}
           meetingId="m1"
           canHost
           recordingEnabled
@@ -260,7 +260,7 @@ describe("MeetingControlBar", () => {
     render(
       wrapWithNav(
         <>
-          <MeetingControlBar onLeave={() => {}} />
+          <MeetingControlBar onExit={() => {}} />
           <input aria-label="draft" />
         </>,
       ),
@@ -277,15 +277,15 @@ describe("MeetingControlBar", () => {
     expect(toggles.microphone).toHaveBeenCalledOnce();
   });
 
-  it("asks before leaving the room", () => {
+  it("asks before leaving the room, and leaves with the mic and camera as they are", () => {
     mobile = false;
     handRaised = false;
-    const onLeave = vi.fn();
-    render(wrapWithNav(<MeetingControlBar onLeave={onLeave} />));
+    const onExit = vi.fn();
+    render(wrapWithNav(<MeetingControlBar onExit={onExit} />));
     fireEvent.click(screen.getByRole("button", { name: "Rời phòng" }));
-    expect(onLeave).not.toHaveBeenCalled();
+    expect(onExit).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Rời ngay" }));
-    expect(onLeave).toHaveBeenCalledOnce();
+    expect(onExit).toHaveBeenCalledExactlyOnceWith({ kind: "left", media: { audio: true, video: true } });
   });
 });
 
@@ -294,7 +294,7 @@ describe("MeetingControlBar with a locked mic", () => {
     local.participant.permissions.canPublishSources = [1, 3];
     try {
       toggles.microphone.mockClear();
-      render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
+      render(wrapWithNav(<MeetingControlBar onExit={() => {}} />));
       fireEvent.click(screen.getByRole("button", { name: "Mic, chủ trì đã khóa" }));
       expect(toggles.microphone).not.toHaveBeenCalled();
       expect(toast.info).toHaveBeenCalledWith("Chủ trì đã khóa mic của bạn", expect.anything());
@@ -306,7 +306,7 @@ describe("MeetingControlBar with a locked mic", () => {
   it("still shares the screen, without its audio", () => {
     local.participant.permissions.canPublishSources = [1, 3];
     try {
-      render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
+      render(wrapWithNav(<MeetingControlBar onExit={() => {}} />));
       // Shared audio is refused with the mic: a share asking for it would fail whole.
       expect(shareErrors.captureOptions).toMatchObject({ audio: false });
       expect(screen.getByRole("button", { name: "Dừng chia sẻ" })).toBeInTheDocument();
@@ -325,7 +325,7 @@ describe("MeetingControlBar with a locked share", () => {
     try {
       toggles.screen_share.mockClear();
       vi.mocked(toast.info).mockClear();
-      render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
+      render(wrapWithNav(<MeetingControlBar onExit={() => {}} />));
       fireEvent.click(screen.getByRole("button", { name: "Chia sẻ, chủ trì đã khóa" }));
       expect(toggles.screen_share).not.toHaveBeenCalled();
       expect(toast.info).toHaveBeenCalledWith("Chủ trì đã khóa chia sẻ màn hình của bạn", expect.anything());
@@ -340,7 +340,7 @@ describe("MeetingControlBar reactions", () => {
   it("names each reaction in words, not by the emoji", () => {
     mobile = false;
     handRaised = false;
-    render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
+    render(wrapWithNav(<MeetingControlBar onExit={() => {}} />));
     fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
     fireEvent.click(screen.getByRole("button", { name: "Biểu cảm" }));
     expect(screen.getByRole("button", { name: "Thích" })).toBeInTheDocument();
@@ -350,19 +350,19 @@ describe("MeetingControlBar reactions", () => {
 
   it("names the share control by its next action and hides it where capture is impossible", () => {
     mobile = false;
-    const { unmount } = render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
+    const { unmount } = render(wrapWithNav(<MeetingControlBar onExit={() => {}} />));
     expect(screen.getByRole("button", { name: "Dừng chia sẻ", pressed: true })).toBeInTheDocument();
     unmount();
 
     Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: {} });
-    render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
+    render(wrapWithNav(<MeetingControlBar onExit={() => {}} />));
     expect(screen.queryByRole("button", { name: /chia sẻ/i })).not.toBeInTheDocument();
   });
 
   it("says why a share could not start, and stays quiet when the picker is closed", () => {
     mobile = false;
     vi.mocked(toast.error).mockClear();
-    render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
+    render(wrapWithNav(<MeetingControlBar onExit={() => {}} />));
     shareErrors.onDeviceError?.(namedError("NotAllowedError", "Permission denied"));
     expect(toast.error).not.toHaveBeenCalled();
     shareErrors.onDeviceError?.(namedError("NotAllowedError", "Permission denied by system"));

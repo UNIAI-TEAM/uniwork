@@ -139,6 +139,9 @@ export const DocumentSchema = z.object({
   // read as absent like archived_at/archived_by.
   shelved_at: z.string().nullable().optional().catch(undefined),
   shelved_by: z.string().nullable().optional().catch(undefined),
+  // Templates section: the server sends the pair only on a marked document.
+  template_marked_at: z.string().nullable().optional().catch(undefined),
+  template_marked_by: z.string().nullable().optional().catch(undefined),
   purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
@@ -208,6 +211,13 @@ export function isShelved(
   doc: { shelved_at?: string | null } | null | undefined,
 ): boolean {
   return !!doc?.shelved_at;
+}
+
+/** True when a document or list row is marked as a workspace template. */
+export function isTemplate(
+  doc: { template_marked_at?: string | null } | null | undefined,
+): boolean {
+  return !!doc?.template_marked_at;
 }
 
 export const DocumentVersionSchema = z.object({
@@ -416,6 +426,8 @@ export const DocumentSummarySchema = z.object({
   // restored row can keep its shelved badge - addendum §4, Q-UI3).
   shelved_at: z.string().nullable().optional().catch(undefined),
   shelved_by: z.string().nullable().optional().catch(undefined),
+  template_marked_at: z.string().nullable().optional().catch(undefined),
+  template_marked_by: z.string().nullable().optional().catch(undefined),
   purge_after: z.string().nullable().optional().catch(undefined),
   // UNI-2045 (SV-1..SV-6): what each list screen's own column says. All newer
   // fields: a drifted block reads as absent and the column writes "—".

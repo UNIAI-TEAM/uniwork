@@ -791,6 +791,9 @@ type Document struct {
 	ShelvedBy            pgtype.Text        `json:"shelved_by"`
 	ShelvedByKind        pgtype.Text        `json:"shelved_by_kind"`
 	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
+	TemplateMarkedAt     pgtype.Timestamptz `json:"template_marked_at"`
+	TemplateMarkedBy     pgtype.Text        `json:"template_marked_by"`
+	TemplateMarkedByKind pgtype.Text        `json:"template_marked_by_kind"`
 }
 
 type DocumentAccessLog struct {
@@ -2173,6 +2176,28 @@ type MeetingTranscription struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	StartedAt        pgtype.Timestamptz `json:"started_at"`
 	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
+}
+
+type MembershipInviteLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	SecretHash     string             `json:"secret_hash"`
+	OrgRole        string             `json:"org_role"`
+	WorkspaceRole  string             `json:"workspace_role"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	RevokedBy      pgtype.Text        `json:"revoked_by"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type MembershipInviteLinkWorkspace struct {
+	LinkID         string             `json:"link_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	OrganizationID string             `json:"organization_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type Notification struct {

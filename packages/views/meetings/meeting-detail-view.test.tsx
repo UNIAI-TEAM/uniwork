@@ -281,6 +281,19 @@ describe("MeetingDetailView › strip per state and viewer", () => {
     expect(adapter.replace).toHaveBeenCalledWith(`${adapter.pathname}?tab=minutes&finalize=1`);
   });
 
+  it("lands the host who just ended it on the close-out card instead of the strip", async () => {
+    open("m1", { extra: MINUTES_ON, adapter: nav("ended=1") });
+    expect(await screen.findByRole("heading", { name: "Đã kết thúc cho mọi người" })).toBeInTheDocument();
+    expect(await screen.findByText("Giao 9 việc")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /Việc tiếp theo của bạn/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps the strip on a later visit", async () => {
+    open("m1", { extra: MINUTES_ON });
+    await strip();
+    expect(screen.queryByRole("heading", { name: "Đã kết thúc cho mọi người" })).not.toBeInTheDocument();
+  });
+
   it("draws no Lời thoại tab and says so under the title when the scribe was off and heard nothing", async () => {
     const m1 = fixtureMeeting("m1");
     const base = `/api/v1/meetings/${m1.id}`;

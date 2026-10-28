@@ -18,6 +18,7 @@ var errorClassByCode = map[string]string{
 	"idempotency_in_flight":        "conflict",
 	"upload_already_committed":     "conflict",
 	"copy_consent_required":        "conflict",
+	"template_widens_visibility":   "conflict",
 	"owner_requires_copy":          "conflict",
 	"document_upload_invalid":      "conflict",
 	// A folder create or rename asked for a name a live sibling holds (E6

@@ -37,6 +37,10 @@ const (
 	ActionDepartmentArchived = "department.archived"
 	ActionPeopleExported     = "people.exported"
 	ActionInvitationRevoked  = "invitation.revoked"
+	// Shareable membership invite links (UNI-2226): create and revoke only;
+	// joining still writes member.joined.
+	ActionMembershipInviteLinkCreated = "membership_invite_link.created"
+	ActionMembershipInviteLinkRevoked = "membership_invite_link.revoked"
 
 	ActionWorkspaceCreated         = "workspace.created"
 	ActionWorkspaceUpdated         = "workspace.updated"
@@ -247,6 +251,11 @@ const (
 	// batch, the batch id in metadata and in the event payload.
 	ActionDocumentShelved   = "document.shelved"
 	ActionDocumentUnshelved = "document.unshelved"
+
+	// Templates (UNI-2225): a workspace file marked, or no longer marked, as a
+	// template of the workspace's library.
+	ActionDocumentTemplateMarked   = "document.template_marked"
+	ActionDocumentTemplateUnmarked = "document.template_unmarked"
 
 	// Document access requests (DOC-07, UNI-1631): a person who cannot read a
 	// document asked its managers for access. The requester is the actor, the
