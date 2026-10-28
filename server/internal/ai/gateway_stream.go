@@ -69,12 +69,14 @@ func (g *Gateway) settleCancelled(sctx, ctx context.Context, req Request, creq p
 	if err := g.settle(sctx, row.ID, row.OrganizationID, resp, "cancelled", code, latency, nil, true); err != nil {
 		g.log.Warn("ai: settle cancelled call", "usage_event_id", row.ID, "err", err)
 	}
+	refusal := &Error{Code: out.Code, Status: out.Status, Msg: out.Msg, Err: perr, UsageEventID: row.ID}
 	if !nothing {
 		g.charge(sctx, req, row.ID, resp)
+		refusal.ChargedTokens = meteredTokens(resp)
 	}
 	g.observe(req.Capability, "cancelled", latency)
 	g.log.Info("ai: call stopped", "usage_event_id", row.ID, "capability", req.Capability, "code", code)
-	return out.wrapUsage(perr, row.ID), true
+	return refusal, true
 }
 
 // requestBytes is what the model was sent: system text, messages and tool

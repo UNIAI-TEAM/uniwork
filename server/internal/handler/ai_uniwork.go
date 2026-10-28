@@ -100,14 +100,20 @@ func (h *handlers) uniworkWrite(w http.ResponseWriter, r *http.Request, scope se
 	}
 	stream := ai.NewUniworkDeltaStream(w, ai.UniworkResponseMeta{ConversationID: in.ConversationID, Now: time.Now()})
 	res, err := h.AIUniwork.Write(ctx, in, func(text string) {
+		if ctx.Err() != nil {
+			return
+		}
 		if !stream.Started() {
 			// A delta means the run was taken: the service continues exactly
 			// the conversation and run the request named (it never opens
 			// one), so their ids go out before the first byte.
 			uniworkAnswerHeaders(w, service.UniworkTurn{ConversationID: in.ConversationID, RunID: in.RunID})
 		}
-		if werr := stream.Delta(text); werr != nil {
-			h.Log.Debug("uniwork ai: writer delta not written", "conversation_id", in.ConversationID, "err", werr)
+		if stream.Delta(text) != nil {
+			// The client stopped reading: stop the model too, as the BYOK
+			// stream does, so the call does not run on for nobody and hold the
+			// writer slot. The Gateway settles it as cancelled.
+			cancel()
 		}
 	})
 	if !stream.Started() {

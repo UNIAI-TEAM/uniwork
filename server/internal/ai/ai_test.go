@@ -1988,6 +1988,11 @@ func TestGatewayChargesACancelledStream(t *testing.T) {
 	if len(quota.recorded) != 1 || quota.recorded[0].Tokens <= 0 {
 		t.Fatalf("%+v", quota.recorded)
 	}
+	// The refusal carries what the meter charged (the writer route's run
+	// credits match it).
+	if ae.ChargedTokens != quota.recorded[0].Tokens {
+		t.Fatalf("ChargedTokens = %d, the meter recorded %d", ae.ChargedTokens, quota.recorded[0].Tokens)
+	}
 }
 
 func TestGatewayCancelledStreamEstimatesMissingUsage(t *testing.T) {
@@ -2069,6 +2074,9 @@ func TestGatewayCancelledStreamWithNothingIsCancelledAtZeroCost(t *testing.T) {
 	row, _ := q.AiGetUsageEvent(context.Background(), ae.UsageEventID)
 	if row.Status != "cancelled" || row.ReasonCode.String != "ai_cancelled" || row.CostMicros != 0 || len(quota.recorded) != 0 {
 		t.Fatalf("%+v %+v", row, quota.recorded)
+	}
+	if ae.ChargedTokens != 0 {
+		t.Fatalf("ChargedTokens = %d for a stop that charged nothing", ae.ChargedTokens)
 	}
 }
 

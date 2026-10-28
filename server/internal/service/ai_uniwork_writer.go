@@ -107,10 +107,19 @@ func (s *AIUniworkService) Write(ctx context.Context, in UniworkWriteInput, onDe
 		// One charge per (run, model call), as on the chat route.
 		MeterKey: uniworkMeterKey(run),
 	})
-	// The run carries what the Gateway reported, on a context that outlives
-	// the request; a stopped or failed call reports nothing here, and the
-	// Gateway has already settled its usage row.
-	s.addRunCredits(ctx, run, int64(resp.InputTokens+resp.OutputTokens))
+	// The run carries what the call cost, on a context that outlives the
+	// request: an answered call's tokens, or the partial the Gateway charged
+	// for a call stopped after text went out (timeout, client gone). A vendor
+	// failure is unbilled and adds nothing, so a free call leaves no run
+	// sample either.
+	credits := int64(resp.InputTokens + resp.OutputTokens)
+	var stopped *ai.Error
+	if errors.As(err, &stopped) {
+		credits = stopped.ChargedTokens
+	}
+	if credits > 0 {
+		s.addRunCredits(ctx, run, credits)
+	}
 	if err != nil {
 		return UniworkWriteResult{ConversationID: conv.ID, RunID: run.ID}, err
 	}

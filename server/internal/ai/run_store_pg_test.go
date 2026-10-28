@@ -202,6 +202,30 @@ func runCounters(t *testing.T, pool *pgxpool.Pool, runID string) (int32, int32) 
 	return calls, rounds
 }
 
+// A writer call that names no run never opens one (plan 5): one new run per
+// call would be the cap's escape hatch. The store answers run_expired before
+// any write, whatever the service checked first.
+func TestRunStoreWriterNeverOpensARun(t *testing.T) {
+	store, _, pool := runStoreFixture(t)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	conv := seedRunConversation(t, pool, "org-a", "user-a", now)
+
+	run, err := store.TakeTurn(context.Background(), TakeRunTurn{
+		OrganizationID: "org-a", ConversationID: conv, Writer: true, CreatedBy: "user-a", Now: now,
+	})
+	if !errors.Is(err, ErrRunExpired) || run.ID != "" {
+		t.Fatalf("a writer take with no run id = %+v, %v; want ErrRunExpired and no run", run, err)
+	}
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM ai_uniwork_runs WHERE conversation_id = $1`, conv).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("runs of the conversation = %d, want none opened by a writer take", n)
+	}
+}
+
 // Opening a run spends the question turn that reached the Gateway; a question
 // turn continues it, a tool-result round spends a round beside its call, and
 // credits land on the run (design §2.2, §4.2).

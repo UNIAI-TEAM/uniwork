@@ -11,8 +11,10 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
@@ -97,14 +99,56 @@ func uniworkStreamText(t *testing.T, body string) (string, []map[string]any, boo
 	return text.String(), chunks, done
 }
 
-func uniworkWriterUsageRows(t *testing.T, w *isoWorld, orgID string) (n int, status string, outputTokens int) {
+// uniworkWriterBill is the writer's usage rows and what the ai.tokens meter
+// recorded against them.
+type uniworkWriterBill struct {
+	rows         int
+	status       string
+	outputTokens int
+	costMicros   int64
+	meterEvents  int
+	charged      int64
+}
+
+func uniworkWriterBilling(t *testing.T, w *isoWorld, orgID string) uniworkWriterBill {
 	t.Helper()
-	if err := w.pool.QueryRow(context.Background(),
-		`SELECT count(*), COALESCE(max(status), ''), COALESCE(max(output_tokens), 0) FROM ai_usage_events
-		 WHERE organization_id = $1 AND capability = $2`, orgID, string(ai.CapOfficeUniworkWriter)).Scan(&n, &status, &outputTokens); err != nil {
+	ctx := context.Background()
+	var b uniworkWriterBill
+	if err := w.pool.QueryRow(ctx,
+		`SELECT count(*), COALESCE(max(status), ''), COALESCE(max(output_tokens), 0), COALESCE(sum(cost_micros), 0)::bigint
+		 FROM ai_usage_events WHERE organization_id = $1 AND capability = $2`,
+		orgID, string(ai.CapOfficeUniworkWriter)).Scan(&b.rows, &b.status, &b.outputTokens, &b.costMicros); err != nil {
 		t.Fatal(err)
 	}
-	return n, status, outputTokens
+	if err := w.pool.QueryRow(ctx,
+		`SELECT count(*), COALESCE(sum(delta), 0)::bigint FROM usage_events
+		 WHERE organization_id = $1 AND ref_id IN (SELECT id FROM ai_usage_events WHERE organization_id = $1 AND capability = $2)`,
+		orgID, string(ai.CapOfficeUniworkWriter)).Scan(&b.meterEvents, &b.charged); err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func uniworkRunCredits(t *testing.T, w *isoWorld, runID string) int64 {
+	t.Helper()
+	var credits int64
+	if err := w.pool.QueryRow(context.Background(),
+		`SELECT credits FROM ai_uniwork_runs WHERE id = $1`, runID).Scan(&credits); err != nil {
+		t.Fatal(err)
+	}
+	return credits
+}
+
+// uniworkWriterTerminal is the code of the stream's last chunk, "" when it
+// carries none.
+func uniworkWriterTerminal(chunks []map[string]any) string {
+	if len(chunks) == 0 {
+		return ""
+	}
+	end, _ := chunks[len(chunks)-1]["x_uniwork"].(map[string]any)
+	terminal, _ := end["terminal"].(map[string]any)
+	code, _ := terminal["code"].(string)
+	return code
 }
 
 const uniworkWriterText = "Tổng quan quý ba: doanh thu tăng đều ở cả ba miền."
@@ -162,11 +206,13 @@ func TestAIUniworkWriteErrorBeforeStreamIsJSON(t *testing.T) {
 
 // The vendor breaks after the first delta: the stream ends with the terminal
 // chunk instead of a finish, and the usage row is written once, for what the
-// vendor produced.
+// vendor produced. A vendor failure stays unbilled, as on every streamed
+// route (ruling R4): cost 0, no meter charge, the run's credits untouched.
 func TestAIUniworkWriteProviderFailureMidStream(t *testing.T) {
 	w := newUniworkWorld(t)
 	tn := w.alpha
 	conv, run := uniworkFrameRun(t, w, tn)
+	credits := uniworkRunCredits(t, w, run)
 	w.uniworkProvider.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
 		return provider.CompletionResponse{Text: uniworkWriterText, UsagePresent: true, InputTokens: 40, OutputTokens: 12, StopReason: "end_turn"}
 	}
@@ -181,14 +227,101 @@ func TestAIUniworkWriteProviderFailureMidStream(t *testing.T) {
 	if text != uniworkWriterText || !done {
 		t.Fatalf("streamed %q (done %v), want the one delta then [DONE]", text, done)
 	}
-	end, _ := chunks[len(chunks)-1]["x_uniwork"].(map[string]any)
-	terminal, _ := end["terminal"].(map[string]any)
-	if terminal["code"] != "ai_provider_error" {
+	if code := uniworkWriterTerminal(chunks); code != "ai_provider_error" {
 		t.Fatalf("last chunk = %v, want x_uniwork.terminal.code ai_provider_error", chunks[len(chunks)-1])
 	}
-	n, status, out := uniworkWriterUsageRows(t, w, tn.orgID)
-	if n != 1 || status != "failed" || out <= 0 {
-		t.Fatalf("writer usage rows = %d (status %q, output_tokens %d), want one failed row carrying the tokens produced", n, status, out)
+	bill := uniworkWriterBilling(t, w, tn.orgID)
+	if bill.rows != 1 || bill.status != "failed" || bill.outputTokens <= 0 {
+		t.Fatalf("writer usage = %+v, want one failed row carrying the tokens produced", bill)
+	}
+	if bill.costMicros != 0 || bill.meterEvents != 0 {
+		t.Fatalf("writer usage = %+v, want a vendor failure unpriced and uncharged", bill)
+	}
+	if got := uniworkRunCredits(t, w, run); got != credits {
+		t.Fatalf("run credits %d -> %d, want a vendor failure to add nothing", credits, got)
+	}
+}
+
+// The call runs out of time after text went out (ruling R5): the stream ends
+// with the terminal chunk, the Gateway prices and charges the partial once,
+// and the run's credits grow by exactly what the meter charged.
+func TestAIUniworkWriteTimeoutAfterDeltasChargesTheRunOnce(t *testing.T) {
+	w := newUniworkWorld(t)
+	tn := w.alpha
+	conv, run := uniworkFrameRun(t, w, tn)
+	credits := uniworkRunCredits(t, w, run)
+	w.uniworkProvider.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: uniworkWriterText, UsagePresent: true, InputTokens: 40, OutputTokens: 12, StopReason: "end_turn"}
+	}
+	w.uniworkProvider.Err = context.DeadlineExceeded
+	w.uniworkProvider.StreamChunk = 8
+
+	res, body := uniworkWriteCall(t, w, tn, conv, run, uniworkWriteDocsBody)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("writer call = %d: %s, want the 200 the first delta opened", res.StatusCode, body)
+	}
+	text, chunks, done := uniworkStreamText(t, body)
+	if text != uniworkWriterText || !done {
+		t.Fatalf("streamed %q (done %v), want the deltas then [DONE]", text, done)
+	}
+	if code := uniworkWriterTerminal(chunks); code != "ai_provider_timeout" {
+		t.Fatalf("last chunk = %v, want x_uniwork.terminal.code ai_provider_timeout", chunks[len(chunks)-1])
+	}
+	bill := uniworkWriterBilling(t, w, tn.orgID)
+	if bill.rows != 1 || bill.status != "cancelled" || bill.meterEvents != 1 || bill.charged != 52 {
+		t.Fatalf("writer usage = %+v, want one cancelled row charged once for 40+12 tokens", bill)
+	}
+	if got := uniworkRunCredits(t, w, run); got-credits != bill.charged {
+		t.Fatalf("run credits %d -> %d, want +%d (what the meter charged)", credits, got, bill.charged)
+	}
+}
+
+// writerDeadClient takes the first write and fails every later one, the way a
+// connection does once the client stopped reading, while the request's own
+// context stays alive.
+type writerDeadClient struct {
+	header http.Header
+	writes int
+}
+
+func (s *writerDeadClient) Header() http.Header { return s.header }
+func (s *writerDeadClient) WriteHeader(int)     {}
+func (s *writerDeadClient) Write(p []byte) (int, error) {
+	s.writes++
+	if s.writes > 1 {
+		return 0, errors.New("client stopped reading")
+	}
+	return len(p), nil
+}
+
+// A failed write stops the model (minor 1): the writer slot is not held while
+// the vendor keeps generating for nobody. The Gateway settles the call as
+// cancelled and the run carries what the meter charged.
+func TestAIUniworkWriteStopsWhenTheClientStopsReading(t *testing.T) {
+	w := newUniworkWorld(t)
+	tn := w.alpha
+	conv, run := uniworkFrameRun(t, w, tn)
+	credits := uniworkRunCredits(t, w, run)
+	w.uniworkProvider.Reply = func(req provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: strings.Repeat(uniworkWriterText, 4), UsagePresent: true, InputTokens: 40, OutputTokens: 48, StopReason: "end_turn"}
+	}
+	w.uniworkProvider.StreamChunk = 8
+	w.uniworkProvider.StreamDelay = 10 * time.Millisecond
+
+	payload, _ := json.Marshal(uniworkWriteDocsBody)
+	req := httptest.NewRequest(http.MethodPost, tn.uniworkFrameWritePath(), strings.NewReader(string(payload)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+tn.ids["frameToken"])
+	req.Header.Set(ai.UniworkConversationHeader, conv)
+	req.Header.Set(ai.UniworkRunHeader, run)
+	w.srv.Config.Handler.ServeHTTP(&writerDeadClient{header: http.Header{}}, req)
+
+	bill := uniworkWriterBilling(t, w, tn.orgID)
+	if bill.rows != 1 || bill.status != "cancelled" || bill.meterEvents != 1 {
+		t.Fatalf("writer usage = %+v, want one cancelled row charged once (the model stopped)", bill)
+	}
+	if got := uniworkRunCredits(t, w, run); got-credits != bill.charged {
+		t.Fatalf("run credits %d -> %d, want +%d (what the meter charged)", credits, got, bill.charged)
 	}
 }
 
