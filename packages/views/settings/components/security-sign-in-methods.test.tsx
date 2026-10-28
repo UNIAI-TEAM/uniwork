@@ -148,6 +148,8 @@ describe("SignInMethodsSection", () => {
     expect(dialog.getByText("Trong 10 phút tới, bạn không cần xác nhận lại.")).toBeInTheDocument();
     expect(dialog.getByRole("link", { name: "Quên mật khẩu?" })).toHaveAttribute("href", "/forgot-password");
     const field = dialog.getByLabelText("Mật khẩu hiện tại");
+    // Opens on the field, not on "Quên mật khẩu?", which comes first in the label row.
+    await waitFor(() => expect(field).toHaveFocus());
     fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
     expect(await dialog.findByText("Nhập mật khẩu hiện tại.")).toBeInTheDocument();
     expect(field).toHaveFocus();
@@ -194,6 +196,7 @@ describe("SignInMethodsSection", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Liên kết Apple" }));
     const dialog = await proofDialog();
     const field = dialog.getByLabelText("Mã từ ứng dụng xác thực");
+    await waitFor(() => expect(field).toHaveFocus());
     expect(dialog.getByText("Mã 6 số, hoặc một mã khôi phục dạng xxxxx-xxxxx.")).toBeInTheDocument();
     expect(dialog.queryByRole("button", { name: "Dùng cách khác" })).toBeNull();
     fireEvent.change(field, { target: { value: "abcde-12345" } });
@@ -216,6 +219,7 @@ describe("SignInMethodsSection", () => {
     expect(dialog.getByText("Mã trong email chỉ xác nhận việc này.")).toBeInTheDocument();
     // Until a code is on its way, sending it is the dialog's one action.
     expect(dialog.queryByRole("button", { name: "Xác nhận" })).toBeNull();
+    await waitFor(() => expect(dialog.getByRole("button", { name: "Gửi mã tới an@company.vn" })).toHaveFocus());
     fireEvent.click(dialog.getByRole("button", { name: "Gửi mã tới an@company.vn" }));
     await waitFor(() => expect(calls("POST /api/v1/me/step-up/email-code")[0]![1]).toMatchObject({ body: { action: "link_apple" } }));
     expect(await dialog.findByText("Đã gửi mã tới an@company.vn. Mã có hiệu lực 10 phút.")).toBeInTheDocument();

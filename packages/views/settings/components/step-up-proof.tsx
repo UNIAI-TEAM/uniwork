@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type MutableRefObject, type ReactNode } from "react";
 import { Mail } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { StepUpAction, StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
@@ -133,6 +133,10 @@ export function useStepUpGate(): StepUpGate {
 
 function StepUpDialog({ ask, open, onDone }: { ask: Ask | null; open: boolean; onDone: (confirmed: boolean) => void }) {
   const [busy, setBusy] = useState(false);
+  // The proof's own control (its field, or "Gửi mã tới…"): the dialog opens
+  // on it, not on the first tabbable, which is the "Quên mật khẩu?" link in
+  // the password field's label row.
+  const firstControl = useRef<HTMLElement | null>(null);
   return (
     <Dialog
       open={open}
@@ -140,12 +144,13 @@ function StepUpDialog({ ask, open, onDone }: { ask: Ask | null; open: boolean; o
         if (!next && !busy) onDone(false);
       }}
     >
-      <FormDialogContent showCloseButton={!busy}>
+      <FormDialogContent showCloseButton={!busy} initialFocus={() => firstControl.current ?? true}>
         {ask ? (
           <StepUpForm
             key={ask.id}
             action={ask.action}
             proofs={ask.proofs}
+            firstControl={firstControl}
             onBusyChange={setBusy}
             onConfirmed={() => onDone(true)}
             onCancel={() => onDone(false)}
@@ -162,12 +167,14 @@ type Problem = { key: string } | { failure: SignInFailure };
 function StepUpForm({
   action,
   proofs: named,
+  firstControl,
   onBusyChange,
   onConfirmed,
   onCancel,
 }: {
   action: StepUpAction;
   proofs: readonly StepUpProof[] | null;
+  firstControl: MutableRefObject<HTMLElement | null>;
   onBusyChange: (busy: boolean) => void;
   onConfirmed: () => void;
   onCancel: () => void;
@@ -184,6 +191,7 @@ function StepUpForm({
   const errorId = `${ids}-error`;
   const sendErrorId = `${ids}-send-error`;
   const inputRef = useRef<HTMLInputElement>(null);
+  const sendRef = useRef<HTMLButtonElement>(null);
 
   // The proofs to offer: those a refusal inside this dialog named, else the
   // ones the command's refusal named, else the account's list (null while
@@ -220,10 +228,24 @@ function StepUpForm({
     onBusyChange(stepUp.isPending);
   }, [onBusyChange, stepUp.isPending]);
   useEffect(() => {
+    firstControl.current = inputRef.current ?? sendRef.current;
+  });
+  useEffect(() => {
     if (focusTurn === 0) return;
-    inputRef.current?.focus();
-    inputRef.current?.select();
+    const field = inputRef.current;
+    if (field) {
+      field.focus();
+      field.select();
+    } else sendRef.current?.focus();
   }, [focusTurn]);
+  // Proofs still loading when the dialog opened left its initial focus on
+  // nothing of theirs: move to the proof once it is known, once.
+  const arrived = useRef(!loading);
+  useEffect(() => {
+    if (loading || arrived.current) return;
+    arrived.current = true;
+    setFocusTurn((n) => n + 1);
+  }, [loading]);
 
   const relay = isAppleRelayEmail(user?.email) || Boolean(methods.data?.account_email_is_relay);
   const email = user?.email ?? "";
@@ -375,6 +397,7 @@ function StepUpForm({
         {/* The dialog's one action until a code is on its way, hence the
             primary fill; the footer holds Cancel alone meanwhile. */}
         <Button
+          ref={sendRef}
           type="button"
           className="h-auto min-h-9 w-full justify-start py-2 text-left whitespace-normal"
           aria-busy={send.isPending || undefined}
@@ -456,10 +479,13 @@ function StepUpForm({
         reasonId={waiting ? errorId : undefined}
         leading={
           next && next !== proof ? (
+            // Full width while the footer stacks on a phone, like the two
+            // actions above it; at its own width beside them from sm up.
             <Button
               type="button"
               variant="ghost"
               size="sm"
+              className="w-full sm:w-auto"
               aria-disabled={busy || undefined}
               onClick={() => {
                 if (!busy) switchTo(next);
