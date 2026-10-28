@@ -7,8 +7,9 @@
 // (GET /api/v1/orgs/{org}/push-preview-policy), handing an organization to another member before the account is
 // erased (POST /api/v1/orgs/{org}/transfer-ownership, as core's transferOwnership), and the organization's floor
 // under the phone's app lock and screen-capture choices (GET
-// /api/v1/orgs/{org}/mobile-security-policy). account-api.test.ts holds a
-// malformed-response case for each (CLAUDE.md › API Compatibility).
+// /api/v1/orgs/{org}/mobile-security-policy), and proving the account's address with the mailed code (POST
+// /api/v1/me/email/verify, POST /api/v1/me/email/resend, as core's verifyEmail and resendVerification).
+// account-api.test.ts holds a malformed-response case for each (CLAUDE.md › API Compatibility).
 import { parseWithFallback } from "@uniwork/core/api/schema";
 import type { User } from "@uniwork/core/types/user";
 import { z } from "zod";
@@ -88,6 +89,15 @@ export function createAccountApi(request: Request) {
       return parseWithFallback<MobileSecurityPolicy | null>(raw, MobileSecurityPolicySchema, null, {
         endpoint: "GET /api/v1/orgs/{org}/mobile-security-policy",
       });
+    },
+    /** The verified user once the mailed code matched, or null when the answer drifted (the caller reloads /me). */
+    verifyEmail(code: string): Promise<User | null> {
+      return userOf(request("/api/v1/me/email/verify", { method: "POST", body: JSON.stringify({ code }) }), "POST /api/v1/me/email/verify");
+    },
+    /** A fresh code by mail; any 2xx is sent, a drifted body included. Within a minute of the last: 429 rate_limited. */
+    async resendVerification(): Promise<void> {
+      const raw = await request("/api/v1/me/email/resend", { method: "POST" });
+      parseWithFallback(raw, StatusSchema, {}, { endpoint: "POST /api/v1/me/email/resend" });
     },
     /** The language the server writes pushes and emails in (users.locale); null when the answer drifted. */
     setLocale(locale: "vi" | "en"): Promise<User | null> {

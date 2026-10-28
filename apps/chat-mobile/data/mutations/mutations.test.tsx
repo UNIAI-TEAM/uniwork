@@ -37,7 +37,15 @@ jest.mock("../chat-api", () => ({
 }));
 jest.mock("../safety-actions", () => ({ setBlocked: jest.fn(async () => undefined) }));
 jest.mock("../safety-api", () => ({ safetyApi: { report: jest.fn(async () => ({ id: "rep1" })) } }));
-jest.mock("../account-api", () => ({ accountApi: { deleteAccount: jest.fn(async () => undefined), transferOwnership: jest.fn(async () => undefined) } }));
+jest.mock("../account-api", () => ({
+  accountApi: { deleteAccount: jest.fn(async () => undefined), transferOwnership: jest.fn(async () => undefined), resendVerification: jest.fn(async () => undefined) },
+}));
+jest.mock("../auth/verify-email", () => ({ verifyAccountEmail: jest.fn(async () => undefined) }));
+// The choice screen's commands (data/mutations/sign-in.ts) and the signed-in user they update.
+jest.mock("../auth/sign-in", () => ({ sendClaimCode: jest.fn(async () => true) }));
+jest.mock("../auth/methods-api", () => ({ linkPendingTicket: jest.fn() }));
+jest.mock("../auth/store", () => ({ useAuthStore: { getState: () => ({ setUser: mockSetUser }) } }));
+const mockSetUser = jest.fn();
 jest.mock("../ai-consent", () => ({ answerAiConsent: jest.fn(async () => undefined) }));
 jest.mock("../push-previews", () => ({ setPushPreviews: jest.fn(async () => undefined) }));
 jest.mock("../api", () => ({ api: { tag: "transport" } }));
@@ -61,11 +69,23 @@ import { safetyApi } from "../safety-api";
 import { accountApi } from "../account-api";
 import { answerAiConsent } from "../ai-consent";
 import { setPushPreviews } from "../push-previews";
+import { verifyAccountEmail } from "../auth/verify-email";
+import { sendClaimCode } from "../auth/sign-in";
+import { linkPendingTicket } from "../auth/methods-api";
 import { api } from "../api";
 import { setPushEnabled } from "../push";
 import { voipPush as mockVoip } from "../calls/native-call-session";
 import { Platform } from "react-native";
-import { useAnswerAiConsent, useDeleteAccount, useRevokeDevice, useSetPushPreviews, useTransferOwnership } from "./account";
+import {
+  useAnswerAiConsent,
+  useDeleteAccount,
+  useResendVerification,
+  useRevokeDevice,
+  useSetPushPreviews,
+  useTransferOwnership,
+  useVerifyEmail,
+} from "./account";
+import { useLinkPendingTicket, useSendClaimCode } from "./sign-in";
 import { useSetPushEnabled } from "./push";
 import {
   useCreateTask,
@@ -205,6 +225,36 @@ describe("safety and account commands", () => {
     jest.mocked(revokeDevice).mockRejectedValueOnce(new Error("refused"));
     await expect(run(() => useRevokeDevice(), "d2")).rejects.toThrow("refused");
     expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([["auth-devices"], ["auth-devices"]]);
+  });
+});
+
+describe("email verification and the choice screen's commands", () => {
+  it("verify the address with the code and mail a fresh one", async () => {
+    await run(() => useVerifyEmail(), "123456");
+    expect(verifyAccountEmail).toHaveBeenCalledWith("123456");
+    await run(() => useResendVerification(), undefined);
+    expect(accountApi.resendVerification).toHaveBeenCalledTimes(1);
+  });
+
+  it("mail the claim code to the address typed, and link the held identity, adopting the account answered", async () => {
+    expect(await run(() => useSendClaimCode(), "an@congty.vn")).toBe(true);
+    expect(sendClaimCode).toHaveBeenCalledWith("an@congty.vn");
+    const linked = { user: { id: "u1", email: "an@congty.vn" }, methods: null };
+    jest.mocked(linkPendingTicket).mockResolvedValueOnce(linked as never);
+    expect(await run(() => useLinkPendingTicket(), { userId: "u1", move: true })).toBe(linked);
+    expect(linkPendingTicket).toHaveBeenCalledWith({ userId: "u1", move: true });
+    expect(mockSetUser).toHaveBeenCalledWith(linked.user);
+    mockSetUser.mockClear();
+    jest.mocked(linkPendingTicket).mockResolvedValueOnce({ user: null, methods: null });
+    await run(() => useLinkPendingTicket(), { userId: "u1" });
+    expect(mockSetUser).not.toHaveBeenCalled();
+  });
+
+  it("keep the choice screen's expected refusals out of drift reports", async () => {
+    jest.mocked(sendClaimCode).mockRejectedValueOnce(Object.assign(new Error("x"), { name: "TransportError", code: "rate_limited", status: 429 }));
+    await expect(run(() => useSendClaimCode(), "an@congty.vn")).rejects.toThrow("x");
+    const [, , , mutation] = onMutationError.mock.calls[0] as [unknown, unknown, unknown, { options: { meta: { handledCodes: string[] } } }];
+    expect(mutation.options.meta.handledCodes).toContain("rate_limited");
   });
 });
 

@@ -54,6 +54,25 @@ describe("account endpoints", () => {
     expect(request).toHaveBeenCalledWith("/api/v1/me/ai-consent", { method: "DELETE" });
   });
 
+  it("verifyEmail posts the code and reads the verified user back, or null when the answer drifted", async () => {
+    request.mockResolvedValueOnce({ user: { ...user, email_verified_at: "2026-10-28T09:00:00Z" } });
+    await expect(account.verifyEmail("123456")).resolves.toMatchObject({ id: "u1", email_verified_at: "2026-10-28T09:00:00Z" });
+    expect(request).toHaveBeenCalledWith("/api/v1/me/email/verify", { method: "POST", body: JSON.stringify({ code: "123456" }) });
+    request.mockResolvedValueOnce({ verified: true });
+    await expect(account.verifyEmail("123456")).resolves.toBeNull();
+    const wrong = Object.assign(new Error("invalid_code"), { status: 400 });
+    request.mockRejectedValueOnce(wrong);
+    await expect(account.verifyEmail("000000")).rejects.toBe(wrong);
+  });
+
+  it("resendVerification posts and resolves on any 2xx, a malformed one included", async () => {
+    request.mockResolvedValueOnce({ status: "ok" });
+    await expect(account.resendVerification()).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledWith("/api/v1/me/email/resend", { method: "POST" });
+    request.mockResolvedValueOnce(42);
+    await expect(account.resendVerification()).resolves.toBeUndefined();
+  });
+
   it("setLocale patches the person's language and reads the user back", async () => {
     request.mockResolvedValueOnce({ user: { ...user, locale: "vi" } });
     await expect(account.setLocale("vi")).resolves.toMatchObject({ id: "u1", locale: "vi" });
