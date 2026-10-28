@@ -318,6 +318,27 @@
         "fixes": {
           "cf9e65a0f7a8a8387d6ddf7ba8acee85c6c039c63": "Thanh toán VNPay: khi bạn quay lại từ VNPay mà chưa hoàn tất thanh toán, trang Thanh toán báo đã hủy ngay thay vì chờ xác nhận."
         }
+      },
+      "v1_12_0": {
+        "title": "Họp trực tiếp có ghi âm và biên bản, Hỏi UNI tạo tệp Office từ mẫu, link mời dùng nhiều lần",
+        "summary": "Cuộc họp có hình thức Trực tiếp: một máy trong phòng ghi âm ngay trên trình duyệt, họp xong có biên bản và việc đề xuất. Tài liệu có mục Mẫu văn bản cho cả workspace, và Hỏi UNI tạo được tệp Office mới từ mẫu, tệp đính kèm hoặc tệp trống. Tổ chức và workspace có link mời dùng nhiều lần. Khi rời phòng họp, chủ trì chọn chỉ rời, chuyển quyền hoặc kết thúc cho mọi người. Tài liệu chia sẻ được cả thư mục và mở tệp Office định dạng cũ bằng UniWork Office.",
+        "note": "Ghi âm họp trực tiếp chỉ có khi tổ chức được bật ghi lời cuộc họp và gói đang dùng có phút ghi lời; nếu chưa, bạn vẫn đặt lịch họp trực tiếp và ghi nhận đã họp như trước. Hỏi UNI tạo tệp Office cần tính năng AI và thao tác của Hỏi UNI được bật cho tổ chức; tệp chỉ được tạo sau khi bạn xác nhận trên thẻ, và Hỏi UNI chưa tự viết nội dung theo dàn ý vào tệp.",
+        "features": {
+          "c6cbd2bbb048a5379f54a25dce30fbe88b030f426": "Link mời dùng nhiều lần cho tổ chức và workspace: tạo, thu hồi hoặc tạo lại link để chia sẻ cho nhiều người cùng lúc. Người mở link khi đang ở một tổ chức khác được hướng dẫn chuyển tổ chức, vì mỗi tài khoản chỉ thuộc một tổ chức. Người chưa có tài khoản đăng ký và xác minh email xong thì vào thẳng nơi được mời, không phải tạo tổ chức mới.",
+          "c4228c23e3f2b0c806c324186730aa56559b9990e": "Rời và kết thúc cuộc họp: khi chủ trì bấm Rời phòng, chọn chỉ rời (vẫn giữ quyền chủ trì), chuyển quyền cho người đang trong phòng, hoặc kết thúc cho mọi người. Sau khi rời, mỗi người thấy màn phù hợp: vào lại với mic và camera như lúc rời; chủ trì ở ngoài vẫn duyệt người xin vào và dừng ghi hình được; khi họp kết thúc có người kết thúc, thời lượng, số người dự, trạng thái biên bản và việc của bạn; người bị mời ra biết ai mời và lúc nào; khách được cảm ơn và mời dùng thử UniWork. Bạn cũng có thể đánh giá nhanh chất lượng cuộc gọi.",
+          "c7f427c7f30d2e29c7b08d0d33d3ebf9d48aa5510": "Tài liệu có mục Mẫu văn bản dùng chung cho cả workspace, nhóm theo Word, Excel, PowerPoint và Khác. Tải mẫu lên bằng nút Tải mẫu lên hoặc kéo thả tệp vào mục này; trong menu của mỗi dòng có Đánh dấu là mẫu và Bỏ khỏi Mẫu. Thành viên xem được tài liệu thì đánh dấu được; với tài liệu riêng tư, người có quyền quản lý phải xác nhận mở tài liệu cho cả workspace chỉnh sửa. Tài liệu đã lưu trữ hoặc đang ở thùng rác không đánh dấu là mẫu được.",
+          "cb7ffc3f9677e4cf5bb92bfa345773eb1e4dc1e1f": "Tài liệu: chia sẻ cả thư mục bằng mục Chia sẻ trong menu thư mục — xem trước, rồi áp dụng quyền cho mọi tài liệu trong thư mục và các thư mục con; việc chạy nền và bạn nhận thông báo khi xong, kể cả khi đã rời Tài liệu. Tài liệu có giới hạn truy cập đặc biệt được giữ nguyên. Tệp Word, Excel, PowerPoint định dạng cũ (.doc, .xls, .ppt) trên web được mở bằng UniWork Office; trong app máy tính (từ bản beta.10), bản chuyển đổi được lưu thành phiên bản tiếp theo của chính tài liệu đó. Ô tìm kiếm trong Tài liệu gọn hơn.",
+          "c0cd5e5ae6b1803536689748f96dc5e7bcc1b2525": "Hỏi UNI tạo tệp Office: nhờ Hỏi UNI soạn báo giá, hóa đơn hay bài trình chiếu, Hỏi UNI tìm mẫu trong Mẫu văn bản hoặc dùng tệp bạn đính kèm, rồi đưa thẻ kế hoạch có dàn ý bạn sửa được. Bấm Tạo và mở để có tệp mới của riêng bạn — từ mẫu, từ tệp đính kèm hoặc tệp trống (Word, Excel, PowerPoint, PDF, Markdown, HTML) — và mở ngay trong trình soạn; mẫu gốc không đổi. Hỏi UNI cũng có thể đề xuất lưu tệp đính kèm vào Mẫu văn bản. Hoàn tác sẽ chuyển tệp vừa tạo vào thùng rác.",
+          "c0c9a7ae41d024ebecc4eebc94917b2bb8a171347": "Họp trực tiếp không cần giấy: khi lên lịch hoặc họp ngay, chọn hình thức Trực tiếp. Một máy trong phòng bấm Bắt đầu ghi âm ngay trên trình duyệt, rồi Kết thúc và gửi; bản ghi được ghi lời, tách người nói, tóm tắt, đề xuất việc và lập biên bản như file ghi âm tải lên. Âm thanh được lưu dần trên máy nên đóng tab, hết pin hay mất mạng không làm mất phần đã ghi; có mạng lại thì phần còn lại tự gửi tiếp, và app nhắc nếu bạn đăng xuất khi còn bản ghi chưa gửi. Họp trực tiếp không có Thư ký UNI; người đã từ chối lời mời được gợi ý vắng mặt khi điểm danh."
+        },
+        "improvements": {
+          "ce4e631d6b566eeb4aa8e15e03668f517ce02a82d": "Trang Bảng giá: thẻ gói hiện thêm số phút ghi lời cuộc họp của gói. Bảng so sánh tính năng chỉ hiện khi các gói khác nhau thật ở ít nhất ba tính năng, và có thêm các dòng AI cho Office (khóa AI riêng, công cụ AI đám mây).",
+          "c6fcf7fd13c09a42ca3e91fd1d4e256c1feb2e513": "Email Hub nhanh hơn: danh sách thư tải nhẹ hơn và cuộn mượt hơn khi hộp thư dài; chuyển thư sang thư mục khác và tạm ẩn thư phản hồi ngay, còn thư mục đích được đồng bộ ở chế độ nền. Danh sách thư được giữ nguyên khi bạn mở đọc một thư."
+        },
+        "fixes": {
+          "c4458af37e9a9c952f6a5a985672db59325e3da30": "Chat: công việc tạo từ tin nhắn có nhắc tên giờ hiện @Tên trong tiêu đề thay vì mã nhắc thô, và thẻ công việc không còn tràn khi có chuỗi dài.",
+          "cf0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf": "Tài liệu: chọn nhiều tài liệu rồi tải về thành tệp zip không còn bị lỗi khi lưu tệp; nếu tải không được, app báo lỗi và không lưu tệp rỗng."
+        }
       }
     }
   },
