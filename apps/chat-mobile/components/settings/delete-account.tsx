@@ -177,6 +177,7 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
           {ownerStep.stranded ? null : (
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel={confirmLabel}
               accessibilityState={{ busy: busy !== null, disabled: running }}
               testID="delete-account-confirm"
               onPress={() => void submit()}
@@ -185,7 +186,12 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
                 running ? "opacity-70" : "active:opacity-90",
               )}
             >
-              {busy ? <ActivityIndicator accessibilityLabel={t("common.loading")} color={THEME.light.primaryForeground} /> : null}
+              {busy ? (
+                // The button's own name says what runs; the spinner is drawn for the eye only.
+                <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                  <ActivityIndicator accessibilityLabel={confirmLabel} color={THEME.light.primaryForeground} />
+                </View>
+              ) : null}
               <Text className="text-body font-semibold text-on-solid">{confirmLabel}</Text>
             </Pressable>
           )}

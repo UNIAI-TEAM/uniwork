@@ -92,7 +92,9 @@ describe("RegisterForm", () => {
     await rerender(<RegisterForm busy="register" message={null} onSubmit={onSubmit} />);
     await act(async () => fireEvent(screen.getByTestId("register-password"), "submitEditing"));
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByLabelText(viText("auth.registering"))).toBeTruthy();
+    // The busy button names itself once: its spinner is drawn for the eye, not read out beside the words.
+    expect(screen.getByLabelText(viText("auth.registering")).props.testID).toBe("register-button");
+    expect(screen.getByTestId("register-button").props.accessibilityState).toMatchObject({ busy: true });
   });
 });
 

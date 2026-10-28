@@ -86,7 +86,10 @@ interface SubmitProps {
   testID?: string;
 }
 
-/** The screen's primary action: a full-width pill that turns into a labelled spinner while it runs. */
+/**
+ * The screen's primary action: a full-width pill that turns into a spinner and its words while it runs. The button
+ * carries the name a screen reader hears, once; the spinner beside the words is drawn for the eye only.
+ */
 export function SubmitButton({ label, busyLabel = label, busy = false, disabled = false, onPress, variant = "default", ref, testID }: SubmitProps) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
@@ -95,6 +98,7 @@ export function SubmitButton({ label, busyLabel = label, busy = false, disabled 
       ref={ref}
       variant={variant}
       disabled={disabled}
+      accessibilityLabel={busy ? busyLabel : label}
       accessibilityState={{ busy, disabled }}
       onPress={() => {
         if (!busy) onPress();
@@ -102,7 +106,11 @@ export function SubmitButton({ label, busyLabel = label, busy = false, disabled 
       className="min-h-12 rounded-full py-3"
       testID={testID}
     >
-      {busy ? <ActivityIndicator accessibilityLabel={busyLabel} color={variant === "default" ? theme.primaryForeground : theme.foreground} /> : null}
+      {busy ? (
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <ActivityIndicator accessibilityLabel={busyLabel} color={variant === "default" ? theme.primaryForeground : theme.foreground} />
+        </View>
+      ) : null}
       <Text className="text-body font-semibold">{busy ? busyLabel : label}</Text>
     </Button>
   );
