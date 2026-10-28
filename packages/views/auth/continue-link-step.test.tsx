@@ -121,6 +121,57 @@ describe("ContinueLinkStep", () => {
     expect(linkCalls()).toHaveLength(2);
   });
 
+  it("keeps the move question when the move fails on the way, and its button sends the move again", async () => {
+    const bodies: unknown[] = [];
+    route({
+      "GET /api/v1/auth/sign-in-ticket": TICKET,
+      "POST /api/v1/auth/sign-in-ticket/link": (body: unknown) => {
+        bodies.push(body);
+        if (bodies.length === 1) return refusal("sign_in_method_movable", 409, { masked_email: "a•••@gmail.com" })();
+        if (bodies.length === 2) return Promise.reject(new TypeError("offline"));
+        return { user: USER, sign_in_methods: METHODS };
+      },
+    });
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
+    await screen.findByRole("group", { name: "Chuyển Google sang tài khoản này?" });
+    fireEvent.click(screen.getByRole("button", { name: "Chuyển sang đây" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không kết nối được. Kiểm tra mạng rồi thử lại.");
+    // The decision the person was making is still on screen, with its own pair.
+    expect(screen.getByRole("group", { name: "Chuyển Google sang tài khoản này?" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Liên kết" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Không chuyển" })).toBeInTheDocument();
+    // One press retries the move itself, not the link that would ask again.
+    fireEvent.click(screen.getByRole("button", { name: "Chuyển sang đây" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Đã liên kết Google."));
+    expect(bodies).toEqual([{}, { move: true }, { move: true }]);
+  });
+
+  it("carries the proof it just bought into the move, and asks for none again", async () => {
+    let links = 0;
+    route({
+      "GET /api/v1/auth/sign-in-ticket": TICKET,
+      "POST /api/v1/me/step-up": { step_up_token: "sut-1", expires_at: new Date(Date.now() + 600_000).toISOString(), method: "password" },
+      "POST /api/v1/auth/sign-in-ticket/link": () => {
+        links += 1;
+        if (links === 1) return refusal("proof_required", 403, { proofs: ["password"] })();
+        if (links === 2) return refusal("sign_in_method_movable", 409, { masked_email: "a•••@gmail.com" })();
+        return { user: USER, sign_in_methods: METHODS };
+      },
+    });
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Xác nhận là bạn" }));
+    fireEvent.change(dialog.getByLabelText("Mật khẩu hiện tại"), { target: { value: "password123" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
+    await screen.findByRole("group", { name: "Chuyển Google sang tài khoản này?" });
+    fireEvent.click(screen.getByRole("button", { name: "Chuyển sang đây" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Đã liên kết Google."));
+    expect(linkCalls()[2]![1]).toMatchObject({ body: { move: true, step_up_token: "sut-1" } });
+    expect(requestMock.mock.calls.filter(([path]) => path === "/api/v1/me/step-up")).toHaveLength(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("names who holds it when it is taken, and only goes on", async () => {
     route({
       "GET /api/v1/auth/sign-in-ticket": TICKET,

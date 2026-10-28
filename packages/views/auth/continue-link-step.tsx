@@ -21,6 +21,7 @@ import { FailureNotice, IdentityBlock, PILL_LINK, identityAddress, useProviderNa
  * of this provider, or its own address is not verified yet.
  */
 const FINAL = new Set(["sign_in_method_taken", "sign_in_method_already_linked", "email_unverified"]);
+const isFinal = (failure: SignInFailure) => failure.kind === "restart" || FINAL.has(failure.code);
 
 type Phase = "ask" | "move" | "done";
 
@@ -89,7 +90,10 @@ export function ContinueLinkStep({
           setPhase("move");
           return;
         }
-        setPhase("ask");
+        // A move that failed on the way (offline, a 5xx, a wait) is still the
+        // decision the person was making: the question stays, and its button
+        // sends the move again instead of a link that would only re-ask it.
+        setPhase(move && !isFinal(read) && read.kind !== "session" ? "move" : "ask");
         setFailure(read);
       },
     });
@@ -108,7 +112,7 @@ export function ContinueLinkStep({
       ? t("auth.continue.link.question", { provider, providerEmail: shown.email, accountEmail })
       : t("auth.continue.link.questionRelay", { provider, accountEmail });
 
-  const finalFailure = failure !== null && (failure.kind === "restart" || FINAL.has(failure.code));
+  const finalFailure = failure !== null && isFinal(failure);
   // An ended session signs in again; a refused proof is asked again by pressing "Liên kết".
   const relinkByLogin = failure?.kind === "session";
 
@@ -209,9 +213,11 @@ export function ContinueLinkStep({
                 {discard.isPending ? <Spinner /> : null}
                 {/* The move's pair is Settings' own ("Chuyển sang đây" / "Không chuyển"):
                     the same decision reads the same on both surfaces. */}
-                {failure
-                  ? t("auth.continue.link.continue")
-                  : t(phase === "move" ? "auth.continue.link.moveDecline" : "auth.continue.link.decline")}
+                {phase === "move"
+                  ? t("auth.continue.link.moveDecline")
+                  : failure
+                    ? t("auth.continue.link.continue")
+                    : t("auth.continue.link.decline")}
               </Button>
             </>
           )}
