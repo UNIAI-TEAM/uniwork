@@ -66,8 +66,9 @@ export function PasswordField({
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         // The right padding keeps the text from running under the toggle; the toggle grows
-        // to 44px on a coarse pointer and would otherwise sit on the caret.
-        className={size === "auth" ? cn(AUTH_INPUT, "pr-11") : "pr-9"}
+        // to 44px on a coarse pointer (4–48px from the edge, at right-1) and would
+        // otherwise sit on the caret, in a dialog's smaller field too.
+        className={size === "auth" ? cn(AUTH_INPUT, "pr-11") : "pr-9 pointer-coarse:pr-12"}
       />
       <Button
         type="button"
