@@ -613,6 +613,17 @@ hai nút khi `/auth/providers` đang tải. `AppleMark` (`fill="currentColor"`) 
 lại giữa đăng nhập và đăng ký giữ `next`. Playwright: nút nhà cung cấp là link nên vẫn chỉ có một *button* "Đăng nhập"
 trên `/login`, một "Đăng ký" trên `/register`.
 
+Trong shell UniChat desktop, `/login` là màn chào (`apps/web/platform/unichat-login-gate.tsx`) với cùng thứ bậc: "Tiếp
+tục với Google", "Tiếp tục với Apple" (cờ `google`, `apple_web`; cùng mặt pill qua `ProviderPillFace` và
+`providerPillClass`), vạch "hoặc", rồi "Tiếp tục với email" (nút chính). Đây là *nút* gọi
+`bridge.session.login({provider})`, không phải link: shell chạy PKCE trong trình duyệt hệ thống với `provider` (3.5), nên
+trình duyệt đi thẳng tới nhà cung cấp; email mở trang đăng nhập UniWork. Kênh `session:login` chỉ nhận không gì hoặc đúng
+`{provider: "google"|"apple"}`; shell đã cài trước đó bỏ qua tham số và mở trang đăng nhập. Bấm lại cùng cách khi trình
+duyệt còn mở thì mở lại đúng trang đó; cách khác là lượt mới, tab cũ gọi về bị bỏ. Đang chờ: bước 1 nêu nhà cung cấp
+("Trình duyệt đã mở trang đăng nhập Apple"), focus về "Mở lại trình duyệt"; "Hủy" trả focus về nút đã bấm. Cửa sổ thấp hơn
+760px bỏ danh sách tính năng và thu nhỏ biểu tượng để mọi cách vào nằm trong màn hình (cửa sổ tối thiểu 600px, cả trang là
+vùng kéo cửa sổ).
+
 ### 4.2 Lỗi và `next` qua các cổng ⚑
 
 - Một bảng mã → khoá i18n `auth.social.errors.<mã>` thay `GOOGLE_ERRORS`/`replace("google_", "")`; mã lạ bị bỏ qua.
