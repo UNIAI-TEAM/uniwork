@@ -3,6 +3,9 @@
 // the person types). Changing it takes the current password, unless the account confirms with its second factor
 // alone, then the proof sheet asks; a token held from a proof a moment ago proves it either way. A change signs every
 // other device out, said before it is made. Each refusal is said under the field it is about, which is focused.
+// It is a Settings screen: the header with its title and back, as the account's other screens, over the sign-in
+// screens' keyboard column. The account's address sits above the new password as a read-only username field, so
+// iOS Password AutoFill and Credential Manager know which saved password the new one replaces.
 import { useQuery } from "@tanstack/react-query";
 import { readSignInFailure, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import * as Clipboard from "expo-clipboard";
@@ -10,8 +13,10 @@ import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type TextInput, View } from "react-native";
-import { PasswordField } from "@/components/auth/auth-field";
-import { AuthHeading, FormAlert, SubmitButton, TextButton } from "@/components/auth/auth-layout";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { AuthField, PasswordField } from "@/components/auth/auth-field";
+import { FormAlert, KeyboardColumn, SubmitButton, TextButton } from "@/components/auth/auth-layout";
+import { ChatHeader } from "@/components/chat/chat-header";
 import { haptics } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
 import { useAuthStore } from "@/data/auth/store";
@@ -118,68 +123,78 @@ export function PasswordForm() {
   const errorOf = (field: Field) => (problem?.field === field ? problem.message : null);
 
   return (
-    <View className="gap-6" testID="password-form">
-      <AuthHeading
-        title={t(change ? `${P}.changeTitle` : `${P}.setTitle`)}
-        subtitle={change ? null : relay ? t(`${P}.setDescriptionRelay`) : t(`${P}.setDescription`, { email })}
-      />
-      {!change && relay ? (
-        <View className="flex-row items-center justify-between gap-3 rounded-2xl bg-muted px-4 py-2">
-          <Text selectable className="flex-1 text-callout text-foreground">
-            {email}
-          </Text>
-          <TextButton label={t(`${P}.copyEmail`)} onPress={() => void copyEmail()} testID="password-copy-email" />
+    <View className="flex-1 bg-background" testID="password-screen">
+      <ChatHeader title={t(change ? `${P}.changeTitle` : `${P}.setTitle`)} flat />
+      <KeyboardColumn className="pt-4">
+        <View className="gap-6" testID="password-form">
+          {change ? null : (
+            <Text className="text-body leading-6 text-muted-foreground">
+              {relay ? t(`${P}.setDescriptionRelay`) : t(`${P}.setDescription`, { email })}
+            </Text>
+          )}
+          <View className="gap-4">
+            {/* The account the password belongs to, for the system's saved passwords; Apple's relay address can be copied. */}
+            <AuthField
+              label={t("auth.email")}
+              value={email}
+              readOnly
+              textContentType="username"
+              autoComplete="username"
+              autoCapitalize="none"
+              trailing={relay ? <TextButton label={t(`${P}.copyEmail`)} onPress={() => void copyEmail()} testID="password-copy-email" /> : null}
+              testID="password-username"
+            />
+            {asksCurrent ? (
+              <PasswordField
+                ref={fields.current}
+                label={t(`${P}.current`)}
+                value={current}
+                onChangeText={edit("current", setCurrent)}
+                error={errorOf("current")}
+                busy={busy}
+                autoFocus
+                returnKeyType="next"
+                onSubmitEditing={() => fields.next.current?.focus()}
+                testID="password-current"
+              />
+            ) : null}
+            <PasswordField
+              create
+              ref={fields.next}
+              label={t(`${P}.new`)}
+              value={next}
+              onChangeText={edit("next", setNext)}
+              error={errorOf("next")}
+              hint={t(`${P}.hint`, { min: PASSWORD_MIN })}
+              busy={busy}
+              autoFocus={!asksCurrent}
+              returnKeyType="next"
+              onSubmitEditing={() => fields.again.current?.focus()}
+              testID="password-new"
+            />
+            <PasswordField
+              create
+              ref={fields.again}
+              label={t(`${P}.confirm`)}
+              value={again}
+              onChangeText={edit("again", setAgain)}
+              error={errorOf("again")}
+              busy={busy}
+              returnKeyType="done"
+              onSubmitEditing={() => void submit()}
+              testID="password-again"
+            />
+          </View>
+          {change ? (
+            <Text className="text-footnote leading-[18px] text-muted-foreground" testID="password-signs-out">
+              {t(`${P}.signsOutOthers`)}
+            </Text>
+          ) : null}
+          <FormAlert message={problem?.field === "form" ? problem.message : null} testID="password-error" />
+          <SubmitButton label={t(`${P}.save`)} busyLabel={t(`${P}.saving`)} busy={busy} onPress={() => void submit()} testID="password-save" />
         </View>
-      ) : null}
-      <View className="gap-4">
-        {asksCurrent ? (
-          <PasswordField
-            ref={fields.current}
-            label={t(`${P}.current`)}
-            value={current}
-            onChangeText={edit("current", setCurrent)}
-            error={errorOf("current")}
-            busy={busy}
-            autoFocus
-            returnKeyType="next"
-            onSubmitEditing={() => fields.next.current?.focus()}
-            testID="password-current"
-          />
-        ) : null}
-        <PasswordField
-          create
-          ref={fields.next}
-          label={t(`${P}.new`)}
-          value={next}
-          onChangeText={edit("next", setNext)}
-          error={errorOf("next")}
-          hint={t(`${P}.hint`, { min: PASSWORD_MIN })}
-          busy={busy}
-          autoFocus={!asksCurrent}
-          returnKeyType="next"
-          onSubmitEditing={() => fields.again.current?.focus()}
-          testID="password-new"
-        />
-        <PasswordField
-          create
-          ref={fields.again}
-          label={t(`${P}.confirm`)}
-          value={again}
-          onChangeText={edit("again", setAgain)}
-          error={errorOf("again")}
-          busy={busy}
-          returnKeyType="done"
-          onSubmitEditing={() => void submit()}
-          testID="password-again"
-        />
-      </View>
-      {change ? (
-        <Text className="text-footnote leading-[18px] text-muted-foreground" testID="password-signs-out">
-          {t(`${P}.signsOutOthers`)}
-        </Text>
-      ) : null}
-      <FormAlert message={problem?.field === "form" ? problem.message : null} testID="password-error" />
-      <SubmitButton label={t(`${P}.save`)} busyLabel={t(`${P}.saving`)} busy={busy} onPress={() => void submit()} testID="password-save" />
+      </KeyboardColumn>
+      <SafeAreaView edges={["bottom"]} />
       {stepUp.sheet}
     </View>
   );

@@ -74,6 +74,8 @@ describe("PasswordForm", () => {
     await render(<PasswordForm />);
     expect(await screen.findByRole("header", { name: viText("settings.security.signInMethods.password.changeTitle") })).toBeOnTheScreen();
     expect(screen.getByTestId("password-signs-out")).toHaveTextContent(viText("settings.security.signInMethods.password.signsOutOthers"));
+    // The account's address as a read-only username, so the system knows which saved password the new one replaces.
+    expect(screen.getByTestId("password-username").props).toMatchObject({ value: "an@acme.vn", readOnly: true, textContentType: "username" });
     await type("password-current", "old-pass");
     await type("password-new", "new-pass-1");
     await type("password-again", "new-pass-1");

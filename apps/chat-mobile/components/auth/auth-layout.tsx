@@ -1,7 +1,8 @@
 // The frame every sign-in screen shares (spec §5.2): the safe areas, a back button on the steps after the first, and
 // one scrolling column that keeps the focused field above the keyboard (react-native-keyboard-controller, the app's
-// keyboard layer) and stops at a readable width on a tablet. Its parts: the heading, the primary action with its
-// labelled spinner, a text button, the line under a form that says what failed, and a notice card with its way out.
+// keyboard layer) and stops at a readable width on a tablet (KeyboardColumn, which Settings' password screen shares
+// under its own header). Its parts: the heading, the primary action with its labelled spinner, a text button, the
+// line under a form that says what failed, and a notice card with its way out.
 import { Ionicons } from "@expo/vector-icons";
 import type { ReactNode, Ref } from "react";
 import { useTranslation } from "react-i18next";
@@ -35,16 +36,23 @@ export function AuthLayout({ children, onBack, testID }: { children: ReactNode; 
           </View>
         ) : null}
       </SafeAreaView>
-      <KeyboardAwareScrollView
-        bottomOffset={KEYBOARD_GAP}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-        contentContainerStyle={{ flexGrow: 1 }}
-      >
-        <View className={cn("w-full max-w-[440px] flex-1 gap-6 self-center px-6 pb-6", onBack ? "pt-2" : "pt-10")}>{children}</View>
-      </KeyboardAwareScrollView>
+      <KeyboardColumn className={onBack ? "pt-2" : "pt-10"}>{children}</KeyboardColumn>
       <SafeAreaView edges={["bottom"]} />
     </View>
+  );
+}
+
+/** One scrolling column of a form: the focused field stays above the keyboard, and it stops at a readable width. */
+export function KeyboardColumn({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <KeyboardAwareScrollView
+      bottomOffset={KEYBOARD_GAP}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+      contentContainerStyle={{ flexGrow: 1 }}
+    >
+      <View className={cn("w-full max-w-[440px] flex-1 gap-6 self-center px-6 pb-6", className)}>{children}</View>
+    </KeyboardAwareScrollView>
   );
 }
 
