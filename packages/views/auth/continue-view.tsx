@@ -2,8 +2,10 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SignInProvider, SignInTicket } from "@uniwork/core/api/endpoints/sign-in-schemas";
-import { useSession, useSignInTicket } from "@uniwork/core/auth";
+import { useQueryClient } from "@tanstack/react-query";
+import { authKeys, useSession, useSignInTicket } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
+import { usePageRestore } from "@uniwork/core/platform";
 import type { User } from "@uniwork/core/types";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -40,6 +42,7 @@ export function ContinueView({
   const { replace } = useNavigation();
   const { status, user } = useSession();
   const query = useSignInTicket();
+  const queryClient = useQueryClient();
   const [leaving, setLeaving] = useState(false);
   // The provider of a pending sign-in that went away under a command: the
   // expired screen can then name it.
@@ -61,6 +64,16 @@ export function ContinueView({
   useEffect(() => {
     if (needsSignIn) replace(paths.login({ link: true, next: paths.authContinue({ step: "link", next }) }));
   }, [needsSignIn, next, replace]);
+
+  // Back from the provider's page ("Dùng tài khoản khác" signed out, then
+  // left): the browser may restore this page frozen on "Đang đăng nhập…".
+  // It reads the pending sign-in again instead, which by now is gone.
+  usePageRestore(() => {
+    setLeaving(false);
+    setKnown(null);
+    // Reset, not refetch: the stale ticket must not flash its choices first.
+    void queryClient.resetQueries({ queryKey: authKeys.signInTicket() });
+  });
 
   const done = (u: User) => {
     setLeaving(true);

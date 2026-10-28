@@ -446,4 +446,26 @@ describe("ContinueView — the address has an account, or the browser is signed 
     expect(calls("POST /api/v1/auth/logout")).toHaveLength(1);
     expect(screen.queryByText("Lượt đăng nhập đã hết hạn")).toBeNull();
   });
+
+  it("comes back from the provider's page through Back with a way out, not a spinner", async () => {
+    resetAuthStoreForTests();
+    setSessionUser(USER);
+    let ticket: unknown = TICKET;
+    route({ "GET /api/v1/auth/sign-in-ticket": () => ticket, "POST /api/v1/auth/logout": { status: "ok" } });
+    const nav = fakeNav("/auth/continue");
+    open({ nav });
+    fireEvent.click(await screen.findByRole("button", { name: /Dùng tài khoản khác/ }));
+    await waitFor(() => expect(nav.openExternal).toHaveBeenCalled());
+    expect(screen.getByRole("heading", { name: "Đang đăng nhập…" })).toBeInTheDocument();
+    // Signing out took the pending sign-in with it; Back restores the page
+    // from the back/forward cache, frozen as it was left.
+    ticket = Promise.reject(MISSING());
+    const restored = new Event("pageshow");
+    Object.defineProperty(restored, "persisted", { value: true });
+    act(() => {
+      window.dispatchEvent(restored);
+    });
+    expect(await screen.findByRole("heading", { name: "Lượt đăng nhập đã hết hạn" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Về trang đăng nhập" })).toBeInTheDocument();
+  });
 });

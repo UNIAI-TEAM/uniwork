@@ -4,6 +4,7 @@ export { defaultStorage, sessionStorageAdapter } from "./storage";
 export { registerPushAdapter, getPushAdapter, type PushAdapter, type PushPermission } from "./push-adapter";
 export { getDesktopBridge, type DesktopBridge, type DesktopLoginOptions, type SessionProvider } from "./desktop-bridge";
 export { isHostFocused, useHostFocus } from "./host-focus";
+export { usePageRestore } from "./page-restore";
 export { createPersistStorage } from "./persist-storage";
 export { createWorkspaceAwareStorage, setCurrentWorkspace, getCurrentSlug, getCurrentWsId, subscribeToCurrentSlug, registerForWorkspaceRehydration } from "./workspace-storage";
 export { clearWorkspaceStorage } from "./storage-cleanup";

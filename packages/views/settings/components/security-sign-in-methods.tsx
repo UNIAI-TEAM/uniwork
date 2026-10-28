@@ -27,7 +27,7 @@ import {
 import { emailDisplay, remainingAfterUnlink, unlinkVerdict } from "@uniwork/core/auth/sign-in-rules";
 import { linkAction, unlinkAction } from "@uniwork/core/auth/step-up";
 import { paths } from "@uniwork/core/paths";
-import { getDesktopBridge } from "@uniwork/core/platform";
+import { getDesktopBridge, usePageRestore } from "@uniwork/core/platform";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -134,6 +134,10 @@ export function SignInMethodsSection() {
     // `t` and providerName are fresh closures; the read settling is what decides.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [move, moveSettled, moveTicket]);
+
+  // Back from the provider's page without linking: the browser may restore
+  // this page frozen on "Đang mở Google…", every other link held.
+  usePageRestore(() => setLinking(null));
 
   // The shell links in the browser: coming back to the window may mean a
   // new method.

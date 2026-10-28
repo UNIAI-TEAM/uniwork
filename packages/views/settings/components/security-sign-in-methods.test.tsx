@@ -188,6 +188,14 @@ describe("SignInMethodsSection", () => {
       body: { step_up_token: "sut-1", return_to: "/acme/team/settings?tab=security" },
     });
     expect(screen.getByRole("button", { name: "Đang mở Apple…" })).toHaveAttribute("aria-busy", "true");
+    // Back from Apple's page without linking: the page comes back from the
+    // back/forward cache, and the button with it, not "Đang mở…" for good.
+    const restored = new Event("pageshow");
+    Object.defineProperty(restored, "persisted", { value: true });
+    act(() => {
+      window.dispatchEvent(restored);
+    });
+    expect(screen.getByRole("button", { name: "Liên kết Apple" })).not.toHaveAttribute("aria-busy");
   });
 
   it("asks only the second factor when two-factor is on", async () => {
