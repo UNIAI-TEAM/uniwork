@@ -14,6 +14,7 @@ import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AccessibilityInfo, ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { NoticeCard } from "@/components/auth/auth-layout";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Text } from "@/components/ui/text";
 import { useDeleteAccount } from "@/data/mutations/account";
@@ -80,6 +81,7 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
     generic,
     setBusy: startBusy,
     confirm: (command) => stepUp.run("transfer_ownership", command),
+    proveBoth: async () => (await stepUp.hold("transfer_ownership")) && stepUp.hold("delete_account"),
   });
 
   const close = () => {
@@ -130,6 +132,7 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
     toast.success(t("mobile.account.deleted"));
   };
 
+  const { handedOver } = ownerStep;
   const openOrganizationOnWeb = () =>
     openWebPage(`${appUrl}${workspace ? paths.workspace(workspace.orgSlug, workspace.wsSlug).settings() : paths.root()}`);
   const confirmLabel =
@@ -158,6 +161,12 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
           onSubmit={() => void submit()}
           onOpenWeb={openOrganizationOnWeb}
         />
+        {handedOver && !running ? (
+          <NoticeCard
+            message={t("mobile.account.transfer_done_not_deleted", { organization: handedOver.organization, name: handedOver.heir })}
+            testID="delete-account-handed-over"
+          />
+        ) : null}
         {error?.field === "form" ? (
           <Text accessibilityRole="alert" className="text-subhead text-destructive" testID="delete-account-error">
             {error.message}

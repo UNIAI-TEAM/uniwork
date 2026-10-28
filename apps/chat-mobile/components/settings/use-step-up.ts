@@ -3,7 +3,8 @@
 // token already held for the action (ten minutes, memory only) runs the command at once; otherwise the proof sheet
 // asks first, so a provider's own sheet for a link never opens before the person proved it is them. A token the
 // server refuses (it ran out, the session changed) is forgotten by the command (data/mutations) and the sheet asks
-// once more with the proofs the refusal names; a second refusal is the command's error to say.
+// once more with the proofs the refusal names; a second refusal is the command's error to say. `hold` buys a token
+// without running anything, for a screen that must hold every proof before the first command it cannot undo.
 import { useQueryClient } from "@tanstack/react-query";
 import type { StepUpAction } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { readSignInFailure } from "@uniwork/core/auth/sign-in-errors";
@@ -26,6 +27,7 @@ const PROOFS_FRESH_MS = 30_000;
 
 export function useStepUp(): {
   run: <T>(action: StepUpAction, command: (token: string) => Promise<T>, options?: StepUpOptions) => Promise<StepUpRun<T>>;
+  hold: (action: StepUpAction, options?: StepUpOptions) => Promise<boolean>;
   sheet: ReactElement;
 } {
   const qc = useQueryClient();
@@ -64,17 +66,23 @@ export function useStepUp(): {
     }
   }, [qc]);
 
+  /** A token for `action` is held once this resolves true: the one held already, or one the sheet just bought. */
+  const hold = useCallback(
+    async (action: StepUpAction, options: StepUpOptions = {}): Promise<boolean> => {
+      if (!userId) return false;
+      if (stepUpToken(action, userId)) return true;
+      if (!(await askFor(action, options.proofs ?? (await knownProofs())))) return false;
+      return stepUpToken(action, userId) !== null;
+    },
+    [askFor, knownProofs, userId],
+  );
+
   const run = useCallback(
     async <T>(action: StepUpAction, command: (token: string) => Promise<T>, options: StepUpOptions = {}): Promise<StepUpRun<T>> => {
-      if (!userId) return { done: false };
       let proofs = options.proofs ?? null;
       for (let asked = 0; ; asked += 1) {
-        let token = stepUpToken(action, userId);
-        if (!token) {
-          if (!(await askFor(action, proofs ?? (await knownProofs())))) return { done: false };
-          token = stepUpToken(action, userId);
-          if (!token) return { done: false };
-        }
+        const token = (await hold(action, { proofs })) ? stepUpToken(action, userId) : null;
+        if (!token) return { done: false };
         try {
           return { done: true, value: await command(token) };
         } catch (error: unknown) {
@@ -84,8 +92,8 @@ export function useStepUp(): {
         }
       }
     },
-    [askFor, knownProofs, userId],
+    [hold, userId],
   );
 
-  return { run, sheet: createElement(StepUpSheet, { ask, onDone: settle }) };
+  return { run, hold, sheet: createElement(StepUpSheet, { ask, onDone: settle }) };
 }

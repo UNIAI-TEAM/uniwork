@@ -2085,6 +2085,7 @@
       "transfer_empty": "Couldn't load the members. Try again, or hand ownership over on the web.",
       "transfer_retry": "Load the list again",
       "transfer_member_gone": "That person is no longer active in the organization. Choose someone else.",
+      "transfer_done_not_deleted": "{{organization}} now belongs to {{name}}. Your account hasn't been deleted yet.",
       "transferring": "Handing over…",
       "rate_limited": "Too many attempts. Wait a few minutes, then try again.",
       "offline": "Couldn't reach the server. Check your connection, then try again.",

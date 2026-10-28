@@ -350,7 +350,11 @@ describe("an owner whose organization has other members", () => {
     expect(useAuthStore.getState().accountDeleted).toHaveBeenCalledTimes(1);
   });
 
-  it("asks an owner who confirms by mail for a code per action, each sheet naming its own", async () => {
+  const describes = (action: StepUpAction) =>
+    viText("settings.security.stepUp.description", { action: viText(`settings.security.stepUp.actions.${action}`) });
+
+  /** An owner without a password or second factor: every proof is a code mailed for one action. */
+  async function reachHandOverByMail() {
     signedIn({ has_password: false });
     jest.mocked(signInMethodsApi.getSignInMethods).mockResolvedValue(methods(["email_code"]));
     jest.mocked(stepUp).mockImplementation(holds("email_code"));
@@ -360,17 +364,46 @@ describe("an owner whose organization has other members", () => {
     await confirm();
     await proveByMail("111111");
     await fireEvent.press(await screen.findByTestId("hand-over-u-binh"));
+  }
+
+  it("asks an owner who confirms by mail for the hand-over's own code, keeping the erasure's", async () => {
+    await reachHandOverByMail();
     transferOwnership.mockResolvedValueOnce(undefined);
     deleteAccount.mockResolvedValueOnce(undefined);
     await confirm();
-    expect(screen.getByText(viText("settings.security.stepUp.description", { action: viText("settings.security.stepUp.actions.transfer_ownership") }))).toBeOnTheScreen();
+    expect(screen.getByText(describes("transfer_ownership"))).toBeOnTheScreen();
     await proveByMail("222222");
     expect(transferOwnership).toHaveBeenCalledWith("acme", "u-binh", "su_email_code_transfer_ownership");
-    expect(screen.getByText(viText("settings.security.stepUp.description", { action: viText("settings.security.stepUp.actions.delete_account") }))).toBeOnTheScreen();
-    await proveByMail("333333");
+    // The first code's token still serves the erasure: no third mail.
+    expect(signInMethodsApi.sendStepUpEmailCode).toHaveBeenCalledTimes(2);
     expect(signInMethodsApi.sendStepUpEmailCode).toHaveBeenNthCalledWith(2, "transfer_ownership");
     expect(deleteAccount).toHaveBeenLastCalledWith({ step_up_token: "su_email_code_delete_account" });
   });
+
+  it("asks for both codes before handing over, and moves nothing when the second sheet is closed", async () => {
+    await reachHandOverByMail();
+    // The erasure's token ran out while the owner chose who takes over.
+    forgetStepUp();
+    await confirm();
+    expect(screen.getByText(describes("transfer_ownership"))).toBeOnTheScreen();
+    await proveByMail("222222");
+    expect(screen.getByText(describes("delete_account"))).toBeOnTheScreen();
+    expect(transferOwnership).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId("step-up-cancel"));
+    await settle();
+    expect(transferOwnership).not.toHaveBeenCalled();
+    expect(deleteAccount).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("delete-account-confirm")).toHaveTextContent(viText("mobile.account.transfer_confirm", { name: "Bình" }));
+
+    // Asked again, both tokens are held now: the hand-over and the erasure run on them, in that order.
+    transferOwnership.mockResolvedValueOnce(undefined);
+    deleteAccount.mockResolvedValueOnce(undefined);
+    await confirm();
+    await proveByMail("333333");
+    expect(transferOwnership).toHaveBeenCalledWith("acme", "u-binh", "su_email_code_transfer_ownership");
+    expect(deleteAccount).toHaveBeenLastCalledWith({ step_up_token: "su_email_code_delete_account" });
+  });
+
 
   it("says it is handing over while the request is out, and ignores a tap on the list meanwhile", async () => {
     await reachHandOver();
@@ -427,15 +460,22 @@ describe("an owner whose organization has other members", () => {
     expect(deleteAccount).toHaveBeenCalledTimes(1);
   });
 
-  it("says the erasure failed once the organization was handed over, with the plain sheet back", async () => {
+  it("says the erasure failed once the organization was handed over, and that it moved, with the plain sheet back", async () => {
     await reachHandOver();
     await fireEvent.press(screen.getByTestId("hand-over-u-chi"));
     transferOwnership.mockResolvedValueOnce(undefined);
     deleteAccount.mockRejectedValueOnce(refusal("internal", 500));
     await confirm();
     expect(screen.queryByTestId("hand-over-u-chi")).toBeNull();
+    const notice = viText("mobile.account.transfer_done_not_deleted", { organization: "Acme", name: "Chi" });
+    expect(screen.getByText(notice)).toBeOnTheScreen();
+    if (Platform.OS === "ios") expect(AccessibilityInfo.announceForAccessibility).toHaveBeenCalledWith(notice);
     expect(screen.getByTestId("delete-account-error")).toHaveTextContent(viText("settings.security.delete.failed"));
     expect(screen.getByTestId("delete-account-confirm")).toHaveTextContent(viText("settings.security.delete.confirm"));
+    // Closing the sheet forgets it: the next one opens on the plain erasure.
+    await fireEvent.press(screen.getByRole("button", { name: viText("settings.security.delete.cancel") }));
+    await fireEvent.press(screen.getByTestId("settings-delete-account"));
+    expect(screen.queryByText(notice)).toBeNull();
   });
 
   it("offers to read the list again, and the web, when it does not load", async () => {

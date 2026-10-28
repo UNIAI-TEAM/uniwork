@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { forgetStepUp, holdStepUp, proofsFor, stepUpToken, withHeldStepUp } from "./step-up-store";
 
 const NOW = Date.parse("2026-10-28T09:00:00Z");
-const grant = (method: StepUpProof): StepUpGrant => ({ step_up_token: `su_${method}`, expires_at: new Date(NOW + STEP_UP_WINDOW_MS).toISOString(), method });
+const grant = (method: StepUpProof, token = `su_${method}`): StepUpGrant => ({
+  step_up_token: token,
+  expires_at: new Date(NOW + STEP_UP_WINDOW_MS).toISOString(),
+  method,
+});
 
 beforeEach(() => forgetStepUp());
 
@@ -26,6 +30,29 @@ describe("the step-up token on the phone", () => {
     holdStepUp(grant("email_code"), { userId: "u1", action: "link_apple", now: NOW });
     expect(stepUpToken("link_apple", "u1", NOW)).toBe("su_email_code");
     expect(stepUpToken("unlink_apple", "u1", NOW)).toBeNull();
+  });
+
+  it("keeps a mailed code's token per action, so a second code does not cost the first (an owner's hand-over, then the erasure)", () => {
+    holdStepUp(grant("email_code", "su_transfer"), { userId: "u1", action: "transfer_ownership", now: NOW });
+    holdStepUp(grant("email_code", "su_delete"), { userId: "u1", action: "delete_account", now: NOW + 1_000 });
+    expect(stepUpToken("transfer_ownership", "u1", NOW + 2_000)).toBe("su_transfer");
+    expect(stepUpToken("delete_account", "u1", NOW + 2_000)).toBe("su_delete");
+    // A new code for an action replaces that action's token only.
+    holdStepUp(grant("email_code", "su_delete_2"), { userId: "u1", action: "delete_account", now: NOW + 3_000 });
+    expect(stepUpToken("delete_account", "u1", NOW + 4_000)).toBe("su_delete_2");
+    expect(stepUpToken("transfer_ownership", "u1", NOW + 4_000)).toBe("su_transfer");
+  });
+
+  it("lets a token that serves everything replace the narrow ones, and drops what another account or time left", () => {
+    holdStepUp(grant("email_code", "su_transfer"), { userId: "u1", action: "transfer_ownership", now: NOW });
+    holdStepUp(grant("password"), { userId: "u1", action: "delete_account", now: NOW });
+    expect(stepUpToken("transfer_ownership", "u1", NOW)).toBe("su_password");
+    holdStepUp(grant("email_code", "su_old"), { userId: "u2", action: "link_google", now: NOW });
+    holdStepUp(grant("email_code", "su_late"), { userId: "u2", action: "link_apple", now: NOW + STEP_UP_WINDOW_MS });
+    // u1's token went with u2's code; u2's first code ran out before the second.
+    expect(stepUpToken("transfer_ownership", "u1", NOW + STEP_UP_WINDOW_MS)).toBeNull();
+    expect(stepUpToken("link_google", "u2", NOW + STEP_UP_WINDOW_MS)).toBeNull();
+    expect(stepUpToken("link_apple", "u2", NOW + STEP_UP_WINDOW_MS)).toBe("su_late");
   });
 
   it("reads the clock itself when no time is given, and is gone once forgotten", () => {

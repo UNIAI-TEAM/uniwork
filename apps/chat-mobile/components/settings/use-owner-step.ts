@@ -3,8 +3,9 @@
 // it in the same request by typing its address again, and an owner with members picks who takes over and the sheet
 // hands it over (use-hand-over.ts) before erasing. Both confirm it is you (ADR 0047 §5): the hand-over with a token
 // for transfer_ownership, the erasure with one for delete_account. A password, a second-factor code or a provider
-// buys one token for both; a mailed code serves its own action only, so that owner is asked twice, each sheet naming
-// what it is for.
+// buys one token for both; a mailed code serves its own action only, so that owner is asked for each, each sheet
+// naming what it is for. Both proofs are held before the hand-over, which cannot be undone: closing the second sheet
+// moves nothing. Should the erasure still not happen after the hand-over, the sheet says the organization moved.
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AccessibilityInfo, type TextInput } from "react-native";
@@ -25,6 +26,14 @@ export interface OwnerStepSheet {
   setBusy: (busy: "transfer" | null) => void;
   /** The proof sheet's gate (use-step-up.ts › run) for the hand-over's own token. */
   confirm: (command: (token: string) => Promise<void>) => Promise<StepUpRun<void>>;
+  /** Holds the hand-over's and the erasure's proofs both (asking for what is missing); false when one was not given. */
+  proveBoth: () => Promise<boolean>;
+}
+
+/** An organization that changed hands while the account it belonged to was not erased (yet). */
+export interface HandedOver {
+  organization: string;
+  heir: string;
 }
 
 /** An owner's state once the server said so: the organization it named (null from an older server). */
@@ -38,6 +47,7 @@ export function useOwnerStep(sheet: OwnerStepSheet) {
   const { t } = useTranslation();
   const [owner, setOwner] = useState<OwnerState | null>(null);
   const [closeSlug, setCloseSlug] = useState("");
+  const [handedOver, setHandedOver] = useState<HandedOver | null>(null);
   const slugInput = useRef<TextInput>(null);
   // Set once the server named an organization this account alone can close: the next submit closes it too.
   const closing = owner?.organization?.canClose ? owner.organization : null;
@@ -52,6 +62,8 @@ export function useOwnerStep(sheet: OwnerStepSheet) {
       sheet.fail(t("mobile.account.transfer_choose"), "pick");
       return false;
     }
+    // Every proof first: once the organization moved, a closed sheet must not leave it moved with nothing erased.
+    if (!(await sheet.proveBoth())) return false;
     try {
       const result = await sheet.confirm(async (token) => {
         sheet.setBusy("transfer");
@@ -75,6 +87,7 @@ export function useOwnerStep(sheet: OwnerStepSheet) {
     // The organization is the heir's now: what is left is the erasure, with the sheet back to its plain form.
     setOwner(null);
     handOver.choose(null);
+    setHandedOver({ organization: organization.name, heir: heir.name });
     return true;
   };
 
@@ -83,6 +96,8 @@ export function useOwnerStep(sheet: OwnerStepSheet) {
     closing,
     handingOver,
     handOver,
+    /** The organization this sheet handed over, while the account is not erased. */
+    handedOver,
     closeSlug,
     setCloseSlug,
     slugInput,
@@ -96,6 +111,7 @@ export function useOwnerStep(sheet: OwnerStepSheet) {
       handOver.choose(null);
       setOwner(null);
       setCloseSlug("");
+      setHandedOver(null);
     },
     /** The checks and the hand-over before the erasure; false when one refused (and said why). */
     beforeErase: async (): Promise<boolean> => {

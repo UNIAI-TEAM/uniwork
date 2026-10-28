@@ -1,27 +1,39 @@
 // "Xác nhận là bạn" on the phone (ADR 0047 §5, spec §3.7): the ten-minute step-up token a proof bought, held in memory
 // only, for one account's commands on this device session; core's auth/step-up.ts holds the rules (which actions a
 // token serves, its local deadline, which proof to ask first). Never persisted: gone on sign-out and with the session
-// (sign-in.ts › forgetSignIn), and it never serves another account (each read names the account in).
+// (sign-in.ts › forgetSignIn), and it never serves another account (each read names the account in). A mailed code's
+// token serves its own action only, so one is kept per action: an owner who confirms by mail holds the hand-over's
+// and the erasure's together, and both are bought before the organization moves (delete-account.tsx).
 import type { StepUpAction, StepUpGrant } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { readSignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { holdStepUp as heldFrom, proofChoice, stepUpTokenFor, type HeldStepUp, type ProofChoice } from "@uniwork/core/auth/step-up";
 import { appProofs, type SignInOffer } from "@/lib/sign-in-offer";
 
-let held: HeldStepUp | null = null;
+/** The tokens held: one that serves every command, or one per action a mailed code was for. */
+let held: HeldStepUp[] = [];
 
 /** Keep the token a step-up just bought for `action`'s command (and, unless a mailed code bought it, every other). */
 export function holdStepUp(grant: StepUpGrant, ctx: { userId: string; action: StepUpAction; now?: number }): void {
-  held = heldFrom(grant, { userId: ctx.userId, action: ctx.action, now: ctx.now ?? Date.now() });
+  const now = ctx.now ?? Date.now();
+  const next = heldFrom(grant, { userId: ctx.userId, action: ctx.action, now });
+  // A token for every command makes the narrow ones moot; a narrow one replaces only its own action's, and nothing of
+  // another account or past its deadline is kept beside it.
+  const kept = next.action === null ? [] : held.filter((h) => h.userId === next.userId && h.expiresAtMs > now && h.action !== next.action);
+  held = [...kept, next];
 }
 
 /** The token to send with `action`'s command for `userId`, or null: ask for a proof first. */
 export function stepUpToken(action: StepUpAction, userId: string | null, now: number = Date.now()): string | null {
-  return stepUpTokenFor(held, { action, userId, now });
+  for (const one of held) {
+    const token = stepUpTokenFor(one, { action, userId, now });
+    if (token) return token;
+  }
+  return null;
 }
 
-/** The token is gone: signed out, the session ended, or the server refused it (proof_required). */
+/** The tokens are gone: signed out, the session ended, or the server refused one (proof_required). */
 export function forgetStepUp(): void {
-  held = null;
+  held = [];
 }
 
 /**
