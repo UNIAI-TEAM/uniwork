@@ -613,6 +613,7 @@
     },
     "continue": {
       "loading": "Loading your sign-in…",
+      "loadErrorTitle": "Couldn't load your sign-in",
       "title": "Continue with {{provider}}",
       "description": "This {{provider}} account isn't linked to any UniWork account yet.",
       "identityLabel": "{{provider}} account",
@@ -672,6 +673,7 @@
         "linking": "Linking…",
         "done": "{{provider}} is linked. Next time, {{provider}} is all you need.",
         "nothingLeft": "There's nothing left to link. Continue to UniWork.",
+        "nothingLeftTitle": "You're all set",
         "continue": "Continue",
         "movableTitle": "Move {{provider}} to this account?",
         "movable": "This {{provider}} account is used by an empty account, {{masked}}. Move it to this account?",
@@ -680,7 +682,8 @@
         "move": "Move",
         "moving": "Moving…",
         "taken": "This {{provider}} account is used by {{masked}}. Sign in there and unlink it first.",
-        "takenUnknown": "This {{provider}} account is used by another UniWork account. Sign in there and unlink it first."
+        "takenUnknown": "This {{provider}} account is used by another UniWork account. Sign in there and unlink it first.",
+        "confirmBySignIn": "To link it, sign in once more to confirm it's you."
       },
       "signedIn": {
         "linkTo": "Link {{provider}} to {{account}}",

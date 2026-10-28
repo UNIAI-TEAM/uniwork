@@ -613,6 +613,7 @@
     },
     "continue": {
       "loading": "Đang tải lượt đăng nhập…",
+      "loadErrorTitle": "Chưa tải được lượt đăng nhập",
       "title": "Tiếp tục với {{provider}}",
       "description": "Tài khoản {{provider}} này chưa liên kết với tài khoản UniWork nào.",
       "identityLabel": "Tài khoản {{provider}}",
@@ -672,6 +673,7 @@
         "linking": "Đang liên kết…",
         "done": "Đã liên kết {{provider}}. Lần sau chỉ cần {{provider}}.",
         "nothingLeft": "Không còn gì để liên kết. Tiếp tục vào UniWork.",
+        "nothingLeftTitle": "Đã xong",
         "continue": "Tiếp tục",
         "movableTitle": "Chuyển {{provider}} sang tài khoản này?",
         "movable": "{{provider}} này đang dùng cho tài khoản trống {{masked}}. Chuyển sang tài khoản này?",
@@ -680,7 +682,8 @@
         "move": "Chuyển",
         "moving": "Đang chuyển…",
         "taken": "{{provider}} này đang dùng cho tài khoản {{masked}}. Đăng nhập vào đó để gỡ liên kết trước.",
-        "takenUnknown": "{{provider}} này đang dùng cho một tài khoản UniWork khác. Đăng nhập vào đó để gỡ liên kết trước."
+        "takenUnknown": "{{provider}} này đang dùng cho một tài khoản UniWork khác. Đăng nhập vào đó để gỡ liên kết trước.",
+        "confirmBySignIn": "Để liên kết, đăng nhập lại một lần để xác nhận là bạn."
       },
       "signedIn": {
         "linkTo": "Liên kết {{provider}} với {{account}}",

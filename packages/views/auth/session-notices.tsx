@@ -2,6 +2,7 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { linkSkippedNotice, sentenceValues } from "@uniwork/core/auth/sign-in-errors";
 import type { SessionResponse } from "@uniwork/core/types";
 
@@ -16,12 +17,16 @@ const NOTICE_MS = 10_000;
  * session is about to be replaced by the one it leads to; the global Toaster
  * outlives that navigation.
  */
-export function useSessionNotices(): (sess: Pick<SessionResponse, "reclaimed" | "link_skipped">) => void {
+export function useSessionNotices(): (
+  sess: Pick<SessionResponse, "reclaimed" | "link_skipped">,
+  /** The provider that waited to be linked, when the screen knows it (the choice screen, /login?link=1). */
+  provider?: SignInProvider | null,
+) => void {
   const { t } = useTranslation();
   return useCallback(
-    (sess) => {
+    (sess, provider) => {
       if (sess.reclaimed) toast.success(t("auth.social.reclaimed"), { duration: NOTICE_MS });
-      const skipped = linkSkippedNotice(sess.link_skipped);
+      const skipped = linkSkippedNotice(sess.link_skipped, provider);
       if (skipped) toast.warning(t(skipped.key, sentenceValues(skipped, t)), { duration: NOTICE_MS });
     },
     [t],

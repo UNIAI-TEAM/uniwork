@@ -46,6 +46,7 @@ function builderTemplates(): string[] {
     paths.register(),
     paths.verify(),
     paths.authCallback(),
+    paths.authContinue(),
     paths.desktopAuthorize(),
     paths.connectAuthorize(),
     paths.unichatStart(),
