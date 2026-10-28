@@ -284,6 +284,11 @@ overrides:
 
 packageExtensionsChecksum: sha256-JVKv5Q8Hb46mp2ZzYH36MFiOrdtZKWCPY3PXov2Sssc=
 
+patchedDependencies:
+  '@shopify/flash-list@2.0.2':
+    hash: 3a2e85a5198480126c2f3a4e6d3c15ac9af76864fa0c4776aa8632441ee6a702
+    path: patches/@shopify__flash-list@2.0.2.patch
+
 importers:
 
   .:
@@ -390,7 +395,7 @@ importers:
         version: 7.11.0(expo@57.0.31)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
       '@shopify/flash-list':
         specifier: 2.0.2
-        version: 2.0.2(@babel/runtime@7.29.10)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+        version: 2.0.2(patch_hash=3a2e85a5198480126c2f3a4e6d3c15ac9af76864fa0c4776aa8632441ee6a702)(@babel/runtime@7.29.10)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
       '@tanstack/query-persist-client-core':
         specifier: 5.102.3
         version: 5.102.3
@@ -13772,7 +13777,7 @@ snapshots:
 
   '@shikijs/vscode-textmate@10.0.2': {}
 
-  '@shopify/flash-list@2.0.2(@babel/runtime@7.29.10)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)':
+  '@shopify/flash-list@2.0.2(patch_hash=3a2e85a5198480126c2f3a4e6d3c15ac9af76864fa0c4776aa8632441ee6a702)(@babel/runtime@7.29.10)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@babel/runtime': 7.29.10
       react: 19.2.3

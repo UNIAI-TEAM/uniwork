@@ -71,6 +71,9 @@
         "CVE-2026-85393",
         "CVE-2023-54404"
       ]
+    },
+    "patchedDependencies": {
+      "@shopify/flash-list@2.0.2": "patches/@shopify__flash-list@2.0.2.patch"
     }
   },
   "scripts": {
