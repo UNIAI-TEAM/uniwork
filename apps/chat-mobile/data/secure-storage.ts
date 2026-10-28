@@ -4,7 +4,7 @@
 // a relaunch needs no refresh while the access token is still good.
 import * as SecureStore from "expo-secure-store";
 import { settled } from "@/lib/settled";
-import type { SessionStorage, StoredSession } from "./auth/session";
+import type { SessionStorage, StoredSession } from "./auth/stored-session";
 import { sessionEpochChanged } from "./session-epoch";
 
 const SESSION_KEY = "uniwork_chat_session";

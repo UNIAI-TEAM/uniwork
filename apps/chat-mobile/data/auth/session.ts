@@ -9,29 +9,11 @@ import { createLogger } from "../logger";
 import { currentSessionEpoch, invalidateSessionEpoch, sessionEpochChanged } from "../session-epoch";
 import { validateCallback } from "./callback";
 import { LoginAttemptStore, type PendingLoginAttempt } from "./pkce";
+import { RECOVERY_MIN_MS, RecoveryTimer } from "./recovery";
+import { isFresh, persist, storedOf, type SessionStorage, type StoredSession } from "./stored-session";
 import { TransportError, type DesktopSession, type Transport } from "./transport";
 
 export type SessionState = "signed-out" | "signing-in" | "signed-in" | "refreshing" | "server-unreachable";
-
-/** what the Keychain holds: the native session with absolute expiries (epoch ms) */
-export interface StoredSession {
-  access_token: string;
-  refresh_token: string;
-  device_session_id: string;
-  deployment_id: string;
-  expires_at: number;
-  refresh_expires_at: number;
-}
-
-export interface SessionStorage {
-  load(): Promise<StoredSession | null>;
-  clear(): Promise<void>;
-  /**
-   * Conditional write: false (nothing written) when the epoch moved or, when
-   * `previousRefreshToken` is given, the stored refresh token is another one.
-   */
-  commit(next: StoredSession, expected: { epoch: number; previousRefreshToken?: string }): Promise<boolean>;
-}
 
 export interface MobileSessionConfig {
   clientId: string;
@@ -51,11 +33,6 @@ export interface MobileSessionDeps {
   now?: () => number;
 }
 
-/** an access token this close to expiry is refreshed before use */
-export const ACCESS_TOKEN_SKEW_MS = 30_000;
-/** automatic retry after a transient failure: 5 s doubling up to 5 min */
-export const RECOVERY_MIN_MS = 5_000;
-const RECOVERY_MAX_MS = 300_000;
 /** a 429's Retry-After is honoured up to this long */
 export const RATE_LIMIT_WAIT_CAP_MS = 60_000;
 
@@ -72,8 +49,6 @@ const codeOf = (error: unknown): string => (error instanceof TransportError ? er
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-type Persisted = { ok: true } | { ok: false; code: string };
-
 /**
  * Owner of the native session: PKCE sign-in through the system browser,
  * startup restore, the single in-flight refresh with bounded recovery, logout.
@@ -89,8 +64,7 @@ export class MobileSession {
   private readonly listeners = new Set<(token: string | null) => void>();
   private state: SessionState = "signed-out";
   private live: StoredSession | null = null;
-  private recoveryTimer: ReturnType<typeof setTimeout> | null = null;
-  private recoveryAttempts = 0;
+  private readonly recovery = new RecoveryTimer();
   private refreshInFlight: Promise<string | null> | null = null;
   /** the exchange a deep link started while login() still waits on the browser */
   private completing: Promise<void> | null = null;
@@ -131,7 +105,7 @@ export class MobileSession {
       return false;
     }
     this.live = stored;
-    if (this.isFresh(stored)) {
+    if (isFresh(stored, this.now())) {
       this.adopt(stored);
       return true;
     }
@@ -263,8 +237,8 @@ export class MobileSession {
 
   /** A session the server just issued: into the Keychain, then live. */
   private async adoptIssued(session: DesktopSession, epoch: number): Promise<void> {
-    const next = this.storedOf(session);
-    const persisted = await this.persist(next, { epoch });
+    const next = storedOf(session, this.now());
+    const persisted = await persist(this.deps.storage, next, { epoch });
     if (!persisted.ok) {
       // the device is redeemed server-side but unusable here: revoke it rather than orphan it
       void this.revoke(next);
@@ -277,7 +251,7 @@ export class MobileSession {
   /** A valid access token, refreshing if needed; null without a usable session. */
   async getAccessToken(): Promise<string | null> {
     if (!this.live) return null;
-    if (this.isFresh(this.live)) return this.live.access_token;
+    if (isFresh(this.live, this.now())) return this.live.access_token;
     return this.refresh();
   }
 
@@ -352,13 +326,13 @@ export class MobileSession {
       }
       log.warn("refresh failed", { code: codeOf(error) });
       this.state = "server-unreachable";
-      this.scheduleRecovery();
+      this.recovery.schedule(() => void this.refresh());
       return null;
     }
     if (sessionEpochChanged(epoch)) return null;
-    const rotated = this.storedOf(next);
+    const rotated = storedOf(next, this.now());
     // rotation: the old refresh token is dead server-side, so the new one is in the Keychain before use
-    const persisted = await this.persist(rotated, { epoch, previousRefreshToken: live.refresh_token });
+    const persisted = await persist(this.deps.storage, rotated, { epoch, previousRefreshToken: live.refresh_token });
     if (!persisted.ok) {
       // the rotated token is lost with this process: revoke the device instead of leaving it live
       void this.revoke(rotated);
@@ -385,7 +359,7 @@ export class MobileSession {
     const { transport } = this.deps;
     try {
       let token = session.access_token;
-      if (!this.isFresh(session)) {
+      if (!isFresh(session, this.now())) {
         token = (
           await transport.refresh({ deviceSessionId: session.device_session_id, refreshToken: session.refresh_token })
         ).accessToken;
@@ -396,36 +370,11 @@ export class MobileSession {
     }
   }
 
-  private isFresh(session: StoredSession): boolean {
-    return session.expires_at - this.now() > ACCESS_TOKEN_SKEW_MS;
-  }
-
-  private storedOf(session: DesktopSession): StoredSession {
-    const now = this.now();
-    return {
-      access_token: session.accessToken,
-      refresh_token: session.refreshToken,
-      device_session_id: session.deviceSessionId,
-      deployment_id: session.deploymentId,
-      expires_at: now + session.expiresIn * 1000,
-      refresh_expires_at: now + session.refreshExpiresIn * 1000,
-    };
-  }
-
   private adopt(session: StoredSession): void {
     this.live = session;
-    this.clearRecoveryTimer();
-    this.recoveryAttempts = 0;
+    this.recovery.reset();
     this.state = "signed-in";
     this.emit(session.access_token);
-  }
-
-  private async persist(next: StoredSession, expected: Parameters<SessionStorage["commit"]>[1]): Promise<Persisted> {
-    try {
-      return (await this.deps.storage.commit(next, expected)) ? { ok: true } : { ok: false, code: "stale" };
-    } catch {
-      return { ok: false, code: "storage_failed" };
-    }
   }
 
   /** the credential is gone (server verdict or unstorable): move the epoch, sign out, tell the app, clear */
@@ -452,20 +401,9 @@ export class MobileSession {
     this.failLogin(reason);
   }
 
-  /** server-unreachable with a credential retries on its own, with a bounded backoff */
-  private scheduleRecovery(): void {
-    if (this.recoveryTimer) return;
-    const delay = Math.min(RECOVERY_MAX_MS, RECOVERY_MIN_MS * 2 ** this.recoveryAttempts);
-    this.recoveryAttempts = Math.min(this.recoveryAttempts + 1, 16);
-    this.recoveryTimer = setTimeout(() => {
-      this.recoveryTimer = null;
-      void this.refresh();
-    }, delay);
-  }
-
   /** drops the in-memory session and its timer (the Keychain is untouched) */
   private reset(): void {
-    this.clearRecoveryTimer();
+    this.recovery.clear();
     this.live = null;
     // a hung refresh of this session must not be handed to the next one
     this.refreshInFlight = null;
@@ -474,10 +412,5 @@ export class MobileSession {
 
   private emit(token: string | null): void {
     for (const listener of this.listeners) listener(token);
-  }
-
-  private clearRecoveryTimer(): void {
-    if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
-    this.recoveryTimer = null;
   }
 }
