@@ -30,6 +30,8 @@ const meeting = (status: string): Meeting => ({
 
 type Call = { method: string; path: string; body: unknown };
 type Route = (call: Call) => Response | undefined | void | Promise<Response | undefined>;
+/** The request that queues a part; a GET of the same path lists what is already queued. */
+const isQueue = (c: Call) => c.method === "POST" && c.path.endsWith("/transcriptions");
 
 /** A fake server behind the real transport: `route` answers first, the defaults after it. */
 function fakeServer(route: Route = () => undefined) {
@@ -69,6 +71,7 @@ function fakeServer(route: Route = () => undefined) {
     if (method === "POST" && call.path.endsWith("/complete")) {
       return json({ upload_id: `up-${sess}`, checksum_sha256: "c", size_bytes: 1, claim_expires_at: "2099-01-01T00:00:00Z" });
     }
+    if (method === "GET" && call.path === "/api/v1/meetings/m1/transcriptions") return json({ transcriptions: [] });
     if (method === "POST" && call.path === "/api/v1/meetings/m1/transcriptions") {
       return json({ transcription: { id: `t-${calls.length}`, meeting_id: "m1", status: "QUEUED" } }, 201);
     }
@@ -139,6 +142,7 @@ describe("useSendRecording", () => {
     const paths = server.paths().filter((p) => !p.startsWith("PUT") && !p.includes("/complete"));
     expect(paths).toEqual([
       "POST /api/v1/meetings/m1/held",
+      "GET /api/v1/meetings/m1/transcriptions",
       "POST /api/v1/meetings/m1/audio-upload-sessions",
       "POST /api/v1/meetings/m1/transcriptions",
       "POST /api/v1/meetings/m1/audio-upload-sessions",
@@ -147,11 +151,35 @@ describe("useSendRecording", () => {
     expect(server.calls[0]!.body).toEqual({ duration_seconds: 2538, ended_seconds_ago: expect.any(Number) });
     const open = server.calls.find((c) => c.path.endsWith("audio-upload-sessions"))!;
     expect(open.body).toMatchObject({ filename: `ghi-am-${p1}.webm`, duration_seconds: 1450 });
-    const queued = server.calls.filter((c) => c.path.endsWith("/transcriptions")).map((c) => c.body);
+    const queued = server.calls.filter((c) => isQueue(c)).map((c) => c.body);
     expect(queued).toEqual([
       { upload_id: "up-sess-1", language: "vi", consent: true, duration_seconds: 1450, offset_seconds: 0 },
       { upload_id: "up-sess-2", language: "vi", consent: true, duration_seconds: 1038, offset_seconds: 1500 },
     ]);
+  });
+
+  it("deletes a part the server already queued instead of sending it again", async () => {
+    // The queue answer was lost and the page reloaded: the new upload would get a new file id, so only the
+    // part's file name ties it to its transcription. A failed one is sent again.
+    const store = memoryRecordingStore();
+    const [p1, p2] = await twoParts(store);
+    const server = fakeServer((c) =>
+      c.method === "GET" && c.path === "/api/v1/meetings/m1/transcriptions"
+        ? json({
+            transcriptions: [
+              { id: "t0", meeting_id: "m1", status: "QUEUED", filename: `ghi-am-${p1}.webm` },
+              { id: "t1", meeting_id: "m1", status: "FAILED", filename: `ghi-am-${p2}.webm` },
+            ],
+          })
+        : undefined,
+    );
+    const { result } = renderSend(store, "ENDED");
+    await act(() => result.current.send());
+
+    expect(result.current.phase).toBe("done");
+    expect(result.current.percent).toBe(100);
+    expect(await store.listParts("u1", "m1")).toEqual([]);
+    expect(server.calls.filter(isQueue).map((c) => c.body)).toMatchObject([{ offset_seconds: 1500 }]);
   });
 
   it("a late send tells the server how long ago the recording ended", async () => {
@@ -180,7 +208,7 @@ describe("useSendRecording", () => {
     const { result } = renderSend(store, "ENDED");
     await act(() => result.current.send());
     expect(result.current.phase).toBe("done");
-    const queued = server.calls.filter((c) => c.path.endsWith("/transcriptions")).map((c) => c.body);
+    const queued = server.calls.filter((c) => isQueue(c)).map((c) => c.body);
     expect(queued).toMatchObject([{ offset_seconds: 1500 }, { offset_seconds: 0 }]);
   });
 
@@ -223,14 +251,14 @@ describe("useSendRecording", () => {
     await twoParts(store);
     // Another device ended the meeting first, with a shorter length than this part's offset.
     const server = fakeServer((c) =>
-      c.path.endsWith("/transcriptions") && (c.body as { offset_seconds?: number }).offset_seconds === 1500
+      isQueue(c) && (c.body as { offset_seconds?: number }).offset_seconds === 1500
         ? refusal(422, "invalid_offset")
         : undefined,
     );
     const { result } = renderSend(store, "ENDED");
     await act(() => result.current.send());
     expect(result.current.phase).toBe("done");
-    const queued = server.calls.filter((c) => c.path.endsWith("/transcriptions")).map((c) => c.body);
+    const queued = server.calls.filter((c) => isQueue(c)).map((c) => c.body);
     expect(queued).toEqual([
       { upload_id: "up-sess-1", language: "vi", consent: true, duration_seconds: 1450, offset_seconds: 0 },
       { upload_id: "up-sess-2", language: "vi", consent: true, duration_seconds: 1038, offset_seconds: 1500 },
@@ -334,7 +362,7 @@ describe("useSendRecording", () => {
     await twoParts(store);
     let drop = true;
     const server = fakeServer((c) => {
-      if (drop && c.path.endsWith("/transcriptions")) {
+      if (drop && isQueue(c)) {
         drop = false;
         throw new TypeError("Failed to fetch");
       }
@@ -358,7 +386,7 @@ describe("useSendRecording", () => {
     // The server queues each upload once; the answer to the first is lost on the way back.
     const queued: string[] = [];
     fakeServer((c) => {
-      if (!c.path.endsWith("/transcriptions")) return;
+      if (!isQueue(c)) return;
       const id = (c.body as { upload_id: string }).upload_id;
       if (queued.includes(id)) return refusal(409, "transcription_in_progress");
       queued.push(id);
@@ -440,7 +468,7 @@ describe("useSendRecording", () => {
   it("a refusal keeps the parts", async () => {
     const store = memoryRecordingStore();
     await twoParts(store);
-    fakeServer((c) => (c.path.endsWith("/transcriptions") ? refusal(402, "quota_exceeded") : undefined));
+    fakeServer((c) => (isQueue(c) ? refusal(402, "quota_exceeded") : undefined));
     const { result } = renderSend(store, "ENDED");
     await act(() => result.current.send());
     expect(result.current.phase).toBe("failed");
@@ -484,7 +512,7 @@ describe("useSendRecording", () => {
     await act(() => result.current.send());
 
     expect(result.current.phase).toBe("done");
-    expect(server.calls.filter((c) => c.path.endsWith("/transcriptions"))).toHaveLength(2);
+    expect(server.calls.filter((c) => isQueue(c))).toHaveLength(2);
     expect((await store.listParts("u1", "m1")).map((p) => p.id)).toEqual([`live-${run}`]);
   });
 
