@@ -1,4 +1,4 @@
-import { canManageTrashed, isMyFolder, isShelved } from "@uniwork/core/types/document";
+import { canManageTrashed, isMyFolder, isShelved, isTemplate } from "@uniwork/core/types/document";
 import { isFolderRow, type DocumentSummaryRow, type LibraryRow } from "../library-rows";
 import { canArchiveRow, canMoveRow, canShareRow, rowLevel } from "../row-level";
 import { sourceLinkLabelKey, sourceParentLinked } from "../source-links";
@@ -16,6 +16,7 @@ export type RowMenuItemId =
   | "open-folder"
   | "open-app"
   | "share"
+  | "share-contents"
   | "copy-link"
   | "star"
   | "new-subfolder"
@@ -28,6 +29,8 @@ export type RowMenuItemId =
   | "go-to-source"
   | "save"
   | "unshelve"
+  | "mark-template"
+  | "unmark-template"
   | "restore"
   | "view-details"
   | "purge";
@@ -51,6 +54,8 @@ export interface RowMenuHandlers {
   /** Absent outside an organization (no favorites there). */
   onToggleStar?: (documentId: string, starred: boolean) => void;
   onShare?: (doc: DocumentSummaryRow) => void;
+  /** "Chia sẻ": a folder row's bulk access dialog; absent hides the item. */
+  onShareContents?: (doc: DocumentSummaryRow) => void;
   onNewSubfolder?: (doc: DocumentSummaryRow) => void;
   /** UNI-2055 W3: may the viewer create inside this folder (a workspace folder takes every member); absent = the edit level. */
   canCreateInside?: (doc: DocumentSummaryRow) => boolean;
@@ -67,6 +72,9 @@ export interface RowMenuHandlers {
   onDownloadSource?: (sourceId: string) => void;
   /** Lưu trữ: Bỏ lưu trữ. */
   onUnshelve?: (doc: DocumentSummaryRow) => void;
+  /** Mẫu văn bản: Đánh dấu là mẫu (a restricted file asks first) and Bỏ khỏi Mẫu. */
+  onMarkTemplate?: (doc: DocumentSummaryRow) => void;
+  onUnmarkTemplate?: (doc: DocumentSummaryRow) => void;
   /** Thùng rác: Khôi phục, Xem chi tiết (the document read-only) and Xóa vĩnh viễn (the host asks first). */
   onRestore?: (doc: DocumentSummaryRow) => void;
   onViewDetails?: (doc: DocumentSummaryRow) => void;
@@ -118,6 +126,10 @@ function trashItem(doc: DocumentSummaryRow, onArchive: (doc: DocumentSummaryRow)
   };
 }
 
+function unmarkItem(doc: DocumentSummaryRow, onUnmark: (doc: DocumentSummaryRow) => void): RowMenuItem {
+  return { id: "unmark-template", labelKey: "documents.templates.unmark", run: () => onUnmark(doc) };
+}
+
 /**
  * Thùng rác: `Khôi phục` · `Xem chi tiết` │ `Xóa vĩnh viễn`. Everything needs
  * manage (`canManageTrashed`: my_level manage or admin_scope, RESTORE-01), so a
@@ -147,13 +159,16 @@ function trashGroups(doc: DocumentSummaryRow, { handlers }: RowMenuContext): Row
  */
 function shelvedGroups(doc: DocumentSummaryRow, { handlers, open }: RowMenuContext): RowMenuGroup[] {
   const manage = canManageTrashed(doc);
-  const { onUnshelve, onDownload, onArchive } = handlers;
+  const { onUnshelve, onDownload, onArchive, onUnmarkTemplate } = handlers;
   const reading: RowMenuItem[] = [{ id: "open", labelKey: "documents.tree.menu.open", run: open }];
   if (manage && onUnshelve) reading.push({ id: "unshelve", labelKey: "documents.shelved_list.unshelve", run: () => onUnshelve(doc) });
   if (doc.kind === "file" && doc.current_version > 0 && onDownload) {
     reading.push({ id: "download", labelKey: "documents.home.row.download", run: () => onDownload(doc) });
   }
-  return [reading, manage && onArchive ? [trashItem(doc, onArchive)] : []];
+  const removing: RowMenuItem[] = [];
+  if (onUnmarkTemplate && isTemplate(doc)) removing.push(unmarkItem(doc, onUnmarkTemplate));
+  if (manage && onArchive) removing.push(trashItem(doc, onArchive));
+  return [reading, removing];
 }
 
 function sourceGroups(row: SourceRow, { handlers }: RowMenuContext): RowMenuGroup[] {
@@ -192,6 +207,11 @@ function documentGroups(doc: DocumentSummaryRow, { handlers, starred, open, open
     const { onShare } = handlers;
     sharing.push({ id: "share", labelKey: "documents.actions.share", run: () => onShare(doc) });
   }
+  // A folder has no share of its own; its menu offers the bulk command for the documents inside.
+  if (folder && handlers.onShareContents && known) {
+    const { onShareContents } = handlers;
+    sharing.push({ id: "share-contents", labelKey: "documents.folderAccess.menu", run: () => onShareContents(doc) });
+  }
   if (handlers.onCopyLink && !myFolder) {
     const { onCopyLink } = handlers;
     sharing.push({ id: "copy-link", labelKey: "documents.list.menu.copy_link", run: () => onCopyLink(doc) });
@@ -229,10 +249,26 @@ function documentGroups(doc: DocumentSummaryRow, { handlers, starred, open, open
   }
 
   const removing: RowMenuItem[] = [];
+  // A restricted file widens to the workspace, which only a manager may do (the server refuses anyone else).
+  if (
+    handlers.onMarkTemplate &&
+    file &&
+    known &&
+    !doc.owner_kind &&
+    !isTemplate(doc) &&
+    !isShelved(doc) &&
+    !doc.archived_at &&
+    (doc.visibility !== "restricted" || level === "manage")
+  ) {
+    const { onMarkTemplate } = handlers;
+    managing.push({ id: "mark-template", labelKey: "documents.templates.mark", run: () => onMarkTemplate(doc) });
+  }
   if (handlers.onShelve && canArchiveRow(level) && !myFolder && !isShelved(doc)) {
     const { onShelve } = handlers;
     removing.push({ id: "shelve", labelKey: "documents.shelved_list.shelve", run: () => onShelve(doc) });
   }
+  // A marked file leaves Mẫu here; a screen that wires no archive (Mẫu văn bản) shows it where the trash item would sit.
+  if (handlers.onUnmarkTemplate && isTemplate(doc)) removing.push(unmarkItem(doc, handlers.onUnmarkTemplate));
   if (handlers.onArchive && canArchiveRow(level) && !myFolder) removing.push(trashItem(doc, handlers.onArchive));
 
   return [opening, sharing, managing, removing];

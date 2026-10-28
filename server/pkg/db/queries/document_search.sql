@@ -163,6 +163,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
   AND (sqlc.narg(favorites_user)::text IS NULL OR fav.id IS NOT NULL)
+  -- UNI-2225: the Templates section lists only the files marked as templates.
+  AND (sqlc.narg(templates_only)::boolean IS NOT TRUE OR d.template_marked_at IS NOT NULL)
   AND (sqlc.narg(kind)::text IS NULL OR d.kind = sqlc.narg(kind))
   AND (sqlc.narg(exclude_kind)::text IS NULL OR d.kind <> sqlc.narg(exclude_kind))
   AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))

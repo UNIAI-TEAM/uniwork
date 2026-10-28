@@ -181,6 +181,49 @@ func TestListDocumentShareCandidates(t *testing.T) {
 			t.Fatalf("bad cursor = %v, want ValidationError", err)
 		}
 	})
+
+	t.Run("A1 folder share candidates admits any reader and blanks direct_level for non-administer readers", func(t *testing.T) {
+		folderView, err := f.svc.CreatePage(f.ctx, mgr, tn.wsA, CreatePageInput{
+			Title: "A1 Folder", Kind: DocumentKindFolder,
+		})
+		if err != nil {
+			t.Fatalf("create folder: %v", err)
+		}
+		folder := folderView.Document
+
+		// Plain workspace member (reader, not manager/AdminScope) on a workspace folder -> admitted, DirectLevel blanked, IsHomeWorkspace preserved.
+		readerPage, err := f.svc.ListShareCandidates(f.ctx, H(tn.member.ID), folder.ID, DocumentShareCandidateFilter{Limit: 50})
+		if err != nil {
+			t.Fatalf("folder reader ListShareCandidates: %v", err)
+		}
+		if len(readerPage.Items) == 0 {
+			t.Fatal("expected non-empty share candidates for folder reader")
+		}
+		var sawHome bool
+		for _, c := range readerPage.Items {
+			if c.DirectLevel != "" {
+				t.Fatalf("folder reader candidate %+v leaked DirectLevel %q, want empty", c, c.DirectLevel)
+			}
+			if c.PrincipalType == DocumentPrincipalWorkspace && c.PrincipalID == tn.wsA {
+				if !c.IsHomeWorkspace {
+					t.Fatalf("home workspace candidate = %+v, want IsHomeWorkspace=true", c)
+				}
+				sawHome = true
+			}
+		}
+		if !sawHome {
+			t.Fatal("expected home workspace candidate in folder reader list")
+		}
+
+		// Outsider (non-workspace member) who cannot read the workspace folder -> 404.
+		if _, err := f.svc.ListShareCandidates(f.ctx, H(tn.outsider.ID), folder.ID, DocumentShareCandidateFilter{}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("folder non-reader outsider = %v, want ErrNotFound", err)
+		}
+		// Foreign tenant on folder -> 404.
+		if _, err := f.svc.ListShareCandidates(f.ctx, H(foreign.owner.ID), folder.ID, DocumentShareCandidateFilter{}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("folder foreign tenant = %v, want ErrNotFound", err)
+		}
+	})
 }
 
 // TestListDocumentShareCandidatesTypeRankOrder is the R1-11 regression: the

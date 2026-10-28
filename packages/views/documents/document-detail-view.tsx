@@ -23,6 +23,7 @@ import type { Document } from "@uniwork/core/types/document";
 import type { DocumentBreakGlassGrant } from "@uniwork/core/types/document-access";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import type { LegacyFormatDesktopOpenProps } from "../office/legacy-format-dialog";
 import { CollectionPageState } from "../layout/collection-page";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { useOptionalNavigation } from "../navigation";
@@ -66,6 +67,7 @@ export interface DocumentDetailViewProps {
   /** Called when the caller should go back to the library. */
   onBackToList: () => void;
   officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean; officeFormat?: string | null }>;
+  desktopOpen?: (doc: Document) => LegacyFormatDesktopOpenProps;
 }
 
 /**
@@ -84,6 +86,7 @@ export function DocumentDetailView({
   ownerHref,
   onBackToList,
   officeEditorHost,
+  desktopOpen,
 }: DocumentDetailViewProps) {
   const { t } = useTranslation();
   const { gate, retry: retryGate } = useDocumentsGate();
@@ -474,12 +477,14 @@ export function DocumentDetailView({
             ownerHref={ownerHref}
             refetch={() => query.refetch()}
             officeEditorHost={officeEditorHost}
+            desktopOpen={desktopOpen?.(workspaceDoc)}
             headerActions={
               <DocumentActionsMenu
                 wsId={wsId}
                 doc={resolvedDoc}
                 documentHrefFor={documentHref}
                 onArchived={onBackToList}
+                desktopOpen={desktopOpen?.(resolvedDoc)}
               />
             }
           />

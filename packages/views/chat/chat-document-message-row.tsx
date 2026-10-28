@@ -151,7 +151,7 @@ function ChatDocumentMessageRowImpl({
                     onJump={onJumpToMessage}
                   />
                 ) : null}
-                <ChatDocumentCard workspaceId={workspaceId} message={message} isOwn={isOwn} />
+                <ChatDocumentCard workspaceId={workspaceId} message={message} isOwn={isOwn} onOpenLegacy={menu.onOpenLegacy} />
               </div>
               {isOwn ? (
                 // My time and ticks sit outside the brand bubble, where the own-meta tone is invisible: the wall chip.
@@ -185,11 +185,14 @@ export function ChatDocumentCard({
   workspaceId,
   message,
   isOwn,
+  onOpenLegacy,
 }: {
   workspaceId: string;
   message: ChatMessage;
   /** The bubble it sits on: text, badge and controls follow its palette. */
   isOwn: boolean;
+  /** Opens the legacy-format modal instead of navigating when the document is `.doc`, `.xls`, or `.ppt`. */
+  onOpenLegacy?: () => void;
 }) {
   const { t } = useTranslation();
   const coarse = useCoarsePointer();
@@ -199,6 +202,10 @@ export function ChatDocumentCard({
   const textClass = isOwn ? "text-chat-bubble-own-foreground" : "text-foreground";
   const openDocument = doc
     ? () => {
+        if (onOpenLegacy) {
+          onOpenLegacy();
+          return;
+        }
         if (!workspace) return;
         navigation.push(paths.workspace(workspace.organization_slug, workspace.slug).document(doc.document_id));
       }

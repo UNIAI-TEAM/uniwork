@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_drive_connections_active_sub_idx;

@@ -307,4 +307,18 @@ describe("DesktopOpenAction", () => {
     expect(await screen.findByText("UniWork Office could not prepare this document. Your editor and draft are unchanged.")).toBeInTheDocument();
     expect(createSession).not.toHaveBeenCalled();
   });
+
+  it("shows the dialog-specific error in placement=dialog while keeping the editor/draft error in header and inline placements", async () => {
+    const { unmount } = render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} placement="dialog" createSession={async () => null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
+    const dialogAlert = await screen.findByRole("alert");
+    expect(dialogAlert).toHaveTextContent("Could not open the file in UniWork Office. Try again in a few minutes.");
+    expect(dialogAlert).not.toHaveTextContent("Your editor and draft are unchanged.");
+    unmount();
+
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} placement="inline" createSession={async () => null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open in UniWork Office" }));
+    const inlineAlert = await screen.findByRole("alert");
+    expect(inlineAlert).toHaveTextContent("UniWork Office could not prepare this document. Your editor and draft are unchanged.");
+  });
 });

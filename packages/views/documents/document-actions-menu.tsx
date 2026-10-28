@@ -32,6 +32,7 @@ import { useNavigation } from "../navigation";
 import { documentCommentsTitleKey, useDocumentCommentsChrome } from "./document-comments-context";
 import { AccessLogSheet } from "./access-log-sheet";
 import { DocumentArchiveDialog } from "./document-archive-dialog";
+import type { LegacyFormatDesktopOpenProps } from "../office/legacy-format-dialog";
 import { DocumentShelveDialog } from "./document-shelve-dialog";
 import { DocumentTypeIcon } from "./document-type-icon";
 import { usePageExport } from "./use-page-export";
@@ -49,6 +50,7 @@ export interface DocumentActionsMenuProps {
   documentHrefFor?: (documentId: string) => string;
   /** Called after a verified archive so the host can leave the trashed doc. */
   onArchived?: () => void;
+  desktopOpen?: LegacyFormatDesktopOpenProps;
 }
 
 type PanelId = "versions" | "share" | "logs" | "archive" | "restore" | "copy" | "shelve" | "unshelve" | null;
@@ -74,6 +76,7 @@ export function DocumentActionsMenu({
   doc,
   documentHrefFor,
   onArchived,
+  desktopOpen,
 }: DocumentActionsMenuProps) {
   const { t } = useTranslation();
   const { push } = useNavigation();
@@ -216,6 +219,7 @@ export function DocumentActionsMenu({
         onOpenChange={(next) => setPanel(next ? "versions" : null)}
         wsId={wsId}
         doc={doc}
+        desktopOpen={desktopOpen}
       />
       {!owned && !folder ? (
         <ShareDialog

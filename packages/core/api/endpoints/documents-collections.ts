@@ -93,7 +93,7 @@ export type ListDocumentsOpts = ListDocumentsBaseOpts &
   );
 
 /** `trash` is the Thùng rác list: archived=1 in its one fixed order (see listTrashedDocuments). */
-function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boolean; activity?: DocumentRecentActivity }): string {
+export function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boolean; activity?: DocumentRecentActivity }): string {
   if (!opts) return "";
   const p = new URLSearchParams();
   if (opts.trash) {

@@ -107,6 +107,9 @@ describe("tasks endpoints", () => {
       parent_task_id: "parent-1",
       stage: 2,
       properties: { "prop-1": 5 },
+      drive_files: [
+        { connection_id: "dc1", external_file_id: "gdoc1" },
+      ],
     };
 
     const created = await createTask("ws1", body, { idempotencyKey: "create-1" });

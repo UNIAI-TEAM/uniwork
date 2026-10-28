@@ -37,6 +37,24 @@ type CreateDocumentFileSDI struct {
 	ParentID    *string `formData:"parent_id" description:"ULID trang hoặc thư mục cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Destination *string `formData:"destination" description:"Đích tạo tắt: my_folder tạo trong Thư mục của tôi (tự khởi tạo nếu chưa có); loại trừ lẫn nhau với parent_id; giá trị khác -> 400 invalid_destination" example:"my_folder"`
 	Title       *string `formData:"title" description:"Tiêu đề hiển thị; mặc định tên tệp" example:"bao-cao-thang-9.pdf"`
+	Template    *string `formData:"template" description:"true = tải lên như một mẫu văn bản của workspace (Mẫu): tệp ở gốc, hiển thị workspace; dùng cùng parent_id hoặc destination -> 400 invalid_request; bỏ trống hoặc false = tệp thường; giá trị khác true/false, hoặc template=true kèm visibility khác workspace -> 400 invalid_request" example:"true"`
+}
+
+// MarkDocumentTemplateSDI documents POST /api/v1/documents/{documentID}/template
+// (UNI-2225). The body may be empty, which reads as widen_to_workspace=false.
+type MarkDocumentTemplateSDI struct {
+	WidenToWorkspace bool `json:"widen_to_workspace" description:"true = đồng ý đổi tệp restricted thành hiển thị workspace để đánh dấu mẫu; bỏ trống hoặc false trên tệp restricted -> 409 template_widens_visibility" example:"false"`
+}
+
+// ListTemplateDocumentsSDI documents GET
+// /api/v1/workspaces/{workspaceID}/documents/templates (UNI-2225): the
+// workspace's templates as list rows, most recently updated first, paged by keyset.
+type ListTemplateDocumentsSDI struct {
+	Cursor *string  `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0xMC0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	Limit  *int32   `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
+	Kind   *string  `query:"kind" description:"Lọc page, file, folder hoặc document" example:"file"`
+	Format *string  `query:"format" description:"Lọc theo định dạng tệp: docx, xlsx, pptx, pdf, md, html hoặc txt; giá trị khác -> 400 invalid_filter" example:"docx"`
+	Type   []string `query:"type" description:"Lọc theo loại tài liệu, lặp tham số (?type=docx&type=xlsx); giá trị lạ hoặc rỗng -> 400 invalid_type" example:"[\"docx\",\"xlsx\"]"`
 }
 
 // PatchDocumentSDI is PATCH /api/v1/documents/{documentID}: autosave and
@@ -68,10 +86,18 @@ type UploadDocumentFileSDI struct {
 // idempotency (with payload fingerprint) → permission → engine → base →
 // quota; a stale base_revision answers 409 document_version_conflict.
 type CommitDocumentVersionSDI struct {
-	UploadID     string `json:"upload_id" description:"upload_id (= file_id FileService) do POST .../uploads hoặc RegisterProviderOutput cấp" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
-	BaseRevision string `json:"base_revision" description:"Revision nền dạng chuỗi thập phân; lệch → document_version_conflict" example:"41"`
-	EditLockID   string `json:"edit_lock_id,omitempty" description:"lock_id nhiệm kỳ khóa sửa người gọi đang giữ (UNI-1645); bỏ trống = không giữ khóa. Tài liệu đang bị người khác (hoặc tab/thiết bị khác) giữ -> 423 document_locked, trước kiểm revision" example:"01J8X4LOCK0N1P2Q3R4S5T6U7V"`
-	ChatRoomID   string `json:"chat_room_id,omitempty" description:"Phòng chat nguồn khi tải phiên bản mới từ thẻ tài liệu trong chat (UNI-1966 §4.4); ghi một dòng document_version nếu người gọi được gửi tin trong phòng và phòng đang có thẻ của tài liệu này" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	UploadID     string                        `json:"upload_id" description:"upload_id (= file_id FileService) do POST .../uploads hoặc RegisterProviderOutput cấp" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
+	BaseRevision string                        `json:"base_revision" description:"Revision nền dạng chuỗi thập phân; lệch → document_version_conflict" example:"41"`
+	EditLockID   string                        `json:"edit_lock_id,omitempty" description:"lock_id nhiệm kỳ khóa sửa người gọi đang giữ (UNI-1645); bỏ trống = không giữ khóa. Tài liệu đang bị người khác (hoặc tab/thiết bị khác) giữ -> 423 document_locked, trước kiểm revision" example:"01J8X4LOCK0N1P2Q3R4S5T6U7V"`
+	ChatRoomID   string                        `json:"chat_room_id,omitempty" description:"Phòng chat nguồn khi tải phiên bản mới từ thẻ tài liệu trong chat (UNI-1966 §4.4); ghi một dòng document_version nếu người gọi được gửi tin trong phòng và phòng đang có thẻ của tài liệu này" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	Conversion   *DocumentVersionConversionSDI `json:"conversion,omitempty" description:"Tùy chọn (UNI-2213): khai báo chuyển đổi bản live định dạng cũ (doc/xls/ppt) sang bản OOXML kế tiếp (docx/xlsx/pptx) trên cùng tài liệu; cặp khác hoặc nguồn không phải định dạng cũ -> 422 legacy_conversion_invalid"`
+}
+
+// DocumentVersionConversionSDI declares the legacy -> OOXML format pair on
+// POST /api/v1/documents/{documentID}/versions/commit (UNI-2213, C5).
+type DocumentVersionConversionSDI struct {
+	FromFormat string `json:"from_format" description:"Định dạng nguồn của phiên bản hiện hành: doc, xls hoặc ppt" example:"doc"`
+	ToFormat   string `json:"to_format" description:"Định dạng OOXML đích tương ứng: docx, xlsx hoặc pptx" example:"docx"`
 }
 
 // CreateDocumentVersionSDI is POST /api/v1/documents/{documentID}/versions:

@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/unicomhub/uniwork/server/internal/zipbound"
 )
 
 // File validation for the editor (plan G1-03; C-01 §5.5). FileService has
@@ -162,7 +164,7 @@ func ValidateFile(r io.ReaderAt, size int64, contentType string, limits FileLimi
 }
 
 func validateOOXML(r io.ReaderAt, size int64, contentType string, limits FileLimits) (FileFacts, error) {
-	zr, err := zip.NewReader(r, size)
+	zr, err := zipbound.NewReader(r, size)
 	if err != nil {
 		return FileFacts{}, refuse(ReasonZipUnreadable, "the package cannot be read: %v", err)
 	}
@@ -186,7 +188,7 @@ func validateOOXML(r io.ReaderAt, size int64, contentType string, limits FileLim
 // content.xml. An ODF package without them is refused like any other broken
 // package; it is never handed to another editor.
 func validateODT(r io.ReaderAt, size int64, limits FileLimits) (FileFacts, error) {
-	zr, err := zip.NewReader(r, size)
+	zr, err := zipbound.NewReader(r, size)
 	if err != nil {
 		return FileFacts{}, refuse(ReasonZipUnreadable, "the package cannot be read: %v", err)
 	}
@@ -635,7 +637,7 @@ func openZipCentralDirectoryProbe(sizeBytes int64, head, centralDir []byte, cdOf
 		cdOffset:   cdOffset,
 		centralDir: centralDir,
 	}
-	if zr, err := zip.NewReader(sr, sr.size); err == nil {
+	if zr, err := zipbound.NewReader(sr, sr.size); err == nil {
 		return zr, nil
 	}
 	// If the caller built centralDir from a synthetic test ZIP whose EOCD had
@@ -645,7 +647,7 @@ func openZipCentralDirectoryProbe(sizeBytes int64, head, centralDir []byte, cdOf
 		if eocd := bytes.LastIndex(patched, []byte("PK\x05\x06")); eocd >= 0 && eocd+22 <= len(patched) {
 			binary.LittleEndian.PutUint32(patched[eocd+16:eocd+20], uint32(cdOffset))
 			sr.centralDir = patched
-			return zip.NewReader(sr, sr.size)
+			return zipbound.NewReader(sr, sr.size)
 		}
 	}
 	return nil, errors.New("invalid zip central directory")

@@ -66,31 +66,61 @@ export async function seedDocument(page: Page, baseUrl: string, tag: string, fil
 }
 
 /**
- * Writes the override a platform admin would (organization scope by default,
- * the way a staged rollout does), then waits until
- * `GET /config?organization_id=` reports it (the server caches overrides for
- * featureflags.CacheTTL and a direct write sends no invalidation).
+ * Writes the overrides a platform admin would (organization scope by default,
+ * the way a staged rollout does), then waits until the server has read them
+ * (it caches the whole override table for featureflags.CacheTTL and a direct
+ * write sends no invalidation).
+ *
+ * `GET /config?organization_id=` is the witness for a public flag. A non-public
+ * flag (`ask_uni_agent`, `ask_uni_attachments`, …) never appears there, so it
+ * is confirmed through the snapshot: the cache reloads the whole table at once,
+ * so a sibling public flag written in the same call that now reads back proves
+ * the non-public rows are loaded too. A call with no public flag at all waits
+ * out the cache lifetime instead.
  */
-export async function setFlag(flag: string, organizationId: string, enabled: boolean, scope: "global" | "organization" = "organization"): Promise<void> {
+export async function setFlags(flags: Record<string, boolean>, organizationId: string, scope: "global" | "organization" = "organization"): Promise<void> {
   const url = process.env.E2E_DATABASE_URL ?? process.env.DATABASE_URL ?? "postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable";
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
-    await client.query(
-      `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind)
-       VALUES ($1, $2, $3, $4, $5, 'e2e: docs web frame', 'e2e', 'system')
-       ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = $5`,
-      [`e2e-${flag}-${scope === "global" ? "global" : organizationId}`, flag, scope, scope === "global" ? "" : organizationId, enabled],
-    );
+    // One transaction: the server cache reloads the whole table at once, so every row must become visible together.
+    await client.query("BEGIN");
+    for (const [flag, enabled] of Object.entries(flags)) {
+      await client.query(
+        `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by, created_by_kind)
+         VALUES ($1, $2, $3, $4, $5, 'e2e: docs web frame', 'e2e', 'system')
+         ON CONFLICT (flag_key, scope_type, scope_id) DO UPDATE SET enabled = $5`,
+        [`e2e-${flag}-${scope === "global" ? "global" : organizationId}`, flag, scope, scope === "global" ? "" : organizationId, enabled],
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
   } finally {
     await client.end();
   }
-  await expect.poll(async () => {
+  const read = async (): Promise<Record<string, boolean> | null> => {
     const response = await fetch(`${e2eApiUrl}/api/v1/config?organization_id=${encodeURIComponent(organizationId)}`);
     if (!response.ok) return null;
-    const body = (await response.json()) as { flags?: Record<string, boolean> };
-    return body.flags?.[flag] ?? null;
-  }, { timeout: 45_000, intervals: [1_000], message: `${flag}=${enabled} never reached /config` }).toBe(enabled);
+    return ((await response.json()) as { flags?: Record<string, boolean> }).flags ?? null;
+  };
+  const published = await read();
+  const isPublic = (flag: string) => published !== null && flag in published;
+  // A public flag that already reads as asked proves nothing about the snapshot, so only a change witnesses it.
+  const witnesses = Object.entries(flags).filter(([flag, enabled]) => isPublic(flag) && published?.[flag] !== enabled);
+  if (witnesses.length === 0) {
+    if (Object.keys(flags).some((flag) => !isPublic(flag))) await new Promise((resolve) => setTimeout(resolve, 31_000));
+    return;
+  }
+  await expect.poll(async () => {
+    const now = await read();
+    return witnesses.every(([flag, enabled]) => now?.[flag] === enabled);
+  }, { timeout: 45_000, intervals: [1_000], message: `${witnesses.map(([flag, enabled]) => `${flag}=${enabled}`).join(", ")} never reached /config` }).toBe(true);
+}
+
+export async function setFlag(flag: string, organizationId: string, enabled: boolean, scope: "global" | "organization" = "organization"): Promise<void> {
+  await setFlags({ [flag]: enabled }, organizationId, scope);
 }
 
 export interface VersionRow {

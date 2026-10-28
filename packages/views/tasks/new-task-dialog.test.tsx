@@ -329,7 +329,9 @@ describe("NewTaskDialog", () => {
     await waitFor(() =>
       expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.agentPrompt).toBe("Yêu cầu riêng cho agent"),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Chuyển sang thủ công" }));
+    const switchToManual = screen.getByRole("button", { name: "Chuyển sang thủ công" });
+    expect(switchToManual).toHaveClass("pointer-coarse:min-h-11");
+    fireEvent.click(switchToManual);
 
     const restoredManualEditor = await screen.findByRole("textbox", { name: "Mô tả" });
     await waitFor(() => expect(restoredManualEditor).toHaveTextContent("Mô tả thủ công"));

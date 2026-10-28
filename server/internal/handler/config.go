@@ -33,8 +33,10 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	flags := featureflags.EvaluateFrontendPublicFlags(ctx, h.FeatureFlags)
+	driveAvailable := flags["drive_connector"] && h.DriveConnections.Available()
 	respondJSON(w, 200, sdo.ConfigSDO{
-		Flags:                      featureflags.EvaluateFrontendPublicFlags(ctx, h.FeatureFlags),
+		Flags:                      flags,
 		RumSampleRate:              h.Cfg.RUMSampleRate,
 		WorkManagementCapabilities: workcapability.Catalogue(),
 		OfficeInstallerURLs:        sdo.OfficeInstallerURLsSDO{Dev: h.Cfg.OfficeInstallerDevURL, Beta: h.Cfg.OfficeInstallerBetaURL, Stable: h.Cfg.OfficeInstallerStableURL},
@@ -60,6 +62,9 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 				FolderUpload:                h.folderUploadLimits(),
 				UploadExtensions:            service.DocumentUploadExtensions(),
 			},
+		},
+		Drive: sdo.DriveConfigSDO{
+			Available: driveAvailable,
 		},
 	})
 }

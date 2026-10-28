@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"slices"
 	"testing"
 	"time"
 
@@ -1413,6 +1414,29 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDocumentContentsAccessUpdated: func(t *testing.T, f *auditFixture) {
+			svc, _ := f.document(t)
+			folder, err := svc.CreatePage(f.ctx, Human(f.owner.ID), f.workspace.ID, CreatePageInput{
+				Title: "Audit bulk access folder", Kind: DocumentKindFolder,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			parentID := folder.Document.ID
+			if _, err := svc.CreatePage(f.ctx, Human(f.owner.ID), f.workspace.ID, CreatePageInput{
+				Title: "Audit bulk access child", Kind: DocumentKindPage, ParentID: parentID,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UpdateFolderContentsAccess(f.ctx, Human(f.owner.ID), parentID, UpdateFolderContentsAccessInput{
+				Mode: FolderContentsAccessModeMerge,
+				Items: []FolderContentsAccessItem{
+					{PrincipalType: DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: DocumentLevelView},
+				},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// SH-S1 (UNI-1780): the workspace home row's visibility/level pair.
 		// Two commands move it and both write this one action - the PATCH
 		// with visibility set, and a share for the document's own workspace,
@@ -1638,6 +1662,22 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err := svc.RestoreDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// UNI-2225: the template pair, on a workspace file.
+		audit.ActionDocumentTemplateMarked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			if _, err := svc.MarkDocumentTemplate(f.ctx, Human(f.owner.ID), docID, MarkDocumentTemplateInput{WidenToWorkspace: true}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentTemplateUnmarked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.fileDocument(t)
+			if _, err := svc.MarkDocumentTemplate(f.ctx, Human(f.owner.ID), docID, MarkDocumentTemplateInput{WidenToWorkspace: true}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UnmarkDocumentTemplate(f.ctx, Human(f.owner.ID), docID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -2040,6 +2080,475 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDriveConnectionConnected: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := newAuditDriveConnectionService(t, f)
+			_, nonce, err := svc.StartOAuth(f.ctx, Human(f.owner.ID), w.ID, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := sealAuditDriveState(t, svc, f.owner.ID, f.orgID, w.ID, nonce, "", "")
+			if got := svc.CompleteOAuth(f.ctx, state, "code-connect", "", "", nonce); got != DriveOAuthConnected {
+				t.Fatalf("CompleteOAuth = %q, want %q", got, DriveOAuthConnected)
+			}
+		},
+		audit.ActionDriveConnectionReconnected: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := newAuditDriveConnectionService(t, f)
+			conn := seedAuditDriveConnection(t, f, svc, "fake-sub-reconn", "drive-reconn@example.com")
+			state := sealAuditDriveState(t, svc, f.owner.ID, f.orgID, w.ID, "nonce-reconn", conn.ID, "fake-sub-reconn")
+			if got := svc.CompleteOAuth(f.ctx, state, "reconn", "", "", "nonce-reconn"); got != DriveOAuthReconnected {
+				t.Fatalf("CompleteOAuth = %q, want %q", got, DriveOAuthReconnected)
+			}
+		},
+		audit.ActionDriveConnectionRefused: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := newAuditDriveConnectionService(t, f)
+			state := sealAuditDriveState(t, svc, f.owner.ID, f.orgID, w.ID, "nonce-refused", "", "")
+			if got := svc.CompleteOAuth(f.ctx, state, "", "access_denied", "admin_policy_enforced", "nonce-refused"); got != DriveOAuthBlockedByWorkspaceAdmin {
+				t.Fatalf("CompleteOAuth = %q, want %q", got, DriveOAuthBlockedByWorkspaceAdmin)
+			}
+		},
+		audit.ActionDriveConnectionDisconnected: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := newAuditDriveConnectionService(t, f)
+			conn := seedAuditDriveConnection(t, f, svc, "fake-sub-disc", "drive-disc@example.com")
+			if err := svc.Disconnect(f.ctx, Human(f.owner.ID), w.ID, conn.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDriveFileRead: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			connSvc := newAuditDriveConnectionService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-read", "drive-read@example.com")
+			googleSrv := NewFakeGoogleDriveServer(t.Cleanup)
+			googleSrv.SetFile("ext-audit-doc", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{
+					ID:       "ext-audit-doc",
+					Name:     "Audit Plan",
+					MimeType: DriveMimeGoogleDoc,
+				},
+				ExportByMime: map[string][]byte{
+					DriveMimeMarkdown: []byte("# Audit Plan"),
+				},
+			})
+			lookup := &fakeDriveFileAccessLookup{
+				rows: map[string]driveFileAccessRow{
+					f.owner.ID + "|" + w.ID + "|01DRIVEFILEAUDIT0000000001": {
+						DriveFileID:    "01DRIVEFILEAUDIT0000000001",
+						OrganizationID: f.orgID,
+						WorkspaceID:    w.ID,
+						ExternalFileID: "ext-audit-doc",
+						Name:           "Audit Plan",
+						MimeType:       DriveMimeGoogleDoc,
+						HasAccessRow:   true,
+						AccessState:    "granted",
+						Connection:     conn,
+					},
+				},
+			}
+			reader := NewDriveContentService(f.pool, f.q, f.ws, lookup, connSvc, googleSrv.Client, nil)
+			if _, err := reader.ReadForAI(f.ctx, f.owner.ID, w.ID, "01DRIVEFILEAUDIT0000000001", DriveContentPurposeAskUni); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDriveFileLinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-link", "drive-link@example.com")
+			googleSrv.SetFile("ext-audit-link", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-link", Name: "Spec Doc", MimeType: DriveMimeGoogleDoc},
+			})
+			beforeOutbox := auditOutboxCount(t, f, "drive_file.linked", "drive_file_id", "")
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-link"},
+			})
+			if err != nil || len(res) != 1 || res[0].Outcome != DriveFileLinkOutcomeLinked {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.linked", map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+			})
+		},
+		audit.ActionDriveFileAccessGranted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-grant", "drive-grant@example.com")
+			googleSrv.SetFile("ext-audit-grant", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-grant", Name: "Grant Doc", MimeType: DriveMimeGoogleDoc},
+			})
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-grant"},
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			fileID := res[0].File.ID
+			if _, err := f.q.MarkDriveFileAccessLost(f.ctx, db.MarkDriveFileAccessLostParams{
+				OrganizationID: f.orgID,
+				WorkspaceID:    w.ID,
+				DriveFileID:    fileID,
+				UserID:         f.owner.ID,
+				ConnectionID:   conn.ID,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			wantPayload := map[string]string{
+				"drive_file_id": fileID,
+				"workspace_id":  w.ID,
+				"user_id":       f.owner.ID,
+			}
+			beforeOutbox := auditOutboxCountMap(t, f, "drive_file.access_changed", wantPayload)
+			if _, err := fileSvc.GrantAccess(f.ctx, Human(f.owner.ID), w.ID, fileID, conn.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.access_changed", wantPayload)
+		},
+		audit.ActionDriveFileAccessChanged: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+			connOwner := seedAuditDriveConnection(t, f, connSvc, "fake-sub-acc-owner", "owner-acc@example.com")
+			googleSrv.SetFile("ext-audit-acc", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-acc", Name: "Access Change Doc", MimeType: DriveMimeGoogleDoc},
+			})
+			task := f.newTask(t)
+			taskID := task.ID
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    connOwner.ID,
+				ExternalFileIDs: []string{"ext-audit-acc"},
+				TaskID:          &taskID,
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			fileID := res[0].File.ID
+			f.addMember(t)
+			connPeer1 := seedAuditDriveConnectionForUser(t, f, connSvc, f.member.ID, "fake-sub-acc-peer1", "peer1-acc@example.com")
+			connPeer2 := seedAuditDriveConnectionForUser(t, f, connSvc, f.member.ID, "fake-sub-acc-peer2", "peer2-acc@example.com")
+			if _, err := fileSvc.GrantAccess(f.ctx, Human(f.member.ID), w.ID, fileID, connPeer1.ID); err != nil {
+				t.Fatal(err)
+			}
+			wantPayload := map[string]string{
+				"drive_file_id": fileID,
+				"workspace_id":  w.ID,
+				"user_id":       f.member.ID,
+			}
+			beforeOutbox := auditOutboxCountMap(t, f, "drive_file.access_changed", wantPayload)
+			if _, err := fileSvc.ChangeReadAccount(f.ctx, Human(f.member.ID), w.ID, fileID, connPeer2.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.access_changed", wantPayload)
+		},
+		audit.ActionDriveFileAccessLost: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-lost", "drive-lost@example.com")
+			googleSrv.SetFile("ext-audit-lost", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-lost", Name: "Lost Doc", MimeType: DriveMimeGoogleDoc},
+			})
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-lost"},
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			wantAccessPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+				"user_id":       f.owner.ID,
+			}
+			wantUpdatedPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+			}
+			beforeAccess := auditOutboxCountMap(t, f, "drive_file.access_changed", wantAccessPayload)
+			beforeUpdated := auditOutboxCountMap(t, f, "drive_file.updated", wantUpdatedPayload)
+			if err := fileSvc.RecordFileAccessLost(f.ctx, f.owner.ID, w.ID, res[0].File.ID, conn.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertAuditOutboxTopicAfter(t, f, beforeAccess, "drive_file.access_changed", wantAccessPayload)
+			assertAuditOutboxTopicAfter(t, f, beforeUpdated, "drive_file.updated", wantUpdatedPayload)
+		},
+		audit.ActionDriveFileUnlinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-unlink", "drive-unlink@example.com")
+			googleSrv.SetFile("ext-audit-unlink", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-unlink", Name: "Unlink Doc", MimeType: DriveMimeGoogleDoc},
+			})
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-unlink"},
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			wantPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+			}
+			beforeOutbox := auditOutboxCountMap(t, f, "drive_file.unlinked", wantPayload)
+			if err := fileSvc.Unlink(f.ctx, Human(f.owner.ID), w.ID, res[0].File.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.unlinked", wantPayload)
+		},
+		audit.ActionDriveFileRebound: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+			conn1 := seedAuditDriveConnection(t, f, connSvc, "fake-sub-rebind-1", "drive-rebind1@example.com")
+			conn2 := seedAuditDriveConnection(t, f, connSvc, "fake-sub-rebind-2", "drive-rebind2@example.com")
+			googleSrv.SetFile("ext-audit-rebind", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-rebind", Name: "Rebind Doc", MimeType: DriveMimeGoogleDoc},
+			})
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn1.ID,
+				ExternalFileIDs: []string{"ext-audit-rebind"},
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			wantUpdatedPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+			}
+			wantAccessPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+				"user_id":       f.owner.ID,
+			}
+			beforeUpdated := auditOutboxCountMap(t, f, "drive_file.updated", wantUpdatedPayload)
+			beforeAccess := auditOutboxCountMap(t, f, "drive_file.access_changed", wantAccessPayload)
+			if _, err := fileSvc.Rebind(f.ctx, Human(f.owner.ID), w.ID, res[0].File.ID, conn2.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertAuditOutboxTopicAfter(t, f, beforeUpdated, "drive_file.updated", wantUpdatedPayload)
+			assertAuditOutboxTopicAfter(t, f, beforeAccess, "drive_file.access_changed", wantAccessPayload)
+		},
+		audit.ActionTaskDriveFileLinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-task-link", "drive-tasklink@example.com")
+			googleSrv.SetFile("ext-audit-task-link", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-task-link", Name: "Task Link Doc", MimeType: DriveMimeGoogleDoc},
+			})
+			task := f.newTask(t)
+			taskID := task.ID
+			beforeOutbox := auditOutboxCount(t, f, "drive_file.task_linked", "task_id", task.ID)
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-task-link"},
+				TaskID:          &taskID,
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			assertTaskDriveAuditMetadata(t, f, audit.ActionTaskDriveFileLinked, task.ID, res[0].File.ID, "Task Link Doc", "drive-tasklink@example.com")
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.task_linked", map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"task_id":       task.ID,
+				"workspace_id":  w.ID,
+			})
+		},
+		audit.ActionTaskDriveFileUnlinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-task-unlink", "drive-taskunlink@example.com")
+			googleSrv.SetFile("ext-audit-task-unlink", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-task-unlink", Name: "Task Unlink Doc", MimeType: DriveMimeGoogleDoc},
+			})
+			task := f.newTask(t)
+			taskID := task.ID
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-task-unlink"},
+				TaskID:          &taskID,
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			wantPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"task_id":       task.ID,
+				"workspace_id":  w.ID,
+			}
+			beforeOutbox := auditOutboxCountMap(t, f, "drive_file.task_linked", wantPayload)
+			if err := fileSvc.RemoveFromTask(f.ctx, Human(f.owner.ID), task.ID, res[0].File.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertTaskDriveAuditMetadata(t, f, audit.ActionTaskDriveFileUnlinked, task.ID, res[0].File.ID, "Task Unlink Doc", "drive-taskunlink@example.com")
+			assertAuditOutboxTopicAfter(t, f, beforeOutbox, "drive_file.task_linked", wantPayload)
+		},
+		audit.ActionDriveTaskProposalCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			propSvc, fileSvc, connSvc, googleSrv := newAuditDriveProposalService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-prop-create", "drive-prop-create@example.com")
+			googleSrv.SetFile("ext-audit-prop-create", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-prop-create", Name: "Proposal Plan", MimeType: DriveMimeGoogleDoc},
+				ExportByMime: map[string][]byte{
+					DriveMimeMarkdown: []byte("# Proposal Plan\nSECRET_DOC_BODY_CREATE"),
+				},
+			})
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-prop-create"},
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			prop, err := propSvc.Propose(f.ctx, Human(f.owner.ID), w.ID, res[0].File.ID, ProposeDriveTasksInput{
+				Prompt: "Extract tasks",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalCreated, prop.ID, res[0].File.ID, "drive-prop-create@example.com", "fake-sub-prop-create", "", "SECRET_DOC_BODY_CREATE")
+		},
+		audit.ActionDriveTaskProposalDiscarded: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			propSvc, fileSvc, connSvc, googleSrv := newAuditDriveProposalService(t, f)
+			conn1 := seedAuditDriveConnection(t, f, connSvc, "fake-sub-prop-disc-1", "drive-prop-disc1@example.com")
+			conn2 := seedAuditDriveConnection(t, f, connSvc, "fake-sub-prop-disc-2", "drive-prop-disc2@example.com")
+			for _, id := range []string{"ext-audit-prop-user", "ext-audit-prop-unlink", "ext-audit-prop-disconn"} {
+				googleSrv.SetFile(id, FakeGoogleDriveFile{
+					Metadata: googleDriveFileJSON{ID: id, Name: "Doc " + id, MimeType: DriveMimeGoogleDoc},
+					ExportByMime: map[string][]byte{
+						DriveMimeMarkdown: []byte("# Doc\nSECRET_DOC_BODY_DISCARD"),
+					},
+				})
+			}
+			linked1, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn1.ID,
+				ExternalFileIDs: []string{"ext-audit-prop-user", "ext-audit-prop-unlink"},
+			})
+			if err != nil || len(linked1) != 2 {
+				t.Fatalf("Link conn1 = %+v, err=%v", linked1, err)
+			}
+			linked2, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn2.ID,
+				ExternalFileIDs: []string{"ext-audit-prop-disconn"},
+			})
+			if err != nil || len(linked2) != 1 {
+				t.Fatalf("Link conn2 = %+v, err=%v", linked2, err)
+			}
+			// 1. User discard (DELETE).
+			propUser, err := propSvc.Propose(f.ctx, Human(f.owner.ID), w.ID, linked1[0].File.ID, ProposeDriveTasksInput{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := propSvc.Discard(f.ctx, Human(f.owner.ID), w.ID, propUser.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalDiscarded, propUser.ID, linked1[0].File.ID, "drive-prop-disc1@example.com", "fake-sub-prop-disc-1", "user", "SECRET_DOC_BODY_DISCARD")
+
+			// 2. Unlink discard hook (reason = source_unlinked).
+			propUnlink, err := propSvc.Propose(f.ctx, Human(f.owner.ID), w.ID, linked1[1].File.ID, ProposeDriveTasksInput{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := fileSvc.Unlink(f.ctx, Human(f.owner.ID), w.ID, linked1[1].File.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalDiscarded, propUnlink.ID, linked1[1].File.ID, "drive-prop-disc1@example.com", "fake-sub-prop-disc-1", "source_unlinked", "SECRET_DOC_BODY_DISCARD")
+
+			// 3. Disconnect discard hook (reason = source_disconnected).
+			propDisconn, err := propSvc.Propose(f.ctx, Human(f.owner.ID), w.ID, linked2[0].File.ID, ProposeDriveTasksInput{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := connSvc.Disconnect(f.ctx, Human(f.owner.ID), w.ID, conn2.ID); err != nil {
+				t.Fatal(err)
+			}
+			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalDiscarded, propDisconn.ID, linked2[0].File.ID, "drive-prop-disc2@example.com", "fake-sub-prop-disc-2", "source_disconnected", "SECRET_DOC_BODY_DISCARD")
+		},
+		audit.ActionDriveTaskProposalTasksCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			propSvc, fileSvc, connSvc, googleSrv := newAuditDriveProposalService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-prop-tasks", "drive-prop-tasks@example.com")
+			googleSrv.SetFile("ext-audit-prop-tasks", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{ID: "ext-audit-prop-tasks", Name: "Tasks From Proposal Doc", MimeType: DriveMimeGoogleDoc},
+				ExportByMime: map[string][]byte{
+					DriveMimeMarkdown: []byte("# Plan\nSECRET_DOC_BODY_CONVERT"),
+				},
+			})
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-prop-tasks"},
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			prop, err := propSvc.Propose(f.ctx, Human(f.owner.ID), w.ID, res[0].File.ID, ProposeDriveTasksInput{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantConvertedPayload := map[string]string{
+				"proposal_id":  prop.ID,
+				"workspace_id": w.ID,
+			}
+			beforeConverted := auditOutboxCountMap(t, f, "drive_task_proposal.converted", wantConvertedPayload)
+			created, err := propSvc.CreateTasksFromProposal(f.ctx, Human(f.owner.ID), w.ID, prop.ID, CreateTasksFromProposalInput{
+				Items: []CreateTasksFromProposalItemInput{
+					{
+						Index:       0,
+						Title:       "Follow up on plan",
+						Description: "Detailed task body",
+						Priority:    "high",
+					},
+				},
+			})
+			if err != nil || len(created.TaskIDs) != 1 {
+				t.Fatalf("CreateTasksFromProposal = %+v, err=%v", created, err)
+			}
+			assertDriveProposalAuditMetadata(t, f, audit.ActionDriveTaskProposalTasksCreated, prop.ID, res[0].File.ID, "drive-prop-tasks@example.com", "fake-sub-prop-tasks", "", "SECRET_DOC_BODY_CONVERT")
+			assertDriveProposalTasksCreatedAuditSixKeys(t, f, prop.ID, res[0].File.ID, 1, []int{0}, created.TaskIDs, "drive-prop-tasks@example.com", "fake-sub-prop-tasks")
+			assertTaskCreatedDriveProposalAuditMetadata(t, f, created.TaskIDs[0], res[0].File.ID)
+			assertAuditOutboxTopicAfter(t, f, beforeConverted, "drive_task_proposal.converted", wantConvertedPayload)
+		},
+		audit.ActionDriveFolderNamed: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+			conn := seedAuditDriveConnection(t, f, connSvc, "fake-sub-folder-name", "drive-foldername@example.com")
+			googleSrv.SetFile("ext-audit-folder-child", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{
+					ID:       "ext-audit-folder-child",
+					Name:     "Child In Folder",
+					MimeType: DriveMimeGoogleDoc,
+					Parents:  []string{"fld-audit-1"},
+				},
+			})
+			res, err := fileSvc.Link(f.ctx, Human(f.owner.ID), w.ID, LinkDriveFilesInput{
+				ConnectionID:    conn.ID,
+				ExternalFileIDs: []string{"ext-audit-folder-child"},
+			})
+			if err != nil || len(res) != 1 || res[0].File == nil {
+				t.Fatalf("Link = %+v, err=%v", res, err)
+			}
+			googleSrv.SetFile("fld-audit-1", FakeGoogleDriveFile{
+				Metadata: googleDriveFileJSON{
+					ID:       "fld-audit-1",
+					Name:     "Thư mục Kế hoạch",
+					MimeType: DriveMimeGoogleFolder,
+				},
+			})
+			wantPayload := map[string]string{
+				"drive_file_id": res[0].File.ID,
+				"workspace_id":  w.ID,
+			}
+			beforeUpdated := auditOutboxCountMap(t, f, "drive_file.updated", wantPayload)
+			named, err := fileSvc.NameFolder(f.ctx, Human(f.owner.ID), w.ID, "fld-audit-1", conn.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if named.UpdatedCount != 1 || named.DriveFolder.Name == nil || *named.DriveFolder.Name != "Thư mục Kế hoạch" {
+				t.Fatalf("NameFolder = %+v, want UpdatedCount=1 Name=Thư mục Kế hoạch", named)
+			}
+			assertAuditOutboxTopicAfter(t, f, beforeUpdated, "drive_file.updated", wantPayload)
+		},
 		// UNI-1853 M7: the host generates the meeting's AI summary.
 		audit.ActionMeetingSummaryCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
@@ -2274,6 +2783,14 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			acc := seedEmailHubAccount(t, f.q, svc.box, f.owner.ID, f.orgID)
 			if !svc.handleAuthError(f.ctx, acc, acc.CredentialVersion, imapclient.ErrAuthFailed) {
 				t.Fatal("expected the account to be marked needs-reconnect")
+			}
+		},
+		audit.ActionDriveConnectionAuthFailed: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := newAuditDriveConnectionService(t, f)
+			conn := seedAuditDriveConnection(t, f, svc, "fake-sub-authfail", "drive-authfail@example.com")
+			if !svc.markAuthFailed(f.ctx, conn, conn.CredentialVersion, "invalid_grant") {
+				t.Fatal("expected drive connection to be marked needs-reconnect")
 			}
 		},
 		// UNI-1862 BIGUP: chunked multipart upload sessions (> 20 MiB).
@@ -2547,6 +3064,7 @@ func auditActions() []string {
 		audit.ActionDocumentLinkCreated,
 		audit.ActionDocumentLinkRevoked,
 		audit.ActionDocumentSettingsChanged,
+		audit.ActionDocumentContentsAccessUpdated,
 		audit.ActionDocumentUpdated,
 		audit.ActionDocumentEditLockAcquired,
 		audit.ActionDocumentEditLockReleased,
@@ -2582,6 +3100,8 @@ func auditActions() []string {
 		audit.ActionDocumentRestored,
 		audit.ActionDocumentShelved,
 		audit.ActionDocumentUnshelved,
+		audit.ActionDocumentTemplateMarked,
+		audit.ActionDocumentTemplateUnmarked,
 		audit.ActionDocumentDeleted,
 		audit.ActionDocumentVersionsCompacted,
 		audit.ActionDocumentAssetPurged,
@@ -2596,6 +3116,24 @@ func auditActions() []string {
 		audit.ActionEmailHubAccountConnected,
 		audit.ActionEmailHubAccountDisconnected,
 		audit.ActionEmailHubAccountAuthFailed,
+		audit.ActionDriveConnectionConnected,
+		audit.ActionDriveConnectionReconnected,
+		audit.ActionDriveConnectionRefused,
+		audit.ActionDriveConnectionAuthFailed,
+		audit.ActionDriveConnectionDisconnected,
+		audit.ActionDriveFileRead,
+		audit.ActionDriveFileLinked,
+		audit.ActionDriveFileAccessGranted,
+		audit.ActionDriveFileAccessChanged,
+		audit.ActionDriveFileAccessLost,
+		audit.ActionDriveFileUnlinked,
+		audit.ActionDriveFileRebound,
+		audit.ActionTaskDriveFileLinked,
+		audit.ActionTaskDriveFileUnlinked,
+		audit.ActionDriveTaskProposalCreated,
+		audit.ActionDriveTaskProposalDiscarded,
+		audit.ActionDriveTaskProposalTasksCreated,
+		audit.ActionDriveFolderNamed,
 		audit.ActionMcpGrantCreated,
 		audit.ActionMcpGrantRevoked,
 		audit.ActionMcpGrantScopeChanged,
@@ -3369,4 +3907,224 @@ func auditMeetingWithMinutes(t *testing.T, f *auditFixture) (*MeetingService, db
 		t.Fatal(err)
 	}
 	return svc, m
+}
+
+func newAuditDriveConnectionService(t *testing.T, f *auditFixture) *DriveConnectionService {
+	t.Helper()
+	svc := NewDriveConnectionService(f.pool, f.q, f.ws, testEmailHubBox(t))
+	svc.SetProvider(NewFakeDriveProvider(config.Config{FrontendOrigin: "http://localhost:3000"}))
+	svc.SetFlags(driveConnectorFlags(t, true))
+	return svc
+}
+
+func sealAuditDriveState(t *testing.T, svc *DriveConnectionService, userID, orgID, wsID, nonce, targetConnID, expectedSub string) string {
+	t.Helper()
+	raw, err := svc.sealOAuthState(driveOAuthState{
+		UserID:             userID,
+		OrganizationID:     orgID,
+		WorkspaceID:        wsID,
+		Provider:           "google",
+		CookieNonce:        nonce,
+		OIDCNonce:          nonce,
+		Verifier:           "ver-1",
+		TargetConnectionID: targetConnID,
+		ExpectedSub:        expectedSub,
+		Exp:                time.Now().Add(driveOAuthStateTTL).Unix(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func newAuditDriveFileService(t *testing.T, f *auditFixture) (*DriveFileService, *DriveConnectionService, *FakeGoogleDriveServer) {
+	t.Helper()
+	connSvc := newAuditDriveConnectionService(t, f)
+	googleSrv := NewFakeGoogleDriveServer(t.Cleanup)
+	fileSvc := NewDriveFileService(f.pool, f.q, f.ws, connSvc, googleSrv.Client)
+	return fileSvc, connSvc, googleSrv
+}
+
+func seedAuditDriveConnection(t *testing.T, f *auditFixture, svc *DriveConnectionService, sub, email string) db.DriveConnection {
+	t.Helper()
+	return seedAuditDriveConnectionForUser(t, f, svc, f.owner.ID, sub, email)
+}
+
+func seedAuditDriveConnectionForUser(t *testing.T, f *auditFixture, svc *DriveConnectionService, userID, sub, email string) db.DriveConnection {
+	t.Helper()
+	refEnc, err := svc.sealSecret("tok-r-" + sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accEnc, err := svc.sealSecret("tok-a-" + sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := f.q.CreateDriveConnection(f.ctx, db.CreateDriveConnectionParams{
+		ID:              util.NewID(),
+		OrganizationID:  f.orgID,
+		UserID:          userID,
+		Provider:        "google",
+		GoogleSub:       sub,
+		GoogleEmail:     email,
+		RefreshTokenEnc: refEnc,
+		AccessTokenEnc:  accEnc,
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().UTC().Add(time.Hour), Valid: true},
+		Scopes:          "openid email " + DriveGoogleScope,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return row
+}
+
+func assertTaskDriveAuditMetadata(t *testing.T, f *auditFixture, action, taskID, wantFileID, wantFileName, wantEmail string) {
+	t.Helper()
+	var rawMeta []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = $2 AND resource_type = 'task' AND resource_id = $3 LIMIT 1`,
+		f.orgID, action, taskID,
+	).Scan(&rawMeta); err != nil {
+		t.Fatalf("query audit metadata for %s: %v", action, err)
+	}
+	var meta map[string]any
+	if err := json.Unmarshal(rawMeta, &meta); err != nil {
+		t.Fatalf("unmarshal audit metadata for %s: %v", action, err)
+	}
+	if meta["drive_file_id"] != wantFileID || meta["drive_file_name"] != wantFileName || meta["google_email"] != wantEmail {
+		t.Fatalf("%s metadata = %+v, want drive_file_id=%q drive_file_name=%q google_email=%q", action, meta, wantFileID, wantFileName, wantEmail)
+	}
+	if _, hasSub := meta["google_sub"]; hasSub {
+		t.Fatalf("%s metadata on task resource must not include google_sub: %+v", action, meta)
+	}
+}
+func newAuditDriveProposalService(t *testing.T, f *auditFixture) (*DriveTaskProposalService, *DriveFileService, *DriveConnectionService, *FakeGoogleDriveServer) {
+	t.Helper()
+	fileSvc, connSvc, googleSrv := newAuditDriveFileService(t, f)
+	contentSvc := NewDriveContentService(f.pool, f.q, f.ws, fileSvc, connSvc, googleSrv.Client, nil)
+	gw := ai.NewGateway(f.q, &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{
+			Text:  `{"items":[{"title":"Follow up on plan","assignee_member_id":"","assignee_basis":"","priority":"high","priority_basis":"Urgent in doc","start_date":"","start_basis":"","due_date":"","due_basis":"","label_ids":[],"label_basis":"","goal":"Complete follow up","checklist":["Step 1"],"excerpt":{"section":"Sec 1","quote":"Short quote"},"blocked_by_indexes":[]}]}`,
+			Model: "fake",
+		}
+	}}, NewAIQuota(NewEntitlementService(f.pool, f.q)), nil, ai.Options{})
+	propSvc := NewDriveTaskProposalService(f.pool, f.q, f.ws, fileSvc, connSvc, contentSvc, gw)
+	propSvc.SetTasks(f.tasks)
+	fileSvc.SetTaskCreationsLoader(fileSvc)
+	propSvc.SetTaskCreationsLoader(fileSvc)
+	return propSvc, fileSvc, connSvc, googleSrv
+}
+
+func assertDriveProposalAuditMetadata(t *testing.T, f *auditFixture, action, proposalID, wantFileID, wantEmail, wantSub, wantReason, forbiddenContent string) {
+	t.Helper()
+	var rawMeta []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = $2 AND resource_type = 'drive_task_proposal' AND resource_id = $3 LIMIT 1`,
+		f.orgID, action, proposalID,
+	).Scan(&rawMeta); err != nil {
+		t.Fatalf("query audit metadata for %s (%s): %v", action, proposalID, err)
+	}
+	if forbiddenContent != "" && bytes.Contains(rawMeta, []byte(forbiddenContent)) {
+		t.Fatalf("%s metadata leaked document content %q: %s", action, forbiddenContent, string(rawMeta))
+	}
+	var meta map[string]any
+	if err := json.Unmarshal(rawMeta, &meta); err != nil {
+		t.Fatalf("unmarshal audit metadata for %s: %v", action, err)
+	}
+	if meta["drive_file_id"] != wantFileID || meta["google_email"] != wantEmail || meta["google_sub"] != wantSub {
+		t.Fatalf("%s metadata = %+v, want drive_file_id=%q google_email=%q google_sub=%q", action, meta, wantFileID, wantEmail, wantSub)
+	}
+	if wantReason != "" && meta["reason"] != wantReason {
+		t.Fatalf("%s metadata reason = %v, want %q", action, meta["reason"], wantReason)
+	}
+}
+
+func assertDriveProposalTasksCreatedAuditSixKeys(
+	t *testing.T,
+	f *auditFixture,
+	proposalID, wantFileID string,
+	wantCount int,
+	wantIndexes []int,
+	wantTaskIDs []string,
+	wantEmail, wantSub string,
+) {
+	t.Helper()
+	var rawMeta []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = $2 AND resource_type = 'drive_task_proposal' AND resource_id = $3 LIMIT 1`,
+		f.orgID, audit.ActionDriveTaskProposalTasksCreated, proposalID,
+	).Scan(&rawMeta); err != nil {
+		t.Fatalf("query tasks_created audit metadata (%s): %v", proposalID, err)
+	}
+	var meta struct {
+		DriveFileID string   `json:"drive_file_id"`
+		Count       *int     `json:"count"`
+		ItemIndexes []int    `json:"item_indexes"`
+		TaskIDs     []string `json:"task_ids"`
+		GoogleEmail string   `json:"google_email"`
+		GoogleSub   string   `json:"google_sub"`
+	}
+	if err := json.Unmarshal(rawMeta, &meta); err != nil {
+		t.Fatalf("unmarshal tasks_created audit metadata: %v", err)
+	}
+	if meta.DriveFileID != wantFileID || meta.Count == nil || *meta.Count != wantCount ||
+		!slices.Equal(meta.ItemIndexes, wantIndexes) || !slices.Equal(meta.TaskIDs, wantTaskIDs) ||
+		meta.GoogleEmail != wantEmail || meta.GoogleSub != wantSub {
+		t.Fatalf("tasks_created metadata = %s, want drive_file_id=%q count=%d item_indexes=%v task_ids=%v google_email=%q google_sub=%q",
+			string(rawMeta), wantFileID, wantCount, wantIndexes, wantTaskIDs, wantEmail, wantSub)
+	}
+}
+
+func assertTaskCreatedDriveProposalAuditMetadata(t *testing.T, f *auditFixture, taskID, wantFileID string) {
+	t.Helper()
+	var rawMeta []byte
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT metadata FROM audit_events WHERE organization_id = $1 AND action = $2 AND resource_type = 'task' AND resource_id = $3 LIMIT 1`,
+		f.orgID, audit.ActionTaskCreated, taskID,
+	).Scan(&rawMeta); err != nil {
+		t.Fatalf("query task.created audit metadata (%s): %v", taskID, err)
+	}
+	var meta map[string]any
+	if err := json.Unmarshal(rawMeta, &meta); err != nil {
+		t.Fatalf("unmarshal task.created audit metadata (%s): %v", taskID, err)
+	}
+	if meta["source"] != "drive_task_proposal" || meta["drive_file_id"] != wantFileID {
+		t.Fatalf("task.created (%s) metadata = %+v, want source=\"drive_task_proposal\" drive_file_id=%q", taskID, meta, wantFileID)
+	}
+}
+
+func auditOutboxCount(t *testing.T, f *auditFixture, topic, key, wantVal string) int {
+	t.Helper()
+	if wantVal == "" {
+		var count int
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events WHERE topic = $1`, topic).Scan(&count); err != nil {
+			t.Fatalf("outbox count topic %s: %v", topic, err)
+		}
+		return count
+	}
+	return auditOutboxCountMap(t, f, topic, map[string]string{key: wantVal})
+}
+
+func auditOutboxCountMap(t *testing.T, f *auditFixture, topic string, wantPayload map[string]string) int {
+	t.Helper()
+	raw, err := json.Marshal(wantPayload)
+	if err != nil {
+		t.Fatalf("marshal outbox payload filter: %v", err)
+	}
+	var count int
+	if err := f.pool.QueryRow(f.ctx,
+		`SELECT count(*) FROM outbox_events WHERE topic = $1 AND payload::jsonb @> $2::jsonb`,
+		topic, string(raw),
+	).Scan(&count); err != nil {
+		t.Fatalf("outbox topic %s (%s) count err=%v", topic, string(raw), err)
+	}
+	return count
+}
+
+func assertAuditOutboxTopicAfter(t *testing.T, f *auditFixture, before int, topic string, wantPayload map[string]string) {
+	t.Helper()
+	after := auditOutboxCountMap(t, f, topic, wantPayload)
+	if after != before+1 {
+		t.Fatalf("outbox topic %s (%v) count = %d after command (before = %d), want %d", topic, wantPayload, after, before, before+1)
+	}
 }

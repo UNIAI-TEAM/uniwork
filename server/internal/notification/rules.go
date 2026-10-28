@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -160,7 +161,7 @@ var rules = map[string]rule{
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
 	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
 	// effective level on the document.
-	"document.shared": both(ruleDocumentShared, docChangeRule(docVerbAccessChanged)),
+	"document.shared": both(ruleDocumentShared, ruleDocumentSharedAccessChange),
 	// DOC-07 (UNI-1631): a person asked a document's managers for access, and
 	// the answer that reaches the requester wherever they are.
 	"document.access_requested":       ruleDocumentAccessRequested,
@@ -181,8 +182,11 @@ var rules = map[string]rule{
 	// keep no consumer here and stay on the realtime lane (BE-R1-1).
 	"document.moved":          ruleDocumentMovedChange,
 	"document.deleted":        ruleDocumentDeletedChange,
-	"document.share_revoked":  docChangeRule(docVerbAccessChanged),
+	"document.share_revoked":  ruleDocumentShareRevokedAccessChange,
 	"document.change_noticed": ruleDocumentChangeNoticed,
+	// UNI-2244 §6 (F5): one completion-gated notification per recipient whose
+	// effective access rose across a folder bulk access batch.
+	"document_access_batch.completed": ruleDocumentAccessBatchCompleted,
 
 	"participant.invited":    ruleParticipantInvited,
 	"member.joined":          ruleMemberJoined,
@@ -1031,6 +1035,13 @@ func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]
 	default:
 		return nil, err
 	}
+	if meta, err := auditMetadata(ctx, e.q, ev, audit.ActionDocumentShared, doc.ID); err != nil {
+		return nil, err
+	} else if via, _ := meta["via"].(string); via == "folder_contents" {
+		// Folder bulk access batches suppress per-document share notices and
+		// emit one completion-gated summary on document_access_batch.completed (UNI-2244 §6, F5).
+		return nil, nil
+	}
 	return []Draft{{
 		UserID:         uid,
 		OrganizationID: doc.OrganizationID,
@@ -1048,6 +1059,106 @@ func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]
 			"level":       level,
 		},
 	}}, nil
+}
+
+// ruleDocumentAccessBatchCompleted delivers one grouped KindDocumentShared
+// notification per recipient whose effective access rose across a completed
+// folder bulk access batch (sync or background, UNI-2244 §6, F5).
+func ruleDocumentAccessBatchCompleted(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	batchID := p["batch_id"]
+	folderID := p["folder_id"]
+	wsID := p["workspace_id"]
+	if e.docs == nil || batchID == "" || folderID == "" || wsID == "" {
+		return nil, nil
+	}
+	folder, err := e.q.GetDocumentByID(ctx, folderID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if folder.WorkspaceID != wsID ||
+		(ev.OrganizationID.Valid && folder.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && folder.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	batch, err := e.q.GetDocumentAccessBatchForNotification(ctx, db.GetDocumentAccessBatchForNotificationParams{
+		ID:             batchID,
+		OrganizationID: folder.OrganizationID,
+		WorkspaceID:    folder.WorkspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if batch.FolderID != folder.ID || batch.Status != service.FolderContentsAccessBatchStatusCompleted {
+		return nil, nil
+	}
+	if len(batch.NotifiedLevels) == 0 {
+		return nil, nil
+	}
+	var recipients map[string]service.FolderContentsRecipientNotice
+	if err := json.Unmarshal(batch.NotifiedLevels, &recipients); err != nil {
+		return nil, nil
+	}
+	if len(recipients) == 0 {
+		return nil, nil
+	}
+	uids := make([]string, 0, len(recipients))
+	for uid := range recipients {
+		uids = append(uids, uid)
+	}
+	slices.Sort(uids)
+	actor := actorName(ctx, e.q, ev)
+	var out []Draft
+	for _, uid := range uids {
+		info := recipients[uid]
+		if uid == "" || info.Count <= 0 || info.Level == "" || isActorOfEvent(ev, uid) {
+			continue
+		}
+		checkIDs := info.DocIDs
+		if len(checkIDs) == 0 {
+			checkIDs = batch.DocumentIds
+		}
+		readable := false
+		for _, docID := range checkIDs {
+			canRead, err := e.docs.CanReadDocument(ctx, uid, docID)
+			if err != nil {
+				return nil, err
+			}
+			if canRead {
+				readable = true
+				break
+			}
+		}
+		if !readable {
+			continue
+		}
+		out = append(out, Draft{
+			UserID:         uid,
+			OrganizationID: folder.OrganizationID,
+			WorkspaceID:    folder.WorkspaceID,
+			Kind:           KindDocumentShared,
+			GroupKey:       "document_access_batch:" + batch.ID + ":" + uid + ":" + info.Level,
+			ResourceType:   "document",
+			ResourceID:     folder.ID,
+			ActorKind:      actorKindOf(ev),
+			ActorID:        ev.ActorID.String,
+			OncePerGroup:   true,
+			Params: map[string]string{
+				"actor":       actor,
+				"document":    folder.Title,
+				"document_id": folder.ID,
+				"level":       info.Level,
+				"batch_id":    batch.ID,
+				"count":       strconv.Itoa(info.Count),
+			},
+		})
+	}
+	return out, nil
 }
 
 // ruleDocumentAccessRequested tells a document's managers that somebody asked

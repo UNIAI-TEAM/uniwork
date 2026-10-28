@@ -28,6 +28,7 @@ import type { Meeting } from "../types/meeting";
 import { workspaceKeys } from "../workspaces/keys";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import { documentFrameKeys } from "./document-events";
+import { driveFrameKeys } from "./drive-events";
 import { followThroughFrameKeys, meetingTaskFrameKeys } from "./meeting-follow-through-events";
 import { transcriptFrameKeys } from "./meeting-transcript-events";
 import { changesOwnMembership, ownMembershipKeys, reloadSessionUser } from "./own-membership";
@@ -128,15 +129,12 @@ function keysFor(
       push(homeKeys.summary(wsId));
       // A linked task's title, status or due date shows in the chat info panel.
       push(chatKeys.roomLinkedTasksRoot(wsId));
+      meetingTaskFrameKeys(qc, type, payload.task_id).forEach(push);
     }
-    meetingTaskFrameKeys(qc, type, payload.task_id).forEach(push);
-    pushCalendar();
-    return keys;
   }
-
-  const documentFrame = documentFrameKeys(wsId, type, payload);
-  if (documentFrame) {
-    for (const k of documentFrame) push(k);
+  (documentFrameKeys(wsId, type, payload) ?? driveFrameKeys(wsId, type, payload))?.forEach(push);
+  if (keys.length > 0) {
+    pushCalendar();
     return keys;
   }
 

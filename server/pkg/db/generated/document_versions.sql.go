@@ -46,7 +46,7 @@ func (q *Queries) CountDocumentOtherCommitters(ctx context.Context, arg CountDoc
 }
 
 const getDocumentVersion = `-- name: GetDocumentVersion :one
-SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at
+SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at, converted_from_version, converted_from_checksum
 FROM document_versions
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -91,12 +91,14 @@ func (q *Queries) GetDocumentVersion(ctx context.Context, arg GetDocumentVersion
 		&i.CreatedBy,
 		&i.CreatedByKind,
 		&i.CreatedAt,
+		&i.ConvertedFromVersion,
+		&i.ConvertedFromChecksum,
 	)
 	return i, err
 }
 
 const getLatestDocumentVersion = `-- name: GetLatestDocumentVersion :one
-SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at
+SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at, converted_from_version, converted_from_checksum
 FROM document_versions
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -136,6 +138,8 @@ func (q *Queries) GetLatestDocumentVersion(ctx context.Context, arg GetLatestDoc
 		&i.CreatedBy,
 		&i.CreatedByKind,
 		&i.CreatedAt,
+		&i.ConvertedFromVersion,
+		&i.ConvertedFromChecksum,
 	)
 	return i, err
 }
@@ -145,7 +149,8 @@ const insertDocumentVersion = `-- name: InsertDocumentVersion :one
 INSERT INTO document_versions (
   id, organization_id, workspace_id, document_id, version, kind, reason,
   label, content, file_id, mime_type, size_bytes, checksum_sha256,
-  restored_from, engine_name, engine_version, contract_version,
+  restored_from, converted_from_version, converted_from_checksum,
+  engine_name, engine_version, contract_version,
   protocol_version, created_by, created_by_kind
 ) VALUES (
   $1, $2, $3,
@@ -153,33 +158,36 @@ INSERT INTO document_versions (
   $8, $9, $10, $11,
   $12, $13,
   $14, $15, $16,
-  $17,
-  $18, $19, $20
+  $17, $18,
+  $19,
+  $20, $21, $22
 )
-RETURNING id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at
+RETURNING id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at, converted_from_version, converted_from_checksum
 `
 
 type InsertDocumentVersionParams struct {
-	ID              string      `json:"id"`
-	OrganizationID  string      `json:"organization_id"`
-	WorkspaceID     string      `json:"workspace_id"`
-	DocumentID      string      `json:"document_id"`
-	Version         int32       `json:"version"`
-	Kind            string      `json:"kind"`
-	Reason          string      `json:"reason"`
-	Label           pgtype.Text `json:"label"`
-	Content         []byte      `json:"content"`
-	FileID          pgtype.Text `json:"file_id"`
-	MimeType        pgtype.Text `json:"mime_type"`
-	SizeBytes       int64       `json:"size_bytes"`
-	ChecksumSha256  pgtype.Text `json:"checksum_sha256"`
-	RestoredFrom    pgtype.Int4 `json:"restored_from"`
-	EngineName      pgtype.Text `json:"engine_name"`
-	EngineVersion   pgtype.Text `json:"engine_version"`
-	ContractVersion pgtype.Text `json:"contract_version"`
-	ProtocolVersion pgtype.Text `json:"protocol_version"`
-	CreatedBy       string      `json:"created_by"`
-	CreatedByKind   string      `json:"created_by_kind"`
+	ID                    string      `json:"id"`
+	OrganizationID        string      `json:"organization_id"`
+	WorkspaceID           string      `json:"workspace_id"`
+	DocumentID            string      `json:"document_id"`
+	Version               int32       `json:"version"`
+	Kind                  string      `json:"kind"`
+	Reason                string      `json:"reason"`
+	Label                 pgtype.Text `json:"label"`
+	Content               []byte      `json:"content"`
+	FileID                pgtype.Text `json:"file_id"`
+	MimeType              pgtype.Text `json:"mime_type"`
+	SizeBytes             int64       `json:"size_bytes"`
+	ChecksumSha256        pgtype.Text `json:"checksum_sha256"`
+	RestoredFrom          pgtype.Int4 `json:"restored_from"`
+	ConvertedFromVersion  pgtype.Int4 `json:"converted_from_version"`
+	ConvertedFromChecksum pgtype.Text `json:"converted_from_checksum"`
+	EngineName            pgtype.Text `json:"engine_name"`
+	EngineVersion         pgtype.Text `json:"engine_version"`
+	ContractVersion       pgtype.Text `json:"contract_version"`
+	ProtocolVersion       pgtype.Text `json:"protocol_version"`
+	CreatedBy             string      `json:"created_by"`
+	CreatedByKind         string      `json:"created_by_kind"`
 }
 
 // Document versions (C-01 §3.2; UNI-675). Append-only: services insert and
@@ -201,6 +209,8 @@ func (q *Queries) InsertDocumentVersion(ctx context.Context, arg InsertDocumentV
 		arg.SizeBytes,
 		arg.ChecksumSha256,
 		arg.RestoredFrom,
+		arg.ConvertedFromVersion,
+		arg.ConvertedFromChecksum,
 		arg.EngineName,
 		arg.EngineVersion,
 		arg.ContractVersion,
@@ -231,6 +241,8 @@ func (q *Queries) InsertDocumentVersion(ctx context.Context, arg InsertDocumentV
 		&i.CreatedBy,
 		&i.CreatedByKind,
 		&i.CreatedAt,
+		&i.ConvertedFromVersion,
+		&i.ConvertedFromChecksum,
 	)
 	return i, err
 }
@@ -344,7 +356,7 @@ func (q *Queries) ListDocumentVersionFileHolds(ctx context.Context, fileIds []st
 }
 
 const listDocumentVersions = `-- name: ListDocumentVersions :many
-SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at
+SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at, converted_from_version, converted_from_checksum
 FROM document_versions
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -389,6 +401,8 @@ func (q *Queries) ListDocumentVersions(ctx context.Context, arg ListDocumentVers
 			&i.CreatedBy,
 			&i.CreatedByKind,
 			&i.CreatedAt,
+			&i.ConvertedFromVersion,
+			&i.ConvertedFromChecksum,
 		); err != nil {
 			return nil, err
 		}
@@ -403,6 +417,7 @@ func (q *Queries) ListDocumentVersions(ctx context.Context, arg ListDocumentVers
 const listDocumentVersionsPage = `-- name: ListDocumentVersionsPage :many
 SELECT id, organization_id, workspace_id, document_id, version, kind, reason,
   label, file_id, mime_type, size_bytes, checksum_sha256, restored_from,
+  converted_from_version, converted_from_checksum,
   engine_name, engine_version, contract_version, protocol_version,
   created_by, created_by_kind, created_at
 FROM document_versions
@@ -423,26 +438,28 @@ type ListDocumentVersionsPageParams struct {
 }
 
 type ListDocumentVersionsPageRow struct {
-	ID              string             `json:"id"`
-	OrganizationID  string             `json:"organization_id"`
-	WorkspaceID     string             `json:"workspace_id"`
-	DocumentID      string             `json:"document_id"`
-	Version         int32              `json:"version"`
-	Kind            string             `json:"kind"`
-	Reason          string             `json:"reason"`
-	Label           pgtype.Text        `json:"label"`
-	FileID          pgtype.Text        `json:"file_id"`
-	MimeType        pgtype.Text        `json:"mime_type"`
-	SizeBytes       int64              `json:"size_bytes"`
-	ChecksumSha256  pgtype.Text        `json:"checksum_sha256"`
-	RestoredFrom    pgtype.Int4        `json:"restored_from"`
-	EngineName      pgtype.Text        `json:"engine_name"`
-	EngineVersion   pgtype.Text        `json:"engine_version"`
-	ContractVersion pgtype.Text        `json:"contract_version"`
-	ProtocolVersion pgtype.Text        `json:"protocol_version"`
-	CreatedBy       string             `json:"created_by"`
-	CreatedByKind   string             `json:"created_by_kind"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ID                    string             `json:"id"`
+	OrganizationID        string             `json:"organization_id"`
+	WorkspaceID           string             `json:"workspace_id"`
+	DocumentID            string             `json:"document_id"`
+	Version               int32              `json:"version"`
+	Kind                  string             `json:"kind"`
+	Reason                string             `json:"reason"`
+	Label                 pgtype.Text        `json:"label"`
+	FileID                pgtype.Text        `json:"file_id"`
+	MimeType              pgtype.Text        `json:"mime_type"`
+	SizeBytes             int64              `json:"size_bytes"`
+	ChecksumSha256        pgtype.Text        `json:"checksum_sha256"`
+	RestoredFrom          pgtype.Int4        `json:"restored_from"`
+	ConvertedFromVersion  pgtype.Int4        `json:"converted_from_version"`
+	ConvertedFromChecksum pgtype.Text        `json:"converted_from_checksum"`
+	EngineName            pgtype.Text        `json:"engine_name"`
+	EngineVersion         pgtype.Text        `json:"engine_version"`
+	ContractVersion       pgtype.Text        `json:"contract_version"`
+	ProtocolVersion       pgtype.Text        `json:"protocol_version"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedByKind         string             `json:"created_by_kind"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 }
 
 // The history list (C-01 §5.2): newest first, metadata only - content stays
@@ -478,6 +495,8 @@ func (q *Queries) ListDocumentVersionsPage(ctx context.Context, arg ListDocument
 			&i.SizeBytes,
 			&i.ChecksumSha256,
 			&i.RestoredFrom,
+			&i.ConvertedFromVersion,
+			&i.ConvertedFromChecksum,
 			&i.EngineName,
 			&i.EngineVersion,
 			&i.ContractVersion,
@@ -505,7 +524,7 @@ WHERE id = $2
   AND organization_id = $3
   AND workspace_id = $4
   AND current_version = $5
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 `
 
 type MarkDocumentVersionedParams struct {
@@ -576,6 +595,9 @@ func (q *Queries) MarkDocumentVersioned(ctx context.Context, arg MarkDocumentVer
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }
@@ -599,7 +621,7 @@ WHERE id = $8
   AND workspace_id = $10
   AND kind = 'page'
   AND revision = $11
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 `
 
 type RestoreDocumentPageParams struct {
@@ -682,6 +704,9 @@ func (q *Queries) RestoreDocumentPage(ctx context.Context, arg RestoreDocumentPa
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }

@@ -18,7 +18,14 @@ import { PasswordField } from "./password-field";
 /** The server's minimum, restated here so the rule is visible before submitting. */
 const PASSWORD_MIN = 8;
 
-export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse) => void }) {
+export function RegisterView({
+  onSuccess,
+  next,
+}: {
+  onSuccess: (sess: SessionResponse) => void;
+  /** Same-origin path to return to after sign-up (join / invite); forwarded to Google too. */
+  next?: string | null;
+}) {
   const { t } = useTranslation();
   const reg = useRegister();
   const errorId = useId();
@@ -97,10 +104,13 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
           <AuthSubmit pending={reg.isPending} pendingLabel={t("auth.registering")}>
             {t("auth.register")}
           </AuthSubmit>
-          <GoogleButton />
+          <GoogleButton next={next} />
           <p className="text-center text-body text-muted-foreground">
             {t("auth.hasAccount")}{" "}
-            <AppLink href={paths.login()} className={AUTH_LINK}>
+            <AppLink
+              href={next ? `${paths.login()}?next=${encodeURIComponent(next)}` : paths.login()}
+              className={AUTH_LINK}
+            >
               {t("auth.login")}
             </AppLink>
           </p>

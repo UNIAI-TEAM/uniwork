@@ -188,6 +188,10 @@ const (
 	ActionDocumentLinkCreated            = "document.link_created"
 	ActionDocumentLinkRevoked            = "document.link_revoked"
 	ActionDocumentSettingsChanged        = "document.settings_changed"
+	// Folder bulk access (UNI-2244 §6): one row per completed bulk access
+	// batch (sync in the command's transaction; background when the worker
+	// finishes), with the folder as the resource and the outcome counts.
+	ActionDocumentContentsAccessUpdated = "document.contents_access_updated"
 	// ActionDocumentsAccessReportExported is one access report export
 	// (UNI-1643): ids, the filter and counts, never a name.
 	ActionDocumentsAccessReportExported = "documents.access_report_exported"
@@ -251,6 +255,11 @@ const (
 	// batch, the batch id in metadata and in the event payload.
 	ActionDocumentShelved   = "document.shelved"
 	ActionDocumentUnshelved = "document.unshelved"
+
+	// Templates (UNI-2225): a workspace file marked, or no longer marked, as a
+	// template of the workspace's library.
+	ActionDocumentTemplateMarked   = "document.template_marked"
+	ActionDocumentTemplateUnmarked = "document.template_unmarked"
 
 	// Document access requests (DOC-07, UNI-1631): a person who cannot read a
 	// document asked its managers for access. The requester is the actor, the
@@ -320,6 +329,29 @@ const (
 	ActionEmailHubAccountConnected    = "email_hub_account.connected"
 	ActionEmailHubAccountDisconnected = "email_hub_account.disconnected"
 	ActionEmailHubAccountAuthFailed   = "email_hub_account.auth_failed"
+
+	// Google Drive connector (UNI-2172, spec §11): the owner connects or
+	// reconnects a Google Drive account, a callback is refused for a policy/scope/account
+	// mismatch reason, a refresh grant is refused at Google (invalid_grant), or
+	// the connection is disconnected (manually or by organization/account lifecycle).
+	ActionDriveConnectionConnected      = "drive_connection.connected"
+	ActionDriveConnectionReconnected    = "drive_connection.reconnected"
+	ActionDriveConnectionRefused        = "drive_connection.refused"
+	ActionDriveConnectionAuthFailed     = "drive_connection.auth_failed"
+	ActionDriveConnectionDisconnected   = "drive_connection.disconnected"
+	ActionDriveFileLinked               = "drive_file.linked"
+	ActionDriveFileAccessGranted        = "drive_file.access_granted"
+	ActionDriveFileAccessChanged        = "drive_file.access_changed"
+	ActionDriveFileAccessLost           = "drive_file.access_lost"
+	ActionDriveFileUnlinked             = "drive_file.unlinked"
+	ActionDriveFileRebound              = "drive_file.rebound"
+	ActionDriveFileRead                 = "drive_file.read"
+	ActionTaskDriveFileLinked           = "task.drive_file_linked"
+	ActionTaskDriveFileUnlinked         = "task.drive_file_unlinked"
+	ActionDriveTaskProposalCreated      = "drive_task_proposal.created"
+	ActionDriveTaskProposalDiscarded    = "drive_task_proposal.discarded"
+	ActionDriveTaskProposalTasksCreated = "drive_task_proposal.tasks_created"
+	ActionDriveFolderNamed              = "drive_folder.named"
 
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.

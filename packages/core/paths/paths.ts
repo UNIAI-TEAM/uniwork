@@ -1,6 +1,30 @@
 import { runtimeConfig } from "../runtime-config";
 import { marketingHref, vietnamesePath } from "./marketing";
 
+/** Search params of the Documents › Google Drive library: the selected account and Drive folder. */
+export const DRIVE_ACCOUNT_PARAM = "account";
+export const DRIVE_FOLDER_PARAM = "driveFolder";
+/** `nameFolder=1` asks the library to open "Name this folder" for the selected folder (the app hands off with it). */
+export const DRIVE_NAME_FOLDER_PARAM = "nameFolder";
+
+interface DriveLibrarySelection {
+  account: string | null;
+  folder: string | null;
+}
+
+/** Reads the selection `paths.workspace().documentsDrive` writes; a folder only counts under an account. */
+export function parseDriveLibrarySelection(params: { get(name: string): string | null }): DriveLibrarySelection {
+  const account = params.get(DRIVE_ACCOUNT_PARAM) || null;
+  const folder = account ? params.get(DRIVE_FOLDER_PARAM) || null : null;
+  return { account, folder };
+}
+
+/** Whether the URL asks for "Name this folder"; it only counts with an account and a folder selected. */
+export function parseDriveNameFolderRequest(params: { get(name: string): string | null }): boolean {
+  const { folder } = parseDriveLibrarySelection(params);
+  return Boolean(folder) && params.get(DRIVE_NAME_FOLDER_PARAM) === "1";
+}
+
 export const paths = {
   root: () => "/",
   login: () => "/login",
@@ -126,6 +150,19 @@ export const paths = {
         folderId
           ? `${base}/documents/access-report?folder=${encodeURIComponent(folderId)}`
           : `${base}/documents/access-report`,
+      // The caller's Google Drive list in Documents (4.1), optionally narrowed to one connected
+      // account and, inside it, to one Drive folder. A folder without an account is dropped.
+      // `nameFolder` adds the "Name this folder" request and only applies to a selected folder.
+      documentsDrive: (accountId?: string | null, folderId?: string | null, opts?: { nameFolder?: boolean }) => {
+        if (!accountId) return `${base}/documents?view=drive`;
+        const account = `${base}/documents?view=drive&${DRIVE_ACCOUNT_PARAM}=${encodeURIComponent(accountId)}`;
+        if (!folderId) return account;
+        const folder = `${account}&${DRIVE_FOLDER_PARAM}=${encodeURIComponent(folderId)}`;
+        return opts?.nameFolder ? `${folder}&${DRIVE_NAME_FOLDER_PARAM}=1` : folder;
+      },
+      // Detail page of a linked Google Drive file reference (4.2).
+      documentsDriveFile: (driveFileId: string) =>
+        `${base}/documents/drive/${encodeURIComponent(driveFileId)}`,
       document: (id: string) => `${base}/documents/${id}`,
       // The document page with its version history open (a chat card's
       // "Lịch sử phiên bản"); the page drops the parameter once it opens.
@@ -167,6 +204,38 @@ export function sanitizeNextUrl(raw: string | null | undefined): string | null {
   // would navigate to "//x.com"; refuse any whitespace, control or backslash.
   if (/[\s\p{Cc}\\]/u.test(raw)) return null;
   return new URL(raw, SAME_ORIGIN_PROBE).origin === SAME_ORIGIN_PROBE ? raw : null;
+}
+
+/** Append `?next=` when present so login ↔ register ↔ verify keep the join path. */
+export function withNextParam(path: string, next: string | null | undefined): string {
+  if (!next) return path;
+  return `${path}?next=${encodeURIComponent(next)}`;
+}
+
+/**
+ * Paths whose accept/join marks the user onboarded (membership link or email
+ * invite). Meeting invites do not — they must not skip create-org onboarding.
+ */
+export function nextOverridesOnboarding(next: string | null | undefined): boolean {
+  if (!next) return false;
+  const path = next.split(/[?#]/, 1)[0] ?? "";
+  if (path.startsWith("/join/")) return true;
+  if (path.startsWith("/invite/") && !path.startsWith("/invite/meeting/")) return true;
+  return false;
+}
+
+/**
+ * Where to send the browser after sign-in / verify given the gate destination
+ * and an optional `?next=`. Verify always comes first and keeps `next`. A
+ * join or email-invite `next` may override `/onboarding` (accepting marks the
+ * user onboarded); any other `next` waits until the gate is clear.
+ */
+export function resolvePostAuthNavigation(destination: string, next: string | null): string {
+  if (!next) return destination;
+  if (destination === paths.verify()) return withNextParam(paths.verify(), next);
+  if (nextOverridesOnboarding(next)) return next;
+  if (destination !== paths.onboarding()) return next;
+  return destination;
 }
 
 /**

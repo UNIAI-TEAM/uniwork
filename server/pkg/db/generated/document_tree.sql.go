@@ -317,7 +317,7 @@ SET parent_id = NULL,
 WHERE id = $6
   AND organization_id = $7
   AND workspace_id = $8
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 `
 
 type DetachDocumentToRootParams struct {
@@ -395,12 +395,15 @@ func (q *Queries) DetachDocumentToRoot(ctx context.Context, arg DetachDocumentTo
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }
 
 const listDocumentArchiveBatch = `-- name: ListDocumentArchiveBatch :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 FROM documents
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -471,6 +474,9 @@ func (q *Queries) ListDocumentArchiveBatch(ctx context.Context, arg ListDocument
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 		); err != nil {
 			return nil, err
 		}
@@ -539,7 +545,7 @@ func (q *Queries) ListDocumentArchiveBatchAcl(ctx context.Context, arg ListDocum
 }
 
 const listDocumentChildrenOutsideSet = `-- name: ListDocumentChildrenOutsideSet :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 FROM documents
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -620,6 +626,9 @@ func (q *Queries) ListDocumentChildrenOutsideSet(ctx context.Context, arg ListDo
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 		); err != nil {
 			return nil, err
 		}
@@ -632,7 +641,7 @@ func (q *Queries) ListDocumentChildrenOutsideSet(ctx context.Context, arg ListDo
 }
 
 const listDocumentShelveBatch = `-- name: ListDocumentShelveBatch :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 FROM documents
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -703,6 +712,9 @@ func (q *Queries) ListDocumentShelveBatch(ctx context.Context, arg ListDocumentS
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 		); err != nil {
 			return nil, err
 		}
@@ -730,7 +742,7 @@ WITH RECURSIVE sub AS (
     AND d.workspace_id = $2
     AND sub.lvl < $4::int
 )
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, sub.lvl AS subtree_depth
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind, sub.lvl AS subtree_depth
 FROM sub
 JOIN documents d ON d.id = sub.id
 `
@@ -789,6 +801,9 @@ type ListDocumentSubtreeRow struct {
 	ShelvedBy            pgtype.Text        `json:"shelved_by"`
 	ShelvedByKind        pgtype.Text        `json:"shelved_by_kind"`
 	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
+	TemplateMarkedAt     pgtype.Timestamptz `json:"template_marked_at"`
+	TemplateMarkedBy     pgtype.Text        `json:"template_marked_by"`
+	TemplateMarkedByKind pgtype.Text        `json:"template_marked_by_kind"`
 	SubtreeDepth         int32              `json:"subtree_depth"`
 }
 
@@ -864,6 +879,9 @@ func (q *Queries) ListDocumentSubtree(ctx context.Context, arg ListDocumentSubtr
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 			&i.SubtreeDepth,
 		); err != nil {
 			return nil, err
@@ -1151,7 +1169,7 @@ WHERE id = $7
   AND workspace_id = $9
   AND revision = $10
   AND archived_at IS NULL
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 `
 
 type MoveDocumentParams struct {
@@ -1234,6 +1252,9 @@ func (q *Queries) MoveDocument(ctx context.Context, arg MoveDocumentParams) (Doc
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }
@@ -1250,7 +1271,7 @@ WHERE id = $5
   AND organization_id = $6
   AND workspace_id = $7
   AND archived_at IS NOT NULL
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 `
 
 type RenameArchivedDocumentParams struct {
@@ -1324,6 +1345,9 @@ func (q *Queries) RenameArchivedDocument(ctx context.Context, arg RenameArchived
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }
