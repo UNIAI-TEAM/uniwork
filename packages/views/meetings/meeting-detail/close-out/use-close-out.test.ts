@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MeetingActionItem } from "@uniwork/core/meetings/action-items";
 import { effectiveValues, listKeyAction, useCloseOut } from "./use-close-out";
 
@@ -81,5 +81,40 @@ describe("useCloseOut", () => {
 
     act(() => result.current.clear());
     expect(result.current.picked).toEqual([]);
+  });
+
+  describe("after an assignment", () => {
+    afterEach(() => vi.useRealTimers());
+
+    it("undo bar leaves after eight seconds", () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => useCloseOut([item()]));
+      act(() => result.current.markAssigned(["a1"]));
+      expect(result.current.assigned?.ids).toEqual(["a1"]);
+      act(() => {
+        vi.advanceTimersByTime(7_999);
+      });
+      expect(result.current.assigned?.ids).toEqual(["a1"]);
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(result.current.assigned).toBeNull();
+    });
+
+    it("a second assignment starts the eight seconds again, and clearing ends them", () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => useCloseOut([item()]));
+      act(() => result.current.markAssigned(["a1"]));
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      act(() => result.current.markAssigned(["a2"]));
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      expect(result.current.assigned?.ids).toEqual(["a2"]);
+      act(() => result.current.clearAssigned());
+      expect(result.current.assigned).toBeNull();
+    });
   });
 });

@@ -5682,6 +5682,14 @@
       "summary": {
         "outOf": "/{{count}}",
         "source": "Source {{n}}"
+      },
+      "assign": {
+        "selected": "selected",
+        "changeOwner": "Change assignee",
+        "setDue": "Set due date",
+        "done_one": "Assigned {{count}} task",
+        "done_other": "Assigned {{count}} tasks",
+        "groupDone": "{{name}} · all assigned"
       }
     }
   },

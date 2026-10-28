@@ -5681,6 +5681,14 @@
       "summary": {
         "outOf": "/{{count}}",
         "source": "Nguồn {{n}}"
+      },
+      "assign": {
+        "selected": "việc",
+        "changeOwner": "Đổi người nhận",
+        "setDue": "Đặt hạn",
+        "done_one": "Đã giao {{count}} việc",
+        "done_other": "Đã giao {{count}} việc",
+        "groupDone": "{{name}} · đã giao hết"
       }
     }
   },

@@ -23,7 +23,7 @@ const MARK_STEP_S = 0.68;
  * The lines the card reads: the latest ones Thư ký UNI cited live first (they
  * are the ones it marks), then the latest of the rest, in the order spoken.
  */
-export function composingLines(
+function composingLines(
   segments: readonly MeetingTranscriptSegment[],
   cited: ReadonlySet<string>,
 ): MeetingTranscriptSegment[] {

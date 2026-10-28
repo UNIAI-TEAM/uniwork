@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,17 +28,29 @@ const actionItems = {
   ),
 };
 
-function show(key: MeetingFixtureKey, who: DemoUserKey, convert?: () => Promise<unknown>) {
-  routeMeeting(key, { viewer: who, extra: { [`${base}/action-items`]: actionItems, [projectPath]: { project } } });
+function show(
+  key: MeetingFixtureKey,
+  who: DemoUserKey,
+  convert?: () => Promise<unknown>,
+  { undo, items = actionItems }: { undo?: () => Promise<unknown>; items?: unknown } = {},
+) {
+  // Kept by reference: a test swaps the list the next refetch answers with.
+  const extra: Record<string, unknown> = { [`${base}/action-items`]: items, [projectPath]: { project } };
+  routeMeeting(key, { viewer: who, extra });
   const routed = requestMock.getMockImplementation()!;
   requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
     if (init?.method === "POST") {
       if (String(path).endsWith("/convert")) return convert ? convert() : Promise.resolve({ links: [] });
+      if (String(path).endsWith("/undo-convert")) return undo ? undo() : Promise.resolve({ restored: [] });
       return Promise.resolve({});
     }
     return routed(path, init);
   });
   setSessionUser(demoUser(who));
+  return { extra, ...renderBoard(key, who) };
+}
+
+function renderBoard(key: MeetingFixtureKey, who: DemoUserKey) {
   return render(
     wrapWithNav(
       <WorkspaceProvider workspace={demoWorkspace} user={demoUser(who)}>
@@ -59,6 +71,7 @@ function convertBodies() {
 beforeEach(() => {
   requestMock.mockReset();
   vi.mocked(toast.success).mockClear();
+  vi.mocked(toast.error).mockClear();
 });
 
 describe("ActionItemsBoard — clerk (Main / AfterAssign)", () => {
@@ -87,7 +100,7 @@ describe("ActionItemsBoard — clerk (Main / AfterAssign)", () => {
     expect(within(bar).getByRole("button", { name: "Phím tắt" })).toBeInTheDocument();
     const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
 
-    fireEvent.click(within(bar).getByRole("button", { name: "Xem lại và giao" }));
+    fireEvent.click(within(bar).getByRole("button", { name: "Giao" }));
     const sheet = await screen.findByRole("dialog");
     // Behind the sheet the list shows from its heading, and the list's keys are idle.
     expect(scrolled.mock.contexts).toContain(document.getElementById("action-items"));
@@ -101,7 +114,7 @@ describe("ActionItemsBoard — clerk (Main / AfterAssign)", () => {
     expect(within(sheet).getByRole("button", { name: "Giao 9 việc" })).toBeInTheDocument();
   });
 
-  it("assigns with each row's values and the clerk's override, then says so with no undo", async () => {
+  it("assigns with each row's values and the clerk's override, then says so on the dock with an undo", async () => {
     const user = userEvent.setup();
     show("m1", "lan", () => Promise.resolve({ links: [{ action_item_id: "x", task_id: "t" }] }));
     const minhGroup = await screen.findByRole("list", { name: "Việc của Minh Trần" });
@@ -110,7 +123,7 @@ describe("ActionItemsBoard — clerk (Main / AfterAssign)", () => {
     // The owner chip is an inline picker: hand the first row to Hà.
     await user.click(within(first).getByRole("combobox", { name: /Người nhận: Minh Trần/ }));
     await user.click(await screen.findByRole("option", { name: "Hà Vũ" }));
-    await user.click(screen.getByRole("button", { name: "Xem lại và giao" }));
+    await user.click(screen.getByRole("button", { name: "Giao" }));
     const sheet = await screen.findByRole("dialog");
     await user.click(within(sheet).getByRole("button", { name: "Giao 1 việc" }));
 
@@ -124,7 +137,10 @@ describe("ActionItemsBoard — clerk (Main / AfterAssign)", () => {
       priority: "high",
       project_id: demo.project.id,
     });
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã giao 1 việc.", { position: "bottom-center" }));
+    const dock = await screen.findByRole("region", { name: "Việc đã chọn" });
+    await waitFor(() => expect(dock).toHaveTextContent("Đã giao 1 việc"));
+    expect(within(dock).getByRole("button", { name: "Hoàn tác" })).toBeInTheDocument();
+    expect(toast.success).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
@@ -138,7 +154,7 @@ describe("ActionItemsBoard — clerk (Main / AfterAssign)", () => {
     );
     const minhGroup = await screen.findByRole("list", { name: "Việc của Minh Trần" });
     await user.click(within(minhGroup).getAllByRole("checkbox")[0]!);
-    await user.click(screen.getByRole("button", { name: "Xem lại và giao" }));
+    await user.click(screen.getByRole("button", { name: "Giao" }));
     const sheet = await screen.findByRole("dialog");
     await user.click(within(sheet).getByRole("button", { name: "Giao 1 việc" }));
     expect(await within(sheet).findByRole("alert")).toBeInTheDocument();
@@ -221,5 +237,98 @@ describe("ActionItemsBoard — member and outsider", () => {
     expect(screen.getByText("Các việc khác chỉ người dự họp xem được.")).toBeInTheDocument();
     expect(screen.queryByText(/chờ/)).toBeNull();
     expect(screen.getByRole("link", { name: "Mở công việc: Xong · T6 23/10" })).toBeInTheDocument();
+  });
+});
+
+describe("ActionItemsBoard — assign dock, fold and undo (G)", () => {
+  const minhFirst = m1.action_items.items[1]!.id;
+  const minhSecond = m1.action_items.items[3]!.id;
+  const lanPending = m1.action_items.items[13]!.id;
+  // The list as the server answers once these ids became tasks.
+  const convertedList = (ids: readonly string[]) => ({
+    ...actionItems,
+    items: actionItems.items.map((item) =>
+      ids.includes(item.id) ? { ...item, status: "CONVERTED", task: { id: `t-${item.id}`, title: item.title, status: "todo", assignee_id: item.suggested_assignee_id } } : item,
+    ),
+  });
+  const rowOf = (id: string) => document.querySelector(`[data-close-out-row="${id}"]`);
+
+  async function assign(user: ReturnType<typeof userEvent.setup>, count: number) {
+    await user.click(screen.getByRole("button", { name: "Giao" }));
+    const sheet = await screen.findByRole("dialog");
+    await user.click(within(sheet).getByRole("button", { name: `Giao ${count} việc` }));
+  }
+
+  it("selecting rows raises the dock with a rolling count", async () => {
+    const user = userEvent.setup();
+    show("m1", "lan");
+    const minhGroup = await screen.findByRole("list", { name: "Việc của Minh Trần" });
+    expect(screen.queryByRole("region", { name: "Việc đã chọn" })).toBeNull();
+    await user.click(within(minhGroup).getAllByRole("checkbox")[0]!);
+    const dock = screen.getByRole("region", { name: "Việc đã chọn" });
+    expect(dock.querySelector("number-flow-react")).not.toBeNull();
+    expect(dock).toHaveTextContent("Đã chọn 1 việc");
+    await user.click(within(minhGroup).getAllByRole("checkbox")[1]!);
+    expect(dock).toHaveTextContent("Đã chọn 2 việc");
+    // The owners picked show as faces; Đổi người nhận and Đặt hạn act on every picked row.
+    expect(within(dock).getByText("MT")).toBeInTheDocument();
+    expect(within(dock).getByRole("combobox", { name: "Đổi người nhận" })).toBeInTheDocument();
+    expect(within(dock).getByRole("button", { name: "Đặt hạn" })).toBeInTheDocument();
+    await user.click(within(dock).getByRole("button", { name: "Bỏ chọn" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Việc đã chọn" })).toBeNull());
+  });
+
+  it("rows fold only after the conversion succeeds", async () => {
+    const user = userEvent.setup();
+    let answer: (v: unknown) => void = () => {};
+    const { extra } = show("m1", "lan", () => new Promise((resolve) => (answer = resolve)));
+    const minhGroup = await screen.findByRole("list", { name: "Việc của Minh Trần" });
+    await user.click(within(minhGroup).getAllByRole("checkbox")[0]!);
+    await assign(user, 1);
+    await waitFor(() => expect(convertBodies()).toHaveLength(1));
+    // Waiting on the server: the row stays as it was.
+    expect(rowOf(minhFirst)).not.toBeNull();
+    expect(rowOf(minhFirst)!.hasAttribute("data-sent")).toBe(false);
+
+    extra[`${base}/action-items`] = convertedList([minhFirst]);
+    await act(async () => answer({ links: [{ action_item_id: minhFirst, task_id: `t-${minhFirst}` }] }));
+    await waitFor(() => expect(rowOf(minhFirst)?.hasAttribute("data-sent") ?? true).toBe(true));
+    await waitFor(() => expect(rowOf(minhFirst)).toBeNull(), { timeout: 3000 });
+    expect(screen.getByRole("region", { name: "Việc đã chọn" })).toHaveTextContent("Đã giao 1 việc");
+    expect(screen.getByText("Minh Trần · 4 chờ · 3 đã giao")).toBeInTheDocument();
+  });
+
+  it("undo restores only the returned rows", async () => {
+    const user = userEvent.setup();
+    const { extra } = show("m1", "lan", () => Promise.resolve({ links: [minhFirst, minhSecond].map((id) => ({ action_item_id: id, task_id: `t-${id}` })) }), {
+      // The second task was edited meanwhile: the server keeps it.
+      undo: () => {
+        extra[`${base}/action-items`] = convertedList([minhSecond]);
+        return Promise.resolve({ restored: [minhFirst] });
+      },
+    });
+    const minhGroup = await screen.findByRole("list", { name: "Việc của Minh Trần" });
+    await user.click(within(minhGroup).getAllByRole("checkbox")[0]!);
+    await user.click(within(minhGroup).getAllByRole("checkbox")[1]!);
+    extra[`${base}/action-items`] = convertedList([minhFirst, minhSecond]);
+    await assign(user, 2);
+    const dock = await screen.findByRole("region", { name: "Việc đã chọn" });
+    await waitFor(() => expect(dock).toHaveTextContent("Đã giao 2 việc"));
+    await waitFor(() => expect(rowOf(minhSecond)).toBeNull(), { timeout: 3000 });
+
+    await user.click(within(dock).getByRole("button", { name: "Hoàn tác" }));
+    const undone = requestMock.mock.calls.find((c) => String(c[0]).endsWith("/action-items/undo-convert"));
+    expect((undone?.[1] as { body: unknown }).body).toEqual({ action_item_ids: [minhFirst, minhSecond] });
+    await waitFor(() => expect(rowOf(minhFirst)).not.toBeNull());
+    expect(rowOf(minhFirst)!.hasAttribute("data-sent")).toBe(false);
+    expect(rowOf(minhSecond)).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Việc đã chọn" })).toBeNull());
+  });
+
+  it("fully assigned group shows its check", async () => {
+    show("m1", "lan", undefined, { items: convertedList([lanPending]) });
+    expect(await screen.findByText("Lan Phạm · đã giao hết")).toBeInTheDocument();
+    expect(screen.getByText("Minh Trần · 5 chờ · 2 đã giao")).toBeInTheDocument();
   });
 });

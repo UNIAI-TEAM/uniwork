@@ -1,5 +1,6 @@
 "use client";
 import { ChevronRight } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useId, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -23,6 +24,7 @@ import { Byline, Section } from "../ui/section";
 import { SegmentedSm } from "../ui/segmented";
 import { TextButton } from "../ui/text-button";
 import { ConvertedItemRow, PendingItemRow } from "./action-item-row";
+import { DrawnCheck, Rolling } from "./assign-motion";
 import { ownerGroups, ownerOf, type OwnerGroup } from "./owner-groups";
 import { effectiveValues } from "./use-close-out";
 import { ScribeSign } from "../../scribe-sign";
@@ -45,11 +47,38 @@ export function groupMeta(t: TFunction, name: string, group: Pick<OwnerGroup, "p
     .join(" · ");
 }
 
-/** An owner group's overline (kit `.group-h`) with an optional caption button. */
-export function GroupHeader({ label, children, className }: { label: string; children?: ReactNode; className?: string }) {
+/**
+ * An owner group's overline (kit `.group-h`), its counts rolling, with an
+ * optional caption button; `allAssigned` (the owner's name) turns it into
+ * "✓ Lan Phạm · đã giao hết" once nothing of theirs waits (clip G).
+ */
+export function GroupHeader({
+  label,
+  allAssigned,
+  children,
+  className,
+}: {
+  label: string;
+  allAssigned?: string;
+  children?: ReactNode;
+  className?: string;
+}) {
+  const { t } = useTranslation();
   return (
     <div className={cn("flex h-8 items-center justify-between gap-4", className)}>
-      <p className="text-caption font-medium text-muted-foreground">{label}</p>
+      {/* initial={false}: a group already done on load is drawn still; only one finished here pops its ✓. */}
+      <AnimatePresence initial={false}>
+        {allAssigned ? (
+          <motion.p key="done" className="inline-flex items-center gap-1.5 text-caption font-medium text-success" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <DrawnCheck className="size-4.5" />
+            {t("meetings.motion.assign.groupDone", { name: allAssigned })}
+          </motion.p>
+        ) : (
+          <p key="open" className="text-caption font-medium text-muted-foreground">
+            <Rolling text={label} />
+          </p>
+        )}
+      </AnimatePresence>
       {children}
     </div>
   );
@@ -69,9 +98,13 @@ export function ConvertedFold({ items, done }: { items: readonly MeetingActionIt
         onClick={() => setOpen(!open)}
         className="group/fold ml-5 inline-flex h-7 items-center gap-1 self-start rounded-md px-2 text-caption font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground @max-[37.5rem]/meeting:-ml-2 @max-[37.5rem]/meeting:h-11"
       >
-        {done > 0
-          ? t("meetings.detail.closeOut.foldDone", { count: items.length, done })
-          : t("meetings.detail.closeOut.fold", { count: items.length })}
+        <Rolling
+          text={
+            done > 0
+              ? t("meetings.detail.closeOut.foldDone", { count: items.length, done })
+              : t("meetings.detail.closeOut.fold", { count: items.length })
+          }
+        />
         <ChevronRight aria-hidden className="size-3 transition-transform group-aria-expanded/fold:rotate-90 motion-reduce:transition-none" />
       </button>
       {open ? (

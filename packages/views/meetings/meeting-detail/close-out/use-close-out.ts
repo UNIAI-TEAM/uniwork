@@ -52,6 +52,8 @@ export function listKeyAction(event: {
 }
 
 const NONE: ReadonlySet<string> = new Set();
+/** How long Hoàn tác stays on the dock after an assignment (spec G); the server takes back two minutes at most. */
+export const UNDO_MS = 8_000;
 
 /**
  * Selection and per-row edits of the close-out board (brief §2 "Selection
@@ -62,6 +64,16 @@ export function useCloseOut(items: readonly MeetingActionItem[]) {
   const [ticked, setTicked] = useState<ReadonlySet<string>>(NONE);
   const [overrides, setOverrides] = useState<Record<string, ItemOverride>>({});
   const [reviewOpen, setReviewOpen] = useState(false);
+  // The ids the last assignment turned into tasks, held for Hoàn tác; `at` restarts the countdown.
+  const [assigned, setAssigned] = useState<{ ids: readonly string[]; at: number } | null>(null);
+
+  useEffect(() => {
+    if (!assigned) return;
+    const id = setTimeout(() => setAssigned(null), UNDO_MS);
+    return () => clearTimeout(id);
+  }, [assigned]);
+  const markAssigned = useCallback((ids: readonly string[]) => setAssigned({ ids, at: Date.now() }), []);
+  const clearAssigned = useCallback(() => setAssigned(null), []);
 
   const pending = useMemo(() => items.filter((item) => item.status === "PENDING"), [items]);
   const picked = useMemo(() => pending.filter((item) => ticked.has(item.id)), [pending, ticked]);
@@ -125,6 +137,9 @@ export function useCloseOut(items: readonly MeetingActionItem[]) {
     reviewOpen,
     setReviewOpen,
     onListKeyDown,
+    assigned,
+    markAssigned,
+    clearAssigned,
   };
 }
 
