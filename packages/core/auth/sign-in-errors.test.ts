@@ -411,6 +411,11 @@ describe("readLinkResult", () => {
 
   it("reads an unknown result as failed, and nothing when the page did not come back from a link", () => {
     expect(q({ sign_in_method: "google", result: "exploded" })).toMatchObject({ result: "failed", tone: "error" });
+    // Anyone can write a URL: an address not in the server's masked shape is not named.
+    expect(q({ sign_in_method: "google", result: "movable", masked_email: "it-support@uniwork-help.example" })).toMatchObject({
+      key: "settings.security.signInMethods.results.movableUnknown",
+      maskedEmail: null,
+    });
     expect(q({ sign_in_method: "github", result: "linked" })).toBeNull();
     expect(q({ sign_in_method: "google" })).toBeNull();
     expect(q({})).toBeNull();

@@ -12,6 +12,7 @@ import {
   useLinkSignInTicket,
   useLogout,
   useSignInMethods,
+  useSignInTicket,
   useStartSignInMethodLink,
   useUnlinkSignInMethod,
 } from "@uniwork/core/auth";
@@ -117,6 +118,22 @@ export function SignInMethodsSection() {
     // `say` is a fresh closure each render; the query is what decides.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nav]);
+
+  // A move is asked against the pending sign-in itself, never the URL alone:
+  // anyone can write `result=movable` into a link. The dialog opens once the
+  // server holds that provider's sign-in waiting; otherwise the link did not
+  // finish, and is said so.
+  const pendingMove = useSignInTicket({ enabled: move !== null });
+  const moveTicket =
+    move && pendingMove.data?.kind === "link_required" && pendingMove.data.provider === move.provider ? pendingMove.data : null;
+  const moveSettled = move !== null && !pendingMove.isFetching && (pendingMove.isSuccess || pendingMove.isError);
+  useEffect(() => {
+    if (!move || !moveSettled || moveTicket) return;
+    setMove(null);
+    toast.error(t("results.failed", { provider: providerName(move.provider) }));
+    // `t` and providerName are fresh closures; the read settling is what decides.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [move, moveSettled, moveTicket]);
 
   // The shell links in the browser: coming back to the window may mean a
   // new method.
@@ -393,16 +410,16 @@ export function SignInMethodsSection() {
         onConfirm={confirmUnlink}
       />
       <ConfirmDialog
-        open={move !== null && !gate.asking}
+        open={moveTicket !== null && !gate.asking}
         onOpenChange={(open) => {
           if (!open) declineMove();
         }}
-        title={move ? t("move.title", { provider: providerName(move.provider) }) : ""}
+        title={moveTicket ? t("move.title", { provider: providerName(moveTicket.provider) }) : ""}
         description={
-          move
-            ? move.maskedEmail
-              ? t("move.body", { provider: providerName(move.provider), masked: move.maskedEmail })
-              : t("move.bodyUnknown", { provider: providerName(move.provider) })
+          moveTicket
+            ? move?.maskedEmail
+              ? t("move.body", { provider: providerName(moveTicket.provider), masked: move.maskedEmail })
+              : t("move.bodyUnknown", { provider: providerName(moveTicket.provider) })
             : ""
         }
         confirmLabel={t("move.confirm")}

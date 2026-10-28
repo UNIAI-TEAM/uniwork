@@ -6,6 +6,7 @@ import {
   isAppleRelayEmail,
   maskEmail,
   maskedEmailOf,
+  urlMaskedEmailOf,
   remainingAfterUnlink,
   signInMethodKinds,
   unlinkVerdict,
@@ -91,5 +92,15 @@ describe("masked addresses", () => {
     expect(maskedEmailOf(`a@${"x".repeat(260)}`)).toBeNull();
     expect(maskedEmailOf("")).toBeNull();
     expect(maskedEmailOf(42)).toBeNull();
+  });
+
+  it("takes from a URL only the shape the server masks with", () => {
+    expect(urlMaskedEmailOf(maskEmail("an@icloud.com"))).toBe("a•••@icloud.com");
+    expect(urlMaskedEmailOf(maskEmail("😀x@acme.vn"))).toBe("😀•••@acme.vn");
+    // A crafted link names an address of its choosing; it is not shown.
+    expect(urlMaskedEmailOf("it-support@uniwork-help.example")).toBeNull();
+    expect(urlMaskedEmailOf("ab•••@acme.vn")).toBeNull();
+    expect(urlMaskedEmailOf("a•••@acme.vn@evil.example")).toBeNull();
+    expect(urlMaskedEmailOf("•••")).toBeNull();
   });
 });

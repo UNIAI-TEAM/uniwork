@@ -1,5 +1,5 @@
 import { knownProofs, isSignInProvider, type SignInProvider, type StepUpProof } from "../api/endpoints/sign-in-schemas";
-import { maskedEmailOf } from "./sign-in-rules";
+import { maskedEmailOf, urlMaskedEmailOf } from "./sign-in-rules";
 
 /**
  * Every answer of unified sign-in (ADR 0047) as a person reads it: one table
@@ -379,7 +379,7 @@ export function readLinkResult(params: { get(name: string): string | null }): Li
   const raw = params.get("result");
   if (!isSignInProvider(provider) || raw === null) return null;
   const result: LinkResult = LINK_RESULTS.find((known) => known === raw) ?? "failed";
-  const maskedEmail = maskedEmailOf(params.get("masked_email"));
+  const maskedEmail = urlMaskedEmailOf(params.get("masked_email"));
   const unmasked = (result === "taken" || result === "movable") && maskedEmail === null;
   return {
     provider,

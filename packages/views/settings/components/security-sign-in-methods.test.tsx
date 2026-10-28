@@ -32,6 +32,8 @@ const METHODS = {
 const PROVIDERS = { google: true, apple: false, apple_web: true, google_native: false };
 const GRANT = { step_up_token: "sut-1", expires_at: new Date(Date.now() + 600_000).toISOString(), method: "password" };
 const CHANGE = (methods: unknown) => ({ user: USER, sign_in_methods: methods });
+/** The sign-in a Settings link left waiting when the identity sits on an empty account. */
+const APPLE_TICKET = { kind: "link_required", provider: "apple", email: "an@icloud.com", name: "", private_relay: false };
 
 type Answer = unknown | ((body: Record<string, unknown> | undefined) => unknown);
 function route(map: Record<string, Answer>) {
@@ -335,6 +337,7 @@ describe("SignInMethodsSection", () => {
     route({
       "GET /api/v1/me/sign-in-methods": METHODS,
       "GET /api/v1/auth/providers": PROVIDERS,
+      "GET /api/v1/auth/sign-in-ticket": APPLE_TICKET,
       "POST /api/v1/auth/sign-in-ticket/link": CHANGE({ ...METHODS, apple: { ...METHODS.apple, linked: true } }),
     });
     const nav = open("/acme/team/settings?tab=security&sign_in_method=apple&result=movable&masked_email=b%E2%80%A2%E2%80%A2%E2%80%A2%40icloud.com");
@@ -348,10 +351,24 @@ describe("SignInMethodsSection", () => {
     expect(calls("POST /api/v1/me/step-up")).toHaveLength(0);
   });
 
+  it("asks a move only of a sign-in the server holds waiting, whatever the URL says", async () => {
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      // A crafted link: Google is named, but nothing of Google's waits.
+      "GET /api/v1/auth/sign-in-ticket": APPLE_TICKET,
+    });
+    open("/settings?tab=security&sign_in_method=google&result=movable&masked_email=g%E2%80%A2%E2%80%A2%E2%80%A2%40gmail.com");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Chưa liên kết được Google. Thử lại."));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(calls("POST /api/v1/auth/sign-in-ticket/link")).toHaveLength(0);
+  });
+
   it("drops the pending identity when the move is declined", async () => {
     route({
       "GET /api/v1/me/sign-in-methods": METHODS,
       "GET /api/v1/auth/providers": PROVIDERS,
+      "GET /api/v1/auth/sign-in-ticket": { ...APPLE_TICKET, provider: "google", email: "an@gmail.com", private_relay: false },
       "DELETE /api/v1/auth/sign-in-ticket": undefined,
     });
     open("/settings?tab=security&sign_in_method=google&result=movable");

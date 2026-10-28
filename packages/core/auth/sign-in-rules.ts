@@ -85,3 +85,16 @@ export function maskedEmailOf(value: unknown): string | null {
   const masked = value.trim();
   return masked && masked.length <= 254 && masked.includes("@") && !/[\s<>]/.test(masked) ? masked : null;
 }
+
+/** maskEmail's own shape: one character, "•••", "@", a domain with no second "@". */
+const SERVER_MASK = /^[^\s@•<>]•••@[^\s@<>]+$/u;
+
+/**
+ * A masked address that rode a URL (a link result), where anyone can write
+ * anything: only the shape the server writes is shown, so a crafted link
+ * cannot put an address of its choosing into a UniWork dialog.
+ */
+export function urlMaskedEmailOf(value: unknown): string | null {
+  const masked = maskedEmailOf(value);
+  return masked && SERVER_MASK.test(masked) ? masked : null;
+}
