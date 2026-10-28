@@ -426,6 +426,16 @@ Every command that changes business state writes an `audit_events` row and its
   `TestAskCreateOfficeApplyWritesAHandoff`,
   `TestAIUniworkHandoffIgnoredOutsideItsScope` and
   `TestAIUniworkHandoffQuoteCannotCloseItsUntrustedBlock` hold it.
+- The editor AI's one-shot writers (a Word or Markdown document, an HTML page
+  and its brief, a deck's style, outline and pages) run under UniWork AI only
+  through the writer route (`POST /office-frame/documents/{documentID}/ai/uniwork/write`,
+  ADR 0049): a closed set of kinds, the system prompt kept on the server, every
+  input text wrapped as untrusted, counted against the run already open and
+  never opening a new one, and always leaving the run's last model call for
+  the tool round. `TestUniworkWriteNeverOpensARun`,
+  `TestUniworkWriteKeepsTheLastCallForTheToolRound`,
+  `TestWriterRenderWrapsInputAsUntrusted` and
+  `TestUniworkWriteRefusesAKindOfAnotherModule` hold it.
 
 ## Platform Admin and Observability
 

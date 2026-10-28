@@ -322,6 +322,24 @@ Khi người hỏi áp dụng thẻ `create_office_document` mà thẻ ghi "Mở
 - **Việc không bắt đầu trong trình soạn**: xem dòng lý do trên thẻ (`editor_ai`); xem khung có nhận capability `aiStart` không (bundle web phải là bản pin từ `web-0.1.0-6799c67` trở về sau; frame chỉ nhận khi bảng AI dùng UniWork AI); trang chưa giữ được khóa sửa thì việc nằm chờ, chưa bị từ chối. Header của một gói hết hạn, của người khác, tài liệu khác hay hội thoại khác thì server bỏ qua im lặng: lượt chạy như câu hỏi thường.
 - **Dữ liệu**: gói chứa chữ người hỏi đã duyệt; không log và không audit chữ đó (log chỉ có id). Gói không vào bản xuất dữ liệu tổ chức: thẻ đề xuất gốc (`agent_action_proposals`) đã được xuất.
 
+## Hỏi UNI soạn tệp Office: route viết (UNI-2276, ADR 0049)
+
+Các bộ viết một lần của trình soạn (viết cả tài liệu Word/Markdown, trang HTML và brief, style/dàn ý/trang của deck) chạy dưới UniWork AI qua `POST /api/v1/office-frame/documents/{documentID}/ai/uniwork/write` (frame token, chỉ web). Body `{kind, lang, input}`; prompt do server giữ (`server/internal/ai/prompts_office_writer.go`, prompt id `office_writer_<kind>@1`, ví dụ `office_writer_slides_page@1`). Không có cờ riêng: cùng cổng với route chat (quyền sửa tài liệu, `RequireMember`, gói `office.ai_cloud`, `office_ai_uniwork` và `office_ai_uniwork_<định dạng>`, `CheckQuota(ai.tokens)`), nên tắt cờ chat là tắt luôn route viết.
+
+- **Dòng usage**: capability `office_uniwork_writer` (tách khỏi `office_uniwork_ai`), `prompt_id` = `office_writer_<kind>@1` cho biết kind nào tốn credit. Mỗi lời gọi tính một lượt `model_calls` của run đang chạy.
+- **Lỗi và nghĩa của chúng** (trước byte đầu, JSON `{code, message}`):
+  - 400 `invalid_request`: thiếu header `X-UniWork-AI-Run` hoặc `X-UniWork-AI-Conversation` (route viết không bao giờ mở run), `kind` lạ hoặc của module khác, trường lạ hoặc sai kiểu.
+  - 403: `forbidden` (khung chỉ xem), `entitlement_required` (thiếu gói `office.ai_cloud`), `office_capability_off` (cờ tắt).
+  - 409: `run_expired` (run lạ, hết hạn hoặc của hội thoại khác), `conversation_expired`, `run_limit_reached`.
+  - 413 `payload_too_large`: body > 1 MiB hoặc một trường vượt trần của kind; model không được gọi.
+  - 429: `ai_uniwork_busy` (trần đồng thời riêng của route viết, khóa Redis `ai:uniwork-writer:`), `ai_rate_limited` (nhóm `ai-uniwork` dùng chung 60/phút mỗi người).
+  - 402 `credits_exhausted`, 503 `ai_disabled`, 502 `ai_provider_error`, 504 `ai_provider_timeout` như route chat.
+- **`run_limit_reached` trên deck lớn là bình thường.** Lời gọi viết chỉ được nhận khi run đã dùng dưới 9 lượt model (lượt thứ 10 chừa cho vòng công cụ), nên deck từ trang thứ 9 trong một lượt nhận lỗi này: `generate_deck` dừng, đặt các trang đã có và báo trang chưa làm. Không phải sự cố; gói PPTX của Hỏi UNI chia việc để mỗi phần là một run.
+- **Đứt giữa luồng**: sau đoạn chữ đầu, lỗi kết thúc bằng chunk `x_uniwork.terminal` với `code` `ai_provider_error` / `ai_provider_timeout` / `ai_cancelled` rồi `[DONE]` (HTTP vẫn 200); trình soạn coi lần viết là dở dang. Lỗi nhà cung cấp giữa stream **không** tính phí. Hết hạn hoặc hủy sau khi đã có chữ thì Gateway tính phần đã nhận đúng một lần và credit của run tăng bằng số đó. Một dòng usage `failed` không có `cost_micros` là lỗi nhà cung cấp; một dòng `cancelled` có phí là hết hạn/hủy.
+- **Proxy và ingress phía trước server không được đệm response này** (server gửi `X-Accel-Buffering: no`) và phải cho phép chờ đọc giữa hai byte ít nhất bằng hạn của lời gọi viết, `UniworkWriterDeadline` = 300 giây. Nếu ghi bị cắt giữa luồng, kiểm đầu tiên là `proxy_read_timeout` của nginx (hôm nay 300s ở `deploy/app-dev/nginx/uniwork.unicomhub.com`). Mỗi lần ghi SSE có hạn 60 giây phía server; client ngừng đọc thì lời gọi bị hủy.
+- **Đổi trần**: policy `office_uniwork_writer` ở `server/internal/ai/policy.go` (`MaxTokens` 16384, `Temperature` 0.3, `TimeoutScale`/`StreamTimeoutScale` 3); trần đầu ra từng kind ở `writerKindMaxTokens` và trần từng trường ở `writerFields` (`server/internal/ai/prompts_office_writer.go`); hạn 300 giây là `UniworkWriterDeadline` (`server/internal/service/ai_uniwork_writer.go`); trần lượt của run vẫn là `UniworkRunModelCallMax` (lời gọi viết dùng trừ một). Các giá trị là tạm cho tới G7-D1.
+- **Dữ liệu**: `input` và chữ trả về là nội dung tài liệu của người dùng; không log, không audit, không metrics (log chỉ có id). Không có cờ để bật log nội dung.
+
 ## Không bao giờ
 
 - Không log prompt, nguồn hay câu trả lời. `ai_messages` là dữ liệu người dùng,

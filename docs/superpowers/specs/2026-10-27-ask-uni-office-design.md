@@ -205,7 +205,7 @@ Sáu phần, làm theo thứ tự; phần 1 và 2 độc lập với nhau.
 ### Phần 5 — Route viết cho UniWork AI; dựng slide và viết cả tài liệu
 
 - **Server:** đưa `generate_deck` và `regenerate_slide` trở lại bảng công cụ slides cho UniWork AI, chỉ với lượt gắn tài
-  liệu (`openai_facade.go:758-770`, `officeUniworkModulesV1`). Lý do chặn cũ (G6-09a): trên desktop chúng từng ghi nháp
+  liệu (`openai_facade.go:775-782`, `officeUniworkModulesV1`). Lý do chặn cũ (G6-09a): trên desktop chúng từng ghi nháp
   ra ngoài tài liệu đang mở; G6-12 đã sửa cho deck gắn UniWork (`genoffice-tools.md` dòng slides (c)).
 - **Fork:** bỏ hai tên đó khỏi `UNIWORK_AI_HIDDEN_TOOLS` (`apps/slides/src/renderer/ai/slides-skill.ts:1100`); hiện thực
   `localGeneratePage` / `landGeneratedPages` trên web (đang là stub, `web-slides-api.ts:1338-1341`) bằng bộ dựng trang
@@ -216,9 +216,9 @@ Sáu phần, làm theo thứ tự; phần 1 và 2 độc lập với nhau.
 - **Chặn thứ hai, chưa giải.** Ngoài lỗi nháp desktop, `generate_deck`/`regenerate_slide` tự gọi model ngoài vòng công
   cụ (style, dàn ý, từng trang; `genoffice-tools.md` mục 29). Các "bộ viết một lần" đó đánh dấu `purpose: 'one-shot'`
   (`packages/agent-core/src/stream-text.ts:88`, `apps/slides/src/renderer/ai/llm-request.ts:20` ở fork), và đường
-  UniWork AI trên web từ chối mọi yêu cầu như vậy (`web/modules/shared/ai/stream.ts:203-212`). Cùng cơ chế này đứng sau
-  `write_document` của Word (`apps/docs/src/renderer/ai/AiPanel.tsx:957`) và bộ viết trang HTML — nên dưới UniWork AI,
-  hôm nay cả công cụ "viết cả tài liệu" cũng không chạy, dù server đã cho phép (`openai_facade.go:781`).
+  UniWork AI trên web từ chối mọi yêu cầu như vậy (`web/modules/shared/ai/stream.ts:217-232`). Cùng cơ chế này đứng sau
+  `write_document` của Word (`apps/docs/src/renderer/ai/AiPanel.tsx:950-1003`) và bộ viết trang HTML — nên dưới UniWork AI,
+  hôm nay cả công cụ "viết cả tài liệu" cũng không chạy, dù server đã cho phép (`openai_facade.go:801,806,810`).
 - **Route viết phía server (Q9).** Thêm một route UniWork AI cho các lời gọi "viết một lần", mount bằng frame token như
   route chat (`office_frame_ai.go`), cùng cổng: `RequireMember` → gói `office.ai_cloud` → cờ `office_ai_uniwork` và cờ
   định dạng → `CheckQuota(ai.tokens)` → `ai.Gateway`.
@@ -229,7 +229,7 @@ Sáu phần, làm theo thứ tự; phần 1 và 2 độc lập với nhau.
   - Mỗi lời gọi mang `X-UniWork-AI-Run` của lượt đang chạy, ghi usage vào run đó và đếm vào trần `model_calls` đã có
     (`run_limit_reached`, `fields.limit = model_calls`). Trần đầu ra và hạn thời gian theo `ModelPolicy` của
     `office_uniwork_ai`; giá trị do G7-D1.
-  - Fork: trong `uniworkTurn` (`web/modules/shared/ai/stream.ts:200-212`), yêu cầu `purpose: 'one-shot'` đi tới route
+  - Fork: trong `uniworkTurn` (`web/modules/shared/ai/stream.ts:217-232`), yêu cầu `purpose: 'one-shot'` đi tới route
     viết thay vì bị từ chối; các chỗ gọi (`stream-text.ts`, `llm-request.ts`) gửi kèm loại bộ viết. Prompt viết của
     fork và của server phải khớp định dạng đầu ra (HTML hạn chế của Word, JSON spec trang slide 1280×720); một test
     ở mỗi repo giữ hợp đồng này.
