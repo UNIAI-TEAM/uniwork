@@ -8,7 +8,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 
 type AudioContextCtor = new () => AudioContext;
 
-function audioContextCtor(): AudioContextCtor | null {
+export function audioContextCtor(): AudioContextCtor | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as { AudioContext?: AudioContextCtor; webkitAudioContext?: AudioContextCtor };
   return w.AudioContext ?? w.webkitAudioContext ?? null;

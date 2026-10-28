@@ -10,6 +10,7 @@ import { UniChatIcon } from "@uniwork/ui/brand/unichat-icon";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { tintSolidClass, type Tint } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useLogoutUnsentGuard } from "../../layout/logout-unsent-guard";
 import { initialsOf } from "../../layout/workspace-rail";
 import { useNavigation } from "../../navigation";
 import { AccountTab } from "./account-tab";
@@ -75,6 +76,7 @@ export function ChatSettingsPage() {
   const { searchParams, pathname, replace } = useNavigation();
   const user = useAuthStore((s) => s.user);
   const { mutateAsync: logout } = useLogout();
+  const { confirmLogout, dialog } = useLogoutUnsentGuard(user?.id);
   const chosen = SECTIONS.find((section) => section.value === searchParams.get("tab")) ?? SECTIONS[0]!;
   const choose = (value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -138,19 +140,22 @@ export function ChatSettingsPage() {
           <button
             type="button"
             className="flex h-11 w-full items-center gap-3 rounded-xl px-2.5 text-left text-body text-destructive hover:bg-surface-hover"
-            onClick={async () => {
-              try {
-                await logout();
-              } finally {
-                replace(paths.login());
-              }
-            }}
+            onClick={() =>
+              confirmLogout(async () => {
+                try {
+                  await logout();
+                } finally {
+                  replace(paths.login());
+                }
+              })
+            }
           >
             <span className="flex size-7.5 shrink-0 items-center justify-center rounded-[9px] bg-tint-red">
               <LogOut aria-hidden className="size-4" />
             </span>
             {t("auth.logout")}
           </button>
+          {dialog}
         </div>
       </aside>
       <main className="min-w-0 flex-1 overflow-y-auto bg-chat-rail">

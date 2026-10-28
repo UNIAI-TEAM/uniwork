@@ -28,6 +28,14 @@ const uniworkRunWire = " Mọi câu trả lời của một run mang header X-Un
 	"khi run đã tồn tại; client gửi lại id đó ở mọi lượt tiếp theo (tool result, retry, câu hỏi tiếp), và một lượt tool-result thiếu header là 400 invalid_request. " +
 	"Lượt bị từ chối trước khi run tồn tại (402, 403, 404, 409 conversation_expired, 429 của limiter) không mang header run; client giữ id đang có."
 
+// uniworkHandoffWire is the Ask UNI handoff on the wire (ADR 0048): only the
+// document-bound routes read it, and a package the caller may not use is
+// ignored without a trace.
+const uniworkHandoffWire = " Header X-UniWork-AI-Handoff (tùy chọn, chỉ route có tài liệu): id gói giao việc Hỏi UNI để lại khi tạo tệp. " +
+	"Lượt câu hỏi mang id gói còn hiệu lực của chính người gọi cho đúng tài liệu này thì server mở rộng câu hỏi bằng yêu cầu, dàn ý, " +
+	"phần cần làm và tư liệu đã duyệt, rồi trả X-UniWork-AI-Handoff-Remaining (số phần còn lại sau lượt này). " +
+	"Id hết hạn, của người hay tài liệu khác, hoặc không tồn tại thì bị bỏ qua: lượt chạy như câu hỏi thường, không có header Remaining."
+
 // tag: ai — the UniWork AI façade (G6-03a): one agent turn per call, with the
 // conversation held by the server. The client sends the new question, or the
 // tool results of the call the server just made; it never sends history (rule
@@ -57,7 +65,7 @@ func registerAIUniwork(r api, h Routes, limiter func(http.Handler) http.Handler)
 		summary: "UniWork AI chat, one turn for a document",
 		description: "Một lượt UniWork AI cho tài liệu UniWork mở trên app desktop (OQ-P2, A10): tổ chức, " +
 			"workspace và module suy từ tài liệu (trường module trong body bị bỏ qua), quyền đọc được kiểm lại " +
-			"mỗi request — mất quyền thì hội thoại của người đó cho tài liệu bị dọn và lượt bị từ chối." + uniworkRunWire + uniworkChatErrs,
+			"mỗi request — mất quyền thì hội thoại của người đó cho tài liệu bị dọn và lượt bị từ chối." + uniworkRunWire + uniworkHandoffWire + uniworkChatErrs,
 		tags: []string{"ai"},
 		sdi:  sdi.AiUniworkChatCompletionsSDI{},
 		sdo:  sdo.AiUniworkChatCompletionsSDO{},

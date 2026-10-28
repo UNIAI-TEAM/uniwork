@@ -31,7 +31,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AskUniProviderMark, type AskLook } from "./ask-uni-provider";
 import "./ask-uni-empty.css";
 
-const KINDS = ["task", "project", "meeting", "document", "room"];
+const KINDS = ["task", "project", "meeting", "document", "drive_file", "room"];
 
 // Spelled out so Tailwind finds each class in the source.
 const TINT = {
@@ -49,6 +49,7 @@ const SETS: Record<string, [LucideIcon, keyof typeof TINT][]> = {
   project: [[ChartColumn, "blue"], [Clock, "orange"], [Users, "violet"], [UserX, "teal"]],
   meeting: [[ScrollText, "blue"], [CircleCheck, "green"], [ListChecks, "violet"], [ClipboardList, "orange"]],
   document: [[FileText, "blue"], [CalendarClock, "orange"], [Link, "teal"], [UserRound, "violet"]],
+  drive_file: [[FileText, "blue"], [CalendarClock, "orange"], [ListChecks, "teal"], [UserRound, "violet"]],
   room: [[MessagesSquare, "blue"], [ListPlus, "orange"], [Hourglass, "violet"], [CircleCheck, "green"]],
   other: [[Clock, "orange"], [ListOrdered, "blue"], [Video, "violet"], [CircleCheck, "green"]],
   more: [[Users, "blue"], [Flag, "orange"], [CalendarDays, "violet"], [Flame, "red"]],
@@ -77,8 +78,9 @@ export function AskUniEmptyState({
   const reduce = useReducedMotion() ?? false;
   // Members and page kinds without a set (threads, messages) share the general questions.
   const set = kind && KINDS.includes(kind) ? kind : "other";
-  const rows = [set, set === "other" ? "more" : "other"];
+  const rows = set === "drive_file" ? ["drive_file"] : [set, set === "other" ? "more" : "other"];
   const branded = look !== null && model !== "";
+  const titleKey = branded ? `empty.title_${look}` : set === "drive_file" ? "empty.title_drive_file" : "empty.title";
   const chips = (row: string) =>
     SETS[row]!.map(([Icon, tint], i) => {
       const q = t(`empty.${row}.${i + 1}`);
@@ -88,7 +90,7 @@ export function AskUniEmptyState({
           type="button"
           aria-disabled={disabled || undefined}
           onClick={disabled ? undefined : () => onAsk(q)}
-          className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-[var(--ask-input)] py-1 pr-3 pl-2 text-label text-foreground transition-colors hover:border-primary hover:bg-surface-hover"
+          className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-[var(--ask-input)] py-1 pr-3 pl-2 text-label text-foreground transition-colors hover:border-primary hover:bg-surface-hover pointer-coarse:min-h-11"
         >
           <Icon aria-hidden className={cn("size-3.5 shrink-0", TINT[tint])} />
           {q}
@@ -105,7 +107,7 @@ export function AskUniEmptyState({
         <AskUniProviderMark look={branded ? look : null} size={branded ? 36 : 48} />
       </span>
       <div className="ask-uni-welcome flex flex-col items-center gap-1 text-center">
-        <h2 className="text-title font-medium text-foreground">{t(branded ? `empty.title_${look}` : "empty.title")}</h2>
+        <h2 className="text-title font-medium text-foreground">{t(titleKey)}</h2>
         <p className="text-body text-muted-foreground">
           {branded ? t(`models.${model}.description`, { defaultValue: "" }) : t("model.auto_description")}
         </p>

@@ -64,9 +64,16 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.q.WithTx(tx)
+	if err := lockMembership(ctx, qtx, userID); err != nil {
+		return err
+	}
+	if err := lockDeleteAccountOrganizationAndGrantLocks(ctx, qtx, userID, owned > 0, closeSlug); err != nil {
+		return err
+	}
 	var closedMailboxes []db.DisconnectEmailHubAccountsForUserRow
+	var closedDriveSubs []string
 	if owned > 0 {
-		if closedMailboxes, err = closeSoleOrganization(ctx, qtx, userID, closeSlug); err != nil {
+		if closedMailboxes, closedDriveSubs, err = closeSoleOrganization(ctx, qtx, userID, closeSlug); err != nil {
 			return err
 		}
 		// Anything still owned (a second organization from before ADR 0032,
@@ -144,6 +151,10 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	if err != nil {
 		return err
 	}
+	driveSubs, err := disconnectDriveConnectionsForUserInTx(ctx, qtx, audit.User(userID), userID, "", "account_deleted")
+	if err != nil {
+		return err
+	}
 	if err := auditRecorder.Record(ctx, qtx, audit.Entry{
 		OrganizationID: audit.NoOrganization, Actor: audit.User(userID),
 		Action: audit.ActionUserDeleted, ResourceType: "user", ResourceID: userID,
@@ -195,7 +206,7 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, leases)
 	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, append(closedMailboxes, mailboxes...))
-	// u was read before AnonymizeUser cleared the Apple columns.
+	cleanUpDriveGrantsAfterCommit(ctx, s.drive, append(closedDriveSubs, driveSubs...))
 	s.apple.revokeAfterCommit(ctx, userID, u.AppleClientID.String, u.AppleRefreshTokenEnc.String)
 	return nil
 }
@@ -205,20 +216,57 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 // checks: the caller owns it, it is active, nobody else is an active member,
 // the slug matches. Its organization.closed row says the account deletion
 // closed it. A slug naming no organization the account owns is a mismatch.
-func closeSoleOrganization(ctx context.Context, q *db.Queries, userID, slug string) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
+func closeSoleOrganization(ctx context.Context, q *db.Queries, userID, slug string) ([]db.DisconnectEmailHubAccountsForUserRow, []string, error) {
 	if err := lockMembership(ctx, q, userID); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	orgs, err := activeOrganizations(ctx, q, userID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, o := range orgs {
 		if o.Role == OrgRoleOwner && o.Slug == slug {
 			return closeOrganizationQ(ctx, q, userID, o.ID, slug, map[string]any{"reason": "account_deleted"})
 		}
 	}
-	return nil, errCloseConfirmMismatch()
+	return nil, nil, errCloseConfirmMismatch()
+}
+
+// lockDeleteAccountOrganizationAndGrantLocks acquires the sole-owned
+// organization's member and organization row locks (when closing an owned
+// organization) BEFORE acquiring the sorted all-organization drive_grant:<sub>
+// advisory lock union (R3-1). This keeps the global lock order across all
+// membership commands: organization/member row locks -> sorted drive_grant:<sub>
+// union -> drive_connections row locks.
+func lockDeleteAccountOrganizationAndGrantLocks(ctx context.Context, q *db.Queries, userID string, hasOwned bool, closeSlug string) error {
+	if hasOwned {
+		orgs, err := activeOrganizations(ctx, q, userID)
+		if err != nil {
+			return err
+		}
+		var targetID string
+		for _, o := range orgs {
+			if o.Role == OrgRoleOwner && o.Slug == closeSlug {
+				targetID = o.ID
+				break
+			}
+		}
+		if targetID == "" {
+			return errCloseConfirmMismatch()
+		}
+		if _, err := q.LockOrganizationMemberForUpdate(ctx, db.LockOrganizationMemberForUpdateParams{
+			OrganizationID: targetID, UserID: userID,
+		}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrForbidden
+			}
+			return err
+		}
+		if _, err := q.LockOrganizationForUpdate(ctx, targetID); err != nil {
+			return err
+		}
+	}
+	return lockAllDriveGrantSubsForUserInTx(ctx, q, userID)
 }
 
 // ownerMustTransfer is owner_must_transfer naming the first organization the

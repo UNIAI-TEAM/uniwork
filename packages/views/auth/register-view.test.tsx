@@ -146,6 +146,19 @@ describe("RegisterView", () => {
     await waitFor(() => expect(screen.getByLabelText("Tên hiển thị")).toHaveFocus());
   });
 
+  it("keeps a join next on the login link and Google start", async () => {
+    requestMock.mockResolvedValue({ google: true });
+    const nav = adapter();
+    const next = "/join/l1#secret=s3cret";
+    render(wrap(<RegisterView onSuccess={() => {}} next={next} />, nav));
+
+    fireEvent.click(screen.getByRole("link", { name: "Đăng nhập" }));
+    expect(nav.push).toHaveBeenCalledWith(`/login?next=${encodeURIComponent(next)}`);
+
+    const google = await screen.findByRole("link", { name: "Tiếp tục với Google" });
+    expect(google.getAttribute("href")).toContain(`next=${encodeURIComponent(next)}`);
+  });
+
   // Apple 1.2 / Play UGC: signing up is agreeing to terms that forbid objectionable content.
   it("says signing up agrees to the terms, and links the terms and the privacy policy in the reader's language", () => {
     const nav = adapter();

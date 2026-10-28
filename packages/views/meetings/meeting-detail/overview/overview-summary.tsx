@@ -188,6 +188,7 @@ function SummaryStateCard({
 /** Tóm tắt (brief §2.6 + AfterAIStates c1–c3): the AI's prose with its byline, or why there is none yet. */
 export function OverviewSummary({ model }: { model: OverviewSummaryModel }) {
   const { t, i18n } = useTranslation();
+  const { transcribing } = useDetail();
   const { gen, state, failure, attempts, finalized, times, transcriptReady } = model;
   const reasonId = useId();
   if (state === "off") return null;
@@ -243,6 +244,24 @@ export function OverviewSummary({ model }: { model: OverviewSummaryModel }) {
       <MeetingSectionError message={t("meetings.summaryLoadFailed")} onRetry={() => void gen.summaryQuery.refetch()} />
     ) : state === "failed" ? (
       failed
+    ) : state === "none" && transcribing ? (
+      // In person, the recording is still being transcribed: no summary to ask for yet (board p07).
+      <SummaryStateCard
+        mark="composing"
+        title={t("meetings.record.summaryTranscribing")}
+        caption={
+          <>
+            <span aria-hidden className="mt-2 mb-1.5 block h-1 max-w-90 overflow-hidden rounded-full bg-tint-violet">
+              <span
+                className="block h-full rounded-full bg-tint-violet-foreground"
+                // Received is a third; transcribing fills the second third as parts finish.
+                style={{ width: `${Math.round(((1 + (transcribing.seconds ? 1 - transcribing.openSeconds / transcribing.seconds : 0)) / 3) * 100)}%` }}
+              />
+            </span>
+            {t("meetings.record.summarySteps")}
+          </>
+        }
+      />
     ) : state === "none" ? (
       <SummaryStateCard
         mark={gen.aiOn || !gen.capsLoaded ? "idle" : "off"}

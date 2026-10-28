@@ -72,3 +72,37 @@ func TestMoveMessageOutOfGmailAllMailOnlyCopies(t *testing.T) {
 	}
 	noBareExpunge(t, f)
 }
+
+func TestMoveUIDsBatchesOnOneSession(t *testing.T) {
+	t.Parallel()
+	f := &fakeIMAP{caps: "MOVE UIDPLUS"}
+	creds := f.start(t)
+	sess, err := OpenSessionInteractive(creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Close()
+	if err := sess.MoveUIDs("INBOX", []uint32{1, 2, 3}, "Archive"); err != nil {
+		t.Fatal(err)
+	}
+	moved := false
+	for _, cmd := range f.commands() {
+		if strings.HasPrefix(cmd, "UID MOVE ") && strings.Contains(cmd, `"Archive"`) {
+			moved = true
+			break
+		}
+	}
+	if !moved {
+		t.Fatalf("expected one batched UID MOVE, got %q", f.commands())
+	}
+	selects := 0
+	for _, cmd := range f.commands() {
+		if strings.HasPrefix(cmd, "SELECT ") {
+			selects++
+		}
+	}
+	if selects != 1 {
+		t.Fatalf("expected one SELECT for the batch, got %d in %q", selects, f.commands())
+	}
+	noBareExpunge(t, f)
+}

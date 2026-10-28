@@ -67,15 +67,24 @@ describe("meeting signals", () => {
   });
 
   it("maps host participants to LiveKit identities and ignores others", () => {
-    const host = { id: "p-host", user_id: "u-host", role: "ATTENDEE" };
-    const namedHost = { id: "p-role", user_id: "u-other", role: "HOST" };
-    const guest = { id: "p-guest", user_id: "u-guest", role: "ATTENDEE" };
-    expect(muteRequesterIdentities("u-host", [host, namedHost, guest])).toEqual([
+    const host = { id: "p-host", user_id: "u-host" };
+    const markedHost = { id: "p-marked", user_id: "u-other", is_host: true };
+    const member = { id: "p-member", user_id: "u-member" };
+    expect(muteRequesterIdentities("u-host", [host, markedHost, member])).toEqual([
       "uw_participant_p-host",
-      "uw_participant_p-role",
+      "uw_participant_p-marked",
     ]);
     expect(shouldHonorMuteRequest("uw_participant_p-host", ["uw_participant_p-host"])).toBe(true);
     expect(shouldHonorMuteRequest("uw_participant_p-guest", ["uw_participant_p-host"])).toBe(false);
+  });
+
+  // UNI-890: a guest never reads the meeting, so it has no host_user_id. The host is the seat the list marks,
+  // and a guest's own row (no user_id) is never taken for the host.
+  it("on a guest's client finds the host by is_host, never by a missing user id", () => {
+    const host = { id: "p-host", user_id: "u-host", is_host: true };
+    const guest = { id: "p-guest" };
+    expect(muteRequesterIdentities(undefined, [host, guest])).toEqual(["uw_participant_p-host"]);
+    expect(muteRequesterIdentities(undefined, [{ id: "p-host", user_id: "u-host" }, guest])).toEqual([]);
   });
 });
 

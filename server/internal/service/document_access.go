@@ -250,6 +250,7 @@ func (s *DocumentService) openVersionFile(ctx context.Context, doc db.Document, 
 	if err != nil {
 		return DocumentFile{}, err
 	}
+	r.File.Filename = s.versionFilename(ctx, doc, v, r.File.Filename)
 	return DocumentFile{Reader: r, Document: doc, Version: v}, nil
 }
 

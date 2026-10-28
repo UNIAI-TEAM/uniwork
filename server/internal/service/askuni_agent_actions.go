@@ -50,7 +50,7 @@ type askWrites struct {
 // turnWrites is the write side of a turn, nil when it is sent no write tool
 // (R2): only a dock turn, the flag on, and a ceiling that leaves a mode.
 func (s *AskUNIService) turnWrites(ctx context.Context, tc ai.ToolContext, in AskInput) *askWrites {
-	if !in.Dock {
+	if !in.Dock || in.Transient {
 		return nil
 	}
 	a := s.askActions(ctx, tc, in.Mode)

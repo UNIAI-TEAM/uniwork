@@ -318,6 +318,27 @@
         "fixes": {
           "cf9e65a0f7a8a8387d6ddf7ba8acee85c6c039c63": "Thanh toán VNPay: khi bạn quay lại từ VNPay mà chưa hoàn tất thanh toán, trang Thanh toán báo đã hủy ngay thay vì chờ xác nhận."
         }
+      },
+      "v1_12_0": {
+        "title": "Họp trực tiếp có ghi âm và biên bản, Hỏi UNI tạo tệp Office từ mẫu, link mời dùng nhiều lần",
+        "summary": "Cuộc họp có hình thức Trực tiếp: một máy trong phòng ghi âm ngay trên trình duyệt, họp xong có biên bản và việc đề xuất. Tài liệu có mục Mẫu văn bản cho cả workspace, và Hỏi UNI tạo được tệp Office mới từ mẫu, tệp đính kèm hoặc tệp trống. Tổ chức và workspace có link mời dùng nhiều lần. Khi rời phòng họp, chủ trì chọn chỉ rời, chuyển quyền hoặc kết thúc cho mọi người. Tài liệu chia sẻ được cả thư mục và mở tệp Office định dạng cũ bằng UniWork Office.",
+        "note": "Ghi âm họp trực tiếp chỉ có khi tổ chức được bật ghi lời cuộc họp và gói đang dùng có phút ghi lời; nếu chưa, bạn vẫn đặt lịch họp trực tiếp và ghi nhận đã họp như trước. Hỏi UNI tạo tệp Office cần tính năng AI và thao tác của Hỏi UNI được bật cho tổ chức; tệp chỉ được tạo sau khi bạn xác nhận trên thẻ, và Hỏi UNI chưa tự viết nội dung theo dàn ý vào tệp.",
+        "features": {
+          "c6cbd2bbb048a5379f54a25dce30fbe88b030f426": "Link mời dùng nhiều lần cho tổ chức và workspace: tạo, thu hồi hoặc tạo lại link để chia sẻ cho nhiều người cùng lúc. Người mở link khi đang ở một tổ chức khác được hướng dẫn chuyển tổ chức, vì mỗi tài khoản chỉ thuộc một tổ chức. Người chưa có tài khoản đăng ký và xác minh email xong thì vào thẳng nơi được mời, không phải tạo tổ chức mới.",
+          "c4228c23e3f2b0c806c324186730aa56559b9990e": "Rời và kết thúc cuộc họp: khi chủ trì bấm Rời phòng, chọn chỉ rời (vẫn giữ quyền chủ trì), chuyển quyền cho người đang trong phòng, hoặc kết thúc cho mọi người. Sau khi rời, mỗi người thấy màn phù hợp: vào lại với mic và camera như lúc rời; chủ trì ở ngoài vẫn duyệt người xin vào và dừng ghi hình được; khi họp kết thúc có người kết thúc, thời lượng, số người dự, trạng thái biên bản và việc của bạn; người bị mời ra biết ai mời và lúc nào; khách được cảm ơn và mời dùng thử UniWork. Bạn cũng có thể đánh giá nhanh chất lượng cuộc gọi.",
+          "c7f427c7f30d2e29c7b08d0d33d3ebf9d48aa5510": "Tài liệu có mục Mẫu văn bản dùng chung cho cả workspace, nhóm theo Word, Excel, PowerPoint và Khác. Tải mẫu lên bằng nút Tải mẫu lên hoặc kéo thả tệp vào mục này; trong menu của mỗi dòng có Đánh dấu là mẫu và Bỏ khỏi Mẫu. Thành viên xem được tài liệu thì đánh dấu được; với tài liệu riêng tư, người có quyền quản lý phải xác nhận mở tài liệu cho cả workspace chỉnh sửa. Tài liệu đã lưu trữ hoặc đang ở thùng rác không đánh dấu là mẫu được.",
+          "cb7ffc3f9677e4cf5bb92bfa345773eb1e4dc1e1f": "Tài liệu: chia sẻ cả thư mục bằng mục Chia sẻ trong menu thư mục — xem trước, rồi áp dụng quyền cho mọi tài liệu trong thư mục và các thư mục con; việc chạy nền và bạn nhận thông báo khi xong, kể cả khi đã rời Tài liệu. Tài liệu có giới hạn truy cập đặc biệt được giữ nguyên. Tệp Word, Excel, PowerPoint định dạng cũ (.doc, .xls, .ppt) trên web được mở bằng UniWork Office; trong app máy tính (từ bản beta.10), bản chuyển đổi được lưu thành phiên bản tiếp theo của chính tài liệu đó. Ô tìm kiếm trong Tài liệu gọn hơn.",
+          "c0cd5e5ae6b1803536689748f96dc5e7bcc1b2525": "Hỏi UNI tạo tệp Office: nhờ Hỏi UNI soạn báo giá, hóa đơn hay bài trình chiếu, Hỏi UNI tìm mẫu trong Mẫu văn bản hoặc dùng tệp bạn đính kèm, rồi đưa thẻ kế hoạch có dàn ý bạn sửa được. Bấm Tạo và mở để có tệp mới của riêng bạn — từ mẫu, từ tệp đính kèm hoặc tệp trống (Word, Excel, PowerPoint, PDF, Markdown, HTML) — và mở ngay trong trình soạn; mẫu gốc không đổi. Hỏi UNI cũng có thể đề xuất lưu tệp đính kèm vào Mẫu văn bản. Hoàn tác sẽ chuyển tệp vừa tạo vào thùng rác.",
+          "c0c9a7ae41d024ebecc4eebc94917b2bb8a171347": "Họp trực tiếp không cần giấy: khi lên lịch hoặc họp ngay, chọn hình thức Trực tiếp. Một máy trong phòng bấm Bắt đầu ghi âm ngay trên trình duyệt, rồi Kết thúc và gửi; bản ghi được ghi lời, tách người nói, tóm tắt, đề xuất việc và lập biên bản như file ghi âm tải lên. Âm thanh được lưu dần trên máy nên đóng tab, hết pin hay mất mạng không làm mất phần đã ghi; có mạng lại thì phần còn lại tự gửi tiếp, và app nhắc nếu bạn đăng xuất khi còn bản ghi chưa gửi. Họp trực tiếp không có Thư ký UNI; người đã từ chối lời mời được gợi ý vắng mặt khi điểm danh."
+        },
+        "improvements": {
+          "ce4e631d6b566eeb4aa8e15e03668f517ce02a82d": "Trang Bảng giá: thẻ gói hiện thêm số phút ghi lời cuộc họp của gói. Bảng so sánh tính năng chỉ hiện khi các gói khác nhau thật ở ít nhất ba tính năng, và có thêm các dòng AI cho Office (khóa AI riêng, công cụ AI đám mây).",
+          "c6fcf7fd13c09a42ca3e91fd1d4e256c1feb2e513": "Email Hub nhanh hơn: danh sách thư tải nhẹ hơn và cuộn mượt hơn khi hộp thư dài; chuyển thư sang thư mục khác và tạm ẩn thư phản hồi ngay, còn thư mục đích được đồng bộ ở chế độ nền. Danh sách thư được giữ nguyên khi bạn mở đọc một thư."
+        },
+        "fixes": {
+          "c4458af37e9a9c952f6a5a985672db59325e3da30": "Chat: công việc tạo từ tin nhắn có nhắc tên giờ hiện @Tên trong tiêu đề thay vì mã nhắc thô, và thẻ công việc không còn tràn khi có chuỗi dài.",
+          "cf0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf": "Tài liệu: chọn nhiều tài liệu rồi tải về thành tệp zip không còn bị lỗi khi lưu tệp; nếu tải không được, app báo lỗi và không lưu tệp rỗng."
+        }
       }
     }
   },
@@ -1223,6 +1244,77 @@
       "webhooks": {
         "title": "Webhook",
         "meta": "Gửi sự kiện của UniWork sang hệ thống của bạn, có chữ ký để xác minh nguồn gửi"
+      },
+      "drive": {
+        "title": "Google Drive",
+        "meta": "Liên kết tài liệu Google Drive vào việc, chỉ với tệp bạn tự chọn; UNI đọc và đề xuất việc để bạn duyệt, UniWork chỉ lưu liên kết và không xóa tệp của bạn.",
+        "not_connected": "Chưa kết nối",
+        "new_badge": "Mới",
+        "connect": "Kết nối Google Drive",
+        "connecting": "Đang kết nối…",
+        "manage": "Quản lý",
+        "add_account": "Kết nối thêm tài khoản",
+        "consent_hint": "Ở màn hình của Google, hãy tick ô quyền truy cập tệp Google Drive rồi bấm Tiếp tục.",
+        "connected_one": "Đã kết nối {{count}} tài khoản",
+        "connected_other": "Đã kết nối {{count}} tài khoản",
+        "needs_reconnect_one": " · {{count}} mất kết nối",
+        "needs_reconnect_other": " · {{count}} mất kết nối",
+        "load_error": "Không tải được tài khoản Google Drive",
+        "retry": "Thử lại",
+        "oauth_pending": "Hoàn tất đăng nhập trong cửa sổ vừa mở.",
+        "oauth_show_window": "Mở lại cửa sổ",
+        "oauth_closed": "Cửa sổ đăng nhập đã đóng trước khi kết nối xong. Thử lại.",
+        "popup_blocked": "Trình duyệt đã chặn cửa sổ đăng nhập. Cho phép cửa sổ bật lên (pop-up) với UniWork rồi thử lại.",
+        "scope_label": "Phạm vi quyền",
+        "scope_value": "Chỉ tệp bạn chọn",
+        "linked_count_label": "Tài liệu đã liên kết",
+        "linked_count_one": "{{count}} tài liệu đã liên kết",
+        "linked_count_other": "{{count}} tài liệu đã liên kết",
+        "linked_count_unknown": "—",
+        "storage_label": "UniWork lưu",
+        "storage_value": "Chỉ liên kết, không lưu nội dung",
+        "view": {
+          "accounts_title": "Tài khoản đã kết nối",
+          "empty": "Chưa có tài khoản Google Drive nào được kết nối."
+        },
+        "uni_permissions": {
+          "title": "UNI được làm gì với tài liệu đã liên kết",
+          "read": "Đọc khi bạn hỏi, bằng quyền Google Drive của chính bạn",
+          "propose": "Đề xuất việc từ nội dung tài liệu",
+          "confirm_only": "Chỉ tạo việc sau khi bạn duyệt",
+          "never": "Không tự sửa, không xóa tệp, không lưu bản sao"
+        },
+        "account": {
+          "connected_at": "Kết nối {{when}}",
+          "status_active": "Đang hoạt động",
+          "lost_reconnect": "Mất kết nối",
+          "reconnect": "Kết nối lại",
+          "reconnect_aria": "Kết nối lại {{email}}",
+          "disconnect": "Ngắt kết nối",
+          "disconnect_aria": "Ngắt kết nối {{email}}"
+        },
+        "disconnect_dialog": {
+          "title": "Ngắt kết nối {{email}}?",
+          "description": "UniWork sẽ ngừng đọc tệp Google Drive qua tài khoản này. Các tệp đã liên kết vẫn ở lại trong việc với trạng thái mất kết nối; tệp trên Google Drive giữ nguyên.",
+          "confirm": "Ngắt kết nối",
+          "cancel": "Hủy",
+          "success": "Đã ngắt kết nối {{email}}",
+          "error": "Chưa ngắt được kết nối. Thử lại."
+        },
+        "callback": {
+          "connected": "Đã kết nối Google Drive. Bạn có thể liên kết tài liệu vào việc.",
+          "reconnected": "Đã kết nối lại Google Drive.",
+          "consent_required": "Google chưa cấp quyền truy cập lâu dài. Thử lại và cho phép quyền UniWork yêu cầu.",
+          "scope_not_granted": "Bạn chưa cấp quyền chọn tệp Google Drive cho UniWork. Kết nối lại; ở màn hình của Google, hãy tick ô quyền truy cập tệp Google Drive rồi bấm Tiếp tục.",
+          "account_mismatch": "Bạn đã đăng nhập bằng tài khoản Google khác với tài khoản cần kết nối lại. Chọn đúng tài khoản {{email}} hoặc dùng \"Kết nối thêm tài khoản\".",
+          "account_mismatch_generic": "Bạn đã đăng nhập bằng tài khoản Google khác với tài khoản cần kết nối lại. Chọn đúng tài khoản cần kết nối lại hoặc dùng \"Kết nối thêm tài khoản\".",
+          "state_invalid": "Phiên kết nối đã hết hạn hoặc được mở ở trình duyệt khác. Thử lại từ cửa sổ này.",
+          "retry_connect": "Kết nối vừa bị ngắt ở nơi khác, hãy thử lại sau ít phút.",
+          "blocked_by_workspace_admin": "Quản trị viên Google Workspace của tổ chức bạn chưa cho phép UniWork truy cập Google Drive. Hãy nhờ quản trị viên Google Workspace cho phép ứng dụng UniWork.",
+          "access_denied": "Bạn đã hủy đăng nhập hoặc từ chối cấp quyền cho UniWork.",
+          "provider_error": "Google Drive tạm thời không phản hồi. Thử lại sau ít phút.",
+          "unknown": "Không hoàn tất được kết nối Google Drive. Thử lại."
+        }
       }
     },
     "billing": {
@@ -1518,6 +1610,8 @@
         "task.updated": "Cập nhật việc",
         "task.deleted": "Xóa việc",
         "task.comment_added": "Bình luận vào việc",
+        "task.drive_file_linked": "Liên kết tệp từ Google Drive",
+        "task.drive_file_unlinked": "Bỏ liên kết tệp Google Drive",
         "subscription.changed": "Đổi gói dịch vụ",
         "audit.retention_set": "Đổi thời gian lưu nhật ký",
         "audit.export_requested": "Yêu cầu xuất nhật ký",
@@ -1526,7 +1620,16 @@
         "privacy.deletion_requested": "Yêu cầu xóa tổ chức",
         "privacy.deletion_cancelled": "Hủy lệnh xóa tổ chức",
         "privacy.organization_deleted": "Đã xóa tổ chức",
-        "webhook.deliver": "Gửi webhook"
+        "webhook.deliver": "Gửi webhook",
+        "drive_file.linked": "Liên kết tệp Google Drive",
+        "drive_file.access_granted": "Cho UniWork đọc tệp Google Drive",
+        "drive_file.access_changed": "Đổi tài khoản đọc tệp Google Drive",
+        "drive_file.access_lost": "Mất quyền truy cập tệp Google Drive",
+        "drive_file.unlinked": "Bỏ liên kết tệp Google Drive",
+        "drive_file.rebound": "Liên kết lại tệp Google Drive bằng tài khoản khác",
+        "drive_file.read": "UNI đọc tệp Google Drive",
+        "drive_task_proposal.created": "UNI đề xuất việc từ tài liệu",
+        "drive_task_proposal.tasks_created": "Tạo việc từ đề xuất của UNI"
       },
       "resources": {
         "task": "Việc",
@@ -1545,7 +1648,8 @@
         "user": "Người dùng",
         "session": "Phiên đăng nhập",
         "meeting": "Cuộc họp",
-        "meeting_motion": "Nội dung biểu quyết"
+        "meeting_motion": "Nội dung biểu quyết",
+        "drive_file": "Tệp Google Drive"
       },
       "fields": {
         "title": "Tiêu đề",
@@ -3342,7 +3446,11 @@
       "attachments_uploading": "Đang tải lên {{filename}}…",
       "attachments_delete_title": "Xóa tệp đính kèm?",
       "attachments_delete_description": "Gỡ \"{{filename}}\" khỏi công việc này. Không hoàn tác được.",
-      "revision_conflict": "Có người khác vừa cập nhật công việc này. Đã tải lại bản mới nhất."
+      "revision_conflict": "Có người khác vừa cập nhật công việc này. Đã tải lại bản mới nhất.",
+      "activity_drive_file_linked": "đã liên kết {{name}} từ Google Drive",
+      "activity_drive_file_unlinked": "đã bỏ liên kết {{name}} từ Google Drive",
+      "activity_created_from_drive_proposal": "đã tạo công việc từ đề xuất của UNI ({{name}})",
+      "activity_created_from_drive_proposal_unnamed": "đã tạo công việc từ đề xuất của UNI"
     }
   },
   "myTasks": {
@@ -4002,7 +4110,9 @@
       "recordingReady": "Sẵn sàng"
     },
     "exit": {
-      "left": { "title": "Bạn đã rời phòng" },
+      "left": {
+        "title": "Bạn đã rời phòng"
+      },
       "ended": {
         "title": "Cuộc họp đã kết thúc",
         "by": "{{name}} kết thúc lúc {{time}}",
@@ -4232,7 +4342,63 @@
     },
     "captions": "Phụ đề",
     "captionsListening": "Đang nghe…",
-    "record": "Ghi hình",
+    "recordVideo": "Ghi hình",
+    "record": {
+      "ready": "Sẵn sàng ghi âm",
+      "consentFirst": "Tích ô xác nhận ở trên để bắt đầu",
+      "liveElsewhere": "Máy này đang ghi buổi họp này ở một thẻ khác",
+      "placementHint": "Đặt máy giữa bàn, cắm sạc và giữ trang này mở đến hết buổi.",
+      "micOk": "Micro đang thu tốt",
+      "recording": "Đang ghi âm",
+      "paused": "Đã tạm dừng",
+      "saved": "Đã lưu trên máy",
+      "screenOn": "Màn hình luôn sáng",
+      "people_one": "{{count}} người dự",
+      "people_other": "{{count}} người dự",
+      "end": "Kết thúc",
+      "pause": "Tạm dừng",
+      "resume": "Ghi tiếp",
+      "device": "Thiết bị",
+      "interrupted": "Ghi âm bị ngắt",
+      "savedUpTo": "{{time}} đã lưu an toàn",
+      "endAndSend": "Kết thúc và gửi",
+      "endTitle": "Kết thúc và gửi bản ghi?",
+      "endBody": "Bản ghi {{duration}} được gửi để Thư ký UNI soạn tóm tắt, việc đề xuất và biên bản.",
+      "continue": "Ghi tiếp",
+      "sendingTitle": "Đang gửi bản ghi",
+      "sendingBody": "Gửi xong, Thư ký UNI bắt đầu ghi lời và soạn tóm tắt.",
+      "fileLabel": "Ghi âm tại phòng · {{duration}}",
+      "sentOfTotal": "{{sent}} / {{total}}",
+      "percent": "{{percent}}%",
+      "keepOpen": "Giữ trang này mở đến khi gửi xong.",
+      "stopSending": "Dừng gửi",
+      "sending": "Đang gửi…",
+      "waitingTitle": "Chờ mạng để gửi",
+      "waitingBody": "Bản ghi an toàn trên máy này. Có mạng lại là tự gửi tiếp.",
+      "pausedShort": "Tạm dừng",
+      "offline": "Mất mạng · tự gửi tiếp khi có mạng",
+      "later": "Để sau",
+      "retryNow": "Thử lại ngay",
+      "failedTitle": "Chưa gửi được bản ghi",
+      "failedBody": "Bản ghi vẫn an toàn trên máy này.",
+      "transcribingTitle": "Thư ký UNI đang ghi lời bản ghi {{minutes}} phút",
+      "transcribingEta_one": "Khoảng {{count}} phút nữa có tóm tắt và việc đề xuất · sẽ báo bạn và thư ký",
+      "transcribingEta_other": "Khoảng {{count}} phút nữa có tóm tắt và việc đề xuất · sẽ báo bạn và thư ký",
+      "summaryTranscribing": "Thư ký UNI đang ghi lời và tách người nói",
+      "summarySteps": "Nhận bản ghi ✓ · Ghi lời · Tóm tắt và việc đề xuất",
+      "unnamedSpeakers_one": "{{count}} người nói chưa có tên",
+      "unnamedSpeakers_other": "{{count}} người nói chưa có tên",
+      "unnamedHint": "Gán tên để lời thoại, tóm tắt và biên bản ghi đúng người.",
+      "unsentTitle": "Còn bản ghi {{duration}} chưa gửi trên máy này",
+      "unsentSub": "Lưu lúc {{time}} · chỉ bạn thấy trên máy này",
+      "deleteLocal": "Xóa bản ghi trên máy…",
+      "deleteLocalConfirm": "Xóa bản ghi này khỏi máy? Không lấy lại được.",
+      "logoutTitle_one": "Còn {{count}} bản ghi chưa gửi",
+      "logoutTitle_other": "Còn {{count}} bản ghi chưa gửi",
+      "logoutBody": "Bản ghi vẫn nằm trên máy này. Đăng nhập lại để gửi.",
+      "logoutAnyway": "Vẫn đăng xuất",
+      "stay": "Ở lại"
+    },
     "startRecording": "Bắt đầu ghi hình",
     "stopRecording": "Dừng ghi hình",
     "recording": "Đang ghi",
@@ -5276,7 +5442,8 @@
         "itemsTitle": "Việc cần làm",
         "itemsAfterRunning": "Việc cần làm có sau khi soạn xong",
         "itemsAfterNone": "Việc cần làm có sau khi soạn tóm tắt",
-        "itemsAfterFailed": "Việc cần làm có sau khi soạn được tóm tắt"
+        "itemsAfterFailed": "Việc cần làm có sau khi soạn được tóm tắt",
+        "itemsAfterTranscribing": "Việc đề xuất có sau khi Thư ký UNI soạn xong"
       },
       "evidence": {
         "chipLabelMany_one": "Xem căn cứ lúc {{time}}, {{count}} căn cứ",
@@ -5432,6 +5599,7 @@
       },
       "rail": {
         "label": "Thông tin cuộc họp",
+        "venue": "Hình thức",
         "host": "Chủ trì",
         "secretary": "Thư ký",
         "you": " · bạn",
@@ -5665,6 +5833,16 @@
       "shareWorkspaceDesc": "Mọi thành viên workspace {{name}}.",
       "optionClose": "Bỏ {{name}}",
       "rollHint": "Đặt tỉ lệ có mặt tối thiểu. Chưa đủ chỉ cảnh báo, không chặn cuộc họp."
+    },
+    "venue": {
+      "label": "Hình thức",
+      "online": "Online",
+      "onlineHint": "Phòng họp có link",
+      "inPerson": "Trực tiếp",
+      "inPersonHint": "Ghi âm tại phòng",
+      "prepare": "Chuẩn bị ghi âm",
+      "startRecording": "Bắt đầu ghi âm",
+      "haveFile": "Đã có file ghi âm"
     },
     "instantDialog": {
       "titlePlaceholder": "Cuộc họp tức thì",
@@ -6228,6 +6406,7 @@
     "composer_flag_group": "Đánh dấu tin",
     "voice_recording_aria": "Thời lượng đang ghi âm, tối đa 2 phút",
     "composer_staged_files": "Tệp sẽ gửi kèm",
+    "composer_preview_image": "Xem {{name}}",
     "composer_remove_file": "Gỡ {{name}}",
     "poll_option_aria": "{{label}} — {{count}} phiếu",
     "poll_closed_status": "Đã đóng",
@@ -7788,6 +7967,14 @@
       "document_shared_untitled": "{{actor}} đã chia sẻ một tài liệu với bạn. Quyền: {{level}}.",
       "document_shared_nolevel": "{{actor}} đã chia sẻ tài liệu \"{{document}}\" với bạn.",
       "document_shared_untitled_nolevel": "{{actor}} đã chia sẻ một tài liệu với bạn.",
+      "document_shared_folder_one": "{{actor}} đã chia sẻ {{count}} tài liệu trong thư mục \"{{document}}\" với bạn. Quyền: {{level}}.",
+      "document_shared_folder_other": "{{actor}} đã chia sẻ {{count}} tài liệu trong thư mục \"{{document}}\" với bạn. Quyền: {{level}}.",
+      "document_shared_folder_untitled_one": "{{actor}} đã chia sẻ {{count}} tài liệu trong một thư mục với bạn. Quyền: {{level}}.",
+      "document_shared_folder_untitled_other": "{{actor}} đã chia sẻ {{count}} tài liệu trong một thư mục với bạn. Quyền: {{level}}.",
+      "document_shared_folder_nolevel_one": "{{actor}} đã chia sẻ {{count}} tài liệu trong thư mục \"{{document}}\" với bạn.",
+      "document_shared_folder_nolevel_other": "{{actor}} đã chia sẻ {{count}} tài liệu trong thư mục \"{{document}}\" với bạn.",
+      "document_shared_folder_untitled_nolevel_one": "{{actor}} đã chia sẻ {{count}} tài liệu trong một thư mục với bạn.",
+      "document_shared_folder_untitled_nolevel_other": "{{actor}} đã chia sẻ {{count}} tài liệu trong một thư mục với bạn.",
       "document_trashed_by_other": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
       "document_trashed_by_other_untitled": "{{actor}} đã chuyển một tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
       "document_trashed_by_other_nodate": "{{actor}} đã chuyển tài liệu của bạn vào thùng rác",
@@ -7944,6 +8131,10 @@
       "list_members_label": "Đang xem danh sách thành viên “{{label}}”…",
       "member_workload": "Đang xem khối lượng việc của thành viên…",
       "member_workload_label": "Đang xem khối lượng việc của “{{label}}”…",
+      "list_documents": "Đang xem danh sách tài liệu…",
+      "list_documents_label": "Đang xem danh sách tài liệu “{{label}}”…",
+      "list_templates": "Đang xem danh sách mẫu…",
+      "list_templates_label": "Đang xem danh sách mẫu “{{label}}”…",
       "thinking": "UNI đang suy nghĩ…",
       "retry": "Đang kiểm tra lại câu trả lời…",
       "writing": "Đang viết câu trả lời…",
@@ -7975,6 +8166,10 @@
       "list_members_label": "Đã xem danh sách thành viên “{{label}}”",
       "member_workload": "Đã xem khối lượng việc của thành viên",
       "member_workload_label": "Đã xem khối lượng việc của “{{label}}”",
+      "list_documents": "Đã xem danh sách tài liệu",
+      "list_documents_label": "Đã xem danh sách tài liệu “{{label}}”",
+      "list_templates": "Đã xem danh sách mẫu",
+      "list_templates_label": "Đã xem danh sách mẫu “{{label}}”",
       "default": "Đã xử lý",
       "retry": "Đã kiểm tra lại câu trả lời",
       "summary_other": "Xong sau {{count}} bước",
@@ -7990,6 +8185,7 @@
       "kind": {
         "task": "Task",
         "document": "Tài liệu",
+        "drive_file": "Tệp Google Drive",
         "meeting": "Cuộc họp",
         "project": "Dự án",
         "member": "Người",
@@ -8009,6 +8205,8 @@
       "copy": "Sao chép",
       "copied": "Đã sao chép",
       "regenerate": "Trả lời lại",
+      "ask_again": "Hỏi lại",
+      "propose_tasks_from_drive": "Tạo việc từ tài liệu này",
       "helpful": "Hữu ích",
       "not_helpful": "Chưa đúng",
       "feedback_title": "Câu trả lời chưa đúng ở đâu?",
@@ -8039,6 +8237,12 @@
       "ai_attachments_too_large": "File đính kèm quá lớn. Mỗi file tối đa 20 MB (ảnh tối đa 7,5 MB và 8000 × 8000 điểm ảnh), tổng tối đa 20 MB.",
       "ai_attachment_unreadable": "UNI không mở được một file đính kèm (file hỏng hoặc có mật khẩu). Hãy bỏ file đó hoặc gắn bản khác.",
       "media_unsupported": "UNI chưa đọc được loại file này. Hãy dùng ảnh, PDF, DOCX, XLSX, PPTX hoặc file văn bản.",
+      "drive_format_unsupported": "UNI chưa đọc được định dạng này.",
+      "drive_access_required": "Bạn cần cho UniWork đọc tệp này trên Google Drive trước khi hỏi UNI.",
+      "drive_source_changed": "Kết nối hoặc tệp Google Drive đã thay đổi khi UNI đang đọc. Hãy hỏi lại.",
+      "drive_file_not_accessible": "Tài khoản Google Drive của bạn không còn quyền mở tệp này.",
+      "drive_unavailable": "Google Drive đang tạm thời không phản hồi. Hãy hỏi lại sau ít phút.",
+      "drive_extract_unavailable": "UNI chưa đọc được tệp Office này lúc này. Hãy hỏi lại sau ít phút.",
       "not_found": "File không còn dùng được. Hãy gắn lại file rồi gửi.",
       "default": "Chưa gửi được câu hỏi. Kiểm tra mạng rồi hỏi lại."
     },
@@ -8081,6 +8285,7 @@
         "task": "Task",
         "meeting": "Cuộc họp",
         "document": "Tài liệu",
+        "drive_file": "Tài liệu",
         "project": "Dự án",
         "room": "Phòng chat",
         "email_thread": "Email",
@@ -8117,14 +8322,26 @@
     "ask_about_task": "Hỏi UNI về task này",
     "ask_about_meeting": "Hỏi UNI về cuộc họp này",
     "ask_about_document": "Hỏi UNI về tài liệu này",
+    "ask_about_drive_file": "Hỏi UNI về tệp Google Drive này",
     "ask_about_project": "Hỏi UNI về dự án này",
     "ask_about_room": "Hỏi UNI về cuộc trò chuyện này",
     "placeholder_task": "Hỏi về task này…",
     "placeholder_meeting": "Hỏi về cuộc họp này…",
     "placeholder_document": "Hỏi về tài liệu này…",
+    "placeholder_drive_file": "Hỏi về tài liệu…",
     "placeholder_project": "Hỏi về dự án này…",
     "placeholder_room": "Hỏi về cuộc trò chuyện này…",
     "page_chip": "Trang này: {{label}}",
+    "drive": {
+      "context_chip": "{{name}} — UNI đang dùng tài liệu này làm ngữ cảnh",
+      "context_chip_suffix": "UNI đang dùng tài liệu này làm ngữ cảnh",
+      "context_chip_unnamed": "Tệp Google Drive — UNI đang dùng tài liệu này làm ngữ cảnh",
+      "reader_line": "Nội dung tài liệu xem trên Google Drive. UNI đọc tệp bằng tài khoản {{email}} khi trả lời.",
+      "reader_line_no_email": "Nội dung tài liệu xem trên Google Drive. UNI đọc tệp bằng tài khoản Google Drive của bạn khi trả lời.",
+      "footer": "UNI đọc tài liệu khi trả lời, không lưu bản sao nội dung, và cuộc trò chuyện này không được lưu.",
+      "window_trimmed": "UNI chỉ nhớ các lượt gần nhất",
+      "open_on_drive": "Mở trên Google Drive"
+    },
     "source_bar": {
       "app_soon": "{{name}} · Sắp có",
       "title": "Ứng dụng kết nối",
@@ -8180,6 +8397,7 @@
     },
     "empty": {
       "title": "Hỏi UNI về công việc",
+      "title_drive_file": "Hỏi UNI về tài liệu này",
       "title_anthropic": "Cần Claude tìm hiểu gì?",
       "task": {
         "1": "Tóm tắt task này",
@@ -8205,6 +8423,12 @@
         "3": "Việc nào liên quan đến tài liệu này?",
         "4": "Ai phụ trách nội dung này?"
       },
+      "drive_file": {
+        "1": "Tóm tắt các mốc và rủi ro trong tài liệu này",
+        "2": "Liệt kê các mốc thời gian và hạn chót",
+        "3": "Những việc cần làm được nêu trong tài liệu?",
+        "4": "Ai chịu trách nhiệm những phần nào?"
+      },
       "room": {
         "1": "Tóm tắt trao đổi gần đây",
         "2": "Có việc nào được nhắc mà chưa thành task?",
@@ -8222,6 +8446,15 @@
         "2": "Dự án nào đang chậm tiến độ?",
         "3": "Tuần tới có những cuộc họp nào?",
         "4": "Việc ưu tiên cao nào còn đang mở?"
+      }
+    },
+    "handoff": {
+      "start_text": "Soạn tài liệu theo việc Hỏi UNI giao: {{title}}",
+      "status": {
+        "sent": "Đã giao cho AI trong trình soạn",
+        "running": "AI trong trình soạn đang soạn…",
+        "idle": "AI trong trình soạn đã xong lượt. Xem tài liệu rồi bấm Lưu.",
+        "refused": "AI trong trình soạn không nhận việc. Bạn có thể tự soạn trong tài liệu."
       }
     },
     "proposal": {
@@ -8279,6 +8512,9 @@
         "ai_actions_disabled": "Hỏi UNI đang tắt hành động ghi. Nhờ quản trị tổ chức bật lại.",
         "ai_write_rate_limited": "Áp dụng quá nhanh. Đợi một phút rồi thử lại.",
         "undo_unavailable": "Không hoàn tác được: đã có người sửa sau đó.",
+        "template_unavailable": "Tài liệu này không còn là mẫu. Hỏi UNI chọn mẫu khác.",
+        "documents_unavailable": "Tài liệu đang tắt cho tổ chức của bạn.",
+        "office_not_configured": "Chưa tạo được tệp trống lúc này. Hãy thử lại sau.",
         "default": "Không áp dụng được. Hỏi lại UNI."
       },
       "tool": {
@@ -8296,7 +8532,9 @@
         "update_document": "Sửa tài liệu",
         "add_document_comment": "Bình luận vào tài liệu",
         "send_chat_message": "Gửi tin nhắn",
-        "other": "Thay đổi"
+        "other": "Thay đổi",
+        "create_office_document": "Tạo tệp mới",
+        "save_attachment_template": "Lưu vào Mẫu văn bản"
       },
       "field": {
         "title": "Tiêu đề",
@@ -8319,14 +8557,47 @@
         "labels": "Nhãn",
         "attendee_ids": "Người tham dự",
         "user_ids": "Người được mời",
-        "mode": "Nội dung"
+        "mode": "Nội dung",
+        "template_id": "Mẫu",
+        "attachment_id": "Tệp đính kèm",
+        "format": "Định dạng",
+        "location": "Thư mục",
+        "visibility": "Ai xem được",
+        "instructions": "Yêu cầu",
+        "editor_ai": "AI trong trình soạn",
+        "sources": "Tư liệu"
       },
       "content_mode": {
         "append": "Thêm vào cuối tài liệu",
         "replace": "Thay toàn bộ tài liệu"
       },
       "details": "Xem chi tiết",
-      "plan_skip_note": "Bước bỏ tick sẽ bị bỏ qua"
+      "plan_skip_note": "Bước bỏ tick sẽ bị bỏ qua",
+      "location": {
+        "my_folder": "Thư mục của tôi",
+        "workspace_root": "Tài liệu của workspace"
+      },
+      "visibility": {
+        "restricted": "Chỉ mình tôi",
+        "workspace": "Cả workspace"
+      },
+      "apply_create_open": "Tạo và mở",
+      "apply_open_compose": "Mở và soạn",
+      "apply_open_build": "Mở và dựng",
+      "apply_create_open_self": "Tạo và mở để tự soạn",
+      "editor_ai": {
+        "compose": "Sẵn sàng soạn",
+        "build": "Sẵn sàng dựng",
+        "plan": "Gói của tổ chức chưa có AI trong trình soạn",
+        "off": "AI trong trình soạn chưa bật",
+        "format_off": "AI trong trình soạn chưa bật cho định dạng này",
+        "credits": "Tổ chức đã hết credit AI"
+      },
+      "apply_save_template": "Lưu vào Mẫu",
+      "outline": "Dàn ý",
+      "edit_outline": "Sửa dàn ý",
+      "outline_save": "Lưu dàn ý",
+      "outline_label": "Dàn ý của tệp mới"
     },
     "memory": {
       "button": "Bộ nhớ",
@@ -11184,7 +11455,6 @@
       "emptyTitle": "Chưa có gói nào được công bố.",
       "unavailableDescription": "Thử tải lại hoặc trao đổi với UniWork để xác nhận gói và giá hiện có.",
       "status": "Sau khi đăng ký, chủ tổ chức xem chi tiết và xác nhận đổi gói trong mục Thanh toán.",
-      "usageNote": "Phút tham dự họp được tính cho từng người. Phút ghi lời họp có hạn mức riêng. Tính năng còn phụ thuộc vào cấu hình dịch vụ của tổ chức.",
       "deploymentTitle": "Cần trao đổi về triển khai?",
       "deploymentDescription": "Chia sẻ quy mô đội nhóm, quy trình và cách triển khai để cùng xem phương án phù hợp.",
       "labels": {
@@ -12469,7 +12739,10 @@
       "html": "Tài liệu HTML",
       "file": "File",
       "page": "UniNote",
-      "folder": "Thư mục"
+      "folder": "Thư mục",
+      "google_doc": "Google Docs",
+      "google_sheet": "Google Sheets",
+      "google_slide": "Google Slides"
     },
     "page": {
       "title": "Tài liệu",
@@ -12645,6 +12918,68 @@
           "close": "Xong"
         }
       }
+    },
+    "folderAccess": {
+      "menu": "Chia sẻ",
+      "title": "Chia sẻ",
+      "subtitle": "Các tài liệu trong thư mục \"{{folder}}\" và các thư mục con.",
+      "subtitle_untitled": "Các tài liệu trong thư mục này và các thư mục con.",
+      "fixed_sentence": "Áp dụng cho các tài liệu hiện có. Tài liệu thêm sau không tự nhận quyền.",
+      "mode_label": "Cách áp dụng",
+      "mode_merge": "Thêm vào quyền đã có",
+      "mode_replace": "Thay thế quyền cũ",
+      "mode_merge_hint": "Cấp thêm cho các đối tượng đã chọn. Quyền đang có không bị hạ hay gỡ.",
+      "mode_replace_hint": "Mỗi tài liệu chỉ còn đúng danh sách bên dưới. Ai không có trong danh sách sẽ mất quyền.",
+      "principals_title": "Đối tượng và mức quyền",
+      "principals_empty_merge": "Chưa chọn đối tượng nào. Tìm và chọn ít nhất một đối tượng để thêm quyền.",
+      "principals_empty_replace": "Chưa chọn thêm ai. Chỉ dòng Workspace bên dưới được giữ lại.",
+      "workspace_row": "Workspace \"{{name}}\"",
+      "workspace_row_unnamed": "Workspace chứa thư mục",
+      "workspace_level_label": "Mức quyền của workspace",
+      "workspace_level_choose": "Chọn mức quyền",
+      "level_private": "Riêng tư",
+      "confirm": "Xác nhận",
+      "checking": "Đang kiểm tra…",
+      "back": "Quay lại",
+      "apply": "Áp dụng",
+      "apply_replace": "Thay thế quyền",
+      "applying": "Đang áp dụng…",
+      "summary_changed_one": "Sẽ đổi {{count}} tài liệu",
+      "summary_changed_other": "Sẽ đổi {{count}} tài liệu",
+      "summary_skipped_one": "bỏ qua {{count}} tài liệu bạn không quản lý",
+      "summary_skipped_other": "bỏ qua {{count}} tài liệu bạn không quản lý",
+      "summary_locked_one": "{{count}} đang bị khóa",
+      "summary_locked_other": "{{count}} đang bị khóa",
+      "summary_losing_one": "{{count}} người mất quyền ở ít nhất một tài liệu",
+      "summary_losing_other": "{{count}} người mất quyền ở ít nhất một tài liệu",
+      "warning_wide_scope": "Có cả workspace hoặc cả tổ chức trong danh sách: nhiều người sẽ mở được các tài liệu này.",
+      "warning_to_private": "Workspace không còn trong danh sách: các tài liệu sẽ chuyển về Riêng tư.",
+      "warning_downgrade_one": "{{count}} người bị hạ mức quyền ở ít nhất một tài liệu.",
+      "warning_downgrade_other": "{{count}} người bị hạ mức quyền ở ít nhất một tài liệu.",
+      "warning_downgrade_generic": "Một số quyền trên các tài liệu này sẽ bị hạ mức.",
+      "nothing_to_change": "Không có gì thay đổi: quyền hiện tại đã đúng với danh sách này.",
+      "toast_done_one": "Đã đổi quyền {{count}} tài liệu",
+      "toast_done_other": "Đã đổi quyền {{count}} tài liệu",
+      "toast_skipped_one": "Bỏ qua {{count}} tài liệu bạn không quản lý.",
+      "toast_skipped_other": "Bỏ qua {{count}} tài liệu bạn không quản lý.",
+      "toast_locked_one": "{{count}} tài liệu đang bị khóa nên chưa đổi.",
+      "toast_locked_other": "{{count}} tài liệu đang bị khóa nên chưa đổi.",
+      "toast_unknown": "Đã gửi thay đổi quyền. Mở các tài liệu để kiểm tra kết quả.",
+      "progress_title": "Đang áp dụng quyền",
+      "progress_label": "Tiến độ áp dụng quyền",
+      "progress_count_one": "{{processed}}/{{count}} tài liệu",
+      "progress_count_other": "{{processed}}/{{count}} tài liệu",
+      "progress_starting": "Đang chờ bắt đầu…",
+      "progress_hint": "Bạn có thể đóng hộp thoại, việc áp dụng vẫn chạy nền. Có kết quả sẽ báo lại.",
+      "progress_already_running": "Thư mục này đang có một lượt áp dụng quyền chạy nền. Đây là tiến độ của lượt đó.",
+      "progress_close": "Xong",
+      "batch_done_one": "Đã áp dụng quyền cho {{count}} tài liệu",
+      "batch_done_other": "Đã áp dụng quyền cho {{count}} tài liệu",
+      "batch_failed": "Việc áp dụng quyền dừng giữa chừng. Chạy lại để hoàn tất.",
+      "error_not_a_folder": "Mục này không phải thư mục nên không đổi quyền hàng loạt được.",
+      "error_generic": "Không áp dụng được quyền. Hãy thử lại.",
+      "error_rejected": "Không áp dụng được cho một số đối tượng. Sửa các đối tượng được đánh dấu rồi thử lại.",
+      "busy": "Thư mục này đang được cập nhật quyền. Thử lại sau giây lát."
     },
     "tree": {
       "aria_label": "Cây tài liệu",
@@ -13156,7 +13491,7 @@
       "version_row": "Phiên bản {{no}}",
       "download_version": "Tải phiên bản {{no}}",
       "reason_upload": "tải lên",
-      "reason_manual": "mốc thủ công",
+      "reason_manual": "thủ công",
       "reason_auto": "tự động",
       "reason_restore": "khôi phục",
       "reason_agent": "agent",
@@ -13164,6 +13499,9 @@
       "no_web_editor_title": "Không sửa được trên web",
       "no_web_editor_description": "Định dạng này không mở được trên trình duyệt. Bạn tải về để mở bằng ứng dụng trên máy tính, hoặc tải lên phiên bản mới.",
       "no_web_editor_description_readonly": "Định dạng này không mở được trên trình duyệt. Bạn tải về để mở bằng ứng dụng trên máy tính.",
+      "legacy_format_title": "Mở tệp bằng UniWork Office",
+      "legacy_format_description": "Đây là tệp Office định dạng cũ nên được mở bằng ứng dụng UniWork Office trên máy tính.",
+      "open_version": "Mở phiên bản {{no}}",
       "office_off_title": "Chỉnh sửa {{format}} đang tắt",
       "office_off_description": "Tổ chức này đang tắt chỉnh sửa tệp {{format}}. Bạn vẫn tải tệp về hoặc tải lên phiên bản mới được.",
       "office_checking": "Đang kiểm tra tổ chức này có bật chỉnh sửa {{format}} không…",
@@ -13231,11 +13569,11 @@
     },
     "versions": {
       "title": "Lịch sử phiên bản",
-      "description": "Các mốc phiên bản lưu trên server. Khôi phục tạo phiên bản mới, không xóa lịch sử.",
+      "description": "Các phiên bản lưu trên server. Khôi phục tạo phiên bản mới, không xóa lịch sử.",
       "loading": "Đang tải lịch sử…",
       "error": "Không tải được lịch sử phiên bản.",
       "retry": "Thử lại",
-      "empty": "Chưa có phiên bản nào. Tạo mốc đầu tiên từ bản đang làm việc.",
+      "empty": "Chưa có phiên bản nào. Tạo phiên bản đầu tiên từ bản đang làm việc.",
       "load_more": "Tải thêm",
       "row_version": "Phiên bản {{no}}",
       "author_system": "Hệ thống",
@@ -13245,14 +13583,14 @@
       "preview_error": "Không tải được nội dung phiên bản.",
       "preview_empty": "Phiên bản này không có nội dung.",
       "download": "Tải phiên bản này",
-      "name_title": "Tạo mốc phiên bản",
-      "name_label": "Tên mốc",
+      "name_title": "Tạo phiên bản",
+      "name_label": "Tên phiên bản",
       "name_placeholder": "Ví dụ: Trước khi sửa theo review",
-      "name_hint": "Mốc lưu bản đang làm việc; để trống tên vẫn tạo được.",
-      "name_submit": "Tạo mốc",
-      "name_submitting": "Đang tạo mốc…",
+      "name_hint": "Phiên bản lưu bản đang làm việc; để trống tên vẫn tạo được.",
+      "name_submit": "Tạo phiên bản",
+      "name_submitting": "Đang tạo phiên bản…",
       "name_done": "Đã tạo phiên bản {{no}}",
-      "name_failed": "Không tạo được mốc. Nội dung đã nhập vẫn giữ nguyên.",
+      "name_failed": "Không tạo được phiên bản. Nội dung đã nhập vẫn giữ nguyên.",
       "restore": "Khôi phục phiên bản {{no}}",
       "restore_confirm_title": "Khôi phục phiên bản {{no}}?",
       "restore_confirm_description": "Bản làm việc sẽ nhận nội dung của phiên bản này và một phiên bản khôi phục mới được ghi thêm. Lịch sử giữ nguyên.",
@@ -14029,6 +14367,7 @@
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",
         "shared_by_me": "Tôi đã chia sẻ",
+        "templates": "Mẫu văn bản",
         "shelved": "Lưu trữ",
         "trash": "Thùng rác",
         "folders": "Thư mục",
@@ -14050,6 +14389,7 @@
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",
         "shared_by_me": "Tôi đã chia sẻ",
+        "templates": "Mẫu văn bản",
         "archived": "Thùng rác",
         "sources": "Từ nơi khác",
         "chat": "Trò chuyện",
@@ -14136,7 +14476,9 @@
         "archived_title": "Thùng rác đang trống",
         "archived_description": "Tài liệu đã xóa nằm ở đây trong 30 ngày.",
         "sources_title": "Chưa có file nào",
-        "sources_description": "File trong trò chuyện, công việc, cuộc họp và email mà bạn xem được sẽ hiện ở đây."
+        "sources_description": "File trong trò chuyện, công việc, cuộc họp và email mà bạn xem được sẽ hiện ở đây.",
+        "templates_title": "Chưa có mẫu nào",
+        "templates_description": "Tải lên báo giá, hóa đơn hay bài trình chiếu mẫu để cả workspace dùng chung."
       },
       "no_matches_description": "Không có file loại này. Tạo mới ở hàng thẻ phía trên hoặc bỏ lọc.",
       "no_matches_plain_description": "Không có file loại này. Bỏ lọc để xem tất cả.",
@@ -14193,32 +14535,49 @@
       "breadcrumb_more": "Các cấp ẩn",
       "search": {
         "placeholder": "Tìm thư mục và tài liệu",
-        "placeholder_folder": "Tìm trong thư mục này",
         "label": "Tìm trong Tài liệu",
         "clear": "Xóa ô tìm",
-        "filter_label": "Lọc kết quả",
-        "filter_all": "Tất cả",
-        "filter_folder": "Thư mục",
-        "filter_document": "Tài liệu",
         "path": "Đường dẫn: {{path}}",
         "path_root": "Tài liệu (gốc)",
-        "loading": "Đang tìm…",
-        "empty_title": "Không tìm thấy kết quả",
-        "empty_description": "Thử tên khác hoặc đổi bộ lọc. Xóa ô tìm để quay lại thư mục.",
-        "error_title": "Không tìm được",
-        "error_description": "Kiểm tra kết nối rồi thử lại."
+        "no_results_title": "Không có kết quả cho “{{query}}”"
       },
       "view_subtitle": {
         "recent": "Tài liệu bạn đã mở hoặc sửa trong 30 ngày qua",
         "starred": "Tài liệu bạn đánh dấu để mở nhanh",
         "shared": "Tài liệu người khác chia sẻ trực tiếp cho bạn",
         "shared_by_me": "Tài liệu của bạn đang chia sẻ cho người khác",
-        "sources": "Tệp được gửi trong Trò chuyện, Cuộc họp, Email và Công việc của workspace này"
+        "sources": "Tệp được gửi trong Trò chuyện, Cuộc họp, Email và Công việc của workspace này",
+        "templates": "Mẫu dùng chung của workspace. Mọi thành viên thêm, sửa và bỏ mẫu được."
       }
     },
     "recent": {
       "continue_title": "Mở tiếp",
       "continue_when": "{{activity}} lúc {{when}}"
+    },
+    "templates": {
+      "upload": "Tải mẫu lên",
+      "group": {
+        "word": "Word",
+        "excel": "Excel",
+        "powerpoint": "PowerPoint",
+        "other": "Khác"
+      },
+      "uploaded": "Đã thêm {{title}} vào Mẫu văn bản",
+      "upload_failed": "Không tải mẫu lên được. Chưa có gì thay đổi.",
+      "too_large": "Tệp lớn hơn {{size}} nên không tải thẳng vào Mẫu văn bản được. Hãy tải vào một thư mục rồi đánh dấu là mẫu.",
+      "no_folders": "Mẫu văn bản chỉ nhận tệp, không nhận thư mục.",
+      "drop_hint": "Thả tệp để thêm vào Mẫu văn bản",
+      "mark": "Đánh dấu là mẫu",
+      "unmark": "Bỏ khỏi Mẫu",
+      "marked": "Đã đánh dấu {{title}} là mẫu",
+      "unmarked": "Đã bỏ {{title}} khỏi Mẫu",
+      "mark_failed": "Không đánh dấu được. Chưa có gì thay đổi.",
+      "unmark_failed": "Không bỏ khỏi Mẫu được. Chưa có gì thay đổi.",
+      "widen": {
+        "title": "Mở tài liệu này cho cả workspace?",
+        "body": "Hiện chỉ những người được chia sẻ mới xem được {{title}}. Khi thành mẫu, mọi thành viên workspace sẽ xem và sửa được nó.",
+        "confirm": "Mở cho workspace và đánh dấu"
+      }
     },
     "scope": {
       "private": "Riêng tư",
@@ -14696,6 +15055,14 @@
         "download": "Tải bản của tôi",
         "close": "Đóng"
       }
+    },
+    "legacy": {
+      "title": "Mở tệp bằng UniWork Office",
+      "description": "Đây là tệp Office định dạng cũ nên được mở bằng ứng dụng UniWork Office trên máy tính.",
+      "file_label": "Tệp: {{name}}",
+      "ticket_failed": "Chưa mở được tệp trong UniWork Office. Thử lại sau ít phút.",
+      "launched": "Đã gửi tới UniWork Office trên máy tính.",
+      "close": "Đóng"
     }
   },
   "officeDesktop": {
@@ -14965,6 +15332,476 @@
     "data": "Dữ liệu và AI",
     "privacy": "Chính sách quyền riêng tư",
     "terms": "Điều khoản sử dụng"
+  },
+  "drive": {
+    "title": "Google Drive",
+    "terms": {
+      "link": "Liên kết",
+      "unlink": "Bỏ liên kết",
+      "bound_account": "Tài khoản gắn",
+      "opens_with": "Mở bằng tài khoản",
+      "connection": "Kết nối",
+      "disconnected_reconnect": "Mất kết nối · kết nối lại",
+      "tasks_created": "Việc đã tạo từ tài liệu",
+      "grant_read": "Cho UniWork đọc tệp"
+    },
+    "picker": {
+      "title": "Chọn tệp từ Google Drive",
+      "folder_title": "Chọn thư mục cần lấy tên",
+      "disclosure": "UniWork chỉ được quyền với tệp bạn chọn. UniWork chỉ lưu liên kết, nội dung vẫn nằm trên Google Drive.",
+      "account_step": {
+        "title": "Chọn tài khoản Google Drive",
+        "description": "Chọn tài khoản để mở Google Picker. UniWork sẽ gắn tệp bạn chọn với tài khoản này.",
+        "empty_title": "Kết nối Google Drive",
+        "empty_description": "Kết nối tài khoản Google Drive để chọn và liên kết tệp ngay tại đây.",
+        "connect": "Kết nối Google Drive",
+        "connecting": "Đang kết nối…",
+        "status_active": "Đang hoạt động",
+        "status_lost": "Mất kết nối",
+        "reconnect": "Kết nối lại",
+        "reconnect_aria": "Kết nối lại {{email}}",
+        "continue": "Mở Google Picker",
+        "opening": "Đang mở…",
+        "cancel": "Hủy"
+      },
+      "confirm_dialog": {
+        "title_one": "Liên kết {{count}} tệp",
+        "title_other": "Liên kết {{count}} tệp",
+        "description": "Tên tệp sẽ hiện cho người xem được việc này. Nội dung vẫn chỉ mở trên Google Drive.",
+        "confirm_one": "Liên kết {{count}} tệp",
+        "confirm_other": "Liên kết {{count}} tệp",
+        "confirming": "Đang liên kết…",
+        "cancel": "Hủy"
+      },
+      "outcomes": {
+        "linked_one": "Đã liên kết {{count}} tệp từ Google Drive.",
+        "linked_other": "Đã liên kết {{count}} tệp từ Google Drive.",
+        "already_linked": "Đã có trong Drive: {{email}}",
+        "already_linked_no_email": "Đã có trong Drive",
+        "already_linked_named": "{{name}} — Đã có trong Drive: {{email}}",
+        "already_linked_named_no_email": "{{name}} — Đã có trong Drive",
+        "already_linked_many": "{{count}} tệp đã có trong Drive: {{email}}",
+        "already_linked_many_no_email": "{{count}} tệp đã có trong Drive"
+      },
+      "errors": {
+        "script_load_failed": "Không mở được Google Picker. Kiểm tra kết nối mạng rồi thử lại.",
+        "connections_load_failed": "Không tải được danh sách tài khoản Google Drive. Kiểm tra kết nối mạng rồi thử lại.",
+        "retry": "Thử lại",
+        "token_failed": "Kết nối Google Drive đã hết hạn. Kết nối lại rồi thử lại.",
+        "token_transient_failed": "Không lấy được phiên Google Picker. Kiểm tra kết nối mạng rồi thử lại.",
+        "drive_grant_required": "Bạn chưa cấp cho UniWork quyền đọc tệp này. Chọn lại tệp trong Google Picker rồi thử lại.",
+        "drive_file_not_accessible": "Tài khoản Google Drive này không có quyền truy cập tệp hoặc tệp không còn tồn tại.",
+        "blocked_by_workspace_admin": "Quản trị viên Google Workspace của tổ chức bạn chưa cho phép UniWork truy cập Google Drive. Hãy nhờ quản trị viên Google Workspace cho phép ứng dụng UniWork.",
+        "drive_unavailable": "Google Drive tạm thời không phản hồi. Thử lại sau ít phút.",
+        "link_failed": "Không liên kết được tệp từ Google Drive. Thử lại.",
+        "file_error_named": "{{name}}: {{reason}}"
+      }
+    },
+    "attach_menu": {
+      "upload_file": "Tải tệp lên",
+      "from_drive": "Từ Google Drive",
+      "connected_accounts_one": "{{count}} tài khoản đã kết nối",
+      "connected_accounts_other": "{{count}} tài khoản đã kết nối",
+      "paste_url_hint": "Hoặc dán liên kết Google Drive vào mô tả, UniWork gợi ý liên kết tệp"
+    },
+    "draft_chip": {
+      "source_badge": "Google Drive",
+      "remove_aria": "Gỡ {{name}}"
+    },
+    "paste_chip": {
+      "link_prompt": "Liên kết tệp Google Drive này vào việc?",
+      "connect_prompt": "Kết nối Google Drive để liên kết",
+      "dismiss_aria": "Bỏ qua gợi ý liên kết Google Drive",
+      "group_aria": "Gợi ý liên kết tệp Google Drive",
+      "file_kinds": {
+        "google_doc": "Google Docs",
+        "google_sheet": "Google Sheets",
+        "google_slide": "Google Slides",
+        "drive_file": "Tệp Google Drive"
+      }
+    },
+    "attachments": {
+      "drive_load_error": "Không tải được tệp Google Drive gắn với việc này.",
+      "uploads_load_error": "Không tải được tệp đính kèm tải lên.",
+      "retry": "Thử lại"
+    },
+    "card": {
+      "open_on_drive": "Mở trên Google Drive",
+      "more_actions_aria": "Thêm thao tác cho {{name}}",
+      "view_in_documents": "Xem trong Tài liệu",
+      "unlink": "Bỏ liên kết",
+      "unlink_confirm_title": "Bỏ liên kết tệp khỏi việc này?",
+      "unlink_confirm_description": "Chỉ xóa liên kết khỏi việc này, tệp \"{{name}}\" trên Google Drive giữ nguyên.",
+      "unlink_confirm_action": "Bỏ liên kết",
+      "unlinking": "Đang bỏ liên kết…",
+      "cancel": "Hủy",
+      "meta_drive_account": "Drive: {{email}}",
+      "meta_linked_by": "{{name}} liên kết từ Google Drive",
+      "meta_rebound_by": "(gắn lại bởi {{name}})",
+      "meta_modified_by": "{{name}} sửa {{time}}",
+      "meta_modified": "Sửa {{time}}",
+      "meta_owner": "Chủ sở hữu: {{owner}}",
+      "tasks_created_one": "Đã tạo {{count}} việc từ tài liệu",
+      "tasks_created_other": "Đã tạo {{count}} việc từ tài liệu",
+      "tasks_created_with_date_one": "Đã tạo {{count}} việc từ tài liệu · {{date}}",
+      "tasks_created_with_date_other": "Đã tạo {{count}} việc từ tài liệu · {{date}}",
+      "viewer_unknown": {
+        "title": "Bạn chưa cho UniWork đọc tệp này.",
+        "body": "Tệp do {{name}} liên kết từ Google Drive của họ. UNI đọc tệp bằng tài khoản Google Drive của chính bạn, nên cần bạn cho phép một lần.",
+        "body_unnamed": "UNI đọc tệp bằng tài khoản Google Drive của chính bạn, nên cần bạn cho phép một lần.",
+        "grant_button": "Cho UniWork đọc tệp",
+        "granting": "Đang cấp quyền…",
+        "share_hint": "Nếu Google báo bạn không có quyền, hãy nhờ chủ sở hữu chia sẻ trên Google Drive. UniWork không chia sẻ thay.",
+        "denied_notice": "Google báo tài khoản của bạn chưa có quyền với tệp này. Hãy nhờ chủ sở hữu chia sẻ trên Google Drive rồi thử lại."
+      },
+      "viewer_lost": {
+        "notice": "Tài khoản {{email}} không còn quyền với tệp này.",
+        "notice_no_email": "Tài khoản của bạn không còn quyền với tệp này.",
+        "repick_button": "Cho UniWork đọc tệp",
+        "repicking": "Đang cấp quyền…"
+      },
+      "viewer_connection_lost": {
+        "notice": "Kết nối Google Drive {{email}} đã hết hạn.",
+        "notice_no_email": "Kết nối Google Drive đã hết hạn.",
+        "reconnect_button": "Kết nối lại",
+        "reconnecting": "Đang kết nối…"
+      },
+      "bound_connection_lost_badge": "Mất kết nối",
+      "bound_access_lost_notice": "Tài khoản gắn không còn quyền với tệp này.",
+      "blocked_action_hint": "Cần cho UniWork đọc tệp trước"
+    },
+    "proposals": {
+      "created_by_uni": "UNI",
+      "propose_button": "Tạo việc từ tài liệu",
+      "popover_title": "Tạo việc từ tài liệu",
+      "reader_line": "UNI đọc tệp bằng tài khoản {{email}} rồi đưa ra danh sách việc để bạn duyệt. Chưa có việc nào được tạo trước khi bạn duyệt.",
+      "reader_line_no_email": "UNI đọc tệp bằng tài khoản Google Drive của bạn rồi đưa ra danh sách việc để bạn duyệt. Chưa có việc nào được tạo trước khi bạn duyệt.",
+      "prompt_label": "Gợi ý cho UNI (tùy chọn)",
+      "prompt_placeholder": "Ví dụ: người phụ trách, hạn hoàn thành, độ ưu tiên hoặc phạm vi cần lấy…",
+      "prompt_hints": {
+        "group_aria": "Gợi ý mẫu cho UNI",
+        "assignee_deadline": "Giao cho người phụ trách ghi trong tài liệu, hạn trong tuần này",
+        "scope": "Chỉ lấy việc của nhóm BE",
+        "priority": "Ưu tiên cao cho việc gấp"
+      },
+      "submit": "Gửi cho agent",
+      "submit_anyway": "Vẫn gửi cho UNI",
+      "reading": "UNI đang đọc tài liệu…",
+      "cancel_reading": "Hủy",
+      "open_on_drive": "Mở trên Google Drive",
+      "recreate_warning": {
+        "full_one": "Tài liệu này đã được dùng để tạo {{count}} việc (lần gần nhất {{date}}, bởi {{name}}). Tạo thêm có thể trùng.",
+        "full_other": "Tài liệu này đã được dùng để tạo {{count}} việc (lần gần nhất {{date}}, bởi {{name}}). Tạo thêm có thể trùng.",
+        "with_date_one": "Tài liệu này đã được dùng để tạo {{count}} việc (lần gần nhất {{date}}). Tạo thêm có thể trùng.",
+        "with_date_other": "Tài liệu này đã được dùng để tạo {{count}} việc (lần gần nhất {{date}}). Tạo thêm có thể trùng.",
+        "with_name_one": "Tài liệu này đã được dùng để tạo {{count}} việc (bởi {{name}}). Tạo thêm có thể trùng.",
+        "with_name_other": "Tài liệu này đã được dùng để tạo {{count}} việc (bởi {{name}}). Tạo thêm có thể trùng.",
+        "count_only_one": "Tài liệu này đã được dùng để tạo {{count}} việc. Tạo thêm có thể trùng.",
+        "count_only_other": "Tài liệu này đã được dùng để tạo {{count}} việc. Tạo thêm có thể trùng.",
+        "view_created": "Xem các việc đã tạo"
+      },
+      "errors": {
+        "drive_access_required": "Bạn chưa cho UniWork đọc tệp này. Hãy cấp quyền đọc tệp trước khi tạo việc.",
+        "drive_grant_required": "Bạn chưa cấp cho UniWork quyền đọc tệp này. Chọn lại tệp trong Google Picker rồi thử lại.",
+        "drive_format_unsupported": "UNI chưa đọc được định dạng này.",
+        "rate_limited": "Bạn đã nhờ UNI đọc tài liệu nhiều lần. Thử lại sau ít phút.",
+        "ai_disabled": "AI chưa khả dụng trên workspace này.",
+        "ai_quota_exceeded": "Tổ chức đã dùng hết hạn mức token AI của tháng. Báo quản trị viên nếu cần thêm.",
+        "ai_provider_error": "Dịch vụ AI tạm thời không phản hồi. Thử lại sau ít phút.",
+        "ai_provider_timeout": "UNI chưa đọc xong tài liệu kịp lúc. Thử lại sau giây lát.",
+        "ai_output_invalid": "UNI chưa tạo được danh sách việc từ tài liệu này. Thử lại.",
+        "drive_source_changed": "Tài liệu vừa thay đổi kết nối hoặc bị bỏ liên kết.",
+        "drive_file_not_accessible": "Tài khoản Google Drive của bạn không còn quyền với tệp này.",
+        "drive_unavailable": "Google Drive tạm thời không phản hồi. Thử lại sau ít phút.",
+        "drive_extract_unavailable": "UNI chưa đọc được tệp này lúc này, thử lại sau.",
+        "auth_failed": "Kết nối Google Drive đã hết hạn. Kết nối lại rồi thử lại.",
+        "blocked_by_workspace_admin": "Quản trị viên Google Workspace của tổ chức bạn chưa cho phép UniWork truy cập Google Drive.",
+        "not_found": "Không tìm thấy tệp Google Drive này hoặc bạn không có quyền xem.",
+        "default": "Không tạo được đề xuất việc từ tài liệu. Thử lại.",
+        "review_unavailable": "Chưa mở được bước duyệt đề xuất việc lúc này. Bản nháp của bạn vẫn được giữ lại.",
+        "proposal_not_ready": "Đề xuất này đã được tạo việc hoặc đã hủy.",
+        "proposal_expired": "Đề xuất này đã hết hạn.",
+        "proposal_item_already_converted": "Một hoặc nhiều việc trong đề xuất đã được tạo trước đó.",
+        "active_duplicate_task": "Có việc đang mở trùng tiêu đề trong cùng dự án và task cha. Hãy chọn Vẫn tạo hoặc Bỏ việc này.",
+        "quota_exceeded": "Tổ chức đã hết hạn mức số lượng task của gói hiện tại.",
+        "create_default": "Không tạo được việc từ đề xuất. Thử lại.",
+        "discard_failed": "Không hủy được đề xuất lúc này. Thử lại."
+      },
+      "review": {
+        "title_one": "UNI đề xuất {{count}} việc từ tài liệu",
+        "title_other": "UNI đề xuất {{count}} việc từ tài liệu",
+        "title_loading": "UNI đề xuất việc từ tài liệu",
+        "close_aria": "Đóng",
+        "source_line": "Nguồn: {{name}} ({{type}} · {{email}})",
+        "source_line_no_email": "Nguồn: {{name}} ({{type}})",
+        "private_badge": "Riêng tư trên Google Drive",
+        "truncated_badge": "UNI chỉ đọc phần đầu tài liệu",
+        "prior_creations_one": "Đã tạo {{count}} việc từ tài liệu này trước đây",
+        "prior_creations_other": "Đã tạo {{count}} việc từ tài liệu này trước đây",
+        "prior_creations_view": "Xem các việc đã tạo",
+        "batch_section": "Áp dụng cho cả lô",
+        "batch_project": "Dự án",
+        "batch_project_sub": "Dự án của việc bạn đang mở",
+        "batch_parent": "Task cha",
+        "batch_parent_sub": "Việc bạn đang mở tài liệu từ đó · có thể bỏ trống",
+        "batch_status": "Trạng thái",
+        "item_switch_aria": "Tạo việc: {{title}}",
+        "item_title_aria": "Tiêu đề việc {{index}}",
+        "item_title_placeholder": "Tiêu đề công việc",
+        "blocked_by": "Bị chặn bởi: {{titles}}",
+        "basis_line": "UNI · {{basis}}",
+        "summary_goal": "Mục tiêu: {{goal}}",
+        "summary_todos_one": "{{count}} việc cần làm",
+        "summary_todos_other": "{{count}} việc cần làm",
+        "summary_todos_tail": " · {{todos}}",
+        "summary_quote_only": "UNI · \"{{quote}}\"",
+        "summary_quote_file_tail": " — {{fileName}}",
+        "description_label": "Mô tả",
+        "description_goal_label": "Mục tiêu:",
+        "description_goal_heading": "Mục tiêu",
+        "description_goal_aria": "Mục tiêu việc {{index}}",
+        "description_checklist_heading": "Việc cần làm",
+        "description_checklist_aria": "Việc cần làm {{index}}",
+        "description_source_with_section": "Nguồn: {{section}}: \"{{quote}}\" · {{fileName}}",
+        "description_source_quote_only": "Nguồn: \"{{quote}}\" · {{fileName}}",
+        "description_source_file_only": "Nguồn: {{fileName}}",
+        "duplicate_prefix": "Có thể trùng với",
+        "duplicate_item": "{{identifier}} · {{title}}",
+        "duplicate_suffix": "đang mở.",
+        "duplicate_skip": "Bỏ việc này",
+        "duplicate_keep": "Vẫn tạo",
+        "duplicate_kept": "Đã chọn Vẫn tạo dù trùng tiêu đề.",
+        "assignee_no_access": "{{name}} chưa xem được tài liệu trên Google Drive. Sau khi tạo, {{name}} thấy việc và tên tài liệu, kèm nút mở tài liệu trên Google Drive để xin quyền chủ sở hữu.",
+        "footer_note": "Bạn sửa được mọi trường trước khi tạo; dòng dưới mỗi trường là căn cứ của UNI.",
+        "cancel": "Hủy",
+        "create_one": "Tạo {{count}} việc",
+        "create_other": "Tạo {{count}} việc",
+        "create_none": "Chọn ít nhất 1 việc",
+        "creating": "Đang tạo việc…",
+        "discard_confirm_title": "Bỏ đề xuất này?",
+        "discard_confirm_description": "UNI sẽ không giữ lại danh sách.",
+        "discard_confirm_keep": "Ở lại",
+        "discard_confirm_discard": "Bỏ đề xuất",
+        "discarding": "Đang bỏ…",
+        "loading": "Đang tải đề xuất…",
+        "state_converted": "Đề xuất này đã được tạo thành công việc.",
+        "state_discarded": "Đề xuất này đã bị hủy.",
+        "state_expired": "Đề xuất này đã hết hạn.",
+        "state_empty": "Chưa có công việc nào trong đề xuất này.",
+        "toast_created_with_parent_one": "Đã tạo {{count}} việc từ {{fileName}}, là sub-task của {{parent}}",
+        "toast_created_with_parent_other": "Đã tạo {{count}} việc từ {{fileName}}, là sub-task của {{parent}}",
+        "toast_created_no_parent_one": "Đã tạo {{count}} việc từ {{fileName}}",
+        "toast_created_no_parent_other": "Đã tạo {{count}} việc từ {{fileName}}",
+        "toast_view_parent": "Xem {{parent}}",
+        "toast_view_tasks": "Xem công việc",
+        "toast_created_unconfirmed": "Chưa xác nhận được việc đã tạo, kiểm tra lại danh sách."
+      }
+    }
+  },
+  "driveLibrary": {
+    "sidebar": {
+      "google_drive": "Google Drive",
+      "account_row": "Drive: {{email}}",
+      "disconnected": "Mất kết nối",
+      "folders_loading": "Đang tải thư mục…",
+      "folders_error": "Không tải được thư mục"
+    },
+    "folder": {
+      "unnamed": "Thư mục trên Drive · {{id}}",
+      "unnamed_short": "Thư mục · {{id}}",
+      "count_one": "{{count}} tệp",
+      "count_other": "{{count}} tệp",
+      "name_action": "Đặt tên theo Drive",
+      "name_done": "Đã đặt tên thư mục theo Drive",
+      "name_mismatch": "Bạn đã chọn một thư mục khác. Hãy chọn đúng thư mục này để đặt tên.",
+      "name_not_found": "Không đọc được tên thư mục này từ Google Drive. Hãy chọn đúng thư mục này trong cửa sổ chọn rồi thử lại.",
+      "name_not_folder": "Mục đã chọn không phải là thư mục hoặc đã nằm trong thùng rác.",
+      "name_unavailable": "Google Drive tạm thời không phản hồi. Thử lại sau ít phút.",
+      "name_failed": "Không đặt được tên thư mục. Thử lại sau.",
+      "menu_aria": "Thao tác với thư mục {{name}}"
+    },
+    "file_types": {
+      "google_doc": "Google Docs",
+      "google_sheet": "Google Sheets",
+      "google_slide": "Google Slides",
+      "docx": "Tài liệu Word",
+      "xlsx": "Bảng tính Excel",
+      "pptx": "Bản trình bày PowerPoint",
+      "pdf": "Tài liệu PDF",
+      "markdown": "Tài liệu Markdown",
+      "text": "Tệp văn bản",
+      "generic": "Tệp Google Drive"
+    },
+    "list": {
+      "title_all": "Google Drive",
+      "title_account": "Drive: {{email}}",
+      "subtitle_all": "Tệp Google Drive bạn đã liên kết hoặc cho UniWork đọc. Chỉ bạn thấy danh sách này; UniWork chỉ lưu liên kết.",
+      "subtitle_account": "Tệp bạn đã thêm từ tài khoản này · luôn mở bằng chính tài khoản này",
+      "subtitle_broken": "Kết nối hết hạn · kết nối lại để mở các tệp này",
+      "footnote": "Mỗi tệp gắn với tài khoản Google Drive đã chọn nó. Mở tệp và cho UNI đọc đều dùng đúng tài khoản đó. Khi bỏ liên kết, tệp trên Google Drive vẫn giữ nguyên.",
+      "add_all": "Thêm từ Google Drive",
+      "add_account": "Thêm từ {{email}}",
+      "manage_connections": "Quản lý kết nối",
+      "reconnect_inline": "Mất kết nối · kết nối lại",
+      "columns": {
+        "name": "Tên",
+        "account": "Mở bằng tài khoản",
+        "access": "Quyền trên Google Drive",
+        "used_in": "Đang dùng ở",
+        "tasks_created": "Đã tạo việc"
+      },
+      "access": {
+        "private": "Riêng tư",
+        "shared": "Đã chia sẻ",
+        "shared_count_one": "Chia sẻ với {{count}} người",
+        "shared_count_other": "Chia sẻ với {{count}} người",
+        "shared_drive": "Bộ nhớ dùng chung",
+        "unknown": "Chưa rõ"
+      },
+      "used_in": {
+        "none": "Chưa gắn vào việc nào",
+        "single": "{{identifier}}",
+        "more_one": "{{identifier}} và {{count}} việc khác",
+        "more_other": "{{identifier}} và {{count}} việc khác"
+      },
+      "tasks_created_one": "{{count}} việc",
+      "tasks_created_other": "{{count}} việc",
+      "no_account_value": "—",
+      "empty_title": "Chưa có tệp Google Drive nào được liên kết.",
+      "empty_description": "Chọn tệp từ Google Drive của bạn để liên kết vào công việc hoặc nhờ UNI đọc.",
+      "error_title": "Không tải được danh sách tệp Google Drive.",
+      "error_description": "Kiểm tra kết nối mạng rồi thử lại.",
+      "retry": "Thử lại",
+      "load_more": "Tải thêm",
+      "loading_more": "Đang tải thêm…",
+      "search_label": "Tìm trong danh sách Drive",
+      "search_placeholder": "Tìm theo tên",
+      "no_results_title": "Không có kết quả",
+      "no_results_description": "Không có thư mục hoặc tệp nào khớp với “{{query}}”.",
+      "breadcrumb_label": "Vị trí trong Google Drive"
+    },
+    "detail": {
+      "breadcrumb_documents": "Tài liệu",
+      "breadcrumb_drive": "Google Drive",
+      "section_file": "Tệp trên Google Drive",
+      "section_meta": "Thông tin tài liệu",
+      "modified_by_at": "{{type}} · {{name}} sửa {{time}}",
+      "modified_at": "{{type}} · sửa {{time}}",
+      "open_on_drive": "Mở trên Google Drive",
+      "propose_tasks": "Tạo việc từ tài liệu",
+      "ask_uni": "Hỏi UNI",
+      "access_required_hint": "Cần cho UniWork đọc tệp trước",
+      "explainer": "Xem và sửa nội dung trên Google, bằng tài khoản {{email}}. UniWork chỉ lưu liên kết, các việc dùng tệp và lịch sử thao tác; nội dung vẫn nằm trên Google Drive.",
+      "explainer_no_account": "Xem và sửa nội dung trên Google Drive. UniWork chỉ lưu liên kết, các việc dùng tệp và lịch sử thao tác; nội dung vẫn nằm trên Google Drive.",
+      "props": {
+        "source": "Nguồn",
+        "source_value": "Google Drive · {{type}}",
+        "bound_account": "Tài khoản gắn",
+        "rebound_by": "(gắn lại bởi {{name}})",
+        "bound_connection_lost": "Mất kết nối",
+        "bound_access_lost": "Tài khoản này không còn quyền với tệp",
+        "viewer_account": "Bạn mở bằng",
+        "viewer_account_hint": "Mở trên Google Drive và Hỏi UNI đều dùng tài khoản này",
+        "owner": "Chủ sở hữu",
+        "owner_shared_drive": "Bộ nhớ dùng chung",
+        "linked_by": "Người liên kết",
+        "linked_by_you": "Bạn · {{date}}",
+        "linked_by_other": "{{name}} · {{date}}",
+        "permissions": "Quyền xem và sửa",
+        "permissions_value": "Theo chia sẻ trên Drive"
+      },
+      "viewer_access": {
+        "unknown_lead": "Bạn chưa cho UniWork đọc tệp này.",
+        "unknown_body": "Tệp do {{name}} liên kết từ Google Drive của {{name}}. UNI đọc tệp bằng tài khoản Google Drive của chính bạn, nên cần bạn cho phép một lần.",
+        "unknown_note": "Nếu Google báo bạn không có quyền, hãy nhờ chủ sở hữu chia sẻ trên Google Drive. UniWork không chia sẻ thay.",
+        "grant_button": "Cho UniWork đọc tệp",
+        "lost_body": "Tài khoản {{email}} không còn quyền với tệp này.",
+        "lost_body_no_email": "Tài khoản Google Drive của bạn không còn quyền với tệp này.",
+        "connection_lost_body": "Kết nối Google Drive {{email}} đã hết hạn.",
+        "connection_lost_body_no_email": "Kết nối Google Drive của bạn đã hết hạn.",
+        "reconnect_button": "Kết nối lại"
+      },
+      "used_in": {
+        "title": "Đang dùng ở · {{count}}",
+        "empty": "Chưa gắn vào việc nào.",
+        "attach_to_task": "+ Gắn vào việc",
+        "task_row": "{{identifier}} · {{title}}",
+        "attach_dialog": {
+          "title": "Gắn tệp vào việc",
+          "description": "Chọn một công việc trong workspace để liên kết tệp Google Drive này.",
+          "search_label": "Tìm việc",
+          "search_placeholder": "Tên, mã hoặc id…",
+          "task_list_aria": "Danh sách việc",
+          "loading": "Đang tải…",
+          "load_error": "Không tải được danh sách việc.",
+          "empty": "Không có việc nào khớp",
+          "empty_workspace": "Workspace chưa có việc nào.",
+          "already_linked": "Đã gắn",
+          "task_option_selected": "{{title}}, đã chọn",
+          "task_option_already_linked": "{{title}}, đã gắn",
+          "selected_task": "Đã chọn: {{title}}",
+          "results_capped_one": "Hiện {{count}} việc đầu — gõ để lọc",
+          "results_capped_other": "Hiện {{count}} việc đầu — gõ để lọc",
+          "submit": "Gắn vào việc",
+          "submitting": "Đang gắn…",
+          "failed": "Không gắn được tệp vào việc. Thử lại."
+        }
+      },
+      "tasks_created": {
+        "title": "Việc đã tạo từ tài liệu",
+        "summary_one": "Đã tạo {{count}} việc từ tài liệu này",
+        "summary_other": "Đã tạo {{count}} việc từ tài liệu này",
+        "group_one": "{{date}} · {{name}} · {{count}} việc",
+        "group_other": "{{date}} · {{name}} · {{count}} việc"
+      },
+      "activity": {
+        "title": "Hoạt động trong UniWork",
+        "empty": "Chưa có hoạt động nào được ghi lại.",
+        "error": "Không tải được hoạt động.",
+        "actor_you": "Bạn",
+        "actor_unknown": "Một thành viên",
+        "tasks_created_one": "{{actor}} đã tạo {{count}} việc từ đề xuất của UNI",
+        "tasks_created_other": "{{actor}} đã tạo {{count}} việc từ đề xuất của UNI",
+        "linked": "{{actor}} đã liên kết tệp từ Google Drive",
+        "rebound": "{{actor}} đã liên kết lại tệp bằng tài khoản khác",
+        "access_granted": "{{actor}} đã cho UniWork đọc tệp",
+        "access_changed": "{{actor}} đã đổi tài khoản đọc tệp",
+        "access_lost": "Tài khoản gắn đã mất quyền truy cập tệp trên Google Drive",
+        "unlinked": "{{actor}} đã bỏ liên kết tệp"
+      },
+      "rebind": {
+        "button": "Liên kết lại bằng tài khoản khác",
+        "dialog_title": "Liên kết lại bằng tài khoản khác",
+        "dialog_description": "Chọn một tài khoản Google Drive đang hoạt động của bạn để liên kết lại tệp này.",
+        "account_label": "Tài khoản Google Drive",
+        "no_active_accounts": "Chưa có tài khoản Google Drive đang hoạt động. Kết nối tài khoản trong Cài đặt › Tích hợp.",
+        "submit": "Liên kết lại",
+        "submitting": "Đang liên kết lại…",
+        "cancel": "Hủy",
+        "failed": "Không liên kết lại được tệp. Thử lại."
+      },
+      "unlink": {
+        "button": "Bỏ liên kết",
+        "confirm_title_one": "Bỏ liên kết khỏi {{count}} việc?",
+        "confirm_title_other": "Bỏ liên kết khỏi {{count}} việc?",
+        "confirm_title_zero": "Bỏ liên kết tệp này?",
+        "confirm_body": "Chỉ xóa liên kết trong UniWork, tệp trên Google Drive giữ nguyên. Các việc đã tạo vẫn còn, chỉ mất liên kết về tài liệu.",
+        "keep": "Giữ lại",
+        "confirm": "Bỏ liên kết",
+        "submitting": "Đang bỏ liên kết…",
+        "failed": "Không bỏ liên kết được tệp. Thử lại."
+      },
+      "not_found": {
+        "title": "Không tìm thấy tệp này hoặc bạn không có quyền xem.",
+        "back": "Về Google Drive của tôi",
+        "back_documents": "Về Tài liệu"
+      },
+      "error": {
+        "title": "Không tải được thông tin tệp Google Drive.",
+        "description": "Kiểm tra kết nối mạng rồi thử lại.",
+        "retry": "Thử lại"
+      }
+    }
   },
   "trash": {
     "title": "Thùng rác",

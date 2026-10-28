@@ -193,14 +193,21 @@ type Config struct {
 	EmailHubMicrosoftClientID     string
 	EmailHubMicrosoftClientSecret string
 	EmailHubMicrosoftTenant       string
-	SMTPHost                      string
-	SMTPPort                      string
-	SMTPUsername                  string
-	SMTPPassword                  string
-	SMTPTLS                       string
-	SMTPTLSInsecure               bool
-	SMTPEHLOName                  string
-	MailFrom                      string
+	// Google Drive connector (UNI-2172, spec §5.1): its own OAuth client,
+	// Picker developer key and project number, and the test/dev fake switch.
+	GoogleDriveClientID     string
+	GoogleDriveClientSecret string
+	GoogleDrivePickerAPIKey string
+	GoogleDriveAppID        string
+	DriveFakeProvider       bool
+	SMTPHost                string
+	SMTPPort                string
+	SMTPUsername            string
+	SMTPPassword            string
+	SMTPTLS                 string
+	SMTPTLSInsecure         bool
+	SMTPEHLOName            string
+	MailFrom                string
 	// TenorAPIKey enables Tenor GIF search in chat; empty uses a small built-in catalog.
 	TenorAPIKey string
 	// VAPID keys enable Web Push (F-07). Both empty turns web push off: the
@@ -390,6 +397,9 @@ func parseDesktopAuthClients(raw string) ([]DesktopAuthClient, error) {
 func (c Config) EmailHubRedirectURL(provider string) string {
 	return strings.TrimRight(c.APIPublicURL, "/") + "/api/v1/email-hub-connections/" + provider + "/callback"
 }
+func (c Config) DriveGoogleRedirectURL() string {
+	return strings.TrimRight(c.APIPublicURL, "/") + "/api/v1/drive-connections/google/callback"
+}
 
 // EffectiveDocumentMaxBytes returns DocumentMaxBytes, or DefaultDocumentMaxBytes
 // when Config was constructed directly in a unit test with a zero value.
@@ -471,6 +481,8 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	driveFakeRaw := strings.TrimSpace(os.Getenv("DRIVE_FAKE_PROVIDER"))
+	driveFakeProvider := driveFakeRaw == "1" || strings.EqualFold(driveFakeRaw, "true")
 	c := Config{
 		Port:                          getenv("PORT", "8080"),
 		DatabaseURL:                   os.Getenv("DATABASE_URL"),
@@ -549,6 +561,11 @@ func Load() (Config, error) {
 		EmailHubMicrosoftClientID:     os.Getenv("EMAIL_HUB_MICROSOFT_CLIENT_ID"),
 		EmailHubMicrosoftClientSecret: os.Getenv("EMAIL_HUB_MICROSOFT_CLIENT_SECRET"),
 		EmailHubMicrosoftTenant:       getenv("EMAIL_HUB_MICROSOFT_TENANT", "common"),
+		GoogleDriveClientID:           os.Getenv("GOOGLE_DRIVE_CLIENT_ID"),
+		GoogleDriveClientSecret:       os.Getenv("GOOGLE_DRIVE_CLIENT_SECRET"),
+		GoogleDrivePickerAPIKey:       os.Getenv("GOOGLE_DRIVE_PICKER_API_KEY"),
+		GoogleDriveAppID:              os.Getenv("GOOGLE_DRIVE_APP_ID"),
+		DriveFakeProvider:             driveFakeProvider,
 		SMTPHost:                      os.Getenv("SMTP_HOST"),
 		SMTPPort:                      getenv("SMTP_PORT", "25"),
 		SMTPUsername:                  os.Getenv("SMTP_USERNAME"),
@@ -656,6 +673,9 @@ func Load() (Config, error) {
 	c.SecureCookies = strings.EqualFold(u.Scheme, "https")
 	if a, err := url.Parse(c.APIPublicURL); err != nil || a.Scheme == "" || a.Host == "" {
 		return c, fmt.Errorf("API_PUBLIC_URL must be an absolute origin like https://api.example.com, got %q", c.APIPublicURL)
+	}
+	if strings.EqualFold(c.AppEnv, "production") && (c.DriveFakeProvider || (driveFakeRaw != "" && driveFakeRaw != "0" && !strings.EqualFold(driveFakeRaw, "false"))) {
+		return c, fmt.Errorf("DRIVE_FAKE_PROVIDER is refused when APP_ENV=production")
 	}
 	// Swagger is opt-in in production (ENABLE_SWAGGER=1). Locally it is on
 	// unless the operator sets ENABLE_SWAGGER=0: GNU Make 3.81 (macOS stock)

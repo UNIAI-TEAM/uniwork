@@ -285,6 +285,10 @@ func errInvalidState() error {
 	return coded(http.StatusConflict, "invalid_meeting_state", "thao tác không hợp lệ với trạng thái cuộc họp hiện tại")
 }
 
+func errMeetingInPerson() error {
+	return coded(http.StatusConflict, "meeting_in_person", "cuộc họp trực tiếp không mở phòng họp")
+}
+
 func errNotHost() error {
 	return coded(http.StatusForbidden, "not_meeting_host", "chỉ chủ tọa hoặc quản trị workspace mới được thực hiện")
 }

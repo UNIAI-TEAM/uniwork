@@ -68,6 +68,17 @@ describe("privacy policy", () => {
     }
   });
 
+  // Google's OAuth verification of the drive.file scope reads this section by its anchor.
+  it("states Google API Limited Use and the drive.file scope at #google-drive", () => {
+    for (const locale of ["en", "vi"] as const) {
+      const drive = guideContent("privacy", locale).sections.find(section => section.id === "google-drive")?.paragraphs.join(" ");
+      expect(drive).toContain("drive.file");
+      expect(drive).toContain("Google API Services User Data Policy");
+      expect(drive).toContain("Limited Use");
+      expect(drive).toContain("myaccount.google.com/permissions");
+    }
+  });
+
   it("carries a machine-readable effective date", () => {
     expect(guideContent("privacy", "en").effective?.dateTime).toBe("2026-10-28");
     expect(guideContent("privacy", "vi").effective?.dateTime).toBe("2026-10-28");

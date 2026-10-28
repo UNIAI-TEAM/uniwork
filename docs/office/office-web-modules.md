@@ -483,7 +483,21 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, `59defc158` (`0.1.0-59defc1`, the current REPIN-8 pin of UNI-923: the
+All six modules are pinned to one fork commit, `6799c6765` (`0.1.0-6799c67`, the REPIN-9 pin of UNI-2264: fork main
+`6799c6765`, which adds the frame request `ai.start` and the capability `aiStart` over `0.1.0-59defc1`, plus the UNI-2262
+PDF editing and signature fixes merged before it, so the PDF bundle changes for more than this feature). `types.ts` and
+`host.ts` changed (`AiStartPayload`, `AiStartResult`, `'aiStart'`, `host.startAi`, which rejects `unsupported` without
+sending when the `InitAck` has no `aiStart`), `endpoint.ts` did not, so the `protocol` and `host` digests are now
+`d8fd6031...74d9` and `d6ccebe5...4f1d`, the `endpoint` digest is unchanged, and the three vendored headers name `6799c6765`.
+The frame claims `aiStart` exactly when it claims `uniworkAi`, answers `{queued:true}` once the panel accepted the job and
+`unsupported` when the panel's provider is not UniWork AI; the web host grants it on `uniwork_ai` for an editable page and
+sends `ai.start` once, after its `api.open` answered (`use-frame-ai-handoff.ts`). The avatar route list
+(`AVATAR_ROUTE_FRAME_VERSIONS`) now holds `0.1.0-6799c67`, which keeps the avatar loader, in place of `0.1.0-59defc1`.
+Built on linux/arm64 (the Sheets wasm is the arm64 line `7ea491df...53f0` of the fork's checksum file), published at
+`web-0.1.0-6799c67` (`dist-web-0.1.0-6799c67.tar.gz`, sha256 `6e13dca5...153e`), and written by
+`node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` with `source.json` naming the release URL.
+
+The previous pin, kept for the history: `59defc158` (`0.1.0-59defc1`, the REPIN-8 pin of UNI-923: the
 desktop-shell-only UNI-2052, UNI-2066, UNI-2067, UNI-2068 and UNI-2069 over `0.1.0-51e1da4`, so the web frames equal it apart from the
 version stamp), replacing `0.1.0-51e1da4` (the REPIN-7 pin of UNI-2070: fork main `51e1da41f`, UNI-2011
 shortcuts, UNI-2060 `aria-keyshortcuts` and UNI-2065 over `0.1.0-929f0ca`), replacing `0.1.0-929f0ca` (the UNI-1986 pin: fork main

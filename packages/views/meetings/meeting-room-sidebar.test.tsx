@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
@@ -164,12 +165,18 @@ describe("MeetingRoomSidebar", () => {
     it("gives a guest a recordings tab once one can be played, and plays it", async () => {
       serveRecordings([done]);
       const onTabChange = vi.fn();
-      const { rerender } = render(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="chat" onTabChange={onTabChange} guestMode />));
+      // One client for both renders: wrapWithNav builds a fresh QueryClient per call, so a bare rerender
+      // swaps in an empty cache and the list is an empty <ol> until the refetch lands.
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
+      const sidebar = (tab: "chat" | "recordings") => (
+        <MeetingRoomSidebar meetingId="m1" tab={tab} onTabChange={onTabChange} guestMode />
+      );
+      const { rerender } = render(wrapWithNav(sidebar("chat"), undefined, client));
       fireEvent.click(await screen.findByRole("tab", { name: "Bản ghi" }));
       expect(onTabChange).toHaveBeenCalledWith("recordings");
-      rerender(wrapWithNav(<MeetingRoomSidebar meetingId="m1" tab="recordings" onTabChange={onTabChange} guestMode />));
+      rerender(wrapWithNav(sidebar("recordings"), undefined, client));
       const list = await screen.findByRole("list", { name: "Bản ghi" });
-      fireEvent.click(within(list).getByRole("button", { name: /^Phát bản ghi lúc / }));
+      fireEvent.click(await within(list).findByRole("button", { name: /^Phát bản ghi lúc / }));
       expect(await screen.findByRole("dialog")).toBeInTheDocument();
     });
 

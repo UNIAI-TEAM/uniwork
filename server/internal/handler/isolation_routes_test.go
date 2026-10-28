@@ -532,6 +532,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/billing/webhooks/vnpay":                   {class: isoPublic, reason: reasonProvider},
 	"GET /api/v1/calendar-connections/{provider}/callback":  {class: isoPublic, reason: reasonProvider},
 	"GET /api/v1/email-hub-connections/{provider}/callback": {class: isoPublic, reason: reasonProvider},
+	"GET /api/v1/drive-connections/google/callback":         {class: isoPublic, reason: reasonProvider},
 
 	// Links whose secret is the credential.
 	"GET /api/v1/public/documents/{token}":                   {class: isoPublic, reason: reasonLink},
@@ -794,6 +795,10 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/shares":                                   {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
 	"POST /api/v1/documents/{documentID}/shares/batch":                             {body: isoWith(map[string]string{}, map[string]any{"principal_ids": []any{"01J8X4K2M0N1P2Q3R4S5T6U7V8"}, "level": "view"})},
 	"PUT /api/v1/documents/{documentID}/access":                                    {body: isoWith(map[string]string{}, map[string]any{"items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}})},
+	// UNI-2244: folder bulk access update and batch progress.
+	"PUT /api/v1/documents/{folderID}/contents-access": {
+		body: isoWith(map[string]string{}, map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}}),
+	},
 	// DOC-05: a valid reason, so the cross-tenant refusal is the gate and never the 422.
 	"POST /api/v1/documents/{documentID}/break-glass": {body: isoJSON(map[string]any{"reason": "Kiểm tra theo yêu cầu của kiểm toán"})},
 	// DOC-07 (UNI-1631 §4.3). The create answers every well-formed id with the
@@ -1013,6 +1018,18 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/meeting-join-requests/{requestId}/cancel":                              {controlAs: "third"},
 	"POST /api/v1/tasks/{taskID}/labels":                                                 {body: isoWith(map[string]string{"label_id": "label"}, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/agents":                                       {body: isoWith(map[string]string{"agent_id": "agent"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"connection_id": tn.ids["driveConnection"], "external_file_ids": []string{"iso-drive-" + strings.ToLower(tn.tag)}}}
+	}},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":             {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
+	"PUT /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":              {controlAs: "peer", body: isoWith(map[string]string{"connection_id": "peerDriveConnection"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind":             {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name":           {body: isoWith(map[string]string{"drive_connection_id": "driveConnection"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals":     {body: isoJSON(map[string]any{"prompt": "Extract tasks"})},
+	"POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates": {body: isoJSON(map[string]any{"titles": []string{"Chốt phạm vi beta"}})},
+	"POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks": {body: isoJSON(map[string]any{
+		"items": []any{map[string]any{"index": 0, "title": "Chốt phạm vi beta", "description": "Mục tiêu"}},
+	})},
 	"POST /api/v1/orgs/{orgID}/billing/checkout": {body: isoJSON(map[string]any{
 		"plan_code": "starter", "success_path": "/billing/ok",
 	})},

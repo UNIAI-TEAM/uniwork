@@ -39,7 +39,8 @@ type FakeProvider struct {
 	GetPermissionsCalls int
 	GetPermissionsErr   error
 	GetPermissionsDelay time.Duration
-	// permMu guards the participant fields above for concurrent moderators.
+	// permMu guards the participant and join fields for concurrent moderators
+	// and concurrent Join calls in the small-pool load test.
 	permMu sync.Mutex
 	// Scribe dispatches, guarded by scribeMu: the sweep and Start may race.
 	scribeMu          sync.Mutex
@@ -84,9 +85,12 @@ func (f *FakeProvider) Capabilities(context.Context) ConferenceCapabilities {
 }
 
 func (f *FakeProvider) EnsureSession(_ context.Context, req EnsureSessionRequest) (ProviderSessionRef, error) {
+	f.permMu.Lock()
 	f.EnsureCalls++
-	if f.EnsureErr != nil {
-		return ProviderSessionRef{}, f.EnsureErr
+	err := f.EnsureErr
+	f.permMu.Unlock()
+	if err != nil {
+		return ProviderSessionRef{}, err
 	}
 	return ProviderSessionRef{RoomName: req.RoomName, RoomSID: "fake-sid"}, nil
 }
@@ -94,11 +98,12 @@ func (f *FakeProvider) EnsureSession(_ context.Context, req EnsureSessionRequest
 func (f *FakeProvider) IssueJoinCredential(_ context.Context, req IssueJoinCredentialRequest) (JoinCredential, error) {
 	f.permMu.Lock()
 	f.LastJoin = req
-	f.permMu.Unlock()
-	if f.JoinErr != nil {
-		return JoinCredential{}, f.JoinErr
-	}
+	err := f.JoinErr
 	url := f.ServerURL
+	f.permMu.Unlock()
+	if err != nil {
+		return JoinCredential{}, err
+	}
 	if url == "" {
 		url = "wss://fake.livekit.local"
 	}

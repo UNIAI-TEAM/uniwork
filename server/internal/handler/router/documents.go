@@ -91,6 +91,9 @@ import (
 //	POST   /api/v1/documents/{documentID}/comments/{commentID}/reactions
 //	DELETE /api/v1/documents/{documentID}/comments/{commentID}/reactions
 //	GET    /api/v1/documents/{documentID}/mention-candidates     (G8-06)
+//	POST   /api/v1/documents/{documentID}/template                (UNI-2225)
+//	DELETE /api/v1/documents/{documentID}/template                (UNI-2225)
+//	GET    /api/v1/workspaces/{workspaceID}/documents/templates   (UNI-2225)
 //	POST   /api/v1/documents/{documentID}/favorite
 //	DELETE /api/v1/documents/{documentID}/favorite
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
@@ -515,6 +518,21 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		sdo:         sdo.StatusSDO{},
 		auth:        true,
 	})
+	d.Post("/documents/{documentID}/template", h.MarkDocumentTemplate, apiOp{
+		summary:     "Mark a document as a template",
+		description: "Đánh dấu tệp là mẫu văn bản của workspace (UNI-2225): người có quyền xem tệp đánh dấu được; thư mục, trang và tệp ở thùng rác hoặc đã lưu trữ không đánh dấu được. Tệp restricted cần widen_to_workspace=true (mẫu hiển thị cho cả workspace) và quyền manage, thiếu -> 409 template_widens_visibility. Thân có thể bỏ trống (= widen_to_workspace false). Lặp lại không lỗi, không ghi audit lần hai. Trả DocumentSDO.",
+		tags:        []string{"documents"},
+		sdi:         sdi.MarkDocumentTemplateSDI{},
+		sdo:         sdo.DocumentSDO{},
+		auth:        true,
+	})
+	d.Delete("/documents/{documentID}/template", h.UnmarkDocumentTemplate, apiOp{
+		summary:     "Unmark a document as a template",
+		description: "Bỏ đánh dấu mẫu (UNI-2225); tệp giữ nguyên visibility. Tệp chưa là mẫu vẫn trả 200 không đổi gì (idempotent). Tệp đã lưu trữ hoặc ở thùng rác vẫn bỏ đánh dấu được. Trả DocumentSDO.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentSDO{},
+		auth:        true,
+	})
 	d.Get("/orgs/{orgID}/documents/favorites", h.ListDocumentFavorites, apiOp{
 		summary:     "List my favorite documents",
 		description: "Tài liệu người gọi đã lưu trong một tổ chức, mới nhất trước; mỗi dòng kiểm lại quyền đọc hiện tại nên chia sẻ bị thu hồi tự rụng khỏi danh sách. Không phải thành viên -> 404.",
@@ -549,6 +567,14 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		description: "Tài liệu người gọi đã gắn sao trong workspace này, mỗi dòng là DocumentSummaryDTO kèm favorited_at (người gọi gắn sao khi nào), mới gắn trước (sort=starred mặc định giảm dần). type lặp (?type=docx&type=xlsx) lọc như danh sách phẳng, giá trị lạ hoặc rỗng -> 400 invalid_type. Chỉ trả dòng người gọi còn đọc được: chia sẻ bị thu hồi hoặc tài liệu vào thùng rác rụng khỏi danh sách, dòng sao vẫn còn và quay lại khi có quyền. Lọc kind, format như danh sách phẳng (giá trị lạ -> 400 invalid_filter); cursor keyset gắn với sort/order; agent -> 403. Route favorites cấp tổ chức (/orgs/{orgID}/documents/favorites) giữ nguyên.",
 		tags:        []string{"documents"},
 		sdi:         sdi.ListFavoriteDocumentsSDI{},
+		sdo:         sdo.DocumentListSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/templates", h.ListTemplateDocuments, apiOp{
+		summary:     "List document templates in a workspace",
+		description: "Mẫu văn bản (Mẫu) của workspace: các tệp đã được đánh dấu là mẫu, mỗi dòng là DocumentSummaryDTO kèm template_marked_at/template_marked_by. Chỉ trả tệp người gọi còn đọc được; tệp vào thùng rác rụng khỏi danh sách. Lọc kind, format, type như danh sách phẳng (giá trị lạ -> 400 invalid_filter, type lạ hoặc rỗng -> 400 invalid_type); cursor keyset; agent -> 403.",
+		tags:        []string{"documents"},
+		sdi:         sdi.ListTemplateDocumentsSDI{},
 		sdo:         sdo.DocumentListSDO{},
 		auth:        true,
 	})
@@ -782,6 +808,27 @@ func registerDocuments(r, callerDocs api, h Routes, flags *featureflag.Service, 
 		tags: []string{"documents"},
 		sdi:  sdi.UpdateDocumentAccessSDI{},
 		sdo:  sdo.DocumentAccessBatchSDO{},
+		auth: true,
+	})
+	d.Put("/documents/{folderID}/contents-access", h.UpdateFolderContentsAccess, apiOp{
+		summary: "Bulk update access for all manageable documents in a folder subtree",
+		description: "Đổi quyền truy cập hàng loạt cho mọi tài liệu sống (khác folder) trong cây con của thư mục gốc mà người gọi có quyền quản trị chia sẻ (UNI-2244 §1–§3). " +
+			"Hai chế độ mode: merge (thêm vào quyền đã có, lấy mức cao hơn, không bao giờ hạ) và replace (đặt đúng tập đã chọn và gỡ phần còn lại; thiếu dòng workspace gốc -> về Riêng tư; items rỗng chỉ hợp lệ với replace). " +
+			"Tài liệu không quản lý được -> bỏ qua và đếm vào skipped_not_manageable; tài liệu thuộc Work Product đang khóa -> bỏ qua và đếm vào skipped_locked; loại trừ Thùng rác và cây My Folder của người khác; không đụng chủ sở hữu ACL hay liên kết công khai. " +
+			"Gốc không phải thư mục -> 422 not_a_folder; mục lỗi ngữ nghĩa (principal_not_in_organization, level_not_allowed, duplicate_principal, break_glass_required, hoặc items rỗng với merge / quá 100 mục) -> 422 document_access_rejected kèm fields.rejected[] và không ghi gì; đang có lô cập nhật cho thư mục này -> 409 folder_access_batch_running (fields.batch_id là tùy chọn: có mặt khi có lô queued/running, vắng mặt khi hết thời gian chờ khóa vì một thao tác đồng bộ đang giữ thư mục để client thử lại); không đọc được thư mục -> 403/404. " +
+			"dry_run=true -> 200 {total, preview{changed, unchanged, skipped_not_manageable, skipped_locked, losing_users, downgraded_users, warnings[]}} (chỉ số đếm, không lộ tên tài liệu hay người dùng). " +
+			"dry_run=false: khi total <= ngưỡng đồng bộ (500) -> ghi ngay trong một transaction và trả 200 {batch_id, mode:\"sync\", total, changed, unchanged, skipped_not_manageable, skipped_locked}; khi lớn hơn -> xếp hàng chạy nền và trả 202 {batch_id, mode:\"background\", total} (hợp đồng trả 501 not_implemented cho tới khi BE-2 hoàn tất).",
+		tags: []string{"documents"},
+		sdi:  sdi.UpdateFolderContentsAccessSDI{},
+		sdo:  sdo.FolderContentsAccessResultSDO{},
+		auth: true,
+	})
+	d.Get("/documents/{folderID}/contents-access/{batchID}", h.GetFolderContentsAccessBatch, apiOp{
+		summary: "Get progress of a folder bulk access batch",
+		description: "Tiến độ và số đếm kết quả của một lô đổi quyền hàng loạt theo thư mục (UNI-2244 §3.2): {batch_id, status \"queued|running|completed|failed\", total, processed, changed, unchanged, skipped_not_manageable, skipped_locked, finished_at?}. " +
+			"Chỉ người tạo lô đọc được; người khác, lô không thuộc thư mục hoặc thuộc tổ chức khác -> 404 not_found (hợp đồng trả 501 not_implemented cho tới khi BE-2 hoàn tất).",
+		tags: []string{"documents"},
+		sdo:  sdo.FolderContentsAccessBatchSDO{},
 		auth: true,
 	})
 	d.Delete("/documents/{documentID}/shares/{shareID}", h.RevokeDocumentShare, apiOp{

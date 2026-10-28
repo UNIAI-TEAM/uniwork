@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ApiError, request } from "../http";
+import { ApiError, request, requestDownload } from "../http";
 import { parseWithFallback } from "../schema";
 
 // The several-file download (UNI-2045 W9, SV-9, Advisor Q1): the server zips
@@ -74,4 +74,17 @@ export async function getDownloadJob(wsId: string, jobId: string, signal?: Abort
 /** The 422 the create answers when the files add up to more than 1 GiB. */
 export function isDownloadTooLargeError(error: unknown): boolean {
   return error instanceof ApiError && error.code === "download_too_large";
+}
+
+/**
+ * GET /api/v1/workspaces/{ws}/documents/download-jobs/{jobID}/download: the zip of a ready job.
+ * A bearer route, so a plain link or navigation answers 401; this goes through the transport
+ * (bearer plus one refresh). The path is built from the ids, never from the job's `download_url`.
+ * `filename` is the server's, or null when the browser cannot read it. An empty body is not a zip
+ * and rejects as an ApiError rather than saving a 0-byte file.
+ */
+export async function downloadJobZip(wsId: string, jobId: string, signal?: AbortSignal): Promise<{ blob: Blob; filename: string | null }> {
+  const out = await requestDownload(`/api/v1/workspaces/${enc(wsId)}/documents/download-jobs/${enc(jobId)}/download`, { signal });
+  if (out.blob.size === 0) throw new ApiError("The zip answered no bytes", "internal", 200);
+  return out;
 }

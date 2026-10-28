@@ -1,9 +1,10 @@
 "use client";
-import { Ban, CalendarX, Lock, Play, RotateCcw, TriangleAlert, Video } from "lucide-react";
+import { Ban, CalendarX, CloudUpload, Lock, Mic, Play, RotateCcw, TriangleAlert, Video } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useExtendMeeting, useRestoreMeeting, useStartMeeting } from "@uniwork/core/meetings";
+import { meetingVenue } from "@uniwork/core/meetings/venue";
 import { toast } from "sonner";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -14,6 +15,7 @@ import { ScheduleFollowUpButton } from "../schedule-follow-up-button";
 import { dueWords } from "./close-out/action-item-row";
 import { useDetail } from "./detail-context";
 import { clock, dayWord, shortDay, untilWords } from "./format";
+import { NameSpeakersButton, TranscribingRow, UnsentRow } from "./in-person-rows";
 import type { StripJob } from "./next-step-jobs";
 import { PhonePrimary, usePhoneBar } from "./phone-frame";
 import { kitButton } from "./ui/kit-buttons";
@@ -31,6 +33,8 @@ export type StripHandlers = {
   /** Đặt lại lịch: the page's edit sheet, which outlives the missed row once the meeting is scheduled again. */
   onEdit: () => void;
   onFollowUpCreated: (meetingId: string) => void;
+  /** Bắt đầu ghi âm of an in-person meeting; without it the page offers no recording. */
+  onRecord?: (opts?: { send?: boolean }) => void;
   hostName: string;
   /** Who can assign (host, secretaries), for "chờ Lan Phạm hoặc Hà Vũ giao". */
   clerkNames: string[];
@@ -81,7 +85,15 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
   ) : (
     <Timed k="meetings.detail.strip.startsLate" values={{ time: clock(meeting.starts_at) }} />
   );
-  const primary = job.canStart ? (
+  const primary = job.inPerson ? (
+    // In person there is no room to start or join: a clerk records it, where the page can.
+    job.canRecord && h.onRecord ? (
+      <Button type="button" size="lg" variant={due ? "brand" : "outline"} className={lg(due ? "" : kitButton.outline)} onClick={() => h.onRecord?.()}>
+        <Mic aria-hidden />
+        {t("meetings.venue.startRecording")}
+      </Button>
+    ) : null
+  ) : job.canStart ? (
     <Button
       type="button"
       size="lg"
@@ -127,8 +139,16 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
       actions={
         <>
           <MeetingCalendarButton meetingId={meeting.id} title={meeting.title} className={lg(kitButton.ghost)} />
-          {job.canStart && now >= startsAt ? (
-            <MeetingRecordHeldButton workspaceId={workspaceId} meeting={meeting} size="lg" className={lg(kitButton.outline)} />
+          {/* Any clerk may record it held (the server's RecordHeld); online keeps the runner's gate. */}
+          {(job.canStart || (job.inPerson && job.canRecord)) && now >= startsAt ? (
+            <MeetingRecordHeldButton
+              workspaceId={workspaceId}
+              meeting={meeting}
+              size="lg"
+              className={lg(kitButton.outline)}
+              label={job.inPerson ? t("meetings.venue.haveFile") : undefined}
+              icon={job.inPerson ? CloudUpload : undefined}
+            />
           ) : null}
           <PhonePrimary>{primary}</PhonePrimary>
         </>
@@ -220,7 +240,13 @@ function MissedRow({ job, h }: { job: Extract<StripJob, { kind: "missed" }>; h: 
       actions={
         job.canAct ? (
           <>
-            <MeetingRecordHeldButton workspaceId={workspaceId} meeting={meeting} size="lg" className={lg(kitButton.outline, "[&>svg]:hidden")} />
+            <MeetingRecordHeldButton
+              workspaceId={workspaceId}
+              meeting={meeting}
+              size="lg"
+              className={lg(kitButton.outline, "[&>svg]:hidden")}
+              label={meetingVenue(meeting) === "in_person" ? t("meetings.venue.haveFile") : undefined}
+            />
             <PhonePrimary>
               <Button type="button" size="lg" variant="brand" className={lg()} onClick={h.onEdit}>
                 {t("meetings.detail.strip.reschedule")}
@@ -326,23 +352,37 @@ function CloseOutRow({ job, h }: { job: Extract<StripJob, { kind: "closeOut" }>;
     .filter(Boolean)
     .join(" · ");
   const review = job.pending > 0;
+  // In person, the speakers come first: the items follow, the minutes wait until they are named (board p09).
+  const unnamed = job.unnamedSpeakers ?? 0;
+  const head =
+    unnamed > 0
+      ? {
+          lead: t("meetings.record.unnamedSpeakers", { count: unnamed }),
+          rest: review ? t("meetings.detail.strip.pendingItems", { count: job.pending }) : null,
+        }
+      : { lead, rest };
   return (
     <StripRow
       title={
-        lead ? (
+        head.lead ? (
           <>
-            <strong>{lead}</strong>
-            {rest ? t("meetings.detail.strip.tail", { text: rest }) : null}
+            <strong>{head.lead}</strong>
+            {head.rest ? t("meetings.detail.strip.tail", { text: head.rest }) : null}
           </>
         ) : undefined
       }
-      caption={caption || undefined}
+      caption={unnamed > 0 ? t("meetings.record.unnamedHint") : caption || undefined}
       actions={
         <>
-          {job.canFollowUp && !phone ? (
+          {unnamed > 0 && (!phone || !review) ? (
+            <PhonePrimary>
+              <NameSpeakersButton primary={!review} />
+            </PhonePrimary>
+          ) : null}
+          {job.canFollowUp && !phone && unnamed === 0 ? (
             <ScheduleFollowUpButton workspaceId={workspaceId} meeting={meeting} participants={participants} onCreated={h.onFollowUpCreated} />
           ) : null}
-          {job.canFinalize && (!phone || !review) ? (
+          {job.canFinalize && unnamed === 0 && (!phone || !review) ? (
             <PhonePrimary>
               <Button
                 type="button"
@@ -425,6 +465,10 @@ export function StripJobRow({ job, handlers }: { job: StripJob; handlers: StripH
       return <CloseOutRow job={job} h={handlers} />;
     case "memberItems":
       return <MemberItemsRow job={job} h={handlers} />;
+    case "transcribing":
+      return <TranscribingRow job={job} h={handlers} />;
+    case "unsent":
+      return <UnsentRow job={job} h={handlers} />;
     case "outsider":
       return <OutsiderRow />;
     default:

@@ -130,6 +130,7 @@ const fileMenu = () => [
   t("documents.home.row.move"),
   t("documents.actions.copy"),
   t("documents.home.row.download"),
+  t("documents.templates.mark"),
   t("documents.shelved_list.shelve"),
   t("documents.home.row.archive"),
 ];

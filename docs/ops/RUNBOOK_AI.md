@@ -313,6 +313,15 @@ Lệnh nghiệp vụ lỗi (`not_found`, `invalid_args`, `forbidden`…) trả m
 - **Audit**: dòng audit của bộ nhớ không bao giờ chứa chữ của mục (`TestAiMemoryAuditCarriesNoText`); chữ dán khi nhập cũng không được log hay audit.
 - **Trước khi bật ở production**: chạy eval Hỏi UNI (`docs/ops/ASKUNI_EVAL.md`, mục "P4: memory cases") và ca nhập `TestMemoryImportEvalLive`; mức đạt nằm ở đó.
 
+## Hỏi UNI: giao việc cho AI trong trình soạn (UNI-2264, ADR 0048)
+
+Khi người hỏi áp dụng thẻ `create_office_document` mà thẻ ghi "Mở và soạn" hoặc "Mở và dựng", server ghi một gói vào `ai_office_handoffs`: yêu cầu, dàn ý chia phần và tư liệu đã duyệt. Trang web gửi `ai.start` cho khung trình soạn sau khi tài liệu mở; mỗi lượt UniWork AI mang header `X-UniWork-AI-Handoff` thì server mở rộng câu hỏi từ gói, rồi tiến một phần khi câu trả lời đã lưu, và trả `X-UniWork-AI-Handoff-Remaining`.
+
+- **Không có cờ riêng.** Tắt `ask_uni_actions` thì không còn thẻ tạo tệp. Tắt `office_ai_uniwork` (hoặc `office_ai_uniwork_<định dạng>`), hay tổ chức hết credit AI, thì thẻ ghi "Tạo và mở để tự soạn", Apply không ghi gói, tệp vẫn được tạo để người hỏi tự soạn.
+- **Worker dọn gói**: `OfficeHandoffSweeper` (trong chuỗi shutdown của `server/cmd/server/main.go`) chạy lúc khởi động rồi mỗi 10 phút, xóa gói quá 24 giờ theo lô 500. Log `office handoff sweep` với `purged`; lỗi ghi ở mức Warn và lượt sau chạy lại. Gói hết hạn không còn được đọc dù worker chậm (việc đọc gói kiểm `expires_at`), nên worker dừng chỉ làm bảng phình, không làm lộ dữ liệu.
+- **Việc không bắt đầu trong trình soạn**: xem dòng lý do trên thẻ (`editor_ai`); xem khung có nhận capability `aiStart` không (bundle web phải là bản pin từ `web-0.1.0-6799c67` trở về sau; frame chỉ nhận khi bảng AI dùng UniWork AI); trang chưa giữ được khóa sửa thì việc nằm chờ, chưa bị từ chối. Header của một gói hết hạn, của người khác, tài liệu khác hay hội thoại khác thì server bỏ qua im lặng: lượt chạy như câu hỏi thường.
+- **Dữ liệu**: gói chứa chữ người hỏi đã duyệt; không log và không audit chữ đó (log chỉ có id). Gói không vào bản xuất dữ liệu tổ chức: thẻ đề xuất gốc (`agent_action_proposals`) đã được xuất.
+
 ## Không bao giờ
 
 - Không log prompt, nguồn hay câu trả lời. `ai_messages` là dữ liệu người dùng,

@@ -61,6 +61,9 @@ type OrganizationMemberService struct {
 	// stepUp checks the owner's proof before a hand-over (proveOwner); nil
 	// takes no proof, so no organization changes hands.
 	stepUp *AuthService
+	// drive is optional: wired, Close revokes the Google Drive grants of the
+	// connections it disconnects after commit (spec §5.3a).
+	drive *DriveConnectionService
 }
 
 func NewOrganizationMemberService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService) *OrganizationMemberService {
@@ -77,6 +80,9 @@ func (s *OrganizationMemberService) SetStepUp(a *AuthService) { s.stepUp = a }
 // SetEmailHub lets Leave revoke the refresh tokens it removes; main wires it
 // once EmailHubService exists.
 func (s *OrganizationMemberService) SetEmailHub(h *EmailHubService) { s.emailHub = h }
+
+// SetDrive lets Close revoke the Google Drive grants it disconnects after commit.
+func (s *OrganizationMemberService) SetDrive(d *DriveConnectionService) { s.drive = d }
 
 // MemberPage is one keyset page of the organization's membership.
 type MemberPage struct {
@@ -245,6 +251,9 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if err := lockMembership(ctx, q, targetID); err != nil {
+		return db.OrganizationMember{}, err
+	}
 	updated, err := q.SetOrganizationMemberDeactivated(ctx, db.SetOrganizationMemberDeactivatedParams{
 		OrganizationID: orgID, UserID: targetID,
 		DeactivatedBy: pgtype.Text{String: actorID, Valid: true},
@@ -260,6 +269,9 @@ func (s *OrganizationMemberService) Deactivate(ctx context.Context, actorID, org
 	if err := q.LeaveChatRoomsInOrganizationForUser(ctx, db.LeaveChatRoomsInOrganizationForUserParams{
 		OrganizationID: orgID, UserID: targetID,
 	}); err != nil {
+		return db.OrganizationMember{}, err
+	}
+	if _, err := disconnectDriveConnectionsForUserInTx(ctx, q, audit.User(actorID), targetID, orgID, "member_deactivated"); err != nil {
 		return db.OrganizationMember{}, err
 	}
 	// Sessions are per user, not per organization: revoking them while the
@@ -448,6 +460,9 @@ func (s *OrganizationMemberService) leaveQ(ctx context.Context, q *db.Queries, a
 		UserID: actorID, OrganizationID: pgtype.Text{String: orgID, Valid: true},
 	})
 	if err != nil {
+		return nil, err
+	}
+	if _, err := disconnectDriveConnectionsForUserInTx(ctx, q, audit.User(actorID), actorID, orgID, "member_left"); err != nil {
 		return nil, err
 	}
 	// Ask UNI memory is private to the person and this organization (P4, R18).

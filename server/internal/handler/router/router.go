@@ -49,6 +49,7 @@ type Deps struct {
 	// the caller is a member of its workspace, so `meeting_minutes` honours
 	// organization overrides (UNI-2003); nil evaluates it per user.
 	MeetingOrganization func(*http.Request) string
+	DriveOrganization   func(*http.Request) string
 	DeviceStatus        func(context.Context, string, string) error
 	// OfficeFrameAuth checks the Office Docs frame token on
 	// /api/v1/office-frame/*; nil refuses every frame route with 404.
@@ -164,6 +165,8 @@ func New(d Deps, h Routes) http.Handler {
 			// the page.
 			ai.UniworkConversationHeader,
 			ai.UniworkRunHeader,
+			// The Ask UNI handoff package a turn works on (ADR 0048).
+			ai.UniworkHandoffHeader,
 			// Vendor headers the BYOK proxy forwards (provider/byok_client.go); a
 			// browser caller needs them in the preflight or the fetch never leaves.
 			"Anthropic-Beta",
@@ -177,6 +180,8 @@ func New(d Deps, h Routes) http.Handler {
 			// G6-05 reads both off the response: the conversation to continue
 			// and, from G6-03b on, the run id.
 			ai.UniworkConversationHeader, ai.UniworkRunHeader,
+			// The parts of an Ask UNI handoff left after the turn (ADR 0048).
+			ai.UniworkHandoffRemainingHeader,
 			// The access report export (UNI-1643): the file name and the
 			// counts the web shows after the download.
 			"Content-Disposition", "X-Report-Rows", "X-Report-Skipped", "X-Report-Generated-At",
@@ -221,6 +226,7 @@ func New(d Deps, h Routes) http.Handler {
 		registerDemoRequests(v1, h, mw.RateLimit(d.Redis, 5, time.Hour, proxies))
 		// Outside authed: the provider redirects the popup here with no bearer.
 		registerEmailHubCallback(v1, h, credentialLimit)
+		registerDriveGoogleCallback(v1, h, credentialLimit)
 		registerBillingWebhooks(v1, h)
 		registerPublicPlans(v1, h)
 		registerMeetingAgent(v1, h, mw.RequireMeetingAgentToken([]byte(d.Cfg.JWTSecret)), meetingAgentLimit(
@@ -294,6 +300,8 @@ func New(d Deps, h Routes) http.Handler {
 			// (UNI-1197): per signed-in person and route, 10 per 10 minutes.
 			emailHubConnectLimit := mw.RateLimitPerRoute(d.Redis, 10, 10*time.Minute, proxies, bearerUser(d.Minter))
 			registerEmailHub(authed, h, emailHubConnectLimit)
+			driveProposalLimit := mw.RateLimitByIdentityBucket(d.Redis, "drive-proposals", 10, 10*time.Minute, proxies, bearerUser(d.Minter))
+			registerDriveConnections(authed.With(mw.FlagOrganization(d.DriveOrganization)), h, d.FeatureFlags, emailHubConnectLimit, driveProposalLimit)
 			registerAudit(authed, h)
 			registerPrivacy(authed, h)
 			registerGraph(authed, h)

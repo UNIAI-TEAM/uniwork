@@ -651,6 +651,7 @@ func (s *WorkspaceService) JoinMembershipInviteLink(ctx context.Context, userID,
 		return MembershipInviteJoinResult{}, err
 	}
 	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.members.emailHub, out.mailboxes)
+	cleanUpDriveGrantsAfterCommit(ctx, s.members.drive, out.driveSubs)
 	return MembershipInviteJoinResult{Organization: out.org, Workspace: landing, JoinedIDs: out.joinedIDs}, nil
 }
 
@@ -696,6 +697,7 @@ type membershipInviteJoinOutcome struct {
 	org       db.Organization
 	joinedIDs []string
 	mailboxes []db.DisconnectEmailHubAccountsForUserRow
+	driveSubs []string
 }
 
 func (s *WorkspaceService) joinViaMembershipInviteLink(ctx context.Context, userID, linkID, secret string, resolve []SwitchResolution) (membershipInviteJoinOutcome, error) {
@@ -759,7 +761,7 @@ func (s *WorkspaceService) joinViaMembershipInviteLink(ctx context.Context, user
 	if !ok {
 		return membershipInviteJoinOutcome{}, errOrganizationSwitchRequired(conflicts)
 	}
-	mailboxes, err := s.giveUp(ctx, qtx, userID, conflicts, plan, locked)
+	mailboxes, driveSubs, err := s.giveUp(ctx, qtx, userID, conflicts, plan, locked)
 	if err != nil {
 		return membershipInviteJoinOutcome{}, err
 	}
@@ -828,7 +830,7 @@ func (s *WorkspaceService) joinViaMembershipInviteLink(ctx context.Context, user
 	if err := tx.Commit(ctx); err != nil {
 		return membershipInviteJoinOutcome{}, err
 	}
-	return membershipInviteJoinOutcome{org: org, joinedIDs: joined, mailboxes: mailboxes}, nil
+	return membershipInviteJoinOutcome{org: org, joinedIDs: joined, mailboxes: mailboxes, driveSubs: driveSubs}, nil
 }
 
 func (s *WorkspaceService) loadInviteLinkTargetsTx(ctx context.Context, q *db.Queries, link db.MembershipInviteLink) ([]WorkspaceRef, error) {

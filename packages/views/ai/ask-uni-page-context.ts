@@ -3,16 +3,26 @@
 import { useEffect } from "react";
 import { useAiPanelStore } from "@uniwork/core/ai";
 
-type PageFocus = { kind: "task" | "meeting" | "document" | "project" | "room"; id: string; label: string };
+type PageFocus = {
+  kind: "task" | "meeting" | "document" | "drive_file" | "project" | "room";
+  id: string;
+  label: string;
+  accountEmail?: string;
+  openUrl?: string;
+};
 
 /** Tells Ask UNI which object this page shows, so the composer offers it as a chip. Pass null while it loads. */
 export function useAskUniPageContext(focus: PageFocus | null): void {
   const kind = focus?.kind;
   const id = focus?.id;
   const label = focus?.label;
+  const accountEmail = focus?.accountEmail;
+  const openUrl = focus?.openUrl;
   useEffect(() => {
-    if (kind && id !== undefined && label !== undefined) useAiPanelStore.getState().setPage({ kind, id, label });
-  }, [kind, id, label]);
+    if (kind && id !== undefined && label !== undefined) {
+      useAiPanelStore.getState().setPage({ kind, id, label, accountEmail, openUrl });
+    }
+  }, [kind, id, label, accountEmail, openUrl]);
   // The next page may already have set itself: clear only what is still this page's.
   useEffect(() => {
     if (!kind) return;
@@ -23,11 +33,14 @@ export function useAskUniPageContext(focus: PageFocus | null): void {
   }, [kind, id]);
 }
 
-/** The open page as the composer's chip: null when none is open or the reader removed its chip. */
+/** The open page as the composer's chip: null when none is open, the reader removed its chip, or a saved conversation is open on a Drive file page. */
 export function useShownPage() {
   const page = useAiPanelStore((s) => s.page);
   const dismissed = useAiPanelStore((s) => s.pageDismissed);
-  return page && `${page.kind}:${page.id}` !== dismissed ? page : null;
+  const conversationId = useAiPanelStore((s) => s.conversationId);
+  if (!page || `${page.kind}:${page.id}` === dismissed) return null;
+  if (page.kind === "drive_file" && conversationId !== null) return null;
+  return page;
 }
 
 /** What a question is about: the hand-picked object, else the open page. */

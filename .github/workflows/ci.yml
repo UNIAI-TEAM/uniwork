@@ -256,7 +256,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: service
+          - shard: service-a
+            static: "--skip-static"
+          - shard: service-b
             static: "--skip-static"
           - shard: handler
             static: "--skip-static"
@@ -471,6 +473,15 @@ jobs:
       # carry-over) and e2e/ask-uni.spec.ts run here, and fail rather than
       # skip when the provider goes missing (they read CI).
       AI_PROVIDER: fake
+      # e2e/drive-connector.spec.ts (UNI-2198): the Google Drive connector is closed on a server
+      # with no OAuth provider and no credential key (`DriveConnectionService.Available()`), so
+      # Settings > Integrations renders no Drive row. The fake provider (refused when
+      # APP_ENV=production) plus a throwaway AES key (base64 of 32 ASCII bytes, no secret) open it
+      # without calling Google; the fake Picker is baked into the web build (read at `next build`,
+      # where NODE_ENV=production would otherwise leave it off).
+      DRIVE_FAKE_PROVIDER: "1"
+      DRIVE_CREDENTIAL_KEY: Y2ktZTJlLWRyaXZlLWNyZWRlbnRpYWwta2V5LTAwMDA=
+      NEXT_PUBLIC_DRIVE_FAKE_PICKER: "1"
       # e2e/document-edit-lock.spec.ts EL-A02 waits out a lock; it skips itself unless the TTL is
       # 30s or less (UNI-1645, CFE-1-17). Heartbeat stays at most half the TTL (config check).
       DOCUMENT_EDIT_LOCK_TTL: 20s

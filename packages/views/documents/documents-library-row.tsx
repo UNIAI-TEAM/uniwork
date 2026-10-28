@@ -63,15 +63,15 @@ import {
 } from "./library-rows";
 
 /** The formats UniWork Office opens; a page, folder or other file has no app action. */
-const APP_FORMATS = new Set(["docx", "xlsx", "pptx", "pdf", "md", "html"]);
+const APP_FORMATS = new Set(["docx", "xlsx", "pptx", "doc", "xls", "ppt", "pdf", "md", "html"]);
 
 /** How a library row reaches "Open in UniWork Office" (host wiring, per row). */
 export type LibraryDesktopOpen = (doc: { id: string; organization_id: string; current_version: number }) => FrameDesktopOpenProps;
 
 export interface LibraryRowHandlers
-  extends Pick<RowMenuHandlers, "onUnshelve" | "onRestore" | "onViewDetails" | "onPurge">,
+  extends Pick<RowMenuHandlers, "onUnshelve" | "onRestore" | "onViewDetails" | "onPurge" | "onMarkTemplate" | "onUnmarkTemplate">,
     DocLifecycleHandlers {
-  onOpen: (documentId: string) => void;
+  onOpen: (documentId: string, doc?: DocumentSummaryRow) => void;
   onFolder: (folderId: string) => void;
   onGoToSource: (row: Extract<LibraryRow, { type: "source" }>) => void;
   /** Image sources only: fetches the bytes and opens them view-only. */
@@ -104,6 +104,8 @@ export interface LibraryRowHandlers
    * level. Absent where the host mounts no dialog.
    */
   onShare?: (doc: DocumentSummaryRow) => void;
+  /** Opens "Chia sẻ" from a folder row's menu; absent where the host mounts no dialog. */
+  onShareContents?: (doc: DocumentSummaryRow) => void;
   /** Lưu trữ (ARCHIVE-01 U-4): manage-only, hidden on My Folder; the page
    *  wires it so a folder opens the confirm dialog and a document shelves at
    *  once with an undo toast. */
@@ -118,6 +120,8 @@ export interface LibraryRowHandlers
   personName: (userId: string, kind: string) => string | null;
   /** The folder a document sits in, for the Name cell's location line; absent draws none. */
   locationName?: (doc: DocumentSummaryRow) => string | null;
+  /** A search hit's ancestor path line under the name; when present it replaces `locationName`. */
+  searchPath?: (doc: { path?: { id: string; title: string }[] }) => { display: string; full: string; srText: string } | null;
   desktopOpen?: LibraryDesktopOpen;
 }
 
@@ -203,9 +207,9 @@ export function LibraryRowView({
   const primary = () => {
     if (doc && trashed) handlers.onViewDetails?.(doc);
     // A shelved item opens read-only; a shelved folder never browses.
-    else if (doc && screen === "shelved") handlers.onOpen(doc.id);
+    else if (doc && screen === "shelved") handlers.onOpen(doc.id, doc);
     else if (doc && folder) handlers.onFolder(doc.id);
-    else if (doc) handlers.onOpen(doc.id);
+    else if (doc) handlers.onOpen(doc.id, doc);
     else if (row.type === "source") {
       // U-SRC1 + UNI-1869: the primary click opens the file view-only where the
       // row can (the module frame for an Office format), else downloads it; "Xem nơi đính kèm" is a secondary.
@@ -268,12 +272,14 @@ export function LibraryRowView({
   ) : null;
 
   const screenColumn = docListSpec(screen).screenColumn;
+  const resolvedSearchPath = doc ? (handlers.searchPath?.(doc) ?? null) : null;
   const nameCell = (
     <DocNameCell
       kind={folder ? "folder" : (doc?.kind ?? "file")}
       format={folder ? "folder" : format}
       title={title}
-      location={doc && screen !== "workspace" ? (handlers.locationName?.(doc) ?? null) : null}
+      searchPath={resolvedSearchPath}
+      location={!resolvedSearchPath && doc && screen !== "workspace" ? (handlers.locationName?.(doc) ?? null) : null}
       badges={
         <>
           {/* The Star action carries a starred row's state; the marker stays only where no Star action is drawn (N4). */}
@@ -283,8 +289,8 @@ export function LibraryRowView({
           {trashed && screen !== "trash" ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.library.archived_badge")}</Badge>
           ) : null}
-          {/* U-11: a shelved row that also sits in the trash keeps its "Đã lưu trữ" label. */}
-          {screen === "trash" && isShelved(doc) ? (
+          {/* U-6 / U-11: a shelved row that sits in the trash or in search results on a live list keeps its "Đã lưu trữ" label. */}
+          {screen !== "shelved" && isShelved(doc) ? (
             <Badge variant="secondary" className="shrink-0">{t("documents.shelved_list.badge")}</Badge>
           ) : null}
           {doc?.edit_lock && !doc.edit_lock.held_by_me ? (

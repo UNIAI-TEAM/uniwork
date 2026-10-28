@@ -58,8 +58,8 @@ for (const sample of [
       await page.clock.runFor(2600);
       await expect(player).toHaveAttribute("data-step", String(beat));
       if (beat === 3) {
-        await expect(player.locator('[data-demo-result="assignee"]')).toContainText("Hoàng Anh");
-        await expect(player.locator('[data-demo-detail="task"]')).toContainText("in_progress");
+        await expect(player.locator('[data-demo-result="assignee"]')).toContainText("Khánh Vy");
+        await expect(player.locator('[data-demo-detail="task"]')).toContainText(sample.locale === "vi" ? "Đang làm" : "In progress");
       }
       if (beat === 5) {
         await player.screenshot({ path: `.impeccable/review/action-click-${sample.width}-${sample.theme}.png`, animations: "disabled" });
@@ -74,13 +74,14 @@ for (const sample of [
       }
     }
     const moved = player.locator('[data-status="done"] [data-demo-item="design"]');
-    await expect(moved).toContainText("Hoàng Anh");
+    await expect(moved).toContainText("Khánh Vy");
     await expect(moved).toHaveAttribute("data-demo-result", "task-moved");
     const keyframes = JSON.parse((await moved.getAttribute("data-observed-motion"))!);
     expect(keyframes[0].transform).not.toBe("translate(0px, 0px)");
     expect(keyframes[1].transform).toBe("translate(0, 0)");
     await expect(player.locator('[data-demo-item="design"]')).toHaveCount(1);
-    await expect(player.locator('[data-status="done"] [data-slot="status-heading"]')).toContainText("1");
+    // The seed already has one done card (DEMO-108); the moved design card makes two.
+    await expect(player.locator('[data-status="done"] [data-slot="status-heading"]')).toContainText("2");
     await player.locator("[data-action='toggle-playback']").click();
     await expect(player).toHaveAttribute("data-running", "false");
     expect(await player.locator(".action-stage").evaluate(element => element.getAnimations({ subtree: true }).filter(animation => animation.playState === "running").length)).toBe(0);

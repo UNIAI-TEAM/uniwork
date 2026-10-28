@@ -163,6 +163,9 @@ func (s *EmailHubService) ListThreads(
 			out = append(out, threadView(r))
 		}
 	}
+	// List only needs snippet/metadata; bodies belong on GET .../threads/{id}
+	// (UNI-2268). Keeping them here ballooned JSON when body storage is inline.
+	stripEmailHubListBodies(out)
 	result := ListEmailHubThreadsResult{
 		Threads: out,
 		Counts:  EmailHubCounts{Total: total, Unread: unread},
@@ -184,18 +187,28 @@ func (s *EmailHubService) listThreadRows(
 ) ([]db.EmailHubThread, error) {
 	query := strings.TrimSpace(in.Query)
 	if query != "" && folder != emailhub.FolderStarred {
-		return s.q.ListEmailHubThreadsSearchPage(ctx, db.ListEmailHubThreadsSearchPageParams{
+		rows, err := s.q.ListEmailHubThreadsSearchPage(ctx, db.ListEmailHubThreadsSearchPageParams{
 			AccountID: in.AccountID, OrganizationID: organizationID,
 			Folders: searchScopeFolders(folder), Query: pgtype.Text{String: query, Valid: true},
 			UnreadOnly: in.UnreadOnly, HasAttachmentsOnly: in.HasAttachmentsOnly,
 			FromFilter: strings.TrimSpace(in.FromFilter), HitIds: hitIDs,
 			BeforeSentAt: beforeSent, BeforeID: beforeID, LimitVal: limit,
 		})
+		if err != nil {
+			return nil, err
+		}
+		out := make([]db.EmailHubThread, len(rows))
+		for i, r := range rows {
+			out[i] = emailHubThreadFromListRow(r.ID, r.AccountID, r.OrganizationID, r.Folder, r.ImapUid, r.MessageID,
+				r.Subject, r.Snippet, r.FromAddr, r.FromName, r.ToAddrs, r.SentAt, r.IsRead, r.IsStarred, r.HasAttachments,
+				r.BodyCached, r.SyncedAt, r.ImapLabels, r.SnoozedUntil, r.ConversationKey, r.BodyObjectKey)
+		}
+		return out, nil
 	}
 	if s.useInboxConversationList(in, folder) {
 		return s.listInboxConversationRows(ctx, in, organizationID, beforeSent, beforeID, limit)
 	}
-	return s.q.ListEmailHubThreadsPage(ctx, db.ListEmailHubThreadsPageParams{
+	rows, err := s.q.ListEmailHubThreadsPage(ctx, db.ListEmailHubThreadsPageParams{
 		AccountID: in.AccountID, OrganizationID: organizationID, Folder: folder,
 		LabelFilter: strings.TrimSpace(in.LabelFilter),
 		UnreadOnly:  in.UnreadOnly, HasAttachmentsOnly: in.HasAttachmentsOnly,
@@ -203,4 +216,14 @@ func (s *EmailHubService) listThreadRows(
 		Query:      query, HitIds: hitIDs,
 		BeforeSentAt: beforeSent, BeforeID: beforeID, LimitVal: limit,
 	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]db.EmailHubThread, len(rows))
+	for i, r := range rows {
+		out[i] = emailHubThreadFromListRow(r.ID, r.AccountID, r.OrganizationID, r.Folder, r.ImapUid, r.MessageID,
+			r.Subject, r.Snippet, r.FromAddr, r.FromName, r.ToAddrs, r.SentAt, r.IsRead, r.IsStarred, r.HasAttachments,
+			r.BodyCached, r.SyncedAt, r.ImapLabels, r.SnoozedUntil, r.ConversationKey, r.BodyObjectKey)
+	}
+	return out, nil
 }

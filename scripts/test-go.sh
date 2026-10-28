@@ -22,7 +22,7 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 cover_out="${UNIWORK_GO_COVER_OUT:-${REPO_ROOT}/.go-tmp/cover.out}"
 mkdir -p "$(dirname "$cover_out")"
 
-usage() { echo "usage: $0 [--race] [--shard=all|service|handler|rest] [--skip-static] [--skip-floor]" >&2; }
+usage() { echo "usage: $0 [--race] [--shard=all|service|service-a|service-b|handler|rest] [--skip-static] [--skip-floor]" >&2; }
 
 # 30m was enough without the race detector. Under -race the service shard
 # now spends the whole half hour on the sequential DB tests (they take one
@@ -45,7 +45,7 @@ for arg in "$@"; do
 done
 
 case "$shard" in
-  all|service|handler|rest) ;;
+  all|service|service-a|service-b|handler|rest) ;;
   *) echo "unknown shard: $shard" >&2; usage; exit 2 ;;
 esac
 
@@ -78,7 +78,7 @@ list_cover_packages() {
 shard_packages() {
   case "$shard" in
     all) list_cover_packages ;;
-    service) go list ./internal/service/... ;;
+    service|service-a|service-b) go list ./internal/service/... ;;
     handler) go list ./internal/handler/... ;;
     rest) list_cover_packages | grep -vE '/internal/(service|handler)(/|$)' ;;
   esac
@@ -108,6 +108,15 @@ if [ "$run_static" = true ]; then
   # runs the same version everywhere without a separate install step.
   go tool staticcheck ./...
 fi
+
+# internal/service alone outgrew the 60m ceiling under -race on CI (two
+# develop runs timed out with no test stuck), so CI splits it by test name:
+# service-a runs Test[A-E]*, service-b the rest. The two profiles cover the
+# same package and merge in go-cover-floor.sh like any other shard pair.
+case "$shard" in
+  service-a) go_test_args+=(-run "^Test[A-E]") ;;
+  service-b) go_test_args+=(-skip "^Test[A-E]") ;;
+esac
 
 go "${go_test_args[@]}" -coverprofile="$cover_out" "${pkgs[@]}"
 

@@ -1,10 +1,24 @@
 import { describe, expect, it } from "vitest";
 import type { AiCitation } from "@uniwork/core/types";
-import { answerPlainText, dropEchoedNames, foldText, matchRange } from "./ask-uni-text";
+import { answerPlainText, dropEchoedNames, foldText, matchRange, questionPlainText } from "./ask-uni-text";
 
 const src = (id: string, title: string): AiCitation => ({ source_id: id, kind: "project", title, quote: "", href: "/a/b/projects/1" });
 const map = new Map([["S3", src("S3", "Ra mắt Q4")]]);
 const two = new Map([["S1", src("S1", "Một")], ["S2", src("S2", "Hai")]]);
+
+describe("questionPlainText", () => {
+  it("reads the composer's markdown as the line typed", () => {
+    expect(questionPlainText("Công việc của **từng người** trong cuộc họp?")).toBe("Công việc của từng người trong cuộc họp?");
+    expect(questionPlainText("> Việc của:\n- Kiều\n2. Miên")).toBe("Việc của: Kiều Miên");
+    expect(questionPlainText("Giá \\*ưu đãi\\* 2\\_3 `x`\n```\nconst a\n```")).toBe("Giá *ưu đãi* 2_3 x const a");
+  });
+
+  // What the composer really sends for "R&D < 5", a typed `_` and a code span.
+  it("reads entities back and keeps underscores", () => {
+    expect(questionPlainText("Ai làm R&amp;D &lt; 5 việc?")).toBe("Ai làm R&D < 5 việc?");
+    expect(questionPlainText("Sửa user\\_id và `a_b`")).toBe("Sửa user_id và a_b");
+  });
+});
 
 describe("answerPlainText", () => {
   it("puts the object's name where the marker was", () => {

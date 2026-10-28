@@ -35,57 +35,38 @@ interface DirectoryEntry {
   readonly size: number;
 }
 
+/** Inspect and validate a compound file without materialising stream payloads. */
+export function readCompoundStreamNames(bytes: Uint8Array): Set<string> {
+  const { entries, sectorSize, miniSectorSize, miniStreamLen, chain, miniChain } = parseCompoundStructure(bytes);
+  const out = new Set<string>();
+  for (const entry of entries) {
+    if (entry.type !== 2 || entry.name === "" || entry.size === 0) continue;
+    if (entry.size < MINI_STREAM_CUTOFF && miniStreamLen > 0) {
+      if (entry.size > miniStreamLen) throw new CfbError(`stream ${entry.name} is larger than the mini-stream`);
+      const sectors = miniChain(entry.start);
+      if (sectors.length * miniSectorSize < entry.size) {
+        throw new CfbError(`stream ${entry.name} is shorter than its declared size`);
+      }
+    } else {
+      if (entry.size > bytes.byteLength) throw new CfbError(`stream ${entry.name} is larger than the file`);
+      const sectors = chain(entry.start);
+      if (sectors.length * sectorSize < entry.size) {
+        throw new CfbError(`stream ${entry.name} is shorter than its declared size`);
+      }
+    }
+    out.add(entry.name);
+  }
+  return out;
+}
+
 /** Read every named stream of a compound file into memory. */
 export function readCompoundStreams(bytes: Uint8Array): Map<string, Uint8Array> {
-  if (bytes.byteLength < 512) throw new CfbError("shorter than a compound file header");
-  for (let i = 0; i < SIGNATURE.length; i++) {
-    if (bytes[i] !== SIGNATURE[i]) throw new CfbError("bad compound file signature");
-  }
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const sectorShift = view.getUint16(30, true);
-  const miniShift = view.getUint16(32, true);
-  if (!SECTOR_SHIFTS.has(sectorShift) || miniShift !== MINI_SECTOR_SHIFT) throw new CfbError("implausible sector size");
-  const sectorSize = 1 << sectorShift;
-  const miniSectorSize = 1 << miniShift;
-  const firstDirSector = view.getUint32(48, true);
-  if (view.getUint32(56, true) !== MINI_STREAM_CUTOFF) throw new CfbError("implausible mini-stream cutoff");
-  const firstMiniFat = view.getUint32(60, true);
-  // The header fills sector -1: 512 bytes in v3, a whole 4096-byte sector in
-  // v4, so sector n starts at (n + 1) * sectorSize in both (MS-CFB 2.2).
-  // These are the sectors that can exist after it; no chain may be longer.
-  const sectorCount = Math.floor(bytes.byteLength / sectorSize) - 1;
-
-  const fat = readFat(view, sectorSize, sectorCount);
-  const chain = (start: number): number[] => walk(start, sectorCount, (sector) => fat[sector] ?? ENDOFCHAIN, "FAT");
-  const sectorBytes = (sector: number): Uint8Array => {
-    const at = (sector + 1) * sectorSize;
-    return bytes.subarray(at, at + sectorSize);
-  };
-
-  const directory = concat(chain(firstDirSector).map(sectorBytes));
-  const entries: DirectoryEntry[] = [];
-  for (let at = 0; at + 128 <= directory.byteLength; at += 128) {
-    const nameLen = dirView(directory, at).getUint16(64, true);
-    if (nameLen < 2 || nameLen > 64) continue;
-    entries.push({
-      name: new TextDecoder("utf-16le").decode(directory.subarray(at, at + nameLen - 2)),
-      type: directory[at + 66] ?? 0,
-      start: dirView(directory, at).getUint32(116, true),
-      size: Number(dirView(directory, at).getBigUint64(120, true)),
-    });
-  }
-  const root = entries.find((e) => e.type === 5);
-  if (!root) throw new CfbError("no root directory entry");
-
-  const miniFat = firstMiniFat === ENDOFCHAIN || firstMiniFat === FREESECT
-    ? new Uint8Array(0)
-    : concat(chain(firstMiniFat).map(sectorBytes));
-  const miniStream = root.start === ENDOFCHAIN || root.start === FREESECT
-    ? new Uint8Array(0)
-    : concat(chain(root.start).map(sectorBytes)).subarray(0, Math.min(root.size, bytes.byteLength));
-  const miniCount = Math.min(Math.floor(miniStream.byteLength / miniSectorSize), Math.floor(miniFat.byteLength / 4));
-  const miniChain = (start: number): number[] =>
-    walk(start, miniCount, (sector) => dirView(miniFat, sector * 4).getUint32(0, true), "mini FAT");
+  const { entries, sectorSize, miniSectorSize, miniStreamSectors, rootSize, sectorBytes, chain, miniChain } =
+    parseCompoundStructure(bytes);
+  const miniStream =
+    miniStreamSectors.length === 0
+      ? new Uint8Array(0)
+      : concat(miniStreamSectors.map(sectorBytes)).subarray(0, Math.min(rootSize, bytes.byteLength));
 
   const out = new Map<string, Uint8Array>();
   for (const entry of entries) {
@@ -113,15 +94,90 @@ export function readCompoundStreams(bytes: Uint8Array): Map<string, Uint8Array> 
   return out;
 }
 
-/** Follow one sector chain: every sector must exist and none may repeat. */
-function walk(start: number, count: number, next: (sector: number) => number, table: string): number[] {
+function parseCompoundStructure(bytes: Uint8Array) {
+  if (bytes.byteLength < 512) throw new CfbError("shorter than a compound file header");
+  for (let i = 0; i < SIGNATURE.length; i++) {
+    if (bytes[i] !== SIGNATURE[i]) throw new CfbError("bad compound file signature");
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const sectorShift = view.getUint16(30, true);
+  const miniShift = view.getUint16(32, true);
+  if (!SECTOR_SHIFTS.has(sectorShift) || miniShift !== MINI_SECTOR_SHIFT) throw new CfbError("implausible sector size");
+  const sectorSize = 1 << sectorShift;
+  const miniSectorSize = 1 << miniShift;
+  const firstDirSector = view.getUint32(48, true);
+  if (view.getUint32(56, true) !== MINI_STREAM_CUTOFF) throw new CfbError("implausible mini-stream cutoff");
+  const firstMiniFat = view.getUint32(60, true);
+  // The header fills sector -1: 512 bytes in v3, a whole 4096-byte sector in
+  // v4, so sector n starts at (n + 1) * sectorSize in both (MS-CFB 2.2).
+  // These are the sectors that can exist after it; no chain may be longer.
+  const sectorCount = Math.floor(bytes.byteLength / sectorSize) - 1;
+
+  const fat = readFat(view, sectorSize, sectorCount);
+  const claimedRegular = new Set<number>();
+  const chain = (start: number): number[] =>
+    walk(start, sectorCount, (sector) => fat[sector] ?? ENDOFCHAIN, "FAT", claimedRegular);
+  const sectorBytes = (sector: number): Uint8Array => {
+    const at = (sector + 1) * sectorSize;
+    return bytes.subarray(at, at + sectorSize);
+  };
+
+  const directory = concat(chain(firstDirSector).map(sectorBytes));
+  const entries: DirectoryEntry[] = [];
+  for (let at = 0; at + 128 <= directory.byteLength; at += 128) {
+    const nameLen = dirView(directory, at).getUint16(64, true);
+    if (nameLen < 2 || nameLen > 64) continue;
+    entries.push({
+      name: new TextDecoder("utf-16le").decode(directory.subarray(at, at + nameLen - 2)),
+      type: directory[at + 66] ?? 0,
+      start: dirView(directory, at).getUint32(116, true),
+      size: Number(dirView(directory, at).getBigUint64(120, true)),
+    });
+  }
+  const root = entries.find((e) => e.type === 5);
+  if (!root) throw new CfbError("no root directory entry");
+
+  const miniFat =
+    firstMiniFat === ENDOFCHAIN || firstMiniFat === FREESECT
+      ? new Uint8Array(0)
+      : concat(chain(firstMiniFat).map(sectorBytes));
+  const miniStreamSectors = root.start === ENDOFCHAIN || root.start === FREESECT ? [] : chain(root.start);
+  const miniStreamLen = Math.min(miniStreamSectors.length * sectorSize, root.size, bytes.byteLength);
+  const miniCount = Math.min(Math.floor(miniStreamLen / miniSectorSize), Math.floor(miniFat.byteLength / 4));
+  const claimedMini = new Set<number>();
+  const miniChain = (start: number): number[] =>
+    walk(start, miniCount, (sector) => dirView(miniFat, sector * 4).getUint32(0, true), "mini FAT", claimedMini);
+
+  return {
+    entries,
+    sectorSize,
+    miniSectorSize,
+    miniStreamSectors,
+    miniStreamLen,
+    rootSize: root.size,
+    sectorBytes,
+    chain,
+    miniChain,
+  };
+}
+
+/** Follow one sector chain: every sector must exist, none may repeat, and no two chains may share a sector. */
+function walk(
+  start: number,
+  count: number,
+  next: (sector: number) => number,
+  table: string,
+  claimed: Set<number>,
+): number[] {
   const out: number[] = [];
   const seen = new Set<number>();
   let sector = start;
   while (sector < MAXREGSECT) {
     if (sector >= count) throw new CfbError(`${table} chain names sector ${sector} past the file`);
     if (seen.has(sector)) throw new CfbError(`${table} chain loops at sector ${sector}`);
+    if (claimed.has(sector)) throw new CfbError(`${table} chain overlaps at sector ${sector}`);
     seen.add(sector);
+    claimed.add(sector);
     out.push(sector);
     sector = next(sector);
   }

@@ -9,6 +9,21 @@ import type { Attachment } from "../../types/attachment";
 
 const CREATE_TASK_DRAFT_STORAGE_KEY = "uniwork_create_task_drafts";
 
+export type CreateTaskDraftDriveFile = {
+  connectionId: string;
+  externalFileId: string;
+  driveFileId?: string;
+  name: string;
+  mimeType: string;
+  iconKind?: string;
+  errorCode?: string;
+  tasksCreated?: {
+    count: number;
+    last_created_at?: string;
+    last_created_by_name?: string;
+  };
+};
+
 export type CreateTaskDraft = {
   title: string;
   description?: string;
@@ -25,6 +40,7 @@ export type CreateTaskDraft = {
   dueAt?: string;
   labelIds?: string[];
   attachments?: Attachment[];
+  driveFiles?: CreateTaskDraftDriveFile[];
   properties?: Record<string, unknown>;
   /** Prompt and actor are separate from the manual description/assignee so mode switches are reversible. */
   agentPrompt?: string;
@@ -76,6 +92,7 @@ export function hasMeaningfulCreateTaskDraft(draft: CreateTaskDraft): boolean {
       draft.dueAt ||
       draft.labelIds?.length ||
       draft.attachments?.length ||
+      draft.driveFiles?.length ||
       draft.agentPrompt?.trim() ||
       draft.agentId ||
       Object.keys(draft.properties ?? {}).length,

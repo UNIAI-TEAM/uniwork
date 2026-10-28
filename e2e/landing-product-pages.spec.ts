@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { landingReady, gotoLanding } from "./landing-ready";
+import { landingHref, landingReady, gotoLanding } from "./landing-ready";
 
 const features = ["dashboard", "tasks", "projects", "today", "calendar", "workflows", "meetings", "chat", "email", "outputs", "documents", "approvals", "knowledge", "ask", "agents", "automation", "organization", "audit"];
 
-test("product menu opens demos while feature introductions remain available", async ({ page }) => {
+test("product directory links to feature introductions and opens the demo preview", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await gotoLanding(page, "/");
@@ -12,7 +12,7 @@ test("product menu opens demos while feature introductions remain available", as
   await product.click();
   const menu = page.locator("#header-directory-products");
   await expect(menu).toBeVisible();
-  await expect(menu.locator('.header-product-columns a[href*="#"]')).toHaveCount(18);
+  await expect(menu.locator('.header-product-columns a[href*="/features/"]')).toHaveCount(18);
   await expect(menu.locator('a[href$="#platform"]')).toHaveText(/Xem demo/);
   await page.screenshot({ path: ".impeccable/review/product-menu-desktop.png", animations: "disabled" });
   await page.keyboard.press("Escape");
@@ -20,13 +20,20 @@ test("product menu opens demos while feature introductions remain available", as
   await expect(menu).not.toBeVisible();
   await page.keyboard.press("ArrowDown");
   await expect(menu.locator("a").first()).toBeFocused();
-  await menu.locator('a[href$="#du-an"]').click();
-  await expect(page).toHaveURL(/#du-an$/, { timeout: 20000 });
-  await expect(page.locator('#product-preview [data-feature="tasks"]')).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator('#product-preview [role=tabpanel]:visible .product-playback')).toBeVisible();
+  await menu.locator('a[href$="/features/tasks"]').click();
+  await expect(page).toHaveURL(await landingHref(page, "/features/tasks"), { timeout: 20000 });
+  await expect(page.locator(".feature-page-hero")).toBeVisible();
+  await expect(page.locator("#feature-preview #product-preview [data-feature=\"tasks\"]")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator('#feature-preview [role=tabpanel]:visible .product-playback')).toBeVisible();
   await expect(page.locator("main")).not.toContainText("landing.productPages");
+  await gotoLanding(page, "/");
+  await landingReady(page);
   await product.click();
-  await expect(menu.locator('a[href$="#quan-ly-agent"]')).toHaveText("Nhân sự AI");
+  await menu.locator('a[href$="#platform"]').click();
+  await expect(page).toHaveURL(await landingHref(page, "/#platform"), { timeout: 20000 });
+  await expect(page.locator('#product-preview [role=tabpanel]:visible .product-playback')).toBeVisible();
+  await product.click();
+  await expect(menu.locator('a[href$="/features/agents"]')).toHaveText("Nhân sự AI");
 });
 
 test("all feature introductions have unique content, canonical URL and reference UI", async ({ page }) => {
@@ -82,10 +89,10 @@ for (const sample of [{ width: 1440, color: "light" }, { width: 390, color: "dar
       await page.getByRole("button", { name: "Mở menu", exact: true }).click();
       const mobile = page.locator("#landing-mobile-menu");
       await mobile.locator("summary").first().click();
-      await expect(mobile.locator('a[href$="#trao-doi"]')).toBeVisible();
+      await expect(mobile.locator('a[href$="/features/chat"]')).toBeVisible();
       await page.screenshot({ path: ".impeccable/review/product-menu-mobile.png", animations: "disabled" });
-      await mobile.locator('a[href$="#trao-doi"]').click();
-      await expect(page).toHaveURL(/#trao-doi$/);
+      await mobile.locator('a[href$="/features/chat"]').click();
+      await expect(page).toHaveURL(/\/features\/chat$/);
       await expect(mobile).toHaveCount(0);
     }
   });
@@ -98,7 +105,7 @@ test("English introductions and solution/resources links remain usable", async (
   await gotoLanding(page, "/features/meetings");
   await landingReady(page);
   await expect(page.locator("h1")).toHaveText("Meet together. Keep the context.");
-  await page.locator(".header-directory-toggle").nth(1).click();
+  await page.locator(".header-directory-toggle").nth(2).click();
   await expect(page.locator('#header-directory-solutions a[href$="/solutions/product"]')).toBeVisible();
   // This test runs in English, so the Learn directory toggle carries its English name.
   await page.getByRole("banner").getByRole("button", { name: "Learn", exact: true }).click();

@@ -213,7 +213,7 @@ function LinkHoverCard({
         position: "fixed",
         top: pos.top,
         left: pos.left,
-        zIndex: 50,
+        zIndex: 49,
         display: positioned ? undefined : "none",
       }}
       onMouseEnter={onCardEnter}

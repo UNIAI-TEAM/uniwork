@@ -639,6 +639,7 @@ var titleWriteCalls = []string{
 	"q.MoveDocument(",
 	"q.DetachDocumentToRoot(",
 	"q.RenameArchivedDocument(",
+	"q.SetDocumentFileVersion(",
 }
 
 // titleNamingHelpers are the functions a title write may take its title from:

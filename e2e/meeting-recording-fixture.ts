@@ -100,10 +100,11 @@ export async function createInstantMeeting(
   token: string,
   wsId: string,
   title: string,
+  venue?: "online" | "in_person",
 ): Promise<SeededMeeting> {
   const res = await page.request.post(`${api}/api/v1/workspaces/${wsId}/meetings/instant`, {
     headers: authHeader(token),
-    data: { title },
+    data: { title, venue },
   });
   expect(res.ok(), `create instant meeting: HTTP ${res.status()} ${await res.text()}`).toBeTruthy();
   const body = (await res.json()) as { meeting: { id: string; title: string } };

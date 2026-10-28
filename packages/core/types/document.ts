@@ -25,8 +25,19 @@ export type DocumentAccessLevel = (typeof DOCUMENT_ACCESS_LEVELS)[number];
 export const DOCUMENT_ACCESS_VIA = ["member", "share", "link", "ai_context", "break_glass"] as const;
 export type DocumentAccessVia = (typeof DOCUMENT_ACCESS_VIA)[number];
 
-export const DOCUMENT_VERSION_REASONS = ["manual", "auto", "restore", "upload", "agent"] as const;
+export const DOCUMENT_VERSION_REASONS = ["manual", "auto", "restore", "upload", "agent", "converted_version"] as const;
 export type DocumentVersionReason = (typeof DOCUMENT_VERSION_REASONS)[number];
+
+export const DOCUMENT_LEGACY_FORMATS = ["doc", "xls", "ppt"] as const;
+export type DocumentLegacyFormat = (typeof DOCUMENT_LEGACY_FORMATS)[number];
+
+export const DOCUMENT_OOXML_FORMATS = ["docx", "xlsx", "pptx"] as const;
+export type DocumentOOXMLFormat = (typeof DOCUMENT_OOXML_FORMATS)[number];
+
+export interface DocumentVersionConversion {
+  from_format: DocumentLegacyFormat;
+  to_format: DocumentOOXMLFormat;
+}
 
 export const DOCUMENT_OWNER_KINDS = ["work_product"] as const;
 export type DocumentOwnerKind = (typeof DOCUMENT_OWNER_KINDS)[number];
@@ -139,6 +150,9 @@ export const DocumentSchema = z.object({
   // read as absent like archived_at/archived_by.
   shelved_at: z.string().nullable().optional().catch(undefined),
   shelved_by: z.string().nullable().optional().catch(undefined),
+  // Templates section: the server sends the pair only on a marked document.
+  template_marked_at: z.string().nullable().optional().catch(undefined),
+  template_marked_by: z.string().nullable().optional().catch(undefined),
   purge_after: z.string().nullable().optional().catch(undefined),
   created_by: z.string().optional().default(""),
   created_by_kind: z.string().optional().default("human"),
@@ -210,6 +224,13 @@ export function isShelved(
   return !!doc?.shelved_at;
 }
 
+/** True when a document or list row is marked as a workspace template. */
+export function isTemplate(
+  doc: { template_marked_at?: string | null } | null | undefined,
+): boolean {
+  return !!doc?.template_marked_at;
+}
+
 export const DocumentVersionSchema = z.object({
   id: z.string(),
   document_id: z.string(),
@@ -223,6 +244,8 @@ export const DocumentVersionSchema = z.object({
   size_bytes: z.number().optional().default(0),
   checksum_sha256: z.string().nullable().optional(),
   restored_from: z.number().nullable().optional(),
+  converted_from_version: z.number().nullable().optional(),
+  converted_from_checksum: z.string().nullable().optional(),
   engine_name: z.string().nullable().optional(),
   engine_version: z.string().nullable().optional(),
   contract_version: z.string().nullable().optional(),
@@ -416,6 +439,8 @@ export const DocumentSummarySchema = z.object({
   // restored row can keep its shelved badge - addendum §4, Q-UI3).
   shelved_at: z.string().nullable().optional().catch(undefined),
   shelved_by: z.string().nullable().optional().catch(undefined),
+  template_marked_at: z.string().nullable().optional().catch(undefined),
+  template_marked_by: z.string().nullable().optional().catch(undefined),
   purge_after: z.string().nullable().optional().catch(undefined),
   // UNI-2045 (SV-1..SV-6): what each list screen's own column says. All newer
   // fields: a drifted block reads as absent and the column writes "—".

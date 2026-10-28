@@ -5,18 +5,18 @@ import { gotoLanding, landingReady } from "./landing-ready";
 async function meetingReady(page: Page) {
   await landingReady(page);
   await page.waitForLoadState("networkidle");
-  await expect(page.locator('.product-demo-shell')).toHaveAttribute("data-demo-feature", "meetings");
+  await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute("data-demo-feature", "meetings");
 }
 
 async function controlsFit(page: Page, scope: Locator) {
   const controls = await scope.locator('[data-demo-meeting-controls]').boundingBox();
-  const viewport = await page.locator('.product-demo-content').boundingBox();
+  const viewport = await page.locator('#product-preview .product-demo-content').boundingBox();
   expect(controls).not.toBeNull();
   expect(controls!.y).toBeGreaterThanOrEqual(viewport!.y);
   expect(controls!.y + controls!.height).toBeLessThanOrEqual(viewport!.y + viewport!.height + 1);
   expect(controls!.x).toBeGreaterThanOrEqual(viewport!.x);
   expect(controls!.x + controls!.width).toBeLessThanOrEqual(viewport!.x + viewport!.width + 1);
-  expect(await page.locator('.product-demo-content').evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(1);
+  expect(await page.locator('#product-preview .product-demo-content').evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(1);
 }
 
 for (const sample of [{ width: 1680, locale: "en" }, { width: 1440, locale: "vi", dark: true }, { width: 768, locale: "vi" }, { width: 390, locale: "vi" }] as const) {
@@ -40,11 +40,20 @@ test("the source-backed manual room supports devices, sharing, recording, chat a
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.emulateMedia({ reducedMotion: "reduce" });
+  // The landing room is a local simulation: it never asks for devices, a screen or a meeting write.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: {
+      getUserMedia: () => { throw new Error("Landing must not request devices"); },
+      getDisplayMedia: () => { throw new Error("Landing must not capture a screen"); },
+    } });
+  });
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
   const roomRequests: string[] = [];
   page.on("request", request => { if (/\/api\/v1\/meetings/.test(request.url())) roomRequests.push(request.url()); });
   await gotoLanding(page, "/#hop");
   await meetingReady(page);
-  await page.locator('[data-action="toggle-presentation"]').click();
+  await page.locator('#product-preview [data-action="toggle-presentation"]').click();
   const manual = page.locator('.manual-preview:not([hidden])');
   const controls = manual.locator('[data-demo-meeting-controls]');
   await controls.getByRole('button', { name: vi.meetings.mic, exact: true }).click();
@@ -60,7 +69,7 @@ test("the source-backed manual room supports devices, sharing, recording, chat a
   await controls.getByRole('button', { name: vi.meetings.devices, exact: true }).click();
   await expect(page.getByRole('dialog').getByLabel(vi.meetings.deviceMic, { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await controls.getByRole('button', { name: vi.meetings.record, exact: true }).click();
+  await controls.getByRole('button', { name: vi.meetings.recordVideo, exact: true }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: vi.meetings.confirmStartRecording, exact: true }).click();
   await expect(manual.locator('.product-meeting-recording')).toBeVisible();
   await controls.getByRole('button', { name: vi.meetings.stopRecording, exact: true }).click();
@@ -72,7 +81,7 @@ test("the source-backed manual room supports devices, sharing, recording, chat a
   await panel.getByRole('tab', { name: vi.meetings.chat, exact: true }).focus();
   await page.keyboard.press('ArrowRight');
   await expect(panel.getByRole('tab', { name: vi.meetings.people, exact: true })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('.product-demo-shell')).toHaveAttribute('data-demo-feature', 'meetings');
+  await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute('data-demo-feature', 'meetings');
   await panel.getByRole('tab', { name: vi.meetings.chat, exact: true }).click();
   const panelToggle = manual.locator('.product-meeting-header').getByRole('button', { name: vi.meetings.roomPanel, exact: true });
   await panelToggle.click();
@@ -90,8 +99,9 @@ test("the source-backed manual room supports devices, sharing, recording, chat a
   await expect(panel).toContainText('Chốt lịch triển khai vào thứ Sáu');
   await panel.getByRole('tab', { name: vi.meetings.actionsTab, exact: true }).click();
   await panel.locator('.product-meeting-copilot-body button').click();
-  await expect(page.locator('.product-demo-shell')).toHaveAttribute('data-demo-feature', 'tasks');
-  await expect(page.getByRole('tabpanel').locator('.product-task-open')).toHaveCount(9);
+  await expect(page.locator('#product-preview .product-demo-shell')).toHaveAttribute('data-demo-feature', 'tasks');
+  await expect(page.getByRole('tabpanel').locator('.product-task-open')).toHaveCount(11);
+  expect(errors).toEqual([]);
   expect(roomRequests).toEqual([]);
 });
 
@@ -100,7 +110,7 @@ test("a phone keeps five meeting controls visible and opens the real panel tabs"
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await gotoLanding(page, '/#hop');
   await meetingReady(page);
-  await page.locator('[data-action="toggle-presentation"]').click();
+  await page.locator('#product-preview [data-action="toggle-presentation"]').click();
   const manual = page.locator('.manual-preview:not([hidden])');
   const controls = manual.locator('[data-demo-meeting-controls]');
   await expect(controls.getByRole('button')).toHaveCount(5);

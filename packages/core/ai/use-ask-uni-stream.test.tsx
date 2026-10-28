@@ -496,3 +496,192 @@ describe("useAskModelChoice", () => {
     expect(stored?.find((m) => m.id === "m1")?.proposals).toEqual([]);
   });
 });
+
+describe("useAskUniStream transient mode (drive_file)", () => {
+  const usage0 = { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 };
+
+  afterEach(() => {
+    useAiPanelStore.getState().reset();
+  });
+
+  it("two questions in a row append to transientMessages, send transient + transcript without conversation_id, and never touch aiKeys.messages or aiKeys.conversations", () => {
+    const { result, qc } = setup();
+    const setQueryData = vi.spyOn(qc, "setQueryData");
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    act(() => void result.current.ask({ question: "Tóm tắt các mốc", focus: { kind: "drive_file", id: "df1" }, conversation_id: "should-be-dropped" }));
+    expect(askUniStream).toHaveBeenLastCalledWith(
+      "ws1",
+      {
+        question: "Tóm tắt các mốc",
+        focus: { kind: "drive_file", id: "df1" },
+        transient: true,
+        transcript: [],
+      },
+      expect.anything(),
+    );
+
+    emit({ type: "run", runId: "r1", conversationId: "" });
+    expect(useAiPanelStore.getState().conversationId).toBeNull();
+    emit({ type: "done", message: msg({ id: "a1", content: "Hai mốc chính: 10/11 và 01/12." }), usage: usage0 });
+
+    expect(setQueryData).not.toHaveBeenCalled();
+    const invalidatedKeys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+    expect(invalidatedKeys).not.toContain(JSON.stringify(aiKeys.conversations("ws1")));
+    expect(invalidatedKeys.some((k) => k.includes('"messages"'))).toBe(false);
+    expect(invalidatedKeys).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(aiKeys.capabilities("ws1")),
+        JSON.stringify(aiKeys.usages()),
+      ]),
+    );
+
+    const storedAfter1 = useAiPanelStore.getState().transientMessages;
+    expect(storedAfter1.map((m) => [m.role, m.content])).toEqual([
+      ["user", "Tóm tắt các mốc"],
+      ["assistant", "Hai mốc chính: 10/11 và 01/12."],
+    ]);
+
+    // Second question sends the first turn in transcript
+    act(() => void result.current.ask({ question: "Liệt kê ai phụ trách gì", focus: { kind: "drive_file", id: "df1" } }));
+    expect(askUniStream).toHaveBeenLastCalledWith(
+      "ws1",
+      {
+        question: "Liệt kê ai phụ trách gì",
+        focus: { kind: "drive_file", id: "df1" },
+        transient: true,
+        transcript: [
+          { role: "user", text: "Tóm tắt các mốc" },
+          { role: "assistant", text: "Hai mốc chính: 10/11 và 01/12." },
+        ],
+      },
+      expect.anything(),
+    );
+
+    emit({ type: "run", runId: "r2", conversationId: "" });
+    emit({ type: "done", message: msg({ id: "a2", content: "Minh phụ trách beta." }), usage: usage0 });
+
+    expect(useAiPanelStore.getState().transientMessages.map((m) => [m.role, m.content])).toEqual([
+      ["user", "Tóm tắt các mốc"],
+      ["assistant", "Hai mốc chính: 10/11 và 01/12."],
+      ["user", "Liệt kê ai phụ trách gì"],
+      ["assistant", "Minh phụ trách beta."],
+    ]);
+    expect(setQueryData).not.toHaveBeenCalled();
+  });
+
+  it("stop mid-stream in transient mode keeps partial text in transientMessages, writes no cache, and schedules no 1500 ms revisit", () => {
+    vi.useFakeTimers();
+    try {
+      const { result, qc } = setup();
+      const setQueryData = vi.spyOn(qc, "setQueryData");
+      const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+      act(() => void result.current.ask({ question: "Rủi ro là gì?", focus: { kind: "drive_file", id: "df1" } }));
+      emit({ type: "run", runId: "r1", conversationId: "" });
+      emit({ type: "delta", text: "Rủi ro lớn nhất là " });
+      act(() => result.current.stop());
+
+      expect(opts.signal.aborted).toBe(true);
+      expect(result.current.state.status).toBe("stopped");
+      expect(useAiPanelStore.getState().transientMessages.map((m) => [m.role, m.content, m.notice])).toEqual([
+        ["user", "Rủi ro là gì?", ""],
+        ["assistant", "Rủi ro lớn nhất là ", "stopped"],
+      ]);
+      expect(setQueryData).not.toHaveBeenCalled();
+
+      const keysBeforeTimer = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+      expect(keysBeforeTimer).not.toContain(JSON.stringify(aiKeys.conversations("ws1")));
+      expect(keysBeforeTimer.some((k) => k.includes('"messages"'))).toBe(false);
+
+      const callCount = invalidate.mock.calls.length;
+      act(() => void vi.advanceTimersByTime(2000));
+      expect(invalidate.mock.calls.length).toBe(callCount);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("stopping before the first delta keeps the stopped turn for display but omits empty text from the next question's transcript", () => {
+    const { result } = setup();
+    act(() => void result.current.ask({ question: "Câu 1", focus: { kind: "drive_file", id: "df1" } }));
+    emit({ type: "run", runId: "r1", conversationId: "" });
+    act(() => result.current.stop());
+
+    expect(useAiPanelStore.getState().transientMessages.map((m) => [m.role, m.content, m.notice])).toEqual([
+      ["user", "Câu 1", ""],
+      ["assistant", "", "stopped"],
+    ]);
+
+    act(() => void result.current.ask({ question: "Câu 2", focus: { kind: "drive_file", id: "df1" } }));
+    const sentBody = vi.mocked(askUniStream).mock.calls.at(-1)?.[1];
+    expect(sentBody?.transcript).toEqual([{ role: "user", text: "Câu 1" }]);
+    expect(sentBody?.transcript?.every((t) => t.text.length > 0 && Object.keys(t).sort().join(",") === "role,text")).toBe(true);
+  });
+
+  it("slides the transcript window past 20 turns and marks transientWindowTrimmed", () => {
+    const { result } = setup();
+    for (let i = 1; i <= 10; i += 1) {
+      useAiPanelStore.getState().appendTransientTurn(
+        msg({ id: `u${i}`, role: "user", content: `Q${i}` }),
+        msg({ id: `a${i}`, role: "assistant", content: `A${i}` }),
+      );
+    }
+    expect(useAiPanelStore.getState().transientMessages).toHaveLength(20);
+    expect(useAiPanelStore.getState().transientWindowTrimmed).toBe(false);
+
+    // Turn 21 added -> window trims oldest turn
+    useAiPanelStore.getState().appendTransientTurn(
+      msg({ id: "u11", role: "user", content: "Q11" }),
+      msg({ id: "a11", role: "assistant", content: "A11" }),
+    );
+    expect(useAiPanelStore.getState().transientWindowTrimmed).toBe(true);
+
+    act(() => void result.current.ask({ question: "Q12", focus: { kind: "drive_file", id: "df1" } }));
+    const sentBody = vi.mocked(askUniStream).mock.calls.at(-1)?.[1];
+    expect(sentBody?.transcript).toHaveLength(20);
+    expect(sentBody?.transcript?.[0]).toEqual({ role: "user", text: "Q2" });
+    expect(sentBody?.transcript?.[19]).toEqual({ role: "assistant", text: "A11" });
+  });
+
+  it("does not abort a saved first turn started on a drive_file page after the page chip was dismissed", () => {
+    const { result, qc } = setup();
+    act(() => {
+      useAiPanelStore.getState().setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+      useAiPanelStore.getState().dismissPage();
+    });
+
+    act(() => void result.current.ask({ question: "Câu hỏi thường" }));
+    emit({ type: "run", runId: "r-saved", conversationId: "conv_new" });
+    expect(opts.signal.aborted).toBe(false);
+    expect(useAiPanelStore.getState().conversationId).toBe("conv_new");
+    expect(result.current.state.status).toBe("streaming");
+
+    emit({ type: "delta", text: "Câu trả lời đầy đủ" });
+    emit({ type: "done", message: msg({ id: "m-saved", content: "Câu trả lời đầy đủ" }), usage: usage0 });
+
+    expect(opts.signal.aborted).toBe(false);
+    expect(result.current.state.status).toBe("done");
+    expect(result.current.state.message?.content).toBe("Câu trả lời đầy đủ");
+    const stored = qc.getQueryData<{ id: string; content: string }[]>(aiKeys.messages("conv_new"));
+    expect(stored?.find((m) => m.id === "m-saved")?.content).toBe("Câu trả lời đầy đủ");
+  });
+
+  it("aborts an in-flight first transient turn and keeps transientMessages empty when the drive_file page chip is dismissed before delta", () => {
+    const { result } = setup();
+    act(() => {
+      useAiPanelStore.getState().setPage({ kind: "drive_file", id: "df1", label: "Kế hoạch Q4" });
+    });
+
+    act(() => void result.current.ask({ question: "Tóm tắt mục tiêu", focus: { kind: "drive_file", id: "df1" } }));
+    emit({ type: "run", runId: "r-first-transient", conversationId: "" });
+    expect(opts.signal.aborted).toBe(false);
+
+    act(() => {
+      useAiPanelStore.getState().dismissPage();
+    });
+
+    expect(opts.signal.aborted).toBe(true);
+    expect(result.current.state.status).toBe("idle");
+    expect(useAiPanelStore.getState().transientMessages).toEqual([]);
+  });
+});

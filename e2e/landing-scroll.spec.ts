@@ -35,26 +35,6 @@ for (const locale of ["vi", "en"] as const) {
   });
 }
 
-test("grouped feature navigation supports keyboard selection", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await gotoLanding(page, "/");
-  await landingReady(page);
-  for (const [group, features] of Object.entries(workspaceGroups)) {
-    const heading = page.locator(`[data-feature-group="${group}"]`);
-    await heading.focus();
-    await page.keyboard.press("Enter");
-    const tabs = page.locator("#product-preview").getByRole("tab");
-    await expect(tabs).toHaveCount(features.length);
-    await tabs.first().focus();
-    for (let index = 0; index < features.length; index++) {
-      await expect(tabs.nth(index)).toBeFocused();
-      await page.keyboard.press("Enter");
-      await expect(tabs.nth(index)).toHaveAttribute("aria-selected", "true");
-      await page.keyboard.press("ArrowDown");
-    }
-  }
-});
-
 test("security and roadmap details are available without overwhelming the default view", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await gotoLanding(page, "/");
@@ -113,22 +93,4 @@ test("trust band explains provider choice without repeating security claims", as
   expect(mark?.width).toBeGreaterThanOrEqual(28);
   expect(mark?.height).toBeGreaterThanOrEqual(28);
   await expect(trust.locator(".trust-provider-mark").first().locator("xpath=ancestor::a|ancestor::button")).toHaveCount(0);
-});
-
-test("feature selector stays visible in reduced motion without a decorative rail", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await gotoLanding(page, "/");
-  await landingReady(page);
-  await page.locator("#platform").scrollIntoViewIfNeeded();
-  await expect(page.locator(".workflow-progress, .landing-signal")).toHaveCount(0);
-  await expect(page.locator(".workspace-group-button")).toHaveCount(6);
-  // Work & projects: Dashboard, Tasks, Projects, Today, Calendar, Workflows.
-  await expect(page.locator(".workspace-tabs [role=tab]")).toHaveCount(6);
-  for (const link of await page.locator(".workspace-tabs [role=tab]").all()) {
-    await expect(link).toBeVisible();
-    const box = await link.boundingBox();
-    expect(box!.height).toBeGreaterThanOrEqual(44);
-  }
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

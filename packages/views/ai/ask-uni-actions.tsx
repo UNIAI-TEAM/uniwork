@@ -13,7 +13,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { CreateTaskDialog } from "../tasks/create-task-dialog";
-import { answerPlainText } from "./ask-uni-text";
+import { answerPlainText, questionPlainText } from "./ask-uni-text";
 
 const REASONS = ["wrong_facts", "missing_sources", "not_helpful", "other"] as const;
 const NOTE_MAX = 500;
@@ -101,14 +101,30 @@ function DownFeedback({ active, onSend }: { active: boolean; onSend: (reason: st
 }
 
 /** Copy, create a task or a document from the answer (actions on, answer has text), regenerate (last answer only) and feedback under one finished answer. */
-export function AskUniActions({ conversationId, messageId, wsId, content, proposals = [], sources, onRegenerate, regenerateDisabled }: {
+export function AskUniActions({
+  conversationId,
+  messageId,
+  wsId,
+  content,
+  question = "",
+  proposals = [],
+  sources,
+  transient = false,
+  onRegenerate,
+  onAskAgain,
+  regenerateDisabled,
+}: {
   conversationId: string;
   messageId: string;
   wsId: string;
   content: string;
+  /** The question this answer replies to (markdown): a task made from it is titled so, not by the conversation's first question. */
+  question?: string;
   proposals?: AiProposal[];
   sources: Map<string, AiCitation>;
+  transient?: boolean;
   onRegenerate?: () => void;
+  onAskAgain?: () => void;
   regenerateDisabled?: boolean;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai.actions" });
@@ -120,8 +136,8 @@ export function AskUniActions({ conversationId, messageId, wsId, content, propos
   const set = useSetAiFeedback();
   const clear = useClearAiFeedback();
   const saveDoc = useSaveAiAnswerAsDocument(conversationId);
-  const actions = useAiCapabilities(wsId).data?.actions;
-  const writes = actions?.enabled === true;
+  const actions = useAiCapabilities(wsId, !transient && wsId !== "").data?.actions;
+  const writes = !transient && actions?.enabled === true;
   const convTitle = useAiConversations(wsId, writes).data?.find((c) => c.id === conversationId)?.title ?? "";
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
@@ -156,9 +172,11 @@ export function AskUniActions({ conversationId, messageId, wsId, content, propos
     );
   };
 
-  // An answer with no text has nothing to copy or rate; regenerate stays.
+  // An answer with no text has nothing to copy or rate; regenerate / ask again stays.
   const hasText = content !== "";
-  if (!hasText && !onRegenerate) return null;
+  const canRegen = !transient && !!onRegenerate;
+  const canAskAgain = transient && !!onAskAgain;
+  if (!hasText && !canRegen && !canAskAgain) return null;
   const canCreate = writes && hasText;
   // The server returns an existing row unchanged unless it failed or expired, and the card already shows it.
   const hasDocRow = proposals.some((p) => p.position === 0 && p.tool === "create_document" && p.status !== "failed" && p.status !== "expired");
@@ -171,8 +189,13 @@ export function AskUniActions({ conversationId, messageId, wsId, content, propos
           {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
         </ActionButton>
       ) : null}
-      {onRegenerate ? (
+      {canRegen ? (
         <ActionButton label={t("regenerate")} disabled={regenerateDisabled} onClick={onRegenerate}>
+          <RefreshCw aria-hidden />
+        </ActionButton>
+      ) : null}
+      {canAskAgain ? (
+        <ActionButton label={t("ask_again")} disabled={regenerateDisabled} onClick={onAskAgain}>
           <RefreshCw aria-hidden />
         </ActionButton>
       ) : null}
@@ -188,7 +211,7 @@ export function AskUniActions({ conversationId, messageId, wsId, content, propos
           ) : null}
         </>
       ) : null}
-      {hasText ? (
+      {hasText && !transient ? (
         <>
           <ActionButton label={t("helpful")} pressed={rating === "up"} onClick={up}>
             <ThumbsUp aria-hidden />
@@ -207,7 +230,10 @@ export function AskUniActions({ conversationId, messageId, wsId, content, propos
           open
           onOpenChange={setTaskOpen}
           showTrigger={false}
-          defaults={{ title: Array.from(convTitle).slice(0, TITLE_MAX).join(""), description: answerPlainText(content, sources) }}
+          defaults={{
+            title: Array.from(questionPlainText(question) || convTitle).slice(0, TITLE_MAX).join(""),
+            description: answerPlainText(content, sources),
+          }}
         />
       ) : null}
     </div>

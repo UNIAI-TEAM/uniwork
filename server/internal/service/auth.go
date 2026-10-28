@@ -54,6 +54,9 @@ type AuthService struct {
 	// googleNative checks the app's Google ID tokens (SetGoogleNative); nil
 	// keeps the app's Google door closed.
 	googleNative GoogleTokenVerifier
+	// drive is optional: wired, DeleteAccount revokes the Google Drive grants
+	// of the connections it disconnects after commit (spec §5.3a).
+	drive *DriveConnectionService
 }
 
 func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
@@ -90,6 +93,9 @@ func (s *AuthService) SetApple(a *AppleAuthService) {
 		return c.Sub, c.IssuedAt, err
 	})
 }
+
+// SetDrive lets DeleteAccount revoke the Google Drive grants it disconnects after commit.
+func (s *AuthService) SetDrive(d *DriveConnectionService) { s.drive = d }
 
 // SessionMeta is what a session remembers about the client that opened it.
 // The handler puts it on the context; every path that mints a session

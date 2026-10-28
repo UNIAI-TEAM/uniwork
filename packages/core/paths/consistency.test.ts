@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { GLOBAL_PREFIXES, isGlobalPath, paths } from "./paths";
+import { GLOBAL_PREFIXES, isGlobalPath, parseDriveLibrarySelection, parseDriveNameFolderRequest, paths } from "./paths";
 import { RESERVED_SLUGS } from "./reserved-slugs";
 
 /**
@@ -98,7 +98,7 @@ function builderTemplates(): string[] {
     paths.admin.system(),
   ];
   const ws = paths.workspace(ORG, WS);
-  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.myTasks(), ws.projects(), ws.project(ID), ws.calendar(), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.chat(), ws.chatSettings(), ws.inbox(), ws.email(), ws.members(), ws.people(), ws.person(ID), ws.documents(), ws.documentsAccessReport(), ws.document(ID), ws.settings()];
+  const scoped = [ws.root(), ws.tasks(), ws.task(ID), ws.myTasks(), ws.projects(), ws.project(ID), ws.calendar(), ws.meetings(), ws.meeting(ID), ws.room(ID), ws.record(ID), ws.chat(), ws.chatSettings(), ws.inbox(), ws.email(), ws.members(), ws.people(), ws.person(ID), ws.documents(), ws.documentsAccessReport(), ws.documentsDriveFile(ID), ws.document(ID), ws.settings()];
   return [...globals, ...scoped]
     .map((p) =>
       p
@@ -122,6 +122,50 @@ describe("paths stay in step with the app's routes", () => {
     const missingRoute = [...builders].filter((b) => !routes.has(b));
     expect(missingBuilder, `pages without a paths builder: ${missingBuilder.join(", ")}`).toEqual([]);
     expect(missingRoute, `builders without a page: ${missingRoute.join(", ")}`).toEqual([]);
+  });
+
+  it("builds Google Drive library and file detail paths", () => {
+    const ws = paths.workspace("acme", "team");
+    expect(ws.documentsDrive()).toBe("/acme/team/documents?view=drive");
+    expect(ws.documentsDrive("conn-1")).toBe("/acme/team/documents?view=drive&account=conn-1");
+    expect(ws.documentsDriveFile("df-1")).toBe("/acme/team/documents/drive/df-1");
+  });
+
+  it("builds and parses the Drive library account + folder selection (round trip)", () => {
+    const ws = paths.workspace("acme", "team");
+    expect(ws.documentsDrive("conn-1", "fld/1 é")).toBe(
+      "/acme/team/documents?view=drive&account=conn-1&driveFolder=fld%2F1%20%C3%A9",
+    );
+    // A folder without an account is dropped: the folder only exists under an account.
+    expect(ws.documentsDrive(null, "fld-1")).toBe("/acme/team/documents?view=drive");
+    for (const [account, folder] of [["conn-1", "fld/1 é"], ["conn-1", null], [null, null]] as const) {
+      const url = new URL(ws.documentsDrive(account, folder), "http://x");
+      expect(parseDriveLibrarySelection(url.searchParams)).toEqual({ account, folder });
+    }
+    expect(parseDriveLibrarySelection(new URLSearchParams("view=drive&driveFolder=f"))).toEqual({
+      account: null,
+      folder: null,
+    });
+    expect(parseDriveLibrarySelection(new URLSearchParams("view=drive&account=&driveFolder="))).toEqual({
+      account: null,
+      folder: null,
+    });
+  });
+
+  it("builds and parses the nameFolder request, which needs an account and a folder", () => {
+    const ws = paths.workspace("acme", "team");
+    expect(ws.documentsDrive("conn-1", "fld/1", { nameFolder: true })).toBe(
+      "/acme/team/documents?view=drive&account=conn-1&driveFolder=fld%2F1&nameFolder=1",
+    );
+    expect(ws.documentsDrive("conn-1", "fld-1", { nameFolder: false })).toBe(ws.documentsDrive("conn-1", "fld-1"));
+    expect(ws.documentsDrive("conn-1", null, { nameFolder: true })).toBe(ws.documentsDrive("conn-1"));
+    const url = new URL(ws.documentsDrive("conn-1", "fld/1", { nameFolder: true }), "http://x");
+    expect(parseDriveNameFolderRequest(url.searchParams)).toBe(true);
+    expect(parseDriveLibrarySelection(url.searchParams)).toEqual({ account: "conn-1", folder: "fld/1" });
+    expect(parseDriveNameFolderRequest(new URLSearchParams("view=drive&account=c&driveFolder=f"))).toBe(false);
+    expect(parseDriveNameFolderRequest(new URLSearchParams("view=drive&account=c&driveFolder=f&nameFolder=0"))).toBe(false);
+    expect(parseDriveNameFolderRequest(new URLSearchParams("view=drive&account=c&nameFolder=1"))).toBe(false);
+    expect(parseDriveNameFolderRequest(new URLSearchParams("view=drive&driveFolder=f&nameFolder=1"))).toBe(false);
   });
 });
 

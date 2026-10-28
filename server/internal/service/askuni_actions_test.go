@@ -72,13 +72,13 @@ func TestAskRowRef(t *testing.T) {
 	}
 }
 
-// The write registry is exactly the 14 tools of R4, in that order: the order is
+// The write registry is exactly the 16 tools of R4, in that order: the order is
 // part of the cache prefix.
 func TestAskUniWriteToolCatalogue(t *testing.T) {
 	want := []string{
 		"create_task", "update_task", "add_comment", "create_project", "update_project",
 		"schedule_meeting", "update_meeting", "invite_to_meeting", "cancel_meeting", "restore_meeting",
-		"create_document", "update_document", "add_document_comment", "send_chat_message",
+		"create_document", "update_document", "add_document_comment", "create_office_document", "save_attachment_template", "send_chat_message",
 	}
 	var got []string
 	for _, tool := range (&AskUNIService{}).askWriteTools() {

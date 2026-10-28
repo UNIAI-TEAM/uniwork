@@ -270,6 +270,14 @@ describe("LoginView", () => {
     await waitFor(() => expect(screen.getByLabelText("Email")).toHaveFocus());
   });
 
+  it("keeps a join next on the register link", () => {
+    const nav = adapter();
+    const next = "/join/l1#secret=s3cret";
+    render(wrap(<LoginView onSuccess={() => {}} next={next} />, nav));
+    fireEvent.click(screen.getByRole("link", { name: "Đăng ký" }));
+    expect(nav.push).toHaveBeenCalledWith(`/register?next=${encodeURIComponent(next)}`);
+  });
+
   it("asks for the email before sending anything and moves focus there", () => {
     render(wrap(<LoginView onSuccess={() => {}} />));
     fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));

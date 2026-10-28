@@ -1,13 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { ChevronDown, Sparkles, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { selectStandaloneAttachments } from "@uniwork/core/attachments/image-sequence";
 import { capabilityState } from "@uniwork/core/capabilities";
-import { usePublicConfig } from "@uniwork/core/feature-flags";
+import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
+import {
+  useDriveConnections,
+  useTaskDriveFiles,
+} from "@uniwork/core/drive";
+import { EMPTY_CONFIG, usePublicConfig } from "@uniwork/core/feature-flags";
 import {
   useDeleteAttachment,
   useTaskAttachments,
+  useUploadTaskAttachment,
 } from "@uniwork/core/tasks";
 import type { Attachment } from "@uniwork/core/types/attachment";
 import {
@@ -20,41 +27,107 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
+import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { GoogleDriveMark } from "../../../common/provider-icons";
 import {
   Attachment as AttachmentRenderer,
   AttachmentDownloadProvider,
+  FileDropOverlay,
+  useEditorUpload,
+  useFileDropZone,
 } from "../../../editor";
+import {
+  useDrivePicker,
+  type DrivePickerAdapter,
+} from "../../../integrations/drive-picker";
+import { useDriveAvailable } from "../../../settings/components/drive-integration-row";
 import { toastApiError } from "../../../toast-api-error";
+import { DriveProposeTasksPopover } from "../../drive-task-proposal-popover";
+import { DriveTaskFileCard } from "./drive-task-file-card";
 
-const EMPTY_CONFIG = {
-  flags: {},
-  rum_sample_rate: 0,
-  work_management_capabilities: {},
-} as const;
+export interface TaskDetailAttachmentsSectionProps {
+  workspaceId: string;
+  taskId: string;
+  content?: string;
+  /** Test / Storybook override for the Google Picker adapter. */
+  pickerAdapter?: DrivePickerAdapter;
+  /** Whether the viewer can edit the task (add/remove attachments). Defaults to true. */
+  canEdit?: boolean;
+}
 
 /**
- * Attachments that are not already referenced by the task description.
- * Rendering is delegated to the shared attachment dispatcher so images,
- * HTML previews, and file cards match every other rich-content surface.
+ * Task detail §2.3 Attachments section (`Đính kèm`):
+ * - Always renders a section with `Đính kèm` header and `Thêm tệp` button.
+ * - Independent queries: uploaded attachments (`useTaskAttachments`) and
+ *   Google Drive linked files (`useTaskDriveFiles`) render independently so
+ *   either side failing or loading never hides the other.
+ * - When both sides are empty, shows the empty state drop zone.
  */
 export function TaskDetailAttachmentsSection({
   workspaceId,
   taskId,
   content = "",
-}: {
-  workspaceId: string;
-  taskId: string;
-  content?: string;
-}) {
+  pickerAdapter,
+  canEdit = true,
+}: TaskDetailAttachmentsSectionProps) {
   const { t } = useTranslation();
   const { data: publicConfig } = usePublicConfig();
   const config = publicConfig ?? EMPTY_CONFIG;
   const cap = capabilityState(config, "tasks.attachments");
   const available = cap.status === "available";
+  const driveAvailable = useDriveAvailable();
 
-  const { data: items = [], isLoading } = useTaskAttachments(workspaceId, taskId);
+  const attachmentsQuery = useTaskAttachments(workspaceId, taskId);
+  const items = attachmentsQuery.data ?? [];
+  const driveFilesQuery = useTaskDriveFiles(workspaceId, taskId, {
+    enabled: driveAvailable,
+  });
+  const driveFiles = driveAvailable ? (driveFilesQuery.data ?? []) : [];
+
+  const connectionsQuery = useDriveConnections(workspaceId, {
+    enabled: driveAvailable,
+  });
+  const connectedCount = connectionsQuery.data?.connections.length ?? 0;
+
   const deleteMutation = useDeleteAttachment(workspaceId, taskId);
+  const uploadMutation = useUploadTaskAttachment(workspaceId, taskId);
   const [pendingDelete, setPendingDelete] = useState<Attachment | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { upload, uploading } = useEditorUpload(async (file) => {
+    const attachment = await uploadMutation.mutateAsync({
+      file,
+      purpose: editorAttachmentPurpose(file),
+    });
+    if (!attachment) throw new Error("upload failed");
+    return attachment;
+  });
+
+  const handleUploadFiles = (files: File[]) => {
+    for (const file of files) {
+      void upload(file, { taskId });
+    }
+  };
+
+  const { isDragOver, dropZoneProps } = useFileDropZone({
+    onDrop: handleUploadFiles,
+    enabled: canEdit && available && !uploading,
+  });
+
+  const picker = useDrivePicker({
+    wsId: workspaceId,
+    taskId,
+    forTask: true,
+    adapter: pickerAdapter,
+  });
+
   const standalone = selectStandaloneAttachments(content, items);
 
   const onConfirmDelete = async () => {
@@ -67,22 +140,257 @@ export function TaskDetailAttachmentsSection({
     }
   };
 
-  if (isLoading || standalone.length === 0) return null;
+  const canAddUpload = canEdit && available;
+  const canAddDrive = canEdit && driveAvailable;
+  const canAdd = canAddUpload || canAddDrive;
+  const hasContent = driveFiles.length > 0 || standalone.length > 0;
+  const hasError =
+    attachmentsQuery.isError || (driveAvailable && driveFilesQuery.isError);
+  const isInitialLoading =
+    !hasContent &&
+    !hasError &&
+    (attachmentsQuery.isLoading ||
+      (driveAvailable && driveFilesQuery.isLoading));
 
+  if (!hasContent && !canAdd && !hasError) {
+    return null;
+  }
   return (
-    <section aria-label={t("tasks.detail.attachments_section")} className="mt-3">
-      <AttachmentDownloadProvider attachments={items}>
-        <div className="flex flex-col gap-1">
-          {standalone.map((attachment) => (
-            <AttachmentRenderer
-              key={attachment.id}
-              attachment={{ kind: "record", attachment }}
-              editable={available}
-              onDelete={available ? () => setPendingDelete(attachment) : undefined}
+    <section
+      aria-label={t("tasks.detail.attachments_section")}
+      className="relative mt-6 flex flex-col gap-2.5 rounded-lg"
+      {...dropZoneProps}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-body font-semibold text-foreground">
+          {t("tasks.detail.attachments_section")}
+        </h2>
+
+        {canAdd ? (
+          <>
+            {canAddUpload ? (
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                aria-hidden="true"
+                tabIndex={-1}
+                onChange={(e) => {
+                  const selected = Array.from(e.target.files ?? []);
+                  if (selected.length === 0) return;
+                  e.target.value = "";
+                  handleUploadFiles(selected);
+                }}
+              />
+            ) : null}
+
+            {canAddDrive ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploading || picker.pending}
+                    />
+                  }
+                >
+                  <span>{t("tasks.detail.attachments_upload")}</span>
+                  <ChevronDown data-icon="inline-end" aria-hidden="true" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  {canAddUpload ? (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        fileInputRef.current?.click();
+                      }}
+                    >
+                      <Upload aria-hidden="true" />
+                      <span>{t("drive.attach_menu.upload_file")}</span>
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    onClick={() => {
+                      picker.open();
+                    }}
+                  >
+                    <GoogleDriveMark
+                      className="size-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <div className="flex min-w-0 flex-col">
+                      <span>{t("drive.attach_menu.from_drive")}</span>
+                      {connectedCount > 1 ? (
+                        <span className="text-caption text-muted-foreground">
+                          {t("drive.attach_menu.connected_accounts", {
+                            count: connectedCount,
+                          })}
+                        </span>
+                      ) : null}
+                    </div>
+                  </DropdownMenuItem>
+                  <div className="mt-1 border-t border-border px-2.5 pt-2 pb-1 text-caption leading-snug text-muted-foreground">
+                    {t("drive.attach_menu.paste_url_hint")}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploading}
+                onClick={() => {
+                  fileInputRef.current?.click();
+                }}
+              >
+                <Upload data-icon="inline-start" aria-hidden="true" />
+                <span>{t("tasks.detail.attachments_upload")}</span>
+              </Button>
+            )}
+          </>
+        ) : null}
+      </div>
+
+      {driveAvailable && driveFilesQuery.isError ? (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-2 rounded-lg border border-destructive-soft-foreground/20 bg-destructive-soft px-3 py-2 text-caption text-destructive-soft-foreground"
+        >
+          <span>{t("drive.attachments.drive_load_error")}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => {
+              void driveFilesQuery.refetch();
+            }}
+          >
+            {t("drive.attachments.retry")}
+          </Button>
+        </div>
+      ) : null}
+
+      {attachmentsQuery.isError ? (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-2 rounded-lg border border-destructive-soft-foreground/20 bg-destructive-soft px-3 py-2 text-caption text-destructive-soft-foreground"
+        >
+          <span>{t("drive.attachments.uploads_load_error")}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => {
+              void attachmentsQuery.refetch();
+            }}
+          >
+            {t("drive.attachments.retry")}
+          </Button>
+        </div>
+      ) : null}
+
+      {hasContent ? (
+        <div className="flex flex-col gap-2.5">
+          {driveFiles.map((card) => (
+            <DriveTaskFileCard
+              key={card.id}
+              workspaceId={workspaceId}
+              taskId={taskId}
+              card={card}
+              pickerAdapter={pickerAdapter}
+              actions={({ card: cardItem, blocked, blockedReason }) => {
+                if (!cardItem.can_propose && !blocked) return null;
+                const blockedHintId = blocked
+                  ? `task-drive-card-propose-hint-${cardItem.id}`
+                  : undefined;
+                if (blocked) {
+                  return (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        aria-disabled="true"
+                        aria-describedby={blockedHintId}
+                        title={blockedReason}
+                      >
+                        <Sparkles className="size-3.5" aria-hidden />
+                        {t("drive.proposals.propose_button")}
+                      </Button>
+                      <span id={blockedHintId} className="sr-only">
+                        {blockedReason}
+                      </span>
+                    </>
+                  );
+                }
+                return (
+                  <DriveProposeTasksPopover
+                    workspaceId={workspaceId}
+                    driveFileId={cardItem.id}
+                    readerAccountEmail={
+                      cardItem.viewer_account_email?.trim() ||
+                      cardItem.bound_account_email.trim()
+                    }
+                    openUrl={cardItem.open_url}
+                    tasksCreated={cardItem.tasks_created}
+                    contextTaskId={taskId}
+                    parentTaskId={taskId}
+                    onAccessRequired={() => {
+                      void driveFilesQuery.refetch();
+                    }}
+                    trigger={
+                      <Button type="button" variant="outline" size="sm">
+                        <Sparkles className="size-3.5" aria-hidden />
+                        {t("drive.proposals.propose_button")}
+                      </Button>
+                    }
+                  />
+                );
+              }}
             />
           ))}
+
+          {standalone.length > 0 ? (
+            <AttachmentDownloadProvider attachments={items}>
+              <div className="flex flex-col gap-1">
+                {standalone.map((attachment) => (
+                  <AttachmentRenderer
+                    key={attachment.id}
+                    attachment={{ kind: "record", attachment }}
+                    editable={canAddUpload}
+                    onDelete={
+                      canAddUpload
+                        ? () => setPendingDelete(attachment)
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            </AttachmentDownloadProvider>
+          ) : null}
         </div>
-      </AttachmentDownloadProvider>
+      ) : isInitialLoading ? (
+        <div
+          data-testid="task-attachments-loading"
+          className="flex flex-col gap-2"
+        >
+          <Skeleton className="h-12 w-full rounded-lg" />
+        </div>
+      ) : canAdd && !hasError ? (
+        <div
+          data-testid="task-attachments-empty"
+          className="flex min-h-11 items-center rounded-lg border border-dashed border-border px-3.5 py-2.5 text-caption text-muted-foreground"
+        >
+          {t("tasks.detail.attachments_empty")}
+        </div>
+      ) : null}
+
+      {isDragOver ? <FileDropOverlay /> : null}
+
+      {picker.dialogs}
 
       <AlertDialog
         open={!!pendingDelete}

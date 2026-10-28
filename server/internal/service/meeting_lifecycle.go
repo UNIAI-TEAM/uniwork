@@ -16,20 +16,33 @@ import (
 )
 
 func (s *MeetingService) CreateInstant(ctx context.Context, userID, workspaceID string, title string) (db.Meeting, error) {
-	return s.CreateInstantKeyed(ctx, userID, workspaceID, title, "")
+	return s.CreateInstantKeyed(ctx, userID, workspaceID, InstantMeetingInput{Title: title})
+}
+
+// InstantMeetingInput is "Họp ngay": Venue "" is online.
+type InstantMeetingInput struct {
+	Title, Venue, IdempotencyKey string
 }
 
 // CreateInstantKeyed is CreateInstant under an Idempotency-Key (UNI-2153): a
 // retry with the same key replays the started meeting and skips the room,
 // scribe and dial-in ensures, which the first call already ran (the outbox
 // provider.ensure_session row covers the room). An empty key skips the claim.
-func (s *MeetingService) CreateInstantKeyed(ctx context.Context, userID, workspaceID, title, idempotencyKey string) (db.Meeting, error) {
+// An in-person one opens no room and stays SCHEDULED until a clerk records it held.
+func (s *MeetingService) CreateInstantKeyed(ctx context.Context, userID, workspaceID string, in InstantMeetingInput) (db.Meeting, error) {
 	mem, err := s.ws.RequireMember(ctx, workspaceID, userID)
 	if err != nil {
 		return db.Meeting{}, err
 	}
+	title, venue := in.Title, in.Venue
 	if title == "" {
 		title = "Cuộc họp tức thì"
+	}
+	if venue == "" {
+		venue = MeetingVenueOnline
+	}
+	if err := validVenue(venue); err != nil {
+		return db.Meeting{}, err
 	}
 	tz, err := s.creatorTimezone(ctx, userID)
 	if err != nil {
@@ -43,8 +56,8 @@ func (s *MeetingService) CreateInstantKeyed(ctx context.Context, userID, workspa
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	replay, commit, err := BeginIdempotent(ctx, q, mem.OrganizationID, workspaceID, idempotencyScopeMeetingCreateInstant, idempotencyKey, userID,
-		IdempotencyOptions{Fingerprint: IdempotencyFingerprint(idempotencyScopeMeetingCreateInstant, title)})
+	replay, commit, err := BeginIdempotent(ctx, q, mem.OrganizationID, workspaceID, idempotencyScopeMeetingCreateInstant, in.IdempotencyKey, userID,
+		IdempotencyOptions{Fingerprint: IdempotencyFingerprint(idempotencyScopeMeetingCreateInstant, title, venue)})
 	if err != nil {
 		return db.Meeting{}, NormalizeIdempotencyError(err)
 	}
@@ -57,7 +70,7 @@ func (s *MeetingService) CreateInstantKeyed(ctx context.Context, userID, workspa
 		EndsAt:   pgtype.Timestamptz{Time: now.Add(time.Hour), Valid: true},
 		RoomName: meetings.RoomNameForMeeting(id), CreatedBy: userID, CreatedByKind: string(audit.KindHuman),
 		Status: MeetingScheduled, MeetingType: MeetingTypeInstant,
-		HostUserID: userID, Timezone: tz, AllowJoinRequest: true,
+		HostUserID: userID, Timezone: tz, AllowJoinRequest: true, Venue: venue,
 	})
 	if err != nil {
 		return db.Meeting{}, err
@@ -70,6 +83,18 @@ func (s *MeetingService) CreateInstantKeyed(ctx context.Context, userID, workspa
 	}
 	if err := s.writeAudit(ctx, q, m, "MEETING_CREATED", userID, "", MeetingScheduled, `{"meeting_type":"INSTANT"}`); err != nil {
 		return db.Meeting{}, err
+	}
+	created := audit.Diff(nil, map[string]any{"meeting_type": MeetingTypeInstant, "title": m.Title, "venue": m.Venue})
+	if venue == MeetingVenueInPerson {
+		// Held in the room, recorded on a phone: no conference room opens.
+		s.record(ctx, q, m, audit.User(userID), "meeting.created", nil, created)
+		if err := completeMeetingClaim(commit, m); err != nil {
+			return db.Meeting{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return db.Meeting{}, err
+		}
+		return m, nil
 	}
 	sess, err := q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
 		ID: util.NewID(), MeetingID: m.ID, OrganizationID: m.OrganizationID, ProviderKey: s.rt.ProviderKey,
@@ -94,7 +119,7 @@ func (s *MeetingService) CreateInstantKeyed(ctx context.Context, userID, workspa
 	}); err != nil {
 		return db.Meeting{}, err
 	}
-	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil, audit.Diff(nil, map[string]any{"meeting_type": MeetingTypeInstant, "title": m.Title}))
+	s.record(ctx, q, m, audit.User(userID), "meeting.created", nil, created)
 	s.record(ctx, q, started, audit.User(userID), "meeting.started", nil,
 		audit.Diff(map[string]any{"status": MeetingScheduled}, map[string]any{"status": MeetingInProgress}))
 	if err := completeMeetingClaim(commit, started); err != nil {
@@ -115,6 +140,9 @@ func (s *MeetingService) Start(ctx context.Context, userID, meetingID string) (d
 	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
 	if err != nil {
 		return db.Meeting{}, err
+	}
+	if m.Venue == MeetingVenueInPerson {
+		return db.Meeting{}, errMeetingInPerson()
 	}
 	if m.Status != MeetingScheduled {
 		return db.Meeting{}, errInvalidState()

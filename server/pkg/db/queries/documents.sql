@@ -266,3 +266,28 @@ WHERE organization_id = sqlc.arg(organization_id)
 -- (every tree command keeps that one order).
 -- name: LockDocumentTree :exec
 SELECT pg_advisory_xact_lock(hashtextextended('documents.tree:' || sqlc.arg(workspace_id)::text, 0));
+
+-- Templates (UNI-2225): the mark is library state, not content, so neither
+-- query touches revision or updated_at. No row back means the mark already
+-- stood (set) or was already clear (clear): the caller treats it as a no-op.
+-- name: SetDocumentTemplateMark :one
+UPDATE documents
+SET template_marked_at = now(),
+    template_marked_by = sqlc.arg(template_marked_by),
+    template_marked_by_kind = sqlc.arg(template_marked_by_kind)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND template_marked_at IS NULL
+RETURNING *;
+
+-- name: ClearDocumentTemplateMark :one
+UPDATE documents
+SET template_marked_at = NULL,
+    template_marked_by = NULL,
+    template_marked_by_kind = NULL
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND template_marked_at IS NOT NULL
+RETURNING *;

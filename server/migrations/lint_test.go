@@ -315,6 +315,7 @@ var tenantExemptTables = map[string]string{
 	"meeting_provider_events":   "provider-webhook idempotency ledger keyed by (provider_key, provider_event_id), like webhook_inbox and notification_deliveries; the event is attributed to a meeting downstream",
 	"graph_edge_types":          "the global Work Graph edge catalogue, shared by every tenant (C-11)",
 	"change_feed_epoch":         "one global marker row recording the xid from which audit_events.xact_id is filled, so a change-feed cursor older than the column is refused (G5-01b); it names no tenant",
+	"drive_grant_revocations":   "Google OAuth grant revocation queue keyed by google_sub, shared across every organization because a Google grant belongs to (OAuth client, google_sub); holds no content (UNI-2177, spec §6.8)",
 }
 
 // Tables whose organization_id column must exist but may accept NULL on
@@ -497,6 +498,53 @@ func TestActorKindOnEveryCreatedBy(t *testing.T) {
 			if createdByPattern.MatchString(body) && !createdByKindPattern.MatchString(body) {
 				t.Errorf("%s creates %s with created_by but no created_by_kind (ADR 0007); attribution is the pair", name, table)
 			}
+		}
+	}
+}
+
+// --- ADR 0047: Google Drive tables store references only, never bytes --------
+//
+// No drive_* table may declare a column pointing at object storage
+// (object_key, bucket, storage_path, file_id, blob_key).
+var (
+	driveObjectStorageColumnPattern    = regexp.MustCompile(`(?i)\b(object_key|object_url|bucket|storage_path|blob_key)\b`)
+	driveAlterTableAddObjectColPattern = regexp.MustCompile(`(?is)\bALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(drive_\w+)\b([^;]*?\bADD\s+(?:COLUMN\s+)?(?:IF\s+NOT\s+EXISTS\s+)?[^;]+)`)
+)
+
+func findDriveObjectStorageColumnViolations(sql string) []string {
+	var out []string
+	for table, body := range createdTables(sql) {
+		if !strings.HasPrefix(table, "drive_") {
+			continue
+		}
+		if m := driveObjectStorageColumnPattern.FindString(body); m != "" {
+			out = append(out, table+":"+m)
+		}
+	}
+	for _, m := range driveAlterTableAddObjectColPattern.FindAllStringSubmatch(sql, -1) {
+		table := strings.ToLower(m[1])
+		if col := driveObjectStorageColumnPattern.FindString(m[2]); col != "" {
+			out = append(out, table+":"+col)
+		}
+	}
+	return out
+}
+
+func TestDriveTablesCarryNoObjectStorageColumns(t *testing.T) {
+	// Prove the guard catches ALTER TABLE drive_* ADD [COLUMN] as well as CREATE TABLE.
+	for _, badSQL := range []string{
+		"ALTER TABLE drive_connections ADD COLUMN object_key TEXT;",
+		"ALTER TABLE IF EXISTS drive_files ADD storage_path TEXT NOT NULL DEFAULT '';",
+	} {
+		if got := findDriveObjectStorageColumnViolations(badSQL); len(got) == 0 {
+			t.Fatalf("findDriveObjectStorageColumnViolations(%q) = empty, want violation", badSQL)
+		}
+	}
+
+	for _, name := range newMigrationUpFiles(t) {
+		sql := stripSQLComments(readMigration(t, name))
+		for _, v := range findDriveObjectStorageColumnViolations(sql) {
+			t.Errorf("%s declares object-storage column on Drive table (%s); Drive tables store references only, never bytes (ADR 0047)", name, v)
 		}
 	}
 }

@@ -2,6 +2,7 @@
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
+import { useOfficeHandoffStore } from "../ai/office-handoff-store";
 import { useAiPanelStore } from "../ai/store";
 import { setSchemaLogger } from "../api/schema";
 import { useAuthStore } from "../auth/store";
@@ -78,6 +79,7 @@ export function CoreProvider({
     useAuthStore.getState().setOnLogout(() => {
       clearRegisteredDraftsOnLogout();
       useAiPanelStore.getState().reset();
+      useOfficeHandoffStore.getState().reset();
       queryClient.clear();
     });
     return () => {

@@ -33,7 +33,7 @@ export type AskUniStreamEvent =
 // Lenient wire shapes; each maps to one event. A frame that fails its schema is skipped.
 const SCHEMAS: Record<string, (raw: unknown) => AskUniStreamEvent | null> = {
   run: (raw) => {
-    const s = z.object({ run_id: z.string().catch(""), conversation_id: z.string() });
+    const s = z.object({ run_id: z.string().catch(""), conversation_id: z.string().catch("") });
     const r = parseWithFallback<z.infer<typeof s> | null>(raw, s, null, { endpoint: "ai.askStream:run" });
     return r && { type: "run", runId: r.run_id, conversationId: r.conversation_id };
   },

@@ -339,6 +339,7 @@ trạng thái cloud là `ready` và `tools.chat` bật. Khi chọn, lượt ch�
 - Không mạng: UniWork AI không chạy; không xếp hàng yêu cầu AI để tự gửi sau reconnect.
 - Chat không mở thành Ask UNI toàn workspace; muốn thêm nguồn phải chọn rõ và server kiểm quyền.
   Tài liệu thuộc Work Product giữ cùng workspace và owner ACL theo C-14, không có ACL phụ của Office AI.
+  Ngoại lệ: [ADR 0048](../../adr/0048-goi-giao-viec-dua-tu-lieu-hoi-uni-vao-ai-trong-trinh-soan.md) — tư liệu người hỏi đã duyệt trên thẻ Hỏi UNI vào hội thoại của đúng tài liệu Apply vừa tạo, qua gói ở server, dưới dạng không tin cậy.
 - Kết quả phân biệt **trả lời**, **cần làm rõ**, **đã sửa trong editor**, **không hỗ trợ**, **lỗi**; có hủy.
 
 **Ngữ cảnh là nội dung đang mở trong editor**, kể cả phần chưa lưu, vì công cụ genoffice đọc thẳng editor.
@@ -418,6 +419,7 @@ phía server trong v1. Việc của G6:
 
 Nếu sau này cần công cụ phía server (ví dụ đọc tài liệu khác trong workspace), đó là mở rộng riêng có ADR,
 phải qua ACL và `TestAskUniToolsAreReadOnly`-style guard; không nằm trong v1.
+Ngoại lệ: [ADR 0048](../../adr/0048-goi-giao-viec-dua-tu-lieu-hoi-uni-vao-ai-trong-trinh-soan.md) — tư liệu đến qua gói giao việc Hỏi UNI, không qua công cụ; AI trong trình soạn vẫn không có công cụ đọc workspace.
 
 ### 6.4 Áp dụng và lưu
 

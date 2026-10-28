@@ -10,12 +10,12 @@ import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
 import { isShelved, type Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { BreadcrumbHeader } from "../layout/breadcrumb-header";
+import { BreadcrumbHeader, type BreadcrumbSegment } from "../layout/breadcrumb-header";
 import { HeaderActionsSlot, HeaderActionsSlotProvider } from "../layout/header-actions-slot";
 import { QuietPreferenceToast } from "../layout/preference-toast";
-import type { BreadcrumbSegment } from "../layout/breadcrumb-header";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
+import type { LegacyFormatDesktopOpenProps } from "../office/legacy-format-dialog";
 import { leaveGuardAllows, registerLeaveGuard, useNavigation } from "../navigation";
 import type { DocumentAssetUploader } from "./document-asset-upload";
 import { DocumentHeaderActions } from "./document-header-actions";
@@ -82,6 +82,7 @@ export interface DocumentWorkspaceProps {
    */
   refetch: () => Promise<{ data?: Document | null; isError?: boolean }>;
   officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean; officeFormat?: string | null }>;
+  desktopOpen?: LegacyFormatDesktopOpenProps;
 }
 
 /**
@@ -101,7 +102,7 @@ export function DocumentWorkspace({
   documentHref,
   ownerHref,
   headerActions,
-  refetch, officeEditorHost, bodyRefreshing,
+  refetch, officeEditorHost, desktopOpen, bodyRefreshing,
 }: DocumentWorkspaceProps) {
   const { t } = useTranslation();
   const { push } = useNavigation();
@@ -624,7 +625,7 @@ export function DocumentWorkspace({
           <FrameEditLockContext.Provider value={editLock.frameEditLock}>
             {editLock.prompt ? <div className="pt-4"><EditRequestPrompt {...editLock.prompt} /></div> : null}
             <DocumentFileView wsId={wsId} doc={doc} readonly={!canEdit} officeEditorHost={officeEditorHost}
-              officeGate={officeGate} permissionNoticeShown />
+              officeGate={officeGate} permissionNoticeShown desktopOpen={desktopOpen} />
           </FrameEditLockContext.Provider>
         )}
       </div>

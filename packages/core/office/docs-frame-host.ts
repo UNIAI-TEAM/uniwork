@@ -1,6 +1,6 @@
 // Vendored from the genoffice fork (UNIAI-TEAM/uniwork-office),
-// web/docs/protocol/host.ts at d57e60f81adf7e4580f62a2dcffd6b6bf926776c
-// (fork release web-0.1.0-d57e60f at d57e60f81: G5-04 open_refused, UNI-1872 api.saveCopy, and UNI-1876 close_requested).
+// web/docs/protocol/host.ts at 6799c6765b3d0dee79b61b281310ee459be8a494
+// (fork release web-0.1.0-6799c67 at 6799c6765: G5-04 open_refused, UNI-1872 api.saveCopy, UNI-1876 close_requested, and UNI-2264 startAi).
 // Byte-identical except the relative import specifiers (./types -> ./docs-frame-protocol, ./endpoint -> ./docs-frame-endpoint).
 // Do not edit here: change the fork, re-vendor, update this SHA.
 /* eslint-disable @typescript-eslint/no-misused-promises -- vendored: the async `ready` listener catches its own errors */
@@ -40,6 +40,8 @@ import {
   checkFrameModule,
   PROTOCOL_VERSION,
   toProtocolError,
+  type AiStartPayload,
+  type AiStartResult,
   type CommentsRevealResult,
   type DocBlockedPayload,
   type FileMeta,
@@ -145,6 +147,11 @@ export interface DocsFrameHost {
     commentId: string,
     options?: RequestOptions & { retry?: boolean },
   ): Promise<CommentsRevealResult>
+  /**
+   * hand an approved job to the frame's AI panel (additive, UNI-2264). Rejects `unsupported`
+   * without sending when the InitAck has no `aiStart` (host grant AND frame claim).
+   */
+  startAi(payload: AiStartPayload, options?: RequestOptions): Promise<AiStartResult>
   /**
    * the open document is blocked for this viewer (additive, G5-03w). A frame before it has no
    * listener and drops it silently; the host keeps refusing its saves either way.
@@ -377,6 +384,14 @@ export function createDocsFrameHost(options: DocsFrameHostOptions): DocsFrameHos
     return attempt()
   }
 
+  async function startAi(payload: AiStartPayload, o: RequestOptions = {}): Promise<AiStartResult> {
+    const a = await whenReady({ timeoutMs: o.timeoutMs, signal: o.signal })
+    if (a.capabilities.aiStart !== true) {
+      throw err('unsupported', 'the frame does not accept ai.start')
+    }
+    return (await ep.request('ai.start', payload, o)) as AiStartResult
+  }
+
   const emitIfReady = (type: string, payload: unknown): void => {
     if (!ack) return
     try {
@@ -405,6 +420,7 @@ export function createDocsFrameHost(options: DocsFrameHostOptions): DocsFrameHos
       for (const wake of [...commentsWakers]) wake()
     },
     revealComment,
+    startAi,
     notifyBlocked: (p) => emitIfReady('doc.blocked', { ...p }),
     setTheme: (theme) => emitIfReady('theme', { theme }),
     setLanguage: (locale) => emitIfReady('language', { locale }),

@@ -46,13 +46,15 @@ for (const sample of samples) {
         await expect(examples.getByRole("tab").nth(1)).toBeFocused();
         await page.keyboard.press("Enter");
         await expect(examples.getByRole("tab").nth(1)).toHaveAttribute("aria-selected", "true");
-        await expect(page.locator('.feature-demo [data-action="expand-preview"]'), route).toBeVisible();
+        await expect(page.locator(".feature-demo .product-demo-shell")).toBeVisible();
+      } else if (route === "pricing") {
+        await expect(page.locator(".public-pricing-plan")).toHaveCount(3);
       } else {
         await expect(page.locator(".chapter-hero .chapter-scene")).toBeVisible();
       }
-      if (["solutions", "pricing"].includes(route)) {
+      if (route === "solutions") {
         await expect(page.getByRole("table")).toHaveCount(1);
-        await expect(page.locator(".chapter-table tbody tr")).toHaveCount(route === "pricing" ? 2 : 3);
+        await expect(page.locator(".chapter-table tbody tr")).toHaveCount(3);
       }
       if (route === "enterprise") {
         await expect(page.locator(".chapter-table")).toHaveCount(0);
@@ -105,6 +107,6 @@ test("contextual closing demo links open their actual preview", async ({ page, c
     await demo.click();
     await expect(page).toHaveURL(new RegExp(`/features/${feature}#feature-preview$`));
     await expect(page.locator("#feature-demo-title")).toBeInViewport();
-    await expect(page.locator('.feature-demo [data-action="expand-preview"]')).toBeVisible();
+    await expect(page.locator(".feature-demo .product-demo-shell")).toBeVisible();
   }
 });

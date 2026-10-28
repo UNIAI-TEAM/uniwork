@@ -26,3 +26,10 @@ export async function selectWorkspaceFeature(page: Page, key: string, manual = t
   await stage.locator(`[role=tab][data-feature="${key}"]`).click();
   if (manual) await openManualPreview(page);
 }
+
+/** The after-meeting follow-up lives in the list view; the room is the default one. */
+export async function openMeetingList(page: Page) {
+  const list = page.locator("#product-preview .manual-preview:not([hidden]) .product-meeting-preview");
+  await list.locator(".product-meeting-view-switch button").first().click();
+  await list.locator(".product-meeting-list").waitFor();
+}

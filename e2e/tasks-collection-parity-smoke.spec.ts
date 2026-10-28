@@ -41,12 +41,13 @@ test("tasks collection: suite mode controls always on", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Việc của tôi" })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("task-mode-switcher")).toBeVisible();
 
-  // My-tasks must not expose workspace table mode (no relation filter on /tasks/table/*).
+  // My-tasks offers the suite modes minus gantt; the table API takes the relation filter (my-tasks-page.tsx MY_TASKS_MODES).
   await page.getByTestId("task-mode-switcher").click();
   await expect(page.getByTestId("task-mode-list")).toBeVisible();
   await expect(page.getByTestId("task-mode-board")).toBeVisible();
   await expect(page.getByTestId("task-mode-swimlane")).toBeVisible();
-  await expect(page.getByTestId("task-mode-table")).toHaveCount(0);
+  await expect(page.getByTestId("task-mode-table")).toBeVisible();
+  await expect(page.getByTestId("task-mode-gantt")).toHaveCount(0);
   // The mode menu is modal: close it before reaching for the toolbar again.
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("task-mode-list")).toBeHidden();

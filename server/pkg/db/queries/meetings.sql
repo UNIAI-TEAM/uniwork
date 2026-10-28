@@ -2,11 +2,11 @@
 INSERT INTO meetings (
   id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_by_kind,
   status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key,
-  organization_id, series_id
+  organization_id, series_id, venue
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, $16,
   $9, $10, $11, $12, $13, 1, $8, $14, $15,
-  $17, sqlc.narg(series_id)
+  $17, sqlc.narg(series_id), sqlc.arg(venue)
 )
 RETURNING *;
 
@@ -79,6 +79,7 @@ UPDATE meetings SET
   ends_at     = COALESCE(sqlc.narg('ends_at'), ends_at),
   timezone    = COALESCE(sqlc.narg('timezone'), timezone),
   allow_join_request = COALESCE(sqlc.narg('allow_join_request'), allow_join_request),
+  venue       = COALESCE(sqlc.narg('venue'), venue),
   -- NULL keeps the project; '' clears it to NULL (C-11 §9.1 V2: the graph
   -- reads NULL as "no project", never '').
   project_id  = CASE

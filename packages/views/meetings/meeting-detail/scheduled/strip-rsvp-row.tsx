@@ -3,6 +3,7 @@ import { Check } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useRespondInvitation } from "@uniwork/core/meetings";
+import { meetingVenue } from "@uniwork/core/meetings/venue";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useWorkspace } from "../../../layout/workspace-context";
 import { toastApiError } from "../../../toast-api-error";
@@ -131,13 +132,16 @@ export function StripRsvpRow({ variant, actions }: { variant: "strip" | "phoneBa
   }
 
   const day = dayWord(meeting.starts_at, now, t) ?? shortDay(meeting.starts_at, now, t);
+  // In person no room opens (spec D4): the line says when the meeting starts.
+  const inPerson = meetingVenue(meeting) === "in_person";
   // The strip sets the hour in its own <time> (ScheduledMember); the phone room row is one plain caption.
+  const hour = isPhone ? <Fragment /> : <time dateTime={meeting.starts_at} className="tabular-nums" />;
   const opens = (
     <Trans
       t={t}
-      i18nKey="meetings.detail.scheduled.roomOpens"
+      i18nKey={inPerson ? "meetings.detail.strip.startsAt" : "meetings.detail.scheduled.roomOpens"}
       values={{ time: clock(meeting.starts_at), day }}
-      components={{ time: isPhone ? <Fragment /> : <time dateTime={meeting.starts_at} className="tabular-nums" /> }}
+      components={inPerson ? { t: hour } : { time: hour }}
     />
   );
   const calendar = (
@@ -152,7 +156,7 @@ export function StripRsvpRow({ variant, actions }: { variant: "strip" | "phoneBa
     // The answer lives in the bottom bar; the strip keeps the room row (PhoneScheduled `.room`).
     return (
       <StripRow className="py-3">
-        <div aria-label={t("meetings.detail.scheduled.roomLabel")} role="group" className="w-full">
+        <div aria-label={inPerson ? undefined : t("meetings.detail.scheduled.roomLabel")} role={inPerson ? undefined : "group"} className="w-full">
           <p className="text-caption text-muted-foreground">{opens}</p>
           {actions ? (
             <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2 *:h-11 [&>*:first-child]:w-full">

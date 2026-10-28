@@ -23,6 +23,9 @@ export function readMembershipInviteSecret(linkId: string): string {
 
 function secretFromHash(): string {
   if (typeof window === "undefined") return "";
+  // Reads the fragment only, never navigates; the navigation adapter does not
+  // expose the hash, and the secret stays there so it never reaches a server.
+  // eslint-disable-next-line no-restricted-syntax
   const raw = window.location.hash.replace(/^#/, "");
   if (!raw) return "";
   const params = new URLSearchParams(raw.includes("=") ? raw : `secret=${raw}`);

@@ -69,17 +69,23 @@ export function AskUniMessageTurn({
   message,
   streaming = false,
   conversationId,
+  transient = false,
   steps,
   writing = false,
   thinking = "",
   sources,
   wsId = "",
   onRegenerate,
+  onAskAgain,
   regenerateDisabled,
+  question,
 }: {
   message: AskUniTurnMessage;
+  /** The question an answer replies to: a task made from it starts with that title. */
+  question?: string;
   streaming?: boolean;
   conversationId?: string | null;
+  transient?: boolean;
   /** The live turn's steps; a stored turn reads its own from `message.steps`. */
   steps?: AiStep[];
   /** True once the live answer's first text has arrived. */
@@ -90,6 +96,7 @@ export function AskUniMessageTurn({
   sources?: Map<string, AiCitation>;
   wsId?: string;
   onRegenerate?: () => void;
+  onAskAgain?: () => void;
   regenerateDisabled?: boolean;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
@@ -148,26 +155,29 @@ export function AskUniMessageTurn({
         ) : null}
         <AskUniFileNotes notes={message.file_notes ?? []} />
         <AskUniSources citations={message.citations} />
-        {stored && conversationId && hasProposals ? (
+        {stored && conversationId && !transient && hasProposals ? (
           <AskUniProposalCard message={{ id: message.id, proposals: message.proposals ?? [] }} conversationId={conversationId} readOnly={!actionsOn} />
         ) : null}
-        {memoryOn && memoryProposals.length > 0 ? (
+        {memoryOn && !transient && memoryProposals.length > 0 ? (
           <AskUniMemoryCard message={{ id: message.id, memory_proposals: memoryProposals }} conversationId={conversationId} orgSlug={orgSlug} tainted={tainted} />
         ) : null}
-        {memoryOn && memoryIds.length > 0 ? (
+        {memoryOn && !transient && memoryIds.length > 0 ? (
           <div className="mt-2">
             <AskUniMemoryUsed memoryIds={memoryIds} orgSlug={orgSlug} />
           </div>
         ) : null}
-        {stored && conversationId ? (
+        {stored && (conversationId || transient) ? (
           <AskUniActions
-            conversationId={conversationId}
+            conversationId={conversationId ?? ""}
             messageId={message.id}
             wsId={wsId}
             content={message.content}
+            question={question}
             proposals={message.proposals}
             sources={byId}
+            transient={transient}
             onRegenerate={onRegenerate}
+            onAskAgain={onAskAgain}
             regenerateDisabled={regenerateDisabled}
           />
         ) : null}

@@ -1,7 +1,6 @@
 package files
 
 import (
-	"archive/zip"
 	"bytes"
 	"encoding/binary"
 	"io"
@@ -9,6 +8,8 @@ import (
 	"path"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/unicomhub/uniwork/server/internal/zipbound"
 )
 
 // DetectHeadBytes is how much of a body DetectContentType reads. The fake
@@ -285,7 +286,7 @@ func DetectBodyContentType(head []byte, filename string, body io.ReaderAt, size 
 	if ct != mimeZip || body == nil || size <= int64(len(head)) {
 		return ct
 	}
-	zr, err := zip.NewReader(body, size)
+	zr, err := zipbound.NewReader(body, size)
 	if err != nil {
 		return ct
 	}

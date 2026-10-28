@@ -148,8 +148,8 @@ export function useSetMeetingAISharing(meetingId: string) {
 export function useCreateInstantMeeting(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ title, idempotencyKey }: { title?: string; idempotencyKey: string }) =>
-      meetings.createInstantMeeting(workspaceId, title, { idempotencyKey }),
+    mutationFn: ({ idempotencyKey, ...body }: Parameters<typeof meetings.createInstantMeeting>[1] & { idempotencyKey: string }) =>
+      meetings.createInstantMeeting(workspaceId, body, { idempotencyKey }),
     onSuccess: () => {
       for (const key of [meetingKeys.list(workspaceId), meetingKeys.stats(workspaceId), calendarKeys.all(workspaceId)]) {
         void qc.invalidateQueries({ queryKey: key });

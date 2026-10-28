@@ -4,6 +4,7 @@ import { create } from "zustand";
 import * as auth from "../api/endpoints/auth";
 import { getAccessToken, setAccessToken, subscribe as subscribeToToken } from "../api/session";
 import { releaseHeldEditLocks } from "../documents/edit-lock-registry";
+import { resetFolderAccessBatches } from "../documents/folder-access-batches";
 import { endOfficeDraftSession } from "../office/draft-session-key";
 import { setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
@@ -42,13 +43,16 @@ let onLogout: (() => void) | null = null;
 let lastUserId: string | null = null;
 
 /**
- * Sign-out and session switch end the Office draft-recovery session: the key
- * is forgotten and the encrypted drafts are deleted (CONTRACT C18). A token
- * loss alone does not: the same person may sign back in without a reload.
+ * Sign-out and session switch end the user-scoped state: the Office
+ * draft-recovery session (the key is forgotten and the encrypted drafts are
+ * deleted, CONTRACT C18) and the folder access batches this tab follows (the
+ * next user must not poll the previous one's batch). A token loss alone does
+ * not: the same person may sign back in without a reload.
  */
-function endDraftSession(): void {
+function endUserSession(): void {
   lastUserId = null;
   void endOfficeDraftSession();
+  resetFolderAccessBatches();
 }
 
 /** Host-owned session: take its access token, then ask the server who it belongs to. */
@@ -70,7 +74,7 @@ function clearSession(runLogoutCallback = true): void {
   // user's namespace until some layout sets a new one.
   setCurrentWorkspace(null, null);
   if (runLogoutCallback) {
-    endDraftSession();
+    endUserSession();
     // A link-mode reset this browser asked for belongs to the person leaving.
     forgetLinkReset();
     onLogout?.();
@@ -176,7 +180,7 @@ useAuthStore.subscribe((state, prev) => {
   if (state.status !== prev.status) syncSessionHint(state.status);
   const userId = state.user?.id ?? null;
   if (userId === null) return;
-  if (lastUserId !== null && lastUserId !== userId) endDraftSession();
+  if (lastUserId !== null && lastUserId !== userId) endUserSession();
   lastUserId = userId;
 });
 

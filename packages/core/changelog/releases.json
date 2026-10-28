@@ -1,5 +1,39 @@
 [
   {
+    "id": "release-1-12-0",
+    "version": "1.12.0",
+    "date": "2026-10-28",
+    "sourceRef": "d29327318a22ff5d852d4713d8bd291556f78e04",
+    "contentKey": "v1_12_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "c6cbd2bbb048a5379f54a25dce30fbe88b030f426",
+          "c4228c23e3f2b0c806c324186730aa56559b9990e",
+          "c7f427c7f30d2e29c7b08d0d33d3ebf9d48aa5510",
+          "cb7ffc3f9677e4cf5bb92bfa345773eb1e4dc1e1f",
+          "c0cd5e5ae6b1803536689748f96dc5e7bcc1b2525",
+          "c0c9a7ae41d024ebecc4eebc94917b2bb8a171347"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "ce4e631d6b566eeb4aa8e15e03668f517ce02a82d",
+          "c6fcf7fd13c09a42ca3e91fd1d4e256c1feb2e513"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c4458af37e9a9c952f6a5a985672db59325e3da30",
+          "cf0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf"
+        ]
+      }
+    ]
+  },
+  {
     "id": "release-1-11-0",
     "version": "1.11.0",
     "date": "2026-10-27",

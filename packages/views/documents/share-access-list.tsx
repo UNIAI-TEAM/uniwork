@@ -10,7 +10,7 @@ import type { OrgMember } from "@uniwork/core/types/people";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { foldSearchText } from "./share-candidate-picker";
+import { foldSearchText } from "./search-path";
 import { shareErrorMessage } from "./share-dialog-break-glass";
 import type { ShareDialogTarget } from "./share-dialog-target";
 import { AclOwnerRow, HomeWorkspaceRow, ShareRow, levelRank, type ShareAccessHomeRow, type ShareAccessRowContext } from "./share-access-rows";

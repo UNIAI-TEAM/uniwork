@@ -229,6 +229,30 @@ describe("docRowMenu: folder rows", () => {
   it("hides Tạo thư mục con and the edit commands from a view-level viewer", () => {
     expect(ids(docRowMenu(documentRow({ ...folder, my_level: "view" }), ctx())).flat()).toEqual(["open-folder", "copy-link", "star"]);
   });
+
+  // UNI-2244: the bulk command is the folder's only sharing item; a document has the single Share instead.
+  it("offers Chia sẻ on a folder of any level, and runs it with the folder", () => {
+    const onShareContents = vi.fn();
+    for (const level of ["view", "edit", "manage"] as const) {
+      const c = ctx();
+      c.handlers.onShareContents = onShareContents;
+      const groups = docRowMenu(documentRow({ ...folder, my_level: level }), c);
+      expect(ids(groups)[1]).toContain("share-contents");
+      expect(ids(groups).flat()).not.toContain("share");
+    }
+    const c = ctx();
+    c.handlers.onShareContents = onShareContents;
+    docRowMenu(documentRow(folder), c).flat().find((item) => item.id === "share-contents")!.run();
+    expect(onShareContents).toHaveBeenLastCalledWith(folder);
+    expect(docRowMenu(documentRow(folder), c).flat().find((item) => item.id === "share-contents")?.labelKey).toBe("documents.folderAccess.menu");
+  });
+
+  it("never offers it on a document, nor where the host wires no dialog", () => {
+    const wired = ctx();
+    wired.handlers.onShareContents = vi.fn();
+    expect(ids(docRowMenu(documentRow(doc()), wired)).flat()).not.toContain("share-contents");
+    expect(ids(docRowMenu(documentRow(folder), ctx())).flat()).not.toContain("share-contents");
+  });
 });
 
 describe("docRowMenu: source rows keep today's items", () => {
@@ -248,5 +272,65 @@ describe("docRowMenu: source rows keep today's items", () => {
 
   it("lists go-to-source, download and save in one group", () => {
     expect(ids(docRowMenu(src, ctx()))).toEqual([["go-to-source", "download", "save"]]);
+  });
+});
+
+describe("docRowMenu: template marks", () => {
+  const withTemplate = (over: Partial<RowMenuContext["handlers"]> = {}) =>
+    ctx({ handlers: { ...ctx().handlers, onMarkTemplate: vi.fn(), onUnmarkTemplate: vi.fn(), ...over } });
+  const flat = (row: DocumentSummaryRow, c: RowMenuContext) => docRowMenu(documentRow(row), c).flat().map((item) => item.id);
+
+  it("offers mark-template on a workspace file at every level", () => {
+    for (const level of ["view", "edit", "manage"]) {
+      expect(flat(doc({ my_level: level }), withTemplate())).toContain("mark-template");
+    }
+  });
+
+  it("offers mark-template on a restricted file only at manage", () => {
+    expect(flat(doc({ visibility: "restricted", my_level: "edit" }), withTemplate())).not.toContain("mark-template");
+    expect(flat(doc({ visibility: "restricted", my_level: "view" }), withTemplate())).not.toContain("mark-template");
+    expect(flat(doc({ visibility: "restricted", my_level: "manage" }), withTemplate())).toContain("mark-template");
+  });
+
+  it("hides mark-template on a folder, a marked, shelved or trashed row, or with no handler", () => {
+    expect(flat(doc({ kind: "folder" }), withTemplate())).not.toContain("mark-template");
+    expect(flat(doc({ template_marked_at: "2026-10-27T03:00:00Z" }), withTemplate())).not.toContain("mark-template");
+    expect(flat(doc({ shelved_at: "2026-10-27T03:00:00Z" }), withTemplate())).not.toContain("mark-template");
+    expect(flat(doc({ archived_at: "2026-10-27T03:00:00Z" }), withTemplate())).not.toContain("mark-template");
+    expect(flat(doc(), ctx())).not.toContain("mark-template");
+  });
+
+  it("offers unmark-template on a marked row and not on an unmarked one", () => {
+    expect(flat(doc({ template_marked_at: "2026-10-27T03:00:00Z" }), withTemplate())).toContain("unmark-template");
+    expect(flat(doc(), withTemplate())).not.toContain("unmark-template");
+  });
+
+  it("keeps unmark-template on a shelved marked row, without mark-template", () => {
+    const row = doc({ template_marked_at: "2026-10-27T03:00:00Z", shelved_at: "2026-10-27T04:00:00Z" });
+    const items = flat(row, withTemplate());
+    expect(items).toContain("unmark-template");
+    expect(items).not.toContain("mark-template");
+  });
+
+  it("puts unmark-template where the trash item sits when the host wires no archive", () => {
+    const row = doc({ template_marked_at: "2026-10-27T03:00:00Z" });
+    const c = withTemplate({ onArchive: undefined, onShelve: undefined });
+    expect(ids(docRowMenu(documentRow(row), c)).at(-1)).toEqual(["unmark-template"]);
+  });
+
+  it("on Templates offers rename at edit level only, with no move, duplicate or trash", () => {
+    // The Templates screen wires rename and the template marks, not the other row commands.
+    const c = ctx({ handlers: { onRename: vi.fn(), onMarkTemplate: vi.fn(), onUnmarkTemplate: vi.fn(), onShare: vi.fn() } });
+    const marked = { template_marked_at: "2026-10-27T03:00:00Z" };
+    const edit = flat(doc({ ...marked, my_level: "edit" }), c);
+    expect(edit).toContain("rename");
+    expect(edit).toContain("unmark-template");
+    for (const id of ["move", "duplicate", "trash", "shelve"]) expect(edit).not.toContain(id);
+    expect(flat(doc({ ...marked, my_level: "view" }), c)).not.toContain("rename");
+  });
+
+  it("keeps the trash item beside it on a screen that wires archive", () => {
+    const row = doc({ template_marked_at: "2026-10-27T03:00:00Z" });
+    expect(ids(docRowMenu(documentRow(row), withTemplate())).at(-1)).toEqual(["shelve", "unmark-template", "trash"]);
   });
 });

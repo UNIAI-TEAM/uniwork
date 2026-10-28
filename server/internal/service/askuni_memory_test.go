@@ -580,3 +580,48 @@ func TestProposeMemoryDoesNotTaint(t *testing.T) {
 		t.Fatal("the conversation is marked tainted")
 	}
 }
+
+// A transient turn never reads or proposes memory even when the memory service,
+// agent flag, memory flag and personal switch are all on (R1-6).
+func TestTransientTurnSuppressesMemoryAndProposeMemoryTool(t *testing.T) {
+	ctx := context.Background()
+	w, m := memWorld(t)
+	if _, err := m.Create(ctx, w.x.ua.ID, w.x.w.OrganizationID, "preference", "Trả lời ngắn"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := w.s.turnMemory(ctx, w.tc, AskInput{Dock: true, Transient: true}); err != nil || got != nil {
+		t.Fatalf("turnMemory on transient dock turn = %+v, %v; want nil", got, err)
+	}
+	reqs := scriptCalls(w.fake, "Đã trả lời.\n<memory_used>\n- M1\n</memory_used>", []provider.ToolCall{toolCall("c1", "propose_memory", memRemember)})
+	beforeMem := w.x.count(t, `SELECT count(*) FROM ai_memories WHERE user_id = $1`, w.x.ua.ID)
+	beforeProps := w.x.count(t, `SELECT count(*) FROM ai_memory_proposals WHERE organization_id = $1`, w.x.w.OrganizationID)
+	var events []AskEvent
+	res, err := w.s.AskStream(ctx, w.x.ua.ID, w.x.w.ID, AskInput{
+		Question: "Ghi nhớ giúp tôi", Locale: "vi", Dock: true, Transient: true,
+	}, collectEvents(&events))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := (*reqs)[0]
+	if slices.Contains(toolNames(first), "propose_memory") {
+		t.Fatalf("transient turn offered propose_memory: %v", toolNames(first))
+	}
+	if strings.Contains(first.Messages[len(first.Messages)-1].Content, "Trả lời ngắn") {
+		t.Fatalf("transient turn injected saved memory into prompt:\n%s", first.Messages[len(first.Messages)-1].Content)
+	}
+	if got := toolResults(*reqs)["c1"]; got != "error: unknown_tool" {
+		t.Fatalf("propose_memory tool result = %q, want error: unknown_tool", got)
+	}
+	if len(res.MemoryIDs) != 0 || len(res.MemoryProposals) != 0 {
+		t.Fatalf("transient result memory_ids=%v memory_proposals=%+v, want empty", res.MemoryIDs, res.MemoryProposals)
+	}
+	for _, ev := range events {
+		if ev.Name == "memory_used" || ev.Name == "memory_proposals" {
+			t.Fatalf("transient stream emitted %s event: %+v", ev.Name, ev)
+		}
+	}
+	if w.x.count(t, `SELECT count(*) FROM ai_memories WHERE user_id = $1`, w.x.ua.ID) != beforeMem ||
+		w.x.count(t, `SELECT count(*) FROM ai_memory_proposals WHERE organization_id = $1`, w.x.w.OrganizationID) != beforeProps {
+		t.Fatalf("transient turn mutated ai_memories or ai_memory_proposals")
+	}
+}

@@ -929,6 +929,7 @@
     "composer_flag_group": "Flag the message",
     "voice_recording_aria": "Recording time, up to 2 minutes",
     "composer_staged_files": "Files to send",
+    "composer_preview_image": "View {{name}}",
     "composer_remove_file": "Remove {{name}}",
     "poll_option_aria_one": "{{label}} — {{count}} vote",
     "poll_option_aria_other": "{{label}} — {{count}} votes",

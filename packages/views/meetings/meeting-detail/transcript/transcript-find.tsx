@@ -33,6 +33,7 @@ export function TranscriptFind({
   citedOnly,
   onCitedOnly,
   hasCited,
+  assign,
   end,
 }: {
   query: string;
@@ -47,6 +48,8 @@ export function TranscriptFind({
   citedOnly: boolean;
   onCitedOnly: (on: boolean) => void;
   hasCited: boolean;
+  /** Gán người nói after the cited filter, while a speaker of an in-person meeting has no name (board p10). */
+  assign?: ReactNode;
   /**
    * The tab's ⋯. The board's find row and chapter bar carry none, so it sits at
    * the right end of the 44px tab row, 24 above the tab's `relative` section
@@ -57,6 +60,12 @@ export function TranscriptFind({
 }) {
   const { t } = useTranslation();
   const searching = query.trim() !== "";
+  const cited = hasCited ? (
+    <label className={cn("ml-auto inline-flex min-h-7 cursor-pointer items-center gap-2 text-caption text-muted-foreground hover:text-foreground", "@max-[37.5rem]/meeting:ml-0")}>
+      <Checkbox checked={citedOnly} onCheckedChange={(on) => onCitedOnly(on === true)} />
+      {t("meetings.detail.transcript.citedOnly")}
+    </label>
+  ) : null;
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
     e.preventDefault();
@@ -127,12 +136,15 @@ export function TranscriptFind({
           ))}
         </div>
       ) : null}
-      {hasCited ? (
-        <label className={cn("ml-auto inline-flex min-h-7 cursor-pointer items-center gap-2 text-caption text-muted-foreground hover:text-foreground", "@max-[37.5rem]/meeting:ml-0")}>
-          <Checkbox checked={citedOnly} onCheckedChange={(on) => onCitedOnly(on === true)} />
-          {t("meetings.detail.transcript.citedOnly")}
-        </label>
-      ) : null}
+      {/* With Gán người nói the two wrap together at the row's end (board p10). */}
+      {assign ? (
+        <div className="ml-auto flex items-center gap-3 @max-[37.5rem]/meeting:ml-0">
+          {cited}
+          {assign}
+        </div>
+      ) : (
+        cited
+      )}
       {end ? (
         <div className="absolute right-0 bottom-[calc(100%+1.5rem)] flex h-11 items-center @max-[37.5rem]/meeting:static @max-[37.5rem]/meeting:ml-auto @max-[37.5rem]/meeting:h-7">
           {end}

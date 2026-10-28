@@ -7,6 +7,9 @@ package internal
 // with the offending package named.
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -578,5 +581,94 @@ func TestOnlyBrowserFlowsRedirect(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Google Drive file content (files.export and alt=media downloads) is read in
+// one place — server/internal/service/drive_content.go — so every content read
+// checks workspace membership and the requester's own drive_file_access row
+// before touching Google (ADR 0047, spec §8.3).
+func driveContentSelectorRef(src []byte) string {
+	fset := token.NewFileSet()
+	if file, err := parser.ParseFile(fset, "", src, 0); err == nil {
+		var found string
+		ast.Inspect(file, func(n ast.Node) bool {
+			if found != "" {
+				return false
+			}
+			sel, ok := n.(*ast.SelectorExpr)
+			if !ok || sel.Sel == nil {
+				return true
+			}
+			if sel.Sel.Name == "driveExportFile" || sel.Sel.Name == "driveDownloadMedia" {
+				found = sel.Sel.Name
+				return false
+			}
+			return true
+		})
+		if found != "" {
+			return found
+		}
+	}
+	callRe := regexp.MustCompile(`\.\s*(driveExportFile|driveDownloadMedia)\b`)
+	if m := callRe.FindSubmatch(src); m != nil {
+		return string(m[1])
+	}
+	return ""
+}
+
+func TestDriveContentOnlyFromDriveContent(t *testing.T) {
+	// Prove the guard catches a method-value reference (not only an immediate `(` call).
+	for _, sample := range []struct {
+		src  string
+		want string
+	}{
+		{
+			src:  "package service\nfunc bypass(api *DriveAPIClient) { readMedia := api.driveDownloadMedia; _ = readMedia }\n",
+			want: "driveDownloadMedia",
+		},
+		{
+			src:  "package service\nfunc bypass() { fn := (*DriveAPIClient).driveExportFile; _ = fn }\n",
+			want: "driveExportFile",
+		},
+	} {
+		if got := driveContentSelectorRef([]byte(sample.src)); got != sample.want {
+			t.Fatalf("driveContentSelectorRef(%q) = %q, want %q", sample.src, got, sample.want)
+		}
+	}
+
+	rawRe := regexp.MustCompile(`alt=media|"alt":\s*\{"media"\}|/drive/v3/files/[^\s"]*export|"/files/"\s*\+[^\n]*\+\s*"/export"`)
+	var sawCall bool
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		slash := filepath.ToSlash(path)
+		if strings.Contains(slash, "pkg/db/generated") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(slash, "internal/service/drive_content.go") {
+			if driveContentSelectorRef(src) != "" {
+				sawCall = true
+			}
+			return nil
+		}
+		if ref := driveContentSelectorRef(src); ref != "" {
+			t.Errorf("%s references %s; only internal/service/drive_content.go may read Drive file content (ADR 0047)", slash, ref)
+		}
+		if !strings.HasSuffix(slash, "internal/service/drive_api.go") && rawRe.Match(src) {
+			t.Errorf("%s constructs a Drive export/alt=media URL directly; go through internal/service/drive_content.go (ADR 0047)", slash)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sawCall {
+		t.Fatal("internal/service/drive_content.go makes no driveExportFile/driveDownloadMedia references; the guard is stale")
 	}
 }

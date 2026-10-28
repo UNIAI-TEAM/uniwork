@@ -13,6 +13,7 @@ export default function MeetingsPage() {
       workspaceId={workspace.id}
       onOpen={(id) => push(ws.meeting(id))}
       onOpenRoom={(id) => push(ws.room(id))}
+      onOpenRecord={(id) => push(ws.record(id))}
     />
   );
 }

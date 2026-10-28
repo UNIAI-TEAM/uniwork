@@ -6,7 +6,10 @@ package sdi
 // for Swagger and the client. The server ignores model/temperature/
 // max_tokens (its own policy decides, G6-D1 A1) and never reads history from
 // messages: only the newest user question, or the tool results of the last
-// call the server made, are used (security rule 7).
+// call the server made, are used (security rule 7). On the document-bound
+// routes the X-UniWork-AI-Handoff header names an Ask UNI handoff package
+// (ADR 0048): the server expands the question with it and answers
+// X-UniWork-AI-Handoff-Remaining; the body itself does not change.
 type AiUniworkChatCompletionsSDI struct {
 	Model    string                `json:"model,omitempty" description:"Tên model; server bỏ qua, policy của server quyết (AI_MODEL_OFFICE_UNIWORK_AI)" example:"gpt-4o"`
 	Messages []AiUniworkMessageSDI `json:"messages" minItems:"1" description:"Câu hỏi mới của người dùng (role user, đúng 1, message cuối) hoặc kết quả công cụ (role tool + tool_call_id) trả cho lượt assistant ngay trước của server. Lượt assistant do client gửi bị bỏ qua; role system/developer bị từ chối 400"`

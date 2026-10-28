@@ -79,6 +79,8 @@ export type CreateDocumentFileMeta = {
   /** Display title; defaults to the file name server-side. */
   title?: string;
   visibility?: DocumentVisibility;
+  /** Mark the new file as a workspace template (form field `template=true`). */
+  template?: true;
 } & (
   | { parent_id?: string; parentId?: string; destination?: never }
   | { destination?: DocumentCreateDestination; parent_id?: never; parentId?: never }
@@ -193,6 +195,7 @@ export async function createDocumentFile(
       destination: meta?.destination,
       title: meta?.title,
       visibility: meta?.visibility,
+      template: meta?.template ? "true" : undefined,
     }),
     headers: idempotencyHeaders(opts),
     signal: opts?.signal,
