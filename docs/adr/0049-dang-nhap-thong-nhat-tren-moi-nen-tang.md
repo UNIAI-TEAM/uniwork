@@ -121,6 +121,9 @@ một tổ chức), [0041](0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md).
   assetlinks cho AutoFill gợi ý mật khẩu đã lưu trên màn đăng nhập của app; đăng ký domain gửi mail ở "Sign in with Apple for Email
   Communication" kèm SPF/DKIM (không có thì mã xác nhận không tới được tài khoản relay). Apple web không chạy được trên
   `http://localhost` (Apple chỉ nhận return URL https, cookie `SameSite=None` cần `Secure`): thử trên staging hay qua
-  tunnel https.
+  tunnel https. Tải ảnh logo Sign in with Apple của Apple (developer.apple.com/design/resources) làm asset của app rồi
+  thay dấu `logo-apple` của Ionicons trong pill Apple tự vẽ (`ProviderButton`, Android; và pill iOS theo ngôn ngữ của
+  app nếu chọn làm). Ở archive 0.4.0 đầu tiên, xem privacy report của Xcode cho manifest của GoogleSignIn, AppAuth và
+  GTM* (comment trong `app.config.ts` nói chúng không thêm loại dữ liệu nào) trước khi trả lời App Privacy.
 - Chưa làm: thông báo server-to-server của Apple (người dùng gỡ quyền), địa chỉ email thứ hai cho tài khoản relay,
   SSO doanh nghiệp. Bộ quy tắc ở mục 2 là chỗ thêm nhà cung cấp sau.

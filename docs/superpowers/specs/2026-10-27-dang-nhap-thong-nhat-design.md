@@ -972,7 +972,11 @@ log/Sentry, bucket thử theo email, khoá bước hai.
   pill Apple tự vẽ theo HIG cần ảnh logo của Apple (việc của chủ sản phẩm, 6).
 - Mọi điều khiển của màn đăng nhập vẽ đủ 48 dp trên Android, không hit slop, vì `android-smoke` đo màn này theo khung
   vẽ; phần còn lại của app vẫn 44 pt + hit slop.
-- Xác minh email: 429 khi gửi lại là lỗi của form, không thêm câu đếm ngược (nút gửi lại đã đếm phút đó).
+- Xác minh email: 429 khi gửi lại là lỗi của form, không thêm câu đếm ngược (nút gửi lại đã đếm phút đó). Web làm
+  như vậy, cả việc chỉ chờ phút đó sau một mã chính trình duyệt này vừa gửi.
+- Màn chọn hết hạn ngay trên màn: "Thử lại" đưa về màn đăng nhập, nơi thông báo lượt bỏ dở của nhà cung cấp đó (như sau
+  khi app bị đóng) có nút thử lại, chứ không mở thẳng sheet: màn chọn mới đẩy lên trên màn cũ sẽ để màn hết hạn nằm
+  dưới, và lúc gỡ màn cũ sẽ xoá vé mới.
 - Chuyển từ Cài đặt mở sheet nhà cung cấp lần hai thay vì gửi lại token đầu: server trả lại đồng ý Apple khi trả lời
   `movable`, và mã ủy quyền của Apple chỉ dùng được một lần.
 - Bằng chứng Google của step-up luôn hỏi chọn tài khoản, để tài khoản sai Google còn nhớ không bị đưa lại sau
@@ -1002,7 +1006,8 @@ log/Sentry, bucket thử theo email, khoá bước hai.
 - Owner action (ADR 0049, danh sách đủ ở Hệ quả): Services ID, OAuth client Google iOS/Android và biến của chúng (EAS,
   `GOOGLE_NATIVE_CLIENT_IDS`), `UNICHAT_IOS_TEAM_ID` / `UNICHAT_ANDROID_SHA256` trên host phục vụ `app.uniworkos.com`,
   **đăng ký domain gửi mail với "Sign in with Apple for Email Communication" + SPF/DKIM** (không có thì mã step-up
-  không tới được tài khoản relay).
+  không tới được tài khoản relay); ảnh logo Sign in with Apple của Apple làm asset cho pill Apple tự vẽ (5.4); xem
+  privacy report của Xcode cho GoogleSignIn, AppAuth, GTM* ở archive 0.4.0 đầu tiên.
 
 ## 7. Thứ tự giao
 
