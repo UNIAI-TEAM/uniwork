@@ -131,11 +131,15 @@ export function readSignInTicket(raw: unknown): SignInTicket | null {
 
 // --- NativeSignInSDO (spec §3.6) -------------------------------------------
 
-// Only `status` and the fields its branch needs decide (readNativeSignIn):
-// every other field reads as absent when it drifted, so a mistyped notice
-// (`reclaimed`, `link_skipped`) or a field of another branch never costs a
-// session the server opened. Unknown keys are dropped.
-const NativeSignInEnvelopeSchema = z.object({
+/**
+ * Only `status` and the fields its branch needs decide (readNativeSignIn):
+ * every other field reads as absent when it drifted, so a mistyped notice
+ * (`reclaimed`, `link_skipped`) or a field of another branch never costs a
+ * session the server opened. Unknown keys are dropped. `session` stays
+ * unknown here: the host's own strict parser reads it. Exported so the
+ * phone's server contract holds these exact keys to NativeSignInSDO.
+ */
+export const NativeSignInEnvelopeSchema = z.object({
   status: z.string(),
   session: z.unknown().optional(),
   reclaimed: z.boolean().catch(false),
@@ -259,10 +263,17 @@ export interface SignInMethodsChange {
   methods: SignInMethods | null;
 }
 
-const ChangeEnvelopeSchema = z.object({ user: z.unknown(), sign_in_methods: z.unknown() });
+/**
+ * The two halves of a SignInMethodsChangeSDO, each read by its own schema
+ * (UserSchema, SignInMethodsSchema) so one that drifted never costs the
+ * other. Exported so the phone's server contract holds these exact keys.
+ */
+export const SignInMethodsChangeEnvelopeSchema = z.object({ user: z.unknown(), sign_in_methods: z.unknown() });
 
 export function readSignInMethodsChange(raw: unknown, endpoint: string): SignInMethodsChange {
-  const env = parseWithFallback<z.infer<typeof ChangeEnvelopeSchema> | null>(raw, ChangeEnvelopeSchema, null, { endpoint });
+  const env = parseWithFallback<z.infer<typeof SignInMethodsChangeEnvelopeSchema> | null>(raw, SignInMethodsChangeEnvelopeSchema, null, {
+    endpoint,
+  });
   if (!env) return { user: null, methods: null };
   return {
     user: parseWithFallback<User | null>(env.user, UserSchema, null, { endpoint: `${endpoint} › user` }),

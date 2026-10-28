@@ -29,7 +29,13 @@ import {
   ChatUnreadSummarySchema,
   PendingChatVoiceInvitesSchema,
 } from "@uniwork/core/api/endpoints/chat-schemas";
-import { AuthProvidersSchema, SignInIdentitySchema, SignInMethodsSchema, StepUpGrantSchema } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import {
+  AuthProvidersSchema,
+  NativeSignInEnvelopeSchema,
+  SignInMethodsChangeEnvelopeSchema,
+  SignInMethodsSchema,
+  StepUpGrantSchema,
+} from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { InvitationPreviewSchema, PendingInvitationSchema } from "@uniwork/core/types/workspace";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -251,15 +257,15 @@ interface Contract {
   /** The handler methods (server/internal/handler) that answer it. */
   handlers: string[];
   /**
-   * Lists parsed one item at a time (`z.array(z.unknown()).transform(…)`), whose items a schema walk cannot
-   * see: the item schema under each such key, compared with that key's struct.
+   * What a schema walk cannot see, under each such key, compared with that key's struct: the items of a list parsed
+   * one at a time (`z.array(z.unknown()).transform(…)`), or a part an envelope leaves `unknown` for its own reader.
    */
   items?: Record<string, z.ZodType>;
 }
 
-// Unified sign-in (ADR 0049): what the app reads around the schemas core exports. Core keeps the envelopes of
-// readNativeSignIn and readSignInMethodsChange module-private, so their keys are written out here with core's own
-// schemas nested; the session is what data/auth/transport.ts › parseSession reads, strictly, of DesktopSessionSDO.
+// Unified sign-in (ADR 0049): core's own envelopes, with the parts they leave to another reader nested as `items`.
+// A native sign-in's session is what data/auth/transport.ts › parseSession reads, strictly and without a schema, of
+// DesktopSessionSDO, so its keys are written out here; a change's sign_in_methods is core's SignInMethodsSchema.
 const SessionFields = z.object({
   account_id: z.string(),
   device_session_id: z.string(),
@@ -271,24 +277,15 @@ const SessionFields = z.object({
   refresh_token: z.string(),
   refresh_expires_in: z.number(),
 });
-const NativeSignInFields = z.object({
-  status: z.string(),
-  session: SessionFields,
-  reclaimed: z.boolean(),
-  link_skipped: z.string(),
-  mfa_token: z.string(),
-  ticket: z.string(),
-  identity: SignInIdentitySchema,
-});
-const SignInMethodsChangeFields = z.object({ user: z.unknown(), sign_in_methods: SignInMethodsSchema });
 const SentFields = z.object({ status: z.string() });
 
 const CONTRACTS: Contract[] = [
   // Sign-in (ADR 0049 §8): the app's doors, the providers it offers, Settings › Sign-in methods and step-up.
   {
     endpoint: "POST /auth/native/{password,mfa,google,apple,register}, …/sign-in-ticket/{create,claim-email/verify}",
-    schema: NativeSignInFields,
+    schema: NativeSignInEnvelopeSchema,
     sdo: "NativeSignInSDO",
+    items: { session: SessionFields },
     handlers: ["nativePassword", "nativeMFA", "nativeGoogle", "nativeApple", "nativeRegister", "nativeTicketCreate", "nativeTicketClaimEmailVerify"],
   },
   { endpoint: "POST /auth/native/sign-in-ticket/claim-email, /me/step-up/email-code", schema: SentFields, sdo: "StatusSDO", handlers: ["nativeTicketClaimEmail", "stepUpEmailCode"] },
@@ -296,8 +293,9 @@ const CONTRACTS: Contract[] = [
   { endpoint: "GET /me/sign-in-methods", schema: SignInMethodsSchema, sdo: "SignInMethodsSDO", handlers: ["signInMethods"] },
   {
     endpoint: "PUT /me/password, POST /me/sign-in-methods/{p}/{native,unlink}, /auth/native/sign-in-ticket/link",
-    schema: SignInMethodsChangeFields,
+    schema: SignInMethodsChangeEnvelopeSchema,
     sdo: "SignInMethodsChangeSDO",
+    items: { sign_in_methods: SignInMethodsSchema },
     handlers: ["setPassword", "signInMethodUnlink", "signInMethodLinkNative", "nativeTicketLink"],
   },
   { endpoint: "POST /me/step-up", schema: StepUpGrantSchema, sdo: "StepUpSDO", handlers: ["stepUp"] },
@@ -386,7 +384,8 @@ function rowDrift({ schema, sdo, items = {} }: Contract, structs: GoStructs): st
       ? Object.entries(items).flatMap(([key, item]) => {
           const struct = structOfKey(key);
           if (!struct) return [`${key}: ${sdo} has no struct-typed json:"${key}"`];
-          return drift(objectShape(item) ?? {}, struct, structs, `${key}[]`);
+          const list = structs.get(sdo)?.get(key)?.type.startsWith("[]") ?? false;
+          return drift(objectShape(item) ?? {}, struct, structs, list ? `${key}[]` : key);
         })
       : [];
   return [...top, ...listed];
