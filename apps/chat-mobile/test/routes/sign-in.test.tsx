@@ -265,8 +265,10 @@ describe("the choice screen", () => {
     await act(async () => fireEvent.changeText(screen.getByTestId("choice-name"), "Quang"));
     await act(async () => fireEvent.press(screen.getByTestId("choice-create-submit")));
     expect(login).toHaveBeenCalledWith({ method: "ticket", displayName: "Quang" });
-    expect(screen.getByText(viText("auth.continue.errors.conflict"))).toBeTruthy();
-    expect(screen.getByTestId("continue-conflict")).toBeTruthy();
+    // The address took an account meanwhile: the screen becomes the sign-in-to-link one, its one way on.
+    expect(screen.getByText(viText("auth.continue.linkRequired.title"))).toBeTruthy();
+    expect(screen.getByTestId("continue-link-required")).toBeTruthy();
+    expect(screen.queryByTestId("choice-create")).toBeNull();
   });
 
   it("mails a code to the invited address and signs in with it", async () => {

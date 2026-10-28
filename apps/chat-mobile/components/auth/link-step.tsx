@@ -2,12 +2,14 @@
 // to link the Google or Apple identity the choice screen holds into the account just signed in to. Linked, it says
 // so (a status the reader's focus moves to, with "Tiếp tục" next: VoiceOver would cut a status announced beside a
 // focus move off, so the focus is what says it); a refusal moves the focus to its line the same way; an identity on
-// an empty account of its own asks to move it; one
-// another account holds says whose (masked) and that it is unlinked there first. A session that signed in before the
-// ticket was issued (or a move) is asked to confirm it is you first, then the link goes on (use-step-up.ts). Whatever
-// happens, "Tiếp tục" goes on into the app; a choice that is gone counts as done.
+// an empty account of its own asks to move it; one another account holds says whose (masked) and that it is unlinked
+// there first. A failure that pressing again can mend (the connection, the server, a wait, a proof refused) keeps
+// "Liên kết", or the move's "Chuyển sang đây", held while a wait counts down; one it cannot leaves "Tiếp tục" alone,
+// as on the web. A session that signed in before the ticket was issued (or a move) is asked to confirm it is you
+// first, then the link goes on (use-step-up.ts). Whatever happens, "Tiếp tục" goes on into the app and drops the
+// choice; a choice that is gone counts as done.
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
-import { sentenceValues, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import type { SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { linkAction } from "@uniwork/core/auth/step-up";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -21,15 +23,29 @@ import { useLinkPendingTicket } from "@/data/mutations/sign-in";
 import { signInFailureOf } from "@/lib/sign-in-failure";
 import { AuthHeading, FormAlert, SubmitButton, TextButton } from "./auth-layout";
 import { IdentityCard } from "./choice-parts";
+import { shownFailure, useFailureMessage, type ShownFailure } from "./use-sign-in";
 import { useReaderFocus } from "./use-reader-focus";
 
-type LinkState =
-  | { kind: "ask" }
-  | { kind: "linked"; provider: SignInProvider }
-  | { kind: "move"; failure: SignInFailure }
-  | { kind: "failed"; failure: SignInFailure };
+type LinkState = { kind: "ask" } | { kind: "linked"; provider: SignInProvider } | { kind: "move"; masked: string | null };
 
-const enter = () => router.replace("/");
+/**
+ * Failures after which pressing "Liên kết" again cannot help: the identity belongs to an account with content, the
+ * account already has another one of this provider, its own address is not verified yet, or the session ended.
+ */
+const FINAL = new Set(["sign_in_method_taken", "sign_in_method_already_linked", "email_unverified"]);
+const isFinal = (failure: SignInFailure) => failure.kind === "session" || FINAL.has(failure.code);
+
+/** The link step names the provider and the holder in its own words (spec §4.3) where the table's is Settings'. */
+function linkFailure(failure: SignInFailure, provider: SignInProvider): SignInFailure {
+  if (failure.code !== "sign_in_method_taken") return failure;
+  return { ...failure, provider, key: failure.maskedEmail ? "auth.continue.link.taken" : "auth.continue.link.takenUnknown" };
+}
+
+/** Into the app, past whatever is left of the choice. */
+function leave(): void {
+  clearChoice();
+  router.replace("/");
+}
 
 export function LinkStep() {
   const { t } = useTranslation();
@@ -39,17 +55,21 @@ export function LinkStep() {
   const link = useLinkPendingTicket();
   const stepUp = useStepUp();
   const [state, setState] = useState<LinkState>({ kind: "ask" });
-  const linkedLine =
-    state.kind === "linked" ? t("auth.continue.link.done", { provider: t(`auth.social.provider.${state.provider}`) }) : null;
+  const [shown, setShown] = useState<ShownFailure | null>(null);
+  const said = useFailureMessage(shown);
+  // A wait that is over is no failure any more: the question is as it was.
+  const failure = shown && said.message ? shown.failure : null;
+  const final = failure !== null && isFinal(failure);
   // The reader lands on what changed: the status, a refusal, or the way on when there is nothing left to link.
-  const restart = state.kind === "failed" && state.failure.kind === "restart";
   const statusRef = useReaderFocus(state.kind === "linked");
-  const failureRef = useReaderFocus(state.kind === "failed" && !restart && choice !== null);
-  const continueRef = useReaderFocus(state.kind !== "linked" && (!choice || restart));
+  const failureRef = useReaderFocus(failure !== null && choice !== null);
+  const continueRef = useReaderFocus(state.kind !== "linked" && !choice);
 
   const run = async (move: boolean) => {
     const provider = choice?.identity.provider;
-    if (!userId || !provider || link.isPending) return;
+    if (!userId || !provider || link.isPending || said.waiting) return;
+    const masked = state.kind === "move" ? state.masked : null;
+    setShown(null);
     const attempt = () => link.mutateAsync({ userId, move });
     try {
       try {
@@ -63,29 +83,43 @@ export function LinkStep() {
       }
       setState({ kind: "linked", provider });
     } catch (error: unknown) {
-      const failure = signInFailureOf(error, "ticket");
-      if (failure.kind === "restart") clearChoice();
-      setState(failure.kind === "move" ? { kind: "move", failure } : { kind: "failed", failure });
+      const read = signInFailureOf(error, "ticket");
+      // The ticket is gone: nothing is left to link, and the screen says so.
+      if (read.kind === "restart") {
+        clearChoice();
+        return;
+      }
+      if (read.kind === "move" && !move) {
+        setState({ kind: "move", masked: read.maskedEmail });
+        return;
+      }
+      // A move that failed on the way (offline, a 5xx, a wait) is still the decision being made: the question stays,
+      // and its button sends the move again instead of a link that would only ask it again.
+      setState(move && !isFinal(read) ? { kind: "move", masked } : { kind: "ask" });
+      setShown(shownFailure(linkFailure(read, provider)));
     }
   };
 
-  const continueButton = <SubmitButton ref={continueRef} label={t("auth.continue.link.continue")} onPress={enter} testID="link-continue" />;
+  const continueButton = (
+    <SubmitButton ref={continueRef} label={t("auth.continue.link.continue")} onPress={leave} testID="link-continue" />
+  );
 
   if (state.kind === "linked") {
+    const provider = t(`auth.social.provider.${state.provider}`);
     return (
       <View className="gap-6" testID="link-done">
-        <AuthHeading title={t("auth.continue.link.title", { provider: t(`auth.social.provider.${state.provider}`) })} />
+        <AuthHeading title={t("auth.continue.link.title", { provider })} />
         <View ref={statusRef} accessible accessibilityRole="text" testID="link-done-status">
-          <Text className="text-body leading-6 text-foreground">{linkedLine}</Text>
+          <Text className="text-body leading-6 text-foreground">{t("auth.continue.link.done", { provider })}</Text>
         </View>
         {continueButton}
       </View>
     );
   }
-  if (!choice || (state.kind === "failed" && state.failure.kind === "restart")) {
+  if (!choice) {
     return (
       <View className="gap-6" testID="link-nothing">
-        <AuthHeading title={t("auth.continue.link.nothingLeft")} />
+        <AuthHeading title={t("auth.continue.link.nothingLeftTitle")} subtitle={t("auth.continue.link.nothingLeft")} />
         {continueButton}
       </View>
     );
@@ -93,59 +127,58 @@ export function LinkStep() {
 
   const { identity } = choice;
   const provider = t(`auth.social.provider.${identity.provider}`);
-  const decline = () => {
-    clearChoice();
-    enter();
-  };
+  const failureLine = (
+    <FormAlert ref={failureRef} announce={false} message={said.message} spoken={said.spoken} testID="link-failure" />
+  );
+  // Past a failure the way out reads "Tiếp tục": the question is no longer the one being answered.
+  const declineLabel = failure ? t("auth.continue.link.continue") : t("auth.continue.link.decline");
 
   if (state.kind === "move") {
-    const masked = state.failure.maskedEmail;
     return (
       <View className="gap-6" testID="link-move">
         <AuthHeading
           title={t("auth.continue.link.movableTitle", { provider })}
-          subtitle={masked ? t("auth.continue.link.movable", { provider, masked }) : t("auth.continue.link.movableUnknown", { provider })}
+          subtitle={
+            state.masked
+              ? t("auth.continue.link.movable", { provider, masked: state.masked })
+              : t("auth.continue.link.movableUnknown", { provider })
+          }
         />
         <Text className="text-callout leading-5 text-muted-foreground">{t("auth.continue.link.movableNote")}</Text>
+        {failureLine}
         <SubmitButton
           label={t("auth.continue.link.move")}
           busyLabel={t("auth.continue.link.moving")}
           busy={link.isPending}
+          disabled={said.waiting}
           onPress={() => void run(true)}
           testID="link-move-confirm"
         />
         <View className="items-center">
-          <TextButton label={t("auth.continue.link.decline")} tone="muted" disabled={link.isPending} onPress={decline} testID="link-decline" />
+          {/* The move's pair is Settings' own ("Chuyển sang đây" / "Không chuyển"): one decision, one wording. */}
+          <TextButton label={t("auth.continue.link.moveDecline")} tone="muted" disabled={link.isPending} onPress={leave} testID="link-decline" />
         </View>
         {stepUp.sheet}
       </View>
     );
   }
 
-  const failure = state.kind === "failed" ? state.failure : null;
-  const taken = failure?.code === "sign_in_method_taken";
-  const failureLine = !failure
-    ? null
-    : taken
-      ? failure.maskedEmail
-        ? t("auth.continue.link.taken", { provider, masked: failure.maskedEmail })
-        : t("auth.continue.link.takenUnknown", { provider })
-      : t(failure.key, sentenceValues(failure, t));
-
   return (
     <View className="gap-6" testID="link-ask">
       <AuthHeading
         title={t("auth.continue.link.title", { provider })}
         subtitle={
-          identity.private_relay
-            ? t("auth.continue.link.questionRelay", { provider, accountEmail })
-            : t("auth.continue.link.question", { provider, providerEmail: identity.email, accountEmail })
+          final
+            ? t("auth.continue.link.notLinked", { provider, accountEmail })
+            : identity.private_relay
+              ? t("auth.continue.link.questionRelay", { provider, accountEmail })
+              : t("auth.continue.link.question", { provider, providerEmail: identity.email, accountEmail })
         }
       />
       <IdentityCard identity={identity} />
-      <Text className="text-callout leading-5 text-muted-foreground">{t("auth.continue.link.body", { provider })}</Text>
-      <FormAlert ref={failureRef} announce={false} message={failureLine} testID="link-failure" />
-      {failure ? (
+      {failure ? null : <Text className="text-callout leading-5 text-muted-foreground">{t("auth.continue.link.body", { provider })}</Text>}
+      {failureLine}
+      {final ? (
         continueButton
       ) : (
         <>
@@ -153,11 +186,12 @@ export function LinkStep() {
             label={t("auth.continue.link.confirm")}
             busyLabel={t("auth.continue.link.linking")}
             busy={link.isPending}
+            disabled={said.waiting}
             onPress={() => void run(false)}
             testID="link-confirm"
           />
           <View className="items-center">
-            <TextButton label={t("auth.continue.link.decline")} tone="muted" disabled={link.isPending} onPress={decline} testID="link-decline" />
+            <TextButton label={declineLabel} tone="muted" disabled={link.isPending} onPress={leave} testID="link-decline" />
           </View>
         </>
       )}

@@ -192,6 +192,76 @@ describe("LinkStep", () => {
     expect(screen.getByTestId("link-nothing")).toBeTruthy();
   });
 
+  it("keeps Liên kết after a lost connection, and the second press links", async () => {
+    link.mutateAsync.mockRejectedValueOnce(Object.assign(new Error("offline"), { name: "TransportError", code: "network" }));
+    await render(<LinkStep />);
+    await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
+    expect(screen.getByText(viText("auth.social.errors.network"))).toBeTruthy();
+    // Past a failure the way out says "Tiếp tục", beside the link that can still be made.
+    expect(screen.getByText(viText("auth.continue.link.continue"))).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
+    expect(link.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("link-done")).toBeTruthy();
+  });
+
+  it("keeps the move's question when the move fails on the way, and sends the move again", async () => {
+    link.mutateAsync
+      .mockRejectedValueOnce(apiError("sign_in_method_movable", { masked_email: "a•••@icloud.com" }))
+      .mockRejectedValueOnce(Object.assign(new Error("boom"), { name: "ApiError", status: 503, body: { error: { code: "internal" } } }));
+    await render(<LinkStep />);
+    await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
+    expect(screen.getByText(viText("auth.continue.link.moveDecline"))).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByTestId("link-move-confirm")));
+    expect(screen.getByTestId("link-move")).toBeTruthy();
+    expect(screen.getByText(viText("auth.continue.link.movable", { provider: "Apple", masked: "a•••@icloud.com" }))).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByTestId("link-move-confirm")));
+    expect(link.mutateAsync).toHaveBeenLastCalledWith({ userId: "u1", move: true });
+    expect(screen.getByTestId("link-done")).toBeTruthy();
+  });
+
+  it("says how long a wait lasts and holds Liên kết until it is over", async () => {
+    link.mutateAsync.mockRejectedValueOnce(
+      Object.assign(new Error("locked"), { name: "ApiError", status: 429, retryAfterSeconds: 900, body: { error: { code: "second_factor_locked" } } }),
+    );
+    await render(<LinkStep />);
+    await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
+    expect(screen.getByText(new RegExp(viText("auth.social.retry.minutes", { count: 15 })))).toBeTruthy();
+    expect(screen.getByTestId("link-confirm")).toBeDisabled();
+  });
+
+  it("gives Liên kết back once the wait is over, the line gone with it", async () => {
+    jest.useFakeTimers({ now: 1_000_000 });
+    link.mutateAsync.mockRejectedValueOnce(
+      Object.assign(new Error("slow"), { name: "ApiError", status: 429, retryAfterSeconds: 2, body: { error: { code: "rate_limited" } } }),
+    );
+    await render(<LinkStep />);
+    await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
+    expect(screen.getByTestId("link-confirm")).toBeDisabled();
+    await act(async () => jest.advanceTimersByTime(3_000));
+    expect(screen.queryByTestId("link-failure")).toBeNull();
+    expect(screen.getByTestId("link-confirm")).not.toBeDisabled();
+    expect(screen.getByText(viText("auth.continue.link.decline"))).toBeTruthy();
+    jest.useRealTimers();
+  });
+
+  it("leaves only Tiếp tục after a refusal pressing again cannot mend, and drops the choice on the way in", async () => {
+    link.mutateAsync.mockRejectedValueOnce(apiError("sign_in_method_already_linked"));
+    await render(<LinkStep />);
+    await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
+    expect(screen.queryByTestId("link-confirm")).toBeNull();
+    expect(screen.getByText(viText("auth.continue.link.notLinked", { provider: "Apple", accountEmail: "an@example.com" }))).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByTestId("link-continue")));
+    expect(usePendingSignIn.getState().choice).toBeNull();
+    expect(router.replace).toHaveBeenCalledWith("/");
+  });
+
+  it("says a ticket that is gone as done, with its own title", async () => {
+    forgetPendingSignIn();
+    await render(<LinkStep />);
+    expect(screen.getByText(viText("auth.continue.link.nothingLeftTitle"))).toBeTruthy();
+    expect(screen.getByText(viText("auth.continue.link.nothingLeft"))).toBeTruthy();
+  });
+
   it("asks a session older than the ticket to confirm it is you, then links", async () => {
     useAuthStore.setState({ user: { id: "u1", email: "an@example.com", has_password: true } as never });
     link.mutateAsync
