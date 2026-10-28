@@ -72,22 +72,33 @@ const LABEL: Record<SignInProvider, string> = {
  * later and push the form out from under a thumb already on its way. No
  * skeleton pulse: a placeholder that flashes for 200ms is worse than one that
  * is simply not there yet.
+ *
+ * `except` is the provider a pending sign-in waits to link (/login?link=1,
+ * spec §4.4): its own button would only start the same sign-in again, so it
+ * is left out and the other one stays. `hold` keeps the placeholder while the
+ * caller is still learning which one that is, so neither button flashes.
  */
-export function SocialSignIn({ next, intent }: Pick<ProviderStartOptions, "next" | "intent">) {
+export function SocialSignIn({
+  next,
+  intent,
+  except = null,
+  hold = false,
+}: Pick<ProviderStartOptions, "next" | "intent"> & { except?: SignInProvider | null; hold?: boolean }) {
   const { t } = useTranslation();
   const providers = useAuthProviders();
-  if (providers.isPending) {
+  if (providers.isPending || hold) {
     return (
       <div aria-hidden data-slot="social-placeholder" className="invisible flex flex-col gap-5">
         <div className="flex flex-col gap-3">
+          {/* Two at most, one when the pending provider's is left out. */}
           <div className="h-12" />
-          <div className="h-12" />
+          {except || hold ? null : <div className="h-12" />}
         </div>
         <div className="h-4" />
       </div>
     );
   }
-  const offered = webSignInProviders(providers.data);
+  const offered = webSignInProviders(providers.data).filter((provider) => provider !== except);
   if (offered.length === 0) return null;
   return (
     <div className="flex flex-col gap-5">

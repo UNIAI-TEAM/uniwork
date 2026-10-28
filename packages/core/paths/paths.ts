@@ -40,12 +40,25 @@ export const paths = {
    * `provider` is the desktop or phone app's button (spec §3.5): the page
    * goes on to that provider once, and drops it from the URL. `error` is
    * why a sign-in came back without a session, as the server's redirects
-   * say it (spec §3.4).
+   * say it (spec §3.4). `mfa` opens on the second factor a cookie carries
+   * (a password reset on an account that has one).
    */
   login: (
-    opts: { next?: string | null; link?: boolean; provider?: SignInProvider | null; error?: LoginRedirectError } = {},
+    opts: {
+      next?: string | null;
+      link?: boolean;
+      provider?: SignInProvider | null;
+      error?: LoginRedirectError;
+      mfa?: boolean;
+    } = {},
   ) =>
-    withQuery("/login", { next: opts.next, link: opts.link ? "1" : null, provider: opts.provider, error: opts.error }),
+    withQuery("/login", {
+      mfa: opts.mfa ? "1" : null,
+      next: opts.next,
+      link: opts.link ? "1" : null,
+      provider: opts.provider,
+      error: opts.error,
+    }),
   register: (opts: { next?: string | null } = {}) => withQuery("/register", { next: opts.next }),
   verify: (opts: { next?: string | null } = {}) => withQuery("/verify", { next: opts.next }),
   authCallback: () => "/auth/callback",

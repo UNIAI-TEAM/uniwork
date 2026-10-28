@@ -1,5 +1,5 @@
 "use client";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert } from "lucide-react";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
@@ -15,8 +15,11 @@ import { AppLink } from "../navigation";
 import { AUTH_INPUT, AUTH_LINK, AuthSubmit } from "./auth-controls";
 import { AuthLegalNote } from "./auth-legal-note";
 import { AuthShell } from "./auth-shell";
+import { identityAddress, useProviderName } from "./continue-parts";
+import { LoginLinkBanner, usePendingLink } from "./login-link-banner";
 import { MFAStep } from "./mfa-step";
 import { PasswordField } from "./password-field";
+import { pastLinkStep } from "./post-auth-redirect";
 import { useSessionNotices } from "./session-notices";
 import { SocialSignIn } from "./social-sign-in";
 
@@ -46,6 +49,7 @@ export function LoginView({
   redirectError,
   reason,
   initialMfa = false,
+  link = false,
 }: {
   onSuccess: (sess: SessionResponse) => void;
   /** Same-origin path to return to after any sign-in; forwarded to the providers and to register too. */
@@ -59,10 +63,18 @@ export function LoginView({
   reason?: LoginReason | null;
   /** `/login?mfa=1`: a redirect flow left the MFA challenge in a cookie; open on the code step. */
   initialMfa?: boolean;
+  /**
+   * `/login?link=1` (spec §4.4): a Google or Apple sign-in waits to be linked
+   * to the account this one opens. Every way in keeps it (the password, the
+   * other provider, the second factor) and `next` is the link step.
+   */
+  link?: boolean;
 }) {
   const { t } = useTranslation();
   const login = useLogin();
   const announce = useSessionNotices();
+  const pending = usePendingLink(link);
+  const pendingProvider = useProviderName(pending?.provider);
   // The challenge token from a password login; null while on the code step
   // after a cookie-borne challenge; undefined on the password step.
   const [challenge, setChallenge] = useState<string | null | undefined>(initialMfa ? null : undefined);
@@ -76,6 +88,18 @@ export function LoginView({
   // It is shown until this form is first submitted, then this form's own
   // outcome speaks; the old message must not come back when that one clears.
   const [submitted, setSubmitted] = useState(false);
+  // "Email này đã có tài khoản UniWork": the provider's address is the
+  // account's, so the box is filled and the password is what is left to
+  // type. Only into an empty box, and focus moves only if it is still where
+  // the page put it: a person already typing keeps their place.
+  // Never Apple's hidden address, which the screen does not spell out.
+  const shown = pending?.kind === "link_required" ? identityAddress(pending) : null;
+  const prefill = shown?.kind === "address" ? shown.email : "";
+  useEffect(() => {
+    if (!prefill) return;
+    setEmail((typed) => typed || prefill);
+    if (document.activeElement === emailRef.current && !emailRef.current?.value) passwordRef.current?.focus();
+  }, [prefill]);
   const redirectKey = submitted ? null : loginRedirectErrorKey(redirectError);
   // A cancel is the person's own choice, not a failure: said quietly, as a
   // status. Every other code is something that went wrong and is an alert.
@@ -84,7 +108,7 @@ export function LoginView({
   // Whatever the answer asks to be said once (a provider that waited and was
   // not linked) is said on the way to the next screen.
   const finish = (sess: SessionResponse) => {
-    announce(sess);
+    announce(sess, pending?.provider);
     onSuccess(sess);
   };
 
@@ -149,7 +173,9 @@ export function LoginView({
     }
 
     login.mutate(
-      { email: trimmed, password },
+      // In link mode the ticket stays for the link step even when it was
+      // still loading: keeping one that is gone costs nothing.
+      { email: trimmed, password, keepSignInTicket: link },
       {
         onSuccess: (out) => (isMFAChallenge(out) ? setChallenge(out.mfa_token) : finish(out)),
         // The email is almost always right and the password is what gets
@@ -167,9 +193,23 @@ export function LoginView({
   };
 
   if (challenge !== undefined) {
+    // Linking: the code is for the account the provider joins. The address
+    // is known when it was typed here; a challenge from a cookie (a reset)
+    // names the provider only.
+    const typed = email.trim();
+    const subtitle = !pending
+      ? t("auth.mfa.subtitle")
+      : typed
+        ? t("auth.continue.loginMode.mfaSubtitle", { email: typed, provider: pendingProvider })
+        : t("auth.continue.loginMode.bannerRelay", { provider: pendingProvider });
     return (
-      <AuthShell title={t("auth.mfa.title")} description={t("auth.mfa.subtitle")}>
-        <MFAStep mfaToken={challenge} onSuccess={finish} onCancel={() => setChallenge(undefined)} />
+      <AuthShell title={t("auth.mfa.title")} description={subtitle}>
+        <MFAStep
+          mfaToken={challenge}
+          keepSignInTicket={link}
+          onSuccess={finish}
+          onCancel={() => setChallenge(undefined)}
+        />
       </AuthShell>
     );
   }
@@ -190,9 +230,11 @@ export function LoginView({
             <AlertDescription className="text-pretty">{t(redirectKey)}</AlertDescription>
           </Alert>
         ) : null}
+        {link ? <LoginLinkBanner ticket={pending} next={next ?? null} /> : null}
         {/* The providers first, then "or use email", then the form: the order
-            the phone shows (spec §4.1). */}
-        <SocialSignIn next={next} />
+            the phone shows (spec §4.1). Linking, the pending provider's own
+            button would only start the same sign-in again. */}
+        <SocialSignIn next={next} except={pending?.provider ?? null} hold={pending === undefined} />
         {/* noValidate: the browser's own bubble is untranslated and disappears on
             the next keystroke. Both fields stay `required` so assistive tech
             still announces them as such. */}
@@ -264,7 +306,7 @@ export function LoginView({
                 {notice && notice.owner !== "email" ? <FieldError id={noticeId}>{notice.message}</FieldError> : null}
               </div>
               <AppLink
-                href={paths.forgotPassword()}
+                href={paths.forgotPassword({ next })}
                 className={cn(AUTH_LINK, "col-start-2 row-start-1 justify-self-end text-label")}
               >
                 {t("auth.forgotPassword")}
@@ -280,7 +322,9 @@ export function LoginView({
               {t("auth.noAccount")}{" "}
               {/* Switching to register keeps where the person was headed (an
                   invitation, the desktop app's consent). */}
-              <AppLink href={paths.register({ next })} className={AUTH_LINK}>
+              {/* Registering drops a pending sign-in, so it goes on to where the
+                  link step would have. */}
+              <AppLink href={paths.register({ next: link ? pastLinkStep(next) : next })} className={AUTH_LINK}>
                 {t("auth.register")}
               </AppLink>
             </p>

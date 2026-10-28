@@ -14,6 +14,15 @@ beforeEach(() => {
 });
 
 describe("ForgotPasswordView", () => {
+  it("goes back to sign in with next, in link mode when next is the link step (spec §4.4)", () => {
+    const linkStep = "/auth/continue?step=link&next=%2Finvite%2Ft1";
+    render(wrapWithNav(<ForgotPasswordView next={linkStep} />));
+    expect(screen.getByRole("link", { name: "Về trang đăng nhập" })).toHaveAttribute(
+      "href",
+      `/login?next=${encodeURIComponent(linkStep)}&link=1`,
+    );
+  });
+
   it("shows the sent state with the email after submit", async () => {
     requestMock.mockResolvedValue({ status: "ok" });
     render(wrapWithNav(<ForgotPasswordView />));

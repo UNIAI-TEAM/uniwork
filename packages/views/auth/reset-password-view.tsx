@@ -3,7 +3,7 @@ import { Link2Off } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
-import { useResetPassword } from "@uniwork/core/auth";
+import { useResetPassword, useSignInTicket } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { isMFAChallenge, type SessionResponse } from "@uniwork/core/types";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -14,22 +14,35 @@ import { AUTH_PILL, AuthSubmit } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 import { AUTH_LINK } from "./login-view";
 import { PasswordField } from "./password-field";
+import { useSessionNotices } from "./session-notices";
 
 /** Mirrors `validatePassword` on the server; the server still decides. */
 const MIN = 8;
 
 type ClientError = "tooShort" | "mismatch" | null;
 
+/**
+ * The mailed reset link (it carries no `next`). When this browser has a Google
+ * or Apple sign-in waiting to be linked (the person came here from "Quên mật
+ * khẩu?" on /login?link=1, spec §4.4), the reset keeps it and the new session
+ * goes to the link step: `onSuccess` gets that step as its `next`.
+ */
 export function ResetPasswordView({
   token,
   onSuccess,
 }: {
   token: string;
-  onSuccess: (sess: SessionResponse) => void;
+  onSuccess: (sess: SessionResponse, next: string | null) => void;
 }) {
   const { t } = useTranslation();
   const { push } = useNavigation();
   const reset = useResetPassword();
+  const announce = useSessionNotices();
+  const pending = useSignInTicket();
+  // Kept unless the server said there is none: keeping one that is gone
+  // costs nothing, dropping the one being linked costs the person a restart.
+  const keepSignInTicket = pending.isPending || pending.data != null;
+  const linkStep = pending.data ? paths.authContinue({ step: "link" }) : null;
   const errorId = useId();
   const hintId = useId();
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -99,10 +112,19 @@ export function ResetPasswordView({
           }
           setClientError(null);
           reset.mutate(
-            { token, password },
+            { token, password, keepSignInTicket },
             {
-              // MFA on: the challenge is in the cookie; the login page finishes it.
-              onSuccess: (out) => (isMFAChallenge(out) ? push(`${paths.login()}?mfa=1`) : onSuccess(out)),
+              // MFA on: the challenge is in the cookie; the login page
+              // finishes it, still linking when a link waits.
+              onSuccess: (out) => {
+                if (isMFAChallenge(out)) {
+                  push(paths.login({ mfa: true, link: linkStep !== null, next: linkStep }));
+                  return;
+                }
+                // "Đã lấy lại tài khoản": a link on an address never proved takes it back.
+                announce(out, pending.data?.provider);
+                onSuccess(out, linkStep);
+              },
             },
           );
         }}

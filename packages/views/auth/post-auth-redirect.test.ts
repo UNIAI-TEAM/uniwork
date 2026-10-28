@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveLoggedInDestination as resolveWith } from "./post-auth-redirect";
+import { isLinkStep, pastLinkStep, resolveLoggedInDestination as resolveWith } from "./post-auth-redirect";
 
 const fetchMy = vi.fn();
 vi.mock("@uniwork/core/workspaces", () => ({
@@ -142,4 +142,24 @@ describe("resolveLoggedInDestination with next", () => {
       expect(await resolveWith(onboarded, [], qc, next)).toBe("/get-started");
     },
   );
+});
+
+describe("the link step as a next (spec §4.4)", () => {
+  const linkStep = "/auth/continue?step=link&next=%2Finvite%2Ft1";
+
+  it("knows the link step from any other next", () => {
+    expect(isLinkStep(linkStep)).toBe(true);
+    expect(isLinkStep("/auth/continue?next=%2Fx")).toBe(false);
+    expect(isLinkStep("/auth/continue?step=create")).toBe(false);
+    expect(isLinkStep("/invite/t1")).toBe(false);
+    expect(isLinkStep(null)).toBe(false);
+  });
+
+  it("goes past it to its own next, sanitized again, and leaves any other next alone", () => {
+    expect(pastLinkStep(linkStep)).toBe("/invite/t1");
+    expect(pastLinkStep("/auth/continue?step=link")).toBeNull();
+    expect(pastLinkStep("/auth/continue?step=link&next=https%3A%2F%2Fevil.example")).toBeNull();
+    expect(pastLinkStep("/acme/team")).toBe("/acme/team");
+    expect(pastLinkStep(undefined)).toBeNull();
+  });
 });

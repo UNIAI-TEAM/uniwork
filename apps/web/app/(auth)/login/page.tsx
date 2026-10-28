@@ -18,6 +18,8 @@ export default function LoginPage() {
   const rawReason = searchParams.get("reason");
   const reason = rawReason === "meeting_invite" || rawReason === "session_expired" ? rawReason : null;
   const initialMfa = searchParams.get("mfa") === "1";
+  // The choice screen's "Tôi đã có tài khoản UniWork" (spec §4.4).
+  const link = searchParams.get("link") === "1";
   // The app's provider button (spec §3.5), read once: the hint leaves the
   // address bar at once, and that must not take the hand-off back with it.
   const [hint] = useState(() => providerHint(searchParams));
@@ -45,6 +47,7 @@ export default function LoginPage() {
       redirectError={searchParams.get("error")}
       reason={reason}
       initialMfa={initialMfa}
+      link={link}
       onSuccess={(sess) => goAfterLogin(sess.user)}
     />
   );

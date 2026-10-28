@@ -22,9 +22,28 @@ const PATH_PROBE = "https://app.invalid";
  * attempt expires, or the pending sign-in until its ticket does.
  */
 function skipsEntryGates(next: string): boolean {
+  return new URL(next, PATH_PROBE).pathname === paths.desktopAuthorize() || isLinkStep(next);
+}
+
+/**
+ * `next` is the choice screen's link step (`/auth/continue?step=link…`): the
+ * sign-in it follows is "I already have an account" (spec §4.4), and keeps
+ * the pending sign-in so that step can link it.
+ */
+export function isLinkStep(next: string | null | undefined): boolean {
+  if (!next) return false;
   const url = new URL(next, PATH_PROBE);
-  if (url.pathname === paths.desktopAuthorize()) return true;
   return url.pathname === paths.authContinue() && url.searchParams.get("step") === "link";
+}
+
+/**
+ * Where a sign-in goes once it is no longer about linking ("Không liên
+ * kết", or a register that drops the pending sign-in): the link step's own
+ * `next`, sanitized again; any other `next` as it is.
+ */
+export function pastLinkStep(next: string | null | undefined): string | null {
+  if (!next || !isLinkStep(next)) return next ?? null;
+  return sanitizeNextUrl(new URL(next, PATH_PROBE).searchParams.get("next"));
 }
 
 /**

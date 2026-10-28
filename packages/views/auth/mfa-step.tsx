@@ -18,10 +18,13 @@ export function MFAStep({
   mfaToken,
   onSuccess,
   onCancel,
+  keepSignInTicket = false,
 }: {
   mfaToken: string | null;
   onSuccess: (sess: SessionResponse) => void;
   onCancel: () => void;
+  /** /login?link=1: this sign-in is the account a pending Google or Apple links into (spec §4.4). */
+  keepSignInTicket?: boolean;
 }) {
   const { t } = useTranslation();
   const verify = useVerifyMfa();
@@ -46,7 +49,7 @@ export function MFAStep({
       onSubmit={(e) => {
         e.preventDefault();
         if (verify.isPending || code.trim().length < 6) return;
-        verify.mutate({ mfaToken, code: code.trim() }, { onSuccess });
+        verify.mutate({ mfaToken, code: code.trim(), keepSignInTicket }, { onSuccess });
       }}
     >
       <FieldGroup>

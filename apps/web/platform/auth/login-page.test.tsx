@@ -80,3 +80,11 @@ it("passes the provider's error code to the form as it came, for the one table t
   await open(`error=apple_denied&${NEXT}`);
   expect(state.login).toMatchObject({ redirectError: "apple_denied", next: "/auth/desktop/authorize?attempt_id=a1" });
 });
+
+it("opens the form in link mode for the choice screen's existing-account sign-in (spec §4.4)", async () => {
+  const linkStep = encodeURIComponent("/auth/continue?step=link&next=%2Finvite%2Ft1");
+  await open(`next=${linkStep}&link=1`);
+  expect(state.login).toMatchObject({ link: true, next: "/auth/continue?step=link&next=%2Finvite%2Ft1" });
+  await open(NEXT);
+  expect(state.login).toMatchObject({ link: false });
+});

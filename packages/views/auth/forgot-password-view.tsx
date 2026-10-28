@@ -13,12 +13,19 @@ import { AppLink } from "../navigation";
 import { AUTH_INPUT, AUTH_PILL, AuthSubmit } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 import { AUTH_LINK } from "./login-view";
+import { isLinkStep } from "./post-auth-redirect";
 
 /** Mirrors the server's per-user resend gap; a click inside it is silently dropped there. */
 const RESEND_SECONDS = 60;
 
-export function ForgotPasswordView() {
+/**
+ * `next` came with "Quên mật khẩu?" from the sign-in page (spec §4.4): the way
+ * back keeps it, and the link mode a link step's `next` stands for. The mailed
+ * link cannot carry it; the reset page finds a pending link itself.
+ */
+export function ForgotPasswordView({ next = null }: { next?: string | null }) {
   const { t } = useTranslation();
+  const backToLogin = paths.login({ next, link: isLinkStep(next) });
   const forgot = useForgotPassword();
   const errorId = useId();
   const [email, setEmail] = useState("");
@@ -95,7 +102,7 @@ export function ForgotPasswordView() {
               </Button>
             </p>
             <p className="text-center text-body text-muted-foreground">
-              <AppLink href={paths.login()} className={AUTH_LINK}>
+              <AppLink href={backToLogin} className={AUTH_LINK}>
                 {t("auth.forgot.backToLogin")}
               </AppLink>
             </p>
@@ -149,7 +156,7 @@ export function ForgotPasswordView() {
             {t("auth.forgot.submit")}
           </AuthSubmit>
           <p className="text-center text-body text-muted-foreground">
-            <AppLink href={paths.login()} className={AUTH_LINK}>
+            <AppLink href={backToLogin} className={AUTH_LINK}>
               {t("auth.forgot.backToLogin")}
             </AppLink>
           </p>

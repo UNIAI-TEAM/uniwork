@@ -2,10 +2,13 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import ContinuePage from "../../app/(auth)/auth/continue/page";
+import ForgotPasswordPage from "../../app/(auth)/forgot-password/page";
+import ResetPasswordPage from "../../app/(auth)/reset-password/page";
 
 /**
- * The choice screen's page (spec §4.3): it reads its query, hands the view
- * what it needs, and goes on through the resolver with `next`.
+ * The choice screen's page (spec §4.3) and the two pages "Quên mật khẩu?"
+ * crosses on the way back to a link (§4.4): each reads its query, hands the
+ * view what it needs, and goes on through the resolver with `next`.
  */
 const state = vi.hoisted(() => ({
   search: "",
@@ -22,6 +25,18 @@ vi.mock("@uniwork/views/auth/post-auth-redirect", () => ({ useLoggedInDestinatio
 vi.mock("@uniwork/views/auth/continue-view", () => ({
   ContinueView: (props: Record<string, unknown>) => {
     state.views.continue = props;
+    return null;
+  },
+}));
+vi.mock("@uniwork/views/auth/forgot-password-view", () => ({
+  ForgotPasswordView: (props: Record<string, unknown>) => {
+    state.views.forgot = props;
+    return null;
+  },
+}));
+vi.mock("@uniwork/views/auth/reset-password-view", () => ({
+  ResetPasswordView: (props: Record<string, unknown>) => {
+    state.views.reset = props;
     return null;
   },
 }));
@@ -67,4 +82,18 @@ it.each([
 ])("reads %s as no next and the choices", async (query, expected) => {
   await render(<ContinuePage />, query);
   expect(state.views.continue).toMatchObject(expected);
+});
+
+it("keeps next on the forgot-password page", async () => {
+  await render(<ForgotPasswordPage />, "next=%2Fauth%2Fcontinue%3Fstep%3Dlink");
+  expect(state.views.forgot).toMatchObject({ next: "/auth/continue?step=link" });
+});
+
+it("sends a reset that kept a pending link through the resolver to the link step", async () => {
+  await render(<ResetPasswordPage />, "token=t1");
+  await act(async () => {
+    await (state.views.reset!.onSuccess as (s: unknown, n: string | null) => Promise<void>)({ user: USER }, "/auth/continue?step=link");
+  });
+  expect(state.resolve).toHaveBeenCalledWith(USER, [{ id: "w1" }], "/auth/continue?step=link");
+  expect(state.push).toHaveBeenCalledWith("/acme/team");
 });

@@ -107,6 +107,26 @@ describe("SocialSignIn", () => {
   });
 });
 
+describe("SocialSignIn while a sign-in waits to be linked (spec §4.4)", () => {
+  it("leaves the waiting provider's button out and keeps next on the other", async () => {
+    requestMock.mockResolvedValue(ALL_ON);
+    render(wrap(<SocialSignIn next="/auth/continue?step=link" except="apple" />));
+    const group = await screen.findByRole("group", { name: "Đăng nhập bằng Google hoặc Apple" });
+    const links = within(group).getAllByRole("link");
+    expect(links.map((l) => l.textContent)).toEqual(["Tiếp tục với Google"]);
+    expect(links[0]).toHaveAttribute("href", "http://api.test/api/v1/auth/google/start?next=%2Fauth%2Fcontinue%3Fstep%3Dlink");
+  });
+
+  it("holds one button's space while the caller learns which one goes", async () => {
+    requestMock.mockResolvedValue(ALL_ON);
+    const { container } = render(wrap(<SocialSignIn hold />));
+    await waitFor(() => expect(requestMock).toHaveBeenCalled());
+    const placeholder = container.querySelector("[data-slot=social-placeholder]");
+    expect(placeholder?.querySelectorAll(".h-12")).toHaveLength(1);
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+  });
+});
+
 describe("webSignInProviders", () => {
   it("reads google and apple_web, never the iPhone's apple flag", () => {
     expect(webSignInProviders(undefined)).toEqual([]);
