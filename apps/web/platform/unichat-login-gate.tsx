@@ -196,9 +196,14 @@ export function UniChatLoginGate() {
                     </div>
                   </>
                 ) : null}
+                {/* Beside Google and Apple, email is one way among three, and weighs
+                    what they weigh: an outline pill, so Sign in with Apple is never
+                    the visibly weaker option (Apple's HIG). Alone, it is the
+                    primary. */}
                 <Button
                   ref={pill("email")}
                   type="button"
+                  variant={providers.isPending || offered.length > 0 ? "outline" : "default"}
                   className={cn(PILL, way === "email" && PRESSED)}
                   aria-disabled={opening}
                   onClick={() => login("email")}

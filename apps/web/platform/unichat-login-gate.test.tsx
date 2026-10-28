@@ -156,9 +156,14 @@ describe("UniChatLoginGate", () => {
     expect(names()).toEqual(["Continue with email"]);
     expect(host.querySelector('[role="group"]')).toBeNull();
     expect(Array.from(host.querySelectorAll("span")).some((span) => span.textContent === "or")).toBe(false);
+    // Alone, email is the primary.
+    expect(named("Continue with email")?.className).toContain("bg-primary");
     providers.value = { isPending: false, data: { ...ALL, google: false } };
     await act(async () => root.render(<UniChatLoginGate />));
     expect(names()).toEqual(["Continue with Apple", "Continue with email"]);
+    // Beside Apple it weighs what Apple weighs (Apple's HIG): an outline pill too.
+    expect(named("Continue with email")?.className).toContain("border-input");
+    expect(named("Continue with email")?.className).not.toContain("bg-primary");
   });
 
   it("holds the providers' space while they load, so email does not move", async () => {
