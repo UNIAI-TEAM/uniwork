@@ -45,6 +45,21 @@ describe("holdStepUp", () => {
     expect(holdStepUp(grant({ expires_at: "2026-10-27T08:30:00Z" }), ctx).expiresAtMs).toBe(NOW + STEP_UP_WINDOW_MS - 30_000);
     expect(holdStepUp(grant({ expires_at: "" }), ctx).expiresAtMs).toBe(NOW + STEP_UP_WINDOW_MS - 30_000);
   });
+
+  it("still serves the command it was just bought for when the margin would end it on arrival", () => {
+    // A slow answer, or a clock nine and a half minutes ahead: 20 s left by the
+    // server's word, less than the margin. Asking again would buy the same.
+    for (const method of ["password", "email_code"] as const) {
+      const held = holdStepUp(grant({ method, expires_at: "2026-10-27T08:00:20Z" }), ctx);
+      expect(held.expiresAtMs).toBe(NOW + 60_000);
+      expect(stepUpTokenFor(held, { action: "unlink_google", userId: "u1", now: NOW })).toBe("su");
+      expect(stepUpTokenFor(held, { action: "unlink_google", userId: "u1", now: NOW + 59_000 })).toBe("su");
+      expect(stepUpTokenFor(held, { action: "unlink_google", userId: "u1", now: NOW + 60_000 })).toBeNull();
+    }
+    // A plausible life just over the margin is held at least as long.
+    expect(holdStepUp(grant({ expires_at: "2026-10-27T08:01:00Z" }), ctx).expiresAtMs).toBe(NOW + 60_000);
+    expect(holdStepUp(grant({ expires_at: "2026-10-27T08:02:00Z" }), ctx).expiresAtMs).toBe(NOW + 90_000);
+  });
 });
 
 describe("stepUpServes / stepUpTokenFor", () => {

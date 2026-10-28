@@ -22,6 +22,15 @@ export const STEP_UP_WINDOW_MS = 10 * 60_000;
 const STEP_UP_MARGIN_MS = 30_000;
 
 /**
+ * How long a token just bought is held at the least, whatever the clocks
+ * say: the command it was bought for leaves right after it, and a slow
+ * answer or a clock ahead of the server's must not make the client throw it
+ * away and ask for the same proof again, forever. The server still decides:
+ * a token that really died is refused with proof_required, once.
+ */
+const STEP_UP_FIRST_USE_MS = 60_000;
+
+/**
  * Which emailed-code actions serve each command. A token bought with a code
  * serves only the commands of the action the mail named (the server's
  * requireStepUp); PUT /me/password takes both password actions. A password,
@@ -60,7 +69,7 @@ export interface HeldStepUp {
   action: StepUpAction | null;
   /** The account it was bought for: a token of another account never serves. */
   userId: string;
-  /** Local clock, margin taken off. */
+  /** Local clock, margin taken off; never sooner than a minute after it was bought. */
   expiresAtMs: number;
 }
 
@@ -70,6 +79,8 @@ export interface HeldStepUp {
  * reads as a plausible remaining life (0–10 minutes on synchronised clocks),
  * else the full window — so a phone whose clock runs ahead never throws a
  * fresh token away, and one that runs behind never keeps it past ten minutes.
+ * Either way it lasts long enough for the command it was bought for
+ * (STEP_UP_FIRST_USE_MS), even when the margin would end it on arrival.
  */
 export function holdStepUp(grant: StepUpGrant, ctx: { userId: string; action: StepUpAction; now: number }): HeldStepUp {
   const method = isStepUpProof(grant.method) ? grant.method : null;
@@ -80,7 +91,7 @@ export function holdStepUp(grant: StepUpGrant, ctx: { userId: string; action: St
     method,
     action: method === "email_code" || method === null ? ctx.action : null,
     userId: ctx.userId,
-    expiresAtMs: ctx.now + life - STEP_UP_MARGIN_MS,
+    expiresAtMs: ctx.now + Math.max(life - STEP_UP_MARGIN_MS, STEP_UP_FIRST_USE_MS),
   };
 }
 
