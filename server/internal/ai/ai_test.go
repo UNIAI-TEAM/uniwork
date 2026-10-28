@@ -136,7 +136,10 @@ func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 			k == PromptCopilotAnswerV22 || k == PromptCopilotAnswerV23 || k == PromptCopilotAnswerV24 || k == PromptCopilotAnswerV25 ||
 			k == PromptCopilotAnswerV26 || k == PromptCopilotAnswerV27 || k == PromptCopilotAnswerV28 || k == PromptCopilotAnswerV29 ||
 			k == PromptCopilotAnswerV30 || k == PromptCopilotAnswerV31 || k == PromptCopilotAnswerV32 || k == PromptCopilotAnswerV33 ||
-			k == PromptCopilotAnswerV34 || k == PromptCopilotAnswerV35 || k == PromptConversationTitle
+			k == PromptCopilotAnswerV34 || k == PromptCopilotAnswerV35 || k == PromptConversationTitle ||
+			// The Office writers' replies are documents (HTML, markdown, JSON
+			// the editor's own parser reads); a schema would only cut them.
+			strings.HasPrefix(k, "office_writer_")
 		if p.Key() != k || (len(p.OutputSchema) == 0 && !freeText) || p.Render == nil {
 			t.Errorf("%s: incomplete prompt", k)
 		}
@@ -363,6 +366,11 @@ func TestPromptSnapshots(t *testing.T) {
 		},
 		"drive_task_proposals@1": driveProposals,
 		PromptDriveTaskProposals: driveProposals,
+	}
+	// The Office writers (plan 5): one fixture per kind, the hostile text in the
+	// field that carries the most prose.
+	for kind, in := range writerSnapshotInputs {
+		fixtures[WriterPromptID(kind)] = map[string]any{"input": in, "lang": "vi"}
 	}
 	for _, k := range PromptKeys() {
 		p, _ := LookupPrompt(k)

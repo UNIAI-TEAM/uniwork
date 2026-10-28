@@ -17,7 +17,7 @@ func (g *Gateway) invoke(ctx context.Context, req Request, creq provider.Complet
 		defer cancel()
 		return g.p.Complete(cctx, creq)
 	}
-	cctx, cancel := context.WithTimeout(ctx, g.opts.StreamTimeout)
+	cctx, cancel := context.WithTimeout(ctx, g.opts.StreamTimeout*time.Duration(max(policies[req.Capability].StreamTimeoutScale, 1)))
 	defer cancel()
 	if s, ok := g.p.(provider.Streamer); ok {
 		return s.Stream(cctx, creq, req.OnDelta)
