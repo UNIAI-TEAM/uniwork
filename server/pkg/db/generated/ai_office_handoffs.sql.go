@@ -92,8 +92,8 @@ const aiDeleteOfficeHandoffsByIDs = `-- name: AiDeleteOfficeHandoffsByIDs :exec
 DELETE FROM ai_office_handoffs WHERE id = ANY($1::text[])
 `
 
-// tenant: by-id
-// The ids come from AiExpiredOfficeHandoffIDs.
+// tenant: system
+// The sweeper's delete; the ids come from AiExpiredOfficeHandoffIDs.
 func (q *Queries) AiDeleteOfficeHandoffsByIDs(ctx context.Context, ids []string) error {
 	_, err := q.db.Exec(ctx, aiDeleteOfficeHandoffsByIDs, ids)
 	return err

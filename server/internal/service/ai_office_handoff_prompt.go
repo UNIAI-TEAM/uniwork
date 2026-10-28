@@ -16,16 +16,17 @@ var handoffSourceIDRe = regexp.MustCompile(`[^A-Za-z0-9_.-]`)
 // stands at (ADR 0048): the client's short text first, then the whole approved
 // job on every part, because the history budget drops older turns as the
 // document grows. Only the opening sentence tells the first part from a later
-// one. Request, outline and part are model-written text the asker approved:
-// they are escaped so they cannot open or close an untrusted block; the quotes
-// are workspace data and travel inside one.
+// one. Request, outline and part are model-written text the asker approved,
+// and the stub carries the model-written document title: all are escaped so
+// they cannot open or close an untrusted block; the quotes are workspace data
+// and travel inside one.
 func officeHandoffQuestion(h OfficeHandoff, stub string) string {
 	k, n := h.NextPart+1, len(h.Parts)
 	opening := "[Ask UNI handoff] The person approved this job in Ask UNI."
 	if h.NextPart >= 1 {
 		opening = "[Ask UNI handoff] Continue the same job the person approved in Ask UNI."
 	}
-	blocks := []string{stub, opening + " Do it in the open document with your editor tools. Do not save; the person saves."}
+	blocks := []string{ai.EscapeUntrusted(stub), opening + " Do it in the open document with your editor tools. Do not save; the person saves."}
 	if strings.TrimSpace(h.Request) != "" {
 		blocks = append(blocks, "Request:\n"+ai.EscapeUntrusted(h.Request))
 	}

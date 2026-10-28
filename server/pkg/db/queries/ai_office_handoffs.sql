@@ -29,6 +29,6 @@ ORDER BY expires_at
 LIMIT sqlc.arg('batch')::int;
 
 -- name: AiDeleteOfficeHandoffsByIDs :exec
--- tenant: by-id
--- The ids come from AiExpiredOfficeHandoffIDs.
+-- tenant: system
+-- The sweeper's delete; the ids come from AiExpiredOfficeHandoffIDs.
 DELETE FROM ai_office_handoffs WHERE id = ANY(sqlc.arg('ids')::text[]);
