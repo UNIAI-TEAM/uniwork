@@ -124,7 +124,8 @@ describe("the claim steps", () => {
   it("says an address the server refused under its field, and a code asked too often with its wait", async () => {
     send.mutateAsync
       .mockRejectedValueOnce(transport("invalid_request", 400))
-      .mockRejectedValueOnce(transport("rate_limited", 429, { retryAfterMs: 30_000 }));
+      // The address's gate names its wait in the body; a 429 without it is the route's budget (core's keyRouteBudget).
+      .mockRejectedValueOnce(transport("rate_limited", 429, { retryAfterMs: 30_000, fields: { retry_after: 30 } }));
     const onSent = jest.fn();
     await render(<ClaimEmailStep email="an@congty.vn" onChangeEmail={jest.fn()} onSent={onSent} onRestart={jest.fn()} />);
     await act(async () => fireEvent(screen.getByTestId("claim-email"), "submitEditing"));
