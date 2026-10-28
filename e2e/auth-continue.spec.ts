@@ -61,7 +61,7 @@ const STATES: State[] = [
     name: "expired",
     ticket: null,
     heading: "Lượt đăng nhập đã hết hạn",
-    actions: (page) => [page.getByRole("link", { name: "Thử lại" })],
+    actions: (page) => [page.getByRole("link", { name: "Về trang đăng nhập" })],
   },
 ];
 

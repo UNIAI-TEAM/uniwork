@@ -79,7 +79,9 @@ describe("ContinueView — loading and none", () => {
     route({ "GET /api/v1/auth/sign-in-ticket": () => Promise.reject(MISSING()) });
     open();
     expect(await screen.findByRole("heading", { name: "Lượt đăng nhập đã hết hạn" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Thử lại" })).toHaveAttribute("href", `/login?next=${encodeURIComponent(NEXT)}`);
+    expect(screen.getByRole("link", { name: "Về trang đăng nhập" })).toHaveAttribute("href", `/login?next=${encodeURIComponent(NEXT)}`);
+    // Opened expired, it is read from the top: nothing took focus.
+    expect(screen.getByRole("heading", { name: "Lượt đăng nhập đã hết hạn" })).not.toHaveFocus();
   });
 
   it("offers to read it again when the server could not be reached", async () => {
@@ -230,6 +232,13 @@ describe("ContinueView — unmatched", () => {
     open();
     fireEvent.click(await screen.findByRole("button", { name: /Tạo tài khoản mới/ }));
     expect(await screen.findByText("Lượt đăng nhập bằng Google đã hết hạn.")).toBeInTheDocument();
+    // It replaced the screen under the person's hands: its heading is heard.
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Lượt đăng nhập đã hết hạn" })).toHaveFocus());
+    // Google starts again from here, next kept; the sign-in page is the other way.
+    expect(screen.getByRole("link", { name: "Tiếp tục với Google" }).getAttribute("href")).toContain(
+      `/api/v1/auth/google/start?next=${encodeURIComponent(NEXT)}`,
+    );
+    expect(screen.getByRole("link", { name: "Về trang đăng nhập" })).toHaveAttribute("href", `/login?next=${encodeURIComponent(NEXT)}`);
   });
 
   it("drops the pending sign-in on Hủy and goes back to sign in, next kept", async () => {

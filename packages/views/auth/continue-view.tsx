@@ -5,14 +5,16 @@ import type { SignInProvider, SignInTicket } from "@uniwork/core/api/endpoints/s
 import { useSession, useSignInTicket } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import type { User } from "@uniwork/core/types";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink, useNavigation } from "../navigation";
-import { AUTH_PILL } from "./auth-controls";
+import { AUTH_LINK, AUTH_PILL } from "./auth-controls";
 import { AuthCallbackView } from "./auth-callback-view";
 import { AuthShell } from "./auth-shell";
 import { ContinueChoices } from "./continue-choices";
 import { ContinueLinkStep } from "./continue-link-step";
 import { ContinueSkeleton, PILL_LINK, TicketLoadError, useProviderName } from "./continue-parts";
+import { ProviderPillFace, providerPillClass, providerStartUrl } from "./social-sign-in";
 
 /**
  * /auth/continue (ADR 0047 §2c, spec §4.3): where a Google or Apple sign-in
@@ -98,20 +100,43 @@ export function ContinueView({
 
 /**
  * No pending sign-in (expired, already used, or never here), or it went
- * away under a command. The way out is the sign-in page, `next` kept, which
- * offers the provider again.
+ * away under a command. Opened that way, the way out is the sign-in page,
+ * `next` kept, which offers every provider again. Gone under a command, the
+ * provider is known: it is started again from here, one press instead of
+ * two, and the sign-in page stays as the other way. That screen replaced
+ * the one the person was working in, so its heading takes focus and is
+ * heard (`announce`); one opened expired is read from the top.
  */
 function ExpiredScreen({ provider, next }: { provider: SignInProvider | null; next: string | null }) {
   const { t } = useTranslation();
   const name = useProviderName(provider);
+  const backToLogin = paths.login({ next });
   return (
     <AuthShell
       title={t("auth.continue.expired.title")}
       description={provider ? t("auth.continue.expired.bodyProvider", { provider: name }) : t("auth.continue.expired.body")}
+      announce={provider !== null}
     >
-      <AppLink href={paths.login({ next })} className={PILL_LINK}>
-        {t("auth.continue.expired.retry")}
-      </AppLink>
+      {provider ? (
+        <div className="flex flex-col gap-4">
+          {/* The provider's own start route, another origin: a plain anchor, as on /login. */}
+          <a
+            href={providerStartUrl(provider, { next })}
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }), AUTH_PILL, "gap-2.5", providerPillClass(provider))}
+          >
+            <ProviderPillFace provider={provider} />
+          </a>
+          <p className="text-center text-body text-muted-foreground">
+            <AppLink href={backToLogin} className={AUTH_LINK}>
+              {t("auth.forgot.backToLogin")}
+            </AppLink>
+          </p>
+        </div>
+      ) : (
+        <AppLink href={backToLogin} className={PILL_LINK}>
+          {t("auth.forgot.backToLogin")}
+        </AppLink>
+      )}
     </AuthShell>
   );
 }
