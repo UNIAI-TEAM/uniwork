@@ -13,11 +13,12 @@ import { signInMethodsApi, stepUp } from "@/data/auth/methods-api";
 import { forgetStepUp, holdStepUp } from "@/data/auth/step-up-store";
 import { useAuthStore } from "@/data/auth/store";
 import { useToastStore } from "@/data/stores/toast-store";
+import { MockDismissingModal } from "@/test/dismissing-modal";
 import { render, viText } from "@/test/render";
 import { DeleteAccountSection } from "./delete-account";
 
 // The sheets as iOS runs them: the owner's second proof sheet waits for the first to finish closing (use-step-up.ts).
-jest.mock("react-native/Libraries/Modal/Modal", () => jest.requireActual("@/test/dismissing-modal"));
+jest.mock("react-native/Libraries/Modal/Modal", () => ({ __esModule: true, default: MockDismissingModal }));
 jest.mock("@/data/account-api", () => ({ accountApi: { deleteAccount: jest.fn(), transferOwnership: jest.fn() } }));
 const mockRequest = jest.fn<Promise<unknown>, [string, RequestInit | undefined]>();
 jest.mock("@/data/api", () => ({ api: { request: (path: string, init?: RequestInit) => mockRequest(path, init), getMe: jest.fn(async () => null) } }));

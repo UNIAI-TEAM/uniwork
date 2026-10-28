@@ -1,9 +1,11 @@
 // React Native's Modal as iOS runs it, for a test of a sheet that must not be presented while another is still
 // closing (components/settings/use-step-up.ts): a Modal that was visible calls onDismiss once it has closed, which
 // the preset's own mock never does. Closing finishes at once, unless a test holds it (`holdDismissals`) to see what
-// waits for it, then lets it finish (`finishDismissals`). Mock the path React Native's index reads:
+// waits for it, then lets it finish (`finishDismissals`). Mock the path React Native's index reads (the `Mock` prefix
+// is what lets jest's hoisted factory name the import):
 //
-//   jest.mock("react-native/Libraries/Modal/Modal", () => jest.requireActual("@/test/dismissing-modal"));
+//   import { MockDismissingModal } from "@/test/dismissing-modal";
+//   jest.mock("react-native/Libraries/Modal/Modal", () => ({ __esModule: true, default: MockDismissingModal }));
 import { useEffect, useRef, type ReactNode } from "react";
 import { View } from "react-native";
 
@@ -29,7 +31,7 @@ interface Props {
   children?: ReactNode;
 }
 
-function DismissingModal({ visible = true, onDismiss, children }: Props) {
+export function MockDismissingModal({ visible = true, onDismiss, children }: Props) {
   const was = useRef(visible);
   const latest = useRef(onDismiss);
   latest.current = onDismiss;
@@ -43,5 +45,3 @@ function DismissingModal({ visible = true, onDismiss, children }: Props) {
   }, [visible]);
   return visible ? <View testID="modal-host">{children}</View> : null;
 }
-
-export default DismissingModal;

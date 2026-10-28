@@ -13,11 +13,11 @@ import { signInMethodsApi, stepUp, stepUpWithProvider } from "@/data/auth/method
 import { forgetStepUp, holdStepUp } from "@/data/auth/step-up-store";
 import { useAuthStore } from "@/data/auth/store";
 import { setAppLockEngaged } from "@/data/stores/app-lock-store";
-import { finishDismissals, holdDismissals } from "@/test/dismissing-modal";
+import { finishDismissals, holdDismissals, MockDismissingModal } from "@/test/dismissing-modal";
 import { render, viText } from "@/test/render";
 import { useStepUp } from "./use-step-up";
 
-jest.mock("react-native/Libraries/Modal/Modal", () => jest.requireActual("@/test/dismissing-modal"));
+jest.mock("react-native/Libraries/Modal/Modal", () => ({ __esModule: true, default: MockDismissingModal }));
 jest.mock("@react-native-community/netinfo", () => {
   const netInfo = { configure: () => undefined, addEventListener: () => () => undefined, fetch: async () => ({ isConnected: true, isInternetReachable: true }) };
   return { __esModule: true, default: netInfo, ...netInfo, useNetInfo: () => ({ isConnected: true }) };
