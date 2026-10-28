@@ -457,8 +457,9 @@ func TestAppleWebLinksFromSettingsThroughTheSameBrowserSession(t *testing.T) {
 
 	// Cancelled on Apple's page: back to Settings with denied.
 	state, st := appleWebStart(t, srv, query, refresh)
-	if st.Flow.Intent != webIntentLink || st.Flow.UserID != uid || st.Flow.Session == "" || st.Flow.ReturnTo != "/acme/team/settings?tab=security" {
-		t.Fatalf("state %+v", st)
+	if st.Flow.Intent != webIntentLink || st.Flow.UserID != uid || st.Flow.Session == "" || st.Flow.ReturnTo != "/acme/team/settings?tab=security" ||
+		st.Flow.ProofExp != stepUpEnd(t, proof) {
+		t.Fatalf("state %+v, want the link and the end of its step-up", st)
 	}
 	res = applePost(t, srv, url.Values{"error": {"user_cancelled_authorize"}, "state": {st.State}}, state)
 	if path, q := linkResult(t, res); path != "/acme/team/settings" || q.Get("result") != "denied" || q.Get("sign_in_method") != "apple" {

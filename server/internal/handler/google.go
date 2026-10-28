@@ -32,7 +32,7 @@ type GoogleExchanger interface {
 // echo, the PKCE verifier, where to land after, the intent, and its own
 // expiry so a copied cookie value dies with the attempt. A link from
 // Settings also carries the account and browser session the link token
-// named, and where to go back to.
+// named, the end of the step-up that started it, and where to go back to.
 type googleState struct {
 	State    string `json:"state"`
 	Nonce    string `json:"nonce"`
@@ -41,13 +41,17 @@ type googleState struct {
 	Intent   string `json:"intent"`
 	UserID   string `json:"uid,omitempty"`
 	Session  string `json:"sid,omitempty"`
+	ProofExp int64  `json:"proof_exp,omitempty"`
 	ReturnTo string `json:"return_to,omitempty"`
 	Exp      int64  `json:"exp"`
 }
 
 // linkIntent is the link from Settings a state cookie carries.
 func (st googleState) linkIntent() service.LinkIntent {
-	return service.LinkIntent{UserID: st.UserID, SessionID: st.Session, Provider: service.ProviderGoogle, ReturnTo: st.ReturnTo, ExpectUser: st.UserID}
+	return service.LinkIntent{
+		UserID: st.UserID, SessionID: st.Session, Provider: service.ProviderGoogle, ReturnTo: st.ReturnTo,
+		ExpectUser: st.UserID, ProofExpiresAt: st.ProofExp,
+	}
 }
 
 func (h *handlers) googleStart(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +72,7 @@ func (h *handlers) googleStart(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		st.Next, st.UserID, st.Session, st.ReturnTo = "", li.UserID, li.SessionID, li.ReturnTo
+		st.Next, st.UserID, st.Session, st.ProofExp, st.ReturnTo = "", li.UserID, li.SessionID, li.ProofExpiresAt, li.ReturnTo
 	}
 	var err error
 	for _, v := range []*string{&st.State, &st.Nonce, &st.Verifier} {

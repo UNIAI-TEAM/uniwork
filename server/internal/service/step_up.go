@@ -433,20 +433,30 @@ func (s *AuthService) mintStepUp(at auth.AccessToken, method, action string) (St
 // 403 proof_required naming the proofs the account takes. A token is not
 // spent by use: the same one serves its ten minutes.
 func (s *AuthService) requireStepUp(ctx context.Context, q *db.Queries, userID, token string, actions ...string) error {
+	_, err := s.requireStepUpUntil(ctx, q, userID, token, actions...)
+	return err
+}
+
+// requireStepUpUntil is requireStepUp answering, too, when the token it took
+// ends (its exp, in Unix seconds: at most ten minutes after the proof). A
+// command whose answer a later step leans on — a link from Settings, whose
+// move a ticket confirms (issueMoveTicket) — carries that end on, so the
+// proof serves that step no longer than it was given for.
+func (s *AuthService) requireStepUpUntil(ctx context.Context, q *db.Queries, userID, token string, actions ...string) (int64, error) {
 	at, err := stepUpBearer(ctx, userID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := requireCurrentCredentials(ctx, q); err != nil {
-		return err
+		return 0, err
 	}
 	if _, err := liveBearerSession(ctx, q, at); err != nil {
-		return err
+		return 0, err
 	}
-	if s.stepUpTokenFor(at, token, actions) {
-		return nil
+	if c, ok := s.stepUpTokenFor(at, token, actions); ok {
+		return c.ExpiresAt, nil
 	}
-	return s.proofRequired(ctx, q, userID)
+	return 0, s.proofRequired(ctx, q, userID)
 }
 
 // linkAction and unlinkAction are the step-up actions of linking and
@@ -466,23 +476,24 @@ func unlinkAction(provider string) string {
 }
 
 // stepUpTokenFor opens token and holds it to at's account and session, and a
-// token a mailed code bought to one of actions.
-func (s *AuthService) stepUpTokenFor(at auth.AccessToken, token string, actions []string) bool {
+// token a mailed code bought to one of actions; its claims when it serves.
+func (s *AuthService) stepUpTokenFor(at auth.AccessToken, token string, actions []string) (stepUpClaims, bool) {
 	if token == "" {
-		return false
+		return stepUpClaims{}, false
 	}
 	raw, err := s.sealer.OpenFor(auth.PurposeStepUp, token)
 	if err != nil {
-		return false
+		return stepUpClaims{}, false
 	}
 	var c stepUpClaims
 	if err := json.Unmarshal([]byte(raw), &c); err != nil {
-		return false
+		return stepUpClaims{}, false
 	}
 	if c.Method == ProofEmailCode && !slices.Contains(actions, c.Action) {
-		return false
+		return stepUpClaims{}, false
 	}
-	return c.UserID == at.UserID && c.SessionID == at.SessionID && c.Web == at.Web && s.now().Unix() < c.ExpiresAt
+	ok := c.UserID == at.UserID && c.SessionID == at.SessionID && c.Web == at.Web && s.now().Unix() < c.ExpiresAt
+	return c, ok
 }
 
 // proofRequired is proof_required naming the proofs userID's account takes

@@ -613,13 +613,16 @@ database and never reveal whether an id exists to a non-member.
   the SHA-256 of its nonce — and only "Create a new account" there, or the register screen's `intent=sign_up`,
   opens one. Linking from a ticket takes a bearer of its channel whose session signed in after the ticket (a
   device session by its `signed_in_at`, the app's own sign-in or the start of the browser session that approved its
-  consent, never by when its row was written), or a step-up token of that session (else 403 `proof_required`); an
+  consent, never by when its row was written), or a step-up token of that session (else 403 `proof_required`); the
+  move a link from Settings leaves (`sign_in_method_movable`) also takes the browser session that started that link,
+  but only until the step-up token that started it ends, sealed into the link token and the ticket. An
   identity another account holds moves only out of an account that never belonged to an
   organization, and only on `move: true`. A code mailed to another address ("invited with another address") links,
   reclaims or creates by that address, five codes and ten wrong guesses a day per address whichever tickets ask.
   `TestProviderSignInWithoutAMatchIssuesATicketNotAnAccount`,
   `TestSignUpIntentCreatesWithoutTheChoice`, `TestSignInTicketIsBoundToItsChannel`,
   `TestTicketLinkNeedsASessionStartedAfterTheTicket`, `TestAppTicketLinkNeedsASignInNotAConsent`,
+  `TestASettingsMoveIsProvedByTheSessionThatStartedTheLink`,
   `TestEmailClaimLinksCreatesOrReclaims` and `TestAProviderIdentityMovesOnlyFromAnEmptyAccount` hold it.
 - The public routes that open a session or spend a sign-in cookie (`/auth/login`, `/auth/register`,
   `/auth/mfa/verify`, `/auth/password/reset`, `/auth/sign-in-ticket*`, and the app's `/auth/native/*`) go through

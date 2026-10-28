@@ -237,19 +237,24 @@ func (s *SignInMethodsService) changed(ctx context.Context, u db.User) SignInMet
 // account, from which browser session, which provider, and where the
 // browser goes back to. ExpectUser is the account the link is for, which
 // the page that started it compares with the one the browser shows (a
-// desktop shell opening Settings in the system browser).
+// desktop shell opening Settings in the system browser). ProofExpiresAt is
+// when the step-up token that started the link ends (Unix seconds): a move
+// the link leaves to confirm is proved by that session until then only
+// (issueMoveTicket, provenSince); zero proves nothing.
 type LinkIntent struct {
-	UserID     string `json:"uid"`
-	SessionID  string `json:"sid"`
-	Provider   string `json:"provider"`
-	ReturnTo   string `json:"return_to"`
-	ExpectUser string `json:"expect_user"`
-	ExpiresAt  int64  `json:"exp"`
+	UserID         string `json:"uid"`
+	SessionID      string `json:"sid"`
+	Provider       string `json:"provider"`
+	ReturnTo       string `json:"return_to"`
+	ExpectUser     string `json:"expect_user"`
+	ProofExpiresAt int64  `json:"proof_exp,omitempty"`
+	ExpiresAt      int64  `json:"exp"`
 }
 
 // StartLink is POST /me/sign-in-methods/{provider}/link: from a browser
 // session, with a step-up token, it seals the link_token (five minutes)
-// that the provider's start takes, bound to this account and this session.
+// that the provider's start takes, bound to this account and this session,
+// with the end of that step-up token.
 // The account must have proved its address (403 email_unverified: nothing
 // planted on it may outlive a reclaim) and not be linked to the provider
 // already (409 sign_in_method_already_linked). returnTo is a same-origin
@@ -273,12 +278,13 @@ func (s *SignInMethodsService) StartLink(ctx context.Context, userID, provider, 
 	if linked, _ := linkedSubject(u, provider); linked.Valid {
 		return "", errSignInMethodAlreadyLinked()
 	}
-	if err := s.auth.requireStepUp(ctx, s.q, userID, stepUpToken, linkAction(provider)); err != nil {
+	proofExp, err := s.auth.requireStepUpUntil(ctx, s.q, userID, stepUpToken, linkAction(provider))
+	if err != nil {
 		return "", err
 	}
 	li := LinkIntent{
 		UserID: userID, SessionID: at.SessionID, Provider: provider, ReturnTo: returnTo,
-		ExpectUser: userID, ExpiresAt: s.auth.now().Add(linkTokenTTL).Unix(),
+		ExpectUser: userID, ProofExpiresAt: proofExp, ExpiresAt: s.auth.now().Add(linkTokenTTL).Unix(),
 	}
 	raw, err := json.Marshal(li)
 	if err != nil {

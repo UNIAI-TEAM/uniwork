@@ -730,9 +730,12 @@ func TestAProviderIdentityMovesOnlyFromAnEmptyAccount(t *testing.T) {
 // A link from Settings that answers movable leaves a ticket bound to the
 // browser session that started the link (spec §3.7): that session bought
 // the link's step-up and carried the provider round trip, so it confirms the
-// move without another proof while the ticket lives. Any other session, a
-// ticket that names no session, or one past its fifteen minutes still needs
-// what any ticket link needs.
+// move without another proof — until the step-up token it started the link
+// with ends (sealed into the link token at the start, and from it into the
+// ticket), and not a second longer, though the ticket lives on. Any other
+// session, a ticket that names no session, one whose link sealed no end, and
+// that session past the end still need what any ticket link needs; a ticket
+// past its fifteen minutes is gone.
 func TestASettingsMoveIsProvedByTheSessionThatStartedTheLink(t *testing.T) {
 	f := newIdentityFixture(t)
 	tickets := f.tickets()
@@ -747,36 +750,62 @@ func TestASettingsMoveIsProvedByTheSessionThatStartedTheLink(t *testing.T) {
 	f.backdate(t, bsess)
 	otherCtx, other := f.browser(t, owner.ID)
 	f.backdate(t, other)
-	li := LinkIntent{UserID: owner.ID, SessionID: bsess.SessionID, Provider: ProviderGoogle, ReturnTo: "/settings?tab=security"}
-	id := googleIdentity(claims)
 
+	grant, err := f.auth.StepUp(bctx, owner.ID, StepUpProof{Password: "password123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sealed, err := methods.StartLink(bctx, owner.ID, ProviderGoogle, grant.Token, "/settings?tab=security")
+	if err != nil {
+		t.Fatal(err)
+	}
+	li, err := methods.OpenLinkToken(sealed)
+	if err != nil || li.SessionID != bsess.SessionID || li.ProofExpiresAt != grant.ExpiresAt.Unix() {
+		t.Fatalf("the link token seals the end of the step-up that started it (%v): %+v %v", grant.ExpiresAt, li, err)
+	}
+	id := googleIdentity(claims)
 	res, err := methods.LinkFromBrowser(bctx, li, id, bsess.RefreshToken)
 	if !errors.Is(err, ErrSignInMethodMovable) || res.Ticket == "" {
 		t.Fatalf("want movable with a ticket: %+v %v", res, err)
 	}
-	_, err = tickets.Link(otherCtx, res.Ticket, WebTicket(), TicketLink{Move: true})
-	wantStatusCode(t, err, "proof_required", http.StatusForbidden)
+	move := func(ctx context.Context, ticket string) error {
+		_, err := tickets.Link(ctx, ticket, WebTicket(), TicketLink{Move: true})
+		return err
+	}
+	at := func(d time.Duration) { f.auth.now = func() time.Time { return grant.ExpiresAt.Add(d) } }
+
+	wantStatusCode(t, move(otherCtx, res.Ticket), "proof_required", http.StatusForbidden)
 	plain, err := f.auth.issueSignInTicket(id, TicketKindLinkRequired, SignInIntentSignIn, WebTicket())
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = tickets.Link(bctx, plain, WebTicket(), TicketLink{Move: true})
-	wantStatusCode(t, err, "proof_required", http.StatusForbidden)
+	wantStatusCode(t, move(bctx, plain), "proof_required", http.StatusForbidden)
+	noEnd, err := f.auth.issueMoveTicket(id, LinkIntent{UserID: owner.ID, SessionID: bsess.SessionID, Provider: ProviderGoogle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantStatusCode(t, move(bctx, noEnd), "proof_required", http.StatusForbidden)
+	// The step-up's ten minutes are over and the ticket's fifteen are not:
+	// the session that started the link proves the move no longer.
+	at(0)
+	wantStatusCode(t, move(bctx, res.Ticket), "proof_required", http.StatusForbidden)
 	f.auth.now = func() time.Time { return time.Now().Add(signInTicketTTL + time.Second) }
-	_, err = tickets.Link(bctx, res.Ticket, WebTicket(), TicketLink{Move: true})
-	wantStatusCode(t, err, "sign_in_ticket_missing", http.StatusNotFound)
+	wantStatusCode(t, move(bctx, res.Ticket), "sign_in_ticket_missing", http.StatusNotFound)
 	f.auth.now = time.Now
 	if f.user(t, owner.ID).GoogleID.Valid {
 		t.Fatal("a refused move wrote")
 	}
 
-	// The session that started the link: still asked first, then moved.
+	// The session that started the link, the second before the step-up
+	// would end: still asked first, then moved.
+	at(-time.Second)
 	_, err = tickets.Link(bctx, res.Ticket, WebTicket(), TicketLink{})
 	wantStatusCode(t, err, "sign_in_method_movable", http.StatusConflict)
 	out, err := tickets.Link(bctx, res.Ticket, WebTicket(), TicketLink{Move: true})
 	if err != nil || out.User.GoogleID.String != claims.Sub || !out.Methods.Google.Linked {
 		t.Fatalf("the move from the session that started the link: %+v %v", out, err)
 	}
+	f.auth.now = time.Now
 	if f.linkAudits(t, owner.ID, ProviderGoogle, "move") != 1 {
 		t.Fatal("the move is audited via move")
 	}

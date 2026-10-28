@@ -266,7 +266,7 @@ Code redirect của cả hai luồng sống trong `handler/web_sign_in.go` (help
 `next`/`return_to` sẵn có (không nối chuỗi).
 
 **Google**: `GET /auth/google/start?next=&intent=sign_in|sign_up|link&link_token=` — cookie state là blob
-`oauth_state:google {state, nonce, verifier, next, intent, uid?, sid?, return_to?}`, `SameSite=Lax`, Path
+`oauth_state:google {state, nonce, verifier, next, intent, uid?, sid?, proof_exp?, return_to?}`, `SameSite=Lax`, Path
 `/api/v1/auth/google`; PKCE S256 + nonce (kiểm ở `Exchange`); `prompt=select_account` luôn.
 
 **Apple**:
@@ -318,7 +318,8 @@ Mã lỗi trên `/login`: `google_denied`, `google_failed`, `google_unverified`,
 `linked`, `denied`, `failed`, `taken`, `movable`, `already_linked`, `session_mismatch`.
 
 **Bắt đầu liên kết từ trình duyệt** (`intent=link`): `link_token` (blob `link_token`, 5 phút,
-`{uid, sid, provider, return_to, expect_user}`). `start` gọi `AuthService.LiveWebSession(ctx, rawRefreshCookie)`
+`{uid, sid, provider, return_to, expect_user, proof_exp}`; `proof_exp` là hạn của token step-up đã cho bắt đầu, cookie
+state của Google và luồng Apple mang nó qua vòng nhà cung cấp, xem 3.7). `start` gọi `AuthService.LiveWebSession(ctx, rawRefreshCookie)`
 (service; handler không đọc DB) và chỉ nhận khi `(user_id, session_id) = (uid, sid)`; không thì `303 <return_to>` +
 `result=session_mismatch`. Callback/finish kiểm lại như bảng trên (`TestLinkStartNeedsTheSameBrowserSession` phủ cả hai
 đầu).
@@ -468,10 +469,12 @@ Mọi route: công khai, `Cache-Control: no-store`, ⚑ chỉ nhận `client_id`
   `movable` để lại cookie vé (`link_required`) để Cài đặt xác nhận chuyển bằng `POST /auth/sign-in-ticket/link
   {move:true}` mà không đi Google lần nữa; route vé nhận `step_up_token` thay cho phiên mới hơn vé. ⚑ Vé `movable` niêm
   thêm tài khoản và phiên trình duyệt đã bắt đầu liên kết (`link_uid`, `link_sid`, `issueMoveTicket`): phiên đó đã mua
-  step-up `link_<p>` để bắt đầu, và start lẫn callback của nhà cung cấp đều giữ trình duyệt đúng phiên đó, nên khi vé
-  còn sống (15 phút) chính phiên ấy xác nhận chuyển không cần bằng chứng lần hai (token step-up chỉ ở bộ nhớ nên mất
-  sau vòng qua nhà cung cấp). Phiên khác, vé không niêm phiên, hay vé hết hạn (`sign_in_ticket_missing`) vẫn như mọi
-  lệnh vé. `TestASettingsMoveIsProvedByTheSessionThatStartedTheLink`.
+  step-up `link_<p>` để bắt đầu, và start lẫn callback của nhà cung cấp đều giữ trình duyệt đúng phiên đó, nên chính
+  phiên ấy xác nhận chuyển không cần bằng chứng lần hai (token step-up chỉ ở bộ nhớ nên mất sau vòng qua nhà cung cấp).
+  Chỉ tới hạn của chính token step-up đó (tối đa 10 phút từ lúc cấp, `link_token.proof_exp` → vé `link_proof_exp`),
+  không lâu hơn bằng chứng đã cho, dù vé còn sống tới 15 phút. Quá hạn đó, phiên khác, vé không niêm phiên hay không
+  niêm hạn thì như mọi lệnh vé (`403 proof_required`, Cài đặt hỏi bằng chứng rồi gửi lại); vé hết hạn →
+  `sign_in_ticket_missing`. `TestASettingsMoveIsProvedByTheSessionThatStartedTheLink`.
   `POST /me/sign-in-methods/apple/link` để lát 4 (cần Apple web); `/me/sign-in-methods/{google,apple}/native` để
   lát 5. Đổi mật khẩu và gỡ: audit `auth.session_revoked {scope:"others", reason:"password_changed" |
   "sign_in_method_unlinked", count, device_sessions, mcp_grants_revoked}`.
@@ -804,7 +807,8 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập
 - **Gỡ liên kết**: bằng chứng trước, rồi `ConfirmDialog` destructive (ô `Unlink`), nói còn lại cách nào và "Các thiết bị
   khác sẽ đăng xuất."
 - **Chuyển** (`result=movable`): `ConfirmDialog` (ô `ArrowRightLeft`, tông cảnh báo) "Chuyển sang đây" / "Không chuyển";
-  "Không chuyển" xoá vé. Chính phiên đã bắt đầu liên kết xác nhận được mà không hỏi bằng chứng lần hai (3.7). Mất mạng,
+  "Không chuyển" xoá vé. Chính phiên đã bắt đầu liên kết xác nhận được mà không hỏi bằng chứng lần hai khi bằng chứng
+  đã cho bắt đầu còn hạn (3.7); quá hạn thì "Xác nhận là bạn" mở trước rồi lệnh chạy lại. Mất mạng,
   5xx hay phải chờ thì hộp vẫn mở và nói lý do trong hộp (`ConfirmDialog error`), bấm lại là thử lại; chỉ câu trả lời
   cuối (bị dùng, đã hết hạn…) mới đóng hộp kèm toast.
 - **Shell UniChat desktop** (`getDesktopBridge()` có): "Liên kết trên web" (biểu tượng mở ngoài) mở

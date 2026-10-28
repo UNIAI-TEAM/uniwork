@@ -64,7 +64,9 @@ một tổ chức), [0041](0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md).
    thay đổi ghi audit và xếp mail trong cùng giao dịch.
 6. **Liên kết từ Cài đặt trên web** đi qua trình duyệt đang đăng nhập: lệnh bearer (kèm step-up token) trả
    `authorization_url` mang `link_token` 5 phút gắn `user_id` + `session_id`; `start` và đầu nhận kết quả chỉ chấp nhận
-   khi cookie refresh của chính trình duyệt đó thuộc đúng phiên còn sống ấy. Trong shell desktop và Android-với-Apple,
+   khi cookie refresh của chính trình duyệt đó thuộc đúng phiên còn sống ấy. Danh tính đang ở một tài khoản trống thì
+   vé để lại cho phép chính phiên ấy xác nhận chuyển không cần bằng chứng mới, nhưng chỉ tới hạn của step-up token đã
+   cho bắt đầu liên kết. Trong shell desktop và Android-với-Apple,
    nút liên kết mở trang Cài đặt web ở trình duyệt hệ thống. App liên kết Google (SDK) và Apple trên iPhone (sheet)
    bằng lệnh bearer mang identity token.
 7. **Sign in with Apple trên web**: Services ID (`APPLE_SIWA_WEB_CLIENT_ID`) gộp với primary App ID để `sub` trùng với

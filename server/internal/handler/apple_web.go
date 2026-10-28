@@ -44,19 +44,23 @@ const appleCancelled = "user_cancelled_authorize"
 
 // appleFlow is what one browser's Apple round trip carries from the start to
 // the finish: where to land after and the intent; a link from Settings also
-// carries the account and browser session its link token named, and the
-// page to go back to.
+// carries the account and browser session its link token named, the end of
+// the step-up that started it, and the page to go back to.
 type appleFlow struct {
 	Next     string `json:"next,omitempty"`
 	Intent   string `json:"intent"`
 	UserID   string `json:"uid,omitempty"`
 	Session  string `json:"sid,omitempty"`
+	ProofExp int64  `json:"proof_exp,omitempty"`
 	ReturnTo string `json:"return_to,omitempty"`
 }
 
 // linkIntent is the link from Settings the flow carries.
 func (f appleFlow) linkIntent() service.LinkIntent {
-	return service.LinkIntent{UserID: f.UserID, SessionID: f.Session, Provider: service.ProviderApple, ReturnTo: f.ReturnTo, ExpectUser: f.UserID}
+	return service.LinkIntent{
+		UserID: f.UserID, SessionID: f.Session, Provider: service.ProviderApple, ReturnTo: f.ReturnTo,
+		ExpectUser: f.UserID, ProofExpiresAt: f.ProofExp,
+	}
 }
 
 // checked is the flow as a cookie may carry it: paths same-origin, an
@@ -114,7 +118,7 @@ func (h *handlers) appleStart(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			return
 		}
-		st.Flow = appleFlow{Intent: intent, UserID: li.UserID, Session: li.SessionID, ReturnTo: li.ReturnTo}
+		st.Flow = appleFlow{Intent: intent, UserID: li.UserID, Session: li.SessionID, ProofExp: li.ProofExpiresAt, ReturnTo: li.ReturnTo}
 	}
 	var err error
 	for _, v := range []*string{&st.State, &st.Nonce} {

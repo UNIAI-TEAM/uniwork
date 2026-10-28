@@ -86,11 +86,14 @@ type signInTicket struct {
 	// LinkUserID and LinkSessionID name the account and browser session of a
 	// link from Settings that answered movable (issueMoveTicket): that
 	// session already proved itself for this very link, so it confirms the
-	// move without proving itself again (provenSince).
-	LinkUserID    string `json:"link_uid,omitempty"`
-	LinkSessionID string `json:"link_sid,omitempty"`
-	IssuedAt      int64  `json:"iat"`
-	ExpiresAt     int64  `json:"exp"`
+	// move without proving itself again (provenSince) — until
+	// LinkProofExpiresAt, the end of the step-up token that started the
+	// link, and no longer.
+	LinkUserID         string `json:"link_uid,omitempty"`
+	LinkSessionID      string `json:"link_sid,omitempty"`
+	LinkProofExpiresAt int64  `json:"link_proof_exp,omitempty"`
+	IssuedAt           int64  `json:"iat"`
+	ExpiresAt          int64  `json:"exp"`
 }
 
 // mfaBinding is the challenge a ticket command owes on the ticket's channel.
@@ -130,11 +133,12 @@ func (s *AuthService) issueSignInTicket(id ProviderIdentity, kind, intent string
 // issueMoveTicket is the link_required ticket a link from Settings leaves in
 // the browser when an empty account holds the identity it proved (409
 // sign_in_method_movable): bound to the account and browser session that
-// started the link, which confirm the move with it (spec §3.7).
+// started the link, which confirm the move with it while the step-up that
+// started the link lives (spec §3.7).
 func (s *AuthService) issueMoveTicket(id ProviderIdentity, li LinkIntent) (string, error) {
 	return s.sealSignInTicket(signInTicket{
 		Identity: id, Kind: TicketKindLinkRequired, Intent: SignInIntentSignIn,
-		LinkUserID: li.UserID, LinkSessionID: li.SessionID,
+		LinkUserID: li.UserID, LinkSessionID: li.SessionID, LinkProofExpiresAt: li.ProofExpiresAt,
 	}, WebTicket())
 }
 

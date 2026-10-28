@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -42,6 +43,22 @@ func getWith(t *testing.T, srv *httptest.Server, target string, cookies ...*http
 		t.Fatal(err)
 	}
 	return res
+}
+
+// stepUpEnd is when a step-up token ends, as the server sealed it.
+func stepUpEnd(t *testing.T, token string) int64 {
+	t.Helper()
+	raw, err := testSealer(t).OpenFor(auth.PurposeStepUp, token)
+	if err != nil {
+		t.Fatalf("the step-up token opens for step_up: %v", err)
+	}
+	var c struct {
+		Exp int64 `json:"exp"`
+	}
+	if err := json.Unmarshal([]byte(raw), &c); err != nil || c.Exp == 0 {
+		t.Fatalf("step-up claims %s: %v", raw, err)
+	}
+	return c.Exp
 }
 
 // linkResult reads where a link from Settings came back to.
@@ -112,8 +129,9 @@ func TestLinkStartNeedsTheSameBrowserSession(t *testing.T) {
 	}
 	state := cookieNamed(res, oauthStateCookie)
 	st := openGoogleState(t, state)
-	if st.Intent != webIntentLink || st.UserID != uid || st.Session == "" || st.ReturnTo != "/acme/team/settings?tab=security" {
-		t.Fatalf("state %+v", st)
+	if st.Intent != webIntentLink || st.UserID != uid || st.Session == "" || st.ReturnTo != "/acme/team/settings?tab=security" ||
+		st.ProofExp != stepUpEnd(t, proof) {
+		t.Fatalf("state %+v, want the link and the end of its step-up", st)
 	}
 
 	g.set(auth.GoogleClaims{Sub: "g-settings", Email: "an.personal@gmail.com", EmailVerified: true, Name: "An"})
@@ -152,8 +170,9 @@ func TestLinkStartNeedsTheSameBrowserSession(t *testing.T) {
 // When the Google account a person links from Settings already opens an
 // empty account, the callback comes back with result=movable and the masked
 // address, and leaves the proved identity as a ticket bound to the browser
-// session that started the link, so Settings confirms the move without
-// another trip to Google and without asking that session for a proof again
+// session that started the link and the end of the step-up it started with,
+// so Settings confirms the move without another trip to Google and without
+// asking that session for a proof again while that step-up would serve
 // (spec §3.7). Another session of the same account still needs one.
 func TestSettingsLinkOffersToMoveFromAnEmptyAccount(t *testing.T) {
 	g := &fakeGoogle{}
@@ -176,6 +195,9 @@ func TestSettingsLinkOffersToMoveFromAnEmptyAccount(t *testing.T) {
 	res = getWith(t, srv, start.Path+"?"+start.RawQuery, refresh)
 	state := cookieNamed(res, oauthStateCookie)
 	st := openGoogleState(t, state)
+	if st.ProofExp != stepUpEnd(t, proof) {
+		t.Fatalf("the state carries the end of the link's step-up: %+v", st)
+	}
 	g.set(auth.GoogleClaims{Sub: "g-empty", Email: "binh.personal@gmail.com", EmailVerified: true})
 	res = getWith(t, srv, "/api/v1/auth/google/callback?code=good&state="+st.State, state, refresh)
 	path, values := linkResult(t, res)
