@@ -649,21 +649,32 @@ Trạng thái và lời:
   hết lượt thì "Đã tạm dừng mã xác nhận cho địa chỉ này.", ngân sách của route thì "Bạn đã thử nhiều lần liền.");
   mạng/5xx → "Không kết nối được. Kiểm tra mạng rồi thử lại." có nút thử lại.
 - **Đã đăng nhập sẵn** (có phiên): thay ba lựa chọn bằng "Liên kết {{provider}} với {{account}}" (→ `step=link`) và
-  "Dùng tài khoản khác" (đăng xuất rồi về màn chọn).
-- Nút phụ "Hủy" → `DELETE /auth/sign-in-ticket` → `/login?next=`.
+  "Dùng tài khoản khác" (đăng xuất rồi về màn chọn). Đăng xuất xoá vé (3.2), nên "Dùng tài khoản khác" đăng xuất rồi đi
+  lại `start` của chính nhà cung cấp đó (giữ `next`): nhà cung cấp hỏi lại một lần và màn chọn quay về, chưa đăng nhập,
+  với vé mới. Phiên đã có từ trước vé, nên `step=link` từ đây gặp `403 proof_required` (3.2) và cần hộp bằng chứng.
+- Nút phụ "Hủy" → `DELETE /auth/sign-in-ticket` → `/login?next=` (đã đăng nhập thì đi thẳng tới `next`).
+- Sau khi lệnh đã mở phiên (vé đã tiêu), màn hình là "Đang đăng nhập…" của callback cho tới khi trang chuyển, không bao
+  giờ loé "hết hạn". Đọc vé lỗi (mạng/5xx) → "Chưa tải được lượt đăng nhập" + câu của bảng lỗi + "Thử lại".
 - **`step=link`** (đã đăng nhập): **không tự ghi khi mở**. Hiện "Liên kết {{provider}} ({{provider_email}}) với
   {{account_email}}?" + nút "Liên kết" và "Không liên kết". Thành công → `role=status` "Đã liên kết {{provider}}. Lần sau
   chỉ cần {{provider}}." + nút "Tiếp tục" được focus (không tự chuyển trang). Tải lại sau khi xong mà vé đã hết → coi
   như đã xong. `sign_in_method_movable` → "{{provider}} này đang dùng cho tài khoản trống {{masked}}. Chuyển sang tài
   khoản này?" + "Chuyển" (gửi `move: true`). `taken` → nêu email đã che và "Đăng nhập vào đó để gỡ liên kết". Mọi lỗi
-  vẫn có "Tiếp tục".
+  vẫn có "Tiếp tục". Chưa đăng nhập mà vé còn → `/login?link=1&next=<bước này>`; không còn vé → "Đã xong" + "Không còn
+  gì để liên kết. Tiếp tục vào UniWork." `proof_required` → hộp bằng chứng cho `link_<provider>` (4.5) rồi gửi lại;
+  trước khi hộp ấy có ở bước này: "Để liên kết, đăng nhập lại một lần để xác nhận là bạn." + "Đăng nhập để liên kết"
+  (phiên mới hơn vé thì liên kết được).
 
 ### 4.4 Chế độ liên kết trên `/login`
 
 `?link=1`: `Alert` thông tin trên form: "Đăng nhập vào tài khoản UniWork của bạn để liên kết {{provider}}
 ({{email}})." + nút "Không liên kết" (xoá vé, bỏ `link`). Nút của chính nhà cung cấp đang chờ bị ẩn (không lặp). Mọi
 cách còn lại (mật khẩu, nhà cung cấp kia, MFA) giữ `next`. Bước MFA có phụ đề "Đăng nhập vào {{email}} để liên kết
-{{provider}}". "Quên mật khẩu?" giữ `next`; reset thành công mà vé còn thì về `step=link`.
+{{provider}}". "Quên mật khẩu?" giữ `next`; reset thành công mà vé còn thì về `step=link`. Link reset trong mail không
+mang `next`, nên trang reset tự hỏi `GET /auth/sign-in-ticket`: còn vé thì gửi `keep_sign_in_ticket` và về
+`/auth/continue?step=link` (bật MFA: `/login?mfa=1&link=1&next=` bước đó). Vé `link_required` điền sẵn email của tài khoản
+(trừ email ẩn của Apple) và đưa focus tới mật khẩu. "Đăng ký" ở chế độ này đi tới `next` của bước liên kết, vì đăng ký
+xoá vé.
 
 ### 4.5 Cài đặt › Phương thức đăng nhập
 
