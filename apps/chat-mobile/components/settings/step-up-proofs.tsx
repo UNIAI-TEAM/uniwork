@@ -15,6 +15,12 @@ import { useCountdown } from "@/components/auth/use-countdown";
 import { Text } from "@/components/ui/text";
 import { CODE_LENGTH } from "@/lib/sign-in-form";
 
+/** The brands' own words on their buttons (Google's branding allows "Continue with Google"); the sheet says why. */
+const CONTINUE_WITH: Record<SignInProvider, string> = {
+  apple: "auth.social.continueWithApple",
+  google: "auth.social.continueWithGoogle",
+};
+
 export interface ProofProps {
   busy: boolean;
   /** the refusal said under the field, or null */
@@ -270,8 +276,7 @@ export function ProviderProof({ provider, busy, message, spoken, onProve }: Pick
       ) : (
         <ProviderButton
           provider={provider}
-          // The brands' own words on their buttons (Google allows "Continue with Google"); the sheet's line says why.
-          label={t(provider === "apple" ? "auth.social.continueWithApple" : "auth.social.continueWithGoogle")}
+          label={t(CONTINUE_WITH[provider])}
           busyLabel={t("settings.security.stepUp.submitting")}
           busy={busy}
           disabled={false}

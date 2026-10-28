@@ -195,6 +195,19 @@ describe("DeleteAccountSection", () => {
       expect(useAuthStore.getState().accountDeleted).toHaveBeenCalledTimes(1);
     });
 
+    it("keeps the address it is closing with while the request is out, whatever is typed", async () => {
+      await reachClose();
+      await fireEvent.changeText(slugInput(), "mot-minh");
+      let finish: () => void = () => {};
+      deleteAccount.mockReturnValueOnce(new Promise<void>((resolve) => (finish = resolve)));
+      await fireEvent.press(screen.getByTestId("delete-account-confirm"));
+      await fireEvent.changeText(slugInput(), "khac");
+      expect(slugInput().props.value).toBe("mot-minh");
+      expect(slugInput().props.accessibilityState).toEqual({ busy: true });
+      await act(async () => finish());
+      await settle();
+    });
+
     it("says so when the server refuses the address", async () => {
       await reachClose();
       deleteAccount.mockRejectedValueOnce(refusal("close_confirm_mismatch", 400));
@@ -445,6 +458,19 @@ describe("an owner whose organization has other members", () => {
     await settle();
     expect(transferOwnership).not.toHaveBeenCalled();
     expect(screen.getByTestId("hand-over-u-chi")).toBeOnTheScreen();
+  });
+
+  it("asks once more when the hand-over's token is refused, and hands nothing over when that sheet is closed", async () => {
+    await reachHandOver();
+    await fireEvent.press(screen.getByTestId("hand-over-u-chi"));
+    transferOwnership.mockRejectedValueOnce(refusal("proof_required", 403, { proofs: ["password"] }));
+    await confirm();
+    expect(screen.getByTestId("step-up-password")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("step-up-cancel"));
+    await settle();
+    expect(transferOwnership).toHaveBeenCalledTimes(1);
+    expect(deleteAccount).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("delete-account-handed-over")).toBeNull();
   });
 
   it.each([
