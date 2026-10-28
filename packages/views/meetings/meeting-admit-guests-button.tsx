@@ -63,6 +63,8 @@ export function MeetingAdmitGuestsButton({
         size="sm"
         variant="successSolid"
         aria-label={accessibleName}
+        // Where the stage's knock cards hand focus once the last one is decided.
+        data-admit-guests
         className={cn("h-8 gap-1.5 rounded-full px-2.5 @4xl/stagehead:px-3", className)}
         onClick={onOpenPeople}
       >

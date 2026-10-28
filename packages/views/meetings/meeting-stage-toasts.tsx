@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Check, DoorOpen, Hand, X, type LucideIcon } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
@@ -79,7 +79,12 @@ function useTransientNotices() {
     pushRef.current = push;
   });
 
-  useRoomArrivals((kind, p) => pushRef.current(kind, p.identity, p.name || p.identity));
+  // A full reconnect unwinds everyone just before Reconnecting: drop that
+  // burst of "left" cards (and the rest of the passing news) instead of showing it.
+  useRoomArrivals(
+    (kind, p) => pushRef.current(kind, p.identity, p.name || p.identity),
+    () => setItems([]),
+  );
 
   // A hand going up is news; one already up when we arrive, or our own, is not.
   const prevHands = useRef(hands);
@@ -121,18 +126,30 @@ function useKnockNotices(meetingId: string | undefined): StageNotice[] {
   }));
 }
 
-/** Newest first, three at most; a knock is never pushed out by passing news. */
+/**
+ * Knocks in front, the longest-waiting first, so passing news never hides a
+ * guest at the door; then the passing news, newest first. Three at most.
+ */
 function pickShown(knocks: StageNotice[], transient: StageNotice[]): StageNotice[] {
-  const all = [...knocks, ...transient].sort((a, b) => b.at - a.at);
-  const kept = new Set(all.filter((n) => n.kind === "knock").slice(0, SHOWN).map((n) => n.id));
-  let room = SHOWN - kept.size;
-  return all.filter((n) => kept.has(n.id) || (n.kind !== "knock" && room-- > 0));
+  const waiting = [...knocks].sort((a, b) => a.at - b.at);
+  // `transient` is already newest first: each notice is pushed to the front.
+  return [...waiting, ...transient].slice(0, SHOWN);
+}
+
+/** Where focus goes when the card that held it leaves and no knock is left. */
+function focusOutsideStack() {
+  const target =
+    document.querySelector<HTMLElement>("[data-admit-guests]") ??
+    document.querySelector<HTMLElement>("[data-stage-heading]");
+  if (!target) return;
+  if (!target.hasAttribute("tabindex") && target.tabIndex < 0) target.tabIndex = -1;
+  target.focus();
 }
 
 /**
  * Who came, who left, who raised a hand and who knocks, as one stack of
- * cards in the stage's bottom-left corner (UNI-2285 E): newest in front, two
- * more peeking behind, fanned out into a list on hover or focus. Passing news
+ * cards in the stage's bottom-left corner (UNI-2285 E): knocks in front,
+ * then the newest news, two more peeking behind, fanned out into a list on hover or focus. Passing news
  * leaves after five seconds, paused while the stack is held open; a knock
  * stays, with "Cho vào", until it is decided. The room's announcers keep
  * speaking for screen readers, so the cards add no live region of their own.
@@ -157,18 +174,26 @@ export function MeetingStageToasts({
   const shown = pickShown(knocks, items);
 
   // Hover or focus holds the stack open and stops the clock; the time held is
-  // given back to every card when it lets go.
+  // given back to every card when it lets go. Pointer and focus are tracked
+  // apart: the pointer leaving must not fold a stack the keyboard is in.
   const [open, setOpen] = useState(false);
-  const heldSince = useRef(0);
-  const hold = (next: boolean) => {
-    if (next === open) return;
-    if (next) heldSince.current = Date.now();
-    else {
-      const held = Date.now() - heldSince.current;
-      setItems((prev) => prev.map((n) => (n.expiresAt ? { ...n, expiresAt: n.expiresAt + held } : n)));
-    }
-    setOpen(next);
-  };
+  const inside = useRef({ pointer: false, focus: false });
+  const heldSince = useRef<number | null>(null);
+  const hold = useCallback(
+    (by: "pointer" | "focus", on: boolean) => {
+      inside.current[by] = on;
+      const next = inside.current.pointer || inside.current.focus;
+      if (next === (heldSince.current !== null)) return;
+      if (next) heldSince.current = Date.now();
+      else {
+        const held = Date.now() - (heldSince.current ?? Date.now());
+        heldSince.current = null;
+        setItems((prev) => prev.map((n) => (n.expiresAt ? { ...n, expiresAt: n.expiresAt + held } : n)));
+      }
+      setOpen(next);
+    },
+    [setItems],
+  );
 
   useEffect(() => {
     if (open || items.length === 0) return;
@@ -191,12 +216,32 @@ export function MeetingStageToasts({
     setHeights(next);
   }, [shownKey]);
 
+  // The card that held focus left (admitted, declined): the next knock's
+  // "Cho vào" takes it, else the header's door chip or the stage heading, and
+  // the stack lets go so its clock runs again.
+  useLayoutEffect(() => {
+    if (!inside.current.focus) return;
+    const ids = shownKey.split(" ");
+    const active = document.activeElement;
+    if (ids.some((id) => cards.current.get(id)?.contains(active))) return;
+    const knock = ids[0]?.startsWith("knock:") ? cards.current.get(ids[0]) : undefined;
+    const admit = knock?.querySelector<HTMLElement>("[data-admit]");
+    if (admit) {
+      admit.focus();
+      return;
+    }
+    hold("focus", false);
+    focusOutsideStack();
+  }, [shownKey, hold]);
+
   let offset = 0;
   const place = shown.map((n, i) => {
     const at = open ? { y: -offset, scale: 1, opacity: 1 } : BEHIND[i]!;
     offset += (heights[n.id] ?? 0) + GAP_PX;
     return at;
   });
+  // Open, the section spans the whole fan, so the gaps between cards are still inside it.
+  const height = open && shown.length > 0 ? offset - GAP_PX : shown[0] ? heights[shown[0].id] : undefined;
   const settle = reduce
     ? { duration: 0 }
     : { default: { duration: 0.42, ease: UI_EASE_SETTLE }, opacity: { duration: 0.3, ease: UI_EASE_OUT } };
@@ -209,12 +254,12 @@ export function MeetingStageToasts({
       data-open={open ? "" : undefined}
       // 312px: a knock card holds "<name> xin vào", its × and "Cho vào" on one line.
       className={cn("absolute z-30 w-78 max-w-[calc(100%-2rem)]", className)}
-      style={{ ...style, height: shown[0] ? heights[shown[0].id] : undefined }}
-      onPointerEnter={() => hold(true)}
-      onPointerLeave={() => hold(false)}
-      onFocus={() => hold(true)}
+      style={{ ...style, height }}
+      onPointerEnter={() => hold("pointer", true)}
+      onPointerLeave={() => hold("pointer", false)}
+      onFocus={() => hold("focus", true)}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) hold(false);
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) hold("focus", false);
       }}
     >
       <AnimatePresence>
@@ -291,6 +336,7 @@ export function MeetingStageToasts({
                     className="h-7.5 shrink-0 rounded-[9px] px-3 font-semibold"
                     aria-label={t("meetings.approveName", { name: n.name })}
                     aria-disabled={isApproving(n.requestId) || undefined}
+                    data-admit
                     onClick={() => n.requestId && approveOne(n.requestId)}
                   >
                     {t("meetings.panel.people.admit")}

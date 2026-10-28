@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { EventEmitter } from "events";
 import type { ReactNode } from "react";
 import { ConnectionState, RoomEvent } from "livekit-client";
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
@@ -32,6 +33,19 @@ function arrive(name: string) {
     (lk.room as FakeRoom).emit(RoomEvent.ParticipantConnected, person(`id-${name}`, name));
     vi.advanceTimersByTime(10);
   });
+}
+
+const knock = (id: string, name: string) => ({ id, meeting_id: "m1", status: "PENDING", display_name_snapshot: name });
+
+/** The door list the server answers with; approving or declining takes a knock off it. */
+function serveKnocks(list: ReturnType<typeof knock>[]) {
+  const door = { list };
+  requestMock.mockImplementation((path: string) => {
+    const decided = /meeting-join-requests\/(\w+)\/(approve|reject)$/.exec(path);
+    if (decided) door.list = door.list.filter((r) => r.id !== decided[1]);
+    return Promise.resolve(path === "/api/v1/meetings/m1/join-requests" ? { join_requests: door.list } : {});
+  });
+  return door;
 }
 
 beforeAll(() => {
@@ -113,14 +127,26 @@ describe("MeetingStageToasts (UNI-2285 E)", () => {
     expect(cards()[1]).toHaveTextContent("Mai giơ tay");
   });
 
+  it("a full reconnect shows no one leaving", () => {
+    vi.useFakeTimers();
+    render(wrapWithNav(<MeetingStageToasts meetingId="m1" />));
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+    arrive("An");
+    // Reconnecting unwinds everyone first, then says so.
+    act(() => {
+      const room = lk.room as FakeRoom;
+      room.emit(RoomEvent.ParticipantDisconnected, person("id-lan", "Lan"));
+      room.emit(RoomEvent.ParticipantDisconnected, person("id-mai", "Mai"));
+      room.emit(RoomEvent.Reconnecting);
+    });
+    expect(cards()).toHaveLength(0);
+  });
+
   it("knock toast stays and admits", async () => {
-    requestMock.mockImplementation((path: string) =>
-      Promise.resolve(
-        path === "/api/v1/meetings/m1/join-requests"
-          ? { join_requests: [{ id: "jr1", meeting_id: "m1", status: "PENDING", display_name_snapshot: "Anh Tuấn" }] }
-          : {},
-      ),
-    );
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serveKnocks([knock("jr1", "Anh Tuấn")]);
     render(wrapWithNav(<MeetingStageToasts meetingId="m1" canAdmit />));
     const admit = await screen.findByRole("button", { name: "Cho Anh Tuấn vào" });
     expect(admit).toHaveTextContent("Cho vào");
@@ -128,14 +154,78 @@ describe("MeetingStageToasts (UNI-2285 E)", () => {
     expect(cards()[0]).toHaveTextContent("Khách");
 
     // Past the five seconds passing news gets: a knock waits for a decision.
-    await new Promise((r) => setTimeout(r, 5200));
+    act(() => {
+      vi.advanceTimersByTime(5200);
+    });
     expect(screen.getByRole("button", { name: "Cho Anh Tuấn vào" })).toBeInTheDocument();
 
     fireEvent.click(admit);
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meeting-join-requests/jr1/approve", { method: "POST" }),
     );
-  }, 10_000);
+  });
+
+  it("a knock stands in front of passing news", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serveKnocks([knock("jr1", "Anh Tuấn")]);
+    render(wrapWithNav(<MeetingStageToasts meetingId="m1" canAdmit />));
+    await screen.findByRole("button", { name: "Cho Anh Tuấn vào" });
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+    arrive("An");
+    arrive("Bình");
+    expect(cards().map((c) => c.dataset.stageNotice)).toEqual(["knock", "join", "join"]);
+    expect(cards()[1]).toHaveTextContent("Bình vào phòng");
+  });
+
+  it("the longest-waiting guests keep their cards", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const door = serveKnocks([knock("jr1", "An")]);
+    render(wrapWithNav(<MeetingStageToasts meetingId="m1" canAdmit />, undefined, client));
+    await screen.findByRole("button", { name: "Cho An vào" });
+    // Newest first from the server, one more knock each second.
+    for (const [id, name] of [["jr2", "Bình"], ["jr3", "Chi"], ["jr4", "Dũng"]] as const) {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      door.list = [knock(id, name), ...door.list];
+      // Resolves once the door list is refetched.
+      await act(() => client.invalidateQueries());
+    }
+    await waitFor(() => expect(cards().map((c) => c.textContent)).toEqual([
+      expect.stringContaining("An xin vào"),
+      expect.stringContaining("Bình xin vào"),
+      expect.stringContaining("Chi xin vào"),
+    ]));
+  });
+
+  it("admitting from the keyboard hands focus to the next guest, then out of the stack", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serveKnocks([knock("jr1", "An"), knock("jr2", "Bình")]);
+    render(
+      wrapWithNav(
+        <>
+          <h1 data-stage-heading>Standup</h1>
+          <MeetingStageToasts meetingId="m1" canAdmit />
+        </>,
+      ),
+    );
+    const stack = screen.getByTestId("meeting-stage-toasts");
+    const first = await screen.findByRole("button", { name: "Cho An vào" });
+    act(() => first.focus());
+    expect(stack).toHaveAttribute("data-open");
+
+    fireEvent.click(first);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cho Bình vào" })));
+    expect(stack).toHaveAttribute("data-open");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cho Bình vào" }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Standup" })));
+    // Nothing holds the stack any more: it folds and its clock runs again.
+    expect(stack).not.toHaveAttribute("data-open");
+  });
 
   it("knock toast can turn the guest away", async () => {
     requestMock.mockImplementation((path: string) =>
