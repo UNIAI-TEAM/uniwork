@@ -16,6 +16,7 @@ const signInMock = vi.hoisted(() => ({
     return sessionMock.status() === "signed-in" ? { kind: "signed_in", reclaimed: false, linkSkipped: null } : { kind: "dismissed" };
   }),
   forgetSignIn: vi.fn(),
+  dropChoice: vi.fn(),
 }));
 vi.mock("./sign-in", () => signInMock);
 // Every event and effect the store hands the reducer, for the test that no credential rides one.
@@ -104,6 +105,11 @@ beforeEach(() => {
 });
 
 describe("auth store", () => {
+  it("drops the choice screen's identity through the sign-in module, which tells the server", () => {
+    useAuthStore.getState().dropChoice();
+    expect(signInMock.dropChoice).toHaveBeenCalledTimes(1);
+  });
+
   // Audit (Security & privacy, keychain-survives-reinstall).
   it("initialize on the first launch of a new install discards the previous install's session and person before reading them", async () => {
     const order: string[] = [];

@@ -98,7 +98,8 @@ export type Route =
   | "/auth/native/register"
   | "/auth/native/sign-in-ticket/create"
   | "/auth/native/sign-in-ticket/claim-email"
-  | "/auth/native/sign-in-ticket/claim-email/verify";
+  | "/auth/native/sign-in-ticket/claim-email/verify"
+  | "/auth/native/sign-in-ticket/discard";
 
 /** server error code -> transport code; anything else falls back by status */
 const SERVER_CODES: ReadonlySet<string> = new Set<TransportErrorCode>([

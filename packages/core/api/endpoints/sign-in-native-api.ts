@@ -124,6 +124,18 @@ export function createNativeSignInApi(request: EndpointRequest, client: NativeCl
       return readSent(raw, "POST /api/v1/auth/native/sign-in-ticket/claim-email");
     },
 
+    /**
+     * A ticket the app drops without spending it ("Hủy", Back, "Không liên kết", the second provider's in link mode):
+     * the Apple consent it carries goes back to Apple, as the browser's DELETE /auth/sign-in-ticket does. The server
+     * answers the same whether the ticket opened or not, so there is nothing to read.
+     */
+    async discardTicket(input: NativeTicket): Promise<void> {
+      await request("/api/v1/auth/native/sign-in-ticket/discard", {
+        method: "POST",
+        body: { ...client, ticket: input.ticket, nonce: input.nonce },
+      });
+    },
+
     /** The mailed code: links, reclaims or creates by that address; mfa_required when its account has a second factor. */
     verifyTicketEmailCode(input: NativeTicket & { email: string; code: string; displayName?: string }): Promise<NativeSignInResult | null> {
       return door("/api/v1/auth/native/sign-in-ticket/claim-email/verify", "POST /api/v1/auth/native/sign-in-ticket/claim-email/verify", {

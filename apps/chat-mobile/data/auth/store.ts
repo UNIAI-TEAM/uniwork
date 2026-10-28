@@ -39,7 +39,7 @@ import { session } from "./flow";
 import { initialAuthModel, reduce, type AuthEffect, type AuthEvent, type AuthModel, type AuthStatus, type CacheFor } from "./machine";
 import { forgetLastUser, readLastUser, rememberUser } from "./last-user";
 import { restoreInterruptedSignIn } from "./pending-sign-in";
-import { forgetSignIn, runSignIn, type SignInOutcome, type SignInRequest } from "./sign-in";
+import { dropChoice, forgetSignIn, runSignIn, type SignInOutcome, type SignInRequest } from "./sign-in";
 
 interface AuthState {
   user: User | null;
@@ -55,6 +55,8 @@ interface AuthState {
    * door's verdict with its TransportError code (data/auth/transport.ts), read by core's readSignInFailure.
    */
   login: (request?: SignInRequest) => Promise<SignInOutcome>;
+  /** the choice screen's identity is left unspent ("Hủy", Back, "Không liên kết"): data/auth/sign-in.ts › dropChoice */
+  dropChoice: () => void;
   /** a session adopted outside login() (a deep-link callback after a dismissed browser): /me, once, no restore */
   adoptSession: () => Promise<void>;
   /**
@@ -303,6 +305,8 @@ export const useAuthStore = create<AuthState>(() => ({
     await settledWhen((m) => m.adoption === "idle");
     return outcome;
   },
+
+  dropChoice,
 
   adoptSession: async () => {
     await dispatch({ type: "sessionEmitted", token: true }).settled;

@@ -27,6 +27,7 @@ const flow = vi.hoisted(() => ({
     createFromTicket: vi.fn<Door>(),
     verifyTicketEmailCode: vi.fn<Door>(),
     sendTicketEmailCode: vi.fn<(input: Record<string, unknown>) => Promise<boolean>>(async () => true),
+    discardTicket: vi.fn<(input: Record<string, unknown>) => Promise<void>>(async () => undefined),
   },
 }));
 vi.mock("./flow", () => ({
@@ -39,7 +40,7 @@ vi.mock("./flow", () => ({
 
 import { setup } from "./fakes";
 import { CHOICE_TTL_MS, SECOND_FACTOR_TTL_MS, forgetPendingSignIn, holdStep, pendingTicket, usePendingSignIn } from "./pending-sign-in";
-import { forgetSignIn, providerToken, runSignIn, sendClaimCode } from "./sign-in";
+import { dropChoice, forgetSignIn, providerToken, runSignIn, sendClaimCode } from "./sign-in";
 import { holdStepUp, stepUpToken } from "./step-up-store";
 import { VERIFICATION_RESEND_GAP_MS, forgetVerificationMail, verificationResendAt } from "./verification-mail";
 
@@ -230,6 +231,24 @@ describe("Google's sheet", () => {
     expect(pendingTicket(NOW)).toEqual({ ticket: "t_1", nonce: "n_1" });
     expect(usePendingSignIn.getState().choice?.identity.provider).toBe("apple");
     expect(ctx.session.status()).toBe("signed-out");
+    // Google's own ticket goes unspent: the server is told, with its own nonce, as the web's link mode does.
+    const { nonce } = flow.api.signInWithGoogle.mock.calls[0]?.[0] as { nonce: string };
+    expect(flow.api.discardTicket).toHaveBeenCalledExactlyOnceWith({ ticket: "t_2", nonce });
+  });
+
+  it("drops a choice left unspent on the server too, and sends nothing once none is held", async () => {
+    holdChoice();
+    dropChoice();
+    expect(usePendingSignIn.getState().choice).toBeNull();
+    expect(flow.api.discardTicket).toHaveBeenCalledExactlyOnceWith({ ticket: "t_1", nonce: "n_1" });
+    dropChoice();
+    expect(flow.api.discardTicket).toHaveBeenCalledTimes(1);
+    // Best effort: a refusal or a lost connection is no failure of the screen that left.
+    holdChoice();
+    flow.api.discardTicket.mockRejectedValueOnce(new Error("offline"));
+    expect(() => dropChoice()).not.toThrow();
+    await vi.runAllTimersAsync();
+    expect(usePendingSignIn.getState().choice).toBeNull();
   });
 
   it("holds a ticket with that raw nonce, or a second factor naming the Google address", async () => {

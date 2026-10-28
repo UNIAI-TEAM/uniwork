@@ -109,6 +109,18 @@ describe("createNativeSignInApi", () => {
     await expect(api.sendTicketEmailCode({ ticket: "T", nonce: "raw", email: "an@acme.vn" })).resolves.toBe(false);
   });
 
+  it("drops a ticket with its nonce, and reads nothing of the answer, malformed or not", async () => {
+    const { request, api, sent } = harness({ status: "discarded" });
+    await expect(api.discardTicket({ ticket: "T", nonce: "raw" })).resolves.toBeUndefined();
+    expect(sent()).toEqual({
+      path: "/api/v1/auth/native/sign-in-ticket/discard",
+      method: "POST",
+      body: { ...client, ticket: "T", nonce: "raw" },
+    });
+    request.mockResolvedValueOnce("not json at all");
+    await expect(api.discardTicket({ ticket: "T", nonce: "raw" })).resolves.toBeUndefined();
+  });
+
   it("says the app's language at every door, as it is when the door is called", async () => {
     let language: NativeLocale = "vi";
     const request = vi.fn<EndpointRequest>().mockResolvedValue({ status: "sent" });

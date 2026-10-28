@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { TextInput, View } from "react-native";
 import { SignInLegalNote } from "@/components/settings/sign-in-legal-note";
 import { Text } from "@/components/ui/text";
-import { clearChoice, retryOnSignIn, usePendingSignIn } from "@/data/auth/pending-sign-in";
+import { retryOnSignIn, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { useAuthStore } from "@/data/auth/store";
 import { signInRoutes } from "@/lib/sign-in-routes";
 import { AuthField } from "./auth-field";
@@ -59,7 +59,7 @@ export function ContinueFlow() {
   // Leaving without signing in is "Hủy" by another name: nothing is left waiting.
   useEffect(
     () => () => {
-      if (!useAuthStore.getState().user) clearChoice();
+      if (!useAuthStore.getState().user) useAuthStore.getState().dropChoice();
     },
     [],
   );
@@ -79,7 +79,7 @@ export function ContinueFlow() {
           <SubmitButton
             label={t("auth.continue.expired.retry")}
             onPress={() => {
-              clearChoice();
+              useAuthStore.getState().dropChoice();
               // The sign-in screen offers that provider again (its "Thử lại"), as after a closed app.
               if (provider) retryOnSignIn(provider);
               backToSignIn();
@@ -100,8 +100,9 @@ export function ContinueFlow() {
   // Only the world's trouble is worth pressing again for; any other refusal would only answer the same.
   const retryable = failure?.kind === "form" && (failure.code === "network" || (failure.status ?? 0) >= 500);
   const toLogin = () => router.push(signInRoutes.login({ link: true }));
+  // The server is told too, so the Apple consent an unspent ticket carries goes back to Apple.
   const cancel = () => {
-    clearChoice();
+    useAuthStore.getState().dropChoice();
     if (router.canGoBack()) router.back();
     else router.replace(signInRoutes.login());
   };

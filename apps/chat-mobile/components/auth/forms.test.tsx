@@ -170,9 +170,12 @@ describe("LinkStep", () => {
     expect(screen.getByText(viText("auth.continue.link.questionRelay", { provider: "Apple", accountEmail: "an@example.com" }))).toBeTruthy();
     await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
     expect(screen.getByText(viText("auth.continue.link.movableUnknown", { provider: "Apple" }))).toBeTruthy();
+    const drop = jest.spyOn(useAuthStore.getState(), "dropChoice");
     await act(async () => fireEvent.press(screen.getByTestId("link-decline")));
     expect(usePendingSignIn.getState().choice).toBeNull();
     expect(router.replace).toHaveBeenCalledWith("/");
+    expect(drop).toHaveBeenCalled();
+    drop.mockRestore();
   });
 
   it("says a holder it cannot name, any other refusal in core's words, and a ticket gone as nothing left", async () => {

@@ -41,9 +41,9 @@ function linkFailure(failure: SignInFailure, provider: SignInProvider): SignInFa
   return { ...failure, provider, key: failure.maskedEmail ? "auth.continue.link.taken" : "auth.continue.link.takenUnknown" };
 }
 
-/** Into the app, past whatever is left of the choice. */
+/** Into the app, past whatever is left of the choice: a ticket not linked is dropped on the server too. */
 function leave(): void {
-  clearChoice();
+  useAuthStore.getState().dropChoice();
   router.replace("/");
 }
 

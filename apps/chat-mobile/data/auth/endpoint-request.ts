@@ -20,6 +20,7 @@ const ROUTES: Readonly<Record<Route, true>> = {
   "/auth/native/sign-in-ticket/create": true,
   "/auth/native/sign-in-ticket/claim-email": true,
   "/auth/native/sign-in-ticket/claim-email/verify": true,
+  "/auth/native/sign-in-ticket/discard": true,
 };
 
 const isRoute = (path: string): path is Route => Object.prototype.hasOwnProperty.call(ROUTES, path);

@@ -68,9 +68,13 @@ describe("ContinueFlow", () => {
     expect(screen.getByText(viText("auth.social.errors.network"))).toBeTruthy();
     await act(async () => fireEvent.press(screen.getByTestId("continue-retry-create")));
     expect(login).toHaveBeenCalledTimes(2);
+    const drop = jest.spyOn(useAuthStore.getState(), "dropChoice");
     await act(async () => fireEvent.press(screen.getByTestId("continue-cancel")));
     expect(router.replace).toHaveBeenCalledWith("/login");
     expect(usePendingSignIn.getState().choice).toBeNull();
+    // Dropped through the store, which tells the server: an Apple consent goes back to Apple.
+    expect(drop).toHaveBeenCalled();
+    drop.mockRestore();
   });
 
   it("creates with the name typed, its own field's go key included, and sends a too long one back", async () => {

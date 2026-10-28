@@ -15,7 +15,7 @@ import { InterruptedNotice, LinkModeNotice } from "@/components/auth/sign-in-not
 import { useFailureMessage, useSignIn } from "@/components/auth/use-sign-in";
 import { SignInLegalNote } from "@/components/settings/sign-in-legal-note";
 import { Text } from "@/components/ui/text";
-import { clearChoice, dismissInterrupted, usePendingSignIn } from "@/data/auth/pending-sign-in";
+import { dismissInterrupted, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { useAuthStore } from "@/data/auth/store";
 import { signInOfferOptions } from "@/data/queries/sign-in";
 import { providerRequest } from "@/lib/sign-in-offer";
@@ -49,7 +49,7 @@ export default function Login() {
           identity={linking.identity}
           disabled={!idle}
           onDecline={() => {
-            clearChoice();
+            useAuthStore.getState().dropChoice();
             if (router.canGoBack()) router.dismissAll();
           }}
         />

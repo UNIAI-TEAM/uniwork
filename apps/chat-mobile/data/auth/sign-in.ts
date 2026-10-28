@@ -7,6 +7,7 @@
 // a log or anything stored.
 import type { NativeSignInIntent, NativeTicket } from "@uniwork/core/api/endpoints/sign-in-native-api";
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { bestEffort } from "../report";
 import { signInWithApple } from "./apple";
 import { signInWithGoogle, signOutOfGoogle } from "./google";
 import { authConfig, nativeSignIn, session } from "./flow";
@@ -181,11 +182,29 @@ export async function runSignIn(request: SignInRequest): Promise<SignInOutcome> 
       // The person is signing in to the account a held identity links into: a second identity that has no account
       // either is no account of theirs, and must not take the first one's place.
       if ((request.method === "apple" || request.method === "google") && request.linking) {
+        // Its ticket is dropped unspent, its Apple consent given back, as the web's link mode does.
+        discard({ ticket: result.ticket, nonce: result.nonce });
         return { kind: "unmatched", provider: request.method };
       }
       holdStep(result, now());
       return { kind: "choice" };
   }
+}
+
+/** Tell the server a ticket goes unspent, so the Apple consent it carries goes back to Apple; best effort. */
+function discard(ticket: NativeTicket): void {
+  nativeSignIn.discardTicket(ticket).catch(bestEffort("auth", "sign-in ticket not discarded", "breadcrumb"));
+}
+
+/**
+ * The person left the choice without spending it ("Hủy", Back, "Không liên kết"): the held ticket goes, and the
+ * server is told, as the browser's DELETE /auth/sign-in-ticket, so an Apple ID that opened no account keeps no
+ * authorization for the app. A ticket already spent or expired is no longer held, and nothing is sent.
+ */
+export function dropChoice(): void {
+  const held = pendingTicket(now());
+  clearChoice();
+  if (held) discard(held);
 }
 
 /**
