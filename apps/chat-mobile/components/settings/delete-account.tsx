@@ -20,7 +20,7 @@ import { useDeleteAccount } from "@/data/mutations/account";
 import { useAuthStore } from "@/data/auth/store";
 import { toast } from "@/data/stores/toast-store";
 import type { WorkspaceSlugs } from "@/lib/chat-routes";
-import { deleteAccountFailure } from "@/lib/account-deletion";
+import { deleteAccountFailure, deleteFailureKey } from "@/lib/account-deletion";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { DeleteAccountActions } from "./delete-account-actions";
@@ -62,14 +62,7 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
   };
 
   /** Rate limit, no network, a proof the server kept refusing, or anything else: said where the person was acting. */
-  const generic = (failure: string) =>
-    failure === "rate_limited"
-      ? t("mobile.account.rate_limited")
-      : failure === "offline"
-        ? t("mobile.account.offline")
-        : failure === "proof_required"
-          ? t("settings.security.stepUp.errors.proofRequired")
-          : t("settings.security.delete.failed");
+  const generic = (failure: string) => t(deleteFailureKey(failure));
 
   const startBusy = (next: "transfer" | "erase" | null) => {
     if (next) setError(null);

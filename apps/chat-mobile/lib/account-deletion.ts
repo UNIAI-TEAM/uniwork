@@ -31,3 +31,20 @@ export function deleteAccountFailure(err: unknown): DeleteAccountFailure {
   if (status === 0) return "offline";
   return "failed";
 }
+
+/**
+ * Where a refusal about no one field is said, in words (the i18n key): the rate limit, no connection, a proof the
+ * server kept refusing (proof_required), or anything else. The owner's step words its own refusals with it too.
+ */
+export function deleteFailureKey(failure: string): string {
+  switch (failure) {
+    case "rate_limited":
+      return "mobile.account.rate_limited";
+    case "offline":
+      return "mobile.account.offline";
+    case "proof_required":
+      return "settings.security.stepUp.errors.proofRequired";
+    default:
+      return "settings.security.delete.failed";
+  }
+}

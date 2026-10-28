@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DELETE_ACCOUNT_HANDLED_CODES, deleteAccountFailure } from "./account-deletion";
+import { DELETE_ACCOUNT_HANDLED_CODES, deleteAccountFailure, deleteFailureKey } from "./account-deletion";
 
 const refusal = (code: string, status = 403) => ({ status, body: { error: { code, message: "x" } } });
 
@@ -18,5 +18,15 @@ describe("deleteAccountFailure", () => {
     expect(deleteAccountFailure({ status: 500, body: "oops" })).toBe("failed");
     expect(deleteAccountFailure(new Error("boom"))).toBe("failed");
     expect(deleteAccountFailure(null)).toBe("failed");
+  });
+});
+
+describe("deleteFailureKey", () => {
+  it("words the rate limit, no connection and a proof refused again, and anything else as a failure to try later", () => {
+    expect(deleteFailureKey("rate_limited")).toBe("mobile.account.rate_limited");
+    expect(deleteFailureKey("offline")).toBe("mobile.account.offline");
+    expect(deleteFailureKey("proof_required")).toBe("settings.security.stepUp.errors.proofRequired");
+    expect(deleteFailureKey("failed")).toBe("settings.security.delete.failed");
+    expect(deleteFailureKey("member_gone")).toBe("settings.security.delete.failed");
   });
 });
