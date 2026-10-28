@@ -130,6 +130,19 @@ func TestInPersonMeetingNeverOpensARoom(t *testing.T) {
 	}
 }
 
+// No room ever opens for an in-person meeting, so no guest link is made for one.
+func TestInPersonMeetingTakesNoGuestLink(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	m := inPersonMeeting(t, s, ua.ID, w.ID)
+	_, err := s.CreateInviteLink(context.Background(), ua.ID, m.ID, "ext", LinkAutoAdmit, time.Now().Add(time.Hour), nil)
+	if !codedIs(err, "meeting_in_person") {
+		t.Fatalf("guest link in person: %v", err)
+	}
+	if n := countWhere(t, s, `SELECT count(*) FROM meeting_invite_links WHERE meeting_id = $1`, m.ID); n != 0 {
+		t.Fatalf("invite links = %d", n)
+	}
+}
+
 func TestInstantInPersonStaysScheduled(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()
