@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
-import { forgetLinkReset, rememberLinkReset, resetAuthStoreForTests } from "@uniwork/core/auth";
+import { forgetLinkReset, linkResetIntent, rememberLinkReset, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { ResetPasswordView } from "./reset-password-view";
@@ -147,6 +147,18 @@ describe("ResetPasswordView with a pending link (spec §4.4)", () => {
     await waitFor(() =>
       expect(nav.push).toHaveBeenCalledWith(`/login?mfa=1&reset=1&next=${encodeURIComponent("/auth/continue?step=link")}&link=1`),
     );
+  });
+
+  it("forgets the intent on a second factor when nothing waits to be linked", async () => {
+    rememberLinkReset("a@b.c");
+    route({ mfa_required: true, mfa_token: "" }, () => Promise.reject(new ApiError("gone", "sign_in_ticket_missing", 404)));
+    const nav = fakeNav("/reset-password?token=t");
+    render(wrapWithNav(<ResetPasswordView token="t" onSuccess={vi.fn()} />, nav));
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/auth/sign-in-ticket", expect.anything()));
+    fillMatchingPasswords();
+    fireEvent.click(screen.getByRole("button", { name: "Đổi mật khẩu" }));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/login?mfa=1"));
+    expect(linkResetIntent()).toBeNull();
   });
 
   it("does not keep anything when no sign-in waits", async () => {

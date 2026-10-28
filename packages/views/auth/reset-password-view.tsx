@@ -86,6 +86,8 @@ export function ResetPasswordView({
         // says who that is.
         onSuccess: (out) => {
           if (isMFAChallenge(out)) {
+            // Nothing waits to be linked: the intent has served its purpose.
+            if (linkStep === null) forgetLinkReset();
             push(paths.login({ mfa: true, link: linkStep !== null, reset: linkStep !== null, next: linkStep }));
             return;
           }
