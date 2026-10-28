@@ -25,8 +25,8 @@ const NONE: ReadonlySet<string> = new Set();
 
 /**
  * The room panel's UNI tab: the scribe's status and the view switch on top,
- * one scroll area (Highlights: catch-up, summary, chips and feed, the last
- * Ask UNI exchange; or the transcript), and the composer pinned at the bottom.
+ * one scroll area (Highlights: catch-up, summary, chips and feed, then the
+ * Ask UNI exchanges; or the transcript), and the composer pinned at the bottom.
  */
 export function MeetingRoomCopilotTab({
   workspaceId,
@@ -143,12 +143,12 @@ export function MeetingRoomCopilotTab({
     setAsk(next);
     if (next.pending && view === "transcript") showView("feed");
   };
-  // The card sits after the whole feed: bring it into view when an ask starts and when its answer lands,
-  // not when a remount reads the last answer back.
+  // The cards sit after the whole feed: bring the newest into view when an ask starts and when its answer
+  // lands, not when a remount reads the last answer back.
   const askCard = useRef<HTMLDivElement>(null);
   const asking = useRef(false);
   const askPending = ask?.pending ?? false;
-  const askAnswer = ask?.answer?.id;
+  const askAnswer = ask?.exchanges.at(-1)?.answer?.id;
   useEffect(() => {
     if (askPending) asking.current = true;
     else if (!askAnswer || !asking.current) return;
@@ -221,9 +221,20 @@ export function MeetingRoomCopilotTab({
             carriedOpen={carriedOpen}
             onOpenCarried={openCarried}
           />
-          {workspaceId && ask ? (
-            <div ref={askCard} className="px-3 pt-3 empty:hidden">
-              <AskAnswerCard {...ask} canShare meetingId={meetingId} workspaceId={workspaceId} />
+          {workspaceId && ask && ask.exchanges.length > 0 ? (
+            <div className="flex flex-col gap-3.5 px-3 pt-3">
+              {ask.exchanges.map((x, i) => (
+                <div key={x.answer?.id ?? "pending"} ref={i === ask.exchanges.length - 1 ? askCard : undefined}>
+                  <AskAnswerCard
+                    {...x}
+                    pending={!x.answer}
+                    conversationId={ask.conversationId}
+                    canShare
+                    meetingId={meetingId}
+                    workspaceId={workspaceId}
+                  />
+                </div>
+              ))}
             </div>
           ) : null}
         </div>
