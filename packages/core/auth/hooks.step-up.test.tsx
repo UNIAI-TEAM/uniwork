@@ -11,6 +11,7 @@ vi.mock("../api/endpoints/auth", async (importOriginal) => ({
   resetPassword: vi.fn(),
   mfaSetup: vi.fn(),
   mfaConfirm: vi.fn(),
+  mfaDisable: vi.fn(),
   deleteAccount: vi.fn(),
   logout: vi.fn(),
   me: vi.fn(),
@@ -36,7 +37,16 @@ import * as workspaces from "../api/endpoints/workspaces";
 import { useTransferOwnership } from "../organizations/hooks";
 import { useAcceptInvite } from "../workspaces/hooks";
 import { useJoinMembershipInviteLink } from "../workspaces/membership-invite-hooks";
-import { useDeleteAccount, useLogin, useMfaConfirm, useMfaSetup, useResetPassword, useVerifyMfa } from "./hooks";
+import {
+  authKeys,
+  useDeleteAccount,
+  useLogin,
+  useMfaConfirm,
+  useMfaDisable,
+  useMfaSetup,
+  useResetPassword,
+  useVerifyMfa,
+} from "./hooks";
 import { forgetStepUp, hasStepUp, rememberStepUp } from "./step-up-store";
 import { resetAuthStoreForTests, useAuthStore } from "./store";
 
@@ -105,6 +115,18 @@ describe("sensitive commands send the held step-up token", () => {
     expect(auth.mfaSetup).toHaveBeenLastCalledWith("su");
     await run(() => useMfaConfirm(), "123456");
     expect(auth.mfaConfirm).toHaveBeenLastCalledWith("123456", "su");
+  });
+
+  it("turning the second factor on or off reads the method list again: its proofs changed", async () => {
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    vi.mocked(auth.mfaConfirm).mockResolvedValue(["code-1"]);
+    vi.mocked(auth.mfaDisable).mockResolvedValue({ ...user, mfa_enabled_at: null });
+    await run(() => useMfaConfirm(), "123456");
+    expect(invalidate).toHaveBeenLastCalledWith({ queryKey: authKeys.signInMethods() });
+    invalidate.mockClear();
+    await run(() => useMfaDisable(), "654321");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: authKeys.signInMethods() });
+    expect(useAuthStore.getState().user?.mfa_enabled_at).toBeNull();
   });
 
   it("a refused proof drops the token", async () => {

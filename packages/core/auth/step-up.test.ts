@@ -85,10 +85,20 @@ describe("link and unlink actions", () => {
 describe("proofChoice", () => {
   const base = { mfaEnabled: false, hasPassword: true, supported: WEB_PROOFS };
 
-  it("asks only for the second factor when it is on, whatever else is listed", () => {
+  it("asks only for the second factor when the server lists it, whatever else is listed", () => {
     expect(proofChoice({ ...base, proofs: ["totp"] })).toEqual({ first: "totp", others: [] });
-    expect(proofChoice({ ...base, proofs: ["password", "email_code"], mfaEnabled: true })).toEqual({ first: "totp", others: [] });
+    expect(proofChoice({ ...base, proofs: ["password", "totp"] })).toEqual({ first: "totp", others: [] });
     expect(proofChoice({ ...base, proofs: ["totp"], supported: ["password"] })).toEqual({ first: null, others: [] });
+  });
+
+  it("follows the server's list over an account state that may be older (2FA changed elsewhere)", () => {
+    // 2FA was turned off: the list the server answered no longer names it.
+    expect(proofChoice({ ...base, proofs: ["password", "email_code"], mfaEnabled: true })).toEqual({
+      first: "password",
+      others: ["email_code"],
+    });
+    // 2FA was turned on: the list names only it.
+    expect(proofChoice({ ...base, proofs: ["totp"], mfaEnabled: false })).toEqual({ first: "totp", others: [] });
   });
 
   it("offers the password first, then a mailed code", () => {

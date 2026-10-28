@@ -122,12 +122,17 @@ export function useMfaSetup() {
  * The same token as the setup. Deliberately does not refresh the session
  * user: the recovery codes are shown once, and swapping the user (MFA on)
  * would unmount the screen that shows them. The screen calls
- * `useRefreshSessionUser` when the person is done.
+ * `useRefreshSessionUser` when the person is done. The method list is read
+ * again: its proofs are now the second factor alone.
  */
 export function useMfaConfirm() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (code: string) => auth.mfaConfirm(code, stepUpToken("enable_mfa") ?? ""),
     onError: forgetStepUpIfRefused,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: authKeys.signInMethods() });
+    },
   });
 }
 
@@ -140,11 +145,14 @@ export function useRefreshSessionUser() {
   });
 }
 
+/** The method list is read again: its proofs no longer name the second factor. */
 export function useMfaDisable() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (code: string) => auth.mfaDisable(code),
     onSuccess: (user) => {
       if (user) setSessionUser(user);
+      void qc.invalidateQueries({ queryKey: authKeys.signInMethods() });
     },
   });
 }

@@ -116,11 +116,15 @@ export interface ProofChoice {
 
 /**
  * Which proof to ask for first, and the alternatives. `proofs` is the
- * server's list (SignInMethodsSDO.proofs, or proof_required's fields.proofs);
- * when it is empty — a drifted answer, or no answer yet — the account's own
- * state decides: the second factor alone when it is on, else the password
- * when there is one, then a mailed code. With the second factor on nothing
- * else is ever offered (ADR 0047 §5).
+ * server's list (SignInMethodsSDO.proofs, or proof_required's fields.proofs),
+ * and when it names a proof this client knows it decides: the server lists
+ * the second factor alone while it is on (ADR 0047 §5), and the account's
+ * own state may be older than the list (2FA turned on or off on another
+ * device). A list older than the account's state costs one round trip at
+ * most: the server refuses the proof with proof_required and the list it
+ * takes. When the list is empty — a drifted answer, or no answer yet — the
+ * account's own state decides: the second factor alone when it is on, else
+ * the password when there is one, then a mailed code.
  */
 export function proofChoice(input: {
   proofs: readonly unknown[];
@@ -132,7 +136,7 @@ export function proofChoice(input: {
   if (proofs.length === 0) {
     proofs = input.mfaEnabled ? ["totp"] : input.hasPassword ? ["password", "email_code"] : ["email_code"];
   }
-  if (input.mfaEnabled || proofs.includes("totp")) {
+  if (proofs.includes("totp")) {
     return { first: input.supported.includes("totp") ? "totp" : null, others: [] };
   }
   const ordered = PREFERENCE.filter((proof) => proofs.includes(proof) && input.supported.includes(proof));
