@@ -167,11 +167,44 @@ describe("paths", () => {
       expect(paths.verify()).toBe("/verify");
       expect(paths.authCallback()).toBe("/auth/callback");
       expect(paths.googleStart()).toBe("http://api.test/api/v1/auth/google/start");
-      expect(paths.googleStart("/acme/team")).toBe("http://api.test/api/v1/auth/google/start?next=%2Facme%2Fteam");
-      expect(paths.googleStart(null)).toBe("http://api.test/api/v1/auth/google/start");
+      expect(paths.googleStart({ next: "/acme/team" })).toBe("http://api.test/api/v1/auth/google/start?next=%2Facme%2Fteam");
+      expect(paths.googleStart({ next: null })).toBe("http://api.test/api/v1/auth/google/start");
+      // sign_up (the register page) creates the account at once; sign_in is the default and stays out of the URL.
+      expect(paths.googleStart({ next: "/x", intent: "sign_up" })).toBe(
+        "http://api.test/api/v1/auth/google/start?next=%2Fx&intent=sign_up",
+      );
+      expect(paths.googleStart({ intent: "sign_in" })).toBe("http://api.test/api/v1/auth/google/start");
+      expect(paths.appleStart()).toBe("http://api.test/api/v1/auth/apple/start");
+      expect(paths.appleStart({ next: "/invite/t1", intent: "sign_up" })).toBe(
+        "http://api.test/api/v1/auth/apple/start?next=%2Finvite%2Ft1&intent=sign_up",
+      );
     } finally {
       resetRuntimeConfig();
     }
+  });
+
+  it("carries next (and the link mode) through every sign-in page (ADR 0047, spec §4.2–4.4)", () => {
+    expect(paths.login()).toBe("/login");
+    expect(paths.login({ next: "/acme/team" })).toBe("/login?next=%2Facme%2Fteam");
+    const linkStep = paths.authContinue({ step: "link", next: "/invite/t1" });
+    expect(linkStep).toBe("/auth/continue?step=link&next=%2Finvite%2Ft1");
+    expect(paths.login({ next: linkStep, link: true })).toBe(
+      `/login?next=${encodeURIComponent(linkStep)}&link=1`,
+    );
+    expect(paths.authContinue()).toBe("/auth/continue");
+    expect(paths.register({ next: "/invite/t1" })).toBe("/register?next=%2Finvite%2Ft1");
+    expect(paths.verify({ next: "/x" })).toBe("/verify?next=%2Fx");
+    expect(paths.onboarding({ next: "/x" })).toBe("/onboarding?next=%2Fx");
+    expect(paths.forgotPassword({ next: "/x" })).toBe("/forgot-password?next=%2Fx");
+    expect(paths.register({ next: null })).toBe("/register");
+  });
+
+  it("builds the account-level settings the server sends a link back to", () => {
+    expect(paths.accountSettings()).toBe("/settings");
+    expect(paths.securitySettings()).toBe("/settings?tab=security");
+    expect(paths.securitySettings({ expectUser: "01J8X4" })).toBe("/settings?tab=security&expect_user=01J8X4");
+    expect(isReservedSlug("settings")).toBe(true);
+    expect(isReservedSlug("auth")).toBe(true);
   });
 });
 

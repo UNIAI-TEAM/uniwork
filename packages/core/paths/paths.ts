@@ -1,29 +1,71 @@
 import { runtimeConfig } from "../runtime-config";
 import { marketingHref, vietnamesePath } from "./marketing";
 
+/** `path?a=1&b=2` of the params that have a value, in the order given (URLSearchParams encodes them). */
+function withQuery(path: string, params: Record<string, string | null | undefined>): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
+  const s = query.toString();
+  return s ? `${path}?${s}` : path;
+}
+
+/**
+ * Where a provider's start sends the browser back when nothing matched
+ * (ADR 0047): sign_in (the default, left out of the URL) issues a ticket for
+ * the choice screen; sign_up (the register page) creates the account at once.
+ */
+export type ProviderStartIntent = "sign_in" | "sign_up";
+
+/** `next` is a same-origin path the server sanitizes again; `intent` as above. */
+export interface ProviderStartOptions {
+  next?: string | null;
+  intent?: ProviderStartIntent;
+}
+
+function providerStart(path: string, opts: ProviderStartOptions): string {
+  return withQuery(`${runtimeConfig().apiUrl}${path}`, {
+    next: opts.next,
+    intent: opts.intent === "sign_up" ? "sign_up" : null,
+  });
+}
+
 export const paths = {
   root: () => "/",
-  login: () => "/login",
-  register: () => "/register",
-  verify: () => "/verify",
+  /**
+   * `next` survives the sign-in; `link` is the choice screen's "Tôi đã có tài
+   * khoản" (spec §4.4): the page says which provider waits and keeps the
+   * pending sign-in through the password, the second factor and a reset.
+   */
+  login: (opts: { next?: string | null; link?: boolean } = {}) =>
+    withQuery("/login", { next: opts.next, link: opts.link ? "1" : null }),
+  register: (opts: { next?: string | null } = {}) => withQuery("/register", { next: opts.next }),
+  verify: (opts: { next?: string | null } = {}) => withQuery("/verify", { next: opts.next }),
   authCallback: () => "/auth/callback",
+  /**
+   * The choice screen a provider sign-in that found no account lands on
+   * (ADR 0047 §2c, spec §4.3); `step: "link"` is its link step, which a
+   * sign-in whose `next` it is keeps the pending sign-in for.
+   */
+  authContinue: (opts: { next?: string | null; step?: "link" } = {}) =>
+    withQuery("/auth/continue", { step: opts.step, next: opts.next }),
   /** Consent page the desktop app's system-browser sign-in lands on (G4-02b). */
   desktopAuthorize: () => "/auth/desktop/authorize",
   /** Consent page an external AI client (MCP connector) sends the browser to (UNI-1308). */
   connectAuthorize: () => "/auth/connect/authorize",
   /** The UniChat desktop shell's start page; hands over to /login on the client. */
   unichatStart: () => "/auth/unichat",
-  forgotPassword: () => "/forgot-password",
+  forgotPassword: (opts: { next?: string | null } = {}) => withQuery("/forgot-password", { next: opts.next }),
   resetPassword: (token?: string) =>
     token ? `/reset-password?token=${encodeURIComponent(token)}` : "/reset-password",
   /**
-   * Absolute URL on the API, not a page: the browser leaves for Google from
-   * here and the API sets the session cookie before sending it back to
-   * authCallback(). `next` is re-sanitized by the server.
+   * Absolute URLs on the API, not pages: the browser leaves for Google or
+   * Apple from here and the API sets the session cookie (or the choice
+   * screen's ticket) before sending it back to authCallback() (or
+   * authContinue()).
    */
-  googleStart: (next?: string | null) =>
-    `${runtimeConfig().apiUrl}/api/v1/auth/google/start${next ? `?next=${encodeURIComponent(next)}` : ""}`,
-  onboarding: () => "/onboarding",
+  googleStart: (opts: ProviderStartOptions = {}) => providerStart("/api/v1/auth/google/start", opts),
+  appleStart: (opts: ProviderStartOptions = {}) => providerStart("/api/v1/auth/apple/start", opts),
+  onboarding: (opts: { next?: string | null } = {}) => withQuery("/onboarding", { next: opts.next }),
   /**
    * Where an onboarded person who belongs to no organization lands: create one
    * or join through an invitation (ADR 0032 D12). Hyphenated root, reserved.
@@ -72,7 +114,19 @@ export const paths = {
     unichat: () => "/apps/unichat",
   },
   about: () => "/about",
+  /** The public security page (marketing); the account's own security settings are securitySettings(). */
   security: () => "/security",
+  /**
+   * Account-level settings outside every workspace (spec §4.5): a person
+   * with a workspace is sent on to its settings, one without one gets the
+   * security tab here. securitySettings is where Sign-in methods lives and
+   * where a link from Settings comes back to; `expectUser` is the account
+   * the UniChat shell signed in with, so the browser can warn when it is
+   * signed in as someone else.
+   */
+  accountSettings: () => "/settings",
+  securitySettings: (opts: { expectUser?: string } = {}) =>
+    withQuery("/settings", { tab: "security", expect_user: opts.expectUser }),
   privacy: () => "/privacy",
   terms: () => "/terms",
   guide: (slug: string) => `/learn/${encodeURIComponent(slug)}`,

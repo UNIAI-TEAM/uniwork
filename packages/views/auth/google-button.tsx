@@ -44,7 +44,7 @@ export function GoogleButton({ next }: { next?: string | null }) {
           a navigation to another origin, and Base UI's Button would layer
           button semantics (role, key handling) over the link either way. */}
       <a
-        href={paths.googleStart(next)}
+        href={paths.googleStart({ next })}
         className={cn(buttonVariants({ variant: "outline", size: "lg" }), AUTH_PILL)}
       >
         <GoogleMark className="size-4" />
