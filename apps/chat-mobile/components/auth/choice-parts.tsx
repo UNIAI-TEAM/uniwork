@@ -83,7 +83,9 @@ export function ChoiceRow({ icon, title, body, onPress, busy = false, busyLabel,
         accessibilityLabel={`${title}. ${body}`}
         accessibilityState={{ busy, disabled }}
         disabled={disabled}
-        onPress={busy ? undefined : onPress}
+        onPress={() => {
+          if (!busy) onPress();
+        }}
         android_ripple={ripple}
         testID={testID}
         className={cn("min-h-[72px] gap-3 px-4 py-3.5 active:bg-accent", large ? "flex-col" : "flex-row items-center")}

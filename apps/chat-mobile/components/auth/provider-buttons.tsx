@@ -56,7 +56,9 @@ function ProviderPill({ label, busyLabel, busy, disabled, onPress, colors, mark,
       accessibilityLabel={busy ? busyLabel : label}
       accessibilityState={{ busy, disabled }}
       disabled={disabled}
-      onPress={busy ? undefined : onPress}
+      onPress={() => {
+        if (!busy) onPress();
+      }}
       testID={testID}
       style={{ backgroundColor: colors.fill, borderColor: colors.stroke ?? colors.fill, borderWidth: 1 }}
       className={cn("min-h-12 flex-row items-center justify-center gap-2.5 rounded-full px-5 py-3 active:opacity-80", disabled && "opacity-50")}

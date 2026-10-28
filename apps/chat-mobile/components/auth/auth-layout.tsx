@@ -90,7 +90,9 @@ export function SubmitButton({ label, busyLabel = label, busy = false, disabled 
       variant={variant}
       disabled={disabled}
       accessibilityState={{ busy, disabled }}
-      onPress={busy ? undefined : onPress}
+      onPress={() => {
+        if (!busy) onPress();
+      }}
       className="min-h-12 rounded-full py-3"
       testID={testID}
     >
