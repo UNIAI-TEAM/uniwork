@@ -460,7 +460,18 @@
       "unichat_login_step_allow": "Choose “Allow desktop app” there",
       "unichat_login_step_return": "Come back here: UniChat opens your conversations",
       "unichat_login_cancel": "Cancel",
-      "unichat_login_version": "UniChat {{version}}"
+      "unichat_login_version": "UniChat {{version}}",
+      "details": "Details",
+      "notYou": "Not you? Use another account",
+      "phone": {
+        "eyebrow": "Phone sign-in",
+        "title": "Allow {{app}} on this phone to sign in?",
+        "approve": "Allow {{app}}",
+        "resultTitle": "Phone sign-in result",
+        "cancelledResult": "Phone sign-in was cancelled.",
+        "errorResult": "Couldn't finish signing in. Go back to {{app}} and try again.",
+        "expired": "This request has expired. Go back to {{app}} and try again."
+      }
     },
     "connect": {
       "eyebrow": "Connect an AI assistant",

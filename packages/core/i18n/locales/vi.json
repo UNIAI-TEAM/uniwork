@@ -460,7 +460,18 @@
       "unichat_login_step_allow": "Bấm “Cho phép ứng dụng desktop” trên trang đó",
       "unichat_login_step_return": "Quay lại đây, UniChat tự mở cuộc trò chuyện",
       "unichat_login_cancel": "Hủy",
-      "unichat_login_version": "UniChat {{version}}"
+      "unichat_login_version": "UniChat {{version}}",
+      "details": "Chi tiết",
+      "notYou": "Không phải bạn? Dùng tài khoản khác",
+      "phone": {
+        "eyebrow": "Đăng nhập trên điện thoại",
+        "title": "Cho phép {{app}} trên điện thoại này đăng nhập?",
+        "approve": "Cho phép {{app}}",
+        "resultTitle": "Kết quả đăng nhập trên điện thoại",
+        "cancelledResult": "Đã hủy đăng nhập trên điện thoại.",
+        "errorResult": "Chưa hoàn tất được đăng nhập. Quay lại {{app}} và thử lại.",
+        "expired": "Yêu cầu đã hết hạn. Quay lại {{app}} và thử lại."
+      }
     },
     "connect": {
       "eyebrow": "Kết nối trợ lý AI",
