@@ -2255,6 +2255,7 @@
       "create_account": "Tạo tài khoản",
       "browser": "Đăng nhập bằng trình duyệt",
       "browser_busy": "Đang mở trình duyệt…",
+      "sign_up_with_apple": "Đăng ký bằng Apple",
       "mfa": {
         "subtitle": "Đăng nhập vào {{email}}.",
         "code_hint": "Mã 6 số trong ứng dụng xác thực của bạn.",

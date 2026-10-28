@@ -265,12 +265,13 @@ export function ProviderProof({ provider, busy, message, spoken, onProve }: Pick
   const name = t(`auth.social.provider.${provider}`);
   return (
     <View className="gap-3">
-      {provider === "apple" && Platform.OS === "ios" && !busy ? (
-        <AppleSignInButton disabled={false} onPress={onProve} />
+      {provider === "apple" && Platform.OS === "ios" ? (
+        <AppleSignInButton disabled={false} busy={busy} onPress={onProve} />
       ) : (
         <ProviderButton
           provider={provider}
-          label={t(`settings.security.stepUp.provider.${provider}`)}
+          // The brands' own words on their buttons (Google allows "Continue with Google"); the sheet's line says why.
+          label={t(provider === "apple" ? "auth.social.continueWithApple" : "auth.social.continueWithGoogle")}
           busyLabel={t("settings.security.stepUp.submitting")}
           busy={busy}
           disabled={false}

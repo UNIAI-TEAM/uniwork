@@ -2312,6 +2312,7 @@
       "create_account": "Create an account",
       "browser": "Sign in with a browser",
       "browser_busy": "Opening the browser…",
+      "sign_up_with_apple": "Sign up with Apple",
       "mfa": {
         "subtitle": "Signing in to {{email}}.",
         "code_hint": "The 6-digit code from your authenticator app.",

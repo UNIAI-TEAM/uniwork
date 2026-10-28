@@ -4,7 +4,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { BADGE_MAX_FONT_SCALE, DISPLAY_MAX_FONT_SCALE, isLargeText, LARGE_TEXT_SCALE, TAB_LABEL_MAX_FONT_SCALE } from "./type-scale";
+import {
+  BADGE_MAX_FONT_SCALE,
+  DISPLAY_MAX_FONT_SCALE,
+  isLargeText,
+  LARGE_TEXT_SCALE,
+  PROVIDER_BUTTON_MAX_FONT_SCALE,
+  providerButtonHeight,
+  TAB_LABEL_MAX_FONT_SCALE,
+} from "./type-scale";
 import typeScale from "./type-scale.json";
 import { cn } from "./utils";
 
@@ -34,6 +42,16 @@ describe("text roles", () => {
     expect(isLargeText(2)).toBe(true);
     expect(TAB_LABEL_MAX_FONT_SCALE).toBeGreaterThan(1);
     expect(TAB_LABEL_MAX_FONT_SCALE).toBeLessThan(LARGE_TEXT_SCALE);
+  });
+
+  it("give Apple's and Google's buttons one height that grows with the text, from 48 pt to the provider cap", () => {
+    expect(providerButtonHeight(1)).toBe(48);
+    // Android's smaller sizes never draw a button under its minimum target.
+    expect(providerButtonHeight(0.85)).toBe(48);
+    expect(providerButtonHeight(1.235)).toBe(59);
+    expect(providerButtonHeight(PROVIDER_BUTTON_MAX_FONT_SCALE)).toBe(77);
+    expect(providerButtonHeight(3.57)).toBe(77);
+    expect(PROVIDER_BUTTON_MAX_FONT_SCALE).toBeLessThanOrEqual(LARGE_TEXT_SCALE);
   });
 
   it("let a display title grow into the accessibility sizes, but not past where one word fills a phone's line", () => {

@@ -12,6 +12,7 @@ export const SIGN_IN_ONLY = {
       create_account: "Tạo tài khoản",
       browser: "Đăng nhập bằng trình duyệt",
       browser_busy: "Đang mở trình duyệt…",
+      sign_up_with_apple: "Đăng ký bằng Apple",
       mfa: {
         subtitle: "Đăng nhập vào {{email}}.",
         code_hint: "Mã 6 số trong ứng dụng xác thực của bạn.",
@@ -47,6 +48,7 @@ export const SIGN_IN_ONLY = {
       create_account: "Create an account",
       browser: "Sign in with a browser",
       browser_busy: "Opening the browser…",
+      sign_up_with_apple: "Sign up with Apple",
       mfa: {
         subtitle: "Signing in to {{email}}.",
         code_hint: "The 6-digit code from your authenticator app.",
