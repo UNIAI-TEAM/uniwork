@@ -1,4 +1,5 @@
 import type { SignInProvider } from "../api/endpoints/sign-in-schemas";
+import type { LoginRedirectError } from "../auth/sign-in-errors";
 import { runtimeConfig } from "../runtime-config";
 import { marketingHref, vietnamesePath } from "./marketing";
 
@@ -37,10 +38,14 @@ export const paths = {
    * khoản" (spec §4.4): the page says which provider waits and keeps the
    * pending sign-in through the password, the second factor and a reset.
    * `provider` is the desktop or phone app's button (spec §3.5): the page
-   * goes on to that provider once, and drops it from the URL.
+   * goes on to that provider once, and drops it from the URL. `error` is
+   * why a sign-in came back without a session, as the server's redirects
+   * say it (spec §3.4).
    */
-  login: (opts: { next?: string | null; link?: boolean; provider?: SignInProvider | null } = {}) =>
-    withQuery("/login", { next: opts.next, link: opts.link ? "1" : null, provider: opts.provider }),
+  login: (
+    opts: { next?: string | null; link?: boolean; provider?: SignInProvider | null; error?: LoginRedirectError } = {},
+  ) =>
+    withQuery("/login", { next: opts.next, link: opts.link ? "1" : null, provider: opts.provider, error: opts.error }),
   register: (opts: { next?: string | null } = {}) => withQuery("/register", { next: opts.next }),
   verify: (opts: { next?: string | null } = {}) => withQuery("/verify", { next: opts.next }),
   authCallback: () => "/auth/callback",

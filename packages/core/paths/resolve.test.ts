@@ -196,6 +196,7 @@ describe("paths", () => {
     const consent = "/auth/desktop/authorize?attempt_id=01J";
     expect(paths.login({ next: consent, provider: "apple" })).toBe(`/login?next=${encodeURIComponent(consent)}&provider=apple`);
     expect(paths.login({ provider: null })).toBe("/login");
+    expect(paths.login({ next: "/acme/team", error: "sign_in_failed" })).toBe("/login?next=%2Facme%2Fteam&error=sign_in_failed");
     expect(paths.register({ next: "/invite/t1" })).toBe("/register?next=%2Finvite%2Ft1");
     expect(paths.verify({ next: "/x" })).toBe("/verify?next=%2Fx");
     expect(paths.onboarding({ next: "/x" })).toBe("/onboarding?next=%2Fx");

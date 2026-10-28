@@ -549,14 +549,6 @@
       "wrongAccount": "Wrong account?",
       "spamHint": "No email? Check your spam folder."
     },
-    "google": {
-      "continueWith": "Continue with Google",
-      "or": "or",
-      "denied": "You cancelled the Google sign-in.",
-      "failed": "Google sign-in didn't go through. Try again or use your email and password.",
-      "unverified": "Google hasn't verified this account's email. Use another account or sign up with email.",
-      "signingIn": "Signing in with Google…"
-    },
     "mfa": {
       "title": "Two-factor authentication",
       "subtitle": "Enter the 6-digit code from your authenticator app, or a recovery code.",
