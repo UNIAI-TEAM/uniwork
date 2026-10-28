@@ -83,7 +83,6 @@ export function ForgotPasswordView({ next = null }: { next?: string | null }) {
                 t("auth.forgot.resend")
               )}
             </Button>
-            <p className="text-center text-body text-muted-foreground">{t("auth.forgot.googleHint")}</p>
             <p className="flex flex-wrap items-center justify-center gap-x-1 text-label text-muted-foreground">
               {t("auth.forgot.wrongEmail")}
               {/* Button primitive for the 44px coarse-pointer floor, same as verify. */}
@@ -155,6 +154,10 @@ export function ForgotPasswordView({ next = null }: { next?: string | null }) {
           <AuthSubmit pending={forgot.isPending} pendingLabel={t("auth.forgot.sending")}>
             {t("auth.forgot.submit")}
           </AuthSubmit>
+          {/* Before the address is sent, where "the email above" is: a Google or
+              Apple account needs no reset, and one that wants a password too
+              is mailed a link to set one (spec §3.7). */}
+          <p className="text-pretty text-center text-caption text-muted-foreground">{t("auth.forgot.googleHint")}</p>
           <p className="text-center text-body text-muted-foreground">
             <AppLink href={backToLogin} className={AUTH_LINK}>
               {t("auth.forgot.backToLogin")}

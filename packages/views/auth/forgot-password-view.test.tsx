@@ -23,6 +23,18 @@ describe("ForgotPasswordView", () => {
     );
   });
 
+  it("tells a Google or Apple account on the form that it needs no reset, and how to add a password", async () => {
+    requestMock.mockResolvedValue({ status: "ok" });
+    render(wrapWithNav(<ForgotPasswordView />));
+    const hint = /^Bạn đăng nhập bằng Google hoặc Apple\? .* nhập email ở trên: chúng tôi gửi link đặt mật khẩu\.$/;
+    expect(screen.getByText(hint)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.c" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi link đặt lại" }));
+    // Sent, there is no "email above" any more: the mail itself says it.
+    expect(await screen.findByText(/Nếu a@b.c có tài khoản/)).toBeInTheDocument();
+    expect(screen.queryByText(hint)).not.toBeInTheDocument();
+  });
+
   it("shows the sent state with the email after submit", async () => {
     requestMock.mockResolvedValue({ status: "ok" });
     render(wrapWithNav(<ForgotPasswordView />));
