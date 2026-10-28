@@ -13,6 +13,35 @@ type Wash = { x: number; y: number; at: number; shell: Element; nodes: Element[]
 let pending: Wash | null = null;
 
 /**
+ * A cloned <video> has no stream and paints nothing: a canvas holding the
+ * original's current frame takes its place (its classes and style kept). With
+ * no frame to read, the canvas stays clear and the frame's background shows.
+ */
+function frameOf(video: HTMLVideoElement | undefined, copy: HTMLVideoElement): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.className = copy.className;
+  canvas.style.cssText = copy.style.cssText;
+  if (video && video.videoWidth > 0) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    try {
+      canvas.getContext("2d")?.drawImage(video, 0, 0);
+    } catch {
+      // No frame to draw: the clear canvas shows the background, which is the still we want.
+    }
+  }
+  return canvas;
+}
+
+/** A copy of one node of the old screen, its videos frozen into canvases. */
+function stillOf(node: Element): Node {
+  const copy = node.cloneNode(true) as Element;
+  const videos = node.querySelectorAll("video");
+  copy.querySelectorAll("video").forEach((v, i) => v.replaceWith(frameOf(videos[i], v)));
+  return copy;
+}
+
+/**
  * The join press: remember the button's centre and the screen it sits on, so
  * the next screen in the same room shell (`[data-join-wash]`, set by `useJoinWash`) opens from there.
  * It never waits: the join goes on at once and the wash plays when the room
@@ -46,7 +75,7 @@ export function useJoinWash(ref: RefObject<HTMLElement | null>) {
     still.removeAttribute("data-join-wash");
     still.setAttribute("aria-hidden", "true");
     still.inert = true;
-    still.append(...wash.nodes.map((n) => n.cloneNode(true)));
+    still.append(...wash.nodes.map(stillOf));
     el.before(still);
     const at = `at ${wash.x}px ${wash.y}px`;
     const anim = el.animate([{ clipPath: `circle(22px ${at})` }, { clipPath: `circle(150vmax ${at})` }], {

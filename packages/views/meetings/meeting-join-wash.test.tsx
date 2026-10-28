@@ -19,6 +19,7 @@ function Shell() {
         <p>Phòng họp</p>
       ) : (
         <section>
+          <video muted className="size-full object-cover" />
           <button type="button" onClick={(e) => (markJoinWash(e.currentTarget), setJoined(true))}>
             Vào phòng họp
           </button>
@@ -52,6 +53,9 @@ describe("join wash (D)", () => {
     const still = screen.getByTestId("shell").previousElementSibling as HTMLElement;
     expect(still).toHaveAttribute("aria-hidden", "true");
     expect(still).toHaveTextContent("Vào phòng họp");
+    // A cloned video would be an empty box: the still holds a canvas in its place, styled the same.
+    expect(still.querySelector("video")).toBeNull();
+    expect(still.querySelector("canvas")).toHaveClass("size-full", "object-cover");
     anim.onfinish?.();
     expect(screen.getByTestId("shell").previousElementSibling).toBeNull();
   });
