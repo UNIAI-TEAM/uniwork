@@ -91,8 +91,13 @@ export function MeetingPreJoin({
       {/* Centred as one block, tops aligned: the card starts where the camera does. */}
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-stretch gap-6 px-4 pb-8 lg:my-auto lg:flex-none lg:flex-row lg:items-start lg:gap-8">
         {/* The camera frame is its own `dark` island; the toggles below keep
-            the page's tokens so they match the room's control bar exactly. */}
-        <div className="w-full min-w-0 rounded-2xl bg-meeting-stage p-3 ring-1 ring-surface-border lg:flex-1">
+            the page's tokens so they match the room's control bar exactly.
+            While joining, the room opens with the choice made at the press:
+            the toggles and pickers go inert so the screen cannot say otherwise. */}
+        <div
+          inert={joining}
+          className="w-full min-w-0 rounded-2xl bg-meeting-stage p-3 ring-1 ring-surface-border lg:flex-1"
+        >
           <MeetingCameraPreview
             active={video}
             deviceId={videoDeviceId || undefined}
@@ -114,7 +119,7 @@ export function MeetingPreJoin({
               setJoinWithMic(!audio);
             }}
             onVideoToggle={() => setVideo((v) => !v)}
-            className="mt-3 flex justify-center gap-3"
+            className={cn("mt-3 flex justify-center gap-3 transition-opacity duration-fast", joining && "opacity-50")}
           />
           {mutedForCrowd ? (
             <p className="mt-2 text-center text-caption text-meeting-bar-muted-foreground" data-testid="prejoin-mic-crowded">
@@ -144,31 +149,36 @@ export function MeetingPreJoin({
               </p>
             ) : null}
           </div>
-          <MeetingDeviceField
-            id="prejoin-mic"
-            label={t("meetings.deviceMic")}
-            devices={mics}
-            value={audioDeviceId}
-            onValueChange={setAudioDeviceId}
-            adornment={audio ? <MeetingMicDotsLive deviceId={audioDeviceId || mics[0]?.deviceId} /> : null}
-            emptyDescription={t("meetings.deviceMicNeedsPermission")}
-            emptyAction={
-              <MeetingMediaPermissionAction
-                label={t("meetings.micAllow")}
-                icon={Mic}
-                deniedMessage={t("meetings.micAllowDenied")}
-                onGranted={refresh}
-              />
-            }
-          />
-          <MeetingDeviceField
-            id="prejoin-camera"
-            label={t("meetings.deviceCamera")}
-            devices={cameras}
-            value={videoDeviceId}
-            onValueChange={setVideoDeviceId}
-            emptyDescription={t("meetings.deviceCameraNeedsPermission")}
-          />
+          <div
+            inert={joining}
+            className={cn("flex flex-col gap-4 transition-opacity duration-fast", joining && "opacity-50")}
+          >
+            <MeetingDeviceField
+              id="prejoin-mic"
+              label={t("meetings.deviceMic")}
+              devices={mics}
+              value={audioDeviceId}
+              onValueChange={setAudioDeviceId}
+              adornment={audio ? <MeetingMicDotsLive deviceId={audioDeviceId || mics[0]?.deviceId} /> : null}
+              emptyDescription={t("meetings.deviceMicNeedsPermission")}
+              emptyAction={
+                <MeetingMediaPermissionAction
+                  label={t("meetings.micAllow")}
+                  icon={Mic}
+                  deniedMessage={t("meetings.micAllowDenied")}
+                  onGranted={refresh}
+                />
+              }
+            />
+            <MeetingDeviceField
+              id="prejoin-camera"
+              label={t("meetings.deviceCamera")}
+              devices={cameras}
+              value={videoDeviceId}
+              onValueChange={setVideoDeviceId}
+              emptyDescription={t("meetings.deviceCameraNeedsPermission")}
+            />
+          </div>
           {scribeNoticeFor ? <MeetingScribeNotice meetingKey={scribeNoticeFor} scribeOn variant="chip" /> : null}
           {/* The press folds the button into a ring until the room answers;
               the name stays for screen readers, the ring is decorative. */}

@@ -248,4 +248,14 @@ describe("MeetingPreJoin motion (UNI-2285 D)", () => {
     fireEvent.click(join);
     expect(onJoin).not.toHaveBeenCalled();
   });
+
+  it("joining freezes the media choice the room opens with", async () => {
+    render(wrapWithNav(<MeetingPreJoin meeting={meeting} joining onJoin={() => {}} onLeave={() => {}} />));
+    // The room takes the choice made at the press: toggles and pickers go inert, Back stays.
+    expect(screen.getByRole("button", { name: "Camera", pressed: true }).closest("[inert]")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Mic" }).closest("[inert]")).not.toBeNull();
+    expect((await screen.findByText("Built-in Mic")).closest("[inert]")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Quay lại" }).closest("[inert]")).toBeNull();
+    expect(screen.getByRole("button", { name: "Vào phòng họp" }).closest("[inert]")).toBeNull();
+  });
 });
