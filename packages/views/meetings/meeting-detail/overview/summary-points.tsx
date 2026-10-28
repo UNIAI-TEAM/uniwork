@@ -9,10 +9,13 @@ import { UI_EASE_OUT } from "@uniwork/ui/lib/motion";
 import { useDetail } from "../detail-context";
 import { EvidenceBody } from "./evidence-chip";
 
-/** Each word fades in from a 4px blur 4px below, 18ms apart, the whole paragraph within 1.6s (spec F). */
-const WORD_S = 0.28;
-const WORD_STEP_S = 0.018;
-const REVEAL_MAX_S = 1.6;
+/** Each word fades in from a 3px blur 5px below over 420ms, 34ms apart, the whole paragraph within 2.4s (clip F). */
+const WORD_S = 0.42;
+const WORD_STEP_S = 0.034;
+const REVEAL_MAX_S = 2.4;
+
+/** The gap between two words: 34ms, shortened so the last word lands by 2.4s. */
+export const wordStep = (count: number) => Math.min(WORD_STEP_S, (REVEAL_MAX_S - WORD_S) / Math.max(count, 1));
 
 const words = (text: string) => text.split(/(?<=\s)/);
 
@@ -32,10 +35,10 @@ export function SummaryText({ summary, reveal }: { summary: MeetingSummary; reve
   if (points.length === 0 && !animate) return summary.summary;
   const sentences = points.length > 0 ? points : [{ text: summary.summary, evidence: [] as MeetingEvidenceRef[] }];
   const count = sentences.reduce((n, s) => n + words(s.text).length + 1, 0);
-  const step = Math.min(WORD_STEP_S, (REVEAL_MAX_S - WORD_S) / Math.max(count, 1));
+  const step = wordStep(count);
   let k = 0;
   const appear = () => ({
-    initial: { opacity: 0, filter: "blur(4px)", y: 4 },
+    initial: { opacity: 0, filter: "blur(3px)", y: 5 },
     animate: { opacity: 1, filter: "blur(0px)", y: 0 },
     transition: { duration: WORD_S, delay: k++ * step, ease: UI_EASE_OUT },
   });
@@ -82,7 +85,7 @@ function SourceBadge({ n, refs }: { n: number; refs: readonly MeetingEvidenceRef
   const [open, setOpen] = useState(false);
   const label = t("meetings.motion.summary.source", { n });
   const badge = { type: "button" as const, "data-source": "", "aria-label": label, className: BADGE };
-  const body = <EvidenceBody meetingId={meeting.id} refs={refs} phone={isPhone} onClose={() => setOpen(false)} />;
+  const body = <EvidenceBody meetingId={meeting.id} refs={refs} phone={isPhone} compact={!isPhone} onClose={() => setOpen(false)} />;
   if (isPhone) {
     return (
       <>
@@ -103,7 +106,7 @@ function SourceBadge({ n, refs }: { n: number; refs: readonly MeetingEvidenceRef
       <PopoverTrigger openOnHover delay={150} render={<button {...badge} />}>
         {n}
       </PopoverTrigger>
-      <PopoverContent sideOffset={8} aria-label={label} className="w-90 gap-0 border border-border bg-popover p-4 ring-0 dark:shadow-floating">
+      <PopoverContent sideOffset={8} aria-label={label} className="w-85 gap-0 border border-border bg-popover px-3 py-2.5 ring-0 dark:shadow-floating">
         {open ? body : null}
       </PopoverContent>
     </Popover>

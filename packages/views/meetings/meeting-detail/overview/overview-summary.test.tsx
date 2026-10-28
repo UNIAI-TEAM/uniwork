@@ -8,6 +8,8 @@ import { requestMock, wrapWithNav, fakeNav } from "../../../test/api-mock";
 import { DetailContext } from "../detail-context";
 import { demo, demoUser, demoWorkspace, detailValue, routeMeeting } from "../test-fixtures";
 import { OverviewTab } from "./overview-tab";
+import { beamPassAt } from "./summary-composing";
+import { wordStep } from "./summary-points";
 
 const motion = vi.hoisted(() => ({ reduce: false }));
 vi.mock("motion/react", async (importOriginal) => ({
@@ -80,6 +82,25 @@ describe("Tóm tắt › composing, reveal and sources (F)", () => {
     expect(within(card).getByText("7 câu thoại")).toBeInTheDocument();
   });
 
+  it("each line comes up to full colour as the beam first crosses it", async () => {
+    show({ [`${base}/summary`]: { summary: null, run: running } });
+    const card = await screen.findByTestId("summary-composing");
+    await waitFor(() => expect(card.querySelectorAll("li[data-read]")).toHaveLength(5));
+    const rows = [...card.querySelectorAll<HTMLElement>("li")];
+    expect(rows.every((li) => li.classList.contains("text-foreground"))).toBe(true);
+    const delays = rows.map((li) => parseFloat(li.style.transitionDelay));
+    expect(delays).toEqual([...delays].sort((a, b) => a - b));
+    expect(delays[0]).toBeCloseTo(beamPassAt(0, 5));
+    // The last line is lit before the beam's first pass ends.
+    expect(delays[4]).toBeLessThan(2.4);
+  });
+
+  it("word reveal keeps the clip's 34ms step and lands within 2.4s", () => {
+    expect(wordStep(20)).toBeCloseTo(0.034);
+    // 200 words: the step shrinks so the last one starts by 2.4s - 420ms.
+    expect(199 * wordStep(200) + 0.42).toBeLessThanOrEqual(2.4 + 1e-9);
+  });
+
   it("marks the lines Thư ký UNI cited in the room, keeping them among the five", async () => {
     show({
       [`${base}/summary`]: { summary: null, run: running },
@@ -122,6 +143,8 @@ describe("Tóm tắt › composing, reveal and sources (F)", () => {
     expect(await within(pop).findByText("“Ngân sách tổng là 350 triệu đồng.”")).toBeInTheDocument();
     expect(within(pop).getByText("Lan Phạm")).toBeInTheDocument();
     expect(within(pop).getByText("09:10:00")).toBeInTheDocument();
+    // The compact quote keeps the way into the transcript.
+    expect(within(pop).getByRole("button", { name: /Mở trong lời thoại/ })).toBeInTheDocument();
   });
 
   it("old summary without points renders as one paragraph", async () => {
@@ -138,5 +161,7 @@ describe("Tóm tắt › composing, reveal and sources (F)", () => {
     await waitFor(() => expect(cardLines(card)).toHaveLength(5));
     expect(document.querySelector("[data-motion-loop]")).toBeNull();
     expect(within(card).getByText("Đang soạn tóm tắt")).not.toHaveClass("ai-shimmer");
+    // Lines are lit from the start: nothing waits for a beam that does not run.
+    expect(card.querySelectorAll("li[data-read]")).toHaveLength(5);
   });
 });

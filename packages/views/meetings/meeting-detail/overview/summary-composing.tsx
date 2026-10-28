@@ -17,7 +17,11 @@ import { clock } from "../format";
 const SHOWN = 5;
 /** One pass of the beam over the lines, and the gap between two cited lines lighting up (clip F). */
 const SWEEP_S = 2.4;
-const MARK_STEP_S = 0.68;
+// A line is 28px tall with a 2px gap; the beam is 30px and starts above the list.
+const ROW_PX = 30;
+
+/** When the beam's edge crosses line `i` of `n` on its first pass (seconds). */
+export const beamPassAt = (i: number, n: number) => (SWEEP_S * (i * ROW_PX + 14)) / (n * ROW_PX + 42);
 
 /**
  * The lines the card reads: the latest ones Thư ký UNI cited live first (they
@@ -35,7 +39,8 @@ function composingLines(
 /**
  * Tóm tắt while Thư ký UNI writes it (clip F): its mark at work, the transcript
  * count rolling up, and a violet beam sweeping the last lines; a line the scribe
- * cited during the meeting is marked in turn. Under reduced motion nothing
+ * cited during the meeting is marked as the beam crosses it, and every line comes
+ * up to full colour as the beam first passes. Under reduced motion nothing
  * loops and every mark is drawn at once.
  */
 export function SummaryComposing() {
@@ -61,8 +66,14 @@ export function SummaryComposing() {
     const id = requestAnimationFrame(() => setShown(total));
     return () => cancelAnimationFrame(id);
   }, [total]);
+  // Every line comes up to full colour as the beam first crosses it (CSS delay per line); reduced motion starts there.
+  const [swept, setSwept] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setSwept(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  const read = reduced || swept;
   const members = memberIndex.members;
-  let marked = 0;
 
   return (
     <div
@@ -83,16 +94,18 @@ export function SummaryComposing() {
         </span>
       </div>
       <ol aria-hidden className="relative grid gap-0.5 px-3.5 pb-3">
-        {lines.map((line) => {
+        {lines.map((line, i) => {
           const isCited = cited.has(line.id);
-          const delay = isCited ? 0.3 + marked++ * MARK_STEP_S : 0;
+          const delay = beamPassAt(i, lines.length);
           const name = line.speaker_name || "?";
           return (
             <li
               key={line.id}
+              data-read={read ? "" : undefined}
+              style={{ transitionDelay: `${delay}s` }}
               className={cn(
-                "grid grid-cols-[40px_22px_minmax(0,1fr)] items-center gap-2 rounded-md px-1.5 py-1 text-caption",
-                isCited ? "text-foreground" : "text-muted-foreground opacity-60",
+                "grid grid-cols-[40px_22px_minmax(0,1fr)] items-center gap-2 rounded-md px-1.5 py-1 text-caption transition-[color,opacity] duration-standard ease-out-quart motion-reduce:transition-none",
+                read ? "text-foreground" : "text-muted-foreground opacity-55",
               )}
             >
               <time dateTime={line.spoken_at} className="font-mono text-micro text-muted-foreground tabular-nums">

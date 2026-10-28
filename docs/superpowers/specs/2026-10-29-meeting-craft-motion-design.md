@@ -75,7 +75,7 @@ Các màn Họp đã ổn về cấu trúc nhưng chưa có cảm giác. Con s�
 | Mặt người, dấu ✓ bật | scale .6 → 1.08 → 1, 360 ms |
 | Vệt sáng thanh trạng thái | 2,4 s một vòng |
 | Tia quét lời thoại | 2,4 s một vòng |
-| Chữ hiện dần | mỗi chữ mờ → rõ, blur 4 px → 0, nhích lên 4 px, 280 ms; mỗi chữ trễ 18 ms; tổng tối đa 1,6 s |
+| Chữ hiện dần | mỗi chữ mờ → rõ, blur 3 px → 0, nhích lên 5 px, 420 ms; mỗi chữ trễ 34 ms; tổng tối đa 2,4 s |
 | Thanh nổi | nhích lên 12 px và mờ dần, 260 ms |
 | Hàng gập | 320 ms `UI_EASE_SETTLE` |
 | Hoàn tác | vòng đếm 8 s |
