@@ -16,6 +16,7 @@ import {
 import { formatMeetingWindow, meetingLocale } from "./meeting-datetime";
 import { MeetingCanvas } from "./meeting-canvas";
 import { MeetingDeviceField } from "./meeting-device-field";
+import { markJoinWash } from "./meeting-join-wash";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
 import { MeetingMediaPermissionAction, MeetingMicDotsLive } from "./meeting-room-mic-check";
 import { MeetingScribeNotice } from "./meeting-scribe-notice";
@@ -182,14 +183,15 @@ export function MeetingPreJoin({
               // Busy, not disabled: keep the brand fill instead of the faded look.
               joining && "w-11 rounded-full aria-disabled:cursor-progress aria-disabled:opacity-100",
             )}
-            onClick={() =>
+            onClick={(e) => {
+              markJoinWash(e.currentTarget);
               onJoin({
                 audio,
                 video,
                 audioDeviceId: audioDeviceId || undefined,
                 videoDeviceId: videoDeviceId || undefined,
-              })
-            }
+              });
+            }}
           >
             <span className={cn("transition-opacity duration-fast", joining && "opacity-0")}>{t("meetings.join")}</span>
             <Spinner

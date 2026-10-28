@@ -46,6 +46,7 @@ import {
 } from "./room-disconnect";
 import { useFocusHeadingOnViewChange } from "./use-focus-heading-on-view-change";
 import { useInertOutside } from "./use-inert-outside";
+import { useJoinWash } from "./meeting-join-wash";
 import { isRetryableJoinError } from "./room-connection";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 import { useWithdrawJoinRequestOnLeave } from "./use-withdraw-join-request";
@@ -61,6 +62,7 @@ function MeetingRoomShell({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useInertOutside(ref);
+  useJoinWash(ref);
   return (
     <div
       ref={ref}
