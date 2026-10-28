@@ -321,9 +321,12 @@ export function createEndpointRequest(options: { fetch: FetchLike; timeoutMs?: n
   const request = createAuthRequest(options);
   return async (path, opts = {}) => {
     const route = API_PATH.exec(path)?.[1] ?? "";
-    const method = opts.method ?? "GET";
-    if (!isRoute(route) || (method !== "GET" && method !== "POST")) throw new TransportError("invalid_request");
-    return request(method, route, opts.body === undefined ? {} : { body: opts.body });
+    if (!isRoute(route)) throw new TransportError("invalid_request");
+    const body = opts.body === undefined ? {} : { body: opts.body };
+    // each method written out: the route catalogue reads a call's first argument as its method or path
+    if (opts.method === undefined || opts.method === "GET") return request("GET", route, body);
+    if (opts.method === "POST") return request("POST", route, body);
+    throw new TransportError("invalid_request");
   };
 }
 

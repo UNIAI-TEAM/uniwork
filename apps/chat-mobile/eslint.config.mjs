@@ -132,7 +132,20 @@ const formatSyntax = [
 // The mutation layer (data/mutations/command.ts): screens and components
 // change server state through its hooks, never by calling an endpoint or a
 // command themselves, nor reach the transport (data/api.ts). Types stay importable.
-const COMMAND_MODULES = ["api", "chat-api", "chat-actions", "chat-send", "pending-ops", "safety-api", "safety-actions", "account-api", "ai-consent"];
+const COMMAND_MODULES = [
+  "api",
+  "chat-api",
+  "chat-actions",
+  "chat-send",
+  "pending-ops",
+  "safety-api",
+  "safety-actions",
+  "account-api",
+  "ai-consent",
+  // Unified sign-in (ADR 0047): the doors run through the auth store's login(); the rest through mutation hooks.
+  "auth/sign-in",
+  "auth/methods-api",
+];
 
 export default [
   ...reactConfig,
@@ -348,6 +361,11 @@ export default [
             name: "@/data/push",
             importNames: ["setPushEnabled", "registerPushToken", "unregisterPushToken"],
             message: "Turn push on or off with useSetPushEnabled (data/mutations/push.ts); registration at boot is app/(app)/_layout.tsx's.",
+          },
+          {
+            name: "@/data/auth/flow",
+            importNames: ["nativeSignIn"],
+            message: "Sign in with useAuthStore().login(request) (data/auth/sign-in.ts); the doors never run from a screen.",
           },
         ],
         patterns: [

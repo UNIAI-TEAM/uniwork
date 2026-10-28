@@ -29,6 +29,7 @@ import {
   ChatUnreadSummarySchema,
   PendingChatVoiceInvitesSchema,
 } from "@uniwork/core/api/endpoints/chat-schemas";
+import { AuthProvidersSchema, SignInIdentitySchema, SignInMethodsSchema, StepUpGrantSchema } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ERASED_ACCOUNT_NAME } from "@/lib/erased-account";
@@ -57,7 +58,21 @@ const SERVER = path.resolve(__dirname, "../../../server/internal");
 const SDO_DIR = path.join(SERVER, "handler/dto/sdo");
 // The handler files the rows' handlers live in; each pattern is in scripts/mobile-native-scope.mjs › MOBILE_PATHS,
 // so a change to one runs this test (checked below).
-const HANDLER_FILES = ["chat*.go", "auth.go", "identity.go", "config.go", "push_preview_policy.go", "workspace.go", "task.go", "organization_members.go"];
+const HANDLER_FILES = [
+  "chat*.go",
+  "auth.go",
+  "identity.go",
+  "config.go",
+  "push_preview_policy.go",
+  "workspace.go",
+  "task.go",
+  "organization_members.go",
+  // Unified sign-in (ADR 0047): the app's doors, Settings › Sign-in methods and step-up, /auth/providers.
+  "native_sign_in.go",
+  "sign_in_methods.go",
+  "sign_in_ticket.go",
+  "verification.go",
+];
 // Structs of other packages an SDO embeds as a field: ConfigSDO.unichat_stores is a config.UniChatStoreLinks.
 const FOREIGN_STRUCTS: Record<string, string> = { config: "config/unichat_downloads.go" };
 
@@ -199,7 +214,7 @@ function valueStruct(source: string, body: string, expression: string): string |
   return assigned ? returnStruct(source, assigned) : undefined;
 }
 
-/** What a handler answers 2xx with: its last `respondJSON`, or the `h.respond…` helper it hands the answer to. */
+/** What a handler answers 2xx with: its last `respondJSON`, or the `h.respond…` / `h.…Answer` helper it hands it to. */
 function answerOf(source: string, handler: string, seen = new Set<string>()): Answer {
   const body = funcBody(source, handler);
   if (!body || seen.has(handler)) return { unresolved: `no func ${handler}` };
@@ -207,7 +222,7 @@ function answerOf(source: string, handler: string, seen = new Set<string>()): An
   const responses = [...body.matchAll(/respondJSON\(w, [^,]+, (.*)$/gm)];
   const last = responses.at(-1)?.[1];
   if (last === undefined) {
-    const helper = /\bh\.(respond\w+)\(/.exec(body)?.[1];
+    const helper = /\bh\.(respond\w+|\w+Answer)\(/.exec(body)?.[1];
     return helper ? answerOf(source, helper, seen) : { unresolved: `${handler} has no respondJSON` };
   }
   const map = /^map\[string\]any\{(.*)\}\)\s*$/.exec(last);
@@ -236,7 +251,50 @@ interface Contract {
   items?: Record<string, z.ZodType>;
 }
 
+// Unified sign-in (ADR 0047): what the app reads around the schemas core exports. Core keeps the envelopes of
+// readNativeSignIn and readSignInMethodsChange module-private, so their keys are written out here with core's own
+// schemas nested; the session is what data/auth/transport.ts › parseSession reads, strictly, of DesktopSessionSDO.
+const SessionFields = z.object({
+  account_id: z.string(),
+  device_session_id: z.string(),
+  session_id: z.string(),
+  deployment_id: z.string(),
+  access_token: z.string(),
+  token_type: z.string(),
+  expires_in: z.number(),
+  refresh_token: z.string(),
+  refresh_expires_in: z.number(),
+});
+const NativeSignInFields = z.object({
+  status: z.string(),
+  session: SessionFields,
+  reclaimed: z.boolean(),
+  link_skipped: z.string(),
+  mfa_token: z.string(),
+  ticket: z.string(),
+  identity: SignInIdentitySchema,
+});
+const SignInMethodsChangeFields = z.object({ user: z.unknown(), sign_in_methods: SignInMethodsSchema });
+const SentFields = z.object({ status: z.string() });
+
 const CONTRACTS: Contract[] = [
+  // Sign-in (ADR 0047 §8): the app's doors, the providers it offers, Settings › Sign-in methods and step-up.
+  {
+    endpoint: "POST /auth/native/{password,mfa,google,apple,register}, …/sign-in-ticket/{create,claim-email/verify}",
+    schema: NativeSignInFields,
+    sdo: "NativeSignInSDO",
+    handlers: ["nativePassword", "nativeMFA", "nativeGoogle", "nativeApple", "nativeRegister", "nativeTicketCreate", "nativeTicketClaimEmailVerify"],
+  },
+  { endpoint: "POST /auth/native/sign-in-ticket/claim-email, /me/step-up/email-code", schema: SentFields, sdo: "StatusSDO", handlers: ["nativeTicketClaimEmail", "stepUpEmailCode"] },
+  { endpoint: "GET /auth/providers", schema: AuthProvidersSchema, sdo: "AuthProvidersSDO", handlers: ["authProviders"] },
+  { endpoint: "GET /me/sign-in-methods", schema: SignInMethodsSchema, sdo: "SignInMethodsSDO", handlers: ["signInMethods"] },
+  {
+    endpoint: "PUT /me/password, POST /me/sign-in-methods/{p}/{native,unlink}, /auth/native/sign-in-ticket/link",
+    schema: SignInMethodsChangeFields,
+    sdo: "SignInMethodsChangeSDO",
+    handlers: ["setPassword", "signInMethodUnlink", "signInMethodLinkNative", "nativeTicketLink"],
+  },
+  { endpoint: "POST /me/step-up", schema: StepUpGrantSchema, sdo: "StepUpSDO", handlers: ["stepUp"] },
   // Boot, account and remote config: the shell, Settings and the kill switches (mobile_flags).
   { endpoint: "GET|PATCH /me, PUT|DELETE /me/ai-consent, PUT /me/push-previews", schema: MeResponseSchema, sdo: { user: "UserDTO" }, handlers: ["me", "patchMe", "answerAIConsent", "setPushPreviews"] },
   { endpoint: "GET /workspaces", schema: WorkspacesResponseSchema, sdo: "WorkspaceListSDO", handlers: ["listWorkspaces"] },
