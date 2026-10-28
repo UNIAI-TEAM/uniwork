@@ -63,7 +63,7 @@ export function RegisterForm({ busy, message, waiting = false, onSubmit }: Props
         returnKeyType="next"
         submitBehavior="submit"
         onSubmitEditing={() => inputs.email.current?.focus()}
-        editable={idle}
+        busy={!idle}
         testID="register-name"
       />
       <AuthField
@@ -80,7 +80,7 @@ export function RegisterForm({ busy, message, waiting = false, onSubmit }: Props
         returnKeyType="next"
         submitBehavior="submit"
         onSubmitEditing={() => inputs.password.current?.focus()}
-        editable={idle}
+        busy={!idle}
         testID="register-email"
       />
       <PasswordField
@@ -93,7 +93,7 @@ export function RegisterForm({ busy, message, waiting = false, onSubmit }: Props
         error={say(errors.password)}
         returnKeyType="go"
         onSubmitEditing={() => void submit()}
-        editable={idle}
+        busy={!idle}
         testID="register-password"
       />
       <FormAlert message={message} testID="register-failure" />

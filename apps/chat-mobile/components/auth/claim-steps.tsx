@@ -89,7 +89,7 @@ export function ClaimEmailStep({ email, onChangeEmail, onSent, onRestart }: Emai
         autoFocus
         returnKeyType="send"
         onSubmitEditing={() => void send()}
-        editable={!claim.sending}
+        busy={claim.sending}
         testID="claim-email"
       />
       <SubmitButton

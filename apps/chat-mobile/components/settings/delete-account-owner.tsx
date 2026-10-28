@@ -129,10 +129,12 @@ function CloseOrganizationField({
       <TextInput
         ref={inputRef}
         value={value}
-        onChangeText={onChangeText}
+        // Editable while a step runs, so a refusal about the address can focus it again with the keyboard up; what is
+        // typed meanwhile waits (the input shows its value again).
+        onChangeText={busy ? () => undefined : onChangeText}
+        accessibilityState={{ busy }}
         autoCapitalize="none"
         autoCorrect={false}
-        editable={!busy}
         placeholder={organization.slug}
         placeholderTextColor={placeholderColor}
         accessibilityLabel={label}

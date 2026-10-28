@@ -1,9 +1,10 @@
 // A six-digit code (spec §5.2: the second factor, the code mailed to another address, email verification): six boxes
 // drawn over one real input, so the system's one-time-code suggestion, paste and the number pad all work and a
 // screen reader meets a single field. The input is laid over the boxes, nearly transparent rather than hidden, which
-// keeps iOS offering the code from Mail or Messages. A full code is handed on at once (`onComplete`); a check
-// running keeps the field focused but not editable (`busy`), so the wait is announced instead of the keyboard
-// dropping.
+// keeps iOS offering the code from Mail or Messages. A full code is handed on at once (`onComplete`); while the check
+// runs (`busy`) the input stays editable and takes no typing, so it keeps its focus and the keyboard and a refused
+// code can be typed again at once (a disabled native input drops the keyboard and cannot be focused before React
+// commits the answer). A lock counting down (`disabled`) takes the field away until it lifts.
 import { useState, type Ref } from "react";
 import { StyleSheet, TextInput, View } from "react-native";
 import { useAnnounce } from "@/components/ui/a11y";
@@ -43,6 +44,8 @@ export function CodeField(props: CodeFieldProps) {
   const digits = [...value];
 
   const change = (raw: string) => {
+    // The check answers first; the input shows the code it holds again.
+    if (busy) return;
     const next = codeDigits(raw);
     onChange(next);
     if (next.length === CODE_LENGTH && next !== value) onComplete(next);
@@ -79,7 +82,7 @@ export function CodeField(props: CodeFieldProps) {
           accessibilityLabel={label}
           accessibilityHint={error ?? hint ?? undefined}
           accessibilityState={{ busy, disabled }}
-          editable={!busy && !disabled}
+          editable={!disabled}
           autoFocus={autoFocus}
           keyboardType="number-pad"
           textContentType="oneTimeCode"

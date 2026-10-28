@@ -55,14 +55,17 @@ describe("LoginForm", () => {
     expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.uniworkos.test/forgot-password");
   });
 
-  it("waits while a lock counts down, and dims while another way in runs", async () => {
+  it("waits while a lock counts down, and takes no typing while another way in runs", async () => {
     const onSubmit = jest.fn(async () => null);
     const { rerender } = await render(<LoginForm busy={null} message="khoá" waiting onSubmit={onSubmit} />);
     expect(screen.getByTestId("login-button")).toBeDisabled();
     await act(async () => fireEvent(screen.getByTestId("login-password"), "submitEditing"));
     expect(onSubmit).not.toHaveBeenCalled();
     await rerender(<LoginForm busy="google" message={null} onSubmit={onSubmit} />);
-    expect(screen.getByTestId("login-email").props.editable).toBe(false);
+    // The fields stay editable (a disabled one drops the keyboard and cannot be focused again); what is typed waits.
+    expect(screen.getByTestId("login-email").props.editable).toBe(true);
+    await act(async () => fireEvent.changeText(screen.getByTestId("login-email"), "an@congty.vn"));
+    expect(screen.getByTestId("login-email").props.value).toBe("");
     expect(screen.getByTestId("login-forgot")).toBeDisabled();
   });
 });

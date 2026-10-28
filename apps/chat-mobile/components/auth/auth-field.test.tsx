@@ -25,6 +25,18 @@ describe("AuthField", () => {
     if (Platform.OS === "ios") expect(announce).toHaveBeenCalledWith("Nhập email");
   });
 
+  it("stays editable while a request runs, so it keeps its focus and the keyboard, and takes no typing until it answers", async () => {
+    const onChangeText = jest.fn();
+    const { rerender } = await render(<AuthField label="Mật khẩu" value="" busy onChangeText={onChangeText} testID="field" />);
+    expect(screen.getByTestId("field").props.editable).toBe(true);
+    expect(screen.getByTestId("field").props.accessibilityState).toEqual({ busy: true, disabled: false });
+    await act(async () => fireEvent.changeText(screen.getByTestId("field"), "x"));
+    expect(onChangeText).not.toHaveBeenCalled();
+    await rerender(<AuthField label="Mật khẩu" value="" onChangeText={onChangeText} testID="field" />);
+    await act(async () => fireEvent.changeText(screen.getByTestId("field"), "x"));
+    expect(onChangeText).toHaveBeenCalledWith("x");
+  });
+
   it("keeps a field it cannot edit now on screen, and works with no hint", async () => {
     await render(<AuthField label="Tên" value="An" editable={false} testID="field" />);
     expect(screen.getByTestId("field").props.editable).toBe(false);
@@ -80,9 +92,15 @@ describe("CodeField", () => {
   });
 
   it("keeps the field but takes no typing while a check runs or a lock waits, and says its error", async () => {
-    const { rerender } = await render(<CodeField label="Mã" value="" busy onChange={jest.fn()} onComplete={jest.fn()} hint="6 số" testID="code" />);
-    expect(screen.getByTestId("code").props.editable).toBe(false);
+    const onChange = jest.fn();
+    const onComplete = jest.fn();
+    const { rerender } = await render(<CodeField label="Mã" value="" busy onChange={onChange} onComplete={onComplete} hint="6 số" testID="code" />);
+    // Still editable: a disabled input drops the keyboard and cannot take the focus back for the next code.
+    expect(screen.getByTestId("code").props.editable).toBe(true);
     expect(screen.getByTestId("code").props.accessibilityState).toEqual({ busy: true, disabled: false });
+    await act(async () => fireEvent.changeText(screen.getByTestId("code"), "123456"));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
     expect(screen.getByText("6 số")).toBeTruthy();
     await rerender(<CodeField label="Mã" value="" disabled error="Mã chưa đúng" onChange={jest.fn()} onComplete={jest.fn()} testID="code" />);
     expect(screen.getByTestId("code").props.editable).toBe(false);

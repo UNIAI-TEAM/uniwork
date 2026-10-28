@@ -70,7 +70,7 @@ export function LoginForm({ busy, message, waiting = false, onSubmit }: Props) {
         returnKeyType="next"
         submitBehavior="submit"
         onSubmitEditing={() => passwordInput.current?.focus()}
-        editable={idle}
+        busy={!idle}
         testID="login-email"
       />
       <View className="gap-1">
@@ -85,7 +85,7 @@ export function LoginForm({ busy, message, waiting = false, onSubmit }: Props) {
           error={say(errors.password)}
           returnKeyType="go"
           onSubmitEditing={() => void submit()}
-          editable={idle}
+          busy={!idle}
           testID="login-password"
         />
         <View className="flex-row justify-end">

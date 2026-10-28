@@ -1,7 +1,10 @@
 // The sign-in screens' text field (spec §5.2): a label above, the input on the muted surface the delete-account
 // sheet uses, and under it either the field's error (with an icon, read out at once) or a hint. The visible label is
 // for the eye; the input carries it for VoiceOver and TalkBack, with the error as its hint, so a reader that lands on
-// the field hears what to fix. The password field adds show/hide, a full 44 pt target inside the field.
+// the field hears what to fix. While a request runs (`busy`) the field stays editable, so it keeps its focus and the
+// keyboard, and what is typed waits: a disabled native input drops the keyboard and cannot be focused again before
+// React commits the answer, so a refused password could not be typed again at once. The password field adds
+// show/hide, a full 44 pt target inside the field.
 import { Ionicons } from "@expo/vector-icons";
 import { useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
@@ -22,9 +25,15 @@ interface AuthFieldProps extends Omit<TextInputProps, "style" | "className"> {
   ref?: Ref<TextInput>;
   /** a control inside the field's end: the password's show/hide */
   trailing?: ReactNode;
+  /** a request runs: the field keeps its focus and the keyboard, typing waits for the answer */
+  busy?: boolean;
 }
 
-export function AuthField({ label, error, hint, trailing, ref, editable = true, onFocus, onBlur, ...input }: AuthFieldProps) {
+/** What a busy field does with typing: nothing (the input shows its value again). */
+const waitForAnswer = () => undefined;
+
+export function AuthField(props: AuthFieldProps) {
+  const { label, error, hint, trailing, ref, editable = true, busy = false, onChangeText, onFocus, onBlur, ...input } = props;
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const [focused, setFocused] = useState(false);
@@ -45,7 +54,9 @@ export function AuthField({ label, error, hint, trailing, ref, editable = true, 
           ref={ref}
           accessibilityLabel={label}
           accessibilityHint={error ?? hint ?? undefined}
+          accessibilityState={{ busy, disabled: !editable }}
           editable={editable}
+          onChangeText={busy ? waitForAnswer : onChangeText}
           placeholderTextColor={theme.mutedForeground}
           autoCorrect={false}
           onFocus={(event) => {

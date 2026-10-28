@@ -97,7 +97,8 @@ export function SecondFactorStep({ linkMode }: { linkMode: boolean }) {
           autoFocus
           returnKeyType="go"
           onSubmitEditing={submit}
-          editable={!busy && !waiting}
+          busy={busy}
+          editable={!waiting}
           testID="mfa-recovery"
         />
       ) : (

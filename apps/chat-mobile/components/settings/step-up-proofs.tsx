@@ -61,7 +61,8 @@ export function PasswordProof({ busy, message, waiting, refusals, fieldRef, onSu
           setRequired(false);
         }}
         error={message ?? (required ? t("settings.security.stepUp.password.required") : null)}
-        editable={!busy && !waiting}
+        busy={busy}
+        editable={!waiting}
         autoFocus
         returnKeyType="go"
         onSubmitEditing={submit}
@@ -110,7 +111,8 @@ export function SecondFactorProof({ busy, message, waiting, refusals, fieldRef, 
           autoFocus
           returnKeyType="go"
           onSubmitEditing={submit}
-          editable={!busy && !waiting}
+          busy={busy}
+          editable={!waiting}
           testID="step-up-recovery"
         />
       ) : (

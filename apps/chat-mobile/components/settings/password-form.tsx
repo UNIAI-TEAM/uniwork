@@ -139,7 +139,7 @@ export function PasswordForm() {
             value={current}
             onChangeText={edit("current", setCurrent)}
             error={errorOf("current")}
-            editable={!busy}
+            busy={busy}
             autoFocus
             returnKeyType="next"
             onSubmitEditing={() => fields.next.current?.focus()}
@@ -154,7 +154,7 @@ export function PasswordForm() {
           onChangeText={edit("next", setNext)}
           error={errorOf("next")}
           hint={t(`${P}.hint`, { min: PASSWORD_MIN })}
-          editable={!busy}
+          busy={busy}
           autoFocus={!asksCurrent}
           returnKeyType="next"
           onSubmitEditing={() => fields.again.current?.focus()}
@@ -167,7 +167,7 @@ export function PasswordForm() {
           value={again}
           onChangeText={edit("again", setAgain)}
           error={errorOf("again")}
-          editable={!busy}
+          busy={busy}
           returnKeyType="done"
           onSubmitEditing={() => void submit()}
           testID="password-again"

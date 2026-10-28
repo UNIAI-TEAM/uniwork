@@ -209,7 +209,7 @@ export function ContinueFlow() {
                 autoCapitalize="words"
                 returnKeyType="done"
                 onSubmitEditing={() => void createAccount()}
-                editable={!busy}
+                busy={busy}
                 testID="choice-name"
               />
               <SubmitButton
