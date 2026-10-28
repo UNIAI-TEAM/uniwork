@@ -88,7 +88,8 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
 - Mọi lệnh cần "xác nhận là bạn" (đặt/đổi mật khẩu, liên kết/gỡ liên kết, xoá tài khoản, chuyển quyền, liên kết vé)
   đi qua `components/settings/use-step-up.ts` (`run(action, command)`): token chỉ trong bộ nhớ
   (`data/auth/step-up-store.ts`), bằng chứng hỏi trước khi mở sheet của Apple/Google, lệnh ở `data/mutations` bọc
-  `withHeldStepUp` để token bị từ chối được quên (`components/settings/step-up-sheet.test.tsx`).
+  `withHeldStepUp` để token bị từ chối được quên; khoá app cất sheet đi rồi đưa lại đúng bằng chứng đang làm (mã đã gửi
+  giữ mười phút), và trên iOS sheet sau chờ sheet trước đóng hẳn (`components/settings/step-up-sheet.test.tsx`).
 - Công tắc mobile mới: `MOBILE_FLAG_DEFAULTS` (`data/remote-config.ts`) và `server/internal/featureflags/keys.go` cùng
   PR, có `ReviewAt`.
 - Coverage: vitest (`lib/`, `data/` trừ hook React) 100/100/100/100; jest (`components/`, hook của `data/`, route theo
