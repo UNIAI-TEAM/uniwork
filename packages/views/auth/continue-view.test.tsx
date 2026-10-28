@@ -203,6 +203,24 @@ describe("ContinueView — unmatched", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("becomes the existing-account screen from the name step too, and its heading takes focus", async () => {
+    route({
+      "GET /api/v1/auth/sign-in-ticket": { ...TICKET, name: "" },
+      "POST /api/v1/auth/sign-in-ticket/create": () => Promise.reject(new ApiError("taken", "sign_in_account_conflict", 409)),
+    });
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: /Tạo tài khoản mới/ }));
+    fireEvent.change(await screen.findByLabelText("Tên hiển thị"), { target: { value: "An" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+    // The name step's form is gone with the button that was pressed: the new
+    // screen's heading holds focus, so a keyboard and a screen reader hear it.
+    const heading = await screen.findByRole("heading", { level: 1, name: "Email này đã có tài khoản UniWork" });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.queryByRole("button", { name: "Tạo tài khoản" })).toBeNull();
+    expect(screen.queryByLabelText("Tên hiển thị")).toBeNull();
+    expect(screen.getByRole("link", { name: "Đăng nhập để liên kết" })).toHaveAttribute("href", SIGN_IN_TO_LINK);
+  });
+
   it("counts a 429 down live and lets the person try again when it is over", async () => {
     // Only the clock and the countdown's interval are faked: the requests and
     // the query library keep their real timers, and the countdown starts on a

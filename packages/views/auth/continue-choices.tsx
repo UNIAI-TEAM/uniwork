@@ -267,6 +267,10 @@ function ChoicesScreen({
     return (
       <AuthShell
         title={t("auth.continue.linkRequired.title")}
+        // From the rows this shell only retitles; from the name step it is a
+        // fresh mount whose pressed button went with the form, so a conflict
+        // has the heading take focus on arrival.
+        announce={conflicted}
         description={
           address
             ? t("auth.continue.linkRequired.body", { provider, email: address })
