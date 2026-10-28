@@ -11,8 +11,9 @@ import (
 
 // syncStarred pulls flagged / Gmail-starred messages into the cache so the
 // virtual STARRED folder is not limited to the ~50 most recent INBOX rows
-// (UNI-1625). Searches INBOX always; on Gmail also searches All Mail so
-// starred archive mail is included.
+// (UNI-1625). Gmail searches All Mail only (not INBOX+All Mail): the same
+// Message-ID has different UIDs per mailbox and used to create duplicate
+// starred rows (UNI-2269).
 func (s *EmailHubService) syncStarred(ctx context.Context, acc db.EmailHubAccount, force bool) (bool, int, error) {
 	release, ok := s.gov.trySync(acc.ID, force, false, emailHubSyncModeFull)
 	if !ok {
@@ -63,10 +64,19 @@ func (s *EmailHubService) syncStarred(ctx context.Context, acc db.EmailHubAccoun
 			if len(result.Items) == 0 {
 				continue
 			}
-			for i := range result.Items {
-				result.Items[i].IsStarred = true
+			kept := make([]imapclient.ThreadMeta, 0, len(result.Items))
+			for _, it := range result.Items {
+				it.IsStarred = true
+				if s.applyStarredToExistingByMessageID(ctx, acc, it.MessageID) {
+					upserted++
+					continue
+				}
+				kept = append(kept, it)
 			}
-			ids, upsertErr := s.upsertThreadItems(ctx, acc, logical, result.Items)
+			if len(kept) == 0 {
+				continue
+			}
+			ids, upsertErr := s.upsertThreadItems(ctx, acc, logical, kept)
 			if upsertErr != nil {
 				return upsertErr
 			}
@@ -84,11 +94,37 @@ func (s *EmailHubService) syncStarred(ctx context.Context, acc db.EmailHubAccoun
 	return upserted > 0 || force, 0, nil
 }
 
+// applyStarredToExistingByMessageID stars every cached copy of Message-ID and
+// collapses Gmail INBOX+All Mail duplicates to one preferred row (UNI-2269).
+func (s *EmailHubService) applyStarredToExistingByMessageID(ctx context.Context, acc db.EmailHubAccount, messageID string) bool {
+	mid := emailhub.NormalizeMessageID(messageID)
+	if mid == "" {
+		return false
+	}
+	n, err := s.q.MarkEmailHubThreadsStarredByMessageID(ctx, db.MarkEmailHubThreadsStarredByMessageIDParams{
+		AccountID: acc.ID, OrganizationID: acc.OrganizationID, MessageID: mid, IsStarred: true,
+	})
+	if err != nil {
+		s.log.Warn("email hub star by message-id failed", "account_id", acc.ID, "err", err)
+		return false
+	}
+	if n == 0 {
+		return false
+	}
+	if _, delErr := s.q.DeleteEmailHubDuplicateThreadsByMessageID(ctx, db.DeleteEmailHubDuplicateThreadsByMessageIDParams{
+		AccountID: acc.ID, OrganizationID: acc.OrganizationID, MessageID: mid,
+	}); delErr != nil {
+		s.log.Warn("email hub starred dedupe failed", "account_id", acc.ID, "err", delErr)
+	}
+	return true
+}
+
 func starredSearchFolders(provider string) []string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
 	case "gmail":
-		// All Mail holds starred messages that left the inbox.
-		return []string{emailhub.FolderInbox, emailhub.FolderArchive}
+		// All Mail already contains inbox + archived starred mail. Searching
+		// INBOX as well created a second row per Message-ID (UNI-2269).
+		return []string{emailhub.FolderArchive}
 	default:
 		return []string{emailhub.FolderInbox}
 	}
