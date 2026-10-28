@@ -1547,3 +1547,55 @@ func TestFacadeUntrustedToolResultCapsA6AndA7(t *testing.T) {
 		}
 	})
 }
+
+// The Ask UNI handoff (ADR 0048) expands a question after the client's 8 000
+// cap: the client's text is checked as it came, the expanded text is what the
+// turn carries, a tool-result turn never expands, and a nil expand is
+// PlanUniworkTurn.
+func TestPlanUniworkTurnWithExpandsAfterTheQuestionCap(t *testing.T) {
+	allow := facadeAllow([]string{"read_range"}, nil)
+	question := func(s string) json.RawMessage {
+		return facadeBody(t, map[string]any{"messages": []map[string]string{{"role": "user", "content": s}}})
+	}
+	long := strings.Repeat("y", 20_000)
+
+	if _, err := PlanUniworkTurnWith(nil, question(strings.Repeat("x", UniworkQuestionMaxRunes+1)), allow,
+		func(string) string { return long }); !errors.Is(err, ErrUniworkInvalidTurn) {
+		t.Fatalf("client question over the cap = %v, want invalid_request", err)
+	}
+
+	turn, err := PlanUniworkTurnWith(nil, question("0123456789"), allow, func(q string) string {
+		if q != "0123456789" {
+			t.Errorf("expand got %q, want the client's question", q)
+		}
+		return long
+	})
+	if err != nil {
+		t.Fatalf("expanded question: %v", err)
+	}
+	if last := turn.History[len(turn.History)-1].Content; turn.Question != long || last != long {
+		t.Fatalf("expanded turn: Question %d bytes, last History %d bytes; want both %d", len(turn.Question), len(last), len(long))
+	}
+
+	called := false
+	if _, err := PlanUniworkTurnWith(facadeCallTurnTranscript("call_1"),
+		facadeBody(t, map[string]any{"messages": facadeToolResults("call_1")}), allow,
+		func(q string) string { called = true; return q }); err != nil {
+		t.Fatalf("tool-result turn: %v", err)
+	}
+	if called {
+		t.Fatal("a tool-result turn called expand")
+	}
+
+	plain, err := PlanUniworkTurn(nil, question("0123456789"), allow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	same, err := PlanUniworkTurnWith(nil, question("0123456789"), allow, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprintf("%+v", plain) != fmt.Sprintf("%+v", same) {
+		t.Fatalf("nil expand = %+v, want PlanUniworkTurn's %+v", same, plain)
+	}
+}

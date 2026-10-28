@@ -25,6 +25,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
 // isoUniworkConversationKey is the test AI_CONVERSATION_KEY: a valid base64
@@ -659,5 +660,52 @@ func TestAIUniworkUnknownModuleRefusedBeforeGateway(t *testing.T) {
 		uniworkModuleQuestion("bảng tính này có gì", "sheets", "read_cells"))
 	if status != http.StatusOK || conv == "" {
 		t.Fatalf("known module after the refusal: %d %v; want 200", status, out)
+	}
+}
+
+// The Ask UNI handoff (ADR 0048) on the wire: the frame's request header
+// reaches the service, and the answer names the parts left only on a turn the
+// package expanded.
+func TestAIUniworkHandoffHeadersOnTheWire(t *testing.T) {
+	w := newUniworkWorld(t)
+	tn := w.alpha
+	id := util.NewID()
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO ai_office_handoffs (id, organization_id, workspace_id, user_id, document_id, proposal_id, format, title, request, outline, parts, sources, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'docx', 'Báo cáo', 'Soạn báo cáo', '- a', '["- a", "- b"]', '[]', now() + interval '24 hours')`,
+		id, tn.orgID, tn.wsID, tn.userID, tn.ids["frameDocument"], util.NewID()); err != nil {
+		t.Fatal(err)
+	}
+	turn := func(handoffID string) (int, string, bool) {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodPost, w.srv.URL+tn.uniworkFramePath(), strings.NewReader(`{"messages":[{"role":"user","content":"soạn"}]}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+tn.ids["frameToken"])
+		if handoffID != "" {
+			req.Header.Set(ai.UniworkHandoffHeader, handoffID)
+		}
+		res, err := w.srv.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		_, _ = io.Copy(io.Discard, res.Body)
+		remaining := res.Header.Values(ai.UniworkHandoffRemainingHeader)
+		return res.StatusCode, strings.Join(remaining, ","), len(remaining) > 0
+	}
+
+	status, remaining, _ := turn(id)
+	if status != http.StatusOK || remaining != "1" {
+		t.Fatalf("handoff turn: status %d, %s %q; want 200 and 1", status, ai.UniworkHandoffRemainingHeader, remaining)
+	}
+	if saw := uniworkModelSaw(w); !strings.Contains(saw, "Do now (part 1 of 2):\n- a") {
+		t.Fatalf("the header did not reach the service; the model saw:\n%s", saw)
+	}
+	for _, handoffID := range []string{"", util.NewID()} {
+		if status, _, ok := turn(handoffID); status != http.StatusOK || ok {
+			t.Fatalf("turn without a usable package (%q): status %d, remaining header present %v", handoffID, status, ok)
+		}
 	}
 }
