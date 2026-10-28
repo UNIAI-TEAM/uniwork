@@ -195,11 +195,12 @@ describe("MeetingSheet · create", () => {
     expect(posts("/invite-links")).toHaveLength(0);
   });
 
-  it("hides the venue without transcription", async () => {
+  it("offers the venue without transcription", async () => {
+    // Spec D5: without recording, an in-person meeting is still recorded held by hand ("Ghi nhận đã họp").
     const dialog = openCreate();
     await within(dialog).findByRole("group", { name: "Thêm tùy chọn" });
     await act(() => new Promise((r) => setTimeout(r, 20)));
-    expect(within(dialog).queryByRole("radiogroup", { name: "Hình thức" })).toBeNull();
+    expect(within(dialog).getByRole("radiogroup", { name: "Hình thức" })).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: /^Vào phòng/ })).toBeInTheDocument();
   });
 
