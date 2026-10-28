@@ -98,10 +98,17 @@ describe("the choice screen's endpoints (web ticket)", () => {
     expect(getAccessToken()).toBe("tok");
   });
 
-  it("discards with a DELETE", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+  it("discards with a DELETE, whatever body a drifted server sends back", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 })).mockResolvedValueOnce(json({ status: 1, x: [] }));
     await discardSignInTicket();
     expect(call()).toEqual({ url: "http://api.test/api/v1/auth/sign-in-ticket", method: "DELETE", body: undefined });
+    await expect(discardSignInTicket()).resolves.toBeUndefined();
+  });
+
+  it("reads a drifted claim-email answer as not sent", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(null)).mockResolvedValueOnce(json(["sent"]));
+    await expect(sendSignInEmailClaim("an@acme.vn")).resolves.toBe(false);
+    await expect(sendSignInEmailClaim("an@acme.vn")).resolves.toBe(false);
   });
 
   it("links the pending identity, sending only what was asked, and degrades on drift", async () => {

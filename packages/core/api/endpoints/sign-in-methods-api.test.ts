@@ -115,6 +115,23 @@ describe("createSignInMethodsApi", () => {
     });
   });
 
+  it("degrades the app's links on a malformed answer: the caller refetches, never a fallback user", async () => {
+    const { request, api } = harness({ user: { id: 1 }, sign_in_methods: { password: "set" } });
+    await expect(api.linkNative({ provider: "google", stepUpToken: "su", idToken: "gid", nonce: "raw" })).resolves.toEqual({
+      user: null,
+      methods: null,
+    });
+    request.mockResolvedValueOnce("drift");
+    await expect(api.linkNative({ provider: "apple", stepUpToken: "su", identityToken: "aid", nonce: "raw" })).resolves.toEqual({
+      user: null,
+      methods: null,
+    });
+    request.mockResolvedValueOnce(null);
+    await expect(api.linkNativeTicket(client, { ticket: "T", nonce: "raw" })).resolves.toEqual({ user: null, methods: null });
+    request.mockResolvedValueOnce({ user, sign_in_methods: 3 });
+    await expect(api.linkNativeTicket(client, { ticket: "T", nonce: "raw" })).resolves.toMatchObject({ user: { id: "u1" }, methods: null });
+  });
+
   it("links the app's ticket with its client fields", async () => {
     const { api, sent } = harness({ user, sign_in_methods: methods });
     const out = await api.linkNativeTicket(client, { ticket: "T", nonce: "raw", move: true, stepUpToken: "su" });

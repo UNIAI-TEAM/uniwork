@@ -110,10 +110,21 @@ describe("createNativeSignInApi", () => {
   });
 
   it("answers null for a malformed answer: no door ever degrades into a session", async () => {
-    const { api } = harness({ status: "signed_in" });
-    await expect(api.signInWithPassword({ email: "a", password: "b" })).resolves.toBeNull();
-    await expect(api.verifySecondFactor({ mfaToken: "c", code: "1" })).resolves.toBeNull();
-    await expect(api.createFromTicket({ ticket: "T", nonce: "n" })).resolves.toBeNull();
+    const { request, api } = harness({ status: "signed_in" });
+    const doors = [
+      () => api.signInWithPassword({ email: "a", password: "b" }),
+      () => api.verifySecondFactor({ mfaToken: "c", code: "1" }),
+      () => api.signInWithGoogle({ idToken: "gid", nonce: "raw" }),
+      () => api.signInWithApple({ identityToken: "aid", nonce: "raw" }),
+      () => api.register({ email: "a", password: "password123", displayName: "An" }),
+      () => api.createFromTicket({ ticket: "T", nonce: "n" }),
+      () => api.verifyTicketEmailCode({ ticket: "T", nonce: "n", email: "a", code: "1" }),
+    ];
+    // A branch without its field, an unknown status, no envelope at all.
+    for (const answer of [{ status: "signed_in" }, { status: "welcome", session }, "signed_in", null]) {
+      request.mockResolvedValue(answer);
+      for (const door of doors) await expect(door()).resolves.toBeNull();
+    }
   });
 
   it("lets the transport's refusal through untouched for the caller to read", async () => {
