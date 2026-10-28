@@ -43,7 +43,11 @@ jest.mock("../account-api", () => ({
 jest.mock("../auth/verify-email", () => ({ verifyAccountEmail: jest.fn(async () => undefined) }));
 // The choice screen's commands (data/mutations/sign-in.ts) and the signed-in user they update.
 jest.mock("../auth/sign-in", () => ({ sendClaimCode: jest.fn(async () => true) }));
-jest.mock("../auth/methods-api", () => ({ linkPendingTicket: jest.fn() }));
+jest.mock("../auth/methods-api", () => ({
+  linkPendingTicket: jest.fn(),
+  stepUp: jest.fn(async () => true),
+  signInMethodsApi: { setPassword: jest.fn(async () => ({ user: { id: "u1" }, methods: null })) },
+}));
 jest.mock("../auth/store", () => ({ useAuthStore: { getState: () => ({ setUser: mockSetUser }) } }));
 const mockSetUser = jest.fn();
 jest.mock("../ai-consent", () => ({ answerAiConsent: jest.fn(async () => undefined) }));
@@ -71,7 +75,7 @@ import { answerAiConsent } from "../ai-consent";
 import { setPushPreviews } from "../push-previews";
 import { verifyAccountEmail } from "../auth/verify-email";
 import { sendClaimCode } from "../auth/sign-in";
-import { linkPendingTicket } from "../auth/methods-api";
+import { linkPendingTicket, signInMethodsApi } from "../auth/methods-api";
 import { api } from "../api";
 import { setPushEnabled } from "../push";
 import { voipPush as mockVoip } from "../calls/native-call-session";
@@ -86,6 +90,7 @@ import {
   useVerifyEmail,
 } from "./account";
 import { useLinkPendingTicket, useSendClaimCode } from "./sign-in";
+import { useSetPassword, useStepUpProof } from "./sign-in-methods";
 import { useSetPushEnabled } from "./push";
 import {
   useCreateTask,
@@ -254,6 +259,40 @@ describe("email verification and the choice screen's commands", () => {
     await expect(run(() => useSendClaimCode(), "an@congty.vn")).rejects.toThrow("x");
     const [, , , mutation] = onMutationError.mock.calls[0] as [unknown, unknown, unknown, { options: { meta: { handledCodes: string[] } } }];
     expect(mutation.options.meta.handledCodes).toContain("rate_limited");
+  });
+});
+
+describe("a command that carries a secret", () => {
+  /** Everything the mutation cache still holds: its variables are what a cache inspector or a dump would read. */
+  const held = () => JSON.stringify(qc.getMutationCache().getAll().map((m) => m.state.variables) ?? []);
+  const drain = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+
+  it("leaves no password, code or step-up token in the cache once it settles, the screen still mounted", async () => {
+    const result = await hook(() => ({ password: useSetPassword(), proof: useStepUpProof(), verify: useVerifyEmail(), erase: useDeleteAccount() }));
+    await act(async () => {
+      await result.current.password.mutateAsync({ newPassword: "new-s3cret", currentPassword: "old-s3cret" });
+      await result.current.proof.mutateAsync({ proof: { kind: "password", password: "proof-s3cret" }, action: "delete_account", userId: "u1" });
+      await result.current.verify.mutateAsync("482913");
+      await result.current.erase.mutateAsync({ step_up_token: "su_s3cret" });
+    });
+    await drain();
+    expect(signInMethodsApi.setPassword).toHaveBeenCalledWith({ new_password: "new-s3cret", current_password: "old-s3cret" });
+    expect(held()).not.toMatch(/s3cret|482913/);
+    expect(result.current.password.isIdle).toBe(true);
+  });
+
+  it("is dropped after a refusal too, which still reaches the MutationCache once", async () => {
+    jest.mocked(verifyAccountEmail).mockRejectedValueOnce(new Error("invalid_code"));
+    await expect(run(() => useVerifyEmail(), "111111")).rejects.toThrow("invalid_code");
+    await drain();
+    expect(onMutationError).toHaveBeenCalledTimes(1);
+    expect(held()).not.toContain("111111");
+  });
+
+  it("keeps an ordinary command's variables as TanStack does", async () => {
+    await run(() => useAnswerAiConsent(), true);
+    await drain();
+    expect(qc.getMutationCache().getAll()).toHaveLength(1);
   });
 });
 

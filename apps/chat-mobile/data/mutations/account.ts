@@ -21,7 +21,7 @@ export const useDeleteAccount = () =>
   useCommand(
     "account.delete",
     (_qc, body: DeleteAccountBody & CloseOrganizationBody) => withHeldStepUp(() => accountApi.deleteAccount(body)),
-    { handledCodes: [...DELETE_ACCOUNT_HANDLED_CODES, ...CLOSE_ORGANIZATION_HANDLED_CODES] },
+    { handledCodes: [...DELETE_ACCOUNT_HANDLED_CODES, ...CLOSE_ORGANIZATION_HANDLED_CODES], secret: true },
   );
 
 /** Hands the organization to another active member, with the step-up token for transfer_ownership. */
@@ -30,7 +30,7 @@ export const useTransferOwnership = () =>
     "account.transfer_ownership",
     (_qc, input: { orgSlug: string; toUserId: string; stepUpToken: string }) =>
       withHeldStepUp(() => accountApi.transferOwnership(input.orgSlug, input.toUserId, input.stepUpToken)),
-    { handledCodes: TRANSFER_OWNERSHIP_HANDLED_CODES },
+    { handledCodes: TRANSFER_OWNERSHIP_HANDLED_CODES, secret: true },
   );
 
 /** Signs a device out; the list refreshes whether or not the server agreed. */
@@ -51,7 +51,7 @@ export const useSetPushPreviews = () => useCommand("account.push_previews", (_qc
 
 /** The mailed code proves the address; the signed-in user follows (data/auth/verify-email.ts). A wrong code rejects. */
 export const useVerifyEmail = () =>
-  useCommand("account.verify_email", (_qc, code: string) => verifyAccountEmail(code), { handledCodes: ["invalid_code"] });
+  useCommand("account.verify_email", (_qc, code: string) => verifyAccountEmail(code), { handledCodes: ["invalid_code"], secret: true });
 
 /** Mails a fresh code; within a minute of the last one the server answers 429. */
 export const useResendVerification = () => useCommand("account.resend_verification", (_qc, _: void) => accountApi.resendVerification());

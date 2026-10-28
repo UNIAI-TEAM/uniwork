@@ -46,7 +46,7 @@ export const useStepUpProof = () =>
       if (proof.kind === "provider") return stepUpWithProvider(proof.provider, action, userId);
       return (await stepUp(proof, action, userId)) ? "held" : "unusable";
     },
-    { handledCodes: PROOF_CODES },
+    { handledCodes: PROOF_CODES, secret: true },
   );
 
 /** Mails a six-digit code that proves `action` alone; true when the server said sent. */
@@ -73,7 +73,7 @@ export const useSetPassword = () =>
           ),
         ),
       ),
-    { handledCodes: ["proof_required", "password_incorrect", "invalid_request", "second_factor_locked"] },
+    { handledCodes: ["proof_required", "password_incorrect", "invalid_request", "second_factor_locked"], secret: true },
   );
 
 /** Never the last way in, never Apple of a relay account (409); signs every other session out. */
@@ -82,7 +82,7 @@ export const useUnlinkSignInMethod = () =>
     "sign_in.unlink",
     (qc, input: { provider: SignInProvider; stepUpToken: string }) =>
       withHeldStepUp(async () => applied(qc, await signInMethodsApi.unlink(input.provider, input.stepUpToken))),
-    { handledCodes: ["proof_required", "sign_in_method_last", "sign_in_method_relay_email"] },
+    { handledCodes: ["proof_required", "sign_in_method_last", "sign_in_method_relay_email"], secret: true },
   );
 
 /** The provider's own sheet, then its account into this one; null when the sheet was closed. */
@@ -106,5 +106,6 @@ export const useLinkSignInMethod = () =>
         "google_not_configured",
         "apple_not_configured",
       ],
+      secret: true,
     },
   );
