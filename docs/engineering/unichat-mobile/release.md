@@ -81,8 +81,10 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   staged và ký, đúng biến thể của kênh, môi trường riêng; mọi job build Release
   trên runner tắt upload Sentry); sửa workflow nào trong bốn cũng kích `mobile-verify.yml` nên
   test đó luôn chạy.
-- `maestro/`: `subflows/sign-in.yaml` đăng nhập qua sheet trình duyệt thật (không
-  có lối tắt phiên thử nghiệm trong bản nào); tài khoản thứ hai đăng nhập ngay trong flow (`scripts/peer-session.js`)
+- `maestro/`: `subflows/sign-in.yaml` đăng nhập trên màn native của app (testID `login-email`, `login-password`, phím
+  next/go của ô); bản build trước màn native (nửa đầu của `android-upgrade`) vẫn đi sheet trình duyệt thật (không có lối
+  tắt phiên thử nghiệm trong bản nào); `test/routes/sign-in-flows.test.tsx` giữ chữ và id mà các flow mở app khi chưa
+  đăng nhập chờ, với cái màn đăng nhập vẽ ở cả vi và en; tài khoản thứ hai đăng nhập ngay trong flow (`scripts/peer-session.js`)
   rồi gọi (`scripts/ring-from-caller.js`) hay viết (`scripts/post-as-peer.js`); `openLink` lấy scheme của bản build
   (`scripts/app-scheme.js`, `MAESTRO_APP_SCHEME`). Mỗi PR chạm binary chạy `chat-read-send`, `offline-send-relaunch` và
   `flows/background-resume.yaml` (người kia viết khi app ở nền, trong và quá cửa sổ ân hạn của socket) trên server dựng

@@ -10,7 +10,12 @@
   401, 403, 404, 408, 410, 429, `AbortError`, `RefusedError`, mã lỗi mà nơi gọi tự nói thành lời — `handledCodes`,
   ví dụ `DELETE_ACCOUNT_HANDLED_CODES`, `VOICE_CALL_HANDLED_CODES`, hay `useCommand(…, { handledCodes })` qua
   `meta` của mutation) thì không báo; 4xx khác (400, 409, 413, 415, 422…) là lệch hợp đồng với server, báo mức
-  `warning`; 5xx và lỗi khác là bug, mức `error`. `ApiError` mang `endpoint` (`lib/redact.ts › endpointShape`: method +
+  `warning`; 5xx và lỗi khác là bug, mức `error`. `TransportError` của transport đăng nhập (`data/auth/transport.ts`: các
+  cửa đăng nhập, lệnh của màn đăng nhập) đọc theo cùng luật (mất mạng, timeout, mã trong `handledCodes` là mong đợi;
+  status thì như trên; không có status hay 5xx là bug); sheet Apple/Google lỗi thành `ProviderSheetError`
+  (`lib/provider-sheet-error.ts`), chỉ là bug khi bản build sai (thiếu client id, không có chỗ trình bày sheet, câu trả
+  lời không có token, `DEVELOPER_ERROR` của Android cho client id hay khoá ký Google không biết), còn điều máy hay mạng
+  của người dùng gây ra (offline, máy chưa có tài khoản Google, chưa đăng nhập iCloud) là câu trả lời màn hình tự nói. `ApiError` mang `endpoint` (`lib/redact.ts › endpointShape`: method +
   route, id thành `{id}`), báo cáo có tag `endpoint`/`http_status`/`error_code` và fingerprint theo endpoint + status +
   mã, nên mỗi route lệch là một issue riêng. Câu trả lời 2xx app không đọc được: `data/boot.ts` cài
   `schemaDriftLogger` (`setSchemaLogger` của core) nên mỗi lần `parseWithFallback` lùi về fallback được báo mức
