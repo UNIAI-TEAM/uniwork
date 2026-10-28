@@ -19,6 +19,7 @@ var tenantExportExcluded = map[string]string{
 	"ai_uniwork_conversations":       "Bản ghi hội thoại UniWork AI tạm (TTL 30 phút nhàn rỗi/24 giờ), đã niêm phong; máy chủ tự dọn.",
 	"ai_uniwork_turns":               "Lượt của bản ghi hội thoại UniWork AI tạm, đã niêm phong.",
 	"ai_uniwork_runs":                "Lượt chạy UniWork AI tạm (cùng TTL với hội thoại), số đếm trần và tín dụng của máy chủ; máy chủ tự dọn.",
+	"ai_office_handoffs":             "Gói giao việc Hỏi UNI cho AI trong trình soạn (sống 24 giờ): bản sao tham số của đề xuất đã Apply, đã xuất qua agent_action_proposals; máy chủ tự dọn.",
 	"outbox_events":                  "Hàng đợi hạ tầng.",
 	"graph_dirty":                    "Hàng đợi chiếu Work Graph, dựng lại được.",
 	"graph_edges":                    "Chiếu Work Graph, dựng lại được từ nguồn.",
