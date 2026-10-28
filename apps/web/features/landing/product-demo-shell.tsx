@@ -61,7 +61,8 @@ export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, ill
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); search.current?.focus(); }
       if (event.key === "Escape") {
         // Escape inside the search closes only its results and leaves focus on the input, so the phone field stays expanded and focus never jumps on its own.
-        if ((event.target as Element).closest(".product-demo-search")) { setSearchOpen(false); search.current?.focus(); return; }
+        // preventDefault keeps the query: the input is type=search, so Chromium's native Escape would clear it and fire onChange, which reopens the results.
+        if ((event.target as Element).closest(".product-demo-search")) { event.preventDefault(); setSearchOpen(false); search.current?.focus(); return; }
         setMenuOpen(false); setSearchOpen(false); shell.current.querySelector<HTMLButtonElement>('[data-action="toggle-demo-menu"]')?.focus();
       }
       if (menuOpen && event.key === "Tab") {
