@@ -8,7 +8,7 @@
   "routes": {
     "statements": 90,
     "branches": 82,
-    "functions": 82,
+    "functions": 83,
     "lines": 92
   },
   "files": {
@@ -80,7 +80,7 @@
     },
     "components/auth/claim-steps.tsx": {
       "statements": 97,
-      "branches": 90,
+      "branches": 91,
       "functions": 100,
       "lines": 100
     },
@@ -110,19 +110,19 @@
     },
     "components/auth/provider-buttons.tsx": {
       "statements": 100,
-      "branches": 97,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
     "components/auth/register-form.tsx": {
-      "statements": 96,
-      "branches": 94,
+      "statements": 100,
+      "branches": 100,
       "functions": 100,
       "lines": 100
     },
     "components/auth/second-factor-step.tsx": {
-      "statements": 97,
-      "branches": 83,
+      "statements": 98,
+      "branches": 84,
       "functions": 100,
       "lines": 100
     },
@@ -716,7 +716,7 @@
     },
     "components/settings/password-form.tsx": {
       "statements": 97,
-      "branches": 95,
+      "branches": 96,
       "functions": 100,
       "lines": 98
     },
