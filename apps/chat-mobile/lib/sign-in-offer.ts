@@ -2,8 +2,10 @@
 // AuthProviders) and what this phone can do: Apple's sheet on an iPhone that has it, Google's where the build carries
 // its client and, on Android, Google Play services runs. A provider the phone cannot open a sheet for goes through
 // the browser instead (PKCE with the provider hint, spec §3.5) when the web offers it; null hides its button.
-import type { AuthProviders, StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import type { NativeSignInIntent } from "@uniwork/core/api/endpoints/sign-in-native-api";
+import type { AuthProviders, SignInProvider, StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { APP_PROOFS } from "@uniwork/core/auth/step-up";
+import type { SignInRequest } from "@/data/auth/sign-in";
 
 type ProviderWay = "native" | "browser" | null;
 
@@ -31,4 +33,24 @@ export function offersProvider(offer: SignInOffer | undefined): boolean {
  */
 export function appProofs(offer: SignInOffer | undefined): StepUpProof[] {
   return APP_PROOFS.filter((proof) => (proof === "apple" || proof === "google" ? offer?.[proof] === "native" : true));
+}
+
+/**
+ * The order the screen offers them in (spec §5.2): on an iPhone, Apple's button first (Apple's HIG, ADR 0041: never
+ * below the other ways in); elsewhere Google first, the phone's own account.
+ */
+export function providerOrder(os: string): readonly SignInProvider[] {
+  return os === "ios" ? ["apple", "google"] : ["google", "apple"];
+}
+
+/**
+ * The sign-in a provider's button starts: its sheet where this phone opens one, else the browser with the provider
+ * hint (spec §3.5); null when it is not offered. `intent` "sign_up" is the register screen's: no choice screen, an
+ * account at once. The browser's page asks itself.
+ */
+export function providerRequest(provider: SignInProvider, offer: SignInOffer | undefined, intent?: NativeSignInIntent): SignInRequest | null {
+  const way = offer?.[provider];
+  if (way === "browser") return { method: "browser", provider };
+  if (way !== "native") return null;
+  return intent ? { method: provider, intent } : { method: provider };
 }

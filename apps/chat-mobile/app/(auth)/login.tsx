@@ -1,89 +1,100 @@
-// Ported from usf apps/mobile/app/(auth)/login.tsx, re-cut for PKCE: one
-// button opens the system browser; the session store loads /me afterwards. On an iPhone, Sign in with Apple sits
-// above it (ADR 0041; Apple's HIG: no lower than the other ways in) and signs in without the browser.
-// Laid out as canvas MobLogin: the mark and the welcome up top, the error and
-// the button at the thumb. At the largest text sizes the page scrolls instead
-// of pushing the button off the screen (Maestro's a11y-large-text-dark flow); there the illustration gives way
-// to the mark (components/brand/login-hero.tsx) and the display title stops growing at DISPLAY_MAX_FONT_SCALE,
-// so "Welcome" still fits one line instead of breaking mid-word, while the hint and the button keep scaling.
-import { Ionicons } from "@expo/vector-icons";
-import { Redirect } from "expo-router";
-import { useState } from "react";
+// The app's own sign-in screen (ADR 0047, spec §5.2): the mark and the title, Apple and Google, then email and
+// password, then the way to a new account and the browser for anyone the native doors cannot serve. A second factor
+// or a choice moves on to its screen (components/auth/use-sign-in.ts); signed in, the entry takes over. With link=1
+// and an identity held by the choice screen it is "Tôi đã có tài khoản": a notice says what will be linked, that
+// provider's own button is gone, and the sign-in ends on the link step.
+import { useQuery } from "@tanstack/react-query";
+import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { ScrollView, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { AppleSignInButton } from "@/components/auth/apple-sign-in-button";
-import { LoginHero } from "@/components/brand/login-hero";
+import { View } from "react-native";
+import { AuthHeading, AuthLayout, TextButton } from "@/components/auth/auth-layout";
+import { LoginForm } from "@/components/auth/login-form";
+import { ProviderButtons } from "@/components/auth/provider-buttons";
+import { InterruptedNotice, LinkModeNotice } from "@/components/auth/sign-in-notices";
+import { useFailureMessage, useSignIn } from "@/components/auth/use-sign-in";
 import { SignInLegalNote } from "@/components/settings/sign-in-legal-note";
-import { useAnnounce } from "@/components/ui/a11y";
-import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
+import { clearChoice, dismissInterrupted, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { useAuthStore } from "@/data/auth/store";
-import { signInFailureKey, unfinishedStepKey } from "@/lib/sign-in-failure";
-import { THEME } from "@/lib/theme";
-import { DISPLAY_MAX_FONT_SCALE } from "@/lib/type-scale";
-import { useColorScheme } from "@/components/ui/use-color-scheme";
+import { signInOfferOptions } from "@/data/queries/sign-in";
+import { providerRequest } from "@/lib/sign-in-offer";
+import { afterSignInHref, isLinkMode, signInRoutes } from "@/lib/sign-in-routes";
 
 export default function Login() {
   const { t } = useTranslation();
-  const { colorScheme } = useColorScheme();
+  const params = useLocalSearchParams<{ link?: string }>();
   const user = useAuthStore((s) => s.user);
-  const login = useAuthStore((s) => s.login);
-  const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
-  // The error line's live region is TalkBack's; VoiceOver hears it through an announcement.
-  useAnnounce(failure ? t(failure) : null);
+  const choice = usePendingSignIn((s) => s.choice);
+  const interrupted = usePendingSignIn((s) => s.interrupted);
+  const offer = useQuery(signInOfferOptions()).data;
+  // Link mode, while the choice screen still holds the identity to link.
+  const linking = isLinkMode(params.link) ? choice : null;
+  const linkMode = linking !== null;
+  const signIn = useSignIn("sign_in", { linkMode });
+  const { message, waiting } = useFailureMessage(signIn.shown);
+  const idle = signIn.busy === null;
 
-  if (user) return <Redirect href="/" />;
+  if (user) return <Redirect href={afterSignInHref({ linkMode, choiceHeld: choice !== null })} />;
 
-  const onPress = async (method: "browser" | "apple") => {
-    setBusy(true);
-    setFailure(null);
-    try {
-      // Apple opens an account when its identity matches none, as the shipped app's route did, until the choice
-      // screen lands (spec §5.2); a second factor or an address that has an account goes to the browser meanwhile.
-      const outcome = await login(method === "apple" ? { method, intent: "sign_up" } : { method });
-      setFailure(unfinishedStepKey(outcome));
-    } catch (error: unknown) {
-      setFailure(signInFailureKey(method, error));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const interruptedRetry = interrupted ? providerRequest(interrupted, offer) : null;
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }} bounces={false} testID="login-screen">
-      <LoginHero />
-      <View className="items-center gap-2.5 px-8">
-        <Text
-          accessibilityRole="header"
-          maxFontSizeMultiplier={DISPLAY_MAX_FONT_SCALE}
-          testID="login-title"
-          className="text-center text-display font-display font-extrabold leading-[34px] tracking-tight text-foreground"
-        >
-          {t("auth.desktop.unichat_login_title")}
-        </Text>
-        <Text className="max-w-[300px] text-center text-body leading-6 text-muted-foreground">{t("mobile.login_hint")}</Text>
-      </View>
+    <AuthLayout testID="login-screen" onBack={linkMode ? () => router.back() : undefined}>
+      <AuthHeading mark title={t("mobile.sign_in.title")} subtitle={t("mobile.sign_in.subtitle")} />
+      {linking ? (
+        <LinkModeNotice
+          identity={linking.identity}
+          disabled={!idle}
+          onDecline={() => {
+            clearChoice();
+            if (router.canGoBack()) router.dismissAll();
+          }}
+        />
+      ) : interrupted ? (
+        <InterruptedNotice
+          provider={interrupted}
+          disabled={!idle}
+          onRetry={interruptedRetry ? () => void signIn.run(interruptedRetry, interrupted) : null}
+        />
+      ) : null}
+      <ProviderButtons
+        busy={signIn.busy}
+        hidden={linking?.identity.provider ?? null}
+        onStart={(request, provider) => void signIn.run(request, provider)}
+      />
+      <LoginForm
+        busy={signIn.busy}
+        message={message}
+        waiting={waiting}
+        onSubmit={(email, password) => signIn.run({ method: "password", email, password }, "password")}
+      />
       <View className="flex-1" />
-      <View className="gap-3.5 px-6 pb-6">
-        {failure ? (
-          <View accessibilityRole="alert" accessibilityLiveRegion="polite" className="flex-row items-center justify-center gap-1.5">
-            <Ionicons name="alert-circle-outline" size={16} color={THEME[colorScheme].destructive} />
-            <Text className="shrink text-center text-callout text-destructive">{t(failure)}</Text>
-          </View>
-        ) : null}
-        <AppleSignInButton disabled={busy} onPress={() => void onPress("apple")} />
-        <Button disabled={busy} className="min-h-12 rounded-full py-3" onPress={() => void onPress("browser")} testID="login-button">
-          <Text className="text-body font-semibold">{t("auth.desktop.unichat_login_button")}</Text>
-        </Button>
-        <View className="flex-row items-center justify-center gap-1.5">
-          <Ionicons name="globe-outline" size={14} color={THEME[colorScheme].mutedForeground} />
-          <Text className="text-footnote text-muted-foreground">{t("chat.mobile.login_browser_hint")}</Text>
-        </View>
+      <View className="items-center gap-1">
+        {linkMode ? null : (
+          <>
+            <View className="flex-row flex-wrap items-center justify-center gap-x-1">
+              <Text className="text-subhead text-muted-foreground">{t("auth.noAccount")}</Text>
+              <TextButton
+                label={t("mobile.sign_in.create_account")}
+                disabled={!idle}
+                onPress={() => {
+                  dismissInterrupted();
+                  router.push(signInRoutes.register);
+                }}
+                testID="login-register"
+              />
+            </View>
+            <TextButton
+              label={t(signIn.busy === "browser" ? "mobile.sign_in.browser_busy" : "mobile.sign_in.browser")}
+              tone="muted"
+              disabled={!idle}
+              onPress={() => void signIn.run({ method: "browser" })}
+              testID="login-browser"
+            />
+          </>
+        )}
         <SignInLegalNote />
       </View>
-      <SafeAreaView edges={["bottom"]} />
-    </ScrollView>
+    </AuthLayout>
   );
 }

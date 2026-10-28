@@ -1,11 +1,12 @@
-# The real PKCE sign-in, done the way a person does it: the app opens the system
-# browser sheet (ASWebAuthenticationSession on iOS, a Chrome Custom Tab on
-# Android), the web signs the test account in, the consent page approves this
-# device and its "Open" button hands the callback back to the app. There is no
-# test-only shortcut in any build. A restored session skips all of it.
+# Signing the test account in, the way a person does it. The app's own sign-in screen (ADR 0047, spec §5.2):
+# the email and password fields by testID, then the app, with no browser. A build from before the native screen
+# (the upgrade path's first half runs last night's) shows no email field: it signs in as that build does, in the
+# system browser sheet (ASWebAuthenticationSession on iOS, a Chrome Custom Tab on Android), where the web signs the
+# account in and the consent page hands the callback back. There is no test-only shortcut in any build. A restored
+# session skips all of it.
 #
-# Text, not ids: the browser pages belong to the web app. Patterns cover vi and
-# en because the app and the web follow the device and browser language.
+# The browser pages belong to the web app: text, not ids. Patterns cover vi and en because the app and the web follow
+# the device and browser language.
 appId: com.uniworkos.chat.staging
 ---
 - extendedWaitUntil:
@@ -13,7 +14,25 @@ appId: com.uniworkos.chat.staging
     timeout: 30000
 - runFlow:
     when:
+      visible:
+        id: login-email
+    commands:
+      - tapOn:
+          id: login-email
+      - inputText: ${MAESTRO_TEST_EMAIL}
+      - tapOn:
+          id: login-password
+      - inputText: ${MAESTRO_TEST_PASSWORD}
+      # The keyboard can cover the button on a short screen: its own key submits the form.
+      - pressKey: Enter
+      - extendedWaitUntil:
+          visible: "Chat|Trò chuyện|Choose a workspace|Chọn workspace"
+          timeout: 30000
+- runFlow:
+    when:
       visible: "Sign in|Đăng nhập"
+      notVisible:
+        id: login-email
     commands:
       - tapOn: "Sign in|Đăng nhập"
       # iOS asks first: '"UniChat (Staging)" Wants to Use "…" to Sign In'.

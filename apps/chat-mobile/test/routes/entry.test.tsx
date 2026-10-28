@@ -65,7 +65,7 @@ const ROUTES = {
   "(app)/[org]/[ws]/chat": ChatStandIn,
 };
 
-const user = { id: "u1", email: "an@example.com", name: "An" };
+const user = { id: "u1", email: "an@example.com", name: "An", email_verified_at: "2026-10-01T00:00:00Z" };
 const workspace = (id: string, slug: string): Workspace =>
   ({ id, slug, name: `Không gian ${slug}`, organization_id: "o1", organization_slug: "acme", organization_name: "Acme" }) as Workspace;
 
@@ -95,33 +95,34 @@ describe("the entry gate", () => {
     expect(routes.pathname()).toBe("/login");
   });
 
-  // iOS AX5 (a11y-large-text-dark.yaml): uncapped, the 28 pt title reached 100 pt and broke "Welcome" mid-word.
-  it("caps only the welcome title's growth with the text size: the hint and the button keep scaling", async () => {
+  // iOS AX5 (a11y-large-text-dark.yaml): uncapped, the 28 pt title reached 100 pt and broke words mid-word.
+  it("caps only the sign-in title's growth with the text size: the line under it and the button keep scaling", async () => {
     useAuthStore.setState({ user: null, isLoading: false });
     await renderRoutes(ROUTES, "/login");
-    const title = await screen.findByTestId("login-title");
+    const title = await screen.findByTestId("auth-title");
     expect(title.props.maxFontSizeMultiplier).toBe(DISPLAY_MAX_FONT_SCALE);
-    expect(screen.getByText(viText("mobile.login_hint")).props.maxFontSizeMultiplier).toBeUndefined();
-    expect(screen.getByText(viText("auth.desktop.unichat_login_button")).props.maxFontSizeMultiplier).toBeUndefined();
+    expect(screen.getByText(viText("mobile.sign_in.subtitle")).props.maxFontSizeMultiplier).toBeUndefined();
+    expect(screen.getByText(viText("auth.login")).props.maxFontSizeMultiplier).toBeUndefined();
   });
 
-  it("offers Sign in with Apple above the browser, and says why a refused one cannot go on", async () => {
+  it("offers Sign in with Apple above every other way in, and says why a refused one cannot go on", async () => {
     jest.mocked(signInOffer).mockResolvedValue({ apple: "native", google: null });
     const login = jest.fn(async (request?: SignInRequest): Promise<SignInOutcome> => {
-      if (request?.method === "apple") throw Object.assign(new Error("refused"), { code: "sign_in_account_conflict" });
+      if (request?.method === "apple") throw Object.assign(new Error("refused"), { name: "TransportError", code: "sign_in_account_conflict", status: 409 });
       return { kind: "dismissed" };
     });
     useAuthStore.setState({ user: null, isLoading: false, login });
     await renderRoutes(ROUTES, "/login");
     const apple = await screen.findByTestId("apple-native-button");
     const tree = JSON.stringify(screen.toJSON());
-    expect(tree.indexOf("apple-native-button")).toBeLessThan(tree.indexOf("login-button"));
+    expect(tree.indexOf("apple-native-button")).toBeLessThan(tree.indexOf("login-email"));
+    expect(tree.indexOf("login-email")).toBeLessThan(tree.indexOf("login-browser"));
     await fireEvent.press(apple);
-    expect(login).toHaveBeenCalledWith({ method: "apple", intent: "sign_up" });
-    expect(await screen.findByText(viText("chat.mobile.login_apple_conflict"))).toBeTruthy();
-    await fireEvent.press(screen.getByTestId("login-button"));
+    expect(login).toHaveBeenCalledWith({ method: "apple" });
+    expect(await screen.findByText(viText("auth.social.errors.sign_in_conflict"))).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("login-browser"));
     expect(login).toHaveBeenLastCalledWith({ method: "browser" });
-    expect(screen.queryByText(viText("chat.mobile.login_apple_conflict"))).toBeNull();
+    expect(screen.queryByText(viText("auth.social.errors.sign_in_conflict"))).toBeNull();
   });
 
   it("shows no Apple button where it is not offered", async () => {

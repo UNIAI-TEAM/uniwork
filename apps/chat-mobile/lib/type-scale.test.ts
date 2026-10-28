@@ -71,10 +71,6 @@ describe("text roles", () => {
  * system text size. Anything else that holds text takes `min-h-*` and vertical padding (S6 dynamic type).
  */
 const FIXED_HEIGHT_OK: Record<string, string[]> = {
-  // The sign-in illustration (hidden from screen readers) is a fixed stage; its text bubbles are placed on it and their
-  // text does not scale (allowFontScaling={false}); at the accessibility sizes the stage is not drawn at all.
-  // The wall's fade at its foot is an image.
-  "components/brand/login-hero.tsx": ["relative h-[440px]", "absolute inset-x-0 bottom-0 h-[220px] w-full"],
   // Scrims over the video: shading, no text.
   "components/calls/call-room.tsx": ["absolute inset-x-0 top-0 h-36", "absolute inset-x-0 bottom-0 h-48"],
   // A sheet's share of the screen, not a text box.

@@ -4,15 +4,14 @@
 # flow and scripts/mobile-a11y-audit.mjs on the screen it leaves. On a PR that
 # touches iOS (› ios-release) the simulator runs it too, at the largest
 # Dynamic Type (accessibility-extra-extra-extra-large) and in dark mode. The sign-in
-# screen must still show its copy and reach its button (the page scrolls
-# rather than pushing it off the screen), and the button must work. No server:
-# the build points at placeholder URLs, as in smoke-launch.yaml.
-# The welcome title must be on the first screen: at these sizes the decorative
-# illustration gives way to the mark (components/brand/login-hero.tsx). The hint
-# under it is body text that keeps scaling (AX5 is 3.57x: 16 pt becomes 57 pt,
-# seven or eight lines on a 390 pt phone), so on iOS it may start on the first
-# screen and end below it; the flow scrolls until the whole hint is visible
-# rather than asserting it where it may be cut, and still asserts it.
+# screen must still show its copy and reach its fields and its button (the page
+# scrolls rather than pushing them off the screen), and the button must work. No
+# server: the build points at placeholder URLs, as in smoke-launch.yaml.
+# The title must be on the first screen: it stops growing at DISPLAY_MAX_FONT_SCALE
+# (components/auth/auth-layout.tsx). The line under it is body text that keeps
+# scaling (AX5 is 3.57x), so on iOS it may start on the first screen and end below
+# it; the flow scrolls until enough of it is visible rather than asserting it where
+# it may be cut, and still asserts it.
 appId: com.uniworkos.chat
 name: Sign-in at the largest text size, in dark mode
 tags:
@@ -22,16 +21,22 @@ tags:
 - launchApp:
     clearState: true
 - extendedWaitUntil:
-    visible: "Welcome to UniChat|Chào mừng đến với UniChat"
+    visible: "Sign in to UniChat|Đăng nhập UniChat"
     timeout: 60000
-# At AX5 the hint can be taller than a small phone's screen: half of it on screen is enough to read it.
 - scrollUntilVisible:
     element:
-      text: "Message and call your team, right from your phone.|Nhắn tin và gọi cho cả đội ngay trên điện thoại."
+      text: "Use your UniWork account.|Dùng tài khoản UniWork của bạn."
     direction: DOWN
     visibilityPercentage: 50
     timeout: 10000
-- assertVisible: "Message and call your team, right from your phone.|Nhắn tin và gọi cho cả đội ngay trên điện thoại."
+- assertVisible: "Use your UniWork account.|Dùng tài khoản UniWork của bạn."
+- scrollUntilVisible:
+    element:
+      id: login-email
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: login-email
 - scrollUntilVisible:
     element:
       id: login-button
@@ -39,12 +44,12 @@ tags:
     timeout: 10000
 - assertVisible:
     id: login-button
-# The line under the button can still sit below the fold once the button is on screen, and iOS leaves off-screen
+# The browser's way in can still sit below the fold once the button is on screen, and iOS leaves off-screen
 # text out of the hierarchy.
 - scrollUntilVisible:
     element:
-      text: "Sign in with your UniWork account in the browser|Đăng nhập bằng tài khoản UniWork trong trình duyệt"
+      text: "Sign in with a browser|Đăng nhập bằng trình duyệt"
     direction: DOWN
     visibilityPercentage: 50
     timeout: 10000
-- assertVisible: "Sign in with your UniWork account in the browser|Đăng nhập bằng tài khoản UniWork trong trình duyệt"
+- assertVisible: "Sign in with a browser|Đăng nhập bằng trình duyệt"

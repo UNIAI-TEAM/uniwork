@@ -7,7 +7,7 @@ import { AppleSignInButton } from "./apple-sign-in-button";
 jest.mock("expo-apple-authentication", () => {
   const { Pressable, Text } = jest.requireActual<typeof import("react-native")>("react-native");
   return {
-    AppleAuthenticationButtonType: { SIGN_IN: 0, CONTINUE: 1 },
+    AppleAuthenticationButtonType: { SIGN_IN: 0, CONTINUE: 1, SIGN_UP: 2 },
     AppleAuthenticationButtonStyle: { WHITE: 0, WHITE_OUTLINE: 1, BLACK: 2 },
     AppleAuthenticationButton: (props: { onPress: () => void; buttonStyle: number; buttonType: number; cornerRadius: number }) => (
       <Pressable accessibilityRole="button" testID="apple-native-button" onPress={props.onPress}>
@@ -16,36 +16,29 @@ jest.mock("expo-apple-authentication", () => {
     ),
   };
 });
-const mockOffer = jest.fn<Promise<{ apple: string | null; google: string | null }>, []>(async () => ({ apple: "native", google: null }));
-jest.mock("@/data/auth/flow", () => ({ signInOffer: () => mockOffer() }));
 
 afterEach(() => act(() => colorScheme.set("light")));
 
 describe("AppleSignInButton", () => {
-  it("shows Apple's black Continue button, as round as the UniWork button, and signs in on a tap", async () => {
+  it("shows Apple's black Continue button, as round as the buttons beside it, and signs in on a tap", async () => {
     const onPress = jest.fn();
     await render(<AppleSignInButton disabled={false} onPress={onPress} />);
-    expect(await screen.findByText("style 2 type 1 radius 24")).toBeOnTheScreen();
+    expect(screen.getByText("style 2 type 1 radius 24")).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId("apple-native-button"));
     expect(onPress).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("apple-sign-in").props.pointerEvents).toBe("auto");
   });
 
+  it("says Sign up on the register screen", async () => {
+    await render(<AppleSignInButton signUp disabled={false} onPress={jest.fn()} />);
+    expect(screen.getByText("style 2 type 2 radius 24")).toBeOnTheScreen();
+  });
+
   it("is white on the dark screen and ignores taps while a sign-in runs", async () => {
     await act(() => colorScheme.set("dark"));
     await render(<AppleSignInButton disabled onPress={jest.fn()} />);
-    expect(await screen.findByText("style 0 type 1 radius 24")).toBeOnTheScreen();
+    expect(screen.getByText("style 0 type 1 radius 24")).toBeOnTheScreen();
     expect(screen.getByTestId("apple-sign-in").props.pointerEvents).toBe("none");
     expect(screen.getByTestId("apple-sign-in").props.style).toMatchObject({ opacity: 0.5 });
-  });
-
-  it.each([
-    ["the iPhone or the server does not offer it", { apple: null, google: null }],
-    ["Apple goes through the browser (Android)", { apple: "browser", google: "native" }],
-  ])("is not there when %s", async (_label, offer) => {
-    mockOffer.mockResolvedValueOnce(offer);
-    const { queryClient } = await render(<AppleSignInButton disabled={false} onPress={jest.fn()} />);
-    await act(async () => queryClient.getQueryCache().find({ queryKey: ["sign-in", "offer"] })?.promise);
-    expect(screen.queryByTestId("apple-sign-in")).toBeNull();
   });
 });

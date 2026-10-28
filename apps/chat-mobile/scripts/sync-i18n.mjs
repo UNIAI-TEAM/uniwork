@@ -118,13 +118,6 @@ const CHAT_MOBILE_ONLY = {
     call_add_person: "Thêm người vào cuộc gọi",
     call_summary_hint: "UNI sẽ tóm tắt vào chat sau cuộc gọi",
     call_back_to: "Quay lại cuộc gọi",
-    login_browser_hint: "Đăng nhập bằng tài khoản UniWork trong trình duyệt",
-    login_sample_in: "Chiều nay họp lúc 3 giờ được không?",
-    login_sample_out: "Được, em vào ngay",
-    // ADR 0041: Sign in with Apple on the iPhone, and why it can refuse.
-    login_apple_failed: "Không đăng nhập được bằng Apple. Thử lại.",
-    login_apple_conflict: "Email Apple của bạn đã thuộc một tài khoản UniWork khác. Hãy đăng nhập bằng trình duyệt.",
-    login_apple_mfa: "Tài khoản này bật xác thực hai bước. Hãy đăng nhập bằng trình duyệt.",
     thread_reply_placeholder: "Trả lời trong chủ đề…",
     back_to_conversation: "Quay lại cuộc trò chuyện",
     cancel_reply: "Hủy trả lời",
@@ -204,12 +197,6 @@ const CHAT_MOBILE_ONLY = {
     call_add_person: "Add someone to the call",
     call_summary_hint: "UNI will post a summary to the chat after the call",
     call_back_to: "Back to the call",
-    login_browser_hint: "Sign in with your UniWork account in the browser",
-    login_sample_in: "Can we meet at 3 this afternoon?",
-    login_sample_out: "Sure, joining now",
-    login_apple_failed: "Could not sign in with Apple. Try again.",
-    login_apple_conflict: "Your Apple email already belongs to another UniWork account. Sign in with the browser instead.",
-    login_apple_mfa: "This account uses two-step verification. Sign in with the browser instead.",
     thread_reply_placeholder: "Reply in thread…",
     back_to_conversation: "Back to the conversation",
     cancel_reply: "Cancel reply",
@@ -266,7 +253,6 @@ const MOBILE_ONLY = {
   vi: {
     mobile: {
       tab_calls: "Cuộc gọi",
-      login_hint: "Nhắn tin và gọi cho cả đội ngay trên điện thoại.",
       calls: {
         empty: "Chưa có cuộc gọi nào. Cuộc gọi trong các cuộc trò chuyện của bạn sẽ hiện ở đây.",
         outgoing: "Gọi đi",
@@ -301,7 +287,6 @@ const MOBILE_ONLY = {
   en: {
     mobile: {
       tab_calls: "Calls",
-      login_hint: "Message and call your team, right from your phone.",
       calls: {
         empty: "No calls yet. Calls in your conversations show up here.",
         outgoing: "Outgoing",
