@@ -5,8 +5,10 @@
 # just after it fails here). No server and no account: the build points at
 # placeholder URLs, so nothing past the sign-in screen is in scope.
 #
-# Wait on testIDs first: on a short emulator the "Sign in" button can sit below the fold, under the providers and the
-# fields, until we scroll (the a11y-large-text-dark flow does too). Text asserts still prove i18n loaded.
+# Wait on testIDs first: on a short emulator the "Log in" button can sit below the fold, under the providers and the
+# fields, until we scroll (the a11y-large-text-dark flow does too). Text asserts still prove i18n loaded. Maestro
+# matches the whole text against a pattern; test/routes/sign-in-flows.test.tsx holds every text and id here to what
+# the sign-in screen draws, in Vietnamese and in English.
 appId: com.uniworkos.chat
 name: Cold start reaches sign-in
 tags:
@@ -28,7 +30,7 @@ tags:
     timeout: 15000
 - assertVisible:
     id: login-button
-- assertVisible: "Sign in|Đăng nhập"
+- assertVisible: "Log in|Đăng nhập"
 - scrollUntilVisible:
     element:
       text: "Sign in with a browser|Đăng nhập bằng trình duyệt"

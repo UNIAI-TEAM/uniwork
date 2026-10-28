@@ -11,7 +11,8 @@
 # (components/auth/auth-layout.tsx). The line under it is body text that keeps
 # scaling (AX5 is 3.57x), so on iOS it may start on the first screen and end below
 # it; the flow scrolls until enough of it is visible rather than asserting it where
-# it may be cut, and still asserts it.
+# it may be cut, and still asserts it. test/routes/sign-in-flows.test.tsx holds every
+# text and id here to what the sign-in screen draws, in Vietnamese and in English.
 appId: com.uniworkos.chat
 name: Sign-in at the largest text size, in dark mode
 tags:

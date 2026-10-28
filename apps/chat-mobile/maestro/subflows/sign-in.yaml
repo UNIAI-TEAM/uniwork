@@ -5,12 +5,15 @@
 # account in and the consent page hands the callback back. There is no test-only shortcut in any build. A restored
 # session skips all of it.
 #
-# The browser pages belong to the web app: text, not ids. Patterns cover vi and en because the app and the web follow
-# the device and browser language.
+# Maestro matches the whole text against a pattern. A cold start lands on the native screen's title, the old
+# screen's "Sign in" button, or a workspace when the session was restored; test/routes/sign-in-flows.test.tsx holds
+# the first of those, and the field ids, to what the native screen draws in both languages. The browser pages
+# belong to the web app: text, not ids. Patterns cover vi and en because the app and the web follow the device and
+# browser language.
 appId: com.uniworkos.chat.staging
 ---
 - extendedWaitUntil:
-    visible: "Sign in|Đăng nhập|Chat|Trò chuyện|Choose a workspace|Chọn workspace"
+    visible: "Sign in to UniChat|Đăng nhập UniChat|Sign in|Đăng nhập|Chat|Trò chuyện|Choose a workspace|Chọn workspace"
     timeout: 30000
 - runFlow:
     when:
@@ -20,10 +23,11 @@ appId: com.uniworkos.chat.staging
       - tapOn:
           id: login-email
       - inputText: ${MAESTRO_TEST_EMAIL}
-      - tapOn:
-          id: login-password
+      # The field's own "next" key moves to the password, as a person does. A tap would not: the keyboard the first
+      # tap opened covers the password field on a short screen, and Maestro taps where the field is drawn.
+      - pressKey: Enter
       - inputText: ${MAESTRO_TEST_PASSWORD}
-      # The keyboard can cover the button on a short screen: its own key submits the form.
+      # And its "go" key submits the form, which the keyboard may cover too.
       - pressKey: Enter
       - extendedWaitUntil:
           visible: "Chat|Trò chuyện|Choose a workspace|Chọn workspace"
