@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@uniwork/core/api";
-import { forgetLinkReset, linkResetIntent, resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import { forgetLinkReset, linkResetIntent, linkResetServes, resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { ForgotPasswordView } from "./forgot-password-view";
@@ -46,7 +46,8 @@ describe("ForgotPasswordView", () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "An@Company.vn" } });
     fireEvent.click(screen.getByRole("button", { name: "Gửi link đặt lại" }));
     await screen.findByRole("button", { name: /Gửi lại/ });
-    expect(linkResetIntent()).toEqual({ email: "an@company.vn" });
+    await waitFor(() => expect(linkResetIntent()).not.toBeNull());
+    expect(await linkResetServes(linkResetIntent(), "an@company.vn")).toBe(true);
     forgetLinkReset();
   });
 

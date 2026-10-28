@@ -49,7 +49,8 @@ export function ForgotPasswordView({ next = null }: { next?: string | null }) {
     if (forgot.isPending) return;
     forgot.mutate(email, {
       onSuccess: () => {
-        if (isLinkStep(next)) rememberLinkReset(email);
+        // Remembered as a digest; one that cannot be taken only means the reset will not link.
+        if (isLinkStep(next)) void rememberLinkReset(email).catch(() => undefined);
         onSent();
       },
     });

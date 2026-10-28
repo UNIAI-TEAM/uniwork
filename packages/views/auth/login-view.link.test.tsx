@@ -111,7 +111,7 @@ describe("LoginView link mode", () => {
   // this browser asked for, as the reset page checks it without one.
   async function finishResetFactor(intentFor: string) {
     forgetLinkReset();
-    rememberLinkReset(intentFor);
+    await rememberLinkReset(intentFor);
     route({
       "GET /api/v1/auth/sign-in-ticket": TICKET,
       "GET /api/v1/auth/providers": PROVIDERS,

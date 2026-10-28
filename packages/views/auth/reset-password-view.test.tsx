@@ -99,7 +99,7 @@ describe("ResetPasswordView with a pending link (spec §4.4)", () => {
 
   it("keeps the pending sign-in of the person who asked in link mode, and goes to the link step", async () => {
     // "Quên mật khẩu?" on /login?link=1 sent the reset to this address.
-    rememberLinkReset("A@b.c");
+    await rememberLinkReset("A@b.c");
     route({ user, access_token: "tok-9" });
     const onSuccess = vi.fn();
     render(wrapWithNav(<ResetPasswordView token="t" onSuccess={onSuccess} />));
@@ -125,7 +125,7 @@ describe("ResetPasswordView with a pending link (spec §4.4)", () => {
   });
 
   it("drops the pending sign-in when the reset opened another address than the one asked for", async () => {
-    rememberLinkReset("someone@else.vn");
+    await rememberLinkReset("someone@else.vn");
     route({ user, access_token: "tok-9" });
     const onSuccess = vi.fn();
     render(wrapWithNav(<ResetPasswordView token="t" onSuccess={onSuccess} />));
@@ -138,7 +138,7 @@ describe("ResetPasswordView with a pending link (spec §4.4)", () => {
   });
 
   it("waits for the pending sign-in's answer before it sends the reset", async () => {
-    rememberLinkReset("a@b.c");
+    await rememberLinkReset("a@b.c");
     let answer: (v: unknown) => void = () => {};
     route({ user, access_token: "tok-9" }, () => new Promise((r) => (answer = r)));
     const onSuccess = vi.fn();
@@ -154,7 +154,7 @@ describe("ResetPasswordView with a pending link (spec §4.4)", () => {
   });
 
   it("finishes a second factor on /login, still linking", async () => {
-    rememberLinkReset("a@b.c");
+    await rememberLinkReset("a@b.c");
     route({ mfa_required: true, mfa_token: "" });
     const nav = fakeNav("/reset-password?token=t");
     render(wrapWithNav(<ResetPasswordView token="t" onSuccess={vi.fn()} />, nav));
@@ -167,7 +167,7 @@ describe("ResetPasswordView with a pending link (spec §4.4)", () => {
   });
 
   it("forgets the intent on a second factor when nothing waits to be linked", async () => {
-    rememberLinkReset("a@b.c");
+    await rememberLinkReset("a@b.c");
     route({ mfa_required: true, mfa_token: "" }, () => Promise.reject(new ApiError("gone", "sign_in_ticket_missing", 404)));
     const nav = fakeNav("/reset-password?token=t");
     render(wrapWithNav(<ResetPasswordView token="t" onSuccess={vi.fn()} />, nav));
@@ -179,7 +179,7 @@ describe("ResetPasswordView with a pending link (spec §4.4)", () => {
   });
 
   it("does not keep anything when no sign-in waits", async () => {
-    rememberLinkReset("a@b.c");
+    await rememberLinkReset("a@b.c");
     route({ user, access_token: "tok-9" }, () => Promise.reject(new ApiError("gone", "sign_in_ticket_missing", 404)));
     const onSuccess = vi.fn();
     render(wrapWithNav(<ResetPasswordView token="t" onSuccess={onSuccess} />));

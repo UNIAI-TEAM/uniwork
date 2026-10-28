@@ -100,11 +100,14 @@ export function ResetPasswordView({
           forgetLinkReset();
           // Another address than the one the reset was asked for: its
           // pending sign-in is not this person's to link.
-          const linking = linkStep !== null && linkResetServes(intent, out.user.email);
-          if (linkStep !== null && !linking) discard.mutate();
-          // "Đã lấy lại tài khoản": a link on an address never proved takes it back.
-          announce(out, linking ? pending.data?.provider : undefined);
-          onSuccess(out, linking ? linkStep : null);
+          void (linkStep === null ? Promise.resolve(false) : linkResetServes(intent, out.user.email))
+            .catch(() => false)
+            .then((linking) => {
+              if (linkStep !== null && !linking) discard.mutate();
+              // "Đã lấy lại tài khoản": a link on an address never proved takes it back.
+              announce(out, linking ? pending.data?.provider : undefined);
+              onSuccess(out, linking ? linkStep : null);
+            });
         },
       },
     );

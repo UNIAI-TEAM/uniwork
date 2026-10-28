@@ -120,17 +120,23 @@ export function LoginView({
     if (fromReset && link) {
       const intent = linkResetIntent();
       forgetLinkReset();
-      // Someone else's reset left a pending sign-in in this browser: it is
-      // not this account's to link. Dropped before going on, past the link step.
-      if (!linkResetServes(intent, sess.user.email)) {
-        announce(sess);
-        void discard
-          .mutateAsync()
-          .catch(() => undefined)
-          .then(() => onSuccess(sess, pastLinkStep(next)));
-        return;
-      }
+      void linkResetServes(intent, sess.user.email)
+        .catch(() => false)
+        .then((serves) => {
+          if (serves) return linked(sess);
+          // Someone else's reset left a pending sign-in in this browser: it is
+          // not this account's to link. Dropped before going on, past the link step.
+          announce(sess);
+          return discard
+            .mutateAsync()
+            .catch(() => undefined)
+            .then(() => onSuccess(sess, pastLinkStep(next)));
+        });
+      return;
     }
+    linked(sess);
+  };
+  const linked = (sess: SessionResponse) => {
     announce(sess, pending?.provider);
     onSuccess(sess);
   };
