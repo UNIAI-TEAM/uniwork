@@ -97,7 +97,7 @@ export function useLogin() {
   });
 }
 
-/** The session may carry `link_skipped` (auth/sign-in-errors.ts linkSkippedKey) for the screen to say once. */
+/** The session may carry `link_skipped` (auth/sign-in-errors.ts linkSkippedNotice) for the screen to say once. */
 export function useVerifyMfa() {
   return useMutation({
     mutationFn: async ({ mfaToken, code, keepSignInTicket }: { mfaToken: string | null; code: string; keepSignInTicket?: boolean }) =>

@@ -5,7 +5,7 @@
 // a failure becomes the sentence core's table gives it (and the system's error feel), with a countdown while it asks
 // to wait. In link mode a provider's sheet signs in to link the identity held: one that matches no account either is
 // said as such, and the identity keeps waiting (data/auth/sign-in.ts › unmatched).
-import { linkSkippedKey, retryPhrase, type SignInContext, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import { linkSkippedNotice, retryPhrase, sentenceValues, type SignInContext, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -88,8 +88,8 @@ export function useSignIn(context: SignInContext, options: { linkMode?: boolean 
   const tellSignedIn = useCallback(
     (outcome: Extract<SignInOutcome, { kind: "signed_in" }>, provider: SignInProvider | null) => {
       if (outcome.reclaimed) toast.info(t("auth.social.reclaimed"));
-      const skipped = linkSkippedKey(outcome.linkSkipped, provider);
-      if (skipped) toast.info(t(skipped, provider ? { provider: t(`auth.social.provider.${provider}`) } : {}));
+      const skipped = linkSkippedNotice(outcome.linkSkipped, provider);
+      if (skipped) toast.info(t(skipped.key, sentenceValues(skipped, t)));
     },
     [t],
   );
