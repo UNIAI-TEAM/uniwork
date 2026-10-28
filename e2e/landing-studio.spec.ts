@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { auditText } from "./contrast";
 import { landingReady, gotoLanding } from "./landing-ready";
+import vi from "../packages/core/i18n/locales/vi.json" with { type: "json" };
 
 test("studio demo switches views and tabs locally, with keyboard support", async ({ page }) => {
   await gotoLanding(page, "/");
@@ -18,21 +19,36 @@ test("studio demo switches views and tabs locally, with keyboard support", async
     }
   });
   await expect(preview.locator(".product-demo-toolbar").getByText("Bản minh họa", { exact: true })).toBeVisible();
-  await preview.getByRole("button", { name: "Danh sách", exact: true }).click();
-  await expect(preview.getByRole("button", { name: "Danh sách", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(preview.locator(".preview-task-list")).toBeVisible();
-  await preview.getByRole("button", { name: /Thống nhất phạm vi ra mắt/ }).click();
-  await expect(preview.locator(".preview-selection")).toContainText("Thống nhất phạm vi ra mắt");
+  const panel = preview.locator(".preview-main > [role=tabpanel]:not([hidden])");
+  const board = panel.locator(".product-task-board");
+  await expect(board).toHaveAttribute("data-view", "board");
+  // The view menu's trigger is named after the selected view; "Danh sách" is a menu item.
+  await panel.getByRole("button", { name: vi.landing.studio.board, exact: true }).click();
+  await page.getByRole("menuitem", { name: vi.landing.studio.list, exact: true }).click();
+  await expect(board).toHaveAttribute("data-view", "list");
+  await expect(panel.getByRole("button", { name: vi.landing.studio.list, exact: true })).toBeVisible();
+  await expect(panel.locator(".product-task-list-row").first()).toBeVisible();
+  const launchTitle = vi.landing.productDemo.board.tasks.launch;
+  await panel.getByRole("button", { name: new RegExp(launchTitle) }).click();
+  await expect(panel.locator(".product-task-details")).toContainText(launchTitle);
   await selectWorkspaceFeature(page, "chat");
-  await expect(preview.getByRole("tabpanel", { name: "Trao đổi", exact: true }).locator(".preview-message")).toHaveCount(2);
-  await preview.getByRole("tab", { name: "Trao đổi", exact: true }).press("ArrowDown");
-  await expect(preview.getByRole("tab", { name: "Email Hub", exact: true })).toBeFocused();
+  const chatLog = panel.getByRole("log", { name: vi.chat.title });
+  await expect(chatLog).toContainText(vi.landing.studio.message1);
+  await expect(chatLog).toContainText(vi.landing.studio.message2);
+  // The vertical menu is a tablist: three ArrowUp steps walk Chat -> Documents -> Meetings -> Email Hub.
+  const chatTab = preview.getByRole("tab", { name: vi.nav.chat, exact: true });
+  const emailTab = preview.getByRole("tab", { name: vi.nav.email, exact: true });
+  await chatTab.press("ArrowUp");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowUp");
+  await expect(emailTab).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(preview.getByRole("tab", { name: "Email Hub", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(emailTab).toHaveAttribute("aria-selected", "true");
   await selectWorkspaceFeature(page, "ask");
-  await expect(preview.getByRole("tab", { name: "Hỏi UNI", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(preview.getByText("Dựa trên các công việc bạn có quyền xem trong workspace", { exact: false })).toBeVisible();
-  await expect(preview.locator(".preview-source")).toContainText("Nguồn");
+  await expect(preview.getByRole("tab", { name: vi.landing.studio.askTab, exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(panel.getByText(vi.ai.empty_description, { exact: true })).toBeVisible();
+  await panel.getByRole("button", { name: vi.ai.suggestion_overdue, exact: true }).click();
+  await expect(panel.getByRole("list", { name: vi.ai.sources, exact: true })).toContainText(vi.landing.productDemo.board.tasks.design);
   expect(writes).toEqual([]);
 });
 
