@@ -361,6 +361,21 @@ describe("RailOutline on the minutes tab", () => {
       .map((a) => [...a.childNodes].filter((n) => !(n instanceof Element && n.hasAttribute("aria-hidden"))).map((n) => n.textContent).join(""));
     expect(rows).toEqual(["Thành phần 3/3", "Nội dung 2 chủ đề", "Kết luận 2"]);
   });
+
+  it("rolls the overview's items count", async () => {
+    renderRail("m1", {
+      ui: (
+        <>
+          <section id="action-items"><h2>Việc cần làm</h2></section>
+          <DetailRail />
+        </>
+      ),
+    });
+    const nav = await screen.findByRole("navigation", { name: "Trên trang này" });
+    const row = await within(nav).findByRole("link", { name: /^Việc cần làm \d+ chờ · \d+ đã giao$/ });
+    // The drawn count is numbers that roll (NumberFlow), read once as the plain sentence.
+    expect(row.querySelector("[aria-hidden] number-flow-react")).not.toBeNull();
+  });
 });
 
 

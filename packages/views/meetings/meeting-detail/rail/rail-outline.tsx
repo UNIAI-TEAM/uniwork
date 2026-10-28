@@ -6,6 +6,7 @@ import { useNotes } from "@uniwork/core/meetings";
 import { useMeetingActionItems } from "@uniwork/core/meetings/action-items";
 import { useMeetingSummary, useMeetingSummaryRun } from "@uniwork/core/meetings/summary";
 import { useFullTranscript } from "@uniwork/core/meetings/transcript";
+import { Rolling } from "../close-out/assign-motion";
 import { useDetail } from "../detail-context";
 import { clock } from "../format";
 import { DETAIL_SCROLLER_ID } from "../layout";
@@ -143,7 +144,12 @@ export function RailOutline() {
             </>
           ),
         }))
-      : sections.map((s) => (tab === "overview" ? { ...s, count: counts[s.id] } : s));
+      : sections.map((s) => {
+          if (tab !== "overview") return s;
+          const count = counts[s.id];
+          // The items count rolls as work is assigned or undone, like the board's own heading.
+          return { ...s, count: s.id === "action-items" && count ? <Rolling text={count} /> : count };
+        });
   const ids = entries.map((e) => e.id).join(" ");
 
   // Scroll-spy: the last section whose top has passed the line, else the first.
