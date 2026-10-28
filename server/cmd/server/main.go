@@ -907,6 +907,9 @@ func main() {
 	go func() { mcpAuth.Run(runCtx); close(mcpCleanupDone) }()
 	officeCapabilitiesSvc := service.NewOfficeCapabilitiesService(orgSvc, flags)
 	officeCapabilitiesSvc.SetDrive(driveConnectionSvc)
+	aiCloudSvc := service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway)
+	// The plan card and Apply ask the gate the frame's uniwork_ai grant reads.
+	askUNI.SetEditorAI(service.NewEditorAIGate(aiCloudSvc, officeCapabilitiesSvc))
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
@@ -955,7 +958,7 @@ func main() {
 		OfficeLease:         officeLeases,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),
 		AICredentials:       aiCredentialSvc,
-		AICloud:             service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway),
+		AICloud:             aiCloudSvc,
 		// The UniWork AI façade (G6-03a): the org, document and frame routes,
 		// the conversation store why the key above exists, and the process's
 		// own concurrency bounds (A11) — Redis only when there is one. G6-03b

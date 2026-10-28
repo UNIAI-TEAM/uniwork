@@ -58,6 +58,8 @@ type AskProposalResult struct {
 	Revision int64       `json:"revision"`
 	Changes  []McpChange `json:"changes"`
 	Note     string      `json:"note"`
+	// HandoffID is the package create_office_document left for the editor AI.
+	HandoffID string `json:"handoff_id,omitempty"`
 }
 
 // askInverse is how to undo an applied row: the name of an askInverses entry

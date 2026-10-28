@@ -79,20 +79,66 @@ const mcpSchemaCreateOfficeDocument = `{
     "parent_id": {"type": "string", "description": "Folder to put the file in; omit for the asker's own folder (or the workspace root when shared)."},
     "visibility": {"type": "string", "enum": ["restricted", "workspace"], "description": "restricted (default): only the asker. workspace: everyone in the workspace."},
     "instructions": {"type": "string", "description": "What to fill in or change, for the asker to review on the card (at most 4000 characters)."},
-    "outline": {"type": "string", "description": "Markdown outline of the file (at most 16000 characters). Required for a blank file."}
+    "outline": {"type": "string", "description": "Markdown outline of the file (at most 16000 characters). Required for a blank file."},
+    "sources": {
+      "type": "array", "maxItems": 8,
+      "description": "Material you read that the editor AI should use: each item names what you read (kind, id, title) and quotes the passage it needs. At most 8.",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["kind", "id", "title", "quote"],
+        "properties": {"kind": {"type": "string"}, "id": {"type": "string"}, "title": {"type": "string"}, "quote": {"type": "string"}}
+      }
+    }
   }
 }`
 
 type askOfficeIn struct {
-	WorkspaceID  string `json:"workspace_id"`
-	Title        string `json:"title"`
-	TemplateID   string `json:"template_id"`
-	AttachmentID string `json:"attachment_id"`
-	Format       string `json:"format"`
-	ParentID     string `json:"parent_id"`
-	Visibility   string `json:"visibility"`
-	Instructions string `json:"instructions"`
-	Outline      string `json:"outline"`
+	WorkspaceID  string                `json:"workspace_id"`
+	Title        string                `json:"title"`
+	TemplateID   string                `json:"template_id"`
+	AttachmentID string                `json:"attachment_id"`
+	Format       string                `json:"format"`
+	ParentID     string                `json:"parent_id"`
+	Visibility   string                `json:"visibility"`
+	Instructions string                `json:"instructions"`
+	Outline      string                `json:"outline"`
+	Sources      []OfficeHandoffSource `json:"sources"`
+}
+
+// Limits of create_office_document's sources (plan 2026-10-28 decision 6).
+const (
+	askOfficeSourcesMax       = 8
+	askOfficeSourceTitleRunes = 200
+	askOfficeSourceQuoteRunes = 1500
+	askOfficeSourceHeadRunes  = 200
+)
+
+// askOfficeSourceKinds are the kinds of object Ask UNI reads and cites.
+var askOfficeSourceKinds = []string{"task", "project", "meeting", "document", "drive_file", "chat", "email_thread"}
+
+// askOfficeSourceLines checks the sources and renders the card's list, one
+// line per source: its title and the head of its quote. prepare never reads a
+// source again; the asker reviews what the model quoted.
+func askOfficeSourceLines(sources []OfficeHandoffSource) (string, error) {
+	if len(sources) > askOfficeSourcesMax {
+		return "", McpInvalidArgs{Msg: fmt.Sprintf("sources holds at most %d items", askOfficeSourcesMax)}
+	}
+	lines := make([]string, 0, len(sources))
+	for _, src := range sources {
+		switch {
+		case !slices.Contains(askOfficeSourceKinds, src.Kind):
+			return "", McpInvalidArgs{Msg: "a source's kind must be one of " + strings.Join(askOfficeSourceKinds, ", ")}
+		case strings.TrimSpace(src.ID) == "":
+			return "", McpInvalidArgs{Msg: "a source needs the id of what you read"}
+		case utf8.RuneCountInString(src.Title) > askOfficeSourceTitleRunes:
+			return "", McpInvalidArgs{Msg: fmt.Sprintf("a source's title holds at most %d characters", askOfficeSourceTitleRunes)}
+		case strings.TrimSpace(src.Quote) == "" || utf8.RuneCountInString(src.Quote) > askOfficeSourceQuoteRunes:
+			return "", McpInvalidArgs{Msg: fmt.Sprintf("a source's quote holds 1 to %d characters", askOfficeSourceQuoteRunes)}
+		}
+		head := []rune(oneLine(src.Quote))
+		head = head[:min(len(head), askOfficeSourceHeadRunes)]
+		lines = append(lines, "- **"+oneLine(src.Title)+"**: “"+string(head)+"…”")
+	}
+	return strings.Join(lines, "\n"), nil
 }
 
 func (s *AskUNIService) askOfficeTool() askWriteTool {
@@ -153,6 +199,10 @@ func (s *AskUNIService) prepareCreateOffice(ctx context.Context, tc ai.ToolConte
 	if utf8.RuneCountInString(in.Instructions) > askOfficeInstructionsRunes {
 		return askDraftRow{}, McpInvalidArgs{Msg: fmt.Sprintf("instructions holds at most %d characters", askOfficeInstructionsRunes)}
 	}
+	sourceLines, err := askOfficeSourceLines(in.Sources)
+	if err != nil {
+		return askDraftRow{}, err
+	}
 	sources := 0
 	for _, v := range []string{in.TemplateID, in.AttachmentID, in.Format} {
 		if v != "" {
@@ -194,6 +244,7 @@ func (s *AskUNIService) prepareCreateOffice(ctx context.Context, tc ai.ToolConte
 
 	var read []AskContextRef
 	var source AskProposalField
+	format := in.Format
 	switch {
 	case in.TemplateID != "":
 		info, err := docs.TemplateSource(ctx, actor, tc.WorkspaceID, in.TemplateID)
@@ -204,6 +255,7 @@ func (s *AskUNIService) prepareCreateOffice(ctx context.Context, tc ai.ToolConte
 			return askDraftRow{}, McpInvalidArgs{Msg: "this template's format cannot be made with create_office_document"}
 		}
 		source = AskProposalField{Field: "template_id", Type: "text", To: info.Title}
+		format = info.Format
 		title = withOfficeExt(title, info.Format)
 		read = append(read, AskContextRef{Kind: "document", ID: info.ID, Title: info.Title})
 	case in.AttachmentID != "":
@@ -212,8 +264,8 @@ func (s *AskUNIService) prepareCreateOffice(ctx context.Context, tc ai.ToolConte
 			return askDraftRow{}, err
 		}
 		source = AskProposalField{Field: "attachment_id", Type: "text", To: att.Name}
-		f, _ := officeFormatOfMIME(att.MIME)
-		title = withOfficeExt(title, f)
+		format, _ = officeFormatOfMIME(att.MIME)
+		title = withOfficeExt(title, format)
 	default:
 		source = AskProposalField{Field: "format", Type: "enum", To: in.Format, Options: askOfficeFormats}
 		title = withOfficeExt(title, in.Format)
@@ -241,6 +293,18 @@ func (s *AskUNIService) prepareCreateOffice(ctx context.Context, tc ai.ToolConte
 	if in.Instructions != "" {
 		fields = append(fields, AskProposalField{Field: "instructions", Type: "text", To: in.Instructions})
 	}
+	if sourceLines != "" {
+		fields = append(fields, AskProposalField{Field: "sources", Type: "markdown", To: sourceLines})
+	}
+	// What Apply then opens: the editor AI composing (building a deck), or why it cannot.
+	editor := s.editorAIReason(ctx, tc.ActorID, tc.OrganizationID, format)
+	if editor == "" {
+		editor = "compose"
+		if format == "pptx" {
+			editor = "build"
+		}
+	}
+	fields = append(fields, AskProposalField{Field: "editor_ai", Type: "enum", To: editor, Options: []string{}})
 	audience := "private"
 	if in.Visibility == "workspace" {
 		audience = "workspace"
@@ -308,7 +372,15 @@ func (s *AskUNIService) applyCreateOffice(ctx context.Context, p McpPrincipal, r
 	if err != nil {
 		return AskProposalResult{}, nil, err
 	}
-	return s.askFileCreated(ctx, ws, res)
+	out, inv, err := s.askFileCreated(ctx, ws, res)
+	if err != nil {
+		return out, inv, err
+	}
+	// The document services commit their own transactions, so the package is
+	// written after the file exists; checked again here, as the card may be old.
+	format := files.DocumentFormat(res.Version.MimeType.String, res.Document.Title)
+	out.HandoffID = s.officeHandoffFor(ctx, p, in, format, out.ObjectID)
+	return out, inv, nil
 }
 
 // officeAttachment is the asker's own attachment, when it is one of the six
