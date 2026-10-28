@@ -1,3 +1,4 @@
+import type { LoginProvider } from "../../shared/bridge";
 import type { ShellConfig } from "../runtime-config";
 import { validateCallback } from "./callback";
 import { CredentialStoreError, type CredentialStore, type StoredCredential } from "./credentials";
@@ -110,8 +111,11 @@ export class ShellSession {
     await this.refresh();
   }
 
-  /** Starts the browser sign-in; resolves once the browser is open. Rejects when it cannot start. */
-  async login(): Promise<void> {
+  /**
+   * Starts the browser sign-in, straight to `provider` when one is named;
+   * resolves once the browser is open. Rejects when it cannot start.
+   */
+  async login(provider?: LoginProvider): Promise<void> {
     if (this.state === "signed-in" || this.state === "refreshing" || this.exchanging) return;
     // a live but unreachable session is recovered, never shadowed by a second attempt
     if (this.live) {
@@ -119,12 +123,14 @@ export class ShellSession {
       return;
     }
     const current = this.attempts.current(this.now());
-    if (current) {
+    if (current && current.provider === provider) {
       // a click while the browser sign-in is open re-opens that page: a new
       // attempt would turn the open tab's callback into a state mismatch
       if (current.authorizationUrl) await this.deps.openBrowser(current.authorizationUrl);
       return;
     }
+    // another way in is another attempt: the person changed their mind, and
+    // the tab they left behind can only call back with a state that no longer matches
     // no encrypted store (Linux basic_text): a redeemed code would orphan a device
     if (!this.deps.credentials.canStore()) {
       console.warn("[auth] login refused: keyring_unavailable");
@@ -138,6 +144,7 @@ export class ShellSession {
       deploymentId: config.deploymentId,
       redirectUri: config.redirectUri,
       now: this.now(),
+      provider,
     });
     this.state = "signing-in";
     let url: string;
@@ -149,6 +156,7 @@ export class ShellSession {
         redirectUri: attempt.redirectUri,
         deviceLabel: deviceLabel(),
         platform: process.platform,
+        provider,
       }));
     } catch (error) {
       if (generation === this.generation) {

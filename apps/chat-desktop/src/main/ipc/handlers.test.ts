@@ -87,10 +87,20 @@ describe("registerIpc", () => {
     const { session, invoke } = setup();
     await invoke("session:login");
     expect(session.login).toHaveBeenCalledOnce();
+    expect(session.login).toHaveBeenLastCalledWith(undefined);
     await expect(invoke("session:get-access-token")).resolves.toBe("access-1");
     await expect(invoke("session:refresh")).resolves.toBe("access-2");
     await invoke("session:logout");
     expect(session.logout).toHaveBeenCalledOnce();
+  });
+
+  it("starts a sign-in straight to the provider the renderer names, and refuses any other payload", async () => {
+    const { session, invoke } = setup();
+    await invoke("session:login", { provider: "apple" });
+    expect(session.login).toHaveBeenLastCalledWith("apple");
+    await expect(invoke("session:login", { provider: "github" })).rejects.toThrow("ipc rejected: not_login_options");
+    await expect(invoke("session:login", "google")).rejects.toThrow("ipc rejected: not_login_options");
+    expect(session.login).toHaveBeenCalledOnce();
   });
 
   it("clamps the badge and rejects a non-count", async () => {

@@ -22,7 +22,8 @@ function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
 
 // Access tokens only: main keeps the refresh token and never has a channel that returns it.
 const session: SessionProvider = {
-  login: () => ipcRenderer.invoke("session:login"),
+  // main validates the options (`expectLoginOptions`); none is the UniWork sign-in page
+  login: (options) => ipcRenderer.invoke("session:login", options),
   getAccessToken: () => ipcRenderer.invoke("session:get-access-token"),
   refresh: () => ipcRenderer.invoke("session:refresh"),
   logout: () => ipcRenderer.invoke("session:logout"),
