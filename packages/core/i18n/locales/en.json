@@ -2012,11 +2012,6 @@
         "open": "Delete account",
         "title": "Delete your account?",
         "body": "You will be signed out everywhere and cannot sign in again. This cannot be undone.",
-        "proof": {
-          "password": "Enter your current password to confirm",
-          "code": "Enter your two-factor code to confirm",
-          "email": "Type your email address to confirm"
-        },
         "ownerHint": "An account that owns an organization cannot be deleted until ownership is transferred.",
         "cancel": "Cancel",
         "confirm": "Delete permanently",
@@ -2029,17 +2024,7 @@
         },
         "ownerTransfer": "You own {{name}}, and it has other members. Transfer ownership in Settings › Organization members, then come back to delete your account.",
         "closeNotice": "You're the only member of {{name}}, so it closes along with your account.",
-        "closeAndDelete": "Close organization and delete account",
-        "required": {
-          "password": "Enter your password to confirm.",
-          "code": "Enter your two-factor code to confirm.",
-          "email": "Type your email address to confirm."
-        },
-        "incorrect": {
-          "password": "That password isn't right. Enter it again to delete the account.",
-          "code": "That code isn't right or has expired. Enter a new one to delete the account.",
-          "email": "That doesn't match the email you're signed in with. Type it again to delete the account."
-        }
+        "closeAndDelete": "Close organization and delete account"
       },
       "signInMethods": {
         "title": "Sign-in methods",

@@ -2011,11 +2011,6 @@
         "open": "Xóa tài khoản",
         "title": "Xóa tài khoản của bạn?",
         "body": "Bạn sẽ bị đăng xuất khỏi mọi thiết bị và không đăng nhập lại được. Thao tác này không hoàn tác.",
-        "proof": {
-          "password": "Nhập mật khẩu hiện tại để xác nhận",
-          "code": "Nhập mã xác thực hai lớp để xác nhận",
-          "email": "Gõ lại địa chỉ email của bạn để xác nhận"
-        },
         "ownerHint": "Tài khoản đang là chủ sở hữu tổ chức không xóa được cho đến khi chuyển quyền.",
         "cancel": "Hủy",
         "confirm": "Xóa vĩnh viễn",
@@ -2028,17 +2023,7 @@
         },
         "ownerTransfer": "Bạn là chủ sở hữu {{name}}, và tổ chức còn thành viên khác. Chuyển quyền sở hữu trong Cài đặt › Thành viên tổ chức, rồi quay lại xóa tài khoản.",
         "closeNotice": "Bạn là thành viên duy nhất của {{name}}, nên tổ chức sẽ được đóng cùng lúc với tài khoản.",
-        "closeAndDelete": "Đóng tổ chức và xóa tài khoản",
-        "required": {
-          "password": "Nhập mật khẩu để xác nhận.",
-          "code": "Nhập mã xác thực hai lớp để xác nhận.",
-          "email": "Gõ lại email của bạn để xác nhận."
-        },
-        "incorrect": {
-          "password": "Mật khẩu chưa đúng. Nhập lại để xóa tài khoản.",
-          "code": "Mã xác thực chưa đúng hoặc đã hết hạn. Nhập mã mới để xóa tài khoản.",
-          "email": "Email chưa khớp với tài khoản đang đăng nhập. Gõ lại để xóa tài khoản."
-        }
+        "closeAndDelete": "Đóng tổ chức và xóa tài khoản"
       },
       "signInMethods": {
         "title": "Phương thức đăng nhập",
