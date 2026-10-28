@@ -119,7 +119,9 @@ chứ không im; mọi lượt Maestro trong CI đi qua nó): mở lạnh tới 
 simulator iOS với bản Release ký ad-hoc, cùng điều kiện native ở PR (nơi gọi chỉ Android thì bỏ qua), Xcode ghim ở
 `XCODE_VERSION` qua `scripts/select-xcode.sh`; cuối job, ở font_scale 2.0 và dark mode,
 `flows/a11y-large-text-dark.yaml` (màn đăng nhập cuộn được, vẫn tới nút) rồi `scripts/mobile-a11y-audit.mjs` (dump
-uiautomator: mọi điều khiển của app có tên và ≥ 48 dp, không `--warn`; hitSlop không thấy được trong dump, nên mọi điều
+uiautomator: mọi điều khiển của app có tên và ≥ 48 dp, không `--warn`; dump cho khung đang vẽ trên màn, nên điều khiển
+bị mép scroll view cắt theo chiều cuộn thì không đo, chỉ in "not measured" — vì vậy flow cuộn tiếp tới link pháp lý để
+nút trình duyệt nằm trọn trên màn được đo; hitSlop không thấy được trong dump, nên mọi điều
 khiển của màn đăng nhập vẽ đủ 48 dp trên Android — `TextButton`, nút hiện/ẩn mật khẩu, `LegalLink` qua `minTouchTarget`,
 không hit slop — và điều khiển mới nào có thể nằm trên màn cuối của flow đó cũng vậy; nightly audit phòng ở 44 dp, chỉ
 cảnh báo; `ios-release` chạy cùng flow trên simulator ở Dynamic Type lớn nhất
