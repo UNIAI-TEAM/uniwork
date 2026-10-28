@@ -25,7 +25,6 @@ const card = (p: Props = {}) =>
     <AskAnswerCard
       question="Đã chốt gì về demo?"
       answer={message()}
-      pending={false}
       conversationId="c1"
       canShare
       meetingId="m1"
@@ -49,7 +48,7 @@ beforeEach(() => {
 describe("AskAnswerCard", () => {
   it("shows the question as the asker's bubble and the answer as UNI's, private to the asker", () => {
     render(card());
-    expect(screen.getByText("Đã chốt gì về demo?")).toHaveClass("bg-surface-hover");
+    expect(screen.getByText("Đã chốt gì về demo?").closest(".bg-surface-hover")).not.toBeNull();
     const answer = screen.getByRole("article", { name: "Hỏi UNI" });
     // The [S1] marker gives way to the source pill.
     expect(within(answer).getByText("Lúc 09:05 An chốt demo thứ Sáu.")).toBeInTheDocument();
@@ -64,8 +63,15 @@ describe("AskAnswerCard", () => {
     expect(within(article).getByText("Tiền dồn cho tuần ra mắt").tagName).toBe("LI");
   });
 
+  // The question is the composer's markdown: entities and escapes read as typed, marks as formatting.
+  it("shows the question as the composer wrote it, not its markdown source", () => {
+    render(card({ question: "Ai làm **R&amp;D** cho user\\_id?" }));
+    expect(screen.getByText("R&D").tagName).toBe("STRONG");
+    expect(screen.getByText((_, el) => el?.tagName === "P" && el.textContent === "Ai làm R&D cho user_id?")).toBeInTheDocument();
+  });
+
   it("while UNI works shows the question only", () => {
-    render(card({ pending: true, answer: null }));
+    render(card({ answer: null }));
     expect(screen.getByText("Đã chốt gì về demo?")).toBeInTheDocument();
     expect(screen.queryByRole("article")).not.toBeInTheDocument();
   });

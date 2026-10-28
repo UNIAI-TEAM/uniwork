@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowUp, AtSign, Check, CircleAlert, CircleQuestionMark, Lock, PencilLine, Sparkle, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -29,20 +29,26 @@ const MeetingIcon = MODULE_ICONS.meetings;
 type Mode = "ask" | "note";
 type Blocked = "outOfCredit" | "askOff";
 
-/** The exchange the composer last had with UNI: what the answer card above it shows. */
-export interface MeetingAsk {
+/** One question to UNI and its answer, null while UNI works on it. */
+interface MeetingExchange {
   question: string;
   answer: AiMessage | null;
+}
+
+/** The composer's conversation with UNI, oldest exchange first: what the answer cards above it show. */
+export interface MeetingAsk {
+  exchanges: MeetingExchange[];
   pending: boolean;
   conversationId: string | null;
 }
 
-/** The conversation's newest answer and the question it answers. */
-function lastExchange(history: AiMessage[] | undefined): { question: string; answer: AiMessage } | null {
-  const i = history?.findLastIndex((m) => m.role === "assistant") ?? -1;
-  if (!history || i < 0) return null;
-  const prev = history[i - 1];
-  return { question: prev?.role === "user" ? prev.content : "", answer: history[i]! };
+/** Every answer of the conversation with the question it answers, oldest first. */
+function exchangesOf(history: AiMessage[]): MeetingExchange[] {
+  return history.flatMap((m, i) => {
+    if (m.role !== "assistant") return [];
+    const prev = history[i - 1];
+    return [{ question: prev?.role === "user" ? prev.content : "", answer: m }];
+  });
 }
 
 const isAbort = (err: unknown) => (err as { name?: unknown } | null)?.name === "AbortError";
@@ -134,6 +140,8 @@ export function MeetingComposer({
   const [chosen, setChosen] = useState<Mode>("ask");
   const [draft, setDraft] = useState<AskUniQuestion>(EMPTY);
   const [asked, setAsked] = useState("");
+  // How many turns the conversation had when the pending question was sent.
+  const [sentAt, setSentAt] = useState(0);
   const [note, setNote] = useState("");
   // An ask refused for quota or with AI switched off closes Ask for this meeting, whatever the cached
   // capabilities (kept 5 minutes) still say.
@@ -154,22 +162,26 @@ export function MeetingComposer({
   const pending = ask.isPending;
   const focus = { kind: "meeting", id: meetingId } as const;
 
-  const exchange = pending
-    ? { question: asked, answer: null }
-    : (lastExchange(history) ?? (ask.data ? { question: asked, answer: ask.data.message } : null));
+  // The earlier exchanges stay on screen while a follow-up runs (UNI-2243). The cache holds the new answer a
+  // render before the ask stops pending, so until then only the turns from before it was sent are past.
+  const askData = ask.data;
+  const exchanges = useMemo(() => {
+    const seen = pending ? (history ?? []).slice(0, sentAt) : (history ?? []);
+    const past = seen.length ? exchangesOf(seen) : !pending && askData ? [{ question: asked, answer: askData.message }] : [];
+    return pending ? [...past, { question: asked, answer: null }] : past;
+  }, [history, askData, asked, pending, sentAt]);
   const report = useRef(onAsked);
   report.current = onAsked;
-  const shownQuestion = exchange?.question ?? "";
-  const shownAnswer = exchange?.answer ?? null;
   useEffect(() => {
-    report.current?.({ question: shownQuestion, answer: shownAnswer, pending, conversationId: conversationId ?? null });
-  }, [shownQuestion, shownAnswer, pending, conversationId]);
+    report.current?.({ exchanges, pending, conversationId: conversationId ?? null });
+  }, [exchanges, pending, conversationId]);
 
   const send = ({ question, mentions }: AskUniQuestion) => {
     if (!question || pending || mode !== "ask") return;
     const abort = new AbortController();
     controller.current = abort;
     setAsked(question);
+    setSentAt(history?.length ?? 0);
     box.current?.clear();
     // useAskUni remembers the conversation for this meeting, even if the composer unmounts meanwhile.
     ask.mutate(
@@ -242,7 +254,7 @@ export function MeetingComposer({
   const failure = failKey && !REFUSALS[failKey] ? failKey : null;
   const canAsk = draft.question !== "";
   // Once an exchange is on screen the composer is a follow-up box ("Hỏi tiếp…"), with no openers (UniAsk board).
-  const showSuggestions = mode === "ask" && !pending && !exchange && !canAsk && suggestions.length > 0;
+  const showSuggestions = mode === "ask" && !pending && exchanges.length === 0 && !canAsk && suggestions.length > 0;
 
   return (
     <div ref={root} className="flex flex-col gap-2.5" data-testid="meeting-composer">

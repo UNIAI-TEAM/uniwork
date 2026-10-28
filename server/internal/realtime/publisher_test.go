@@ -330,6 +330,14 @@ func TestLobbyMirrorsRecordingState(t *testing.T) {
 	}
 }
 
+// A guest obeys mute requests only from the host's seat, which it reads off the
+// participant list: a transfer must reach its lobby or it keeps obeying the old host.
+func TestLobbyMirrorsHostTransfer(t *testing.T) {
+	if _, ok := meetingLobbyEventTypes["host.transferred"]; !ok {
+		t.Error("host.transferred is not mirrored to the meeting lobby scope")
+	}
+}
+
 // Guests can be promoted to members and vote, and they only hear the meeting
 // scope: every motion change must be mirrored there or their Votes tab and
 // vote prompt never move.
