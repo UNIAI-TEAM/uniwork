@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { ArrowRightLeft, ExternalLink, KeyRound, TriangleAlert, Unlink } from "lucide-react";
+import { ArrowRightLeft, ExternalLink, KeyRound, Unlink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { SignInMethods, SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
@@ -10,7 +10,6 @@ import {
   useAuthStore,
   useDiscardSignInTicket,
   useLinkSignInTicket,
-  useLogout,
   useSignInMethods,
   useSignInTicket,
   useStartSignInMethodLink,
@@ -30,7 +29,6 @@ import { linkAction, unlinkAction } from "@uniwork/core/auth/step-up";
 import { paths } from "@uniwork/core/paths";
 import { getDesktopBridge, usePageRestore } from "@uniwork/core/platform";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
-import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
@@ -67,7 +65,7 @@ const noopSubscribe = () => () => {};
  * opens this page there, and the list reads itself again when the window
  * comes back into focus; password and unlink run in place.
  */
-export function SignInMethodsSection() {
+export function SignInMethodsSection({ heldBy }: { heldBy?: string }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.security.signInMethods" });
   const { t: tRoot } = useTranslation();
   const user = useAuthStore((s) => s.user);
@@ -92,13 +90,10 @@ export function SignInMethodsSection() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const handledResult = useRef<string | null>(null);
   const ids = useId();
-  // The UniChat shell opened this page for its own account (`expect_user`)
-  // and this browser is signed in to another: whatever is pressed here would
-  // change that other account, so every change holds, pointing at the warning.
-  const expected = nav.searchParams.get("expect_user");
-  const otherAccount = Boolean(user && expected && expected !== user.id);
-  const warningId = `${ids}-other-account`;
-  const heldBy = otherAccount ? warningId : undefined;
+  // The browser is signed in to another account than the one UniChat
+  // opened this page for (SecurityTab's warning, `heldBy`): every change
+  // holds, pointing at it.
+  const otherAccount = heldBy !== undefined;
 
   const providerName = (p: SignInProvider) => tRoot(providerNameKey(p));
   const say = (notice: { key: string; provider?: SignInProvider | null; values: { masked?: string } }) =>
@@ -417,7 +412,6 @@ export function SignInMethodsSection() {
 
   return (
     <SettingsSection title={t("title")} description={t("description")}>
-      {otherAccount && user && expected ? <OtherBrowserAccount id={warningId} email={user.email} expected={expected} /> : null}
       {body}
       {gate.dialog}
       <PasswordDialog mode={passwordMode} open={passwordOpen} onOpenChange={setPasswordOpen} />
@@ -456,54 +450,6 @@ export function SignInMethodsSection() {
         onConfirm={confirmMove}
       />
     </SettingsSection>
-  );
-}
-
-/**
- * The UniChat shell opened this page to link a method (`expect_user`), and
- * this browser is signed in to another account: what is linked here would
- * join that one. Said before anything is pressed, with the way out; the
- * rows' actions hold and point here (`id`) until the accounts match.
- *
- * The way out comes back to the page UniChat opened, never to this URL:
- * /settings has already sent the other account on to its own workspace,
- * which the UniChat account signing in may not belong to. /settings finds
- * that account's own home again, `expect_user` kept.
- */
-function OtherBrowserAccount({ id, email, expected }: { id: string; email: string; expected: string }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "settings.security.signInMethods" });
-  const nav = useNavigation();
-  const logout = useLogout();
-  const back = paths.securitySettings({ expectUser: expected });
-  return (
-    // Part of what the page says from the start, not news: a note, read in its place.
-    <Alert id={id} variant="warning" role="note">
-      <TriangleAlert aria-hidden />
-      <AlertTitle className="[overflow-wrap:anywhere]">{t("browserOtherAccount", { other: email })}</AlertTitle>
-      <AlertDescription className="text-pretty">{t("browserOtherAccountHint")}</AlertDescription>
-      <div className="col-start-2 mt-2 flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          aria-busy={logout.isPending || undefined}
-          aria-disabled={logout.isPending || undefined}
-          onClick={() => {
-            if (logout.isPending) return;
-            // Signing out drops the user before the call settles, which
-            // unmounts this warning and mutate's own callbacks with it; the
-            // promise still lands.
-            void logout
-              .mutateAsync()
-              .catch(() => undefined)
-              .then(() => nav.replace(paths.login({ next: back })));
-          }}
-        >
-          {logout.isPending ? <Spinner /> : null}
-          {t("signOut")}
-        </Button>
-      </div>
-    </Alert>
   );
 }
 

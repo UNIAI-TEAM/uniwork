@@ -40,7 +40,8 @@ const CLOSE_CONSEQUENCES = [
  * first, and the only member of one closes it in the same request by typing
  * its slug back, proved by the token the first press bought.
  */
-export function DeleteAccountDialog() {
+/** `heldBy`: the id of the warning that holds every command on the tab (another browser account). */
+export function DeleteAccountDialog({ heldBy }: { heldBy?: string } = {}) {
   const { t } = useTranslation();
   const { push } = useNavigation();
   const del = useDeleteAccount();
@@ -78,6 +79,7 @@ export function DeleteAccountDialog() {
   }, [owned]);
 
   const changeOpen = (next: boolean) => {
+    if (next && heldBy) return;
     if (next) {
       // Every opening starts from the question: the organization may have
       // changed hands since a refusal said otherwise.
@@ -119,7 +121,9 @@ export function DeleteAccountDialog() {
   const name = owned?.name ?? "";
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogTrigger render={<Button variant="destructive" />}>{t("settings.security.delete.open")}</DialogTrigger>
+      <DialogTrigger render={<Button variant="destructive" aria-disabled={Boolean(heldBy) || undefined} aria-describedby={heldBy} />}>
+        {t("settings.security.delete.open")}
+      </DialogTrigger>
       <FormDialogContent destructive showCloseButton={!del.isPending}>
         <form ref={formRef} noValidate onSubmit={submit}>
           <FormDialogHeader title={t("settings.security.delete.title")} description={t("settings.security.delete.body")} />

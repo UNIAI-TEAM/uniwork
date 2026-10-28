@@ -808,8 +808,9 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập
   `${appUrl}/settings?tab=security&expect_user=<id>` bằng `bridge.openExternal`; trang web thấy trình duyệt đăng nhập
   người khác thì cảnh báo "Trình duyệt đang đăng nhập {{other}}, không phải tài khoản bạn dùng trong UniChat." + "Đăng
   xuất" (về `/login?next=/settings?tab=security&expect_user=<id>`: không phải URL đang mở, vì `/settings` đã chuyển
-  tài khoản kia sang workspace của nó, nơi tài khoản UniChat có thể không thuộc về), và mọi hành động của các hàng `aria-disabled`, mô tả bởi cảnh báo đó, cho tới khi
-  hai tài khoản trùng. Trang web chỉ biết id của tài khoản UniChat, không biết email, nên câu không nêu
+  tài khoản kia sang workspace của nó, nơi tài khoản UniChat có thể không thuộc về). Cảnh báo nằm một lần ở đầu tab Bảo
+  mật (`useOtherBrowserAccount`), và mọi lệnh của tab (các hàng đăng nhập, bật/tắt MFA, thu hồi phiên, xoá tài khoản)
+  `aria-disabled`, mô tả bởi cảnh báo đó, cho tới khi hai tài khoản trùng. Trang web chỉ biết id của tài khoản UniChat, không biết email, nên câu không nêu
   `{{me}}`. Danh sách tải lại khi cửa sổ có focus (`bridge.onFocusChange`). Đổi mật khẩu và gỡ chạy tại chỗ.
 - Bỏ (không chỉ sửa lời) ngõ cụt `org.transfer.reason_no_password`, `org.transfer.no_password`,
   `invitations.switch.no_password_reason` (cùng `org.transfer.reason_password`, `org.transfer.wrong_password`,

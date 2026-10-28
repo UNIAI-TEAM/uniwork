@@ -4,7 +4,7 @@ import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { toast } from "sonner";
-import { requestMock, wrapWithNav } from "../../test/api-mock";
+import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
 import { SecurityTab } from "./security-tab";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -319,5 +319,99 @@ describe("SecurityTab › turning on two-factor", () => {
     ]);
     // Never shown as a wrong code.
     expect(input).not.toHaveAttribute("aria-invalid");
+  });
+});
+
+// The UniChat shell opens this tab for its own account (expect_user) in the
+// system browser, which may be signed in to another: every command on the
+// tab would act on that other account.
+describe("SecurityTab › another account in the browser", () => {
+  const METHODS = {
+    password: { set: true, changed_at: null },
+    google: { linked: true, email: "a@gmail.com", linked_at: null },
+    apple: { linked: false, email: null, linked_at: null, private_relay: false },
+    account_email_is_relay: false,
+    proofs: ["password", "email_code"],
+  };
+  const route = (extra: Record<string, unknown> = {}) => {
+    const all: Record<string, unknown> = {
+      "GET /api/v1/me/sessions": { sessions },
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": { google: true, apple: false, apple_web: true, google_native: false },
+      ...extra,
+    };
+    requestMock.mockImplementation(async (path: string, opts?: { method?: string }) => {
+      const key = `${opts?.method ?? "GET"} ${path}`;
+      if (!(key in all)) throw new Error(`unexpected ${key}`);
+      return all[key];
+    });
+  };
+  const show = (url: string) => {
+    const nav = fakeNav(url);
+    render(wrapWithNav(<SecurityTab />, nav));
+    return nav;
+  };
+
+  it("says so once, at the top, and holds every command on the tab", async () => {
+    setSessionUser(user);
+    route();
+    show("/settings?tab=security&expect_user=u-other");
+    const warning = await screen.findByRole("note");
+    expect(warning).toHaveTextContent("Trình duyệt đang đăng nhập a@b.co, không phải tài khoản bạn dùng trong UniChat.");
+    expect(screen.getAllByRole("note")).toHaveLength(1);
+    const commands = [
+      await screen.findByRole("button", { name: "Liên kết Apple" }),
+      screen.getByRole("button", { name: "Gỡ liên kết Google" }),
+      screen.getByRole("button", { name: "Đổi mật khẩu" }),
+      screen.getByRole("button", { name: "Bật MFA" }),
+      await screen.findByRole("button", { name: "Thu hồi Safari trên iOS" }),
+      screen.getByRole("button", { name: "Thu hồi 2 phiên khác" }),
+      screen.getByRole("button", { name: "Xóa tài khoản" }),
+    ];
+    for (const command of commands) {
+      expect(command).toHaveAttribute("aria-disabled", "true");
+      expect(command.getAttribute("aria-describedby")).toBe(warning.id);
+      fireEvent.click(command);
+    }
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(requestMock.mock.calls.filter(([, o]) => (o as { method?: string } | undefined)?.method)).toHaveLength(0);
+  });
+
+  it("holds turning two-factor off too, from the button and from the field's Enter", async () => {
+    setSessionUser({ ...user, mfa_enabled_at: "2026-09-01T00:00:00Z" });
+    route();
+    show("/settings?tab=security&expect_user=u-other");
+    const warning = await screen.findByRole("note");
+    const off = screen.getByRole("button", { name: "Tắt MFA" });
+    expect(off).toHaveAttribute("aria-disabled", "true");
+    expect(off.getAttribute("aria-describedby")).toBe(warning.id);
+    fireEvent.change(screen.getByLabelText("Mã xác thực"), { target: { value: "123456" } });
+    fireEvent.submit(off.closest("form")!);
+    expect(requestMock.mock.calls.filter(([, o]) => (o as { method?: string } | undefined)?.method)).toHaveLength(0);
+  });
+
+  it("signs out to the account's own security page, whatever workspace this browser's account was sent to", async () => {
+    setSessionUser(user);
+    route({ "POST /api/v1/auth/logout": undefined });
+    // /settings sent the other account on to its own workspace's settings.
+    const nav = show("/org-b/ws-b/settings?tab=security&expect_user=u-other");
+    fireEvent.click(await screen.findByRole("button", { name: "Đăng xuất" }));
+    // The page to come back to is the one UniChat opened, not a workspace the
+    // account signing in may not belong to.
+    await waitFor(() =>
+      expect(nav.replace).toHaveBeenCalledWith(`/login?next=${encodeURIComponent("/settings?tab=security&expect_user=u-other")}`),
+    );
+  });
+
+  it("asks nothing of the account UniChat named once the browser is signed in to it", async () => {
+    setSessionUser(user);
+    route();
+    show("/settings?tab=security&expect_user=u1");
+    const link = await screen.findByRole("button", { name: "Liên kết Apple" });
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(link).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByRole("button", { name: "Bật MFA" })).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByRole("button", { name: "Xóa tài khoản" })).not.toHaveAttribute("aria-disabled");
   });
 });

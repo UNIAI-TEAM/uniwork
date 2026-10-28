@@ -624,54 +624,20 @@ describe("SignInMethodsSection", () => {
     await waitFor(() => expect(calls("GET /api/v1/me/sign-in-methods")).toHaveLength(2));
   });
 
-  it("warns when the browser is signed in to another account than the one UniChat uses", async () => {
+  // SecurityTab says the browser is signed in to another account than the
+  // one UniChat opened it for (security-tab.test.tsx); this section holds.
+  it("holds every change while the tab says the browser is another account", async () => {
     route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
-    open("/settings?tab=security&expect_user=u-other");
-    expect(
-      await screen.findByText("Trình duyệt đang đăng nhập an@company.vn, không phải tài khoản bạn dùng trong UniChat."),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Đăng xuất" })).toBeInTheDocument();
-  });
-
-  it("signs out to the account's own security page, whatever workspace this browser's account was sent to", async () => {
-    route({
-      "GET /api/v1/me/sign-in-methods": METHODS,
-      "GET /api/v1/auth/providers": PROVIDERS,
-      "POST /api/v1/auth/logout": undefined,
-    });
-    // /settings sent the other account on to its own workspace's settings.
-    const nav = open("/org-b/ws-b/settings?tab=security&expect_user=u-other");
-    fireEvent.click(await screen.findByRole("button", { name: "Đăng xuất" }));
-    // The page to come back to is the one UniChat opened, not a workspace the
-    // account signing in may not belong to.
-    await waitFor(() =>
-      expect(nav.replace).toHaveBeenCalledWith(
-        `/login?next=${encodeURIComponent("/settings?tab=security&expect_user=u-other")}`,
-      ),
-    );
-  });
-
-  it("holds every change while the browser is signed in to the other account", async () => {
-    route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
-    open("/settings?tab=security&expect_user=u-other");
+    render(wrapWithNav(<SignInMethodsSection heldBy="other-account" />, fakeNav("/settings?tab=security&expect_user=u-other")));
     const link = await screen.findByRole("button", { name: "Liên kết Apple" });
-    const warning = screen.getByRole("note");
     for (const action of [link, screen.getByRole("button", { name: "Gỡ liên kết Google" }), screen.getByRole("button", { name: "Đổi mật khẩu" })]) {
       expect(action).toHaveAttribute("aria-disabled", "true");
-      expect(action.getAttribute("aria-describedby")).toBe(warning.id);
+      expect(action).toHaveAttribute("aria-describedby", "other-account");
       fireEvent.click(action);
     }
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(requestMock.mock.calls.filter(([, o]) => (o as { method?: string } | undefined)?.method)).toHaveLength(0);
-  });
-
-  it("asks nothing of the account UniChat named once the browser is signed in to it", async () => {
-    route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
-    open("/settings?tab=security&expect_user=u1");
-    const link = await screen.findByRole("button", { name: "Liên kết Apple" });
-    expect(screen.queryByRole("note")).toBeNull();
-    expect(link).not.toHaveAttribute("aria-disabled");
   });
 
   it("says the list did not load, with a way to try again", async () => {

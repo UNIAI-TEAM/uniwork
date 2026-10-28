@@ -15,6 +15,7 @@ import { Field, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { DeleteAccountDialog } from "./delete-account-dialog";
+import { useOtherBrowserAccount } from "./other-browser-account";
 import { SessionsSection } from "./security-sessions";
 import { SignInMethodsSection } from "./security-sign-in-methods";
 import { useStepUpGate } from "./step-up-proof";
@@ -82,28 +83,34 @@ export function SecurityTab() {
     if (mfaOn) setJustEnabled(false);
   }, [mfaOn]);
   const on = mfaOn || justEnabled;
+  // Signed in to another account than the one UniChat opened this tab for:
+  // said once, here, and every command below holds, described by it.
+  const { heldBy, warning } = useOtherBrowserAccount();
 
   return (
     <SettingsTab title={tPage("page.tabs.security")}>
+      {warning}
       {user?.platform_role && !mfaOn ? (
         <Alert>
           <AlertTitle>{t("mfa.platformRequiredTitle")}</AlertTitle>
           <AlertDescription>{t("mfa.platformRequired")}</AlertDescription>
         </Alert>
       ) : null}
-      <SignInMethodsSection />
+      <SignInMethodsSection heldBy={heldBy} />
       <SettingsSection
         title={t("mfa.section")}
         description={t("mfa.description")}
         action={<SettingsBadge tone={on ? "success" : "muted"}>{on ? t("mfa.statusOn") : t("mfa.statusOff")}</SettingsBadge>}
       >
-        <SettingsCard>{mfaOn ? <DisableMfa /> : <EnrolMfa onEnabled={() => setJustEnabled(true)} />}</SettingsCard>
+        <SettingsCard>
+          {mfaOn ? <DisableMfa heldBy={heldBy} /> : <EnrolMfa heldBy={heldBy} onEnabled={() => setJustEnabled(true)} />}
+        </SettingsCard>
       </SettingsSection>
-      <SessionsSection />
+      <SessionsSection heldBy={heldBy} />
       <SettingsDangerZone title={t("delete.section")} description={t("delete.description")}>
         <SettingsRow label={t("delete.label")} description={t("delete.hint")} size="none">
           <div className="flex justify-start sm:justify-end">
-            <DeleteAccountDialog />
+            <DeleteAccountDialog heldBy={heldBy} />
           </div>
         </SettingsRow>
       </SettingsDangerZone>
@@ -163,7 +170,7 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
  * setup and the confirmation are proved first (ADR 0047 §5) through the
  * shared "Xác nhận là bạn" dialog; one proof serves both.
  */
-function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
+function EnrolMfa({ onEnabled, heldBy }: { onEnabled: () => void; heldBy?: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.security.mfa" });
   const verified = useAuthStore((s) => Boolean(s.user?.email_verified_at));
   const setup = useMfaSetup();
@@ -201,7 +208,7 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
   if (codes) return <RecoveryCodes codes={codes} />;
 
   const start = () => {
-    if (setup.isPending || gate.asking) return;
+    if (setup.isPending || gate.asking || heldBy) return;
     void gate.run({
       action: "enable_mfa",
       // The setup weighs the address before the proof: an address not known
@@ -224,8 +231,9 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
       <SettingsRow label={t("appLabel")} description={t("statusOffHint")} size="none">
         <div className="flex justify-start sm:justify-end">
           <Button
-            aria-disabled={setup.isPending || undefined}
+            aria-disabled={setup.isPending || Boolean(heldBy) || undefined}
             aria-busy={setup.isPending || undefined}
+            aria-describedby={heldBy}
             onClick={start}
           >
             {setup.isPending ? <Spinner /> : null}
@@ -314,7 +322,7 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
   );
 }
 
-function DisableMfa() {
+function DisableMfa({ heldBy }: { heldBy?: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.security.mfa" });
   const disable = useMfaDisable();
   const [code, setCode] = useState("");
@@ -327,7 +335,7 @@ function DisableMfa() {
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
-        if (disable.isPending) return;
+        if (disable.isPending || heldBy) return;
         if (!code.trim()) {
           codeError.fail(t("disableCodeRequired"));
           return;
@@ -371,8 +379,9 @@ function DisableMfa() {
             <Button
               type="submit"
               variant="outline"
-              aria-disabled={disable.isPending || undefined}
+              aria-disabled={disable.isPending || Boolean(heldBy) || undefined}
               aria-busy={disable.isPending || undefined}
+              aria-describedby={heldBy}
             >
               {disable.isPending ? <Spinner /> : null}
               {t("disable")}
