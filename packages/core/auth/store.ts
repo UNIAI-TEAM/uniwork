@@ -7,6 +7,7 @@ import { releaseHeldEditLocks } from "../documents/edit-lock-registry";
 import { endOfficeDraftSession } from "../office/draft-session-key";
 import { setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
+import { forgetLinkReset } from "./link-reset-intent";
 import { syncSessionHint } from "./session-hint";
 import { getSessionProvider, registerSessionProvider, type SessionProvider } from "./session-provider";
 
@@ -70,6 +71,8 @@ function clearSession(runLogoutCallback = true): void {
   setCurrentWorkspace(null, null);
   if (runLogoutCallback) {
     endDraftSession();
+    // A link-mode reset this browser asked for belongs to the person leaving.
+    forgetLinkReset();
     onLogout?.();
   }
 }

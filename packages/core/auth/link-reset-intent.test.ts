@@ -22,6 +22,15 @@ describe("the link-mode reset intent", () => {
     expect(linkResetServes(null, "an@company.vn")).toBe(false);
   });
 
+  it("leaves nothing stored once a read finds it expired or unreadable", () => {
+    rememberLinkReset("an@company.vn", NOW);
+    expect(linkResetIntent(NOW + 15 * 60_000)).toBeNull();
+    expect(defaultStorage.getItem("uniwork:link-reset")).toBeNull();
+    defaultStorage.setItem("uniwork:link-reset", "{not json");
+    expect(linkResetIntent(NOW)).toBeNull();
+    expect(defaultStorage.getItem("uniwork:link-reset")).toBeNull();
+  });
+
   it("reads nothing it did not write, and forgets", () => {
     defaultStorage.setItem("uniwork:link-reset", "{not json");
     expect(linkResetIntent(NOW)).toBeNull();

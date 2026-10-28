@@ -24,10 +24,7 @@ export function rememberLinkReset(email: string, now = Date.now()): void {
   defaultStorage.setItem(KEY, JSON.stringify({ email: normalize(email), until: now + LIFETIME_MS }));
 }
 
-/** The reset this browser asked for in link mode, while it can still matter; null otherwise. */
-export function linkResetIntent(now = Date.now()): LinkResetIntent | null {
-  const raw = defaultStorage.getItem(KEY);
-  if (!raw) return null;
+function read(raw: string, now: number): LinkResetIntent | null {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return null;
@@ -36,6 +33,20 @@ export function linkResetIntent(now = Date.now()): LinkResetIntent | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The reset this browser asked for in link mode, while it can still matter;
+ * null otherwise. A record past its fifteen minutes, or one this code did
+ * not write, is removed as it is read: an address typed on a shared
+ * computer does not stay in its storage for whoever opens it next.
+ */
+export function linkResetIntent(now = Date.now()): LinkResetIntent | null {
+  const raw = defaultStorage.getItem(KEY);
+  if (!raw) return null;
+  const intent = read(raw, now);
+  if (!intent) forgetLinkReset();
+  return intent;
 }
 
 /** Whether the account a reset opened is the one the intent was for. */
