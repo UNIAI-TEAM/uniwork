@@ -2056,7 +2056,7 @@
       "deleting": "Đang xóa…",
       "deleted": "Đã xóa tài khoản của bạn.",
       "no_workspace": "Bạn chưa ở workspace nào. Nhờ quản trị viên tổ chức thêm bạn vào một workspace, hoặc mở UniWork trên web.",
-      "no_workspace_relay": "Bạn đăng nhập bằng Ẩn địa chỉ email của Apple, nên tài khoản này dùng địa chỉ {{email}}. Lời mời gửi tới email công việc của bạn không vào được tài khoản này: hãy đăng xuất rồi đăng nhập qua trình duyệt bằng email mà tổ chức đã mời.",
+      "no_workspace_relay": "Bạn đăng nhập bằng Ẩn địa chỉ email của Apple, nên tài khoản này dùng địa chỉ {{email}}. Lời mời gửi tới email công việc của bạn không vào được tài khoản này: hãy đăng xuất, đăng nhập bằng email mà tổ chức đã mời, rồi liên kết Apple trong Cài đặt nếu muốn dùng tiếp.",
       "signed_in_as": "Đang đăng nhập bằng {{email}}",
       "erased_name": "Người dùng đã xóa"
     },
