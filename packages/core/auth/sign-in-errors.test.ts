@@ -124,7 +124,7 @@ describe("no sentence ever shows a raw {{var}}", () => {
     const tEn = instance.getFixedT("en");
     const movable = readLinkResult(new URLSearchParams({ sign_in_method: "apple", result: "movable", masked_email: "a•••@icloud.com" }))!;
     expect(tEn(movable.key, sentenceValues(movable, tEn))).toBe("This Apple account is used by an empty account, a•••@icloud.com.");
-    expect(tVi(movable.key, sentenceValues(movable, tVi))).toBe("Apple này đang dùng cho tài khoản trống a•••@icloud.com.");
+    expect(tVi(movable.key, sentenceValues(movable, tVi))).toBe("Tài khoản Apple này đang được dùng cho tài khoản trống a•••@icloud.com.");
     const skipped = linkSkippedNotice("sign_in_method_taken", "google")!;
     expect(tEn(skipped.key, sentenceValues(skipped, tEn))).toBe(
       "You're signed in, but Google couldn't be linked. Try again in Settings › Security.",

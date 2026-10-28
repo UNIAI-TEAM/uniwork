@@ -319,7 +319,7 @@ describe("SignInMethodsSection", () => {
     route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
     open("/settings?tab=security&sign_in_method=apple&result=taken&masked_email=b%E2%80%A2%E2%80%A2%E2%80%A2%40icloud.com");
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("Apple này đang dùng cho tài khoản b•••@icloud.com. Đăng nhập vào đó để gỡ liên kết trước."),
+      expect(toast.error).toHaveBeenCalledWith("Tài khoản Apple này đang được dùng cho b•••@icloud.com. Đăng nhập vào đó và gỡ liên kết trước."),
     );
   });
 
@@ -348,7 +348,7 @@ describe("SignInMethodsSection", () => {
     });
     open("/settings?tab=security&sign_in_method=google&result=movable");
     const confirm = within(await screen.findByRole("alertdialog"));
-    expect(confirm.getByText(/đang dùng cho một tài khoản trống/)).toBeInTheDocument();
+    expect(confirm.getByText(/đang được dùng cho một tài khoản trống/)).toBeInTheDocument();
     fireEvent.click(confirm.getByRole("button", { name: "Không chuyển" }));
     await waitFor(() => expect(calls("DELETE /api/v1/auth/sign-in-ticket")).toHaveLength(1));
   });

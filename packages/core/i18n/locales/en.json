@@ -682,7 +682,8 @@
         "movable": "This {{provider}} account is used by an empty account, {{masked}}.",
         "movableUnknown": "This {{provider}} account is used by an empty account.",
         "movableNote": "That empty account never joined an organization and will be deleted.",
-        "move": "Move",
+        "move": "Move it here",
+        "moveDecline": "Don't move it",
         "moving": "Moving…",
         "taken": "This {{provider}} account is used by {{masked}}. Sign in there and unlink it first.",
         "takenUnknown": "This {{provider}} account is used by another UniWork account. Sign in there and unlink it first."

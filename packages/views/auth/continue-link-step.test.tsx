@@ -108,11 +108,13 @@ describe("ContinueLinkStep", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
     const question = await screen.findByRole("group", { name: "Chuyển Google sang tài khoản này?" });
     expect(question).toHaveFocus();
-    expect(question).toHaveTextContent("Google này đang dùng cho tài khoản trống a•••@gmail.com.");
+    expect(question).toHaveTextContent("Tài khoản Google này đang được dùng cho tài khoản trống a•••@gmail.com.");
     // The heading asks; the sentence under it only says what is true.
     expect(question.textContent?.match(/sang tài khoản này\?/g)).toHaveLength(1);
     expect(question).toHaveTextContent("Tài khoản trống đó chưa từng vào tổ chức nào và sẽ bị xóa.");
-    fireEvent.click(screen.getByRole("button", { name: "Chuyển" }));
+    // Settings' pair for the same decision.
+    expect(screen.getByRole("button", { name: "Không chuyển" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Chuyển sang đây" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Đã liên kết Google."));
     expect(linkCalls()).toHaveLength(2);
   });
@@ -125,7 +127,7 @@ describe("ContinueLinkStep", () => {
     open();
     fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Google này đang dùng cho tài khoản b•••@acme.vn. Đăng nhập vào đó để gỡ liên kết trước.",
+      "Tài khoản Google này đang được dùng cho b•••@acme.vn. Đăng nhập vào đó và gỡ liên kết trước.",
     );
     expect(screen.queryByRole("button", { name: "Liên kết" })).toBeNull();
     expect(screen.getByRole("button", { name: "Tiếp tục" })).toBeInTheDocument();

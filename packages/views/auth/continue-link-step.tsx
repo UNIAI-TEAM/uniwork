@@ -180,7 +180,11 @@ export function ContinueLinkStep({
                 onClick={leave}
               >
                 {discard.isPending ? <Spinner /> : null}
-                {failure ? t("auth.continue.link.continue") : t("auth.continue.link.decline")}
+                {/* The move's pair is Settings' own ("Chuyển sang đây" / "Không chuyển"):
+                    the same decision reads the same on both surfaces. */}
+                {failure
+                  ? t("auth.continue.link.continue")
+                  : t(phase === "move" ? "auth.continue.link.moveDecline" : "auth.continue.link.decline")}
               </Button>
             </>
           )}
