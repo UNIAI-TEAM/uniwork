@@ -24,7 +24,7 @@
   sai dạng thì ném lỗi; thiếu client web thì không nền tảng nào mở sheet Google, thiếu client iOS thì iPhone không mở,
   và app đi Google qua trình duyệt; client iOS và Android còn phải có trong `GOOGLE_NATIVE_CLIENT_IDS` của server;
   plugin chạy ở mọi bản build, có client hay không, vì module luôn link GoogleSignIn: nó khai module map cho các pod
-  Objective-C mà `AppCheckCore` (Swift, GoogleSignIn 8 kéo theo) cần ngay sau `use_expo_modules!` trong Podfile, thiếu
+  Objective-C mà `AppCheckCore` (Swift, GoogleSignIn kéo theo) cần ngay sau `use_expo_modules!` trong Podfile, thiếu
   thì `pod install` đỏ),
   `EXPO_BUNDLE_IDENTIFIER_*`/`EXPO_APPLE_TEAM_ID` (ghi đè, hiếm dùng); mọi biến ấy có dòng trong khối "UniChat
   mobile (build-time)" của `.env.example` (`app.config.test.ts › the build variables app.config.ts reads`);

@@ -106,7 +106,7 @@ một tổ chức), [0041](0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md).
   "Phương thức đăng nhập" đầu tab Bảo mật (lên cả cài đặt UniChat desktop) và trang `/settings` cho người chưa có
   workspace; mọi lệnh nhạy cảm dùng chung một hộp "xác nhận là bạn".
 - Mobile: màn đăng nhập, hai lớp, màn chọn, đăng ký + xác minh email, mục Phương thức đăng nhập, nhận lời mời trong
-  app; Google qua module Expo riêng `modules/unichat-google-sign-in` trên API có nonce của Google (GoogleSignIn 8,
+  app; Google qua module Expo riêng `modules/unichat-google-sign-in` trên API có nonce của Google (GoogleSignIn 9,
   Credential Manager), vì bản miễn phí của `@react-native-google-signin/google-signin` không có nonce (native, version
   app lên 0.4.0). Đăng nhập trình duyệt giữ làm đường phụ. `apps/chat-mobile/CLAUDE.md` và MASVS cập nhật theo.
 - Chính sách quyền riêng tư và store listing: Apple không còn "chỉ iPhone"; Google có SDK trên mobile.

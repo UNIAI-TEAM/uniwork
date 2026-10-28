@@ -473,7 +473,7 @@ describe("Sign in with Google's clients", () => {
     const podfile = plugin.podfile(template);
     expect(podfile.split("\n").slice(1, 6)).toEqual([
       "  use_expo_modules!",
-      "  # plugins/with-google-sign-in.js: module maps for AppCheckCore's dependencies (GoogleSignIn 8)",
+      "  # plugins/with-google-sign-in.js: module maps for AppCheckCore's dependencies (GoogleSignIn)",
       "  pod 'GoogleUtilities/Environment', :modular_headers => true",
       "  pod 'GoogleUtilities/UserDefaults', :modular_headers => true",
       "  pod 'RecaptchaInterop', :modular_headers => true",
@@ -482,7 +482,7 @@ describe("Sign in with Google's clients", () => {
     expect(plugin.podfile(podfile)).toBe(podfile);
     expect(() => plugin.podfile("target 'UniChat' do\nend\n")).toThrow(/use_expo_modules!/);
     const podspec = fs.readFileSync(path.join(__dirname, "modules/unichat-google-sign-in/ios/UniChatGoogleSignIn.podspec"), "utf8");
-    expect(podspec).toContain("s.dependency 'GoogleSignIn', '~> 8.0'");
+    expect(podspec).toContain("s.dependency 'GoogleSignIn', '~> 9.0'");
   });
 
   it("names the meta-data the Android module reads", () => {

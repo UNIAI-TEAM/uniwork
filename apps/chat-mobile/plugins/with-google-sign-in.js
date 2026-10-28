@@ -29,13 +29,13 @@ function iosInfoPlist(infoPlist, { iosClientId, webClientId }) {
   return next;
 }
 
-// GoogleSignIn 8 reaches AppCheckCore, whose iOS half is Swift and whose Objective-C dependencies define no module:
+// GoogleSignIn (8 and 9) reaches AppCheckCore, whose iOS half is Swift and whose Objective-C dependencies define no module:
 // CocoaPods then refuses to build it as a static library ("cannot yet be integrated as static libraries") and pod
 // install fails. Module maps for those pods only, rather than use_modular_headers! or frameworks for every pod of the
 // app; CocoaPods applies :modular_headers to the root pod, and naming the subspecs AppCheckCore already depends on
 // keeps the bare GoogleUtilities (it has no default subspecs) from pulling in every one of its subspecs.
 const MODULAR_PODS = ["GoogleUtilities/Environment", "GoogleUtilities/UserDefaults", "RecaptchaInterop"];
-const PODFILE_MARK = "# plugins/with-google-sign-in.js: module maps for AppCheckCore's dependencies (GoogleSignIn 8)";
+const PODFILE_MARK = "# plugins/with-google-sign-in.js: module maps for AppCheckCore's dependencies (GoogleSignIn)";
 
 /** The Podfile with MODULAR_PODS declared once, right after the app target's use_expo_modules!. */
 function podfile(contents) {

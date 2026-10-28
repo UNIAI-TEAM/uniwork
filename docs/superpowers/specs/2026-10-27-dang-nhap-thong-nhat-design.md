@@ -897,7 +897,7 @@ hết hạn) ở hai chế độ, email ẩn không bao giờ in thô, và vùng
   `HANDLER_FILES`, `mobile-native-scope.mjs`, `E2E_PATHS`), `COMMAND_MODULES`.
 - Google: module Expo riêng `modules/unichat-google-sign-in` (bọc trong `data/auth/google.ts`, mock được trong vitest),
   không phải `@react-native-google-signin/google-signin`: bản miễn phí của gói đó không có nonce ở nền tảng nào (chỉ bản
-  trả phí có), mà server bắt buộc nonce. Module gọi thẳng API có nonce của Google: GoogleSignIn 8 trên iOS, Credential
+  trả phí có), mà server bắt buộc nonce. Module gọi thẳng API có nonce của Google: GoogleSignIn 9 trên iOS (bản đầu có `nonce`; 7.x và 8.x không có), Credential
   Manager `GetSignInWithGoogleOption` trên Android; sheet nhận SHA-256 hex của nonce gốc; `pnpm-lock.yaml` không đổi.
   Client id từ biến build `UNICHAT_GOOGLE_IOS_CLIENT_ID`, `UNICHAT_GOOGLE_WEB_CLIENT_ID`, ghi vào Info.plist và manifest
   bằng `plugins/with-google-sign-in.js` (không qua `extra`: binary mang cấu hình của nó, OTA không làm lệch được). Đăng

@@ -1,5 +1,5 @@
 // Sign in with Google in the app (ADR 0049 §8, spec §5.1), on Google's own APIs that carry a nonce into the ID token
-// (the server refuses a token without SHA-256 of the raw nonce it is sent): GoogleSignIn ≥ 7.1 on iOS
+// (the server refuses a token without SHA-256 of the raw nonce it is sent): GoogleSignIn ≥ 9.0 on iOS
 // (signIn(withPresenting:hint:additionalScopes:nonce:)), Credential Manager's "Sign in with Google" option on Android
 // (GetSignInWithGoogleOption.setNonce). The public @react-native-google-signin package passes no nonce on either
 // platform, hence this module. The client ids are the binary's (plugins/with-google-sign-in.js writes them into
