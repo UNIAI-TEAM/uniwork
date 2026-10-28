@@ -98,6 +98,20 @@ describe("PasswordDialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Đổi mật khẩu" })).toBeNull());
   });
 
+  it("shows each password on request, and offers the way out of a forgotten current one", async () => {
+    route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
+    const dialog = await openDialog("Đổi mật khẩu", "Đổi mật khẩu");
+    const current = dialog.getByLabelText("Mật khẩu hiện tại");
+    // Opens on the field, not on "Quên mật khẩu?" ahead of it in the label row.
+    await waitFor(() => expect(current).toHaveFocus());
+    expect(dialog.getByRole("link", { name: "Quên mật khẩu?" })).toHaveAttribute("href", "/forgot-password");
+    const reveals = dialog.getAllByRole("button", { name: "Hiện mật khẩu" });
+    expect(reveals).toHaveLength(3);
+    fireEvent.click(reveals[1]!);
+    expect(dialog.getByLabelText("Mật khẩu mới")).toHaveAttribute("type", "text");
+    expect(current).toHaveAttribute("type", "password");
+  });
+
   it("sets a first password behind a mailed code", async () => {
     setSessionUser({ ...USER, has_password: false });
     route({

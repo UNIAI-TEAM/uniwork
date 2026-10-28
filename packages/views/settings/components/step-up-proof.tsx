@@ -19,6 +19,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AUTH_LINK } from "../../auth/auth-controls";
 import { useSecondsLeft, useWaitPhrase } from "../../auth/continue-parts";
+import { PasswordField } from "../../auth/password-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../../common/form-dialog";
 import { AppLink } from "../../navigation";
 import { SettingsFieldError } from "./settings-layout";
@@ -367,7 +368,19 @@ function StepUpForm({
             {t("password.forgot")}
           </AppLink>
         </div>
-        <Input {...fieldProps} type="password" autoComplete="current-password" aria-describedby={errorId} />
+        <PasswordField
+          ref={inputRef}
+          id={inputId}
+          size="form"
+          value={value}
+          onChange={(next) => {
+            setValue(next);
+            if (!waiting) setProblem(null);
+          }}
+          autoComplete="current-password"
+          invalid={Boolean(problem)}
+          describedBy={errorId}
+        />
         {error}
       </Field>
     );

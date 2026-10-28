@@ -7,12 +7,16 @@ import { toast } from "sonner";
 import { useAuthStore, useSetPassword } from "@uniwork/core/auth";
 import { readSignInFailure, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { isAppleRelayEmail } from "@uniwork/core/auth/sign-in-rules";
+import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
-import { Input } from "@uniwork/ui/components/ui/input";
 import { copyText } from "@uniwork/ui/lib/clipboard";
+import { cn } from "@uniwork/ui/lib/utils";
+import { AUTH_LINK } from "../../auth/auth-controls";
 import { FailureNotice, useWaitPhrase } from "../../auth/continue-parts";
+import { PasswordField } from "../../auth/password-field";
+import { AppLink } from "../../navigation";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../../common/form-dialog";
 import { SettingsFieldError } from "./settings-layout";
 import { useStepUpGate } from "./step-up-proof";
@@ -50,6 +54,7 @@ export function PasswordDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.security.signInMethods.password" });
+  const { t: tRoot } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const setPassword = useSetPassword();
   const gate = useStepUpGate();
@@ -123,21 +128,33 @@ export function PasswordDialog({
     });
   };
 
+  // Every password here can be shown: a first one is typed twice, blind
+  // otherwise, on a phone too. The current one offers the way out of having
+  // forgotten it, in its label row, as the proof dialog's does.
   const field = (name: PasswordInput, label: string, autoComplete: "current-password" | "new-password", hint?: string) => {
     const hintId = `${ids}-${name}-hint`;
     const errorId = `${ids}-${name}-error`;
     return (
       <Field>
-        <FieldLabel htmlFor={`${ids}-${name}`}>{label}</FieldLabel>
-        <Input
+        {name === "current" ? (
+          <div className="flex items-center justify-between gap-3">
+            <FieldLabel htmlFor={`${ids}-${name}`}>{label}</FieldLabel>
+            <AppLink href={paths.forgotPassword()} className={cn(AUTH_LINK, "text-caption")}>
+              {tRoot("auth.forgotPassword")}
+            </AppLink>
+          </div>
+        ) : (
+          <FieldLabel htmlFor={`${ids}-${name}`}>{label}</FieldLabel>
+        )}
+        <PasswordField
           ref={refs[name]}
           id={`${ids}-${name}`}
-          type="password"
+          size="form"
           autoComplete={autoComplete}
           value={values[name]}
-          onChange={(e) => change(name, e.target.value)}
-          aria-invalid={errors[name] ? true : undefined}
-          aria-describedby={hint ? `${hintId} ${errorId}` : errorId}
+          onChange={(value) => change(name, value)}
+          invalid={Boolean(errors[name])}
+          describedBy={hint ? `${hintId} ${errorId}` : errorId}
         />
         {hint ? <FieldDescription id={hintId}>{hint}</FieldDescription> : null}
         <SettingsFieldError id={errorId}>{errors[name] ?? null}</SettingsFieldError>
@@ -155,7 +172,11 @@ export function PasswordDialog({
         onOpenChange(next);
       }}
     >
-      <FormDialogContent showCloseButton={!pending}>
+      {/* Opens on the first field, not on "Quên mật khẩu?" ahead of it in the label row. */}
+      <FormDialogContent
+        showCloseButton={!pending}
+        initialFocus={() => (mode.askCurrent ? refs.current.current : refs.next.current) ?? true}
+      >
         <form noValidate onSubmit={submit}>
           <FormDialogHeader title={t(mode.kind === "set" ? "setTitle" : "changeTitle")} description={description} />
           <FormDialogBody>

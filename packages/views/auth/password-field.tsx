@@ -14,6 +14,9 @@ import { AUTH_INPUT } from "./auth-controls";
  *
  * The toggle is `type="button"`: a bare <button> inside a <form> defaults to
  * submit, so revealing the password would post the form.
+ *
+ * `size="form"` is a settings dialog's field: the Input primitive's own
+ * ruler and a smaller toggle; the credential screens' 44px box by default.
  */
 export function PasswordField({
   id,
@@ -26,6 +29,7 @@ export function PasswordField({
   describedBy,
   autoFocus,
   ref,
+  size = "auth",
 }: {
   id: string;
   /** Password managers key their fill off `name`, not `id`. */
@@ -39,6 +43,7 @@ export function PasswordField({
   autoFocus?: boolean;
   /** Lets the form move focus here after a submit-time error. */
   ref?: Ref<HTMLInputElement>;
+  size?: "auth" | "form";
 }) {
   const { t } = useTranslation();
   const [shown, setShown] = useState(false);
@@ -60,14 +65,14 @@ export function PasswordField({
         required
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
-        // pr-11 keeps the text from running under the toggle; the toggle grows
+        // The right padding keeps the text from running under the toggle; the toggle grows
         // to 44px on a coarse pointer and would otherwise sit on the caret.
-        className={cn(AUTH_INPUT, "pr-11")}
+        className={size === "auth" ? cn(AUTH_INPUT, "pr-11") : "pr-9"}
       />
       <Button
         type="button"
         variant="ghost"
-        size="icon"
+        size={size === "auth" ? "icon" : "icon-sm"}
         aria-pressed={shown}
         aria-label={shown ? t("auth.hidePassword") : t("auth.showPassword")}
         onClick={() => setShown((v) => !v)}

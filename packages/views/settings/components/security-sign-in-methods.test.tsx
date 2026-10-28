@@ -153,6 +153,8 @@ describe("SignInMethodsSection", () => {
     const field = dialog.getByLabelText("Mật khẩu hiện tại");
     // Opens on the field, not on "Quên mật khẩu?", which comes first in the label row.
     await waitFor(() => expect(field).toHaveFocus());
+    // Typed blind nowhere: the proof's password can be shown too.
+    expect(dialog.getByRole("button", { name: "Hiện mật khẩu" })).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
     expect(await dialog.findByText("Nhập mật khẩu hiện tại.")).toBeInTheDocument();
     expect(field).toHaveFocus();
