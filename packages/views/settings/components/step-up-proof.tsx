@@ -18,7 +18,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@uniwork/ui/components/ui
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { AUTH_LINK } from "../../auth/auth-controls";
+import { AUTH_LINK, DIGITS_ONLY } from "../../auth/auth-controls";
 import { useSecondsLeft, useWaitPhrase } from "../../auth/continue-parts";
 import { PasswordField } from "../../auth/password-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../../common/form-dialog";
@@ -459,7 +459,7 @@ function StepUpForm({
             }}
             autoComplete="one-time-code"
             inputMode="numeric"
-            pattern="[0-9]*"
+            pattern={DIGITS_ONLY}
             readOnly={stepUp.isPending || waiting}
             aria-invalid={problem ? true : undefined}
             aria-describedby={errorId}

@@ -331,6 +331,23 @@ describe("ContinueView — invited with another email", () => {
     });
   });
 
+  it("refuses a letter in the code boxes, so a typo never spends a guess", async () => {
+    route({
+      "GET /api/v1/auth/sign-in-ticket": TICKET,
+      "POST /api/v1/auth/sign-in-ticket/claim-email": { status: "sent" },
+      "POST /api/v1/auth/sign-in-ticket/claim-email/verify": SESSION,
+    });
+    await openClaim();
+    fireEvent.change(screen.getByLabelText("Email công việc"), { target: { value: "an@acme.vn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi mã" }));
+    const boxes = await screen.findByLabelText("Mã xác nhận");
+    fireEvent.change(boxes, { target: { value: "a" } });
+    expect(boxes).toHaveValue("");
+    fireEvent.change(boxes, { target: { value: "12345q" } });
+    expect(boxes).toHaveValue("");
+    expect(calls("POST /api/v1/auth/sign-in-ticket/claim-email/verify")).toHaveLength(0);
+  });
+
   it("clears a wrong code and says so under the boxes", async () => {
     route({
       "GET /api/v1/auth/sign-in-ticket": TICKET,

@@ -8,7 +8,7 @@ import type { User } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@uniwork/ui/components/ui/input-otp";
-import { AUTH_PILL } from "./auth-controls";
+import { AUTH_PILL, DIGITS_ONLY } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 
 const CODE_LENGTH = 6;
@@ -84,7 +84,7 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
               autoFocus
               autoComplete="one-time-code"
               inputMode="numeric"
-              pattern="[0-9]*"
+              pattern={DIGITS_ONLY}
               aria-invalid={invalidCode || undefined}
               aria-describedby={errorMsg ? errorId : undefined}
               // readOnly, not disabled: the input keeps focus and its place in

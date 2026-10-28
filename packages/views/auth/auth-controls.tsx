@@ -15,6 +15,14 @@ import { cn } from "@uniwork/ui/lib/utils";
 export const AUTH_LINK =
   "inline-flex items-center font-medium text-brand hover:underline pointer-coarse:min-h-11 pointer-coarse:px-1";
 
+/**
+ * The pattern of a code's six boxes. input-otp tests each new value against
+ * it whole, and an unanchored `[0-9]*` matches any string: letters got in,
+ * and the sixth character sent a typo as a wrong guess against the code's
+ * budget. `inputMode="numeric"` alone only picks the phone's keyboard.
+ */
+export const DIGITS_ONLY = "^[0-9]+$";
+
 export const AUTH_INPUT = "h-11 rounded-xl text-body pointer-coarse:h-11";
 
 /**

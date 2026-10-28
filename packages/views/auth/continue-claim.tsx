@@ -11,7 +11,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@uniwork/ui/components/ui/input-otp";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
-import { AUTH_INPUT, AUTH_PILL, AUTH_PILL_HELD, AuthSubmit } from "./auth-controls";
+import { AUTH_INPUT, AUTH_PILL, AUTH_PILL_HELD, AuthSubmit, DIGITS_ONLY } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 import { FailureNotice, useFailure, useSecondsLeft, useWaitPhrase } from "./continue-parts";
 
@@ -264,7 +264,7 @@ function ClaimCodeStep({
               autoFocus
               autoComplete="one-time-code"
               inputMode="numeric"
-              pattern="[0-9]*"
+              pattern={DIGITS_ONLY}
               aria-invalid={fieldError ? true : undefined}
               aria-describedby={fieldError ? errorId : undefined}
               // readOnly, not disabled: the boxes keep focus and their tab
