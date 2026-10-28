@@ -410,8 +410,9 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
       // Sign in with Apple on iPhone (ADR 0041, Apple 4.8: the sign-in offers Google): the
       // com.apple.developer.applesignin entitlement; EAS turns the capability on for the App ID when it signs.
       "expo-apple-authentication",
-      // Sign in with Google's client ids (googleSignInClients): none set, nothing written, Google through the browser.
-      ...(google ? [["./plugins/with-google-sign-in", google] as [string, typeof google]] : []),
+      // Sign in with Google (googleSignInClients): every build, since the module links GoogleSignIn and its pods need
+      // module maps; with no client id set nothing else is written and the app goes to Google through the browser.
+      ["./plugins/with-google-sign-in", google ?? {}],
       // Android draws a notification's small icon from its alpha channel only: a one-colour glyph (built by
       // `pnpm brand:build`), tinted with the brand blue. The plugin writes it as the `notification_icon` drawable,
       // which the call notifications look up too (modules/unichat-calls › CallNotifications.smallIcon).

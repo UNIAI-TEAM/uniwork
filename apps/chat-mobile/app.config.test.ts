@@ -434,6 +434,7 @@ describe("Sign in with Google's clients", () => {
   const WEB = "1234567890-zyxwvutsrqponmlkjihgfedcba543210.apps.googleusercontent.com";
   const plugin = createRequire(__filename)("./plugins/with-google-sign-in.js") as {
     iosInfoPlist: (plist: Record<string, unknown>, o: { iosClientId?: string; webClientId?: string }) => Record<string, unknown>;
+    podfile: (contents: string) => string;
     reversedClientId: (id: string) => string;
     SERVER_CLIENT_ID: string;
   };
@@ -444,10 +445,10 @@ describe("Sign in with Google's clients", () => {
     vi.stubEnv("UNICHAT_GOOGLE_WEB_CLIENT_ID", web);
   };
 
-  it("writes nothing without a client, and passes the ones set, trimmed", () => {
+  it("runs on every build, with no client when none is set, and passes the ones set, trimmed", () => {
     stubClients(undefined, "  ");
     expect(googleSignInClients()).toBeNull();
-    expect(googlePlugin(build())).toBeUndefined();
+    expect(googlePlugin(build())).toEqual({});
     stubClients(` ${IOS} `, WEB);
     expect(googlePlugin(build())).toEqual({ iosClientId: IOS, webClientId: WEB });
     stubClients(undefined, WEB);
@@ -465,6 +466,23 @@ describe("Sign in with Google's clients", () => {
     expect(schemes(plist)).toEqual(["uniworkchat", scheme]);
     expect(schemes(plugin.iosInfoPlist(plist, { iosClientId: IOS }))).toEqual(["uniworkchat", scheme]);
     expect(plugin.iosInfoPlist({ a: 1 }, { webClientId: WEB })).toEqual({ a: 1 });
+  });
+
+  it("gives AppCheckCore's dependencies module maps once, after use_expo_modules!, client or not", () => {
+    const template = ["target 'UniChat' do", "  use_expo_modules!", "", "  config = use_native_modules!(config_command)", "end", ""].join("\n");
+    const podfile = plugin.podfile(template);
+    expect(podfile.split("\n").slice(1, 6)).toEqual([
+      "  use_expo_modules!",
+      "  # plugins/with-google-sign-in.js: module maps for AppCheckCore's dependencies (GoogleSignIn 8)",
+      "  pod 'GoogleUtilities/Environment', :modular_headers => true",
+      "  pod 'GoogleUtilities/UserDefaults', :modular_headers => true",
+      "  pod 'RecaptchaInterop', :modular_headers => true",
+    ]);
+    expect(podfile.split("\n").slice(6)).toEqual(template.split("\n").slice(2));
+    expect(plugin.podfile(podfile)).toBe(podfile);
+    expect(() => plugin.podfile("target 'UniChat' do\nend\n")).toThrow(/use_expo_modules!/);
+    const podspec = fs.readFileSync(path.join(__dirname, "modules/unichat-google-sign-in/ios/UniChatGoogleSignIn.podspec"), "utf8");
+    expect(podspec).toContain("s.dependency 'GoogleSignIn', '~> 8.0'");
   });
 
   it("names the meta-data the Android module reads", () => {
