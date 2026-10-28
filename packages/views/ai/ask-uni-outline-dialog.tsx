@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@uniwork/ui/components/ui/dialog";
@@ -26,6 +26,13 @@ export function AskUniOutlineDialog({ open, markdown, busy, error, onOpenChange,
   // The editor rewrites Markdown in its own style (`*` bullets become `-`), so "unchanged" is judged against what
   // it returns for the untouched outline, not against the raw text.
   const baseline = useRef<string | null>(null);
+  // A closed dialog drops its baseline: the next editor mount captures its own, and until then the raw text applies.
+  useEffect(() => {
+    if (!open) baseline.current = null;
+  }, [open]);
+  const captureBaseline = () => {
+    baseline.current = (editor.current?.getMarkdown() ?? markdown).trim();
+  };
   const save = () => {
     if (busy) return;
     const next = (editor.current?.getMarkdown() ?? markdown).trim();
@@ -39,7 +46,7 @@ export function AskUniOutlineDialog({ open, markdown, busy, error, onOpenChange,
           <DialogTitle>{t("ai.proposal.edit_outline")}</DialogTitle>
         </DialogHeader>
         <div className="max-h-[60vh] min-h-48 overflow-y-auto rounded-control border border-border px-3 py-2">
-          <ContentEditor ref={editor} defaultValue={markdown} ariaLabel={t("ai.proposal.outline_label")} disableMentions onReady={() => { baseline.current ??= (editor.current?.getMarkdown() ?? markdown).trim(); }} />
+          <ContentEditor ref={editor} defaultValue={markdown} ariaLabel={t("ai.proposal.outline_label")} disableMentions onReady={captureBaseline} />
         </div>
         {error ? (
           <p role="alert" className="text-caption text-destructive">
