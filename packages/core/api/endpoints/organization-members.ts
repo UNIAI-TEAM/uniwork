@@ -156,12 +156,6 @@ export async function revokeOrgInvitation(orgSlug: string, invitationId: string)
 }
 
 /**
- * The owner's proof of a hand-over: a step-up token (action
- * transfer_ownership when a mailed code bought it, ADR 0047 §5). `password`
- * is the shipped app's legacy proof (reviewed 2027-01-31), sent only without
- * a token.
- */
-/**
  * Handing the organization to somebody else. The current owner proves it is
  * them with a step-up token (ADR 0047 §5), because this is the one change
  * they cannot undo alone afterwards; an empty one is answered with
