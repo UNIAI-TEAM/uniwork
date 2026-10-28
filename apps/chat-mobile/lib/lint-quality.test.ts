@@ -104,6 +104,12 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
     'import { holdStep } from "@/data/auth/pending-sign-in";\nexport const x = holdStep;',
     'import { holdStepUp } from "@/data/auth/step-up-store";\nexport const x = holdStepUp;',
     'import { withHeldStepUp } from "@/data/auth/step-up-store";\nexport const x = withHeldStepUp;',
+    // The same names by a relative path.
+    'import { pendingTicket } from "../data/auth/pending-sign-in";\nexport const x = pendingTicket;',
+    'import { holdStepUp } from "../data/auth/step-up-store";\nexport const x = holdStepUp;',
+    'import { nativeSignIn } from "../data/auth/flow";\nexport const x = nativeSignIn;',
+    'import { revokeDevice } from "../data/queries/devices";\nexport const x = revokeDevice;',
+    'import { setPushEnabled } from "../data/push";\nexport const x = setPushEnabled;',
     'import { api } from "@/data/api";\nexport const x = api;',
     'import { api } from "../../data/api";\nexport const x = api;',
   ])("a component calling an endpoint or a command is red: %s", async (code) => {
@@ -113,7 +119,7 @@ describe("mobile quality lint", { timeout: 60_000 }, () => {
   it("a component may take the endpoints' types and the mutation hooks", async () => {
     const code =
       'import type { ChatApi } from "@/data/chat-api";\nimport type { ApiClient } from "@/data/api";\nimport { useEditMessage } from "@/data/mutations/messages";\nimport { useAnswerAiConsent } from "@/data/mutations/account";\nimport { useSetPushEnabled } from "@/data/mutations/push";\nimport { isPushEnabled } from "@/data/push";\nimport { devicesOptions } from "@/data/queries/devices";\nimport type { SignInRequest } from "@/data/auth/sign-in";\nimport { useAuthStore } from "@/data/auth/store";\nimport { clearChoice, usePendingSignIn } from "@/data/auth/pending-sign-in";\n' +
-      'import { proofsFor, stepUpToken } from "@/data/auth/step-up-store";\nexport type F = ChatApi;\nexport type C = ApiClient;\nexport type R = SignInRequest;\n' +
+      'import { proofsFor, stepUpToken } from "../data/auth/step-up-store";\nexport type F = ChatApi;\nexport type C = ApiClient;\nexport type R = SignInRequest;\n' +
       "export const x = [useEditMessage, useAnswerAiConsent, useSetPushEnabled, isPushEnabled, devicesOptions, useAuthStore, usePendingSignIn, clearChoice];\n" +
       "export const y = [proofsFor, stepUpToken];";
     expect(await ruleIds(code)).toEqual([]);

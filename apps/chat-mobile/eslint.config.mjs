@@ -352,38 +352,40 @@ export default [
     ignores: ["app/_layout.tsx", "app/(app)/_layout.tsx", "**/*.test.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-restricted-imports": ["error", {
-        paths: [
-          ...restrictedPaths,
-          {
-            name: "@/data/queries/devices",
-            importNames: ["revokeDevice"],
-            message: "Revoke a device with useRevokeDevice (data/mutations/account.ts).",
-          },
-          {
-            name: "@/data/push",
-            importNames: ["setPushEnabled", "registerPushToken", "unregisterPushToken"],
-            message: "Turn push on or off with useSetPushEnabled (data/mutations/push.ts); registration at boot is app/(app)/_layout.tsx's.",
-          },
-          {
-            name: "@/data/auth/flow",
-            importNames: ["nativeSignIn"],
-            message: "Sign in with useAuthStore().login(request) (data/auth/sign-in.ts); the doors never run from a screen.",
-          },
-          {
-            name: "@/data/auth/pending-sign-in",
-            importNames: ["pendingTicket", "pendingChallenge", "holdStep"],
-            message:
-              "The second factor's challenge, the choice screen's ticket and its nonce stay in data/ (data/auth/sign-in.ts): a screen reads usePendingSignIn, which holds no secret, and never routes, logs or renders them.",
-          },
-          {
-            name: "@/data/auth/step-up-store",
-            importNames: ["holdStepUp", "withHeldStepUp"],
-            message:
-              "A step-up token is bought through the proof sheet (components/settings/use-step-up.ts) and kept by data/ (data/mutations/sign-in-methods.ts); a screen never stores one.",
-          },
-        ],
+        paths: restrictedPaths,
+        // Named exports a screen may not take from a module it otherwise may. Patterns, not paths: a path matches
+        // only its exact specifier, so a relative import of the same module ("../data/auth/pending-sign-in") slipped by.
         patterns: [
           ...restrictedPatterns,
+          ...[
+            {
+              module: "queries/devices",
+              importNames: ["revokeDevice"],
+              message: "Revoke a device with useRevokeDevice (data/mutations/account.ts).",
+            },
+            {
+              module: "push",
+              importNames: ["setPushEnabled", "registerPushToken", "unregisterPushToken"],
+              message: "Turn push on or off with useSetPushEnabled (data/mutations/push.ts); registration at boot is app/(app)/_layout.tsx's.",
+            },
+            {
+              module: "auth/flow",
+              importNames: ["nativeSignIn"],
+              message: "Sign in with useAuthStore().login(request) (data/auth/sign-in.ts); the doors never run from a screen.",
+            },
+            {
+              module: "auth/pending-sign-in",
+              importNames: ["pendingTicket", "pendingChallenge", "holdStep"],
+              message:
+                "The second factor's challenge, the choice screen's ticket and its nonce stay in data/ (data/auth/sign-in.ts): a screen reads usePendingSignIn, which holds no secret, and never routes, logs or renders them.",
+            },
+            {
+              module: "auth/step-up-store",
+              importNames: ["holdStepUp", "withHeldStepUp"],
+              message:
+                "A step-up token is bought through the proof sheet (components/settings/use-step-up.ts) and kept by data/ (data/mutations/sign-in-methods.ts); a screen never stores one.",
+            },
+          ].map(({ module, ...rule }) => ({ group: [`@/data/${module}`, `**/data/${module}`], ...rule })),
           {
             group: COMMAND_MODULES.flatMap((name) => [`@/data/${name}`, `**/data/${name}`]),
             allowTypeImports: true,
