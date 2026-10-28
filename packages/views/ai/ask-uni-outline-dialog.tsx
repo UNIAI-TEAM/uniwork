@@ -26,7 +26,7 @@ export function AskUniOutlineDialog({ open, markdown, busy, error, onOpenChange,
   // The editor rewrites Markdown in its own style (`*` bullets become `-`), so "unchanged" is judged against what
   // it returns for the untouched outline, not against the raw text.
   const baseline = useRef<string | null>(null);
-  // A closed dialog drops its baseline: the next editor mount captures its own, and until then the raw text applies.
+  // A closed dialog drops its baseline: the next editor mount captures its own.
   useEffect(() => {
     if (!open) baseline.current = null;
   }, [open]);
@@ -35,8 +35,10 @@ export function AskUniOutlineDialog({ open, markdown, busy, error, onOpenChange,
   };
   const save = () => {
     if (busy) return;
+    // Before the editor is ready its Markdown reads "": saving that would wipe the outline, so nothing is saved.
+    if (baseline.current === null) return onOpenChange(false);
     const next = (editor.current?.getMarkdown() ?? markdown).trim();
-    if (next === (baseline.current ?? markdown.trim())) onOpenChange(false);
+    if (next === baseline.current) onOpenChange(false);
     else onSave(next);
   };
   return (

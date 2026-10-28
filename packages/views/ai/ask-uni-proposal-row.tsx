@@ -80,6 +80,8 @@ function Fields({ proposal }: { proposal: AiProposal }) {
 function Audience({ proposal }: { proposal: AiProposal }) {
   const { t } = useTranslation();
   const a = proposal.preview.audience;
+  // A card that already lists "who can see it" as a field does not say it twice.
+  if (proposal.preview.fields.some((f) => f.field === "visibility")) return null;
   const who = SAFE_CODE.test(a.visibility) ? t(`ai.proposal.audience.${a.visibility}`, { count: a.room_members, defaultValue: "" }) : "";
   const names = a.notifies.map((n) => n.title).filter(Boolean).join(", ");
   const notifies = names ? t(a.notifies_more ? "ai.proposal.notifies_more" : "ai.proposal.notifies", { names }) : a.notifies_more ? t("ai.proposal.notifies_others") : "";
@@ -183,7 +185,7 @@ export function AskUniProposalRow({ proposal, selectable = false, selected = fal
   // made no result yet, so it opens the object it names, if any.
   const link = isInAppHref(href) ? href : status === "unknown" && preview.target.id ? (askRefHref(ws, preview.target) ?? "") : "";
   const editable = hasEditable(proposal);
-  const outlineEditable = bodyArg(proposal.tool) === "outline" && preview.body !== "" && !preview.body_truncated;
+  const outlineEditable = bodyArg(proposal.tool) === "outline" && !preview.body_truncated;
   const disabled = busy || status === "applying" || status === "undoing";
   const settled = STATUS_ICON[status];
   const folded = Boolean(settled) && !open;

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { forwardRef, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api/http";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
@@ -13,9 +13,10 @@ initI18n();
 
 // A textarea stands in for the TipTap editor in the outline dialog.
 vi.mock("../editor", () => ({
-  ContentEditor: forwardRef(function MockEditor({ defaultValue = "", ariaLabel }: { defaultValue?: string; ariaLabel?: string }, ref) {
+  ContentEditor: forwardRef(function MockEditor({ defaultValue = "", ariaLabel, onReady }: { defaultValue?: string; ariaLabel?: string; onReady?: () => void }, ref) {
     const [value, setValue] = useState(defaultValue);
     useImperativeHandle(ref, () => ({ getMarkdown: () => value }));
+    useEffect(() => onReady?.(), []); // eslint-disable-line react-hooks/exhaustive-deps -- once, like the real editor's onReady
     return <textarea aria-label={ariaLabel} value={value} onChange={(e) => setValue(e.target.value)} />;
   }),
 }));
@@ -434,6 +435,22 @@ describe("AskUniProposalCard", () => {
     it("hides Sửa dàn ý for a truncated body, and the generic form has no outline field", () => {
       mount([office({ preview: { ...office().preview, body_truncated: true } })]);
       expect(screen.queryByRole("button", { name: "Sửa dàn ý" })).toBeNull();
+    });
+
+    it("offers Sửa dàn ý for an empty outline too", () => {
+      mount([office({ preview: { ...office().preview, body: "" } })]);
+      expect(screen.getByRole("button", { name: "Sửa dàn ý" })).toBeInTheDocument();
+    });
+
+    it("says who sees the file once, when a visibility field is listed", () => {
+      const fields = [{ field: "visibility", type: "enum", from: null, to: "restricted", options: ["restricted", "workspace"] }];
+      mount([office({ preview: { ...office().preview, fields } })]);
+      expect(screen.queryByText(/Ai sẽ thấy/)).toBeNull();
+    });
+
+    it("words a template_unavailable refusal", () => {
+      mount([office({ status: "failed", error_code: "template_unavailable" })]);
+      expect(screen.getByRole("alert")).toHaveTextContent("Tài liệu này không còn là mẫu. Hỏi UNI chọn mẫu khác.");
     });
 
     it("leaves the outline out of the generic Sửa form", () => {
