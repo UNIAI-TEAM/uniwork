@@ -196,13 +196,28 @@ describe("InvitationPreview", () => {
     expect(router.replace).toHaveBeenCalledWith("/verify-email");
   });
 
-  it("offers Retry after a blip and a drifted answer, and nothing but home after a verdict", async () => {
-    api.preview.mockRejectedValueOnce(refusal("internal", 500)).mockResolvedValueOnce(null).mockResolvedValueOnce(preview());
+  // Each answer gets its own render: a Retry pressed while the first refusal is still on the screen would cancel the
+  // refetch it started and leave which of the two "failed" screens drew it to the scheduler.
+  it.each([
+    ["a blip", () => api.preview.mockRejectedValueOnce(refusal("internal", 500))],
+    ["a drifted answer", () => api.preview.mockResolvedValueOnce(null)],
+    ["a switch the preview should never answer", () => api.preview.mockRejectedValueOnce(refusal("organization_switch_required", 409))],
+  ])("offers Retry after %s, and Retry loads the invitation", async (_, answer) => {
+    answer();
+    api.preview.mockResolvedValueOnce(preview());
     await render(<InvitationPreview token="t1" />);
-    await fireEvent.press(await screen.findByTestId("invitation-retry"));
     expect(await screen.findByTestId("invitation-refused-failed")).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId("invitation-retry"));
     expect(await screen.findByTestId("invitation-preview")).toBeOnTheScreen();
+    expect(api.preview).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves the expiry out when the date it was sent does not read", async () => {
+    api.preview.mockResolvedValueOnce(preview({ expires_at: "soon" }));
+    await render(<InvitationPreview token="t1" />);
+    expect(await screen.findByTestId("invitation-preview")).toBeOnTheScreen();
+    expect(screen.getByLabelText(`${viText("invitations.preview.organization")}: Acme`)).toBeOnTheScreen();
+    expect(screen.queryByLabelText(`${viText("invitations.preview.expiry")}:`, { exact: false })).toBeNull();
   });
 
   it("names a suspended organization with nothing to retry", async () => {
