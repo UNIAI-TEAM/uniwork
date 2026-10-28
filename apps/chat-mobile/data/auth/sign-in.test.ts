@@ -311,7 +311,7 @@ describe("the choice screen", () => {
     flow.api.verifySecondFactor.mockResolvedValueOnce(signedIn());
     await runSignIn({ method: "second_factor", code: "123456" });
     // the challenge carried the link: the ticket is spent with it
-    expect(usePendingSignIn.getState()).toEqual({ choice: null, secondFactor: null });
+    expect(usePendingSignIn.getState()).toMatchObject({ choice: null, secondFactor: null });
   });
 
   it("names the identity's address for a new account's second factor", async () => {
@@ -372,7 +372,7 @@ describe("a sign-out", () => {
     holdStep({ kind: "mfa", token: "mfa_1", context: { method: "password", email: null, provider: null } }, NOW);
     holdStepUp({ step_up_token: "su_1", expires_at: "", method: "password" }, { userId: "u1", action: "delete_account" });
     forgetSignIn();
-    expect(usePendingSignIn.getState()).toEqual({ choice: null, secondFactor: null });
+    expect(usePendingSignIn.getState()).toMatchObject({ choice: null, secondFactor: null });
     expect(pendingTicket(NOW)).toBeNull();
     expect(stepUpToken("delete_account", "u1")).toBeNull();
     // Google forgets the account it remembers for the app

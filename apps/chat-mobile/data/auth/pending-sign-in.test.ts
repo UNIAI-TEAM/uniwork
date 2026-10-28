@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { installDeviceStore, memoryDeviceStore, type DeviceStore } from "../storage/device-store";
 import {
   CHOICE_TTL_MS,
   SECOND_FACTOR_TTL_MS,
   clearChoice,
   clearSecondFactor,
+  dismissInterrupted,
+  forgetChoiceMark,
   forgetPendingSignIn,
   holdStep,
   pendingChallenge,
   pendingTicket,
+  restoreInterruptedSignIn,
   usePendingSignIn,
 } from "./pending-sign-in";
 import type { PendingStep } from "./sign-in-step";
@@ -18,7 +22,18 @@ const choice: PendingStep = { kind: "choice", ticket: "t_1", nonce: "n_1", ident
 const context = { method: "password" as const, email: "an@example.com", provider: null };
 const mfa: PendingStep = { kind: "mfa", token: "mfa_1", context };
 
-beforeEach(() => forgetPendingSignIn());
+let store: DeviceStore;
+const MARK = "sign-in/choice-open";
+/** The mark is written and removed after the device store opens: a few microtasks. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+beforeEach(async () => {
+  store = memoryDeviceStore();
+  installDeviceStore(async () => store);
+  forgetPendingSignIn();
+  dismissInterrupted();
+  await settle();
+});
 
 describe("the step a sign-in waits on", () => {
   it("shows screens the identity and the context, never the ticket, its nonce or the challenge", () => {
@@ -28,6 +43,7 @@ describe("the step a sign-in waits on", () => {
     expect(state).toEqual({
       choice: { identity, ticketKind: "unmatched", expiresAtMs: NOW + CHOICE_TTL_MS },
       secondFactor: { context, expiresAtMs: NOW + SECOND_FACTOR_TTL_MS },
+      interrupted: null,
     });
     expect(JSON.stringify(state)).not.toMatch(/t_1|n_1|mfa_1/);
     expect(pendingTicket(NOW)).toEqual({ ticket: "t_1", nonce: "n_1" });
@@ -64,12 +80,55 @@ describe("the step a sign-in waits on", () => {
     expect(pendingTicket(NOW)).toBeNull();
     expect(pendingChallenge(NOW)).not.toBeNull();
     forgetPendingSignIn();
-    expect(usePendingSignIn.getState()).toEqual({ choice: null, secondFactor: null });
+    expect(usePendingSignIn.getState()).toEqual({ choice: null, secondFactor: null, interrupted: null });
     expect(pendingChallenge(NOW)).toBeNull();
   });
 
   it("has nothing to give before any step was held", () => {
     expect(pendingTicket(NOW)).toBeNull();
     expect(pendingChallenge(NOW)).toBeNull();
+  });
+});
+
+describe("a choice the app is closed on", () => {
+  it("leaves the provider on the device while the choice is held, and nothing once it is cleared", async () => {
+    holdStep(choice, NOW);
+    await settle();
+    expect(store.getString(MARK)).toBe(JSON.stringify({ provider: "google", at: NOW }));
+    expect(store.getString(MARK)).not.toMatch(/t_1|n_1|an@gmail/);
+    clearChoice();
+    await settle();
+    expect(store.getString(MARK)).toBeUndefined();
+  });
+
+  it("forgets the mark once signed in, keeping the choice for its link", async () => {
+    holdStep(choice, NOW);
+    await settle();
+    forgetChoiceMark();
+    await settle();
+    expect(store.getString(MARK)).toBeUndefined();
+    expect(pendingTicket(NOW)).not.toBeNull();
+  });
+
+  it("tells the next open which provider it was, until said or a new choice is held", async () => {
+    store.set(MARK, JSON.stringify({ provider: "apple", at: NOW }));
+    await restoreInterruptedSignIn(NOW + 60_000);
+    expect(usePendingSignIn.getState().interrupted).toBe("apple");
+    holdStep(choice, NOW + 60_000);
+    expect(usePendingSignIn.getState().interrupted).toBeNull();
+    store.set(MARK, JSON.stringify({ provider: "apple", at: NOW }));
+    clearChoice();
+    await restoreInterruptedSignIn(NOW);
+    expect(usePendingSignIn.getState().interrupted).toBeNull();
+    dismissInterrupted();
+    expect(usePendingSignIn.getState().interrupted).toBeNull();
+  });
+
+  it("says nothing over a choice already held again", async () => {
+    store.set(MARK, JSON.stringify({ provider: "apple", at: NOW }));
+    holdStep(choice, NOW);
+    store.set(MARK, JSON.stringify({ provider: "apple", at: NOW }));
+    await restoreInterruptedSignIn(NOW);
+    expect(usePendingSignIn.getState().interrupted).toBeNull();
   });
 });

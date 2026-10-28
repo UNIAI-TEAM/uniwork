@@ -70,6 +70,17 @@ function apiErrorOf(error: unknown): ApiErrorShape | undefined {
 }
 
 /**
+ * The auth transport's error (data/auth/transport.ts: the sign-in doors, sign-in screens' commands), duck-typed too:
+ * its code, and the HTTP status when the server answered at all.
+ */
+function transportErrorOf(error: unknown): { code: string; status?: number } | undefined {
+  if (!(error instanceof Error) || error.name !== "TransportError") return undefined;
+  const code: unknown = Reflect.get(error, "code");
+  const status: unknown = Reflect.get(error, "status");
+  return { code: typeof code === "string" ? code : "", ...(typeof status === "number" ? { status } : {}) };
+}
+
+/**
  * A command the server turned down for good once it was delivered (a queued
  * reaction or vote it refused): the screen says so, and the queue that met the
  * refusal already logged it. Thrown to reject the screen's promise, never a bug.
@@ -97,6 +108,13 @@ export type ErrorClass = "expected" | "contract" | "bug";
  */
 export function classifyError(error: unknown, handledCodes: readonly string[] = []): ErrorClass {
   if (error instanceof Error && (error.name === "AbortError" || error.name === "RefusedError")) return "expected";
+  const transport = transportErrorOf(error);
+  if (transport) {
+    // No answer, or an answer the screen turns into its own words; one it could not read is a bug, as below.
+    if (transport.code === "network" || transport.code === "timeout" || handledCodes.includes(transport.code)) return "expected";
+    if (transport.status === undefined || transport.status >= 500) return "bug";
+    return EXPECTED_STATUSES.has(transport.status) ? "expected" : "contract";
+  }
   const api = apiErrorOf(error);
   if (!api || api.status >= 500) return "bug";
   if (EXPECTED_STATUSES.has(api.status)) return "expected";
@@ -112,6 +130,9 @@ export function reportError(error: unknown, context: ReportContext): void {
   if (api) tags.http_status = String(api.status);
   if (api?.code) tags.error_code = api.code;
   if (api?.endpoint) tags.endpoint = api.endpoint;
+  const transport = transportErrorOf(error);
+  if (transport?.code) tags.error_code = transport.code;
+  if (transport?.status) tags.http_status = String(transport.status);
   // An answer the app could not read: by endpoint, with where it differed (paths and codes, never the body).
   const mismatch = error instanceof SchemaMismatchError ? error : undefined;
   if (mismatch) tags.endpoint = mismatch.endpoint;

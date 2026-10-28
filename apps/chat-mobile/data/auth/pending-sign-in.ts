@@ -2,10 +2,13 @@
 // provider matched an account that has one, or the choice screen's ticket after a provider matched none. In memory
 // only — never persisted, never a route param, never in an event or a log — and gone on sign-out
 // (sign-in.ts › forgetSignIn). Screens read what they may show through usePendingSignIn; the challenge token, the
-// ticket and its nonce stay in this module, for the doors in sign-in.ts alone.
+// ticket and its nonce stay in this module, for the doors in sign-in.ts alone. A choice the app is killed in the
+// middle of is told on the next open (`interrupted`, from interrupted-sign-in.ts: the provider and nothing else).
 import type { NativeTicket } from "@uniwork/core/api/endpoints/sign-in-native-api";
-import type { SignInIdentity, SignInTicketKind } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import type { SignInIdentity, SignInProvider, SignInTicketKind } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { create } from "zustand";
+import { bestEffort } from "../report";
+import { clearChoiceMark, markChoiceOpen, takeInterruptedChoice } from "./interrupted-sign-in";
 import type { PendingStep, SecondFactorContext } from "./sign-in-step";
 
 /** The challenge's life on the server (NativeSignInSDO.mfa_token: five minutes). */
@@ -30,9 +33,11 @@ interface PendingSecondFactorView {
 interface PendingSignInState {
   choice: PendingChoiceView | null;
   secondFactor: PendingSecondFactorView | null;
+  /** the provider whose choice screen the last run of the app was closed on, until the sign-in screen has said so */
+  interrupted: SignInProvider | null;
 }
 
-export const usePendingSignIn = create<PendingSignInState>(() => ({ choice: null, secondFactor: null }));
+export const usePendingSignIn = create<PendingSignInState>(() => ({ choice: null, secondFactor: null, interrupted: null }));
 
 let ticket: NativeTicket | null = null;
 let challenge: string | null = null;
@@ -45,7 +50,11 @@ export function holdStep(step: PendingStep, now: number): void {
     return;
   }
   ticket = { ticket: step.ticket, nonce: step.nonce };
-  usePendingSignIn.setState({ choice: { identity: step.identity, ticketKind: step.ticketKind, expiresAtMs: now + CHOICE_TTL_MS } });
+  usePendingSignIn.setState({
+    choice: { identity: step.identity, ticketKind: step.ticketKind, expiresAtMs: now + CHOICE_TTL_MS },
+    interrupted: null,
+  });
+  markChoiceOpen(step.identity.provider, now).catch(bestEffort("auth", "choice mark not written", "breadcrumb"));
 }
 
 /**
@@ -75,6 +84,23 @@ export function pendingChallenge(now: number): { token: string; context: SecondF
 export function clearChoice(): void {
   ticket = null;
   usePendingSignIn.setState({ choice: null });
+  forgetChoiceMark();
+}
+
+/** Someone is signed in: a choice still held only waits to be linked, and nothing is left to tell after a kill. */
+export function forgetChoiceMark(): void {
+  clearChoiceMark().catch(bestEffort("auth", "choice mark not removed", "breadcrumb"));
+}
+
+/** Boot: whether the last run was closed on the choice screen (the sign-in screen says so once). */
+export async function restoreInterruptedSignIn(now: number): Promise<void> {
+  const provider = await takeInterruptedChoice(now);
+  if (provider && !usePendingSignIn.getState().choice) usePendingSignIn.setState({ interrupted: provider });
+}
+
+/** The sign-in screen said it, or the person started again. */
+export function dismissInterrupted(): void {
+  usePendingSignIn.setState({ interrupted: null });
 }
 
 /** The second step passed, or the person went back to sign in another way. */

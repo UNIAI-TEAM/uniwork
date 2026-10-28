@@ -10,7 +10,16 @@ import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas
 import { signInWithApple } from "./apple";
 import { signInWithGoogle, signOutOfGoogle } from "./google";
 import { authConfig, nativeSignIn, session } from "./flow";
-import { clearChoice, clearSecondFactor, forgetPendingSignIn, holdStep, pendingChallenge, pendingTicket, usePendingSignIn } from "./pending-sign-in";
+import {
+  clearChoice,
+  clearSecondFactor,
+  forgetChoiceMark,
+  forgetPendingSignIn,
+  holdStep,
+  pendingChallenge,
+  pendingTicket,
+  usePendingSignIn,
+} from "./pending-sign-in";
 import { stepOf, type Issuer, type SecondFactorContext, type SignedIn } from "./sign-in-step";
 import { forgetStepUp } from "./step-up-store";
 import { TransportError } from "./transport";
@@ -140,6 +149,7 @@ export async function runSignIn(request: SignInRequest): Promise<SignInOutcome> 
     await session.login(request.provider ? { provider: request.provider } : {});
     if (session.status() !== "signed-in") return DISMISSED;
     clearSecondFactor();
+    forgetChoiceMark();
     return SIGNED_IN;
   }
   const spends = spendsTicket(request);
@@ -148,7 +158,9 @@ export async function runSignIn(request: SignInRequest): Promise<SignInOutcome> 
   switch (result.kind) {
     case "signed_in":
       clearSecondFactor();
+      // A choice the sign-in did not spend waits for its link ("Tôi đã có tài khoản"); a kill now loses nothing to tell.
       if (spends) clearChoice();
+      else forgetChoiceMark();
       return result;
     case "mfa":
       holdStep(result, now());

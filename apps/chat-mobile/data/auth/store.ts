@@ -38,6 +38,7 @@ import { openDeviceStore } from "../storage/device-store";
 import { session } from "./flow";
 import { initialAuthModel, reduce, type AuthEffect, type AuthEvent, type AuthModel, type AuthStatus, type CacheFor } from "./machine";
 import { forgetLastUser, readLastUser, rememberUser } from "./last-user";
+import { restoreInterruptedSignIn } from "./pending-sign-in";
 import { forgetSignIn, runSignIn, type SignInOutcome, type SignInRequest } from "./sign-in";
 
 interface AuthState {
@@ -157,6 +158,8 @@ async function readStored(): Promise<AuthEvent> {
     readLastUser(),
     useWorkspaceStore.getState().restore(),
     hydrateDeviceState(),
+    // A choice screen the last run was closed on: the sign-in screen says so (pending-sign-in.ts).
+    restoreInterruptedSignIn(Date.now()).catch(bestEffort("auth", "interrupted sign-in not read", "breadcrumb")),
   ]);
   // A refresh the server refused while the rest was read already ended the session.
   return { type: "storedPersonRead", hasCredential, lastUser, sessionEnded: hasCredential && session.status() === "signed-out" };
