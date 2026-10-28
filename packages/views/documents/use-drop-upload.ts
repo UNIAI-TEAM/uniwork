@@ -9,11 +9,11 @@ import { DEFAULT_DOCUMENT_MAX_BYTES } from "@uniwork/core/documents/limits";
 import { documentErrorMessage, documentUploadValidationMessage } from "./document-error-message";
 import { refusalMessage } from "./folder-upload/folder-upload-copy";
 
-function hasFiles(event: DragEvent): boolean {
+export function hasFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
 
-function isDirectoryItem(item: DataTransferItem): boolean {
+export function isDirectoryItem(item: DataTransferItem): boolean {
   return item.kind === "file" && Boolean(item.webkitGetAsEntry?.()?.isDirectory);
 }
 

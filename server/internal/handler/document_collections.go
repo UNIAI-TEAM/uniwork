@@ -641,6 +641,7 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 		by := doc.ShelvedBy.String
 		out.ShelvedBy = &by
 	}
+	out.TemplateMarkedAt, out.TemplateMarkedBy = templateMarkFields(doc)
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)
 	}

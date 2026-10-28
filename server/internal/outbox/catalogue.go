@@ -352,6 +352,9 @@ var catalogue = []EventDef{
 	// forever; ids plus the shelve batch, same shape as the trash rows.
 	{Topic: "document.shelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.unshelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// UNI-2225: a file joins or leaves the workspace's template library; ids only.
+	{Topic: "document.template_marked", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.template_unmarked", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.deleted", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// DOC-CHANGE-NOTIFY (UNI-2056): the change people hear of, written by
 	// the same Record call as the frame topic of a rename, restore, shelve,

@@ -13686,6 +13686,7 @@
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",
         "shared_by_me": "Tôi đã chia sẻ",
+        "templates": "Mẫu văn bản",
         "shelved": "Lưu trữ",
         "trash": "Thùng rác",
         "folders": "Thư mục",
@@ -13707,6 +13708,7 @@
         "starred": "Gắn sao",
         "shared": "Được chia sẻ với tôi",
         "shared_by_me": "Tôi đã chia sẻ",
+        "templates": "Mẫu văn bản",
         "archived": "Thùng rác",
         "sources": "Từ nơi khác",
         "chat": "Trò chuyện",
@@ -13793,7 +13795,9 @@
         "archived_title": "Thùng rác đang trống",
         "archived_description": "Tài liệu đã xóa nằm ở đây trong 30 ngày.",
         "sources_title": "Chưa có file nào",
-        "sources_description": "File trong trò chuyện, công việc, cuộc họp và email mà bạn xem được sẽ hiện ở đây."
+        "sources_description": "File trong trò chuyện, công việc, cuộc họp và email mà bạn xem được sẽ hiện ở đây.",
+        "templates_title": "Chưa có mẫu nào",
+        "templates_description": "Tải lên báo giá, hóa đơn hay bài trình chiếu mẫu để cả workspace dùng chung."
       },
       "no_matches_description": "Không có file loại này. Tạo mới ở hàng thẻ phía trên hoặc bỏ lọc.",
       "no_matches_plain_description": "Không có file loại này. Bỏ lọc để xem tất cả.",
@@ -13870,12 +13874,38 @@
         "starred": "Tài liệu bạn đánh dấu để mở nhanh",
         "shared": "Tài liệu người khác chia sẻ trực tiếp cho bạn",
         "shared_by_me": "Tài liệu của bạn đang chia sẻ cho người khác",
-        "sources": "Tệp được gửi trong Trò chuyện, Cuộc họp, Email và Công việc của workspace này"
+        "sources": "Tệp được gửi trong Trò chuyện, Cuộc họp, Email và Công việc của workspace này",
+        "templates": "Mẫu dùng chung của workspace. Mọi thành viên thêm, sửa và bỏ mẫu được."
       }
     },
     "recent": {
       "continue_title": "Mở tiếp",
       "continue_when": "{{activity}} lúc {{when}}"
+    },
+    "templates": {
+      "upload": "Tải mẫu lên",
+      "group": {
+        "word": "Word",
+        "excel": "Excel",
+        "powerpoint": "PowerPoint",
+        "other": "Khác"
+      },
+      "uploaded": "Đã thêm {{title}} vào Mẫu văn bản",
+      "upload_failed": "Không tải mẫu lên được. Chưa có gì thay đổi.",
+      "too_large": "Tệp lớn hơn {{size}} nên không tải thẳng vào Mẫu văn bản được. Hãy tải vào một thư mục rồi đánh dấu là mẫu.",
+      "no_folders": "Mẫu văn bản chỉ nhận tệp, không nhận thư mục.",
+      "drop_hint": "Thả tệp để thêm vào Mẫu văn bản",
+      "mark": "Đánh dấu là mẫu",
+      "unmark": "Bỏ khỏi Mẫu",
+      "marked": "Đã đánh dấu {{title}} là mẫu",
+      "unmarked": "Đã bỏ {{title}} khỏi Mẫu",
+      "mark_failed": "Không đánh dấu được. Chưa có gì thay đổi.",
+      "unmark_failed": "Không bỏ khỏi Mẫu được. Chưa có gì thay đổi.",
+      "widen": {
+        "title": "Mở tài liệu này cho cả workspace?",
+        "body": "Hiện chỉ những người được chia sẻ mới xem được {{title}}. Khi thành mẫu, mọi thành viên workspace sẽ xem và sửa được nó.",
+        "confirm": "Mở cho workspace và đánh dấu"
+      }
     },
     "scope": {
       "private": "Riêng tư",

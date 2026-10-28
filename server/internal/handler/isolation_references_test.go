@@ -135,7 +135,7 @@ func (c isoReference) build(w *isoWorld, own, ref *isoTenant) isoBody {
 // a file document, which a page is not.
 func (c isoReference) refPath(t *testing.T, tn *isoTenant) (string, bool) {
 	t.Helper()
-	path, ok := isoPath(t, c.pattern, tn)
+	path, ok := isoPath(t, c.method, c.pattern, tn)
 	if ok && c.meetingKey != "" {
 		path = strings.Replace(path, tn.ids["meeting"], tn.get(t, c.meetingKey), 1)
 	}
