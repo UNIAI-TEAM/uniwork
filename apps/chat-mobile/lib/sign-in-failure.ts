@@ -48,14 +48,3 @@ export function signInFailureOf(error: unknown, context: SignInContext, start: S
 export function unmatchedWhileLinking(provider: SignInProvider): SignInFailure {
   return failure(`auth.social.errors.${provider}_no_account`, "form", "identity_unmatched");
 }
-
-/**
- * Email verification (POST /me/email/verify, /me/email/resend) in the web's own words (auth.verify): a wrong code, a
- * code asked again within the minute (its button counts the minute down itself); the rest as any step that failed.
- */
-export function verifyEmailFailureOf(error: unknown): SignInFailure {
-  const read = readSignInFailure(error, "claim");
-  if (read.code === "invalid_code") return { ...read, key: "auth.verify.invalidCode" };
-  if (read.code === "rate_limited") return { ...read, kind: "form", key: "auth.verify.resendTooSoon", retry: null };
-  return read;
-}

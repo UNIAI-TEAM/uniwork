@@ -239,7 +239,8 @@
       "resendTooSoon": "A code was just sent — wait a minute and try again.",
       "verifying": "Verifying…",
       "wrongAccount": "Wrong account?",
-      "spamHint": "No email? Check your spam folder."
+      "spamHint": "No email? Check your spam folder.",
+      "deleteInSettings": "Delete the account in Settings"
     },
     "email": "Email",
     "password": "Password",
@@ -2349,8 +2350,7 @@
         "submit": "Create account"
       },
       "verify": {
-        "wrong_email": "Wrong email?",
-        "delete_in_settings": "Delete the account in Settings"
+        "wrong_email": "Wrong email?"
       }
     },
     "step_up": {

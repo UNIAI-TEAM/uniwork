@@ -53,7 +53,7 @@ function i18n() {
 const api = (code: string, status: number, fields?: Record<string, unknown>, retryAfterSeconds?: number) =>
   new ApiError(code, code, status, undefined, fields, undefined, retryAfterSeconds);
 
-const CONTEXTS: SignInContext[] = ["sign_in", "second_factor", "register", "ticket", "claim", "step_up", "password", "methods"];
+const CONTEXTS: SignInContext[] = ["sign_in", "second_factor", "register", "ticket", "claim", "step_up", "password", "methods", "verify_email"];
 const CODES = [
   "network", "timeout", "internal", "server_error", "invalid_credentials", "second_factor_locked", "rate_limited",
   "provider_token_invalid", "apple_token_invalid", "google_not_configured", "apple_auth_unavailable", "apple_not_configured",
@@ -183,6 +183,18 @@ describe("readSignInFailure", () => {
       "settings.security.signInMethods.password.currentIncorrect",
     );
     expect(readSignInFailure(api("google_not_configured", 503), "methods").key).toBe("settings.security.signInMethods.errors.notConfigured");
+  });
+
+  it("says the address's own code, and a resend asked within the minute, as /verify does on both platforms", () => {
+    expect(readSignInFailure(api("invalid_code", 400), "verify_email")).toMatchObject({ kind: "field", key: "auth.verify.invalidCode" });
+    // The resend button counts the minute down itself: no second countdown in the sentence.
+    expect(readSignInFailure(api("rate_limited", 429, undefined, 60), "verify_email")).toMatchObject({
+      kind: "form",
+      key: "auth.verify.resendTooSoon",
+      retry: null,
+    });
+    expect(readSignInFailure(api("teapot", 418), "verify_email").key).toBe("auth.continue.errors.generic");
+    expect(readSignInFailure(api("unauthorized", 401), "verify_email").key).toBe("auth.social.errors.session_ended");
   });
 
   it("counts a wait down from Retry-After, the app's retryAfterMs, or fields.retry_after", () => {

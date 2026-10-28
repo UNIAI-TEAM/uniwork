@@ -3,6 +3,7 @@
 // a sign-up a moment ago, a resend), at once on a later open, whose first code may have run out; a way out for a
 // wrong address (sign out) and to Settings, where the account can be deleted.
 // Until the address is proved the app shows no workspace (app/index.tsx, select-workspace.tsx).
+import { readSignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,7 +16,6 @@ import { useAuthStore } from "@/data/auth/store";
 import { VERIFICATION_RESEND_GAP_MS, verificationResendAt } from "@/data/auth/verification-mail";
 import { useResendVerification, useVerifyEmail } from "@/data/mutations/account";
 import { accountRoutes } from "@/lib/chat-routes";
-import { verifyEmailFailureOf } from "@/lib/sign-in-failure";
 import { THEME } from "@/lib/theme";
 import { AuthHeading, TextButton } from "./auth-layout";
 import { CodeField } from "./code-field";
@@ -47,7 +47,7 @@ export function VerifyEmailStep() {
       // Verified, the signed-in user carries the date and the route moves on.
       await verify.mutateAsync(value);
     } catch (error: unknown) {
-      setShown(shownFailure(verifyEmailFailureOf(error)));
+      setShown(shownFailure(readSignInFailure(error, "verify_email")));
       haptics.failure();
       setCode("");
       input.current?.focus();
@@ -63,7 +63,7 @@ export function VerifyEmailStep() {
       setResent(true);
       setResendAtMs(Date.now() + VERIFICATION_RESEND_GAP_MS);
     } catch (error: unknown) {
-      const failure = verifyEmailFailureOf(error);
+      const failure = readSignInFailure(error, "verify_email");
       setShown(shownFailure(failure));
       if (failure.code === "rate_limited") setResendAtMs(Date.now() + VERIFICATION_RESEND_GAP_MS);
     }
@@ -110,7 +110,7 @@ export function VerifyEmailStep() {
           <TextButton label={t("auth.logout")} disabled={verify.isPending} onPress={() => void logout()} testID="verify-logout" />
         </View>
         <TextButton
-          label={t("mobile.sign_in.verify.delete_in_settings")}
+          label={t("auth.verify.deleteInSettings")}
           tone="muted"
           onPress={() => router.push(accountRoutes.settings)}
           testID="verify-settings"

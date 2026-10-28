@@ -570,7 +570,8 @@
       "resendTooSoon": "A code was just sent — wait a minute and try again.",
       "verifying": "Verifying…",
       "wrongAccount": "Wrong account?",
-      "spamHint": "No email? Check your spam folder."
+      "spamHint": "No email? Check your spam folder.",
+      "deleteInSettings": "Delete the account in Settings"
     },
     "mfa": {
       "title": "Two-factor authentication",

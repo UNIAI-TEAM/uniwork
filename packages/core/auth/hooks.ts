@@ -9,6 +9,7 @@ import { workspaceKeys } from "../workspaces/keys";
 import { hasSessionHint } from "./session-hint";
 import { forgetStepUp, forgetStepUpIfRefused, stepUpToken } from "./step-up-store";
 import { useAuthStore, type SessionStatus } from "./store";
+import { noteVerificationMailed } from "./verification-mail";
 
 export type { SessionStatus };
 
@@ -202,7 +203,11 @@ export function useRegister() {
       password: string;
       displayName: string;
     }) => requireSession(await auth.registerUser(email, password, displayName)),
-    onSuccess: applyAuthSession,
+    onSuccess: (sess, { email }) => {
+      // The server mailed the first code: /verify waits its minute before another.
+      noteVerificationMailed(email, Date.now());
+      applyAuthSession(sess);
+    },
   });
 }
 
@@ -226,7 +231,13 @@ export function useVerifyEmail() {
 }
 
 export function useResendVerification() {
-  return useMutation({ mutationFn: () => auth.resendVerification() });
+  return useMutation({
+    mutationFn: () => auth.resendVerification(),
+    onSuccess: () => {
+      const email = useAuthStore.getState().user?.email;
+      if (email) noteVerificationMailed(email, Date.now());
+    },
+  });
 }
 
 /** Deployment-level and static for the page's life, hence never stale. */

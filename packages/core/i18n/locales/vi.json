@@ -570,7 +570,8 @@
       "resendTooSoon": "Vừa gửi một mã rồi, chờ một phút rồi thử lại.",
       "verifying": "Đang xác thực…",
       "wrongAccount": "Nhầm tài khoản?",
-      "spamHint": "Không thấy email? Kiểm tra thư mục spam."
+      "spamHint": "Không thấy email? Kiểm tra thư mục spam.",
+      "deleteInSettings": "Xóa tài khoản trong Cài đặt"
     },
     "mfa": {
       "title": "Xác thực hai lớp",

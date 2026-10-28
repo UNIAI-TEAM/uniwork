@@ -2,18 +2,22 @@
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useLogout, useResendVerification, useSession, useVerifyEmail } from "@uniwork/core/auth";
+import { readSignInFailure, secondsUntil } from "@uniwork/core/auth/sign-in-errors";
+import { VERIFICATION_RESEND_GAP_MS, verificationResendAt } from "@uniwork/core/auth/verification-mail";
+import { paths } from "@uniwork/core/paths";
 import type { User } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@uniwork/ui/components/ui/input-otp";
-import { AUTH_PILL, DIGITS_ONLY } from "./auth-controls";
+import { AppLink } from "../navigation";
+import { AUTH_LINK, AUTH_PILL, DIGITS_ONLY } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
+import { FailureSentence, useFailure } from "./continue-parts";
 
 const CODE_LENGTH = 6;
-/** Mirrors the server's resend gap; the count starts on arrival because register just sent one. */
-const RESEND_SECONDS = 60;
+/** The server's resend gap. */
+const RESEND_SECONDS = VERIFICATION_RESEND_GAP_MS / 1000;
 
 export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void }) {
   const { t } = useTranslation();
@@ -23,7 +27,13 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
   const logout = useLogout();
   const errorId = useId();
   const [code, setCode] = useState("");
-  const [cooldown, setCooldown] = useState(RESEND_SECONDS);
+  // A minute after a code this browser just had mailed (register a moment
+  // ago, a resend), else at once: a person back days later, whose first code
+  // ran out, is not made to wait for nothing. The phone does the same.
+  const [cooldown, setCooldown] = useState(() => {
+    const now = Date.now();
+    return secondsUntil(verificationResendAt(user?.email ?? "", now), now);
+  });
   const [resent, setResent] = useState(false);
 
   useEffect(() => {
@@ -32,17 +42,14 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
     return () => clearInterval(id);
   }, [cooldown]);
 
-  const invalidCode = verify.error instanceof ApiError && verify.error.code === "invalid_code";
-  const tooSoon = resend.error instanceof ApiError && resend.error.code === "rate_limited";
-  const errorMsg = invalidCode
-    ? t("auth.verify.invalidCode")
-    : verify.error
-      ? (apiErrorMessage(verify.error) ?? t("common.error"))
-      : tooSoon
-        ? t("auth.verify.resendTooSoon")
-        : resend.error
-          ? (apiErrorMessage(resend.error) ?? t("common.error"))
-          : null;
+  // Both calls read through core's table, as on the phone: a wrong code is
+  // the boxes', anything else (asked too soon, offline, the server) is said
+  // under them too, never as the server's own message.
+  const verifyFailure = useFailure(verify.error, "verify_email");
+  const resendFailure = useFailure(resend.error, "verify_email");
+  const failure = verifyFailure ?? resendFailure;
+  const invalidCode = verifyFailure?.kind === "field";
+  const errorMsg = failure ? <FailureSentence failure={failure} /> : null;
 
   const onChange = (value: string) => {
     setCode(value);
@@ -65,7 +72,7 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
         setCooldown(RESEND_SECONDS);
       },
       onError: (err) => {
-        if (err instanceof ApiError && err.code === "rate_limited") setCooldown(RESEND_SECONDS);
+        if (readSignInFailure(err, "verify_email").code === "rate_limited") setCooldown(RESEND_SECONDS);
       },
     });
   };
@@ -154,6 +161,13 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
             >
               {t("auth.logout")}
             </Button>
+          </p>
+          {/* An address typed wrong is an account nobody can prove: it can be
+              deleted from the account's own settings, as on the phone. */}
+          <p className="text-center text-label">
+            <AppLink href={paths.accountSettings()} className={AUTH_LINK}>
+              {t("auth.verify.deleteInSettings")}
+            </AppLink>
           </p>
         </div>
       </div>

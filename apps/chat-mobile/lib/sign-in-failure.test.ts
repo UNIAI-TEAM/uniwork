@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { signInFailureOf, startOf, unmatchedWhileLinking, verifyEmailFailureOf } from "./sign-in-failure";
+import { signInFailureOf, startOf, unmatchedWhileLinking } from "./sign-in-failure";
 
 /** The app's auth TransportError, as data/auth/transport.ts builds it (duck-typed: lib never imports data/). */
 function transport(code: string, status?: number, extra: Record<string, unknown> = {}) {
@@ -87,17 +87,5 @@ describe("startOf", () => {
     expect(startOf({ method: "browser", provider: "apple" })).toBe("browser");
     expect(startOf({ method: "password", email: "a@b.c", password: "x" })).toBe("form");
     expect(startOf({ method: "second_factor", code: "123456" })).toBe("form");
-  });
-});
-
-describe("verifyEmailFailureOf", () => {
-  it("says a wrong code and a code asked again too soon in the verify screen's words", () => {
-    expect(verifyEmailFailureOf(api("invalid_code", 400))).toMatchObject({ kind: "field", key: "auth.verify.invalidCode" });
-    expect(verifyEmailFailureOf(api("rate_limited", 429))).toMatchObject({ kind: "form", key: "auth.verify.resendTooSoon", retry: null });
-  });
-
-  it("reads anything else as any step that failed", () => {
-    expect(verifyEmailFailureOf(api("internal", 500))).toMatchObject({ key: "auth.social.errors.server" });
-    expect(verifyEmailFailureOf(null)).toMatchObject({ key: "auth.continue.errors.generic" });
   });
 });

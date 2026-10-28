@@ -33,7 +33,9 @@ export type SignInContext =
   /** PUT /me/password. */
   | "password"
   /** Settings › Sign-in methods: link (web start, app native) and unlink. */
-  | "methods";
+  | "methods"
+  /** Proving the account's address: the mailed code (POST /me/email/verify) and its resend. */
+  | "verify_email";
 
 /**
  * What the screen does with it: `field` speaks under the input the person
@@ -186,6 +188,11 @@ const BY_CONTEXT: Readonly<Partial<Record<SignInContext, Readonly<Record<string,
     apple_auth_unavailable: row(`${METHODS}.errors.notConfigured`),
     provider_token_invalid: row(`${STEP_UP}.providerInvalid`),
   },
+  verify_email: {
+    invalid_code: row("auth.verify.invalidCode", "field"),
+    // A code asked again within the server's minute: the resend button counts that minute down itself.
+    rate_limited: row("auth.verify.resendTooSoon"),
+  },
 };
 
 const GENERIC: Readonly<Record<SignInContext, string>> = {
@@ -197,13 +204,14 @@ const GENERIC: Readonly<Record<SignInContext, string>> = {
   step_up: `${STEP_UP}.generic`,
   password: `${METHODS}.errors.generic`,
   methods: `${METHODS}.errors.generic`,
+  verify_email: `${CONTINUE}.generic`,
 };
 
 /**
  * The contexts where a 401 the tables do not name (unauthorized included)
  * means "your session ended" rather than "wrong credentials".
  */
-const SIGNED_IN: ReadonlySet<SignInContext> = new Set(["step_up", "password", "methods"]);
+const SIGNED_IN: ReadonlySet<SignInContext> = new Set(["step_up", "password", "methods", "verify_email"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

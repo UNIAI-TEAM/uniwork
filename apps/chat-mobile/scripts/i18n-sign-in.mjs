@@ -29,7 +29,6 @@ export const SIGN_IN_ONLY = {
       },
       verify: {
         wrong_email: "Sai email?",
-        delete_in_settings: "Xóa tài khoản trong Cài đặt",
       },
     },
     step_up: {
@@ -64,7 +63,6 @@ export const SIGN_IN_ONLY = {
       },
       verify: {
         wrong_email: "Wrong email?",
-        delete_in_settings: "Delete the account in Settings",
       },
     },
     step_up: {

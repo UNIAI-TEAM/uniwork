@@ -20,6 +20,7 @@
     "./auth/sign-in-errors": "./auth/sign-in-errors.ts",
     "./auth/sign-in-rules": "./auth/sign-in-rules.ts",
     "./auth/sign-in-form": "./auth/sign-in-form.ts",
+    "./auth/verification-mail": "./auth/verification-mail.ts",
     "./auth/step-up": "./auth/step-up.ts",
     "./connect": "./connect/hooks.ts",
     "./workspaces": "./workspaces/hooks.ts",
