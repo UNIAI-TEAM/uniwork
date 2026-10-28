@@ -21,9 +21,8 @@ export default function LoginPage() {
   const goAfterLogin = useCallback(
     async (u: AuthGateUser) => {
       const workspaces = await api.workspaces.list().catch(() => []);
-      const destination = await resolveDestination(u, workspaces);
-      // `next` only once every gate step is behind the user.
-      push(next && destination !== "/verify" && destination !== "/onboarding" ? next : destination);
+      // `next` rides through the gate steps the user still owes.
+      push(await resolveDestination(u, workspaces, next));
     },
     [next, push, resolveDestination],
   );

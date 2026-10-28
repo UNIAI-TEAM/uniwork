@@ -51,10 +51,9 @@ export default function AuthCallbackPage() {
     }
     void (async () => {
       const workspaces = await api.workspaces.list().catch(() => []);
-      const destination = await resolveDestination(user, workspaces);
       // A verified, onboarded user goes where they were headed; anyone still
-      // owing a gate step goes through it first.
-      replace(next && destination !== paths.verify() && destination !== paths.onboarding() ? next : destination);
+      // owing a gate step goes through it first, carrying `next`.
+      replace(await resolveDestination(user, workspaces, next));
     })();
   }, [status, user, next, reclaimed, replace, resolveDestination, announce]);
 

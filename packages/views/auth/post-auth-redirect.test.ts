@@ -95,3 +95,51 @@ describe("resolveLoggedInDestination", () => {
     expect(fetchMy).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("resolveLoggedInDestination with next", () => {
+  const consent = "/auth/desktop/authorize?attempt_id=a1";
+  const linkStep = "/auth/continue?step=link&next=%2Facme%2Fteam";
+
+  it("carries next through /verify", async () => {
+    expect(await resolveWith(unverified, [], qc, "/invite/tok")).toBe("/verify?next=%2Finvite%2Ftok");
+  });
+  it("carries next through /onboarding", async () => {
+    fetchMy.mockResolvedValueOnce([]);
+    expect(await resolveWith(verified, [], qc, "/invite/tok")).toBe("/onboarding?next=%2Finvite%2Ftok");
+  });
+  it("goes to next once the gates are behind the person", async () => {
+    fetchOrgs.mockResolvedValueOnce([{ id: "o1", status: "active", role: "owner" }]);
+    expect(await resolveWith(onboarded, [], qc, "/acme/team/documents/d1")).toBe("/acme/team/documents/d1");
+  });
+  it("lets next win over the invitations list, as it always has", async () => {
+    fetchMy.mockResolvedValueOnce([{ id: "i" }]);
+    expect(await resolveWith(verified, [], qc, "/invite/tok")).toBe("/invite/tok");
+  });
+
+  /** Spec §4.2: the app handles an account that owes a gate step; the link step only links. */
+  it.each([consent, linkStep])("lets %s through even while a gate is owed", async (next) => {
+    fetchMy.mockClear();
+    fetchOrgs.mockClear();
+    expect(await resolveWith(unverified, [], qc, next)).toBe(next);
+    expect(await resolveWith(verified, [], qc, next)).toBe(next);
+    // Nothing to look up when the answer is already known.
+    expect(fetchMy).not.toHaveBeenCalled();
+    expect(fetchOrgs).not.toHaveBeenCalled();
+  });
+
+  it.each(["/auth/continue", "/auth/continue?step=create", "/auth/desktop/authorize-not", "/auth/connect/authorize?attempt=a"])(
+    "sends %s through the gates like any other page",
+    async (next) => {
+      expect(await resolveWith(unverified, [], qc, next)).toBe(`/verify?next=${encodeURIComponent(next)}`);
+    },
+  );
+
+  it.each(["//evil.example/x", "https://evil.example/x", "/\\evil.example", "javascript:alert(1)", "/a b"])(
+    "never follows an unsafe next (%s)",
+    async (next) => {
+      expect(await resolveWith(unverified, [], qc, next)).toBe("/verify");
+      fetchOrgs.mockResolvedValueOnce([]);
+      expect(await resolveWith(onboarded, [], qc, next)).toBe("/get-started");
+    },
+  );
+});

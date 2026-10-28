@@ -1,15 +1,53 @@
 import { useCallback } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { fetchOrganizations, organizationKeys } from "@uniwork/core/organizations";
-import { paths, pendingAuthStep, resolvePostAuthDestination, type AuthGateUser } from "@uniwork/core/paths";
+import {
+  paths,
+  pendingAuthStep,
+  resolvePostAuthDestination,
+  sanitizeNextUrl,
+  type AuthGateUser,
+} from "@uniwork/core/paths";
 import type { Workspace } from "@uniwork/core/types";
 import { fetchMyInvitations, workspaceKeys } from "@uniwork/core/workspaces";
+
+const PATH_PROBE = "https://app.invalid";
+
+/**
+ * Pages a signed-in person reaches even while a gate step is still owed (spec
+ * §4.2): the desktop or phone app's consent, since the app deals with an
+ * account that has no workspace yet, and the choice screen's link step, which
+ * only links a provider to the account that just signed in. Sending either
+ * through /verify or /onboarding first would leave the app waiting until its
+ * attempt expires, or the pending sign-in until its ticket does.
+ */
+function skipsEntryGates(next: string): boolean {
+  const url = new URL(next, PATH_PROBE);
+  if (url.pathname === paths.desktopAuthorize()) return true;
+  return url.pathname === paths.authContinue() && url.searchParams.get("step") === "link";
+}
+
+/**
+ * Where `next` goes once a gate step is behind the person: the gate's own
+ * page carries it, and it wins over every landing that is not a gate.
+ */
+function carryNext(destination: string, next: string | null): string {
+  if (!next) return destination;
+  if (destination === paths.verify()) return paths.verify({ next });
+  if (destination === paths.onboarding()) return paths.onboarding({ next });
+  return next;
+}
 
 /**
  * Unverified → /verify; not onboarded with pending invitations → /invitations;
  * otherwise the resolver's verify → onboarding → workspace order. An onboarded
  * person who belongs to no organization lands on /get-started (ADR 0032 D12);
  * a failed organization list is ignored rather than blocking sign-in.
+ *
+ * `next` (sanitized again here: same-origin paths only) survives the gates:
+ * /verify and /onboarding carry it and go on to it afterwards, and any other
+ * landing gives way to it. The consent and link-step pages above skip the
+ * gates altogether.
  *
  * Both lookups go through the query cache under the keys the next screen
  * reads, so /invitations and /get-started open on the answer already fetched
@@ -21,9 +59,12 @@ export async function resolveLoggedInDestination(
   user: AuthGateUser,
   workspaces: Workspace[],
   queryClient: QueryClient,
+  next?: string | null,
 ): Promise<string> {
+  const target = sanitizeNextUrl(next);
+  if (target && skipsEntryGates(target)) return target;
   const step = pendingAuthStep(user);
-  if (step === "verify") return paths.verify();
+  if (step === "verify") return paths.verify({ next: target });
   if (step === "onboarding") {
     try {
       const invites = await queryClient.fetchQuery({
@@ -32,7 +73,7 @@ export async function resolveLoggedInDestination(
         staleTime: 0,
         retry: false,
       });
-      if (invites.length > 0) return paths.invitations();
+      if (invites.length > 0) return target ?? paths.invitations();
     } catch {
       /* a side lookup never blocks sign-in */
     }
@@ -43,11 +84,18 @@ export async function resolveLoggedInDestination(
           .fetchQuery({ queryKey: organizationKeys.list(), queryFn: fetchOrganizations, staleTime: 0, retry: false })
           .catch(() => undefined)
       : undefined;
-  return resolvePostAuthDestination(workspaces, user, organizations);
+  return carryNext(resolvePostAuthDestination(workspaces, user, organizations), target);
 }
 
 /** `resolveLoggedInDestination` bound to the app's query cache, for the sign-in screens. */
-export function useLoggedInDestination(): (user: AuthGateUser, workspaces: Workspace[]) => Promise<string> {
+export function useLoggedInDestination(): (
+  user: AuthGateUser,
+  workspaces: Workspace[],
+  next?: string | null,
+) => Promise<string> {
   const queryClient = useQueryClient();
-  return useCallback((user, workspaces) => resolveLoggedInDestination(user, workspaces, queryClient), [queryClient]);
+  return useCallback(
+    (user, workspaces, next) => resolveLoggedInDestination(user, workspaces, queryClient, next),
+    [queryClient],
+  );
 }

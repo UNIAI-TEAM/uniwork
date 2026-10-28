@@ -84,7 +84,9 @@ it("says a reclaimed account once the session is real, and takes the flag out of
   await renderPage();
   expect(state.announce).toHaveBeenCalledTimes(1);
   expect(state.announce).toHaveBeenCalledWith({ reclaimed: true });
-  expect(state.replace).toHaveBeenLastCalledWith("/acme/team");
+  // `next` rides through whatever gate the account still owes.
+  expect(state.resolve).toHaveBeenLastCalledWith(VERIFIED, [], "/acme/team");
+  expect(state.replace).toHaveBeenLastCalledWith("/acme/team/tasks");
 });
 
 it("says nothing for an ordinary provider sign-in", async () => {
