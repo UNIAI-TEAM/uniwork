@@ -16,6 +16,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { DeleteAccountDialog } from "./delete-account-dialog";
 import { SessionsSection } from "./security-sessions";
+import { SignInMethodsSection } from "./security-sign-in-methods";
 import {
   SettingsBadge,
   SettingsCard,
@@ -89,6 +90,7 @@ export function SecurityTab() {
           <AlertDescription>{t("mfa.platformRequired")}</AlertDescription>
         </Alert>
       ) : null}
+      <SignInMethodsSection />
       <SettingsSection
         title={t("mfa.section")}
         description={t("mfa.description")}

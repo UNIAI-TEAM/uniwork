@@ -1965,9 +1965,12 @@
           "linked": "Linked",
           "notLinked": "Link to sign in with {{provider}}",
           "link": "Link",
+          "linkAria": "Link {{provider}}",
           "unlink": "Unlink",
+          "unlinkAria": "Unlink {{provider}}",
           "linking": "Opening {{provider}}…",
           "linkOnWeb": "Link on the web",
+          "linkOnWebAria": "Link {{provider}} on the web",
           "linkOnWebHint": "Open UniWork in your browser to link {{provider}}."
         },
         "reasons": {
@@ -1989,6 +1992,7 @@
           "body": "This {{provider}} account is used by an empty account, {{masked}}. That account never joined an organization and will be deleted.",
           "bodyUnknown": "This {{provider}} account is used by an empty account. That account never joined an organization and will be deleted.",
           "confirm": "Move it here",
+          "decline": "Don't move it",
           "pending": "Moving…",
           "toast": "{{provider}} moved to this account."
         },
@@ -2003,8 +2007,9 @@
           "already_linked": "This account already has another {{provider}} account linked. Unlink that one first, then try again.",
           "session_mismatch": "This browser just signed in to another account. Sign in to the right account and try again."
         },
-        "browserOtherAccount": "This browser is signed in as {{other}}, but UniChat uses {{me}}.",
-        "browserOtherAccountHint": "Sign out in the browser and sign in as {{me}} to link the right account.",
+        "browserOtherAccount": "This browser is signed in as {{other}}, not the account you use in UniChat.",
+        "browserOtherAccountHint": "Sign out here, then sign in with your UniChat account to link the right one.",
+        "signOut": "Sign out",
         "errors": {
           "generic": "Couldn't save the change. Try again.",
           "taken": "This sign-in method is used by {{masked}}. Sign in there and unlink it first.",
@@ -2050,6 +2055,8 @@
           "sending": "Sending code…",
           "sent": "We sent a code to {{email}}. It expires in 10 minutes.",
           "sentRelay": "We sent a code to Apple's hidden email. It expires in 10 minutes.",
+          "resent": "We sent a new code to {{email}}. It expires in 10 minutes.",
+          "resentRelay": "We sent a new code to Apple's hidden email. It expires in 10 minutes.",
           "label": "Code from the email",
           "required": "Enter the 6-digit code from the email.",
           "resend": "Resend code",

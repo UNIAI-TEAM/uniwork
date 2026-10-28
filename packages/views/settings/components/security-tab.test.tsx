@@ -91,8 +91,10 @@ describe("SecurityTab", () => {
     setSessionUser(user);
     requestMock.mockRejectedValue(new ApiError("boom", "internal", 500));
     render(wrapWithNav(<SecurityTab />));
-    expect(await screen.findByText("Không tải được danh sách phiên.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    const failed = await screen.findByText("Không tải được danh sách phiên.");
+    // Each list says its own failure, with its own retry (sign-in methods fails too).
+    expect(within(failed.closest<HTMLElement>("[role=status]")!).getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    expect(screen.getByText("Không tải được phương thức đăng nhập.")).toBeInTheDocument();
   });
 
   it("walks the MFA enrolment: setup shows the secret, confirm shows recovery codes once", async () => {

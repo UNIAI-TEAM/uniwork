@@ -1964,9 +1964,12 @@
           "linked": "Đã liên kết",
           "notLinked": "Liên kết để đăng nhập bằng {{provider}}",
           "link": "Liên kết",
+          "linkAria": "Liên kết {{provider}}",
           "unlink": "Gỡ liên kết",
+          "unlinkAria": "Gỡ liên kết {{provider}}",
           "linking": "Đang mở {{provider}}…",
           "linkOnWeb": "Liên kết trên web",
+          "linkOnWebAria": "Liên kết {{provider}} trên web",
           "linkOnWebHint": "Mở UniWork trong trình duyệt để liên kết {{provider}}."
         },
         "reasons": {
@@ -1988,6 +1991,7 @@
           "body": "{{provider}} này đang dùng cho tài khoản trống {{masked}}. Tài khoản đó chưa từng vào tổ chức nào và sẽ bị xóa.",
           "bodyUnknown": "{{provider}} này đang dùng cho một tài khoản trống. Tài khoản đó chưa từng vào tổ chức nào và sẽ bị xóa.",
           "confirm": "Chuyển sang đây",
+          "decline": "Không chuyển",
           "pending": "Đang chuyển…",
           "toast": "Đã chuyển {{provider}} sang tài khoản này."
         },
@@ -2002,8 +2006,9 @@
           "already_linked": "Tài khoản này đã liên kết một tài khoản {{provider}} khác. Gỡ liên kết tài khoản đó trước rồi thử lại.",
           "session_mismatch": "Trình duyệt vừa đăng nhập một tài khoản khác. Đăng nhập lại đúng tài khoản rồi thử lại."
         },
-        "browserOtherAccount": "Trình duyệt đang đăng nhập {{other}}, còn UniChat dùng {{me}}.",
-        "browserOtherAccountHint": "Đăng xuất trên trình duyệt rồi đăng nhập {{me}} để liên kết đúng tài khoản.",
+        "browserOtherAccount": "Trình duyệt đang đăng nhập {{other}}, không phải tài khoản bạn dùng trong UniChat.",
+        "browserOtherAccountHint": "Đăng xuất ở đây, rồi đăng nhập tài khoản UniChat của bạn để liên kết đúng tài khoản.",
+        "signOut": "Đăng xuất",
         "errors": {
           "generic": "Chưa lưu được thay đổi. Thử lại.",
           "taken": "Cách đăng nhập này đang dùng cho tài khoản {{masked}}. Đăng nhập vào đó để gỡ liên kết trước.",
@@ -2049,6 +2054,8 @@
           "sending": "Đang gửi mã…",
           "sent": "Đã gửi mã tới {{email}}. Mã có hiệu lực 10 phút.",
           "sentRelay": "Đã gửi mã tới email ẩn của Apple. Mã có hiệu lực 10 phút.",
+          "resent": "Đã gửi mã mới tới {{email}}. Mã có hiệu lực 10 phút.",
+          "resentRelay": "Đã gửi mã mới tới email ẩn của Apple. Mã có hiệu lực 10 phút.",
           "label": "Mã trong email",
           "required": "Nhập mã 6 số trong email.",
           "resend": "Gửi lại mã",
