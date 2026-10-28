@@ -5,7 +5,7 @@ import { act, fireEvent, screen } from "@testing-library/react-native";
 import type { SignInMethods } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
 import * as Clipboard from "expo-clipboard";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import { AccessibilityInfo } from "react-native";
 import { api } from "@/data/api";
 import { signInMethodsApi, stepUp } from "@/data/auth/methods-api";
@@ -70,6 +70,51 @@ afterEach(() => {
 });
 
 describe("PasswordForm", () => {
+  const fillChange = async () => {
+    await type("password-current", "old-pass");
+    await type("password-new", "new-pass-1");
+    await type("password-again", "new-pass-1");
+  };
+  const answerLater = () => {
+    let answer: () => void = () => undefined;
+    methodsApi.setPassword.mockImplementationOnce(
+      () => new Promise((resolve) => (answer = () => resolve({ user: null, methods: methods() }))),
+    );
+    return () => act(async () => answer());
+  };
+
+  it("holds back while the save runs, then goes back once", async () => {
+    const answer = answerLater();
+    await render(<PasswordForm />);
+    await screen.findByTestId("password-current");
+    await fillChange();
+    await fireEvent.press(screen.getByTestId("password-save"));
+    expect(useNavigation().setOptions).toHaveBeenLastCalledWith({ gestureEnabled: false });
+    const back = screen.getByRole("button", { name: viText("common.back") });
+    expect(back).toBeDisabled();
+    await fireEvent.press(back);
+    expect(router.back).not.toHaveBeenCalled();
+    await answer();
+    await settle();
+    expect(router.back).toHaveBeenCalledTimes(1);
+    expect(useNavigation().setOptions).toHaveBeenLastCalledWith({ gestureEnabled: true });
+  });
+
+  it("says a save that ends once another screen is in front, and moves no one", async () => {
+    const answer = answerLater();
+    await render(<PasswordForm />);
+    await screen.findByTestId("password-current");
+    await fillChange();
+    await fireEvent.press(screen.getByTestId("password-save"));
+    // A notification opened a conversation meanwhile.
+    jest.mocked(useNavigation().isFocused).mockReturnValueOnce(false);
+    await answer();
+    await settle();
+    expect(toast.success).toHaveBeenCalledWith(viText("settings.security.signInMethods.password.toastChanged"));
+    expect(router.back).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
   it("changes the password with the current one, says other devices sign out, then goes back", async () => {
     await render(<PasswordForm />);
     expect(await screen.findByRole("header", { name: viText("settings.security.signInMethods.password.changeTitle") })).toBeOnTheScreen();

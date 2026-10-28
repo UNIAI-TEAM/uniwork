@@ -1,7 +1,8 @@
 // Back inside a screen that has steps of its own (the choice screen's address and code): Android's back button goes
 // back one step instead of leaving the screen, as the header's back button does. iOS's edge swipe cannot be made to
 // do that (native-stack pops the screen before JavaScript hears of it), so it is off while a step is open, and the
-// header's back button is the way back.
+// header's back button is the way back. A screen that holds back while something runs (the password screen's save)
+// passes a back that does nothing.
 import { useNavigation } from "expo-router";
 import { useEffect, useRef } from "react";
 import { BackHandler } from "react-native";

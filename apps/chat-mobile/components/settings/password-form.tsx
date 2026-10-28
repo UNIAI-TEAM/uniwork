@@ -5,17 +5,20 @@
 // other device out, said before it is made. Each refusal is said under the field it is about, which is focused.
 // It is a Settings screen: the header with its title and back, as the account's other screens, over the sign-in
 // screens' keyboard column. The account's address sits above the new password as a read-only username field, so
-// iOS Password AutoFill and Credential Manager know which saved password the new one replaces.
+// iOS Password AutoFill and Credential Manager know which saved password the new one replaces. While the save runs,
+// back waits (the header's, the edge swipe, Android's), and an answer that lands once the screen is no longer in
+// front says what happened without moving anyone.
 import { useQuery } from "@tanstack/react-query";
 import { readSignInFailure, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import * as Clipboard from "expo-clipboard";
-import { router } from "expo-router";
-import { useRef, useState } from "react";
+import { router, useNavigation } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AuthField, PasswordField } from "@/components/auth/auth-field";
 import { FormAlert, KeyboardColumn, SubmitButton, TextButton } from "@/components/auth/auth-layout";
+import { useStepBack } from "@/components/auth/use-step-back";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { haptics } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
@@ -30,6 +33,9 @@ import { confirmsWithSecondFactor } from "@/lib/sign-in-methods";
 import { useStepUp } from "./use-step-up";
 
 const P = "settings.security.signInMethods.password";
+
+/** Android's back while the save runs: taken, and nothing done. */
+const holdBack = () => undefined;
 
 type Field = "current" | "next" | "again";
 interface Problem {
@@ -48,6 +54,16 @@ export function PasswordForm() {
   const [again, setAgain] = useState("");
   const [problem, setProblem] = useState<Problem | null>(null);
   const [busy, setBusy] = useState(false);
+  const navigation = useNavigation();
+  const mounted = useRef(true);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+    },
+    [],
+  );
+  // Back waits for the answer: leaving mid-save would let the answer go back a second time.
+  useStepBack(busy, holdBack);
   const fields = { current: useRef<TextInput>(null), next: useRef<TextInput>(null), again: useRef<TextInput>(null) };
   const email = user?.email ?? "";
   const change = methods ? methods.password.set : Boolean(user?.has_password);
@@ -56,8 +72,12 @@ export function PasswordForm() {
   const asksCurrent = change && !secondFactor;
   const relay = isAppleRelayAddress(email);
 
+  /** This screen is the one in front (an answer may land after a notification opened another). */
+  const inFront = () => mounted.current && navigation.isFocused();
+
   const refuse = (field: Field | "form", message: string) => {
     setProblem({ field, message });
+    if (!inFront()) return;
     haptics.failure();
     if (field !== "form") fields[field].current?.focus();
   };
@@ -74,7 +94,7 @@ export function PasswordForm() {
 
   const finish = () => {
     toast.success(t(change ? `${P}.toastChanged` : `${P}.toastSet`));
-    leave();
+    if (inFront()) leave();
   };
 
   const submit = async () => {
@@ -127,7 +147,7 @@ export function PasswordForm() {
 
   return (
     <View className="flex-1 bg-background" testID="password-screen">
-      <ChatHeader title={t(change ? `${P}.changeTitle` : `${P}.setTitle`)} flat onBack={leave} />
+      <ChatHeader title={t(change ? `${P}.changeTitle` : `${P}.setTitle`)} flat onBack={leave} backDisabled={busy} />
       <KeyboardColumn className="pt-4">
         <View className="gap-6" testID="password-form">
           {change ? null : (
