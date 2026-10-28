@@ -2,12 +2,12 @@
 import { ArrowLeft, ArrowRightLeft, CircleAlert, Info } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { useSession } from "@uniwork/core/auth";
-import type { PasswordRefusal } from "@uniwork/core/organizations/errors";
+import type { StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import type { InvitationPreview, MembershipConflict, SwitchResolution } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useStepUpGate } from "../../settings/components/step-up-proof";
 import { ChangedNotice, RetryNotice, type RetryReason } from "./invite-notices";
 import { LaterLink } from "./invite-screens";
 import { ResolveBlock } from "./resolve-block";
@@ -21,6 +21,13 @@ import { ConfirmStepBody, ConflictStepBody, StepHeading, SwitchProgress, conflic
  * changes nothing (AC-10). The page remounts this with `startAt` and
  * `notice` when the server says the situation changed under it. It renders
  * inside the page's AuthShell, whose title names the destination.
+ *
+ * Handing an organization over is the one step its owner cannot undo
+ * alone, so a switch that does it is proved first (ADR 0047 §5): the shared
+ * "Xác nhận là bạn" dialog opens on "Chuyển sang …", unless a step-up token
+ * from the last ten minutes serves, and the accept carries the token
+ * (withTransferProof). A token the server no longer takes brings the dialog
+ * back once, on the proofs it names.
  */
 export function SwitchWizard({
   invitation,
@@ -39,89 +46,69 @@ export function SwitchWizard({
   pending: boolean;
   /** Why the last attempt changed nothing and can be sent again; null when there was none. */
   retry: RetryReason | null;
-  /** Sends the switch; `onPasswordRefused` runs when the server refuses the owner's password. */
-  onSubmit: (resolve: SwitchResolution[], onPasswordRefused: (why: PasswordRefusal) => void) => void;
+  /**
+   * Sends the switch; `onProofRequired` runs when the server no longer takes
+   * the owner's proof (proof_required), with the proofs it names.
+   */
+  onSubmit: (resolve: SwitchResolution[], onProofRequired: (proofs: readonly StepUpProof[]) => void) => void;
 }) {
   const { t } = useTranslation();
-  const { user } = useSession();
+  const gate = useStepUpGate();
   const [step, setStep] = useState(startAt);
   const [drafts, setDrafts] = useState<Record<string, SwitchDraft>>({});
-  const [passwordError, setPasswordError] = useState<string | undefined>();
-  // The server said this account has no password to confirm a transfer with.
-  const [refusedPasswordless, setRefusedPasswordless] = useState(false);
-  // An account that signs in only with Google has no password, and a transfer
-  // is confirmed with one (checkOwnerPassword): the wizard says so rather than
-  // asking for a password that does not exist.
-  const passwordless = refusedPasswordless || user?.has_password === false;
+  // The server refused a proof the dialog had just given: nothing changed,
+  // and pressing again asks once more.
+  const [proofRefused, setProofRefused] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
-  const form = useRef<HTMLFormElement>(null);
   // The step whose heading last had its chance at focus. 0 on a mount that
   // answers an action (a refreshed conflict list), so that heading takes it;
   // a first visit reads from the top instead.
   const focused = useRef(notice ? 0 : startAt);
-  // Set by a password refusal: focus goes to the refused field instead.
-  const focusInvalid = useRef(false);
-  // Why the person was sent back, for a screen reader: said politely after
-  // the heading that took focus. Empty when focus itself says it (the
-  // refused password field carries its own error).
-  const [announcement, setAnnouncement] = useState("");
 
-  // Focus follows the step, so a screen reader hears where it landed: the
-  // step heading, or the field the server refused, whose description says why.
+  // Focus follows the step, so a screen reader hears where it landed.
   useEffect(() => {
-    if (focused.current !== step) {
-      const refused = focusInvalid.current ? form.current?.querySelector<HTMLElement>('[aria-invalid="true"]') : null;
-      (refused ?? heading.current)?.focus();
-    }
-    focusInvalid.current = false;
+    if (focused.current !== step) heading.current?.focus();
     focused.current = step;
   }, [step]);
 
   const draftOf = (c: MembershipConflict) => drafts[c.organization.id] ?? EMPTY_DRAFT;
   const patch = (orgId: string, change: Partial<SwitchDraft>) => {
-    if ("password" in change) setPasswordError(undefined);
     setDrafts((prev) => ({ ...prev, [orgId]: { ...(prev[orgId] ?? EMPTY_DRAFT), ...change } }));
   };
   const blocked = conflicts.some((c) => c.required_action === "blocked");
-  const stuck = passwordless && conflicts.some((c) => c.required_action === "transfer");
-  const ready = !stuck && conflicts.every((c) => draftReady(c, draftOf(c)));
-  const reason = blocked ? "invitations.switch.blocked_reason" : stuck ? "invitations.switch.no_password_reason" : "invitations.switch.incomplete";
+  const ready = conflicts.every((c) => draftReady(c, draftOf(c)));
+  const reason = blocked ? "invitations.switch.blocked_reason" : "invitations.switch.incomplete";
   // Red is kept for the one switch nobody can take back: closing an
   // organization. Leaving one, or handing it over, is an ordinary move.
   const closes = conflicts.some((c) => c.required_action === "close");
   const to = invitation.organization.name;
 
-  const submit = () => {
-    if (pending) return;
-    const resolve = conflicts.map((c) => toResolution(c, draftOf(c))).filter((r): r is SwitchResolution => r !== null);
-    onSubmit(resolve, (why) => {
-      // The password is never kept past a refusal; the owner types it again.
-      setDrafts((prev) =>
-        Object.fromEntries(Object.entries(prev).map(([id, d]) => [id, { ...d, password: "" }])),
-      );
-      // "step_up" (proof_required): the account has no password to confirm
-      // with, so asking for it again would only send the same refusal back.
-      // The shared proof dialog (spec §4.5) replaces this dead end.
-      if (why === "step_up") {
-        setRefusedPasswordless(true);
-        setAnnouncement(t("invitations.switch.no_password_reason"));
-      } else {
-        setPasswordError(t("org.transfer.wrong_password"));
-        focusInvalid.current = true;
-      }
-      setStep(2);
+  // One send, and at most one more after a proof the server refused.
+  const send = (resolve: SwitchResolution[], again: boolean) =>
+    onSubmit(resolve, (proofs) => {
+      if (again) return setProofRefused(true);
+      void gate.ensure("transfer_ownership", proofs).then((ok) => {
+        if (ok) send(resolve, true);
+      });
     });
+
+  const submit = async () => {
+    if (pending || gate.asking) return;
+    setProofRefused(false);
+    const resolve = conflicts.map((c) => toResolution(c, draftOf(c))).filter((r): r is SwitchResolution => r !== null);
+    if (resolve.some((r) => r.action === "transfer") && !(await gate.ensure("transfer_ownership"))) return;
+    send(resolve, false);
   };
 
-  // Each step is a form, so Enter in a field submits it (and a password
-  // manager recognises the password step); the same checks as the button
-  // apply, and an incomplete step stays put rather than reloading the page.
+  // Each step is a form, so Enter in a field submits it; the same checks as
+  // the button apply, and an incomplete step stays put rather than reloading
+  // the page.
   const advance = (event: FormEvent) => {
     event.preventDefault();
     if (step === 1) setStep(2);
     else if (step === 2) {
       if (ready) setStep(3);
-    } else submit();
+    } else void submit();
   };
 
   return (
@@ -149,15 +136,10 @@ export function SwitchWizard({
       </div>
       {notice ? <ChangedNotice /> : null}
 
-      <p aria-live="polite" className="sr-only">
-        {announcement}
-      </p>
-
       {/* Keyed by step so each step fades in (opacity only: a transform on
           this column would flicker the scrollbar, see base.css). */}
       <form
         key={step}
-        ref={form}
         noValidate
         onSubmit={advance}
         className="flex flex-col gap-4 motion-safe:animate-onboarding-enter"
@@ -183,8 +165,6 @@ export function SwitchWizard({
                 conflict={c}
                 draft={draftOf(c)}
                 onChange={(change) => patch(c.organization.id, change)}
-                passwordError={c.required_action === "transfer" ? passwordError : undefined}
-                passwordless={passwordless}
               />
             ))}
             <StepActions>
@@ -199,7 +179,7 @@ export function SwitchWizard({
               >
                 {t("common.continue")}
               </Button>
-              {ready ? null : <ResolveReason stopped={blocked || stuck}>{t(reason)}</ResolveReason>}
+              {ready ? null : <ResolveReason stopped={blocked}>{t(reason)}</ResolveReason>}
             </StepActions>
           </>
         ) : null}
@@ -208,7 +188,7 @@ export function SwitchWizard({
           <>
             <StepHeading ref={heading}>{t("invitations.switch.confirm_heading")}</StepHeading>
             <ConfirmStepBody invitation={invitation} conflicts={conflicts} drafts={drafts} />
-            {retry ? <RetryNotice why={retry} /> : null}
+            {retry ? <RetryNotice why={retry} /> : proofRefused ? <RetryNotice why="failed" /> : null}
             <StepActions sending={pending}>
               <Button
                 type="submit"
@@ -239,14 +219,16 @@ export function SwitchWizard({
           </>
         ) : null}
       </form>
+      {/* Beside the step's form, not in it: React carries a portal's submit up its own tree. */}
+      {gate.dialog}
     </div>
   );
 }
 
 /**
  * Why Continue does not go on yet, tied to it by `aria-describedby`. When the
- * person cannot finish the step at all here (a suspended organization, no
- * password to confirm a transfer), it reads as the stop it is.
+ * person cannot finish the step at all here (a suspended organization), it
+ * reads as the stop it is.
  */
 function ResolveReason({ stopped, children }: { stopped: boolean; children: ReactNode }) {
   const Icon = stopped ? CircleAlert : Info;

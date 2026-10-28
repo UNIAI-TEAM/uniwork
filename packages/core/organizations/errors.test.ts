@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api/http";
-import { alreadyInOrganization, organizationSwitchConflicts, passwordRefusal } from "./errors";
+import { alreadyInOrganization, organizationSwitchConflicts } from "./errors";
 
 const apiError = (code: string, fields?: Record<string, unknown>) =>
   new ApiError("refused", code, 409, undefined, fields);
@@ -49,25 +49,5 @@ describe("organizationSwitchConflicts", () => {
     expect(organizationSwitchConflicts(apiError("conflict", { conflicts: [conflict] }))).toBeNull();
     expect(organizationSwitchConflicts(apiError("organization_switch_required", { conflicts: "x" }))).toBeNull();
     expect(organizationSwitchConflicts(new Error("x"))).toBeNull();
-  });
-});
-
-describe("passwordRefusal", () => {
-  it("reads a wrong re-entered password, on the new code and the old one", () => {
-    expect(passwordRefusal(new ApiError("x", "password_incorrect", 403))).toBe("incorrect");
-    // A server older than password_incorrect answered 401 invalid_credentials.
-    expect(passwordRefusal(new ApiError("x", "invalid_credentials", 401))).toBe("incorrect");
-  });
-
-  it("reads a missing or no longer serving proof as a step-up to take (ADR 0047 §5)", () => {
-    expect(passwordRefusal(new ApiError("x", "proof_required", 403, undefined, { proofs: ["email_code"] }))).toBe("step_up");
-  });
-
-  it("is null for any other failure, the retired password_required included", () => {
-    // The server answers proof_required since ADR 0047; nothing sends password_required.
-    expect(passwordRefusal(new ApiError("x", "password_required", 403))).toBeNull();
-    expect(passwordRefusal(new ApiError("x", "forbidden", 403))).toBeNull();
-    expect(passwordRefusal(new Error("x"))).toBeNull();
-    expect(passwordRefusal(undefined)).toBeNull();
   });
 });

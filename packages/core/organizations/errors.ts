@@ -29,27 +29,3 @@ export function organizationSwitchConflicts(err: unknown): MembershipConflict[] 
   const parsed = z.array(MembershipConflictSchema).safeParse(errorFields(err)?.conflicts);
   return parsed.success ? parsed.data : null;
 }
-
-/**
- * Why the server refused the proof an owner gave to hand an organization
- * over (Settings › Organization, or the invitation switch), null for any
- * other failure:
- * - "incorrect": the re-entered password did not match. 403
- *   password_incorrect is the code; 401 invalid_credentials is still read
- *   the same so a client running against an older server says the same.
- * - "step_up": no proof the account takes came with the request, or the
- *   held step-up token no longer serves (403 proof_required, which replaced
- *   password_required in ADR 0047 §5: an owner without a password proves
- *   itself with a mailed code). The screen confirms it is the owner
- *   (useStepUp with action transfer_ownership, on the proofs
- *   readSignInFailure(err, "methods").proofs names) and sends again;
- *   useTransferOwnership and the invitation hooks send the held token.
- */
-export type PasswordRefusal = "incorrect" | "step_up";
-
-export function passwordRefusal(err: unknown): PasswordRefusal | null {
-  const code = errorCode(err);
-  if (code === "password_incorrect" || code === "invalid_credentials") return "incorrect";
-  if (code === "proof_required") return "step_up";
-  return null;
-}

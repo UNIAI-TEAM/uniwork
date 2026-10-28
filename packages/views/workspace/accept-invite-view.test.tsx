@@ -49,18 +49,37 @@ function conflict(required_action: string, extra: Record<string, unknown> = {}) 
   return { organization: acme, role: "member", required_action, transfer_candidates_count: 0, ...extra };
 }
 
+const METHODS = {
+  password: { set: true, changed_at: null },
+  google: { linked: false, email: null, linked_at: null },
+  apple: { linked: false, email: null, linked_at: null, private_relay: false },
+  account_email_is_relay: false,
+  proofs: ["password", "email_code"],
+};
+let tokens = 0;
+/** POST /me/step-up: a fresh token for the right password, the server's refusal otherwise. */
+async function stepUp(body: unknown) {
+  const { password, code } = (body ?? {}) as { password?: string; code?: string };
+  if (password !== "password123" && code !== "123456") throw new ApiError("x", "password_incorrect", 403);
+  tokens += 1;
+  return { step_up_token: `sut-${tokens}`, expires_at: new Date(Date.now() + 600_000).toISOString(), method: "password" };
+}
+
 /**
  * The server as the page sees it: the preview, the caller's organizations
- * (Acme, the one they would leave), Acme's members, and an accept answered by
- * `onAccept`.
+ * (Acme, the one they would leave), Acme's members, the account's proofs for
+ * the proof dialog, and an accept answered by `onAccept`.
  */
 function serve({
   preview,
   onAccept = async () => ({ organization: beta, workspace: betaWorkspace }),
+  methods = METHODS,
 }: {
   preview: unknown | (() => Promise<unknown>);
   onAccept?: (body: unknown) => Promise<unknown>;
+  methods?: unknown;
 }) {
+  tokens = 0;
   requestMock.mockImplementation(async (path: string, init?: Init) => {
     if (path === "/api/v1/invitations/t1") return typeof preview === "function" ? (preview as () => Promise<unknown>)() : preview;
     if (path === "/api/v1/invitations/t1/accept") return onAccept(init?.body);
@@ -75,6 +94,9 @@ function serve({
       };
     }
     if (path === "/api/v1/me") return { user: me };
+    if (path === "/api/v1/me/sign-in-methods") return methods;
+    if (path === "/api/v1/me/step-up") return stepUp(init?.body);
+    if (path === "/api/v1/me/step-up/email-code") return { status: "sent" };
     return {};
   });
 }
@@ -92,6 +114,14 @@ const next = () => fireEvent.click(screen.getByRole("button", { name: "Tiếp t�
 // The member list loads, then the select opens in a portal: slow under a full
 // parallel run, so these finds get more than the default second.
 const SLOW = { timeout: 5000 };
+const proofDialog = async () => within(await screen.findByRole("dialog", { name: "Xác nhận là bạn" }, SLOW));
+async function prove(password = "password123") {
+  const proof = await proofDialog();
+  fireEvent.change(await proof.findByLabelText("Mật khẩu hiện tại", {}, SLOW), { target: { value: password } });
+  fireEvent.click(proof.getByRole("button", { name: "Xác nhận" }));
+  return proof;
+}
+
 async function pickHeir() {
   const combobox = await screen.findByRole("combobox", { name: "Chủ sở hữu mới" }, SLOW);
   fireEvent.click(combobox);
@@ -484,41 +514,41 @@ describe("AcceptInviteView", () => {
     it("lets Enter move a step on once it is complete, and do nothing before", async () => {
       await openWizard([conflict("transfer", { role: "owner", transfer_candidates_count: 1 })]);
       next();
-      await pickHeir();
-      const password = screen.getByLabelText("Mật khẩu hiện tại của bạn") as HTMLInputElement;
-      const cont = screen.getByRole("button", { name: "Tiếp tục" });
-      // The step is a form, so Enter in the password field submits it and a
-      // password manager sees a sign-in-like form.
-      expect(password.form).not.toBeNull();
-      expect(cont).toHaveAttribute("type", "submit");
-      expect((cont as HTMLButtonElement).form).toBe(password.form);
-      fireEvent.submit(password.form!);
+      const form = ((await screen.findByRole("button", { name: "Tiếp tục" })) as HTMLButtonElement).form!;
+      expect(form).not.toBeNull();
+      fireEvent.submit(form);
       expect(screen.getByRole("heading", { name: "Xử lý tổ chức cũ" })).toBeInTheDocument();
-      fireEvent.change(password, { target: { value: "secret" } });
-      fireEvent.submit(password.form!);
+      await pickHeir();
+      fireEvent.submit(((screen.getByRole("button", { name: "Tiếp tục" })) as HTMLButtonElement).form!);
       expect(await screen.findByRole("heading", { name: "Xác nhận chuyển tổ chức" })).toBeInTheDocument();
       expect(acceptCalls()).toHaveLength(0);
       const action = screen.getByRole("button", { name: "Chuyển sang Beta" }) as HTMLButtonElement;
       expect(action).toHaveAttribute("type", "submit");
       fireEvent.submit(action.form!);
-      await waitFor(() => expect(acceptCalls()).toHaveLength(1));
+      // A hand-over is proved first: the proof dialog opens, nothing is sent yet.
+      await proofDialog();
+      expect(acceptCalls()).toHaveLength(0);
     });
 
-    it("transfers ownership to the chosen member with the owner's password", async () => {
+    it("asks who the owner is, then transfers ownership with that proof in one request", async () => {
       const onAccepted = await openWizard([conflict("transfer", { role: "owner", transfer_candidates_count: 1 })]);
       next();
       expect(await screen.findByText(/Bạn là chủ sở hữu của Acme/)).toBeInTheDocument();
+      // The step asks for the new owner alone: who is handing over is the proof dialog's to ask.
+      expect(screen.queryByLabelText(/mật khẩu/i)).not.toBeInTheDocument();
       const cont = screen.getByRole("button", { name: "Tiếp tục" });
-      await pickHeir();
       expect(cont).toHaveAttribute("aria-disabled", "true");
-      fireEvent.change(screen.getByLabelText("Mật khẩu hiện tại của bạn"), { target: { value: "secret" } });
+      await pickHeir();
       expect(cont).not.toHaveAttribute("aria-disabled");
       next();
       expect(await screen.findByText("Chuyển quyền sở hữu Acme cho Nguyễn Văn An, rồi rời tổ chức")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Chuyển sang Beta" }));
-      await waitFor(() => expect(onAccepted).toHaveBeenCalled());
+      const proof = await proofDialog();
+      expect(proof.getByText("Để bảo vệ tài khoản, xác nhận là bạn trước khi chuyển quyền sở hữu.")).toBeInTheDocument();
+      await prove();
+      await waitFor(() => expect(onAccepted).toHaveBeenCalled(), SLOW);
       expect(acceptCalls()).toEqual([
-        { resolve: [{ organization_id: "o1", action: "transfer", transfer_to_user_id: "u2", password: "secret" }] },
+        { resolve: [{ organization_id: "o1", action: "transfer", transfer_to_user_id: "u2", step_up_token: "sut-1" }] },
       ]);
     });
 
@@ -643,70 +673,86 @@ describe("AcceptInviteView", () => {
       expect(screen.queryByRole("button", { name: "Quay lại" })).not.toBeInTheDocument();
     });
 
-    /**
-     * An account that signs in only with Google has no password, and the
-     * transfer is confirmed with one: the wizard says so instead of asking
-     * for a password the account does not have.
-     */
-    it("tells an owner without a password that the transfer cannot be confirmed here", async () => {
-      setSessionUser({ ...me, has_password: false });
-      serve({ preview: { invitation: invitation(), conflicts: [conflict("transfer", { role: "owner", transfer_candidates_count: 1 })] } });
-      renderView();
+    async function reachTransferConfirm(onAccept?: (body: unknown) => Promise<unknown>, methods?: unknown) {
+      signIn();
+      serve({
+        preview: { invitation: invitation(), conflicts: [conflict("transfer", { role: "owner", transfer_candidates_count: 1 })] },
+        onAccept,
+        methods,
+      });
+      const onAccepted = renderView();
       expect(await screen.findByRole("heading", { name: "Chuyển sang Beta" })).toBeInTheDocument();
       next();
-      expect(await screen.findByText(/tài khoản của bạn chưa có mật khẩu/)).toBeInTheDocument();
-      expect(screen.queryByLabelText("Mật khẩu hiện tại của bạn")).not.toBeInTheDocument();
       await pickHeir();
-      const cont = screen.getByRole("button", { name: "Tiếp tục" });
-      expect(cont).toHaveAttribute("aria-disabled", "true");
-      expect(cont).toHaveAccessibleDescription("Chưa thể tiếp tục khi tài khoản chưa có mật khẩu.");
+      next();
+      const action = await screen.findByRole("button", { name: "Chuyển sang Beta" }, SLOW);
+      fireEvent.click(action);
+      return onAccepted;
+    }
+
+    /** An owner who signs in only with Google or Apple is no longer stuck: a mailed code proves the hand-over. */
+    it("lets an owner without a password prove the transfer with a code mailed for it", async () => {
+      setSessionUser({ ...me, has_password: false });
+      const onAccepted = await reachTransferConfirm(undefined, {
+        ...METHODS,
+        password: { set: false, changed_at: null },
+        proofs: ["email_code"],
+      });
+      const proof = await proofDialog();
+      fireEvent.click(await proof.findByRole("button", { name: "Gửi mã tới a@b.co" }, SLOW));
+      fireEvent.change(await proof.findByLabelText("Mã trong email", {}, SLOW), { target: { value: "123456" } });
+      fireEvent.click(proof.getByRole("button", { name: "Xác nhận" }));
+      await waitFor(() => expect(onAccepted).toHaveBeenCalled(), SLOW);
+      const mailed = requestMock.mock.calls.filter(([path]) => path === "/api/v1/me/step-up/email-code");
+      expect(mailed.map(([, init]) => (init as Init).body)).toEqual([{ action: "transfer_ownership" }]);
+      expect(acceptCalls()).toEqual([
+        { resolve: [{ organization_id: "o1", action: "transfer", transfer_to_user_id: "u2", step_up_token: "sut-1" }] },
+      ]);
     });
 
-    it("says the account has no password when the server asks for another proof", async () => {
-      await openWizard([conflict("transfer", { role: "owner", transfer_candidates_count: 1 })], () =>
-        Promise.reject(new ApiError("x", "proof_required", 403, undefined, { proofs: ["email_code"] })),
-      );
-      next();
-      await pickHeir();
-      fireEvent.change(screen.getByLabelText("Mật khẩu hiện tại của bạn"), { target: { value: "anything" } });
-      next();
-      // Found outside act: a find polled inside act waits on updates act holds back.
-      const action = await screen.findByRole("button", { name: "Chuyển sang Beta" }, SLOW);
-      await act(async () => {
-        fireEvent.click(action);
+    it("asks again, on the proofs the server names, when the held token no longer serves", async () => {
+      let accepts = 0;
+      const onAccepted = await reachTransferConfirm(async () => {
+        accepts += 1;
+        if (accepts === 1) throw new ApiError("x", "proof_required", 403, undefined, { proofs: ["password"] });
+        return { organization: beta, workspace: betaWorkspace };
       });
-      expect(await screen.findByText(/tài khoản của bạn chưa có mật khẩu/, {}, SLOW)).toBeInTheDocument();
-      expect(screen.queryByLabelText("Mật khẩu hiện tại của bạn")).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Tiếp tục" })).toHaveAttribute("aria-disabled", "true");
-      // Sent back to the step, a screen reader also hears why.
-      await waitFor(() =>
-        expect(
-          screen
-            .getAllByText("Chưa thể tiếp tục khi tài khoản chưa có mật khẩu.")
-            .some((el) => el.closest('[aria-live="polite"]') !== null),
-        ).toBe(true),
-      );
+      await prove();
+      const again = await proofDialog();
+      // The server named the password alone: no other way is offered.
+      expect(again.queryByRole("button", { name: "Dùng cách khác" })).toBeNull();
+      await prove();
+      await waitFor(() => expect(onAccepted).toHaveBeenCalled(), SLOW);
+      expect(acceptCalls().map((b) => (b as { resolve: { step_up_token?: string }[] }).resolve[0]?.step_up_token)).toEqual([
+        "sut-1",
+        "sut-2",
+      ]);
+      // Still on the confirmation throughout: nothing sent the owner back a step.
+      expect(screen.queryByRole("heading", { name: "Xử lý tổ chức cũ" })).not.toBeInTheDocument();
     });
 
-    it("sends the owner back to the password when the server refuses it", async () => {
-      await openWizard([conflict("transfer", { role: "owner", transfer_candidates_count: 1 })], () =>
-        Promise.reject(new ApiError("x", "password_incorrect", 403)),
-      );
-      next();
-      await pickHeir();
-      fireEvent.change(screen.getByLabelText("Mật khẩu hiện tại của bạn"), { target: { value: "wrong" } });
-      next();
-      // Found outside act: a find polled inside act waits on updates act holds back.
-      const action = await screen.findByRole("button", { name: "Chuyển sang Beta" }, SLOW);
-      await act(async () => {
-        fireEvent.click(action);
+    it("keeps a wrong proof in the proof dialog, and sends nothing when it is closed", async () => {
+      const onAccepted = await reachTransferConfirm();
+      const proof = await prove("wrong");
+      expect(await proof.findByText("Mật khẩu chưa đúng. Nhập lại.", {}, SLOW)).toBeInTheDocument();
+      fireEvent.click(proof.getByRole("button", { name: "Hủy" }));
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "Xác nhận là bạn" })).not.toBeInTheDocument());
+      expect(acceptCalls()).toHaveLength(0);
+      expect(onAccepted).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Chuyển sang Beta" })).toBeInTheDocument();
+    });
+
+    it("says nothing went through when the server refuses a fresh proof too, and asks again on the next press", async () => {
+      const onAccepted = await reachTransferConfirm(async () => {
+        throw new ApiError("x", "proof_required", 403, undefined, { proofs: ["password"] });
       });
-      const password = await screen.findByLabelText("Mật khẩu hiện tại của bạn", {}, SLOW);
-      expect(password).toHaveValue("");
-      expect(password).toHaveAttribute("aria-invalid", "true");
-      expect(password).toHaveAccessibleDescription("Mật khẩu chưa đúng. Nhập lại để chuyển quyền sở hữu.");
-      // Focus lands on the refused field, whose description says why, not on the step heading.
-      await waitFor(() => expect(password).toHaveFocus());
+      await prove();
+      await prove();
+      expect(await screen.findByRole("status", {}, SLOW)).toHaveTextContent("Chưa gửi được yêu cầu chuyển tổ chức.");
+      expect(acceptCalls()).toHaveLength(2);
+      fireEvent.click(screen.getByRole("button", { name: "Chuyển sang Beta" }));
+      await proofDialog();
+      expect(onAccepted).not.toHaveBeenCalled();
     });
   });
 });
