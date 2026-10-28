@@ -58,3 +58,21 @@ func TestInstantInPersonMeetingOnTheWire(t *testing.T) {
 		t.Fatalf("ended %v, want an hour ago", end)
 	}
 }
+
+// Seconds that would overflow time.Duration must not wrap into the bounds:
+// 18446744074 s is 2^64 ns plus 0.29 s, which a bare conversion reads as "just now".
+func TestRecordHeldNowSecondsDoNotWrap(t *testing.T) {
+	f := setupChatFixture(t, "venue-wrap")
+	_, out := doJSON(t, f.srv, "POST", "/api/v1/workspaces/"+f.wsID+"/meetings/instant", f.tokens["a"], map[string]any{
+		"title": "Họp nhanh", "venue": "in_person",
+	})
+	id := out["meeting"].(map[string]any)["id"].(string)
+	for _, body := range []map[string]any{
+		{"duration_seconds": 2520, "ended_seconds_ago": 18446744074},
+		{"duration_seconds": 18446744074},
+	} {
+		if res, out := doJSON(t, f.srv, "POST", "/api/v1/meetings/"+id+"/held", f.tokens["a"], body); res.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("%v: %d %v", body, res.StatusCode, out)
+		}
+	}
+}

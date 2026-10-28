@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"math"
 	"net/http"
 	"time"
 
@@ -16,6 +17,12 @@ import (
 // Meetings held without a room (UNI-2001, parent spec §6.4): recording the
 // meeting as held, the recording's upload session, and its transcriptions.
 
+// heldSeconds caps n far above the service's bounds before converting, so a
+// huge value is refused there instead of wrapping around int64 into range.
+func heldSeconds(n int) time.Duration {
+	return time.Duration(min(n, math.MaxInt32)) * time.Second
+}
+
 func (h *handlers) recordMeetingHeld(w http.ResponseWriter, r *http.Request) {
 	var in sdi.RecordMeetingHeldSDI
 	if !decode(w, r, &in, maxJSONBody) {
@@ -25,8 +32,7 @@ func (h *handlers) recordMeetingHeld(w http.ResponseWriter, r *http.Request) {
 	var m db.Meeting
 	var err error
 	if in.DurationSeconds > 0 && in.StartedAt == "" && in.EndedAt == "" {
-		m, err = h.Meetings.RecordHeldNow(r.Context(), userID, meetingID, time.Duration(in.DurationSeconds)*time.Second,
-			time.Duration(in.EndedSecondsAgo)*time.Second)
+		m, err = h.Meetings.RecordHeldNow(r.Context(), userID, meetingID, heldSeconds(in.DurationSeconds), heldSeconds(in.EndedSecondsAgo))
 	} else {
 		// An unreadable time stays zero: the service refuses it (422) only after
 		// it has authorized the caller, so a stranger learns nothing either way.
