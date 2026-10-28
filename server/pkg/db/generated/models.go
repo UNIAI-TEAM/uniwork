@@ -1231,6 +1231,22 @@ type DriveFileAccess struct {
 	CheckedAt      pgtype.Timestamptz `json:"checked_at"`
 }
 
+type DriveFileShare struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DriveFileID    string             `json:"drive_file_id"`
+	PrincipalType  string             `json:"principal_type"`
+	PrincipalID    string             `json:"principal_id"`
+	Level          string             `json:"level"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	RevokedBy      pgtype.Text        `json:"revoked_by"`
+	RevokedByKind  pgtype.Text        `json:"revoked_by_kind"`
+}
+
 type DriveFileTaskLink struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

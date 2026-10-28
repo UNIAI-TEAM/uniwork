@@ -173,37 +173,73 @@ func (q *Queries) CountDriveFilesByUserConnections(ctx context.Context, arg Coun
 
 const countMyDriveFiles = `-- name: CountMyDriveFiles :one
 SELECT count(*)::bigint
-FROM drive_file_access va
-JOIN drive_files f
-  ON f.id = va.drive_file_id
- AND f.organization_id = va.organization_id
- AND f.workspace_id = va.workspace_id
-WHERE va.organization_id = $1
-  AND va.workspace_id = $2
-  AND va.user_id = $3
+FROM drive_files f
+LEFT JOIN drive_file_access va
+  ON va.drive_file_id = f.id
+ AND va.organization_id = f.organization_id
+ AND va.workspace_id = f.workspace_id
+ AND va.user_id = $1
+WHERE f.organization_id = $2
+  AND f.workspace_id = $3
   AND f.unlinked_at IS NULL
   AND ($4::text IS NULL OR va.connection_id = $4)
   AND (
-    $5::text IS NULL
-    OR ($5 = 'none' AND f.drive_folder_id IS NULL)
-    OR ($5 <> 'none' AND f.drive_folder_id = $5)
+    CASE COALESCE($5::text, 'all')
+      WHEN 'mine' THEN va.id IS NOT NULL
+      WHEN 'shared' THEN EXISTS (
+        SELECT 1
+        FROM drive_file_shares s
+        WHERE s.organization_id = f.organization_id
+          AND s.workspace_id = f.workspace_id
+          AND s.drive_file_id = f.id
+          AND s.revoked_at IS NULL
+          AND (
+            (s.principal_type = 'user' AND s.principal_id = $1)
+            OR (s.principal_type = 'workspace' AND s.principal_id = f.workspace_id)
+            OR (s.principal_type = 'organization' AND s.principal_id = f.organization_id)
+          )
+      )
+      ELSE (
+        va.id IS NOT NULL
+        OR EXISTS (
+          SELECT 1
+          FROM drive_file_shares s
+          WHERE s.organization_id = f.organization_id
+            AND s.workspace_id = f.workspace_id
+            AND s.drive_file_id = f.id
+            AND s.revoked_at IS NULL
+            AND (
+              (s.principal_type = 'user' AND s.principal_id = $1)
+              OR (s.principal_type = 'workspace' AND s.principal_id = f.workspace_id)
+              OR (s.principal_type = 'organization' AND s.principal_id = f.organization_id)
+            )
+        )
+      )
+    END
+  )
+  AND (
+    $6::text IS NULL
+    OR ($6 = 'none' AND f.drive_folder_id IS NULL)
+    OR ($6 <> 'none' AND f.drive_folder_id = $6)
   )
 `
 
 type CountMyDriveFilesParams struct {
+	ViewerUserID   string      `json:"viewer_user_id"`
 	OrganizationID string      `json:"organization_id"`
 	WorkspaceID    string      `json:"workspace_id"`
-	ViewerUserID   string      `json:"viewer_user_id"`
 	ConnectionID   pgtype.Text `json:"connection_id"`
+	Scope          pgtype.Text `json:"scope"`
 	FolderFilter   pgtype.Text `json:"folder_filter"`
 }
 
 func (q *Queries) CountMyDriveFiles(ctx context.Context, arg CountMyDriveFilesParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countMyDriveFiles,
+		arg.ViewerUserID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
-		arg.ViewerUserID,
 		arg.ConnectionID,
+		arg.Scope,
 		arg.FolderFilter,
 	)
 	var column_1 int64
@@ -1087,16 +1123,17 @@ SELECT f.id, f.organization_id, f.workspace_id, f.external_file_id, f.drive_id, 
        (bc.id IS NULL OR bc.disconnected_at IS NOT NULL OR bc.auth_failed_at IS NOT NULL)::boolean AS bound_connection_lost,
        COALESCE(bu.display_name, '')::text AS bound_by_name,
        COALESCE(cu.display_name, '')::text AS created_by_name,
-       va.id AS viewer_access_id,
-       va.connection_id AS viewer_connection_id,
-       va.state AS viewer_access_state,
+       COALESCE(va.id, '')::text AS viewer_access_id,
+       COALESCE(va.connection_id, '')::text AS viewer_connection_id,
+       COALESCE(va.state, '')::text AS viewer_access_state,
        COALESCE(vc.google_email, '')::text AS viewer_account_email,
        (vc.id IS NOT NULL AND vc.disconnected_at IS NULL AND vc.auth_failed_at IS NULL)::boolean AS viewer_connection_active
-FROM drive_file_access va
-JOIN drive_files f
-  ON f.id = va.drive_file_id
- AND f.organization_id = va.organization_id
- AND f.workspace_id = va.workspace_id
+FROM drive_files f
+LEFT JOIN drive_file_access va
+  ON va.drive_file_id = f.id
+ AND va.organization_id = f.organization_id
+ AND va.workspace_id = f.workspace_id
+ AND va.user_id = $1
 LEFT JOIN drive_connections bc
   ON bc.id = f.connection_id
  AND bc.organization_id = f.organization_id
@@ -1106,30 +1143,64 @@ LEFT JOIN drive_connections vc
   ON vc.id = va.connection_id
  AND vc.organization_id = f.organization_id
  AND vc.user_id = va.user_id
-WHERE va.organization_id = $1
-  AND va.workspace_id = $2
-  AND va.user_id = $3
+WHERE f.organization_id = $2
+  AND f.workspace_id = $3
   AND f.unlinked_at IS NULL
   AND ($4::text IS NULL OR va.connection_id = $4)
   AND (
-    $5::text IS NULL
-    OR ($5 = 'none' AND f.drive_folder_id IS NULL)
-    OR ($5 <> 'none' AND f.drive_folder_id = $5)
+    CASE COALESCE($5::text, 'all')
+      WHEN 'mine' THEN va.id IS NOT NULL
+      WHEN 'shared' THEN EXISTS (
+        SELECT 1
+        FROM drive_file_shares s
+        WHERE s.organization_id = f.organization_id
+          AND s.workspace_id = f.workspace_id
+          AND s.drive_file_id = f.id
+          AND s.revoked_at IS NULL
+          AND (
+            (s.principal_type = 'user' AND s.principal_id = $1)
+            OR (s.principal_type = 'workspace' AND s.principal_id = f.workspace_id)
+            OR (s.principal_type = 'organization' AND s.principal_id = f.organization_id)
+          )
+      )
+      ELSE (
+        va.id IS NOT NULL
+        OR EXISTS (
+          SELECT 1
+          FROM drive_file_shares s
+          WHERE s.organization_id = f.organization_id
+            AND s.workspace_id = f.workspace_id
+            AND s.drive_file_id = f.id
+            AND s.revoked_at IS NULL
+            AND (
+              (s.principal_type = 'user' AND s.principal_id = $1)
+              OR (s.principal_type = 'workspace' AND s.principal_id = f.workspace_id)
+              OR (s.principal_type = 'organization' AND s.principal_id = f.organization_id)
+            )
+        )
+      )
+    END
   )
   AND (
-    $6::timestamptz IS NULL
-    OR f.created_at < $6::timestamptz
-    OR (f.created_at = $6::timestamptz AND f.id < $7::text)
+    $6::text IS NULL
+    OR ($6 = 'none' AND f.drive_folder_id IS NULL)
+    OR ($6 <> 'none' AND f.drive_folder_id = $6)
+  )
+  AND (
+    $7::timestamptz IS NULL
+    OR f.created_at < $7::timestamptz
+    OR (f.created_at = $7::timestamptz AND f.id < $8::text)
   )
 ORDER BY f.created_at DESC, f.id DESC
-LIMIT $8
+LIMIT $9
 `
 
 type ListMyDriveFilesEnrichedParams struct {
+	ViewerUserID    string             `json:"viewer_user_id"`
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
-	ViewerUserID    string             `json:"viewer_user_id"`
 	ConnectionID    pgtype.Text        `json:"connection_id"`
+	Scope           pgtype.Text        `json:"scope"`
 	FolderFilter    pgtype.Text        `json:"folder_filter"`
 	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
@@ -1177,10 +1248,11 @@ type ListMyDriveFilesEnrichedRow struct {
 
 func (q *Queries) ListMyDriveFilesEnriched(ctx context.Context, arg ListMyDriveFilesEnrichedParams) ([]ListMyDriveFilesEnrichedRow, error) {
 	rows, err := q.db.Query(ctx, listMyDriveFilesEnriched,
+		arg.ViewerUserID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
-		arg.ViewerUserID,
 		arg.ConnectionID,
+		arg.Scope,
 		arg.FolderFilter,
 		arg.CursorCreatedAt,
 		arg.CursorID,

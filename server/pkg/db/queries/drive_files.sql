@@ -298,16 +298,17 @@ SELECT f.*,
        (bc.id IS NULL OR bc.disconnected_at IS NOT NULL OR bc.auth_failed_at IS NOT NULL)::boolean AS bound_connection_lost,
        COALESCE(bu.display_name, '')::text AS bound_by_name,
        COALESCE(cu.display_name, '')::text AS created_by_name,
-       va.id AS viewer_access_id,
-       va.connection_id AS viewer_connection_id,
-       va.state AS viewer_access_state,
+       COALESCE(va.id, '')::text AS viewer_access_id,
+       COALESCE(va.connection_id, '')::text AS viewer_connection_id,
+       COALESCE(va.state, '')::text AS viewer_access_state,
        COALESCE(vc.google_email, '')::text AS viewer_account_email,
        (vc.id IS NOT NULL AND vc.disconnected_at IS NULL AND vc.auth_failed_at IS NULL)::boolean AS viewer_connection_active
-FROM drive_file_access va
-JOIN drive_files f
-  ON f.id = va.drive_file_id
- AND f.organization_id = va.organization_id
- AND f.workspace_id = va.workspace_id
+FROM drive_files f
+LEFT JOIN drive_file_access va
+  ON va.drive_file_id = f.id
+ AND va.organization_id = f.organization_id
+ AND va.workspace_id = f.workspace_id
+ AND va.user_id = sqlc.arg('viewer_user_id')
 LEFT JOIN drive_connections bc
   ON bc.id = f.connection_id
  AND bc.organization_id = f.organization_id
@@ -317,11 +318,44 @@ LEFT JOIN drive_connections vc
   ON vc.id = va.connection_id
  AND vc.organization_id = f.organization_id
  AND vc.user_id = va.user_id
-WHERE va.organization_id = sqlc.arg('organization_id')
-  AND va.workspace_id = sqlc.arg('workspace_id')
-  AND va.user_id = sqlc.arg('viewer_user_id')
+WHERE f.organization_id = sqlc.arg('organization_id')
+  AND f.workspace_id = sqlc.arg('workspace_id')
   AND f.unlinked_at IS NULL
   AND (sqlc.narg('connection_id')::text IS NULL OR va.connection_id = sqlc.narg('connection_id'))
+  AND (
+    CASE COALESCE(sqlc.narg('scope')::text, 'all')
+      WHEN 'mine' THEN va.id IS NOT NULL
+      WHEN 'shared' THEN EXISTS (
+        SELECT 1
+        FROM drive_file_shares s
+        WHERE s.organization_id = f.organization_id
+          AND s.workspace_id = f.workspace_id
+          AND s.drive_file_id = f.id
+          AND s.revoked_at IS NULL
+          AND (
+            (s.principal_type = 'user' AND s.principal_id = sqlc.arg('viewer_user_id'))
+            OR (s.principal_type = 'workspace' AND s.principal_id = f.workspace_id)
+            OR (s.principal_type = 'organization' AND s.principal_id = f.organization_id)
+          )
+      )
+      ELSE (
+        va.id IS NOT NULL
+        OR EXISTS (
+          SELECT 1
+          FROM drive_file_shares s
+          WHERE s.organization_id = f.organization_id
+            AND s.workspace_id = f.workspace_id
+            AND s.drive_file_id = f.id
+            AND s.revoked_at IS NULL
+            AND (
+              (s.principal_type = 'user' AND s.principal_id = sqlc.arg('viewer_user_id'))
+              OR (s.principal_type = 'workspace' AND s.principal_id = f.workspace_id)
+              OR (s.principal_type = 'organization' AND s.principal_id = f.organization_id)
+            )
+        )
+      )
+    END
+  )
   AND (
     sqlc.narg('folder_filter')::text IS NULL
     OR (sqlc.narg('folder_filter') = 'none' AND f.drive_folder_id IS NULL)
@@ -337,16 +371,50 @@ LIMIT sqlc.arg('limit_n');
 
 -- name: CountMyDriveFiles :one
 SELECT count(*)::bigint
-FROM drive_file_access va
-JOIN drive_files f
-  ON f.id = va.drive_file_id
- AND f.organization_id = va.organization_id
- AND f.workspace_id = va.workspace_id
-WHERE va.organization_id = sqlc.arg('organization_id')
-  AND va.workspace_id = sqlc.arg('workspace_id')
-  AND va.user_id = sqlc.arg('viewer_user_id')
+FROM drive_files f
+LEFT JOIN drive_file_access va
+  ON va.drive_file_id = f.id
+ AND va.organization_id = f.organization_id
+ AND va.workspace_id = f.workspace_id
+ AND va.user_id = sqlc.arg('viewer_user_id')
+WHERE f.organization_id = sqlc.arg('organization_id')
+  AND f.workspace_id = sqlc.arg('workspace_id')
   AND f.unlinked_at IS NULL
   AND (sqlc.narg('connection_id')::text IS NULL OR va.connection_id = sqlc.narg('connection_id'))
+  AND (
+    CASE COALESCE(sqlc.narg('scope')::text, 'all')
+      WHEN 'mine' THEN va.id IS NOT NULL
+      WHEN 'shared' THEN EXISTS (
+        SELECT 1
+        FROM drive_file_shares s
+        WHERE s.organization_id = f.organization_id
+          AND s.workspace_id = f.workspace_id
+          AND s.drive_file_id = f.id
+          AND s.revoked_at IS NULL
+          AND (
+            (s.principal_type = 'user' AND s.principal_id = sqlc.arg('viewer_user_id'))
+            OR (s.principal_type = 'workspace' AND s.principal_id = f.workspace_id)
+            OR (s.principal_type = 'organization' AND s.principal_id = f.organization_id)
+          )
+      )
+      ELSE (
+        va.id IS NOT NULL
+        OR EXISTS (
+          SELECT 1
+          FROM drive_file_shares s
+          WHERE s.organization_id = f.organization_id
+            AND s.workspace_id = f.workspace_id
+            AND s.drive_file_id = f.id
+            AND s.revoked_at IS NULL
+            AND (
+              (s.principal_type = 'user' AND s.principal_id = sqlc.arg('viewer_user_id'))
+              OR (s.principal_type = 'workspace' AND s.principal_id = f.workspace_id)
+              OR (s.principal_type = 'organization' AND s.principal_id = f.organization_id)
+            )
+        )
+      )
+    END
+  )
   AND (
     sqlc.narg('folder_filter')::text IS NULL
     OR (sqlc.narg('folder_filter') = 'none' AND f.drive_folder_id IS NULL)
