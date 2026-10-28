@@ -187,12 +187,9 @@ func (s *AskUNIService) prepareCreateOffice(ctx context.Context, tc ai.ToolConte
 		source = AskProposalField{Field: "template_id", Type: "text", To: info.Title}
 		read = append(read, AskContextRef{Kind: "document", ID: info.ID, Title: info.Title})
 	case in.AttachmentID != "":
-		att, err := s.ownAttachment(ctx, tc.ActorID, tc.WorkspaceID, in.AttachmentID)
+		att, err := s.officeAttachment(ctx, tc, in.AttachmentID)
 		if err != nil {
 			return askDraftRow{}, err
-		}
-		if _, ok := officeFormatOfMIME(att.MIME); !ok {
-			return askDraftRow{}, McpInvalidArgs{Msg: "the attached file is not a docx, xlsx, pptx, pdf, md or html file"}
 		}
 		source = AskProposalField{Field: "attachment_id", Type: "text", To: att.Name}
 	default:
@@ -281,6 +278,25 @@ func (s *AskUNIService) applyCreateOffice(ctx context.Context, p McpPrincipal, r
 	if err != nil {
 		return AskProposalResult{}, nil, err
 	}
+	return s.askFileCreated(ctx, ws, res)
+}
+
+// officeAttachment is the asker's own attachment, when it is one of the six
+// Office formats.
+func (s *AskUNIService) officeAttachment(ctx context.Context, tc ai.ToolContext, attachmentID string) (AskAttachment, error) {
+	att, err := s.ownAttachment(ctx, tc.ActorID, tc.WorkspaceID, attachmentID)
+	if err != nil {
+		return AskAttachment{}, err
+	}
+	if _, ok := officeFormatOfMIME(att.MIME); !ok {
+		return AskAttachment{}, McpInvalidArgs{Msg: "the attached file is not a docx, xlsx, pptx, pdf, md or html file"}
+	}
+	return att, nil
+}
+
+// askFileCreated is the Apply result of a tool that made a file document: its
+// id, link and revision, with archive_document as the undo.
+func (s *AskUNIService) askFileCreated(ctx context.Context, ws string, res DocumentFileResult) (AskProposalResult, *askInverse, error) {
 	base, err := s.base(ctx, ws)
 	if err != nil {
 		return AskProposalResult{}, nil, err
@@ -341,12 +357,9 @@ func (s *AskUNIService) prepareSaveAttachmentTemplate(ctx context.Context, tc ai
 	if !s.reads.documentsOn(ctx, principalOf(tc)) {
 		return askDraftRow{}, errMcpDocumentsUnavailable
 	}
-	att, err := s.ownAttachment(ctx, tc.ActorID, tc.WorkspaceID, in.AttachmentID)
+	att, err := s.officeAttachment(ctx, tc, in.AttachmentID)
 	if err != nil {
 		return askDraftRow{}, err
-	}
-	if _, ok := officeFormatOfMIME(att.MIME); !ok {
-		return askDraftRow{}, McpInvalidArgs{Msg: "the attached file is not a docx, xlsx, pptx, pdf, md or html file"}
 	}
 	// An empty title is CreateFileDocument's own default: the file name.
 	title := files.SanitizeFilename(att.Name)
@@ -389,11 +402,5 @@ func (s *AskUNIService) applySaveAttachmentTemplate(ctx context.Context, p McpPr
 	if err != nil {
 		return AskProposalResult{}, nil, err
 	}
-	base, err := s.base(ctx, in.WorkspaceID)
-	if err != nil {
-		return AskProposalResult{}, nil, err
-	}
-	d := s.reads.docOf(base, res.Document)
-	out := AskProposalResult{ObjectID: d.ID, Href: d.URL, Revision: res.Document.Revision}
-	return out, askInverseOrNote(&out, "archive_document", map[string]any{"workspace_id": in.WorkspaceID, "document_id": d.ID, "revision": res.Document.Revision}), nil
+	return s.askFileCreated(ctx, in.WorkspaceID, res)
 }
