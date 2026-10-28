@@ -4,7 +4,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
-import { useForgotPassword } from "@uniwork/core/auth";
+import { rememberLinkReset, useForgotPassword } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
@@ -22,7 +22,8 @@ const RESEND_SECONDS = 60;
 /**
  * `next` came with "Quên mật khẩu?" from the sign-in page (spec §4.4): the way
  * back keeps it, and the link mode a link step's `next` stands for. The mailed
- * link cannot carry it; the reset page finds a pending link itself.
+ * link cannot carry it: in link mode this browser remembers the address the
+ * reset went to, and only a reset of that address links the pending sign-in.
  */
 export function ForgotPasswordView({ next = null }: { next?: string | null }) {
   const { t } = useTranslation();
@@ -44,7 +45,12 @@ export function ForgotPasswordView({ next = null }: { next?: string | null }) {
 
   const send = (onSent: () => void) => {
     if (forgot.isPending) return;
-    forgot.mutate(email, { onSuccess: onSent });
+    forgot.mutate(email, {
+      onSuccess: () => {
+        if (isLinkStep(next)) rememberLinkReset(email);
+        onSent();
+      },
+    });
   };
 
   // Never reveal whether the address has an account: the "sent" state shows

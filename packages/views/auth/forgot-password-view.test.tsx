@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@uniwork/core/api";
-import { resetAuthStoreForTests } from "@uniwork/core/auth";
+import { forgetLinkReset, linkResetIntent, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { ForgotPasswordView } from "./forgot-password-view";
@@ -21,6 +21,24 @@ describe("ForgotPasswordView", () => {
       "href",
       `/login?next=${encodeURIComponent(linkStep)}&link=1`,
     );
+  });
+
+  it("remembers, in link mode only, which address the reset went to", async () => {
+    forgetLinkReset();
+    requestMock.mockResolvedValue({ status: "ok" });
+    const { unmount } = render(wrapWithNav(<ForgotPasswordView />));
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "an@company.vn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi link đặt lại" }));
+    await screen.findByRole("button", { name: /Gửi lại/ });
+    expect(linkResetIntent()).toBeNull();
+    unmount();
+
+    render(wrapWithNav(<ForgotPasswordView next="/auth/continue?step=link" />));
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "An@Company.vn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi link đặt lại" }));
+    await screen.findByRole("button", { name: /Gửi lại/ });
+    expect(linkResetIntent()).toEqual({ email: "an@company.vn" });
+    forgetLinkReset();
   });
 
   it("tells a Google or Apple account on the form that it needs no reset, and how to add a password", async () => {

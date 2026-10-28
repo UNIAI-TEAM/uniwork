@@ -1,9 +1,16 @@
 "use client";
 import { Link2Off } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
-import { useResetPassword, useSignInTicket } from "@uniwork/core/auth";
+import {
+  forgetLinkReset,
+  linkResetIntent,
+  linkResetServes,
+  useDiscardSignInTicket,
+  useResetPassword,
+  useSignInTicket,
+} from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { isMFAChallenge, type SessionResponse } from "@uniwork/core/types";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -22,10 +29,12 @@ const MIN = 8;
 type ClientError = "tooShort" | "mismatch" | null;
 
 /**
- * The mailed reset link (it carries no `next`). When this browser has a Google
- * or Apple sign-in waiting to be linked (the person came here from "Quên mật
- * khẩu?" on /login?link=1, spec §4.4), the reset keeps it and the new session
- * goes to the link step: `onSuccess` gets that step as its `next`.
+ * The mailed reset link (it carries no `next`). When the person came here
+ * from "Quên mật khẩu?" on /login?link=1 (spec §4.4) and a Google or Apple
+ * sign-in still waits, the reset keeps it and the new session goes to the
+ * link step: `onSuccess` gets that step as its `next`. Only then: any other
+ * pending sign-in in this browser may be someone else's, and a reset that
+ * opens another address than the one asked for drops it instead.
  */
 export function ResetPasswordView({
   token,
@@ -38,11 +47,15 @@ export function ResetPasswordView({
   const { push } = useNavigation();
   const reset = useResetPassword();
   const announce = useSessionNotices();
-  const pending = useSignInTicket();
-  // Kept unless the server said there is none: keeping one that is gone
-  // costs nothing, dropping the one being linked costs the person a restart.
-  const keepSignInTicket = pending.isPending || pending.data != null;
-  const linkStep = pending.data ? paths.authContinue({ step: "link" }) : null;
+  const discard = useDiscardSignInTicket();
+  // Read once: the intent is what this browser asked for before the mail.
+  const [intent] = useState(linkResetIntent);
+  const pending = useSignInTicket({ enabled: intent !== null });
+  // Never kept blind: a press while the read is on its way waits for it.
+  const reading = intent !== null && pending.isPending;
+  const keepSignInTicket = intent !== null && pending.data != null;
+  const linkStep = keepSignInTicket ? paths.authContinue({ step: "link" }) : null;
+  const [queued, setQueued] = useState(false);
   const errorId = useId();
   const hintId = useId();
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -62,6 +75,38 @@ export function ResetPasswordView({
     clientError === "tooShort" ? "password" : clientError === "mismatch" ? "confirm" : reset.error ? "form" : null;
   const passwordInvalid = owner === "password" || owner === "form";
   const confirmInvalid = owner === "confirm" || owner === "form";
+
+  const send = () => {
+    reset.mutate(
+      { token, password, keepSignInTicket },
+      {
+        // MFA on: the challenge is in the cookie; the login page finishes
+        // it, still linking when a link waits.
+        onSuccess: (out) => {
+          if (isMFAChallenge(out)) {
+            push(paths.login({ mfa: true, link: linkStep !== null, next: linkStep }));
+            return;
+          }
+          forgetLinkReset();
+          // Another address than the one the reset was asked for: its
+          // pending sign-in is not this person's to link.
+          const linking = linkStep !== null && linkResetServes(intent, out.user.email);
+          if (linkStep !== null && !linking) discard.mutate();
+          // "Đã lấy lại tài khoản": a link on an address never proved takes it back.
+          announce(out, linking ? pending.data?.provider : undefined);
+          onSuccess(out, linking ? linkStep : null);
+        },
+      },
+    );
+  };
+
+  useEffect(() => {
+    if (!queued || reading) return;
+    setQueued(false);
+    send();
+    // `send` reads this render's values; the read settling is what decides.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queued, reading]);
 
   if (invalidToken) {
     return (
@@ -97,7 +142,7 @@ export function ResetPasswordView({
         noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          if (reset.isPending) return;
+          if (reset.isPending || queued) return;
           // The message is announced by the alert; focus follows it to the
           // field that owns it so the fix is one keystroke away.
           if (password.length < MIN) {
@@ -111,22 +156,8 @@ export function ResetPasswordView({
             return;
           }
           setClientError(null);
-          reset.mutate(
-            { token, password, keepSignInTicket },
-            {
-              // MFA on: the challenge is in the cookie; the login page
-              // finishes it, still linking when a link waits.
-              onSuccess: (out) => {
-                if (isMFAChallenge(out)) {
-                  push(paths.login({ mfa: true, link: linkStep !== null, next: linkStep }));
-                  return;
-                }
-                // "Đã lấy lại tài khoản": a link on an address never proved takes it back.
-                announce(out, pending.data?.provider);
-                onSuccess(out, linkStep);
-              },
-            },
-          );
+          if (reading) setQueued(true);
+          else send();
         }}
       >
         <FieldGroup className="gap-4">
@@ -174,7 +205,7 @@ export function ResetPasswordView({
           </Field>
           {owner === "form" ? <FieldError id={errorId}>{errorMsg}</FieldError> : null}
         </FieldGroup>
-        <AuthSubmit pending={reset.isPending} pendingLabel={t("auth.reset.submitting")}>
+        <AuthSubmit pending={reset.isPending || queued} pendingLabel={t("auth.reset.submitting")}>
           {t("auth.reset.submit")}
         </AuthSubmit>
       </form>

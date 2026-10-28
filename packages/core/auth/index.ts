@@ -4,6 +4,7 @@ export { hasSessionHint } from "./session-hint";
 export { registerSessionProvider, getSessionProvider } from "./session-provider";
 export { ownedOrganization, type OwnedOrganization } from "./errors";
 export { forgetStepUp, hasStepUp, stepUpToken } from "./step-up-store";
+export { forgetLinkReset, linkResetIntent, linkResetServes, rememberLinkReset, type LinkResetIntent } from "./link-reset-intent";
 export {
   useCreateFromSignInTicket,
   useDiscardSignInTicket,
