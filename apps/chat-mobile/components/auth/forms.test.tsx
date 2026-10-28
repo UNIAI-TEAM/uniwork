@@ -2,7 +2,7 @@ import { act, fireEvent, screen } from "@testing-library/react-native";
 import { configureRuntime } from "@uniwork/core/runtime-config";
 import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
-import { forgetPendingSignIn, holdStep, usePendingSignIn } from "@/data/auth/pending-sign-in";
+import { SECOND_FACTOR_TTL_MS, forgetPendingSignIn, holdStep, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { useAuthStore } from "@/data/auth/store";
 import { useLinkPendingTicket } from "@/data/mutations/sign-in";
 import { render, viText } from "@/test/render";
@@ -107,6 +107,30 @@ describe("leaving the second factor", () => {
     jest.mocked(router.canGoBack).mockReturnValueOnce(false);
     leaveSecondFactor();
     expect(router.replace).toHaveBeenCalledWith("/login");
+  });
+
+  it("says the sign-in ran out once its challenge did, even while a lock still counts down", async () => {
+    jest.useFakeTimers({ now: 1_000_000 });
+    try {
+      holdStep({ kind: "mfa", token: "m", context: { method: "password", email: "an@congty.vn", provider: null } }, Date.now());
+      const locked = Object.assign(new Error("second_factor_locked"), {
+        name: "TransportError",
+        code: "second_factor_locked",
+        status: 429,
+        fromServer: true,
+        retryAfterMs: 15 * 60_000,
+      });
+      useAuthStore.setState({ login: jest.fn(async () => Promise.reject(locked)) });
+      await render(<SecondFactorStep linkMode={false} />);
+      await act(async () => fireEvent.changeText(screen.getByTestId("mfa-code"), "000000"));
+      expect(screen.getByTestId("mfa-code").props.editable).toBe(false);
+      await act(async () => jest.advanceTimersByTime(SECOND_FACTOR_TTL_MS));
+      // The lock outlives the challenge: a code typed after it could not be sent, so the way back is offered now.
+      expect(screen.getByTestId("mfa-expired")).toBeTruthy();
+      expect(screen.queryByTestId("mfa-code")).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("drops the challenge when the screen goes by the edge swipe too, unless the sign-in finished", async () => {

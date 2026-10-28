@@ -2,7 +2,8 @@
 // the sixth arrives, or a recovery code; under the title, whose account it signs in to and the provider it links.
 // A wrong code is cleared and its field focused; ten in a row lock the factor, and the field waits while the lock
 // counts down (429 second_factor_locked, retry_after). A challenge that is gone (expired, the app restarted) says so,
-// with the way back to sign-in. Leaving the screen any way (the back button, iOS's edge swipe) drops the challenge.
+// with the way back to sign-in, as soon as its five minutes pass: a lock may count down longer than that, and a code
+// typed after it could not be sent. Leaving the screen any way (the back button, iOS's edge swipe) drops the challenge.
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,6 +15,7 @@ import { signInRoutes } from "@/lib/sign-in-routes";
 import { AuthField } from "./auth-field";
 import { AuthHeading, SubmitButton, TextButton } from "./auth-layout";
 import { CodeField } from "./code-field";
+import { useCountdown } from "./use-countdown";
 import { useFailureMessage, useSignIn } from "./use-sign-in";
 
 /** Back to the sign-in screen: the challenge is of no use there. */
@@ -34,6 +36,7 @@ export function SecondFactorStep({ linkMode }: { linkMode: boolean }) {
   const [required, setRequired] = useState(false);
   const input = useRef<TextInput>(null);
   const busy = signIn.busy !== null;
+  const challengeLeft = useCountdown(pending?.expiresAtMs ?? null);
   // The edge swipe leaves without leaveSecondFactor: the challenge goes with the screen all the same.
   useEffect(
     () => () => {
@@ -42,7 +45,7 @@ export function SecondFactorStep({ linkMode }: { linkMode: boolean }) {
     [],
   );
 
-  if (!pending || signIn.shown?.failure.kind === "restart") {
+  if (!pending || challengeLeft === 0 || signIn.shown?.failure.kind === "restart") {
     return (
       <View className="gap-6" testID="mfa-expired">
         <AuthHeading title={t("auth.continue.expired.title")} subtitle={t("auth.continue.expired.body")} />
