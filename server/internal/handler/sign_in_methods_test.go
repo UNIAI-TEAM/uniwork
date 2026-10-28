@@ -151,22 +151,29 @@ func TestLinkStartNeedsTheSameBrowserSession(t *testing.T) {
 
 // When the Google account a person links from Settings already opens an
 // empty account, the callback comes back with result=movable and the masked
-// address, and leaves the proved identity as a ticket so Settings confirms
-// the move with the step-up it holds, without another trip to Google.
+// address, and leaves the proved identity as a ticket bound to the browser
+// session that started the link, so Settings confirms the move without
+// another trip to Google and without asking that session for a proof again
+// (spec §3.7). Another session of the same account still needs one.
 func TestSettingsLinkOffersToMoveFromAnEmptyAccount(t *testing.T) {
 	g := &fakeGoogle{}
 	srv := newTestServerWithGoogle(t, g)
 	token, uid, refresh := browserAccount(t, srv, "binh@acme.vn")
-	// The session is older than the ticket the callback will leave, so the
-	// move needs the step-up: freshness alone does not prove the account.
+	res, out := doJSON(t, srv, "POST", "/api/v1/auth/login", "", map[string]string{"email": "binh@acme.vn", "password": "password123"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("second browser: %d %v", res.StatusCode, out)
+	}
+	otherToken := out["access_token"].(string)
+	// Both sessions are older than the ticket the callback will leave:
+	// freshness alone does not prove the account.
 	if _, err := testPool.Exec(context.Background(), `UPDATE refresh_tokens SET created_at = now() - interval '1 hour' WHERE user_id = $1`, uid); err != nil {
 		t.Fatal(err)
 	}
 	seedGoogleAccount(t, "01EMPTYGOOGLEHOLDER0000000", "binh.personal@gmail.com", "g-empty")
 	proof := stepUp(t, srv, token, map[string]any{"password": "password123"})
-	_, out := doJSON(t, srv, "POST", "/api/v1/me/sign-in-methods/google/link", token, map[string]string{"step_up_token": proof})
+	_, out = doJSON(t, srv, "POST", "/api/v1/me/sign-in-methods/google/link", token, map[string]string{"step_up_token": proof})
 	start, _ := url.Parse(out["authorization_url"].(string))
-	res := getWith(t, srv, start.Path+"?"+start.RawQuery, refresh)
+	res = getWith(t, srv, start.Path+"?"+start.RawQuery, refresh)
 	state := cookieNamed(res, oauthStateCookie)
 	st := openGoogleState(t, state)
 	g.set(auth.GoogleClaims{Sub: "g-empty", Email: "binh.personal@gmail.com", EmailVerified: true})
@@ -179,13 +186,13 @@ func TestSettingsLinkOffersToMoveFromAnEmptyAccount(t *testing.T) {
 	if ticket == nil || ticket.Value == "" {
 		t.Fatal("no ticket to confirm the move with")
 	}
-	res, out = ticketRequest(t, srv, http.MethodPost, "/api/v1/auth/sign-in-ticket/link", token, []*http.Cookie{ticket}, map[string]any{"move": true})
+	res, out = ticketRequest(t, srv, http.MethodPost, "/api/v1/auth/sign-in-ticket/link", otherToken, []*http.Cookie{ticket}, map[string]any{"move": true})
 	if res.StatusCode != http.StatusForbidden || errorCode(out) != "proof_required" {
-		t.Fatalf("a move from an older session without the step-up: %d %v", res.StatusCode, out)
+		t.Fatalf("a move from another, older session: %d %v", res.StatusCode, out)
 	}
-	res, out = ticketRequest(t, srv, http.MethodPost, "/api/v1/auth/sign-in-ticket/link", token, []*http.Cookie{ticket}, map[string]any{"move": true, "step_up_token": proof})
+	res, out = ticketRequest(t, srv, http.MethodPost, "/api/v1/auth/sign-in-ticket/link", token, []*http.Cookie{ticket}, map[string]any{"move": true})
 	if res.StatusCode != http.StatusOK {
-		t.Fatalf("the move: %d %v", res.StatusCode, out)
+		t.Fatalf("the move from the session that started the link: %d %v", res.StatusCode, out)
 	}
 	if u, _ := db.New(testPool).GetUserByID(context.Background(), uid); u.GoogleID.String != "g-empty" {
 		t.Fatalf("not moved: %+v", u)

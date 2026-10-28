@@ -402,9 +402,9 @@ type TicketLink struct {
 // token, a device session's signed_in_at (the app's own sign-in, or the start
 // of the browser session whose consent issued it; same client and
 // deployment) — or a
-// step-up token of the bearer's session (spec §3.7: an older session, or
-// Settings confirming a move after a link callback answered movable); with
-// neither, 403 proof_required. The command is sensitive, so a browser token
+// step-up token of the bearer's session (spec §3.7: an older session), or,
+// for the ticket a link from Settings left on movable, the very browser
+// session that started that link; with none of them, 403 proof_required. The command is sensitive, so a browser token
 // older than the account's last credential change is refused first. Every
 // gate runs under the account's row lock, taken first: a reclaim or a
 // credential change that commits while this waits is what the gates see.
@@ -453,10 +453,15 @@ func (s *SignInTicketService) Link(ctx context.Context, sealed string, b TicketB
 	return SignInMethodsChange{User: s.auth.decorateAvatar(ctx, a.user), Methods: s.auth.signInMethods(a.user, t.Channel)}, nil
 }
 
-// provenSince holds a ticket link to a session younger than the ticket, or
-// to a step-up token of the bearer's session. A session that is no longer
-// live is the bearer's own problem (401 invalid_token: the client
-// refreshes, which fails, and signs in again).
+// provenSince holds a ticket link to a session younger than the ticket, to
+// a step-up token of the bearer's session, or — for a move a link from
+// Settings left (issueMoveTicket) — to the browser session that started
+// that link. That session bought a link_<provider> step-up to start it, and
+// the provider's start and callback both held the browser to it, so its
+// confirming the move within the ticket's fifteen minutes is the proof it
+// already gave, not a new door. A session that is no longer live is the
+// bearer's own problem (401 invalid_token: the client refreshes, which
+// fails, and signs in again).
 func (s *SignInTicketService) provenSince(ctx context.Context, q *db.Queries, at auth.AccessToken, t signInTicket, stepUpToken string) error {
 	sess, err := liveBearerSession(ctx, q, at)
 	if err != nil {
@@ -464,6 +469,9 @@ func (s *SignInTicketService) provenSince(ctx context.Context, q *db.Queries, at
 	}
 	if !at.Web && (sess.clientID != t.ClientID || sess.deploymentID != t.DeploymentID) {
 		return errSignInTicketChannel()
+	}
+	if t.LinkSessionID != "" && at.Web && at.UserID == t.LinkUserID && at.SessionID == t.LinkSessionID {
+		return nil
 	}
 	// The ticket's iat has one-second precision: a session that signed in in
 	// the second the ticket was issued counts as after it. A device session

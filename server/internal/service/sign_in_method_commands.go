@@ -339,8 +339,9 @@ func checkLinkSession(ctx context.Context, q *db.Queries, li LinkIntent, rawRefr
 
 // BrowserLink is how a link from Settings ended at the provider's callback.
 // Ticket is set on sign_in_method_movable: the proved identity, as a web
-// sign-in ticket, so Settings can confirm the move with a step-up
-// (POST /auth/sign-in-ticket/link {move: true}) without another round trip.
+// sign-in ticket bound to the session that started the link, so Settings
+// confirms the move (POST /auth/sign-in-ticket/link {move: true}) without
+// another round trip and without proving that session again.
 type BrowserLink struct {
 	Change SignInMethodsChange
 	Ticket string
@@ -383,7 +384,7 @@ func (s *SignInMethodsService) LinkFromBrowser(ctx context.Context, li LinkInten
 	}
 	a, err := s.auth.attachIdentity(ctx, q, caller, id, linkViaSettings, false)
 	if errors.Is(err, ErrSignInMethodMovable) {
-		ticket, terr := s.auth.issueSignInTicket(id, TicketKindLinkRequired, SignInIntentSignIn, WebTicket())
+		ticket, terr := s.auth.issueMoveTicket(id, li)
 		if terr != nil {
 			return BrowserLink{}, terr
 		}

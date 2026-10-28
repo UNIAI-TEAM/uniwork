@@ -466,7 +466,12 @@ Mọi route: công khai, `Cache-Control: no-store`, ⚑ chỉ nhận `client_id`
   dùng chung và lệnh liên kết từ vé). Gỡ một nhà cung cấp chưa liên kết → 200 trạng thái hiện tại, không ghi gì.
   Liên kết từ Cài đặt bằng bearer của app → `400 invalid_request`. Kết quả `taken`/`movable` kèm `masked_email`;
   `movable` để lại cookie vé (`link_required`) để Cài đặt xác nhận chuyển bằng `POST /auth/sign-in-ticket/link
-  {move:true, step_up_token}` mà không đi Google lần nữa; route vé nhận `step_up_token` thay cho phiên mới hơn vé.
+  {move:true}` mà không đi Google lần nữa; route vé nhận `step_up_token` thay cho phiên mới hơn vé. ⚑ Vé `movable` niêm
+  thêm tài khoản và phiên trình duyệt đã bắt đầu liên kết (`link_uid`, `link_sid`, `issueMoveTicket`): phiên đó đã mua
+  step-up `link_<p>` để bắt đầu, và start lẫn callback của nhà cung cấp đều giữ trình duyệt đúng phiên đó, nên khi vé
+  còn sống (15 phút) chính phiên ấy xác nhận chuyển không cần bằng chứng lần hai (token step-up chỉ ở bộ nhớ nên mất
+  sau vòng qua nhà cung cấp). Phiên khác, vé không niêm phiên, hay vé hết hạn (`sign_in_ticket_missing`) vẫn như mọi
+  lệnh vé. `TestASettingsMoveIsProvedByTheSessionThatStartedTheLink`.
   `POST /me/sign-in-methods/apple/link` để lát 4 (cần Apple web); `/me/sign-in-methods/{google,apple}/native` để
   lát 5. Đổi mật khẩu và gỡ: audit `auth.session_revoked {scope:"others", reason:"password_changed" |
   "sign_in_method_unlinked", count, device_sessions, mcp_grants_revoked}`.

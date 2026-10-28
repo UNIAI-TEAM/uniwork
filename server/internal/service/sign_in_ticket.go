@@ -83,8 +83,14 @@ type signInTicket struct {
 	DeploymentID string           `json:"deployment_id,omitempty"`
 	KeyHash      string           `json:"key_hash,omitempty"`
 	Intent       string           `json:"intent,omitempty"`
-	IssuedAt     int64            `json:"iat"`
-	ExpiresAt    int64            `json:"exp"`
+	// LinkUserID and LinkSessionID name the account and browser session of a
+	// link from Settings that answered movable (issueMoveTicket): that
+	// session already proved itself for this very link, so it confirms the
+	// move without proving itself again (provenSince).
+	LinkUserID    string `json:"link_uid,omitempty"`
+	LinkSessionID string `json:"link_sid,omitempty"`
+	IssuedAt      int64  `json:"iat"`
+	ExpiresAt     int64  `json:"exp"`
 }
 
 // mfaBinding is the challenge a ticket command owes on the ticket's channel.
@@ -118,11 +124,26 @@ func nonceKeyHash(nonce string) string {
 // issueSignInTicket seals the ticket for an identity resolveIdentity
 // answered with kind, on b's channel.
 func (s *AuthService) issueSignInTicket(id ProviderIdentity, kind, intent string, b TicketBinding) (string, error) {
+	return s.sealSignInTicket(signInTicket{Identity: id, Kind: kind, Intent: intent}, b)
+}
+
+// issueMoveTicket is the link_required ticket a link from Settings leaves in
+// the browser when an empty account holds the identity it proved (409
+// sign_in_method_movable): bound to the account and browser session that
+// started the link, which confirm the move with it (spec §3.7).
+func (s *AuthService) issueMoveTicket(id ProviderIdentity, li LinkIntent) (string, error) {
+	return s.sealSignInTicket(signInTicket{
+		Identity: id, Kind: TicketKindLinkRequired, Intent: SignInIntentSignIn,
+		LinkUserID: li.UserID, LinkSessionID: li.SessionID,
+	}, WebTicket())
+}
+
+// sealSignInTicket stamps t with its version, b's channel and its fifteen
+// minutes, and seals it.
+func (s *AuthService) sealSignInTicket(t signInTicket, b TicketBinding) (string, error) {
 	now := s.now()
-	t := signInTicket{
-		V: signInTicketVersion, Identity: id, Kind: kind, Channel: b.Channel, Intent: intent,
-		IssuedAt: now.Unix(), ExpiresAt: now.Add(signInTicketTTL).Unix(),
-	}
+	t.V, t.Channel = signInTicketVersion, b.Channel
+	t.IssuedAt, t.ExpiresAt = now.Unix(), now.Add(signInTicketTTL).Unix()
 	switch b.Channel {
 	case SignInChannelWeb:
 	case SignInChannelNative:

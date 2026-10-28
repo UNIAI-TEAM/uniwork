@@ -727,6 +727,61 @@ func TestAProviderIdentityMovesOnlyFromAnEmptyAccount(t *testing.T) {
 	}
 }
 
+// A link from Settings that answers movable leaves a ticket bound to the
+// browser session that started the link (spec §3.7): that session bought
+// the link's step-up and carried the provider round trip, so it confirms the
+// move without another proof while the ticket lives. Any other session, a
+// ticket that names no session, or one past its fifteen minutes still needs
+// what any ticket link needs.
+func TestASettingsMoveIsProvedByTheSessionThatStartedTheLink(t *testing.T) {
+	f := newIdentityFixture(t)
+	tickets := f.tickets()
+	methods := NewSignInMethodsService(f.pool, f.q, f.auth)
+	claims := GoogleClaims{Sub: "g-settings-move", Email: "settings.move@gmail.com", EmailVerified: true, Name: "M"}
+	if _, err := tickets.Create(f.ctx, f.googleTicket(t, claims, TicketKindUnmatched), WebTicket(), "", "vi"); err != nil {
+		t.Fatal(err)
+	}
+	owner := registerVerified(t, f.q, f.auth, "chi@company.vn", "Chi")
+	// Both sessions began before the ticket: freshness proves nothing here.
+	bctx, bsess := f.browser(t, owner.ID)
+	f.backdate(t, bsess)
+	otherCtx, other := f.browser(t, owner.ID)
+	f.backdate(t, other)
+	li := LinkIntent{UserID: owner.ID, SessionID: bsess.SessionID, Provider: ProviderGoogle, ReturnTo: "/settings?tab=security"}
+	id := googleIdentity(claims)
+
+	res, err := methods.LinkFromBrowser(bctx, li, id, bsess.RefreshToken)
+	if !errors.Is(err, ErrSignInMethodMovable) || res.Ticket == "" {
+		t.Fatalf("want movable with a ticket: %+v %v", res, err)
+	}
+	_, err = tickets.Link(otherCtx, res.Ticket, WebTicket(), TicketLink{Move: true})
+	wantStatusCode(t, err, "proof_required", http.StatusForbidden)
+	plain, err := f.auth.issueSignInTicket(id, TicketKindLinkRequired, SignInIntentSignIn, WebTicket())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tickets.Link(bctx, plain, WebTicket(), TicketLink{Move: true})
+	wantStatusCode(t, err, "proof_required", http.StatusForbidden)
+	f.auth.now = func() time.Time { return time.Now().Add(signInTicketTTL + time.Second) }
+	_, err = tickets.Link(bctx, res.Ticket, WebTicket(), TicketLink{Move: true})
+	wantStatusCode(t, err, "sign_in_ticket_missing", http.StatusNotFound)
+	f.auth.now = time.Now
+	if f.user(t, owner.ID).GoogleID.Valid {
+		t.Fatal("a refused move wrote")
+	}
+
+	// The session that started the link: still asked first, then moved.
+	_, err = tickets.Link(bctx, res.Ticket, WebTicket(), TicketLink{})
+	wantStatusCode(t, err, "sign_in_method_movable", http.StatusConflict)
+	out, err := tickets.Link(bctx, res.Ticket, WebTicket(), TicketLink{Move: true})
+	if err != nil || out.User.GoogleID.String != claims.Sub || !out.Methods.Google.Linked {
+		t.Fatalf("the move from the session that started the link: %+v %v", out, err)
+	}
+	if f.linkAudits(t, owner.ID, ProviderGoogle, "move") != 1 {
+		t.Fatal("the move is audited via move")
+	}
+}
+
 // maskEmail keeps the first character of the mailbox and the domain.
 func TestMaskEmailShowsOnlyEnoughToRecognise(t *testing.T) {
 	for in, want := range map[string]string{
