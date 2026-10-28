@@ -27,12 +27,38 @@ func (s *EmailHubService) listInboxConversationRows(
 	beforeID string,
 	limit int32,
 ) ([]db.EmailHubThread, error) {
-	return s.q.ListEmailHubInboxConversationPage(ctx, db.ListEmailHubInboxConversationPageParams{
+	rows, err := s.q.ListEmailHubInboxConversationPage(ctx, db.ListEmailHubInboxConversationPageParams{
 		AccountID: in.AccountID, OrganizationID: organizationID,
 		UnreadOnly: in.UnreadOnly, HasAttachmentsOnly: in.HasAttachmentsOnly,
 		FromFilter: in.FromFilter, Query: in.Query,
 		BeforeSentAt: beforeSent, BeforeID: beforeID, LimitVal: limit,
 	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]db.EmailHubThread, len(rows))
+	for i, r := range rows {
+		out[i] = emailHubThreadFromListRow(r.ID, r.AccountID, r.OrganizationID, r.Folder, r.ImapUid, r.MessageID,
+			r.Subject, r.Snippet, r.FromAddr, r.FromName, r.ToAddrs, r.SentAt, r.IsRead, r.IsStarred, r.HasAttachments,
+			r.BodyCached, r.SyncedAt, r.ImapLabels, r.SnoozedUntil, r.ConversationKey, r.BodyObjectKey)
+	}
+	return out, nil
+}
+
+// emailHubThreadFromListRow builds a thread from a list-page query that omits bodies (UNI-2268).
+func emailHubThreadFromListRow(
+	id, accountID, organizationID, folder string, imapUID int32, messageID pgtype.Text,
+	subject, snippet, fromAddr string, fromName pgtype.Text, toAddrs []string, sentAt pgtype.Timestamptz,
+	isRead, isStarred, hasAttachments, bodyCached bool, syncedAt pgtype.Timestamptz, imapLabels []string,
+	snoozedUntil pgtype.Timestamptz, conversationKey, bodyObjectKey string,
+) db.EmailHubThread {
+	return db.EmailHubThread{
+		ID: id, AccountID: accountID, OrganizationID: organizationID, Folder: folder, ImapUid: imapUID,
+		MessageID: messageID, Subject: subject, Snippet: snippet, FromAddr: fromAddr, FromName: fromName,
+		ToAddrs: toAddrs, SentAt: sentAt, IsRead: isRead, IsStarred: isStarred, HasAttachments: hasAttachments,
+		BodyCached: bodyCached, SyncedAt: syncedAt, ImapLabels: imapLabels, SnoozedUntil: snoozedUntil,
+		ConversationKey: conversationKey, BodyObjectKey: bodyObjectKey,
+	}
 }
 
 func (s *EmailHubService) enrichInboxConversationList(ctx context.Context, rows []db.EmailHubThread) ([]EmailHubThreadView, error) {

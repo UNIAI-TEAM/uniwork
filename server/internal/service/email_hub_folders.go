@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -147,25 +148,38 @@ func (s *EmailHubService) MoveThread(
 		return err
 	}
 	toMailbox := s.mailboxFor(acc, targetFolder)
-	// shortcut: one IMAP connection per message; fine for conversation-sized sets.
+	// One interactive session for the whole conversation: dialing per UID made
+	// archive/trash of a 3–5 message thread take several seconds (UNI-2268).
+	byMailbox := make(map[string][]uint32, len(rows))
 	moved := make([]db.EmailHubThread, 0, len(rows))
 	for _, r := range rows {
-		if err := imapclient.MoveMessage(creds.IMAP, s.mailboxFor(acc, r.Folder), uint32(r.ImapUid), toMailbox); err != nil {
+		from := s.mailboxFor(acc, r.Folder)
+		byMailbox[from] = append(byMailbox[from], uint32(r.ImapUid))
+		moved = append(moved, r)
+	}
+	sess, err := imapclient.OpenSessionInteractive(creds.IMAP)
+	if err != nil {
+		if s.handleAuthError(ctx, acc, creds.Version, err) {
+			return ErrEmailHubReauthRequired
+		}
+		s.log.Warn("email hub move dial failed", "thread_id", threadID, "target", targetFolder, "code", emailHubErrCode(err))
+		return redactEmailHubMailErr(err)
+	}
+	defer sess.Close()
+	s.gov.loginSucceeded(acc.ID)
+	for fromMailbox, uids := range byMailbox {
+		if err := sess.MoveUIDs(fromMailbox, uids, toMailbox); err != nil {
 			if s.handleAuthError(ctx, acc, creds.Version, err) {
 				return ErrEmailHubReauthRequired
 			}
-			s.log.Warn("email hub move failed", "thread_id", r.ID, "target", targetFolder, "code", emailHubErrCode(err))
+			s.log.Warn("email hub move failed", "thread_id", threadID, "target", targetFolder, "code", emailHubErrCode(err))
 			return redactEmailHubMailErr(err)
 		}
-		moved = append(moved, r)
 	}
-	// Pull the destination first so the UI can show the mail there. Only then
-	// drop the source rows — if sync fails the local copies stay until retry
-	// (UNI-1635 / UNI-1638).
-	_, _, syncErr := s.syncSingleFolder(ctx, acc, targetFolder, false, true, false, true)
-	if syncErr != nil {
-		return redactEmailHubMailErr(syncErr)
-	}
+	// Drop source rows once IMAP accepted the move. Destination cache is filled
+	// in the background so HTTP is not blocked on a second dial + retention
+	// (UNI-1635 kept local copies until dest sync; with optimistic UI the list
+	// already removed the row, and the next folder sync / watcher fills ARCHIVE).
 	for _, r := range moved {
 		_ = s.q.DeleteEmailHubAttachmentsForThread(ctx, r.ID)
 		if err := s.q.DeleteEmailHubThread(ctx, db.DeleteEmailHubThreadParams{
@@ -174,5 +188,14 @@ func (s *EmailHubService) MoveThread(
 			return err
 		}
 	}
+	go s.syncMovedDestination(acc, targetFolder)
 	return nil
+}
+
+func (s *EmailHubService) syncMovedDestination(acc db.EmailHubAccount, targetFolder string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	if _, _, err := s.syncSingleFolder(ctx, acc, targetFolder, false, true, false, false); err != nil {
+		s.log.Warn("email hub move dest sync failed", "account_id", acc.ID, "folder", targetFolder, "code", emailHubErrCode(err))
+	}
 }
