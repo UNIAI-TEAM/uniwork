@@ -203,7 +203,29 @@ export function SignInMethodsSection() {
     const shown = emailDisplay(email, { privateRelay });
     return shown.kind === "relay" ? tRoot("auth.apple.relayEmail") : shown.kind === "address" ? shown.email : "";
   };
-  const line = (...parts: string[]) => parts.filter(Boolean).join(" · ");
+  // The address and the date are both worth reading, so a row too narrow for
+  // both (a phone) stacks them instead of cutting the date off behind the
+  // list's ellipsis; each still truncates on its own.
+  const line = (...parts: string[]): ReactNode => {
+    const shown = parts.filter(Boolean);
+    if (shown.length < 2) return shown[0] ?? "";
+    return (
+      <span className="@container block">
+        <span className="flex flex-col @[26rem]:flex-row @[26rem]:gap-1">
+          {shown.map((part, i) => (
+            <span key={part} className={i === 0 ? "min-w-0 truncate" : "truncate @[26rem]:shrink-0"}>
+              {i > 0 ? (
+                <span aria-hidden className="hidden @[26rem]:inline">
+                  {" · "}
+                </span>
+              ) : null}
+              {part}
+            </span>
+          ))}
+        </span>
+      </span>
+    );
+  };
 
   const offered = webSignInProviders(providers.data);
   const data = methods.data;
@@ -423,13 +445,18 @@ function MethodsSkeleton({ rows }: { rows: number }) {
   return (
     <div className="divide-y divide-border rounded-xl border border-surface-border bg-surface" aria-hidden>
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="flex min-h-14 items-center gap-3 px-4 py-2.5">
+        // SettingsListItem's own wrap: on a phone the action drops under the
+        // text and the address and date stack, so the rows land at their height.
+        <div key={i} className="flex min-h-14 flex-wrap items-center gap-3 px-4 py-2.5 sm:flex-nowrap">
           <Skeleton className={TILE} />
-          <div className="flex-1 space-y-1.5">
+          <div className="min-w-0 flex-1 space-y-1.5">
             <Skeleton className="h-4 w-28" />
             <Skeleton className="h-3 w-48 max-w-full" />
+            <Skeleton className="h-3 w-32 max-w-full sm:hidden" />
           </div>
-          <Skeleton className="h-7 w-20 rounded-md max-sm:hidden" />
+          <div className="flex w-full justify-end sm:w-auto">
+            <Skeleton className="h-7 w-20 rounded-md pointer-coarse:h-11" />
+          </div>
         </div>
       ))}
     </div>
