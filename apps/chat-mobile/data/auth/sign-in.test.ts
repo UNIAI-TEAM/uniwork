@@ -8,6 +8,12 @@ import type { MobileSession } from "./session";
 vi.mock("expo-crypto", async () => (await import("./expo-crypto-mock")).expoCryptoMock());
 const appleSheet = vi.hoisted(() => ({ isAvailableAsync: vi.fn(), signInAsync: vi.fn(), AppleAuthenticationScope: { FULL_NAME: 0, EMAIL: 1 } }));
 vi.mock("expo-apple-authentication", () => appleSheet);
+const googleSheet = vi.hoisted(() => ({
+  isAvailable: vi.fn(async () => true),
+  signIn: vi.fn<(nonce: string) => Promise<{ idToken: string; email: string | null } | null>>(),
+  signOut: vi.fn(async () => undefined),
+}));
+vi.mock("@/modules/unichat-google-sign-in", () => ({ UniChatGoogleSignIn: googleSheet }));
 
 type Door = (input: Record<string, unknown>) => Promise<NativeSignInResult | null>;
 const flow = vi.hoisted(() => ({
@@ -16,6 +22,7 @@ const flow = vi.hoisted(() => ({
     signInWithPassword: vi.fn<Door>(),
     verifySecondFactor: vi.fn<Door>(),
     signInWithApple: vi.fn<Door>(),
+    signInWithGoogle: vi.fn<Door>(),
     register: vi.fn<Door>(),
     createFromTicket: vi.fn<Door>(),
     verifyTicketEmailCode: vi.fn<Door>(),
@@ -32,7 +39,7 @@ vi.mock("./flow", () => ({
 
 import { setup } from "./fakes";
 import { CHOICE_TTL_MS, SECOND_FACTOR_TTL_MS, forgetPendingSignIn, holdStep, pendingTicket, usePendingSignIn } from "./pending-sign-in";
-import { forgetSignIn, runSignIn, sendClaimCode } from "./sign-in";
+import { forgetSignIn, providerToken, runSignIn, sendClaimCode } from "./sign-in";
 import { holdStepUp, stepUpToken } from "./step-up-store";
 
 const sessionBody = {
@@ -203,6 +210,59 @@ describe("Apple's sheet", () => {
   });
 });
 
+describe("Google's sheet", () => {
+  it("sends the ID token with the raw nonce whose hash Google was given, and the intent", async () => {
+    googleSheet.signIn.mockResolvedValueOnce({ idToken: "google.id.token", email: "an@gmail.com" });
+    flow.api.signInWithGoogle.mockResolvedValueOnce(signedIn());
+    expect(await runSignIn({ method: "google", intent: "sign_up" })).toMatchObject({ kind: "signed_in" });
+    const [sent] = flow.api.signInWithGoogle.mock.calls[0] as [{ idToken: string; nonce: string; intent: string }];
+    expect(sent).toEqual({ idToken: "google.id.token", nonce: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/), intent: "sign_up" });
+    expect(googleSheet.signIn.mock.calls[0]?.[0]).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("holds a ticket with that raw nonce, or a second factor naming the Google address", async () => {
+    googleSheet.signIn.mockResolvedValue({ idToken: "t", email: "an@gmail.com" });
+    flow.api.signInWithGoogle.mockResolvedValueOnce({ ...unmatched, identity: { ...identity, provider: "google" } } as NativeSignInResult);
+    expect(await runSignIn({ method: "google" })).toEqual({ kind: "choice" });
+    expect(pendingTicket(NOW)?.nonce).toBe((flow.api.signInWithGoogle.mock.calls[0]?.[0] as { nonce: string }).nonce);
+    flow.api.signInWithGoogle.mockResolvedValueOnce(mfaRequired);
+    expect(await runSignIn({ method: "google" })).toEqual({ kind: "second_factor" });
+    expect(usePendingSignIn.getState().secondFactor?.context).toEqual({ method: "google", email: "an@gmail.com", provider: "google" });
+    googleSheet.signIn.mockReset();
+  });
+
+  it("asks the server nothing when the chooser is closed", async () => {
+    googleSheet.signIn.mockResolvedValueOnce(null);
+    expect(await runSignIn({ method: "google" })).toEqual({ kind: "dismissed" });
+    expect(flow.api.signInWithGoogle).not.toHaveBeenCalled();
+  });
+});
+
+describe("a provider's fresh token", () => {
+  it("is Apple's identity token with its raw nonce and code", async () => {
+    appleSheet.signInAsync.mockResolvedValueOnce(appleCredential);
+    expect(await providerToken("apple")).toEqual({ token: "apple.id.token", nonce: expect.any(String), authorizationCode: "code_1" });
+    appleSheet.signInAsync.mockResolvedValueOnce({ ...appleCredential, authorizationCode: null });
+    expect(await providerToken("apple")).toEqual({ token: "apple.id.token", nonce: expect.any(String), authorizationCode: undefined });
+  });
+
+  it("is Google's ID token; a link first makes Google ask which account", async () => {
+    googleSheet.signIn.mockResolvedValueOnce({ idToken: "google.id.token", email: null });
+    expect(await providerToken("google")).toEqual({ token: "google.id.token", nonce: expect.any(String) });
+    expect(googleSheet.signOut).not.toHaveBeenCalled();
+    googleSheet.signIn.mockResolvedValueOnce({ idToken: "google.id.token", email: null });
+    await providerToken("google", { chooseAccount: true });
+    expect(googleSheet.signOut).toHaveBeenCalledOnce();
+  });
+
+  it("is nothing when the sheet was closed", async () => {
+    appleSheet.signInAsync.mockRejectedValueOnce(Object.assign(new Error("canceled"), { code: "ERR_REQUEST_CANCELED" }));
+    expect(await providerToken("apple")).toBeNull();
+    googleSheet.signIn.mockResolvedValueOnce(null);
+    expect(await providerToken("google")).toBeNull();
+  });
+});
+
 describe("a new account by email", () => {
   it("sends the name and the address trimmed, the password as typed", async () => {
     flow.api.register.mockResolvedValueOnce(signedIn());
@@ -315,5 +375,7 @@ describe("a sign-out", () => {
     expect(usePendingSignIn.getState()).toEqual({ choice: null, secondFactor: null });
     expect(pendingTicket(NOW)).toBeNull();
     expect(stepUpToken("delete_account", "u1")).toBeNull();
+    // Google forgets the account it remembers for the app
+    expect(googleSheet.signOut).toHaveBeenCalledOnce();
   });
 });

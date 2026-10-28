@@ -18,6 +18,7 @@ vi.mock("expo-apple-authentication", () => apple);
 const strict = vi.hoisted(() => ({ strictFetch: vi.fn<(url: string, init: RequestInit) => Promise<Response>>() }));
 vi.mock("./strict-fetch", () => strict);
 vi.mock("../build-info", () => ({ buildInfo: () => ({ version: "0.4.0", build: "" }) }));
+vi.mock("@/modules/unichat-google-sign-in", () => ({ UniChatGoogleSignIn: null }));
 
 import { nativeClient, signInOffer } from "./flow";
 

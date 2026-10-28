@@ -7,6 +7,20 @@ khác (`scripts/mobile-play-release.mjs`); `scripts/mobile-release-notes.test.mj
 có đủ hai ngôn ngữ. Bản nháp từ commit: `node scripts/mobile-release-notes.mjs draft` — viết lại cho người dùng đọc,
 không chép tên commit.
 
+## 0.4.0
+
+### vi-VN
+
+- Đăng nhập ngay trong UniChat bằng email và mật khẩu, Google hoặc Apple, không cần mở trình duyệt.
+- Xác thực hai lớp ngay trong app.
+- Gợi ý mật khẩu bạn đã lưu cho UniWork trên web.
+
+### en-US
+
+- Sign in right inside UniChat with your email and password, Google or Apple, without opening the browser.
+- Two-factor authentication right in the app.
+- Suggests the password you saved for UniWork on the web.
+
 ## 0.3.1
 
 ### vi-VN

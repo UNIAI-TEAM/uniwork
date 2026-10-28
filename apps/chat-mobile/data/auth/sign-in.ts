@@ -1,5 +1,5 @@
 // The ways into the app (ADR 0047 §8, spec §5.1), one request each: the browser (PKCE, with the provider button the
-// person tapped), Apple's sheet, email and password, a new account by email, the choice screen's new account and its
+// person tapped), Apple's and Google's sheets, email and password, a new account by email, the choice screen's new account and its
 // code mailed to another address, and the second factor of any of them. Every door but the browser runs as
 // MobileSession.loginWith's issuer, so a sign-out under way drops what it brings; a second factor or a choice comes
 // back held in memory (pending-sign-in.ts) and the screen moves on to it. A password or a code lives only in the
@@ -8,6 +8,7 @@
 import type { NativeSignInIntent, NativeTicket } from "@uniwork/core/api/endpoints/sign-in-native-api";
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { signInWithApple } from "./apple";
+import { signInWithGoogle, signOutOfGoogle } from "./google";
 import { authConfig, nativeSignIn, session } from "./flow";
 import { clearChoice, clearSecondFactor, forgetPendingSignIn, holdStep, pendingChallenge, pendingTicket, usePendingSignIn } from "./pending-sign-in";
 import { stepOf, type Issuer, type SecondFactorContext, type SignedIn } from "./sign-in-step";
@@ -19,6 +20,8 @@ export type SignInRequest =
   | { method: "browser"; provider?: SignInProvider }
   /** Apple's sheet; `sign_up` from the register screen opens an account at once instead of the choice screen */
   | { method: "apple"; intent?: NativeSignInIntent }
+  /** Google's sheet, the same way */
+  | { method: "google"; intent?: NativeSignInIntent }
   | { method: "password"; email: string; password: string }
   | { method: "register"; email: string; password: string; displayName: string }
   /** the TOTP or recovery code of the challenge held (pendingChallenge) */
@@ -75,6 +78,13 @@ function issuerFor(request: DoorRequest): Issuer {
           intent: request.intent,
         });
         return stepOf(result, { deploymentId, nonce: apple.rawNonce, context: { method: "apple", email: apple.email, provider: "apple" } });
+      };
+    case "google":
+      return async (stale) => {
+        const google = await signInWithGoogle();
+        if (!google || stale()) return null;
+        const result = await nativeSignIn.signInWithGoogle({ idToken: google.idToken, nonce: google.rawNonce, intent: request.intent });
+        return stepOf(result, { deploymentId, nonce: google.rawNonce, context: { method: "google", email: google.email, provider: "google" } });
       };
     case "password":
       return async () => {
@@ -157,8 +167,30 @@ export async function sendClaimCode(email: string): Promise<boolean> {
   return nativeSignIn.sendTicketEmailCode({ ...ticketOrThrow(), email: email.trim() });
 }
 
-/** On sign-out: nothing a sign-in left waiting, and no step-up token, outlives the session. */
+/**
+ * A fresh token of `provider`'s own sheet, with the raw nonce it was given: a step-up's proof, or a link from
+ * Settings. `chooseAccount` makes Google ask which account (a link) instead of offering the one it remembers. Null
+ * when the sheet was closed, or this phone has none for the provider.
+ */
+export async function providerToken(
+  provider: SignInProvider,
+  options: { chooseAccount?: boolean } = {},
+): Promise<{ token: string; nonce: string; authorizationCode?: string } | null> {
+  if (provider === "apple") {
+    const apple = await signInWithApple();
+    return apple && { token: apple.identityToken, nonce: apple.rawNonce, authorizationCode: apple.authorizationCode ?? undefined };
+  }
+  if (options.chooseAccount) await signOutOfGoogle();
+  const google = await signInWithGoogle();
+  return google && { token: google.idToken, nonce: google.rawNonce };
+}
+
+/**
+ * On sign-out: nothing a sign-in left waiting, and no step-up token, outlives the session; Google forgets the account
+ * it remembers, so the next person on this phone is not offered the last one's.
+ */
 export function forgetSignIn(): void {
   forgetPendingSignIn();
   forgetStepUp();
+  void signOutOfGoogle();
 }

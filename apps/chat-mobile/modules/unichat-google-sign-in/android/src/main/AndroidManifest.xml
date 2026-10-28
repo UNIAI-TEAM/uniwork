@@ -1,0 +1,3 @@
+<!-- Declares nothing: the server client id is the app's own meta-data (plugins/with-google-sign-in.js), and Credential
+     Manager's provider brings its own entries. -->
+<manifest />

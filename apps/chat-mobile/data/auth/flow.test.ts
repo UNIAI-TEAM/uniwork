@@ -18,6 +18,8 @@ vi.mock("expo-apple-authentication", () => apple);
 const strict = vi.hoisted(() => ({ strictFetch: vi.fn<(url: string, init: RequestInit) => Promise<Response>>() }));
 vi.mock("./strict-fetch", () => strict);
 vi.mock("../build-info", () => ({ buildInfo: () => ({ version: "0.4.0", build: "17" }) }));
+const google = vi.hoisted(() => ({ isAvailable: vi.fn(async () => false), signIn: vi.fn(), signOut: vi.fn() }));
+vi.mock("@/modules/unichat-google-sign-in", () => ({ UniChatGoogleSignIn: google }));
 const transportSpy = vi.hoisted(() => ({ calls: [] as unknown[][] }));
 vi.mock("./transport", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./transport")>();
@@ -106,6 +108,10 @@ describe("auth flow composition", () => {
   it("sends Apple through the browser off the iPhone, without asking for Apple's sheet", async () => {
     strict.strictFetch.mockResolvedValueOnce(json(200, { google: true, apple: true, apple_web: true, google_native: true }));
     expect(await signInOffer()).toEqual({ apple: "browser", google: "browser" });
+    // Google's sheet where the build and Google Play services can open it
+    google.isAvailable.mockResolvedValueOnce(true);
+    strict.strictFetch.mockResolvedValueOnce(json(200, { google: true, apple: true, apple_web: true, google_native: true }));
+    expect(await signInOffer()).toEqual({ apple: "browser", google: "native" });
     expect(apple.isAvailableAsync).not.toHaveBeenCalled();
     expect(String(strict.strictFetch.mock.lastCall?.[0])).toMatch(/\/api\/v1\/auth\/providers$/);
   });

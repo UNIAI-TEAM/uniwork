@@ -95,8 +95,8 @@ const kotlinCommentFaults = (source: string): string[] => {
 };
 
 describe("the app's local Expo modules", () => {
-  it("has at least the calls module and the background-send module", () => {
-    expect(localModules.map((module) => module.name)).toEqual(expect.arrayContaining(["unichat-calls", "unichat-background"]));
+  it("has at least the calls module, the background-send module and the Google sign-in module", () => {
+    expect(localModules.map((module) => module.name)).toEqual(expect.arrayContaining(["unichat-calls", "unichat-background", "unichat-google-sign-in"]));
   });
 
   it.each(localModules)("$name: git holds the native project of every platform it declares", ({ dir, config }) => {
@@ -370,3 +370,44 @@ describe("every VoIP push is reported to CallKit (ios/CallCenter.swift)", () => 
   });
 });
 
+// ADR 0047 §8: the server refuses a Google ID token whose `nonce` is not SHA-256 of the raw nonce it is sent, so each
+// half must hand Google the hash it is given (the public @react-native-google-signin package passes none). Nothing on
+// a developer machine compiles Swift or Kotlin: the shape is held here, the binary by mobile-verify's native builds.
+describe("Sign in with Google hands Google the nonce (modules/unichat-google-sign-in)", () => {
+  const dir = path.join(modulesRoot, "unichat-google-sign-in");
+  const swift = readFileSync(path.join(dir, "ios/UniChatGoogleSignInModule.swift"), "utf8");
+  const kotlin = readFileSync(path.join(dir, "android/src/main/java/expo/modules/unichatgooglesignin/UniChatGoogleSignInModule.kt"), "utf8");
+
+  it("is one module name on both platforms and in JavaScript", () => {
+    expect(swift).toContain('Name("UniChatGoogleSignIn")');
+    expect(kotlin).toContain('Name("UniChatGoogleSignIn")');
+    expect(readFileSync(path.join(dir, "index.ts"), "utf8")).toContain('requireOptionalNativeModule<UniChatGoogleSignInModule>("UniChatGoogleSignIn")');
+  });
+
+  it("iOS: signs in with GoogleSignIn's nonce API, reads a cancel as nothing, and refuses a missing URL scheme", () => {
+    expect(swift).toMatch(/AsyncFunction\("signIn"\) \{ \(nonce: String, promise: Promise\) in/);
+    expect(swift).toContain("signIn(withPresenting: presenter, hint: nil, additionalScopes: nil, nonce: nonce)");
+    expect(swift).toMatch(/signInError\.code == \.canceled \{\s*promise\.resolve\(nil\)/);
+    // GoogleSignIn raises when the reversed client id is not a registered scheme: unavailable instead
+    expect(swift).toContain('info["CFBundleURLTypes"]');
+    expect(readFileSync(path.join(dir, "ios/UniChatGoogleSignIn.podspec"), "utf8")).toMatch(/s\.dependency 'GoogleSignIn', '~> 8\.\d+'/);
+  });
+
+  it("Android: asks Credential Manager's Sign in with Google option with the nonce, and reads a cancel as nothing", () => {
+    expect(kotlin).toMatch(/AsyncFunction\("signIn"\) Coroutine \{ nonce: String ->/);
+    expect(kotlin).toContain("GetSignInWithGoogleOption.Builder(clientId).setNonce(nonce).build()");
+    expect(kotlin).toMatch(/catch \(cancelled: GetCredentialCancellationException\) \{[^}]*null\s*\}/);
+    expect(readFileSync(path.join(dir, "android/build.gradle"), "utf8")).toContain("com.google.android.libraries.identity.googleid:googleid:");
+  });
+
+  it("autolinking registers both halves", { timeout: 60_000 }, () => {
+    const resolve = (platform: string) =>
+      (
+        JSON.parse(
+          execFileSync("npx", ["expo-modules-autolinking", "resolve", "-p", platform, "--json"], { cwd: appRoot, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }),
+        ) as { modules: { packageName: string; projects?: { modules: { classifier: string }[] }[]; pods?: { podName: string }[] }[] }
+      ).modules.find((module) => module.packageName === "unichat-google-sign-in");
+    expect(resolve("android")?.projects?.[0]?.modules.map((module) => module.classifier)).toEqual(["expo.modules.unichatgooglesignin.UniChatGoogleSignInModule"]);
+    expect(resolve("apple")?.pods?.map((pod) => pod.podName)).toEqual(["UniChatGoogleSignIn"]);
+  });
+});

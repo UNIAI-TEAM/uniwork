@@ -2,8 +2,9 @@
 // and nowhere else in data/auth, so session.ts, transport.ts and pkce.ts stay
 // node-testable: Constants for the scheme and client ids, Platform for the
 // device label, WebBrowser for the modal system auth session, expo/fetch
-// (strict-fetch.ts) for the requests. Apple's sheet (apple.ts) is the other
-// native wrapper, used by the doors of the app's sign-in screen (sign-in.ts).
+// (strict-fetch.ts) for the requests. Apple's and Google's sheets (apple.ts,
+// google.ts) are the other native wrappers, used by the doors of the app's
+// sign-in screen (sign-in.ts).
 import { createNativeSignInApi, type NativeClient } from "@uniwork/core/api/endpoints/sign-in-native-api";
 import { NO_AUTH_PROVIDERS, readAuthProviders, type AuthProviders } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import Constants from "expo-constants";
@@ -15,6 +16,7 @@ import { buildInfo } from "../build-info";
 import { secureSessionStorage } from "../secure-storage";
 import { whileSystemUiOpen } from "../system-ui";
 import { appleSignInAvailable } from "./apple";
+import { googleSignInAvailable } from "./google";
 import { MobileSession, deviceLabel, type MobileSessionConfig } from "./session";
 import { strictFetch } from "./strict-fetch";
 import { createEndpointRequest, createTransport } from "./transport";
@@ -81,6 +83,6 @@ async function authProviders(): Promise<AuthProviders> {
 
 /** The ways in the sign-in screen offers besides email: what the server takes, and the sheets this phone can open. */
 export async function signInOffer(): Promise<SignInOffer> {
-  const [providers, appleNative] = await Promise.all([authProviders(), appleSignInAvailable(Platform.OS)]);
-  return signInOfferOf({ os: Platform.OS, providers, appleNative, googleNative: false });
+  const [providers, appleNative, googleNative] = await Promise.all([authProviders(), appleSignInAvailable(Platform.OS), googleSignInAvailable()]);
+  return signInOfferOf({ os: Platform.OS, providers, appleNative, googleNative });
 }
