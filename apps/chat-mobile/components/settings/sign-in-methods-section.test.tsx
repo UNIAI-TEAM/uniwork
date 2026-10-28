@@ -90,6 +90,20 @@ describe("SignInMethodsSection", () => {
     expect(screen.getByRole("button", { name: viText("mobile.sign_in_methods.link_named", { provider: "Apple" }) })).toBeOnTheScreen();
   });
 
+  it("names the password's address as Apple's hidden one on a relay account, and says set when nothing else is known", async () => {
+    useAuthStore.setState({ user: { id: "u1", email: "q7@privaterelay.appleid.com", display_name: "An", has_password: true } as never });
+    api.getSignInMethods.mockResolvedValueOnce(methods({ account_email_is_relay: true }));
+    const first = await render(<SignInMethodsSection />);
+    expect(await screen.findByText(new RegExp(`^${viText("auth.apple.relayEmail")} · `))).toBeOnTheScreen();
+    await first.unmount();
+
+    useAuthStore.setState({ user: { id: "u1", email: "", display_name: "An", has_password: true } as never });
+    api.getSignInMethods.mockResolvedValueOnce(methods({ password: { set: true, changed_at: null } }));
+    await render(<SignInMethodsSection />);
+    // The meta line says "Đã đặt", the only thing left to say, beside the badge's own "Đã đặt".
+    expect(await screen.findAllByText(viText("settings.security.signInMethods.password.set"))).toHaveLength(2);
+  });
+
   it("opens the password's own screen", async () => {
     await render(<SignInMethodsSection />);
     await fireEvent.press(await screen.findByTestId("sign-in-method-action-password"));
