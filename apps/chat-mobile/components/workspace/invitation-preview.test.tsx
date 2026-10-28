@@ -62,13 +62,14 @@ describe("InvitationPreview", () => {
     await act(async () => answer(preview()));
     expect(await screen.findByRole("header", { name: viText("invitations.preview.title", { name: "Acme" }) })).toBeOnTheScreen();
     expect(screen.getByText(viText("invitations.preview.description_inviter", { inviter: "Bình" }))).toBeOnTheScreen();
-    for (const [label, value] of [
+    const rows: [string, string][] = [
       ["invitations.preview.organization", "Acme"],
       ["invitations.preview.workspace", "HQ"],
       ["invitations.preview.role", viText("people.role_admin")],
       ["invitations.preview.inviter", "Bình"],
       ["invitations.preview.expiry", viText("invitations.preview.expires_in", { count: 3 })],
-    ]) {
+    ];
+    for (const [label, value] of rows) {
       expect(screen.getByLabelText(`${viText(label)}: ${value}`)).toBeOnTheScreen();
     }
     expect(api.accept).not.toHaveBeenCalled();
