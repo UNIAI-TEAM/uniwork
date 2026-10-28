@@ -490,7 +490,7 @@ export const MeetingTranscriptionSchema = z.object({
   attempts: z.number().optional(),
   starts_at: z.string().optional(),
   /** The length estimated when the file arrived, in seconds; known from QUEUED on. */
-  estimated_seconds: z.number().optional(),
+  estimated_seconds: z.number().optional().catch(undefined),
   audio_seconds: z.number().optional(),
   created_by: z.string().optional(),
   created_at: z.string().optional(),

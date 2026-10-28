@@ -21,8 +21,8 @@ const transcription = {
   created_at: "2026-10-20T04:00:00Z",
 };
 const malformed = [null, [], "nope", { transcription: { id: 3 } }, { transcriptions: "x" }, { meeting: { id: 1 } }];
-// A length that is not a number: the list degrades rather than drawing "NaN phút".
-const badLength = { transcriptions: [{ ...transcription, estimated_seconds: "2538" }] };
+// A length that is not a number: that row loses its length rather than drawing "NaN phút", and the list survives.
+const badLength = { transcriptions: [{ ...transcription, estimated_seconds: "2538" }, { ...transcription, id: "t0" }] };
 
 describe("meeting transcription endpoints", () => {
   beforeEach(() => {
@@ -94,6 +94,9 @@ describe("meeting transcription endpoints", () => {
       await expect(listMeetingTranscriptions("m1")).resolves.toEqual([]);
     }
     vi.mocked(fetch).mockResolvedValueOnce(json(badLength));
-    await expect(listMeetingTranscriptions("m1")).resolves.toEqual([]);
+    const list = await listMeetingTranscriptions("m1");
+    expect(list.map((t) => t.id)).toEqual(["t1", "t0"]);
+    expect(list[0]?.estimated_seconds).toBeUndefined();
+    expect(list[1]?.estimated_seconds).toBe(2538);
   });
 });
