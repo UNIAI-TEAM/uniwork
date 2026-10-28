@@ -6,8 +6,8 @@ import { setSessionUser } from "../auth/hooks";
 import { forgetStepUpIfRefused, withTransferProof } from "../auth/step-up-store";
 import * as workspaces from "../api/endpoints/workspaces";
 import { useOrganizations } from "../organizations/hooks";
-import { resolveHomeDestination } from "../paths/resolve";
-import type { SwitchResolution } from "../types/workspace";
+import { homeWorkspace, resolveHomeDestination } from "../paths/resolve";
+import type { SwitchResolution, Workspace } from "../types/workspace";
 import { workspaceKeys } from "./keys";
 import { readLastWorkspace } from "./last-workspace";
 
@@ -49,6 +49,24 @@ export function useHomeDestination(): string | null {
   const { data: orgs } = useOrganizations(authed);
   if (!user || !list || !orgs) return null;
   return resolveHomeDestination(list, user, readLastWorkspace(user.id), orgs);
+}
+
+/**
+ * The workspace the account's own pages open in (/settings sends a person on
+ * to its settings, spec §4.5); undefined until the session and both lists are
+ * known, null when there is none to open (no workspace, a gate step still
+ * owed, or a list that failed: the page then stands on its own). An
+ * organization list that failed is read as unknown, as the resolver does.
+ */
+export function useHomeWorkspace(): Workspace | null | undefined {
+  const user = useAuthStore((s) => s.user);
+  const authed = useAuthStore((s) => s.status === "authed");
+  const list = useWorkspaces();
+  const orgs = useOrganizations(authed);
+  if (!user || !authed) return undefined;
+  if (list.isError) return null;
+  if (!list.data || (orgs.isPending && !orgs.isError)) return undefined;
+  return homeWorkspace(list.data, user, readLastWorkspace(user.id), orgs.data);
 }
 
 export function useWorkspace(orgSlug: string, wsSlug: string) {

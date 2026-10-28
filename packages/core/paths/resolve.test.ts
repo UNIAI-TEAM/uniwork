@@ -4,6 +4,7 @@ import {
   isGlobalPath,
   isReservedSlug,
   paths,
+  homeWorkspace,
   pendingAuthStep,
   resolveHomeDestination,
   resolvePostAuthDestination,
@@ -110,6 +111,19 @@ describe("resolvePostAuthDestination", () => {
   });
   it("the gates still come first", () => {
     expect(resolvePostAuthDestination([], verified, [])).toBe("/onboarding");
+  });
+});
+
+describe("homeWorkspace", () => {
+  const list = [ws("unicom", "alpha"), ws("acme", "team")];
+  it("is the workspace last opened while it is still theirs, else the first", () => {
+    expect(homeWorkspace(list, onboarded, { orgSlug: "acme", wsSlug: "team" })?.slug).toBe("team");
+    expect(homeWorkspace(list, onboarded, { orgSlug: "gone", wsSlug: "team" })?.slug).toBe("alpha");
+  });
+  it("is none while a gate is owed, with no workspace, or once the organization is left", () => {
+    expect(homeWorkspace(list, verified, null)).toBeNull();
+    expect(homeWorkspace([], onboarded, null)).toBeNull();
+    expect(homeWorkspace([ws("closed", "alpha")], onboarded, null, [{ ...org("closed"), deactivated: true }])).toBeNull();
   });
 });
 
