@@ -56,11 +56,14 @@ func TestDesktopStartPassesTheProviderHint(t *testing.T) {
 	cfg := config.Config{FrontendOrigin: "http://localhost:13380", DesktopAuthClientID: "uniwork-office", DesktopAuthRedirectURIs: []string{"uniwork-office://auth/callback"}, DesktopAuthDeploymentIDs: []string{"default"}, DesktopAuthAttemptTTL: 10 * time.Minute, RefreshTokenTTL: time.Hour}
 	h := &handlers{Deps: Deps{DesktopAuth: service.NewDesktopAuthService(pool, q, minter, cfg), Log: slog.Default()}}
 	sum := sha256.Sum256([]byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"))
-	start := func(provider string) (*httptest.ResponseRecorder, map[string]any) {
+	start := func(provider string, intent ...string) (*httptest.ResponseRecorder, map[string]any) {
 		v := url.Values{"client_id": {"uniwork-office"}, "code_challenge": {base64.RawURLEncoding.EncodeToString(sum[:])}, "code_challenge_method": {"S256"},
-			"state": {"s-" + provider}, "redirect_uri": {"uniwork-office://auth/callback"}, "deployment_id": {"default"}}
+			"state": {"s-" + provider + strings.Join(intent, "")}, "redirect_uri": {"uniwork-office://auth/callback"}, "deployment_id": {"default"}}
 		if provider != "" {
 			v.Set("provider", provider)
+		}
+		if len(intent) > 0 {
+			v.Set("intent", intent[0])
 		}
 		rec := httptest.NewRecorder()
 		h.desktopStart(rec, httptest.NewRequest(http.MethodGet, "/api/v1/auth/desktop/start?"+v.Encode(), nil))
@@ -86,5 +89,13 @@ func TestDesktopStartPassesTheProviderHint(t *testing.T) {
 	}
 	if rec, out := start("github"); rec.Code != http.StatusBadRequest || errorCode(out) != "invalid_request" {
 		t.Fatalf("github: %d %v", rec.Code, out)
+	}
+	// The register screen's button: the web starts the provider to sign up.
+	rec, out = start("apple", "sign_up")
+	if q := authorizeQuery(out); rec.Code != http.StatusOK || q.Get("provider") != "apple" || q.Get("intent") != "sign_up" {
+		t.Fatalf("sign_up: %d %v", rec.Code, out)
+	}
+	if rec, out := start("apple", "register"); rec.Code != http.StatusBadRequest || errorCode(out) != "invalid_request" {
+		t.Fatalf("intent register: %d %v", rec.Code, out)
 	}
 }

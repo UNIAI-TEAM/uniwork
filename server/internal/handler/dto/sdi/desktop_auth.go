@@ -15,6 +15,7 @@ type DesktopStartSDI struct {
 	Platform            string `query:"platform" description:"Metadata nền tảng host, có giới hạn độ dài" example:"windows"`
 	Build               string `query:"build" description:"Metadata bản dựng desktop, có giới hạn độ dài" example:"1.0.0"`
 	Provider            string `query:"provider" enum:"google,apple" description:"Tuỳ chọn: nút nhà cung cấp người dùng bấm trong app (google hoặc apple); được nối vào authorization_url để trang web đưa người chưa đăng nhập thẳng tới nhà cung cấp; giá trị khác → 400 invalid_request" example:"apple"`
+	Intent              string `query:"intent" enum:"sign_in,sign_up" description:"Tuỳ chọn, đi cùng provider: sign_up là nút của màn đăng ký trong app; trang web bắt đầu nhà cung cấp với intent=sign_up, nên danh tính chưa có tài khoản tạo tài khoản ngay thay vì hiện màn chọn; giá trị khác → 400 invalid_request" example:"sign_up"`
 }
 
 // DesktopExchangeSDI is POST /api/v1/auth/desktop/exchange. The verifier is

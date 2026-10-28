@@ -100,6 +100,11 @@ type DesktopStartInput struct {
 	// apple, spec §3.5): the web page sends a signed-out person straight to
 	// that provider instead of the login form. Empty for older clients.
 	Provider string
+	// Intent is sign_up when that button is the register screen's: the web
+	// starts the provider with intent=sign_up, so an identity with no account
+	// opens one at once instead of the choice screen, as on the web's own
+	// register page. Only with a provider; empty or sign_in otherwise.
+	Intent string
 }
 
 type DesktopAttempt struct {
@@ -184,6 +189,9 @@ func (s *DesktopAuthService) Start(ctx context.Context, in DesktopStartInput) (D
 	params := url.Values{"attempt_id": {id}}
 	if in.Provider != "" {
 		params.Set("provider", in.Provider)
+		if in.Intent == SignInIntentSignUp {
+			params.Set("intent", SignInIntentSignUp)
+		}
 	}
 	return DesktopAttempt{ID: id, AuthorizationURL: strings.TrimRight(s.cfg.FrontendOrigin, "/") + "/auth/desktop/authorize?" + params.Encode(), ExpiresAt: expires}, nil
 }
@@ -838,9 +846,14 @@ func (s *DesktopAuthService) validateStart(in DesktopStartInput) error {
 	}
 	switch in.Provider {
 	case "", ProviderGoogle, ProviderApple:
-		return nil
 	default:
 		return Invalid("provider must be google or apple")
+	}
+	switch in.Intent {
+	case "", SignInIntentSignIn, SignInIntentSignUp:
+		return nil
+	default:
+		return Invalid("intent must be sign_in or sign_up")
 	}
 }
 
