@@ -877,6 +877,9 @@ func renderCopilotAgentV5(vars map[string]any) string {
 // the same message, so only a text file has Text. Total > 0 means only Read
 // of its Total Units were read (Read 0: the opening of the first one).
 type AttachedFile struct {
+	// ID is the ai_attachments row id a write tool takes as attachment_id;
+	// empty (no stored row) prints no id.
+	ID                     string
 	Name, Kind, Text, Unit string
 	Read, Total            int
 }
@@ -886,7 +889,12 @@ type AttachedFile struct {
 func renderAttachedFiles(b *strings.Builder, files []AttachedFile) {
 	b.WriteString("\nFiles the asker attached:\n")
 	for i, f := range files {
-		fmt.Fprintf(b, "File %d: %s\n", i+1, UntrustedInline("file_name", f.Name))
+		// The id sits outside the escaped name so a file name cannot forge one.
+		id := ""
+		if f.ID != "" {
+			id = " (attachment_id: " + f.ID + ")"
+		}
+		fmt.Fprintf(b, "File %d: %s%s\n", i+1, UntrustedInline("file_name", f.Name), id)
 		switch f.Kind {
 		case "image":
 			b.WriteString("Sent with this message as an image.\n")

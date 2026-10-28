@@ -25,7 +25,7 @@ var (
 	askTools = map[string]bool{
 		"search": true, "list_tasks": true, "get_task": true, "list_meetings": true,
 		"get_meeting": true, "list_projects": true, "get_project": true, "get_document": true,
-		"list_chat_rooms": true, "read_chat_room": true, "list_members": true, "member_workload": true,
+		"list_documents": true, "list_templates": true, "list_chat_rooms": true, "read_chat_room": true, "list_members": true, "member_workload": true,
 	}
 	askOutcomes   = map[string]bool{"answered": true, "agent_failed": true, "refused": true, "rate_limited": true, "busy": true, "timeout": true, "stopped": true, "interrupted": true, "rejected": true}
 	askStatuses   = map[string]bool{"ok": true, "error": true, "truncated": true}
