@@ -1,5 +1,6 @@
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import { Dimensions } from "react-native";
+import { useKeyboardState } from "react-native-keyboard-controller";
 import { signInOffer } from "@/data/auth/flow";
 import { render, viText } from "@/test/render";
 import { ProviderButton, ProviderButtons } from "./provider-buttons";
@@ -59,5 +60,31 @@ describe("ProviderButtons", () => {
     expect(screen.getByTestId("apple-sign-in").props.accessibilityLabel).toBe(viText("auth.social.signingIn"));
     expect(screen.getByTestId("google-sign-in").props.style).toMatchObject({ minHeight: 59 });
     expect(screen.getByTestId("google-sign-in")).toBeDisabled();
+  });
+
+  describe("while the keyboard is up", () => {
+    const keyboard = (up: boolean) => jest.mocked(useKeyboardState).mockImplementation(() => up as never);
+    afterEach(() => keyboard(false));
+
+    it("keeps the place an offer that came back with nothing held, until the keyboard goes", async () => {
+      keyboard(true);
+      jest.mocked(signInOffer).mockResolvedValue({ apple: null, google: null });
+      const { rerender } = await render(<ProviderButtons busy={null} onStart={jest.fn()} />);
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+      // Someone is typing below: the form does not jump up under them.
+      expect(screen.getByTestId("provider-buttons-loading", { includeHiddenElements: true })).toBeTruthy();
+      keyboard(false);
+      await rerender(<ProviderButtons busy={null} onStart={jest.fn()} />);
+      expect(screen.queryByTestId("provider-buttons-loading", { includeHiddenElements: true })).toBeNull();
+      expect(screen.queryByTestId("provider-buttons")).toBeNull();
+    });
+
+    it("draws the buttons in the place their outline held", async () => {
+      keyboard(true);
+      jest.mocked(signInOffer).mockResolvedValue({ apple: "browser", google: "native" });
+      await render(<ProviderButtons busy={null} onStart={jest.fn()} />);
+      expect(await screen.findByTestId("google-sign-in")).toBeTruthy();
+      expect(screen.getByTestId("apple-browser-sign-in")).toBeTruthy();
+    });
   });
 });

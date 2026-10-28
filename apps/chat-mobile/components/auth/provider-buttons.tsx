@@ -7,22 +7,26 @@
 // they stay equally prominent (lib/type-scale.ts › providerButtonHeight: Apple's title grows only with its height,
 // and a pill's one-line label shrinks to fit rather than wrap). While the offer loads, grey pills of that height hold
 // the place so the form does not jump; a button whose sign-in runs keeps its mark and its words (both brands ask for
-// them) with a spinner at its end and says it is signing in, and the others dim and ignore taps.
+// them) with a spinner at its end and says it is signing in, and the others dim and ignore taps. Nothing above the
+// form changes height while the keyboard is up: an offer that arrives then with another number of buttons (none on
+// an offline start, the buttons once the signal is back) waits for the keyboard to go, so the field being typed in
+// never moves under the thumb.
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeSignInIntent } from "@uniwork/core/api/endpoints/sign-in-native-api";
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Platform, Pressable, useWindowDimensions, View } from "react-native";
+import { useKeyboardState } from "react-native-keyboard-controller";
 import googleMark from "@/assets/google-g.png";
 import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import type { SignInRequest } from "@/data/auth/sign-in";
 import { signInOfferOptions } from "@/data/queries/sign-in";
-import { providerOrder, providerRequest } from "@/lib/sign-in-offer";
+import { providerOrder, providerRequest, type SignInOffer } from "@/lib/sign-in-offer";
 import { PROVIDER_BUTTON_MAX_FONT_SCALE, providerButtonHeight } from "@/lib/type-scale";
 import { cn } from "@/lib/utils";
 import { AppleSignInButton } from "./apple-sign-in-button";
@@ -126,12 +130,31 @@ interface Props {
   onStart: (request: SignInRequest, provider: SignInProvider) => void;
 }
 
+/** The offer as the screen draws it: still loading (grey pills), or read (null when it could not be). */
+interface DrawnOffer {
+  pending: boolean;
+  offer: SignInOffer | undefined;
+}
+
 export function ProviderButtons({ intent, busy, hidden = null, onStart }: Props) {
   const { t } = useTranslation();
-  const { data: offer, isPending } = useQuery(signInOfferOptions());
+  const { data, isPending } = useQuery(signInOfferOptions());
   const height = providerButtonHeight(useWindowDimensions().fontScale);
+  const typing = useKeyboardState((state) => state.isVisible);
+  const live: DrawnOffer = { pending: isPending, offer: data };
+  const [drawn, setDrawn] = useState<DrawnOffer>(live);
+  const shownOf = ({ offer }: DrawnOffer) =>
+    providerOrder(Platform.OS).flatMap((provider) => {
+      const request = provider === hidden ? null : providerRequest(provider, offer, intent);
+      return request ? [{ provider, request }] : [];
+    });
+  const rows = (state: DrawnOffer) => (state.pending ? 2 : shownOf(state).length);
+  const changed = drawn.pending !== live.pending || drawn.offer !== live.offer;
+  const takes = changed && (!typing || rows(drawn) === rows(live));
+  if (takes) setDrawn(live);
+  const view = takes ? live : drawn;
 
-  if (isPending) {
+  if (view.pending) {
     return (
       <View className="gap-3" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="provider-buttons-loading">
         <View style={{ minHeight: height }} className="rounded-full bg-muted" />
@@ -140,10 +163,7 @@ export function ProviderButtons({ intent, busy, hidden = null, onStart }: Props)
       </View>
     );
   }
-  const shown = providerOrder(Platform.OS).flatMap((provider) => {
-    const request = provider === hidden ? null : providerRequest(provider, offer, intent);
-    return request ? [{ provider, request }] : [];
-  });
+  const shown = shownOf(view);
   if (shown.length === 0) return null;
 
   return (
