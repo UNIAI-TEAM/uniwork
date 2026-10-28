@@ -5,7 +5,7 @@
 import type { AuthProviders, StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { APP_PROOFS } from "@uniwork/core/auth/step-up";
 
-export type ProviderWay = "native" | "browser" | null;
+type ProviderWay = "native" | "browser" | null;
 
 export interface SignInOffer {
   apple: ProviderWay;

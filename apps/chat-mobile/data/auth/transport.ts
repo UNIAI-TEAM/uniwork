@@ -1,15 +1,15 @@
 // Ported from apps/chat-desktop/src/main/auth/transport.ts. The API origin is
 // read from runtimeConfig() per call (configureRuntime() runs at boot) and the
 // dev loopback rule is gone: a phone reaches the dev server over LAN http.
-import type { EndpointRequest } from "@uniwork/core/api/endpoints/endpoint-request";
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
+import { SIGN_IN_VERDICTS, fieldsOf, type SignInVerdict, type TransportErrorFields } from "./sign-in-verdicts";
 
 /**
- * HTTP client for the four UniWork native auth routes and, through createAuthRequest / createEndpointRequest, the
- * doors of the app's own sign-in screen (ADR 0047 §8: /auth/native/*, read by core's sign-in-native-api.ts) and
- * /auth/providers. The only URLs it can build are `apiUrl` + one of the routes below; responses are parsed strictly
- * from the server's snake_case DTOs and fail closed on a missing or mistyped field.
+ * HTTP client for the four UniWork native auth routes and, through createAuthRequest (endpoint-request.ts for core's
+ * factories), the doors of the app's own sign-in screen (ADR 0047 §8) and /auth/providers. The only URLs it can build
+ * are `apiUrl` + one of the routes below; responses are parsed strictly from the server's snake_case DTOs and fail
+ * closed on a missing or mistyped field.
  */
 
 export type TransportErrorCode =
@@ -26,39 +26,7 @@ export type TransportErrorCode =
   | "desktop_auth_unavailable"
   | "invalid_request"
   | "forbidden"
-  // The app's sign-in doors (ADR 0047 §8, spec §3.6): what each one refuses with
-  | "invalid_credentials"
-  | "second_factor_locked"
-  | "provider_token_invalid"
-  | "native_sign_in_unavailable"
-  | "google_not_configured"
-  | "apple_auth_unavailable"
-  | "conflict"
-  | "invalid_code"
-  | "sign_in_ticket_missing"
-  | "sign_in_ticket_channel"
-  | "sign_in_account_conflict"
-  | "sign_in_email_unverified"
-  | "sign_in_account_unverified"
-  | "sign_in_method_taken"
-  | "sign_in_method_already_linked"
-  | "cross_site_request"
-  | "unsupported_media_type"
-  /** never the server's: the second step or the ticket the app held for one is gone (expired, or the app restarted) */
-  | "sign_in_expired";
-
-/**
- * The parts of a refusal's `error.fields` a sign-in screen reads (core's auth/sign-in-errors.ts), each checked for its
- * type; nothing else of the body is kept. None is a secret: the server masks the address itself.
- */
-export interface TransportErrorFields {
-  /** sign_in_method_taken / _movable: who holds the identity, masked (a•••@icloud.com) */
-  readonly masked_email?: string;
-  /** proof_required: the proofs the server takes */
-  readonly proofs?: readonly string[];
-  /** second_factor_locked, a code asked again too soon: whole seconds to wait */
-  readonly retry_after?: number;
-}
+  | SignInVerdict;
 
 export class TransportError extends Error {
   readonly code: TransportErrorCode;
@@ -117,7 +85,7 @@ export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
-type Route =
+export type Route =
   | "/auth/desktop/start"
   | "/auth/desktop/exchange"
   | "/auth/desktop/refresh"
@@ -132,25 +100,6 @@ type Route =
   | "/auth/native/sign-in-ticket/claim-email"
   | "/auth/native/sign-in-ticket/claim-email/verify";
 
-/** Route, at run time: createEndpointRequest takes a path from core and sends only one of these. */
-const ROUTES: ReadonlySet<string> = new Set<Route>([
-  "/auth/desktop/start",
-  "/auth/desktop/exchange",
-  "/auth/desktop/refresh",
-  "/auth/desktop/logout",
-  "/auth/providers",
-  "/auth/native/password",
-  "/auth/native/mfa",
-  "/auth/native/google",
-  "/auth/native/apple",
-  "/auth/native/register",
-  "/auth/native/sign-in-ticket/create",
-  "/auth/native/sign-in-ticket/claim-email",
-  "/auth/native/sign-in-ticket/claim-email/verify",
-]);
-
-const isRoute = (path: string): path is Route => ROUTES.has(path);
-
 /** server error code -> transport code; anything else falls back by status */
 const SERVER_CODES: ReadonlySet<string> = new Set<TransportErrorCode>([
   "unauthorized",
@@ -161,41 +110,10 @@ const SERVER_CODES: ReadonlySet<string> = new Set<TransportErrorCode>([
   "desktop_auth_unavailable",
   "invalid_request",
   "forbidden",
-  "invalid_credentials",
-  "second_factor_locked",
-  "provider_token_invalid",
-  "native_sign_in_unavailable",
-  "google_not_configured",
-  "apple_auth_unavailable",
-  "conflict",
-  "invalid_code",
-  "sign_in_ticket_missing",
-  "sign_in_ticket_channel",
-  "sign_in_account_conflict",
-  "sign_in_email_unverified",
-  "sign_in_account_unverified",
-  "sign_in_method_taken",
-  "sign_in_method_already_linked",
-  "cross_site_request",
-  "unsupported_media_type",
+  ...SIGN_IN_VERDICTS,
 ]);
 
 const isServerCode = (code: unknown): code is TransportErrorCode => typeof code === "string" && SERVER_CODES.has(code);
-
-const positiveSeconds = (value: unknown): number | undefined =>
-  typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
-
-/** The envelope's `error.fields`, kept only where TransportErrorFields names the key and the type matches. */
-function fieldsOf(raw: unknown): TransportErrorFields {
-  if (!isRecord(raw)) return {};
-  const proofs = Array.isArray(raw.proofs) ? raw.proofs.filter((p): p is string => typeof p === "string") : undefined;
-  const retryAfter = positiveSeconds(raw.retry_after);
-  return {
-    ...(typeof raw.masked_email === "string" && raw.masked_email ? { masked_email: raw.masked_email } : {}),
-    ...(proofs ? { proofs } : {}),
-    ...(retryAfter ? { retry_after: retryAfter } : {}),
-  };
-}
 
 async function errorFromResponse(response: Response): Promise<TransportError> {
   let error: Record<string, unknown> = {};
@@ -219,7 +137,7 @@ async function errorFromResponse(response: Response): Promise<TransportError> {
   return new TransportError("invalid_request", status);
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
@@ -306,27 +224,6 @@ export function createAuthRequest(options: { fetch: FetchLike; timeoutMs?: numbe
     } finally {
       clearTimeout(timer);
     }
-  };
-}
-
-/** `/api/v1` + a route, no query: a regular expression, so the route catalogue reads the routes from Route alone */
-const API_PATH = /^\/api\/v1(\/[^?#]*)$/;
-
-/**
- * The auth routes as core's EndpointRequest, for the factories of the app's sign-in doors (core's
- * sign-in-native-api.ts): the same timeout, strict errors, no redirect and no cache as createAuthRequest. A path that
- * is not `/api/v1` + one of the routes above, or a method other than GET and POST, is refused before anything is sent.
- */
-export function createEndpointRequest(options: { fetch: FetchLike; timeoutMs?: number }): EndpointRequest {
-  const request = createAuthRequest(options);
-  return async (path, opts = {}) => {
-    const route = API_PATH.exec(path)?.[1] ?? "";
-    if (!isRoute(route)) throw new TransportError("invalid_request");
-    const body = opts.body === undefined ? {} : { body: opts.body };
-    // each method written out: the route catalogue reads a call's first argument as its method or path
-    if (opts.method === undefined || opts.method === "GET") return request("GET", route, body);
-    if (opts.method === "POST") return request("POST", route, body);
-    throw new TransportError("invalid_request");
   };
 }
 

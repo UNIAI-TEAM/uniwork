@@ -19,7 +19,8 @@ import { appleSignInAvailable } from "./apple";
 import { googleSignInAvailable } from "./google";
 import { MobileSession, deviceLabel, type MobileSessionConfig } from "./session";
 import { strictFetch } from "./strict-fetch";
-import { createEndpointRequest, createTransport } from "./transport";
+import { createEndpointRequest } from "./endpoint-request";
+import { createTransport } from "./transport";
 
 interface ExpoConfigLike {
   scheme?: string | string[];

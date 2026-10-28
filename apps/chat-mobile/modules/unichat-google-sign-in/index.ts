@@ -8,7 +8,7 @@
 import { requireOptionalNativeModule } from "expo";
 
 /** What one Google sign-in hands the app: the ID token (its `nonce` claim is the hash the call was given). */
-export interface NativeGoogleSignIn {
+interface NativeGoogleSignIn {
   idToken: string;
   /** the Google account's address, for the second step's screen; null when Google said none */
   email: string | null;

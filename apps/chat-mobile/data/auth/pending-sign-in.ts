@@ -14,7 +14,7 @@ export const SECOND_FACTOR_TTL_MS = 5 * 60_000;
 export const CHOICE_TTL_MS = 15 * 60_000;
 
 /** The choice screen's half: whose identity, and whether the address already has an account. */
-export interface PendingChoiceView {
+interface PendingChoiceView {
   identity: SignInIdentity;
   ticketKind: SignInTicketKind;
   /** local clock; past it the ticket is dropped and the screen says the sign-in expired */
@@ -22,7 +22,7 @@ export interface PendingChoiceView {
 }
 
 /** The second step's half: whose sign-in, and the provider it may link. */
-export interface PendingSecondFactorView {
+interface PendingSecondFactorView {
   context: SecondFactorContext;
   expiresAtMs: number;
 }
