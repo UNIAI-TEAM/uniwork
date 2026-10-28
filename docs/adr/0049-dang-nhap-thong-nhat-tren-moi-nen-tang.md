@@ -106,13 +106,19 @@ một tổ chức), [0041](0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md).
   "Phương thức đăng nhập" đầu tab Bảo mật (lên cả cài đặt UniChat desktop) và trang `/settings` cho người chưa có
   workspace; mọi lệnh nhạy cảm dùng chung một hộp "xác nhận là bạn".
 - Mobile: màn đăng nhập, hai lớp, màn chọn, đăng ký + xác minh email, mục Phương thức đăng nhập, nhận lời mời trong
-  app; thư viện `@react-native-google-signin/google-signin` (native, đổi version app). Đăng nhập trình duyệt giữ làm
-  đường phụ. `apps/chat-mobile/CLAUDE.md` và MASVS cập nhật theo.
+  app; Google qua module Expo riêng `modules/unichat-google-sign-in` trên API có nonce của Google (GoogleSignIn 8,
+  Credential Manager), vì bản miễn phí của `@react-native-google-signin/google-signin` không có nonce (native, version
+  app lên 0.4.0). Đăng nhập trình duyệt giữ làm đường phụ. `apps/chat-mobile/CLAUDE.md` và MASVS cập nhật theo.
 - Chính sách quyền riêng tư và store listing: Apple không còn "chỉ iPhone"; Google có SDK trên mobile.
 - Owner action: tạo Services ID cho web (gộp với `com.uniworkos.chat`, return URL
-  `https://<API_PUBLIC_URL>/api/v1/auth/apple/callback`), đặt `APPLE_SIWA_WEB_CLIENT_ID`; tạo OAuth client iOS và
-  Android trong cùng Google Cloud project với client web (Android cần SHA-1 khoá ký và khoá Play App Signing), đặt
-  `GOOGLE_NATIVE_CLIENT_IDS` và biến build mobile; đăng ký domain gửi mail ở "Sign in with Apple for Email
+  `https://<API_PUBLIC_URL>/api/v1/auth/apple/callback`), đặt `APPLE_SIWA_WEB_CLIENT_ID`; tạo OAuth client Google trong
+  cùng Google Cloud project với client web: iOS một client mỗi bundle id (`com.uniworkos.chat`, `.staging`, `.dev`),
+  Android một client mỗi package cộng SHA-1 của khoá ký (khoá của EAS mỗi biến thể, và khoá Play App Signing cho bản
+  phát hành qua Play); đặt `UNICHAT_GOOGLE_IOS_CLIENT_ID` (client iOS của biến thể) và `UNICHAT_GOOGLE_WEB_CLIENT_ID`
+  (client web, `GOOGLE_CLIENT_ID` của server) trong từng môi trường EAS, và mọi client iOS, Android vào
+  `GOOGLE_NATIVE_CLIENT_IDS` của server (thiếu thì app đi Google qua trình duyệt); đặt `UNICHAT_IOS_TEAM_ID` và
+  `UNICHAT_ANDROID_SHA256` (gồm chứng chỉ Play App Signing) trên host web phục vụ `app.uniworkos.com`, nơi AASA và
+  assetlinks cho AutoFill gợi ý mật khẩu đã lưu trên màn đăng nhập của app; đăng ký domain gửi mail ở "Sign in with Apple for Email
   Communication" kèm SPF/DKIM (không có thì mã xác nhận không tới được tài khoản relay). Apple web không chạy được trên
   `http://localhost` (Apple chỉ nhận return URL https, cookie `SameSite=None` cần `Secure`): thử trên staging hay qua
   tunnel https.
