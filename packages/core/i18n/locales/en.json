@@ -7301,9 +7301,7 @@
       "confirm_lede": "Nothing is deleted, but the organization is no longer yours to run.",
       "action_pending": "Transferring…",
       "reason_pick": "Choose the new owner to continue.",
-      "reason_name": "Type the organization name exactly to continue.",
-      "reason_password": "Enter your current password to continue.",
-      "reason_no_password": "You can't transfer ownership while your account has no password."
+      "reason_name": "Type the organization name exactly to continue."
     },
     "deactivated": {
       "title": "Your account in this organization has been deactivated",

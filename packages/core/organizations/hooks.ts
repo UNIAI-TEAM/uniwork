@@ -234,11 +234,9 @@ export function useTransferOwnership(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({
     // The held step-up token (transfer_ownership) is the proof (ADR 0047
-    // §5); a typed password only when there is none.
-    mutationFn: ({ toUserId, password }: { toUserId: string; password?: string }) => {
-      const token = stepUpToken("transfer_ownership");
-      return orgMembers.transferOwnership(orgSlug, toUserId, token ? { step_up_token: token } : { password: password ?? "" });
-    },
+    // §5); without one the server names the proofs it takes.
+    mutationFn: ({ toUserId }: { toUserId: string }) =>
+      orgMembers.transferOwnership(orgSlug, toUserId, stepUpToken("transfer_ownership") ?? ""),
     onError: forgetStepUpIfRefused,
     onSuccess: () =>
       Promise.all(

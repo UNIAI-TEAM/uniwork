@@ -97,7 +97,7 @@ describe("useTransferOwnership", () => {
     const untouched = [["tasks", "w1"], orgMemberKeys.me("other-org"), ["meetings", "w1"]];
     for (const key of [...touched, ...untouched]) qc.setQueryData(key, { seeded: true });
     const { result } = renderHook(() => useTransferOwnership("acme"), { wrapper: wrapperFor(qc) });
-    await act(() => result.current.mutateAsync({ toUserId: "u2", password: "pw" }));
+    await act(() => result.current.mutateAsync({ toUserId: "u2" }));
     for (const key of touched) expect(qc.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(true);
     for (const key of untouched) expect(qc.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(false);
   });

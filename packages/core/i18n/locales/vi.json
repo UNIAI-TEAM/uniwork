@@ -7258,9 +7258,7 @@
       "confirm_lede": "Không có gì bị xóa, nhưng tổ chức không còn do bạn nắm.",
       "action_pending": "Đang chuyển quyền…",
       "reason_pick": "Chọn chủ sở hữu mới để tiếp tục.",
-      "reason_name": "Gõ đúng tên tổ chức để tiếp tục.",
-      "reason_password": "Nhập mật khẩu hiện tại để tiếp tục.",
-      "reason_no_password": "Chưa thể chuyển quyền khi tài khoản chưa có mật khẩu."
+      "reason_name": "Gõ đúng tên tổ chức để tiếp tục."
     },
     "deactivated": {
       "title": "Tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này",

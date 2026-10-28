@@ -2,9 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { useSession } from "@uniwork/core/auth";
 import { useOrgMembers, useTransferOwnership } from "@uniwork/core/organizations";
-import { passwordRefusal } from "@uniwork/core/organizations/errors";
 import type { OrgMember } from "@uniwork/core/types/people";
 import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
@@ -14,7 +12,8 @@ import { toast } from "sonner";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../../common/form-dialog";
 import { toastApiError } from "../../toast-api-error";
 import { SettingsFieldError } from "./settings-layout";
-import { TransferCandidateField, TransferPasswordField } from "./transfer-owner-fields";
+import { useStepUpGate } from "./step-up-proof";
+import { TransferCandidateField } from "./transfer-owner-fields";
 
 type TransferCandidates = {
   candidates: OrgMember[];
@@ -71,14 +70,12 @@ const CONSEQUENCES = [
 
 /**
  * Handing the organization to somebody else. Two deliberate frictions, because
- * the outgoing owner cannot undo this alone: they type the organization's name,
- * and they re-enter their password (OPEN_QUESTIONS P2). Nothing typed survives
- * a close, and the dialog cannot be dismissed while the transfer is in flight.
- *
- * A refused password is answered where it was typed, as the invitation
- * switch does: the field is emptied, marked and focused, with the reason
- * under it. An account without a password (Google-only) cannot confirm at
- * all, so the field gives way to a sentence saying so.
+ * the outgoing owner cannot undo this alone: they type the organization's
+ * name, and they confirm it is them (OPEN_QUESTIONS P2, ADR 0047 §5) through
+ * the shared "Xác nhận là bạn" dialog, nested in this one, with whatever
+ * proof the account takes: the password, the second factor, or a code mailed
+ * for this hand-over. Nothing typed survives a close, and the dialog cannot
+ * be dismissed while the transfer is in flight.
  */
 export function TransferOwnershipDialog({
   orgSlug,
@@ -108,21 +105,15 @@ export function TransferOwnershipDialog({
   focusAfterTransfer?: RefObject<HTMLElement | null>;
 }) {
   const { t } = useTranslation();
-  const { user } = useSession();
   const transfer = useTransferOwnership(orgSlug);
+  const gate = useStepUpGate();
   const ids = useId();
   const targetId = `${ids}-target`;
   const confirmId = `${ids}-confirm`;
-  const passwordId = `${ids}-password`;
   const reasonId = `${ids}-reason`;
   const [toUserId, setToUserId] = useState("");
   const [confirmName, setConfirmName] = useState("");
   const [confirmTouched, setConfirmTouched] = useState(false);
-  const [password, setPassword] = useState("");
-  const [passwordError, setPasswordError] = useState<string | undefined>();
-  // The server asked for a proof this account cannot give here (proof_required).
-  const [refusedPasswordless, setRefusedPasswordless] = useState(false);
-  const passwordless = refusedPasswordless || user?.has_password === false;
   const transferred = useRef(false);
   // NFC on both sides: a name typed with a Vietnamese IME can arrive
   // decomposed (NFD) and would never match the stored, composed one.
@@ -134,31 +125,14 @@ export function TransferOwnershipDialog({
   const showNameError = typed !== "" && !nameMatches && (confirmTouched || !expected.startsWith(typed));
   // What still stands between the owner and the action, first gap first: a
   // sentence beside the held-back button, and its description.
-  const missing = passwordless
-    ? t("org.transfer.reason_no_password")
-    : toUserId === ""
-      ? t("org.transfer.reason_pick")
-      : !nameMatches
-        ? t("org.transfer.reason_name")
-        : password === ""
-          ? t("org.transfer.reason_password")
-          : null;
+  const missing = toUserId === "" ? t("org.transfer.reason_pick") : !nameMatches ? t("org.transfer.reason_name") : null;
 
-  // A refused password takes focus back to its field, whose description
-  // says why; the effect runs once the emptied, marked field is rendered.
-  useEffect(() => {
-    if (passwordError) document.getElementById(passwordId)?.focus();
-  }, [passwordError, passwordId]);
-
-  // Closing forgets everything, so reopening never finds the password or a
-  // half-made choice from last time.
+  // Closing forgets everything, so reopening never finds a half-made choice
+  // from last time.
   const close = () => {
     setToUserId("");
     setConfirmName("");
     setConfirmTouched(false);
-    setPassword("");
-    setPasswordError(undefined);
-    setRefusedPasswordless(false);
     onOpenChange(false);
   };
 
@@ -169,37 +143,21 @@ export function TransferOwnershipDialog({
     } else if (!transfer.isPending) close();
   };
 
-  const changePassword = (next: string) => {
-    setPassword(next);
-    setPasswordError(undefined);
-  };
-
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (missing || transfer.isPending) return;
-    transfer.mutate(
-      { toUserId, password },
-      {
-        onSuccess: () => {
-          transferred.current = true;
-          toast.success(t("org.transfer.done"));
-          close();
-        },
-        onError: (err) => {
-          const refusal = passwordRefusal(err);
-          if (refusal === null) {
-            toastApiError(err, t("common.error"));
-            return;
-          }
-          // The password is never kept past a refusal; the owner types it again.
-          setPassword("");
-          // "step_up" (proof_required): until the shared proof dialog lands
-          // (spec §4.5), the account is told it has no password to confirm with.
-          if (refusal === "step_up") setRefusedPasswordless(true);
-          else setPasswordError(t("org.transfer.wrong_password"));
-        },
+    if (missing || transfer.isPending || gate.asking) return;
+    // Proved first, unless a token held from the last ten minutes serves;
+    // one the server no longer takes brings the dialog back once.
+    void gate.run({
+      action: "transfer_ownership",
+      command: () => transfer.mutateAsync({ toUserId }),
+      onSuccess: () => {
+        transferred.current = true;
+        toast.success(t("org.transfer.done"));
+        close();
       },
-    );
+      onError: (err) => toastApiError(err, t("common.error")),
+    });
   };
 
   return (
@@ -260,22 +218,6 @@ export function TransferOwnershipDialog({
                 {showNameError ? t("org.transfer.confirm_mismatch", { name: organizationName }) : null}
               </SettingsFieldError>
             </Field>
-            {passwordless ? (
-              // Inserted by a refusal it is an alert; known up front it is a note
-              // read with the rest of the dialog.
-              <Alert variant="destructiveSoft" role={refusedPasswordless ? "alert" : "note"}>
-                <AlertDescription className="text-pretty [overflow-wrap:anywhere]">
-                  {t("org.transfer.no_password", { name: organizationName })}
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <TransferPasswordField
-                id={passwordId}
-                value={password}
-                onValueChange={changePassword}
-                error={passwordError}
-              />
-            )}
           </FormDialogBody>
           <FormDialogFooter
             onCancel={() => changeOpen(false)}
@@ -295,6 +237,7 @@ export function TransferOwnershipDialog({
             }
           />
         </form>
+        {gate.dialog}
       </FormDialogContent>
     </Dialog>
   );

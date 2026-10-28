@@ -161,16 +161,16 @@ export async function revokeOrgInvitation(orgSlug: string, invitationId: string)
  * is the shipped app's legacy proof (reviewed 2027-01-31), sent only without
  * a token.
  */
-export type OwnerProof = { step_up_token: string } | { password: string };
-
 /**
  * Handing the organization to somebody else. The current owner proves it is
- * them, because this is the one change they cannot undo alone afterwards.
+ * them with a step-up token (ADR 0047 §5), because this is the one change
+ * they cannot undo alone afterwards; an empty one is answered with
+ * proof_required naming the proofs the account takes.
  */
-export async function transferOwnership(orgSlug: string, toUserId: string, proof: OwnerProof): Promise<OrgMember | null> {
+export async function transferOwnership(orgSlug: string, toUserId: string, stepUpToken: string): Promise<OrgMember | null> {
   const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/transfer-ownership`, {
     method: "POST",
-    body: { to_user_id: toUserId, ...proof },
+    body: { to_user_id: toUserId, step_up_token: stepUpToken },
   });
   return parseWithFallback<{ member: OrgMember } | null>(raw, MemberResponse, null, {
     endpoint: "POST /api/v1/orgs/{org}/transfer-ownership",

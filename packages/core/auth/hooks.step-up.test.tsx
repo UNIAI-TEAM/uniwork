@@ -153,15 +153,13 @@ describe("sensitive commands send the held step-up token", () => {
     expect(hasStepUp("delete_account")).toBe(false);
   });
 
-  it("handing an organization over: the token when held, else the typed password", async () => {
+  it("handing an organization over: the held token, else an empty one the server answers with its proofs", async () => {
     vi.mocked(orgMembers.transferOwnership).mockResolvedValue(null);
-    await run(() => useTransferOwnership("acme"), { toUserId: "u2", password: "pw" });
-    expect(orgMembers.transferOwnership).toHaveBeenLastCalledWith("acme", "u2", { password: "pw" });
     await run(() => useTransferOwnership("acme"), { toUserId: "u2" });
-    expect(orgMembers.transferOwnership).toHaveBeenLastCalledWith("acme", "u2", { password: "" });
+    expect(orgMembers.transferOwnership).toHaveBeenLastCalledWith("acme", "u2", "");
     rememberStepUp(grant, "transfer_ownership");
-    await run(() => useTransferOwnership("acme"), { toUserId: "u2", password: "pw" });
-    expect(orgMembers.transferOwnership).toHaveBeenLastCalledWith("acme", "u2", { step_up_token: "su" });
+    await run(() => useTransferOwnership("acme"), { toUserId: "u2" });
+    expect(orgMembers.transferOwnership).toHaveBeenLastCalledWith("acme", "u2", "su");
   });
 
   it("the invitation switch and the invite link prove their transfer with it", async () => {
