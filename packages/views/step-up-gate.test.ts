@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -33,13 +33,23 @@ function stepUpHooks(): string[] {
   return [...hooks].sort();
 }
 
-/** The file renders the gate, itself or through a module it imports (SwitchWizard carries it for the invite screens). */
-function gated(file: string, text: string): boolean {
-  if (text.includes("useStepUpGate(")) return true;
+/**
+ * A screen whose gate lives in a module it renders, by name, and that module.
+ * Only these: a file passing on whatever it imports would pass the day its
+ * own gate is deleted, as long as some sibling it imports has one.
+ */
+const CARRIERS: Readonly<Record<string, string>> = {
+  "workspace/accept-invite-view.tsx": "workspace/accept-invite/switch-wizard.tsx",
+  "workspace/join-membership-invite-view.tsx": "workspace/accept-invite/switch-wizard.tsx",
+};
+
+const GATE = /\buseStepUpGate\(/;
+
+/** Whether `file` imports `target` by a relative path. */
+function imports(file: string, text: string, target: string): boolean {
   for (const m of text.matchAll(/from "(\.{1,2}\/[^"]+)"/g)) {
     const base = resolve(dirname(file), m[1]!);
-    const target = [`${base}.tsx`, `${base}.ts`, join(base, "index.ts")].find((candidate) => existsSync(candidate));
-    if (target && readFileSync(target, "utf8").includes("useStepUpGate(")) return true;
+    if ([`${base}.tsx`, `${base}.ts`, join(base, "index.ts")].includes(target)) return true;
   }
   return false;
 }
@@ -66,15 +76,24 @@ describe("the step-up proof gate", () => {
 
   it("stands in front of every screen that runs one", () => {
     const ungated: string[] = [];
-    let callers = 0;
+    const callers = new Set<string>();
     for (const file of sources(VIEWS)) {
       const text = readFileSync(file, "utf8");
       const used = hooks.filter((hook) => new RegExp(`\\b${hook}\\(`).test(text));
       if (used.length === 0) continue;
-      callers += 1;
-      if (!gated(file, text)) ungated.push(`${relative(VIEWS, file)}: ${used.join(", ")}`);
+      const name = relative(VIEWS, file);
+      callers.add(name);
+      // The gate is the caller's own, or that of the carrier it is mapped to.
+      const carrier = CARRIERS[name];
+      const ok = carrier
+        ? imports(file, text, join(VIEWS, carrier)) && GATE.test(readFileSync(join(VIEWS, carrier), "utf8"))
+        : GATE.test(text);
+      if (!ok) ungated.push(`${name}: ${used.join(", ")}`);
     }
-    expect(callers, "no screen calls a step-up command: the scan slipped").toBeGreaterThan(5);
+    expect(callers.size, "no screen calls a step-up command: the scan slipped").toBeGreaterThan(5);
     expect(ungated).toEqual([]);
+    // A carrier entry for a file that no longer runs a command would let the
+    // next one through unseen.
+    expect(Object.keys(CARRIERS).filter((name) => !callers.has(name))).toEqual([]);
   });
 });
