@@ -8154,6 +8154,15 @@
         "4": "Which high-priority tasks are still open?"
       }
     },
+    "handoff": {
+      "start_text": "Draft this document from the job Ask UNI handed over: {{title}}",
+      "status": {
+        "sent": "Handed to the editor AI",
+        "running": "The editor AI is drafting…",
+        "idle": "The editor AI has finished its turn. Review the document, then press Save.",
+        "refused": "The editor AI did not take the job. You can draft it yourself in the document."
+      }
+    },
     "proposal": {
       "header_ask": "UNI proposes · needs your confirmation",
       "header_plan": "UNI's plan · pick the steps to run",
@@ -8261,7 +8270,9 @@
         "format": "Format",
         "location": "Folder",
         "visibility": "Who can see it",
-        "instructions": "Request"
+        "instructions": "Request",
+        "editor_ai": "Editor AI",
+        "sources": "Material"
       },
       "content_mode": {
         "append": "Added at the end of the document",
@@ -8278,6 +8289,17 @@
         "workspace": "Whole workspace"
       },
       "apply_create_open": "Create and open",
+      "apply_open_compose": "Open and draft",
+      "apply_open_build": "Open and build",
+      "apply_create_open_self": "Create and open to draft yourself",
+      "editor_ai": {
+        "compose": "Ready to draft",
+        "build": "Ready to build",
+        "plan": "Your organization's plan has no editor AI",
+        "off": "The editor AI is not turned on",
+        "format_off": "The editor AI is not turned on for this format",
+        "credits": "The organization is out of AI credits"
+      },
       "apply_save_template": "Save to Templates",
       "outline": "Outline",
       "edit_outline": "Edit outline",

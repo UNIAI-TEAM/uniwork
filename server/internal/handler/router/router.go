@@ -156,6 +156,8 @@ func New(d Deps, h Routes) http.Handler {
 			// the page.
 			ai.UniworkConversationHeader,
 			ai.UniworkRunHeader,
+			// The Ask UNI handoff package a turn works on (ADR 0048).
+			ai.UniworkHandoffHeader,
 			// Vendor headers the BYOK proxy forwards (provider/byok_client.go); a
 			// browser caller needs them in the preflight or the fetch never leaves.
 			"Anthropic-Beta",
@@ -169,6 +171,8 @@ func New(d Deps, h Routes) http.Handler {
 			// G6-05 reads both off the response: the conversation to continue
 			// and, from G6-03b on, the run id.
 			ai.UniworkConversationHeader, ai.UniworkRunHeader,
+			// The parts of an Ask UNI handoff left after the turn (ADR 0048).
+			ai.UniworkHandoffRemainingHeader,
 			// The access report export (UNI-1643): the file name and the
 			// counts the web shows after the download.
 			"Content-Disposition", "X-Report-Rows", "X-Report-Skipped", "X-Report-Generated-At",

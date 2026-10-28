@@ -36,6 +36,7 @@ type AskUNIService struct {
 	emailHub *EmailHubService
 	docs     *DocumentService
 	office   *DocumentOfficeService // nil until SetOffice
+	editorAI EditorAIChecker        // nil until SetEditorAI: the editor AI reads as off
 	flags    McpFlags
 	drive    DriveContentReader
 	memory   *AiMemoryService
@@ -72,6 +73,10 @@ func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
 // SetOffice wires the Office service create_office_document makes blank files
 // with; without it that path answers office_not_configured.
 func (s *AskUNIService) SetOffice(o *DocumentOfficeService) { s.office = o }
+
+// SetEditorAI wires the check of whether the editor AI can draft the file
+// create_office_document makes; without it every check answers off.
+func (s *AskUNIService) SetEditorAI(c EditorAIChecker) { s.editorAI = c }
 
 // SetFlags wires the feature-flag evaluator; without it the documents flag
 // reads as off (fail closed, as in McpToolService).

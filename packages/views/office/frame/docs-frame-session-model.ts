@@ -316,7 +316,10 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
     ...(saveCopy ? { saveCopy: true } : {}),
     exportPdf: on("exportPdf") && (module !== "docs" || Boolean(api.export)), exportHtml: on("exportHtml"),
     attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
-    ai, uniworkAi, webSearch: cloud && aiGrant?.web_search === true, imageSearch: cloud && aiGrant?.image_search === true,
+    ai, uniworkAi,
+    // Ask UNI's handoff (UNI-2264) runs on UniWork AI and types into the document, so a viewer is not offered it.
+    aiStart: uniworkAi && !readonly,
+    webSearch: cloud && aiGrant?.web_search === true, imageSearch: cloud && aiGrant?.image_search === true,
     imageGeneration: cloud && aiGrant?.image_generation === true,
     // The host's own "Open in desktop app" is only for a user who may edit.
     desktopOpen: desktopOpen && !readonly,

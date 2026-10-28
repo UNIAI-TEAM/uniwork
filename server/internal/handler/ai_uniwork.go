@@ -46,6 +46,7 @@ func (h *handlers) uniworkChat(w http.ResponseWriter, r *http.Request, scope ser
 	turn, err := h.AIUniwork.Chat(ctx, scope, service.UniworkTurnInput{
 		ConversationID: r.Header.Get(ai.UniworkConversationHeader),
 		RunID:          r.Header.Get(ai.UniworkRunHeader),
+		HandoffID:      r.Header.Get(ai.UniworkHandoffHeader),
 		Body:           raw,
 	})
 	// Every answer carries the ids of the turn, a refusal included when the
@@ -55,6 +56,11 @@ func (h *handlers) uniworkChat(w http.ResponseWriter, r *http.Request, scope ser
 	if err != nil {
 		h.uniworkError(w, ctx, err)
 		return
+	}
+	// Only an answered turn that expanded a handoff package says what is left
+	// (ADR 0048); a refusal never does.
+	if turn.HandoffRemaining >= 0 {
+		w.Header().Set(ai.UniworkHandoffRemainingHeader, strconv.Itoa(turn.HandoffRemaining))
 	}
 	meta := ai.UniworkResponseMeta{
 		ConversationID: turn.ConversationID, Model: turn.Response.Model,

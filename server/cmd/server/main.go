@@ -562,6 +562,7 @@ func main() {
 	// the document.* frames of the Documents UI are not slowed down.
 	dispatcher.Register(service.NewChatDocumentCardRefresher(q, chatSvc))
 	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
+	officeHandoffSweep := service.NewOfficeHandoffSweeper(q, log)
 	docAccessBatchWorker := service.NewDocumentAccessBatchWorker(documentSvc, log)
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
@@ -717,6 +718,8 @@ func main() {
 	// awaited below.
 	editLockSweepDone := make(chan struct{})
 	go func() { editLockSweep.Run(runCtx); close(editLockSweepDone) }()
+	officeHandoffSweepDone := make(chan struct{})
+	go func() { officeHandoffSweep.Run(runCtx); close(officeHandoffSweepDone) }()
 	// The folder bulk access batch worker (UNI-2244 §4) stops with runCancel
 	// and is awaited below.
 	docAccessBatchWorkerDone := make(chan struct{})
@@ -904,6 +907,9 @@ func main() {
 	go func() { mcpAuth.Run(runCtx); close(mcpCleanupDone) }()
 	officeCapabilitiesSvc := service.NewOfficeCapabilitiesService(orgSvc, flags)
 	officeCapabilitiesSvc.SetDrive(driveConnectionSvc)
+	aiCloudSvc := service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway)
+	// The plan card and Apply ask the gate the frame's uniwork_ai grant reads.
+	askUNI.SetEditorAI(service.NewEditorAIGate(aiCloudSvc, officeCapabilitiesSvc))
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
@@ -952,7 +958,7 @@ func main() {
 		OfficeLease:         officeLeases,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),
 		AICredentials:       aiCredentialSvc,
-		AICloud:             service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway),
+		AICloud:             aiCloudSvc,
 		// The UniWork AI façade (G6-03a): the org, document and frame routes,
 		// the conversation store why the key above exists, and the process's
 		// own concurrency bounds (A11) — Redis only when there is one. G6-03b
@@ -1115,6 +1121,11 @@ func main() {
 	case <-editLockSweepDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("documents: edit lock sweep did not stop in time")
+	}
+	select {
+	case <-officeHandoffSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("ai: office handoff sweep did not stop in time")
 	}
 	select {
 	case <-docAccessBatchWorkerDone:

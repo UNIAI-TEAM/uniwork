@@ -416,6 +416,16 @@ Every command that changes business state writes an `audit_events` row and its
   `TestDriveOfficeExtractWritesNoObject`, `TestAskUniDriveFocusIsNotPersisted`
   and `TestDriveTablesCarryNoObjectStorageColumns` (`server/migrations/lint_test.go`)
   hold it.
+- Ask UNI hands an approved job to the editor AI only through an
+  `ai_office_handoffs` package (ADR 0048): written by Apply for the document it
+  just created, usable for 24 hours by its asker only, on that document only,
+  bound to one conversation; its material always enters the turn wrapped as
+  untrusted, and the editor AI gets no tool that reads the workspace.
+  `TestOfficeHandoffLoadIsScopedToItsAskerAndDocument`,
+  `TestOfficeHandoffAdvanceBindsOneConversation`,
+  `TestAskCreateOfficeApplyWritesAHandoff`,
+  `TestAIUniworkHandoffIgnoredOutsideItsScope` and
+  `TestAIUniworkHandoffQuoteCannotCloseItsUntrustedBlock` hold it.
 
 ## Platform Admin and Observability
 
