@@ -590,6 +590,16 @@
       "push_section": "Thông báo đẩy"
     }
   },
+  "org": {
+    "close": {
+      "consequences": {
+        "archived": "{{name}} được lưu trữ: mọi workspace và dữ liệu còn nguyên.",
+        "no_access": "Không ai mở được nữa, kể cả bạn.",
+        "restore": "Chỉ bộ phận hỗ trợ khôi phục được.",
+        "billing": "Lời mời đang chờ bị thu hồi và gói trả phí bị hủy."
+      }
+    }
+  },
   "workspace": {
     "pickTitle": "Chọn workspace",
     "acceptInviteError": {
@@ -2021,18 +2031,13 @@
     },
     "account": {
       "what_happens": "Điều gì sẽ xảy ra",
-      "consequence_identity": "Email, tên, ảnh đại diện, mật khẩu và liên kết Google, Apple bị xóa vĩnh viễn.",
-      "consequence_content": "Tin nhắn và công việc bạn đã tạo vẫn thuộc tổ chức, hiển thị dưới tên “Người dùng đã xóa”.",
-      "consequence_devices": "Mọi thiết bị bị đăng xuất và ngừng nhận thông báo; dữ liệu của tài khoản trên điện thoại này bị xóa.",
-      "consequence_final": "Không hoàn tác được.",
+      "consequence_this_phone": "Dữ liệu của tài khoản trên điện thoại này cũng bị xóa.",
       "policy_link": "Đọc chính sách xóa dữ liệu",
       "owner_title": "Hãy chuyển quyền sở hữu trước",
-      "owner_body": "Bạn đang là chủ sở hữu một tổ chức. Chuyển quyền cho một quản trị viên khác trong Cài đặt › Tổ chức trên web, rồi quay lại xóa tài khoản.",
+      "owner_body": "Bạn đang là chủ sở hữu một tổ chức. Chuyển quyền sở hữu trong Cài đặt › Thành viên tổ chức trên web, rồi quay lại xóa tài khoản.",
       "owner_open_web": "Mở cài đặt trên web",
       "close_title": "Đóng tổ chức và xóa tài khoản",
-      "close_body": "Bạn là thành viên duy nhất của {{name}}. Tổ chức sẽ được đóng cùng lúc với việc xóa tài khoản: không ai vào được nữa và gói đăng ký bị hủy.",
       "close_label": "Gõ lại địa chỉ tổ chức để xác nhận: {{slug}}",
-      "close_confirm": "Đóng tổ chức và xóa tài khoản",
       "close_required": "Gõ địa chỉ tổ chức để xác nhận.",
       "close_mismatch": "Địa chỉ không khớp với tổ chức của bạn.",
       "close_has_members": "Tổ chức vừa có thêm thành viên nên không đóng được. Chọn người nhận quyền sở hữu bên dưới.",

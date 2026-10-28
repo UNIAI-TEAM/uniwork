@@ -2,7 +2,8 @@
 // owner_must_transfer names (lib/owned-organization.ts › ownedOrganization; the state is use-owner-step.ts). The
 // only active member closes the organization together with the erasure, typing its address again (Apple 5.1.1(v):
 // deletion completes in the app); an owner whose organization has other members hands it over in the sheet
-// (delete-account-hand-over.tsx), or on the web when an older server names no organization.
+// (delete-account-hand-over.tsx), or on the web when an older server names no organization. Closing is said in the
+// web's words: its dialog's notice and the close dialog's four lines (org.close.consequences).
 import { Ionicons } from "@expo/vector-icons";
 import type { Ref } from "react";
 import { useTranslation } from "react-i18next";
@@ -106,6 +107,14 @@ function OwnerTransferPanel({ foreground, onOpenWeb }: { foreground: string; onO
   );
 }
 
+/** What closing the organization does, one line each, as the web's close dialog lists it. */
+const CLOSE_CONSEQUENCES = [
+  "org.close.consequences.archived",
+  "org.close.consequences.no_access",
+  "org.close.consequences.restore",
+  "org.close.consequences.billing",
+] as const;
+
 /** The only active member: what closing does, and the organization's address typed again to confirm it. */
 function CloseOrganizationField({
   organization,
@@ -133,7 +142,17 @@ function CloseOrganizationField({
       <Text accessibilityRole="header" className="text-body font-semibold text-foreground">
         {t("mobile.account.close_title")}
       </Text>
-      <Text className="text-subhead leading-[21px] text-foreground">{t("mobile.account.close_body", { name: organization.name })}</Text>
+      <Text className="text-subhead leading-[21px] text-foreground">
+        {t("settings.security.delete.closeNotice", { name: organization.name })}
+      </Text>
+      <View className="gap-1.5">
+        {CLOSE_CONSEQUENCES.map((key) => (
+          <View key={key} className="flex-row items-start gap-2.5">
+            <View className="mt-2 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+            <Text className="flex-1 text-subhead leading-[21px] text-foreground">{t(key, { name: organization.name })}</Text>
+          </View>
+        ))}
+      </View>
       <Text className="text-subhead font-semibold text-foreground">{label}</Text>
       <TextInput
         ref={inputRef}

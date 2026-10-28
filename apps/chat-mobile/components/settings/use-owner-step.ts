@@ -146,7 +146,7 @@ export function useOwnerStep(sheet: OwnerStepSheet) {
     },
     /** The confirm button's words while an owner step is under way; null for the plain erasure. */
     confirmLabel: (): string | null => {
-      if (closing) return t("mobile.account.close_confirm");
+      if (closing) return t("settings.security.delete.closeAndDelete");
       if (!handingOver) return null;
       return handOver.heir ? t("mobile.account.transfer_confirm", { name: handOver.heir.name }) : t("mobile.account.transfer_confirm_pick");
     },

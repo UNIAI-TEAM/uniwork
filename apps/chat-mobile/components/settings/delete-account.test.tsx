@@ -100,9 +100,11 @@ describe("DeleteAccountSection", () => {
   it("says what erasure does before it asks for anything", async () => {
     await open();
     expect(screen.getByRole("header", { name: viText("settings.security.delete.title") })).toBeOnTheScreen();
-    for (const key of ["consequence_identity", "consequence_content", "consequence_devices", "consequence_final"]) {
-      expect(screen.getByText(viText(`mobile.account.${key}`))).toBeOnTheScreen();
+    // The web dialog's lines, and what happens on this phone.
+    for (const key of ["erased", "kept", "owner"]) {
+      expect(screen.getByText(viText(`settings.security.delete.consequences.${key}`))).toBeOnTheScreen();
     }
+    expect(screen.getByText(viText("mobile.account.consequence_this_phone"))).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole("link", { name: viText("mobile.account.policy_link") }));
     expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.example/vi/privacy#delete-account");
     expect(screen.queryByTestId("step-up-sheet")).toBeNull();
@@ -177,8 +179,12 @@ describe("DeleteAccountSection", () => {
     it("closes the organization with the erasure once its address is typed again, the token still held", async () => {
       await reachClose();
       expect(screen.getByRole("header", { name: viText("mobile.account.close_title") })).toBeOnTheScreen();
-      expect(screen.getByText(viText("mobile.account.close_body", { name: "Một mình" }))).toBeOnTheScreen();
-      expect(screen.getByTestId("delete-account-confirm")).toHaveTextContent(viText("mobile.account.close_confirm"));
+      // What closing does, in the web dialog's words.
+      expect(screen.getByText(viText("settings.security.delete.closeNotice", { name: "Một mình" }))).toBeOnTheScreen();
+      for (const key of ["archived", "no_access", "restore", "billing"]) {
+        expect(screen.getByText(viText(`org.close.consequences.${key}`, { name: "Một mình" }))).toBeOnTheScreen();
+      }
+      expect(screen.getByTestId("delete-account-confirm")).toHaveTextContent(viText("settings.security.delete.closeAndDelete"));
 
       await confirm();
       expect(screen.getByRole("alert")).toHaveTextContent(viText("mobile.account.close_required"));

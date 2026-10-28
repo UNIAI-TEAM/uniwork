@@ -25,8 +25,10 @@ const PATHS = [
   "common",
   "nav",
   "settings.preferences",
-  // UNI-2053 S2: deleting the account on the phone says what the web's dialog says.
+  // UNI-2053 S2: deleting the account on the phone says what the web's dialog says, and what closing the
+  // organization with it does in the close dialog's own lines.
   "settings.security.delete",
+  "org.close.consequences",
   "workspace.pickTitle",
   // The whole web chat copy: the mobile chat tab speaks with the web's words.
   "chat",

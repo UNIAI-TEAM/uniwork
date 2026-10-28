@@ -590,6 +590,16 @@
       "push_section": "Push notifications"
     }
   },
+  "org": {
+    "close": {
+      "consequences": {
+        "archived": "{{name}} is archived: every workspace and all its data stay.",
+        "no_access": "Nobody can open it any more, you included.",
+        "restore": "Only support can restore it.",
+        "billing": "Pending invitations are revoked and the paid plan is cancelled."
+      }
+    }
+  },
   "workspace": {
     "pickTitle": "Choose a workspace",
     "acceptInviteError": {
@@ -2077,18 +2087,13 @@
     },
     "account": {
       "what_happens": "What happens",
-      "consequence_identity": "Your email, name, photo, password and Google and Apple sign-in are erased for good.",
-      "consequence_content": "Messages and work you created stay with your organization, shown as “Deleted user”.",
-      "consequence_devices": "Every device is signed out and stops getting notifications; the account's data on this phone is wiped.",
-      "consequence_final": "This cannot be undone.",
+      "consequence_this_phone": "The account's data on this phone is wiped too.",
       "policy_link": "Read the data deletion policy",
       "owner_title": "Transfer ownership first",
-      "owner_body": "You own an organization. Hand ownership to another admin in Settings › Organization on the web, then come back to delete your account.",
+      "owner_body": "You own an organization. Transfer ownership in Settings › Organization members on the web, then come back to delete your account.",
       "owner_open_web": "Open settings on the web",
       "close_title": "Close the organization and delete your account",
-      "close_body": "You're the only member of {{name}}. It closes when your account is deleted: nobody can open it any more, and its subscription is cancelled.",
       "close_label": "Type the organization's address to confirm: {{slug}}",
-      "close_confirm": "Close organization and delete account",
       "close_required": "Type the organization's address to confirm.",
       "close_mismatch": "That doesn't match your organization's address.",
       "close_has_members": "Someone just joined the organization, so it can't be closed. Choose who takes ownership below.",
