@@ -1,3 +1,4 @@
+import type { SignInProvider } from "../api/endpoints/sign-in-schemas";
 import { runtimeConfig } from "../runtime-config";
 import { marketingHref, vietnamesePath } from "./marketing";
 
@@ -35,9 +36,11 @@ export const paths = {
    * `next` survives the sign-in; `link` is the choice screen's "Tôi đã có tài
    * khoản" (spec §4.4): the page says which provider waits and keeps the
    * pending sign-in through the password, the second factor and a reset.
+   * `provider` is the desktop or phone app's button (spec §3.5): the page
+   * goes on to that provider once, and drops it from the URL.
    */
-  login: (opts: { next?: string | null; link?: boolean } = {}) =>
-    withQuery("/login", { next: opts.next, link: opts.link ? "1" : null }),
+  login: (opts: { next?: string | null; link?: boolean; provider?: SignInProvider | null } = {}) =>
+    withQuery("/login", { next: opts.next, link: opts.link ? "1" : null, provider: opts.provider }),
   register: (opts: { next?: string | null } = {}) => withQuery("/register", { next: opts.next }),
   verify: (opts: { next?: string | null } = {}) => withQuery("/verify", { next: opts.next }),
   authCallback: () => "/auth/callback",

@@ -192,6 +192,10 @@ describe("paths", () => {
       `/login?next=${encodeURIComponent(linkStep)}&link=1`,
     );
     expect(paths.authContinue()).toBe("/auth/continue");
+    // The app's provider button rides the desktop consent page's sign-in (spec §3.5).
+    const consent = "/auth/desktop/authorize?attempt_id=01J";
+    expect(paths.login({ next: consent, provider: "apple" })).toBe(`/login?next=${encodeURIComponent(consent)}&provider=apple`);
+    expect(paths.login({ provider: null })).toBe("/login");
     expect(paths.register({ next: "/invite/t1" })).toBe("/register?next=%2Finvite%2Ft1");
     expect(paths.verify({ next: "/x" })).toBe("/verify?next=%2Fx");
     expect(paths.onboarding({ next: "/x" })).toBe("/onboarding?next=%2Fx");

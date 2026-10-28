@@ -37,6 +37,15 @@ describe("desktop start endpoint", () => {
     await expect(desktopStart({ client_id: "uniwork-office", code_challenge: "challenge", code_challenge_method: "S256", state: "state", redirect_uri: "uniwork-office://auth/callback", deployment_id: "default" })).resolves.toMatchObject({ authorization_url: expect.stringContaining("attempt_id") });
   });
 
+  it("carries the app's provider button to the server, and leaves it out without one", async () => {
+    requestMock.mockResolvedValue({ authorization_url: "https://app.example.test/auth/desktop/authorize?attempt_id=a&provider=google", attempt_expires_at: "2026-09-30T00:00:00Z" });
+    const base = { client_id: "uniwork-chat-desktop", code_challenge: "challenge", code_challenge_method: "S256", state: "state", redirect_uri: "uniworkchat://auth/callback", deployment_id: "default" } as const;
+    await desktopStart({ ...base, provider: "google" });
+    expect(new URL(String(requestMock.mock.calls[0]?.[0]), "http://x").searchParams.get("provider")).toBe("google");
+    await desktopStart(base);
+    expect(new URL(String(requestMock.mock.calls[1]?.[0]), "http://x").searchParams.has("provider")).toBe(false);
+  });
+
   it("returns null for malformed start responses", async () => {
     requestMock.mockResolvedValue({ authorization_url: 42 });
     await expect(desktopStart({ client_id: "uniwork-office", code_challenge: "challenge", code_challenge_method: "S256", state: "state", redirect_uri: "uniwork-office://auth/callback", deployment_id: "default" })).resolves.toBeNull();

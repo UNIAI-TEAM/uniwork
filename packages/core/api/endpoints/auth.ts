@@ -12,7 +12,7 @@ import {
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
 import { setAccessToken } from "../session";
-import { readAuthProviders, type AuthProviders } from "./sign-in-schemas";
+import { readAuthProviders, type AuthProviders, type SignInProvider } from "./sign-in-schemas";
 
 export { refreshSession } from "../http";
 
@@ -44,7 +44,12 @@ const DesktopConsentResultSchema = z.object({
 });
 export type DesktopConsentResult = z.infer<typeof DesktopConsentResultSchema>;
 
-/** Starts a PKCE attempt; the server returns an opaque browser authorization URL. */
+/**
+ * Starts a PKCE attempt; the server returns an opaque browser authorization
+ * URL. `provider` is the app's Google or Apple button (spec §3.5): the URL
+ * carries it so the web sends a signed-out person straight to that
+ * provider. It picks the first screen and grants nothing.
+ */
 export async function desktopStart(params: {
   client_id: string;
   code_challenge: string;
@@ -55,6 +60,7 @@ export async function desktopStart(params: {
   device_label?: string;
   platform?: string;
   build?: string;
+  provider?: SignInProvider;
 }): Promise<DesktopStart | null> {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
