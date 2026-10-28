@@ -57,7 +57,7 @@ WHERE deleted_at IS NULL
   AND avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
 -- name: CreateGoogleUser :one
--- The caller says whether the address starts verified (ADR 0047): Google
+-- The caller says whether the address starts verified (ADR 0049): Google
 -- owns its domain, or a mailed code proved it. The link records the address
 -- Google gave, which differs from the account's when a code proved another
 -- one ("I was invited with another address").
@@ -74,7 +74,7 @@ SELECT * FROM users WHERE google_id = $1;
 -- name: CreateAppleUser :one
 -- Sign in with Apple (ADR 0041): no password, onboarding still ahead
 -- (onboarded_at stays NULL). The caller says whether the address starts
--- verified (ADR 0047); the link records the address Apple gave, which
+-- verified (ADR 0049); the link records the address Apple gave, which
 -- differs from the account's when a mailed code proved another one.
 INSERT INTO users (id, email, display_name, apple_id, apple_email, apple_linked_at, email_verified_at, locale)
 VALUES (
@@ -88,7 +88,7 @@ SELECT * FROM users WHERE apple_id = $1;
 
 -- name: LinkAppleAccount :one
 -- Only a live account whose address is verified, and that is not linked to
--- another Apple subject, takes the link (ADR 0047): a link never verifies an
+-- another Apple subject, takes the link (ADR 0049): a link never verifies an
 -- address. It records the Apple address and when (kept on a relink of the
 -- same subject) and forgets an unlink of the subject.
 UPDATE users SET
@@ -104,7 +104,7 @@ RETURNING *;
 -- name: UnlinkAppleAccount :one
 -- Removes the Apple link and the token kept for it (the caller revokes that
 -- token after commit). The subject stays as apple_unlinked_sub, so the same
--- Apple ID is never linked back by its address (ADR 0047).
+-- Apple ID is never linked back by its address (ADR 0049).
 UPDATE users SET
   apple_unlinked_sub = apple_id,
   apple_id = NULL, apple_email = NULL, apple_linked_at = NULL,
@@ -122,7 +122,7 @@ WHERE id = $1 AND apple_id IS NOT NULL;
 
 -- name: LinkGoogleAccount :one
 -- Only a live account whose address is verified, and that is not linked to
--- another Google subject, takes the link (ADR 0047): a link never verifies an
+-- another Google subject, takes the link (ADR 0049): a link never verifies an
 -- address. It records the Google address and when (kept on a relink of the
 -- same subject), forgets an unlink of the subject and fills an empty avatar.
 UPDATE users SET
@@ -138,7 +138,7 @@ RETURNING *;
 
 -- name: UnlinkGoogleAccount :one
 -- The subject stays as google_unlinked_sub, so the same Google account is
--- never linked back by its address (ADR 0047).
+-- never linked back by its address (ADR 0049).
 UPDATE users SET
   google_unlinked_sub = google_id,
   google_id = NULL, google_email = NULL, google_linked_at = NULL,
@@ -153,12 +153,12 @@ SELECT * FROM users WHERE id = $1 FOR UPDATE;
 -- name: GetUserForShare :one
 -- Held by a session being opened until it commits, so a revocation (which
 -- takes the row FOR UPDATE first) either ends that session too or commits
--- before it, and the session then sees the revocation (ADR 0047).
+-- before it, and the session then sees the revocation (ADR 0049).
 SELECT * FROM users WHERE id = $1 FOR SHARE;
 
 -- name: ReclaimUnverifiedUser :one
 -- The owner of the mailbox takes an account someone registered with their
--- address before proving it (ADR 0047): whatever that person set up goes —
+-- address before proving it (ADR 0049): whatever that person set up goes —
 -- password, second factor, recovery codes, every provider link (the caller
 -- read the sealed Apple token first, to revoke it after commit), the AI
 -- consent answer — and the address is verified. Only an unverified, live
@@ -176,7 +176,7 @@ WHERE id = $1 AND email_verified_at IS NULL AND deleted_at IS NULL
 RETURNING *;
 
 -- name: MarkCredentialsRevoked :exec
--- Sensitive commands refuse an access token issued before this (ADR 0047).
+-- Sensitive commands refuse an access token issued before this (ADR 0049).
 -- The caller passes the second of its own clock, the one every token's iat
 -- comes from, so the session the same command hands out is never older than
 -- the mark however far the database's clock runs from the server's.
@@ -184,7 +184,7 @@ UPDATE users SET credentials_revoked_at = sqlc.arg(marked_at)::timestamptz, upda
 WHERE id = sqlc.arg(id);
 
 -- name: RecordSecondFactorFailure :one
--- One more wrong second factor or step-up proof (ADR 0047). The failure that
+-- One more wrong second factor or step-up proof (ADR 0049). The failure that
 -- reaches max_failures locks both until locked_until and starts the count
 -- over; the caller compares the lockout it reads back with the one it passed
 -- to tell whether this failure started it.
@@ -289,7 +289,7 @@ WHERE m.user_id = $1 AND m.role = 'owner' AND m.deactivated_at IS NULL
 
 -- name: AnonymizeUser :one
 -- Nghị định 13 deletion: identity fields go, the row and its audit trail stay;
--- every credential issued before now is marked revoked (ADR 0047).
+-- every credential issued before now is marked revoked (ADR 0049).
 UPDATE users SET
   email = $2, display_name = $3, password_hash = NULL, avatar_url = NULL, avatar_file_id = NULL,
   google_id = NULL, google_email = NULL, google_linked_at = NULL, google_unlinked_sub = NULL,

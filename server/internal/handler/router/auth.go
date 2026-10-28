@@ -40,7 +40,7 @@ import (
 //	POST   /api/v1/auth/native/sign-in-ticket/claim-email/verify (same-site JSON, credential rate limit)
 //
 // Same-site JSON (mw.SameSiteJSON) is the login-CSRF guard of every public
-// route that opens a session or spends a sign-in cookie (ADR 0047 §9). It
+// route that opens a session or spends a sign-in cookie (ADR 0049 §9). It
 // runs before the budget, so what another site makes a browser send never
 // spends that browser's address's budget. A password and a second factor
 // are guessed on their named budgets (signInBudgets), the rest of the doors
@@ -70,14 +70,14 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	})
 	sessionDoor.Post("/auth/password/reset", h.ResetPassword, apiOp{
 		summary:     "Reset password",
-		description: "Đổi mật khẩu bằng token trong link email, thu hồi mọi refresh token và trả về phiên mới. Tài khoản chưa xác minh email thì link là bằng chứng hộp thư: lấy lại tài khoản (xoá xác thực hai lớp, mã khôi phục, liên kết Google/Apple và mọi phiên của người đăng ký trước, đánh dấu email đã xác minh), phiên không hỏi bước hai và mang reclaimed: true (ADR 0047). Xoá cookie vé uniwork_sign_in_ticket trừ khi keep_sign_in_ticket. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site.",
+		description: "Đổi mật khẩu bằng token trong link email, thu hồi mọi refresh token và trả về phiên mới. Tài khoản chưa xác minh email thì link là bằng chứng hộp thư: lấy lại tài khoản (xoá xác thực hai lớp, mã khôi phục, liên kết Google/Apple và mọi phiên của người đăng ký trước, đánh dấu email đã xác minh), phiên không hỏi bước hai và mang reclaimed: true (ADR 0049). Xoá cookie vé uniwork_sign_in_ticket trừ khi keep_sign_in_ticket. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site.",
 		tags:        []string{"auth"},
 		sdi:         sdi.ResetPasswordSDI{},
 		sdo:         sdo.SessionSDO{},
 	})
 	v1.With(mw.SameSiteJSON, budgets.mfa).Post("/auth/mfa/verify", h.MFAVerify, apiOp{
 		summary:     "Verify MFA",
-		description: "Bước hai của đăng nhập trên web: đổi mfa_token (body hoặc cookie uniwork_mfa) cùng mã TOTP hoặc mã khôi phục lấy phiên. Chỉ nhận token thử thách của kênh web (token của app → 401 invalid_credentials). Mười lần sai liên tiếp khoá bước hai 15 phút và gửi mail cho chủ tài khoản; trong lúc khoá → 429 second_factor_locked kèm retry_after. Token mang liên kết Google/Apple đang chờ thì liên kết được ghi cùng giao dịch mở phiên; không ghi được thì vẫn đăng nhập và trả link_skipped (ADR 0047). Xoá cookie vé uniwork_sign_in_ticket trừ khi keep_sign_in_ticket. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site. Ngân sách sign-in-mfa: 10 lần/phút theo địa chỉ + tài khoản của token thử thách, dưới trần 600/phút theo địa chỉ.",
+		description: "Bước hai của đăng nhập trên web: đổi mfa_token (body hoặc cookie uniwork_mfa) cùng mã TOTP hoặc mã khôi phục lấy phiên. Chỉ nhận token thử thách của kênh web (token của app → 401 invalid_credentials). Mười lần sai liên tiếp khoá bước hai 15 phút và gửi mail cho chủ tài khoản; trong lúc khoá → 429 second_factor_locked kèm retry_after. Token mang liên kết Google/Apple đang chờ thì liên kết được ghi cùng giao dịch mở phiên; không ghi được thì vẫn đăng nhập và trả link_skipped (ADR 0049). Xoá cookie vé uniwork_sign_in_ticket trừ khi keep_sign_in_ticket. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site. Ngân sách sign-in-mfa: 10 lần/phút theo địa chỉ + tài khoản của token thử thách, dưới trần 600/phút theo địa chỉ.",
 		tags:        []string{"auth"},
 		sdi:         sdi.MFAVerifySDI{},
 		sdo:         sdo.SessionSDO{},
@@ -96,20 +96,20 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	})
 	v1.Get("/auth/providers", h.AuthProviders, apiOp{
 		summary:     "Auth providers",
-		description: "Các phương thức đăng nhập bên thứ ba đang bật trên deployment này: google (web), apple (Sign in with Apple native trên iPhone, nghĩa cũ app đã phát hành đọc), apple_web, google_native (ADR 0047; chỉ thêm cờ, không đổi nghĩa cờ cũ).",
+		description: "Các phương thức đăng nhập bên thứ ba đang bật trên deployment này: google (web), apple (Sign in with Apple native trên iPhone, nghĩa cũ app đã phát hành đọc), apple_web, google_native (ADR 0049; chỉ thêm cờ, không đổi nghĩa cờ cũ).",
 		tags:        []string{"auth"},
 		sdo:         sdo.AuthProvidersSDO{},
 	})
 	v1.With(credentialLimit).Get("/auth/google/start", h.GoogleStart, apiOp{
 		summary:     "Start Google sign-in",
-		description: "Ghi cookie niêm phong uniwork_oauth_state (state, nonce, PKCE verifier, next, intent) rồi chuyển tới Google với PKCE S256, nonce và prompt=select_account (ADR 0047). Query next là đường dẫn cùng origin sau khi đăng nhập; intent=sign_up (trang đăng ký) tạo tài khoản ngay khi không khớp tài khoản nào. intent=link kèm link_token (từ POST /me/sign-in-methods/google/link): chỉ bắt đầu khi cookie refresh của trình duyệt thuộc đúng phiên đã xin token, không thì 303 về return_to với sign_in_method=google&result=session_mismatch (token hỏng/hết hạn: result=failed).",
+		description: "Ghi cookie niêm phong uniwork_oauth_state (state, nonce, PKCE verifier, next, intent) rồi chuyển tới Google với PKCE S256, nonce và prompt=select_account (ADR 0049). Query next là đường dẫn cùng origin sau khi đăng nhập; intent=sign_up (trang đăng ký) tạo tài khoản ngay khi không khớp tài khoản nào. intent=link kèm link_token (từ POST /me/sign-in-methods/google/link): chỉ bắt đầu khi cookie refresh của trình duyệt thuộc đúng phiên đã xin token, không thì 303 về return_to với sign_in_method=google&result=session_mismatch (token hỏng/hết hạn: result=failed).",
 		tags:        []string{"auth"},
 		sdi:         sdi.GoogleStartSDI{},
 		status:      302,
 	})
 	v1.With(credentialLimit).Get("/auth/google/callback", h.GoogleCallback, apiOp{
 		summary:     "Google sign-in callback",
-		description: "Kiểm state, đổi mã Google kèm PKCE verifier, kiểm nonce của ID token, khớp tài khoản theo quy tắc chung (ADR 0047) rồi 303: phiên → cookie refresh và /auth/callback?next= (reclaimed=1 khi vừa lấy lại tài khoản; xoá cookie vé trừ khi next là /auth/continue?step=link); cần MFA → cookie uniwork_mfa (token mang liên kết đang chờ khi email khớp tài khoản đã xác minh; liên kết chỉ ghi sau bước hai) và /login?mfa=1&next=; không khớp tài khoản nào (intent sign_in) hoặc email đã có tài khoản mà danh tính chưa được tự liên kết → cookie vé uniwork_sign_in_ticket (15 phút) và màn chọn /auth/continue?next=, không tạo tài khoản; lỗi → /login?error=<mã>&next= (google_denied, google_failed, google_unverified, sign_in_conflict, sign_in_account_unverified). Liên kết từ Cài đặt (intent=link): kiểm lại cookie refresh thuộc đúng phiên đã bắt đầu, liên kết vào tài khoản đó (audit via settings) rồi 303 về return_to với sign_in_method=google&result=linked|denied|failed|taken|movable|already_linked|session_mismatch (taken/movable kèm masked_email; movable còn để cookie vé để Cài đặt xác nhận chuyển qua POST /auth/sign-in-ticket/link {move:true, step_up_token}).",
+		description: "Kiểm state, đổi mã Google kèm PKCE verifier, kiểm nonce của ID token, khớp tài khoản theo quy tắc chung (ADR 0049) rồi 303: phiên → cookie refresh và /auth/callback?next= (reclaimed=1 khi vừa lấy lại tài khoản; xoá cookie vé trừ khi next là /auth/continue?step=link); cần MFA → cookie uniwork_mfa (token mang liên kết đang chờ khi email khớp tài khoản đã xác minh; liên kết chỉ ghi sau bước hai) và /login?mfa=1&next=; không khớp tài khoản nào (intent sign_in) hoặc email đã có tài khoản mà danh tính chưa được tự liên kết → cookie vé uniwork_sign_in_ticket (15 phút) và màn chọn /auth/continue?next=, không tạo tài khoản; lỗi → /login?error=<mã>&next= (google_denied, google_failed, google_unverified, sign_in_conflict, sign_in_account_unverified). Liên kết từ Cài đặt (intent=link): kiểm lại cookie refresh thuộc đúng phiên đã bắt đầu, liên kết vào tài khoản đó (audit via settings) rồi 303 về return_to với sign_in_method=google&result=linked|denied|failed|taken|movable|already_linked|session_mismatch (taken/movable kèm masked_email; movable còn để cookie vé để Cài đặt xác nhận chuyển qua POST /auth/sign-in-ticket/link {move:true, step_up_token}).",
 		tags:        []string{"auth"},
 		sdi:         sdi.GoogleCallbackSDI{},
 		status:      303,
@@ -117,7 +117,7 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	registerAppleWeb(v1, h, credentialLimit)
 	sessionDoor.Get("/auth/sign-in-ticket", h.SignInTicket, apiOp{
 		summary:     "Read the pending sign-in",
-		description: "Màn chọn /auth/continue đọc lượt đăng nhập Google/Apple đang chờ từ cookie vé uniwork_sign_in_ticket (HttpOnly, 15 phút): nhà cung cấp, loại (unmatched | link_required), email, tên, email ẩn của Apple. Không có vé, vé hết hạn hay hỏng → 404 sign_in_ticket_missing và xoá cookie (ADR 0047).",
+		description: "Màn chọn /auth/continue đọc lượt đăng nhập Google/Apple đang chờ từ cookie vé uniwork_sign_in_ticket (HttpOnly, 15 phút): nhà cung cấp, loại (unmatched | link_required), email, tên, email ẩn của Apple. Không có vé, vé hết hạn hay hỏng → 404 sign_in_ticket_missing và xoá cookie (ADR 0049).",
 		tags:        []string{"auth"},
 		sdo:         sdo.SignInTicketSDO{},
 	})
@@ -150,7 +150,7 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	})
 	v1.With(credentialLimit).Post("/auth/apple/native", h.AppleSignIn, apiOp{
 		summary:     "Sign in with Apple (native)",
-		description: "App iPhone gửi identity token của Sign in with Apple (kèm nonce gốc, authorization code và tên ở lần đầu); server kiểm theo JWKS của Apple (iss, aud là bundle id, exp, nonce), khớp tài khoản theo quy tắc chung (ADR 0047) rồi trả phiên thiết bị native như exchange (ADR 0041). Giữ mã cũ cho bản app đã phát hành: tài khoản bật MFA nhận 403 mfa_required; email không dùng được nhận 401 apple_token_invalid; email thuộc tài khoản mà danh tính này không được tự gộp nhận 409 apple_account_conflict.",
+		description: "App iPhone gửi identity token của Sign in with Apple (kèm nonce gốc, authorization code và tên ở lần đầu); server kiểm theo JWKS của Apple (iss, aud là bundle id, exp, nonce), khớp tài khoản theo quy tắc chung (ADR 0049) rồi trả phiên thiết bị native như exchange (ADR 0041). Giữ mã cũ cho bản app đã phát hành: tài khoản bật MFA nhận 403 mfa_required; email không dùng được nhận 401 apple_token_invalid; email thuộc tài khoản mà danh tính này không được tự gộp nhận 409 apple_account_conflict.",
 		tags:        []string{"auth"},
 		sdi:         sdi.AppleSignInSDI{},
 		sdo:         sdo.DesktopSessionSDO{},
@@ -167,7 +167,7 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 	})
 }
 
-// registerAppleWeb is Sign in with Apple on the web (ADR 0047 §7): the
+// registerAppleWeb is Sign in with Apple on the web (ADR 0049 §7): the
 // start, Apple's form post, and the same-site finish. None takes
 // mw.SameSiteJSON: Apple posts a form from its own site, and the finish
 // follows that post. The state Apple echoes, bound to a sealed cookie, and
@@ -175,7 +175,7 @@ func registerAuth(v1 api, h Routes, credentialLimit, refreshLimit func(http.Hand
 func registerAppleWeb(v1 api, h Routes, credentialLimit func(http.Handler) http.Handler) {
 	v1.With(credentialLimit).Get("/auth/apple/start", h.AppleStart, apiOp{
 		summary:     "Start Sign in with Apple on the web",
-		description: "Ghi cookie niêm phong uniwork_apple_state (state, nonce gốc, next, intent; HttpOnly, SameSite=None; Secure, Path /api/v1/auth/apple, 10 phút) rồi 302 tới trang ủy quyền của Apple với Services ID, response_mode=form_post, scope name email và nonce là SHA-256 (hex) của nonce gốc (ADR 0047). intent=sign_up (trang đăng ký) tạo tài khoản ngay khi không khớp tài khoản nào. intent=link kèm link_token (từ POST /me/sign-in-methods/apple/link): chỉ bắt đầu khi cookie refresh của trình duyệt thuộc đúng phiên đã xin token, không thì 303 về return_to với sign_in_method=apple&result=session_mismatch (token hỏng/hết hạn: result=failed). Chưa cấu hình (APPLE_SIWA_WEB_CLIENT_ID và khoá Sign in with Apple) → 503 apple_not_configured. Chỉ chạy trên https.",
+		description: "Ghi cookie niêm phong uniwork_apple_state (state, nonce gốc, next, intent; HttpOnly, SameSite=None; Secure, Path /api/v1/auth/apple, 10 phút) rồi 302 tới trang ủy quyền của Apple với Services ID, response_mode=form_post, scope name email và nonce là SHA-256 (hex) của nonce gốc (ADR 0049). intent=sign_up (trang đăng ký) tạo tài khoản ngay khi không khớp tài khoản nào. intent=link kèm link_token (từ POST /me/sign-in-methods/apple/link): chỉ bắt đầu khi cookie refresh của trình duyệt thuộc đúng phiên đã xin token, không thì 303 về return_to với sign_in_method=apple&result=session_mismatch (token hỏng/hết hạn: result=failed). Chưa cấu hình (APPLE_SIWA_WEB_CLIENT_ID và khoá Sign in with Apple) → 503 apple_not_configured. Chỉ chạy trên https.",
 		tags:        []string{"auth"},
 		sdi:         sdi.AppleStartSDI{},
 		status:      302,
@@ -189,7 +189,7 @@ func registerAppleWeb(v1 api, h Routes, credentialLimit func(http.Handler) http.
 	})
 	v1.With(credentialLimit).Get("/auth/apple/finish", h.AppleFinish, apiOp{
 		summary:     "Finish Sign in with Apple on the web",
-		description: "Điều hướng cùng site sau callback, nên cookie Lax (uniwork_refresh, vé) có mặt. Xoá cookie uniwork_apple_result rồi kết thúc như callback Google (ADR 0047): phiên → cookie refresh và 303 /auth/callback?next= (reclaimed=1 khi vừa lấy lại tài khoản); cần MFA → cookie uniwork_mfa (liên kết đang chờ chỉ ghi sau bước hai) và /login?mfa=1&next=; không khớp tài khoản nào hay email đã có tài khoản mà danh tính chưa được tự liên kết → cookie vé uniwork_sign_in_ticket và /auth/continue?next=; lỗi → /login?error=<mã>&next= (apple_failed, sign_in_unverified, sign_in_conflict, sign_in_account_unverified). Liên kết từ Cài đặt: kiểm lại cookie refresh thuộc đúng phiên đã bắt đầu, liên kết vào tài khoản đó (audit via settings) rồi 303 về return_to với sign_in_method=apple&result=linked|failed|taken|movable|already_linked|session_mismatch. Tài khoản tạo hay liên kết giữ token Apple (client là Services ID) để thu hồi khi xoá tài khoản; lượt bị từ chối trả token lại Apple trừ khi Apple ID đó đã mở một tài khoản. Thiếu hay hết hạn cookie kết quả → /login?error=apple_failed.",
+		description: "Điều hướng cùng site sau callback, nên cookie Lax (uniwork_refresh, vé) có mặt. Xoá cookie uniwork_apple_result rồi kết thúc như callback Google (ADR 0049): phiên → cookie refresh và 303 /auth/callback?next= (reclaimed=1 khi vừa lấy lại tài khoản); cần MFA → cookie uniwork_mfa (liên kết đang chờ chỉ ghi sau bước hai) và /login?mfa=1&next=; không khớp tài khoản nào hay email đã có tài khoản mà danh tính chưa được tự liên kết → cookie vé uniwork_sign_in_ticket và /auth/continue?next=; lỗi → /login?error=<mã>&next= (apple_failed, sign_in_unverified, sign_in_conflict, sign_in_account_unverified). Liên kết từ Cài đặt: kiểm lại cookie refresh thuộc đúng phiên đã bắt đầu, liên kết vào tài khoản đó (audit via settings) rồi 303 về return_to với sign_in_method=apple&result=linked|failed|taken|movable|already_linked|session_mismatch. Tài khoản tạo hay liên kết giữ token Apple (client là Services ID) để thu hồi khi xoá tài khoản; lượt bị từ chối trả token lại Apple trừ khi Apple ID đó đã mở một tài khoản. Thiếu hay hết hạn cookie kết quả → /login?error=apple_failed.",
 		tags:        []string{"auth"},
 		status:      303,
 	})
@@ -199,7 +199,7 @@ func registerAppleWeb(v1 api, h Routes, credentialLimit func(http.Handler) http.
 // the descriptions below say once.
 const nativeAnswer = " Trả NativeSignInSDO: status signed_in (session là phiên thiết bị native, như /auth/desktop/exchange), mfa_required (mfa_token gắn với client và deployment này, gửi ở POST /auth/native/mfa), identity_unmatched hay link_required (ticket 15 phút cho màn chọn, chỉ dùng được cùng nonce gốc, kèm identity). Chỉ nhận client_id trong NATIVE_SIGN_IN_CLIENTS (mặc định uniwork-chat-mobile) với deployment đã cấu hình, không thì 400 invalid_request; desktop và Office đăng nhập qua trang web. Phiên mới ghi audit auth.login_succeeded (via) trong cùng giao dịch; tài khoản đã từng có phiên hay thiết bị nhận mail báo đăng nhập mới. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site. Cache-Control: no-store."
 
-// registerNativeAuth is the app's own sign-in screen (ADR 0047 §8, spec
+// registerNativeAuth is the app's own sign-in screen (ADR 0049 §8, spec
 // §3.6): public doors under /auth/native that take only the native sign-in
 // clients and answer NativeSignInSDO. They hold to same-site JSON like the
 // browser's session doors (the app sends JSON and no Sec-Fetch-Site), so a
@@ -224,7 +224,7 @@ func registerNativeAuth(v1 api, h Routes, credentialLimit func(http.Handler) htt
 	})
 	door.Post("/auth/native/google", h.NativeGoogle, apiOp{
 		summary:     "Sign in with Google (app)",
-		description: "ID token SDK Google trả cho app: kiểm chữ ký theo khoá Google, aud là client web hay client app, azp bắt buộc là client iOS/Android của app (GOOGLE_NATIVE_CLIENT_IDS; token phát cho web bị từ chối), iat không quá 10 phút, nonce bắt buộc là SHA-256 (hex) của nonce gốc; sai → 401 provider_token_invalid. Khớp tài khoản theo quy tắc chung (ADR 0047): không khớp → identity_unmatched (intent=sign_up thì tạo tài khoản ngay); email đã có tài khoản mà danh tính chưa được tự liên kết → link_required; tài khoản chưa xác minh mà Google sở hữu email → lấy lại tài khoản (reclaimed); lỗi của bộ khớp giữ mã (403 sign_in_email_unverified, 403 sign_in_account_unverified, 409 sign_in_account_conflict). Chưa cấu hình → 503 google_not_configured." + nativeAnswer,
+		description: "ID token SDK Google trả cho app: kiểm chữ ký theo khoá Google, aud là client web hay client app, azp bắt buộc là client iOS/Android của app (GOOGLE_NATIVE_CLIENT_IDS; token phát cho web bị từ chối), iat không quá 10 phút, nonce bắt buộc là SHA-256 (hex) của nonce gốc; sai → 401 provider_token_invalid. Khớp tài khoản theo quy tắc chung (ADR 0049): không khớp → identity_unmatched (intent=sign_up thì tạo tài khoản ngay); email đã có tài khoản mà danh tính chưa được tự liên kết → link_required; tài khoản chưa xác minh mà Google sở hữu email → lấy lại tài khoản (reclaimed); lỗi của bộ khớp giữ mã (403 sign_in_email_unverified, 403 sign_in_account_unverified, 409 sign_in_account_conflict). Chưa cấu hình → 503 google_not_configured." + nativeAnswer,
 		tags:        []string{"auth"},
 		sdi:         sdi.NativeGoogleSDI{},
 		sdo:         sdo.NativeSignInSDO{},

@@ -203,7 +203,7 @@ func TestAppleWebIs503WhenNotConfigured(t *testing.T) {
 	}
 }
 
-// The start seals what the callback checks into one cookie (ADR 0047 §7):
+// The start seals what the callback checks into one cookie (ADR 0049 §7):
 // the state Apple posts back and the raw nonce, whose hash only goes to
 // Apple. The cookie must travel on Apple's cross-site form post, so it is
 // SameSite=None and Secure whatever the deployment's scheme.
@@ -489,7 +489,7 @@ func TestAppleWebLinksFromSettingsThroughTheSameBrowserSession(t *testing.T) {
 	}
 }
 
-// /auth/providers reports each Apple door by itself (ADR 0047 §10): apple
+// /auth/providers reports each Apple door by itself (ADR 0049 §10): apple
 // keeps meaning the iPhone's native sign-in, apple_web is the web's. A
 // deployment with the web's Services ID only answers 503 at the app's door.
 func TestAuthProvidersReportsEachAppleDoor(t *testing.T) {

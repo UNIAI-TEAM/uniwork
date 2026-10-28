@@ -9,7 +9,7 @@ type PasswordResetData struct {
 	ResetURL string
 	Expires  time.Duration
 	// SetPassword: the account has no password yet, it signs in with a
-	// provider (ADR 0047, spec §3.7). The same one-time link sets the first
+	// provider (ADR 0049, spec §3.7). The same one-time link sets the first
 	// one, and the mail says so instead of "reset".
 	SetPassword bool
 	// SignInWith is the providers (SignInMethodGoogle, SignInMethodApple)

@@ -104,7 +104,7 @@ func TestGoogleStartIs503WhenNotConfigured(t *testing.T) {
 	}
 }
 
-// The start seals everything the callback checks into one cookie (ADR 0047):
+// The start seals everything the callback checks into one cookie (ADR 0049):
 // the CSRF state, the nonce Google must echo in the ID token, and the PKCE
 // verifier whose S256 challenge goes to Google. None of it is readable or
 // forgeable in the browser.
@@ -313,7 +313,7 @@ func TestGoogleCallbackErrorsRedirectToLogin(t *testing.T) {
 	tampered := &http.Cookie{Name: oauthStateCookie, Value: state.Value[:len(state.Value)-2] + "AA"}
 	expired := reseal(auth.PurposeOAuthStateGoogle, func(s *googleState) { s.Exp = time.Now().Add(-time.Second).Unix() })
 	otherPurpose := reseal(auth.PurposeLinkToken, func(*googleState) {})
-	// The pre-0047 cookie was "state|next" in clear.
+	// The pre-0049 cookie was "state|next" in clear.
 	legacy := &http.Cookie{Name: oauthStateCookie, Value: st.State + "|/acme/team"}
 
 	const next = "&next=%2Facme%2Fteam"

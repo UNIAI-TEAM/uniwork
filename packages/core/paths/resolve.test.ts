@@ -198,7 +198,7 @@ describe("paths", () => {
     }
   });
 
-  it("carries next (and the link mode) through every sign-in page (ADR 0047, spec §4.2–4.4)", () => {
+  it("carries next (and the link mode) through every sign-in page (ADR 0049, spec §4.2–4.4)", () => {
     expect(paths.login()).toBe("/login");
     expect(paths.login({ next: "/acme/team" })).toBe("/login?next=%2Facme%2Fteam");
     const linkStep = paths.authContinue({ step: "link", next: "/invite/t1" });

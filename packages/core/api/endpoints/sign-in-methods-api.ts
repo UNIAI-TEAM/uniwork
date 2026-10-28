@@ -14,7 +14,7 @@ import {
 } from "./sign-in-schemas";
 
 /**
- * "Confirm it is you" and Settings › Sign-in methods (ADR 0047 §5-6, spec
+ * "Confirm it is you" and Settings › Sign-in methods (ADR 0049 §5-6, spec
  * §3.7) over any bearer transport: sign-in-methods.ts binds it to the web's,
  * and the phone to its own, so both send the same proof and read the same
  * answer. Pure.

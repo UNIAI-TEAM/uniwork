@@ -20,7 +20,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// Step-up (ADR 0047 §5, spec §3.7): before a command that changes how the
+// Step-up (ADR 0049 §5, spec §3.7): before a command that changes how the
 // account signs in or that cannot be undone alone — set or change the
 // password, link or unlink a provider, turn the second factor on, delete
 // the account, hand an organization over — the person signed in proves
@@ -44,7 +44,7 @@ const (
 // legacyProofReviewBy is when the proofs shipped apps send in place of a
 // step-up token — POST /me/delete's password, code or typed address, and an
 // owner's password on a hand-over — are reviewed for removal, with the
-// legacy Apple route (ADR 0047 §8). TestLegacyProofDoorsAreReviewed fails
+// legacy Apple route (ADR 0049 §8). TestLegacyProofDoorsAreReviewed fails
 // once it passes.
 const legacyProofReviewBy = "2027-01-31"
 
@@ -145,7 +145,7 @@ func errCodeDailyCap(wait time.Duration) error {
 }
 
 // GoogleTokenVerifier checks an ID token the app's Google SDK returned (ADR
-// 0047 §8: an app client as azp, the hash of the app's nonce, a fresh iat);
+// 0049 §8: an app client as azp, the hash of the app's nonce, a fresh iat);
 // auth.GoogleNativeVerifier in production.
 type GoogleTokenVerifier interface {
 	Verify(ctx context.Context, rawToken, rawNonce string) (auth.GoogleClaims, error)

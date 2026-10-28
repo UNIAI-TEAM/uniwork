@@ -19,7 +19,7 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 /**
- * Sign in with Google for UniChat (ADR 0047 §8): Credential Manager's "Sign in with Google" option, with the nonce the
+ * Sign in with Google for UniChat (ADR 0049 §8): Credential Manager's "Sign in with Google" option, with the nonce the
  * server checks, so the ID token carries it. The server client id (the web client, the token's audience) is the app's
  * own meta-data, written by plugins/with-google-sign-in.js; a build without it, or a phone without Google Play
  * services, reports unavailable and the app goes through the browser.

@@ -71,7 +71,7 @@ const CONSEQUENCES = [
 /**
  * Handing the organization to somebody else. Two deliberate frictions, because
  * the outgoing owner cannot undo this alone: they type the organization's
- * name, and they confirm it is them (OPEN_QUESTIONS P2, ADR 0047 §5) through
+ * name, and they confirm it is them (OPEN_QUESTIONS P2, ADR 0049 §5) through
  * the shared "Xác nhận là bạn" dialog, nested in this one, with whatever
  * proof the account takes: the password, the second factor, or a code mailed
  * for this hand-over. Nothing typed survives a close, and the dialog cannot

@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { auditText } from "./contrast";
 
 /**
- * The sign-in screens' specs (ADR 0047, spec 2026-10-27 §4.6): the answers
+ * The sign-in screens' specs (ADR 0049, spec 2026-10-27 §4.6): the answers
  * they need from a server that cannot give them, and the measurements they
  * share.
  *

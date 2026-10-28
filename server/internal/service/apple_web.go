@@ -11,7 +11,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth"
 )
 
-// Sign in with Apple on the web (ADR 0047 §7, spec §3.4). The browser goes to
+// Sign in with Apple on the web (ADR 0049 §7, spec §3.4). The browser goes to
 // Apple from GET /auth/apple/start; Apple posts the authorization code back
 // to the return URL; WebIdentity redeems it with the Services ID's client
 // secret and the return URL, and checks the identity token with the web's

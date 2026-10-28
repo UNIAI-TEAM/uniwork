@@ -56,7 +56,7 @@ const MARKS = { google: GoogleMark, apple: AppleMark };
 const noopSubscribe = () => () => {};
 
 /**
- * Settings › Sign-in methods (ADR 0047 §6, spec §4.5): the password, Google
+ * Settings › Sign-in methods (ADR 0049 §6, spec §4.5): the password, Google
  * and Apple, each with what it is now and the one thing to do about it.
  * Every change asks "Xác nhận là bạn" first unless a held token serves it
  * (step-up-proof.tsx). A provider the deployment does not offer has no row

@@ -1,7 +1,7 @@
 # apps/chat-mobile
 
 App Expo (iOS + Android) của UniChat: đăng nhập ngay trong app (email + mật khẩu, Apple, Google, bước hai và màn chọn,
-ADR 0047; `app/(auth)/`, `components/auth/`, `data/auth/sign-in.ts`), PKCE qua trình duyệt hệ thống cho phần còn lại,
+ADR 0049; `app/(auth)/`, `components/auth/`, `data/auth/sign-in.ts`), PKCE qua trình duyệt hệ thống cho phần còn lại,
 chọn workspace (chưa có thì trả lời lời mời: `components/workspace/pending-invitations.tsx`, link `/invite/{token}`
 mở màn xem trước), phương thức đăng nhập trong Cài đặt, một socket realtime, push, deep link, bốn tab (Chat, Cuộc gọi,
 Danh bạ, Cài đặt) và cuộc gọi. Luật gốc: ADR 0011 (mobile chỉ import kiểu và hàm thuần từ `packages/core`) và ADR 0043
@@ -73,7 +73,7 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   tên `UniChatCallKit`, khác `UniChatCalls` của Android, và call center chỉ chạy khi Info.plist khai `voip`
   (`UNICHAT_IOS_CALLS=1`, `app.config.test.ts`). Hai nửa tới app qua một `NativeCallSession`
   (`data/calls/native-call-session.ts`, `native-call-session.test.ts`).
-- Đăng nhập trong app (ADR 0047): màn hình chỉ gọi `useAuthStore().login(request)` (`COMMAND_MODULES` cấm
+- Đăng nhập trong app (ADR 0049): màn hình chỉ gọi `useAuthStore().login(request)` (`COMMAND_MODULES` cấm
   `auth/sign-in`, `auth/methods-api`). Mật khẩu vào cửa qua closure, không vào event, effect, lỗi, log hay Sentry
   (`data/auth/store.test.ts`, `data/auth/endpoint-request.test.ts`); thử thách bước hai, vé và nonce của màn chọn chỉ ở
   bộ nhớ, không persist, không thành route param, máy chỉ giữ dấu `{provider, at}` để báo lượt bỏ dở

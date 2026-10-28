@@ -113,7 +113,7 @@ func TestAppleSignInRefusals(t *testing.T) {
 	}
 }
 
-// /auth/providers only ever gains flags (ADR 0047 §10): apple keeps meaning
+// /auth/providers only ever gains flags (ADR 0049 §10): apple keeps meaning
 // the native iPhone sign-in the shipped app reads; the web's Apple reports
 // false without its Services ID (TestAuthProvidersReportsEachAppleDoor), and
 // the app's Google SDK without GOOGLE_NATIVE_CLIENT_IDS
@@ -133,7 +133,7 @@ func TestAuthProvidersReportsApple(t *testing.T) {
 }
 
 // The shipped iPhone app reads the codes POST /auth/apple/native answered
-// before ADR 0047, so the route keeps them while the shared rules decide
+// before ADR 0049, so the route keeps them while the shared rules decide
 // underneath (spec §3.6): a second factor is 403 mfa_required with nothing
 // linked, an address Apple does not vouch for is 401 apple_token_invalid,
 // every other refusal is 409 apple_account_conflict; a new identity still

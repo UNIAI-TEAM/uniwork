@@ -48,7 +48,7 @@ func refusedAsRevoked(t *testing.T, err error) {
 
 // Once an account's credentials change (a reclaim marks
 // credentials_revoked_at), a browser access token issued before keeps
-// reading until it expires, but the sensitive commands refuse it (ADR 0047
+// reading until it expires, but the sensitive commands refuse it (ADR 0049
 // §5, spec §3.7): approving a desktop or MCP consent would hand whoever held
 // the old session a new one. A token of the same second passes (the mark is
 // whole seconds, like iat), and a device token is judged by its device
@@ -172,7 +172,7 @@ func (f *identityFixture) approveFrom(t *testing.T, ctx context.Context, uid, st
 }
 
 // A reset link is how an owner who fears someone else has the password gets
-// the account back (ADR 0047 §5), so it ends whatever the old password let
+// the account back (ADR 0049 §5), so it ends whatever the old password let
 // in, not only the sessions: the mark refuses a browser token issued before
 // on every sensitive command, a consent approved before cannot be redeemed,
 // and a token whose session was ended cannot approve a new one in its last
@@ -238,7 +238,7 @@ func TestAResetLinkEndsWhatTheOldPasswordLetIn(t *testing.T) {
 }
 
 // The mark and a token's iat are compared at one-second precision, so both
-// come from one clock, the server's, which mints every iat (ADR 0047): a
+// come from one clock, the server's, which mints every iat (ADR 0049): a
 // change marked just before the server's second turns is stamped with that
 // second, not the next one because the database's clock runs ahead, which
 // would make the session the same change kept, refreshed right after, older

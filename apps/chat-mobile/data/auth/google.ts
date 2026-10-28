@@ -1,4 +1,4 @@
-// Sign in with Google in the app (ADR 0047 §8): Google's account chooser (modules/unichat-google-sign-in), with the
+// Sign in with Google in the app (ADR 0049 §8): Google's account chooser (modules/unichat-google-sign-in), with the
 // SHA-256 of a fresh raw nonce, which Google copies into the ID token; the raw nonce goes to the server with the token
 // (nonce.ts). Where the module is missing or reports unavailable (Expo Go, a build without the Google client ids, an
 // Android phone without Google Play services), the app signs in with Google through the browser instead

@@ -1,4 +1,4 @@
-# Signing the test account in, the way a person does it. The app's own sign-in screen (ADR 0047, spec §5.2):
+# Signing the test account in, the way a person does it. The app's own sign-in screen (ADR 0049, spec §5.2):
 # the email and password fields by testID, then the app, with no browser. A build from before the native screen
 # (the upgrade path's first half runs last night's) shows no email field: it signs in as that build does, in the
 # system browser sheet (ASWebAuthenticationSession on iOS, a Chrome Custom Tab on Android), where the web signs the

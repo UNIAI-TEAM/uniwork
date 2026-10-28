@@ -14,7 +14,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// The second-factor lockout (ADR 0047 §4, spec §3.3): the tenth wrong code
+// The second-factor lockout (ADR 0049 §4, spec §3.3): the tenth wrong code
 // in a row locks the second factor for fifteen minutes and tells the owner.
 // The counter is per account, so no number of addresses or tokens buys more
 // guesses; a right code starts it over.
@@ -69,7 +69,7 @@ func (s *AuthService) weighSecondFactor(ctx context.Context, q *db.Queries, u db
 }
 
 // weighProof is weighSecondFactor for any proof a signed-in person or a
-// second step offers (ADR 0047 §4, spec §3.3): a second-factor code, a
+// second step offers (ADR 0049 §4, spec §3.3): a second-factor code, a
 // password or a mailed code re-entered for a step-up. One counter per
 // account, so no mix of proofs buys more than ten guesses; while it is
 // locked nothing is checked (check is not called, a recovery code is not

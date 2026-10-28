@@ -25,7 +25,7 @@ const (
 )
 
 // The purposes a mailed six-digit code proves the mailbox for
-// (email_verification_codes.purpose, ADR 0047): every read names one, so a
+// (email_verification_codes.purpose, ADR 0049): every read names one, so a
 // step-up code never verifies an address and the other way round.
 const (
 	codePurposeVerifyEmail = "verify_email"

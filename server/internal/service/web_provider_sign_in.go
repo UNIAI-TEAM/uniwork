@@ -24,12 +24,12 @@ type ProviderSignInResult struct {
 }
 
 // webProviderSignIn is a browser sign-in with a provider whose token passed
-// its checks (Google, Apple on the web; ADR 0047). It resolves the account
+// its checks (Google, Apple on the web; ADR 0049). It resolves the account
 // with resolveIdentity, inside one transaction with whatever the answer
 // writes:
 //
 //   - matched: the account linked to the subject;
-//   - unmatched: no account is created (ADR 0047 §2c) but a sign-in ticket
+//   - unmatched: no account is created (ADR 0049 §2c) but a sign-in ticket
 //     for the choice screen; from the register screen (intent sign_up) the
 //     account is created at once, its address verified only when the
 //     provider owns it (else a verification code is mailed, as for a

@@ -40,7 +40,7 @@ var (
 	// carries no address Apple vouches for and names no linked account.
 	ErrAppleTokenInvalid = errors.New("apple_token_invalid")
 	// ErrAppleAccountConflict: the address belongs to an account the Apple
-	// identity may not join from this route (ADR 0041, 0047).
+	// identity may not join from this route (ADR 0041, 0049).
 	ErrAppleAccountConflict = errors.New("apple_account_conflict")
 	// ErrMFARequired: the account has a second factor, which only the
 	// browser sign-in asks for.
@@ -60,7 +60,7 @@ func appleMFARequired() error {
 }
 
 // AppleAuthService is Sign in with Apple, resolving the account with the
-// rules every provider shares (resolveIdentity, ADR 0047), through two
+// rules every provider shares (resolveIdentity, ADR 0049), through two
 // doors: the app's native sheet, which ends in the same device session the
 // PKCE code exchange issues (ADR 0041), and the web (apple_web.go), which
 // ends in a browser session. It also holds the account's Apple consent:
@@ -291,7 +291,7 @@ func (s *AppleAuthService) resolveLegacy(ctx context.Context, q *db.Queries, id 
 
 // legacyAppleError maps the shared resolver's refusals onto the codes the
 // shipped app reads: an address Apple does not vouch for is the token's
-// fault, every other refusal is a conflict, as it was before ADR 0047.
+// fault, every other refusal is a conflict, as it was before ADR 0049.
 func legacyAppleError(err error) error {
 	switch {
 	case errors.Is(err, ErrSignInEmailUnverified):

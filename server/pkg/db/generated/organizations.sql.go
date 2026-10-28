@@ -1191,7 +1191,7 @@ SELECT (
 // (deactivated ones included), or the member.joined / member.left audit row
 // every join and leave writes, since leaving deletes the membership row and
 // audit_events is append-only. A sign-in identity moves only out of an
-// account that never did (ADR 0047); the caller reached that account through
+// account that never did (ADR 0049); the caller reached that account through
 // the provider identity it just proved, and only a yes or no comes back.
 func (q *Queries) UserEverJoinedAnOrganization(ctx context.Context, userID string) (bool, error) {
 	row := q.db.QueryRow(ctx, userEverJoinedAnOrganization, userID)

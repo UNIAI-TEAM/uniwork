@@ -49,7 +49,7 @@ const TABS_PATHS = [
   ...["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"].map((status) => `tasks.status_${status}`),
 ];
 
-// ADR 0047 (spec §5.3): the phone's own sign-in screens say what the web's do — the provider buttons and their
+// ADR 0049 (spec §5.3): the phone's own sign-in screens say what the web's do — the provider buttons and their
 // errors, the choice screen, the second factor, email verification, the fields of the form, and Settings' sign-in
 // methods and "Xác nhận là bạn". What only the phone says is scripts/i18n-sign-in.mjs.
 const SIGN_IN_PATHS = [

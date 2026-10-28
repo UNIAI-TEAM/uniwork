@@ -45,7 +45,7 @@ func totpNow(t *testing.T, secret string) string {
 	return code
 }
 
-// A challenge token is bound to the channel it was minted for (ADR 0047 §4):
+// A challenge token is bound to the channel it was minted for (ADR 0049 §4):
 // the browser's second step takes a web one, and a token minted before
 // tokens named a channel reads as web. One minted for the app is refused
 // like a wrong code, and costs nothing from the lockout: it never reached
@@ -83,7 +83,7 @@ func TestMFAChallengeIsBoundToItsChannel(t *testing.T) {
 	}
 }
 
-// A challenge is what its first factor bought, and dies with it (ADR 0047
+// A challenge is what its first factor bought, and dies with it (ADR 0049
 // §4-5): once the account's credentials change — the owner changes the
 // password from another session — a challenge minted before opens nothing
 // even with the right code, and a fresh one does. A challenge for a factor
@@ -153,7 +153,7 @@ func TestAChallengeDiesWithTheFirstFactorItFollowed(t *testing.T) {
 }
 
 // Ten wrong second factors in a row lock the factor for fifteen minutes and
-// tell the owner once (ADR 0047 §4, spec §3.3). While locked nothing is
+// tell the owner once (ADR 0049 §4, spec §3.3). While locked nothing is
 // checked — the right code, a fresh challenge, a recovery code: all 429 with
 // retry_after, and the recovery code is not spent. A right code after the
 // lockout starts the count over.
@@ -243,7 +243,7 @@ func TestSecondFactorLocksAfterTenFailures(t *testing.T) {
 }
 
 // An address that resolves to a link into an account with a second factor
-// is linked only once that factor passes (ADR 0047 §2, spec §3.3): the
+// is linked only once that factor passes (ADR 0049 §2, spec §3.3): the
 // challenge carries the identity, nothing is written before, and the link
 // commits with the session. Resolved again at that point, an identity that
 // no longer links into this account is skipped and the sign-in goes on.
@@ -336,7 +336,7 @@ func TestLinkWaitsForTheSecondFactor(t *testing.T) {
 }
 
 // An account that never proved its address cannot set up a second factor
-// (ADR 0047 §2): whoever registered someone else's address must not be able
+// (ADR 0049 §2): whoever registered someone else's address must not be able
 // to plant anything that outlives the owner's reclaim. A secret planted
 // before the gate existed is not turned on either. Nor does it take a
 // provider link, from the choice screen, the browser's Settings or the app's.

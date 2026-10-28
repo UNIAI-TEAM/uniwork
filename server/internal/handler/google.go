@@ -28,7 +28,7 @@ type GoogleExchanger interface {
 }
 
 // googleState is the uniwork_oauth_state cookie, sealed for
-// oauth_state:google (ADR 0047): the CSRF state, the nonce the ID token must
+// oauth_state:google (ADR 0049): the CSRF state, the nonce the ID token must
 // echo, the PKCE verifier, where to land after, the intent, and its own
 // expiry so a copied cookie value dies with the attempt. A link from
 // Settings also carries the account and browser session the link token

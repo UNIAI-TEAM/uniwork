@@ -1,4 +1,4 @@
-// The app's own sign-in screen (ADR 0047, spec §5.2): the mark and the title, Apple and Google, then email and
+// The app's own sign-in screen (ADR 0049, spec §5.2): the mark and the title, Apple and Google, then email and
 // password, then the way to a new account and the browser for anyone the native doors cannot serve. A second factor
 // or a choice moves on to its screen (components/auth/use-sign-in.ts); signed in, the entry takes over. With link=1
 // and an identity held by the choice screen it is "Tôi đã có tài khoản": a notice says what will be linked, that

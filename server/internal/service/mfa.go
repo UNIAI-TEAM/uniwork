@@ -27,7 +27,7 @@ type MFASetup struct {
 // SetupTOTP starts (or restarts) enrolment. ErrEmailUnverified until the
 // account proved its address: a second factor set up by whoever registered
 // someone else's address must not exist to survive the owner's reclaim (ADR
-// 0047). ErrConflict while MFA is on: disable first, so a stolen session
+// 0049). ErrConflict while MFA is on: disable first, so a stolen session
 // cannot silently swap the secret. Then a step-up token of the bearer's
 // session (requireStepUp): a second factor locks the account to whoever
 // holds it, so a stolen session alone must not be able to turn one on.
@@ -168,7 +168,7 @@ func (s *AuthService) DisableTOTP(ctx context.Context, userID, code string) (db.
 // VerifyMFA is the browser's second step of login: the challenge token
 // from the first factor plus a TOTP or recovery code buys the session. Only
 // a web challenge is taken; one minted for an app is refused like a wrong
-// code (ADR 0047 §4). Under the account's row lock the attempt is weighed
+// code (ADR 0049 §4). Under the account's row lock the attempt is weighed
 // against the lockout (weighSecondFactor), and a provider identity the first
 // step left waiting (the token's pending link) is linked in the transaction
 // that opens the session, if it still resolves to this account; else the
@@ -227,7 +227,7 @@ func challengePredatesCredentials(ch auth.MFAChallenge, u db.User) bool {
 	return u.CredentialsRevokedAt.Valid && ch.IssuedAt.Before(u.CredentialsRevokedAt.Time)
 }
 
-// secondStep is what the browser's and the app's second step share (ADR 0047
+// secondStep is what the browser's and the app's second step share (ADR 0049
 // §4, spec §3.3), for a challenge ch whose channel the caller has checked, in
 // the caller's transaction tx (q): the account is read under its row lock
 // (gone or erased: invalid_credentials), the code is weighed against the

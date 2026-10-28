@@ -9,7 +9,7 @@ import { useNavigation } from "@uniwork/views/navigation";
 
 /**
  * The choice screen a Google or Apple sign-in that found no account lands on
- * (ADR 0047 §2c, spec §4.3), and its link step (`step=link`). Once the person
+ * (ADR 0049 §2c, spec §4.3), and its link step (`step=link`). Once the person
  * is signed in and the screen is done, `next` is reached through the gates
  * they still owe. `replace`, not `push`: the pending sign-in is spent by then,
  * and Back should not land on a screen with nothing left to choose.

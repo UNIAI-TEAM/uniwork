@@ -76,7 +76,7 @@ export function applyAuthSession(sess: SessionResponse): void {
 
 /**
  * Resolves to a session, or to the MFA challenge the login screen must answer
- * with `useVerifyMfa`. `keepSignInTicket` on /login?link=1 (ADR 0047): this
+ * with `useVerifyMfa`. `keepSignInTicket` on /login?link=1 (ADR 0049): this
  * sign-in is the account the pending provider links into.
  */
 export function useLogin() {

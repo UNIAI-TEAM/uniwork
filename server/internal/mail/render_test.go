@@ -208,7 +208,7 @@ func TestNewLoginFromTheAppNamesTheDevice(t *testing.T) {
 	}
 }
 
-// One kind tells of every change to the ways into an account (ADR 0047), in
+// One kind tells of every change to the ways into an account (ADR 0049), in
 // both languages: the change in the subject, where it came from, the security
 // settings and, if it was not the owner, the password reset. It replaced
 // apple_linked, which only told of an Apple link.
@@ -286,7 +286,7 @@ func TestSignInMethodChangedRendersEveryChangeInBothLocales(t *testing.T) {
 	}
 }
 
-// The code of "I was invited with another address" (ADR 0047) goes to an
+// The code of "I was invited with another address" (ADR 0049) goes to an
 // address that may have no account: it names no user, says which provider
 // waits on it and for how long, and warns that the code opens the account.
 func TestSignInEmailClaimRendersBothLocales(t *testing.T) {
@@ -322,7 +322,7 @@ func TestSignInEmailClaimRendersBothLocales(t *testing.T) {
 }
 
 // A step-up code names the one action it unlocks, where the request came
-// from and that it must never be shared (ADR 0047 §5), in both languages; an
+// from and that it must never be shared (ADR 0049 §5), in both languages; an
 // action nobody defined is refused rather than mailed without a name.
 func TestStepUpCodeNamesItsActionInBothLocales(t *testing.T) {
 	r := Renderer{AppURL: "http://localhost:3000"}

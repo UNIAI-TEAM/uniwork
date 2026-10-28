@@ -58,7 +58,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0046](0046-console-xep-xoa-to-chuc-qua-mot-cua.md) | Lệnh ghi content thứ hai của console: xếp hoặc hoàn tác lịch xóa tổ chức 5 ngày qua `OrganizationDeletionQueue` (`queueDeletion`, `cancelDeletion`; nối `privacySvc` ở `main.go`); `AdminService` không giữ `*PrivacyExportService` nên không xuất hay tải tệp tenant; `recordAdmin` chạy trong giao dịch của hàng đợi; bổ sung cho 0042 |
 | [0047](0047-google-drive-chi-tham-chieu-doc-bang-ket-noi-cua-chinh-nguoi-dung.md) | Connector Google Drive: chỉ lưu tham chiếu (bảng riêng `drive_*`, không phải dòng `documents` và không đưa byte vào kho); nội dung chỉ đọc qua `drive_content.ReadForAI` bằng kết nối của chính người yêu cầu (`drive_file_access`); AI đọc khi người yêu cầu đồng ý, không lưu ngoài trích đoạn trong mô tả việc đã tạo; token Google không rời server |
 | [0048](0048-goi-giao-viec-dua-tu-lieu-hoi-uni-vao-ai-trong-trinh-soan.md) | Gói giao việc Hỏi UNI (yêu cầu, dàn ý chia phần, trích dẫn người hỏi đã duyệt) đi vào hội thoại UniWork AI của đúng tài liệu Apply vừa tạo: gói ở server, hạn 24 giờ, chỉ người hỏi dùng, frame chỉ mang id (`X-UniWork-AI-Handoff`); trích dẫn vào dưới dạng không tin cậy; AI trong trình soạn vẫn không có công cụ đọc workspace; ngoại lệ của spec Office §6.1, §6.3 |
-| [0047](0047-dang-nhap-thong-nhat-tren-moi-nen-tang.md) | Đăng nhập thống nhất: email + mật khẩu, Google, Apple và hai lớp như nhau trên web, máy tính, điện thoại; một bộ quy tắc khớp tài khoản cho mọi nhà cung cấp (liên kết theo email chỉ khi hai phía đã xác minh, thu hồi tài khoản chưa xác minh, không khớp thì vé + màn chọn thay vì tạo ngầm); thay mục 2 và 4 của 0041 |
+| [0049](0049-dang-nhap-thong-nhat-tren-moi-nen-tang.md) | Đăng nhập thống nhất: email + mật khẩu, Google, Apple và hai lớp như nhau trên web, máy tính, điện thoại; một bộ quy tắc khớp tài khoản cho mọi nhà cung cấp (liên kết theo email chỉ khi hai phía đã xác minh, thu hồi tài khoản chưa xác minh, không khớp thì vé + màn chọn thay vì tạo ngầm); thay mục 2 và 4 của 0041 |
 
 ## Bản nháp
 
@@ -113,3 +113,7 @@ nên cửa hẹp này nhận số 0046.
 
 [0047](0047-google-drive-chi-tham-chieu-doc-bang-ket-noi-cua-chinh-nguoi-dung.md) (connector Google Drive, UNI-2172 / UNI-2179)
 được chấp nhận ngày 2026-10-26 từ bản nháp số tạm 0038; vì 0038–0046 đã dùng nên nhận số 0047.
+
+[0049](0049-dang-nhap-thong-nhat-tren-moi-nen-tang.md) (đăng nhập thống nhất, UNI-2263) được chấp nhận
+ngày 2026-10-27 với số 0047 trên nhánh `feature/auth-unified-sign-in`; khi merge develop (2026-10-28) số 0047 đã
+là connector Google Drive và 0048 là gói giao việc Hỏi UNI, nên đăng nhập thống nhất nhận số 0049.

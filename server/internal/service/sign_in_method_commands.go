@@ -18,7 +18,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// The commands of Settings › Sign-in methods (ADR 0047 §5-6, spec §3.7):
+// The commands of Settings › Sign-in methods (ADR 0049 §5-6, spec §3.7):
 // set or change the password, link a provider through the browser that is
 // signed in, unlink one. Each takes the owner's proof (a step-up token, or
 // the current password to change it), refuses a browser token older than
@@ -83,7 +83,7 @@ type PasswordInput struct {
 // SetPassword sets the account's first password or changes it. The proof is
 // a step-up token, or, to change the password of an account without a second
 // factor, the current one (with a factor on, only that factor proves the
-// owner: ADR 0047 §5); the bearer's session must be live either way. A change
+// owner: ADR 0049 §5); the bearer's session must be live either way. A change
 // always signs out every other session (browser, device, MCP grant: the
 // server decides, no client flag) and refuses browser tokens issued before
 // it on sensitive commands (MarkCredentialsRevoked); a first password takes
@@ -195,7 +195,7 @@ func lockLiveUser(ctx context.Context, q *db.Queries, userID string) (db.User, e
 }
 
 // signOthersOut is what a password change and an unlink do to everything
-// but the bearer's own session (ADR 0047 §5): every other browser session
+// but the bearer's own session (ADR 0049 §5): every other browser session
 // and device family (revokeOtherUserSessions), every MCP grant, and browser
 // tokens issued before now refused on sensitive commands; audited as
 // auth.session_revoked {scope: others, reason}, which closes every socket
@@ -418,7 +418,7 @@ type AppLink struct {
 	Move              bool
 }
 
-// LinkFromApp links a provider from the app's Settings (ADR 0047 §6): the
+// LinkFromApp links a provider from the app's Settings (ADR 0049 §6): the
 // app proves the identity with the provider's own sheet, so no browser round
 // trip is needed. Only the app's bearer takes this door (a browser links
 // through LinkFromBrowser: 400 invalid_request). The account must have proved

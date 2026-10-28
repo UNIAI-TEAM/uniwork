@@ -19,7 +19,7 @@ RETURNING *;
 
 -- name: ApproveDesktopAuthAttempt :one
 -- approver_signed_in_at is when the approving session signed in, which the
--- device session the code opens inherits (ADR 0047).
+-- device session the code opens inherits (ADR 0049).
 UPDATE desktop_auth_attempts
 SET user_id = $2, code_digest = $3, code_expires_at = $4, approved_at = now(), csrf_digest = NULL,
     approver_signed_in_at = $5
@@ -32,7 +32,7 @@ WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND cancelled_at IS NULL AND 
 
 -- name: CancelOpenDesktopAuthAttemptsForUser :execrows
 -- An account taken back by the owner of its mailbox, or whose password a reset
--- link replaced (ADR 0047): every attempt claimed or approved before and
+-- link replaced (ADR 0049): every attempt claimed or approved before and
 -- nobody redeemed yet dies, so an approved code cannot open a device session
 -- after the reclaim or the reset.
 UPDATE desktop_auth_attempts SET cancelled_at = now()

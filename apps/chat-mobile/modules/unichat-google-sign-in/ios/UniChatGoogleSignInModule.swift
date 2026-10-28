@@ -1,7 +1,7 @@
 import ExpoModulesCore
 import GoogleSignIn
 
-/// Sign in with Google for UniChat (ADR 0047 §8): Google's account chooser, with the nonce the server checks, so the
+/// Sign in with Google for UniChat (ADR 0049 §8): Google's account chooser, with the nonce the server checks, so the
 /// ID token carries it. The client ids are the binary's own Info.plist keys (GIDClientID, GIDServerClientID), written
 /// by plugins/with-google-sign-in.js with the URL scheme GoogleSignIn requires; a build without them, or whose scheme
 /// is missing, reports unavailable instead of letting GoogleSignIn raise on it, and the app goes through the browser.

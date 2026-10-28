@@ -14,7 +14,7 @@ import (
 )
 
 // A provider identity that resolves to a link into an account with a second
-// factor is not written at the first step (ADR 0047 §2): it rides in the
+// factor is not written at the first step (ADR 0049 §2): it rides in the
 // challenge token as the pending link (claim pl, sealed for
 // mfa_pending_link) and is linked only in the transaction that opens the
 // session once the second factor passed (spec §3.3).

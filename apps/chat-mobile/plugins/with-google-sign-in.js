@@ -1,4 +1,4 @@
-// Sign in with Google's configuration of the binary (modules/unichat-google-sign-in, ADR 0047 §8): the iOS client of
+// Sign in with Google's configuration of the binary (modules/unichat-google-sign-in, ADR 0049 §8): the iOS client of
 // this variant's bundle id and the web client the server verifies tokens for (its GOOGLE_CLIENT_ID). iOS reads
 // GIDClientID and GIDServerClientID from Info.plist and must register the reversed iOS client id as a URL scheme, or
 // GoogleSignIn raises; Android's Credential Manager needs only the web client, read from the application's

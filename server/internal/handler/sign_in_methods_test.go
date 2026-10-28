@@ -57,7 +57,7 @@ func linkResult(t *testing.T, res *http.Response) (string, url.Values) {
 	return loc.Path, loc.Query()
 }
 
-// A link from Settings goes through the browser that is signed in (ADR 0047
+// A link from Settings goes through the browser that is signed in (ADR 0049
 // §6, spec §3.4): the bearer command, with a step-up token, answers the
 // provider's start carrying a five-minute link token bound to the account
 // and the browser session. The start goes to the provider only when this

@@ -34,7 +34,7 @@ type AnonymizeUserParams struct {
 }
 
 // Nghị định 13 deletion: identity fields go, the row and its audit trail stay;
-// every credential issued before now is marked revoked (ADR 0047).
+// every credential issued before now is marked revoked (ADR 0049).
 func (q *Queries) AnonymizeUser(ctx context.Context, arg AnonymizeUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, anonymizeUser, arg.ID, arg.Email, arg.DisplayName)
 	var i User
@@ -141,7 +141,7 @@ type CreateAppleUserParams struct {
 
 // Sign in with Apple (ADR 0041): no password, onboarding still ahead
 // (onboarded_at stays NULL). The caller says whether the address starts
-// verified (ADR 0047); the link records the address Apple gave, which
+// verified (ADR 0049); the link records the address Apple gave, which
 // differs from the account's when a mailed code proved another one.
 func (q *Queries) CreateAppleUser(ctx context.Context, arg CreateAppleUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, createAppleUser,
@@ -220,7 +220,7 @@ type CreateGoogleUserParams struct {
 	Locale        string      `json:"locale"`
 }
 
-// The caller says whether the address starts verified (ADR 0047): Google
+// The caller says whether the address starts verified (ADR 0049): Google
 // owns its domain, or a mailed code proved it. The link records the address
 // Google gave, which differs from the account's when a code proved another
 // one ("I was invited with another address").
@@ -745,7 +745,7 @@ SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_a
 
 // Held by a session being opened until it commits, so a revocation (which
 // takes the row FOR UPDATE first) either ends that session too or commits
-// before it, and the session then sees the revocation (ADR 0047).
+// before it, and the session then sees the revocation (ADR 0049).
 func (q *Queries) GetUserForShare(ctx context.Context, id string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserForShare, id)
 	var i User
@@ -906,7 +906,7 @@ type LinkAppleAccountParams struct {
 }
 
 // Only a live account whose address is verified, and that is not linked to
-// another Apple subject, takes the link (ADR 0047): a link never verifies an
+// another Apple subject, takes the link (ADR 0049): a link never verifies an
 // address. It records the Apple address and when (kept on a relink of the
 // same subject) and forgets an unlink of the subject.
 func (q *Queries) LinkAppleAccount(ctx context.Context, arg LinkAppleAccountParams) (User, error) {
@@ -979,7 +979,7 @@ type LinkGoogleAccountParams struct {
 }
 
 // Only a live account whose address is verified, and that is not linked to
-// another Google subject, takes the link (ADR 0047): a link never verifies an
+// another Google subject, takes the link (ADR 0049): a link never verifies an
 // address. It records the Google address and when (kept on a relink of the
 // same subject), forgets an unlink of the subject and fills an empty avatar.
 func (q *Queries) LinkGoogleAccount(ctx context.Context, arg LinkGoogleAccountParams) (User, error) {
@@ -1101,7 +1101,7 @@ type MarkCredentialsRevokedParams struct {
 	ID       string             `json:"id"`
 }
 
-// Sensitive commands refuse an access token issued before this (ADR 0047).
+// Sensitive commands refuse an access token issued before this (ADR 0049).
 // The caller passes the second of its own clock, the one every token's iat
 // comes from, so the session the same command hands out is never older than
 // the mark however far the database's clock runs from the server's.
@@ -1297,7 +1297,7 @@ RETURNING id, email, password_hash, display_name, avatar_url, created_at, update
 `
 
 // The owner of the mailbox takes an account someone registered with their
-// address before proving it (ADR 0047): whatever that person set up goes —
+// address before proving it (ADR 0049): whatever that person set up goes —
 // password, second factor, recovery codes, every provider link (the caller
 // read the sealed Apple token first, to revoke it after commit), the AI
 // consent answer — and the address is verified. Only an unverified, live
@@ -1371,7 +1371,7 @@ type RecordSecondFactorFailureRow struct {
 	SecondFactorLockedUntil pgtype.Timestamptz `json:"second_factor_locked_until"`
 }
 
-// One more wrong second factor or step-up proof (ADR 0047). The failure that
+// One more wrong second factor or step-up proof (ADR 0049). The failure that
 // reaches max_failures locks both until locked_until and starts the count
 // over; the caller compares the lockout it reads back with the one it passed
 // to tell whether this failure started it.
@@ -1746,7 +1746,7 @@ RETURNING id, email, password_hash, display_name, avatar_url, created_at, update
 
 // Removes the Apple link and the token kept for it (the caller revokes that
 // token after commit). The subject stays as apple_unlinked_sub, so the same
-// Apple ID is never linked back by its address (ADR 0047).
+// Apple ID is never linked back by its address (ADR 0049).
 func (q *Queries) UnlinkAppleAccount(ctx context.Context, id string) (User, error) {
 	row := q.db.QueryRow(ctx, unlinkAppleAccount, id)
 	var i User
@@ -1806,7 +1806,7 @@ RETURNING id, email, password_hash, display_name, avatar_url, created_at, update
 `
 
 // The subject stays as google_unlinked_sub, so the same Google account is
-// never linked back by its address (ADR 0047).
+// never linked back by its address (ADR 0049).
 func (q *Queries) UnlinkGoogleAccount(ctx context.Context, id string) (User, error) {
 	row := q.db.QueryRow(ctx, unlinkGoogleAccount, id)
 	var i User

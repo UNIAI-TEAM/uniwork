@@ -59,7 +59,7 @@ func (f *identityFixture) afterTheLock(t *testing.T, open pgx.Tx, op func() erro
 }
 
 // A sign-in method command judges its bearer under the account's row lock
-// (ADR 0047 §2, §5): a reclaim, a password change or an unlink takes that lock
+// (ADR 0049 §2, §5): a reclaim, a password change or an unlink takes that lock
 // first and commits its revocations under it, so a command that passed its
 // gates while one was on its way must not then write into the account it
 // left behind. The squatter's ticket link and password, and a stolen
@@ -166,7 +166,7 @@ func TestSignInMethodCommandsJudgeTheBearerUnderTheLock(t *testing.T) {
 	})
 }
 
-// A session is never born into an account a revocation is ending (ADR 0047
+// A session is never born into an account a revocation is ending (ADR 0049
 // §2, §5): opening one holds the account's row FOR SHARE, which a reclaim (or
 // a password change, a reset, an unlink) takes FOR UPDATE before it revokes.
 // A squatter's browser refresh and password sign-in, on the web or in the

@@ -72,7 +72,7 @@ func TestPasswordResetFlow(t *testing.T) {
 }
 
 // An account that signs in only with a provider is not left out of forgot
-// password (ADR 0047, spec §3.7): the answer is the same as for any address,
+// password (ADR 0049, spec §3.7): the answer is the same as for any address,
 // and the mail it gets says the account signs in with Google, offers that
 // sign-in, and carries the same one-time link to set a first password, which
 // is audited as auth.password_set, not a change.
@@ -262,7 +262,7 @@ func TestAResetLinkMailedBeforeDeletionIsDead(t *testing.T) {
 
 // A reset link is the first proof of the mailbox an unverified account ever
 // got, so the reset takes the account back from whoever registered the
-// address (ADR 0047 §2, spec §3.1): everything they left goes — their
+// address (ADR 0049 §2, spec §3.1): everything they left goes — their
 // second factor, provider links, sessions, devices, pushes, consents — the
 // address is verified, the owner is told, and the session comes without the
 // squatter's second factor.

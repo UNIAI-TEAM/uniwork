@@ -60,7 +60,7 @@ WHERE id = $1 AND approved_at IS NULL AND cancelled_at IS NULL;
 
 -- name: CancelOpenMcpAuthAttemptsForUser :execrows
 -- An account taken back by the owner of its mailbox, or whose password a reset
--- link replaced (ADR 0047): consents opened or approved before and no client
+-- link replaced (ADR 0049): consents opened or approved before and no client
 -- redeemed yet die with it.
 UPDATE mcp_auth_attempts SET cancelled_at = now()
 WHERE user_id = $1 AND used_at IS NULL AND cancelled_at IS NULL;

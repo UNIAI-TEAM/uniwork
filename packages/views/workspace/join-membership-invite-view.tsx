@@ -47,7 +47,7 @@ function classify(err: unknown): Refusal {
   if (code === "invite_link_revoked") return { kind: "gone", reason: "revoked" };
   const gone = goneReason(code);
   if (gone) return { kind: "gone", reason: gone };
-  // The owner's proof no longer serves (ADR 0047 §5): the wizard asks again.
+  // The owner's proof no longer serves (ADR 0049 §5): the wizard asks again.
   const failure = readSignInFailure(err, "methods");
   if (failure.kind === "step_up") return { kind: "proof", proofs: failure.proofs ?? [] };
   if (code === "membership_busy") return { kind: "retry", why: "busy", error: err };

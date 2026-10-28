@@ -71,7 +71,7 @@ func (s *AuthService) SetMail(r mail.Renderer, out mail.Enqueuer) {
 }
 
 // SetSealer hands the service the server's one sealer, which main.go builds
-// from the JWT secret and every service shares (ADR 0047).
+// from the JWT secret and every service shares (ADR 0049).
 func (s *AuthService) SetSealer(sealer auth.SecretSealer) { s.sealer = sealer }
 
 // SetEmailHub lets DeleteAccount revoke the refresh tokens it removes; main
@@ -151,7 +151,7 @@ type Session struct {
 	// on: the first factor passed, the second is still owed (spec F-01 §2 I4).
 	MFAToken string
 	// LinkSkipped, after a second factor whose challenge carried a pending
-	// provider link: why the identity was not linked (ADR 0047, spec §3.3).
+	// provider link: why the identity was not linked (ADR 0049, spec §3.3).
 	// The sign-in itself succeeded; the client offers Settings instead.
 	LinkSkipped string
 	// Reclaimed: this sign-in took the account back from whoever registered

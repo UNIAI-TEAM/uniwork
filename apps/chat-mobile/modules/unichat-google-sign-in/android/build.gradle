@@ -1,4 +1,4 @@
-// Sign in with Google for UniChat on Android (ADR 0047 §8): Credential Manager's "Sign in with Google" option, whose
+// Sign in with Google for UniChat on Android (ADR 0049 §8): Credential Manager's "Sign in with Google" option, whose
 // ID token carries the nonce the server checks. Built by the app's Gradle like any Expo module.
 plugins {
   id 'com.android.library'

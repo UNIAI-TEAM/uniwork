@@ -1,4 +1,4 @@
-// "Xác nhận là bạn" and Settings › Sign-in methods on the phone (ADR 0047 §5-6, spec §5.2): one proof for a step-up
+// "Xác nhận là bạn" and Settings › Sign-in methods on the phone (ADR 0049 §5-6, spec §5.2): one proof for a step-up
 // token, a code mailed for one action, setting or changing the password, unlinking, and linking with the provider's
 // own sheet. Every command that rides the held token forgets it when the server refuses it (withHeldStepUp), so the
 // proof sheet asks again with the proofs the refusal names. An answer's user replaces the signed-in one (read again

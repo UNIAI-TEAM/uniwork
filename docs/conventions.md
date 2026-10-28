@@ -229,7 +229,7 @@ fails on drift. One flat namespace, keys nested by section:
 | request to edit | **yêu cầu quyền sửa** | Request to edit | edit level; the holder answers "Lưu và nhường quyền" / "Từ chối" |
 | keep editing offline | **giữ quyền sửa khi offline** | Keep editing offline | desktop only; others read "{{name}} giữ quyền sửa offline đến {{time}}" |
 | offline (the app working without a network) | **offline** | offline | kept lowercase English inside Vietnamese, like workspace: "thư viện offline", "giữ quyền sửa offline"; **Ngoại tuyến** is only a person's presence (`presence_offline`), never the app's mode |
-| sign-in method (password, Google, Apple) | **phương thức đăng nhập** | Sign-in method | `settings.security.signInMethods.*` (ADR 0047); in a running sentence **cách đăng nhập** ("Đây là cách đăng nhập duy nhất") |
+| sign-in method (password, Google, Apple) | **phương thức đăng nhập** | Sign-in method | `settings.security.signInMethods.*` (ADR 0049); in a running sentence **cách đăng nhập** ("Đây là cách đăng nhập duy nhất") |
 | link / unlink an account (Google, Apple) | **liên kết** / **gỡ liên kết** | Link / Unlink | `settings.security.signInMethods.provider.*`, `auth.continue.link.*`; an account is never **gắn** — "gắn" is attaching a project or a work item (rows above) |
 | set / change the password | **Đặt mật khẩu** / **Đổi mật khẩu** | Set password / Change password | `settings.security.signInMethods.password.*`; "đặt" when the account has none (it signed in with Google or Apple), "đổi" when it has one |
 | two-factor authentication | **xác thực hai lớp** | Two-factor authentication | shipped wording (`auth.mfa.title`, `settings.security.mfa.*`); never "hai bước"; new copy spells it out ("bật xác thực hai lớp") |

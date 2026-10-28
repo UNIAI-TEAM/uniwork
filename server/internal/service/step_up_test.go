@@ -123,7 +123,7 @@ func proofsOf(t *testing.T, err error) string {
 
 // Every change to how an account signs in, and every command that cannot be
 // undone alone, takes a step-up token of the very session that asks (ADR
-// 0047 §5, spec §3.7): none, one minted for another session, one sealed for
+// 0049 §5, spec §3.7): none, one minted for another session, one sealed for
 // another purpose and one that expired are all 403 proof_required — never
 // 401, the caller is signed in. The token comes from POST /me/step-up,
 // which takes only a proof the account has: its password or a mailed code
@@ -230,7 +230,7 @@ func TestSignInMethodChangesNeedAProof(t *testing.T) {
 }
 
 // Turning the second factor on is a sign-in method change like any other
-// (ADR 0047 §5): a stolen session alone must not lock the owner out with a
+// (ADR 0049 §5): a stolen session alone must not lock the owner out with a
 // factor only the thief holds. Setup and confirm both take the step-up
 // token; a code mailed for enable_mfa buys one as well as the password.
 func TestMFAEnrolmentNeedsAProof(t *testing.T) {
@@ -511,7 +511,7 @@ func TestARelayAccountKeepsApple(t *testing.T) {
 	}
 }
 
-// A password change signs every other session out (ADR 0047 §5): the
+// A password change signs every other session out (ADR 0049 §5): the
 // browser sessions, the app's device sessions with their pushes and Office
 // leases, every MCP grant; browser tokens issued before it are refused on
 // sensitive commands. The session that changed it stays. Setting the first
@@ -577,7 +577,7 @@ func TestPasswordChangeRevokesEveryOtherSession(t *testing.T) {
 
 	// The current password is a proof only while the session asking is live,
 	// and only on an account without a second factor: with one on, that
-	// factor alone proves the owner (ADR 0047 §5), through a step-up token.
+	// factor alone proves the owner (ADR 0049 §5), through a step-up token.
 	gone, err := f.auth.Login(f.ctx, u.Email, "brand-new-pass-1")
 	if err != nil {
 		t.Fatal(err)
@@ -609,7 +609,7 @@ func TestPasswordChangeRevokesEveryOtherSession(t *testing.T) {
 // The doors kept only for shipped apps — the legacy proofs they send in
 // place of a step-up token, and the legacy Apple route POST
 // /auth/apple/native with its old codes (AppleAuthService.SignIn) — are
-// reviewed together (ADR 0047 §8, spec §3.6): once the date passes this
+// reviewed together (ADR 0049 §8, spec §3.6): once the date passes this
 // fails until they are removed or the date is moved with a reason.
 func TestLegacyProofDoorsAreReviewed(t *testing.T) {
 	by, err := time.Parse("2006-01-02", legacyProofReviewBy)
@@ -622,7 +622,7 @@ func TestLegacyProofDoorsAreReviewed(t *testing.T) {
 }
 
 // Deleting the account takes a step-up token bought with any proof the
-// account has (ADR 0047 §5): a password, a mailed code (an account that
+// account has (ADR 0049 §5): a password, a mailed code (an account that
 // signs in only with a provider), the second factor, and on the app a fresh
 // token from the provider's own sheet, which must be the linked subject's
 // and fresh. Without a token or a legacy proof it is proof_required.
@@ -687,7 +687,7 @@ func TestDeleteAccountTakesEveryProofTheAccountHas(t *testing.T) {
 	del(app, au, g.Token)
 }
 
-// Handing an organization over takes the owner's proof (ADR 0047 §5): a
+// Handing an organization over takes the owner's proof (ADR 0049 §5): a
 // step-up token from any proof the owner has — an owner who signs in only
 // with Google proves it with a mailed code, which used to be a dead end
 // (password_required) — or the password shipped apps send. Without either

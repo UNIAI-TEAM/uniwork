@@ -65,7 +65,7 @@ type OrgInviteSDI struct {
 
 // TransferOwnershipSDI is POST /api/v1/orgs/{org}/transfer-ownership. The
 // current owner proves it is them: this is the one change they cannot undo
-// alone afterwards (OPEN_QUESTIONS P2, ADR 0047 §5).
+// alone afterwards (OPEN_QUESTIONS P2, ADR 0049 §5).
 type TransferOwnershipSDI struct {
 	ToUserID    string `json:"to_user_id" description:"ULID thành viên nhận quyền chủ sở hữu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	StepUpToken string `json:"step_up_token,omitempty" description:"Token từ POST /me/step-up (action transfer_ownership khi chứng minh bằng mã email)" example:"q1h8u3WbF0tA…"`

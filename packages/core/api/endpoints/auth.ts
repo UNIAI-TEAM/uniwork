@@ -113,7 +113,7 @@ export function startSession(raw: unknown, endpoint: string): SessionResponse | 
 
 /**
  * The choice screen's "Tôi đã có tài khoản" signs in to link the pending
- * provider (ADR 0047, /login?link=1): `keepSignInTicket` keeps the ticket
+ * provider (ADR 0049, /login?link=1): `keepSignInTicket` keeps the ticket
  * cookie this sign-in would otherwise drop.
  */
 export interface SignInOptions {

@@ -270,7 +270,7 @@ func (s *OrganizationMemberService) RevokeInvitation(ctx context.Context, actorI
 // move in one transaction, taken FOR UPDATE in a fixed order, so a concurrent
 // transfer cannot leave the organization with two owners or none.
 //
-// The current owner proves it is them (OPEN_QUESTIONS P2, ADR 0047 §5): this
+// The current owner proves it is them (OPEN_QUESTIONS P2, ADR 0049 §5): this
 // is the one action they cannot undo alone afterwards. The proof is a
 // step-up token, or the password shipped apps send (proveOwner); an owner
 // who signs in only with Google or Apple proves it with a mailed code.

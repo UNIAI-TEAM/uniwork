@@ -17,7 +17,7 @@ type AppleSignInSDI struct {
 }
 
 // AppleStartSDI is GET /api/v1/auth/apple/start: Sign in with Apple on the
-// web (ADR 0047 §7), as the Google start.
+// web (ADR 0049 §7), as the Google start.
 type AppleStartSDI struct {
 	Next      string `query:"next" description:"Đường dẫn cùng origin sau khi đăng nhập; /auth/continue?step=link&… (đăng nhập để liên kết vé đang chờ) giữ cookie vé" example:"/acme/team"`
 	Intent    string `query:"intent" description:"sign_in (mặc định) từ trang đăng nhập: không khớp tài khoản nào thì ra vé và màn chọn; sign_up từ trang đăng ký: không khớp thì tạo tài khoản ngay; link (kèm link_token, từ Cài đặt): liên kết vào tài khoản đang đăng nhập; giá trị khác chuyển về /login?error=apple_failed" example:"sign_in"`

@@ -36,9 +36,9 @@ type Deps struct {
 	DemoRequests  *service.DemoRequestService
 	GoogleAuth    *service.GoogleAuthService
 	// SignInTickets runs the choice screen of a provider sign-in that found
-	// no account to sign in to (ADR 0047): /api/v1/auth/sign-in-ticket*.
+	// no account to sign in to (ADR 0049): /api/v1/auth/sign-in-ticket*.
 	SignInTickets *service.SignInTicketService
-	// SignInMethods runs Settings › Sign-in methods (ADR 0047 §5-6): the
+	// SignInMethods runs Settings › Sign-in methods (ADR 0049 §5-6): the
 	// password, links through the signed-in browser, unlinks. nil answers
 	// 503 on those routes, and a provider start refuses intent=link.
 	SignInMethods *service.SignInMethodsService
@@ -46,7 +46,7 @@ type Deps struct {
 	// answers 503 and /auth/providers reports google=false.
 	Google GoogleExchanger
 	// Sealer is the server's one sealer (main.go); the browser sign-ins seal
-	// their OAuth state cookie with it (ADR 0047). A zero sealer refuses to
+	// their OAuth state cookie with it (ADR 0049). A zero sealer refuses to
 	// seal, so a provider start answers its failure instead of a weak cookie.
 	Sealer auth.SecretSealer
 	// AppleAuth is Sign in with Apple; nil unless APPLE_SIWA_AUDIENCES or the
@@ -55,7 +55,7 @@ type Deps struct {
 	// /auth/providers apple), the web's start and link unless the Services ID
 	// and its key are (WebEnabled, apple_web).
 	AppleAuth *service.AppleAuthService
-	// NativeSignIn runs the app's own sign-in screen (ADR 0047 §8):
+	// NativeSignIn runs the app's own sign-in screen (ADR 0049 §8):
 	// /api/v1/auth/native/*. nil answers 503 native_sign_in_unavailable.
 	NativeSignIn        *service.NativeSignInService
 	Organizations       *service.OrganizationService

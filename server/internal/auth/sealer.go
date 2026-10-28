@@ -25,7 +25,7 @@ type SecretSealer struct {
 	secret []byte
 }
 
-// The purposes a client-held blob is sealed for (ADR 0047). Each one gets its
+// The purposes a client-held blob is sealed for (ADR 0049). Each one gets its
 // own HKDF subkey and is the AES-GCM additional data, so a blob issued for one
 // never opens as another: a sign-in ticket is not a step-up token, an OAuth
 // state cookie is not a link token.

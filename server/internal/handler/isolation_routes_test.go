@@ -441,7 +441,7 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/auth/google/callback":      {class: isoPublic, reason: reasonAuth},
 	"GET /api/v1/auth/google/start":         {class: isoPublic, reason: reasonAuth},
 	"POST /api/v1/auth/apple/native":        {class: isoPublic, reason: "authentication: Apple's identity token, signed for this app's bundle id and carrying the hash of the request's nonce, is the credential; it names no tenant row"},
-	// Sign in with Apple on the web (ADR 0047 §7): the state sealed in the
+	// Sign in with Apple on the web (ADR 0049 §7): the state sealed in the
 	// browser's cookie, and the identity token Apple answers the code with,
 	// are the credential; the result cookie the finish reads is sealed too.
 	"GET /api/v1/auth/apple/start":      {class: isoPublic, reason: reasonAuth},
@@ -456,7 +456,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/auth/refresh":         {class: isoPublic, reason: reasonAuth},
 	"POST /api/v1/auth/register":        {class: isoPublic, reason: reasonAuth},
 	// The choice screen of a provider sign-in that found no account (ADR
-	// 0047): the sealed ticket in the HttpOnly cookie is the credential, the
+	// 0049): the sealed ticket in the HttpOnly cookie is the credential, the
 	// identity a provider just proved; it names no tenant row.
 	"GET /api/v1/auth/sign-in-ticket":                     {class: isoPublic, reason: reasonTicket},
 	"DELETE /api/v1/auth/sign-in-ticket":                  {class: isoPublic, reason: reasonTicket},
@@ -464,7 +464,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/auth/sign-in-ticket/claim-email":        {class: isoPublic, reason: reasonTicket},
 	"POST /api/v1/auth/sign-in-ticket/claim-email/verify": {class: isoPublic, reason: reasonTicket},
 	"POST /api/v1/auth/sign-in-ticket/link":               {class: isoSelf, reason: "links the ticket's identity into the caller's own account only; the account is the bearer's, the identity the sealed ticket the caller's browser holds, and no id is taken from the request"},
-	// The app's own sign-in screen (ADR 0047 §8): the same credentials as
+	// The app's own sign-in screen (ADR 0049 §8): the same credentials as
 	// the browser's doors, in JSON; client_id and deployment_id are
 	// allowlist values, never rows.
 	"POST /api/v1/auth/native/password":                          {class: isoPublic, reason: reasonAuth},

@@ -7,7 +7,7 @@ type SessionSDO struct {
 	User        UserDTO `json:"user"`
 	AccessToken string  `json:"access_token" description:"JWT access token, gửi kèm Authorization Bearer" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.example"`
 	// LinkSkipped is set only by POST /auth/mfa/verify when the challenge
-	// carried a pending provider link that could not be written (ADR 0047).
+	// carried a pending provider link that could not be written (ADR 0049).
 	LinkSkipped string `json:"link_skipped,omitempty" description:"Chỉ có ở /auth/mfa/verify: đăng nhập thành công nhưng chưa liên kết được Google/Apple đang chờ, kèm mã lý do (sign_in_method_taken, link_required, sign_in_account_conflict, sign_in_account_unverified, sign_in_email_unverified, sign_in_failed); client gợi ý liên kết lại trong Cài đặt" example:"sign_in_method_taken"`
 	// Reclaimed is set only when this session took the account back from
 	// whoever registered the address before proving it (a reset link).
@@ -53,7 +53,7 @@ type MobileSecurityPolicySDO struct {
 }
 
 // AuthProvidersSDO is GET /api/v1/auth/providers. Flags are only ever
-// added: apple keeps the meaning the shipped iPhone app reads (ADR 0047 §10).
+// added: apple keeps the meaning the shipped iPhone app reads (ADR 0049 §10).
 type AuthProvidersSDO struct {
 	Google       bool `json:"google" description:"true khi đăng nhập Google trên web được cấu hình trên server" example:"true"`
 	Apple        bool `json:"apple" description:"true khi Sign in with Apple native (app iPhone) được cấu hình trên server" example:"true"`
@@ -62,7 +62,7 @@ type AuthProvidersSDO struct {
 }
 
 // SignInTicketSDO is GET /api/v1/auth/sign-in-ticket: the pending provider
-// sign-in the choice screen shows (ADR 0047).
+// sign-in the choice screen shows (ADR 0049).
 type SignInTicketSDO struct {
 	Provider     string `json:"provider" enum:"google,apple" description:"Nhà cung cấp của lượt đăng nhập đang chờ" example:"apple"`
 	Kind         string `json:"kind" enum:"unmatched,link_required" description:"unmatched: không tài khoản nào khớp (ba lựa chọn); link_required: email đã có tài khoản, đăng nhập vào đó để liên kết" example:"unmatched"`

@@ -1,4 +1,4 @@
-// Settings › Sign-in methods and "Xác nhận là bạn" (ADR 0047 §5-6, spec §3.7) over the app's bearer client: core's
+// Settings › Sign-in methods and "Xác nhận là bạn" (ADR 0049 §5-6, spec §3.7) over the app's bearer client: core's
 // createSignInMethodsApi, so the phone sends each proof and reads each answer exactly as the web does. A refusal is
 // the bearer ApiError (data/api.ts), whose envelope core's readSignInFailure reads as it is (its code and the
 // fields proofs, masked_email, retry_after). Screens reach these through data/mutations/* hooks only.

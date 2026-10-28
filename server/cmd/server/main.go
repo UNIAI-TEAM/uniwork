@@ -197,7 +197,7 @@ func main() {
 	service.SetMembershipInviteKey([]byte(cfg.JWTSecret))
 	orgMemberSvc.SetMail(renderer, mailOutbox)
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
-	// The one sealer (ADR 0047): TOTP secrets and the kept Apple token at
+	// The one sealer (ADR 0049): TOTP secrets and the kept Apple token at
 	// rest, and every blob the server hands a client, sealed per purpose.
 	sealer, err := auth.NewSecretSealer([]byte(cfg.JWTSecret))
 	if err != nil {
@@ -208,7 +208,7 @@ func main() {
 	authSvc.SetMail(renderer, mailOutbox)
 	authSvc.SetSealer(sealer)
 	// The hand-overs (transfer, the invitation switch) take the owner's proof
-	// through the one step-up checker (ADR 0047 §5).
+	// through the one step-up checker (ADR 0049 §5).
 	orgMemberSvc.SetStepUp(authSvc)
 	wsSvc.SetStepUp(authSvc)
 	desktopAuthSvc := service.NewDesktopAuthService(pool, q, minter, cfg)
@@ -753,7 +753,7 @@ func main() {
 	officeSpoolSweepDone := make(chan struct{})
 	go func() { officeSpoolSweep.Run(runCtx); close(officeSpoolSweepDone) }()
 	// Google on the web needs both credentials, Google in the app its iOS
-	// and Android clients (ADR 0047 §8); discovery runs once here for both. A
+	// and Android clients (ADR 0049 §8); discovery runs once here for both. A
 	// failed discovery leaves Google off rather than taking the API down with
 	// it.
 	var google handler.GoogleExchanger
@@ -774,7 +774,7 @@ func main() {
 			}
 		}
 	}
-	// Sign in with Apple (ADR 0041, 0047): the phone's native sheet, on with
+	// Sign in with Apple (ADR 0041, 0049): the phone's native sheet, on with
 	// the bundle ids its identity tokens may name, and the web, on with the
 	// Services ID. Each door has its own verifier, so a token issued to one
 	// never opens the other. The key that signs Apple client secrets is what

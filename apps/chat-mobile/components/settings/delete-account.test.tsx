@@ -1,5 +1,5 @@
 // Settings › Delete account (delete-account.tsx, use-owner-step.ts): what erasure does, "Xác nhận là bạn" before it
-// (a step-up token for delete_account, ADR 0047 §5), the erasure and the sign-out; an owner closes the organization
+// (a step-up token for delete_account, ADR 0049 §5), the erasure and the sign-out; an owner closes the organization
 // with it, or hands it over first with its own proof (transfer_ownership), which a password buys once for both and a
 // mailed code buys per action.
 import { act, fireEvent, screen } from "@testing-library/react-native";

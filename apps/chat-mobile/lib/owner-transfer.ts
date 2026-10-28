@@ -1,7 +1,7 @@
 // An owner whose organization has other members hands it over from the phone before the account is erased (Apple
 // 5.1.1(v): deletion completes in the app), as the web's Settings › Organization does with POST
 // /api/v1/orgs/{org}/transfer-ownership (server OrganizationMemberService.TransferOwnership), confirmed with a
-// step-up token for transfer_ownership (ADR 0047 §5). Pure: who may take over, and what a refused hand-over means;
+// step-up token for transfer_ownership (ADR 0049 §5). Pure: who may take over, and what a refused hand-over means;
 // the sheet is components/settings/delete-account.tsx.
 import { pathOf } from "./unknown-shape";
 import { userKey } from "./user-id";
@@ -34,7 +34,7 @@ export type TransferOwnershipFailure = "member_gone" | "rate_limited" | "offline
 
 /**
  * The server codes the sheet answers itself: answers, not contract drift (data/report.ts). proof_required is the
- * proof sheet's (a step-up token for transfer_ownership, ADR 0047 §5): it asks again.
+ * proof sheet's (a step-up token for transfer_ownership, ADR 0049 §5): it asks again.
  */
 export const TRANSFER_OWNERSHIP_HANDLED_CODES = ["member_deactivated", "not_found", "proof_required"] as const;
 

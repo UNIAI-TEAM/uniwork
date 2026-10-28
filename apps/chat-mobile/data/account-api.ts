@@ -55,7 +55,7 @@ export function createAccountApi(request: Request) {
       parseWithFallback(raw, StatusSchema, {}, { endpoint: "POST /api/v1/me/delete" });
     },
     /**
-     * Hands the organization to toUserId, proved with a step-up token for transfer_ownership (ADR 0047 §5). Resolves
+     * Hands the organization to toUserId, proved with a step-up token for transfer_ownership (ADR 0049 §5). Resolves
      * on any 2xx, a drifted body included: the sheet reads nothing from it and erases the account next; a refusal is
      * the ApiError.
      */

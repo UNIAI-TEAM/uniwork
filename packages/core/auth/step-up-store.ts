@@ -8,7 +8,7 @@ import { holdStepUp, stepUpTokenFor, type HeldStepUp } from "./step-up";
 import { useAuthStore } from "./store";
 
 /**
- * The web's step-up token (ADR 0047 §5): memory only — never persisted,
+ * The web's step-up token (ADR 0049 §5): memory only — never persisted,
  * never a StorageAdapter, gone with the tab — so the next sensitive command
  * inside the ten minutes does not ask again, and nothing outlives the page.
  * The rules are step-up.ts's (the phone holds its own token on the same

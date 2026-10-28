@@ -1,4 +1,4 @@
-// The gate in front of every command that takes a step-up token on the phone (ADR 0047 §5, spec §5.2): setting or
+// The gate in front of every command that takes a step-up token on the phone (ADR 0049 §5, spec §5.2): setting or
 // changing the password, linking or unlinking a provider, deleting the account, handing an organization over. A
 // token already held for the action (ten minutes, memory only) runs the command at once; otherwise the proof sheet
 // asks first, so a provider's own sheet for a link never opens before the person proved it is them. A token the

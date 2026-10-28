@@ -27,7 +27,7 @@ type CreateSignInEmailClaimParams struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
-// "I was invited with another address" (ADR 0047): a six-digit code mailed
+// "I was invited with another address" (ADR 0049): a six-digit code mailed
 // to an address typed during a pending provider sign-in, keyed by the
 // ticket's hash and the address because the address may have no account.
 // The table is identity data with no organization, so no tenant line.

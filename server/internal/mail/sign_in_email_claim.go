@@ -6,7 +6,7 @@ import (
 )
 
 // SignInEmailClaimData is the code that proves an address typed during a
-// pending provider sign-in ("I was invited with another address", ADR 0047).
+// pending provider sign-in ("I was invited with another address", ADR 0049).
 type SignInEmailClaimData struct {
 	Code    string
 	Expires time.Duration

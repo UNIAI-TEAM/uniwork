@@ -142,7 +142,7 @@ type AppleWebTokens struct {
 
 // ExchangeWebCode redeems the authorization code Apple posted to the web's
 // return URL (valid five minutes, once) for clientID, the Services ID (ADR
-// 0047 §7). Unlike a native code, a web code was issued for a redirect_uri,
+// 0049 §7). Unlike a native code, a web code was issued for a redirect_uri,
 // and Apple refuses the exchange unless it names that very URI again.
 func (c *AppleClient) ExchangeWebCode(ctx context.Context, clientID, code, redirectURI string) (AppleWebTokens, error) {
 	secret, err := c.clientSecret(clientID)
@@ -168,7 +168,7 @@ func (c *AppleClient) ExchangeWebCode(ctx context.Context, clientID, code, redir
 }
 
 // AppleWebAuthorizeURL is where a browser starts Sign in with Apple on the
-// web (ADR 0047 §7): Apple asks for the name and the address (scope), which
+// web (ADR 0049 §7): Apple asks for the name and the address (scope), which
 // it answers only as a form POST to redirectURI (response_mode=form_post),
 // and puts nonceHash in the identity token. issuer is AppleIssuer outside
 // tests.

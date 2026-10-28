@@ -2,7 +2,7 @@ import type { EndpointRequest } from "./endpoint-request";
 import { readNativeSignIn, readSent, type NativeSignInResult } from "./sign-in-schemas";
 
 /**
- * The doors of the app's own sign-in screen (ADR 0047 §8, spec §3.6): public
+ * The doors of the app's own sign-in screen (ADR 0049 §8, spec §3.6): public
  * routes under /api/v1/auth/native that take only the native sign-in
  * clients and answer one NativeSignInSDO. Used by the phone only
  * (apps/chat-mobile binds it to its strict, cookie-less auth transport); the

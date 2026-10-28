@@ -74,7 +74,7 @@ func (k *nativeKit) googleToken(t *testing.T, sub, email string) (token, nonce s
 }
 
 // Every door of the app's sign-in screen takes only the native sign-in
-// clients (ADR 0047 §8): the desktop apps and Office are configured clients
+// clients (ADR 0049 §8): the desktop apps and Office are configured clients
 // too, but sign in through the web page, so their client ids, an unknown
 // one, or an unconfigured deployment are 400 before any token, ticket or
 // password is looked at — the shipped iPhone app's legacy Apple route

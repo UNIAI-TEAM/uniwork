@@ -1,7 +1,7 @@
 package sdo
 
 // NativeSignInSDO is the one answer of every door of the app's own sign-in
-// screen (ADR 0047 §8, spec §3.6): a device session, the second factor still
+// screen (ADR 0049 §8, spec §3.6): a device session, the second factor still
 // owed, or a ticket for the app's choice screen. The app stores the session
 // only when it parses; the ticket and the challenge stay in memory only.
 type NativeSignInSDO struct {

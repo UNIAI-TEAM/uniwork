@@ -205,7 +205,7 @@ func (s *McpAuthService) flag(ctx context.Context, key, userID, orgID string) bo
 // write is the person's tick; it only counts when the app asked for write and
 // the organization allows it. A browser token older than the account's last
 // credential change, and one whose session has ended, are refused first
-// (requireLiveBearer, ADR 0047).
+// (requireLiveBearer, ADR 0049).
 func (s *McpAuthService) Approve(ctx context.Context, userID, attemptID, csrf, organizationID string, write bool) (string, error) {
 	if _, err := requireLiveBearer(ctx, s.q); err != nil {
 		return "", err

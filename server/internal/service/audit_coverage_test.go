@@ -796,7 +796,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionAuthPasswordChanged: func(t *testing.T, f *auditFixture) { f.resetPassword(t) },
 		// An account that signs in only with Google sets its first password
-		// from Settings, with a step-up (ADR 0047).
+		// from Settings, with a step-up (ADR 0049).
 		audit.ActionAuthPasswordSet: func(t *testing.T, f *auditFixture) {
 			u, err := f.q.CreateGoogleUser(f.ctx, db.CreateGoogleUserParams{
 				ID: util.NewID(), Email: "audit-set@gmail.com", DisplayName: "Set", Locale: "vi",
@@ -829,7 +829,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		// A provider identity moved out of the empty account that held it
-		// (ADR 0047): the empty account records the unlink via move.
+		// (ADR 0049): the empty account records the unlink via move.
 		audit.ActionAuthSignInMethodUnlinked: func(t *testing.T, f *auditFixture) {
 			google := NewGoogleAuthService(f.auth)
 			tickets := NewSignInTicketService(f.pool, f.q, f.auth, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})

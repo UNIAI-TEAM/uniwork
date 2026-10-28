@@ -31,7 +31,7 @@ const (
 )
 
 // ProviderIdentity is a person as a sign-in provider vouches for them, after
-// the provider's token passed its checks (ADR 0047). Every provider reaches
+// the provider's token passed its checks (ADR 0049). Every provider reaches
 // accounts through resolveIdentity with one of these, so the matching rules
 // live in one place.
 //
@@ -199,7 +199,7 @@ func linkedSubject(u db.User, provider string) (linked, unlinked pgtype.Text) {
 }
 
 // resolveIdentity is the one set of matching rules every provider sign-in
-// goes through (ADR 0047 §2, spec §3.1), evaluated in this fixed order:
+// goes through (ADR 0049 §2, spec §3.1), evaluated in this fixed order:
 //
 //  1. an account linked to the subject: matched;
 //  2. an address the provider does not vouch for: sign_in_email_unverified;
@@ -353,7 +353,7 @@ func linkIdentity(ctx context.Context, q *db.Queries, userID string, id Provider
 }
 
 // The ways an identity comes to be linked, as audit metadata.via names them
-// (ADR 0047): the provider owns the address a verified account holds, a
+// (ADR 0049): the provider owns the address a verified account holds, a
 // reclaim by the mailbox's owner, the choice screen's "I already have an
 // account", a code mailed to another address, a move out of an empty
 // account.

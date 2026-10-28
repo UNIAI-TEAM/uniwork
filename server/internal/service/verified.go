@@ -16,7 +16,7 @@ import (
 // verify screen itself relies on (reading /me, listing workspaces) does not.
 //
 // A reclaim is what verifies an address someone else registered first (ADR
-// 0047 §2), so the request's own browser token is judged against the
+// 0049 §2), so the request's own browser token is judged against the
 // account's credentials_revoked_at as well (bearerAfterMark, 401
 // invalid_token): the squatter's leftover token must not unlock what the
 // owner's proof of the mailbox just did — the invitations sent to it among

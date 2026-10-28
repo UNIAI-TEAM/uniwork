@@ -10,7 +10,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
-// Sign in with Apple on the web (ADR 0047 §7, spec §3.4) takes three steps:
+// Sign in with Apple on the web (ADR 0049 §7, spec §3.4) takes three steps:
 //
 //   - GET /auth/apple/start seals the state into uniwork_apple_state and
 //     sends the browser to Apple;

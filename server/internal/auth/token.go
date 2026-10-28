@@ -54,7 +54,7 @@ func (m TokenMinter) mintAccess(userID, sessionID string, web bool) (string, err
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.Secret)
 }
 
-// The channels a challenge token is bound to (ADR 0047 §4): the browser's
+// The channels a challenge token is bound to (ADR 0049 §4): the browser's
 // POST /auth/mfa/verify takes only a web one, the app's route only a native
 // one minted for the same client and deployment.
 const (
@@ -68,7 +68,7 @@ const (
 // once the factor passes (PendingLink, sealed for mfa_pending_link; empty
 // when nothing waits). IssuedAt is the token's iat as ParseMFA read it
 // (MintMFA stamps its own): the second step refuses a challenge minted
-// before the account's credentials last changed (ADR 0047).
+// before the account's credentials last changed (ADR 0049).
 type MFAChallenge struct {
 	UserID       string
 	Channel      string
@@ -154,7 +154,7 @@ type AccessToken struct {
 	Web               bool
 	// IssuedAt is the token's iat, at its one-second precision: a sensitive
 	// command refuses a browser token issued before the account's
-	// credentials_revoked_at (ADR 0047).
+	// credentials_revoked_at (ADR 0049).
 	IssuedAt  time.Time
 	ExpiresAt time.Time
 }

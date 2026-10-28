@@ -168,7 +168,7 @@ func refused(t *testing.T, err, want error) {
 }
 
 // Linking by address joins two accounts' worth of trust, so both sides must
-// have proved the mailbox (ADR 0047): the provider vouches for the address,
+// have proved the mailbox (ADR 0049): the provider vouches for the address,
 // and the account verified it. Neither half alone links anything, and the
 // link queries themselves refuse an unverified account.
 func TestProviderSignInLinksByEmailOnlyWhenBothSidesVerified(t *testing.T) {
@@ -243,7 +243,7 @@ func TestProviderSignInLinksByEmailOnlyWhenBothSidesVerified(t *testing.T) {
 }
 
 // Only a provider that owns the address's domain speaks for its mailbox
-// (ADR 0047): Gmail or the Workspace hd for Google, iCloud or the relay for
+// (ADR 0049): Gmail or the Workspace hd for Google, iCloud or the relay for
 // Apple. Any other address the provider "verified" joins no account by
 // itself and reclaims none.
 func TestProviderSignInTrustsOnlyAuthoritativeEmail(t *testing.T) {
@@ -481,7 +481,7 @@ func (f *identityFixture) assertTakenBack(t *testing.T, s squatter, email string
 }
 
 // An account registered with an address its holder never proved belongs to
-// whoever proves the mailbox (ADR 0047): a provider that owns the address
+// whoever proves the mailbox (ADR 0049): a provider that owns the address
 // takes it back, whatever the squatter set up — a second factor, an Apple ID,
 // another Google account, sessions and devices, browser pushes, approved
 // desktop codes, MCP consents, reset links — and none of it survives.
@@ -549,7 +549,7 @@ func TestProviderSignInReclaimsAnUnverifiedAccount(t *testing.T) {
 }
 
 // The second factor on an unverified account was set up by whoever
-// registered it, so the reclaim never asks for it (ADR 0047): asking would
+// registered it, so the reclaim never asks for it (ADR 0049): asking would
 // hand the squatter the account. A verified account's second factor is
 // asked for as always.
 func TestReclaimNeverAsksTheSquattersSecondFactor(t *testing.T) {
@@ -606,7 +606,7 @@ func TestReclaimNeverAsksTheSquattersSecondFactor(t *testing.T) {
 	}
 }
 
-// Unlinking a provider is the owner saying "not this one" (ADR 0047): the
+// Unlinking a provider is the owner saying "not this one" (ADR 0049): the
 // same identity is never linked back by its address, by Google or Apple,
 // until the owner links it again on purpose.
 func TestAnUnlinkedProviderIsNotRelinkedByEmail(t *testing.T) {

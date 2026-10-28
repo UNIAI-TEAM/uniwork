@@ -1,4 +1,4 @@
-// What the doors of the app's own sign-in screen (ADR 0047 §8, spec §3.6) refuse with, as the auth transport
+// What the doors of the app's own sign-in screen (ADR 0049 §8, spec §3.6) refuse with, as the auth transport
 // (transport.ts) keeps it: the server's codes it takes as verdicts, and the few fields of a refusal a screen reads
 // (core's auth/sign-in-errors.ts reads them by name). Nothing else of a refusal's body is kept.
 

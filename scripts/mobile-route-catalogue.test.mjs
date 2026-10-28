@@ -49,7 +49,7 @@ test("the phone reader finds the calls of the app, its builders and the core end
     // `/api/v1${route}` with route: Route, a union of four literals
     ["/api/v1/auth/desktop/refresh", "apps/chat-mobile/data/auth/transport.ts"],
     ["/api/v1/auth/desktop/exchange", "apps/chat-mobile/data/auth/transport.ts"],
-    // the app's own sign-in doors (ADR 0047): the transport's Route, and core's factories it binds
+    // the app's own sign-in doors (ADR 0049): the transport's Route, and core's factories it binds
     ["/api/v1/auth/native/mfa", "apps/chat-mobile/data/auth/transport.ts"],
     ["/api/v1/auth/native/sign-in-ticket/claim-email/verify", "packages/core/api/endpoints/sign-in-native-api.ts"],
     // a builder over a literal union declared in the file: each provider's route

@@ -18,7 +18,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// The ways into an account and the commands that change them (ADR 0047,
+// The ways into an account and the commands that change them (ADR 0049,
 // spec §3.7). Linking an identity the person just proved into the account
 // they are signed in to — from a sign-in ticket, from Settings through the
 // browser (sign_in_method_commands.go), and from the app's sheets with the
@@ -272,7 +272,7 @@ type vacated struct {
 
 // vacateEmptyAccount moves id out of holder, the account it opens, when the
 // person who just proved it asks (move) and holder never belonged to an
-// organization (ADR 0047 §2c): such an account is what a provider sign-in
+// organization (ADR 0049 §2c): such an account is what a provider sign-in
 // used to create without asking, and holds nothing anyone shares. holder is
 // erased like a deleted account (anonymised, every session, device, push,
 // MCP grant, consent attempt, reset link and code ended, its avatar file

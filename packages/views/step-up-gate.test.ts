@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// ADR 0047 §5, spec §4.5: every command that takes a step-up token runs
+// ADR 0049 §5, spec §4.5: every command that takes a step-up token runs
 // through the one proof dialog, useStepUpGate() in
 // settings/components/step-up-proof.tsx. The person is asked the same way
 // everywhere, a held token is spent before anyone is asked, and a refused

@@ -1,4 +1,4 @@
-// Sign in with Apple on the iPhone (ADR 0041, 0047): Apple's native sheet, with a nonce the server checks
+// Sign in with Apple on the iPhone (ADR 0041, 0049): Apple's native sheet, with a nonce the server checks
 // (nonce.ts). The token, the code and the name reach only the app's sign-in doors (sign-in.ts), a step-up's proof and
 // a link from Settings.
 import * as AppleAuthentication from "expo-apple-authentication";

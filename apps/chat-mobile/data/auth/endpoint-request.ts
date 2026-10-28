@@ -1,5 +1,5 @@
 // The auth routes as core's EndpointRequest (packages/core/api/endpoints/endpoint-request.ts), for the factories of
-// the app's own sign-in doors (core's sign-in-native-api.ts, ADR 0047 §8): the same timeout, strict errors, no
+// the app's own sign-in doors (core's sign-in-native-api.ts, ADR 0049 §8): the same timeout, strict errors, no
 // redirect and no cache as every auth route (transport.ts › createAuthRequest). A path that is not `/api/v1` + one of
 // the auth routes, or a method other than GET and POST, is refused before anything is sent.
 import type { EndpointRequest } from "@uniwork/core/api/endpoints/endpoint-request";

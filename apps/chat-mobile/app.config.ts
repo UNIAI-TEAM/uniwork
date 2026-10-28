@@ -84,7 +84,7 @@ export function iosCallsBuilt(projectRoot: string): boolean {
 }
 
 /**
- * Sign in with Google in the app (ADR 0047 §8, plugins/with-google-sign-in.js): this variant's iOS client (one per
+ * Sign in with Google in the app (ADR 0049 §8, plugins/with-google-sign-in.js): this variant's iOS client (one per
  * bundle id) and the web client the server verifies tokens for (its GOOGLE_CLIENT_ID; the iOS and Android clients go
  * in its GOOGLE_NATIVE_CLIENT_IDS). Without the web client neither platform opens Google's sheet; without the iOS one
  * the iPhone does not. The app then signs in with Google through the browser, so a build never breaks on them.
@@ -294,7 +294,7 @@ export default ({ config, projectRoot }: ConfigContext): ExpoConfig => {
     // The EAS project belongs to the organization, not to whoever is signed in to eas-cli.
     owner: "uniai-team",
     slug: "uniwork-chat",
-    // The store version. 0.4.0: unified sign-in (ADR 0047) links the Google
+    // The store version. 0.4.0: unified sign-in (ADR 0049) links the Google
     // sign-in module (Credential Manager, GoogleSignIn) and the webcredentials
     // domain, after 0.3.1 (the R8 keep rule for WebRTC, the iOS autolinking exclusion).
     version: "0.4.0",

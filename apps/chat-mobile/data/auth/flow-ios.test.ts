@@ -1,5 +1,5 @@
 // The same composition root on an iPhone: Apple's sheet is offered when the system has it and the server takes it
-// (ADR 0041, 0047), and the browser's Apple stands in when either does not.
+// (ADR 0041, 0049), and the browser's Apple stands in when either does not.
 import { configureRuntime } from "@uniwork/core/runtime-config";
 import { describe, expect, it, vi } from "vitest";
 

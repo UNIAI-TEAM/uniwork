@@ -559,7 +559,7 @@ database and never reveal whether an id exists to a non-member.
   `TestMCPBudgetsEachAccessTokenAndSkipsTheGlobalLimiter` and
   `TestMCPAddressCeilingStopsRotatingTokens`. A guess at a secret rides a
   named budget under a ceiling of 600/min per address
-  (`server/internal/handler/router/sign_in_budgets.go`, ADR 0047 §9):
+  (`server/internal/handler/router/sign_in_budgets.go`, ADR 0049 §9):
   `sign-in-password` (`/auth/login` and the app's `/auth/native/password`,
   one budget for both, 20/min per address and the hashed, normalized email
   read from the body without consuming it) and `sign-in-mfa`
@@ -580,7 +580,7 @@ database and never reveal whether an id exists to a non-member.
   authorize and Swagger entry handlers call `http.Redirect`
   (`TestOnlyBrowserFlowsRedirect` in `server/internal/arch_test.go`), since a
   native client's HTTP stack may carry `Authorization` to wherever a 3xx points.
-- Sign in with Apple (ADR 0041, 0047) has two doors, each with its own `auth.AppleVerifier` checking Apple's
+- Sign in with Apple (ADR 0041, 0049) has two doors, each with its own `auth.AppleVerifier` checking Apple's
   signature against its JWKS, `iss`, `exp` and a `nonce` equal to the SHA-256 of the raw nonce: the iPhone's
   `POST /api/v1/auth/apple/native`, whose `aud` is a bundle id in `APPLE_SIWA_AUDIENCES`, and the web, whose only
   `aud` is the Services ID `APPLE_SIWA_WEB_CLIENT_ID` (on only with the Sign in with Apple key; never one of the
@@ -598,7 +598,7 @@ database and never reveal whether an id exists to a non-member.
   `TestAppleSignInSendsAnMFAAccountToTheBrowserWithoutLinking`, `TestLegacyAppleNativeKeepsItsCodes` and
   `TestDeleteAccountRevokesTheAppleToken` hold it.
 - Every provider sign-in (Google and Apple on the web, Google and Apple in the app) finds its account through `resolveIdentity` in
-  `server/internal/service/identity_resolve.go` (ADR 0047): the provider subject first, then the address only when
+  `server/internal/service/identity_resolve.go` (ADR 0049): the provider subject first, then the address only when
   the provider vouches for it. An address the provider owns (Gmail or the Workspace `hd`; iCloud or Apple's relay)
   links to a verified account, or takes back an account that never proved the address — everything its registrant
   left goes, and their second factor is never asked; any other address, or a subject the owner unlinked, joins no
@@ -607,7 +607,7 @@ database and never reveal whether an id exists to a non-member.
   `TestProviderSignInTrustsOnlyAuthoritativeEmail`, `TestProviderSignInReclaimsAnUnverifiedAccount`,
   `TestReclaimNeverAsksTheSquattersSecondFactor`, `TestAnUnlinkedProviderIsNotRelinkedByEmail` and
   `TestSealedBlobsDoNotCrossPurposes` hold it.
-- A provider sign-in that finds no account to sign in to creates none (ADR 0047 §2c): it answers a sign-in ticket
+- A provider sign-in that finds no account to sign in to creates none (ADR 0049 §2c): it answers a sign-in ticket
   (`server/internal/service/sign_in_ticket.go`; 15 minutes, sealed for `sign_in_ticket`, nothing stored) for the
   choice screen — the browser's only in the HttpOnly `uniwork_sign_in_ticket` cookie, an app's only in JSON with
   the SHA-256 of its nonce — and only "Create a new account" there, or the register screen's `intent=sign_up`,
@@ -626,7 +626,7 @@ database and never reveal whether an id exists to a non-member.
   `mw.SameSiteJSON`: a request marked `Sec-Fetch-Site: cross-site` is 403 `cross_site_request` and a body that is
   not `application/json` is 415, so another site cannot sign a browser in (login CSRF) or spend an address's
   budget. Native clients send no fetch metadata and post JSON. `TestCredentialRoutesRefuseCrossSiteForms` holds it.
-- The app's own sign-in screen (ADR 0047 §8, `server/internal/service/native_sign_in.go`) is public doors under
+- The app's own sign-in screen (ADR 0049 §8, `server/internal/service/native_sign_in.go`) is public doors under
   `/api/v1/auth/native/*` — password, second factor, Google, Apple, register, and the choice screen's ticket
   commands — plus the app's Settings links `POST /me/sign-in-methods/{google,apple}/native` (a device bearer with a
   step-up; a provider token that fails is 403, never 401). The doors take only a client in `NATIVE_SIGN_IN_CLIENTS`
@@ -641,7 +641,7 @@ database and never reveal whether an id exists to a non-member.
   proof. `TestWebAndNativeGoogleAudiencesStayApart`, `TestGoogleNativeNeedsANonceAndTheAppAzp`,
   `TestNativeDoorsTakeOnlyNativeClients`, `TestNativeTicketNeedsTheNonce`, `TestNativeSecondStepIsBoundToTheApp`,
   `TestNativeSignInAlwaysAlertsAnAccountThatHadASession` and `TestAppLinksAProviderFromSettings` hold it.
-- The second factor (ADR 0047 §4): a challenge token names its channel (`chn`; none reads as web) and the browser's
+- The second factor (ADR 0049 §4): a challenge token names its channel (`chn`; none reads as web) and the browser's
   `POST /auth/mfa/verify` takes only a web one. An identity that would link into an account with a second factor
   rides in the challenge (`pl`, sealed) and is linked only in the transaction that opens the session once the
   factor passed, after resolving it again (else the sign-in succeeds with `link_skipped`). A challenge dies with the
@@ -661,7 +661,7 @@ database and never reveal whether an id exists to a non-member.
   `TestUnverifiedAccountsCannotEnrolMFAOrLink`, `TestAResetLinkReclaimsAnUnverifiedAccount`,
   `TestAResetLinkEndsWhatTheOldPasswordLetIn` and `TestCredentialsRevokedAtRefusesOlderWebTokens` hold it.
 - Every change to how an account signs in, and every command its owner cannot undo alone, takes a step-up token
-  (ADR 0047 §5): setting or changing the password, linking or unlinking a provider, turning the second factor on,
+  (ADR 0049 §5): setting or changing the password, linking or unlinking a provider, turning the second factor on,
   deleting the account, handing an organization over (transfer, the invitation switch). `POST /me/step-up` in
   `server/internal/service/step_up.go`, the one place a signed-in person's proof is checked, turns one proof the
   account takes into a ten-minute token sealed for `step_up` and bound to the bearer's session: with a second factor

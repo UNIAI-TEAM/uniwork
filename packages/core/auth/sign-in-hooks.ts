@@ -12,7 +12,7 @@ import { linkAction, unlinkAction } from "./step-up";
 import { forgetStepUpIfRefused, rememberStepUp, stepUpToken } from "./step-up-store";
 
 /**
- * Unified sign-in on the web (ADR 0047): the choice screen's pending
+ * Unified sign-in on the web (ADR 0049): the choice screen's pending
  * sign-in, "confirm it is you", and Settings › Sign-in methods, as queries
  * and mutations. Server state lives in TanStack Query under authKeys; the
  * step-up token in the memory store (step-up-store.ts), which every command

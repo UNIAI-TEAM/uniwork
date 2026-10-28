@@ -1,7 +1,7 @@
 // Erasing the account from the phone (Apple 5.1.1(v), Google Play's account
 // deletion policy), as packages/views/settings/components/
 // delete-account-dialog.tsx does: the person confirms it is them first (a
-// step-up token for delete_account, ADR 0047 §5; the proof sheet is
+// step-up token for delete_account, ADR 0049 §5; the proof sheet is
 // components/settings/step-up-sheet.tsx), then POST /api/v1/me/delete. Pure:
 // what a failure means; the sheet is components/settings/delete-account.tsx and
 // the request data/account-api.ts. What an owner does on the phone alone (close

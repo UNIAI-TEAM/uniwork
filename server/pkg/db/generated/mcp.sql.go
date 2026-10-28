@@ -72,7 +72,7 @@ WHERE user_id = $1 AND used_at IS NULL AND cancelled_at IS NULL
 `
 
 // An account taken back by the owner of its mailbox, or whose password a reset
-// link replaced (ADR 0047): consents opened or approved before and no client
+// link replaced (ADR 0049): consents opened or approved before and no client
 // redeemed yet die with it.
 func (q *Queries) CancelOpenMcpAuthAttemptsForUser(ctx context.Context, userID pgtype.Text) (int64, error) {
 	result, err := q.db.Exec(ctx, cancelOpenMcpAuthAttemptsForUser, userID)

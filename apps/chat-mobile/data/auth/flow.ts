@@ -70,7 +70,7 @@ export const nativeClient: NativeClient = {
 // The doors carry the password, the codes and the provider tokens: the same strict fetch as the session's routes.
 const authRequest = createEndpointRequest({ fetch: strictFetch });
 
-/** The doors of the app's own sign-in screen (ADR 0047 §8), bound to this app and deployment. */
+/** The doors of the app's own sign-in screen (ADR 0049 §8), bound to this app and deployment. */
 export const nativeSignIn = createNativeSignInApi(authRequest, nativeClient);
 
 /** Which sign-ins this server offers; every one off when it cannot be asked (an older server, no network). */

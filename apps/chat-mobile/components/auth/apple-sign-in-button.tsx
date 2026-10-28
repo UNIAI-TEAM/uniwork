@@ -1,4 +1,4 @@
-// Sign in with Apple on an iPhone (ADR 0041, 0047; Apple 4.8, since the screen offers Google): Apple's own system
+// Sign in with Apple on an iPhone (ADR 0041, 0049; Apple 4.8, since the screen offers Google): Apple's own system
 // button, localized, accessible and approved by Apple's HIG. Black on the light screen, white on the dark one, as tall
 // and as round as the buttons beside it at every text size (its title grows only with its height, so the height
 // follows the text: lib/type-scale.ts › providerButtonHeight); "Continue with Apple" on the sign-in screen, "Sign up

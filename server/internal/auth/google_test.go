@@ -137,7 +137,7 @@ func TestGoogleExchangeVerifiesIDTokenAndReturnsClaims(t *testing.T) {
 }
 
 // The ID token must echo the nonce this sign-in put in the authorization
-// request (ADR 0047): a token minted for another sign-in, or with none, is
+// request (ADR 0049): a token minted for another sign-in, or with none, is
 // refused even though Google signed it.
 func TestGoogleExchangeRefusesAnotherNonce(t *testing.T) {
 	f := newFakeOIDC(t)
@@ -224,7 +224,7 @@ func wantGoogleRefusal(t *testing.T, err error, reason string) {
 	}
 }
 
-// The web and the app take Google tokens through different doors (ADR 0047
+// The web and the app take Google tokens through different doors (ADR 0049
 // §8): the app's verifier takes an audience among the web and app clients
 // but only an app client as the authorized party (azp), so a token the web's
 // code flow was issued never opens the app's door; the web's code flow takes
@@ -264,7 +264,7 @@ func TestWebAndNativeGoogleAudiencesStayApart(t *testing.T) {
 }
 
 // The app's Google token proves this sign-in only with the nonce the app
-// handed the SDK (ADR 0047 §8): the token must carry the SHA-256 (hex) of
+// handed the SDK (ADR 0049 §8): the token must carry the SHA-256 (hex) of
 // the raw nonce the request sends, so a token lifted from another sign-in, or
 // one with no nonce at all, opens nothing. The authorized party is the app
 // itself, and the token is one the SDK just returned.

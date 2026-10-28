@@ -137,7 +137,7 @@ describe("privacy policy", () => {
     }
   });
 
-  // ADR 0047: every platform signs in with Google and Apple. The policy says what each provider hands over, that
+  // ADR 0049: every platform signs in with Google and Apple. The policy says what each provider hands over, that
   // their passwords never reach us, and where their tokens go: Google's nowhere, Apple's (sealed) only back to Apple
   // when the account is deleted (the revocation the deletion section promises). The phone's own sign-in screen
   // keeps the typed password in memory only.

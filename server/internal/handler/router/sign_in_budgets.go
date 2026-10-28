@@ -18,7 +18,7 @@ import (
 )
 
 // signInBudgets are the named budgets of the routes that take a guess at a
-// secret (ADR 0047 §9, spec §3.9), each under a ceiling per address that
+// secret (ADR 0049 §9, spec §3.9), each under a ceiling per address that
 // runs first, so a request the ceiling refuses opens no counter of its own:
 //
 //   - password: POST /auth/login and the app's POST /auth/native/password,

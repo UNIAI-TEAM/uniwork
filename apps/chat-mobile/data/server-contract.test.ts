@@ -73,7 +73,7 @@ const HANDLER_FILES = [
   "organization.go",
   // GET /me/invitations: the invitations the empty workspace picker answers.
   "onboarding.go",
-  // Unified sign-in (ADR 0047): the app's doors, Settings › Sign-in methods and step-up, /auth/providers.
+  // Unified sign-in (ADR 0049): the app's doors, Settings › Sign-in methods and step-up, /auth/providers.
   "native_sign_in.go",
   "sign_in_methods.go",
   "sign_in_ticket.go",
@@ -257,7 +257,7 @@ interface Contract {
   items?: Record<string, z.ZodType>;
 }
 
-// Unified sign-in (ADR 0047): what the app reads around the schemas core exports. Core keeps the envelopes of
+// Unified sign-in (ADR 0049): what the app reads around the schemas core exports. Core keeps the envelopes of
 // readNativeSignIn and readSignInMethodsChange module-private, so their keys are written out here with core's own
 // schemas nested; the session is what data/auth/transport.ts › parseSession reads, strictly, of DesktopSessionSDO.
 const SessionFields = z.object({
@@ -284,7 +284,7 @@ const SignInMethodsChangeFields = z.object({ user: z.unknown(), sign_in_methods:
 const SentFields = z.object({ status: z.string() });
 
 const CONTRACTS: Contract[] = [
-  // Sign-in (ADR 0047 §8): the app's doors, the providers it offers, Settings › Sign-in methods and step-up.
+  // Sign-in (ADR 0049 §8): the app's doors, the providers it offers, Settings › Sign-in methods and step-up.
   {
     endpoint: "POST /auth/native/{password,mfa,google,apple,register}, …/sign-in-ticket/{create,claim-email/verify}",
     schema: NativeSignInFields,

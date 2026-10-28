@@ -162,7 +162,7 @@ export function useInvitationPreview(token: string, enabled = true) {
 export function useAcceptInvite() {
   const qc = useQueryClient();
   return useMutation({
-    // A transfer step is proved with the held step-up token when there is one (ADR 0047 §5).
+    // A transfer step is proved with the held step-up token when there is one (ADR 0049 §5).
     mutationFn: ({ token, resolve }: { token: string; resolve?: SwitchResolution[] }) =>
       workspaces.acceptInvite(token, withTransferProof(resolve)),
     onError: forgetStepUpIfRefused,

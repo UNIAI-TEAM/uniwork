@@ -28,7 +28,7 @@ type ApproveDesktopAuthAttemptParams struct {
 }
 
 // approver_signed_in_at is when the approving session signed in, which the
-// device session the code opens inherits (ADR 0047).
+// device session the code opens inherits (ADR 0049).
 func (q *Queries) ApproveDesktopAuthAttempt(ctx context.Context, arg ApproveDesktopAuthAttemptParams) (DesktopAuthAttempt, error) {
 	row := q.db.QueryRow(ctx, approveDesktopAuthAttempt,
 		arg.ID,
@@ -88,7 +88,7 @@ WHERE user_id = $1 AND used_at IS NULL AND cancelled_at IS NULL
 `
 
 // An account taken back by the owner of its mailbox, or whose password a reset
-// link replaced (ADR 0047): every attempt claimed or approved before and
+// link replaced (ADR 0049): every attempt claimed or approved before and
 // nobody redeemed yet dies, so an approved code cannot open a device session
 // after the reclaim or the reset.
 func (q *Queries) CancelOpenDesktopAuthAttemptsForUser(ctx context.Context, userID pgtype.Text) (int64, error) {

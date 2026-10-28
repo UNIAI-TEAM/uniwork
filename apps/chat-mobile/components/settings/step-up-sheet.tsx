@@ -1,4 +1,4 @@
-// "Xác nhận là bạn" on the phone (ADR 0047 §5, spec §4.5, §5.2): the one sheet every command that changes how the
+// "Xác nhận là bạn" on the phone (ADR 0049 §5, spec §4.5, §5.2): the one sheet every command that changes how the
 // account signs in, or that its owner cannot undo alone, opens before it runs (use-step-up.ts). It asks for the proof
 // the server's list puts first on this phone (core's proofChoice through data/auth/step-up-store.ts › proofsFor:
 // the second factor alone while it is on, else the password, Apple's or Google's own sheet, a mailed code), with

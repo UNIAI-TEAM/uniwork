@@ -427,7 +427,7 @@ describe("EAS project and release servers", () => {
   });
 });
 
-// ADR 0047 §8: the app opens Google's own sheet only with the client ids a build is given; without them it writes
+// ADR 0049 §8: the app opens Google's own sheet only with the client ids a build is given; without them it writes
 // nothing and the app signs in with Google through the browser.
 describe("Sign in with Google's clients", () => {
   const IOS = "1234567890-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com";

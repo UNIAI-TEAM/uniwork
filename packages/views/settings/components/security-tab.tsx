@@ -167,7 +167,7 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
 /**
  * Three screens in one card: start → scan and confirm → recovery codes shown
  * once. A second factor locks the account to whoever holds it, so both the
- * setup and the confirmation are proved first (ADR 0047 §5) through the
+ * setup and the confirmation are proved first (ADR 0049 §5) through the
  * shared "Xác nhận là bạn" dialog; one proof serves both.
  */
 function EnrolMfa({ onEnabled, heldBy }: { onEnabled: () => void; heldBy?: string }) {

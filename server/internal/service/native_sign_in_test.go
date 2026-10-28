@@ -141,7 +141,7 @@ func TestNativePasswordSignsInOnTheAppsDevice(t *testing.T) {
 }
 
 // The app's second step takes only a challenge minted for this very app
-// (ADR 0047 §4): the browser's, or one for another client, is refused like a
+// (ADR 0049 §4): the browser's, or one for another client, is refused like a
 // wrong code before the account is read, so it costs nothing from the
 // lockout; the browser's second step refuses the app's. The lockout is the
 // account's: wrong codes at the app's door and the browser's add up, and
@@ -197,7 +197,7 @@ func TestNativeSecondStepIsBoundToTheApp(t *testing.T) {
 	}
 }
 
-// The app's provider doors follow the rules every provider shares (ADR 0047
+// The app's provider doors follow the rules every provider shares (ADR 0049
 // §2): nothing is created for an identity that matches no account — the app
 // gets a ticket for its choice screen, bound to its nonce — unless the
 // register screen asked (intent sign_up); an address the provider owns joins
@@ -297,7 +297,7 @@ func TestNativeProviderSignInFollowsTheSharedRules(t *testing.T) {
 }
 
 // A native ticket opens only with the nonce the app handed the provider's
-// sheet (ADR 0047 §3): the ticket keeps only its SHA-256, so a ticket copied
+// sheet (ADR 0049 §3): the ticket keeps only its SHA-256, so a ticket copied
 // out of a log, sent without the nonce or with another, from another
 // deployment, or to the browser's routes, opens nothing. With it, the app's
 // choice screen creates the account, claims another address and links.
@@ -414,7 +414,7 @@ func (f *nativeFixture) consentDevice(t *testing.T, bearer context.Context, uid,
 }
 
 // A device session counts as signed in after an app's ticket by when its
-// person signed in (ADR 0047 §3, spec §3.2): the app's own sign-in, or the
+// person signed in (ADR 0049 §3, spec §3.2): the app's own sign-in, or the
 // start of the browser session whose consent issued it — never by when its
 // row was written, since a consent turns any live browser token into a new
 // device session. A stolen browser token exchanged that way after the
@@ -528,7 +528,7 @@ func TestNativeSignInAlwaysAlertsAnAccountThatHadASession(t *testing.T) {
 }
 
 // The app links a provider from its Settings with the provider's own sheet
-// (ADR 0047 §6, spec §3.7): only the app's bearer takes this door, only an
+// (ADR 0049 §6, spec §3.7): only the app's bearer takes this door, only an
 // account that proved its address, only with a step-up of the app's
 // session, and only a token the app's verifier takes (403, never 401, when
 // it does not: the caller is signed in). The identity of an empty account

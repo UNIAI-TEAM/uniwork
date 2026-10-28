@@ -1,4 +1,4 @@
-# 0047 — Đăng nhập thống nhất: một tài khoản, cùng phương thức trên web, máy tính và điện thoại
+# 0049 — Đăng nhập thống nhất: một tài khoản, cùng phương thức trên web, máy tính và điện thoại
 
 **Trạng thái:** accepted (2026-10-27) — chủ sản phẩm duyệt hướng trong phiên thiết kế ngày 2026-10-27. Thay mục 2
 (tạo tài khoản ngầm, tài khoản MFA về trình duyệt, Apple chỉ vào qua `POST /auth/apple/native`) và mục 4 (web và

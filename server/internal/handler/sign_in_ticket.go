@@ -11,7 +11,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
-// signInTicketCookie carries a browser's pending provider sign-in (ADR 0047,
+// signInTicketCookie carries a browser's pending provider sign-in (ADR 0049,
 // spec §3.2) from the provider's callback to the choice screen's commands.
 // HttpOnly, so no script reads the identity; Lax, so it rides the same-site
 // fetches of /auth/continue and the top-level navigation back from the

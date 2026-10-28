@@ -287,7 +287,7 @@ func TestAppleClientReportsAnAnswerWithoutRefreshToken(t *testing.T) {
 }
 
 // A web authorization code was issued for the return URL, and Apple refuses
-// the exchange unless it names that URI again (ADR 0047 §7): the form carries
+// the exchange unless it names that URI again (ADR 0049 §7): the form carries
 // redirect_uri and a client secret signed for the Services ID; the answer is
 // the identity token to verify and the refresh token to keep.
 func TestAppleClientExchangesAWebCodeForItsReturnURL(t *testing.T) {
@@ -358,7 +358,7 @@ func TestAppleWebAuthorizeURLAsksForAFormPost(t *testing.T) {
 }
 
 // The app's verifier takes its bundle ids and the web's only the Services ID
-// (ADR 0047 §7): a token issued to one door is refused at the other.
+// (ADR 0049 §7): a token issued to one door is refused at the other.
 func TestAppleVerifiersOfTheTwoDoorsRefuseEachOthersTokens(t *testing.T) {
 	keys := newAppleTestKeys(t)
 	native := NewAppleVerifier(AppleIssuer, keys.srv.URL, []string{"com.uniworkos.chat"}, nil)

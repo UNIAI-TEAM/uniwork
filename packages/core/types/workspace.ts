@@ -128,7 +128,7 @@ export type InvitationPreview = z.infer<typeof InvitationPreviewSchema>;
 /**
  * How the caller gives up one organization when accepting an invitation into
  * another. A transfer is proved with `step_up_token` (action
- * transfer_ownership when a mailed code bought it, ADR 0047 §5); `password`
+ * transfer_ownership when a mailed code bought it, ADR 0049 §5); `password`
  * is the shipped app's legacy proof (reviewed 2027-01-31).
  */
 export type SwitchResolution = {

@@ -61,7 +61,7 @@ test("the mobile checks run for the app, what it reads and the server contracts 
     // Review P2: a handler-only rename of a wrapper key, and the kill switch catalogue.
     "server/internal/handler/chat_threads.go",
     "server/internal/handler/auth.go",
-    // The sign-in SDOs' handlers (ADR 0047).
+    // The sign-in SDOs' handlers (ADR 0049).
     "server/internal/handler/native_sign_in.go",
     "server/internal/handler/sign_in_methods.go",
     "server/internal/featureflags/keys.go",

@@ -305,7 +305,7 @@ func TestAppleNativeSignInRidesTheCredentialBudget(t *testing.T) {
 	c.wantRefused(t, h, http.MethodPost, "/api/v1/auth/apple/native", "credential budget: 60 a minute")
 }
 
-// Sign in with Apple on the web (ADR 0047 §7) turns Apple's answer into a
+// Sign in with Apple on the web (ADR 0049 §7) turns Apple's answer into a
 // session like Google's, so each of its steps rides the credential budget:
 // 60 a minute per address and path. Apple's callback is a cross-site form,
 // which no login-CSRF guard turns away before the budget.
@@ -322,7 +322,7 @@ func TestAppleWebRoutesRideTheCredentialBudget(t *testing.T) {
 	}
 }
 
-// The choice screen of a provider sign-in (ADR 0047) turns a ticket into an
+// The choice screen of a provider sign-in (ADR 0049) turns a ticket into an
 // account or a session, so each of its routes rides the credential budget:
 // 60 a minute per address and path. The login-CSRF guard runs first, so a
 // form another site makes the browser post is refused without spending the
@@ -605,7 +605,7 @@ func TestDesktopRefreshBudgetsEachDeviceUnderAnAddressCeiling(t *testing.T) {
 	caller{ip: carrier}.wantRefused(t, h, http.MethodGet, "/api/v1/auth/desktop/start", "credential budget still 60 a minute per address")
 }
 
-// A password is guessed on the sign-in-password budget (ADR 0047 §9): 20 a
+// A password is guessed on the sign-in-password budget (ADR 0049 §9): 20 a
 // minute per address and email, so people signing in behind one office NAT
 // each get their own, and the email is read the way login reads it (case and
 // spaces aside). One address trying a password on every account meets the
@@ -719,7 +719,7 @@ func TestBudgetKeysLeaveTheBodyWhole(t *testing.T) {
 }
 
 // The app's password door shares the browser's sign-in-password budget
-// (ADR 0047 §9, spec §3.9): one budget per address and email whichever door
+// (ADR 0049 §9, spec §3.9): one budget per address and email whichever door
 // the guesses come through, and one ceiling of 600 a minute per address
 // across both, off the global limiter as /auth/login is.
 func TestNativePasswordSharesTheSignInPasswordBudget(t *testing.T) {

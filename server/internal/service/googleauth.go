@@ -23,7 +23,7 @@ func NewGoogleAuthService(auth *AuthService) *GoogleAuthService {
 }
 
 // GoogleIdentity is the person a verified Google ID token vouches for, as
-// every provider sign-in and link reads it (ADR 0047): the address is
+// every provider sign-in and link reads it (ADR 0049): the address is
 // Google's to vouch for only on Gmail or the Workspace's own domain (hd).
 func GoogleIdentity(c GoogleClaims) ProviderIdentity { return googleIdentity(c) }
 

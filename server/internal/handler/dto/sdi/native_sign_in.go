@@ -1,7 +1,7 @@
 package sdi
 
 // NativeClientSDI is what every door of the app's own sign-in screen carries
-// about the app (ADR 0047 §8): its public client id (only the native sign-in
+// about the app (ADR 0049 §8): its public client id (only the native sign-in
 // clients, NATIVE_SIGN_IN_CLIENTS, are taken), the deployment profile, and
 // the device's own description for the session list and the owner's mails.
 // Every native SDI embeds it; tokens and codes are sent once, over TLS, and

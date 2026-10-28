@@ -1,5 +1,5 @@
 -- When the person behind a device session last proved a credential (ADR
--- 0047): the app's own sign-in, or the start of the browser session that
+-- 0049): the app's own sign-in, or the start of the browser session that
 -- approved its consent, which the attempt carries from the approval to the
 -- code exchange. A sign-in ticket links only into a session that signed in
 -- after the ticket was issued, and a consent turns any live browser token

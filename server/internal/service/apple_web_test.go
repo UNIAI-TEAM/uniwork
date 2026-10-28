@@ -54,7 +54,7 @@ func (f *identityFixture) wantRevoked(t *testing.T, code string, want bool) {
 }
 
 // The app's door and the web's verify tokens for different audiences (ADR
-// 0047 §7): a token Apple issued to the Services ID does not open the app's
+// 0049 §7): a token Apple issued to the Services ID does not open the app's
 // door, and a code whose identity token was issued to the app's bundle id
 // opens no web sign-in. Each door takes its own.
 func TestWebAndNativeAppleAudiencesStayApart(t *testing.T) {

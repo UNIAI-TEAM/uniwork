@@ -1,4 +1,4 @@
-// The app's own sign-in screens (ADR 0047, spec §5.2): what the web's sign-in pages do not say because the phone
+// The app's own sign-in screens (ADR 0049, spec §5.2): what the web's sign-in pages do not say because the phone
 // lays them out differently: the screen's title, the second factor's recovery-code switch, the register screen's
 // title, the verify screen's way out, the browser fallback. Everything else they say is the web's copy, synced by
 // sync-i18n.mjs (SIGN_IN_PATHS): a sentence that reads wrong on the phone is changed in packages/core, not forked

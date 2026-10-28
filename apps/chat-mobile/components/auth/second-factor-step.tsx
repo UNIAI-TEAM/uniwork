@@ -1,4 +1,4 @@
-// The second factor of a sign-in (spec §5.2, ADR 0047 §4): the six digits of the authenticator app, sent as soon as
+// The second factor of a sign-in (spec §5.2, ADR 0049 §4): the six digits of the authenticator app, sent as soon as
 // the sixth arrives, or a recovery code; under the title, whose account it signs in to and the provider it links.
 // A wrong code is cleared and its field focused; ten in a row lock the factor, and the field waits while the lock
 // counts down (429 second_factor_locked, retry_after). A challenge that is gone (expired, the app restarted) says so,

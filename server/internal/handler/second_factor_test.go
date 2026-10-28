@@ -123,7 +123,7 @@ func TestGooglePendingLinkFinishesThroughTheMFACookie(t *testing.T) {
 }
 
 // An unverified account is refused the enrolment over the wire as 403
-// email_unverified (ADR 0047 §2).
+// email_unverified (ADR 0049 §2).
 func TestMFAEnrolmentNeedsAVerifiedEmailOverHTTP(t *testing.T) {
 	srv := newTestServer(t)
 	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{"email": "unproved@example.com", "password": "password123", "display_name": "U"})

@@ -181,7 +181,7 @@ func TestAppleSignInCreatesARelayAccountAndFindsItAgainBySubject(t *testing.T) {
 }
 
 // Apple joins an existing account by its address only when both sides proved
-// it and Apple owns it (an iCloud address, ADR 0047), never through a private
+// it and Apple owns it (an iCloud address, ADR 0049), never through a private
 // relay address someone else holds.
 func TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay(t *testing.T) {
 	f := newAppleFixture(t)

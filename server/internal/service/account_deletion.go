@@ -13,7 +13,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// DeleteAccountInput is the re-authentication for erasure (ADR 0047 §5): a
+// DeleteAccountInput is the re-authentication for erasure (ADR 0049 §5): a
 // step-up token, or the one proof shipped apps send (proveDeletion) — the
 // password when the account has one, else a TOTP code when MFA is on, else
 // the typed email address. CloseOrganization is the slug of the

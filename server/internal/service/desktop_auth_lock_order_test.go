@@ -203,7 +203,7 @@ func assertUserFullyRevoked(t *testing.T, svc *DesktopAuthService, owner string)
 // first or leave the device sessions live. There are two such revokes, each
 // with its own helper and halves: every session of the user
 // (revokeAllUserSessions), and every one but the caller's
-// (revokeOtherUserSessions, ADR 0047). The scan is on the syntax tree: any
+// (revokeOtherUserSessions, ADR 0049). The scan is on the syntax tree: any
 // identifier with a half's name counts, so a method value
 // (f := q.RevokeAllDeviceSessions), a method expression, an alias or a call
 // through a struct field escapes no more than a plain call does.

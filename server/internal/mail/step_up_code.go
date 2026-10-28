@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// The commands a step-up code is mailed for (ADR 0047 §5, spec §3.7). The
+// The commands a step-up code is mailed for (ADR 0049 §5, spec §3.7). The
 // mail names the one the code unlocks, so an owner who did not ask knows
 // what someone holding their session tried, and the code proves only that.
 const (

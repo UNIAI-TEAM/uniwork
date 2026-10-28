@@ -58,7 +58,7 @@ const E2E_PATHS = [
   /^apps\/chat-mobile\/maestro\/flows\/(?:chat-read-send|offline-send-relaunch|background-resume)\.yaml$/,
   /^apps\/chat-mobile\/maestro\/(?:subflows|scripts)\//,
   /^scripts\/mobile-e2e-seed\.mjs$/,
-  // The sign-in the flows run: the browser's (desktop_auth) and the app's own doors (native_sign_in*, ADR 0047).
+  // The sign-in the flows run: the browser's (desktop_auth) and the app's own doors (native_sign_in*, ADR 0049).
   /^server\/internal\/(?:handler|service)\/(?:chat[^/]*|desktop_auth|native_sign_in[^/]*)(?<!_test)\.go$/,
   /^server\/internal\/handler\/router\/(?:chat[^/]*|auth)(?<!_test)\.go$/,
   /^apps\/web\/app\/\(auth\)\/auth\/desktop\//,
@@ -114,7 +114,7 @@ export const MOBILE_PATHS = [
   "server/internal/handler/organization.go",
   // GET /me/invitations: the invitations an account without a workspace answers, rows built as map literals.
   "server/internal/handler/onboarding.go",
-  // Unified sign-in (ADR 0047): the app's doors, Settings › Sign-in methods and step-up, /auth/providers.
+  // Unified sign-in (ADR 0049): the app's doors, Settings › Sign-in methods and step-up, /auth/providers.
   "server/internal/handler/native_sign_in.go",
   "server/internal/handler/sign_in_methods.go",
   "server/internal/handler/sign_in_ticket.go",

@@ -1,4 +1,4 @@
-// What a sign-in screen says when a step failed (ADR 0047, spec §5.2). Every refusal of the server reads through
+// What a sign-in screen says when a step failed (ADR 0049, spec §5.2). Every refusal of the server reads through
 // core's one table (auth/sign-in-errors.ts › readSignInFailure), so the phone and the web say the same thing; this
 // module only adds what happens on the phone before the server answers: Apple's or Google's own sheet failing, the
 // system browser not opening, and the step the app held in memory being gone (sign_in_expired).

@@ -32,7 +32,7 @@ const CLOSE_CONSEQUENCES = [
 ] as const;
 
 /**
- * Erasing the account (Nghị định 13, ADR 0047 §5). The question is asked
+ * Erasing the account (Nghị định 13, ADR 0049 §5). The question is asked
  * here; who is asking is proved through the shared "Xác nhận là bạn" dialog,
  * nested in this one, never by a field of its own. The server weighs the
  * proof first and only then whether the account still owns an organization

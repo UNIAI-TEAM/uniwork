@@ -2,7 +2,7 @@ import { knownProofs, isSignInProvider, type SignInProvider, type StepUpProof } 
 import { maskedEmailOf, urlMaskedEmailOf } from "./sign-in-rules";
 
 /**
- * Every answer of unified sign-in (ADR 0047) as a person reads it: one table
+ * Every answer of unified sign-in (ADR 0049) as a person reads it: one table
  * from the server's codes — the API's `error.code`, the `?error=` a provider
  * round trip lands /login with, the `?result=` a link from Settings comes
  * back with — to i18n keys and to what the screen does next. Both platforms

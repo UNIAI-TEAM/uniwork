@@ -1,7 +1,7 @@
 // The owner's step inside Settings › Delete account (delete-account.tsx), which the web's dialog does not have: once
 // the server says the account still owns an organization (lib/owned-organization.ts), the only active member closes
 // it in the same request by typing its address again, and an owner with members picks who takes over and the sheet
-// hands it over (use-hand-over.ts) before erasing. Both confirm it is you (ADR 0047 §5): the hand-over with a token
+// hands it over (use-hand-over.ts) before erasing. Both confirm it is you (ADR 0049 §5): the hand-over with a token
 // for transfer_ownership, the erasure with one for delete_account. A password, a second-factor code or a provider
 // buys one token for both; a mailed code serves its own action only, so that owner is asked for each, each sheet
 // naming what it is for. Both proofs are held before the hand-over, which cannot be undone: closing the second sheet

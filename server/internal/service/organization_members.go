@@ -74,7 +74,7 @@ func NewOrganizationMemberService(pool *pgxpool.Pool, q *db.Queries, orgs *Organ
 func (s *OrganizationMemberService) SetFiles(f files.Service) { s.files = f }
 
 // SetStepUp gives the hand-overs (TransferOwnership, the invitation switch)
-// the one checker of a signed-in person's proof (ADR 0047 §5).
+// the one checker of a signed-in person's proof (ADR 0049 §5).
 func (s *OrganizationMemberService) SetStepUp(a *AuthService) { s.stepUp = a }
 
 // SetEmailHub lets Leave revoke the refresh tokens it removes; main wires it

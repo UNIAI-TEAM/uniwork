@@ -13,7 +13,7 @@ function withQuery(path: string, params: Record<string, string | null | undefine
 
 /**
  * Where a provider's start sends the browser back when nothing matched
- * (ADR 0047): sign_in (the default, left out of the URL) issues a ticket for
+ * (ADR 0049): sign_in (the default, left out of the URL) issues a ticket for
  * the choice screen; sign_up (the register page) creates the account at once.
  */
 export type ProviderStartIntent = "sign_in" | "sign_up";
@@ -92,7 +92,7 @@ export const paths = {
   authCallback: () => "/auth/callback",
   /**
    * The choice screen a provider sign-in that found no account lands on
-   * (ADR 0047 §2c, spec §4.3); `step: "link"` is its link step, which a
+   * (ADR 0049 §2c, spec §4.3); `step: "link"` is its link step, which a
    * sign-in whose `next` it is keeps the pending sign-in for.
    */
   authContinue: (opts: { next?: string | null; step?: "link" } = {}) =>

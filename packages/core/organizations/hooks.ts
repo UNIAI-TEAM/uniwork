@@ -233,7 +233,7 @@ export function useRevokeOrgInvitation(orgSlug: string) {
 export function useTransferOwnership(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    // The held step-up token (transfer_ownership) is the proof (ADR 0047
+    // The held step-up token (transfer_ownership) is the proof (ADR 0049
     // §5); without one the server names the proofs it takes.
     mutationFn: ({ toUserId }: { toUserId: string }) =>
       orgMembers.transferOwnership(orgSlug, toUserId, stepUpToken("transfer_ownership") ?? ""),

@@ -868,7 +868,7 @@ func (s *DesktopAuthService) allowed(clientID, redirectURI, deploymentID string)
 
 // nativeClientAllowed is allowed without a redirect: a sign-in that never
 // leaves the app (its own sign-in screen, the iPhone's Sign in with Apple)
-// names one of the native sign-in clients (NATIVE_SIGN_IN_CLIENTS, ADR 0047
+// names one of the native sign-in clients (NATIVE_SIGN_IN_CLIENTS, ADR 0049
 // §8) that is also a configured client, and an allowlisted deployment. The
 // desktop apps and Office are configured clients too, but sign in through
 // the web page, never these doors.

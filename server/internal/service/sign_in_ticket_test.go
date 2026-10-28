@@ -82,7 +82,7 @@ func wantStatusCode(t *testing.T, err error, code string, status int) CodedError
 	return ce
 }
 
-// A provider identity that matches no account opens none (ADR 0047 §2c): the
+// A provider identity that matches no account opens none (ADR 0049 §2c): the
 // sign-in answers a ticket for the choice screen, and only "Create a new
 // account" on that screen creates one, with the identity's own address
 // (verified when the provider owns it, mailed a code when not). An address
@@ -195,7 +195,7 @@ func TestSignUpIntentCreatesWithoutTheChoice(t *testing.T) {
 	}
 }
 
-// A ticket is bound to the channel it was issued on (ADR 0047 §3): a web
+// A ticket is bound to the channel it was issued on (ADR 0049 §3): a web
 // ticket is taken only by the browser's routes, a native one only by the
 // app's, with its client, deployment and the nonce whose hash it keeps. A
 // blob of another purpose, a changed byte or an expired ticket is no ticket
@@ -273,7 +273,7 @@ func TestSignInTicketIsBoundToItsChannel(t *testing.T) {
 }
 
 // "I already have an account" links into the account the person signs in to
-// after the identity was proved (ADR 0047 §3): a session that started before
+// after the identity was proved (ADR 0049 §3): a session that started before
 // the ticket is no proof the same person holds both, so it needs one (403
 // proof_required, never 401). A session that ended is no session. The link
 // is audited via ticket and told to the owner and to the provider's address.
@@ -607,7 +607,7 @@ func TestEmailClaimLinksCreatesOrReclaims(t *testing.T) {
 }
 
 // The identity a person proves may already open another account — the empty
-// one a provider sign-in used to create without asking (ADR 0047 §2c). It
+// one a provider sign-in used to create without asking (ADR 0049 §2c). It
 // moves into the account they are signed in to only when that account never
 // belonged to an organization, and only when they say so (move): the empty
 // account is erased, its sessions end, both sides are audited via move and

@@ -4,7 +4,7 @@ import { startSession } from "./auth";
 import { readSent, readSignInMethodsChange, readSignInTicket, type SignInMethodsChange, type SignInTicket } from "./sign-in-schemas";
 
 /**
- * The browser's pending provider sign-in (ADR 0047 §2c, spec §3.2): a
+ * The browser's pending provider sign-in (ADR 0049 §2c, spec §3.2): a
  * Google or Apple sign-in that found no account to open left a ticket in the
  * HttpOnly `uniwork_sign_in_ticket` cookie, and the choice screen
  * (/auth/continue) works it through these routes. Web only: the cookie rides

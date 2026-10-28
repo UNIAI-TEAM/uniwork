@@ -22,7 +22,7 @@ import (
 )
 
 // A provider sign-in that matches no account, or whose address an account
-// holds that the identity may not join by itself, creates nothing (ADR 0047
+// holds that the identity may not join by itself, creates nothing (ADR 0049
 // §2c): it hands the client a sign-in ticket and the client shows the choice
 // screen — "I already have an account", "I was invited with another
 // address", "Create a new account" (spec §3.2). The ticket is the proven

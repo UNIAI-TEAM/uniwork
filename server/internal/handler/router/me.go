@@ -209,7 +209,7 @@ func registerMe(r api, h Routes, credentialLimit, stepUpLimit func(http.Handler)
 	})
 }
 
-// registerSignInMethods is step-up and Settings › Sign-in methods (ADR 0047
+// registerSignInMethods is step-up and Settings › Sign-in methods (ADR 0049
 // §5-6, spec §3.7). The proof routes ride the step-up budget; the link and
 // unlink commands take a step-up token and ride the credential budget.
 func registerSignInMethods(r api, h Routes, credentialLimit, stepUpLimit func(http.Handler) http.Handler) {

@@ -157,7 +157,7 @@ type Config struct {
 	GoogleClientSecret string
 	// GoogleNativeClientIDs are the app's own Google OAuth clients, iOS and
 	// Android, in the web client's Google Cloud project
-	// (GOOGLE_NATIVE_CLIENT_IDS, ADR 0047 §8): an ID token the app's SDK hands
+	// (GOOGLE_NATIVE_CLIENT_IDS, ADR 0049 §8): an ID token the app's SDK hands
 	// over must name one of them as its authorized party (azp). None keeps
 	// POST /auth/native/google at 503 and /auth/providers google_native false.
 	GoogleNativeClientIDs []string
@@ -176,7 +176,7 @@ type Config struct {
 	AppleSignInTeamID     string
 	AppleSignInKeyID      string
 	AppleSignInPrivateKey string
-	// Sign in with Apple on the web (ADR 0047 §7): the Services ID, grouped
+	// Sign in with Apple on the web (ADR 0049 §7): the Services ID, grouped
 	// with the app's primary App ID so a person's subject is the same on both
 	// (APPLE_SIWA_WEB_CLIENT_ID). The web's identity tokens are issued to it
 	// alone, and its code exchange needs the client secret the key above
@@ -616,13 +616,13 @@ func Load() (Config, error) {
 		return c, fmt.Errorf("DATABASE_URL is required")
 	}
 	if c.AppleSignInWebClientID != "" && slices.Contains(c.AppleSignInAudiences, c.AppleSignInWebClientID) {
-		// The two doors verify tokens for different audiences (ADR 0047 §7):
+		// The two doors verify tokens for different audiences (ADR 0049 §7):
 		// listed in both, a token the web was issued would open the app's.
 		return c, fmt.Errorf("APPLE_SIWA_WEB_CLIENT_ID %q must not be listed in APPLE_SIWA_AUDIENCES: the web and the app take tokens for different audiences", c.AppleSignInWebClientID)
 	}
 	if c.GoogleClientID != "" && slices.Contains(c.GoogleNativeClientIDs, c.GoogleClientID) {
 		// The app's door takes only an app client as the authorized party
-		// (ADR 0047 §8): listed there, the web client's tokens would open it.
+		// (ADR 0049 §8): listed there, the web client's tokens would open it.
 		return c, fmt.Errorf("GOOGLE_CLIENT_ID %q must not be listed in GOOGLE_NATIVE_CLIENT_IDS: the web and the app take tokens issued to different clients", c.GoogleClientID)
 	}
 	if c.JWTSecret == "" {

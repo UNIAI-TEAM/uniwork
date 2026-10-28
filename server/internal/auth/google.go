@@ -26,10 +26,10 @@ type GoogleClaims struct {
 	Picture       string `json:"picture"`
 	// HD is the Google Workspace domain of the account, empty for a consumer
 	// account: with it equal to the address's domain, Google owns the address
-	// (ADR 0047).
+	// (ADR 0049).
 	HD string `json:"hd"`
 	// IssuedAt is the token's iat: a step-up takes only a token the app just
-	// got from Google's SDK (ADR 0047 §5). The app's verifier fills it.
+	// got from Google's SDK (ADR 0049 §5). The app's verifier fills it.
 	IssuedAt time.Time `json:"-"`
 }
 
@@ -97,7 +97,7 @@ func (d *GoogleDiscovery) OAuth(clientID, clientSecret, redirectURL string) *Goo
 
 // AuthCodeURL is Google's authorization request for one sign-in: the CSRF
 // state, the nonce the ID token must echo, the S256 challenge of the PKCE
-// verifier (ADR 0047), and the account chooser every time so a shared
+// verifier (ADR 0049), and the account chooser every time so a shared
 // browser never signs into whichever Google account it last used.
 func (g *GoogleOAuth) AuthCodeURL(state, nonce, verifier string) string {
 	return g.cfg.AuthCodeURL(state,
@@ -152,7 +152,7 @@ const googleNativeMaxAge = 10 * time.Minute
 const googleClockSkew = time.Minute
 
 // GoogleNativeVerifier checks an ID token the app's Google SDK returned (ADR
-// 0047 §8): Google's signature against the discovered key set, iss and exp;
+// 0049 §8): Google's signature against the discovered key set, iss and exp;
 // an aud among the web client and the app clients (the Android SDK asks for
 // the web client as audience, iOS for its own); an azp that is one of the app
 // clients, so a token the web was issued never opens the app's door; an iat

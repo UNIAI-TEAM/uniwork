@@ -649,7 +649,7 @@ func TestAppleSettingsLoadAndStayOffWhenUnset(t *testing.T) {
 	}
 }
 
-// Sign in with Apple on the web (ADR 0047 §7) needs the Services ID and the
+// Sign in with Apple on the web (ADR 0049 §7) needs the Services ID and the
 // key that signs its client secret: its code exchange cannot run without one.
 // Either alone leaves it off, and the server still starts. The Services ID is
 // never one of the app's audiences, or a token issued to the web would open
@@ -689,7 +689,7 @@ func TestAppleWebNeedsTheServicesIDAndTheKey(t *testing.T) {
 }
 
 // The app's own sign-in doors take only the native clients the server names
-// (ADR 0047 §8): UniChat mobile by default, never the desktop apps or Office,
+// (ADR 0049 §8): UniChat mobile by default, never the desktop apps or Office,
 // which sign in through the web page.
 func TestNativeSignInClientsDefaultToTheMobileApp(t *testing.T) {
 	setRequired(t)
@@ -709,7 +709,7 @@ func TestNativeSignInClientsDefaultToTheMobileApp(t *testing.T) {
 // The app's Google door is on once its iOS and Android clients are named, and
 // the web client is never one of them: the app's verifier takes only an app
 // client as the authorized party, so a token the web was issued would open
-// the app's door if it were listed (ADR 0047 §8).
+// the app's door if it were listed (ADR 0049 §8).
 func TestGoogleNativeClientIDsNeverNameTheWebClient(t *testing.T) {
 	setRequired(t)
 	c, err := Load()

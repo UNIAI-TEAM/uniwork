@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// The changes a sign_in_method_changed mail tells of (ADR 0047).
+// The changes a sign_in_method_changed mail tells of (ADR 0049).
 const (
 	SignInChangeLinked             = "linked"
 	SignInChangeUnlinked           = "unlinked"

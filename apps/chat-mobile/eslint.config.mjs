@@ -142,7 +142,7 @@ const COMMAND_MODULES = [
   "safety-actions",
   "account-api",
   "ai-consent",
-  // Unified sign-in (ADR 0047): the doors run through the auth store's login(); the rest through mutation hooks.
+  // Unified sign-in (ADR 0049): the doors run through the auth store's login(); the rest through mutation hooks.
   "auth/sign-in",
   "auth/methods-api",
   // The invitations an account without a workspace answers (spec §5.2): joined through data/mutations/invitations.ts.

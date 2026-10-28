@@ -1,4 +1,4 @@
-// The ways into the app (ADR 0047 §8, spec §5.1), one request each: the browser (PKCE, with the provider button the
+// The ways into the app (ADR 0049 §8, spec §5.1), one request each: the browser (PKCE, with the provider button the
 // person tapped), Apple's and Google's sheets, email and password, a new account by email, the choice screen's new account and its
 // code mailed to another address, and the second factor of any of them. Every door but the browser runs as
 // MobileSession.loginWith's issuer, so a sign-out under way drops what it brings; a second factor or a choice comes

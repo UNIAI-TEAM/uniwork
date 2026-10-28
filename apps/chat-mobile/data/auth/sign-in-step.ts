@@ -1,4 +1,4 @@
-// What one door of the app's own sign-in screen answered (core's NativeSignInResult, ADR 0047 §8), as the app acts on
+// What one door of the app's own sign-in screen answered (core's NativeSignInResult, ADR 0049 §8), as the app acts on
 // it: a session for MobileSession to adopt, or a step the sign-in needs before one — the second factor, or the choice
 // screen for a Google or Apple identity no account matched. The session goes through the app's own strict
 // parseSession (its deployment included): core reads the envelope and never the tokens. Only a session ever reaches

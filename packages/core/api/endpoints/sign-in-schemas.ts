@@ -3,7 +3,7 @@ import { UserSchema, type User } from "../../types/user";
 import { parseWithFallback } from "../schema";
 
 /**
- * The wire shapes of unified sign-in (ADR 0047, spec §3): what the server's
+ * The wire shapes of unified sign-in (ADR 0049, spec §3): what the server's
  * SDOs say, read the one way both platforms read them. Pure (zod only), so
  * the phone (apps/chat-mobile, ADR 0011) imports these exact schemas and
  * readers instead of keeping copies: the web's endpoints and the app's
@@ -66,7 +66,7 @@ export function knownProofs(raw: unknown): StepUpProof[] {
 // --- GET /auth/providers ---------------------------------------------------
 
 /**
- * Which sign-ins this deployment offers (AuthProvidersSDO, ADR 0047 §10).
+ * Which sign-ins this deployment offers (AuthProvidersSDO, ADR 0049 §10).
  * Flags are only ever added: `google` is the web's Google, `apple` keeps the
  * meaning the shipped iPhone app reads (Sign in with Apple native),
  * `apple_web` is Apple on the web, `google_native` the app's Google SDK. A

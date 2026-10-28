@@ -1,7 +1,7 @@
 // Settings › Delete account (Apple 5.1.1(v), Google Play's account deletion
 // policy), the phone's port of packages/views/settings/components/
 // delete-account-dialog.tsx: what erasure does, "Xác nhận là bạn" (a step-up
-// token for delete_account, ADR 0047 §5: the proof sheet, use-step-up.ts), POST
+// token for delete_account, ADR 0049 §5: the proof sheet, use-step-up.ts), POST
 // /api/v1/me/delete, then a sign-out that wipes everything the account left on
 // this phone (useAuthStore.accountDeleted). An owner closes the organization or hands it over first, a step the web's
 // dialog does not have (use-owner-step.ts, delete-account-owner.tsx). Mounted in the workspace's Settings tab and, with

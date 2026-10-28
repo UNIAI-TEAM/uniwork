@@ -12,7 +12,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
-// web_sign_in.go is where every browser provider sign-in ends (ADR 0047,
+// web_sign_in.go is where every browser provider sign-in ends (ADR 0049,
 // spec §3.4): the provider's callback hands the service's answer to
 // finishWebSignIn, which sets the cookie that answer needs and sends the
 // browser on with a 303. Every target is built with url.Values, so the

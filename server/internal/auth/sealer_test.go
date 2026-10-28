@@ -7,7 +7,7 @@ import (
 )
 
 // A blob the server hands a client is good for the one purpose it was sealed
-// for (ADR 0047): a sign-in ticket never opens as a step-up token, an OAuth
+// for (ADR 0049): a sign-in ticket never opens as a step-up token, an OAuth
 // state cookie never as a link token, and neither opens through the at-rest
 // Seal/Open key or the other way round.
 func TestSealedBlobsDoNotCrossPurposes(t *testing.T) {

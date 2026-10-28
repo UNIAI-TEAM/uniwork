@@ -12,7 +12,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
-// Step-up and Settings › Sign-in methods (ADR 0047 §5-6, spec §3.7). Every
+// Step-up and Settings › Sign-in methods (ADR 0049 §5-6, spec §3.7). Every
 // route here is the bearer's own account; the service judges the proof, the
 // session and the account, and the handler only shapes the answer.
 

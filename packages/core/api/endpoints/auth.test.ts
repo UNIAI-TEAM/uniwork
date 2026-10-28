@@ -171,7 +171,7 @@ describe("email verification and providers", () => {
       .mockResolvedValueOnce(json({ google: "yes", apple_web: true }))
       .mockResolvedValueOnce(json("nope"));
     expect(await authProviders()).toEqual({ google: true, apple: true, apple_web: true, google_native: false });
-    // A server from before ADR 0047 sends google alone: the new flags read as off.
+    // A server from before ADR 0049 sends google alone: the new flags read as off.
     expect(await authProviders()).toEqual({ ...off, google: true });
     expect(await authProviders()).toEqual({ ...off, apple_web: true });
     expect(await authProviders()).toEqual(off);
@@ -195,7 +195,7 @@ describe("email verification and providers", () => {
       expect(body).toEqual({ mfa_token: "", code: "123456" });
     });
 
-    it("keeps the pending sign-in only when asked (ADR 0047 link mode)", async () => {
+    it("keeps the pending sign-in only when asked (ADR 0049 link mode)", async () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce(json({ user, access_token: "t" }))
         .mockResolvedValueOnce(json({ user, access_token: "t" }))
@@ -249,7 +249,7 @@ describe("email verification and providers", () => {
       expect(await mfaConfirm("123456", "su-1")).toEqual(["a-b", "c-d"]);
       vi.mocked(fetch).mockResolvedValueOnce(json({ recovery_codes: "oops" }));
       expect(await mfaConfirm("123456", "su-1")).toEqual([]);
-      // Turning the second factor on is a sensitive command (ADR 0047 §5): both steps carry the step-up token.
+      // Turning the second factor on is a sensitive command (ADR 0049 §5): both steps carry the step-up token.
       const bodies = vi.mocked(fetch).mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as Record<string, unknown>);
       expect(bodies[0]).toEqual({ step_up_token: "su-1" });
       expect(bodies[2]).toEqual({ code: "123456", step_up_token: "su-1" });

@@ -1,4 +1,4 @@
--- A code proves the mailbox for one purpose (ADR 0047): verify_email, or a
+-- A code proves the mailbox for one purpose (ADR 0049): verify_email, or a
 -- step_up proof whose action names what it allows. Every read and the delete
 -- name the purpose, so a code mailed for one never answers the other.
 

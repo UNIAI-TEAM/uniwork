@@ -2,7 +2,7 @@
 
 > **Trạng thái:** in-progress
 
-Quyết định: [ADR 0047](../../adr/0047-dang-nhap-thong-nhat-tren-moi-nen-tang.md). Spec này là hợp đồng giữa server,
+Quyết định: [ADR 0049](../../adr/0049-dang-nhap-thong-nhat-tren-moi-nen-tang.md). Spec này là hợp đồng giữa server,
 web và mobile: tên route, hình JSON, mã lỗi, luồng, màn hình và test. Đổi hợp đồng thì sửa spec trong cùng PR. Bản 2
 (2026-10-27) đã qua ba vòng phản biện độc lập (bảo mật, sản phẩm, luật repo); các mục đánh dấu ⚑ là chỗ phản biện đổi
 thiết kế.
@@ -506,7 +506,7 @@ chỉ ghi `user` vào phiên khi parse đúng, không thì gọi lại `/me` (kh
 
 - `PUT /me/password`: có mật khẩu và **không** bật MFA → `current_password` là bằng chứng (không cần token, nhưng phiên
   của bearer phải còn sống: `401 invalid_token`); chưa có mật khẩu, hay ⚑ (phản biện lát 5) bật MFA → `step_up_token`
-  (bật MFA thì `proof_required` với proofs `[totp]`: "bật hai lớp thì chỉ yếu tố đó", ADR 0047 §5).
+  (bật MFA thì `proof_required` với proofs `[totp]`: "bật hai lớp thì chỉ yếu tố đó", ADR 0049 §5).
 - ⚑ (phản biện lát 5) Mọi lệnh phương thức đăng nhập (`PUT /me/password`, liên kết từ Cài đặt/app/vé, gỡ, bật MFA) xét
   lại bearer **dưới khoá hàng `users`** (`requireBearerUnderLock`: dấu `credentials_revoked_at`, phiên còn sống;
   liên kết từ trình duyệt xét lại cookie refresh): thu hồi, đổi mật khẩu, reset và gỡ khoá hàng đó trước khi thu hồi,
@@ -917,14 +917,14 @@ log/Sentry, bucket thử theo email, khoá bước hai.
 
 ## 6. Tài liệu đi kèm
 
-- `CLAUDE.md`: đoạn Sign in with Apple (Backend HTTP Rules) viết lại theo 0047 với tên test mới; câu redirect thêm
+- `CLAUDE.md`: đoạn Sign in with Apple (Backend HTTP Rules) viết lại theo 0049 với tên test mới; câu redirect thêm
   `web_sign_in.go`, `apple_web.go`; đoạn rate limit thêm ba bucket; API Compatibility thêm hai route "fail loudly".
-- `docs/adr/README.md` (0047), dòng Trạng thái của 0041.
+- `docs/adr/README.md` (0049), dòng Trạng thái của 0041.
 - `docs/conventions.md` §2: "phương thức đăng nhập" / sign-in method; "liên kết" / "gỡ liên kết" (link/unlink account —
   khác "gắn"); "Đặt mật khẩu" / "Đổi mật khẩu"; "xác thực hai lớp"; "Ẩn địa chỉ email" (Hide My Email); "bằng chứng"
   không lộ ra giao diện (giao diện nói "xác nhận là bạn"); Apple vào danh sách thương hiệu.
 - Chính sách quyền riêng tư + `store/listing.md` + test: Apple trên web, máy tính, Android; Google SDK trên app.
-- Owner action (ADR 0047): Services ID, OAuth client iOS/Android, **đăng ký domain gửi mail với "Sign in with Apple for
+- Owner action (ADR 0049): Services ID, OAuth client iOS/Android, **đăng ký domain gửi mail với "Sign in with Apple for
   Email Communication" + SPF/DKIM** (không có thì mã step-up không tới được tài khoản relay).
 
 ## 7. Thứ tự giao

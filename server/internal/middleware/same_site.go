@@ -11,7 +11,7 @@ import (
 
 // SameSiteJSON guards the public routes that open a session or set a sign-in
 // cookie (login, register, the second factor, the password reset, the
-// sign-in ticket) against login CSRF (ADR 0047 §9): a page on another site
+// sign-in ticket) against login CSRF (ADR 0049 §9): a page on another site
 // must not be able to sign the browser in to an account of its choosing, or
 // spend the browser's pending sign-in. It refuses
 //

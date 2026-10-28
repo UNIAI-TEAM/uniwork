@@ -124,7 +124,7 @@ type GetWebSessionStartRow struct {
 // When a browser session started (its first refresh token: rotation keeps
 // the session id and no row is ever deleted) and whether any of its tokens
 // is still live. A sign-in ticket links only into a session that started
-// after the ticket was issued (ADR 0047).
+// after the ticket was issued (ADR 0049).
 func (q *Queries) GetWebSessionStart(ctx context.Context, arg GetWebSessionStartParams) (GetWebSessionStartRow, error) {
 	row := q.db.QueryRow(ctx, getWebSessionStart, arg.UserID, arg.SessionID)
 	var i GetWebSessionStartRow

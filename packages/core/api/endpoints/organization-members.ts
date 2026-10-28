@@ -157,7 +157,7 @@ export async function revokeOrgInvitation(orgSlug: string, invitationId: string)
 
 /**
  * Handing the organization to somebody else. The current owner proves it is
- * them with a step-up token (ADR 0047 §5), because this is the one change
+ * them with a step-up token (ADR 0049 §5), because this is the one change
  * they cannot undo alone afterwards; an empty one is answered with
  * proof_required naming the proofs the account takes.
  */

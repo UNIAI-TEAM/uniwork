@@ -177,7 +177,7 @@ describe("SecurityTab", () => {
 });
 
 /**
- * Turning two-factor on is proved first (ADR 0047 §5, spec §4.5): through the
+ * Turning two-factor on is proved first (ADR 0049 §5, spec §4.5): through the
  * shared proof dialog, once for the setup and the confirmation together, and
  * never read as "could not start the setup".
  */

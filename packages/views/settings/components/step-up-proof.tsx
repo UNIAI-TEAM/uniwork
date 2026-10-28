@@ -26,7 +26,7 @@ import { ForgotPasswordLink } from "./forgot-password-link";
 import { SettingsFieldError } from "./settings-layout";
 
 /**
- * "Xác nhận là bạn" (ADR 0047 §5, spec §4.5): the one dialog every sensitive
+ * "Xác nhận là bạn" (ADR 0049 §5, spec §4.5): the one dialog every sensitive
  * command asks through — sign-in methods, turning on two-factor, deleting the
  * account, handing an organization over. A command does not open it itself:
  * it asks useStepUpGate(), which runs the command at once while a held token

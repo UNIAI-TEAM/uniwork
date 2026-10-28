@@ -19,7 +19,7 @@ import { ContinueSkeleton, PILL_LINK, TicketLoadError, useProviderName } from ".
 import { ProviderPillFace, providerPillClass, providerStartUrl } from "./social-sign-in";
 
 /**
- * /auth/continue (ADR 0047 §2c, spec §4.3): where a Google or Apple sign-in
+ * /auth/continue (ADR 0049 §2c, spec §4.3): where a Google or Apple sign-in
  * that found no account lands, with its pending sign-in in an HttpOnly
  * cookie the page only asks the server about. `step="link"` is the link
  * step a sign-in in link mode comes back to.

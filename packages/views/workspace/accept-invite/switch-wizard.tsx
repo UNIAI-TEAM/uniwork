@@ -23,7 +23,7 @@ import { ConfirmStepBody, ConflictStepBody, StepHeading, SwitchProgress, conflic
  * inside the page's AuthShell, whose title names the destination.
  *
  * Handing an organization over is the one step its owner cannot undo
- * alone, so a switch that does it is proved first (ADR 0047 §5): the shared
+ * alone, so a switch that does it is proved first (ADR 0049 §5): the shared
  * "Xác nhận là bạn" dialog opens on "Chuyển sang …", unless a step-up token
  * from the last ten minutes serves, and the accept carries the token
  * (withTransferProof). A token the server no longer takes brings the dialog

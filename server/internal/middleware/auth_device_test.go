@@ -101,7 +101,7 @@ func TestRequireAuthWithDeviceSkipsTheLookupForWebSessions(t *testing.T) {
 // Both bearer middlewares put the verified token on the context, iat and the
 // browser mark included, so a sensitive command can refuse a browser token
 // older than the account's credentials_revoked_at without a read per
-// request (ADR 0047).
+// request (ADR 0049).
 func TestBearerMiddlewaresPutTheAccessTokenOnTheContext(t *testing.T) {
 	minter := auth.TokenMinter{Secret: []byte("test-secret"), TTL: time.Minute}
 	web, err := minter.MintWebSession("user-1", "sess-1")

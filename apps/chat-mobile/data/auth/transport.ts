@@ -7,7 +7,7 @@ import { SIGN_IN_VERDICTS, fieldsOf, type SignInVerdict, type TransportErrorFiel
 
 /**
  * HTTP client for the four UniWork native auth routes and, through createAuthRequest (endpoint-request.ts for core's
- * factories), the doors of the app's own sign-in screen (ADR 0047 §8) and /auth/providers. The only URLs it can build
+ * factories), the doors of the app's own sign-in screen (ADR 0049 §8) and /auth/providers. The only URLs it can build
  * are `apiUrl` + one of the routes below; responses are parsed strictly from the server's snake_case DTOs and fail
  * closed on a missing or mistyped field.
  */

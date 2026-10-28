@@ -41,7 +41,7 @@ func NewPasswordResetService(pool *pgxpool.Pool, q *db.Queries, a *AuthService, 
 }
 
 // Request mails a one-time link to the account at email. An account without
-// a password (it signs in with Google or Apple, ADR 0047 spec §3.7) gets the
+// a password (it signs in with Google or Apple, ADR 0049 spec §3.7) gets the
 // set-a-password variant: its provider sign-ins as buttons, and the same
 // link to set a first password, which Reset audits as auth.password_set.
 func (s *PasswordResetService) Request(ctx context.Context, email string) error {
@@ -129,13 +129,13 @@ func (s *PasswordResetService) Request(ctx context.Context, email string) error 
 // password must not outlive it), cancels every desktop and MCP consent still
 // open (one approved by whoever held the old password must not be redeemed
 // after it), marks credentials_revoked_at so the sensitive commands refuse a
-// browser token issued before (ADR 0047 §5), and returns a fresh session so
+// browser token issued before (ADR 0049 §5), and returns a fresh session so
 // the user lands in the app. On an account that had no password the link
 // sets its first one: auth.password_set instead of auth.password_changed,
 // both via reset_token.
 //
 // On an account that never proved its address the link is the first proof
-// of the mailbox, so the reset takes the account back (ADR 0047 §2, spec
+// of the mailbox, so the reset takes the account back (ADR 0049 §2, spec
 // §3.1): reclaimMailbox clears what whoever registered it left — their
 // second factor and recovery codes, every provider link, every session —
 // and verifies the address, the new password is set, the owner is mailed,

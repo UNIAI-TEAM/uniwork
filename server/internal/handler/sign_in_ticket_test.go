@@ -349,7 +349,7 @@ func TestSignInsAndSignOutDropThePendingTicket(t *testing.T) {
 	}
 }
 
-// Login CSRF (ADR 0047 §9): every public route that opens a session or
+// Login CSRF (ADR 0049 §9): every public route that opens a session or
 // spends a sign-in ticket refuses what another site can make a browser
 // send — a request marked Sec-Fetch-Site: cross-site (403
 // cross_site_request) and a body that is not JSON, a form among them (415) —
@@ -372,7 +372,7 @@ func TestCredentialRoutesRefuseCrossSiteForms(t *testing.T) {
 		{http.MethodPost, "/api/v1/auth/sign-in-ticket/claim-email", ""},
 		{http.MethodPost, "/api/v1/auth/sign-in-ticket/claim-email/verify", ""},
 		{http.MethodPost, "/api/v1/auth/sign-in-ticket/link", token},
-		// The app's doors (ADR 0047 §8): the app posts JSON and sends no
+		// The app's doors (ADR 0049 §8): the app posts JSON and sends no
 		// fetch metadata, so only another site's forms are refused.
 		{http.MethodPost, "/api/v1/auth/native/password", ""},
 		{http.MethodPost, "/api/v1/auth/native/mfa", ""},

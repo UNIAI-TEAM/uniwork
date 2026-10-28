@@ -81,7 +81,7 @@ afterEach(() => {
   qc.clear();
 });
 
-describe("sign-in hooks in link mode (ADR 0047)", () => {
+describe("sign-in hooks in link mode (ADR 0049)", () => {
   it("pass keepSignInTicket through login, the second factor and a reset", async () => {
     vi.mocked(auth.login).mockResolvedValueOnce({ mfa_required: true, mfa_token: "chal" });
     vi.mocked(auth.verifyMfa).mockResolvedValueOnce({ user, access_token: "t", link_skipped: "sign_in_method_taken" });

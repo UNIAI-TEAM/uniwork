@@ -1,4 +1,4 @@
--- Unified sign-in (ADR 0047): one set of sign-in methods on every platform.
+-- Unified sign-in (ADR 0049): one set of sign-in methods on every platform.
 --
 -- users: the provider address each link was made with, when it was made, and
 -- the subject the owner unlinked (an unlinked identity is never relinked by

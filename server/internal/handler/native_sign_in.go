@@ -9,7 +9,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
-// The app's own sign-in screen (ADR 0047 §8, spec §3.6): /api/v1/auth/native/*
+// The app's own sign-in screen (ADR 0049 §8, spec §3.6): /api/v1/auth/native/*
 // and the app's Settings links. Every answer is no-store; the service holds
 // the app to the native client allowlist and judges every token, ticket and
 // code, and the handler only shapes NativeSignInSDO.

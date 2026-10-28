@@ -1,4 +1,4 @@
-// MobileSession.loginWith: a sign-in that issues the session without the browser (the app's sign-in doors, ADR 0047).
+// MobileSession.loginWith: a sign-in that issues the session without the browser (the app's sign-in doors, ADR 0049).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryStorage, fail, fakeSession, resetFakeSessions, setup, stored } from "./fakes";
 import type { SignInStep } from "./sign-in-step";

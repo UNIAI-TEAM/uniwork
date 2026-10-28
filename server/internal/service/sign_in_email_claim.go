@@ -19,7 +19,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// "I was invited with another address" (ADR 0047 §2c, spec §3.2): a person
+// "I was invited with another address" (ADR 0049 §2c, spec §3.2): a person
 // whose Apple ID or Google account carries a personal address was invited at
 // their work address. A six-digit code mailed to the address they type
 // proves that mailbox; the identity then joins the account the address

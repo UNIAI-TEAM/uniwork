@@ -278,7 +278,7 @@ describe("mobile auth transport", () => {
   });
 });
 
-// The app's sign-in doors (ADR 0047 §8) answer refusals the screen reads by code and a few fields
+// The app's sign-in doors (ADR 0049 §8) answer refusals the screen reads by code and a few fields
 // (core's auth/sign-in-errors.ts): a masked holder, the proofs, the seconds to wait.
 describe("refusals of the sign-in doors", () => {
   const door = (status: number, body: unknown, headers: Record<string, string> = {}) =>

@@ -106,7 +106,7 @@ const (
 	ActionAuthLoginFailed            = "auth.login_failed"
 	ActionAuthPasswordResetRequested = "auth.password_reset_requested"
 	ActionAuthPasswordChanged        = "auth.password_changed"
-	// The account's first password (ADR 0047): metadata.via is settings (a
+	// The account's first password (ADR 0049): metadata.via is settings (a
 	// step-up, signed in) or reset_token (the set-a-password mail an account
 	// without one gets from forgot password). A later one is
 	// auth.password_changed, with the same via values.
@@ -120,7 +120,7 @@ const (
 	ActionAuthDesktopSessionRevoked   = "auth.desktop_session_revoked"
 	ActionAuthMFAEnabled              = "auth.mfa_enabled"
 	ActionAuthMFADisabled             = "auth.mfa_disabled"
-	// A Google or Apple identity now opens the account (ADR 0047); metadata
+	// A Google or Apple identity now opens the account (ADR 0049); metadata
 	// names the provider and how: email_match, reclaim (the mailbox's owner
 	// took back an account registered before the address was proved),
 	// ticket (the choice screen's "I already have an account"), email_claim
@@ -128,7 +128,7 @@ const (
 	// account for this one), settings (the owner linked it from Settings,
 	// with a step-up).
 	ActionAuthSignInMethodLinked = "auth.sign_in_method_linked"
-	// A Google or Apple identity no longer opens the account (ADR 0047);
+	// A Google or Apple identity no longer opens the account (ADR 0049);
 	// metadata names the provider and how: settings (the owner unlinked it,
 	// with a step-up), move (the person who proved the identity moved it into
 	// another account and this empty one was erased).

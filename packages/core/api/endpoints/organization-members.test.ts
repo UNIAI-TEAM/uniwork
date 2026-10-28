@@ -128,7 +128,7 @@ describe("organization member endpoints", () => {
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).not.toContain("su-1");
   });
 
-  it("transferOwnership sends the step-up token as the owner's proof (ADR 0047 §5)", async () => {
+  it("transferOwnership sends the step-up token as the owner's proof (ADR 0049 §5)", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ member: { user_id: 1 } }));
     await transferOwnership("acme", "u2", "su-1");
     expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toEqual({ to_user_id: "u2", step_up_token: "su-1" });

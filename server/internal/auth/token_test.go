@@ -80,7 +80,7 @@ func TestMFATokenNeverPassesAsAccessToken(t *testing.T) {
 }
 
 // A challenge names its channel, the native client and deployment, and the
-// pending link (ADR 0047 §4); a token minted before channels existed reads
+// pending link (ADR 0049 §4); a token minted before channels existed reads
 // as web, and a channel the server never mints is refused at minting.
 func TestMFAChallengeCarriesItsChannelAndPendingLink(t *testing.T) {
 	m := TokenMinter{Secret: []byte("test-secret"), TTL: time.Minute}
@@ -99,7 +99,7 @@ func TestMFAChallengeCarriesItsChannelAndPendingLink(t *testing.T) {
 	if c != want {
 		t.Fatalf("ParseMFA(native) = %+v, want %+v", c, want)
 	}
-	// The shape every challenge had before ADR 0047: no chn, cid, dep or pl.
+	// The shape every challenge had before ADR 0049: no chn, cid, dep or pl.
 	issued := time.Now().Truncate(time.Second)
 	legacy, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
 		Subject: "u2", Audience: jwt.ClaimStrings{mfaAudience},

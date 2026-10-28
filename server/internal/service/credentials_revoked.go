@@ -40,7 +40,7 @@ func markCredentialsRevoked(ctx context.Context, q *db.Queries, userID string) e
 	})
 }
 
-// requireCurrentCredentials is the gate of the sensitive commands (ADR 0047
+// requireCurrentCredentials is the gate of the sensitive commands (ADR 0049
 // §5, spec §3.7: step-up and every command that takes its token, the
 // sign-in method commands, desktop and MCP consent): a browser access token
 // issued before its account's credentials_revoked_at is refused

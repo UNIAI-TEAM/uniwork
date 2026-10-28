@@ -22,17 +22,17 @@ const (
 	// A sign-in from a browser the account has never used (F-01), or a new
 	// phone session on an account that already had one (ADR 0041).
 	KindNewLogin = "new_login"
-	// A way into the account changed (ADR 0047): a provider linked, unlinked
+	// A way into the account changed (ADR 0049): a provider linked, unlinked
 	// or moved, the account taken back by its mailbox's owner, the password
 	// set or changed, the second factor locked after repeated guesses. It
 	// replaces apple_linked, which only told of an Apple link.
 	KindSignInMethodChanged = "sign_in_method_changed"
 	// The code that proves an address typed during a provider sign-in no
-	// account matched ("I was invited with another address", ADR 0047). The
+	// account matched ("I was invited with another address", ADR 0049). The
 	// address may have no account, so the mail names no user.
 	KindSignInEmailClaim = "sign_in_email_claim"
 	// The code that proves, from a session already signed in, that the
-	// account's owner is at the keyboard for one sensitive action (ADR 0047
+	// account's owner is at the keyboard for one sensitive action (ADR 0049
 	// §5): it names the action, never verifies an address and is never the
 	// development code.
 	KindStepUpCode = "step_up_code"

@@ -44,7 +44,7 @@ type AppleClaims struct {
 	// code exchange and the revoke use.
 	Audience string
 	// IssuedAt is the token's iat: a step-up takes only a token the app just
-	// got from Apple's sheet (ADR 0047 §5).
+	// got from Apple's sheet (ADR 0049 §5).
 	IssuedAt time.Time
 }
 
@@ -52,7 +52,7 @@ type AppleClaims struct {
 // signature against its JWKS (cached by the key set, refetched when a token
 // names a key it has not seen), iss, exp, an aud among its audiences, and a
 // nonce equal to SHA-256 (hex) of the raw nonce. The app's sheet and the web
-// each get their own verifier (ADR 0047 §7): the app's takes its bundle ids,
+// each get their own verifier (ADR 0049 §7): the app's takes its bundle ids,
 // the web's only the Services ID, so a token issued to one door is never
 // accepted at the other.
 type AppleVerifier struct {

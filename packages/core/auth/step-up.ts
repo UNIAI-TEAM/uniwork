@@ -8,7 +8,7 @@ import {
 } from "../api/endpoints/sign-in-schemas";
 
 /**
- * "Confirm it is you" (ADR 0047 §5, spec §3.7) as rules both platforms share.
+ * "Confirm it is you" (ADR 0049 §5, spec §3.7) as rules both platforms share.
  * A step-up token lives ten minutes, is bound to the session that bought it,
  * and is never persisted: the web keeps it in a memory store
  * (step-up-store.ts), the phone in its own, both built on these functions.
@@ -148,7 +148,7 @@ export interface ProofChoice {
  * Which proof to ask for first, and the alternatives. `proofs` is the
  * server's list (SignInMethodsSDO.proofs, or proof_required's fields.proofs),
  * and when it names a proof this client knows it decides: the server lists
- * the second factor alone while it is on (ADR 0047 §5), and the account's
+ * the second factor alone while it is on (ADR 0049 §5), and the account's
  * own state may be older than the list (2FA turned on or off on another
  * device). A list older than the account's state costs one round trip at
  * most: the server refuses the proof with proof_required and the list it

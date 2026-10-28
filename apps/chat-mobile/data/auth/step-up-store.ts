@@ -1,4 +1,4 @@
-// "Xác nhận là bạn" on the phone (ADR 0047 §5, spec §3.7): the ten-minute step-up token a proof bought, held in memory
+// "Xác nhận là bạn" on the phone (ADR 0049 §5, spec §3.7): the ten-minute step-up token a proof bought, held in memory
 // only, for one account's commands on this device session; core's auth/step-up.ts holds the rules (which actions a
 // token serves, its local deadline, which proof to ask first). Never persisted: gone on sign-out and with the session
 // (sign-in.ts › forgetSignIn), and it never serves another account (each read names the account in). A mailed code's

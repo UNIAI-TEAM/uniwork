@@ -370,7 +370,7 @@ describe("every VoIP push is reported to CallKit (ios/CallCenter.swift)", () => 
   });
 });
 
-// ADR 0047 §8: the server refuses a Google ID token whose `nonce` is not SHA-256 of the raw nonce it is sent, so each
+// ADR 0049 §8: the server refuses a Google ID token whose `nonce` is not SHA-256 of the raw nonce it is sent, so each
 // half must hand Google the hash it is given (the public @react-native-google-signin package passes none). Nothing on
 // a developer machine compiles Swift or Kotlin: the shape is held here, the binary by mobile-verify's native builds.
 describe("Sign in with Google hands Google the nonce (modules/unichat-google-sign-in)", () => {

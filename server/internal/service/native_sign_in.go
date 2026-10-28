@@ -16,7 +16,7 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// The app's own sign-in screen (ADR 0047 §1, §8; spec §3.6): email and
+// The app's own sign-in screen (ADR 0049 §1, §8; spec §3.6): email and
 // password, the second factor, Google through its SDK, Apple through the
 // iPhone's sheet, sign-up by email, and the choice screen of a provider
 // sign-in that found no account — all inside the app, with the browser's
@@ -381,7 +381,7 @@ func appleTokenReason(err error) string {
 }
 
 // providerSignIn is the app's provider sign-in once the token passed (ADR
-// 0047 §2), resolveIdentity's answer acted on in one transaction, as the
+// 0049 §2), resolveIdentity's answer acted on in one transaction, as the
 // browser's webProviderSignIn does:
 //
 //   - matched: the device session; with a second factor on the account, the

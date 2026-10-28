@@ -1,4 +1,4 @@
-// The Apple and Google buttons above the email form of the sign-in and register screens (ADR 0047, spec §5.2), then
+// The Apple and Google buttons above the email form of the sign-in and register screens (ADR 0049, spec §5.2), then
 // "hoặc dùng email". Each provider is offered as the server and this phone allow (data/queries/sign-in.ts): its own
 // sheet, or the browser with the provider hint, or not at all. On an iPhone, Apple's system button comes first
 // (Apple's HIG; Apple 4.8 since Google is offered); on Android, Google first and Apple as a black or white pill that
