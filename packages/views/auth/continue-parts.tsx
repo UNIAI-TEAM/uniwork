@@ -202,6 +202,17 @@ export function ContinueSkeleton({ shape = "rows" }: { shape?: "rows" | "pills" 
                   <Skeleton className="size-4 rounded-full" />
                 </div>
               ))}
+              {/* The terms line under "Tạo tài khoản mới": two caption lines
+                  at the column's width, so the card does not grow when the
+                  choices land. */}
+              <div className="flex flex-col items-center">
+                <div className="flex h-4 w-full items-center justify-center">
+                  <Skeleton className="h-3 w-4/5" />
+                </div>
+                <div className="flex h-4 w-full items-center justify-center">
+                  <Skeleton className="h-3 w-2/5" />
+                </div>
+              </div>
             </div>
             <Skeleton className="h-5 w-16 self-center" />
           </>
