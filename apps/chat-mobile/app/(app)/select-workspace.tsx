@@ -5,11 +5,12 @@
 // keeps the legal pages and account deletion reachable without a workspace.
 // A Hide My Email account (ADR 0041) hears why an invitation to its work email misses it (lib/apple-relay.ts).
 // "No workspace" only once the server answered with none: a list not answered
-// yet waits for the network, with Retry (components/workspace/use-workspace-list.ts).
+// yet waits for the network, with Retry (components/workspace/use-workspace-list.ts). An account whose address is not
+// proved yet sees no workspace: it proves it first (app/(app)/verify-email.tsx).
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import type { Workspace } from "@uniwork/core/types/workspace";
-import { router } from "expo-router";
+import { Redirect, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,6 +24,7 @@ import { useAuthStore } from "@/data/auth/store";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { isAppleRelayAddress } from "@/lib/apple-relay";
 import { accountRoutes } from "@/lib/chat-routes";
+import { signInRoutes } from "@/lib/sign-in-routes";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { badgeText, unreadOfWorkspace } from "@/lib/workspace-unread";
@@ -34,6 +36,7 @@ export default function SelectWorkspace() {
   const { colorScheme } = useColorScheme();
   const logout = useAuthStore((s) => s.logout);
   const email = useAuthStore((s) => s.user?.email ?? "");
+  const unverified = useAuthStore((s) => s.user?.email_verified_at === null);
   const setCurrent = useWorkspaceStore((s) => s.setCurrent);
   const { data, view, retry } = useWorkspaceList();
   const summary = useQuery(unreadSummaryOptions());
@@ -44,6 +47,7 @@ export default function SelectWorkspace() {
   };
 
   const organization = data?.[0]?.organization_name;
+  if (unverified) return <Redirect href={signInRoutes.verifyEmail} />;
 
   return (
     <SafeAreaView className="flex-1 bg-background">

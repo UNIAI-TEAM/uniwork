@@ -1,5 +1,6 @@
 // The account's own commands: delete it, sign another device out, answer the
-// AI notice, prove its address with the mailed code, show or hide message text in pushes (push for this device is push.ts, to keep expo-notifications out
+// AI notice, prove its address with the mailed code,
+// show or hide message text in pushes (push for this device is push.ts, to keep expo-notifications out
 // of the screens that only need these). See command.ts for the layer's rule.
 import { DELETE_ACCOUNT_HANDLED_CODES, type DeleteAccountBody } from "@/lib/account-deletion";
 import { CLOSE_ORGANIZATION_HANDLED_CODES, type CloseOrganizationBody } from "@/lib/owned-organization";

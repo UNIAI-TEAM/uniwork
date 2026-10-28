@@ -1,18 +1,22 @@
 // The app's own sign-in screens as the router runs them (spec §5.2): the sign-in screen with its providers and its
 // form, the second factor, the choice screen and its "invited with another address" steps, link mode and the link
-// step. The auth store's login is
+// step, the register screen, and the verification an account owes before any workspace. The auth store's login is
 // a stand-in that answers as each door would (data/auth/sign-in.ts has its own tests); what it is asked, where the
 // router lands and what the screen says are what these hold.
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { Text } from "react-native";
 import AppLayout from "@/app/(app)/_layout";
+import AccountSettings from "@/app/(app)/account";
 import LinkSignIn from "@/app/(app)/link-sign-in";
 import SelectWorkspace from "@/app/(app)/select-workspace";
+import VerifyEmail from "@/app/(app)/verify-email";
 import AuthLayout from "@/app/(auth)/_layout";
 import Continue from "@/app/(auth)/continue";
 import Login from "@/app/(auth)/login";
 import SecondFactor from "@/app/(auth)/mfa";
+import Register from "@/app/(auth)/register";
 import Index from "@/app/index";
+import { accountApi } from "@/data/account-api";
 import { api } from "@/data/api";
 import { signInOffer } from "@/data/auth/flow";
 import { linkPendingTicket } from "@/data/auth/methods-api";
@@ -58,9 +62,12 @@ const ROUTES = {
   "(auth)/login": Login,
   "(auth)/mfa": SecondFactor,
   "(auth)/continue": Continue,
+  "(auth)/register": Register,
   "(app)/_layout": AppLayout,
   "(app)/select-workspace": SelectWorkspace,
+  "(app)/verify-email": VerifyEmail,
   "(app)/link-sign-in": LinkSignIn,
+  "(app)/account": AccountSettings,
   "(app)/[org]/[ws]/chat": ChatStandIn,
 };
 
@@ -361,5 +368,52 @@ describe("the link step", () => {
     await cleanup();
     await renderRoutes(ROUTES, "/link-sign-in");
     expect(screen.getByTestId("link-nothing")).toBeTruthy();
+  });
+});
+
+describe("a new account", () => {
+  it("signs up with the providers' sign_up and with the form, then proves the address before any workspace", async () => {
+    const login = answers({ kind: "dismissed" }, (request) => {
+      useAuthStore.setState({ user: { ...user, email: "moi@congty.vn", email_verified_at: null } as never });
+      expect(request).toEqual({ method: "register", email: "moi@congty.vn", password: "12345678", displayName: "Mới" });
+      return { kind: "dismissed" };
+    });
+    const verify = jest.spyOn(accountApi, "verifyEmail").mockResolvedValue({ ...user, email: "moi@congty.vn" } as never);
+    const routes = await renderRoutes(ROUTES, "/login");
+    await act(async () => fireEvent.press(await screen.findByTestId("login-register")));
+    expect(await screen.findByTestId("register-button")).toBeTruthy();
+    expect(screen.getByText(viText("mobile.sign_in.register.subtitle"))).toBeTruthy();
+    expect(screen.getByText("Apple 2")).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByTestId("google-sign-in")));
+    expect(login).toHaveBeenLastCalledWith({ method: "google", intent: "sign_up" });
+    await act(async () => fireEvent.changeText(screen.getByTestId("register-name"), "Mới"));
+    await act(async () => fireEvent.changeText(screen.getByTestId("register-email"), "moi@congty.vn"));
+    await act(async () => fireEvent.changeText(screen.getByTestId("register-password"), "1234567"));
+    await act(async () => fireEvent.press(screen.getByTestId("register-button")));
+    expect(screen.getByText(viText("settings.security.signInMethods.password.tooShort"))).toBeTruthy();
+    await act(async () => fireEvent.changeText(screen.getByTestId("register-password"), "12345678"));
+    await act(async () => fireEvent.press(screen.getByTestId("register-button")));
+    expect(await screen.findByTestId("verify-email-step")).toBeTruthy();
+    expect(routes.pathname()).toBe("/verify-email");
+    expect(screen.getByText(viText("auth.verify.subtitle", { email: "moi@congty.vn" }))).toBeTruthy();
+    await act(async () => fireEvent.changeText(screen.getByTestId("verify-code"), "246810"));
+    expect(verify).toHaveBeenCalledWith("246810");
+    await waitFor(() => expect(routes.pathname()).toBe("/select-workspace"));
+  });
+
+  it("keeps an unproved account out of the workspaces, and lets it reach Settings or sign out", async () => {
+    const logout = jest.fn(async () => undefined);
+    useAuthStore.setState({ user: { ...user, email_verified_at: null } as never, isLoading: false, logout });
+    jest.spyOn(accountApi, "verifyEmail").mockRejectedValue(Object.assign(new Error("x"), { name: "ApiError", status: 400, body: { error: { code: "invalid_code" } } }));
+    const routes = await renderRoutes(ROUTES, "/select-workspace");
+    expect(await screen.findByTestId("verify-email-step")).toBeTruthy();
+    expect(routes.pathname()).toBe("/verify-email");
+    await act(async () => fireEvent.changeText(screen.getByTestId("verify-code"), "000000"));
+    expect(screen.getByText(viText("auth.verify.invalidCode"))).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByTestId("verify-logout")));
+    expect(logout).toHaveBeenCalled();
+    await act(async () => fireEvent.press(screen.getByTestId("verify-settings")));
+    expect(await screen.findByTestId("settings-delete-account")).toBeTruthy();
+    expect(routes.pathname()).toBe("/account");
   });
 });

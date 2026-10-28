@@ -6,10 +6,12 @@ import { ActivityIndicator, View } from "react-native";
 import { useAuthStore } from "@/data/auth/store";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { deepLinkHref, takePendingDeepLink, type DeepLink } from "@/lib/deep-link";
+import { signInRoutes } from "@/lib/sign-in-routes";
 
 /**
  * Entry redirect, after AuthInitializer restored the workspace and the session:
  *   no user                → /login
+ *   address not proved yet  → /verify-email (no workspace before it, as the web's /verify)
  *   a link waited for login → that chat
  *   no workspace            → /select-workspace
  *   else                    → /{org}/{ws}/chat
@@ -21,7 +23,9 @@ export default function Index() {
   const current = useWorkspaceStore((s) => s.current);
   // Taken once per mount: a Redirect re-renders, and the second take would be empty.
   const pending = useRef<DeepLink | null | undefined>(undefined);
-  if (!isLoading && user && pending.current === undefined) pending.current = takePendingDeepLink();
+  // Only the server's own null holds a person back (UserSchema reads an absent field as null too).
+  const verified = user?.email_verified_at !== null;
+  if (!isLoading && user && verified && pending.current === undefined) pending.current = takePendingDeepLink();
 
   if (isLoading) {
     return (
@@ -31,6 +35,7 @@ export default function Index() {
     );
   }
   if (!user) return <Redirect href="/login" />;
+  if (!verified) return <Redirect href={signInRoutes.verifyEmail} />;
   if (pending.current) return <Redirect href={deepLinkHref(pending.current)} />;
   if (!current) return <Redirect href="/select-workspace" />;
   return <Redirect href={`/${current.orgSlug}/${current.wsSlug}/chat`} />;
