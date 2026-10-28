@@ -332,10 +332,12 @@
           "c0c9a7ae41d024ebecc4eebc94917b2bb8a171347": "Paperless in-person meetings: when scheduling or starting a meeting now, choose In person. One device in the room clicks Start recording right in the browser, then End and send; the recording is transcribed, split by speaker, summarized, turned into suggested tasks and minutes, just like an uploaded recording. Audio is saved on the device as it records, so closing the tab, a flat battery or a lost connection does not lose what was recorded; once back online the rest is sent automatically, and the app warns you if you sign out with an unsent recording. In-person meetings have no UNI scribe; people who declined the invitation are suggested as absent in attendance."
         },
         "improvements": {
-          "ce4e631d6b566eeb4aa8e15e03668f517ce02a82d": "Pricing page: plan cards also show each plan's meeting transcription minutes. The feature comparison table only appears when plans really differ in at least three features, and it adds rows for Office AI (your own AI key, cloud AI tools)."
+          "ce4e631d6b566eeb4aa8e15e03668f517ce02a82d": "Pricing page: plan cards also show each plan's meeting transcription minutes. The feature comparison table only appears when plans really differ in at least three features, and it adds rows for Office AI (your own AI key, cloud AI tools).",
+          "c6fcf7fd13c09a42ca3e91fd1d4e256c1feb2e513": "Email Hub is faster: the message list loads lighter and scrolls more smoothly in long mailboxes; moving mail to another folder and snoozing respond right away, while the target folder syncs in the background. The message list stays in place while you read a message."
         },
         "fixes": {
-          "c4458af37e9a9c952f6a5a985672db59325e3da30": "Chat: a task created from a message that mentions someone now shows @Name in its title instead of the raw mention code, and the task card no longer overflows on long strings."
+          "c4458af37e9a9c952f6a5a985672db59325e3da30": "Chat: a task created from a message that mentions someone now shows @Name in its title instead of the raw mention code, and the task card no longer overflows on long strings.",
+          "cf0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf": "Documents: selecting several documents and downloading them as a zip no longer fails when saving the file; if the download fails, the app shows an error and does not save an empty file."
         }
       }
     }

@@ -3,7 +3,7 @@
   "version": "1.12.0",
   "date": "2026-10-28",
   "ready": true,
-  "sourceRef": "cb4a1b02e899a7e3113bdde358c2a9ce8f92e962",
+  "sourceRef": "d29327318a22ff5d852d4713d8bd291556f78e04",
   "previousSourceRef": "ad0a7e7d964c14765e525e02083097d1eb8721e4",
   "title": {
     "vi": "Họp trực tiếp có ghi âm và biên bản, Hỏi UNI tạo tệp Office từ mẫu, link mời dùng nhiều lần",
@@ -342,6 +342,36 @@
       "evidence": {
         "kind": "pr",
         "url": "https://github.com/UNIAI-TEAM/uniwork/pull/505"
+      }
+    },
+    {
+      "commit": "6fcf7fd13c09a42ca3e91fd1d4e256c1feb2e513",
+      "subject": "fix(email-hub): tăng tốc list, move và UI đọc thư",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Email Hub nhanh hơn: danh sách thư tải nhẹ hơn và cuộn mượt hơn khi hộp thư dài; chuyển thư sang thư mục khác và tạm ẩn thư phản hồi ngay, còn thư mục đích được đồng bộ ở chế độ nền. Danh sách thư được giữ nguyên khi bạn mở đọc một thư.",
+        "en": "Email Hub is faster: the message list loads lighter and scrolls more smoothly in long mailboxes; moving mail to another folder and snoozing respond right away, while the target folder syncs in the background. The message list stays in place while you read a message."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/506"
+      }
+    },
+    {
+      "commit": "f0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf",
+      "subject": "UNI-2271: fetch the Documents bulk zip with the bearer instead of navigating to its route (#507)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tài liệu: chọn nhiều tài liệu rồi tải về thành tệp zip không còn bị lỗi khi lưu tệp; nếu tải không được, app báo lỗi và không lưu tệp rỗng.",
+        "en": "Documents: selecting several documents and downloading them as a zip no longer fails when saving the file; if the download fails, the app shows an error and does not save an empty file."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/507"
       }
     }
   ]

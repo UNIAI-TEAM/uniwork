@@ -332,10 +332,12 @@
           "c0c9a7ae41d024ebecc4eebc94917b2bb8a171347": "Họp trực tiếp không cần giấy: khi lên lịch hoặc họp ngay, chọn hình thức Trực tiếp. Một máy trong phòng bấm Bắt đầu ghi âm ngay trên trình duyệt, rồi Kết thúc và gửi; bản ghi được ghi lời, tách người nói, tóm tắt, đề xuất việc và lập biên bản như file ghi âm tải lên. Âm thanh được lưu dần trên máy nên đóng tab, hết pin hay mất mạng không làm mất phần đã ghi; có mạng lại thì phần còn lại tự gửi tiếp, và app nhắc nếu bạn đăng xuất khi còn bản ghi chưa gửi. Họp trực tiếp không có Thư ký UNI; người đã từ chối lời mời được gợi ý vắng mặt khi điểm danh."
         },
         "improvements": {
-          "ce4e631d6b566eeb4aa8e15e03668f517ce02a82d": "Trang Bảng giá: thẻ gói hiện thêm số phút ghi lời cuộc họp của gói. Bảng so sánh tính năng chỉ hiện khi các gói khác nhau thật ở ít nhất ba tính năng, và có thêm các dòng AI cho Office (khóa AI riêng, công cụ AI đám mây)."
+          "ce4e631d6b566eeb4aa8e15e03668f517ce02a82d": "Trang Bảng giá: thẻ gói hiện thêm số phút ghi lời cuộc họp của gói. Bảng so sánh tính năng chỉ hiện khi các gói khác nhau thật ở ít nhất ba tính năng, và có thêm các dòng AI cho Office (khóa AI riêng, công cụ AI đám mây).",
+          "c6fcf7fd13c09a42ca3e91fd1d4e256c1feb2e513": "Email Hub nhanh hơn: danh sách thư tải nhẹ hơn và cuộn mượt hơn khi hộp thư dài; chuyển thư sang thư mục khác và tạm ẩn thư phản hồi ngay, còn thư mục đích được đồng bộ ở chế độ nền. Danh sách thư được giữ nguyên khi bạn mở đọc một thư."
         },
         "fixes": {
-          "c4458af37e9a9c952f6a5a985672db59325e3da30": "Chat: công việc tạo từ tin nhắn có nhắc tên giờ hiện @Tên trong tiêu đề thay vì mã nhắc thô, và thẻ công việc không còn tràn khi có chuỗi dài."
+          "c4458af37e9a9c952f6a5a985672db59325e3da30": "Chat: công việc tạo từ tin nhắn có nhắc tên giờ hiện @Tên trong tiêu đề thay vì mã nhắc thô, và thẻ công việc không còn tràn khi có chuỗi dài.",
+          "cf0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf": "Tài liệu: chọn nhiều tài liệu rồi tải về thành tệp zip không còn bị lỗi khi lưu tệp; nếu tải không được, app báo lỗi và không lưu tệp rỗng."
         }
       }
     }
