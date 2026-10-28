@@ -164,6 +164,22 @@ describe("nextStepJobs", () => {
     it("draws nothing without one", () => {
       expect(nextStepJobs({ ...base, unsent: null })[0]).toMatchObject({ kind: "start" });
     });
+
+    it("past its planned end, an in-person meeting being recorded is not missed", () => {
+      // It stays SCHEDULED until it is recorded held, so the clock turns it MISSED mid-recording.
+      expect(nextStepJobs({ ...base, status: "MISSED", inPerson: true, canRecord: true, unsent })).toEqual([
+        { kind: "unsent", seconds: 2112, savedAt: 1_000, canContinue: true, canSend: true },
+      ]);
+    });
+  });
+
+  it("a clerk who starts an in-person meeting late may still record it", () => {
+    const secretary = { ...base, status: "MISSED" as const, viewer: "secretary" as const, canHost: false, inPerson: true };
+    expect(nextStepJobs({ ...secretary, canRecord: true })).toEqual([
+      { kind: "start", canStart: false, pendingNames: ["Minh Trần"], inPerson: true, canRecord: true },
+    ]);
+    // Nobody here can record: it reads as missed, as an online meeting does.
+    expect(nextStepJobs({ ...secretary, canRecord: false })[0]).toMatchObject({ kind: "missed" });
   });
 
   it("tells a member their own items: assigned, waiting and the nearest due", () => {
