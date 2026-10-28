@@ -69,8 +69,8 @@ describe("privacy policy", () => {
   });
 
   it("carries a machine-readable effective date", () => {
-    expect(guideContent("privacy", "en").effective?.dateTime).toBe("2026-10-23");
-    expect(guideContent("privacy", "vi").effective?.dateTime).toBe("2026-10-23");
+    expect(guideContent("privacy", "en").effective?.dateTime).toBe("2026-10-28");
+    expect(guideContent("privacy", "vi").effective?.dateTime).toBe("2026-10-28");
   });
 
   // Long provider names and descriptions overflowed the Office table's narrow middle column.
@@ -104,7 +104,14 @@ describe("privacy policy", () => {
     "Mã định danh trong báo cáo crash": { vi: ["mã người dùng UniWork"], en: ["your UniWork user id"] },
     "Xử lý AI (Anthropic, bên thứ ba)": { vi: ["Anthropic"], en: ["Anthropic"] },
     "Báo cáo vi phạm": { vi: ["Báo cáo và chặn"], en: ["Reports and blocking"] },
-    "Đăng nhập bằng Apple (chỉ iPhone)": { vi: ["Đăng nhập bằng Apple trên iPhone", "mã tài khoản Apple"], en: ["Sign in with Apple on iPhone", "Apple account id"] },
+    "Đăng nhập bằng Apple": {
+      vi: ["Đăng nhập bằng Apple (khi bạn chọn) trên web, máy tính, Android và iPhone", "mã tài khoản Apple", "email ẩn của Apple"],
+      en: ["Sign in with Apple (when you choose it) on the web, desktop, Android and iPhone", "Apple account id", "Apple's hidden email"],
+    },
+    "Đăng nhập bằng Google": {
+      vi: ["trong ứng dụng UniChat qua thư viện đăng nhập của Google", "mã tài khoản Google"],
+      en: ["in the UniChat app through Google's sign-in library", "Google account id"],
+    },
   };
 
   it("says what the store listing declares, row for row, in both languages", () => {
@@ -116,6 +123,21 @@ describe("privacy policy", () => {
         const text = JSON.stringify(guideContent("privacy", locale));
         for (const phrase of policyFor[row]![locale]) expect(text, `${locale}: ${row}`).toContain(phrase);
       }
+    }
+  });
+
+  // ADR 0047: every platform signs in with Google and Apple. The policy says what each provider hands over, that
+  // their passwords never reach us, and where their tokens go: Google's nowhere, Apple's (sealed) only back to Apple
+  // when the account is deleted (the revocation the deletion section promises). The phone's own sign-in screen
+  // keeps the typed password in memory only.
+  it("says what Google and Apple tell us, and that their sign-in tokens are never shared", () => {
+    for (const locale of ["en", "vi"] as const) {
+      const signIn = paragraphs(locale).find(paragraph => paragraph.startsWith(locale === "vi" ? "Đăng nhập bằng Google hoặc Apple" : "Signing in with Google or Apple"));
+      expect(signIn).toBeDefined();
+      expect(signIn).toContain(locale === "vi" ? "không bao giờ thấy mật khẩu của tài khoản đó" : "we never see that account's password");
+      expect(signIn).toContain(locale === "vi" ? "không được chia sẻ với ai" : "is never shared with anyone");
+      expect(signIn).toContain(locale === "vi" ? "báo Apple thu hồi khi bạn xóa tài khoản" : "ask Apple to revoke it when you delete your account");
+      expect(signIn).toContain(locale === "vi" ? "không được lưu trên máy" : "never stored on the device");
     }
   });
 
