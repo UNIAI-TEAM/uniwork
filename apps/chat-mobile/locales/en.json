@@ -1,7 +1,6 @@
 {
   "auth": {
     "desktop": {
-      "eyebrow": "Desktop sign-in",
       "title": "Allow {{app}} to sign in?",
       "description": "Check the app and device details before you continue. This approval only applies to this device.",
       "app": "App",
@@ -18,7 +17,7 @@
       "approved": "Allowed {{app}} to sign in",
       "cancelledResult": "Desktop sign-in was cancelled.",
       "errorResult": "Couldn't finish the desktop sign-in. Try again.",
-      "expired": "This desktop sign-in request has expired.",
+      "expired": "This request has expired. Go back to {{app}} and try again.",
       "openDesktop": "Open {{app}}",
       "closeTab": "You can close this tab.",
       "accountUnknown": "UniWork account",
@@ -41,13 +40,11 @@
       "details": "Details",
       "notYou": "Not you? Use another account",
       "phone": {
-        "eyebrow": "Phone sign-in",
         "title": "Allow {{app}} on this phone to sign in?",
         "approve": "Allow {{app}}",
         "resultTitle": "Phone sign-in result",
         "cancelledResult": "Phone sign-in was cancelled.",
-        "errorResult": "Couldn't finish signing in. Go back to {{app}} and try again.",
-        "expired": "This request has expired. Go back to {{app}} and try again."
+        "errorResult": "Couldn't finish signing in on this phone. Try again."
       }
     },
     "logout": "Log out"

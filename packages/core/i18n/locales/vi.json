@@ -424,7 +424,6 @@
       "privacy": "Chính sách quyền riêng tư"
     },
     "desktop": {
-      "eyebrow": "Đăng nhập desktop",
       "title": "Cho phép {{app}} đăng nhập?",
       "description": "Kiểm tra thông tin ứng dụng và thiết bị trước khi tiếp tục. Phê duyệt này chỉ có hiệu lực trên thiết bị này.",
       "app": "Ứng dụng",
@@ -441,7 +440,7 @@
       "approved": "Đã cho phép {{app}} đăng nhập",
       "cancelledResult": "Đã hủy đăng nhập desktop.",
       "errorResult": "Không thể hoàn tất đăng nhập desktop. Thử lại.",
-      "expired": "Yêu cầu đăng nhập desktop đã hết hạn.",
+      "expired": "Yêu cầu đã hết hạn. Quay lại {{app}} và thử lại.",
       "openDesktop": "Mở {{app}}",
       "closeTab": "Bạn có thể đóng tab này.",
       "accountUnknown": "Tài khoản UniWork",
@@ -464,13 +463,11 @@
       "details": "Chi tiết",
       "notYou": "Không phải bạn? Dùng tài khoản khác",
       "phone": {
-        "eyebrow": "Đăng nhập trên điện thoại",
         "title": "Cho phép {{app}} trên điện thoại này đăng nhập?",
         "approve": "Cho phép {{app}}",
         "resultTitle": "Kết quả đăng nhập trên điện thoại",
         "cancelledResult": "Đã hủy đăng nhập trên điện thoại.",
-        "errorResult": "Chưa hoàn tất được đăng nhập. Quay lại {{app}} và thử lại.",
-        "expired": "Yêu cầu đã hết hạn. Quay lại {{app}} và thử lại."
+        "errorResult": "Chưa hoàn tất được đăng nhập trên điện thoại. Thử lại."
       }
     },
     "connect": {

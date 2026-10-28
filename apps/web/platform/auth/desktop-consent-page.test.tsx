@@ -3,15 +3,19 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import Page from "../../app/(auth)/auth/desktop/authorize/page";
 
-const state = vi.hoisted(() => ({ status: "loading", search: "attempt_id=attempt-1", read: vi.fn(), command: vi.fn(), replace: vi.fn() }));
-vi.mock("@uniwork/core/auth", () => ({ useSession: () => ({ status: state.status }) }));
+const state = vi.hoisted(() => ({ status: "loading", search: "attempt_id=attempt-1", read: vi.fn(), command: vi.fn(), replace: vi.fn(), logout: vi.fn() }));
+vi.mock("@uniwork/core/auth", () => ({ useSession: () => ({ status: state.status }), useLogout: () => ({ mutateAsync: state.logout }) }));
 vi.mock("@uniwork/core", () => ({ api: { auth: { desktopConsent: (...args: unknown[]) => state.read(...args), desktopConsentCommand: (...args: unknown[]) => state.command(...args) } } }));
 vi.mock("@uniwork/views/navigation", () => ({ useNavigation: () => ({ searchParams: new URLSearchParams(state.search), replace: state.replace }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock("@uniwork/views/auth/desktop-consent", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@uniwork/views/auth/desktop-consent")>()),
-  DesktopConsentView: ({ state, callbackUrl, onDecision }: { state: string; callbackUrl?: string; onDecision: (decision: "approve" | "cancel") => Promise<void> }) => (
-    <div data-testid="consent-state" data-callback={callbackUrl ?? ""}>{state}<button type="button" data-testid="approve" onClick={() => void onDecision("approve")} /></div>
+  DesktopConsentView: ({ state, consent, callbackUrl, onDecision, onRetry, onSwitchAccount }: { state: string; consent: unknown; callbackUrl?: string; onDecision: (decision: "approve" | "cancel") => Promise<void>; onRetry: () => void; onSwitchAccount: () => Promise<void> }) => (
+    <div data-testid="consent-state" data-callback={callbackUrl ?? ""} data-loaded={consent ? "yes" : "no"}>{state}
+      <button type="button" data-testid="approve" onClick={() => void onDecision("approve")} />
+      <button type="button" data-testid="retry" onClick={onRetry} />
+      <button type="button" data-testid="not-you" onClick={() => void onSwitchAccount()} />
+    </div>
   ),
 }));
 
@@ -19,7 +23,7 @@ let root: Root;
 let container: HTMLDivElement;
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  state.status = "loading"; state.search = "attempt_id=attempt-1"; state.read.mockReset(); state.command.mockReset(); state.replace.mockReset(); sessionStorage.clear();
+  state.status = "loading"; state.search = "attempt_id=attempt-1"; state.read.mockReset(); state.logout.mockReset(); state.command.mockReset(); state.replace.mockReset(); sessionStorage.clear();
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
 });
 afterEach(() => { act(() => root.unmount()); container.remove(); });
@@ -94,4 +98,38 @@ it.each([
   expect(view?.textContent).toBe(expectedState);
   expect(view?.getAttribute("data-callback")).toBe(stored ?? "");
   expect(sessionStorage.getItem("desktop-callback:attempt-1")).toBe(stored);
+});
+
+it("hands the view its own loading shape instead of a bare status line", async () => {
+  state.status = "authed";
+  state.read.mockReturnValue(new Promise(() => {}));
+  await renderPage();
+  const view = container.querySelector('[data-testid="consent-state"]');
+  expect(view?.textContent).toBe("pending");
+  expect(view?.getAttribute("data-loaded")).toBe("no");
+});
+
+it("reads the attempt again on retry, showing the loading shape meanwhile", async () => {
+  state.status = "authed";
+  state.read.mockResolvedValueOnce(null);
+  await renderPage();
+  expect(container.querySelector('[data-testid="consent-state"]')?.textContent).toBe("error");
+  state.read.mockReturnValueOnce(new Promise(() => {}));
+  await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="retry"]')?.click(); });
+  expect(state.read).toHaveBeenCalledTimes(2);
+  expect(container.querySelector('[data-testid="consent-state"]')?.textContent).toBe("pending");
+});
+
+it("signs this browser out for someone else, who then signs in for the same attempt", async () => {
+  state.status = "authed";
+  state.search = "attempt_id=attempt-1&provider=apple";
+  state.read.mockResolvedValue({ status: "pending" });
+  state.logout.mockResolvedValue(undefined);
+  await renderPage();
+  await act(async () => { container.querySelector<HTMLButtonElement>('[data-testid="not-you"]')?.click(); });
+  expect(state.logout).toHaveBeenCalledTimes(1);
+  // The store drops to anon; the page sends the browser to sign in, hint and all.
+  state.status = "anon";
+  await renderPage();
+  expect(state.replace).toHaveBeenCalledWith("/login?next=%2Fauth%2Fdesktop%2Fauthorize%3Fattempt_id%3Dattempt-1&provider=apple");
 });

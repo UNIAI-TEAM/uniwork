@@ -92,7 +92,11 @@ export function AuthShell({
 }: {
   /** Absent while the screen is still resolving which one it is. */
   title?: string;
-  description?: string;
+  /**
+   * The line under the title. A node, so a screen whose title stays generic
+   * (a result) can make this line the live status that says what happened.
+   */
+  description?: ReactNode;
   /**
    * The title carries a name of any length (an organization's). On a phone
    * it steps down one size, so "Chuyển sang <a long name>" takes two lines

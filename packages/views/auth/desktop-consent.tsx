@@ -1,22 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, X } from "lucide-react";
+import { ChevronDown, Monitor, Smartphone } from "lucide-react";
 import type { DesktopConsent } from "@uniwork/core/api/endpoints/auth";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Bezel } from "../layout/brand-surface";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
+import { AUTH_PILL } from "./auth-controls";
+import { AuthShell } from "./auth-shell";
 
 export type DesktopConsentState = "pending" | "approved" | "cancelled" | "error" | "expired";
 
 type DesktopConsentProps = {
+  /** Null while the attempt is still loading (state pending), or when it could not be read. */
   consent: DesktopConsent | null;
   state?: DesktopConsentState;
   callbackUrl?: string;
   onDecision: (decision: "approve" | "cancel") => Promise<void>;
   onRetry?: () => void;
-  onBack?: () => void;
   onOpenDesktop?: () => void;
+  /** "Không phải bạn?": signs this browser out; the page then sends it to sign in again. */
+  onSwitchAccount?: () => Promise<void>;
 };
 
 // Server client ids (DESKTOP_AUTH_CLIENTS) to the product name the person installed; anything else shows the raw id.
@@ -27,47 +34,243 @@ function appName(clientId: string | undefined): string {
   return clientId;
 }
 
-export function DesktopConsentView({ consent, state = "pending", callbackUrl, onDecision, onRetry = () => undefined, onBack = () => undefined, onOpenDesktop = () => undefined }: DesktopConsentProps) {
+/**
+ * The phone app signs in through this page too (spec §3.5): its attempt
+ * carries the OS it runs on, and the page says "on this phone" instead of
+ * speaking of a desktop app the person does not have.
+ */
+function onPhone(platform: string | undefined): boolean {
+  const os = platform?.trim().toLowerCase();
+  return os === "ios" || os === "android";
+}
+
+/** One fact on the plane: what it is on the left, its value on the right. */
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-3">
+      <dt className="shrink-0 text-caption text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right text-body font-medium text-foreground [overflow-wrap:anywhere]">{children}</dd>
+    </div>
+  );
+}
+
+const PLANE = "flex flex-col divide-y divide-border/70 rounded-xl bg-muted/50 px-4 py-1";
+
+/**
+ * Who is asking and for whom: the app, the device and the account this
+ * browser is signed in as lead, because those are what the person checks
+ * before allowing. The server and build only matter when something looks
+ * wrong, so they wait behind "Chi tiết".
+ */
+function ConsentFacts({ consent, app, phone }: { consent: DesktopConsent; app: string; phone: boolean }) {
+  const { t } = useTranslation();
+  const Device = phone ? Smartphone : Monitor;
+  return (
+    <div className="flex flex-col gap-3">
+      <dl className={PLANE}>
+        <Fact label={t("auth.desktop.app")}>{app}</Fact>
+        <Fact label={t("auth.desktop.device")}>
+          <span className="inline-flex items-center gap-2">
+            <Device aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            {consent.device_label || consent.platform}
+          </span>
+        </Fact>
+        <Fact label={t("auth.desktop.account")}>
+          <span className="block">{consent.account_name || t("auth.desktop.accountUnknown")}</span>
+          <span className="block text-caption font-normal text-muted-foreground">
+            {consent.account_email || t("auth.desktop.emailUnknown")}
+          </span>
+        </Fact>
+      </dl>
+      <Collapsible>
+        <CollapsibleTrigger className="group inline-flex items-center gap-1.5 self-start rounded-md text-label font-medium text-muted-foreground transition-colors hover:text-foreground pointer-coarse:min-h-11">
+          <ChevronDown
+            aria-hidden
+            className="size-4 transition-transform duration-(--duration-fast) group-data-panel-open:rotate-180 motion-reduce:transition-none"
+          />
+          {t("auth.desktop.details")}
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <dl className={cn(PLANE, "mt-2")}>
+            <Fact label={t("auth.desktop.deployment")}>{consent.deployment_id}</Fact>
+            <Fact label={t("auth.desktop.build")}>{consent.build || t("auth.desktop.unknown")}</Fact>
+          </dl>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}
+
+/** The consent's own shape while the attempt loads, so nothing moves when it lands. */
+function ConsentSkeleton() {
+  return (
+    <div aria-hidden className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        <div className={PLANE}>
+          <div className="flex h-11 items-center justify-between gap-4">
+            <Skeleton className="h-3.5 w-16" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+          <div className="flex h-11 items-center justify-between gap-4">
+            <Skeleton className="h-3.5 w-14" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="flex h-16 items-center justify-between gap-4">
+            <Skeleton className="h-3.5 w-16" />
+            <div className="flex flex-col items-end gap-1.5">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-3.5 w-40" />
+            </div>
+          </div>
+        </div>
+        <Skeleton className="h-5 w-20" />
+      </div>
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-12 w-full rounded-full" />
+        <Skeleton className="h-12 w-full rounded-full" />
+        <Skeleton className="h-5 w-48 self-center" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The browser half of a desktop or phone app's sign-in: the app opened this
+ * page with an attempt, and the person signed in here allows it, or not. On
+ * the sign-in screens' own shell, since the person usually arrives straight
+ * from /login and the two should read as one flow.
+ *
+ * Every outcome is final for this attempt: allowed, cancelled and expired
+ * point back to the app, which starts a new one if needed; only a failure to
+ * read or send offers to try again here.
+ */
+export function DesktopConsentView({
+  consent,
+  state = "pending",
+  callbackUrl,
+  onDecision,
+  onRetry = () => undefined,
+  onOpenDesktop = () => undefined,
+  onSwitchAccount,
+}: DesktopConsentProps) {
   const { t } = useTranslation();
   const [pending, setPending] = useState<"approve" | "cancel" | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const busy = pending !== null || switching;
+
   async function decide(decision: "approve" | "cancel") {
+    // aria-disabled keeps the buttons in the tab order, so the guard is here.
+    if (busy) return;
     setPending(decision);
-    try { await onDecision(decision); } finally { setPending(null); }
+    try {
+      await onDecision(decision);
+    } finally {
+      setPending(null);
+    }
   }
+
+  async function switchAccount() {
+    if (busy || !onSwitchAccount) return;
+    setSwitching(true);
+    try {
+      await onSwitchAccount();
+    } finally {
+      setSwitching(false);
+    }
+  }
+
   const app = appName(consent?.client_id);
-  const resultCopy = state === "approved" ? t("auth.desktop.approved", { app }) : state === "cancelled" ? t("auth.desktop.cancelledResult") : state === "expired" ? t("auth.desktop.expired") : t("auth.desktop.errorResult");
+  const phone = onPhone(consent?.platform);
+  const copy = phone ? "auth.desktop.phone" : "auth.desktop";
+
+  if (state === "pending" && !consent) {
+    return (
+      <AuthShell>
+        <ConsentSkeleton />
+      </AuthShell>
+    );
+  }
+
+  if (state !== "pending") {
+    const result =
+      state === "approved"
+        ? t("auth.desktop.approved", { app })
+        : state === "cancelled"
+          ? t(`${copy}.cancelledResult`)
+          : state === "expired"
+            ? t("auth.desktop.expired", { app })
+            : t(`${copy}.errorResult`, { app });
+    return (
+      <AuthShell title={t(`${copy}.resultTitle`)} description={<span role="status">{result}</span>}>
+        {state === "error" ? (
+          <Button type="button" size="lg" className={AUTH_PILL} onClick={onRetry}>
+            {t("common.retry")}
+          </Button>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {state === "approved" && callbackUrl ? (
+              <Button type="button" size="lg" className={AUTH_PILL} onClick={onOpenDesktop}>
+                {t("auth.desktop.openDesktop", { app })}
+              </Button>
+            ) : null}
+            <p className="text-pretty text-caption text-muted-foreground">{t("auth.desktop.closeTab")}</p>
+          </div>
+        )}
+      </AuthShell>
+    );
+  }
+
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-app-shell p-6">
-      <Bezel>
-        <section aria-labelledby="desktop-consent-title" className="flex w-full max-w-xl flex-col gap-6 p-6 sm:p-9">
-          <div className="flex flex-col gap-2">
-            <p className="text-overline text-muted-foreground">{t("auth.desktop.eyebrow")}</p>
-            <h1 id="desktop-consent-title" className="font-display text-display font-bold text-foreground">{state === "pending" ? t("auth.desktop.title", { app }) : t("auth.desktop.resultTitle")}</h1>
-            {state === "pending" ? <p className="text-body text-muted-foreground">{t("auth.desktop.description")}</p> : <p role="status" className="text-body text-muted-foreground">{resultCopy}</p>}
-          </div>
-          {state === "pending" && consent ? <dl className="grid gap-3 rounded-xl border border-border/70 bg-surface p-4 text-body sm:grid-cols-2">
-            <div><dt className="text-muted-foreground">{t("auth.desktop.app")}</dt><dd className="break-words font-semibold">{app}</dd></div>
-            <div><dt className="text-muted-foreground">{t("auth.desktop.device")}</dt><dd className="break-words font-semibold">{consent.device_label || consent.platform}</dd></div>
-            <div><dt className="text-muted-foreground">{t("auth.desktop.account")}</dt><dd className="break-words font-semibold">{consent.account_name || t("auth.desktop.accountUnknown")}</dd><dd className="break-words text-caption text-muted-foreground">{consent.account_email || t("auth.desktop.emailUnknown")}</dd></div>
-            <div><dt className="text-muted-foreground">{t("auth.desktop.deployment")}</dt><dd className="break-words font-semibold">{consent.deployment_id}</dd></div>
-            <div><dt className="text-muted-foreground">{t("auth.desktop.build")}</dt><dd className="break-words font-semibold">{consent.build || t("auth.desktop.unknown")}</dd></div>
-          </dl> : null}
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            {state === "pending" ? <>
-            <Button type="button" variant="outline" disabled={pending !== null} onClick={() => void decide("cancel")}><X className="mr-2 size-4" aria-hidden />{t("common.cancel")}</Button>
-            <Button type="button" disabled={pending !== null} onClick={() => void decide("approve")}><Check className="mr-2 size-4" aria-hidden />{pending === "approve" ? t("auth.desktop.approving") : t("auth.desktop.approve")}</Button>
-            </> : state === "approved" ? <>
-              {callbackUrl ? <Button type="button" onClick={onOpenDesktop}>{t("auth.desktop.openDesktop", { app })}</Button> : null}
-              <Button type="button" variant="outline" onClick={onBack}>{t("common.close")}</Button>
-            </> : state === "error" || state === "expired" ? <>
-              <Button type="button" onClick={onRetry}>{t("common.retry")}</Button>
-              <Button type="button" variant="outline" onClick={onBack}>{t("common.back")}</Button>
-            </> : <Button type="button" variant="outline" onClick={onBack}>{t("common.back")}</Button>}
-          </div>
-          {state === "approved" ? <p className="text-caption text-muted-foreground">{t("auth.desktop.closeTab")}</p> : null}
-        </section>
-      </Bezel>
-    </main>
+    <AuthShell title={t(`${copy}.title`, { app })} description={t("auth.desktop.description")} nameInTitle>
+      <div className="flex flex-col gap-6">
+        {consent ? <ConsentFacts consent={consent} app={app} phone={phone} /> : null}
+        <div className="flex flex-col gap-3">
+          <Button
+            type="button"
+            size="lg"
+            className={AUTH_PILL}
+            aria-disabled={busy || undefined}
+            aria-busy={pending === "approve" || undefined}
+            onClick={() => void decide("approve")}
+          >
+            {/* Decorative: the label already says it is working. */}
+            {pending === "approve" ? <Spinner /> : null}
+            {pending === "approve"
+              ? t("auth.desktop.approving")
+              : phone
+                ? t("auth.desktop.phone.approve", { app })
+                : t("auth.desktop.approve")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className={AUTH_PILL}
+            aria-disabled={busy || undefined}
+            aria-busy={pending === "cancel" || undefined}
+            onClick={() => void decide("cancel")}
+          >
+            {pending === "cancel" ? <Spinner /> : null}
+            {t("common.cancel")}
+          </Button>
+          {onSwitchAccount ? (
+            // Button primitive for the 44px coarse-pointer floor, drawn as the
+            // credential screens' inline link.
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto self-center px-1 text-label text-brand"
+              aria-disabled={busy || undefined}
+              aria-busy={switching || undefined}
+              onClick={() => void switchAccount()}
+            >
+              {t("auth.desktop.notYou")}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </AuthShell>
   );
 }
 

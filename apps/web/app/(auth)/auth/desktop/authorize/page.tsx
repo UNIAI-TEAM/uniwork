@@ -2,18 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@uniwork/core";
-import { useSession } from "@uniwork/core/auth";
+import { useLogout, useSession } from "@uniwork/core/auth";
 import { ApiError } from "@uniwork/core/api/http";
 import { isSignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { paths } from "@uniwork/core/paths";
 import { DesktopConsentView, isDesktopCallbackUrl, type DesktopConsentState } from "@uniwork/views/auth/desktop-consent";
 import { useNavigation } from "@uniwork/views/navigation";
-import { useTranslation } from "react-i18next";
 
 export default function DesktopAuthorizePage() {
   const { searchParams, replace } = useNavigation();
-  const { t } = useTranslation();
   const { status } = useSession();
+  const logout = useLogout();
   const attemptId = searchParams.get("attempt_id") ?? "";
   // The way back here after a sign-in leaves the provider hint out, so
   // arriving signed in shows the consent instead of starting the provider
@@ -21,7 +20,6 @@ export default function DesktopAuthorizePage() {
   const consentPath = `${paths.desktopAuthorize()}?attempt_id=${encodeURIComponent(attemptId)}`;
   const hint = searchParams.get("provider");
   const signInUrl = paths.login({ next: consentPath, provider: isSignInProvider(hint) ? hint : null });
-  const loginUrl = paths.login({ next: consentPath });
   const [consent, setConsent] = useState<Awaited<ReturnType<typeof api.auth.desktopConsent>>>(null);
   const [state, setState] = useState<DesktopConsentState>("pending");
   const [callbackUrl, setCallbackUrl] = useState<string>();
@@ -47,12 +45,17 @@ export default function DesktopAuthorizePage() {
         setState(error instanceof ApiError && (error.code === "auth_code_invalid" || error.status === 410) ? "expired" : "error");
       });
   }, [attemptId, signInUrl, replace, status]);
+  // Signing out ("Không phải bạn?") lands here too: an anonymous browser goes
+  // to sign in, the app's provider hint included, and comes back to this
+  // same attempt as whoever signs in.
   useEffect(() => {
     if (status === "anon") { replace(signInUrl); return; }
     load();
   }, [load, signInUrl, replace, status]);
-  if (!consent && state === "pending") return <main className="flex min-h-dvh items-center justify-center bg-app-shell p-6"><p role="status">{t("auth.desktop.loading")}</p></main>;
-  return <DesktopConsentView consent={consent} state={state} callbackUrl={callbackUrl} onRetry={load} onBack={() => replace(loginUrl)} onOpenDesktop={() => { if (callbackUrl && isDesktopCallbackUrl(callbackUrl, consent?.redirect_uri)) window.location.assign(callbackUrl); }} onDecision={async (decision) => {
+  // A retry shows the consent's loading shape again, so the press is seen and
+  // a fresh CSRF token replaces the one a failed approval may have spent.
+  const retry = () => { setConsent(null); setState("pending"); load(); };
+  return <DesktopConsentView consent={consent} state={state} callbackUrl={callbackUrl} onRetry={retry} onSwitchAccount={() => logout.mutateAsync()} onOpenDesktop={() => { if (callbackUrl && isDesktopCallbackUrl(callbackUrl, consent?.redirect_uri)) window.location.assign(callbackUrl); }} onDecision={async (decision) => {
     if (!consent) { setState("error"); return; }
     try {
     const result = await api.auth.desktopConsentCommand({ attempt_id: consent.attempt_id, csrf_token: consent.csrf_token, decision });
