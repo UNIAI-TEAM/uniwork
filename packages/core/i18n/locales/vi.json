@@ -5668,6 +5668,11 @@
         "inRoom_one": "{{count}} người trong phòng",
         "inRoom_other": "{{count}} người trong phòng",
         "scribeLive": "Thư ký UNI đang ghi"
+      },
+      "upcoming": {
+        "startsAt": "Bắt đầu {{time}}",
+        "startsIn": "Bắt đầu sau {{time}}",
+        "waiting": "chờ"
       }
     }
   },

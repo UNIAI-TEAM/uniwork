@@ -5669,6 +5669,11 @@
         "inRoom_one": "{{count}} person in the room",
         "inRoom_other": "{{count}} people in the room",
         "scribeLive": "Thư ký UNI is taking notes"
+      },
+      "upcoming": {
+        "startsAt": "Starts {{time}}",
+        "startsIn": "Starts in {{time}}",
+        "waiting": "waiting"
       }
     }
   },
