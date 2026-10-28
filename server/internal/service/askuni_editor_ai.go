@@ -63,6 +63,7 @@ func (s *AskUNIService) editorAIReason(ctx context.Context, userID, orgID, forma
 // either way: without a package the asker drafts it themselves.
 func (s *AskUNIService) officeHandoffFor(ctx context.Context, p McpPrincipal, in askOfficeIn, format, documentID string) string {
 	via := audit.RequestFromContext(ctx).Via
+	// No via means no proposal ran this apply, and a package is bound to its proposal.
 	if via == nil || via.ProposalID == "" || s.editorAIReason(ctx, p.UserID, p.OrganizationID, format) != "" {
 		return ""
 	}

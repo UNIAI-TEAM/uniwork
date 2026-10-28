@@ -112,8 +112,8 @@ const (
 	askOfficeSourceHeadRunes  = 200
 )
 
-// askOfficeSourceKinds are the kinds of object Ask UNI reads and cites.
-var askOfficeSourceKinds = []string{"task", "project", "meeting", "document", "drive_file", "chat", "email_thread"}
+// askOfficeSourceKinds are every AskContextRef.Kind plus the kinds Ask UNI's cited items carry.
+var askOfficeSourceKinds = []string{"task", "project", "meeting", "document", "member", "room", "drive_file", "chat", "email_thread"}
 
 // askOfficeSourceLines checks the sources and renders the card's list, one
 // line per source: its title and the head of its quote. prepare never reads a
@@ -129,8 +129,8 @@ func askOfficeSourceLines(sources []OfficeHandoffSource) (string, error) {
 			return "", McpInvalidArgs{Msg: "a source's kind must be one of " + strings.Join(askOfficeSourceKinds, ", ")}
 		case strings.TrimSpace(src.ID) == "":
 			return "", McpInvalidArgs{Msg: "a source needs the id of what you read"}
-		case utf8.RuneCountInString(src.Title) > askOfficeSourceTitleRunes:
-			return "", McpInvalidArgs{Msg: fmt.Sprintf("a source's title holds at most %d characters", askOfficeSourceTitleRunes)}
+		case strings.TrimSpace(src.Title) == "" || utf8.RuneCountInString(src.Title) > askOfficeSourceTitleRunes:
+			return "", McpInvalidArgs{Msg: fmt.Sprintf("a source's title holds 1 to %d characters", askOfficeSourceTitleRunes)}
 		case strings.TrimSpace(src.Quote) == "" || utf8.RuneCountInString(src.Quote) > askOfficeSourceQuoteRunes:
 			return "", McpInvalidArgs{Msg: fmt.Sprintf("a source's quote holds 1 to %d characters", askOfficeSourceQuoteRunes)}
 		}

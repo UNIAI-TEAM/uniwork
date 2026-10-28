@@ -613,17 +613,23 @@ func officeWithSources(t *testing.T, sources []OfficeHandoffSource) string {
 func TestAskCreateOfficeSourcesAreCheckedAndShown(t *testing.T) {
 	_, s, tc, _ := askOfficeWorld(t)
 	one := OfficeHandoffSource{Kind: "task", ID: util.NewID(), Title: "Chuẩn bị báo cáo quý", Quote: "Doanh thu quý ba tăng 12%."}
-	long, odd := one, one
+	long, odd, untitled := one, one, one
 	long.Quote = strings.Repeat("a", 1501)
 	odd.Kind = "spaceship"
+	untitled.Title = "  "
 	for name, sources := range map[string][]OfficeHandoffSource{
 		"9 sources":              slices.Repeat([]OfficeHandoffSource{one}, 9),
 		"a 1501-character quote": {long},
 		"an unknown kind":        {odd},
+		"a blank title":          {untitled},
 	} {
 		if _, err := officePrepareErr(s, tc, officeWithSources(t, sources)); !isInvalidArgs(err) {
 			t.Errorf("%s: %v, want invalid_args", name, err)
 		}
+	}
+	room := OfficeHandoffSource{Kind: "room", ID: util.NewID(), Title: "Phòng kinh doanh", Quote: "Chốt giá trước thứ sáu."}
+	if _, err := officePrepareErr(s, tc, officeWithSources(t, []OfficeHandoffSource{room})); err != nil {
+		t.Errorf("a room source: %v, want accepted", err)
 	}
 
 	two := []OfficeHandoffSource{one, {Kind: "meeting", ID: util.NewID(), Title: "Họp giao ban", Quote: strings.Repeat("b", 300)}}
