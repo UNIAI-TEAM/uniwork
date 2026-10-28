@@ -68,7 +68,7 @@
     },
     "components/auth/auth-layout.tsx": {
       "statements": 100,
-      "branches": 94,
+      "branches": 96,
       "functions": 100,
       "lines": 100
     },
@@ -146,7 +146,7 @@
     },
     "components/auth/use-sign-in.ts": {
       "statements": 100,
-      "branches": 95,
+      "branches": 96,
       "functions": 100,
       "lines": 100
     },
@@ -660,6 +660,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/settings/delete-account-actions.tsx": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "components/settings/delete-account-consequences.tsx": {
       "statements": 100,
       "branches": 100,
@@ -716,7 +722,7 @@
     },
     "components/settings/password-form.tsx": {
       "statements": 97,
-      "branches": 96,
+      "branches": 97,
       "functions": 100,
       "lines": 98
     },
@@ -770,15 +776,15 @@
     },
     "components/settings/step-up-proofs.tsx": {
       "statements": 94,
-      "branches": 81,
+      "branches": 82,
       "functions": 95,
       "lines": 98
     },
     "components/settings/step-up-sheet.tsx": {
-      "statements": 95,
-      "branches": 92,
-      "functions": 94,
-      "lines": 98
+      "statements": 98,
+      "branches": 94,
+      "functions": 100,
+      "lines": 100
     },
     "components/settings/switch-row.tsx": {
       "statements": 100,
@@ -806,7 +812,7 @@
     },
     "components/settings/use-step-up.ts": {
       "statements": 100,
-      "branches": 95,
+      "branches": 98,
       "functions": 100,
       "lines": 100
     },
@@ -949,9 +955,9 @@
       "lines": 100
     },
     "components/workspace/invitation-preview.tsx": {
-      "statements": 96,
-      "branches": 92,
-      "functions": 94,
+      "statements": 100,
+      "branches": 95,
+      "functions": 100,
       "lines": 100
     },
     "components/workspace/pending-invitations.tsx": {
