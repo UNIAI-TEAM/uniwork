@@ -402,8 +402,6 @@
     "displayName": "Tên hiển thị",
     "noAccount": "Chưa có tài khoản?",
     "hasAccount": "Đã có tài khoản?",
-    "invalidCredentials": "Email hoặc mật khẩu không đúng",
-    "emailTaken": "Email đã được đăng ký",
     "loginSubtitle": "Tiếp tục công việc của bạn.",
     "meetingInviteReason": "Đăng nhập để tham gia cuộc họp bạn được mời. Sau khi đăng nhập, bạn sẽ quay lại lời mời và vào phòng nếu đủ điều kiện.",
     "registerSubtitle": "Tạo tài khoản để bắt đầu với UniWork.",
@@ -434,9 +432,6 @@
     "emailRequired": "Nhập email của bạn",
     "emailInvalid": "Email chưa đúng, ví dụ ten@congty.vn",
     "passwordRequired": "Nhập mật khẩu",
-    "networkError": "Không kết nối được. Kiểm tra mạng rồi thử lại.",
-    "serverError": "UniWork đang gặp sự cố. Thử lại sau ít phút.",
-    "tooManyAttempts": "Thử quá nhiều lần. Chờ một phút rồi thử lại.",
     "legal": {
       "signUp": "Khi đăng ký, bạn đồng ý với",
       "signIn": "Khi đăng nhập, bạn đồng ý với",
@@ -576,7 +571,6 @@
       "subtitle": "Nhập mã 6 số từ ứng dụng xác thực, hoặc một mã khôi phục.",
       "codeLabel": "Mã xác thực",
       "hint": "Mã 6 số từ ứng dụng, hoặc mã khôi phục dạng xxxxx‑xxxxx.",
-      "invalidCode": "Mã không đúng hoặc phiên xác thực đã hết hạn. Nhập lại hoặc đăng nhập lại.",
       "submit": "Xác nhận",
       "verifying": "Đang xác nhận…",
       "back": "Quay lại đăng nhập"

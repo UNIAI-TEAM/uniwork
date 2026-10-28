@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests } from "@uniwork/core/auth";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { NavigationProvider } from "@uniwork/views/navigation";
 import type { NavigationAdapter } from "@uniwork/views/navigation";
@@ -47,9 +47,15 @@ const SESSION = {
   user: { id: "u1", email: "a@b.co", display_name: "An" },
 };
 
-beforeEach(() => {
+/** The provider buttons also ask /auth/providers, so count only the register call. */
+function registerCalls() {
+  return requestMock.mock.calls.filter(([path]) => path === "/api/v1/auth/register");
+}
+
+beforeEach(async () => {
   requestMock.mockReset();
   resetAuthStoreForTests();
+  await setLocale("vi");
 });
 
 describe("RegisterView", () => {
@@ -68,11 +74,93 @@ describe("RegisterView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Đăng ký" }));
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Email đã được đăng ký");
+    // Core's sentence, the phone's too, with the way out it offers.
+    expect(alert).toHaveTextContent("Email này đã có tài khoản. Đăng nhập, hoặc đặt lại mật khẩu nếu bạn quên.");
     const email = screen.getByLabelText("Email");
     expect(email).toHaveAttribute("aria-invalid", "true");
     expect(email.getAttribute("aria-describedby")).toContain(alert.id);
     expect(screen.getByLabelText("Tên hiển thị")).not.toHaveAttribute("aria-invalid");
+    expect(email).toHaveFocus();
+  });
+
+  it("judges every field before sending, each under its own box, and focuses the first to fix", () => {
+    render(wrap(<RegisterView onSuccess={() => {}} />));
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "an@example" } });
+    fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "1234567" } });
+    fireEvent.click(screen.getByRole("button", { name: "Đăng ký" }));
+
+    expect(registerCalls()).toHaveLength(0);
+    const name = screen.getByLabelText("Tên hiển thị");
+    expect(name).toHaveFocus();
+    for (const [label, sentence] of [
+      ["Tên hiển thị", "Nhập tên hiển thị."],
+      ["Email", "Email chưa đúng, ví dụ ten@congty.vn"],
+      ["Mật khẩu", "Mật khẩu cần ít nhất 8 ký tự."],
+    ] as const) {
+      const field = screen.getByLabelText(label);
+      expect(field).toHaveAttribute("aria-invalid", "true");
+      const said = document.getElementById(field.getAttribute("aria-describedby") ?? "");
+      expect(said).toHaveTextContent(sentence);
+    }
+
+    // Fixing a box clears its own line only.
+    fireEvent.change(name, { target: { value: "An" } });
+    expect(name).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("says a short password in the reader's language before any request", async () => {
+    await setLocale("en");
+    render(wrap(<RegisterView onSuccess={() => {}} />));
+    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "An" } });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.co" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "1234567" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign up" }));
+
+    expect(registerCalls()).toHaveLength(0);
+    expect(screen.getByRole("alert")).toHaveTextContent("Passwords need at least 8 characters.");
+    expect(screen.getByLabelText("Password")).toHaveFocus();
+  });
+
+  it("reads the server's refusal through core's table, not its raw message", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/auth/register"
+        ? Promise.reject(new ApiError("email không hợp lệ", "invalid_request", 400))
+        : Promise.resolve({ google: false }),
+    );
+    render(wrap(<RegisterView onSuccess={() => {}} />));
+    fill();
+    fireEvent.click(screen.getByRole("button", { name: "Đăng ký" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Kiểm tra lại địa chỉ email. Mật khẩu cần ít nhất 8 ký tự.");
+    expect(alert).not.toHaveTextContent("email không hợp lệ");
+  });
+
+  it("says how long a spent budget waits, and holds the button until then", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/auth/register"
+        ? Promise.reject(new ApiError("too many requests", "rate_limited", 429, undefined, undefined, undefined, 60))
+        : Promise.resolve({ google: false }),
+    );
+    render(wrap(<RegisterView onSuccess={() => {}} />));
+    fill();
+    fireEvent.click(screen.getByRole("button", { name: "Đăng ký" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Bạn đã thử nhiều lần liền. Thử lại sau 60 giây.");
+    const submit = screen.getByRole("button", { name: "Đăng ký" });
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    // No field is blamed for the world's wait.
+    expect(screen.getByLabelText("Email")).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(submit);
+    expect(registerCalls()).toHaveLength(1);
+  });
+
+  it("says what the display name is for", () => {
+    render(wrap(<RegisterView onSuccess={() => {}} />));
+    const name = screen.getByLabelText("Tên hiển thị");
+    expect(document.getElementById(name.getAttribute("aria-describedby") ?? "")).toHaveTextContent("Tên đồng nghiệp sẽ thấy.");
   });
 
   it("keeps the submit button reachable while the request is in flight", async () => {

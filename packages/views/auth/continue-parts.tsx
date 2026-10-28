@@ -391,23 +391,38 @@ export function FailureNotice({
   provider?: SignInProvider | null;
   children?: ReactNode;
 }) {
-  const { t } = useTranslation();
   const wait = failure.kind === "wait";
-  const say = (p: RetryPhrase) => t(p.key, p.count === undefined ? {} : { count: p.count });
   return (
     <Alert variant={wait ? "warning" : "destructiveSoft"}>
       {wait ? <Clock aria-hidden /> : <CircleAlert aria-hidden />}
       <AlertDescription className="text-pretty">
-        {t(failure.key, sentenceValues(provider ? { ...failure, provider } : failure, t))}
-        {wait && failure.retry ? (
-          <>
-            {" "}
-            <span className="sr-only">{say(failure.retry)}</span>
-            <span aria-hidden>{say(phrase ?? failure.retry)}</span>
-          </>
-        ) : null}
+        <FailureSentence failure={provider ? { ...failure, provider } : failure} phrase={phrase} />
       </AlertDescription>
       {children ? <div className="col-start-2 mt-2 flex flex-wrap gap-2">{children}</div> : null}
     </Alert>
+  );
+}
+
+/**
+ * A failure's words wherever they are said (a field's line, a form's, a
+ * notice): the table's sentence and, for a wait, its "Thử lại sau …". The
+ * phrase the wait started with is what a live region hears, once; the
+ * ticking one (`phrase`) is drawn for the eye only, or a screen reader would
+ * read every second of it.
+ */
+export function FailureSentence({ failure, phrase }: { failure: SignInFailure; phrase?: RetryPhrase | null }) {
+  const { t } = useTranslation();
+  const say = (p: RetryPhrase) => t(p.key, p.count === undefined ? {} : { count: p.count });
+  return (
+    <>
+      {t(failure.key, sentenceValues(failure, t))}
+      {failure.kind === "wait" && failure.retry ? (
+        <>
+          {" "}
+          <span className="sr-only">{say(failure.retry)}</span>
+          <span aria-hidden>{say(phrase ?? failure.retry)}</span>
+        </>
+      ) : null}
+    </>
   );
 }

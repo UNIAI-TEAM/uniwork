@@ -402,8 +402,6 @@
     "displayName": "Display name",
     "noAccount": "No account yet?",
     "hasAccount": "Already have an account?",
-    "invalidCredentials": "That email or password isn't right",
-    "emailTaken": "That email is already registered",
     "loginSubtitle": "Pick up where you left off.",
     "meetingInviteReason": "Sign in to join the meeting you were invited to. You'll return to the invite and enter the room if you're allowed in.",
     "registerSubtitle": "Create an account to get started with UniWork.",
@@ -434,9 +432,6 @@
     "emailRequired": "Enter your email",
     "emailInvalid": "That email doesn't look right, e.g. you@company.com",
     "passwordRequired": "Enter your password",
-    "networkError": "Can't reach UniWork. Check your connection and try again.",
-    "serverError": "UniWork is having trouble. Try again in a few minutes.",
-    "tooManyAttempts": "Too many attempts. Wait a minute and try again.",
     "legal": {
       "signUp": "By signing up, you agree to the",
       "signIn": "By signing in, you agree to the",
@@ -576,7 +571,6 @@
       "subtitle": "Enter the 6-digit code from your authenticator app, or a recovery code.",
       "codeLabel": "Verification code",
       "hint": "The 6-digit app code, or a recovery code like xxxxx‑xxxxx.",
-      "invalidCode": "That code is wrong or the challenge expired. Try again or sign in again.",
       "submit": "Confirm",
       "verifying": "Confirming…",
       "back": "Back to sign in"

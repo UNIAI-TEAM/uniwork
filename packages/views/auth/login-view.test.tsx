@@ -79,7 +79,7 @@ describe("LoginView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Email hoặc mật khẩu không đúng");
+    expect(alert).toHaveTextContent("Email hoặc mật khẩu chưa đúng.");
     expect(alert.id).toBeTruthy();
     for (const label of ["Email", "Mật khẩu"]) {
       const field = screen.getByLabelText(label);
@@ -321,8 +321,9 @@ describe("LoginView", () => {
 
   it.each([
     ["a lost connection", new TypeError("Failed to fetch"), "Không kết nối được. Kiểm tra mạng rồi thử lại."],
-    ["a server failure", new ApiError("boom", "internal", 500), "UniWork đang gặp sự cố. Thử lại sau ít phút."],
-    ["rate limiting", new ApiError("slow down", "rate_limited", 429), "Thử quá nhiều lần. Chờ một phút rồi thử lại."],
+    ["a server failure", new ApiError("boom", "internal", 500), "UniWork đang gặp trục trặc. Thử lại sau ít phút."],
+    ["rate limiting", new ApiError("slow down", "rate_limited", 429), "Bạn đã thử nhiều lần liền. Chờ một lát rồi thử lại."],
+    ["a code the table does not know", new ApiError("boom", "teapot", 418), "Chưa đăng nhập được. Thử lại."],
   ])("reports %s at form level without blaming the fields", async (_name, error, message) => {
     requestMock.mockRejectedValue(error);
     render(wrap(<LoginView onSuccess={() => {}} />));
@@ -336,6 +337,30 @@ describe("LoginView", () => {
     // Nothing the user typed is lost.
     expect(screen.getByLabelText("Email")).toHaveValue("a@b.co");
     expect(screen.getByLabelText("Mật khẩu")).toHaveValue("hunter22");
+  });
+
+  // The same answer the phone reads from /auth/native/password (core's table):
+  // the budget's Retry-After counts down, and the button waits with it.
+  it("says how long a spent sign-in budget waits, and holds Sign in until then", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/auth/login"
+        ? Promise.reject(new ApiError("too many requests", "rate_limited", 429, undefined, undefined, undefined, 42))
+        : Promise.resolve({ google: false }),
+    );
+    render(wrap(<LoginView onSuccess={() => {}} />));
+    fill();
+    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Bạn đã thử nhiều lần liền. Thử lại sau 42 giây.");
+    expect(alert).not.toHaveTextContent("too many requests");
+    const submit = screen.getByRole("button", { name: "Đăng nhập" });
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    // Typing does not end the wait, and pressing again sends nothing.
+    fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "hunter23" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("Bạn đã thử nhiều lần liền.");
+    fireEvent.click(submit);
+    expect(loginCalls()).toHaveLength(1);
   });
 
   it("puts focus on the password after rejected credentials so the retry starts there", async () => {
@@ -442,6 +467,21 @@ describe("LoginView", () => {
     fireEvent.click(submit);
     const verifies = requestMock.mock.calls.filter(([path]) => path === "/api/v1/auth/mfa/verify");
     expect(verifies).toHaveLength(1);
+  });
+
+  it("says a wrong code in the words the phone uses, never the server's own message", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/auth/mfa/verify"
+        ? Promise.reject(new ApiError("invalid code", "invalid_credentials", 401))
+        : Promise.resolve({ google: false }),
+    );
+    render(wrap(<LoginView onSuccess={() => {}} initialMfa />));
+    fireEvent.change(screen.getByLabelText("Mã xác thực"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Mã chưa đúng hoặc lượt đăng nhập đã hết hạn. Nhập lại, hoặc đăng nhập lại từ đầu.",
+    );
+    expect(screen.getByLabelText("Mã xác thực")).toHaveAttribute("aria-invalid", "true");
   });
 
   it("opens on the code step for /login?mfa=1 and sends the cookie-only shape", async () => {

@@ -1,16 +1,14 @@
 "use client";
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useVerifyMfa } from "@uniwork/core/auth";
-import { sentenceValues, type RetryPhrase } from "@uniwork/core/auth/sign-in-errors";
 import type { SessionResponse } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AUTH_INPUT, AUTH_PILL, AuthSubmit } from "./auth-controls";
-import { useFailure, useWaitPhrase } from "./continue-parts";
+import { FailureSentence, useFailure, useWaitPhrase } from "./continue-parts";
 
 /**
  * Second step of sign-in: the TOTP code, or a recovery code. `mfaToken` is
@@ -40,26 +38,9 @@ export function MFAStep({
   const failure = useFailure(verify.error, "second_factor");
   const wait = failure?.kind === "wait" ? failure : null;
   const phrase = useWaitPhrase(wait, verify.reset);
-  const say = (p: RetryPhrase | null) => (p ? t(p.key, p.count === undefined ? {} : { count: p.count }) : "");
-
-  // The ticking number is hidden from the alert, which says the wait it
-  // started with once; otherwise every second of it would be read out.
-  const message = ((error: unknown): ReactNode => {
-    if (!error) return null;
-    if (wait) {
-      return (
-        <>
-          {t(wait.key, sentenceValues(wait, t))} <span className="sr-only">{say(wait.retry)}</span>
-          <span aria-hidden>{say(phrase ?? wait.retry)}</span>
-        </>
-      );
-    }
-    if (error instanceof ApiError) {
-      if (error.code === "invalid_credentials") return t("auth.mfa.invalidCode");
-      return apiErrorMessage(error) ?? t("common.error");
-    }
-    return t("auth.networkError");
-  })(verify.error);
+  // Every refusal reads through core's table, as on the phone: a wrong or
+  // expired code, the lock, a lost connection, the server's trouble.
+  const message = failure ? <FailureSentence failure={failure} phrase={phrase} /> : null;
 
   return (
     <form

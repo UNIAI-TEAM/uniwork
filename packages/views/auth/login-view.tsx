@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert, Info } from "lucide-react";
-import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { forgetLinkReset, linkResetIntent, linkResetServes, useDiscardSignInTicket, useLogin } from "@uniwork/core/auth";
-import { loginRedirectErrorKey } from "@uniwork/core/auth/sign-in-errors";
+import { loginRedirectErrorKey, readSignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import { emailError, passwordError } from "@uniwork/core/auth/sign-in-form";
 import { paths } from "@uniwork/core/paths";
 import { isMFAChallenge, type SessionResponse } from "@uniwork/core/types";
 import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
@@ -15,7 +15,7 @@ import { AppLink } from "../navigation";
 import { AUTH_INPUT, AUTH_LINK, AuthSubmit } from "./auth-controls";
 import { AuthLegalNote } from "./auth-legal-note";
 import { AuthShell } from "./auth-shell";
-import { identityAddress, useProviderName } from "./continue-parts";
+import { FailureSentence, identityAddress, useFailure, useProviderName, useWaitPhrase } from "./continue-parts";
 import { LoginLinkBanner, usePendingLink } from "./login-link-banner";
 import { MFAStep } from "./mfa-step";
 import { PasswordField } from "./password-field";
@@ -35,13 +35,10 @@ export type LoginReason = "meeting_invite" | "session_expired";
  * blame, so none is marked, and a screen-reader user is not sent hunting for a
  * typo that does not exist.
  */
-type Notice = { owner: "email" | "password" | "pair" | "form"; message: string };
+type Notice = { owner: "email" | "password" | "pair" | "form"; message: ReactNode };
 
 /** A document link that names a comment: an Inbox or push deep link (S15). */
 const COMMENT_LINK = /^\/[^/?#]+\/[^/?#]+\/documents\/[^/?#]+\?(?:[^#]*&)?comment=[^&#]/;
-
-/** Enough to catch a missing "@" or domain before the round trip; the server is the judge. */
-const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function LoginView({
   onSuccess,
@@ -147,18 +144,16 @@ export function LoginView({
         ? t("documents.collab.inboxSessionExpired")
         : null;
 
-  const serverNotice = ((error: unknown): Notice | null => {
-    if (!error) return null;
-    if (error instanceof ApiError) {
-      if (error.code === "invalid_credentials") return { owner: "pair", message: t("auth.invalidCredentials") };
-      if (error.status === 429) return { owner: "form", message: t("auth.tooManyAttempts") };
-      if (error.status >= 500) return { owner: "form", message: t("auth.serverError") };
-      return { owner: "form", message: apiErrorMessage(error) ?? t("common.error") };
-    }
-    // fetch rejects (rather than resolving with a status) only when the
-    // request never got an answer: offline, DNS, a refused connection.
-    return { owner: "form", message: t("auth.networkError") };
-  })(login.error);
+  // The server's answer reads through core's table, as on the phone: a wrong
+  // pair blames both boxes; anything else (offline, the server, a budget
+  // spent) is the form's. A 429 says how long, counts it down, and holds the
+  // button until it is over: pressing again would only spend the wait.
+  const failure = useFailure(login.error, "sign_in");
+  const wait = failure?.kind === "wait" ? failure : null;
+  const phrase = useWaitPhrase(wait, login.reset);
+  const serverNotice: Notice | null = failure
+    ? { owner: failure.kind === "field" ? "pair" : "form", message: <FailureSentence failure={failure} phrase={phrase} /> }
+    : null;
 
   const notice: Notice | null = clientNotice ?? serverNotice;
 
@@ -169,7 +164,8 @@ export function LoginView({
   const edit = (field: "email" | "password", value: string) => {
     (field === "email" ? setEmail : setPassword)(value);
     setClientNotice(null);
-    if (login.error) login.reset();
+    // A wait stays said until it is over; anything else clears on the next keystroke.
+    if (login.error && !wait) login.reset();
   };
 
   const submit = (e: React.FormEvent) => {
@@ -177,21 +173,22 @@ export function LoginView({
     // The button carries `aria-disabled`, which keeps it in the tab order and
     // therefore still able to receive an Enter key. The guard lives here so a
     // second submit is impossible however it arrives.
-    if (login.isPending) return;
+    if (login.isPending || wait) return;
     setSubmitted(true);
 
     // What can be judged here is judged here: an empty box or an address with
     // no domain would otherwise travel to the server and come back as the
     // same sentence a wrong password gets. One message at a time, and focus
     // goes to the box it is about, so the fix starts where the eye lands.
+    // The rules are core's, the phone's too (sign-in-form).
     const trimmed = email.trim();
-    const problem: Notice | null = !trimmed
-      ? { owner: "email", message: t("auth.emailRequired") }
-      : !EMAIL_SHAPE.test(trimmed)
-        ? { owner: "email", message: t("auth.emailInvalid") }
-        : !password
-          ? { owner: "password", message: t("auth.passwordRequired") }
-          : null;
+    const slip = emailError(email);
+    const missing = passwordError(password);
+    const problem: Notice | null = slip
+      ? { owner: "email", message: t(slip.key) }
+      : missing
+        ? { owner: "password", message: t(missing.key) }
+        : null;
     if (problem) {
       setClientNotice(problem);
       (problem.owner === "email" ? emailRef : passwordRef).current?.focus();
@@ -209,7 +206,7 @@ export function LoginView({
         // next keystroke replaces it. Other failures keep focus on the button:
         // the fix is "try again", not "type again".
         onError: (err) => {
-          if (err instanceof ApiError && err.code === "invalid_credentials") {
+          if (readSignInFailure(err, "sign_in").kind === "field") {
             passwordRef.current?.focus();
             passwordRef.current?.select();
           }
@@ -342,7 +339,12 @@ export function LoginView({
           </FieldGroup>
 
           <div className="flex flex-col gap-3">
-            <AuthSubmit pending={login.isPending} pendingLabel={t("auth.signingIn")}>
+            <AuthSubmit
+              pending={login.isPending}
+              pendingLabel={t("auth.signingIn")}
+              aria-disabled={wait ? true : undefined}
+              aria-describedby={wait ? noticeId : undefined}
+            >
               {t("auth.login")}
             </AuthSubmit>
             <p className="text-center text-body text-muted-foreground">
