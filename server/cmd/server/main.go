@@ -562,6 +562,7 @@ func main() {
 	// the document.* frames of the Documents UI are not slowed down.
 	dispatcher.Register(service.NewChatDocumentCardRefresher(q, chatSvc))
 	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
+	officeHandoffSweep := service.NewOfficeHandoffSweeper(q, log)
 	docAccessBatchWorker := service.NewDocumentAccessBatchWorker(documentSvc, log)
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
@@ -717,6 +718,8 @@ func main() {
 	// awaited below.
 	editLockSweepDone := make(chan struct{})
 	go func() { editLockSweep.Run(runCtx); close(editLockSweepDone) }()
+	officeHandoffSweepDone := make(chan struct{})
+	go func() { officeHandoffSweep.Run(runCtx); close(officeHandoffSweepDone) }()
 	// The folder bulk access batch worker (UNI-2244 §4) stops with runCancel
 	// and is awaited below.
 	docAccessBatchWorkerDone := make(chan struct{})
@@ -1115,6 +1118,11 @@ func main() {
 	case <-editLockSweepDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("documents: edit lock sweep did not stop in time")
+	}
+	select {
+	case <-officeHandoffSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("ai: office handoff sweep did not stop in time")
 	}
 	select {
 	case <-docAccessBatchWorkerDone:

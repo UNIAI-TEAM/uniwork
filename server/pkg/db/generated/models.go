@@ -187,6 +187,25 @@ type AiModelRate struct {
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 }
 
+type AiOfficeHandoff struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	UserID         string             `json:"user_id"`
+	DocumentID     string             `json:"document_id"`
+	ProposalID     string             `json:"proposal_id"`
+	Format         string             `json:"format"`
+	Title          string             `json:"title"`
+	Request        string             `json:"request"`
+	Outline        string             `json:"outline"`
+	Parts          []byte             `json:"parts"`
+	Sources        []byte             `json:"sources"`
+	NextPart       int32              `json:"next_part"`
+	ConversationID pgtype.Text        `json:"conversation_id"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type AiProviderCredential struct {
 	ID               string             `json:"id"`
 	OrganizationID   string             `json:"organization_id"`
