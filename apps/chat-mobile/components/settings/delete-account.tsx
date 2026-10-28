@@ -13,8 +13,7 @@ import { readSignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AccessibilityInfo, ActivityIndicator, Pressable, ScrollView, View } from "react-native";
-import { NoticeCard } from "@/components/auth/auth-layout";
+import { AccessibilityInfo, ScrollView } from "react-native";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Text } from "@/components/ui/text";
 import { useDeleteAccount } from "@/data/mutations/account";
@@ -24,7 +23,7 @@ import type { WorkspaceSlugs } from "@/lib/chat-routes";
 import { deleteAccountFailure } from "@/lib/account-deletion";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
-import { cn } from "@/lib/utils";
+import { DeleteAccountActions } from "./delete-account-actions";
 import { DeleteAccountConsequences } from "./delete-account-consequences";
 import { OwnerStepPanel } from "./delete-account-owner";
 import { useOwnerStep, type Field } from "./use-owner-step";
@@ -81,7 +80,7 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
     generic,
     setBusy: startBusy,
     confirm: (command) => stepUp.run("transfer_ownership", command),
-    proveBoth: async () => (await stepUp.hold("transfer_ownership")) && stepUp.hold("delete_account"),
+    hold: stepUp.hold,
   });
 
   const close = () => {
@@ -132,7 +131,6 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
     toast.success(t("mobile.account.deleted"));
   };
 
-  const { handedOver } = ownerStep;
   const openOrganizationOnWeb = () =>
     openWebPage(`${appUrl}${workspace ? paths.workspace(workspace.orgSlug, workspace.wsSlug).settings() : paths.root()}`);
   const confirmLabel =
@@ -161,49 +159,20 @@ function DeleteAccountSheet({ visible, onClose, workspace }: SheetProps) {
           onSubmit={() => void submit()}
           onOpenWeb={openOrganizationOnWeb}
         />
-        {handedOver && !running ? (
-          <NoticeCard
-            message={t("mobile.account.transfer_done_not_deleted", { organization: handedOver.organization, name: handedOver.heir })}
-            testID="delete-account-handed-over"
-          />
-        ) : null}
         {error?.field === "form" ? (
           <Text accessibilityRole="alert" className="text-subhead text-destructive" testID="delete-account-error">
             {error.message}
           </Text>
         ) : null}
 
-        <View className="gap-2.5 pt-1">
-          {ownerStep.stranded ? null : (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={confirmLabel}
-              accessibilityState={{ busy: busy !== null, disabled: running }}
-              testID="delete-account-confirm"
-              onPress={() => void submit()}
-              className={cn(
-                "min-h-12 flex-row items-center justify-center gap-2 rounded-full bg-destructive-solid py-3",
-                running ? "opacity-70" : "active:opacity-90",
-              )}
-            >
-              {busy ? (
-                // The button's own name says what runs; the spinner is drawn for the eye only.
-                <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                  <ActivityIndicator accessibilityLabel={confirmLabel} color={THEME.light.primaryForeground} />
-                </View>
-              ) : null}
-              <Text className="text-body font-semibold text-on-solid">{confirmLabel}</Text>
-            </Pressable>
-          )}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: running }}
-            onPress={close}
-            className="min-h-12 items-center justify-center rounded-full bg-muted px-4 py-3 active:opacity-70"
-          >
-            <Text className="text-body font-semibold text-foreground">{t("settings.security.delete.cancel")}</Text>
-          </Pressable>
-        </View>
+        <DeleteAccountActions
+          label={confirmLabel}
+          busy={busy !== null}
+          running={running}
+          stranded={ownerStep.stranded}
+          onConfirm={() => void submit()}
+          onCancel={close}
+        />
       </ScrollView>
       {stepUp.sheet}
     </BottomSheet>

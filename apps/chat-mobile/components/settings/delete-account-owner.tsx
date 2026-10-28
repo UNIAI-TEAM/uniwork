@@ -11,6 +11,7 @@ import { Text } from "@/components/ui/text";
 import type { OwnedOrganization } from "@/lib/owned-organization";
 import { continuousCorners } from "@/lib/radius";
 import { cn } from "@/lib/utils";
+import { NoticeCard } from "@/components/auth/auth-layout";
 import { HandOverPanel } from "./delete-account-hand-over";
 import type { Field, OwnerStep } from "./use-owner-step";
 
@@ -35,7 +36,8 @@ export function OwnerStepPanel({
   onSubmit: () => void;
   onOpenWeb: () => void;
 }) {
-  const { closing, handingOver, handOver, owner } = step;
+  const { t } = useTranslation();
+  const { closing, handingOver, handOver, owner, handedOver } = step;
   if (closing) {
     return (
       <CloseOrganizationField
@@ -73,7 +75,14 @@ export function OwnerStepPanel({
       />
     );
   }
-  return owner ? <OwnerTransferPanel foreground={foreground} onOpenWeb={onOpenWeb} /> : null;
+  if (owner) return <OwnerTransferPanel foreground={foreground} onOpenWeb={onOpenWeb} />;
+  // Handed over, and the erasure after it did not happen: the organization moved all the same, said until the sheet closes.
+  return handedOver && !busy ? (
+    <NoticeCard
+      message={t("mobile.account.transfer_done_not_deleted", { organization: handedOver.organization, name: handedOver.heir })}
+      testID="delete-account-handed-over"
+    />
+  ) : null;
 }
 
 /** An owner the server named no organization for (an older server): hand it over on the web, which opens its settings. */

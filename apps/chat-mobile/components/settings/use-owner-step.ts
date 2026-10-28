@@ -14,6 +14,7 @@ import { closeConfirmed, closeFailure, closeOrganizationBody, ownedOrganization,
 import { transferOwnershipFailure } from "@/lib/owner-transfer";
 import { useHandOver } from "./use-hand-over";
 import type { StepUpRun } from "./use-step-up";
+import type { StepUpAction } from "@uniwork/core/api/endpoints/sign-in-schemas";
 
 /** The field a refusal is said under: the organization's address typed to close it, the hand-over list, or the sheet. */
 export type Field = "slug" | "pick" | "form";
@@ -26,8 +27,8 @@ export interface OwnerStepSheet {
   setBusy: (busy: "transfer" | null) => void;
   /** The proof sheet's gate (use-step-up.ts › run) for the hand-over's own token. */
   confirm: (command: (token: string) => Promise<void>) => Promise<StepUpRun<void>>;
-  /** Holds the hand-over's and the erasure's proofs both (asking for what is missing); false when one was not given. */
-  proveBoth: () => Promise<boolean>;
+  /** The proof sheet's gate (use-step-up.ts › hold): a token for the action, asked for when none is held. */
+  hold: (action: StepUpAction) => Promise<boolean>;
 }
 
 /** An organization that changed hands while the account it belonged to was not erased (yet). */
@@ -63,7 +64,7 @@ export function useOwnerStep(sheet: OwnerStepSheet) {
       return false;
     }
     // Every proof first: once the organization moved, a closed sheet must not leave it moved with nothing erased.
-    if (!(await sheet.proveBoth())) return false;
+    if (!(await sheet.hold("transfer_ownership")) || !(await sheet.hold("delete_account"))) return false;
     try {
       const result = await sheet.confirm(async (token) => {
         sheet.setBusy("transfer");
