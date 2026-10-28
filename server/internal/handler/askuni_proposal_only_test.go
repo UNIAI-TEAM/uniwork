@@ -2,7 +2,7 @@ package handler
 
 // ADR 0044 §2, the oracle: Ask UNI's agent loop never runs a business write
 // command. A dock turn in Ask mode whose scripted model calls every one of the
-// 14 write tools only records proposals; the tenant's digest (the isolation
+// 15 write tools only records proposals; the tenant's digest (the isolation
 // matrix's own tenantDigest + isoDiff, over the real router, the real gateway
 // and the real services) moves only in the AI bookkeeping tables, and no audit
 // row is written. The provider is the scripted fake: no live AI.
@@ -84,6 +84,7 @@ func TestAskUniLoopNeverRunsAWriteCommand(t *testing.T) {
 		call(12, "cancel_meeting", map[string]any{"meeting_id": toCancel}),
 		call(13, "restore_meeting", map[string]any{"meeting_id": cancelled}),
 		call(14, "send_chat_message", map[string]any{"room_id": tn.ids["room"], "body": "Tin oracle"}),
+		call(15, "create_office_document", map[string]any{"title": "Đề xuất oracle", "format": "docx", "outline": "## Mục 1"}),
 	}}}
 
 	before := uniworkProposalTake(t, w, tn)
@@ -123,7 +124,7 @@ func TestAskUniLoopNeverRunsAWriteCommand(t *testing.T) {
 	}
 	after := uniworkProposalTake(t, w, tn)
 
-	// Every one of the 14 tools left a pending row and nothing else.
+	// Every one of the 15 tools left a pending row and nothing else.
 	rows, err := w.pool.Query(context.Background(), `SELECT action_type, status FROM agent_action_proposals WHERE organization_id = $1 AND conversation_id = $2`, tn.orgID, conv)
 	if err != nil {
 		t.Fatal(err)

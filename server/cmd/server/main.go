@@ -794,6 +794,7 @@ func main() {
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)
 	askUNI.SetDocuments(documentSvc)
+	askUNI.SetOffice(officeSvc)
 	askUNI.SetFlags(flags)
 	aiMemorySvc := service.NewAiMemoryService(pool, q, orgSvc, wsSvc)
 	aiMemorySvc.SetFlags(flags)

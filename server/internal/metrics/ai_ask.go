@@ -33,7 +33,7 @@ var (
 		"create_task": true, "update_task": true, "add_comment": true, "create_project": true,
 		"update_project": true, "schedule_meeting": true, "update_meeting": true, "invite_to_meeting": true,
 		"cancel_meeting": true, "restore_meeting": true, "create_document": true, "update_document": true,
-		"add_document_comment": true, "send_chat_message": true,
+		"add_document_comment": true, "create_office_document": true, "send_chat_message": true,
 	}
 	askMemoryOutcomes = map[string]bool{"proposed": true, "applied": true, "rejected": true, "undone": true, "expired": true, "used": true, "import_split": true, "import_saved": true}
 	askActionOutcomes = map[string]bool{"proposed": true, "auto_applied": true, "applied": true, "rejected": true, "failed": true, "undone": true}
