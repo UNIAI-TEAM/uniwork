@@ -1,6 +1,7 @@
 // Proving a new account's address (spec §5.2), as the web's /verify does: the six digits mailed at sign-up, checked
-// as soon as the sixth arrives; a code mailed again after a minute (the server's gap, counted from arrival because
-// sign-up just sent one); a way out for a wrong address (sign out) and to Settings, where the account can be deleted.
+// as soon as the sixth arrives; a code mailed again, a minute after one this app just had mailed (the server's gap:
+// a sign-up a moment ago, a resend), at once on a later open, whose first code may have run out; a way out for a
+// wrong address (sign out) and to Settings, where the account can be deleted.
 // Until the address is proved the app shows no workspace (app/index.tsx, select-workspace.tsx).
 import { router } from "expo-router";
 import { useRef, useState } from "react";
@@ -11,6 +12,7 @@ import { haptics } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { useAuthStore } from "@/data/auth/store";
+import { VERIFICATION_RESEND_GAP_MS, verificationResendAt } from "@/data/auth/verification-mail";
 import { useResendVerification, useVerifyEmail } from "@/data/mutations/account";
 import { accountRoutes } from "@/lib/chat-routes";
 import { verifyEmailFailureOf } from "@/lib/sign-in-failure";
@@ -19,9 +21,6 @@ import { AuthHeading, TextButton } from "./auth-layout";
 import { CodeField } from "./code-field";
 import { useCountdown } from "./use-countdown";
 import { shownFailure, useFailureMessage, type ShownFailure } from "./use-sign-in";
-
-/** The server's gap between two codes (POST /me/email/resend). */
-const RESEND_GAP_MS = 60_000;
 
 export function VerifyEmailStep() {
   const { t } = useTranslation();
@@ -32,7 +31,7 @@ export function VerifyEmailStep() {
   const resend = useResendVerification();
   const [code, setCode] = useState("");
   const [shown, setShown] = useState<ShownFailure | null>(null);
-  const [resendAtMs, setResendAtMs] = useState(() => Date.now() + RESEND_GAP_MS);
+  const [resendAtMs, setResendAtMs] = useState(() => verificationResendAt(email, Date.now()));
   const [resent, setResent] = useState(false);
   const left = useCountdown(resendAtMs);
   const { message, spoken } = useFailureMessage(shown);
@@ -62,11 +61,11 @@ export function VerifyEmailStep() {
     try {
       await resend.mutateAsync(undefined);
       setResent(true);
-      setResendAtMs(Date.now() + RESEND_GAP_MS);
+      setResendAtMs(Date.now() + VERIFICATION_RESEND_GAP_MS);
     } catch (error: unknown) {
       const failure = verifyEmailFailureOf(error);
       setShown(shownFailure(failure));
-      if (failure.code === "rate_limited") setResendAtMs(Date.now() + RESEND_GAP_MS);
+      if (failure.code === "rate_limited") setResendAtMs(Date.now() + VERIFICATION_RESEND_GAP_MS);
     }
   };
 

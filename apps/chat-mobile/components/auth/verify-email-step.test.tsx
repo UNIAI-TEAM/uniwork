@@ -1,6 +1,7 @@
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import { router } from "expo-router";
 import { useAuthStore } from "@/data/auth/store";
+import { forgetVerificationMail, noteVerificationMailed } from "@/data/auth/verification-mail";
 import { useResendVerification, useVerifyEmail } from "@/data/mutations/account";
 import { render, viText } from "@/test/render";
 import { VerifyEmailStep } from "./verify-email-step";
@@ -22,12 +23,15 @@ beforeEach(() => {
   useAuthStore.setState({ user: { id: "u1", email: "moi@congty.vn", display_name: "Mới", email_verified_at: null } as never });
 });
 afterEach(() => {
+  forgetVerificationMail();
   jest.useRealTimers();
   jest.clearAllMocks();
 });
 
 describe("VerifyEmailStep", () => {
   it("counts the first minute down before a code may be mailed again, then mails it and says so", async () => {
+    // Sign-up just mailed one.
+    noteVerificationMailed("moi@congty.vn", Date.now());
     await render(<VerifyEmailStep />);
     expect(screen.getByText(viText("auth.verify.subtitle", { email: "moi@congty.vn" }))).toBeTruthy();
     expect(screen.getByText(viText("auth.verify.resendIn", { seconds: 60 }))).toBeTruthy();
@@ -37,6 +41,12 @@ describe("VerifyEmailStep", () => {
     expect(resend.mutateAsync).toHaveBeenCalledTimes(1);
     expect(screen.getByText(viText("auth.verify.resent"))).toBeTruthy();
     expect(screen.getByTestId("verify-resend")).toBeDisabled();
+  });
+
+  it("lets a code be asked at once on a later open, when no code was mailed a moment ago", async () => {
+    await render(<VerifyEmailStep />);
+    expect(screen.getByText(viText("auth.verify.resend"))).toBeTruthy();
+    expect(screen.getByTestId("verify-resend")).not.toBeDisabled();
   });
 
   it("says a code asked again too soon, and waits the minute again", async () => {

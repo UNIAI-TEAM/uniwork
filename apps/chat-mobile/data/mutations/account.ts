@@ -8,6 +8,8 @@ import { TRANSFER_OWNERSHIP_HANDLED_CODES } from "@/lib/owner-transfer";
 import { accountApi } from "../account-api";
 import { answerAiConsent } from "../ai-consent";
 import { withHeldStepUp } from "../auth/step-up-store";
+import { useAuthStore } from "../auth/store";
+import { noteVerificationMailed } from "../auth/verification-mail";
 import { verifyAccountEmail } from "../auth/verify-email";
 import { setPushPreviews } from "../push-previews";
 import { deviceKeys, revokeDevice } from "../queries/devices";
@@ -54,4 +56,9 @@ export const useVerifyEmail = () =>
   useCommand("account.verify_email", (_qc, code: string) => verifyAccountEmail(code), { handledCodes: ["invalid_code"], secret: true });
 
 /** Mails a fresh code; within a minute of the last one the server answers 429. */
-export const useResendVerification = () => useCommand("account.resend_verification", (_qc, _: void) => accountApi.resendVerification());
+export const useResendVerification = () =>
+  useCommand("account.resend_verification", async (_qc, _: void) => {
+    await accountApi.resendVerification();
+    const email = useAuthStore.getState().user?.email;
+    if (email) noteVerificationMailed(email, Date.now());
+  });

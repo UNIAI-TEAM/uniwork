@@ -41,6 +41,7 @@ import { setup } from "./fakes";
 import { CHOICE_TTL_MS, SECOND_FACTOR_TTL_MS, forgetPendingSignIn, holdStep, pendingTicket, usePendingSignIn } from "./pending-sign-in";
 import { forgetSignIn, providerToken, runSignIn, sendClaimCode } from "./sign-in";
 import { holdStepUp, stepUpToken } from "./step-up-store";
+import { VERIFICATION_RESEND_GAP_MS, forgetVerificationMail, verificationResendAt } from "./verification-mail";
 
 const sessionBody = {
   account_id: "acc_1",
@@ -268,6 +269,10 @@ describe("a new account by email", () => {
     flow.api.register.mockResolvedValueOnce(signedIn());
     expect(await runSignIn({ method: "register", email: " an@example.com", password: " pw ", displayName: " An " })).toMatchObject({ kind: "signed_in" });
     expect(flow.api.register).toHaveBeenCalledExactlyOnceWith({ email: "an@example.com", password: " pw ", displayName: "An" });
+    // The server mailed the address its verification code: the verify screen waits out the minute before another.
+    expect(verificationResendAt("an@example.com", Date.now())).toBeGreaterThan(Date.now());
+    expect(verificationResendAt("an@example.com", Date.now())).toBeLessThanOrEqual(Date.now() + VERIFICATION_RESEND_GAP_MS);
+    forgetVerificationMail();
   });
 });
 

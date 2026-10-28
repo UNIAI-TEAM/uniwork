@@ -23,6 +23,7 @@ import {
 import { stepOf, type Issuer, type SecondFactorContext, type SignedIn } from "./sign-in-step";
 import { forgetStepUp } from "./step-up-store";
 import { TransportError } from "./transport";
+import { forgetVerificationMail, noteVerificationMailed } from "./verification-mail";
 
 export type SignInRequest =
   /** PKCE in the system browser; `provider` sends the web sign-in page straight to it (spec §3.5) */
@@ -162,6 +163,8 @@ export async function runSignIn(request: SignInRequest): Promise<SignInOutcome> 
   switch (result.kind) {
     case "signed_in":
       clearSecondFactor();
+      // The server mailed the new account's address its code: the verify screen waits the minute before another.
+      if (request.method === "register") noteVerificationMailed(request.email, now());
       // A choice the sign-in did not spend waits for its link ("Tôi đã có tài khoản"); a kill now loses nothing to tell.
       if (spends) clearChoice();
       else forgetChoiceMark();
@@ -208,5 +211,6 @@ export async function providerToken(
 export function forgetSignIn(): void {
   forgetPendingSignIn();
   forgetStepUp();
+  forgetVerificationMail();
   void signOutOfGoogle();
 }

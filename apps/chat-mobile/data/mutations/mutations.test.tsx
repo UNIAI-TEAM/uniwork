@@ -48,7 +48,7 @@ jest.mock("../auth/methods-api", () => ({
   stepUp: jest.fn(async () => true),
   signInMethodsApi: { setPassword: jest.fn(async () => ({ user: { id: "u1" }, methods: null })) },
 }));
-jest.mock("../auth/store", () => ({ useAuthStore: { getState: () => ({ setUser: mockSetUser }) } }));
+jest.mock("../auth/store", () => ({ useAuthStore: { getState: () => ({ setUser: mockSetUser, user: { id: "u1", email: "moi@congty.vn" } }) } }));
 const mockSetUser = jest.fn();
 jest.mock("../ai-consent", () => ({ answerAiConsent: jest.fn(async () => undefined) }));
 jest.mock("../push-previews", () => ({ setPushPreviews: jest.fn(async () => undefined) }));
@@ -74,6 +74,7 @@ import { accountApi } from "../account-api";
 import { answerAiConsent } from "../ai-consent";
 import { setPushPreviews } from "../push-previews";
 import { verifyAccountEmail } from "../auth/verify-email";
+import { verificationResendAt } from "../auth/verification-mail";
 import { sendClaimCode } from "../auth/sign-in";
 import { linkPendingTicket, signInMethodsApi } from "../auth/methods-api";
 import { api } from "../api";
@@ -238,6 +239,8 @@ describe("email verification and the choice screen's commands", () => {
     expect(verifyAccountEmail).toHaveBeenCalledWith("123456");
     await run(() => useResendVerification(), undefined);
     expect(accountApi.resendVerification).toHaveBeenCalledTimes(1);
+    // The code just mailed is what the next resend waits a minute on.
+    expect(verificationResendAt("moi@congty.vn", Date.now())).toBeGreaterThan(Date.now());
   });
 
   it("mail the claim code to the address typed, and link the held identity, adopting the account answered", async () => {
