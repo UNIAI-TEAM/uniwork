@@ -77,7 +77,7 @@ export function PasswordForm() {
     if (again !== next) return refuse("again", t(`${P}.mismatch`));
     setBusy(true);
     try {
-      let proofs: readonly unknown[] | undefined = methods?.proofs;
+      let proofs: readonly unknown[] | null | undefined = methods?.proofs;
       if (asksCurrent) {
         try {
           await save.mutateAsync({
@@ -90,7 +90,7 @@ export function PasswordForm() {
           const failure = readSignInFailure(error, "password");
           // The server wants another proof now (a second factor turned on elsewhere): the sheet asks for it.
           if (failure.kind !== "step_up") return failed(failure);
-          proofs = failure.proofs ?? [];
+          proofs = failure.proofs;
         }
       }
       const result = await stepUp.run(

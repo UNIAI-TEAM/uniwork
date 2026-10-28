@@ -54,7 +54,7 @@ export function LinkStep() {
         // This session signed in before the ticket was issued, or the identity moves: confirm it is you, then link.
         const first = signInFailureOf(error, "ticket");
         if (first.kind !== "step_up") throw error;
-        const proved = await stepUp.run(linkAction(provider), attempt, { proofs: first.proofs ?? [] });
+        const proved = await stepUp.run(linkAction(provider), attempt, { proofs: first.proofs });
         if (!proved.done) return;
       }
       setState({ kind: "linked", provider });

@@ -14,7 +14,7 @@ import {
 } from "@uniwork/core/auth/sign-in-rules";
 import type { SignInOffer } from "./sign-in-offer";
 
-export interface PasswordRow {
+interface PasswordRow {
   kind: "password";
   set: boolean;
   changedAt: string | null;

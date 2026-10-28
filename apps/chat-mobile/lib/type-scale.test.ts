@@ -82,6 +82,9 @@ const FIXED_HEIGHT_OK: Record<string, string[]> = {
   // The loading skeleton: grey shapes standing in for text, which never hold any.
   "components/chat/room-list-parts.tsx": ["h-[34px] rounded-full bg-muted", "h-[76px] flex-row items-center gap-3 px-4", "h-3.5 rounded-full bg-muted", "h-3 max-w-full rounded-full bg-muted"],
   "components/ui/list-states.tsx": ["h-16 flex-row items-center gap-3 px-4", "h-3.5 rounded-full bg-muted", "h-3 max-w-full rounded-full bg-muted"],
+  "components/settings/sign-in-method-row.tsx": ["h-3.5 rounded-full bg-muted"],
+  "components/workspace/invitation-parts.tsx": ["h-4 rounded-full bg-muted"],
+  "components/workspace/invitation-preview.tsx": ["h-4 rounded-full bg-muted"],
   // Three animated dots, no text.
   "components/chat/typing-bubble.tsx": ["h-9 flex-row items-center gap-1 bg-chat-bubble-other px-3.5"],
 };

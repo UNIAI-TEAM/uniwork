@@ -166,9 +166,8 @@ describe("LinkStep", () => {
   });
 
   it("stays on the question when the proof sheet is closed", async () => {
-    link.mutateAsync.mockRejectedValueOnce(
-      Object.assign(new Error("proof_required"), { name: "ApiError", status: 403, body: { error: { code: "proof_required", fields: { proofs: ["password"] } } } }),
-    );
+    // No list in the refusal: the sheet chooses from the account's own state.
+    link.mutateAsync.mockRejectedValueOnce(Object.assign(new Error("proof_required"), { name: "ApiError", status: 403, body: { error: { code: "proof_required" } } }));
     await render(<LinkStep />);
     await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
     await act(async () => fireEvent.press(screen.getByTestId("step-up-cancel")));

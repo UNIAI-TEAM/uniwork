@@ -16,11 +16,16 @@ import { StepUpSheet, type StepUpAsk } from "./step-up-sheet";
 /** What a gated command came to: its answer, or nothing because the person closed the proof sheet. */
 export type StepUpRun<T> = { done: true; value: T } | { done: false };
 
+/** `proofs`: the server's freshest list of what it takes (a refusal's, the methods'); absent or null, it is read. */
+export interface StepUpOptions {
+  proofs?: readonly unknown[] | null;
+}
+
 /** A list read this recently is good enough to choose the first proof from. */
 const PROOFS_FRESH_MS = 30_000;
 
 export function useStepUp(): {
-  run: <T>(action: StepUpAction, command: (token: string) => Promise<T>, options?: { proofs?: readonly unknown[] }) => Promise<StepUpRun<T>>;
+  run: <T>(action: StepUpAction, command: (token: string) => Promise<T>, options?: StepUpOptions) => Promise<StepUpRun<T>>;
   sheet: ReactElement;
 } {
   const qc = useQueryClient();
@@ -60,7 +65,7 @@ export function useStepUp(): {
   }, [qc]);
 
   const run = useCallback(
-    async <T>(action: StepUpAction, command: (token: string) => Promise<T>, options: { proofs?: readonly unknown[] } = {}): Promise<StepUpRun<T>> => {
+    async <T>(action: StepUpAction, command: (token: string) => Promise<T>, options: StepUpOptions = {}): Promise<StepUpRun<T>> => {
       if (!userId) return { done: false };
       let proofs = options.proofs ?? null;
       for (let asked = 0; ; asked += 1) {
@@ -75,7 +80,7 @@ export function useStepUp(): {
         } catch (error: unknown) {
           const failure = readSignInFailure(error, "methods");
           if (failure.kind !== "step_up" || asked > 0) throw error;
-          proofs = failure.proofs ?? [];
+          proofs = failure.proofs;
         }
       }
     },

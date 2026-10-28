@@ -198,7 +198,7 @@ function PreviewSkeleton() {
           </View>
         ))}
       </View>
-      <View className="h-12 rounded-full bg-muted" />
+      <View className="min-h-12 rounded-full bg-muted" />
     </View>
   );
 }

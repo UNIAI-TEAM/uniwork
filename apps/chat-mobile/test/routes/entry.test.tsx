@@ -8,6 +8,7 @@ import type { Workspace } from "@uniwork/core/types/workspace";
 import { Text } from "react-native";
 import AppLayout from "@/app/(app)/_layout";
 import AccountSettings from "@/app/(app)/account";
+import Password from "@/app/(app)/password";
 import LicensesScreen from "@/app/(app)/licenses";
 import SelectWorkspace from "@/app/(app)/select-workspace";
 import Invitation from "@/app/(app)/invite/[token]";
@@ -20,6 +21,7 @@ import type { SignInOutcome, SignInRequest } from "@/data/auth/sign-in";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
 import { invitationsApi } from "@/data/invitations/api";
+import { signInMethodsApi } from "@/data/auth/methods-api";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { setPendingLink, takePendingLink } from "@/lib/deep-link";
 import { SchemaMismatchError } from "@/lib/schema-mismatch";
@@ -66,6 +68,7 @@ const ROUTES = {
   "(app)/account": AccountSettings,
   "(app)/licenses": LicensesScreen,
   "(app)/invite/[token]": Invitation,
+  "(app)/password": Password,
   "(app)/[org]/[ws]/chat": ChatStandIn,
 };
 
@@ -312,6 +315,47 @@ describe("the entry gate", () => {
     expect(invitationsApi.preview).toHaveBeenCalledWith("t1", expect.anything());
     expect(accept).not.toHaveBeenCalled();
     expect(takePendingLink()).toBeNull();
+  });
+
+  it("leaves an invitation's preview opened from a link for the start screen", async () => {
+    jest.spyOn(invitationsApi, "preview").mockResolvedValue({
+      invitation: { id: "i1", status: "pending", expires_at: "2099-01-01T00:00:00Z", organization: { id: "o2", slug: "beta", name: "Beta" }, workspaces: [], org_role: "member" },
+      conflicts: [],
+    });
+    jest.mocked(api.listWorkspaces).mockResolvedValue([]);
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    const routes = await renderRoutes(ROUTES, "/invite/t1");
+    await act(async () => fireEvent.press(await screen.findByTestId("auth-back")));
+    expect(await screen.findByTestId("select-workspace-settings")).toBeTruthy();
+    expect(routes.pathname()).toBe("/select-workspace");
+  });
+
+  // Spec §5.2: the password is set or changed on the account's own screen, from Settings › Sign-in methods.
+  it("opens the password screen from the account's Settings, and comes back", async () => {
+    jest.spyOn(signInMethodsApi, "getSignInMethods").mockResolvedValue({
+      password: { set: true, changed_at: null },
+      google: { linked: false, email: null, linked_at: null },
+      apple: { linked: false, email: null, linked_at: null, private_relay: false },
+      account_email_is_relay: false,
+      proofs: ["password", "email_code"],
+    });
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    const routes = await renderRoutes(ROUTES, "/account");
+    await act(async () => fireEvent.press(await screen.findByTestId("sign-in-method-action-password")));
+    expect(await screen.findByTestId("password-form")).toBeTruthy();
+    expect(routes.pathname()).toBe("/password");
+    await act(async () => fireEvent.press(screen.getByTestId("auth-back")));
+    expect(await screen.findByTestId("account-logout")).toBeTruthy();
+    expect(routes.pathname()).toBe("/account");
+  });
+
+  it("leaves the password screen opened on its own for the start screen", async () => {
+    jest.mocked(api.listWorkspaces).mockResolvedValue([]);
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    const routes = await renderRoutes(ROUTES, "/password");
+    await act(async () => fireEvent.press(await screen.findByTestId("auth-back")));
+    expect(await screen.findByTestId("select-workspace-settings")).toBeTruthy();
+    expect(routes.pathname()).toBe("/select-workspace");
   });
 
   it("signs out from the account's own Settings", async () => {
