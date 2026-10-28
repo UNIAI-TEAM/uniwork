@@ -740,8 +740,30 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập
   xuất" (về `/login?next=` trang này). Trang web chỉ biết id của tài khoản UniChat, không biết email, nên câu không nêu
   `{{me}}`. Danh sách tải lại khi cửa sổ có focus (`bridge.onFocusChange`). Đổi mật khẩu và gỡ chạy tại chỗ.
 - Bỏ (không chỉ sửa lời) ngõ cụt `org.transfer.reason_no_password`, `org.transfer.no_password`,
-  `invitations.switch.no_password_reason`: chuyển quyền và chuyển tổ chức dùng hộp bằng chứng. Xoá tài khoản dùng hộp
-  bằng chứng. `auth.forgot.googleHint` nói cả Apple và mail "đặt mật khẩu" mới.
+  `invitations.switch.no_password_reason` (cùng `org.transfer.reason_password`, `org.transfer.wrong_password`,
+  `org.transfer.password_label`, `TransferPasswordField`, `passwordRefusal`): không lệnh nào trên web còn gửi mật khẩu
+  làm bằng chứng. Mỗi lệnh nhạy cảm dưới đây chạy qua `useStepUpGate().run` / `ensure`:
+  - **Bật MFA** (`enable_mfa`): địa chỉ đã biết là xác minh thì hỏi bằng chứng trước setup; không thì để server nói
+    trước (setup xét địa chỉ trước bằng chứng): chưa xác minh → toast "Xác minh email của bạn trước, rồi bật xác thực hai
+    lớp.", `proof_required` → hộp trên `proofs`. Xác nhận mã dùng token của setup (`upfront: false`); token hết hạn giữa
+    chừng thì hộp hỏi lại và gửi đúng mã đã gõ. Bằng chứng bị từ chối không bao giờ thành toast "Không bắt đầu được thiết
+    lập MFA" hay lỗi "Mã không đúng". Bước quét mã nhận focus ở ô mã.
+  - **Xoá tài khoản** (`delete_account`): hộp destructive (`FormDialog`, nền tối hơn) hỏi câu hỏi kèm ba dòng (xoá gì,
+    giữ gì, chủ sở hữu tổ chức thì sao), không có ô bằng chứng riêng. Server xét bằng chứng trước rồi mới xét chủ sở hữu
+    (`409 owner_must_transfer` mang `organization_name`, `organization_slug`, `can_close`; core `ownedOrganization`):
+    thành viên duy nhất → "Bạn là thành viên duy nhất của {{name}}, nên tổ chức sẽ được đóng cùng lúc với tài khoản." kèm
+    hậu quả của việc đóng, gõ lại định danh, nút "Đóng tổ chức và xóa tài khoản" gửi `close_organization` (token của lần
+    bấm đầu chứng minh luôn: một lần bằng chứng); còn thành viên khác → "Bạn là chủ sở hữu {{name}}, và tổ chức còn thành
+    viên khác. Chuyển quyền sở hữu trong Cài đặt › Thành viên tổ chức, rồi quay lại xóa tài khoản." và chỉ còn "Đóng";
+    `organization_has_members` lúc đóng → câu đó. Lỗi khác nói trong hộp, không toast. Mỗi lần mở lại bắt đầu từ câu hỏi.
+  - **Chuyển quyền** (Cài đặt › Thành viên tổ chức, `transfer_ownership`): chọn người + gõ tên tổ chức; "Chuyển quyền"
+    mở hộp bằng chứng lồng trong hộp chuyển quyền (trừ khi token còn phục vụ).
+  - **Chuyển tổ chức khi nhận lời mời** (email hay link mời, `transfer_ownership`): bước xử lý chỉ chọn người nhận;
+    "Chuyển sang …" mở hộp bằng chứng khi có bước chuyển quyền mà chưa có token, và `withTransferProof` gửi token.
+    `proof_required` → hỏi lại một lần trên `proofs` rồi gửi lại; bị từ chối lần nữa → "Chưa gửi được yêu cầu chuyển tổ
+    chức…", bấm lại thì hỏi lại. Người dùng luôn ở bước xác nhận, không bị đưa lùi bước.
+- `auth.forgot.googleHint` nói cả Apple và mail "đặt mật khẩu" mới, và đứng trên form gửi link (dưới "Gửi link đặt
+  lại", nơi "nhập email ở trên" đúng), không ở màn "Kiểm tra hộp thư": mail biến thể đã tự nói điều đó.
 
 ### 4.6 Test web
 
