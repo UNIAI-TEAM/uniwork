@@ -147,6 +147,16 @@ describe("a failed sign-in", () => {
     const feel = Platform.OS === "ios" ? Haptics.notificationAsync : Haptics.performAndroidHapticsAsync;
     expect(feel).toHaveBeenCalled();
   });
+
+  it("says a failure a screen hands it as a form's, never as a provider sheet's", async () => {
+    const { result } = await renderHook(() => useSignIn("ticket"), { wrapper });
+    let said: unknown;
+    await act(async () => {
+      said = result.current.fail(new Error("odd"));
+    });
+    expect(said).toMatchObject({ code: "unknown", key: "auth.continue.errors.generic" });
+    expect(result.current.shown?.failure.key).toBe("auth.continue.errors.generic");
+  });
 });
 
 describe("useCountdown", () => {
