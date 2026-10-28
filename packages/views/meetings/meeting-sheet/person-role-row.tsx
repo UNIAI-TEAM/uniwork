@@ -1,6 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Crown, Ellipsis, PenLine, X } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import type { Tint } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -12,6 +13,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { UI_EASE_OUT } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { kitButton } from "../meeting-detail/ui/kit-buttons";
 import { TextButton } from "../meeting-detail/ui/text-button";
@@ -76,6 +78,7 @@ export function PersonRoleRow({
 }) {
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
+  const reduce = useReducedMotion() ?? false;
   if (confirming) {
     return (
       <li className="flex min-h-11 items-center gap-3 max-sm:min-h-13" role="group" aria-label={t("meetings.removeParticipantTitle", { name })}>
@@ -90,14 +93,28 @@ export function PersonRoleRow({
     );
   }
   const rsvpWord = rsvp ? t(`meetings.sheet.rsvp_${rsvp}`) : null;
+  // A person added after the sheet opened grows in 6 px up and their face pops; PeopleField's AnimatePresence keeps the first rows still.
+  const grow = reduce
+    ? { initial: false as const }
+    : {
+        initial: { opacity: 0, y: -6, maxHeight: 0, overflow: "hidden" },
+        animate: { opacity: 1, y: 0, maxHeight: 52, transitionEnd: { maxHeight: "none", overflow: "visible" } },
+        transition: { duration: 0.26, ease: UI_EASE_OUT },
+      };
+  const pop = reduce
+    ? { initial: false as const }
+    : { initial: { opacity: 0, scale: 0.6 }, animate: { opacity: 1, scale: [0.6, 1.08, 1] }, transition: { duration: 0.36, ease: UI_EASE_OUT, delay: 0.06 } };
   return (
-    <li className="grid h-11 grid-cols-[24px_minmax(0,1fr)_auto_28px] items-center gap-x-2.5 max-sm:h-13 max-sm:grid-cols-[24px_minmax(0,1fr)_auto_44px] max-sm:gap-x-3 max-sm:group-data-[mode=live]/sheet:gap-x-2">
-      <span className="relative inline-flex">
+    <motion.li
+      {...grow}
+      className="grid h-11 grid-cols-[24px_minmax(0,1fr)_auto_28px] items-center gap-x-2.5 max-sm:h-13 max-sm:grid-cols-[24px_minmax(0,1fr)_auto_44px] max-sm:gap-x-3 max-sm:group-data-[mode=live]/sheet:gap-x-2"
+    >
+      <motion.span {...pop} className="relative inline-flex">
         <MeetingPersonAvatar name={name} avatarUrl={avatarUrl} size={24} tint={tint} />
         {rsvp ? (
           <span aria-hidden data-rsvp={rsvp} className={cn("absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2 ring-popover", RSVP_DOT[rsvp])} />
         ) : null}
-      </span>
+      </motion.span>
       {/* The edit sheet on a phone stacks the RSVP word under the name (EditScheduled at 390). */}
       <span className="min-w-0 truncate text-body font-medium max-sm:group-data-[mode=edit]/sheet:flex max-sm:group-data-[mode=edit]/sheet:flex-col max-sm:group-data-[mode=edit]/sheet:leading-4.5 max-sm:group-data-[mode=live]/sheet:flex max-sm:group-data-[mode=live]/sheet:flex-col max-sm:group-data-[mode=live]/sheet:leading-4.5">
         {name}
@@ -169,7 +186,7 @@ export function PersonRoleRow({
           <X aria-hidden />
         </Button>
       )}
-    </li>
+    </motion.li>
   );
 }
 

@@ -5674,6 +5674,10 @@
         "startsAt": "Starts {{time}}",
         "startsIn": "Starts in {{time}}",
         "waiting": "waiting"
+      },
+      "create": {
+        "peopleRest_one": "person · you included",
+        "peopleRest_other": "people · you included"
       }
     }
   },

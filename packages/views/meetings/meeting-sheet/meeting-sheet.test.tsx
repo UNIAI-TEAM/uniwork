@@ -141,7 +141,7 @@ describe("MeetingSheet · create", () => {
     await pickPerson(dialog, "Hà Vũ");
     expect(within(dialog).getAllByText("Hà Vũ sẽ nhận lời mời").length).toBeGreaterThan(0);
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"), { timeout: 3_000 });
     const create = posts("/workspaces/w1/meetings")[0]![1] as Init;
     expect(create.body).toMatchObject({ title: "Duyệt kịch bản", attendee_user_ids: [], timezone: "Asia/Ho_Chi_Minh" });
     expect(create.headers?.["Idempotency-Key"]).toBeTruthy();
@@ -173,7 +173,7 @@ describe("MeetingSheet · create", () => {
     expect(within(dialog).queryByRole("button", { name: /^Vào phòng/ })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "Khách bên ngoài" })).toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"), { timeout: 3_000 });
     expect((posts("/workspaces/w1/meetings")[0]![1] as Init).body).toMatchObject({ title: "Giao ban", venue: "in_person" });
   });
 
@@ -191,7 +191,7 @@ describe("MeetingSheet · create", () => {
     expect(within(dialog).getByRole("region", { name: "Khách bên ngoài" })).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("radio", { name: /Trực tiếp/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"), { timeout: 3_000 });
     expect(posts("/invite-links")).toHaveLength(0);
   });
 
@@ -272,6 +272,35 @@ describe("MeetingSheet · create", () => {
 describe("MeetingSheet · create runs", () => {
   const isCreate = (path: string, init: Init) => path === "/api/v1/workspaces/w1/meetings" && init.method === "POST";
   const sent = () => posts("/workspaces/w1/meetings").map((c) => c[1] as Init);
+
+  it("submit morphs while pending and shows the check on success", async () => {
+    let answer!: (v: unknown) => void;
+    serve((path, init) => (isCreate(path, init) ? new Promise((r) => (answer = r)) : undefined));
+    const onDone = vi.fn();
+    const dialog = openCreate(onDone);
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp A" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    const busy = await within(dialog).findByRole("button", { name: "Đang tạo…" });
+    expect(busy).toHaveAttribute("aria-busy", "true");
+    expect(busy).toHaveAttribute("data-state", "busy");
+    answer({ meeting: { ...meeting, id: "new1", scribe_enabled: true } });
+    const done = await within(dialog).findByRole("button", { name: "Đã tạo cuộc họp" });
+    expect(done).toHaveAttribute("data-state", "done");
+    // The sheet holds the ✓ before it goes and opens the meeting.
+    expect(onDone).not.toHaveBeenCalled();
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"), { timeout: 3_000 });
+  });
+
+  it("submit returns to its label on error", async () => {
+    serve((path, init) => (isCreate(path, init) ? Promise.reject(new ApiError("dự án không còn", "not_found", 404)) : undefined));
+    const dialog = openCreate();
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp A" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    expect(await within(dialog).findByText(/^Chưa tạo được cuộc họp\./)).toBeInTheDocument();
+    const primary = within(dialog).getByRole("button", { name: "Tạo cuộc họp" });
+    expect(primary).toHaveAttribute("data-state", "idle");
+    expect(primary).not.toHaveAttribute("aria-busy");
+  });
 
   it("sends the edited draft after a refused create, under the same key", async () => {
     let n = 0;
