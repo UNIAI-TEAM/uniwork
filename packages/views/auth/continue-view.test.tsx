@@ -166,16 +166,22 @@ describe("ContinueView — unmatched", () => {
     expect(calls("POST /api/v1/auth/sign-in-ticket/create")[0]![1]).toMatchObject({ body: { display_name: "An Nguyễn" } });
   });
 
-  it("sends a 409 conflict to the sign-in that links", async () => {
+  it("becomes the existing-account screen when the address took an account meanwhile", async () => {
     route({
       "GET /api/v1/auth/sign-in-ticket": TICKET,
       "POST /api/v1/auth/sign-in-ticket/create": () => Promise.reject(new ApiError("taken", "sign_in_account_conflict", 409)),
     });
     open();
     fireEvent.click(await screen.findByRole("button", { name: /Tạo tài khoản mới/ }));
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Email này vừa được dùng để tạo tài khoản. Đăng nhập để liên kết.");
-    expect(within(alert).getByRole("link", { name: "Đăng nhập để liên kết" })).toHaveAttribute("href", SIGN_IN_TO_LINK);
+    // One way on, said once: no create row left to meet the same answer,
+    // and no second button with the same words.
+    const heading = await screen.findByRole("heading", { level: 1, name: "Email này đã có tài khoản UniWork" });
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.getAllByRole("link", { name: "Đăng nhập để liên kết" })).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "Đăng nhập để liên kết" })).toHaveAttribute("href", SIGN_IN_TO_LINK);
+    expect(screen.queryByRole("button", { name: /Tạo tài khoản mới/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Tôi đã có tài khoản UniWork/ })).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("counts a 429 down live and lets the person try again when it is over", async () => {

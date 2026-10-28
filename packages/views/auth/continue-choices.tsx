@@ -7,7 +7,7 @@ import { useCreateFromSignInTicket, useDiscardSignInTicket, useLogout } from "@u
 import { readSignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { paths } from "@uniwork/core/paths";
 import { isMFAChallenge, type MFAChallenge, type SessionResponse, type User } from "@uniwork/core/types";
-import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { AppLink, useNavigation } from "../navigation";
@@ -145,6 +145,11 @@ function ChoicesScreen({
   const failure = useFailure(create.error, "ticket");
   const phrase = useWaitPhrase(failure, create.reset);
   const relay = shown.kind === "relay";
+  // The address took an account since the ticket was issued (another tab, a
+  // colleague's invite): "Tạo tài khoản mới" can only meet the same answer,
+  // so the screen becomes the one the address would have had from the
+  // start, with its one way on. Its new title takes focus and is heard.
+  const conflicted = failure?.code === "sign_in_account_conflict";
   // "Tôi đã có tài khoản UniWork": sign in once, in link mode, and come
   // back to the link step, which goes on to `next`.
   const signInToLink = paths.login({ link: true, next: paths.authContinue({ step: "link", next }) });
@@ -186,13 +191,9 @@ function ChoicesScreen({
     else push(paths.login({ next }));
   };
 
-  const notice = failure && failure.kind !== "restart" && failure.kind !== "field" ? (
+  const notice = failure && !conflicted && failure.kind !== "restart" && failure.kind !== "field" ? (
     <FailureNotice failure={failure} phrase={phrase}>
-      {failure.code === "sign_in_account_conflict" ? (
-        <AppLink href={signInToLink} className={buttonVariants({ variant: "outline" })}>
-          {t("auth.continue.linkRequired.action")}
-        </AppLink>
-      ) : failure.kind === "form" && (failure.code === "network" || (failure.status ?? 0) >= 500) ? (
+      {failure.kind === "form" && (failure.code === "network" || (failure.status ?? 0) >= 500) ? (
         <Button type="button" variant="outline" onClick={() => runCreate(create.variables?.displayName)}>
           <RefreshCw aria-hidden />
           {t("common.retry")}
@@ -201,7 +202,7 @@ function ChoicesScreen({
     </FailureNotice>
   ) : null;
 
-  if (naming) {
+  if (naming && !conflicted) {
     return (
       <CreateNameStep
         body={address ? t("auth.continue.create.body", { email: address }) : t("auth.continue.create.bodyRelay")}
@@ -262,7 +263,7 @@ function ChoicesScreen({
     );
   }
 
-  if (ticket.kind === "link_required") {
+  if (ticket.kind === "link_required" || conflicted) {
     return (
       <AuthShell
         title={t("auth.continue.linkRequired.title")}
