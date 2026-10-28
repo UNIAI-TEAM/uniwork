@@ -2,12 +2,14 @@
 // and after. While it runs, `busy` names the control it started from (that control turns into a labelled spinner,
 // every other one dims and ignores taps). A second factor or a choice moves on to its screen; a session says once
 // what it brought (an account taken back, a link that could not be made) and the screen's own redirect takes over;
-// a failure becomes the sentence core's table gives it, with a countdown while it asks to wait.
+// a failure becomes the sentence core's table gives it (and the system's error feel), with a countdown while it asks
+// to wait.
 import { linkSkippedKey, retryPhrase, type SignInContext, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { haptics } from "@/components/ui/haptics";
 import { dismissInterrupted, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import type { SignInOutcome, SignInRequest } from "@/data/auth/sign-in";
 import { useAuthStore } from "@/data/auth/store";
@@ -76,7 +78,10 @@ export function useSignIn(context: SignInContext, options: { linkMode?: boolean 
   const fail = useCallback(
     (error: unknown, start: SignInStart = "form"): SignInFailure => {
       const failure = signInFailureOf(error, context, start);
-      if (mounted.current) setShown(shownFailure(failure));
+      if (mounted.current) {
+        setShown(shownFailure(failure));
+        haptics.failure();
+      }
       return failure;
     },
     [context],

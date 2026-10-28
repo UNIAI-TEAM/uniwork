@@ -34,7 +34,12 @@ export function AuthLayout({ children, onBack, testID }: { children: ReactNode; 
           </View>
         ) : null}
       </SafeAreaView>
-      <KeyboardAwareScrollView bottomOffset={KEYBOARD_GAP} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
+      <KeyboardAwareScrollView
+        bottomOffset={KEYBOARD_GAP}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
         <View className={cn("w-full max-w-[440px] flex-1 gap-6 self-center px-6 pb-6", onBack ? "pt-2" : "pt-10")}>{children}</View>
       </KeyboardAwareScrollView>
       <SafeAreaView edges={["bottom"]} />

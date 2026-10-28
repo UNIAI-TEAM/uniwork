@@ -5,7 +5,8 @@ jest.mock("@react-native-community/netinfo", () => {
   return { __esModule: true, default: netInfo, ...netInfo, useNetInfo: () => ({ isConnected: true }) };
 });
 import type { SignInFailure } from "@uniwork/core/auth/sign-in-errors";
-import { BackHandler } from "react-native";
+import * as Haptics from "expo-haptics";
+import { BackHandler, Platform } from "react-native";
 import { holdStep, forgetPendingSignIn, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import type { SignInOutcome } from "@/data/auth/sign-in";
 import { useAuthStore } from "@/data/auth/store";
@@ -103,6 +104,17 @@ describe("useSignIn", () => {
     await unmount();
     await act(async () => expect(await run({ method: "browser" })).toMatchObject({ ok: false }));
     expect(usePendingSignIn.getState().interrupted).toBeNull();
+  });
+});
+
+describe("a failed sign-in", () => {
+  it("is felt as the system's error, and said", async () => {
+    useAuthStore.setState({ login: jest.fn(async () => Promise.reject(Object.assign(new Error("x"), { name: "TransportError", code: "invalid_credentials", status: 401 }))) });
+    const { result } = await renderHook(() => useSignIn("sign_in"), { wrapper });
+    await act(async () => void (await result.current.run({ method: "password", email: "a@b.c", password: "p" }, "password")));
+    expect(result.current.shown?.failure.key).toBe("auth.social.errors.invalid_credentials");
+    const feel = Platform.OS === "ios" ? Haptics.notificationAsync : Haptics.performAndroidHapticsAsync;
+    expect(feel).toHaveBeenCalled();
   });
 });
 

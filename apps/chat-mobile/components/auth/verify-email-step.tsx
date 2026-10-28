@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, TextInput, View } from "react-native";
 import { useAnnounce } from "@/components/ui/a11y";
+import { haptics } from "@/components/ui/haptics";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { useAuthStore } from "@/data/auth/store";
@@ -48,6 +49,7 @@ export function VerifyEmailStep() {
       await verify.mutateAsync(value);
     } catch (error: unknown) {
       setShown(shownFailure(verifyEmailFailureOf(error)));
+      haptics.failure();
       setCode("");
       input.current?.focus();
     }
