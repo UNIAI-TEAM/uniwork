@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/auth/appletest"
 	"github.com/unicomhub/uniwork/server/internal/auth/googletest"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -35,7 +37,14 @@ type nativeKit struct {
 
 func newNativeTestServer(t *testing.T) *nativeKit {
 	t.Helper()
-	d, pool := newTestDeps(t, nil, discardOutbox{})
+	return newNativeTestServerWithOutbox(t, discardOutbox{})
+}
+
+// newNativeTestServerWithOutbox lets a test read the mail the choice
+// screen's doors queue (recordOutbox) instead of dropping it.
+func newNativeTestServerWithOutbox(t *testing.T, out mail.Enqueuer) *nativeKit {
+	t.Helper()
+	d, pool := newTestDeps(t, nil, out)
 	q := db.New(pool)
 	cfg := config.Config{JWTSecret: "test", DesktopAuthClients: []config.DesktopAuthClient{
 		{ID: "uniwork-chat-mobile", RedirectURIs: []string{"uniworkchat://auth/callback"}},
@@ -190,6 +199,105 @@ func TestNativeDoorsAnswerOneShape(t *testing.T) {
 	_ = form.Body.Close()
 	if form.StatusCode != http.StatusUnsupportedMediaType {
 		t.Fatalf("a form post: %d, want 415", form.StatusCode)
+	}
+}
+
+// The app says its language on every door (NativeClientSDI.locale, spec
+// §3.6): it carries no uniwork-locale cookie, so without it every mail a door
+// sends — the sign-up's code, the choice screen's — went out in English. vi
+// or en is the language of the account a door creates, whose mails follow
+// it, and of the code mailed to another address; anything else, or nothing,
+// falls back to the cookie as before, then to English.
+func TestNativeDoorsMailInTheAppsLanguage(t *testing.T) {
+	out := &recordOutbox{}
+	k := newNativeTestServerWithOutbox(t, out)
+	users := db.New(testPool)
+	for email, tc := range map[string]struct {
+		locale       any
+		cookie, want string
+	}{
+		"vi.app@example.com":     {"vi", "", "vi"},
+		"en.app@example.com":     {"en", "vi", "en"},
+		"none.app@example.com":   {nil, "", "en"},
+		"cookie.app@example.com": {nil, "vi", "vi"},
+		"odd.app@example.com":    {"fr", "vi", "vi"},
+	} {
+		body := nativeBody(map[string]any{"email": email, "password": "password123", "display_name": "Ngôn ngữ"})
+		if tc.locale != nil {
+			body["locale"] = tc.locale
+		}
+		headers := map[string]string{}
+		if tc.cookie != "" {
+			headers["Cookie"] = "uniwork-locale=" + tc.cookie
+		}
+		res, got := doJSONHeaders(t, k.srv, http.MethodPost, "/api/v1/auth/native/register", "", headers, body)
+		if res.StatusCode != http.StatusOK || got["status"] != "signed_in" {
+			t.Fatalf("register %s: %d %v", email, res.StatusCode, got)
+		}
+		if u, err := users.GetUserByEmail(context.Background(), email); err != nil || u.Locale != tc.want {
+			t.Fatalf("register %s (locale %v, cookie %q): the account's language is %q, want %q (%v)", email, tc.locale, tc.cookie, u.Locale, tc.want, err)
+		}
+	}
+
+	token, nonce := k.googleToken(t, "g-locale", "locale.app@gmail.com")
+	_, got := doJSON(t, k.srv, http.MethodPost, "/api/v1/auth/native/google", "", nativeBody(map[string]any{"id_token": token, "nonce": nonce}))
+	ticket, _ := got["ticket"].(string)
+	if ticket == "" {
+		t.Fatalf("an unmatched Google identity: %v", got)
+	}
+	res, got := doJSON(t, k.srv, http.MethodPost, "/api/v1/auth/native/sign-in-ticket/claim-email", "", nativeBody(map[string]any{
+		"ticket": ticket, "nonce": nonce, "email": "an@acme.vn", "locale": "vi",
+	}))
+	if res.StatusCode != http.StatusOK || got["status"] != "sent" {
+		t.Fatalf("claim: %d %v", res.StatusCode, got)
+	}
+	if m := out.lastMail(t); m.Kind != mail.KindSignInEmailClaim || m.To != "an@acme.vn" || m.Locale != "vi" {
+		t.Fatalf("the code to the other address goes out in the app's language: %s %s %s", m.Kind, m.To, m.Locale)
+	}
+}
+
+// Every door documents the app's language as the closed pair it is, on the
+// one client part each door's body embeds.
+func TestNativeDoorsDocumentTheAppsLanguage(t *testing.T) {
+	h := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000", EnableSwagger: true}, Log: slog.Default()})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/swagger/doc.json", nil))
+	var spec struct {
+		Paths map[string]map[string]struct {
+			RequestBody struct {
+				Content map[string]struct {
+					Schema struct {
+						Ref string `json:"$ref"`
+					} `json:"schema"`
+				} `json:"content"`
+			} `json:"requestBody"`
+		} `json:"paths"`
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]struct {
+					Enum        []string `json:"enum"`
+					Example     any      `json:"example"`
+					Description string   `json:"description"`
+				} `json:"properties"`
+			} `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+		t.Fatal(err)
+	}
+	for _, door := range []string{
+		"password", "mfa", "google", "apple", "register", "sign-in-ticket/create",
+		"sign-in-ticket/claim-email", "sign-in-ticket/claim-email/verify", "sign-in-ticket/link",
+	} {
+		op, ok := spec.Paths["/api/v1/auth/native/"+door]["post"]
+		if !ok {
+			t.Fatalf("POST /auth/native/%s is not on the spec", door)
+		}
+		ref := op.RequestBody.Content["application/json"].Schema.Ref
+		locale, ok := spec.Components.Schemas[strings.TrimPrefix(ref, "#/components/schemas/")].Properties["locale"]
+		if !ok || strings.Join(locale.Enum, ",") != "vi,en" || locale.Example != any("vi") || locale.Description == "" {
+			t.Fatalf("POST /auth/native/%s documents locale as %+v (%s)", door, locale, ref)
+		}
 	}
 }
 

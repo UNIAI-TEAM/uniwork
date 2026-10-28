@@ -2,16 +2,17 @@ package sdi
 
 // NativeClientSDI is what every door of the app's own sign-in screen carries
 // about the app (ADR 0049 §8): its public client id (only the native sign-in
-// clients, NATIVE_SIGN_IN_CLIENTS, are taken), the deployment profile, and
-// the device's own description for the session list and the owner's mails.
-// Every native SDI embeds it; tokens and codes are sent once, over TLS, and
-// never logged.
+// clients, NATIVE_SIGN_IN_CLIENTS, are taken), the deployment profile, the
+// device's own description for the session list and the owner's mails, and
+// the app's language, which the app has no cookie to say. Every native SDI
+// embeds it; tokens and codes are sent once, over TLS, and never logged.
 type NativeClientSDI struct {
 	ClientID     string `json:"client_id" minLength:"1" description:"Mã client native công khai; chỉ nhận client trong NATIVE_SIGN_IN_CLIENTS (mặc định uniwork-chat-mobile), không thì 400 invalid_request" example:"uniwork-chat-mobile"`
 	DeploymentID string `json:"deployment_id" minLength:"1" description:"Mã deployment profile đã cấu hình" example:"default"`
 	DeviceLabel  string `json:"device_label,omitempty" description:"Nhãn thiết bị đã sanitize, hiện trong danh sách thiết bị và mail báo đăng nhập" example:"iPhone của An"`
 	Platform     string `json:"platform,omitempty" description:"Metadata nền tảng, có giới hạn độ dài" example:"ios"`
 	Build        string `json:"build,omitempty" description:"Metadata bản dựng, có giới hạn độ dài" example:"2.1.0"`
+	Locale       string `json:"locale,omitempty" enum:"vi,en" description:"Ngôn ngữ app đang dùng: ngôn ngữ của tài khoản cửa này tạo và của mail nó gửi (mã đăng ký, mã gửi tới email khác). Bỏ trống hay giá trị khác thì theo cookie uniwork-locale, không có thì tiếng Anh" example:"vi"`
 }
 
 // NativePasswordSDI is POST /api/v1/auth/native/password.

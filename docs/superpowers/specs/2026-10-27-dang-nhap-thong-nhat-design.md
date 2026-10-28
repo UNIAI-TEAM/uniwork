@@ -352,7 +352,9 @@ vào "Chi tiết"; trạng thái hết hạn nói "Quay lại UniChat và thử 
 Mọi route: công khai, `Cache-Control: no-store`, ⚑ chỉ nhận `client_id` thuộc `NATIVE_SIGN_IN_CLIENTS` (mặc định
 `uniwork-chat-mobile`; desktop và Office vẫn đi trang web) và `clientAllowed(client_id, deployment_id)`. Trường chung
 `NativeClientSDI`: `client_id`, `deployment_id`, `device_label?`, `platform?`, `build?` (cả hai `_id` vào
-`isoRefFieldExempt`).
+`isoRefFieldExempt`), ⚑ `locale?` (`vi` | `en`: ngôn ngữ app đang dùng, đọc lúc gọi từng cửa; app không có cookie
+`uniwork-locale`, nên đây là ngôn ngữ của tài khoản cửa tạo và của mail cửa gửi — mã đăng ký, mã gửi tới email khác;
+thiếu hay giá trị khác thì theo cookie rồi tiếng Anh như web, `TestNativeDoorsMailInTheAppsLanguage`).
 
 `NativeSignInSDO`:
 

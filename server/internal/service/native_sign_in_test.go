@@ -456,7 +456,8 @@ func (f *nativeFixture) webSession(t *testing.T, email string) Session {
 }
 
 // Sign-up in the app is the web's (the same checks, the address unverified
-// until its code is entered), ending in the app's device session.
+// until its code is entered, mailed in the language the app asked in),
+// ending in the app's device session.
 func TestNativeRegisterOpensAnUnverifiedAccount(t *testing.T) {
 	f := newNativeFixture(t)
 	res, err := f.doors.Register(f.request(), "New@Example.com", "password123", "Người mới", "vi", app)
@@ -464,8 +465,8 @@ func TestNativeRegisterOpensAnUnverifiedAccount(t *testing.T) {
 	if u.Email != "new@example.com" || u.EmailVerifiedAt.Valid || !u.PasswordHash.Valid || f.loginAudits(t, u.ID, nativeViaRegister) != 1 {
 		t.Fatalf("the new account: %+v", u)
 	}
-	if got := f.mailOfKind(t, u.Email, mail.KindVerificationCode); got.UserID != u.ID {
-		t.Fatalf("the verification code: %+v", got)
+	if got := f.mailOfKind(t, u.Email, mail.KindVerificationCode); got.UserID != u.ID || got.Locale != "vi" || u.Locale != "vi" {
+		t.Fatalf("the verification code, in the app's language: %+v (account %q)", got, u.Locale)
 	}
 	if _, err := f.doors.Register(f.request(), "new@example.com", "password123", "Lần hai", "vi", app); !errors.Is(err, ErrConflict) {
 		t.Fatalf("an address an account holds: %v", err)

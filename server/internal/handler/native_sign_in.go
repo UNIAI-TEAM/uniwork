@@ -28,6 +28,18 @@ func nativeClient(in sdi.NativeClientSDI) service.NativeClient {
 	}
 }
 
+// nativeLocale is the language a door creates an account in and writes its
+// mails in: the app's own (locale, vi or en), since the app carries no
+// uniwork-locale cookie; anything else falls back to requestLocale.
+func nativeLocale(r *http.Request, in sdi.NativeClientSDI) string {
+	switch in.Locale {
+	case "vi", "en":
+		return in.Locale
+	default:
+		return requestLocale(r)
+	}
+}
+
 func toDesktopSessionSDO(s service.DesktopSession) sdo.DesktopSessionSDO {
 	return sdo.DesktopSessionSDO{
 		AccountID: s.AccountID, DeviceSessionID: s.DeviceSessionID, SessionID: s.SessionID, DeploymentID: s.DeploymentID,
@@ -100,7 +112,7 @@ func (h *handlers) nativeGoogle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := h.NativeSignIn.Google(h.authCtx(r).Context(), service.NativeProviderSignIn{
-		Token: in.IDToken, Nonce: in.Nonce, Intent: in.Intent, Locale: requestLocale(r), Client: nativeClient(in.NativeClientSDI),
+		Token: in.IDToken, Nonce: in.Nonce, Intent: in.Intent, Locale: nativeLocale(r, in.NativeClientSDI), Client: nativeClient(in.NativeClientSDI),
 	})
 	h.nativeAnswer(w, res, err)
 }
@@ -120,7 +132,7 @@ func (h *handlers) nativeApple(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := h.NativeSignIn.Apple(h.authCtx(r).Context(), service.NativeProviderSignIn{
 		Token: in.IdentityToken, Nonce: in.Nonce, AuthorizationCode: in.AuthorizationCode,
-		GivenName: in.GivenName, FamilyName: in.FamilyName, Intent: in.Intent, Locale: requestLocale(r),
+		GivenName: in.GivenName, FamilyName: in.FamilyName, Intent: in.Intent, Locale: nativeLocale(r, in.NativeClientSDI),
 		Client: nativeClient(in.NativeClientSDI),
 	})
 	h.nativeAnswer(w, res, err)
@@ -135,7 +147,7 @@ func (h *handlers) nativeRegister(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	res, err := h.NativeSignIn.Register(h.authCtx(r).Context(), in.Email, in.Password, in.DisplayName, requestLocale(r), nativeClient(in.NativeClientSDI))
+	res, err := h.NativeSignIn.Register(h.authCtx(r).Context(), in.Email, in.Password, in.DisplayName, nativeLocale(r, in.NativeClientSDI), nativeClient(in.NativeClientSDI))
 	h.nativeAnswer(w, res, err)
 }
 
@@ -148,7 +160,7 @@ func (h *handlers) nativeTicketCreate(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	res, err := h.NativeSignIn.CreateFromTicket(h.authCtx(r).Context(), in.Ticket, in.Nonce, in.DisplayName, requestLocale(r), nativeClient(in.NativeClientSDI))
+	res, err := h.NativeSignIn.CreateFromTicket(h.authCtx(r).Context(), in.Ticket, in.Nonce, in.DisplayName, nativeLocale(r, in.NativeClientSDI), nativeClient(in.NativeClientSDI))
 	h.nativeAnswer(w, res, err)
 }
 
@@ -161,7 +173,7 @@ func (h *handlers) nativeTicketClaimEmail(w http.ResponseWriter, r *http.Request
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	if err := h.NativeSignIn.SendEmailClaim(r.Context(), in.Ticket, in.Nonce, in.Email, requestLocale(r), nativeClient(in.NativeClientSDI)); err != nil {
+	if err := h.NativeSignIn.SendEmailClaim(r.Context(), in.Ticket, in.Nonce, in.Email, nativeLocale(r, in.NativeClientSDI), nativeClient(in.NativeClientSDI)); err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
@@ -177,7 +189,7 @@ func (h *handlers) nativeTicketClaimEmailVerify(w http.ResponseWriter, r *http.R
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	res, err := h.NativeSignIn.VerifyEmailClaim(h.authCtx(r).Context(), in.Ticket, in.Nonce, in.Email, in.Code, in.DisplayName, requestLocale(r), nativeClient(in.NativeClientSDI))
+	res, err := h.NativeSignIn.VerifyEmailClaim(h.authCtx(r).Context(), in.Ticket, in.Nonce, in.Email, in.Code, in.DisplayName, nativeLocale(r, in.NativeClientSDI), nativeClient(in.NativeClientSDI))
 	h.nativeAnswer(w, res, err)
 }
 
