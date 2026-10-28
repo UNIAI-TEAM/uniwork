@@ -63,6 +63,9 @@ be:
     # OpenRouter / OpenAI-compatible key (Email Hub AI, Ask UNI, meeting summary).
     openAPIKey: { name: uniwork-open-api-key, key: OPENAI_API_KEY }
     anthropicAPIKey: { name: uniwork-anthropic-api-key, key: ANTHROPIC_API_KEY }
+    # The meeting agent's STT key, also used by the BE to transcribe meeting recordings.
+    # Optional: without it nothing is transcribed and the recorder stays hidden.
+    assemblyAIAPIKey: { name: uniwork-assemblyai-api-key, key: ASSEMBLYAI_API_KEY }
     # Expo access token for UniChat mobile push (enhanced push security). Optional:
     # create the Secret before turning enhanced push security on in the Expo project.
     expo: { name: uniwork-expo, key: EXPO_ACCESS_TOKEN }
