@@ -9,7 +9,7 @@
     "statements": 90,
     "branches": 82,
     "functions": 82,
-    "lines": 91
+    "lines": 92
   },
   "files": {
     "components/app/chat-category-sync.tsx": {
@@ -68,7 +68,7 @@
     },
     "components/auth/auth-layout.tsx": {
       "statements": 100,
-      "branches": 92,
+      "branches": 94,
       "functions": 100,
       "lines": 100
     },
@@ -110,7 +110,7 @@
     },
     "components/auth/provider-buttons.tsx": {
       "statements": 100,
-      "branches": 96,
+      "branches": 97,
       "functions": 100,
       "lines": 100
     },
@@ -714,6 +714,12 @@
       "functions": 100,
       "lines": 100
     },
+    "components/settings/password-form.tsx": {
+      "statements": 97,
+      "branches": 95,
+      "functions": 100,
+      "lines": 98
+    },
     "components/settings/privacy-section.tsx": {
       "statements": 100,
       "branches": 100,
@@ -750,6 +756,30 @@
       "functions": 100,
       "lines": 100
     },
+    "components/settings/sign-in-method-row.tsx": {
+      "statements": 100,
+      "branches": 99,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/sign-in-methods-section.tsx": {
+      "statements": 97,
+      "branches": 80,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/step-up-proofs.tsx": {
+      "statements": 94,
+      "branches": 81,
+      "functions": 95,
+      "lines": 98
+    },
+    "components/settings/step-up-sheet.tsx": {
+      "statements": 95,
+      "branches": 92,
+      "functions": 94,
+      "lines": 98
+    },
     "components/settings/switch-row.tsx": {
       "statements": 100,
       "branches": 100,
@@ -771,6 +801,12 @@
     "components/settings/use-owner-step.ts": {
       "statements": 100,
       "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/settings/use-step-up.ts": {
+      "statements": 100,
+      "branches": 95,
       "functions": 100,
       "lines": 100
     },
@@ -906,6 +942,30 @@
       "functions": 100,
       "lines": 100
     },
+    "components/workspace/invitation-parts.tsx": {
+      "statements": 100,
+      "branches": 96,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/workspace/invitation-preview.tsx": {
+      "statements": 96,
+      "branches": 92,
+      "functions": 94,
+      "lines": 100
+    },
+    "components/workspace/pending-invitations.tsx": {
+      "statements": 96,
+      "branches": 88,
+      "functions": 100,
+      "lines": 100
+    },
+    "components/workspace/use-join-invitation.ts": {
+      "statements": 95,
+      "branches": 85,
+      "functions": 100,
+      "lines": 100
+    },
     "components/workspace/use-workspace-list.ts": {
       "statements": 100,
       "branches": 100,
@@ -942,6 +1002,12 @@
       "functions": 100,
       "lines": 100
     },
+    "data/mutations/invitations.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
     "data/mutations/messages.ts": {
       "statements": 100,
       "branches": 100,
@@ -961,6 +1027,12 @@
       "lines": 100
     },
     "data/mutations/safety.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "data/mutations/sign-in-methods.ts": {
       "statements": 100,
       "branches": 100,
       "functions": 100,

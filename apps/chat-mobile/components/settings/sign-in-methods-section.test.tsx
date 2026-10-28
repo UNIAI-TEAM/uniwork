@@ -206,4 +206,31 @@ describe("SignInMethodsSection", () => {
     await fireEvent.press(screen.getByRole("button", { name: viText("settings.security.signInMethods.retry") }));
     expect(await screen.findByTestId("sign-in-method-google")).toBeOnTheScreen();
   });
+
+  it("asks to move an identity whose holder it cannot name, and keeps it where it is on Hủy", async () => {
+    api.getSignInMethods.mockResolvedValue(methods({ google: { linked: false, email: null, linked_at: null } }));
+    hold();
+    jest.mocked(linkProvider).mockRejectedValueOnce(refusal("sign_in_method_movable", 409));
+    await render(<SignInMethodsSection />);
+    await fireEvent.press(await screen.findByTestId("sign-in-method-action-google"));
+    await settle();
+    expect(alerts.at(-1)?.body).toBe(viText("settings.security.signInMethods.move.bodyUnknown", { provider: "Google" }));
+    await press(viText("settings.security.signInMethods.password.cancel"));
+    expect(linkProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes one action at a time: the other rows dim while a link runs", async () => {
+    api.getSignInMethods.mockResolvedValue(methods({ google: { linked: false, email: null, linked_at: null } }));
+    hold();
+    let finish: () => void = () => undefined;
+    jest.mocked(linkProvider).mockReturnValueOnce(new Promise((resolve) => (finish = () => resolve(null))));
+    await render(<SignInMethodsSection />);
+    await fireEvent.press(await screen.findByTestId("sign-in-method-action-google"));
+    expect(screen.getByTestId("sign-in-method-action-google")).toBeBusy();
+    expect(screen.getByTestId("sign-in-method-action-apple")).toBeDisabled();
+    await fireEvent.press(screen.getByTestId("sign-in-method-action-password"));
+    expect(router.push).not.toHaveBeenCalled();
+    await act(async () => finish());
+    await settle();
+  });
 });
