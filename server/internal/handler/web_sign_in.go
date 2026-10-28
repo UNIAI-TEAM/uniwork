@@ -196,7 +196,10 @@ func (h *handlers) openJSON(purpose, blob string, v any) error {
 //
 //   - no account to sign in to (unmatched, link_required): the ticket in the
 //     uniwork_sign_in_ticket cookie, then the choice screen /auth/continue
-//     (spec §3.2);
+//     (spec §3.2). In link mode (next is the link step) with a sign-in
+//     already waiting, the person took this provider to reach the account
+//     that one joins: the waiting ticket stays, this one is given up, and
+//     /login says <provider>_no_account (spec §4.4);
 //   - a second factor owed: the challenge in the uniwork_mfa cookie (a
 //     redirect has no JSON body, spec F-01 §2 I5), then /login?mfa=1; the
 //     challenge carries the identity when it waits to be linked, and POST
@@ -213,6 +216,9 @@ func (h *handlers) finishWebSignIn(w http.ResponseWriter, r *http.Request, res s
 		params.Set("next", next)
 	}
 	if res.Ticket != "" {
+		if keepsSignInTicket(next) && h.keepWaitingTicket(w, r, res.Ticket, next) {
+			return
+		}
 		h.setSignInTicketCookie(w, res.Ticket)
 		h.redirectWeb(w, r, "/auth/continue", params)
 		return
@@ -231,6 +237,26 @@ func (h *handlers) finishWebSignIn(w http.ResponseWriter, r *http.Request, res s
 		params.Set("reclaimed", "1")
 	}
 	h.redirectWeb(w, r, "/auth/callback", params)
+}
+
+// keepWaitingTicket answers a link-mode sign-in that found no account
+// while another pending sign-in waits in the browser: overwriting the cookie
+// would drop, without a word, the identity the person came to link, and nest
+// a second choice screen inside the first. The new ticket is discarded
+// instead (an Apple consent it carries goes back to Apple) and /login, still
+// in link mode through next, says this way matched no account. False when
+// nothing live waits, so the ticket is set as for any unmatched sign-in.
+func (h *handlers) keepWaitingTicket(w http.ResponseWriter, r *http.Request, ticket, next string) bool {
+	if _, err := h.SignInTickets.Describe(r.Context(), signInTicketFrom(r), service.WebTicket()); err != nil {
+		return false
+	}
+	fresh, err := h.SignInTickets.Describe(r.Context(), ticket, service.WebTicket())
+	if err != nil {
+		return false
+	}
+	h.SignInTickets.Discard(r.Context(), ticket, service.WebTicket())
+	h.redirectLoginError(w, r, fresh.Provider+"_no_account", next)
+	return true
 }
 
 // redirectLoginError sends a failed browser sign-in to /login with its code

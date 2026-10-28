@@ -610,7 +610,9 @@
         "sign_in_conflict": "Email này đã có tài khoản UniWork dùng một cách đăng nhập khác. Đăng nhập bằng cách đó.",
         "sign_in_unverified": "Email của tài khoản này chưa được xác minh. Dùng cách đăng nhập khác.",
         "sign_in_account_unverified": "Email này đã có tài khoản UniWork nhưng chưa được xác minh. Chọn \"Quên mật khẩu?\" để nhận link qua email và lấy lại tài khoản.",
-        "sign_in_failed": "Chưa hoàn tất đăng nhập. Thử lại."
+        "sign_in_failed": "Chưa hoàn tất đăng nhập. Thử lại.",
+        "google_no_account": "Chưa có tài khoản UniWork nào đăng nhập bằng tài khoản Google này. Đăng nhập bằng cách bạn vẫn dùng.",
+        "apple_no_account": "Chưa có tài khoản UniWork nào đăng nhập bằng tài khoản Apple này. Đăng nhập bằng cách bạn vẫn dùng."
       }
     },
     "apple": {

@@ -363,6 +363,7 @@ describe("the /login ?error= codes", () => {
   it("map to their sentence; an unknown code is ignored", () => {
     expect(loginRedirectErrorKey("apple_denied")).toBe("auth.social.errors.apple_denied");
     expect(loginRedirectErrorKey("google_unverified")).toBe("auth.social.errors.google_unverified");
+    expect(loginRedirectErrorKey("apple_no_account")).toBe("auth.social.errors.apple_no_account");
     expect(loginRedirectErrorKey("teapot")).toBeNull();
     expect(loginRedirectErrorKey(null)).toBeNull();
   });

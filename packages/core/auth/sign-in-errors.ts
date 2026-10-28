@@ -292,6 +292,10 @@ export const LOGIN_REDIRECT_ERRORS = [
   "sign_in_unverified",
   "sign_in_account_unverified",
   "sign_in_failed",
+  // Link mode: the other provider matched no account either, and the
+  // sign-in waiting to be linked stayed (spec §4.4).
+  "google_no_account",
+  "apple_no_account",
 ] as const;
 export type LoginRedirectError = (typeof LOGIN_REDIRECT_ERRORS)[number];
 

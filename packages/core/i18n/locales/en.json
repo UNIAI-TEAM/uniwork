@@ -610,7 +610,9 @@
         "sign_in_conflict": "This email already has a UniWork account with another sign-in method. Sign in with that method.",
         "sign_in_unverified": "This account's email isn't verified. Use another sign-in method.",
         "sign_in_account_unverified": "This email has a UniWork account that was never verified. Choose \"Forgot password?\" to get a link by email and take the account back.",
-        "sign_in_failed": "Sign-in didn't finish. Try again."
+        "sign_in_failed": "Sign-in didn't finish. Try again.",
+        "google_no_account": "No UniWork account signs in with this Google account. Sign in the way you usually do.",
+        "apple_no_account": "No UniWork account signs in with this Apple account. Sign in the way you usually do."
       }
     },
     "apple": {

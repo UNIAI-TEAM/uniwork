@@ -271,6 +271,50 @@ func TestSignInTicketLinkOverHTTP(t *testing.T) {
 	}
 }
 
+// Link mode (/login?link=1, next the link step, spec §4.4): the person takes
+// the other provider to reach the account a waiting sign-in joins. One that
+// finds no account either never replaces the sign-in it came to link: that
+// ticket stays as it was, the new one is given up, and /login says this way
+// matched nothing, next kept. Without a waiting ticket the same round trip is
+// any unmatched one.
+func TestLinkModeKeepsTheWaitingTicketWhenTheOtherWayMatchesNothing(t *testing.T) {
+	g := &fakeGoogle{}
+	srv := newTestServerWithGoogle(t, g)
+	_, waiting := googleTicketCookie(t, srv, g, auth.GoogleClaims{Sub: "g-waits", Email: "waits@gmail.com", EmailVerified: true}, "")
+	next := "/auth/continue?" + url.Values{"step": {"link"}, "next": {"/acme"}}.Encode()
+
+	g.set(auth.GoogleClaims{Sub: "g-nobody", Email: "nobody@gmail.com", EmailVerified: true})
+	cookie, st := googleStart(t, srv, next)
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/auth/google/callback?code=good&state="+st.State, nil)
+	req.AddCookie(cookie)
+	req.AddCookie(waiting)
+	res, err := noRedirectClient(srv).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "http://localhost:3000/login?" + url.Values{"error": {"google_no_account"}, "next": {next}}.Encode()
+	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != want {
+		t.Fatalf("link mode, nothing matched: %d %q", res.StatusCode, res.Header.Get("Location"))
+	}
+	if c := cookieNamed(res, signInTicketCookie); c != nil || cookieNamed(res, refreshCookie) != nil {
+		t.Fatalf("the waiting ticket is neither replaced nor dropped, and no session opens: %+v", res.Cookies())
+	}
+	res, out := ticketRequest(t, srv, http.MethodGet, "/api/v1/auth/sign-in-ticket", "", []*http.Cookie{waiting}, nil)
+	if res.StatusCode != http.StatusOK || out["email"] != "waits@gmail.com" {
+		t.Fatalf("the waiting sign-in: %d %v", res.StatusCode, out)
+	}
+
+	cookie, st = googleStart(t, srv, next)
+	res = googleCallback(t, srv, "code=good&state="+st.State, cookie)
+	choice := "http://localhost:3000/auth/continue?" + url.Values{"next": {next}}.Encode()
+	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != choice {
+		t.Fatalf("nothing waiting: %d %q", res.StatusCode, res.Header.Get("Location"))
+	}
+	if c := cookieNamed(res, signInTicketCookie); c == nil || c.Value == "" {
+		t.Fatalf("nothing waiting, the new ticket is set: %+v", c)
+	}
+}
+
 // Every sign-in drops a pending ticket unless it says it is the sign-in the
 // ticket links into, and every sign-out drops it.
 func TestSignInsAndSignOutDropThePendingTicket(t *testing.T) {

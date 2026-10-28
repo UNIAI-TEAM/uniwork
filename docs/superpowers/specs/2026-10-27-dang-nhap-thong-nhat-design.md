@@ -735,7 +735,10 @@ Trạng thái và lời:
 ({{email}})." + nút "Không liên kết" (xoá vé, bỏ `link`). Nút của chính nhà cung cấp đang chờ bị ẩn (không lặp). Mọi
 cách còn lại (mật khẩu, nhà cung cấp kia, MFA) giữ `next`. Bước MFA có phụ đề "Đăng nhập vào {{email}} để liên kết
 {{provider}}". `next` là bước liên kết cũng là chế độ liên kết (quy tắc `keepsSignInTicket` của server): nhà cung cấp kia
-gặp MFA thì server trả về `/login?mfa=1&next=<bước liên kết>` không có `link=1`, và mã vẫn giữ vé. "Quên mật khẩu?" giữ
+gặp MFA thì server trả về `/login?mfa=1&next=<bước liên kết>` không có `link=1`, và mã vẫn giữ vé. Nhà cung cấp kia
+cũng không thấy tài khoản nào thì vé đang chờ không bị thay: server bỏ vé mới (đồng ý của Apple trả lại Apple) và về
+`/login?error=<google|apple>_no_account&next=<bước liên kết>`, "Chưa có tài khoản UniWork nào đăng nhập bằng tài khoản
+Apple này. Đăng nhập bằng cách bạn vẫn dùng.", banner vẫn nêu nhà cung cấp đang chờ. "Quên mật khẩu?" giữ
 `next`. Link reset trong mail không mang `next`; ở chế độ liên kết, trang quên mật khẩu nhớ (qua `StorageAdapter`, 15 phút
 như vé) địa chỉ đã gửi reset. Chỉ khi có điều đó trang reset mới hỏi `GET /auth/sign-in-ticket`, chờ câu trả lời rồi mới
 gửi (bấm sớm thì chờ), gửi `keep_sign_in_ticket` khi còn vé, và chỉ về `/auth/continue?step=link` khi reset mở đúng địa

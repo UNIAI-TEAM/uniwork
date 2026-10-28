@@ -142,6 +142,21 @@ describe("LoginView link mode", () => {
     expect(linkResetIntent()).toBeNull();
   });
 
+  it("says the other way matched no account, the waiting sign-in still named", async () => {
+    route({ "GET /api/v1/auth/sign-in-ticket": TICKET, "GET /api/v1/auth/providers": PROVIDERS });
+    const onSuccess = vi.fn();
+    render(
+      wrapWithNav(
+        <LoginView next={LINK_STEP} link redirectError="apple_no_account" onSuccess={onSuccess} />,
+        fakeNav(`/login?error=apple_no_account&next=${encodeURIComponent(LINK_STEP)}`),
+      ),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Chưa có tài khoản UniWork nào đăng nhập bằng tài khoản Apple này. Đăng nhập bằng cách bạn vẫn dùng.",
+    );
+    expect(await screen.findByRole("note")).toHaveTextContent("Google");
+  });
+
   it("drops the pending sign-in and the link mode on Không liên kết", async () => {
     route({
       "GET /api/v1/auth/sign-in-ticket": TICKET,
