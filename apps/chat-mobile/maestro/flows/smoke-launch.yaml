@@ -20,7 +20,7 @@ tags:
     visible:
       id: login-screen
     timeout: 60000
-- assertVisible: "Sign in to UniChat|Đăng nhập UniChat"
+- assertVisible: "Log in to UniChat|Đăng nhập UniChat"
 - assertVisible:
     id: login-email
 - scrollUntilVisible:
@@ -33,11 +33,11 @@ tags:
 - assertVisible: "Log in|Đăng nhập"
 - scrollUntilVisible:
     element:
-      text: "Sign in with a browser|Đăng nhập bằng trình duyệt"
+      text: "Log in with a browser|Đăng nhập bằng trình duyệt"
     direction: DOWN
     visibilityPercentage: 50
     timeout: 10000
-- assertVisible: "Sign in with a browser|Đăng nhập bằng trình duyệt"
+- assertVisible: "Log in with a browser|Đăng nhập bằng trình duyệt"
 - waitForAnimationToEnd:
     timeout: 5000
 - assertVisible:

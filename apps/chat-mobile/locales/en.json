@@ -2308,14 +2308,14 @@
       "privacy_cover": "UniChat"
     },
     "sign_in": {
-      "title": "Sign in to UniChat",
+      "title": "Log in to UniChat",
       "subtitle": "Use your UniWork account.",
       "create_account": "Create an account",
-      "browser": "Sign in with a browser",
+      "browser": "Log in with a browser",
       "browser_busy": "Opening the browser…",
       "sign_up_with_apple": "Sign up with Apple",
       "mfa": {
-        "subtitle": "Signing in to {{email}}.",
+        "subtitle": "Logging in to {{email}}.",
         "code_hint": "The 6-digit code from your authenticator app.",
         "use_recovery": "Use a recovery code",
         "use_app": "Use your authenticator app",

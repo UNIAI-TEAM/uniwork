@@ -13,7 +13,7 @@
 appId: com.uniworkos.chat.staging
 ---
 - extendedWaitUntil:
-    visible: "Sign in to UniChat|Đăng nhập UniChat|Sign in|Đăng nhập|Chat|Trò chuyện|Choose a workspace|Chọn workspace"
+    visible: "Log in to UniChat|Đăng nhập UniChat|Sign in|Đăng nhập|Chat|Trò chuyện|Choose a workspace|Chọn workspace"
     timeout: 30000
 - runFlow:
     when:
