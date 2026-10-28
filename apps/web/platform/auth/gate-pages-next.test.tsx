@@ -1,6 +1,8 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import GetStartedPage from "../../app/(auth)/get-started/page";
+import InvitationsPage from "../../app/(auth)/invitations/page";
 import OnboardingPage from "../../app/(auth)/onboarding/page";
 import RegisterPage from "../../app/(auth)/register/page";
 import VerifyPage from "../../app/(auth)/verify/page";
@@ -50,6 +52,8 @@ vi.mock("@uniwork/views/auth/verify-email-view", () => ({
     return null;
   },
 }));
+vi.mock("@uniwork/views/workspace/invitations-view", () => ({ InvitationsView: () => null }));
+vi.mock("@uniwork/views/onboarding/no-organization-view", () => ({ NoOrganizationView: () => null }));
 vi.mock("@uniwork/views/onboarding/onboarding-flow", () => ({
   OnboardingFlow: (props: Record<string, unknown>) => {
     state.views.onboarding = props;
@@ -159,5 +163,23 @@ describe("/onboarding", () => {
     state.user = ONBOARDED;
     await render(<OnboardingPage />);
     expect(state.replace).toHaveBeenCalledWith(NEXT);
+  });
+});
+
+// The phone opens these two in an in-app browser that usually has no web session (spec §5.2).
+describe("/invitations and /get-started", () => {
+  it("send an anonymous visitor to sign in and back to the same page", async () => {
+    state.status = "anon";
+    await render(<InvitationsPage />);
+    expect(state.replace).toHaveBeenCalledWith("/login?next=%2Finvitations");
+    state.replace.mockReset();
+    await render(<GetStartedPage />);
+    expect(state.replace).toHaveBeenCalledWith("/login?next=%2Fget-started");
+  });
+
+  it("bring an unverified account back to the invitations once its address is verified", async () => {
+    state.user = UNVERIFIED;
+    await render(<InvitationsPage />);
+    expect(state.replace).toHaveBeenCalledWith("/verify?next=%2Finvitations");
   });
 });
