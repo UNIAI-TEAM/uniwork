@@ -4,7 +4,7 @@ import { api } from "@uniwork/core";
 import { useSession } from "@uniwork/core/auth";
 import { sanitizeNextUrl, type AuthGateUser } from "@uniwork/core/paths";
 import { LoginView } from "@uniwork/views/auth/login-view";
-import { useLoggedInDestination } from "@uniwork/views/auth/post-auth-redirect";
+import { isLinkStep, useLoggedInDestination } from "@uniwork/views/auth/post-auth-redirect";
 import { useNavigation } from "@uniwork/views/navigation";
 import { ProviderHandoff, providerHint, useDropProviderHint } from "../../../platform/auth/provider-handoff";
 import { useIsUniChatHost } from "../../../platform/desktop-host";
@@ -18,8 +18,12 @@ export default function LoginPage() {
   const rawReason = searchParams.get("reason");
   const reason = rawReason === "meeting_invite" || rawReason === "session_expired" ? rawReason : null;
   const initialMfa = searchParams.get("mfa") === "1";
-  // The choice screen's "Tôi đã có tài khoản UniWork" (spec §4.4).
-  const link = searchParams.get("link") === "1";
+  // The choice screen's "Tôi đã có tài khoản UniWork" (spec §4.4). A link
+  // step as `next` is link mode too, the server's own rule
+  // (keepsSignInTicket): a provider sign-in that met a second factor comes
+  // back as /login?mfa=1&next=<link step>, without link=1, and the code must
+  // still keep the waiting sign-in.
+  const link = searchParams.get("link") === "1" || isLinkStep(next);
   // The app's provider button (spec §3.5), read once: the hint leaves the
   // address bar at once, and that must not take the hand-off back with it.
   const [hint] = useState(() => providerHint(searchParams));

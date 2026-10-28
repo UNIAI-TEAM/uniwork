@@ -14,7 +14,10 @@ vi.mock("@uniwork/core", () => ({ api: { workspaces: { list: async () => [] } } 
 vi.mock("@uniwork/views/navigation", () => ({
   useNavigation: () => ({ searchParams: new URLSearchParams(state.search), push: vi.fn() }),
 }));
-vi.mock("@uniwork/views/auth/post-auth-redirect", () => ({ useLoggedInDestination: () => async () => "/workspaces" }));
+vi.mock("@uniwork/views/auth/post-auth-redirect", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@uniwork/views/auth/post-auth-redirect")>()),
+  useLoggedInDestination: () => async () => "/workspaces",
+}));
 vi.mock("@uniwork/views/auth/login-view", () => ({
   LoginView: (props: Record<string, unknown>) => {
     state.login = props;
@@ -87,4 +90,11 @@ it("opens the form in link mode for the choice screen's existing-account sign-in
   expect(state.login).toMatchObject({ link: true, next: "/auth/continue?step=link&next=%2Finvite%2Ft1" });
   await open(NEXT);
   expect(state.login).toMatchObject({ link: false });
+});
+
+it("keeps link mode when a provider's second factor sends the browser back without link=1", async () => {
+  // finishWebSignIn's MFA redirect: /login?mfa=1&next=<link step>.
+  const linkStep = encodeURIComponent("/auth/continue?step=link");
+  await open(`mfa=1&next=${linkStep}`);
+  expect(state.login).toMatchObject({ link: true, initialMfa: true, next: "/auth/continue?step=link" });
 });
