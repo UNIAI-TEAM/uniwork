@@ -1,6 +1,8 @@
 // "Tôi đã có tài khoản", once signed in (spec §4.3 step=link, §5.2): never written on open, the screen asks whether
 // to link the Google or Apple identity the choice screen holds into the account just signed in to. Linked, it says
-// so (a status, the reader's focus on "Tiếp tục"); an identity on an empty account of its own asks to move it; one
+// so (a status the reader's focus moves to, with "Tiếp tục" next: VoiceOver would cut a status announced beside a
+// focus move off, so the focus is what says it); a refusal moves the focus to its line the same way; an identity on
+// an empty account of its own asks to move it; one
 // another account holds says whose (masked) and that it is unlinked there first. A session that signed in before the
 // ticket was issued (or a move) is asked to confirm it is you first, then the link goes on (use-step-up.ts). Whatever
 // happens, "Tiếp tục" goes on into the app; a choice that is gone counts as done.
@@ -12,7 +14,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { useStepUp } from "@/components/settings/use-step-up";
-import { useAnnounce } from "@/components/ui/a11y";
 import { Text } from "@/components/ui/text";
 import { clearChoice, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { useAuthStore } from "@/data/auth/store";
@@ -40,8 +41,11 @@ export function LinkStep() {
   const [state, setState] = useState<LinkState>({ kind: "ask" });
   const linkedLine =
     state.kind === "linked" ? t("auth.continue.link.done", { provider: t(`auth.social.provider.${state.provider}`) }) : null;
-  useAnnounce(linkedLine);
-  const continueRef = useReaderFocus(state.kind !== "ask" || !choice);
+  // The reader lands on what changed: the status, a refusal, or the way on when there is nothing left to link.
+  const restart = state.kind === "failed" && state.failure.kind === "restart";
+  const statusRef = useReaderFocus(state.kind === "linked");
+  const failureRef = useReaderFocus(state.kind === "failed" && !restart && choice !== null);
+  const continueRef = useReaderFocus(state.kind !== "linked" && (!choice || restart));
 
   const run = async (move: boolean) => {
     const provider = choice?.identity.provider;
@@ -71,9 +75,9 @@ export function LinkStep() {
     return (
       <View className="gap-6" testID="link-done">
         <AuthHeading title={t("auth.continue.link.title", { provider: t(`auth.social.provider.${state.provider}`) })} />
-        <Text accessibilityRole="text" accessibilityLiveRegion="polite" className="text-body leading-6 text-foreground" testID="link-done-status">
-          {linkedLine}
-        </Text>
+        <View ref={statusRef} accessible accessibilityRole="text" testID="link-done-status">
+          <Text className="text-body leading-6 text-foreground">{linkedLine}</Text>
+        </View>
         {continueButton}
       </View>
     );
@@ -140,7 +144,7 @@ export function LinkStep() {
       />
       <IdentityCard identity={identity} />
       <Text className="text-callout leading-5 text-muted-foreground">{t("auth.continue.link.body", { provider })}</Text>
-      <FormAlert message={failureLine} testID="link-failure" />
+      <FormAlert ref={failureRef} message={failureLine} testID="link-failure" />
       {failure ? (
         continueButton
       ) : (

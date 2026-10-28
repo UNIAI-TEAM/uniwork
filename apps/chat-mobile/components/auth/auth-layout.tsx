@@ -157,12 +157,24 @@ export function TextButton({
  * that counts down gives `spoken` (use-sign-in.ts › useFailureMessage): only that is heard, once, so a screen reader
  * is not interrupted at every tick of the countdown on screen.
  */
-export function FormAlert({ message, spoken = null, testID }: { message: string | null; spoken?: string | null; testID?: string }) {
+export function FormAlert({
+  message,
+  spoken = null,
+  ref,
+  testID,
+}: {
+  message: string | null;
+  spoken?: string | null;
+  /** for a screen that moves the reader's focus to the line (use-reader-focus.ts) */
+  ref?: Ref<View>;
+  testID?: string;
+}) {
   const { colorScheme } = useColorScheme();
   useAnnounce(spoken ?? message);
   if (!message) return null;
   return (
     <View
+      ref={ref}
       accessibilityRole="alert"
       accessibilityLiveRegion={spoken ? "none" : "polite"}
       className="flex-row items-start gap-2"

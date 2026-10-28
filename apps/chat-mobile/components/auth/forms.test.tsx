@@ -2,6 +2,7 @@ import { act, fireEvent, screen } from "@testing-library/react-native";
 import { configureRuntime } from "@uniwork/core/runtime-config";
 import * as WebBrowser from "expo-web-browser";
 import { router } from "expo-router";
+import { AccessibilityInfo } from "react-native";
 import { SECOND_FACTOR_TTL_MS, forgetPendingSignIn, holdStep, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { useAuthStore } from "@/data/auth/store";
 import { useLinkPendingTicket } from "@/data/mutations/sign-in";
@@ -205,6 +206,25 @@ describe("LinkStep", () => {
     expect(link.mutateAsync).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId("link-done")).toBeTruthy();
     jest.requireActual<typeof import("@/data/auth/step-up-store")>("@/data/auth/step-up-store").forgetStepUp();
+  });
+
+  it("moves the reader to what happened: the link's status, a refusal's line, the way on when nothing is left", async () => {
+    const send = jest.spyOn(AccessibilityInfo, "sendAccessibilityEvent").mockImplementation(() => undefined);
+    const focused = () => (send.mock.calls.at(-1)?.[0] as unknown as { props?: { testID?: string } } | undefined)?.props?.testID;
+    const first = await render(<LinkStep />);
+    await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
+    // The status itself, not "Tiếp tục": VoiceOver would cut an announcement off to read a newly focused button.
+    expect(focused()).toBe("link-done-status");
+    await first.unmount();
+    link.mutateAsync.mockRejectedValueOnce(apiError("sign_in_method_taken"));
+    const second = await render(<LinkStep />);
+    await act(async () => fireEvent.press(screen.getByTestId("link-confirm")));
+    expect(focused()).toBe("link-failure");
+    await second.unmount();
+    forgetPendingSignIn();
+    await render(<LinkStep />);
+    expect(focused()).toBe("link-continue");
+    send.mockRestore();
   });
 
   it("stays on the question when the proof sheet is closed", async () => {
