@@ -58,6 +58,8 @@ interface Props {
   backBadge?: number;
   /** What the back button reads out (default: "Quay lại"). */
   backLabel?: string;
+  /** Where back goes (default: the screen before); a screen that may open on its own has somewhere to land. */
+  onBack?: () => void;
   centered?: boolean;
   flat?: boolean;
   /** A tap on the avatar and title (MobileChat board: the conversation's details live behind its name). */
@@ -74,6 +76,7 @@ export function ChatHeader({
   right,
   backBadge = 0,
   backLabel,
+  onBack = () => router.back(),
   centered,
   flat,
   onPressTitle,
@@ -87,7 +90,7 @@ export function ChatHeader({
       <HeaderIconButton
         icon={backIcon(Platform.OS)}
         label={backBadge > 0 ? `${label}, ${t("chat.unread_badge_aria", { count: backBadge })}` : label}
-        onPress={() => router.back()}
+        onPress={onBack}
       />
       {backBadge > 0 ? (
         <View

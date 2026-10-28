@@ -69,9 +69,12 @@ export function PasswordForm() {
     refuse(field, t(failure.key, failure.values));
   };
 
+  /** Back to Settings; opened on its own (nothing to go back to), to the start screen. */
+  const leave = () => (router.canGoBack() ? router.back() : router.replace("/"));
+
   const finish = () => {
     toast.success(t(change ? `${P}.toastChanged` : `${P}.toastSet`));
-    if (router.canGoBack()) router.back();
+    leave();
   };
 
   const submit = async () => {
@@ -124,7 +127,7 @@ export function PasswordForm() {
 
   return (
     <View className="flex-1 bg-background" testID="password-screen">
-      <ChatHeader title={t(change ? `${P}.changeTitle` : `${P}.setTitle`)} flat />
+      <ChatHeader title={t(change ? `${P}.changeTitle` : `${P}.setTitle`)} flat onBack={leave} />
       <KeyboardColumn className="pt-4">
         <View className="gap-6" testID="password-form">
           {change ? null : (

@@ -344,7 +344,7 @@ describe("the entry gate", () => {
     await act(async () => fireEvent.press(await screen.findByTestId("sign-in-method-action-password")));
     expect(await screen.findByTestId("password-form")).toBeTruthy();
     expect(routes.pathname()).toBe("/password");
-    await act(async () => fireEvent.press(screen.getByTestId("auth-back")));
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: viText("common.back") })));
     expect(await screen.findByTestId("account-logout")).toBeTruthy();
     expect(routes.pathname()).toBe("/account");
   });
@@ -353,7 +353,7 @@ describe("the entry gate", () => {
     jest.mocked(api.listWorkspaces).mockResolvedValue([]);
     useAuthStore.setState({ user: user as never, isLoading: false });
     const routes = await renderRoutes(ROUTES, "/password");
-    await act(async () => fireEvent.press(await screen.findByTestId("auth-back")));
+    await act(async () => fireEvent.press(await screen.findByRole("button", { name: viText("common.back") })));
     expect(await screen.findByTestId("select-workspace-settings")).toBeTruthy();
     expect(routes.pathname()).toBe("/select-workspace");
   });
