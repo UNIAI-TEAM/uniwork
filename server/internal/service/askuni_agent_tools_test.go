@@ -710,7 +710,7 @@ func TestAskAgentListTemplates(t *testing.T) {
 	if only := runAgentTool(t, s, tc, "list_templates", `{"format":"pptx","cursor":""}`); len(only) != 1 || only[0].ID != px.ID {
 		t.Errorf("pptx filter = %+v", only)
 	}
-	if items := runAgentTool(t, s, tc, "list_templates", `{"format":"exe","cursor":""}`); len(items) != 1 || !strings.HasPrefix(items[0].Text, "error: invalid_args") {
+	if items := runAgentTool(t, s, tc, "list_templates", `{"format":"txt","cursor":""}`); len(items) != 1 || !strings.HasPrefix(items[0].Text, "error: invalid_args") {
 		t.Errorf("a bad format = %+v; want invalid_args", items)
 	}
 

@@ -46,6 +46,25 @@ func officeFormatOfMIME(m string) (string, bool) {
 	return "", false
 }
 
+// withOfficeExt gives a new file's title the extension of its format, unless it
+// already ends with it.
+func withOfficeExt(title, format string) string {
+	if format == "" || strings.HasSuffix(strings.ToLower(title), "."+format) {
+		return title
+	}
+	return title + "." + format
+}
+
+// askStoredTitle stores the final title, so Apply makes the file the card showed.
+func askStoredTitle(stored json.RawMessage, title string) (json.RawMessage, error) {
+	m := map[string]json.RawMessage{}
+	if err := json.Unmarshal(stored, &m); err != nil {
+		return nil, err
+	}
+	m["title"], _ = json.Marshal(title)
+	return json.Marshal(m)
+}
+
 // mcpSchemaCreateOfficeDocument is the model's view of the tool. workspace_id
 // is the server's to add, as for every write tool.
 const mcpSchemaCreateOfficeDocument = `{
@@ -185,6 +204,7 @@ func (s *AskUNIService) prepareCreateOffice(ctx context.Context, tc ai.ToolConte
 			return askDraftRow{}, McpInvalidArgs{Msg: "this template's format cannot be made with create_office_document"}
 		}
 		source = AskProposalField{Field: "template_id", Type: "text", To: info.Title}
+		title = withOfficeExt(title, info.Format)
 		read = append(read, AskContextRef{Kind: "document", ID: info.ID, Title: info.Title})
 	case in.AttachmentID != "":
 		att, err := s.officeAttachment(ctx, tc, in.AttachmentID)
@@ -192,8 +212,11 @@ func (s *AskUNIService) prepareCreateOffice(ctx context.Context, tc ai.ToolConte
 			return askDraftRow{}, err
 		}
 		source = AskProposalField{Field: "attachment_id", Type: "text", To: att.Name}
+		f, _ := officeFormatOfMIME(att.MIME)
+		title = withOfficeExt(title, f)
 	default:
 		source = AskProposalField{Field: "format", Type: "enum", To: in.Format, Options: askOfficeFormats}
+		title = withOfficeExt(title, in.Format)
 	}
 	fields := []AskProposalField{source, {Field: "title", Type: "text", To: title}}
 
@@ -223,6 +246,9 @@ func (s *AskUNIService) prepareCreateOffice(ctx context.Context, tc ai.ToolConte
 		audience = "workspace"
 	}
 	stored, err := askStoredArgs(args, tc.WorkspaceID)
+	if err == nil {
+		stored, err = askStoredTitle(stored, title)
+	}
 	if err != nil {
 		return askDraftRow{}, err
 	}
@@ -239,6 +265,10 @@ func (s *AskUNIService) applyCreateOffice(ctx context.Context, p McpPrincipal, r
 	docs, err := s.officeDocs()
 	if err != nil {
 		return AskProposalResult{}, nil, err
+	}
+	// The flag may have been switched off since the card was made.
+	if !s.reads.documentsOn(ctx, p) {
+		return AskProposalResult{}, nil, errMcpDocumentsUnavailable
 	}
 	var in askOfficeIn
 	if err := decodeInto(row.Args, &in); err != nil {
@@ -367,8 +397,13 @@ func (s *AskUNIService) prepareSaveAttachmentTemplate(ctx context.Context, tc ai
 		if title, err = mcpDocumentTitle(in.Title); err != nil {
 			return askDraftRow{}, err
 		}
+		f, _ := officeFormatOfMIME(att.MIME)
+		title = withOfficeExt(title, f)
 	}
 	stored, err := askStoredArgs(args, tc.WorkspaceID)
+	if err == nil && strings.TrimSpace(in.Title) != "" {
+		stored, err = askStoredTitle(stored, title)
+	}
 	if err != nil {
 		return askDraftRow{}, err
 	}
@@ -386,6 +421,9 @@ func (s *AskUNIService) applySaveAttachmentTemplate(ctx context.Context, p McpPr
 	docs, err := s.officeDocs()
 	if err != nil {
 		return AskProposalResult{}, nil, err
+	}
+	if !s.reads.documentsOn(ctx, p) {
+		return AskProposalResult{}, nil, errMcpDocumentsUnavailable
 	}
 	var in askSaveTemplateIn
 	if err := decodeInto(row.Args, &in); err != nil {

@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
-	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -584,7 +583,7 @@ func (s *AskUNIService) agentListTemplates(ctx context.Context, tc ai.ToolContex
 	if !s.reads.documentsOn(ctx, principalOf(tc)) {
 		return nil, errMcpDocumentsUnavailable
 	}
-	if _, ok := files.DocumentFormatMime(a.Format); a.Format != "" && !ok {
+	if a.Format != "" && !slices.Contains(askOfficeFormats, a.Format) {
 		return nil, McpInvalidArgs{Msg: "format must be docx, xlsx, pptx, pdf, md, html or empty"}
 	}
 	if _, err := decodeDocumentCursor(a.Cursor); err != nil {

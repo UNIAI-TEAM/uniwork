@@ -437,3 +437,71 @@ func TestAskSaveAttachmentTemplateRefuses(t *testing.T) {
 		t.Fatalf("documents flag off: %v, want documents_unavailable", err)
 	}
 }
+
+// A flag switched off between the card and Apply closes Apply too, through
+// ApplyProposal, and no file is made.
+func TestAskCreateOfficeApplyClosedWhenDocumentsTurnOff(t *testing.T) {
+	x, s, tc, _ := askOfficeWorld(t)
+	ctx := context.Background()
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	att := askAttach(t, x, s, convID, msgID, x.ua.ID, "mau.docx", docxBody(t, util.NewID()))
+	for name, row := range map[string]askDraftRow{
+		"create_office_document":   askPrepare(t, s, tc, "create_office_document", `{"title":"Đề xuất","format":"docx","outline":"## A"}`),
+		"save_attachment_template": askPrepare(t, s, tc, "save_attachment_template", fmt.Sprintf(`{"attachment_id":%q}`, att.ID)),
+	} {
+		pr := propose(t, s, tc, convID, msgID, AskModeAsk, row)[0]
+		x.flags.byOrg = map[string]bool{x.w.OrganizationID: false}
+		before := x.docRows(t)
+		p, err := s.ApplyProposal(ctx, x.ua.ID, pr.ID)
+		if codeOf(err) != "documents_unavailable" || p.Status != "failed" || p.ErrorCode != "documents_unavailable" {
+			t.Fatalf("%s: %+v, %v; want a failed row with documents_unavailable", name, p, err)
+		}
+		if after := x.docRows(t); after != before {
+			t.Fatalf("%s: documents %d -> %d", name, before, after)
+		}
+		x.flags.byOrg = nil
+	}
+}
+
+// The new file's title carries its format's extension, on the card and on the file.
+func TestAskCreateOfficeTitleGetsTheFormatExtension(t *testing.T) {
+	x, s, tc, _ := askOfficeWorld(t)
+	for title, want := range map[string]string{"Báo giá Q4": "Báo giá Q4.docx", "Q4.docx": "Q4.docx", "Q4.DOCX": "Q4.DOCX"} {
+		row := askPrepare(t, s, tc, "create_office_document", fmt.Sprintf(`{"title":%q,"format":"docx","outline":"## A"}`, title))
+		if f, _ := officeField(row, "title"); f.To != want || row.Preview.Target.Title != want {
+			t.Fatalf("%q: card title %v / %q, want %q", title, f.To, row.Preview.Target.Title, want)
+		}
+		p := applyOffice(t, s, tc, x.ua.ID, row)
+		var got string
+		if err := s.pool.QueryRow(context.Background(), `SELECT title FROM documents WHERE id = $1`, p.Result.ObjectID).Scan(&got); err != nil || got != want {
+			t.Fatalf("%q: document title %q (%v), want %q", title, got, err, want)
+		}
+	}
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	att := askAttach(t, x, s, convID, msgID, x.ua.ID, "bao-cao.pptx", docxLike(t, "ppt/presentation.xml", "ppt/slides/slide1.xml"))
+	row := askPrepare(t, s, tc, "save_attachment_template", fmt.Sprintf(`{"attachment_id":%q,"title":"Mẫu báo cáo"}`, att.ID))
+	if f, _ := officeField(row, "title"); f.To != "Mẫu báo cáo.pptx" {
+		t.Fatalf("template title = %v", f.To)
+	}
+	p := applyOffice(t, s, tc, x.ua.ID, row)
+	var got string
+	if err := s.pool.QueryRow(context.Background(), `SELECT title FROM documents WHERE id = $1`, p.Result.ObjectID).Scan(&got); err != nil || got != "Mẫu báo cáo.pptx" {
+		t.Fatalf("template document title %q (%v)", got, err)
+	}
+}
+
+func TestAskCreateOfficeRefusesAParentFromAnotherWorkspace(t *testing.T) {
+	x, s, tc, docs := askOfficeWorld(t)
+	other, err := s.ws.CreateInOrg(context.Background(), x.ua.ID, x.w.OrganizationID, "Beta", "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := docs.CreatePage(context.Background(), Human(x.ua.ID), other.Workspace.ID, CreatePageInput{Title: "Ở nơi khác", Content: json.RawMessage(mcpTestPage)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = officePrepareErr(s, tc, fmt.Sprintf(`{"title":"X","format":"docx","outline":"x","parent_id":%q}`, page.Document.ID))
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("a parent of another workspace: %v, want not found", err)
+	}
+}
