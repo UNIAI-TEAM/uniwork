@@ -715,7 +715,7 @@ Trạng thái và lời:
   giờ loé "hết hạn". Đọc vé lỗi (mạng/5xx) → "Chưa tải được lượt đăng nhập" + câu của bảng lỗi + "Thử lại".
 - **`step=link`** (đã đăng nhập): **không tự ghi khi mở**. Hiện "Liên kết {{provider}} ({{provider_email}}) với
   {{account_email}}?" + nút "Liên kết" và "Không liên kết". Dòng dưới tiêu đề là `role=status`: câu hỏi khi "Liên kết"
-  còn trả lời được; trong bước chuyển (tiêu đề của nhóm đã hỏi) là "Bạn đang đăng nhập {{accountEmail}}."; sau lỗi cuối
+  còn trả lời được; trong bước chuyển (tiêu đề của nhóm đã hỏi) là "Bạn đang đăng nhập bằng {{accountEmail}}."; sau lỗi cuối
   là "Chưa liên kết {{provider}} với {{accountEmail}}.". Lỗi làm mất nút vừa bấm (lỗi cuối, phiên kết thúc) đưa focus tới
   nút còn lại ("Tiếp tục", hay "Đăng nhập để liên kết"). Thành công → `role=status` "Đã liên kết {{provider}}. Lần sau
   chỉ cần {{provider}}.", khối danh tính có dấu kiểm (`CircleCheck`, tông success) + nút "Tiếp tục" được focus (không

@@ -675,7 +675,7 @@
         "title": "Liên kết {{provider}}",
         "question": "Liên kết {{provider}} ({{providerEmail}}) với {{accountEmail}}?",
         "questionRelay": "Liên kết {{provider}} (email ẩn của Apple) với {{accountEmail}}?",
-        "signedInAs": "Bạn đang đăng nhập {{accountEmail}}.",
+        "signedInAs": "Bạn đang đăng nhập bằng {{accountEmail}}.",
         "body": "Sau đó bạn vào được bằng {{provider}} hoặc cách bạn vẫn dùng.",
         "confirm": "Liên kết",
         "decline": "Không liên kết",
