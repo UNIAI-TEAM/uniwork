@@ -35,6 +35,7 @@ type AskUNIService struct {
 	chat     *ChatService
 	emailHub *EmailHubService
 	docs     *DocumentService
+	office   *DocumentOfficeService // nil until SetOffice
 	flags    McpFlags
 	drive    DriveContentReader
 	memory   *AiMemoryService
@@ -67,6 +68,10 @@ func (s *AskUNIService) SetEmailHub(hub *EmailHubService) {
 
 // SetDocuments wires document search (optional; set from main after construction).
 func (s *AskUNIService) SetDocuments(d *DocumentService) { s.docs = d }
+
+// SetOffice wires the Office service create_office_document makes blank files
+// with; without it that path answers office_not_configured.
+func (s *AskUNIService) SetOffice(o *DocumentOfficeService) { s.office = o }
 
 // SetFlags wires the feature-flag evaluator; without it the documents flag
 // reads as off (fail closed, as in McpToolService).

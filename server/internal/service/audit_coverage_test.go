@@ -3793,6 +3793,16 @@ func TestReusedAuditActionCommandsWriteTheirOwnRows(t *testing.T) {
 			}
 			return env, res.Document.ID
 		},
+		"CreateDocumentFromTemplate": func(t *testing.T) (*docStorageEnv, string) {
+			env := newFakeDocStorageEnv(t)
+			tpl := templateFromWorld(t, env, "audit-template.pdf")
+			res, err := env.svc.CreateDocumentFromTemplate(context.Background(), human(env.tn.member), env.tn.wsA,
+				CreateFromTemplateInput{TemplateID: tpl.Document.ID, IdempotencyKey: "audit-from-template"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return env, res.Document.ID
+		},
 		"EnsureMyFolder": func(t *testing.T) (*docStorageEnv, string) {
 			env := newFakeDocStorageEnv(t)
 			v, created, err := env.svc.EnsureMyFolder(context.Background(), human(env.tn.member), env.tn.wsA)

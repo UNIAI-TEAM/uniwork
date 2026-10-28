@@ -61,7 +61,7 @@ func planAskFiles(files []askFileBytes, budget int) (askFilePlan, error) {
 			return askFilePlan{}, askFileUnreadable(f.Name, err)
 		}
 		budget -= cost
-		af := ai.AttachedFile{Name: f.Name, Kind: f.Kind}
+		af := ai.AttachedFile{ID: f.ID, Name: f.Name, Kind: f.Kind}
 		if len(plan.Texts) > texts {
 			af.Kind, af.Text = "text", plan.Texts[texts].Text
 		}

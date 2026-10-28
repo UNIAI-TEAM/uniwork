@@ -113,6 +113,8 @@ func (s *AskUNIService) askDocumentTools() []askWriteTool {
 			Tool:    tool("add_document_comment", "Proposes a new comment thread on a page, posted as the asker. Whoever can read the page sees it; anyone @mentioned in it is notified.", "the asker deletes the comment", ai.RiskMedium, false, mcpSchemaDocumentComment),
 			prepare: s.prepareAddDocumentComment, apply: s.applyAddDocumentComment, inverse: "delete_document_comment",
 		},
+		s.askOfficeTool(),
+		s.askSaveTemplateTool(),
 	}
 }
 
