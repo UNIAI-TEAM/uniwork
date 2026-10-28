@@ -10,6 +10,7 @@ import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CHAT_FILE_MAX_LABEL, isChatImageFile } from "./chat-file-accept";
 import { formatChatFileSize } from "./chat-file-size";
+import { ChatImagePreviewDialog } from "./chat-image-preview-dialog";
 import { CHAT_ON_BUBBLE_FILL, CHAT_ON_BUBBLE_LINE } from "./chat-message-row";
 import {
   COMPOSER_QUOTE_BAR_CLASS,
@@ -121,6 +122,7 @@ export function StagedFileChip({ file, onRemove }: { file: File; onRemove: () =>
   const { t, i18n } = useTranslation();
   const isImage = isChatImageFile(file);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!isImage) {
@@ -144,7 +146,14 @@ export function StagedFileChip({ file, onRemove }: { file: File; onRemove: () =>
       )}
     >
       {isImage && previewUrl ? (
-        <img src={previewUrl} alt={file.name} className="size-12 shrink-0 rounded-control bg-surface object-cover" />
+        <button
+          type="button"
+          className="size-12 shrink-0 overflow-hidden rounded-control bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={t("chat.composer_preview_image", { name: file.name })}
+          onClick={() => setPreviewOpen(true)}
+        >
+          <img src={previewUrl} alt="" className="size-full object-cover" />
+        </button>
       ) : (
         <span
           className="flex size-12 shrink-0 items-center justify-center rounded-control bg-brand-subtle text-brand-subtle-foreground"
@@ -154,7 +163,18 @@ export function StagedFileChip({ file, onRemove }: { file: File; onRemove: () =>
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-label font-semibold text-foreground">{file.name}</span>
+        {isImage && previewUrl ? (
+          <button
+            type="button"
+            className="block w-full min-w-0 truncate text-left text-label font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={t("chat.composer_preview_image", { name: file.name })}
+            onClick={() => setPreviewOpen(true)}
+          >
+            {file.name}
+          </button>
+        ) : (
+          <span className="block truncate text-label font-semibold text-foreground">{file.name}</span>
+        )}
         <span className="block text-caption text-muted-foreground tabular-nums">
           {formatChatFileSize(file.size, i18n.language)}
         </span>
@@ -170,6 +190,15 @@ export function StagedFileChip({ file, onRemove }: { file: File; onRemove: () =>
       >
         <X aria-hidden />
       </Button>
+      {isImage ? (
+        <ChatImagePreviewDialog
+          open={previewOpen}
+          name={file.name}
+          src={previewUrl}
+          loading={false}
+          onOpenChange={setPreviewOpen}
+        />
+      ) : null}
     </span>
   );
 }

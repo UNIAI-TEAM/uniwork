@@ -504,6 +504,7 @@
     "composer_flag_group": "Đánh dấu tin",
     "voice_recording_aria": "Thời lượng đang ghi âm, tối đa 2 phút",
     "composer_staged_files": "Tệp sẽ gửi kèm",
+    "composer_preview_image": "Xem {{name}}",
     "composer_remove_file": "Gỡ {{name}}",
     "poll_option_aria": "{{label}} — {{count}} phiếu",
     "poll_closed_status": "Đã đóng",
