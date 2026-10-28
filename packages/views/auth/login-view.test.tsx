@@ -11,6 +11,9 @@ import { localeAdapter } from "../test/api-mock";
 import { requestMock } from "../test/request-mock";
 import { LoginView } from "./login-view";
 
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), warning: vi.fn() }));
+vi.mock("sonner", () => ({ toast: toastMock }));
+
 initI18n();
 
 function adapter() {
@@ -53,6 +56,8 @@ const SESSION = {
 
 beforeEach(async () => {
   requestMock.mockReset();
+  toastMock.success.mockReset();
+  toastMock.warning.mockReset();
   resetAuthStoreForTests();
   localeAdapter.persist.mockClear();
   await setLocale("vi");
@@ -157,14 +162,50 @@ describe("LoginView", () => {
     expect(nav.push).toHaveBeenCalledWith("/register");
   });
 
-  it("shows the Google error as a form-level alert without blaming the fields", () => {
-    render(wrap(<LoginView onSuccess={() => {}} initialError="google_denied" />));
-    expect(screen.getByRole("alert")).toHaveTextContent("Bạn đã hủy đăng nhập Google.");
+  // The one table of /login?error= codes (spec §3.4, §4.2).
+  it.each([
+    ["google_failed", "Chưa đăng nhập được bằng Google. Thử lại, hoặc dùng email."],
+    ["google_unverified", "Google chưa xác minh email của tài khoản này. Dùng tài khoản Google khác, hoặc đăng nhập bằng email."],
+    ["apple_failed", "Chưa đăng nhập được bằng Apple. Thử lại, hoặc dùng email."],
+    ["sign_in_conflict", "Email này đã có tài khoản UniWork dùng một cách đăng nhập khác. Đăng nhập bằng cách đó."],
+    ["sign_in_unverified", "Email của tài khoản này chưa được xác minh. Dùng cách đăng nhập khác."],
+    ["sign_in_account_unverified", 'Email này đã có tài khoản UniWork nhưng chưa được xác minh. Chọn "Quên mật khẩu?" để nhận link qua email và lấy lại tài khoản.'],
+    ["sign_in_failed", "Chưa hoàn tất đăng nhập. Thử lại."],
+  ])("shows ?error=%s as a form-level alert without blaming the fields", (code, sentence) => {
+    render(wrap(<LoginView onSuccess={() => {}} redirectError={code} />));
+    expect(screen.getByRole("alert")).toHaveTextContent(sentence);
     // The fields were never submitted; marking them invalid would send a
     // screen-reader user hunting for a typo that does not exist.
     for (const label of ["Email", "Mật khẩu"]) {
       expect(screen.getByLabelText(label)).not.toHaveAttribute("aria-invalid");
     }
+  });
+
+  it.each([
+    ["google_denied", "Bạn đã hủy đăng nhập Google."],
+    ["apple_denied", "Bạn đã hủy đăng nhập Apple."],
+  ])("says a cancelled provider sign-in (%s) as a status, not an alarm", (code, sentence) => {
+    render(wrap(<LoginView onSuccess={() => {}} redirectError={code} />));
+    expect(screen.getByRole("status")).toHaveTextContent(sentence);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it.each(["google_", "apple_exploded", "<script>", "sign_in_failed "])(
+    "ignores the unknown code %j rather than showing it",
+    (code) => {
+      const { container } = render(wrap(<LoginView onSuccess={() => {}} redirectError={code} />));
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(container.textContent).not.toContain(code.trim());
+    },
+  );
+
+  it("drops the provider's error once the form speaks for itself", () => {
+    render(wrap(<LoginView onSuccess={() => {}} redirectError="google_failed" />));
+    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    const alerts = screen.getAllByRole("alert");
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toHaveTextContent("Nhập email của bạn");
   });
 
   it("puts the provider buttons above the form and keeps next on them", async () => {
@@ -187,6 +228,31 @@ describe("LoginView", () => {
     expect(nav.push).toHaveBeenCalledWith("/register?next=%2Fauth%2Fdesktop%2Fauthorize%3Fattempt_id%3Da1");
   });
 
+  it("says once, on the way out, that the provider waiting to be linked was not", async () => {
+    const onSuccess = vi.fn();
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path === "/api/v1/auth/mfa/verify" ? { ...SESSION, link_skipped: "sign_in_method_taken" } : {}),
+    );
+    render(wrap(<LoginView onSuccess={onSuccess} initialMfa />));
+    fireEvent.change(screen.getByLabelText("Mã xác thực"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(toastMock.warning).toHaveBeenCalledTimes(1);
+    expect(toastMock.warning.mock.calls[0]?.[0]).toBe(
+      "Bạn đã đăng nhập, nhưng chưa liên kết được cách đăng nhập vừa dùng. Thử lại trong Cài đặt › Bảo mật.",
+    );
+  });
+
+  it("says nothing extra after an ordinary sign-in", async () => {
+    requestMock.mockResolvedValue(SESSION);
+    const onSuccess = vi.fn();
+    render(wrap(<LoginView onSuccess={onSuccess} />));
+    fill();
+    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(toastMock.warning).not.toHaveBeenCalled();
+    expect(toastMock.success).not.toHaveBeenCalled();
+  });
 
   it("asks for the email before sending anything and moves focus there", () => {
     render(wrap(<LoginView onSuccess={() => {}} />));

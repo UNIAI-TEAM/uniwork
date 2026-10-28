@@ -1,10 +1,13 @@
 "use client";
 import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CircleAlert } from "lucide-react";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useLogin } from "@uniwork/core/auth";
+import { loginRedirectErrorKey } from "@uniwork/core/auth/sign-in-errors";
 import { paths } from "@uniwork/core/paths";
 import { isMFAChallenge, type SessionResponse } from "@uniwork/core/types";
+import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -14,12 +17,10 @@ import { AuthLegalNote } from "./auth-legal-note";
 import { AuthShell } from "./auth-shell";
 import { MFAStep } from "./mfa-step";
 import { PasswordField } from "./password-field";
+import { useSessionNotices } from "./session-notices";
 import { SocialSignIn } from "./social-sign-in";
 
 export { AUTH_LINK };
-
-/** Errors the Google callback can carry back on the login URL. */
-export type GoogleLoginError = "google_denied" | "google_failed" | "google_unverified";
 
 export type LoginReason = "meeting_invite" | "session_expired";
 
@@ -42,20 +43,26 @@ const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function LoginView({
   onSuccess,
   next,
-  initialError,
+  redirectError,
   reason,
   initialMfa = false,
 }: {
   onSuccess: (sess: SessionResponse) => void;
   /** Same-origin path to return to after any sign-in; forwarded to the providers and to register too. */
   next?: string | null;
-  initialError?: GoogleLoginError | null;
+  /**
+   * `/login?error=`: why a provider's round trip came back without a session
+   * (spec §3.4). Read through the one table of codes; anything it does not
+   * know is ignored rather than shown as a raw code.
+   */
+  redirectError?: string | null;
   reason?: LoginReason | null;
   /** `/login?mfa=1`: a redirect flow left the MFA challenge in a cookie; open on the code step. */
   initialMfa?: boolean;
 }) {
   const { t } = useTranslation();
   const login = useLogin();
+  const announce = useSessionNotices();
   // The challenge token from a password login; null while on the code step
   // after a cookie-borne challenge; undefined on the password step.
   const [challenge, setChallenge] = useState<string | null | undefined>(initialMfa ? null : undefined);
@@ -65,10 +72,21 @@ export function LoginView({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [clientNotice, setClientNotice] = useState<Notice | null>(null);
-  // The Google error arrived on the URL before the user typed anything. It is
-  // shown until this form is first submitted, then this form's own outcome
-  // takes the slot; the old message must not come back when that one clears.
+  // The provider's error arrived on the URL before the user typed anything.
+  // It is shown until this form is first submitted, then this form's own
+  // outcome speaks; the old message must not come back when that one clears.
   const [submitted, setSubmitted] = useState(false);
+  const redirectKey = submitted ? null : loginRedirectErrorKey(redirectError);
+  // A cancel is the person's own choice, not a failure: said quietly, as a
+  // status. Every other code is something that went wrong and is an alert.
+  const cancelled = redirectError === "google_denied" || redirectError === "apple_denied";
+
+  // Whatever the answer asks to be said once (a provider that waited and was
+  // not linked) is said on the way to the next screen.
+  const finish = (sess: SessionResponse) => {
+    announce(sess);
+    onSuccess(sess);
+  };
 
   // A deep link to a comment whose session ended says why the sign-in stands in its way
   // (S15 row 5); a visitor who never had a session gets the plain sign-in.
@@ -92,12 +110,7 @@ export function LoginView({
     return { owner: "form", message: t("auth.networkError") };
   })(login.error);
 
-  const notice: Notice | null =
-    clientNotice ??
-    serverNotice ??
-    (initialError && !submitted
-      ? { owner: "form", message: t(`auth.google.${initialError.replace("google_", "")}`) }
-      : null);
+  const notice: Notice | null = clientNotice ?? serverNotice;
 
   const blames = (field: "email" | "password") => notice?.owner === field || notice?.owner === "pair";
 
@@ -138,7 +151,7 @@ export function LoginView({
     login.mutate(
       { email: trimmed, password },
       {
-        onSuccess: (out) => (isMFAChallenge(out) ? setChallenge(out.mfa_token) : onSuccess(out)),
+        onSuccess: (out) => (isMFAChallenge(out) ? setChallenge(out.mfa_token) : finish(out)),
         // The email is almost always right and the password is what gets
         // retyped, so the retry starts there, with the old value selected: the
         // next keystroke replaces it. Other failures keep focus on the button:
@@ -156,7 +169,7 @@ export function LoginView({
   if (challenge !== undefined) {
     return (
       <AuthShell title={t("auth.mfa.title")} description={t("auth.mfa.subtitle")}>
-        <MFAStep mfaToken={challenge} onSuccess={onSuccess} onCancel={() => setChallenge(undefined)} />
+        <MFAStep mfaToken={challenge} onSuccess={finish} onCancel={() => setChallenge(undefined)} />
       </AuthShell>
     );
   }
@@ -168,6 +181,14 @@ export function LoginView({
           <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-pretty text-body text-foreground">
             {reasonMessage}
           </p>
+        ) : null}
+        {/* Above the provider buttons it is about, and blaming no field:
+            no field was used. */}
+        {redirectKey ? (
+          <Alert variant={cancelled ? "muted" : "destructiveSoft"} role={cancelled ? "status" : "alert"}>
+            {cancelled ? null : <CircleAlert aria-hidden />}
+            <AlertDescription className="text-pretty">{t(redirectKey)}</AlertDescription>
+          </Alert>
         ) : null}
         {/* The providers first, then "or use email", then the form: the order
             the phone shows (spec §4.1). */}
