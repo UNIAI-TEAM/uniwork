@@ -5677,6 +5677,10 @@
       "create": {
         "peopleRest_one": "người · gồm bạn",
         "peopleRest_other": "người · gồm bạn"
+      },
+      "summary": {
+        "outOf": "/{{count}}",
+        "source": "Nguồn {{n}}"
       }
     }
   },
