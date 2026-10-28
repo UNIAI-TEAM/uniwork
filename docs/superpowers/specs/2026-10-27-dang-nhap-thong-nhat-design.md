@@ -1,6 +1,6 @@
 # Đăng nhập thống nhất: email + mật khẩu, Google, Apple trên web, máy tính và điện thoại
 
-> **Trạng thái:** in-progress — server (§3), web (§4) và mobile (§5) đã có trên nhánh `feature/auth-unified-sign-in`
+> **Trạng thái:** in-progress — server (§3), web (§4) và mobile (§5) đã có trên nhánh `feature/UNI-2263-unified-sign-in` (PR vào `develop`)
 > (PR UNI-2263), có unit test. Còn: việc của chủ sản phẩm (§6: Services ID Apple, OAuth client Google iOS/Android và
 > biến build, biến well-known, domain gửi mail cho email ẩn của Apple), bản build native đầu tiên trong CI (module Google,
 > `android-smoke`, `android-e2e`, `ios-release`, flow Maestro), e2e Playwright trên CI. Chỉ ghi shipped sau khi PR merge.
@@ -624,7 +624,7 @@ vi/en; `.env.example`; `no-pii-log`.
 
 ## 4. Web
 
-> **Trạng thái:** in-progress — phần web (4.1–4.6) đã có trên nhánh `feature/auth-unified-sign-in`, có unit test;
+> **Trạng thái:** in-progress — phần web (4.1–4.6) đã có trên nhánh `feature/UNI-2263-unified-sign-in` (PR vào `develop`), có unit test;
 > e2e của 4.6 đã xanh trên bản build production ở máy, trừ các ca thêm sau vòng phản biện (no-shift 375 px của
 > `/auth/continue`, "Về trang đăng nhập" khi hết hạn), chưa chạy. Chỉ ghi shipped sau khi PR merge.
 
@@ -881,7 +881,7 @@ hết hạn) ở hai chế độ, email ẩn không bao giờ in thô, và vùng
 
 ## 5. Mobile (`apps/chat-mobile`)
 
-> **Trạng thái:** in-progress — phần mobile (5.1–5.3) đã có trên nhánh `feature/auth-unified-sign-in`, có test vitest và
+> **Trạng thái:** in-progress — phần mobile (5.1–5.3) đã có trên nhánh `feature/UNI-2263-unified-sign-in` (PR vào `develop`), có test vitest và
 > jest; module Google, sheet Apple/Google và các flow Maestro chưa chạy trên máy hay trong một bản build native nào.
 > Chỗ làm khác bản thiết kế ở 5.4.
 
