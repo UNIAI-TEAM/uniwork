@@ -225,8 +225,8 @@ type UniworkTurn struct {
 	Dropped        []ai.UniworkDroppedToolCall
 	Stream         bool
 	// HandoffRemaining is the parts of the handoff package left after this
-	// part, -1 when the turn did not expand one (ADR 0048). Only an answered
-	// turn sets it; the handler writes it only when >= 0.
+	// part, -1 when the turn did not expand one or was refused (ADR 0048); the
+	// handler writes it only when >= 0.
 	HandoffRemaining int
 }
 
@@ -239,6 +239,15 @@ type UniworkTurn struct {
 // longer readable is refused and the caller's transcript for it is deleted
 // (design §9.4: a share revoked with no event must not outlive the access).
 func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in UniworkTurnInput) (UniworkTurn, error) {
+	out, err := s.chat(ctx, scope, in)
+	if err != nil {
+		// A refusal never advanced a package, so it names no parts left.
+		out.HandoffRemaining = -1
+	}
+	return out, err
+}
+
+func (s *AIUniworkService) chat(ctx context.Context, scope UniworkScope, in UniworkTurnInput) (UniworkTurn, error) {
 	doc, err := s.documentScope(ctx, scope)
 	if err != nil {
 		return UniworkTurn{}, err

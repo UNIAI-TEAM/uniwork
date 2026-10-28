@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -1595,7 +1596,7 @@ func TestPlanUniworkTurnWithExpandsAfterTheQuestionCap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fmt.Sprintf("%+v", plain) != fmt.Sprintf("%+v", same) {
+	if !reflect.DeepEqual(plain, same) {
 		t.Fatalf("nil expand = %+v, want PlanUniworkTurn's %+v", same, plain)
 	}
 }
