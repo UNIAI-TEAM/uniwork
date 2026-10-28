@@ -5023,7 +5023,6 @@
         "selMetaNoDue_one": "{{count}} người",
         "selMetaNoDue_other": "{{count}} người",
         "selClear": "Bỏ chọn",
-        "selReview": "Xem lại và giao",
         "keys": "Phím tắt",
         "keyMove": "↑ ↓ chuyển giữa các việc",
         "keyToggle": "Space chọn hoặc bỏ chọn",
@@ -5066,7 +5065,6 @@
           "votes_other": "{{count}} kết quả biểu quyết"
         },
         "running": "Đang soạn tóm tắt",
-        "runningFrom": "Đang soạn tóm tắt từ {{sources}}",
         "none": "Chưa có tóm tắt cho cuộc họp này.",
         "noneFrom": "Thư ký UNI soạn từ {{sources}}",
         "generate": "Soạn tóm tắt",
@@ -5681,7 +5679,9 @@
         "setDue": "Đặt hạn",
         "done_one": "Đã giao {{count}} việc",
         "done_other": "Đã giao {{count}} việc",
-        "groupDone": "{{name}} · đã giao hết"
+        "groupDone": "{{name}} · đã giao hết",
+        "undoPartial_one": "Không hoàn tác được {{count}} việc",
+        "undoPartial_other": "Không hoàn tác được {{count}} việc"
       },
       "prejoin": {
         "scribeChip": "Thư ký UNI ghi lời"

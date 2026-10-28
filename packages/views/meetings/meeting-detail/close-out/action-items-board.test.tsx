@@ -9,6 +9,7 @@ import { requestMock, wrapWithNav } from "../../../test/api-mock";
 import { DetailContext } from "../detail-context";
 import { demo, demoUser, demoWorkspace, detailValue, routeMeeting, type DemoUserKey, type MeetingFixtureKey } from "../test-fixtures";
 import { ActionItemsBoard } from "./action-items-board";
+import { Rolling } from "./assign-motion";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
@@ -72,6 +73,7 @@ beforeEach(() => {
   requestMock.mockReset();
   vi.mocked(toast.success).mockClear();
   vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.warning).mockClear();
 });
 
 describe("ActionItemsBoard — clerk (Main / AfterAssign)", () => {
@@ -304,7 +306,7 @@ describe("ActionItemsBoard — assign dock, fold and undo (G)", () => {
     expect(screen.getByText("Minh Trần · 4 chờ · 3 đã giao")).toBeInTheDocument();
   });
 
-  it("undo restores only the returned rows", async () => {
+  it("undo restores only the returned rows, says how many it could not, and hands focus back", async () => {
     const user = userEvent.setup();
     const { extra } = show("m1", "lan", () => Promise.resolve({ links: [minhFirst, minhSecond].map((id) => ({ action_item_id: id, task_id: `t-${id}` })) }), {
       // The second task was edited meanwhile: the server keeps it.
@@ -320,6 +322,10 @@ describe("ActionItemsBoard — assign dock, fold and undo (G)", () => {
     await assign(user, 2);
     const dock = await screen.findByRole("region", { name: "Việc đã chọn" });
     await waitFor(() => expect(dock).toHaveTextContent("Đã giao 2 việc"));
+    // Said once, by the dock's live line that was there before the pane changed.
+    const live = dock.querySelector("[aria-live]");
+    expect(live).toHaveTextContent("Đã giao 2 việc");
+    expect(within(dock).queryByRole("status")).toBeNull();
     await waitFor(() => expect(rowOf(minhSecond)).toBeNull(), { timeout: 3000 });
 
     await user.click(within(dock).getByRole("button", { name: "Hoàn tác" }));
@@ -329,7 +335,18 @@ describe("ActionItemsBoard — assign dock, fold and undo (G)", () => {
     expect(rowOf(minhFirst)!.hasAttribute("data-sent")).toBe(false);
     expect(rowOf(minhSecond)).toBeNull();
     expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.warning).toHaveBeenCalledWith("Không hoàn tác được 1 việc", { position: "bottom-center" });
     await waitFor(() => expect(screen.queryByRole("region", { name: "Việc đã chọn" })).toBeNull());
+    // The dock left with focus inside: it goes to "Thêm việc", not the page.
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Thêm việc" }));
+  });
+
+  it("a name's digits stay as written; only the counts roll", () => {
+    render(<Rolling text="Agent 007 · 5 chờ" lead="Agent 007" />);
+    const shown = document.querySelector("span[aria-hidden]")!;
+    expect(shown.textContent?.startsWith("Agent 007 · ")).toBe(true);
+    expect(shown.querySelectorAll("number-flow-react")).toHaveLength(1);
+    expect(screen.getByText("Agent 007 · 5 chờ")).toHaveClass("sr-only");
   });
 
   it("fully assigned group shows its check", async () => {

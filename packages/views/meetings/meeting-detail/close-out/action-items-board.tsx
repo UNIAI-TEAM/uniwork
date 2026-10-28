@@ -138,12 +138,21 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
   const picked = closeOut.picked;
   const owners = [...new Set(picked.map((item) => closeOut.valuesOf(item).assignee_id).filter((id): id is string => Boolean(id)))];
   const earliest = due(earliestDue(picked.map((item) => closeOut.valuesOf(item).due_date)));
+  // Focus lands after the list without scrolling, as after assigning.
+  const focusAdd = () => addRef.current?.focus({ preventScroll: true });
   const takeBack = () => {
-    const ids = closeOut.assigned?.ids;
-    if (!ids || undo.isPending) return;
-    // Only the ids the server answers come back; the rest stay assigned, and that is not an error.
+    if (undo.isPending) return;
+    // Read on the wall clock: after a system sleep the server's window may be over.
+    const ids = closeOut.undoIds();
+    if (!ids) return;
     undo.mutate([...ids], {
-      onSuccess: closeOut.clearAssigned,
+      onSuccess: (restored) => {
+        closeOut.clearAssigned();
+        focusAdd();
+        // The server keeps what it cannot take back (a task touched since, another's conversion): say how many, once.
+        const kept = restored ? ids.length - restored.length : 0;
+        if (kept > 0) toast.warning(t("meetings.motion.assign.undoPartial", { count: kept }), { position: "bottom-center" });
+      },
       onError: (err) => toast.error(apiErrorCopy(err) ?? t("notifications.undo_failed"), { position: "bottom-center" }),
     });
   };
@@ -188,6 +197,7 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
             return (
               <div key={group.ownerId} className="mt-2 flex flex-col first:mt-0">
                 <GroupHeader
+                  name={nameOf(group.ownerId)}
                   label={groupMeta(t, nameOf(group.ownerId), group)}
                   allAssigned={ids.length === 0 && group.converted.length > 0 ? nameOf(group.ownerId) : undefined}
                   className={besideSheet ? "justify-start" : undefined}
@@ -230,7 +240,7 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
         owners={owners}
         people={owners.length}
         earliest={earliest}
-        assigned={closeOut.assigned ? { count: closeOut.assigned.ids.length, at: closeOut.assigned.at } : null}
+        assigned={closeOut.assigned ? { ...closeOut.assigned, count: closeOut.assigned.ids.length } : null}
         phone={isPhone}
         besideSheet={besideSheet}
         onClear={closeOut.clear}
@@ -239,6 +249,8 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
         onSetDue={(date) => picked.forEach((item) => closeOut.setOverride(item.id, { due_date: date }))}
         onUndo={takeBack}
         undoing={undo.isPending}
+        onHoldUndo={closeOut.holdUndo}
+        onFocusAway={focusAdd}
       />
       <ReviewSheet
         closeOut={closeOut}
@@ -247,8 +259,8 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
         allItems={items}
         onAssigned={() => {
           setSelecting(false);
-          // Focus lands after the list without scrolling to it: the clerk watches the assigned rows fold in place.
-          addRef.current?.focus({ preventScroll: true });
+          // The clerk watches the assigned rows fold in place.
+          focusAdd();
         }}
       />
       <DismissDialog item={dismissing} onClose={() => setDismissing(null)} />

@@ -116,5 +116,51 @@ describe("useCloseOut", () => {
       act(() => result.current.clearAssigned());
       expect(result.current.assigned).toBeNull();
     });
+
+    it("reads the wall clock, so a system sleep past the window ends the undo", () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => useCloseOut([item()]));
+      act(() => result.current.markAssigned(["a1"]));
+      // Asleep: the wall clock jumps, the timers did not run.
+      vi.setSystemTime(Date.now() + 60_000);
+      let ids: readonly string[] | null = ["x"];
+      act(() => {
+        ids = result.current.undoIds();
+      });
+      expect(ids).toBeNull();
+      expect(result.current.assigned).toBeNull();
+    });
+
+    it("holding the dock pauses the countdown, up to the server's window", () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => useCloseOut([item()]));
+      act(() => result.current.markAssigned(["a1"]));
+      act(() => {
+        vi.advanceTimersByTime(3_000);
+      });
+      act(() => result.current.holdUndo(true));
+      act(() => {
+        vi.advanceTimersByTime(30_000);
+      });
+      expect(result.current.undoIds()).toEqual(["a1"]);
+      // Let go: the five seconds left are still there.
+      act(() => result.current.holdUndo(false));
+      act(() => {
+        vi.advanceTimersByTime(4_750);
+      });
+      expect(result.current.assigned?.ids).toEqual(["a1"]);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(result.current.assigned).toBeNull();
+
+      // Held past the server's two minutes, it ends anyway.
+      act(() => result.current.markAssigned(["a2"]));
+      act(() => result.current.holdUndo(true));
+      act(() => {
+        vi.advanceTimersByTime(120_000);
+      });
+      expect(result.current.assigned).toBeNull();
+    });
   });
 });

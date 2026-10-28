@@ -1,6 +1,7 @@
 "use client";
 import { ArrowRight, CalendarClock, Keyboard, Undo2, UserPen } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { NumberFlow } from "@uniwork/ui/components/ui/number-flow";
@@ -14,7 +15,7 @@ import { meetingAvatarTint } from "../avatar-tint";
 import { useDetail } from "../detail-context";
 import { kitButton } from "../ui/kit-buttons";
 import { CountdownRing, DrawnCheck, POP } from "./assign-motion";
-import { UNDO_MS } from "./use-close-out";
+import { UNDO_MS, type Assigned } from "./use-close-out";
 
 const ICON_BUTTON =
   "grid size-8.5 place-items-center rounded-[9px] text-muted-foreground hover:bg-surface-hover hover:text-foreground pointer-coarse:size-11 [&>svg:last-child:not(:first-child)]:hidden";
@@ -25,7 +26,8 @@ const SEP = <span aria-hidden className="mx-1 h-5.5 w-px shrink-0 bg-border" />;
  * picked, with the count rolling, the picked owners' faces, a shared owner
  * and due date for every picked row, Bỏ chọn, and Giao, which opens the
  * review sheet as before. Once the server has made the tasks it says so,
- * with Hoàn tác and its 8-second ring.
+ * with Hoàn tác and its 8-second ring, which stands still while the dock is
+ * hovered or holds focus.
  */
 export function SelectionBar({
   count,
@@ -41,6 +43,8 @@ export function SelectionBar({
   onSetDue,
   onUndo,
   undoing,
+  onHoldUndo,
+  onFocusAway,
 }: {
   count: number;
   /** The picked rows' owners, each once, in list order. */
@@ -49,7 +53,7 @@ export function SelectionBar({
   /** "T2 26/10", or "" when no picked row has a due date. */
   earliest: string;
   /** The last assignment, while its undo lasts; shown once nothing is picked. */
-  assigned: { count: number; at: number } | null;
+  assigned: (Pick<Assigned, "at" | "end" | "heldAt"> & { count: number }) | null;
   phone?: boolean;
   /** The review sheet is open: the dock moves left of it, and the list's keys are idle. */
   besideSheet?: boolean;
@@ -59,11 +63,27 @@ export function SelectionBar({
   onSetDue: (date: string | null) => void;
   onUndo: () => void;
   undoing: boolean;
+  /** The dock is hovered or holds focus while it offers Hoàn tác: the countdown waits. */
+  onHoldUndo: (hold: boolean) => void;
+  /** The dock left while it held focus (an undo, the window over): where focus goes instead of the page. */
+  onFocusAway: () => void;
 }) {
   const { t } = useTranslation();
   const { memberIndex } = useDetail();
   const reduced = useReducedMotion() ?? false;
   const pane = count > 0 ? "select" : assigned ? "done" : null;
+  const dockRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const hold = pane === "done" && (hovered || focused);
+  useEffect(() => onHoldUndo(hold), [hold, onHoldUndo]);
+  // Runs before the leaving dock is removed, while focus is still inside it.
+  useLayoutEffect(() => {
+    if (pane) return;
+    if (dockRef.current?.contains(document.activeElement)) onFocusAway();
+    setHovered(false);
+    setFocused(false);
+  }, [pane, onFocusAway]);
   const meta = earliest
     ? t("meetings.detail.closeOut.selMeta", { count: people, date: earliest })
     : t("meetings.detail.closeOut.selMetaNoDue", { count: people });
@@ -76,7 +96,14 @@ export function SelectionBar({
       {pane ? (
         <motion.div
           key="dock"
+          ref={dockRef}
           role="region"
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
+          onFocus={() => setFocused(true)}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+          }}
           aria-label={t("meetings.detail.closeOut.selRegion")}
           layout={!reduced}
           initial={reduced ? false : { opacity: 0, y: 12 }}
@@ -92,7 +119,11 @@ export function SelectionBar({
         >
           {/* The dock's own child: a modal sheet keeps live regions readable, and the panes beside it hide whole. */}
           <p aria-live="polite" className="sr-only">
-            {pane === "select" ? `${t("meetings.detail.closeOut.selCount", { count })} · ${meta}` : null}
+            {pane === "select"
+              ? `${t("meetings.detail.closeOut.selCount", { count })} · ${meta}`
+              : assigned
+                ? t("meetings.motion.assign.done", { count: assigned.count })
+                : null}
           </p>
           {pane === "select" ? (
             <motion.div key="select" className="flex min-w-0 flex-1 items-center gap-1.5" {...fade}>
@@ -105,7 +136,7 @@ export function SelectionBar({
               <span aria-hidden className="mr-0.5 flex gap-0.5">
                 <AnimatePresence initial={false}>
                   {owners.map((id) => (
-                    <motion.span key={id} {...(reduced ? {} : POP)} exit={{ opacity: 0, transition: { duration: 0.12 } }}>
+                    <motion.span key={id} {...(reduced ? {} : POP)} exit={reduced ? undefined : { opacity: 0, transition: { duration: 0.12 } }}>
                       <MeetingPersonAvatar name={memberIndex.memberOf(id)?.display_name ?? "?"} size={24} tint={meetingAvatarTint(id, memberIndex.members)} />
                     </motion.span>
                   ))}
@@ -120,7 +151,8 @@ export function SelectionBar({
           ) : assigned ? (
             <motion.div key={`done-${assigned.at}`} className="flex items-center gap-1.5" {...fade}>
               <DrawnCheck className="size-6.5" />
-              <p role="status" className="mr-1 text-body font-medium text-foreground">
+              {/* Said by the dock's live line above, which was there before this pane. */}
+              <p aria-hidden className="mr-1 text-body font-medium text-foreground">
                 {t("meetings.motion.assign.done", { count: assigned.count })}
               </p>
               <Button
@@ -133,7 +165,7 @@ export function SelectionBar({
               >
                 <Undo2 aria-hidden />
                 {t("notifications.undo")}
-                <CountdownRing seconds={UNDO_MS / 1000} />
+                <CountdownRing end={assigned.end} heldAt={assigned.heldAt} total={UNDO_MS} />
               </Button>
             </motion.div>
           ) : null}

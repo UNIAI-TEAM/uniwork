@@ -5024,7 +5024,6 @@
         "selMetaNoDue_one": "{{count}} person",
         "selMetaNoDue_other": "{{count}} people",
         "selClear": "Clear",
-        "selReview": "Review and assign",
         "keys": "Keyboard shortcuts",
         "keyMove": "↑ ↓ move between items",
         "keyToggle": "Space select or clear",
@@ -5067,7 +5066,6 @@
           "votes_other": "{{count}} vote results"
         },
         "running": "Writing the summary",
-        "runningFrom": "Writing the summary from {{sources}}",
         "none": "This meeting has no summary yet.",
         "noneFrom": "UNI Scribe writes it from {{sources}}",
         "generate": "Write summary",
@@ -5682,7 +5680,9 @@
         "setDue": "Set due date",
         "done_one": "Assigned {{count}} task",
         "done_other": "Assigned {{count}} tasks",
-        "groupDone": "{{name}} · all assigned"
+        "groupDone": "{{name}} · all assigned",
+        "undoPartial_one": "Couldn't undo {{count}} task",
+        "undoPartial_other": "Couldn't undo {{count}} tasks"
       },
       "prejoin": {
         "scribeChip": "UNI Scribe transcribes"

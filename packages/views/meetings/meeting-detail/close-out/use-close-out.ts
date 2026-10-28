@@ -54,6 +54,17 @@ export function listKeyAction(event: {
 const NONE: ReadonlySet<string> = new Set();
 /** How long Hoàn tác stays on the dock after an assignment (spec G); the server takes back two minutes at most. */
 export const UNDO_MS = 8_000;
+/** The longest a held (hovered, focused) Hoàn tác lasts: the server's two minutes, less a margin for the round trip. */
+const UNDO_CAP_MS = 115_000;
+
+/**
+ * The last assignment, held for Hoàn tác: `at` is when it landed, `end` the
+ * wall-clock deadline, pushed back by however long it was held (`heldAt`).
+ */
+export type Assigned = { ids: readonly string[]; at: number; end: number; heldAt: number | null };
+
+/** Hoàn tác still holds at `now`: inside the server's window, and before its deadline unless held. */
+const undoOpen = (a: Assigned, now: number) => now - a.at < UNDO_CAP_MS && (a.heldAt !== null || now < a.end);
 
 /**
  * Selection and per-row edits of the close-out board (brief §2 "Selection
@@ -64,16 +75,36 @@ export function useCloseOut(items: readonly MeetingActionItem[]) {
   const [ticked, setTicked] = useState<ReadonlySet<string>>(NONE);
   const [overrides, setOverrides] = useState<Record<string, ItemOverride>>({});
   const [reviewOpen, setReviewOpen] = useState(false);
-  // The ids the last assignment turned into tasks, held for Hoàn tác; `at` restarts the countdown.
-  const [assigned, setAssigned] = useState<{ ids: readonly string[]; at: number } | null>(null);
+  // The ids the last assignment turned into tasks, held for Hoàn tác; a new one restarts the countdown.
+  const [assigned, setAssigned] = useState<Assigned | null>(null);
 
+  // The wall clock, read often: a timer stalls through a system sleep, the server's window does not.
   useEffect(() => {
     if (!assigned) return;
-    const id = setTimeout(() => setAssigned(null), UNDO_MS);
-    return () => clearTimeout(id);
+    const id = setInterval(() => {
+      if (!undoOpen(assigned, Date.now())) setAssigned(null);
+    }, 250);
+    return () => clearInterval(id);
   }, [assigned]);
-  const markAssigned = useCallback((ids: readonly string[]) => setAssigned({ ids, at: Date.now() }), []);
+  const markAssigned = useCallback((ids: readonly string[]) => {
+    const now = Date.now();
+    setAssigned({ ids, at: now, end: now + UNDO_MS, heldAt: null });
+  }, []);
   const clearAssigned = useCallback(() => setAssigned(null), []);
+  /** Pauses the countdown while the dock is hovered or holds focus; letting go pushes the deadline back by the pause. */
+  const holdUndo = useCallback((hold: boolean) => {
+    setAssigned((a) => {
+      if (!a || hold === (a.heldAt !== null)) return a;
+      const now = Date.now();
+      return a.heldAt === null ? { ...a, heldAt: now } : { ...a, end: a.end + now - a.heldAt, heldAt: null };
+    });
+  }, []);
+  /** The ids Hoàn tác may still take back, read on the wall clock at the click; null, and the dock leaves, once it is over. */
+  const undoIds = useCallback((): readonly string[] | null => {
+    if (assigned && undoOpen(assigned, Date.now())) return assigned.ids;
+    setAssigned(null);
+    return null;
+  }, [assigned]);
 
   const pending = useMemo(() => items.filter((item) => item.status === "PENDING"), [items]);
   const picked = useMemo(() => pending.filter((item) => ticked.has(item.id)), [pending, ticked]);
@@ -140,6 +171,8 @@ export function useCloseOut(items: readonly MeetingActionItem[]) {
     assigned,
     markAssigned,
     clearAssigned,
+    holdUndo,
+    undoIds,
   };
 }
 

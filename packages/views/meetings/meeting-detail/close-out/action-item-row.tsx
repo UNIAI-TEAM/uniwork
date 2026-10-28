@@ -1,6 +1,6 @@
 "use client";
 import { ArrowUpRight, CircleCheck, CircleDashed, EyeOff, Pencil, TriangleAlert, type LucideIcon } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { MeetingActionItem } from "@uniwork/core/meetings/action-items";
@@ -216,7 +216,10 @@ export function PendingItemRow({
       )}
     >
       {sent ? (
-        <DrawnCheck className="-m-0.5 size-5" />
+        // Its own presence: the list's initial={false} would otherwise keep the ✓ from drawing on a row there since load.
+        <AnimatePresence>
+          <DrawnCheck className="-m-0.5 size-5" />
+        </AnimatePresence>
       ) : selectable ? (
         <Checkbox aria-labelledby={titleId} checked={ticked} onCheckedChange={(on) => onTick(on === true)} className={ABOVE} />
       ) : phone ? null : (

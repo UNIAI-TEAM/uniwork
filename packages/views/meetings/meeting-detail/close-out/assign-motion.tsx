@@ -7,13 +7,18 @@ import { cn } from "@uniwork/ui/lib/utils";
 /**
  * A count line ("9 chờ giao · 5 đã giao") whose numbers roll when they change.
  * Assistive tech (and a text query) reads it once, as the plain sentence.
+ * `lead` (an owner's name, "Agent 007") is shown as written: its digits are a label, not a count.
  */
-export function Rolling({ text }: { text: string }) {
-  const parts = text.split(/(\d+)/);
+export function Rolling({ text, lead = "" }: { text: string; lead?: string }) {
+  const still = lead && text.startsWith(lead) ? lead : "";
+  const parts = text.slice(still.length).split(/(\d+)/);
   return (
     <>
       <span className="sr-only">{text}</span>
-      <span aria-hidden>{parts.map((part, i) => (i % 2 === 1 ? <NumberFlow key={i} value={Number(part)} /> : part))}</span>
+      <span aria-hidden>
+        {still}
+        {parts.map((part, i) => (i % 2 === 1 ? <NumberFlow key={i} value={Number(part)} /> : part))}
+      </span>
     </>
   );
 }
@@ -49,9 +54,15 @@ export function DrawnCheck({ className }: { className?: string }) {
 const RING_R = 8;
 const RING_C = 2 * Math.PI * RING_R;
 
-/** The undo's countdown (clip G): a 20px ring that empties over `seconds`; still under reduced motion. */
-export function CountdownRing({ seconds }: { seconds: number }) {
+/**
+ * The undo's countdown (clip G): a 20px ring of `total` ms that empties by the
+ * wall-clock `end`, standing still while `heldAt` is set. It starts where the
+ * countdown is, so a pane switch that remounts it does not refill it. Still under reduced motion.
+ */
+export function CountdownRing({ end, heldAt, total }: { end: number; heldAt: number | null; total: number }) {
   const reduced = useReducedMotion() ?? false;
+  const left = Math.max(0, end - (heldAt ?? Date.now()));
+  const offset = reduced ? 0 : RING_C * (1 - Math.min(1, left / total));
   return (
     <svg aria-hidden viewBox="0 0 20 20" className="size-5 -rotate-90">
       <circle cx={10} cy={10} r={RING_R} fill="none" strokeWidth={2} className="stroke-border" />
@@ -63,9 +74,9 @@ export function CountdownRing({ seconds }: { seconds: number }) {
         strokeWidth={2}
         className="stroke-primary"
         strokeDasharray={RING_C}
-        initial={{ strokeDashoffset: 0 }}
-        animate={{ strokeDashoffset: reduced ? 0 : RING_C }}
-        transition={{ duration: seconds, ease: "linear" }}
+        initial={{ strokeDashoffset: offset }}
+        animate={{ strokeDashoffset: reduced || heldAt !== null ? offset : RING_C }}
+        transition={{ duration: heldAt !== null ? 0 : left / 1000, ease: "linear" }}
       />
     </svg>
   );
