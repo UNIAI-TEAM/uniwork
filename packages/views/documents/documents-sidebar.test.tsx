@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Archive, Clock, Folder, FolderLock, House, Share2, ShieldCheck, Star, Trash, Users } from "lucide-react";
+import { Archive, Clock, Folder, FolderLock, House, LayoutTemplate, Share2, ShieldCheck, Star, Trash, Users } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 import {
   FeatureFlagsProvider,
@@ -54,6 +54,7 @@ describe("DocumentsSidebar sub-nav", () => {
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
       t("documents.home.sidebar.shared_by_me"),
+      t("documents.home.sidebar.templates"),
       t("documents.home.sidebar.shelved"),
       t("documents.home.sidebar.trash"),
     ];
@@ -88,15 +89,31 @@ describe("DocumentsSidebar sub-nav", () => {
 
   it("keeps the same entries on the trash view", () => {
     renderSidebar({ view: { kind: "archived" } });
-    expect(navLabels().slice(0, 7)).toEqual([
+    expect(navLabels().slice(0, 8)).toEqual([
       t("documents.home.sidebar.home"),
       t("documents.home.sidebar.recent"),
       t("documents.home.sidebar.starred"),
       t("documents.home.sidebar.shared"),
       t("documents.home.sidebar.shared_by_me"),
+      t("documents.home.sidebar.templates"),
       t("documents.home.sidebar.shelved"),
       t("documents.home.sidebar.trash"),
     ]);
+  });
+
+  it("draws Mẫu văn bản right after Tôi đã chia sẻ, opens its view and marks it current there", () => {
+    const { onView } = renderSidebar({ view: { kind: "templates" } });
+    const row = screen.getByRole("button", { name: t("documents.home.sidebar.templates") });
+    expect(row).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: t("documents.home.sidebar.shared_by_me") }).nextElementSibling).toBe(row);
+    expect(row.querySelector("svg")?.innerHTML).toBe(glyphOf(DOCUMENTS_NAV_ICONS.templates));
+    fireEvent.click(row);
+    expect(onView).toHaveBeenCalledWith({ kind: "templates" });
+  });
+
+  it("does not mark Mẫu văn bản current on another view", () => {
+    renderSidebar();
+    expect(screen.getByRole("button", { name: t("documents.home.sidebar.templates") })).not.toHaveAttribute("aria-current");
   });
 
   // ARCHIVE-01 (UNI-1845): the shelf is its own sub-nav entry (Main.dc / Archive.dc).
@@ -412,6 +429,7 @@ describe("DOCUMENTS_NAV_ICONS", () => {
     ["starred", Star],
     ["shared", Users],
     ["sharedByMe", Share2],
+    ["templates", LayoutTemplate],
     ["archive", Archive],
     ["shelved", Archive],
     ["trash", Trash],
@@ -422,6 +440,6 @@ describe("DOCUMENTS_NAV_ICONS", () => {
   });
 
   it("covers every entry of the map", () => {
-    expect(Object.keys(DOCUMENTS_NAV_ICONS)).toHaveLength(11);
+    expect(Object.keys(DOCUMENTS_NAV_ICONS)).toHaveLength(12);
   });
 });

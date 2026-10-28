@@ -40,6 +40,81 @@ func (q *Queries) ClearDocumentAssetsOrphaned(ctx context.Context, arg ClearDocu
 	return err
 }
 
+const clearDocumentTemplateMark = `-- name: ClearDocumentTemplateMark :one
+UPDATE documents
+SET template_marked_at = NULL,
+    template_marked_by = NULL,
+    template_marked_by_kind = NULL
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+  AND template_marked_at IS NOT NULL
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
+`
+
+type ClearDocumentTemplateMarkParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+func (q *Queries) ClearDocumentTemplateMark(ctx context.Context, arg ClearDocumentTemplateMarkParams) (Document, error) {
+	row := q.db.QueryRow(ctx, clearDocumentTemplateMark, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Kind,
+		&i.Title,
+		&i.Icon,
+		&i.Visibility,
+		&i.Content,
+		&i.ContentText,
+		&i.SearchText,
+		&i.ContentBytes,
+		&i.CurrentVersion,
+		&i.FileVersionID,
+		&i.Revision,
+		&i.Position,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.AclOwnerID,
+		&i.SourceDocumentID,
+		&i.SourceVersionID,
+		&i.SourceRevision,
+		&i.SourceFormat,
+		&i.SourceEngine,
+		&i.TargetFormat,
+		&i.SourceChecksumSha256,
+		&i.ConversionReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.ContentSavedAt,
+		&i.LastVersionAt,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ArchiveBatchID,
+		&i.ContentRevision,
+		&i.WorkspaceLevel,
+		&i.SystemKind,
+		&i.ShelvedAt,
+		&i.ShelvedBy,
+		&i.ShelvedByKind,
+		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
+	)
+	return i, err
+}
+
 const countMemberOwnedDocumentsByWorkspace = `-- name: CountMemberOwnedDocumentsByWorkspace :many
 SELECT d.workspace_id, w.name AS workspace_name, count(*)::bigint AS document_count
 FROM documents d
@@ -87,7 +162,7 @@ func (q *Queries) CountMemberOwnedDocumentsByWorkspace(ctx context.Context, arg 
 }
 
 const getDocument = `-- name: GetDocument :one
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 FROM documents
 WHERE id = $1
   AND organization_id = $2
@@ -150,12 +225,15 @@ func (q *Queries) GetDocument(ctx context.Context, arg GetDocumentParams) (Docum
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }
 
 const getMyFolder = `-- name: GetMyFolder :one
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 FROM documents
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -219,6 +297,9 @@ func (q *Queries) GetMyFolder(ctx context.Context, arg GetMyFolderParams) (Docum
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }
@@ -256,7 +337,7 @@ INSERT INTO documents (
   $34, $35,
   $36, $37, $38
 )
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 `
 
 type InsertDocumentParams struct {
@@ -392,12 +473,15 @@ func (q *Queries) InsertDocument(ctx context.Context, arg InsertDocumentParams) 
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }
 
 const listDocumentsByOwner = `-- name: ListDocumentsByOwner :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 FROM documents
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -476,6 +560,9 @@ func (q *Queries) ListDocumentsByOwner(ctx context.Context, arg ListDocumentsByO
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 		); err != nil {
 			return nil, err
 		}
@@ -488,7 +575,7 @@ func (q *Queries) ListDocumentsByOwner(ctx context.Context, arg ListDocumentsByO
 }
 
 const listDocumentsByParent = `-- name: ListDocumentsByParent :many
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 FROM documents
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -565,6 +652,9 @@ func (q *Queries) ListDocumentsByParent(ctx context.Context, arg ListDocumentsBy
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 		); err != nil {
 			return nil, err
 		}
@@ -719,6 +809,92 @@ func (q *Queries) NextDocumentPosition(ctx context.Context, arg NextDocumentPosi
 	return position, err
 }
 
+const setDocumentTemplateMark = `-- name: SetDocumentTemplateMark :one
+UPDATE documents
+SET template_marked_at = now(),
+    template_marked_by = $1,
+    template_marked_by_kind = $2
+WHERE id = $3
+  AND organization_id = $4
+  AND workspace_id = $5
+  AND template_marked_at IS NULL
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
+`
+
+type SetDocumentTemplateMarkParams struct {
+	TemplateMarkedBy     pgtype.Text `json:"template_marked_by"`
+	TemplateMarkedByKind pgtype.Text `json:"template_marked_by_kind"`
+	ID                   string      `json:"id"`
+	OrganizationID       string      `json:"organization_id"`
+	WorkspaceID          string      `json:"workspace_id"`
+}
+
+// Templates (UNI-2225): the mark is library state, not content, so neither
+// query touches revision or updated_at. No row back means the mark already
+// stood (set) or was already clear (clear): the caller treats it as a no-op.
+func (q *Queries) SetDocumentTemplateMark(ctx context.Context, arg SetDocumentTemplateMarkParams) (Document, error) {
+	row := q.db.QueryRow(ctx, setDocumentTemplateMark,
+		arg.TemplateMarkedBy,
+		arg.TemplateMarkedByKind,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Kind,
+		&i.Title,
+		&i.Icon,
+		&i.Visibility,
+		&i.Content,
+		&i.ContentText,
+		&i.SearchText,
+		&i.ContentBytes,
+		&i.CurrentVersion,
+		&i.FileVersionID,
+		&i.Revision,
+		&i.Position,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.AclOwnerID,
+		&i.SourceDocumentID,
+		&i.SourceVersionID,
+		&i.SourceRevision,
+		&i.SourceFormat,
+		&i.SourceEngine,
+		&i.TargetFormat,
+		&i.SourceChecksumSha256,
+		&i.ConversionReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.ContentSavedAt,
+		&i.LastVersionAt,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ArchiveBatchID,
+		&i.ContentRevision,
+		&i.WorkspaceLevel,
+		&i.SystemKind,
+		&i.ShelvedAt,
+		&i.ShelvedBy,
+		&i.ShelvedByKind,
+		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
+	)
+	return i, err
+}
+
 const transferDocumentACLOwner = `-- name: TransferDocumentACLOwner :one
 UPDATE documents
 SET acl_owner_id = $1,
@@ -729,7 +905,7 @@ WHERE id = $4
   AND organization_id = $5
   AND workspace_id = $6
   AND owner_kind IS NULL
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 `
 
 type TransferDocumentACLOwnerParams struct {
@@ -803,6 +979,9 @@ func (q *Queries) TransferDocumentACLOwner(ctx context.Context, arg TransferDocu
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }
@@ -883,7 +1062,7 @@ WHERE id = $7
   AND organization_id = $8
   AND workspace_id = $9
   AND revision = $10
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 `
 
 type UpdateDocumentContentParams struct {
@@ -963,6 +1142,9 @@ func (q *Queries) UpdateDocumentContent(ctx context.Context, arg UpdateDocumentC
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }
@@ -988,7 +1170,7 @@ WHERE id = $12
   AND organization_id = $13
   AND workspace_id = $14
   AND revision = $15
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 `
 
 type UpdateDocumentFieldsParams struct {
@@ -1084,6 +1266,9 @@ func (q *Queries) UpdateDocumentFields(ctx context.Context, arg UpdateDocumentFi
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }
@@ -1099,7 +1284,7 @@ SET visibility = $1,
 WHERE id = $6
   AND organization_id = $7
   AND workspace_id = $8
-RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id, content_revision, workspace_level, system_kind, shelved_at, shelved_by, shelved_by_kind, shelve_batch_id, template_marked_at, template_marked_by, template_marked_by_kind
 `
 
 type UpdateDocumentHomeRowParams struct {
@@ -1180,6 +1365,9 @@ func (q *Queries) UpdateDocumentHomeRow(ctx context.Context, arg UpdateDocumentH
 		&i.ShelvedBy,
 		&i.ShelvedByKind,
 		&i.ShelveBatchID,
+		&i.TemplateMarkedAt,
+		&i.TemplateMarkedBy,
+		&i.TemplateMarkedByKind,
 	)
 	return i, err
 }

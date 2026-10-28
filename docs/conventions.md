@@ -221,6 +221,7 @@ fails on drift. One flat namespace, keys nested by section:
 | workspace root (Documents, no parent folder) | **gốc workspace** | workspace root | chỗ ngoài mọi thư mục; ở hộp thoại tạo thư mục: "Thư mục mới ở Tài liệu (gốc)" xem dòng new folder |
 | move to | **di chuyển tới** | Move to | mục menu "Di chuyển tới…"; toast "Đã chuyển tới {{folder}}" |
 | trash (Documents, archive restorable 30 days) | **thùng rác** | Trash | hành động ghi "Xóa" / "Chuyển vào thùng rác"; khác "Đã xóa" của email |
+| template (Documents, a file marked for the whole workspace to copy from) | **mẫu** | Template | tên mục "Mẫu văn bản" / "Templates" (`documents.home.sidebar.templates`); hành động "Đánh dấu là mẫu" / "Bỏ khỏi Mẫu"; không "bản mẫu", không "template" trong chữ vi |
 | path (breadcrumb / search result) | **đường dẫn** | Path | đường dẫn từ Documents tới cha trực tiếp |
 | editing (the document edit lock as a person sees it) | **quyền sửa** | Editing | `documents.editLock.*` (UNI-1645); never "khóa" in copy, which reads as locking or restricting the document |
 | editing (someone is, now) | **đang sửa** | Editing | `rowEditing` "đang sửa" / "editing", `bannerOther` "{{name}} đang sửa từ {{time}}" |

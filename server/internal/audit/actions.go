@@ -256,6 +256,11 @@ const (
 	ActionDocumentShelved   = "document.shelved"
 	ActionDocumentUnshelved = "document.unshelved"
 
+	// Templates (UNI-2225): a workspace file marked, or no longer marked, as a
+	// template of the workspace's library.
+	ActionDocumentTemplateMarked   = "document.template_marked"
+	ActionDocumentTemplateUnmarked = "document.template_unmarked"
+
 	// Document access requests (DOC-07, UNI-1631): a person who cannot read a
 	// document asked its managers for access. The requester is the actor, the
 	// metadata carries the request id, the level and whether a message was

@@ -270,6 +270,11 @@ type ConvertActionItemsSDI struct {
 	Locale string                 `json:"locale" description:"Ngôn ngữ nhãn trong mô tả task (Người phụ trách/Hạn): vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
 }
 
+// RateCallSDI is POST /api/v1/meetings/{meetingID}/call-rating.
+type RateCallSDI struct {
+	Rating string `json:"rating" enum:"good,ok,poor" description:"Âm thanh, hình ảnh lúc rời phòng: good (tốt), ok (tạm), poor (kém)" example:"good"`
+}
+
 // AppendChatSDI is POST /api/v1/meetings/{meetingID}/chat.
 type AppendChatSDI struct {
 	Message string `json:"message" minLength:"1" description:"Nội dung tin nhắn (hỗ trợ xuống dòng)" example:"Chốt ship vào thứ Sáu.\nAi làm phần QA?"`

@@ -199,6 +199,15 @@ describe("documents endpoints", () => {
     expect((form.get("file") as File).name).toBe("brief.docx");
   });
 
+  it("createDocumentFile sends template=true before the file part", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "file" }) }));
+    await createDocumentFile("w1", new File(["bytes"], "mau.docx"), { visibility: "workspace", template: true });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    const form = init?.body as FormData;
+    expect(form.get("template")).toBe("true");
+    expect(Array.from(form.keys())).toEqual(["visibility", "template", "file"]);
+  });
+
   it("commitDocumentVersion sends upload_id + base_revision with the key", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ document: docBody({ revision: "42" }), version: versionBody() }),

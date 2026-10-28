@@ -199,6 +199,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.restored` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |
 | `document.shelved` | 1 | `document_id`, `workspace_id`, `shelve_batch_id` | — | workspace | outbox |
 | `document.unshelved` | 1 | `document_id`, `workspace_id`, `shelve_batch_id` | — | workspace | outbox |
+| `document.template_marked` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.template_unmarked` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.deleted` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.change_noticed` | 1 | `document_id`, `workspace_id`, `verb` | — | - | outbox |
 | `document_access_batch.completed` | 1 | `batch_id`, `folder_id`, `workspace_id` | — | workspace | outbox |

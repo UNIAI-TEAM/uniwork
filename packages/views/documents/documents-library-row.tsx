@@ -69,7 +69,7 @@ const APP_FORMATS = new Set(["docx", "xlsx", "pptx", "doc", "xls", "ppt", "pdf",
 export type LibraryDesktopOpen = (doc: { id: string; organization_id: string; current_version: number }) => FrameDesktopOpenProps;
 
 export interface LibraryRowHandlers
-  extends Pick<RowMenuHandlers, "onUnshelve" | "onRestore" | "onViewDetails" | "onPurge">,
+  extends Pick<RowMenuHandlers, "onUnshelve" | "onRestore" | "onViewDetails" | "onPurge" | "onMarkTemplate" | "onUnmarkTemplate">,
     DocLifecycleHandlers {
   onOpen: (documentId: string, doc?: DocumentSummaryRow) => void;
   onFolder: (folderId: string) => void;

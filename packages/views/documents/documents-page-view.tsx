@@ -33,6 +33,7 @@ import { DocumentsSections } from "./documents-folders-grid";
 import { RecentContinue } from "./documents-recent-continue";
 import { DocumentsScreenHead } from "./documents-screen-head";
 import { DocumentsShelvedView } from "./documents-shelved-view";
+import { DocumentsTemplatesView } from "./documents-templates-view";
 import { DocumentsTrashView } from "./documents-trash-view";
 import { DocumentsSidebar, DocumentsSidebarSheet, type LibraryView } from "./documents-sidebar";
 import { downloadSourceFile } from "./download-source-file";
@@ -46,6 +47,9 @@ import { useLibraryRowFileCommands } from "./use-library-row-file-commands";
 import { shouldRetryFolderDetail } from "./use-tree-reveal";
 import { DocumentsSearchBox } from "./documents-search-box";
 import { useDocumentsSearchView } from "./search-view-state";
+import { useFocusClaim } from "./use-focus-claim";
+import { useTemplateCommands } from "./use-template-commands";
+import { useTemplatesDrop } from "./use-template-upload";
 import { useTrashActions } from "./use-trash-actions";
 import { useShelvedActions } from "./use-shelved-actions";
 import { buildDocumentsViewUrl, sameDocumentsView, viewFromSearchParams } from "./documents-view-url";
@@ -97,18 +101,9 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   const [types, setTypes] = useState<DocumentTypeFilter[]>([]);
   const [navOpen, setNavOpen] = useState(false);
 
-  // The trashed document a notification pointed at is scrolled to and focused once per id, the first time its row shows.
+  // The trashed document a notification pointed at (see useFocusClaim).
   const focusId = searchParams.get("focus");
-  const appliedFocus = useRef<string | null>(null);
-  // A row present on the first render takes the keyboard; one that only comes in after the user pressed Load more for that focus id is scrolled to and highlighted, never focused.
-  const pagedByUser = useRef<string | null>(null);
-  const claimFocus = useCallback((documentId: string) => {
-    if (appliedFocus.current === documentId) return null;
-    appliedFocus.current = documentId;
-    const mode = pagedByUser.current === documentId ? "reveal" : "focus";
-    pagedByUser.current = null;
-    return mode;
-  }, []);
+  const { claimFocus, pagedByUser } = useFocusClaim();
 
   const urlFolderId = searchParams.get("folder") || null;
   const folderId = view.kind === "home" ? urlFolderId : null;
@@ -202,6 +197,10 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     officeHome,
   });
 
+  // On Mẫu văn bản a drop makes templates (never My Folder) and the zone is this one, not the page's.
+  const templatesDrop = useTemplatesDrop(wsId, enabled && canCreate && view.kind === "templates");
+  const drop = view.kind === "templates" ? { zoneProps: templatesDrop.zoneProps, active: templatesDrop.active } : { zoneProps: uploads.zoneProps, active: uploads.dropActive };
+
   const rowDialogs = useLibraryRowDialogs({ wsId, tree: library.tree, folderId, folderTitle: openFolderTitle, folderRow: folderDoc });
   const searchView = useDocumentsSearchView({
     wsId,
@@ -228,6 +227,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
   });
   const trashActions = useTrashActions({ wsId, rows: library.state.rows });
   const shelvedActions = useShelvedActions({ wsId, rows: activeRows });
+  const templateCommands = useTemplateCommands(wsId);
   // The bulk bar (UNI-2045 W9) on every list screen but the sources view; a
   // new folder, view or filter starts a fresh selection.
   const bulkCommands = useDocListBulkCommands({ wsId, tree: library.tree, onDownloadOne: fileCommands.onDownload });
@@ -284,13 +284,16 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
     onSaveSource: rowDialogs.onSaveSource,
     onNewSubfolder: rowCommands ? rowDialogs.onNewSubfolder : undefined,
     canCreateInside: (doc) => canCreateInsideFolder(doc, permissionCtx).allowed,
-    onRename: rowCommands ? rowDialogs.onRename : undefined,
+    // Templates keep rename (the menu checks the edit level per row), not the other row commands.
+    onRename: rowCommands || view.kind === "templates" ? rowDialogs.onRename : undefined,
     onMove: rowCommands ? rowDialogs.onMove : undefined,
     onArchive: rowCommands ? rowDialogs.onArchive : undefined,
     // Any reader may open Share from a row (UNI-2009); it is not gated by canCreate like the commands above.
     onShare: rowDialogs.onShare,
     onShareContents: rowDialogs.onShareContents,
     onShelve: rowCommands ? (doc) => shelvedActions.onShelve(doc) : undefined,
+    // Like Share, the template marks are not gated by canCreate: the menu checks level and visibility per row.
+    onMarkTemplate: templateCommands.onMarkTemplate, onUnmarkTemplate: templateCommands.onUnmarkTemplate,
     // Link and download are reads, offered to any reader; the copy needs edit, which the menu checks per row.
     onCopyLink: fileCommands.onCopyLink,
     onDownload: fileCommands.onDownload,
@@ -311,7 +314,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
 
   const homeView = view.kind === "home";
   const collapse = useCollapsedGroups(groupScreen);
-  const { renderDriveView, sectionZoneProps, sidebarDriveProps } = buildDocumentsDriveBranch({ wsId, view, driveConnections, onAddFromDrive, zoneProps: uploads.zoneProps });
+  const { renderDriveView, sectionZoneProps, sidebarDriveProps } = buildDocumentsDriveBranch({ wsId, view, driveConnections, onAddFromDrive, zoneProps: drop.zoneProps ?? {} });
   const emptyCopy = homeView
     ? {
         title: folderId ? t("documents.home.empty.folder_title") : t(`documents.home.empty.${rootEmpty}title`),
@@ -473,6 +476,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                   }}
                 />
               </div>
+            ) : view.kind === "templates" ? (
+              <DocumentsTemplatesView library={library} handlers={handlers} canUpload={canCreate} wsId={wsId} />
             ) : (
               <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
                 {homeView && canCreate ? <DocumentsHomeNote create={folderId ? null : createProps} /> : null}
@@ -525,7 +530,7 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
                 )}
               </div>
             ))}
-            {uploads.dropActive ? <DocumentsDropOverlay /> : null}
+            {drop.active ? <DocumentsDropOverlay label={view.kind === "templates" ? t("documents.templates.drop_hint") : undefined} /> : null}
           </section>
         </div>
       )}
@@ -541,6 +546,8 @@ export function DocumentsPageView({ wsId, onOpen, desktopOpen, officeHome, offic
       {trashActions.dialog}
 
       {shelvedActions.dialog}
+
+      {templateCommands.dialog}
 
       {bulkCommands.dialogs}
 

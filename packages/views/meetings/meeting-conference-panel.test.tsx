@@ -109,7 +109,7 @@ beforeEach(() => {
 });
 
 function renderConference() {
-  render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+  render(wrapWithNav(<MeetingConference meetingId="m1" workspaceId="w1" onExit={() => {}} />));
 }
 
 describe("MeetingConference side panel", () => {

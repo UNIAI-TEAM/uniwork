@@ -10,6 +10,7 @@ export function viewFromSearchParams(searchParams: URLSearchParams): LibraryView
     case "starred":
     case "shared":
     case "archived":
+    case "templates":
       return { kind: rawView };
     case "shared-by-me":
       return { kind: "sharedByMe" };

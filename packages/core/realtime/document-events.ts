@@ -66,7 +66,9 @@ export function documentFrameKeys(
     case "document.archived":
     case "document.restored":
     case "document.shelved":
-    case "document.unshelved": {
+    case "document.unshelved":
+    case "document.template_marked":
+    case "document.template_unmarked": {
       // UNI-2052: document.batch_uploaded is one coalesced frame per folder or
       // multi-file upload batch (ids only: batch_id, workspace_id,
       // root_folder_id, "" for a multi-file upload). It takes the same single

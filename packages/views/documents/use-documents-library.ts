@@ -14,6 +14,7 @@ import {
   useTrashedDocuments,
 } from "@uniwork/core/documents/hooks-collections";
 import { isEndpointMissing, useDocumentSources } from "@uniwork/core/documents/hooks-library";
+import { useTemplateDocuments } from "@uniwork/core/documents/hooks-templates";
 import type { DocumentList, DocumentTreeNode } from "@uniwork/core/types/document";
 import { myFolderFirst } from "./document-tree-model";
 import type { LibraryView } from "./documents-sidebar";
@@ -189,7 +190,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
     view.kind === "sharedByMe" ||
     view.kind === "shelved" ||
     view.kind === "sources";
-  const sortedOnClient = view.kind === "starred" || (home && Boolean(folderId));
+  const sortedOnClient = view.kind === "starred" || view.kind === "templates" || (home && Boolean(folderId));
   const serverSort = useMemo(() => (sortedOnServer ? serverSortParams(sort) : {}), [sortedOnServer, sort]);
   // Gần đây and Được chia sẻ với tôi group by date while in their own order
   // (UNI-2045 W11, rule §8): the screen column, newest first. Any other pick
@@ -233,6 +234,10 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
   // an open folder; it sends the Type picks but no other filter or sort (Ngày gắn sao is ordered here).
   const starredQuery = useWorkspaceFavoriteDocuments(wsId, { enabled: enabled && view.kind === "starred", types: typeParam });
   const starredAutoPaging = useLoadInFull(starredQuery, enabled && view.kind === "starred");
+  // Mẫu văn bản: every template of the workspace, loaded in full and grouped by format on the client;
+  // the screen has no filter bar, so the request carries no filter or sort.
+  const templatesQuery = useTemplateDocuments(wsId, { enabled: enabled && view.kind === "templates" });
+  const templatesAutoPaging = useLoadInFull(templatesQuery, enabled && view.kind === "templates");
   // Thùng rác: always `deleted` ascending (UNI-2045 Q2), fixed by the endpoint.
   // Thùng rác has no filter bar (the page passes no types).
   const archivedQuery = useTrashedDocuments(wsId, { enabled: enabled && archived, types: typeParam });
@@ -312,6 +317,9 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
       break;
     case "starred":
       state = wholeState(starredQuery, starredAutoPaging);
+      break;
+    case "templates":
+      state = wholeState(templatesQuery, templatesAutoPaging);
       break;
     case "sources":
       state = {

@@ -194,7 +194,7 @@ func (h *handlers) setParticipantSharedMic(w http.ResponseWriter, r *http.Reques
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, sdo.ParticipantSDO{Participant: toParticipantDTO(p, false)})
+	respondJSON(w, 200, sdo.ParticipantSDO{Participant: toParticipantDTO(p, false, false)})
 }
 
 func toSpeakerLabelDTO(l db.ListMeetingSpeakerLabelsRow) sdo.SpeakerLabelDTO {

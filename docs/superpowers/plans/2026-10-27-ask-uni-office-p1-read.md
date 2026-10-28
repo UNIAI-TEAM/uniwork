@@ -1,6 +1,6 @@
 # Hỏi UNI đọc tệp Office (kế hoạch 1 — Phần 1a) Implementation Plan
 
-> **Trạng thái:** in-progress — kế hoạch đầu tiên của spec Hỏi UNI soạn tệp Office; đang triển khai; issue UNI-2224 (con của UNI-415), nhánh `feature/UNI-2224-hoi-uni-doc-tep-office-trong-tai-lieu-va`.
+> **Trạng thái:** shipped — kế hoạch đầu tiên của spec Hỏi UNI soạn tệp Office; merge vào develop 2026-10-27 qua PR #486 (`55a0ab3e6`), issue UNI-2224 (con của UNI-415).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

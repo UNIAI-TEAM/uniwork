@@ -12,7 +12,7 @@ import (
 )
 
 const listArchivedDocumentsPage = `-- name: ListArchivedDocumentsPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind,
        sk.name_key AS sort_name, sk.size_key AS sort_size,
        sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
        sk.ts_key AS sort_at
@@ -334,6 +334,9 @@ func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchive
 			&i.Document.ShelvedBy,
 			&i.Document.ShelvedByKind,
 			&i.Document.ShelveBatchID,
+			&i.Document.TemplateMarkedAt,
+			&i.Document.TemplateMarkedBy,
+			&i.Document.TemplateMarkedByKind,
 			&i.SortName,
 			&i.SortSize,
 			&i.SortEditor,
@@ -431,7 +434,7 @@ func (q *Queries) ListDocumentAncestors(ctx context.Context, arg ListDocumentAnc
 }
 
 const listDocumentsByIDs = `-- name: ListDocumentsByIDs :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind
 FROM documents d
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
@@ -503,6 +506,9 @@ func (q *Queries) ListDocumentsByIDs(ctx context.Context, arg ListDocumentsByIDs
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 		); err != nil {
 			return nil, err
 		}
@@ -515,7 +521,7 @@ func (q *Queries) ListDocumentsByIDs(ctx context.Context, arg ListDocumentsByIDs
 }
 
 const listDocumentsByParentPage = `-- name: ListDocumentsByParentPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind,
        sk.name_key AS sort_name, sk.size_key AS sort_size,
        sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null
 FROM documents d
@@ -905,6 +911,9 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 			&i.Document.ShelvedBy,
 			&i.Document.ShelvedByKind,
 			&i.Document.ShelveBatchID,
+			&i.Document.TemplateMarkedAt,
+			&i.Document.TemplateMarkedBy,
+			&i.Document.TemplateMarkedByKind,
 			&i.SortName,
 			&i.SortSize,
 			&i.SortEditor,
@@ -922,7 +931,7 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 
 const listDocumentsPage = `-- name: ListDocumentsPage :many
 
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind,
        COALESCE(CASE WHEN $1::text IS NULL THEN NULL::text
                      WHEN NOT (NOT $2::boolean
                  OR d.visibility <> 'restricted'
@@ -1031,35 +1040,37 @@ WHERE d.organization_id = $7
                    OR (s.principal_type = 'workspace'
                        AND s.principal_id = ANY($4::text[]))))))
   AND ($5::text IS NULL OR fav.id IS NOT NULL)
-  AND ($14::text IS NULL OR d.kind = $14)
-  AND ($15::text IS NULL OR d.kind <> $15)
-  AND ($16::text IS NULL OR d.updated_by = $16)
-  AND ($17::timestamptz IS NULL OR d.updated_at >= $17)
-  AND ($18::timestamptz IS NULL OR d.updated_at < $18)
+  -- UNI-2225: the Templates section lists only the files marked as templates.
+  AND ($14::boolean IS NOT TRUE OR d.template_marked_at IS NOT NULL)
+  AND ($15::text IS NULL OR d.kind = $15)
+  AND ($16::text IS NULL OR d.kind <> $16)
+  AND ($17::text IS NULL OR d.updated_by = $17)
+  AND ($18::timestamptz IS NULL OR d.updated_at >= $18)
+  AND ($19::timestamptz IS NULL OR d.updated_at < $19)
   -- UNI-1868 format filter: the file format of the row's current version. The
   -- MIME an upload verified wins; the title's extension answers only while the
   -- MIME names none of the six formats the library lists. Folders always stay
   -- (they are how one reaches files) and a page never matches.
-  AND ($19::text IS NULL
+  AND ($20::text IS NULL
        OR d.kind = 'folder'
        OR (d.kind = 'file'
-           AND (cv.mime_type = $20::text
-                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($21::text[])))
-                    AND length(d.title) > length($19::text) + 1
-                    AND right(lower(d.title), length($19::text) + 1) = '.' || $19::text))))
+           AND (cv.mime_type = $21::text
+                OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($22::text[])))
+                    AND length(d.title) > length($20::text) + 1
+                    AND right(lower(d.title), length($20::text) + 1) = '.' || $20::text))))
   -- UNI-2113 type filter (repeated ?type=): OR across the values and AND with
   -- the format/kind filters. The page leg is kind = 'page'; the format leg is the
   -- format filter above for a list of formats - the verified MIME wins, the
   -- title's extension answers only while the MIME names none of the formats the
   -- library lists, and folders stay (a page-only answer has none).
-  AND ((NOT $22::boolean AND COALESCE(cardinality($23::text[]), 0) = 0)
-       OR ($22::boolean AND d.kind = 'page')
-       OR (COALESCE(cardinality($23::text[]), 0) > 0
+  AND ((NOT $23::boolean AND COALESCE(cardinality($24::text[]), 0) = 0)
+       OR ($23::boolean AND d.kind = 'page')
+       OR (COALESCE(cardinality($24::text[]), 0) > 0
            AND (d.kind = 'folder'
                 OR (d.kind = 'file'
-                    AND (cv.mime_type = ANY($24::text[])
-                         OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($21::text[])))
-                             AND EXISTS (SELECT 1 FROM unnest($23::text[]) AS tf(f)
+                    AND (cv.mime_type = ANY($25::text[])
+                         OR ((cv.mime_type IS NULL OR NOT (cv.mime_type = ANY($22::text[])))
+                             AND EXISTS (SELECT 1 FROM unnest($24::text[]) AS tf(f)
                                          WHERE length(d.title) > length(tf.f) + 1
                                            AND right(lower(d.title), length(tf.f) + 1) = '.' || tf.f)))))))
   -- UNI-1868 access filter: the same ladder the permission block above
@@ -1068,28 +1079,28 @@ WHERE d.organization_id = $7
   -- access_levels (manage; edit and manage). agent caps the home-row leg: an
   -- agent reads view whatever the row carries. 'restricted' is the row's
   -- visibility, the way the library's access filter has it.
-  AND ($25::text IS NULL
-       OR ($25::text = 'restricted' AND d.visibility = 'restricted')
-       OR ($25::text <> 'restricted'
+  AND ($26::text IS NULL
+       OR ($26::text = 'restricted' AND d.visibility = 'restricted')
+       OR ($26::text <> 'restricted'
            AND (($2 AND NOT (d.visibility = 'restricted'
                                             AND NOT (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)))
                 OR ($12 AND d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
-                OR ($11 AND NOT $26::boolean
+                OR ($11 AND NOT $27::boolean
                     AND d.visibility = 'workspace'
-                    AND d.workspace_level = ANY($27::text[]))
+                    AND d.workspace_level = ANY($28::text[]))
                 OR ($13 AND EXISTS (
                      SELECT 1 FROM document_shares a
                      WHERE a.organization_id = d.organization_id
                        AND a.workspace_id = d.workspace_id
                        AND a.document_id = d.id
                        AND a.revoked_at IS NULL
-                       AND a.level = ANY($27::text[])
+                       AND a.level = ANY($28::text[])
                        AND ((a.principal_type = 'user' AND a.principal_id = $3)
                             OR (a.principal_type = 'organization' AND a.principal_id = d.organization_id)
                             OR (a.principal_type = 'workspace' AND a.principal_id = ANY($4::text[]))))))))
   -- System rows (My Folder) are never "shared by me": they refuse shares and visibility changes.
-  AND (NOT $28::boolean OR d.system_kind IS NULL)
-  AND (NOT $28::boolean
+  AND (NOT $29::boolean OR d.system_kind IS NULL)
+  AND (NOT $29::boolean
        OR (($2::boolean OR $12::boolean)
            AND d.acl_owner_id IS NOT NULL
            AND d.acl_owner_id = $3
@@ -1129,7 +1140,7 @@ WHERE d.organization_id = $7
                            AND sp.visibility = 'workspace'
                            AND sp.workspace_level = d.workspace_level))))
   AND ($1::text IS NULL
-       OR (NOT $29::boolean
+       OR (NOT $30::boolean
            AND (NOT $2::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
@@ -1153,7 +1164,7 @@ WHERE d.organization_id = $7
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now()))
            AND d.search_text ILIKE '%' || $1::text || '%' ESCAPE '\')
-       OR (($29::boolean OR NOT (NOT $2::boolean
+       OR (($30::boolean OR NOT (NOT $2::boolean
                  OR d.visibility <> 'restricted'
                  OR (d.acl_owner_id IS NOT NULL AND d.acl_owner_id = $3)
                  OR EXISTS (
@@ -1176,54 +1187,54 @@ WHERE d.organization_id = $7
                         AND g.revoked_at IS NULL
                         AND g.expires_at > now())))
            AND uw_fold_search(d.title) ILIKE '%' || $1::text || '%' ESCAPE '\'))
-  AND ($30::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($30, $31::text))
+  AND ($31::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($31, $32::text))
   -- UNI-2038 S3 keyset of a sorted page: (key, id) past the cursor row in the
   -- requested direction; an editor-less row (editor_null) is always last.
-  AND ($32::text IS NULL OR CASE $6::text
-       WHEN 'updated' THEN CASE WHEN $33::boolean
-            THEN (d.updated_at, d.id COLLATE "C") < ($34::timestamptz, $32::text COLLATE "C")
-            ELSE (d.updated_at, d.id COLLATE "C") > ($34::timestamptz, $32::text COLLATE "C") END
-       WHEN 'starred' THEN CASE WHEN $33::boolean
-            THEN (sk.ts_key, d.id COLLATE "C") < ($34::timestamptz, $32::text COLLATE "C")
-            ELSE (sk.ts_key, d.id COLLATE "C") > ($34::timestamptz, $32::text COLLATE "C") END
-       WHEN 'shared' THEN (sk.editor_null::int > $35::boolean::int
-            OR (sk.editor_null = $35::boolean
+  AND ($33::text IS NULL OR CASE $6::text
+       WHEN 'updated' THEN CASE WHEN $34::boolean
+            THEN (d.updated_at, d.id COLLATE "C") < ($35::timestamptz, $33::text COLLATE "C")
+            ELSE (d.updated_at, d.id COLLATE "C") > ($35::timestamptz, $33::text COLLATE "C") END
+       WHEN 'starred' THEN CASE WHEN $34::boolean
+            THEN (sk.ts_key, d.id COLLATE "C") < ($35::timestamptz, $33::text COLLATE "C")
+            ELSE (sk.ts_key, d.id COLLATE "C") > ($35::timestamptz, $33::text COLLATE "C") END
+       WHEN 'shared' THEN (sk.editor_null::int > $36::boolean::int
+            OR (sk.editor_null = $36::boolean
                 AND CASE WHEN sk.editor_null THEN
-                       CASE WHEN $33::boolean THEN d.id COLLATE "C" < $32::text COLLATE "C"
-                            ELSE d.id COLLATE "C" > $32::text COLLATE "C" END
-                     WHEN $33::boolean
-                       THEN (sk.ts_key, d.id COLLATE "C") < ($34::timestamptz, $32::text COLLATE "C")
-                     ELSE (sk.ts_key, d.id COLLATE "C") > ($34::timestamptz, $32::text COLLATE "C") END))
-       WHEN 'size' THEN CASE WHEN $33::boolean
-            THEN (sk.size_key, d.id COLLATE "C") < ($36::bigint, $32::text COLLATE "C")
-            ELSE (sk.size_key, d.id COLLATE "C") > ($36::bigint, $32::text COLLATE "C") END
-       WHEN 'name' THEN CASE WHEN $33::boolean
-            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($37::text COLLATE "vi-x-icu", $32::text COLLATE "C")
-            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($37::text COLLATE "vi-x-icu", $32::text COLLATE "C") END
-       WHEN 'editor' THEN (sk.editor_null::int > $35::boolean::int
-            OR (sk.editor_null = $35::boolean
-                AND CASE WHEN $33::boolean
-            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($37::text COLLATE "vi-x-icu", $32::text COLLATE "C")
-            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($37::text COLLATE "vi-x-icu", $32::text COLLATE "C") END))
+                       CASE WHEN $34::boolean THEN d.id COLLATE "C" < $33::text COLLATE "C"
+                            ELSE d.id COLLATE "C" > $33::text COLLATE "C" END
+                     WHEN $34::boolean
+                       THEN (sk.ts_key, d.id COLLATE "C") < ($35::timestamptz, $33::text COLLATE "C")
+                     ELSE (sk.ts_key, d.id COLLATE "C") > ($35::timestamptz, $33::text COLLATE "C") END))
+       WHEN 'size' THEN CASE WHEN $34::boolean
+            THEN (sk.size_key, d.id COLLATE "C") < ($37::bigint, $33::text COLLATE "C")
+            ELSE (sk.size_key, d.id COLLATE "C") > ($37::bigint, $33::text COLLATE "C") END
+       WHEN 'name' THEN CASE WHEN $34::boolean
+            THEN (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($38::text COLLATE "vi-x-icu", $33::text COLLATE "C")
+            ELSE (sk.name_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($38::text COLLATE "vi-x-icu", $33::text COLLATE "C") END
+       WHEN 'editor' THEN (sk.editor_null::int > $36::boolean::int
+            OR (sk.editor_null = $36::boolean
+                AND CASE WHEN $34::boolean
+            THEN (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") < ($38::text COLLATE "vi-x-icu", $33::text COLLATE "C")
+            ELSE (sk.editor_key COLLATE "vi-x-icu", d.id COLLATE "C") > ($38::text COLLATE "vi-x-icu", $33::text COLLATE "C") END))
        ELSE true END)
 ORDER BY
   (CASE WHEN $6::text IS NULL THEN d.updated_at END) DESC,
   (CASE WHEN $6::text IS NULL THEN d.id END) DESC,
   (CASE WHEN $6::text IN ('editor', 'shared') THEN sk.editor_null END) ASC,
-  (CASE WHEN $6::text = 'name' AND NOT $33::boolean THEN sk.name_key
-        WHEN $6::text = 'editor' AND NOT $33::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
-  (CASE WHEN $6::text = 'name' AND $33::boolean THEN sk.name_key
-        WHEN $6::text = 'editor' AND $33::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
-  (CASE WHEN $6::text = 'size' AND NOT $33::boolean THEN sk.size_key END) ASC,
-  (CASE WHEN $6::text = 'size' AND $33::boolean THEN sk.size_key END) DESC,
-  (CASE WHEN $6::text = 'updated' AND NOT $33::boolean THEN d.updated_at END) ASC,
-  (CASE WHEN $6::text = 'updated' AND $33::boolean THEN d.updated_at END) DESC,
-  (CASE WHEN $6::text IN ('starred', 'shared') AND NOT $33::boolean THEN sk.ts_key END) ASC,
-  (CASE WHEN $6::text IN ('starred', 'shared') AND $33::boolean THEN sk.ts_key END) DESC,
-  (CASE WHEN $6::text IS NOT NULL AND NOT $33::boolean THEN d.id COLLATE "C" END) ASC,
-  (CASE WHEN $6::text IS NOT NULL AND $33::boolean THEN d.id COLLATE "C" END) DESC
-LIMIT $38
+  (CASE WHEN $6::text = 'name' AND NOT $34::boolean THEN sk.name_key
+        WHEN $6::text = 'editor' AND NOT $34::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" ASC,
+  (CASE WHEN $6::text = 'name' AND $34::boolean THEN sk.name_key
+        WHEN $6::text = 'editor' AND $34::boolean THEN sk.editor_key END) COLLATE "vi-x-icu" DESC,
+  (CASE WHEN $6::text = 'size' AND NOT $34::boolean THEN sk.size_key END) ASC,
+  (CASE WHEN $6::text = 'size' AND $34::boolean THEN sk.size_key END) DESC,
+  (CASE WHEN $6::text = 'updated' AND NOT $34::boolean THEN d.updated_at END) ASC,
+  (CASE WHEN $6::text = 'updated' AND $34::boolean THEN d.updated_at END) DESC,
+  (CASE WHEN $6::text IN ('starred', 'shared') AND NOT $34::boolean THEN sk.ts_key END) ASC,
+  (CASE WHEN $6::text IN ('starred', 'shared') AND $34::boolean THEN sk.ts_key END) DESC,
+  (CASE WHEN $6::text IS NOT NULL AND NOT $34::boolean THEN d.id COLLATE "C" END) ASC,
+  (CASE WHEN $6::text IS NOT NULL AND $34::boolean THEN d.id COLLATE "C" END) DESC
+LIMIT $39
 `
 
 type ListDocumentsPageParams struct {
@@ -1240,6 +1251,7 @@ type ListDocumentsPageParams struct {
 	MemberVisible   interface{}        `json:"member_visible"`
 	AclOwner        interface{}        `json:"acl_owner"`
 	AllowShares     interface{}        `json:"allow_shares"`
+	TemplatesOnly   pgtype.Bool        `json:"templates_only"`
 	Kind            pgtype.Text        `json:"kind"`
 	ExcludeKind     pgtype.Text        `json:"exclude_kind"`
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
@@ -1314,6 +1326,9 @@ type ListDocumentsPageRow struct {
 	ShelvedBy            pgtype.Text        `json:"shelved_by"`
 	ShelvedByKind        pgtype.Text        `json:"shelved_by_kind"`
 	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
+	TemplateMarkedAt     pgtype.Timestamptz `json:"template_marked_at"`
+	TemplateMarkedBy     pgtype.Text        `json:"template_marked_by"`
+	TemplateMarkedByKind pgtype.Text        `json:"template_marked_by_kind"`
 	Snippet              string             `json:"snippet"`
 	SortName             string             `json:"sort_name"`
 	SortSize             int64              `json:"sort_size"`
@@ -1398,6 +1413,7 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 		arg.MemberVisible,
 		arg.AclOwner,
 		arg.AllowShares,
+		arg.TemplatesOnly,
 		arg.Kind,
 		arg.ExcludeKind,
 		arg.UpdatedBy,
@@ -1478,6 +1494,9 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 			&i.Snippet,
 			&i.SortName,
 			&i.SortSize,
@@ -1585,7 +1604,7 @@ func (q *Queries) ListFoldersHoldingReadableDocuments(ctx context.Context, arg L
 }
 
 const listRecentDocumentsPage = `-- name: ListRecentDocumentsPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind,
        sk.name_key AS sort_name, sk.size_key AS sort_size,
        sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
        sk.ts_key AS sort_at, act.kind AS activity_kind, act.last_at AS activity_at
@@ -1925,6 +1944,9 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 			&i.Document.ShelvedBy,
 			&i.Document.ShelvedByKind,
 			&i.Document.ShelveBatchID,
+			&i.Document.TemplateMarkedAt,
+			&i.Document.TemplateMarkedBy,
+			&i.Document.TemplateMarkedByKind,
 			&i.SortName,
 			&i.SortSize,
 			&i.SortEditor,
@@ -1944,7 +1966,7 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 }
 
 const listShelvedDocumentsPage = `-- name: ListShelvedDocumentsPage :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind,
        sk.name_key AS sort_name, sk.size_key AS sort_size,
        sk.editor_key AS sort_editor, sk.editor_null AS sort_editor_null,
        sk.ts_key AS sort_at
@@ -2315,6 +2337,9 @@ func (q *Queries) ListShelvedDocumentsPage(ctx context.Context, arg ListShelvedD
 			&i.Document.ShelvedBy,
 			&i.Document.ShelvedByKind,
 			&i.Document.ShelveBatchID,
+			&i.Document.TemplateMarkedAt,
+			&i.Document.TemplateMarkedBy,
+			&i.Document.TemplateMarkedByKind,
 			&i.SortName,
 			&i.SortSize,
 			&i.SortEditor,
@@ -2332,7 +2357,7 @@ func (q *Queries) ListShelvedDocumentsPage(ctx context.Context, arg ListShelvedD
 }
 
 const listTreeDocuments = `-- name: ListTreeDocuments :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind, d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id, d.template_marked_at, d.template_marked_by, d.template_marked_by_kind
 FROM documents d
 WHERE d.organization_id = $1
   AND d.workspace_id = $2
@@ -2454,6 +2479,9 @@ func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsPa
 			&i.ShelvedBy,
 			&i.ShelvedByKind,
 			&i.ShelveBatchID,
+			&i.TemplateMarkedAt,
+			&i.TemplateMarkedBy,
+			&i.TemplateMarkedByKind,
 		); err != nil {
 			return nil, err
 		}

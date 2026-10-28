@@ -511,6 +511,7 @@ type Routes struct {
 	SetCaptionLanguage             http.HandlerFunc
 	ListTranscript                 http.HandlerFunc
 	AppendChatMessage              http.HandlerFunc
+	RateCall                       http.HandlerFunc
 	ListChatMessages               http.HandlerFunc
 	GetMeetingSummary              http.HandlerFunc
 	CreateSummary                  http.HandlerFunc
@@ -768,6 +769,10 @@ type Routes struct {
 	// ListFavoriteDocuments is GET /workspaces/{workspaceID}/documents/favorites (UNI-2045).
 	ListFavoriteDocuments http.HandlerFunc
 	ListDocumentChanges   http.HandlerFunc
+	// Document templates (UNI-2225): the Templates section and its mark.
+	MarkDocumentTemplate   http.HandlerFunc
+	UnmarkDocumentTemplate http.HandlerFunc
+	ListTemplateDocuments  http.HandlerFunc
 	// Offline lease of one desktop device on one document (G5-08s).
 	PutOfficeOfflineLease    http.HandlerFunc
 	DeleteOfficeOfflineLease http.HandlerFunc
