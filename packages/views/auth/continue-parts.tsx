@@ -24,7 +24,8 @@ import { pickerCardClass } from "../common/picker-card";
 import { AppleMark, GoogleMark } from "../common/provider-icons";
 import { AppLink } from "../navigation";
 import { AUTH_LINK, AUTH_PILL } from "./auth-controls";
-import { AuthShell } from "./auth-shell";
+import { AuthLegalNote } from "./auth-legal-note";
+import { AuthShell, SkeletonText } from "./auth-shell";
 
 /**
  * The pieces every step of the choice screen (/auth/continue, spec §4.3)
@@ -98,9 +99,13 @@ export function IdentityBlock({ identity, linked = false }: { identity: SignInId
  * aria-disabled rows dim and refuse the pointer; the busy one keeps full
  * strength with a spinner where its chevron was.
  */
+/** A row's box, shared with its skeleton: the ruler both stand on. */
+const ROW_BOX = "flex w-full min-h-17 items-center gap-3 rounded-xl border px-4 py-3";
+
 const ROW = cn(
   pickerCardClass(false),
-  "group/row flex min-h-17 items-center gap-3 rounded-xl px-4 py-3",
+  ROW_BOX,
+  "group/row",
   "aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:border-border aria-disabled:hover:bg-card",
   "aria-busy:cursor-progress",
 );
@@ -176,65 +181,91 @@ export function ChoiceRow({
   );
 }
 
+/** Stands in for the address the skeleton cannot know yet, at a typical length; never shown. */
+const LIKELY_EMAIL = "nguyenvanan@gmail.com";
+
 /**
- * The choice screen while the pending sign-in loads: the identity block and
- * its actions in their final shape, so nothing moves when they land: three
- * choice rows, or the link step's two pills.
+ * The choice screen while the pending sign-in loads, in its own shell: the
+ * identity block and its actions in their final shape, so nothing moves when
+ * they land, at a phone's width as at a desktop's. The title, the line under
+ * it and every row's words are drawn as skeleton text of the copy the
+ * screen most likely shows (SkeletonText), so they wrap to the lines the
+ * real ones take; the terms line needs no data and is the real one, inert.
+ * `rows` is the three choices; `pills` the link step's question and two
+ * buttons, for the account signed in (`accountEmail`).
  */
-export function ContinueSkeleton({ shape = "rows" }: { shape?: "rows" | "pills" }) {
+export function ContinueSkeleton({ shape = "rows", accountEmail }: { shape?: "rows" | "pills"; accountEmail?: string }) {
   const { t } = useTranslation();
+  const provider = t(providerNameKey("google"));
+  const loadingAs =
+    shape === "rows"
+      ? { title: t("auth.continue.title", { provider }), description: t("auth.continue.description", { provider }) }
+      : {
+          title: t("auth.continue.link.title", { provider }),
+          description: t("auth.continue.link.question", {
+            provider,
+            providerEmail: LIKELY_EMAIL,
+            accountEmail: accountEmail || LIKELY_EMAIL,
+          }),
+        };
+  const rows: [string, string][] = [
+    [t("auth.continue.existing.title"), t("auth.continue.existing.body", { provider })],
+    [t("auth.continue.invited.title"), t("auth.continue.invited.body")],
+    [t("auth.continue.create.title"), t("auth.continue.create.body", { email: LIKELY_EMAIL })],
+  ];
   return (
-    <div className="flex flex-col gap-6">
-      <p role="status" className="sr-only">
-        {t("auth.continue.loading")}
-      </p>
-      <div aria-hidden className="flex flex-col gap-6">
-        <div className={PLANE}>
-          <Skeleton className="size-10 shrink-0 rounded-lg" />
-          <span className="flex flex-1 flex-col gap-1.5">
-            <Skeleton className="h-4 w-2/5" />
-            <Skeleton className="h-3.5 w-3/5" />
-          </span>
-        </div>
-        {shape === "rows" ? (
-          <>
-            <div className="flex flex-col gap-3">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="flex min-h-17 items-center gap-3 rounded-xl border border-border px-4 py-3">
-                  <span className="flex flex-1 flex-col gap-1.5">
-                    <Skeleton className="h-4 w-1/2" />
-                    <Skeleton className="h-3.5 w-4/5" />
-                  </span>
-                  <Skeleton className="size-4 rounded-full" />
+    <AuthShell loadingAs={loadingAs}>
+      <div className="flex flex-col gap-6">
+        <p role="status" className="sr-only">
+          {t("auth.continue.loading")}
+        </p>
+        <div aria-hidden inert className="flex flex-col gap-6">
+          <div className={PLANE}>
+            <Skeleton className="size-10 shrink-0 rounded-lg" />
+            <span className="flex flex-1 flex-col gap-1.5">
+              <Skeleton className="h-4 w-2/5" />
+              <Skeleton className="h-3.5 w-3/5" />
+            </span>
+          </div>
+          {shape === "rows" ? (
+            <>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3">
+                  {rows.map(([title, body]) => (
+                    <div key={title} className={cn(ROW_BOX, "border-border bg-card")}>
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="text-body font-medium">
+                          <SkeletonText>{title}</SkeletonText>
+                        </span>
+                        <span className="text-pretty text-caption">
+                          <SkeletonText>{body}</SkeletonText>
+                        </span>
+                      </span>
+                      <Skeleton className="size-4 shrink-0 rounded-full" />
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {/* The terms line under "Tạo tài khoản mới": two caption lines
-                  at the column's width, so the card does not grow when the
-                  choices land. */}
-              <div className="flex flex-col items-center">
-                <div className="flex h-4 w-full items-center justify-center">
-                  <Skeleton className="h-3 w-4/5" />
-                </div>
-                <div className="flex h-4 w-full items-center justify-center">
-                  <Skeleton className="h-3 w-2/5" />
-                </div>
+                <AuthLegalNote action="signUp" />
               </div>
-            </div>
-            <Skeleton className="h-5 w-16 self-center" />
-          </>
-        ) : (
-          <>
-            <div className="flex h-5 items-center">
-              <Skeleton className="h-4 w-4/5" />
-            </div>
-            <div className="flex flex-col gap-3">
-              <Skeleton className="h-12 w-full rounded-full" />
-              <Skeleton className="h-12 w-full rounded-full" />
-            </div>
-          </>
-        )}
+              {/* "Hủy": a 44px target on a coarse pointer, like the real one. */}
+              <div className="flex h-5 items-center self-center pointer-coarse:h-11">
+                <Skeleton className="h-4 w-12" />
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-pretty text-body">
+                <SkeletonText>{t("auth.continue.link.body", { provider })}</SkeletonText>
+              </p>
+              <div className="flex flex-col gap-3">
+                <Skeleton className="h-12 w-full rounded-full" />
+                <Skeleton className="h-12 w-full rounded-full" />
+              </div>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </AuthShell>
   );
 }
 

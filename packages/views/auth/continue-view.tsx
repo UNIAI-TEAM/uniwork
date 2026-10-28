@@ -71,11 +71,7 @@ export function ContinueView({
   if (expired) return <ExpiredScreen provider={expired} next={next} />;
   if (query.isError && !known) return <TicketLoadError error={query.error} next={next} onRetry={() => void query.refetch()} />;
   if (query.isPending || status === "loading" || needsSignIn) {
-    return (
-      <AuthShell>
-        <ContinueSkeleton shape={linkStep ? "pills" : "rows"} />
-      </AuthShell>
-    );
+    return <ContinueSkeleton shape={linkStep ? "pills" : "rows"} accountEmail={user?.email} />;
   }
 
   if (linkStep) {

@@ -73,6 +73,22 @@ describe("ContinueView — loading and none", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Đang tải lượt đăng nhập…");
     expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
     expect(document.querySelectorAll(".min-h-17")).toHaveLength(3);
+    // The likely words, as skeleton text, so the title and the rows wrap to
+    // the lines the real ones take on a phone; never read, never pressed.
+    const bones = [...document.querySelectorAll(".box-decoration-clone")].map((b) => b.textContent);
+    expect(bones).toEqual(expect.arrayContaining(["Tiếp tục với Google", "Tôi đã có tài khoản UniWork", "Tạo tài khoản mới"]));
+    for (const bone of document.querySelectorAll(".box-decoration-clone")) expect(bone.closest('[aria-hidden="true"]')).not.toBeNull();
+    // The terms line needs no data: the real one, inert until the choices land.
+    expect(screen.getByText(/Khi đăng ký, bạn đồng ý với/).closest("[inert]")).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "Tiếp tục với Google" })).toBeNull();
+  });
+
+  it("holds the link step's question and its two buttons while it loads", () => {
+    requestMock.mockReturnValue(new Promise(() => {}));
+    open({ step: "link" });
+    const bones = [...document.querySelectorAll(".box-decoration-clone")].map((b) => b.textContent);
+    expect(bones[0]).toBe("Liên kết Google");
+    expect(bones[1]).toMatch(/^Liên kết Google \(.+\) với .+\?$/);
   });
 
   it("says the sign-in expired and goes back to the sign-in page with next", async () => {

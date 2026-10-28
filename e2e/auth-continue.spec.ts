@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { settle } from "./contrast";
 import { expectReadable, pendingSignIn, setMode, sidewaysOverflow, type PendingSignIn } from "./sign-in-page";
 
 /**
@@ -98,6 +99,38 @@ test("Apple's hidden email is named, never printed", async ({ page }) => {
  */
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 375, height: 667 }, hasTouch: true, isMobile: true });
+
+  /**
+   * The skeleton draws the copy the screen most likely shows as skeleton
+   * text, so on a phone, where the title, its line and each row's body wrap,
+   * the card keeps its place and its height when the pending sign-in lands:
+   * the logo and the language switch above it do not move either. The
+   * identity uses an address of the length the skeleton stands in for; a
+   * longer one may add the lines it wraps to.
+   */
+  test("the card holds still when the pending sign-in lands", async ({ page }) => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route(/\/api\/v1\/auth\/sign-in-ticket(\?.*)?$/, async (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      const response = await route.fetch();
+      await held;
+      const ticket: PendingSignIn = { provider: "google", kind: "unmatched", email: "nguyenvanan@gmail.com", name: "Nguyễn Văn An", private_relay: false };
+      await route.fulfill({ response, status: 200, json: ticket });
+    });
+    await page.goto("/auth/continue");
+    await page.getByText("Đang tải lượt đăng nhập…").waitFor({ state: "attached" });
+    const card = page.locator("main div:has(> div > h1)");
+    await settle(page);
+    const before = (await card.boundingBox())!;
+
+    release();
+    await page.getByRole("heading", { level: 1, name: "Tiếp tục với Google" }).waitFor();
+    await settle(page);
+    const after = (await card.boundingBox())!;
+    expect(Math.abs(after.y - before.y), `the card moved ${after.y - before.y}px`).toBeLessThanOrEqual(2);
+    expect(Math.abs(after.height - before.height), `the card grew ${after.height - before.height}px`).toBeLessThanOrEqual(2);
+  });
 
   for (const state of STATES) {
     test(`fits the screen with full touch targets — ${state.name}`, async ({ page }) => {
