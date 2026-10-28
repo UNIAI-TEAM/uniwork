@@ -20,6 +20,51 @@ func chatWithTasks(t *testing.T) (*ChatService, *TaskService, *db.Queries, db.Us
 	return s, tasks, q, ua, w, pool
 }
 
+func TestTitleFromMessageBodyStripsMentionMarkup(t *testing.T) {
+	got := titleFromMessageBody("check tạo công việc [@Miên Thi](mention://member/01M3KF216RSBV7RQDDBE7ABCDE) vào thực hiện")
+	want := "check tạo công việc @Miên Thi vào thực hiện"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if titleFromMessageBody("[@all](mention://all/all) họp") != "@all họp" {
+		t.Fatalf("all mention: %q", titleFromMessageBody("[@all](mention://all/all) họp"))
+	}
+}
+
+func TestCreateTaskFromMessageStripsMentionTitle(t *testing.T) {
+	s, _, _, ua, w, _ := chatWithTasks(t)
+	ctx := context.Background()
+	room, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "check [@Miên Thi](mention://member/" + ua.ID + ") giúp"
+	msg, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: body})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Empty title: derived from the body, mentions as @Name.
+	fromBody, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, msg.ID, CreateTaskFromMessageInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fromBody.Title != "check @Miên Thi giúp" {
+		t.Fatalf("derived title: %q", fromBody.Title)
+	}
+	// Client still sending the stored markdown as the title: strip it too.
+	msg2, err := s.SendRoomMessage(ctx, ua.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "khác"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromClient, err := s.CreateTaskFromMessage(ctx, ua.ID, w.ID, msg2.ID, CreateTaskFromMessageInput{Title: body})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fromClient.Title != "check @Miên Thi giúp" {
+		t.Fatalf("client title: %q", fromClient.Title)
+	}
+}
+
 func TestCreateTaskFromMessageAndLink(t *testing.T) {
 	s, tasks, _, ua, w, _ := chatWithTasks(t)
 	ctx := context.Background()
