@@ -1,10 +1,12 @@
 # apps/chat-mobile
 
-App Expo (iOS + Android) của UniChat: đăng nhập PKCE qua trình duyệt hệ thống, chọn workspace, một socket realtime,
-push, deep link, bốn tab (Chat, Cuộc gọi, Danh bạ, Cài đặt) và cuộc gọi. Luật gốc: ADR 0011 (mobile chỉ import kiểu
-và hàm thuần từ `packages/core`) và ADR 0043 (cổng chất lượng). File này là **bản đồ**: tầng, ranh giới, đặt gì ở đâu
-và luật nào có test giữ. Thiết kế từng phần nằm ở `docs/engineering/unichat-mobile/` (mục lục:
-`docs/engineering/unichat-mobile/README.md`); sửa hành vi một phần thì sửa file của phần đó cùng PR.
+App Expo (iOS + Android) của UniChat: đăng nhập ngay trong app (email + mật khẩu, Apple, Google, bước hai và màn chọn,
+ADR 0047; `app/(auth)/`, `components/auth/`, `data/auth/sign-in.ts`), PKCE qua trình duyệt hệ thống cho phần còn lại,
+chọn workspace, một socket realtime, push, deep link, bốn tab (Chat, Cuộc gọi, Danh bạ, Cài đặt) và cuộc gọi. Luật
+gốc: ADR 0011 (mobile chỉ import kiểu và hàm thuần từ `packages/core`) và ADR 0043 (cổng chất lượng). File này là
+**bản đồ**: tầng, ranh giới, đặt gì ở đâu và luật nào có test giữ. Thiết kế từng phần nằm ở
+`docs/engineering/unichat-mobile/` (mục lục: `docs/engineering/unichat-mobile/README.md`); sửa hành vi một phần thì
+sửa file của phần đó cùng PR.
 `scripts/mobile-docs.test.mjs` giữ file này ngắn (≤ 200 dòng) và mọi tài liệu nó trỏ tới tồn tại.
 
 ## Tầng và chiều phụ thuộc
