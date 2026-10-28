@@ -27,6 +27,9 @@ describe("verifyAccountEmail", () => {
     accountApi.verifyEmail.mockResolvedValue(null);
     await verifyAccountEmail("123456", at);
     expect(auth.user).toMatchObject({ id: "u1", email_verified_at: "2026-10-28T09:00:00.000Z" });
+    auth.user = { ...user };
+    await verifyAccountEmail("123456");
+    expect(typeof auth.user?.email_verified_at).toBe("string");
     auth.user = null;
     auth.setUser.mockClear();
     await verifyAccountEmail("123456");
