@@ -53,6 +53,8 @@ type AIMountable struct {
 	// is the session one, mounted with this group's resolver, so a frame token
 	// route continues the conversation of the token's user and module.
 	UniworkChatCompletions http.HandlerFunc
+	// UniworkWrite is the writer route (plan 5) on the same resolver.
+	UniworkWrite http.HandlerFunc
 }
 
 // NewAIMountable returns the AI handlers of d acting for whoever resolve
@@ -78,6 +80,7 @@ func (h *handlers) aiMountable(resolve AIActorResolver) AIMountable {
 		CloudAnalyzeMedia:      a.aiCloudAnalyzeMedia,
 		CloudTranscribe:        a.aiCloudTranscribe,
 		UniworkChatCompletions: a.uniworkFrameChatCompletions,
+		UniworkWrite:           a.uniworkFrameWrite,
 	}
 }
 

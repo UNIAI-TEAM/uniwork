@@ -397,6 +397,8 @@ type Routes struct {
 	AiUniworkChatCompletions            http.HandlerFunc
 	AiUniworkDocumentChatCompletions    http.HandlerFunc
 	OfficeFrameAiUniworkChatCompletions http.HandlerFunc
+	// OfficeFrameAiUniworkWrite is the frame's writer route (plan 5).
+	OfficeFrameAiUniworkWrite http.HandlerFunc
 
 	ListPlans           http.HandlerFunc
 	GetSubscription     http.HandlerFunc

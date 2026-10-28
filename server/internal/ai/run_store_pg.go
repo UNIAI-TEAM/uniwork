@@ -51,6 +51,11 @@ func (s *RunStorePG) TakeTurn(ctx context.Context, in TakeRunTurn) (Run, error) 
 		now = s.now()
 	}
 	if in.RunID == "" {
+		if in.Writer {
+			// A writer call opening a run would escape the cap (one new run
+			// per call); the service refuses it first, the store holds it too.
+			return Run{}, ErrRunExpired
+		}
 		row, err := s.queries.AiUniworkStartRun(ctx, db.AiUniworkStartRunParams{
 			ID:             util.NewID(),
 			OrganizationID: in.OrganizationID,
@@ -72,6 +77,10 @@ func (s *RunStorePG) TakeTurn(ctx context.Context, in TakeRunTurn) (Run, error) 
 		return runFromRow(row), nil
 	}
 
+	modelCallMax := UniworkRunModelCallMax
+	if in.Writer {
+		modelCallMax--
+	}
 	row, err := s.queries.AiUniworkTakeRunTurn(ctx, db.AiUniworkTakeRunTurnParams{
 		RunID:          in.RunID,
 		ConversationID: in.ConversationID,
@@ -80,7 +89,7 @@ func (s *RunStorePG) TakeTurn(ctx context.Context, in TakeRunTurn) (Run, error) 
 		Now:            timestamptz(now),
 		IdleSecs:       int32(UniworkRunIdleTTL / time.Second),
 		AbsoluteSecs:   int32(UniworkRunAbsoluteTTL / time.Second),
-		ModelCallMax:   int32(UniworkRunModelCallMax),
+		ModelCallMax:   int32(modelCallMax),
 		ToolRoundMax:   int32(UniworkRunToolRoundMax),
 	})
 	if err == nil {
@@ -104,7 +113,7 @@ func (s *RunStorePG) TakeTurn(ctx context.Context, in TakeRunTurn) (Run, error) 
 	if err != nil {
 		return Run{}, err
 	}
-	return runTurnRefusal(live, in.ToolRound, now)
+	return runTurnRefusal(live, in.ToolRound, modelCallMax, now)
 }
 
 // AddCredits implements RunStore. A run already swept is a no-op: the usage
@@ -123,11 +132,12 @@ func (s *RunStorePG) AddCredits(ctx context.Context, runID, conversationID strin
 // UPDATE and the read, leaving a live row under both caps - and a turn that
 // reserved nothing is answered "ask again", which opens a new run in the same
 // conversation: no run is named there, so the client drops the id it holds.
-func runTurnRefusal(row db.AiUniworkRun, toolRound bool, now time.Time) (Run, error) {
+// modelCallMax is the cap the take ran under (one less for a writer call).
+func runTurnRefusal(row db.AiUniworkRun, toolRound bool, modelCallMax int, now time.Time) (Run, error) {
 	if !row.ExpiresAt.Time.After(now) {
 		return Run{}, ErrRunExpired
 	}
-	if row.ModelCalls >= UniworkRunModelCallMax {
+	if int(row.ModelCalls) >= modelCallMax {
 		return runFromRow(row), RunLimitReached(UniworkRunLimitModelCalls)
 	}
 	if toolRound && row.ToolRounds >= UniworkRunToolRoundMax {
