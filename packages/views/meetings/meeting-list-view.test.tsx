@@ -7,6 +7,12 @@ import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingList } from "./meeting-list";
 
+const motionPrefs = vi.hoisted(() => ({ reduced: false }));
+vi.mock("motion/react", async (orig) => ({
+  ...(await orig<typeof import("motion/react")>()),
+  useReducedMotion: () => motionPrefs.reduced,
+}));
+
 const me: User = {
   id: "u-host",
   email: "me@x.com",
@@ -249,5 +255,90 @@ describe("MeetingList clock", () => {
     });
     expect(screen.queryByRole("button", { name: "Vào ngay" })).not.toBeInTheDocument();
     expect(screen.getByText("Quá giờ")).toBeInTheDocument();
+  });
+});
+
+describe("MeetingList live row", () => {
+  const twoMembers = {
+    members: [
+      ...members.members,
+      { workspace_id: "w1", user_id: "u-hv", role: "member", email: "hv@x.com", display_name: "Hà Vũ" },
+    ],
+  };
+  const liveMeeting = (): Meeting => ({
+    ...meetings[1]!,
+    id: "m-live",
+    title: "Cuộc họp tức thì",
+    starts_at: new Date(Date.now() - 20 * 60_000).toISOString(),
+    ends_at: new Date(Date.now() + 40 * 60_000).toISOString(),
+    actual_start_at: new Date(Date.now() - (11 * 60 + 8) * 1000).toISOString(),
+    in_room_user_ids: ["u-host", "u-hv"],
+    in_room_count: 3,
+    scribe_live: true,
+  });
+
+  beforeEach(() => {
+    requestMock.mockImplementation((path: unknown) => Promise.resolve(String(path).endsWith("/members") ? twoMembers : {}));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    motionPrefs.reduced = false;
+  });
+
+  it("live row shows who is in the room and the elapsed clock", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-29T10:00:00.000"));
+    const { container } = render(shell(<MeetingList workspaceId="w1" meetings={[liveMeeting()]} onOpenRoom={() => {}} />));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    const faces = container.querySelector<HTMLElement>("[data-slot=live-faces]")!;
+    expect(faces.querySelectorAll(":scope > span > [data-slot=avatar]")).toHaveLength(2);
+    // Three in the room, two faces: the guest is the "+1".
+    expect(within(faces).getByText("+1")).toBeInTheDocument();
+    expect(faces.querySelector("[data-scribe-mark]")).not.toBeNull();
+    expect(within(faces).getByText(/Thư ký UNI đang ghi/)).toBeInTheDocument();
+    expect(screen.getByRole("timer", { name: "Đã họp 11:08" })).toBeInTheDocument();
+  });
+
+  it("elapsed clock survives a sleeping tab", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-29T10:00:00.000"));
+    render(shell(<MeetingList workspaceId="w1" meetings={[liveMeeting()]} onOpenRoom={() => {}} />));
+    expect(screen.getByRole("timer", { name: "Đã họp 11:08" })).toBeInTheDocument();
+    // The tab sleeps ten minutes with no tick, then the next tick reads the wall clock.
+    vi.setSystemTime(new Date("2026-10-29T10:10:00.000"));
+    act(() => {
+      vi.advanceTimersByTime(1_100);
+    });
+    expect(screen.getByRole("timer", { name: "Đã họp 21:09" })).toBeInTheDocument();
+  });
+
+  it("reads past an hour as h:mm:ss", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-29T10:00:00.000"));
+    const long: Meeting = { ...liveMeeting(), actual_start_at: new Date(Date.now() - (3600 + 125) * 1000).toISOString() };
+    render(shell(<MeetingList workspaceId="w1" meetings={[long]} onOpenRoom={() => {}} />));
+    expect(screen.getByRole("timer", { name: "Đã họp 1:02:05" })).toBeInTheDocument();
+  });
+
+  it("a live row runs a light down its rail; reduced motion leaves no loops", () => {
+    const { container, unmount } = render(shell(<MeetingList workspaceId="w1" meetings={[liveMeeting()]} onOpenRoom={() => {}} />));
+    expect(container.querySelector("[data-motion-loop]")).not.toBeNull();
+    unmount();
+    motionPrefs.reduced = true;
+    const reduced = render(shell(<MeetingList workspaceId="w1" meetings={[liveMeeting()]} onOpenRoom={() => {}} />));
+    expect(reduced.container.querySelector("[data-motion-loop]")).toBeNull();
+    expect(reduced.container.querySelector("[data-scribe-state=live]")).toBeNull();
+    // The facts stay: the clock and the faces.
+    expect(screen.getByRole("timer", { name: /^Đã họp/ })).toBeInTheDocument();
+    expect(reduced.container.querySelectorAll("[data-slot=live-faces] > span > [data-slot=avatar]")).toHaveLength(2);
+  });
+
+  it("a row that is not live keeps its host face and no clock", () => {
+    const { container } = render(shell(<MeetingList workspaceId="w1" meetings={[meetings[0]!]} onOpenRoom={() => {}} />));
+    expect(container.querySelector("[data-slot=live-faces]")).toBeNull();
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
   });
 });

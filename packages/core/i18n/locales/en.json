@@ -5662,6 +5662,14 @@
       "chat": {
         "placeholder": "Message everyone…"
       }
+    },
+    "motion": {
+      "list": {
+        "elapsed": "In session for {{time}}",
+        "inRoom_one": "{{count}} person in the room",
+        "inRoom_other": "{{count}} people in the room",
+        "scribeLive": "Thư ký UNI is taking notes"
+      }
     }
   },
   "calendar": {

@@ -5661,6 +5661,14 @@
       "chat": {
         "placeholder": "Nhắn cho mọi người…"
       }
+    },
+    "motion": {
+      "list": {
+        "elapsed": "Đã họp {{time}}",
+        "inRoom_one": "{{count}} người trong phòng",
+        "inRoom_other": "{{count}} người trong phòng",
+        "scribeLive": "Thư ký UNI đang ghi"
+      }
     }
   },
   "calendar": {
