@@ -778,7 +778,12 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập
   giây". Lệnh gọi qua `useStepUpGate().run({action, command})`: có token phục vụ thì chạy luôn, không thì mở hộp; bị
   `proof_required` thì mở lại hộp trên `fields.proofs` và chạy lại một lần. Lệnh tự mang bằng chứng (đổi mật khẩu bằng
   mật khẩu hiện tại, xác nhận chuyển từ đúng phiên đã liên kết) dùng `upfront: false`: chỉ hỏi khi server đòi. Hộp mở
-  từ trong một hộp khác thì nằm lồng trong hộp đó.
+  từ trong một hộp khác thì nằm lồng trong hộp đó. Lúc danh sách bằng chứng còn tải, hộp vẽ cách mà `proofChoice` đoán
+  từ phiên (nhãn, ô, gợi ý) bằng chữ khung xương, chân hộp đã có "Xác nhận" (giữ) và "Dùng cách khác". Mã email chỉ
+  bị xoá khi server từ chối nó; mất mạng, 5xx hay phải chờ thì mã còn nguyên để "Xác nhận" gửi lại.
+- "Quên mật khẩu?" trong hộp bằng chứng và "Đổi mật khẩu" (`ForgotPasswordLink`) mở
+  `/forgot-password?next=<trang cài đặt>?tab=security`, ô email điền sẵn địa chỉ của tài khoản đang đăng nhập; trong
+  shell UniChat thì mở trang đó ở trình duyệt (`bridge.openExternal`), cửa sổ chat giữ nguyên.
 - **Đặt/Đổi mật khẩu** (`FormDialog` md): mọi ô mật khẩu có nút hiện/ẩn (`PasswordField size="form"`); đổi = mật khẩu
   hiện tại (kèm "Quên mật khẩu?" trên hàng nhãn, hộp mở với focus ở ô) + mới, ghi chú "Các thiết bị khác sẽ đăng xuất."; đặt
   = bằng chứng + mới + "Bạn sẽ đăng nhập bằng {{email}}" (relay có nút sao chép). Bằng chứng của "đặt" hỏi khi bấm
