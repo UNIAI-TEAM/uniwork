@@ -323,14 +323,12 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       api: {
         ...latest.current.options.comments?.api,
         "api.open": (payload, context) => {
-          // The handshake this open belongs to: a late answer for an older frame instance must not count.
-          const handshake = aiHandoff.generation();
           return openWithRevision(
             async () => ({ ...(await open(payload, context)), limits: toFrameLimits(latest.current.documentLimits) }),
             payload,
             remote,
             context.signal,
-          ).then((opened) => { aiHandoff.documentOpened(handshake); return opened; }).catch((error: unknown) => { const shape = shapeOf(error); if ((latest.current.isSource || latest.current.isVersion) && shape.code !== "cancelled") failSession(shape); throw error; });
+          ).then((opened) => { aiHandoff.documentOpened(endpoint); return opened; }).catch((error: unknown) => { const shape = shapeOf(error); if ((latest.current.isSource || latest.current.isVersion) && shape.code !== "cancelled") failSession(shape); throw error; });
         },
         "api.save": async (payload, context) => {
           // UNI-1847 (SAVE-01, D4 + S01-V2): a frame save of a still-unnamed blank is declined

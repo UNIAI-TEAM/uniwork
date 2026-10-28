@@ -9,10 +9,11 @@ import type { InitAck } from "@uniwork/core/office/docs-frame-protocol";
 export interface FrameAiHandoffBinding {
   /** A handshake completed: the frame's capabilities are known. */
   attach(host: DocsFrameHost, ack: InitAck): void;
-  /** The current handshake's number; the session reads it when an `api.open` starts. */
-  generation(): number;
-  /** The host answered an `api.open` that started in handshake `generation`; an older one is ignored. */
-  documentOpened(generation: number): void;
+  /**
+   * The host answered an `api.open` served by `host`. It may come before `attach`: the frame posts its boot
+   * open before the init ack, so what counts is the endpoint, not the order.
+   */
+  documentOpened(host: DocsFrameHost): void;
   /** The frame endpoint is gone (retry, unmount). */
   detach(): void;
   /** The frame's AI started or finished a turn. */
@@ -20,7 +21,7 @@ export interface FrameAiHandoffBinding {
 }
 
 /**
- * Sends the queued job once, after the handshake AND the document open of the same frame instance.
+ * Sends the queued job once, after the handshake AND the document open of the same frame endpoint, in either order.
  * The store entry is consumed by `take`, so a remount, a retry or a second open sends nothing twice.
  */
 export function useFrameAiHandoff(documentId: string): FrameAiHandoffBinding {
@@ -29,11 +30,10 @@ export function useFrameAiHandoff(documentId: string): FrameAiHandoffBinding {
   return useMemo(() => {
     let host: DocsFrameHost | null = null;
     let ack: InitAck | null = null;
-    let opened = false;
-    let generation = 0;
+    let openedOn: DocsFrameHost | null = null;
 
     const start = () => {
-      if (!host || !ack || !opened) return;
+      if (!host || !ack || openedOn !== host) return;
       const id = idRef.current;
       const store = useOfficeHandoffStore.getState();
       const entry = store.take(id);
@@ -56,20 +56,16 @@ export function useFrameAiHandoff(documentId: string): FrameAiHandoffBinding {
       attach(nextHost, nextAck) {
         host = nextHost;
         ack = nextAck;
-        opened = false;
-        generation += 1;
+        start();
       },
-      generation: () => generation,
       documentOpened(opener) {
-        if (opener !== generation || !host) return;
-        opened = true;
+        openedOn = opener;
         start();
       },
       detach() {
         host = null;
         ack = null;
-        opened = false;
-        generation += 1;
+        openedOn = null;
       },
       onAiRun(state) {
         useOfficeHandoffStore.getState().setStatus(idRef.current, state);

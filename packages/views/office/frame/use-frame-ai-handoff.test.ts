@@ -19,17 +19,19 @@ describe("useFrameAiHandoff", () => {
     useOfficeHandoffStore.getState().queue(DOC, "h1", "Soạn báo cáo");
     const startAi = vi.fn(async () => ({ queued: true as const }));
     const { result } = renderHook(() => useFrameAiHandoff(DOC));
-    result.current.attach(fakeHost(startAi), ack(true));
+    const host = fakeHost(startAi);
+    result.current.attach(host, ack(true));
     expect(startAi).not.toHaveBeenCalled();
-    result.current.documentOpened(result.current.generation());
+    result.current.documentOpened(host);
     await flush();
     expect(startAi).toHaveBeenCalledTimes(1);
     expect(startAi).toHaveBeenCalledWith({ handoffId: "h1", text: "Soạn báo cáo", displayText: "Soạn báo cáo" });
     expect(status()).toBe("sent");
     // A remount (a new handshake with a new host) finds the entry consumed.
     result.current.detach();
-    result.current.attach(fakeHost(startAi), ack(true));
-    result.current.documentOpened(result.current.generation());
+    const again = fakeHost(startAi);
+    result.current.attach(again, ack(true));
+    result.current.documentOpened(again);
     await flush();
     expect(startAi).toHaveBeenCalledTimes(1);
   });
@@ -38,8 +40,9 @@ describe("useFrameAiHandoff", () => {
     useOfficeHandoffStore.getState().queue(DOC, "h1", "x");
     const startAi = vi.fn(async () => ({ queued: true as const }));
     const { result } = renderHook(() => useFrameAiHandoff(DOC));
-    result.current.attach(fakeHost(startAi), ack(false));
-    result.current.documentOpened(result.current.generation());
+    const host = fakeHost(startAi);
+    result.current.attach(host, ack(false));
+    result.current.documentOpened(host);
     await flush();
     expect(startAi).not.toHaveBeenCalled();
     expect(status()).toBe("refused");
@@ -48,8 +51,9 @@ describe("useFrameAiHandoff", () => {
   it("marks the job refused when the frame rejects it", async () => {
     useOfficeHandoffStore.getState().queue(DOC, "h1", "x");
     const { result } = renderHook(() => useFrameAiHandoff(DOC));
-    result.current.attach(fakeHost(vi.fn(async () => { throw new Error("unsupported"); })), ack(true));
-    result.current.documentOpened(result.current.generation());
+    const host = fakeHost(vi.fn(async () => { throw new Error("unsupported"); }));
+    result.current.attach(host, ack(true));
+    result.current.documentOpened(host);
     await flush();
     expect(status()).toBe("refused");
   });
@@ -57,8 +61,9 @@ describe("useFrameAiHandoff", () => {
   it("does nothing for a document with no entry", async () => {
     const startAi = vi.fn(async () => ({ queued: true as const }));
     const { result } = renderHook(() => useFrameAiHandoff(DOC));
-    result.current.attach(fakeHost(startAi), ack(true));
-    result.current.documentOpened(result.current.generation());
+    const host = fakeHost(startAi);
+    result.current.attach(host, ack(true));
+    result.current.documentOpened(host);
     await flush();
     expect(startAi).not.toHaveBeenCalled();
     expect(useOfficeHandoffStore.getState().byDocument).toEqual({});
@@ -75,20 +80,34 @@ describe("useFrameAiHandoff", () => {
     expect(status()).toBe("idle");
   });
 
-  it("ignores a late open of an older handshake and sends on the current one", async () => {
+  it("counts an open answered before the ack on the same endpoint", async () => {
+    useOfficeHandoffStore.getState().queue(DOC, "h1", "x");
+    const startAi = vi.fn(async () => ({ queued: true as const }));
+    const host = fakeHost(startAi);
+    const { result } = renderHook(() => useFrameAiHandoff(DOC));
+    result.current.documentOpened(host);
+    await flush();
+    expect(startAi).not.toHaveBeenCalled();
+    result.current.attach(host, ack(true));
+    await flush();
+    expect(startAi).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a late open of an older endpoint and sends on the current one", async () => {
     useOfficeHandoffStore.getState().queue(DOC, "h1", "x");
     const startA = vi.fn(async () => ({ queued: true as const }));
     const startB = vi.fn(async () => ({ queued: true as const }));
+    const hostA = fakeHost(startA);
+    const hostB = fakeHost(startB);
     const { result } = renderHook(() => useFrameAiHandoff(DOC));
-    result.current.attach(fakeHost(startA), ack(true));
-    const genA = result.current.generation();
+    result.current.attach(hostA, ack(true));
     result.current.detach();
-    result.current.attach(fakeHost(startB), ack(true));
-    result.current.documentOpened(genA);
+    result.current.attach(hostB, ack(true));
+    result.current.documentOpened(hostA);
     await flush();
     expect(startA).not.toHaveBeenCalled();
     expect(startB).not.toHaveBeenCalled();
-    result.current.documentOpened(result.current.generation());
+    result.current.documentOpened(hostB);
     await flush();
     expect(startA).not.toHaveBeenCalled();
     expect(startB).toHaveBeenCalledTimes(1);
