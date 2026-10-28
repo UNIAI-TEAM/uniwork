@@ -77,8 +77,10 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   `auth/sign-in`, `auth/methods-api`). Mật khẩu vào cửa qua closure, không vào event, effect, lỗi, log hay Sentry
   (`data/auth/store.test.ts`, `data/auth/endpoint-request.test.ts`); thử thách bước hai, vé và nonce của màn chọn chỉ ở
   bộ nhớ, không persist, không thành route param, máy chỉ giữ dấu `{provider, at}` để báo lượt bỏ dở
-  (`data/auth/pending-sign-in.test.ts`). Mỗi sheet Apple/Google một nonce mới: SDK nhận SHA-256, server nhận nonce gốc
-  (`data/auth/sign-in.test.ts`). Google chỉ qua module riêng `modules/unichat-google-sign-in` (bọc ở
+  (`data/auth/pending-sign-in.test.ts`); màn hình không import hàm đọc/giữ bí mật của `pending-sign-in` và
+  `step-up-store` (`eslint.config.mjs`, `lib/lint-quality.test.ts`). Mỗi sheet Apple/Google một nonce mới: SDK nhận
+  SHA-256, server nhận nonce gốc (`data/auth/sign-in.test.ts`). Google chỉ qua module riêng
+  `modules/unichat-google-sign-in` (bọc ở
   `data/auth/google.ts`; gói npm không có nonce), không Play services hay client id thì qua trình duyệt. Flow Maestro tìm
   màn đăng nhập theo testID và chữ nó thật sự vẽ (`test/routes/sign-in-flows.test.tsx`).
 - Mọi lệnh cần "xác nhận là bạn" (đặt/đổi mật khẩu, liên kết/gỡ liên kết, xoá tài khoản, chuyển quyền, liên kết vé)

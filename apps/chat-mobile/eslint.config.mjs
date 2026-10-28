@@ -369,6 +369,18 @@ export default [
             importNames: ["nativeSignIn"],
             message: "Sign in with useAuthStore().login(request) (data/auth/sign-in.ts); the doors never run from a screen.",
           },
+          {
+            name: "@/data/auth/pending-sign-in",
+            importNames: ["pendingTicket", "pendingChallenge", "holdStep"],
+            message:
+              "The second factor's challenge, the choice screen's ticket and its nonce stay in data/ (data/auth/sign-in.ts): a screen reads usePendingSignIn, which holds no secret, and never routes, logs or renders them.",
+          },
+          {
+            name: "@/data/auth/step-up-store",
+            importNames: ["holdStepUp", "withHeldStepUp"],
+            message:
+              "A step-up token is bought through the proof sheet (components/settings/use-step-up.ts) and kept by data/ (data/mutations/sign-in-methods.ts); a screen never stores one.",
+          },
         ],
         patterns: [
           ...restrictedPatterns,
