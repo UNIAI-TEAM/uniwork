@@ -7,7 +7,7 @@ import { wrapWithNav } from "../../../test/api-mock";
 import { DetailContext } from "../detail-context";
 import { StripJobRow, type StripHandlers } from "../strip-rows";
 import { demoUser, demoWorkspace, detailValue, fixtureMeeting, routeMeeting } from "../test-fixtures";
-import { RsvpFaces, StartCountdown, type RsvpFace } from "./start-countdown";
+import { RsvpFaces, StartCountdown, UpcomingBrief, type RsvpFace } from "./start-countdown";
 
 const motionPrefs = vi.hoisted(() => ({ reduced: false }));
 vi.mock("motion/react", async (orig) => ({
@@ -83,6 +83,30 @@ describe("RsvpFaces", () => {
     const { container } = render(<RsvpFaces faces={[face("hv", "Hà Vũ", "DECLINED"), face("lp", "Lan Phạm", "ACCEPTED")]} />);
     expect([...container.querySelectorAll("[data-face]")].map((el) => el.getAttribute("data-face"))).toEqual(["lp", "hv"]);
     expect(container.querySelector("[data-slot=rsvp-waiting]")).toBeNull();
+    expect(container.querySelector(".lucide-check")).toBeNull();
+  });
+});
+
+describe("UpcomingBrief", () => {
+  it("waits for the whole roster: no ✓ pops and the yes answers lead when the invitations land late", () => {
+    const loaded = detailValue("m3");
+    const [, ha, minh] = loaded.participants;
+    // The participants answered first; the invitations are still on their way.
+    const early = detailValue("m3", { invitations: [], rosterLoaded: false });
+    const { container, rerender } = render(
+      <DetailContext.Provider value={early}>
+        <UpcomingBrief />
+      </DetailContext.Provider>,
+    );
+    expect(container.querySelector("[data-face]")).toBeNull();
+
+    const invitations = loaded.invitations.map((inv) => ({ ...inv, response_status: inv.participant_id === minh!.id ? "ACCEPTED" : "PENDING" }));
+    rerender(
+      <DetailContext.Provider value={{ ...loaded, invitations }}>
+        <UpcomingBrief />
+      </DetailContext.Provider>,
+    );
+    expect([...container.querySelectorAll("[data-face]")].map((el) => el.getAttribute("data-face"))).toEqual([loaded.participants[0]!.id, minh!.id, ha!.id]);
     expect(container.querySelector(".lucide-check")).toBeNull();
   });
 });

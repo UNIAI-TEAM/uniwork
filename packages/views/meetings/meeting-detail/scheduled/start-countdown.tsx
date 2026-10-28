@@ -157,7 +157,7 @@ export function RsvpFaces({ faces }: { faces: readonly RsvpFace[] }) {
 
 /** The start row's lead inside the last hour: the countdown, a hairline, then the invitees' faces. */
 export function UpcomingBrief() {
-  const { meeting, participants, invitations, memberIndex } = useDetail();
+  const { meeting, participants, invitations, rosterLoaded, memberIndex } = useDetail();
   const faces: RsvpFace[] = participants.map((p) => {
     const invitation = invitations.find((inv) => inv.participant_id === p.id);
     const member = memberIndex.memberOf(p.user_id);
@@ -173,8 +173,13 @@ export function UpcomingBrief() {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3">
       <StartCountdown startsAt={meeting.starts_at} />
-      <span aria-hidden className="my-1 w-px self-stretch bg-border" />
-      <RsvpFaces faces={faces} />
+      {/* RsvpFaces takes its order from its first render: half a roster would read everyone as a yes, then pop a ✓ when the rest lands. */}
+      {rosterLoaded ? (
+        <>
+          <span aria-hidden className="my-1 w-px self-stretch bg-border" />
+          <RsvpFaces faces={faces} />
+        </>
+      ) : null}
     </div>
   );
 }

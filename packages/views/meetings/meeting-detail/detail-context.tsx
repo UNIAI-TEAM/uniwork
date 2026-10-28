@@ -31,6 +31,8 @@ export type DetailContextValue = {
   /** Active participants. */
   participants: MeetingParticipant[];
   invitations: MeetingInvitation[];
+  /** Both the participants and the invitations have answered; until then a person's RSVP is unknown. */
+  rosterLoaded: boolean;
   sections: SectionFlags;
   tabs: {
     list: DetailTab[];
