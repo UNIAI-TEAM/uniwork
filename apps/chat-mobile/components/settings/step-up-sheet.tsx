@@ -49,7 +49,7 @@ interface SheetProps {
   /** inside another sheet, the app lock's close is an answer (the ask ends); else the gate puts the sheet away */
   lockAnswers: boolean;
   onDone: (held: boolean) => void;
-  onProgress: (id: number, patch: StepUpProgress) => void;
+  onProgress: (ask: StepUpAsk, patch: StepUpProgress) => void;
   /** iOS: the sheet finished closing, so another may be presented */
   onDismiss: () => void;
 }
@@ -71,7 +71,7 @@ export function StepUpSheet({ ask, visible, lockAnswers, onDone, onProgress, onD
       testID="step-up-sheet"
     >
       {ask ? (
-        <StepUpBody key={ask.id} ask={ask} onBusy={setBusy} onDone={onDone} onProgress={(patch) => onProgress(ask.id, patch)} />
+        <StepUpBody key={ask.id} ask={ask} onBusy={setBusy} onDone={onDone} onProgress={(patch) => onProgress(ask, patch)} />
       ) : null}
     </BottomSheet>
   );

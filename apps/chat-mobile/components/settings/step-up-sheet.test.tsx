@@ -405,6 +405,25 @@ describe("the proof sheet, the app lock and the sheet before it", () => {
     expect(out()).toBe("done:su_email_code");
   });
 
+  it("keeps a code sent after its sheet was closed, without opening the sheet again", async () => {
+    byMail();
+    let sent: (ok: boolean) => void = () => undefined;
+    jest.mocked(signInMethodsApi.sendStepUpEmailCode).mockImplementationOnce(() => new Promise((resolve) => (sent = resolve)));
+    await open({ action: "delete_account", proofs: ["email_code"] });
+    await fireEvent.press(screen.getByTestId("step-up-send-code"));
+    await fireEvent.press(screen.getByTestId("step-up-cancel"));
+    await settle();
+    await act(async () => sent(true));
+    await settle();
+    expect(out()).toBe("cancelled");
+    expect(screen.queryByTestId("step-up-sheet")).toBeNull();
+    // The mail went out all the same: asked again, the sheet waits on its code.
+    await fireEvent.press(screen.getByTestId("run"));
+    await settle();
+    expect(screen.getByTestId("step-up-code-sent")).toBeOnTheScreen();
+    expect(signInMethodsApi.sendStepUpEmailCode).toHaveBeenCalledTimes(1);
+  });
+
   it("mails again for an action whose code bought its token", async () => {
     byMail();
     await open({ action: "delete_account", proofs: ["email_code"] });
@@ -439,6 +458,29 @@ describe("the proof sheet, the app lock and the sheet before it", () => {
   }
   const describes = (action: StepUpAction) =>
     viText("settings.security.stepUp.description", { action: viText(`settings.security.stepUp.actions.${action}`) });
+
+  it("on iOS, gives up waiting for a dismissal that never comes after a second", async () => {
+    const was = Platform.OS;
+    Platform.OS = "ios";
+    try {
+      jest.mocked(stepUp).mockImplementation(holds("email_code"));
+      let goOn: () => void = () => undefined;
+      await render(<Chain between={() => new Promise<void>((resolve) => (goOn = resolve))} />);
+      await fireEvent.press(screen.getByTestId("chain"));
+      await settle();
+      // A sheet iOS never got to present sends no onDismiss.
+      holdDismissals();
+      await fireEvent.changeText(screen.getByTestId("step-up-password"), "pw");
+      await fireEvent.press(screen.getByTestId("step-up-submit"));
+      await settle();
+      await act(async () => goOn());
+      expect(screen.queryByTestId("step-up-sheet")).toBeNull();
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 1_100)));
+      expect(screen.getByText(describes("delete_account"))).toBeOnTheScreen();
+    } finally {
+      Platform.OS = was;
+    }
+  });
 
   it.each(["ios", "android"] as const)("on %s, presents the next ask once the last sheet is gone", async (os) => {
     const was = Platform.OS;

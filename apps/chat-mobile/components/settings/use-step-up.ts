@@ -103,11 +103,11 @@ export function useStepUp(options: { insideSheet?: boolean } = {}): {
   useEffect(() => () => answer.current?.(false), []);
 
   const progress = useCallback(
-    (id: number, patch: StepUpProgress) => {
+    (of: StepUpAsk, patch: StepUpProgress) => {
+      // A code mailed is kept for its action even when the ask it was sent for ended meanwhile (closed mid-send).
+      if (patch.mailedAt) mailed.current.set(of.action, patch.mailedAt);
       const asked = current.current;
-      if (!asked || asked.id !== id) return;
-      if (patch.mailedAt) mailed.current.set(asked.action, patch.mailedAt);
-      show({ ...asked, ...patch });
+      if (asked?.id === of.id) show({ ...asked, ...patch });
     },
     [show],
   );
