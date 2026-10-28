@@ -31,7 +31,8 @@ const UserSchema = z.object({
 /** GET /api/v1/me */
 export const MeResponseSchema: z.ZodType<{ user: User }> = z.object({ user: UserSchema });
 
-const WorkspaceSchema = z.object({
+/** One workspace as the server lists it; also where an accepted invitation lands (data/invitations/api.ts). */
+export const WorkspaceSchema = z.object({
   id: z.string(),
   slug: z.string().default(""),
   name: z.string().default(""),

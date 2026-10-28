@@ -30,10 +30,12 @@ import {
   PendingChatVoiceInvitesSchema,
 } from "@uniwork/core/api/endpoints/chat-schemas";
 import { AuthProvidersSchema, SignInIdentitySchema, SignInMethodsSchema, StepUpGrantSchema } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { InvitationPreviewSchema } from "@uniwork/core/types/workspace";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ERASED_ACCOUNT_NAME } from "@/lib/erased-account";
 import { MobileSecurityPolicySchema, PushPreviewPolicySchema } from "./account-api";
+import { AcceptedSchema, OrganizationsSchema } from "./invitations/api";
 import { OrgMemberRowSchema, OrgMembersPageSchema } from "./queries/org-members";
 import { ChatSyncSchema } from "./chat-sync/api";
 import {
@@ -67,6 +69,8 @@ const HANDLER_FILES = [
   "workspace.go",
   "task.go",
   "organization_members.go",
+  // GET /orgs: what the empty workspace picker says when no invitation waits.
+  "organization.go",
   // Unified sign-in (ADR 0047): the app's doors, Settings › Sign-in methods and step-up, /auth/providers.
   "native_sign_in.go",
   "sign_in_methods.go",
@@ -307,6 +311,12 @@ const CONTRACTS: Contract[] = [
     sdo: "MobileSecurityPolicySDO",
     handlers: ["orgMobileSecurityPolicy"],
   },
+  // The empty workspace picker (spec §5.2): an invitation's preview, where joining it led, and whether the account
+  // already belongs to an organization. GET /me/invitations answers rows built as map literals, not an SDO, so only
+  // core's schema reads them (its malformed case is data/invitations/api.test.ts).
+  { endpoint: "GET /invitations/{token}", schema: InvitationPreviewSchema, sdo: "InvitationPreviewSDO", handlers: ["previewInvitation"] },
+  { endpoint: "POST /invitations/{token}/accept", schema: AcceptedSchema, sdo: "AcceptInviteSDO", handlers: ["acceptInvitation"] },
+  { endpoint: "GET /orgs", schema: OrganizationsSchema, sdo: { organizations: "OrganizationDTO" }, handlers: ["listOrganizations"] },
   // Who an owner deleting the account can hand the organization to, and whom the contacts tab leaves out.
   {
     endpoint: "GET /orgs/{org}/members",

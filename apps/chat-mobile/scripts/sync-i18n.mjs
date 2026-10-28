@@ -9,6 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CALLS_NATIVE_ONLY } from "./i18n-calls.mjs";
 import { COMPLIANCE_ONLY } from "./i18n-compliance.mjs";
+import { INVITATIONS_ONLY } from "./i18n-invitations.mjs";
 import { SECURITY_ONLY } from "./i18n-security.mjs";
 import { SIGN_IN_ONLY } from "./i18n-sign-in.mjs";
 import { UX_ONLY } from "./i18n-ux.mjs";
@@ -75,6 +76,19 @@ const SIGN_IN_PATHS = [
   ].map((leaf) => `auth.${leaf}`),
   "settings.security.signInMethods",
   "settings.security.stepUp",
+];
+
+// Spec §5.2: an account without a workspace answers its invitations on the phone, in the web's words: the list,
+// the preview a link opens, why one no longer works, and the roles. What only the phone says is
+// scripts/i18n-invitations.mjs.
+const INVITATION_PATHS = [
+  ...["list_title", "invitedBy", "invited", "place", "join", "load_error", "expires_soon"].map((leaf) => `invitations.${leaf}`),
+  "invitations.preview",
+  "invitations.gone",
+  "invitations.switch.description",
+  "invitations.switch.busy",
+  "workspace.acceptInviteError",
+  ...["owner", "admin", "member"].map((role) => `people.role_${role}`),
 ];
 
 // Chat strings only the phone needs (M2a), nested under chat.mobile so they
@@ -408,7 +422,7 @@ function set(obj, dotted, value) {
 function build(locale) {
   const core = JSON.parse(fs.readFileSync(path.join(coreLocales, `${locale}.json`), "utf8"));
   const out = {};
-  for (const dotted of [...PATHS, ...TABS_PATHS, ...SIGN_IN_PATHS]) {
+  for (const dotted of [...PATHS, ...TABS_PATHS, ...SIGN_IN_PATHS, ...INVITATION_PATHS]) {
     const value = get(core, dotted);
     if (value === undefined) throw new Error(`${locale}.json has no ${dotted}`);
     set(out, dotted, value);
@@ -417,7 +431,7 @@ function build(locale) {
   const mobile = MOBILE_ONLY[locale].mobile;
   return {
     ...out,
-    mobile: { ...mobile, ...RELEASE_ONLY[locale], ...COMPLIANCE_ONLY[locale], ...CALLS_NATIVE_ONLY[locale], ...UX_ONLY[locale], ...SECURITY_ONLY[locale], ...SIGN_IN_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } },
+    mobile: { ...mobile, ...RELEASE_ONLY[locale], ...COMPLIANCE_ONLY[locale], ...CALLS_NATIVE_ONLY[locale], ...UX_ONLY[locale], ...SECURITY_ONLY[locale], ...SIGN_IN_ONLY[locale], ...INVITATIONS_ONLY[locale], calls: { ...mobile.calls, ...RELEASE_ONLY[locale].calls } },
   };
 }
 

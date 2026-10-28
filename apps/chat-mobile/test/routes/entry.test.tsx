@@ -18,10 +18,11 @@ import { signInOffer } from "@/data/auth/flow";
 import type { SignInOutcome, SignInRequest } from "@/data/auth/sign-in";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
+import { invitationsApi } from "@/data/invitations/api";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { SchemaMismatchError } from "@/lib/schema-mismatch";
 import { DISPLAY_MAX_FONT_SCALE } from "@/lib/type-scale";
-import { renderRoutes } from "@/test/route-render";
+import { renderRoutes, type RenderedRoutes } from "@/test/route-render";
 import { viText } from "@/test/render";
 
 jest.unmock("expo-router");
@@ -72,9 +73,24 @@ const workspace = (id: string, slug: string): Workspace =>
 beforeEach(() => {
   jest.spyOn(api, "listWorkspaces").mockResolvedValue([workspace("w1", "main"), workspace("w2", "sales")]);
   jest.spyOn(chatApi, "unreadSummary").mockResolvedValue(EMPTY_UNREAD_SUMMARY);
+  // No invitation waits, and the account is in an organization: the empty picker says to wait for an admin.
+  jest.spyOn(invitationsApi, "mine").mockResolvedValue([]);
+  jest.spyOn(invitationsApi, "organizations").mockResolvedValue([{ id: "o1", slug: "acme", name: "Acme", status: "active" }]);
 });
 
 const realLogin = useAuthStore.getState().login;
+
+/**
+ * The empty picker asks for its invitations while renderRouter's fake timers are still on (test/route-render.tsx),
+ * and TanStack's notice that they arrived rides a timer that never fires once real timers are back; asked again
+ * under real timers, the screen hears the answer.
+ */
+async function readInvitationsAgain(routes: RenderedRoutes): Promise<RenderedRoutes> {
+  await act(async () => {
+    await routes.queryClient.refetchQueries({ queryKey: ["invitations"] });
+  });
+  return routes;
+}
 
 afterEach(async () => {
   // Unmount first: a mounted gate would redirect on the reset below.
@@ -217,7 +233,7 @@ describe("the entry gate", () => {
   it("lets a person with no workspace reach Settings: the legal pages, the licenses and account deletion", async () => {
     jest.mocked(api.listWorkspaces).mockResolvedValue([]);
     useAuthStore.setState({ user: user as never, isLoading: false });
-    const routes = await renderRoutes(ROUTES, "/");
+    const routes = await readInvitationsAgain(await renderRoutes(ROUTES, "/"));
     expect(await screen.findByText(viText("mobile.account.no_workspace"))).toBeTruthy();
     expect(routes.pathname()).toBe("/select-workspace");
     await act(async () => fireEvent.press(screen.getByTestId("select-workspace-settings")));
@@ -234,11 +250,41 @@ describe("the entry gate", () => {
   // person's work email names another account; the empty list says so instead of "ask an admin".
   it("tells a Hide My Email account why an invitation to its work email does not reach it", async () => {
     jest.mocked(api.listWorkspaces).mockResolvedValue([]);
+    jest.mocked(invitationsApi.organizations).mockResolvedValue([]);
     const relay = "q7x@privaterelay.appleid.com";
     useAuthStore.setState({ user: { ...user, email: relay } as never, isLoading: false });
-    await renderRoutes(ROUTES, "/select-workspace");
+    await readInvitationsAgain(await renderRoutes(ROUTES, "/select-workspace"));
     expect(await screen.findByText(viText("mobile.account.no_workspace_relay", { email: relay }))).toBeTruthy();
     expect(screen.queryByText(viText("mobile.account.no_workspace"))).toBeNull();
+  });
+
+  // Spec §5.2: an account with no workspace answers its invitations on the picker itself.
+  it("lists the invitations waiting for an account with no workspace, and joins one into its workspace", async () => {
+    jest.mocked(api.listWorkspaces).mockResolvedValueOnce([]).mockResolvedValue([workspace("w1", "main")]);
+    jest.mocked(invitationsApi.mine).mockResolvedValue([
+      {
+        id: "i1",
+        role: "member",
+        token: "t1",
+        expires_at: "2099-01-01T00:00:00Z",
+        org_role: "member",
+        workspaces: [{ id: "w1", slug: "main", name: "Không gian main" }],
+        organization: { id: "o1", slug: "acme", name: "Acme" },
+        invited_by: { display_name: "Bình" },
+      },
+    ]);
+    const accept = jest.spyOn(invitationsApi, "accept").mockResolvedValue({ organization: { id: "o1", slug: "acme", name: "Acme" }, workspace: workspace("w1", "main") });
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    const routes = await readInvitationsAgain(await renderRoutes(ROUTES, "/select-workspace"));
+    const join = await screen.findByTestId("invitation-join-i1");
+    // The join, the workspace list read again, the current workspace kept and the chat opened, all inside act.
+    await act(async () => {
+      void fireEvent.press(join);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(await screen.findByTestId("chat-tab")).toBeTruthy();
+    expect(accept).toHaveBeenCalledWith("t1");
+    expect(routes.pathname()).toBe("/acme/main/chat");
   });
 
   it("signs out from the account's own Settings", async () => {

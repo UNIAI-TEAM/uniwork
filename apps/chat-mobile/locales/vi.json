@@ -576,7 +576,25 @@
     }
   },
   "workspace": {
-    "pickTitle": "Chọn workspace"
+    "pickTitle": "Chọn workspace",
+    "acceptInviteError": {
+      "title": "Không dùng được lời mời này",
+      "gone": "Lời mời đã được dùng, đã bị thu hồi, hoặc link không đúng.",
+      "deactivated": "Tài khoản của bạn trong tổ chức này đang bị ngưng. Liên hệ quản trị viên để được mở lại.",
+      "suspended": "Tổ chức này đang tạm ngưng hoạt động.",
+      "deletionScheduled": "Tổ chức này đang chờ xóa nên không nhận thêm thành viên.",
+      "askInviterHint": "Nếu bạn nghĩ đây là nhầm lẫn, hỏi lại người đã mời bạn.",
+      "rateLimited": "Bạn thử quá nhiều lần. Chờ một lát rồi mở lại link.",
+      "wrongAccount": "Lời mời này gửi tới một email khác với tài khoản bạn đang đăng nhập.",
+      "wrongAccountHint": "Đăng nhập bằng email đã nhận lời mời rồi mở lại link.",
+      "switchAccount": "Dùng tài khoản khác",
+      "unverified": "Bạn cần xác minh email trước khi nhận lời mời.",
+      "unverifiedHint": "Nhập mã chúng tôi đã gửi tới email của bạn. Xác minh xong, lời mời sẽ chờ bạn trong danh sách lời mời.",
+      "verifyEmail": "Xác minh email",
+      "failed": "Chúng tôi chưa xử lý được lời mời này.",
+      "hint": "Mỗi lời mời chỉ dùng được một lần. Nhờ người mời gửi lại một link mới.",
+      "goToWorkspaces": "Xem workspace của tôi"
+    }
   },
   "chat": {
     "scope": {
@@ -1882,6 +1900,48 @@
     "status_blocked": "Đang chặn",
     "status_cancelled": "Đã hủy"
   },
+  "invitations": {
+    "list_title": "Lời mời đang chờ bạn",
+    "invitedBy": "{{name}} mời bạn vào",
+    "invited": "Bạn được mời vào",
+    "place": "{{workspace}} trong {{organization}}",
+    "join": "Tham gia",
+    "load_error": "Không tải được danh sách lời mời.",
+    "expires_soon": "Sắp hết hạn",
+    "preview": {
+      "title": "Tham gia {{name}}",
+      "description": "Bạn được mời tham gia tổ chức này.",
+      "description_inviter": "{{inviter}} mời bạn tham gia tổ chức này.",
+      "organization": "Tổ chức",
+      "workspace": "Workspace",
+      "no_workspace": "Chưa được cấp workspace. Quản trị viên sẽ thêm bạn vào workspace sau.",
+      "role": "Vai trò",
+      "inviter": "Người mời",
+      "expiry": "Thời hạn",
+      "expires_in_one": "Còn {{count}} ngày",
+      "expires_in_other": "Còn {{count}} ngày",
+      "join": "Tham gia"
+    },
+    "gone": {
+      "title": "Lời mời không còn hiệu lực",
+      "expired": "Lời mời đã hết hạn.",
+      "revoked": "Lời mời đã bị thu hồi.",
+      "accepted": "Lời mời đã được dùng.",
+      "still_in": "Bạn vẫn ở {{name}}, không có gì thay đổi.",
+      "hint_expired": "Lời mời chỉ có hiệu lực trong một thời gian. Nhờ người mời gửi lại link mới.",
+      "hint_revoked": "Người mời đã thu hồi lời mời này. Nếu vẫn cần tham gia, nhờ họ gửi lời mời mới.",
+      "hint_accepted": "Mỗi lời mời chỉ dùng được một lần. Nhờ người mời gửi lại link mới nếu bạn cần."
+    },
+    "switch": {
+      "description": "Mỗi tài khoản thuộc một tổ chức. Tham gia {{name}} nghĩa là rời tổ chức hiện tại.",
+      "busy": "Đang có một thay đổi khác với tài khoản của bạn. Thử lại sau giây lát."
+    }
+  },
+  "people": {
+    "role_owner": "Chủ sở hữu",
+    "role_admin": "Quản trị",
+    "role_member": "Thành viên"
+  },
   "mobile": {
     "tab_calls": "Cuộc gọi",
     "calls": {
@@ -2216,6 +2276,15 @@
         "wrong_email": "Sai email?",
         "delete_in_settings": "Xóa tài khoản trong Cài đặt"
       }
+    },
+    "invitations": {
+      "none": "Chưa có lời mời nào gửi tới {{email}}.",
+      "none_hint": "Khi một tổ chức mời địa chỉ này, lời mời sẽ hiện ở đây.",
+      "create_org": "Tạo tổ chức trên web",
+      "joining": "Đang tham gia…",
+      "joined_no_workspace": "Đã vào {{org}}. Quản trị viên sẽ thêm bạn vào workspace.",
+      "continue_on_web": "Tiếp tục trên web",
+      "switch_hint": "Bạn hoàn tất việc chuyển tổ chức trên web, rồi quay lại UniChat."
     }
   }
 }

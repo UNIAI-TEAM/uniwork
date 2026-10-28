@@ -119,6 +119,7 @@ on:
       - "server/internal/handler/workspace.go"
       - "server/internal/handler/task.go"
       - "server/internal/handler/organization_members.go"
+      - "server/internal/handler/organization.go"
       - "server/internal/handler/native_sign_in.go"
       - "server/internal/handler/sign_in_methods.go"
       - "server/internal/handler/sign_in_ticket.go"

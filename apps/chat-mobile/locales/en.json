@@ -576,7 +576,25 @@
     }
   },
   "workspace": {
-    "pickTitle": "Choose a workspace"
+    "pickTitle": "Choose a workspace",
+    "acceptInviteError": {
+      "title": "This invitation can't be used",
+      "gone": "The invitation was already used, was revoked, or the link is wrong.",
+      "deactivated": "Your account in this organization is deactivated. Ask an admin to reactivate it.",
+      "suspended": "This organization is currently suspended.",
+      "deletionScheduled": "This organization is scheduled for deletion, so it isn't taking new members.",
+      "askInviterHint": "If you think this is a mistake, ask the person who invited you.",
+      "rateLimited": "Too many attempts. Wait a moment, then open the link again.",
+      "wrongAccount": "This invitation was sent to a different email address than the account you're signed in with.",
+      "wrongAccountHint": "Sign in with the address that received the invitation, then open the link again.",
+      "switchAccount": "Use another account",
+      "unverified": "Verify your email before accepting the invitation.",
+      "unverifiedHint": "Enter the code we sent to your email. Once you're verified, the invitation is waiting in your invitations list.",
+      "verifyEmail": "Verify email",
+      "failed": "We couldn't process this invitation.",
+      "hint": "Each invitation works once. Ask whoever invited you to send a new link.",
+      "goToWorkspaces": "See my workspaces"
+    }
   },
   "chat": {
     "scope": {
@@ -1938,6 +1956,48 @@
     "status_blocked": "Blocked",
     "status_cancelled": "Cancelled"
   },
+  "invitations": {
+    "list_title": "Invitations waiting for you",
+    "invitedBy": "{{name}} invited you to",
+    "invited": "You're invited to",
+    "place": "{{workspace}} in {{organization}}",
+    "join": "Join",
+    "load_error": "Couldn't load your invitations.",
+    "expires_soon": "Expires soon",
+    "preview": {
+      "title": "Join {{name}}",
+      "description": "You've been invited to join this organization.",
+      "description_inviter": "{{inviter}} invited you to join this organization.",
+      "organization": "Organization",
+      "workspace": "Workspace",
+      "no_workspace": "No workspace granted yet. An admin will add you to one later.",
+      "role": "Role",
+      "inviter": "Invited by",
+      "expiry": "Expires",
+      "expires_in_one": "In {{count}} day",
+      "expires_in_other": "In {{count}} days",
+      "join": "Join"
+    },
+    "gone": {
+      "title": "This invitation no longer works",
+      "expired": "The invitation has expired.",
+      "revoked": "The invitation was revoked.",
+      "accepted": "The invitation has already been used.",
+      "still_in": "You're still in {{name}}; nothing changed.",
+      "hint_expired": "Invitations work for a limited time. Ask whoever invited you to send a new link.",
+      "hint_revoked": "Whoever invited you withdrew this invitation. If you still need to join, ask them for a new one.",
+      "hint_accepted": "Each invitation works once. Ask whoever invited you for a new link if you need one."
+    },
+    "switch": {
+      "description": "Each account belongs to one organization. Joining {{name}} means leaving your current one.",
+      "busy": "Another change to your account is in progress. Try again in a moment."
+    }
+  },
+  "people": {
+    "role_owner": "Owner",
+    "role_admin": "Admin",
+    "role_member": "Member"
+  },
   "mobile": {
     "tab_calls": "Calls",
     "calls": {
@@ -2273,6 +2333,15 @@
         "wrong_email": "Wrong email?",
         "delete_in_settings": "Delete the account in Settings"
       }
+    },
+    "invitations": {
+      "none": "No invitations have been sent to {{email}} yet.",
+      "none_hint": "When an organization invites this address, the invitation shows up here.",
+      "create_org": "Create an organization on the web",
+      "joining": "Joining…",
+      "joined_no_workspace": "You've joined {{org}}. An admin will add you to a workspace.",
+      "continue_on_web": "Continue on the web",
+      "switch_hint": "You finish switching organizations on the web, then come back to UniChat."
     }
   }
 }
