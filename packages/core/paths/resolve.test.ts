@@ -211,6 +211,12 @@ describe("paths", () => {
     const consent = "/auth/desktop/authorize?attempt_id=01J";
     expect(paths.login({ next: consent, provider: "apple" })).toBe(`/login?next=${encodeURIComponent(consent)}&provider=apple`);
     expect(paths.login({ provider: null })).toBe("/login");
+    // The app's register screen: the provider starts to sign up; an intent without a provider starts nothing.
+    expect(paths.login({ next: consent, provider: "apple", intent: "sign_up" })).toBe(
+      `/login?next=${encodeURIComponent(consent)}&provider=apple&intent=sign_up`,
+    );
+    expect(paths.login({ provider: "google", intent: "sign_in" })).toBe("/login?provider=google");
+    expect(paths.login({ intent: "sign_up" })).toBe("/login");
     expect(paths.login({ next: "/acme/team", error: "sign_in_failed" })).toBe("/login?next=%2Facme%2Fteam&error=sign_in_failed");
     // A reset whose account has a second factor opens /login on the code step, still linking.
     expect(paths.login({ mfa: true, link: true, next: linkStep })).toBe(

@@ -61,6 +61,16 @@ it.each([
   expect(state.replace).toHaveBeenCalledWith(`/login?next=%2Fauth%2Fdesktop%2Fauthorize%3Fattempt_id%3Dattempt-1${expected}`);
 });
 
+it("forwards the register screen's intent with its provider, and never alone", async () => {
+  state.status = "anon";
+  state.search = "attempt_id=attempt-1&provider=apple&intent=sign_up";
+  await renderPage();
+  expect(state.replace).toHaveBeenLastCalledWith("/login?next=%2Fauth%2Fdesktop%2Fauthorize%3Fattempt_id%3Dattempt-1&provider=apple&intent=sign_up");
+  state.search = "attempt_id=attempt-1&intent=sign_up";
+  await renderPage();
+  expect(state.replace).toHaveBeenLastCalledWith("/login?next=%2Fauth%2Fdesktop%2Fauthorize%3Fattempt_id%3Dattempt-1");
+});
+
 it.each(["approved", "cancelled", "expired"])("uses the authoritative %s result after reload", async (status) => {
   state.status = "authed";
   state.read.mockResolvedValue({ status });

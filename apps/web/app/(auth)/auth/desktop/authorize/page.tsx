@@ -19,7 +19,13 @@ export default function DesktopAuthorizePage() {
   // again. The hint itself (spec §3.5) goes to /login, which follows it once.
   const consentPath = `${paths.desktopAuthorize()}?attempt_id=${encodeURIComponent(attemptId)}`;
   const hint = searchParams.get("provider");
-  const signInUrl = paths.login({ next: consentPath, provider: isSignInProvider(hint) ? hint : null });
+  // The app's register screen: the provider starts to sign up, no choice screen.
+  const signUp = searchParams.get("intent") === "sign_up";
+  const signInUrl = paths.login({
+    next: consentPath,
+    provider: isSignInProvider(hint) ? hint : null,
+    intent: signUp ? "sign_up" : null,
+  });
   const [consent, setConsent] = useState<Awaited<ReturnType<typeof api.auth.desktopConsent>>>(null);
   const [state, setState] = useState<DesktopConsentState>("pending");
   const [callbackUrl, setCallbackUrl] = useState<string>();

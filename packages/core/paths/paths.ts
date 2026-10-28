@@ -74,6 +74,8 @@ export const paths = {
       next?: string | null;
       link?: boolean;
       provider?: SignInProvider | null;
+      /** With `provider`: the app's register screen asked, so the provider starts to sign up (spec §5.2). */
+      intent?: ProviderStartIntent | null;
       error?: LoginRedirectError;
       mfa?: boolean;
       reset?: boolean;
@@ -85,6 +87,7 @@ export const paths = {
       next: opts.next,
       link: opts.link ? "1" : null,
       provider: opts.provider,
+      intent: opts.provider && opts.intent === "sign_up" ? "sign_up" : null,
       error: opts.error,
     }),
   register: (opts: { next?: string | null } = {}) => withQuery("/register", { next: opts.next }),

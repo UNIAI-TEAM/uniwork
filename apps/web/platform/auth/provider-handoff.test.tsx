@@ -2,7 +2,7 @@ import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
-import { ProviderHandoff, providerHint, useDropProviderHint } from "./provider-handoff";
+import { ProviderHandoff, providerHint, providerHintIntent, useDropProviderHint } from "./provider-handoff";
 
 type ProvidersQuery = { isPending: boolean; data?: Record<string, boolean> };
 const state = vi.hoisted(() => ({ query: { isPending: true } as ProvidersQuery }));
@@ -54,6 +54,17 @@ describe("providerHint", () => {
   });
 });
 
+describe("providerHintIntent", () => {
+  it.each([
+    ["provider=apple&intent=sign_up", "sign_up"],
+    ["provider=apple&intent=sign_in", undefined],
+    ["provider=apple&intent=register", undefined],
+    ["provider=apple", undefined],
+  ])("reads %j as %s", (query, expected) => {
+    expect(providerHintIntent(new URLSearchParams(query))).toBe(expected);
+  });
+});
+
 describe("ProviderHandoff", () => {
   it("waits on the calm sign-in screen, never the form, while the providers load", async () => {
     const leave = vi.fn();
@@ -76,6 +87,19 @@ describe("ProviderHandoff", () => {
     );
     // Still the wait while the browser goes; no form to type into.
     expect(container.querySelector('[data-testid="login-form"]')).toBeNull();
+  });
+
+  it("starts the provider to sign up when the app's register screen asked", async () => {
+    state.query = loaded(ALL_ON);
+    const leave = vi.fn();
+    await render(
+      <ProviderHandoff provider="apple" next={NEXT} intent="sign_up" leave={leave}>
+        <form data-testid="login-form" />
+      </ProviderHandoff>,
+    );
+    expect(leave).toHaveBeenCalledExactlyOnceWith(
+      "http://api.test/api/v1/auth/apple/start?next=%2Fauth%2Fdesktop%2Fauthorize%3Fattempt_id%3Da1&intent=sign_up",
+    );
   });
 
   it("starts Google the same way", async () => {
@@ -113,8 +137,8 @@ describe("useDropProviderHint", () => {
     return null;
   }
 
-  it("takes provider out of the address bar and keeps the rest", async () => {
-    window.history.replaceState(null, "", "/login?next=%2Fx&provider=apple#top");
+  it("takes provider and its intent out of the address bar and keeps the rest", async () => {
+    window.history.replaceState(null, "", "/login?next=%2Fx&provider=apple&intent=sign_up#top");
     await render(<Probe present />);
     expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe("/login?next=%2Fx#top");
   });

@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useRef, type ReactNode } from "react";
 import { isSignInProvider, type SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import type { ProviderStartIntent } from "@uniwork/core/paths";
 import { useAuthProviders } from "@uniwork/core/auth";
 import { AuthCallbackView } from "@uniwork/views/auth/auth-callback-view";
 import { providerStartUrl, webSignInProviders } from "@uniwork/views/auth/social-sign-in";
 
 const HINT = "provider";
+const INTENT = "intent";
 
 /**
  * `/login?provider=`: the desktop or phone app's "Continue with Apple" (spec
@@ -16,6 +18,16 @@ const HINT = "provider";
 export function providerHint(searchParams: URLSearchParams): SignInProvider | null {
   const value = searchParams.get(HINT);
   return isSignInProvider(value) ? value : null;
+}
+
+/**
+ * `/login?provider=…&intent=sign_up`: the hint came from the app's register
+ * screen, so the provider starts to sign up, as the web's own register page
+ * starts it, and an identity with no account opens one without the choice
+ * screen (spec §5.2). Anything else starts a sign-in.
+ */
+export function providerHintIntent(searchParams: URLSearchParams): ProviderStartIntent | undefined {
+  return searchParams.get(INTENT) === "sign_up" ? "sign_up" : undefined;
 }
 
 /**
@@ -31,6 +43,7 @@ export function useDropProviderHint(present: boolean): void {
     const url = new URL(window.location.href);
     if (!url.searchParams.has(HINT)) return;
     url.searchParams.delete(HINT);
+    url.searchParams.delete(INTENT);
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, [present]);
 }
@@ -54,18 +67,21 @@ function replaceLocation(url: string): void {
 export function ProviderHandoff({
   provider,
   next,
+  intent,
   children,
   leave = replaceLocation,
 }: {
   provider: SignInProvider;
   next: string | null;
+  /** sign_up: the app's register screen asked (providerHintIntent). */
+  intent?: ProviderStartIntent;
   /** The login form, shown when the hint cannot be followed. */
   children: ReactNode;
   /** Test seam; the page leaves through location.replace. */
   leave?: (url: string) => void;
 }) {
   const providers = useAuthProviders();
-  const target = webSignInProviders(providers.data).includes(provider) ? providerStartUrl(provider, { next }) : null;
+  const target = webSignInProviders(providers.data).includes(provider) ? providerStartUrl(provider, { next, intent }) : null;
   const left = useRef(false);
   useEffect(() => {
     if (!target || left.current) return;

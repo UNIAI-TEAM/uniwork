@@ -6,7 +6,12 @@ import { sanitizeNextUrl, type AuthGateUser } from "@uniwork/core/paths";
 import { LoginView } from "@uniwork/views/auth/login-view";
 import { isLinkStep, useLoggedInDestination } from "@uniwork/views/auth/post-auth-redirect";
 import { useNavigation } from "@uniwork/views/navigation";
-import { ProviderHandoff, providerHint, useDropProviderHint } from "../../../platform/auth/provider-handoff";
+import {
+  ProviderHandoff,
+  providerHint,
+  providerHintIntent,
+  useDropProviderHint,
+} from "../../../platform/auth/provider-handoff";
 import { useIsUniChatHost } from "../../../platform/desktop-host";
 import { UniChatLoginGate } from "../../../platform/unichat-login-gate";
 
@@ -27,6 +32,7 @@ export default function LoginPage() {
   // The app's provider button (spec §3.5), read once: the hint leaves the
   // address bar at once, and that must not take the hand-off back with it.
   const [hint] = useState(() => providerHint(searchParams));
+  const [hintIntent] = useState(() => providerHintIntent(searchParams));
   useDropProviderHint(searchParams.has("provider"));
   const { status, user } = useSession();
   const goAfterLogin = useCallback(
@@ -57,7 +63,7 @@ export default function LoginPage() {
     />
   );
   return hint ? (
-    <ProviderHandoff provider={hint} next={next}>
+    <ProviderHandoff provider={hint} next={next} intent={hintIntent}>
       {form}
     </ProviderHandoff>
   ) : (

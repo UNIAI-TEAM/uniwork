@@ -67,6 +67,12 @@ it("hands an app's provider button to the hand-off with next, and drops the hint
   expect(window.location.search).toBe(`?${NEXT}`);
 });
 
+it("hands the register screen's intent on with the hint, and drops both from the URL", async () => {
+  await open(`${NEXT}&provider=apple&intent=sign_up`);
+  expect(state.handoff).toMatchObject({ provider: "apple", intent: "sign_up" });
+  expect(window.location.search).toBe(`?${NEXT}`);
+});
+
 it("keeps the hand-off once the hint has left the URL and the page renders again", async () => {
   await open(`${NEXT}&provider=apple`);
   // The router follows history.replaceState: the next render reads a query
