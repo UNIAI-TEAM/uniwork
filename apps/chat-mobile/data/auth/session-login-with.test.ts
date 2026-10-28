@@ -42,8 +42,8 @@ describe("a sign-in that issues the session itself", () => {
 
   it("rejects with the server's verdict, for the screen to explain, and is ready for another try", async () => {
     const ctx = setup(vi);
-    await expect(ctx.session.loginWith(issuer(fail("apple_account_conflict")))).rejects.toMatchObject({
-      code: "apple_account_conflict",
+    await expect(ctx.session.loginWith(issuer(fail("sign_in_account_conflict")))).rejects.toMatchObject({
+      code: "sign_in_account_conflict",
       fromServer: true,
     });
     expect(ctx.session.status()).toBe("signed-out");

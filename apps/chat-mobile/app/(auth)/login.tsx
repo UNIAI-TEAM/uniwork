@@ -18,9 +18,8 @@ import { SignInLegalNote } from "@/components/settings/sign-in-legal-note";
 import { useAnnounce } from "@/components/ui/a11y";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import type { LoginMethod } from "@/data/auth/machine";
 import { useAuthStore } from "@/data/auth/store";
-import { signInFailureKey } from "@/lib/sign-in-failure";
+import { signInFailureKey, unfinishedStepKey } from "@/lib/sign-in-failure";
 import { THEME } from "@/lib/theme";
 import { DISPLAY_MAX_FONT_SCALE } from "@/lib/type-scale";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -37,11 +36,14 @@ export default function Login() {
 
   if (user) return <Redirect href="/" />;
 
-  const onPress = async (method: Extract<LoginMethod, "browser" | "apple">) => {
+  const onPress = async (method: "browser" | "apple") => {
     setBusy(true);
     setFailure(null);
     try {
-      await login(method);
+      // Apple opens an account when its identity matches none, as the shipped app's route did, until the choice
+      // screen lands (spec §5.2); a second factor or an address that has an account goes to the browser meanwhile.
+      const outcome = await login(method === "apple" ? { method, intent: "sign_up" } : { method });
+      setFailure(unfinishedStepKey(outcome));
     } catch (error: unknown) {
       setFailure(signInFailureKey(method, error));
     } finally {

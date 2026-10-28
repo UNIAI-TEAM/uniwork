@@ -16,8 +16,8 @@ jest.mock("expo-apple-authentication", () => {
     ),
   };
 });
-const mockOffered = jest.fn<Promise<boolean>, []>(async () => true);
-jest.mock("@/data/auth/flow", () => ({ appleSignInOffered: () => mockOffered() }));
+const mockOffer = jest.fn<Promise<{ apple: string | null; google: string | null }>, []>(async () => ({ apple: "native", google: null }));
+jest.mock("@/data/auth/flow", () => ({ signInOffer: () => mockOffer() }));
 
 afterEach(() => act(() => colorScheme.set("light")));
 
@@ -39,10 +39,13 @@ describe("AppleSignInButton", () => {
     expect(screen.getByTestId("apple-sign-in").props.style).toMatchObject({ opacity: 0.5 });
   });
 
-  it("is not there when the iPhone or the server does not offer it", async () => {
-    mockOffered.mockResolvedValueOnce(false);
+  it.each([
+    ["the iPhone or the server does not offer it", { apple: null, google: null }],
+    ["Apple goes through the browser (Android)", { apple: "browser", google: "native" }],
+  ])("is not there when %s", async (_label, offer) => {
+    mockOffer.mockResolvedValueOnce(offer);
     const { queryClient } = await render(<AppleSignInButton disabled={false} onPress={jest.fn()} />);
-    await act(async () => queryClient.getQueryCache().find({ queryKey: ["sign-in", "apple"] })?.promise);
+    await act(async () => queryClient.getQueryCache().find({ queryKey: ["sign-in", "offer"] })?.promise);
     expect(screen.queryByTestId("apple-sign-in")).toBeNull();
   });
 });

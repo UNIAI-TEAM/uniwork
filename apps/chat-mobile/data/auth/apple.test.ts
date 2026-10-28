@@ -9,7 +9,8 @@ const apple = vi.hoisted(() => ({
 }));
 vi.mock("expo-apple-authentication", () => apple);
 
-import { appleNonce, appleSignInAvailable, signInWithApple } from "./apple";
+import { appleSignInAvailable, signInWithApple } from "./apple";
+import { providerNonce } from "./nonce";
 
 const sha256Hex = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -20,8 +21,8 @@ beforeEach(() => {
 
 describe("Sign in with Apple, native side", () => {
   it("makes a fresh 43-character nonce and hashes it as lowercase hex", async () => {
-    const a = await appleNonce();
-    const b = await appleNonce();
+    const a = await providerNonce();
+    const b = await providerNonce();
     expect(a.raw).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(a.hashed).toBe(sha256Hex(a.raw));
     expect(a.raw).not.toBe(b.raw);
@@ -43,18 +44,26 @@ describe("Sign in with Apple, native side", () => {
       identityToken: "id.token.sig",
       authorizationCode: "code-1",
       fullName: { givenName: "Ngọc", familyName: "Trần" },
+      email: "ngoc@privaterelay.appleid.com",
       user: "001.abc",
     });
     const got = await signInWithApple();
     const [options] = apple.signInAsync.mock.calls[0] as [{ requestedScopes: number[]; nonce: string }];
     expect(options.requestedScopes).toEqual([0, 1]);
-    expect(got).toEqual({ identityToken: "id.token.sig", rawNonce: expect.any(String), authorizationCode: "code-1", givenName: "Ngọc", familyName: "Trần" });
+    expect(got).toEqual({
+      identityToken: "id.token.sig",
+      rawNonce: expect.any(String),
+      authorizationCode: "code-1",
+      givenName: "Ngọc",
+      familyName: "Trần",
+      email: "ngoc@privaterelay.appleid.com",
+    });
     expect(options.nonce).toBe(sha256Hex(got?.rawNonce ?? ""));
   });
 
   it("carries no name on later sign-ins", async () => {
     apple.signInAsync.mockResolvedValueOnce({ identityToken: "t", authorizationCode: null, fullName: null, user: "u" });
-    expect(await signInWithApple()).toMatchObject({ authorizationCode: null, givenName: null, familyName: null });
+    expect(await signInWithApple()).toMatchObject({ authorizationCode: null, givenName: null, familyName: null, email: null });
     apple.signInAsync.mockResolvedValueOnce({ identityToken: "t", authorizationCode: "c", fullName: { givenName: null, familyName: null }, user: "u" });
     expect(await signInWithApple()).toMatchObject({ givenName: null, familyName: null });
   });
@@ -73,7 +82,7 @@ describe("Sign in with Apple, native side", () => {
   it("refuses a short random source", async () => {
     const crypto = await import("expo-crypto");
     const spy = vi.spyOn(crypto, "getRandomBytesAsync").mockResolvedValueOnce(new Uint8Array(4));
-    await expect(appleNonce()).rejects.toThrow("too few bytes");
+    await expect(providerNonce()).rejects.toThrow("too few bytes");
     spy.mockRestore();
   });
 });

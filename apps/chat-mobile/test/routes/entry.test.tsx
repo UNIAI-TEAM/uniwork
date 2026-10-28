@@ -14,7 +14,8 @@ import AuthLayout from "@/app/(auth)/_layout";
 import Login from "@/app/(auth)/login";
 import Index from "@/app/index";
 import { ApiError, api } from "@/data/api";
-import { appleSignInOffered } from "@/data/auth/flow";
+import { signInOffer } from "@/data/auth/flow";
+import type { SignInOutcome, SignInRequest } from "@/data/auth/sign-in";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
@@ -46,7 +47,10 @@ jest.mock("expo-apple-authentication", () => {
     ),
   };
 });
-jest.mock("@/data/auth/flow", () => ({ ...jest.requireActual("@/data/auth/flow"), appleSignInOffered: jest.fn(async () => false) }));
+jest.mock("@/data/auth/flow", () => ({
+  ...jest.requireActual("@/data/auth/flow"),
+  signInOffer: jest.fn(async () => ({ apple: null, google: null })),
+}));
 
 const ChatStandIn = () => <Text testID="chat-tab">chat</Text>;
 
@@ -76,7 +80,7 @@ afterEach(async () => {
   // Unmount first: a mounted gate would redirect on the reset below.
   await cleanup();
   useAuthStore.setState({ user: null, isLoading: true, login: realLogin });
-  jest.mocked(appleSignInOffered).mockResolvedValue(false);
+  jest.mocked(signInOffer).mockResolvedValue({ apple: null, google: null });
   useWorkspaceStore.setState({ current: null });
   onlineManager.setOnline(true);
   jest.useRealTimers();
@@ -102,9 +106,10 @@ describe("the entry gate", () => {
   });
 
   it("offers Sign in with Apple above the browser, and says why a refused one cannot go on", async () => {
-    jest.mocked(appleSignInOffered).mockResolvedValue(true);
-    const login = jest.fn(async (method?: string) => {
-      if (method === "apple") throw Object.assign(new Error("refused"), { code: "apple_account_conflict" });
+    jest.mocked(signInOffer).mockResolvedValue({ apple: "native", google: null });
+    const login = jest.fn(async (request?: SignInRequest): Promise<SignInOutcome> => {
+      if (request?.method === "apple") throw Object.assign(new Error("refused"), { code: "sign_in_account_conflict" });
+      return { kind: "dismissed" };
     });
     useAuthStore.setState({ user: null, isLoading: false, login });
     await renderRoutes(ROUTES, "/login");
@@ -112,10 +117,10 @@ describe("the entry gate", () => {
     const tree = JSON.stringify(screen.toJSON());
     expect(tree.indexOf("apple-native-button")).toBeLessThan(tree.indexOf("login-button"));
     await fireEvent.press(apple);
-    expect(login).toHaveBeenCalledWith("apple");
+    expect(login).toHaveBeenCalledWith({ method: "apple", intent: "sign_up" });
     expect(await screen.findByText(viText("chat.mobile.login_apple_conflict"))).toBeTruthy();
     await fireEvent.press(screen.getByTestId("login-button"));
-    expect(login).toHaveBeenLastCalledWith("browser");
+    expect(login).toHaveBeenLastCalledWith({ method: "browser" });
     expect(screen.queryByText(viText("chat.mobile.login_apple_conflict"))).toBeNull();
   });
 

@@ -44,10 +44,6 @@ export type TransportErrorCode =
   | "sign_in_method_already_linked"
   | "cross_site_request"
   | "unsupported_media_type"
-  // the shipped iPhone app's Sign in with Apple route (ADR 0041, apple-transport.ts)
-  | "apple_token_invalid"
-  | "apple_account_conflict"
-  | "mfa_required"
   /** never the server's: the second step or the ticket the app held for one is gone (expired, or the app restarted) */
   | "sign_in_expired";
 
@@ -127,7 +123,6 @@ type Route =
   | "/auth/desktop/refresh"
   | "/auth/desktop/logout"
   | "/auth/providers"
-  | "/auth/apple/native"
   | "/auth/native/password"
   | "/auth/native/mfa"
   | "/auth/native/google"
@@ -144,7 +139,6 @@ const ROUTES: ReadonlySet<string> = new Set<Route>([
   "/auth/desktop/refresh",
   "/auth/desktop/logout",
   "/auth/providers",
-  "/auth/apple/native",
   "/auth/native/password",
   "/auth/native/mfa",
   "/auth/native/google",
@@ -184,9 +178,6 @@ const SERVER_CODES: ReadonlySet<string> = new Set<TransportErrorCode>([
   "sign_in_method_already_linked",
   "cross_site_request",
   "unsupported_media_type",
-  "apple_token_invalid",
-  "apple_account_conflict",
-  "mfa_required",
 ]);
 
 const isServerCode = (code: unknown): code is TransportErrorCode => typeof code === "string" && SERVER_CODES.has(code);
