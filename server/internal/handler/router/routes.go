@@ -240,35 +240,56 @@ type Routes struct {
 	ListCalendarSidebar          http.HandlerFunc
 	WorkspaceCalendar            http.HandlerFunc
 
-	ListEmailHubAccounts          http.HandlerFunc
-	GetEmailHubUnreadCount        http.HandlerFunc
-	GetEmailHubSidebarCounts      http.HandlerFunc
-	ConnectEmailHubAccount        http.HandlerFunc
-	StartEmailHubOAuth            http.HandlerFunc
-	GetEmailHubProviders          http.HandlerFunc
-	DisconnectEmailHubAccount     http.HandlerFunc
-	ListEmailHubImapLabels        http.HandlerFunc
-	ListEmailHubThreads           http.HandlerFunc
-	GetEmailHubThread             http.HandlerFunc
-	ListEmailHubConversation      http.HandlerFunc
-	GetEmailHubThreadSummary      http.HandlerFunc
-	SummarizeEmailHubThread       http.HandlerFunc
-	CreateEmailHubSummaryTasks    http.HandlerFunc
-	DownloadEmailHubAttachment    http.HandlerFunc
-	PatchEmailHubThread           http.HandlerFunc
-	SendEmailHub                  http.HandlerFunc
-	ListEmailHubScheduledSends    http.HandlerFunc
-	CancelEmailHubScheduledSend   http.HandlerFunc
-	RetryEmailHubScheduledSend    http.HandlerFunc
-	SyncEmailHub                  http.HandlerFunc
-	WatchEmailHub                 http.HandlerFunc
-	SubscribeEmailHubInboxWatch   http.HandlerFunc
-	UnsubscribeEmailHubInboxWatch http.HandlerFunc
-	CompleteEmailHubOAuth         http.HandlerFunc
-	ListPins                      http.HandlerFunc
-	CreatePin                     http.HandlerFunc
-	DeletePin                     http.HandlerFunc
-	ReorderPins                   http.HandlerFunc
+	ListEmailHubAccounts             http.HandlerFunc
+	GetEmailHubUnreadCount           http.HandlerFunc
+	GetEmailHubSidebarCounts         http.HandlerFunc
+	ConnectEmailHubAccount           http.HandlerFunc
+	StartEmailHubOAuth               http.HandlerFunc
+	GetEmailHubProviders             http.HandlerFunc
+	DisconnectEmailHubAccount        http.HandlerFunc
+	ListEmailHubImapLabels           http.HandlerFunc
+	ListEmailHubThreads              http.HandlerFunc
+	GetEmailHubThread                http.HandlerFunc
+	ListEmailHubConversation         http.HandlerFunc
+	GetEmailHubThreadSummary         http.HandlerFunc
+	SummarizeEmailHubThread          http.HandlerFunc
+	CreateEmailHubSummaryTasks       http.HandlerFunc
+	DownloadEmailHubAttachment       http.HandlerFunc
+	PatchEmailHubThread              http.HandlerFunc
+	SendEmailHub                     http.HandlerFunc
+	ListEmailHubScheduledSends       http.HandlerFunc
+	CancelEmailHubScheduledSend      http.HandlerFunc
+	RetryEmailHubScheduledSend       http.HandlerFunc
+	SyncEmailHub                     http.HandlerFunc
+	WatchEmailHub                    http.HandlerFunc
+	SubscribeEmailHubInboxWatch      http.HandlerFunc
+	UnsubscribeEmailHubInboxWatch    http.HandlerFunc
+	CompleteEmailHubOAuth            http.HandlerFunc
+	StartDriveGoogleOAuth            http.HandlerFunc
+	CompleteDriveGoogleOAuth         http.HandlerFunc
+	ListDriveConnections             http.HandlerFunc
+	DisconnectDriveConnection        http.HandlerFunc
+	GetDrivePickerToken              http.HandlerFunc
+	LinkDriveFiles                   http.HandlerFunc
+	ListDriveFiles                   http.HandlerFunc
+	GetDriveFile                     http.HandlerFunc
+	UnlinkDriveFile                  http.HandlerFunc
+	GrantDriveFileAccess             http.HandlerFunc
+	ChangeDriveFileReadAccount       http.HandlerFunc
+	RebindDriveFile                  http.HandlerFunc
+	NameDriveFolder                  http.HandlerFunc
+	ListDriveFolders                 http.HandlerFunc
+	ListTaskDriveFiles               http.HandlerFunc
+	RemoveTaskDriveFile              http.HandlerFunc
+	CreateDriveTaskProposal          http.HandlerFunc
+	GetDriveTaskProposal             http.HandlerFunc
+	DiscardDriveTaskProposal         http.HandlerFunc
+	CheckDriveTaskProposalDuplicates http.HandlerFunc
+	CreateTasksFromDriveProposal     http.HandlerFunc
+	ListPins                         http.HandlerFunc
+	CreatePin                        http.HandlerFunc
+	DeletePin                        http.HandlerFunc
+	ReorderPins                      http.HandlerFunc
 
 	ListProjects          http.HandlerFunc
 	SearchProjects        http.HandlerFunc
@@ -781,14 +802,16 @@ type Routes struct {
 	PurgeDocument                  http.HandlerFunc
 	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, read-only and
 	// kept forever - "archive" is the trash.
-	ShelveDocument              http.HandlerFunc
-	UnshelveDocument            http.HandlerFunc
-	ListDocumentShares          http.HandlerFunc
-	ListDocumentShareCandidates http.HandlerFunc
-	CreateDocumentShare         http.HandlerFunc
-	CreateDocumentShareBatch    http.HandlerFunc
-	UpdateDocumentAccess        http.HandlerFunc
-	RevokeDocumentShare         http.HandlerFunc
+	ShelveDocument               http.HandlerFunc
+	UnshelveDocument             http.HandlerFunc
+	ListDocumentShares           http.HandlerFunc
+	ListDocumentShareCandidates  http.HandlerFunc
+	CreateDocumentShare          http.HandlerFunc
+	CreateDocumentShareBatch     http.HandlerFunc
+	UpdateDocumentAccess         http.HandlerFunc
+	UpdateFolderContentsAccess   http.HandlerFunc
+	GetFolderContentsAccessBatch http.HandlerFunc
+	RevokeDocumentShare          http.HandlerFunc
 	// DOC-07 (UNI-1631): a person asks a document's managers for access; the
 	// managers list, approve and decline. The create answer is uniform (202)
 	// so the route never proves the document exists.

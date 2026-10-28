@@ -38,6 +38,7 @@ type Registry struct {
 	Billing       *Billing
 	Graph         *Graph
 	Mcp           *Mcp
+	Drive         *Drive
 	Readiness     *Readiness
 }
 
@@ -113,6 +114,8 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	reg.MustRegister(graphMetrics.Collectors()...)
 	mcpMetrics := NewMcp()
 	reg.MustRegister(mcpMetrics.Collectors()...)
+	driveMetrics := NewDrive()
+	reg.MustRegister(driveMetrics.Collectors()...)
 	readinessMetrics := NewReadiness()
 	reg.MustRegister(readinessMetrics.Collectors()...)
 
@@ -135,6 +138,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		Billing:       billingMetrics,
 		Graph:         graphMetrics,
 		Mcp:           mcpMetrics,
+		Drive:         driveMetrics,
 		Readiness:     readinessMetrics,
 	}
 }

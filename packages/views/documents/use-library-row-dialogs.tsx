@@ -19,6 +19,7 @@ import { MoveOutConfirmDialog } from "./move-out-confirm-dialog";
 import { canShareRow } from "./row-level";
 import { ShareDialog } from "./share-dialog";
 import { rowShareTarget } from "./share-dialog-target";
+import { useFolderContentsAccess } from "./use-folder-contents-access";
 
 type SourceRow = { type: "source"; id: string; source: DocumentSourceFile };
 
@@ -35,6 +36,8 @@ export interface LibraryRowDialogs {
   onArchive: (doc: DocumentSummaryRow) => void;
   /** Opens the Share dialog on a row; a row that fails the Share gate (canShareRow) opens nothing. */
   onShare: (doc: DocumentSummaryRow) => void;
+  /** Opens "Chia sẻ" on a folder row; any other row opens nothing. */
+  onShareContents: (doc: DocumentSummaryRow) => void;
   dialogs: ReactNode;
 }
 
@@ -76,6 +79,7 @@ export function useLibraryRowDialogs({
   const [archiving, setArchiving] = useState<DocumentSummaryRow | null>(null);
   const [sharing, setSharing] = useState<DocumentSummaryRow | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const folderAccess = useFolderContentsAccess(wsId);
   const [moveLoading, setMoveLoading] = useState(false);
   // One key per source and target: a retry after a timeout replays the same save, a new target is a new one.
   const saveKey = useRef<{ sourceId: string; target: string | null; key: string } | null>(null);
@@ -219,6 +223,7 @@ export function useLibraryRowDialogs({
           doc={rowShareTarget(sharing)}
         />
       ) : null}
+      {folderAccess.dialogs}
     </>
   );
 
@@ -251,6 +256,7 @@ export function useLibraryRowDialogs({
     onShare: (doc) => {
       if (canShareRow(doc)) setSharing(doc);
     },
+    onShareContents: folderAccess.onShareContents,
     dialogs,
   };
 }

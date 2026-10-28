@@ -3,6 +3,7 @@ package meetings
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 )
@@ -96,5 +97,28 @@ func TestFakeProviderCoversConferenceSurface(t *testing.T) {
 	}
 	if err := fp.StopRecording(ctx, StopRecordingRequest{}); err != nil || fp.StopRecordCalls != 1 {
 		t.Fatalf("StopRecording %v calls=%d", err, fp.StopRecordCalls)
+	}
+}
+
+func TestFakeProviderConcurrentJoinAndEnsure(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	fp := &FakeProvider{}
+	var wg sync.WaitGroup
+	for range 24 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := fp.EnsureSession(ctx, EnsureSessionRequest{RoomName: "uw_mtg_1"}); err != nil {
+				t.Error(err)
+			}
+			if _, err := fp.IssueJoinCredential(ctx, IssueJoinCredentialRequest{Identity: "u"}); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	if fp.EnsureCalls != 24 || fp.LastJoin.Identity != "u" {
+		t.Fatalf("EnsureCalls=%d LastJoin=%+v", fp.EnsureCalls, fp.LastJoin)
 	}
 }

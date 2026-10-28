@@ -8,6 +8,7 @@ import {
   capabilityResultSchema,
   cancelResultSchema,
   errorEnvelopeSchema,
+  extractTextResultSchema,
   jobGrantSchema,
   openFailureReportSchema,
   openOutcomeSchema,
@@ -112,6 +113,29 @@ describe("result schemas", () => {
     expect(parsed.error.code).toBe("engine_checksum_mismatch");
     expect(parsed.error.retryable).toBe(true);
     expect(parsed.error.fidelity_preserved).toBe(true);
+  });
+
+  it("extract_text result carries inline text, truncated and format without output fields", () => {
+    const parsed = extractTextResultSchema.parse({
+      job_id: "JOB4",
+      state: "completed",
+      operation: "extract_text",
+      format: "docx",
+      result: {
+        text: "Hello\nWorld",
+        truncated: false,
+        format: "docx",
+      },
+    });
+    expect(parsed.result).toEqual({ text: "Hello\nWorld", truncated: false, format: "docx" });
+    expect(() =>
+      extractTextResultSchema.parse({
+        job_id: "JOB4",
+        state: "completed",
+        operation: "extract_text",
+        result: { text: "x", truncated: false, format: "pdf" },
+      }),
+    ).toThrow();
   });
 });
 

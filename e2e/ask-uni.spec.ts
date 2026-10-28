@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { VI_LOCALE_STATE } from "./locale-state";
 import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
-import { setFlag } from "./office-docs-web-fixtures";
+import { setFlag, setFlags } from "./office-docs-web-fixtures";
 
 // The golden path for F-09 (spec §8): A creates a task, opens Ask UNI with
 // ⌘J and asks about it; the answer cites [S1] as a link to that task. B, in a
@@ -156,6 +156,8 @@ test("docked Ask UNI streams an answer, stops a run and opens with a focus", asy
 // P2b: from a task's page the dock offers the page as a chip, "@" mentions a task as a card, the
 // answer cites it as an entity link, and a stored answer keeps its "Xong sau n bước" line.
 test("docked Ask UNI offers the page chip, @ mentions a task and keeps the steps after a reload", async ({ page }) => {
+  // The flag write below and its reset in finally can each wait out the server's 30 s override cache.
+  test.setTimeout(150_000);
   const orgId = await onboard(page, "Chủ Nhắc", `Nhắc ${stamp}`, "Đội Nhắc");
   await askUniOrSkip(page);
 
@@ -228,9 +230,7 @@ test("docked Ask UNI answers with a source, proposes a task, applies it and undo
   const orgId = await onboard(page, "Chủ Hành Động", `Hành động ${stamp}`, "Đội Hành động");
   test.skip(!(await page.getByRole("button", { name: /Hỏi UNI/ }).isVisible().catch(() => false)), "AI provider not configured on this server");
 
-  await setFlag("ask_uni_stream", orgId, true);
-  await setFlag("ask_uni_agent", orgId, true);
-  await setFlag("ask_uni_actions", orgId, true);
+  await setFlags({ ask_uni_stream: true, ask_uni_agent: true, ask_uni_actions: true }, orgId);
   try {
     const title = `Việc có nguồn ${stamp}`;
     await reloadWithOrgFlags(page);
@@ -246,17 +246,18 @@ test("docked Ask UNI answers with a source, proposes a task, applies it and undo
 
     // 1. A read question: the answer comes with its sources.
     await box.fill(`việc có nguồn ${stamp} thế nào?`);
-    await dock.getByRole("button", { name: "Gửi" }).click();
+    await dock.getByRole("button", { name: "Hỏi", exact: true }).click();
     await dock.getByRole("button", { name: /^Nguồn \(\d+\)$/ }).click({ timeout: 15_000 });
     await expect(dock.getByRole("list", { name: "Nguồn" }).getByRole("link").first()).toBeVisible();
 
     // 2. A write request: a proposal card, and nothing is created yet.
     const made = `Soạn báo cáo ${stamp}`;
     await box.fill(`Tạo task ${made}`);
-    await dock.getByRole("button", { name: "Gửi" }).click();
+    await dock.getByRole("button", { name: "Hỏi", exact: true }).click();
     const card = dock.getByRole("region", { name: "UNI đề xuất · cần bạn xác nhận" });
     await expect(card).toBeVisible({ timeout: 15_000 });
-    await expect(card.getByText(made)).toBeVisible();
+    // The card names the task twice (its heading line and the field list), so one match is enough.
+    await expect(card.getByText(made).first()).toBeVisible();
     await expect(page.getByText(made).and(page.locator(":not(aside *)"))).toHaveCount(0);
 
     // 3. Apply: the row turns applied and the task exists.
@@ -269,9 +270,7 @@ test("docked Ask UNI answers with a source, proposes a task, applies it and undo
     await expect(dock.getByText("Đã hoàn tác")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(made).and(page.locator(":not(aside *)"))).toHaveCount(0, { timeout: 15_000 });
   } finally {
-    await setFlag("ask_uni_actions", orgId, false);
-    await setFlag("ask_uni_agent", orgId, false);
-    await setFlag("ask_uni_stream", orgId, false);
+    await setFlags({ ask_uni_actions: false, ask_uni_agent: false, ask_uni_stream: false }, orgId);
   }
 });
 
@@ -283,9 +282,7 @@ test("docked Ask UNI remembers a preference, uses it, and the memory screen edit
   const orgId = await onboard(page, "Chủ Bộ Nhớ", `Bộ nhớ ${stamp}`, "Đội Bộ nhớ");
   test.skip(!(await page.getByRole("button", { name: /Hỏi UNI/ }).isVisible().catch(() => false)), "AI provider not configured on this server");
 
-  await setFlag("ask_uni_stream", orgId, true);
-  await setFlag("ask_uni_agent", orgId, true);
-  await setFlag("ask_uni_memory", orgId, true);
+  await setFlags({ ask_uni_stream: true, ask_uni_agent: true, ask_uni_memory: true }, orgId);
   try {
     await reloadWithOrgFlags(page);
     await page.keyboard.press("ControlOrMeta+j");
@@ -295,7 +292,7 @@ test("docked Ask UNI remembers a preference, uses it, and the memory screen edit
 
     // 1. A stated preference: a card, and nothing is remembered until the asker says so.
     await box.fill("Từ giờ trả lời tôi bằng gạch đầu dòng");
-    await dock.getByRole("button", { name: "Gửi" }).click();
+    await dock.getByRole("button", { name: "Hỏi", exact: true }).click();
     const card = dock.getByRole("region", { name: "Đề xuất bộ nhớ" });
     await expect(card).toBeVisible({ timeout: 15_000 });
     await expect(card.getByText("Từ giờ trả lời tôi bằng gạch đầu dòng")).toBeVisible();
@@ -304,7 +301,7 @@ test("docked Ask UNI remembers a preference, uses it, and the memory screen edit
 
     // 2. A new question: the answer says it used the memory.
     await box.fill("việc nào đang trễ?");
-    await dock.getByRole("button", { name: "Gửi" }).click();
+    await dock.getByRole("button", { name: "Hỏi", exact: true }).click();
     await expect(dock.getByRole("button", { name: /Dùng \d+ mục bộ nhớ/ })).toBeVisible({ timeout: 15_000 });
 
     // 3. The memory screen: edit the line, then delete it.
@@ -320,8 +317,6 @@ test("docked Ask UNI remembers a preference, uses it, and the memory screen edit
     await expect(page.getByText("Đã xóa một mục")).toBeVisible({ timeout: 15_000 });
     await expect(dock.getByRole("button", { name: "Trả lời ngắn gọn", exact: true })).toHaveCount(0);
   } finally {
-    await setFlag("ask_uni_memory", orgId, false);
-    await setFlag("ask_uni_agent", orgId, false);
-    await setFlag("ask_uni_stream", orgId, false);
+    await setFlags({ ask_uni_memory: false, ask_uni_agent: false, ask_uni_stream: false }, orgId);
   }
 });

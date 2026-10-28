@@ -77,6 +77,7 @@ export const PAYLOAD_FIELDS: Record<EngineOperation, readonly string[]> = {
     "input_checksum",
     "input_length",
   ],
+  extract_text: ["input_checksum", "input_length"],
   cancel: ["job_id", "reason"],
 };
 
@@ -375,6 +376,14 @@ export async function validateEnvelope(
       byteBound: inputByteBound,
     });
     return { operation, format, deadlineMs, targetFormat, sourceVersionId, inputs };
+  }
+
+  if (operation === "extract_text") {
+    const inputs = validateInputTuple(p, "envelope.payload", {
+      required: true,
+      byteBound: inputByteBound,
+    });
+    return { operation, format, deadlineMs, inputs };
   }
 
   if (operation === "serialize") {

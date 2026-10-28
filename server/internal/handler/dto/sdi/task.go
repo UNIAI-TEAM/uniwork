@@ -22,6 +22,7 @@ type CreateTaskSDI struct {
 	Stage          *int32                     `json:"stage" description:"Thứ tự giai đoạn, từ 1 trở lên" example:"1"`
 	LabelIDs       []string                   `json:"label_ids" description:"Các nhãn active cùng workspace, gắn nguyên tử khi tạo"`
 	AttachmentIDs  []string                   `json:"attachment_ids" description:"Các đính kèm tạm cùng workspace, gắn nguyên tử khi tạo"`
+	DriveFiles     []CreateTaskDriveFileSDI   `json:"drive_files,omitempty" maxItems:"20" description:"Danh sách tối đa 20 tệp Google Drive liên kết nguyên tử khi tạo việc" example:"[{\"connection_id\":\"01J8X4DRVCONN0N1P2Q3R4S5T6\",\"external_file_id\":\"1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms\"}]"`
 	Properties     map[string]json.RawMessage `json:"properties" description:"Giá trị custom property active cùng workspace, lưu nguyên tử khi tạo"`
 	AllowDuplicate bool                       `json:"allow_duplicate,omitempty" description:"Bỏ qua guard tiêu đề trùng với task đang mở" example:"false"`
 }

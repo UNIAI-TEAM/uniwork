@@ -183,15 +183,17 @@ func accessBatchGrantRecord(actor Actor, doc db.Document, sh, prev db.DocumentSh
 // ties it to its batch. revokeDocumentShareRowWithBatch writes it for one row;
 // a batch and the chat share decisions record many through RecordMany.
 func documentShareRevokeRecord(actor Actor, doc db.Document, sh db.DocumentShare, batchID string) audit.Recorded {
+	return documentShareRevokeRecordWithMeta(actor, doc, sh, documentShareBatchMeta{BatchID: batchID})
+}
+
+func documentShareRevokeRecordWithMeta(actor Actor, doc db.Document, sh db.DocumentShare, batchMeta documentShareBatchMeta) audit.Recorded {
 	meta := map[string]any{
 		"share_id":       sh.ID,
 		"principal_type": sh.PrincipalType,
 		"principal_id":   sh.PrincipalID,
 		"level":          sh.Level,
 	}
-	if batchID != "" {
-		meta["batch_id"] = batchID
-	}
+	batchMeta.apply(meta, sh.Level)
 	return audit.Recorded{
 		Entry: audit.Entry{
 			OrganizationID: doc.OrganizationID,

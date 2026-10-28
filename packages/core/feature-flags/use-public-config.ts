@@ -1,7 +1,9 @@
 import { createContext, useContext } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getPublicConfig, type PublicConfig } from "../api/endpoints/config";
+import { EMPTY_CONFIG, getPublicConfig, type PublicConfig } from "../api/endpoints/config";
 import { OFFICE_ENGINE_FLAG } from "../office/format-flags";
+
+export { EMPTY_CONFIG };
 
 const publicConfigKeys = {
   all: ["public-config"] as const,

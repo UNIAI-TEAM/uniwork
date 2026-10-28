@@ -98,13 +98,14 @@ func CanReadEngineVersion(version string) bool {
 type Operation string
 
 const (
-	OperationCapability Operation = "capability"
-	OperationOpen       Operation = "open"
-	OperationEdit       Operation = "edit"
-	OperationSerialize  Operation = "serialize"
-	OperationConvert    Operation = "convert"
-	OperationExport     Operation = "export"
-	OperationCancel     Operation = "cancel"
+	OperationCapability  Operation = "capability"
+	OperationOpen        Operation = "open"
+	OperationEdit        Operation = "edit"
+	OperationSerialize   Operation = "serialize"
+	OperationConvert     Operation = "convert"
+	OperationExport      Operation = "export"
+	OperationExtractText Operation = "extract_text"
+	OperationCancel      Operation = "cancel"
 )
 
 // JobState is a job lifecycle state (engine-contract.md SS6.1). The last five

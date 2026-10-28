@@ -21,6 +21,7 @@ export function DocNameCell({
   title,
   format,
   location,
+  searchPath,
   badges,
   children,
 }: {
@@ -30,6 +31,8 @@ export function DocNameCell({
   format?: string | null;
   /** The folder the document sits in, or where a file came from; absent draws no line. */
   location?: string | null;
+  /** A search hit's ancestor path: short display text, full path tooltip, and screen-reader announcement. */
+  searchPath?: { display: string; full: string; srText: string } | null;
   /** Marks beside the title (star, lock holder, ...): they never truncate, the title does. */
   badges?: ReactNode;
   /** More lines under the location line: the narrow row's stand-ins for the columns that are off. */
@@ -42,14 +45,26 @@ export function DocNameCell({
         className={cn("size-6 shrink-0", kind === "folder" && "text-muted-foreground")}
       />
       <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-2">
-          {/* The truncated name still reads in full on hover. */}
-          <span title={title} className="block truncate text-body text-foreground">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 @min-[31rem]/library:flex-nowrap">
+          {/* The truncated name reads in full on hover; below 31rem it keeps >= 60% so badges wrap underneath. */}
+          <span title={title} className="block min-w-[60%] truncate text-body text-foreground @min-[31rem]/library:min-w-0">
             {title}
           </span>
           {badges}
         </span>
-        {location ? (
+        {searchPath ? (
+          <>
+            <span
+              aria-hidden
+              data-testid="doclist-location"
+              title={searchPath.full}
+              className="block truncate text-caption text-muted-foreground"
+            >
+              {searchPath.display}
+            </span>
+            <span className="sr-only">{searchPath.srText}</span>
+          </>
+        ) : location ? (
           <span data-testid="doclist-location" className="block truncate text-caption text-muted-foreground">
             {location}
           </span>

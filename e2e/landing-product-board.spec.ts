@@ -18,7 +18,7 @@ test("the real task board is the default demo and plays its action sequence", as
   }
   const card = player.locator('[data-demo-item="design"]');
   await expect(card.locator('[data-slot="task-card"]')).toBeVisible();
-  await expect(card).toContainText("UNI-18");
+  await expect(card).toContainText("DEMO-106");
   await expect(player.locator(".preview-category")).toHaveCount(0);
   await expect(player).toHaveAttribute("data-step", "0");
   await player.screenshot({ path: ".impeccable/review/actual-task-board-1440.png", animations: "disabled" });
@@ -33,7 +33,7 @@ test("the real task board is the default demo and plays its action sequence", as
   await player.scrollIntoViewIfNeeded();
   await expect(player).toHaveAttribute("data-running", "true");
   await expect(player.locator('[data-demo-detail="task"]')).toBeVisible({ timeout: 6000 });
-  await expect(player.locator('[data-demo-result="assignee"]')).toContainText("Hoàng Anh", { timeout: 10_000 });
+  await expect(player.locator('[data-demo-result="assignee"]')).toContainText("Khánh Vy", { timeout: 10_000 });
   await expect(player.locator('[data-status="done"] [data-demo-item="design"]')).toBeVisible({ timeout: 12_000 });
   const moved = player.locator('[data-status="done"] [data-demo-item="design"]');
   await expect(moved).toHaveAttribute("data-observed-motion", /translate/);

@@ -229,6 +229,30 @@ describe("docRowMenu: folder rows", () => {
   it("hides Tạo thư mục con and the edit commands from a view-level viewer", () => {
     expect(ids(docRowMenu(documentRow({ ...folder, my_level: "view" }), ctx())).flat()).toEqual(["open-folder", "copy-link", "star"]);
   });
+
+  // UNI-2244: the bulk command is the folder's only sharing item; a document has the single Share instead.
+  it("offers Chia sẻ on a folder of any level, and runs it with the folder", () => {
+    const onShareContents = vi.fn();
+    for (const level of ["view", "edit", "manage"] as const) {
+      const c = ctx();
+      c.handlers.onShareContents = onShareContents;
+      const groups = docRowMenu(documentRow({ ...folder, my_level: level }), c);
+      expect(ids(groups)[1]).toContain("share-contents");
+      expect(ids(groups).flat()).not.toContain("share");
+    }
+    const c = ctx();
+    c.handlers.onShareContents = onShareContents;
+    docRowMenu(documentRow(folder), c).flat().find((item) => item.id === "share-contents")!.run();
+    expect(onShareContents).toHaveBeenLastCalledWith(folder);
+    expect(docRowMenu(documentRow(folder), c).flat().find((item) => item.id === "share-contents")?.labelKey).toBe("documents.folderAccess.menu");
+  });
+
+  it("never offers it on a document, nor where the host wires no dialog", () => {
+    const wired = ctx();
+    wired.handlers.onShareContents = vi.fn();
+    expect(ids(docRowMenu(documentRow(doc()), wired)).flat()).not.toContain("share-contents");
+    expect(ids(docRowMenu(documentRow(folder), ctx())).flat()).not.toContain("share-contents");
+  });
 });
 
 describe("docRowMenu: source rows keep today's items", () => {

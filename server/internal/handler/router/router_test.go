@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
 type fakeRoles struct{}
@@ -339,5 +340,171 @@ func TestOnlyRealMeetingAgentPathsSkipTheGlobalLimiter(t *testing.T) {
 		if limited != want {
 			t.Errorf("%s: limited = %v, want %v", path, limited, want)
 		}
+	}
+}
+
+// Google Drive OAuth start is on the 10/10min connect limiter while list/delete
+// are not; the Google callback is outside authed on the 60/min credential
+// limiter (spec §5.2, §13).
+func TestDriveOAuthRateLimits(t *testing.T) {
+	refuse := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+	}
+
+	provider := featureflag.NewStaticProvider()
+	provider.Set("drive_connector", featureflag.Rule{Default: true})
+	flags := featureflag.NewService(provider)
+
+	mux := chi.NewRouter()
+	apiRoot := newAPI(mux, &apiCatalog{})
+	registerDriveConnections(apiRoot, stubRoutes(), flags, refuse, refuse)
+	registerDriveGoogleCallback(apiRoot, stubRoutes(), refuse)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/workspaces/w1/drive-connections/google/start", nil))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("POST start under connectLimit = %d, want 429", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/workspaces/w1/drive-connections", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "ListDriveConnections" {
+		t.Fatalf("GET drive-connections = %d %q, want 200 ListDriveConnections", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/workspaces/w1/drive-connections/c1", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "DisconnectDriveConnection" {
+		t.Fatalf("DELETE drive-connections = %d %q, want 200 DisconnectDriveConnection", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/drive-connections/google/callback", nil))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("GET callback under credentialLimit = %d, want 429", rec.Code)
+	}
+}
+
+// When drive_connector is off, every authenticated /drive-connections route
+// answers 404 feature_disabled (spec §5.1, §10).
+func TestDriveConnectionsRequireFeatureFlag(t *testing.T) {
+	pass := func(next http.Handler) http.Handler { return next }
+	provider := featureflag.NewStaticProvider()
+	provider.Set("drive_connector", featureflag.Rule{Default: false})
+	flags := featureflag.NewService(provider)
+
+	mux := chi.NewRouter()
+	registerDriveConnections(newAPI(mux, &apiCatalog{}), stubRoutes(), flags, pass, pass)
+
+	for _, tc := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/workspaces/w1/drive-connections/google/start"},
+		{http.MethodGet, "/workspaces/w1/drive-connections"},
+		{http.MethodDelete, "/workspaces/w1/drive-connections/c1"},
+		{http.MethodPost, "/workspaces/w1/drive-connections/c1/picker-token"},
+		{http.MethodPost, "/workspaces/w1/drive-files"},
+		{http.MethodGet, "/workspaces/w1/drive-files"},
+		{http.MethodGet, "/workspaces/w1/drive-files/df1"},
+		{http.MethodDelete, "/workspaces/w1/drive-files/df1"},
+		{http.MethodPost, "/workspaces/w1/drive-files/df1/access"},
+		{http.MethodPut, "/workspaces/w1/drive-files/df1/access"},
+		{http.MethodPost, "/workspaces/w1/drive-files/df1/rebind"},
+		{http.MethodPost, "/workspaces/w1/drive-folders/fldr1/name"},
+		{http.MethodGet, "/workspaces/w1/drive-folders"},
+		{http.MethodGet, "/tasks/t1/drive-files"},
+		{http.MethodDelete, "/tasks/t1/drive-files/df1"},
+		{http.MethodPost, "/workspaces/w1/drive-files/df1/task-proposals"},
+		{http.MethodGet, "/workspaces/w1/drive-task-proposals/p1"},
+		{http.MethodDelete, "/workspaces/w1/drive-task-proposals/p1"},
+		{http.MethodPost, "/workspaces/w1/drive-task-proposals/p1/duplicates"},
+		{http.MethodPost, "/workspaces/w1/drive-task-proposals/p1/tasks"},
+	} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))
+		if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), "feature_disabled") {
+			t.Fatalf("%s %s with flag off = %d %s, want 404 feature_disabled", tc.method, tc.path, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+// UNI-2244 BE-1: PUT /api/v1/documents/{folderID}/contents-access documents
+// the three response envelopes (dry-run 200, sync 200, background 202) via
+// FolderContentsAccessResultSDO oneOf and names the error codes in its
+// description; GET /api/v1/documents/{folderID}/contents-access/{batchID}
+// documents FolderContentsAccessBatchSDO.
+func TestFolderContentsAccessOpenAPISpec(t *testing.T) {
+	cfg := config.Config{FrontendOrigin: "http://localhost:3000", EnableSwagger: true}
+	mux := New(Deps{Cfg: cfg}, stubRoutes())
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/swagger/doc.json", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /swagger/doc.json = %d, want 200", rec.Code)
+	}
+
+	type schemaRef struct {
+		Ref   string      `json:"$ref"`
+		OneOf []schemaRef `json:"oneOf"`
+	}
+	type operation struct {
+		Description string `json:"description"`
+		Responses   map[string]struct {
+			Content map[string]struct {
+				Schema schemaRef `json:"schema"`
+			} `json:"content"`
+		} `json:"responses"`
+	}
+	var spec struct {
+		Paths      map[string]map[string]operation `json:"paths"`
+		Components struct {
+			Schemas map[string]schemaRef `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("unmarshal swagger doc: %v", err)
+	}
+
+	putPath := "/api/v1/documents/{folderID}/contents-access"
+	putOp, ok := spec.Paths[putPath]["put"]
+	if !ok {
+		t.Fatalf("PUT %s missing from OpenAPI spec", putPath)
+	}
+	for _, code := range []string{"not_a_folder", "document_access_rejected", "folder_access_batch_running", "not_implemented"} {
+		if !strings.Contains(putOp.Description, code) {
+			t.Errorf("PUT %s description missing error code %q", putPath, code)
+		}
+	}
+	if !strings.Contains(putOp.Description, "fields.batch_id là tùy chọn") {
+		t.Errorf("PUT %s description = %q, want optional fields.batch_id documented", putPath, putOp.Description)
+	}
+	putSchema := putOp.Responses["200"].Content["application/json"].Schema
+	if name, ok := strings.CutPrefix(putSchema.Ref, "#/components/schemas/"); ok {
+		putSchema = spec.Components.Schemas[name]
+	}
+	gotRefs := map[string]bool{}
+	for _, item := range putSchema.OneOf {
+		gotRefs[item.Ref] = true
+	}
+	for _, wantRef := range []string{
+		"#/components/schemas/SdoFolderContentsAccessDryRunSDO",
+		"#/components/schemas/SdoFolderContentsAccessSyncSDO",
+		"#/components/schemas/SdoFolderContentsAccessBackgroundSDO",
+	} {
+		if !gotRefs[wantRef] {
+			t.Errorf("PUT %s 200 schema oneOf = %+v, missing %s", putPath, putSchema.OneOf, wantRef)
+		}
+	}
+
+	getPath := "/api/v1/documents/{folderID}/contents-access/{batchID}"
+	getOp, ok := spec.Paths[getPath]["get"]
+	if !ok {
+		t.Fatalf("GET %s missing from OpenAPI spec", getPath)
+	}
+	if got := getOp.Responses["200"].Content["application/json"].Schema.Ref; got != "#/components/schemas/SdoFolderContentsAccessBatchSDO" {
+		t.Errorf("GET %s 200 schema ref = %q, want SdoFolderContentsAccessBatchSDO", getPath, got)
 	}
 }

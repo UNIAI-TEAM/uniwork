@@ -60,6 +60,15 @@ func TestMapServiceErrorStampsErrorClass(t *testing.T) {
 		{"generic conflict", service.ErrConflict, 409, "conflict", ""},
 		{"email hub reauth", service.ErrEmailHubReauthRequired, 409, "email_hub_reauth_required", ""},
 		{"email hub smtp disabled", service.ErrEmailHubSMTPDisabled, 400, "email_hub_smtp_disabled", ""},
+		{"drive source changed", service.ErrDriveSourceChanged, 409, "drive_source_changed", ""},
+		{"drive proposal not ready", service.ErrDriveProposalNotReady, 409, "proposal_not_ready", ""},
+		{"drive proposal expired", service.ErrDriveProposalExpired, http.StatusGone, "proposal_expired", ""},
+		{
+			"drive proposal expired coded",
+			service.CodedError{Code: "proposal_expired", Status: http.StatusGone, Msg: "Đề xuất công việc này đã hết hạn.", Err: service.ErrDriveProposalExpired},
+			http.StatusGone, "proposal_expired", "",
+		},
+		{"drive proposal item already converted", service.ErrDriveProposalItemAlreadyConverted, 409, "proposal_item_already_converted", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

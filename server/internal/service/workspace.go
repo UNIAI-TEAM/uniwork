@@ -63,6 +63,10 @@ func NewWorkspaceService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationSe
 // mailboxes it disconnects from the organizations left behind, as Leave does.
 func (s *WorkspaceService) SetEmailHub(h *EmailHubService) { s.members.SetEmailHub(h) }
 
+// SetDrive lets an invitation switch revoke the Google Drive grants of the
+// connections it disconnects when closing an organization, as Close does.
+func (s *WorkspaceService) SetDrive(d *DriveConnectionService) { s.members.SetDrive(d) }
+
 // SetFiles selects the FileService path for avatar URL emission.
 func (s *WorkspaceService) SetFiles(f files.Service) { s.files = f }
 

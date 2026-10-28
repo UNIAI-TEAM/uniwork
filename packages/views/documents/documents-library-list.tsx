@@ -38,7 +38,9 @@ export interface DocumentsLibraryListProps {
   cardsShown?: boolean;
   /** The no-matches copy of the open view when it is not the generic library
    *  wording (the shelved list names its own empty-filtered line). */
-  emptyFiltered?: { title: string; description: string };
+  emptyFiltered?: { title: string; description?: string };
+  /** Custom label for the clear action in the empty-filtered state (e.g. "Xóa tìm kiếm" when searching). */
+  clearFiltersLabel?: string;
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
@@ -86,6 +88,7 @@ export function DocumentsLibraryList({
   metaFiltered = false,
   cardsShown = false,
   emptyFiltered,
+  clearFiltersLabel,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -175,18 +178,19 @@ export function DocumentsLibraryList({
           icon={Search}
           title={emptyFiltered?.title ?? t("documents.library.no_matches_title")}
           description={
-            emptyFiltered?.description ??
-            t(
-              metaFiltered
-                ? clientFiltered && hasMore
-                  ? "documents.home.no_matches_filters_more_description"
-                  : "documents.home.no_matches_filters_description"
-                : clientFiltered && hasMore
-                  ? "documents.home.no_matches_more_description"
-                  : cardsShown
-                    ? "documents.home.no_matches_description"
-                    : "documents.home.no_matches_plain_description",
-            )
+            emptyFiltered && "description" in emptyFiltered
+              ? emptyFiltered.description
+              : t(
+                  metaFiltered
+                    ? clientFiltered && hasMore
+                      ? "documents.home.no_matches_filters_more_description"
+                      : "documents.home.no_matches_filters_description"
+                    : clientFiltered && hasMore
+                      ? "documents.home.no_matches_more_description"
+                      : cardsShown
+                        ? "documents.home.no_matches_description"
+                        : "documents.home.no_matches_plain_description",
+                )
           }
           role="status"
           actions={
@@ -197,7 +201,7 @@ export function DocumentsLibraryList({
                 </Button>
               ) : null}
               <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
-                {t("documents.library.clear_filters")}
+                {clearFiltersLabel ?? t("documents.library.clear_filters")}
               </Button>
             </div>
           }

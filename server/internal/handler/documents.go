@@ -379,6 +379,13 @@ func (h *handlers) commitDocumentVersion(w http.ResponseWriter, r *http.Request)
 		respondError(w, http.StatusBadRequest, "invalid_request", "base_revision must be a decimal string")
 		return
 	}
+	var conv *service.DocumentVersionConversion
+	if in.Conversion != nil {
+		conv = &service.DocumentVersionConversion{
+			FromFormat: in.Conversion.FromFormat,
+			ToFormat:   in.Conversion.ToFormat,
+		}
+	}
 	res, err := h.Documents.CommitFileVersion(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.CommitFileVersionInput{
 		UploadID:       strings.TrimSpace(in.UploadID),
 		BaseRevision:   base,
@@ -388,6 +395,7 @@ func (h *handlers) commitDocumentVersion(w http.ResponseWriter, r *http.Request)
 		Sync:       middleware.DeviceSession(r.Context()),
 		EditLockID: strings.TrimSpace(in.EditLockID),
 		ChatRoomID: strings.TrimSpace(in.ChatRoomID),
+		Conversion: conv,
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -1036,6 +1044,12 @@ func documentVersionDTO(v db.DocumentVersion, withContent bool) sdo.DocumentVers
 	}
 	if v.RestoredFrom.Valid {
 		out.RestoredFrom = &v.RestoredFrom.Int32
+	}
+	if v.ConvertedFromVersion.Valid {
+		out.ConvertedFromVersion = &v.ConvertedFromVersion.Int32
+	}
+	if v.ConvertedFromChecksum.Valid && v.ConvertedFromChecksum.String != "" {
+		out.ConvertedFromChecksum = &v.ConvertedFromChecksum.String
 	}
 	if v.EngineName.Valid && v.EngineName.String != "" {
 		out.EngineName = &v.EngineName.String

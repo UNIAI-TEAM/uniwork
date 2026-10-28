@@ -14,7 +14,7 @@ import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
 import { DocumentTypeIcon, documentIconFormat } from "../documents/document-type-icon";
-import { formatSearchPath } from "../documents/documents-search-results";
+import { formatSearchPath } from "../documents/search-path";
 import { CollectionPageState } from "../layout/collection-page";
 import { MODULE_ICONS } from "../layout/module-icons";
 import { MODULE_TONES } from "../layout/module-tones";

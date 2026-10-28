@@ -374,6 +374,7 @@ func main() {
 	// list/download down with it.
 	officeCfg := office.ConfigFromEnv()
 	var officeEngine service.OfficeEngine
+	var driveExtractor service.DriveOfficeExtractor
 	if officeCfg.Enabled() {
 		client, err := office.NewClient(officeCfg, nil)
 		if err != nil {
@@ -381,6 +382,7 @@ func main() {
 			os.Exit(1)
 		}
 		officeEngine = client
+		driveExtractor = client
 	}
 	var officeMetrics service.OfficeMetrics
 	if reg != nil {
@@ -461,6 +463,29 @@ func main() {
 		Batch: cfg.MeetingOutboxBatch, Tick: cfg.MeetingWorkerTick, Log: log,
 	})
 	dispatcher.RegisterLane(outbox.LaneProvider, meetingSvc.ProviderConsumer())
+	var driveBox *secretbox.Box
+	if key, err := secretbox.LoadKey("DRIVE_CREDENTIAL_KEY"); err == nil {
+		if box, err := secretbox.New(key); err == nil {
+			driveBox = box
+		} else {
+			log.Warn("google drive connector disabled", "err", err)
+		}
+	} else if os.Getenv("DRIVE_CREDENTIAL_KEY") != "" {
+		log.Warn("google drive connector disabled", "err", err)
+	}
+	driveConnectionSvc := service.NewDriveConnectionService(pool, q, wsSvc, driveBox)
+	driveConnectionSvc.SetLogger(log)
+	driveConnectionSvc.ConfigureOAuth(cfg)
+	driveConnectionSvc.SetFlags(flags)
+	if reg != nil {
+		driveConnectionSvc.SetMetrics(reg.Drive)
+	}
+	dispatcher.RegisterLane(outbox.LaneProvider, driveConnectionSvc.RevocationConsumer())
+	driveFileSvc := service.NewDriveFileService(pool, q, wsSvc, driveConnectionSvc, nil)
+	driveFileSvc.SetLogger(log)
+	driveFileSvc.SetFlags(flags)
+	taskSvc.SetDriveFiles(driveFileSvc)
+	auditSvc.SetDriveFiles(driveFileSvc)
 	realtimeConsumer := outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc)
 	dispatcher.Register(realtimeConsumer)
 	// Sockets are checked only when they connect or subscribe; this closes
@@ -537,6 +562,7 @@ func main() {
 	// the document.* frames of the Documents UI are not slowed down.
 	dispatcher.Register(service.NewChatDocumentCardRefresher(q, chatSvc))
 	editLockSweep := service.NewDocumentEditLockSweeper(documentSvc, log)
+	docAccessBatchWorker := service.NewDocumentAccessBatchWorker(documentSvc, log)
 	if reg != nil {
 		service.SetOfficeLeaseMetrics(reg.OfficeLeases)
 	}
@@ -691,6 +717,10 @@ func main() {
 	// awaited below.
 	editLockSweepDone := make(chan struct{})
 	go func() { editLockSweep.Run(runCtx); close(editLockSweepDone) }()
+	// The folder bulk access batch worker (UNI-2244 §4) stops with runCancel
+	// and is awaited below.
+	docAccessBatchWorkerDone := make(chan struct{})
+	go func() { docAccessBatchWorker.Run(runCtx); close(docAccessBatchWorkerDone) }()
 	// Event retention (G12): deletes delivered/dead outbox rows, processed webhook
 	// callbacks and the provider-event ledger past their windows. It stops with
 	// runCancel and is awaited below.
@@ -776,6 +806,8 @@ func main() {
 		log.Warn("connected calendars disabled", "err", err)
 	}
 	calendarConnectionSvc := service.NewCalendarConnectionService(pool, q, wsSvc, calendarBox, cfg)
+	driveWorkersDone := make(chan struct{})
+	go func() { driveConnectionSvc.RunWorkers(runCtx); close(driveWorkersDone) }()
 	// Personal AI provider keys (ADR 0029): without AI_CREDENTIAL_KEY the
 	// server still boots and the credential routes answer 503.
 	var aiCredentialBox *secretbox.Box
@@ -800,11 +832,34 @@ func main() {
 	aiMemorySvc.SetImport(gateway, rdb)
 	askUNI.SetMemory(aiMemorySvc)
 	askUNI.SetFiles(fileSvc)
+	driveFileSvc.SetAIEnabled(gateway.Enabled)
+	driveContentSvc := service.NewDriveContentService(pool, q, wsSvc, driveFileSvc, driveConnectionSvc, nil, driveExtractor)
+	driveContentSvc.SetLogger(log)
+	askUNI.SetDriveContentReader(driveContentSvc)
+	driveTaskProposalSvc := service.NewDriveTaskProposalService(pool, q, wsSvc, driveFileSvc, driveConnectionSvc, driveContentSvc, gateway)
+	driveTaskProposalSvc.SetLogger(log)
+	driveTaskProposalSvc.SetFlags(flags)
+	if reg != nil {
+		driveTaskProposalSvc.SetMetrics(reg.Drive)
+	}
+	auditSvc.SetDriveProposalHistoryAuthorizer(driveTaskProposalSvc.AuthorizeHistory)
+	driveTaskProposalSvc.SetTasks(taskSvc)
+	driveFileSvc.SetTaskCreationsLoader(driveFileSvc)
+	driveTaskProposalSvc.SetTaskCreationsLoader(driveFileSvc)
+	driveProposalSweep := service.NewDriveProposalRetentionSweeper(driveTaskProposalSvc, log)
+	if reg != nil {
+		driveProposalSweep.SetMetrics(reg.Drive)
+	}
+	driveProposalSweepDone := make(chan struct{})
+	go func() { driveProposalSweep.Run(runCtx); close(driveProposalSweepDone) }()
 	// Leave, an invitation switch and account deletion revoke the Google
 	// grants of the mailboxes they disconnect.
 	orgMemberSvc.SetEmailHub(emailHubSvc)
 	wsSvc.SetEmailHub(emailHubSvc)
 	authSvc.SetEmailHub(emailHubSvc)
+	orgMemberSvc.SetDrive(driveConnectionSvc)
+	wsSvc.SetDrive(driveConnectionSvc)
+	authSvc.SetDrive(driveConnectionSvc)
 	go emailHubSvc.RunWorkers(runCtx)
 	go emailHubSvc.RunHubWatchers(runCtx)
 	graphSvc := service.NewGraphService(q, orgSvc, wsSvc, chatSvc)
@@ -846,6 +901,8 @@ func main() {
 	// runCancel and is awaited below.
 	mcpCleanupDone := make(chan struct{})
 	go func() { mcpAuth.Run(runCtx); close(mcpCleanupDone) }()
+	officeCapabilitiesSvc := service.NewOfficeCapabilitiesService(orgSvc, flags)
+	officeCapabilitiesSvc.SetDrive(driveConnectionSvc)
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
@@ -866,6 +923,9 @@ func main() {
 		Calendar:            service.NewCalendarService(q, wsSvc),
 		CalendarConnections: calendarConnectionSvc,
 		EmailHub:            emailHubSvc,
+		DriveConnections:    driveConnectionSvc,
+		DriveFiles:          driveFileSvc,
+		DriveTaskProposals:  driveTaskProposalSvc,
 		Agents:              agentSvc,
 		Actors:              actorSvc,
 		Audit:               auditSvc,
@@ -896,19 +956,20 @@ func main() {
 		// the conversation store why the key above exists, and the process's
 		// own concurrency bounds (A11) — Redis only when there is one. G6-03b
 		// attaches the run counters built above.
-		AIUniwork:       aiUniworkSvc,
-		OfficeLaunch:    officeLaunchSvc,
-		Office:          officeSvc,
-		Preview:         previewSvc,
-		MembershipCache: membershipCache,
-		HTTPMetrics:     httpMetrics,
-		WebVitals:       webVitals(reg),
-		MobileEvents:    mobileEvents(reg),
-		Readiness:       readiness,
-		Admin:           adminSvc,
-		DemoRequests:    service.NewDemoRequestService(pool, q),
-		Version:         version,
-		Commit:          commit,
+		AIUniwork:          aiUniworkSvc,
+		OfficeLaunch:       officeLaunchSvc,
+		Office:             officeSvc,
+		OfficeCapabilities: officeCapabilitiesSvc,
+		Preview:            previewSvc,
+		MembershipCache:    membershipCache,
+		HTTPMetrics:        httpMetrics,
+		WebVitals:          webVitals(reg),
+		MobileEvents:       mobileEvents(reg),
+		Readiness:          readiness,
+		Admin:              adminSvc,
+		DemoRequests:       service.NewDemoRequestService(pool, q),
+		Version:            version,
+		Commit:             commit,
 	})
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
@@ -1055,6 +1116,11 @@ func main() {
 		log.Warn("documents: edit lock sweep did not stop in time")
 	}
 	select {
+	case <-docAccessBatchWorkerDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("documents: access batch worker did not stop in time")
+	}
+	select {
 	case <-retentionDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("outbox: event retention did not stop in time")
@@ -1063,6 +1129,16 @@ func main() {
 	case <-mcpCleanupDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("mcp: cleanup sweep did not stop in time")
+	}
+	select {
+	case <-driveWorkersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("drive: workers did not stop in time")
+	}
+	select {
+	case <-driveProposalSweepDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("drive: proposal retention sweep did not stop in time")
 	}
 	select {
 	case <-officeDone:

@@ -34,7 +34,7 @@ for (const sample of samples) {
     await expect(closing.getByRole("button")).toHaveCount(0);
     if (compact) {
       await expect(closing.getByRole("link")).toHaveCount(2);
-      await expect(closing.locator(".lovable-application, figure")).toHaveCount(0);
+      await expect(closing.locator(".final-showcase .product-demo-shell, figure")).toHaveCount(0);
       const demo = closing.locator(".final-compact-demo");
       const demoHref = sample.route.startsWith("/features/") ? "#feature-preview"
         : sample.route === "/solutions/product" ? "/features/tasks#feature-preview"
@@ -59,8 +59,8 @@ for (const sample of samples) {
       await expect(closing.getByRole("link")).toHaveCount(1);
       await expect(closing).toHaveCSS("padding-top", sample.width < 768 ? "32px" : "48px");
       await expect(closing).toHaveCSS("padding-bottom", "0px");
-      await expect(closing.locator(".lovable-application")).toHaveAttribute("inert", "");
-      await expect(closing.locator("figcaption")).toContainText(sample.locale === "en" ? "Illustrative sample data" : "Dữ liệu mẫu minh họa");
+      await expect(closing.locator(".final-showcase .product-demo-poster > div")).toHaveAttribute("inert", "");
+      await expect(closing.locator("figcaption")).toContainText(sample.locale === "en" ? "Fictional demo data" : "Dữ liệu hư cấu minh họa");
     }
     const frame = (await closing.boundingBox())!;
     const heading = (await title.boundingBox())!;

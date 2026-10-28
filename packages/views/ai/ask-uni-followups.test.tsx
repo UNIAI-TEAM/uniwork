@@ -10,7 +10,9 @@ describe("AskUniFollowups", () => {
     const onAsk = vi.fn();
     render(<ul><AskUniFollowups items={["A?", "B?"]} onAsk={onAsk} /></ul>);
     expect(screen.getAllByRole("button")).toHaveLength(2);
-    fireEvent.click(screen.getByRole("button", { name: "A?" }));
+    const btn = screen.getByRole("button", { name: "A?" });
+    expect(btn).toHaveClass("pointer-coarse:min-h-11");
+    fireEvent.click(btn);
     expect(onAsk).toHaveBeenCalledWith("A?");
   });
 

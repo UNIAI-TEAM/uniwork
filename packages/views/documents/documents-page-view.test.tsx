@@ -1629,6 +1629,59 @@ describe("DocumentsPageView", () => {
       expect(classes("type")).toBe(classes("updated"));
     });
   });
+
+  describe("legacy Office formats (.doc, .xls, .ppt)", () => {
+    it("opens LegacyFormatDialog instead of navigating when clicking a legacy row, and supports Mở bằng UniWork Office", async () => {
+      const onOpen = vi.fn();
+      const createSession = vi.fn().mockResolvedValue({
+        launch_ticket: `ticket_${"a".repeat(32)}`,
+        launch_url: `uniwork-office://open?ticket=ticket_${"a".repeat(32)}`,
+        expires_at: "2026-10-26T00:00:00Z",
+        document_id: "d-doc",
+        operation: "edit",
+        version: 1,
+      });
+      route({
+        list: () => [
+          file("d-doc", "Hợp đồng cũ.doc", { format: "doc" }),
+          file("d-docx", "Hợp đồng mới.docx", { format: "docx" }),
+        ],
+      });
+      renderView(onOpen, { desktopOpen: desktopOpenWith(createSession) });
+
+      const legacyRow = await rowOf("Hợp đồng cũ.doc");
+      fireEvent.click(within(legacyRow).getByRole("button", { name: /^(Word document|Tài liệu Word) Hợp đồng cũ\.doc/ }));
+
+      expect(onOpen).not.toHaveBeenCalled();
+      const dialog = await screen.findByRole("dialog", { name: t("office.legacy.title") });
+      expect(dialog).toBeInTheDocument();
+
+      fireEvent.click(within(dialog).getByRole("button", { name: t("office.desktop.action") }));
+      await waitFor(() => expect(createSession).toHaveBeenCalledWith("d-doc", expect.objectContaining({
+        operation: "edit",
+        deployment_id: "dep-1",
+      })));
+    });
+
+    it("opens LegacyFormatDialog instead of navigating when clicking a legacy RecentContinue card", async () => {
+      const onOpen = vi.fn();
+      route({
+        list: () => [
+          file("d-xls", "Ngân sách 2024.xls", {
+            format: "xls",
+            last_activity: { kind: "edited", at: "2026-10-25T10:00:00Z" },
+          }),
+        ],
+      });
+      renderView(onOpen, { initialUrl: `/org/${WS}/documents?view=recent` });
+
+      const continueRegion = await screen.findByRole("region", { name: t("documents.recent.continue_title") });
+      fireEvent.click(within(continueRegion).getByRole("button", { name: /Ngân sách 2024\.xls/ }));
+
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(await screen.findByRole("dialog", { name: t("office.legacy.title") })).toBeInTheDocument();
+    });
+  });
 });
 
 /* ---- helpers --------------------------------------------------------------- */

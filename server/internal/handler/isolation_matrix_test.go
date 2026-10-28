@@ -218,7 +218,9 @@ func TestIsolationMatrix(t *testing.T) {
 				continue
 			}
 			refused := func(status int, _ []byte) bool { return status >= 400 && status < 500 }
-			if c.allow2xx {
+			if c.wantAttackStatus != 0 {
+				refused = func(status int, _ []byte) bool { return status == c.wantAttackStatus }
+			} else if c.allow2xx {
 				refused = func(status int, _ []byte) bool { return status < 500 }
 			}
 			label := "references " + c.method + " " + c.pattern + " " + c.what
@@ -262,7 +264,9 @@ func TestIsolationMatrix(t *testing.T) {
 				continue
 			}
 			refused := func(status int, _ []byte) bool { return status >= 400 && status < 500 }
-			if c.allow2xx {
+			if c.wantAttackStatus != 0 {
+				refused = func(status int, _ []byte) bool { return status == c.wantAttackStatus }
+			} else if c.allow2xx {
 				refused = func(status int, _ []byte) bool { return status < 500 }
 			}
 			label := "member-of-both references " + c.method + " " + c.pattern + " " + c.what
@@ -444,6 +448,7 @@ var isoWritesLast = map[string]string{
 	"POST /api/v1/orgs/{org}/members/{userID}/deactivate":                              "it ends the peer's room memberships, which the chat member routes act on",
 	"POST /api/v1/orgs/{org}/transfer-ownership":                                       "the owner stops being one",
 	"DELETE /api/v1/workspaces/{workspaceID}/email-hub/accounts/{accountID}":           "the other Email Hub routes name the mailbox in their query",
+	"DELETE /api/v1/workspaces/{workspaceID}/drive-connections/{driveConnectionID}":    "disconnecting ends the Drive connection row other Drive routes use",
 	"DELETE /api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/{messageID}": "the thread routes name the message under a shorter path",
 }
 
@@ -501,6 +506,7 @@ var isoTenantParams = map[string]bool{
 	"{workspaceID}": true, "{orgID}": true, "{org}": true, "{taskID}": true, "{meetingID}": true,
 	"{documentID}": true, "{commentID}": true, "{attachmentID}": true, "{agentID}": true,
 	"{conversationID}": true, "{requestId}": true, "{fileID}": true,
+	"{folderID}": true,
 	// A launch receipt names a document of one organization; revoke answers
 	// 404 to every account but its creator.
 	"{launchSessionID}": true,
@@ -509,7 +515,8 @@ var isoTenantParams = map[string]bool{
 	"{lockID}": true, "{requestID}": true,
 	// An inbox row carries the organization and belongs to one person
 	// (UNI-2056): the documents route reads through it.
-	"{notificationID}": true,
+	"{notificationID}":    true,
+	"{driveConnectionID}": true, "{driveFileID}": true,
 }
 
 func isoUnclassified(routes []isoRoute) []string {
@@ -673,6 +680,9 @@ func isoParam(t *testing.T, method, pattern string, segs []string, i int, tn *is
 		}
 		return tn.get(t, "message")
 	case "{proposalID}":
+		if under("/drive-task-proposals/") {
+			return tn.get(t, "driveProposal")
+		}
 		return tn.get(t, "aiProposal")
 	case "{memoryID}":
 		return tn.get(t, "aiMemory")
@@ -756,6 +766,8 @@ func isoParam(t *testing.T, method, pattern string, segs []string, i int, tn *is
 			return tn.get(t, "restrictedDocument")
 		}
 		return tn.get(t, "document")
+	case "{folderID}":
+		return tn.get(t, "folder")
 	case "{lockID}":
 		return tn.get(t, "docEditLock")
 	case "{requestID}":
@@ -809,6 +821,9 @@ func isoParam(t *testing.T, method, pattern string, segs []string, i int, tn *is
 		}
 		return tn.get(t, "officeJob")
 	case "{batchID}":
+		if under("/contents-access/") {
+			return tn.get(t, "folderAccessBatch")
+		}
 		// The folder upload batch (UNI-2052) of the tenant's owner.
 		return tn.get(t, "folderUpload")
 	case "{fileKey}":
@@ -946,6 +961,12 @@ func isoParam(t *testing.T, method, pattern string, segs []string, i int, tn *is
 		return tn.get(t, "session")
 	case "{notificationID}":
 		return tn.get(t, "notification")
+	case "{driveConnectionID}":
+		return tn.get(t, "driveConnection")
+	case "{driveFileID}":
+		return tn.get(t, "driveFile")
+	case "{driveFolderID}":
+		return "iso-folder-" + strings.ToLower(tn.tag)
 	case "{quickActionID}", "{agentTaskID}", "{connectionID}":
 		// Stubbed routes: no row exists for anyone.
 		return "01J8X4STUB0N1P2Q3R4S5T6U7V"
@@ -1062,7 +1083,7 @@ func isoMixedPath(t *testing.T, pattern, firstKey string, from, to *isoTenant) (
 var isoSharedParams = map[string]bool{
 	"{provider}": true, "{aiProvider}": true, "{resourceType}": true, "{itemType}": true, "{versionNo}": true, "{key}": true,
 	"{code}":          true,
-	"{quickActionID}": true, "{agentTaskID}": true, "{connectionID}": true, "{nodeType}": true,
+	"{quickActionID}": true, "{agentTaskID}": true, "{connectionID}": true, "{nodeType}": true, "{driveFolderID}": true,
 }
 
 // referencesTo lists the tables in which a row of tenant `in` names one of

@@ -29,6 +29,8 @@ import {
 import {
   convertDocument,
   ConvertTypedError,
+  extractDocumentText,
+  ExtractTypedError,
   PageInputError,
   pageToDocx,
 } from "@uniwork/office-engine/convert/native";
@@ -436,6 +438,32 @@ async function exportPage(message: RunMessage): Promise<HandlerOutcome> {
   };
 }
 
+
+// ── OOXML text extraction (UNI-2185 B11) ───────────────────────────────────
+//
+// Selective reader for docx, xlsx (first sheet as CSV) and pptx (slides +
+// speaker notes). The extracted text returns inline on job.result with
+// grant.output === null; no output file is staged or uploaded.
+
+async function extractText(message: RunMessage): Promise<HandlerOutcome> {
+  if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
+  const bytes = await readFile(message.inputPath);
+  try {
+    const extracted = extractDocumentText(message.format, bytes);
+    return {
+      ok: true,
+      warnings: [],
+      result: {
+        text: extracted.text,
+        truncated: extracted.truncated,
+        format: extracted.format,
+      },
+    };
+  } catch (error) {
+    if (error instanceof ExtractTypedError) return { ok: false, code: error.code, reason: error.reason };
+    throw error;
+  }
+}
 const HANDLERS: Record<string, Handler> = {
   "serialize:md": serializeText,
   "serialize:html": serializeText,
@@ -449,6 +477,9 @@ const HANDLERS: Record<string, Handler> = {
   "convert:odt": convertLegacy,
   "export:docx": exportDocxPdf,
   "export:page": exportPage,
+  "extract_text:docx": extractText,
+  "extract_text:xlsx": extractText,
+  "extract_text:pptx": extractText,
 };
 
 /** Keys ("operation:format") this build binds; capability rows read it. */

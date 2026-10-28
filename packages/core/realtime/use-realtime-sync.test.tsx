@@ -7,6 +7,7 @@ import type { ChatRoomRecord } from "../api/endpoints/chat";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
 import { chatKeys } from "../chat/hooks";
+import { folderContentsAccessKeys } from "../documents/hooks-folder-contents-access";
 import { documentKeys } from "../documents/keys";
 import { emailHubKeys } from "../email-hub/hooks";
 import { flattenRoomTimeline, type RoomTimeline } from "../chat/room-timeline-pages";
@@ -1074,6 +1075,47 @@ describe("useRealtimeSync", () => {
         vi.useRealTimers();
       },
     );
+
+    // UNI-2244: a finished background folder access batch (ids only) marks
+    // the workspace documents and the batch-status queries stale; the frame
+    // writes nothing into the cache.
+    it("invalidates the documents root and folder contents access on document_access_batch.completed", () => {
+      vi.useFakeTimers();
+      const { qc, invalidate, client } = setup();
+      const batchKey = folderContentsAccessKeys.batch("ws1", "f1", "b1");
+      const otherWsKey = folderContentsAccessKeys.batch("ws2", "f1", "b1");
+      const status = { batch_id: "b1", status: "running" };
+      qc.setQueryData(batchKey, status);
+      qc.setQueryData(otherWsKey, status);
+      client.emit({
+        type: "document_access_batch.completed",
+        payload: { batch_id: "b1", folder_id: "f1", workspace_id: "ws1" },
+      } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).toContain(docRoot);
+      expect(keysCalled(invalidate)).toContain(JSON.stringify(folderContentsAccessKeys.all("ws1")));
+      expect(qc.getQueryState(batchKey)?.isInvalidated).toBe(true);
+      expect(qc.getQueryState(otherWsKey)?.isInvalidated).toBe(false);
+      expect(qc.getQueryData(batchKey)).toEqual(status);
+      vi.useRealTimers();
+    });
+
+    it("ignores document_access_batch.completed stamped with another workspace", () => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({
+        type: "document_access_batch.completed",
+        payload: { batch_id: "b1", folder_id: "f1", workspace_id: "ws2" },
+      } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).not.toContain(docRoot);
+      expect(keysCalled(invalidate)).not.toContain(JSON.stringify(folderContentsAccessKeys.all("ws1")));
+      vi.useRealTimers();
+    });
 
     // Templates section: marking/unmarking a template refreshes the workspace
     // root, which the templates list key hangs off. Ids only.

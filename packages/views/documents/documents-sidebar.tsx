@@ -5,6 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { FolderTree, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DocumentSourceKind } from "@uniwork/core/documents/sources-schema";
+import type { DriveFolderEntry } from "@uniwork/core/drive-library/folders";
 import {
   Sheet,
   SheetContent,
@@ -19,6 +20,8 @@ import { moduleTone, type ModuleKey } from "../layout/module-tones";
 import { AppLink } from "../navigation";
 import { DOCUMENTS_NAV_ICONS } from "./documents-nav-icons";
 import { DocumentTree } from "./document-tree";
+import { DriveSidebarSection } from "./drive/drive-sidebar-section";
+import type { DriveConnectionSummary } from "./drive/use-drive-library-connections";
 import { FolderNameDialog } from "./folder-name-dialog";
 
 /** What the library shows: a collection, or one module's files (null = every module). */
@@ -31,7 +34,8 @@ export type LibraryView =
   | { kind: "templates" }
   | { kind: "shelved" }
   | { kind: "archived" }
-  | { kind: "sources"; source: DocumentSourceKind | null };
+  | { kind: "sources"; source: DocumentSourceKind | null }
+  | { kind: "drive"; account: string | null; folder: string | null };
 
 export const SOURCE_KINDS: readonly DocumentSourceKind[] = ["chat", "meeting", "email", "task"];
 
@@ -69,6 +73,10 @@ export interface DocumentsSidebarProps {
   className?: string;
   /** A host may supply its own folder tree while reusing the collection navigation. */
   folderTree?: ReactNode;
+  /** Connected Google Drive accounts of the caller; empty/absent hides the Google Drive section. */
+  driveConnections?: readonly DriveConnectionSummary[];
+  /** "Name this folder" on an unnamed Drive folder node; absent hides the action (a host without the Picker). */
+  onNameDriveFolder?: (folder: DriveFolderEntry, connectionId: string) => void;
 }
 
 function NavItem({
@@ -78,6 +86,7 @@ function NavItem({
   count,
   current,
   disabled,
+  leadingSlot = false,
   href,
   onClick,
 }: {
@@ -89,16 +98,19 @@ function NavItem({
   count?: number | null;
   current: boolean;
   disabled?: boolean;
+  /** Reserves the 16px tree chevron slot + 4px gap so the icon sits at x = 28px. */
+  leadingSlot?: boolean;
   /** A row that opens its own page: a real link, not a view switch. */
   href?: string;
   onClick?: () => void;
 }) {
   const className = cn(
     "flex min-h-9 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-body text-foreground transition-colors hover:bg-accent/60 pointer-coarse:min-h-11",
-    current && "bg-accent font-medium",
+    current && "bg-brand-subtle font-medium text-brand-subtle-foreground hover:bg-brand-subtle",
   );
   const content = (
     <>
+      {leadingSlot ? <span aria-hidden data-chevron-placeholder className="-mr-1 size-4 shrink-0" /> : null}
       {module ? (
         <IconTile icon={MODULE_ICONS[module]} size="xs" variant="solid" tone={moduleTone(module)} />
       ) : Icon ? (
@@ -163,6 +175,8 @@ export function DocumentsSidebar({
   onNewFolder,
   className,
   folderTree,
+  driveConnections,
+  onNameDriveFolder,
 }: DocumentsSidebarProps) {
   const { t } = useTranslation();
   const [createOpen, setCreateOpen] = useState(false);
@@ -213,9 +227,17 @@ export function DocumentsSidebar({
           label={t("documents.home.my_folder.label")}
           current={false}
           disabled={myFolderPending}
+          leadingSlot
           onClick={onMyFolder}
         />
       ) : null}
+      <DriveSidebarSection
+        wsId={wsId}
+        connections={driveConnections}
+        view={view}
+        onSelect={(account, folder) => onView({ kind: "drive", account, folder })}
+        onNameFolder={onNameDriveFolder}
+      />
       {folderTree ?? <DocumentTree
         wsId={wsId}
         folders

@@ -408,6 +408,10 @@ var catalogue = []EventDef{
 	// workspace_id is the workspace of the first document the call moved (id
 	// order) so the grouped notice lands in a workspace Inbox (FE-R1-3).
 	{Topic: "document.owners_bulk_transferred", Version: 1, Payload: []string{"organization_id", "user_id", "bulk_id", "from_user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Folder bulk access (UNI-2244 §6): emitted when a background batch
+	// finishes so open clients refresh the batch progress and workspace
+	// document queries.
+	{Topic: "document_access_batch.completed", Version: 1, Payload: []string{"batch_id", "folder_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
 	// holder's own connections. revoked makes an online device lock its copy
@@ -417,6 +421,17 @@ var catalogue = []EventDef{
 	{Topic: "office_lease.renewed", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "office_lease.released", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "office_lease.revoked", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+
+	// Google Drive connector (UNI-2172, spec §11): ids only, no Patch.
+	// drive_connection.changed and drive_file.access_changed resolve user scope
+	// from payload.user_id; the rest fan out to the workspace.
+	{Topic: "drive_connection.changed", Version: 1, Payload: []string{"connection_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "drive_file.access_changed", Version: 1, Payload: []string{"drive_file_id", "workspace_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "drive_file.linked", Version: 1, Payload: []string{"drive_file_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "drive_file.task_linked", Version: 1, Payload: []string{"drive_file_id", "task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "drive_file.unlinked", Version: 1, Payload: []string{"drive_file_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "drive_file.updated", Version: 1, Payload: []string{"drive_file_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "drive_task_proposal.converted", Version: 1, Payload: []string{"proposal_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Billing (F-02). Both go to each owner/admin, one row per person, because
 	// the realtime consumer resolves user scope from payload.user_id.

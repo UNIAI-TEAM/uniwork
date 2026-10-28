@@ -261,12 +261,6 @@ func (s *TaskService) SetDependency(ctx context.Context, actor Actor, taskID str
 	if other.WorkspaceID != task.WorkspaceID || other.OrganizationID != task.OrganizationID {
 		return db.TaskDependency{}, coded(http.StatusUnprocessableEntity, "cross_workspace_reference", "phụ thuộc phải cùng workspace")
 	}
-	if depType != dependencyTypeRelated {
-		if err := s.detectDependencyCycle(ctx, task.OrganizationID, task.WorkspaceID, task.ID, dependsOnID, depType); err != nil {
-			return db.TaskDependency{}, err
-		}
-	}
-
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.TaskDependency{}, err
@@ -274,12 +268,51 @@ func (s *TaskService) SetDependency(ctx context.Context, actor Actor, taskID str
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
+	dep, err := s.setDependencyTx(ctx, q, actor, task, other, depType)
+	if err != nil {
+		return db.TaskDependency{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.TaskDependency{}, err
+	}
+	return dep, nil
+}
+
+// setDependencyTx inserts a dependency edge between two already-validated tasks
+// using the caller's transaction queries handle (UNI-2182, spec §8.5).
+func (s *TaskService) setDependencyTx(
+	ctx context.Context,
+	q *db.Queries,
+	actor Actor,
+	task, other db.Task,
+	depType string,
+) (db.TaskDependency, error) {
+	depType = strings.TrimSpace(depType)
+	if depType == "" {
+		depType = dependencyTypeBlockedBy
+	}
+	switch depType {
+	case dependencyTypeBlocks, dependencyTypeBlockedBy, dependencyTypeRelated:
+	default:
+		return db.TaskDependency{}, Invalid("type phụ thuộc không hợp lệ")
+	}
+	if other.ID == "" || other.ID == task.ID {
+		return db.TaskDependency{}, Invalid("depends_on_task_id không hợp lệ")
+	}
+	if other.WorkspaceID != task.WorkspaceID || other.OrganizationID != task.OrganizationID {
+		return db.TaskDependency{}, coded(http.StatusUnprocessableEntity, "cross_workspace_reference", "phụ thuộc phải cùng workspace")
+	}
+	if depType != dependencyTypeRelated {
+		if err := detectDependencyCycleQ(ctx, q, task.OrganizationID, task.WorkspaceID, task.ID, other.ID, depType); err != nil {
+			return db.TaskDependency{}, err
+		}
+	}
 	dep, err := q.CreateTaskDependency(ctx, db.CreateTaskDependencyParams{
 		ID:              util.NewID(),
 		OrganizationID:  task.OrganizationID,
 		WorkspaceID:     task.WorkspaceID,
 		TaskID:          task.ID,
-		DependsOnTaskID: dependsOnID,
+		DependsOnTaskID: other.ID,
 		Type:            depType,
 	})
 	if err != nil {
@@ -294,13 +327,10 @@ func (s *TaskService) SetDependency(ctx context.Context, actor Actor, taskID str
 		ResourceType: "task", ResourceID: task.ID,
 		Changes: audit.Diff(nil, map[string]any{
 			"dependency_added": map[string]any{
-				"depends_on_task_id": dependsOnID, "type": depType,
+				"depends_on_task_id": other.ID, "type": depType,
 			},
 		}),
-	}, dependencyEvents(task.WorkspaceID, task.ID, dependsOnID)...); err != nil {
-		return db.TaskDependency{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
+	}, dependencyEvents(task.WorkspaceID, task.ID, other.ID)...); err != nil {
 		return db.TaskDependency{}, err
 	}
 	return dep, nil
@@ -393,10 +423,10 @@ func (s *TaskService) detectParentCycle(ctx context.Context, taskID, newParentID
 	return coded(http.StatusUnprocessableEntity, "parent_cycle", "quan hệ cha/con tạo chu trình")
 }
 
-// detectDependencyCycle walks the "depends-on" graph after adding the candidate edge.
+// detectDependencyCycleQ walks the "depends-on" graph after adding the candidate edge.
 // blocked_by(A,B): A depends on B → edge A→B. blocks(A,B): A blocks B → edge B→A.
-func (s *TaskService) detectDependencyCycle(ctx context.Context, orgID, workspaceID, taskID, dependsOnID, depType string) error {
-	edges, err := s.q.ListTaskDependenciesInWorkspace(ctx, db.ListTaskDependenciesInWorkspaceParams{
+func detectDependencyCycleQ(ctx context.Context, q *db.Queries, orgID, workspaceID, taskID, dependsOnID, depType string) error {
+	edges, err := q.ListTaskDependenciesInWorkspace(ctx, db.ListTaskDependenciesInWorkspaceParams{
 		OrganizationID: orgID,
 		WorkspaceID:    workspaceID,
 	})
