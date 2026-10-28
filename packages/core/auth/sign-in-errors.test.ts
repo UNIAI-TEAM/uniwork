@@ -402,6 +402,11 @@ describe("readLinkResult", () => {
       tone: "error",
       key: "settings.security.signInMethods.results.takenUnknown",
     });
+    // Closing the provider's page is the person's own choice, not a failure.
+    expect(q({ sign_in_method: "google", result: "denied" })).toMatchObject({
+      tone: "info",
+      key: "settings.security.signInMethods.results.denied",
+    });
   });
 
   it("reads an unknown result as failed, and nothing when the page did not come back from a link", () => {

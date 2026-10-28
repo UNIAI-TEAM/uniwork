@@ -2008,7 +2008,7 @@
         },
         "results": {
           "linked": "Đã liên kết {{provider}}.",
-          "denied": "Bạn đã hủy liên kết {{provider}}.",
+          "denied": "Bạn đã dừng giữa chừng, {{provider}} chưa được liên kết.",
           "failed": "Chưa liên kết được {{provider}}. Thử lại.",
           "taken": "Tài khoản {{provider}} này đang được dùng cho {{masked}}. Đăng nhập vào đó và gỡ liên kết trước.",
           "takenUnknown": "Tài khoản {{provider}} này đang được dùng cho một tài khoản UniWork khác. Đăng nhập vào đó và gỡ liên kết trước.",

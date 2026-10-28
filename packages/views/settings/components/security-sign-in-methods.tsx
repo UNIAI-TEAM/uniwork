@@ -101,6 +101,7 @@ export function SignInMethodsSection() {
     handledResult.current = query;
     if (result.tone === "confirm") setMove(result);
     else if (result.tone === "success") toast.success(say(result));
+    else if (result.tone === "info") toast.info(say(result));
     else toast.error(say(result));
     const kept = new URLSearchParams(nav.searchParams);
     for (const name of LINK_RESULT_PARAMS) kept.delete(name);

@@ -2009,7 +2009,7 @@
         },
         "results": {
           "linked": "{{provider}} linked.",
-          "denied": "You cancelled linking {{provider}}.",
+          "denied": "You stopped before {{provider}} was linked.",
           "failed": "Couldn't link {{provider}}. Try again.",
           "taken": "This {{provider}} account is used by {{masked}}. Sign in there and unlink it first.",
           "takenUnknown": "This {{provider}} account is used by another UniWork account. Sign in there and unlink it first.",

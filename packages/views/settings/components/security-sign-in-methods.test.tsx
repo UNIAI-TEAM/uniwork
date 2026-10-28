@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
 import { SignInMethodsSection } from "./security-sign-in-methods";
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 initI18n();
 
@@ -61,6 +61,7 @@ beforeEach(() => {
   requestMock.mockReset();
   vi.mocked(toast.success).mockReset();
   vi.mocked(toast.error).mockReset();
+  vi.mocked(toast.info).mockReset();
   resetAuthStoreForTests();
   setSessionUser(USER);
 });
@@ -313,6 +314,13 @@ describe("SignInMethodsSection", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã liên kết Google."));
     expect(nav.replace).toHaveBeenCalledWith("/acme/team/settings?tab=security");
     expect(toast.success).toHaveBeenCalledTimes(1);
+  });
+
+  it("says a link the person stopped as news, not an error", async () => {
+    route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
+    open("/settings?tab=security&sign_in_method=google&result=denied");
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith("Bạn đã dừng giữa chừng, Google chưa được liên kết."));
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("says a refused link as an error", async () => {

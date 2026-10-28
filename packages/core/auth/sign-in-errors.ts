@@ -354,8 +354,12 @@ export const LINK_RESULT_PARAMS = ["sign_in_method", "result", "masked_email"] a
 export interface LinkResultNotice extends SignInNotice {
   provider: SignInProvider;
   result: LinkResult;
-  /** linked: a success toast; movable: open the move confirmation; the rest: an error toast. */
-  tone: "success" | "confirm" | "error";
+  /**
+   * linked: a success toast; denied (the person closed the provider's page):
+   * a neutral one, since nothing went wrong; movable: open the move
+   * confirmation; the rest: an error toast.
+   */
+  tone: "success" | "info" | "confirm" | "error";
   maskedEmail: string | null;
 }
 
@@ -380,7 +384,7 @@ export function readLinkResult(params: { get(name: string): string | null }): Li
   return {
     provider,
     result,
-    tone: result === "linked" ? "success" : result === "movable" ? "confirm" : "error",
+    tone: result === "linked" ? "success" : result === "denied" ? "info" : result === "movable" ? "confirm" : "error",
     key: unmasked ? `${RESULT_KEYS[result]}Unknown` : RESULT_KEYS[result],
     values: maskedEmail === null ? {} : { masked: maskedEmail },
     maskedEmail,
