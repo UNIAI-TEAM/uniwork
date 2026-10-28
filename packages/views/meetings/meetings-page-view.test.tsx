@@ -287,6 +287,13 @@ describe("MeetingsPageView live rows", () => {
     const before = listCalls().length;
     await vi.advanceTimersByTimeAsync(30_500);
     await waitFor(() => expect(listCalls().length).toBe(before + 1));
+    // A hidden tab does not poll.
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(listCalls().length).toBe(before + 1);
+    visibility.mockRestore();
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => expect(listCalls().length).toBe(before + 2));
     live.unmount();
 
     requestMock.mockClear();
