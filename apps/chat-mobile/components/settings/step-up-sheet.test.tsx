@@ -185,8 +185,8 @@ describe("useStepUp and the proof sheet", () => {
     jest.mocked(signInMethodsApi.sendStepUpEmailCode).mockResolvedValue(true);
     jest.mocked(stepUp).mockImplementation(holds("email_code"));
     await open({ action: "delete_account", proofs: ["email_code"] });
-    const action = viText("settings.security.stepUp.actions.delete_account");
-    expect(screen.getByText(viText("mobile.step_up.one_action_hint", { action }))).toBeOnTheScreen();
+    expect(screen.getByText(viText("settings.security.stepUp.windowHintOneAction"))).toBeOnTheScreen();
+    expect(screen.queryByText(viText("settings.security.stepUp.windowHint"))).toBeNull();
     await fireEvent.press(screen.getByTestId("step-up-send-code"));
     await settle();
     expect(signInMethodsApi.sendStepUpEmailCode).toHaveBeenCalledWith("delete_account");

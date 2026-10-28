@@ -2310,7 +2310,6 @@
       "link_unmatched": "Tài khoản {{provider}} này chưa liên kết với tài khoản UniWork nào. Đăng nhập bằng cách bạn vẫn dùng."
     },
     "step_up": {
-      "one_action_hint": "Mã này chỉ dùng được để {{action}}.",
       "unavailable": "Điện thoại này chưa xác nhận được bằng cách tài khoản của bạn dùng. Mở UniWork trên web để tiếp tục."
     },
     "sign_in_methods": {

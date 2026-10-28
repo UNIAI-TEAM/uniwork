@@ -35,7 +35,6 @@ export const SIGN_IN_ONLY = {
       link_unmatched: "Tài khoản {{provider}} này chưa liên kết với tài khoản UniWork nào. Đăng nhập bằng cách bạn vẫn dùng.",
     },
     step_up: {
-      one_action_hint: "Mã này chỉ dùng được để {{action}}.",
       unavailable: "Điện thoại này chưa xác nhận được bằng cách tài khoản của bạn dùng. Mở UniWork trên web để tiếp tục.",
     },
     sign_in_methods: {
@@ -72,7 +71,6 @@ export const SIGN_IN_ONLY = {
       link_unmatched: "This {{provider}} account isn't linked to any UniWork account yet. Log in the way you usually do.",
     },
     step_up: {
-      one_action_hint: "This code only lets you {{action}}.",
       unavailable: "This phone can't confirm it's you the way your account does. Open UniWork on the web to continue.",
     },
     sign_in_methods: {

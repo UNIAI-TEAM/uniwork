@@ -8,6 +8,7 @@
 // mailed live in the ask (use-step-up.ts), not here: the sheet the app lock put away comes back on the same proof.
 import { useQuery } from "@tanstack/react-query";
 import type { StepUpAction, StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { stepUpWindowHintKey } from "@uniwork/core/auth/step-up";
 import { paths } from "@uniwork/core/paths/paths";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useRef, useState } from "react";
@@ -218,7 +219,8 @@ function StepUpBody({ ask, onBusy, onDone, onProgress }: BodyProps) {
       )}
       {proof && !picking ? (
         <Text className="text-footnote leading-[18px] text-muted-foreground">
-          {proof === "email_code" ? t("mobile.step_up.one_action_hint", { action }) : t("settings.security.stepUp.windowHint")}
+          {/* A token a mailed code buys serves this one command; any other proof's, ten minutes of them. */}
+          {t(stepUpWindowHintKey(proof))}
         </Text>
       ) : null}
       <View className="flex-row flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
