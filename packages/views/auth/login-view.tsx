@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, Info } from "lucide-react";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useLogin } from "@uniwork/core/auth";
 import { loginRedirectErrorKey } from "@uniwork/core/auth/sign-in-errors";
@@ -223,10 +223,12 @@ export function LoginView({
           </p>
         ) : null}
         {/* Above the provider buttons it is about, and blaming no field:
-            no field was used. */}
+            no field was used. A cancel is news, not a failure, but it keeps a
+            glyph: a bare muted band the width of the inputs read as a
+            read-only field. */}
         {redirectKey ? (
           <Alert variant={cancelled ? "muted" : "destructiveSoft"} role={cancelled ? "status" : "alert"}>
-            {cancelled ? null : <CircleAlert aria-hidden />}
+            {cancelled ? <Info aria-hidden /> : <CircleAlert aria-hidden />}
             <AlertDescription className="text-pretty">{t(redirectKey)}</AlertDescription>
           </Alert>
         ) : null}

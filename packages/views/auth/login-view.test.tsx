@@ -186,7 +186,10 @@ describe("LoginView", () => {
     ["apple_denied", "Bạn đã hủy đăng nhập Apple."],
   ])("says a cancelled provider sign-in (%s) as a status, not an alarm", (code, sentence) => {
     render(wrap(<LoginView onSuccess={() => {}} redirectError={code} />));
-    expect(screen.getByRole("status")).toHaveTextContent(sentence);
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent(sentence);
+    // A glyph keeps the quiet band from reading as a read-only field.
+    expect(notice.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
