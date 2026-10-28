@@ -662,6 +662,12 @@ database and never reveal whether an id exists to a non-member.
   `TestTheLastSignInMethodCannotBeRemoved`, `TestARelayAccountKeepsApple`, `TestPasswordChangeRevokesEveryOtherSession`,
   `TestSignInMethodCommandsJudgeTheBearerUnderTheLock`, `TestSessionsOpenedDuringARevocationDoNotOutliveIt` and
   `TestLinkStartNeedsTheSameBrowserSession` hold it.
+- On the web, every command that sends the held step-up token runs through `useStepUpGate()` in
+  `packages/views/settings/components/step-up-proof.tsx`, the one "Xác nhận là bạn" dialog: a held token is spent
+  before anyone is asked, and `proof_required` asks once more on the proofs the server names. The commands are the
+  core hooks whose body reads `stepUpToken()` or `withTransferProof()`; `packages/views/step-up-gate.test.ts` lists
+  them and fails on a screen that calls one without the gate, itself or through a module it imports (the invite
+  screens, through `SwitchWizard`).
 - A revoke of a user's sessions goes through one of two helpers in `server/internal/service/desktop_auth.go`, which
   take the locks in one order (device rows, then refresh tokens, pushes, offline leases): `revokeAllUserSessions`
   for every session, `revokeOtherUserSessions` for all but the caller's (its device family kept whole), which
