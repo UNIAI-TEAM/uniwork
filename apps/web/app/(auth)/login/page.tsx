@@ -30,10 +30,10 @@ export default function LoginPage() {
   useDropProviderHint(searchParams.has("provider"));
   const { status, user } = useSession();
   const goAfterLogin = useCallback(
-    async (u: AuthGateUser) => {
+    async (u: AuthGateUser, to: string | null = next) => {
       const workspaces = await api.workspaces.list().catch(() => []);
       // `next` rides through the gate steps the user still owes.
-      push(await resolveDestination(u, workspaces, next));
+      push(await resolveDestination(u, workspaces, to));
     },
     [next, push, resolveDestination],
   );
@@ -52,7 +52,8 @@ export default function LoginPage() {
       reason={reason}
       initialMfa={initialMfa}
       link={link}
-      onSuccess={(sess) => goAfterLogin(sess.user)}
+      fromReset={searchParams.get("reset") === "1"}
+      onSuccess={(sess, to) => goAfterLogin(sess.user, to)}
     />
   );
   return hint ? (

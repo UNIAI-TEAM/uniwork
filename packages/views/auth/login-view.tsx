@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleAlert, Info } from "lucide-react";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
-import { useLogin } from "@uniwork/core/auth";
+import { forgetLinkReset, linkResetIntent, linkResetServes, useDiscardSignInTicket, useLogin } from "@uniwork/core/auth";
 import { loginRedirectErrorKey } from "@uniwork/core/auth/sign-in-errors";
 import { paths } from "@uniwork/core/paths";
 import { isMFAChallenge, type SessionResponse } from "@uniwork/core/types";
@@ -50,8 +50,10 @@ export function LoginView({
   reason,
   initialMfa = false,
   link = false,
+  fromReset = false,
 }: {
-  onSuccess: (sess: SessionResponse) => void;
+  /** `to`, when given, replaces `next`: the sign-in is no longer about linking. */
+  onSuccess: (sess: SessionResponse, to?: string | null) => void;
   /** Same-origin path to return to after any sign-in; forwarded to the providers and to register too. */
   next?: string | null;
   /**
@@ -69,9 +71,17 @@ export function LoginView({
    * other provider, the second factor) and `next` is the link step.
    */
   link?: boolean;
+  /**
+   * `/login?reset=1`: a reset in link mode met the account's second factor,
+   * which finishes here. The account it opens links the pending sign-in
+   * only if the reset was asked for it (spec §4.4), as the reset page checks
+   * without a second factor.
+   */
+  fromReset?: boolean;
 }) {
   const { t } = useTranslation();
   const login = useLogin();
+  const discard = useDiscardSignInTicket();
   const announce = useSessionNotices();
   const pending = usePendingLink(link);
   const pendingProvider = useProviderName(pending?.provider);
@@ -110,6 +120,20 @@ export function LoginView({
   // Whatever the answer asks to be said once (a provider that waited and was
   // not linked) is said on the way to the next screen.
   const finish = (sess: SessionResponse) => {
+    if (fromReset && link) {
+      const intent = linkResetIntent();
+      forgetLinkReset();
+      // Someone else's reset left a pending sign-in in this browser: it is
+      // not this account's to link. Dropped before going on, past the link step.
+      if (!linkResetServes(intent, sess.user.email)) {
+        announce(sess);
+        void discard
+          .mutateAsync()
+          .catch(() => undefined)
+          .then(() => onSuccess(sess, pastLinkStep(next)));
+        return;
+      }
+    }
     announce(sess, pending?.provider);
     onSuccess(sess);
   };

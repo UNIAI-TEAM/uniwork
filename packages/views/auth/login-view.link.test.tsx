@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
-import { resetAuthStoreForTests } from "@uniwork/core/auth";
+import { forgetLinkReset, linkResetIntent, rememberLinkReset, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
@@ -34,10 +34,15 @@ function route(map: Record<string, Answer>) {
 }
 const sent = (path: string) => requestMock.mock.calls.find(([p]) => p === path)?.[1] as { body?: unknown } | undefined;
 
-function open(props: { initialMfa?: boolean } = {}) {
+function open(props: { initialMfa?: boolean; fromReset?: boolean } = {}) {
   const nav = fakeNav(`/login?next=${encodeURIComponent(LINK_STEP)}&link=1`);
   const onSuccess = vi.fn();
-  render(wrapWithNav(<LoginView next={LINK_STEP} link onSuccess={onSuccess} initialMfa={props.initialMfa} />, nav));
+  render(
+    wrapWithNav(
+      <LoginView next={LINK_STEP} link onSuccess={onSuccess} initialMfa={props.initialMfa} fromReset={props.fromReset} />,
+      nav,
+    ),
+  );
   return { nav, onSuccess };
 }
 
@@ -99,6 +104,42 @@ describe("LoginView link mode", () => {
     route({ "GET /api/v1/auth/sign-in-ticket": TICKET, "GET /api/v1/auth/providers": PROVIDERS });
     open({ initialMfa: true });
     expect(await screen.findByText("Đăng nhập vào tài khoản UniWork của bạn để liên kết Google.")).toBeInTheDocument();
+  });
+
+  // A reset in link mode whose account has a second factor (spec §4.4): the
+  // code comes here, and the account it opens is checked against the reset
+  // this browser asked for, as the reset page checks it without one.
+  async function finishResetFactor(intentFor: string) {
+    forgetLinkReset();
+    rememberLinkReset(intentFor);
+    route({
+      "GET /api/v1/auth/sign-in-ticket": TICKET,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "POST /api/v1/auth/mfa/verify": SESSION,
+      "DELETE /api/v1/auth/sign-in-ticket": undefined,
+    });
+    const opened = open({ initialMfa: true, fromReset: true });
+    fireEvent.change(await screen.findByLabelText("Mã xác thực"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
+    await waitFor(() => expect(opened.onSuccess).toHaveBeenCalled());
+    return opened;
+  }
+
+  it("goes on to link after a reset's second factor when the reset was asked for this account", async () => {
+    const { onSuccess } = await finishResetFactor("An@Company.vn");
+    expect(onSuccess.mock.calls[0]).toHaveLength(1);
+    expect(requestMock.mock.calls.some(([, o]) => (o as { method?: string } | undefined)?.method === "DELETE")).toBe(false);
+    expect(linkResetIntent()).toBeNull();
+  });
+
+  it("drops the pending sign-in when a reset's second factor opened another account than the one asked for", async () => {
+    const { onSuccess } = await finishResetFactor("x@company.vn");
+    await waitFor(() =>
+      expect(requestMock.mock.calls.filter(([p, o]) => p === "/api/v1/auth/sign-in-ticket" && (o as { method?: string })?.method === "DELETE")).toHaveLength(1),
+    );
+    // On past the link step, to where the person was going.
+    expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ user: expect.objectContaining({ id: "u1" }) }), NEXT);
+    expect(linkResetIntent()).toBeNull();
   });
 
   it("drops the pending sign-in and the link mode on Không liên kết", async () => {

@@ -8,15 +8,16 @@ const state = vi.hoisted(() => ({
   uniChat: false,
   login: null as Record<string, unknown> | null,
   handoff: null as Record<string, unknown> | null,
+  push: vi.fn(),
 }));
 vi.mock("@uniwork/core/auth", () => ({ useSession: () => ({ status: "anon", user: null }) }));
 vi.mock("@uniwork/core", () => ({ api: { workspaces: { list: async () => [] } } }));
 vi.mock("@uniwork/views/navigation", () => ({
-  useNavigation: () => ({ searchParams: new URLSearchParams(state.search), push: vi.fn() }),
+  useNavigation: () => ({ searchParams: new URLSearchParams(state.search), push: state.push }),
 }));
 vi.mock("@uniwork/views/auth/post-auth-redirect", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@uniwork/views/auth/post-auth-redirect")>()),
-  useLoggedInDestination: () => async () => "/workspaces",
+  useLoggedInDestination: () => async (_user: unknown, _workspaces: unknown, next?: string | null) => next ?? "/workspaces",
 }));
 vi.mock("@uniwork/views/auth/login-view", () => ({
   LoginView: (props: Record<string, unknown>) => {
@@ -42,6 +43,7 @@ beforeEach(() => {
   state.uniChat = false;
   state.login = null;
   state.handoff = null;
+  state.push.mockReset();
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -111,4 +113,22 @@ it("keeps link mode when a provider's second factor sends the browser back witho
   const linkStep = encodeURIComponent("/auth/continue?step=link");
   await open(`mfa=1&next=${linkStep}`);
   expect(state.login).toMatchObject({ link: true, initialMfa: true, next: "/auth/continue?step=link" });
+});
+
+it("tells the form a reset sent it, and goes where the form says once it is no longer about linking", async () => {
+  const linkStep = "/auth/continue?step=link&next=%2Finvite%2Ft1";
+  await open(`mfa=1&reset=1&next=${encodeURIComponent(linkStep)}&link=1`);
+  expect(state.login).toMatchObject({ fromReset: true, link: true, initialMfa: true });
+  const onSuccess = state.login?.onSuccess as (sess: unknown, to?: string | null) => void;
+  const user = { id: "u1", email: "y@co.vn" };
+  await act(async () => {
+    onSuccess({ user }, "/invite/t1");
+  });
+  expect(state.push).toHaveBeenLastCalledWith("/invite/t1");
+  await act(async () => {
+    onSuccess({ user });
+  });
+  expect(state.push).toHaveBeenLastCalledWith(linkStep);
+  await open(NEXT);
+  expect(state.login).toMatchObject({ fromReset: false });
 });

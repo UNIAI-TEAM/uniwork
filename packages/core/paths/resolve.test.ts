@@ -215,6 +215,10 @@ describe("paths", () => {
     expect(paths.login({ mfa: true, link: true, next: linkStep })).toBe(
       `/login?mfa=1&next=${encodeURIComponent(linkStep)}&link=1`,
     );
+    // ...and says it came from a reset, whose account the code is checked against.
+    expect(paths.login({ mfa: true, reset: true, link: true, next: linkStep })).toBe(
+      `/login?mfa=1&reset=1&next=${encodeURIComponent(linkStep)}&link=1`,
+    );
     expect(paths.register({ next: "/invite/t1" })).toBe("/register?next=%2Finvite%2Ft1");
     expect(paths.verify({ next: "/x" })).toBe("/verify?next=%2Fx");
     expect(paths.onboarding({ next: "/x" })).toBe("/onboarding?next=%2Fx");

@@ -145,7 +145,7 @@ describe("ResetPasswordView with a pending link (spec §4.4)", () => {
     fillMatchingPasswords();
     fireEvent.click(screen.getByRole("button", { name: "Đổi mật khẩu" }));
     await waitFor(() =>
-      expect(nav.push).toHaveBeenCalledWith(`/login?mfa=1&next=${encodeURIComponent("/auth/continue?step=link")}&link=1`),
+      expect(nav.push).toHaveBeenCalledWith(`/login?mfa=1&reset=1&next=${encodeURIComponent("/auth/continue?step=link")}&link=1`),
     );
   });
 

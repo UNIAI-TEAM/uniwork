@@ -41,7 +41,9 @@ export const paths = {
    * goes on to that provider once, and drops it from the URL. `error` is
    * why a sign-in came back without a session, as the server's redirects
    * say it (spec §3.4). `mfa` opens on the second factor a cookie carries
-   * (a password reset on an account that has one).
+   * (a password reset on an account that has one); `reset` says that reset
+   * was in link mode, so the account the code opens links only if the reset
+   * was asked for it.
    */
   login: (
     opts: {
@@ -50,10 +52,12 @@ export const paths = {
       provider?: SignInProvider | null;
       error?: LoginRedirectError;
       mfa?: boolean;
+      reset?: boolean;
     } = {},
   ) =>
     withQuery("/login", {
       mfa: opts.mfa ? "1" : null,
+      reset: opts.reset ? "1" : null,
       next: opts.next,
       link: opts.link ? "1" : null,
       provider: opts.provider,

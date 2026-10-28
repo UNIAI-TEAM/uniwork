@@ -81,10 +81,12 @@ export function ResetPasswordView({
       { token, password, keepSignInTicket },
       {
         // MFA on: the challenge is in the cookie; the login page finishes
-        // it, still linking when a link waits.
+        // it, still linking when a link waits, and only into the account
+        // this reset was asked for (`reset`), which it checks once the code
+        // says who that is.
         onSuccess: (out) => {
           if (isMFAChallenge(out)) {
-            push(paths.login({ mfa: true, link: linkStep !== null, next: linkStep }));
+            push(paths.login({ mfa: true, link: linkStep !== null, reset: linkStep !== null, next: linkStep }));
             return;
           }
           forgetLinkReset();

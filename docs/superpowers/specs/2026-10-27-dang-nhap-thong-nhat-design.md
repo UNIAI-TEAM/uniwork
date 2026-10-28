@@ -739,7 +739,9 @@ gặp MFA thì server trả về `/login?mfa=1&next=<bước liên kết>` khôn
 `next`. Link reset trong mail không mang `next`; ở chế độ liên kết, trang quên mật khẩu nhớ (qua `StorageAdapter`, 15 phút
 như vé) địa chỉ đã gửi reset. Chỉ khi có điều đó trang reset mới hỏi `GET /auth/sign-in-ticket`, chờ câu trả lời rồi mới
 gửi (bấm sớm thì chờ), gửi `keep_sign_in_ticket` khi còn vé, và chỉ về `/auth/continue?step=link` khi reset mở đúng địa
-chỉ đó; địa chỉ khác thì xoá vé và đi tiếp như reset thường (bật MFA: `/login?mfa=1&link=1&next=` bước đó). Không có điều
+chỉ đó; địa chỉ khác thì xoá vé và đi tiếp như reset thường. Bật MFA thì `/login?mfa=1&reset=1&link=1&next=` bước đó, và
+trang đăng nhập so địa chỉ đó với tài khoản mà mã mở, như trang reset: khác thì xoá vé và đi tiếp qua bước liên kết. Điều
+đã nhớ bị quên khi reset xong (cả nhánh MFA), khi đăng xuất, và khi đọc thấy nó quá hạn hay hỏng. Không có điều
 đó thì trang reset không đọc, không giữ vé nào: vé người khác bỏ lại trong trình duyệt không bao giờ được liên kết. Vé `link_required` điền sẵn email của tài khoản
 (trừ email ẩn của Apple) và đưa focus tới mật khẩu. "Đăng ký" ở chế độ này đi tới `next` của bước liên kết, vì đăng ký
 xoá vé.
