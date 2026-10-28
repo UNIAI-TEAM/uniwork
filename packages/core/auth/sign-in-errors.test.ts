@@ -1,29 +1,53 @@
+import i18next from "i18next";
 import { describe, expect, it } from "vitest";
+import { STEP_UP_PROOFS, type SignInProvider } from "../api/endpoints/sign-in-schemas";
 import { ApiError } from "../api/http";
 import en from "../i18n/locales/en.json";
 import vi from "../i18n/locales/vi.json";
 import {
   LINK_RESULTS,
   LOGIN_REDIRECT_ERRORS,
-  linkSkippedKey,
+  linkSkippedNotice,
   loginRedirectErrorKey,
+  providerNameKey,
   readLinkResult,
   readSignInFailure,
   retryPhrase,
   secondsUntil,
+  sentenceValues,
   type SignInContext,
 } from "./sign-in-errors";
+import { stepUpWindowHintKey } from "./step-up";
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 
-/** The string at a dotted key, plural forms included (i18next picks _one/_other for a count). */
-function has(dict: unknown, key: string, plural = false): boolean {
+/** The strings at a dotted key: both plural forms when `plural` (i18next picks _one/_other for a count). */
+function strings(dict: unknown, key: string, plural = false): string[] {
   const parts = key.split(".");
   const last = parts.pop() ?? "";
   let node: unknown = dict;
   for (const part of parts) node = isObject(node) ? node[part] : undefined;
-  if (!isObject(node)) return false;
-  return plural ? typeof node[`${last}_one`] === "string" && typeof node[`${last}_other`] === "string" : typeof node[last] === "string";
+  if (!isObject(node)) return [];
+  const leaves = plural ? [node[`${last}_one`], node[`${last}_other`]] : [node[last]];
+  return leaves.every((leaf) => typeof leaf === "string") ? (leaves as string[]) : [];
+}
+
+/** The {{vars}} a string interpolates (`{{count}}`, `{{masked}}`, `{{ provider }}`). */
+function varsOf(text: string): string[] {
+  return [...text.matchAll(/\{\{\s*([\w.]+)[^}]*\}\}/g)].map((m) => m[1] ?? "");
+}
+
+/** The real i18next the hosts use, over both dictionaries. */
+function i18n() {
+  const instance = i18next.createInstance();
+  void instance.init({
+    lng: "vi",
+    resources: { vi: { translation: vi }, en: { translation: en } },
+    interpolation: { escapeValue: false },
+    compatibilityJSON: "v4",
+    initAsync: false,
+  });
+  return instance;
 }
 
 const api = (code: string, status: number, fields?: Record<string, unknown>, retryAfterSeconds?: number) =>
@@ -40,30 +64,88 @@ const CODES = [
   "mfa_code_incorrect", "step_up_code_incorrect", "invalid_request", "something_new",
 ];
 
-describe("every key the tables name exists in both locales", () => {
-  it("for every code in every context, masked or not, and every retry phrase", () => {
-    const missing: string[] = [];
-    const check = (key: string, plural = false) => {
-      if (!has(vi, key, plural)) missing.push(`vi ${key}`);
-      if (!has(en, key, plural)) missing.push(`en ${key}`);
+describe("no sentence ever shows a raw {{var}}", () => {
+  const PROVIDERS: SignInProvider[] = ["google", "apple"];
+  // A translator that only proves the provider's name was asked for.
+  const name = (key: string) => `<${key}>`;
+
+  it("every key the tables, the notices and the hints return exists in both locales and gets every value it interpolates", () => {
+    const problems: string[] = [];
+    const say = (where: string, key: string, values: Record<string, unknown>, plural = false) => {
+      for (const [lng, dict] of [["vi", vi], ["en", en]] as const) {
+        const texts = strings(dict, key, plural);
+        if (texts.length === 0) problems.push(`${lng} ${key}: missing (${where})`);
+        for (const text of texts) {
+          for (const v of varsOf(text)) if (values[v] === undefined) problems.push(`${lng} ${key}: {{${v}}} not supplied (${where})`);
+        }
+      }
     };
     for (const context of CONTEXTS) {
       for (const code of CODES) {
-        check(readSignInFailure(api(code, 400), context).key);
-        check(readSignInFailure(api(code, 409, { masked_email: "a•••@x.vn" }), context).key);
+        const errors = [
+          api(code, 400),
+          api(code, 409, { masked_email: "a•••@x.vn" }),
+          api(code, 429),
+          api(code, 429, { retry_after: 30 }),
+          api(code, 429, { retry_after: 7200 }),
+        ];
+        for (const err of errors) {
+          const failure = readSignInFailure(err, context);
+          const where = `${context} ${code} ${err.status}`;
+          say(where, failure.key, sentenceValues(failure, name));
+          if (failure.retry) {
+            const { key, count } = failure.retry;
+            say(where, key, count === undefined ? {} : { count }, count !== undefined);
+          }
+        }
       }
     }
-    for (const code of LOGIN_REDIRECT_ERRORS) check(loginRedirectErrorKey(code)!);
-    for (const result of LINK_RESULTS) {
-      check(readLinkResult(new URLSearchParams({ sign_in_method: "google", result }))!.key);
-      check(readLinkResult(new URLSearchParams({ sign_in_method: "google", result, masked_email: "a•••@x.vn" }))!.key);
+    for (const code of LOGIN_REDIRECT_ERRORS) say(code, loginRedirectErrorKey(code)!, {});
+    for (const provider of PROVIDERS) {
+      say(provider, providerNameKey(provider), {});
+      for (const result of [...LINK_RESULTS, "exploded"]) {
+        for (const masked of [{}, { masked_email: "a•••@x.vn" }] as Record<string, string>[]) {
+          const notice = readLinkResult(new URLSearchParams({ sign_in_method: provider, result, ...masked }))!;
+          say(`${provider} ${result}`, notice.key, sentenceValues(notice, name));
+        }
+      }
+      const skipped = linkSkippedNotice("sign_in_method_taken", provider)!;
+      say(`skipped ${provider}`, skipped.key, sentenceValues(skipped, name));
     }
-    check(linkSkippedKey("x")!);
-    check(linkSkippedKey("x", "apple")!);
-    check(retryPhrase(null).key);
-    check(retryPhrase(5).key, true);
-    check(retryPhrase(900).key, true);
-    expect(missing).toEqual([]);
+    const skipped = linkSkippedNotice("sign_in_method_taken")!;
+    say("skipped", skipped.key, sentenceValues(skipped, name));
+    for (const method of [...STEP_UP_PROOFS, null]) say(`hint ${method}`, stepUpWindowHintKey(method), {});
+    expect(problems).toEqual([]);
+  });
+
+  it("renders with the host's own t: the provider named in each language, nothing left raw", () => {
+    const instance = i18n();
+    const tVi = instance.getFixedT("vi");
+    const tEn = instance.getFixedT("en");
+    const movable = readLinkResult(new URLSearchParams({ sign_in_method: "apple", result: "movable", masked_email: "a•••@icloud.com" }))!;
+    expect(tEn(movable.key, sentenceValues(movable, tEn))).toBe("This Apple account is used by an empty account, a•••@icloud.com.");
+    expect(tVi(movable.key, sentenceValues(movable, tVi))).toBe("Apple này đang dùng cho tài khoản trống a•••@icloud.com.");
+    const skipped = linkSkippedNotice("sign_in_method_taken", "google")!;
+    expect(tEn(skipped.key, sentenceValues(skipped, tEn))).toBe(
+      "You're signed in, but Google couldn't be linked. Try again in Settings › Security.",
+    );
+    const failure = readSignInFailure(api("sign_in_method_taken", 409, { masked_email: "a•••@x.vn" }), "methods");
+    expect(tVi(failure.key, sentenceValues(failure, tVi))).not.toMatch(/\{\{/);
+  });
+
+  it("completes only what a sentence names: no provider, no name asked for", () => {
+    const asked: string[] = [];
+    const spy = (key: string) => {
+      asked.push(key);
+      return key;
+    };
+    expect(sentenceValues(readSignInFailure(api("sign_in_method_taken", 409)), spy)).toEqual({});
+    expect(sentenceValues(linkSkippedNotice("x")!, spy)).toEqual({});
+    expect(asked).toEqual([]);
+    expect(sentenceValues({ provider: "apple", values: { masked: "a•••@x.vn" } }, spy)).toEqual({
+      masked: "a•••@x.vn",
+      provider: "auth.social.provider.apple",
+    });
   });
 });
 
@@ -286,12 +368,16 @@ describe("the /login ?error= codes", () => {
   });
 });
 
-describe("linkSkippedKey", () => {
+describe("linkSkippedNotice", () => {
   it("says so only when something was skipped, naming the provider when known", () => {
-    expect(linkSkippedKey(undefined)).toBeNull();
-    expect(linkSkippedKey("")).toBeNull();
-    expect(linkSkippedKey("sign_in_method_taken")).toBe("auth.social.linkSkipped.generic");
-    expect(linkSkippedKey("link_required", "apple")).toBe("auth.social.linkSkipped.withProvider");
+    expect(linkSkippedNotice(undefined)).toBeNull();
+    expect(linkSkippedNotice("")).toBeNull();
+    expect(linkSkippedNotice("sign_in_method_taken")).toEqual({ key: "auth.social.linkSkipped.generic", provider: null, values: {} });
+    expect(linkSkippedNotice("link_required", "apple")).toEqual({
+      key: "auth.social.linkSkipped.withProvider",
+      provider: "apple",
+      values: {},
+    });
   });
 });
 

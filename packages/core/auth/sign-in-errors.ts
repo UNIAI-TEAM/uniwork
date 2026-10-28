@@ -12,6 +12,8 @@ import { maskedEmailOf } from "./sign-in-rules";
  * TransportError by their fields, and never imports any of them.
  *
  * An unknown code never throws: it reads as the context's generic sentence.
+ * Every sentence renders as `t(key, sentenceValues(x, t))`: a failure's
+ * interpolates only {{masked}}, a notice's also the {{provider}} it names.
  */
 
 /** Where the failure happened; a code can mean different things in two places (invalid_credentials). */
@@ -297,10 +299,49 @@ export function loginRedirectErrorKey(code: string | null | undefined): string |
   return LOGIN_REDIRECT_ERRORS.some((known) => known === code) ? `${SOCIAL}.${code}` : null;
 }
 
+/**
+ * A sentence to say once (a toast, a banner): its key, the masked address it
+ * may name, and the provider its {{provider}} names. Render it with
+ * sentenceValues, which completes the provider's name.
+ */
+export interface SignInNotice {
+  key: string;
+  /** The provider the sentence names; null when it names none. */
+  provider: SignInProvider | null;
+  values: { masked?: string };
+}
+
 /** POST /auth/mfa/verify's `link_skipped`: signed in, but the pending provider was not linked. */
-export function linkSkippedKey(code: string | null | undefined, provider?: SignInProvider | null): string | null {
+export function linkSkippedNotice(code: string | null | undefined, provider?: SignInProvider | null): SignInNotice | null {
   if (!code) return null;
-  return provider ? "auth.social.linkSkipped.withProvider" : "auth.social.linkSkipped.generic";
+  return provider
+    ? { key: "auth.social.linkSkipped.withProvider", provider, values: {} }
+    : { key: "auth.social.linkSkipped.generic", provider: null, values: {} };
+}
+
+/** The i18n key of a provider's name (a brand, but it still goes through t()). */
+export function providerNameKey(provider: SignInProvider): string {
+  return `auth.social.provider.${provider}`;
+}
+
+/** Everything a sentence of this file interpolates (a type, not an interface: it is a t() options object). */
+export type SignInSentenceValues = {
+  masked?: string;
+  provider?: string;
+};
+
+/**
+ * The complete values of a notice's or a failure's sentence: its own, and
+ * {{provider}} named through `translate` (the host's t). Render
+ * `t(x.key, sentenceValues(x, t))`. No key this file returns interpolates
+ * anything else (a `wait`'s retry phrase takes its own `count`), so no
+ * surface shows a raw {{var}}; sign-in-errors.test.ts walks every key.
+ */
+export function sentenceValues(
+  sentence: { provider?: SignInProvider | null; values: { masked?: string } },
+  translate: (key: string) => string,
+): SignInSentenceValues {
+  return sentence.provider ? { ...sentence.values, provider: translate(providerNameKey(sentence.provider)) } : { ...sentence.values };
 }
 
 /** The `?result=` a link from Settings comes back with (spec §3.4); anything unknown reads as failed. */
@@ -310,13 +351,11 @@ export type LinkResult = (typeof LINK_RESULTS)[number];
 /** The query parameters a link from Settings adds; the page drops them once it has read them. */
 export const LINK_RESULT_PARAMS = ["sign_in_method", "result", "masked_email"] as const;
 
-export interface LinkResultNotice {
+export interface LinkResultNotice extends SignInNotice {
   provider: SignInProvider;
   result: LinkResult;
   /** linked: a success toast; movable: open the move confirmation; the rest: an error toast. */
   tone: "success" | "confirm" | "error";
-  key: string;
-  values: { masked?: string };
   maskedEmail: string | null;
 }
 

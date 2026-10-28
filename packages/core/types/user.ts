@@ -50,7 +50,7 @@ export const SessionResponseSchema = z.object({
   /**
    * Only from POST /auth/mfa/verify (ADR 0047): signed in, but the provider
    * the challenge waited to link was not linked; the code says why
-   * (auth/sign-in-errors.ts linkSkippedKey). Absent when nothing was skipped.
+   * (auth/sign-in-errors.ts linkSkippedNotice). Absent when nothing was skipped.
    */
   link_skipped: z.string().optional().catch(undefined),
   /**
