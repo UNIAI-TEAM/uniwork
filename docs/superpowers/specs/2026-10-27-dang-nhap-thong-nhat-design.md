@@ -638,7 +638,8 @@ vùng kéo cửa sổ).
 
 - Một bảng mã → khoá i18n `auth.social.errors.<mã>` thay `GOOGLE_ERRORS`/`replace("google_", "")`; mã lạ bị bỏ qua.
   Alert cấp form, trên các nút nhà cung cấp: người dùng tự hủy ở nhà cung cấp (`google_denied`, `apple_denied`) là
-  `Alert` muted `role=status`, mã khác là `destructiveSoft` `role=alert`. `AuthCallbackView` nói "Đang đăng nhập…"; tới
+  `Alert` muted `role=status` có biểu tượng `Info` (không có thì dải xám rộng bằng ô nhập trông như một ô chỉ đọc), mã khác là
+  `destructiveSoft` `role=alert`. `AuthCallbackView` nói "Đang đăng nhập…"; tới
   đó mà không có phiên → `/login?error=sign_in_failed`.
   `reclaimed=1` → toast một lần "Đã lấy lại tài khoản. Mật khẩu cũ, đặt khi email chưa được xác minh, đã bị xóa."
 - `next` sống qua `/verify` và `/onboarding`: trang đăng ký, xác minh và onboarding đọc và chuyển tiếp `next`, rồi đi
@@ -664,7 +665,7 @@ vùng kéo cửa sổ).
 
 Trạng thái và lời:
 
-- **Đang tải**: skeleton đúng hình khối danh tính và các lựa chọn.
+- **Đang tải**: skeleton đúng hình khối danh tính, các lựa chọn và dòng điều khoản dưới chúng.
 - **Không có vé / hết hạn**: "Lượt đăng nhập bằng {{provider}} đã hết hạn." + nút "Thử lại" (về `/login?next=`).
 - **`kind=unmatched`**: tiêu đề "Tiếp tục với {{provider}}"; khối danh tính (dấu nhà cung cấp trong ô 40 px, tên, email;
   relay: "Email ẩn của Apple" thay địa chỉ). Ba lựa chọn là hàng lớn bấm được (tiêu đề + một dòng + mũi tên):
@@ -692,9 +693,10 @@ Trạng thái và lời:
   giờ loé "hết hạn". Đọc vé lỗi (mạng/5xx) → "Chưa tải được lượt đăng nhập" + câu của bảng lỗi + "Thử lại".
 - **`step=link`** (đã đăng nhập): **không tự ghi khi mở**. Hiện "Liên kết {{provider}} ({{provider_email}}) với
   {{account_email}}?" + nút "Liên kết" và "Không liên kết". Thành công → `role=status` "Đã liên kết {{provider}}. Lần sau
-  chỉ cần {{provider}}." + nút "Tiếp tục" được focus (không tự chuyển trang). Tải lại sau khi xong mà vé đã hết → coi
-  như đã xong. `sign_in_method_movable` → "{{provider}} này đang dùng cho tài khoản trống {{masked}}. Chuyển sang tài
-  khoản này?" + "Chuyển" (gửi `move: true`). `taken` → nêu email đã che và "Đăng nhập vào đó để gỡ liên kết". Mọi lỗi
+  chỉ cần {{provider}}.", khối danh tính có dấu kiểm (`CircleCheck`, tông success) + nút "Tiếp tục" được focus (không
+  tự chuyển trang). Tải lại sau khi xong mà vé đã hết → coi như đã xong. `sign_in_method_movable` → nhóm có tiêu đề
+  "Chuyển {{provider}} sang tài khoản này?" (câu hỏi chỉ hỏi một lần), câu "{{provider}} này đang dùng cho tài khoản
+  trống {{masked}}." và ghi chú tài khoản trống sẽ bị xóa + "Chuyển" (gửi `move: true`). `taken` → nêu email đã che và "Đăng nhập vào đó để gỡ liên kết". Mọi lỗi
   vẫn có "Tiếp tục". Chưa đăng nhập mà vé còn → `/login?link=1&next=<bước này>`; không còn vé → "Đã xong" + "Không còn
   gì để liên kết. Tiếp tục vào UniWork." `proof_required` → hộp bằng chứng cho `link_<provider>` (4.5) trên các cách
   `fields.proofs` nêu, rồi gửi lại một lần; đóng hộp thì câu hỏi giữ nguyên, bấm "Liên kết" là hỏi lại. Phiên đã kết
@@ -729,15 +731,18 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập
 | Google (`GoogleMark`) | email · "Đã liên kết ngày {{date}}" / "Đã liên kết" | Đã liên kết | Gỡ liên kết / Liên kết |
 | Apple (`AppleMark`) | email hay "Email ẩn của Apple" · ngày | Đã liên kết | Gỡ liên kết / Liên kết |
 
+- Hàng hẹp (điện thoại) xếp email và ngày thành hai dòng thay vì cắt ngày sau dấu "…"; hàng rộng giữ "email · ngày".
 - Nhà cung cấp chưa liên kết mà deployment không bật thì ẩn hàng (`webSignInProviders`: `google`, `apple_web`). Đang
-  tải: skeleton đúng hình hàng; đọc lỗi: `SettingsLoadError` + "Thử lại", không bao giờ hiện "Chưa đặt" thay cho lỗi.
+  tải: skeleton đúng hình hàng (trên điện thoại cũng xuống dòng như hàng thật); đọc lỗi: `SettingsLoadError` + "Thử lại", không bao giờ hiện "Chưa đặt" thay cho lỗi.
 - Gỡ phương thức cuối: `aria-disabled` + `SettingsRowReason` "Đây là cách đăng nhập duy nhất. Đặt mật khẩu hoặc liên kết
   cách khác trước." Gỡ Apple của tài khoản relay: "Email tài khoản của bạn là email ẩn của Apple, nên không gỡ liên kết Apple được."
 - **Hộp bằng chứng** (`step-up-proof.tsx`, dùng chung cho mọi lệnh nhạy cảm, kể cả bật MFA, xoá tài khoản, chuyển
   quyền): theo `proofs` — ô mật khẩu (kèm "Quên mật khẩu?"), ô "Mã từ ứng dụng xác thực", hay "Gửi mã tới {{email}}" +
   ô mã; có "Dùng cách khác" khi có hơn một cách. Gọi `/me/step-up` trước, giữ `step_up_token` trong bộ nhớ 10 phút
   (lệnh tiếp theo trong cửa sổ đó không hỏi lại; token mua bằng mã email chỉ dùng cho đúng việc đó, nên dòng gợi ý theo
-  cách xác nhận: `stepUpWindowHintKey`). Lỗi dưới ô, focus trả về ô. Mã email: trước khi gửi, nút "Gửi mã tới {{email}}"
+  cách xác nhận: `stepUpWindowHintKey`). Hộp mở với focus ở ô của cách xác nhận (hay nút "Gửi mã tới…"), không ở link
+  "Quên mật khẩu?" đứng trước ô; "Dùng cách khác" rộng hết hàng khi chân hộp xếp dọc trên điện thoại. Lỗi dưới ô,
+  focus trả về ô. Mã email: trước khi gửi, nút "Gửi mã tới {{email}}"
   là hành động duy nhất của hộp (chân hộp chỉ còn "Hủy"); gửi rồi thì "Đã gửi mã tới…", ô mã và "Gửi lại sau {{count}}
   giây". Lệnh gọi qua `useStepUpGate().run({action, command})`: có token phục vụ thì chạy luôn, không thì mở hộp; bị
   `proof_required` thì mở lại hộp trên `fields.proofs` và chạy lại một lần. Lệnh tự mang bằng chứng (đổi mật khẩu bằng
