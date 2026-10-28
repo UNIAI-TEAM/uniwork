@@ -78,8 +78,8 @@ describe("JoinMembershipInviteView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tham gia" }));
     await waitFor(() => expect(joinBodies).toEqual([{ link_id: "l1", secret: "s3cret" }]));
     expect(sessionStorage.getItem(membershipInviteSecretKey("l1"))).toBe("s3cret");
-    // The same screen the email invitation lands on.
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/beta/ops/tasks"));
+    // The workspace's Home, its root.
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/beta/ops"));
   });
 
   it("opens the switch wizard when the preview carries conflicts", async () => {
