@@ -23,10 +23,13 @@ interface Props {
 export function AskUniOutlineDialog({ open, markdown, busy, error, onOpenChange, onSave }: Props) {
   const { t } = useTranslation();
   const editor = useRef<ContentEditorRef>(null);
+  // The editor rewrites Markdown in its own style (`*` bullets become `-`), so "unchanged" is judged against what
+  // it returns for the untouched outline, not against the raw text.
+  const baseline = useRef<string | null>(null);
   const save = () => {
     if (busy) return;
     const next = (editor.current?.getMarkdown() ?? markdown).trim();
-    if (next === markdown.trim()) onOpenChange(false);
+    if (next === (baseline.current ?? markdown.trim())) onOpenChange(false);
     else onSave(next);
   };
   return (
@@ -36,7 +39,7 @@ export function AskUniOutlineDialog({ open, markdown, busy, error, onOpenChange,
           <DialogTitle>{t("ai.proposal.edit_outline")}</DialogTitle>
         </DialogHeader>
         <div className="max-h-[60vh] min-h-48 overflow-y-auto rounded-control border border-border px-3 py-2">
-          <ContentEditor ref={editor} defaultValue={markdown} ariaLabel={t("ai.proposal.outline_label")} disableMentions />
+          <ContentEditor ref={editor} defaultValue={markdown} ariaLabel={t("ai.proposal.outline_label")} disableMentions onReady={() => { baseline.current ??= (editor.current?.getMarkdown() ?? markdown).trim(); }} />
         </div>
         {error ? (
           <p role="alert" className="text-caption text-destructive">
