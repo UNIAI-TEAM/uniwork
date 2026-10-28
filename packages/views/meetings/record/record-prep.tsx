@@ -35,6 +35,7 @@ export function RecordPrep({
   onLanguageChange,
   failed = false,
   ready = true,
+  liveElsewhere = false,
   onStart,
   onBack,
 }: {
@@ -51,6 +52,8 @@ export function RecordPrep({
   failed?: boolean;
   /** Recordings already on this device are known: starting before then would restart their offsets at 0. */
   ready?: boolean;
+  /** Another tab of this device is recording this meeting: a second recording would overlap it. */
+  liveElsewhere?: boolean;
   onStart: () => void;
   onBack: () => void;
 }) {
@@ -171,9 +174,9 @@ export function RecordPrep({
             type="button"
             variant="brand"
             className="h-11 w-full"
-            aria-disabled={!consent || !ready || undefined}
+            aria-disabled={!consent || !ready || liveElsewhere || undefined}
             aria-busy={!ready || undefined}
-            aria-describedby={consent ? undefined : `${id}-reason`}
+            aria-describedby={[consent ? "" : `${id}-reason`, liveElsewhere ? `${id}-live` : ""].join(" ").trim() || undefined}
             onClick={onStart}
           >
             <Mic aria-hidden />
@@ -189,6 +192,11 @@ export function RecordPrep({
               {t("meetings.record.consentFirst")}
             </p>
           )}
+          {liveElsewhere ? (
+            <p id={`${id}-live`} className="-mt-2 text-caption text-muted-foreground">
+              {t("meetings.record.liveElsewhere")}
+            </p>
+          ) : null}
           <p className="text-caption text-muted-foreground">{t("meetings.record.placementHint")}</p>
         </div>
       </div>

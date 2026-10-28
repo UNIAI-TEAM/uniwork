@@ -3888,6 +3888,7 @@
     "record": {
       "ready": "Ready to record",
       "consentFirst": "Tick the confirmation above to start",
+      "liveElsewhere": "This device is recording this meeting in another tab",
       "placementHint": "Put the device in the middle of the table, plug it in and keep this page open until the end.",
       "micOk": "The microphone is picking up well",
       "recording": "Recording",

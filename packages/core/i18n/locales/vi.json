@@ -3887,6 +3887,7 @@
     "record": {
       "ready": "Sẵn sàng ghi âm",
       "consentFirst": "Tích ô xác nhận ở trên để bắt đầu",
+      "liveElsewhere": "Máy này đang ghi buổi họp này ở một thẻ khác",
       "placementHint": "Đặt máy giữa bàn, cắm sạc và giữ trang này mở đến hết buổi.",
       "micOk": "Micro đang thu tốt",
       "recording": "Đang ghi âm",

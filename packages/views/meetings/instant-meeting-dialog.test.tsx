@@ -136,11 +136,16 @@ describe("InstantMeetingDialog", () => {
     const dialog = renderDialog(onStarted);
     expect(within(dialog).getByText("Người được chọn nhận thông báo khi phòng mở.")).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("Tiêu đề nhanh"), { target: { value: "Họp với đại lý" } });
+    // A scribe choice made online does not follow the meeting in person: no scribe can join a room that never opens.
+    fireEvent.click(await within(dialog).findByRole("switch", { name: "Thư ký UNI" }));
     fireEvent.click(await within(dialog).findByRole("radio", { name: /Trực tiếp/ }));
     expect(within(dialog).queryByText("Người được chọn nhận thông báo khi phòng mở.")).toBeNull();
+    expect(within(dialog).queryByRole("switch", { name: "Thư ký UNI" })).toBeNull();
+    expect(within(dialog).queryByText("Thư ký UNI")).toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: "Chuẩn bị ghi âm" }));
     await waitFor(() => expect(onStarted).toHaveBeenCalledWith("m9", "in_person"));
     expect((calls("/meetings/instant")[0]![1] as Init).body).toEqual({ title: "Họp với đại lý", venue: "in_person" });
+    expect(calls("/scribe")).toHaveLength(0);
   });
 
   it("offers no venue without transcription", async () => {

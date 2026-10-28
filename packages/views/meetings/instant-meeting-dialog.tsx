@@ -135,7 +135,8 @@ function InstantForm({
       setBusy(false);
       return;
     }
-    if (scribeAvailability(caps) === "on" && scribeOn !== policy) await switchScribe(meetingId, scribeOn);
+    // In person no room opens, so no scribe joins: the switch is hidden and its choice is not sent.
+    if (!inPerson && scribeAvailability(caps) === "on" && scribeOn !== policy) await switchScribe(meetingId, scribeOn);
     onClose();
     onStarted(meetingId, started);
     void invite(meetingId, people.map((p) => p.userId));
@@ -241,13 +242,9 @@ function InstantForm({
           />
           {inPerson ? null : <p className="mt-2 text-caption text-muted-foreground">{t("meetings.instantDialog.notifyNote")}</p>}
         </div>
-        <ScribeBlock
-          caps={caps}
-          value={scribeOn}
-          onChange={setScribe}
-          variant="instant"
-          readOnly={busy}
-        />
+        {inPerson ? null : (
+          <ScribeBlock caps={caps} value={scribeOn} onChange={setScribe} variant="instant" readOnly={busy} />
+        )}
       </form>
       {error ? (
         <p role="alert" className="mt-5 flex items-start gap-1.5 text-caption text-destructive">

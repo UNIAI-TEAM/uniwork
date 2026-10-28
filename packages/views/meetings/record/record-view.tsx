@@ -220,6 +220,8 @@ export function MeetingRecordView({
           onLanguageChange={setLanguage}
           failed={state === "failed"}
           ready={!unsent.isPending}
+          // Two tabs recording at once would overlap their parts and double the transcript.
+          liveElsewhere={unsent.live}
           onStart={() => {
             setPriorMs(unsent.seconds * 1000);
             void recorder.start(deviceId);

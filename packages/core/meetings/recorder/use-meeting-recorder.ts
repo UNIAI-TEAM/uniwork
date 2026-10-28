@@ -134,7 +134,7 @@ export function useScreenWakeLock(active: boolean): boolean {
 /**
  * The recordings still on this device for the account (and meeting), oldest first. `seconds`,
  * `savedAt` and `discard` leave out a part another tab is still writing (`isLivePart`); while one
- * is, the list is read again every 5 s, so it settles once that tab stops.
+ * is, the list is read again every 5 s and each read renders again, so `live` settles once that tab stops.
  */
 export function useUnsentRecordings(userId: string | undefined, meetingId?: string, store?: RecordingStore): {
   parts: RecordingPart[];
@@ -142,6 +142,8 @@ export function useUnsentRecordings(userId: string | undefined, meetingId?: stri
   seconds: number;
   /** The last save of the parts no tab is writing; null when there are none. */
   savedAt: number | null;
+  /** A part is still being written, by another tab when this one is not recording. */
+  live: boolean;
   /** The device store has not answered yet: `parts` is not known to be empty. */
   isPending: boolean;
   refresh: () => void;
@@ -150,7 +152,8 @@ export function useUnsentRecordings(userId: string | undefined, meetingId?: stri
 } {
   const qc = useQueryClient();
   const queryKey = ["meeting-recordings-local", userId, meetingId];
-  const { data: parts = [], isPending } = useQuery({
+  // dataUpdatedAt: each 5 s read renders again even when the parts did not change, so `live` can turn false.
+  const { data: parts = [], isPending, dataUpdatedAt: _readAt } = useQuery({
     queryKey,
     queryFn: () => (store ?? defaultStore()).listParts(userId!, meetingId),
     enabled: userId !== undefined,
@@ -160,6 +163,7 @@ export function useUnsentRecordings(userId: string | undefined, meetingId?: stri
   });
   const now = Date.now();
   const settled = parts.filter((p) => !isLivePart(p, now));
+  const live = settled.length < parts.length;
   const seconds = settled.reduce((sum, p) => sum + ((p.endedAt ?? p.lastChunkAt) - p.startedAt) / 1000, 0);
   const savedAt = settled.length ? Math.max(...settled.map((p) => p.lastChunkAt)) : null;
   const refresh = () => void qc.invalidateQueries({ queryKey });
@@ -172,7 +176,7 @@ export function useUnsentRecordings(userId: string | undefined, meetingId?: stri
       await qc.invalidateQueries({ queryKey: ["meeting-recordings-local", userId] });
     }
   };
-  return { parts, seconds, savedAt, isPending, refresh, discard };
+  return { parts, seconds, savedAt, live, isPending, refresh, discard };
 }
 
 /** Every part this account left on this device, read once and only when asked (the sign-out question). */

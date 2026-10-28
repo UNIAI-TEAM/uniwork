@@ -280,6 +280,28 @@ describe("MeetingRecordView", () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
+  it("holds the start while another tab of this device records the meeting", async () => {
+    const store = memoryRecordingStore();
+    // Another tab's open part, its last chunk saved 12 s ago: live for 3 s more.
+    const now = Date.now();
+    await store.createPart({
+      id: "other-tab", userId: USER.id, meetingId: "m1", startedAt: now - 60_000, lastChunkAt: now - 12_000,
+      endedAt: null, mimeType: "audio/webm", bytes: 5, language: "vi", offsetSeconds: 0,
+    });
+    renderView(store);
+    fireEvent.click(await screen.findByRole("checkbox", { name: /Tôi đã thông báo cho người dự họp về việc ghi âm/ }));
+    const start = screen.getByRole("button", { name: "Bắt đầu ghi âm" });
+    await waitFor(() => expect(start).toHaveAccessibleDescription("Máy này đang ghi buổi họp này ở một thẻ khác"));
+    expect(start).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(start);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(screen.queryByText("Đang ghi âm")).not.toBeInTheDocument();
+
+    // That tab stopped writing: the next 5 s read finds the part quiet and Start opens again.
+    await waitFor(() => expect(start).not.toHaveAttribute("aria-disabled"), { timeout: 7_000 });
+    expect(screen.queryByText("Máy này đang ghi buổi họp này ở một thẻ khác")).not.toBeInTheDocument();
+  }, 10_000);
+
   it("holds the start until the device has said what it already holds", async () => {
     const memory = memoryRecordingStore();
     let answer: () => void = () => {};
