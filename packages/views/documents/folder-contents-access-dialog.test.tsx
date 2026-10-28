@@ -107,20 +107,27 @@ async function openDialog() {
   return { user, dialog };
 }
 
+// A Select popup keeps `pointer-events: none` on its items until its open
+// animation settles, which can outlast the findBy under CI load. user-event
+// throws on that check before it dispatches anything, so retrying is safe.
+async function clickOption(user: ReturnType<typeof userEvent.setup>, option: HTMLElement) {
+  await waitFor(() => user.click(option));
+}
+
 async function pick(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, name: RegExp) {
   await user.click(within(dialog).getByRole("combobox", { name: t("documents.share.principal_placeholder") }));
   const listbox = await screen.findByRole("listbox", { name: t("documents.share.principal_placeholder") });
-  await user.click(await within(listbox).findByRole("option", { name }));
+  await clickOption(user, await within(listbox).findByRole("option", { name }));
 }
 
 async function chooseMode(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, label: string) {
   await user.click(within(dialog).getByRole("combobox", { name: t("documents.folderAccess.mode_label") }));
-  await user.click(await screen.findByRole("option", { name: label }));
+  await clickOption(user, await screen.findByRole("option", { name: label }));
 }
 
 async function chooseWorkspaceLevel(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, label: string) {
   await user.click(within(dialog).getByRole("combobox", { name: t("documents.folderAccess.workspace_level_label") }));
-  await user.click(await screen.findByRole("option", { name: label }));
+  await clickOption(user, await screen.findByRole("option", { name: label }));
 }
 
 const confirmButton = (dialog: HTMLElement) => within(dialog).getByRole("button", { name: t("documents.folderAccess.confirm") });
@@ -170,7 +177,7 @@ describe("folder contents access dialog", () => {
     const { user, dialog } = await openDialog();
     await pick(user, dialog, /Nguyễn An/);
     await user.click(within(dialog).getByRole("combobox", { name: t("documents.share.level_for", { name: "Nguyễn An" }) }));
-    await user.click(await screen.findByRole("option", { name: "Chỉnh sửa" }));
+    await clickOption(user, await screen.findByRole("option", { name: "Chỉnh sửa" }));
     await pick(user, dialog, /Acme/);
 
     const summary = await review(user, dialog);
@@ -212,7 +219,7 @@ describe("folder contents access dialog", () => {
 
     await user.click(within(dialog).getByTestId("folder-access-mode"));
     expect(await screen.findByTestId("folder-access-mode-merge")).toBeInTheDocument();
-    await user.click(await screen.findByTestId("folder-access-mode-replace"));
+    await clickOption(user, await screen.findByTestId("folder-access-mode-replace"));
     expect(within(dialog).getByTestId("folder-access-mode")).toHaveTextContent("Thay thế quyền cũ");
     expect(within(dialog).getByTestId("folder-access-workspace-row")).toBeInTheDocument();
 
@@ -220,7 +227,7 @@ describe("folder contents access dialog", () => {
     expect(within(dialog).getByTestId("folder-access-principal-u2")).toHaveTextContent("Nguyễn An");
 
     await user.click(within(dialog).getByTestId("folder-access-workspace-level"));
-    await user.click(await screen.findByRole("option", { name: "Riêng tư" }));
+    await clickOption(user, await screen.findByRole("option", { name: "Riêng tư" }));
     await user.click(within(dialog).getByTestId("folder-access-confirm"));
     expect(await within(dialog).findByTestId("folder-access-summary")).toBeInTheDocument();
     expect(within(dialog).getByTestId("folder-access-apply")).toHaveTextContent(t("documents.folderAccess.apply_replace"));
@@ -417,7 +424,7 @@ describe("folder contents access dialog", () => {
     const { user, dialog } = await openDialog();
     await pick(user, dialog, /Nguyễn An/);
     await user.click(within(dialog).getByRole("combobox", { name: t("documents.share.level_for", { name: "Nguyễn An" }) }));
-    await user.click(await screen.findByRole("option", { name: "Chỉnh sửa" }));
+    await clickOption(user, await screen.findByRole("option", { name: "Chỉnh sửa" }));
     await review(user, dialog);
     await user.click(within(dialog).getByTestId("folder-access-apply"));
 
@@ -481,7 +488,7 @@ describe("folder contents access from the sidebar tree", () => {
     const user = userEvent.setup();
     render(wrap(<DocumentTree wsId={WS} folders />));
     fireEvent.contextMenu(await screen.findByRole("treeitem", { name: /Hợp đồng/ }));
-    await user.click(await screen.findByRole("menuitem", { name: t("documents.folderAccess.menu") }));
+    await clickOption(user, await screen.findByRole("menuitem", { name: t("documents.folderAccess.menu") }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: "Chia sẻ" })).toBeInTheDocument();
     expect(dialog).toHaveAccessibleDescription(t("documents.folderAccess.subtitle", { folder: "Hợp đồng" }));
