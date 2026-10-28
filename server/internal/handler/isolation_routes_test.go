@@ -475,6 +475,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/auth/native/sign-in-ticket/create":             {class: isoPublic, reason: reasonNativeTicket},
 	"POST /api/v1/auth/native/sign-in-ticket/claim-email":        {class: isoPublic, reason: reasonNativeTicket},
 	"POST /api/v1/auth/native/sign-in-ticket/claim-email/verify": {class: isoPublic, reason: reasonNativeTicket},
+	"POST /api/v1/auth/native/sign-in-ticket/discard":            {class: isoPublic, reason: reasonNativeTicket},
 	"POST /api/v1/auth/native/sign-in-ticket/link":               {class: isoSelf, reason: "links the app's ticket's identity into the caller's own account only; the account is the bearer's device session's, the identity the sealed ticket the app holds with its nonce, and no id is taken from the request"},
 
 	// MCP connector OAuth server (ADR 0031): a client is a program, and the

@@ -172,6 +172,7 @@ key_hash, intent, iat, exp}` — TTL 15 phút.
 | `POST /api/v1/auth/native/sign-in-ticket/create` | — | `{ticket, nonce, display_name?, ...client}` | `NativeSignInSDO` |
 | `POST /api/v1/auth/native/sign-in-ticket/claim-email` (+ `/verify`) | — | `{ticket, nonce, email[, code, display_name]}` | như web, kết quả `NativeSignInSDO` |
 | `POST /api/v1/auth/native/sign-in-ticket/link` | bearer native | `{ticket, nonce, move?}` | `SignInMethodsChangeSDO` |
+| `POST /api/v1/auth/native/sign-in-ticket/discard` | — | `{ticket, nonce, ...client}` | `200 {status:"discarded"}` (luôn, như `DELETE` của web) |
 
 - Vé thiếu, hết hạn, hỏng hay niêm phong cho purpose khác → `404 sign_in_ticket_missing` ở mọi route vé (web xoá
   cookie); vé native gửi thiếu hay sai `nonce`, `client_id`, `deployment_id`, hoặc vé của kênh kia →
@@ -229,7 +230,9 @@ key_hash, intent, iat, exp}` — TTL 15 phút.
   thì token Apple của tài khoản rỗng (nếu có) được trả lại Apple sau commit. Mail `moved` tới địa chỉ cũ của tài khoản
   rỗng (chiều đi) và người gọi (chiều đến); địa chỉ nhà cung cấp chỉ khi khác cả hai và không phải relay.
 - `DELETE` ("Hủy") trả lại Apple token vé mang (nếu có), như route Apple cũ trả token của một lần đăng nhập không thành;
-  trừ khi Apple ID đó đã mở một tài khoản (cùng vé đã tạo ở tab khác), tài khoản ấy giữ token.
+  trừ khi Apple ID đó đã mở một tài khoản (cùng vé đã tạo ở tab khác), tài khoản ấy giữ token. App làm việc đó qua
+  `POST /auth/native/sign-in-ticket/discard` mỗi khi bỏ một vé chưa dùng: "Hủy" và Back của màn chọn, "Không liên kết",
+  vé của nhà cung cấp thứ hai ở chế độ liên kết (không chờ câu trả lời; vé mất vì app bị đóng thì không trả được).
 - `SignInMethodsSDO.proofs` tính sẵn từ lát 2 (`totp` khi bật MFA; không thì `password` nếu có, `email_code`, và trên
   app `apple`/`google` đã liên kết); step-up dùng nó ở lát 3.
 

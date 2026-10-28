@@ -408,6 +408,7 @@ func TestCredentialRoutesRefuseCrossSiteForms(t *testing.T) {
 		{http.MethodPost, "/api/v1/auth/native/sign-in-ticket/create", ""},
 		{http.MethodPost, "/api/v1/auth/native/sign-in-ticket/claim-email", ""},
 		{http.MethodPost, "/api/v1/auth/native/sign-in-ticket/claim-email/verify", ""},
+		{http.MethodPost, "/api/v1/auth/native/sign-in-ticket/discard", ""},
 		{http.MethodPost, "/api/v1/auth/native/sign-in-ticket/link", token},
 	}
 	send := func(method, path, token, site, contentType, body string) (int, string) {

@@ -643,3 +643,35 @@ func TestGoogleTokenProvesAGoogleLinkedAccountOnTheApp(t *testing.T) {
 		t.Fatalf("a Google step-up: %+v %v", g, err)
 	}
 }
+
+// The app drops a ticket it will not spend as the browser's "Hủy" does (spec
+// §3.2): an Apple ID that opened no account gives its consent back to Apple.
+// Only the ticket's own nonce opens it, so a copied ticket gives nothing
+// back, and a ticket that does not open is answered the same.
+func TestTheAppsDiscardedTicketGivesTheAppleConsentBack(t *testing.T) {
+	f := newNativeFixture(t)
+	const kept = appleBundle + " apple-refresh-for-native-apple-native-dropped"
+	res, nonce, err := f.apple(t, "apple-native-dropped", "dropped@icloud.com", false, "")
+	if err != nil || res.Status != NativeIdentityUnmatched || res.Ticket == "" {
+		t.Fatalf("want a ticket: %+v %v", res, err)
+	}
+	if err := f.doors.DiscardTicket(f.request(), res.Ticket, util.NewID(), app); err != nil {
+		t.Fatalf("a ticket that does not open answers the same: %v", err)
+	}
+	if slices.Contains(f.client.revokedNow(), kept) {
+		t.Fatal("another nonce gave the consent back")
+	}
+	if err := f.doors.DiscardTicket(f.request(), res.Ticket, nonce, app); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(f.client.revokedNow(), kept) {
+		t.Fatalf("the dropped ticket keeps its consent: %v", f.client.revokedNow())
+	}
+	if n := f.usersWith(t, "dropped@icloud.com"); n != 0 {
+		t.Fatal("a dropped ticket opened an account")
+	}
+	office := NativeClient{ClientID: "uniwork-office", DeploymentID: "default"}
+	if err := f.doors.DiscardTicket(f.request(), res.Ticket, nonce, office); err == nil {
+		t.Fatal("a client that is not the app passed the door")
+	}
+}

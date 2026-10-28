@@ -84,6 +84,13 @@ type NativeEmailClaimVerifySDI struct {
 	DisplayName string `json:"display_name,omitempty" maxLength:"100" description:"Tên hiển thị khi địa chỉ chưa có tài khoản và một tài khoản mới được tạo; bỏ trống thì dùng tên nhà cung cấp hoặc phần trước @" example:"Nguyễn Văn An"`
 }
 
+// NativeTicketDiscardSDI is POST /api/v1/auth/native/sign-in-ticket/discard.
+type NativeTicketDiscardSDI struct {
+	NativeClientSDI
+	Ticket string `json:"ticket" minLength:"1" description:"Vé đăng nhập app đang bỏ, không dùng" example:"AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHw…"`
+	Nonce  string `json:"nonce" minLength:"1" description:"Nonce gốc của lần đăng nhập ra vé" example:"mQ3Xr9yJm6l2Z1VbE0cK4uVhP7sA8dWf"`
+}
+
 // NativeTicketLinkSDI is POST /api/v1/auth/native/sign-in-ticket/link.
 type NativeTicketLinkSDI struct {
 	NativeClientSDI

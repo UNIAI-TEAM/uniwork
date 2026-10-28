@@ -180,6 +180,23 @@ func (h *handlers) nativeTicketClaimEmail(w http.ResponseWriter, r *http.Request
 	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "sent"})
 }
 
+func (h *handlers) nativeTicketDiscard(w http.ResponseWriter, r *http.Request) {
+	noStore(w)
+	if !h.nativeReady(w) {
+		return
+	}
+	var in sdi.NativeTicketDiscardSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if err := h.NativeSignIn.DiscardTicket(r.Context(), in.Ticket, in.Nonce, nativeClient(in.NativeClientSDI)); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	// JSON like every door of the app, which reads every answer as JSON.
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "discarded"})
+}
+
 func (h *handlers) nativeTicketClaimEmailVerify(w http.ResponseWriter, r *http.Request) {
 	noStore(w)
 	if !h.nativeReady(w) {

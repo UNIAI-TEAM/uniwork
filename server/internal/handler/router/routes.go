@@ -94,6 +94,7 @@ type Routes struct {
 	NativeTicketCreate    http.HandlerFunc
 	NativeTicketClaim     http.HandlerFunc
 	NativeTicketVerify    http.HandlerFunc
+	NativeTicketDiscard   http.HandlerFunc
 	NativeTicketLink      http.HandlerFunc
 	DesktopStart          http.HandlerFunc
 	DesktopConsent        http.HandlerFunc

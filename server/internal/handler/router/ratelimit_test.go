@@ -792,6 +792,7 @@ func TestNativeSignInRoutesRideTheCredentialBudget(t *testing.T) {
 		"/api/v1/auth/native/sign-in-ticket/create",
 		"/api/v1/auth/native/sign-in-ticket/claim-email",
 		"/api/v1/auth/native/sign-in-ticket/claim-email/verify",
+		"/api/v1/auth/native/sign-in-ticket/discard",
 		"/api/v1/auth/native/sign-in-ticket/link",
 		"/api/v1/me/sign-in-methods/google/native",
 		"/api/v1/me/sign-in-methods/apple/native",

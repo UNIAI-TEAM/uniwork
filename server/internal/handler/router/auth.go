@@ -38,6 +38,7 @@ import (
 //	POST   /api/v1/auth/native/sign-in-ticket/create             (same-site JSON, credential rate limit)
 //	POST   /api/v1/auth/native/sign-in-ticket/claim-email        (same-site JSON, credential rate limit)
 //	POST   /api/v1/auth/native/sign-in-ticket/claim-email/verify (same-site JSON, credential rate limit)
+//	POST   /api/v1/auth/native/sign-in-ticket/discard            (same-site JSON, credential rate limit)
 //
 // Same-site JSON (mw.SameSiteJSON) is the login-CSRF guard of every public
 // route that opens a session or spends a sign-in cookie (ADR 0049 §9). It
@@ -255,6 +256,13 @@ func registerNativeAuth(v1 api, h Routes, credentialLimit func(http.Handler) htt
 		description: "\"Tôi được mời bằng email khác\" trong app: như POST /auth/sign-in-ticket/claim-email trên vé của app. Luôn 200 {status: sent} dù địa chỉ có tài khoản hay không; một vé gửi tối đa một mã mỗi 60 giây, một địa chỉ nhận tối đa 5 mã mỗi 24 giờ và không nhận thêm khi đã có 10 lần đoán sai (429 rate_limited kèm retry_after). Vé thiếu hay hỏng → 404 sign_in_ticket_missing; nonce, client hay deployment lệch → 400 sign_in_ticket_channel. Chỉ nhận client_id trong NATIVE_SIGN_IN_CLIENTS. Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site.",
 		tags:        []string{"auth"},
 		sdi:         sdi.NativeEmailClaimSDI{},
+		sdo:         sdo.StatusSDO{},
+	})
+	door.Post("/auth/native/sign-in-ticket/discard", h.NativeTicketDiscard, apiOp{
+		summary:     "Drop the pending sign-in (app)",
+		description: "App bỏ vé không dùng (\"Hủy\" trên màn chọn, \"Không liên kết\", vé của nhà cung cấp thứ hai ở chế độ liên kết): như DELETE /auth/sign-in-ticket, token Apple vé mang (nếu có) được trả lại Apple. Vé chỉ mở được cùng nonce gốc, client_id và deployment_id lúc cấp; luôn 200 {status: discarded}, kể cả vé thiếu, hết hạn hay lệch kênh: không nói gì về vé. Chỉ nhận client_id trong NATIVE_SIGN_IN_CLIENTS (khác → 400 invalid_request). Chỉ nhận body application/json, từ chối Sec-Fetch-Site: cross-site.",
+		tags:        []string{"auth"},
+		sdi:         sdi.NativeTicketDiscardSDI{},
 		sdo:         sdo.StatusSDO{},
 	})
 	door.Post("/auth/native/sign-in-ticket/claim-email/verify", h.NativeTicketVerify, apiOp{

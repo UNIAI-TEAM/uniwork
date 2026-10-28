@@ -374,6 +374,7 @@ func New(d Deps) http.Handler {
 		NativeTicketCreate:    h.nativeTicketCreate,
 		NativeTicketClaim:     h.nativeTicketClaimEmail,
 		NativeTicketVerify:    h.nativeTicketClaimEmailVerify,
+		NativeTicketDiscard:   h.nativeTicketDiscard,
 		NativeTicketLink:      h.nativeTicketLink,
 		DesktopStart:          h.desktopStart,
 		DesktopConsent:        h.desktopConsent,

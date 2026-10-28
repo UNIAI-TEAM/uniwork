@@ -99,6 +99,7 @@ func TestNativeDoorsTakeOnlyNativeClients(t *testing.T) {
 		"/api/v1/auth/native/sign-in-ticket/create",
 		"/api/v1/auth/native/sign-in-ticket/claim-email",
 		"/api/v1/auth/native/sign-in-ticket/claim-email/verify",
+		"/api/v1/auth/native/sign-in-ticket/discard",
 		"/api/v1/auth/apple/native",
 	}
 	fields := map[string]any{
@@ -135,6 +136,10 @@ func TestNativeDoorsTakeOnlyNativeClients(t *testing.T) {
 	res, out := doJSON(t, k.srv, http.MethodPost, "/api/v1/auth/native/password", "", nativeBody(fields))
 	if res.StatusCode != http.StatusUnauthorized || errorCode(out) != "invalid_credentials" {
 		t.Fatalf("the app's own client: %d %v", res.StatusCode, out)
+	}
+	// Dropping a ticket says nothing about it: one that does not open is answered the same.
+	if res, out := doJSON(t, k.srv, http.MethodPost, "/api/v1/auth/native/sign-in-ticket/discard", "", nativeBody(fields)); res.StatusCode != http.StatusOK || out["status"] != "discarded" {
+		t.Fatalf("the app's discard of a made-up ticket: %d %v", res.StatusCode, out)
 	}
 }
 

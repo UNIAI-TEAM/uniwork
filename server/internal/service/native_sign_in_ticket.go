@@ -82,6 +82,22 @@ func (s *NativeSignInService) SendEmailClaim(ctx context.Context, ticket, nonce,
 	return s.tickets.SendEmailClaim(ctx, ticket, c.ticket(nonce), email, locale)
 }
 
+// DiscardTicket is the app dropping a ticket it will not spend: "Hủy" on the
+// choice screen, "Không liên kết" on the link step, the second provider's
+// ticket in link mode (spec §3.2). As the browser's DELETE
+// /auth/sign-in-ticket, the Apple consent the ticket carries goes back to
+// Apple, so an Apple ID that opened no account keeps no authorization for
+// the app. The ticket opens only with its own nonce, client and deployment;
+// one that does not open (gone, expired, another binding) is answered the
+// same, saying nothing about it.
+func (s *NativeSignInService) DiscardTicket(ctx context.Context, ticket, nonce string, c NativeClient) error {
+	if err := s.door(c); err != nil {
+		return err
+	}
+	s.tickets.Discard(ctx, ticket, c.ticket(nonce))
+	return nil
+}
+
 // VerifyEmailClaim checks the code mailed to the other address and acts on
 // it as the browser's does (claimQ: link into the verified account the
 // address holds, after its second factor when it has one; take back an
