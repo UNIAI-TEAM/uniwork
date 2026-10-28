@@ -587,7 +587,9 @@
         "seconds_one": "Thử lại sau {{count}} giây.",
         "seconds_other": "Thử lại sau {{count}} giây.",
         "minutes_one": "Thử lại sau {{count}} phút.",
-        "minutes_other": "Thử lại sau {{count}} phút."
+        "minutes_other": "Thử lại sau {{count}} phút.",
+        "hours_one": "Thử lại sau {{count}} giờ.",
+        "hours_other": "Thử lại sau {{count}} giờ."
       },
       "errors": {
         "generic": "Chưa đăng nhập được. Thử lại.",
@@ -718,7 +720,7 @@
         "conflict": "Email này vừa có tài khoản. Đăng nhập để liên kết.",
         "invalidEmail": "Email chưa đúng định dạng.",
         "invalidCode": "Mã chưa đúng hoặc đã hết hạn. Nhập lại, hoặc gửi mã mới.",
-        "tooManyCodes": "Đã gửi nhiều mã tới địa chỉ này."
+        "tooManyCodes": "Đã tạm dừng mã xác nhận cho địa chỉ này."
       }
     }
   },
@@ -2075,7 +2077,7 @@
           "emailCodeIncorrect": "Mã chưa đúng hoặc đã hết hạn. Nhập lại, hoặc gửi mã mới.",
           "providerInvalid": "Tài khoản vừa chọn không phải tài khoản đã liên kết. Thử lại, hoặc dùng cách khác.",
           "locked": "Tạm khóa xác nhận vì nhập sai nhiều lần.",
-          "tooManyCodes": "Đã gửi nhiều mã cho tài khoản này."
+          "tooManyCodes": "Đã tạm dừng gửi mã tới email của bạn."
         }
       }
     },

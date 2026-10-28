@@ -74,9 +74,21 @@ interface Row {
   kind: SignInFailureKind;
   /** The key when the failure carries no masked address. */
   keyUnmasked?: string;
+  /**
+   * The key of a 429 whose body names no `retry_after`: the route's budget
+   * refused (Retry-After only), not the service's mailed-code gate, which
+   * always says how long (spec §3.7, §3.9). So a person who typed too many
+   * passwords never reads "we sent several codes".
+   */
+  keyRouteBudget?: string;
 }
 
-const row = (key: string, kind: SignInFailureKind = "form", keyUnmasked?: string): Row => ({ key, kind, keyUnmasked });
+const row = (key: string, kind: SignInFailureKind = "form", alt: { unmasked?: string; routeBudget?: string } = {}): Row => ({
+  key,
+  kind,
+  keyUnmasked: alt.unmasked,
+  keyRouteBudget: alt.routeBudget,
+});
 
 const NETWORK = row(`${SOCIAL}.network`);
 const SERVER = row(`${SOCIAL}.server`);
@@ -111,8 +123,8 @@ const BASE: Readonly<Record<string, Row>> = {
   sign_in_ticket_missing: row(`${CONTINUE}.expired`, "restart"),
   sign_in_ticket_channel: row(`${CONTINUE}.channel`, "restart"),
   invalid_code: row(`${CONTINUE}.invalidCode`, "field"),
-  sign_in_method_taken: row(`${METHODS}.errors.taken`, "form", `${METHODS}.errors.takenUnknown`),
-  sign_in_method_movable: row(`${METHODS}.errors.movable`, "move", `${METHODS}.errors.movableUnknown`),
+  sign_in_method_taken: row(`${METHODS}.errors.taken`, "form", { unmasked: `${METHODS}.errors.takenUnknown` }),
+  sign_in_method_movable: row(`${METHODS}.errors.movable`, "move", { unmasked: `${METHODS}.errors.movableUnknown` }),
   sign_in_method_already_linked: row(`${METHODS}.errors.alreadyLinked`),
   sign_in_method_last: row(`${METHODS}.reasons.last`),
   sign_in_method_relay_email: row(`${METHODS}.reasons.relay`),
@@ -140,11 +152,14 @@ const BY_CONTEXT: Readonly<Partial<Record<SignInContext, Readonly<Record<string,
   ticket: { sign_in_account_conflict: row(`${CONTINUE}.conflict`) },
   claim: {
     invalid_request: row(`${CONTINUE}.invalidEmail`, "field"),
-    rate_limited: row(`${CONTINUE}.tooManyCodes`, "wait"),
+    // The address's day of codes or wrong guesses is spent (or a code just left).
+    rate_limited: row(`${CONTINUE}.tooManyCodes`, "wait", { routeBudget: RATE_LIMITED.key }),
   },
   step_up: {
     provider_token_invalid: row(`${STEP_UP}.providerInvalid`),
-    rate_limited: row(`${STEP_UP}.tooManyCodes`, "wait"),
+    // POST /me/step-up/email-code: one a minute, five a day. The step-up
+    // budget (ten proofs a minute, every proof route) answers no retry_after.
+    rate_limited: row(`${STEP_UP}.tooManyCodes`, "wait", { routeBudget: RATE_LIMITED.key }),
     second_factor_locked: PROOF_LOCKED,
   },
   password: {
@@ -186,11 +201,16 @@ function positive(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
 }
 
-/** A phrase for a wait of `seconds`: seconds under a minute and a half, minutes above; "later" when unknown. */
+/**
+ * A phrase for a wait of `seconds`: seconds under a minute and a half,
+ * minutes under an hour and a half, hours above (a day's codes spent waits
+ * up to 24 hours); "later" when unknown.
+ */
 export function retryPhrase(seconds: number | null): RetryPhrase {
   if (seconds === null || !(seconds > 0)) return { key: "auth.social.retry.later" };
   if (seconds < 90) return { key: "auth.social.retry.seconds", count: Math.ceil(seconds) };
-  return { key: "auth.social.retry.minutes", count: Math.ceil(seconds / 60) };
+  if (seconds < 90 * 60) return { key: "auth.social.retry.minutes", count: Math.ceil(seconds / 60) };
+  return { key: "auth.social.retry.hours", count: Math.ceil(seconds / 3600) };
 }
 
 /** Whole seconds left until `deadlineMs`, never below zero: a countdown's tick. */
@@ -239,7 +259,9 @@ export function readSignInFailure(err: unknown, context: SignInContext = "sign_i
     positive(rec.retryAfterSeconds) ?? (msRetry === null ? null : Math.ceil(msRetry / 1000)) ?? positive(fields.retry_after);
   const maskedEmail = maskedEmailOf(fields.masked_email);
   const found = lookup(verdict, status, context);
-  const key = maskedEmail === null && found.keyUnmasked ? found.keyUnmasked : found.key;
+  let key = found.key;
+  if (maskedEmail === null && found.keyUnmasked) key = found.keyUnmasked;
+  else if (positive(fields.retry_after) === null && found.keyRouteBudget) key = found.keyRouteBudget;
   return {
     code,
     status,

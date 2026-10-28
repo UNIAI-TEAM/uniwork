@@ -109,6 +109,7 @@ describe("readSignInFailure", () => {
       code: "rate_limited",
       status: 429,
       retryAfterMs: 42_500,
+      fields: { retry_after: 43 },
     });
     expect(readSignInFailure(transportError, "claim")).toMatchObject({
       kind: "wait",
@@ -121,6 +122,31 @@ describe("readSignInFailure", () => {
       retryAfterSeconds: 30,
     });
     expect(readSignInFailure(api("rate_limited", 429))).toMatchObject({ retry: { key: "auth.social.retry.later" } });
+  });
+
+  it("tells a spent code budget from a spent route budget and a locked proof (spec §3.7, §3.9)", () => {
+    // POST /me/step-up/email-code's own gates (one a minute, five a day) say how long.
+    expect(readSignInFailure(api("rate_limited", 429, { retry_after: 5400 }), "step_up")).toMatchObject({
+      kind: "wait",
+      key: "settings.security.stepUp.errors.tooManyCodes",
+      retry: { key: "auth.social.retry.hours", count: 2 },
+    });
+    // The step-up budget (ten proofs a minute) answers Retry-After only: a password
+    // typed too often never reads as codes sent.
+    expect(readSignInFailure(api("rate_limited", 429, undefined, 60), "step_up")).toMatchObject({
+      kind: "wait",
+      key: "auth.social.errors.rate_limited",
+      retry: { key: "auth.social.retry.seconds", count: 60 },
+    });
+    expect(readSignInFailure(api("rate_limited", 429, { retry_after: "soon" }), "step_up").key).toBe("auth.social.errors.rate_limited");
+    expect(readSignInFailure(api("second_factor_locked", 429, { retry_after: 900 }), "step_up")).toMatchObject({
+      key: "settings.security.stepUp.errors.locked",
+      retry: { key: "auth.social.retry.minutes", count: 15 },
+    });
+    // The claim's mailed code reads the same way; the app's auth transport, which keeps no fields, gets the neutral sentence.
+    expect(readSignInFailure(api("rate_limited", 429, { retry_after: 40 }), "claim").key).toBe("auth.continue.errors.tooManyCodes");
+    const transport = Object.assign(new Error("x"), { code: "rate_limited", status: 429, retryAfterMs: 40_000 });
+    expect(readSignInFailure(transport, "claim")).toMatchObject({ key: "auth.social.errors.rate_limited", retryAfterSeconds: 40 });
   });
 
   it("opens the proof dialog on the server's proofs", () => {
@@ -234,11 +260,15 @@ describe("readSignInFailure", () => {
 });
 
 describe("retry phrases", () => {
-  it("speaks seconds under a minute and a half, minutes above", () => {
+  it("speaks seconds under a minute and a half, minutes under an hour and a half, hours above", () => {
     expect(retryPhrase(0)).toEqual({ key: "auth.social.retry.later" });
     expect(retryPhrase(1)).toEqual({ key: "auth.social.retry.seconds", count: 1 });
     expect(retryPhrase(89.2)).toEqual({ key: "auth.social.retry.seconds", count: 90 });
     expect(retryPhrase(90)).toEqual({ key: "auth.social.retry.minutes", count: 2 });
+    expect(retryPhrase(5399)).toEqual({ key: "auth.social.retry.minutes", count: 90 });
+    expect(retryPhrase(5400)).toEqual({ key: "auth.social.retry.hours", count: 2 });
+    // A day's codes spent: the oldest leaves the window within 24 hours.
+    expect(retryPhrase(86_400)).toEqual({ key: "auth.social.retry.hours", count: 24 });
   });
 
   it("counts whole seconds down, never below zero", () => {

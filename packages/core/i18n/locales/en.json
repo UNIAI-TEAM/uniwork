@@ -587,7 +587,9 @@
         "seconds_one": "Try again in {{count}} second.",
         "seconds_other": "Try again in {{count}} seconds.",
         "minutes_one": "Try again in {{count}} minute.",
-        "minutes_other": "Try again in {{count}} minutes."
+        "minutes_other": "Try again in {{count}} minutes.",
+        "hours_one": "Try again in {{count}} hour.",
+        "hours_other": "Try again in {{count}} hours."
       },
       "errors": {
         "generic": "Couldn't sign you in. Try again.",
@@ -718,7 +720,7 @@
         "conflict": "This email just got an account. Sign in to link.",
         "invalidEmail": "That email doesn't look right.",
         "invalidCode": "That code is wrong or expired. Try again, or send a new one.",
-        "tooManyCodes": "We've sent several codes to this address."
+        "tooManyCodes": "Codes for this address are paused."
       }
     }
   },
@@ -2076,7 +2078,7 @@
           "emailCodeIncorrect": "That code is wrong or expired. Try again, or send a new one.",
           "providerInvalid": "That isn't the account you linked. Try again, or use another way.",
           "locked": "Confirming is paused after too many wrong tries.",
-          "tooManyCodes": "We've sent several codes for this account."
+          "tooManyCodes": "Sending codes to your email is paused."
         }
       }
     },
