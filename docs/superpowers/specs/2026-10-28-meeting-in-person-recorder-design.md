@@ -253,16 +253,25 @@ Những gì lúc triển khai mới chốt, ngoài bản đã duyệt. Thiết k
   của cả tạo lịch lẫn họp ngay.
 - `Start` họp trực tiếp trả 409 `meeting_in_person`. Họp trực tiếp không có
   đường gọi vào nào (ICS, `GET /dial-in`, cấp, đổi PIN đều từ chối), không có
-  link khách. Cột PIN vẫn được rút lúc tạo như mọi cuộc họp nhưng không bao giờ
+  link khách: server từ chối tạo link khách với 409 `meeting_in_person` (không
+  chỉ giao diện ẩn); link tạo trước khi đổi hình thức được để nguyên, vì không
+  phòng nào mở để nhận khách. Cột PIN vẫn được rút lúc tạo như mọi cuộc họp nhưng không bao giờ
   hiện ra.
-- "Ghi nhận đã họp" nhận `duration_seconds`: server lấy giờ của chính nó lúc
-  nhận làm giờ kết thúc, trừ độ dài ra giờ bắt đầu. Máy ghi không gửi giờ tuyệt
-  đối nào, nên đồng hồ máy lệch không làm sai giờ họp (§9).
+- "Ghi nhận đã họp" nhận `duration_seconds` và `ended_seconds_ago`: giờ kết
+  thúc là giờ của server lúc nhận trừ `ended_seconds_ago`, giờ bắt đầu là giờ
+  kết thúc trừ độ dài. Máy ghi tính `ended_seconds_ago` = số giây từ lúc phần
+  cuối kết thúc (`endedAt`, hoặc đoạn cuối nếu phần chưa đóng) đến lúc gửi, theo
+  đồng hồ máy (âm thì gửi 0). Cả hai đều là khoảng đo trên cùng một đồng hồ, nên
+  đồng hồ máy lệch không làm sai giờ họp (§9), và gửi muộn (hôm sau) vẫn giữ giờ
+  họp thật thay vì giờ gửi. Server từ chối 422 `invalid_held_times` khi độ dài
+  ngoài (0, 24 giờ] hoặc `ended_seconds_ago` ngoài [0, 30 ngày], sau khi đã
+  kiểm quyền người gọi.
 - Mỗi phần ghi gửi `offset_seconds`: số giây tính từ đầu phần ghi thứ nhất (giờ
   thật, kể cả lúc tạm dừng). Server đặt phần đó ở giờ bắt đầu thật của cuộc họp
   cộng độ lệch, từ chối độ lệch âm hoặc vượt giờ họp quá 1 phút. Đây là cách sửa
   giờ của §6 mục 8; máy ghi luôn gửi trường này.
-- Bản ghi lời trả thêm `estimated_seconds` (độ dài ước tính của phần ghi).
+- Bản ghi lời trả thêm `estimated_seconds` (độ dài ước tính của phần ghi). Một
+  giá trị hỏng chỉ làm mất độ dài của dòng đó, không làm rỗng cả danh sách.
 - Ghi nhận đã họp theo độ dài không tự xếp tóm tắt; tóm tắt do lần ghi lời xong
   xếp, và chờ đến khi không còn phần nào `QUEUED`/`RUNNING` (D13). Lời nhắc
   "soạn tóm tắt" khi cuộc họp kết thúc không gửi cho họp trực tiếp.
@@ -282,7 +291,28 @@ Những gì lúc triển khai mới chốt, ngoài bản đã duyệt. Thiết k
   (có thể một tab khác đang ghi). Phần đang sống không bao giờ bị gửi hay xoá, và
   không tính vào dải "Còn bản ghi … chưa gửi". Mở lại trang sau khi đóng tab giữa
   buổi, dải hiện khi phần đó hết sống (tối đa khoảng 15 giây).
+- Trong lúc một phần của cuộc họp còn sống, "Bắt đầu ghi âm" ở màn chuẩn bị bị
+  giữ (`aria-disabled`) với dòng "Máy này đang ghi buổi họp này ở một thẻ khác":
+  hai tab cùng ghi sẽ chồng phần và nhân đôi lời. Máy đọc lại mỗi 5 giây; phần
+  hết sống thì nút mở lại.
+- Ghi một đoạn vào phần đã bị xoá (tab khác đã gửi nó sau khi tab này khựng quá
+  15 giây, hoặc đồng hồ máy lùi) thì báo lỗi thay vì bỏ qua im lặng, nên bản ghi
+  chuyển sang "Ghi âm bị ngắt" và "Ghi tiếp" mở phần mới.
+- Bắt đầu ghi thì xin trình duyệt giữ bộ nhớ lâu dài một lần
+  (`navigator.storage.persist()`, lỗi thì bỏ qua), để bản ghi chưa gửi không bị
+  dọn khi máy thiếu chỗ.
 - Gửi: mỗi phần một lần tải lên rồi xếp hàng ghi lời; xếp xong thì xoá khỏi máy.
+  Phần lớn nhất gửi trước: tóm tắt tự động chạy 10 giây sau khi bất kỳ phần nào
+  ghi lời xong và chỉ đếm những phần server đã có, nên gửi phần lớn trước thì
+  tóm tắt phủ gần hết cuộc họp (độ lệch theo từng phần nên thứ tự không đổi chỗ
+  phần nào). Còn sót: mất mạng sau phần lớn nhất thì tóm tắt có thể thiếu các
+  mẩu nhỏ. Phần rỗng (0 byte, máy ghi hỏng ngay sau khi mở phần) bị xoá, không
+  gửi và không tính vào độ dài đã họp. Độ dài báo cho từng phần (ước tính, hạn
+  mức, "n phút") dừng ở đoạn cuối cộng 5 giây, để phút khoá máy trên iOS không bị
+  tính; độ dài đã họp thì vẫn tính cả lúc khoá máy. 422 `invalid_offset` (máy khác
+  đã kết thúc với độ dài ngắn hơn) thì xếp lại phần đó một lần không kèm
+  `offset_seconds`, để server nối nó sau các phần trước. Màn hình được giữ sáng
+  trong lúc ghi nhận đã họp và tải lên.
   409 `transcription_in_progress` khi xếp hàng nghĩa là đã xếp. Mất mạng thì chờ
   sự kiện `online` và thử lại sau 10 giây, 30 giây, rồi mỗi 60 giây. Máy thứ hai
   kết thúc khi cuộc họp đã `ENDED` thì bỏ qua ghi nhận đã họp và chỉ gửi.
@@ -306,6 +336,8 @@ Những gì lúc triển khai mới chốt, ngoài bản đã duyệt. Thiết k
   thì đọc lại tên người nói trước khi mời chốt biên bản.
 - Thư ký được giao (không chỉ chủ trì) thấy "Bắt đầu ghi âm" thay cho trả lời lời
   mời; người được mời họp trực tiếp không bao giờ thấy "Vào phòng họp".
+- Hộp thoại Họp ngay ẩn công tắc Thư ký UNI khi chọn Trực tiếp và không gửi lựa
+  chọn đó: không phòng nào mở để thư ký vào.
 
 **Kiểm thử e2e** (`e2e/meeting-in-person.spec.ts`): Họp ngay → Trực tiếp → ghi
 vài giây → tạm dừng → tải lại trang → trang cuộc họp hiện "Còn bản ghi … chưa
