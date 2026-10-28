@@ -113,8 +113,13 @@
   /* The same responsive list fits the phone at reading size, without a desktop crop. */
   .final-showcase { width: calc(100% - 24px); height: auto; margin-top: 28px; padding-top: 48px; }
   .final-showcase > figcaption { max-width: 32ch; margin-inline: auto; }
-  .final-product-window { min-width: 0; left: 0; transform: none; padding: 4px; border-radius: 12px 12px 0 0; }
-  .final-product-window .product-demo-poster { border-radius: 8px 8px 0 0; }
+  .final-product-window { min-width: 0; left: 0; transform: none; padding: 4px 4px 0; border-radius: 12px 12px 0 0; }
+  /* The phone shows the top of the product, cropped with a soft fade: the closing stays one compact screen. */
+  .final-product-window .product-demo-poster {
+    max-height: 256px;
+    border-radius: 8px 8px 0 0;
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 72px), transparent);
+  }
   .final-product-window .product-demo-poster .product-demo-shell { display: block; height: auto; padding: 0; zoom: 1; }
   .final-product-window .product-demo-sidebar { display: none; }
   .final-product-window .product-demo-app { height: auto; border: 0; border-radius: 8px 8px 0 0; }
