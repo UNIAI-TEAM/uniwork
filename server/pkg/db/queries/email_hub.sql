@@ -587,8 +587,17 @@ WHERE account_id = $1
   AND organization_id = $2
   AND is_starred = true;
 
+-- List pages omit body_text/body_html so Postgres does not pull TOAST for the
+-- inbox/folder list (UNI-2268). Detail/conversation queries still SELECT *.
 -- name: ListEmailHubInboxConversationPage :many
-SELECT t.*
+SELECT
+  t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id,
+  t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at,
+  t.is_read, t.is_starred, t.has_attachments,
+  NULL::text AS body_text,
+  NULL::text AS body_html,
+  t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key,
+  t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = sqlc.arg('account_id')
   AND t.organization_id = sqlc.arg('organization_id')
@@ -677,7 +686,14 @@ WHERE account_id = sqlc.arg('account_id')
 GROUP BY conversation_key;
 
 -- name: ListEmailHubThreadsPage :many
-SELECT t.*
+SELECT
+  t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id,
+  t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at,
+  t.is_read, t.is_starred, t.has_attachments,
+  NULL::text AS body_text,
+  NULL::text AS body_html,
+  t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key,
+  t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = sqlc.arg('account_id')
   AND t.organization_id = sqlc.arg('organization_id')
@@ -734,7 +750,14 @@ ORDER BY
 LIMIT sqlc.arg('limit_val');
 
 -- name: ListEmailHubThreadsSearchPage :many
-SELECT t.*
+SELECT
+  t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id,
+  t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at,
+  t.is_read, t.is_starred, t.has_attachments,
+  NULL::text AS body_text,
+  NULL::text AS body_html,
+  t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key,
+  t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = sqlc.arg('account_id')
   AND t.organization_id = sqlc.arg('organization_id')

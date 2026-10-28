@@ -49,10 +49,10 @@ export function isEndpointMissing(error: unknown): boolean {
   return error instanceof ApiError && (error.status === 404 || error.status === 501);
 }
 
-function sourcesFilterKey(filter?: Pick<ListDocumentSourcesOpts, "source" | "type" | "q" | "sort" | "order">): string {
+function sourcesFilterKey(filter?: Pick<ListDocumentSourcesOpts, "source" | "types" | "q" | "sort" | "order">): string {
   if (!filter) return "";
   const entries = Object.entries(filter)
-    .filter(([, value]) => value !== undefined && value !== "")
+    .filter(([, value]) => value !== undefined && value !== "" && !(Array.isArray(value) && value.length === 0))
     .sort(([a], [b]) => a.localeCompare(b));
   return JSON.stringify(entries);
 }
@@ -61,7 +61,7 @@ function sourcesFilterKey(filter?: Pick<ListDocumentSourcesOpts, "source" | "typ
  *  endpoint is not retried so the caller can hide the section at once. */
 export function useDocumentSources(
   wsId: string,
-  filter?: Pick<ListDocumentSourcesOpts, "source" | "type" | "q" | "sort" | "order">,
+  filter?: Pick<ListDocumentSourcesOpts, "source" | "types" | "q" | "sort" | "order">,
   opts?: { enabled?: boolean },
 ) {
   return useInfiniteQuery({

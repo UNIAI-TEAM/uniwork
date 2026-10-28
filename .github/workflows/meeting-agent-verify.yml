@@ -2,13 +2,12 @@ name: Meeting Agent Verify
 
 # apps/meeting-agent (ADR 0045): the Python LiveKit worker of the AI scribe.
 # Beside the main CI workflow: it is not a pnpm/turbo workspace.
-# - agent: ruff and pytest. Tests use the fake STT and never reach a LiveKit
-#   room or a vendor; tests/test_eval_run.py also pins the STT harness to the
-#   server's batch request, hence the file_transcribe.go path below.
-# - image: pip-audit of the pinned requirements, the image build and an import
-#   smoke inside it, on every change. On push to main/develop it also pushes the
-#   image by digest when the registry secrets exist (forks and PRs never push);
-#   production pins its own digest from ci/Jenkinsfile.production-app.groovy.
+# ruff, pytest, and pip-audit of the pinned requirements. Tests use the fake
+# STT and never reach a LiveKit room or a vendor; tests/test_eval_run.py also
+# pins the STT harness to the server's batch request, hence the
+# file_transcribe.go path below.
+# Jenkins app-dev builds the dev tag. Jenkins production builds the image and
+# pins the digest. This workflow does not build or push an image.
 
 on:
   push:
@@ -50,59 +49,7 @@ jobs:
         run: ruff check . && ruff format --check .
       - name: Pytest
         run: python -m pytest -q
-
-  image:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      IMAGE: registry-harbor.ubos.vn/uniwork/uniwork-meeting-agent
-      # A secret cannot be read in `if:`; whether it is set can, through env.
-      HAS_REGISTRY: ${{ secrets.HARBOR_USERNAME != '' && secrets.HARBOR_PASSWORD != '' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-      - name: pip-audit (pinned requirements, resolved with their dependencies)
+      - name: pip-audit
         run: |
           python -m pip install pip-audit==2.9.0
-          pip-audit --progress-spinner off -r apps/meeting-agent/requirements.txt
-      - uses: docker/setup-buildx-action@v3
-      - name: Build
-        uses: docker/build-push-action@v6
-        with:
-          context: apps/meeting-agent
-          load: true
-          tags: uniwork-meeting-agent:ci
-      - name: Smoke the image
-        # The worker's own CLI and every module it loads, inside the image:
-        # a missing wheel or a native library shows here, not in the cluster.
-        run: |
-          docker run --rm uniwork-meeting-agent:ci python -c \
-            "import livekit.agents, livekit.plugins.silero, livekit.plugins.assemblyai, scribe.stt, scribe.transcriber, scribe.api"
-          docker run --rm -e SCRIBE_STT_PROVIDER=fake uniwork-meeting-agent:ci python agent.py --help
-          test "$(docker run --rm uniwork-meeting-agent:ci id -u)" = 1000
-      - name: Registry login
-        if: github.event_name == 'push' && env.HAS_REGISTRY == 'true'
-        uses: docker/login-action@v3
-        with:
-          registry: registry-harbor.ubos.vn
-          username: ${{ secrets.HARBOR_USERNAME }}
-          password: ${{ secrets.HARBOR_PASSWORD }}
-      - name: Push by digest
-        id: push
-        if: github.event_name == 'push' && env.HAS_REGISTRY == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: apps/meeting-agent
-          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
-      - name: Digest for Helm
-        if: steps.push.outcome == 'success'
-        env:
-          DIGEST: ${{ steps.push.outputs.digest }}
-        run: |
-          case "$DIGEST" in sha256:*) ;; *) echo "::error::no digest from the push"; exit 1 ;; esac
-          echo "meetingAgent.image.digest=$DIGEST" | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Not pushed
-        if: github.event_name == 'push' && env.HAS_REGISTRY != 'true'
-        run: echo "::notice::HARBOR_USERNAME/HARBOR_PASSWORD not set; image built and audited, not pushed"
+          pip-audit --progress-spinner off -r requirements.txt

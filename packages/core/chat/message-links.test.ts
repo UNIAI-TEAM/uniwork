@@ -43,6 +43,15 @@ describe("titleFromMessageBody", () => {
     const long = "a".repeat(200);
     expect(titleFromMessageBody(long)).toHaveLength(120);
   });
+
+  it("reads mention tokens as @Name, never raw mention:// markup", () => {
+    expect(
+      titleFromMessageBody(
+        "check tạo công việc [@Miên Thi](mention://member/01M3KF216RSBV7RQDDBE7ABCDE) vào thực hiện",
+      ),
+    ).toBe("check tạo công việc @Miên Thi vào thực hiện");
+    expect(titleFromMessageBody("[@all](mention://all/all) họp 3h")).toBe("@all họp 3h");
+  });
 });
 
 describe("message link helpers", () => {

@@ -10,10 +10,10 @@ beforeAll(() => {
   initI18n();
 });
 
-const livekit = vi.hoisted(() => ({ muted: false }));
+const livekit = vi.hoisted(() => ({ muted: false, speaking: false }));
 
 vi.mock("@livekit/components-react", () => ({
-  useIsSpeaking: () => false,
+  useIsSpeaking: () => livekit.speaking,
   useIsMuted: () => livekit.muted,
 }));
 
@@ -82,6 +82,18 @@ describe("MeetingParticipantRow", () => {
     expect(screen.queryByText("Agent")).not.toBeInTheDocument();
   });
 
+  it("shows an open mic as a quiet state, beside nothing louder", () => {
+    render(<MeetingParticipantRow participant={fakeParticipant()} />);
+    expect(screen.getByRole("img", { name: "Mic đang bật" })).toHaveClass("text-faint-foreground");
+    expect(screen.queryByRole("img", { name: "Mic đang tắt" })).not.toBeInTheDocument();
+  });
+
+  it("draws the secretary chip quiet in the room", () => {
+    render(<MeetingParticipantRow participant={fakeParticipant()} roleChip="secretary" />);
+    expect(screen.getByText("Thư ký")).toHaveClass("bg-surface-hover", "text-muted-foreground");
+    expect(screen.getByText("Thư ký")).not.toHaveClass("bg-brand-subtle");
+  });
+
   it("marks a secretary and an observer beside the name", () => {
     const { rerender } = render(<MeetingParticipantRow participant={fakeParticipant()} roleChip="secretary" />);
     expect(screen.getByText("Thư ký")).toBeInTheDocument();
@@ -93,5 +105,49 @@ describe("MeetingParticipantRow", () => {
     render(<MeetingParticipantRow participant={fakeParticipant()} menuExtra={<li role="menuitem">Giao vai thư ký</li>} />);
     fireEvent.click(screen.getByRole("button", { name: /Thao tác với Guest One/i }));
     expect(await screen.findByRole("menuitem", { name: "Giao vai thư ký" })).toBeInTheDocument();
+  });
+  it("marks you with a faint word, not a suffix on your name", () => {
+    render(<MeetingParticipantRow participant={fakeParticipant({ isLocal: true, name: "Lan" })} />);
+    expect(screen.getByText("Lan")).toBeInTheDocument();
+    expect(screen.getByText("bạn")).toHaveClass("text-faint-foreground");
+    expect(screen.queryByText(/\(Bạn\)/)).not.toBeInTheDocument();
+  });
+
+  it("shows the host and the room mic as chips", () => {
+    render(<MeetingParticipantRow participant={fakeParticipant()} host sharedMic roleChip="secretary" />);
+    expect(screen.getByText("Chủ trì")).toHaveClass("bg-brand-subtle");
+    expect(screen.getByText("Mic hội trường")).toHaveClass("bg-tint-violet");
+    expect(screen.getByText("Thư ký")).toBeInTheDocument();
+  });
+
+  it("paints a pinned speaker's ring gap in the pinned row's colour", () => {
+    livekit.speaking = true;
+    try {
+      const { container } = render(<MeetingParticipantRow participant={fakeParticipant()} pinned />);
+      const face = container.querySelector('[data-slot="avatar"]');
+      expect(face).toHaveClass("ring-offset-surface-selected", "group-hover:ring-offset-surface-hover");
+      expect(face).not.toHaveClass("ring-offset-surface");
+    } finally {
+      livekit.speaking = false;
+    }
+  });
+
+  it("rings a speaker's face and shows a muted mic in red", () => {
+    livekit.speaking = true;
+    try {
+      const { container } = render(<MeetingParticipantRow participant={fakeParticipant()} />);
+      expect(container.querySelector('[data-slot="avatar"]')).toHaveClass("ring-2", "ring-success/60", "ring-offset-surface", "group-hover:ring-offset-surface-hover");
+      expect(container.querySelector('[data-slot="avatar"]')).not.toHaveClass("ring-offset-background");
+      expect(screen.getByRole("img", { name: "Đang nói" })).toBeInTheDocument();
+    } finally {
+      livekit.speaking = false;
+    }
+    livekit.muted = true;
+    try {
+      render(<MeetingParticipantRow participant={fakeParticipant({ identity: "uw_participant_p2" })} />);
+      expect(screen.getByRole("img", { name: "Mic đang tắt" })).toHaveClass("text-destructive");
+    } finally {
+      livekit.muted = false;
+    }
   });
 });

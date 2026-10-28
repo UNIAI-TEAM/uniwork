@@ -97,7 +97,7 @@ SET properties = properties - $1::text,
 WHERE id = $2
   AND organization_id = $3
   AND workspace_id = $4
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
 `
 
 type DeleteTaskPropertyValueParams struct {
@@ -151,6 +151,11 @@ func (q *Queries) DeleteTaskPropertyValue(ctx context.Context, arg DeleteTaskPro
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }
@@ -193,6 +198,7 @@ SELECT p.id, p.organization_id, p.workspace_id, p.name, p.type, p.description, p
     SELECT COUNT(*) FROM tasks t
     WHERE t.organization_id = p.organization_id
       AND t.workspace_id = p.workspace_id
+      AND t.trashed_at IS NULL
       AND t.properties ? p.id
   )::bigint AS usage_count
 FROM task_properties p
@@ -296,7 +302,7 @@ SET properties = jsonb_set(properties, ARRAY[$1::text], $2::jsonb, true),
 WHERE id = $3
   AND organization_id = $4
   AND workspace_id = $5
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id
 `
 
 type SetTaskPropertyValueParams struct {
@@ -352,6 +358,11 @@ func (q *Queries) SetTaskPropertyValue(ctx context.Context, arg SetTaskPropertyV
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }

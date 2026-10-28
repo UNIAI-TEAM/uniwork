@@ -9,16 +9,18 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
@@ -40,6 +42,9 @@ type docsWorld struct {
 	// files is the in-memory FileService the document service runs on, for
 	// tests that seed an avatar or a file.
 	files *filesfake.Fake
+	// docs is the DocumentService behind the routes, for tests that plug a
+	// Work Product owner resolver into it.
+	docs *service.DocumentService
 }
 
 // docsPNG is a valid 1x1 PNG: the document layer decodes the image header,
@@ -88,7 +93,7 @@ func newDocsWorld(t *testing.T) *docsWorld {
 		testFlagOverrides.Invalidate()
 	}
 
-	w := &docsWorld{srv: srv, pool: pool, files: fakeFiles}
+	w := &docsWorld{srv: srv, pool: pool, files: fakeFiles, docs: docs}
 	w.token, w.userID = filesRegister(t, srv, "docs-owner@example.com")
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Docs Org", "slug": "docs-org"})
 	if res.StatusCode != 201 {
@@ -460,6 +465,201 @@ func TestDocumentFileLifecycle(t *testing.T) {
 	}
 }
 
+func TestDocumentDownloadIntent(t *testing.T) {
+	// Invalid intent is rejected at the handler query parser before touching the service or DB.
+	h := &handlers{Documents: &service.DocumentService{}}
+	for _, method := range []string{"GET", "HEAD"} {
+		req := httptest.NewRequest(method, "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/download?intent=inline", nil)
+		rec := httptest.NewRecorder()
+		h.downloadDocument(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s invalid intent unit: %d %s", method, rec.Code, rec.Body.String())
+		}
+		var out map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode 400: %v (%s)", err, rec.Body.String())
+		}
+		code, _ := errCodeClass(out)
+		errObj, _ := out["error"].(map[string]any)
+		msg, _ := errObj["message"].(string)
+		if code != "invalid_request" || msg != "intent must be download or view" {
+			t.Fatalf("400 envelope: code=%q msg=%q (%v)", code, msg, out)
+		}
+	}
+
+	w := newDocsWorld(t)
+
+	newFile := func(t *testing.T, name string) (string, string) {
+		t.Helper()
+		res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token,
+			map[string]string{"title": name}, name, docsPNG, nil)
+		if res.StatusCode != 201 {
+			t.Fatalf("create %s: %d %s", name, res.StatusCode, raw)
+		}
+		var j map[string]any
+		if err := json.Unmarshal(raw, &j); err != nil {
+			t.Fatal(err)
+		}
+		return j["document"].(map[string]any)["id"].(string), res.Header.Get("X-Correlation-ID")
+	}
+	// Exclude the view row that createDocumentFile's trailing GetDocument
+	// writes under the upload's correlation_id, so countLogs measures only rows
+	// written by the download requests under test.
+	countLogs := func(t *testing.T, docID, uploadCorr, action string) int {
+		t.Helper()
+		var n int
+		if err := w.pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM document_access_logs WHERE document_id = $1 AND action = $2 AND correlation_id <> $3`,
+			docID, action, uploadCorr).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	freshFile := func(t *testing.T, name string) (string, string) {
+		t.Helper()
+		id, corr := newFile(t, name)
+		if corr == "" {
+			t.Fatal("upload response missing X-Correlation-ID")
+		}
+		// Backdate the upload's GetDocument view row past the 5-minute coalesce
+		// window so the first download?intent=view under test is not coalesced
+		// into the upload's row.
+		if _, err := w.pool.Exec(context.Background(),
+			`UPDATE document_access_logs SET occurred_at = now() - interval '6 minutes' WHERE document_id = $1 AND correlation_id = $2`,
+			id, corr); err != nil {
+			t.Fatal(err)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView) + countLogs(t, id, corr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("baseline rows after upload = %d, want 0", got)
+		}
+		return id, corr
+	}
+
+	t.Run("intent=view writes one view row and keeps attachment headers", func(t *testing.T) {
+		id, corr := freshFile(t, "view.png")
+		// First read is a suffix range so the internal size probe and final open are both tested unmasked.
+		res, raw := doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=view", w.token, "Range", "bytes=-4")
+		if res.StatusCode != 206 || !bytes.Equal(raw, docsPNG[len(docsPNG)-4:]) {
+			t.Fatalf("suffix range intent=view: %d len=%d", res.StatusCode, len(raw))
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("view rows after suffix range = %d, want 1", got)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("download rows after suffix range = %d, want 0", got)
+		}
+		// Repeat view within 5 minutes coalesces and keeps attachment headers.
+		res, raw = doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=view", w.token)
+		if res.StatusCode != 200 || !bytes.Equal(raw, docsPNG) {
+			t.Fatalf("GET intent=view: %d len=%d", res.StatusCode, len(raw))
+		}
+		if cd := res.Header.Get("Content-Disposition"); !strings.Contains(cd, "attachment") {
+			t.Fatalf("disposition = %q, want attachment", cd)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("coalesced view rows = %d, want 1", got)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("download rows = %d, want 0", got)
+		}
+	})
+
+	t.Run("no intent and intent=download write download and coalesce", func(t *testing.T) {
+		id, corr := freshFile(t, "download.png")
+		res, raw := doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download", w.token)
+		if res.StatusCode != 200 || !bytes.Equal(raw, docsPNG) {
+			t.Fatalf("GET default intent: %d len=%d", res.StatusCode, len(raw))
+		}
+		res, raw = doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=download", w.token)
+		if res.StatusCode != 200 || !bytes.Equal(raw, docsPNG) {
+			t.Fatalf("GET intent=download: %d len=%d", res.StatusCode, len(raw))
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessDownload); got != 1 {
+			t.Fatalf("download rows = %d, want 1", got)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView); got != 0 {
+			t.Fatalf("view rows = %d, want 0", got)
+		}
+	})
+
+	t.Run("coalesce is per action: view then download within 5 min writes two rows", func(t *testing.T) {
+		id, corr := freshFile(t, "both.png")
+		if res, _ := doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=view", w.token); res.StatusCode != 200 {
+			t.Fatalf("view: %d", res.StatusCode)
+		}
+		if res, _ := doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download?intent=download", w.token); res.StatusCode != 200 {
+			t.Fatalf("download: %d", res.StatusCode)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("view rows = %d, want 1", got)
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessDownload); got != 1 {
+			t.Fatalf("download rows = %d, want 1", got)
+		}
+	})
+
+	t.Run("HEAD and meta=1 respect intent", func(t *testing.T) {
+		headID, headCorr := freshFile(t, "head.png")
+		res, raw := doBytes(t, w.srv, "HEAD", "/api/v1/documents/"+headID+"/download?intent=view", w.token)
+		if res.StatusCode != 200 || len(raw) != 0 || res.Header.Get("Content-Length") == "" {
+			t.Fatalf("HEAD intent=view: %d len=%d", res.StatusCode, len(raw))
+		}
+		if got := countLogs(t, headID, headCorr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("HEAD view rows = %d, want 1", got)
+		}
+		if got := countLogs(t, headID, headCorr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("HEAD download rows = %d, want 0", got)
+		}
+
+		metaID, metaCorr := freshFile(t, "meta.png")
+		res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+metaID+"/download?meta=1&intent=view", w.token, nil)
+		if res.StatusCode != 200 || out["disposition"] != "attachment" {
+			t.Fatalf("meta=1 intent=view: %d %v", res.StatusCode, out)
+		}
+		if got := countLogs(t, metaID, metaCorr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("meta=1 view rows = %d, want 1", got)
+		}
+		if got := countLogs(t, metaID, metaCorr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("meta=1 download rows after intent=view = %d, want 0", got)
+		}
+		res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+metaID+"/download?meta=1", w.token, nil)
+		if res.StatusCode != 200 || out["disposition"] != "attachment" {
+			t.Fatalf("meta=1 default: %d %v", res.StatusCode, out)
+		}
+		if got := countLogs(t, metaID, metaCorr, service.DocumentAccessDownload); got != 1 {
+			t.Fatalf("meta=1 default download rows = %d, want 1", got)
+		}
+		if got := countLogs(t, metaID, metaCorr, service.DocumentAccessView); got != 1 {
+			t.Fatalf("meta=1 view rows after default = %d, want 1", got)
+		}
+	})
+
+	t.Run("invalid intent answers 400 invalid_request and writes no row", func(t *testing.T) {
+		id, corr := freshFile(t, "bad.png")
+		for _, method := range []string{"GET", "HEAD"} {
+			res, raw := doBytes(t, w.srv, method, "/api/v1/documents/"+id+"/download?intent=inline", w.token)
+			if res.StatusCode != 400 {
+				t.Fatalf("%s invalid intent: %d %s", method, res.StatusCode, raw)
+			}
+			if method == "GET" {
+				var out map[string]any
+				if err := json.Unmarshal(raw, &out); err != nil {
+					t.Fatalf("decode 400: %v (%s)", err, raw)
+				}
+				code, _ := errCodeClass(out)
+				errObj, _ := out["error"].(map[string]any)
+				msg, _ := errObj["message"].(string)
+				if code != "invalid_request" || msg != "intent must be download or view" {
+					t.Fatalf("400 envelope: code=%q msg=%q (%v)", code, msg, out)
+				}
+			}
+		}
+		if got := countLogs(t, id, corr, service.DocumentAccessView) + countLogs(t, id, corr, service.DocumentAccessDownload); got != 0 {
+			t.Fatalf("invalid intent wrote %d rows, want 0", got)
+		}
+	})
+}
+
 func TestDocumentAssetUploadAndStream(t *testing.T) {
 	w := newDocsWorld(t)
 	_, id := createPage(t, w, "with image", nil)
@@ -738,5 +938,131 @@ func TestDocumentMultipartCap(t *testing.T) {
 	res, _ = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+docID+"/assets", w.token, nil, "big.png", bytes.Repeat([]byte{7}, 10<<20+600<<10), nil)
 	if res.StatusCode != 413 {
 		t.Fatalf("asset over cap: %d, want 413", res.StatusCode)
+	}
+}
+
+func handlerCFBDoc(marker string) []byte {
+	b := make([]byte, 1024)
+	copy(b, []byte{0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1})
+	binary.LittleEndian.PutUint16(b[24:], 0x003e)
+	binary.LittleEndian.PutUint16(b[26:], 0x0003)
+	binary.LittleEndian.PutUint16(b[28:], 0xfffe)
+	binary.LittleEndian.PutUint16(b[30:], 9)
+	binary.LittleEndian.PutUint16(b[32:], 6)
+	copy(b[512:], marker)
+	return b
+}
+
+// TestDocumentCommitLegacyConversionRoute exercises POST /api/v1/documents/{id}/versions/commit
+// with the optional conversion object (UNI-2213, C5) through the HTTP router.
+func TestDocumentCommitLegacyConversionRoute(t *testing.T) {
+	w := newDocsWorld(t)
+
+	v1Bytes := handlerCFBDoc("legacy-v1")
+	res, raw := doMultipart(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents/files", w.token,
+		map[string]string{"title": "legacy-brief.doc"}, "legacy-brief.doc", v1Bytes, map[string]string{"Idempotency-Key": "c5-create-1"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create .doc: %d %s", res.StatusCode, raw)
+	}
+	var created map[string]any
+	_ = json.Unmarshal(raw, &created)
+	doc := created["document"].(map[string]any)
+	docID := doc["id"].(string)
+	rev := doc["revision"].(string)
+
+	v2Bytes := frameDocx(t, "converted-v2")
+	res, raw = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+docID+"/uploads", w.token, nil, "converted.docx", v2Bytes, map[string]string{"Idempotency-Key": "c5-up-1"})
+	if res.StatusCode != 201 {
+		t.Fatalf("upload .docx: %d %s", res.StatusCode, raw)
+	}
+	var up map[string]any
+	_ = json.Unmarshal(raw, &up)
+	uploadID := up["upload_id"].(string)
+
+	// Undeclared format change -> 415 unsupported_media_type (reason=format_changed).
+	res, out := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "c5-no-conv"},
+		map[string]any{"upload_id": uploadID, "base_revision": rev})
+	if code, _ := errCodeClass(out); res.StatusCode != 415 || code != "unsupported_media_type" {
+		t.Fatalf("without conversion: %d %v, want 415 unsupported_media_type", res.StatusCode, out)
+	}
+
+	// Malformed conversion.from_format -> 400 invalid_request.
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "c5-bad-enum"},
+		map[string]any{
+			"upload_id":     uploadID,
+			"base_revision": rev,
+			"conversion":    map[string]any{"from_format": "pdf", "to_format": "docx"},
+		})
+	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
+		t.Fatalf("bad enum: %d %v, want 400 invalid_request", res.StatusCode, out)
+	}
+
+	// Cross-family conversion pair -> 422 legacy_conversion_invalid (target_mismatch), unclassified.
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "c5-mismatch"},
+		map[string]any{
+			"upload_id":     uploadID,
+			"base_revision": rev,
+			"conversion":    map[string]any{"from_format": "doc", "to_format": "xlsx"},
+		})
+	if code, class := errCodeClass(out); res.StatusCode != 422 || code != "legacy_conversion_invalid" || class != "" {
+		t.Fatalf("target_mismatch: %d code=%q class=%q out=%v", res.StatusCode, code, class, out)
+	}
+	if fields, _ := out["error"].(map[string]any)["fields"].(map[string]any); fields["reason"] != "target_mismatch" {
+		t.Fatalf("fields = %v, want reason=target_mismatch", fields)
+	}
+
+	// Valid conversion doc->docx -> 200 OK with v2 reason=converted_version and provenance fields.
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/versions/commit", w.token,
+		map[string]string{"Idempotency-Key": "c5-conv-ok"},
+		map[string]any{
+			"upload_id":     uploadID,
+			"base_revision": rev,
+			"conversion":    map[string]any{"from_format": "doc", "to_format": "docx"},
+		})
+	if res.StatusCode != 200 {
+		t.Fatalf("valid conversion: %d %v", res.StatusCode, out)
+	}
+	ver := out["version"].(map[string]any)
+	docAfter := out["document"].(map[string]any)
+	fileAfter := docAfter["file"].(map[string]any)
+	wantV1SHA := sha256.Sum256(v1Bytes)
+	wantV1Hex := hex.EncodeToString(wantV1SHA[:])
+	gotChecksum, hasChecksum := ver["converted_from_checksum"].(string)
+	if ver["version"].(float64) != 2 || ver["reason"] != "converted_version" || ver["converted_from_version"].(float64) != 1 || !hasChecksum || gotChecksum != wantV1Hex {
+		t.Fatalf("version SDO = %v, want converted_from_checksum=%q", ver, wantV1Hex)
+	}
+	if docAfter["title"] != "legacy-brief.docx" {
+		t.Fatalf("document.title = %v, want legacy-brief.docx", docAfter["title"])
+	}
+	if fileAfter["filename"] != "legacy-brief.docx" || fileAfter["mime_type"] != "application/vnd.openxmlformats-officedocument.wordprocessingml.document" {
+		t.Fatalf("file SDO = %v", fileAfter)
+	}
+
+	// Version list returns both v2 (converted_version) and v1 (upload, original .doc).
+	res, listOut := doJSON(t, w.srv, "GET", "/api/v1/documents/"+docID+"/versions", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list versions: %d %v", res.StatusCode, listOut)
+	}
+	versions := listOut["versions"].([]any)
+	if len(versions) != 2 {
+		t.Fatalf("versions count = %d, want 2", len(versions))
+	}
+	v2Row := versions[0].(map[string]any)
+	v2ListChecksum, hasListChecksum := v2Row["converted_from_checksum"].(string)
+	if v2Row["reason"] != "converted_version" || v2Row["converted_from_version"].(float64) != 1 || !hasListChecksum || v2ListChecksum != wantV1Hex {
+		t.Fatalf("versions[0] = %v, want converted_from_checksum=%q", v2Row, wantV1Hex)
+	}
+
+	// Download ?version=1 returns the original .doc bytes and filename; default download returns v2 .docx.
+	res, dlV1 := doBytes(t, w.srv, "GET", "/api/v1/documents/"+docID+"/download?version=1", w.token)
+	if res.StatusCode != 200 || !bytes.Equal(dlV1, v1Bytes) || !strings.Contains(res.Header.Get("Content-Disposition"), "legacy-brief.doc") {
+		t.Fatalf("download v1: %d disp=%q", res.StatusCode, res.Header.Get("Content-Disposition"))
+	}
+	res, dlV2 := doBytes(t, w.srv, "GET", "/api/v1/documents/"+docID+"/download", w.token)
+	if res.StatusCode != 200 || !bytes.Equal(dlV2, v2Bytes) || !strings.Contains(res.Header.Get("Content-Disposition"), "legacy-brief.docx") {
+		t.Fatalf("download v2: %d disp=%q", res.StatusCode, res.Header.Get("Content-Disposition"))
 	}
 }

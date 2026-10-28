@@ -841,6 +841,9 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 		return link, nil
 	case "email_account":
 		return base + "/email", nil
+	case "organization_member":
+		// The grouped notice of a bulk document transfer: the documents home.
+		return base + "/documents", nil
 	default:
 		return base + "/inbox", nil
 	}

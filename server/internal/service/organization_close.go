@@ -26,7 +26,7 @@ func (s *OrganizationMemberService) Close(ctx context.Context, actorID, orgID, c
 	if err := lockMembership(ctx, q, actorID); err != nil {
 		return err
 	}
-	mailboxes, err := s.closeQ(ctx, q, actorID, orgID, confirmSlug, nil)
+	mailboxes, driveSubs, err := s.closeQ(ctx, q, actorID, orgID, confirmSlug, nil)
 	if err != nil {
 		return err
 	}
@@ -34,6 +34,7 @@ func (s *OrganizationMemberService) Close(ctx context.Context, actorID, orgID, c
 		return err
 	}
 	cleanUpEmailHubAccountsAfterCommit(ctx, s.q, s.emailHub, mailboxes)
+	cleanUpDriveGrantsAfterCommit(ctx, s.drive, driveSubs)
 	return nil
 }
 
@@ -44,80 +45,87 @@ func (s *OrganizationMemberService) Close(ctx context.Context, actorID, orgID, c
 // no longer the owner, or waits and finds the organization archived. The
 // caller cleans up the returned mailboxes after commit. meta joins the
 // organization.closed audit metadata (the invitation a switch closed for).
-func (s *OrganizationMemberService) closeQ(ctx context.Context, q *db.Queries, actorID, orgID, confirmSlug string, meta map[string]any) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
+func (s *OrganizationMemberService) closeQ(ctx context.Context, q *db.Queries, actorID, orgID, confirmSlug string, meta map[string]any) ([]db.DisconnectEmailHubAccountsForUserRow, []string, error) {
 	return closeOrganizationQ(ctx, q, actorID, orgID, confirmSlug, meta)
 }
 
 // closeOrganizationQ is closeQ without the service: account deletion closes the
 // sole owner's organization in its own transaction (AuthService.DeleteAccount).
-func closeOrganizationQ(ctx context.Context, q *db.Queries, actorID, orgID, confirmSlug string, meta map[string]any) ([]db.DisconnectEmailHubAccountsForUserRow, error) {
+func closeOrganizationQ(ctx context.Context, q *db.Queries, actorID, orgID, confirmSlug string, meta map[string]any) ([]db.DisconnectEmailHubAccountsForUserRow, []string, error) {
 	m, err := q.LockOrganizationMemberForUpdate(ctx, db.LockOrganizationMemberForUpdateParams{
 		OrganizationID: orgID, UserID: actorID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrForbidden
+		return nil, nil, ErrForbidden
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// The organization row next: an acceptance into it holds the row shared
 	// from before it locks the invitation, so the count below either sees
 	// that member or the acceptance waits and finds the organization closed.
 	org, err := q.LockOrganizationForUpdate(ctx, orgID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	if testAfterCloseOrgRowLock != nil {
+		testAfterCloseOrgRowLock(actorID, orgID)
 	}
 	switch {
 	case m.DeactivatedAt.Valid:
-		return nil, errMemberDeactivated()
+		return nil, nil, errMemberDeactivated()
 	case m.Role != OrgRoleOwner:
-		return nil, ErrForbidden
+		return nil, nil, ErrForbidden
 	case org.Status != OrganizationActive:
-		return nil, errOrganizationSuspended()
+		return nil, nil, errOrganizationSuspended()
 	case confirmSlug != org.Slug:
-		return nil, errCloseConfirmMismatch()
+		return nil, nil, errCloseConfirmMismatch()
 	}
 	others, err := q.CountActiveOtherMembers(ctx, db.CountActiveOtherMembersParams{
 		OrganizationID: orgID, UserID: actorID,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if others > 0 {
-		return nil, errOrganizationHasMembers()
+		return nil, nil, errOrganizationHasMembers()
 	}
 	closed, err := q.CloseOrganization(ctx, orgID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if closed == 0 {
 		// Unreachable while the row is locked; kept as the write's own guard.
-		return nil, ErrConflict
+		return nil, nil, ErrConflict
 	}
 	if _, err := q.SetOrganizationMemberDeactivated(ctx, db.SetOrganizationMemberDeactivatedParams{
 		OrganizationID: orgID, UserID: actorID,
 		DeactivatedBy: pgtype.Text{String: actorID, Valid: true},
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	revoked, err := q.RevokePendingInvitationsForOrg(ctx, orgID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := q.CancelOrganizationSubscriptions(ctx, db.CancelOrganizationSubscriptionsParams{
 		OrganizationID: orgID, UpdatedBy: actorID, UpdatedByKind: string(audit.KindHuman),
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Like Leave: the owner takes no AI connector access or mailbox with them.
 	if err := revokeMcpGrantsForUserInOrg(ctx, q, orgID, actorID); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	mailboxes, err := q.DisconnectEmailHubAccountsForUser(ctx, db.DisconnectEmailHubAccountsForUserParams{
 		UserID: actorID, OrganizationID: pgtype.Text{String: orgID, Valid: true},
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	driveSubs, err := disconnectDriveConnectionsForUserInTx(ctx, q, audit.User(actorID), actorID, orgID, "organization_closed")
+	if err != nil {
+		return nil, nil, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID,
@@ -129,9 +137,9 @@ func closeOrganizationQ(ctx context.Context, q *db.Queries, actorID, orgID, conf
 	}, audit.Event{Topic: "organization.closed", Payload: map[string]string{
 		"organization_id": orgID,
 	}}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return mailboxes, nil
+	return mailboxes, driveSubs, nil
 }
 
 // withMetadata adds one key to a copy of meta, which may be nil.

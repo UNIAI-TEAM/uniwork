@@ -3,6 +3,8 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -10,6 +12,13 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/util"
+	"strings"
+	"unicode/utf8"
+
+	"golang.org/x/text/unicode/norm"
+
+	"github.com/unicomhub/uniwork/server/internal/files"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // TestDocumentCommit: the file save path of C-01 §14.4 in DOC-005 §3 order,
@@ -592,4 +601,1019 @@ func TestArchivedDocumentCommitUploadRestore(t *testing.T) {
 	wantNotFound(t, err)
 	_, err = env.commit(manager, viewDoc.Document.ID, viewStaged.UploadID, viewDoc.Document.Revision, util.NewID())
 	wantCode(t, err, "document_archived")
+}
+
+// legacyCFBBody is a minimal OLE CFB header + sector for a legacy .doc/.xls/.ppt
+// fixture with a unique marker so checksums differ across tests.
+func legacyCFBBody(marker string) []byte {
+	b := make([]byte, 1024)
+	copy(b, []byte{0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1})
+	binary.LittleEndian.PutUint16(b[24:], 0x003e)
+	binary.LittleEndian.PutUint16(b[26:], 0x0003)
+	binary.LittleEndian.PutUint16(b[28:], 0xfffe)
+	binary.LittleEndian.PutUint16(b[30:], 9)
+	binary.LittleEndian.PutUint16(b[32:], 6)
+	copy(b[512:], marker)
+	return b
+}
+
+func xlsxBody(t *testing.T, marker string) []byte {
+	t.Helper()
+	return docxLike(t, "xl/workbook.xml", "xl/worksheets/"+marker+".xml")
+}
+
+func pptxBody(t *testing.T, marker string) []byte {
+	t.Helper()
+	return docxLike(t, "ppt/presentation.xml", "ppt/slides/"+marker+".xml")
+}
+
+// TestDocumentCommitLegacyConversion covers UNI-2213 (C5): committing a
+// converted OOXML upload onto a legacy (.doc/.xls/.ppt) document as the next
+// version of the same document, plus refusals and unit checks.
+func TestDocumentCommitLegacyConversionUnit(t *testing.T) {
+	if got, err := normalizeConversion(nil); err != nil || got != nil {
+		t.Fatalf("normalizeConversion(nil) = %+v, %v", got, err)
+	}
+	for _, tc := range []struct {
+		from, to string
+		wantMime string
+	}{
+		{" DOC ", " DOCX ", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+		{"xls", "xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},
+		{"ppt", "pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+	} {
+		got, err := normalizeConversion(&DocumentVersionConversion{FromFormat: tc.from, ToFormat: tc.to})
+		if err != nil {
+			t.Fatalf("normalizeConversion(%q->%q): %v", tc.from, tc.to, err)
+		}
+		if mime, ok := ooxmlTargetMime(got.ToFormat); !ok || mime != tc.wantMime {
+			t.Fatalf("ooxmlTargetMime(%q) = %q, %v", got.ToFormat, mime, ok)
+		}
+	}
+	for _, bad := range []DocumentVersionConversion{
+		{FromFormat: "", ToFormat: "docx"},
+		{FromFormat: "pdf", ToFormat: "docx"},
+		{FromFormat: "docx", ToFormat: "docx"},
+		{FromFormat: "doc", ToFormat: ""},
+		{FromFormat: "doc", ToFormat: "pdf"},
+		{FromFormat: "doc", ToFormat: "doc"},
+	} {
+		var ve ValidationError
+		if _, err := normalizeConversion(&bad); err == nil {
+			t.Fatalf("normalizeConversion(%+v) expected ValidationError", bad)
+		} else if !errors.As(err, &ve) || ve.Msg == "" {
+			t.Fatalf("normalizeConversion(%+v) = %T (%v), want ValidationError", bad, err, err)
+		}
+	}
+
+	fpPlain := commitFingerprint("doc-1", 3, "abc", DocumentEngineInfo{})
+	fpConvDoc := commitFingerprint("doc-1", 3, "abc", DocumentEngineInfo{}, &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"})
+	fpConvXls := commitFingerprint("doc-1", 3, "abc", DocumentEngineInfo{}, &DocumentVersionConversion{FromFormat: "xls", ToFormat: "xlsx"})
+	if fpPlain == fpConvDoc || fpConvDoc == fpConvXls {
+		t.Fatalf("commitFingerprint must distinguish conversion pairs: plain=%s doc=%s xls=%s", fpPlain, fpConvDoc, fpConvXls)
+	}
+	for _, tc := range []struct {
+		title, from, to string
+		wantTitle       string
+		wantChanged     bool
+	}{
+		{"Báo cáo ngân sách.xls", "xls", "xlsx", "Báo cáo ngân sách.xlsx", true},
+		{"REPORT.DOC", "doc", "docx", "REPORT.docx", true},
+		{"Deck.PpT", "ppt", "pptx", "Deck.pptx", true},
+		{"Báo cáo ngân sách", "xls", "xlsx", "Báo cáo ngân sách", false},
+		{"x.xls", "doc", "docx", "x.xls", false},
+		{"a.xls notes", "xls", "xlsx", "a.xls notes", false},
+		{"already.docx", "doc", "docx", "already.docx", false},
+		{"backup.xls.bak", "xls", "xlsx", "backup.xls.bak", false},
+	} {
+		got, changed := rewriteConvertedDocumentTitle(tc.title, tc.from, tc.to)
+		if got != tc.wantTitle || changed != tc.wantChanged {
+			t.Fatalf("rewriteConvertedDocumentTitle(%q, %q, %q) = (%q, %v), want (%q, %v)",
+				tc.title, tc.from, tc.to, got, changed, tc.wantTitle, tc.wantChanged)
+		}
+	}
+}
+
+func TestDocumentCommitLegacyConversion(t *testing.T) {
+	t.Run("families_and_titles", func(t *testing.T) {
+		env := newFakeDocStorageEnv(t)
+		ctx := context.Background()
+		member := human(env.tn.member)
+		for _, tc := range []struct {
+			fromFormat string
+			fromName   string
+			fromMime   string
+			toFormat   string
+			toName     string
+			toMime     string
+			wantFile   string
+			buildOOXML func(t *testing.T, marker string) []byte
+		}{
+			{
+				fromFormat: "doc",
+				fromName:   "budget.doc",
+				fromMime:   "application/msword",
+				toFormat:   "docx",
+				toName:     "converted.docx",
+				toMime:     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+				wantFile:   "budget.docx",
+				buildOOXML: docxBody,
+			},
+			{
+				fromFormat: "xls",
+				fromName:   "sheet.xls",
+				fromMime:   "application/vnd.ms-excel",
+				toFormat:   "xlsx",
+				toName:     "converted.xlsx",
+				toMime:     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+				wantFile:   "sheet.xlsx",
+				buildOOXML: xlsxBody,
+			},
+			{
+				fromFormat: "ppt",
+				fromName:   "deck.ppt",
+				fromMime:   "application/vnd.ms-powerpoint",
+				toFormat:   "pptx",
+				toName:     "converted.pptx",
+				toMime:     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+				wantFile:   "deck.pptx",
+				buildOOXML: pptxBody,
+			},
+		} {
+			t.Run(tc.fromFormat+"_to_"+tc.toFormat, func(t *testing.T) {
+				v1Bytes := legacyCFBBody("v1-" + tc.fromFormat)
+				created := env.createFile(t, member, tc.fromName, v1Bytes)
+				if created.Version.MimeType.String != tc.fromMime {
+					t.Fatalf("v1 mime = %q, want %q", created.Version.MimeType.String, tc.fromMime)
+				}
+
+				v2Bytes := tc.buildOOXML(t, "v2-"+tc.toFormat)
+				up := env.upload(t, member, created.Document.ID, tc.toName, v2Bytes)
+
+				// Without conversion, changing format is still 415 unsupported_media_type (format_changed).
+				_, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
+				if ce := wantCode(t, err, "unsupported_media_type"); ce.Status != 415 || ce.Fields["reason"] != "format_changed" {
+					t.Fatalf("undeclared format change = %+v, want 415 format_changed", ce)
+				}
+
+				// With matching conversion, v2 is appended on the same document id.
+				key := util.NewID()
+				res, err := env.svc.CommitFileVersion(ctx, member, created.Document.ID, CommitFileVersionInput{
+					UploadID:       up.UploadID,
+					BaseRevision:   created.Document.Revision,
+					IdempotencyKey: key,
+					Conversion: &DocumentVersionConversion{
+						FromFormat: tc.fromFormat,
+						ToFormat:   tc.toFormat,
+					},
+				})
+				mustf(t, err, "commit converted version")
+				if res.Document.ID != created.Document.ID || res.Document.CurrentVersion != 2 || res.Document.Revision != created.Document.Revision+1 {
+					t.Fatalf("document = %+v", res.Document)
+				}
+				wantTitle := "Báo cáo " + tc.wantFile
+				if res.Document.Title != wantTitle {
+					t.Fatalf("document.title = %q, want %q", res.Document.Title, wantTitle)
+				}
+				if res.Version.Version != 2 || res.Version.Reason != DocumentVersionReasonConverted {
+					t.Fatalf("version = %+v, want v2 reason=%s", res.Version, DocumentVersionReasonConverted)
+				}
+				if !res.Version.ConvertedFromVersion.Valid || res.Version.ConvertedFromVersion.Int32 != 1 {
+					t.Fatalf("converted_from_version = %+v, want 1", res.Version.ConvertedFromVersion)
+				}
+				if !res.Version.ConvertedFromChecksum.Valid || res.Version.ConvertedFromChecksum.String != sha(v1Bytes) {
+					t.Fatalf("converted_from_checksum = %+v, want %s", res.Version.ConvertedFromChecksum, sha(v1Bytes))
+				}
+				if res.Version.MimeType.String != tc.toMime || res.File.MimeType != tc.toMime {
+					t.Fatalf("mime = %q / %q, want %q", res.Version.MimeType.String, res.File.MimeType, tc.toMime)
+				}
+				if res.File.Filename != tc.wantFile {
+					t.Fatalf("file.filename = %q, want %q", res.File.Filename, tc.wantFile)
+				}
+
+				// Idempotent replay with same key and conversion returns the same version and rewritten title.
+				replay, err := env.svc.CommitFileVersion(ctx, member, created.Document.ID, CommitFileVersionInput{
+					UploadID:       up.UploadID,
+					BaseRevision:   created.Document.Revision,
+					IdempotencyKey: key,
+					Conversion: &DocumentVersionConversion{
+						FromFormat: tc.fromFormat,
+						ToFormat:   tc.toFormat,
+					},
+				})
+				mustf(t, err, "replay converted commit")
+				if replay.Version.ID != res.Version.ID || replay.Document.Title != wantTitle {
+					t.Fatalf("replay version = %s title = %q, want %s %q", replay.Version.ID, replay.Document.Title, res.Version.ID, wantTitle)
+				}
+
+				// R1-19: command-level idempotency payload mismatch when reusing key
+				// with a different conversion pair or with conversion omitted.
+				diffToFormat := "xlsx"
+				if tc.toFormat == "xlsx" {
+					diffToFormat = "docx"
+				}
+				_, err = env.svc.CommitFileVersion(ctx, member, created.Document.ID, CommitFileVersionInput{
+					UploadID:       up.UploadID,
+					BaseRevision:   created.Document.Revision,
+					IdempotencyKey: key,
+					Conversion: &DocumentVersionConversion{
+						FromFormat: tc.fromFormat,
+						ToFormat:   diffToFormat,
+					},
+				})
+				if ce := wantCode(t, err, "idempotency_payload_mismatch"); ce.Status != 409 {
+					t.Fatalf("replay with different conversion pair = %+v, want 409 idempotency_payload_mismatch", ce)
+				}
+				_, err = env.svc.CommitFileVersion(ctx, member, created.Document.ID, CommitFileVersionInput{
+					UploadID:       up.UploadID,
+					BaseRevision:   created.Document.Revision,
+					IdempotencyKey: key,
+				})
+				if ce := wantCode(t, err, "idempotency_payload_mismatch"); ce.Status != 409 {
+					t.Fatalf("replay with conversion omitted = %+v, want 409 idempotency_payload_mismatch", ce)
+				}
+				if vs := env.versions(t, created.Document); len(vs) != 2 {
+					t.Fatalf("versions after idempotency mismatch = %d, want 2", len(vs))
+				}
+				// GET document resolves the rewritten title, search_text, and filename from v1's base name.
+				gotDoc, err := env.svc.GetDocument(ctx, member, created.Document.ID)
+				mustf(t, err, "get document after conversion")
+				if gotDoc.Document.Title != wantTitle || gotDoc.Document.SearchText != documentSearchText(wantTitle, "") {
+					t.Fatalf("GetDocument title=%q search_text=%q, want %q / %q",
+						gotDoc.Document.Title, gotDoc.Document.SearchText, wantTitle, documentSearchText(wantTitle, ""))
+				}
+				if gotDoc.File == nil || gotDoc.File.Filename != tc.wantFile || gotDoc.File.MimeType != tc.toMime {
+					t.Fatalf("GetDocument file = %+v, want filename=%q mime=%q", gotDoc.File, tc.wantFile, tc.toMime)
+				}
+
+				// Download live (version=0) serves v2 OOXML with the rewritten filename;
+				// download version=1 serves the original legacy v1 with the original filename.
+				dlLive, err := env.svc.OpenDocumentFile(ctx, member, created.Document.ID, 0, DocumentByteRange{}, DocumentAccessDownload)
+				mustf(t, err, "open live")
+				liveBytes := readBytes(t, dlLive.Reader.Body)
+				_ = dlLive.Reader.Close()
+				if !bytes.Equal(liveBytes, v2Bytes) || dlLive.Reader.File.Filename != tc.wantFile || dlLive.Version.MimeType.String != tc.toMime {
+					t.Fatalf("live download = filename %q mime %q", dlLive.Reader.File.Filename, dlLive.Version.MimeType.String)
+				}
+
+				dlV1, err := env.svc.OpenDocumentFile(ctx, member, created.Document.ID, 1, DocumentByteRange{}, DocumentAccessDownload)
+				mustf(t, err, "open v1")
+				v1Read := readBytes(t, dlV1.Reader.Body)
+				_ = dlV1.Reader.Close()
+				if !bytes.Equal(v1Read, v1Bytes) || dlV1.Reader.File.Filename != tc.fromName || dlV1.Version.MimeType.String != tc.fromMime {
+					t.Fatalf("v1 download = filename %q mime %q", dlV1.Reader.File.Filename, dlV1.Version.MimeType.String)
+				}
+
+				// R1-13: identical-bytes save after conversion (without conversion) returns
+				// the effective filename in response, replay, and GET.
+				upNoOp := env.upload(t, member, created.Document.ID, tc.toName, v2Bytes)
+				noOpKey := util.NewID()
+				noOpRes, err := env.commit(member, created.Document.ID, upNoOp.UploadID, res.Document.Revision, noOpKey)
+				mustf(t, err, "identical-bytes no-op after conversion")
+				if noOpRes.Version.ID != res.Version.ID || noOpRes.Document.Revision != res.Document.Revision || noOpRes.File.Filename != tc.wantFile {
+					t.Fatalf("no-op after conversion = ver %s rev %d file %q, want ver %s rev %d file %q",
+						noOpRes.Version.ID, noOpRes.Document.Revision, noOpRes.File.Filename, res.Version.ID, res.Document.Revision, tc.wantFile)
+				}
+				noOpReplay, err := env.commit(member, created.Document.ID, upNoOp.UploadID, res.Document.Revision, noOpKey)
+				mustf(t, err, "replay identical-bytes no-op after conversion")
+				if noOpReplay.Version.ID != res.Version.ID || noOpReplay.File.Filename != tc.wantFile {
+					t.Fatalf("no-op replay after conversion = ver %s file %q, want ver %s file %q",
+						noOpReplay.Version.ID, noOpReplay.File.Filename, res.Version.ID, tc.wantFile)
+				}
+				gotAfterNoOp, err := env.svc.GetDocument(ctx, member, created.Document.ID)
+				mustf(t, err, "get document after no-op")
+				if gotAfterNoOp.File == nil || gotAfterNoOp.File.Filename != tc.wantFile {
+					t.Fatalf("GetDocument after no-op file = %+v, want %q", gotAfterNoOp.File, tc.wantFile)
+				}
+				// Subsequent OOXML save on v2 commits normally as v3 without conversion.
+				v3Bytes := tc.buildOOXML(t, "v3-"+tc.toFormat)
+				up3 := env.upload(t, member, created.Document.ID, tc.wantFile, v3Bytes)
+				v3, err := env.commit(member, created.Document.ID, up3.UploadID, res.Document.Revision, util.NewID())
+				mustf(t, err, "commit v3")
+				if v3.Version.Version != 3 || v3.Version.Reason != "upload" {
+					t.Fatalf("v3 = %+v", v3.Version)
+				}
+
+				// R1-3: restoring the converted version (v2) keeps the effective filename
+				// in the immediate restore result, fresh GET, and download name.
+				restoredV2, err := env.svc.RestoreFileVersion(ctx, member, created.Document.ID, RestoreFileVersionInput{
+					Version:        2,
+					BaseRevision:   v3.Document.Revision,
+					IdempotencyKey: util.NewID(),
+				})
+				mustf(t, err, "restore converted version v2")
+				if restoredV2.Version.Version != 4 || restoredV2.Version.Reason != "restore" || restoredV2.File.Filename != tc.wantFile {
+					t.Fatalf("restore v2 result = v%d reason=%q file=%q, want v4 restore %q",
+						restoredV2.Version.Version, restoredV2.Version.Reason, restoredV2.File.Filename, tc.wantFile)
+				}
+				gotAfterRestore, err := env.svc.GetDocument(ctx, member, created.Document.ID)
+				mustf(t, err, "get document after restore of converted version")
+				if gotAfterRestore.File == nil || gotAfterRestore.File.Filename != tc.wantFile {
+					t.Fatalf("GetDocument after restore file = %+v, want %q", gotAfterRestore.File, tc.wantFile)
+				}
+				dlRestored, err := env.svc.OpenDocumentFile(ctx, member, created.Document.ID, 0, DocumentByteRange{}, DocumentAccessDownload)
+				mustf(t, err, "open live after restore of converted version")
+				restoredBytes := readBytes(t, dlRestored.Reader.Body)
+				_ = dlRestored.Reader.Close()
+				if !bytes.Equal(restoredBytes, v2Bytes) || dlRestored.Reader.File.Filename != tc.wantFile {
+					t.Fatalf("download after restore = filename %q, want %q", dlRestored.Reader.File.Filename, tc.wantFile)
+				}
+
+				// Audit row for the converted commit carries reason=converted_version and provenance.
+				var rawChanges, rawMeta []byte
+				if err := env.f.pool.QueryRow(ctx,
+					`SELECT changes, metadata FROM audit_events WHERE action = $1 AND resource_id = $2 AND changes::jsonb->'reason'->>'to' = $3`,
+					audit.ActionDocumentVersionCreated, created.Document.ID, DocumentVersionReasonConverted,
+				).Scan(&rawChanges, &rawMeta); err != nil {
+					t.Fatal("query audit row:", err)
+				}
+				var changes map[string]map[string]any
+				if err := json.Unmarshal(rawChanges, &changes); err != nil {
+					t.Fatal(err)
+				}
+				if changes["reason"]["to"] != DocumentVersionReasonConverted ||
+					changes["converted_from"]["to"] != tc.fromFormat ||
+					changes["converted_to"]["to"] != tc.toFormat ||
+					changes["title"]["from"] != created.Document.Title ||
+					changes["title"]["to"] != wantTitle {
+					t.Fatalf("audit changes = %s", rawChanges)
+				}
+				var meta map[string]any
+				if err := json.Unmarshal(rawMeta, &meta); err != nil {
+					t.Fatal(err)
+				}
+				if meta["converted_from"] != tc.fromFormat || meta["converted_to"] != tc.toFormat {
+					t.Fatalf("audit metadata = %s", rawMeta)
+				}
+				// Rename side effects in the same transaction: document.updated audit row + document.updated frame + renamed notice.
+				if n := env.countAudit(t, audit.ActionDocumentUpdated, created.Document.ID); n != 1 {
+					t.Fatalf("document.updated audit rows = %d, want 1", n)
+				}
+				if n := env.countOutbox(t, "document.updated", created.Document.ID); n != 1 {
+					t.Fatalf("document.updated outbox rows = %d, want 1", n)
+				}
+				// R1-22: document.change_noticed row with verb=version_created is written
+				// for the converted commit (and for v3 upload, total 2).
+				var versionCreatedNotices int
+				if err := env.f.pool.QueryRow(ctx,
+					`SELECT count(*) FROM outbox_events WHERE topic = 'document.change_noticed' AND payload::jsonb->>'document_id' = $1 AND payload::jsonb->>'verb' = $2`,
+					created.Document.ID, docNoticeVersionCreated,
+				).Scan(&versionCreatedNotices); err != nil {
+					t.Fatal(err)
+				}
+				if versionCreatedNotices != 2 {
+					t.Fatalf("version_created change notices = %d, want 2 (v2 converted_version + v3 upload)", versionCreatedNotices)
+				}
+			})
+		}
+
+		t.Run("title suffix rewrite rules and rename side effects", func(t *testing.T) {
+			for _, tc := range []struct {
+				name        string
+				fromFormat  string
+				fromFile    string
+				toFormat    string
+				toFile      string
+				initTitle   string
+				wantTitle   string
+				wantRenamed bool
+				buildOOXML  func(t *testing.T, marker string) []byte
+			}{
+				{
+					name:        "xls title rewritten to xlsx",
+					fromFormat:  "xls",
+					fromFile:    "bao-cao-ngan-sach.xls",
+					toFormat:    "xlsx",
+					toFile:      "bao-cao-ngan-sach.xlsx",
+					initTitle:   "Báo cáo ngân sách.xls",
+					wantTitle:   "Báo cáo ngân sách.xlsx",
+					wantRenamed: true,
+					buildOOXML:  xlsxBody,
+				},
+				{
+					name:        "uppercase DOC title rewritten to lowercase docx",
+					fromFormat:  "doc",
+					fromFile:    "report.doc",
+					toFormat:    "docx",
+					toFile:      "report.docx",
+					initTitle:   "REPORT.DOC",
+					wantTitle:   "REPORT.docx",
+					wantRenamed: true,
+					buildOOXML:  docxBody,
+				},
+				{
+					name:        "title without extension unchanged",
+					fromFormat:  "xls",
+					fromFile:    "sheet.xls",
+					toFormat:    "xlsx",
+					toFile:      "sheet.xlsx",
+					initTitle:   "Báo cáo ngân sách",
+					wantTitle:   "Báo cáo ngân sách",
+					wantRenamed: false,
+					buildOOXML:  xlsxBody,
+				},
+				{
+					name:        "other-family suffix unchanged",
+					fromFormat:  "doc",
+					fromFile:    "notes.doc",
+					toFormat:    "docx",
+					toFile:      "notes.docx",
+					initTitle:   "x.xls",
+					wantTitle:   "x.xls",
+					wantRenamed: false,
+					buildOOXML:  docxBody,
+				},
+				{
+					name:        "legacy extension in the middle unchanged",
+					fromFormat:  "xls",
+					fromFile:    "notes.xls",
+					toFormat:    "xlsx",
+					toFile:      "notes.xlsx",
+					initTitle:   "a.xls notes",
+					wantTitle:   "a.xls notes",
+					wantRenamed: false,
+					buildOOXML:  xlsxBody,
+				},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					v1Bytes := legacyCFBBody("title-v1-" + tc.name)
+					created, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, CreateFileDocumentInput{
+						Title:      tc.initTitle,
+						Filename:   tc.fromFile,
+						Body:       bytes.NewReader(v1Bytes),
+						Visibility: documentVisibilityWorkspace,
+					})
+					mustf(t, err, "create legacy document")
+
+					v2Bytes := tc.buildOOXML(t, "title-v2-"+tc.name)
+					up := env.upload(t, member, created.Document.ID, tc.toFile, v2Bytes)
+					res, err := env.svc.CommitFileVersion(ctx, member, created.Document.ID, CommitFileVersionInput{
+						UploadID:       up.UploadID,
+						BaseRevision:   created.Document.Revision,
+						IdempotencyKey: util.NewID(),
+						Conversion: &DocumentVersionConversion{
+							FromFormat: tc.fromFormat,
+							ToFormat:   tc.toFormat,
+						},
+					})
+					mustf(t, err, "commit converted version")
+					if res.Document.Title != tc.wantTitle {
+						t.Fatalf("response document.title = %q, want %q", res.Document.Title, tc.wantTitle)
+					}
+					stored := env.doc(t, created.Document.ID)
+					if stored.Title != tc.wantTitle {
+						t.Fatalf("stored document.title = %q, want %q", stored.Title, tc.wantTitle)
+					}
+					if stored.SearchText != documentSearchText(tc.wantTitle, "") {
+						t.Fatalf("stored search_text = %q, want %q", stored.SearchText, documentSearchText(tc.wantTitle, ""))
+					}
+
+					var renamedNotices int
+					if err := env.f.pool.QueryRow(ctx,
+						`SELECT count(*) FROM outbox_events WHERE topic = 'document.change_noticed' AND payload::jsonb->>'document_id' = $1 AND payload::jsonb->>'verb' = $2`,
+						created.Document.ID, docNoticeRenamed,
+					).Scan(&renamedNotices); err != nil {
+						t.Fatal(err)
+					}
+					if tc.wantRenamed {
+						if n := env.countAudit(t, audit.ActionDocumentUpdated, created.Document.ID); n != 1 {
+							t.Fatalf("document.updated audit rows = %d, want 1", n)
+						}
+						if n := env.countOutbox(t, "document.updated", created.Document.ID); n != 1 {
+							t.Fatalf("document.updated outbox rows = %d, want 1", n)
+						}
+						if renamedNotices != 1 {
+							t.Fatalf("renamed change notices = %d, want 1", renamedNotices)
+						}
+						var rawChanges []byte
+						if err := env.f.pool.QueryRow(ctx,
+							`SELECT changes FROM audit_events WHERE action = $1 AND resource_id = $2`,
+							audit.ActionDocumentUpdated, created.Document.ID,
+						).Scan(&rawChanges); err != nil {
+							t.Fatal(err)
+						}
+						var diff map[string]map[string]any
+						if err := json.Unmarshal(rawChanges, &diff); err != nil {
+							t.Fatal(err)
+						}
+						if diff["title"]["from"] != tc.initTitle || diff["title"]["to"] != tc.wantTitle {
+							t.Fatalf("document.updated audit diff = %s, want title %q -> %q", rawChanges, tc.initTitle, tc.wantTitle)
+						}
+					} else {
+						if n := env.countAudit(t, audit.ActionDocumentUpdated, created.Document.ID); n != 0 {
+							t.Fatalf("document.updated audit rows = %d, want 0 when title unchanged", n)
+						}
+						if n := env.countOutbox(t, "document.updated", created.Document.ID); n != 0 {
+							t.Fatalf("document.updated outbox rows = %d, want 0 when title unchanged", n)
+						}
+						if renamedNotices != 0 {
+							t.Fatalf("renamed change notices = %d, want 0 when title unchanged", renamedNotices)
+						}
+					}
+				})
+			}
+
+			t.Run("500-rune boundary legacy title with multibyte/combining near cut", func(t *testing.T) {
+				// R1-23: 500-rune legacy title ending with .xls where .xls (4) grows
+				// to .xlsx (5), reducing the stem budget to 495 runes.
+				// Case A: 494 'a' + 'ệ' (multibyte NFC rune at index 495) + 'z' (index 496) + ".xls" (4) = 500 NFC runes.
+				stemA := strings.Repeat("a", maxDocumentTitle-6) + "ệz"
+				initTitleA := stemA + ".xls"
+				wantTitleA := strings.Repeat("a", maxDocumentTitle-6) + "ệ.xlsx"
+				if utf8.RuneCountInString(initTitleA) != maxDocumentTitle || utf8.RuneCountInString(wantTitleA) != maxDocumentTitle {
+					t.Fatalf("fixture A rune counts = %d / %d, want %d", utf8.RuneCountInString(initTitleA), utf8.RuneCountInString(wantTitleA), maxDocumentTitle)
+				}
+				createdA, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, CreateFileDocumentInput{
+					Title:      initTitleA,
+					Filename:   "boundary-a.xls",
+					Body:       bytes.NewReader(legacyCFBBody("boundary-a-v1")),
+					Visibility: documentVisibilityWorkspace,
+				})
+				mustf(t, err, "create boundary A")
+				upA := env.upload(t, member, createdA.Document.ID, "boundary-a.xlsx", xlsxBody(t, "boundary-a-v2"))
+				resA, err := env.svc.CommitFileVersion(ctx, member, createdA.Document.ID, CommitFileVersionInput{
+					UploadID:       upA.UploadID,
+					BaseRevision:   createdA.Document.Revision,
+					IdempotencyKey: util.NewID(),
+					Conversion:     &DocumentVersionConversion{FromFormat: "xls", ToFormat: "xlsx"},
+				})
+				mustf(t, err, "commit boundary A")
+				if resA.Document.Title != wantTitleA || !norm.NFC.IsNormalString(resA.Document.Title) || utf8.RuneCountInString(resA.Document.Title) != maxDocumentTitle {
+					t.Fatalf("boundary A title = %q (len=%d runes), want %q", resA.Document.Title, utf8.RuneCountInString(resA.Document.Title), wantTitleA)
+				}
+				storedA := env.doc(t, createdA.Document.ID)
+				if storedA.Title != wantTitleA || storedA.SearchText != documentSearchText(wantTitleA, "") {
+					t.Fatalf("stored boundary A title/search_text mismatch")
+				}
+
+				// Case B: combining mark at the cut boundary (493 'b' + 'q' (494) + '\u0303' (495) + 'z' (496) + ".xls" (4) = 500 NFC runes).
+				// When cut to 495 runes, runes[:495] ends with '\u0303' (unicode.Mn), so trimTitleRunes drops '\u0303' and leaves 494 runes + ".xlsx" (5) = 499 runes, NFC, no dangling mark.
+				initTitleB := strings.Repeat("b", maxDocumentTitle-7) + "q\u0303z.xls"
+				wantTitleB := strings.Repeat("b", maxDocumentTitle-7) + "q.xlsx"
+				if utf8.RuneCountInString(initTitleB) != maxDocumentTitle {
+					t.Fatalf("fixture B rune count = %d, want %d", utf8.RuneCountInString(initTitleB), maxDocumentTitle)
+				}
+				gotB, changedB := rewriteConvertedDocumentTitle(initTitleB, "xls", "xlsx")
+				if !changedB || gotB != wantTitleB || !norm.NFC.IsNormalString(gotB) || utf8.RuneCountInString(gotB) > maxDocumentTitle {
+					t.Fatalf("rewriteConvertedDocumentTitle(boundary B) = (%q, %v), want (%q, true)", gotB, changedB, wantTitleB)
+				}
+				createdB, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, CreateFileDocumentInput{
+					Title:      initTitleB,
+					Filename:   "boundary-b.xls",
+					Body:       bytes.NewReader(legacyCFBBody("boundary-b-v1")),
+					Visibility: documentVisibilityWorkspace,
+				})
+				mustf(t, err, "create boundary B")
+				upB := env.upload(t, member, createdB.Document.ID, "boundary-b.xlsx", xlsxBody(t, "boundary-b-v2"))
+				resB, err := env.svc.CommitFileVersion(ctx, member, createdB.Document.ID, CommitFileVersionInput{
+					UploadID:       upB.UploadID,
+					BaseRevision:   createdB.Document.Revision,
+					IdempotencyKey: util.NewID(),
+					Conversion:     &DocumentVersionConversion{FromFormat: "xls", ToFormat: "xlsx"},
+				})
+				mustf(t, err, "commit boundary B")
+				if resB.Document.Title != wantTitleB || !norm.NFC.IsNormalString(resB.Document.Title) || utf8.RuneCountInString(resB.Document.Title) > maxDocumentTitle {
+					t.Fatalf("boundary B title = %q (len=%d runes), want %q", resB.Document.Title, utf8.RuneCountInString(resB.Document.Title), wantTitleB)
+				}
+				storedB := env.doc(t, createdB.Document.ID)
+				if storedB.Title != wantTitleB || storedB.SearchText != documentSearchText(wantTitleB, "") {
+					t.Fatalf("stored boundary B title/search_text mismatch")
+				}
+			})
+		})
+	})
+
+	t.Run("R1-15: XLSX bytes staged as budget.xls -> conversion succeeds, capability format xlsx, and xlsx job accepted", func(t *testing.T) {
+		ctx := context.Background()
+		f := newOfficeFixture(t, "# seed\n")
+		eng := newScriptedEngine()
+		eng.fake = f.files.Fake
+		officeSvc := f.service(eng)
+
+		created, err := f.docs.CreateFileDocument(ctx, f.actor, f.ws, CreateFileDocumentInput{
+			Title:      "Báo cáo ngân sách.xls",
+			Filename:   "budget.xls",
+			Body:       bytes.NewReader(legacyCFBBody("r1-15-xls-v1")),
+			Visibility: documentVisibilityWorkspace,
+		})
+		mustf(t, err, "create legacy xls")
+		setWorkspaceLevel(t, f.pf, created.Document, string(DocumentLevelEdit))
+
+		// Stage valid XLSX bytes under the legacy filename "budget.xls".
+		v2Bytes := xlsxBody(t, "r1-15-xlsx-v2")
+		up, err := f.docs.UploadDocumentFile(ctx, f.actor, created.Document.ID, DocumentUploadInput{
+			Filename: "budget.xls",
+			Body:     bytes.NewReader(v2Bytes),
+		})
+		mustf(t, err, "upload xlsx bytes as budget.xls")
+		if up.MimeType != "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" {
+			t.Fatalf("staged mime = %q, want xlsx mime", up.MimeType)
+		}
+
+		convRes, err := f.docs.CommitFileVersion(ctx, f.actor, created.Document.ID, CommitFileVersionInput{
+			UploadID:       up.UploadID,
+			BaseRevision:   created.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "xls", ToFormat: "xlsx"},
+		})
+		mustf(t, err, "commit conversion with budget.xls upload name")
+		if convRes.File.Filename != "budget.xlsx" {
+			t.Fatalf("converted filename = %q, want budget.xlsx", convRes.File.Filename)
+		}
+
+		caps, err := officeSvc.Capability(ctx, f.actor, created.Document.ID)
+		mustf(t, err, "capability after conversion")
+		if caps.Format != office.FormatXLSX {
+			t.Fatalf("Capability.Format = %q, want %q", caps.Format, office.FormatXLSX)
+		}
+
+		job, err := officeSvc.StartOfficeJob(ctx, f.actor, OfficeJobInput{
+			OrganizationID: f.org,
+			WorkspaceID:    f.ws,
+			DocumentID:     created.Document.ID,
+			BaseVersionID:  convRes.Version.ID,
+			BaseRevision:   convRes.Document.Revision,
+			Operation:      office.OperationSerialize,
+			Format:         office.FormatXLSX,
+			IdempotencyKey: util.NewID(),
+		})
+		mustf(t, err, "StartOfficeJob with FormatXLSX after conversion")
+		if job.Format != string(office.FormatXLSX) {
+			t.Fatalf("job.Format = %q, want %q", job.Format, office.FormatXLSX)
+		}
+	})
+
+	t.Run("R2-1 and R2-2: legacy budget.xls converted with converted.xls and restored 17 times preserves budget.xlsx and xlsx capability/job", func(t *testing.T) {
+		ctx := context.Background()
+		f := newOfficeFixture(t, "# seed\n")
+		eng := newScriptedEngine()
+		eng.fake = f.files.Fake
+		officeSvc := f.service(eng)
+
+		created, err := f.docs.CreateFileDocument(ctx, f.actor, f.ws, CreateFileDocumentInput{
+			Title:      "Báo cáo ngân sách.xls",
+			Filename:   "budget.xls",
+			Body:       bytes.NewReader(legacyCFBBody("r2-2-xls-v1")),
+			Visibility: documentVisibilityWorkspace,
+		})
+		mustf(t, err, "create legacy budget.xls")
+		setWorkspaceLevel(t, f.pf, created.Document, string(DocumentLevelEdit))
+
+		v2Bytes := xlsxBody(t, "r2-2-xlsx-v2")
+		up, err := f.docs.UploadDocumentFile(ctx, f.actor, created.Document.ID, DocumentUploadInput{
+			Filename: "converted.xls",
+			Body:     bytes.NewReader(v2Bytes),
+		})
+		mustf(t, err, "upload xlsx bytes as converted.xls")
+
+		convRes, err := f.docs.CommitFileVersion(ctx, f.actor, created.Document.ID, CommitFileVersionInput{
+			UploadID:       up.UploadID,
+			BaseRevision:   created.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "xls", ToFormat: "xlsx"},
+		})
+		mustf(t, err, "commit conversion with converted.xls upload name")
+		if convRes.File.Filename != "budget.xlsx" {
+			t.Fatalf("converted filename = %q, want budget.xlsx", convRes.File.Filename)
+		}
+
+		latestVer := convRes.Version.Version
+		latestRev := convRes.Document.Revision
+		var depth17Res DocumentFileResult
+		var depth17Key string
+		for depth := 1; depth <= 17; depth++ {
+			key := util.NewID()
+			restored, err := f.docs.RestoreFileVersion(ctx, f.actor, created.Document.ID, RestoreFileVersionInput{
+				Version:        latestVer,
+				BaseRevision:   latestRev,
+				IdempotencyKey: key,
+			})
+			mustf(t, err, "restore latest version")
+			latestVer = restored.Version.Version
+			latestRev = restored.Document.Revision
+			if depth == 17 {
+				depth17Res = restored
+				depth17Key = key
+			}
+		}
+
+		if depth17Res.Version.Version != 19 || depth17Res.File.Filename != "budget.xlsx" {
+			t.Fatalf("depth 17 restore response = v%d file=%q, want v19 budget.xlsx", depth17Res.Version.Version, depth17Res.File.Filename)
+		}
+		replay17, err := f.docs.RestoreFileVersion(ctx, f.actor, created.Document.ID, RestoreFileVersionInput{
+			Version:        18,
+			BaseRevision:   depth17Res.Document.Revision - 1,
+			IdempotencyKey: depth17Key,
+		})
+		mustf(t, err, "replay depth 17 restore")
+		if replay17.Version.ID != depth17Res.Version.ID || replay17.File.Filename != "budget.xlsx" {
+			t.Fatalf("depth 17 replay = %q, want budget.xlsx", replay17.File.Filename)
+		}
+
+		got17, err := f.docs.GetDocument(ctx, f.actor, created.Document.ID)
+		mustf(t, err, "get document at depth 17")
+		if got17.File == nil || got17.File.Filename != "budget.xlsx" {
+			t.Fatalf("depth 17 GetDocument file = %+v, want budget.xlsx", got17.File)
+		}
+
+		dl17, err := f.docs.OpenDocumentFile(ctx, f.actor, created.Document.ID, 0, DocumentByteRange{}, DocumentAccessDownload)
+		mustf(t, err, "open live download at depth 17")
+		dl17Bytes := readBytes(t, dl17.Reader.Body)
+		_ = dl17.Reader.Close()
+		if !bytes.Equal(dl17Bytes, v2Bytes) || dl17.Reader.File.Filename != "budget.xlsx" {
+			t.Fatalf("depth 17 download = filename %q, want budget.xlsx", dl17.Reader.File.Filename)
+		}
+
+		caps17, err := officeSvc.Capability(ctx, f.actor, created.Document.ID)
+		mustf(t, err, "capability at depth 17")
+		if caps17.Format != office.FormatXLSX {
+			t.Fatalf("depth 17 Capability.Format = %q, want %q", caps17.Format, office.FormatXLSX)
+		}
+
+		job17, err := officeSvc.StartOfficeJob(ctx, f.actor, OfficeJobInput{
+			OrganizationID: f.org,
+			WorkspaceID:    f.ws,
+			DocumentID:     created.Document.ID,
+			BaseVersionID:  depth17Res.Version.ID,
+			BaseRevision:   depth17Res.Document.Revision,
+			Operation:      office.OperationSerialize,
+			Format:         office.FormatXLSX,
+			IdempotencyKey: util.NewID(),
+		})
+		mustf(t, err, "StartOfficeJob with FormatXLSX at depth 17")
+		if job17.Format != string(office.FormatXLSX) {
+			t.Fatalf("depth 17 job.Format = %q, want %q", job17.Format, office.FormatXLSX)
+		}
+	})
+
+	t.Run("R1-2 and R1-11: operational storage error on validation is not 422, and lock/stale-base gates precede pair semantics", func(t *testing.T) {
+		env := newFakeDocStorageEnv(t)
+		ctx := context.Background()
+		member := human(env.tn.member)
+		peer := human(env.tn.creator)
+		legacyDoc := env.createFile(t, member, "gates.doc", legacyCFBBody("gates-doc"))
+		upXlsx := env.upload(t, member, legacyDoc.Document.ID, "gates.xlsx", xlsxBody(t, "gates-xlsx"))
+		upDocx := env.upload(t, member, legacyDoc.Document.ID, "gates.docx", docxBody(t, "gates-docx"))
+		upPdf := env.upload(t, member, legacyDoc.Document.ID, "gates.pdf", pdfBody("gates-pdf"))
+
+		// R1-2 (first validation call): storage fails during Open after ResolveMany succeeded -> 503 storage_unavailable, not 422.
+		snapDoc := env.doc(t, legacyDoc.Document.ID)
+		auditBefore := env.countAudit(t, audit.ActionDocumentVersionCreated, legacyDoc.Document.ID)
+		outboxBefore := env.countOutbox(t, "document.version_created", legacyDoc.Document.ID)
+		usageBefore := env.usage(t)
+		env.svc.SetFiles(&openFailFakeService{Service: env.fake, failOnCall: 1, err: files.StorageUnavailable(errors.New("disk read error"))})
+		_, err := env.svc.CommitFileVersion(ctx, member, legacyDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upDocx.UploadID,
+			BaseRevision:   legacyDoc.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+		})
+		env.svc.SetFiles(env.fake)
+		if ce := wantCode(t, err, "storage_unavailable"); ce.Status != 503 {
+			t.Fatalf("Open failure on checkStoredFile = %+v, want 503 storage_unavailable", ce)
+		}
+
+		// R1-2 (second validation call in verifyStoredOOXMLTarget): first Open succeeds (for PDF), second Open fails -> 503 storage_unavailable, not 422.
+		env.svc.SetFiles(&openFailFakeService{Service: env.fake, failOnCall: 2, err: files.StorageUnavailable(errors.New("disk read error on target check"))})
+		_, err = env.svc.CommitFileVersion(ctx, member, legacyDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upPdf.UploadID,
+			BaseRevision:   legacyDoc.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+		})
+		env.svc.SetFiles(env.fake)
+		if ce := wantCode(t, err, "storage_unavailable"); ce.Status != 503 {
+			t.Fatalf("Open failure on verifyStoredOOXMLTarget = %+v, want 503 storage_unavailable", ce)
+		}
+		if afterDoc := env.doc(t, legacyDoc.Document.ID); afterDoc.Revision != snapDoc.Revision || afterDoc.CurrentVersion != snapDoc.CurrentVersion {
+			t.Fatalf("document mutated after storage failure: %+v", afterDoc)
+		}
+		if len(env.versions(t, legacyDoc.Document)) != 1 ||
+			env.countAudit(t, audit.ActionDocumentVersionCreated, legacyDoc.Document.ID) != auditBefore ||
+			env.countOutbox(t, "document.version_created", legacyDoc.Document.ID) != outboxBefore ||
+			env.usage(t) != usageBefore {
+			t.Fatal("storage failure mutated versions, audit, outbox, or quota")
+		}
+
+		// R1-11: cross-family declaration (doc -> xlsx) while another editor holds the lock -> 423 document_locked, nothing written.
+		lockRes, err := env.svc.AcquireDocumentEditLock(ctx, peer, legacyDoc.Document.ID, AcquireDocumentEditLockInput{
+			EditorID: "peer-editor", Client: DocumentEditClientWebPage, SessionID: "sid-peer",
+		})
+		mustf(t, err, "peer acquire edit lock")
+		_, err = env.svc.CommitFileVersion(ctx, member, legacyDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upXlsx.UploadID,
+			BaseRevision:   legacyDoc.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "xlsx"},
+		})
+		if ce := wantCode(t, err, "document_locked"); ce.Status != 423 {
+			t.Fatalf("cross-family with held lock = %+v, want 423 document_locked", ce)
+		}
+		mustf(t, env.svc.ReleaseDocumentEditLock(ctx, peer, legacyDoc.Document.ID, lockRes.Lock.ID), "release lock")
+
+		// R1-11: cross-family declaration (doc -> xlsx) with stale base_revision -> 409 document_version_conflict, nothing written.
+		_, err = env.svc.CommitFileVersion(ctx, member, legacyDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upXlsx.UploadID,
+			BaseRevision:   legacyDoc.Document.Revision - 1,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "xlsx"},
+		})
+		if ce := wantCode(t, err, "document_version_conflict"); ce.Status != 409 {
+			t.Fatalf("cross-family with stale base = %+v, want 409 document_version_conflict", ce)
+		}
+		if afterDoc := env.doc(t, legacyDoc.Document.ID); afterDoc.Revision != snapDoc.Revision || afterDoc.CurrentVersion != snapDoc.CurrentVersion || len(env.versions(t, legacyDoc.Document)) != 1 {
+			t.Fatalf("document mutated after lock/stale-base refusals: %+v", afterDoc)
+		}
+	})
+
+	t.Run("refusals on local real storage: not_legacy, target_mismatch, not_ooxml, no save back to legacy, viewer leave nothing written", func(t *testing.T) {
+		ctx := context.Background()
+		realEnv := newRealDocStorageEnv(t, localFileBackend())
+		rMember := human(realEnv.tn.member)
+		rPeer := human(realEnv.tn.creator)
+
+		assertUnchanged := func(t *testing.T, beforeDoc db.Document, beforeMime string, uploadID string, beforeVersions, beforeAuditVer, beforeAuditUpd, beforeOutboxVer, beforeOutboxNotice int, beforeUsage int64) {
+			t.Helper()
+			afterDoc := realEnv.doc(t, beforeDoc.ID)
+			if afterDoc.Revision != beforeDoc.Revision ||
+				afterDoc.CurrentVersion != beforeDoc.CurrentVersion ||
+				afterDoc.FileVersionID != beforeDoc.FileVersionID ||
+				afterDoc.Title != beforeDoc.Title {
+				t.Fatalf("document mutated on refusal: before=%+v after=%+v", beforeDoc, afterDoc)
+			}
+			vs := realEnv.versions(t, afterDoc)
+			if len(vs) != beforeVersions {
+				t.Fatalf("version count = %d, want %d", len(vs), beforeVersions)
+			}
+			if len(vs) > 0 && vs[0].MimeType.String != beforeMime {
+				t.Fatalf("live version mime = %q, want %q", vs[0].MimeType.String, beforeMime)
+			}
+			if got := realEnv.countAudit(t, audit.ActionDocumentVersionCreated, beforeDoc.ID); got != beforeAuditVer {
+				t.Fatalf("version_created audit rows = %d, want %d", got, beforeAuditVer)
+			}
+			if got := realEnv.countAudit(t, audit.ActionDocumentUpdated, beforeDoc.ID); got != beforeAuditUpd {
+				t.Fatalf("document.updated audit rows = %d, want %d", got, beforeAuditUpd)
+			}
+			if got := realEnv.countOutbox(t, "document.version_created", beforeDoc.ID); got != beforeOutboxVer {
+				t.Fatalf("document.version_created outbox rows = %d, want %d", got, beforeOutboxVer)
+			}
+			if got := realEnv.countOutbox(t, "document.change_noticed", beforeDoc.ID); got != beforeOutboxNotice {
+				t.Fatalf("document.change_noticed outbox rows = %d, want %d", got, beforeOutboxNotice)
+			}
+			if got := realEnv.usage(t); got != beforeUsage {
+				t.Fatalf("quota usage = %d, want %d", got, beforeUsage)
+			}
+			if st := realEnv.sessionStatus(t, uploadID); st != "staged" {
+				t.Fatalf("upload %s session status = %q, want staged", uploadID, st)
+			}
+		}
+
+		snapshot := func(t *testing.T, docID string) (db.Document, string, int, int, int, int, int, int64) {
+			t.Helper()
+			d := realEnv.doc(t, docID)
+			vs := realEnv.versions(t, d)
+			mime := ""
+			if len(vs) > 0 {
+				mime = vs[0].MimeType.String
+			}
+			return d, mime, len(vs),
+				realEnv.countAudit(t, audit.ActionDocumentVersionCreated, docID),
+				realEnv.countAudit(t, audit.ActionDocumentUpdated, docID),
+				realEnv.countOutbox(t, "document.version_created", docID),
+				realEnv.countOutbox(t, "document.change_noticed", docID),
+				realEnv.usage(t)
+		}
+
+		// 1. Live version is already OOXML (.docx) -> 422 not_legacy.
+		docxDoc := realEnv.createFile(t, rMember, "already.docx", docxBody(t, "already-v1"))
+		upDocx := realEnv.upload(t, rMember, docxDoc.Document.ID, "already-v2.docx", docxBody(t, "already-v2"))
+		d0, m0, v0, av0, au0, ov0, on0, q0 := snapshot(t, docxDoc.Document.ID)
+		_, err := realEnv.svc.CommitFileVersion(ctx, rMember, docxDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upDocx.UploadID,
+			BaseRevision:   docxDoc.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+		})
+		if ce := wantCode(t, err, "legacy_conversion_invalid"); ce.Status != 422 || ce.Fields["reason"] != "not_legacy" {
+			t.Fatalf("already docx with conversion = %+v, want 422 not_legacy", ce)
+		}
+		assertUnchanged(t, d0, m0, upDocx.UploadID, v0, av0, au0, ov0, on0, q0)
+
+		// 2. Live version is PDF -> 422 not_legacy.
+		pdfDoc := realEnv.createFile(t, rMember, "file.pdf", pdfBody("pdf-v1"))
+		upPdfDocx := realEnv.upload(t, rMember, pdfDoc.Document.ID, "file.docx", docxBody(t, "from-pdf"))
+		d0, m0, v0, av0, au0, ov0, on0, q0 = snapshot(t, pdfDoc.Document.ID)
+		_, err = realEnv.svc.CommitFileVersion(ctx, rMember, pdfDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upPdfDocx.UploadID,
+			BaseRevision:   pdfDoc.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+		})
+		if ce := wantCode(t, err, "legacy_conversion_invalid"); ce.Status != 422 || ce.Fields["reason"] != "not_legacy" {
+			t.Fatalf("pdf with conversion = %+v, want 422 not_legacy", ce)
+		}
+		assertUnchanged(t, d0, m0, upPdfDocx.UploadID, v0, av0, au0, ov0, on0, q0)
+
+		// 3. Cross-family pair on a .doc (doc->xlsx, or xls->xlsx on a .doc) -> 422 target_mismatch.
+		legacyDoc := realEnv.createFile(t, rMember, "cross.doc", legacyCFBBody("cross-doc"))
+		upXlsx := realEnv.upload(t, rMember, legacyDoc.Document.ID, "cross.xlsx", xlsxBody(t, "cross-xlsx"))
+		for _, conv := range []DocumentVersionConversion{
+			{FromFormat: "doc", ToFormat: "xlsx"},
+			{FromFormat: "xls", ToFormat: "xlsx"},
+		} {
+			d0, m0, v0, av0, au0, ov0, on0, q0 = snapshot(t, legacyDoc.Document.ID)
+			_, err = realEnv.svc.CommitFileVersion(ctx, rMember, legacyDoc.Document.ID, CommitFileVersionInput{
+				UploadID:       upXlsx.UploadID,
+				BaseRevision:   legacyDoc.Document.Revision,
+				IdempotencyKey: util.NewID(),
+				Conversion:     &conv,
+			})
+			if ce := wantCode(t, err, "legacy_conversion_invalid"); ce.Status != 422 || ce.Fields["reason"] != "target_mismatch" {
+				t.Fatalf("cross pair %+v on .doc = %+v, want 422 target_mismatch", conv, ce)
+			}
+			assertUnchanged(t, d0, m0, upXlsx.UploadID, v0, av0, au0, ov0, on0, q0)
+		}
+
+		// 4. Staged upload is not target OOXML (e.g. a PDF or an XLSX when claiming doc->docx) -> 422 not_ooxml.
+		upPdf := realEnv.upload(t, rMember, legacyDoc.Document.ID, "not-ooxml.pdf", pdfBody("not-ooxml"))
+		for _, badUploadID := range []string{upPdf.UploadID, upXlsx.UploadID} {
+			d0, m0, v0, av0, au0, ov0, on0, q0 = snapshot(t, legacyDoc.Document.ID)
+			_, err = realEnv.svc.CommitFileVersion(ctx, rMember, legacyDoc.Document.ID, CommitFileVersionInput{
+				UploadID:       badUploadID,
+				BaseRevision:   legacyDoc.Document.Revision,
+				IdempotencyKey: util.NewID(),
+				Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+			})
+			if ce := wantCode(t, err, "legacy_conversion_invalid"); ce.Status != 422 || ce.Fields["reason"] != "not_ooxml" {
+				t.Fatalf("non-docx upload with doc->docx = %+v, want 422 not_ooxml", ce)
+			}
+			assertUnchanged(t, d0, m0, badUploadID, v0, av0, au0, ov0, on0, q0)
+		}
+
+		// 5. No save back to legacy: once converted to .docx, uploading a .doc is refused (415 without conversion).
+		upGoodDocx := realEnv.upload(t, rMember, legacyDoc.Document.ID, "cross.docx", docxBody(t, "good-docx"))
+		convRes, err := realEnv.svc.CommitFileVersion(ctx, rMember, legacyDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upGoodDocx.UploadID,
+			BaseRevision:   legacyDoc.Document.Revision,
+			IdempotencyKey: util.NewID(),
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+		})
+		mustf(t, err, "convert cross.doc to cross.docx")
+		upBackToDoc := realEnv.upload(t, rMember, legacyDoc.Document.ID, "back.doc", legacyCFBBody("back-to-doc"))
+		d0, m0, v0, av0, au0, ov0, on0, q0 = snapshot(t, legacyDoc.Document.ID)
+		_, err = realEnv.commit(rMember, legacyDoc.Document.ID, upBackToDoc.UploadID, convRes.Document.Revision, util.NewID())
+		if ce := wantCode(t, err, "unsupported_media_type"); ce.Status != 415 || ce.Fields["reason"] != "format_changed" {
+			t.Fatalf("save back to .doc without conversion = %+v, want 415 format_changed", ce)
+		}
+		assertUnchanged(t, d0, m0, upBackToDoc.UploadID, v0, av0, au0, ov0, on0, q0)
+
+		// 6. Viewer cannot convert (403 forbidden) and leaves no intent or business write.
+		restrictedDoc := realEnv.createFile(t, rMember, "viewer.doc", legacyCFBBody("viewer-doc"))
+		if _, err := realEnv.f.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, restrictedDoc.Document.ID); err != nil {
+			t.Fatal(err)
+		}
+		realEnv.f.share(t, restrictedDoc.Document, DocumentPrincipalUser, realEnv.tn.creator.ID, DocumentLevelView, realEnv.tn.member.ID)
+		upViewer := realEnv.upload(t, rMember, restrictedDoc.Document.ID, "viewer.docx", docxBody(t, "viewer-docx"))
+		d0, m0, v0, av0, au0, ov0, on0, q0 = snapshot(t, restrictedDoc.Document.ID)
+		viewerKey := util.NewID()
+		_, err = realEnv.svc.CommitFileVersion(ctx, rPeer, restrictedDoc.Document.ID, CommitFileVersionInput{
+			UploadID:       upViewer.UploadID,
+			BaseRevision:   restrictedDoc.Document.Revision,
+			IdempotencyKey: viewerKey,
+			Conversion:     &DocumentVersionConversion{FromFormat: "doc", ToFormat: "docx"},
+		})
+		if !errors.Is(err, ErrForbidden) {
+			t.Fatalf("viewer conversion commit = %v, want ErrForbidden", err)
+		}
+		assertUnchanged(t, d0, m0, upViewer.UploadID, v0, av0, au0, ov0, on0, q0)
+		var intents int
+		if err := realEnv.f.pool.QueryRow(ctx,
+			`SELECT count(*) FROM document_commit_intents WHERE document_id = $1 AND idempotency_key = $2`,
+			restrictedDoc.Document.ID, viewerKey,
+		).Scan(&intents); err != nil {
+			t.Fatal(err)
+		}
+		if intents != 0 {
+			t.Fatalf("viewer conversion left %d commit intent rows, want 0", intents)
+		}
+	})
+}
+
+type openFailFakeService struct {
+	files.Service
+	mu         sync.Mutex
+	calls      int
+	failOnCall int
+	err        error
+}
+
+func (o *openFailFakeService) Open(ctx context.Context, in files.OpenInput) (files.Reader, error) {
+	o.mu.Lock()
+	o.calls++
+	call := o.calls
+	o.mu.Unlock()
+	if call == o.failOnCall {
+		return files.Reader{}, o.err
+	}
+	return o.Service.Open(ctx, in)
 }

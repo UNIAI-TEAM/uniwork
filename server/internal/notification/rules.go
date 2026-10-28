@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -160,11 +161,15 @@ var rules = map[string]rule{
 	"document.break_glass_granted": ruleDocumentBreakGlassGranted,
 	// SH-S3 (UNI-1782): a direct user share that raised the recipient's
 	// effective level on the document.
-	"document.shared": both(ruleDocumentShared, docChangeRule(docVerbAccessChanged)),
+	"document.shared": both(ruleDocumentShared, ruleDocumentSharedAccessChange),
 	// DOC-07 (UNI-1631): a person asked a document's managers for access, and
 	// the answer that reaches the requester wherever they are.
 	"document.access_requested":       ruleDocumentAccessRequested,
 	"document.access_request_decided": ruleDocumentAccessRequestDecided,
+	// DOC-06 (UNI-2084): the new owner of a single-document transfer.
+	"document.owner_transferred": ruleDocumentOwnerTransferred,
+	// DOC-06b (UNI-2092): the recipient of a bulk transfer, once per run.
+	"document.owners_bulk_transferred": ruleDocumentOwnersBulkTransferred,
 	// TRASH-NOTIFY-01 (UNI-1844): somebody else archived a person's
 	// document; the ACL owner hears once per archive batch.
 	"document.archived": both(ruleDocumentTrashed, ruleDocumentTrashedChange),
@@ -177,8 +182,11 @@ var rules = map[string]rule{
 	// keep no consumer here and stay on the realtime lane (BE-R1-1).
 	"document.moved":          ruleDocumentMovedChange,
 	"document.deleted":        ruleDocumentDeletedChange,
-	"document.share_revoked":  docChangeRule(docVerbAccessChanged),
+	"document.share_revoked":  ruleDocumentShareRevokedAccessChange,
 	"document.change_noticed": ruleDocumentChangeNoticed,
+	// UNI-2244 §6 (F5): one completion-gated notification per recipient whose
+	// effective access rose across a folder bulk access batch.
+	"document_access_batch.completed": ruleDocumentAccessBatchCompleted,
 
 	"participant.invited":    ruleParticipantInvited,
 	"member.joined":          ruleMemberJoined,
@@ -1027,6 +1035,13 @@ func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]
 	default:
 		return nil, err
 	}
+	if meta, err := auditMetadata(ctx, e.q, ev, audit.ActionDocumentShared, doc.ID); err != nil {
+		return nil, err
+	} else if via, _ := meta["via"].(string); via == "folder_contents" {
+		// Folder bulk access batches suppress per-document share notices and
+		// emit one completion-gated summary on document_access_batch.completed (UNI-2244 §6, F5).
+		return nil, nil
+	}
 	return []Draft{{
 		UserID:         uid,
 		OrganizationID: doc.OrganizationID,
@@ -1044,6 +1059,106 @@ func ruleDocumentShared(ctx context.Context, e env, ev outbox.Row, p map[string]
 			"level":       level,
 		},
 	}}, nil
+}
+
+// ruleDocumentAccessBatchCompleted delivers one grouped KindDocumentShared
+// notification per recipient whose effective access rose across a completed
+// folder bulk access batch (sync or background, UNI-2244 §6, F5).
+func ruleDocumentAccessBatchCompleted(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	batchID := p["batch_id"]
+	folderID := p["folder_id"]
+	wsID := p["workspace_id"]
+	if e.docs == nil || batchID == "" || folderID == "" || wsID == "" {
+		return nil, nil
+	}
+	folder, err := e.q.GetDocumentByID(ctx, folderID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if folder.WorkspaceID != wsID ||
+		(ev.OrganizationID.Valid && folder.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && folder.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	batch, err := e.q.GetDocumentAccessBatchForNotification(ctx, db.GetDocumentAccessBatchForNotificationParams{
+		ID:             batchID,
+		OrganizationID: folder.OrganizationID,
+		WorkspaceID:    folder.WorkspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if batch.FolderID != folder.ID || batch.Status != service.FolderContentsAccessBatchStatusCompleted {
+		return nil, nil
+	}
+	if len(batch.NotifiedLevels) == 0 {
+		return nil, nil
+	}
+	var recipients map[string]service.FolderContentsRecipientNotice
+	if err := json.Unmarshal(batch.NotifiedLevels, &recipients); err != nil {
+		return nil, nil
+	}
+	if len(recipients) == 0 {
+		return nil, nil
+	}
+	uids := make([]string, 0, len(recipients))
+	for uid := range recipients {
+		uids = append(uids, uid)
+	}
+	slices.Sort(uids)
+	actor := actorName(ctx, e.q, ev)
+	var out []Draft
+	for _, uid := range uids {
+		info := recipients[uid]
+		if uid == "" || info.Count <= 0 || info.Level == "" || isActorOfEvent(ev, uid) {
+			continue
+		}
+		checkIDs := info.DocIDs
+		if len(checkIDs) == 0 {
+			checkIDs = batch.DocumentIds
+		}
+		readable := false
+		for _, docID := range checkIDs {
+			canRead, err := e.docs.CanReadDocument(ctx, uid, docID)
+			if err != nil {
+				return nil, err
+			}
+			if canRead {
+				readable = true
+				break
+			}
+		}
+		if !readable {
+			continue
+		}
+		out = append(out, Draft{
+			UserID:         uid,
+			OrganizationID: folder.OrganizationID,
+			WorkspaceID:    folder.WorkspaceID,
+			Kind:           KindDocumentShared,
+			GroupKey:       "document_access_batch:" + batch.ID + ":" + uid + ":" + info.Level,
+			ResourceType:   "document",
+			ResourceID:     folder.ID,
+			ActorKind:      actorKindOf(ev),
+			ActorID:        ev.ActorID.String,
+			OncePerGroup:   true,
+			Params: map[string]string{
+				"actor":       actor,
+				"document":    folder.Title,
+				"document_id": folder.ID,
+				"level":       info.Level,
+				"batch_id":    batch.ID,
+				"count":       strconv.Itoa(info.Count),
+			},
+		})
+	}
+	return out, nil
 }
 
 // ruleDocumentAccessRequested tells a document's managers that somebody asked
@@ -1265,6 +1380,100 @@ func ruleDocumentAccessRequestDecided(ctx context.Context, e env, ev outbox.Row,
 		Kind: kind, GroupKey: groupKey,
 		ResourceType: "document", ResourceID: doc.ID,
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+	}}, nil
+}
+
+// ruleDocumentOwnerTransferred tells the new owner of a single-document
+// transfer that the document is theirs (DOC-06 §4.2, §4.4). The frame carries
+// ids only, so the recipient is the document's ACL owner at delivery time,
+// re-checked through the read port (R1-6): an owner who left the workspace
+// since hears nothing. A frame with bulk_id was written by the bulk route,
+// whose own grouped notice covers it, and the caller never hears their own
+// transfer.
+func ruleDocumentOwnerTransferred(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if e.docs == nil || p["document_id"] == "" || p["bulk_id"] != "" {
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	if !doc.AclOwnerID.Valid || doc.OwnerKind.Valid {
+		return nil, nil
+	}
+	uid := doc.AclOwnerID.String
+	if isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	canRead, err := e.docs.CanReadDocument(ctx, uid, doc.ID)
+	if err != nil || !canRead {
+		return nil, err
+	}
+	return []Draft{{
+		UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		Kind: KindDocumentOwnerTransferred, GroupKey: "document:" + doc.ID + ":owner",
+		ResourceType: "document", ResourceID: doc.ID,
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String,
+		Params: map[string]string{"actor": actorName(ctx, e.q, ev), "document": doc.Title, "document_id": doc.ID},
+	}}, nil
+}
+
+// ruleDocumentOwnersBulkTransferred tells the recipient of a bulk transfer
+// that a member's documents are theirs (DOC-06b §4.2, §4.4). The frame names
+// no document, so only the recipient's standing is re-checked at delivery
+// time (R1-6): an organization member who was deactivated or left since hears
+// nothing. The group key carries the run, and OncePerGroup makes the later
+// batches of one run add no row and bump nothing. The caller never hears
+// their own transfer. The frame names the workspace of the first moved
+// document: the Inbox and the bell list by workspace, so the row is stored
+// under it while the recipient is still a member there (the workspace gate,
+// e.members), and stays organization-level when the frame has none or the
+// recipient lost it (FE-R1-3).
+func ruleDocumentOwnersBulkTransferred(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	uid, bulkID, fromID, orgID := p["user_id"], p["bulk_id"], p["from_user_id"], p["organization_id"]
+	if e.orgs == nil || uid == "" || bulkID == "" || fromID == "" || orgID == "" {
+		return nil, nil
+	}
+	if ev.OrganizationID.Valid && ev.OrganizationID.String != orgID {
+		return nil, nil
+	}
+	if isActorOfEvent(ev, uid) {
+		return nil, nil
+	}
+	if _, err := e.orgs.RequireMember(ctx, orgID, uid); err != nil {
+		if refused(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	name := ""
+	if u, err := e.q.GetUserByID(ctx, fromID); err == nil {
+		name = u.DisplayName
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	wsID := ""
+	if w := p["workspace_id"]; w != "" && e.members != nil {
+		if m, err := e.members.RequireMember(ctx, w, uid); err == nil && m.OrganizationID == orgID {
+			wsID = w
+		} else if err != nil && !refused(err) {
+			return nil, err
+		}
+	}
+	return []Draft{{
+		UserID: uid, OrganizationID: orgID, WorkspaceID: wsID,
+		Kind: KindDocumentOwnersBulkTransferred, GroupKey: "document_owner_bulk:" + bulkID,
+		ResourceType: "organization_member", ResourceID: fromID,
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String,
+		Params:       map[string]string{"actor": actorName(ctx, e.q, ev), "name": name},
+		OncePerGroup: true,
 	}}, nil
 }
 
@@ -1604,7 +1813,8 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 // While the meeting waits in the auto summary queue (UNI-2026) it stays
 // quiet: the worker settles the row and, when no summary came of it, emits
 // meeting.auto_summary_failed, which runs this rule again. Once per group,
-// so the two topics never remind twice.
+// so the two topics never remind twice. The end of an in-person meeting
+// reminds nobody (see below).
 // Personal reminder: the host is the recipient even when they ended the
 // meeting themselves, so the draft is built here rather than through
 // recipients.add, which drops the actor.
@@ -1626,6 +1836,21 @@ func ruleMeetingEnded(ctx context.Context, e env, ev outbox.Row, p map[string]st
 	}
 	if m.Status != "ENDED" || m.HostUserID == "" {
 		return nil, nil
+	}
+	// An in-person meeting ends before its recording's parts upload: their
+	// transcription queues the summary, so a nudge to summarize by hand now
+	// would read the notes alone and keep the recording out. A failed auto
+	// run still reminds; with auto summaries off nothing queues one, so the
+	// end reminds as it does for any meeting.
+	if ev.Topic == "meeting.ended" && m.Venue == service.MeetingVenueInPerson {
+		set, err := e.q.GetMeetingSettings(ctx, m.OrganizationID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		// No row is the default: on.
+		if err != nil || set.AutoSummaryEnabled {
+			return nil, nil
+		}
 	}
 	if !e.summaries.SummaryAvailable(ctx, m.OrganizationID) {
 		return nil, nil

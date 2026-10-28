@@ -27,10 +27,16 @@ type Init = { method?: string; body?: unknown } | undefined;
 function serve({ workspaces = [ws("w1", "Kinh doanh"), ws("w2", "Vận hành")], invitations = [] as unknown[] } = {}) {
   requestMock.mockImplementation((path: string, init?: Init) => {
     if (path === "/api/v1/orgs/o1/workspaces") return Promise.resolve({ workspaces });
+    if (path.includes("/invite-links")) return Promise.resolve({ invite_links: [] });
     if (path.endsWith("/invitations") && init?.method === "POST") return Promise.resolve({ invitations: [], skipped: [] });
     if (path.endsWith("/invitations")) return Promise.resolve({ invitations });
     return Promise.resolve({});
   });
+}
+
+/** Email-invite section only — the invite-by-link panel has its own workspace picker. */
+function emailInviteSection() {
+  return screen.getByRole("heading", { name: "Mời vào tổ chức" }).closest("section")!;
 }
 
 const posted = () =>
@@ -56,15 +62,16 @@ describe("OrgInvitationsSection", () => {
   it("lets the admin pick the workspaces the invitee joins, and sends them with the invitation", async () => {
     serve();
     renderSection();
-    const picker = await screen.findByRole("group", { name: "Vào workspace" });
+    const section = emailInviteSection();
+    const picker = await within(section).findByRole("group", { name: "Vào workspace" });
     const sales = await within(picker).findByRole("checkbox", { name: "Kinh doanh" });
     expect(within(picker).getByRole("checkbox", { name: "Vận hành" })).not.toBeChecked();
     fireEvent.click(sales);
     expect(sales).toBeChecked();
-    const field = screen.getByLabelText("Email đồng nghiệp");
+    const field = within(section).getByLabelText("Email đồng nghiệp");
     fireEvent.change(field, { target: { value: "moi@acme.vn" } });
     fireEvent.keyDown(field, { key: "Enter" });
-    fireEvent.click(screen.getByRole("button", { name: "Gửi lời mời" }));
+    fireEvent.click(within(section).getByRole("button", { name: "Gửi lời mời" }));
     await waitFor(() =>
       expect(posted()).toEqual([{ emails: ["moi@acme.vn"], org_role: "member", workspace_ids: ["w1"] }]),
     );
@@ -73,18 +80,19 @@ describe("OrgInvitationsSection", () => {
   it("sends no workspace when none is picked", async () => {
     serve();
     renderSection();
-    await screen.findByRole("checkbox", { name: "Kinh doanh" });
-    const field = screen.getByLabelText("Email đồng nghiệp");
+    const section = emailInviteSection();
+    await within(section).findByRole("checkbox", { name: "Kinh doanh" });
+    const field = within(section).getByLabelText("Email đồng nghiệp");
     fireEvent.change(field, { target: { value: "moi@acme.vn" } });
     fireEvent.keyDown(field, { key: "Enter" });
-    fireEvent.click(screen.getByRole("button", { name: "Gửi lời mời" }));
+    fireEvent.click(within(section).getByRole("button", { name: "Gửi lời mời" }));
     await waitFor(() => expect(posted()).toEqual([{ emails: ["moi@acme.vn"], org_role: "member", workspace_ids: [] }]));
   });
 
   it("says when the organization has no workspace to grant yet", async () => {
     serve({ workspaces: [] });
     renderSection();
-    const picker = await screen.findByRole("group", { name: "Vào workspace" });
+    const picker = await within(emailInviteSection()).findByRole("group", { name: "Vào workspace" });
     expect(await within(picker).findByText("Tổ chức chưa có workspace nào.")).toBeInTheDocument();
     expect(within(picker).queryByRole("checkbox")).not.toBeInTheDocument();
   });

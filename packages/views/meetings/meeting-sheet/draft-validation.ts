@@ -1,6 +1,6 @@
 import { MOTION_TITLE_MAX_LENGTH } from "@uniwork/core/meetings/motions";
 import { scheduleProblems } from "../meeting-schedule-fields";
-import type { MeetingDraft } from "./draft-model";
+import { draftLinks, type MeetingDraft } from "./draft-model";
 
 /**
  * The sheet's client rules, in visual order (create-ui §6.5): the first issue
@@ -81,7 +81,7 @@ export function validateDraft(
     if (problems.startPassed) issues.push({ field: "start", code: "startPassed" });
     if (problems.endInvalid) issues.push({ field: "end", code: "endSame" });
   }
-  for (const link of draft.links) {
+  for (const link of draftLinks(draft)) {
     const limit = parseLimit(link.maxUses);
     if (limit.invalid || (link.access === "AUTO_ADMIT" && limit.value === undefined)) {
       issues.push({ field: `link-${link.key}`, code: "linkLimit" });

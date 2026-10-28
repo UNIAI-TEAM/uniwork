@@ -30,6 +30,7 @@ import {
 import { request, requestBlob, requestText } from "../http";
 import { setGuestSession } from "../guest-session";
 import { parseWithFallback } from "../schema";
+import type { MeetingVenue } from "../../meetings/venue";
 
 export type { MeetingInvitation, MeetingInviteLink } from "../../types/meeting";
 
@@ -61,6 +62,7 @@ export interface CreateMeetingBody {
   project_id?: string;
   /** The meeting this one is the next of: the new meeting joins its series (follow-4). */
   previous_meeting_id?: string;
+  venue?: MeetingVenue;
 }
 
 export interface UpdateMeetingBody {
@@ -74,6 +76,7 @@ export interface UpdateMeetingBody {
   quorum_percent?: number;
   /** Optional project; "" on update clears it (C-11 §9.1 V2). */
   project_id?: string;
+  venue?: MeetingVenue;
 }
 
 export interface MeetingListFilters {
@@ -202,6 +205,15 @@ export async function addNote(meetingId: string, body: string): Promise<void> {
   await request(`/api/v1/meetings/${enc(meetingId)}/notes`, { method: "POST", body: { body } });
 }
 
+// The callers refetch the notes after either, so neither shapes the answer.
+export async function updateNote(meetingId: string, noteId: string, body: string): Promise<void> {
+  await request(`/api/v1/meetings/${enc(meetingId)}/notes/${enc(noteId)}`, { method: "PATCH", body: { body } });
+}
+
+export async function deleteNote(meetingId: string, noteId: string): Promise<void> {
+  await request(`/api/v1/meetings/${enc(meetingId)}/notes/${enc(noteId)}`, { method: "DELETE" });
+}
+
 /**
  * @deprecated Use {@link joinMeeting} instead. POST /token remains for legacy clients.
  * The room token is the one response that cannot degrade: without it there
@@ -290,6 +302,13 @@ export async function approveJoinRequest(requestId: string): Promise<void> {
   await request(`/api/v1/meeting-join-requests/${enc(requestId)}/approve`, { method: "POST" });
 }
 
+export type CallRating = "good" | "ok" | "poor";
+
+/** How the call sounded and looked, as someone leaves it; the server only counts it. */
+export async function rateCall(meetingId: string, rating: CallRating): Promise<void> {
+  await request(`/api/v1/meetings/${enc(meetingId)}/call-rating`, { method: "POST", body: { rating } });
+}
+
 export async function rejectJoinRequest(requestId: string, reason?: string): Promise<void> {
   await request(`/api/v1/meeting-join-requests/${enc(requestId)}/reject`, {
     method: "POST",
@@ -314,6 +333,8 @@ const PublicInviteLinkSchema = z.object({
   meeting_state: z.string().optional(),
   /** The AI scribe would transcribe the meeting: the page tells the guest before they join. */
   scribe: z.boolean().optional(),
+  /** When the meeting actually started; a guest outside the room shows how long it has run. */
+  started_at: z.string().optional().catch(undefined),
 });
 export type PublicInviteLink = z.infer<typeof PublicInviteLinkSchema>;
 export type InviteLinkState = "active" | "expired" | "revoked" | "exhausted";
@@ -333,12 +354,12 @@ export async function resolveInviteLink(linkId: string, secret: string): Promise
 
 export async function createInstantMeeting(
   workspaceId: string,
-  title?: string,
+  body: { title?: string; venue?: MeetingVenue },
   opts?: { idempotencyKey?: string },
 ): Promise<Meeting | null> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/meetings/instant`, {
     method: "POST",
-    body: { title: title ?? "" },
+    body: { ...body, title: body.title ?? "" },
     headers: idempotencyHeaders(opts),
   });
   return parseWithFallback<{ meeting: Meeting } | null>(raw, MeetingResponse, null, {

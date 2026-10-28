@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { DocumentSourceFile } from "@uniwork/core/documents/sources-schema";
 import {
   documentRow,
-  matchesChip,
   rowFormat,
   rowSizeBytes,
   rowTypeKey,
@@ -48,16 +47,6 @@ const src = (over: Partial<DocumentSourceFile> = {}) =>
   } as DocumentSourceFile);
 
 describe("library rows", () => {
-  it("keeps folders under every chip but Pages, and files by extension", () => {
-    const folder = documentRow(doc({ kind: "folder", title: "F" }));
-    const sheet = documentRow(doc({ kind: "file", title: "Q4.XLSX" }));
-    expect(matchesChip(folder, "docx")).toBe(true);
-    expect(matchesChip(folder, "page")).toBe(false);
-    expect(matchesChip(sheet, "xlsx")).toBe(true);
-    expect(matchesChip(sheet, "docx")).toBe(false);
-    expect(matchesChip(src(), "pdf")).toBe(true);
-  });
-
   it("sizes only files", () => {
     const upload = documentRow(doc({ kind: "file", origin: "upload", size_bytes: 2048 }));
     const blank = documentRow(doc({ kind: "file", origin: "created", size_bytes: 0 }));
@@ -87,11 +76,9 @@ describe("library rows", () => {
     expect(rowTypeKey(odd("Ghi chú"))).toBe("documents.file_types.file");
   });
 
-  it("reads txt as a file format of its own and matches the .txt chip (UNI-2045 SV-7)", () => {
+  it("reads txt as a file format of its own and (UNI-2045 SV-7)", () => {
     const notes = documentRow(doc({ kind: "file", title: "Ghi chú.txt", format: "txt" }));
     expect(rowFormat(notes)).toBe("txt");
-    expect(matchesChip(notes, "txt")).toBe(true);
-    expect(matchesChip(notes, "md")).toBe(false);
   });
 });
 

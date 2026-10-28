@@ -244,6 +244,48 @@ func newIsolationServer(t *testing.T) *isoWorld {
 	d.EmailHub.AI = d.Meetings.AI
 	d.EmailHub.Tasks = d.Tasks
 	d.AskUNI.SetEmailHub(d.EmailHub)
+	d.DriveConnections = service.NewDriveConnectionService(pool, q, d.Workspaces, box)
+	d.DriveConnections.SetProvider(service.NewFakeDriveProvider(config.Config{FrontendOrigin: "http://localhost:3000"}))
+	d.DriveConnections.SetFlags(d.FeatureFlags)
+	d.DriveConnections.SetPickerConfig("iso-picker-key", "1234567890")
+	driveFakeAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/export") || r.URL.Query().Get("alt") == "media" {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			_, _ = w.Write([]byte("Document body for task proposals"))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		extID := strings.TrimPrefix(r.URL.Path, "/drive/v3/files/")
+		mime := "application/vnd.google-apps.document"
+		if strings.HasPrefix(extID, "iso-folder-") {
+			mime = "application/vnd.google-apps.folder"
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":           extID,
+			"name":         "Drive File " + extID,
+			"mimeType":     mime,
+			"webViewLink":  "https://docs.google.com/document/d/" + extID + "/edit",
+			"shared":       true,
+			"trashed":      false,
+			"modifiedTime": "2026-10-26T10:00:00Z",
+			"owners":       []map[string]any{{"displayName": "Drive Owner"}},
+			"permissions":  []map[string]any{{"id": "p1"}, {"id": "p2"}},
+		})
+	}))
+	t.Cleanup(driveFakeAPI.Close)
+	driveAPIClient := service.NewDriveAPIClientForTest(driveFakeAPI.URL+"/drive/v3", driveFakeAPI.Client().Transport)
+	d.DriveFiles = service.NewDriveFileService(pool, q, d.Workspaces, d.DriveConnections, driveAPIClient)
+	d.DriveFiles.SetFlags(d.FeatureFlags)
+	d.Tasks.SetDriveFiles(d.DriveFiles)
+	d.Audit.SetDriveFiles(d.DriveFiles)
+	driveContentSvc := service.NewDriveContentService(pool, q, d.Workspaces, d.DriveFiles, d.DriveConnections, driveAPIClient, nil)
+	d.AskUNI.SetDriveContentReader(driveContentSvc)
+	d.DriveTaskProposals = service.NewDriveTaskProposalService(pool, q, d.Workspaces, d.DriveFiles, d.DriveConnections, driveContentSvc, d.Meetings.AI)
+	d.DriveTaskProposals.SetFlags(d.FeatureFlags)
+	d.Audit.SetDriveProposalHistoryAuthorizer(d.DriveTaskProposals.AuthorizeHistory)
+	d.DriveTaskProposals.SetTasks(d.Tasks)
+	d.DriveFiles.SetTaskCreationsLoader(d.DriveFiles)
+	d.DriveTaskProposals.SetTaskCreationsLoader(d.DriveFiles)
 	// Ask UNI files (UNI-2119): the upload route is offered only where the turn
 	// runs the agent, so Ask UNI gets the file store, the flags (the loop below
 	// turns every one on) and the read tools, as main.go wires them. The asks
@@ -571,7 +613,7 @@ func (w *isoWorld) buildTenant(t *testing.T, tag string) *isoTenant {
 		token *string
 		id    string
 	}{{&tn.token, tn.userID}, {&tn.peerToken, tn.peerID}, {&tn.thirdToken, tn.thirdID}} {
-		tok, err := long.Mint(p.id)
+		tok, err := long.MintWebSession(p.id, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -638,6 +680,19 @@ func (w *isoWorld) buildTasks(t *testing.T, tn *isoTenant) {
 		"resource_type": "github_repo", "resource_ref": map[string]any{"url": "https://github.com/acme/" + strings.ToLower(m)}, "label": m + " Resource",
 	})
 	tn.ids["projectResource"] = isoID(t, out, "resource")
+	// Trashed rows: restore and purge only answer for a row in the trash, so
+	// an attack on them must meet one. Each route ends its row (restore leaves
+	// the trash, purge leaves the database), so each gets its own.
+	for key, kind := range map[string]string{"trashedTask": "Restore", "purgeTask": "Purge"} {
+		out = w.call(t, "POST", ws+"/tasks", tn.token, map[string]any{"title": m + " Trashed Task " + kind})
+		tn.ids[key] = isoID(t, out, "task")
+		w.call(t, "DELETE", "/api/v1/tasks/"+tn.ids[key], tn.token, nil)
+	}
+	for key, kind := range map[string]string{"trashedProject": "Restore", "purgeProject": "Purge"} {
+		out = w.call(t, "POST", ws+"/projects", tn.token, map[string]any{"title": m + " Trashed Project " + kind})
+		tn.ids[key] = isoID(t, out, "project")
+		w.call(t, "DELETE", ws+"/projects/"+tn.ids[key], tn.token, nil)
+	}
 }
 
 func (w *isoWorld) buildMeetings(t *testing.T, tn *isoTenant) {
@@ -803,6 +858,21 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		t.Fatal(err)
 	}
 	tn.ids["breakGlassGrant"] = grantID
+	// DOC-06b (UNI-2092): one unrestricted page the tenant's peer owns, for the
+	// bulk transfer control only (POST /orgs/{org}/members/{userID}/document-
+	// ownership names the peer as the source and the owner as the recipient):
+	// without it the peer's one document is the restricted one above, which the
+	// owner skips as self_restricted, and the control would move nothing. No
+	// other route names it; it is a workspace-visible page the owner already
+	// reads, so no list or count of the owner's changes shape.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/documents", tn.token, map[string]any{
+		"title": m + " Peer-owned page", "kind": "page", "visibility": "workspace",
+	})
+	tn.ids["peerOwnedDocument"] = isoID(t, out, "document")
+	if _, err := w.pool.Exec(context.Background(),
+		`UPDATE documents SET acl_owner_id = $2 WHERE id = $1`, tn.ids["peerOwnedDocument"], tn.peerID); err != nil {
+		t.Fatal(err)
+	}
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/documents/settings", tn.token, map[string]any{"public_links_enabled": true})
 	w.call(t, "PUT", "/api/v1/orgs/"+tn.orgID+"/meetings/settings", tn.token, map[string]any{"auto_summary_enabled": false})
 	out = w.call(t, "POST", dp+"/links", tn.token, map[string]any{})
@@ -830,6 +900,19 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		content: []byte("# " + m + " file body\n"),
 	})
 	tn.ids["fileDocument"] = isoID(t, out, "document")
+	// UNI-2225: dedicated files for the template pair - marking "fileDocument"
+	// would change what every later control reads from it. One workspace file
+	// not yet marked (POST) and one uploaded as a template (DELETE).
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": m + " Template file", "visibility": "workspace"}, filename: strings.ToLower(m) + "-tpl.md", contentType: "text/markdown",
+		content: []byte("# " + m + " template file body\n"),
+	})
+	tn.ids["templateDocument"] = isoID(t, out, "document")
+	out = w.upload(t, "/api/v1/workspaces/"+tn.wsID+"/documents/files", tn.token, isoMultipart{
+		fields: map[string]string{"title": m + " Marked template", "template": "true"}, filename: strings.ToLower(m) + "-marked.md", contentType: "text/markdown",
+		content: []byte("# " + m + " marked template body\n"),
+	})
+	tn.ids["markedTemplateDocument"] = isoID(t, out, "document")
 	// A zip download job (UNI-2045 SV-9) the tenant's owner created and nobody
 	// built: the poll answers it, the download route has no file yet.
 	tn.ids["downloadJob"] = util.NewID()
@@ -858,6 +941,18 @@ func (w *isoWorld) buildDocuments(t *testing.T, tn *isoTenant) {
 		VALUES ($1, $2, $3, $4, $5, $6, '', $7, 3, 'put')`,
 		util.NewID(), tn.ids["folderUploadFileKey"], tn.orgID, tn.wsID, tn.ids["folderUpload"], tn.ids["folder"], strings.ToLower(m)+"-upload.md"); err != nil {
 		t.Fatalf("folder upload file: %v", err)
+	}
+	// A completed folder bulk access batch (UNI-2244) of the tenant's owner on
+	// the seeded folder, so GET /documents/{folderID}/contents-access/{batchID}
+	// has a real row for the owner control and refuses every other tenant.
+	tn.ids["folderAccessBatch"] = util.NewID()
+	if _, err := w.pool.Exec(context.Background(), `INSERT INTO document_access_batches
+		(id, organization_id, workspace_id, folder_id, created_by, created_by_kind,
+		 mode, items, document_ids, notified_levels, status, total, processed, changed, unchanged, finished_at)
+		VALUES ($1, $2, $3, $4, $5, 'human', 'merge', '[]'::jsonb, ARRAY[]::text[], '{}'::jsonb,
+		        'completed', 1, 1, 1, 0, now())`,
+		tn.ids["folderAccessBatch"], tn.orgID, tn.wsID, tn.ids["folder"], tn.userID); err != nil {
+		t.Fatalf("folder access batch: %v", err)
 	}
 	// A comment on the file document itself: the office launch session's
 	// own-rows control must name a comment of the document its path names
@@ -916,6 +1011,16 @@ func (w *isoWorld) buildOrganization(t *testing.T, tn *isoTenant) {
 	for _, inv := range isoList(t, out, "invitations") {
 		tn.ids["orgInvitation"] = inv["id"].(string)
 	}
+	// Shareable membership invite links (UNI-2226): one workspace-scoped row
+	// and one org-scoped row that also fills membership_invite_link_workspaces.
+	out = w.call(t, "POST", "/api/v1/workspaces/"+tn.wsID+"/invite-links", tn.token, map[string]any{"expires_in_days": 7})
+	tn.ids["membershipInviteLink"] = isoID(t, out, "invite_link")
+	tn.ids["membershipInviteSecret"] = isoString(t, out, "invite_link", "secret")
+	out = w.call(t, "POST", org+"/invite-links", tn.token, map[string]any{
+		"workspace_ids": []string{tn.wsID}, "expires_in_days": 7,
+	})
+	tn.ids["membershipOrgInviteLink"] = isoID(t, out, "invite_link")
+	tn.ids["membershipOrgInviteSecret"] = isoString(t, out, "invite_link", "secret")
 	inviteeToken, _ := w.register(t, invitee, m+" Invitee")
 	out = w.call(t, "GET", "/api/v1/me/invitations", inviteeToken, nil)
 	for _, inv := range isoList(t, out, "invitations") {
@@ -975,6 +1080,14 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		t.Fatalf("attachment file: %v", err)
 	}
 	tn.ids["file"] = fileID
+
+	// The handoff package Ask UNI's Apply leaves for the editor AI; no route
+	// writes it yet, so a raw insert names its tenant like the writer will.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO ai_office_handoffs (id, organization_id, workspace_id, user_id, document_id, proposal_id, format, title, request, outline, parts, sources, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'docx', $7, $8, $9, '[]', '[]', now() + interval '24 hours')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.userID, util.NewID(), util.NewID(), m+" handoff", m+" request", m+" outline"); err != nil {
+		t.Fatalf("office handoff: %v", err)
+	}
 
 	// A finished audit export, written by the consumer the outbox drives.
 	consumer := service.NewAuditExportConsumer(w.q, w.deps.Storage)
@@ -1171,6 +1284,134 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 		VALUES ($1, $2, $3, $4, $5, 1, 'remember', 'fact', $6, 'rejected', now() + interval '24 hours', $7, 'human')`,
 		tn.ids["aiMemoryProposal"], tn.orgID, tn.wsID, tn.ids["conversation"], tn.ids["aiAnswer"], m+" memory proposal", tn.userID); err != nil {
 		t.Fatalf("ask uni memory proposal: %v", err)
+	}
+
+	// A connected Google Drive account (UNI-2177, B1): seeded so drive_connections
+	// holds a row of the tenant's and the isolation matrix hashes it before and after.
+	tn.ids["driveConnection"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_connections
+		(id, organization_id, user_id, provider, google_sub, google_email, refresh_token_enc, access_token_enc, access_expires_at, credential_version, scopes)
+		VALUES ($1, $2, $3, 'google', $4, $5, $6, $6, now() + interval '1 hour', 1, 'openid email https://www.googleapis.com/auth/drive.file')`,
+		tn.ids["driveConnection"], tn.orgID, tn.userID, "sub-"+strings.ToLower(m), strings.ToLower(m)+"-drive@example.com", base64.StdEncoding.EncodeToString(tokenEnc)); err != nil {
+		t.Fatalf("drive connection: %v", err)
+	}
+	// A linked Google Drive file, the owner's read-access row, and its task link
+	// (UNI-2180, B4): seeded so drive_files, drive_file_access and
+	// drive_file_task_links hold rows of the tenant's.
+	tn.ids["driveFile"] = util.NewID()
+	extFileID := "ext-drive-" + strings.ToLower(m)
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_files
+		(id, organization_id, workspace_id, external_file_id, connection_id, bound_by, created_by, created_by_kind,
+		 name, mime_type, icon_kind, web_view_link, owner_display, sharing_state, metadata_refreshed_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $6, 'human', $7, 'application/vnd.google-apps.document', 'google_doc',
+		        $8, $9, 'shared', now())`,
+		tn.ids["driveFile"], tn.orgID, tn.wsID, extFileID, tn.ids["driveConnection"], tn.userID,
+		m+" Drive Doc", "https://docs.google.com/document/d/"+extFileID+"/edit", m+" Owner"); err != nil {
+		t.Fatalf("drive file: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_file_access
+		(id, organization_id, workspace_id, drive_file_id, user_id, connection_id, state)
+		VALUES ($1, $2, $3, $4, $5, $6, 'granted')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["driveFile"], tn.userID, tn.ids["driveConnection"]); err != nil {
+		t.Fatalf("drive file access: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_file_task_links
+		(id, organization_id, workspace_id, drive_file_id, task_id, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, 'human')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["driveFile"], tn.ids["task"], tn.userID); err != nil {
+		t.Fatalf("drive file task link: %v", err)
+	}
+	// A second connection for the owner and a peer-bound Drive file on which the
+	// owner holds a granted drive_file_access row (B4b-F03): exercises PUT
+	// /workspaces/{workspaceID}/drive-files/{driveFileID}/access in
+	// isoReferences past the bound_by use_rebind gate and past the granted-access
+	// gate, so the control (switching to driveConnection2) answers 200 and the
+	// attack (naming A's driveConnection) reaches requireCallerConnection -> 404.
+	tn.ids["driveConnection2"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_connections
+		(id, organization_id, user_id, provider, google_sub, google_email, refresh_token_enc, access_token_enc, access_expires_at, credential_version, scopes)
+		VALUES ($1, $2, $3, 'google', $4, $5, $6, $6, now() + interval '1 hour', 1, 'openid email https://www.googleapis.com/auth/drive.file')`,
+		tn.ids["driveConnection2"], tn.orgID, tn.userID, "sub-2-"+strings.ToLower(m), strings.ToLower(m)+"-drive2@example.com", base64.StdEncoding.EncodeToString(tokenEnc)); err != nil {
+		t.Fatalf("drive connection 2: %v", err)
+	}
+	tn.ids["peerDriveConnection"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_connections
+		(id, organization_id, user_id, provider, google_sub, google_email, refresh_token_enc, access_token_enc, access_expires_at, credential_version, scopes)
+		VALUES ($1, $2, $3, 'google', $4, $5, $6, $6, now() + interval '1 hour', 1, 'openid email https://www.googleapis.com/auth/drive.file')`,
+		tn.ids["peerDriveConnection"], tn.orgID, tn.peerID, "sub-peer-"+strings.ToLower(m), strings.ToLower(m)+"-peer-drive@example.com", base64.StdEncoding.EncodeToString(tokenEnc)); err != nil {
+		t.Fatalf("peer drive connection: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_file_access
+		(id, organization_id, workspace_id, drive_file_id, user_id, connection_id, state)
+		VALUES ($1, $2, $3, $4, $5, $6, 'granted')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["driveFile"], tn.peerID, tn.ids["peerDriveConnection"]); err != nil {
+		t.Fatalf("peer access on drive file: %v", err)
+	}
+	tn.ids["peerBoundDriveFile"] = util.NewID()
+	peerExtFileID := "ext-drive-peer-" + strings.ToLower(m)
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_files
+		(id, organization_id, workspace_id, external_file_id, connection_id, bound_by, created_by, created_by_kind,
+		 name, mime_type, icon_kind, web_view_link, owner_display, sharing_state, metadata_refreshed_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $6, 'human', $7, 'application/vnd.google-apps.document', 'google_doc',
+		        $8, $9, 'shared', now())`,
+		tn.ids["peerBoundDriveFile"], tn.orgID, tn.wsID, peerExtFileID, tn.ids["peerDriveConnection"], tn.peerID,
+		m+" Peer Drive Doc", "https://docs.google.com/document/d/"+peerExtFileID+"/edit", m+" Peer Owner"); err != nil {
+		t.Fatalf("peer bound drive file: %v", err)
+	}
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_file_access
+		(id, organization_id, workspace_id, drive_file_id, user_id, connection_id, state)
+		VALUES ($1, $2, $3, $4, $5, $6, 'granted')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.ids["peerBoundDriveFile"], tn.userID, tn.ids["driveConnection"]); err != nil {
+		t.Fatalf("owner access on peer bound drive file: %v", err)
+	}
+	// Seeded Drive task proposals and provenance link (UNI-2181, B5): one ready
+	// proposal of the owner's, one ready proposal of the peer's in the same
+	// workspace (§8.2a), and one drive_task_proposal_links row so every tenant
+	// table holds a row of the tenant's.
+	tn.ids["driveProposal"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_task_proposals
+		(id, organization_id, workspace_id, drive_file_id, connection_id, requested_by, requested_by_kind,
+		 prompt, items, truncated, usage_event_id, status, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'human', $7, $8, false, 'usage-iso', 'ready', now() + interval '7 days')`,
+		tn.ids["driveProposal"], tn.orgID, tn.wsID, tn.ids["driveFile"], tn.ids["driveConnection"], tn.userID,
+		m+" proposal prompt", fmt.Sprintf(`[{"index":0,"title":"%s proposed task","label_ids":[],"goal":"%s goal","checklist":[],"excerpt":{"section":"Sec 1","quote":"%s quote"},"blocked_by_indexes":[]}]`, m, m, m)); err != nil {
+		t.Fatalf("drive task proposal: %v", err)
+	}
+	for _, propKey := range []string{"driveProposalRefProject", "driveProposalRefParent", "driveProposalRefAssignee", "driveProposalRefLabel"} {
+		tn.ids[propKey] = util.NewID()
+		if _, err := w.pool.Exec(ctx, `INSERT INTO drive_task_proposals
+			(id, organization_id, workspace_id, drive_file_id, connection_id, requested_by, requested_by_kind,
+			 prompt, items, truncated, usage_event_id, status, expires_at)
+			VALUES ($1, $2, $3, $4, $5, $6, 'human', $7, $8, false, 'usage-iso-ref', 'ready', now() + interval '7 days')`,
+			tn.ids[propKey], tn.orgID, tn.wsID, tn.ids["driveFile"], tn.ids["driveConnection"], tn.userID,
+			m+" proposal prompt "+propKey, fmt.Sprintf(`[{"index":0,"title":"%s proposed task %s","label_ids":[],"goal":"%s goal","checklist":[],"excerpt":{"section":"Sec 1","quote":"%s quote"},"blocked_by_indexes":[]}]`, m, propKey, m, m)); err != nil {
+			t.Fatalf("drive task proposal %s: %v", propKey, err)
+		}
+	}
+	tn.ids["peerDriveProposal"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_task_proposals
+		(id, organization_id, workspace_id, drive_file_id, connection_id, requested_by, requested_by_kind,
+		 prompt, items, truncated, usage_event_id, status, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'human', $7, $8, false, 'usage-iso-peer', 'ready', now() + interval '7 days')`,
+		tn.ids["peerDriveProposal"], tn.orgID, tn.wsID, tn.ids["peerBoundDriveFile"], tn.ids["peerDriveConnection"], tn.peerID,
+		m+" peer proposal prompt", fmt.Sprintf(`[{"index":0,"title":"%s peer proposed task","label_ids":[],"goal":"%s peer goal","checklist":[],"excerpt":{"section":"Sec 1","quote":"%s peer quote"},"blocked_by_indexes":[]}]`, m, m, m)); err != nil {
+		t.Fatalf("peer drive task proposal: %v", err)
+	}
+	tn.ids["convertedDriveProposal"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_task_proposals
+		(id, organization_id, workspace_id, drive_file_id, connection_id, requested_by, requested_by_kind,
+		 prompt, items, truncated, usage_event_id, status, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'human', $7, NULL, false, 'usage-iso-conv', 'converted', now() + interval '7 days')`,
+		tn.ids["convertedDriveProposal"], tn.orgID, tn.wsID, tn.ids["driveFile"], tn.ids["driveConnection"], tn.userID,
+		m+" converted proposal prompt"); err != nil {
+		t.Fatalf("converted drive task proposal: %v", err)
+	}
+	tn.ids["driveProposalLink"] = util.NewID()
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_task_proposal_links
+		(id, organization_id, workspace_id, proposal_id, item_index, task_id, drive_file_id, external_file_id, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8, 'human')`,
+		tn.ids["driveProposalLink"], tn.orgID, tn.wsID, tn.ids["convertedDriveProposal"], tn.ids["task"], tn.ids["driveFile"], extFileID, tn.userID); err != nil {
+		t.Fatalf("drive task proposal link: %v", err)
 	}
 }
 

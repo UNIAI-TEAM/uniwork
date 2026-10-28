@@ -187,6 +187,25 @@ type AiModelRate struct {
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 }
 
+type AiOfficeHandoff struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	UserID         string             `json:"user_id"`
+	DocumentID     string             `json:"document_id"`
+	ProposalID     string             `json:"proposal_id"`
+	Format         string             `json:"format"`
+	Title          string             `json:"title"`
+	Request        string             `json:"request"`
+	Outline        string             `json:"outline"`
+	Parts          []byte             `json:"parts"`
+	Sources        []byte             `json:"sources"`
+	NextPart       int32              `json:"next_part"`
+	ConversationID pgtype.Text        `json:"conversation_id"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type AiProviderCredential struct {
 	ID               string             `json:"id"`
 	OrganizationID   string             `json:"organization_id"`
@@ -791,6 +810,34 @@ type Document struct {
 	ShelvedBy            pgtype.Text        `json:"shelved_by"`
 	ShelvedByKind        pgtype.Text        `json:"shelved_by_kind"`
 	ShelveBatchID        pgtype.Text        `json:"shelve_batch_id"`
+	TemplateMarkedAt     pgtype.Timestamptz `json:"template_marked_at"`
+	TemplateMarkedBy     pgtype.Text        `json:"template_marked_by"`
+	TemplateMarkedByKind pgtype.Text        `json:"template_marked_by_kind"`
+}
+
+type DocumentAccessBatch struct {
+	ID                   string             `json:"id"`
+	OrganizationID       string             `json:"organization_id"`
+	WorkspaceID          string             `json:"workspace_id"`
+	FolderID             string             `json:"folder_id"`
+	CreatedBy            string             `json:"created_by"`
+	CreatedByKind        string             `json:"created_by_kind"`
+	Mode                 string             `json:"mode"`
+	Items                []byte             `json:"items"`
+	DocumentIds          []string           `json:"document_ids"`
+	NotifiedLevels       []byte             `json:"notified_levels"`
+	Status               string             `json:"status"`
+	Total                int32              `json:"total"`
+	Processed            int32              `json:"processed"`
+	Changed              int32              `json:"changed"`
+	Unchanged            int32              `json:"unchanged"`
+	SkippedNotManageable int32              `json:"skipped_not_manageable"`
+	SkippedLocked        int32              `json:"skipped_locked"`
+	CursorID             string             `json:"cursor_id"`
+	ErrorCode            pgtype.Text        `json:"error_code"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	FinishedAt           pgtype.Timestamptz `json:"finished_at"`
 }
 
 type DocumentAccessLog struct {
@@ -1117,27 +1164,150 @@ type DocumentShareLink struct {
 }
 
 type DocumentVersion struct {
+	ID                    string             `json:"id"`
+	OrganizationID        string             `json:"organization_id"`
+	WorkspaceID           string             `json:"workspace_id"`
+	DocumentID            string             `json:"document_id"`
+	Version               int32              `json:"version"`
+	Kind                  string             `json:"kind"`
+	Reason                string             `json:"reason"`
+	Label                 pgtype.Text        `json:"label"`
+	Content               []byte             `json:"content"`
+	FileID                pgtype.Text        `json:"file_id"`
+	MimeType              pgtype.Text        `json:"mime_type"`
+	SizeBytes             int64              `json:"size_bytes"`
+	ChecksumSha256        pgtype.Text        `json:"checksum_sha256"`
+	RestoredFrom          pgtype.Int4        `json:"restored_from"`
+	EngineName            pgtype.Text        `json:"engine_name"`
+	EngineVersion         pgtype.Text        `json:"engine_version"`
+	ContractVersion       pgtype.Text        `json:"contract_version"`
+	ProtocolVersion       pgtype.Text        `json:"protocol_version"`
+	CreatedBy             string             `json:"created_by"`
+	CreatedByKind         string             `json:"created_by_kind"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	ConvertedFromVersion  pgtype.Int4        `json:"converted_from_version"`
+	ConvertedFromChecksum pgtype.Text        `json:"converted_from_checksum"`
+}
+
+type DriveConnection struct {
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	UserID            string             `json:"user_id"`
+	Provider          string             `json:"provider"`
+	GoogleSub         string             `json:"google_sub"`
+	GoogleEmail       string             `json:"google_email"`
+	RefreshTokenEnc   string             `json:"refresh_token_enc"`
+	AccessTokenEnc    string             `json:"access_token_enc"`
+	AccessExpiresAt   pgtype.Timestamptz `json:"access_expires_at"`
+	CredentialVersion int64              `json:"credential_version"`
+	Scopes            string             `json:"scopes"`
+	AuthFailedAt      pgtype.Timestamptz `json:"auth_failed_at"`
+	AuthFailedReason  string             `json:"auth_failed_reason"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	DisconnectedAt    pgtype.Timestamptz `json:"disconnected_at"`
+}
+
+type DriveFile struct {
+	ID                     string             `json:"id"`
+	OrganizationID         string             `json:"organization_id"`
+	WorkspaceID            string             `json:"workspace_id"`
+	ExternalFileID         string             `json:"external_file_id"`
+	DriveID                pgtype.Text        `json:"drive_id"`
+	ConnectionID           string             `json:"connection_id"`
+	BoundBy                string             `json:"bound_by"`
+	CreatedBy              string             `json:"created_by"`
+	CreatedByKind          string             `json:"created_by_kind"`
+	Name                   string             `json:"name"`
+	MimeType               string             `json:"mime_type"`
+	IconKind               string             `json:"icon_kind"`
+	WebViewLink            string             `json:"web_view_link"`
+	OwnerDisplay           string             `json:"owner_display"`
+	DriveModifiedAt        pgtype.Timestamptz `json:"drive_modified_at"`
+	DriveModifiedByDisplay string             `json:"drive_modified_by_display"`
+	SharingState           string             `json:"sharing_state"`
+	SharedUserCount        pgtype.Int4        `json:"shared_user_count"`
+	MetadataRefreshedAt    pgtype.Timestamptz `json:"metadata_refreshed_at"`
+	AccessLostAt           pgtype.Timestamptz `json:"access_lost_at"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	UnlinkedAt             pgtype.Timestamptz `json:"unlinked_at"`
+	UnlinkedBy             pgtype.Text        `json:"unlinked_by"`
+	UnlinkedByKind         pgtype.Text        `json:"unlinked_by_kind"`
+	DriveFolderID          pgtype.Text        `json:"drive_folder_id"`
+	DriveFolderName        pgtype.Text        `json:"drive_folder_name"`
+}
+
+type DriveFileAccess struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DriveFileID    string             `json:"drive_file_id"`
+	UserID         string             `json:"user_id"`
+	ConnectionID   string             `json:"connection_id"`
+	State          string             `json:"state"`
+	GrantedAt      pgtype.Timestamptz `json:"granted_at"`
+	CheckedAt      pgtype.Timestamptz `json:"checked_at"`
+}
+
+type DriveFileTaskLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DriveFileID    string             `json:"drive_file_id"`
+	TaskID         string             `json:"task_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type DriveGrantRevocation struct {
+	GoogleSub            string             `json:"google_sub"`
+	Generation           int64              `json:"generation"`
+	RequestedAt          pgtype.Timestamptz `json:"requested_at"`
+	RefreshTokenEnc      pgtype.Text        `json:"refresh_token_enc"`
+	AttemptID            pgtype.Text        `json:"attempt_id"`
+	AttemptStartedAt     pgtype.Timestamptz `json:"attempt_started_at"`
+	ResolvedAt           pgtype.Timestamptz `json:"resolved_at"`
+	LastAttemptStartedAt pgtype.Timestamptz `json:"last_attempt_started_at"`
+	LastResolvedAt       pgtype.Timestamptz `json:"last_resolved_at"`
+	Attempts             int32              `json:"attempts"`
+	LastError            string             `json:"last_error"`
+}
+
+type DriveTaskProposal struct {
 	ID              string             `json:"id"`
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
-	DocumentID      string             `json:"document_id"`
-	Version         int32              `json:"version"`
-	Kind            string             `json:"kind"`
-	Reason          string             `json:"reason"`
-	Label           pgtype.Text        `json:"label"`
-	Content         []byte             `json:"content"`
-	FileID          pgtype.Text        `json:"file_id"`
-	MimeType        pgtype.Text        `json:"mime_type"`
-	SizeBytes       int64              `json:"size_bytes"`
-	ChecksumSha256  pgtype.Text        `json:"checksum_sha256"`
-	RestoredFrom    pgtype.Int4        `json:"restored_from"`
-	EngineName      pgtype.Text        `json:"engine_name"`
-	EngineVersion   pgtype.Text        `json:"engine_version"`
-	ContractVersion pgtype.Text        `json:"contract_version"`
-	ProtocolVersion pgtype.Text        `json:"protocol_version"`
-	CreatedBy       string             `json:"created_by"`
-	CreatedByKind   string             `json:"created_by_kind"`
+	DriveFileID     string             `json:"drive_file_id"`
+	ConnectionID    string             `json:"connection_id"`
+	RequestedBy     string             `json:"requested_by"`
+	RequestedByKind string             `json:"requested_by_kind"`
+	Prompt          string             `json:"prompt"`
+	ProjectID       pgtype.Text        `json:"project_id"`
+	ParentTaskID    pgtype.Text        `json:"parent_task_id"`
+	ContextTaskID   pgtype.Text        `json:"context_task_id"`
+	Items           []byte             `json:"items"`
+	Truncated       bool               `json:"truncated"`
+	UsageEventID    string             `json:"usage_event_id"`
+	Status          string             `json:"status"`
+	StatusChangedAt pgtype.Timestamptz `json:"status_changed_at"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+}
+
+type DriveTaskProposalLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ProposalID     string             `json:"proposal_id"`
+	ItemIndex      int32              `json:"item_index"`
+	TaskID         string             `json:"task_id"`
+	DriveFileID    string             `json:"drive_file_id"`
+	ExternalFileID string             `json:"external_file_id"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type Email struct {
@@ -1746,6 +1916,7 @@ type Meeting struct {
 	AiContentSharedAt         pgtype.Timestamptz `json:"ai_content_shared_at"`
 	AiContentSharedBy         pgtype.Text        `json:"ai_content_shared_by"`
 	SeriesID                  pgtype.Text        `json:"series_id"`
+	Venue                     string             `json:"venue"`
 }
 
 type MeetingAccessGrant struct {
@@ -1977,6 +2148,7 @@ type MeetingNote struct {
 	Body           string             `json:"body"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	OrganizationID string             `json:"organization_id"`
+	EditedAt       pgtype.Timestamptz `json:"edited_at"`
 }
 
 type MeetingParticipant struct {
@@ -2172,6 +2344,28 @@ type MeetingTranscription struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	StartedAt        pgtype.Timestamptz `json:"started_at"`
 	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
+}
+
+type MembershipInviteLink struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    pgtype.Text        `json:"workspace_id"`
+	SecretHash     string             `json:"secret_hash"`
+	OrgRole        string             `json:"org_role"`
+	WorkspaceRole  string             `json:"workspace_role"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	RevokedBy      pgtype.Text        `json:"revoked_by"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type MembershipInviteLinkWorkspace struct {
+	LinkID         string             `json:"link_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	OrganizationID string             `json:"organization_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type Notification struct {
@@ -2438,6 +2632,9 @@ type Project struct {
 	CreatedByKind  string             `json:"created_by_kind"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	TrashedAt      pgtype.Timestamptz `json:"trashed_at"`
+	TrashedBy      pgtype.Text        `json:"trashed_by"`
+	PurgeAfter     pgtype.Timestamptz `json:"purge_after"`
 }
 
 type ProjectResource struct {
@@ -2554,6 +2751,11 @@ type Task struct {
 	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
 	StartAt            pgtype.Timestamptz `json:"start_at"`
 	DueAt              pgtype.Timestamptz `json:"due_at"`
+	TrashedAt          pgtype.Timestamptz `json:"trashed_at"`
+	TrashedBy          pgtype.Text        `json:"trashed_by"`
+	PurgeAfter         pgtype.Timestamptz `json:"purge_after"`
+	TrashBatchID       pgtype.Text        `json:"trash_batch_id"`
+	TrashedProjectID   pgtype.Text        `json:"trashed_project_id"`
 }
 
 type TaskComment struct {

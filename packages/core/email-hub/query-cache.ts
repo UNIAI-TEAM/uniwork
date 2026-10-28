@@ -22,6 +22,7 @@ export const emailHubKeys = {
   sidebarCounts: (wsId: string, accountId: string) =>
     ["email-hub", wsId, "sidebar-counts", accountId] as const,
   imapLabels: (wsId: string, accountId: string) => ["email-hub", wsId, "imap-labels", accountId] as const,
+  scheduledSends: (wsId: string, accountId: string) => ["email-hub", wsId, "scheduled", accountId] as const,
 };
 
 export function threadDetailKey(wsId: string, accountId: string, threadId: string) {
@@ -150,6 +151,40 @@ export function patchEmailHubThreadInLists(
           counts:
             index === 0 && unreadDelta !== 0
               ? { ...page.counts, unread: Math.max(0, page.counts.unread + unreadDelta) }
+              : page.counts,
+        })),
+      };
+    },
+  );
+}
+
+/** Remove a thread from every cached list page (optimistic move / snooze). */
+export function removeEmailHubThreadFromLists(
+  qc: QueryClient,
+  wsId: string,
+  accountId: string,
+  threadId: string,
+) {
+  qc.setQueriesData<InfiniteData<EmailHubThreadListPage>>(
+    { queryKey: ["email-hub", wsId, "threads", accountId], exact: false },
+    (old) => {
+      if (!old) return old;
+      const previousThread = old.pages
+        .flatMap((page) => page.threads)
+        .find((thread) => thread.id === threadId);
+      if (!previousThread) return old;
+      const unreadDelta = previousThread.is_read ? 0 : -1;
+      return {
+        ...old,
+        pages: old.pages.map((page, index) => ({
+          ...page,
+          threads: page.threads.filter((row) => row.id !== threadId),
+          counts:
+            index === 0
+              ? {
+                  total: Math.max(0, page.counts.total - 1),
+                  unread: Math.max(0, page.counts.unread + unreadDelta),
+                }
               : page.counts,
         })),
       };

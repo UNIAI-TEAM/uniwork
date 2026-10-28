@@ -1,6 +1,6 @@
 # Catalogue sự kiện UniWork
 
-> **Trạng thái:** shipped · **Cập nhật:** 2026-10-20 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
+> **Trạng thái:** shipped · **Cập nhật:** 2026-10-22 · **Nguồn máy đọc:** `server/internal/outbox/catalogue.go` và `packages/core/types/events.ts`
 
 Bảng dưới là hợp đồng giữa server và mọi client. Ba nơi phải khớp nhau —
 file này, `catalogue.go`, `events.ts` — và `scripts/events-catalogue.test.mjs`
@@ -190,6 +190,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.edit_request_answered` | 1 | `document_id`, `workspace_id`, `request_id`, `user_id` | — | user | outbox |
 | `document.access_requested` | 1 | `document_id`, `workspace_id`, `request_id` | — | workspace | outbox |
 | `document.access_request_decided` | 1 | `document_id`, `workspace_id`, `request_id`, `user_id` | — | user | outbox |
+| `document.owner_transferred` | 1 | `document_id`, `workspace_id`, `bulk_id` | — | workspace | outbox |
+| `document.owners_bulk_transferred` | 1 | `organization_id`, `user_id`, `bulk_id`, `from_user_id`, `workspace_id` | — | user | outbox |
 | `document.updated` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.body_mentioned` | 1 | `document_id`, `workspace_id`, `user_id`, `author_id` | — | - | outbox |
 | `document.moved` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
@@ -197,8 +199,18 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.restored` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |
 | `document.shelved` | 1 | `document_id`, `workspace_id`, `shelve_batch_id` | — | workspace | outbox |
 | `document.unshelved` | 1 | `document_id`, `workspace_id`, `shelve_batch_id` | — | workspace | outbox |
+| `document.template_marked` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.template_unmarked` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.deleted` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `document.change_noticed` | 1 | `document_id`, `workspace_id`, `verb` | — | - | outbox |
+| `document_access_batch.completed` | 1 | `batch_id`, `folder_id`, `workspace_id` | — | workspace | outbox |
+| `drive_connection.changed` | 1 | `connection_id`, `user_id` | — | user | outbox |
+| `drive_file.access_changed` | 1 | `drive_file_id`, `workspace_id`, `user_id` | — | user | outbox |
+| `drive_file.linked` | 1 | `drive_file_id`, `workspace_id` | — | workspace | outbox |
+| `drive_file.task_linked` | 1 | `drive_file_id`, `task_id`, `workspace_id` | — | workspace | outbox |
+| `drive_file.unlinked` | 1 | `drive_file_id`, `workspace_id` | — | workspace | outbox |
+| `drive_file.updated` | 1 | `drive_file_id`, `workspace_id` | — | workspace | outbox |
+| `drive_task_proposal.converted` | 1 | `proposal_id`, `workspace_id` | — | workspace | outbox |
 | `office_lease.granted` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
 | `office_lease.renewed` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
 | `office_lease.released` | 1 | `user_id`, `document_id`, `lease_id` | — | user | outbox |
@@ -220,6 +232,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `motion.closed` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
 | `motion.ballot_cast` | 1 | `meeting_id`, `version`, `motion_id` | — | meeting | outbox |
 | `note.created` | 1 | `meeting_id`, `version`, `note_id` | — | meeting | outbox |
+| `note.deleted` | 1 | `meeting_id`, `version`, `note_id` | — | meeting | outbox |
+| `note.updated` | 1 | `meeting_id`, `version`, `note_id` | — | meeting | outbox |
 | `provider.end_session` | 1 | `room_name` | — | - | outbox |
 | `provider.ensure_session` | 1 | `meeting_id`, `room_name`, `session_id` | — | - | outbox |
 | `provider.remove_participant` | 1 | `room_name`, `identity` | — | - | outbox |
@@ -246,6 +260,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `attachment.deleted` | 1 | `attachment_id`, `task_id`, `workspace_id` | — | workspace | outbox |
 | `task.created` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
 | `task.deleted` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.trashed` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
+| `task.restored` | 1 | `task_id`, `workspace_id` | — | workspace | outbox |
 | `task.updated` | 1 | `task_id`, `workspace_id`, `revision_before`, `revision` | `title`, `status`, `priority`, `due_date` | workspace | outbox |
 | `task_label.created` | 1 | `label_id`, `workspace_id` | — | workspace | outbox |
 | `task_label.deleted` | 1 | `label_id`, `workspace_id` | — | workspace | outbox |
@@ -264,6 +280,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `task_view_preference.updated` | 1 | `workspace_id`, `user_id`, `scope_id` | — | workspace | outbox |
 | `project.created` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
 | `project.deleted` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
+| `project.trashed` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
+| `project.restored` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
 | `project.updated` | 1 | `project_id`, `workspace_id` | — | workspace | outbox |
 | `project_resource.created` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |
 | `project_resource.deleted` | 1 | `resource_id`, `project_id`, `workspace_id` | — | workspace | outbox |

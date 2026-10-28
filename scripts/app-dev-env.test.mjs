@@ -23,6 +23,7 @@ const businessFiles = [
   "deploy/app-dev/env/uniwork-fe.env",
   "deploy/app-dev/env/uniwork-fe.build.env",
   "deploy/app-dev/env/uniwork-office-engine.env",
+  "deploy/app-dev/env/uniwork-meeting-agent.env",
 ];
 
 test("business env files carry no secrets", () => {
@@ -55,6 +56,14 @@ test("business env files carry no secrets", () => {
   assert.equal(be.get("TRUSTED_PROXIES"), "10.230.19.0/24");
   assert.equal(be.get("PREVIEW_ORIGIN"), "https://preview.unicomhub.com");
   assert.equal(be.get("OFFICE_ENGINE_URL"), "");
+  assert.equal(be.get("MEETING_SCRIBE_ENABLED"), "true");
+  assert.equal(be.get("MEETING_SCRIBE_AGENT_NAME"), "uniwork-scribe");
+
+  const example = fs.readFileSync(path.join(root, "deploy/app-dev/.env.example"), "utf8");
+  const exampleKey = example.indexOf("ASSEMBLYAI_API_KEY=");
+  const exampleOptional = example.indexOf("# Optional.");
+  assert.equal(exampleKey > 0 && exampleOptional > exampleKey, true);
+  assert.match(example, /^ASSEMBLYAI_API_KEY=$/m);
 
   const office = assignments("deploy/app-dev/env/uniwork-office-engine.env");
   assert.equal(office.get("OFFICE_ENGINE_OUTPUT_ORIGINS"), "https://minio.ubos.vn");
@@ -78,7 +87,7 @@ test("business env files carry no secrets", () => {
 test("compose files pin registry images", () => {
   const compose = fs.readFileSync(path.join(root, "deploy/app-dev/docker-compose.yml"), "utf8");
   assert.match(compose, /^name: uniwork-app-dev$/m);
-  assert.match(compose, /subnet: 10\.230\.19\.0\/24/);
+  assert.match(compose, /subnet: 10\.250\.0\.0\/24/);
   assert.equal(/^\s*build\s*:/m.test(compose), false);
   assert.equal(/^\s{2}(postgres|redis|minio)\s*:/m.test(compose), false);
 
@@ -89,6 +98,31 @@ test("compose files pin registry images", () => {
   assert.match(secrets, /OFFICE_ENGINE_SERVICE_TOKEN: \$\{OFFICE_ENGINE_SERVICE_TOKEN:\?\}/);
   assert.match(secrets, /OFFICE_ENGINE_GRANT_KEY: \$\{OFFICE_ENGINE_GRANT_KEY:\?\}/);
   assert.equal(secrets.includes("dev-only-office-engine"), false);
+
+  assert.match(secrets, /LIVEKIT_API_KEY: \$\{LIVEKIT_API_KEY:\?\}/);
+  assert.match(secrets, /LIVEKIT_API_SECRET: \$\{LIVEKIT_API_SECRET:\?\}/);
+  assert.match(secrets, /ASSEMBLYAI_API_KEY: \$\{ASSEMBLYAI_API_KEY:\?\}/);
+
+  const agentAt = compose.indexOf("\n  uniwork-meeting-agent:\n");
+  const feAt = compose.indexOf("\n  uniwork-fe:\n");
+  assert.equal(agentAt > 0 && feAt > agentAt, true);
+  const agentService = compose.slice(agentAt, feAt);
+  assert.match(agentService, /image: registry-harbor\.ubos\.vn\/uniwork\/uniwork-meeting-agent:\$\{UNIWORK_IMAGE_TAG:\?\}/);
+  assert.match(agentService, /command: \["python", "agent\.py", "dev"\]/);
+  assert.match(agentService, /path: env\/uniwork-meeting-agent\.env/);
+  assert.match(agentService, /init: true/);
+  assert.match(agentService, /cap_drop:\n {6}- ALL/);
+  assert.match(agentService, /no-new-privileges:true/);
+  assert.match(agentService, /restart: unless-stopped/);
+  assert.match(agentService, /stop_grace_period: 150s/);
+  assert.match(agentService, /cpus: 1/);
+  assert.match(agentService, /mem_limit: 2g/);
+  assert.match(agentService, /pids_limit: 256/);
+  assert.match(agentService, /http:\/\/127\.0\.0\.1:8081\/worker/);
+  assert.match(agentService, /uniwork-be:\n {8}condition: service_healthy/);
+  assert.equal(agentService.includes("ports:"), false);
+  assert.equal(agentService.includes("read_only:"), false);
+  assert.equal(agentService.includes("cap_add:"), false);
 });
 
 test("Jenkinsfile deploys by SSH without a latest tag", () => {
@@ -99,4 +133,52 @@ test("Jenkinsfile deploys by SSH without a latest tag", () => {
   assert.equal(/docker\s+(tag|push)\b[^\n]*:latest/.test(text), false);
   assert.equal(text.includes("cfg=\\\\$(mktemp -d)"), true, "cfg=\\\\$(mktemp -d)");
   assert.equal((text.match(/sh '''#!\/bin\/bash/g) || []).length, 2);
+  assert.equal(text.includes("apps/meeting-agent"), true);
+  assert.equal(text.includes('uniwork-meeting-agent:${IMAGE_TAG}'), true);
+  assert.equal(
+    (text.match(/deploy\/app-dev\/env\/uniwork-meeting-agent\.env/g) || []).length,
+    2,
+  );
+});
+
+test("meeting agent env lists only non-secret assignments", () => {
+  const agent = assignments("deploy/app-dev/env/uniwork-meeting-agent.env");
+  assert.deepEqual([...agent.keys()], [
+    "MEETING_SCRIBE_AGENT_NAME",
+    "SCRIBE_STT_PROVIDER",
+    "SCRIBE_STT_BASE_URL",
+    "AI_MEETING_TRANSCRIBE_BASE_URL",
+    "UNIWORK_API_URL",
+    "LIVEKIT_URL",
+    "SCRIBE_HEALTH_PORT",
+    "SCRIBE_METRICS_PORT",
+    "SCRIBE_DRAIN_TIMEOUT_S",
+  ]);
+  assert.equal(agent.get("MEETING_SCRIBE_AGENT_NAME"), "uniwork-scribe");
+  assert.equal(agent.get("SCRIBE_STT_PROVIDER"), "assemblyai");
+  assert.equal(agent.get("SCRIBE_STT_BASE_URL"), "");
+  assert.equal(agent.get("AI_MEETING_TRANSCRIBE_BASE_URL"), "");
+  assert.equal(agent.get("UNIWORK_API_URL"), "http://uniwork-be:8080");
+  assert.equal(agent.get("LIVEKIT_URL"), "wss://livekit.ubos.vn");
+  assert.equal(agent.get("SCRIBE_HEALTH_PORT"), "8081");
+  assert.equal(agent.get("SCRIBE_METRICS_PORT"), "9100");
+  assert.equal(agent.get("SCRIBE_DRAIN_TIMEOUT_S"), "20");
+  for (const secret of ["LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "ASSEMBLYAI_API_KEY"]) {
+    assert.equal(agent.has(secret), false, secret);
+  }
+});
+
+test("meeting-agent workflow audits without building an image", () => {
+  const wf = fs.readFileSync(
+    path.join(root, ".github/workflows/meeting-agent-verify.yml"),
+    "utf8",
+  );
+  assert.equal(wf.includes("pip-audit==2.9.0"), true);
+  assert.equal(wf.includes("python -m pytest -q"), true);
+  assert.equal(wf.includes("docker/build-push-action"), false);
+  assert.equal(wf.includes("docker/login-action"), false);
+  assert.equal(wf.includes("docker/setup-buildx-action"), false);
+  const prod = fs.readFileSync(path.join(root, "ci/Jenkinsfile.production-app.groovy"), "utf8");
+  assert.equal(prod.includes("builds and pip-audits"), false);
+  assert.equal(prod.includes("runs ruff, pytest and pip-audit"), true);
 });

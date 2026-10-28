@@ -50,10 +50,13 @@ export function MeetingsPageView({
   workspaceId,
   onOpen,
   onOpenRoom,
+  onOpenRecord,
 }: {
   workspaceId: string;
   onOpen: (id: string) => void;
   onOpenRoom: (id: string) => void;
+  /** Where an in-person Họp ngay lands; without it, the meeting itself. */
+  onOpenRecord?: (id: string) => void;
 }) {
   const { t } = useTranslation();
   const params = useListParams();
@@ -138,7 +141,7 @@ export function MeetingsPageView({
           <>
             <InstantMeetingDialog
               workspaceId={workspaceId}
-              onStarted={onOpenRoom}
+              onStarted={(id, venue) => (venue === "in_person" ? (onOpenRecord ?? onOpen)(id) : onOpenRoom(id))}
               trigger={<CollectionPageHeaderAction icon={Zap} label={t("meetings.instant")} />}
             />
             <MeetingSheet

@@ -629,7 +629,7 @@ func (q *Queries) ListExistingMeetingIDs(ctx context.Context, ids []string) ([]s
 }
 
 const listExistingTaskIDs = `-- name: ListExistingTaskIDs :many
-SELECT id FROM tasks WHERE id = ANY($1::text[])
+SELECT id FROM tasks WHERE id = ANY($1::text[]) AND trashed_at IS NULL
 `
 
 // tenant: by-id
@@ -694,6 +694,7 @@ JOIN meetings m ON m.id = i.meeting_id AND m.organization_id = i.organization_id
 JOIN users u ON u.id = t.assignee_id
 LEFT JOIN task_statuses ts ON ts.workspace_id = t.workspace_id AND ts.key = t.status
 WHERE i.task_id IS NOT NULL AND i.dismissed_at IS NULL
+  AND t.trashed_at IS NULL
   AND t.assignee_kind = 'human'
   AND t.due_date BETWEEN $1::date AND $2::date
   AND COALESCE(ts.category, t.status) NOT IN ('done', 'cancelled')
@@ -813,7 +814,7 @@ WHERE m.status = 'ENDED'
   AND COALESCE(m.actual_end_at, m.ends_at) >= $1::timestamptz
   AND COALESCE(m.actual_end_at, m.ends_at) < $2::timestamptz
   AND i.dismissed_at IS NULL
-  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id)
+  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = i.task_id AND t.organization_id = i.organization_id AND t.trashed_at IS NULL)
   AND NOT EXISTS (SELECT 1 FROM notification_deliveries d WHERE d.event_id = 'meeting_pending_items:' || m.id)
 GROUP BY m.id
 ORDER BY m.id

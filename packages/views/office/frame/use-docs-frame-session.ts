@@ -44,6 +44,7 @@ import { createFrameApiProxy, createFrameTokenLoader } from "./frame-api-proxy";
 import { createFirstSaveGate } from "./first-save-gate";
 import { useFrameRemote } from "./use-frame-remote-source";
 import { onCloseRequestedEvent, runHostSave } from "./frame-close-requested";
+import { useFrameAiHandoff } from "./use-frame-ai-handoff";
 
 /**
  * The host half of one Docs frame on the vendored protocol host: the token
@@ -60,6 +61,8 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
   // lock, no remote-version feed and no draft recovery, since nothing here can change the document.
   const isVersion = !isSource && fileRef.version !== undefined;
   const fileId = fileRef.id;
+  // Ask UNI's approved job for a document this page just created (UNI-2264): sent once, after the open.
+  const aiHandoff = useFrameAiHandoff(fileId);
   // Display data for the editors (comment and note authors), never an identity the frame authorises with.
   const displayName = useAuthStore((s) => s.user?.display_name ?? "");
   const userId = useAuthStore((s) => s.user?.id ?? "");
@@ -319,13 +322,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       },
       api: {
         ...latest.current.options.comments?.api,
-        "api.open": (payload, context) =>
-          openWithRevision(
+        "api.open": (payload, context) => {
+          return openWithRevision(
             async () => ({ ...(await open(payload, context)), limits: toFrameLimits(latest.current.documentLimits) }),
             payload,
             remote,
             context.signal,
-          ).catch((error: unknown) => { const shape = shapeOf(error); if ((latest.current.isSource || latest.current.isVersion) && shape.code !== "cancelled") failSession(shape); throw error; }),
+          ).then((opened) => { aiHandoff.documentOpened(endpoint); return opened; }).catch((error: unknown) => { const shape = shapeOf(error); if ((latest.current.isSource || latest.current.isVersion) && shape.code !== "cancelled") failSession(shape); throw error; });
+        },
         "api.save": async (payload, context) => {
           // UNI-1847 (SAVE-01, D4 + S01-V2): a frame save of a still-unnamed blank is declined
           // at once and the page names the document, then sends the Save itself. The pinned
@@ -410,6 +414,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         if (booted && !frameDocGone) frameGone();
         booted = true;
         latest.current.options.comments?.attach(endpoint, ack, () => latest.current.scopeId);
+        aiHandoff.attach(endpoint, ack, initLockedOut.current);
         bindFrameDocument();
         // A block heard before this handshake (or by the frame instance before) reaches this one.
         remote.announceBlock();
@@ -448,7 +453,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       if (watch) { watch.modal = open; armWatchdog(watch); }
     });
     // Per frame: only the live document that shook hands speaks for its turns.
-    endpoint.on("aiRun", ({ state }) => { if (life.state === "live" && !frameDocGone) setAiRunning(state === "running"); });
+    endpoint.on("aiRun", ({ state }) => { if (life.state === "live" && !frameDocGone) { setAiRunning(state === "running"); aiHandoff.onAiRun(state); } });
     endpoint.on("title", ({ title }) => { latest.current.options.onTitle?.(title); });
     endpoint.on("resize", ({ height: next }) => { setHeight(next); });
     endpoint.on("saved", (saved) => {
@@ -506,13 +511,14 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
       // this endpoint may arm a timer or write state after this line.
       life.state = "disposed";
       latest.current.options.comments?.detach();
+      aiHandoff.detach();
       const watch = saveWatchRef.current;
       if (watch?.life === life && watch.timer !== null) { clearTimeout(watch.timer); watch.timer = null; }
       endpoint.dispose();
       if (remoteRef.current === remote) remoteRef.current = null;
       setHost(null);
     };
-  }, [applyBlock, attempt, fileId, frameOrigin, heldReasons, iframeRef, isSource, isVersion, module, queryClient, remoteRef, reportError, setShelved, shelvedRef, wsId]);
+  }, [aiHandoff, applyBlock, attempt, fileId, frameOrigin, heldReasons, iframeRef, isSource, isVersion, module, queryClient, remoteRef, reportError, setShelved, shelvedRef, wsId]);
 
   // The lock arrived after the frame opened read-only ("Edit now", a handover, the first R2):
   // re-attach it in edit mode.

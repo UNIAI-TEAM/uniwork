@@ -4,6 +4,7 @@ import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import type { MeetingInvitation } from "@uniwork/core/types/meeting";
 import type { useMemberIndex } from "../use-member-index";
 import type { DetailStatus, DetailTab, DetailViewer, SectionFlags } from "./detail-model";
+import type { Transcribing } from "./next-step-jobs";
 
 /**
  * What every slot of the meeting detail page reads instead of drilled props
@@ -43,6 +44,8 @@ export type DetailContextValue = {
   };
   /** The live roll drawer, opened from the rail's "Điểm danh"; the page reads it to make room for the docked drawer. */
   roll: { open: boolean; setOpen: (open: boolean) => void };
+  /** In person: the sent recording still being transcribed (UNI-2247); the overview waits on it. */
+  transcribing?: Transcribing | null;
 };
 
 export const DetailContext = createContext<DetailContextValue | null>(null);

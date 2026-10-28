@@ -154,10 +154,14 @@ export function CreateTaskParentField({
       triggerRender={
         <ClearablePillButton
           aria-label={ariaLabel}
-          onClear={() => {
-            onChange(undefined);
-            onClear();
-          }}
+          onClear={
+            value
+              ? () => {
+                  onChange(undefined);
+                  onClear();
+                }
+              : undefined
+          }
           clearLabel={clearLabel}
         />
       }

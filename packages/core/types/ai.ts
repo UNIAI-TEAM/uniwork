@@ -108,7 +108,7 @@ const EMPTY_PREVIEW = {
   audience: { visibility: "", room_members: 0, notifies: [], notifies_more: false },
   refs: [],
 };
-const EMPTY_RESULT = { object_id: "", href: "", revision: 0, changes: [], note: "" };
+const EMPTY_RESULT = { object_id: "", href: "", revision: 0, changes: [], note: "", handoff_id: "" };
 
 /**
  * One row of a proposal card (server AiProposalDTO). Every field degrades on
@@ -159,6 +159,8 @@ export const AiProposalSchema = z.object({
       revision: z.number().catch(0),
       changes: z.array(z.object({ field: z.string().catch(""), from: z.unknown(), to: z.unknown() })).catch([]),
       note: z.string().catch(""),
+      /** A new Office file the editor AI is to draft: the id the editor frame presents; empty when none. */
+      handoff_id: z.string().catch(""),
     })
     .catch(EMPTY_RESULT),
   can_undo: z.boolean().catch(false),
@@ -300,11 +302,16 @@ interface AskUniContextRef {
   id: string;
 }
 
+export interface AskUniTranscriptTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
 export interface AskUniInput {
   conversation_id?: string;
   question: string;
   focus?: {
-    kind: "task" | "meeting" | "email_thread" | "document" | "project" | "room" | "thread" | "message";
+    kind: "task" | "meeting" | "email_thread" | "document" | "drive_file" | "project" | "room" | "thread" | "message";
     id: string;
   };
   /** Up to 5 objects the asker names; each must be readable by them. */
@@ -320,6 +327,10 @@ export interface AskUniInput {
   attachment_ids?: string[];
   /** "ask" | "plan" | "auto"; sent only when set, absent = the asker's saved mode. */
   mode?: string;
+  /** True when the turn is not stored on the server (required for `focus.kind === "drive_file"`, forbidden with `conversation_id`). */
+  transient?: boolean;
+  /** In-memory transcript window sent on each transient question (≤ 20 turns, ≤ 32,000 total chars). */
+  transcript?: AskUniTranscriptTurn[];
 }
 
 export const AskModelsSchema = z.object({ models: z.array(z.string()) });

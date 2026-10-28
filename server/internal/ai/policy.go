@@ -45,6 +45,10 @@ const (
 	// CapCaptionTranslate is the scribe's live caption translation (scribe
 	// spec §5.3 B9): up to one call a second per language, hence the fast model.
 	CapCaptionTranslate Capability = "caption_translate"
+	// CapDriveTaskProposals extracts up to 20 structured task proposals (with
+	// basis strings, checklist, and <=300-rune source quotes) from a Google
+	// Drive document (UNI-2181, spec §8.2).
+	CapDriveTaskProposals Capability = "drive_task_proposals"
 )
 
 // ModelPolicy is the source-code constant behind a capability: the default
@@ -101,7 +105,8 @@ var policies = map[Capability]ModelPolicy{
 	// JSON; a reply cut at the ceiling is ErrOutputInvalid.
 	CapAskUniMemoryImport: {Default: fast, MaxTokens: 16000, Temperature: 0},
 	// Capability-wide ceiling covering the largest single-turn Office tool call (HTML); per-module ceilings are lowered in officeModuleMaxTokens.
-	CapOfficeUniworkAI: {Default: officeUniwork, MaxTokens: 4096, Temperature: 0},
+	CapOfficeUniworkAI:    {Default: officeUniwork, MaxTokens: 4096, Temperature: 0},
+	CapDriveTaskProposals: {Default: flagship, MaxTokens: 4096, Temperature: 0},
 }
 
 // officeModuleMaxTokens tunes the max output tokens per genoffice module (G6-08,

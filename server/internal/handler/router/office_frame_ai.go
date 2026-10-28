@@ -127,7 +127,7 @@ func registerOfficeFrameAI(r api, h Routes, flags *featureflag.Service, frameAut
 		summary: "Frame: UniWork AI chat, one turn",
 		description: frame + "Như POST /orgs/{orgID}/ai/uniwork/chat/completions: một lượt, hội thoại do server giữ " +
 			"(header X-UniWork-AI-Conversation), stream=true trả SSE một chunk rồi [DONE]. Module lấy từ claim của token; " +
-			"trường module trong body bị bỏ qua." + uniworkChatErrs,
+			"trường module trong body bị bỏ qua." + uniworkHandoffWire + uniworkChatErrs,
 		tags: []string{"ai"}, sdi: sdi.AiUniworkChatCompletionsSDI{}, sdo: sdo.AiUniworkChatCompletionsSDO{}, auth: true,
 	})
 }

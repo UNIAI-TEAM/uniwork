@@ -41,7 +41,7 @@ func (s *EmailHubService) ListConversationMessages(
 	}
 	key := anchor.ConversationKey
 	if key == "" {
-		return []EmailHubThreadView{threadView(anchor)}, nil
+		return []EmailHubThreadView{s.conversationThreadView(ctx, anchor)}, nil
 	}
 	rows, err := s.q.ListEmailHubConversationMessages(ctx, db.ListEmailHubConversationMessagesParams{
 		AccountID: accountID, OrganizationID: ws.OrganizationID, ConversationKey: key,
@@ -51,11 +51,19 @@ func (s *EmailHubService) ListConversationMessages(
 		return nil, err
 	}
 	if len(rows) == 0 {
-		return []EmailHubThreadView{threadView(anchor)}, nil
+		return []EmailHubThreadView{s.conversationThreadView(ctx, anchor)}, nil
 	}
 	out := make([]EmailHubThreadView, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, threadView(r))
+		out = append(out, s.conversationThreadView(ctx, r))
 	}
 	return out, nil
+}
+
+func (s *EmailHubService) conversationThreadView(ctx context.Context, row db.EmailHubThread) EmailHubThreadView {
+	v := threadView(row)
+	if err := s.hydrateThreadBodyFromObject(ctx, &v, row); err != nil {
+		s.log.Warn("email hub hydrate conversation body failed", "thread_id", row.ID, "err", err)
+	}
+	return v
 }

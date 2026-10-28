@@ -49,6 +49,11 @@ const (
 	UniworkConversationHeader = "X-UniWork-AI-Conversation"
 	// UniworkRunHeader is A12 too; G6-03b owns issuing and checking it.
 	UniworkRunHeader = "X-UniWork-AI-Run"
+	// UniworkHandoffHeader names the Ask UNI handoff package a turn works on
+	// (ADR 0048); UniworkHandoffRemainingHeader answers the parts left after
+	// a turn the package expanded.
+	UniworkHandoffHeader          = "X-UniWork-AI-Handoff"
+	UniworkHandoffRemainingHeader = "X-UniWork-AI-Handoff-Remaining"
 )
 
 // Reasons a model call is dropped from an answer (A13, security rule 6).
@@ -293,6 +298,15 @@ func DecodeUniworkChatRequest(raw json.RawMessage) (UniworkChatRequest, error) {
 // turn's own message joins the History the Gateway sends: the office pack
 // (G6-14) renders nothing, so the question is the last user message there.
 func PlanUniworkTurn(transcript []provider.Message, raw json.RawMessage, allow UniworkAllowlist) (UniworkTurn, error) {
+	return PlanUniworkTurnWith(transcript, raw, allow, nil)
+}
+
+// PlanUniworkTurnWith is PlanUniworkTurn with a server-side expansion of the
+// question (the Ask UNI handoff, ADR 0048): the client's text passes the
+// 8 000-rune check first, then expand's result becomes the turn's Question and
+// last History message. A tool-result turn never calls expand; nil keeps the
+// question as the client sent it.
+func PlanUniworkTurnWith(transcript []provider.Message, raw json.RawMessage, allow UniworkAllowlist, expand func(question string) string) (UniworkTurn, error) {
 	req, err := DecodeUniworkChatRequest(raw)
 	if err != nil {
 		return UniworkTurn{}, err
@@ -322,7 +336,10 @@ func PlanUniworkTurn(transcript []provider.Message, raw json.RawMessage, allow U
 			return UniworkTurn{}, err
 		}
 		turn.Question = newest.Content
-		history, err := uniworkHistory(transcript, []provider.Message{{Role: "user", Content: newest.Content}}, false, allow.Module)
+		if expand != nil {
+			turn.Question = expand(newest.Content)
+		}
+		history, err := uniworkHistory(transcript, []provider.Message{{Role: "user", Content: turn.Question}}, false, allow.Module)
 		if err != nil {
 			return UniworkTurn{}, err
 		}

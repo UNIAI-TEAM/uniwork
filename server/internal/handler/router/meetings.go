@@ -36,8 +36,9 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Post("/workspaces/{workspaceID}/meetings/instant", h.CreateInstantMeeting, apiOp{
 		summary: "Create instant meeting", tags: []string{"meetings"},
-		description: "Header Idempotency-Key (tùy chọn): gửi lại cùng khóa trả lại đúng phòng đã mở, không mở phòng thứ hai; người khác dùng cùng khóa -> 409 idempotency_key_reuse.",
-		sdi:         sdi.CreateInstantMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
+		description: "Header Idempotency-Key (tùy chọn): gửi lại cùng khóa trả lại đúng phòng đã mở, không mở phòng thứ hai; người khác dùng cùng khóa -> 409 idempotency_key_reuse. " +
+			"venue in_person: không mở phòng, cuộc họp ở SCHEDULED cho tới khi được ghi nhận đã họp.",
+		sdi: sdi.CreateInstantMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}", h.GetMeeting, apiOp{
 		summary: "Get meeting", tags: []string{"meetings"}, sdo: sdo.MeetingSDO{}, auth: true,
@@ -51,6 +52,7 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Post("/meetings/{meetingID}/start", h.StartMeeting, apiOp{
 		summary: "Start meeting", tags: []string{"meetings"}, sdo: sdo.MeetingSDO{}, auth: true,
+		description: "Cuộc họp trực tiếp (venue in_person) không mở phòng: 409 meeting_in_person.",
 	})
 	r.Post("/meetings/{meetingID}/end", h.EndMeeting, apiOp{
 		summary: "End meeting", tags: []string{"meetings"}, sdo: sdo.MeetingSDO{}, auth: true,
@@ -77,6 +79,16 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	r.Post("/meetings/{meetingID}/notes", h.CreateNote, apiOp{
 		summary: "Add note", tags: []string{"meetings"}, sdi: sdi.CreateNoteSDI{}, sdo: sdo.NoteSDO{}, auth: true,
 		description: "Thành viên workspace. Ghi audit meeting.note_added, phát note.created (chỉ id) tới người đang mở cuộc họp.",
+	})
+	r.Patch("/meetings/{meetingID}/notes/{noteID}", h.UpdateNote, apiOp{
+		summary: "Edit a note (author or clerk)", tags: []string{"meetings"}, sdi: sdi.UpdateNoteSDI{}, sdo: sdo.NoteSDO{}, auth: true,
+		description: "Người viết ghi chú, chủ tọa, thư ký hoặc quản trị workspace; người khác -> 403. Ghi chú không thuộc cuộc họp -> 404. Nội dung trống -> 422. " +
+			"Đặt edited_at, ghi audit meeting.note_updated (không chứa nội dung), phát note.updated (chỉ id) tới người đang mở cuộc họp.",
+	})
+	r.Delete("/meetings/{meetingID}/notes/{noteID}", h.DeleteNote, apiOp{
+		summary: "Delete a note (author or clerk)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+		description: "Người viết ghi chú, chủ tọa, thư ký hoặc quản trị workspace; người khác -> 403. Ghi chú không thuộc cuộc họp -> 404. " +
+			"Xoá hẳn; dòng audit meeting.note_deleted là bản ghi còn lại. Phát note.deleted (chỉ id) tới người đang mở cuộc họp.",
 	})
 	r.Post("/meetings/{meetingID}/token", h.MeetingToken, apiOp{
 		summary: "Mint LiveKit token (deprecated; uses admission)", tags: []string{"meetings"},
@@ -233,8 +245,8 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Post("/meetings/{meetingID}/held", h.RecordMeetingHeld, apiOp{
 		summary: "Record a meeting held in person without a room",
-		description: "Chủ trì hoặc quản trị workspace. Chỉ từ SCHEDULED (khác -> 409 invalid_meeting_state): ghi giờ thực tế, chuyển ENDED, không mở phòng. " +
-			"ended_at phải sau started_at và không ở tương lai, không thì 422 invalid_held_times. Ghi audit meeting.held_recorded, dòng thời gian MEETING_RECORDED_HELD, phát meeting.ended.",
+		description: "Chủ trì, thư ký hoặc quản trị workspace (khác -> 403 not_meeting_clerk). Chỉ từ SCHEDULED (khác -> 409 invalid_meeting_state): ghi giờ thực tế, chuyển ENDED, không mở phòng. " +
+			"ended_at phải sau started_at và không ở tương lai, không thì 422 invalid_held_times. Bỏ trống hai giờ và gửi duration_seconds > 0: kết thúc lúc server nhận, bắt đầu trước đó duration_seconds giây. Ghi audit meeting.held_recorded, dòng thời gian MEETING_RECORDED_HELD, phát meeting.ended.",
 		tags: []string{"meetings"}, sdi: sdi.RecordMeetingHeldSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/audio-upload-sessions", h.CreateMeetingAudioUpload, apiOp{
@@ -438,6 +450,10 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 	r.With(joinLimit).Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
 		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
+	})
+	r.With(joinLimit).Post("/meetings/{meetingID}/call-rating", h.RateCall, apiOp{
+		summary: "Rate the call's sound and picture on leaving (member or active guest)", tags: []string{"meetings"},
+		sdi: sdi.RateCallSDI{}, sdo: sdo.StatusSDO{},
 	})
 	r.Get("/meetings/{meetingID}/motions", h.ListMotions, apiOp{
 		summary:     "List vote items (member or active guest)",

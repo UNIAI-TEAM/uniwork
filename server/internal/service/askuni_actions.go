@@ -58,6 +58,8 @@ type AskProposalResult struct {
 	Revision int64       `json:"revision"`
 	Changes  []McpChange `json:"changes"`
 	Note     string      `json:"note"`
+	// HandoffID is the package create_office_document left for the editor AI.
+	HandoffID string `json:"handoff_id,omitempty"`
 }
 
 // askInverse is how to undo an applied row: the name of an askInverses entry
@@ -190,6 +192,10 @@ var askIDFields = map[string]askIDSpec{
 	"update_document":      {Target: "document_id", Refs: map[string]string{"document_id": "create_document"}},
 	"add_document_comment": {Target: "document_id", Refs: map[string]string{"document_id": "create_document"}},
 	"send_chat_message":    {},
+	// create_office_document takes no {{row:N.id}}: its ids are a template, an attachment and a folder that already exist.
+	"create_office_document": {},
+	// save_attachment_template takes only an attachment of the asker's own turn.
+	"save_attachment_template": {},
 }
 
 var askRowRefRe = regexp.MustCompile(`^\{\{row:([0-9]{1,3})\.id\}\}$`)

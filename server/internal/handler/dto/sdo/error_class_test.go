@@ -25,6 +25,7 @@ func TestErrorClassTable(t *testing.T) {
 		"idempotency_in_flight":        "conflict",
 		"upload_already_committed":     "conflict",
 		"copy_consent_required":        "conflict",
+		"template_widens_visibility":   "conflict",
 		"owner_requires_copy":          "conflict",
 		"document_upload_invalid":      "conflict",
 		"folder_name_taken":            "conflict",
@@ -139,6 +140,18 @@ func TestErrorClassTable(t *testing.T) {
 		// ADR 0037 §6 (UNI-2055): a workspace folder never enters My Folder
 		// (422); a refusal of the request, like folder_not_shareable.
 		"folder_into_my_folder",
+		// DOC-06 (UNI-2084, §4.2, R1-1): the chosen recipient cannot own the
+		// document (422); the picker shows it in place - neither a lost
+		// permission nor a state conflict.
+		"owner_target_not_member",
+		// UNI-2213 (C5): a version commit with conversion on a non-legacy
+		// live version, a mismatched format pair, or a non-OOXML upload (422);
+		// a refusal of the conversion request with no recovery class.
+		"legacy_conversion_invalid",
+		// UNI-2244 (§1, §3.1): bulk folder contents access codes are
+		// unclassified on purpose (not_a_folder 422, folder_access_batch_running
+		// 409 with fields.batch_id to attach progress, not_implemented 501 stub).
+		"not_a_folder", "folder_access_batch_running", "not_implemented",
 	}
 	for _, code := range unclassified {
 		if got := ErrorClassFor(code); got != "" {
@@ -170,6 +183,10 @@ func TestErrorClassTable(t *testing.T) {
 		// access_request_cooldown are emitted here, so the table above and this
 		// scan stay in step.
 		"document_access_requests.go",
+		// DOC-06's owner transfer (UNI-2084): owner_target_not_member.
+		"document_owner_transfer.go",
+		// UNI-2244: folder bulk access error codes.
+		"document_folder_contents_access.go",
 	} {
 		src, err := os.ReadFile("../../../service/" + name)
 		if errors.Is(err, fs.ErrNotExist) && name == "document_break_glass.go" {

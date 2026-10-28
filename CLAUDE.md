@@ -406,6 +406,26 @@ Every command that changes business state writes an `audit_events` row and its
   `TestCallRingClosedSendsNoVoIPEndWhereNoRingIs` hold it.
 - Audit rows of Ask UNI memory never carry the entry text (spec 2026-10-24
   §5.10): `TestAiMemoryAuditCarriesNoText`.
+- Google Drive references store no Drive bytes in UniWork, and Drive content is
+  read only through `server/internal/service/drive_content.go` (`ReadForAI`)
+  using the requester's own `drive_file_access` connection — never another
+  member's connection — with OOXML text extracted in memory without an output
+  destination and Ask UNI turns with a `drive_file` focus never persisted (ADR
+  0047). `TestDriveContentOnlyFromDriveContent` (`server/internal/arch_test.go`),
+  `TestDriveContentReadsUseTheCallersConnection`,
+  `TestDriveOfficeExtractWritesNoObject`, `TestAskUniDriveFocusIsNotPersisted`
+  and `TestDriveTablesCarryNoObjectStorageColumns` (`server/migrations/lint_test.go`)
+  hold it.
+- Ask UNI hands an approved job to the editor AI only through an
+  `ai_office_handoffs` package (ADR 0048): written by Apply for the document it
+  just created, usable for 24 hours by its asker only, on that document only,
+  bound to one conversation; its material always enters the turn wrapped as
+  untrusted, and the editor AI gets no tool that reads the workspace.
+  `TestOfficeHandoffLoadIsScopedToItsAskerAndDocument`,
+  `TestOfficeHandoffAdvanceBindsOneConversation`,
+  `TestAskCreateOfficeApplyWritesAHandoff`,
+  `TestAIUniworkHandoffIgnoredOutsideItsScope` and
+  `TestAIUniworkHandoffQuoteCannotCloseItsUntrustedBlock` hold it.
 
 ## Platform Admin and Observability
 
@@ -422,9 +442,13 @@ behind its own gate and never reaches content.
   — `TestAdminQueriesStayInAdminService` in `server/internal/arch_test.go`. One exception
   (ADR 0042): the operator's takedown of a reported chat message goes through
   `ReportedContentRemover.RemoveReportedMessageQ`, which `server/cmd/server/main.go` wires
-  to `ChatService`; it is the console's only content write, and it returns no content.
-  `TestReportedContentRemoverIsTheConsoleOnlyContentSeam` holds the interface to that one
-  method, `AdminService` to no other content service, and that wiring to the one call site.
+  to `ChatService`; it returns no content. The second (ADR 0046): scheduling or cancelling an
+  organization's 5-day privacy deletion goes through `OrganizationDeletionQueue`
+  (`queueDeletion`, `cancelDeletion`), wired there to `privacySvc`; `AdminService` never holds
+  `*PrivacyExportService`, so it cannot export or download tenant files, and `recordAdmin` runs
+  inside the queue's transaction. These are the console's only content writes.
+  `TestReportedContentRemoverIsTheConsoleOnlyContentSeam` holds each interface to its
+  methods, `AdminService` to no other content service, and each wiring to its one call site.
 - Every admin write takes a `reason` (≥ 10 characters) and lands in
   `admin_actions` and `audit_events` in one transaction, sharing the trace id.
   A platform role is granted only by `server/cmd/uniwork-admin`; there is no UI.

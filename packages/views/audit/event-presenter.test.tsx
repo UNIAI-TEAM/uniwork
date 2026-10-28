@@ -100,5 +100,6 @@ describe("event presenter", () => {
     expect(result.current.actorKind("guest")).toBe("Khách");
     expect(result.current.resource("meeting")).toBe("Cuộc họp");
     expect(result.current.resource("meeting_motion")).toBe("Nội dung biểu quyết");
+    expect(result.current.resource("drive_file")).toBe("Tệp Google Drive");
   });
 });

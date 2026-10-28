@@ -199,6 +199,15 @@ describe("documents endpoints", () => {
     expect((form.get("file") as File).name).toBe("brief.docx");
   });
 
+  it("createDocumentFile sends template=true before the file part", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ kind: "file" }) }));
+    await createDocumentFile("w1", new File(["bytes"], "mau.docx"), { visibility: "workspace", template: true });
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    const form = init?.body as FormData;
+    expect(form.get("template")).toBe("true");
+    expect(Array.from(form.keys())).toEqual(["visibility", "template", "file"]);
+  });
+
   it("commitDocumentVersion sends upload_id + base_revision with the key", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ document: docBody({ revision: "42" }), version: versionBody() }),
@@ -246,6 +255,56 @@ describe("documents endpoints", () => {
     expect(JSON.parse(String(without?.body))).toEqual({ upload_id: "f1", base_revision: "41" });
   });
 
+  it("commitDocumentVersion sends conversion when converting a legacy version and parses converted provenance", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        document: docBody({
+          revision: "42",
+          current_version: 2,
+          file: {
+            file_id: "f2",
+            version_id: "v2",
+            version: 2,
+            filename: "report.docx",
+            mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            size_bytes: 2048,
+            checksum_sha256: "b".repeat(64),
+          },
+        }),
+        version: versionBody({
+          id: "v2",
+          version: 2,
+          kind: "file",
+          reason: "converted_version",
+          file_id: "f2",
+          mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          size_bytes: 2048,
+          checksum_sha256: "b".repeat(64),
+          converted_from_version: 1,
+          converted_from_checksum: "a".repeat(64),
+        }),
+      }),
+    );
+    const out = await commitDocumentVersion(
+      "d1",
+      {
+        upload_id: "f2",
+        base_revision: "41",
+        conversion: { from_format: "doc", to_format: "docx" },
+      },
+      { idempotencyKey: "key-conv-1" },
+    );
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({
+      upload_id: "f2",
+      base_revision: "41",
+      conversion: { from_format: "doc", to_format: "docx" },
+    });
+    expect(out?.version.reason).toBe("converted_version");
+    expect(out?.version.converted_from_version).toBe(1);
+    expect(out?.version.converted_from_checksum).toBe("a".repeat(64));
+    expect(out?.document.file?.filename).toBe("report.docx");
+  });
   it("listDocumentVersions maps next_cursor and joins pages by key prefix", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ versions: [versionBody()], next_cursor: "abc" }),
@@ -310,12 +369,30 @@ describe("documents endpoints", () => {
     expect(documentAssetPath("d1", "a1")).toBe("/api/v1/documents/d1/assets/a1");
     expect(documentDownloadPath("d1")).toBe("/api/v1/documents/d1/download");
     expect(documentDownloadPath("d1", 2)).toBe("/api/v1/documents/d1/download?version=2");
+    expect(documentDownloadPath("d1", undefined, "view")).toBe(
+      "/api/v1/documents/d1/download?intent=view",
+    );
+    expect(documentDownloadPath("d1", 2, "view")).toBe(
+      "/api/v1/documents/d1/download?version=2&intent=view",
+    );
+    expect(documentDownloadPath("d1", undefined, "download")).toBe(
+      "/api/v1/documents/d1/download",
+    );
   });
 
   it("downloadDocumentFile and getDocumentAsset return blobs", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])));
     const blob = await downloadDocumentFile("d1", 2);
     expect(blob.size).toBe(3);
+    expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toBe(
+      "http://api.test/api/v1/documents/d1/download?version=2",
+    );
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(new Uint8Array([4, 5])));
+    const viewBlob = await downloadDocumentFile("d1", undefined, undefined, "view");
+    expect(viewBlob.size).toBe(2);
+    expect(String(vi.mocked(fetch).mock.calls[1]?.[0])).toBe(
+      "http://api.test/api/v1/documents/d1/download?intent=view",
+    );
     vi.mocked(fetch).mockResolvedValueOnce(new Response(new Uint8Array([9])));
     const asset = await getDocumentAsset("d1", "a1");
     expect(asset.size).toBe(1);
@@ -408,6 +485,12 @@ describe("documents endpoints", () => {
       name: "ApiError",
       code: "forbidden",
       status: 403,
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("not-json-at-all", { status: 502 }));
+    await expect(downloadDocumentFile("d1", undefined, undefined, "view")).rejects.toMatchObject({
+      name: "ApiError",
+      code: "internal",
+      status: 502,
     });
   });
 

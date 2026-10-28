@@ -9,37 +9,40 @@ type Routes struct {
 	Ready  http.HandlerFunc
 	WS     http.HandlerFunc
 
-	Config                     http.HandlerFunc
-	OfficeDesktopDownload      http.HandlerFunc
-	RUM                        http.HandlerFunc
-	MobileEvents               http.HandlerFunc
-	CreateDemoRequest          http.HandlerFunc
-	AdminListDemoRequests      http.HandlerFunc
-	AdminUpdateDemoRequest     http.HandlerFunc
-	AdminListChatReports       http.HandlerFunc
-	AdminResolveChatReport     http.HandlerFunc
-	AdminRemoveReportedMessage http.HandlerFunc
-	AdminMe                    http.HandlerFunc
-	AdminListOrganizations     http.HandlerFunc
-	AdminGetOrganization       http.HandlerFunc
-	AdminSuspendOrganization   http.HandlerFunc
-	AdminUnsuspendOrganization http.HandlerFunc
-	AdminChangePlan            http.HandlerFunc
-	AdminTrace                 http.HandlerFunc
-	AdminSystem                http.HandlerFunc
-	AdminListFlags             http.HandlerFunc
-	AdminListFlagOverrides     http.HandlerFunc
-	AdminListAllFlagOverrides  http.HandlerFunc
-	AdminSetFlagOverride       http.HandlerFunc
-	AdminDeleteFlagOverride    http.HandlerFunc
-	AdminListPlans             http.HandlerFunc
-	AdminCreatePlan            http.HandlerFunc
-	AdminUpdatePlan            http.HandlerFunc
-	AdminUpdatePlanFeature     http.HandlerFunc
-	AdminListInvoices          http.HandlerFunc
-	AdminListPaymentIntents    http.HandlerFunc
-	AdminRefundInvoice         http.HandlerFunc
-	AdminConfirmInvoiceRefund  http.HandlerFunc
+	Config                            http.HandlerFunc
+	OfficeDesktopDownload             http.HandlerFunc
+	RUM                               http.HandlerFunc
+	MobileEvents                      http.HandlerFunc
+	CreateDemoRequest                 http.HandlerFunc
+	AdminListDemoRequests             http.HandlerFunc
+	AdminUpdateDemoRequest            http.HandlerFunc
+	AdminListChatReports              http.HandlerFunc
+	AdminResolveChatReport            http.HandlerFunc
+	AdminRemoveReportedMessage        http.HandlerFunc
+	AdminMe                           http.HandlerFunc
+	AdminListOrganizations            http.HandlerFunc
+	AdminGetOrganization              http.HandlerFunc
+	AdminSuspendOrganization          http.HandlerFunc
+	AdminScheduleOrganizationDeletion http.HandlerFunc
+	AdminCancelOrganizationDeletion   http.HandlerFunc
+	AdminUnsuspendOrganization        http.HandlerFunc
+	AdminChangePlan                   http.HandlerFunc
+	AdminTrace                        http.HandlerFunc
+	AdminSystem                       http.HandlerFunc
+	AdminListFlags                    http.HandlerFunc
+	AdminListFlagOverrides            http.HandlerFunc
+	AdminListAllFlagOverrides         http.HandlerFunc
+	AdminSetFlagOverride              http.HandlerFunc
+	AdminDeleteFlagOverride           http.HandlerFunc
+	AdminListPlans                    http.HandlerFunc
+	AdminCreatePlan                   http.HandlerFunc
+	AdminUpdatePlan                   http.HandlerFunc
+	AdminUpdatePlanFeature            http.HandlerFunc
+	AdminListInvoices                 http.HandlerFunc
+	AdminListPaymentIntents           http.HandlerFunc
+	AdminRefundInvoice                http.HandlerFunc
+	AdminConfirmInvoiceRefund         http.HandlerFunc
+	AdminRevertInvoiceRefund          http.HandlerFunc
 
 	// MCP connector: OAuth discovery and endpoints, and /mcp itself (ADR
 	// 0031), mounted by registerMCP.
@@ -122,10 +125,25 @@ type Routes struct {
 	LeaveOrganization   http.HandlerFunc
 	CloseOrganization   http.HandlerFunc
 
+	// DOC-06b: the documents an organization member owns, and their bulk transfer.
+	GetMemberDocumentOwnership http.HandlerFunc
+	TransferMemberDocuments    http.HandlerFunc
+
 	InviteToOrganization http.HandlerFunc
 	ListOrgInvitations   http.HandlerFunc
 	RevokeOrgInvitation  http.HandlerFunc
 	TransferOrgOwnership http.HandlerFunc
+
+	ListOrgInviteLinks            http.HandlerFunc
+	CreateOrgInviteLink           http.HandlerFunc
+	RevokeOrgInviteLink           http.HandlerFunc
+	RegenerateOrgInviteLink       http.HandlerFunc
+	ListWorkspaceInviteLinks      http.HandlerFunc
+	CreateWorkspaceInviteLink     http.HandlerFunc
+	RevokeWorkspaceInviteLink     http.HandlerFunc
+	RegenerateWorkspaceInviteLink http.HandlerFunc
+	PreviewMembershipInviteLink   http.HandlerFunc
+	JoinMembershipInviteLink      http.HandlerFunc
 
 	ListPeople         http.HandlerFunc
 	GetPerson          http.HandlerFunc
@@ -144,6 +162,7 @@ type Routes struct {
 	UploadWorkspaceIcon http.HandlerFunc
 	RemoveWorkspaceIcon http.HandlerFunc
 	GetWorkspaceMe      http.HandlerFunc
+	ListTrash           http.HandlerFunc
 	ListMembers         http.HandlerFunc
 	PatchMember         http.HandlerFunc
 	DeleteMember        http.HandlerFunc
@@ -159,6 +178,9 @@ type Routes struct {
 	UpdateTask            http.HandlerFunc
 	PutTaskSuite          http.HandlerFunc
 	DeleteTask            http.HandlerFunc
+	RestoreTask           http.HandlerFunc
+	PurgeTask             http.HandlerFunc
+	ListTaskTrash         http.HandlerFunc
 	ListComments          http.HandlerFunc
 	CreateComment         http.HandlerFunc
 	QueryTasks            http.HandlerFunc
@@ -218,35 +240,56 @@ type Routes struct {
 	ListCalendarSidebar          http.HandlerFunc
 	WorkspaceCalendar            http.HandlerFunc
 
-	ListEmailHubAccounts          http.HandlerFunc
-	GetEmailHubUnreadCount        http.HandlerFunc
-	GetEmailHubSidebarCounts      http.HandlerFunc
-	ConnectEmailHubAccount        http.HandlerFunc
-	StartEmailHubOAuth            http.HandlerFunc
-	GetEmailHubProviders          http.HandlerFunc
-	DisconnectEmailHubAccount     http.HandlerFunc
-	ListEmailHubImapLabels        http.HandlerFunc
-	ListEmailHubThreads           http.HandlerFunc
-	GetEmailHubThread             http.HandlerFunc
-	ListEmailHubConversation      http.HandlerFunc
-	GetEmailHubThreadSummary      http.HandlerFunc
-	SummarizeEmailHubThread       http.HandlerFunc
-	CreateEmailHubSummaryTasks    http.HandlerFunc
-	DownloadEmailHubAttachment    http.HandlerFunc
-	PatchEmailHubThread           http.HandlerFunc
-	SendEmailHub                  http.HandlerFunc
-	ListEmailHubScheduledSends    http.HandlerFunc
-	CancelEmailHubScheduledSend   http.HandlerFunc
-	RetryEmailHubScheduledSend    http.HandlerFunc
-	SyncEmailHub                  http.HandlerFunc
-	WatchEmailHub                 http.HandlerFunc
-	SubscribeEmailHubInboxWatch   http.HandlerFunc
-	UnsubscribeEmailHubInboxWatch http.HandlerFunc
-	CompleteEmailHubOAuth         http.HandlerFunc
-	ListPins                      http.HandlerFunc
-	CreatePin                     http.HandlerFunc
-	DeletePin                     http.HandlerFunc
-	ReorderPins                   http.HandlerFunc
+	ListEmailHubAccounts             http.HandlerFunc
+	GetEmailHubUnreadCount           http.HandlerFunc
+	GetEmailHubSidebarCounts         http.HandlerFunc
+	ConnectEmailHubAccount           http.HandlerFunc
+	StartEmailHubOAuth               http.HandlerFunc
+	GetEmailHubProviders             http.HandlerFunc
+	DisconnectEmailHubAccount        http.HandlerFunc
+	ListEmailHubImapLabels           http.HandlerFunc
+	ListEmailHubThreads              http.HandlerFunc
+	GetEmailHubThread                http.HandlerFunc
+	ListEmailHubConversation         http.HandlerFunc
+	GetEmailHubThreadSummary         http.HandlerFunc
+	SummarizeEmailHubThread          http.HandlerFunc
+	CreateEmailHubSummaryTasks       http.HandlerFunc
+	DownloadEmailHubAttachment       http.HandlerFunc
+	PatchEmailHubThread              http.HandlerFunc
+	SendEmailHub                     http.HandlerFunc
+	ListEmailHubScheduledSends       http.HandlerFunc
+	CancelEmailHubScheduledSend      http.HandlerFunc
+	RetryEmailHubScheduledSend       http.HandlerFunc
+	SyncEmailHub                     http.HandlerFunc
+	WatchEmailHub                    http.HandlerFunc
+	SubscribeEmailHubInboxWatch      http.HandlerFunc
+	UnsubscribeEmailHubInboxWatch    http.HandlerFunc
+	CompleteEmailHubOAuth            http.HandlerFunc
+	StartDriveGoogleOAuth            http.HandlerFunc
+	CompleteDriveGoogleOAuth         http.HandlerFunc
+	ListDriveConnections             http.HandlerFunc
+	DisconnectDriveConnection        http.HandlerFunc
+	GetDrivePickerToken              http.HandlerFunc
+	LinkDriveFiles                   http.HandlerFunc
+	ListDriveFiles                   http.HandlerFunc
+	GetDriveFile                     http.HandlerFunc
+	UnlinkDriveFile                  http.HandlerFunc
+	GrantDriveFileAccess             http.HandlerFunc
+	ChangeDriveFileReadAccount       http.HandlerFunc
+	RebindDriveFile                  http.HandlerFunc
+	NameDriveFolder                  http.HandlerFunc
+	ListDriveFolders                 http.HandlerFunc
+	ListTaskDriveFiles               http.HandlerFunc
+	RemoveTaskDriveFile              http.HandlerFunc
+	CreateDriveTaskProposal          http.HandlerFunc
+	GetDriveTaskProposal             http.HandlerFunc
+	DiscardDriveTaskProposal         http.HandlerFunc
+	CheckDriveTaskProposalDuplicates http.HandlerFunc
+	CreateTasksFromDriveProposal     http.HandlerFunc
+	ListPins                         http.HandlerFunc
+	CreatePin                        http.HandlerFunc
+	DeletePin                        http.HandlerFunc
+	ReorderPins                      http.HandlerFunc
 
 	ListProjects          http.HandlerFunc
 	SearchProjects        http.HandlerFunc
@@ -254,6 +297,9 @@ type Routes struct {
 	GetProject            http.HandlerFunc
 	PutProject            http.HandlerFunc
 	DeleteProject         http.HandlerFunc
+	RestoreProject        http.HandlerFunc
+	PurgeProject          http.HandlerFunc
+	ListProjectTrash      http.HandlerFunc
 	ListProjectResources  http.HandlerFunc
 	CreateProjectResource http.HandlerFunc
 	PutProjectResource    http.HandlerFunc
@@ -401,6 +447,8 @@ type Routes struct {
 	TransferHost                   http.HandlerFunc
 	ListNotes                      http.HandlerFunc
 	CreateNote                     http.HandlerFunc
+	UpdateNote                     http.HandlerFunc
+	DeleteNote                     http.HandlerFunc
 	MeetingToken                   http.HandlerFunc
 	JoinMeeting                    http.HandlerFunc
 	ListParticipants               http.HandlerFunc
@@ -463,6 +511,7 @@ type Routes struct {
 	SetCaptionLanguage             http.HandlerFunc
 	ListTranscript                 http.HandlerFunc
 	AppendChatMessage              http.HandlerFunc
+	RateCall                       http.HandlerFunc
 	ListChatMessages               http.HandlerFunc
 	GetMeetingSummary              http.HandlerFunc
 	CreateSummary                  http.HandlerFunc
@@ -720,6 +769,10 @@ type Routes struct {
 	// ListFavoriteDocuments is GET /workspaces/{workspaceID}/documents/favorites (UNI-2045).
 	ListFavoriteDocuments http.HandlerFunc
 	ListDocumentChanges   http.HandlerFunc
+	// Document templates (UNI-2225): the Templates section and its mark.
+	MarkDocumentTemplate   http.HandlerFunc
+	UnmarkDocumentTemplate http.HandlerFunc
+	ListTemplateDocuments  http.HandlerFunc
 	// Offline lease of one desktop device on one document (G5-08s).
 	PutOfficeOfflineLease    http.HandlerFunc
 	DeleteOfficeOfflineLease http.HandlerFunc
@@ -749,14 +802,16 @@ type Routes struct {
 	PurgeDocument                  http.HandlerFunc
 	// Shelved state (ARCHIVE-01, UNI-1845): the real archive, read-only and
 	// kept forever - "archive" is the trash.
-	ShelveDocument              http.HandlerFunc
-	UnshelveDocument            http.HandlerFunc
-	ListDocumentShares          http.HandlerFunc
-	ListDocumentShareCandidates http.HandlerFunc
-	CreateDocumentShare         http.HandlerFunc
-	CreateDocumentShareBatch    http.HandlerFunc
-	UpdateDocumentAccess        http.HandlerFunc
-	RevokeDocumentShare         http.HandlerFunc
+	ShelveDocument               http.HandlerFunc
+	UnshelveDocument             http.HandlerFunc
+	ListDocumentShares           http.HandlerFunc
+	ListDocumentShareCandidates  http.HandlerFunc
+	CreateDocumentShare          http.HandlerFunc
+	CreateDocumentShareBatch     http.HandlerFunc
+	UpdateDocumentAccess         http.HandlerFunc
+	UpdateFolderContentsAccess   http.HandlerFunc
+	GetFolderContentsAccessBatch http.HandlerFunc
+	RevokeDocumentShare          http.HandlerFunc
 	// DOC-07 (UNI-1631): a person asks a document's managers for access; the
 	// managers list, approve and decline. The create answer is uniform (202)
 	// so the route never proves the document exists.
@@ -764,6 +819,9 @@ type Routes struct {
 	ListDocumentAccessRequests   http.HandlerFunc
 	ApproveDocumentAccessRequest http.HandlerFunc
 	DeclineDocumentAccessRequest http.HandlerFunc
+	// DOC-06 (UNI-2084): hand one document's ACL owner slot to another
+	// effective member of its workspace.
+	TransferDocumentOwner http.HandlerFunc
 	// Emergency view access for a workspace admin on a restricted document
 	// (DOC-05; UNI-1628).
 	CreateDocumentBreakGlass http.HandlerFunc

@@ -3,9 +3,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api/endpoints/ai";
 import { ApiError } from "../api/http";
 import type { AiMessage, AskUniInput, ChatCatchUpInput } from "../types/ai";
-import { useAiPanelStore } from "./store";
+import {
+  buildTransientTranscript,
+  MAX_TRANSIENT_CHARS,
+  MAX_TRANSIENT_TURNS,
+  useAiPanelStore,
+  type AskUniPanelFocus,
+} from "./store";
 
-export { useAiPanelStore };
+export {
+  buildTransientTranscript,
+  MAX_TRANSIENT_CHARS,
+  MAX_TRANSIENT_TURNS,
+  useAiPanelStore,
+  type AskUniPanelFocus,
+};
 
 /** Workspace-scoped keys carry the workspace id; usage carries its window. */
 export const aiKeys = {
@@ -59,7 +71,7 @@ export function useAiMessages(conversationId: string | null) {
 export function useAskUni(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: AskUniInput) => api.askUni(wsId, body),
+    mutationFn: ({ signal, ...body }: AskUniInput & { signal?: AbortSignal }) => api.askUni(wsId, body, { signal }),
     onSuccess: (res, vars) => {
       // The conversation keeps the focus it was asked with (the server does not
       // store it) even when the screen that asked is gone: a hook callback runs

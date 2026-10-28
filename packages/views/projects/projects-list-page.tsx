@@ -14,6 +14,7 @@ import {
   useCreatePin,
   useDeleteProject,
   usePins,
+  useRestoreProject,
   useProjects,
 } from "@uniwork/core/tasks";
 import type { Project } from "@uniwork/core/types/project";
@@ -38,6 +39,8 @@ import { MODULE_ICONS } from "../layout/module-icons";
 import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
 import { navigateInternal, useOptionalNavigation } from "../navigation";
+import { toastApiError } from "../toast-api-error";
+import { useToastMovedToTrash } from "../trash/use-toast-moved-to-trash";
 import { useWorkspaceAssigneeOptions } from "../tasks/pickers/member-options";
 import { CreateProjectDialog } from "./create-project-dialog";
 import type { OpenProject } from "./project-row-metrics";
@@ -69,6 +72,8 @@ function ProjectBatchToolbar({
   const { t } = useTranslation();
   const createPin = useCreatePin(workspaceId);
   const deleteProject = useDeleteProject(workspaceId);
+  const restoreProject = useRestoreProject(workspaceId);
+  const toastMovedToTrash = useToastMovedToTrash();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (rows.length === 0) return null;
@@ -145,7 +150,11 @@ function ProjectBatchToolbar({
               variant="destructive"
               size="sm"
               onClick={() => {
-                for (const p of rows) deleteProject.mutate(p.id);
+                const ids = rows.map((p) => p.id);
+                void Promise.all(ids.map((id) => deleteProject.mutateAsync(id))).then(
+                  () => toastMovedToTrash(() => Promise.all(ids.map((id) => restoreProject.mutateAsync(id)))),
+                  (err: unknown) => toastApiError(err, t("common.error")),
+                );
                 setConfirmDelete(false);
                 onClear();
               }}
@@ -298,11 +307,13 @@ export function ProjectsListPage({
         title={t("projects.page.title")}
         count={projects.length}
         actions={
-          <CollectionPageHeaderAction
-            icon={Plus}
-            label={t("projects.page.new_project")}
-            onClick={() => setCreateOpen(true)}
-          />
+          <>
+            <CollectionPageHeaderAction
+              icon={Plus}
+              label={t("projects.page.new_project")}
+              onClick={() => setCreateOpen(true)}
+            />
+          </>
         }
       />
 

@@ -63,4 +63,9 @@ describe("TaskSurfacePage", () => {
     expect(screen.getByTestId("task-mode-gantt")).toBeInTheDocument();
     expect(screen.getByTestId("task-mode-swimlane")).toBeInTheDocument();
   });
+
+  it("has no trash button: the shared trash lives in settings", () => {
+    render(wrap(<TaskSurfacePage workspaceId="w1" onOpenTask={() => {}} />));
+    expect(screen.queryByRole("link", { name: "Thùng rác" })).toBeNull();
+  });
 });

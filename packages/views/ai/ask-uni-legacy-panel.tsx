@@ -94,15 +94,19 @@ export function noticeText(t: Translate, code: string): string {
 }
 
 /** A transcript source is the meeting's title, worded in the reader's language. */
-function citationLabel(t: Translate, c: AiCitation): string {
+export function citationLabel(t: Translate, c: AiCitation): string {
   if (c.kind === "transcript") return t("source_transcript", { title: c.title });
   return c.title || c.kind;
 }
 
+/** The sources an answer can link to, each once: one citation per quote, so a source cited four times is listed once. */
+export function linkableCitations(citations: AiCitation[]): AiCitation[] {
+  return citations.filter((c, i) => c.href && citations.findIndex((o) => o.source_id === c.source_id) === i);
+}
+
 function Citations({ citations }: { citations: AiCitation[] }) {
   const { t } = useTranslation(undefined, { keyPrefix: "ai" });
-  // One citation per quote: a source the answer cites four times is listed once.
-  const linkable = citations.filter((c, i) => c.href && citations.findIndex((o) => o.source_id === c.source_id) === i);
+  const linkable = linkableCitations(citations);
   if (linkable.length === 0) return null;
   return (
     <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={t("sources")}>

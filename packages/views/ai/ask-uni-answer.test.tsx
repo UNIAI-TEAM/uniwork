@@ -507,7 +507,7 @@ describe("AskUniMessageTurn memory", () => {
     const p3 = await screen.findByText("UNI đề xuất · cần bạn xác nhận");
     const card = await screen.findByText("Nhớ điều này?");
     expect(p3.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const used = await screen.findByText(/Đã dùng bộ nhớ: Trả lời ngắn gọn/);
+    const used = await screen.findByRole("button", { name: "Dùng 1 mục bộ nhớ" });
     const copy = screen.getByRole("button", { name: "Sao chép" });
     expect(used.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -516,10 +516,10 @@ describe("AskUniMessageTurn memory", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     mountMem(msg({ content: "Xong.", memory_ids: ["e1"] }));
-    await screen.findByText(/Đã dùng bộ nhớ/);
+    await screen.findByRole("button", { name: "Dùng 1 mục bộ nhớ" });
     fireEvent.click(screen.getByRole("button", { name: "Sao chép" }));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
-    expect(writeText.mock.calls[0]![0]).not.toContain("Đã dùng bộ nhớ");
+    expect(writeText.mock.calls[0]![0]).not.toContain("bộ nhớ");
   });
 
   it("shows no memory card or used line, and reads no memory, with the memory flag off", async () => {
@@ -530,7 +530,7 @@ describe("AskUniMessageTurn memory", () => {
     await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
     expect(screen.getByText("Xong.")).toBeInTheDocument();
     expect(screen.queryByText("Nhớ điều này?")).toBeNull();
-    expect(screen.queryByText(/Đã dùng bộ nhớ/)).toBeNull();
+    expect(screen.queryByText(/mục bộ nhớ/)).toBeNull();
     expect(requestMock.mock.calls.some(([p]) => String(p).includes("/ai/memory"))).toBe(false);
   });
 });

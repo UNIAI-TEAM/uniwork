@@ -25,6 +25,14 @@ describe("officeModuleCapabilities AI grant", () => {
       .toMatchObject({ ai: true, uniworkAi: false, webSearch: true, imageSearch: true, imageGeneration: false });
   });
 
+  it("grants aiStart only with uniwork_ai on an editable page (UNI-2264)", () => {
+    const uw = { ai: false, web_search: false, image_search: false, image_generation: false, uniwork_ai: true };
+    expect(officeModuleCapabilities("docs", false, api, uw).aiStart).toBe(true);
+    expect(officeModuleCapabilities("docs", true, api, uw).aiStart).toBe(false);
+    expect(officeModuleCapabilities("docs", false, api, { ...uw, uniwork_ai: false, ai: true }).aiStart).toBe(false);
+    expect(officeModuleCapabilities("docs", false, api).aiStart).toBe(false);
+  });
+
   it("keeps uniworkAi and the cloud tools off with no grant, an absent uniwork_ai, or neither AI", () => {
     expect(officeModuleCapabilities("docs", false, api)).toMatchObject({ ai: false, uniworkAi: false, webSearch: false, imageSearch: false, imageGeneration: false });
     expect(officeModuleCapabilities("docs", false, api, { ai: true, web_search: false, image_search: false, image_generation: false }).uniworkAi).toBe(false);

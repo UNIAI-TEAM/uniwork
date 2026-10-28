@@ -139,6 +139,11 @@ const historicalCommitExceptions = new Map([
   ["6025d564c988e683b41c3b50dead39cfe7b5a25f", "(deploy): change env"],
   ["30167c4cd59702adf019e52cd77c6e8c7ed1c779", "(fix): smtp"],
   ["dc59c569d0c1fc7b88b3eafa2e90f6e8591ea1ab", "change values config"],
+  ["b86272e70161417dedd8e3969ad7b03c74269765", "(fix): design log format"],
+  ["31b77e94dc70fbd2015d51aae5a98f2f9a32d7e7", "(deploy): enabled uniwork-scribe agent"],
+  ["20250f68e4c2a7f897773a62d85b9cf67836be66", "(fix): migration sql"],
+  ["e5a9f2ce29beedeeaf986246e9ed3fe3e4d0ef45", "(deploy): config down office"],
+  ["389cdbd40178a55a15f9af91774ad6aa6399d140", "Develop (#492)"],
 ]);
 
 function rejectedCommitSubjects(commits, types) {
@@ -156,7 +161,9 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   //
   // e88a055 landed on develop via PR #62; c416bc6, e6eaf72d5, d95c9fe14,
   // 78e441abd, 9c94b49eb, 30b6eb6b6, 4b7e81b2a, 874a6e438, 3adf1f657, ff4fd6912,
-  // 6025d564c, 30167c4cd and dc59c569d were pushed straight to develop without a conventional prefix.
+  // 6025d564c, 30167c4cd, dc59c569d, b86272e70 and e5a9f2ce2 were pushed straight to develop without a conventional prefix.
+  // 389cdbd40 is main's squash of develop (#492), brought into develop by the
+  // main -> develop sync merge (#496).
   // Shared history cannot be rewritten; pin both SHA and subject so a new
   // commit cannot reuse an exempt subject to escape this check.
   const commits = execFileSync("git", ["log", "--format=%H%x00%s"], { cwd: root, encoding: "utf8" })

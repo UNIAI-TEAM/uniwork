@@ -11,6 +11,7 @@ import (
 //	GET    /api/v1/workspaces
 //	PATCH  /api/v1/workspaces/{workspaceID}
 //	GET    /api/v1/workspaces/{workspaceID}/me
+//	GET    /api/v1/workspaces/{workspaceID}/trash
 //	GET    /api/v1/workspaces/{workspaceID}/members
 //	PATCH  /api/v1/workspaces/{workspaceID}/members/{userID}
 //	DELETE /api/v1/workspaces/{workspaceID}/members/{userID}
@@ -55,6 +56,17 @@ func registerWorkspaces(r api, h Routes) {
 		sdo:         sdo.WorkspaceSDO{},
 		auth:        true,
 	})
+	r.Get("/workspaces/{workspaceID}/trash", h.ListTrash, apiOp{
+		summary: "List shared trash",
+		description: "Thùng rác chung của workspace: lô công việc (chỉ công việc gốc), dự án và tài liệu đã xóa, mới xóa trước, 50 mỗi trang. " +
+			"Mỗi loại giữ luật quyền của nó; dòng tài liệu là đúng những gì thùng rác tài liệu trả cho người gọi, và vắng khi cờ documents tắt. " +
+			"Query: kind và trashed_by lặp được (các giá trị trong một tham số cộng nhau, các tham số và q thu hẹp nhau), q, cursor; " +
+			"kind lạ hoặc rỗng, trashed_by rỗng hoặc quá 100 giá trị -> 400 invalid_filter, cursor hỏng -> 400. Người ngoài workspace -> 404.",
+		tags: []string{"workspaces"},
+		sdi:  sdi.ListSharedTrashSDI{},
+		sdo:  sdo.TrashPageSDO{},
+		auth: true,
+	})
 	r.Get("/workspaces/{workspaceID}/me", h.GetWorkspaceMe, apiOp{
 		summary:     "Get current membership",
 		description: "Vai trò hiệu lực của người gọi trong workspace (membership tường minh hoặc admin ngầm từ tổ chức).",
@@ -91,6 +103,52 @@ func registerWorkspaces(r api, h Routes) {
 		tags:        []string{"workspaces"},
 		sdi:         sdi.CreateInvitationSDI{},
 		sdo:         sdo.InvitationCreateSDO{},
+		auth:        true,
+	})
+	r.Get("/workspaces/{workspaceID}/invite-links", h.ListWorkspaceInviteLinks, apiOp{
+		summary:     "List workspace invite links",
+		description: "Danh sách liên kết mời shareable của workspace. Chỉ owner/admin. Secret chỉ có khi link còn Active.",
+		tags:        []string{"workspaces"},
+		sdo:         sdo.MembershipInviteLinkListSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/invite-links", h.CreateWorkspaceInviteLink, apiOp{
+		summary:     "Create workspace invite link",
+		description: "Tạo liên kết mời vào đúng workspace này, vai trò Member, mặc định hết hạn sau 7 ngày (1–30).",
+		tags:        []string{"workspaces"},
+		sdi:         sdi.CreateMembershipInviteLinkSDI{},
+		sdo:         sdo.MembershipInviteLinkSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/invite-links/regenerate", h.RegenerateWorkspaceInviteLink, apiOp{
+		summary:     "Regenerate workspace invite link",
+		description: "Thu hồi link Active hiện có (nếu có) và tạo link mới cho workspace.",
+		tags:        []string{"workspaces"},
+		sdi:         sdi.CreateMembershipInviteLinkSDI{},
+		sdo:         sdo.MembershipInviteLinkSDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/invite-links/{linkID}/revoke", h.RevokeWorkspaceInviteLink, apiOp{
+		summary:     "Revoke workspace invite link",
+		description: "Thu hồi một liên kết Active. Thành viên đã gia nhập không bị ảnh hưởng.",
+		tags:        []string{"workspaces"},
+		sdo:         sdo.MembershipInviteLinkSDO{},
+		auth:        true,
+	})
+	r.Post("/membership-invite-links/preview", h.PreviewMembershipInviteLink, apiOp{
+		summary:     "Preview membership invite link",
+		description: "Xem tổ chức/workspace gắn với link và trạng thái thành viên của người gọi. Không tạo membership.",
+		tags:        []string{"workspaces"},
+		sdi:         sdi.PreviewMembershipInviteLinkSDI{},
+		sdo:         sdo.MembershipInvitePreviewSDO{},
+		auth:        true,
+	})
+	r.Post("/membership-invite-links/join", h.JoinMembershipInviteLink, apiOp{
+		summary:     "Join via membership invite link",
+		description: "Gia nhập tổ chức và các workspace còn thiếu trong phạm vi link. Body resolve giống accept invitation khi cần chuyển tổ chức.",
+		tags:        []string{"workspaces"},
+		sdi:         sdi.JoinMembershipInviteLinkSDI{},
+		sdo:         sdo.MembershipInviteJoinSDO{},
 		auth:        true,
 	})
 	r.Get("/invitations/{token}", h.PreviewInvitation, apiOp{

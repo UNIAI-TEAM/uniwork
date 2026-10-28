@@ -21,6 +21,11 @@ export const DEMO_TASKS: DemoTask[] = [
 export const DEMO_CARD_PROPERTIES: CardProperties = { priority: true, description: false, assignee: true, startDate: false, dueDate: false, project: true, childProgress: false, labels: false };
 export const DEMO_PEOPLE: Record<string, string> = { TN: DEMO_MEMBERS[3]!.name, HA: DEMO_MEMBERS[2]!.name, ML: DEMO_MEMBERS[1]!.name, "Đ": DEMO_PROFILE.name };
 
+/** Avatar letter of a person code: the first letter of the displayed name, never of the code itself. */
+export function demoInitial(person: string): string {
+  return (DEMO_PEOPLE[person] ?? person).normalize("NFC").charAt(0);
+}
+
 /** Sample records use the production card contract, so the demo cannot drift into a second card design. */
 export function demoTaskRecord(task: DemoTask, title: string): Task {
   return {

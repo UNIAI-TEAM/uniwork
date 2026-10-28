@@ -592,3 +592,254 @@ func TestDocumentSharedChatGrantEventCreatesNoNotice(t *testing.T) {
 		}
 	}
 }
+
+// TestDocumentSharedFolderContentsBatchGrouping covers UNI-2244 §6:
+// a folder bulk access update that raises a user's effective level across
+// multiple subtree documents emits at most one KindDocumentShared notification
+// per (batch_id, user_id, new_level), with resource_id = folder_id,
+// params.document = folder.Title, params.batch_id = batch_id, OncePerGroup
+// deduplication, and no per-document KindDocumentChanged noise.
+func TestDocumentSharedFolderContentsBatchGrouping(t *testing.T) {
+	f := newDocumentFixture(t)
+	recipient := f.addOrgOutsider(t, "folder-batch-recipient@example.com", "Người Nhận Thư Mục")
+	folderID := f.node(t, "folder", "Hồ sơ Dự án X", f.owner.ID, nil)
+	doc1 := f.page(t, "Tài liệu 1", f.owner.ID, &folderID)
+	doc2 := f.page(t, "Tài liệu 2", f.owner.ID, &folderID)
+	_ = doc1
+	_ = doc2
+
+	res, err := f.docs.UpdateFolderContentsAccess(f.ctx, service.Human(f.owner.ID), folderID, service.UpdateFolderContentsAccessInput{
+		Mode: service.FolderContentsAccessModeMerge,
+		Items: []service.FolderContentsAccessItem{
+			{PrincipalType: service.DocumentPrincipalUser, PrincipalID: recipient.ID, Level: service.DocumentLevelEdit},
+			{PrincipalType: service.DocumentPrincipalWorkspace, PrincipalID: f.wsID, Level: service.DocumentLevelView},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateFolderContentsAccess: %v", err)
+	}
+
+	// Per-share document.shared events carry no folder_contents notification;
+	// delivery happens only when document_access_batch.completed is handled.
+	for _, ev := range f.events(t, "document.shared") {
+		if err := f.consumer.Handle(f.ctx, ev); err != nil {
+			t.Fatalf("handle document.shared: %v", err)
+		}
+	}
+	if got := f.sharedNotifications(t, recipient.ID); len(got) != 0 {
+		t.Fatalf("notifications from document.shared alone = %d, want 0 (completion-gated)", len(got))
+	}
+	for _, ev := range f.events(t, "document_access_batch.completed") {
+		if err := f.consumer.Handle(f.ctx, ev); err != nil {
+			t.Fatalf("handle document_access_batch.completed: %v", err)
+		}
+	}
+	for _, ev := range f.events(t, "document.change_noticed") {
+		if err := f.consumer.Handle(f.ctx, ev); err != nil {
+			t.Fatalf("handle document.change_noticed: %v", err)
+		}
+	}
+
+	got := f.sharedNotifications(t, recipient.ID)
+	if len(got) != 1 {
+		t.Fatalf("recipient shared notifications = %d, want 1", len(got))
+	}
+	n := got[0]
+	wantGroupKey := "document_access_batch:" + res.BatchID + ":" + recipient.ID + ":edit"
+	if n.GroupKey != wantGroupKey || n.ResourceType != "document" || n.ResourceID != folderID {
+		t.Fatalf("notification = %+v, want group_key=%q resource_id=%q", n, wantGroupKey, folderID)
+	}
+	p := decodeNotificationParams(t, n)
+	if p["document"] != "Hồ sơ Dự án X" || p["document_id"] != folderID || p["level"] != "edit" || p["batch_id"] != res.BatchID || p["count"] != "2" {
+		t.Fatalf("notification params = %v, want folder title + folder_id + batch_id + count=2", p)
+	}
+	wantTitleVI := p["actor"] + ` đã chia sẻ 2 tài liệu trong thư mục "Hồ sơ Dự án X" với bạn. Quyền: Chỉnh sửa.`
+	if gotTitleVI := Title("vi", n.Kind, p); gotTitleVI != wantTitleVI {
+		t.Fatalf("Title(vi, batch) = %q, want %q", gotTitleVI, wantTitleVI)
+	}
+	wantTitleEN := p["actor"] + ` shared 2 document(s) in folder "Hồ sơ Dự án X" with you (Edit).`
+	if gotTitleEN := Title("en", n.Kind, p); gotTitleEN != wantTitleEN {
+		t.Fatalf("Title(en, batch) = %q, want %q", gotTitleEN, wantTitleEN)
+	}
+
+	// Workspace member f.member should NOT receive per-document document_changed notifications from the bulk folder operation.
+	for _, item := range f.inbox(t, f.member.ID) {
+		if item.Kind == KindDocumentChanged {
+			t.Fatalf("member received unexpected document_changed from folder bulk access: %+v", item)
+		}
+	}
+}
+
+// TestDocumentSharedFolderContentsBatchTimingFailureAndScenario3 covers UNI-2244 §6 (F5, B2-R-04):
+//   - background batch: no notification is delivered after chunk 1 while the
+//     batch is still running; once the final chunk completes, exactly one
+//     notification is delivered with count="3";
+//   - failed batch: a batch that fails mid-run delivers no notification;
+//   - scenario 3: a workspace member who already holds a direct view share on
+//     the first restricted child and receives {user: view, home_workspace: edit}
+//     still gets one notification at completion with level="edit" and count="2"
+//     even though the direct user share on child 1 was unchanged.
+func TestDocumentSharedFolderContentsBatchTimingFailureAndScenario3(t *testing.T) {
+	f := newDocumentFixture(t)
+	H := service.Human
+	owner := H(f.owner.ID)
+
+	t.Run("background_none_before_completion_then_count_at_completion", func(t *testing.T) {
+		f.docs.SetFolderContentsAccessSyncMax(1)
+		t.Cleanup(func() { f.docs.SetFolderContentsAccessSyncMax(0) })
+
+		bgRecipient := f.addOrgOutsider(t, "folder-bg-recipient@example.com", "Người Nhận Nền")
+		folderID := f.node(t, "folder", "Thư mục Nền", f.owner.ID, nil)
+		_ = f.page(t, "Nền 1", f.owner.ID, &folderID)
+		_ = f.page(t, "Nền 2", f.owner.ID, &folderID)
+		_ = f.page(t, "Nền 3", f.owner.ID, &folderID)
+
+		res, err := f.docs.UpdateFolderContentsAccess(f.ctx, owner, folderID, service.UpdateFolderContentsAccessInput{
+			Mode: service.FolderContentsAccessModeMerge,
+			Items: []service.FolderContentsAccessItem{
+				{PrincipalType: service.DocumentPrincipalUser, PrincipalID: bgRecipient.ID, Level: service.DocumentLevelEdit},
+			},
+		})
+		if err != nil || res.ExecMode != service.FolderContentsAccessExecBackground {
+			t.Fatalf("queue background batch = %+v, err = %v", res, err)
+		}
+
+		worker := service.NewDocumentAccessBatchWorker(f.docs, nil)
+		worker.ChunkSize = 1
+
+		// Chunk 1 commits 1 document while batch remains 'running'.
+		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+			t.Fatalf("chunk 1: worked=%v err=%v", worked, err)
+		}
+		for _, ev := range f.events(t, "document.shared") {
+			if err := f.consumer.Handle(f.ctx, ev); err != nil {
+				t.Fatalf("handle document.shared after chunk 1: %v", err)
+			}
+		}
+		for _, ev := range f.events(t, "document_access_batch.completed") {
+			if err := f.consumer.Handle(f.ctx, ev); err != nil {
+				t.Fatalf("handle completed after chunk 1: %v", err)
+			}
+		}
+		if got := f.sharedNotifications(t, bgRecipient.ID); len(got) != 0 {
+			t.Fatalf("notifications while batch running = %d, want 0", len(got))
+		}
+
+		// Chunks 2 and 3 finish the batch.
+		for step := 2; step <= 3; step++ {
+			if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+				t.Fatalf("chunk %d: worked=%v err=%v", step, worked, err)
+			}
+		}
+		for _, ev := range f.events(t, "document_access_batch.completed") {
+			if err := f.consumer.Handle(f.ctx, ev); err != nil {
+				t.Fatalf("handle completed after chunk 3: %v", err)
+			}
+			// Re-handling the same event is idempotent.
+			if err := f.consumer.Handle(f.ctx, ev); err != nil {
+				t.Fatalf("re-handle completed: %v", err)
+			}
+		}
+		got := f.sharedNotifications(t, bgRecipient.ID)
+		if len(got) != 1 {
+			t.Fatalf("notifications after background completion = %d, want 1", len(got))
+		}
+		p := decodeNotificationParams(t, got[0])
+		if p["document"] != "Thư mục Nền" || p["document_id"] != folderID || p["level"] != "edit" || p["batch_id"] != res.BatchID || p["count"] != "3" {
+			t.Fatalf("bg notification params = %v, want count=3 level=edit batch_id=%s", p, res.BatchID)
+		}
+	})
+
+	t.Run("failed_batch_sends_no_notification", func(t *testing.T) {
+		f.docs.SetFolderContentsAccessSyncMax(1)
+		t.Cleanup(func() { f.docs.SetFolderContentsAccessSyncMax(0) })
+
+		failRecipient := f.addOrgOutsider(t, "folder-fail-recipient@example.com", "Người Nhận Lỗi")
+		folderID := f.node(t, "folder", "Thư mục Lỗi", f.owner.ID, nil)
+		_ = f.page(t, "Lỗi 1", f.owner.ID, &folderID)
+		_ = f.page(t, "Lỗi 2", f.owner.ID, &folderID)
+
+		res, err := f.docs.UpdateFolderContentsAccess(f.ctx, owner, folderID, service.UpdateFolderContentsAccessInput{
+			Mode: service.FolderContentsAccessModeMerge,
+			Items: []service.FolderContentsAccessItem{
+				{PrincipalType: service.DocumentPrincipalUser, PrincipalID: failRecipient.ID, Level: service.DocumentLevelView},
+			},
+		})
+		if err != nil || res.ExecMode != service.FolderContentsAccessExecBackground {
+			t.Fatalf("queue fail batch = %+v, err = %v", res, err)
+		}
+
+		worker := service.NewDocumentAccessBatchWorker(f.docs, nil)
+		worker.ChunkSize = 1
+		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+			t.Fatalf("chunk 1: worked=%v err=%v", worked, err)
+		}
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET archived_at = now() WHERE id = $1`, folderID); err != nil {
+			t.Fatal(err)
+		}
+		if worked, err := worker.RunOnce(f.ctx); err != nil || !worked {
+			t.Fatalf("chunk 2 (fail): worked=%v err=%v", worked, err)
+		}
+		for _, ev := range f.events(t, "document.shared") {
+			if err := f.consumer.Handle(f.ctx, ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, ev := range f.events(t, "document_access_batch.completed") {
+			if err := f.consumer.Handle(f.ctx, ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := f.sharedNotifications(t, failRecipient.ID); len(got) != 0 {
+			t.Fatalf("failed batch notifications = %d, want 0", len(got))
+		}
+	})
+
+	t.Run("scenario_3_unchanged_direct_share_with_effective_level_rise", func(t *testing.T) {
+		f.docs.SetFolderContentsAccessSyncMax(0)
+		folderID := f.node(t, "folder", "Thư mục Kịch bản 3", f.owner.ID, nil)
+		c1 := f.page(t, "Tài liệu KB3-1", f.owner.ID, &folderID)
+		c2 := f.page(t, "Tài liệu KB3-2", f.owner.ID, &folderID)
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET visibility = 'restricted' WHERE id IN ($1, $2)`, c1, c2); err != nil {
+			t.Fatal(err)
+		}
+		// Pre-grant f.member direct view on c1 only (and drain its initial single-share event).
+		if _, err := f.docs.ShareDocument(f.ctx, owner, c1, service.DocumentShareInput{
+			PrincipalType: service.DocumentPrincipalUser, PrincipalID: f.member.ID, Level: service.DocumentLevelView,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.pool.Exec(f.ctx, `DELETE FROM outbox_events WHERE topic = 'document.shared'`); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := f.docs.UpdateFolderContentsAccess(f.ctx, owner, folderID, service.UpdateFolderContentsAccessInput{
+			Mode: service.FolderContentsAccessModeMerge,
+			Items: []service.FolderContentsAccessItem{
+				{PrincipalType: service.DocumentPrincipalUser, PrincipalID: f.member.ID, Level: service.DocumentLevelView},
+				{PrincipalType: service.DocumentPrincipalWorkspace, PrincipalID: f.wsID, Level: service.DocumentLevelEdit},
+			},
+		})
+		if err != nil {
+			t.Fatalf("scenario 3 UpdateFolderContentsAccess: %v", err)
+		}
+		for _, ev := range f.events(t, "document.shared") {
+			if err := f.consumer.Handle(f.ctx, ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, ev := range f.events(t, "document_access_batch.completed") {
+			if err := f.consumer.Handle(f.ctx, ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got := f.sharedNotifications(t, f.member.ID)
+		if len(got) != 1 {
+			t.Fatalf("scenario 3 member notifications = %d, want 1", len(got))
+		}
+		p := decodeNotificationParams(t, got[0])
+		if p["batch_id"] != res.BatchID || p["level"] != "edit" || p["count"] != "2" {
+			t.Fatalf("scenario 3 params = %v, want batch_id=%s level=edit count=2", p, res.BatchID)
+		}
+	})
+}

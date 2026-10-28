@@ -67,8 +67,12 @@ test('the current chat composer sends locally and creates a task from a message'
   await panel.getByRole('button', { name: vi.landing.demo.send, exact: true }).click();
   await expect(panel.getByRole('log')).toContainText('Tin nhắn được gửi trong demo mới.');
   const message = panel.locator('.product-chat-messages article').first();
-  await message.hover();
-  await message.getByRole('button', { name: vi.chat.action_more, exact: true }).click();
+  const actions = message.locator('[data-message-actions]');
+  const more = actions.getByRole('button', { name: vi.chat.action_more, exact: true });
+  await actions.getByRole('button').first().focus();
+  await page.keyboard.press('End');
+  await expect(more).toBeFocused();
+  await page.keyboard.press('Enter');
   await page.getByRole('menuitem', { name: vi.chat.link.create_task, exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: vi.common.create, exact: true }).click();
   await expect(panel.locator('[data-demo-result=chat-task]')).toBeVisible();

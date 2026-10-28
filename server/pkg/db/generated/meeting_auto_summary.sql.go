@@ -43,13 +43,14 @@ func (q *Queries) ClaimMeetingAutoSummary(ctx context.Context, leaseSeconds int3
 
 const deferMeetingAutoSummary = `-- name: DeferMeetingAutoSummary :execrows
 UPDATE meeting_auto_summaries
-SET due_at = now() + make_interval(secs => $1::int), lease_until = NULL
-WHERE organization_id = $2 AND meeting_id = $3
-  AND lease_until = $4
+SET due_at = now() + make_interval(secs => $1::int), lease_until = NULL, attempts = $2
+WHERE organization_id = $3 AND meeting_id = $4
+  AND lease_until = $5
 `
 
 type DeferMeetingAutoSummaryParams struct {
 	AfterSeconds   int32              `json:"after_seconds"`
+	Attempts       int32              `json:"attempts"`
 	OrganizationID string             `json:"organization_id"`
 	MeetingID      string             `json:"meeting_id"`
 	LeaseUntil     pgtype.Timestamptz `json:"lease_until"`
@@ -57,10 +58,12 @@ type DeferMeetingAutoSummaryParams struct {
 
 // A run that failed for a reason that passes (rate limit, timeout, provider
 // error, UNI-1995 benchmark #12) gives its row back due again later; only the
-// holder of the lease defers it, and attempts keeps its count.
+// holder of the lease defers it. attempts is the caller's: the claim's count,
+// or one less when the run only waited for the meeting's recordings.
 func (q *Queries) DeferMeetingAutoSummary(ctx context.Context, arg DeferMeetingAutoSummaryParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deferMeetingAutoSummary,
 		arg.AfterSeconds,
+		arg.Attempts,
 		arg.OrganizationID,
 		arg.MeetingID,
 		arg.LeaseUntil,

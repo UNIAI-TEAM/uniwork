@@ -56,9 +56,11 @@ func TestDocumentArchiveImpactHTTP(t *testing.T) {
 		t.Fatalf("outsider's 404 carries numbers: %v", out)
 	}
 
-	// A member who manages the root through a share but not the restricted
-	// child: the whole read is refused and the body carries no number. The root
-	// is a page: a folder takes no share (UNI-1974).
+	// A member who manages the root page through a share but not the
+	// restricted child: since UNI-2074 every root takes the relocation plan
+	// (ADR 0037 point 5), so the read answers - the child is counted as
+	// relocated, never named, and left out of the total. The root is a page:
+	// a folder takes no share (UNI-1974).
 	memberToken, memberID := docsJoinWorkspace(t, w, "docs-impact-member@example.com")
 	_, rootPageID := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Trang gốc", "kind": "page"})
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+rootPageID+"/shares", w.token, map[string]any{
@@ -67,8 +69,30 @@ func TestDocumentArchiveImpactHTTP(t *testing.T) {
 	if res.StatusCode != 201 {
 		t.Fatalf("share: %d %v", res.StatusCode, out)
 	}
-	docsCreatePageBody(t, w, w.token, map[string]any{"title": "Hạn chế", "kind": "page", "parent_id": rootPageID, "visibility": "restricted"})
+	_, childID := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Hạn chế", "kind": "page", "parent_id": rootPageID, "visibility": "restricted"})
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+rootPageID+"/archive-impact", memberToken, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("page-root impact: %d %v", res.StatusCode, out)
+	}
+	folders, documents, total, _, _ = impactBody(t, out)
+	if relocated, ok := out["relocated_count"].(float64); !ok || folders != 0 || documents != 0 || total != 1 || relocated != 1 {
+		t.Fatalf("page-root answer = %v, want folders=0 documents=0 total=1 relocated_count=1", out)
+	}
+	for _, v := range out {
+		if s, ok := v.(string); ok && s == childID {
+			t.Fatalf("the answer names the relocated page: %v", out)
+		}
+	}
+
+	// A reader below manage is still refused, and the body carries no number.
+	viewerToken, viewerID := docsJoinWorkspace(t, w, "docs-impact-viewer@example.com")
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+rootPageID+"/shares", w.token, map[string]any{
+		"principal_type": "user", "principal_id": viewerID, "level": "view",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("share: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+rootPageID+"/archive-impact", viewerToken, nil)
 	wantErr(t, res, out, http.StatusForbidden, "forbidden", "permission")
 	if _, ok := out["total"]; ok {
 		t.Fatalf("refused read carries numbers: %v", out)

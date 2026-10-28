@@ -297,6 +297,15 @@ func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+	template := strings.ToLower(strings.TrimSpace(fields["template"]))
+	if template != "" && template != "true" && template != "false" {
+		respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "template" must be true or false`)
+		return
+	}
+	if vis := strings.TrimSpace(fields["visibility"]); template == "true" && vis != "" && vis != "workspace" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "a template is visible to the whole workspace: visibility must be workspace")
+		return
+	}
 	part := &cappedDocumentPart{r: file, max: h.documentMaxBytes()}
 	res, err := h.Documents.CreateFileDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.CreateFileDocumentInput{
 		ParentID:       strings.TrimSpace(fields["parent_id"]),
@@ -305,6 +314,7 @@ func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 		Filename:       file.FileName(),
 		Body:           part,
 		Visibility:     strings.TrimSpace(fields["visibility"]),
+		Template:       template == "true",
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 	})
 	if err != nil {
@@ -369,6 +379,13 @@ func (h *handlers) commitDocumentVersion(w http.ResponseWriter, r *http.Request)
 		respondError(w, http.StatusBadRequest, "invalid_request", "base_revision must be a decimal string")
 		return
 	}
+	var conv *service.DocumentVersionConversion
+	if in.Conversion != nil {
+		conv = &service.DocumentVersionConversion{
+			FromFormat: in.Conversion.FromFormat,
+			ToFormat:   in.Conversion.ToFormat,
+		}
+	}
 	res, err := h.Documents.CommitFileVersion(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.CommitFileVersionInput{
 		UploadID:       strings.TrimSpace(in.UploadID),
 		BaseRevision:   base,
@@ -378,6 +395,7 @@ func (h *handlers) commitDocumentVersion(w http.ResponseWriter, r *http.Request)
 		Sync:       middleware.DeviceSession(r.Context()),
 		EditLockID: strings.TrimSpace(in.EditLockID),
 		ChatRoomID: strings.TrimSpace(in.ChatRoomID),
+		Conversion: conv,
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -620,9 +638,18 @@ func (h *handlers) downloadDocument(w http.ResponseWriter, r *http.Request) {
 		}
 		meta = b
 	}
+	action := service.DocumentAccessDownload
+	switch strings.TrimSpace(q.Get("intent")) {
+	case "", service.DocumentAccessDownload:
+	case service.DocumentAccessView:
+		action = service.DocumentAccessView
+	default:
+		respondError(w, http.StatusBadRequest, "invalid_request", "intent must be download or view")
+		return
+	}
 	actor := service.Human(middleware.UserID(r.Context()))
 	documentID := chi.URLParam(r, "documentID")
-	f, rng, ranged, err := h.openDocumentFileRange(w, r, actor, documentID, versionNo)
+	f, rng, ranged, err := h.openDocumentFileRange(w, r, actor, documentID, versionNo, action)
 	if err != nil || f == nil {
 		return
 	}
@@ -711,11 +738,11 @@ func parseDocumentRange(r *http.Request) documentRangeSpec {
 // whole; a window past the end is answered 416 by serveDocumentFile once it
 // sees the size. Returns the effective window and whether a range applied so
 // the response headers match the opened body.
-func (h *handlers) openDocumentFileRange(w http.ResponseWriter, r *http.Request, actor service.Actor, documentID string, versionNo int32) (*service.DocumentFile, service.DocumentByteRange, bool, error) {
+func (h *handlers) openDocumentFileRange(w http.ResponseWriter, r *http.Request, actor service.Actor, documentID string, versionNo int32, action string) (*service.DocumentFile, service.DocumentByteRange, bool, error) {
 	spec := parseDocumentRange(r)
 	rng := service.DocumentByteRange{Offset: spec.offset, Length: spec.length}
 	if spec.suffix > 0 {
-		probe, err := h.Documents.OpenDocumentFile(r.Context(), actor, documentID, versionNo, service.DocumentByteRange{Length: 1})
+		probe, err := h.Documents.OpenDocumentFile(r.Context(), actor, documentID, versionNo, service.DocumentByteRange{Length: 1}, "")
 		if err != nil {
 			h.mapServiceError(w, err)
 			return nil, service.DocumentByteRange{}, false, err
@@ -728,7 +755,7 @@ func (h *handlers) openDocumentFileRange(w http.ResponseWriter, r *http.Request,
 			rng = service.DocumentByteRange{Offset: size - spec.suffix, Length: spec.suffix}
 		}
 	}
-	f, err := h.Documents.OpenDocumentFile(r.Context(), actor, documentID, versionNo, rng)
+	f, err := h.Documents.OpenDocumentFile(r.Context(), actor, documentID, versionNo, rng, action)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return nil, service.DocumentByteRange{}, false, err
@@ -966,6 +993,7 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 		by := doc.ShelvedBy.String
 		out.ShelvedBy = &by
 	}
+	out.TemplateMarkedAt, out.TemplateMarkedBy = templateMarkFields(doc)
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)
 	}
@@ -1016,6 +1044,12 @@ func documentVersionDTO(v db.DocumentVersion, withContent bool) sdo.DocumentVers
 	}
 	if v.RestoredFrom.Valid {
 		out.RestoredFrom = &v.RestoredFrom.Int32
+	}
+	if v.ConvertedFromVersion.Valid {
+		out.ConvertedFromVersion = &v.ConvertedFromVersion.Int32
+	}
+	if v.ConvertedFromChecksum.Valid && v.ConvertedFromChecksum.String != "" {
+		out.ConvertedFromChecksum = &v.ConvertedFromChecksum.String
 	}
 	if v.EngineName.Valid && v.EngineName.String != "" {
 		out.EngineName = &v.EngineName.String

@@ -1,6 +1,7 @@
 "use client";
 import { Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { meetingVenue } from "@uniwork/core/meetings/venue";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useDetail } from "./detail-context";
@@ -34,7 +35,7 @@ const PHONE_STRIP: Partial<Record<DetailStatus, string>> = {
 
 export function NextStepStrip({ jobs, handlers }: { jobs: StripJob[]; handlers: StripHandlers }) {
   const { t } = useTranslation();
-  const { displayStatus } = useDetail();
+  const { displayStatus, meeting } = useDetail();
   const phone = usePhoneBar();
   const { shown, more } = capJobs(jobs);
   if (shown.length === 0) return null;
@@ -55,10 +56,13 @@ export function NextStepStrip({ jobs, handlers }: { jobs: StripJob[]; handlers: 
             <StripRsvpRow
               variant="strip"
               actions={
-                <Button type="button" size="lg" variant="outline" className={cn(kitButton.base, kitButton.outline)} onClick={handlers.onJoin}>
-                  <Video aria-hidden />
-                  {t("meetings.join")}
-                </Button>
+                // In person there is no room to join (spec D4).
+                meetingVenue(meeting) === "in_person" ? undefined : (
+                  <Button type="button" size="lg" variant="outline" className={cn(kitButton.base, kitButton.outline)} onClick={handlers.onJoin}>
+                    <Video aria-hidden />
+                    {t("meetings.join")}
+                  </Button>
+                )
               }
             />
             {phone ? (

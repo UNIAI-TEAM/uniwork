@@ -37,6 +37,10 @@ const (
 	ActionDepartmentArchived = "department.archived"
 	ActionPeopleExported     = "people.exported"
 	ActionInvitationRevoked  = "invitation.revoked"
+	// Shareable membership invite links (UNI-2226): create and revoke only;
+	// joining still writes member.joined.
+	ActionMembershipInviteLinkCreated = "membership_invite_link.created"
+	ActionMembershipInviteLinkRevoked = "membership_invite_link.revoked"
 
 	ActionWorkspaceCreated         = "workspace.created"
 	ActionWorkspaceUpdated         = "workspace.updated"
@@ -55,6 +59,8 @@ const (
 	ActionTaskCreated      = "task.created"
 	ActionTaskUpdated      = "task.updated"
 	ActionTaskDeleted      = "task.deleted"
+	ActionTaskTrashed      = "task.trashed"
+	ActionTaskRestored     = "task.restored"
 	ActionTaskCommentAdded = "task.comment_added"
 
 	ActionTaskCommentUpdated     = "task.comment_updated"
@@ -90,6 +96,8 @@ const (
 	ActionProjectCreated         = "project.created"
 	ActionProjectUpdated         = "project.updated"
 	ActionProjectDeleted         = "project.deleted"
+	ActionProjectTrashed         = "project.trashed"
+	ActionProjectRestored        = "project.restored"
 	ActionProjectResourceCreated = "project_resource.created"
 	ActionProjectResourceUpdated = "project_resource.updated"
 	ActionProjectResourceDeleted = "project_resource.deleted"
@@ -147,8 +155,9 @@ const (
 	// message is gone for everyone, as its sender's own deletion would be; the organization sees who and why.
 	ActionChatMessageRemoved = "chat.message.removed"
 
-	ActionSubscriptionChanged    = "subscription.changed"
-	ActionBillingInvoiceRefunded = "billing.invoice_refunded"
+	ActionSubscriptionChanged          = "subscription.changed"
+	ActionBillingInvoiceRefunded       = "billing.invoice_refunded"
+	ActionBillingInvoiceRefundReverted = "billing.invoice_refund_reverted"
 
 	// Documents (UNI-675): created today through the owner seam
 	// (C-01 §13.5); the public page/file commands add their own rows as
@@ -179,6 +188,10 @@ const (
 	ActionDocumentLinkCreated            = "document.link_created"
 	ActionDocumentLinkRevoked            = "document.link_revoked"
 	ActionDocumentSettingsChanged        = "document.settings_changed"
+	// Folder bulk access (UNI-2244 §6): one row per completed bulk access
+	// batch (sync in the command's transaction; background when the worker
+	// finishes), with the folder as the resource and the outcome counts.
+	ActionDocumentContentsAccessUpdated = "document.contents_access_updated"
 	// ActionDocumentsAccessReportExported is one access report export
 	// (UNI-1643): ids, the filter and counts, never a name.
 	ActionDocumentsAccessReportExported = "documents.access_report_exported"
@@ -243,6 +256,11 @@ const (
 	ActionDocumentShelved   = "document.shelved"
 	ActionDocumentUnshelved = "document.unshelved"
 
+	// Templates (UNI-2225): a workspace file marked, or no longer marked, as a
+	// template of the workspace's library.
+	ActionDocumentTemplateMarked   = "document.template_marked"
+	ActionDocumentTemplateUnmarked = "document.template_unmarked"
+
 	// Document access requests (DOC-07, UNI-1631): a person who cannot read a
 	// document asked its managers for access. The requester is the actor, the
 	// metadata carries the request id, the level and whether a message was
@@ -258,6 +276,21 @@ const (
 	ActionDocumentAccessRequestApproved  = "document.access_request_approved"
 	ActionDocumentAccessRequestDeclined  = "document.access_request_declined"
 	ActionDocumentAccessRequestCancelled = "document.access_request_cancelled"
+
+	// Document owner transfer (DOC-06, UNI-2084): the ACL owner slot moved to
+	// another person. Changes carries acl_owner_id before -> after; metadata
+	// carries from_user_id (the previous owner, "" when the slot was empty)
+	// and previous_owner_level (edit, comment, view or none); the bulk route
+	// adds bulk_id. The previous owner's share is its own document.shared row.
+	ActionDocumentOwnerTransferred = "document.owner_transferred"
+
+	// Bulk owner transfer (DOC-06b, UNI-2092): one call of
+	// POST /orgs/{org}/members/{userID}/document-ownership moved documents of
+	// the member (ResourceID) to to_user_id. Written only when the call moved
+	// at least one; each moved document has its own document.owner_transferred
+	// row with the same bulk_id. Metadata: bulk_id, to_user_id, transferred,
+	// skipped{recipient_not_member, self_restricted}.
+	ActionDocumentOwnersBulkTransferred = "document.owners_bulk_transferred"
 
 	// Office launch tickets are document-scoped business capabilities. They
 	// intentionally have no outbox event; these rows are the durable audit
@@ -296,6 +329,29 @@ const (
 	ActionEmailHubAccountConnected    = "email_hub_account.connected"
 	ActionEmailHubAccountDisconnected = "email_hub_account.disconnected"
 	ActionEmailHubAccountAuthFailed   = "email_hub_account.auth_failed"
+
+	// Google Drive connector (UNI-2172, spec §11): the owner connects or
+	// reconnects a Google Drive account, a callback is refused for a policy/scope/account
+	// mismatch reason, a refresh grant is refused at Google (invalid_grant), or
+	// the connection is disconnected (manually or by organization/account lifecycle).
+	ActionDriveConnectionConnected      = "drive_connection.connected"
+	ActionDriveConnectionReconnected    = "drive_connection.reconnected"
+	ActionDriveConnectionRefused        = "drive_connection.refused"
+	ActionDriveConnectionAuthFailed     = "drive_connection.auth_failed"
+	ActionDriveConnectionDisconnected   = "drive_connection.disconnected"
+	ActionDriveFileLinked               = "drive_file.linked"
+	ActionDriveFileAccessGranted        = "drive_file.access_granted"
+	ActionDriveFileAccessChanged        = "drive_file.access_changed"
+	ActionDriveFileAccessLost           = "drive_file.access_lost"
+	ActionDriveFileUnlinked             = "drive_file.unlinked"
+	ActionDriveFileRebound              = "drive_file.rebound"
+	ActionDriveFileRead                 = "drive_file.read"
+	ActionTaskDriveFileLinked           = "task.drive_file_linked"
+	ActionTaskDriveFileUnlinked         = "task.drive_file_unlinked"
+	ActionDriveTaskProposalCreated      = "drive_task_proposal.created"
+	ActionDriveTaskProposalDiscarded    = "drive_task_proposal.discarded"
+	ActionDriveTaskProposalTasksCreated = "drive_task_proposal.tasks_created"
+	ActionDriveFolderNamed              = "drive_folder.named"
 
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
@@ -413,6 +469,12 @@ const (
 	// A workspace member added a shared note to a meeting (MeetingService.AddNote,
 	// UNI-2153); the body stays out of the row, which names the note by id.
 	ActionMeetingNoteAdded = "meeting.note_added"
+
+	// The author or a meeting clerk edited or deleted a shared note
+	// (MeetingService.UpdateNote / DeleteNote, UNI-2217); like note_added, the
+	// row names the note by id and never carries its text.
+	ActionMeetingNoteUpdated = "meeting.note_updated"
+	ActionMeetingNoteDeleted = "meeting.note_deleted"
 
 	// A host or admin recorded that a meeting was held without a room:
 	// SCHEDULED → ENDED at the reported times (MeetingService.RecordHeld,

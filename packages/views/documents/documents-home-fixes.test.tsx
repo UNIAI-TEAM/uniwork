@@ -4,6 +4,7 @@ import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { FeatureFlagsProvider, FeatureFlagService, StaticProvider } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
+import { pickTypeFilter } from "../test/type-filter";
 import { DocumentsPageView } from "./documents-page-view";
 import { LibraryRowView, type LibraryRowHandlers } from "./documents-library-row";
 import { specLadder } from "./library-columns";
@@ -103,11 +104,6 @@ function route(routes: Routes) {
 
 const queryOf = (path: string) => new URLSearchParams(path.split("?")[1] ?? "");
 
-/** Presses a type chip of the filter bar (one bar on every screen since UNI-2045 W10). */
-async function pickType(chip: string) {
-  const chips = await screen.findByRole("group", { name: t("documents.home.chips_label") });
-  fireEvent.click(within(chips).getByRole("button", { name: t(`documents.home.chips.${chip}`) }));
-}
 const writes = (method: string) =>
   requestMock.mock.calls.filter(([, opts]) => (opts as { method?: string } | undefined)?.method === method);
 
@@ -126,15 +122,15 @@ beforeEach(() => {
 });
 
 describe("type chip over paged lists (M2)", () => {
-  it("filters on the server: the chip becomes ?format=, pages restart at the cursor base, and load more keeps filtering", async () => {
+  it("filters on the server: the pick becomes ?type=, pages restart at the cursor base, and load more keeps filtering", async () => {
     route({
       list: (path) => {
-        const format = queryOf(path).get("format");
+        const format = queryOf(path).get("type");
         if (format === "xlsx") return queryOf(path).get("cursor") === "x2" ? [file("x2", "Thêm.xlsx")] : [];
         return queryOf(path).get("cursor") === "c2" ? [summary({ id: "d2" })] : [summary(), file("f1", "Báo giá.docx")];
       },
       cursor: (path) => {
-        const format = queryOf(path).get("format");
+        const format = queryOf(path).get("type");
         if (format === "xlsx") return queryOf(path).get("cursor") === "x2" ? null : "x2";
         return queryOf(path).get("cursor") === "c2" ? null : "c2";
       },
@@ -144,10 +140,10 @@ describe("type chip over paged lists (M2)", () => {
 
     // The server answered the filtered page: it is empty, so the state says
     // there is no match — never "in what is loaded", the filter already ran.
-    await pickType("xlsx");
+    await pickTypeFilter("xlsx");
     expect(await screen.findByText(t("documents.library.no_matches_title"))).toBeInTheDocument();
     expect(screen.queryByText(t("documents.home.no_matches_more_description"))).toBeNull();
-    const filteredCalls = requestMock.mock.calls.filter(([path]) => queryOf(String(path)).get("format") === "xlsx");
+    const filteredCalls = requestMock.mock.calls.filter(([path]) => queryOf(String(path)).get("type") === "xlsx");
     expect(filteredCalls.length).toBeGreaterThan(0);
     expect(filteredCalls.every(([path]) => !queryOf(String(path)).get("cursor"))).toBe(true);
 
@@ -160,10 +156,10 @@ describe("type chip over paged lists (M2)", () => {
   it("shows the filtered-empty line pointing at the Tạo nhanh strip, with no Load more once exhausted", async () => {
     // The chip is a server filter (UNI-1868), so the fixture answers an empty
     // page for format=pdf the way the real server would.
-    route({ list: (path) => (queryOf(path).get("format") === "pdf" ? [] : [summary()]) });
+    route({ list: (path) => (queryOf(path).get("type") === "pdf" ? [] : [summary()]) });
     renderView();
     await screen.findByText("Kế hoạch Q4");
-    await pickType("pdf");
+    await pickTypeFilter("pdf");
     expect(await screen.findByText(t("documents.home.no_matches_description"))).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: t("documents.library.load_more") })).toBeNull();
   });
@@ -178,7 +174,7 @@ describe("sidebar sources section (m2)", () => {
     renderView();
     expect(await screen.findByText(t("documents.home.sidebar.elsewhere"))).toBeInTheDocument();
 
-    await pickType("docx");
+    await pickTypeFilter("docx");
     await waitFor(() => expect(requestMock.mock.calls.some(([path]) => queryOf(String(path)).get("type") === "docx")).toBe(true));
     expect(screen.getByText(t("documents.home.sidebar.elsewhere"))).toBeInTheDocument();
   });

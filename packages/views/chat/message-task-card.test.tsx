@@ -36,21 +36,23 @@ beforeAll(() => {
   initI18n();
 });
 
+const taskRow = {
+  id: "t1",
+  identifier: "LUN-2",
+  title: "long ơi",
+  status: "todo",
+  priority: "medium",
+  revision: 1,
+  description: "Từ chat",
+  assignee_id: null,
+  assignee_kind: "human",
+  due_date: null,
+  project_id: null,
+};
+
 vi.mock("@uniwork/core/tasks", () => ({
   useTask: () => ({
-    data: {
-      id: "t1",
-      identifier: "LUN-2",
-      title: "long ơi",
-      status: "todo",
-      priority: "medium",
-      revision: 1,
-      description: "Từ chat",
-      assignee_id: null,
-      assignee_kind: "human",
-      due_date: null,
-      project_id: null,
-    },
+    data: taskRow,
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
@@ -118,5 +120,18 @@ describe("MessageTaskCard", () => {
     LINKS.set("m1", [{ ...LINKS.get("m1")![0]!, relation: "created_from" }]);
     wrap(<MessageTaskCard workspaceId="ws1" messageId="m1" isOwn />);
     expect(screen.getByText("Đã tạo việc từ tin nhắn của bạn")).toBeInTheDocument();
+  });
+});
+
+describe("MessageTaskCard titles with mention markup", () => {
+  it("reads a legacy title's mention token as @Name and keeps the title inside the card", () => {
+    taskRow.title = "check [@Miên Thi](mention://member/01M3KF216RSBV7RQDDBE7ABCDE) giúp";
+    LINKS.set("m1", [{ ...LINKS.get("m1")![0]!, relation: "created_from" }]);
+    wrap(<MessageTaskCard workspaceId="ws1" messageId="m1" isOwn />);
+    const open = screen.getByRole("button", { name: /Mở LUN-2/ });
+    expect(open).toHaveTextContent("@Miên Thi");
+    expect(open).not.toHaveTextContent("mention://");
+    expect(open.querySelector(".font-bold")).toHaveClass("[overflow-wrap:anywhere]");
+    taskRow.title = "long ơi";
   });
 });

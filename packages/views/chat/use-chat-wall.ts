@@ -1,9 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useChatRooms } from "@uniwork/core/chat";
-import { chatWallpaperFromRoom } from "@uniwork/core/chat/chat-wallpaper-from-room";
-import { DEFAULT_CHAT_WALLPAPER } from "@uniwork/core/chat/chat-wallpaper";
+import {
+  chatWallpaperFromRoom,
+  preferStableChatWallpaper,
+} from "@uniwork/core/chat/chat-wallpaper-from-room";
+import { DEFAULT_CHAT_WALLPAPER, type ChatWallpaper } from "@uniwork/core/chat/chat-wallpaper";
 import { resolveChatWallSurface, type ChatWallSurface } from "@uniwork/core/chat/chat-wallpaper-resolve";
 import { useOptionalWorkspace } from "../layout/workspace-context";
 
@@ -12,12 +15,18 @@ export function useChatWall(roomId?: string | null, wsId?: string): ChatWallSurf
   const shell = useOptionalWorkspace();
   const workspaceId = wsId ?? shell?.workspace.id ?? "";
   const { data: rooms } = useChatRooms(workspaceId);
-  const room = useMemo(
-    () => (roomId ? rooms?.find((entry) => entry.id === roomId) : undefined),
-    [roomId, rooms],
-  );
-  return useMemo(
-    () => resolveChatWallSurface(room ? chatWallpaperFromRoom(room) : DEFAULT_CHAT_WALLPAPER),
-    [room],
-  );
+  const room = roomId ? rooms?.find((entry) => entry.id === roomId) : undefined;
+  const raw = room ? chatWallpaperFromRoom(room) : DEFAULT_CHAT_WALLPAPER;
+
+  const roomScopeRef = useRef(roomId ?? "");
+  const wallpaperRef = useRef<ChatWallpaper>(raw);
+  if (roomScopeRef.current !== (roomId ?? "")) {
+    roomScopeRef.current = roomId ?? "";
+    wallpaperRef.current = raw;
+  } else {
+    wallpaperRef.current = preferStableChatWallpaper(wallpaperRef.current, raw);
+  }
+
+  const wallpaper = wallpaperRef.current;
+  return useMemo(() => resolveChatWallSurface(wallpaper), [wallpaper]);
 }

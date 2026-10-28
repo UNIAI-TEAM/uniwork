@@ -66,12 +66,13 @@ const ITEMS_LATER = {
   running: "meetings.detail.overview.itemsAfterRunning",
   none: "meetings.detail.overview.itemsAfterNone",
   failed: "meetings.detail.overview.itemsAfterFailed",
+  transcribing: "meetings.detail.overview.itemsAfterTranscribing",
 } as const;
 
 /** Việc cần làm: C's board, or — while no summary has proposed any — a quiet placeholder saying when they come. */
 function ActionItems({ model }: { model: OverviewSummaryModel | null }) {
   const { t } = useTranslation();
-  const { meeting } = useDetail();
+  const { meeting, transcribing } = useDetail();
   const items = useMeetingActionItems(meeting.id).data;
   const state = model?.state;
   const waiting = state === "running" || state === "none" || state === "failed";
@@ -80,7 +81,7 @@ function ActionItems({ model }: { model: OverviewSummaryModel | null }) {
       <Section id="action-items" title={t("meetings.detail.overview.itemsTitle")}>
         <div className="flex items-center gap-3 rounded-lg border border-dashed border-border px-4 py-3">
           <IconTile icon={ListChecks} size="sm" tone="muted" />
-          <p className="text-body text-muted-foreground">{t(ITEMS_LATER[state])}</p>
+          <p className="text-body text-muted-foreground">{t(ITEMS_LATER[transcribing ? "transcribing" : state])}</p>
         </div>
       </Section>
     );

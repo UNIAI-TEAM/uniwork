@@ -493,7 +493,7 @@ func TestFolderUploadLocalAdapterEndToEnd(t *testing.T) {
 		t.Fatalf("batch = %s %+v", res.Status, res.Counts)
 	}
 	docID := resultOf(t, res, "f-2").DocumentID
-	f, err := env.svc.OpenDocumentFile(ctx, member, docID, 0, DocumentByteRange{})
+	f, err := env.svc.OpenDocumentFile(ctx, member, docID, 0, DocumentByteRange{}, DocumentAccessDownload)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

@@ -60,6 +60,12 @@ export interface ListDocumentsBaseOpts {
    *  in the answer; pages never match; `kind: "page"` together with it is
    *  refused with 400 `invalid_filter`. */
   format?: DocumentFileFormat;
+  /** The Type select (UNI-2113): `page` and/or file formats, sent as the REPEATED
+   *  `type` param (`?type=docx&type=xlsx`). The values add up (OR: `page` is the
+   *  pages, each format is that format with folders kept, as `format` does) and
+   *  narrow further beside `kind`/`format` (AND). Left out or empty is no type
+   *  filter; a value the server does not know answers 400 `invalid_type`. */
+  types?: string[];
   /** The library's access filter: `manage` the rows the caller manages,
    *  `edit` those they manage or edit, `restricted` those with restricted
    *  visibility. On the trash only `restricted` is accepted. */
@@ -87,7 +93,7 @@ export type ListDocumentsOpts = ListDocumentsBaseOpts &
   );
 
 /** `trash` is the Thùng rác list: archived=1 in its one fixed order (see listTrashedDocuments). */
-function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boolean; activity?: DocumentRecentActivity }): string {
+export function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boolean; activity?: DocumentRecentActivity }): string {
   if (!opts) return "";
   const p = new URLSearchParams();
   if (opts.trash) {
@@ -100,6 +106,7 @@ function listQuery(opts?: ListDocumentsOpts & { shelved?: boolean; trash?: boole
   if (opts.q) p.set("q", opts.q);
   if (opts.kind) p.set("kind", opts.kind);
   if (opts.format) p.set("format", opts.format);
+  for (const type of opts.types ?? []) p.append("type", type);
   if (opts.access) p.set("access", opts.access);
   if (opts.sort) p.set("sort", opts.sort);
   if (opts.order) p.set("order", opts.order);
@@ -139,7 +146,7 @@ export async function listDocuments(
  *  chips, UNI-2045 SV-7/SV-8 editor and updated window). */
 type CollectionListOpts = Pick<
   ListDocumentsBaseOpts,
-  "cursor" | "limit" | "format" | "access" | "updatedBy" | "updatedFrom" | "updatedTo"
+  "cursor" | "limit" | "format" | "types" | "access" | "updatedBy" | "updatedFrom" | "updatedTo"
 >;
 
 /** GET /api/v1/workspaces/{workspaceID}/documents/recent — what the person
@@ -186,7 +193,7 @@ export async function listSharedWithMe(
  *  favorites route (document-favorites.ts) stays for the star toggles. */
 export async function listFavoriteDocuments(
   wsId: string,
-  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit">,
+  opts?: Pick<ListDocumentsBaseOpts, "cursor" | "limit" | "types">,
   signal?: AbortSignal,
 ): Promise<DocumentList> {
   const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/favorites${listQuery(opts)}`, { signal });
@@ -216,6 +223,7 @@ export async function listSharedByMe(
       cursor: opts?.cursor,
       limit: opts?.limit,
       format: opts?.format,
+      types: opts?.types,
       access: opts?.access,
       updatedBy: opts?.updatedBy,
       updatedFrom: opts?.updatedFrom,
@@ -252,6 +260,7 @@ export async function listShelvedDocuments(
       cursor: opts?.cursor,
       limit: opts?.limit,
       format: opts?.format,
+      types: opts?.types,
       access: opts?.access,
       updatedBy: opts?.updatedBy,
       updatedFrom: opts?.updatedFrom,
@@ -285,6 +294,7 @@ export async function listTrashedDocuments(
       trash: true,
       kind: opts?.kind,
       format: opts?.format,
+      types: opts?.types,
       access: opts?.access,
       updatedBy: opts?.updatedBy,
       updatedFrom: opts?.updatedFrom,

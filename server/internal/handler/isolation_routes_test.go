@@ -501,6 +501,7 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/billing/webhooks/vnpay":                   {class: isoPublic, reason: reasonProvider},
 	"GET /api/v1/calendar-connections/{provider}/callback":  {class: isoPublic, reason: reasonProvider},
 	"GET /api/v1/email-hub-connections/{provider}/callback": {class: isoPublic, reason: reasonProvider},
+	"GET /api/v1/drive-connections/google/callback":         {class: isoPublic, reason: reasonProvider},
 
 	// Links whose secret is the credential.
 	"GET /api/v1/public/documents/{token}":                   {class: isoPublic, reason: reasonLink},
@@ -584,6 +585,9 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/admin/invoices/{invoiceID}/confirm-refund": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"reason": "isolation matrix fixture",
 	})},
+	"POST /api/v1/admin/invoices/{invoiceID}/revert-refund": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
+		"reason": "isolation matrix fixture",
+	})},
 	"POST /api/v1/admin/plans": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"code": "iso_test_plan", "name": "ISO", "description": "", "billing_period": "none",
 		"price_currency": "VND", "is_active": false, "sort_order": 99, "reason": "isolation matrix fixture",
@@ -595,13 +599,15 @@ var isoRoutes = map[string]isoSpec{
 	"PUT /api/v1/admin/plans/{code}/features/{key}": {class: isoPlatform, reason: reasonPlatform, body: isoJSON(map[string]any{
 		"enabled": true, "reason": "isolation matrix fixture",
 	})},
-	"GET /api/v1/admin/organizations":                    {class: isoPlatform, reason: reasonPlatform},
-	"GET /api/v1/admin/organizations/{orgID}":            {class: isoPlatform, reason: reasonPlatform},
-	"POST /api/v1/admin/organizations/{orgID}/plan":      {class: isoPlatform, reason: reasonPlatform},
-	"POST /api/v1/admin/organizations/{orgID}/suspend":   {class: isoPlatform, reason: reasonPlatform},
-	"POST /api/v1/admin/organizations/{orgID}/unsuspend": {class: isoPlatform, reason: reasonPlatform},
-	"GET /api/v1/admin/system":                           {class: isoPlatform, reason: reasonPlatform},
-	"GET /api/v1/admin/trace/{traceID}":                  {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/organizations":                          {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/organizations/{orgID}":                  {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/plan":            {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/suspend":         {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/deletion":        {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/deletion/cancel": {class: isoPlatform, reason: reasonPlatform},
+	"POST /api/v1/admin/organizations/{orgID}/unsuspend":       {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/system":                                 {class: isoPlatform, reason: reasonPlatform},
+	"GET /api/v1/admin/trace/{traceID}":                        {class: isoPlatform, reason: reasonPlatform},
 
 	// Catalogue stubs (router/tasks_stubs.go).
 	"GET /api/v1/tasks/{taskID}/active-task":                                              {class: isoStub, reason: reasonStub},
@@ -748,6 +754,10 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/shares":                                   {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
 	"POST /api/v1/documents/{documentID}/shares/batch":                             {body: isoWith(map[string]string{}, map[string]any{"principal_ids": []any{"01J8X4K2M0N1P2Q3R4S5T6U7V8"}, "level": "view"})},
 	"PUT /api/v1/documents/{documentID}/access":                                    {body: isoWith(map[string]string{}, map[string]any{"items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}})},
+	// UNI-2244: folder bulk access update and batch progress.
+	"PUT /api/v1/documents/{folderID}/contents-access": {
+		body: isoWith(map[string]string{}, map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}}),
+	},
 	// DOC-05: a valid reason, so the cross-tenant refusal is the gate and never the 422.
 	"POST /api/v1/documents/{documentID}/break-glass": {body: isoJSON(map[string]any{"reason": "Kiểm tra theo yêu cầu của kiểm toán"})},
 	// DOC-07 (UNI-1631 §4.3). The create answers every well-formed id with the
@@ -767,8 +777,14 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/documents/{documentID}/access-requests":                      {checkControl: isoAccessRequestsListCheck},
 	"POST /api/v1/documents/{documentID}/access-requests/{requestID}/approve": {body: isoJSON(map[string]any{"level": "view"})},
 	"POST /api/v1/documents/{documentID}/access-requests/{requestID}/decline": {},
-	"POST /api/v1/documents/{documentID}/uploads":                             {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
-	"POST /api/v1/documents/{documentID}/versions/commit":                     {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
+	// DOC-06 (UNI-2084 §4.2): B's owner names A's document with their own id
+	// as the recipient, so the refusal is the document gate (404). The control
+	// is B's owner handing B's document to its current owner - the same-owner
+	// answer (200, nothing written) - so the pass reaches the route's write path
+	// without moving the fixture document's owner under every later route.
+	"PUT /api/v1/documents/{documentID}/owner":            {body: isoWith(map[string]string{"user_id": "owner"}, map[string]any{"previous_owner_level": "edit"})},
+	"POST /api/v1/documents/{documentID}/uploads":         {body: isoFile("note.md", "text/markdown", []byte("# new\n"), nil)},
+	"POST /api/v1/documents/{documentID}/versions/commit": {body: isoIdem(map[string]string{"upload_id": "docUpload"}, map[string]any{"base_revision": "1"})},
 	// Large upload sessions (BIGUP-S1, contract §5). The owner's seeded session
 	// is the control of each session route; the complete routes answer 422 on
 	// it because no part was ever PUT, which still proves the owner reached the
@@ -825,6 +841,7 @@ var isoRoutes = map[string]isoSpec{
 	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                            {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
 	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                   {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
 	"PATCH /api/v1/meetings/{meetingID}/motions/{motionID}":                                  {body: isoJSON(map[string]any{"title": "edited"})},
+	"PATCH /api/v1/meetings/{meetingID}/notes/{noteID}":                                      {body: isoJSON(map[string]any{"body": "edited"})},
 	"PATCH /api/v1/meetings/{meetingID}/transcript/{segmentID}":                              {body: isoJSON(map[string]any{"text": "edited"})},
 	// follow-5: the write-control pass runs .../dismiss first, so the owner's
 	// link of the same item answers 409 action_item_not_pending - the route
@@ -946,14 +963,32 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/meetings/{meetingID}/motions/{motionID}/open":                               {mixedFirst: "liveMeeting"},
 	"POST /api/v1/meetings/{meetingID}/participants/{participantID}/publish":                  {mixedFirst: "liveMeeting"},
 	"PATCH /api/v1/orgs/{org}/members/{userID}":                                               {body: isoJSON(map[string]any{"role": "admin"})},
-	"PATCH /api/v1/workspaces/{workspaceID}/members/{userID}":                                 {body: isoJSON(map[string]any{"role": "admin"})},
-	"POST /api/v1/workspaces/{workspaceID}/chat/reports":                                      {body: isoWith(map[string]string{"user_id": "peer"}, map[string]any{"reason": "spam"})},
-	"DELETE /api/v1/workspaces/{workspaceID}/chat/users/{userID}/block":                       {mixedOK: "unblocking deletes the caller's own block row in their own organization; any id answers ok, known or not"},
-	"GET /api/v1/workspaces/{workspaceID}/resources/{resourceType}/{resourceID}/history":      {mixedOK: "the history is read by workspace and resource; a foreign id returns the empty page an unknown id returns"},
-	"POST /api/v1/meetings/{meetingID}/join-requests":                                         {body: isoJSON(map[string]any{"display_name": "Khách"})},
-	"POST /api/v1/meeting-join-requests/{requestId}/cancel":                                   {controlAs: "third"},
-	"POST /api/v1/tasks/{taskID}/labels":                                                      {body: isoWith(map[string]string{"label_id": "label"}, nil)},
-	"POST /api/v1/workspaces/{workspaceID}/agents":                                            {body: isoWith(map[string]string{"agent_id": "agent"}, nil)},
+	// DOC-06b: B's owner counts and moves the documents of B's peer to B's owner.
+	// The peer's restrictedDocument is self_restricted for B's owner, who holds
+	// only AdminScope on it, so it stays with the peer; peerOwnedDocument is
+	// unrestricted and moves, so the control writes under the matrix.
+	"GET /api/v1/orgs/{org}/members/{userID}/document-ownership":                         {},
+	"POST /api/v1/orgs/{org}/members/{userID}/document-ownership":                        {body: isoWith(map[string]string{"to_user_id": "owner"}, nil)},
+	"PATCH /api/v1/workspaces/{workspaceID}/members/{userID}":                            {body: isoJSON(map[string]any{"role": "admin"})},
+	"POST /api/v1/workspaces/{workspaceID}/chat/reports":                                 {body: isoWith(map[string]string{"user_id": "peer"}, map[string]any{"reason": "spam"})},
+	"DELETE /api/v1/workspaces/{workspaceID}/chat/users/{userID}/block":                  {mixedOK: "unblocking deletes the caller's own block row in their own organization; any id answers ok, known or not"},
+	"GET /api/v1/workspaces/{workspaceID}/resources/{resourceType}/{resourceID}/history": {mixedOK: "the history is read by workspace and resource; a foreign id returns the empty page an unknown id returns"},
+	"POST /api/v1/meetings/{meetingID}/join-requests":                                    {body: isoJSON(map[string]any{"display_name": "Khách"})},
+	"POST /api/v1/meeting-join-requests/{requestId}/cancel":                              {controlAs: "third"},
+	"POST /api/v1/tasks/{taskID}/labels":                                                 {body: isoWith(map[string]string{"label_id": "label"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/agents":                                       {body: isoWith(map[string]string{"agent_id": "agent"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"connection_id": tn.ids["driveConnection"], "external_file_ids": []string{"iso-drive-" + strings.ToLower(tn.tag)}}}
+	}},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":             {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
+	"PUT /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/access":              {controlAs: "peer", body: isoWith(map[string]string{"connection_id": "peerDriveConnection"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/rebind":             {body: isoWith(map[string]string{"connection_id": "driveConnection"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-folders/{driveFolderID}/name":           {body: isoWith(map[string]string{"drive_connection_id": "driveConnection"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/drive-files/{driveFileID}/task-proposals":     {body: isoJSON(map[string]any{"prompt": "Extract tasks"})},
+	"POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/duplicates": {body: isoJSON(map[string]any{"titles": []string{"Chốt phạm vi beta"}})},
+	"POST /api/v1/workspaces/{workspaceID}/drive-task-proposals/{proposalID}/tasks": {body: isoJSON(map[string]any{
+		"items": []any{map[string]any{"index": 0, "title": "Chốt phạm vi beta", "description": "Mục tiêu"}},
+	})},
 	"POST /api/v1/orgs/{orgID}/billing/checkout": {body: isoJSON(map[string]any{
 		"plan_code": "starter", "success_path": "/billing/ok",
 	})},
@@ -966,5 +1001,11 @@ var isoRoutes = map[string]isoSpec{
 	// Tenant rows named in the body rather than the path.
 	"GET /api/v1/invitations/{token}":         {class: isoScoped, skipControl: "the invitation is addressed to an invitee outside the tenant; only that verified mailbox may read it"},
 	"POST /api/v1/invitations/{token}/accept": {class: isoScoped, skipControl: "accepting consumes the invitation"},
-	"POST /api/v1/chat/voice/token":           {body: isoWith(map[string]string{"room_id": "room", "call_id": "callID"}, nil)},
+	"POST /api/v1/membership-invite-links/preview": {class: isoScoped, skipControl: "link_id+secret is the grant; holding both reveals only the linked org/workspace names", body: isoJSON(map[string]any{
+		"link_id": "01J8X4LNK0N1P2Q3R4S5T6U7V", "secret": "not-a-real-secret",
+	})},
+	"POST /api/v1/membership-invite-links/join": {class: isoScoped, skipControl: "link_id+secret is the grant; join creates membership only when the link is Active", body: isoJSON(map[string]any{
+		"link_id": "01J8X4LNK0N1P2Q3R4S5T6U7V", "secret": "not-a-real-secret",
+	})},
+	"POST /api/v1/chat/voice/token": {body: isoWith(map[string]string{"room_id": "room", "call_id": "callID"}, nil)},
 }

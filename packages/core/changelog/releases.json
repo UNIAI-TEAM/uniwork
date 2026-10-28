@@ -1,5 +1,97 @@
 [
   {
+    "id": "release-1-12-0",
+    "version": "1.12.0",
+    "date": "2026-10-28",
+    "sourceRef": "d29327318a22ff5d852d4713d8bd291556f78e04",
+    "contentKey": "v1_12_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "c6cbd2bbb048a5379f54a25dce30fbe88b030f426",
+          "c4228c23e3f2b0c806c324186730aa56559b9990e",
+          "c7f427c7f30d2e29c7b08d0d33d3ebf9d48aa5510",
+          "cb7ffc3f9677e4cf5bb92bfa345773eb1e4dc1e1f",
+          "c0cd5e5ae6b1803536689748f96dc5e7bcc1b2525",
+          "c0c9a7ae41d024ebecc4eebc94917b2bb8a171347"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "ce4e631d6b566eeb4aa8e15e03668f517ce02a82d",
+          "c6fcf7fd13c09a42ca3e91fd1d4e256c1feb2e513"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c4458af37e9a9c952f6a5a985672db59325e3da30",
+          "cf0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-11-0",
+    "version": "1.11.0",
+    "date": "2026-10-27",
+    "sourceRef": "ad0a7e7d964c14765e525e02083097d1eb8721e4",
+    "contentKey": "v1_11_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "c1806f58e5085aff30d6df82bb89a5016a8372ff7",
+          "c6170e52b6303ce4f1b355da788e2e88b40f8f8a7",
+          "ca2f978c3f4a333d2077ea2efc12da4d529c1a08d",
+          "c55a0ab3e61e9836c1202fd055f9fff991ad5d962"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "c0a454a4d96fee86ef8eb10dc6c25b51bc8543b6b",
+          "cad0a7e7d964c14765e525e02083097d1eb8721e4"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "cf9e65a0f7a8a8387d6ddf7ba8acee85c6c039c63"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-10-0",
+    "version": "1.10.0",
+    "date": "2026-10-26",
+    "sourceRef": "f0d143e1bf6c0c4e12c30d3cd6f180f3c02ea40a",
+    "contentKey": "v1_10_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "c237fc6d47c92be3f0abdf2c6d40c893d6acfc3af"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "ca6714faf79e3eb2e5b258b1f5cb96cfdc1f7cd99"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c9f7c3046356c3008e37eaa2c11b3f3f8f3a23541"
+        ]
+      }
+    ]
+  },
+  {
     "id": "release-1-9-0",
     "version": "1.9.0",
     "date": "2026-10-25",

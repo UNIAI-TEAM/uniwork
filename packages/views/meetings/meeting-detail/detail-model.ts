@@ -69,7 +69,7 @@ export type SectionFlags = {
   minutes: boolean;
   /** Work carried over from earlier meetings, before and during one with a project. */
   carriedOver: boolean;
-  /** Guest links (rail "Khách", ScheduledHost row): host or admin, before the end. */
+  /** Guest links (rail "Khách", ScheduledHost row): host or admin, before the end; never in person (no room to enter). */
   guestLinks: boolean;
   /** Guests waiting at the door: host or admin while live (overtime included). */
   lobby: boolean;
@@ -81,12 +81,14 @@ export function sectionFlags({
   aiReadable,
   minutesOn,
   hasProject,
+  inPerson = false,
 }: {
   status: DetailStatus;
   viewer: DetailViewer;
   aiReadable: boolean;
   minutesOn: boolean;
   hasProject: boolean;
+  inPerson?: boolean;
 }): SectionFlags {
   const outsider = viewer === "outsider";
   const runner = viewer === "host" || viewer === "admin";
@@ -99,7 +101,7 @@ export function sectionFlags({
     actionItems: started,
     minutes: status === "ENDED" && minutesOn,
     carriedOver: (scheduled || live(status)) && hasProject,
-    guestLinks: runner && (scheduled || live(status)),
+    guestLinks: runner && !inPerson && (scheduled || live(status)),
     lobby: runner && live(status),
   };
 }

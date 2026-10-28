@@ -17,5 +17,6 @@ type OfficeAppCapabilitiesSDO struct {
 	OfflineLibrary   bool     `json:"offline_library" description:"Cấp/gia hạn lease offline và ghim tài liệu để dùng khi không có mạng" example:"false"`
 	AIUniwork        bool     `json:"ai_uniwork" description:"Kill switch UniWork AI (BYOK không đổi); tắt thì ai_uniwork_formats rỗng" example:"false"`
 	AIUniworkFormats []string `json:"ai_uniwork_formats" description:"Định dạng có UniWork AI: office_ai_uniwork_<format> bật VÀ office_ai_uniwork bật; rỗng khi UniWork AI tắt" example:"[\"docx\"]"`
+	DriveConnector   bool     `json:"drive_connector" description:"Connector Google Drive cho app desktop: flag drive_connector bật cho người gọi VÀ provider Drive sẵn sàng" example:"false"`
 	TTLSeconds       int      `json:"ttl_seconds" description:"App giữ bản này tối đa bao nhiêu giây trước khi đọc lại; quy tắc cache/TTL ở EXPERIENCE > State Patterns > Capability tắt" example:"300"`
 }

@@ -639,6 +639,7 @@ var titleWriteCalls = []string{
 	"q.MoveDocument(",
 	"q.DetachDocumentToRoot(",
 	"q.RenameArchivedDocument(",
+	"q.SetDocumentFileVersion(",
 }
 
 // titleNamingHelpers are the functions a title write may take its title from:
@@ -655,7 +656,7 @@ var titleNamingHelpers = []string{
 // requires that the statement passes the row's own stored title, so an exempt
 // function cannot start writing a different string unseen.
 var titleKeepingWriters = map[string]string{
-	"relocateOutOfTrashedFolder": "writes the stored title back unchanged; a relocation is not a rename",
+	"relocateOutOfTrashedRoot": "writes the stored title back unchanged; a relocation is not a rename",
 }
 
 // TestDocumentTitleWritePathsUseTheNormalizer is the guard the appendix asks

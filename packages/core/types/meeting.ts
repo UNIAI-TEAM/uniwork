@@ -40,6 +40,8 @@ export const MeetingSchema = z.object({
   previous_meeting_id: z.string().optional().catch(undefined),
   /** Detail only: the series' earliest uncanceled meeting starting after this one. */
   next_meeting_id: z.string().optional().catch(undefined),
+  /** online | in_person (read through meetingVenue); absent on an older server. */
+  venue: z.string().optional().catch(undefined),
 });
 export type Meeting = z.infer<typeof MeetingSchema>;
 
@@ -51,6 +53,8 @@ export const MeetingNoteSchema = z.object({
   display_name: z.string().optional(),
   avatar_url: z.string().nullish(),
   created_at: z.string().nullish(),
+  /** Last edit (UNI-2217); null when never edited. A drifted value reads as never edited. */
+  edited_at: z.string().nullish().catch(undefined),
 });
 export type MeetingNote = z.infer<typeof MeetingNoteSchema>;
 
@@ -82,6 +86,13 @@ export const ParticipantSchema = z.object({
   is_secretary: z.boolean().optional(),
   /** This participant's mic is the room's shared one: the AI scribe tells its speakers apart. */
   shared_mic: z.boolean().optional(),
+  /** Holds an open attendance session right now; an older server omits it. */
+  in_room: z.boolean().optional(),
+  /** The current host's seat, so a guest (who never reads the meeting) knows whose mute requests to obey. */
+  is_host: z.boolean().optional(),
+  /** Who removed this participant and when (RFC 3339); guests never get `removed_by`. */
+  removed_by: z.string().optional(),
+  removed_at: z.string().optional(),
 });
 export type MeetingParticipant = z.infer<typeof ParticipantSchema>;
 
@@ -480,6 +491,8 @@ export const MeetingTranscriptionSchema = z.object({
   error_code: z.string().optional(),
   attempts: z.number().optional(),
   starts_at: z.string().optional(),
+  /** The length estimated when the file arrived, in seconds; known from QUEUED on. */
+  estimated_seconds: z.number().optional().catch(undefined),
   audio_seconds: z.number().optional(),
   created_by: z.string().optional(),
   created_at: z.string().optional(),

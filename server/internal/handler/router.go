@@ -53,6 +53,9 @@ type Deps struct {
 	CalendarConnections *service.CalendarConnectionService
 	EmailHub            *service.EmailHubService
 	Agents              *service.AgentService
+	DriveConnections    *service.DriveConnectionService
+	DriveFiles          *service.DriveFileService
+	DriveTaskProposals  *service.DriveTaskProposalService
 	Actors              *service.ActorService
 	Audit               *service.AuditService
 	Privacy             *service.PrivacyExportService
@@ -76,6 +79,10 @@ type Deps struct {
 	// Graph is the Work Graph read service (C-11); nil answers 501 on the
 	// graph routes until the server wires it.
 	Graph *service.GraphService
+
+	// Trash is the shared workspace trash (UNI-2171). When omitted, New
+	// derives it from Tasks, Documents, Workspaces and FeatureFlags.
+	Trash *service.TrashService
 
 	// FileAccess is the FileService read path (T4); nil answers 501 on the
 	// file routes until the server wires it.
@@ -118,6 +125,10 @@ type Deps struct {
 	// DocumentChanges is the Office change feed (G5-01a). When omitted, New
 	// derives it from Documents, FeatureFlags and the deployment config.
 	DocumentChanges *service.DocumentChangesService
+	// MemberDocuments answers the document-ownership routes of an organization
+	// member (DOC-06b). When omitted, New derives it from OrgMembers and
+	// Documents; without Documents the routes answer 501.
+	MemberDocuments *service.OrganizationMemberDocumentService
 	// OfficeLease grants, renews and releases offline leases (G5-08s). When
 	// omitted, New derives it from Documents, FeatureFlags and JWT_SECRET.
 	OfficeLease *service.OfficeLeaseService
@@ -198,9 +209,18 @@ func New(d Deps) http.Handler {
 	}
 	if d.OfficeCapabilities == nil && d.Organizations != nil {
 		d.OfficeCapabilities = service.NewOfficeCapabilitiesService(d.Organizations, d.FeatureFlags)
+		if d.DriveConnections != nil {
+			d.OfficeCapabilities.SetDrive(d.DriveConnections)
+		}
+	}
+	if d.DriveTaskProposals != nil && d.Audit != nil {
+		d.Audit.SetDriveProposalHistoryAuthorizer(d.DriveTaskProposals.AuthorizeHistory)
 	}
 	if d.DocumentChanges == nil && d.Documents != nil {
 		d.DocumentChanges = service.NewDocumentChangesService(d.Documents, d.FeatureFlags, d.Cfg)
+	}
+	if d.MemberDocuments == nil && d.OrgMembers != nil && d.Documents != nil {
+		d.MemberDocuments = service.NewOrganizationMemberDocumentService(d.OrgMembers, d.Documents)
 	}
 	if d.OfficeLease == nil && d.Documents != nil {
 		d.OfficeLease = service.NewOfficeLeaseService(d.Documents, d.FeatureFlags, d.Cfg)
@@ -212,6 +232,11 @@ func New(d Deps) http.Handler {
 		d.DocumentSources = service.NewDocumentSourceService(service.DocumentSourceDeps{
 			Documents: d.Documents, Chat: d.Chat, Tasks: d.Tasks, Meetings: d.Meetings, EmailHub: d.EmailHub,
 		})
+	}
+	if d.Trash == nil && d.Tasks != nil {
+		// A nil *featureflag.Service reads every flag at its default, as the
+		// document routes do, so it is passed through as is.
+		d.Trash = service.NewTrashService(d.Tasks, d.Documents, d.Workspaces, d.FeatureFlags)
 	}
 	if d.OfficeFrame == nil && d.Documents != nil {
 		d.OfficeFrame = service.NewOfficeFrameService(d.Documents, d.Cfg.JWTSecret)
@@ -237,6 +262,7 @@ func New(d Deps) http.Handler {
 		DocumentOrganization: h.documentFlagOrganization,
 		CallerOrganization:   h.callerFlagOrganization,
 		MeetingOrganization:  h.meetingFlagOrganization,
+		DriveOrganization:    h.driveFlagOrganization,
 		DeviceStatus: func(ctx context.Context, userID, sessionID string) error {
 			if d.DesktopAuth == nil {
 				return nil
@@ -249,38 +275,41 @@ func New(d Deps) http.Handler {
 		Health: h.health,
 		Ready:  h.ready,
 
-		Config:                     h.config,
-		OfficeDesktopDownload:      h.officeDesktopDownload,
-		RUM:                        h.rum,
-		MobileEvents:               h.mobileEvents,
-		CreateDemoRequest:          h.createDemoRequest,
-		AdminListDemoRequests:      h.adminListDemoRequests,
-		AdminUpdateDemoRequest:     h.adminUpdateDemoRequest,
-		AdminListChatReports:       h.adminListChatReports,
-		AdminResolveChatReport:     h.adminResolveChatReport,
-		AdminRemoveReportedMessage: h.adminRemoveReportedMessage,
-		AdminMe:                    h.adminMe,
-		AdminListOrganizations:     h.adminListOrganizations,
-		AdminGetOrganization:       h.adminGetOrganization,
-		AdminSuspendOrganization:   h.adminSuspendOrganization,
-		AdminUnsuspendOrganization: h.adminUnsuspendOrganization,
-		AdminChangePlan:            h.adminChangePlan,
-		AdminTrace:                 h.adminTrace,
-		AdminSystem:                h.adminSystem,
-		AdminListFlags:             h.adminListFlags,
-		AdminListFlagOverrides:     h.adminListFlagOverrides,
-		AdminListAllFlagOverrides:  h.adminListAllFlagOverrides,
-		AdminSetFlagOverride:       h.adminSetFlagOverride,
-		AdminDeleteFlagOverride:    h.adminDeleteFlagOverride,
-		AdminListPlans:             h.adminListPlans,
-		AdminCreatePlan:            h.adminCreatePlan,
-		AdminUpdatePlan:            h.adminUpdatePlan,
-		AdminUpdatePlanFeature:     h.adminUpdatePlanFeature,
-		AdminListInvoices:          h.adminListInvoices,
-		AdminListPaymentIntents:    h.adminListPaymentIntents,
-		AdminRefundInvoice:         h.adminRefundInvoice,
-		AdminConfirmInvoiceRefund:  h.adminConfirmInvoiceRefund,
-		WS:                         h.ws,
+		Config:                            h.config,
+		OfficeDesktopDownload:             h.officeDesktopDownload,
+		RUM:                               h.rum,
+		MobileEvents:                      h.mobileEvents,
+		CreateDemoRequest:                 h.createDemoRequest,
+		AdminListDemoRequests:             h.adminListDemoRequests,
+		AdminUpdateDemoRequest:            h.adminUpdateDemoRequest,
+		AdminListChatReports:              h.adminListChatReports,
+		AdminResolveChatReport:            h.adminResolveChatReport,
+		AdminRemoveReportedMessage:        h.adminRemoveReportedMessage,
+		AdminMe:                           h.adminMe,
+		AdminListOrganizations:            h.adminListOrganizations,
+		AdminGetOrganization:              h.adminGetOrganization,
+		AdminSuspendOrganization:          h.adminSuspendOrganization,
+		AdminScheduleOrganizationDeletion: h.adminScheduleOrganizationDeletion,
+		AdminCancelOrganizationDeletion:   h.adminCancelOrganizationDeletion,
+		AdminUnsuspendOrganization:        h.adminUnsuspendOrganization,
+		AdminChangePlan:                   h.adminChangePlan,
+		AdminTrace:                        h.adminTrace,
+		AdminSystem:                       h.adminSystem,
+		AdminListFlags:                    h.adminListFlags,
+		AdminListFlagOverrides:            h.adminListFlagOverrides,
+		AdminListAllFlagOverrides:         h.adminListAllFlagOverrides,
+		AdminSetFlagOverride:              h.adminSetFlagOverride,
+		AdminDeleteFlagOverride:           h.adminDeleteFlagOverride,
+		AdminListPlans:                    h.adminListPlans,
+		AdminCreatePlan:                   h.adminCreatePlan,
+		AdminUpdatePlan:                   h.adminUpdatePlan,
+		AdminUpdatePlanFeature:            h.adminUpdatePlanFeature,
+		AdminListInvoices:                 h.adminListInvoices,
+		AdminListPaymentIntents:           h.adminListPaymentIntents,
+		AdminRefundInvoice:                h.adminRefundInvoice,
+		AdminConfirmInvoiceRefund:         h.adminConfirmInvoiceRefund,
+		AdminRevertInvoiceRefund:          h.adminRevertInvoiceRefund,
+		WS:                                h.ws,
 
 		McpProtectedResource:   h.mcpProtectedResource,
 		McpAuthorizationServer: h.mcpAuthorizationServer,
@@ -358,10 +387,24 @@ func New(d Deps) http.Handler {
 		LeaveOrganization:   h.leaveOrganization,
 		CloseOrganization:   h.closeOrganization,
 
+		GetMemberDocumentOwnership: h.getMemberDocumentOwnership,
+		TransferMemberDocuments:    h.transferMemberDocuments,
+
 		InviteToOrganization: h.inviteToOrganization,
 		ListOrgInvitations:   h.listOrgInvitations,
 		RevokeOrgInvitation:  h.revokeOrgInvitation,
 		TransferOrgOwnership: h.transferOrgOwnership,
+
+		ListOrgInviteLinks:            h.listOrgInviteLinks,
+		CreateOrgInviteLink:           h.createOrgInviteLink,
+		RevokeOrgInviteLink:           h.revokeOrgInviteLink,
+		RegenerateOrgInviteLink:       h.regenerateOrgInviteLink,
+		ListWorkspaceInviteLinks:      h.listWorkspaceInviteLinks,
+		CreateWorkspaceInviteLink:     h.createWorkspaceInviteLink,
+		RevokeWorkspaceInviteLink:     h.revokeWorkspaceInviteLink,
+		RegenerateWorkspaceInviteLink: h.regenerateWorkspaceInviteLink,
+		PreviewMembershipInviteLink:   h.previewMembershipInviteLink,
+		JoinMembershipInviteLink:      h.joinMembershipInviteLink,
 
 		ListPeople:         h.listPeople,
 		GetPerson:          h.getPerson,
@@ -380,6 +423,7 @@ func New(d Deps) http.Handler {
 		UploadWorkspaceIcon: h.uploadWorkspaceIcon,
 		RemoveWorkspaceIcon: h.removeWorkspaceIcon,
 		GetWorkspaceMe:      h.getWorkspaceMe,
+		ListTrash:           h.listTrash,
 		ListMembers:         h.listMembers,
 		PatchMember:         h.patchMember,
 		DeleteMember:        h.deleteMember,
@@ -389,66 +433,90 @@ func New(d Deps) http.Handler {
 
 		SeedWelcomeTask: h.seedWelcomeTask,
 
-		ListTasks:                     h.listTasks,
-		CreateTask:                    h.createTask,
-		GetTask:                       h.getTask,
-		UpdateTask:                    h.updateTask,
-		PutTaskSuite:                  h.putTaskSuite,
-		DeleteTask:                    h.deleteTask,
-		ListComments:                  h.listComments,
-		CreateComment:                 h.createComment,
-		QueryTasks:                    h.queryTasks,
-		GroupedTasks:                  h.groupedTasks,
-		BatchUpdateTasks:              h.batchUpdateTasks,
-		BatchDeleteTasks:              h.batchDeleteTasks,
-		ListMyTasks:                   h.listMyTasks,
-		GetAssigneeFrequency:          h.getAssigneeFrequency,
-		GetHomeSummary:                h.getHomeSummary,
-		GetHomePreference:             h.getHomePreference,
-		PutHomePreference:             h.putHomePreference,
-		ListCalendarEvents:            h.listCalendarEvents,
-		ListCalendarSidebar:           h.listCalendarSidebar,
-		WorkspaceCalendar:             h.workspaceCalendar,
-		ListCalendarConnections:       h.listCalendarConnections,
-		StartCalendarConnection:       h.startCalendarConnection,
-		CompleteCalendarConnection:    h.completeCalendarConnection,
-		ListExternalCalendars:         h.listExternalCalendars,
-		SelectExternalCalendars:       h.selectExternalCalendars,
-		DisconnectCalendarConnection:  h.disconnectCalendarConnection,
-		ListEmailHubAccounts:          h.listEmailHubAccounts,
-		GetEmailHubUnreadCount:        h.getEmailHubUnreadCount,
-		GetEmailHubSidebarCounts:      h.getEmailHubSidebarCounts,
-		ConnectEmailHubAccount:        h.connectEmailHubAccount,
-		StartEmailHubOAuth:            h.startEmailHubOAuth,
-		GetEmailHubProviders:          h.getEmailHubProviders,
-		DisconnectEmailHubAccount:     h.disconnectEmailHubAccount,
-		ListEmailHubImapLabels:        h.listEmailHubImapLabels,
-		ListEmailHubThreads:           h.listEmailHubThreads,
-		GetEmailHubThread:             h.getEmailHubThread,
-		ListEmailHubConversation:      h.listEmailHubConversation,
-		GetEmailHubThreadSummary:      h.getEmailHubThreadSummary,
-		SummarizeEmailHubThread:       h.summarizeEmailHubThread,
-		CreateEmailHubSummaryTasks:    h.createEmailHubSummaryTasks,
-		DownloadEmailHubAttachment:    h.downloadEmailHubAttachment,
-		PatchEmailHubThread:           h.patchEmailHubThread,
-		SendEmailHub:                  h.sendEmailHub,
-		ListEmailHubScheduledSends:    h.listEmailHubScheduledSends,
-		CancelEmailHubScheduledSend:   h.cancelEmailHubScheduledSend,
-		RetryEmailHubScheduledSend:    h.retryEmailHubScheduledSend,
-		SyncEmailHub:                  h.syncEmailHub,
-		WatchEmailHub:                 h.watchEmailHub,
-		SubscribeEmailHubInboxWatch:   h.subscribeEmailHubInboxWatch,
-		UnsubscribeEmailHubInboxWatch: h.unsubscribeEmailHubInboxWatch,
-		CompleteEmailHubOAuth:         h.completeEmailHubOAuth,
-		ListTaskChildren:              h.listTaskChildren,
-		ListChildrenByParents:         h.listChildrenByParents,
-		ChildTaskProgress:             h.childTaskProgress,
-		SetTaskParent:                 h.setTaskParent,
-		SetTaskDependency:             h.setTaskDependency,
-		RemoveTaskDependency:          h.removeTaskDependency,
-		TableGroups:                   h.tableGroups,
-		TableRows:                     h.tableRows,
-		TableFacets:                   h.tableFacets,
+		ListTasks:                        h.listTasks,
+		CreateTask:                       h.createTask,
+		GetTask:                          h.getTask,
+		UpdateTask:                       h.updateTask,
+		PutTaskSuite:                     h.putTaskSuite,
+		DeleteTask:                       h.deleteTask,
+		ListComments:                     h.listComments,
+		CreateComment:                    h.createComment,
+		QueryTasks:                       h.queryTasks,
+		GroupedTasks:                     h.groupedTasks,
+		BatchUpdateTasks:                 h.batchUpdateTasks,
+		BatchDeleteTasks:                 h.batchDeleteTasks,
+		ListMyTasks:                      h.listMyTasks,
+		GetAssigneeFrequency:             h.getAssigneeFrequency,
+		GetHomeSummary:                   h.getHomeSummary,
+		GetHomePreference:                h.getHomePreference,
+		PutHomePreference:                h.putHomePreference,
+		ListCalendarEvents:               h.listCalendarEvents,
+		ListCalendarSidebar:              h.listCalendarSidebar,
+		WorkspaceCalendar:                h.workspaceCalendar,
+		ListCalendarConnections:          h.listCalendarConnections,
+		StartCalendarConnection:          h.startCalendarConnection,
+		CompleteCalendarConnection:       h.completeCalendarConnection,
+		ListExternalCalendars:            h.listExternalCalendars,
+		SelectExternalCalendars:          h.selectExternalCalendars,
+		DisconnectCalendarConnection:     h.disconnectCalendarConnection,
+		ListEmailHubAccounts:             h.listEmailHubAccounts,
+		GetEmailHubUnreadCount:           h.getEmailHubUnreadCount,
+		GetEmailHubSidebarCounts:         h.getEmailHubSidebarCounts,
+		ConnectEmailHubAccount:           h.connectEmailHubAccount,
+		StartEmailHubOAuth:               h.startEmailHubOAuth,
+		GetEmailHubProviders:             h.getEmailHubProviders,
+		DisconnectEmailHubAccount:        h.disconnectEmailHubAccount,
+		ListEmailHubImapLabels:           h.listEmailHubImapLabels,
+		ListEmailHubThreads:              h.listEmailHubThreads,
+		GetEmailHubThread:                h.getEmailHubThread,
+		ListEmailHubConversation:         h.listEmailHubConversation,
+		GetEmailHubThreadSummary:         h.getEmailHubThreadSummary,
+		SummarizeEmailHubThread:          h.summarizeEmailHubThread,
+		CreateEmailHubSummaryTasks:       h.createEmailHubSummaryTasks,
+		DownloadEmailHubAttachment:       h.downloadEmailHubAttachment,
+		PatchEmailHubThread:              h.patchEmailHubThread,
+		SendEmailHub:                     h.sendEmailHub,
+		ListEmailHubScheduledSends:       h.listEmailHubScheduledSends,
+		CancelEmailHubScheduledSend:      h.cancelEmailHubScheduledSend,
+		RetryEmailHubScheduledSend:       h.retryEmailHubScheduledSend,
+		SyncEmailHub:                     h.syncEmailHub,
+		WatchEmailHub:                    h.watchEmailHub,
+		SubscribeEmailHubInboxWatch:      h.subscribeEmailHubInboxWatch,
+		UnsubscribeEmailHubInboxWatch:    h.unsubscribeEmailHubInboxWatch,
+		CompleteEmailHubOAuth:            h.completeEmailHubOAuth,
+		StartDriveGoogleOAuth:            h.StartDriveGoogleOAuth,
+		CompleteDriveGoogleOAuth:         h.CompleteDriveGoogleOAuth,
+		ListDriveConnections:             h.ListDriveConnections,
+		DisconnectDriveConnection:        h.DisconnectDriveConnection,
+		GetDrivePickerToken:              h.GetDrivePickerToken,
+		LinkDriveFiles:                   h.LinkDriveFiles,
+		ListDriveFiles:                   h.ListDriveFiles,
+		GetDriveFile:                     h.GetDriveFile,
+		UnlinkDriveFile:                  h.UnlinkDriveFile,
+		GrantDriveFileAccess:             h.GrantDriveFileAccess,
+		ChangeDriveFileReadAccount:       h.ChangeDriveFileReadAccount,
+		RebindDriveFile:                  h.RebindDriveFile,
+		NameDriveFolder:                  h.NameDriveFolder,
+		ListDriveFolders:                 h.ListDriveFolders,
+		ListTaskTrash:                    h.listTaskTrash,
+		PurgeTask:                        h.purgeTask,
+		RestoreTask:                      h.restoreTask,
+		ListTaskDriveFiles:               h.ListTaskDriveFiles,
+		RemoveTaskDriveFile:              h.RemoveTaskDriveFile,
+		CreateDriveTaskProposal:          h.CreateDriveTaskProposal,
+		GetDriveTaskProposal:             h.GetDriveTaskProposal,
+		DiscardDriveTaskProposal:         h.DiscardDriveTaskProposal,
+		CheckDriveTaskProposalDuplicates: h.CheckDriveTaskProposalDuplicates,
+		CreateTasksFromDriveProposal:     h.CreateTasksFromDriveProposal,
+		ListTaskChildren:                 h.listTaskChildren,
+		ListChildrenByParents:            h.listChildrenByParents,
+		ChildTaskProgress:                h.childTaskProgress,
+		SetTaskParent:                    h.setTaskParent,
+		SetTaskDependency:                h.setTaskDependency,
+		RemoveTaskDependency:             h.removeTaskDependency,
+		TableGroups:                      h.tableGroups,
+		TableRows:                        h.tableRows,
+		TableFacets:                      h.tableFacets,
 
 		ListTaskStatuses:        h.listTaskStatuses,
 		CreateTaskStatus:        h.createTaskStatus,
@@ -488,6 +556,9 @@ func New(d Deps) http.Handler {
 		GetProject:            h.getProject,
 		PutProject:            h.putProject,
 		DeleteProject:         h.deleteProject,
+		RestoreProject:        h.restoreProject,
+		PurgeProject:          h.purgeProject,
+		ListProjectTrash:      h.listProjectTrash,
 		ListProjectResources:  h.listProjectResources,
 		CreateProjectResource: h.createProjectResource,
 		PutProjectResource:    h.putProjectResource,
@@ -632,6 +703,8 @@ func New(d Deps) http.Handler {
 		TransferHost:                   h.transferHost,
 		ListNotes:                      h.listNotes,
 		CreateNote:                     h.createNote,
+		UpdateNote:                     h.updateNote,
+		DeleteNote:                     h.deleteNote,
 		MeetingToken:                   h.meetingToken,
 		JoinMeeting:                    h.joinMeeting,
 		ListParticipants:               h.listParticipants,
@@ -694,6 +767,7 @@ func New(d Deps) http.Handler {
 		SetCaptionLanguage:             h.setCaptionLanguage,
 		ListTranscript:                 h.listTranscript,
 		AppendChatMessage:              h.appendChatMessage,
+		RateCall:                       h.rateCall,
 		ListChatMessages:               h.listChatMessages,
 		GetMeetingSummary:              h.getMeetingSummary,
 		CreateSummary:                  h.createSummary,
@@ -928,6 +1002,9 @@ func New(d Deps) http.Handler {
 		ListDocuments:                  h.listDocuments,
 		ListRecentDocuments:            h.listRecentDocuments,
 		ListFavoriteDocuments:          h.listFavoriteDocuments,
+		MarkDocumentTemplate:           h.markDocumentTemplate,
+		UnmarkDocumentTemplate:         h.unmarkDocumentTemplate,
+		ListTemplateDocuments:          h.listTemplateDocuments,
 		ListDocumentChanges:            h.listDocumentChanges,
 		PutOfficeOfflineLease:          h.putOfficeOfflineLease,
 		DeleteOfficeOfflineLease:       h.deleteOfficeOfflineLease,
@@ -959,11 +1036,14 @@ func New(d Deps) http.Handler {
 		CreateDocumentShare:            h.createDocumentShare,
 		CreateDocumentShareBatch:       h.createDocumentShareBatch,
 		UpdateDocumentAccess:           h.updateDocumentAccess,
+		UpdateFolderContentsAccess:     h.updateFolderContentsAccess,
+		GetFolderContentsAccessBatch:   h.getFolderContentsAccessBatch,
 		RevokeDocumentShare:            h.revokeDocumentShare,
 		CreateDocumentAccessRequest:    h.createDocumentAccessRequest,
 		ListDocumentAccessRequests:     h.listDocumentAccessRequests,
 		ApproveDocumentAccessRequest:   h.approveDocumentAccessRequest,
 		DeclineDocumentAccessRequest:   h.declineDocumentAccessRequest,
+		TransferDocumentOwner:          h.transferDocumentOwner,
 		CreateDocumentBreakGlass:       h.createDocumentBreakGlass,
 		RevokeDocumentBreakGlass:       h.revokeDocumentBreakGlass,
 		GetDocumentAdminSummary:        h.getDocumentAdminSummary,

@@ -20,7 +20,7 @@ import { MOTION_TALLY_INVALIDATE_MS, motionKeys } from "../meetings/motion-hooks
 import { notificationKeys } from "../notifications/hooks";
 import { orgMemberRootKey } from "../organizations/hooks";
 import { peopleRootKey } from "../people/hooks";
-import { planCacheUpdate } from "../tasks/cache-coordinator";
+import { isTaskLifecycleEvent, planCacheUpdate } from "../tasks/cache-coordinator";
 import { taskKeys } from "../tasks/hooks";
 import { applyTaskPatchFrame } from "../tasks/realtime-task-patch";
 import type { WSEventType } from "../types/events";
@@ -28,6 +28,7 @@ import type { Meeting } from "../types/meeting";
 import { workspaceKeys } from "../workspaces/keys";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
 import { documentFrameKeys } from "./document-events";
+import { driveFrameKeys } from "./drive-events";
 import { followThroughFrameKeys, meetingTaskFrameKeys } from "./meeting-follow-through-events";
 import { transcriptFrameKeys } from "./meeting-transcript-events";
 import { changesOwnMembership, ownMembershipKeys, reloadSessionUser } from "./own-membership";
@@ -38,6 +39,7 @@ import {
 } from "./invalidate-scheduler";
 import { allWorkspaceKeys } from "./reconnect-keys";
 import { shouldInvalidateCalendar } from "./should-invalidate-calendar";
+import { trashFrameKeys } from "./trash-events";
 import { createSourcesRefresher } from "./source-events";
 
 /** The projector trails a task event (ADR 0019); the second graph refresh waits it out. */
@@ -97,6 +99,7 @@ function keysFor(
     if (cal) push(cal);
   };
 
+  for (const k of trashFrameKeys(wsId, type, payload)) push(k);
   const workMgmt = planCacheUpdate(wsId, { type, payload });
   if (workMgmt.keys.length > 0) {
     const patchedDetail =
@@ -111,9 +114,7 @@ function keysFor(
     // task/comment mutations that the coordinator maps.
     if (
       payload.task_id &&
-      (type === "task.created" ||
-        type === "task.updated" ||
-        type === "task.deleted" ||
+      (isTaskLifecycleEvent(type) ||
         type === "task.comment_added" ||
         type === "task.comment_updated" ||
         type === "task.comment_deleted" ||
@@ -124,19 +125,16 @@ function keysFor(
     }
     // The home summary lists open work assigned to the viewer; any task
     // lifecycle event can change it.
-    if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
+    if (isTaskLifecycleEvent(type)) {
       push(homeKeys.summary(wsId));
       // A linked task's title, status or due date shows in the chat info panel.
       push(chatKeys.roomLinkedTasksRoot(wsId));
+      meetingTaskFrameKeys(qc, type, payload.task_id).forEach(push);
     }
-    meetingTaskFrameKeys(qc, type, payload.task_id).forEach(push);
-    pushCalendar();
-    return keys;
   }
-
-  const documentFrame = documentFrameKeys(wsId, type, payload);
-  if (documentFrame) {
-    for (const k of documentFrame) push(k);
+  (documentFrameKeys(wsId, type, payload) ?? driveFrameKeys(wsId, type, payload))?.forEach(push);
+  if (keys.length > 0) {
+    pushCalendar();
     return keys;
   }
 
@@ -353,10 +351,6 @@ function keysFor(
       if (payload.meeting_id) push(meetingKeys.detail(payload.meeting_id));
       break;
     }
-    case "note.created": {
-      if (payload.meeting_id) push(meetingKeys.notes(payload.meeting_id));
-      break;
-    }
     case "transcript.appended": {
       if (payload.meeting_id) push(meetingKeys.transcript(payload.meeting_id));
       break;
@@ -481,9 +475,7 @@ const RENAMED_EVENTS: Record<string, WSEventType> = {
 function changesTaskGraph(type: WSEventType, payload: Record<string, string>): boolean {
   if (!payload.task_id) return false;
   return (
-    type === "task.created" ||
-    type === "task.updated" ||
-    type === "task.deleted" ||
+    isTaskLifecycleEvent(type) ||
     type === "chat.thread.linked" ||
     type === "chat.thread.unlinked"
   );

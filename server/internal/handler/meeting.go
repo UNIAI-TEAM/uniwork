@@ -27,7 +27,7 @@ func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
 	d := sdo.MeetingDTO{
 		ID: m.ID, WorkspaceID: m.WorkspaceID, Title: m.Title, Description: m.Description,
 		StartsAt: rfc3339(m.StartsAt), EndsAt: rfc3339(m.EndsAt),
-		RoomName: m.RoomName, CreatedBy: m.CreatedBy, CreatedAt: rfc3339(m.CreatedAt), Status: m.Status, MeetingType: m.MeetingType,
+		RoomName: m.RoomName, CreatedBy: m.CreatedBy, CreatedAt: rfc3339(m.CreatedAt), Status: m.Status, MeetingType: m.MeetingType, Venue: m.Venue,
 		HostUserID: m.HostUserID, Timezone: m.Timezone, AllowJoinRequest: m.AllowJoinRequest,
 		ProjectID: m.ProjectID.String, ActualStartAt: rfc3339(m.ActualStartAt), ActualEndAt: rfc3339(m.ActualEndAt),
 		Version: m.Version, ScribeEnabled: !m.ScribeOffAt.Valid, AIContentShared: m.AiContentSharedAt.Valid,
@@ -93,7 +93,7 @@ func (h *handlers) createMeeting(w http.ResponseWriter, r *http.Request) {
 		service.CreateMeetingInput{
 			Title: in.Title, Description: in.Description, StartsAt: in.StartsAt, EndsAt: in.EndsAt,
 			Timezone: in.Timezone, AllowJoinRequest: in.AllowJoinRequest, ProjectID: in.ProjectID,
-			AttendeeUserIDs: in.AttendeeUserIDs, FollowUpOf: in.PreviousMeetingID,
+			AttendeeUserIDs: in.AttendeeUserIDs, FollowUpOf: in.PreviousMeetingID, Venue: in.Venue,
 			IdempotencyKey: r.Header.Get("Idempotency-Key"),
 		})
 	if err != nil {
@@ -108,8 +108,8 @@ func (h *handlers) createInstantMeeting(w http.ResponseWriter, r *http.Request) 
 	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	m, err := h.Meetings.CreateInstantKeyed(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), in.Title,
-		r.Header.Get("Idempotency-Key"))
+	m, err := h.Meetings.CreateInstantKeyed(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"),
+		service.InstantMeetingInput{Title: in.Title, Venue: in.Venue, IdempotencyKey: r.Header.Get("Idempotency-Key")})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -143,7 +143,7 @@ func (h *handlers) updateMeeting(w http.ResponseWriter, r *http.Request) {
 		service.UpdateMeetingInput{
 			Title: in.Title, Description: in.Description, StartsAt: in.StartsAt, EndsAt: in.EndsAt,
 			Timezone: in.Timezone, AllowJoinRequest: in.AllowJoinRequest, ProjectID: in.ProjectID,
-			QuorumPercent: in.QuorumPercent,
+			QuorumPercent: in.QuorumPercent, Venue: in.Venue,
 		})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -251,6 +251,29 @@ func (h *handlers) createNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, map[string]any{"note": n})
+}
+
+func (h *handlers) updateNote(w http.ResponseWriter, r *http.Request) {
+	var in sdi.UpdateNoteSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	n, err := h.Meetings.UpdateNote(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "meetingID"), chi.URLParam(r, "noteID"), in.Body)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, map[string]any{"note": n})
+}
+
+func (h *handlers) deleteNote(w http.ResponseWriter, r *http.Request) {
+	if err := h.Meetings.DeleteNote(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "meetingID"), chi.URLParam(r, "noteID")); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.StatusSDO{Status: "ok"})
 }
 
 func (h *handlers) meetingStatistics(w http.ResponseWriter, r *http.Request) {

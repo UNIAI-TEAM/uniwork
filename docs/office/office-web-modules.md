@@ -483,7 +483,23 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, `51e1da41f` (`0.1.0-51e1da4`, the current REPIN-7 pin of UNI-2070: UNI-2011
+All six modules are pinned to one fork commit, `6799c6765` (`0.1.0-6799c67`, the REPIN-9 pin of UNI-2264: fork main
+`6799c6765`, which adds the frame request `ai.start` and the capability `aiStart` over `0.1.0-59defc1`, plus the UNI-2262
+PDF editing and signature fixes merged before it, so the PDF bundle changes for more than this feature). `types.ts` and
+`host.ts` changed (`AiStartPayload`, `AiStartResult`, `'aiStart'`, `host.startAi`, which rejects `unsupported` without
+sending when the `InitAck` has no `aiStart`), `endpoint.ts` did not, so the `protocol` and `host` digests are now
+`d8fd6031...74d9` and `d6ccebe5...4f1d`, the `endpoint` digest is unchanged, and the three vendored headers name `6799c6765`.
+The frame claims `aiStart` exactly when it claims `uniworkAi`, answers `{queued:true}` once the panel accepted the job and
+`unsupported` when the panel's provider is not UniWork AI; the web host grants it on `uniwork_ai` for an editable page and
+sends `ai.start` once, after its `api.open` answered (`use-frame-ai-handoff.ts`). The avatar route list
+(`AVATAR_ROUTE_FRAME_VERSIONS`) now holds `0.1.0-6799c67`, which keeps the avatar loader, in place of `0.1.0-59defc1`.
+Built on linux/arm64 (the Sheets wasm is the arm64 line `7ea491df...53f0` of the fork's checksum file), published at
+`web-0.1.0-6799c67` (`dist-web-0.1.0-6799c67.tar.gz`, sha256 `6e13dca5...153e`), and written by
+`node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` with `source.json` naming the release URL.
+
+The previous pin, kept for the history: `59defc158` (`0.1.0-59defc1`, the REPIN-8 pin of UNI-923: the
+desktop-shell-only UNI-2052, UNI-2066, UNI-2067, UNI-2068 and UNI-2069 over `0.1.0-51e1da4`, so the web frames equal it apart from the
+version stamp), replacing `0.1.0-51e1da4` (the REPIN-7 pin of UNI-2070: fork main `51e1da41f`, UNI-2011
 shortcuts, UNI-2060 `aria-keyshortcuts` and UNI-2065 over `0.1.0-929f0ca`), replacing `0.1.0-929f0ca` (the UNI-1986 pin: fork main
 `bb8702153` plus the frame comment avatars, over `0.1.0-d57e60f`), replacing `0.1.0-d57e60f` (the UNI-2033 pin: fork main `d57e60f81`, the
 lost-comment "View in version N" and the UNI-2017 comment anchors after Save over `0.1.0-1abc493`),
@@ -556,7 +572,13 @@ button and dropdown option names its plain command; the chord moves to `aria-key
 any more) and UNI-2065 (the lost-anchor "View in version N" link of the comments kit has its own wrapping row, `.collab-lostver`);
 UNI-2047 (the Documents list and the Share dialog of the desktop app, N-04 filter selects, N-05 quick-create strip), UNI-2050 (the
 UniNote page icon) and UNI-2046 (the Plain text New-menu entry) are the desktop shell only (`apps/shell`), so they are no web frame
-change; no frame protocol change (nothing under `web/docs/protocol` changed since `d57e60f81`),
+change; no frame protocol change (nothing under `web/docs/protocol` changed since `d57e60f81`); `59defc158` adds over `51e1da41f`
+UNI-2052 (folder and multi-file upload in the Documents home of the desktop app), UNI-2066 (list, create, move and trash rules for
+workspace folders), UNI-2067 (the `document_changed` tray rows and the affected-documents dialog), UNI-2068 (the zip download and the
+single-file download of the bulk bar) and UNI-2069 (the Ask UNI mode of the Home My AI chat, with citations opened in the app or as the
+web page), all of them the desktop shell only (`apps/shell`: the whole delta is 275 files there plus three lines of `.prettierignore`,
+nothing under `web/` or `packages/`), so they are no web frame change; no frame protocol change (nothing under `web/docs/protocol`
+changed since `d57e60f81`),
 UNI-1920 (the locked-out Docs "Save as a copy" the
 host's `api.saveCopy` answers, and the
 frame-side Ctrl/Cmd+P accelerator in Docs and HTML), and the SIZE-F1 + LAG-F1 frame protocol and UI events (with
@@ -566,7 +588,7 @@ nothing under `web/docs/protocol` between `82c8381e1` and `1abc493e4` (and only 
 `types.ts` changed (`comments.viewVersion`, `commentsViewVersion`, `anchor_version_no`; `PROTOCOL_VERSION` 1), so the `protocol`
 digest is now `914cc471...1664`, the `endpoint` and `host` digests are unchanged, and the three vendored headers name `d57e60f81`; at
 `929f0cac7` nothing under `web/docs/protocol` changed, so all three digests and the vendored headers are the ones of `d57e60f81`:
-at `51e1da41f` nothing under `web/docs/protocol` changed either, so the digests stay the same and the vendored headers keep naming `d57e60f81`:
+at `51e1da41f` and `59defc158` nothing under `web/docs/protocol` changed either, so the digests stay the same and the vendored headers keep naming `d57e60f81`:
 every pin's `protocolSha256` is identical to the `0.1.0-d57e60f` pins and `frame-protocol-vendor.test.mjs` passes), the AI model picker that keeps a
 provider with an empty model list (`7888df06c`, the UniWork AI row; the S7-S9 UX floor checks no longer skip), the UXF-01/08/09
 fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-1824) web-frame UX floor fixes (UXF-03 Docs S5
@@ -575,9 +597,9 @@ fixes (picker focus ring, listbox structure, S8 disclosure), the UXF-FIX (UNI-18
 UXF-07 full-width S5 below 768 px, UXF-10 fixed window live nodes created at frame init, and the `ConflictIo.saveCopy` contract
 for UXF-02), the G8-11 Discussion panel web side, the G6-09 AI edit-undo tables, and the DOC-05 comment level,
 `comments.shareView` and `canActOnComment` root author. Built clean (no `-dirty` suffix) with `npm run build:web -- --all` in a
-detached worktree of `51e1da41f` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
-checksum file), published at `web-0.1.0-51e1da4` (`dist-web-0.1.0-51e1da4.tar.gz`, sha256 `0a9502d1...ea60`; the previous
-`web-0.1.0-929f0ca` is `dist-web-0.1.0-929f0ca.tar.gz`, sha256 `d035f159...d5af`), and
+detached worktree of `59defc158` on bro (linux-arm64; the Sheets wasm is the arm64 line `bd3873bc...7445` of the fork's
+checksum file), published at `web-0.1.0-59defc1` (`dist-web-0.1.0-59defc1.tar.gz`, sha256 `d348a4bf...e6c7`; the previous
+`web-0.1.0-51e1da4` is `dist-web-0.1.0-51e1da4.tar.gz`, sha256 `0a9502d1...ea60`), and
 written by `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` alongside `source.json`.
 UXF-03/04/05/06/07/10 have their expected-fail markers removed in `e2e/office-ux-floor.spec.ts` (since `0.1.0-5a72c13`, waiting
 for the cloud e2e run to confirm); UXF-02's marker left with UNI-1872 (`09da7ebb9`): the D web host supplies
@@ -597,13 +619,19 @@ headers did not change from `36e9e23`, only version, SHA and manifest digest. Wr
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball of dist-web>`
 and verified file by file on install.
 
+`0.1.0-59defc1` has the same file counts per module as the table below and the same sizes to the last digit as `0.1.0-51e1da4`
+(the build log: unpacked `docs` 17.72, `pdf` 17.29, `markdown` 8.86, `html` 2.62, `slides` 6.35, `sheets` 27.84 MiB; gzip 11.94, 8.01,
+2.80, 0.81, 2.48, 7.93 MiB; initial download 5.92, 2.78, 3.76, 2.61, 4.95, 6.40 MiB), which is what a delta that touches no web file
+should give: of the 616 files only `index.html` and `manifest.json` of each module differ from `0.1.0-51e1da4`, and `index.html` only in
+the version stamp. The `sheets` entry-chunk split flagged at `0.1.0-51e1da4` (`index` 6.44 MB, `App` 6.34 MB) is unchanged.
+
 `0.1.0-51e1da4` has the same file counts per module as the table below, and the build log measures it as the table shows (unpacked
 `docs` 17.72, `pdf` 17.29, `markdown` 8.86, `html` 2.62, `slides` 6.35, `sheets` 27.84 MiB; gzip 11.94, 8.01, 2.80, 0.81, 2.48, 7.93 MiB; initial
 download 5.92, 2.78, 3.76, 2.61, 4.95, 6.40 MiB). Against the `0.1.0-929f0ca` figures the unpacked sizes grew by 0.11 to 0.13 MiB, the
 `sheets` initial download grew from 4.14 to 6.40 MiB (gzip 1.14 to 1.80 MiB) (its deferred part fell from 23.58 to 21.44 MiB: the entry chunk `index` went from 4.07 to 6.44 MB while the
 lazy `App` chunk went from 8.58 to 6.34 MB, so the chunk split moved code into the entry) and the other initial downloads grew by 0.11 to 0.13 MiB.
 
-Sizes of the `0.1.0-51e1da4` bundles as the build log reports them (the `0.1.0-d57e60f` build was measured against `0.1.0-1abc493`: `docs`, `pdf`, `markdown`, `html` and `slides` unpacked +0.01 MiB each, `sheets` gzip 7.91 MiB (7.90 before); `0.1.0-1abc493` itself was identical to `0.1.0-f01befd`, `0.1.0-b1cbd5d` and `0.1.0-b5da4d4`, except `sheets`, whose unpacked size is 27.71 MiB (27.70 before)):
+Sizes of the `0.1.0-59defc1` bundles (identical to the `0.1.0-51e1da4` ones) as the build log reports them (the `0.1.0-d57e60f` build was measured against `0.1.0-1abc493`: `docs`, `pdf`, `markdown`, `html` and `slides` unpacked +0.01 MiB each, `sheets` gzip 7.91 MiB (7.90 before); `0.1.0-1abc493` itself was identical to `0.1.0-f01befd`, `0.1.0-b1cbd5d` and `0.1.0-b5da4d4`, except `sheets`, whose unpacked size is 27.71 MiB (27.70 before)):
 
 | module | pin | files | unpacked | gzip | initial download | CSP beyond the shared policy |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -785,7 +813,7 @@ field:
   (presigned or provider) is only the signal "has a picture" and is never forwarded into the frame;
 - the rewrite applies only to a frame build that knows the route: the pinned version (`pinnedFrameVersion(module)`)
   must be listed in `AVATAR_ROUTE_FRAME_VERSIONS` (`frame-avatar-url.ts`). Any other build gets `""`, which draws the
-  initials and ends the CSP violation per comment. The route is on: the list holds `0.1.0-51e1da4`, the pin of all six
+  initials and ends the CSP violation per comment. The route is on: the list holds `0.1.0-59defc1`, the pin of all six
   modules (the build with the fork's avatar loader). A later re-pin that keeps the loader adds its version there;
   a build without it must not be listed.
 - `e2e/office-docs-avatars-web.spec.ts` proves it on a real stack (cloud runner): a colleague with a stored picture

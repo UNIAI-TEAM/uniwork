@@ -49,4 +49,19 @@ if (typeof window !== "undefined") {
     }
   }
   (globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver ??= IntersectionObserverStub;
+
+  // jsdom has no PointerEvent; Base UI builds one when a Radio, Switch or Toggle
+  // is clicked (the same shim as packages/views/test/setup.ts).
+  if (typeof (globalThis as { PointerEvent?: unknown }).PointerEvent === "undefined") {
+    class PointerEventStub extends MouseEvent {
+      pointerId = 1;
+      pointerType: string;
+      isPrimary = true;
+      constructor(type: string, init?: PointerEventInit) {
+        super(type, init);
+        this.pointerType = init?.pointerType ?? "mouse";
+      }
+    }
+    (globalThis as unknown as { PointerEvent: typeof PointerEventStub }).PointerEvent = PointerEventStub;
+  }
 }

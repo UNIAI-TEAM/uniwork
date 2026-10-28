@@ -2,6 +2,7 @@
 
 import type { MouseEventHandler, ReactNode } from "react";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 
 /** Shared presentation only; connecting devices belongs to MeetingControlBar. */
@@ -9,12 +10,12 @@ export const MEETING_CHIP = "size-11 shrink-0 rounded-xl";
 
 // `busy`: a switch is under way. aria-disabled, not disabled: the button keeps focus (and the
 // Button primitive drops the click), so a keyboard user is not thrown back to <body>.
-export function IconControl({ label, tooltip, pressed, tone, onClick, busy, children }: {
+export function IconControl({ label, tooltip, pressed, tone, onClick, busy, className, children }: {
   label: string; tooltip?: string; pressed?: boolean; tone?: "off" | "active";
-  onClick?: MouseEventHandler<HTMLButtonElement>; busy?: boolean; children: ReactNode;
+  onClick?: MouseEventHandler<HTMLButtonElement>; busy?: boolean; className?: string; children: ReactNode;
 }) {
   return <Tooltip>
-    <TooltipTrigger render={<Button type="button" size="icon-lg" variant={tone === "off" ? "destructiveSolid" : tone === "active" ? "brand" : "meetingChip"} aria-label={label} aria-pressed={pressed} aria-disabled={busy || undefined} aria-busy={busy || undefined} onClick={onClick} className={MEETING_CHIP} />}>{children}</TooltipTrigger>
+    <TooltipTrigger render={<Button type="button" size="icon-lg" variant={tone === "off" ? "destructiveSolid" : tone === "active" ? "brand" : "meetingChip"} aria-label={label} aria-pressed={pressed} aria-disabled={busy || undefined} aria-busy={busy || undefined} onClick={onClick} className={cn(MEETING_CHIP, className)} />}>{children}</TooltipTrigger>
     <TooltipContent side="top" className="dark">{tooltip ?? label}</TooltipContent>
   </Tooltip>;
 }

@@ -315,6 +315,9 @@ type CreateFileDocumentInput struct {
 	Body           io.Reader
 	Visibility     string
 	IdempotencyKey string
+	// Template uploads the file as a workspace template (UNI-2225): a root
+	// file, workspace-visible with edit, marked in the same transaction.
+	Template bool
 	// engine is the provenance of bytes the Office engine produced (blank
 	// create); set only inside the service, never from a request.
 	engine DocumentEngineInfo
@@ -322,11 +325,15 @@ type CreateFileDocumentInput struct {
 	// (document_sources.go); set only inside the service, recorded on the
 	// audit row as provenance.
 	sourceFileID string
+	// fromTemplate makes the new document from a marked template's current
+	// file (document_from_template.go): the file id is reused, not uploaded;
+	// set only inside the service.
+	fromTemplate *templateFileSource
 }
 
 const idempotencyScopeDocumentFileCreate = "documents.files.create"
 
-func fileCreateFingerprint(workspaceID, parentID, title, checksum, visibility, destination string) string {
+func fileCreateFingerprint(workspaceID, parentID, title, checksum, visibility, destination string, template bool) string {
 	parts := []string{idempotencyScopeDocumentFileCreate, workspaceID, parentID, title, checksum}
 	if visibility != "" {
 		// Only a named visibility joins the fingerprint: a retry in flight
@@ -336,6 +343,10 @@ func fileCreateFingerprint(workspaceID, parentID, title, checksum, visibility, d
 	}
 	if destination != "" {
 		parts = append(parts, "destination:"+destination)
+	}
+	if template {
+		// Only a template joins, so every fingerprint minted before stays valid.
+		parts = append(parts, "template")
 	}
 	return IdempotencyFingerprint(parts...)
 }
@@ -357,6 +368,9 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	}
 	if err := validateDocumentDestination(in.Destination, in.ParentID); err != nil {
 		return DocumentFileResult{}, err
+	}
+	if in.Template && (in.ParentID != "" || in.Destination != "") {
+		return DocumentFileResult{}, Invalid("mẫu chỉ tải lên ở gốc Tài liệu của workspace")
 	}
 	// The request is checked before its bytes are staged, like the page route:
 	// a bad visibility must not leave a claimed upload behind.
@@ -382,13 +396,23 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		return DocumentFileResult{}, err
 	}
 	scope := documentScope(orgID, workspaceID)
-	up, _, err := s.uploadChecked(ctx, fs, actor, files.DocumentFile, scope,
-		fileUploadKey("documents.create", workspaceID, in.IdempotencyKey), DocumentUploadInput{Filename: in.Filename, Body: in.Body})
+	var staged files.File
+	fpChecksum := ""
+	if in.fromTemplate != nil {
+		staged, err = resolveUpload(ctx, fs, scope, in.fromTemplate.version.FileID.String)
+		// The template joins the fingerprint: two templates may share bytes.
+		fpChecksum = "template:" + in.fromTemplate.doc.ID + ":"
+	} else {
+		var up files.Upload
+		up, _, err = s.uploadChecked(ctx, fs, actor, files.DocumentFile, scope,
+			fileUploadKey("documents.create", workspaceID, in.IdempotencyKey), DocumentUploadInput{Filename: in.Filename, Body: in.Body})
+		staged = up.File
+	}
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
 	opts := IdempotencyOptions{
-		Fingerprint:        fileCreateFingerprint(workspaceID, in.ParentID, title, up.File.ChecksumSHA256, in.Visibility, in.Destination),
+		Fingerprint:        fileCreateFingerprint(workspaceID, in.ParentID, title, fpChecksum+staged.ChecksumSHA256, in.Visibility, in.Destination, in.Template),
 		RequireFingerprint: true,
 	}
 
@@ -411,13 +435,20 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, actor.ID); err != nil {
 		return DocumentFileResult{}, err
 	}
+	if in.fromTemplate != nil {
+		// The template may have lost its mark, or the reader's access, since
+		// the pre-flight: the transaction's own read decides.
+		if err := s.recheckTemplateInTx(ctx, q, actor, workspaceID, in.fromTemplate); err != nil {
+			return DocumentFileResult{}, err
+		}
+	}
 	// FS-C1 §5.4: the files rows lock before this module's own rows - the
 	// claim comes first, then the workspace tree lock and the parent row
 	// lock follow (the idempotency ledger claim still precedes everything,
 	// N-01). A retried key replays above without ever touching the parent:
 	// losing access to it after the commit does not strand the replay.
 	claimed, err := fs.ClaimInTx(ctx, q, files.ClaimInput{
-		Actor: actor, Purpose: files.DocumentFile, Scope: scope, FileIDs: []files.FileID{up.File.ID},
+		Actor: actor, Purpose: files.DocumentFile, Scope: scope, FileIDs: []files.FileID{staged.ID},
 	})
 	if err != nil {
 		return DocumentFileResult{}, documentFileError(err)
@@ -449,8 +480,17 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		parent = &p
 	}
 	visibility, workspaceLevel := createHomeRow(in.Visibility, parent)
-	if err := s.consumeStorage(ctx, q, actor, orgID, workspaceID, file); err != nil {
-		return DocumentFileResult{}, err
+	if in.Template {
+		// createHomeRow gives a root workspace file view; a template is for the
+		// whole workspace to open, edit and copy.
+		visibility, workspaceLevel = documentVisibilityWorkspace, string(DocumentLevelEdit)
+	}
+	// A template's file is already held by the template: FileService counts a
+	// file id once, so a file made from it adds no bytes (as CopyDocument).
+	if in.fromTemplate == nil {
+		if err := s.consumeStorage(ctx, q, actor, orgID, workspaceID, file); err != nil {
+			return DocumentFileResult{}, err
+		}
 	}
 	docID, versionID := util.NewID(), util.NewID()
 	params := db.InsertDocumentParams{
@@ -473,6 +513,15 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		UpdatedByKind:  string(actor.Kind),
 		LastVersionAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
+	if in.fromTemplate != nil {
+		// Provenance as a copy writes it; conversion_reason stays NULL.
+		params.SourceDocumentID = pgtype.Text{String: in.fromTemplate.doc.ID, Valid: true}
+		params.SourceVersionID = pgtype.Text{String: in.fromTemplate.version.ID, Valid: true}
+		params.SourceRevision = pgtype.Int8{Int64: in.fromTemplate.doc.Revision, Valid: true}
+		params.SourceFormat = in.fromTemplate.version.MimeType
+		params.TargetFormat = in.fromTemplate.version.MimeType
+		params.SourceChecksumSha256 = in.fromTemplate.version.ChecksumSha256
+	}
 	doc, err := q.InsertDocument(ctx, params)
 	if err != nil {
 		return DocumentFileResult{}, err
@@ -487,6 +536,11 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if in.sourceFileID != "" {
 		created["source_file_id"] = in.sourceFileID
 	}
+	if in.fromTemplate != nil {
+		created["source_document_id"] = in.fromTemplate.doc.ID
+		created["source_version_id"] = in.fromTemplate.version.ID
+		created["reason"] = "template"
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: orgID,
 		WorkspaceID:    workspaceID,
@@ -499,6 +553,11 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		"document_id": doc.ID, "workspace_id": workspaceID,
 	}}); err != nil {
 		return DocumentFileResult{}, err
+	}
+	if in.Template {
+		if doc, err = s.recordTemplateMark(ctx, q, actor, doc); err != nil {
+			return DocumentFileResult{}, err
+		}
 	}
 	access, err := s.effectiveLevel(ctx, q, actor, doc)
 	if err != nil {

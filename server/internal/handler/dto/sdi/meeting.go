@@ -15,6 +15,7 @@ type CreateMeetingSDI struct {
 	AllowJoinRequest  *bool     `json:"allow_join_request"`
 	ProjectID         string    `json:"project_id" example:""`
 	AttendeeUserIDs   []string  `json:"attendee_user_ids"`
+	Venue             string    `json:"venue" enum:"online,in_person" description:"Hình thức: online có phòng họp; in_person ghi âm tại phòng" example:"online"`
 	PreviousMeetingID string    `json:"previous_meeting_id,omitempty" description:"ULID cuộc họp mà cuộc họp này là buổi tiếp theo: cuộc họp mới vào cùng chuỗi, việc chưa xong được mang sang theo chuỗi" example:""`
 }
 
@@ -35,6 +36,7 @@ type ListMeetingsSDI struct {
 
 type CreateInstantMeetingSDI struct {
 	Title string `json:"title" example:"Họp nhanh"`
+	Venue string `json:"venue,omitempty" enum:"online,in_person" description:"Hình thức: online mở phòng họp ngay; in_person ghi âm tại phòng, không mở phòng" example:"online"`
 }
 
 // PatchMeetingSDI is PATCH /api/v1/meetings/{meetingID}.
@@ -46,11 +48,16 @@ type PatchMeetingSDI struct {
 	Timezone         *string    `json:"timezone"`
 	AllowJoinRequest *bool      `json:"allow_join_request"`
 	ProjectID        *string    `json:"project_id"`
+	Venue            *string    `json:"venue" enum:"online,in_person" description:"Hình thức: online có phòng họp; in_person ghi âm tại phòng" example:"online"`
 	QuorumPercent    *int       `json:"quorum_percent" minimum:"0" maximum:"100" description:"Tỉ lệ có mặt tối thiểu (%); 0 = bỏ yêu cầu" example:"60"`
 }
 
 type CreateNoteSDI struct {
 	Body string `json:"body" minLength:"1" description:"Nội dung ghi chú" example:"Quyết định ship vào thứ Sáu."`
+}
+
+type UpdateNoteSDI struct {
+	Body string `json:"body" minLength:"1" description:"Nội dung mới của ghi chú" example:"Quyết định ship vào thứ Hai."`
 }
 
 type InviteParticipantSDI struct {
@@ -266,6 +273,11 @@ type ConvertActionItemsSDI struct {
 	Locale string                 `json:"locale" description:"Ngôn ngữ nhãn trong mô tả task (Người phụ trách/Hạn): vi | en; bỏ trống hoặc giá trị khác = vi" example:"vi"`
 }
 
+// RateCallSDI is POST /api/v1/meetings/{meetingID}/call-rating.
+type RateCallSDI struct {
+	Rating string `json:"rating" enum:"good,ok,poor" description:"Âm thanh, hình ảnh lúc rời phòng: good (tốt), ok (tạm), poor (kém)" example:"good"`
+}
+
 // AppendChatSDI is POST /api/v1/meetings/{meetingID}/chat.
 type AppendChatSDI struct {
 	Message string `json:"message" minLength:"1" description:"Nội dung tin nhắn (hỗ trợ xuống dòng)" example:"Chốt ship vào thứ Sáu.\nAi làm phần QA?"`
@@ -315,8 +327,10 @@ type CreateMinutesSDI struct {
 // RecordMeetingHeldSDI is POST /api/v1/meetings/{meetingID}/held: the actual
 // times of a meeting held in person without a room (UNI-2001).
 type RecordMeetingHeldSDI struct {
-	StartedAt string `json:"started_at" format:"date-time" description:"Giờ bắt đầu thực tế (RFC 3339)" example:"2026-10-20T01:30:00Z"`
-	EndedAt   string `json:"ended_at" format:"date-time" description:"Giờ kết thúc thực tế; sau started_at và không ở tương lai" example:"2026-10-20T03:00:00Z"`
+	StartedAt       string `json:"started_at" format:"date-time" description:"Giờ bắt đầu thực tế (RFC 3339)" example:"2026-10-20T01:30:00Z"`
+	EndedAt         string `json:"ended_at" format:"date-time" description:"Giờ kết thúc thực tế; sau started_at và không ở tương lai" example:"2026-10-20T03:00:00Z"`
+	DurationSeconds int    `json:"duration_seconds,omitempty" minimum:"0" maximum:"86400" description:"Thời lượng đã họp (giây, tối đa 24 giờ), khi bỏ trống hai giờ: kết thúc lúc server nhận trừ ended_seconds_ago" example:"2520"`
+	EndedSecondsAgo int    `json:"ended_seconds_ago,omitempty" minimum:"0" maximum:"2592000" description:"Cùng duration_seconds: số giây từ lúc thiết bị dừng ghi đến lúc gửi (đo trên đồng hồ thiết bị); server lấy giờ kết thúc = giờ nhận trừ khoảng này. Tối đa 30 ngày" example:"7200"`
 }
 
 // RequestTranscriptionSDI is POST /api/v1/meetings/{meetingID}/transcriptions.
@@ -325,6 +339,7 @@ type RequestTranscriptionSDI struct {
 	Language        string  `json:"language,omitempty" enum:"vi,en" description:"Ngôn ngữ chính của buổi họp; bỏ trống = vi" example:"vi"`
 	Consent         bool    `json:"consent" description:"Người tải lên xác nhận đã thông báo cho người dự họp về việc ghi âm (Nghị định 13/2023/NĐ-CP); false -> 422 recording_consent_required" example:"true"`
 	DurationSeconds float64 `json:"duration_seconds,omitempty" minimum:"0" description:"Thời lượng (giây) trình duyệt đọc từ metadata của tệp; bỏ trống khi không đọc được. Chỉ dùng để ước hạn mức trước (kẹp theo dung lượng tệp), phút tính phí lấy từ nhà cung cấp" example:"1080.5"`
+	OffsetSeconds   *int    `json:"offset_seconds,omitempty" minimum:"0" description:"Phần ghi này bắt đầu sau giờ bắt đầu thực tế của cuộc họp bao nhiêu giây; bỏ trống = nối sau các phần trước. Âm hoặc quá thời lượng cuộc họp thêm 60 giây -> 422 invalid_offset" example:"1200"`
 }
 
 // CreateMeetingAudioUploadSessionSDI is POST

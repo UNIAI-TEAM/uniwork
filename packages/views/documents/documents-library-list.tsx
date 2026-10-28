@@ -38,7 +38,9 @@ export interface DocumentsLibraryListProps {
   cardsShown?: boolean;
   /** The no-matches copy of the open view when it is not the generic library
    *  wording (the shelved list names its own empty-filtered line). */
-  emptyFiltered?: { title: string; description: string };
+  emptyFiltered?: { title: string; description?: string };
+  /** Custom label for the clear action in the empty-filtered state (e.g. "Xóa tìm kiếm" when searching). */
+  clearFiltersLabel?: string;
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
@@ -66,6 +68,8 @@ export interface DocumentsLibraryListProps {
   highlightId?: string | null;
   /** The date groups' collapse state (W11); absent, the group headers do not collapse. */
   collapse?: GroupCollapse;
+  /** The header text of a group when its key is not a date group (Mẫu văn bản groups by format). */
+  groupLabel?: (key: string) => string;
   /** The empty state's copy and actions, which depend on the open view. */
   empty: { title: string; description: string; actions?: ReactNode; icon?: LucideIcon };
 }
@@ -84,6 +88,7 @@ export function DocumentsLibraryList({
   metaFiltered = false,
   cardsShown = false,
   emptyFiltered,
+  clearFiltersLabel,
   hasMore,
   loadingMore,
   onLoadMore,
@@ -99,6 +104,7 @@ export function DocumentsLibraryList({
   label,
   highlightId = null,
   collapse,
+  groupLabel,
   empty,
 }: DocumentsLibraryListProps) {
   const { t } = useTranslation();
@@ -172,18 +178,19 @@ export function DocumentsLibraryList({
           icon={Search}
           title={emptyFiltered?.title ?? t("documents.library.no_matches_title")}
           description={
-            emptyFiltered?.description ??
-            t(
-              metaFiltered
-                ? clientFiltered && hasMore
-                  ? "documents.home.no_matches_filters_more_description"
-                  : "documents.home.no_matches_filters_description"
-                : clientFiltered && hasMore
-                  ? "documents.home.no_matches_more_description"
-                  : cardsShown
-                    ? "documents.home.no_matches_description"
-                    : "documents.home.no_matches_plain_description",
-            )
+            emptyFiltered && "description" in emptyFiltered
+              ? emptyFiltered.description
+              : t(
+                  metaFiltered
+                    ? clientFiltered && hasMore
+                      ? "documents.home.no_matches_filters_more_description"
+                      : "documents.home.no_matches_filters_description"
+                    : clientFiltered && hasMore
+                      ? "documents.home.no_matches_more_description"
+                      : cardsShown
+                        ? "documents.home.no_matches_description"
+                        : "documents.home.no_matches_plain_description",
+                )
           }
           role="status"
           actions={
@@ -194,7 +201,7 @@ export function DocumentsLibraryList({
                 </Button>
               ) : null}
               <Button type="button" variant="outline" size="sm" onClick={onClearFilters}>
-                {t("documents.library.clear_filters")}
+                {clearFiltersLabel ?? t("documents.library.clear_filters")}
               </Button>
             </div>
           }
@@ -324,7 +331,7 @@ export function DocumentsLibraryList({
           </thead>
           {groups.map((group) => {
             const collapsed = showGroups && Boolean(collapse?.isCollapsed(group.key));
-            const title = t(docListGroupLabelKey(group.key as DocListGroupId));
+            const title = groupLabel ? groupLabel(group.key) : t(docListGroupLabelKey(group.key as DocListGroupId));
             return (
               // A grouped row is indented 28px under its header (the shared format rules).
               <tbody key={group.key} className={showGroups ? "[&_td[data-column=name]]:pl-10" : undefined}>

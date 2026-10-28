@@ -30,6 +30,10 @@ const (
 	docVerbVersionCreated = "version_created"
 )
 
+// docVerbRelocatedFromPage is the rule-7 relocation out of a trashed page or
+// file (UNI-2074): the sentence names a page where relocated names a folder.
+const docVerbRelocatedFromPage = "relocated_from_page"
+
 // docChangeSamples bounds sample_document_ids: the inbox names a few titles
 // and counts the rest.
 const docChangeSamples = 3
@@ -81,11 +85,30 @@ func both(a, b rule) rule {
 	}
 }
 
-// docChangeRule is the rule of a topic whose verb never depends on the row.
-func docChangeRule(verb string) rule {
-	return func(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
-		return documentChangeDrafts(ctx, e, ev, p, verb, docChangeOpts{anyPrivacy: verb == docVerbAccessChanged})
+// ruleDocumentSharedAccessChange and ruleDocumentShareRevokedAccessChange skip
+// per-document document_changed notices when the share write belongs to a
+// folder bulk access batch (metadata.via = "folder_contents", UNI-2244 §6).
+func ruleDocumentSharedAccessChange(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if isFolderContentsShareEvent(ctx, e.q, ev, audit.ActionDocumentShared, p["document_id"]) {
+		return nil, nil
 	}
+	return documentChangeDrafts(ctx, e, ev, p, docVerbAccessChanged, docChangeOpts{anyPrivacy: true})
+}
+
+func ruleDocumentShareRevokedAccessChange(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if isFolderContentsShareEvent(ctx, e.q, ev, audit.ActionDocumentShareRevoked, p["document_id"]) {
+		return nil, nil
+	}
+	return documentChangeDrafts(ctx, e, ev, p, docVerbAccessChanged, docChangeOpts{anyPrivacy: true})
+}
+
+func isFolderContentsShareEvent(ctx context.Context, q *db.Queries, ev outbox.Row, action, docID string) bool {
+	meta, err := auditMetadata(ctx, q, ev, action, docID)
+	if err != nil || meta == nil {
+		return false
+	}
+	via, _ := meta["via"].(string)
+	return via == "folder_contents"
 }
 
 // noticedVerbs are the verbs a command may write on document.change_noticed;
@@ -108,7 +131,10 @@ func ruleDocumentChangeNoticed(ctx context.Context, e env, ev outbox.Row, p map[
 }
 
 // ruleDocumentMovedChange tells a move from a rule-7 relocation by the
-// command's audit row (hook proposal v2): the payload stays ids-only.
+// command's audit row (hook proposal v2): the payload stays ids-only. The
+// row's from_kind picks the wording: a page or file root reads
+// relocated_from_page; a folder root, and a row written before from_kind
+// existed, keep relocated.
 func ruleDocumentMovedChange(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
 	if !docChangeActor(ev) {
 		return nil, nil
@@ -118,7 +144,11 @@ func ruleDocumentMovedChange(ctx context.Context, e env, ev outbox.Row, p map[st
 		return nil, err
 	}
 	if reason, _ := meta["reason"].(string); reason == audit.ReasonFolderTrashed {
-		return documentChangeDrafts(ctx, e, ev, p, docVerbRelocated, docChangeOpts{ownerAlways: true})
+		verb := docVerbRelocated
+		if kind, _ := meta["from_kind"].(string); kind != "" && kind != "folder" {
+			verb = docVerbRelocatedFromPage
+		}
+		return documentChangeDrafts(ctx, e, ev, p, verb, docChangeOpts{ownerAlways: true})
 	}
 	return documentChangeDrafts(ctx, e, ev, p, docVerbMoved, docChangeOpts{})
 }

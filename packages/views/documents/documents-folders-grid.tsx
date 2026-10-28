@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Folder, FolderInput, FolderOpen, FolderPlus, Ellipsis, Pencil, ShieldCheck, Star, StarOff, Trash } from "lucide-react";
+import { Archive, Folder, FolderInput, FolderOpen, FolderPlus, Ellipsis, Pencil, Share2, ShieldCheck, Star, StarOff, Trash } from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { isMyFolder, isShelved, type DocumentTreeNode } from "@uniwork/core/types/document";
@@ -34,7 +34,8 @@ export interface DocumentsFoldersGridProps {
   /** The table row handlers; a handler absent for the viewer hides its menu item too. */
   handlers: Pick<
     LibraryRowHandlers,
-    "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onToggleStar" | "isStarred" | "personName"
+    | "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onShareContents"
+    | "onArchive" | "onToggleStar" | "isStarred" | "personName" | "searchPath"
   >;
   onOpenFolder: (folderId: string) => void;
 }
@@ -62,6 +63,7 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
           .filter(Boolean)
           .join(" · ");
         const starred = Boolean(doc && handlers.isStarred(doc.id));
+        const searchPath = handlers.searchPath?.(doc ?? { path: [] }) ?? null;
         const menuItems = doc ? folderMenuItems(doc, handlers, t) : [];
         const canMenu = menuItems.length > 0 || Boolean(doc && handlers.onToggleStar);
         return (
@@ -86,6 +88,14 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
                     <Star role="img" aria-label={t("documents.home.row.starred")} className="size-3.5 shrink-0 fill-current text-brand" />
                   ) : null}
                 </span>
+                {searchPath ? (
+                  <>
+                    <span aria-hidden title={searchPath.full} className="truncate text-caption text-muted-foreground">
+                      {searchPath.display}
+                    </span>
+                    <span className="sr-only">{searchPath.srText}</span>
+                  </>
+                ) : null}
                 {meta ? <span className="truncate text-caption text-muted-foreground">{meta}</span> : null}
               </span>
             </button>
@@ -121,7 +131,7 @@ export function DocumentsFoldersGrid({ folders, docById, handlers, onOpenFolder 
                   ) : null}
                   {menuItems.length > 0 ? <DropdownMenuSeparator /> : null}
                   {menuItems.map((item) => (
-                    <DropdownMenuItem key={item.id} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={item.run}>
+                    <DropdownMenuItem key={item.id} data-testid={item.testId} className="gap-2 px-2 py-2 pointer-coarse:min-h-11" onClick={item.run}>
                       <item.icon aria-hidden className="size-4" />
                       {item.label}
                     </DropdownMenuItem>
@@ -141,12 +151,13 @@ interface FolderMenuItem {
   label: string;
   icon: typeof Pencil;
   run: () => void;
+  testId?: string;
 }
 
 /** The commands a folder already offers (the table row's vocabulary), gated by the same levels. */
 export function folderMenuItems(
   doc: DocumentSummaryRow,
-  handlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive">,
+  handlers: Pick<LibraryRowHandlers, "onNewSubfolder" | "canCreateInside" | "onRename" | "onMove" | "onShelve" | "onArchive" | "onShareContents">,
   t: (key: string) => string,
   /** The open folder's header offers its access report; the cards do not pass this. */
   onAccessReport?: (doc: DocumentSummaryRow) => void,
@@ -163,6 +174,10 @@ export function folderMenuItems(
   }
   if (!myFolder && handlers.onMove && canMoveRow(level)) {
     items.push({ id: "move", label: t("documents.tree.menu.move_to"), icon: FolderInput, run: () => handlers.onMove?.(doc) });
+  }
+  // The bulk command for the documents inside: any reader of the folder, My Folder included (as the tree menu).
+  if (handlers.onShareContents) {
+    items.push({ id: "share-contents", label: t("documents.folderAccess.menu"), icon: Share2, run: () => handlers.onShareContents?.(doc), testId: "folder-access-menu-item" });
   }
   // The report lists grants, which only a manager may read (the server decides again).
   if (onAccessReport && canArchiveRow(level)) {

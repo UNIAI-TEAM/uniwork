@@ -5,6 +5,7 @@ import { graphKeys } from "../graph/keys";
 import { meetingKeys } from "../meetings/hooks";
 import { notificationKeys } from "../notifications/hooks";
 import { taskKeys } from "../tasks/hooks";
+import { trashKeys } from "../trash/keys";
 
 /** Keys that could have gone stale while the socket was down. */
 export function allWorkspaceKeys(wsId: string) {
@@ -44,5 +45,6 @@ export function allWorkspaceKeys(wsId: string) {
     documentKeys.workspace(wsId),
     documentKeys.favoritesRoot,
     graphKeys.workspace(wsId),
+    trashKeys.workspace(wsId),
   ];
 }

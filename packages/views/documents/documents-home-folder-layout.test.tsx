@@ -8,6 +8,7 @@ import viLocale from "@uniwork/core/i18n/locales/vi.json";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
+import { typeFilterSelect } from "../test/type-filter";
 import { DocumentsPageView } from "./documents-page-view";
 
 // The TRASH-A3 boards (Main.dc.html / Folder.dc.html / Trash.dc.html): the
@@ -150,10 +151,10 @@ describe("home layout (Main.dc)", () => {
     // No My Folder root-create hint line under Tạo nhanh (user 2026-10-19).
     expect(screen.queryByText(/Thư mục của tôi \(chỉ bạn thấy\)/)).toBeNull();
 
-    // The greeting, the create card grid and the scope tabs are gone; the type chips are the
+    // The greeting, the create card grid and the scope tabs are gone; the Loại select is part of the
     // filter bar every screen shares (UNI-2045 W10), with no Group by (Q6).
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+    expect(typeFilterSelect()).toBeInTheDocument();
     expect(screen.queryByText("Nhóm theo")).toBeNull();
     expect(screen.queryByText(/Chào buổi/)).toBeNull();
   });
@@ -266,6 +267,21 @@ describe("home layout (Main.dc)", () => {
       ).toBe(true),
     );
   });
+
+  it("offers Chia sẻ on a folder card and opens the dialog on that folder", async () => {
+    route({
+      tree: () => [treeNode({ id: "fo1", title: "Sai đẹp chiêu" })],
+      list: () => [summary({ id: "fo1", kind: "folder", title: "Sai đẹp chiêu", my_level: "view" })],
+    });
+    renderView();
+    const section = await screen.findByRole("region", { name: new RegExp(`^${t("documents.home.sections.folders")} [0-9]+$`) });
+    fireEvent.click(await within(section).findByRole("button", { name: t("documents.home.row.menu", { title: "Sai đẹp chiêu" }) }));
+    const item = await screen.findByTestId("folder-access-menu-item");
+    expect(item).toHaveTextContent(t("documents.folderAccess.menu"));
+    fireEvent.click(item);
+    const dialog = await screen.findByTestId("folder-access-dialog");
+    expect(dialog).toHaveTextContent(`${t("documents.folderAccess.title")}${t("documents.folderAccess.subtitle", { folder: "Sai đẹp chiêu" })}`);
+  });
 });
 
 describe("folder layout (Folder.dc)", () => {
@@ -289,6 +305,16 @@ describe("folder layout (Folder.dc)", () => {
     fireEvent.click(await screen.findByRole("button", { name: t("documents.home.folder.menu") }));
     fireEvent.click(await screen.findByRole("menuitem", { name: t("documents.accessReport.menu_folder") }));
     expect(adapter.push).toHaveBeenCalledWith("/acme/doi/documents/access-report?folder=fo1");
+  });
+
+  it("offers Chia sẻ in the open folder's menu and opens the dialog on it", async () => {
+    route({ ...folderRoutes(), detail: (id: string) => (id === "fo1" ? folderDetail({ my_level: "edit", breadcrumbs: [] }) : null) });
+    renderView(`/acme/doi/documents?folder=fo1`);
+    await screen.findByText("Báo giá.docx");
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.home.folder.menu") }));
+    fireEvent.click(await screen.findByTestId("folder-access-menu-item"));
+    const dialog = await screen.findByTestId("folder-access-dialog");
+    expect(dialog).toHaveTextContent(`${t("documents.folderAccess.title")}${t("documents.folderAccess.subtitle", { folder: "Dự án CCB" })}`);
   });
 
   it("keeps the folder report out of the menu for a reader who does not manage the folder", async () => {
@@ -323,11 +349,12 @@ describe("folder layout (Folder.dc)", () => {
     expect(within(heading).queryByRole("button")).toBeNull();
     const row = crumb.parentElement?.parentElement;
     expect(within(row as HTMLElement).getAllByText("Dự án CCB")).toHaveLength(1);
-    expect(row).toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
+    expect(row).not.toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
     expect(row).toContainElement(screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) }));
+    expect(document.querySelector('[data-slot="documents-filter-zone"]')!.parentElement).toContainElement(screen.getByRole("searchbox", { name: t("documents.home.search.label") }));
     expect(screen.getByRole("searchbox", { name: t("documents.home.search.label") })).toHaveAttribute(
       "placeholder",
-      t("documents.home.search.placeholder_folder"),
+      t("documents.home.search.placeholder"),
     );
     expect(screen.queryByText(/Dự án CCB”/)).toBeNull();
 
@@ -335,7 +362,7 @@ describe("folder layout (Folder.dc)", () => {
     // the one every list screen carries (UNI-2045 W10), filtering on the client.
     expect(screen.queryByRole("region", { name: t("documents.home.quick_create.label") })).toBeNull();
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.getByRole("group", { name: t("documents.home.chips_label") })).toBeInTheDocument();
+    expect(typeFilterSelect()).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: new RegExp(t("documents.home.filters.editor")) })).toBeInTheDocument();
     // Sorting lives in the table headers now (UNI-2038): no sort Select in a folder.
     expect(screen.queryByRole("combobox", { name: /^Sắp xếp|^Sort/ })).toBeNull();
@@ -377,15 +404,20 @@ describe("folder layout (Folder.dc)", () => {
     expect(heading.parentElement).not.toHaveClass("shrink-[1000000]", "shrink-[0.001]", "shrink-0");
     expect(heading).toHaveClass("min-w-10", "truncate");
 
-    // The row is a size container (the sidebars decide the width, not the viewport): the
-    // breadcrumb and the actions share row one, the search box moves under them until the
-    // row is wide enough to hold it beside the actions.
+    // The header row holds the breadcrumb and the actions; the search box sits on the filter row below.
     const box = crumb.parentElement as HTMLElement;
     const row = box.parentElement as HTMLElement;
-    expect(row).toHaveClass("@container", "flex-wrap");
-    expect(row).not.toHaveClass("flex-nowrap", "lg:flex-nowrap");
-    const search = screen.getByRole("searchbox", { name: t("documents.home.search.label") }).parentElement;
-    expect(search).toHaveClass("order-last", "basis-full", "@min-[60rem]:order-none", "@min-[60rem]:w-56");
+    expect(row).toHaveClass("flex-wrap");
+    expect(row).not.toHaveClass("@container", "flex-nowrap", "lg:flex-nowrap");
+    const searchInput = screen.getByRole("searchbox", { name: t("documents.home.search.label") });
+    const searchSlot = searchInput.closest<HTMLElement>('[data-slot="documents-search-slot"]')!;
+    const searchBox = searchInput.closest<HTMLElement>('[data-slot="documents-search-box"]')!;
+    expect(row).not.toContainElement(searchSlot);
+    const filterZone = document.querySelector<HTMLElement>('[data-slot="documents-filter-zone"]')!;
+    expect(filterZone).not.toContainElement(searchSlot);
+    expect(filterZone.parentElement).toContainElement(searchSlot);
+    expect(searchSlot).toHaveClass("basis-full", "justify-end", "@min-[48rem]:ml-auto", "@min-[48rem]:w-80", "@min-[48rem]:shrink-0", "@min-[48rem]:basis-auto");
+    expect(searchBox).toHaveClass("@min-[24rem]:w-56", "@min-[24rem]:focus-within:w-80", "@min-[48rem]:w-56", "@min-[48rem]:focus-within:w-full");
     const create = screen.getByRole("button", { name: new RegExp(t("documents.home.create.menu")) });
     expect(row.lastElementChild).toHaveClass("shrink-0");
     expect(row.lastElementChild).toContainElement(create);
@@ -435,7 +467,7 @@ describe("trash view (Trash.dc)", () => {
     expect(screen.getByRole("button", { name: t("documents.trash.restore_item", { title: "Cũ" }) })).toBeInTheDocument();
     // The old scope tabs never appear here, and Thùng rác has no filter bar (UNI-2045 W10).
     expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.queryByRole("group", { name: t("documents.home.chips_label") })).toBeNull();
+    expect(typeFilterSelect()).toBeNull();
     expect(screen.queryByText("Nhóm theo")).toBeNull();
     expect(screen.queryByRole("heading", { level: 2, name: t("documents.home.views.archived") })).toBeNull();
     expect(screen.queryByRole("heading", { level: 1, name: t("documents.home.sidebar.home") })).toBeNull();

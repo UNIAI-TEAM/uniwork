@@ -1,3 +1,5 @@
+import { claimAccessBatchRefresh } from "../documents/access-batch-refresh";
+import { folderContentsAccessKeys } from "../documents/hooks-folder-contents-access";
 import { clearDocumentAccessRequestSent } from "../documents/hooks-access-requests";
 import { chatKeys } from "../chat/chat-keys";
 import { documentKeys } from "../documents/keys";
@@ -64,7 +66,9 @@ export function documentFrameKeys(
     case "document.archived":
     case "document.restored":
     case "document.shelved":
-    case "document.unshelved": {
+    case "document.unshelved":
+    case "document.template_marked":
+    case "document.template_unmarked": {
       // UNI-2052: document.batch_uploaded is one coalesced frame per folder or
       // multi-file upload batch (ids only: batch_id, workspace_id,
       // root_folder_id, "" for a multi-file upload). It takes the same single
@@ -83,6 +87,42 @@ export function documentFrameKeys(
       // the tree, the folder content, search results, the shelved list (its key
       // is a workspace-root child) and an open delete dialog's counts.
       return ownWorkspace ? [documentKeys.workspace(wsId)] : [];
+    }
+    case "document.owner_transferred": {
+      // S-DOC06 (UNI-2084): a document changed hands; `bulk_id` only marks a
+      // frame of the bulk command and changes nothing here. The workspace
+      // root is the prefix of the detail entry, its shares (the access list)
+      // and every list root, so one invalidation refreshes all of them. A
+      // frame without a document id, or stamped for another workspace,
+      // refreshes nothing.
+      if (!ownWorkspace || !payload.document_id) return [];
+      return [documentKeys.workspace(wsId)];
+    }
+    case "document.owners_bulk_transferred": {
+      // S-DOC06b (UNI-2092): a bulk run moved a member's documents to this
+      // person. The frame is user-scoped and names the workspace of the first
+      // moved document, which is not the only workspace that changed: the
+      // documents changed owner in every workspace the recipient shares with
+      // the source. The case therefore deliberately ignores ownWorkspace and
+      // refreshes the whole documents prefix whichever workspace is open.
+      // Ids only; nothing from the frame is cached.
+      return [documentKeys.all];
+    }
+    case "document_access_batch.completed": {
+      // UNI-2244: a folder access batch finished (ids only: batch_id,
+      // folder_id, workspace_id; it fires for sync batches too). Its writes
+      // touched documents all over the subtree, so the workspace root
+      // refreshes (detail, shares, lists, tree) and so does the batch status
+      // the dialog polls. The tab that applied has already refreshed for this
+      // batch id, or this frame claims it first and the apply path skips: one
+      // refresh either way (see access-batch-refresh). A live claim also makes
+      // the status refetch redundant (the poll reached `completed`, or a sync
+      // batch has no status query), so the whole case is skipped. A tab that
+      // never applied has no claim and invalidates in full. The frame only
+      // marks queries stale; nothing from it is cached.
+      if (!ownWorkspace) return [];
+      if (payload.batch_id && !claimAccessBatchRefresh(wsId, payload.batch_id)) return [];
+      return [folderContentsAccessKeys.all(wsId), documentKeys.workspace(wsId)];
     }
     case "document.lock_changed": {
       // UNI-1645: who holds the document changed (acquire, release, expiry,

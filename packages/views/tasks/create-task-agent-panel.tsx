@@ -1,28 +1,39 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, CalendarDays, Maximize2, Minimize2, Ellipsis, PanelBottomClose, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
+import { useAiCapabilities } from "@uniwork/core/ai";
+import { ApiError } from "@uniwork/core/api";
+import { useCreateDriveTaskProposal, useDriveConnections, useLinkDriveFiles } from "@uniwork/core/drive";
+import { driveLibraryKeys, getDriveFile, useDriveFile, useDriveFiles } from "@uniwork/core/drive-library";
 import { toUploadResult, type UploadResult } from "@uniwork/core/hooks/use-file-upload";
 import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
+import { paths } from "@uniwork/core/paths";
 import { useShortcut } from "@uniwork/core/shortcuts";
 import { useProjects, useTasks, useUploadWorkspaceAttachment } from "@uniwork/core/tasks";
 import { useCreateTaskDraftStore, type CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import type { Agent } from "@uniwork/core/types/agent";
+import { Logo } from "@uniwork/ui/brand";
 import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@uniwork/ui/components/ui/avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { DialogDescription, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@uniwork/ui/components/ui/dropdown-menu";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { AgentBadge } from "../agents/agent-badge";
 import { PillButton } from "../common/pill-button";
 import { ContentEditor, FileDropOverlay, useFileDropZone, useUploadGate, type ContentEditorRef } from "../editor";
 import { useOptionalWorkspace } from "../layout/workspace-context";
+import { CreateTaskDriveChips } from "./create-task-drive-attachments";
 import { CreateTaskSubmitButton } from "./create-task-submit-button";
+import { appendDrivePromptHint, DrivePromptHints } from "./drive-prompt-hints";
+import { DriveProposalErrorNotice, DriveRecreateWarning, resolveDriveProposalError, useDriveProposalReview, type DriveProposalErrorResolution } from "./drive-task-proposal-popover";
 import { PriorityIcon } from "./icons/priority-icon";
 import { CreateTaskDateField } from "./pickers/create-task-overflow-fields";
 import { PriorityPicker } from "./pickers/priority-picker";
@@ -39,6 +50,7 @@ export type CreateTaskAgentPanelProps = {
   setIsExpanded: (expanded: boolean) => void;
   createAnother: boolean;
   setCreateAnother: (createAnother: boolean) => void;
+  cancelReadingRef?: MutableRefObject<(() => boolean) | null>;
 };
 
 function initialOf(name: string): string {
@@ -100,15 +112,18 @@ function AgentPicker({ agents, selected, onChange }: { agents: Agent[]; selected
 }
 
 /** Agent quick-create remains capability-gated until the runtime API lands. */
-export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode, isExpanded, setIsExpanded, createAnother, setCreateAnother }: CreateTaskAgentPanelProps) {
+export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode, isExpanded, setIsExpanded, createAnother, setCreateAnother, cancelReadingRef }: CreateTaskAgentPanelProps) {
   const { t } = useTranslation();
   const workspaceContext = useOptionalWorkspace();
   const workspaceName = workspaceContext?.workspace.name ?? t("tasks.new");
   const sendShortcut = useShortcut("send");
+  const queryClient = useQueryClient();
+  const proposalReview = useDriveProposalReview();
   const draftFor = useCreateTaskDraftStore((state) => state.draftFor);
   const settingsFor = useCreateTaskDraftStore((state) => state.settingsFor);
   const persistDraft = useCreateTaskDraftStore((state) => state.setDraft);
   const persistSavedDraft = useCreateTaskDraftStore((state) => state.saveDraft);
+  const clearDraft = useCreateTaskDraftStore((state) => state.clearDraft);
   const initialDraft = draftFor(workspaceId) ?? draftFromDefaults(undefined, settingsFor(workspaceId));
   const [draft, setDraft] = useState<CreateTaskDraft>(() => ({
     ...initialDraft,
@@ -122,11 +137,63 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
   const [showPriority, setShowPriority] = useState((draft.priority ?? "none") !== "none");
   const [showDueDate, setShowDueDate] = useState(Boolean(draft.dueDate));
   const [dueDateOpen, setDueDateOpen] = useState(false);
+  const [proposalError, setProposalError] = useState<DriveProposalErrorResolution | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const primaryDriveChip = draft.driveFiles?.[0];
+  const hasDriveChip = Boolean(primaryDriveChip);
+
   const agentsQuery = useWorkspaceAgents(workspaceId);
   const projectsQuery = useProjects(workspaceId);
   const tasksQuery = useTasks(workspaceId);
   const uploadAttachment = useUploadWorkspaceAttachment(workspaceId);
   const uploadGate = useUploadGate(editorRef);
+
+  const aiCaps = useAiCapabilities(workspaceId, hasDriveChip && Boolean(workspaceId));
+  const connectionsQuery = useDriveConnections(workspaceId, { enabled: hasDriveChip });
+  const driveLibraryQuery = useDriveFiles(workspaceId, {
+    connectionId: primaryDriveChip?.connectionId ?? null,
+    enabled: hasDriveChip && !primaryDriveChip?.driveFileId,
+  });
+  const matchingLibraryFile = useMemo(
+    () => primaryDriveChip ? (driveLibraryQuery.data?.pages ?? []).flatMap((p) => p.files).find((f) => f.external_file_id === primaryDriveChip.externalFileId) : undefined,
+    [driveLibraryQuery.data?.pages, primaryDriveChip],
+  );
+
+  const resolvedDriveFileId = primaryDriveChip?.driveFileId ?? matchingLibraryFile?.id;
+  const driveFileDetailQuery = useDriveFile(workspaceId, resolvedDriveFileId ?? "", {
+    enabled: hasDriveChip && Boolean(resolvedDriveFileId),
+  });
+  const resolvedDriveFile = driveFileDetailQuery.data ?? matchingLibraryFile;
+  const isAiDisabled = hasDriveChip && aiCaps.data?.enabled === false;
+  const isDriveAccessBlocked = hasDriveChip && !isAiDisabled && resolvedDriveFile?.can_propose === false;
+  const isDriveSendBlocked = isAiDisabled || isDriveAccessBlocked;
+  const driveBlockedHintId = `create-task-agent-drive-blocked-hint-${draft.idempotencyKey}`;
+  const driveBlockedReason = isAiDisabled
+    ? t("drive.proposals.errors.ai_disabled")
+    : isDriveAccessBlocked
+      ? t("drive.card.blocked_action_hint")
+      : undefined;
+  const linkDriveFilesMutation = useLinkDriveFiles(workspaceId);
+  const createProposalMutation = useCreateDriveTaskProposal(workspaceId);
+  const isProposing = abortController !== null && (linkDriveFilesMutation.isPending || createProposalMutation.isPending);
+
+  const readerAccountEmail = useMemo(() => {
+    if (!primaryDriveChip) return "";
+    const conn = connectionsQuery.data?.connections.find((c) => c.id === primaryDriveChip.connectionId);
+    return conn?.google_email?.trim() || resolvedDriveFile?.viewer_account_email?.trim() || "";
+  }, [connectionsQuery.data?.connections, primaryDriveChip, resolvedDriveFile?.viewer_account_email]);
+
+  const tasksCreated = resolvedDriveFile?.tasks_created ?? primaryDriveChip?.tasksCreated;
+  const hasPriorCreations = Boolean(hasDriveChip && (tasksCreated?.count ?? 0) > 0);
+  const warningId = `create-task-agent-drive-warning-${draft.idempotencyKey}`;
+  const detailHref = workspaceContext && resolvedDriveFileId
+    ? `${paths.workspace(workspaceContext.workspace.organization_slug, workspaceContext.workspace.slug).documentsDriveFile(resolvedDriveFileId)}#drive-tasks-created`
+    : undefined;
+
   const agents = useMemo(() => (agentsQuery.data ?? []).filter((agent) => agent.status === "active"), [agentsQuery.data]);
   const selectedAgent = agents.find((agent) => agent.id === draft.agentId);
   const projectItems = useMemo(() => (projectsQuery.data?.projects ?? []).map((project) => ({ value: project.id, label: project.title })), [projectsQuery.data]);
@@ -142,11 +209,11 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
 
   useEffect(() => { draftRef.current = draft; }, [draft]);
   useEffect(() => {
-    if (selectedAgent || agents.length === 0) return;
+    if (hasDriveChip || selectedAgent || agents.length === 0) return;
     const carriedAgentId = typeof carry?.agent_id === "string" ? carry.agent_id : undefined;
     const seed = agents.find((agent) => agent.id === carriedAgentId) ?? agents[0];
     if (seed) updateDraft({ agentId: seed.id });
-  }, [agents, carry?.agent_id, selectedAgent, updateDraft]);
+  }, [agents, carry?.agent_id, hasDriveChip, selectedAgent, updateDraft]);
   const uploadFile = async (file: File, _uploadId: string): Promise<UploadResult | null> => {
     uploadCountRef.current += 1;
     setUploadCount(uploadCountRef.current);
@@ -167,14 +234,93 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
       setUploadCount(uploadCountRef.current);
     }
   };
-  const { isDragOver, dropZoneProps } = useFileDropZone({ onDrop: (files) => files.forEach((file) => editorRef.current?.uploadFile(file)) });
+  const { isDragOver, dropZoneProps } = useFileDropZone({
+    onDrop: (files) => files.forEach((file) => editorRef.current?.uploadFile(file)),
+    enabled: !hasDriveChip && !isProposing,
+  });
   const isUploading = uploadCount > 0 || uploadGate.uploading;
+
+  const cancelProposalReading = useCallback(() => { abortRef.current?.abort(); abortRef.current = null; setAbortController(null); linkDriveFilesMutation.reset(); createProposalMutation.reset(); }, [createProposalMutation, linkDriveFilesMutation]);
+  useEffect(() => {
+    if (!cancelReadingRef) return;
+    cancelReadingRef.current = isProposing ? () => { cancelProposalReading(); return true; } : null;
+    return () => { cancelReadingRef.current = null; };
+  }, [cancelProposalReading, cancelReadingRef, isProposing]);
+  const submitDriveProposal = async () => {
+    if (!primaryDriveChip || isDriveSendBlocked || isProposing || isUploading || uploadGate.isBlocked()) return;
+    if (!proposalReview.isMounted) { toast.error(t("drive.proposals.errors.review_unavailable")); return; }
+    const warningWasShown = hasPriorCreations;
+    setProposalError(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setAbortController(controller);
+
+    try {
+      let targetDriveFileId = resolvedDriveFileId;
+      if (!targetDriveFileId) {
+        const linkResults = await linkDriveFilesMutation.mutateAsync({
+          connection_id: primaryDriveChip.connectionId,
+          external_file_ids: [primaryDriveChip.externalFileId],
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        const firstResult = linkResults.results[0];
+        if (!firstResult || firstResult.outcome === "error" || !firstResult.file?.id) {
+          abortRef.current = null; setAbortController(null);
+          setProposalError(resolveDriveProposalError(new ApiError(firstResult?.error_message ?? "link failed", firstResult?.error_code ?? "default", 422), t));
+          return;
+        }
+        const linkedFileId = firstResult.file.id;
+        targetDriveFileId = linkedFileId;
+        const detailFile = await queryClient.fetchQuery({
+          queryKey: driveLibraryKeys.detail(workspaceId, linkedFileId),
+          queryFn: () => getDriveFile(workspaceId, linkedFileId, controller.signal),
+          staleTime: 0,
+        }).catch(() => null);
+        if (controller.signal.aborted) return;
+        const linkedTasksCreated = detailFile?.tasks_created;
+        const updatedDriveFiles = (draftRef.current.driveFiles ?? []).map((df, idx) =>
+          idx === 0 ? { ...df, driveFileId: linkedFileId, ...(linkedTasksCreated ? { tasksCreated: linkedTasksCreated } : {}) } : df,
+        );
+        updateDraft({ driveFiles: updatedDriveFiles });
+        if (!warningWasShown && (linkedTasksCreated?.count ?? 0) > 0) {
+          abortRef.current = null; setAbortController(null);
+          return;
+        }
+      }
+
+      const trimmedPrompt = (editorRef.current?.getMarkdown() ?? draftRef.current.agentPrompt ?? "").trim();
+      const proposal = await createProposalMutation.mutateAsync({
+        driveFileId: targetDriveFileId,
+        body: {
+          prompt: trimmedPrompt || undefined,
+          project_id: draftRef.current.projectId ?? null,
+          parent_task_id: draftRef.current.parentTaskId ?? null,
+          context_task_id: draftRef.current.parentTaskId ?? null,
+        },
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      abortRef.current = null;
+      setAbortController(null);
+      if (!proposalReview.open(proposal)) return;
+      clearDraft(workspaceId, draftRef.current.idempotencyKey);
+      onClose("submitted");
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      abortRef.current = null;
+      setAbortController(null);
+      setProposalError(resolveDriveProposalError(err, t));
+    }
+  };
+
   const submit = () => {
+    if (hasDriveChip) { void submitDriveProposal(); return; }
     if (!hasContent || !selectedAgent || uploadGate.isBlocked() || uploadCountRef.current > 0) return;
     toast.error(t("tasks.create.agent_unavailable"));
   };
   const switchToManual = () => {
-    if (uploadGate.isBlocked() || uploadCountRef.current > 0) return;
+    if (isProposing || uploadGate.isBlocked() || uploadCountRef.current > 0) return;
     const prompt = editorRef.current?.getMarkdown() ?? draftRef.current.agentPrompt ?? "";
     const current = draftRef.current;
     updateDraft({
@@ -186,18 +332,20 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
     onSwitchMode({ project_id: current.projectId, parent_task_id: current.parentTaskId });
   };
   const saveCurrentDraft = () => {
-    if (uploadGate.isBlocked() || uploadCountRef.current > 0) return;
+    if (isProposing || uploadGate.isBlocked() || uploadCountRef.current > 0) return;
     const prompt = editorRef.current?.getMarkdown() ?? draftRef.current.agentPrompt ?? "";
     if (prompt !== draftRef.current.agentPrompt) updateDraft({ agentPrompt: prompt });
     persistSavedDraft(workspaceId, draftRef.current);
     onClose("saved");
   };
 
+  const submitLabel = isUploading ? t("tasks.create.agent_uploading") : hasPriorCreations ? t("drive.proposals.submit_anyway") : t("tasks.create.agent_submit");
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 pb-2">
         <div className="min-w-0">
-          <DialogTitle className="truncate text-body font-medium">
+          <DialogTitle className="break-words text-body font-medium">
             <span className="font-normal text-muted-foreground">{workspaceName}</span>
             <span className="mx-1.5 text-muted-foreground" aria-hidden>›</span>
             <span className="text-foreground">{t("tasks.create.agent_breadcrumb")}</span>
@@ -206,117 +354,145 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
         </div>
         <TooltipProvider delay={300}>
           <div className="flex shrink-0 items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
-                  onClick={() => setIsExpanded(!isExpanded)}
-                />
-              }
-            >
-              {isExpanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-                  aria-label={t("tasks.create.save_draft")}
-                  aria-disabled={isUploading || undefined}
-                  onClick={saveCurrentDraft}
-                />
-              }
-            >
-              <PanelBottomClose className="size-4" aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("tasks.create.save_draft")}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label={t("common.close")}
-                  onClick={() => onClose()}
-                />
-              }
-            >
-              <X className="size-4" aria-hidden />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("common.close")}</TooltipContent>
-          </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label={isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")} onClick={() => setIsExpanded(!isExpanded)} />}>
+                {isExpanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{isExpanded ? t("tasks.create.collapse") : t("tasks.create.expand")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50" aria-label={t("tasks.create.save_draft")} aria-disabled={isUploading || isProposing || undefined} onClick={saveCurrentDraft} />}>
+                <PanelBottomClose className="size-4" aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("tasks.create.save_draft")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" aria-label={t("common.close")} onClick={() => { if (isProposing) cancelProposalReading(); onClose(); }} />}>
+                <X className="size-4" aria-hidden />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{t("common.close")}</TooltipContent>
+            </Tooltip>
           </div>
         </TooltipProvider>
       </div>
 
       <div className="shrink-0 px-5 pt-1 pb-2">
-        <AgentPicker agents={agents} selected={selectedAgent} onChange={(agent) => updateDraft({ agentId: agent.id })} />
+        {hasDriveChip ? (
+          <div data-testid="create-task-agent-created-by-uni" className="flex items-center gap-2 text-caption text-muted-foreground">
+            <span>{t("tasks.create.agent_created_by")}</span>
+            <span className="inline-flex min-w-0 items-center gap-1.5 font-medium text-foreground">
+              <Logo variant="mark" size={16} decorative />
+              <span>{t("drive.proposals.created_by_uni")}</span>
+              <AgentBadge className="shrink-0" />
+            </span>
+          </div>
+        ) : (
+          <AgentPicker agents={agents} selected={selectedAgent} onChange={(agent) => updateDraft({ agentId: agent.id })} />
+        )}
       </div>
 
-      <div {...dropZoneProps} className="relative flex min-h-[140px] flex-1 overflow-y-auto px-5 pb-3">
-        <ContentEditor
-          key={draft.idempotencyKey}
-          ref={editorRef}
-          defaultValue={draft.agentPrompt ?? ""}
-          ariaLabel={t("tasks.create.agent_prompt_aria")}
-          placeholder={t("tasks.create.agent_prompt_placeholder")}
-          onDocumentChange={(prompt) => { setHasContent(prompt.trim().length > 0); updateDraft({ agentPrompt: prompt }); }}
-          onSubmit={submit}
-          onUploadFile={uploadFile}
-          onUploadingChange={uploadGate.onUploadingChange}
-          attachments={draft.attachments}
-        />
-        {isDragOver ? <FileDropOverlay /> : null}
-      </div>
+      <div data-testid="create-task-agent-body" className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div {...dropZoneProps} className="relative flex min-h-[140px] max-sm:min-h-[88px] flex-1 overflow-y-auto px-5 pb-3">
+          <ContentEditor
+            key={draft.idempotencyKey}
+            ref={editorRef}
+            defaultValue={draft.agentPrompt ?? ""}
+            ariaLabel={t("tasks.create.agent_prompt_aria")}
+            placeholder={hasDriveChip ? t("drive.proposals.prompt_placeholder") : t("tasks.create.agent_prompt_placeholder")}
+            onDocumentChange={(prompt) => { setHasContent(prompt.trim().length > 0); updateDraft({ agentPrompt: prompt }); }}
+            onSubmit={submit}
+            onUploadFile={uploadFile}
+            onUploadingChange={uploadGate.onUploadingChange}
+            attachments={draft.attachments}
+          />
+          {isDragOver ? <FileDropOverlay /> : null}
+        </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 pb-2">
-        <CreateTaskProjectField items={projectItems} value={draft.projectId} noneLabel={t("tasks.create.project_none")} searchPlaceholder={t("tasks.create.project_search_placeholder")} noResultsLabel={t("tasks.create.options_no_results")} clearLabel={t("common.delete")} onChange={(projectId) => updateDraft({ projectId })} />
-        {showPriority ? <PriorityPicker appearance="pill" value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>} ariaLabel={t("tasks.priority")} onChange={(priority) => updateDraft({ priority })} /> : null}
-        {showDueDate ? <CreateTaskDateField value={draft.dueDate} label={t("tasks.dueDate")} kind="due" open={dueDateOpen} onOpenChange={setDueDateOpen} onChange={(dueDate) => updateDraft({ dueDate })} /> : null}
-        {!showPriority || !showDueDate ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<PillButton aria-label={t("tasks.create.more_fields")} />}><Ellipsis className="size-3.5" aria-hidden /></DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-44">
-              {!showPriority ? <DropdownMenuItem onClick={() => setShowPriority(true)}><PriorityIcon priority="none" className="size-3.5" />{t("tasks.create.agent_set_priority")}</DropdownMenuItem> : null}
-              {!showDueDate ? <DropdownMenuItem onClick={() => { setShowDueDate(true); setTimeout(() => setDueDateOpen(true), 0); }}><CalendarDays className="size-3.5 text-muted-foreground" aria-hidden />{t("tasks.create.agent_set_due_date")}</DropdownMenuItem> : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {hasDriveChip ? (
+          <div className="flex shrink-0 flex-col gap-2 pb-2">
+            <DrivePromptHints
+              className="px-5"
+              disabled={isProposing || isDriveSendBlocked || Boolean(proposalError?.isAccessRequired)}
+              onSelectHint={(hint) => {
+                if (isProposing || isDriveSendBlocked || isUploading || proposalError?.isAccessRequired) return;
+                const currentPrompt = editorRef.current?.getMarkdown() ?? draftRef.current.agentPrompt ?? "";
+                const nextPrompt = appendDrivePromptHint(currentPrompt, hint);
+                editorRef.current?.adoptContent(nextPrompt);
+                editorRef.current?.focus("end");
+                setHasContent(nextPrompt.trim().length > 0);
+                updateDraft({ agentPrompt: nextPrompt });
+              }}
+            />
+            <CreateTaskDriveChips
+              driveFiles={draft.driveFiles}
+              onRemove={(df) => {
+                if (isProposing) return;
+                const remaining = (draft.driveFiles ?? []).filter((item) => !(item.connectionId === df.connectionId && item.externalFileId === df.externalFileId));
+                setProposalError(null);
+                updateDraft({ driveFiles: remaining.length ? remaining : undefined });
+              }}
+            />
+            <p data-testid="create-task-agent-drive-reader-line" className="px-5 text-caption text-muted-foreground">
+              {readerAccountEmail ? t("drive.proposals.reader_line", { email: readerAccountEmail }) : t("drive.proposals.reader_line_no_email")}
+            </p>
+            <div className={hasPriorCreations ? "px-5" : "sr-only"}>
+              <DriveRecreateWarning id={warningId} tasksCreated={tasksCreated} detailHref={detailHref} />
+            </div>
+            {proposalError ? <div className="px-5"><DriveProposalErrorNotice error={proposalError} openUrl={resolvedDriveFile?.open_url} /></div> : null}
+          </div>
         ) : null}
-        {parent ? <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground">{t("tasks.create.agent_subtask_of", { identifier: parent.identifier })}</span> : null}
+
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 pb-2">
+          <CreateTaskProjectField items={projectItems} value={draft.projectId} noneLabel={t("tasks.create.project_none")} searchPlaceholder={t("tasks.create.project_search_placeholder")} noResultsLabel={t("tasks.create.options_no_results")} clearLabel={t("common.delete")} onChange={(projectId) => updateDraft({ projectId })} />
+          {!hasDriveChip && showPriority ? <PriorityPicker appearance="pill" value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>} ariaLabel={t("tasks.priority")} onChange={(priority) => updateDraft({ priority })} /> : null}
+          {!hasDriveChip && showDueDate ? <CreateTaskDateField value={draft.dueDate} label={t("tasks.dueDate")} kind="due" open={dueDateOpen} onOpenChange={setDueDateOpen} onChange={(dueDate) => updateDraft({ dueDate })} /> : null}
+          {!hasDriveChip && (!showPriority || !showDueDate) ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<PillButton aria-label={t("tasks.create.more_fields")} />}><Ellipsis className="size-3.5" aria-hidden /></DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-44">
+                {!showPriority ? <DropdownMenuItem onClick={() => setShowPriority(true)}><PriorityIcon priority="none" className="size-3.5" />{t("tasks.create.agent_set_priority")}</DropdownMenuItem> : null}
+                {!showDueDate ? <DropdownMenuItem onClick={() => { setShowDueDate(true); setTimeout(() => setDueDateOpen(true), 0); }}><CalendarDays className="size-3.5 text-muted-foreground" aria-hidden />{t("tasks.create.agent_set_due_date")}</DropdownMenuItem> : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+          {parent ? <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground">{t("tasks.create.agent_subtask_of", { identifier: parent.identifier })}</span> : null}
+        </div>
       </div>
 
-      <div className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-2.5 border-t border-surface-border/50 px-4 py-3 sm:flex sm:flex-wrap">
-        <div className="flex min-h-7 items-center gap-2 sm:mr-auto"><FileUploadButton size="sm" multiple onSelect={(file) => editorRef.current?.uploadFile(file)} /></div>
-        <button type="button" disabled={isUploading} aria-disabled={isUploading || undefined} aria-busy={isUploading || undefined} title={t("tasks.create.switch_to_manual")} className="flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm px-2 py-1 text-caption text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50" onClick={switchToManual}>
+      <div data-testid="create-task-agent-footer" className="grid shrink-0 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-2.5 border-t border-surface-border/50 px-4 py-3 sm:flex sm:flex-wrap">
+        <div className="flex min-h-7 items-center gap-2 sm:mr-auto">{!hasDriveChip ? <FileUploadButton size="sm" multiple onSelect={(file) => editorRef.current?.uploadFile(file)} /> : null}</div>
+        <button type="button" disabled={isUploading || isProposing} aria-disabled={isUploading || isProposing || undefined} aria-busy={isUploading || isProposing || undefined} title={t("tasks.create.switch_to_manual")} className="flex shrink-0 items-center gap-1.5 justify-self-end rounded-sm px-2 py-1 text-caption text-muted-foreground transition-colors pointer-coarse:min-h-11 hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50" onClick={switchToManual}>
           <ArrowLeftRight className="size-3.5" aria-hidden />{t("tasks.create.switch_to_manual")}
         </button>
-        <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted-foreground">
-          <Switch checked={createAnother} onCheckedChange={setCreateAnother} aria-label={t("tasks.create.create_another_short")} />
-          <span aria-hidden>{t("tasks.create.create_another_short")}</span>
-        </label>
-        <CreateTaskSubmitButton
-          type="button"
-          inactive={!hasContent || !selectedAgent}
-          busy={isUploading}
-          label={isUploading ? t("tasks.create.agent_uploading") : t("tasks.create.agent_submit")}
-          shortcut={sendShortcut}
-          onClick={submit}
-        />
+        {!hasDriveChip ? (
+          <label className="flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-caption text-muted-foreground">
+            <Switch checked={createAnother} onCheckedChange={setCreateAnother} aria-label={t("tasks.create.create_another_short")} />
+            <span aria-hidden>{t("tasks.create.create_another_short")}</span>
+          </label>
+        ) : null}
+        <div className={isProposing ? "flex items-center gap-2 justify-self-end" : "sr-only"}>
+          <span aria-live="polite" className={isProposing ? "inline-flex items-center gap-1.5 text-caption text-muted-foreground" : "sr-only"}>
+            {isProposing ? <><Spinner className="size-3.5" /><span>{t("drive.proposals.reading")}</span></> : null}
+          </span>
+          {isProposing ? <Button type="button" variant="outline" size="sm" onClick={cancelProposalReading}>{t("drive.proposals.cancel_reading")}</Button> : null}
+        </div>
+        {!isProposing && driveBlockedReason ? (
+          <span id={driveBlockedHintId} className="justify-self-end text-caption text-muted-foreground">
+            {driveBlockedReason}
+          </span>
+        ) : null}
+        {!isProposing ? (
+          <CreateTaskSubmitButton
+            type="button"
+            inactive={hasDriveChip ? isDriveSendBlocked : !hasContent || !selectedAgent}
+            busy={isUploading}
+            label={submitLabel}
+            shortcut={sendShortcut}
+            ariaDescribedBy={[hasPriorCreations ? warningId : undefined, driveBlockedReason ? driveBlockedHintId : undefined].filter(Boolean).join(" ") || undefined}
+            title={driveBlockedReason}
+            onClick={submit}
+          />
+        ) : null}
       </div>
     </div>
   );

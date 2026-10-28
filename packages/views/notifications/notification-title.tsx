@@ -12,6 +12,20 @@ import { isPurgeDate, purgeDate } from "./trashed-notice";
 /** The share levels the client words; any other value (a newer server) reads level-less. */
 const SHARE_LEVELS: ReadonlySet<string> = new Set(["view", "comment", "edit", "manage"]);
 
+/**
+ * The number of documents a folder share rolled up (`params.count`, a decimal
+ * string): set on a folder's grouped `document_shared` row, absent on a single
+ * document's. Anything but a positive integer reads as the single sentence,
+ * never "NaN" or "0 documents".
+ */
+export function folderShareCount(n: Notification): number | null {
+  if (n.kind !== "document_shared") return null;
+  const raw = n.params.count?.trim() ?? "";
+  if (!/^\d+$/.test(raw)) return null;
+  const count = Number(raw);
+  return Number.isSafeInteger(count) && count > 0 ? count : null;
+}
+
 /** Brackets each param in the rendered sentence so it can be found again. */
 const MARK = "⁣";
 
@@ -54,6 +68,8 @@ export function notificationTitleKey(n: Notification): string {
   // The requester was never allowed to read the title, so a declined request's
   // sentence has no document to drop (access addendum §3.4).
   if (n.kind === "document_access_declined") return n.title_key;
+  // A bulk transfer row names the source member; once the name is gone the sentence reads "a member's".
+  if (n.kind === "document_owners_bulk_transferred" && !n.params.name?.trim()) return `${n.title_key}_untitled`;
   // A batch not from one meeting (or a row from before the meeting param)
   // reads without it, never `cuộc họp ""` (server titles.go).
   if (n.kind === "tasks_assigned" && !n.params.meeting?.trim()) return `${n.title_key}_nomeeting`;
@@ -61,7 +77,9 @@ export function notificationTitleKey(n: Notification): string {
   if (n.kind === "meeting_recap_ready" && n.params.stage === "minutes") return `${n.title_key}_minutes`;
   if (n.kind === "meeting_task_due" && n.params.stage === "overdue") return `${n.title_key}_overdue`;
   const untitled = n.resource_type === "document" && n.title_key.startsWith("notifications.kind.document_") && !n.kind.startsWith("document_edit_");
-  const key = untitled && !n.params.document?.trim() ? `${n.title_key}_untitled` : n.title_key;
+  // A folder's grouped share has its own sentence (count documents in the folder); the same fallbacks apply.
+  const base = folderShareCount(n) === null ? n.title_key : `${n.title_key}_folder`;
+  const key = untitled && !n.params.document?.trim() ? `${base}_untitled` : base;
   if (n.kind === "document_shared" && !SHARE_LEVELS.has(n.params.level ?? "")) return `${key}_nolevel`;
   // A trash notice whose purge date cannot be read says no deadline rather than "before ".
   return n.kind === "document_trashed_by_other" && !isPurgeDate(n.params.date ?? "") ? `${key}_nodate` : key;
@@ -77,9 +95,14 @@ export function notificationTitleKey(n: Notification): string {
  */
 export function NotificationTitle({ notification: n, unread }: { notification: Notification; unread: boolean }) {
   const { t, i18n } = useTranslation();
+  // The share count picks the plural form, so it goes in as a number, never as a marked part.
+  const folderCount = folderShareCount(n);
+  const countOption = folderCount === null ? {} : { count: folderCount };
+  const shareParams = Object.fromEntries(Object.entries(n.params).filter(([k]) => k !== "count"));
+  const titleParams = isDocumentChanged(n) ? documentChangedTitleParams(n) : n.kind === "document_shared" ? shareParams : n.params;
   const parts = titleParts(
-    (params) => t(notificationTitleKey(n), { ...params, defaultValue: n.kind }),
-    isDocumentChanged(n) ? documentChangedTitleParams(n) : n.params,
+    (params) => t(notificationTitleKey(n), { ...params, ...countOption, defaultValue: n.kind }),
+    titleParams,
   );
   const isAgent = n.actor_kind === "agent";
 

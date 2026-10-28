@@ -81,6 +81,8 @@ var catalogue = []EventDef{
 	// carries ids only. Every other task.updated emitter sends ids only.
 	{Topic: "task.updated", Version: 1, Payload: []string{"task_id", "workspace_id", "revision_before", "revision"}, Patch: []string{"title", "status", "priority", "due_date"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.deleted", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task.trashed", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "task.restored", Version: 1, Payload: []string{"task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_added", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_updated", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "task.comment_deleted", Version: 1, Payload: []string{"task_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -112,6 +114,8 @@ var catalogue = []EventDef{
 	{Topic: "task_view_preference.updated", Version: 1, Payload: []string{"workspace_id", "user_id", "scope_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project.created", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project.deleted", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project.trashed", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "project.restored", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project.updated", Version: 1, Payload: []string{"project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project_resource.created", Version: 1, Payload: []string{"resource_id", "project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "project_resource.deleted", Version: 1, Payload: []string{"resource_id", "project_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -257,6 +261,9 @@ var catalogue = []EventDef{
 	{Topic: "motion.ballot_cast", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	// A shared note was added to a meeting; open panels refetch the notes. The body stays out of the payload.
 	{Topic: "note.created", Version: 1, Payload: []string{"meeting_id", "version", "note_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	// A note was edited or deleted by its author or a clerk (UNI-2217); same shape, the body stays out.
+	{Topic: "note.updated", Version: 1, Payload: []string{"meeting_id", "version", "note_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
+	{Topic: "note.deleted", Version: 1, Payload: []string{"meeting_id", "version", "note_id"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "invitation.responded", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "join_request.created", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
 	{Topic: "join_request.approved", Version: 1, Payload: []string{"meeting_id", "join_request_id", "version"}, Scope: ScopeMeeting, Delivery: DeliveryOutbox},
@@ -345,6 +352,9 @@ var catalogue = []EventDef{
 	// forever; ids plus the shelve batch, same shape as the trash rows.
 	{Topic: "document.shelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.unshelved", Version: 1, Payload: []string{"document_id", "workspace_id", "shelve_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// UNI-2225: a file joins or leaves the workspace's template library; ids only.
+	{Topic: "document.template_marked", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.template_unmarked", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.deleted", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// DOC-CHANGE-NOTIFY (UNI-2056): the change people hear of, written by
 	// the same Record call as the frame topic of a rename, restore, shelve,
@@ -388,6 +398,20 @@ var catalogue = []EventDef{
 	// user_id and resolves the user scope from it.
 	{Topic: "document.access_requested", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.access_request_decided", Version: 1, Payload: []string{"document_id", "workspace_id", "request_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Owner transfer (DOC-06, UNI-2084): the ACL owner of one document moved.
+	// Ids only; bulk_id is present only when the bulk route (S-DOC06b) wrote
+	// the row, so the per-document notice can leave it to the grouped one.
+	{Topic: "document.owner_transferred", Version: 1, Payload: []string{"document_id", "workspace_id", "bulk_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Bulk owner transfer (DOC-06b, UNI-2092): one frame per bulk call that
+	// moved documents, to the recipient's own connections (user_id). Ids only:
+	// from_user_id is the source member, bulk_id groups the calls of one run,
+	// workspace_id is the workspace of the first document the call moved (id
+	// order) so the grouped notice lands in a workspace Inbox (FE-R1-3).
+	{Topic: "document.owners_bulk_transferred", Version: 1, Payload: []string{"organization_id", "user_id", "bulk_id", "from_user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	// Folder bulk access (UNI-2244 §6): emitted when a background batch
+	// finishes so open clients refresh the batch progress and workspace
+	// document queries.
+	{Topic: "document_access_batch.completed", Version: 1, Payload: []string{"batch_id", "folder_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Office offline leases (G5-08s, decision G5-D1 row 16): ids only, to the
 	// holder's own connections. revoked makes an online device lock its copy
@@ -397,6 +421,17 @@ var catalogue = []EventDef{
 	{Topic: "office_lease.renewed", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "office_lease.released", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	{Topic: "office_lease.revoked", Version: 1, Payload: []string{"user_id", "document_id", "lease_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+
+	// Google Drive connector (UNI-2172, spec §11): ids only, no Patch.
+	// drive_connection.changed and drive_file.access_changed resolve user scope
+	// from payload.user_id; the rest fan out to the workspace.
+	{Topic: "drive_connection.changed", Version: 1, Payload: []string{"connection_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "drive_file.access_changed", Version: 1, Payload: []string{"drive_file_id", "workspace_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "drive_file.linked", Version: 1, Payload: []string{"drive_file_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "drive_file.task_linked", Version: 1, Payload: []string{"drive_file_id", "task_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "drive_file.unlinked", Version: 1, Payload: []string{"drive_file_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "drive_file.updated", Version: 1, Payload: []string{"drive_file_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "drive_task_proposal.converted", Version: 1, Payload: []string{"proposal_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Billing (F-02). Both go to each owner/admin, one row per person, because
 	// the realtime consumer resolves user scope from payload.user_id.

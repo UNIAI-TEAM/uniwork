@@ -33,8 +33,10 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
-      nodeSelector:
-        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      affinity:
+        {{- include "uniwork.nodeAffinity" . | nindent 8 }}
+        {{- include "uniwork.avoidPostgres" . | nindent 8 }}
+      {{- include "uniwork.tolerations" . | nindent 6 }}
       # Mirrors stop_grace_period in the compose `office` profile: the engine
       # drains and kills every worker tree on SIGTERM.
       terminationGracePeriodSeconds: {{ $oe.terminationGracePeriodSeconds }}

@@ -1,0 +1,378 @@
+{
+  "schemaVersion": 1,
+  "version": "1.12.0",
+  "date": "2026-10-28",
+  "ready": true,
+  "sourceRef": "d29327318a22ff5d852d4713d8bd291556f78e04",
+  "previousSourceRef": "ad0a7e7d964c14765e525e02083097d1eb8721e4",
+  "title": {
+    "vi": "Họp trực tiếp có ghi âm và biên bản, Hỏi UNI tạo tệp Office từ mẫu, link mời dùng nhiều lần",
+    "en": "In-person meetings with recording and minutes, Ask UNI creates Office files from templates, reusable invite links"
+  },
+  "summary": {
+    "vi": "Cuộc họp có hình thức Trực tiếp: một máy trong phòng ghi âm ngay trên trình duyệt, họp xong có biên bản và việc đề xuất. Tài liệu có mục Mẫu văn bản cho cả workspace, và Hỏi UNI tạo được tệp Office mới từ mẫu, tệp đính kèm hoặc tệp trống. Tổ chức và workspace có link mời dùng nhiều lần. Khi rời phòng họp, chủ trì chọn chỉ rời, chuyển quyền hoặc kết thúc cho mọi người. Tài liệu chia sẻ được cả thư mục và mở tệp Office định dạng cũ bằng UniWork Office.",
+    "en": "Meetings can be held In person: one device in the room records right in the browser, and minutes and suggested tasks follow the meeting. Documents gains a Templates section for the whole workspace, and Ask UNI can create a new Office file from a template, an attachment or a blank file. Organizations and workspaces get reusable invite links. When leaving a meeting, the host chooses to just leave, hand over the host role or end it for everyone. Documents can share a whole folder and opens older Office formats in UniWork Office."
+  },
+  "note": {
+    "vi": "Ghi âm họp trực tiếp chỉ có khi tổ chức được bật ghi lời cuộc họp và gói đang dùng có phút ghi lời; nếu chưa, bạn vẫn đặt lịch họp trực tiếp và ghi nhận đã họp như trước. Hỏi UNI tạo tệp Office cần tính năng AI và thao tác của Hỏi UNI được bật cho tổ chức; tệp chỉ được tạo sau khi bạn xác nhận trên thẻ, và Hỏi UNI chưa tự viết nội dung theo dàn ý vào tệp.",
+    "en": "Recording in-person meetings is only available when meeting transcription is turned on for your organization and your plan includes transcription minutes; otherwise you can still schedule an in-person meeting and mark it as held as before. Creating Office files with Ask UNI needs the organization's AI features and Ask UNI actions to be turned on; a file is only created after you confirm on the card, and Ask UNI does not yet write the outline's content into the file."
+  },
+  "changes": [
+    {
+      "commit": "6cbd2bbb048a5379f54a25dce30fbe88b030f426",
+      "subject": "feat(workspace): add shareable org and workspace invite links",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Link mời dùng nhiều lần cho tổ chức và workspace: tạo, thu hồi hoặc tạo lại link để chia sẻ cho nhiều người cùng lúc. Người mở link khi đang ở một tổ chức khác được hướng dẫn chuyển tổ chức, vì mỗi tài khoản chỉ thuộc một tổ chức. Người chưa có tài khoản đăng ký và xác minh email xong thì vào thẳng nơi được mời, không phải tạo tổ chức mới.",
+        "en": "Reusable invite links for organizations and workspaces: create, revoke or regenerate a link to share with many people at once. Someone who opens a link while in another organization is guided through switching organizations, since each account belongs to one organization. Someone without an account signs up, verifies their email and goes straight to where they were invited, without having to create a new organization."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/489"
+      }
+    },
+    {
+      "commit": "0f0ffdd310035312ae4109b7d41058b33b596bab",
+      "subject": "fix(views): drop invalid exact option in join invite test",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #489 (mô tả PR); commit chỉ bỏ một tùy chọn không hợp lệ trong test trang tham gia bằng link mời; chỉ sửa test.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/489"
+      }
+    },
+    {
+      "commit": "58ecab33043a616914873c92c8c6d931a737070d",
+      "subject": "docs(changelog): đề xuất Changelog v1.11.0 — duyệt nội dung Việt/Anh (UNI-2228) (#490)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #490 (mô tả PR): các file công bố Changelog v1.11.0; nội dung của phiên bản trước, không phải thay đổi mới của ứng dụng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/490"
+      }
+    },
+    {
+      "commit": "3db8514195516da71f7364e6950291042bf771e3",
+      "subject": "fix(server): seed membership invite links for isolation and drop stray tenant tag",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #489; commit thêm dữ liệu link mời cho test cách ly tenant và bỏ một chú thích tenant thừa; test/kỹ thuật, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/489"
+      }
+    },
+    {
+      "commit": "ba197971327cc66dfbf295db41ec4959a47d87d7",
+      "subject": "fix(views): give org invite-link workspace picker its own label",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #489; commit thêm nhãn riêng cho ô chọn workspace của link mời tổ chức; đã gộp vào mục link mời (6cbd2bbb0).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/489"
+      }
+    },
+    {
+      "commit": "e4e631d6b566eeb4aa8e15e03668f517ce02a82d",
+      "subject": "fix(pricing): compare only meaningful enforced plan differences",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trang Bảng giá: thẻ gói hiện thêm số phút ghi lời cuộc họp của gói. Bảng so sánh tính năng chỉ hiện khi các gói khác nhau thật ở ít nhất ba tính năng, và có thêm các dòng AI cho Office (khóa AI riêng, công cụ AI đám mây).",
+        "en": "Pricing page: plan cards also show each plan's meeting transcription minutes. The feature comparison table only appears when plans really differ in at least three features, and it adds rows for Office AI (your own AI key, cloud AI tools)."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/pricing-catalog.ts",
+          "apps/web/features/landing/pricing.tsx",
+          "apps/web/features/landing/pricing-catalog.test.ts",
+          "e2e/landing-pricing-catalog.spec.ts",
+          "packages/core/i18n/locales/vi.json",
+          "packages/core/i18n/locales/en.json"
+        ]
+      }
+    },
+    {
+      "commit": "389cdbd40178a55a15f9af91774ad6aa6399d140",
+      "subject": "Develop (#492)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Commit squash của PR #492 (develop → main, template chưa điền). Theo mô tả PR #496, cây của main giống develop 12c17b627 mà develop đã có, và merge main vào develop giữ nguyên cây; commit đồng bộ nhánh, không mang thay đổi mới.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/496"
+      }
+    },
+    {
+      "commit": "4228c23e3f2b0c806c324186730aa56559b9990e",
+      "subject": "UNI-2230: Luồng rời phòng và kết thúc họp theo canvas: hộp thoại chủ trì, màn sau khi rời (A–H), logo (#493)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Rời và kết thúc cuộc họp: khi chủ trì bấm Rời phòng, chọn chỉ rời (vẫn giữ quyền chủ trì), chuyển quyền cho người đang trong phòng, hoặc kết thúc cho mọi người. Sau khi rời, mỗi người thấy màn phù hợp: vào lại với mic và camera như lúc rời; chủ trì ở ngoài vẫn duyệt người xin vào và dừng ghi hình được; khi họp kết thúc có người kết thúc, thời lượng, số người dự, trạng thái biên bản và việc của bạn; người bị mời ra biết ai mời và lúc nào; khách được cảm ơn và mời dùng thử UniWork. Bạn cũng có thể đánh giá nhanh chất lượng cuộc gọi.",
+        "en": "Leaving and ending a meeting: when the host clicks Leave, they choose to just leave (keeping the host role), hand the role to someone in the room, or end the meeting for everyone. After leaving, each person sees a fitting screen: rejoin with the mic and camera as they were; a host who stepped out can still admit people waiting and stop the recording; when the meeting ends you see who ended it, how long it ran, how many attended, the minutes status and your tasks; someone removed from the meeting sees who removed them and when; guests are thanked and invited to try UniWork. You can also quickly rate the call quality."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/493"
+      }
+    },
+    {
+      "commit": "7f427c7f30d2e29c7b08d0d33d3ebf9d48aa5510",
+      "subject": "UNI-2225: Hỏi UNI soạn tệp Office: mục Mẫu văn bản trong Tài liệu (Office P2) (#491)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tài liệu có mục Mẫu văn bản dùng chung cho cả workspace, nhóm theo Word, Excel, PowerPoint và Khác. Tải mẫu lên bằng nút Tải mẫu lên hoặc kéo thả tệp vào mục này; trong menu của mỗi dòng có Đánh dấu là mẫu và Bỏ khỏi Mẫu. Thành viên xem được tài liệu thì đánh dấu được; với tài liệu riêng tư, người có quyền quản lý phải xác nhận mở tài liệu cho cả workspace chỉnh sửa. Tài liệu đã lưu trữ hoặc đang ở thùng rác không đánh dấu là mẫu được.",
+        "en": "Documents gains a Templates section shared by the whole workspace, grouped into Word, Excel, PowerPoint and Other. Add a template with the Upload template button or by dropping a file into the section; each row's menu has Mark as template and Remove from Templates. Members who can see a document can mark it; for a private document, someone with manage access must confirm opening it for the whole workspace to edit. Archived documents and documents in the trash cannot be marked as templates."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/491"
+      }
+    },
+    {
+      "commit": "f3442a3854fab7ac35980f52123e039206439bab",
+      "subject": "fix(pricing): remove redundant usage note",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "Không có PR vào develop (chỉ PR #495 develop → main, template chưa điền), nên đọc diff: bỏ dòng ghi chú cách tính phút họp dưới bảng giá; đã gộp vào mục Bảng giá (e4e631d6b).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "apps/web/features/landing/pricing.tsx",
+          "packages/core/i18n/locales/vi.json",
+          "packages/core/i18n/locales/en.json"
+        ]
+      }
+    },
+    {
+      "commit": "b7ffc3f9677e4cf5bb92bfa345773eb1e4dc1e1f",
+      "subject": "UNI-923: Office G5-G7 Google Drive connector, legacy Office formats, folder sharing, develop reds fixed (PR 8) (#494)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tài liệu: chia sẻ cả thư mục bằng mục Chia sẻ trong menu thư mục — xem trước, rồi áp dụng quyền cho mọi tài liệu trong thư mục và các thư mục con; việc chạy nền và bạn nhận thông báo khi xong, kể cả khi đã rời Tài liệu. Tài liệu có giới hạn truy cập đặc biệt được giữ nguyên. Tệp Word, Excel, PowerPoint định dạng cũ (.doc, .xls, .ppt) trên web được mở bằng UniWork Office; trong app máy tính (từ bản beta.10), bản chuyển đổi được lưu thành phiên bản tiếp theo của chính tài liệu đó. Ô tìm kiếm trong Tài liệu gọn hơn.",
+        "en": "Documents: share a whole folder with Share in the folder menu — preview, then apply access to every document in the folder and its subfolders; the work runs in the background and you get a notification when it finishes, even after leaving Documents. Documents with special access limits are left unchanged. Older Word, Excel and PowerPoint files (.doc, .xls, .ppt) on the web open in UniWork Office; in the desktop app (beta.10 or later), the converted copy is saved as the next version of the same document. The search box in Documents is more compact."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/494"
+      }
+    },
+    {
+      "commit": "6e0d23c354be8e5cbc055f786347d2647afcd9cb",
+      "subject": "fix(auth): keep join invite next through register and verify",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #497 (mô tả PR): người chưa có tài khoản mở link mời không còn bị đưa sang tạo tổ chức mà vào thẳng nơi được mời sau khi xác minh; sửa cho tính năng mới cùng phiên bản, đã gộp vào mục link mời (6cbd2bbb0).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/497"
+      }
+    },
+    {
+      "commit": "c167e7288cdc61be13119cd7f938da0bb92c613e",
+      "subject": "fix: schedule Uniwork on the shared worker pool",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #503 (mô tả PR): xếp lịch dịch vụ lên nhóm máy chủ chung và giới hạn số bản sao của meeting agent; cấu hình hạ tầng, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/503"
+      }
+    },
+    {
+      "commit": "4458af37e9a9c952f6a5a985672db59325e3da30",
+      "subject": "fix(chat): strip mention markup from task titles so cards do not overflow",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chat: công việc tạo từ tin nhắn có nhắc tên giờ hiện @Tên trong tiêu đề thay vì mã nhắc thô, và thẻ công việc không còn tràn khi có chuỗi dài.",
+        "en": "Chat: a task created from a message that mentions someone now shows @Name in its title instead of the raw mention code, and the task card no longer overflows on long strings."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/500"
+      }
+    },
+    {
+      "commit": "0cd5e5ae6b1803536689748f96dc5e7bcc1b2525",
+      "subject": "UNI-2261: Hỏi UNI soạn tệp Office: tạo tệp từ mẫu hoặc tệp trống, thẻ kế hoạch và dàn ý (Office P3) (#498)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Hỏi UNI tạo tệp Office: nhờ Hỏi UNI soạn báo giá, hóa đơn hay bài trình chiếu, Hỏi UNI tìm mẫu trong Mẫu văn bản hoặc dùng tệp bạn đính kèm, rồi đưa thẻ kế hoạch có dàn ý bạn sửa được. Bấm Tạo và mở để có tệp mới của riêng bạn — từ mẫu, từ tệp đính kèm hoặc tệp trống (Word, Excel, PowerPoint, PDF, Markdown, HTML) — và mở ngay trong trình soạn; mẫu gốc không đổi. Hỏi UNI cũng có thể đề xuất lưu tệp đính kèm vào Mẫu văn bản. Hoàn tác sẽ chuyển tệp vừa tạo vào thùng rác.",
+        "en": "Ask UNI creates Office files: ask Ask UNI for a quote, an invoice or a slide deck, and it finds a template in Templates or uses a file you attached, then shows a plan card with an outline you can edit. Click Create and open to get a new file of your own — from a template, from the attachment or blank (Word, Excel, PowerPoint, PDF, Markdown, HTML) — opened right in the editor; the original template is unchanged. Ask UNI can also suggest saving an attachment to Templates. Undo moves the new file to the trash."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/498"
+      }
+    },
+    {
+      "commit": "0c9a7ae41d024ebecc4eebc94917b2bb8a171347",
+      "subject": "UNI-2247: Họp trực tiếp không giấy: ghi âm trong app, họp xong có biên bản và việc (#501)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Họp trực tiếp không cần giấy: khi lên lịch hoặc họp ngay, chọn hình thức Trực tiếp. Một máy trong phòng bấm Bắt đầu ghi âm ngay trên trình duyệt, rồi Kết thúc và gửi; bản ghi được ghi lời, tách người nói, tóm tắt, đề xuất việc và lập biên bản như file ghi âm tải lên. Âm thanh được lưu dần trên máy nên đóng tab, hết pin hay mất mạng không làm mất phần đã ghi; có mạng lại thì phần còn lại tự gửi tiếp, và app nhắc nếu bạn đăng xuất khi còn bản ghi chưa gửi. Họp trực tiếp không có Thư ký UNI; người đã từ chối lời mời được gợi ý vắng mặt khi điểm danh.",
+        "en": "Paperless in-person meetings: when scheduling or starting a meeting now, choose In person. One device in the room clicks Start recording right in the browser, then End and send; the recording is transcribed, split by speaker, summarized, turned into suggested tasks and minutes, just like an uploaded recording. Audio is saved on the device as it records, so closing the tab, a flat battery or a lost connection does not lose what was recorded; once back online the rest is sent automatically, and the app warns you if you sign out with an unsent recording. In-person meetings have no UNI scribe; people who declined the invitation are suggested as absent in attendance."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/501"
+      }
+    },
+    {
+      "commit": "3aaeda086e57a313f46215d1815d990fdd91d287",
+      "subject": "UNI-2247: sửa develop đỏ sau #501 và bật ghi lời cuộc họp trên dev/production (#502)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #502 (mô tả PR): sửa test đang đỏ trên develop sau #501 và đặt cấu hình nhà cung cấp ghi lời cho máy chủ dev/production; cấu hình triển khai, không bật cho mọi tổ chức. Điều kiện sử dụng được nêu ở phần ghi chú.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/502"
+      }
+    },
+    {
+      "commit": "72a25869817ef930ccfe3f4684d859ef8dab9b25",
+      "subject": "test(chat): use distinct titles in mention-strip CreateTaskFromMessage case",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #500; commit chỉ dùng tiêu đề khác nhau trong một test tạo công việc từ tin nhắn; chỉ sửa test.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/500"
+      }
+    },
+    {
+      "commit": "4584fdacca42e15bbd0b5a1204ad9c8150c21347",
+      "subject": "test(governance): pin main's squash commit Develop (#492) as historical (#499)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #499 (mô tả PR): ghi nhận commit squash Develop (#492) là lịch sử trong test commit-msg; test quy trình nội bộ.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/499"
+      }
+    },
+    {
+      "commit": "18abbf6abb4dde7466f1d417bad6ddf173d26cd0",
+      "subject": "UNI-2247: sửa 6 lỗi nên sửa từ review họp trực tiếp không giấy (#501) (#504)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #504 (mô tả PR): 6 sửa lỗi cho họp trực tiếp mới cùng phiên bản (không ghi lời hai lần, người từ chối được gợi ý vắng, nhắc tóm tắt khi tắt tóm tắt tự động, không hiện Bỏ lỡ khi còn ghi, chặn ghi âm cho họp đã kết thúc, form đặt lịch luôn có ô chọn hình thức); đã gộp vào mục họp trực tiếp (0c9a7ae41) và phần ghi chú.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/504"
+      }
+    },
+    {
+      "commit": "cb4a1b02e899a7e3113bdde358c2a9ce8f92e962",
+      "subject": "ci: split the Go service shard in two by test name (#505)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #505 (mô tả PR): chia shard test Go của CI làm hai để vừa giới hạn thời gian; CI, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/505"
+      }
+    },
+    {
+      "commit": "6fcf7fd13c09a42ca3e91fd1d4e256c1feb2e513",
+      "subject": "fix(email-hub): tăng tốc list, move và UI đọc thư",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Email Hub nhanh hơn: danh sách thư tải nhẹ hơn và cuộn mượt hơn khi hộp thư dài; chuyển thư sang thư mục khác và tạm ẩn thư phản hồi ngay, còn thư mục đích được đồng bộ ở chế độ nền. Danh sách thư được giữ nguyên khi bạn mở đọc một thư.",
+        "en": "Email Hub is faster: the message list loads lighter and scrolls more smoothly in long mailboxes; moving mail to another folder and snoozing respond right away, while the target folder syncs in the background. The message list stays in place while you read a message."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/506"
+      }
+    },
+    {
+      "commit": "f0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf",
+      "subject": "UNI-2271: fetch the Documents bulk zip with the bearer instead of navigating to its route (#507)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Tài liệu: chọn nhiều tài liệu rồi tải về thành tệp zip không còn bị lỗi khi lưu tệp; nếu tải không được, app báo lỗi và không lưu tệp rỗng.",
+        "en": "Documents: selecting several documents and downloading them as a zip no longer fails when saving the file; if the download fails, the app shows an error and does not save an empty file."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/507"
+      }
+    }
+  ]
+}

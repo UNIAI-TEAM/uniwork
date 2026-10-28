@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
@@ -19,12 +20,22 @@ func (h *handlers) createTask(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
+	var driveFiles []service.CreateTaskDriveFileInput
+	if len(in.DriveFiles) > 0 {
+		driveFiles = make([]service.CreateTaskDriveFileInput, 0, len(in.DriveFiles))
+		for _, df := range in.DriveFiles {
+			driveFiles = append(driveFiles, service.CreateTaskDriveFileInput{
+				ConnectionID:   df.ConnectionID,
+				ExternalFileID: df.ExternalFileID,
+			})
+		}
+	}
 	t, err := h.Tasks.CreateTaskSuite(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"),
 		service.CreateTaskInput{Title: in.Title, Description: in.Description, Status: in.Status, Priority: in.Priority,
 			AssigneeID: in.AssigneeID, AssigneeKind: in.AssigneeKind, StartDate: in.StartDate, DueDate: in.DueDate,
 			StartAt: in.StartAt, DueAt: in.DueAt,
 			ProjectID: in.ProjectID, ParentTaskID: in.ParentTaskID, Stage: in.Stage, LabelIDs: in.LabelIDs,
-			AttachmentIDs: in.AttachmentIDs, Properties: in.Properties, AllowDuplicate: in.AllowDuplicate},
+			AttachmentIDs: in.AttachmentIDs, DriveFiles: driveFiles, Properties: in.Properties, AllowDuplicate: in.AllowDuplicate},
 		r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -103,13 +114,13 @@ func (h *handlers) batchDeleteTasks(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	n, err := h.Tasks.BatchDeleteTasks(r.Context(), service.Human(middleware.UserID(r.Context())),
+	res, err := h.Tasks.TrashMany(r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"), in.TaskIDs)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, 200, map[string]any{"deleted": n})
+	respondJSON(w, 200, sdo.BatchDeleteTasksSDO{Deleted: len(res.IDs), TrashBatchID: res.BatchID})
 }
 
 // resolveTaskRevision prefers a matching body revision and If-Match pair.

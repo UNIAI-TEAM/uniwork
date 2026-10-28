@@ -16,10 +16,13 @@ const transcription = {
   status: "RUNNING",
   attempts: 1,
   starts_at: "2026-10-20T01:30:00Z",
+  estimated_seconds: 2538,
   created_by: "u1",
   created_at: "2026-10-20T04:00:00Z",
 };
 const malformed = [null, [], "nope", { transcription: { id: 3 } }, { transcriptions: "x" }, { meeting: { id: 1 } }];
+// A length that is not a number: that row loses its length rather than drawing "NaN phút", and the list survives.
+const badLength = { transcriptions: [{ ...transcription, estimated_seconds: "2538" }, { ...transcription, id: "t0" }] };
 
 describe("meeting transcription endpoints", () => {
   beforeEach(() => {
@@ -59,11 +62,26 @@ describe("meeting transcription endpoints", () => {
     expect(JSON.parse(String(init!.body))).toEqual({ upload_id: "f1", language: "vi", consent: true });
   });
 
+  it("recordMeetingHeld sends duration_seconds and ended_seconds_ago", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meeting: { id: 1 } }));
+    await expect(recordMeetingHeld("m1", { duration_seconds: 3600, ended_seconds_ago: 7200 })).resolves.toBeNull();
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body))).toEqual({ duration_seconds: 3600, ended_seconds_ago: 7200 });
+  });
+
+  it("requestMeetingTranscription sends offset_seconds", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ transcription }, 201)).mockResolvedValueOnce(json({ transcription: { id: 3 } }));
+    const body = { upload_id: "f1", language: "vi", consent: true, duration_seconds: 300, offset_seconds: 0 };
+    expect((await requestMeetingTranscription("m1", body))?.id).toBe("t1");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body))).toEqual(body);
+    await expect(requestMeetingTranscription("m1", { ...body, offset_seconds: 300 })).resolves.toBeNull();
+  });
+
   it("listMeetingTranscriptions reads the list", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ transcriptions: [transcription, { ...transcription, id: "t0", status: "FAILED", error_code: "timeout" }] }));
     const list = await listMeetingTranscriptions("m1");
     expect(list.map((t) => t.id)).toEqual(["t1", "t0"]);
     expect(list[1]?.error_code).toBe("timeout");
+    expect(list[0]?.estimated_seconds).toBe(2538);
   });
 
   it("degrades malformed responses instead of throwing", async () => {
@@ -75,5 +93,10 @@ describe("meeting transcription endpoints", () => {
       vi.mocked(fetch).mockResolvedValueOnce(json(bad));
       await expect(listMeetingTranscriptions("m1")).resolves.toEqual([]);
     }
+    vi.mocked(fetch).mockResolvedValueOnce(json(badLength));
+    const list = await listMeetingTranscriptions("m1");
+    expect(list.map((t) => t.id)).toEqual(["t1", "t0"]);
+    expect(list[0]?.estimated_seconds).toBeUndefined();
+    expect(list[1]?.estimated_seconds).toBe(2538);
   });
 });

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useTaskPermissions } from "@uniwork/core/permissions";
 import {
   useAddTaskReaction,
   useComments,
@@ -28,6 +29,11 @@ import {
 } from "../../../editor";
 import { NodeHistorySection } from "../../../graph/node-history-section";
 import { toastApiError } from "../../../toast-api-error";
+import type { DrivePickerAdapter } from "../../../integrations/drive-picker";
+import {
+  DrivePasteSuggestionChips,
+  useDrivePasteSuggestions,
+} from "../../drive-paste-suggestion-chips";
 import { TaskDetailAttachmentsSlot } from "./task-detail-attachments-slot";
 import { TaskDetailContextLine } from "./task-detail-context-line";
 import { TaskDetailSubtasksSection } from "./subtasks-section";
@@ -39,12 +45,14 @@ export function TaskDetailEditors({
   onSaveTitle,
   onSaveDescription,
   scrollContainerRef,
+  pickerAdapter,
 }: {
   task: Task;
   workspaceId: string;
   onSaveTitle: (title: string) => void;
   onSaveDescription: (markdown: string) => void;
   scrollContainerRef?: (el: HTMLElement | null) => void;
+  pickerAdapter?: DrivePickerAdapter;
 }) {
   const { t } = useTranslation();
   const titleEditorRef = useRef<TitleEditorRef>(null);
@@ -53,6 +61,8 @@ export function TaskDetailEditors({
   const currentUser = useAuthStore((state) => state.user);
   const members = useMembers(workspaceId);
   const attachments = useTaskAttachments(workspaceId, task.id);
+  const { canEdit, isLoading: permissionsLoading } = useTaskPermissions(task, workspaceId);
+  const canEditTask = !permissionsLoading && canEdit.allowed;
   const comments = useComments(task.id);
   const uploadMutation = useUploadTaskAttachment(workspaceId, task.id);
   const addReaction = useAddTaskReaction(task.id);
@@ -102,6 +112,17 @@ export function TaskDetailEditors({
     resetKey: task.id,
   });
 
+  const drivePaste = useDrivePasteSuggestions();
+  const { reset: resetDrivePaste } = drivePaste;
+
+  useEffect(() => {
+    resetDrivePaste();
+  }, [resetDrivePaste, task.id]);
+  useEffect(() => {
+    if (!permissionsLoading && !canEdit.allowed) {
+      resetDrivePaste();
+    }
+  }, [canEdit.allowed, permissionsLoading, resetDrivePaste]);
   useEffect(() => {
     setLiveDescription(task.description ?? "");
   }, [task.description, task.id]);
@@ -178,8 +199,25 @@ export function TaskDetailEditors({
               attachments={attachments.data}
               onUploadFile={(file) => uploadIntoDescription(file)}
               disableMentions
+              onPasteDriveFileIds={
+                permissionsLoading || canEdit.allowed
+                  ? drivePaste.onPasteDriveFileIds
+                  : undefined
+              }
             />
           </EditorLinkProvider>
+          {canEditTask ? (
+            <DrivePasteSuggestionChips
+              workspaceId={workspaceId}
+              taskId={task.id}
+              suggestedFileIds={drivePaste.suggestedFileIds}
+              fileKindsById={drivePaste.fileKindsById}
+              onDismiss={drivePaste.dismissFileId}
+              onResolved={drivePaste.resolveFileId}
+              pickerAdapter={pickerAdapter}
+              className="mt-2"
+            />
+          ) : null}
           <div className="mt-3 flex items-center gap-1">
             <ReactionBar
               reactions={task.reactions ?? []}
@@ -203,6 +241,7 @@ export function TaskDetailEditors({
           workspaceId={workspaceId}
           taskId={task.id}
           content={attachmentReferences}
+          canEdit={permissionsLoading ? true : canEdit.allowed}
         />
         <TaskDetailSubtasksSection workspaceId={workspaceId} taskId={task.id} />
         {/* The context line names the meeting a task came from; the timeline does not repeat it. */}

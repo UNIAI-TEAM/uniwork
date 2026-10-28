@@ -29,11 +29,10 @@ spec:
         runAsGroup: {{ .Values.fe.securityContext.runAsGroup }}
         seccompProfile:
           type: RuntimeDefault
-      nodeSelector:
-        {{- toYaml .Values.nodeSelector | nindent 8 }}
       # Prefer separate nodes so one drain or node loss leaves a replica up;
-      # soft, so a single app node still schedules both.
+      # soft, so one node still schedules both.
       affinity:
+        {{- include "uniwork.nodeAffinity" . | nindent 8 }}
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
@@ -42,6 +41,7 @@ spec:
                 labelSelector:
                   matchLabels:
                     app.kubernetes.io/name: uniwork-fe
+      {{- include "uniwork.tolerations" . | nindent 6 }}
       containers:
         - name: uniwork-fe
           image: {{ include "uniwork.image" .Values.fe.image | quote }}

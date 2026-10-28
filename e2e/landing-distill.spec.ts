@@ -47,7 +47,7 @@ for (const width of [1280, 390]) {
       const closing = page.locator('.final-section');
       await closing.scrollIntoViewIfNeeded();
       expect((await closing.boundingBox())!.height).toBeLessThan(width < 768 ? 700 : 880);
-      await expect(closing.locator(".final-showcase .lovable-canvas")).toBeVisible();
+      await expect(closing.locator(".final-showcase .product-demo-poster")).toBeVisible();
       await expect(closing.getByRole('link')).toHaveCount(1);
       await expect(closing.getByRole('link')).toHaveAttribute('href', '/register');
       await expect(closing.locator('.studio-description, .final-note')).toHaveCount(0);

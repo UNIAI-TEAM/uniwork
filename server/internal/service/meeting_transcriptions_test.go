@@ -132,7 +132,7 @@ func TestRecordHeld(t *testing.T) {
 	began := time.Now().Add(-3 * time.Hour).Truncate(time.Second)
 	if _, err := s.RecordHeld(ctx, ub.ID, m.ID, began, began.Add(time.Hour)); err == nil {
 		t.Fatal("a plain member recorded the meeting as held")
-	} else if code, _ := codedOf(err); code != "not_meeting_host" {
+	} else if code, _ := codedOf(err); code != "not_meeting_clerk" {
 		t.Fatalf("a plain member: %v", err)
 	}
 	for name, times := range map[string][2]time.Time{
@@ -1003,5 +1003,47 @@ func TestTranscriptionFileStartCountsAFileWhoseReRunFailed(t *testing.T) {
 	}
 	if start.PreviousStart.Valid || start.EarlierSeconds != 3600 {
 		t.Fatalf("start = %+v, want no previous start and 3600 s earlier", start)
+	}
+}
+
+// A part names where it starts (seconds from the meeting's actual start), so
+// the recording device's clock never matters; an offset outside the meeting
+// (plus a minute of slack) is refused, and no offset keeps the old chaining.
+func TestRequestTranscriptionOffset(t *testing.T) {
+	e := transcriptionFixture(t)
+	s, ctx := e.s, context.Background()
+	start := time.Now().Add(time.Hour).Truncate(time.Second)
+	m, err := s.Create(ctx, e.host.ID, e.m.WorkspaceID, CreateMeetingInput{Title: "Họp trực tiếp", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	began := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if m, err = s.RecordHeld(ctx, e.host.ID, m.ID, began, began.Add(42*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	part := func(name string, seconds int) string {
+		return e.uploadFor(t, m, e.host.ID, name, mp3(seconds, util.NewID()))
+	}
+	for _, off := range []int{-1, 42*60 + 61} {
+		_, err := s.RequestTranscription(ctx, e.host.ID, m.ID, TranscriptionRequest{UploadID: part("lech.mp3", 60), Consent: true, OffsetSeconds: ptr(off)})
+		if code, status := codedOf(err); code != "invalid_offset" || status != http.StatusUnprocessableEntity {
+			t.Fatalf("offset %d: %v", off, err)
+		}
+	}
+	placed, err := s.RequestTranscription(ctx, e.host.ID, m.ID, TranscriptionRequest{UploadID: part("phan-2.mp3", 60), Consent: true, OffsetSeconds: ptr(1200)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := began.Add(20 * time.Minute); !placed.StartsAt.Time.Equal(want) {
+		t.Fatalf("offset part starts at %v, want %v", placed.StartsAt.Time, want)
+	}
+	edge, err := s.RequestTranscription(ctx, e.host.ID, m.ID, TranscriptionRequest{UploadID: part("cuoi.mp3", 60), Consent: true, OffsetSeconds: ptr(42*60 + 60)})
+	if err != nil || !edge.StartsAt.Time.Equal(began.Add(43*time.Minute)) {
+		t.Fatalf("the last minute of slack: %v %v", edge.StartsAt.Time, err)
+	}
+	// No offset: after every earlier part (60 s each).
+	chained, err := s.RequestTranscription(ctx, e.host.ID, m.ID, TranscriptionRequest{UploadID: part("noi.mp3", 60), Consent: true})
+	if err != nil || !chained.StartsAt.Time.Equal(began.Add(120*time.Second)) {
+		t.Fatalf("chained part starts at %v (%v), want %v", chained.StartsAt.Time, err, began.Add(120*time.Second))
 	}
 }

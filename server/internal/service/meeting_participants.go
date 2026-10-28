@@ -117,6 +117,32 @@ func (s *MeetingService) ListParticipants(ctx context.Context, userID, guestID, 
 	return s.q.ListMeetingParticipants(ctx, meetingID)
 }
 
+// ListParticipantsInRoom is ListParticipants plus who holds an open attendance
+// session right now, by participant id, and the host's user id: the leave
+// screens show who is still in the room to people outside it, guests included,
+// and a guest, who never reads the meeting, learns whose mute requests to obey.
+func (s *MeetingService) ListParticipantsInRoom(ctx context.Context, userID, guestID, meetingID string) ([]db.MeetingParticipant, map[string]bool, string, error) {
+	m, err := s.authorizeActiveParticipant(ctx, userID, guestID, meetingID)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	ps, err := s.q.ListMeetingParticipants(ctx, meetingID)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	totals, err := s.q.AttendanceSessionTotals(ctx, meetingID)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	inRoom := make(map[string]bool, len(totals))
+	for _, t := range totals {
+		if t.InRoom {
+			inRoom[t.ParticipantID] = true
+		}
+	}
+	return ps, inRoom, m.HostUserID, nil
+}
+
 func (s *MeetingService) ListInvitations(ctx context.Context, userID, meetingID string) ([]db.MeetingInvitation, error) {
 	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
 		return nil, err

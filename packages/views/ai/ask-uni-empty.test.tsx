@@ -39,6 +39,20 @@ describe("AskUniEmptyState", () => {
     expect(buttons()).toEqual([...SETS[kind]!, ...SETS.other!]);
   });
 
+  it("shows the document-specific headline and only the four drive_file suggestions (with coarse-pointer target) when kind is drive_file", () => {
+    render(<AskUniEmptyState kind="drive_file" onAsk={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Hỏi UNI về tài liệu này" })).toBeInTheDocument();
+    expect(buttons()).toEqual([
+      "Tóm tắt các mốc và rủi ro trong tài liệu này",
+      "Liệt kê các mốc thời gian và hạn chót",
+      "Những việc cần làm được nêu trong tài liệu?",
+      "Ai chịu trách nhiệm những phần nào?",
+    ]);
+    expect(screen.getByRole("button", { name: "Tóm tắt các mốc và rủi ro trong tài liệu này" })).toHaveClass(
+      "pointer-coarse:min-h-11",
+    );
+  });
+
   it("falls back to the other set, then more general questions, for null, member and unknown kinds", () => {
     for (const kind of [null, "member", "email_thread"]) {
       const { unmount } = render(<AskUniEmptyState kind={kind} onAsk={vi.fn()} />);

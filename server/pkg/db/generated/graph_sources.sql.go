@@ -167,7 +167,7 @@ func (q *Queries) GraphRebuildMemberIDs(ctx context.Context, arg GraphRebuildMem
 }
 
 const graphRebuildProjectIDs = `-- name: GraphRebuildProjectIDs :many
-SELECT id FROM projects WHERE organization_id = $1 AND id > $2::text
+SELECT id FROM projects WHERE organization_id = $1 AND id > $2::text AND trashed_at IS NULL
 ORDER BY id LIMIT $3::int
 `
 
@@ -198,7 +198,7 @@ func (q *Queries) GraphRebuildProjectIDs(ctx context.Context, arg GraphRebuildPr
 }
 
 const graphRebuildTaskIDs = `-- name: GraphRebuildTaskIDs :many
-SELECT id FROM tasks WHERE organization_id = $1 AND id > $2::text
+SELECT id FROM tasks WHERE organization_id = $1 AND id > $2::text AND trashed_at IS NULL
 ORDER BY id LIMIT $3::int
 `
 
@@ -379,7 +379,7 @@ func (q *Queries) GraphSourceDepartment(ctx context.Context, arg GraphSourceDepa
 }
 
 const graphSourceMeeting = `-- name: GraphSourceMeeting :one
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id FROM meetings WHERE organization_id = $1 AND id = $2
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue FROM meetings WHERE organization_id = $1 AND id = $2
 `
 
 type GraphSourceMeetingParams struct {
@@ -431,6 +431,7 @@ func (q *Queries) GraphSourceMeeting(ctx context.Context, arg GraphSourceMeeting
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }
@@ -503,7 +504,7 @@ func (q *Queries) GraphSourceMember(ctx context.Context, arg GraphSourceMemberPa
 }
 
 const graphSourceProject = `-- name: GraphSourceProject :one
-SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at FROM projects WHERE organization_id = $1 AND id = $2
+SELECT id, organization_id, workspace_id, title, description, icon, status, priority, lead_type, lead_id, start_date, due_date, revision, created_by, created_by_kind, created_at, updated_at, trashed_at, trashed_by, purge_after FROM projects WHERE organization_id = $1 AND id = $2 AND trashed_at IS NULL
 `
 
 type GraphSourceProjectParams struct {
@@ -532,13 +533,16 @@ func (q *Queries) GraphSourceProject(ctx context.Context, arg GraphSourceProject
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
 	)
 	return i, err
 }
 
 const graphSourceTask = `-- name: GraphSourceTask :one
 
-SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at FROM tasks WHERE organization_id = $1 AND id = $2
+SELECT id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at, trashed_at, trashed_by, purge_after, trash_batch_id, trashed_project_id FROM tasks WHERE organization_id = $1 AND id = $2 AND trashed_at IS NULL
 `
 
 type GraphSourceTaskParams struct {
@@ -587,6 +591,11 @@ func (q *Queries) GraphSourceTask(ctx context.Context, arg GraphSourceTaskParams
 		&i.LastActivityAt,
 		&i.StartAt,
 		&i.DueAt,
+		&i.TrashedAt,
+		&i.TrashedBy,
+		&i.PurgeAfter,
+		&i.TrashBatchID,
+		&i.TrashedProjectID,
 	)
 	return i, err
 }

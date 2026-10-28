@@ -15,11 +15,12 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 	"github.com/unicomhub/uniwork/server/internal/util"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 var agentToolOrder = []string{
 	"search", "list_tasks", "get_task", "list_meetings", "get_meeting", "get_meeting_transcript", "list_projects",
-	"get_project", "get_document", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
+	"get_project", "get_document", "list_documents", "list_templates", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
 }
 
 // newAgentWorld is the MCP tool world with Ask UNI's read tools wired to it,
@@ -195,6 +196,14 @@ func TestAskAgentToolsStayInTheAskedWorkspace(t *testing.T) {
 	}
 	if items := runAgentTool(t, s, tc, "get_meeting", `{"meeting_id":"`+meeting2.ID+`"}`); !isError(items, "not_found") {
 		t.Errorf("get_meeting of workspace two = %+v", items)
+	}
+	// A template of workspace two is not in workspace one's list.
+	tpl2, err := docs.CreateFileDocument(ctx, Human(x.ua.ID), v2.Workspace.ID, CreateFileDocumentInput{Filename: "mau-mat-hai.docx", Body: bytes.NewReader(docxBody(t, util.NewID())), Template: true, IdempotencyKey: util.NewID()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if items := runAgentTool(t, s, tc, "list_templates", `{"format":"","cursor":""}`); slices.ContainsFunc(items, func(it agentItem) bool { return it.ID == tpl2.Document.ID }) {
+		t.Errorf("list_templates in workspace one listed workspace two's template: %+v", items)
 	}
 	// The control: the asker's own task reads under its own workspace.
 	if items := runAgentTool(t, s, tc, "get_task", `{"task":"`+own.ID+`"}`); len(items) != 1 || items[0].Title != own.Title || !strings.Contains(items[0].Text, "Ref: ") {
@@ -471,7 +480,7 @@ func TestAskAgentListsSayWhenCut(t *testing.T) {
 // Without SetReadTools a tool that reads through the connector is a server
 // fault, never a panic and never an answer the model could act on.
 func TestAskAgentToolsNeedTheReadPath(t *testing.T) {
-	needs := []string{"list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects", "get_project", "get_document", "list_members"}
+	needs := []string{"list_tasks", "get_task", "list_meetings", "get_meeting", "list_projects", "get_project", "get_document", "list_documents", "list_templates", "list_members"}
 	for _, tool := range (&AskUNIService{}).agentTools() {
 		if !slices.Contains(needs, tool.Name) {
 			continue
@@ -582,5 +591,131 @@ func TestCitationsCarryTheObjectID(t *testing.T) {
 	book.render([]agentItem{moreNote("more")}, 100000)
 	if len(book.byID) != 1 {
 		t.Errorf("a note became a source: %+v", book.byID)
+	}
+}
+
+// list_documents browses one folder level of the asked workspace; a folder of
+// workspace two lists nothing, like a parent nobody has.
+func TestAgentListDocuments(t *testing.T) {
+	x, s, tc := newAgentWorld(t)
+	ctx := context.Background()
+	docs, _ := x.withDocs(t, "Trang gốc", mcpTestPage)
+	folder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Báo giá"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{ParentID: folder.Document.ID, Title: "Báo giá Minh An", Content: json.RawMessage(mcpTestPage)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := docs.CreateFileDocument(ctx, Human(x.ua.ID), x.w.ID, CreateFileDocumentInput{ParentID: folder.Document.ID, Title: "don-hang-10.xlsx", Filename: "don-hang-10.xlsx", Body: bytes.NewReader(officeFile(t, officeXLSXParts))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := func(items []agentItem) []string {
+		var out []string
+		for _, it := range items {
+			out = append(out, it.ID)
+		}
+		sort.Strings(out)
+		return out
+	}
+
+	top := runAgentTool(t, s, tc, "list_documents", `{"parent_id":"","cursor":""}`)
+	if !slices.Contains(ids(top), folder.Document.ID) {
+		t.Errorf("top level = %+v; want the folder", top)
+	}
+	under := runAgentTool(t, s, tc, "list_documents", `{"parent_id":"`+folder.Document.ID+`","cursor":""}`)
+	want := []string{page.Document.ID, file.Document.ID}
+	sort.Strings(want)
+	if !slices.Equal(ids(under), want) {
+		t.Fatalf("under the folder = %+v; want %v", under, want)
+	}
+	for _, it := range under {
+		if it.Kind != "document" || it.Key == "" || it.Key != it.Href || !strings.Contains(it.Text, "ID: "+it.ID) {
+			t.Errorf("row = %+v", it)
+		}
+	}
+
+	v2, err := x.tools.ws.CreateInOrg(ctx, x.ua.ID, x.w.OrganizationID, "Beta", "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder2, err := docs.CreatePage(ctx, Human(x.ua.ID), v2.Workspace.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục mật hai"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := docs.CreatePage(ctx, Human(x.ua.ID), v2.Workspace.ID, CreatePageInput{ParentID: folder2.Document.ID, Title: "Trang mật hai", Content: json.RawMessage(mcpTestPage)}); err != nil {
+		t.Fatal(err)
+	}
+	if items := runAgentTool(t, s, tc, "list_documents", `{"parent_id":"`+folder2.Document.ID+`","cursor":""}`); len(items) != 0 {
+		t.Errorf("a folder of workspace two listed %+v", items)
+	}
+}
+
+// list_templates lists the workspace's Templates section as the asker sees it:
+// by format, without a template the asker cannot read, closed with the
+// documents switch.
+func TestAskAgentListTemplates(t *testing.T) {
+	x, s, tc := newAgentWorld(t)
+	ctx := context.Background()
+	docs := x.docs(t)
+	mk := func(name string, body []byte) db.Document {
+		t.Helper()
+		res, err := docs.CreateFileDocument(ctx, Human(x.ua.ID), x.w.ID, CreateFileDocumentInput{Filename: name, Body: bytes.NewReader(body), Template: true, IdempotencyKey: util.NewID()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Document
+	}
+	d1 := mk("bao-gia.docx", docxBody(t, util.NewID()))
+	d2 := mk("hop-dong.docx", docxBody(t, util.NewID()))
+	px := mk("gioi-thieu.pptx", officeFile(t, map[string]string{"ppt/presentation.xml": `<p:presentation/>`, "ppt/slides/slide1.xml": `<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree/></p:cSld></p:sld>`}))
+	plain, err := docs.CreateFileDocument(ctx, Human(x.ua.ID), x.w.ID, CreateFileDocumentInput{Filename: "khong-phai-mau.docx", Body: bytes.NewReader(docxBody(t, util.NewID())), IdempotencyKey: util.NewID()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A template only its owner reads: marked, then closed to the workspace.
+	hidden := mk("mau-rieng.docx", docxBody(t, util.NewID()))
+	if _, err := x.tools.ask.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, hidden.ID); err != nil {
+		t.Fatal(err)
+	}
+	member := x.member(t)
+	tcB := ai.ToolContext{ActorID: member.UserID, OrganizationID: member.OrganizationID, WorkspaceID: x.w.ID}
+
+	if all := runAgentTool(t, s, tc, "list_templates", `{"format":"","cursor":""}`); len(all) != 4 {
+		t.Fatalf("every format for the owner = %+v; want 4 templates", all)
+	}
+	forMember := runAgentTool(t, s, tcB, "list_templates", `{"format":"","cursor":""}`)
+	if len(forMember) != 3 {
+		t.Fatalf("every format for a member = %+v; want 3 templates", forMember)
+	}
+	for _, it := range forMember {
+		if it.Kind != "document" || it.ID == plain.Document.ID || it.ID == hidden.ID {
+			t.Errorf("member's row = %+v", it)
+		}
+		format := "docx"
+		if it.ID == px.ID {
+			format = "pptx"
+		}
+		if !strings.Contains(it.Text, "ID: "+it.ID) || !strings.Contains(it.Text, "Format: "+format) {
+			t.Errorf("row text = %q; want ID and Format: %s", it.Text, format)
+		}
+	}
+	for _, id := range []string{d1.ID, d2.ID, px.ID} {
+		if !slices.ContainsFunc(forMember, func(it agentItem) bool { return it.ID == id }) {
+			t.Errorf("member's templates miss %s: %+v", id, forMember)
+		}
+	}
+	if only := runAgentTool(t, s, tc, "list_templates", `{"format":"pptx","cursor":""}`); len(only) != 1 || only[0].ID != px.ID {
+		t.Errorf("pptx filter = %+v", only)
+	}
+	if items := runAgentTool(t, s, tc, "list_templates", `{"format":"txt","cursor":""}`); len(items) != 1 || !strings.HasPrefix(items[0].Text, "error: invalid_args") {
+		t.Errorf("a bad format = %+v; want invalid_args", items)
+	}
+
+	x.flags.byOrg = map[string]bool{x.w.OrganizationID: false}
+	if items := runAgentTool(t, s, tc, "list_templates", `{"format":"","cursor":""}`); !isError(items, "documents_unavailable") {
+		t.Errorf("documents off: %+v", items)
 	}
 }

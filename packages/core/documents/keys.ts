@@ -71,6 +71,13 @@ export const documentKeys = {
     filterKey
       ? ([...documentKeys.workspace(wsId), "shelved", filterKey] as const)
       : ([...documentKeys.workspace(wsId), "shelved"] as const),
+  // Templates section: GET .../documents/templates, a keyset-paged list under
+  // the workspace root so `document.template_*` frames and mark/unmark
+  // refreshes reach it.
+  templates: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "templates", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "templates"] as const),
   // The folders-only tree appends a segment, so the full tree's key stays
   // its prefix and one tree invalidation refreshes both.
   tree: (wsId: string, root: string = "", foldersOnly: boolean = false) =>
@@ -149,6 +156,15 @@ export const documentKeys = {
   /** Placeholder key for a view that has no asset id yet; never fetched. */
   assetIdle: (wsId: string, documentId: string) =>
     [...documentKeys.all, wsId, "asset", documentId, "idle"] as const,
+  /**
+   * The bytes the image viewer shows for one file version (UNI-2166: a blob
+   * through `GET /api/v1/documents/{id}/download?intent=view`). Outside the
+   * workspace prefix (which `document.*` realtime frames invalidate) and keyed
+   * by the version id, so workspace activity never refetches an open image and
+   * a new version always does.
+   */
+  media: (wsId: string, documentId: string, versionId: string) =>
+    [...documentKeys.all, "media", wsId, documentId, versionId] as const,
   comments: (wsId: string, documentId: string) =>
     [...documentKeys.detail(wsId, documentId), "comments"] as const,
   /**
@@ -176,7 +192,10 @@ export const documentKeys = {
    * (a rename, an archive) refreshes them like any list; the star toggles
    * invalidate them beside `favoritesRoot`.
    */
-  favoriteList: (wsId: string) => [...documentKeys.workspace(wsId), "favorites"] as const,
+  favoriteList: (wsId: string, filterKey: string = "") =>
+    filterKey
+      ? ([...documentKeys.workspace(wsId), "favorites", filterKey] as const)
+      : ([...documentKeys.workspace(wsId), "favorites"] as const),
 };
 
 /** One report is one cache entry however the URL spelled its filters (order, blanks). */

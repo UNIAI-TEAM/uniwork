@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/
 import { useOptionalWorkspace } from "../layout/workspace-context";
 
 type AskUniFocus = Parameters<ReturnType<typeof useAiPanelStore.getState>["openWithFocus"]>[0];
-type FocusKind = "task" | "meeting" | "document" | "project" | "room";
+type FocusKind = "task" | "meeting" | "document" | "drive_file" | "project" | "room";
 
 /**
  * Opens the docked Ask UNI panel with this object as its focus, or undefined

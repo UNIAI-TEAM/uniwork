@@ -14,6 +14,7 @@ import { WorkspaceChrome } from "./workspace-top-bar";
 import { WorkspaceLoader } from "./workspace-loader";
 import { WorkspaceProvider } from "./workspace-context";
 import { EntitlementGateToastHost } from "./entitlement-gate-toast";
+import { FolderAccessBatchWatchers } from "./folder-access-batch-watchers";
 import { WorkspaceRealtimeSync } from "./workspace-realtime-sync";
 import { WorkspaceChatPresence } from "./workspace-chat-presence";
 import { WorkspaceChatAttention } from "./workspace-chat-attention";
@@ -67,6 +68,7 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
                 <ChatVoiceCallHost>
                   <WorkspaceRealtimeSync />
                   <EntitlementGateToastHost />
+                  <FolderAccessBatchWatchers wsId={workspace.id} />
                   <WorkspaceChatPresence />
                   <WorkspaceChatAttention />
                   {/* A column: the top bar across the app, then the row of nav and content. */}

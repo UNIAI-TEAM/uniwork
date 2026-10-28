@@ -14,100 +14,110 @@ import "strings"
 // Title when params["decision"] is "decline".
 var titles = map[string]map[string]string{
 	"vi": {
-		KindTaskAssigned:                "{{actor}} đã giao bạn việc \"{{task}}\"",
-		KindTasksAssigned:               "{{actor}} đã giao bạn {{count}} việc từ cuộc họp \"{{meeting}}\"",
-		tasksAssignedNoMeetingTitleKey:  "{{actor}} đã giao bạn {{count}} việc",
-		KindTaskStatusChanged:           "{{actor}} chuyển \"{{task}}\" sang {{status}}",
-		KindTaskCommented:               "{{actor}} đã bình luận trong \"{{task}}\"",
-		KindMentioned:                   "{{actor}} đã nhắc đến bạn trong \"{{task}}\"",
-		KindMeetingInvited:              "{{actor}} đã mời bạn họp \"{{meeting}}\"",
-		KindMeetingStarting:             "\"{{meeting}}\" bắt đầu sau {{minutes}} phút",
-		KindMeetingSummaryReminder:      "\"{{meeting}}\" đã kết thúc · Tóm tắt và tạo việc",
-		KindMeetingSummaryReady:         "Tóm tắt \"{{meeting}}\" đã sẵn sàng · Xem và giao việc",
-		KindMeetingRecapReady:           "Đã có tóm tắt cuộc họp \"{{meeting}}\" · Xem các quyết định và việc cần làm",
-		KindMeetingActionItemsPending:   "\"{{meeting}}\" còn {{count}} việc chưa giao · Xem và giao việc",
-		KindMeetingTaskDue:              "Việc \"{{task}}\" từ cuộc họp \"{{meeting}}\" đến hạn hôm nay",
-		taskOverdueTitleKey:             "Việc \"{{task}}\" từ cuộc họp \"{{meeting}}\" đã quá hạn",
-		recapMinutesTitleKey:            "Biên bản \"{{meeting}}\" đã chốt · Xem lại các quyết định và việc được giao",
-		KindMeetingTranscriptReady:      "Đã có bản ghi lời thoại cho tệp ghi âm của \"{{meeting}}\"",
-		KindMeetingTranscriptFailed:     "Không tạo được bản ghi lời thoại cho tệp ghi âm của \"{{meeting}}\". Mở cuộc họp để tải lại tệp.",
-		KindMemberAdded:                 "{{actor}} đã thêm bạn vào workspace {{workspace}}",
-		KindRoleChanged:                 "{{actor}} đã đổi vai trò của bạn thành {{role}}",
-		KindAuditExportReady:            "Bản xuất nhật ký của bạn đã sẵn sàng",
-		KindChatFollowUp:                "Bạn đã gắn Follow-up cho một tin nhắn",
-		KindChatReminder:                "Nhắc hẹn: {{body}}",
-		KindEmailHubNewMail:             "Bạn có {{count}} thư chưa đọc · {{mailbox}}",
-		KindDocumentCommented:           "{{actor}} đã bình luận trong \"{{document}}\"",
-		KindDocumentMentioned:           "{{actor}} đã nhắc đến bạn trong bình luận tại tài liệu \"{{document}}\".",
-		KindDocumentBodyMentioned:       "{{actor}} đã nhắc đến bạn trong tài liệu \"{{document}}\".",
-		KindDocumentCommentReplied:      "{{actor}} đã phản hồi bình luận của bạn trong tài liệu \"{{document}}\".",
-		KindDocumentDiscussionMentioned: "{{actor}} đã nhắc đến bạn trong thảo luận của tài liệu \"{{document}}\".",
-		KindDocumentDiscussionReplied:   "{{actor}} đã phản hồi nội dung thảo luận của bạn trong tài liệu \"{{document}}\".",
-		KindDocumentCommentResolved:     "{{actor}} đã đánh dấu một bình luận trong tài liệu \"{{document}}\" là đã giải quyết.",
-		KindDocumentEditRequested:       "{{actor}} muốn sửa \"{{document}}\"",
-		KindDocumentEditRequestAnswered: "{{actor}} đã nhường quyền sửa \"{{document}}\" cho bạn",
-		editRequestDeclinedTitleKey:     "{{actor}} chưa nhả quyền sửa \"{{document}}\"",
-		KindDocumentEditTakenOver:       "{{actor}} đã lấy quyền sửa \"{{document}}\". Thay đổi chưa lưu của bạn vẫn còn trong tài liệu đang mở.",
-		KindDocumentBreakGlass:          "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu \"{{document}}\".",
-		KindChatMentioned:               "{{actor}} đã nhắc đến bạn trong {{room}}",
-		KindChatDM:                      "{{actor}} đã nhắn tin cho bạn",
-		KindChatMessage:                 "{{actor}} đã nhắn trong {{room}}",
-		KindChatCallIncoming:            "{{actor}} đang gọi",
-		KindChatThreadReplied:           "{{actor}} đã trả lời thread trong {{room}}",
-		KindDocumentAccessRequested:     "{{actor}} xin quyền truy cập tài liệu \"{{document}}\".",
-		KindDocumentAccessApproved:      "{{actor}} đã cấp cho bạn quyền truy cập \"{{document}}\".",
-		KindDocumentAccessDeclined:      "Yêu cầu truy cập tài liệu của bạn đã bị từ chối.",
-		KindDocumentShared:              "{{actor}} đã chia sẻ tài liệu \"{{document}}\" với bạn. Quyền: {{level}}.",
-		KindDocumentTrashedByOther:      "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
-		KindDocumentChanged:             "{{actor}} đã thay đổi {{document_count}} tài liệu",
+		KindTaskAssigned:                    "{{actor}} đã giao bạn việc \"{{task}}\"",
+		KindTasksAssigned:                   "{{actor}} đã giao bạn {{count}} việc từ cuộc họp \"{{meeting}}\"",
+		tasksAssignedNoMeetingTitleKey:      "{{actor}} đã giao bạn {{count}} việc",
+		KindTaskStatusChanged:               "{{actor}} chuyển \"{{task}}\" sang {{status}}",
+		KindTaskCommented:                   "{{actor}} đã bình luận trong \"{{task}}\"",
+		KindMentioned:                       "{{actor}} đã nhắc đến bạn trong \"{{task}}\"",
+		KindMeetingInvited:                  "{{actor}} đã mời bạn họp \"{{meeting}}\"",
+		KindMeetingStarting:                 "\"{{meeting}}\" bắt đầu sau {{minutes}} phút",
+		KindMeetingSummaryReminder:          "\"{{meeting}}\" đã kết thúc · Tóm tắt và tạo việc",
+		KindMeetingSummaryReady:             "Tóm tắt \"{{meeting}}\" đã sẵn sàng · Xem và giao việc",
+		KindMeetingRecapReady:               "Đã có tóm tắt cuộc họp \"{{meeting}}\" · Xem các quyết định và việc cần làm",
+		KindMeetingActionItemsPending:       "\"{{meeting}}\" còn {{count}} việc chưa giao · Xem và giao việc",
+		KindMeetingTaskDue:                  "Việc \"{{task}}\" từ cuộc họp \"{{meeting}}\" đến hạn hôm nay",
+		taskOverdueTitleKey:                 "Việc \"{{task}}\" từ cuộc họp \"{{meeting}}\" đã quá hạn",
+		recapMinutesTitleKey:                "Biên bản \"{{meeting}}\" đã chốt · Xem lại các quyết định và việc được giao",
+		KindMeetingTranscriptReady:          "Đã có bản ghi lời thoại cho tệp ghi âm của \"{{meeting}}\"",
+		KindMeetingTranscriptFailed:         "Không tạo được bản ghi lời thoại cho tệp ghi âm của \"{{meeting}}\". Mở cuộc họp để tải lại tệp.",
+		KindMemberAdded:                     "{{actor}} đã thêm bạn vào workspace {{workspace}}",
+		KindRoleChanged:                     "{{actor}} đã đổi vai trò của bạn thành {{role}}",
+		KindAuditExportReady:                "Bản xuất nhật ký của bạn đã sẵn sàng",
+		KindChatFollowUp:                    "Bạn đã gắn Follow-up cho một tin nhắn",
+		KindChatReminder:                    "Nhắc hẹn: {{body}}",
+		KindEmailHubNewMail:                 "Bạn có {{count}} thư chưa đọc · {{mailbox}}",
+		KindDocumentCommented:               "{{actor}} đã bình luận trong \"{{document}}\"",
+		KindDocumentMentioned:               "{{actor}} đã nhắc đến bạn trong bình luận tại tài liệu \"{{document}}\".",
+		KindDocumentBodyMentioned:           "{{actor}} đã nhắc đến bạn trong tài liệu \"{{document}}\".",
+		KindDocumentCommentReplied:          "{{actor}} đã phản hồi bình luận của bạn trong tài liệu \"{{document}}\".",
+		KindDocumentDiscussionMentioned:     "{{actor}} đã nhắc đến bạn trong thảo luận của tài liệu \"{{document}}\".",
+		KindDocumentDiscussionReplied:       "{{actor}} đã phản hồi nội dung thảo luận của bạn trong tài liệu \"{{document}}\".",
+		KindDocumentCommentResolved:         "{{actor}} đã đánh dấu một bình luận trong tài liệu \"{{document}}\" là đã giải quyết.",
+		KindDocumentEditRequested:           "{{actor}} muốn sửa \"{{document}}\"",
+		KindDocumentEditRequestAnswered:     "{{actor}} đã nhường quyền sửa \"{{document}}\" cho bạn",
+		editRequestDeclinedTitleKey:         "{{actor}} chưa nhả quyền sửa \"{{document}}\"",
+		KindDocumentEditTakenOver:           "{{actor}} đã lấy quyền sửa \"{{document}}\". Thay đổi chưa lưu của bạn vẫn còn trong tài liệu đang mở.",
+		KindDocumentBreakGlass:              "{{actor}} đã mở truy cập khẩn cấp (chỉ xem, 24 giờ) vào tài liệu \"{{document}}\".",
+		KindChatMentioned:                   "{{actor}} đã nhắc đến bạn trong {{room}}",
+		KindChatDM:                          "{{actor}} đã nhắn tin cho bạn",
+		KindChatMessage:                     "{{actor}} đã nhắn trong {{room}}",
+		KindChatCallIncoming:                "{{actor}} đang gọi",
+		KindChatThreadReplied:               "{{actor}} đã trả lời thread trong {{room}}",
+		KindDocumentAccessRequested:         "{{actor}} xin quyền truy cập tài liệu \"{{document}}\".",
+		KindDocumentAccessApproved:          "{{actor}} đã cấp cho bạn quyền truy cập \"{{document}}\".",
+		KindDocumentAccessDeclined:          "Yêu cầu truy cập tài liệu của bạn đã bị từ chối.",
+		KindDocumentShared:                  "{{actor}} đã chia sẻ tài liệu \"{{document}}\" với bạn. Quyền: {{level}}.",
+		documentSharedBatchTitleKey:         "{{actor}} đã chia sẻ {{count}} tài liệu trong thư mục \"{{document}}\" với bạn. Quyền: {{level}}.",
+		documentSharedBatchUntitledTitleKey: "{{actor}} đã chia sẻ {{count}} tài liệu trong một thư mục với bạn. Quyền: {{level}}.",
+		KindDocumentTrashedByOther:          "{{actor}} đã chuyển tài liệu của bạn vào thùng rác, khôi phục trước {{date}}",
+		KindDocumentChanged:                 "{{actor}} đã thay đổi {{document_count}} tài liệu",
+		KindDocumentOwnerTransferred:        "{{actor}} đã chuyển cho bạn quyền sở hữu tài liệu \"{{document}}\".",
+		KindDocumentOwnersBulkTransferred:   "{{actor}} đã chuyển cho bạn quyền sở hữu các tài liệu của {{name}}.",
+		bulkTransferUntitledTitleKey:        "{{actor}} đã chuyển cho bạn quyền sở hữu các tài liệu của một thành viên.",
 	},
 	"en": {
-		KindTaskAssigned:                "{{actor}} assigned you \"{{task}}\"",
-		KindTasksAssigned:               "{{actor}} assigned you {{count}} tasks from the meeting \"{{meeting}}\"",
-		tasksAssignedNoMeetingTitleKey:  "{{actor}} assigned you {{count}} tasks",
-		KindTaskStatusChanged:           "{{actor}} moved \"{{task}}\" to {{status}}",
-		KindTaskCommented:               "{{actor}} commented on \"{{task}}\"",
-		KindMentioned:                   "{{actor}} mentioned you in \"{{task}}\"",
-		KindMeetingInvited:              "{{actor}} invited you to \"{{meeting}}\"",
-		KindMeetingStarting:             "\"{{meeting}}\" starts in {{minutes}} minutes",
-		KindMeetingSummaryReminder:      "\"{{meeting}}\" ended · Summarize it and create tasks",
-		KindMeetingSummaryReady:         "\"{{meeting}}\" summary is ready · Review it and assign tasks",
-		KindMeetingRecapReady:           "The recap of \"{{meeting}}\" is ready · See the decisions and next steps",
-		KindMeetingActionItemsPending:   "\"{{meeting}}\" still has {{count}} items to assign · Review and assign them",
-		KindMeetingTaskDue:              "\"{{task}}\" from the meeting \"{{meeting}}\" is due today",
-		taskOverdueTitleKey:             "\"{{task}}\" from the meeting \"{{meeting}}\" is overdue",
-		recapMinutesTitleKey:            "The minutes of \"{{meeting}}\" are final · Review the decisions and assigned tasks",
-		KindMeetingTranscriptReady:      "The transcript of the recording for \"{{meeting}}\" is ready",
-		KindMeetingTranscriptFailed:     "Couldn't transcribe the recording for \"{{meeting}}\". Open the meeting to upload the file again.",
-		KindMemberAdded:                 "{{actor}} added you to workspace {{workspace}}",
-		KindRoleChanged:                 "{{actor}} changed your role to {{role}}",
-		KindAuditExportReady:            "Your audit export is ready",
-		KindChatFollowUp:                "You saved a follow-up on a message",
-		KindChatReminder:                "Reminder: {{body}}",
-		KindEmailHubNewMail:             "You have {{count}} unread message(s) · {{mailbox}}",
-		KindDocumentCommented:           "{{actor}} commented on \"{{document}}\"",
-		KindDocumentMentioned:           "{{actor}} mentioned you in a comment on \"{{document}}\".",
-		KindDocumentBodyMentioned:       "{{actor}} mentioned you in \"{{document}}\".",
-		KindDocumentCommentReplied:      "{{actor}} replied to your comment in \"{{document}}\".",
-		KindDocumentDiscussionMentioned: "{{actor}} mentioned you in a discussion on \"{{document}}\".",
-		KindDocumentDiscussionReplied:   "{{actor}} replied to your discussion post in \"{{document}}\".",
-		KindDocumentCommentResolved:     "{{actor}} marked a comment in \"{{document}}\" as resolved.",
-		KindDocumentEditRequested:       "{{actor}} wants to edit \"{{document}}\"",
-		KindDocumentEditRequestAnswered: "{{actor}} handed you editing of \"{{document}}\"",
-		editRequestDeclinedTitleKey:     "{{actor}} is still editing \"{{document}}\"",
-		KindDocumentEditTakenOver:       "{{actor}} took over editing of \"{{document}}\". Your unsaved changes are still in the open document.",
-		KindDocumentBreakGlass:          "{{actor}} opened emergency view access (24h) to \"{{document}}\".",
-		KindChatMentioned:               "{{actor}} mentioned you in {{room}}",
-		KindChatDM:                      "{{actor}} sent you a message",
-		KindChatMessage:                 "{{actor}} sent a message in {{room}}",
-		KindChatCallIncoming:            "{{actor}} is calling",
-		KindChatThreadReplied:           "{{actor}} replied to a thread in {{room}}",
-		KindDocumentAccessRequested:     "{{actor}} requested access to \"{{document}}\".",
-		KindDocumentAccessApproved:      "{{actor}} gave you access to \"{{document}}\".",
-		KindDocumentAccessDeclined:      "Your request to access a document was declined.",
-		KindDocumentShared:              "{{actor}} shared \"{{document}}\" with you ({{level}}).",
-		KindDocumentTrashedByOther:      "{{actor}} moved your document to trash. Restore it before {{date}}",
-		KindDocumentChanged:             "{{actor}} changed {{document_count}} documents",
+		KindTaskAssigned:                    "{{actor}} assigned you \"{{task}}\"",
+		KindTasksAssigned:                   "{{actor}} assigned you {{count}} tasks from the meeting \"{{meeting}}\"",
+		tasksAssignedNoMeetingTitleKey:      "{{actor}} assigned you {{count}} tasks",
+		KindTaskStatusChanged:               "{{actor}} moved \"{{task}}\" to {{status}}",
+		KindTaskCommented:                   "{{actor}} commented on \"{{task}}\"",
+		KindMentioned:                       "{{actor}} mentioned you in \"{{task}}\"",
+		KindMeetingInvited:                  "{{actor}} invited you to \"{{meeting}}\"",
+		KindMeetingStarting:                 "\"{{meeting}}\" starts in {{minutes}} minutes",
+		KindMeetingSummaryReminder:          "\"{{meeting}}\" ended · Summarize it and create tasks",
+		KindMeetingSummaryReady:             "\"{{meeting}}\" summary is ready · Review it and assign tasks",
+		KindMeetingRecapReady:               "The recap of \"{{meeting}}\" is ready · See the decisions and next steps",
+		KindMeetingActionItemsPending:       "\"{{meeting}}\" still has {{count}} items to assign · Review and assign them",
+		KindMeetingTaskDue:                  "\"{{task}}\" from the meeting \"{{meeting}}\" is due today",
+		taskOverdueTitleKey:                 "\"{{task}}\" from the meeting \"{{meeting}}\" is overdue",
+		recapMinutesTitleKey:                "The minutes of \"{{meeting}}\" are final · Review the decisions and assigned tasks",
+		KindMeetingTranscriptReady:          "The transcript of the recording for \"{{meeting}}\" is ready",
+		KindMeetingTranscriptFailed:         "Couldn't transcribe the recording for \"{{meeting}}\". Open the meeting to upload the file again.",
+		KindMemberAdded:                     "{{actor}} added you to workspace {{workspace}}",
+		KindRoleChanged:                     "{{actor}} changed your role to {{role}}",
+		KindAuditExportReady:                "Your audit export is ready",
+		KindChatFollowUp:                    "You saved a follow-up on a message",
+		KindChatReminder:                    "Reminder: {{body}}",
+		KindEmailHubNewMail:                 "You have {{count}} unread message(s) · {{mailbox}}",
+		KindDocumentCommented:               "{{actor}} commented on \"{{document}}\"",
+		KindDocumentMentioned:               "{{actor}} mentioned you in a comment on \"{{document}}\".",
+		KindDocumentBodyMentioned:           "{{actor}} mentioned you in \"{{document}}\".",
+		KindDocumentCommentReplied:          "{{actor}} replied to your comment in \"{{document}}\".",
+		KindDocumentDiscussionMentioned:     "{{actor}} mentioned you in a discussion on \"{{document}}\".",
+		KindDocumentDiscussionReplied:       "{{actor}} replied to your discussion post in \"{{document}}\".",
+		KindDocumentCommentResolved:         "{{actor}} marked a comment in \"{{document}}\" as resolved.",
+		KindDocumentEditRequested:           "{{actor}} wants to edit \"{{document}}\"",
+		KindDocumentEditRequestAnswered:     "{{actor}} handed you editing of \"{{document}}\"",
+		editRequestDeclinedTitleKey:         "{{actor}} is still editing \"{{document}}\"",
+		KindDocumentEditTakenOver:           "{{actor}} took over editing of \"{{document}}\". Your unsaved changes are still in the open document.",
+		KindDocumentBreakGlass:              "{{actor}} opened emergency view access (24h) to \"{{document}}\".",
+		KindChatMentioned:                   "{{actor}} mentioned you in {{room}}",
+		KindChatDM:                          "{{actor}} sent you a message",
+		KindChatMessage:                     "{{actor}} sent a message in {{room}}",
+		KindChatCallIncoming:                "{{actor}} is calling",
+		KindChatThreadReplied:               "{{actor}} replied to a thread in {{room}}",
+		KindDocumentAccessRequested:         "{{actor}} requested access to \"{{document}}\".",
+		KindDocumentAccessApproved:          "{{actor}} gave you access to \"{{document}}\".",
+		KindDocumentAccessDeclined:          "Your request to access a document was declined.",
+		KindDocumentShared:                  "{{actor}} shared \"{{document}}\" with you ({{level}}).",
+		documentSharedBatchTitleKey:         "{{actor}} shared {{count}} document(s) in folder \"{{document}}\" with you ({{level}}).",
+		documentSharedBatchUntitledTitleKey: "{{actor}} shared {{count}} document(s) in a folder with you ({{level}}).",
+		KindDocumentTrashedByOther:          "{{actor}} moved your document to trash. Restore it before {{date}}",
+		KindDocumentChanged:                 "{{actor}} changed {{document_count}} documents",
+		KindDocumentOwnerTransferred:        "{{actor}} transferred ownership of \"{{document}}\" to you.",
+		KindDocumentOwnersBulkTransferred:   "{{actor}} transferred {{name}}'s documents to you.",
+		bulkTransferUntitledTitleKey:        "{{actor}} transferred a member's documents to you.",
 	},
 }
 
@@ -137,34 +147,38 @@ var documentLevelLabels = map[string]map[string]string{
 // every other kind.
 var kindTitles = map[string]map[string]string{
 	"vi": {
-		KindDocumentMentioned:           "Bạn được nhắc tên trong bình luận",
-		KindDocumentBodyMentioned:       "Bạn được nhắc đến trong tài liệu",
-		KindDocumentCommentReplied:      "Có phản hồi bình luận mới",
-		KindDocumentDiscussionMentioned: "Bạn được nhắc tên trong thảo luận",
-		KindDocumentDiscussionReplied:   "Có phản hồi thảo luận mới",
-		KindDocumentCommentResolved:     "Bình luận đã được giải quyết",
-		KindDocumentBreakGlass:          "Truy cập khẩn cấp vào tài liệu",
-		KindDocumentAccessRequested:     "Yêu cầu truy cập tài liệu",
-		KindDocumentAccessApproved:      "Đã được cấp quyền",
-		KindDocumentAccessDeclined:      "Yêu cầu bị từ chối",
-		KindDocumentShared:              "Tài liệu được chia sẻ",
-		KindDocumentTrashedByOther:      "Tài liệu của bạn đã vào thùng rác",
-		KindDocumentChanged:             "Tài liệu đã thay đổi",
+		KindDocumentMentioned:             "Bạn được nhắc tên trong bình luận",
+		KindDocumentBodyMentioned:         "Bạn được nhắc đến trong tài liệu",
+		KindDocumentCommentReplied:        "Có phản hồi bình luận mới",
+		KindDocumentDiscussionMentioned:   "Bạn được nhắc tên trong thảo luận",
+		KindDocumentDiscussionReplied:     "Có phản hồi thảo luận mới",
+		KindDocumentCommentResolved:       "Bình luận đã được giải quyết",
+		KindDocumentBreakGlass:            "Truy cập khẩn cấp vào tài liệu",
+		KindDocumentAccessRequested:       "Yêu cầu truy cập tài liệu",
+		KindDocumentAccessApproved:        "Đã được cấp quyền",
+		KindDocumentAccessDeclined:        "Yêu cầu bị từ chối",
+		KindDocumentShared:                "Tài liệu được chia sẻ",
+		KindDocumentTrashedByOther:        "Tài liệu của bạn đã vào thùng rác",
+		KindDocumentChanged:               "Tài liệu đã thay đổi",
+		KindDocumentOwnerTransferred:      "Bạn là chủ sở hữu tài liệu",
+		KindDocumentOwnersBulkTransferred: "Bạn nhận quyền sở hữu nhiều tài liệu",
 	},
 	"en": {
-		KindDocumentMentioned:           "You were mentioned in a comment",
-		KindDocumentBodyMentioned:       "You were mentioned in a document",
-		KindDocumentCommentReplied:      "New reply to your comment",
-		KindDocumentDiscussionMentioned: "You were mentioned in a discussion",
-		KindDocumentDiscussionReplied:   "New reply in a discussion",
-		KindDocumentCommentResolved:     "Comment resolved",
-		KindDocumentBreakGlass:          "Emergency access to document",
-		KindDocumentAccessRequested:     "Document access request",
-		KindDocumentAccessApproved:      "Access granted",
-		KindDocumentAccessDeclined:      "Request declined",
-		KindDocumentShared:              "Document shared",
-		KindDocumentTrashedByOther:      "Your document was moved to trash",
-		KindDocumentChanged:             "Documents changed",
+		KindDocumentMentioned:             "You were mentioned in a comment",
+		KindDocumentBodyMentioned:         "You were mentioned in a document",
+		KindDocumentCommentReplied:        "New reply to your comment",
+		KindDocumentDiscussionMentioned:   "You were mentioned in a discussion",
+		KindDocumentDiscussionReplied:     "New reply in a discussion",
+		KindDocumentCommentResolved:       "Comment resolved",
+		KindDocumentBreakGlass:            "Emergency access to document",
+		KindDocumentAccessRequested:       "Document access request",
+		KindDocumentAccessApproved:        "Access granted",
+		KindDocumentAccessDeclined:        "Request declined",
+		KindDocumentShared:                "Document shared",
+		KindDocumentTrashedByOther:        "Your document was moved to trash",
+		KindDocumentChanged:               "Documents changed",
+		KindDocumentOwnerTransferred:      "You now own a document",
+		KindDocumentOwnersBulkTransferred: "You now own documents",
 	},
 }
 
@@ -172,6 +186,11 @@ var kindTitles = map[string]map[string]string{
 // document_edit_request_answered in titles and in notifications.kind.* of the
 // client locales; it is not a kind.
 const editRequestDeclinedTitleKey = KindDocumentEditRequestAnswered + "_declined"
+
+// bulkTransferUntitledTitleKey is the sentence of a bulk transfer whose source
+// member no longer resolves (name empty): same wording as the client's
+// document_owners_bulk_transferred_untitled key (FE-R1-6).
+const bulkTransferUntitledTitleKey = KindDocumentOwnersBulkTransferred + "_untitled"
 
 // tasksAssignedNoMeetingTitleKey keys the tasks_assigned sentence for a batch
 // that did not come from one meeting (or a row from before the meeting
@@ -186,6 +205,16 @@ const recapMinutesTitleKey = KindMeetingRecapReady + "_minutes"
 // (params.stage = "overdue"); it is not a kind.
 const taskOverdueTitleKey = KindMeetingTaskDue + "_overdue"
 
+// documentSharedBatchTitleKey keys the document_shared sentence for a grouped
+// folder-contents batch notification (UNI-2244 §6, F5: params.count set); it is
+// not a kind.
+const documentSharedBatchTitleKey = KindDocumentShared + "_batch"
+
+// documentSharedBatchUntitledTitleKey keys the document_shared sentence for a
+// grouped folder-contents batch notification when the folder has no title
+// (params.document empty or blank); it is not a kind.
+const documentSharedBatchUntitledTitleKey = KindDocumentShared + "_batch_untitled"
+
 // Title renders the kind's title in locale with params, i18next-style
 // {{name}} substitution. Unknown locale falls back to en.
 func Title(locale, kind string, params map[string]string) string {
@@ -197,6 +226,9 @@ func Title(locale, kind string, params map[string]string) string {
 	if kind == KindDocumentEditRequestAnswered && params["decision"] == editDecisionDecline {
 		kind = editRequestDeclinedTitleKey
 	}
+	if kind == KindDocumentOwnersBulkTransferred && strings.TrimSpace(params["name"]) == "" {
+		kind = bulkTransferUntitledTitleKey
+	}
 	if kind == KindMeetingRecapReady && params["stage"] == recapStageMinutes {
 		kind = recapMinutesTitleKey
 	}
@@ -206,12 +238,19 @@ func Title(locale, kind string, params map[string]string) string {
 	if kind == KindTasksAssigned && strings.TrimSpace(params["meeting"]) == "" {
 		kind = tasksAssignedNoMeetingTitleKey
 	}
+	if kind == KindDocumentShared && strings.TrimSpace(params["count"]) != "" {
+		if strings.TrimSpace(params["document"]) == "" {
+			kind = documentSharedBatchUntitledTitleKey
+		} else {
+			kind = documentSharedBatchTitleKey
+		}
+	}
 	s := loc[kind]
 	if s == "" {
 		return kind
 	}
 	for k, v := range params {
-		if k == "level" && kind == KindDocumentShared {
+		if k == "level" && (kind == KindDocumentShared || kind == documentSharedBatchTitleKey || kind == documentSharedBatchUntitledTitleKey) {
 			if label := documentLevelLabels[locale][v]; label != "" {
 				v = label
 			}

@@ -507,3 +507,102 @@ func TestMeetingRecordOnOneConnectionPool(t *testing.T) {
 		t.Fatalf("audit organization_id = %q, want %q", orgID, w.OrganizationID)
 	}
 }
+
+// Nobody joins a room for a meeting held in person: the roll suggests that
+// everyone invited was there, and the clerk marks the absent ones by hand.
+// An online meeting recorded as held keeps suggesting absent.
+func TestInPersonRollSuggestsPresent(t *testing.T) {
+	s, ua, ub, w := meetingFixture(t)
+	ctx := context.Background()
+	addMember(t, s, w.ID, ub.ID)
+	uc, err := s.q.CreateUser(ctx, db.CreateUserParams{ID: util.NewID(), Email: "roll-c@example.com", DisplayName: "C", Locale: "vi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addMember(t, s, w.ID, uc.ID)
+	held := func(venue, want string) {
+		t.Helper()
+		start := time.Now().Add(time.Hour)
+		m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: venue, StartsAt: start, EndsAt: start.Add(time.Hour), Venue: venue})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, u := range []string{ub.ID, uc.ID} {
+			if _, err := s.Invite(ctx, ua.ID, m.ID, u); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := s.RecordHeldNow(ctx, ua.ID, m.ID, 30*time.Minute, 0); err != nil {
+			t.Fatal(err)
+		}
+		rep, err := s.Attendance(ctx, ua.ID, m.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rep.Rows) != 3 {
+			t.Fatalf("%s: rows = %d", venue, len(rep.Rows))
+		}
+		for _, r := range rep.Rows {
+			if r.Status != want || r.Source != AttendanceSourceSuggested {
+				t.Fatalf("%s: row = %s/%s, want %s/SUGGESTED", venue, r.Status, r.Source, want)
+			}
+		}
+		if err := s.FinalizeAttendance(ctx, ua.ID, m.ID); err != nil {
+			t.Fatal(err)
+		}
+		marks, err := s.q.ListAttendanceMarks(ctx, m.ID)
+		if err != nil || len(marks) != 3 {
+			t.Fatalf("%s: marks = %d %v", venue, len(marks), err)
+		}
+		for _, mk := range marks {
+			if mk.Status != want {
+				t.Fatalf("%s: finalized mark = %s, want %s", venue, mk.Status, want)
+			}
+		}
+	}
+	held(MeetingVenueInPerson, AttendancePresent)
+	held(MeetingVenueOnline, AttendanceAbsent)
+}
+
+// An invitee who declined did not come: the in-person default must not count
+// them present, or the auto summary names them among those who attended.
+func TestInPersonRollSuggestsDeclinedAbsent(t *testing.T) {
+	s, ua, ub, w := meetingFixture(t)
+	ctx := context.Background()
+	addMember(t, s, w.ID, ub.ID)
+	start := time.Now().Add(time.Hour)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "declined", StartsAt: start, EndsAt: start.Add(time.Hour), Venue: MeetingVenueInPerson})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.Invite(ctx, ua.ID, m.ID, ub.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inv, err := s.q.GetInvitationByParticipant(ctx, p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.RespondInvitation(ctx, ub.ID, m.ID, inv.ID, InviteDeclined); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.RecordHeldNow(ctx, ua.ID, m.ID, 30*time.Minute, 0); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := s.Attendance(ctx, ua.ID, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rep.Rows {
+		want := AttendancePresent
+		if r.Participant.ID == p.ID {
+			want = AttendanceAbsent
+		}
+		if r.Status != want {
+			t.Fatalf("participant %s: status = %s, want %s", r.Participant.ID, r.Status, want)
+		}
+	}
+	if rep.Summary.Present != 1 || rep.Summary.Absent != 1 {
+		t.Fatalf("summary = %+v, want 1 present, 1 absent", rep.Summary)
+	}
+}

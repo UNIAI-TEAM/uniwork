@@ -229,4 +229,30 @@ describe("FolderUploadDialog", () => {
     renderDialog({ plan: plan({ refusal: { code: "too_many_folders", limit: 500, actual: 530 } as never }) });
     expect(screen.getByTestId("folder-upload-refusal")).toHaveTextContent("530 thư mục — tối đa 500");
   });
+
+  // UNI-2075 (ADR 0037): folders created outside My Folder are visible to the whole workspace.
+  it("keeps the private hint unless the destination is in the workspace area", () => {
+    renderDialog();
+    expect(screen.getByText("Áp dụng cho mọi tệp trong lần tải lên này. Thư mục vẫn riêng tư.")).toBeInTheDocument();
+  });
+
+  it("says the new folders are visible to the workspace when the destination is outside My Folder", () => {
+    renderDialog({ destinationInWorkspace: true });
+    expect(
+      screen.getByText("Áp dụng cho mọi tệp trong lần tải lên này. Thư mục mới sẽ hiện với cả workspace."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Thư mục vẫn riêng tư/)).toBeNull();
+  });
+
+  it("lets the inherited-share hint win over the workspace hint", () => {
+    renderDialog({ destinationInWorkspace: true, parentShared: true });
+    expect(screen.getByText("Thư mục đích đang chia sẻ với workspace nên các tệp cũng vậy.")).toBeInTheDocument();
+    expect(screen.queryByText(/hiện với cả workspace/)).toBeNull();
+  });
+
+  it("keeps the files hint in files mode whatever the destination", () => {
+    renderDialog({ plan: filesPlan(), destinationInWorkspace: true });
+    expect(screen.getByText("Áp dụng cho mọi tệp trong lần tải lên này.")).toBeInTheDocument();
+    expect(screen.queryByText(/hiện với cả workspace/)).toBeNull();
+  });
 });

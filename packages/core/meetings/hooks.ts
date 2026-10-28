@@ -148,8 +148,8 @@ export function useSetMeetingAISharing(meetingId: string) {
 export function useCreateInstantMeeting(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ title, idempotencyKey }: { title?: string; idempotencyKey: string }) =>
-      meetings.createInstantMeeting(workspaceId, title, { idempotencyKey }),
+    mutationFn: ({ idempotencyKey, ...body }: Parameters<typeof meetings.createInstantMeeting>[1] & { idempotencyKey: string }) =>
+      meetings.createInstantMeeting(workspaceId, body, { idempotencyKey }),
     onSuccess: () => {
       for (const key of [meetingKeys.list(workspaceId), meetingKeys.stats(workspaceId), calendarKeys.all(workspaceId)]) {
         void qc.invalidateQueries({ queryKey: key });
@@ -181,6 +181,23 @@ export function useAddNote(meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: string) => meetings.addNote(meetingId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: meetingKeys.notes(meetingId) }),
+  });
+}
+
+/** Awaits the server (no optimistic edit), then refetches the notes. */
+export function useUpdateNote(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ noteId, body }: { noteId: string; body: string }) => meetings.updateNote(meetingId, noteId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: meetingKeys.notes(meetingId) }),
+  });
+}
+
+export function useDeleteNote(meetingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (noteId: string) => meetings.deleteNote(meetingId, noteId),
     onSuccess: () => qc.invalidateQueries({ queryKey: meetingKeys.notes(meetingId) }),
   });
 }
@@ -239,11 +256,12 @@ export function useExtendMeeting(workspaceId: string) {
   });
 }
 
-export function useParticipants(meetingId: string) {
+export function useParticipants(meetingId: string, opts?: { refetchInterval?: number }) {
   return useQuery({
     queryKey: meetingKeys.participants(meetingId),
     queryFn: () => meetings.listParticipants(meetingId),
     enabled: !!meetingId,
+    refetchInterval: opts?.refetchInterval,
   });
 }
 
@@ -319,6 +337,13 @@ export function useSetParticipantPublish(meetingId: string) {
   return useMutation({
     mutationFn: (args: { participantId: string; enabled: boolean; source?: meetings.MeetingPublishSource }) =>
       meetings.setParticipantPublish(meetingId, args.participantId, args.enabled, args.source),
+  });
+}
+
+/** The leave screens' Tốt / Tạm / Kém; nothing to refetch afterwards. */
+export function useRateCall(meetingId: string) {
+  return useMutation({
+    mutationFn: (rating: meetings.CallRating) => meetings.rateCall(meetingId, rating),
   });
 }
 

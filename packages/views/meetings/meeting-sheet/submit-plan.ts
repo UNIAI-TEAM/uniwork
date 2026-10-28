@@ -1,7 +1,7 @@
 import type { CreateMeetingBody, UpdateMeetingBody } from "@uniwork/core/api/endpoints/meetings";
 import type { Meeting } from "@uniwork/core/types/meeting";
 import { scheduleWindowIso } from "../meeting-datetime";
-import type { DraftRole, GuestLinkDraft, MeetingDraft, MotionDraft } from "./draft-model";
+import { draftLinks, type DraftRole, type GuestLinkDraft, type MeetingDraft, type MotionDraft } from "./draft-model";
 import { parseQuorum } from "./draft-validation";
 
 /**
@@ -103,6 +103,7 @@ export function buildCreatePlan(draft: MeetingDraft, ctx: PlanContext): SubmitPl
   const slot = scheduleWindowIso(draft.date, draft.start, draft.end, draft.timezone);
   const create: CreateMeetingBody = {
     title: draft.title.trim(),
+    venue: draft.venue,
     description: draft.description.trim(),
     starts_at: slot.starts_at,
     ends_at: slot.ends_at,
@@ -123,7 +124,7 @@ export function buildCreatePlan(draft: MeetingDraft, ctx: PlanContext): SubmitPl
   const quorum = parseQuorum(draft.quorum).value;
   if (quorum > 0) steps.push({ row: "quorum", kind: "quorum", value: quorum });
   for (const m of draft.motions) steps.push({ row: "motions", kind: "motionCreate", motion: motionInput(m) });
-  for (const l of draft.links) steps.push(linkStep(l, ctx.defaultLinkName));
+  for (const l of draftLinks(draft)) steps.push(linkStep(l, ctx.defaultLinkName));
   return { mode: "create", create, steps };
 }
 
@@ -143,6 +144,8 @@ export function buildEditPlan(
     const slot = scheduleWindowIso(draft.date, draft.start, draft.end, draft.timezone);
     Object.assign(patch, { starts_at: slot.starts_at, ends_at: slot.ends_at, timezone: draft.timezone });
   }
+  // Only when changed: the server refuses any venue on a live meeting, even the same one.
+  if (draft.venue !== snapshot.venue) patch.venue = draft.venue;
   if (draft.allowJoin !== snapshot.allowJoin) patch.allow_join_request = draft.allowJoin;
   // "" clears the project on update.
   if (draft.projectId !== snapshot.projectId) patch.project_id = draft.projectId;
@@ -192,7 +195,7 @@ export function buildEditPlan(
   for (const [key, m] of old) if (!draft.motions.some((d) => d.key === key) && m.id) steps.push({ row: "motions", kind: "motionDelete", motionId: m.id });
   // shortcut: a new motion is appended by the server, so one moved above an existing row lands last; fine until reorder-on-create is asked for.
   for (const m of draft.motions) if (!old.has(m.key)) steps.push({ row: "motions", kind: "motionCreate", motion: motionInput(m) });
-  for (const l of draft.links) steps.push(linkStep(l, ctx.defaultLinkName));
+  for (const l of draftLinks(draft)) steps.push(linkStep(l, ctx.defaultLinkName));
   return { mode: "edit", meetingId: meeting.id, patch, steps };
 }
 

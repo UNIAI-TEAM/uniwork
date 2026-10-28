@@ -75,7 +75,7 @@ const URL_PATTERN = /\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
  * Plain text with its web addresses made into links. A cheap pass on the
  * common path, so a message with a URL does not pull in the markdown bundle.
  */
-function linkify(text: string, linkClass: string, keyPrefix = ""): ReactNode[] {
+export function linkify(text: string, linkClass: string, keyPrefix = ""): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   for (const match of text.matchAll(URL_PATTERN)) {

@@ -208,6 +208,40 @@ describe("AskUniThread", () => {
     await screen.findByText("Hỏi");
     expect(screen.getByRole("list")).toHaveAttribute("aria-busy", "true");
   });
+
+  it("keeps a reader at the bottom when the box shrinks, and leaves one who scrolled up", async () => {
+    // The memory strip above the composer shrinks the thread's box without changing its content.
+    let resized = () => {};
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: () => void) {
+          resized = cb;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    try {
+      mount(stream());
+      await screen.findByText("Có 3 task quá hạn.");
+      const box = screen.getByRole("list").parentElement as HTMLElement;
+      Object.defineProperty(box, "scrollHeight", { configurable: true, value: 900 });
+      Object.defineProperty(box, "clientHeight", { configurable: true, value: 100 });
+      Object.defineProperty(box, "scrollTop", { configurable: true, writable: true, value: 800 });
+      fireEvent.scroll(box);
+      box.scrollTop = 750; // the box shrank by 50px: still pinned, now 50px short of the bottom
+      act(() => resized());
+      expect(box.scrollTop).toBe(900);
+
+      box.scrollTop = 0;
+      fireEvent.scroll(box);
+      act(() => resized());
+      expect(box.scrollTop).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
 
 describe("AskUniThread sources", () => {
@@ -471,5 +505,158 @@ describe("AskUniThread files", () => {
     expect(await screen.findByText("Nhớ điều này?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sao chép" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Trả lời lại" })).toBeNull();
+  });
+});
+
+describe("AskUniThread transient mode (drive_file, spec §9)", () => {
+  it("renders transientMessages from the store without calling listAiMessages, hides feedback and regenerate, and 'Hỏi lại' resends the last question", async () => {
+    useAiPanelStore.setState({
+      conversationId: null,
+      focus: {
+        kind: "drive_file",
+        id: "df1",
+        label: "Kế hoạch ra mắt Q4",
+        accountEmail: "uni-work1@gmail.com",
+        openUrl: "https://docs.google.com/document/d/ext-1/edit?authuser=uni-work1%40gmail.com",
+      },
+      transientMessages: [
+        msg({ id: "tu1", role: "user", content: "Tóm tắt các mốc và rủi ro" }) as never,
+        msg({
+          id: "ta1",
+          role: "assistant",
+          content: "Hai mốc chính: beta nội bộ 10/11 [S1].",
+          citations: [
+            {
+              source_id: "S1",
+              kind: "drive_file",
+              title: "Kế hoạch ra mắt Q4 · mục 3",
+              quote: "",
+              href: "/acme/team/documents/drive/df1",
+            },
+          ],
+          followups: ["Liệt kê ai phụ trách gì"],
+        }) as never,
+      ],
+    });
+
+    const s = stream({ conversationId: null });
+    const onProposeDriveTasks = vi.fn();
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <AskUniThread
+            conversationId={null}
+            stream={s}
+            wsId="ws1"
+            askDefaults={{ model: "sonnet", effort: "medium", locale: "vi" }}
+            onProposeDriveTasks={onProposeDriveTasks}
+          />
+        </WorkspaceProvider>,
+      ),
+    );
+
+    expect(await screen.findByText(/Hai mốc chính/)).toBeInTheDocument();
+    expect(requestMock.mock.calls.some(([p]) => String(p).includes("/messages"))).toBe(false);
+
+    // Citation links to the in-app 4.2 page
+    const citeLink = screen.getByRole("link", { name: "Tệp Google Drive: Kế hoạch ra mắt Q4 · mục 3" });
+    expect(citeLink).toHaveAttribute("href", "/acme/team/documents/drive/df1");
+
+    // Feedback (like/dislike) and Regenerate ("Trả lời lại") are hidden
+    expect(screen.queryByRole("button", { name: "Hữu ích" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Chưa đúng" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Trả lời lại" })).toBeNull();
+
+    // Copy and "Hỏi lại" are shown; clicking "Hỏi lại" resends the last question from the transcript
+    expect(screen.getByRole("button", { name: "Sao chép" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hỏi lại" }));
+    expect(s.ask).toHaveBeenCalledWith({
+      question: "Tóm tắt các mốc và rủi ro",
+      focus: { kind: "drive_file", id: "df1" },
+      mentions: [],
+      model: "sonnet",
+      effort: "medium",
+      locale: "vi",
+    });
+
+    // Suggestion chip "Tạo việc từ tài liệu này" seam calls onProposeDriveTasks(driveFileId)
+    fireEvent.click(screen.getByRole("button", { name: "Tạo việc từ tài liệu này" }));
+    expect(onProposeDriveTasks).toHaveBeenCalledWith("df1");
+  });
+
+  it("hides 'Tạo việc từ tài liệu này' suggestion chip when onProposeDriveTasks seam is omitted", async () => {
+    useAiPanelStore.setState({
+      conversationId: null,
+      focus: { kind: "drive_file", id: "df1", label: "Kế hoạch ra mắt Q4" },
+      transientMessages: [
+        msg({ id: "tu1", role: "user", content: "Tóm tắt" }) as never,
+        msg({ id: "ta1", role: "assistant", content: "Đáp", followups: ["Tiếp?"] }) as never,
+      ],
+    });
+    mount(stream({ conversationId: null }), null);
+    expect(await screen.findByText("Đáp")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tạo việc từ tài liệu này" })).toBeNull();
+  });
+
+  it("renders readable error lines for drive_format_unsupported (with Mở trên Google Drive), drive_access_required, and drive_source_changed", async () => {
+    useAiPanelStore.setState({
+      conversationId: null,
+      focus: {
+        kind: "drive_file",
+        id: "df1",
+        label: "Kế hoạch.bin",
+        openUrl: "https://drive.google.com/file/d/ext-1/view",
+      },
+      transientMessages: [],
+    });
+    const m = mount(
+      stream({ status: "error", conversationId: null, question: "Tóm tắt", errorCode: "drive_format_unsupported" }),
+      null,
+    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("UNI chưa đọc được định dạng này.");
+    const openLink = screen.getByRole("link", { name: "Mở trên Google Drive" });
+    expect(openLink).toHaveAttribute(
+      "href",
+      "https://drive.google.com/file/d/ext-1/view",
+    );
+    expect(openLink).toHaveClass("pointer-coarse:min-h-11");
+
+    m.update(
+      stream({ status: "error", conversationId: null, question: "Tóm tắt", errorCode: "drive_access_required" }),
+      null,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Bạn cần cho UniWork đọc tệp này trên Google Drive trước khi hỏi UNI.",
+    );
+
+    m.update(
+      stream({ status: "error", conversationId: null, question: "Tóm tắt", errorCode: "drive_source_changed" }),
+      null,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Kết nối hoặc tệp Google Drive đã thay đổi khi UNI đang đọc. Hãy hỏi lại.",
+    );
+  });
+
+  it("keeps a saved conversation non-transient when page is drive_file and conversationId is set", async () => {
+    serve(history);
+    useAiPanelStore.setState({
+      conversationId: "c1",
+      focus: null,
+      page: {
+        kind: "drive_file",
+        id: "df1",
+        label: "Kế hoạch ra mắt Q4",
+        accountEmail: "uni-work1@gmail.com",
+      },
+      pageDismissed: null,
+      transientMessages: [],
+    });
+    const s = stream({ conversationId: "c1" });
+    mount(s, "c1", { model: "sonnet", effort: "medium", locale: "vi" });
+    expect(await screen.findByText("Có 3 task quá hạn.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trả lời lại" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Hỏi lại" })).toBeNull();
   });
 });

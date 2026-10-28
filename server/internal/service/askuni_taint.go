@@ -101,7 +101,7 @@ func (s *AskUNIService) taintFrom(ctx context.Context, tc ai.ToolContext, convID
 // stopped is still tainted.
 func (s *AskUNIService) taintNow(ctx context.Context, orgID, convID string, t *askTaint) {
 	t.turn = true
-	if t.conv {
+	if t.conv || convID == "" {
 		return
 	}
 	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), askAgentStoreTimeout)

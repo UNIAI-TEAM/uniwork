@@ -6,10 +6,11 @@ import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
+import { pickTypeFilter, typeChipRemove, typeFilterSelect } from "../../test/type-filter";
 import { DocumentsPageView } from "../documents-page-view";
 
 // UNI-2045 W10 + W11 on the real page: one filter bar, in one order, on every
-// list screen but Thùng rác (Mọi loại … .txt, Người sửa, Cập nhật; Gần đây
+// list screen but Thùng rác (Loại: Tất cả … .txt, Người sửa, Cập nhật; Gần đây
 // adds Tất cả / Đã mở / Đã sửa), no Truy cập and no Nhóm theo (Q6); the
 // filters reach the server where the list pages there and run on the client
 // where it is loaded in full. Gần đây, Được chia sẻ với tôi and Thùng rác
@@ -98,8 +99,15 @@ const listCalls = (prefix = LIST_BASE) =>
   requestMock.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith(prefix) && !path.startsWith(`${LIST_BASE}/sources`));
 const lastCall = (match: (path: string) => boolean) => listCalls().filter(match).at(-1) ?? "";
 
-const CHIP_LABELS = ["Mọi loại", "UniNote", ".docx", ".xlsx", ".pptx", ".pdf", ".md", ".html", ".txt"];
-const chipGroup = () => screen.queryByRole("group", { name: t("documents.home.chips_label") });
+/** page-a, notes.txt, sheet.xlsx; a request is answered the way the server would (the repeated type=). */
+function mixedRows(path: string) {
+  const query = queryOf(path);
+  const rows: Record<string, unknown>[] = [summary("page-a"), txtFile("notes"), summary("sheet", { kind: "file", title: "sheet.xlsx", format: "xlsx", current_version: 1, organization_id: ORG })];
+  const wanted = query.getAll("type");
+  return wanted.length === 0 ? rows : rows.filter((row) => wanted.includes(row.kind === "page" ? "page" : String(row.format)));
+}
+
+const CHIP_LABELS = ["Tất cả", "UniNote", ".docx", ".xlsx", ".pptx", ".pdf", ".md", ".html", ".txt"];
 const editorSelect = () => screen.queryByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.editor")}`) });
 const updatedSelect = () => screen.queryByRole("combobox", { name: new RegExp(`^${t("documents.home.filters.updated")}`) });
 const activityGroup = () => screen.queryByRole("radiogroup", { name: t("documents.home.filters.activity_label") });
@@ -115,13 +123,14 @@ async function choose(combobox: HTMLElement, label: string) {
 }
 
 function expectOneFilterBar(opts: { segment: boolean }) {
-  const chips = chipGroup();
-  expect(chips).not.toBeNull();
-  expect(within(chips!).getAllByRole("button").map((button) => button.textContent)).toEqual(CHIP_LABELS);
+  const type = typeFilterSelect();
+  expect(type).not.toBeNull();
+  // The chip row is gone: no type is a button of the bar any more.
+  expect(screen.queryByRole("button", { name: ".docx" })).toBeNull();
   expect(editorSelect()).not.toBeNull();
   expect(updatedSelect()).not.toBeNull();
-  // The chips come first, then Người sửa, then Cập nhật, in document order.
-  expect(chips!.compareDocumentPosition(editorSelect()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // Loại comes first, then Người sửa, then Cập nhật, in document order.
+  expect(type!.compareDocumentPosition(editorSelect()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(editorSelect()!.compareDocumentPosition(updatedSelect()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(activityGroup() !== null).toBe(opts.segment);
   // Q6: no Truy cập filter and no Nhóm theo select anywhere.
@@ -142,6 +151,86 @@ afterEach(() => {
 });
 
 describe("one filter bar (W10)", () => {
+  it("offers Tất cả and every type in one Loại menu, in order, each type with its icon (UNI-2113 r2)", async () => {
+    route({ list: () => [summary("r-home")] });
+    renderView();
+    await screen.findByText("r-home");
+    const trigger = typeFilterSelect()!;
+    expect(trigger).toHaveTextContent(`${t("documents.home.filters.type")}: Tất cả`);
+    expect(trigger.querySelector("svg:not(:last-child)")).toBeNull();
+    fireEvent.click(trigger);
+    const options = within(await screen.findByRole("listbox")).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual(CHIP_LABELS);
+    // Tất cả is the checked item while nothing is picked.
+    expect(options.map((option) => option.getAttribute("aria-selected"))).toEqual(["true", ...Array(8).fill("false")]);
+    // Every type but Tất cả carries its mark, hidden from assistive tech: the label names it.
+    for (const option of options.slice(1)) {
+      expect(option.querySelector("svg")).not.toBeNull();
+      expect(option.querySelector("[role='img']")).toBeNull();
+    }
+    expect(screen.queryByTestId("type-chip-xlsx")).toBeNull();
+  });
+
+  it("shows one picked type in the trigger (with its mark) and as a chip", async () => {
+    route({ list: () => [summary("r-home")] });
+    renderView();
+    await screen.findByText("r-home");
+    await pickTypeFilter("xlsx");
+    await waitFor(() => expect(typeFilterSelect()).toHaveTextContent(`${t("documents.home.filters.type")}: .xlsx`));
+    expect(typeFilterSelect()!.querySelector("svg")).not.toBeNull();
+    expect(screen.getByTestId("type-chip-xlsx")).toHaveTextContent(".xlsx");
+    expect(typeChipRemove("xlsx")).not.toBeNull();
+    expect(queryOf(lastCall((path) => path.startsWith(LIST_BASE))).getAll("type")).toEqual(["xlsx"]);
+  });
+
+  it("picking two types shows the count in the trigger and two chips, and narrows the list (sent as the repeated type=, answered by the server)", async () => {
+    route({ list: mixedRows });
+    renderView();
+    await screen.findByText("page-a");
+    // Menu order, not click order: .xlsx then UniNote still reads UniNote, .xlsx.
+    await pickTypeFilter("xlsx", "page");
+    await waitFor(() => expect(typeFilterSelect()).toHaveTextContent(`${t("documents.home.filters.type")}: ${t("documents.home.filters.type_count", { count: 2 })}`));
+    expect(typeFilterSelect()!.querySelector("svg:not(:last-child)")).toBeNull();
+    const chips = screen.getAllByTestId(/^type-chip-/).map((chip) => chip.textContent);
+    expect(chips).toEqual(["UniNote", ".xlsx"]);
+    await waitFor(() => expect(screen.queryByText("notes.txt")).toBeNull());
+    expect(screen.getByText("page-a")).toBeInTheDocument();
+    expect(screen.getByText("sheet.xlsx")).toBeInTheDocument();
+    // The last request carries both picks, as the repeated type, and no format or kind.
+    const last = queryOf(lastCall((path) => path.startsWith(LIST_BASE)));
+    expect([last.getAll("type"), last.has("format"), last.has("kind")]).toEqual([["page", "xlsx"].sort(), false, false]);
+  });
+
+  it("the x of a chip drops that one type; Tất cả clears every pick", async () => {
+    route({ list: mixedRows });
+    renderView();
+    await screen.findByText("page-a");
+    await pickTypeFilter("xlsx", "page", "txt");
+    await waitFor(() => expect(screen.getAllByTestId(/^type-chip-/)).toHaveLength(3));
+    expect(typeFilterSelect()).toHaveTextContent(t("documents.home.filters.type_count", { count: 3 }));
+
+    fireEvent.click(typeChipRemove("page")!);
+    await waitFor(() => expect(screen.queryByTestId("type-chip-page")).toBeNull());
+    expect(screen.getAllByTestId(/^type-chip-/)).toHaveLength(2);
+    expect(typeFilterSelect()).toHaveTextContent(t("documents.home.filters.type_count", { count: 2 }));
+    // Focus goes back to the trigger, not to the page.
+    expect(typeFilterSelect()).toHaveFocus();
+    await waitFor(() => expect(screen.queryByText("page-a")).toBeNull());
+
+    fireEvent.click(typeChipRemove("txt")!);
+    await waitFor(() => expect(typeFilterSelect()).toHaveTextContent(`${t("documents.home.filters.type")}: .xlsx`));
+    expect(await screen.findByText("sheet.xlsx")).toBeInTheDocument();
+    expect(screen.queryByText("notes.txt")).toBeNull();
+
+    await pickTypeFilter("page");
+    await waitFor(() => expect(screen.getAllByTestId(/^type-chip-/)).toHaveLength(2));
+    await pickTypeFilter("all");
+    await waitFor(() => expect(screen.queryAllByTestId(/^type-chip-/)).toHaveLength(0));
+    expect(typeFilterSelect()).toHaveTextContent(`${t("documents.home.filters.type")}: Tất cả`);
+    await screen.findByText("notes.txt");
+    expect(screen.getByText("page-a")).toBeInTheDocument();
+  });
+
   it.each([
     ["home root", undefined, "r-home"],
     ["Gần đây", "/?view=recent", "r-recent"],
@@ -166,20 +255,20 @@ describe("one filter bar (W10)", () => {
     route({ list: () => [summary("r-trash", { archived_at: ago(60), purge_after: inDays(20) })] });
     renderView("/?view=archived");
     await screen.findByText("r-trash");
-    expect(chipGroup()).toBeNull();
+    expect(typeFilterSelect()).toBeNull();
     expect(editorSelect()).toBeNull();
     expect(updatedSelect()).toBeNull();
     expect(activityGroup()).toBeNull();
   });
 
-  it("sends format=txt, the Người sửa id, the Cập nhật bound and the Gần đây segment to the server", async () => {
+  it("sends type=txt, the Người sửa id, the Cập nhật bound and the Gần đây segment to the server", async () => {
     route({ list: () => [summary("r1", { last_activity: { kind: "opened", at: ago(5) } })] });
     renderView("/?view=recent");
     await screen.findAllByText("r1");
     const recent = (path: string) => path.startsWith(`${LIST_BASE}/recent`);
 
-    fireEvent.click(within(chipGroup()!).getByRole("button", { name: ".txt" }));
-    await waitFor(() => expect(queryOf(lastCall(recent)).get("format")).toBe("txt"));
+    await pickTypeFilter("txt");
+    await waitFor(() => expect(queryOf(lastCall(recent)).get("type")).toBe("txt"));
 
     fireEvent.click(within(activityGroup()!).getByRole("radio", { name: "Đã sửa" }));
     await waitFor(() => expect(queryOf(lastCall(recent)).get("activity")).toBe("edited"));
@@ -191,7 +280,7 @@ describe("one filter bar (W10)", () => {
     await choose(updatedSelect()!, t("documents.home.filters.updated_7d"));
     await waitFor(() => expect(queryOf(lastCall(recent)).get("updated_from")).toBeTruthy());
     const query = queryOf(lastCall(recent));
-    expect([query.get("format"), query.get("activity"), query.get("updated_by")]).toEqual(["txt", "edited", "u2"]);
+    expect([query.get("type"), query.get("activity"), query.get("updated_by")]).toEqual(["txt", "edited", "u2"]);
 
     fireEvent.click(within(activityGroup()!).getByRole("radio", { name: "Tất cả" }));
     await waitFor(() => expect(queryOf(lastCall(recent)).has("activity")).toBe(false));
@@ -211,26 +300,29 @@ describe("one filter bar (W10)", () => {
     await waitFor(() => expect(queryOf(lastCall(match)).get("updated_from")).toBeTruthy());
   });
 
-  it("filters an open folder on the client: no new request carries the filters", async () => {
+  it("sends the type for an open folder, and Người sửa still filters it on the client", async () => {
     route({
-      list: () => [txtFile("notes", { parent_id: "fo1" }), summary("plan", { parent_id: "fo1", updated_by: "u2" })],
+      list: (path) => {
+        const rows: Record<string, unknown>[] = [txtFile("notes", { parent_id: "fo1" }), summary("plan", { parent_id: "fo1", updated_by: "u2" })];
+        const wanted = queryOf(path).getAll("type");
+        return rows.filter((row) => wanted.length === 0 || wanted.includes(row.kind === "page" ? "page" : String(row.format)));
+      },
       detail: (id) => (id === "fo1" ? summary("fo1", { kind: "folder", title: "Dự án" }) : null),
       tree: () => [{ id: "fo1", title: "Dự án", kind: "folder", position: 0, children: [] }],
     });
     renderView("/?folder=fo1");
     await screen.findByText("notes.txt");
-    fireEvent.click(within(chipGroup()!).getByRole("button", { name: ".txt" }));
+    await pickTypeFilter("txt");
     await waitFor(() => expect(screen.queryByText("plan")).toBeNull());
-    expect(screen.getByText("notes.txt")).toBeInTheDocument();
-    fireEvent.click(within(chipGroup()!).getByRole("button", { name: "Mọi loại" }));
+    expect(await screen.findByText("notes.txt")).toBeInTheDocument();
+    expect(queryOf(lastCall((path) => queryOf(path).get("parent_id") === "fo1")).getAll("type")).toEqual(["txt"]);
+    await pickTypeFilter("all");
     await screen.findByText("plan");
     await choose(editorSelect()!, "Bình");
     await waitFor(() => expect(screen.queryByText("notes.txt")).toBeNull());
     expect(screen.getByText("plan")).toBeInTheDocument();
-    for (const path of listCalls()) {
-      expect(queryOf(path).has("format")).toBe(false);
-      expect(queryOf(path).has("updated_by")).toBe(false);
-    }
+    // Người sửa is the client's here: no request carries it.
+    for (const path of listCalls()) expect(queryOf(path).has("updated_by")).toBe(false);
   });
 
   it("filters Có gắn sao on the client by Người sửa and Cập nhật", async () => {

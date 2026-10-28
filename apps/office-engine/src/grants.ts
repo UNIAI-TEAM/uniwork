@@ -45,6 +45,7 @@ export interface ServiceGrant {
   organization_id: string;
   workspace_id: string;
   document_id: string;
+  drive_file_id?: string;
   operation: GrantableOperation;
   format: OfficeFormat;
   base_revision: number;
@@ -105,16 +106,51 @@ function parseOutput(v: unknown): GrantOutput | null {
 
 function parseGrant(raw: unknown): ServiceGrant {
   if (!isDict(raw) || raw.v !== 1) scope("malformed", { field: "v" });
-  for (const key of ["grant_id", "job_id", "actor_id", "organization_id", "workspace_id", "document_id", "base_version_id"]) {
+  for (const key of ["grant_id", "job_id", "actor_id", "organization_id", "workspace_id"]) {
     if (!str(raw[key])) scope("malformed", { field: key });
   }
   if (!actorKinds.includes(raw.actor_kind as (typeof actorKinds)[number])) scope("malformed", { field: "actor_kind" });
   if (!grantableOperations.includes(raw.operation as GrantableOperation)) scope("malformed", { field: "operation" });
   if (!officeFormats.includes(raw.format as OfficeFormat)) scope("malformed", { field: "format" });
-  if (!int(raw.base_revision)) scope("malformed", { field: "base_revision" });
   for (const key of ["deadline_at", "issued_at", "expires_at"]) {
     if (!int(raw[key], 1)) scope("malformed", { field: key });
   }
+  const input = parseInput(raw.input ?? null);
+  const output = parseOutput(raw.output ?? null);
+  const operation = raw.operation as GrantableOperation;
+  if (operation === "extract_text") {
+    if (raw.document_id !== "") scope("malformed", { field: "document_id" });
+    if (!str(raw.drive_file_id)) scope("malformed", { field: "drive_file_id" });
+    if (raw.base_revision !== 0) scope("malformed", { field: "base_revision" });
+    if (raw.base_version_id !== "") scope("malformed", { field: "base_version_id" });
+    if (input === null) scope("malformed", { field: "input" });
+    if (output !== null) scope("malformed", { field: "output" });
+    return {
+      v: 1,
+      grant_id: raw.grant_id as string,
+      job_id: raw.job_id as string,
+      actor_id: raw.actor_id as string,
+      actor_kind: raw.actor_kind as ServiceGrant["actor_kind"],
+      organization_id: raw.organization_id as string,
+      workspace_id: raw.workspace_id as string,
+      document_id: "",
+      drive_file_id: raw.drive_file_id,
+      operation,
+      format: raw.format as OfficeFormat,
+      base_revision: 0,
+      base_version_id: "",
+      input,
+      output: null,
+      deadline_at: raw.deadline_at as number,
+      issued_at: raw.issued_at as number,
+      expires_at: raw.expires_at as number,
+    };
+  }
+  if (raw.drive_file_id !== undefined && raw.drive_file_id !== "") scope("malformed", { field: "drive_file_id" });
+  for (const key of ["document_id", "base_version_id"]) {
+    if (!str(raw[key])) scope("malformed", { field: key });
+  }
+  if (!int(raw.base_revision)) scope("malformed", { field: "base_revision" });
   return {
     v: 1,
     grant_id: raw.grant_id as string,
@@ -124,12 +160,12 @@ function parseGrant(raw: unknown): ServiceGrant {
     organization_id: raw.organization_id as string,
     workspace_id: raw.workspace_id as string,
     document_id: raw.document_id as string,
-    operation: raw.operation as GrantableOperation,
+    operation,
     format: raw.format as OfficeFormat,
     base_revision: raw.base_revision as number,
     base_version_id: raw.base_version_id as string,
-    input: parseInput(raw.input ?? null),
-    output: parseOutput(raw.output ?? null),
+    input,
+    output,
     deadline_at: raw.deadline_at as number,
     issued_at: raw.issued_at as number,
     expires_at: raw.expires_at as number,
@@ -180,13 +216,19 @@ export function bindEnvelope(grant: ServiceGrant, facts: EnvelopeFacts, outputOr
   if (facts.grantId !== grant.grant_id) scope("grant_id");
   if (facts.operation !== grant.operation) scope("operation");
   if (facts.format !== grant.format) scope("format");
-  // Convert and export carry no base_revision payload field: its result-deciding base
-  // is the source version id (compared below as baseVersionId), and the
-  // grant's base_revision is informational for it.
-  if (facts.operation !== "convert" && facts.operation !== "export" && facts.baseRevision !== grant.base_revision) {
+  // Convert, export, and extract_text carry no base_revision payload field:
+  // convert/export bind the source version id (compared below as baseVersionId),
+  // and extract_text runs on an in-memory Drive file with base_version_id "".
+  if (
+    facts.operation !== "convert" &&
+    facts.operation !== "export" &&
+    facts.operation !== "extract_text" &&
+    facts.baseRevision !== grant.base_revision
+  ) {
     scope("base_revision");
   }
-  if (facts.baseVersionId !== grant.base_version_id) scope("base_version_id");
+  const baseVersionId = facts.operation === "extract_text" ? (facts.baseVersionId ?? "") : facts.baseVersionId;
+  if (baseVersionId !== grant.base_version_id) scope("base_version_id");
   if ((grant.input === null) !== (facts.inputs === null)) scope("input");
   if (grant.input && facts.inputs) {
     if (grant.input.checksum !== facts.inputs.checksum || grant.input.length !== facts.inputs.length) scope("input");

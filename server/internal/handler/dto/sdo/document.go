@@ -40,6 +40,8 @@ type DocumentDTO struct {
 	PurgeAfter          *string                 `json:"purge_after,omitempty" example:"2026-10-27T09:00:00Z"`
 	ShelvedAt           *string                 `json:"shelved_at,omitempty" description:"Mốc lưu trữ (kho lưu trữ, chỉ đọc); khác archived_at (thùng rác)" example:"2026-10-17T09:00:00Z"`
 	ShelvedBy           *string                 `json:"shelved_by,omitempty" description:"ULID người/agent đã lưu trữ" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	TemplateMarkedAt    *string                 `json:"template_marked_at,omitempty" description:"Mốc đánh dấu là mẫu văn bản (Mẫu); vắng mặt khi không phải mẫu" example:"2026-10-27T09:00:00Z"`
+	TemplateMarkedBy    *string                 `json:"template_marked_by,omitempty" description:"ULID người/agent đã đánh dấu mẫu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	CreatedBy           string                  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	CreatedByKind       string                  `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
 	UpdatedBy           string                  `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
@@ -86,26 +88,28 @@ type DocumentUploadSDO struct {
 // on the single-version GET of a page version; a file version instead carries
 // file metadata and download_url (the Go proxy route, C-01 §14.2).
 type DocumentVersionDTO struct {
-	ID              string           `json:"id" description:"ULID phiên bản" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
-	DocumentID      string           `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-	Version         int32            `json:"version" description:"Ordinal 1,2,3… trong document" example:"3"`
-	Kind            string           `json:"kind" description:"page hoặc file (snapshot lúc tạo)" example:"page"`
-	Reason          string           `json:"reason" description:"manual, auto, restore, upload hoặc agent" example:"manual"`
-	Label           *string          `json:"label,omitempty" example:"Bản gửi khách hàng"`
-	Content         *json.RawMessage `json:"content,omitempty" description:"Nội dung page của phiên bản; chỉ trên GET một phiên bản"`
-	FileID          *string          `json:"file_id,omitempty" description:"file_id FileService của blob phiên bản" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
-	MimeType        *string          `json:"mime_type,omitempty" example:"application/pdf"`
-	SizeBytes       int64            `json:"size_bytes" example:"245760"`
-	ChecksumSha256  *string          `json:"checksum_sha256,omitempty" example:"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"`
-	RestoredFrom    *int32           `json:"restored_from,omitempty" description:"Ordinal nguồn khi reason=restore" example:"1"`
-	EngineName      *string          `json:"engine_name,omitempty" description:"Engine đã sinh byte (Office); null với page và upload thẳng" example:"genoffice"`
-	EngineVersion   *string          `json:"engine_version,omitempty" example:"genoffice@1.4.2+uniwork-office.3"`
-	ContractVersion *string          `json:"contract_version,omitempty" example:"uniwork-office-engine-contract/1"`
-	ProtocolVersion *string          `json:"protocol_version,omitempty" description:"Phiên bản protocol engine G2 dạng chuỗi thập phân" example:"1"`
-	DownloadURL     *string          `json:"download_url,omitempty" description:"Route proxy tải blob phiên bản file" example:"/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/download?version=3"`
-	CreatedBy       string           `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	CreatedByKind   string           `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
-	CreatedAt       string           `json:"created_at" example:"2026-09-27T09:00:00Z"`
+	ID                    string           `json:"id" description:"ULID phiên bản" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
+	DocumentID            string           `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Version               int32            `json:"version" description:"Ordinal 1,2,3… trong document" example:"3"`
+	Kind                  string           `json:"kind" description:"page hoặc file (snapshot lúc tạo)" example:"page"`
+	Reason                string           `json:"reason" description:"manual, auto, restore, upload, agent hoặc converted_version" example:"manual"`
+	Label                 *string          `json:"label,omitempty" example:"Bản gửi khách hàng"`
+	Content               *json.RawMessage `json:"content,omitempty" description:"Nội dung page của phiên bản; chỉ trên GET một phiên bản"`
+	FileID                *string          `json:"file_id,omitempty" description:"file_id FileService của blob phiên bản" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
+	MimeType              *string          `json:"mime_type,omitempty" example:"application/pdf"`
+	SizeBytes             int64            `json:"size_bytes" example:"245760"`
+	ChecksumSha256        *string          `json:"checksum_sha256,omitempty" example:"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"`
+	RestoredFrom          *int32           `json:"restored_from,omitempty" description:"Ordinal nguồn khi reason=restore" example:"1"`
+	ConvertedFromVersion  *int32           `json:"converted_from_version,omitempty" description:"Ordinal phiên bản định dạng cũ đã chuyển đổi khi reason=converted_version (UNI-2213)" example:"1"`
+	ConvertedFromChecksum *string          `json:"converted_from_checksum,omitempty" description:"SHA-256 hex của phiên bản nguồn đã chuyển đổi khi reason=converted_version (UNI-2213)" example:"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"`
+	EngineName            *string          `json:"engine_name,omitempty" description:"Engine đã sinh byte (Office); null với page và upload thẳng" example:"genoffice"`
+	EngineVersion         *string          `json:"engine_version,omitempty" example:"genoffice@1.4.2+uniwork-office.3"`
+	ContractVersion       *string          `json:"contract_version,omitempty" example:"uniwork-office-engine-contract/1"`
+	ProtocolVersion       *string          `json:"protocol_version,omitempty" description:"Phiên bản protocol engine G2 dạng chuỗi thập phân" example:"1"`
+	DownloadURL           *string          `json:"download_url,omitempty" description:"Route proxy tải blob phiên bản file" example:"/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/download?version=3"`
+	CreatedBy             string           `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedByKind         string           `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
+	CreatedAt             string           `json:"created_at" example:"2026-09-27T09:00:00Z"`
 }
 
 // DocumentVersionSDO wraps one version (single-version GET, manual create).
@@ -202,20 +206,22 @@ type DocumentSummaryDTO struct {
 	// EditLock is who is editing this row's document right now (UNI-1645
 	// §3.2); absent when nobody holds the lock. A list row never carries
 	// lock_id, whatever the viewer's level (C2-1 is R1 only).
-	EditLock      *DocumentEditLockSummarySDO `json:"edit_lock,omitempty" description:"Người đang sửa tài liệu (tóm tắt, không có lock_id); vắng mặt khi không ai giữ" example:"{\"holder_id\":\"01J8X4USR0N1P2Q3R4S5T6U7\",\"holder_name\":\"Nguyễn Văn A\",\"since\":\"2026-10-15T03:12:00Z\",\"expires_at\":\"2026-10-15T03:14:00Z\",\"reserved\":false,\"held_by_me\":false}"`
-	OwnerKind     *string                     `json:"owner_kind,omitempty" example:"work_product"`
-	OwnerID       *string                     `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
-	ArchivedAt    *string                     `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
-	ArchivedBy    *string                     `json:"archived_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	PurgeAfter    *string                     `json:"purge_after,omitempty" example:"2026-10-27T09:00:00Z"`
-	ShelvedAt     *string                     `json:"shelved_at,omitempty" description:"Mốc lưu trữ (kho lưu trữ); hàng Thùng rác vẫn mang trường này nếu mục từng lưu trữ" example:"2026-10-17T09:00:00Z"`
-	ShelvedBy     *string                     `json:"shelved_by,omitempty" description:"ULID người/agent đã lưu trữ" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	CreatedBy     string                      `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	CreatedByKind string                      `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
-	UpdatedBy     string                      `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	UpdatedByKind string                      `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
-	CreatedAt     string                      `json:"created_at" example:"2026-09-27T09:00:00Z"`
-	UpdatedAt     string                      `json:"updated_at" example:"2026-09-27T09:00:00Z"`
+	EditLock         *DocumentEditLockSummarySDO `json:"edit_lock,omitempty" description:"Người đang sửa tài liệu (tóm tắt, không có lock_id); vắng mặt khi không ai giữ" example:"{\"holder_id\":\"01J8X4USR0N1P2Q3R4S5T6U7\",\"holder_name\":\"Nguyễn Văn A\",\"since\":\"2026-10-15T03:12:00Z\",\"expires_at\":\"2026-10-15T03:14:00Z\",\"reserved\":false,\"held_by_me\":false}"`
+	OwnerKind        *string                     `json:"owner_kind,omitempty" example:"work_product"`
+	OwnerID          *string                     `json:"owner_id,omitempty" example:"01J8X4WP00N1P2Q3R4S5T6U7V8"`
+	ArchivedAt       *string                     `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
+	ArchivedBy       *string                     `json:"archived_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	PurgeAfter       *string                     `json:"purge_after,omitempty" example:"2026-10-27T09:00:00Z"`
+	ShelvedAt        *string                     `json:"shelved_at,omitempty" description:"Mốc lưu trữ (kho lưu trữ); hàng Thùng rác vẫn mang trường này nếu mục từng lưu trữ" example:"2026-10-17T09:00:00Z"`
+	ShelvedBy        *string                     `json:"shelved_by,omitempty" description:"ULID người/agent đã lưu trữ" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	TemplateMarkedAt *string                     `json:"template_marked_at,omitempty" description:"Mốc đánh dấu là mẫu văn bản (Mẫu); vắng mặt khi không phải mẫu" example:"2026-10-27T09:00:00Z"`
+	TemplateMarkedBy *string                     `json:"template_marked_by,omitempty" description:"ULID người/agent đã đánh dấu mẫu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedBy        string                      `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedByKind    string                      `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
+	UpdatedBy        string                      `json:"updated_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedByKind    string                      `json:"updated_by_kind" description:"human, agent hoặc system" example:"human"`
+	CreatedAt        string                      `json:"created_at" example:"2026-09-27T09:00:00Z"`
+	UpdatedAt        string                      `json:"updated_at" example:"2026-09-27T09:00:00Z"`
 	// Path rides only on a search (q) result row (E6/FD-05, UNI-1465).
 	Path []DocumentPathItemSDO `json:"path,omitempty" description:"Chuỗi tổ tiên từ gốc tới cha trực tiếp; cắt ở tổ tiên đầu tiên người gọi không đọc được; chỉ có trên dòng kết quả tìm bằng q" example:"[{\"id\":\"01J8X4DOC0N1P2Q3R4S5T6U7W9\",\"title\":\"Tài liệu nội bộ\"}]"`
 	// ShareScope summarizes who reaches this row's document (SH-S3, UNI-1782;
@@ -323,8 +329,9 @@ type DocumentArchiveImpactSDO struct {
 	MaxNodes  int  `json:"max_nodes" description:"Trần số nút một lần lưu trữ nhận" example:"1000"`
 	TooLarge  bool `json:"too_large" description:"true = cây con vượt trần: không có số đếm, nút xác nhận bị khóa và thông báo folder_too_large" example:"false"`
 	// RelocatedCount is ADR 0037 point 5: documents the caller cannot manage
-	// leave a trashed workspace folder for the workspace root. A number only.
-	RelocatedCount int `json:"relocated_count" description:"Số tài liệu người gọi không quản lý được sẽ chuyển về gốc workspace thay vì vào thùng rác khi bỏ thư mục chung (giữ nguyên quyền); chỉ là con số, không lộ tài liệu nào; 0 với mọi gốc khác" example:"0"`
+	// leave a trashed root, whatever its kind, for the workspace root. A
+	// number only.
+	RelocatedCount int `json:"relocated_count" description:"Số trang/tệp người gọi không quản lý được (không thấy, hoặc thấy mà không quản lý) sẽ chuyển về gốc workspace kèm cây con thay vì vào thùng rác khi bỏ gốc này, dù gốc là thư mục, trang hay tệp (giữ nguyên quyền và tên); không tính vào total; chỉ là con số, không lộ tài liệu nào" example:"0"`
 }
 
 // DocumentAccessSourceDTO is one source entry on a user share row or in my_sources
@@ -477,6 +484,17 @@ type DocumentAccessRequestDecisionSDO struct {
 	ShareID string `json:"share_id" description:"ULID grant được tạo khi duyệt; rỗng khi người xin đã đủ mức (không tạo share mới)" example:"01J8X4SHAREN1P2Q3R4S5T6U7"`
 }
 
+// DocumentOwnerSDO is the 200 body of PUT /documents/{documentID}/owner
+// (DOC-06 §4.2). previous_owner_share_id is empty when the previous owner
+// keeps nothing (none, deactivated, a folder); both previous fields are empty
+// when the recipient already owned the document.
+type DocumentOwnerSDO struct {
+	DocumentID           string `json:"document_id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	ACLOwnerID           string `json:"acl_owner_id" description:"ULID chủ sở hữu mới (bằng user_id của yêu cầu)" example:"01J8X4USER0N1P2Q3R4S5T6U7V8"`
+	PreviousOwnerID      string `json:"previous_owner_id" description:"ULID chủ cũ; rỗng khi người nhận đã là chủ hoặc tài liệu chưa có chủ" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	PreviousOwnerShareID string `json:"previous_owner_share_id" description:"ULID share chủ cũ giữ lại; rỗng khi none hoặc bỏ qua" example:"01J8X4SHAREN1P2Q3R4S5T6U7"`
+}
+
 // DocumentAdminSummaryDocumentDTO is the metadata block of the admin summary:
 // what an administrator may see about a restricted document they cannot read.
 // It never carries content, content_text or a file.
@@ -491,6 +509,8 @@ type DocumentAdminSummaryDocumentDTO struct {
 	Visibility     string  `json:"visibility" description:"workspace hoặc restricted" example:"restricted"`
 	SizeBytes      int64   `json:"size_bytes" description:"Kích thước phiên bản file hiện tại (byte); 0 với trang và thư mục" example:"325632"`
 	ArchivedAt     *string `json:"archived_at,omitempty" example:"2026-09-27T09:00:00Z"`
+	OwnerKind      *string `json:"owner_kind,omitempty" description:"work_product khi tài liệu thuộc sở hữu; vắng mặt khi không" example:"work_product"`
+	Revision       string  `json:"revision" description:"Revision làm việc, chuỗi thập phân (nền khóa lạc quan khi đổi visibility)" example:"41"`
 	CreatedBy      string  `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	CreatedAt      string  `json:"created_at" example:"2026-09-27T09:00:00Z"`
 	UpdatedAt      string  `json:"updated_at" example:"2026-09-27T09:00:00Z"`

@@ -24,6 +24,7 @@ vi.mock("@uniwork/core/admin", () => ({
   adminKeys: { invoicesRoot: ["admin", "invoices"] },
   useAdminRefundInvoice: () => ({ isPending: false, mutateAsync }),
   useAdminConfirmInvoiceRefund: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useAdminRevertInvoiceRefund: () => ({ isPending: false, mutateAsync: vi.fn() }),
 }));
 
 const target = {
@@ -46,6 +47,8 @@ describe("AdminInvoiceRefundDialogs", () => {
         refundTarget={target}
         onRefundTargetChange={onRefundTargetChange}
         confirmTarget={null}
+        revertTarget={null}
+        onRevertTargetChange={() => {}}
         onConfirmTargetChange={vi.fn()}
       />,
     );
@@ -72,6 +75,8 @@ describe("AdminInvoiceRefundDialogs", () => {
         refundTarget={target}
         onRefundTargetChange={onRefundTargetChange}
         confirmTarget={null}
+        revertTarget={null}
+        onRevertTargetChange={() => {}}
         onConfirmTargetChange={vi.fn()}
       />,
     );

@@ -111,6 +111,15 @@ describe("DetailRail rows", () => {
     expect(within(rail()).getByRole("button", { name: "Lịch sử thao tác" })).toBeInTheDocument();
   });
 
+  it("lists Hình thức first for an in-person meeting", async () => {
+    const { unmount } = renderRail("m3", { value: { meeting: { ...fixtureMeeting("m3"), venue: "in_person" } } });
+    await within(rail()).findByRole("button", { name: "Lịch sử thao tác" });
+    expect(rail().textContent).toMatch(/^Hình thứcTrực tiếpChủ trìLPLan Phạm/);
+    unmount();
+    renderRail("m3");
+    expect(within(rail()).queryByText("Hình thức")).not.toBeInTheDocument();
+  });
+
   it("draws the live host's roll, invitations and guests, and no project (LiveHost)", async () => {
     renderRail("m4");
     expect(

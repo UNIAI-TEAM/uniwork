@@ -42,10 +42,19 @@ type TaskService struct {
 	ent *EntitlementService
 	// Chat is optional; when set, CreateProject can provision a linked channel.
 	Chat *ChatService
+	// driveFiles links Google Drive references attached on task create (UNI-2180, spec §7.2).
+	driveFiles *DriveFileService
 }
 
 func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, store storage.Storage) *TaskService {
 	return &TaskService{pool: pool, q: q, ws: ws, storage: store, ent: NewEntitlementService(pool, q)}
+}
+
+// SetDriveFiles wires the DriveFileService used when CreateTaskInput.DriveFiles is non-empty.
+func (s *TaskService) SetDriveFiles(df *DriveFileService) {
+	if s != nil {
+		s.driveFiles = df
+	}
 }
 
 type CreateTaskInput struct {
@@ -66,9 +75,12 @@ type CreateTaskInput struct {
 	Stage         *int32
 	LabelIDs      []string
 	AttachmentIDs []string
+	DriveFiles    []CreateTaskDriveFileInput
 	Properties    map[string]json.RawMessage
 	// AllowDuplicate skips the active-title guard (CLI / explicit override).
 	AllowDuplicate bool
+	// AuditMetadata, when non-empty, is recorded on the task.created audit entry (e.g. Drive proposal provenance, spec §8.5).
+	AuditMetadata map[string]any
 
 	// order is set by CreateManyWith when the batch keeps its input order.
 	order *createOrder
@@ -462,6 +474,9 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if strings.TrimSpace(in.Title) == "" {
 		return db.Task{}, Invalid("tiêu đề không được để trống")
 	}
+	if len(in.DriveFiles) > driveMaxLinkBatch {
+		return db.Task{}, Invalid("drive_files tối đa 20")
+	}
 	status, err := normalizeCreateTaskStatus(ctx, q, ws.OrganizationID, workspaceID, in.Status)
 	if err != nil {
 		return db.Task{}, err
@@ -611,9 +626,15 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		Actor:        actor,
 		Action:       audit.ActionTaskCreated,
 		ResourceType: "task", ResourceID: task.ID,
-		Changes: audit.Diff(nil, taskAuditFields(task)),
+		Changes:  audit.Diff(nil, taskAuditFields(task)),
+		Metadata: in.AuditMetadata,
 	}, emit...); err != nil {
 		return db.Task{}, err
+	}
+	if len(in.DriveFiles) > 0 {
+		if err := s.driveFiles.linkFilesForTaskCreateInTx(ctx, q, actor, ws, task, in.DriveFiles); err != nil {
+			return db.Task{}, err
+		}
 	}
 	return task, nil
 }
@@ -910,28 +931,16 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 	return task, nil
 }
 
+// Delete moves the task and its subtasks to the trash (UNI-2171); Purge is
+// the delete that removes rows.
 func (s *TaskService) Delete(ctx context.Context, userID, taskID string) error {
-	task, err := s.authorize(ctx, userID, taskID)
-	if err != nil {
-		return err
-	}
-	ws, err := s.q.GetWorkspaceByID(ctx, task.WorkspaceID)
-	if err != nil {
-		return err
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	if err := s.deleteTaskInTx(ctx, s.q.WithTx(tx), userID, task, ws); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	_, err := s.Trash(ctx, Human(userID), taskID)
+	return err
 }
 
-// deleteTaskInTx removes the task and writes audit/outbox using q (caller owns the tx).
-func (s *TaskService) deleteTaskInTx(ctx context.Context, q *db.Queries, userID string, task db.Task, ws db.Workspace) error {
+// purgeTaskInTx removes the task row and writes audit/outbox using q (caller
+// owns the tx): the delete path of a purge, by a person or the purge worker.
+func (s *TaskService) purgeTaskInTx(ctx context.Context, q *db.Queries, task db.Task, actor audit.Actor) error {
 	if s.files != nil {
 		// File-backed attachments bound to the task lose their hold here —
 		// the release records it in the same transaction that drops the task.
@@ -979,11 +988,29 @@ func (s *TaskService) deleteTaskInTx(ctx context.Context, q *db.Queries, userID 
 			"room_id": l.RoomID, "message_id": l.MessageID, "target_id": task.ID,
 		}})
 	}
+	driveLinks, err := q.DeleteDriveFileTaskLinksByTask(ctx, db.DeleteDriveFileTaskLinksByTaskParams{
+		OrganizationID: task.OrganizationID,
+		WorkspaceID:    task.WorkspaceID,
+		TaskID:         task.ID,
+	})
+	if err != nil {
+		return err
+	}
+	for _, l := range driveLinks {
+		events = append(events, audit.Event{
+			Topic:   "drive_file.updated",
+			Version: 1,
+			Payload: map[string]string{
+				"drive_file_id": l.DriveFileID,
+				"workspace_id":  task.WorkspaceID,
+			},
+		})
+	}
 	// The row is gone, so the audit entry is the only remaining record of what
 	// it held: keep the title, which is what a person searching the log reads.
 	return auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: ws.OrganizationID, WorkspaceID: task.WorkspaceID,
-		Actor:        audit.User(userID),
+		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+		Actor:        actor,
 		Action:       audit.ActionTaskDeleted,
 		ResourceType: "task", ResourceID: task.ID,
 		Metadata: map[string]any{"title": task.Title, "status": task.Status},

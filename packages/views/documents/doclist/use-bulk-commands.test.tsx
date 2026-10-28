@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { documentKeys } from "@uniwork/core/documents/keys";
 import { initI18n } from "@uniwork/core/i18n";
+import { trashKeys } from "@uniwork/core/trash";
 import { requestMock, wrap } from "../../test/api-mock";
 import type { DocumentSummaryRow } from "../library-rows";
 import type { BulkPlan } from "./bulk-actions";
@@ -17,6 +18,17 @@ import { useDocListBulkCommands } from "./use-bulk-commands";
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), loading: vi.fn(), dismiss: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
+
+// The zip bytes come through requestDownload (bearer + refresh); the transport mock covers the rest.
+const download = vi.hoisted(() => vi.fn());
+vi.mock("@uniwork/core/api/http", async (original) => {
+  const { requestMock: transport } = await import("../../test/request-mock");
+  return {
+    ...(await original<typeof import("@uniwork/core/api/http")>()),
+    request: (...args: unknown[]) => transport(...args),
+    requestDownload: (...args: unknown[]) => download(...args),
+  };
+});
 
 const { t } = initI18n();
 const WS = "ws1";
@@ -81,7 +93,11 @@ const five = ["a", "b", "c", "d", "e"].map((id) => doc(id));
 describe("useDocListBulkCommands", () => {
   beforeEach(() => {
     requestMock.mockReset();
+    download.mockReset();
+    download.mockResolvedValue({ blob: new Blob(["PK"]), filename: "documents.zip" });
     for (const fn of Object.values(toast)) fn.mockReset();
+    URL.createObjectURL = vi.fn(() => "blob:zip1");
+    URL.revokeObjectURL = vi.fn();
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -113,8 +129,10 @@ describe("useDocListBulkCommands", () => {
     expect(text).toContain("Tệp b");
     expect(text).toContain("Tệp e");
     expect(text).toContain(t("documents.list.bulk.error.forbidden"));
-    expect(invalidate).toHaveBeenCalledTimes(1);
+    // The document root and the shared trash, once each after the batch.
+    expect(invalidate).toHaveBeenCalledTimes(2);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: documentKeys.workspace(WS) });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: trashKeys.workspace(WS) });
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 
@@ -163,13 +181,14 @@ describe("useDocListBulkCommands", () => {
     expect(onDone).toHaveBeenCalled();
   });
 
-  it("zips several files: creates the job, polls it to ready, downloads the link and lists what was skipped", async () => {
-    const clicked: string[] = [];
+  it("zips several files: creates the job, polls it to ready, fetches the zip with the bearer, saves it through an object URL and lists what was skipped", async () => {
+    const clicked: { href: string; download: string }[] = [];
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
-      clicked.push(this.href);
+      clicked.push({ href: this.href, download: this.download });
     });
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
     const job = (over: Record<string, unknown>) => ({ id: "job1", status: "queued", created_at: "2026-10-21T01:00:00Z", expires_at: null, download_url: null, file_count: null, skipped: [], error: null, ...over });
-    const polls = [job({ status: "running" }), job({ status: "ready", download_url: "https://files.test/z/job1", file_count: 2, skipped: [{ document_id: "c", reason: "too_large" }] })];
+    const polls = [job({ status: "running" }), job({ status: "ready", download_url: `/api/v1/workspaces/${WS}/documents/download-jobs/job1/download`, file_count: 2, skipped: [{ document_id: "c", reason: "too_large" }] })];
     requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
       if (opts?.method === "POST") return Promise.resolve(job({}));
       return Promise.resolve(polls.shift() ?? job({ status: "ready" }));
@@ -187,7 +206,11 @@ describe("useDocListBulkCommands", () => {
     expect(post[0]).toBe(`/api/v1/workspaces/${WS}/documents/download-jobs`);
     expect((post[1] as { body: unknown }).body).toEqual({ document_ids: ["a", "b", "c"] });
     expect(requestMock.mock.calls.filter(([path]) => path === `/api/v1/workspaces/${WS}/documents/download-jobs/job1`)).toHaveLength(2);
-    expect(clicked).toEqual(["https://files.test/z/job1"]);
+    // The bytes come from the bearer transport by ids, and are saved from an object URL: no anchor ever points at the bearer route.
+    expect(download).toHaveBeenCalledTimes(1);
+    expect(download.mock.calls[0]![0]).toBe(`/api/v1/workspaces/${WS}/documents/download-jobs/job1/download`);
+    expect(clicked).toEqual([{ href: "blob:zip1", download: "documents.zip" }]);
+    expect(open).not.toHaveBeenCalled();
     const [title, options] = toast.success.mock.calls[0]!;
     expect(title).toBe(t("documents.list.bulk.done.download", { ok: 2, total: 4 }));
     const text = descriptionText(options);
@@ -195,6 +218,20 @@ describe("useDocListBulkCommands", () => {
     expect(text).toContain(t("documents.list.bulk.error.not_a_file"));
     expect(text).toContain("Tệp c");
     expect(text).toContain(t("documents.list.bulk.error.too_large"));
+  });
+
+  it("names the failed toast when the zip cannot be fetched, and saves nothing", async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    download.mockRejectedValue(new ApiError("missing bearer token", "unauthorized", 401));
+    const job = (over: Record<string, unknown>) => ({ id: "job1", status: "ready", created_at: "", expires_at: null, download_url: `/api/v1/workspaces/${WS}/documents/download-jobs/job1/download`, file_count: 2, skipped: [], error: null, ...over });
+    requestMock.mockImplementation(() => Promise.resolve(job({})));
+    const plan: BulkPlan = { action: "download", docs: five.slice(0, 2), skipped: [], total: 2, titles: new Map() };
+    const { onDone } = setup(plan);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(click).not.toHaveBeenCalled();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(onDone).toHaveBeenCalled();
   });
 
   it("names a 422 download_too_large with its own message", async () => {

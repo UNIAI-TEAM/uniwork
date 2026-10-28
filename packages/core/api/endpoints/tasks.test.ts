@@ -107,6 +107,9 @@ describe("tasks endpoints", () => {
       parent_task_id: "parent-1",
       stage: 2,
       properties: { "prop-1": 5 },
+      drive_files: [
+        { connection_id: "dc1", external_file_id: "gdoc1" },
+      ],
     };
 
     const created = await createTask("ws1", body, { idempotencyKey: "create-1" });
@@ -145,9 +148,12 @@ describe("tasks endpoints", () => {
     expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual(schedule);
   });
 
-  it("deleteTask resolves with no body", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
-    await expect(deleteTask("t1")).resolves.toBeUndefined();
+  it("deleteTask returns the trash batch and degrades on drift", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ trash_batch_id: "b1", ids: ["t1", "t2"] }))
+      .mockResolvedValueOnce(json({ status: "ok" }));
+    await expect(deleteTask("t1")).resolves.toEqual({ trash_batch_id: "b1", ids: ["t1", "t2"] });
+    await expect(deleteTask("t1")).resolves.toEqual({ trash_batch_id: "", ids: [] });
   });
 
   it("listComments returns [] on drift", async () => {
