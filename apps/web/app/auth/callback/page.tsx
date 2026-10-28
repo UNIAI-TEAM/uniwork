@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import { api } from "@uniwork/core";
 import { useSession } from "@uniwork/core/auth";
-import { paths, sanitizeNextUrl } from "@uniwork/core/paths";
+import { paths, resolvePostAuthNavigation, sanitizeNextUrl } from "@uniwork/core/paths";
 import { AuthCallbackView } from "@uniwork/views/auth/auth-callback-view";
 import { useLoggedInDestination } from "@uniwork/views/auth/post-auth-redirect";
 import { useNavigation } from "@uniwork/views/navigation";
@@ -28,9 +28,8 @@ export default function AuthCallbackPage() {
     void (async () => {
       const workspaces = await api.workspaces.list().catch(() => []);
       const destination = await resolveDestination(user, workspaces);
-      // A verified, onboarded user goes where they were headed; anyone still
-      // owing a gate step goes through it first.
-      replace(next && destination !== paths.verify() && destination !== paths.onboarding() ? next : destination);
+      // Join/email-invite `next` may override onboarding; verify still comes first.
+      replace(resolvePostAuthNavigation(destination, next));
     })();
   }, [status, user, next, replace, resolveDestination]);
 

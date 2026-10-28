@@ -257,7 +257,10 @@ export function LoginView({
           <GoogleButton next={next} />
           <p className="text-center text-body text-muted-foreground">
             {t("auth.noAccount")}{" "}
-            <AppLink href={paths.register()} className={AUTH_LINK}>
+            <AppLink
+              href={next ? `${paths.register()}?next=${encodeURIComponent(next)}` : paths.register()}
+              className={AUTH_LINK}
+            >
               {t("auth.register")}
             </AppLink>
           </p>

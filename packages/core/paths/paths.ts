@@ -204,6 +204,38 @@ export function sanitizeNextUrl(raw: string | null | undefined): string | null {
   return new URL(raw, SAME_ORIGIN_PROBE).origin === SAME_ORIGIN_PROBE ? raw : null;
 }
 
+/** Append `?next=` when present so login ↔ register ↔ verify keep the join path. */
+export function withNextParam(path: string, next: string | null | undefined): string {
+  if (!next) return path;
+  return `${path}?next=${encodeURIComponent(next)}`;
+}
+
+/**
+ * Paths whose accept/join marks the user onboarded (membership link or email
+ * invite). Meeting invites do not — they must not skip create-org onboarding.
+ */
+export function nextOverridesOnboarding(next: string | null | undefined): boolean {
+  if (!next) return false;
+  const path = next.split(/[?#]/, 1)[0] ?? "";
+  if (path.startsWith("/join/")) return true;
+  if (path.startsWith("/invite/") && !path.startsWith("/invite/meeting/")) return true;
+  return false;
+}
+
+/**
+ * Where to send the browser after sign-in / verify given the gate destination
+ * and an optional `?next=`. Verify always comes first and keeps `next`. A
+ * join or email-invite `next` may override `/onboarding` (accepting marks the
+ * user onboarded); any other `next` waits until the gate is clear.
+ */
+export function resolvePostAuthNavigation(destination: string, next: string | null): string {
+  if (!next) return destination;
+  if (destination === paths.verify()) return withNextParam(paths.verify(), next);
+  if (nextOverridesOnboarding(next)) return next;
+  if (destination !== paths.onboarding()) return next;
+  return destination;
+}
+
 /**
  * Route prefixes that are never workspace-scoped. Each one's first segment
  * must also be a reserved slug (consistency.test.ts checks), otherwise an
