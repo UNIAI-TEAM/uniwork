@@ -83,6 +83,19 @@ describe("ContinueView — loading and none", () => {
     expect(screen.queryByRole("heading", { name: "Tiếp tục với Google" })).toBeNull();
   });
 
+  it("draws a signed-in browser the two rows it will get, without the terms line", () => {
+    setSessionUser(USER);
+    requestMock.mockReturnValue(new Promise(() => {}));
+    open();
+    expect(document.querySelectorAll(".min-h-17")).toHaveLength(2);
+    const bones = [...document.querySelectorAll(".box-decoration-clone")].map((b) => b.textContent);
+    expect(bones).toEqual(
+      expect.arrayContaining(["Liên kết Google với an@company.vn", "Dùng tài khoản khác", "Đăng xuất an@company.vn rồi chọn lại."]),
+    );
+    expect(bones).not.toContain("Tạo tài khoản mới");
+    expect(screen.queryByText(/Khi đăng ký, bạn đồng ý với/)).toBeNull();
+  });
+
   it("holds the link step's question and its two buttons while it loads", () => {
     requestMock.mockReturnValue(new Promise(() => {}));
     open({ step: "link" });

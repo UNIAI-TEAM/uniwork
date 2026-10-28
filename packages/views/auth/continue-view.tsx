@@ -84,7 +84,15 @@ export function ContinueView({
   if (expired) return <ExpiredScreen provider={expired} next={next} />;
   if (query.isError && !known) return <TicketLoadError error={query.error} next={next} onRetry={() => void query.refetch()} />;
   if (query.isPending || status === "loading" || needsSignIn) {
-    return <ContinueSkeleton shape={linkStep ? "pills" : "rows"} accountEmail={user?.email} />;
+    // The session is known before the ticket: a signed-in browser is drawn
+    // the two rows it will get, not the three and the terms line.
+    const signedIn = status === "authed" && user !== null;
+    return (
+      <ContinueSkeleton
+        shape={linkStep ? "pills" : signedIn ? "signedIn" : "rows"}
+        accountEmail={user ? user.email || user.display_name : undefined}
+      />
+    );
   }
 
   if (linkStep) {

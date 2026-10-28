@@ -191,28 +191,42 @@ const LIKELY_EMAIL = "nguyenvanan@gmail.com";
  * it and every row's words are drawn as skeleton text of the copy the
  * screen most likely shows (SkeletonText), so they wrap to the lines the
  * real ones take; the terms line needs no data and is the real one, inert.
- * `rows` is the three choices; `pills` the link step's question and two
- * buttons, for the account signed in (`accountEmail`).
+ * `rows` is the three choices; `signedIn` the two a signed-in browser gets,
+ * without the terms line; `pills` the link step's question and two buttons.
+ * The last two name the account signed in (`accountEmail`).
  */
-export function ContinueSkeleton({ shape = "rows", accountEmail }: { shape?: "rows" | "pills"; accountEmail?: string }) {
+export function ContinueSkeleton({
+  shape = "rows",
+  accountEmail,
+}: {
+  shape?: "rows" | "signedIn" | "pills";
+  accountEmail?: string;
+}) {
   const { t } = useTranslation();
   const provider = t(providerNameKey("google"));
+  const account = accountEmail || LIKELY_EMAIL;
   const loadingAs =
-    shape === "rows"
+    shape !== "pills"
       ? { title: t("auth.continue.title", { provider }), description: t("auth.continue.description", { provider }) }
       : {
           title: t("auth.continue.link.title", { provider }),
           description: t("auth.continue.link.question", {
             provider,
             providerEmail: LIKELY_EMAIL,
-            accountEmail: accountEmail || LIKELY_EMAIL,
+            accountEmail: account,
           }),
         };
-  const rows: [string, string][] = [
-    [t("auth.continue.existing.title"), t("auth.continue.existing.body", { provider })],
-    [t("auth.continue.invited.title"), t("auth.continue.invited.body")],
-    [t("auth.continue.create.title"), t("auth.continue.create.body", { email: LIKELY_EMAIL })],
-  ];
+  const rows: [string, string][] =
+    shape === "signedIn"
+      ? [
+          [t("auth.continue.signedIn.linkTo", { provider, account }), t("auth.continue.signedIn.linkToBody", { provider })],
+          [t("auth.continue.signedIn.otherAccount"), t("auth.continue.signedIn.otherAccountBody", { account })],
+        ]
+      : [
+          [t("auth.continue.existing.title"), t("auth.continue.existing.body", { provider })],
+          [t("auth.continue.invited.title"), t("auth.continue.invited.body")],
+          [t("auth.continue.create.title"), t("auth.continue.create.body", { email: LIKELY_EMAIL })],
+        ];
   return (
     <AuthShell loadingAs={loadingAs}>
       <div className="flex flex-col gap-6">
@@ -227,7 +241,7 @@ export function ContinueSkeleton({ shape = "rows", accountEmail }: { shape?: "ro
               <Skeleton className="h-3.5 w-3/5" />
             </span>
           </div>
-          {shape === "rows" ? (
+          {shape !== "pills" ? (
             <>
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-3">
@@ -245,7 +259,8 @@ export function ContinueSkeleton({ shape = "rows", accountEmail }: { shape?: "ro
                     </div>
                   ))}
                 </div>
-                <AuthLegalNote action="signUp" />
+                {/* Signed in, nothing on the screen creates an account. */}
+                {shape === "rows" ? <AuthLegalNote action="signUp" /> : null}
               </div>
               {/* "Hủy": a 44px target on a coarse pointer, like the real one. */}
               <div className="flex h-5 items-center self-center pointer-coarse:h-11">
