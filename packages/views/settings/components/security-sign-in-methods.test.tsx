@@ -235,8 +235,9 @@ describe("SignInMethodsSection", () => {
     fireEvent.change(field, { target: { value: "12" } });
     fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
     expect(await dialog.findByText("Nhập mã 6 số trong email.")).toBeInTheDocument();
-    fireEvent.change(field, { target: { value: "123 456" } });
-    fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
+    // Six boxes, as on the choice screen: the sixth digit sends the code.
+    expect(field).toHaveAttribute("maxlength", "6");
+    fireEvent.change(field, { target: { value: "123456" } });
     await waitFor(() =>
       expect(calls("POST /api/v1/me/step-up")[0]![1]).toMatchObject({ body: { code: "123456", action: "link_apple" } }),
     );

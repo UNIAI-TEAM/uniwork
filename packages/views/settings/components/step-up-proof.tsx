@@ -14,6 +14,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@uniwork/ui/components/ui/input-otp";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -35,6 +36,7 @@ import { SettingsFieldError } from "./settings-layout";
 
 /** A mailed code may be asked for again a minute after the last one (the server's gate). */
 const RESEND_MS = 60_000;
+const CODE_LENGTH = 6;
 const EMAIL_CODE = /^\d{6}$/;
 
 type Ask = {
@@ -296,10 +298,10 @@ function StepUpForm({
     });
   };
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
+  // `entered`: the code's sixth digit sends it before the state holding it has.
+  const confirm = (entered = value) => {
     if (busy || waiting || loading || !proof) return;
-    const typed = proof === "password" ? value : value.replace(/\s+/g, "");
+    const typed = proof === "password" ? entered : entered.replace(/\s+/g, "");
     let input: StepUpProofInput;
     if (proof === "password") {
       if (!typed) return refuse({ key: "password.required" });
@@ -325,12 +327,18 @@ function StepUpForm({
             setRenamed(read.proofs);
             setPicked(null);
           }
-          // A refused password is never kept; a code stays, selected, to be corrected.
-          if (proof === "password" || read.kind === "step_up") setValue("");
+          // A refused password is never kept, nor a mailed code (its boxes
+          // start over from the first); the authenticator's code stays,
+          // selected, to be corrected.
+          if (proof !== "totp" || read.kind === "step_up") setValue("");
           refuse({ failure: read });
         },
       },
     );
+  };
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    confirm();
   };
 
   const fieldProps = {
@@ -436,14 +444,32 @@ function StepUpForm({
         </p>
         <Field>
           <FieldLabel htmlFor={inputId}>{t("emailCode.label")}</FieldLabel>
-          <Input
-            {...fieldProps}
-            inputMode="numeric"
+          {/* The same six boxes as the choice screen's mailed code: the sixth
+              digit sends it, "Xác nhận" stays for the keyboard. readOnly,
+              not disabled, so the boxes keep focus while it is checked. */}
+          <InputOTP
+            ref={inputRef}
+            id={inputId}
+            maxLength={CODE_LENGTH}
+            value={value}
+            onChange={(next) => {
+              setValue(next);
+              if (!waiting) setProblem(null);
+              if (next.length === CODE_LENGTH) confirm(next);
+            }}
             autoComplete="one-time-code"
-            maxLength={7}
-            className="font-mono tracking-widest sm:w-40"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            readOnly={stepUp.isPending || waiting}
+            aria-invalid={problem ? true : undefined}
             aria-describedby={errorId}
-          />
+          >
+            <InputOTPGroup>
+              {Array.from({ length: CODE_LENGTH }, (_, i) => (
+                <InputOTPSlot key={i} index={i} className="size-11 text-title" />
+              ))}
+            </InputOTPGroup>
+          </InputOTP>
           {error}
         </Field>
         <div className="flex flex-col items-start gap-1">

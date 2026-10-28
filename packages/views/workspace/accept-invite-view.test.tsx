@@ -701,7 +701,7 @@ describe("AcceptInviteView", () => {
       const proof = await proofDialog();
       fireEvent.click(await proof.findByRole("button", { name: "Gửi mã tới a@b.co" }, SLOW));
       fireEvent.change(await proof.findByLabelText("Mã trong email", {}, SLOW), { target: { value: "123456" } });
-      fireEvent.click(proof.getByRole("button", { name: "Xác nhận" }));
+      // The sixth digit sends it.
       await waitFor(() => expect(onAccepted).toHaveBeenCalled(), SLOW);
       const mailed = requestMock.mock.calls.filter(([path]) => path === "/api/v1/me/step-up/email-code");
       expect(mailed.map(([, init]) => (init as Init).body)).toEqual([{ action: "transfer_ownership" }]);

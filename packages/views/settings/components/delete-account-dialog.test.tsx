@@ -135,7 +135,7 @@ describe("DeleteAccountDialog", () => {
     const proof = await proofDialog();
     fireEvent.click(await proof.findByRole("button", { name: "Gửi mã tới an@company.vn" }));
     fireEvent.change(await proof.findByLabelText("Mã trong email"), { target: { value: "123456" } });
-    fireEvent.click(proof.getByRole("button", { name: "Xác nhận" }));
+    // The sixth digit sends it.
     await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/login"));
     expect(bodiesOf("POST /api/v1/me/step-up/email-code")).toEqual([{ action: "delete_account" }]);
     expect(bodiesOf("POST /api/v1/me/step-up")).toEqual([{ code: "123456", action: "delete_account" }]);

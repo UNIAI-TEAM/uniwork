@@ -218,7 +218,7 @@ describe("TransferOwnershipDialog", () => {
     const proof = await proofDialog();
     fireEvent.click(await proof.findByRole("button", { name: "Gửi mã tới ha@acme.vn" }, SLOW));
     fireEvent.change(await proof.findByLabelText("Mã trong email", {}, SLOW), { target: { value: "123456" } });
-    fireEvent.click(proof.getByRole("button", { name: "Xác nhận" }));
+    // The sixth digit sends it.
     await waitFor(() => expect(bodiesOf(TRANSFER)).toEqual([{ to_user_id: "u2", step_up_token: "sut-mail" }]), SLOW);
     expect(bodiesOf("POST /api/v1/me/step-up/email-code")).toEqual([{ action: "transfer_ownership" }]);
   });

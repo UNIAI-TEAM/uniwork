@@ -132,7 +132,7 @@ describe("PasswordDialog", () => {
     expect(proof.getByText("Để bảo vệ tài khoản, xác nhận là bạn trước khi đặt mật khẩu.")).toBeInTheDocument();
     fireEvent.click(proof.getByRole("button", { name: "Gửi mã tới an@company.vn" }));
     fireEvent.change(await proof.findByLabelText("Mã trong email"), { target: { value: "654321" } });
-    fireEvent.click(proof.getByRole("button", { name: "Xác nhận" }));
+    // The sixth digit sends it.
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã đặt mật khẩu."));
     expect(puts()[0]![1]).toMatchObject({ body: { new_password: "brand-new-pass", step_up_token: "sut-1" } });
