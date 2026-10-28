@@ -225,6 +225,23 @@ describe("createMeetingRecorder", () => {
     expect(await text(await t.store.readPart("part-2"))).toBe("kept!");
   });
 
+  it("a part deleted under the recorder interrupts it", async () => {
+    const t = setup();
+    await t.recorder.start();
+    t.media().tick("saved");
+    // Another tab sent and deleted it after this tab's writes stalled.
+    await vi.waitFor(async () => expect((await t.parts())[0]?.bytes).toBe(5));
+    await t.store.deletePart("part-1");
+    t.advance(5_000);
+    t.media().tick("lost");
+    await vi.waitFor(() => expect(t.recorder.state).toBe("interrupted"));
+
+    await t.recorder.resumeAfterInterrupt();
+    t.media().tick("kept");
+    await t.recorder.stop();
+    expect((await t.parts()).map((p) => p.id)).toEqual(["part-2"]);
+  });
+
   it("stop resolves when the recorder never fires stop", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {

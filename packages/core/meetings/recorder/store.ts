@@ -32,7 +32,7 @@ export function isLivePart(part: RecordingPart, now: number): boolean {
 
 export interface RecordingStore {
   createPart(part: RecordingPart): Promise<void>;
-  /** Saves one chunk and moves the part's `bytes` and `lastChunkAt` with it. */
+  /** Saves one chunk and moves the part's `bytes` and `lastChunkAt` with it; rejects when the part is gone. */
   appendChunk(partId: string, seq: number, blob: Blob, at: number): Promise<void>;
   finishPart(partId: string, endedAt: number): Promise<void>;
   /** Oldest first. */
@@ -78,13 +78,18 @@ function chunksOf(partId: string): IDBKeyRange {
   return IDBKeyRange.bound([partId, 0], [partId, Infinity]);
 }
 
-/** Changes one stored part in place; a part already deleted stays deleted. */
+/**
+ * Changes one stored part in place. A part already deleted stays deleted and
+ * aborts the transaction, so the write rejects: a chunk dropped in silence
+ * would keep the recorder showing "saved" while nothing is.
+ */
 function updatePart(tx: IDBTransaction, partId: string, change: (part: RecordingPart) => RecordingPart): void {
   const parts = tx.objectStore(PARTS);
   const read = parts.get(partId);
   read.onsuccess = () => {
     const part = read.result as RecordingPart | undefined;
     if (part) parts.put(change(part));
+    else tx.abort();
   };
 }
 
@@ -171,10 +176,10 @@ export function openRecordingStore(factory?: IDBFactory): RecordingStore {
 export function memoryRecordingStore(): RecordingStore {
   const parts = new Map<string, RecordingPart>();
   const chunks = new Map<string, Blob[]>();
-  const update = (partId: string, change: (part: RecordingPart) => RecordingPart): boolean => {
+  const update = (partId: string, change: (part: RecordingPart) => RecordingPart): void => {
     const part = parts.get(partId);
-    if (part) parts.set(partId, change(part));
-    return part !== undefined;
+    if (!part) throw new Error("recording part not found");
+    parts.set(partId, change(part));
   };
   return {
     async createPart(part) {
@@ -182,7 +187,7 @@ export function memoryRecordingStore(): RecordingStore {
       chunks.set(part.id, []);
     },
     async appendChunk(partId, seq, blob, at) {
-      if (!update(partId, (p) => ({ ...p, bytes: p.bytes + blob.size, lastChunkAt: Math.max(p.lastChunkAt, at) }))) return;
+      update(partId, (p) => ({ ...p, bytes: p.bytes + blob.size, lastChunkAt: Math.max(p.lastChunkAt, at) }));
       chunks.get(partId)![seq] = blob;
     },
     async finishPart(partId, endedAt) {

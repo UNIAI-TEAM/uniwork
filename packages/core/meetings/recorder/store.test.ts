@@ -55,6 +55,19 @@ describe.each<[string, () => RecordingStore]>([
     await store.createPart(part({ id: "a" }));
     expect((await store.readPart("a")).size).toBe(0);
   });
+
+  it("a chunk for a deleted part is refused, not dropped", async () => {
+    const store = make();
+    await store.createPart(part({ id: "a" }));
+    await store.deletePart("a");
+    await expect(store.appendChunk("a", 0, new Blob(["lost"]), 2_000)).rejects.toThrow();
+    await expect(store.finishPart("a", 2_000)).rejects.toThrow();
+    expect(await store.listParts("u1")).toEqual([]);
+    // The store still works after the refusal.
+    await store.createPart(part({ id: "b" }));
+    await store.appendChunk("b", 0, new Blob(["kept"]), 2_000);
+    expect(await text(await store.readPart("b"))).toBe("kept");
+  });
 });
 
 describe("indexeddb recording store", () => {
