@@ -144,12 +144,13 @@ func registerWorkspaces(r api, h Routes) {
 		auth:        true,
 	})
 	r.Post("/membership-invite-links/join", h.JoinMembershipInviteLink, apiOp{
-		summary:     "Join via membership invite link",
-		description: "Gia nhập tổ chức và các workspace còn thiếu trong phạm vi link. Body resolve giống accept invitation khi cần chuyển tổ chức.",
-		tags:        []string{"workspaces"},
-		sdi:         sdi.JoinMembershipInviteLinkSDI{},
-		sdo:         sdo.MembershipInviteJoinSDO{},
-		auth:        true,
+		summary: "Join via membership invite link",
+		description: "Gia nhập tổ chức và các workspace còn thiếu trong phạm vi link. Body resolve giống accept invitation khi cần chuyển tổ chức: " +
+			"bước transfer chứng minh bằng resolve[].step_up_token (hoặc password cũ, xem lại 2027-01-31); thiếu bằng chứng → 403 proof_required kèm proofs.",
+		tags: []string{"workspaces"},
+		sdi:  sdi.JoinMembershipInviteLinkSDI{},
+		sdo:  sdo.MembershipInviteJoinSDO{},
+		auth: true,
 	})
 	r.Get("/invitations/{token}", h.PreviewInvitation, apiOp{
 		summary: "Preview invitation",
