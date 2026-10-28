@@ -7,23 +7,29 @@ import { CLOSE_ORGANIZATION_HANDLED_CODES, type CloseOrganizationBody } from "@/
 import { TRANSFER_OWNERSHIP_HANDLED_CODES } from "@/lib/owner-transfer";
 import { accountApi } from "../account-api";
 import { answerAiConsent } from "../ai-consent";
+import { withHeldStepUp } from "../auth/step-up-store";
 import { verifyAccountEmail } from "../auth/verify-email";
 import { setPushPreviews } from "../push-previews";
 import { deviceKeys, revokeDevice } from "../queries/devices";
 import { useCommand } from "./command";
 
-/** Rejects with the server's answer (data/account-api.ts reads it), for the screen to explain. */
+/**
+ * Erases the account with the step-up token bought for delete_account; rejects with the server's answer for the
+ * screen to explain (a refused token is forgotten first, so the proof sheet asks again).
+ */
 export const useDeleteAccount = () =>
-  useCommand("account.delete", (_qc, body: DeleteAccountBody & CloseOrganizationBody) => accountApi.deleteAccount(body), {
-    handledCodes: [...DELETE_ACCOUNT_HANDLED_CODES, ...CLOSE_ORGANIZATION_HANDLED_CODES],
-  });
+  useCommand(
+    "account.delete",
+    (_qc, body: DeleteAccountBody & CloseOrganizationBody) => withHeldStepUp(() => accountApi.deleteAccount(body)),
+    { handledCodes: [...DELETE_ACCOUNT_HANDLED_CODES, ...CLOSE_ORGANIZATION_HANDLED_CODES] },
+  );
 
-/** Hands the organization to another active member, the owner's password again; rejects with the server's answer. */
+/** Hands the organization to another active member, with the step-up token for transfer_ownership. */
 export const useTransferOwnership = () =>
   useCommand(
     "account.transfer_ownership",
-    (_qc, input: { orgSlug: string; toUserId: string; password: string }) =>
-      accountApi.transferOwnership(input.orgSlug, input.toUserId, input.password),
+    (_qc, input: { orgSlug: string; toUserId: string; stepUpToken: string }) =>
+      withHeldStepUp(() => accountApi.transferOwnership(input.orgSlug, input.toUserId, input.stepUpToken)),
     { handledCodes: TRANSFER_OWNERSHIP_HANDLED_CODES },
   );
 

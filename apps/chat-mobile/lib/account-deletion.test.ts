@@ -1,37 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { DELETE_ACCOUNT_HANDLED_CODES, deleteAccountFailure, deleteProofBody, deleteProofMode } from "./account-deletion";
+import { DELETE_ACCOUNT_HANDLED_CODES, deleteAccountFailure } from "./account-deletion";
 
 const refusal = (code: string, status = 403) => ({ status, body: { error: { code, message: "x" } } });
 
-describe("deleteProofMode (delete-account-dialog.tsx parity)", () => {
-  it("asks for the password, else the two-factor code, else the typed email", () => {
-    expect(deleteProofMode({ has_password: true, mfa_enabled_at: "2026-10-01T00:00:00Z" })).toBe("password");
-    expect(deleteProofMode({ has_password: false, mfa_enabled_at: "2026-10-01T00:00:00Z" })).toBe("code");
-    expect(deleteProofMode({ has_password: false, mfa_enabled_at: null })).toBe("email");
-    expect(deleteProofMode(null)).toBe("email");
-    expect(deleteProofMode(undefined)).toBe("email");
-  });
-});
-
-describe("deleteProofBody", () => {
-  it("sends the password as typed and trims a code or an address", () => {
-    expect(deleteProofBody("password", " pass word ")).toEqual({ password: " pass word " });
-    expect(deleteProofBody("code", " 123456 ")).toEqual({ code: "123456" });
-    expect(deleteProofBody("email", " an@acme.vn ")).toEqual({ email_confirmation: "an@acme.vn" });
-  });
-});
-
-describe("deleteAccountFailure (core deleteAccountProofRefused parity)", () => {
-  it.each(["password_incorrect", "mfa_code_incorrect", "email_confirmation_mismatch", "invalid_credentials"])("%s is a refused proof", (code) => {
-    expect(deleteAccountFailure(refusal(code))).toBe("proof_refused");
-  });
-
-  it("declares every code it explains as handled, and only those", () => {
-    for (const code of DELETE_ACCOUNT_HANDLED_CODES) expect(deleteAccountFailure(refusal(code)), code).not.toBe("failed");
-  });
-
+describe("deleteAccountFailure", () => {
   it("names an owner who must hand over the organization first", () => {
     expect(deleteAccountFailure(refusal("owner_must_transfer", 409))).toBe("owner_must_transfer");
+  });
+
+  it("declares what the sheets answer themselves: the owner's step, and a proof asked again", () => {
+    expect([...DELETE_ACCOUNT_HANDLED_CODES]).toEqual(["owner_must_transfer", "proof_required"]);
   });
 
   it("tells the rate limit and no connection apart from any other failure", () => {

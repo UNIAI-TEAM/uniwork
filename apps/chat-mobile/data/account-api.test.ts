@@ -14,32 +14,32 @@ const user = { id: "u1", email: "a@b.c", display_name: "A", ai_consent_version: 
 beforeEach(() => request.mockReset());
 
 describe("account endpoints", () => {
-  it("deleteAccount posts the one proof and resolves on any 2xx, a malformed one included", async () => {
+  it("deleteAccount posts the step-up token and resolves on any 2xx, a malformed one included", async () => {
     request.mockResolvedValueOnce({ status: "ok" });
-    await expect(account.deleteAccount({ password: "pw" })).resolves.toBeUndefined();
-    expect(request).toHaveBeenCalledWith("/api/v1/me/delete", { method: "POST", body: JSON.stringify({ password: "pw" }) });
+    await expect(account.deleteAccount({ step_up_token: "su_1" })).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledWith("/api/v1/me/delete", { method: "POST", body: JSON.stringify({ step_up_token: "su_1" }) });
     request.mockResolvedValueOnce("<html>");
-    await expect(account.deleteAccount({ code: "123456" })).resolves.toBeUndefined();
+    await expect(account.deleteAccount({ step_up_token: "su_1", close_organization: "acme" })).resolves.toBeUndefined();
   });
 
   it("deleteAccount lets a refusal through for the sheet to explain", async () => {
     const refusal = Object.assign(new Error("owner"), { status: 409 });
     request.mockRejectedValueOnce(refusal);
-    await expect(account.deleteAccount({ email_confirmation: "a@b.c" })).rejects.toBe(refusal);
+    await expect(account.deleteAccount({ step_up_token: "su_1" })).rejects.toBe(refusal);
   });
 
-  it("transferOwnership posts the new owner and the password, and resolves on any 2xx, a malformed one included", async () => {
+  it("transferOwnership posts the new owner and the step-up token, and resolves on any 2xx, a malformed one included", async () => {
     request.mockResolvedValueOnce({ member: { user_id: "u2", role: "owner" } });
-    await expect(account.transferOwnership("mot minh", "u2", "pw")).resolves.toBeUndefined();
+    await expect(account.transferOwnership("mot minh", "u2", "su_1")).resolves.toBeUndefined();
     expect(request).toHaveBeenCalledWith("/api/v1/orgs/mot%20minh/transfer-ownership", {
       method: "POST",
-      body: JSON.stringify({ to_user_id: "u2", password: "pw" }),
+      body: JSON.stringify({ to_user_id: "u2", step_up_token: "su_1" }),
     });
     request.mockResolvedValueOnce(["drift"]);
-    await expect(account.transferOwnership("acme", "u2", "pw")).resolves.toBeUndefined();
-    const refusal = Object.assign(new Error("password_incorrect"), { status: 403 });
+    await expect(account.transferOwnership("acme", "u2", "su_1")).resolves.toBeUndefined();
+    const refusal = Object.assign(new Error("proof_required"), { status: 403 });
     request.mockRejectedValueOnce(refusal);
-    await expect(account.transferOwnership("acme", "u2", "bad")).rejects.toBe(refusal);
+    await expect(account.transferOwnership("acme", "u2", "su_old")).rejects.toBe(refusal);
   });
 
   it("setAiConsent puts the version and reads the user back", async () => {
@@ -119,7 +119,7 @@ describe("account endpoints", () => {
   });
 
   it("the app's instance goes through the shared transport", async () => {
-    await accountApi.deleteAccount({ password: "pw" });
+    await accountApi.deleteAccount({ step_up_token: "su_1" });
     expect(api.request).toHaveBeenCalledWith("/api/v1/me/delete", expect.objectContaining({ method: "POST" }));
   });
 });

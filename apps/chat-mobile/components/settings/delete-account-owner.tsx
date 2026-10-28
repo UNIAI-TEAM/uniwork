@@ -2,7 +2,7 @@
 // owner_must_transfer names (lib/owned-organization.ts › ownedOrganization; the state is use-owner-step.ts). The
 // only active member closes the organization together with the erasure, typing its address again (Apple 5.1.1(v):
 // deletion completes in the app); an owner whose organization has other members hands it over in the sheet
-// (delete-account-hand-over.tsx), or on the web when the account has no password.
+// (delete-account-hand-over.tsx), or on the web when an older server names no organization.
 import { Ionicons } from "@expo/vector-icons";
 import type { Ref } from "react";
 import { useTranslation } from "react-i18next";
@@ -73,30 +73,16 @@ export function OwnerStepPanel({
       />
     );
   }
-  return owner ? <OwnerTransferPanel organization={owner.organization} notice={owner.notice} foreground={foreground} onOpenWeb={onOpenWeb} /> : null;
+  return owner ? <OwnerTransferPanel foreground={foreground} onOpenWeb={onOpenWeb} /> : null;
 }
 
-/** An owner who cannot close: hand the organization over on the web (openWeb opens its settings there). */
-function OwnerTransferPanel({
-  organization,
-  notice,
-  foreground,
-  onOpenWeb,
-}: {
-  organization: OwnedOrganization | null;
-  /** Why closing stopped being offered (someone joined meanwhile), said above the way out. */
-  notice: string | null;
-  foreground: string;
-  onOpenWeb: () => void;
-}) {
+/** An owner the server named no organization for (an older server): hand it over on the web, which opens its settings. */
+function OwnerTransferPanel({ foreground, onOpenWeb }: { foreground: string; onOpenWeb: () => void }) {
   const { t } = useTranslation();
   return (
     <View accessibilityRole="alert" className="gap-2.5 rounded-xl border border-destructive/40 p-3.5" style={continuousCorners}>
       <Text className="text-body font-semibold text-foreground">{t("mobile.account.owner_title")}</Text>
-      {notice ? <Text className="text-subhead leading-[21px] text-destructive">{notice}</Text> : null}
-      <Text className="text-subhead leading-[21px] text-foreground">
-        {organization ? t("mobile.account.owner_body_named", { name: organization.name }) : t("mobile.account.owner_body")}
-      </Text>
+      <Text className="text-subhead leading-[21px] text-foreground">{t("mobile.account.owner_body")}</Text>
       <Pressable
         accessibilityRole="link"
         // The label, not the children: the icon's glyph is a character a screen reader would spell.

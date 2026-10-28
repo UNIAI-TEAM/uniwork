@@ -198,11 +198,10 @@ describe("safety and account commands", () => {
     const body = { reason: "spam", target_message_id: "m1" } as never;
     expect(await run(() => useReport("w1"), body)).toEqual({ id: "rep1" });
     expect(safetyApi.report).toHaveBeenCalledWith("w1", body);
-    const proof = { password: "x" } as never;
-    await run(() => useDeleteAccount(), proof);
-    expect(accountApi.deleteAccount).toHaveBeenCalledWith(proof);
-    await run(() => useTransferOwnership(), { orgSlug: "acme", toUserId: "u2", password: "x" });
-    expect(accountApi.transferOwnership).toHaveBeenCalledWith("acme", "u2", "x");
+    await run(() => useDeleteAccount(), { step_up_token: "su_1" });
+    expect(accountApi.deleteAccount).toHaveBeenCalledWith({ step_up_token: "su_1" });
+    await run(() => useTransferOwnership(), { orgSlug: "acme", toUserId: "u2", stepUpToken: "su_1" });
+    expect(accountApi.transferOwnership).toHaveBeenCalledWith("acme", "u2", "su_1");
   });
 
   it("answers the AI notice and turns push on or off with this build's project and call UI", async () => {
