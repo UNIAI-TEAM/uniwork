@@ -67,6 +67,17 @@ describe("readSignInTicket", () => {
   it("is null for a malformed answer or a provider this client cannot show", () => {
     expect(readSignInTicket({ kind: "unmatched" })).toBeNull();
     expect(readSignInTicket({ provider: "github", kind: "unmatched" })).toBeNull();
+    expect(readSignInTicket({ provider: "google", kind: 4 })).toBeNull();
+  });
+
+  it("keeps a ticket whose display fields drifted, reading them as absent", () => {
+    expect(readSignInTicket({ provider: "google", kind: "unmatched", email: 4, name: ["An"], private_relay: "no" })).toEqual({
+      provider: "google",
+      kind: "unmatched",
+      email: "",
+      name: "",
+      private_relay: false,
+    });
   });
 });
 
@@ -100,6 +111,32 @@ describe("readNativeSignIn", () => {
       ticket: "T",
       identity: { provider: "apple", email: "", name: "", private_relay: false },
     });
+  });
+
+  it("never throws a session away over a drifted field it does not need", () => {
+    const drifted = { session, reclaimed: "yes", link_skipped: 7, mfa_token: 5, ticket: [], identity: "x", extra: { deep: true } };
+    expect(readNativeSignIn({ status: "signed_in", ...drifted }, E)).toEqual({
+      status: "signed_in",
+      session,
+      reclaimed: false,
+      link_skipped: null,
+    });
+    expect(readNativeSignIn({ status: "mfa_required", mfa_token: "chal", reclaimed: 1, identity: 2 }, E)).toEqual({
+      status: "mfa_required",
+      mfa_token: "chal",
+    });
+    // An identity's display fields are display: a drifted one reads as absent.
+    expect(
+      readNativeSignIn({ status: "identity_unmatched", ticket: "T", identity: { provider: "apple", email: 1, name: null, private_relay: "y" } }, E),
+    ).toEqual({ status: "identity_unmatched", ticket: "T", identity: { provider: "apple", email: "", name: "", private_relay: false } });
+  });
+
+  it("decides null only on the fields a branch needs", () => {
+    expect(readNativeSignIn({ status: 7, session }, E)).toBeNull();
+    expect(readNativeSignIn({ status: "mfa_required", mfa_token: 5 }, E)).toBeNull();
+    expect(readNativeSignIn({ status: "identity_unmatched", ticket: 9, identity }, E)).toBeNull();
+    expect(readNativeSignIn({ status: "link_required", ticket: "T", identity: { ...identity, provider: 3 } }, E)).toBeNull();
+    expect(readNativeSignIn({ status: "link_required", ticket: "T", identity: "google" }, E)).toBeNull();
   });
 
   it("is null when a status lacks what it needs, or the status is unknown (the doors fail closed)", () => {

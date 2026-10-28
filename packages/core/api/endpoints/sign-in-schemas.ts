@@ -91,12 +91,17 @@ export function readAuthProviders(raw: unknown): AuthProviders {
 
 // --- The pending provider sign-in (spec §3.2) ------------------------------
 
-/** What the choice screen shows of a provider sign-in that found no account to open. */
+/**
+ * What the choice screen shows of a provider sign-in that found no account
+ * to open. Only `provider` decides whether it can be shown; the rest is
+ * display, and a drifted value reads as absent (an Apple relay address still
+ * reads as relay through emailDisplay).
+ */
 export const SignInIdentitySchema = z.object({
   provider: z.string(),
-  email: z.string().optional().default(""),
-  name: z.string().optional().default(""),
-  private_relay: z.boolean().optional().default(false),
+  email: z.string().catch(""),
+  name: z.string().catch(""),
+  private_relay: z.boolean().catch(false),
 });
 export interface SignInIdentity {
   provider: SignInProvider;
@@ -126,14 +131,18 @@ export function readSignInTicket(raw: unknown): SignInTicket | null {
 
 // --- NativeSignInSDO (spec §3.6) -------------------------------------------
 
+// Only `status` and the fields its branch needs decide (readNativeSignIn):
+// every other field reads as absent when it drifted, so a mistyped notice
+// (`reclaimed`, `link_skipped`) or a field of another branch never costs a
+// session the server opened. Unknown keys are dropped.
 const NativeSignInEnvelopeSchema = z.object({
   status: z.string(),
   session: z.unknown().optional(),
-  reclaimed: z.boolean().optional().default(false),
-  link_skipped: z.string().optional().default(""),
-  mfa_token: z.string().optional().default(""),
-  ticket: z.string().optional().default(""),
-  identity: SignInIdentitySchema.optional(),
+  reclaimed: z.boolean().catch(false),
+  link_skipped: z.string().catch(""),
+  mfa_token: z.string().catch(""),
+  ticket: z.string().catch(""),
+  identity: SignInIdentitySchema.optional().catch(undefined),
 });
 
 /**
