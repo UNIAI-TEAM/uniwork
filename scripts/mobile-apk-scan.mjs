@@ -96,6 +96,14 @@ export const REQUIRED_DEX_CLASSES = [
   // worker, which WorkManager builds from the class name it stored with the job (across app updates too).
   { descriptor: "Lexpo/modules/unichatbackground/UniChatBackgroundModule;", keep: "-keep class expo.modules.unichatbackground.** { *; }", by: "ANDROID_KEEP_RULES" },
   { descriptor: "Lexpo/modules/unichatbackground/OutboxDrainWorker;", keep: "-keep class expo.modules.unichatbackground.** { *; }", by: "ANDROID_KEEP_RULES" },
+  // Google sign-in (ADR 0047): the module, named by modules/unichat-google-sign-in/expo-module.config.json, and the
+  // provider Credential Manager instantiates from the class name in credentials-play-services-auth's manifest.
+  { descriptor: "Lexpo/modules/unichatgooglesignin/UniChatGoogleSignInModule;", keep: "-keep class expo.modules.unichatgooglesignin.** { *; }", by: "ANDROID_KEEP_RULES" },
+  {
+    descriptor: "Landroidx/credentials/playservices/CredentialProviderPlayServicesImpl;",
+    keep: "-keep class androidx.credentials.playservices.** { *; }",
+    by: "ANDROID_KEEP_RULES",
+  },
 ];
 
 /**

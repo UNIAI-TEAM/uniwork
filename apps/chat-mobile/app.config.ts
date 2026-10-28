@@ -32,9 +32,9 @@ export const ANDROID_KEEP_RULES = [
   // database across app updates.
   "-keep class expo.modules.unichatbackground.** { *; }",
   "-keep class livekit.org.jni_zero.** { *; }",
-  // Credential Manager finds its Google Play services provider by name (modules/unichat-google-sign-in): the rule
-  // Android's Credential Manager guide asks for.
-  "-if class androidx.credentials.CredentialManager",
+  // Google sign-in (modules/unichat-google-sign-in): the module, and the Google Play services provider Credential
+  // Manager builds from the class name its manifest names (Android's Credential Manager guide asks for this rule).
+  "-keep class expo.modules.unichatgooglesignin.** { *; }",
   "-keep class androidx.credentials.playservices.** { *; }",
 ].join("\n");
 
