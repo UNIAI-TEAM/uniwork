@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../../toast-api-error";
+import { useNow } from "../use-now";
 import { MeetingCalendarButton } from "../meeting-calendar-button";
 import { MeetingRecordHeldButton } from "../meeting-record-held-dialog";
 import { ScheduleFollowUpButton } from "../schedule-follow-up-button";
@@ -82,7 +83,9 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
   const reduce = useReducedMotion() ?? false;
   const start = useStartMeeting(workspaceId);
   const startsAt = Date.parse(meeting.starts_at);
-  const due = now >= startsAt - SOON_MS;
+  // In the last hour the row shares the countdown's 1s clock, so the button turns due on the second the ring shows 15:00.
+  const tick = useNow(startsAt - now <= COUNTDOWN_MS ? 1_000 : 60_000);
+  const due = Math.max(now, tick) >= startsAt - SOON_MS;
   const until = untilWords(meeting.starts_at, now, t);
   // A follow-up, not yet due: what it carries on from instead of when it starts (SeriesBrief).
   const series = useSeriesStrip(job.canStart && !due);

@@ -134,6 +134,17 @@ describe("StartRow", () => {
     expect(still).not.toHaveAttribute("data-motion-loop");
   });
 
+  it("turns due on the second the countdown crosses 15:00", () => {
+    vi.useFakeTimers();
+    routeMeeting("m3", { viewer: "lan" });
+    setSessionUser(demoUser("lan"));
+    // The page's minute clock stays at 15:02 before the start; the row's own second must not wait for it.
+    render(renderStart(15 + 2 / 60));
+    expect(screen.getByRole("button", { name: "Bắt đầu họp" })).not.toHaveClass("border-beam");
+    act(() => void vi.advanceTimersByTime(3_000));
+    expect(screen.getByRole("button", { name: "Bắt đầu họp" })).toHaveClass("border-beam");
+  });
+
   it("keeps the sentence more than an hour ahead", () => {
     vi.useFakeTimers();
     routeMeeting("m3", { viewer: "lan" });
