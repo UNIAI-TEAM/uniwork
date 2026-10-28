@@ -11,7 +11,7 @@
       "build": "Build",
       "unknown": "Not provided",
       "loading": "Loading…",
-      "approve": "Allow desktop app",
+      "approve": "Allow {{app}}",
       "approving": "Allowing…",
       "approvedTitle": "You allowed {{app}}",
       "approved": "If {{app}} didn't open, choose \"Open {{app}}\".",
@@ -38,7 +38,7 @@
       "unichat_login_feature_calls": "Voice and video calls, and screen sharing",
       "unichat_login_feature_uni": "UNI sums up your unread messages and calls",
       "unichat_login_step_opened": "The browser opened the UniWork sign-in page",
-      "unichat_login_step_allow": "Choose \"Allow desktop app\" there",
+      "unichat_login_step_allow": "Choose \"Allow UniChat\" there",
       "unichat_login_step_return": "UniChat opens again, right into your conversations",
       "unichat_login_cancel": "Cancel",
       "unichat_login_version": "UniChat {{version}}",
@@ -48,7 +48,6 @@
       "signingOut": "Signing out…",
       "phone": {
         "title": "Allow {{app}} on this phone to sign in?",
-        "approve": "Allow {{app}}",
         "closePage": "Close this page to return to {{app}}."
       }
     },

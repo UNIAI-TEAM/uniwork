@@ -313,11 +313,8 @@ export function DesktopConsentView({
           >
             {/* Decorative: the label already says it is working. */}
             {pending === "approve" ? <Spinner /> : null}
-            {pending === "approve"
-              ? t("auth.desktop.approving")
-              : phone
-                ? t("auth.desktop.phone.approve", { app })
-                : t("auth.desktop.approve")}
+            {/* Answers the title's question with its own words: "Cho phép UniChat", on a phone too. */}
+            {pending === "approve" ? t("auth.desktop.approving") : t("auth.desktop.approve", { app })}
           </Button>
           <Button
             type="button"

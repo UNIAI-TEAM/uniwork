@@ -105,7 +105,7 @@ describe("UniChatLoginGate", () => {
     const steps = Array.from(host.querySelectorAll("ol li")).map((li) => li.textContent?.replace(/^\d/, ""));
     expect(steps).toEqual([
       "The browser opened the UniWork sign-in page",
-      'Choose "Allow desktop app" there',
+      'Choose "Allow UniChat" there',
       "UniChat opens again, right into your conversations",
     ]);
     await click(named("Cancel"));

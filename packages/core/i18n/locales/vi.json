@@ -455,7 +455,7 @@
       "build": "Bản dựng",
       "unknown": "Chưa cung cấp",
       "loading": "Đang tải…",
-      "approve": "Cho phép ứng dụng desktop",
+      "approve": "Cho phép {{app}}",
       "approving": "Đang cho phép…",
       "approvedTitle": "Đã cho phép {{app}}",
       "approved": "Nếu {{app}} chưa mở, bấm \"Mở {{app}}\".",
@@ -482,7 +482,7 @@
       "unichat_login_feature_calls": "Gọi thoại, gọi video và chia sẻ màn hình",
       "unichat_login_feature_uni": "UNI tóm tắt tin chưa đọc và cuộc gọi cho bạn",
       "unichat_login_step_opened": "Trình duyệt đã mở trang đăng nhập UniWork",
-      "unichat_login_step_allow": "Bấm \"Cho phép ứng dụng desktop\" trên trang đó",
+      "unichat_login_step_allow": "Bấm \"Cho phép UniChat\" trên trang đó",
       "unichat_login_step_return": "UniChat mở lại và vào thẳng cuộc trò chuyện",
       "unichat_login_cancel": "Hủy",
       "unichat_login_version": "UniChat {{version}}",
@@ -492,7 +492,6 @@
       "signingOut": "Đang đăng xuất…",
       "phone": {
         "title": "Cho phép {{app}} trên điện thoại này đăng nhập?",
-        "approve": "Cho phép {{app}}",
         "closePage": "Đóng trang này để về {{app}}."
       }
     },

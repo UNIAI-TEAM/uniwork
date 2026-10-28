@@ -55,6 +55,7 @@ describe("DesktopConsentView", () => {
     const { rerender } = render(wrap(<DesktopConsentView consent={{ ...consent, client_id }} onDecision={vi.fn(async () => {})} />));
     expect(screen.getByRole("heading", { name: `Allow ${app} to sign in?` })).toBeInTheDocument();
     expect(screen.getByText(app)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `Allow ${app}` })).toBeInTheDocument();
 
     rerender(wrap(<DesktopConsentView consent={{ ...consent, client_id }} state="approved" callbackUrl="uniworkchat://auth/callback?code=c" onDecision={vi.fn(async () => {})} />));
     expect(screen.getByRole("heading", { name: `You allowed ${app}` })).toBeInTheDocument();
@@ -68,7 +69,7 @@ describe("DesktopConsentView", () => {
     render(wrap(<DesktopConsentView consent={{ ...phone, platform }} onDecision={vi.fn(async () => {})} />));
     expect(screen.getByRole("heading", { name: "Allow UniChat on this phone to sign in?" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Allow UniChat" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Allow desktop app" })).toBeNull();
+    expect(screen.queryByText(/desktop/i)).toBeNull();
     expect(screen.getByText("Minh's iPhone")).toBeInTheDocument();
   });
 
@@ -82,7 +83,7 @@ describe("DesktopConsentView", () => {
     render(wrap(<DesktopConsentView consent={consent} state={state} onDecision={vi.fn(async () => {})} />));
     expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(expectedCopy);
-    expect(screen.queryByRole("button", { name: "Allow desktop app" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Allow UniWork Office" })).not.toBeInTheDocument();
   });
 
   it("guesses no product or platform for an attempt it never read", () => {
@@ -158,7 +159,7 @@ describe("DesktopConsentView", () => {
     const onDecision = vi.fn(async () => {});
     render(wrap(<DesktopConsentView consent={consent} onDecision={onDecision} />));
 
-    fireEvent.click(screen.getByRole("button", { name: "Allow desktop app" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allow UniWork Office" }));
     await waitFor(() => expect(onDecision).toHaveBeenCalledWith("approve"));
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -170,7 +171,7 @@ describe("DesktopConsentView", () => {
     const onDecision = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
     render(wrap(<DesktopConsentView consent={consent} onDecision={onDecision} />));
 
-    fireEvent.click(screen.getByRole("button", { name: "Allow desktop app" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allow UniWork Office" }));
     const approving = await screen.findByRole("button", { name: "Allowing…" });
     expect(approving).toHaveAttribute("aria-busy", "true");
     expect(approving).toHaveAttribute("aria-disabled", "true");
@@ -182,7 +183,7 @@ describe("DesktopConsentView", () => {
     fireEvent.click(approving);
     expect(onDecision).toHaveBeenCalledTimes(1);
     finish();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Allow desktop app" })).not.toHaveAttribute("aria-disabled"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Allow UniWork Office" })).not.toHaveAttribute("aria-disabled"));
   });
 
   it("signs out for someone who is not this account, and only once", async () => {
@@ -200,7 +201,7 @@ describe("DesktopConsentView", () => {
     // Signing out takes a moment: the press is seen.
     expect(notYou).toHaveTextContent("Signing out…");
     // Allowing as the account being left is not on offer meanwhile.
-    fireEvent.click(screen.getByRole("button", { name: "Allow desktop app" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allow UniWork Office" }));
     expect(onDecision).not.toHaveBeenCalled();
     finish();
     await waitFor(() => expect(notYou).not.toHaveAttribute("aria-busy"));

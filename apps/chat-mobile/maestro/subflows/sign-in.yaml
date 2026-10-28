@@ -65,16 +65,18 @@ appId: com.uniworkos.chat.staging
             # Enter submits the form; the page title and its button share "Sign in".
             - pressKey: Enter
       # The consent page opens on its title; its button sits below the app, device, account and server details,
-      # off a phone's first screen, and the browser leaves off-screen elements out of the hierarchy.
+      # off a phone's first screen, and the browser leaves off-screen elements out of the hierarchy. The button names
+      # the app in one word ("Allow UniChat"), which the title's longer line never matches; a web from before that
+      # said "Allow desktop app".
       - extendedWaitUntil:
           visible: "Allow .+ to sign in.|Cho phép .+ đăng nhập."
           timeout: 30000
       - scrollUntilVisible:
           element:
-            text: "Allow desktop app|Cho phép ứng dụng desktop"
+            text: "(Allow|Cho phép) [^ ]+|Allow desktop app|Cho phép ứng dụng desktop"
           direction: DOWN
           timeout: 15000
-      - tapOn: "Allow desktop app|Cho phép ứng dụng desktop"
+      - tapOn: "(Allow|Cho phép) [^ ]+|Allow desktop app|Cho phép ứng dụng desktop"
       - tapOn: "(Open|Mở) .+"
       - extendedWaitUntil:
           visible: "Chat|Trò chuyện|Choose a workspace|Chọn workspace"
