@@ -99,6 +99,7 @@ type ParticipantDTO struct {
 	IsSecretary         bool   `json:"is_secretary"`
 	SharedMic           bool   `json:"shared_mic" description:"Mic của người này là micro hội trường: thư ký AI tách người nói"`
 	InRoom              bool   `json:"in_room" description:"Người này đang có mặt trong phòng (có phiên điểm danh đang mở)" example:"true"`
+	IsHost              bool   `json:"is_host" description:"Ghế của chủ trì hiện tại: khách, vốn không đọc cuộc họp, theo đó nhận lệnh tắt mic; chỉ có trong danh sách người tham dự" example:"false"`
 	RemovedBy           string `json:"removed_by,omitempty" description:"Người đã mời người này ra khỏi cuộc họp; không trả cho khách" example:"01J9Z3D4QH8M2X7N5K1C6V0B9A"`
 	RemovedAt           string `json:"removed_at,omitempty" description:"Lúc người này bị mời ra (RFC 3339)" example:"2026-10-27T08:52:00Z"`
 }

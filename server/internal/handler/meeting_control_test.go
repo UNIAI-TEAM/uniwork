@@ -149,6 +149,7 @@ func TestListParticipantsCarriesPresenceAndRemoval(t *testing.T) {
 		t.Fatalf("list: %d %v", res.StatusCode, out)
 	}
 	var removed map[string]any
+	hosts := 0
 	for _, raw := range out["participants"].([]any) {
 		row := raw.(map[string]any)
 		if _, ok := row["in_room"]; !ok {
@@ -157,6 +158,16 @@ func TestListParticipantsCarriesPresenceAndRemoval(t *testing.T) {
 		if row["id"] == bPID {
 			removed = row
 		}
+		// A guest's client obeys mute requests only from the seat marked host (UNI-890).
+		if row["is_host"] == true {
+			hosts++
+			if row["user_id"] != f.ids["a"] {
+				t.Fatalf("is_host on %v, want only a's seat", row["user_id"])
+			}
+		}
+	}
+	if hosts != 1 {
+		t.Fatalf("rows marked is_host = %d, want the host's one", hosts)
 	}
 	if removed == nil {
 		t.Fatal("removed participant missing from the list")

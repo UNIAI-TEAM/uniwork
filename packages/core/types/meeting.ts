@@ -88,6 +88,8 @@ export const ParticipantSchema = z.object({
   shared_mic: z.boolean().optional(),
   /** Holds an open attendance session right now; an older server omits it. */
   in_room: z.boolean().optional(),
+  /** The current host's seat, so a guest (who never reads the meeting) knows whose mute requests to obey. */
+  is_host: z.boolean().optional(),
   /** Who removed this participant and when (RFC 3339); guests never get `removed_by`. */
   removed_by: z.string().optional(),
   removed_at: z.string().optional(),
