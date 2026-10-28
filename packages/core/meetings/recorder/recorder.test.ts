@@ -359,4 +359,22 @@ describe("useMeetingRecorder", () => {
     expect(sentinels[1]?.released).toBe(true);
     expect(unloadBlocked()).toBe(false);
   });
+
+  it("asks once for persistent storage when recording starts, and shrugs off a refusal", async () => {
+    const persist = vi.fn(() => Promise.reject(new Error("no")));
+    const track = new FakeTrack();
+    vi.stubGlobal("MediaRecorder", FakeRecorder);
+    vi.stubGlobal("navigator", {
+      storage: { persist },
+      mediaDevices: { getUserMedia: () => Promise.resolve({ getTracks: () => [track] }) },
+    });
+    const store = memoryRecordingStore();
+    const { result } = renderHook(() => useMeetingRecorder({ userId: "u1", meetingId: "m1", language: "vi", store }));
+    expect(persist).not.toHaveBeenCalled();
+    await act(() => result.current.recorder.start());
+    act(() => result.current.recorder.pause());
+    act(() => result.current.recorder.resume());
+    expect(result.current.state).toBe("recording");
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
 });

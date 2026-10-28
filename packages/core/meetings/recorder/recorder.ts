@@ -35,6 +35,8 @@ type RecorderDeps = {
 };
 
 const MIME_TYPES = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"] as const;
+/** One chunk every 5 s unless the caller sets `timesliceMs`. */
+export const TIMESLICE_MS = 5_000;
 /** How long a closing part waits for the browser's stop event before it ends with what is stored. */
 const STOP_WAIT_MS = 3_000;
 
@@ -143,7 +145,7 @@ export function createMeetingRecorder(deps: RecorderDeps): MeetingRecorder {
         // A switch while paused stays paused on the new microphone.
         if (state === "paused") track.enabled = false;
       }
-      media.start(deps.timesliceMs ?? 5_000);
+      media.start(deps.timesliceMs ?? TIMESLICE_MS);
       live = next;
       emit();
     } catch (cause) {

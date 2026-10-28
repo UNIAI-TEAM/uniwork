@@ -184,6 +184,98 @@ describe("useSendRecording", () => {
     expect(queued).toMatchObject([{ offset_seconds: 1500 }, { offset_seconds: 0 }]);
   });
 
+  it("drops an empty part instead of sending it, and leaves it out of the held length", async () => {
+    const store = memoryRecordingStore();
+    run += 1;
+    // The recorder failed after creating it: no chunk ever landed.
+    await store.createPart({ id: `empty-${run}`, userId: "u1", meetingId: "m1", startedAt: T0 - 600_000, lastChunkAt: T0 - 600_000, endedAt: T0 - 600_000, mimeType: "audio/webm", bytes: 0, language: "vi", offsetSeconds: 0 });
+    await twoParts(store);
+    const server = fakeServer();
+    const { result } = renderSend(store);
+    await act(() => result.current.send());
+    expect(result.current.phase).toBe("done");
+    expect(server.calls[0]!.body).toMatchObject({ duration_seconds: 2538 });
+    expect(server.calls.filter((c) => c.path.endsWith("audio-upload-sessions"))).toHaveLength(2);
+    expect(await store.listParts("u1", "m1")).toEqual([]);
+  });
+
+  it("a part whose offset the server refuses is sent once more without it", async () => {
+    const store = memoryRecordingStore();
+    await twoParts(store);
+    // Another device ended the meeting first, with a shorter length than this part's offset.
+    const server = fakeServer((c) =>
+      c.path.endsWith("/transcriptions") && (c.body as { offset_seconds?: number }).offset_seconds === 1500
+        ? refusal(422, "invalid_offset")
+        : undefined,
+    );
+    const { result } = renderSend(store, "ENDED");
+    await act(() => result.current.send());
+    expect(result.current.phase).toBe("done");
+    const queued = server.calls.filter((c) => c.path.endsWith("/transcriptions")).map((c) => c.body);
+    expect(queued).toEqual([
+      { upload_id: "up-sess-1", language: "vi", consent: true, duration_seconds: 1450, offset_seconds: 0 },
+      { upload_id: "up-sess-2", language: "vi", consent: true, duration_seconds: 1038, offset_seconds: 1500 },
+      { upload_id: "up-sess-2", language: "vi", consent: true, duration_seconds: 1038 },
+    ]);
+    expect(await store.listParts("u1", "m1")).toEqual([]);
+  });
+
+  it("a part's length ends 5 s after its last chunk, the held length at its end", async () => {
+    const store = memoryRecordingStore();
+    run += 1;
+    const id = `locked-${run}`;
+    // Recorded 10 minutes, then the phone locked for 20; the part was ended at unlock.
+    await store.createPart({ id, userId: "u1", meetingId: "m1", startedAt: T0, lastChunkAt: T0, endedAt: null, mimeType: "audio/webm", bytes: 0, language: "vi", offsetSeconds: 0 });
+    await store.appendChunk(id, 0, new Blob(["x"]), T0 + 600_000);
+    await store.finishPart(id, T0 + 1_800_000);
+    const server = fakeServer();
+    const { result } = renderSend(store);
+    await act(() => result.current.send());
+    expect(result.current.phase).toBe("done");
+    expect(server.calls[0]!.body).toMatchObject({ duration_seconds: 1800 });
+    const open = server.calls.find((c) => c.path.endsWith("audio-upload-sessions"))!;
+    expect(open.body).toMatchObject({ duration_seconds: 605 });
+    expect(result.current.seconds).toBe(605);
+  });
+
+  it("holds the screen awake while it records the meeting held and uploads", async () => {
+    const sentinels: { released: boolean }[] = [];
+    const request = vi.fn(() => {
+      const sentinel = Object.assign(new EventTarget(), {
+        released: false,
+        release: () => {
+          sentinel.released = true;
+          return Promise.resolve();
+        },
+      });
+      sentinels.push(sentinel);
+      return Promise.resolve(sentinel);
+    });
+    Object.defineProperty(navigator, "wakeLock", { value: { request }, configurable: true });
+    try {
+      const store = memoryRecordingStore();
+      await twoParts(store);
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      fakeServer(async (c) => {
+        if (c.method === "PUT") await gate;
+        return undefined;
+      });
+      const { result } = renderSend(store);
+      expect(request).not.toHaveBeenCalled();
+      let sending!: Promise<void>;
+      act(() => void (sending = result.current.send()));
+      await waitFor(() => expect(result.current.phase).toBe("uploading"));
+      await waitFor(() => expect(request).toHaveBeenCalledWith("screen"));
+      release();
+      await act(() => sending);
+      expect(result.current.phase).toBe("done");
+      await waitFor(() => expect(sentinels.every((s) => s.released)).toBe(true));
+    } finally {
+      Reflect.deleteProperty(navigator, "wakeLock");
+    }
+  });
+
   it("skips record-held when the meeting already ended", async () => {
     const store = memoryRecordingStore();
     await twoParts(store);

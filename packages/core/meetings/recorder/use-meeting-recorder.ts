@@ -14,7 +14,8 @@ type Language = RecordingPart["language"];
 
 /**
  * The browser's recorder for one meeting. The language is read when recording
- * starts, so the prep screen may change it until then. Holds the screen awake
+ * starts, so the prep screen may change it until then. Asks once for persistent
+ * storage when recording starts. Holds the screen awake
  * while recording or paused, and asks before the tab closes on a recording that
  * has not been ended. Leaving the screen ends the recording; what was recorded
  * stays on the device. A new `userId`, `meetingId` or `store` is a new recorder, so
@@ -59,11 +60,19 @@ export function useMeetingRecorder(opts: {
   // Re-render when only the error changes (a failed write after the state already moved).
   useSyncExternalStore(recorder.subscribe, () => recorder.error, () => recorder.error);
   const [, tick] = useReducer((n: number) => n + 1, 0);
-  const [wakeLockHeld, setWakeLockHeld] = useState(false);
   const holding = state === "recording" || state === "paused";
+  const wakeLockHeld = useScreenWakeLock(holding);
   const unended = holding || state === "interrupted";
 
   useEffect(() => () => void recorder.stop(), [recorder]);
+
+  const persistAsked = useRef(false);
+  useEffect(() => {
+    if (state !== "recording" || persistAsked.current) return;
+    persistAsked.current = true;
+    // Best effort: asks the browser not to evict an unsent recording under storage pressure.
+    navigator.storage?.persist?.().catch(() => false);
+  }, [state]);
 
   useEffect(() => {
     if (state !== "recording") return;
@@ -82,21 +91,27 @@ export function useMeetingRecorder(opts: {
     return () => window.removeEventListener("beforeunload", ask);
   }, [unended]);
 
+  return { recorder, state, activeMs: recorder.activeMs(), wakeLockHeld };
+}
+
+/** Holds the screen awake while `active`, taking the lock again when the page is shown; true while it is held. */
+export function useScreenWakeLock(active: boolean): boolean {
+  const [held, setHeld] = useState(false);
   useEffect(() => {
     const wakeLock = typeof navigator === "undefined" ? undefined : (navigator.wakeLock as WakeLock | undefined);
-    if (!holding || !wakeLock) return;
+    if (!active || !wakeLock) return;
     let sentinel: WakeLockSentinel | null = null;
     let disposed = false;
     const acquire = () => {
       if (sentinel && !sentinel.released) return;
       wakeLock.request("screen").then(
-        (held) => {
-          if (disposed) return void held.release();
-          sentinel = held;
-          setWakeLockHeld(true);
-          held.addEventListener("release", () => setWakeLockHeld(false));
+        (taken) => {
+          if (disposed) return void taken.release();
+          sentinel = taken;
+          setHeld(true);
+          taken.addEventListener("release", () => setHeld(false));
         },
-        () => setWakeLockHeld(false),
+        () => setHeld(false),
       );
     };
     // The browser drops the lock whenever the page is hidden; take it again on return.
@@ -109,11 +124,11 @@ export function useMeetingRecorder(opts: {
       disposed = true;
       document.removeEventListener("visibilitychange", onVisibility);
       void sentinel?.release();
-      setWakeLockHeld(false);
+      setHeld(false);
     };
-  }, [holding]);
+  }, [active]);
+  return held;
 
-  return { recorder, state, activeMs: recorder.activeMs(), wakeLockHeld };
 }
 
 /**

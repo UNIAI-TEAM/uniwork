@@ -7,13 +7,21 @@ import { ApiError, errorCode } from "../../api/http";
 import type { Meeting } from "../../types/meeting";
 import { meetingKeys } from "../hooks";
 import { useRecordMeetingHeld, useUploadMeetingRecording } from "../transcription-hooks";
+import { TIMESLICE_MS } from "./recorder";
 import { isLivePart, type RecordingPart, type RecordingStore } from "./store";
-import { defaultStore } from "./use-meeting-recorder";
+import { defaultStore, useScreenWakeLock } from "./use-meeting-recorder";
 
 export type SendPhase = "idle" | "holding" | "uploading" | "waiting" | "failed" | "done";
 
 /** A part left open by a closed tab ends at its last saved chunk. */
 const endOf = (p: RecordingPart): number => p.endedAt ?? p.lastChunkAt;
+/**
+ * The audio in a part ends one timeslice after its last chunk at most: a part
+ * ended at unlock after an iOS lock holds no sound for the locked minutes, which
+ * must not reach the estimate, the quota or the length shown. The meeting went
+ * on meanwhile, so the held length still runs to `endOf`.
+ */
+const audioSeconds = (p: RecordingPart): number => secondsBetween(p.startedAt, Math.min(endOf(p), p.lastChunkAt + TIMESLICE_MS));
 const secondsBetween = (from: number, to: number): number => Math.round((to - from) / 1000);
 /** While waiting, send again after 10 s, then 30 s, then every 60 s (the `online` event may never come). */
 const WAIT_RETRY_MS = [10_000, 30_000, 60_000];
@@ -65,6 +73,7 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
   const sent = useRef({ bytes: 0, seconds: 0 });
   // The part in flight: a retry hands the same File back, so a staged upload is queued without resending a byte.
   const inFlight = useRef<{ id: string; file: File } | null>(null);
+  useScreenWakeLock(phase === "holding" || phase === "uploading");
 
   const recordHeld = async (durationSeconds: number, endedSecondsAgo: number) => {
     try {
@@ -89,11 +98,15 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
     try {
       // Never a part another tab is still writing: it would be cut short and deleted under that tab.
       const now = Date.now();
-      const parts = (await store.listParts(userId, meeting.id)).filter((p) => !isLivePart(p, now));
+      const settled = (await store.listParts(userId, meeting.id)).filter((p) => !isLivePart(p, now));
+      // A part the recorder opened but never wrote to (it failed to start) has nothing to send, and an
+      // empty file would be refused (415) ahead of every later part.
+      await Promise.all(settled.filter((p) => p.bytes === 0).map((p) => store.deletePart(p.id)));
+      const parts = settled.filter((p) => p.bytes > 0);
       setTotals({
         doneBytes: sent.current.bytes,
         totalBytes: sent.current.bytes + parts.reduce((sum, p) => sum + p.bytes, 0),
-        seconds: sent.current.seconds + parts.reduce((sum, p) => sum + secondsBetween(p.startedAt, endOf(p)), 0),
+        seconds: sent.current.seconds + parts.reduce((sum, p) => sum + audioSeconds(p), 0),
         currentBytes: 0,
       });
       if (parts.length > 0 && meeting.status === "SCHEDULED") {
@@ -109,10 +122,18 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
         setPhase("uploading");
         const file = inFlight.current?.id === part.id ? inFlight.current.file : partFile(part, await store.readPart(part.id));
         inFlight.current = { id: part.id, file };
-        const seconds = secondsBetween(part.startedAt, endOf(part));
+        const seconds = audioSeconds(part);
         setTotals((t) => ({ ...t, currentBytes: part.bytes }));
+        const queue = (offsetSeconds?: number) =>
+          upload.mutateAsync({ file, language: part.language, consent: true, durationSeconds: seconds, offsetSeconds });
         try {
-          await upload.mutateAsync({ file, language: part.language, consent: true, durationSeconds: seconds, offsetSeconds: part.offsetSeconds });
+          try {
+            await queue(part.offsetSeconds);
+          } catch (err) {
+            // Another device ended the meeting first, shorter than this offset: the server chains the part after the others.
+            if (errorCode(err) !== "invalid_offset") throw err;
+            await queue();
+          }
         } catch (err) {
           // The queue request reached the server but its answer was lost: a fresh upload's file can only collide with itself.
           if (errorCode(err) !== "transcription_in_progress") throw err;
