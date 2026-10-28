@@ -26,7 +26,7 @@ export function forChat(answer: string): string {
 }
 
 /**
- * The room's Ask UNI exchange, in the UNI feed over the composer: the question
+ * One of the room's Ask UNI exchanges, in the UNI feed over the composer: the question
  * as the asker's bubble, then UNI's answer (only the asker sees it). Sharing
  * posts it as the asker's own chat message, which the server accepts only
  * from someone in the room, hence `canShare`; ⌘J continues the conversation.
@@ -118,7 +118,14 @@ export function AskAnswerCard({
           ) : null}
           <div className="mt-2.5 flex flex-wrap items-center gap-0.5 border-t border-border pt-2">
             {conversationId ? (
-              <AskUniActions conversationId={conversationId} messageId={shown.id} wsId={workspaceId} content={shown.content} sources={sources} />
+              <AskUniActions
+                conversationId={conversationId}
+                messageId={shown.id}
+                wsId={workspaceId}
+                content={shown.content}
+                question={question}
+                sources={sources}
+              />
             ) : null}
             <div className="ml-auto flex flex-wrap items-center gap-0.5">
               {canShare && shown.content ? (
