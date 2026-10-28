@@ -198,6 +198,15 @@
         "cancel": "Cancel",
         "confirm": "Delete permanently",
         "failed": "Could not delete the account",
+        "deleting": "Deleting…",
+        "consequences": {
+          "erased": "Your email, name, photo and every way to sign in are erased.",
+          "kept": "Work and messages you created stay with the organization, shown as \"Deleted user\".",
+          "owner": "If you own an organization, transfer it first, or close it if you're its only member."
+        },
+        "ownerTransfer": "You own {{name}}, and it has other members. Transfer ownership in Settings › Organization members, then come back to delete your account.",
+        "closeNotice": "You're the only member of {{name}}, so it closes along with your account.",
+        "closeAndDelete": "Close organization and delete account",
         "required": {
           "password": "Enter your password to confirm.",
           "code": "Enter your two-factor code to confirm.",

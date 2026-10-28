@@ -198,6 +198,15 @@
         "cancel": "Hủy",
         "confirm": "Xóa vĩnh viễn",
         "failed": "Không xóa được tài khoản",
+        "deleting": "Đang xóa…",
+        "consequences": {
+          "erased": "Email, tên, ảnh và mọi cách đăng nhập của bạn bị xóa.",
+          "kept": "Công việc và tin nhắn bạn đã tạo vẫn ở lại tổ chức, dưới tên \"Người dùng đã xóa\".",
+          "owner": "Nếu bạn là chủ sở hữu tổ chức, hãy chuyển quyền trước, hoặc đóng tổ chức nếu chỉ còn mình bạn."
+        },
+        "ownerTransfer": "Bạn là chủ sở hữu {{name}}, và tổ chức còn thành viên khác. Chuyển quyền sở hữu trong Cài đặt › Thành viên tổ chức, rồi quay lại xóa tài khoản.",
+        "closeNotice": "Bạn là thành viên duy nhất của {{name}}, nên tổ chức sẽ được đóng cùng lúc với tài khoản.",
+        "closeAndDelete": "Đóng tổ chức và xóa tài khoản",
         "required": {
           "password": "Nhập mật khẩu để xác nhận.",
           "code": "Nhập mã xác thực hai lớp để xác nhận.",
