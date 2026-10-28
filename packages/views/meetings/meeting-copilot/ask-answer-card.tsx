@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo } from "react";
+import { useId, useMemo, type ReactNode } from "react";
 import { Check, CornerUpRight, Lock, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiPanelStore } from "@uniwork/core/ai";
@@ -20,6 +20,12 @@ import { toastApiError } from "../../toast-api-error";
 // A marker and the space before it: the source pills below carry the sources.
 const CITE_TOKEN = /\s?\[S(\d+)\]/g;
 
+const inAppLink = ({ href, children }: { href: string; children: ReactNode }) => (
+  <AppLink href={href} className="text-primary underline-offset-2 hover:underline">
+    {children}
+  </AppLink>
+);
+
 /** "[S2]" points at a source only the asker's panel can open; in chat it is noise. */
 export function forChat(answer: string): string {
   return answer.replace(/\s?\[S\d+\]/g, "").trim();
@@ -34,7 +40,6 @@ export function forChat(answer: string): string {
 export function AskAnswerCard({
   question,
   answer,
-  pending,
   conversationId,
   canShare,
   meetingId,
@@ -42,7 +47,6 @@ export function AskAnswerCard({
 }: {
   question: string;
   answer: AiMessage | null;
-  pending: boolean;
   conversationId: string | null;
   canShare: boolean;
   meetingId: string;
@@ -57,21 +61,25 @@ export function AskAnswerCard({
   const sources = useMemo(() => new Map((answer?.citations ?? []).map((c): [string, AiCitation] => [c.source_id, c])), [answer]);
   if (!question && !answer) return null;
 
-  const shown = pending ? null : answer;
-  const text = shown ? (shown.content === "" && shown.notice ? noticeText(tAi, shown.notice) : shown.content) : "";
+  const text = answer ? (answer.content === "" && answer.notice ? noticeText(tAi, answer.notice) : answer.content) : "";
   // Shared means this answer: a newer one has not been.
-  const shared = !!shown?.content && share.isSuccess && share.variables === forChat(shown.content);
+  const shared = !!answer?.content && share.isSuccess && share.variables === forChat(answer.content);
   // The text drops its [Sn] markers, so a pill is just where a source opens: one per place.
-  const pills = shown ? linkableCitations(shown.citations).filter((c, i, all) => all.findIndex((o) => o.href === c.href) === i) : [];
+  const pills = answer ? linkableCitations(answer.citations).filter((c, i, all) => all.findIndex((o) => o.href === c.href) === i) : [];
 
   return (
     <div className="flex flex-col gap-3.5" data-testid="meeting-ask-uni">
       {question ? (
-        <p className="max-w-[82%] self-end whitespace-pre-wrap break-words rounded-[16px_16px_4px_16px] bg-surface-hover px-3 py-2 text-body text-foreground">
+        // The composer's markdown, as the dock shows it ("R&amp;D", "user\_id"); a block's outer margins would pad the bubble.
+        <SafeMarkdown
+          isLinkAllowed={isInAppHref}
+          renderLink={inAppLink}
+          className="max-w-[82%] self-end break-words rounded-[16px_16px_4px_16px] bg-surface-hover px-3 py-2 text-body text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+        >
           {question}
-        </p>
+        </SafeMarkdown>
       ) : null}
-      {shown ? (
+      {answer ? (
         <article aria-labelledby={titleId} className="rounded-2xl border border-border bg-brand-subtle/30 px-3.5 py-3">
           <div className="mb-2 flex items-center gap-2">
             <span aria-hidden className="grid size-6 place-items-center rounded-lg bg-brand-subtle text-brand">
@@ -91,11 +99,7 @@ export function AskAnswerCard({
           {/* Markdown as Ask UNI writes it (lists, bold), with the [S#] markers left to the source pills below. */}
           <SafeMarkdown
             isLinkAllowed={isInAppHref}
-            renderLink={({ href, children }) => (
-              <AppLink href={href} className="text-primary underline-offset-2 hover:underline">
-                {children}
-              </AppLink>
-            )}
+            renderLink={inAppLink}
             inlineToken={{ pattern: CITE_TOKEN, render: () => null }}
             // 14/21 lines, as the UniAsk board: SafeMarkdown sets its own leading on p and li.
             className="break-words [&_li]:leading-[21px] [&_p]:leading-[21px] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_ol]:my-1.5 [&_p]:my-1.5 [&_ul]:my-1.5"
@@ -120,15 +124,15 @@ export function AskAnswerCard({
             {conversationId ? (
               <AskUniActions
                 conversationId={conversationId}
-                messageId={shown.id}
+                messageId={answer.id}
                 wsId={workspaceId}
-                content={shown.content}
+                content={answer.content}
                 question={question}
                 sources={sources}
               />
             ) : null}
             <div className="ml-auto flex flex-wrap items-center gap-0.5">
-              {canShare && shown.content ? (
+              {canShare && answer.content ? (
                 shared ? (
                   // The one success signal, where the button was; the status region says it.
                   <span className="flex items-center gap-1 px-2 text-caption text-muted-foreground">
@@ -142,7 +146,7 @@ export function AskAnswerCard({
                     variant="ghost"
                     aria-disabled={share.isPending || undefined}
                     onClick={() =>
-                      share.mutate(forChat(shown.content), {
+                      share.mutate(forChat(answer.content), {
                         onError: (err) => toastApiError(err, t("meetings.askUniShareFailed")),
                       })
                     }

@@ -227,7 +227,6 @@ export function MeetingRoomCopilotTab({
                 <div key={x.answer?.id ?? "pending"} ref={i === ask.exchanges.length - 1 ? askCard : undefined}>
                   <AskAnswerCard
                     {...x}
-                    pending={!x.answer}
                     conversationId={ask.conversationId}
                     canShare
                     meetingId={meetingId}

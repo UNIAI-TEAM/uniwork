@@ -30,7 +30,7 @@ type Mode = "ask" | "note";
 type Blocked = "outOfCredit" | "askOff";
 
 /** One question to UNI and its answer, null while UNI works on it. */
-export interface MeetingExchange {
+interface MeetingExchange {
   question: string;
   answer: AiMessage | null;
 }

@@ -63,7 +63,6 @@ function Room({ notesCount = 0, hasTranscript = false, hasItems }: { notesCount?
         <AskAnswerCard
           key={x.answer?.id ?? "pending"}
           {...x}
-          pending={!x.answer}
           conversationId={ask.conversationId}
           canShare={false}
           meetingId="m1"
