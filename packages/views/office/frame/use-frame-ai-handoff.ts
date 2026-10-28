@@ -9,8 +9,10 @@ import type { InitAck } from "@uniwork/core/office/docs-frame-protocol";
 export interface FrameAiHandoffBinding {
   /** A handshake completed: the frame's capabilities are known. */
   attach(host: DocsFrameHost, ack: InitAck): void;
-  /** The host answered the frame's `api.open`: the editor has its document. */
-  documentOpened(): void;
+  /** The current handshake's number; the session reads it when an `api.open` starts. */
+  generation(): number;
+  /** The host answered an `api.open` that started in handshake `generation`; an older one is ignored. */
+  documentOpened(generation: number): void;
   /** The frame endpoint is gone (retry, unmount). */
   detach(): void;
   /** The frame's AI started or finished a turn. */
@@ -28,6 +30,7 @@ export function useFrameAiHandoff(documentId: string): FrameAiHandoffBinding {
     let host: DocsFrameHost | null = null;
     let ack: InitAck | null = null;
     let opened = false;
+    let generation = 0;
 
     const start = () => {
       if (!host || !ack || !opened) return;
@@ -42,7 +45,7 @@ export function useFrameAiHandoff(documentId: string): FrameAiHandoffBinding {
       host.startAi({ handoffId: entry.handoffId, text: entry.text, displayText: entry.text }).then(
         () => {
           const now = useOfficeHandoffStore.getState();
-          // A run event can beat the answer; only the state `take` left reads as "sent".
+          // Keeps the store at "sent" unless a run event already moved it on.
           if (now.byDocument[id]?.status === "sent") now.setStatus(id, "sent");
         },
         () => { useOfficeHandoffStore.getState().setStatus(id, "refused"); },
@@ -54,8 +57,11 @@ export function useFrameAiHandoff(documentId: string): FrameAiHandoffBinding {
         host = nextHost;
         ack = nextAck;
         opened = false;
+        generation += 1;
       },
-      documentOpened() {
+      generation: () => generation,
+      documentOpened(opener) {
+        if (opener !== generation || !host) return;
         opened = true;
         start();
       },
@@ -63,6 +69,7 @@ export function useFrameAiHandoff(documentId: string): FrameAiHandoffBinding {
         host = null;
         ack = null;
         opened = false;
+        generation += 1;
       },
       onAiRun(state) {
         useOfficeHandoffStore.getState().setStatus(idRef.current, state);
