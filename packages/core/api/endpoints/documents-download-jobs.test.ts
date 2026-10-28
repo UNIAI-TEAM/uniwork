@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { ApiError } from "../http";
 import { setAccessToken } from "../session";
-import { createDownloadJob, getDownloadJob, isDownloadTooLargeError } from "./documents-download-jobs";
+import { createDownloadJob, downloadJobZip, getDownloadJob, isDownloadTooLargeError } from "./documents-download-jobs";
 
 // UNI-2045 W9, contract-first against SV-9 (the server half is not merged):
 // POST /workspaces/{ws}/documents/download-jobs answers 202 with a job, GET
@@ -127,5 +127,43 @@ describe("documents download-jobs endpoints", () => {
     expect(failure).toBeInstanceOf(ApiError);
     expect(isDownloadTooLargeError(failure)).toBe(true);
     expect(isDownloadTooLargeError(new ApiError("x", "forbidden", 403))).toBe(false);
+  });
+
+  describe("downloadJobZip", () => {
+    it("fetches the zip with the bearer from a path built out of the ids, and answers the bytes with the server's name", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response("PK", { status: 200, headers: { "Content-Type": "application/zip", "Content-Disposition": 'attachment; filename="documents.zip"' } }),
+      );
+      const out = await downloadJobZip("w/1", "job/1");
+      const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+      expect(String(url)).toBe("http://api.test/api/v1/workspaces/w%2F1/documents/download-jobs/job%2F1/download");
+      expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer tok");
+      expect(out.filename).toBe("documents.zip");
+      expect(out.blob.size).toBe(2);
+    });
+
+    it("answers no file name when the browser cannot read one", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response("PK", { status: 200 }));
+      await expect(downloadJobZip("w1", "job1")).resolves.toMatchObject({ filename: null });
+    });
+
+    it("surfaces a refusal as an ApiError with its code", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "not_found", message: "gone" } }, 404));
+      const failure = await downloadJobZip("w1", "job1").catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(ApiError);
+      expect((failure as ApiError).status).toBe(404);
+    });
+
+    it("degrades a malformed error body (a 502 page) to an ApiError", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response("<html>bad gateway</html>", { status: 502 }));
+      const failure = await downloadJobZip("w1", "job1").catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(ApiError);
+      expect((failure as ApiError).status).toBe(502);
+    });
+
+    it("rejects an empty answer instead of handing back a 0-byte zip", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(new Response("", { status: 200 }));
+      await expect(downloadJobZip("w1", "job1")).rejects.toBeInstanceOf(ApiError);
+    });
   });
 });

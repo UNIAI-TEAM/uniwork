@@ -61,6 +61,11 @@ func TestAccountAndThreadViews(t *testing.T) {
 	if thread.FromName != "Alice" || thread.BodyText != "Body" {
 		t.Fatalf("thread view: %+v", thread)
 	}
+	list := []EmailHubThreadView{thread}
+	stripEmailHubListBodies(list)
+	if list[0].BodyText != "" || list[0].BodyHTML != "" || list[0].Snippet != "hello" {
+		t.Fatalf("list strip must drop bodies and keep snippet: %+v", list[0])
+	}
 
 	// Cached bodies are already decoded; "=XX" in attributes is content, not quoted-printable.
 	html := `<td width=600 bgcolor=000000><a href="?id=12345">x</a></td>`

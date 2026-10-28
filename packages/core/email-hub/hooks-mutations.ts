@@ -8,6 +8,7 @@ import {
   invalidateEmailHubThreads,
   invalidateEmailHubThreadsForAccount,
   patchEmailHubThreadInLists,
+  removeEmailHubThreadFromLists,
   threadDetailKey,
 } from "./query-cache";
 
@@ -75,9 +76,21 @@ export function useMoveEmailHubThread(wsId: string) {
   return useMutation({
     mutationFn: (input: { accountId: string; threadId: string; moveTo: api.EmailHubMoveTarget }) =>
       api.moveEmailHubThread(wsId, input.threadId, input.accountId, input.moveTo),
-    onSuccess: (_data, input) => {
+    onMutate: (input) => {
+      const detailKey = threadDetailKey(wsId, input.accountId, input.threadId);
+      const prevDetail = qc.getQueryData<EmailHubThread>(detailKey);
+      removeEmailHubThreadFromLists(qc, wsId, input.accountId, input.threadId);
       qc.removeQueries({ queryKey: emailHubKeys.thread(wsId, input.accountId, input.threadId) });
+      return { prevDetail, detailKey };
+    },
+    onError: (_err, input, ctx) => {
+      if (ctx?.prevDetail) {
+        qc.setQueryData(ctx.detailKey, ctx.prevDetail);
+      }
       invalidateEmailHubThreads(qc, wsId, input.accountId);
+      invalidateEmailHubCounts(qc, wsId, input.accountId);
+    },
+    onSuccess: (_data, input) => {
       invalidateEmailHubCounts(qc, wsId, input.accountId);
     },
   });
@@ -127,11 +140,29 @@ export function useSnoozeEmailHubThread(wsId: string) {
         snoozeUntil: input.snoozeUntil,
         clearSnooze: input.clearSnooze,
       }),
+    onMutate: (input) => {
+      const detailKey = threadDetailKey(wsId, input.accountId, input.threadId);
+      const prevDetail = qc.getQueryData<EmailHubThread>(detailKey);
+      // Snooze hides from inbox; clear-snooze brings it back via invalidate.
+      if (!input.clearSnooze) {
+        removeEmailHubThreadFromLists(qc, wsId, input.accountId, input.threadId);
+      }
+      return { prevDetail, detailKey };
+    },
+    onError: (_err, input, ctx) => {
+      if (ctx?.prevDetail) {
+        qc.setQueryData(ctx.detailKey, ctx.prevDetail);
+      }
+      invalidateEmailHubThreads(qc, wsId, input.accountId);
+      invalidateEmailHubCounts(qc, wsId, input.accountId);
+    },
     onSuccess: (thread, input) => {
       if (thread) {
         qc.setQueryData(threadDetailKey(wsId, input.accountId, input.threadId), thread);
       }
-      invalidateEmailHubThreads(qc, wsId, input.accountId);
+      if (input.clearSnooze) {
+        invalidateEmailHubThreads(qc, wsId, input.accountId);
+      }
       invalidateEmailHubCounts(qc, wsId, input.accountId);
     },
   });
@@ -168,7 +199,8 @@ export function useToggleEmailHubStar(wsId: string) {
         qc.setQueryData(threadDetailKey(wsId, input.accountId, input.threadId), thread);
         patchEmailHubThreadInLists(qc, wsId, input.accountId, input.threadId, { is_starred: thread.is_starred });
       }
-      invalidateEmailHubThreads(qc, wsId, input.accountId);
+      // Star already patched lists in onMutate; avoid refetching the whole folder.
+      invalidateEmailHubCounts(qc, wsId, input.accountId);
     },
   });
 }

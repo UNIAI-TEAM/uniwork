@@ -157,3 +157,37 @@ export function patchEmailHubThreadInLists(
     },
   );
 }
+
+/** Remove a thread from every cached list page (optimistic move / snooze). */
+export function removeEmailHubThreadFromLists(
+  qc: QueryClient,
+  wsId: string,
+  accountId: string,
+  threadId: string,
+) {
+  qc.setQueriesData<InfiniteData<EmailHubThreadListPage>>(
+    { queryKey: ["email-hub", wsId, "threads", accountId], exact: false },
+    (old) => {
+      if (!old) return old;
+      const previousThread = old.pages
+        .flatMap((page) => page.threads)
+        .find((thread) => thread.id === threadId);
+      if (!previousThread) return old;
+      const unreadDelta = previousThread.is_read ? 0 : -1;
+      return {
+        ...old,
+        pages: old.pages.map((page, index) => ({
+          ...page,
+          threads: page.threads.filter((row) => row.id !== threadId),
+          counts:
+            index === 0
+              ? {
+                  total: Math.max(0, page.counts.total - 1),
+                  unread: Math.max(0, page.counts.unread + unreadDelta),
+                }
+              : page.counts,
+        })),
+      };
+    },
+  );
+}

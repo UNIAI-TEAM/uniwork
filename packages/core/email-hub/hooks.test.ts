@@ -21,6 +21,7 @@ import {
   invalidateEmailHubThreadsForAccount,
   prefetchEmailHubThread,
   patchEmailHubThreadInLists,
+  removeEmailHubThreadFromLists,
   setEmailHubListRefreshPaused,
   useEmailHubThread,
   useEmailHubProviders,
@@ -245,6 +246,21 @@ describe("email hub mutation count invalidation", () => {
 
     expect(syncEmailHub).toHaveBeenCalledWith("ws1", "acc1", "INBOX", undefined, false, undefined);
     expectCountInvalidations(invalidateSpy);
+  });
+});
+
+describe("removeEmailHubThreadFromLists", () => {
+  it("removes the row and adjusts first-page counts", () => {
+    const qc = new QueryClient();
+    const key = seedTwoPageThreadList(qc, emailThread("thread-page-2", false));
+
+    removeEmailHubThreadFromLists(qc, "ws1", "acc1", "thread-page-2");
+
+    const cached = qc.getQueryData<{
+      pages: Array<{ threads: EmailHubThread[]; counts: { total: number; unread: number } }>;
+    }>(key);
+    expect(cached?.pages[0]?.counts).toEqual({ total: 119, unread: 29 });
+    expect(cached?.pages[1]?.threads.some((row) => row.id === "thread-page-2")).toBe(false);
   });
 });
 
