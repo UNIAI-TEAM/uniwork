@@ -45,8 +45,11 @@ export function ContinueFlow() {
   // The provider the screen opened for, to say whose sign-in ran out once the choice itself is gone.
   const [openedFor] = useState(choice?.identity.provider ?? null);
 
+  const failure = create.shown?.failure;
+  const expired = gone || !choice || failure?.kind === "restart";
   const stepBack = () => setStep(step === "code" ? "email" : "choices");
-  useStepBack(step !== "choices", stepBack);
+  // The expired view has no steps: back leaves the screen, by the swipe too.
+  useStepBack(step !== "choices" && !expired, stepBack);
   // Leaving without signing in is "Hủy" by another name: nothing is left waiting.
   useEffect(
     () => () => {
@@ -55,8 +58,7 @@ export function ContinueFlow() {
     [],
   );
 
-  const failure = create.shown?.failure;
-  if (gone || !choice || failure?.kind === "restart") {
+  if (expired) {
     const provider = choice?.identity.provider ?? openedFor;
     const providerName = provider ? t(`auth.social.provider.${provider}`) : null;
     return (

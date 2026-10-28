@@ -1,5 +1,5 @@
 import { act, fireEvent, screen } from "@testing-library/react-native";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import { BackHandler } from "react-native";
 import { forgetPendingSignIn, holdStep, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import type { SignInOutcome, SignInRequest } from "@/data/auth/sign-in";
@@ -93,6 +93,23 @@ describe("ContinueFlow", () => {
     expect(screen.getByText(viText("auth.continue.expired.bodyProvider", { provider: "Google" }))).toBeTruthy();
     await act(async () => fireEvent.press(screen.getByTestId("continue-retry")));
     expect(router.dismissAll).toHaveBeenCalled();
+  });
+
+  it("lets back leave once the ticket ran out on a step, by Android's button and the swipe", async () => {
+    send.mutateAsync.mockRejectedValueOnce(transport("sign_in_ticket_missing", 404));
+    const remove = jest.fn();
+    const listen = jest.spyOn(BackHandler, "addEventListener").mockReturnValue({ remove });
+    signIn();
+    await render(<ContinueFlow />);
+    await act(async () => fireEvent.press(screen.getByTestId("choice-invited")));
+    expect(useNavigation().setOptions).toHaveBeenLastCalledWith({ gestureEnabled: false });
+    expect(listen).toHaveBeenCalled();
+    await act(async () => fireEvent.changeText(screen.getByTestId("claim-email"), "an@congty.vn"));
+    await act(async () => fireEvent.press(screen.getByTestId("claim-send")));
+    expect(screen.getByTestId("continue-expired")).toBeTruthy();
+    // Nothing is left to step back through: Android's back is let go and the swipe is on again.
+    expect(remove).toHaveBeenCalled();
+    expect(useNavigation().setOptions).toHaveBeenLastCalledWith({ gestureEnabled: true });
   });
 
   it("says a sign-in ran out without naming a provider it never saw", async () => {
