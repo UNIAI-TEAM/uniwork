@@ -76,7 +76,7 @@ function StepUpBody({ ask, onBusy, onDone }: { ask: StepUpAsk; onBusy: (busy: bo
   const [picking, setPicking] = useState(false);
   const [failure, setFailure] = useState<ShownFailure | null>(null);
   const [refusals, setRefusals] = useState(0);
-  const { message, waiting } = useFailureMessage(failure);
+  const { message, spoken, waiting } = useFailureMessage(failure);
   const field = useRef<TextInput>(null);
   const email = user?.email ?? "";
   const choice = proofsFor({ proofs, mfaEnabled: Boolean(user?.mfa_enabled_at), hasPassword: Boolean(user?.has_password), offer });
@@ -123,7 +123,7 @@ function StepUpBody({ ask, onBusy, onDone }: { ask: StepUpAsk; onBusy: (busy: bo
     }
   };
 
-  const props = { busy, message, waiting, refusals, fieldRef: field };
+  const props = { busy, message, spoken, waiting, refusals, fieldRef: field };
   const body =
     proof === "password" ? (
       <PasswordProof
@@ -143,7 +143,13 @@ function StepUpBody({ ask, onBusy, onDone }: { ask: StepUpAsk; onBusy: (busy: bo
         onSubmit={(code) => void prove({ kind: "email_code", code })}
       />
     ) : proof === "apple" || proof === "google" ? (
-      <ProviderProof provider={proof} busy={busy} message={message} onProve={() => void prove({ kind: "provider", provider: proof })} />
+      <ProviderProof
+        provider={proof}
+        busy={busy}
+        message={message}
+        spoken={spoken}
+        onProve={() => void prove({ kind: "provider", provider: proof })}
+      />
     ) : (
       <Text className="text-callout leading-5 text-muted-foreground" testID="step-up-unavailable">
         {t("mobile.step_up.unavailable")}

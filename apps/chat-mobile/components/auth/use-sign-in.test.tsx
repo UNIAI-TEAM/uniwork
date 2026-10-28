@@ -42,15 +42,19 @@ afterEach(() => {
 });
 
 describe("useFailureMessage", () => {
-  it("counts a wait down to its deadline, then has nothing left to say", async () => {
+  it("counts a wait down to its deadline, said as it began rather than at each tick, then has nothing left to say", async () => {
     jest.useFakeTimers({ now: 1_000_000 });
     const locked = shownFailure(failure({ kind: "wait", key: "auth.social.errors.second_factor_locked", retryAfterSeconds: 2 }), 1_000_000);
     expect(locked.deadlineMs).toBe(1_002_000);
     const { result } = await renderHook(() => useFailureMessage(locked), { wrapper });
-    expect(result.current.waiting).toBe(true);
-    expect(result.current.message).toBe(`${viText("auth.social.errors.second_factor_locked")} ${viText("auth.social.retry.seconds", { count: 2 })}`);
-    await act(async () => jest.advanceTimersByTime(2_000));
-    expect(result.current).toEqual({ message: null, waiting: false });
+    const sentence = viText("auth.social.errors.second_factor_locked");
+    const asBegun = `${sentence} ${viText("auth.social.retry.seconds", { count: 2 })}`;
+    expect(result.current).toEqual({ message: asBegun, spoken: asBegun, waiting: true });
+    await act(async () => jest.advanceTimersByTime(1_000));
+    // The eye sees the countdown; a screen reader keeps the line it heard once.
+    expect(result.current).toEqual({ message: `${sentence} ${viText("auth.social.retry.seconds", { count: 1 })}`, spoken: asBegun, waiting: true });
+    await act(async () => jest.advanceTimersByTime(1_000));
+    expect(result.current).toEqual({ message: null, spoken: null, waiting: false });
   });
 
   it("says a wait with no deadline with its phrase, and any other failure as its sentence", async () => {
@@ -63,9 +67,9 @@ describe("useFailureMessage", () => {
     await rerender({ shown: shownFailure(failure({ kind: "wait", key: "auth.social.errors.rate_limited" })) });
     expect(result.current.message).toBe(viText("auth.social.errors.rate_limited"));
     await rerender({ shown: shownFailure(failure({})) });
-    expect(result.current).toEqual({ message: viText("auth.social.errors.generic"), waiting: false });
+    expect(result.current).toEqual({ message: viText("auth.social.errors.generic"), spoken: null, waiting: false });
     await rerender({ shown: null });
-    expect(result.current).toEqual({ message: null, waiting: false });
+    expect(result.current).toEqual({ message: null, spoken: null, waiting: false });
   });
 });
 

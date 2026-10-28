@@ -2,6 +2,7 @@ import { act, fireEvent, screen } from "@testing-library/react-native";
 import { AccessibilityInfo, Platform } from "react-native";
 import { render, viText } from "@/test/render";
 import { AuthField, FieldNote, PasswordField } from "./auth-field";
+import { FormAlert } from "./auth-layout";
 import { CodeField } from "./code-field";
 
 describe("AuthField", () => {
@@ -66,6 +67,49 @@ describe("FieldNote", () => {
   it("says nothing without an error or a hint", async () => {
     await render(<FieldNote />);
     expect(screen.toJSON()).toBeNull();
+  });
+});
+
+describe("a line that counts down", () => {
+  const tick = (left: number) => `Thử lại sau ${left} giây.`;
+  const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility");
+  beforeEach(() => announce.mockClear());
+
+  it("is said once as it began under a form, never at each tick", async () => {
+    const { rerender } = await render(<FormAlert message={tick(60)} spoken={tick(60)} testID="alert" />);
+    await rerender(<FormAlert message={tick(59)} spoken={tick(60)} testID="alert" />);
+    expect(screen.getByText(tick(59))).toBeTruthy();
+    // The countdown on screen is no live region (TalkBack would read it every second); a hidden one says the line once.
+    expect(screen.getByTestId("alert").props.accessibilityLiveRegion).toBe("none");
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith(tick(60));
+    await rerender(<FormAlert message="Sai mật khẩu." testID="alert" />);
+    expect(screen.getByTestId("alert").props.accessibilityLiveRegion).toBe("polite");
+    expect(screen.queryByTestId("alert-spoken")).toBeNull();
+  });
+
+  it("is heard on Android from a hidden live region that holds still while the countdown ticks", async () => {
+    const os = jest.replaceProperty(Platform, "OS", "android");
+    try {
+      const { rerender } = await render(<FormAlert message={tick(60)} spoken={tick(60)} testID="alert" />);
+      await rerender(<FormAlert message={tick(59)} spoken={tick(60)} testID="alert" />);
+      expect(screen.getByTestId("alert-spoken")).toHaveTextContent(tick(60));
+      expect(screen.getByTestId("alert-spoken").props.accessibilityLiveRegion).toBe("polite");
+      expect(announce).not.toHaveBeenCalled();
+    } finally {
+      os.restore();
+    }
+  });
+
+  it("is said once as it began under a field, the input's hint holding still", async () => {
+    const { rerender } = await render(<CodeField label="Mã" value="" disabled error={tick(9)} spokenError={tick(9)} onChange={jest.fn()} onComplete={jest.fn()} testID="code" />);
+    await rerender(<CodeField label="Mã" value="" disabled error={tick(8)} spokenError={tick(9)} onChange={jest.fn()} onComplete={jest.fn()} testID="code" />);
+    expect(screen.getByText(tick(8))).toBeTruthy();
+    expect(screen.getByTestId("code").props.accessibilityHint).toBe(tick(9));
+    if (Platform.OS === "ios") expect(announce).toHaveBeenCalledTimes(1);
+    await rerender(<AuthField label="Mật khẩu" value="" error={tick(7)} spokenError={tick(9)} testID="field" />);
+    expect(screen.getByTestId("field").props.accessibilityHint).toBe(tick(9));
+    expect(screen.getByText(tick(7))).toBeTruthy();
   });
 });
 

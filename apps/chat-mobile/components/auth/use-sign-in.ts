@@ -31,23 +31,41 @@ export function shownFailure(failure: SignInFailure, now: number = Date.now()): 
   return { failure, deadlineMs: waits ? now + (failure.retryAfterSeconds ?? 0) * 1_000 : null };
 }
 
-/**
- * The sentence of a shown failure, and whether it still asks to wait: "… Thử lại sau 14 phút." counting down; once the
- * wait is over the sentence is gone (the lock lifted, a code may be asked again).
- */
-export function useFailureMessage(shown: ShownFailure | null): { message: string | null; waiting: boolean } {
+/** A shown failure in words. */
+export interface FailureMessage {
+  /** what the screen shows: "… Thử lại sau 14 phút." counting down while it asks to wait */
+  message: string | null;
+  /**
+   * While the line counts down, the line as it was first said, fixed: what VoiceOver and TalkBack hear, once, instead
+   * of every tick. Null otherwise: `message` itself is said.
+   */
+  spoken: string | null;
+  /** a lock counts down: nothing is taken until it lifts */
+  waiting: boolean;
+}
+
+const NOTHING_TO_SAY: FailureMessage = { message: null, spoken: null, waiting: false };
+
+/** The sentence of a shown failure; once a wait is over it is gone (the lock lifted, a code may be asked again). */
+export function useFailureMessage(shown: ShownFailure | null): FailureMessage {
   const { t } = useTranslation();
   const left = useCountdown(shown?.deadlineMs ?? null);
-  if (!shown) return { message: null, waiting: false };
+  if (!shown) return NOTHING_TO_SAY;
   const { failure, deadlineMs } = shown;
   const sentence = t(failure.key, failure.values);
-  if (failure.kind !== "wait") return { message: sentence, waiting: false };
+  if (failure.kind !== "wait") return { message: sentence, spoken: null, waiting: false };
   if (deadlineMs === null) {
-    return { message: failure.retry ? `${sentence} ${t(failure.retry.key, { count: failure.retry.count })}` : sentence, waiting: false };
+    const message = failure.retry ? `${sentence} ${t(failure.retry.key, { count: failure.retry.count })}` : sentence;
+    return { message, spoken: null, waiting: false };
   }
-  if (left === 0) return { message: null, waiting: false };
-  const phrase = retryPhrase(left);
-  return { message: `${sentence} ${t(phrase.key, { count: phrase.count })}`, waiting: true };
+  if (left === 0) return NOTHING_TO_SAY;
+  const ticking = retryPhrase(left);
+  const asBegun = retryPhrase(failure.retryAfterSeconds);
+  return {
+    message: `${sentence} ${t(ticking.key, { count: ticking.count })}`,
+    spoken: `${sentence} ${t(asBegun.key, { count: asBegun.count })}`,
+    waiting: true,
+  };
 }
 
 export function useSignIn(context: SignInContext, options: { linkMode?: boolean } = {}) {

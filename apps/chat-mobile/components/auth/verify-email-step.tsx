@@ -35,7 +35,7 @@ export function VerifyEmailStep() {
   const [resendAtMs, setResendAtMs] = useState(() => Date.now() + RESEND_GAP_MS);
   const [resent, setResent] = useState(false);
   const left = useCountdown(resendAtMs);
-  const { message } = useFailureMessage(shown);
+  const { message, spoken } = useFailureMessage(shown);
   const input = useRef<TextInput>(null);
   const resentLine = resent ? t("auth.verify.resent") : null;
   useAnnounce(resentLine);
@@ -80,6 +80,7 @@ export function VerifyEmailStep() {
         onChange={setCode}
         onComplete={(full) => void check(full)}
         error={message}
+        spokenError={spoken}
         busy={verify.isPending}
         autoFocus
         testID="verify-code"

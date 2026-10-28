@@ -25,6 +25,8 @@ interface CodeFieldProps {
   /** the sixth digit arrived */
   onComplete: (code: string) => void;
   error?: string | null;
+  /** an error that counts down, as it was first said: what a screen reader hears of it (useFailureMessage › spoken) */
+  spokenError?: string | null;
   hint?: string | null;
   /** a check is running: the field stays focused, typing waits */
   busy?: boolean;
@@ -36,11 +38,11 @@ interface CodeFieldProps {
 }
 
 export function CodeField(props: CodeFieldProps) {
-  const { label, value, onChange, onComplete, error, hint, busy = false, disabled = false, autoFocus, ref, testID } = props;
+  const { label, value, onChange, onComplete, error, spokenError = null, hint, busy = false, disabled = false, autoFocus, ref, testID } = props;
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const [focused, setFocused] = useState(false);
-  useAnnounce(error);
+  useAnnounce(spokenError ?? error);
   const digits = [...value];
 
   const change = (raw: string) => {
@@ -80,7 +82,7 @@ export function CodeField(props: CodeFieldProps) {
           value={value}
           onChangeText={change}
           accessibilityLabel={label}
-          accessibilityHint={error ?? hint ?? undefined}
+          accessibilityHint={spokenError ?? error ?? hint ?? undefined}
           accessibilityState={{ busy, disabled }}
           editable={!disabled}
           autoFocus={autoFocus}
@@ -97,7 +99,7 @@ export function CodeField(props: CodeFieldProps) {
           style={[StyleSheet.absoluteFill, { opacity: 0.02, color: theme.foreground }]}
         />
       </View>
-      <FieldNote error={error} hint={hint} />
+      <FieldNote error={error} spoken={spokenError} hint={hint} />
     </View>
   );
 }

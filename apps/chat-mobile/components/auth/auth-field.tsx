@@ -10,6 +10,7 @@ import { useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, Pressable, TextInput, View, type TextInputProps } from "react-native";
 import { useAnnounce } from "@/components/ui/a11y";
+import { LiveRegion } from "@/components/ui/live-region";
 import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -21,6 +22,8 @@ import { cn } from "@/lib/utils";
 interface AuthFieldProps extends Omit<TextInputProps, "style" | "className"> {
   label: string;
   error?: string | null;
+  /** an error that counts down, as it was first said: what a screen reader hears of it (useFailureMessage › spoken) */
+  spokenError?: string | null;
   hint?: string | null;
   ref?: Ref<TextInput>;
   /** a control inside the field's end: the password's show/hide */
@@ -33,11 +36,11 @@ interface AuthFieldProps extends Omit<TextInputProps, "style" | "className"> {
 const waitForAnswer = () => undefined;
 
 export function AuthField(props: AuthFieldProps) {
-  const { label, error, hint, trailing, ref, editable = true, busy = false, onChangeText, onFocus, onBlur, ...input } = props;
+  const { label, error, spokenError = null, hint, trailing, ref, editable = true, busy = false, onChangeText, onFocus, onBlur, ...input } = props;
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const [focused, setFocused] = useState(false);
-  useAnnounce(error);
+  useAnnounce(spokenError ?? error);
   return (
     <View className="gap-1.5">
       <Text className="text-subhead font-semibold text-foreground" accessibilityElementsHidden importantForAccessibility="no">
@@ -53,7 +56,7 @@ export function AuthField(props: AuthFieldProps) {
         <TextInput
           ref={ref}
           accessibilityLabel={label}
-          accessibilityHint={error ?? hint ?? undefined}
+          accessibilityHint={spokenError ?? error ?? hint ?? undefined}
           accessibilityState={{ busy, disabled: !editable }}
           editable={editable}
           onChangeText={busy ? waitForAnswer : onChangeText}
@@ -72,19 +75,23 @@ export function AuthField(props: AuthFieldProps) {
         />
         {trailing}
       </View>
-      <FieldNote error={error} hint={hint} />
+      <FieldNote error={error} spoken={spokenError} hint={hint} />
     </View>
   );
 }
 
-/** Under a field: its error, with an icon and read out at once, or else its hint. */
-export function FieldNote({ error, hint }: { error?: string | null; hint?: string | null }) {
+/**
+ * Under a field: its error, with an icon and read out at once, or else its hint. An error that counts down is heard as
+ * `spoken`, once, while the countdown on screen is no live region (TalkBack would read it every second).
+ */
+export function FieldNote({ error, spoken = null, hint }: { error?: string | null; spoken?: string | null; hint?: string | null }) {
   const { colorScheme } = useColorScheme();
   if (error) {
     return (
-      <View accessibilityRole="alert" accessibilityLiveRegion="polite" className="flex-row items-start gap-1.5">
+      <View accessibilityRole="alert" accessibilityLiveRegion={spoken ? "none" : "polite"} className="flex-row items-start gap-1.5">
         <Ionicons name="alert-circle-outline" size={16} color={THEME[colorScheme].destructive} style={{ marginTop: 2 }} />
         <Text className="flex-1 text-subhead text-destructive">{error}</Text>
+        {spoken ? <LiveRegion line={spoken} /> : null}
       </View>
     );
   }

@@ -15,11 +15,13 @@ type Field = "name" | "email" | "password";
 interface Props {
   busy: string | null;
   message: string | null;
+  /** that line as a screen reader hears it while it counts down (useFailureMessage › spoken) */
+  spoken?: string | null;
   waiting?: boolean;
   onSubmit: (input: { displayName: string; email: string; password: string }) => Promise<SignInResult | null>;
 }
 
-export function RegisterForm({ busy, message, waiting = false, onSubmit }: Props) {
+export function RegisterForm({ busy, message, spoken = null, waiting = false, onSubmit }: Props) {
   const { t } = useTranslation();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -96,7 +98,7 @@ export function RegisterForm({ busy, message, waiting = false, onSubmit }: Props
         busy={!idle}
         testID="register-password"
       />
-      <FormAlert message={message} testID="register-failure" />
+      <FormAlert message={message} spoken={spoken} testID="register-failure" />
       <SubmitButton
         label={t("mobile.sign_in.register.submit")}
         busyLabel={t("auth.registering")}

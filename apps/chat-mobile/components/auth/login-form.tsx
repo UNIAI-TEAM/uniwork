@@ -19,12 +19,14 @@ interface Props {
   busy: string | null;
   /** the line that says what failed, from the screen's sign-in */
   message: string | null;
+  /** that line as a screen reader hears it while it counts down (useFailureMessage › spoken) */
+  spoken?: string | null;
   /** a lock is counting down: the form waits */
   waiting?: boolean;
   onSubmit: (email: string, password: string) => Promise<SignInResult | null>;
 }
 
-export function LoginForm({ busy, message, waiting = false, onSubmit }: Props) {
+export function LoginForm({ busy, message, spoken = null, waiting = false, onSubmit }: Props) {
   const { t } = useTranslation();
   const openWebPage = useOpenWebPage();
   const [email, setEmail] = useState("");
@@ -97,7 +99,7 @@ export function LoginForm({ busy, message, waiting = false, onSubmit }: Props) {
           />
         </View>
       </View>
-      <FormAlert message={message} testID="login-failure" />
+      <FormAlert message={message} spoken={spoken} testID="login-failure" />
       <SubmitButton
         label={t("auth.login")}
         busyLabel={t("auth.signingIn")}

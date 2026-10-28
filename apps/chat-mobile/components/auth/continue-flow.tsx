@@ -41,7 +41,7 @@ export function ContinueFlow() {
   const [nameError, setNameError] = useState<string | null>(null);
   const nameInput = useRef<TextInput>(null);
   const create = useSignIn("ticket");
-  const { message } = useFailureMessage(create.shown);
+  const { message, spoken } = useFailureMessage(create.shown);
   // The provider the screen opened for, to say whose sign-in ran out once the choice itself is gone.
   const [openedFor] = useState(choice?.identity.provider ?? null);
 
@@ -224,7 +224,7 @@ export function ContinueFlow() {
         </ChoiceRow>
         <SignInLegalNote />
       </View>
-      <FormAlert message={message} testID="continue-failure" />
+      <FormAlert message={message} spoken={spoken} testID="continue-failure" />
       {failure?.code === "sign_in_account_conflict" ? (
         <SubmitButton label={t("auth.continue.linkRequired.action")} variant="outline" onPress={toLogin} testID="continue-conflict" />
       ) : failure?.kind === "form" ? (

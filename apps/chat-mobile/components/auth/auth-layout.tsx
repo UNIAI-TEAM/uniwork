@@ -12,6 +12,7 @@ import { UniChatLogo } from "@/components/brand/unichat-logo";
 import { HeaderIconButton } from "@/components/chat/chat-header";
 import { useAnnounce } from "@/components/ui/a11y";
 import { Button } from "@/components/ui/button";
+import { LiveRegion } from "@/components/ui/live-region";
 import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -143,15 +144,25 @@ export function TextButton({
   );
 }
 
-/** The one line that says what failed (or why a step waits), with an icon: an alert, heard as soon as it shows. */
-export function FormAlert({ message, testID }: { message: string | null; testID?: string }) {
+/**
+ * The one line that says what failed (or why a step waits), with an icon: an alert, heard as soon as it shows. A line
+ * that counts down gives `spoken` (use-sign-in.ts › useFailureMessage): only that is heard, once, so a screen reader
+ * is not interrupted at every tick of the countdown on screen.
+ */
+export function FormAlert({ message, spoken = null, testID }: { message: string | null; spoken?: string | null; testID?: string }) {
   const { colorScheme } = useColorScheme();
-  useAnnounce(message);
+  useAnnounce(spoken ?? message);
   if (!message) return null;
   return (
-    <View accessibilityRole="alert" accessibilityLiveRegion="polite" className="flex-row items-start gap-2" testID={testID}>
+    <View
+      accessibilityRole="alert"
+      accessibilityLiveRegion={spoken ? "none" : "polite"}
+      className="flex-row items-start gap-2"
+      testID={testID}
+    >
       <Ionicons name="alert-circle-outline" size={18} color={THEME[colorScheme].destructive} style={{ marginTop: 1 }} />
       <Text className="flex-1 text-callout text-destructive">{message}</Text>
+      {spoken ? <LiveRegion line={spoken} testID={testID ? `${testID}-spoken` : undefined} /> : null}
     </View>
   );
 }

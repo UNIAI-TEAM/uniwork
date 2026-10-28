@@ -31,7 +31,7 @@ export default function Login() {
   const linking = isLinkMode(params.link) ? choice : null;
   const linkMode = linking !== null;
   const signIn = useSignIn("sign_in", { linkMode });
-  const { message, waiting } = useFailureMessage(signIn.shown);
+  const { message, spoken, waiting } = useFailureMessage(signIn.shown);
   const idle = signIn.busy === null;
 
   if (user) return <Redirect href={afterSignInHref({ linkMode, choiceHeld: choice !== null })} />;
@@ -65,6 +65,7 @@ export default function Login() {
       <LoginForm
         busy={signIn.busy}
         message={message}
+        spoken={spoken}
         waiting={waiting}
         onSubmit={(email, password) => signIn.run({ method: "password", email, password }, "password")}
       />

@@ -19,6 +19,8 @@ export interface ProofProps {
   busy: boolean;
   /** the refusal said under the field, or null */
   message: string | null;
+  /** that refusal as a screen reader hears it while it counts down (useFailureMessage › spoken) */
+  spoken: string | null;
   /** a lock counts down: nothing is taken until it lifts */
   waiting: boolean;
   /** counts the refusals: each one clears what was typed (a password or a code is never kept past one) */
@@ -35,7 +37,7 @@ function useClearedOnRefusal(refusals: number): [string, (next: string) => void]
   return [value, setValue];
 }
 
-export function PasswordProof({ busy, message, waiting, refusals, fieldRef, onSubmit, onForgot }: ProofProps & {
+export function PasswordProof({ busy, message, spoken, waiting, refusals, fieldRef, onSubmit, onForgot }: ProofProps & {
   onSubmit: (password: string) => void;
   onForgot: () => void;
 }) {
@@ -61,6 +63,7 @@ export function PasswordProof({ busy, message, waiting, refusals, fieldRef, onSu
           setRequired(false);
         }}
         error={message ?? (required ? t("settings.security.stepUp.password.required") : null)}
+        spokenError={spoken}
         busy={busy}
         editable={!waiting}
         autoFocus
@@ -77,7 +80,8 @@ export function PasswordProof({ busy, message, waiting, refusals, fieldRef, onSu
 }
 
 /** The authenticator's six digits, or one of the recovery codes: the second factor is the only proof while it is on. */
-export function SecondFactorProof({ busy, message, waiting, refusals, fieldRef, onSubmit }: ProofProps & { onSubmit: (code: string) => void }) {
+export function SecondFactorProof(props: ProofProps & { onSubmit: (code: string) => void }) {
+  const { busy, message, spoken, waiting, refusals, fieldRef, onSubmit } = props;
   const { t } = useTranslation();
   const [recovery, setRecovery] = useState(false);
   const [code, setCode] = useClearedOnRefusal(refusals);
@@ -104,6 +108,7 @@ export function SecondFactorProof({ busy, message, waiting, refusals, fieldRef, 
             setRequired(false);
           }}
           error={message ?? requiredLine}
+          spokenError={spoken}
           hint={t("mobile.sign_in.mfa.recovery_hint")}
           autoCapitalize="none"
           autoComplete="off"
@@ -128,6 +133,7 @@ export function SecondFactorProof({ busy, message, waiting, refusals, fieldRef, 
             if (!busy && !waiting) send(full);
           }}
           error={message ?? requiredLine}
+          spokenError={spoken}
           hint={t("mobile.sign_in.mfa.code_hint")}
           busy={busy}
           disabled={waiting}
@@ -159,6 +165,7 @@ const RESEND_GAP_MS = 60_000;
 export function EmailCodeProof({
   busy,
   message,
+  spoken,
   waiting,
   refusals,
   fieldRef,
@@ -207,7 +214,7 @@ export function EmailCodeProof({
         {relay ? (
           <Text className="text-footnote leading-[18px] text-muted-foreground">{t("settings.security.stepUp.emailCode.relayHint")}</Text>
         ) : null}
-        <FieldNote error={message} />
+        <FieldNote error={message} spoken={spoken} />
       </View>
     );
   }
@@ -225,6 +232,7 @@ export function EmailCodeProof({
           if (!busy && !waiting) onSubmit(full);
         }}
         error={message}
+        spokenError={spoken}
         busy={busy}
         disabled={waiting}
         autoFocus
@@ -249,7 +257,7 @@ export function EmailCodeProof({
 }
 
 /** Apple's (on the iPhone, its own system button) or Google's sheet, for the account linked here. */
-export function ProviderProof({ provider, busy, message, onProve }: Pick<ProofProps, "busy" | "message"> & {
+export function ProviderProof({ provider, busy, message, spoken, onProve }: Pick<ProofProps, "busy" | "message" | "spoken"> & {
   provider: SignInProvider;
   onProve: () => void;
 }) {
@@ -271,7 +279,7 @@ export function ProviderProof({ provider, busy, message, onProve }: Pick<ProofPr
         />
       )}
       <Text className="text-footnote leading-[18px] text-muted-foreground">{t("settings.security.stepUp.provider.hint", { provider: name })}</Text>
-      <FieldNote error={message} />
+      <FieldNote error={message} spoken={spoken} />
     </View>
   );
 }

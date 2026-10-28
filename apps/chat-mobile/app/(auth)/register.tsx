@@ -16,7 +16,7 @@ export default function Register() {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const signIn = useSignIn("register");
-  const { message, waiting } = useFailureMessage(signIn.shown);
+  const { message, spoken, waiting } = useFailureMessage(signIn.shown);
   if (user) return <Redirect href="/" />;
   const toLogin = () => (router.canGoBack() ? router.back() : router.replace(signInRoutes.login()));
   return (
@@ -26,6 +26,7 @@ export default function Register() {
       <RegisterForm
         busy={signIn.busy}
         message={message}
+        spoken={spoken}
         waiting={waiting}
         onSubmit={(input) => signIn.run({ method: "register", ...input }, "register")}
       />

@@ -27,7 +27,7 @@ export function SecondFactorStep({ linkMode }: { linkMode: boolean }) {
   const pending = usePendingSignIn((s) => s.secondFactor);
   const linkingProvider = usePendingSignIn((s) => (linkMode ? (s.choice?.identity.provider ?? null) : null));
   const signIn = useSignIn("second_factor", { linkMode });
-  const { message, waiting } = useFailureMessage(signIn.shown);
+  const { message, spoken, waiting } = useFailureMessage(signIn.shown);
   const [recovery, setRecovery] = useState(false);
   const [code, setCode] = useState("");
   const [required, setRequired] = useState(false);
@@ -90,6 +90,7 @@ export function SecondFactorStep({ linkMode }: { linkMode: boolean }) {
             setRequired(false);
           }}
           error={message ?? (required ? t("mobile.sign_in.mfa.recovery_required") : null)}
+          spokenError={spoken}
           hint={t("mobile.sign_in.mfa.recovery_hint")}
           autoCapitalize="none"
           autoComplete="off"
@@ -111,6 +112,7 @@ export function SecondFactorStep({ linkMode }: { linkMode: boolean }) {
             if (!busy && !waiting) void verify(full);
           }}
           error={message}
+          spokenError={spoken}
           hint={t("mobile.sign_in.mfa.code_hint")}
           busy={busy}
           disabled={waiting}

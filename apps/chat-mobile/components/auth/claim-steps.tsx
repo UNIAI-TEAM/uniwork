@@ -50,7 +50,7 @@ interface EmailStepProps {
 export function ClaimEmailStep({ email, onChangeEmail, onSent, onRestart }: EmailStepProps) {
   const { t } = useTranslation();
   const claim = useClaimCode();
-  const { message, waiting } = useFailureMessage(claim.shown);
+  const { message, spoken, waiting } = useFailureMessage(claim.shown);
   const [invalid, setInvalid] = useState<string | null>(null);
   const input = useRef<TextInput>(null);
 
@@ -81,6 +81,7 @@ export function ClaimEmailStep({ email, onChangeEmail, onSent, onRestart }: Emai
           claim.clear();
         }}
         error={invalid ?? message}
+        spokenError={invalid ? null : spoken}
         placeholder={t("auth.continue.claim.emailPlaceholder")}
         keyboardType="email-address"
         textContentType="emailAddress"
@@ -157,6 +158,7 @@ export function ClaimCodeStep({ email, resendAtMs, onResent, onChangeEmail, onRe
         onChange={setCode}
         onComplete={(full) => void verify(full)}
         error={verifying.message ?? resending.message}
+        spokenError={verifying.message ? verifying.spoken : resending.spoken}
         busy={busy}
         disabled={verifying.waiting}
         autoFocus
