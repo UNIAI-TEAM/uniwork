@@ -3,7 +3,7 @@ import { useId, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useVerifyMfa } from "@uniwork/core/auth";
-import { sentenceValues } from "@uniwork/core/auth/sign-in-errors";
+import { sentenceValues, type RetryPhrase } from "@uniwork/core/auth/sign-in-errors";
 import type { SessionResponse } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
@@ -40,7 +40,7 @@ export function MFAStep({
   const failure = useFailure(verify.error, "second_factor");
   const wait = failure?.kind === "wait" ? failure : null;
   const phrase = useWaitPhrase(wait, verify.reset);
-  const say = (p: { key: string; count?: number }) => t(p.key, p.count === undefined ? {} : { count: p.count });
+  const say = (p: RetryPhrase | null) => (p ? t(p.key, p.count === undefined ? {} : { count: p.count }) : "");
 
   // The ticking number is hidden from the alert, which says the wait it
   // started with once; otherwise every second of it would be read out.
