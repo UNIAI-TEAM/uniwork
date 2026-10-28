@@ -10,6 +10,7 @@ import AppLayout from "@/app/(app)/_layout";
 import AccountSettings from "@/app/(app)/account";
 import LicensesScreen from "@/app/(app)/licenses";
 import SelectWorkspace from "@/app/(app)/select-workspace";
+import Invitation from "@/app/(app)/invite/[token]";
 import AuthLayout from "@/app/(auth)/_layout";
 import Login from "@/app/(auth)/login";
 import Index from "@/app/index";
@@ -20,6 +21,7 @@ import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
 import { invitationsApi } from "@/data/invitations/api";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
+import { setPendingLink, takePendingLink } from "@/lib/deep-link";
 import { SchemaMismatchError } from "@/lib/schema-mismatch";
 import { DISPLAY_MAX_FONT_SCALE } from "@/lib/type-scale";
 import { renderRoutes, type RenderedRoutes } from "@/test/route-render";
@@ -63,6 +65,7 @@ const ROUTES = {
   "(app)/select-workspace": SelectWorkspace,
   "(app)/account": AccountSettings,
   "(app)/licenses": LicensesScreen,
+  "(app)/invite/[token]": Invitation,
   "(app)/[org]/[ws]/chat": ChatStandIn,
 };
 
@@ -285,6 +288,30 @@ describe("the entry gate", () => {
     expect(await screen.findByTestId("chat-tab")).toBeTruthy();
     expect(accept).toHaveBeenCalledWith("t1");
     expect(routes.pathname()).toBe("/acme/main/chat");
+  });
+
+  // Spec §5.2: a /invite/{token} link waits through sign-in (app/_layout.tsx keeps it) and opens its preview, which
+  // joins nothing by itself.
+  it("opens an invitation link kept through sign-in on its preview, joining nothing", async () => {
+    jest.spyOn(invitationsApi, "preview").mockResolvedValue({
+      invitation: { id: "i1", status: "pending", expires_at: "2099-01-01T00:00:00Z", organization: { id: "o2", slug: "beta", name: "Beta" }, workspaces: [], org_role: "member" },
+      conflicts: [],
+    });
+    const accept = jest.spyOn(invitationsApi, "accept");
+    useAuthStore.setState({ user: null, isLoading: false });
+    const out = await renderRoutes(ROUTES, "/invite/t1");
+    expect(await screen.findByTestId("login-screen")).toBeTruthy();
+    expect(out.pathname()).toBe("/login");
+    await cleanup();
+
+    setPendingLink("/invite/t1");
+    useAuthStore.setState({ user: user as never, isLoading: false });
+    const routes = await renderRoutes(ROUTES, "/");
+    expect(await screen.findByTestId("invitation-preview")).toBeTruthy();
+    expect(routes.pathname()).toBe("/invite/t1");
+    expect(invitationsApi.preview).toHaveBeenCalledWith("t1", expect.anything());
+    expect(accept).not.toHaveBeenCalled();
+    expect(takePendingLink()).toBeNull();
   });
 
   it("signs out from the account's own Settings", async () => {

@@ -20,7 +20,7 @@ import { useAuthStore } from "@/data/auth/store";
 import { runChatNotificationAction } from "@/data/chat-notification-actions";
 import { queryClient } from "@/data/query-client";
 import { useWorkspaceStore } from "@/data/stores/workspace-store";
-import { takePendingDeepLink } from "@/lib/deep-link";
+import { takePendingLink } from "@/lib/deep-link";
 import { i18n } from "@/lib/i18n/singleton";
 import { renderRoutes } from "@/test/route-render";
 import { render } from "@/test/render";
@@ -122,7 +122,7 @@ afterEach(async () => {
   await cleanup();
   // The app's own client (the root layout provides it): its ten-minute collection timers would hold Jest open.
   queryClient.clear();
-  takePendingDeepLink();
+  takePendingLink();
   useAuthStore.setState({ ...storeCommands, user: null, isLoading: true });
   useWorkspaceStore.setState({ current: null });
   jest.useRealTimers();
@@ -153,9 +153,9 @@ describe("the root layout", () => {
     await renderRoutes(ROUTES, "/");
     await screen.findByTestId("login");
     await act(async () => tap(notificationFor("https://evil.example/x")));
-    expect(takePendingDeepLink()).toBeNull();
+    expect(takePendingLink()).toBeNull();
     await act(async () => tap(notificationFor(`${APP_URL}/acme/hq/chat?room=r1`)));
-    expect(takePendingDeepLink()).toMatchObject({ orgSlug: "acme", wsSlug: "hq", roomId: "r1" });
+    expect(takePendingLink()).toBe("/acme/hq/chat?room=r1");
   });
 
   it("keeps the room of a call answered on CallKit's screen for after sign-in, as a notification tap's", async () => {
@@ -163,7 +163,7 @@ describe("the root layout", () => {
     await renderRoutes(ROUTES, "/");
     await screen.findByTestId("login");
     await act(async () => started.open?.(`${authConfig.scheme}://open?url=${encodeURIComponent("/acme/hq/chat?room=r1&call=c1")}`));
-    expect(takePendingDeepLink()).toMatchObject({ orgSlug: "acme", wsSlug: "hq", roomId: "r1", callId: "c1" });
+    expect(takePendingLink()).toBe("/acme/hq/chat?room=r1&call=c1");
   });
 
   it("opens the room a notification tap names for a signed-in person", async () => {
