@@ -59,7 +59,11 @@ export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, ill
     const handleKey = (event: KeyboardEvent) => {
       if (!shell.current?.contains(event.target as Node)) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); search.current?.focus(); }
-      if (event.key === "Escape") { setMenuOpen(false); setSearchOpen(false); shell.current.querySelector<HTMLButtonElement>('[data-action="toggle-demo-menu"]')?.focus(); }
+      if (event.key === "Escape") {
+        // Escape inside the search closes only its results and leaves focus on the input, so the phone field stays expanded and focus never jumps on its own.
+        if ((event.target as Element).closest(".product-demo-search")) { setSearchOpen(false); search.current?.focus(); return; }
+        setMenuOpen(false); setSearchOpen(false); shell.current.querySelector<HTMLButtonElement>('[data-action="toggle-demo-menu"]')?.focus();
+      }
       if (menuOpen && event.key === "Tab") {
         const buttons = Array.from(shell.current.querySelectorAll<HTMLButtonElement>('.product-demo-sidebar button:not([tabindex="-1"])'));
         const first = buttons[0], last = buttons.at(-1);
@@ -112,7 +116,7 @@ export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, ill
           <Button variant="ghost" size="icon" data-action="toggle-demo-menu" aria-label={t("landing.workspace.appNavigation")} aria-expanded={menuOpen} onClick={() => setMenuOpen(value => !value)}><PanelLeft aria-hidden /></Button>
           <Button variant="ghost" size="icon" data-action="toggle-demo-sidebar" aria-label={t("landing.lovable.collapse")} aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}><PanelLeft aria-hidden /></Button>
           <div className="product-demo-search" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false); }}>
-            <Search aria-hidden /><Input ref={search} type="search" value={query} aria-label={t("landing.productDemo.search")} placeholder={t("landing.productDemo.search")} onFocus={() => setSearchOpen(true)} onChange={event => { setQuery(event.target.value); setSearchOpen(true); }} onKeyDown={event => {
+            <Search aria-hidden /><Input ref={search} type="search" value={query} aria-label={t("landing.productDemo.search")} placeholder={t("landing.productDemo.search")} onFocus={event => { if (!(event.relatedTarget as Element | null)?.closest(".product-demo-search-results")) setSearchOpen(true); }} onChange={event => { setQuery(event.target.value); setSearchOpen(true); }} onKeyDown={event => {
               if (event.key === "Enter" && matches[0]) { event.preventDefault(); select(matches[0]); search.current?.blur(); }
               if (event.key === "ArrowDown") { event.preventDefault(); shell.current?.querySelector<HTMLButtonElement>(".product-demo-search-results button")?.focus(); }
             }} /><kbd>Ctrl+K</kbd>
