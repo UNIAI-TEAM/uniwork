@@ -10708,7 +10708,6 @@
       "emptyTitle": "No plans are published yet.",
       "unavailableDescription": "Try loading again, or contact UniWork to confirm the available plans and prices.",
       "status": "After sign-up, the organization owner reviews and confirms plan changes in Billing.",
-      "usageNote": "Meeting participant minutes count each attendee. Transcription minutes have a separate limit. Features also depend on your organization’s service configuration.",
       "deploymentTitle": "Have deployment questions?",
       "deploymentDescription": "Tell us about your team size, workflows and setup so we can discuss the available options.",
       "labels": {
