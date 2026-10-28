@@ -2,7 +2,7 @@ import { act, fireEvent, screen } from "@testing-library/react-native";
 import { AccessibilityInfo, Platform } from "react-native";
 import { render, viText } from "@/test/render";
 import { AuthField, FieldNote, PasswordField } from "./auth-field";
-import { FormAlert } from "./auth-layout";
+import { FormAlert, NoticeCard } from "./auth-layout";
 import { CodeField } from "./code-field";
 
 describe("AuthField", () => {
@@ -116,6 +116,23 @@ describe("a line that counts down", () => {
       expect(screen.getByTestId("alert-spoken")).toHaveTextContent("");
       await rerender(<FormAlert message="Sai mật khẩu." testID="alert" />);
       expect(screen.getByTestId("alert-spoken")).toHaveTextContent("Sai mật khẩu.");
+    } finally {
+      os.restore();
+    }
+  });
+
+  it("needs no test id, under a form or above it", async () => {
+    const os = jest.replaceProperty(Platform, "OS", "android");
+    try {
+      await render(
+        <>
+          <FormAlert message="Sai mật khẩu." />
+          <NoticeCard message="Đăng nhập để liên kết Google." />
+        </>,
+      );
+      // Drawn once, and held once more in the hidden region TalkBack reads.
+      expect(screen.getAllByText("Sai mật khẩu.")).toHaveLength(2);
+      expect(screen.getByLabelText("Đăng nhập để liên kết Google.")).toBeTruthy();
     } finally {
       os.restore();
     }

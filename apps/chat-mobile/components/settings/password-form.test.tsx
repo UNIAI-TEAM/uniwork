@@ -6,7 +6,8 @@ import type { SignInMethods } from "@uniwork/core/api/endpoints/sign-in-schemas"
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
 import * as Clipboard from "expo-clipboard";
 import { router, useNavigation } from "expo-router";
-import { AccessibilityInfo } from "react-native";
+import * as Haptics from "expo-haptics";
+import { AccessibilityInfo, BackHandler } from "react-native";
 import { api } from "@/data/api";
 import { signInMethodsApi, stepUp } from "@/data/auth/methods-api";
 import { forgetStepUp, holdStepUp } from "@/data/auth/step-up-store";
@@ -98,6 +99,57 @@ describe("PasswordForm", () => {
     await settle();
     expect(router.back).toHaveBeenCalledTimes(1);
     expect(useNavigation().setOptions).toHaveBeenLastCalledWith({ gestureEnabled: true });
+  });
+
+  it("goes back to the start screen when it was opened on its own", async () => {
+    jest.mocked(router.canGoBack).mockReturnValueOnce(false);
+    await render(<PasswordForm />);
+    await screen.findByTestId("password-current");
+    await fireEvent.press(screen.getByRole("button", { name: viText("common.back") }));
+    expect(router.replace).toHaveBeenCalledWith("/");
+    expect(router.back).not.toHaveBeenCalled();
+  });
+
+  it("moves no one when the screen is gone by the time the save ends", async () => {
+    const answer = answerLater();
+    const { unmount } = await render(<PasswordForm />);
+    await screen.findByTestId("password-current");
+    await fillChange();
+    await fireEvent.press(screen.getByTestId("password-save"));
+    await unmount();
+    await answer();
+    expect(toast.success).toHaveBeenCalledWith(viText("settings.security.signInMethods.password.toastChanged"));
+    expect(router.back).not.toHaveBeenCalled();
+  });
+
+  it("takes Android's back while the save runs, and does nothing with it", async () => {
+    const answer = answerLater();
+    const listen = jest.spyOn(BackHandler, "addEventListener");
+    await render(<PasswordForm />);
+    await screen.findByTestId("password-current");
+    await fillChange();
+    await fireEvent.press(screen.getByTestId("password-save"));
+    const hardwareBack = listen.mock.calls.at(-1)?.[1] as unknown as () => boolean;
+    expect(hardwareBack()).toBe(true);
+    expect(router.back).not.toHaveBeenCalled();
+    await answer();
+    await settle();
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a refusal for when the screen is in front again, without the error's feel elsewhere", async () => {
+    let refuse: () => void = () => undefined;
+    methodsApi.setPassword.mockImplementationOnce(() => new Promise((_, reject) => (refuse = () => reject(refusal("password_incorrect", 403)))));
+    await render(<PasswordForm />);
+    await screen.findByTestId("password-current");
+    await fillChange();
+    await fireEvent.press(screen.getByTestId("password-save"));
+    jest.mocked(useNavigation().isFocused).mockReturnValueOnce(false);
+    await act(async () => refuse());
+    await settle();
+    expect(screen.getByText(viText("settings.security.signInMethods.password.currentIncorrect"))).toBeOnTheScreen();
+    expect(Haptics.notificationAsync).not.toHaveBeenCalled();
+    expect(Haptics.performAndroidHapticsAsync).not.toHaveBeenCalled();
   });
 
   it("says a save that ends once another screen is in front, and moves no one", async () => {

@@ -156,15 +156,7 @@ export function RefusalNote({
  * The account still belongs to another organization: what joining means, and the web, where the switch is made.
  * `focus`: it replaced the "Tham gia" just pressed, so the reader moves to its words.
  */
-export function SwitchOnWeb({
-  organization,
-  focus = false,
-  onContinueOnWeb,
-}: {
-  organization: string;
-  focus?: boolean;
-  onContinueOnWeb: () => void;
-}) {
+export function SwitchOnWeb({ organization, focus, onContinueOnWeb }: { organization: string; focus: boolean; onContinueOnWeb: () => void }) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const wordsRef = useReaderFocus(focus);
