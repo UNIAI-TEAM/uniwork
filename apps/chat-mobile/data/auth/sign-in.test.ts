@@ -387,7 +387,13 @@ describe("the browser", () => {
     holdStep({ kind: "mfa", token: "mfa_1", context: { method: "password", email: null, provider: null } }, NOW);
     expect(await runSignIn({ method: "browser", provider: "apple" })).toEqual({ kind: "signed_in", reclaimed: false, linkSkipped: null });
     expect(ctx.transport.start.mock.calls[0]?.[0]).toMatchObject({ provider: "apple" });
+    expect(ctx.transport.start.mock.calls[0]?.[0]).not.toHaveProperty("intent");
     expect(usePendingSignIn.getState().secondFactor).toBeNull();
+  });
+
+  it("hands the register screen's intent on with its provider, so the web signs up without the choice screen", async () => {
+    await runSignIn({ method: "browser", provider: "apple", intent: "sign_up" });
+    expect(ctx.transport.start.mock.calls[0]?.[0]).toMatchObject({ provider: "apple", intent: "sign_up" });
   });
 
   it("asks for no provider unless one was tapped, and reads a closed browser as nothing", async () => {

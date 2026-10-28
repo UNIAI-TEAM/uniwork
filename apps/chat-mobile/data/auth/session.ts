@@ -10,6 +10,7 @@
 // dims every other way in while one runs, so no tap re-opens a page or swaps
 // the provider mid-start, and each tap after the browser closed begins a new
 // attempt whose state the tab left behind can no longer match.
+import type { NativeSignInIntent } from "@uniwork/core/api/endpoints/sign-in-native-api";
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { createLogger } from "../logger";
 import { currentSessionEpoch, invalidateSessionEpoch, sessionEpochChanged } from "../session-epoch";
@@ -127,9 +128,10 @@ export class MobileSession {
    * exchange. A tap while one is running (browser open or exchange on the
    * wire) is a no-op. Rejects when start or the browser fails. `provider`: the
    * button tapped (Apple on Android, Google without the native sheet), which
-   * the web sign-in page goes straight to (spec §3.5).
+   * the web sign-in page goes straight to (spec §3.5); `intent` sign_up when
+   * that button is the register screen's.
    */
-  async login(options: { provider?: SignInProvider } = {}): Promise<void> {
+  async login(options: { provider?: SignInProvider; intent?: NativeSignInIntent } = {}): Promise<void> {
     if (this.state === "signing-in" || this.state === "signed-in" || this.state === "refreshing") return;
     // a live but unreachable session is recovered, never shadowed by a second attempt
     if (this.live) {
@@ -156,6 +158,7 @@ export class MobileSession {
         deviceLabel: config.deviceLabel,
         platform: config.platform,
         ...(options.provider ? { provider: options.provider } : {}),
+        ...(options.provider && options.intent === "sign_up" ? { intent: options.intent } : {}),
       }));
     } catch (error) {
       if (!sessionEpochChanged(epoch)) this.cancelLogin(codeOf(error));

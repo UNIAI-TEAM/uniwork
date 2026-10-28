@@ -46,11 +46,11 @@ export function providerOrder(os: string): readonly SignInProvider[] {
 /**
  * The sign-in a provider's button starts: its sheet where this phone opens one, else the browser with the provider
  * hint (spec §3.5); null when it is not offered. `intent` "sign_up" is the register screen's: no choice screen, an
- * account at once. The browser's page asks itself.
+ * account at once, through the browser too (the web starts the provider to sign up).
  */
 export function providerRequest(provider: SignInProvider, offer: SignInOffer | undefined, intent?: NativeSignInIntent): SignInRequest | null {
   const way = offer?.[provider];
-  if (way === "browser") return { method: "browser", provider };
+  if (way === "browser") return intent ? { method: "browser", provider, intent } : { method: "browser", provider };
   if (way !== "native") return null;
   return intent ? { method: provider, intent } : { method: provider };
 }

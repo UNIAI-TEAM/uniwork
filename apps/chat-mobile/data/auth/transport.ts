@@ -72,6 +72,8 @@ interface StartRequest {
   platform?: string;
   /** the provider button the person tapped (spec §3.5): the web sign-in page goes straight to it */
   provider?: SignInProvider;
+  /** sign_up: that button is the register screen's, so the web starts the provider to sign up */
+  intent?: "sign_up";
 }
 
 export interface Transport {
@@ -247,6 +249,7 @@ export function createTransport(config: { deploymentId: string }, options: { fet
       if (input.deviceLabel) query.set("device_label", input.deviceLabel);
       if (input.platform) query.set("platform", input.platform);
       if (input.provider) query.set("provider", input.provider);
+      if (input.provider && input.intent) query.set("intent", input.intent);
       const raw = await request("GET", "/auth/desktop/start", { query });
       if (!isRecord(raw)) throw new TransportError("malformed_response");
       let parsed: URL;

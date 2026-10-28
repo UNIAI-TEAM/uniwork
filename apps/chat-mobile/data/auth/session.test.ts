@@ -45,6 +45,15 @@ describe("sign-in", () => {
     expect(ctx.session.status()).toBe("signed-in");
   });
 
+  it("passes the register screen's sign_up with the provider, and nothing of it without one", async () => {
+    const ctx = setup(vi);
+    await ctx.session.login({ provider: "google", intent: "sign_up" });
+    expect(ctx.transport.start.mock.calls[0]?.[0]).toMatchObject({ provider: "google", intent: "sign_up" });
+    const other = setup(vi);
+    await other.session.login({ provider: "google", intent: "sign_in" });
+    expect(other.transport.start.mock.calls[0]?.[0]).not.toHaveProperty("intent");
+  });
+
   it("starts PKCE, opens the system auth session, exchanges the code and publishes the access token", async () => {
     const ctx = setup(vi);
     await ctx.session.login();

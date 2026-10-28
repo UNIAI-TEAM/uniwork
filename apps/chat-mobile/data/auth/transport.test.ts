@@ -78,6 +78,11 @@ describe("mobile auth transport", () => {
     const query = (call: number) => new URL((fetch.mock.calls[call] as [string, RequestInit])[0]).searchParams;
     expect(query(0).get("provider")).toBe("google");
     expect(query(1).has("provider")).toBe(false);
+    // The register screen's intent rides with its provider only.
+    await transport.start({ ...start, provider: "apple", intent: "sign_up" });
+    await transport.start({ ...start, intent: "sign_up" });
+    expect(query(2).get("intent")).toBe("sign_up");
+    expect(query(3).has("intent")).toBe(false);
   });
 
   it("follows the app's own origin: a dev phone signs in on the LAN web server over http", async () => {

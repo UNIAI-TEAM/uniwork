@@ -27,8 +27,11 @@ import { TransportError } from "./transport";
 import { forgetVerificationMail, noteVerificationMailed } from "./verification-mail";
 
 export type SignInRequest =
-  /** PKCE in the system browser; `provider` sends the web sign-in page straight to it (spec §3.5) */
-  | { method: "browser"; provider?: SignInProvider }
+  /**
+   * PKCE in the system browser; `provider` sends the web sign-in page straight to it (spec §3.5), and `sign_up` (the
+   * register screen's button) has it start the provider to sign up, as the web's own register page does
+   */
+  | { method: "browser"; provider?: SignInProvider; intent?: NativeSignInIntent }
   /**
    * Apple's sheet; `sign_up` from the register screen opens an account at once instead of the choice screen.
    * `linking`: "Tôi đã có tài khoản", a choice already waits to be linked into the account this signs in to.
@@ -157,7 +160,7 @@ function spendsTicket(request: DoorRequest): boolean {
 /** One sign-in. Rejects with the door's verdict (a TransportError), or with what a sheet threw. */
 export async function runSignIn(request: SignInRequest): Promise<SignInOutcome> {
   if (request.method === "browser") {
-    await session.login(request.provider ? { provider: request.provider } : {});
+    await session.login(request.provider ? { provider: request.provider, intent: request.intent } : {});
     if (session.status() !== "signed-in") return DISMISSED;
     clearSecondFactor();
     forgetChoiceMark();

@@ -53,7 +53,9 @@ describe("the provider buttons", () => {
     const mixed = { apple: "browser", google: "native" } as const;
     expect(providerRequest("google", mixed)).toEqual({ method: "google" });
     expect(providerRequest("google", mixed, "sign_up")).toEqual({ method: "google", intent: "sign_up" });
-    expect(providerRequest("apple", mixed, "sign_up")).toEqual({ method: "browser", provider: "apple" });
+    // The register screen's button keeps its intent through the browser: the web starts the provider to sign up.
+    expect(providerRequest("apple", mixed, "sign_up")).toEqual({ method: "browser", provider: "apple", intent: "sign_up" });
+    expect(providerRequest("apple", mixed)).toEqual({ method: "browser", provider: "apple" });
     expect(providerRequest("apple", { apple: null, google: null })).toBeNull();
     expect(providerRequest("apple", undefined)).toBeNull();
   });
