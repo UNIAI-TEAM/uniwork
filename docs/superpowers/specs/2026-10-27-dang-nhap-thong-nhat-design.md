@@ -677,9 +677,9 @@ Trạng thái và lời:
   như đã xong. `sign_in_method_movable` → "{{provider}} này đang dùng cho tài khoản trống {{masked}}. Chuyển sang tài
   khoản này?" + "Chuyển" (gửi `move: true`). `taken` → nêu email đã che và "Đăng nhập vào đó để gỡ liên kết". Mọi lỗi
   vẫn có "Tiếp tục". Chưa đăng nhập mà vé còn → `/login?link=1&next=<bước này>`; không còn vé → "Đã xong" + "Không còn
-  gì để liên kết. Tiếp tục vào UniWork." `proof_required` → hộp bằng chứng cho `link_<provider>` (4.5) rồi gửi lại;
-  trước khi hộp ấy có ở bước này: "Để liên kết, đăng nhập lại một lần để xác nhận là bạn." + "Đăng nhập để liên kết"
-  (phiên mới hơn vé thì liên kết được).
+  gì để liên kết. Tiếp tục vào UniWork." `proof_required` → hộp bằng chứng cho `link_<provider>` (4.5) trên các cách
+  `fields.proofs` nêu, rồi gửi lại một lần; đóng hộp thì câu hỏi giữ nguyên, bấm "Liên kết" là hỏi lại. Phiên đã kết
+  thúc (`invalid_token`) → "Đăng nhập để liên kết" (phiên mới hơn vé thì liên kết được).
 
 ### 4.4 Chế độ liên kết trên `/login`
 
@@ -695,36 +695,50 @@ xoá vé.
 ### 4.5 Cài đặt › Phương thức đăng nhập
 
 `packages/views/settings/components/security-sign-in-methods.tsx`, section đầu của `SecurityTab` (cả `SettingsPage` và
-`ChatSettingsPage`). ⚑ Trang `/settings` (slug đã giữ chỗ) cho mọi người: có workspace → chuyển tới
-`/{org}/{ws}/settings` giữ `tab`; chưa có → trang bảo mật cấp tài khoản (`PageHeader` + `SecurityTab`), có builder
-`paths.securitySettings()`.
+`ChatSettingsPage`). ⚑ Trang `/settings` (slug đã giữ chỗ, có trong `GLOBAL_PREFIXES`) cho mọi người: có workspace
+(`homeWorkspace`: workspace vào gần nhất, không thì cái đầu) → chuyển tới `/{org}/{ws}/settings` giữ nguyên query (`tab`,
+`expect_user`, kết quả liên kết); chưa có, hay còn cổng → trang cấp tài khoản (`PageHeader` "Cài đặt tài khoản" + nút
+quay lại `/workspaces` + `SecurityTab`); chưa đăng nhập → `/login?next=` trang này. Builder `paths.accountSettings()`
+và `paths.securitySettings({expectUser})`.
 
 Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập UniWork trên web, máy tính và điện thoại." Ba hàng
 (`SettingsListItem`, ô 32 px):
 
 | Hàng | Meta | Huy hiệu | Hành động |
 |---|---|---|---|
-| Mật khẩu (`KeyRound`) | "Đổi lần cuối ngày {{date}}" / "Đã đặt" / "Đặt mật khẩu để đăng nhập bằng email" | Đã đặt / Chưa đặt | Đổi mật khẩu / Đặt mật khẩu |
+| Mật khẩu (`KeyRound`) | email đăng nhập · "Đổi lần cuối ngày {{date}}" / "Đặt mật khẩu để đăng nhập bằng email" | Đã đặt / Chưa đặt | Đổi mật khẩu / Đặt mật khẩu |
 | Google (`GoogleMark`) | email · "Đã liên kết ngày {{date}}" / "Đã liên kết" | Đã liên kết | Gỡ liên kết / Liên kết |
 | Apple (`AppleMark`) | email hay "Email ẩn của Apple" · ngày | Đã liên kết | Gỡ liên kết / Liên kết |
 
-- Nhà cung cấp chưa liên kết mà deployment không bật thì ẩn hàng.
+- Nhà cung cấp chưa liên kết mà deployment không bật thì ẩn hàng (`webSignInProviders`: `google`, `apple_web`). Đang
+  tải: skeleton đúng hình hàng; đọc lỗi: `SettingsLoadError` + "Thử lại", không bao giờ hiện "Chưa đặt" thay cho lỗi.
 - Gỡ phương thức cuối: `aria-disabled` + `SettingsRowReason` "Đây là cách đăng nhập duy nhất. Đặt mật khẩu hoặc liên kết
   cách khác trước." Gỡ Apple của tài khoản relay: "Email tài khoản của bạn là email ẩn của Apple, nên không gỡ liên kết Apple được."
 - **Hộp bằng chứng** (`step-up-proof.tsx`, dùng chung cho mọi lệnh nhạy cảm, kể cả bật MFA, xoá tài khoản, chuyển
   quyền): theo `proofs` — ô mật khẩu (kèm "Quên mật khẩu?"), ô "Mã từ ứng dụng xác thực", hay "Gửi mã tới {{email}}" +
   ô mã; có "Dùng cách khác" khi có hơn một cách. Gọi `/me/step-up` trước, giữ `step_up_token` trong bộ nhớ 10 phút
   (lệnh tiếp theo trong cửa sổ đó không hỏi lại; token mua bằng mã email chỉ dùng cho đúng việc đó, nên dòng gợi ý theo
-  cách xác nhận: `stepUpWindowHintKey`). Lỗi dưới ô, focus trả về ô.
+  cách xác nhận: `stepUpWindowHintKey`). Lỗi dưới ô, focus trả về ô. Mã email: trước khi gửi, nút "Gửi mã tới {{email}}"
+  là hành động duy nhất của hộp (chân hộp chỉ còn "Hủy"); gửi rồi thì "Đã gửi mã tới…", ô mã và "Gửi lại sau {{count}}
+  giây". Lệnh gọi qua `useStepUpGate().run({action, command})`: có token phục vụ thì chạy luôn, không thì mở hộp; bị
+  `proof_required` thì mở lại hộp trên `fields.proofs` và chạy lại một lần. Lệnh tự mang bằng chứng (đổi mật khẩu bằng
+  mật khẩu hiện tại, xác nhận chuyển từ đúng phiên đã liên kết) dùng `upfront: false`: chỉ hỏi khi server đòi. Hộp mở
+  từ trong một hộp khác thì nằm lồng trong hộp đó.
 - **Đặt/Đổi mật khẩu** (`FormDialog` md): đổi = mật khẩu hiện tại + mới, ghi chú "Các thiết bị khác sẽ đăng xuất."; đặt
-  = bằng chứng + mới + "Bạn sẽ đăng nhập bằng {{email}}" (relay có nút sao chép). Thành công: ghi user, toast.
+  = bằng chứng + mới + "Bạn sẽ đăng nhập bằng {{email}}" (relay có nút sao chép). Bằng chứng của "đặt" hỏi khi bấm
+  "Lưu mật khẩu" (hộp lồng). Tài khoản bật MFA, hay đang giữ token, thì "đổi" không hỏi mật khẩu hiện tại (server
+  không nhận nó làm bằng chứng khi bật MFA). Thành công: ghi user, toast.
 - **Liên kết** (web): bằng chứng → `POST …/link` → `window.location.assign(authorization_url)`. Quay lại với
   `?sign_in_method=&result=`: toast theo kết quả (`movable` mở hộp xác nhận chuyển), xoá tham số khỏi URL.
-- **Gỡ liên kết**: `ConfirmDialog` destructive (ô `Unlink`), nói còn lại cách nào và "Các thiết bị khác sẽ đăng xuất."
+- **Gỡ liên kết**: bằng chứng trước, rồi `ConfirmDialog` destructive (ô `Unlink`), nói còn lại cách nào và "Các thiết bị
+  khác sẽ đăng xuất."
+- **Chuyển** (`result=movable`): `ConfirmDialog` (ô `ArrowRightLeft`, tông cảnh báo) "Chuyển sang đây" / "Không chuyển";
+  "Không chuyển" xoá vé. Chính phiên đã bắt đầu liên kết xác nhận được mà không hỏi bằng chứng lần hai (3.7).
 - **Shell UniChat desktop** (`getDesktopBridge()` có): "Liên kết trên web" (biểu tượng mở ngoài) mở
   `${appUrl}/settings?tab=security&expect_user=<id>` bằng `bridge.openExternal`; trang web thấy trình duyệt đăng nhập
-  người khác thì cảnh báo "Trình duyệt đang đăng nhập {{other}}, còn UniChat dùng {{me}}." Danh sách tải lại khi cửa sổ có
-  focus. Đổi mật khẩu và gỡ chạy tại chỗ.
+  người khác thì cảnh báo "Trình duyệt đang đăng nhập {{other}}, không phải tài khoản bạn dùng trong UniChat." + "Đăng
+  xuất" (về `/login?next=` trang này). Trang web chỉ biết id của tài khoản UniChat, không biết email, nên câu không nêu
+  `{{me}}`. Danh sách tải lại khi cửa sổ có focus (`bridge.onFocusChange`). Đổi mật khẩu và gỡ chạy tại chỗ.
 - Bỏ (không chỉ sửa lời) ngõ cụt `org.transfer.reason_no_password`, `org.transfer.no_password`,
   `invitations.switch.no_password_reason`: chuyển quyền và chuyển tổ chức dùng hộp bằng chứng. Xoá tài khoản dùng hộp
   bằng chứng. `auth.forgot.googleHint` nói cả Apple và mail "đặt mật khẩu" mới.
