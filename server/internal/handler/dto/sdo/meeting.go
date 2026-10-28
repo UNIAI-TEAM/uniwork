@@ -296,6 +296,8 @@ type MeetingSummaryDTO struct {
 	// Topics and OpenQuestions are meeting_summary@7's; empty before it.
 	Topics        []MeetingSummaryTopicDTO    `json:"topics" description:"Các chủ đề theo thứ tự được bàn (meeting_summary@7); rỗng với bản tóm tắt cũ"`
 	OpenQuestions []MeetingSummaryDecisionDTO `json:"open_questions" description:"Câu hỏi còn bỏ ngỏ, mỗi câu kèm căn cứ (meeting_summary@7)"`
+	// SummaryPoints are meeting_summary@8's; Summary is them joined.
+	SummaryPoints []MeetingSummaryDecisionDTO `json:"summary_points" description:"Đoạn tóm tắt tách thành 2–6 câu, mỗi câu kèm căn cứ (meeting_summary@8); summary là các câu này ghép lại; rỗng với bản tóm tắt cũ"`
 }
 
 // MeetingSummaryTopicDTO is one topic of a summary: where it starts in the

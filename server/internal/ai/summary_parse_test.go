@@ -196,3 +196,50 @@ func TestMeetingSummaryV7BriefMode(t *testing.T) {
 		t.Fatalf("meeting output caps = %d / %d, want ≥ 8000 / 2000", policies[CapMeetingSummarization].MaxTokens, policies[CapMeetingLiveItems].MaxTokens)
 	}
 }
+
+// TestSummaryPointsJoinIntoTheSummary (meeting_summary@8): the summary
+// sentences are cleaned like decisions, at most six and 300 runes each, and
+// once one survives the paragraph is those sentences joined, so the paragraph
+// and its cited sentences never disagree. Which labels exist is the caller's
+// check (TestSummarizeStoresSummaryPoints).
+func TestSummaryPointsJoinIntoTheSummary(t *testing.T) {
+	out, err := ParseSummaryJSON(`{"tldr":"Một đoạn khác.","summary_points":[{"text":" Chốt ship thứ Sáu. ","evidence":["S1"]},{"text":" ","evidence":["S2"]},{"text":"An gửi bản build.","evidence":["S2","S3"]},{"text":"Còn chờ duyệt giá.","evidence":[]}],"topics":[],"decisions":[],"action_items":[],"open_questions":[]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Decision{{Text: "Chốt ship thứ Sáu.", Evidence: []string{"S1"}}, {Text: "An gửi bản build.", Evidence: []string{"S2", "S3"}}, {Text: "Còn chờ duyệt giá."}}
+	if !reflect.DeepEqual(out.SummaryPoints, want) {
+		t.Fatalf("points = %+v", out.SummaryPoints)
+	}
+	if out.Summary != "Chốt ship thứ Sáu. An gửi bản build. Còn chờ duyệt giá." {
+		t.Fatalf("summary = %q", out.Summary)
+	}
+	var many []string
+	for i := 0; i < maxSummaryPoints+3; i++ {
+		many = append(many, fmt.Sprintf(`{"text":"Câu %d %s","evidence":["S1"]}`, i, strings.Repeat("dài ", maxSummaryPointRunes)))
+	}
+	capped, err := ParseSummaryJSON(`{"tldr":"T","summary_points":[` + strings.Join(many, ",") + `],"topics":[],"decisions":[],"action_items":[],"open_questions":[]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(capped.SummaryPoints) != maxSummaryPoints || utf8.RuneCountInString(capped.SummaryPoints[0].Text) > maxSummaryPointRunes {
+		t.Fatalf("points not capped: %d, %d runes", len(capped.SummaryPoints), utf8.RuneCountInString(capped.SummaryPoints[0].Text))
+	}
+}
+
+// TestSummaryWithoutPointsKeepsTheModelSummary: a @7 answer, or a @8 one
+// whose sentences are all blank, keeps the model's own paragraph.
+func TestSummaryWithoutPointsKeepsTheModelSummary(t *testing.T) {
+	for _, in := range []string{
+		`{"tldr":"Bàn ngân sách.","topics":[],"decisions":[],"action_items":[],"open_questions":[]}`,
+		`{"tldr":"Bàn ngân sách.","summary_points":[{"text":"  ","evidence":["S1"]}],"topics":[],"decisions":[],"action_items":[],"open_questions":[]}`,
+	} {
+		out, err := ParseSummaryJSON(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.Summary != "Bàn ngân sách." || len(out.SummaryPoints) != 0 {
+			t.Fatalf("%s: summary = %q, points = %+v", in, out.Summary, out.SummaryPoints)
+		}
+	}
+}
