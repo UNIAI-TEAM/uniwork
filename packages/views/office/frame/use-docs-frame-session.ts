@@ -414,7 +414,7 @@ export function useDocsFrameSession(options: DocsFrameSessionOptions): DocsFrame
         if (booted && !frameDocGone) frameGone();
         booted = true;
         latest.current.options.comments?.attach(endpoint, ack, () => latest.current.scopeId);
-        aiHandoff.attach(endpoint, ack);
+        aiHandoff.attach(endpoint, ack, initLockedOut.current);
         bindFrameDocument();
         // A block heard before this handshake (or by the frame instance before) reaches this one.
         remote.announceBlock();

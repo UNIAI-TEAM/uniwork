@@ -7,8 +7,11 @@ import type { InitAck } from "@uniwork/core/office/docs-frame-protocol";
 
 /** What the frame session needs to hand Ask UNI's approved job to the editor AI (UNI-2264). */
 export interface FrameAiHandoffBinding {
-  /** A handshake completed: the frame's capabilities are known. */
-  attach(host: DocsFrameHost, ack: InitAck): void;
+  /**
+   * A handshake completed: the frame's capabilities are known. A `lockedOut` handshake is read-only only because
+   * the edit lock was not held yet, and holding it re-attaches the frame in edit mode: it neither sends nor refuses.
+   */
+  attach(host: DocsFrameHost, ack: InitAck, lockedOut: boolean): void;
   /**
    * The host answered an `api.open` served by `host`. It may come before `attach`: the frame posts its boot
    * open before the init ack, so what counts is the endpoint, not the order.
@@ -53,9 +56,9 @@ export function useFrameAiHandoff(documentId: string): FrameAiHandoffBinding {
     };
 
     return {
-      attach(nextHost, nextAck) {
-        host = nextHost;
-        ack = nextAck;
+      attach(nextHost, nextAck, lockedOut) {
+        host = lockedOut ? null : nextHost;
+        ack = lockedOut ? null : nextAck;
         start();
       },
       documentOpened(opener) {
@@ -68,7 +71,10 @@ export function useFrameAiHandoff(documentId: string): FrameAiHandoffBinding {
         openedOn = null;
       },
       onAiRun(state) {
-        useOfficeHandoffStore.getState().setStatus(idRef.current, state);
+        const store = useOfficeHandoffStore.getState();
+        const current = store.byDocument[idRef.current]?.status;
+        // Only a job the frame was sent: a pending one would never be taken, a refused one stays refused.
+        if (current === "sent" || current === "running" || current === "idle") store.setStatus(idRef.current, state);
       },
     };
   }, []);
