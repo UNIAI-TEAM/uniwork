@@ -212,17 +212,12 @@ func TestSecretaryRecordsTheMeetingHeld(t *testing.T) {
 }
 
 // The held times come from the server's clock: the browser sends only how
-// long it recorded.
+// long it recorded and how long ago it stopped.
 func TestRecordHeldNowUsesServerClock(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()
 	m := inPersonMeeting(t, s, ua.ID, w.ID)
-	for _, d := range []time.Duration{0, -time.Minute} {
-		if _, err := s.RecordHeldNow(ctx, ua.ID, m.ID, d); !codedIs(err, "invalid_held_times") {
-			t.Fatalf("d = %v: %v", d, err)
-		}
-	}
-	ended, err := s.RecordHeldNow(ctx, ua.ID, m.ID, 42*time.Minute)
+	ended, err := s.RecordHeldNow(ctx, ua.ID, m.ID, 42*time.Minute, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,6 +226,45 @@ func TestRecordHeldNowUsesServerClock(t *testing.T) {
 	}
 	if got := ended.ActualEndAt.Time.Sub(ended.ActualStartAt.Time); got != 42*time.Minute {
 		t.Fatalf("held for %v, want 42m", got)
+	}
+}
+
+// A recording sent later keeps the meeting's real time: it ended `ago`
+// before the server heard of it, not when the send arrived.
+func TestRecordHeldNowEndsAgoBeforeNow(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	m := inPersonMeeting(t, s, ua.ID, w.ID)
+	ended, err := s.RecordHeldNow(ctx, ua.ID, m.ID, time.Hour, 2*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skew := time.Since(ended.ActualEndAt.Time) - 2*time.Hour; skew < -5*time.Second || skew > 5*time.Second {
+		t.Fatalf("actual_end_at %v is %v from now - 2h", ended.ActualEndAt.Time, skew)
+	}
+	if got := ended.ActualEndAt.Time.Sub(ended.ActualStartAt.Time); got != time.Hour {
+		t.Fatalf("held for %v, want 1h", got)
+	}
+}
+
+// The length is at most a day and the end at most 30 days back, never ahead.
+func TestRecordHeldNowRefusesOutOfBounds(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	m := inPersonMeeting(t, s, ua.ID, w.ID)
+	for _, c := range []struct{ d, ago time.Duration }{
+		{0, 0}, {-time.Minute, 0}, {24*time.Hour + time.Second, 0},
+		{time.Hour, -time.Second}, {time.Hour, 30*24*time.Hour + time.Second},
+	} {
+		if _, err := s.RecordHeldNow(ctx, ua.ID, m.ID, c.d, c.ago); !codedIs(err, "invalid_held_times") {
+			t.Fatalf("d = %v, ago = %v: %v", c.d, c.ago, err)
+		}
+	}
+	if got := reloadMeeting(t, s, m.ID).Status; got != MeetingScheduled {
+		t.Fatalf("status %s after refusals", got)
+	}
+	if _, err := s.RecordHeldNow(ctx, ua.ID, m.ID, 24*time.Hour, 30*24*time.Hour); err != nil {
+		t.Fatalf("the bounds themselves: %v", err)
 	}
 }
 

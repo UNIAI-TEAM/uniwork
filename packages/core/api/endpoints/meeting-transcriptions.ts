@@ -17,11 +17,12 @@ const base = (meetingId: string) => `/api/v1/meetings/${enc(meetingId)}`;
 
 /**
  * SCHEDULED → ENDED at the times the host reports (RFC 3339), or, with
- * duration_seconds alone, ending now on the server's clock.
+ * duration_seconds instead, ending ended_seconds_ago (default 0) before now on
+ * the server's clock.
  */
 export async function recordMeetingHeld(
   meetingId: string,
-  body: { started_at?: string; ended_at?: string; duration_seconds?: number },
+  body: { started_at?: string; ended_at?: string; duration_seconds?: number; ended_seconds_ago?: number },
 ): Promise<Meeting | null> {
   const raw = await request(`${base(meetingId)}/held`, { method: "POST", body });
   return (

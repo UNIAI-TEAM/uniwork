@@ -144,7 +144,7 @@ describe("useSendRecording", () => {
       "POST /api/v1/meetings/m1/audio-upload-sessions",
       "POST /api/v1/meetings/m1/transcriptions",
     ]);
-    expect(server.calls[0]!.body).toEqual({ duration_seconds: 2538 });
+    expect(server.calls[0]!.body).toEqual({ duration_seconds: 2538, ended_seconds_ago: expect.any(Number) });
     const open = server.calls.find((c) => c.path.endsWith("audio-upload-sessions"))!;
     expect(open.body).toMatchObject({ filename: `ghi-am-${p1}.webm`, duration_seconds: 1450 });
     const queued = server.calls.filter((c) => c.path.endsWith("/transcriptions")).map((c) => c.body);
@@ -152,6 +152,23 @@ describe("useSendRecording", () => {
       { upload_id: "up-sess-1", language: "vi", consent: true, duration_seconds: 1450, offset_seconds: 0 },
       { upload_id: "up-sess-2", language: "vi", consent: true, duration_seconds: 1038, offset_seconds: 1500 },
     ]);
+  });
+
+  it("a late send tells the server how long ago the recording ended", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // Two hours after the last part ended, by this device's clock.
+      vi.setSystemTime(T0 + 2_538_000 + 2 * 3_600_000 + 400);
+      const store = memoryRecordingStore();
+      await twoParts(store);
+      const server = fakeServer();
+      const { result } = renderSend(store);
+      await act(() => result.current.send());
+      expect(result.current.phase).toBe("done");
+      expect(server.calls[0]!.body).toEqual({ duration_seconds: 2538, ended_seconds_ago: 7200 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("skips record-held when the meeting already ended", async () => {
@@ -326,7 +343,7 @@ describe("useSendRecording", () => {
     const { result } = renderSend(store);
     await act(() => result.current.send());
     expect(result.current.phase).toBe("done");
-    expect(server.calls[0]!.body).toEqual({ duration_seconds: 61 });
+    expect(server.calls[0]!.body).toEqual({ duration_seconds: 61, ended_seconds_ago: expect.any(Number) });
     const open = server.calls.find((c) => c.path.endsWith("audio-upload-sessions"))!;
     expect(open.body).toMatchObject({ filename: `ghi-am-p-${run}.webm`, duration_seconds: 61 });
   });

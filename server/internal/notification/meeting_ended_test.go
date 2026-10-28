@@ -235,7 +235,7 @@ func TestInPersonMeetingEndedSendsNoSummaryReminder(t *testing.T) {
 			if _, err := f.meetings.AddNote(f.ctx, f.owner.ID, m.ID, "Chốt ngân sách quý."); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := f.meetings.RecordHeldNow(f.ctx, f.owner.ID, m.ID, 42*time.Minute); err != nil {
+			if _, err := f.meetings.RecordHeldNow(f.ctx, f.owner.ID, m.ID, 42*time.Minute, 0); err != nil {
 				t.Fatal(err)
 			}
 			f.handleLast(t, "meeting.ended")

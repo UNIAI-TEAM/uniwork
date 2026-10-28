@@ -329,7 +329,8 @@ type CreateMinutesSDI struct {
 type RecordMeetingHeldSDI struct {
 	StartedAt       string `json:"started_at" format:"date-time" description:"Giờ bắt đầu thực tế (RFC 3339)" example:"2026-10-20T01:30:00Z"`
 	EndedAt         string `json:"ended_at" format:"date-time" description:"Giờ kết thúc thực tế; sau started_at và không ở tương lai" example:"2026-10-20T03:00:00Z"`
-	DurationSeconds int    `json:"duration_seconds,omitempty" description:"Thời lượng đã họp (giây), khi bỏ trống hai giờ: kết thúc lúc server nhận" example:"2520"`
+	DurationSeconds int    `json:"duration_seconds,omitempty" minimum:"0" maximum:"86400" description:"Thời lượng đã họp (giây, tối đa 24 giờ), khi bỏ trống hai giờ: kết thúc lúc server nhận trừ ended_seconds_ago" example:"2520"`
+	EndedSecondsAgo int    `json:"ended_seconds_ago,omitempty" minimum:"0" maximum:"2592000" description:"Cùng duration_seconds: số giây từ lúc thiết bị dừng ghi đến lúc gửi (đo trên đồng hồ thiết bị); server lấy giờ kết thúc = giờ nhận trừ khoảng này. Tối đa 30 ngày" example:"7200"`
 }
 
 // RequestTranscriptionSDI is POST /api/v1/meetings/{meetingID}/transcriptions.

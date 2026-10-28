@@ -49,6 +49,10 @@ const (
 	transcriptionMinBytesPerSec = 1_500
 	// A clock in the future by more than this is a wrong time, not a skew.
 	heldClockSkew = time.Minute
+	// A meeting recorded on a device lasts at most a day, and is sent within
+	// 30 days of its end.
+	heldMaxLength = 24 * time.Hour
+	heldMaxAgo    = 30 * 24 * time.Hour
 )
 
 // transcriptionURLTTL is how long the vendor may read the recording (§7.4).
@@ -159,17 +163,19 @@ func (s *MeetingService) recordHeld(ctx context.Context, userID, meetingID strin
 	return ended, nil
 }
 
-// RecordHeldNow is RecordHeld for a meeting recorded in the room: it ends
-// now, on the server's clock, after d (the browser's clock may be off). It
-// queues no auto summary: the app records the meeting held before it uploads
-// the parts, and a summary made then would keep the recording out for good;
-// the completed transcription queues it instead.
-func (s *MeetingService) RecordHeldNow(ctx context.Context, userID, meetingID string, d time.Duration) (db.Meeting, error) {
-	if d <= 0 {
+// RecordHeldNow is RecordHeld for a meeting recorded in the room: it ended
+// ago before now, on the server's clock, after d (the browser's clock may be
+// off; both lengths are measured on the device, so its skew cancels out). A
+// recording sent hours later keeps the meeting's own time. It queues no auto
+// summary: the app records the meeting held before it uploads the parts, and a
+// summary made then would keep the recording out for good; the completed
+// transcription queues it instead.
+func (s *MeetingService) RecordHeldNow(ctx context.Context, userID, meetingID string, d, ago time.Duration) (db.Meeting, error) {
+	if d <= 0 || d > heldMaxLength || ago < 0 || ago > heldMaxAgo {
 		// A zero start is refused by recordHeld after it authorizes the caller.
 		return s.recordHeld(ctx, userID, meetingID, time.Time{}, time.Time{}, false)
 	}
-	end := time.Now()
+	end := time.Now().Add(-ago)
 	return s.recordHeld(ctx, userID, meetingID, end.Add(-d), end, false)
 }
 

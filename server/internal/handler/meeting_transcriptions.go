@@ -25,7 +25,8 @@ func (h *handlers) recordMeetingHeld(w http.ResponseWriter, r *http.Request) {
 	var m db.Meeting
 	var err error
 	if in.DurationSeconds > 0 && in.StartedAt == "" && in.EndedAt == "" {
-		m, err = h.Meetings.RecordHeldNow(r.Context(), userID, meetingID, time.Duration(in.DurationSeconds)*time.Second)
+		m, err = h.Meetings.RecordHeldNow(r.Context(), userID, meetingID, time.Duration(in.DurationSeconds)*time.Second,
+			time.Duration(in.EndedSecondsAgo)*time.Second)
 	} else {
 		// An unreadable time stays zero: the service refuses it (422) only after
 		// it has authorized the caller, so a stranger learns nothing either way.

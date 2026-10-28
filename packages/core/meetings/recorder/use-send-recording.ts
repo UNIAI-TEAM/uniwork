@@ -32,8 +32,8 @@ function isNetworkError(err: unknown): boolean {
 
 /**
  * Sends the in-app recording of a meeting from this device: records the meeting
- * held by its length (the server's clock decides the times) unless it already
- * ended, then uploads each part with its offset and deletes it from the device
+ * held by its length and how long ago it ended (the server's clock decides the
+ * times) unless it already ended, then uploads each part with its offset and deletes it from the device
  * only once the server queued it. A lost connection waits and sends again on
  * the `online` event; any other failure keeps the parts and leaves `error` for
  * the caller to word (the upload dialog's `uploadFailure`).
@@ -66,9 +66,9 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
   // The part in flight: a retry hands the same File back, so a staged upload is queued without resending a byte.
   const inFlight = useRef<{ id: string; file: File } | null>(null);
 
-  const recordHeld = async (durationSeconds: number) => {
+  const recordHeld = async (durationSeconds: number, endedSecondsAgo: number) => {
     try {
-      await held.mutateAsync({ duration_seconds: durationSeconds });
+      await held.mutateAsync({ duration_seconds: durationSeconds, ended_seconds_ago: endedSecondsAgo });
     } catch (err) {
       if (errorCode(err) !== "invalid_meeting_state") throw err;
       // Another device recorded it first: what matters is that it has ended.
@@ -98,7 +98,9 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
       });
       if (parts.length > 0 && meeting.status === "SCHEDULED") {
         setPhase("holding");
-        await recordHeld(secondsBetween(parts[0]!.startedAt, endOf(parts[parts.length - 1]!)));
+        const end = endOf(parts[parts.length - 1]!);
+        // Both lengths on this device's clock, so a send hours later keeps the meeting's own time on the server.
+        await recordHeld(secondsBetween(parts[0]!.startedAt, end), Math.max(0, secondsBetween(end, Date.now())));
       }
       for (const part of parts) {
         if (stopped.current) break;

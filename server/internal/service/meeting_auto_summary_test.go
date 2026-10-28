@@ -685,7 +685,7 @@ func TestRecordHeldNowLeavesTheSummaryToTheRecording(t *testing.T) {
 	if _, err := s.AddNote(ctx, e.host.ID, m.ID, "Chốt ngân sách quý."); err != nil {
 		t.Fatal(err)
 	}
-	m, err := s.RecordHeldNow(ctx, e.host.ID, m.ID, 42*time.Minute)
+	m, err := s.RecordHeldNow(ctx, e.host.ID, m.ID, 42*time.Minute, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

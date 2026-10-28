@@ -62,10 +62,10 @@ describe("meeting transcription endpoints", () => {
     expect(JSON.parse(String(init!.body))).toEqual({ upload_id: "f1", language: "vi", consent: true });
   });
 
-  it("recordMeetingHeld sends duration_seconds", async () => {
+  it("recordMeetingHeld sends duration_seconds and ended_seconds_ago", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ meeting: { id: 1 } }));
-    await expect(recordMeetingHeld("m1", { duration_seconds: 3600 })).resolves.toBeNull();
-    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body))).toEqual({ duration_seconds: 3600 });
+    await expect(recordMeetingHeld("m1", { duration_seconds: 3600, ended_seconds_ago: 7200 })).resolves.toBeNull();
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]!.body))).toEqual({ duration_seconds: 3600, ended_seconds_ago: 7200 });
   });
 
   it("requestMeetingTranscription sends offset_seconds", async () => {

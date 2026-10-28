@@ -532,7 +532,7 @@ func TestInPersonRollSuggestsPresent(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, err := s.RecordHeldNow(ctx, ua.ID, m.ID, 30*time.Minute); err != nil {
+		if _, err := s.RecordHeldNow(ctx, ua.ID, m.ID, 30*time.Minute, 0); err != nil {
 			t.Fatal(err)
 		}
 		rep, err := s.Attendance(ctx, ua.ID, m.ID)
