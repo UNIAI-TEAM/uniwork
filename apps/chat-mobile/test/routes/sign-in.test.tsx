@@ -20,7 +20,7 @@ import { accountApi } from "@/data/account-api";
 import { api } from "@/data/api";
 import { signInOffer } from "@/data/auth/flow";
 import { linkPendingTicket } from "@/data/auth/methods-api";
-import { forgetPendingSignIn, holdStep, usePendingSignIn } from "@/data/auth/pending-sign-in";
+import { clearChoice, forgetPendingSignIn, holdStep, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { sendClaimCode, type SignInOutcome, type SignInRequest } from "@/data/auth/sign-in";
 import { useAuthStore } from "@/data/auth/store";
 import { chatApi } from "@/data/chat-api";
@@ -82,7 +82,11 @@ function answers(...outcomes: (SignInOutcome | Error | ((request: SignInRequest)
     const next = outcomes.shift() ?? { kind: "dismissed" };
     if (next instanceof Error) throw next;
     const outcome = typeof next === "function" ? next(request) : next;
-    if (outcome.kind === "signed_in") useAuthStore.setState({ user: user as never });
+    if (outcome.kind === "signed_in") {
+      // As runSignIn: a session from the choice screen's own ways spends its ticket before the person is loaded.
+      if (request.method === "ticket" || request.method === "email_claim") clearChoice();
+      useAuthStore.setState({ user: user as never });
+    }
     return outcome;
   });
   useAuthStore.setState({ user: null, isLoading: false, login });
@@ -321,6 +325,29 @@ describe("the choice screen", () => {
     expect(await screen.findByText(viText("auth.continue.link.done", { provider: "Google" }))).toBeTruthy();
     await act(async () => fireEvent.press(screen.getByTestId("link-continue")));
     await waitFor(() => expect(routes.pathname()).toBe("/select-workspace"));
+  });
+
+  it("still ends on the link step when the person went back to the choice screen while the sign-in ran", async () => {
+    holdChoice();
+    let finish: (outcome: SignInOutcome) => void = () => undefined;
+    const login = jest.fn(() => new Promise<SignInOutcome>((resolve) => (finish = resolve)));
+    useAuthStore.setState({ user: null, isLoading: false, login });
+    const routes = await renderRoutes(ROUTES, "/continue");
+    await act(async () => fireEvent.press(screen.getByTestId("choice-existing")));
+    await act(async () => fireEvent.changeText(await screen.findByTestId("login-email"), "an@example.com"));
+    await act(async () => fireEvent.changeText(screen.getByTestId("login-password"), "pw"));
+    await act(async () => fireEvent.press(screen.getByTestId("login-button")));
+    await act(async () => fireEvent.press(screen.getByTestId("auth-back")));
+    expect(routes.pathname()).toBe("/continue");
+    await act(async () => {
+      useAuthStore.setState({ user: user as never });
+      finish(SIGNED_IN);
+      // The signed-in screens' queries answer on TanStack's notify timer: waited for inside this act, since a
+      // waitFor would take those updates with the act environment off.
+      for (let tries = 0; tries < 100 && !screen.queryByTestId("link-ask"); tries += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    expect(routes.pathname()).toBe("/link-sign-in");
+    expect(screen.getByTestId("link-ask")).toBeTruthy();
   });
 
   it("offers to sign in to link when the address has an account, and cancels back to sign-in", async () => {

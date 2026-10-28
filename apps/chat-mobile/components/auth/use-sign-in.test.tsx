@@ -6,6 +6,7 @@ jest.mock("@react-native-community/netinfo", () => {
 });
 import type { SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import * as Haptics from "expo-haptics";
+import { useNavigation } from "expo-router";
 import { BackHandler, Platform } from "react-native";
 import { holdStep, forgetPendingSignIn, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import type { SignInOutcome } from "@/data/auth/sign-in";
@@ -140,5 +141,13 @@ describe("useStepBack", () => {
     expect(handler()).toBe(true);
     expect(back).toHaveBeenCalledTimes(1);
     await unmount();
+  });
+
+  it("turns iOS's edge swipe off while a step is open, since it would leave the whole screen", async () => {
+    const { setOptions } = useNavigation();
+    const { rerender } = await renderHook<void, { active: boolean }>(({ active }) => useStepBack(active, jest.fn()), { initialProps: { active: false } });
+    expect(setOptions).toHaveBeenLastCalledWith({ gestureEnabled: true });
+    await rerender({ active: true });
+    expect(setOptions).toHaveBeenLastCalledWith({ gestureEnabled: false });
   });
 });

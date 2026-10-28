@@ -9,7 +9,7 @@ import { render, viText } from "@/test/render";
 import { LinkStep } from "./link-step";
 import { LoginForm } from "./login-form";
 import { RegisterForm } from "./register-form";
-import { leaveSecondFactor } from "./second-factor-step";
+import { SecondFactorStep, leaveSecondFactor } from "./second-factor-step";
 import { LinkModeNotice } from "./sign-in-notices";
 
 jest.mock("@react-native-community/netinfo", () => {
@@ -105,6 +105,19 @@ describe("leaving the second factor", () => {
     jest.mocked(router.canGoBack).mockReturnValueOnce(false);
     leaveSecondFactor();
     expect(router.replace).toHaveBeenCalledWith("/login");
+  });
+
+  it("drops the challenge when the screen goes by the edge swipe too, unless the sign-in finished", async () => {
+    const challenge = { kind: "mfa" as const, token: "m", context: { method: "password" as const, email: "an@congty.vn", provider: null } };
+    holdStep(challenge, Date.now());
+    const first = await render(<SecondFactorStep linkMode={false} />);
+    await first.unmount();
+    expect(usePendingSignIn.getState().secondFactor).toBeNull();
+    holdStep(challenge, Date.now());
+    const second = await render(<SecondFactorStep linkMode={false} />);
+    useAuthStore.setState({ user: { id: "u1" } as never });
+    await second.unmount();
+    expect(usePendingSignIn.getState().secondFactor).not.toBeNull();
   });
 });
 

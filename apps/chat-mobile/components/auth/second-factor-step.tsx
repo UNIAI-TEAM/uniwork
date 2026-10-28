@@ -2,12 +2,13 @@
 // the sixth arrives, or a recovery code; under the title, whose account it signs in to and the provider it links.
 // A wrong code is cleared and its field focused; ten in a row lock the factor, and the field waits while the lock
 // counts down (429 second_factor_locked, retry_after). A challenge that is gone (expired, the app restarted) says so,
-// with the way back to sign-in.
+// with the way back to sign-in. Leaving the screen any way (the back button, iOS's edge swipe) drops the challenge.
 import { router } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TextInput, View } from "react-native";
 import { clearSecondFactor, usePendingSignIn } from "@/data/auth/pending-sign-in";
+import { useAuthStore } from "@/data/auth/store";
 import { CODE_LENGTH } from "@/lib/sign-in-form";
 import { signInRoutes } from "@/lib/sign-in-routes";
 import { AuthField } from "./auth-field";
@@ -33,6 +34,13 @@ export function SecondFactorStep({ linkMode }: { linkMode: boolean }) {
   const [required, setRequired] = useState(false);
   const input = useRef<TextInput>(null);
   const busy = signIn.busy !== null;
+  // The edge swipe leaves without leaveSecondFactor: the challenge goes with the screen all the same.
+  useEffect(
+    () => () => {
+      if (!useAuthStore.getState().user) clearSecondFactor();
+    },
+    [],
+  );
 
   if (!pending || signIn.shown?.failure.kind === "restart") {
     return (
