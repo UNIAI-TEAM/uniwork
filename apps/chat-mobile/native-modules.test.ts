@@ -390,13 +390,16 @@ describe("Sign in with Google hands Google the nonce (modules/unichat-google-sig
     expect(swift).toMatch(/signInError\.code == \.canceled \{\s*promise\.resolve\(nil\)/);
     // GoogleSignIn raises when the reversed client id is not a registered scheme: unavailable instead
     expect(swift).toContain('info["CFBundleURLTypes"]');
-    expect(readFileSync(path.join(dir, "ios/UniChatGoogleSignIn.podspec"), "utf8")).toMatch(/s\.dependency 'GoogleSignIn', '~> 8\.\d+'/);
+    expect(readFileSync(path.join(dir, "ios/UniChatGoogleSignIn.podspec"), "utf8")).toMatch(/s\.dependency 'GoogleSignIn', '~> 9\.\d+'/);
   });
 
   it("Android: asks Credential Manager's Sign in with Google option with the nonce, and reads a cancel as nothing", () => {
     expect(kotlin).toMatch(/AsyncFunction\("signIn"\) Coroutine \{ nonce: String ->/);
     expect(kotlin).toContain("GetSignInWithGoogleOption.Builder(clientId).setNonce(nonce).build()");
     expect(kotlin).toMatch(/catch \(cancelled: GetCredentialCancellationException\) \{[^}]*null\s*\}/);
+    // Both token types googleid declares: the Sign in with Google flow may answer with its own.
+    expect(kotlin).toContain("credential.type !in GOOGLE_ID_TOKEN_TYPES");
+    expect(kotlin).toContain("GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_SIWG_CREDENTIAL");
     expect(readFileSync(path.join(dir, "android/build.gradle"), "utf8")).toContain("com.google.android.libraries.identity.googleid:googleid:");
   });
 

@@ -44,7 +44,7 @@ class UniChatGoogleSignInModule : Module() {
       val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
       try {
         val credential = CredentialManager.create(activity).getCredential(activity, request).credential
-        if (credential !is CustomCredential || credential.type != GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+        if (credential !is CustomCredential || credential.type !in GOOGLE_ID_TOKEN_TYPES) {
           throw CodedException("ERR_GOOGLE_NO_TOKEN", "Google returned no ID token", null)
         }
         val google = GoogleIdTokenCredential.createFrom(credential.data)
@@ -78,5 +78,15 @@ class UniChatGoogleSignInModule : Module() {
   companion object {
     /** The manifest meta-data plugins/with-google-sign-in.js writes. */
     const val SERVER_CLIENT_ID = "expo.modules.unichatgooglesignin.SERVER_CLIENT_ID"
+
+    /**
+     * The types a Google ID token comes back as: googleid declares a second one for the Sign in with Google flow, and
+     * createFrom reads the same bundle whichever it is. The server checks the token itself.
+     */
+    private val GOOGLE_ID_TOKEN_TYPES =
+      setOf(
+        GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL,
+        GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_SIWG_CREDENTIAL
+      )
   }
 }
