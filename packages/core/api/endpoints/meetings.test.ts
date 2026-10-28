@@ -254,13 +254,16 @@ describe("meetings endpoints", () => {
     const row = { id: "p1", meeting_id: "m1", principal_type: "USER", role: "ATTENDEE", status: "ACTIVE" };
     vi.mocked(fetch).mockResolvedValueOnce(json({
       participants: [
-        { ...row, in_room: true },
+        { ...row, in_room: true, is_host: true },
         { ...row, id: "p2", status: "REMOVED", in_room: false, removed_by: "u-host", removed_at: "2026-10-27T08:52:00Z" },
         { ...row, id: "p3" },
       ],
     }));
     const [inRoom, removed, older] = await listParticipants("m1");
     expect(inRoom?.in_room).toBe(true);
+    // A guest's client finds the host by this mark alone (UNI-890): the schema must keep it.
+    expect(inRoom?.is_host).toBe(true);
+    expect(older?.is_host ?? false).toBe(false);
     expect(removed?.removed_by).toBe("u-host");
     expect(removed?.removed_at).toBe("2026-10-27T08:52:00Z");
     expect(older?.in_room ?? false).toBe(false);
