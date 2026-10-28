@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EndpointRequest } from "./endpoint-request";
-import { createNativeSignInApi, type NativeClient } from "./sign-in-native-api";
+import { createNativeSignInApi, type NativeClient, type NativeLocale } from "./sign-in-native-api";
 
 const client: NativeClient = {
   client_id: "uniwork-chat-mobile",
@@ -107,6 +107,25 @@ describe("createNativeSignInApi", () => {
     });
     request.mockResolvedValueOnce({ status: 1 });
     await expect(api.sendTicketEmailCode({ ticket: "T", nonce: "raw", email: "an@acme.vn" })).resolves.toBe(false);
+  });
+
+  it("says the app's language at every door, as it is when the door is called", async () => {
+    let language: NativeLocale = "vi";
+    const request = vi.fn<EndpointRequest>().mockResolvedValue({ status: "sent" });
+    const api = createNativeSignInApi(request, {
+      ...client,
+      get locale() {
+        return language;
+      },
+    });
+    const sentLocale = () => (request.mock.calls.at(-1)?.[1]?.body as Record<string, unknown>).locale;
+    await api.register({ email: "an@acme.vn", password: "password123", displayName: "An" });
+    expect(sentLocale()).toBe("vi");
+    language = "en";
+    await api.sendTicketEmailCode({ ticket: "T", nonce: "raw", email: "an@acme.vn" });
+    expect(sentLocale()).toBe("en");
+    await api.createFromTicket({ ticket: "T", nonce: "raw" });
+    expect(sentLocale()).toBe("en");
   });
 
   it("answers null for a malformed answer: no door ever degrades into a session", async () => {

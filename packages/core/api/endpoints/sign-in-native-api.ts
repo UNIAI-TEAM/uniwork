@@ -14,7 +14,14 @@ import { readNativeSignIn, readSent, type NativeSignInResult } from "./sign-in-s
  * once in the body and are never kept here.
  */
 
-/** NativeClientSDI: what every door says about the app, bound once when the factory is made. */
+/** The languages a door writes its mails in. */
+export type NativeLocale = "vi" | "en";
+
+/**
+ * NativeClientSDI: what every door says about the app, bound when the factory
+ * is made and read again at every door, so a field defined as a getter (the
+ * app's language) says what it is at that moment.
+ */
 export interface NativeClient {
   /** One of NATIVE_SIGN_IN_CLIENTS (default uniwork-chat-mobile); any other is 400 invalid_request. */
   client_id: string;
@@ -23,6 +30,11 @@ export interface NativeClient {
   device_label?: string;
   platform?: string;
   build?: string;
+  /**
+   * The app's language: the account a door creates takes it, and the codes a door mails (the sign-up's, the one
+   * to another address) are written in it. The app has no uniwork-locale cookie; without this they go out in English.
+   */
+  locale?: NativeLocale;
 }
 
 /** sign_up only from the register screen: an identity that matches no account creates one at once instead of a ticket. */
