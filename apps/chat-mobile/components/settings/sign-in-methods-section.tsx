@@ -3,8 +3,8 @@
 // confirms it is you first (use-step-up.ts), so a provider's own sheet never opens before the proof. Google links with
 // its own sheet; Apple with the iPhone's; Apple on Android (and Google without Google Play services) in the browser,
 // on the web's Settings, and the list is read again when the app comes back. The password is set or changed on its
-// own screen (app/(app)/password.tsx). Unlinking asks first, says what is left, and that other devices sign out; the
-// last way in, and Apple of an account whose address is Apple's relay, say why they stay.
+// own screen (app/(app)/password.tsx). Unlinking takes the proof, then asks, says what is left, and that other devices
+// sign out; the last way in, and Apple of an account whose address is Apple's relay, say why they stay.
 import { useQuery } from "@tanstack/react-query";
 import type { SignInMethods, SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { sentenceValues, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
@@ -30,6 +30,7 @@ import { useStepUp } from "./use-step-up";
 export function SignInMethodsSection() {
   const { t } = useTranslation();
   const userId = useAuthStore((s) => s.user?.id ?? null);
+  const accountEmail = useAuthStore((s) => s.user?.email ?? null);
   const methods = useQuery(signInMethodsOptions());
   const offer = useQuery(signInOfferOptions()).data;
   const openWebPage = useOpenWebPage();
@@ -39,9 +40,14 @@ export function SignInMethodsSection() {
   const [busy, setBusy] = useState<string | null>(null);
   const name = (provider: SignInProvider) => t(`auth.social.provider.${provider}`);
 
-  /** A refusal said once, in the web's words: a provider's sentence names it, an error sentence never does. */
-  const say = (failure: SignInFailure, provider: SignInProvider) =>
-    toast.error(t(failure.key, sentenceValues({ ...failure, provider }, t)));
+  /**
+   * A refusal said once, in the web's words: a provider's sentence names it, an error sentence never does; a wait
+   * says how long (a locked proof: "Thử lại sau 15 phút.").
+   */
+  const say = (failure: SignInFailure, provider: SignInProvider) => {
+    const sentence = t(failure.key, sentenceValues({ ...failure, provider }, t));
+    toast.error(failure.retry ? `${sentence} ${t(failure.retry.key, { count: failure.retry.count })}` : sentence);
+  };
 
   const runLink = async (provider: SignInProvider, move: boolean) => {
     setBusy(`link-${provider}`);
@@ -69,7 +75,8 @@ export function SignInMethodsSection() {
       t("settings.security.signInMethods.move.title", values),
       t(masked ? "settings.security.signInMethods.move.body" : "settings.security.signInMethods.move.bodyUnknown", values),
       [
-        { text: t("settings.security.signInMethods.password.cancel"), style: "cancel" },
+        // The move's pair, as on the web and the link step: "Chuyển sang đây" / "Không chuyển".
+        { text: t("settings.security.signInMethods.move.decline"), style: "cancel" },
         { text: t("settings.security.signInMethods.move.confirm"), onPress: () => void runLink(provider, true) },
       ],
     );
@@ -99,8 +106,13 @@ export function SignInMethodsSection() {
     }
   };
 
-  const askUnlink = (row: ProviderRow) => {
+  // The proof first, then the destructive confirm (spec §4.5, as the web): the confirm is the last word before the
+  // unlink runs, on the token just bought, and a closed proof sheet asks nothing more.
+  const askUnlink = async (row: ProviderRow) => {
     if (busy || !row.unlink.allowed) return;
+    setBusy(`unlink-${row.kind}`);
+    const proved = await stepUp.hold(unlinkAction(row.kind), { proofs: methods.data?.proofs }).finally(() => setBusy(null));
+    if (!proved) return;
     const provider = name(row.kind);
     const method = (kind: string) => t(`settings.security.signInMethods.method.${kind}`);
     const [first, second] = row.remaining;
@@ -126,7 +138,7 @@ export function SignInMethodsSection() {
       if (!busy) router.push(accountRoutes.password);
       return;
     }
-    if (row.linked) askUnlink(row);
+    if (row.linked) void askUnlink(row);
     else startLink(row);
   };
 
@@ -138,7 +150,7 @@ export function SignInMethodsSection() {
         ) : methods.isError || !methods.data ? (
           <MethodsLoadError onRetry={() => void methods.refetch()} />
         ) : (
-          <Rows methods={methods.data} offer={offer} busy={busy} onAction={onAction} />
+          <Rows methods={methods.data} offer={offer} accountEmail={accountEmail} busy={busy} onAction={onAction} />
         )}
       </View>
       {stepUp.sheet}
@@ -155,17 +167,19 @@ function actionId(row: MethodRow): string {
 function Rows({
   methods,
   offer,
+  accountEmail,
   busy,
   onAction,
 }: {
   methods: SignInMethods;
   offer: Parameters<typeof methodRows>[1];
+  accountEmail: string | null;
   busy: string | null;
   onAction: (row: MethodRow) => void;
 }) {
   return (
     <>
-      {methodRows(methods, offer).map((row, index) => {
+      {methodRows(methods, offer, accountEmail).map((row, index) => {
         const id = actionId(row);
         return (
           <MethodRowView

@@ -1,8 +1,8 @@
 // One row of Settings › Sign-in methods (sign-in-methods-section.tsx): the method's mark in a 32 pt tile, its name
-// and state, what it shows (the address or "Email ẩn của Apple", the date), and its one action. An unlink the rules
-// refuse keeps its button in the reader's path, dimmed and marked unavailable, with the reason under the row. At the
-// accessibility text sizes the action moves under the text. Also the rows' outline while they load, and the row that
-// says they could not be read.
+// and state, what it shows (the address it signs in with or "Email ẩn của Apple", the date), and its one action. An
+// unlink the rules refuse keeps its button in the reader's path, dimmed and marked unavailable, with the reason under
+// the row. At the accessibility text sizes the action moves under the text. Also the rows' outline while they load,
+// and the row that says they could not be read.
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useTranslation } from "react-i18next";
@@ -32,11 +32,14 @@ function useRowWords(row: MethodRow) {
   const { t } = useTranslation();
   const date = useDate();
   const M = "settings.security.signInMethods";
+  const address = (email: MethodRow["email"]) =>
+    email.kind === "relay" ? t("auth.apple.relayEmail") : email.kind === "address" ? email.email : null;
   if (row.kind === "password") {
     const changed = date(row.changedAt);
+    const said = [address(row.email), changed ? t(`${M}.password.changedOn`, { date: changed }) : null].filter(Boolean).join(" · ");
     return {
       name: t(`${M}.password.name`),
-      meta: row.set ? (changed ? t(`${M}.password.changedOn`, { date: changed }) : t(`${M}.password.set`)) : t(`${M}.password.unset`),
+      meta: row.set ? said || t(`${M}.password.set`) : t(`${M}.password.unset`),
       badge: t(row.set ? `${M}.badge.set` : `${M}.badge.unset`),
       action: t(row.set ? `${M}.password.changeAction` : `${M}.password.setAction`),
       actionLabel: t(row.set ? `${M}.password.changeAction` : `${M}.password.setAction`),
@@ -46,11 +49,10 @@ function useRowWords(row: MethodRow) {
   }
   const provider = t(`auth.social.provider.${row.kind}`);
   const linkedOn = date(row.linkedAt);
-  const address = row.email.kind === "relay" ? t("auth.apple.relayEmail") : row.email.kind === "address" ? row.email.email : null;
   const when = row.linked ? (linkedOn ? t(`${M}.provider.linkedOn`, { date: linkedOn }) : t(`${M}.provider.linked`)) : null;
   return {
     name: provider,
-    meta: row.linked ? [address, when].filter(Boolean).join(" · ") : t(`${M}.provider.notLinked`, { provider }),
+    meta: row.linked ? [address(row.email), when].filter(Boolean).join(" · ") : t(`${M}.provider.notLinked`, { provider }),
     badge: row.linked ? t(`${M}.badge.linked`) : null,
     action: row.linked ? t(`${M}.provider.unlink`) : row.link === "web" ? t(`${M}.provider.linkOnWeb`) : t(`${M}.provider.link`),
     actionLabel: row.linked

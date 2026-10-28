@@ -28,6 +28,14 @@ describe("signInFailureOf", () => {
     expect(signInFailureOf(new Error("apple"), "register", "apple")).toMatchObject({ key: "auth.social.errors.apple_failed" });
   });
 
+  it("says a sheet that failed in Settings as the link that did not happen, naming its provider", () => {
+    expect(signInFailureOf(new Error("no account"), "methods", "google")).toMatchObject({
+      key: "settings.security.signInMethods.results.failed",
+      code: "provider_sheet",
+      provider: "google",
+    });
+  });
+
   it("says the browser did not open when opening it failed", () => {
     expect(signInFailureOf(new Error("no browser"), "sign_in", "browser")).toMatchObject({ key: "auth.desktop.unichat_login_failed" });
   });

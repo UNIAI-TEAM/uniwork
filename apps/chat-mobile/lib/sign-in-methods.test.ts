@@ -15,7 +15,7 @@ describe("methodRows", () => {
   it("shows the password, then each provider this phone can link, with how it links", () => {
     const rows = methodRows(methods(), { google: "native", apple: "browser" });
     expect(rows.map((row) => row.kind)).toEqual(["password", "google", "apple"]);
-    expect(rows[0]).toEqual({ kind: "password", set: true, changedAt: "2026-10-12T08:00:00Z" });
+    expect(rows[0]).toEqual({ kind: "password", set: true, changedAt: "2026-10-12T08:00:00Z", email: { kind: "none" } });
     expect(rows[1]).toMatchObject({ kind: "google", linked: false, link: "native", email: { kind: "none" } });
     expect(rows[2]).toMatchObject({ kind: "apple", link: "web" });
   });
@@ -38,6 +38,14 @@ describe("methodRows", () => {
     expect(apple).toMatchObject({ email: { kind: "relay" }, unlink: { allowed: false, reason: "relay" }, linkedAt: "2026-10-01T00:00:00Z" });
     const last = methods({ password: { set: false, changed_at: null }, google: { linked: true, email: "an@gmail.com", linked_at: null } });
     expect(methodRows(last, { google: "native", apple: null })[1]).toMatchObject({ unlink: { allowed: false, reason: "last" }, remaining: [] });
+  });
+});
+
+describe("the password row", () => {
+  it("names the address it signs in with, and Apple's hidden one without spelling it", () => {
+    expect(methodRows(methods(), undefined, "an@congty.vn")[0]).toMatchObject({ email: { kind: "address", email: "an@congty.vn" } });
+    const relay = methods({ account_email_is_relay: true });
+    expect(methodRows(relay, undefined, "q7@privaterelay.appleid.com")[0]).toMatchObject({ email: { kind: "relay" } });
   });
 });
 

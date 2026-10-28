@@ -27,10 +27,14 @@ const fromTransport = (error: unknown): boolean => {
 
 /**
  * The sentence for a failed step. `start` names what the person tapped: a sheet that threw (Apple's or Google's
- * own error, never the server's) says that provider did not work; a browser that would not open says so.
+ * own error, never the server's) says that provider did not work, as a sign-in ("…hoặc dùng email") or, in Settings,
+ * as the link the web's Settings says failed; a browser that would not open says so.
  */
 export function signInFailureOf(error: unknown, context: SignInContext, start: SignInStart = "form"): SignInFailure {
   if (!fromTransport(error) && !(error instanceof TypeError)) {
+    if ((start === "apple" || start === "google") && context === "methods") {
+      return failure("settings.security.signInMethods.results.failed", "form", "provider_sheet", start);
+    }
     if (start === "apple" || start === "google") return failure(`auth.social.errors.${start}_failed`, "form", "provider_sheet");
     if (start === "browser") return failure("auth.desktop.unichat_login_failed", "form", "browser");
   }

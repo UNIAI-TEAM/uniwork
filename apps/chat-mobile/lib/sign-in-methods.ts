@@ -2,7 +2,8 @@
 // SignInMethods) and what this phone can open (lib/sign-in-offer.ts): the password, then Google and Apple, each with
 // what it shows and the one action it offers. A provider links with its own sheet where the phone has one, else on
 // the web (Apple on Android; Google without Google Play services), and its row is hidden when it is neither linked
-// nor offered here. Unlinking follows core's rules (the last way in, Apple of a relay account). Pure.
+// nor offered here. The password names the address it signs in with. Unlinking follows core's rules (the last way in,
+// Apple of a relay account). Pure.
 import type { SignInMethods, SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import {
   emailDisplay,
@@ -18,6 +19,8 @@ interface PasswordRow {
   kind: "password";
   set: boolean;
   changedAt: string | null;
+  /** The address the password signs in with: the account's ("Email ẩn của Apple" for a relay one). */
+  email: EmailDisplay;
 }
 
 export interface ProviderRow {
@@ -36,8 +39,16 @@ export type MethodRow = PasswordRow | ProviderRow;
 
 const PROVIDERS: readonly SignInProvider[] = ["google", "apple"];
 
-export function methodRows(methods: SignInMethods, offer: SignInOffer | undefined): MethodRow[] {
-  const rows: MethodRow[] = [{ kind: "password", set: methods.password.set, changedAt: methods.password.changed_at }];
+/** `accountEmail`: the signed-in account's address, which the password row names as the web's does. */
+export function methodRows(methods: SignInMethods, offer: SignInOffer | undefined, accountEmail: string | null = null): MethodRow[] {
+  const rows: MethodRow[] = [
+    {
+      kind: "password",
+      set: methods.password.set,
+      changedAt: methods.password.changed_at,
+      email: emailDisplay(accountEmail, { privateRelay: methods.account_email_is_relay }),
+    },
+  ];
   for (const provider of PROVIDERS) {
     const state = methods[provider];
     const way = offer?.[provider];

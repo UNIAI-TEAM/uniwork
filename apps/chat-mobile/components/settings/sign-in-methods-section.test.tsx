@@ -1,7 +1,7 @@
 // Settings › Sign-in methods on the phone (sign-in-methods-section.tsx, sign-in-method-row.tsx): the three rows and
 // the web's rules, a link that proves it is you before the provider's sheet opens, Apple on Android through the
-// web's Settings, an unlink that asks first and says what is left, a move out of an empty account, and a list that
-// could not be read said with Retry.
+// web's Settings, an unlink that takes the proof, then asks and says what is left, a move out of an empty account,
+// and a list that could not be read said with Retry.
 import { act, fireEvent, screen } from "@testing-library/react-native";
 import type { SignInMethods } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
@@ -83,6 +83,8 @@ describe("SignInMethodsSection", () => {
     expect(screen.getByRole("header", { name: viText("settings.security.signInMethods.title") })).toBeOnTheScreen();
     expect(await screen.findByText(viText("settings.security.signInMethods.password.name"))).toBeOnTheScreen();
     expect(screen.getByText(/an@gmail\.com · /)).toBeOnTheScreen();
+    // The password names the address it signs in with, as the web's row does.
+    expect(screen.getByText(/^an@acme\.vn · /)).toBeOnTheScreen();
     expect(screen.getAllByText(viText("settings.security.signInMethods.badge.linked"))).toHaveLength(1);
     expect(screen.getByText(viText("settings.security.signInMethods.provider.notLinked", { provider: "Apple" }))).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: viText("mobile.sign_in_methods.link_named", { provider: "Apple" }) })).toBeOnTheScreen();
@@ -142,6 +144,16 @@ describe("SignInMethodsSection", () => {
     expect(toast.error).toHaveBeenCalledWith(viText("settings.security.signInMethods.errors.taken", { masked: "b•••@acme.vn" }));
   });
 
+  it("says a provider's sheet that failed as a link that did not happen, not a sign-in", async () => {
+    api.getSignInMethods.mockResolvedValue(methods({ google: { linked: false, email: null, linked_at: null } }));
+    hold();
+    jest.mocked(linkProvider).mockRejectedValueOnce(Object.assign(new Error("no account on this phone"), { name: "ProviderSheetError" }));
+    await render(<SignInMethodsSection />);
+    await fireEvent.press(await screen.findByTestId("sign-in-method-action-google"));
+    await settle();
+    expect(toast.error).toHaveBeenCalledWith(viText("settings.security.signInMethods.results.failed", { provider: "Google" }));
+  });
+
   it("moves the identity out of an empty account after a confirm that says whose", async () => {
     api.getSignInMethods.mockResolvedValue(methods({ google: { linked: false, email: null, linked_at: null } }));
     hold();
@@ -178,6 +190,7 @@ describe("SignInMethodsSection", () => {
     api.unlink.mockResolvedValueOnce({ user: null, methods: methods({ google: { linked: false, email: null, linked_at: null } }) });
     await render(<SignInMethodsSection />);
     await fireEvent.press(await screen.findByTestId("sign-in-method-action-google"));
+    await settle();
     expect(alerts.at(-1)?.title).toBe(viText("settings.security.signInMethods.unlink.title", { provider: "Google" }));
     expect(alerts.at(-1)?.body).toContain(viText("settings.security.signInMethods.unlink.remainingOne", { method: viText("settings.security.signInMethods.method.password") }));
     expect(alerts.at(-1)?.body).toContain(viText("settings.security.signInMethods.unlink.signsOutOthers"));
@@ -193,10 +206,52 @@ describe("SignInMethodsSection", () => {
     api.unlink.mockRejectedValueOnce(refusal("sign_in_method_last", 409));
     await render(<SignInMethodsSection />);
     await fireEvent.press(await screen.findByTestId("sign-in-method-action-google"));
+    await settle();
     const method = (kind: string) => viText(`settings.security.signInMethods.method.${kind}`);
     expect(alerts.at(-1)?.body).toContain(viText("settings.security.signInMethods.unlink.remainingTwo", { first: method("password"), second: method("apple") }));
     await press(viText("settings.security.signInMethods.unlink.confirm"));
     expect(toast.error).toHaveBeenCalledWith(viText("settings.security.signInMethods.reasons.last"));
+  });
+
+  it("asks nothing more once the proof sheet before an unlink is closed", async () => {
+    await render(<SignInMethodsSection />);
+    await fireEvent.press(await screen.findByTestId("sign-in-method-action-google"));
+    await settle();
+    expect(alerts).toHaveLength(0);
+    await act(async () => fireEvent.press(screen.getByTestId("step-up-cancel")));
+    await settle();
+    expect(alerts).toHaveLength(0);
+    expect(api.unlink).not.toHaveBeenCalled();
+  });
+
+  it("takes the proof before it asks to unlink, as the web does, then unlinks on that token", async () => {
+    jest.mocked(stepUp).mockImplementationOnce(async (_proof, action, userId) => {
+      holdStepUp({ step_up_token: "su_2", expires_at: new Date(Date.now() + 600_000).toISOString(), method: "password" }, { userId, action });
+      return true;
+    });
+    api.unlink.mockResolvedValueOnce({ user: null, methods: methods({ google: { linked: false, email: null, linked_at: null } }) });
+    await render(<SignInMethodsSection />);
+    await fireEvent.press(await screen.findByTestId("sign-in-method-action-google"));
+    await settle();
+    expect(alerts).toHaveLength(0);
+    await act(async () => fireEvent.changeText(screen.getByTestId("step-up-password"), "pw"));
+    await act(async () => fireEvent.press(screen.getByTestId("step-up-submit")));
+    await settle();
+    expect(alerts.at(-1)?.title).toBe(viText("settings.security.signInMethods.unlink.title", { provider: "Google" }));
+    await press(viText("settings.security.signInMethods.unlink.confirm"));
+    expect(api.unlink).toHaveBeenCalledWith("google", "su_2");
+  });
+
+  it("says how long a locked proof waits", async () => {
+    hold();
+    api.unlink.mockRejectedValueOnce(refusal("second_factor_locked", 429, { retry_after: 900 }));
+    await render(<SignInMethodsSection />);
+    await fireEvent.press(await screen.findByTestId("sign-in-method-action-google"));
+    await settle();
+    await press(viText("settings.security.signInMethods.unlink.confirm"));
+    expect(toast.error).toHaveBeenCalledWith(
+      `${viText("settings.security.stepUp.errors.locked")} ${viText("auth.social.retry.minutes", { count: 15 })}`,
+    );
   });
 
   it("says methods it could not read, with Retry, never a guess", async () => {
@@ -207,7 +262,7 @@ describe("SignInMethodsSection", () => {
     expect(await screen.findByTestId("sign-in-method-google")).toBeOnTheScreen();
   });
 
-  it("asks to move an identity whose holder it cannot name, and keeps it where it is on Hủy", async () => {
+  it("asks to move an identity whose holder it cannot name, and keeps it where it is on Không chuyển", async () => {
     api.getSignInMethods.mockResolvedValue(methods({ google: { linked: false, email: null, linked_at: null } }));
     hold();
     jest.mocked(linkProvider).mockRejectedValueOnce(refusal("sign_in_method_movable", 409));
@@ -215,7 +270,7 @@ describe("SignInMethodsSection", () => {
     await fireEvent.press(await screen.findByTestId("sign-in-method-action-google"));
     await settle();
     expect(alerts.at(-1)?.body).toBe(viText("settings.security.signInMethods.move.bodyUnknown", { provider: "Google" }));
-    await press(viText("settings.security.signInMethods.password.cancel"));
+    await press(viText("settings.security.signInMethods.move.decline"));
     expect(linkProvider).toHaveBeenCalledTimes(1);
   });
 
