@@ -197,7 +197,7 @@ describe("SignInMethodsSection", () => {
     const dialog = await proofDialog();
     const field = dialog.getByLabelText("Mã từ ứng dụng xác thực");
     await waitFor(() => expect(field).toHaveFocus());
-    expect(dialog.getByText("Mã 6 số, hoặc một mã khôi phục dạng xxxxx-xxxxx.")).toBeInTheDocument();
+    expect(dialog.getByText("Mã 6 số, hoặc một mã khôi phục dạng xxxxx\u2011xxxxx.")).toBeInTheDocument();
     expect(dialog.queryByRole("button", { name: "Dùng cách khác" })).toBeNull();
     fireEvent.change(field, { target: { value: "abcde-12345" } });
     fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));

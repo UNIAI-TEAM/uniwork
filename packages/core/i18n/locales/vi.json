@@ -550,7 +550,7 @@
       "title": "Xác thực hai lớp",
       "subtitle": "Nhập mã 6 số từ ứng dụng xác thực, hoặc một mã khôi phục.",
       "codeLabel": "Mã xác thực",
-      "hint": "Mã 6 số từ ứng dụng, hoặc mã khôi phục dạng xxxxx-xxxxx.",
+      "hint": "Mã 6 số từ ứng dụng, hoặc mã khôi phục dạng xxxxx‑xxxxx.",
       "invalidCode": "Mã không đúng hoặc phiên xác thực đã hết hạn. Nhập lại hoặc đăng nhập lại.",
       "submit": "Xác nhận",
       "verifying": "Đang xác nhận…",
@@ -2055,7 +2055,7 @@
         },
         "totp": {
           "label": "Mã từ ứng dụng xác thực",
-          "hint": "Mã 6 số, hoặc một mã khôi phục dạng xxxxx-xxxxx.",
+          "hint": "Mã 6 số, hoặc một mã khôi phục dạng xxxxx‑xxxxx.",
           "required": "Nhập mã từ ứng dụng xác thực."
         },
         "emailCode": {
