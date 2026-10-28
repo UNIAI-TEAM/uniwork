@@ -415,6 +415,27 @@ describe("LoginView", () => {
     expect(verify?.[1]).toMatchObject({ body: { mfa_token: "chal", code: "123456" } });
   });
 
+  it("says how long a locked second factor waits, and holds the code until then", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/auth/mfa/verify"
+        ? Promise.reject(new ApiError("locked", "second_factor_locked", 429, undefined, { retry_after: 900 }))
+        : Promise.resolve({ google: false }),
+    );
+    render(wrap(<LoginView onSuccess={() => {}} initialMfa />));
+    fireEvent.change(screen.getByLabelText("Mã xác thực"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
+    // Not "wait a minute": the tenth wrong code locks it for fifteen.
+    expect(await screen.findByText(/Xác thực hai lớp đang tạm khóa vì nhập sai nhiều lần\./)).toHaveTextContent(
+      "Thử lại sau 15 phút.",
+    );
+    const submit = screen.getByRole("button", { name: "Xác nhận" });
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    fireEvent.change(screen.getByLabelText("Mã xác thực"), { target: { value: "654321" } });
+    fireEvent.click(submit);
+    const verifies = requestMock.mock.calls.filter(([path]) => path === "/api/v1/auth/mfa/verify");
+    expect(verifies).toHaveLength(1);
+  });
+
   it("opens on the code step for /login?mfa=1 and sends the cookie-only shape", async () => {
     requestMock.mockImplementation((path: string) =>
       Promise.resolve(path === "/api/v1/auth/mfa/verify" ? SESSION : { google: false }),
