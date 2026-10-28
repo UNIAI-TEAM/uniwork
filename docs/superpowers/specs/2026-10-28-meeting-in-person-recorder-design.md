@@ -306,12 +306,14 @@ Những gì lúc triển khai mới chốt, ngoài bản đã duyệt. Thiết k
   ghi lời xong và chỉ đếm những phần server đã có, nên gửi phần lớn trước thì
   tóm tắt phủ gần hết cuộc họp (độ lệch theo từng phần nên thứ tự không đổi chỗ
   phần nào). Còn sót: mất mạng sau phần lớn nhất thì tóm tắt có thể thiếu các
-  mẩu nhỏ. Phần rỗng (0 byte, máy ghi hỏng ngay sau khi mở phần) bị xoá, không
-  gửi và không tính vào độ dài đã họp. Độ dài báo cho từng phần (ước tính, hạn
+  mẩu nhỏ. Phần rỗng (0 byte, máy ghi hỏng ngay sau khi mở phần) bị xoá và
+  không gửi; độ dài đã họp vẫn tính từ mốc của bản ghi (giờ bắt đầu phần đầu trừ
+  độ lệch của nó), để các phần sau giữ đúng chỗ. Độ dài báo cho từng phần (ước tính, hạn
   mức, "n phút") dừng ở đoạn cuối cộng 5 giây, để phút khoá máy trên iOS không bị
   tính; độ dài đã họp thì vẫn tính cả lúc khoá máy. 422 `invalid_offset` (máy khác
   đã kết thúc với độ dài ngắn hơn) thì xếp lại phần đó một lần không kèm
-  `offset_seconds`, để server nối nó sau các phần trước. Màn hình được giữ sáng
+  `offset_seconds`; server đặt nó sau tổng độ dài các tệp đã có của cuộc họp (của
+  mọi máy), nên giờ của phần đó chỉ gần đúng, nhưng không bị kẹt. Màn hình được giữ sáng
   trong lúc ghi nhận đã họp và tải lên.
   409 `transcription_in_progress` khi xếp hàng nghĩa là đã xếp. Mất mạng thì chờ
   sự kiện `online` và thử lại sau 10 giây, 30 giây, rồi mỗi 60 giây. Máy thứ hai
