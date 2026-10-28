@@ -247,7 +247,8 @@ function ClerkBoard({ items }: { items: readonly MeetingActionItem[] }) {
         allItems={items}
         onAssigned={() => {
           setSelecting(false);
-          addRef.current?.focus();
+          // Focus lands after the list without scrolling to it: the clerk watches the assigned rows fold in place.
+          addRef.current?.focus({ preventScroll: true });
         }}
       />
       <DismissDialog item={dismissing} onClose={() => setDismissing(null)} />

@@ -125,9 +125,15 @@ describe("ActionItemsBoard — clerk (Main / AfterAssign)", () => {
     await user.click(await screen.findByRole("option", { name: "Hà Vũ" }));
     await user.click(screen.getByRole("button", { name: "Giao" }));
     const sheet = await screen.findByRole("dialog");
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
     await user.click(within(sheet).getByRole("button", { name: "Giao 1 việc" }));
 
     await waitFor(() => expect(convertBodies()).toHaveLength(1));
+    // Focus returns after the list without scrolling the page away from the rows that fold.
+    const add = screen.getByRole("button", { name: "Thêm việc" });
+    await waitFor(() => expect(focus.mock.contexts).toContain(add));
+    expect(focus.mock.calls[focus.mock.contexts.indexOf(add)]).toEqual([{ preventScroll: true }]);
+    focus.mockRestore();
     const [row] = convertBodies()[0]!.items;
     expect(row).toMatchObject({
       action_item_id: m1.action_items.items[1]!.id,
