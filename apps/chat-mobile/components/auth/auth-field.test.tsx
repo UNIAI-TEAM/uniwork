@@ -38,6 +38,11 @@ describe("AuthField", () => {
     expect(onChangeText).toHaveBeenCalledWith("x");
   });
 
+  it("submits from its return key without blurring, so a refusal keeps the keyboard up", async () => {
+    await render(<AuthField label="Mật khẩu" value="" returnKeyType="go" onSubmitEditing={jest.fn()} testID="field" />);
+    expect(screen.getByTestId("field").props.submitBehavior).toBe("submit");
+  });
+
   it("keeps a field it cannot edit now on screen, and works with no hint", async () => {
     await render(<AuthField label="Tên" value="An" editable={false} testID="field" />);
     expect(screen.getByTestId("field").props.editable).toBe(false);

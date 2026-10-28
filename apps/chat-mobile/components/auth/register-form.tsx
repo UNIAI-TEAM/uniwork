@@ -63,7 +63,6 @@ export function RegisterForm({ busy, message, spoken = null, waiting = false, on
         autoComplete="name"
         autoCapitalize="words"
         returnKeyType="next"
-        submitBehavior="submit"
         onSubmitEditing={() => inputs.email.current?.focus()}
         busy={!idle}
         testID="register-name"
@@ -80,7 +79,6 @@ export function RegisterForm({ busy, message, spoken = null, waiting = false, on
         autoComplete="email"
         autoCapitalize="none"
         returnKeyType="next"
-        submitBehavior="submit"
         onSubmitEditing={() => inputs.password.current?.focus()}
         busy={!idle}
         testID="register-email"

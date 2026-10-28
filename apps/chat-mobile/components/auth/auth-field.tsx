@@ -4,7 +4,9 @@
 // the field hears what to fix (the note under it says the error as it shows). While a request runs (`busy`) the field
 // stays editable, so it keeps its focus and the keyboard, and what is typed waits: a disabled native input drops the
 // keyboard and cannot be focused again before React commits the answer, so a refused password could not be typed
-// again at once. The password field adds show/hide, a full 44 pt target inside the field.
+// again at once. Its return key never blurs (`submitBehavior="submit"`, not React Native's single-line default): Next
+// moves on and Go submits with the keyboard still up, so a refusal does not drop the keyboard and raise it again. The
+// password field adds show/hide, a full 44 pt target inside the field.
 import { Ionicons } from "@expo/vector-icons";
 import { useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
@@ -36,7 +38,21 @@ interface AuthFieldProps extends Omit<TextInputProps, "style" | "className"> {
 const waitForAnswer = () => undefined;
 
 export function AuthField(props: AuthFieldProps) {
-  const { label, error, spokenError = null, hint, trailing, ref, editable = true, busy = false, onChangeText, onFocus, onBlur, ...input } = props;
+  const {
+    label,
+    error,
+    spokenError = null,
+    hint,
+    trailing,
+    ref,
+    editable = true,
+    busy = false,
+    submitBehavior = "submit",
+    onChangeText,
+    onFocus,
+    onBlur,
+    ...input
+  } = props;
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const [focused, setFocused] = useState(false);
@@ -58,6 +74,7 @@ export function AuthField(props: AuthFieldProps) {
           accessibilityHint={spokenError ?? error ?? hint ?? undefined}
           accessibilityState={{ busy, disabled: !editable }}
           editable={editable}
+          submitBehavior={submitBehavior}
           onChangeText={busy ? waitForAnswer : onChangeText}
           placeholderTextColor={theme.mutedForeground}
           autoCorrect={false}

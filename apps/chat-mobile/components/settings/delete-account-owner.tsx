@@ -148,6 +148,8 @@ function CloseOrganizationField({
         placeholderTextColor={placeholderColor}
         accessibilityLabel={label}
         returnKeyType="done"
+        // The key keeps the keyboard up: a mismatch refocuses this field rather than raising it again.
+        submitBehavior="submit"
         onSubmitEditing={onSubmit}
         testID="delete-account-close-slug"
         className={cn("min-h-12 rounded-xl border bg-muted px-3.5 py-3 text-body text-foreground", error ? "border-destructive" : "border-border")}

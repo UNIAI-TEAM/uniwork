@@ -70,7 +70,6 @@ export function LoginForm({ busy, message, spoken = null, waiting = false, onSub
         autoComplete="email"
         autoCapitalize="none"
         returnKeyType="next"
-        submitBehavior="submit"
         onSubmitEditing={() => passwordInput.current?.focus()}
         busy={!idle}
         testID="login-email"
