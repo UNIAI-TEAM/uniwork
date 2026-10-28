@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { settle } from "./contrast";
-import { expectReadable, offerProviders, setMode, sidewaysOverflow } from "./sign-in-page";
+import { expectReadable, offerProviders, risen, setMode, sidewaysOverflow } from "./sign-in-page";
 
 /**
  * The Google and Apple buttons over the sign-in and register forms (spec
@@ -164,8 +164,8 @@ test("the form does not move when the provider buttons land", async ({ page }) =
   const email = page.getByLabel("Email");
   await email.waitFor();
   await expect(page.locator('[data-slot="social-placeholder"]')).toHaveCount(1);
-  // The column rises in on mount: measure where it comes to rest, not where it passes.
-  await settle(page);
+  // The column rises in once the page hydrates: measure where it comes to rest, not where it starts.
+  await risen(page);
   const before = await box(email);
 
   release();

@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { auditText } from "./contrast";
+import { auditText, settle } from "./contrast";
 
 /**
  * The sign-in screens' specs (ADR 0049, spec 2026-10-27 §4.6): the answers
@@ -57,6 +57,27 @@ export async function pendingSignIn(page: Page, ticket: PendingSignIn): Promise<
 /** The app's colour mode, as the theme switch sets it. Navigation resets it. */
 export async function setMode(page: Page, mode: "light" | "dark"): Promise<void> {
   await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
+}
+
+/**
+ * The column has come to rest where it rises in (AuthShell's Rise). The
+ * server draws it 40px low and see-through, and motion starts it only once
+ * the page hydrates, so until then no animation runs and settle() alone
+ * returns at once: a position measured then is where the card starts, not
+ * where it stays.
+ */
+export async function risen(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.locator("main").evaluate((main) =>
+        [...main.querySelectorAll<HTMLElement>("[style]")].every((el) => {
+          const style = getComputedStyle(el);
+          return style.transform === "none" && style.opacity === "1";
+        }),
+      ),
+    )
+    .toBe(true);
+  await settle(page);
 }
 
 /** Every text node on the page clears WCAG AA against what is painted under it (contrast.ts). */

@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { settle } from "./contrast";
-import { expectReadable, pendingSignIn, setMode, sidewaysOverflow, type PendingSignIn } from "./sign-in-page";
+import { expectReadable, pendingSignIn, risen, setMode, sidewaysOverflow, type PendingSignIn } from "./sign-in-page";
 
 /**
  * The choice screen a Google or Apple sign-in that found no account lands on
@@ -121,7 +121,7 @@ test.describe("on a phone", () => {
     await page.goto("/auth/continue");
     await page.getByText("Đang tải lượt đăng nhập…").waitFor({ state: "attached" });
     const card = page.locator("main div:has(> div > h1)");
-    await settle(page);
+    await risen(page);
     const before = (await card.boundingBox())!;
 
     release();
