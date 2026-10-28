@@ -163,10 +163,18 @@ describe("email verification and providers", () => {
     expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/me/email/resend");
   });
 
-  it("authProviders reads google and falls back to every provider off", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ google: true })).mockResolvedValueOnce(json({ google: "yes" }));
-    expect(await authProviders()).toEqual({ google: true });
-    expect(await authProviders()).toEqual({ google: false });
+  it("authProviders reads every flag, each drifted one off on its own, and every provider off on drift", async () => {
+    const off = { google: false, apple: false, apple_web: false, google_native: false };
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json({ google: true, apple: true, apple_web: true, google_native: false }))
+      .mockResolvedValueOnce(json({ google: true }))
+      .mockResolvedValueOnce(json({ google: "yes", apple_web: true }))
+      .mockResolvedValueOnce(json("nope"));
+    expect(await authProviders()).toEqual({ google: true, apple: true, apple_web: true, google_native: false });
+    // A server from before ADR 0047 sends google alone: the new flags read as off.
+    expect(await authProviders()).toEqual({ ...off, google: true });
+    expect(await authProviders()).toEqual({ ...off, apple_web: true });
+    expect(await authProviders()).toEqual(off);
   });
 
   describe("identity hardening (F-01)", () => {
@@ -187,6 +195,44 @@ describe("email verification and providers", () => {
       expect(body).toEqual({ mfa_token: "", code: "123456" });
     });
 
+    it("keeps the pending sign-in only when asked (ADR 0047 link mode)", async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(json({ user, access_token: "t" }))
+        .mockResolvedValueOnce(json({ user, access_token: "t" }))
+        .mockResolvedValueOnce(json({ user, access_token: "t" }))
+        .mockResolvedValueOnce(json({ user, access_token: "t" }));
+      await login("a@b.c", "pw", { keepSignInTicket: true });
+      await login("a@b.c", "pw", { keepSignInTicket: false });
+      await verifyMfa("chal", "123456", { keepSignInTicket: true });
+      await resetPassword("rt", "newpassword1", { keepSignInTicket: true });
+      const bodies = vi.mocked(fetch).mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as Record<string, unknown>);
+      expect(bodies[0]).toEqual({ email: "a@b.c", password: "pw", keep_sign_in_ticket: true });
+      expect(bodies[1]).toEqual({ email: "a@b.c", password: "pw" });
+      expect(bodies[2]).toEqual({ mfa_token: "chal", code: "123456", keep_sign_in_ticket: true });
+      expect(bodies[3]).toEqual({ token: "rt", password: "newpassword1", keep_sign_in_ticket: true });
+    });
+
+    it("reads link_skipped and reclaimed off a session, and a drifted extra never costs the session", async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(json({ user, access_token: "t1", link_skipped: "sign_in_method_taken" }))
+        .mockResolvedValueOnce(json({ user, access_token: "t2", reclaimed: true }))
+        .mockResolvedValueOnce(json({ user, access_token: "t3", link_skipped: 7, reclaimed: "yes" }));
+      expect((await verifyMfa("chal", "123456"))?.link_skipped).toBe("sign_in_method_taken");
+      const reset = await resetPassword("rt", "newpassword1");
+      expect(reset && "reclaimed" in reset ? reset.reclaimed : null).toBe(true);
+      const drifted = await verifyMfa("chal", "123456");
+      expect(drifted?.access_token).toBe("t3");
+      expect(drifted?.link_skipped).toBeUndefined();
+      expect(drifted?.reclaimed).toBeUndefined();
+      expect(getAccessToken()).toBe("t3");
+    });
+
+    it("deleteAccount sends the step-up token as its proof", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+      await deleteAccount({ step_up_token: "su-1" });
+      expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual({ step_up_token: "su-1" });
+    });
+
     it("verifyMfa degrades to null on a malformed response", async () => {
       vi.mocked(fetch).mockResolvedValueOnce(json({ nope: 1 }));
       expect(await verifyMfa("chal", "123456")).toBeNull();
@@ -195,14 +241,18 @@ describe("email verification and providers", () => {
 
     it("mfaSetup / mfaConfirm / mfaDisable degrade instead of throwing", async () => {
       vi.mocked(fetch).mockResolvedValueOnce(json({ secret: "S", otpauth_url: "otpauth://x" }));
-      expect(await mfaSetup()).toEqual({ secret: "S", otpauth_url: "otpauth://x" });
+      expect(await mfaSetup("su-1")).toEqual({ secret: "S", otpauth_url: "otpauth://x" });
       vi.mocked(fetch).mockResolvedValueOnce(json({ secret: 1 }));
-      expect(await mfaSetup()).toBeNull();
+      expect(await mfaSetup("su-1")).toBeNull();
 
       vi.mocked(fetch).mockResolvedValueOnce(json({ recovery_codes: ["a-b", "c-d"] }));
-      expect(await mfaConfirm("123456")).toEqual(["a-b", "c-d"]);
+      expect(await mfaConfirm("123456", "su-1")).toEqual(["a-b", "c-d"]);
       vi.mocked(fetch).mockResolvedValueOnce(json({ recovery_codes: "oops" }));
-      expect(await mfaConfirm("123456")).toEqual([]);
+      expect(await mfaConfirm("123456", "su-1")).toEqual([]);
+      // Turning the second factor on is a sensitive command (ADR 0047 §5): both steps carry the step-up token.
+      const bodies = vi.mocked(fetch).mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as Record<string, unknown>);
+      expect(bodies[0]).toEqual({ step_up_token: "su-1" });
+      expect(bodies[2]).toEqual({ code: "123456", step_up_token: "su-1" });
 
       vi.mocked(fetch).mockResolvedValueOnce(json({ user: { ...user, mfa_enabled_at: null } }));
       expect((await mfaDisable("123456"))?.mfa_enabled_at).toBeNull();

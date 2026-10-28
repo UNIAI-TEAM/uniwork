@@ -7,6 +7,7 @@ import { ApiError } from "../api/http";
 import { isMFAChallenge, type MFAChallenge, type SessionResponse, type User, type UserSession } from "../types/user";
 import { workspaceKeys } from "../workspaces/keys";
 import { hasSessionHint } from "./session-hint";
+import { forgetStepUp, forgetStepUpIfRefused, stepUpToken } from "./step-up-store";
 import { useAuthStore, type SessionStatus } from "./store";
 
 export type { SessionStatus };
@@ -14,6 +15,10 @@ export type { SessionStatus };
 export const authKeys = {
   providers: () => ["auth", "providers"] as const,
   sessions: () => ["auth", "sessions"] as const,
+  /** The browser's pending provider sign-in (the choice screen, sign-in-hooks.ts). */
+  signInTicket: () => ["auth", "sign-in-ticket"] as const,
+  /** GET /me/sign-in-methods (Settings › Sign-in methods, sign-in-hooks.ts). */
+  signInMethods: () => ["auth", "sign-in-methods"] as const,
 };
 
 /** Update the session user (after PATCH onboarding/complete). */
@@ -48,50 +53,82 @@ export function useKnownSession(): { user: User | null; status: SessionStatus } 
   return state;
 }
 
-// A login/register response that fails its schema is the one drift that
-// cannot be smoothed over — there is no token to start a session with. It is
-// surfaced as an ApiError so the form shows its normal failure state.
+// A response that opens a session (login, register, reset, the choice
+// screen's create and claim-email verify) and fails its schema is the one
+// drift that cannot be smoothed over — there is no token to start a session
+// with. It is surfaced as an ApiError so the form shows its normal failure
+// state.
 function requireSession(sess: SessionResponse | null): SessionResponse {
   if (!sess) throw new ApiError("Unexpected response from the server", "malformed_response", 502);
   return sess;
 }
 
-function applyAuthSession(sess: SessionResponse): void {
+/** Same, for an answer that may be the second factor still owed instead. */
+export function requireSessionOrChallenge(out: SessionResponse | MFAChallenge | null): SessionResponse | MFAChallenge {
+  return isMFAChallenge(out) ? out : requireSession(out);
+}
+
+/** A new session: its user, and no step-up token of the one before (a token is bound to its session). */
+export function applyAuthSession(sess: SessionResponse): void {
+  forgetStepUp();
   setSessionUser(sess.user);
 }
 
-/** Resolves to a session, or to the MFA challenge the login screen must answer with `useVerifyMfa`. */
+/**
+ * Resolves to a session, or to the MFA challenge the login screen must answer
+ * with `useVerifyMfa`. `keepSignInTicket` on /login?link=1 (ADR 0047): this
+ * sign-in is the account the pending provider links into.
+ */
 export function useLogin() {
   return useMutation({
-    mutationFn: async ({ email, password }: { email: string; password: string }): Promise<SessionResponse | MFAChallenge> => {
-      const out = await auth.login(email, password);
-      return isMFAChallenge(out) ? out : requireSession(out);
-    },
+    mutationFn: async ({
+      email,
+      password,
+      keepSignInTicket,
+    }: {
+      email: string;
+      password: string;
+      keepSignInTicket?: boolean;
+    }): Promise<SessionResponse | MFAChallenge> =>
+      requireSessionOrChallenge(await auth.login(email, password, { keepSignInTicket })),
     onSuccess: (out) => {
       if (!isMFAChallenge(out)) applyAuthSession(out);
     },
   });
 }
 
+/** The session may carry `link_skipped` (auth/sign-in-errors.ts linkSkippedKey) for the screen to say once. */
 export function useVerifyMfa() {
   return useMutation({
-    mutationFn: async ({ mfaToken, code }: { mfaToken: string | null; code: string }) =>
-      requireSession(await auth.verifyMfa(mfaToken, code)),
+    mutationFn: async ({ mfaToken, code, keepSignInTicket }: { mfaToken: string | null; code: string; keepSignInTicket?: boolean }) =>
+      requireSession(await auth.verifyMfa(mfaToken, code, { keepSignInTicket })),
     onSuccess: applyAuthSession,
   });
 }
 
+/**
+ * Turning the second factor on takes a step-up token (enable_mfa): the
+ * screen asks for a proof first (useStepUp) unless `hasStepUp("enable_mfa")`.
+ * Without one the server answers 403 proof_required with the proofs.
+ */
 export function useMfaSetup() {
-  return useMutation({ mutationFn: () => auth.mfaSetup() });
+  return useMutation({
+    mutationFn: () => auth.mfaSetup(stepUpToken("enable_mfa") ?? ""),
+    onError: forgetStepUpIfRefused,
+  });
 }
 
 /**
- * Deliberately does not refresh the session user: the recovery codes are
- * shown once, and swapping the user (MFA on) would unmount the screen that
- * shows them. The screen calls `useRefreshSessionUser` when the person is done.
+ * The same token as the setup. Deliberately does not refresh the session
+ * user: the recovery codes are shown once, and swapping the user (MFA on)
+ * would unmount the screen that shows them. The screen calls
+ * `useRefreshSessionUser` when the person is done.
  */
 export function useMfaConfirm() {
-  return useMutation({ mutationFn: (code: string) => auth.mfaConfirm(code) });
+  return useMutation({
+    mutationFn: (code: string) => auth.mfaConfirm(code, stepUpToken("enable_mfa") ?? ""),
+    onError: forgetStepUpIfRefused,
+  });
 }
 
 export function useRefreshSessionUser() {
@@ -132,9 +169,14 @@ export function useRevokeOtherSessions() {
   });
 }
 
+/** The held step-up token (delete_account) proves it when there is one; the legacy proofs only without. */
 export function useDeleteAccount() {
   return useMutation({
-    mutationFn: (body: auth.DeleteAccountBody) => auth.deleteAccount(body),
+    mutationFn: (body: auth.DeleteAccountBody) => {
+      const token = body.step_up_token ?? stepUpToken("delete_account");
+      return auth.deleteAccount(token ? { ...body, step_up_token: token } : body);
+    },
+    onError: forgetStepUpIfRefused,
     onSuccess: async () => {
       await useAuthStore.getState().logout();
     },
@@ -197,15 +239,25 @@ export function useForgotPassword() {
   return useMutation({ mutationFn: (email: string) => auth.forgotPassword(email) });
 }
 
-/** Like useLogin: an MFA account gets the challenge (cookie-borne) instead of a session. */
+/**
+ * Like useLogin: an MFA account gets the challenge (cookie-borne) instead of
+ * a session. The session carries `reclaimed` when the link took back an
+ * account that never proved its address.
+ */
 export function useResetPassword() {
   return useMutation({
-    mutationFn: async ({ token, password }: { token: string; password: string }): Promise<SessionResponse | MFAChallenge> => {
-      const out = await auth.resetPassword(token, password);
-      return isMFAChallenge(out) ? out : requireSession(out);
-    },
+    mutationFn: async ({
+      token,
+      password,
+      keepSignInTicket,
+    }: {
+      token: string;
+      password: string;
+      keepSignInTicket?: boolean;
+    }): Promise<SessionResponse | MFAChallenge> =>
+      requireSessionOrChallenge(await auth.resetPassword(token, password, { keepSignInTicket })),
     onSuccess: (out) => {
-      if (!isMFAChallenge(out)) setSessionUser(out.user);
+      if (!isMFAChallenge(out)) applyAuthSession(out);
     },
   });
 }

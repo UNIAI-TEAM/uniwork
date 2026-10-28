@@ -3,6 +3,7 @@ import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tansta
 import { useAuthStore } from "../auth/store";
 import * as auth from "../api/endpoints/auth";
 import { setSessionUser } from "../auth/hooks";
+import { forgetStepUpIfRefused, withTransferProof } from "../auth/step-up-store";
 import * as workspaces from "../api/endpoints/workspaces";
 import { useOrganizations } from "../organizations/hooks";
 import { resolveHomeDestination } from "../paths/resolve";
@@ -143,8 +144,10 @@ export function useInvitationPreview(token: string, enabled = true) {
 export function useAcceptInvite() {
   const qc = useQueryClient();
   return useMutation({
+    // A transfer step is proved with the held step-up token when there is one (ADR 0047 §5).
     mutationFn: ({ token, resolve }: { token: string; resolve?: SwitchResolution[] }) =>
-      workspaces.acceptInvite(token, resolve),
+      workspaces.acceptInvite(token, withTransferProof(resolve)),
+    onError: forgetStepUpIfRefused,
     onSuccess: async () => {
       qc.clear();
       // The join already committed: a failed read of /me must not turn it

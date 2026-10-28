@@ -156,17 +156,21 @@ export async function revokeOrgInvitation(orgSlug: string, invitationId: string)
 }
 
 /**
- * Handing the organization to somebody else. The current owner re-enters their
- * password, because this is the one change they cannot undo alone afterwards.
+ * The owner's proof of a hand-over: a step-up token (action
+ * transfer_ownership when a mailed code bought it, ADR 0047 §5). `password`
+ * is the shipped app's legacy proof (reviewed 2027-01-31), sent only without
+ * a token.
  */
-export async function transferOwnership(
-  orgSlug: string,
-  toUserId: string,
-  password: string,
-): Promise<OrgMember | null> {
+export type OwnerProof = { step_up_token: string } | { password: string };
+
+/**
+ * Handing the organization to somebody else. The current owner proves it is
+ * them, because this is the one change they cannot undo alone afterwards.
+ */
+export async function transferOwnership(orgSlug: string, toUserId: string, proof: OwnerProof): Promise<OrgMember | null> {
   const raw = await request(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/transfer-ownership`, {
     method: "POST",
-    body: { to_user_id: toUserId, password },
+    body: { to_user_id: toUserId, ...proof },
   });
   return parseWithFallback<{ member: OrgMember } | null>(raw, MemberResponse, null, {
     endpoint: "POST /api/v1/orgs/{org}/transfer-ownership",

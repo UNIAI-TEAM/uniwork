@@ -2,6 +2,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as organizations from "../api/endpoints/organizations";
 import * as orgMembers from "../api/endpoints/organization-members";
+import { forgetStepUpIfRefused, stepUpToken } from "../auth/step-up-store";
 import { peopleKeys } from "../people/hooks";
 import type { Workspace } from "../types/workspace";
 import { workspaceKeys } from "../workspaces/keys";
@@ -232,8 +233,13 @@ export function useRevokeOrgInvitation(orgSlug: string) {
 export function useTransferOwnership(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ toUserId, password }: { toUserId: string; password: string }) =>
-      orgMembers.transferOwnership(orgSlug, toUserId, password),
+    // The held step-up token (transfer_ownership) is the proof (ADR 0047
+    // §5); a typed password only when there is none.
+    mutationFn: ({ toUserId, password }: { toUserId: string; password?: string }) => {
+      const token = stepUpToken("transfer_ownership");
+      return orgMembers.transferOwnership(orgSlug, toUserId, token ? { step_up_token: token } : { password: password ?? "" });
+    },
+    onError: forgetStepUpIfRefused,
     onSuccess: () =>
       Promise.all(
         [

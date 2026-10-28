@@ -123,16 +123,22 @@ describe("organization member endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: 1 }));
     await expect(revokeOrgInvitation("acme", "i1")).resolves.toBe(false);
     vi.mocked(fetch).mockResolvedValueOnce(json({ member: { user_id: 1 } }));
-    await expect(transferOwnership("acme", "u2", "pw")).resolves.toBeNull();
+    await expect(transferOwnership("acme", "u2", { password: "pw" })).resolves.toBeNull();
     // The password goes in the body, never in the URL.
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).not.toContain("pw");
+  });
+
+  it("transferOwnership sends the step-up token as the owner's proof (ADR 0047 §5)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ member: { user_id: 1 } }));
+    await transferOwnership("acme", "u2", { step_up_token: "su-1" });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toEqual({ to_user_id: "u2", step_up_token: "su-1" });
   });
 
   it("transferOwnership surfaces a wrong re-entered password once, without a session refresh", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json({ error: { code: "password_incorrect", message: "mật khẩu không đúng" } }, 403),
     );
-    await expect(transferOwnership("acme", "u2", "wrong")).rejects.toMatchObject({
+    await expect(transferOwnership("acme", "u2", { password: "wrong" })).rejects.toMatchObject({
       code: "password_incorrect",
       status: 403,
     });

@@ -493,8 +493,13 @@ Frontend code must survive backend response drift.
   types narrow them, so every `switch` over a server enum carries a `default`
   and UI optional-chains server fields.
 - Every endpoint has a malformed-response test proving it degrades instead of
-  throwing. Login, register and complete-onboarding are the deliberate
-  exceptions that still fail loudly — there is no session to start without them.
+  throwing. Login, register, complete-onboarding, and the choice screen's two
+  commands that open a session (`createFromSignInTicket`,
+  `verifySignInEmailClaim` in `packages/core/api/endpoints/sign-in-ticket.ts`)
+  are the deliberate exceptions that still fail loudly — there is no session to
+  start without them; so is every door of the app's sign-in screen
+  (`packages/core/api/endpoints/sign-in-native-api.ts`), whose malformed answer
+  is null and fails closed on the phone.
 - When adding or changing an endpoint: add the function, its schema, and a
   malformed-response case in `api/endpoints/<domain>.test.ts`.
 

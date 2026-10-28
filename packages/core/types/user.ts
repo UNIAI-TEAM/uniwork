@@ -47,5 +47,17 @@ export type UserSession = z.infer<typeof UserSessionSchema>;
 export const SessionResponseSchema = z.object({
   user: UserSchema,
   access_token: z.string(),
+  /**
+   * Only from POST /auth/mfa/verify (ADR 0047): signed in, but the provider
+   * the challenge waited to link was not linked; the code says why
+   * (auth/sign-in-errors.ts linkSkippedKey). Absent when nothing was skipped.
+   */
+  link_skipped: z.string().optional().catch(undefined),
+  /**
+   * This session took the account back from whoever registered the address
+   * before proving it: say so once. Both extras read as absent when they
+   * drift, so a notice never costs the session.
+   */
+  reclaimed: z.boolean().optional().catch(undefined),
 });
 export type SessionResponse = z.infer<typeof SessionResponseSchema>;
