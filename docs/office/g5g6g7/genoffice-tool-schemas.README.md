@@ -12,24 +12,23 @@ Công cụ mà extractor không phân giải được `inputSchema` — ô trong
 `tableHash` giữ nguyên ô `unresolved:<lý do>` của bảng, và công cụ đó không nằm trong mảng module nào gửi cho model. Từ
 G6-09d (`3e4e9b71f`, nhánh `feature/UNI-1825-g6-09d-extractor`), extractor gấp mũi tên đệ quy có tham số
 `nodeSchema(maxDepth)` nên cả hai hàng `generate_mindmap` ở docs và markdown đều phân giải thành hash
-`ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0` (`offered: true`, `schemaComplete: true`), và
+`429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5` ở `47a209b95` (trước đó `ad838ec1…` ở `3e4e9b71f`; `offered: true`, `schemaComplete: true`), và
 `UNRESOLVED_SCHEMA_TOOLS` trong `genoffice-tool-schemas.test.mjs` nay rỗng (`[]`; bất kỳ hàng `unresolved:` nào hoặc chữ
 `unresolved:` trong mảng module là lỗi).
 
 Sinh lại **cả hai tạo phẩm** cùng lúc khi khối trích xuất đổi rev (`header.rev` và `header.mechanicalBlockSha256` của tệp JSON phải
-khớp khối §3 trong `genoffice-tools.md`; `FORK` là worktree fork `/home/ubuntu/orca/workspaces/uniwork-office/feature-UNI-1374-g6-09-ai-edit-undo`
-và extractor G6-09d ở `3e4e9b71f`, nhánh `feature/UNI-1825-g6-09d-extractor`, blob `4a7fbf1d67b8649265f205443439cd14e9537682` cho tới khi vào
-fork `main`; ở `REV=3e4e9b71f` khối §3 có 143 dòng, sha256 `235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95`, và schema sinh
+khớp khối §3 trong `genoffice-tools.md`; `FORK` là worktree fork `/home/ubuntu/orca/workspaces/uniwork-office/UNI-2282-md-wave2`
+và extractor ở `47a209b95`, nhánh `feature/UNI-2282-md-wave2-x1-mindmap-pin`; ở `REV=47a209b9546ccd1b325d0885b211b5905e7a620e` khối §3 có 143 dòng, sha256 `95759bc7364ae4ed8f1a6475613bd68113b51d94f1a86783b89f54bfeb05ec47`, và schema sinh
 ra khớp từng ô hash trong bảng §3 trừ hàng `docs/set_page_setup` đã ghi trong test):
 
 ```bash
 (
   set -euo pipefail
-  REV=3e4e9b71f # hoặc <rev mới>
+  REV=47a209b9546ccd1b325d0885b211b5905e7a620e # hoặc <rev mới>
   TMP=$(mktemp -d)
   trap 'rm -rf "$TMP"' EXIT
 
-  git -C "$FORK" show 3e4e9b71f:scripts/genoffice-tools-extract.mjs > "$TMP/extractor.mjs"
+  git -C "$FORK" show "$REV:scripts/genoffice-tools-extract.mjs" > "$TMP/extractor.mjs"
 
   # 1. Sinh khối trích xuất §3 vào tệp tạm, kiểm hình dạng (header rev + bảng + dòng dữ liệu)
   node "$TMP/extractor.mjs" --repo "$FORK" --rev "$REV" > "$TMP/extract.md"

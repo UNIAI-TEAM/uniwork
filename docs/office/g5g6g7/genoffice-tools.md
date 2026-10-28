@@ -1,9 +1,9 @@
 # UniWork Office — Bảng công cụ agent genoffice (G6-01, làm mới sau G6-12)
 
-> **Trạng thái:** in-progress — cột cơ học (khối trích xuất tại `3e4e9b71f` (`3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b`), 143 dòng,
-> sha256 `235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95`; sinh bằng extractor G6-09d tại `3e4e9b71f`, nhánh
-> `feature/UNI-1825-g6-09d-extractor`, blob `4a7fbf1d67b8649265f205443439cd14e9537682` cho tới khi fork `main` có bản sửa; trước đó
-> ở `bf4ff7b0` (DOC-05 lockstep), `cb76dde5` (G7-06, extractor `f5b75e1f`) và `66169a9a` (G6-12)) và
+> **Trạng thái:** in-progress — cột cơ học (khối trích xuất tại `47a209b95` (`47a209b9546ccd1b325d0885b211b5905e7a620e`), 143 dòng,
+> sha256 `95759bc7364ae4ed8f1a6475613bd68113b51d94f1a86783b89f54bfeb05ec47`; sinh bằng extractor tại `47a209b95`, nhánh
+> `feature/UNI-2282-md-wave2-x1-mindmap-pin`; trước đó ở `3e4e9b71f` (G6-09d / REPIN-1, sha256
+> `235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95`), `bf4ff7b0` (DOC-05 lockstep), `cb76dde5` (G7-06, extractor `f5b75e1f`) và `66169a9a` (G6-12)) và
 > cột tay đủ bảy module; hàng đã sửa ở G6-12 ghi commit + test ở §9; hàng chưa sửa ghi chủ mới hoặc "chờ Product (đợt 3)". Chờ
 > owner F + Product ký cột tay (§10).
 
@@ -13,16 +13,15 @@
   `feature/UNI-1366-g6-12-tools` của fork, đã đẩy). Đó là fork `main` `673fc563` cộng toàn bộ nhánh module G6-12 (UNI-1366).
   Bản tài liệu trước (G6-01) đọc ở `0d03b185` = pin web `0.1.0-0d03b18`
   ([office-web-modules](../office-web-modules.md)); các hàng đã sửa ở G6-12 đọc ở `66169a9a` — riêng khối §3 nay đọc ở
-  `3e4e9b71f` (gạch đầu dòng dưới).
-- **Khối §3 ở G6-09d / REPIN-1 (UNI-1825, 2026-10-16; trước đó ở G7-06 `cb76dde5` và DOC-05 `bf4ff7b0`):** khối trích xuất nay đọc ở
-  `3e4e9b71f` (`3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b`, nhánh `feature/UNI-1825-g6-09d-extractor` trong worktree fork
-  `/home/ubuntu/orca/workspaces/uniwork-office/feature-UNI-1374-g6-09-ai-edit-undo`), sinh bằng extractor **đã sửa** G6-09d tại
-  `3e4e9b71f` (blob `4a7fbf1d67b8649265f205443439cd14e9537682`) vì fork `main` chưa có bản sửa gấp mũi tên đệ quy có tham số
-  `nodeSchema(maxDepth)`. So với khối G7-06 ở `cb76dde5` (`cb76dde5928f8ea9cf66af938d3f83bd1278f78c`, pin web `0.1.0-cb76dde`, sinh bằng
-  extractor `f5b75e1f`, blob `94babf94780facd66e88cb622cc5f2c8e7841e70`, 141 dòng; khác `66169a9a` ở dòng `rev=` và ô markdown
-  `ask_clarification` `yes` → `no`, §3.1 nhóm C đã đóng), khối `3e4e9b71f` có 143 dòng (thêm hai hàng `generate_mindmap` ở `docs` và
-  `markdown` với hash schema đã phân giải `ad838ec1…`, §3.1). Số dòng `path:line` ở §2 và §4–§8 vẫn đọc ở `66169a9a` trừ chỗ ghi khác
-  (hai hàng `generate_mindmap` đọc ở `3e4e9b71f`).
+  `47a209b95` (gạch đầu dòng dưới).
+- **Khối §3 ở `47a209b95` (UNI-2282 X1, 2026-10-29; trước đó ở G6-09d / REPIN-1 `3e4e9b71f`, G7-06 `cb76dde5` và DOC-05 `bf4ff7b0`):** khối trích xuất nay đọc ở
+  `47a209b95` (`47a209b9546ccd1b325d0885b211b5905e7a620e`, nhánh `feature/UNI-2282-md-wave2-x1-mindmap-pin`), sinh bằng
+  `scripts/genoffice-tools-extract.mjs` tại `47a209b95`. So với khối G6-09d ở `3e4e9b71f` (`3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b`,
+  sha256 `235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95`, 143 dòng, nơi hai hàng `generate_mindmap` ở `docs` và
+  `markdown` phân giải thành `ad838ec1…`), khối `47a209b95` giữ 143 dòng và chỉ đổi hai ô hash `generate_mindmap` (`docs` và `markdown`)
+  từ `ad838ec1…` sang `429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5` khi mảng lá `children` có `items`
+  (§3.1). Số dòng `path:line` ở §2 và §4–§8 vẫn đọc ở `66169a9a` trừ chỗ ghi khác (hai hàng `generate_mindmap` đọc ở `3e4e9b71f` /
+  `47a209b95`).
 - **Số dòng `path:line` trong §2 và §4–§8.** Giữ nguyên số dòng đọc ở `0d03b185` cho mọi hàng G6-12 không chạm: giữa
   `0d03b185` và `e6862e53` không file nào dưới `apps/*/src/renderer`, `apps/*/src/main`, `packages/agent-core`,
   `packages/ai-provider`, `packages/electron-utils`, `web/modules` hay `web/docs/bridge` đổi ngoài các shard i18n (kiểm bằng
@@ -36,29 +35,26 @@
   khớp luôn là tên công cụ và tên ký hiệu, không phải số dòng.
 - **Nguồn duy nhất của tên công cụ cho G6-14:** instruction pack `office_uniwork_ai@N` chỉ được nhắc tên công cụ có
   trong cột `tool` của khối trích xuất (§3). Cột tay (§4–§9) là nhận định của người viết, không là nguồn tên.
-- **Tái tạo cột cơ học** (trong worktree fork ở nhánh `feature/UNI-1825-g6-09d-extractor` tại `3e4e9b71f`, blob extractor
-  `4a7fbf1d67b8649265f205443439cd14e9537682` — hoặc đọc trực tiếp blob bằng `git -C "$FORK" show 3e4e9b71f:scripts/genoffice-tools-extract.mjs`
-  — không checkout, không chạy code sản phẩm):
+- **Tái tạo cột cơ học** (trong worktree fork tại `47a209b95` — không checkout, không chạy code sản phẩm):
 
   ```bash
-  node scripts/genoffice-tools-extract.mjs --rev 3e4e9b71f > /tmp/genoffice-tools.md
+  node scripts/genoffice-tools-extract.mjs --rev 47a209b95 > /tmp/genoffice-tools.md
   ```
 
 - **Kiểm AC-2** (khối giữa hai marker = đầu ra script, từng byte), chạy ở gốc repo D với `FORK` trỏ tới worktree fork
-  (`/home/ubuntu/orca/workspaces/uniwork-office/feature-UNI-1374-g6-09-ai-edit-undo`) và `EXTRACTOR` là bản script G6-09d ở
-  `3e4e9b71f` (blob `4a7fbf1d67b8649265f205443439cd14e9537682`, khi fork `main` chưa có bản sửa):
+  (`/home/ubuntu/orca/workspaces/uniwork-office/UNI-2282-md-wave2`):
 
   ```bash
-  git -C "$FORK" show 3e4e9b71f:scripts/genoffice-tools-extract.mjs > /tmp/extractor-3e4e9b71f.mjs
-  node /tmp/extractor-3e4e9b71f.mjs --repo "$FORK" --rev 3e4e9b71f > /tmp/extract.md
+  node "$FORK/scripts/genoffice-tools-extract.mjs" --repo "$FORK" --rev 47a209b95 > /tmp/extract.md
   sed -e '1,/^<!-- extract:begin -->$/d' -e '/^<!-- extract:end -->$/,$d' \
     docs/office/g5g6g7/genoffice-tools.md | diff - /tmp/extract.md && echo AC-2 OK
   ```
 
-  Đã chạy ngày 2026-10-16 (G6-09d / REPIN-1, UNI-1825) từ worktree fork với script `3e4e9b71f` (blob
-  `4a7fbf1d67b8649265f205443439cd14e9537682`) ở `--rev 3e4e9b71f` (`3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b`): `AC-2 OK`, `diff`
-  thoát 0 (khớp từng byte với khối đã commit giữa hai marker); sha256 của đầu ra script (cũng là của khối giữa hai marker)
-  `235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95`, 143 dòng công cụ, 0 ô `unresolved`, 0 ô `undeclared`.
+  Đã chạy ngày 2026-10-29 (UNI-2282 X1) từ worktree fork ở `--rev 47a209b95` (`47a209b9546ccd1b325d0885b211b5905e7a620e`):
+  `AC-2 OK`, `diff` thoát 0 (khớp từng byte với khối đã commit giữa hai marker); sha256 của đầu ra script (cũng là của khối giữa hai
+  marker) `95759bc7364ae4ed8f1a6475613bd68113b51d94f1a86783b89f54bfeb05ec47`, 143 dòng công cụ, 0 ô `unresolved`, 0 ô `undeclared`
+  (trước đó ngày 2026-10-16 ở G6-09d / REPIN-1, UNI-1825, `--rev 3e4e9b71f`: sha256
+  `235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95`, 143 dòng).
   (Ghim trước đó ngày 2026-10-12 ở G7-06 với script F `f5b75e1f`, blob `94babf94…`, ở `--rev cb76dde5`: `AC-2 OK`, `diff` thoát 0,
   sha256 `d0ef92a89cf178086768295c885448087af0ba05463748197fc9785428982fac`, 141 dòng công cụ; ở `--rev 66169a9a` chỉ khác khối cũ
   `3acc970f…` ở ô markdown `ask_clarification` `yes` → `no` và dòng `rev=`; ở `--rev 0d03b185` in đúng bản G6-01 `0df68253…` như
@@ -111,7 +107,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 ## 3. Cột cơ học (sinh bằng script, không sửa tay)
 
 <!-- extract:begin -->
-<!-- genoffice-tools-extract v1 rev=3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b -->
+<!-- genoffice-tools-extract v1 rev=47a209b9546ccd1b325d0885b211b5905e7a620e -->
 | module | tool | input_schema_sha256 | editor_write | source |
 | --- | --- | --- | --- | --- |
 | docs | accept_changes | 9af09d4b7b735877e734a81a8d86f6dbd6fe1ba184cd649a13dec3fe2e196fe0 | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -126,7 +122,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | docs | edit_chart | c29264bd21515db11818de1199fe3af4e8d87a1aaab711fe9ef1f176fe635a45 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | edit_note | f465830acda36342513258eff25bc94a37c3cfc7868505a0fefcceabb4bfb055 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | generate_image | f6852b9e5272085ee5e6509a3c6a37dcd28da7f5349151248118e9e4f38c1cde | yes | apps/docs/src/renderer/ai/tools.ts |
-| docs | generate_mindmap | ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0 | no | apps/docs/src/renderer/ai/mind-map.ts |
+| docs | generate_mindmap | 429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5 | no | apps/docs/src/renderer/ai/mind-map.ts |
 | docs | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | image_search | 874a0d101865e7910d3ba9145ce2d9a29776932ce1a689060beb89d8d04fb699 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | insert_chart | 12fab920f1474bfb8d1ed16c4cc02856f27d322275d274149df02cf2e4b521a4 | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -164,7 +160,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | markdown | apply_ops | e796ff6fcf174827819356e0312f2246fd573b42cb7bbb1f0b7052407c1334c3 | yes | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | ask_clarification | 7b1327afd202f0d0d47debc5f922fdcbe4541bad90d6f97efe31db002b3373f7 | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | generate_image | ed7b16fa3ca50a85c50bc04b296613c9b84014231d5c3ea987819284f5561c25 | yes | apps/markdown/src/renderer/ai/tools.ts |
-| markdown | generate_mindmap | ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0 | no | apps/markdown/src/renderer/ai/mind-map.ts |
+| markdown | generate_mindmap | 429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5 | no | apps/markdown/src/renderer/ai/mind-map.ts |
 | markdown | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | image_search | 9c4b23b1cd0fe8dae086fe7c3c86dbceb1130a0c36d8ea7f93bbbe8bcfc9de2a | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | insert_image | f53e4d066d933c53c73e9025eb6871cbad02f6693f678290fd1f51748b55f726 | yes | apps/markdown/src/renderer/ai/tools.ts |
@@ -271,12 +267,14 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
   `set_header_footer`, `define_style`, `set_page_setup`, `set_watermark` `no` → `yes` (§9 dòng 5); sheets
   `merge_attached_workbooks` `undeclared` → `yes` (§9, mục merge); html `ask_clarification`, pdf `create_document`, pdf
   `generate_image` `undeclared` → `no`. Không còn ô `undeclared` nào trong khối.
-- **Khối ở `3e4e9b71f` (G6-09d / REPIN-1, 2026-10-16; trước đó ở `bf4ff7b0`, DOC-05 lockstep):** 143 dòng; so với `cb76dde5` chỉ
-  khác dòng `rev=` và hai hàng mới `docs` `generate_mindmap` và `markdown` `generate_mindmap` (`editor_write` `no`, nguồn
-  `mind-map.ts` của từng module). Ở `bf4ff7b0` hai ô hash là `unresolved:identifier:depth`; từ `3e4e9b71f`
+- **Khối ở `47a209b95` (UNI-2282 X1, 2026-10-29; trước đó ở `3e4e9b71f`, G6-09d / REPIN-1, và `bf4ff7b0`, DOC-05 lockstep):** 143 dòng;
+  so với `cb76dde5` chỉ khác dòng `rev=` và hai hàng mới `docs` `generate_mindmap` và `markdown` `generate_mindmap` (`editor_write` `no`,
+  nguồn `mind-map.ts` của từng module). Ở `bf4ff7b0` hai ô hash là `unresolved:identifier:depth`; ở `3e4e9b71f`
   (`feature/UNI-1825-g6-09d-extractor`) extractor gấp mũi tên đệ quy có tham số `nodeSchema(maxDepth)` nên cả hai ô phân giải thành
-  `ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0` (0 ô `unresolved`, 0 ô `undeclared`) — đúng đầu ra của
-  `scripts/genoffice-tools-extract.mjs --rev 3e4e9b71f` ở fork. Hai hàng đã đóng ở §9.1; cột tay ở §4.2 và §4.3.
+  `ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0`; từ `47a209b95` (`feature/UNI-2282-md-wave2-x1-mindmap-pin`,
+  thêm `items` cho mảng `children` ở nút lá cho Gemini) cả hai ô là
+  `429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5` (0 ô `unresolved`, 0 ô `undeclared`) — đúng đầu ra của
+  `scripts/genoffice-tools-extract.mjs --rev 47a209b95` ở fork. Hai hàng đã đóng ở §9.1; cột tay ở §4.2 và §4.3.
 - **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Ở khối `cb76dde5` còn **12**
   chỗ hai cột khác nhau, đều nhóm B (công cụ ghi file; không phải lỗi). Ở `66169a9a` là **13**: 12 chỗ nhóm B và 1 chỗ nhóm C
   (markdown `ask_clarification`, đọc của script — xem dòng C dưới bảng, đã đóng ở G7-06). Tính lại từ 20 của khối cũ: −5 (nhóm A
@@ -957,6 +955,6 @@ Cột tay (§2, §4–§9) chờ owner F + Product ký qua Advisor; chữ ký đ
 
 Trạng thái ở `66169a9a` (G6-12): khối §3 và lệnh AC-2 đã chạy lại (§1); cột tay đã làm mới cho mọi hàng G6-12 sửa (§3.1, §4, §5, §6, §7, §8, §9);
 G7-06 chạy lại AC-2 và làm mới khối §3 ở `cb76dde5` bằng extractor đã sửa (§1, §3.1 nhóm C đã đóng);
-DOC-05 lockstep (2026-10-16) làm mới khối §3 ở `bf4ff7b0` (thêm hai hàng `generate_mindmap`, đã đóng theo Advisor decision `msg_f4b50f24445b`, Advisor default, user may override) và G6-09d / REPIN-1 làm mới khối §3 ở `3e4e9b71f` (phân giải hash `ad838ec1…` cho cả hai hàng `generate_mindmap`);
+DOC-05 lockstep (2026-10-16) làm mới khối §3 ở `bf4ff7b0` (thêm hai hàng `generate_mindmap`, đã đóng theo Advisor decision `msg_f4b50f24445b`, Advisor default, user may override), G6-09d / REPIN-1 làm mới khối §3 ở `3e4e9b71f` (phân giải hash `ad838ec1…` cho cả hai hàng `generate_mindmap`), và UNI-2282 X1 (2026-10-29) làm mới khối §3 ở `47a209b95` (cập nhật hash `429247ed…` khi mảng lá `children` có `items`);
 phần chờ ký gồm các mục "chờ Product (đợt 3)" ở §9, §9.1 và các xác nhận mặc định ở §9.2. Hàng chưa ký vẫn là hàng chưa ký — G6-12
 không đóng gate G6-D4.
