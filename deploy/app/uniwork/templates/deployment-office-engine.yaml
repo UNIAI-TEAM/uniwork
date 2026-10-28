@@ -35,6 +35,7 @@ spec:
           type: RuntimeDefault
       affinity:
         {{- include "uniwork.nodeAffinity" . | nindent 8 }}
+        {{- include "uniwork.avoidPostgres" . | nindent 8 }}
       {{- include "uniwork.tolerations" . | nindent 6 }}
       # Mirrors stop_grace_period in the compose `office` profile: the engine
       # drains and kills every worker tree on SIGTERM.
