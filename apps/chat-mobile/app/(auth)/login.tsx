@@ -37,7 +37,7 @@ export default function Login() {
 
   if (user) return <Redirect href="/" />;
 
-  const onPress = async (method: LoginMethod) => {
+  const onPress = async (method: Extract<LoginMethod, "browser" | "apple">) => {
     setBusy(true);
     setFailure(null);
     try {

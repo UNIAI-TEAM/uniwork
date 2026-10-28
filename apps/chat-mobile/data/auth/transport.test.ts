@@ -75,7 +75,7 @@ describe("mobile auth transport", () => {
     const start = { clientId: "uniwork-chat-mobile", codeChallenge: "c", state: "s", redirectUri: "r" };
     await transport.start({ ...start, provider: "google" });
     await transport.start(start);
-    const query = (call: number) => new URL((fetch.mock.calls[call] as [string])[0]).searchParams;
+    const query = (call: number) => new URL((fetch.mock.calls[call] as [string, RequestInit])[0]).searchParams;
     expect(query(0).get("provider")).toBe("google");
     expect(query(1).has("provider")).toBe(false);
   });

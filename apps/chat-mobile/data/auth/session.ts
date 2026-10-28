@@ -11,6 +11,7 @@ import { currentSessionEpoch, invalidateSessionEpoch, sessionEpochChanged } from
 import { validateCallback } from "./callback";
 import { LoginAttemptStore, type PendingLoginAttempt } from "./pkce";
 import { RECOVERY_MIN_MS, RecoveryTimer } from "./recovery";
+import type { Issuer, PendingStep, SignedIn, SignInStep } from "./sign-in-step";
 import { isFresh, persist, storedOf, type SessionStorage, type StoredSession } from "./stored-session";
 import { TransportError, type DesktopSession, type Transport } from "./transport";
 
@@ -215,41 +216,55 @@ export class MobileSession {
   }
 
   /**
-   * A sign-in that issues the session without the browser (Sign in with Apple, apple-transport.ts › appleIssuer):
-   * `issue` answers null when the person closed it, and is told when a sign-out moved on meanwhile. A failure rejects,
-   * a server verdict with its TransportError, for the screen to explain.
+   * A sign-in that issues the session without the browser, one door of the app's sign-in screen (sign-in.ts): `issue`
+   * answers null when the person closed a sheet, and is told when a sign-out moved on meanwhile. Only a session is
+   * adopted (SignedIn); a second factor or a choice the sign-in needs first is handed back, untouched, for the caller
+   * to hold in memory (pending-sign-in.ts). Null when nothing came of it: closed, overtaken by a sign-out, a no-op, or
+   * a session the Keychain refused. A failure rejects, a server verdict with its TransportError, for the screen to
+   * explain.
    */
-  async loginWith(issue: (stale: () => boolean) => Promise<DesktopSession | null>): Promise<void> {
-    if (this.state === "signing-in" || this.state === "signed-in" || this.state === "refreshing") return;
+  async loginWith(issue: Issuer): Promise<SignedIn | PendingStep | null> {
+    if (this.state === "signing-in" || this.state === "signed-in" || this.state === "refreshing") return null;
     if (this.live) {
       await this.refresh();
-      return;
+      return null;
     }
     const epoch = currentSessionEpoch();
     this.state = "signing-in";
-    let session: DesktopSession | null;
+    let step: SignInStep | null;
     try {
-      session = await issue(() => sessionEpochChanged(epoch));
+      step = await issue(() => sessionEpochChanged(epoch));
     } catch (error) {
       if (!sessionEpochChanged(epoch)) this.failLogin(codeOf(error));
       throw error;
     }
-    if (sessionEpochChanged(epoch)) return;
-    if (session) await this.adoptIssued(session, epoch);
-    else this.failLogin("dismissed");
+    if (sessionEpochChanged(epoch)) return null;
+    if (!step) {
+      this.failLogin("dismissed");
+      return null;
+    }
+    if (step.kind !== "session") {
+      // not a failure: the sign-in goes on on another screen, with nobody signed in meanwhile
+      log.info("sign-in needs another step", { step: step.kind });
+      this.state = "signed-out";
+      return step;
+    }
+    if (!(await this.adoptIssued(step.session, epoch))) return null;
+    return { kind: "signed_in", reclaimed: step.reclaimed, linkSkipped: step.linkSkipped };
   }
 
-  /** A session the server just issued: into the Keychain, then live. */
-  private async adoptIssued(session: DesktopSession, epoch: number): Promise<void> {
+  /** A session the server just issued: into the Keychain, then live; false when the Keychain refused it. */
+  private async adoptIssued(session: DesktopSession, epoch: number): Promise<boolean> {
     const next = storedOf(session, this.now());
     const persisted = await persist(this.deps.storage, next, { epoch });
     if (!persisted.ok) {
       // the device is redeemed server-side but unusable here: revoke it rather than orphan it
       void this.revoke(next);
       if (!sessionEpochChanged(epoch)) this.failLogin(persisted.code);
-      return;
+      return false;
     }
     this.adopt(next);
+    return true;
   }
 
   /** A valid access token, refreshing if needed; null without a usable session. */

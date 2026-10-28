@@ -2,6 +2,7 @@
 // no cache): POST /auth/apple/native turns Apple's identity token into the native session the PKCE exchange also
 // issues; GET /auth/providers says whether this server takes it.
 import type { AppleSignIn } from "./apple";
+import type { Issuer } from "./sign-in-step";
 import { createAuthRequest, isRecord, parseSession, type DesktopSession, type FetchLike } from "./transport";
 
 /** POST /auth/apple/native: Apple's identity token with the raw nonce, plus the device fields of a native session */
@@ -52,10 +53,10 @@ export function appleIssuer(
   transport: AppleTransport,
   sheet: () => Promise<AppleSignIn | null>,
   device: { clientId: string; deviceLabel: string; platform: string },
-): (stale: () => boolean) => Promise<DesktopSession | null> {
+): Issuer {
   return async (stale) => {
     const apple = await sheet();
     if (!apple || stale()) return null;
-    return transport.signIn({ ...apple, ...device });
+    return { kind: "session", session: await transport.signIn({ ...apple, ...device }), reclaimed: false, linkSkipped: null };
   };
 }
