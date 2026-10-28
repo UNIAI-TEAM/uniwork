@@ -395,6 +395,29 @@ describe("SignInMethodsSection", () => {
     expect(screen.getByRole("button", { name: "Đăng xuất" })).toBeInTheDocument();
   });
 
+  it("holds every change while the browser is signed in to the other account", async () => {
+    route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
+    open("/settings?tab=security&expect_user=u-other");
+    const link = await screen.findByRole("button", { name: "Liên kết Apple" });
+    const warning = screen.getByRole("note");
+    for (const action of [link, screen.getByRole("button", { name: "Gỡ liên kết Google" }), screen.getByRole("button", { name: "Đổi mật khẩu" })]) {
+      expect(action).toHaveAttribute("aria-disabled", "true");
+      expect(action.getAttribute("aria-describedby")).toBe(warning.id);
+      fireEvent.click(action);
+    }
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(requestMock.mock.calls.filter(([, o]) => (o as { method?: string } | undefined)?.method)).toHaveLength(0);
+  });
+
+  it("asks nothing of the account UniChat named once the browser is signed in to it", async () => {
+    route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
+    open("/settings?tab=security&expect_user=u1");
+    const link = await screen.findByRole("button", { name: "Liên kết Apple" });
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(link).not.toHaveAttribute("aria-disabled");
+  });
+
   it("says the list did not load, with a way to try again", async () => {
     route({ "GET /api/v1/me/sign-in-methods": refusal("internal", 500), "GET /api/v1/auth/providers": PROVIDERS });
     open();

@@ -85,6 +85,13 @@ export function SignInMethodsSection() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const handledResult = useRef<string | null>(null);
   const ids = useId();
+  // The UniChat shell opened this page for its own account (`expect_user`)
+  // and this browser is signed in to another: whatever is pressed here would
+  // change that other account, so every change holds, pointing at the warning.
+  const expected = nav.searchParams.get("expect_user");
+  const otherAccount = Boolean(user && expected && expected !== user.id);
+  const warningId = `${ids}-other-account`;
+  const heldBy = otherAccount ? warningId : undefined;
 
   const providerName = (p: SignInProvider) => tRoot(providerNameKey(p));
   const say = (notice: { key: string; provider?: SignInProvider | null; values: { masked?: string } }) =>
@@ -270,7 +277,11 @@ export function SignInMethodsSection() {
               type="button"
               variant={data.password.set ? "ghost" : "outline"}
               size="sm"
-              onClick={() => openPassword(data)}
+              aria-disabled={otherAccount || undefined}
+              aria-describedby={heldBy}
+              onClick={() => {
+                if (!otherAccount) openPassword(data);
+              }}
             >
               {t(data.password.set ? "password.changeAction" : "password.setAction")}
             </Button>
@@ -283,6 +294,7 @@ export function SignInMethodsSection() {
           const verdict = unlinkVerdict(data, p);
           const reasonId = `${ids}-${p}-reason`;
           const held = row.linked && !verdict.allowed;
+          const describedBy = heldBy ?? (held ? reasonId : undefined);
           const relayRow = p === "apple" && data.apple.private_relay;
           const busy = linking === p;
           return (
@@ -314,10 +326,10 @@ export function SignInMethodsSection() {
                     variant="ghost"
                     size="sm"
                     aria-label={t("provider.unlinkAria", { provider: name })}
-                    aria-disabled={held || undefined}
-                    aria-describedby={held ? reasonId : undefined}
+                    aria-disabled={held || otherAccount || undefined}
+                    aria-describedby={describedBy}
                     onClick={() => {
-                      if (!held) void askUnlink(p);
+                      if (!held && !otherAccount) void askUnlink(p);
                     }}
                   >
                     {t("provider.unlink")}
@@ -329,8 +341,11 @@ export function SignInMethodsSection() {
                     size="sm"
                     aria-label={busy ? undefined : t(bridge ? "provider.linkOnWebAria" : "provider.linkAria", { provider: name })}
                     aria-busy={busy || undefined}
-                    aria-disabled={(linking !== null && !busy) || undefined}
-                    onClick={() => linkProvider(p)}
+                    aria-disabled={(linking !== null && !busy) || otherAccount || undefined}
+                    aria-describedby={heldBy}
+                    onClick={() => {
+                      if (!otherAccount) linkProvider(p);
+                    }}
                   >
                     {busy ? <Spinner /> : bridge ? <ExternalLink aria-hidden /> : null}
                     {busy ? t("provider.linking", { provider: name }) : t(bridge ? "provider.linkOnWeb" : "provider.link")}
@@ -361,7 +376,7 @@ export function SignInMethodsSection() {
 
   return (
     <SettingsSection title={t("title")} description={t("description")}>
-      <OtherBrowserAccount />
+      {otherAccount && user ? <OtherBrowserAccount id={warningId} email={user.email} /> : null}
       {body}
       {gate.dialog}
       <PasswordDialog mode={passwordMode} open={passwordOpen} onOpenChange={setPasswordOpen} />
@@ -405,21 +420,19 @@ export function SignInMethodsSection() {
 /**
  * The UniChat shell opened this page to link a method (`expect_user`), and
  * this browser is signed in to another account: what is linked here would
- * join that one. Said before anything is pressed, with the way out.
+ * join that one. Said before anything is pressed, with the way out; the
+ * rows' actions hold and point here (`id`) until the accounts match.
  */
-function OtherBrowserAccount() {
+function OtherBrowserAccount({ id, email }: { id: string; email: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.security.signInMethods" });
-  const user = useAuthStore((s) => s.user);
   const nav = useNavigation();
   const logout = useLogout();
-  const expected = nav.searchParams.get("expect_user");
-  if (!user || !expected || expected === user.id) return null;
   const here = `${nav.pathname}?${nav.searchParams.toString()}`;
   return (
     // Part of what the page says from the start, not news: a note, read in its place.
-    <Alert variant="warning" role="note">
+    <Alert id={id} variant="warning" role="note">
       <TriangleAlert aria-hidden />
-      <AlertTitle className="[overflow-wrap:anywhere]">{t("browserOtherAccount", { other: user.email })}</AlertTitle>
+      <AlertTitle className="[overflow-wrap:anywhere]">{t("browserOtherAccount", { other: email })}</AlertTitle>
       <AlertDescription className="text-pretty">{t("browserOtherAccountHint")}</AlertDescription>
       <div className="col-start-2 mt-2 flex flex-wrap gap-2">
         <Button
