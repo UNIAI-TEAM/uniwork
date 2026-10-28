@@ -163,45 +163,72 @@ export function TextButton({
 /**
  * The one line that says what failed (or why a step waits), with an icon: an alert, heard as soon as it shows. A line
  * that counts down gives `spoken` (use-sign-in.ts › useFailureMessage): only that is heard, once, so a screen reader
- * is not interrupted at every tick of the countdown on screen.
+ * is not interrupted at every tick of the countdown on screen. TalkBack hears it from a hidden region that stays
+ * mounted with the form (components/ui/live-region.tsx), so a failure after a retry is a change it reads; the line
+ * drawn is no live region, so it is not read twice. A screen that moves the reader to the line instead passes
+ * `announce={false}`: the focus says it, and an announcement beside it would be cut off or said twice.
  */
 export function FormAlert({
   message,
   spoken = null,
+  announce = true,
   ref,
   testID,
 }: {
   message: string | null;
   spoken?: string | null;
+  announce?: boolean;
   /** for a screen that moves the reader's focus to the line (use-reader-focus.ts) */
   ref?: Ref<View>;
   testID?: string;
 }) {
   const { colorScheme } = useColorScheme();
-  useAnnounce(spoken ?? message);
-  if (!message) return null;
+  const said = announce ? (spoken ?? message) : null;
+  useAnnounce(said);
   return (
-    <View
-      ref={ref}
-      accessibilityRole="alert"
-      accessibilityLiveRegion={spoken ? "none" : "polite"}
-      className="flex-row items-start gap-2"
-      testID={testID}
-    >
-      <Ionicons name="alert-circle-outline" size={18} color={THEME[colorScheme].destructive} style={{ marginTop: 1 }} />
-      <Text className="flex-1 text-callout text-destructive">{message}</Text>
-      {spoken ? <LiveRegion line={spoken} testID={testID ? `${testID}-spoken` : undefined} /> : null}
-    </View>
+    <>
+      <LiveRegion line={said} testID={testID ? `${testID}-spoken` : undefined} />
+      {message ? (
+        <View ref={ref} accessibilityRole="alert" className="flex-row items-start gap-2" testID={testID}>
+          <Ionicons name="alert-circle-outline" size={18} color={THEME[colorScheme].destructive} style={{ marginTop: 1 }} />
+          <Text className="flex-1 text-callout text-destructive">{message}</Text>
+        </View>
+      ) : null}
+    </>
   );
 }
 
-/** A notice above a form (link mode, a sign-in that ran out), with the one action that answers it. */
-export function NoticeCard({ message, action, testID }: { message: string; action?: ReactNode; testID?: string }) {
+/**
+ * A notice above a form (link mode, a sign-in that ran out, an organization just joined), with the one action that
+ * answers it. Said as it shows, as FormAlert's line is; a screen that moves the reader's focus to it passes `ref` and
+ * `announce={false}`.
+ */
+export function NoticeCard({
+  message,
+  action,
+  announce = true,
+  ref,
+  testID,
+}: {
+  message: string;
+  action?: ReactNode;
+  announce?: boolean;
+  ref?: Ref<View>;
+  testID?: string;
+}) {
   const { colorScheme } = useColorScheme();
-  useAnnounce(message);
+  useAnnounce(announce ? message : null);
   return (
-    <View accessibilityLiveRegion="polite" className="gap-1 rounded-2xl bg-muted px-4 pb-1.5 pt-3.5" testID={testID}>
-      <View className="flex-row items-start gap-2.5">
+    <View className="gap-1 rounded-2xl bg-muted px-4 pb-1.5 pt-3.5" testID={testID}>
+      <LiveRegion line={announce ? message : null} />
+      {/* One stop for a screen reader, named by the words alone (the icon's glyph is a character it would spell). */}
+      <View
+        ref={ref}
+        accessible
+        accessibilityLabel={message}
+        className="flex-row items-start gap-2.5"
+        testID={testID ? `${testID}-message` : undefined}
+      >
         <Ionicons name="information-circle-outline" size={20} color={THEME[colorScheme].primary} />
         <Text className="flex-1 text-callout leading-5 text-foreground">{message}</Text>
       </View>

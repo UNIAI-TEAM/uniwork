@@ -2,13 +2,15 @@
 // opens: one card per invitation (who invited, the organization and the workspaces it opens, the role, how long it has
 // left, and "Tham gia"), its outline while the list loads, and what a refused join says under it: the web's switch
 // when the account still belongs to another organization, an invitation that no longer works, or the server's
-// refusal in the web's words (lib/invitations.ts).
+// refusal in the web's words (lib/invitations.ts). A refusal that takes "Tham gia" away moves the reader to what
+// replaced it (the button they were on is gone); one that leaves it is said where it shows.
 import { Ionicons } from "@expo/vector-icons";
 import type { PendingInvitation } from "@uniwork/core/types/workspace";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { FieldNote } from "@/components/auth/auth-field";
 import { SubmitButton } from "@/components/auth/auth-layout";
+import { useReaderFocus } from "@/components/auth/use-reader-focus";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -119,14 +121,25 @@ export function RefusalNote({
   onContinueOnWeb: () => void;
 }) {
   const { t } = useTranslation();
+  // "Tham gia" is gone with these two: the reader moves to the note that took its place.
+  const goneRef = useReaderFocus(refusal.kind === "gone");
   if (refusal.kind === "switch") {
-    return <SwitchOnWeb organization={organization} onContinueOnWeb={onContinueOnWeb} />;
+    return <SwitchOnWeb organization={organization} focus onContinueOnWeb={onContinueOnWeb} />;
   }
   if (refusal.kind === "gone") {
+    const title = t(`invitations.gone.${refusal.reason}`);
+    const hint = t(`invitations.gone.hint_${refusal.reason}`);
     return (
-      <View className="gap-1" accessibilityRole="alert">
-        <Text className="text-callout font-semibold text-foreground">{t(`invitations.gone.${refusal.reason}`)}</Text>
-        <Text className="text-footnote leading-[18px] text-muted-foreground">{t(`invitations.gone.hint_${refusal.reason}`)}</Text>
+      <View
+        ref={goneRef}
+        accessible
+        accessibilityRole="alert"
+        accessibilityLabel={`${title} ${hint}`}
+        className="gap-1"
+        testID="refusal-gone-note"
+      >
+        <Text className="text-callout font-semibold text-foreground">{title}</Text>
+        <Text className="text-footnote leading-[18px] text-muted-foreground">{hint}</Text>
       </View>
     );
   }
@@ -139,15 +152,29 @@ export function RefusalNote({
   );
 }
 
-/** The account still belongs to another organization: what joining means, and the web, where the switch is made. */
-export function SwitchOnWeb({ organization, onContinueOnWeb }: { organization: string; onContinueOnWeb: () => void }) {
+/**
+ * The account still belongs to another organization: what joining means, and the web, where the switch is made.
+ * `focus`: it replaced the "Tham gia" just pressed, so the reader moves to its words.
+ */
+export function SwitchOnWeb({
+  organization,
+  focus = false,
+  onContinueOnWeb,
+}: {
+  organization: string;
+  focus?: boolean;
+  onContinueOnWeb: () => void;
+}) {
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
+  const wordsRef = useReaderFocus(focus);
+  const description = t("invitations.switch.description", { name: organization });
+  const hint = t("mobile.invitations.switch_hint");
   return (
-    <View className="gap-3" accessibilityLiveRegion="polite">
-      <View className="gap-1">
-        <Text className="text-callout leading-5 text-foreground">{t("invitations.switch.description", { name: organization })}</Text>
-        <Text className="text-footnote leading-[18px] text-muted-foreground">{t("mobile.invitations.switch_hint")}</Text>
+    <View className="gap-3">
+      <View ref={wordsRef} accessible accessibilityLabel={`${description} ${hint}`} className="gap-1" testID="refusal-switch-note">
+        <Text className="text-callout leading-5 text-foreground">{description}</Text>
+        <Text className="text-footnote leading-[18px] text-muted-foreground">{hint}</Text>
       </View>
       <Button
         variant="outline"

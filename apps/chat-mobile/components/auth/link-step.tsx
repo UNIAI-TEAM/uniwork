@@ -144,7 +144,7 @@ export function LinkStep() {
       />
       <IdentityCard identity={identity} />
       <Text className="text-callout leading-5 text-muted-foreground">{t("auth.continue.link.body", { provider })}</Text>
-      <FormAlert ref={failureRef} message={failureLine} testID="link-failure" />
+      <FormAlert ref={failureRef} announce={false} message={failureLine} testID="link-failure" />
       {failure ? (
         continueButton
       ) : (

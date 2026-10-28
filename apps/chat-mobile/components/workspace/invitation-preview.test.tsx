@@ -11,6 +11,11 @@ import { invitationsApi } from "@/data/invitations/api";
 import { render, viText } from "@/test/render";
 import { InvitationPreview } from "./invitation-preview";
 
+/** The testID of the element the reader's focus was last sent to (use-reader-focus.ts). */
+const focused = () =>
+  (jest.mocked(AccessibilityInfo.sendAccessibilityEvent).mock.calls.at(-1)?.[0] as unknown as { props?: { testID?: string } } | undefined)?.props
+    ?.testID;
+
 jest.mock("@/data/invitations/api", () => ({
   invitationsApi: { mine: jest.fn(), preview: jest.fn(), accept: jest.fn(), organizations: jest.fn() },
 }));
@@ -46,6 +51,7 @@ const settle = () => act(async () => new Promise((resolve) => setTimeout(resolve
 beforeEach(() => {
   configureRuntime({ appUrl: "https://app.example" });
   jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => {});
+  jest.spyOn(AccessibilityInfo, "sendAccessibilityEvent").mockImplementation(() => undefined);
 });
 afterEach(() => {
   resetRuntimeConfig();
@@ -94,13 +100,16 @@ describe("InvitationPreview", () => {
     expect(router.replace).toHaveBeenCalledWith("/acme/hq/chat");
   });
 
-  it("says the organization joined with nowhere to land yet, focused on going on", async () => {
+  it("says the organization joined with nowhere to land yet, the reader on the notice, then goes on", async () => {
     api.preview.mockResolvedValueOnce(preview({ workspaces: [] })).mockResolvedValue(preview({ status: "accepted" }));
     api.accept.mockResolvedValueOnce({ organization: { id: "o1", slug: "acme", name: "Acme" }, workspace: null });
     await render(<InvitationPreview token="t1" />);
     await fireEvent.press(await screen.findByTestId("invitation-preview-join"));
     await settle();
     expect(screen.getByText(viText("mobile.invitations.joined_no_workspace", { org: "Acme" }))).toBeOnTheScreen();
+    // The focus says it: no announcement beside it to be cut off.
+    expect(focused()).toBe("invitation-joined-notice-message");
+    expect(AccessibilityInfo.announceForAccessibility).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByTestId("invitation-joined-continue"));
     expect(router.replace).toHaveBeenCalledWith("/");
   });
@@ -123,13 +132,14 @@ describe("InvitationPreview", () => {
     expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.example/invitations");
   });
 
-  it("turns to the switch when the join finds another organization in the way", async () => {
+  it("turns to the switch when the join finds another organization in the way, the reader on its words", async () => {
     api.preview.mockResolvedValueOnce(preview());
     api.accept.mockRejectedValueOnce(refusal("organization_switch_required", 409));
     await render(<InvitationPreview token="t1" />);
     await fireEvent.press(await screen.findByTestId("invitation-preview-join"));
     await settle();
     expect(screen.getByTestId("invitation-continue-on-web")).toBeOnTheScreen();
+    expect(focused()).toBe("refusal-switch-note");
   });
 
   it("says a refused join under the button, which stays", async () => {
@@ -158,6 +168,8 @@ describe("InvitationPreview", () => {
     }
     expect(screen.getByText(viText("invitations.gone.accepted"))).toBeOnTheScreen();
     expect(screen.getByText(viText("invitations.gone.hint_accepted"))).toBeOnTheScreen();
+    // Only a join that found it used moves the reader (its button went with it); on open the screen is simply read.
+    expect(focused()).toBe(join.props.testID === "invitation-preview-join" ? "preview-gone-title" : undefined);
     await fireEvent.press(screen.getByTestId("invitation-home"));
     expect(router.replace).toHaveBeenCalledWith("/");
   });

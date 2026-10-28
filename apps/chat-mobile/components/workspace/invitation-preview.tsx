@@ -50,7 +50,7 @@ export function InvitationPreview({ token }: { token: string }) {
   const state = previewState(preview.data);
   if (state.kind === "gone") return <Gone reason={state.reason} />;
   const refusal = join.refusalOf(token);
-  if (refusal?.kind === "gone") return <Gone reason={refusal.reason} />;
+  if (refusal?.kind === "gone") return <Gone reason={refusal.reason} focus />;
   return (
     <Pending
       preview={preview.data}
@@ -112,7 +112,8 @@ function Pending({
         ))}
       </View>
       {switchFirst ? (
-        <SwitchOnWeb organization={organization} onContinueOnWeb={continueOnWeb} />
+        // Said where the reader is when it replaced "Tham gia"; on open it is simply part of the screen.
+        <SwitchOnWeb organization={organization} focus={refusal?.kind === "switch"} onContinueOnWeb={continueOnWeb} />
       ) : (
         <View className="gap-3">
           {refusal ? <RefusalNote refusal={refusal} organization={organization} onContinueOnWeb={continueOnWeb} /> : null}
@@ -132,24 +133,39 @@ function Pending({
   );
 }
 
-/** Joined the organization with no workspace to open yet: said once, focused, then home. */
+/**
+ * Joined the organization with no workspace to open yet: the reader moves to the notice, which says it (an
+ * announcement beside the focus move would be cut off), then "Tiếp tục" goes home.
+ */
 function Joined({ organization }: { organization: string }) {
   const { t } = useTranslation();
-  const continueRef = useReaderFocus(true);
+  const noticeRef = useReaderFocus(true);
   return (
     <View className="gap-6" testID="invitation-joined">
       <AuthHeading title={t("invitations.preview.title", { name: organization })} />
-      <NoticeCard message={t("mobile.invitations.joined_no_workspace", { org: organization })} />
-      <SubmitButton ref={continueRef} label={t("common.continue")} onPress={home} testID="invitation-joined-continue" />
+      <NoticeCard
+        ref={noticeRef}
+        announce={false}
+        message={t("mobile.invitations.joined_no_workspace", { org: organization })}
+        testID="invitation-joined-notice"
+      />
+      <SubmitButton label={t("common.continue")} onPress={home} testID="invitation-joined-continue" />
     </View>
   );
 }
 
-function Gone({ reason }: { reason: GoneReason }) {
+/** An invitation that no longer works; `focus` when a join just found it so (the reader's button went with it). */
+function Gone({ reason, focus = false }: { reason: GoneReason; focus?: boolean }) {
   const { t } = useTranslation();
+  const titleRef = useReaderFocus(focus);
+  const title = t("invitations.gone.title");
+  const why = t(`invitations.gone.${reason}`);
   return (
     <View className="gap-6" testID="invitation-gone">
-      <AuthHeading title={t("invitations.gone.title")} subtitle={t(`invitations.gone.${reason}`)} />
+      {/* One stop, still a heading: the title and why, where the reader lands. */}
+      <View ref={titleRef} accessible accessibilityRole="header" accessibilityLabel={`${title}. ${why}`} testID="preview-gone-title">
+        <AuthHeading title={title} subtitle={why} />
+      </View>
       <Text className="text-callout leading-[22px] text-muted-foreground">{t(`invitations.gone.hint_${reason}`)}</Text>
       <SubmitButton label={t("workspace.acceptInviteError.goToWorkspaces")} variant="outline" onPress={home} testID="invitation-home" />
     </View>

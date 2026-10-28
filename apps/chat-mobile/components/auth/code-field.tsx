@@ -7,7 +7,6 @@
 // commits the answer). A lock counting down (`disabled`) takes the field away until it lifts.
 import { useState, type Ref } from "react";
 import { StyleSheet, TextInput, View } from "react-native";
-import { useAnnounce } from "@/components/ui/a11y";
 import { FieldNote } from "./auth-field";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
@@ -42,7 +41,6 @@ export function CodeField(props: CodeFieldProps) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const [focused, setFocused] = useState(false);
-  useAnnounce(spokenError ?? error);
   const digits = [...value];
 
   const change = (raw: string) => {

@@ -79,13 +79,12 @@ describe("a line that counts down", () => {
     const { rerender } = await render(<FormAlert message={tick(60)} spoken={tick(60)} testID="alert" />);
     await rerender(<FormAlert message={tick(59)} spoken={tick(60)} testID="alert" />);
     expect(screen.getByText(tick(59))).toBeTruthy();
-    // The countdown on screen is no live region (TalkBack would read it every second); a hidden one says the line once.
-    expect(screen.getByTestId("alert").props.accessibilityLiveRegion).toBe("none");
+    // The line drawn is no live region (TalkBack would read the countdown every second, and the line twice).
+    expect(screen.getByTestId("alert").props.accessibilityLiveRegion).toBeUndefined();
     expect(announce).toHaveBeenCalledTimes(1);
     expect(announce).toHaveBeenCalledWith(tick(60));
     await rerender(<FormAlert message="Sai mật khẩu." testID="alert" />);
-    expect(screen.getByTestId("alert").props.accessibilityLiveRegion).toBe("polite");
-    expect(screen.queryByTestId("alert-spoken")).toBeNull();
+    if (Platform.OS === "ios") expect(announce).toHaveBeenLastCalledWith("Sai mật khẩu.");
   });
 
   it("is heard on Android from a hidden live region that holds still while the countdown ticks", async () => {
@@ -99,6 +98,33 @@ describe("a line that counts down", () => {
     } finally {
       os.restore();
     }
+  });
+
+  it("is heard on Android from a region that stays mounted with the form, so a failure after a retry is a change", async () => {
+    const os = jest.replaceProperty(Platform, "OS", "android");
+    try {
+      const { rerender } = await render(<FormAlert message="Sai mật khẩu." testID="alert" />);
+      expect(screen.getByTestId("alert-spoken")).toHaveTextContent("Sai mật khẩu.");
+      // The retry clears the line; the region stays, empty, and the same refusal again is new text in it.
+      await rerender(<FormAlert message={null} testID="alert" />);
+      expect(screen.queryByTestId("alert")).toBeNull();
+      expect(screen.getByTestId("alert-spoken")).toHaveTextContent("");
+      await rerender(<FormAlert message="Sai mật khẩu." testID="alert" />);
+      expect(screen.getByTestId("alert-spoken")).toHaveTextContent("Sai mật khẩu.");
+    } finally {
+      os.restore();
+    }
+  });
+
+  it("says nothing of a line the screen moves the reader to instead", async () => {
+    await render(<FormAlert message="Không liên kết được." announce={false} testID="alert" />);
+    expect(screen.getByText("Không liên kết được.")).toBeTruthy();
+    expect(announce).not.toHaveBeenCalled();
+  });
+
+  it("says a refusal's note that stands alone, as under a field", async () => {
+    await render(<FieldNote error="Lời mời này dành cho email khác." />);
+    if (Platform.OS === "ios") expect(announce).toHaveBeenCalledWith("Lời mời này dành cho email khác.");
   });
 
   it("is said once as it began under a field, the input's hint holding still", async () => {

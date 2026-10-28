@@ -1,10 +1,10 @@
 // The sign-in screens' text field (spec §5.2): a label above, the input on the muted surface the delete-account
 // sheet uses, and under it either the field's error (with an icon, read out at once) or a hint. The visible label is
 // for the eye; the input carries it for VoiceOver and TalkBack, with the error as its hint, so a reader that lands on
-// the field hears what to fix. While a request runs (`busy`) the field stays editable, so it keeps its focus and the
-// keyboard, and what is typed waits: a disabled native input drops the keyboard and cannot be focused again before
-// React commits the answer, so a refused password could not be typed again at once. The password field adds
-// show/hide, a full 44 pt target inside the field.
+// the field hears what to fix (the note under it says the error as it shows). While a request runs (`busy`) the field
+// stays editable, so it keeps its focus and the keyboard, and what is typed waits: a disabled native input drops the
+// keyboard and cannot be focused again before React commits the answer, so a refused password could not be typed
+// again at once. The password field adds show/hide, a full 44 pt target inside the field.
 import { Ionicons } from "@expo/vector-icons";
 import { useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
@@ -40,7 +40,6 @@ export function AuthField(props: AuthFieldProps) {
   const { colorScheme } = useColorScheme();
   const theme = THEME[colorScheme];
   const [focused, setFocused] = useState(false);
-  useAnnounce(spokenError ?? error);
   return (
     <View className="gap-1.5">
       <Text className="text-subhead font-semibold text-foreground" accessibilityElementsHidden importantForAccessibility="no">
@@ -81,21 +80,28 @@ export function AuthField(props: AuthFieldProps) {
 }
 
 /**
- * Under a field: its error, with an icon and read out at once, or else its hint. An error that counts down is heard as
- * `spoken`, once, while the countdown on screen is no live region (TalkBack would read it every second).
+ * Under a field (or alone, as a refusal's line): its error, with an icon and read out at once, or else its hint. An
+ * error that counts down is heard as `spoken`, once, while the countdown on screen is no live region (TalkBack would
+ * read it every second). VoiceOver hears it announced; TalkBack from a hidden region mounted with the note, as
+ * FormAlert's.
  */
 export function FieldNote({ error, spoken = null, hint }: { error?: string | null; spoken?: string | null; hint?: string | null }) {
   const { colorScheme } = useColorScheme();
-  if (error) {
-    return (
-      <View accessibilityRole="alert" accessibilityLiveRegion={spoken ? "none" : "polite"} className="flex-row items-start gap-1.5">
-        <Ionicons name="alert-circle-outline" size={16} color={THEME[colorScheme].destructive} style={{ marginTop: 2 }} />
-        <Text className="flex-1 text-subhead text-destructive">{error}</Text>
-        {spoken ? <LiveRegion line={spoken} /> : null}
-      </View>
-    );
-  }
-  return hint ? <Text className="text-footnote leading-[18px] text-muted-foreground">{hint}</Text> : null;
+  const said = error ? (spoken ?? error) : null;
+  useAnnounce(said);
+  return (
+    <>
+      <LiveRegion line={said} />
+      {error ? (
+        <View accessibilityRole="alert" className="flex-row items-start gap-1.5">
+          <Ionicons name="alert-circle-outline" size={16} color={THEME[colorScheme].destructive} style={{ marginTop: 2 }} />
+          <Text className="flex-1 text-subhead text-destructive">{error}</Text>
+        </View>
+      ) : hint ? (
+        <Text className="text-footnote leading-[18px] text-muted-foreground">{hint}</Text>
+      ) : null}
+    </>
+  );
 }
 
 /** A password: hidden while typed, shown on request; `create` asks the system for a new one (and offers to save it). */

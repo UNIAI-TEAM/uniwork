@@ -12,6 +12,11 @@ import { useWorkspaceStore } from "@/data/stores/workspace-store";
 import { render, viText } from "@/test/render";
 import { PendingInvitations } from "./pending-invitations";
 
+/** The testID of the element the reader's focus was last sent to (use-reader-focus.ts). */
+const focused = () =>
+  (jest.mocked(AccessibilityInfo.sendAccessibilityEvent).mock.calls.at(-1)?.[0] as unknown as { props?: { testID?: string } } | undefined)?.props
+    ?.testID;
+
 jest.mock("@/data/invitations/api", () => ({
   invitationsApi: { mine: jest.fn(), preview: jest.fn(), accept: jest.fn(), organizations: jest.fn() },
 }));
@@ -42,6 +47,7 @@ const settle = () => act(async () => new Promise((resolve) => setTimeout(resolve
 beforeEach(() => {
   configureRuntime({ appUrl: "https://app.example" });
   jest.spyOn(AccessibilityInfo, "announceForAccessibility").mockImplementation(() => {});
+  jest.spyOn(AccessibilityInfo, "sendAccessibilityEvent").mockImplementation(() => undefined);
   api.organizations.mockResolvedValue([]);
   useWorkspaceStore.setState({ current: null });
 });
@@ -94,6 +100,7 @@ describe("PendingInvitations", () => {
     await fireEvent.press(await screen.findByTestId("invitation-join-i1"));
     await settle();
     expect(await screen.findByText(viText("mobile.invitations.joined_no_workspace", { org: "Acme" }))).toBeOnTheScreen();
+    expect(focused()).toBe("invitations-joined-message");
     expect(router.replace).not.toHaveBeenCalled();
     expect(screen.queryByTestId("invitations-create-org")).toBeNull();
   });
@@ -119,6 +126,8 @@ describe("PendingInvitations", () => {
     await settle();
     expect(screen.getByText(viText("invitations.switch.description", { name: "Acme" }))).toBeOnTheScreen();
     expect(screen.queryByTestId("invitation-join-i1")).toBeNull();
+    // The button the reader was on is gone: it moves to the words that replaced it.
+    expect(focused()).toBe("refusal-switch-note");
     await fireEvent.press(screen.getByRole("link", { name: viText("mobile.invitations.continue_on_web") }));
     expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.example/invitations");
   });
@@ -131,6 +140,7 @@ describe("PendingInvitations", () => {
     await settle();
     expect(screen.getByText(viText("invitations.gone.expired"))).toBeOnTheScreen();
     expect(screen.queryByTestId("invitation-join-i1")).toBeNull();
+    expect(focused()).toBe("refusal-gone-note");
     await fireEvent.press(screen.getByTestId("invitation-join-i2"));
     await settle();
     expect(screen.getByText(viText("workspace.acceptInviteError.suspended"))).toBeOnTheScreen();

@@ -11,6 +11,7 @@ import { holdsOrganization } from "@uniwork/core/types/organization";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { NoticeCard } from "@/components/auth/auth-layout";
+import { useReaderFocus } from "@/components/auth/use-reader-focus";
 import { useOpenWebPage } from "@/components/settings/use-open-web-page";
 import { Button } from "@/components/ui/button";
 import { ListLoadError } from "@/components/ui/list-states";
@@ -35,8 +36,15 @@ export function PendingInvitations({ email }: { email: string }) {
   // /invitations, not /invite/{token}: the invite link is the app's universal link and would come straight back here.
   const switchOnWeb = () => openWebPage(`${appUrl}${paths.invitations()}`);
 
+  // The card whose "Tham gia" was pressed is gone: the reader moves to the notice, which says it.
+  const joinedRef = useReaderFocus(joined !== null);
   const joinedNotice = joined ? (
-    <NoticeCard message={t("mobile.invitations.joined_no_workspace", { org: joined })} testID="invitations-joined" />
+    <NoticeCard
+      ref={joinedRef}
+      announce={false}
+      message={t("mobile.invitations.joined_no_workspace", { org: joined })}
+      testID="invitations-joined"
+    />
   ) : null;
 
   if (invitations.isPending) return <InvitationSkeleton />;
