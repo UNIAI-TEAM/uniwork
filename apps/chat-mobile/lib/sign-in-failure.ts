@@ -15,8 +15,8 @@ export function startOf(request: SignInRequest): SignInStart {
   return request.method === "browser" || request.method === "apple" || request.method === "google" ? request.method : "form";
 }
 
-function failure(key: string, kind: SignInFailure["kind"], code: string): SignInFailure {
-  return { code, status: null, kind, key, values: {}, retryAfterSeconds: null, retry: null, proofs: null, maskedEmail: null };
+function failure(key: string, kind: SignInFailure["kind"], code: string, provider: SignInProvider | null = null): SignInFailure {
+  return { code, status: null, kind, key, values: {}, provider, retryAfterSeconds: null, retry: null, proofs: null, maskedEmail: null };
 }
 
 /** The app's auth transport and bearer client answer with these; anything else came from the phone itself. */
@@ -37,9 +37,12 @@ export function signInFailureOf(error: unknown, context: SignInContext, start: S
   return readSignInFailure(error, context);
 }
 
-/** "Tôi đã có tài khoản": the provider just tried matched no account either (data/auth/sign-in.ts › unmatched). */
+/**
+ * "Tôi đã có tài khoản": the provider just tried matched no account either (data/auth/sign-in.ts › unmatched). The
+ * sentence names it, as core's notices name theirs (sentenceValues).
+ */
 export function unmatchedWhileLinking(provider: SignInProvider): SignInFailure {
-  return failure(`mobile.sign_in.link_unmatched.${provider}`, "form", "identity_unmatched");
+  return failure("mobile.sign_in.link_unmatched", "form", "identity_unmatched", provider);
 }
 
 /**

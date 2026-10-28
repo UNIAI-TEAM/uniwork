@@ -7,7 +7,7 @@
 // last way in, and Apple of an account whose address is Apple's relay, say why they stay.
 import { useQuery } from "@tanstack/react-query";
 import type { SignInMethods, SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
-import type { SignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import { sentenceValues, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { linkAction, unlinkAction } from "@uniwork/core/auth/step-up";
 import { paths } from "@uniwork/core/paths/paths";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
@@ -41,7 +41,7 @@ export function SignInMethodsSection() {
 
   /** A refusal said once, in the web's words: a provider's sentence names it, an error sentence never does. */
   const say = (failure: SignInFailure, provider: SignInProvider) =>
-    toast.error(t(failure.key, { ...failure.values, provider: name(provider) }));
+    toast.error(t(failure.key, sentenceValues({ ...failure, provider }, t)));
 
   const runLink = async (provider: SignInProvider, move: boolean) => {
     setBusy(`link-${provider}`);

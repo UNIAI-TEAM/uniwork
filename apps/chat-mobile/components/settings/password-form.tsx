@@ -9,7 +9,7 @@
 // back waits (the header's, the edge swipe, Android's), and an answer that lands once the screen is no longer in
 // front says what happened without moving anyone.
 import { useQuery } from "@tanstack/react-query";
-import { readSignInFailure, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import { readSignInFailure, sentenceValues, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import * as Clipboard from "expo-clipboard";
 import { router, useNavigation } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -86,7 +86,7 @@ export function PasswordForm() {
     // A wrong current password, or a new one the server would not take, is said under its own field.
     const field = failure.code === "password_incorrect" && asksCurrent ? "current" : failure.code === "invalid_request" ? "next" : "form";
     if (field === "current") setCurrent("");
-    refuse(field, t(failure.key, failure.values));
+    refuse(field, t(failure.key, sentenceValues(failure, t)));
   };
 
   /** Back to Settings; opened on its own (nothing to go back to), to the start screen. */

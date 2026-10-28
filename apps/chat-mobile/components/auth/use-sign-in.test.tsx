@@ -27,6 +27,7 @@ const failure = (over: Partial<SignInFailure>): SignInFailure => ({
   kind: "form",
   key: "auth.social.errors.generic",
   values: {},
+  provider: null,
   retryAfterSeconds: null,
   retry: null,
   proofs: null,
@@ -71,6 +72,13 @@ describe("useFailureMessage", () => {
     expect(result.current).toEqual({ message: viText("auth.social.errors.generic"), spoken: null, waiting: false });
     await rerender({ shown: null });
     expect(result.current).toEqual({ message: null, spoken: null, waiting: false });
+  });
+
+  it("names the provider a failure names, in the screen's language", async () => {
+    const unmatched = shownFailure(failure({ key: "mobile.sign_in.link_unmatched", provider: "apple" }));
+    const { result } = await renderHook(() => useFailureMessage(unmatched), { wrapper });
+    expect(result.current.message).toBe(viText("mobile.sign_in.link_unmatched", { provider: "Apple" }));
+    expect(result.current.message).toMatch(/Apple/);
   });
 });
 
@@ -122,9 +130,8 @@ describe("a sign-in to link an identity held", () => {
       answer = await result.current.run({ method: "apple" }, "apple");
     });
     expect(login).toHaveBeenCalledWith({ method: "apple", linking: true });
-    expect(answer).toMatchObject({ ok: false, failure: { key: "mobile.sign_in.link_unmatched.apple" } });
-    expect(result.current.shown?.failure.key).toBe("mobile.sign_in.link_unmatched.apple");
-    expect(viText("mobile.sign_in.link_unmatched.apple")).not.toBe("mobile.sign_in.link_unmatched.apple");
+    expect(answer).toMatchObject({ ok: false, failure: { key: "mobile.sign_in.link_unmatched", provider: "apple" } });
+    expect(result.current.shown?.failure).toMatchObject({ key: "mobile.sign_in.link_unmatched", provider: "apple" });
     // A password is no provider's sheet: sent as it is.
     await act(async () => void (await result.current.run({ method: "password", email: "a@b.c", password: "p" }, "password")));
     expect(login).toHaveBeenLastCalledWith({ method: "password", email: "a@b.c", password: "p" });

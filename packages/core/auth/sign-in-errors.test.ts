@@ -146,6 +146,10 @@ describe("no sentence ever shows a raw {{var}}", () => {
       masked: "a•••@x.vn",
       provider: "auth.social.provider.apple",
     });
+    // A host's own failure names its provider the way a notice does.
+    expect(sentenceValues({ ...readSignInFailure(api("x", 400)), provider: "google" }, spy)).toEqual({
+      provider: "auth.social.provider.google",
+    });
   });
 });
 
@@ -157,6 +161,7 @@ describe("readSignInFailure", () => {
       kind: "field",
       key: "auth.social.errors.invalid_credentials",
       values: {},
+      provider: null,
       retryAfterSeconds: null,
       retry: null,
       proofs: null,

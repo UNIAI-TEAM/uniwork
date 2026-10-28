@@ -398,7 +398,7 @@ export function FailureNotice({
     <Alert variant={wait ? "warning" : "destructiveSoft"}>
       {wait ? <Clock aria-hidden /> : <CircleAlert aria-hidden />}
       <AlertDescription className="text-pretty">
-        {t(failure.key, sentenceValues({ ...failure, provider }, t))}
+        {t(failure.key, sentenceValues(provider ? { ...failure, provider } : failure, t))}
         {wait && failure.retry ? (
           <>
             {" "}

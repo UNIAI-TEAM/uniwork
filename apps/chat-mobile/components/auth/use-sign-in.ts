@@ -53,7 +53,7 @@ export function useFailureMessage(shown: ShownFailure | null): FailureMessage {
   const left = useCountdown(shown?.deadlineMs ?? null);
   if (!shown) return NOTHING_TO_SAY;
   const { failure, deadlineMs } = shown;
-  const sentence = t(failure.key, failure.values);
+  const sentence = t(failure.key, sentenceValues(failure, t));
   if (failure.kind !== "wait") return { message: sentence, spoken: null, waiting: false };
   if (deadlineMs === null) {
     const message = failure.retry ? `${sentence} ${t(failure.retry.key, { count: failure.retry.count })}` : sentence;

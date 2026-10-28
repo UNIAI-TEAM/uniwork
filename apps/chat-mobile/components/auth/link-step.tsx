@@ -7,7 +7,7 @@
 // ticket was issued (or a move) is asked to confirm it is you first, then the link goes on (use-step-up.ts). Whatever
 // happens, "Tiếp tục" goes on into the app; a choice that is gone counts as done.
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
-import type { SignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import { sentenceValues, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { linkAction } from "@uniwork/core/auth/step-up";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -130,7 +130,7 @@ export function LinkStep() {
       ? failure.maskedEmail
         ? t("auth.continue.link.taken", { provider, masked: failure.maskedEmail })
         : t("auth.continue.link.takenUnknown", { provider })
-      : t(failure.key, failure.values);
+      : t(failure.key, sentenceValues(failure, t));
 
   return (
     <View className="gap-6" testID="link-ask">

@@ -12,8 +12,9 @@ import { maskedEmailOf, urlMaskedEmailOf } from "./sign-in-rules";
  * TransportError by their fields, and never imports any of them.
  *
  * An unknown code never throws: it reads as the context's generic sentence.
- * Every sentence renders as `t(key, sentenceValues(x, t))`: a failure's
- * interpolates only {{masked}}, a notice's also the {{provider}} it names.
+ * Every sentence, a failure's or a notice's, renders as
+ * `t(key, sentenceValues(x, t))`: its {{masked}}, and the {{provider}} it
+ * names, in the host's language.
  */
 
 /** Where the failure happened; a code can mean different things in two places (invalid_credentials). */
@@ -54,9 +55,15 @@ export interface SignInFailure {
   code: string;
   status: number | null;
   kind: SignInFailureKind;
-  /** The i18n key of the sentence; interpolate `values`. */
+  /** The i18n key of the sentence; render it with sentenceValues, which completes `provider`. */
   key: string;
   values: { masked?: string };
+  /**
+   * The provider the sentence names; null when it names none. A server's
+   * answer never does (its sentences say {{provider}} only where the screen
+   * already knows which); a host's own failure may ("Tài khoản Apple này…").
+   */
+  provider: SignInProvider | null;
   /** Seconds the server asked to wait (429), from Retry-After or `fields.retry_after`. */
   retryAfterSeconds: number | null;
   retry: RetryPhrase | null;
@@ -273,6 +280,7 @@ export function readSignInFailure(err: unknown, context: SignInContext = "sign_i
     kind: found.kind,
     key,
     values: maskedEmail === null ? {} : { masked: maskedEmail },
+    provider: null,
     retryAfterSeconds,
     retry: found.kind === "wait" ? retryPhrase(retryAfterSeconds) : null,
     proofs: code === "proof_required" ? knownProofs(fields.proofs) : null,
