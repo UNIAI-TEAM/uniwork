@@ -140,8 +140,6 @@ function MeetingRow({
   const soon = display === "SCHEDULED" && untilStart > 0 && untilStart < SOON_MS;
   const instant = m.meeting_type === "INSTANT";
   const running = m.status === "IN_PROGRESS";
-  // A server without room presence leaves the fields out: the row keeps its host face.
-  const inRoom = running && (m.in_room_user_ids !== undefined || m.in_room_count !== undefined || m.scribe_live !== undefined);
   const faces = (m.in_room_user_ids ?? []).slice(0, 3).map((id) => {
     const member = members.find((x) => x.user_id === id);
     return { id, name: member?.display_name ?? t("meetings.hostUnknown"), avatarUrl: member?.avatar_url, tint: meetingAvatarTint(id, members) };
@@ -155,7 +153,8 @@ function MeetingRow({
         <span className="text-caption text-muted-foreground">{clock(m.ends_at, locale)}</span>
       </span>
       {display === "IN_PROGRESS" ? <LiveRail /> : <span aria-hidden className={cn("w-1 self-stretch rounded-full", railClass(display))} />}
-      {inRoom ? (
+      {/* A live row always shows the room, empty included: the server leaves the fields out when nobody is in, and a host face would read as "the host is in". */}
+      {running ? (
         <LiveRowFaces people={faces} count={m.in_room_count ?? faces.length} scribe={m.scribe_live === true} />
       ) : (
         <MeetingPersonAvatar name={host.name} avatarUrl={host.avatarUrl} className="max-sm:hidden" />

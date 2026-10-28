@@ -336,6 +336,15 @@ describe("MeetingList live row", () => {
     expect(reduced.container.querySelectorAll("[data-slot=live-faces] > span > [data-slot=avatar]")).toHaveLength(2);
   });
 
+  it("an empty live room shows no face, not the host's", () => {
+    // The server leaves all three room fields out when nobody is in.
+    const { in_room_user_ids: _ids, in_room_count: _count, scribe_live: _scribe, ...empty } = liveMeeting();
+    const { container } = render(shell(<MeetingList workspaceId="w1" meetings={[empty]} onOpenRoom={() => {}} />));
+    const faces = container.querySelector<HTMLElement>("[data-slot=live-faces]")!;
+    expect(faces).toHaveTextContent("0 người trong phòng");
+    expect(container.querySelector("[data-slot=avatar]")).toBeNull();
+  });
+
   it("a row that is not live keeps its host face and no clock", () => {
     const { container } = render(shell(<MeetingList workspaceId="w1" meetings={[meetings[0]!]} onOpenRoom={() => {}} />));
     expect(container.querySelector("[data-slot=live-faces]")).toBeNull();
