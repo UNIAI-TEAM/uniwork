@@ -58,7 +58,7 @@ const CODES = [
   "network", "timeout", "internal", "server_error", "invalid_credentials", "second_factor_locked", "rate_limited",
   "provider_token_invalid", "apple_token_invalid", "google_not_configured", "apple_auth_unavailable", "apple_not_configured",
   "native_sign_in_unavailable", "sign_in_email_unverified", "sign_in_account_unverified", "sign_in_account_conflict",
-  "apple_account_conflict", "conflict", "invalid_token", "unauthorized", "sign_in_ticket_missing", "sign_in_ticket_channel",
+  "apple_account_conflict", "conflict", "invalid_token", "unauthorized", "sign_in_ticket_missing", "sign_in_ticket_channel", "sign_in_expired",
   "invalid_code", "sign_in_method_taken", "sign_in_method_movable", "sign_in_method_already_linked", "sign_in_method_last",
   "sign_in_method_relay_email", "email_unverified", "session_mismatch", "proof_required", "password_incorrect",
   "mfa_code_incorrect", "step_up_code_incorrect", "invalid_request", "something_new",
@@ -316,6 +316,11 @@ describe("readSignInFailure", () => {
   it("sends a gone ticket back to sign-in and an ended session to sign in again", () => {
     expect(readSignInFailure(api("sign_in_ticket_missing", 404), "ticket").kind).toBe("restart");
     expect(readSignInFailure(api("sign_in_ticket_channel", 400), "ticket").kind).toBe("restart");
+    // The app's transport says it, with no status, when the step it held in memory is gone: on every screen.
+    const held = Object.assign(new Error("uniwork request failed: sign_in_expired"), { name: "TransportError", code: "sign_in_expired", fromServer: false });
+    for (const context of ["sign_in", "second_factor", "ticket", "claim"] as const) {
+      expect(readSignInFailure(held, context)).toMatchObject({ code: "sign_in_expired", kind: "restart", key: "auth.continue.errors.expired" });
+    }
     expect(readSignInFailure(api("invalid_token", 401), "methods").kind).toBe("session");
   });
 

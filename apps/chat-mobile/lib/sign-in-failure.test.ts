@@ -12,7 +12,7 @@ function api(code: string, status: number) {
 }
 
 describe("signInFailureOf", () => {
-  it("restarts a sign-in whose held step is gone, whatever screen it was on", () => {
+  it("restarts a sign-in whose held step is gone, whatever screen it was on, through core's table", () => {
     for (const context of ["sign_in", "second_factor", "ticket", "claim"] as const) {
       expect(signInFailureOf(transport("sign_in_expired"), context)).toMatchObject({
         kind: "restart",

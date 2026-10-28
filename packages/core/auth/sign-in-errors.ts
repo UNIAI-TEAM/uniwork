@@ -123,6 +123,9 @@ const BASE: Readonly<Record<string, Row>> = {
   // No `unauthorized`: a 401 under that name reads by its context (lookup),
   // since on a sign-in screen it is a wrong credential, not an ended session.
   sign_in_ticket_missing: row(`${CONTINUE}.expired`, "restart"),
+  // The app's own, never the server's: the second step or the choice it held
+  // in memory is gone (expired, or the app restarted), so sign in again.
+  sign_in_expired: row(`${CONTINUE}.expired`, "restart"),
   sign_in_ticket_channel: row(`${CONTINUE}.channel`, "restart"),
   invalid_code: row(`${CONTINUE}.invalidCode`, "field"),
   sign_in_method_taken: row(`${METHODS}.errors.taken`, "form", { unmasked: `${METHODS}.errors.takenUnknown` }),

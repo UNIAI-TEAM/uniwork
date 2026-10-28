@@ -1,7 +1,7 @@
 // What a sign-in screen says when a step failed (ADR 0049, spec §5.2). Every refusal of the server reads through
 // core's one table (auth/sign-in-errors.ts › readSignInFailure), so the phone and the web say the same thing; this
-// module only adds what happens on the phone before the server answers: Apple's or Google's own sheet failing, the
-// system browser not opening, and the step the app held in memory being gone (sign_in_expired).
+// module only adds what happens on the phone before the server answers: Apple's or Google's own sheet failing and the
+// system browser not opening. The step the app held in memory being gone (sign_in_expired) is a row of core's table.
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { readSignInFailure, type SignInContext, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import type { SignInRequest } from "@/data/auth/sign-in";
@@ -30,8 +30,6 @@ const fromTransport = (error: unknown): boolean => {
  * own error, never the server's) says that provider did not work; a browser that would not open says so.
  */
 export function signInFailureOf(error: unknown, context: SignInContext, start: SignInStart = "form"): SignInFailure {
-  // The second step or the choice the app held is gone (expired, or the app restarted): sign in again.
-  if (pathOf(error, "code") === "sign_in_expired") return failure("auth.continue.errors.expired", "restart", "sign_in_expired");
   if (!fromTransport(error) && !(error instanceof TypeError)) {
     if (start === "apple" || start === "google") return failure(`auth.social.errors.${start}_failed`, "form", "provider_sheet");
     if (start === "browser") return failure("auth.desktop.unichat_login_failed", "form", "browser");
