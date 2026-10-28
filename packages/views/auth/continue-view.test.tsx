@@ -397,6 +397,25 @@ describe("ContinueView — invited with another email", () => {
     expect(screen.queryByLabelText("Mã xác nhận")).toBeNull();
   });
 
+  it("goes back to the three choices from the address, and to sign in from the second factor", async () => {
+    route({
+      "GET /api/v1/auth/sign-in-ticket": TICKET,
+      "POST /api/v1/auth/sign-in-ticket/claim-email": { status: "sent" },
+      "POST /api/v1/auth/sign-in-ticket/claim-email/verify": { mfa_required: true, mfa_token: "mfa-1" },
+    });
+    const { nav } = await openClaim();
+    fireEvent.click(screen.getByRole("button", { name: "Quay lại" }));
+    expect(await screen.findByRole("list", { name: "Chọn cách tiếp tục" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Tôi được mời bằng email khác/ }));
+    fireEvent.change(await screen.findByLabelText("Email công việc"), { target: { value: "an@acme.vn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi mã" }));
+    fireEvent.change(await screen.findByLabelText("Mã xác nhận"), { target: { value: "123456" } });
+    await screen.findByRole("heading", { name: "Xác thực hai lớp" });
+    // The pending sign-in was spent on the code: back is the sign-in page, next kept.
+    fireEvent.click(screen.getByRole("button", { name: "Quay lại đăng nhập" }));
+    expect(nav.push).toHaveBeenCalledWith(`/login?next=${encodeURIComponent(NEXT)}`);
+  });
+
   it("asks for the second factor of the invited account, naming it", async () => {
     route({
       "GET /api/v1/auth/sign-in-ticket": TICKET,
