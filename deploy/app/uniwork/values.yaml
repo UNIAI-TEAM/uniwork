@@ -3,15 +3,9 @@ namespace: uniwork
 imagePullSecrets:
   - name: harbor-registry
 
-# pool-app (workload=app, no taint) or pool-exam (workload=exam,
-# dedicated=exam:NoSchedule). nodeSelector cannot express that OR.
 scheduling:
-  workloads: [app, exam]
-  tolerations:
-    - key: dedicated
-      operator: Equal
-      value: exam
-      effect: NoSchedule
+  workloads: [shared]
+  tolerations: []
 
 # Non-secret KEY=value files from deploy/app/env/*.env (helm --set-file).
 env:
@@ -195,7 +189,7 @@ meetingAgent:
   # and is capped at 1 CPU / 2 GiB. maxReplicas 3 is the ceiling across both
   # nodes; measure a real meeting before raising either number (benchmark #13).
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 1
   # Scale on meetings per pod instead of CPU (benchmark #13): KEDA reads
   # scribe_jobs_running from Prometheus and keeps about jobsPerPod meetings on
   # each pod; prescale holds prescale.replicas from a few minutes before each
