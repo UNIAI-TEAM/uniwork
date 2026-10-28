@@ -1,6 +1,8 @@
 // Ported from apps/chat-desktop/src/main/auth/pkce.ts: node:crypto and Buffer
 // replaced by expo-crypto (async) and a hand-rolled base64url, since Hermes
-// has neither Buffer nor a binary-safe btoa.
+// has neither Buffer nor a binary-safe btoa. An attempt keeps neither the
+// authorization URL nor the provider the desktop's keeps to re-open its page:
+// the phone never re-opens one (session.ts).
 import { CryptoDigestAlgorithm, CryptoEncoding, digestStringAsync, getRandomBytesAsync } from "expo-crypto";
 
 /** RFC 7636 verifier bounds; the alphabet is the RFC's unreserved ASCII set. */

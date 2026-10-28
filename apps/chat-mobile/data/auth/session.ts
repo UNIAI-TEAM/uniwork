@@ -4,7 +4,12 @@
 // auth session that returns the callback URL; results that land after logout
 // are dropped by the shared session epoch instead of a private generation
 // counter, so the Keychain's conditional write and this class agree; no
-// proactive refresh timer, a token is refreshed when asked for.
+// proactive refresh timer, a token is refreshed when asked for. The provider a
+// button names reaches the start route as on the desktop, but the attempt does
+// not remember it: the auth session covers the screen and the sign-in screen
+// dims every other way in while one runs, so no tap re-opens a page or swaps
+// the provider mid-start, and each tap after the browser closed begins a new
+// attempt whose state the tab left behind can no longer match.
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { createLogger } from "../logger";
 import { currentSessionEpoch, invalidateSessionEpoch, sessionEpochChanged } from "../session-epoch";
