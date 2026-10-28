@@ -125,8 +125,10 @@ const collected = (type: string, linked: boolean, purpose: "AppFunctionality" | 
  * app and the libraries that ship no manifest of their own (React Native's core, MMKV, LiveKit) touch —
  * UserDefaults for the app's own settings (CA92.1), file timestamps of the app's container (C617.1) and of the
  * files the person picks to send (3B52.1), elapsed time since boot for timers and performance marks (35F9.1),
- * free space before an attachment is copied into the outbox (E174.1). Expo modules and Sentry ship theirs; Xcode
- * aggregates all of them into the archive's report (runbook › iOS privacy manifest).
+ * free space before an attachment is copied into the outbox (E174.1). Expo modules, Sentry and GoogleSignIn (with
+ * AppAuth, GTMAppAuth and GTMSessionFetcher, all on Apple's list of SDKs that must ship a signed manifest) ship
+ * theirs; Xcode aggregates all of them into the archive's report (runbook › iOS privacy manifest). Google's sheet adds
+ * no data type: the name, address and account id it hands over are the Name, EmailAddress and UserID rows below.
  */
 export const IOS_PRIVACY_MANIFEST = {
   NSPrivacyTracking: false,

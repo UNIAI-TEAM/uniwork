@@ -75,13 +75,13 @@
     },
     {
       "name": "android.permission.USE_BIOMETRIC",
-      "from": "expo-local-authentication",
+      "from": "expo-local-authentication; also androidx.biometric, which androidx.credentials (modules/unichat-google-sign-in's Credential Manager) depends on",
       "reason": "App lock (Settings › Lock UniChat): unlocking with the phone's biometrics. The system answers yes or no; no biometric data reaches the app.",
       "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
     },
     {
       "name": "android.permission.USE_FINGERPRINT",
-      "from": "expo-local-authentication",
+      "from": "expo-local-authentication; also androidx.biometric, through androidx.credentials",
       "reason": "App lock on Android 9 and older, where the fingerprint API predates BiometricPrompt; the system answers yes or no.",
       "play": "Normal permission, granted at install with no prompt: no Play Console declaration, and nothing for Data safety (no data leaves the phone through it)."
     },
