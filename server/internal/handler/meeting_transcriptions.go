@@ -17,10 +17,11 @@ import (
 // Meetings held without a room (UNI-2001, parent spec §6.4): recording the
 // meeting as held, the recording's upload session, and its transcriptions.
 
-// heldSeconds caps n far above the service's bounds before converting, so a
-// huge value is refused there instead of wrapping around int64 into range.
+// heldSeconds clamps n far outside the service's bounds before converting, so
+// a huge value either way is refused there instead of wrapping around int64
+// into range.
 func heldSeconds(n int) time.Duration {
-	return time.Duration(min(n, math.MaxInt32)) * time.Second
+	return time.Duration(max(min(n, math.MaxInt32), math.MinInt32)) * time.Second
 }
 
 func (h *handlers) recordMeetingHeld(w http.ResponseWriter, r *http.Request) {

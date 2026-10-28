@@ -199,6 +199,25 @@ describe("useSendRecording", () => {
     expect(await store.listParts("u1", "m1")).toEqual([]);
   });
 
+  it("an empty first part still anchors the recording, so the later offsets keep their place", async () => {
+    const store = memoryRecordingStore();
+    run += 1;
+    // The failed start fixed the recording's base; the parts recorded after it count from there.
+    await store.createPart({ id: `empty-base-${run}`, userId: "u1", meetingId: "m1", startedAt: T0 - 600_000, lastChunkAt: T0 - 600_000, endedAt: T0 - 600_000, mimeType: "audio/webm", bytes: 0, language: "vi", offsetSeconds: 0 });
+    for (const [i, [from, to, offsetSeconds]] of ([[0, 1_450_000, 600], [1_500_000, 2_538_000, 2100]] as const).entries()) {
+      const id = `based-${i}-${run}`;
+      await store.createPart({ id, userId: "u1", meetingId: "m1", startedAt: T0 + from, lastChunkAt: T0 + from, endedAt: null, mimeType: "audio/webm", bytes: 0, language: "vi", offsetSeconds });
+      await store.appendChunk(id, 0, new Blob([`audio-${i}`]), T0 + to);
+      await store.finishPart(id, T0 + to);
+    }
+    const server = fakeServer();
+    const { result } = renderSend(store);
+    await act(() => result.current.send());
+    expect(result.current.phase).toBe("done");
+    // 600 s before the first audio part, to its end: the last part (offset 2100, 1038 s) ends exactly there.
+    expect(server.calls[0]!.body).toMatchObject({ duration_seconds: 3138 });
+  });
+
   it("a part whose offset the server refuses is sent once more without it", async () => {
     const store = memoryRecordingStore();
     await twoParts(store);

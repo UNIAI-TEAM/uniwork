@@ -69,6 +69,7 @@ func TestRecordHeldNowSecondsDoNotWrap(t *testing.T) {
 	id := out["meeting"].(map[string]any)["id"].(string)
 	for _, body := range []map[string]any{
 		{"duration_seconds": 2520, "ended_seconds_ago": 18446744074},
+		{"duration_seconds": 2520, "ended_seconds_ago": -18446744073},
 		{"duration_seconds": 18446744074},
 	} {
 		if res, out := doJSON(t, f.srv, "POST", "/api/v1/meetings/"+id+"/held", f.tokens["a"], body); res.StatusCode != http.StatusUnprocessableEntity {
