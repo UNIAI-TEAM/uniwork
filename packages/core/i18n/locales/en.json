@@ -436,8 +436,9 @@
       "loading": "Loading…",
       "approve": "Allow desktop app",
       "approving": "Allowing…",
-      "approvedTitle": "{{app}} is allowed",
-      "approved": "Go back to {{app}} to continue.",
+      "approvedTitle": "You allowed {{app}}",
+      "approved": "If {{app}} didn't open, choose \"Open {{app}}\".",
+      "approvedReturn": "Go back to {{app}} to continue.",
       "cancelledTitle": "Sign-in cancelled",
       "cancelled": "{{app}} wasn't signed in.",
       "expiredTitle": "This request has expired",
@@ -461,7 +462,7 @@
       "unichat_login_feature_uni": "UNI sums up your unread messages and calls",
       "unichat_login_step_opened": "The browser opened the UniWork sign-in page",
       "unichat_login_step_allow": "Choose \"Allow desktop app\" there",
-      "unichat_login_step_return": "Come back here: UniChat opens your conversations",
+      "unichat_login_step_return": "UniChat opens again, right into your conversations",
       "unichat_login_cancel": "Cancel",
       "unichat_login_version": "UniChat {{version}}",
       "details": "Details",
@@ -470,7 +471,8 @@
       "signingOut": "Signing out…",
       "phone": {
         "title": "Allow {{app}} on this phone to sign in?",
-        "approve": "Allow {{app}}"
+        "approve": "Allow {{app}}",
+        "closePage": "Close this page to return to {{app}}."
       }
     },
     "connect": {

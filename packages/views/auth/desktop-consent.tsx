@@ -220,7 +220,10 @@ export function DesktopConsentView({
     // Allowed and cancelled are only ever reached with the attempt read.
     const [title, result] =
       state === "approved"
-        ? [t("auth.desktop.approvedTitle", { app }), t("auth.desktop.approved", { app })]
+        ? // The page opened the app as soon as it was allowed; the sentence is
+          // the fallback for when it did not open, or the way back after a
+          // reload that kept no callback.
+          [t("auth.desktop.approvedTitle", { app }), t(callbackUrl ? "auth.desktop.approved" : "auth.desktop.approvedReturn", { app })]
         : state === "cancelled"
           ? [t("auth.desktop.cancelledTitle"), t("auth.desktop.cancelled", { app })]
           : state === "expired"
@@ -239,9 +242,13 @@ export function DesktopConsentView({
                 {t("auth.desktop.openDesktop", { app })}
               </Button>
             ) : null}
-            {/* A desktop browser's tab; the phone's sign-in sheet has none. */}
+            {/* A desktop browser's tab. The phone's sign-in sheet has none, and
+                the app waits behind it until it is closed: it says how to get
+                back once there is nothing left to do here. */}
             {seen && !phone ? (
               <p className="text-pretty text-caption text-muted-foreground">{t("auth.desktop.closeTab")}</p>
+            ) : seen && phone && state !== "approved" ? (
+              <p className="text-pretty text-caption text-muted-foreground">{t("auth.desktop.phone.closePage", { app })}</p>
             ) : null}
           </div>
         )}

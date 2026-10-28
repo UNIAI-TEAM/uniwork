@@ -106,7 +106,7 @@ describe("UniChatLoginGate", () => {
     expect(steps).toEqual([
       "The browser opened the UniWork sign-in page",
       'Choose "Allow desktop app" there',
-      "Come back here: UniChat opens your conversations",
+      "UniChat opens again, right into your conversations",
     ]);
     await click(named("Cancel"));
     expect(names()).toEqual(["Continue with Google", "Continue with Apple", "Continue with email"]);

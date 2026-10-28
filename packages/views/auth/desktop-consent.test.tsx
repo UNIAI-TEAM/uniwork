@@ -56,8 +56,9 @@ describe("DesktopConsentView", () => {
     expect(screen.getByText(app)).toBeInTheDocument();
 
     rerender(wrap(<DesktopConsentView consent={{ ...consent, client_id }} state="approved" callbackUrl="uniworkchat://auth/callback?code=c" onDecision={vi.fn(async () => {})} />));
-    expect(screen.getByRole("heading", { name: `${app} is allowed` })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(`Go back to ${app} to continue.`);
+    expect(screen.getByRole("heading", { name: `You allowed ${app}` })).toBeInTheDocument();
+    // The page has already opened the app: the button is the fallback, and the sentence says so.
+    expect(screen.getByRole("status")).toHaveTextContent(`If ${app} didn't open, choose "Open ${app}".`);
     expect(screen.getByRole("button", { name: `Open ${app}` })).toBeInTheDocument();
   });
 
@@ -71,7 +72,8 @@ describe("DesktopConsentView", () => {
   });
 
   it.each([
-    ["approved", "UniWork Office is allowed", "Go back to UniWork Office to continue."],
+    // Read back after a reload that kept no callback: nothing to open from here.
+    ["approved", "You allowed UniWork Office", "Go back to UniWork Office to continue."],
     ["cancelled", "Sign-in cancelled", "UniWork Office wasn't signed in."],
     ["error", "Couldn't finish signing in", "Try again. If it still fails, start signing in again from the app."],
     ["expired", "This request has expired", "Go back to UniWork Office and try again."],
@@ -96,6 +98,12 @@ describe("DesktopConsentView", () => {
     rerender(wrap(<DesktopConsentView consent={null} state="expired" onDecision={vi.fn(async () => {})} />));
     expect(screen.getByRole("status")).toHaveTextContent("Go back to UniChat and try again.");
     // The phone's sign-in sheet has no tab to close.
+    expect(screen.queryByText("You can close this tab.")).toBeNull();
+  });
+
+  it.each(["cancelled", "expired"] as const)("tells the phone how to get back to the app once %s", (state) => {
+    render(wrap(<DesktopConsentView consent={phone} state={state} onDecision={vi.fn(async () => {})} />));
+    expect(screen.getByText("Close this page to return to UniChat.")).toBeInTheDocument();
     expect(screen.queryByText("You can close this tab.")).toBeNull();
   });
 

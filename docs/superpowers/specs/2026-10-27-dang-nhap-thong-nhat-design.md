@@ -656,13 +656,16 @@ vùng kéo cửa sổ).
   `apps/web/platform/auth/provider-handoff.tsx` (`providerHint`, `useDropProviderHint`, `ProviderHandoff`), vì
   `packages/views` không được chạm `location`.
 - **Trang đồng ý** (`/auth/desktop/authorize`): không có eyebrow; tiêu đề nêu nền tảng và hàng thiết bị có biểu tượng
-  `Monitor`/`Smartphone`. Mỗi kết quả là cuối của lượt đó và có tiêu đề theo điều đã xảy ra: "Đã cho phép {{app}}"
-  ("Quay lại {{app}} để tiếp tục."), "Đã hủy đăng nhập", "Yêu cầu đã hết hạn" ("Quay lại {{app}} và thử lại."), "Chưa
-  hoàn tất được đăng nhập" (kèm "Thử lại", kết quả duy nhất có nút này). Trang giữ lượt đọc gần nhất, nên thử lại mà gặp
-  410 vẫn nêu đúng app và nền tảng; lượt chưa từng đọc được thì nói trung tính ("Quay lại ứng dụng và thử lại."), không
-  đoán sản phẩm hay thiết bị. "Bạn có thể đóng tab này." chỉ cho lượt desktop (sheet đăng nhập của điện thoại không có
-  tab); đã cho phép có thêm "Mở {{app}}" khi có callback. Không có "Quay lại" hay "Đóng" (chúng đưa người đã đăng nhập về
-  `/login`). "Không phải bạn?" rồi link "Dùng tài khoản khác" (spinner + "Đang đăng xuất…" khi đang chạy) đăng xuất, rồi
+  `Monitor`/`Smartphone`. Bấm cho phép thì trang mở callback của app ngay (`location.assign`, cú bấm còn là cử chỉ mà
+  custom scheme cần): app desktop chỉ nhận mã qua deep link và sheet của điện thoại chỉ đóng khi gặp nó, nên không có
+  bước "quay lại" nào người phải tự làm. Mỗi kết quả là cuối của lượt đó và có tiêu đề theo điều đã xảy ra: "Đã cho
+  phép {{app}}" ("Nếu {{app}} chưa mở, bấm "Mở {{app}}"."; tải lại mà không còn callback thì "Quay lại {{app}} để tiếp
+  tục."), "Đã hủy đăng nhập", "Yêu cầu đã hết hạn" ("Quay lại {{app}} và thử lại."), "Chưa hoàn tất được đăng nhập"
+  (kèm "Thử lại", kết quả duy nhất có nút này). Trang giữ lượt đọc gần nhất, nên thử lại mà gặp 410 vẫn nêu đúng app và
+  nền tảng; lượt chưa từng đọc được thì nói trung tính ("Quay lại ứng dụng và thử lại."), không đoán sản phẩm hay thiết
+  bị. "Bạn có thể đóng tab này." chỉ cho lượt desktop; sheet đăng nhập của điện thoại không có tab, nên đã hủy và hết hạn
+  nói "Đóng trang này để về {{app}}.". Đã cho phép có thêm "Mở {{app}}" khi có callback. Không có "Quay lại" hay "Đóng"
+  (chúng đưa người đã đăng nhập về `/login`). Bước 3 của cổng UniChat: "UniChat mở lại và vào thẳng cuộc trò chuyện". "Không phải bạn?" rồi link "Dùng tài khoản khác" (spinner + "Đang đăng xuất…" khi đang chạy) đăng xuất, rồi
   trang đưa trình duyệt tới `/login` vẫn mang gợi ý nhà cung cấp của app.
 
 ### 4.3 Màn chọn `/auth/continue`

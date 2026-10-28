@@ -55,12 +55,18 @@ export default function DesktopAuthorizePage() {
   // A retry shows the consent's loading shape again, so the press is seen and
   // a fresh CSRF token replaces the one a failed approval may have spent.
   const retry = () => { setConsent(null); setState("pending"); load(); };
-  return <DesktopConsentView consent={consent} state={state} callbackUrl={callbackUrl} onRetry={retry} onSwitchAccount={() => logout.mutateAsync()} onOpenDesktop={() => { if (callbackUrl && isDesktopCallbackUrl(callbackUrl, consent?.redirect_uri)) window.location.assign(callbackUrl); }} onDecision={async (decision) => {
+  const openApp = (url: string | undefined) => { if (url && isDesktopCallbackUrl(url, consent?.redirect_uri)) window.location.assign(url); };
+  return <DesktopConsentView consent={consent} state={state} callbackUrl={callbackUrl} onRetry={retry} onSwitchAccount={() => logout.mutateAsync()} onOpenDesktop={() => openApp(callbackUrl)} onDecision={async (decision) => {
     if (!consent) { setState("error"); return; }
     try {
     const result = await api.auth.desktopConsentCommand({ attempt_id: consent.attempt_id, csrf_token: consent.csrf_token, decision });
     if (!result) { setState("error"); return; }
-    if (decision === "approve" && result.status === "approved" && result.callback_url && isDesktopCallbackUrl(result.callback_url, consent.redirect_uri)) { sessionStorage.setItem(`desktop-callback:${attemptId}`, result.callback_url); setCallbackUrl(result.callback_url); setState("approved"); return; }
+    if (decision === "approve" && result.status === "approved" && result.callback_url && isDesktopCallbackUrl(result.callback_url, consent.redirect_uri)) { sessionStorage.setItem(`desktop-callback:${attemptId}`, result.callback_url); setCallbackUrl(result.callback_url); setState("approved");
+      // The app gets its code only through this callback (a desktop deep link,
+      // the phone's auth sheet closing on it): it opens at once, while the
+      // Allow press still counts as the gesture a custom scheme needs. The
+      // result screen stays behind it, its "Mở {{app}}" the fallback.
+      window.location.assign(result.callback_url); return; }
     if (decision === "cancel" && result.status === "cancelled") { setState("cancelled"); return; }
     setState("error");
     } catch { setState("error"); }

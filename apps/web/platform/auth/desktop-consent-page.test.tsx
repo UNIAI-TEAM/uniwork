@@ -19,14 +19,16 @@ vi.mock("@uniwork/views/auth/desktop-consent", async (importOriginal) => ({
   ),
 }));
 
+const assign = vi.fn();
 let root: Root;
 let container: HTMLDivElement;
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   state.status = "loading"; state.search = "attempt_id=attempt-1"; state.read.mockReset(); state.logout.mockReset(); state.command.mockReset(); state.replace.mockReset(); sessionStorage.clear();
+  assign.mockReset(); vi.stubGlobal("location", { assign });
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
 });
-afterEach(() => { act(() => root.unmount()); container.remove(); });
+afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 const renderPage = async () => { await act(async () => { root.render(<Page />); }); };
 
 it("waits for web session initialization before fetching consent", async () => {
@@ -98,6 +100,17 @@ it.each([
   expect(view?.textContent).toBe(expectedState);
   expect(view?.getAttribute("data-callback")).toBe(stored ?? "");
   expect(sessionStorage.getItem("desktop-callback:attempt-1")).toBe(stored);
+  // An approval opens the app by itself; a callback on another scheme never opens.
+  expect(assign.mock.calls).toEqual(stored ? [[stored]] : []);
+});
+
+it("opens nothing by itself for an approval read back after a reload", async () => {
+  state.status = "authed";
+  state.read.mockResolvedValue({ status: "approved", redirect_uri: "uniworkchat://auth/callback" });
+  sessionStorage.setItem("desktop-callback:attempt-1", "uniworkchat://auth/callback?code=c&state=s");
+  await renderPage();
+  expect(container.querySelector('[data-testid="consent-state"]')?.textContent).toBe("approved");
+  expect(assign).not.toHaveBeenCalled();
 });
 
 it("hands the view its own loading shape instead of a bare status line", async () => {
