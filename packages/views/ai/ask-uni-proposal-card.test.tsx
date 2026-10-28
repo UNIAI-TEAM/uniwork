@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { forwardRef, useImperativeHandle, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api/http";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { AiProposalSchema, type AiProposal } from "@uniwork/core/types";
 import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
@@ -8,6 +10,15 @@ import { user, workspace } from "./ask-uni-fixtures";
 import { AskUniProposalCard } from "./ask-uni-proposal-card";
 
 initI18n();
+
+// A textarea stands in for the TipTap editor in the outline dialog.
+vi.mock("../editor", () => ({
+  ContentEditor: forwardRef(function MockEditor({ defaultValue = "", ariaLabel }: { defaultValue?: string; ariaLabel?: string }, ref) {
+    const [value, setValue] = useState(defaultValue);
+    useImperativeHandle(ref, () => ({ getMarkdown: () => value }));
+    return <textarea aria-label={ariaLabel} value={value} onChange={(e) => setValue(e.target.value)} />;
+  }),
+}));
 
 function row(over: Record<string, unknown> = {}): AiProposal {
   return AiProposalSchema.parse({
@@ -398,6 +409,38 @@ describe("AskUniProposalCard", () => {
       fireEvent.click(screen.getByRole("button", { name: "Áp dụng" }));
       await settle();
       expect(nav.push).not.toHaveBeenCalled();
+    });
+
+    it("saves an edited outline through the edit call", async () => {
+      requestMock.mockResolvedValue(office({ preview: { ...office().preview, body: "# Mới" } }));
+      mount([office()]);
+      fireEvent.click(screen.getByRole("button", { name: "Sửa dàn ý" }));
+      fireEvent.change(screen.getByRole("textbox", { name: "Dàn ý của tệp mới" }), { target: { value: "# Mới\n" } });
+      fireEvent.click(screen.getByRole("button", { name: "Lưu dàn ý" }));
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/ai/proposals/p1", expect.objectContaining({ method: "PATCH", body: { changes: { outline: "# Mới" } } })));
+      await waitFor(() => expect(screen.queryByRole("textbox", { name: "Dàn ý của tệp mới" })).toBeNull());
+    });
+
+    it("keeps the dialog open and shows an invalid_args refusal", async () => {
+      requestMock.mockRejectedValue(new ApiError("outline is too long", "invalid_args", 400));
+      mount([office()]);
+      fireEvent.click(screen.getByRole("button", { name: "Sửa dàn ý" }));
+      fireEvent.change(screen.getByRole("textbox", { name: "Dàn ý của tệp mới" }), { target: { value: "# Khác" } });
+      fireEvent.click(screen.getByRole("button", { name: "Lưu dàn ý" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Thay đổi này không hợp lệ");
+      expect(screen.getByRole("textbox", { name: "Dàn ý của tệp mới" })).toBeInTheDocument();
+    });
+
+    it("hides Sửa dàn ý for a truncated body, and the generic form has no outline field", () => {
+      mount([office({ preview: { ...office().preview, body_truncated: true } })]);
+      expect(screen.queryByRole("button", { name: "Sửa dàn ý" })).toBeNull();
+    });
+
+    it("leaves the outline out of the generic Sửa form", () => {
+      mount([office()]);
+      fireEvent.click(screen.getByRole("button", { name: "Sửa" }));
+      expect(screen.getByRole("combobox", { name: "Sửa Định dạng" })).toBeInTheDocument();
+      expect(screen.queryByRole("textbox", { name: /Sửa/ })).toBeNull();
     });
 
     it("never navigates when a plan is approved", async () => {

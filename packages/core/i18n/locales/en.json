@@ -8055,7 +8055,10 @@
       },
       "apply_create_open": "Create and open",
       "apply_save_template": "Save to Templates",
-      "outline": "Outline"
+      "outline": "Outline",
+      "edit_outline": "Edit outline",
+      "outline_save": "Save outline",
+      "outline_label": "Outline of the new file"
     },
     "memory": {
       "button": "Memory",

@@ -8004,7 +8004,10 @@
       },
       "apply_create_open": "Tạo và mở",
       "apply_save_template": "Lưu vào Mẫu",
-      "outline": "Dàn ý"
+      "outline": "Dàn ý",
+      "edit_outline": "Sửa dàn ý",
+      "outline_save": "Lưu dàn ý",
+      "outline_label": "Dàn ý của tệp mới"
     },
     "memory": {
       "button": "Bộ nhớ",

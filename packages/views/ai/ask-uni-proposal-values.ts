@@ -1,4 +1,5 @@
 import type { useTranslation } from "react-i18next";
+import { apiErrorMessage, errorCode } from "@uniwork/core/api/http";
 import type { AiProposal } from "@uniwork/core/types";
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
@@ -95,5 +96,21 @@ export const applyLabelKey = (tool: string) =>
 /** The body "Sửa" may change: not one the server cut to fit the card, or saving it would cut the page. */
 export const bodyEditable = (p: AiProposal) => p.preview.body !== "" && !p.preview.body_truncated;
 
+/** The body the generic "Sửa" form edits: an outline has its own dialog (rich editor), so it is not in the form. */
+export const bodyInForm = (p: AiProposal) => bodyEditable(p) && bodyArg(p.tool) !== "outline";
+
 /** Whether "Sửa" has anything to open: an editable field, or the whole text the row will post. */
-export const hasEditable = (p: AiProposal) => bodyEditable(p) || p.preview.fields.some((f) => editKind(f, p.tool) !== null);
+export const hasEditable = (p: AiProposal) => bodyInForm(p) || p.preview.fields.some((f) => editKind(f, p.tool) !== null);
+
+/**
+ * How a refused edit reads. The server words an `invalid_args` refusal in English, for the model: it only names which
+ * of `keys` is wrong (`field`, "" when none), the text is ours.
+ */
+export function editRefusal(err: unknown, keys: string[], t: TFunction): { field: string; text: string } {
+  const code = errorCode(err) ?? "";
+  const message = apiErrorMessage(err) ?? "";
+  const field = keys.find((k) => new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(message)) ?? "";
+  const known = code !== "invalid_args" && SAFE_KEY.test(code) ? t(`ai.proposal.error.${code}`, { defaultValue: "" }) : "";
+  const invalid = field ? t("ai.proposal.edit_invalid_field", { field: fieldLabel(t, field) }) : t("ai.proposal.edit_invalid");
+  return { field, text: code === "invalid_args" ? invalid : known || t("ai.proposal.generic_error") };
+}
