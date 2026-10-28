@@ -109,12 +109,14 @@ const ROW = cn(
  * One large pressable choice: title, one line, a chevron. A link when the
  * choice goes to another page (it keeps open-in-new-tab and the URL on
  * hover), a button when it acts here. `busy` is the one pressed and still
- * working; `disabled` are the others while it does (aria-disabled keeps them
- * in the tab order, so the guard is in the handler).
+ * working, and says what it is doing in place of its line (`busyBody`);
+ * `disabled` are the others while it does (aria-disabled keeps them in the
+ * tab order, so the guard is in the handler).
  */
 export function ChoiceRow({
   title,
   body,
+  busyBody,
   href,
   onPress,
   busy = false,
@@ -122,6 +124,7 @@ export function ChoiceRow({
 }: {
   title: string;
   body: string;
+  busyBody?: string;
   href?: string;
   onPress?: () => void;
   busy?: boolean;
@@ -131,7 +134,7 @@ export function ChoiceRow({
     <>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="text-body font-medium text-foreground">{title}</span>
-        <span className="text-pretty text-caption text-muted-foreground">{body}</span>
+        <span className="text-pretty text-caption text-muted-foreground">{busy && busyBody ? busyBody : body}</span>
       </span>
       {busy ? (
         <Spinner className="shrink-0 text-muted-foreground" />

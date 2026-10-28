@@ -325,10 +325,15 @@ function ChoicesScreen({
                 // press creates the account.
                 onPress={() => (ticket.name.trim() ? runCreate(undefined) : onStep({ at: "name" }))}
                 busy={create.isPending}
+                busyBody={t("auth.continue.create.submitting")}
                 disabled={(busy && !create.isPending) || failure?.kind === "wait"}
               />
             </li>
           </ul>
+          {/* aria-busy alone is seldom read: the create in place is said here, politely. */}
+          <p role="status" className="sr-only">
+            {create.isPending ? t("auth.continue.create.submitting") : ""}
+          </p>
           <AuthLegalNote action="signUp" />
         </div>
         {cancelButton}

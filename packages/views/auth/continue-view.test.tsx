@@ -135,6 +135,9 @@ describe("ContinueView — unmatched", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Tạo tài khoản mới/ }));
     const create = screen.getByRole("button", { name: /Tạo tài khoản mới/ });
     await waitFor(() => expect(create).toHaveAttribute("aria-busy", "true"));
+    // The row says what it is doing, and a polite status says it to a screen reader.
+    expect(create).toHaveTextContent("Đang tạo tài khoản…");
+    expect(screen.getAllByRole("status").some((s) => s.textContent === "Đang tạo tài khoản…")).toBe(true);
     expect(screen.getByRole("link", { name: /Tôi đã có tài khoản/ })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("button", { name: /Tôi được mời/ })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("button", { name: "Hủy" })).toHaveAttribute("aria-disabled", "true");
