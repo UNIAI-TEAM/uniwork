@@ -134,6 +134,18 @@ describe("RegisterView", () => {
     expect(screen.getAllByRole("button", { name: /Đăng ký/ })).toHaveLength(1);
   });
 
+  it("starts at the top when Google or Apple is offered, and in the name field when the form is the only way", async () => {
+    requestMock.mockResolvedValue({ google: true, apple: false, apple_web: false, google_native: false });
+    const { unmount } = render(wrap(<RegisterView onSuccess={() => {}} />));
+    await screen.findByRole("link", { name: "Tiếp tục với Google" });
+    expect(document.activeElement).toBe(document.body);
+    unmount();
+
+    requestMock.mockResolvedValue({ google: false, apple: false, apple_web: false, google_native: false });
+    render(wrap(<RegisterView onSuccess={() => {}} />));
+    await waitFor(() => expect(screen.getByLabelText("Tên hiển thị")).toHaveFocus());
+  });
+
   // Apple 1.2 / Play UGC: signing up is agreeing to terms that forbid objectionable content.
   it("says signing up agrees to the terms, and links the terms and the privacy policy in the reader's language", () => {
     const nav = adapter();

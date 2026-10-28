@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import type { AuthProviders, SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { useAuthProviders } from "@uniwork/core/auth";
@@ -21,6 +22,31 @@ export function webSignInProviders(providers: AuthProviders | undefined): SignIn
   if (providers?.google) offered.push("google");
   if (providers?.apple_web) offered.push("apple");
   return offered;
+}
+
+/**
+ * The form's first field takes focus only when the form is the one way in:
+ * the providers answered and offer none (`except` left out, `hold` over).
+ * With Google or Apple above it, a field that took focus on arrival would
+ * skip them for a keyboard, start a screen reader below the heading, and
+ * raise a phone's keyboard over the buttons; the person starts at the top
+ * instead. Never taken from where the person already is.
+ */
+export function useFocusWhenFormIsTheOnlyWay(
+  field: RefObject<HTMLInputElement | null>,
+  { except = null, hold = false }: { except?: SignInProvider | null; hold?: boolean } = {},
+) {
+  const providers = useAuthProviders();
+  const alone =
+    !providers.isPending && !hold && webSignInProviders(providers.data).filter((provider) => provider !== except).length === 0;
+  useEffect(() => {
+    if (alone && focusIsUnclaimed()) field.current?.focus();
+  }, [alone, field]);
+}
+
+/** Focus is nowhere the person put it: the page, not a control, has it. */
+export function focusIsUnclaimed(): boolean {
+  return document.activeElement === null || document.activeElement === document.body;
 }
 
 /** The API route a provider's sign-in leaves from (an absolute URL, not a page). */

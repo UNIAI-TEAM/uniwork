@@ -257,6 +257,19 @@ describe("LoginView", () => {
     expect(toastMock.success).not.toHaveBeenCalled();
   });
 
+  it("starts at the top when Google or Apple is offered, and in the email field when the form is the only way", async () => {
+    requestMock.mockResolvedValue({ google: false, apple: false, apple_web: true, google_native: false });
+    const { unmount } = render(wrap(<LoginView onSuccess={() => {}} />));
+    await screen.findByRole("link", { name: "Tiếp tục với Apple" });
+    expect(document.activeElement).toBe(document.body);
+    unmount();
+
+    requestMock.mockResolvedValue({ google: false, apple: true, apple_web: false, google_native: true });
+    render(wrap(<LoginView onSuccess={() => {}} />));
+    // The iPhone's own Apple and the app's Google are not ways in on the web.
+    await waitFor(() => expect(screen.getByLabelText("Email")).toHaveFocus());
+  });
+
   it("asks for the email before sending anything and moves focus there", () => {
     render(wrap(<LoginView onSuccess={() => {}} />));
     fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));

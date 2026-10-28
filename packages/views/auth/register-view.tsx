@@ -1,5 +1,5 @@
 "use client";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
 import { useRegister } from "@uniwork/core/auth";
@@ -13,7 +13,7 @@ import { AuthLegalNote } from "./auth-legal-note";
 import { AuthShell } from "./auth-shell";
 import { AUTH_LINK } from "./login-view";
 import { PasswordField } from "./password-field";
-import { SocialSignIn } from "./social-sign-in";
+import { SocialSignIn, useFocusWhenFormIsTheOnlyWay } from "./social-sign-in";
 
 /** The server's minimum, restated here so the rule is visible before submitting. */
 const PASSWORD_MIN = 8;
@@ -31,6 +31,8 @@ export function RegisterView({
   const errorId = useId();
   const hintId = useId();
   const [displayName, setDisplayName] = useState("");
+  const nameRef = useRef<HTMLInputElement>(null);
+  useFocusWhenFormIsTheOnlyWay(nameRef);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -58,12 +60,12 @@ export function RegisterView({
             <Field className="gap-2">
               <FieldLabel htmlFor="register-name">{t("auth.displayName")}</FieldLabel>
               <Input
+                ref={nameRef}
                 id="register-name"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 autoComplete="name"
                 enterKeyHint="next"
-                autoFocus
                 required
                 className={AUTH_INPUT}
               />

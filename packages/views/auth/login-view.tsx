@@ -21,7 +21,7 @@ import { MFAStep } from "./mfa-step";
 import { PasswordField } from "./password-field";
 import { pastLinkStep } from "./post-auth-redirect";
 import { useSessionNotices } from "./session-notices";
-import { SocialSignIn } from "./social-sign-in";
+import { focusIsUnclaimed, SocialSignIn, useFocusWhenFormIsTheOnlyWay } from "./social-sign-in";
 
 export { AUTH_LINK };
 
@@ -98,8 +98,10 @@ export function LoginView({
   useEffect(() => {
     if (!prefill) return;
     setEmail((typed) => typed || prefill);
-    if (document.activeElement === emailRef.current && !emailRef.current?.value) passwordRef.current?.focus();
+    const untouched = document.activeElement === emailRef.current && !emailRef.current?.value;
+    if (untouched || focusIsUnclaimed()) passwordRef.current?.focus();
   }, [prefill]);
+  useFocusWhenFormIsTheOnlyWay(emailRef, { except: pending?.provider ?? null, hold: pending === undefined });
   const redirectKey = submitted ? null : loginRedirectErrorKey(redirectError);
   // A cancel is the person's own choice, not a failure: said quietly, as a
   // status. Every other code is something that went wrong and is an alert.
@@ -262,7 +264,6 @@ export function LoginView({
                 spellCheck={false}
                 inputMode="email"
                 enterKeyHint="next"
-                autoFocus
                 required
                 aria-invalid={blames("email") || undefined}
                 aria-describedby={blames("email") ? noticeId : undefined}
