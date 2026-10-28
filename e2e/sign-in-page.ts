@@ -7,8 +7,9 @@ import { auditText } from "./contrast";
  * share.
  *
  * No CI deployment holds Google or Apple credentials, so /auth/providers
- * offers neither. The stub still lets the request reach the server and keeps
- * its response (status line, CORS headers), replacing only the JSON, as
+ * offers neither and no provider sign-in can leave a pending ticket behind.
+ * Each stub still lets the request reach the server and keeps its response
+ * (status line, CORS headers), replacing only the JSON, as
  * landing-office-stubs.ts does for /config: the web app calls the API on
  * another origin with credentials, and a hand-made response would fail CORS.
  * Stub before the first navigation.
@@ -26,6 +27,30 @@ export async function offerProviders(page: Page, hold?: Promise<void>): Promise<
     const response = await route.fetch();
     await hold;
     await route.fulfill({ response, json: BOTH_PROVIDERS });
+  });
+}
+
+/** What GET /auth/sign-in-ticket answers for a pending provider sign-in (SignInTicketSDO). */
+export interface PendingSignIn {
+  provider: "google" | "apple";
+  kind: "unmatched" | "link_required";
+  email: string;
+  name: string;
+  private_relay: boolean;
+}
+
+/**
+ * The browser holds a pending sign-in: the HttpOnly ticket cookie the choice
+ * screen only asks the server about. Only the read is stubbed; a command the
+ * screen sends still meets the real server, which finds no ticket. Without
+ * this stub the server's answer is 404 sign_in_ticket_missing: the expired
+ * screen.
+ */
+export async function pendingSignIn(page: Page, ticket: PendingSignIn): Promise<void> {
+  await page.route(/\/api\/v1\/auth\/sign-in-ticket(\?.*)?$/, async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    const response = await route.fetch();
+    await route.fulfill({ response, status: 200, json: ticket });
   });
 }
 
