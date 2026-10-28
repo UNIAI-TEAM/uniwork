@@ -141,6 +141,11 @@ describe("registerIpc", () => {
     await expect(invoke("shell:open-external", "not a url")).rejects.toThrow("ipc rejected: not_url");
   });
 
+  it("opens the OS notification settings where the platform has a page for them", async () => {
+    const { invoke } = setup();
+    await expect(invoke("shell:open-notification-settings")).resolves.toBeUndefined();
+  });
+
   it("downloads through the window, nothing without one", async () => {
     const { win, invoke } = setup();
     await invoke("shell:download-url", "https://files.example/a.pdf");
