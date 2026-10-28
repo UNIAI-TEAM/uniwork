@@ -1861,7 +1861,8 @@
         "recoveryCopyFailed": "Chưa sao chép được. Chép tay hoặc tải về.",
         "codeLength_one": "Nhập đủ {{count}} chữ số ứng dụng hiện ra.",
         "codeLength_other": "Nhập đủ {{count}} chữ số ứng dụng hiện ra.",
-        "disableCodeRequired": "Nhập mã từ ứng dụng hoặc một mã khôi phục."
+        "disableCodeRequired": "Nhập mã từ ứng dụng hoặc một mã khôi phục.",
+        "emailUnverified": "Xác minh email của bạn trước, rồi bật xác thực hai lớp."
       },
       "sessions": {
         "section": "Phiên đăng nhập",

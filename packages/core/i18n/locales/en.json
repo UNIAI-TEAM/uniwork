@@ -1862,7 +1862,8 @@
         "recoveryCopyFailed": "Could not copy. Copy them by hand or download them.",
         "codeLength_one": "Enter the {{count}} digit the app shows.",
         "codeLength_other": "Enter all {{count}} digits the app shows.",
-        "disableCodeRequired": "Enter an app code or a recovery code."
+        "disableCodeRequired": "Enter an app code or a recovery code.",
+        "emailUnverified": "Verify your email first, then turn on two-factor authentication."
       },
       "sessions": {
         "section": "Sessions",

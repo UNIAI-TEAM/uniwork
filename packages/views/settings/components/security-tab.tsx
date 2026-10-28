@@ -6,7 +6,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { toastApiError } from "../../toast-api-error";
-import { apiErrorMessage } from "@uniwork/core/api";
+import { apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { useAuthStore, useMfaConfirm, useMfaDisable, useMfaSetup, useRefreshSessionUser } from "@uniwork/core/auth";
 import type { MFASetup } from "@uniwork/core/api/endpoints/auth";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
@@ -17,6 +17,7 @@ import { copyText } from "@uniwork/ui/lib/clipboard";
 import { DeleteAccountDialog } from "./delete-account-dialog";
 import { SessionsSection } from "./security-sessions";
 import { SignInMethodsSection } from "./security-sign-in-methods";
+import { useStepUpGate } from "./step-up-proof";
 import {
   SettingsBadge,
   SettingsCard,
@@ -156,17 +157,32 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
   );
 }
 
-/** Three screens in one card: start → scan and confirm → recovery codes shown once. */
+/**
+ * Three screens in one card: start → scan and confirm → recovery codes shown
+ * once. A second factor locks the account to whoever holds it, so both the
+ * setup and the confirmation are proved first (ADR 0047 §5) through the
+ * shared "Xác nhận là bạn" dialog; one proof serves both.
+ */
 function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.security.mfa" });
+  const verified = useAuthStore((s) => Boolean(s.user?.email_verified_at));
   const setup = useMfaSetup();
   const confirm = useMfaConfirm();
+  const gate = useStepUpGate();
   const [pending, setPending] = useState<MFASetup | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [codes, setCodes] = useState<string[] | null>(null);
   const codeError = useCodeError();
   const codeId = useId();
+  const scanId = useId();
+
+  // The button that started the setup is gone with this step: focus moves
+  // on to the code it asks for, rather than falling back to <body>.
+  const codeInput = codeError.inputRef;
+  useEffect(() => {
+    if (pending) codeInput.current?.focus();
+  }, [pending, codeInput]);
 
   useEffect(() => {
     if (!pending) return;
@@ -184,6 +200,25 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
 
   if (codes) return <RecoveryCodes codes={codes} />;
 
+  const start = () => {
+    if (setup.isPending || gate.asking) return;
+    void gate.run({
+      action: "enable_mfa",
+      // The setup weighs the address before the proof: an address not known
+      // to be verified lets the server answer first, so its owner hears
+      // "verify your email" instead of proving itself for nothing, and a
+      // refused proof opens the dialog on the proofs the refusal names.
+      upfront: verified,
+      command: () => setup.mutateAsync(),
+      onSuccess: (out) => {
+        if (out) setPending(out);
+        else toast.error(t("toastFailed"));
+      },
+      onError: (err) =>
+        errorCode(err) === "email_unverified" ? toast.error(t("emailUnverified")) : toastApiError(err, t("toastFailed")),
+    });
+  };
+
   if (!pending) {
     return (
       <SettingsRow label={t("appLabel")} description={t("statusOffHint")} size="none">
@@ -191,85 +226,91 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
           <Button
             aria-disabled={setup.isPending || undefined}
             aria-busy={setup.isPending || undefined}
-            onClick={() => {
-              if (setup.isPending) return;
-              setup.mutate(undefined, {
-                onSuccess: (out) => {
-                  if (out) setPending(out);
-                  else toast.error(t("toastFailed"));
-                },
-                onError: (err) => toastApiError(err, t("toastFailed")),
-              });
-            }}
+            onClick={start}
           >
             {setup.isPending ? <Spinner /> : null}
             {t("enable")}
           </Button>
         </div>
+        {gate.dialog}
       </SettingsRow>
     );
   }
 
+  // The proof dialog sits beside the form, not in it: React carries a
+  // portal's submit up its own tree, so inside it would submit this form too.
   return (
-    <form
-      className="flex flex-col gap-4 p-4"
-      noValidate
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (confirm.isPending) return;
-        const value = code.trim();
-        if (!/^\d{6}$/.test(value)) {
-          codeError.fail(t("codeLength", { count: TOTP_LENGTH }));
-          return;
-        }
-        codeError.clear();
-        confirm.mutate(value, {
-          onSuccess: (list) => {
-            setCodes(list);
-            setPending(null);
-            setCode("");
-            onEnabled();
-            toast.success(t("toastEnabled"));
-          },
-          onError: (err) => codeError.fail(apiErrorMessage(err) ?? t("invalidCode")),
-        });
-      }}
-    >
-      <p className="text-body">{t("scanHint")}</p>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        {qr ? <img src={qr} alt={t("qrAlt")} width={192} height={192} className="rounded-md border border-border" /> : null}
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="text-caption text-muted-foreground">{t("manualSecret")}</span>
-          <code className="break-all rounded-md bg-muted px-2 py-1 font-mono text-body">{pending.secret}</code>
+    <>
+      <form
+        className="flex flex-col gap-4 p-4"
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (confirm.isPending || gate.asking) return;
+          const value = code.trim();
+          if (!/^\d{6}$/.test(value)) {
+            codeError.fail(t("codeLength", { count: TOTP_LENGTH }));
+            return;
+          }
+          codeError.clear();
+          // The token the setup was proved with serves the confirmation; when
+          // it lapsed in between, the server says so and the dialog asks again,
+          // then the code goes as typed.
+          void gate.run({
+            action: "enable_mfa",
+            upfront: false,
+            command: () => confirm.mutateAsync(value),
+            onSuccess: (list) => {
+              setCodes(list);
+              setPending(null);
+              setCode("");
+              onEnabled();
+              toast.success(t("toastEnabled"));
+            },
+            onError: (err) => codeError.fail(apiErrorMessage(err) ?? t("invalidCode")),
+          });
+        }}
+      >
+        <p id={scanId} className="text-body">
+          {t("scanHint")}
+        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          {qr ? <img src={qr} alt={t("qrAlt")} width={192} height={192} className="rounded-md border border-border" /> : null}
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="text-caption text-muted-foreground">{t("manualSecret")}</span>
+            <code className="break-all rounded-md bg-muted px-2 py-1 font-mono text-body">{pending.secret}</code>
+          </div>
         </div>
-      </div>
-      <Field className="gap-1.5">
-        <FieldLabel htmlFor={codeId}>{t("confirmLabel")}</FieldLabel>
-        <Input
-          {...codeError.inputProps}
-          id={codeId}
-          value={code}
-          onChange={(e) => {
-            setCode(e.target.value);
-            codeError.clear();
-          }}
-          autoComplete="one-time-code"
-          inputMode="numeric"
-          maxLength={TOTP_LENGTH}
-          className="sm:w-40"
-        />
-        {codeError.message}
-      </Field>
-      <div className="flex gap-2">
-        <Button type="submit" aria-disabled={confirm.isPending || undefined} aria-busy={confirm.isPending || undefined}>
-          {confirm.isPending ? <Spinner /> : null}
-          {t("confirm")}
-        </Button>
-        <Button type="button" variant="ghost" onClick={() => setPending(null)}>
-          {t("cancel")}
-        </Button>
-      </div>
-    </form>
+        <Field className="gap-1.5">
+          <FieldLabel htmlFor={codeId}>{t("confirmLabel")}</FieldLabel>
+          <Input
+            {...codeError.inputProps}
+            id={codeId}
+            aria-describedby={[scanId, codeError.inputProps["aria-describedby"]].filter(Boolean).join(" ")}
+            value={code}
+            onChange={(e) => {
+              setCode(e.target.value);
+              codeError.clear();
+            }}
+            autoComplete="one-time-code"
+            inputMode="numeric"
+            maxLength={TOTP_LENGTH}
+            className="sm:w-40"
+          />
+          {codeError.message}
+        </Field>
+        <div className="flex gap-2">
+          <Button type="submit" aria-disabled={confirm.isPending || undefined} aria-busy={confirm.isPending || undefined}>
+            {confirm.isPending ? <Spinner /> : null}
+            {t("confirm")}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => setPending(null)}>
+            {t("cancel")}
+          </Button>
+        </div>
+      </form>
+      {gate.dialog}
+    </>
   );
 }
 
