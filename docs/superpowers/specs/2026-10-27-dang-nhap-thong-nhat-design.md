@@ -722,7 +722,8 @@ Trạng thái và lời:
   tự chuyển trang). Tải lại sau khi xong mà vé đã hết → coi như đã xong. `sign_in_method_movable` → nhóm có tiêu đề
   "Chuyển {{provider}} sang tài khoản này?" (câu hỏi chỉ hỏi một lần), câu "Tài khoản {{provider}} này đang được dùng cho
   tài khoản trống {{masked}}." và ghi chú tài khoản trống sẽ bị xóa + "Chuyển sang đây" / "Không chuyển" (cùng cặp với
-  Cài đặt; "Chuyển sang đây" gửi `move: true`). `taken` → "Tài khoản {{provider}} này đang được dùng cho {{masked}}.
+  Cài đặt; "Chuyển sang đây" gửi `move: true`; chuyển gặp lỗi thử lại được (mất mạng, 5xx, phải chờ) thì câu hỏi và cặp nút
+  vẫn ở đó, bấm lại là gửi lại `move: true`). `taken` → "Tài khoản {{provider}} này đang được dùng cho {{masked}}.
   Đăng nhập vào đó và gỡ liên kết trước." Mọi lỗi
   vẫn có "Tiếp tục". Chưa đăng nhập mà vé còn → `/login?link=1&next=<bước này>`; không còn vé → "Đã xong" + "Không còn
   gì để liên kết. Tiếp tục vào UniWork." `proof_required` → hộp bằng chứng cho `link_<provider>` (4.5) trên các cách
@@ -803,7 +804,9 @@ Tiêu đề "Phương thức đăng nhập", mô tả "Cách bạn đăng nhập
 - **Gỡ liên kết**: bằng chứng trước, rồi `ConfirmDialog` destructive (ô `Unlink`), nói còn lại cách nào và "Các thiết bị
   khác sẽ đăng xuất."
 - **Chuyển** (`result=movable`): `ConfirmDialog` (ô `ArrowRightLeft`, tông cảnh báo) "Chuyển sang đây" / "Không chuyển";
-  "Không chuyển" xoá vé. Chính phiên đã bắt đầu liên kết xác nhận được mà không hỏi bằng chứng lần hai (3.7).
+  "Không chuyển" xoá vé. Chính phiên đã bắt đầu liên kết xác nhận được mà không hỏi bằng chứng lần hai (3.7). Mất mạng,
+  5xx hay phải chờ thì hộp vẫn mở và nói lý do trong hộp (`ConfirmDialog error`), bấm lại là thử lại; chỉ câu trả lời
+  cuối (bị dùng, đã hết hạn…) mới đóng hộp kèm toast.
 - **Shell UniChat desktop** (`getDesktopBridge()` có): "Liên kết trên web" (biểu tượng mở ngoài) mở
   `${appUrl}/settings?tab=security&expect_user=<id>` bằng `bridge.openExternal`; trang web thấy trình duyệt đăng nhập
   người khác thì cảnh báo "Trình duyệt đang đăng nhập {{other}}, không phải tài khoản bạn dùng trong UniChat." + "Đăng
