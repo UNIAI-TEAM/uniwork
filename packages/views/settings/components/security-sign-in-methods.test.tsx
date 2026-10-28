@@ -252,6 +252,35 @@ describe("SignInMethodsSection", () => {
     await waitFor(() => expect(calls("POST /api/v1/me/sign-in-methods/apple/link")).toHaveLength(1));
   });
 
+  it("keeps a mailed code through a dropped connection, and clears one the server refused", async () => {
+    let tries = 0;
+    route({
+      "GET /api/v1/me/sign-in-methods": { ...METHODS, password: { set: false, changed_at: null }, proofs: ["email_code"] },
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "POST /api/v1/me/step-up/email-code": { status: "sent" },
+      "POST /api/v1/me/step-up": () => {
+        tries += 1;
+        return Promise.reject(tries === 1 ? new TypeError("offline") : new ApiError("no", "step_up_code_incorrect", 403));
+      },
+    });
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "Liên kết Apple" }));
+    const dialog = await proofDialog();
+    fireEvent.click(await dialog.findByRole("button", { name: "Gửi mã tới an@company.vn" }));
+    const field = await dialog.findByLabelText("Mã trong email");
+    fireEvent.change(field, { target: { value: "123456" } });
+    // Never judged: the code stays, so "Xác nhận" sends the same one again.
+    expect(await dialog.findByText("Không kết nối được. Kiểm tra mạng rồi thử lại.")).toBeInTheDocument();
+    expect(field).toHaveValue("123456");
+    fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
+    await waitFor(() => expect(calls("POST /api/v1/me/step-up")).toHaveLength(2));
+    expect(calls("POST /api/v1/me/step-up")[1]![1]).toMatchObject({ body: { code: "123456" } });
+    // Refused: the boxes start over, and the reason sits under them.
+    expect(await dialog.findByText("Mã chưa đúng hoặc đã hết hạn. Nhập lại, hoặc gửi mã mới.")).toBeInTheDocument();
+    expect(field).toHaveValue("");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+  });
+
   it("holds the dialog still while confirming is locked, and says for how long", async () => {
     route({
       "GET /api/v1/me/sign-in-methods": METHODS,

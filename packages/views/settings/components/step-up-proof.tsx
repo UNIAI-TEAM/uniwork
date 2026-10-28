@@ -327,10 +327,13 @@ function StepUpForm({
             setRenamed(read.proofs);
             setPicked(null);
           }
-          // A refused password is never kept, nor a mailed code (its boxes
-          // start over from the first); the authenticator's code stays,
-          // selected, to be corrected.
-          if (proof !== "totp" || read.kind === "step_up") setValue("");
+          // A refused password is never kept, nor a mailed code the server
+          // refused (its boxes start over from the first); the
+          // authenticator's code stays, selected, to be corrected. A mailed
+          // code that was never judged (offline, a 5xx, a wait) stays too,
+          // so "Xác nhận" sends it again instead of a trip to the mailbox.
+          const refused = read.kind === "field" || read.kind === "step_up";
+          if (proof === "password" || read.kind === "step_up" || (proof === "email_code" && refused)) setValue("");
           refuse({ failure: read });
         },
       },
