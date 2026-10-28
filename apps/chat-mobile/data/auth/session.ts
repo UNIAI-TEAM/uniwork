@@ -5,6 +5,7 @@
 // are dropped by the shared session epoch instead of a private generation
 // counter, so the Keychain's conditional write and this class agree; no
 // proactive refresh timer, a token is refreshed when asked for.
+import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { createLogger } from "../logger";
 import { currentSessionEpoch, invalidateSessionEpoch, sessionEpochChanged } from "../session-epoch";
 import { validateCallback } from "./callback";
@@ -118,9 +119,11 @@ export class MobileSession {
   /**
    * The whole browser sign-in: PKCE start, the system auth session, the code
    * exchange. A tap while one is running (browser open or exchange on the
-   * wire) is a no-op. Rejects when start or the browser fails.
+   * wire) is a no-op. Rejects when start or the browser fails. `provider`: the
+   * button tapped (Apple on Android, Google without the native sheet), which
+   * the web sign-in page goes straight to (spec §3.5).
    */
-  async login(): Promise<void> {
+  async login(options: { provider?: SignInProvider } = {}): Promise<void> {
     if (this.state === "signing-in" || this.state === "signed-in" || this.state === "refreshing") return;
     // a live but unreachable session is recovered, never shadowed by a second attempt
     if (this.live) {
@@ -146,6 +149,7 @@ export class MobileSession {
         redirectUri: attempt.redirectUri,
         deviceLabel: config.deviceLabel,
         platform: config.platform,
+        ...(options.provider ? { provider: options.provider } : {}),
       }));
     } catch (error) {
       if (!sessionEpochChanged(epoch)) this.cancelLogin(codeOf(error));

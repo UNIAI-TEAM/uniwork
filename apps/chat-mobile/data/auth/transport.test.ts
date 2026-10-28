@@ -1,6 +1,6 @@
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TransportError, createTransport, type FetchLike, type TransportErrorCode } from "./transport";
+import { TransportError, createAuthRequest, createEndpointRequest, createTransport, type FetchLike, type TransportErrorCode } from "./transport";
 
 beforeEach(() => configureRuntime({ apiUrl: "https://uniwork.example", appUrl: "https://uniwork.example" }));
 afterEach(() => resetRuntimeConfig());
@@ -67,6 +67,17 @@ describe("mobile auth transport", () => {
     });
     expect(init).toMatchObject({ method: "GET", redirect: "error", cache: "no-store" });
     expect(init.body).toBeUndefined();
+  });
+
+  it("start names the provider button the person tapped, and only then", async () => {
+    const fetch = vi.fn<FetchLike>(async () => json(200, { authorization_url: "https://uniwork.example/auth/desktop/authorize?a=1" }));
+    const transport = createTransport(config, { fetch });
+    const start = { clientId: "uniwork-chat-mobile", codeChallenge: "c", state: "s", redirectUri: "r" };
+    await transport.start({ ...start, provider: "google" });
+    await transport.start(start);
+    const query = (call: number) => new URL((fetch.mock.calls[call] as [string])[0]).searchParams;
+    expect(query(0).get("provider")).toBe("google");
+    expect(query(1).has("provider")).toBe(false);
   });
 
   it("follows the app's own origin: a dev phone signs in on the LAN web server over http", async () => {
@@ -264,5 +275,112 @@ describe("mobile auth transport", () => {
     expect(url).toBe("https://uniwork.example/api/v1/auth/desktop/logout");
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer at_1");
     expect(JSON.parse(String(init.body))).toEqual({ device_session_id: "dev_1", deployment_id: "default", scope: "device" });
+  });
+});
+
+// The app's sign-in doors (ADR 0047 §8) answer refusals the screen reads by code and a few fields
+// (core's auth/sign-in-errors.ts): a masked holder, the proofs, the seconds to wait.
+describe("refusals of the sign-in doors", () => {
+  const door = (status: number, body: unknown, headers: Record<string, string> = {}) =>
+    createAuthRequest({ fetch: async () => json(status, body, headers) })("POST", "/auth/native/password", { body: {} });
+
+  it.each([
+    [401, "invalid_credentials"],
+    [429, "second_factor_locked"],
+    [401, "provider_token_invalid"],
+    [503, "native_sign_in_unavailable"],
+    [503, "google_not_configured"],
+    [503, "apple_auth_unavailable"],
+    [409, "conflict"],
+    [400, "invalid_code"],
+    [404, "sign_in_ticket_missing"],
+    [400, "sign_in_ticket_channel"],
+    [409, "sign_in_account_conflict"],
+    [401, "sign_in_email_unverified"],
+    [401, "sign_in_account_unverified"],
+    [409, "sign_in_method_taken"],
+    [409, "sign_in_method_already_linked"],
+    [403, "cross_site_request"],
+    [415, "unsupported_media_type"],
+  ] as const)("keeps the server's %i %s as its own verdict", async (status, code) => {
+    expect(await errorOf(door(status, { error: { code, message: "x" } }))).toMatchObject({ code, status, fromServer: true, fields: {} });
+  });
+
+  it("keeps the fields a screen reads, each of its own type, and nothing else of the body", async () => {
+    const error = await errorOf(
+      door(409, {
+        error: {
+          code: "sign_in_method_taken",
+          message: "taken by a•••@icloud.com",
+          fields: { masked_email: "a•••@icloud.com", proofs: ["password", 7, "email_code"], retry_after: 30, token: "secret" },
+        },
+      }),
+    );
+    expect(error.fields).toEqual({ masked_email: "a•••@icloud.com", proofs: ["password", "email_code"], retry_after: 30 });
+    expect(error.message).not.toContain("icloud");
+    expect(JSON.stringify(error)).not.toContain("secret");
+  });
+
+  it.each([
+    ["not an object", "x"],
+    ["mistyped values", { masked_email: "", proofs: "password", retry_after: -1 }],
+    ["a fractional wait", { retry_after: 1.5 }],
+  ])("drops fields that are %s", async (_label, fields) => {
+    expect((await errorOf(door(400, { error: { code: "invalid_request", fields } }))).fields).toEqual({});
+  });
+
+  it("waits the body's retry_after when the header says nothing, and the header's when it does", async () => {
+    const locked = { error: { code: "second_factor_locked", fields: { retry_after: 840 } } };
+    expect(await errorOf(door(429, locked))).toMatchObject({ code: "second_factor_locked", retryAfterMs: 840_000 });
+    expect(await errorOf(door(429, locked, { "Retry-After": "600" }))).toMatchObject({ retryAfterMs: 600_000 });
+  });
+
+  it("reads an envelope without an error object as no verdict", async () => {
+    expect(await errorOf(door(401, { error: "unauthorized" }))).toMatchObject({ code: "unauthorized", fromServer: false });
+  });
+});
+
+describe("the auth routes as core's EndpointRequest", () => {
+  it("sends a door's body to its route and hands back the parsed answer", async () => {
+    const fetch = vi.fn<FetchLike>(async () => json(200, { status: "mfa_required", mfa_token: "m" }));
+    const request = createEndpointRequest({ fetch });
+    expect(await request("/api/v1/auth/native/password", { method: "POST", body: { email: "a@b.c", password: "pw", nonce: undefined } })).toEqual({
+      status: "mfa_required",
+      mfa_token: "m",
+    });
+    const [url, init] = fetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://uniwork.example/api/v1/auth/native/password");
+    expect(init).toMatchObject({ method: "POST", redirect: "error", cache: "no-store" });
+    expect(JSON.parse(String(init.body))).toEqual({ email: "a@b.c", password: "pw" });
+  });
+
+  it("reads with GET and no body when no method is named", async () => {
+    const fetch = vi.fn<FetchLike>(async () => json(200, { google: true }));
+    await createEndpointRequest({ fetch })("/api/v1/auth/providers");
+    const [, init] = fetch.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe("GET");
+    expect(init.body).toBeUndefined();
+  });
+
+  it.each([
+    ["a route the transport does not serve", "/api/v1/me", "POST"],
+    ["a route without the API root", "/auth/native/password", "POST"],
+    ["a route with a query", "/api/v1/auth/providers?x=1", "GET"],
+    ["a method the doors never use", "/api/v1/auth/native/password", "PUT"],
+  ] as const)("refuses %s before anything is sent", async (_label, path, method) => {
+    const fetch = vi.fn<FetchLike>();
+    expect(await codeOf(createEndpointRequest({ fetch })(path, { method }))).toBe("invalid_request");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects with the transport's own error, which core's sign-in errors read by its fields", async () => {
+    const request = createEndpointRequest({ fetch: async () => json(429, { error: { code: "second_factor_locked", fields: { retry_after: 60 } } }) });
+    expect(await errorOf(request("/api/v1/auth/native/mfa", { method: "POST", body: {} }))).toMatchObject({
+      code: "second_factor_locked",
+      status: 429,
+      fromServer: true,
+      retryAfterMs: 60_000,
+      fields: { retry_after: 60 },
+    });
   });
 });
