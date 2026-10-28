@@ -347,8 +347,8 @@ func registerMeetings(r api, h Routes, summaryLimit, minutesOrg, minutesFlag fun
 	})
 	r.Post("/meetings/{meetingID}/action-items/undo-convert", h.UndoConvertActionItems, apiOp{
 		summary: "Take back a fresh conversion (clerk)", tags: []string{"meetings"},
-		description: "Đưa 1–50 việc vừa giao về chờ xử lý và xoá task của chúng, trong một giao dịch. Chỉ việc chính người gọi giao " +
-			"trong 2 phút gần nhất, task được tạo lúc giao, chưa bị sửa, chưa vào thùng rác và chưa có task con; việc khác bị bỏ qua, " +
+		description: "Đưa 1–50 việc vừa giao về chờ xử lý và chuyển task của chúng vào thùng rác, trong một giao dịch. Chỉ việc chính người gọi giao " +
+			"trong 2 phút gần nhất, task được tạo lúc giao, chưa bị sửa, chưa vào thùng rác, chưa có task con, bình luận, tệp đính kèm, phụ thuộc hay việc khác nối vào; việc khác bị bỏ qua, " +
 			"không báo lỗi. restored liệt kê các việc đã về chờ xử lý.",
 		sdi: sdi.UndoConvertActionItemsSDI{}, sdo: sdo.UndoConvertActionItemsSDO{}, auth: true,
 	})

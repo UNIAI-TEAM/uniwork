@@ -68,8 +68,9 @@ func TestUndoConvertRestoresOnlyFreshUntouchedItemsOfTheCaller(t *testing.T) {
 	if !slices.Equal(restored, []string{id("Mới")}) {
 		t.Fatalf("restored = %v, want only the fresh item %s", restored, id("Mới"))
 	}
-	if n := countRows(t, s, `SELECT count(*) FROM tasks WHERE id = $1`, task["Mới"]); n != 0 {
-		t.Fatal("the fresh item's task is still there")
+	// The task goes to the trash, never straight out of the database.
+	if n := countRows(t, s, `SELECT count(*) FROM tasks WHERE id = $1 AND trashed_at IS NOT NULL AND trashed_by = $2`, task["Mới"], ua.ID); n != 1 {
+		t.Fatal("the fresh item's task is not in the trash")
 	}
 	after := itemsByTitle(t, s, ua.ID, m)
 	if it := after["Mới"]; it.Status != ActionItemPending || it.Item.TaskID.Valid || it.Item.ConvertedBy.Valid || it.Item.ConvertedAt.Valid {
@@ -87,8 +88,8 @@ func TestUndoConvertRestoresOnlyFreshUntouchedItemsOfTheCaller(t *testing.T) {
 		audit.ActionMeetingActionItemsUnconverted, m.ID, id("Mới")); n != 1 {
 		t.Fatalf("batch audit rows = %d", n)
 	}
-	if n := countRows(t, s, `SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, audit.ActionTaskDeleted, task["Mới"]); n != 1 {
-		t.Fatalf("task.deleted audit rows = %d", n)
+	if n := countRows(t, s, `SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, audit.ActionTaskTrashed, task["Mới"]); n != 1 {
+		t.Fatalf("task.trashed audit rows = %d", n)
 	}
 	if n := countRows(t, s, `SELECT count(*) FROM outbox_events WHERE topic = 'action_item.restored' AND payload::jsonb->>'action_item_id' = $1`, id("Mới")); n != 1 {
 		t.Fatalf("action_item.restored events = %d", n)
@@ -98,6 +99,79 @@ func TestUndoConvertRestoresOnlyFreshUntouchedItemsOfTheCaller(t *testing.T) {
 	again, err := s.UndoConvertActionItems(ctx, ua.ID, m.ID, []string{id("Mới")})
 	if err != nil || len(again) != 0 {
 		t.Fatalf("second undo = %v, %v", again, err)
+	}
+}
+
+// A task someone already used is not the clerk's to take back: a comment, an
+// attachment, a dependency on either side or another item linked to it never
+// bumps tasks.updated_at, so each is checked on its own and the item stays
+// converted with its task live.
+func TestUndoConvertSkipsATaskSomeoneElseUsed(t *testing.T) {
+	s, ua, ub, w, m := summaryTasksFixture(t)
+	ctx := context.Background()
+	titles := []string{"Mới", "Bình luận", "Đính kèm", "Phụ thuộc", "Nối thêm", "Việc khác"}
+	var seed []ai.ActionItem
+	for _, title := range titles {
+		seed = append(seed, ai.ActionItem{Title: title})
+	}
+	seedSummary(t, s, m, ua.ID, seed...)
+	items := itemsByTitle(t, s, ua.ID, m)
+	id := func(title string) string { return items[title].Item.ID }
+	converted := titles[:5]
+	in := make([]ConvertActionItem, 0, len(converted))
+	for _, title := range converted {
+		in = append(in, ConvertActionItem{ActionItemID: id(title)})
+	}
+	links, err := s.ConvertActionItems(ctx, ua.ID, m.ID, "vi", in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := map[string]string{}
+	for i, title := range converted {
+		task[title] = links[i].TaskID
+	}
+	exec := func(sql string, args ...any) {
+		t.Helper()
+		if _, err := s.pool.Exec(ctx, sql, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.Tasks.AddComment(ctx, Human(ub.ID), task["Bình luận"], "Mình nhận việc này"); err != nil {
+		t.Fatal(err)
+	}
+	exec(`INSERT INTO attachments (id, organization_id, workspace_id, task_id, uploader_type, uploader_id, object_key, filename, content_type, size_bytes)
+		VALUES ('att-undo-convert', $1, $2, $3, 'member', $4, 'k/undo.txt', 'undo.txt', 'text/plain', 5)`, w.OrganizationID, w.ID, task["Đính kèm"], ub.ID)
+	other, err := s.Tasks.Create(ctx, Human(ub.ID), w.ID, CreateTaskInput{Title: "Việc đang chờ"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The converted task is the far side: another task waits on it.
+	exec(`INSERT INTO task_dependencies (id, organization_id, workspace_id, task_id, depends_on_task_id, type)
+		VALUES ('dep-undo-convert', $1, $2, $3, $4, 'blocked_by')`, w.OrganizationID, w.ID, other.ID, task["Phụ thuộc"])
+	if err := s.LinkActionItem(ctx, ua.ID, m.ID, id("Việc khác"), task["Nối thêm"]); err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := s.UndoConvertActionItems(ctx, ua.ID, m.ID, []string{
+		id("Mới"), id("Bình luận"), id("Đính kèm"), id("Phụ thuộc"), id("Nối thêm"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(restored, []string{id("Mới")}) {
+		t.Fatalf("restored = %v, want only %s", restored, id("Mới"))
+	}
+	after := itemsByTitle(t, s, ua.ID, m)
+	for _, title := range converted[1:] {
+		if after[title].Status != ActionItemConverted {
+			t.Errorf("%s: status %s, want it left converted", title, after[title].Status)
+		}
+		if n := countRows(t, s, `SELECT count(*) FROM tasks WHERE id = $1 AND trashed_at IS NULL`, task[title]); n != 1 {
+			t.Errorf("%s: its task left the live list", title)
+		}
+	}
+	if n := countRows(t, s, `SELECT count(*) FROM task_comments WHERE task_id = $1`, task["Bình luận"]); n != 1 {
+		t.Fatalf("comments = %d, want the one An wrote", n)
 	}
 }
 

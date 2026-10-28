@@ -63,8 +63,8 @@ Các màn Họp đã ổn về cấu trúc nhưng chưa có cảm giác. Con s�
 2. **`meeting_summary@8`.** Mô hình trả thêm `summary_points: [{text, evidence}]`, gồm 2–6 câu, mỗi câu kèm 1–3 tham chiếu lời thoại. Khi có câu, máy chủ ghép `summary` từ chính các câu này để đoạn văn và câu không lệch nhau. Câu được lưu ở cột mới `meeting_summaries.summary_points TEXT NOT NULL DEFAULT '[]'`.
 3. **Hoàn tác giao việc.** `POST /api/v1/meetings/{meetingID}/action-items/undo-convert` nhận `{action_item_ids}` và trả `{restored}`.
    - Người gọi phải qua cùng cổng kiểm tra như lệnh giao.
-   - Chỉ hoàn tác việc do chính người gọi giao trong 2 phút gần nhất, và task chưa bị sửa sau khi tạo. Việc không đủ điều kiện thì bỏ qua, không báo lỗi.
-   - Xoá task qua đường xoá task sẵn có (có audit), đưa việc về trạng thái chờ giao, rồi ghi audit kèm outbox như lệnh giao.
+   - Chỉ hoàn tác việc do chính người gọi giao trong 2 phút gần nhất, và task chưa ai dùng sau khi tạo: chưa bị sửa, chưa có task con, bình luận, tệp đính kèm, phụ thuộc hay việc họp khác nối vào. Việc không đủ điều kiện thì bỏ qua, không báo lỗi.
+   - Chuyển task vào thùng rác qua đường xoá task sẵn có (có audit, khôi phục được), đưa việc về trạng thái chờ giao, rồi ghi audit kèm outbox như lệnh giao.
 
 ## Thông số chuyển động (lấy từ clip)
 

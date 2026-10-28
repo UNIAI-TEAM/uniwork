@@ -429,7 +429,11 @@ WHERE i.organization_id = $1 AND i.meeting_id = $2
   AND i.dismissed_at IS NULL AND i.converted_by = $4::text
   AND i.converted_at > now() - make_interval(secs => $5::float8)
   AND t.trashed_at IS NULL AND t.created_at = i.converted_at AND t.updated_at = t.created_at
-  AND NOT EXISTS (SELECT 1 FROM tasks c WHERE c.organization_id = t.organization_id AND c.parent_task_id = t.id)
+  AND NOT EXISTS (SELECT 1 FROM tasks c WHERE c.organization_id = t.organization_id AND c.workspace_id = t.workspace_id AND c.parent_task_id = t.id)
+  AND NOT EXISTS (SELECT 1 FROM task_comments tc WHERE tc.task_id = t.id)
+  AND NOT EXISTS (SELECT 1 FROM attachments a WHERE a.workspace_id = t.workspace_id AND a.task_id = t.id)
+  AND NOT EXISTS (SELECT 1 FROM task_dependencies d WHERE d.workspace_id = t.workspace_id AND (d.task_id = t.id OR d.depends_on_task_id = t.id))
+  AND NOT EXISTS (SELECT 1 FROM meeting_action_items o WHERE o.task_id = t.id AND o.id <> i.id)
 ORDER BY i.id
 FOR UPDATE OF i, t
 `
@@ -450,9 +454,11 @@ type LockUndoableConvertedActionItemsRow struct {
 // The named items of one meeting whose fresh conversion by converted_by can
 // still be taken back (UNI-2285): converted within the window, into a task
 // made in that same transaction (created_at = converted_at, so an item linked
-// to an older task never counts) that is live, never updated and has no
-// subtask. Items and tasks locked in item id order, after
-// LockMeetingSummaryChanges like LockMeetingActionItems.
+// to an older task never counts) that is live and nobody used: never updated,
+// no subtask, and none of what leaves updated_at alone (a comment, an
+// attachment, a dependency on either side, another item linked to it). Items
+// and tasks locked in item id order, after LockMeetingSummaryChanges like
+// LockMeetingActionItems.
 func (q *Queries) LockUndoableConvertedActionItems(ctx context.Context, arg LockUndoableConvertedActionItemsParams) ([]LockUndoableConvertedActionItemsRow, error) {
 	rows, err := q.db.Query(ctx, lockUndoableConvertedActionItems,
 		arg.OrganizationID,

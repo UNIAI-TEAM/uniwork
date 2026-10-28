@@ -547,12 +547,14 @@ func (s *MeetingService) ConvertActionItems(ctx context.Context, userID, meeting
 
 // UndoConvertActionItems takes back the caller's fresh conversion (UNI-2285):
 // each named item they converted within undoConvertWindow into a task nobody
-// has touched since goes back to pending and its task is purged the way a
-// purge does it (task.deleted audit and event). Any other id (not converted,
-// converted by someone else or too long ago, a task edited, trashed or given
-// a subtask, an item linked to an older task, an id of another meeting) is
-// skipped without an error. Purges, unlinks and the batch's audit row commit
-// together. It returns the ids it restored.
+// has used since goes back to pending and its task moves to the trash the way
+// a task delete does it (one batch, task.trashed audit and events), so a
+// restore can still bring it back. Any other id (not converted, converted by
+// someone else or too long ago, a task edited, trashed, given a subtask,
+// comment, attachment or dependency, or linked from another item, an item
+// linked to an older task, an id of another meeting) is skipped without an
+// error. Trash, unlinks and the batch's audit row commit together. It returns
+// the ids it restored.
 func (s *MeetingService) UndoConvertActionItems(ctx context.Context, userID, meetingID string, itemIDs []string) ([]string, error) {
 	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
 	if err != nil {
@@ -583,16 +585,18 @@ func (s *MeetingService) UndoConvertActionItems(ctx context.Context, userID, mee
 		taskIDs := make([]string, 0, len(rows))
 		events := make([]audit.Event, 0, len(rows))
 		for _, r := range rows {
-			if err := s.Tasks.purgeTaskInTx(ctx, q, r.Task, actor); err != nil {
-				return err
-			}
+			taskIDs = append(taskIDs, r.Task.ID)
+		}
+		if _, err := s.Tasks.trashTasksInTx(ctx, q, actor, m.OrganizationID, m.WorkspaceID, taskIDs, ErrNotFound); err != nil {
+			return err
+		}
+		for _, r := range rows {
 			if err := q.UnconvertMeetingActionItem(ctx, db.UnconvertMeetingActionItemParams{
 				OrganizationID: m.OrganizationID, ID: r.MeetingActionItem.ID,
 			}); err != nil {
 				return err
 			}
 			restored = append(restored, r.MeetingActionItem.ID)
-			taskIDs = append(taskIDs, r.Task.ID)
 			events = append(events, audit.Event{Topic: "action_item.restored", Payload: map[string]string{
 				"meeting_id": m.ID, "action_item_id": r.MeetingActionItem.ID, "workspace_id": m.WorkspaceID,
 			}})
