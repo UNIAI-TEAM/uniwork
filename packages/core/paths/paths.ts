@@ -259,6 +259,8 @@ export const GLOBAL_PREFIXES = [
   "/no-workspace",
   "/invitations",
   "/workspaces",
+  // The account's own settings, outside every workspace (spec §4.5).
+  "/settings",
   "/invite/",
   "/join/",
   "/share/",

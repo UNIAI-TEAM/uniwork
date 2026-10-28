@@ -1004,6 +1004,7 @@
     },
     "page": {
       "title": "Cài đặt",
+      "accountTitle": "Cài đặt tài khoản",
       "tabs": {
         "notifications": "Thông báo",
         "profile": "Hồ sơ",

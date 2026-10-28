@@ -1005,6 +1005,7 @@
     },
     "page": {
       "title": "Settings",
+      "accountTitle": "Account settings",
       "tabs": {
         "notifications": "Notifications",
         "profile": "Profile",
