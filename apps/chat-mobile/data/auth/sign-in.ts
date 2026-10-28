@@ -11,6 +11,7 @@ import { signInWithApple } from "./apple";
 import { authConfig, nativeSignIn, session } from "./flow";
 import { clearChoice, clearSecondFactor, forgetPendingSignIn, holdStep, pendingChallenge, pendingTicket, usePendingSignIn } from "./pending-sign-in";
 import { stepOf, type Issuer, type SecondFactorContext, type SignedIn } from "./sign-in-step";
+import { forgetStepUp } from "./step-up-store";
 import { TransportError } from "./transport";
 
 export type SignInRequest =
@@ -156,7 +157,8 @@ export async function sendClaimCode(email: string): Promise<boolean> {
   return nativeSignIn.sendTicketEmailCode({ ...ticketOrThrow(), email: email.trim() });
 }
 
-/** On sign-out: nothing a sign-in left waiting outlives the session. */
+/** On sign-out: nothing a sign-in left waiting, and no step-up token, outlives the session. */
 export function forgetSignIn(): void {
   forgetPendingSignIn();
+  forgetStepUp();
 }

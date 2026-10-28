@@ -33,6 +33,7 @@ vi.mock("./flow", () => ({
 import { setup } from "./fakes";
 import { CHOICE_TTL_MS, SECOND_FACTOR_TTL_MS, forgetPendingSignIn, holdStep, pendingTicket, usePendingSignIn } from "./pending-sign-in";
 import { forgetSignIn, runSignIn, sendClaimCode } from "./sign-in";
+import { holdStepUp, stepUpToken } from "./step-up-store";
 
 const sessionBody = {
   account_id: "acc_1",
@@ -306,11 +307,13 @@ describe("a session already there", () => {
 });
 
 describe("a sign-out", () => {
-  it("forgets everything a sign-in left waiting", () => {
+  it("forgets everything a sign-in left waiting, and the step-up token", () => {
     holdChoice();
     holdStep({ kind: "mfa", token: "mfa_1", context: { method: "password", email: null, provider: null } }, NOW);
+    holdStepUp({ step_up_token: "su_1", expires_at: "", method: "password" }, { userId: "u1", action: "delete_account" });
     forgetSignIn();
     expect(usePendingSignIn.getState()).toEqual({ choice: null, secondFactor: null });
     expect(pendingTicket(NOW)).toBeNull();
+    expect(stepUpToken("delete_account", "u1")).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { NO_AUTH_PROVIDERS, type AuthProviders } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { describe, expect, it } from "vitest";
-import { offersProvider, signInOfferOf } from "./sign-in-offer";
+import { appProofs, offersProvider, signInOfferOf } from "./sign-in-offer";
 
 const all: AuthProviders = { google: true, apple: true, apple_web: true, google_native: true };
 const offer = (os: string, providers: Partial<AuthProviders>, device: { apple?: boolean; google?: boolean } = {}) =>
@@ -32,5 +32,13 @@ describe("the ways in besides email", () => {
     expect(offersProvider({ apple: null, google: null })).toBe(false);
     expect(offersProvider({ apple: null, google: "browser" })).toBe(true);
     expect(offersProvider({ apple: "native", google: null })).toBe(true);
+  });
+});
+
+describe("the proofs this phone can present", () => {
+  it("offers a provider's fresh token only where its sheet opens here", () => {
+    expect(appProofs({ apple: "native", google: "native" })).toEqual(["totp", "password", "apple", "google", "email_code"]);
+    expect(appProofs({ apple: "browser", google: "native" })).toEqual(["totp", "password", "google", "email_code"]);
+    expect(appProofs(undefined)).toEqual(["totp", "password", "email_code"]);
   });
 });

@@ -2,7 +2,8 @@
 // AuthProviders) and what this phone can do: Apple's sheet on an iPhone that has it, Google's where the build carries
 // its client and, on Android, Google Play services runs. A provider the phone cannot open a sheet for goes through
 // the browser instead (PKCE with the provider hint, spec §3.5) when the web offers it; null hides its button.
-import type { AuthProviders } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import type { AuthProviders, StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { APP_PROOFS } from "@uniwork/core/auth/step-up";
 
 export type ProviderWay = "native" | "browser" | null;
 
@@ -22,4 +23,12 @@ export function signInOfferOf(input: { os: string; providers: AuthProviders; app
 /** Whether the screen offers anything but email: a yes is kept a while, a no is asked again (data/queries/sign-in.ts). */
 export function offersProvider(offer: SignInOffer | undefined): boolean {
   return Boolean(offer && (offer.apple || offer.google));
+}
+
+/**
+ * The proofs this phone can present when it is asked to confirm it is you (core's APP_PROOFS): a fresh Apple or Google
+ * token only where that provider's sheet opens here. The server still decides which it takes (SignInMethods.proofs).
+ */
+export function appProofs(offer: SignInOffer | undefined): StepUpProof[] {
+  return APP_PROOFS.filter((proof) => (proof === "apple" || proof === "google" ? offer?.[proof] === "native" : true));
 }
