@@ -682,6 +682,9 @@ func TestStepUpRoutesShareOneBudgetPerPerson(t *testing.T) {
 		{http.MethodPut, "/api/v1/me/password"},
 		{http.MethodPost, "/api/v1/me/delete"},
 		{http.MethodPost, "/api/v1/orgs/o1/transfer-ownership"},
+		// The two joins whose resolve may carry an owner's hand-over proof.
+		{http.MethodPost, "/api/v1/invitations/tok/accept"},
+		{http.MethodPost, "/api/v1/membership-invite-links/join"},
 	}
 	a := caller{ip: "10.52.0.1", bearer: mustMint(t, minter, "user-a")}
 	for i := 0; i < 10; i++ {

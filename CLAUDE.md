@@ -567,6 +567,8 @@ database and never reveal whether an id exists to a non-member.
   account of the verified challenge token), all four off the global limiter
   so an office NAT signs in per person; `step-up` (`/me/step-up*`,
   `PUT /me/password`, `POST /me/delete`, `POST /orgs/{org}/transfer-ownership`,
+  and the two joins whose switch takes a hand-over proof,
+  `POST /invitations/{token}/accept` and `POST /membership-invite-links/join`;
   10/min per bearer). `TestSignInPasswordBudgetIsPerAddressAndEmail`,
   `TestSignInMFABudgetKeysTheChallengedAccount`,
   `TestNativePasswordSharesTheSignInPasswordBudget`,

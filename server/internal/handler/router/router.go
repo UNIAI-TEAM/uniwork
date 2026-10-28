@@ -279,7 +279,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerOrganizations(authed, h, budgets.stepUp)
 			registerPeople(authed, h)
 			registerDepartments(authed, h)
-			registerWorkspaces(authed, h)
+			registerWorkspaces(authed, h, budgets.stepUp)
 			registerAgents(authed, h)
 			registerBilling(authed, h)
 			registerNotifications(authed, h)

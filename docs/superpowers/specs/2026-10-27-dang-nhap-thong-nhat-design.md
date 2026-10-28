@@ -569,8 +569,9 @@ Ba bucket có tên trong `router.go`, mỗi cái dưới một trần theo đị
 
 - `sign-in-password`: `/auth/login` + `/auth/native/password`, khoá theo IP + email đã chuẩn hoá (20/phút), trần 600/phút/IP.
 - `sign-in-mfa`: `/auth/mfa/verify` + `/auth/native/mfa`, khoá theo IP + `sub` của token MFA (10/phút).
-- `step-up`: mọi route nhận bằng chứng (`/me/step-up*`, `PUT /me/password`, xoá tài khoản, chuyển quyền), khoá theo
-  user của bearer (10/phút).
+- `step-up`: mọi route nhận bằng chứng (`/me/step-up*`, `PUT /me/password`, xoá tài khoản, chuyển quyền, và hai đường
+  vào tổ chức mà bước chuyển tổ chức nhận bằng chứng bàn giao: nhận lời mời, vào qua link mời), khoá theo user của
+  bearer (10/phút).
 - Route mới còn lại dùng `credentialLimit`. `router/ratelimit_test.go` ghim từng route; đoạn rate limit trong
   `CLAUDE.md` cập nhật.
 - Lát 3: ba bucket ở `router/sign_in_budgets.go`, mỗi cái dưới trần 600/phút/địa chỉ (`*-ip`). Email đọc từ body
