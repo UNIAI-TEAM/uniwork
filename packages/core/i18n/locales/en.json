@@ -10618,6 +10618,7 @@
       "search": "Search example tasks",
       "reset": "Reset demo",
       "noResults": "No tasks found. Try a different search.",
+      "illustrative": "Illustrative",
       "complete": "Mark complete",
       "reopen": "Reopen task",
       "openDiscussion": "Open discussion",

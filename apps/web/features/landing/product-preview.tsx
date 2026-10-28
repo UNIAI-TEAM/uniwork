@@ -99,7 +99,7 @@ export function ProductPreview({ initialFeature = "tasks" }: { initialFeature?: 
   return <div ref={root} id="product-preview" className="product-preview unified-workspace product-demo" data-presentation={cinematic ? "watch" : "explore"}>
     <Tabs value={mode} onValueChange={value => selectFeature(value)} orientation="vertical" unstyled className="workspace-explorer">
       <div className="workspace-display"><div className="preview-window">
-        <ProductDemoShell mode={mode} onSelect={key => selectFeature(key)} onCreate={createTask} watch={watch} onWatch={() => setWatch(value => !value)}>
+        <ProductDemoShell mode={mode} onSelect={key => selectFeature(key)} onCreate={createTask} watch={watch} onWatch={() => setWatch(value => !value)} illustrative>
             <div className="preview-main">
               <TabsContent value="inbox" keepMounted><ProductDemoInbox onTask={showTask} /></TabsContent>
               {PRODUCT_FEATURES.map(item => <TabsContent value={item.key} key={item.key} keepMounted>

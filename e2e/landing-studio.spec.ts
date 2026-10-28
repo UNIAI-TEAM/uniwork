@@ -17,7 +17,7 @@ test("studio demo switches views and tabs locally, with keyboard support", async
       writes.push(request.url());
     }
   });
-  await expect(preview.locator(".preview-topbar").getByText("Bản minh họa", { exact: true })).toBeVisible();
+  await expect(preview.locator(".product-demo-toolbar").getByText("Bản minh họa", { exact: true })).toBeVisible();
   await preview.getByRole("button", { name: "Danh sách", exact: true }).click();
   await expect(preview.getByRole("button", { name: "Danh sách", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(preview.locator(".preview-task-list")).toBeVisible();

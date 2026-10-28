@@ -7,6 +7,7 @@ import { Logo } from "@uniwork/ui/brand";
 import { MODULE_ICONS } from "@uniwork/views/layout/module-icons";
 import { MODULE_TONES, type ModuleKey } from "@uniwork/views/layout/module-tones";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
+import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@uniwork/ui/components/ui/dialog";
@@ -36,10 +37,12 @@ function demoLabel(key: DemoDestination): string {
 }
 
 /** One usable app menu surrounds both the local sandbox and the retained concept scenes. */
-export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, children }: {
+export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, illustrative = false, children }: {
   mode: DemoDestination; onSelect: (key: DemoDestination) => void;
   onCreate: (title: string) => void;
-  watch: boolean; onWatch: () => void; children: ReactNode;
+  watch: boolean; onWatch: () => void;
+  /** Marks the demo data as illustrative in the toolbar; the closing poster states it in its caption instead. */
+  illustrative?: boolean; children: ReactNode;
 }) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -118,6 +121,7 @@ export function ProductDemoShell({ mode, onSelect, onCreate, watch, onWatch, chi
               <Button variant="ghost" onClick={() => setSearchOpen(false)}><X aria-hidden />{t("common.close")}</Button>
             </div>}
           </div>
+          {illustrative && <Badge variant="outline" className="product-demo-illustrative">{t("landing.demo.illustrative")}</Badge>}
           <div className="product-demo-toolbar-actions">
             <Button variant="ghost" size="icon" aria-label={t("ai.title")} onClick={() => select("ask")}><Sparkles aria-hidden /></Button>
             <Button variant="ghost" size="icon" aria-label={t("nav.inbox")} onClick={() => select("inbox")}><Bell aria-hidden /></Button>
