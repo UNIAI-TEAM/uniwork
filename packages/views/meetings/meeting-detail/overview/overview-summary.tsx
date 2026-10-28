@@ -191,14 +191,22 @@ function SummaryStateCard({
 
 /**
  * The id of a summary that landed after this screen saw Thư ký UNI composing
- * (it alone writes itself in); a summary read on load never does. Held in
- * state, adjusted while rendering, so a remount (a reload, a tab switch) forgets it.
+ * (it alone writes itself in); a summary read on load never does. `from` is the
+ * summary on screen when composing started, settled once when it ends, so a
+ * failed run leaves the old summary still and a refetch mid-run cannot move it.
+ * Held in state, adjusted while rendering, so a remount (a reload, a tab switch) forgets it.
  */
 function useSeenComposing(composing: boolean, summaryId: string | undefined): string | null {
   const [from, setFrom] = useState<{ id: string | null } | null>(null);
   const [landed, setLanded] = useState<string | null>(null);
-  if (composing && from?.id !== (summaryId ?? null)) setFrom({ id: summaryId ?? null });
-  if (!composing && from && summaryId && summaryId !== from.id && landed !== summaryId) setLanded(summaryId);
+  if (composing && !from) {
+    setFrom({ id: summaryId ?? null });
+    setLanded(null);
+  }
+  if (!composing && from) {
+    if (summaryId && summaryId !== from.id) setLanded(summaryId);
+    setFrom(null);
+  }
   return landed;
 }
 
@@ -235,8 +243,9 @@ export function OverviewSummary({ model }: { model: OverviewSummaryModel }) {
     />
   ) : null;
 
+  // While Thư ký UNI rewrites, the old summary's credit and notes leave with its prose.
   const byline =
-    state === "ready" && summary ? (
+    state === "ready" && summary && !composing ? (
       <>
         <SummaryByline model={model} />
         {summary.transcript_changed_at ? <Byline icon={Info}>{t("meetings.summaryTranscriptChanged")}</Byline> : null}
@@ -307,7 +316,8 @@ export function OverviewSummary({ model }: { model: OverviewSummaryModel }) {
     <div className="contents" data-testid="meeting-summary-panel">
       <Section id="summary" title={t("meetings.summaryTitle")} byline={byline} className="@max-[37.5rem]/meeting:mt-6!">
         {/* While Thư ký UNI writes, its card stands in for the prose; it folds away when the summary lands (clip F). */}
-        <AnimatePresence initial={false}>
+        {/* No initial={false}: it would also block the card's own loop (the beam) when the card mounts with the section. */}
+        <AnimatePresence>
           {composing ? (
             <motion.div
               key="composing"

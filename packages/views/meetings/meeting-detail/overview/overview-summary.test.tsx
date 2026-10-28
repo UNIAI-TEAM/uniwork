@@ -125,6 +125,38 @@ describe("Tóm tắt › composing, reveal and sources (F)", () => {
     expect(prose.textContent).toBe(summary.summary);
   });
 
+  it("a regenerate that fails leaves the old summary still, its byline back", async () => {
+    const { routes, client } = show({ [`${base}/summary`]: { summary: null, run: running } });
+    await screen.findByTestId("summary-composing");
+    // A first run lands and writes itself in…
+    routes[`${base}/summary`] = { summary, run: idle };
+    await act(() => client.invalidateQueries({ queryKey: meetingKeys.summary(M1) }));
+    await waitFor(() => expect(document.querySelector("[data-reveal]")).not.toBeNull());
+    // …then "Soạn lại" runs and fails: the same summary comes back without replaying.
+    routes[`${base}/summary`] = { summary, run: running };
+    await act(() => client.invalidateQueries({ queryKey: meetingKeys.summary(M1) }));
+    await screen.findByTestId("summary-composing");
+    // The old summary's credit leaves with its prose while Thư ký UNI rewrites.
+    expect(screen.queryByTestId("ai-attribution")).toBeNull();
+    routes[`${base}/summary`] = { summary, run: { ...idle, attempts: 1, failure: { code: "ai_unavailable" } } };
+    await act(() => client.invalidateQueries({ queryKey: meetingKeys.summary(M1) }));
+    await waitFor(() => expect(screen.queryByTestId("summary-composing")).toBeNull());
+    expect(await screen.findByTestId("ai-attribution")).toBeInTheDocument();
+    expect(document.querySelector("[data-reveal]")).toBeNull();
+  });
+
+  it("a regenerate that lands a new summary reveals it", async () => {
+    const { routes, client } = show({ [`${base}/summary`]: { summary, run: running } });
+    await screen.findByTestId("summary-composing");
+    const fresh = { ...summary, id: "sum-new", summary: "Bản tóm tắt mới." };
+    // A refetch mid-run already carries the new summary; the run ends on the next one.
+    routes[`${base}/summary`] = { summary: fresh, run: running };
+    await act(() => client.invalidateQueries({ queryKey: meetingKeys.summary(M1) }));
+    routes[`${base}/summary`] = { summary: fresh, run: idle };
+    await act(() => client.invalidateQueries({ queryKey: meetingKeys.summary(M1) }));
+    await waitFor(() => expect(document.querySelector("[data-reveal]")?.textContent).toBe("Bản tóm tắt mới."));
+  });
+
   it("shows a summary already there at once, with no reveal", async () => {
     show({ [`${base}/summary`]: { summary, run: idle } });
     expect(await screen.findByText(summary.summary)).toBeInTheDocument();
@@ -145,6 +177,14 @@ describe("Tóm tắt › composing, reveal and sources (F)", () => {
     expect(within(pop).getByText("09:10:00")).toBeInTheDocument();
     // The compact quote keeps the way into the transcript.
     expect(within(pop).getByRole("button", { name: /Mở trong lời thoại/ })).toBeInTheDocument();
+  });
+
+  it("numbers only the sources shown, so a point without evidence leaves no gap", async () => {
+    const three = [points[0]!, { text: "Chưa rõ ai lo phần âm thanh.", evidence: [] }, points[1]!];
+    show({ [`${base}/summary`]: { summary: { ...summary, summary: three.map((p) => p.text).join(" "), summary_points: three }, run: idle } });
+    await screen.findByRole("button", { name: "Nguồn 1" });
+    expect(screen.getAllByRole("button", { name: /^Nguồn/ }).map((b) => b.textContent)).toEqual(["1", "2"]);
+    expect(screen.getByRole("button", { name: "Nguồn 2" }).closest("[data-point]")).toHaveTextContent(points[1]!.text);
   });
 
   it("old summary without points renders as one paragraph", async () => {

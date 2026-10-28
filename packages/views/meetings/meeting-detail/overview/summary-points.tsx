@@ -37,6 +37,8 @@ export function SummaryText({ summary, reveal }: { summary: MeetingSummary; reve
   const count = sentences.reduce((n, s) => n + words(s.text).length + 1, 0);
   const step = wordStep(count);
   let k = 0;
+  // Badges count the ones shown, so a point without evidence leaves no gap in 1, 2, 3.
+  let badges = 0;
   const appear = () => ({
     initial: { opacity: 0, filter: "blur(3px)", y: 5 },
     animate: { opacity: 1, filter: "blur(0px)", y: 0 },
@@ -61,10 +63,10 @@ export function SummaryText({ summary, reveal }: { summary: MeetingSummary; reve
             {points.length > 0 && point.evidence.length > 0 ? (
               animate ? (
                 <motion.span className="inline-block" {...appear()}>
-                  <SourceBadge n={i + 1} refs={point.evidence} />
+                  <SourceBadge n={++badges} refs={point.evidence} />
                 </motion.span>
               ) : (
-                <SourceBadge n={i + 1} refs={point.evidence} />
+                <SourceBadge n={++badges} refs={point.evidence} />
               )
             ) : null}
           </span>
