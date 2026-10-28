@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ProviderSheetError } from "@/lib/provider-sheet-error";
 import { REDACTED } from "@/lib/redact";
 import { SchemaMismatchError } from "@/lib/schema-mismatch";
 import { bestEffort, breadcrumb, classifyError, installReportSink, isReporting, RefusedError, reportError, schemaDriftLogger, setReportTag, setReportUser, type ReportSink } from "./report";
@@ -56,6 +57,13 @@ describe("classifyError", () => {
     expect(classifyError(transport("server_error", 503))).toBe("bug");
     expect(classifyError(transport("malformed_response"))).toBe("bug");
     expect(classifyError(transport(7, "400"))).toBe("bug");
+  });
+
+  it("reads a provider's sheet failing as the person's device or network, unless this build is at fault", () => {
+    expect(classifyError(new ProviderSheetError("google", "ERR_GOOGLE_SIGN_IN", "Network error"))).toBe("expected");
+    expect(classifyError(new ProviderSheetError("apple", "ERR_REQUEST_FAILED", ""))).toBe("expected");
+    expect(classifyError(new ProviderSheetError("google", "ERR_GOOGLE_NOT_CONFIGURED", ""))).toBe("bug");
+    expect(classifyError(new ProviderSheetError("google", "ERR_GOOGLE_SIGN_IN", "[28444] Developer console is not set up correctly."))).toBe("bug");
   });
 
   it("reads a 5xx and every other error as a bug", () => {

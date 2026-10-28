@@ -103,8 +103,6 @@ export const useLinkSignInMethod = () =>
         "sign_in_account_conflict",
         "provider_token_invalid",
         "email_unverified",
-        "google_not_configured",
-        "apple_not_configured",
       ],
       secret: true,
     },

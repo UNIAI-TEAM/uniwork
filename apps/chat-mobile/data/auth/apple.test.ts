@@ -72,11 +72,11 @@ describe("Sign in with Apple, native side", () => {
     apple.signInAsync.mockRejectedValueOnce(Object.assign(new Error("canceled"), { code: "ERR_REQUEST_CANCELED" }));
     expect(await signInWithApple()).toBeNull();
     apple.signInAsync.mockRejectedValueOnce(Object.assign(new Error("failed"), { code: "ERR_REQUEST_FAILED" }));
-    await expect(signInWithApple()).rejects.toThrow("failed");
+    await expect(signInWithApple()).rejects.toMatchObject({ name: "ProviderSheetError", provider: "apple", code: "ERR_REQUEST_FAILED", message: "failed" });
     apple.signInAsync.mockRejectedValueOnce("not an error");
-    await expect(signInWithApple()).rejects.toBe("not an error");
+    await expect(signInWithApple()).rejects.toMatchObject({ name: "ProviderSheetError", code: "ERR_UNKNOWN" });
     apple.signInAsync.mockResolvedValueOnce({ identityToken: null, authorizationCode: "c", fullName: null, user: "u" });
-    await expect(signInWithApple()).rejects.toThrow("no identity token");
+    await expect(signInWithApple()).rejects.toMatchObject({ code: "ERR_APPLE_NO_TOKEN", message: "Apple returned no identity token" });
   });
 
   it("refuses a short random source", async () => {

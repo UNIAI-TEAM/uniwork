@@ -38,9 +38,9 @@ describe("Google's sheet", () => {
     mod.signIn.mockResolvedValueOnce(null);
     expect(await signInWithGoogle()).toBeNull();
     mod.signIn.mockResolvedValueOnce({ idToken: "", email: null });
-    await expect(signInWithGoogle()).rejects.toThrow("no ID token");
+    await expect(signInWithGoogle()).rejects.toMatchObject({ name: "ProviderSheetError", code: "ERR_GOOGLE_NO_TOKEN" });
     mod.signIn.mockRejectedValueOnce(Object.assign(new Error("failed"), { code: "ERR_GOOGLE_SIGN_IN" }));
-    await expect(signInWithGoogle()).rejects.toMatchObject({ code: "ERR_GOOGLE_SIGN_IN" });
+    await expect(signInWithGoogle()).rejects.toMatchObject({ name: "ProviderSheetError", provider: "google", code: "ERR_GOOGLE_SIGN_IN", message: "failed" });
   });
 
   it("reads an empty address as none", async () => {

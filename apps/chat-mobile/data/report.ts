@@ -4,6 +4,7 @@
 // sink every call is a no-op, so the app, the tests and a build without
 // Sentry behave the same. Every string is redacted (lib/redact.ts) before it
 // reaches the sink, whatever the SDK's own beforeSend does after.
+import { isBuildFault, ProviderSheetError } from "@/lib/provider-sheet-error";
 import { redactData, redactText } from "@/lib/redact";
 import { issuePaths, SchemaMismatchError } from "@/lib/schema-mismatch";
 
@@ -108,6 +109,8 @@ export type ErrorClass = "expected" | "contract" | "bug";
  */
 export function classifyError(error: unknown, handledCodes: readonly string[] = []): ErrorClass {
   if (error instanceof Error && (error.name === "AbortError" || error.name === "RefusedError")) return "expected";
+  // Google's or Apple's own sheet: the person's phone or network, unless this build is at fault.
+  if (error instanceof ProviderSheetError) return isBuildFault(error) ? "bug" : "expected";
   const transport = transportErrorOf(error);
   if (transport) {
     // No answer, or an answer the screen turns into its own words; one it could not read is a bug, as below.
