@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiError } from "@uniwork/core/api";
-import { forgetLinkReset, linkResetIntent, resetAuthStoreForTests } from "@uniwork/core/auth";
+import { forgetLinkReset, linkResetIntent, resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { ForgotPasswordView } from "./forgot-password-view";
@@ -21,6 +21,15 @@ describe("ForgotPasswordView", () => {
       "href",
       `/login?next=${encodeURIComponent(linkStep)}&link=1`,
     );
+  });
+
+  it("starts a signed-in person on their own address", () => {
+    setSessionUser({
+      id: "u1", email: "an@company.vn", display_name: "An", onboarded_at: "2026-01-01T00:00:00Z",
+      email_verified_at: "2026-01-01T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
+    });
+    render(wrapWithNav(<ForgotPasswordView next="/acme/team/settings?tab=security" />));
+    expect(screen.getByLabelText("Email")).toHaveValue("an@company.vn");
   });
 
   it("remembers, in link mode only, which address the reset went to", async () => {

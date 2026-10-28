@@ -9,7 +9,6 @@ import { hasStepUp, useAuthStore, useSendStepUpEmailCode, useSignInMethods, useS
 import { readSignInFailure, sentenceValues, type RetryPhrase, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { isAppleRelayEmail } from "@uniwork/core/auth/sign-in-rules";
 import { proofChoice, stepUpWindowHintKey, WEB_PROOFS } from "@uniwork/core/auth/step-up";
-import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
@@ -23,7 +22,7 @@ import { SkeletonText } from "../../auth/auth-shell";
 import { useSecondsLeft, useWaitPhrase } from "../../auth/continue-parts";
 import { PasswordField } from "../../auth/password-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../../common/form-dialog";
-import { AppLink } from "../../navigation";
+import { ForgotPasswordLink } from "./forgot-password-link";
 import { SettingsFieldError } from "./settings-layout";
 
 /**
@@ -406,9 +405,7 @@ function StepUpForm({
       <Field>
         <div className="flex items-center justify-between gap-3">
           <FieldLabel htmlFor={inputId}>{t("password.label")}</FieldLabel>
-          <AppLink href={paths.forgotPassword()} className={cn(AUTH_LINK, "text-caption")}>
-            {t("password.forgot")}
-          </AppLink>
+          <ForgotPasswordLink>{t("password.forgot")}</ForgotPasswordLink>
         </div>
         <PasswordField
           ref={inputRef}

@@ -149,7 +149,11 @@ describe("SignInMethodsSection", () => {
     const dialog = await proofDialog();
     expect(dialog.getByText("Để bảo vệ tài khoản, xác nhận là bạn trước khi gỡ liên kết Google.")).toBeInTheDocument();
     expect(dialog.getByText("Trong 10 phút tới, bạn không cần xác nhận lại.")).toBeInTheDocument();
-    expect(dialog.getByRole("link", { name: "Quên mật khẩu?" })).toHaveAttribute("href", "/forgot-password");
+    // The forgot page comes back to this tab.
+    expect(dialog.getByRole("link", { name: "Quên mật khẩu?" })).toHaveAttribute(
+      "href",
+      `/forgot-password?next=${encodeURIComponent("/acme/team/settings?tab=security")}`,
+    );
     const field = dialog.getByLabelText("Mật khẩu hiện tại");
     // Opens on the field, not on "Quên mật khẩu?", which comes first in the label row.
     await waitFor(() => expect(field).toHaveFocus());

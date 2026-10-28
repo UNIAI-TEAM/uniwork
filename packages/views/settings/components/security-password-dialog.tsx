@@ -7,17 +7,14 @@ import { toast } from "sonner";
 import { useAuthStore, useSetPassword } from "@uniwork/core/auth";
 import { readSignInFailure, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { isAppleRelayEmail } from "@uniwork/core/auth/sign-in-rules";
-import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { copyText } from "@uniwork/ui/lib/clipboard";
-import { cn } from "@uniwork/ui/lib/utils";
-import { AUTH_LINK } from "../../auth/auth-controls";
 import { FailureNotice, useWaitPhrase } from "../../auth/continue-parts";
 import { PasswordField } from "../../auth/password-field";
-import { AppLink } from "../../navigation";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../../common/form-dialog";
+import { ForgotPasswordLink } from "./forgot-password-link";
 import { SettingsFieldError } from "./settings-layout";
 import { useStepUpGate } from "./step-up-proof";
 
@@ -139,9 +136,7 @@ export function PasswordDialog({
         {name === "current" ? (
           <div className="flex items-center justify-between gap-3">
             <FieldLabel htmlFor={`${ids}-${name}`}>{label}</FieldLabel>
-            <AppLink href={paths.forgotPassword()} className={cn(AUTH_LINK, "text-caption")}>
-              {tRoot("auth.forgotPassword")}
-            </AppLink>
+            <ForgotPasswordLink>{tRoot("auth.forgotPassword")}</ForgotPasswordLink>
           </div>
         ) : (
           <FieldLabel htmlFor={`${ids}-${name}`}>{label}</FieldLabel>

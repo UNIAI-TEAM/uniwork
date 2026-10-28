@@ -4,7 +4,7 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
-import { rememberLinkReset, useForgotPassword } from "@uniwork/core/auth";
+import { rememberLinkReset, useAuthStore, useForgotPassword } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
@@ -30,7 +30,9 @@ export function ForgotPasswordView({ next = null }: { next?: string | null }) {
   const backToLogin = paths.login({ next, link: isLinkStep(next) });
   const forgot = useForgotPassword();
   const errorId = useId();
-  const [email, setEmail] = useState("");
+  // A signed-in person (from Settings' "Quên mật khẩu?") starts on their own address.
+  const signedInEmail = useAuthStore((s) => s.user?.email ?? "");
+  const [email, setEmail] = useState(signedInEmail);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
   const [resent, setResent] = useState(false);

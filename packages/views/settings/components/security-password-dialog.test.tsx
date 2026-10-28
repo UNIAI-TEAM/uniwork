@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser, useAuthStore } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
+import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
 import { toast } from "sonner";
 import { fakeNav, requestMock, wrapWithNav } from "../../test/api-mock";
 import { SignInMethodsSection } from "./security-sign-in-methods";
@@ -104,12 +105,34 @@ describe("PasswordDialog", () => {
     const current = dialog.getByLabelText("Mật khẩu hiện tại");
     // Opens on the field, not on "Quên mật khẩu?" ahead of it in the label row.
     await waitFor(() => expect(current).toHaveFocus());
-    expect(dialog.getByRole("link", { name: "Quên mật khẩu?" })).toHaveAttribute("href", "/forgot-password");
+    expect(dialog.getByRole("link", { name: "Quên mật khẩu?" })).toHaveAttribute(
+      "href",
+      `/forgot-password?next=${encodeURIComponent("/acme/team/settings?tab=security")}`,
+    );
     const reveals = dialog.getAllByRole("button", { name: "Hiện mật khẩu" });
     expect(reveals).toHaveLength(3);
     fireEvent.click(reveals[1]!);
     expect(dialog.getByLabelText("Mật khẩu mới")).toHaveAttribute("type", "text");
     expect(current).toHaveAttribute("type", "password");
+  });
+
+  it("in the UniChat shell, opens the forgot page in the browser instead of the chat window", async () => {
+    const openExternal = vi.fn(() => Promise.resolve());
+    (window as unknown as { desktopAPI?: unknown }).desktopAPI = { app: "unichat", openExternal, onFocusChange: () => () => {} };
+    configureRuntime({ appUrl: "https://app.test" });
+    try {
+      route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
+      const dialog = await openDialog("Đổi mật khẩu", "Đổi mật khẩu");
+      fireEvent.click(dialog.getByRole("link", { name: "Quên mật khẩu?" }));
+      expect(openExternal).toHaveBeenCalledWith(
+        `https://app.test/forgot-password?next=${encodeURIComponent("/acme/team/settings?tab=security")}`,
+      );
+      // The dialog is still where the person left it.
+      expect(screen.getByRole("dialog", { name: "Đổi mật khẩu" })).toBeInTheDocument();
+    } finally {
+      delete (window as unknown as { desktopAPI?: unknown }).desktopAPI;
+      resetRuntimeConfig();
+    }
   });
 
   it("sets a first password behind a mailed code", async () => {
