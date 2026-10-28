@@ -127,7 +127,7 @@ describe("no sentence ever shows a raw {{var}}", () => {
     expect(tVi(movable.key, sentenceValues(movable, tVi))).toBe("Tài khoản Apple này đang được dùng cho tài khoản trống a•••@icloud.com.");
     const skipped = linkSkippedNotice("sign_in_method_taken", "google")!;
     expect(tEn(skipped.key, sentenceValues(skipped, tEn))).toBe(
-      "You're signed in, but Google couldn't be linked. Try again in Settings › Security.",
+      "You're signed in, but Google couldn't be linked. Try again in Settings.",
     );
     const failure = readSignInFailure(api("sign_in_method_taken", 409, { masked_email: "a•••@x.vn" }), "methods");
     expect(tVi(failure.key, sentenceValues(failure, tVi))).not.toMatch(/\{\{/);

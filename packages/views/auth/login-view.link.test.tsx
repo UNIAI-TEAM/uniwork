@@ -95,7 +95,7 @@ describe("LoginView link mode", () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(sent("/api/v1/auth/mfa/verify")?.body).toMatchObject({ mfa_token: "chal", keep_sign_in_ticket: true });
     expect(toastMock.warning).toHaveBeenCalledWith(
-      "Bạn đã đăng nhập, nhưng chưa liên kết được Google. Thử lại trong Cài đặt › Bảo mật.",
+      "Bạn đã đăng nhập, nhưng chưa liên kết được Google. Liên kết lại trong Cài đặt.",
       expect.anything(),
     );
   });

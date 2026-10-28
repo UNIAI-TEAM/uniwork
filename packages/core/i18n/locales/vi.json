@@ -597,8 +597,8 @@
         "apple": "Apple"
       },
       "linkSkipped": {
-        "generic": "Bạn đã đăng nhập, nhưng chưa liên kết được cách đăng nhập vừa dùng. Thử lại trong Cài đặt › Bảo mật.",
-        "withProvider": "Bạn đã đăng nhập, nhưng chưa liên kết được {{provider}}. Thử lại trong Cài đặt › Bảo mật."
+        "generic": "Bạn đã đăng nhập, nhưng chưa liên kết được cách đăng nhập vừa dùng. Liên kết lại trong Cài đặt.",
+        "withProvider": "Bạn đã đăng nhập, nhưng chưa liên kết được {{provider}}. Liên kết lại trong Cài đặt."
       },
       "retry": {
         "later": "Chờ một lát rồi thử lại.",

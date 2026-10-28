@@ -482,7 +482,7 @@ describe("ContinueView — invited with another email", () => {
     await waitFor(() => expect(onDone).toHaveBeenCalled());
     // The provider that waited, named in the once-only notice.
     expect(toastMock.warning).toHaveBeenCalledWith(
-      "Bạn đã đăng nhập, nhưng chưa liên kết được Google. Thử lại trong Cài đặt › Bảo mật.",
+      "Bạn đã đăng nhập, nhưng chưa liên kết được Google. Liên kết lại trong Cài đặt.",
       expect.anything(),
     );
   });

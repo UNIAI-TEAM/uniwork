@@ -597,8 +597,8 @@
         "apple": "Apple"
       },
       "linkSkipped": {
-        "generic": "You're signed in, but the sign-in method you just used couldn't be linked. Try again in Settings › Security.",
-        "withProvider": "You're signed in, but {{provider}} couldn't be linked. Try again in Settings › Security."
+        "generic": "You're signed in, but the sign-in method you just used couldn't be linked. Try again in Settings.",
+        "withProvider": "You're signed in, but {{provider}} couldn't be linked. Try again in Settings."
       },
       "retry": {
         "later": "Wait a moment, then try again.",

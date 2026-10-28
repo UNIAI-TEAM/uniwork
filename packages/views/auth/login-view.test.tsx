@@ -242,7 +242,7 @@ describe("LoginView", () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
     expect(toastMock.warning).toHaveBeenCalledTimes(1);
     expect(toastMock.warning.mock.calls[0]?.[0]).toBe(
-      "Bạn đã đăng nhập, nhưng chưa liên kết được cách đăng nhập vừa dùng. Thử lại trong Cài đặt › Bảo mật.",
+      "Bạn đã đăng nhập, nhưng chưa liên kết được cách đăng nhập vừa dùng. Liên kết lại trong Cài đặt.",
     );
   });
 
