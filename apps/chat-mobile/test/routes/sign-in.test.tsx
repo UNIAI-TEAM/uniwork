@@ -334,7 +334,9 @@ describe("the choice screen", () => {
     useAuthStore.setState({ user: null, isLoading: false, login });
     const routes = await renderRoutes(ROUTES, "/continue");
     await act(async () => fireEvent.press(screen.getByTestId("choice-existing")));
-    await act(async () => fireEvent.changeText(await screen.findByTestId("login-email"), "an@example.com"));
+    // Found outside an act: a waitFor inside one takes the screen's query answers with the act environment off.
+    const email = await screen.findByTestId("login-email");
+    await act(async () => fireEvent.changeText(email, "an@example.com"));
     await act(async () => fireEvent.changeText(screen.getByTestId("login-password"), "pw"));
     await act(async () => fireEvent.press(screen.getByTestId("login-button")));
     await act(async () => fireEvent.press(screen.getByTestId("auth-back")));
@@ -342,12 +344,9 @@ describe("the choice screen", () => {
     await act(async () => {
       useAuthStore.setState({ user: user as never });
       finish(SIGNED_IN);
-      // The signed-in screens' queries answer on TanStack's notify timer: waited for inside this act, since a
-      // waitFor would take those updates with the act environment off.
-      for (let tries = 0; tries < 100 && !screen.queryByTestId("link-ask"); tries += 1) await new Promise((resolve) => setTimeout(resolve, 10));
     });
+    expect(await screen.findByTestId("link-ask")).toBeTruthy();
     expect(routes.pathname()).toBe("/link-sign-in");
-    expect(screen.getByTestId("link-ask")).toBeTruthy();
   });
 
   it("offers to sign in to link when the address has an account, and cancels back to sign-in", async () => {
