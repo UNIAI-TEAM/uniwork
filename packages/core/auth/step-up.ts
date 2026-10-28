@@ -56,6 +56,25 @@ export function unlinkAction(provider: SignInProvider): StepUpAction {
   return provider === "apple" ? "unlink_apple" : "unlink_google";
 }
 
+/**
+ * Whether a token bought with `method` serves only the action it was bought
+ * for: a mailed code names one action (the server's requireStepUp), and a
+ * proof this client does not know is read as narrowly. A password, a second
+ * factor or a provider token serves every command for ten minutes.
+ */
+export function servesOneAction(method: StepUpProof | null): boolean {
+  return method === "email_code" || method === null;
+}
+
+/**
+ * The line under the proof dialog that says what confirming spares the
+ * person: ten minutes of every sensitive command, or this one action when the
+ * proof is a mailed code. `method` is the proof the dialog is asking for.
+ */
+export function stepUpWindowHintKey(method: StepUpProof | null): string {
+  return servesOneAction(method) ? "settings.security.stepUp.windowHintOneAction" : "settings.security.stepUp.windowHint";
+}
+
 /** A step-up token as a client holds it, in memory only. */
 export interface HeldStepUp {
   token: string;
@@ -89,7 +108,7 @@ export function holdStepUp(grant: StepUpGrant, ctx: { userId: string; action: St
   return {
     token: grant.step_up_token,
     method,
-    action: method === "email_code" || method === null ? ctx.action : null,
+    action: servesOneAction(method) ? ctx.action : null,
     userId: ctx.userId,
     expiresAtMs: ctx.now + Math.max(life - STEP_UP_MARGIN_MS, STEP_UP_FIRST_USE_MS),
   };

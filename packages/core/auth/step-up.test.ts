@@ -7,8 +7,10 @@ import {
   holdStepUp,
   linkAction,
   proofChoice,
+  servesOneAction,
   stepUpServes,
   stepUpTokenFor,
+  stepUpWindowHintKey,
   unlinkAction,
 } from "./step-up";
 
@@ -59,6 +61,22 @@ describe("holdStepUp", () => {
     // A plausible life just over the margin is held at least as long.
     expect(holdStepUp(grant({ expires_at: "2026-10-27T08:01:00Z" }), ctx).expiresAtMs).toBe(NOW + 60_000);
     expect(holdStepUp(grant({ expires_at: "2026-10-27T08:02:00Z" }), ctx).expiresAtMs).toBe(NOW + 90_000);
+  });
+});
+
+describe("what a proof buys", () => {
+  it("serves one action for a mailed code or an unknown proof, every command otherwise", () => {
+    expect(servesOneAction("email_code")).toBe(true);
+    expect(servesOneAction(null)).toBe(true);
+    for (const method of ["totp", "password", "apple", "google"] as const) expect(servesOneAction(method)).toBe(false);
+  });
+
+  it("says so under the proof dialog: ten minutes for every command, or this action only", () => {
+    expect(stepUpWindowHintKey("password")).toBe("settings.security.stepUp.windowHint");
+    expect(stepUpWindowHintKey("totp")).toBe("settings.security.stepUp.windowHint");
+    expect(stepUpWindowHintKey("apple")).toBe("settings.security.stepUp.windowHint");
+    expect(stepUpWindowHintKey("email_code")).toBe("settings.security.stepUp.windowHintOneAction");
+    expect(stepUpWindowHintKey(null)).toBe("settings.security.stepUp.windowHintOneAction");
   });
 });
 

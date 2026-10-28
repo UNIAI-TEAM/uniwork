@@ -2027,6 +2027,7 @@
         "description": "To keep your account safe, confirm it's you before you {{action}}.",
         "descriptionGeneric": "To keep your account safe, confirm it's you before you continue.",
         "windowHint": "You won't be asked again for the next 10 minutes.",
+        "windowHintOneAction": "The code from the email confirms only this action.",
         "actions": {
           "set_password": "set a password",
           "change_password": "change your password",

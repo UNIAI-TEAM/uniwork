@@ -2026,6 +2026,7 @@
         "description": "Để bảo vệ tài khoản, xác nhận là bạn trước khi {{action}}.",
         "descriptionGeneric": "Để bảo vệ tài khoản, xác nhận là bạn trước khi tiếp tục.",
         "windowHint": "Trong 10 phút tới, bạn không cần xác nhận lại.",
+        "windowHintOneAction": "Mã trong email chỉ xác nhận việc này.",
         "actions": {
           "set_password": "đặt mật khẩu",
           "change_password": "đổi mật khẩu",
