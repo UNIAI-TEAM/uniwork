@@ -150,7 +150,9 @@ describe("CodeField", () => {
     const onComplete = jest.fn();
     const { rerender } = await render(<CodeField label="Mã" value="" onChange={onChange} onComplete={onComplete} testID="code" />);
     const input = screen.getByTestId("code");
-    expect(input.props).toMatchObject({ textContentType: "oneTimeCode", keyboardType: "number-pad", maxLength: 6, accessibilityLabel: "Mã" });
+    expect(input.props).toMatchObject({ textContentType: "oneTimeCode", keyboardType: "number-pad", accessibilityLabel: "Mã" });
+    // A native cap would cut a pasted "123 456" before its space is stripped.
+    expect(input.props.maxLength).toBeUndefined();
     await act(async () => fireEvent(input, "focus"));
     await act(async () => fireEvent.changeText(input, "12a3"));
     expect(onChange).toHaveBeenLastCalledWith("123");
@@ -158,7 +160,7 @@ describe("CodeField", () => {
     await rerender(<CodeField label="Mã" value="123" onChange={onChange} onComplete={onComplete} testID="code" />);
     // The boxes are drawn for the eye only: the input carries the code for screen readers.
     expect(screen.getByText("1", { includeHiddenElements: true })).toBeTruthy();
-    await act(async () => fireEvent.changeText(screen.getByTestId("code"), "123 456"));
+    await act(async () => fireEvent.changeText(screen.getByTestId("code"), " 123-456\n"));
     expect(onComplete).toHaveBeenCalledWith("123456");
     await rerender(<CodeField label="Mã" value="123456" onChange={onChange} onComplete={onComplete} testID="code" />);
     await act(async () => fireEvent.changeText(screen.getByTestId("code"), "123456"));
