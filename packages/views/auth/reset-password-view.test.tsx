@@ -36,6 +36,23 @@ describe("ResetPasswordView", () => {
     expect(screen.queryByText("Hai mật khẩu chưa khớp")).not.toBeInTheDocument();
   });
 
+  it("says Đặt mật khẩu for an account that has none yet, as the mail did, and Đổi mật khẩu otherwise", async () => {
+    requestMock.mockResolvedValue({ user, access_token: "tok-9" });
+    const onSuccess = vi.fn();
+    const { unmount } = render(wrapWithNav(<ResetPasswordView token="t" first onSuccess={onSuccess} />));
+    expect(screen.getByRole("heading", { name: "Đặt mật khẩu" })).toBeInTheDocument();
+    expect(screen.getByText("Chọn mật khẩu để đăng nhập bằng email. Cách bạn vẫn đăng nhập không đổi.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Đổi mật khẩu" })).not.toBeInTheDocument();
+    fillMatchingPasswords();
+    fireEvent.click(screen.getByRole("button", { name: "Đặt mật khẩu" }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    unmount();
+
+    render(wrapWithNav(<ResetPasswordView token="t" onSuccess={vi.fn()} />));
+    expect(screen.getByRole("heading", { name: "Đặt mật khẩu mới" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Đổi mật khẩu" })).toBeInTheDocument();
+  });
+
   it("rejects a short password before calling the server", () => {
     render(wrapWithNav(<ResetPasswordView token="t" onSuccess={vi.fn()} />));
     fireEvent.change(screen.getByLabelText("Mật khẩu mới"), { target: { value: "short" } });

@@ -550,7 +550,13 @@
       "hint": "Tối thiểu {{min}} ký tự",
       "tooShort": "Mật khẩu cần ít nhất {{min}} ký tự",
       "invalidTitle": "Link không còn hiệu lực",
-      "invalidHint": "Mỗi link chỉ dùng được một lần và hết hạn sau 60 phút."
+      "invalidHint": "Mỗi link chỉ dùng được một lần và hết hạn sau 60 phút.",
+      "set": {
+        "title": "Đặt mật khẩu",
+        "subtitle": "Chọn mật khẩu để đăng nhập bằng email. Cách bạn vẫn đăng nhập không đổi.",
+        "submit": "Đặt mật khẩu",
+        "submitting": "Đang đặt…"
+      }
     },
     "verify": {
       "title": "Xác thực email",

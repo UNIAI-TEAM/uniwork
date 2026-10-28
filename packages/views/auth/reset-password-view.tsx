@@ -29,7 +29,10 @@ const MIN = 8;
 type ClientError = "tooShort" | "mismatch" | null;
 
 /**
- * The mailed reset link (it carries no `next`). When the person came here
+ * The mailed reset link (it carries no `next`). An account with no password
+ * yet (it signs in with Google or Apple) is mailed the link with `set`: the
+ * page then says "Đặt mật khẩu", as the mail did, and never asks to change a
+ * password the account never had (spec §3.7). When the person came here
  * from "Quên mật khẩu?" on /login?link=1 (spec §4.4) and a Google or Apple
  * sign-in still waits, the reset keeps it and the new session goes to the
  * link step: `onSuccess` gets that step as its `next`. Only then: any other
@@ -38,9 +41,12 @@ type ClientError = "tooShort" | "mismatch" | null;
  */
 export function ResetPasswordView({
   token,
+  first = false,
   onSuccess,
 }: {
   token: string;
+  /** `?set=1`: the account has no password yet, so this sets its first one. */
+  first?: boolean;
   onSuccess: (sess: SessionResponse, next: string | null) => void;
 }) {
   const { t } = useTranslation();
@@ -137,8 +143,9 @@ export function ResetPasswordView({
     );
   }
 
+  const words = first ? "auth.reset.set" : "auth.reset";
   return (
-    <AuthShell title={t("auth.reset.title")} description={t("auth.reset.subtitle")}>
+    <AuthShell title={t(`${words}.title`)} description={t(`${words}.subtitle`)}>
       {/* noValidate: the browser's own bubble is untranslated; the fields stay
           `required`/`minLength` so assistive tech still announces them. */}
       <form
@@ -209,8 +216,8 @@ export function ResetPasswordView({
           </Field>
           {owner === "form" ? <FieldError id={errorId}>{errorMsg}</FieldError> : null}
         </FieldGroup>
-        <AuthSubmit pending={reset.isPending || queued} pendingLabel={t("auth.reset.submitting")}>
-          {t("auth.reset.submit")}
+        <AuthSubmit pending={reset.isPending || queued} pendingLabel={t(`${words}.submitting`)}>
+          {t(`${words}.submit`)}
         </AuthSubmit>
       </form>
     </AuthShell>

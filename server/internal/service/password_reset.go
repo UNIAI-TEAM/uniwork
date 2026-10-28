@@ -76,6 +76,12 @@ func (s *PasswordResetService) Request(ctx context.Context, email string) error 
 		ResetURL: s.render.AppURL + "/reset-password?token=" + token, Expires: passwordResetTTL,
 		SetPassword: !u.PasswordHash.Valid,
 	}
+	// The page the link opens says what the mail says: "Đặt mật khẩu" for a
+	// first password, not "Đổi mật khẩu" for one the account never had. Only
+	// words: Reset decides set or change by the account, not by the link.
+	if data.SetPassword {
+		data.ResetURL += "&set=1"
+	}
 	if data.SetPassword {
 		if u.GoogleID.Valid {
 			data.SignInWith = append(data.SignInWith, mail.SignInMethodGoogle)

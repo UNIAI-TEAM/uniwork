@@ -19,6 +19,8 @@ export default function ResetPasswordPage() {
   return (
     <ResetPasswordView
       token={token}
+      // The server marks the link of an account with no password yet (spec §3.7).
+      first={searchParams.get("set") === "1"}
       // `next` is the link step when a Google or Apple sign-in waits to be linked.
       onSuccess={async (sess, next) => {
         push(await resolveDestination(sess.user, await api.workspaces.list().catch(() => []), next));

@@ -550,7 +550,13 @@
       "hint": "At least {{min}} characters",
       "tooShort": "Password needs at least {{min}} characters",
       "invalidTitle": "This link no longer works",
-      "invalidHint": "Each link works once and expires after 60 minutes."
+      "invalidHint": "Each link works once and expires after 60 minutes.",
+      "set": {
+        "title": "Set a password",
+        "subtitle": "Choose a password to sign in with your email. The way you sign in now stays as it is.",
+        "submit": "Set password",
+        "submitting": "Setting…"
+      }
     },
     "verify": {
       "title": "Verify your email",

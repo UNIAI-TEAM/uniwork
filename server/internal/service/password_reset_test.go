@@ -41,6 +41,10 @@ func TestPasswordResetFlow(t *testing.T) {
 	if m.Kind != mail.KindPasswordReset || m.UserID != u.ID {
 		t.Fatalf("envelope %+v", m)
 	}
+	// A reset of a password the account has: the page says "Đổi mật khẩu".
+	if strings.Contains(m.Text, "set=1") {
+		t.Fatalf("a reset link marked as a first password: %s", m.Text)
+	}
 	// Rate limit 60s: không mail thứ hai.
 	if err := s.Request(ctx, "p@example.com"); err != nil || len(out.queued) != 1 {
 		t.Fatalf("rate limit: %v %d", err, len(out.queued))
@@ -94,7 +98,8 @@ func TestForgotPasswordOnAPasswordlessAccountOffersToSetOne(t *testing.T) {
 	if m.Kind != mail.KindPasswordReset || m.UserID != u.ID || m.Subject != "Đặt mật khẩu UniWork" {
 		t.Fatalf("envelope %+v", m)
 	}
-	for _, want := range []string{"đăng nhập bằng Google", "http://localhost:3000/login?provider=google", "/reset-password?token="} {
+	// The link says it sets a first password (&set=1), so the page reads "Đặt mật khẩu" as the mail does.
+	for _, want := range []string{"đăng nhập bằng Google", "http://localhost:3000/login?provider=google", "/reset-password?token=", "&set=1"} {
 		if !strings.Contains(m.Text, want) {
 			t.Fatalf("mail misses %q: %s", want, m.Text)
 		}
