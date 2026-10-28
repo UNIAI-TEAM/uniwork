@@ -101,9 +101,9 @@ describe("useSignIn", () => {
     });
     expect(login).toHaveBeenCalledTimes(1);
     expect(result.current.busy).toBeNull();
-    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual([
-      viText("auth.social.reclaimed"),
-      viText("auth.social.linkSkipped.withProvider", { provider: "Google" }),
+    expect(useToastStore.getState().toasts.map((t) => [t.tone, t.message])).toEqual([
+      ["success", viText("auth.social.reclaimed")],
+      ["info", viText("auth.social.linkSkipped.withProvider", { provider: "Google" })],
     ]);
   });
 

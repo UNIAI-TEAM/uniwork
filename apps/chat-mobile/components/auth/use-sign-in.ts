@@ -14,7 +14,7 @@ import { haptics } from "@/components/ui/haptics";
 import { dismissInterrupted, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import type { SignInOutcome, SignInRequest } from "@/data/auth/sign-in";
 import { useAuthStore } from "@/data/auth/store";
-import { toast } from "@/data/stores/toast-store";
+import { NOTICE_DURATION_MS, toast } from "@/data/stores/toast-store";
 import { signInFailureOf, startOf, unmatchedWhileLinking, type SignInStart } from "@/lib/sign-in-failure";
 import { signInRoutes } from "@/lib/sign-in-routes";
 import { useCountdown } from "./use-countdown";
@@ -84,12 +84,16 @@ export function useSignIn(context: SignInContext, options: { linkMode?: boolean 
   }, []);
   const { linkMode = false } = options;
 
-  /** Say once what the session brought; the screen's redirect does the rest. */
+  /**
+   * Say once what the session brought; the screen's redirect does the rest. Both are said on the way into the app, so
+   * they stay as long as the web's (a notice's ten seconds): an account taken back is good news, a link not made is not.
+   */
   const tellSignedIn = useCallback(
     (outcome: Extract<SignInOutcome, { kind: "signed_in" }>, provider: SignInProvider | null) => {
-      if (outcome.reclaimed) toast.info(t("auth.social.reclaimed"));
+      const notice = { durationMs: NOTICE_DURATION_MS };
+      if (outcome.reclaimed) toast.success(t("auth.social.reclaimed"), notice);
       const skipped = linkSkippedNotice(outcome.linkSkipped, provider);
-      if (skipped) toast.info(t(skipped.key, sentenceValues(skipped, t)));
+      if (skipped) toast.info(t(skipped.key, sentenceValues(skipped, t)), notice);
     },
     [t],
   );

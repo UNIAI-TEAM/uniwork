@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MAX_TOASTS, TOAST_DURATION_MS, toast, useToastStore } from "./toast-store";
+import { MAX_TOASTS, NOTICE_DURATION_MS, TOAST_DURATION_MS, toast, useToastStore } from "./toast-store";
 
 const messages = () => useToastStore.getState().toasts.map((t) => `${t.tone}:${t.message}`);
 
@@ -41,6 +41,14 @@ describe("toast store", () => {
     vi.advanceTimersByTime(200);
     expect(messages()).toEqual(["error:react failed"]);
     vi.advanceTimersByTime(TOAST_DURATION_MS.error);
+    expect(messages()).toEqual([]);
+  });
+
+  it("keeps a notice its own while, over its tone's", () => {
+    toast.success("account taken back", { durationMs: NOTICE_DURATION_MS });
+    vi.advanceTimersByTime(TOAST_DURATION_MS.success);
+    expect(messages()).toEqual(["success:account taken back"]);
+    vi.advanceTimersByTime(NOTICE_DURATION_MS - TOAST_DURATION_MS.success);
     expect(messages()).toEqual([]);
   });
 
