@@ -179,8 +179,8 @@ describe("TransferOwnershipDialog", () => {
     await waitFor(() => expect(password).toHaveAttribute("aria-invalid", "true"));
   });
 
-  it("says the account has no password when the server refuses the transfer for that", async () => {
-    await submitRefusedWith(new ApiError("x", "password_required", 403));
+  it("says the account has no password when the server asks for another proof", async () => {
+    await submitRefusedWith(new ApiError("x", "proof_required", 403, undefined, { proofs: ["email_code"] }));
     expect(await screen.findByText(/tài khoản của bạn chưa có mật khẩu/, {}, SLOW)).toBeInTheDocument();
     expect(screen.queryByLabelText("Mật khẩu hiện tại của bạn")).not.toBeInTheDocument();
     expect(submitButton()).toHaveAttribute("aria-disabled", "true");

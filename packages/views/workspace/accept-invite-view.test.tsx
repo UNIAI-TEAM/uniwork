@@ -662,9 +662,9 @@ describe("AcceptInviteView", () => {
       expect(cont).toHaveAccessibleDescription("Chưa thể tiếp tục khi tài khoản chưa có mật khẩu.");
     });
 
-    it("says the account has no password when the server refuses the transfer for that", async () => {
+    it("says the account has no password when the server asks for another proof", async () => {
       await openWizard([conflict("transfer", { role: "owner", transfer_candidates_count: 1 })], () =>
-        Promise.reject(new ApiError("x", "password_required", 403)),
+        Promise.reject(new ApiError("x", "proof_required", 403, undefined, { proofs: ["email_code"] })),
       );
       next();
       await pickHeir();

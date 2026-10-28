@@ -59,11 +59,13 @@ describe("passwordRefusal", () => {
     expect(passwordRefusal(new ApiError("x", "invalid_credentials", 401))).toBe("incorrect");
   });
 
-  it("reads an account that has no password to confirm with", () => {
-    expect(passwordRefusal(new ApiError("x", "password_required", 403))).toBe("missing");
+  it("reads a missing or no longer serving proof as a step-up to take (ADR 0047 §5)", () => {
+    expect(passwordRefusal(new ApiError("x", "proof_required", 403, undefined, { proofs: ["email_code"] }))).toBe("step_up");
   });
 
-  it("is null for any other failure", () => {
+  it("is null for any other failure, the retired password_required included", () => {
+    // The server answers proof_required since ADR 0047; nothing sends password_required.
+    expect(passwordRefusal(new ApiError("x", "password_required", 403))).toBeNull();
     expect(passwordRefusal(new ApiError("x", "forbidden", 403))).toBeNull();
     expect(passwordRefusal(new Error("x"))).toBeNull();
     expect(passwordRefusal(undefined)).toBeNull();

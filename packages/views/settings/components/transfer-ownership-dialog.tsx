@@ -120,7 +120,7 @@ export function TransferOwnershipDialog({
   const [confirmTouched, setConfirmTouched] = useState(false);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | undefined>();
-  // The server said this account has no password to confirm with.
+  // The server asked for a proof this account cannot give here (proof_required).
   const [refusedPasswordless, setRefusedPasswordless] = useState(false);
   const passwordless = refusedPasswordless || user?.has_password === false;
   const transferred = useRef(false);
@@ -193,7 +193,9 @@ export function TransferOwnershipDialog({
           }
           // The password is never kept past a refusal; the owner types it again.
           setPassword("");
-          if (refusal === "missing") setRefusedPasswordless(true);
+          // "step_up" (proof_required): until the shared proof dialog lands
+          // (spec §4.5), the account is told it has no password to confirm with.
+          if (refusal === "step_up") setRefusedPasswordless(true);
           else setPasswordError(t("org.transfer.wrong_password"));
         },
       },

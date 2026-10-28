@@ -99,9 +99,10 @@ export function SwitchWizard({
       setDrafts((prev) =>
         Object.fromEntries(Object.entries(prev).map(([id, d]) => [id, { ...d, password: "" }])),
       );
-      // "missing": the account has no password at all, so asking for it
-      // again would only send the same refusal back.
-      if (why === "missing") {
+      // "step_up" (proof_required): the account has no password to confirm
+      // with, so asking for it again would only send the same refusal back.
+      // The shared proof dialog (spec §4.5) replaces this dead end.
+      if (why === "step_up") {
         setRefusedPasswordless(true);
         setAnnouncement(t("invitations.switch.no_password_reason"));
       } else {
