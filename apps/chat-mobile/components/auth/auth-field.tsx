@@ -5,11 +5,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, TextInput, View, type TextInputProps } from "react-native";
+import { Platform, Pressable, TextInput, View, type TextInputProps } from "react-native";
 import { useAnnounce } from "@/components/ui/a11y";
 import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
+import { minTouchTarget } from "@/lib/platform-ui";
 import { PASSWORD_MIN } from "@/lib/sign-in-form";
 import { THEME } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -84,7 +85,9 @@ export function PasswordField({ create = false, ...field }: Omit<AuthFieldProps,
   const { t } = useTranslation();
   const { colorScheme } = useColorScheme();
   const [shown, setShown] = useState(false);
-  const tap = useTapTarget(44);
+  // Drawn at the platform's minimum target inside the field, as the sign-in screen's audit measures drawn bounds.
+  const target = minTouchTarget(Platform.OS);
+  const tap = useTapTarget(target);
   return (
     <AuthField
       {...field}
@@ -101,7 +104,8 @@ export function PasswordField({ create = false, ...field }: Omit<AuthFieldProps,
           onPress={() => setShown((value) => !value)}
           disabled={field.editable === false}
           testID={field.testID ? `${field.testID}-toggle` : undefined}
-          className="h-11 w-11 items-center justify-center rounded-full active:opacity-60"
+          style={{ width: target, height: target }}
+          className="items-center justify-center rounded-full active:opacity-60"
         >
           <Ionicons name={shown ? "eye-off-outline" : "eye-outline"} size={20} color={THEME[colorScheme].mutedForeground} />
         </Pressable>

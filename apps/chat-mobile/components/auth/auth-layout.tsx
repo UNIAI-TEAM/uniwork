@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
-import { backIcon } from "@/lib/platform-ui";
+import { backIcon, minTouchTarget } from "@/lib/platform-ui";
 import { THEME } from "@/lib/theme";
 import { DISPLAY_MAX_FONT_SCALE } from "@/lib/type-scale";
 import { cn } from "@/lib/utils";
@@ -107,7 +107,11 @@ export function SubmitButton({ label, busyLabel = label, busy = false, disabled 
   );
 }
 
-/** A secondary action written as words: "Quên mật khẩu?", "Tạo tài khoản". A full tap target around its text. */
+/**
+ * A secondary action written as words: "Quên mật khẩu?", "Tạo tài khoản". Drawn at the platform's minimum target
+ * around its text, not grown to it by hit slop: the sign-in screen's audit on the emulator measures what is drawn
+ * (scripts/mobile-a11y-audit.mjs, 48 dp).
+ */
 export function TextButton({
   label,
   onPress,
@@ -121,7 +125,8 @@ export function TextButton({
   tone?: "primary" | "muted";
   testID?: string;
 }) {
-  const tap = useTapTarget(44);
+  const target = minTouchTarget(Platform.OS);
+  const tap = useTapTarget(target);
   return (
     <Pressable
       {...tap}
@@ -130,7 +135,8 @@ export function TextButton({
       disabled={disabled}
       onPress={onPress}
       testID={testID}
-      className={cn("min-h-11 justify-center px-1 active:opacity-60", disabled && "opacity-50")}
+      style={{ minHeight: target }}
+      className={cn("justify-center px-1 active:opacity-60", disabled && "opacity-50")}
     >
       <Text className={cn("text-subhead font-semibold", tone === "primary" ? "text-primary" : "text-muted-foreground")}>{label}</Text>
     </Pressable>
