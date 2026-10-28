@@ -63,21 +63,22 @@ var uniworkGroupBWriteOverrides = map[string]string{
 // "yes", so they need no Read->Write override; they remain in pdf.Write because
 // the client hides them only for a UniWork-bound document and the module-keyed
 // server table carries no document scope (genoffice-tools.md §3.1, §4.8,
-// §5 pdf (c), §9 rows 30-31; openai_facade.go:714-721).
+// §5 pdf (c), §9 rows 30-31; openai_facade.go (officeUniworkBoundHiddenTools)).
 var uniworkGroupBPdfFileWriteTools = map[string]string{
-	"pdf/insert_blank_page": "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 30; openai_facade.go:714-721",
-	"pdf/set_page_size":     "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 30; openai_facade.go:714-721",
-	"pdf/crop_pages":        "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 30; openai_facade.go:714-721",
-	"pdf/replace_pages":     "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 30; openai_facade.go:714-721",
-	"pdf/extract_pages":     "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 31; openai_facade.go:714-721",
-	"pdf/split_pdf":         "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 31; openai_facade.go:714-721",
-	"pdf/split_pages":       "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 31; openai_facade.go:714-721",
-	"pdf/merge_pages":       "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 31; openai_facade.go:714-721",
+	"pdf/insert_blank_page": "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 30; openai_facade.go (officeUniworkBoundHiddenTools)",
+	"pdf/set_page_size":     "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 30; openai_facade.go (officeUniworkBoundHiddenTools)",
+	"pdf/crop_pages":        "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 30; openai_facade.go (officeUniworkBoundHiddenTools)",
+	"pdf/replace_pages":     "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 30; openai_facade.go (officeUniworkBoundHiddenTools)",
+	"pdf/extract_pages":     "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 31; openai_facade.go (officeUniworkBoundHiddenTools)",
+	"pdf/split_pdf":         "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 31; openai_facade.go (officeUniworkBoundHiddenTools)",
+	"pdf/split_pages":       "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 31; openai_facade.go (officeUniworkBoundHiddenTools)",
+	"pdf/merge_pages":       "genoffice-tools.md §3 (editor_write=yes), §3.1 group B (hand=file), §4.8, §5 pdf (c), §9 row 31; openai_facade.go (officeUniworkBoundHiddenTools)",
 }
 
-// uniworkG609aHiddenSlidesTools lists the five slides tools that G6-09a
+// uniworkG609aHiddenSlidesTools lists the three slides tools that G6-09a
 // (UNI-1374 N1) removes from officeUniworkModulesV1["slides"] altogether
-// because the slides skill (UNIWORK_AI_HIDDEN_TOOLS in
+// (generate_deck and regenerate_slide came back in plan 5, ADR 0049, for bound
+// decks only, so they are ordinary write tools here) because the slides skill (UNIWORK_AI_HIDDEN_TOOLS in
 // apps/slides/src/renderer/ai/slides-skill.ts:1100-1106 at fork rev
 // 3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b) hides them whenever the provider is
 // UniWork AI. Keeping them out of both Read and Write ensures a modified client
@@ -85,38 +86,26 @@ var uniworkGroupBPdfFileWriteTools = map[string]string{
 // not_allowlisted rather than view_only.
 //
 // Each entry names where the exception is documented:
-//   - "slides/generate_deck":
-//     docs/office/g5g6g7/genoffice-tools.md §3 (editor_write=yes), §4.7 (web stub,
-//     multi-turn internal LLM pipeline, local draft/sidecar write), §5 slides (b)-(c),
-//     §8.1, §9 rows 27-29; fork slides-skill.ts:1095,1100-1106;
-//     server/internal/ai/openai_facade.go:705-713.
-//   - "slides/regenerate_slide":
-//     docs/office/g5g6g7/genoffice-tools.md §3 (editor_write=yes), §4.7 (web stub,
-//     internal LLM call, local draft write), §5 slides (b)-(c), §8.1, §9 rows 27-29;
-//     fork slides-skill.ts:1095,1100-1106;
-//     server/internal/ai/openai_facade.go:705-713.
 //   - "slides/insert_web_image":
 //     docs/office/g5g6g7/genoffice-tools.md §3 (editor_write=yes), §4.7 (web stub
 //     web-slides-api.ts:1121, desktop arbitrary URL fetch), §5 slides (b), §9 rows 26, 28;
 //     fork slides-skill.ts:1095,1100-1106;
-//     server/internal/ai/openai_facade.go:705-713.
+//     server/internal/ai/openai_facade.go (G6-09a comment on officeUniworkModulesV1).
 //   - "slides/replace_image":
 //     docs/office/g5g6g7/genoffice-tools.md §3 (editor_write=yes), §4.7 (web stub
 //     web-slides-api.ts:1122, desktop arbitrary URL fetch), §5 slides (b), §9 rows 26, 28;
 //     fork slides-skill.ts:1095,1100-1106;
-//     server/internal/ai/openai_facade.go:705-713.
+//     server/internal/ai/openai_facade.go (G6-09a comment on officeUniworkModulesV1).
 //   - "slides/save_style_template":
 //     docs/office/g5g6g7/genoffice-tools.md §3 (editor_write=no), §3.1 group B
 //     (hand column "file", userData/style-templates/<name>.json), §4.7 (web stub
 //     web-slides-api.ts:1133), §5 slides (c), §9 rows 27-28;
 //     fork slides-skill.ts:1095,1100-1106;
-//     server/internal/ai/openai_facade.go:703-713.
+//     server/internal/ai/openai_facade.go (G6-09a comment on officeUniworkModulesV1).
 var uniworkG609aHiddenSlidesTools = map[string]string{
-	"slides/generate_deck":       "genoffice-tools.md §3 (editor_write=yes), §4.7, §5 slides (b)-(c), §8.1, §9 rows 27-29; fork slides-skill.ts:1100-1106; openai_facade.go:705-713",
-	"slides/regenerate_slide":    "genoffice-tools.md §3 (editor_write=yes), §4.7, §5 slides (b)-(c), §8.1, §9 rows 27-29; fork slides-skill.ts:1100-1106; openai_facade.go:705-713",
-	"slides/insert_web_image":    "genoffice-tools.md §3 (editor_write=yes), §4.7, §5 slides (b), §9 rows 26, 28; fork slides-skill.ts:1100-1106; openai_facade.go:705-713",
-	"slides/replace_image":       "genoffice-tools.md §3 (editor_write=yes), §4.7, §5 slides (b), §9 rows 26, 28; fork slides-skill.ts:1100-1106; openai_facade.go:705-713",
-	"slides/save_style_template": "genoffice-tools.md §3 (editor_write=no), §3.1 group B, §4.7, §5 slides (c), §9 rows 27-28; fork slides-skill.ts:1100-1106; openai_facade.go:703-713",
+	"slides/insert_web_image":    "genoffice-tools.md §3 (editor_write=yes), §4.7, §5 slides (b), §9 rows 26, 28; fork slides-skill.ts:1100-1106; openai_facade.go (G6-09a comment on officeUniworkModulesV1)",
+	"slides/replace_image":       "genoffice-tools.md §3 (editor_write=yes), §4.7, §5 slides (b), §9 rows 26, 28; fork slides-skill.ts:1100-1106; openai_facade.go (G6-09a comment on officeUniworkModulesV1)",
+	"slides/save_style_template": "genoffice-tools.md §3 (editor_write=no), §3.1 group B, §4.7, §5 slides (c), §9 rows 27-28; fork slides-skill.ts:1100-1106; openai_facade.go (G6-09a comment on officeUniworkModulesV1)",
 }
 
 type genofficeToolSchemasDoc struct {
@@ -549,13 +538,13 @@ func TestAIUniworkModuleTableMatchesGeneratedSchemas(t *testing.T) {
 	t.Run("negative: re-adding a G6-09a hidden slides tool is caught", func(t *testing.T) {
 		cloned := cloneUniworkModuleTable(officeUniworkModulesV1)
 		slides := cloned["slides"]
-		slides.Write = append(append([]string(nil), slides.Write...), "generate_deck")
+		slides.Write = append(append([]string(nil), slides.Write...), "insert_web_image")
 		cloned["slides"] = slides
 		_, gotFindings := crossCheckUniworkTableAgainstSchemas(schemasBytes, string(toolsDocBytes), cloned, nil)
 		if !slices.ContainsFunc(gotFindings, func(f string) bool {
-			return strings.Contains(f, "slides Write =") && strings.Contains(f, "generate_deck")
+			return strings.Contains(f, "slides Write =") && strings.Contains(f, "insert_web_image")
 		}) {
-			t.Fatalf("expected slides Write drift finding for generate_deck, got %v", gotFindings)
+			t.Fatalf("expected slides Write drift finding for insert_web_image, got %v", gotFindings)
 		}
 	})
 }
@@ -573,9 +562,11 @@ func cloneUniworkModuleTable(src map[string]uniworkModuleTools) map[string]uniwo
 
 // unboundUniworkAllowlist adapts the bound-aware UniworkModuleAllowlist to the
 // 3-arg cross-check shape; bound=false because the module table describes an
-// unbound turn (bound hiding is covered by the root's own tests).
+// unbound turn (bound hiding is covered by the root's own tests). Slides is the
+// one module bound the other way: its deck builders show on a bound deck only
+// (plan 5), and nothing else hides there, so bound=true shows the whole table.
 func unboundUniworkAllowlist(module string, offered []UniworkToolSpec, viewOnly bool) UniworkAllowlist {
-	return UniworkModuleAllowlist(module, offered, viewOnly, false)
+	return UniworkModuleAllowlist(module, offered, viewOnly, module == "slides")
 }
 
 // uniworkMappedFormatTools is the harness's TOOL_OPS mapping for the four
