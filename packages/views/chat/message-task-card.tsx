@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Calendar, CircleCheck, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useUnlinkChatMessage } from "@uniwork/core/chat";
+import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { taskLinksOf } from "@uniwork/core/chat/message-links";
 import { useTask } from "@uniwork/core/tasks";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
@@ -44,7 +45,8 @@ function MessageTaskLinkRow({
   const unlink = useUnlinkChatMessage(workspaceId);
   const [peekOpen, setPeekOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const title = task?.title ?? t("chat.link.task_loading");
+  // Mentions in a legacy title read as @Name; overflow-wrap keeps any leftover long token inside the card.
+  const title = deserializeMessageBodyToComposerDraft(task?.title ?? t("chat.link.task_loading"));
   const identifier = task?.identifier || task?.id.slice(0, 8);
   const openLabel = t("chat.link.open_task", { identifier, title });
   const statusTone = task?.status ? STATUS_CONFIG[task.status]?.tone : undefined;
@@ -110,7 +112,7 @@ function MessageTaskLinkRow({
               aria-label={openLabel}
               onClick={() => setPeekOpen(true)}
             >
-              <span className="block font-display text-body font-bold">{title}</span>
+              <span className="block min-w-0 font-display text-body font-bold [overflow-wrap:anywhere]">{title}</span>
               <span className="mt-2 flex flex-wrap items-center gap-2 text-caption text-muted-foreground">
                 {assignee ? (
                   <span className="inline-flex items-center gap-1.25">

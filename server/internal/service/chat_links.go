@@ -90,7 +90,9 @@ func errChatProjectNotFound() error {
 }
 
 func titleFromMessageBody(body string) string {
-	body = strings.TrimSpace(body)
+	// Mentions read as @Name so a task title never carries raw mention:// markup
+	// that would overflow a chat card (same rule as ChatPreviewBody / the TS helper).
+	body = strings.TrimSpace(chatMentionMarkdownPattern.ReplaceAllString(body, "@$1"))
 	if body == "" {
 		return "Task từ chat"
 	}
@@ -189,6 +191,10 @@ func (s *ChatService) CreateTaskFromMessage(
 	title := strings.TrimSpace(in.Title)
 	if title == "" {
 		title = titleFromMessageBody(msg.Body)
+	} else if strings.Contains(title, "mention://") {
+		// A client may still send the stored markdown body as the title; strip
+		// it so the card never overflows, without re-applying the 120-rune cut.
+		title = strings.TrimSpace(chatMentionMarkdownPattern.ReplaceAllString(title, "@$1"))
 	}
 	desc := msg.Body
 	if utf8.RuneCountInString(desc) > 4000 {
