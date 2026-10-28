@@ -30,7 +30,8 @@ class UniChatGoogleSignInModule : Module() {
 
     AsyncFunction("isAvailable") {
       val context = appContext.reactContext
-      context != null && serverClientId(context) != null &&
+      context != null &&
+        serverClientId(context) != null &&
         GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS
     }
 
@@ -58,6 +59,9 @@ class UniChatGoogleSignInModule : Module() {
       }
     }
 
+    // The explicit `->` picks Coroutine's zero-argument overload, as Expo's own modules write it; ktlint's
+    // function-literal rule would drop it and leave the call ambiguous between the overloads.
+    @Suppress("ktlint:standard:function-literal")
     AsyncFunction("signOut") Coroutine { ->
       appContext.reactContext?.let { context ->
         CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest())
