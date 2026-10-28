@@ -4,7 +4,7 @@ import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User } from "@uniwork/core/types";
-import { requestMock, wrapWithNav } from "../test/api-mock";
+import { fakeNav, requestMock, wrapWithNav } from "../test/api-mock";
 import { JoinMembershipInviteView } from "./join-membership-invite-view";
 import { membershipInviteSecretKey } from "./membership-invite-secret";
 
@@ -72,11 +72,14 @@ describe("JoinMembershipInviteView", () => {
       joinBodies.push(init?.body);
       return { organization: beta, workspace: betaWorkspace, joined_ids: ["w2"] };
     });
-    render(wrapWithNav(<JoinMembershipInviteView linkId="l1" />));
+    const nav = fakeNav("/join/l1");
+    render(wrapWithNav(<JoinMembershipInviteView linkId="l1" />, nav));
     expect(await screen.findByRole("heading", { name: "Tham gia Beta" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tham gia" }));
     await waitFor(() => expect(joinBodies).toEqual([{ link_id: "l1", secret: "s3cret" }]));
     expect(sessionStorage.getItem(membershipInviteSecretKey("l1"))).toBe("s3cret");
+    // The same screen the email invitation lands on.
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/beta/ops/tasks"));
   });
 
   it("opens the switch wizard when the preview carries conflicts", async () => {

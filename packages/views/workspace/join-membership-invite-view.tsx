@@ -114,9 +114,11 @@ export function JoinMembershipInviteView({ linkId }: { linkId: string }) {
   const preview = useMembershipInvitePreview(linkId, secret, enabled);
   const join = useJoinMembershipInviteLink();
 
+  // Where the email invitation lands too (apps/web/app/invite/[token]): the
+  // workspace's tasks, so both ways in arrive on the same screen.
   const land = (workspace: Workspace | null, orgSlug?: string) => {
     if (workspace?.organization_slug && workspace.slug) {
-      navigation.replace(paths.workspace(workspace.organization_slug, workspace.slug).root());
+      navigation.replace(paths.workspace(workspace.organization_slug, workspace.slug).tasks());
       return;
     }
     if (orgSlug) {
@@ -131,7 +133,7 @@ export function JoinMembershipInviteView({ linkId }: { linkId: string }) {
     const first = preview.data.workspaces.find((w) => w.joined) ?? preview.data.workspaces[0];
     if (!first?.slug || !preview.data.organization.slug) return;
     setJoined(true);
-    navigation.replace(paths.workspace(preview.data.organization.slug, first.slug).root());
+    navigation.replace(paths.workspace(preview.data.organization.slug, first.slug).tasks());
   }, [preview.data, navigation, joined]);
 
   const submit = (resolve?: SwitchResolution[], onProofRequired?: (proofs: readonly StepUpProof[]) => void) => {
