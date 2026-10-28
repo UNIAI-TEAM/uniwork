@@ -137,6 +137,23 @@ describe("MeetingStageToasts (UNI-2285 E)", () => {
     );
   }, 10_000);
 
+  it("knock toast can turn the guest away", async () => {
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/api/v1/meetings/m1/join-requests"
+          ? { join_requests: [{ id: "jr1", meeting_id: "m1", status: "PENDING", display_name_snapshot: "Anh Tuấn" }] }
+          : {},
+      ),
+    );
+    render(wrapWithNav(<MeetingStageToasts meetingId="m1" canAdmit />));
+    // A quiet × beside "Cho vào", named for the guest it turns away.
+    fireEvent.click(await screen.findByRole("button", { name: "Từ chối Anh Tuấn" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meeting-join-requests/jr1/reject", expect.objectContaining({ method: "POST" })),
+    );
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meeting-join-requests/jr1/approve", expect.anything());
+  });
+
   it("shows no knocks to someone who cannot let people in", async () => {
     render(wrapWithNav(<MeetingStageToasts meetingId="m1" />));
     await new Promise((r) => setTimeout(r, 50));

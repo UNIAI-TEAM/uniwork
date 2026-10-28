@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, DoorOpen, Hand, type LucideIcon } from "lucide-react";
+import { Check, DoorOpen, Hand, X, type LucideIcon } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { useRoomContext } from "@livekit/components-react";
 import type { Tint } from "@uniwork/ui/components/common/icon-tile";
@@ -153,7 +153,7 @@ export function MeetingStageToasts({
   const reduce = useReducedMotion() ?? false;
   const [items, setItems] = useTransientNotices();
   const knocks = useKnockNotices(canAdmit ? meetingId : undefined);
-  const { approveOne, isApproving } = useJoinRequestActions(meetingId ?? "");
+  const { approveOne, isApproving, rejectOne, isRejecting } = useJoinRequestActions(meetingId ?? "");
   const shown = pickShown(knocks, items);
 
   // Hover or focus holds the stack open and stops the clock; the time held is
@@ -269,6 +269,19 @@ export function MeetingStageToasts({
                     </span>
                   ) : null}
                 </span>
+                {n.requestId ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-7.5 shrink-0 rounded-[9px] text-meeting-bar-muted-foreground hover:bg-meeting-bar-foreground/10 hover:text-meeting-bar-foreground"
+                    aria-label={t("meetings.rejectName", { name: n.name })}
+                    aria-disabled={isRejecting(n.requestId) || isApproving(n.requestId) || undefined}
+                    onClick={() => n.requestId && rejectOne(n.requestId)}
+                  >
+                    <X aria-hidden />
+                  </Button>
+                ) : null}
                 {n.requestId ? (
                   <Button
                     type="button"
