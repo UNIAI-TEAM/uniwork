@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, CircleAlert, Clock, RefreshCw } from "lucide-react";
+import { ChevronRight, CircleAlert, CircleCheck, Clock, RefreshCw } from "lucide-react";
 import type { SignInIdentity, SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import {
   providerNameKey,
@@ -66,8 +66,10 @@ const TILE = "flex size-10 shrink-0 items-center justify-center rounded-lg borde
  * Who the provider says the person is: its mark in a 40px tile, the name,
  * the address (or "Email ẩn của Apple"). Without a name the address is the
  * one line. A named group, so a screen reader hears whose account it is.
+ * `linked` seals it with a check once the link is written: the sentence
+ * above says so too, the mark is for the eye that skims.
  */
-export function IdentityBlock({ identity }: { identity: SignInIdentity }) {
+export function IdentityBlock({ identity, linked = false }: { identity: SignInIdentity; linked?: boolean }) {
   const { t } = useTranslation();
   const provider = useProviderName(identity.provider);
   const email = useIdentityEmail(identity);
@@ -79,12 +81,13 @@ export function IdentityBlock({ identity }: { identity: SignInIdentity }) {
       </span>
       {/* Names and addresses have no break opportunity; they wrap anywhere
           rather than scroll a phone sideways. */}
-      <span className="flex min-w-0 flex-col">
+      <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-body font-medium text-foreground [overflow-wrap:anywhere]">{name || email}</span>
         {name && email ? (
           <span className="text-caption text-muted-foreground [overflow-wrap:anywhere]">{email}</span>
         ) : null}
       </span>
+      {linked ? <CircleCheck aria-hidden data-slot="identity-linked" className="size-5 shrink-0 text-success" /> : null}
     </div>
   );
 }

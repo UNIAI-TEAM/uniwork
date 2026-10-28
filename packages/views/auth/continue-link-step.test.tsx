@@ -58,6 +58,7 @@ describe("ContinueLinkStep", () => {
     route({ "GET /api/v1/auth/sign-in-ticket": TICKET });
     open();
     expect(await screen.findByRole("heading", { name: "Liên kết Google" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Tài khoản Google" }).querySelector('[data-slot="identity-linked"]')).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent("Liên kết Google (an@gmail.com) với an@company.vn?");
     expect(screen.getByRole("button", { name: "Liên kết" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Không liên kết" })).toBeInTheDocument();
@@ -70,6 +71,9 @@ describe("ContinueLinkStep", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
     const status = screen.getByRole("status");
     await waitFor(() => expect(status).toHaveTextContent("Đã liên kết Google. Lần sau chỉ cần Google."));
+    // The identity is sealed with a check for the eye; the sentence carries it for the ear.
+    const identity = screen.getByRole("group", { name: "Tài khoản Google" });
+    expect(identity.querySelector('[data-slot="identity-linked"]')).toHaveAttribute("aria-hidden", "true");
     expect(linkCalls()[0]![1]).toMatchObject({ method: "POST", body: {} });
     const next = screen.getByRole("button", { name: "Tiếp tục" });
     expect(next).toHaveFocus();
@@ -104,7 +108,9 @@ describe("ContinueLinkStep", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Liên kết" }));
     const question = await screen.findByRole("group", { name: "Chuyển Google sang tài khoản này?" });
     expect(question).toHaveFocus();
-    expect(question).toHaveTextContent("Google này đang dùng cho tài khoản trống a•••@gmail.com. Chuyển sang tài khoản này?");
+    expect(question).toHaveTextContent("Google này đang dùng cho tài khoản trống a•••@gmail.com.");
+    // The heading asks; the sentence under it only says what is true.
+    expect(question.textContent?.match(/sang tài khoản này\?/g)).toHaveLength(1);
     expect(question).toHaveTextContent("Tài khoản trống đó chưa từng vào tổ chức nào và sẽ bị xóa.");
     fireEvent.click(screen.getByRole("button", { name: "Chuyển" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Đã liên kết Google."));

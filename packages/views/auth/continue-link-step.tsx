@@ -118,7 +118,7 @@ export function ContinueLinkStep({
       description={<span role="status">{phase === "done" ? t("auth.continue.link.done", { provider }) : question}</span>}
     >
       <div className="flex flex-col gap-6">
-        <IdentityBlock identity={ticket} />
+        <IdentityBlock identity={ticket} linked={phase === "done"} />
         {phase === "ask" && !failure ? (
           <p className="text-pretty text-body text-muted-foreground">{t("auth.continue.link.body", { provider })}</p>
         ) : null}
