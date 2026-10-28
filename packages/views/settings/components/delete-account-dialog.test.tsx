@@ -110,6 +110,23 @@ describe("DeleteAccountDialog", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("holds the likely proof's shape while the account's proofs load", async () => {
+    route({ "GET /api/v1/me/sign-in-methods": () => new Promise(() => {}) });
+    open();
+    fireEvent.click((await question()).getByRole("button", { name: "Xóa vĩnh viễn" }));
+    const proof = await proofDialog();
+    expect(proof.getByRole("status")).toHaveTextContent("Đang tải…");
+    // The account has a password and no second factor: the footer it will
+    // have is there already, its submit held until the proofs are known.
+    expect(proof.getByRole("button", { name: "Xác nhận" })).toHaveAttribute("aria-disabled", "true");
+    expect(proof.getByRole("button", { name: "Dùng cách khác" })).toBeInTheDocument();
+    const bones = [...document.querySelectorAll(".box-decoration-clone")].map((b) => b.textContent);
+    expect(bones).toEqual(
+      expect.arrayContaining(["Mật khẩu hiện tại", "Quên mật khẩu?", "Trong 10 phút tới, bạn không cần xác nhận lại."]),
+    );
+    expect(proof.queryByLabelText("Mật khẩu hiện tại")).toBeNull();
+  });
+
   it("deletes nothing when the proof dialog is closed instead", async () => {
     route({});
     open();

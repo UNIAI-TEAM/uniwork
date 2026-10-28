@@ -19,6 +19,7 @@ import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AUTH_LINK, DIGITS_ONLY } from "../../auth/auth-controls";
+import { SkeletonText } from "../../auth/auth-shell";
 import { useSecondsLeft, useWaitPhrase } from "../../auth/continue-parts";
 import { PasswordField } from "../../auth/password-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../../common/form-dialog";
@@ -166,6 +167,37 @@ function StepUpDialog({ ask, open, onDone }: { ask: Ask | null; open: boolean; o
 
 /** What stands under the field: a check of ours (empty, the wrong length) or the server's refusal. */
 type Problem = { key: string } | { failure: SignInFailure };
+
+/**
+ * The proof the account most likely takes, drawn while its list loads
+ * (proofChoice reads the session for it): its label row, 44px on a coarse
+ * pointer where "Quên mật khẩu?" sits, its field and its hint, so nothing
+ * moves when the list lands. A mailed code starts as its send button.
+ */
+function ProofBones({ proof }: { proof: StepUpProof | null }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "settings.security.stepUp" });
+  if (proof === "email_code") return <Skeleton aria-hidden className="h-9 w-full pointer-coarse:h-11" />;
+  return (
+    <div aria-hidden className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-body leading-none font-medium">
+          <SkeletonText>{t(proof === "totp" ? "totp.label" : "password.label")}</SkeletonText>
+        </span>
+        {proof === "password" ? (
+          <span className={cn(AUTH_LINK, "text-caption")}>
+            <SkeletonText>{t("password.forgot")}</SkeletonText>
+          </span>
+        ) : null}
+      </div>
+      <Skeleton className="h-8 w-full pointer-coarse:h-11" />
+      {proof === "totp" ? (
+        <p className="text-body leading-normal">
+          <SkeletonText>{t("totp.hint")}</SkeletonText>
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 function StepUpForm({
   action,
@@ -362,13 +394,12 @@ function StepUpForm({
   let body: ReactNode;
   if (loading) {
     body = (
-      <div className="flex flex-col gap-2">
+      <>
         <span className="sr-only" role="status">
           {tRoot("common.loading")}
         </span>
-        <Skeleton aria-hidden className="h-4 w-32" />
-        <Skeleton aria-hidden className="h-8 w-full pointer-coarse:h-11" />
-      </div>
+        <ProofBones proof={proof} />
+      </>
     );
   } else if (proof === "password") {
     body = (
@@ -507,8 +538,10 @@ function StepUpForm({
       <FormDialogHeader title={t("title")} description={t("description", { action: t(`actions.${action}`) })} />
       <FormDialogBody>
         {body}
-        {proof && !loading ? (
-          <p className="text-caption text-pretty text-muted-foreground">{tRoot(stepUpWindowHintKey(proof))}</p>
+        {proof ? (
+          <p aria-hidden={loading || undefined} className="text-caption text-pretty text-muted-foreground">
+            {loading ? <SkeletonText>{tRoot(stepUpWindowHintKey(proof))}</SkeletonText> : tRoot(stepUpWindowHintKey(proof))}
+          </p>
         ) : null}
       </FormDialogBody>
       <FormDialogFooter
