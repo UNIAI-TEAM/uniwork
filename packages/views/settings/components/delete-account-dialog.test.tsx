@@ -66,7 +66,7 @@ const question = async () => within(await screen.findByRole("dialog", { name: "X
 const proofDialog = async () => within(await screen.findByRole("dialog", { name: "Xác nhận là bạn" }));
 /** The footer's "Đóng", not the corner's (both close; the corner's is an icon). */
 const footerClose = (dialog: ReturnType<typeof within>) =>
-  dialog.getAllByRole("button", { name: "Đóng" }).find((b) => b.getAttribute("data-slot") !== "dialog-close")!;
+  dialog.getAllByRole("button", { name: "Đóng" }).find((b: HTMLElement) => b.getAttribute("data-slot") !== "dialog-close")!;
 async function prove(password = "password123") {
   const proof = await proofDialog();
   fireEvent.change(await proof.findByLabelText("Mật khẩu hiện tại"), { target: { value: password } });
