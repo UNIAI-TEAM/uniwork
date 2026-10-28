@@ -9,8 +9,9 @@ import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
-import { AUTH_INPUT, AUTH_PILL, AuthSubmit } from "./auth-controls";
+import { AUTH_INPUT, AUTH_PILL, AUTH_PILL_HELD, AuthSubmit } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 import { AUTH_LINK } from "./login-view";
 import { isLinkStep } from "./post-auth-redirect";
@@ -62,7 +63,7 @@ export function ForgotPasswordView({ next = null }: { next?: string | null }) {
               type="button"
               variant="outline"
               size="lg"
-              className={AUTH_PILL}
+              className={cn(AUTH_PILL, cooldown > 0 && !forgot.isPending && AUTH_PILL_HELD)}
               onClick={() => {
                 if (cooldown > 0) return;
                 send(() => {

@@ -27,6 +27,14 @@ export const AUTH_PILL =
   "h-12 w-full rounded-full text-body-lg transition-transform duration-(--duration-standard) ease-out-quart active:scale-[0.98] aria-disabled:cursor-progress aria-disabled:opacity-100 motion-reduce:transition-none pointer-coarse:h-12";
 
 /**
+ * A pill held back by a wait (a resend's cooldown, the server's Retry-After)
+ * rather than busy: it dims like any unavailable action and the cursor says
+ * "not now", where AUTH_PILL's full-strength busy look would invite a press
+ * that does nothing. Add it only while held and not pending.
+ */
+export const AUTH_PILL_HELD = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
+
+/**
  * The primary action of a credential screen: label on the left, the arrow
  * seated in its own disc flush with the right padding. The disc nudges on
  * hover; the spinner takes its place while the request runs.
@@ -54,7 +62,7 @@ export function AuthSubmit({
       className={cn(
         AUTH_PILL,
         "group/submit justify-between pl-6 pr-1.5",
-        blocked && "aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
+        blocked && AUTH_PILL_HELD,
         className,
       )}
       aria-disabled={pending || props["aria-disabled"] || undefined}

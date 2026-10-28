@@ -326,6 +326,61 @@ describe("ContinueView — invited with another email", () => {
     expect(screen.getByRole("button", { name: "Gửi mã" })).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("holds the resend through its minute, then through the wait the server gives", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    let sends = 0;
+    route({
+      "GET /api/v1/auth/sign-in-ticket": TICKET,
+      "POST /api/v1/auth/sign-in-ticket/claim-email": () => {
+        sends += 1;
+        return sends === 1
+          ? { status: "sent" }
+          : Promise.reject(new ApiError("paused", "rate_limited", 429, undefined, { retry_after: 3600 }));
+      },
+    });
+    await openClaim();
+    fireEvent.change(screen.getByLabelText("Email công việc"), { target: { value: "an@acme.vn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi mã" }));
+    const held = await screen.findByRole("button", { name: "Gửi lại sau 60 giây" });
+    // Held, not busy: it dims, and a press inside the minute sends nothing.
+    expect(held).toHaveAttribute("aria-disabled", "true");
+    expect(held.className).toContain("aria-disabled:opacity-50");
+    fireEvent.click(held);
+    expect(sends).toBe(1);
+    await act(async () => {});
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    const resend = screen.getByRole("button", { name: "Gửi lại mã" });
+    expect(resend).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(resend);
+    // The day's codes are spent: the server's hour replaces the minute's guess.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Đã tạm dừng mã xác nhận cho địa chỉ này. Thử lại sau 60 phút.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Gửi lại mã" })).toHaveAttribute("aria-disabled", "true"));
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(screen.getByRole("button", { name: "Gửi lại mã" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Gửi lại mã" }));
+    expect(sends).toBe(2);
+  });
+
+  it("says the whole sign-in expired when the code step outlives it", async () => {
+    route({
+      "GET /api/v1/auth/sign-in-ticket": TICKET,
+      "POST /api/v1/auth/sign-in-ticket/claim-email": { status: "sent" },
+      "POST /api/v1/auth/sign-in-ticket/claim-email/verify": () => Promise.reject(MISSING()),
+    });
+    await openClaim();
+    fireEvent.change(screen.getByLabelText("Email công việc"), { target: { value: "an@acme.vn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Gửi mã" }));
+    fireEvent.change(await screen.findByLabelText("Mã xác nhận"), { target: { value: "123456" } });
+    const heading = await screen.findByRole("heading", { level: 1, name: "Lượt đăng nhập đã hết hạn" });
+    expect(screen.getByText("Lượt đăng nhập bằng Google đã hết hạn.")).toBeInTheDocument();
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(screen.queryByLabelText("Mã xác nhận")).toBeNull();
+  });
+
   it("asks for the second factor of the invited account, naming it", async () => {
     route({
       "GET /api/v1/auth/sign-in-ticket": TICKET,

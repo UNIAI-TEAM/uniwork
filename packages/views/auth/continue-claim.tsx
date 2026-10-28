@@ -10,7 +10,8 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/component
 import { Input } from "@uniwork/ui/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@uniwork/ui/components/ui/input-otp";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { AUTH_INPUT, AUTH_PILL, AuthSubmit } from "./auth-controls";
+import { cn } from "@uniwork/ui/lib/utils";
+import { AUTH_INPUT, AUTH_PILL, AUTH_PILL_HELD, AuthSubmit } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 import { FailureNotice, useFailure, useSecondsLeft, useWaitPhrase } from "./continue-parts";
 
@@ -302,7 +303,7 @@ function ClaimCodeStep({
             type="button"
             variant="outline"
             size="lg"
-            className={AUTH_PILL}
+            className={cn(AUTH_PILL, cooldown > 0 && !resend.isPending && AUTH_PILL_HELD)}
             onClick={onResend}
             aria-busy={resend.isPending || undefined}
             aria-disabled={cooldown > 0 || resend.isPending || undefined}
@@ -312,9 +313,11 @@ function ClaimCodeStep({
                 <Spinner />
                 {t("auth.continue.claim.sending")}
               </>
-            ) : cooldown > 0 ? (
+            ) : cooldown > 0 && cooldown <= RESEND_SECONDS ? (
               t("auth.continue.claim.resendIn", { count: cooldown })
             ) : (
+              // A longer wait is the server's (the day's codes are spent): the
+              // notice above counts it in minutes or hours; the button holds.
               t("auth.continue.claim.resend")
             )}
           </Button>
