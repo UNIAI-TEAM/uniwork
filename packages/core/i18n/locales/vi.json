@@ -559,7 +559,10 @@
     "social": {
       "continueWithGoogle": "Tiếp tục với Google",
       "continueWithApple": "Tiếp tục với Apple",
+      "continueWithEmail": "Tiếp tục với email",
       "divider": "hoặc dùng email",
+      "or": "hoặc",
+      "browserOpened": "Trình duyệt đã mở trang đăng nhập {{provider}}",
       "groupLabel": "Đăng nhập bằng Google hoặc Apple",
       "signingIn": "Đang đăng nhập…",
       "reclaimed": "Đã lấy lại tài khoản. Mật khẩu cũ, đặt khi email chưa được xác minh, đã bị xóa.",

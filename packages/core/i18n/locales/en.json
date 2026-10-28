@@ -559,7 +559,10 @@
     "social": {
       "continueWithGoogle": "Continue with Google",
       "continueWithApple": "Continue with Apple",
+      "continueWithEmail": "Continue with email",
       "divider": "or use email",
+      "or": "or",
+      "browserOpened": "The browser opened the {{provider}} sign-in page",
       "groupLabel": "Sign in with Google or Apple",
       "signingIn": "Signing you in…",
       "reclaimed": "You've taken back your account. The old password, set before your email was verified, has been removed.",
