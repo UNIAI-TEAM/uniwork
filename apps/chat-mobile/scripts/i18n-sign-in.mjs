@@ -31,8 +31,6 @@ export const SIGN_IN_ONLY = {
         wrong_email: "Sai email?",
         delete_in_settings: "Xóa tài khoản trong Cài đặt",
       },
-      // "Tôi đã có tài khoản": the other provider tried there matched no account either; the identity still waits.
-      link_unmatched: "Tài khoản {{provider}} này chưa liên kết với tài khoản UniWork nào. Đăng nhập bằng cách bạn vẫn dùng.",
     },
     step_up: {
       unavailable: "Điện thoại này chưa xác nhận được bằng cách tài khoản của bạn dùng. Mở UniWork trên web để tiếp tục.",
@@ -68,7 +66,6 @@ export const SIGN_IN_ONLY = {
         wrong_email: "Wrong email?",
         delete_in_settings: "Delete the account in Settings",
       },
-      link_unmatched: "This {{provider}} account isn't linked to any UniWork account yet. Sign in the way you usually do.",
     },
     step_up: {
       unavailable: "This phone can't confirm it's you the way your account does. Open UniWork on the web to continue.",

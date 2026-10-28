@@ -2294,8 +2294,7 @@
       "verify": {
         "wrong_email": "Sai email?",
         "delete_in_settings": "Xóa tài khoản trong Cài đặt"
-      },
-      "link_unmatched": "Tài khoản {{provider}} này chưa liên kết với tài khoản UniWork nào. Đăng nhập bằng cách bạn vẫn dùng."
+      }
     },
     "step_up": {
       "unavailable": "Điện thoại này chưa xác nhận được bằng cách tài khoản của bạn dùng. Mở UniWork trên web để tiếp tục."

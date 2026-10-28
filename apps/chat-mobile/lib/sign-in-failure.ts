@@ -43,10 +43,10 @@ export function signInFailureOf(error: unknown, context: SignInContext, start: S
 
 /**
  * "Tôi đã có tài khoản": the provider just tried matched no account either (data/auth/sign-in.ts › unmatched). The
- * sentence names it, as core's notices name theirs (sentenceValues).
+ * web's own sentence for it (the `?error=<provider>_no_account` of link mode), whose key names the provider.
  */
 export function unmatchedWhileLinking(provider: SignInProvider): SignInFailure {
-  return failure("mobile.sign_in.link_unmatched", "form", "identity_unmatched", provider);
+  return failure(`auth.social.errors.${provider}_no_account`, "form", "identity_unmatched");
 }
 
 /**

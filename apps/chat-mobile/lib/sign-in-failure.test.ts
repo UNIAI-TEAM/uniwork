@@ -69,14 +69,14 @@ describe("signInFailureOf", () => {
 });
 
 describe("unmatchedWhileLinking", () => {
-  it("says the provider just tried has no account either, in the app's own words, naming it", () => {
+  it("says the provider just tried has no account either, in the web's words for it", () => {
     expect(unmatchedWhileLinking("apple")).toMatchObject({
-      key: "mobile.sign_in.link_unmatched",
-      provider: "apple",
+      key: "auth.social.errors.apple_no_account",
+      provider: null,
       kind: "form",
       code: "identity_unmatched",
     });
-    expect(unmatchedWhileLinking("google")).toMatchObject({ key: "mobile.sign_in.link_unmatched", provider: "google" });
+    expect(unmatchedWhileLinking("google")).toMatchObject({ key: "auth.social.errors.google_no_account" });
   });
 });
 

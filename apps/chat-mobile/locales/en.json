@@ -2351,8 +2351,7 @@
       "verify": {
         "wrong_email": "Wrong email?",
         "delete_in_settings": "Delete the account in Settings"
-      },
-      "link_unmatched": "This {{provider}} account isn't linked to any UniWork account yet. Sign in the way you usually do."
+      }
     },
     "step_up": {
       "unavailable": "This phone can't confirm it's you the way your account does. Open UniWork on the web to continue."
