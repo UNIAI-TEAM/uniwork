@@ -256,7 +256,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: service
+          - shard: service-a
+            static: "--skip-static"
+          - shard: service-b
             static: "--skip-static"
           - shard: handler
             static: "--skip-static"
