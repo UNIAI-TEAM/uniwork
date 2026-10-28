@@ -65,6 +65,20 @@ it("hands an app's provider button to the hand-off with next, and drops the hint
   expect(window.location.search).toBe(`?${NEXT}`);
 });
 
+it("keeps the hand-off once the hint has left the URL and the page renders again", async () => {
+  await open(`${NEXT}&provider=apple`);
+  // The router follows history.replaceState: the next render reads a query
+  // without the hint. Only the hint read once keeps the hand-off mounted.
+  state.search = NEXT;
+  state.handoff = null;
+  await act(async () => {
+    root.render(<LoginPage />);
+  });
+  expect(state.handoff).toMatchObject({ provider: "apple" });
+  expect(container.querySelector('[data-testid="handoff"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="login-form"]')).toBeNull();
+});
+
 it.each(["provider=github", "provider=Apple", "provider="])("ignores %s but still drops it from the URL", async (hint) => {
   await open(`${NEXT}&${hint}`);
   expect(state.handoff).toBeNull();

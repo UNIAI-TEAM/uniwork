@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
@@ -66,8 +66,11 @@ describe("ProviderHandoff", () => {
   it("leaves once for the provider's start route, carrying next", async () => {
     state.query = loaded(ALL_ON);
     const leave = vi.fn();
-    await render(handoff(leave));
-    await render(handoff(leave));
+    // StrictMode runs the effect twice on mount (Next's default in
+    // development), and a fresh `leave` each render re-runs it: only the
+    // `left` guard keeps the browser from starting the provider again.
+    await render(<StrictMode>{handoff((url) => leave(url))}</StrictMode>);
+    await render(<StrictMode>{handoff((url) => leave(url))}</StrictMode>);
     expect(leave).toHaveBeenCalledExactlyOnceWith(
       "http://api.test/api/v1/auth/apple/start?next=%2Fauth%2Fdesktop%2Fauthorize%3Fattempt_id%3Da1",
     );
