@@ -112,6 +112,25 @@ describe("useSignIn", () => {
   });
 });
 
+describe("a sign-in to link an identity held", () => {
+  it("asks a provider's sheet to link, and says one that matches no account either without leaving the screen", async () => {
+    const login = jest.fn(async (): Promise<SignInOutcome> => ({ kind: "unmatched", provider: "apple" }));
+    useAuthStore.setState({ login });
+    const { result } = await renderHook(() => useSignIn("sign_in", { linkMode: true }), { wrapper });
+    let answer: unknown;
+    await act(async () => {
+      answer = await result.current.run({ method: "apple" }, "apple");
+    });
+    expect(login).toHaveBeenCalledWith({ method: "apple", linking: true });
+    expect(answer).toMatchObject({ ok: false, failure: { key: "mobile.sign_in.link_unmatched.apple" } });
+    expect(result.current.shown?.failure.key).toBe("mobile.sign_in.link_unmatched.apple");
+    expect(viText("mobile.sign_in.link_unmatched.apple")).not.toBe("mobile.sign_in.link_unmatched.apple");
+    // A password is no provider's sheet: sent as it is.
+    await act(async () => void (await result.current.run({ method: "password", email: "a@b.c", password: "p" }, "password")));
+    expect(login).toHaveBeenLastCalledWith({ method: "password", email: "a@b.c", password: "p" });
+  });
+});
+
 describe("a failed sign-in", () => {
   it("is felt as the system's error, and said", async () => {
     useAuthStore.setState({ login: jest.fn(async () => Promise.reject(Object.assign(new Error("x"), { name: "TransportError", code: "invalid_credentials", status: 401 }))) });

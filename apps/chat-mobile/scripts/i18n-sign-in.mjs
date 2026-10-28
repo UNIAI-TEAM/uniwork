@@ -31,6 +31,11 @@ export const SIGN_IN_ONLY = {
         wrong_email: "Sai email?",
         delete_in_settings: "Xóa tài khoản trong Cài đặt",
       },
+      // "Tôi đã có tài khoản": the other provider tried there matched no account either; the identity still waits.
+      link_unmatched: {
+        apple: "Tài khoản Apple này chưa liên kết với tài khoản UniWork nào. Đăng nhập bằng cách bạn vẫn dùng.",
+        google: "Tài khoản Google này chưa liên kết với tài khoản UniWork nào. Đăng nhập bằng cách bạn vẫn dùng.",
+      },
     },
     step_up: {
       one_action_hint: "Mã này chỉ dùng được để {{action}}.",
@@ -66,6 +71,10 @@ export const SIGN_IN_ONLY = {
       verify: {
         wrong_email: "Wrong email?",
         delete_in_settings: "Delete the account in Settings",
+      },
+      link_unmatched: {
+        apple: "This Apple account isn't linked to any UniWork account yet. Log in the way you usually do.",
+        google: "This Google account isn't linked to any UniWork account yet. Log in the way you usually do.",
       },
     },
     step_up: {

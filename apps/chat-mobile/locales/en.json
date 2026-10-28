@@ -2331,6 +2331,10 @@
       "verify": {
         "wrong_email": "Wrong email?",
         "delete_in_settings": "Delete the account in Settings"
+      },
+      "link_unmatched": {
+        "apple": "This Apple account isn't linked to any UniWork account yet. Log in the way you usually do.",
+        "google": "This Google account isn't linked to any UniWork account yet. Log in the way you usually do."
       }
     },
     "step_up": {

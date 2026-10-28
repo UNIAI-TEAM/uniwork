@@ -2274,6 +2274,10 @@
       "verify": {
         "wrong_email": "Sai email?",
         "delete_in_settings": "Xóa tài khoản trong Cài đặt"
+      },
+      "link_unmatched": {
+        "apple": "Tài khoản Apple này chưa liên kết với tài khoản UniWork nào. Đăng nhập bằng cách bạn vẫn dùng.",
+        "google": "Tài khoản Google này chưa liên kết với tài khoản UniWork nào. Đăng nhập bằng cách bạn vẫn dùng."
       }
     },
     "step_up": {

@@ -221,6 +221,17 @@ describe("Google's sheet", () => {
     expect(googleSheet.signIn.mock.calls[0]?.[0]).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it("leaves the identity a link waits for in place when Google matches no account either", async () => {
+    // "Tôi đã có tài khoản" for the Apple identity, then Google tried there: no account behind it.
+    holdChoice();
+    googleSheet.signIn.mockResolvedValueOnce({ idToken: "t", email: "an@gmail.com" });
+    flow.api.signInWithGoogle.mockResolvedValueOnce({ ...unmatched, ticket: "t_2", identity: { ...identity, provider: "google" } } as NativeSignInResult);
+    expect(await runSignIn({ method: "google", linking: true })).toEqual({ kind: "unmatched", provider: "google" });
+    expect(pendingTicket(NOW)).toEqual({ ticket: "t_1", nonce: "n_1" });
+    expect(usePendingSignIn.getState().choice?.identity.provider).toBe("apple");
+    expect(ctx.session.status()).toBe("signed-out");
+  });
+
   it("holds a ticket with that raw nonce, or a second factor naming the Google address", async () => {
     googleSheet.signIn.mockResolvedValue({ idToken: "t", email: "an@gmail.com" });
     flow.api.signInWithGoogle.mockResolvedValueOnce({ ...unmatched, identity: { ...identity, provider: "google" } } as NativeSignInResult);

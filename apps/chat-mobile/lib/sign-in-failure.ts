@@ -39,6 +39,11 @@ export function signInFailureOf(error: unknown, context: SignInContext, start: S
   return readSignInFailure(error, context);
 }
 
+/** "Tôi đã có tài khoản": the provider just tried matched no account either (data/auth/sign-in.ts › unmatched). */
+export function unmatchedWhileLinking(provider: SignInProvider): SignInFailure {
+  return failure(`mobile.sign_in.link_unmatched.${provider}`, "form", "identity_unmatched");
+}
+
 /**
  * Email verification (POST /me/email/verify, /me/email/resend) in the web's own words (auth.verify): a wrong code, a
  * code asked again within the minute (its button counts the minute down itself); the rest as any step that failed.

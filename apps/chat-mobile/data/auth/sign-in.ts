@@ -28,10 +28,13 @@ import { forgetVerificationMail, noteVerificationMailed } from "./verification-m
 export type SignInRequest =
   /** PKCE in the system browser; `provider` sends the web sign-in page straight to it (spec §3.5) */
   | { method: "browser"; provider?: SignInProvider }
-  /** Apple's sheet; `sign_up` from the register screen opens an account at once instead of the choice screen */
-  | { method: "apple"; intent?: NativeSignInIntent }
+  /**
+   * Apple's sheet; `sign_up` from the register screen opens an account at once instead of the choice screen.
+   * `linking`: "Tôi đã có tài khoản", a choice already waits to be linked into the account this signs in to.
+   */
+  | { method: "apple"; intent?: NativeSignInIntent; linking?: boolean }
   /** Google's sheet, the same way */
-  | { method: "google"; intent?: NativeSignInIntent }
+  | { method: "google"; intent?: NativeSignInIntent; linking?: boolean }
   | { method: "password"; email: string; password: string }
   | { method: "register"; email: string; password: string; displayName: string }
   /** the TOTP or recovery code of the challenge held (pendingChallenge) */
@@ -47,6 +50,8 @@ export type SignInOutcome =
   | { kind: "second_factor" }
   /** the ticket is held: the choice screen asks what to do with the identity */
   | { kind: "choice" }
+  /** linking: that provider matched no account either; its ticket is dropped and the choice waiting stays */
+  | { kind: "unmatched"; provider: SignInProvider }
   /** nothing came of it: a sheet or the browser closed, or a sign-out moved on */
   | { kind: "dismissed" };
 
@@ -173,6 +178,11 @@ export async function runSignIn(request: SignInRequest): Promise<SignInOutcome> 
       holdStep(result, now());
       return { kind: "second_factor" };
     case "choice":
+      // The person is signing in to the account a held identity links into: a second identity that has no account
+      // either is no account of theirs, and must not take the first one's place.
+      if ((request.method === "apple" || request.method === "google") && request.linking) {
+        return { kind: "unmatched", provider: request.method };
+      }
       holdStep(result, now());
       return { kind: "choice" };
   }

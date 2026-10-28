@@ -3,7 +3,8 @@
 // every other one dims and ignores taps). A second factor or a choice moves on to its screen; a session says once
 // what it brought (an account taken back, a link that could not be made) and the screen's own redirect takes over;
 // a failure becomes the sentence core's table gives it (and the system's error feel), with a countdown while it asks
-// to wait.
+// to wait. In link mode a provider's sheet signs in to link the identity held: one that matches no account either is
+// said as such, and the identity keeps waiting (data/auth/sign-in.ts › unmatched).
 import { linkSkippedKey, retryPhrase, type SignInContext, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { router } from "expo-router";
@@ -14,7 +15,7 @@ import { dismissInterrupted, usePendingSignIn } from "@/data/auth/pending-sign-i
 import type { SignInOutcome, SignInRequest } from "@/data/auth/sign-in";
 import { useAuthStore } from "@/data/auth/store";
 import { toast } from "@/data/stores/toast-store";
-import { signInFailureOf, startOf, type SignInStart } from "@/lib/sign-in-failure";
+import { signInFailureOf, startOf, unmatchedWhileLinking, type SignInStart } from "@/lib/sign-in-failure";
 import { signInRoutes } from "@/lib/sign-in-routes";
 import { useCountdown } from "./use-countdown";
 
@@ -93,16 +94,17 @@ export function useSignIn(context: SignInContext, options: { linkMode?: boolean 
     [t],
   );
 
+  const say = useCallback((failure: SignInFailure): SignInFailure => {
+    if (mounted.current) {
+      setShown(shownFailure(failure));
+      haptics.failure();
+    }
+    return failure;
+  }, []);
+
   const fail = useCallback(
-    (error: unknown, start: SignInStart = "form"): SignInFailure => {
-      const failure = signInFailureOf(error, context, start);
-      if (mounted.current) {
-        setShown(shownFailure(failure));
-        haptics.failure();
-      }
-      return failure;
-    },
-    [context],
+    (error: unknown, start: SignInStart = "form"): SignInFailure => say(signInFailureOf(error, context, start)),
+    [context, say],
   );
 
   const run = useCallback(
@@ -117,7 +119,9 @@ export function useSignIn(context: SignInContext, options: { linkMode?: boolean 
       setBusy(control ?? start);
       setShown(null);
       try {
-        const outcome = await login(request);
+        const linked = linkMode && (request.method === "apple" || request.method === "google") ? { ...request, linking: true } : request;
+        const outcome = await login(linked);
+        if (outcome.kind === "unmatched") return { ok: false, failure: say(unmatchedWhileLinking(outcome.provider)) };
         if (outcome.kind === "signed_in") tellSignedIn(outcome, linking);
         else if (outcome.kind === "second_factor") router.push(signInRoutes.secondFactor({ link: linkMode }));
         else if (outcome.kind === "choice") router.push(signInRoutes.choice);
@@ -129,7 +133,7 @@ export function useSignIn(context: SignInContext, options: { linkMode?: boolean 
         if (mounted.current) setBusy(null);
       }
     },
-    [fail, linkMode, login, tellSignedIn],
+    [fail, linkMode, login, say, tellSignedIn],
   );
 
   const clearFailure = useCallback(() => setShown(null), []);

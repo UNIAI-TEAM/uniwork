@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { signInFailureOf, startOf, verifyEmailFailureOf } from "./sign-in-failure";
+import { signInFailureOf, startOf, unmatchedWhileLinking, verifyEmailFailureOf } from "./sign-in-failure";
 
 /** The app's auth TransportError, as data/auth/transport.ts builds it (duck-typed: lib never imports data/). */
 function transport(code: string, status?: number, extra: Record<string, unknown> = {}) {
@@ -57,6 +57,13 @@ describe("signInFailureOf", () => {
 
   it("reads a form's failure that named nothing as the screen's generic sentence", () => {
     expect(signInFailureOf(new Error("odd"), "register")).toMatchObject({ code: "unknown", key: "auth.social.errors.generic" });
+  });
+});
+
+describe("unmatchedWhileLinking", () => {
+  it("says the provider just tried has no account either, in the app's own words", () => {
+    expect(unmatchedWhileLinking("apple")).toMatchObject({ key: "mobile.sign_in.link_unmatched.apple", kind: "form", code: "identity_unmatched" });
+    expect(unmatchedWhileLinking("google").key).toBe("mobile.sign_in.link_unmatched.google");
   });
 });
 
