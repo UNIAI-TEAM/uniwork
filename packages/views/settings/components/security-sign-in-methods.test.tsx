@@ -556,6 +556,32 @@ describe("SignInMethodsSection", () => {
     ]);
   });
 
+  it("asks for a proof once the link's own has run out, then sends the move with it", async () => {
+    let links = 0;
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "GET /api/v1/auth/sign-in-ticket": APPLE_TICKET,
+      "POST /api/v1/me/step-up": GRANT,
+      "POST /api/v1/auth/sign-in-ticket/link": () => {
+        links += 1;
+        return links === 1
+          ? Promise.reject(new ApiError("proof", "proof_required", 403, undefined, { proofs: ["password"] }))
+          : CHANGE({ ...METHODS, apple: { ...METHODS.apple, linked: true } });
+      },
+    });
+    open("/settings?tab=security&sign_in_method=apple&result=movable");
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Chuyển sang đây" }));
+    const dialog = await proofDialog();
+    fireEvent.change(dialog.getByLabelText("Mật khẩu hiện tại"), { target: { value: "password123" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Xác nhận" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã chuyển Apple sang tài khoản này."));
+    expect(calls("POST /api/v1/auth/sign-in-ticket/link").map(([, o]) => (o as { body?: unknown }).body)).toEqual([
+      { move: true },
+      { move: true, step_up_token: "sut-1" },
+    ]);
+  });
+
   it("drops the move when the proof the server asked for is closed", async () => {
     route({
       "GET /api/v1/me/sign-in-methods": METHODS,
