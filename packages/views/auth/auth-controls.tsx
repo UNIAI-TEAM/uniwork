@@ -42,18 +42,30 @@ export function AuthSubmit({
   pendingLabel: string;
   children: ReactNode;
 }) {
+  // Held back by the caller (a wait the server set), not busy: the pill's
+  // full-strength busy look would invite a press that does nothing, so it
+  // dims like any unavailable action and the arrow stops answering hover.
+  const blocked = !pending && Boolean(props["aria-disabled"]);
   return (
     <Button
       type="submit"
       size="lg"
       {...props}
-      className={cn(AUTH_PILL, "group/submit justify-between pl-6 pr-1.5", className)}
+      className={cn(
+        AUTH_PILL,
+        "group/submit justify-between pl-6 pr-1.5",
+        blocked && "aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
+        className,
+      )}
       aria-disabled={pending || props["aria-disabled"] || undefined}
     >
       <span>{pending ? pendingLabel : children}</span>
       <span
         aria-hidden
-        className="flex size-9 items-center justify-center rounded-full bg-primary-foreground text-primary transition-transform duration-(--duration-standard) ease-out-quart group-hover/submit:translate-x-0.5 motion-reduce:transition-none"
+        className={cn(
+          "flex size-9 items-center justify-center rounded-full bg-primary-foreground text-primary transition-transform duration-(--duration-standard) ease-out-quart motion-reduce:transition-none",
+          !blocked && "group-hover/submit:translate-x-0.5",
+        )}
       >
         {pending ? (
           <Spinner strokeWidth={1.75} />
