@@ -9,7 +9,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TextInput, View } from "react-native";
 import { useOpenWebPage } from "@/components/settings/use-open-web-page";
-import { emailError, passwordError, type FieldError } from "@/lib/sign-in-form";
+import { emailError, passwordError, type FieldProblem } from "@uniwork/core/auth/sign-in-form";
 import { AuthField, PasswordField } from "./auth-field";
 import { FormAlert, SubmitButton, TextButton } from "./auth-layout";
 import type { SignInResult } from "./use-sign-in";
@@ -31,7 +31,7 @@ export function LoginForm({ busy, message, spoken = null, waiting = false, onSub
   const openWebPage = useOpenWebPage();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<{ email?: FieldError | null; password?: FieldError | null }>({});
+  const [errors, setErrors] = useState<{ email?: FieldProblem | null; password?: FieldProblem | null }>({});
   const emailInput = useRef<TextInput>(null);
   const passwordInput = useRef<TextInput>(null);
   const idle = busy === null;
@@ -51,7 +51,7 @@ export function LoginForm({ busy, message, spoken = null, waiting = false, onSub
     }
   };
 
-  const say = (error: FieldError | null | undefined) => (error ? t(error.key, error.values) : null);
+  const say = (error: FieldProblem | null | undefined) => (error ? t(error.key, error.values) : null);
 
   return (
     <View className="gap-4">

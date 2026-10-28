@@ -11,7 +11,7 @@ import { StyleSheet, TextInput, View } from "react-native";
 import { FieldNote } from "./auth-field";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
-import { CODE_LENGTH, codeDigits } from "@/lib/sign-in-form";
+import { CODE_LENGTH, codeDigits } from "@uniwork/core/auth/sign-in-form";
 import { THEME } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 

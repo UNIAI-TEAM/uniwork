@@ -12,7 +12,7 @@ import { SignInLegalNote } from "@/components/settings/sign-in-legal-note";
 import { Text } from "@/components/ui/text";
 import { clearChoice, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { useAuthStore } from "@/data/auth/store";
-import { displayNameError } from "@/lib/sign-in-form";
+import { displayNameError } from "@uniwork/core/auth/sign-in-form";
 import { signInRoutes } from "@/lib/sign-in-routes";
 import { AuthField } from "./auth-field";
 import { AuthHeading, AuthLayout, FormAlert, SubmitButton, TextButton } from "./auth-layout";

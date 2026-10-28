@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { TextInput, View } from "react-native";
 import { clearSecondFactor, usePendingSignIn } from "@/data/auth/pending-sign-in";
 import { useAuthStore } from "@/data/auth/store";
-import { CODE_LENGTH } from "@/lib/sign-in-form";
+import { CODE_LENGTH } from "@uniwork/core/auth/sign-in-form";
 import { signInRoutes } from "@/lib/sign-in-routes";
 import { AuthField } from "./auth-field";
 import { AuthHeading, SubmitButton, TextButton } from "./auth-layout";

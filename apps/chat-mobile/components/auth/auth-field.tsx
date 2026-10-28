@@ -17,7 +17,7 @@ import { useTapTarget } from "@/components/ui/tap-target";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { minTouchTarget } from "@/lib/platform-ui";
-import { PASSWORD_MIN } from "@/lib/sign-in-form";
+import { PASSWORD_MIN } from "@uniwork/core/auth/sign-in-form";
 import { THEME } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 

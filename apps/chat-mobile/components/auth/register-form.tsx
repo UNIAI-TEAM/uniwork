@@ -5,7 +5,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { TextInput, View } from "react-native";
-import { PASSWORD_MIN, displayNameError, emailError, passwordError, type FieldError } from "@/lib/sign-in-form";
+import { PASSWORD_MIN, displayNameError, emailError, passwordError, type FieldProblem } from "@uniwork/core/auth/sign-in-form";
 import { AuthField, PasswordField } from "./auth-field";
 import { FormAlert, SubmitButton } from "./auth-layout";
 import type { SignInResult } from "./use-sign-in";
@@ -26,7 +26,7 @@ export function RegisterForm({ busy, message, spoken = null, waiting = false, on
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<Partial<Record<Field, FieldError | null>>>({});
+  const [errors, setErrors] = useState<Partial<Record<Field, FieldProblem | null>>>({});
   const inputs = { name: useRef<TextInput>(null), email: useRef<TextInput>(null), password: useRef<TextInput>(null) };
   const idle = busy === null;
 
@@ -48,7 +48,7 @@ export function RegisterForm({ busy, message, spoken = null, waiting = false, on
     set(value);
     setErrors((current) => ({ ...current, [field]: null }));
   };
-  const say = (error: FieldError | null | undefined) => (error ? t(error.key, error.values) : null);
+  const say = (error: FieldProblem | null | undefined) => (error ? t(error.key, error.values) : null);
 
   return (
     <View className="gap-4">

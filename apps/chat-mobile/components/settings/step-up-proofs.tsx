@@ -13,7 +13,7 @@ import { CodeField } from "@/components/auth/code-field";
 import { ProviderButton } from "@/components/auth/provider-buttons";
 import { useCountdown } from "@/components/auth/use-countdown";
 import { Text } from "@/components/ui/text";
-import { CODE_LENGTH } from "@/lib/sign-in-form";
+import { CODE_LENGTH } from "@uniwork/core/auth/sign-in-form";
 
 /** The brands' own words on their buttons (Google's branding allows "Continue with Google"); the sheet says why. */
 const CONTINUE_WITH: Record<SignInProvider, string> = {

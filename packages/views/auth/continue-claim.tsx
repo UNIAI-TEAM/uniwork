@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { MailCheck } from "lucide-react";
 import { useSendSignInEmailClaim, useVerifySignInEmailClaim } from "@uniwork/core/auth";
 import { readSignInFailure, sentenceValues } from "@uniwork/core/auth/sign-in-errors";
+import { CODE_LENGTH, emailError } from "@uniwork/core/auth/sign-in-form";
 import { isMFAChallenge, type SessionResponse } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
@@ -15,11 +16,8 @@ import { AUTH_INPUT, AUTH_PILL, AUTH_PILL_HELD, AuthSubmit, DIGITS_ONLY } from "
 import { AuthShell } from "./auth-shell";
 import { FailureNotice, useFailure, useSecondsLeft, useWaitPhrase } from "./continue-parts";
 
-const CODE_LENGTH = 6;
 /** The server's resend gap for one pending sign-in (spec §3.2); a 429 names the true wait. */
 const RESEND_SECONDS = 60;
-/** Enough to catch a missing "@" or domain before the round trip; the server is the judge. */
-const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** What the code step hands back: a session, or the second factor the account still asks for. */
 export type ClaimOutcome = { session: SessionResponse } | { mfaToken: string; email: string };
@@ -100,9 +98,9 @@ function ClaimEmailStep({
     // aria-disabled keeps the button reachable (and Enter still submits), so the guard is here.
     if (send.isPending || waiting) return;
     const trimmed = email.trim();
-    const problem = !trimmed ? t("auth.emailRequired") : EMAIL_SHAPE.test(trimmed) ? null : t("auth.emailInvalid");
+    const problem = emailError(email);
     if (problem) {
-      setClientError(problem);
+      setClientError(t(problem.key));
       inputRef.current?.focus();
       return;
     }

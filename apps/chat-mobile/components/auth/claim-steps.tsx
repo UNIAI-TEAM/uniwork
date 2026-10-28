@@ -9,7 +9,7 @@ import { useAnnounce } from "@/components/ui/a11y";
 import { Text } from "@/components/ui/text";
 import { useSendClaimCode } from "@/data/mutations/sign-in";
 import { signInFailureOf } from "@/lib/sign-in-failure";
-import { CODE_LENGTH, emailError } from "@/lib/sign-in-form";
+import { CODE_LENGTH, emailError } from "@uniwork/core/auth/sign-in-form";
 import { AuthField } from "./auth-field";
 import { AuthHeading, SubmitButton, TextButton } from "./auth-layout";
 import { CodeField } from "./code-field";

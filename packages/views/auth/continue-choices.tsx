@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 import type { SignInTicket } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { useCreateFromSignInTicket, useDiscardSignInTicket, useLogout } from "@uniwork/core/auth";
 import { readSignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import { displayNameError } from "@uniwork/core/auth/sign-in-form";
 import { paths } from "@uniwork/core/paths";
 import { isMFAChallenge, type MFAChallenge, type SessionResponse, type User } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -28,9 +29,6 @@ import {
 import { MFAStep } from "./mfa-step";
 import { useSessionNotices } from "./session-notices";
 import { providerStartUrl } from "./social-sign-in";
-
-/** The server's cap on a display name (maxDisplayNameRunes), counted in characters as it counts them. */
-const NAME_MAX = 100;
 
 type Step = { at: "choices" } | { at: "name" } | { at: "claim" } | { at: "mfa"; token: string; email: string | null };
 
@@ -376,11 +374,8 @@ function CreateNameStep({
     e.preventDefault();
     if (pending) return;
     const folded = name.trim().split(/\s+/).filter(Boolean).join(" ");
-    const problem = !folded
-      ? t("auth.continue.create.displayNameRequired")
-      : [...folded].length > NAME_MAX
-        ? t("auth.continue.create.displayNameTooLong", { max: NAME_MAX })
-        : null;
+    const slip = displayNameError(folded);
+    const problem = slip ? t(slip.key, slip.values) : null;
     if (problem) {
       setError(problem);
       inputRef.current?.focus();
