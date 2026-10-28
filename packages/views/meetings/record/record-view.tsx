@@ -167,7 +167,9 @@ export function MeetingRecordView({
   // Fail closed (spec D5): a meeting, capability or roster that cannot be read is no permission to record.
   // Only before it was ever read: a failed refetch keeps its data and must never end a recording under way.
   const unreadable = [meetingQuery, caps, roster].some((q) => q.isError && q.data === undefined);
-  const refused = unreadable || (settled && !canRecord && state === "idle");
+  // The server takes a recording only of a meeting it can still end; `?send=1` sends what an ended one left.
+  const closed = !send && (meeting?.status === "ENDED" || meeting?.status === "CANCELED");
+  const refused = unreadable || (settled && (!canRecord || closed) && state === "idle");
   useEffect(() => {
     if (refused) back.current();
   }, [refused]);

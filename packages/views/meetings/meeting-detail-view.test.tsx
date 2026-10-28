@@ -603,6 +603,17 @@ describe("MeetingDetailView › a recording left on this device (UNI-2247)", () 
     expect(screen.getByText("Đang diễn ra")).toBeInTheDocument();
   });
 
+  it("a recording that runs past the planned end does not read as missed", async () => {
+    await store();
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const late = inPerson({ starts_at: iso(DEMO_NOW - 2 * 3_600_000), ends_at: iso(DEMO_NOW - 3_600_000) });
+    open("m3", { extra: late, props: { onRecord: vi.fn() } });
+    const row = await strip();
+    expect(await within(row).findByRole("button", { name: "Kết thúc và gửi" })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: "Đặt lại lịch" })).not.toBeInTheDocument();
+    expect(screen.getByText("Đang diễn ra")).toBeInTheDocument();
+  });
+
   it("another account on this device sees none of it", async () => {
     await store({ userId: demo.users.minh.id });
     open("m3", { extra: inPerson(), props: { onRecord: vi.fn() } });

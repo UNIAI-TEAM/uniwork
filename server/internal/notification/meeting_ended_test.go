@@ -251,3 +251,37 @@ func TestInPersonMeetingEndedSendsNoSummaryReminder(t *testing.T) {
 		})
 	}
 }
+
+// With auto summaries off no transcription ever queues one, so the end of an
+// in-person meeting reminds the host as the end of any meeting does.
+func TestInPersonMeetingEndedRemindsWhenAutoSummaryIsOff(t *testing.T) {
+	f := newFixture(t)
+	f.consumer.SetMeetingSummaries(fakeSummaries{on: true})
+	off := false
+	if _, err := f.meetings.SetMeetingSettings(f.ctx, service.Human(f.owner.ID), f.orgID, service.MeetingSettingsInput{AutoSummaryEnabled: &off}); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now().Add(time.Hour)
+	m, err := f.meetings.Create(f.ctx, f.owner.ID, f.wsID, service.CreateMeetingInput{
+		Title: "Họp trực tiếp", StartsAt: start, EndsAt: start.Add(time.Hour), Venue: service.MeetingVenueInPerson,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.meetings.AddNote(f.ctx, f.owner.ID, m.ID, "Chốt ngân sách quý."); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.meetings.RecordHeldNow(f.ctx, f.owner.ID, m.ID, 42*time.Minute, 0); err != nil {
+		t.Fatal(err)
+	}
+	f.handleLast(t, "meeting.ended")
+	got := 0
+	for _, n := range f.inbox(t, f.owner.ID) {
+		if n.Kind == KindMeetingSummaryReminder && n.ResourceID == m.ID {
+			got++
+		}
+	}
+	if got != 1 {
+		t.Fatalf("summary reminders = %d, want 1", got)
+	}
+}

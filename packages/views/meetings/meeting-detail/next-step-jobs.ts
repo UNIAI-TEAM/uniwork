@@ -151,8 +151,12 @@ function memberItems(input: StripInput): StripJob | null {
 
 /** The strip's rows, in reading order, before the cap. */
 export function nextStepJobs(input: StripInput): StripJob[] {
-  const jobs = stateJobs(input);
-  const { unsent, status } = input;
+  // In person the meeting stays SCHEDULED until it is recorded held, so past its planned end the clock reads
+  // MISSED: while it is being recorded, or a clerk may still record it, it is still before the start.
+  const recordable = input.inPerson === true && input.status === "MISSED" && (Boolean(input.unsent) || input.canRecord === true);
+  const jobs = stateJobs(recordable ? { ...input, status: "SCHEDULED" } : input);
+  const { unsent } = input;
+  const status = recordable ? "SCHEDULED" : input.status;
   if (!unsent) return jobs;
   const job: StripJob = {
     kind: "unsent",

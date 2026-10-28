@@ -139,6 +139,16 @@ func (s *MeetingService) attendanceReport(ctx context.Context, q *db.Queries, m 
 	for _, mk := range marks {
 		byMark[mk.ParticipantID] = mk
 	}
+	declined := map[string]bool{}
+	if m.Venue == MeetingVenueInPerson {
+		invs, err := q.ListMeetingInvitations(ctx, m.ID)
+		if err != nil {
+			return AttendanceReport{}, err
+		}
+		for _, inv := range invs {
+			declined[inv.ParticipantID] = inv.ResponseStatus == InviteDeclined
+		}
+	}
 	anchor := attendanceAnchor(m)
 	finalized := m.AttendanceFinalizedAt.Valid
 	rep := AttendanceReport{Meeting: m, Rows: make([]AttendanceRow, 0, len(ps))}
@@ -162,8 +172,9 @@ func (s *MeetingService) attendanceReport(ctx context.Context, q *db.Queries, m 
 				first = &f
 			}
 			row.Status, row.Source = suggestAttendance(anchor, first), AttendanceSourceSuggested
-			if m.Venue == MeetingVenueInPerson {
-				// Nobody joins a room in person: the clerk marks the absent.
+			if m.Venue == MeetingVenueInPerson && !declined[p.ID] {
+				// Nobody joins a room in person: the clerk marks the absent,
+				// and an invitee who declined is suggested absent already.
 				row.Status = AttendancePresent
 			}
 			row.JoinedAfterFinalize = finalized

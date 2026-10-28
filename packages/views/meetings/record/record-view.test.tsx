@@ -257,6 +257,9 @@ describe("MeetingRecordView", () => {
     ["the organization cannot transcribe", { transcription: false }],
     ["the viewer is not a clerk", { over: { host_user_id: "u-ha", created_by: "u-ha" } }],
     ["the meeting is online", { over: { venue: "online" } }],
+    // The server takes a recording only of a meeting it can end: one called off or ended takes none.
+    ["the meeting was called off", { over: { status: "CANCELED" } }],
+    ["the meeting has ended", { over: { status: "ENDED" } }],
     ["the capabilities cannot be read", { capsFail: true }],
     ["the roster cannot be read", { rosterFail: () => true }],
   ] as const)("sends the viewer back to the meeting when %s", async (_why, opts) => {
@@ -365,6 +368,17 @@ describe("MeetingRecordView", () => {
     expect(screen.queryByRole("button", { name: "Bắt đầu ghi âm" })).not.toBeInTheDocument();
     expect(transcriptionPosts()).toHaveLength(1);
     expect(await store.listParts(USER.id, "m1")).toEqual([]);
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it("send=1 still sends what the device holds of a meeting that has ended", async () => {
+    route({ over: { status: "ENDED" } });
+    const store = memoryRecordingStore();
+    await storedPart(store);
+    const onSent = vi.fn();
+    const onBack = renderView(store, vi.fn(), undefined, { send: true, onSent });
+    await waitFor(() => expect(onSent).toHaveBeenCalledTimes(1));
+    expect(transcriptionPosts()).toHaveLength(1);
     expect(onBack).not.toHaveBeenCalled();
   });
 

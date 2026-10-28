@@ -1840,9 +1840,17 @@ func ruleMeetingEnded(ctx context.Context, e env, ev outbox.Row, p map[string]st
 	// An in-person meeting ends before its recording's parts upload: their
 	// transcription queues the summary, so a nudge to summarize by hand now
 	// would read the notes alone and keep the recording out. A failed auto
-	// run still reminds.
+	// run still reminds; with auto summaries off nothing queues one, so the
+	// end reminds as it does for any meeting.
 	if ev.Topic == "meeting.ended" && m.Venue == service.MeetingVenueInPerson {
-		return nil, nil
+		set, err := e.q.GetMeetingSettings(ctx, m.OrganizationID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		// No row is the default: on.
+		if err != nil || set.AutoSummaryEnabled {
+			return nil, nil
+		}
 	}
 	if !e.summaries.SummaryAvailable(ctx, m.OrganizationID) {
 		return nil, nil

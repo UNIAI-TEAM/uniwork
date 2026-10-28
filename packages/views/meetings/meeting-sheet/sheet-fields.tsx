@@ -144,10 +144,9 @@ export function SheetFields(p: SheetFieldsProps) {
         ) : null}
       </div>
 
-      {/* Recording in the room needs transcription; a meeting already in person keeps its venue in view. */}
-      {p.caps?.transcription === true || snapshot.venue === "in_person" ? (
-        <MeetingVenuePicker className="mt-6" value={draft.venue} onChange={(venue) => patch({ venue })} readOnly={p.readOnly || Boolean(p.live)} />
-      ) : null}
+      {/* No flag (spec D5): without recording, an in-person meeting is recorded held by hand. */}
+      <MeetingVenuePicker className="mt-6" value={draft.venue} onChange={(venue) => patch({ venue })} readOnly={p.readOnly || Boolean(p.live)} />
+
 
       <div className="mt-6">
         {p.live ? (

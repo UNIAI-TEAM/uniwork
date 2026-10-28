@@ -312,8 +312,9 @@ export function MeetingDetailView({
               <DetailHeader
                 meeting={meeting}
                 status={status}
-                // A recording on this device says the meeting is under way before anyone recorded it held (board p11).
-                statusOverride={status === "SCHEDULED" && inPersonStrip.unsent ? "IN_PROGRESS" : undefined}
+                // A recording on this device says the meeting is under way before anyone recorded it held (board p11),
+                // past its planned end too, where the clock alone would read it MISSED.
+                statusOverride={(status === "SCHEDULED" || status === "MISSED") && inPersonStrip.unsent ? "IN_PROGRESS" : undefined}
                 now={now}
                 menu={isPhone ? null : menuNode}
               />

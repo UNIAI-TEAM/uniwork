@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { listMeetingTranscriptions } from "../../api/endpoints/meeting-transcriptions";
 import { getMeeting } from "../../api/endpoints/meetings";
 import { ApiError, errorCode } from "../../api/http";
 import type { Meeting } from "../../types/meeting";
@@ -26,11 +27,15 @@ const secondsBetween = (from: number, to: number): number => Math.round((to - fr
 /** While waiting, send again after 10 s, then 30 s, then every 60 s (the `online` event may never come). */
 const WAIT_RETRY_MS = [10_000, 30_000, 60_000];
 
+/** The part's file name: unique per part, so the server's transcription of it carries the name back. */
+function partName(part: RecordingPart): string {
+  const type = part.mimeType || "audio/webm";
+  return `ghi-am-${part.id}.${type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm"}`;
+}
+
 /** Name and lastModified come from the part, so the File rebuilt after a reload has the same upload key. */
 function partFile(part: RecordingPart, blob: Blob): File {
-  const type = part.mimeType || "audio/webm";
-  const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
-  return new File([blob], `ghi-am-${part.id}.${ext}`, { type, lastModified: part.startedAt });
+  return new File([blob], partName(part), { type: part.mimeType || "audio/webm", lastModified: part.startedAt });
 }
 
 /** fetch rejects with a TypeError when the network drops; an answer from the server never reads as one. */
@@ -117,10 +122,35 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
         // Both lengths on this device's clock, so a send hours later keeps the meeting's own time on the server.
         await recordHeld(secondsBetween(base, end), Math.max(0, secondsBetween(end, Date.now())));
       }
+      // A part queued before its answer was lost and the page reloaded: a new upload would get a new file id the
+      // server cannot match, so only the name says it is there already. A failed transcription is sent again.
+      const queuedNames = new Set(
+        parts.length === 0
+          ? []
+          : (
+              await qc.fetchQuery({
+                queryKey: meetingKeys.transcriptions(meeting.id),
+                queryFn: () => listMeetingTranscriptions(meeting.id),
+                staleTime: 0,
+              })
+            )
+              .filter((t) => t.status !== "FAILED")
+              .map((t) => t.filename),
+      );
+      const markSent = async (part: RecordingPart) => {
+        await store.deletePart(part.id);
+        sent.current = { bytes: sent.current.bytes + part.bytes, seconds: sent.current.seconds + audioSeconds(part) };
+        setTotals((t) => ({ ...t, doneBytes: sent.current.bytes, currentBytes: 0 }));
+        void qc.invalidateQueries({ queryKey: ["meeting-recordings-local", userId] });
+      };
       // Largest first: a summary queued when the first part completes then covers most of the meeting.
       // shortcut: after an offline pause that follows the largest part, the summary may miss the small fragments; redo it on the last part when that matters.
       for (const part of [...parts].sort((a, b) => b.bytes - a.bytes)) {
         if (stopped.current) break;
+        if (queuedNames.has(partName(part))) {
+          await markSent(part);
+          continue;
+        }
         setPhase("uploading");
         const file = inFlight.current?.id === part.id ? inFlight.current.file : partFile(part, await store.readPart(part.id));
         inFlight.current = { id: part.id, file };
@@ -140,10 +170,7 @@ export function useSendRecording(opts: { workspaceId: string; meeting: Meeting; 
           // The queue request reached the server but its answer was lost: a fresh upload's file can only collide with itself.
           if (errorCode(err) !== "transcription_in_progress") throw err;
         }
-        await store.deletePart(part.id);
-        sent.current = { bytes: sent.current.bytes + part.bytes, seconds: sent.current.seconds + seconds };
-        setTotals((t) => ({ ...t, doneBytes: sent.current.bytes, currentBytes: 0 }));
-        void qc.invalidateQueries({ queryKey: ["meeting-recordings-local", userId] });
+        await markSent(part);
       }
       setPhase(stopped.current ? "idle" : "done");
       setWaits(0);
