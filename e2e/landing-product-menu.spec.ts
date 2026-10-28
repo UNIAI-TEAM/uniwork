@@ -80,6 +80,11 @@ test("create, search and save stay inside the demo across view switches", async 
   await expect(panel.locator(".product-demo-created-meetings")).toHaveText("Review giao diện · 2026-10-20 · 15:30");
   const search = stage.getByRole("searchbox", { name: "Tìm trong sản phẩm…" });
   await search.fill("tài liệu");
+  // Escape closes only the results and leaves focus on the input.
+  await expect(stage.locator(".product-demo-search-results")).toBeVisible();
+  await search.press("Escape");
+  await expect(stage.locator(".product-demo-search-results")).toHaveCount(0);
+  await expect(search).toBeFocused();
   await search.press("Enter");
   await expect(stage.locator('[data-feature="documents"]')).toHaveAttribute("aria-selected", "true");
   await panel.getByRole('region', { name: vi.documents.home.quick_create.label }).getByRole('button').first().click();
