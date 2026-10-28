@@ -74,7 +74,7 @@ describe("UniChatLoginGate", () => {
     const steps = Array.from(host.querySelectorAll("ol li")).map((li) => li.textContent?.replace(/^\d/, ""));
     expect(steps).toEqual([
       "The browser opened the UniWork sign-in page",
-      "Choose “Allow desktop app” there",
+      'Choose "Allow desktop app" there',
       "Come back here: UniChat opens your conversations",
     ]);
     const cancel = Array.from(host.querySelectorAll("button")).find((b) => b.textContent === "Cancel") ?? null;
@@ -86,7 +86,7 @@ describe("UniChatLoginGate", () => {
     login.mockRejectedValueOnce(new Error("keyring unavailable"));
     await act(async () => root.render(<UniChatLoginGate />));
     await click(button());
-    expect(host.querySelector('[role="alert"]')?.textContent).toBe("Could not open the browser to sign in. Try again.");
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("Couldn't open the browser to sign in. Try again.");
     expect(button()?.textContent).toBe("Sign in");
 
     await click(button());

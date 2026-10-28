@@ -426,7 +426,7 @@
     "desktop": {
       "eyebrow": "Desktop sign-in",
       "title": "Allow {{app}} to sign in?",
-      "description": "Check the app and device details before continuing. This approval is valid for this device only.",
+      "description": "Check the app and device details before you continue. This approval only applies to this device.",
       "app": "App",
       "device": "Device",
       "account": "Account",
@@ -440,24 +440,24 @@
       "resultTitle": "Desktop sign-in result",
       "approved": "Allowed {{app}} to sign in",
       "cancelledResult": "Desktop sign-in was cancelled.",
-      "errorResult": "The desktop sign-in request could not be completed. Try again.",
+      "errorResult": "Couldn't finish the desktop sign-in. Try again.",
       "expired": "This desktop sign-in request has expired.",
       "openDesktop": "Open {{app}}",
       "closeTab": "You can close this tab.",
-      "accountUnknown": "Account name unavailable",
-      "emailUnknown": "Email unavailable",
+      "accountUnknown": "UniWork account",
+      "emailUnknown": "No email",
       "libraryWorkspace": "Document library",
       "unichat_login_title": "Welcome to UniChat",
       "unichat_login_hint": "Message and call your team, right from your desktop.",
       "unichat_login_button": "Sign in",
       "unichat_login_waiting": "Finish signing in with the browser that just opened.",
       "unichat_login_reopen": "Open browser again",
-      "unichat_login_failed": "Could not open the browser to sign in. Try again.",
+      "unichat_login_failed": "Couldn't open the browser to sign in. Try again.",
       "unichat_login_feature_chats": "Direct messages, groups and every workspace's channels in one place",
       "unichat_login_feature_calls": "Voice and video calls, and screen sharing",
       "unichat_login_feature_uni": "UNI sums up your unread messages and calls",
       "unichat_login_step_opened": "The browser opened the UniWork sign-in page",
-      "unichat_login_step_allow": "Choose “Allow desktop app” there",
+      "unichat_login_step_allow": "Choose \"Allow desktop app\" there",
       "unichat_login_step_return": "Come back here: UniChat opens your conversations",
       "unichat_login_cancel": "Cancel",
       "unichat_login_version": "UniChat {{version}}",
@@ -573,14 +573,14 @@
       "divider": "or use email",
       "groupLabel": "Sign in with Google or Apple",
       "signingIn": "Signing you in…",
-      "reclaimed": "Your account is yours again. The old password (set before the email was verified) has been removed.",
+      "reclaimed": "You've taken back your account. The old password, set before your email was verified, has been removed.",
       "provider": {
         "google": "Google",
         "apple": "Apple"
       },
       "linkSkipped": {
-        "generic": "You're signed in, but the sign-in method you just used isn't linked yet. Try again in Settings › Security.",
-        "withProvider": "You're signed in, but {{provider}} isn't linked yet. Try again in Settings › Security."
+        "generic": "You're signed in, but the sign-in method you just used couldn't be linked. Try again in Settings › Security.",
+        "withProvider": "You're signed in, but {{provider}} couldn't be linked. Try again in Settings › Security."
       },
       "retry": {
         "later": "Wait a moment, then try again.",
@@ -593,25 +593,25 @@
       },
       "errors": {
         "generic": "Couldn't sign you in. Try again.",
-        "network": "Can't connect. Check your connection and try again.",
+        "network": "Couldn't connect. Check your connection and try again.",
         "server": "UniWork is having trouble. Try again in a few minutes.",
         "session_ended": "Your session ended. Sign in again to continue.",
         "invalid_credentials": "That email or password isn't right.",
-        "second_factor_invalid": "That code is wrong or this sign-in expired. Try again, or start over.",
-        "second_factor_locked": "Two-factor authentication is paused after too many wrong codes.",
+        "second_factor_invalid": "That code isn't right, or this sign-in expired. Try again, or start over.",
+        "second_factor_locked": "Two-factor authentication is temporarily locked after too many wrong codes.",
         "rate_limited": "Too many tries in a row.",
         "provider_token_invalid": "Couldn't confirm the account you chose. Try again.",
-        "provider_unavailable": "This sign-in method is turned off right now. Use another one.",
-        "native_unavailable": "Signing in inside the app is turned off right now. Sign in through the browser.",
-        "email_taken": "This email already has an account. Sign in, or choose \"Forgot password?\".",
-        "register_invalid": "Check your email. Passwords need at least 8 characters.",
+        "provider_unavailable": "This sign-in method isn't available right now. Use another one.",
+        "native_unavailable": "Signing in from the app isn't available right now. Sign in with your browser.",
+        "email_taken": "This email already has an account. Sign in, or reset your password if you forgot it.",
+        "register_invalid": "Check the email address. Passwords need at least 8 characters.",
         "google_denied": "You cancelled the Google sign-in.",
         "google_failed": "Couldn't sign in with Google. Try again, or use your email.",
         "google_unverified": "Google hasn't verified this account's email. Use another Google account, or sign in with email.",
         "apple_denied": "You cancelled the Apple sign-in.",
         "apple_failed": "Couldn't sign in with Apple. Try again, or use your email.",
-        "sign_in_conflict": "This email already has a UniWork account that signs in another way. Sign in that way.",
-        "sign_in_unverified": "This account has no verified email. Use another sign-in method.",
+        "sign_in_conflict": "This email already has a UniWork account with another sign-in method. Sign in with that method.",
+        "sign_in_unverified": "This account's email isn't verified. Use another sign-in method.",
         "sign_in_account_unverified": "This email has a UniWork account that was never verified. Choose \"Forgot password?\" to get a link by email and take the account back.",
         "sign_in_failed": "Sign-in didn't finish. Try again."
       }
@@ -619,7 +619,7 @@
     "apple": {
       "relayEmail": "Apple's hidden email",
       "hideMyEmail": "Hide My Email",
-      "relayHint": "You chose Hide My Email: Apple forwards mail from this address to your real inbox.",
+      "relayHint": "You chose Hide My Email: Apple forwards mail sent to this address to your real inbox.",
       "signingIn": "Signing in with Apple…"
     },
     "continue": {
@@ -628,13 +628,13 @@
       "description": "This {{provider}} account isn't linked to any UniWork account yet.",
       "identityLabel": "{{provider}} account",
       "choicesLabel": "Choose how to continue",
-      "relayHint": "Invited by your organization at a work email? Choose \"I was invited at another email\".",
+      "relayHint": "Did your organization invite your work email? Choose \"I was invited with another email\".",
       "existing": {
         "title": "I already have a UniWork account",
         "body": "Sign in once to link {{provider}}. Next time, {{provider}} is all you need."
       },
       "invited": {
-        "title": "I was invited at another email",
+        "title": "I was invited with another email",
         "body": "Use the work email your organization invited."
       },
       "create": {
@@ -662,7 +662,7 @@
         "send": "Send code",
         "sending": "Sending code…",
         "codeTitle": "Enter the code",
-        "codeBody": "Enter the 6-digit code we sent to {{email}}. It works for 15 minutes.",
+        "codeBody": "Enter the 6-digit code we sent to {{email}}. It expires in 15 minutes.",
         "codeLabel": "Confirmation code",
         "verify": "Continue",
         "verifying": "Checking the code…",
@@ -706,20 +706,20 @@
         "mfaSubtitle": "Sign in to {{email}} to link {{provider}}."
       },
       "expired": {
-        "title": "This sign-in expired",
-        "body": "This sign-in expired or is already done. Start again from the sign-in page.",
-        "bodyProvider": "Your {{provider}} sign-in expired.",
+        "title": "This sign-in has expired",
+        "body": "This sign-in has expired or was already completed. Start again from the sign-in page.",
+        "bodyProvider": "Your {{provider}} sign-in has expired.",
         "retry": "Try again"
       },
       "cancel": "Cancel",
       "cancelling": "Cancelling…",
       "errors": {
         "generic": "Couldn't finish this step. Try again.",
-        "expired": "This sign-in expired. Start again.",
+        "expired": "This sign-in has expired. Start again.",
         "channel": "This sign-in belongs to another device. Start again here.",
-        "conflict": "This email just got an account. Sign in to link.",
+        "conflict": "An account was just created with this email. Sign in to link it.",
         "invalidEmail": "That email doesn't look right.",
-        "invalidCode": "That code is wrong or expired. Try again, or send a new one.",
+        "invalidCode": "That code isn't right or has expired. Try again, or send a new one.",
         "tooManyCodes": "Codes for this address are paused."
       }
     }
@@ -1924,7 +1924,7 @@
       },
       "signInMethods": {
         "title": "Sign-in methods",
-        "description": "The ways you get into UniWork on the web, your computer and your phone.",
+        "description": "How you sign in to UniWork on the web, your computer and your phone.",
         "loadError": "Couldn't load your sign-in methods.",
         "retry": "Try again",
         "badge": {
@@ -1946,17 +1946,17 @@
           "changeAction": "Change password",
           "setTitle": "Set a password",
           "setDescription": "You'll sign in with {{email}} and this password.",
-          "setDescriptionRelay": "You'll sign in with the Apple hidden email below and this password.",
+          "setDescriptionRelay": "You'll sign in with Apple's hidden email below and this password.",
           "copyEmail": "Copy email",
           "emailCopied": "Email copied",
           "changeTitle": "Change password",
           "signsOutOthers": "Your other devices will be signed out.",
           "current": "Current password",
           "new": "New password",
-          "confirm": "Repeat the new password",
+          "confirm": "Confirm new password",
           "hint": "At least {{min}} characters",
           "tooShort": "Passwords need at least 8 characters.",
-          "mismatch": "The two passwords don't match.",
+          "mismatch": "The passwords don't match.",
           "currentRequired": "Enter your current password.",
           "currentIncorrect": "That isn't your current password.",
           "save": "Save password",
@@ -1977,7 +1977,7 @@
         },
         "reasons": {
           "last": "This is your only way to sign in. Set a password or link another method first.",
-          "relay": "Your sign-in email is Apple's hidden email, so Apple has to stay."
+          "relay": "Your account email is Apple's hidden email, so Apple can't be unlinked."
         },
         "unlink": {
           "title": "Unlink {{provider}}?",
@@ -2008,7 +2008,7 @@
           "already_linked": "This account already has another {{provider}} account linked. Unlink that one first, then try again.",
           "session_mismatch": "This browser just signed in to another account. Sign in to the right account and try again."
         },
-        "browserOtherAccount": "This browser is signed in as {{other}}, UniChat uses {{me}}.",
+        "browserOtherAccount": "This browser is signed in as {{other}}, but UniChat uses {{me}}.",
         "browserOtherAccountHint": "Sign out in the browser and sign in as {{me}} to link the right account.",
         "errors": {
           "generic": "Couldn't save the change. Try again.",
@@ -2016,7 +2016,7 @@
           "takenUnknown": "This sign-in method is used by another UniWork account. Sign in there and unlink it first.",
           "movable": "This sign-in method is used by an empty account, {{masked}}. Move it to this account?",
           "movableUnknown": "This sign-in method is used by an empty account. Move it to this account?",
-          "alreadyLinked": "This account already has another account of that kind linked. Unlink it first, then try again.",
+          "alreadyLinked": "Another account of this kind is already linked. Unlink it first, then try again.",
           "emailUnverified": "Verify your email first, then link.",
           "sessionMismatch": "This browser just signed in to another account. Sign in to the right account and try again.",
           "notConfigured": "This sign-in method isn't turned on for your UniWork."
@@ -2053,8 +2053,8 @@
           "send": "Send a code to {{email}}",
           "sendRelay": "Send a code to Apple's hidden email",
           "sending": "Sending code…",
-          "sent": "We sent a code to {{email}}. It works for 10 minutes.",
-          "sentRelay": "We sent a code to Apple's hidden email. It works for 10 minutes.",
+          "sent": "We sent a code to {{email}}. It expires in 10 minutes.",
+          "sentRelay": "We sent a code to Apple's hidden email. It expires in 10 minutes.",
           "label": "Code from the email",
           "required": "Enter the 6-digit code from the email.",
           "resend": "Resend code",
@@ -2067,7 +2067,7 @@
           "google": "Confirm with Google",
           "hint": "Choose the {{provider}} account you linked."
         },
-        "useAnother": "Use another way",
+        "useAnother": "Try another way",
         "submit": "Confirm",
         "submitting": "Confirming…",
         "cancel": "Cancel",
@@ -2076,9 +2076,9 @@
           "proofRequired": "Confirm it's you to continue.",
           "passwordIncorrect": "That password isn't right. Try again.",
           "totpIncorrect": "That code isn't right. Enter a new one from the app.",
-          "emailCodeIncorrect": "That code is wrong or expired. Try again, or send a new one.",
-          "providerInvalid": "That isn't the account you linked. Try again, or use another way.",
-          "locked": "Confirming is paused after too many wrong tries.",
+          "emailCodeIncorrect": "That code isn't right or has expired. Try again, or send a new one.",
+          "providerInvalid": "That isn't the account you linked. Choose the linked account, or try another way.",
+          "locked": "Confirming is temporarily locked after too many wrong tries.",
           "tooManyCodes": "Sending codes to your email is paused."
         }
       }

@@ -457,7 +457,7 @@
       "unichat_login_feature_calls": "Gọi thoại, gọi video và chia sẻ màn hình",
       "unichat_login_feature_uni": "UNI tóm tắt tin chưa đọc và cuộc gọi cho bạn",
       "unichat_login_step_opened": "Trình duyệt đã mở trang đăng nhập UniWork",
-      "unichat_login_step_allow": "Bấm “Cho phép ứng dụng desktop” trên trang đó",
+      "unichat_login_step_allow": "Bấm \"Cho phép ứng dụng desktop\" trên trang đó",
       "unichat_login_step_return": "Quay lại đây, UniChat tự mở cuộc trò chuyện",
       "unichat_login_cancel": "Hủy",
       "unichat_login_version": "UniChat {{version}}",
@@ -573,7 +573,7 @@
       "divider": "hoặc dùng email",
       "groupLabel": "Đăng nhập bằng Google hoặc Apple",
       "signingIn": "Đang đăng nhập…",
-      "reclaimed": "Đã lấy lại tài khoản. Mật khẩu cũ (đặt khi email chưa xác minh) đã bị xóa.",
+      "reclaimed": "Đã lấy lại tài khoản. Mật khẩu cũ, đặt khi email chưa được xác minh, đã bị xóa.",
       "provider": {
         "google": "Google",
         "apple": "Apple"
@@ -603,15 +603,15 @@
         "provider_token_invalid": "Chưa xác nhận được tài khoản vừa chọn. Thử lại.",
         "provider_unavailable": "Cách đăng nhập này đang tạm tắt. Dùng cách khác.",
         "native_unavailable": "Đăng nhập trong app đang tạm tắt. Đăng nhập bằng trình duyệt.",
-        "email_taken": "Email này đã có tài khoản. Đăng nhập, hoặc chọn \"Quên mật khẩu?\".",
-        "register_invalid": "Kiểm tra lại email. Mật khẩu cần ít nhất 8 ký tự.",
+        "email_taken": "Email này đã có tài khoản. Đăng nhập, hoặc đặt lại mật khẩu nếu bạn quên.",
+        "register_invalid": "Kiểm tra lại địa chỉ email. Mật khẩu cần ít nhất 8 ký tự.",
         "google_denied": "Bạn đã hủy đăng nhập Google.",
         "google_failed": "Chưa đăng nhập được bằng Google. Thử lại, hoặc dùng email.",
         "google_unverified": "Google chưa xác minh email của tài khoản này. Dùng tài khoản Google khác, hoặc đăng nhập bằng email.",
         "apple_denied": "Bạn đã hủy đăng nhập Apple.",
         "apple_failed": "Chưa đăng nhập được bằng Apple. Thử lại, hoặc dùng email.",
         "sign_in_conflict": "Email này đã có tài khoản UniWork dùng một cách đăng nhập khác. Đăng nhập bằng cách đó.",
-        "sign_in_unverified": "Tài khoản này chưa có email đã xác minh. Dùng cách đăng nhập khác.",
+        "sign_in_unverified": "Email của tài khoản này chưa được xác minh. Dùng cách đăng nhập khác.",
         "sign_in_account_unverified": "Email này đã có tài khoản UniWork nhưng chưa được xác minh. Chọn \"Quên mật khẩu?\" để nhận link qua email và lấy lại tài khoản.",
         "sign_in_failed": "Chưa hoàn tất đăng nhập. Thử lại."
       }
@@ -619,7 +619,7 @@
     "apple": {
       "relayEmail": "Email ẩn của Apple",
       "hideMyEmail": "Ẩn địa chỉ email",
-      "relayHint": "Bạn đã chọn Ẩn địa chỉ email: Apple chuyển thư từ địa chỉ này tới hộp thư thật của bạn.",
+      "relayHint": "Bạn đã chọn Ẩn địa chỉ email: Apple chuyển thư gửi tới địa chỉ này vào hộp thư thật của bạn.",
       "signingIn": "Đang đăng nhập bằng Apple…"
     },
     "continue": {
@@ -717,7 +717,7 @@
         "generic": "Chưa xong được bước này. Thử lại.",
         "expired": "Lượt đăng nhập này đã hết hạn. Bắt đầu lại.",
         "channel": "Lượt đăng nhập này thuộc về thiết bị khác. Bắt đầu lại ở đây.",
-        "conflict": "Email này vừa có tài khoản. Đăng nhập để liên kết.",
+        "conflict": "Email này vừa được dùng để tạo tài khoản. Đăng nhập để liên kết.",
         "invalidEmail": "Email chưa đúng định dạng.",
         "invalidCode": "Mã chưa đúng hoặc đã hết hạn. Nhập lại, hoặc gửi mã mới.",
         "tooManyCodes": "Đã tạm dừng mã xác nhận cho địa chỉ này."
@@ -1923,7 +1923,7 @@
       },
       "signInMethods": {
         "title": "Phương thức đăng nhập",
-        "description": "Những cách bạn dùng để vào UniWork trên web, máy tính và điện thoại.",
+        "description": "Cách bạn đăng nhập UniWork trên web, máy tính và điện thoại.",
         "loadError": "Không tải được phương thức đăng nhập.",
         "retry": "Thử lại",
         "badge": {
@@ -1976,7 +1976,7 @@
         },
         "reasons": {
           "last": "Đây là cách đăng nhập duy nhất. Đặt mật khẩu hoặc liên kết cách khác trước.",
-          "relay": "Email đăng nhập của bạn là email ẩn của Apple, nên cần giữ Apple."
+          "relay": "Email tài khoản của bạn là email ẩn của Apple, nên không gỡ liên kết Apple được."
         },
         "unlink": {
           "title": "Gỡ liên kết {{provider}}?",
@@ -2007,7 +2007,7 @@
           "already_linked": "Tài khoản này đã liên kết một tài khoản {{provider}} khác. Gỡ liên kết tài khoản đó trước rồi thử lại.",
           "session_mismatch": "Trình duyệt vừa đăng nhập một tài khoản khác. Đăng nhập lại đúng tài khoản rồi thử lại."
         },
-        "browserOtherAccount": "Trình duyệt đang đăng nhập {{other}}, UniChat dùng {{me}}.",
+        "browserOtherAccount": "Trình duyệt đang đăng nhập {{other}}, còn UniChat dùng {{me}}.",
         "browserOtherAccountHint": "Đăng xuất trên trình duyệt rồi đăng nhập {{me}} để liên kết đúng tài khoản.",
         "errors": {
           "generic": "Chưa lưu được thay đổi. Thử lại.",

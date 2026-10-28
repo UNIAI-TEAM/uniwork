@@ -55,7 +55,7 @@ describe("DesktopConsentView", () => {
   it.each([
     ["approved", "Allowed UniWork to sign in"],
     ["cancelled", "Desktop sign-in was cancelled."],
-    ["error", "The desktop sign-in request could not be completed. Try again."],
+    ["error", "Couldn't finish the desktop sign-in. Try again."],
     ["expired", "This desktop sign-in request has expired."],
   ] as const)("renders the %s result state", (state, expectedCopy) => {
     render(wrap(<DesktopConsentView consent={null} state={state} onDecision={vi.fn(async () => {})} />));
