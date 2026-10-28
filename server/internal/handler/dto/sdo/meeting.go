@@ -13,7 +13,10 @@ type MeetingListSDO struct {
 // draw without a request of its own.
 type MeetingListItemDTO struct {
 	MeetingDTO
-	HasPlayableRecording bool `json:"has_playable_recording" description:"Có ít nhất một bản ghi hình đã có file để xem lại"`
+	HasPlayableRecording bool     `json:"has_playable_recording" description:"Có ít nhất một bản ghi hình đã có file để xem lại"`
+	InRoomUserIDs        []string `json:"in_room_user_ids,omitempty" description:"Cuộc họp đang diễn ra: tối đa 3 user id thành viên đang trong phòng, ai vào trước đứng trước" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
+	InRoomCount          int32    `json:"in_room_count,omitempty" description:"Cuộc họp đang diễn ra: số người đang trong phòng, kể cả khách" example:"5"`
+	ScribeLive           bool     `json:"scribe_live,omitempty" description:"Cuộc họp đang diễn ra: Thư ký UNI đang ghi (lần chạy mới nhất ACTIVE)" example:"true"`
 }
 
 type MeetingDTO struct {
@@ -24,12 +27,12 @@ type MeetingDTO struct {
 	StartsAt         string `json:"starts_at" example:"2026-08-28T02:00:00Z"`
 	EndsAt           string `json:"ends_at" example:"2026-08-28T02:30:00Z"`
 	RoomName         string `json:"room_name" description:"Tên phòng opaque (legacy)" example:"uw_mtg_01J8X4MTGN1P2Q3R4S5T6U7V"`
-	CreatedBy        string `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	CreatedBy        string `json:"created_by" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
 	CreatedAt        string `json:"created_at" example:"2026-08-28T02:00:00Z"`
 	Status           string `json:"status" example:"SCHEDULED"`
 	MeetingType      string `json:"meeting_type" example:"SCHEDULED"`
 	Venue            string `json:"venue" enum:"online,in_person" description:"Hình thức: online có phòng họp; in_person ghi âm tại phòng" example:"online"`
-	HostUserID       string `json:"host_user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	HostUserID       string `json:"host_user_id" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
 	Timezone         string `json:"timezone" example:"UTC"`
 	AllowJoinRequest bool   `json:"allow_join_request"`
 	ProjectID        string `json:"project_id,omitempty"`
@@ -52,7 +55,7 @@ type MeetingDTO struct {
 type NoteDTO struct {
 	ID          string  `json:"id" example:"01J8X4NOTE1P2Q3R4S5T6U7V8"`
 	MeetingID   string  `json:"meeting_id" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
-	AuthorID    string  `json:"author_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	AuthorID    string  `json:"author_id" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
 	Body        string  `json:"body" example:"Quyết định ship vào thứ Sáu."`
 	CreatedAt   string  `json:"created_at" example:"2026-08-28T02:15:00Z"`
 	EditedAt    *string `json:"edited_at" description:"Lần sửa gần nhất; null khi chưa từng sửa" example:"2026-08-28T02:20:00Z"`
@@ -324,7 +327,7 @@ type MeetingSettingsSDO struct {
 	OrganizationID     string  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	AutoSummaryEnabled bool    `json:"auto_summary_enabled" description:"Hệ thống tự tạo tóm tắt khi cuộc họp kết thúc" example:"true"`
 	ScribePolicy       string  `json:"scribe_policy" description:"Chính sách thư ký AI: on | opt_in | off" example:"on"`
-	UpdatedBy          *string `json:"updated_by,omitempty" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedBy          *string `json:"updated_by,omitempty" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
 	UpdatedByKind      *string `json:"updated_by_kind,omitempty" description:"human, agent hoặc system" example:"human"`
 	UpdatedAt          *string `json:"updated_at,omitempty" example:"2026-10-21T09:00:00Z"`
 	// UNI-1995 #5.
@@ -571,7 +574,7 @@ type MeetingMinutesDTO struct {
 	DocumentID           *string `json:"document_id" description:"Trang UniNote của biên bản; null khi người gọi không có quyền xem trang (khi đó finalized_version_id, finalized_version cũng null và edited_since_finalized false)" example:"01J8X4DOC0N1P2Q3R4S5T6U7V8"`
 	Finalized            bool    `json:"finalized" description:"Đã chốt (có phiên bản được ghi nhận)"`
 	FinalizedAt          *string `json:"finalized_at" description:"Lúc chốt; null khi là bản nháp" example:"2026-10-20T03:00:00Z"`
-	FinalizedBy          *string `json:"finalized_by" description:"Người chốt; null khi là bản nháp" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	FinalizedBy          *string `json:"finalized_by" description:"Người chốt; null khi là bản nháp" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
 	FinalizedVersionID   *string `json:"finalized_version_id" description:"Phiên bản tài liệu đã chốt" example:"01J8X4VER0N1P2Q3R4S5T6U7V8"`
 	FinalizedVersion     *int32  `json:"finalized_version" description:"Số thứ tự phiên bản đã chốt trong lịch sử trang" example:"2"`
 	EditedSinceFinalized bool    `json:"edited_since_finalized" description:"Nội dung trang đã được lưu sau phiên bản đã chốt"`

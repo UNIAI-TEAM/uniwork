@@ -23,33 +23,50 @@ SELECT * FROM meetings WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC
 -- that differs: a SCHEDULED meeting whose window passed (ends_at < now) is
 -- MISSED, and status = 'SCHEDULED' lists only the ones that can still start.
 -- Every other value matches the stored status.
+-- A live (IN_PROGRESS) row also says who is in the room: up to three member
+-- user ids by first open-session join, everyone in it (guests included), and
+-- whether the latest scribe run is ACTIVE. Other rows skip those lookups.
 SELECT sqlc.embed(meetings),
   EXISTS (
     SELECT 1 FROM meeting_recordings r
     WHERE r.meeting_id = meetings.id AND r.file_url IS NOT NULL AND r.file_url <> ''
-  )::boolean AS has_playable_recording
+  )::boolean AS has_playable_recording,
+  (CASE WHEN meetings.status = 'IN_PROGRESS' THEN ARRAY(
+    SELECT p.user_id FROM meeting_attendance_sessions a
+    JOIN meeting_participants p ON p.id = a.participant_id
+    WHERE a.meeting_id = meetings.id AND a.left_at IS NULL AND p.user_id <> ''
+    GROUP BY p.user_id ORDER BY min(a.joined_at), p.user_id LIMIT 3
+  ) ELSE '{}' END)::text[] AS in_room_user_ids,
+  (CASE WHEN meetings.status = 'IN_PROGRESS' THEN (
+    SELECT count(DISTINCT a.participant_id) FROM meeting_attendance_sessions a
+    WHERE a.meeting_id = meetings.id AND a.left_at IS NULL
+  ) ELSE 0 END)::int AS in_room_count,
+  (meetings.status = 'IN_PROGRESS' AND COALESCE((
+    SELECT sr.status FROM meeting_scribe_runs sr
+    WHERE sr.meeting_id = meetings.id ORDER BY sr.created_at DESC, sr.id DESC LIMIT 1
+  ) = 'ACTIVE', false))::boolean AS scribe_live
 FROM meetings
-WHERE workspace_id = sqlc.arg('workspace_id')
+WHERE meetings.workspace_id = sqlc.arg('workspace_id')
   AND (sqlc.narg('status')::text IS NULL
-    OR (sqlc.narg('status') = 'MISSED' AND status = 'SCHEDULED' AND ends_at < sqlc.arg('now')::timestamptz)
-    OR (sqlc.narg('status') = 'SCHEDULED' AND status = 'SCHEDULED' AND ends_at >= sqlc.arg('now')::timestamptz)
-    OR (sqlc.narg('status') NOT IN ('SCHEDULED', 'MISSED') AND status = sqlc.narg('status')))
-  AND (sqlc.narg('meeting_type')::text IS NULL OR meeting_type = sqlc.narg('meeting_type'))
-  AND (sqlc.narg('host_user_id')::text IS NULL OR host_user_id = sqlc.narg('host_user_id'))
-  AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'))
-  AND (sqlc.narg('q')::text IS NULL OR title ILIKE '%' || sqlc.narg('q') || '%')
-  AND (sqlc.narg('from_at')::timestamptz IS NULL OR starts_at >= sqlc.narg('from_at'))
-  AND (sqlc.narg('to_at')::timestamptz IS NULL OR starts_at <= sqlc.narg('to_at'))
+    OR (sqlc.narg('status') = 'MISSED' AND meetings.status = 'SCHEDULED' AND meetings.ends_at < sqlc.arg('now')::timestamptz)
+    OR (sqlc.narg('status') = 'SCHEDULED' AND meetings.status = 'SCHEDULED' AND meetings.ends_at >= sqlc.arg('now')::timestamptz)
+    OR (sqlc.narg('status') NOT IN ('SCHEDULED', 'MISSED') AND meetings.status = sqlc.narg('status')))
+  AND (sqlc.narg('meeting_type')::text IS NULL OR meetings.meeting_type = sqlc.narg('meeting_type'))
+  AND (sqlc.narg('host_user_id')::text IS NULL OR meetings.host_user_id = sqlc.narg('host_user_id'))
+  AND (sqlc.narg('project_id')::text IS NULL OR meetings.project_id = sqlc.narg('project_id'))
+  AND (sqlc.narg('q')::text IS NULL OR meetings.title ILIKE '%' || sqlc.narg('q') || '%')
+  AND (sqlc.narg('from_at')::timestamptz IS NULL OR meetings.starts_at >= sqlc.narg('from_at'))
+  AND (sqlc.narg('to_at')::timestamptz IS NULL OR meetings.starts_at <= sqlc.narg('to_at'))
 ORDER BY
-  CASE WHEN sqlc.arg('sort') = 'actual_start_at' THEN actual_start_at END DESC NULLS LAST,
+  CASE WHEN sqlc.arg('sort') = 'actual_start_at' THEN meetings.actual_start_at END DESC NULLS LAST,
   CASE WHEN sqlc.arg('sort') = 'starts_at'
-    THEN (starts_at AT TIME ZONE sqlc.arg('tz')::text)::date < sqlc.arg('today')::date END ASC,
-  CASE WHEN sqlc.arg('sort') = 'starts_at' AND (starts_at AT TIME ZONE sqlc.arg('tz')::text)::date < sqlc.arg('today')::date
-    THEN (starts_at AT TIME ZONE sqlc.arg('tz')::text)::date END DESC NULLS LAST,
-  CASE WHEN sqlc.arg('sort') = 'starts_at' THEN starts_at END ASC,
-  CASE WHEN sqlc.arg('sort') = 'starts_at' THEN id END ASC,
-  created_at DESC,
-  id DESC
+    THEN (meetings.starts_at AT TIME ZONE sqlc.arg('tz')::text)::date < sqlc.arg('today')::date END ASC,
+  CASE WHEN sqlc.arg('sort') = 'starts_at' AND (meetings.starts_at AT TIME ZONE sqlc.arg('tz')::text)::date < sqlc.arg('today')::date
+    THEN (meetings.starts_at AT TIME ZONE sqlc.arg('tz')::text)::date END DESC NULLS LAST,
+  CASE WHEN sqlc.arg('sort') = 'starts_at' THEN meetings.starts_at END ASC,
+  CASE WHEN sqlc.arg('sort') = 'starts_at' THEN meetings.id END ASC,
+  meetings.created_at DESC,
+  meetings.id DESC
 LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
 
 -- name: CountMeetingsByWorkspaceFiltered :one
