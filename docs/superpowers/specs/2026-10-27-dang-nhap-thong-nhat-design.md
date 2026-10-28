@@ -665,7 +665,10 @@ vùng kéo cửa sổ).
   nền tảng; lượt chưa từng đọc được thì nói trung tính ("Quay lại ứng dụng và thử lại."), không đoán sản phẩm hay thiết
   bị. "Bạn có thể đóng tab này." chỉ cho lượt desktop; sheet đăng nhập của điện thoại không có tab, nên đã hủy và hết hạn
   nói "Đóng trang này để về {{app}}.". Đã cho phép có thêm "Mở {{app}}" khi có callback. Không có "Quay lại" hay "Đóng"
-  (chúng đưa người đã đăng nhập về `/login`). Bước 3 của cổng UniChat: "UniChat mở lại và vào thẳng cuộc trò chuyện". "Không phải bạn?" rồi link "Dùng tài khoản khác" (spinner + "Đang đăng xuất…" khi đang chạy) đăng xuất, rồi
+  (chúng đưa người đã đăng nhập về `/login`). Lúc tải, khung xương dùng chính chữ mà trang nhiều khả năng sẽ có (tiêu
+  đề của điện thoại khi con trỏ thô, nhãn các dòng, tên và email của tài khoản đang đăng nhập) và giữ 44px cho "Chi tiết"
+  và "Dùng tài khoản khác", nên thẻ không nhảy khi lượt tới. Bước 3 của cổng UniChat: "UniChat mở lại và vào thẳng
+  cuộc trò chuyện". "Không phải bạn?" rồi link "Dùng tài khoản khác" (spinner + "Đang đăng xuất…" khi đang chạy) đăng xuất, rồi
   trang đưa trình duyệt tới `/login` vẫn mang gợi ý nhà cung cấp của app.
 
 ### 4.3 Màn chọn `/auth/continue`

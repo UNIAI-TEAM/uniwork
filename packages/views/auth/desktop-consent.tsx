@@ -4,13 +4,15 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Monitor, Smartphone } from "lucide-react";
 import type { DesktopConsent } from "@uniwork/core/api/endpoints/auth";
+import { useAuthStore } from "@uniwork/core/auth";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { useCoarsePointer } from "@uniwork/ui/hooks/use-pointer";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AUTH_PILL } from "./auth-controls";
-import { AuthShell } from "./auth-shell";
+import { AuthShell, SkeletonText } from "./auth-shell";
 
 export type DesktopConsentState = "pending" | "approved" | "cancelled" | "error" | "expired";
 
@@ -45,7 +47,7 @@ function onPhone(platform: string | undefined): boolean {
 }
 
 /** One fact on the plane: what it is on the left, its value on the right. */
-function Fact({ label, children }: { label: string; children: ReactNode }) {
+function Fact({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-3">
       <dt className="shrink-0 text-caption text-muted-foreground">{label}</dt>
@@ -69,6 +71,19 @@ function breakableEmail(email: string): ReactNode {
       {email.slice(0, at + 1)}
       <wbr />
       {email.slice(at + 1)}
+    </>
+  );
+}
+
+/** The same address as skeleton text, breaking where the real one will. */
+function breakableEmailBone(email: string): ReactNode {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return <SkeletonText>{email}</SkeletonText>;
+  return (
+    <>
+      <SkeletonText>{email.slice(0, at + 1)}</SkeletonText>
+      <wbr />
+      <SkeletonText>{email.slice(at + 1)}</SkeletonText>
     </>
   );
 }
@@ -118,36 +133,69 @@ function ConsentFacts({ consent, app, phone }: { consent: DesktopConsent; app: s
   );
 }
 
-/** The consent's own shape while the attempt loads, so nothing moves when it lands. */
-function ConsentSkeleton() {
+/** UniChat is the app that most often opens this page, on a phone through its sign-in sheet. */
+const LIKELY_APP = "UniChat";
+const LIKELY_DEVICE = { phone: "iPhone", desktop: "MacBook" };
+
+/**
+ * The consent's own shape while the attempt loads, drawn from the words it
+ * will most likely hold: the title and line, the facts' labels, and the
+ * account, which is this browser's own. A phone's sign-in sheet is a coarse
+ * pointer, so there the phone's longer title holds its three lines, and the
+ * two links keep their 44px. Nothing moves when the attempt lands.
+ */
+function ConsentSkeleton({ switchable }: { switchable: boolean }) {
+  const { t } = useTranslation();
+  const user = useAuthStore((s) => s.user);
+  const phone = useCoarsePointer();
+  const app = LIKELY_APP;
+  const email = user?.email || t("auth.desktop.emailUnknown");
   return (
-    <div aria-hidden className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3">
-        <div className={PLANE}>
-          <div className="flex h-11 items-center justify-between gap-4">
-            <Skeleton className="h-3.5 w-16" />
-            <Skeleton className="h-4 w-20" />
-          </div>
-          <div className="flex h-11 items-center justify-between gap-4">
-            <Skeleton className="h-3.5 w-14" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <div className="flex h-16 items-center justify-between gap-4">
-            <Skeleton className="h-3.5 w-16" />
-            <div className="flex flex-col items-end gap-1.5">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-3.5 w-40" />
-            </div>
-          </div>
+    <AuthShell
+      loadingAs={{
+        title: t(phone ? "auth.desktop.phone.title" : "auth.desktop.title", { app }),
+        description: t("auth.desktop.description"),
+      }}
+      nameInTitle
+    >
+      <div aria-hidden inert className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3">
+          <dl className={PLANE}>
+            <Fact label={<SkeletonText>{t("auth.desktop.app")}</SkeletonText>}>
+              <SkeletonText>{app}</SkeletonText>
+            </Fact>
+            <Fact label={<SkeletonText>{t("auth.desktop.device")}</SkeletonText>}>
+              <span className="inline-flex items-center gap-2">
+                <Skeleton className="size-4 shrink-0 rounded-sm" />
+                <SkeletonText>{phone ? LIKELY_DEVICE.phone : LIKELY_DEVICE.desktop}</SkeletonText>
+              </span>
+            </Fact>
+            <Fact label={<SkeletonText>{t("auth.desktop.account")}</SkeletonText>}>
+              <span className="block">
+                <SkeletonText>{user?.display_name || t("auth.desktop.accountUnknown")}</SkeletonText>
+              </span>
+              <span className="block text-caption font-normal">{breakableEmailBone(email)}</span>
+            </Fact>
+          </dl>
+          <span className="inline-flex items-center gap-1.5 self-start text-label font-medium pointer-coarse:min-h-11">
+            <Skeleton className="size-4 shrink-0 rounded-sm" />
+            <SkeletonText>{t("auth.desktop.details")}</SkeletonText>
+          </span>
         </div>
-        <Skeleton className="h-5 w-20" />
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-12 w-full rounded-full" />
+          <Skeleton className="h-12 w-full rounded-full" />
+          {switchable ? (
+            <p className="flex flex-wrap items-center justify-center gap-x-1 text-label">
+              <SkeletonText>{t("auth.desktop.notYouQuestion")}</SkeletonText>
+              <span className="inline-flex items-center px-1 pointer-coarse:min-h-11">
+                <SkeletonText>{t("auth.desktop.useAnother")}</SkeletonText>
+              </span>
+            </p>
+          ) : null}
+        </div>
       </div>
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-12 w-full rounded-full" />
-        <Skeleton className="h-12 w-full rounded-full" />
-        <Skeleton className="h-5 w-48 self-center" />
-      </div>
-    </div>
+    </AuthShell>
   );
 }
 
@@ -208,13 +256,7 @@ export function DesktopConsentView({
   const phone = onPhone(seen?.platform);
   const copy = phone ? "auth.desktop.phone" : "auth.desktop";
 
-  if (state === "pending" && !consent) {
-    return (
-      <AuthShell>
-        <ConsentSkeleton />
-      </AuthShell>
-    );
-  }
+  if (state === "pending" && !consent) return <ConsentSkeleton switchable={Boolean(onSwitchAccount)} />;
 
   if (state !== "pending") {
     // Allowed and cancelled are only ever reached with the attempt read.

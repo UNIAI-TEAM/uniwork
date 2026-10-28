@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { localeAdapter, wrap } from "../test/api-mock";
 import { DesktopConsentView, isDesktopCallbackUrl } from "./desktop-consent";
@@ -121,11 +122,36 @@ describe("DesktopConsentView", () => {
     }
   });
 
-  it("holds the consent's shape while the attempt loads", () => {
-    const { container } = render(wrap(<DesktopConsentView consent={null} state="pending" onDecision={vi.fn(async () => {})} />));
+  it("holds the consent's shape while the attempt loads, in the words it will most likely hold", () => {
+    resetAuthStoreForTests();
+    setSessionUser({
+      id: "account_01", email: "minh@example.com", display_name: "Minh Nguyen", onboarded_at: "2026-01-01T00:00:00Z",
+      email_verified_at: "2026-01-01T00:00:00Z", onboarding_questionnaire: {}, locale: "en",
+    });
+    render(wrap(<DesktopConsentView consent={null} state="pending" onDecision={vi.fn(async () => {})} onSwitchAccount={vi.fn(async () => {})} />));
     expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
     expect(screen.queryAllByRole("button")).toHaveLength(0);
-    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(4);
+    const bones = [...document.querySelectorAll(".box-decoration-clone")].map((b) => b.textContent);
+    // The title and line, every label, this browser's own account, and the two links.
+    expect(bones).toEqual(
+      expect.arrayContaining([
+        "Allow UniChat to sign in?",
+        "Check the app and device details before you continue. This approval only applies to this device.",
+        "App",
+        "Device",
+        "Account",
+        "Minh Nguyen",
+        "minh@",
+        "example.com",
+        "Details",
+        "Not you?",
+        "Use another account",
+      ]),
+    );
+    for (const bone of document.querySelectorAll(".box-decoration-clone")) expect(bone.closest('[aria-hidden="true"]')).not.toBeNull();
+    // Both links keep the 44px they will have on a touch screen.
+    expect(document.querySelectorAll(".pointer-coarse\\:min-h-11")).toHaveLength(2);
+    resetAuthStoreForTests();
   });
 
   it("sends approve and cancel decisions", async () => {
