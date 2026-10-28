@@ -7,6 +7,8 @@ import { prejoinMicOn, useMeetingRoomPreferencesStore } from "@uniwork/core/meet
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
 import {
   MeetingCameraPreview,
   type CameraPreviewStatus,
@@ -15,7 +17,7 @@ import { formatMeetingWindow, meetingLocale } from "./meeting-datetime";
 import { MeetingCanvas } from "./meeting-canvas";
 import { MeetingDeviceField } from "./meeting-device-field";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
-import { MeetingMediaPermissionAction, MeetingMicLevel } from "./meeting-room-mic-check";
+import { MeetingMediaPermissionAction, MeetingMicDotsLive } from "./meeting-room-mic-check";
 import { MeetingScribeNotice } from "./meeting-scribe-notice";
 
 /** What the user chose before connecting; LiveKitRoom takes it as initial media. */
@@ -30,6 +32,7 @@ export function MeetingPreJoin({
   meeting,
   loading = false,
   scribeNoticeFor,
+  joining = false,
   onJoin,
   onLeave,
 }: {
@@ -38,7 +41,9 @@ export function MeetingPreJoin({
   loading?: boolean;
   /** The meeting's id when the AI scribe would transcribe it: the consent notice shows before joining. */
   scribeNoticeFor?: string;
-  onJoin: (choice: PreJoinChoice) => void;
+  /** The join is on its way: the button folds into a ring until the room answers. */
+  joining?: boolean;
+  onJoin:(choice: PreJoinChoice) => void;
   onLeave: () => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -144,6 +149,7 @@ export function MeetingPreJoin({
             devices={mics}
             value={audioDeviceId}
             onValueChange={setAudioDeviceId}
+            adornment={audio ? <MeetingMicDotsLive deviceId={audioDeviceId || mics[0]?.deviceId} /> : null}
             emptyDescription={t("meetings.deviceMicNeedsPermission")}
             emptyAction={
               <MeetingMediaPermissionAction
@@ -153,9 +159,7 @@ export function MeetingPreJoin({
                 onGranted={refresh}
               />
             }
-          >
-            {audio ? <MeetingMicLevel deviceId={audioDeviceId || mics[0]?.deviceId} className="mt-1" /> : null}
-          </MeetingDeviceField>
+          />
           <MeetingDeviceField
             id="prejoin-camera"
             label={t("meetings.deviceCamera")}
@@ -164,11 +168,20 @@ export function MeetingPreJoin({
             onValueChange={setVideoDeviceId}
             emptyDescription={t("meetings.deviceCameraNeedsPermission")}
           />
-          {scribeNoticeFor ? <MeetingScribeNotice meetingKey={scribeNoticeFor} scribeOn /> : null}
+          {scribeNoticeFor ? <MeetingScribeNotice meetingKey={scribeNoticeFor} scribeOn variant="chip" /> : null}
+          {/* The press folds the button into a ring until the room answers;
+              the name stays for screen readers, the ring is decorative. */}
           <Button
             type="button"
             variant="brand"
-            className="h-11 w-full"
+            aria-busy={joining || undefined}
+            aria-disabled={joining || undefined}
+            data-joining={joining ? "" : undefined}
+            className={cn(
+              "relative mx-auto h-11 w-full overflow-hidden transition-[width,border-radius,background-color] duration-(--duration-settle) ease-(--ease-settle) motion-reduce:transition-none",
+              // Busy, not disabled: keep the brand fill instead of the faded look.
+              joining && "w-11 rounded-full aria-disabled:cursor-progress aria-disabled:opacity-100",
+            )}
             onClick={() =>
               onJoin({
                 audio,
@@ -178,7 +191,13 @@ export function MeetingPreJoin({
               })
             }
           >
-            {t("meetings.join")}
+            <span className={cn("transition-opacity duration-fast", joining && "opacity-0")}>{t("meetings.join")}</span>
+            <Spinner
+              className={cn(
+                "absolute inset-0 m-auto size-6 opacity-0 transition-opacity duration-fast",
+                joining && "opacity-100 delay-250 motion-reduce:delay-0",
+              )}
+            />
           </Button>
           <p className="text-caption text-muted-foreground">
             {t("meetings.prejoinHint")}

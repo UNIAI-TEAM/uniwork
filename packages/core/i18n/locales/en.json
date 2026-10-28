@@ -5690,6 +5690,9 @@
         "done_one": "Assigned {{count}} task",
         "done_other": "Assigned {{count}} tasks",
         "groupDone": "{{name}} · all assigned"
+      },
+      "prejoin": {
+        "scribeChip": "UNI Scribe transcribes"
       }
     }
   },
