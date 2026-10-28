@@ -3,6 +3,7 @@
 // token serves, its local deadline, which proof to ask first). Never persisted: gone on sign-out and with the session
 // (sign-in.ts › forgetSignIn), and it never serves another account (each read names the account in).
 import type { StepUpAction, StepUpGrant } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { readSignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { holdStepUp as heldFrom, proofChoice, stepUpTokenFor, type HeldStepUp, type ProofChoice } from "@uniwork/core/auth/step-up";
 import { appProofs, type SignInOffer } from "@/lib/sign-in-offer";
 
@@ -21,6 +22,20 @@ export function stepUpToken(action: StepUpAction, userId: string | null, now: nu
 /** The token is gone: signed out, the session ended, or the server refused it (proof_required). */
 export function forgetStepUp(): void {
   held = null;
+}
+
+/**
+ * Runs a command that rides the held token. When the server refuses the proof (403 proof_required: the token ran
+ * out, or the session that bought it ended) the token is forgotten before the refusal goes on, so the next ask buys
+ * a fresh one instead of sending the dead one again.
+ */
+export async function withHeldStepUp<T>(command: () => Promise<T>): Promise<T> {
+  try {
+    return await command();
+  } catch (error: unknown) {
+    if (readSignInFailure(error, "methods").kind === "step_up") forgetStepUp();
+    throw error;
+  }
 }
 
 /**

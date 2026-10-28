@@ -1,7 +1,7 @@
 import type { StepUpGrant, StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
 import { STEP_UP_WINDOW_MS } from "@uniwork/core/auth/step-up";
 import { beforeEach, describe, expect, it } from "vitest";
-import { forgetStepUp, holdStepUp, proofsFor, stepUpToken } from "./step-up-store";
+import { forgetStepUp, holdStepUp, proofsFor, stepUpToken, withHeldStepUp } from "./step-up-store";
 
 const NOW = Date.parse("2026-10-28T09:00:00Z");
 const grant = (method: StepUpProof): StepUpGrant => ({ step_up_token: `su_${method}`, expires_at: new Date(NOW + STEP_UP_WINDOW_MS).toISOString(), method });
@@ -45,5 +45,26 @@ describe("the step-up token on the phone", () => {
       others: ["email_code"],
     });
     expect(proofsFor({ proofs: [], mfaEnabled: true, hasPassword: true, offer: undefined })).toEqual({ first: "totp", others: [] });
+  });
+});
+
+describe("withHeldStepUp", () => {
+  const refusal = (code: string, status: number) => Object.assign(new Error(code), { status, body: { error: { code } } });
+
+  it("hands the command's answer back", async () => {
+    await expect(withHeldStepUp(async () => "done")).resolves.toBe("done");
+  });
+
+  it("forgets the token the server refused, then lets the refusal through", async () => {
+    holdStepUp(grant("password"), { userId: "u1", action: "unlink_google", now: Date.now() });
+    const refused = refusal("proof_required", 403);
+    await expect(withHeldStepUp(() => Promise.reject(refused))).rejects.toBe(refused);
+    expect(stepUpToken("unlink_google", "u1")).toBeNull();
+  });
+
+  it("keeps the token through any other refusal", async () => {
+    holdStepUp(grant("password"), { userId: "u1", action: "unlink_google", now: Date.now() });
+    await expect(withHeldStepUp(() => Promise.reject(refusal("sign_in_method_last", 409)))).rejects.toMatchObject({ status: 409 });
+    expect(stepUpToken("unlink_google", "u1")).toBe("su_password");
   });
 });

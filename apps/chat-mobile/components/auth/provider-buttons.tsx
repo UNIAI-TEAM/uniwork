@@ -71,6 +71,28 @@ function ProviderPill({ label, busyLabel, busy, disabled, onPress, colors, mark,
   );
 }
 
+/**
+ * One provider's pill, in its own brand's colours and mark: Google's (and Apple's where the system's button is not
+ * drawn, the browser on Android and a sign-in under way). The proof sheet's "Xác nhận bằng Google" is one too.
+ */
+export function ProviderButton({
+  provider,
+  ...pill
+}: { provider: SignInProvider } & Omit<PillProps, "colors" | "mark">) {
+  const { colorScheme } = useColorScheme();
+  if (provider === "apple") {
+    const colors = APPLE[colorScheme];
+    return <ProviderPill {...pill} colors={colors} mark={<Ionicons name="logo-apple" size={20} color={colors.text} />} />;
+  }
+  return (
+    <ProviderPill
+      {...pill}
+      colors={GOOGLE[colorScheme]}
+      mark={<Image source={googleMark} style={{ width: 20, height: 20 }} contentFit="contain" accessible={false} />}
+    />
+  );
+}
+
 interface Props {
   /** "sign_up" on the register screen: an account at once, never the choice screen */
   intent?: NativeSignInIntent;
@@ -83,7 +105,6 @@ interface Props {
 
 export function ProviderButtons({ intent, busy, hidden = null, onStart }: Props) {
   const { t } = useTranslation();
-  const { colorScheme } = useColorScheme();
   const { data: offer, isPending } = useQuery(signInOfferOptions());
 
   if (isPending) {
@@ -109,33 +130,16 @@ export function ProviderButtons({ intent, busy, hidden = null, onStart }: Props)
         if (provider === "apple" && request.method === "apple" && busy !== "apple") {
           return <AppleSignInButton key={provider} signUp={intent === "sign_up"} disabled={disabled} onPress={start} />;
         }
-        if (provider === "apple") {
-          const colors = APPLE[colorScheme];
-          return (
-            <ProviderPill
-              key={provider}
-              label={t("auth.social.continueWithApple")}
-              busyLabel={t("auth.social.signingIn")}
-              busy={busy === "apple"}
-              disabled={disabled}
-              onPress={start}
-              colors={colors}
-              mark={<Ionicons name="logo-apple" size={20} color={colors.text} />}
-              testID="apple-browser-sign-in"
-            />
-          );
-        }
         return (
-          <ProviderPill
+          <ProviderButton
             key={provider}
-            label={t("auth.social.continueWithGoogle")}
+            provider={provider}
+            label={t(provider === "apple" ? "auth.social.continueWithApple" : "auth.social.continueWithGoogle")}
             busyLabel={t("auth.social.signingIn")}
-            busy={busy === "google"}
+            busy={busy === provider}
             disabled={disabled}
             onPress={start}
-            colors={GOOGLE[colorScheme]}
-            mark={<Image source={googleMark} style={{ width: 20, height: 20 }} contentFit="contain" accessible={false} />}
-            testID="google-sign-in"
+            testID={provider === "apple" ? "apple-browser-sign-in" : "google-sign-in"}
           />
         );
       })}

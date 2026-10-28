@@ -2334,6 +2334,14 @@
         "delete_in_settings": "Delete the account in Settings"
       }
     },
+    "step_up": {
+      "one_action_hint": "This code only lets you {{action}}.",
+      "unavailable": "This phone can't confirm it's you the way your account does. Open UniWork on the web to continue."
+    },
+    "sign_in_methods": {
+      "link_named": "Link {{provider}}",
+      "unlink_named": "Unlink {{provider}}"
+    },
     "invitations": {
       "none": "No invitations have been sent to {{email}} yet.",
       "none_hint": "When an organization invites this address, the invitation shows up here.",

@@ -2,7 +2,8 @@
 // lays them out differently: the screen's title, the second factor's recovery-code switch, the register screen's
 // title, the verify screen's way out, the browser fallback. Everything else they say is the web's copy, synced by
 // sync-i18n.mjs (SIGN_IN_PATHS): a sentence that reads wrong on the phone is changed in packages/core, not forked
-// here. Merged into `mobile.sign_in`; keep vi and en aligned (lib/i18n.test.ts compares the keys).
+// here. Merged into `mobile.sign_in`, with the proof sheet's and Settings › Sign-in methods' own lines in `mobile.step_up` and
+// `mobile.sign_in_methods`; keep vi and en aligned (lib/i18n.test.ts compares the keys).
 export const SIGN_IN_ONLY = {
   vi: {
     sign_in: {
@@ -30,6 +31,14 @@ export const SIGN_IN_ONLY = {
         delete_in_settings: "Xóa tài khoản trong Cài đặt",
       },
     },
+    step_up: {
+      one_action_hint: "Mã này chỉ dùng được để {{action}}.",
+      unavailable: "Điện thoại này chưa xác nhận được bằng cách tài khoản của bạn dùng. Mở UniWork trên web để tiếp tục.",
+    },
+    sign_in_methods: {
+      link_named: "Liên kết {{provider}}",
+      unlink_named: "Gỡ liên kết {{provider}}",
+    },
   },
   en: {
     sign_in: {
@@ -56,6 +65,14 @@ export const SIGN_IN_ONLY = {
         wrong_email: "Wrong email?",
         delete_in_settings: "Delete the account in Settings",
       },
+    },
+    step_up: {
+      one_action_hint: "This code only lets you {{action}}.",
+      unavailable: "This phone can't confirm it's you the way your account does. Open UniWork on the web to continue.",
+    },
+    sign_in_methods: {
+      link_named: "Link {{provider}}",
+      unlink_named: "Unlink {{provider}}",
     },
   },
 };

@@ -2277,6 +2277,14 @@
         "delete_in_settings": "Xóa tài khoản trong Cài đặt"
       }
     },
+    "step_up": {
+      "one_action_hint": "Mã này chỉ dùng được để {{action}}.",
+      "unavailable": "Điện thoại này chưa xác nhận được bằng cách tài khoản của bạn dùng. Mở UniWork trên web để tiếp tục."
+    },
+    "sign_in_methods": {
+      "link_named": "Liên kết {{provider}}",
+      "unlink_named": "Gỡ liên kết {{provider}}"
+    },
     "invitations": {
       "none": "Chưa có lời mời nào gửi tới {{email}}.",
       "none_hint": "Khi một tổ chức mời địa chỉ này, lời mời sẽ hiện ở đây.",

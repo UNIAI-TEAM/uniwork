@@ -5,8 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const request = vi.hoisted(() => vi.fn<(path: string, init?: RequestInit) => Promise<unknown>>());
 vi.mock("../api", () => ({ api: { request } }));
 vi.mock("./flow", () => ({ nativeClient: { client_id: "uniwork-chat-mobile", deployment_id: "default", platform: "ios" } }));
+const sheet = vi.hoisted(() => ({ providerToken: vi.fn<(provider: string, options?: { chooseAccount?: boolean }) => Promise<unknown>>() }));
+vi.mock("./sign-in", () => sheet);
 
-import { linkPendingTicket, signInMethodsApi, stepUp } from "./methods-api";
+import { linkPendingTicket, linkProvider, signInMethodsApi, stepUp, stepUpWithProvider } from "./methods-api";
 import { forgetPendingSignIn, holdStep, usePendingSignIn } from "./pending-sign-in";
 import { forgetStepUp, holdStepUp, stepUpToken } from "./step-up-store";
 
@@ -23,6 +25,7 @@ const methods = {
 
 beforeEach(() => {
   request.mockReset();
+  sheet.providerToken.mockReset();
   forgetStepUp();
   forgetPendingSignIn();
 });
@@ -91,6 +94,54 @@ describe("linkPendingTicket", () => {
 
   it("says the sign-in expired, without asking the server, once the ticket is gone", async () => {
     await expect(linkPendingTicket({ userId: "u1" })).rejects.toMatchObject({ code: "sign_in_expired" });
+    expect(request).not.toHaveBeenCalled();
+  });
+});
+
+describe("stepUpWithProvider", () => {
+  const grant = { step_up_token: "su_p", expires_at: new Date(NOW + STEP_UP_WINDOW_MS).toISOString(), method: "google" };
+
+  it("proves with a fresh token of the account the sheet asks for, never the one it remembers", async () => {
+    sheet.providerToken.mockResolvedValueOnce({ token: "id_1", nonce: "raw_1" });
+    request.mockResolvedValueOnce(grant);
+    expect(await stepUpWithProvider("google", "delete_account", "u1")).toBe("held");
+    expect(sheet.providerToken).toHaveBeenCalledWith("google", { chooseAccount: true });
+    expect(body()).toEqual({ provider_token: { provider: "google", token: "id_1", nonce: "raw_1" } });
+    expect(stepUpToken("delete_account", "u1")).toBe("su_p");
+  });
+
+  it("says a closed sheet and an answer it cannot use apart", async () => {
+    sheet.providerToken.mockResolvedValueOnce(null);
+    expect(await stepUpWithProvider("apple", "unlink_google", "u1")).toBe("dismissed");
+    expect(request).not.toHaveBeenCalled();
+    sheet.providerToken.mockResolvedValueOnce({ token: "id_2", nonce: "raw_2" });
+    request.mockResolvedValueOnce({});
+    expect(await stepUpWithProvider("apple", "unlink_google", "u1")).toBe("unusable");
+  });
+});
+
+describe("linkProvider", () => {
+  it("links Google's chosen account behind the step-up", async () => {
+    sheet.providerToken.mockResolvedValueOnce({ token: "id_1", nonce: "raw_1" });
+    request.mockResolvedValueOnce({ user: null, sign_in_methods: methods });
+    expect(await linkProvider({ provider: "google", stepUpToken: "su_1" })).toMatchObject({ methods: { google: { linked: true } } });
+    expect(sheet.providerToken).toHaveBeenCalledWith("google", { chooseAccount: true });
+    expect(request.mock.calls[0]?.[0]).toBe("/api/v1/me/sign-in-methods/google/native");
+    expect(body()).toEqual({ step_up_token: "su_1", id_token: "id_1", nonce: "raw_1" });
+  });
+
+  it("links the iPhone's Apple account with its one-time code, and a move asks the sheet again", async () => {
+    sheet.providerToken.mockResolvedValueOnce({ token: "apple_1", nonce: "raw_a", authorizationCode: "code_1" });
+    request.mockResolvedValueOnce({ user: null, sign_in_methods: methods });
+    await linkProvider({ provider: "apple", stepUpToken: "su_1", move: true });
+    expect(sheet.providerToken).toHaveBeenCalledWith("apple", { chooseAccount: false });
+    expect(request.mock.calls[0]?.[0]).toBe("/api/v1/me/sign-in-methods/apple/native");
+    expect(body()).toEqual({ step_up_token: "su_1", identity_token: "apple_1", nonce: "raw_a", authorization_code: "code_1", move: true });
+  });
+
+  it("sends nothing when the sheet was closed", async () => {
+    sheet.providerToken.mockResolvedValueOnce(null);
+    expect(await linkProvider({ provider: "google", stepUpToken: "su_1" })).toBeNull();
     expect(request).not.toHaveBeenCalled();
   });
 });
