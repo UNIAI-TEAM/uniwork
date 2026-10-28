@@ -72,6 +72,8 @@ vi.mock("./meeting-stage-footer", () => ({
   MeetingStageFooter: ({ prompt }: { prompt: ReactNode }) => prompt,
 }));
 vi.mock("./meeting-participant-tile", () => ({ MeetingParticipantTile: () => null }));
+// The notice stack has its own tests; here it would only need a live room.
+vi.mock("./meeting-stage-toasts", () => ({ MeetingStageToasts: () => null }));
 vi.mock("./meeting-room-announcers", () => ({
   ChatMessageAnnouncer: () => null,
   ParticipantPresenceAnnouncer: () => null,

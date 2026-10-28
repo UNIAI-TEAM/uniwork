@@ -19,7 +19,8 @@ import type { Meeting } from "@uniwork/core/types";
 import { chatWatermark, unreadChatSince, type ChatWatermark } from "./meeting-chat";
 import { useScribeInRoom, useScribePaused } from "./meeting-scribe-captions";
 import { scribeChipState } from "./meeting-scribe-chip";
-import { DIAL_IN_STATE_ATTRIBUTE, inMeeting, reactionLabelKey } from "./meeting-signals";
+import { reactionLabelKey } from "./meeting-signals";
+import { useRoomArrivals } from "./use-room-arrivals";
 import { useMeetingSignals } from "./use-meeting-signals";
 
 /** People already in the room when we connect are not news; only later arrivals are. */
@@ -114,73 +115,42 @@ export function ReactionAnnouncer() {
  */
 export function ParticipantPresenceAnnouncer() {
   const { t } = useTranslation();
-  const room = useRoomContext();
   const [text, setText] = useState("");
+  const batch = useRef<{ joined: string[]; left: string[]; timer?: ReturnType<typeof setTimeout> }>({
+    joined: [],
+    left: [],
+  });
 
-  useEffect(() => {
-    let readyAt = room.state === ConnectionState.Connected ? Date.now() + PRESENCE_SETTLE_MS : Infinity;
-    let joined: string[] = [];
-    let left: string[] = [];
-    let timer: ReturnType<typeof setTimeout> | undefined;
+  useEffect(() => () => clearTimeout(batch.current.timer), []);
 
-    const sentence = (names: string[], one: string, many: string) =>
-      names.length === 1 ? t(one, { name: names[0] }) : t(many, { count: names.length });
-
-    const flush = () => {
-      const parts: string[] = [];
-      if (joined.length > 0) {
-        parts.push(sentence(joined, "meetings.participantJoinedAnnounce", "meetings.participantsJoinedAnnounce"));
-      }
-      if (left.length > 0) {
-        parts.push(sentence(left, "meetings.participantLeftAnnounce", "meetings.participantsLeftAnnounce"));
-      }
-      joined = [];
-      left = [];
-      if (parts.length > 0) setText(parts.join(". "));
-    };
-    const queue = (list: string[], p: Participant) => {
-      if (Date.now() < readyAt || !inMeeting(p)) return;
-      list.push(p.name || p.identity);
-      clearTimeout(timer);
-      timer = setTimeout(flush, PRESENCE_BATCH_MS);
-    };
-    const onSettle = () => {
-      readyAt = Date.now() + PRESENCE_SETTLE_MS;
-    };
-    // A full reconnect unwinds every remote participant (ParticipantDisconnected
-    // for each) just before Reconnecting fires, then re-adds them. Drop the
-    // queued batch and stay quiet until the room settles again.
-    const onReconnecting = () => {
-      readyAt = Infinity;
-      clearTimeout(timer);
-      joined = [];
-      left = [];
-    };
-    const onJoin = (p: RemoteParticipant) => queue(joined, p);
-    const onLeave = (p: RemoteParticipant) => queue(left, p);
-    // A phone caller joins held and enters the meeting when the host admits them.
-    const onAttributes = (changed: Record<string, string>, p: Participant) => {
-      if (changed[DIAL_IN_STATE_ATTRIBUTE] === "admitted") queue(joined, p);
-    };
-
-    room
-      .on(RoomEvent.Connected, onSettle)
-      .on(RoomEvent.Reconnecting, onReconnecting)
-      .on(RoomEvent.Reconnected, onSettle)
-      .on(RoomEvent.ParticipantConnected, onJoin)
-      .on(RoomEvent.ParticipantDisconnected, onLeave)
-      .on(RoomEvent.ParticipantAttributesChanged, onAttributes);
-    return () => {
-      clearTimeout(timer);
-      room
-        .off(RoomEvent.Connected, onSettle)
-        .off(RoomEvent.Reconnecting, onReconnecting)
-        .off(RoomEvent.Reconnected, onSettle)
-        .off(RoomEvent.ParticipantConnected, onJoin)
-        .off(RoomEvent.ParticipantDisconnected, onLeave)
-        .off(RoomEvent.ParticipantAttributesChanged, onAttributes);
-    };
-  }, [room, t]);
+  useRoomArrivals(
+    (kind, p) => {
+      const b = batch.current;
+      (kind === "join" ? b.joined : b.left).push(p.name || p.identity);
+      clearTimeout(b.timer);
+      b.timer = setTimeout(() => {
+        const sentence = (names: string[], one: string, many: string) =>
+          names.length === 1 ? t(one, { name: names[0] }) : t(many, { count: names.length });
+        const parts: string[] = [];
+        if (b.joined.length > 0) {
+          parts.push(sentence(b.joined, "meetings.participantJoinedAnnounce", "meetings.participantsJoinedAnnounce"));
+        }
+        if (b.left.length > 0) {
+          parts.push(sentence(b.left, "meetings.participantLeftAnnounce", "meetings.participantsLeftAnnounce"));
+        }
+        b.joined = [];
+        b.left = [];
+        if (parts.length > 0) setText(parts.join(". "));
+      }, PRESENCE_BATCH_MS);
+    },
+    // A reconnect's unwind is not news: drop the queued batch.
+    () => {
+      const b = batch.current;
+      clearTimeout(b.timer);
+      b.joined = [];
+      b.left = [];
+    },
+  );
 
   return (
     <p role="status" aria-live="polite" className="sr-only" data-testid="meeting-presence-announcer">

@@ -1,5 +1,5 @@
 "use client";
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { RoomAudioRenderer, StartMediaButton, useIsRecording } from "@livekit/components-react";
 import { CaptionsOff, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -59,6 +59,7 @@ import { guestIdentities, muteRequesterIdentities } from "./meeting-signals";
 import { MeetingModerationProvider } from "./meeting-moderation";
 import { MeetingSinglePresenter } from "./meeting-single-presenter";
 import { MeetingStageTiles } from "./meeting-stage-tiles";
+import { MeetingStageToasts } from "./meeting-stage-toasts";
 import { MeetingSignalsProvider } from "./use-meeting-signals";
 
 export { tileGridClass, primaryGridClass } from "./conference-layout";
@@ -347,7 +348,7 @@ function ConferenceStage({
       >
         <div
           ref={setStageFrame}
-          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-meeting-stage ring-1 ring-surface-border"
+          className="@container/stage relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl bg-meeting-stage ring-1 ring-surface-border"
         >
           <div className="dark flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <MeetingStageHeader
@@ -420,6 +421,14 @@ function ConferenceStage({
             captions={captions}
             onReserveHeightChange={handleFooterReserveChange}
             controlBar={controlBar}
+          />
+          {/* Beside the control bar on a wide stage, above the footer on a narrow one. The people tab
+              already lists who knocks, so knocks step aside while it is open. */}
+          <MeetingStageToasts
+            meetingId={meeting?.id}
+            canAdmit={canHost.allowed && !guestMode && Boolean(workspaceId) && !(sidebarTab === "participants" && panelShown)}
+            className="left-4 bottom-[calc(var(--stage-footer)+0.5rem)] @[68rem]/stage:bottom-3"
+            style={{ "--stage-footer": `${footerReserve}px` } as CSSProperties}
           />
         </div>
 

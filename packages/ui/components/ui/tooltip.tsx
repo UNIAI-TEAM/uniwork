@@ -33,13 +33,17 @@ function TooltipContent({
   align = "center",
   alignOffset = 0,
   anchor,
+  positionerClassName,
   children,
   ...props
 }: TooltipPrimitive.Popup.Props &
   Pick<
     TooltipPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "anchor"
-  >) {
+  > & {
+    /** Extra classes on the positioner: a tooltip shared by several triggers glides between them. */
+    positionerClassName?: string
+  }) {
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Positioner
@@ -48,7 +52,7 @@ function TooltipContent({
         side={side}
         sideOffset={sideOffset}
         anchor={anchor}
-        className="isolate z-50"
+        className={cn("isolate z-50", positionerClassName)}
       >
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
@@ -66,4 +70,7 @@ function TooltipContent({
   )
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+/** One tooltip for several detached triggers (`handle` on the root and on each trigger). */
+const createTooltipHandle = TooltipPrimitive.createHandle
+
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, createTooltipHandle }

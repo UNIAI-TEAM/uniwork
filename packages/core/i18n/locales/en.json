@@ -5693,6 +5693,13 @@
       },
       "prejoin": {
         "scribeChip": "UNI Scribe transcribes"
+      },
+      "room": {
+        "notices": "Room notices",
+        "joined": "<b>{{name}}</b> joined",
+        "left": "<b>{{name}}</b> left",
+        "hand": "<b>{{name}}</b> raised a hand",
+        "knock": "<b>{{name}}</b> wants to join"
       }
     }
   },

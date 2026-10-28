@@ -5692,6 +5692,13 @@
       },
       "prejoin": {
         "scribeChip": "Thư ký UNI ghi lời"
+      },
+      "room": {
+        "notices": "Thông báo trong phòng",
+        "joined": "<b>{{name}}</b> vào phòng",
+        "left": "<b>{{name}}</b> rời phòng",
+        "hand": "<b>{{name}}</b> giơ tay",
+        "knock": "<b>{{name}}</b> xin vào"
       }
     }
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useState } from "react";
+import { Fragment, memo, useEffect, useState } from "react";
 import {
   Clock,
   PanelRightClose,
@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { NumberFlow, NumberFlowGroup } from "@uniwork/ui/components/ui/number-flow";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { toastApiError } from "../toast-api-error";
@@ -76,8 +77,40 @@ function RemainingTimeChip({ endsAt }: { endsAt: string }) {
     >
       <Clock aria-hidden className="size-3.5 shrink-0 opacity-90" />
       {/* Said in words: a bare clock reads as time elapsed. */}
-      {pastScheduledEnd ? t("meetings.pastScheduledEndShort") : t("meetings.timeLeft", { time: remaining })}
+      {pastScheduledEnd ? t("meetings.pastScheduledEndShort") : <RollingTimeLeft endsAt={endsAt} now={now} text={t("meetings.timeLeft", { time: remaining })} />}
     </span>
+  );
+}
+
+const TWO_DIGITS = { minimumIntegerDigits: 2, useGrouping: false } as const;
+const TIME_SLOT = "\u0000";
+
+/**
+ * "00:59:41 còn lại" with each of hours, minutes and seconds rolling digit by
+ * digit (UNI-2285 E). The words stay where the locale puts them; a screen
+ * reader gets the plain sentence once instead of three number widgets.
+ */
+function RollingTimeLeft({ endsAt, now, text }: { endsAt: string; now: number; text: string }) {
+  const { t } = useTranslation();
+  const total = Math.max(0, Math.floor((Date.parse(endsAt) - now) / 1000));
+  const [before = "", after = ""] = t("meetings.timeLeft", { time: TIME_SLOT }).split(TIME_SLOT);
+  const parts = [Math.floor(total / 3600), Math.floor((total % 3600) / 60), total % 60];
+  return (
+    <>
+      <span className="sr-only">{text}</span>
+      <span aria-hidden className="inline-flex items-center whitespace-pre">
+        {before}
+        <NumberFlowGroup>
+          {parts.map((value, i) => (
+            <Fragment key={i}>
+              {i > 0 ? ":" : null}
+              <NumberFlow value={value} format={TWO_DIGITS} />
+            </Fragment>
+          ))}
+        </NumberFlowGroup>
+        {after}
+      </span>
+    </>
   );
 }
 
@@ -177,7 +210,7 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
   /** What waits in the closed panel (UNI's catch-up or new items): a dot on the panel button, said in its name. */
   panelNews?: string | null;
   onOpenPeople?: () => void;
-  /** The people tab is on screen; the join-request panel steps aside. */
+  /** The people tab is on screen: the people chip shows pressed. */
   peopleOpen?: boolean;
 }) {
   const { t, i18n } = useTranslation();
@@ -296,7 +329,7 @@ export const MeetingStageHeader = memo(function MeetingStageHeader({
 
             {/* Before End: a knock must not push "Kết thúc họp" off the right edge. */}
             {showHostActions && meeting?.id ? (
-              <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenPeople={onOpenPeople} peopleOpen={peopleOpen} />
+              <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenPeople={onOpenPeople} />
             ) : null}
 
             {showHostActions && inProgress && meeting ? (
