@@ -13,7 +13,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
-import { UI_EASE_OUT } from "@uniwork/ui/lib/motion";
+import { UI_EASE_OUT, UI_POP } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { kitButton } from "../meeting-detail/ui/kit-buttons";
 import { TextButton } from "../meeting-detail/ui/text-button";
@@ -103,7 +103,7 @@ export function PersonRoleRow({
       };
   const pop = reduce
     ? { initial: false as const }
-    : { initial: { opacity: 0, scale: 0.6 }, animate: { opacity: 1, scale: [0.6, 1.08, 1] }, transition: { duration: 0.36, ease: UI_EASE_OUT, delay: 0.06 } };
+    : { ...UI_POP, transition: { ...UI_POP.transition, delay: 0.06 } };
   return (
     <motion.li
       {...grow}

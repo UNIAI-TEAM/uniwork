@@ -3,21 +3,24 @@ import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { ScribeMark } from "@uniwork/ui/brand/scribe-mark";
 import { NumberFlow, NumberFlowGroup } from "@uniwork/ui/components/ui/number-flow";
-import { UI_EASE_OUT } from "@uniwork/ui/lib/motion";
+import { UI_EASE_OUT, UI_POP } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { StackPerson } from "./meeting-detail/ui/avatar-stack";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { useNow } from "./use-now";
 
-const TWO_DIGITS = { minimumIntegerDigits: 2 } as const;
-const pad = (n: number) => String(n).padStart(2, "0");
+/** NumberFlow's format for a clock field, and `pad` for the same field as text. */
+export const TWO_DIGITS = { minimumIntegerDigits: 2 } as const;
+export const pad = (n: number) => String(n).padStart(2, "0");
 
 /**
  * Time in the room since `since`, as mm:ss (h:mm:ss from an hour). It is
- * derived from `now` on every tick, never counted up, so a tab that slept
- * wakes on the right time.
+ * derived from the shared 1-second clock on every tick, never counted up, so
+ * a tab that slept wakes on the right time; only the clock re-renders each second.
  */
-export function ElapsedClock({ since, now }: { since: string; now: number }) {
+export function ElapsedClock({ since }: { since: string }) {
   const { t } = useTranslation();
+  const now = useNow(1_000);
   const total = Math.floor((now - Date.parse(since)) / 1000);
   if (!Number.isFinite(total)) return null;
   const s = Math.max(0, total);
@@ -44,11 +47,7 @@ export function ElapsedClock({ since, now }: { since: string; now: number }) {
 /** The face pop of the proposal: .6 → 1.08 → 1 in 360 ms, each one 120 ms after the last. */
 function pop(i: number, reduce: boolean) {
   if (reduce) return { initial: false as const };
-  return {
-    initial: { opacity: 0, scale: 0.6 },
-    animate: { opacity: 1, scale: [0.6, 1.08, 1] },
-    transition: { duration: 0.36, ease: UI_EASE_OUT, delay: i * 0.12 },
-  };
+  return { ...UI_POP, transition: { ...UI_POP.transition, delay: i * 0.12 } };
 }
 
 /**

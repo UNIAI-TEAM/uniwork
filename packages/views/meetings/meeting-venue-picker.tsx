@@ -4,7 +4,7 @@ import { Check, UsersRound, Video } from "lucide-react";
 import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { MEETING_VENUES, type MeetingVenue } from "@uniwork/core/meetings/venue";
-import { UI_EASE_OUT, UI_EASE_SETTLE, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
+import { UI_EASE_SETTLE, UI_MOTION_DURATION, UI_POP } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { RadioCardGroup } from "../onboarding/components/option-card";
 import { FIELD_LABEL } from "./meeting-sheet/sheet-styles";
@@ -79,9 +79,7 @@ export function MeetingVenuePicker({
                   <motion.span
                     aria-hidden
                     className="absolute top-2 right-2 grid size-4.5 place-items-center rounded-full bg-primary text-primary-foreground"
-                    initial={reduce ? false : { opacity: 0, scale: 0.6 }}
-                    animate={{ opacity: 1, scale: reduce ? 1 : [0.6, 1.08, 1] }}
-                    transition={{ duration: 0.36, ease: UI_EASE_OUT }}
+                    {...(reduce ? { initial: false } : UI_POP)}
                   >
                     <Check className="size-3" />
                   </motion.span>

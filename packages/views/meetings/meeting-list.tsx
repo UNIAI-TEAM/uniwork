@@ -185,7 +185,7 @@ function MeetingRow({
         </p>
       </div>
       <div className="relative z-10 flex shrink-0 items-center gap-2">
-        {running ? <ElapsedClock since={m.actual_start_at ?? m.starts_at} now={nowMs} /> : null}
+        {running ? <ElapsedClock since={m.actual_start_at ?? m.starts_at} /> : null}
         <MeetingStatusBadge status={display} className={cn(live && "max-sm:hidden")} />
         {rewatch ? <MeetingListRecordingButton meetingId={m.id} /> : null}
         {live ? (
@@ -270,8 +270,8 @@ export function MeetingList({
     const member = members.find((m) => m.user_id === id);
     return { name: member?.display_name ?? t("meetings.hostUnknown"), avatarUrl: member?.avatar_url };
   };
-  // One clock for the whole list: every second while a row is live (its elapsed clock), else every minute.
-  const nowMs = useNow(meetings.some((m) => m.status === "IN_PROGRESS") ? 1_000 : 60_000);
+  // The minute clock for the badges and chips; a live row's elapsed clock ticks each second on its own.
+  const nowMs = useNow();
   const reduce = useReducedMotion() ?? false;
   // The first answer appears as is; only a later filter change replays the rise-in.
   const [shown, setShown] = useState({ key: enterKey, moved: false });

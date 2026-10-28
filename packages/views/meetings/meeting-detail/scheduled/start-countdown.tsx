@@ -7,6 +7,7 @@ import type { Tint } from "@uniwork/ui/components/common/icon-tile";
 import { NumberFlow, NumberFlowGroup } from "@uniwork/ui/components/ui/number-flow";
 import { UI_EASE_OUT, UI_EASE_SETTLE, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
+import { pad, TWO_DIGITS } from "../../meeting-list-live";
 import { MeetingPersonAvatar } from "../../meeting-person";
 import { useNow } from "../../use-now";
 import { meetingAvatarTint } from "../avatar-tint";
@@ -16,10 +17,8 @@ import { rsvpState, type RsvpState } from "./rsvp-model";
 
 /** The ring counts down the last hour before the start. */
 export const COUNTDOWN_MS = 60 * 60_000;
-const TWO_DIGITS = { minimumIntegerDigits: 2 } as const;
 const R = 18;
 const CIRCUMFERENCE = 2 * Math.PI * R;
-const pad = (n: number) => String(n).padStart(2, "0");
 
 /**
  * The last hour before the start (proposal B): a ring that empties with the
