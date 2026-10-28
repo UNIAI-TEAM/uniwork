@@ -12,9 +12,9 @@ import { AppLink } from "../navigation";
 import { AUTH_INPUT, AUTH_LINK, AuthSubmit } from "./auth-controls";
 import { AuthLegalNote } from "./auth-legal-note";
 import { AuthShell } from "./auth-shell";
-import { GoogleButton } from "./google-button";
 import { MFAStep } from "./mfa-step";
 import { PasswordField } from "./password-field";
+import { SocialSignIn } from "./social-sign-in";
 
 export { AUTH_LINK };
 
@@ -47,7 +47,7 @@ export function LoginView({
   initialMfa = false,
 }: {
   onSuccess: (sess: SessionResponse) => void;
-  /** Same-origin path to return to after any sign-in; forwarded to Google too. */
+  /** Same-origin path to return to after any sign-in; forwarded to the providers and to register too. */
   next?: string | null;
   initialError?: GoogleLoginError | null;
   reason?: LoginReason | null;
@@ -163,107 +163,110 @@ export function LoginView({
 
   return (
     <AuthShell title={t("auth.login")} description={t("auth.loginSubtitle")}>
-      {/* noValidate: the browser's own bubble is untranslated and disappears on
-          the next keystroke. Both fields stay `required` so assistive tech
-          still announces them as such. */}
-      <form className="flex flex-col gap-5" onSubmit={submit} noValidate>
+      <div className="flex flex-col gap-5">
         {reasonMessage ? (
           <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-pretty text-body text-foreground">
             {reasonMessage}
           </p>
         ) : null}
-        {/* gap-1 between fields and gap-2 inside one: the reserved error slot
-            under each box already carries the air between them. With the
-            primitive's gap-5 on top of it the two boxes stood 50px apart and
-            read as two forms. */}
-        <FieldGroup className="gap-1">
-          <Field className="gap-2">
-            <FieldLabel htmlFor="login-email">{t("auth.email")}</FieldLabel>
-            <Input
-              ref={emailRef}
-              id="login-email"
-              name="email"
-              type="email"
-              value={email}
-              onChange={(e) => edit("email", e.target.value)}
-              placeholder={t("auth.emailPlaceholder")}
-              autoComplete="email"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              inputMode="email"
-              enterKeyHint="next"
-              autoFocus
-              required
-              aria-invalid={blames("email") || undefined}
-              aria-describedby={blames("email") ? noticeId : undefined}
-              className={AUTH_INPUT}
-            />
-            {/* Each field owns a reserved one-line slot, so a message lands
-                directly under the box it is about and nothing else moves.
-                The column is vertically centred: a message appearing from
-                nothing pushed the heading up and the button down at the exact
-                moment the user was reaching for it. `-mt-1` puts it 4px under
-                the box, tight enough to read as part of the field. Only one
-                slot has content at a time; the other stays empty. */}
-            <div className="-mt-1 min-h-5">
-              {notice?.owner === "email" ? <FieldError id={noticeId}>{notice.message}</FieldError> : null}
-            </div>
-          </Field>
-          {/* The recovery link sits on the label row, where the eye already is
-              when a password will not come, but it comes AFTER the box in the
-              DOM: in the tab order and to a screen reader it follows the
-              password and its reveal toggle instead of standing between the
-              two fields a keyboard user is moving through. The grid puts it
-              back on the label row visually. */}
-          <Field className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2">
-            <FieldLabel htmlFor="login-password" className="col-start-1 row-start-1">
-              {t("auth.password")}
-            </FieldLabel>
-            <div className="col-span-2 row-start-2">
-              <PasswordField
-                ref={passwordRef}
-                id="login-password"
-                name="password"
-                value={password}
-                onChange={(v) => edit("password", v)}
-                autoComplete="current-password"
-                invalid={blames("password")}
-                describedBy={blames("password") ? noticeId : undefined}
+        {/* The providers first, then "or use email", then the form: the order
+            the phone shows (spec §4.1). */}
+        <SocialSignIn next={next} />
+        {/* noValidate: the browser's own bubble is untranslated and disappears on
+            the next keystroke. Both fields stay `required` so assistive tech
+            still announces them as such. */}
+        <form className="flex flex-col gap-5" onSubmit={submit} noValidate>
+          {/* gap-1 between fields and gap-2 inside one: the reserved error slot
+              under each box already carries the air between them. With the
+              primitive's gap-5 on top of it the two boxes stood 50px apart and
+              read as two forms. */}
+          <FieldGroup className="gap-1">
+            <Field className="gap-2">
+              <FieldLabel htmlFor="login-email">{t("auth.email")}</FieldLabel>
+              <Input
+                ref={emailRef}
+                id="login-email"
+                name="email"
+                type="email"
+                value={email}
+                onChange={(e) => edit("email", e.target.value)}
+                placeholder={t("auth.emailPlaceholder")}
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                inputMode="email"
+                enterKeyHint="next"
+                autoFocus
+                required
+                aria-invalid={blames("email") || undefined}
+                aria-describedby={blames("email") ? noticeId : undefined}
+                className={AUTH_INPUT}
               />
-            </div>
-            {/* Password, pair and form-level messages all read from here: the
-                pair is "email or password", and a form-level failure (network,
-                server) belongs next to the button the user just pressed. */}
-            <div className="col-span-2 row-start-3 -mt-1 min-h-5">
-              {notice && notice.owner !== "email" ? <FieldError id={noticeId}>{notice.message}</FieldError> : null}
-            </div>
-            <AppLink
-              href={paths.forgotPassword()}
-              className={cn(AUTH_LINK, "col-start-2 row-start-1 justify-self-end text-label")}
-            >
-              {t("auth.forgotPassword")}
-            </AppLink>
-          </Field>
-        </FieldGroup>
+              {/* Each field owns a reserved one-line slot, so a message lands
+                  directly under the box it is about and nothing else moves.
+                  The column is vertically centred: a message appearing from
+                  nothing pushed the heading up and the button down at the exact
+                  moment the user was reaching for it. `-mt-1` puts it 4px under
+                  the box, tight enough to read as part of the field. Only one
+                  slot has content at a time; the other stays empty. */}
+              <div className="-mt-1 min-h-5">
+                {notice?.owner === "email" ? <FieldError id={noticeId}>{notice.message}</FieldError> : null}
+              </div>
+            </Field>
+            {/* The recovery link sits on the label row, where the eye already is
+                when a password will not come, but it comes AFTER the box in the
+                DOM: in the tab order and to a screen reader it follows the
+                password and its reveal toggle instead of standing between the
+                two fields a keyboard user is moving through. The grid puts it
+                back on the label row visually. */}
+            <Field className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2">
+              <FieldLabel htmlFor="login-password" className="col-start-1 row-start-1">
+                {t("auth.password")}
+              </FieldLabel>
+              <div className="col-span-2 row-start-2">
+                <PasswordField
+                  ref={passwordRef}
+                  id="login-password"
+                  name="password"
+                  value={password}
+                  onChange={(v) => edit("password", v)}
+                  autoComplete="current-password"
+                  invalid={blames("password")}
+                  describedBy={blames("password") ? noticeId : undefined}
+                />
+              </div>
+              {/* Password, pair and form-level messages all read from here: the
+                  pair is "email or password", and a form-level failure (network,
+                  server) belongs next to the button the user just pressed. */}
+              <div className="col-span-2 row-start-3 -mt-1 min-h-5">
+                {notice && notice.owner !== "email" ? <FieldError id={noticeId}>{notice.message}</FieldError> : null}
+              </div>
+              <AppLink
+                href={paths.forgotPassword()}
+                className={cn(AUTH_LINK, "col-start-2 row-start-1 justify-self-end text-label")}
+              >
+                {t("auth.forgotPassword")}
+              </AppLink>
+            </Field>
+          </FieldGroup>
 
-        <div className="flex flex-col gap-3">
-          <AuthSubmit pending={login.isPending} pendingLabel={t("auth.signingIn")}>
-            {t("auth.login")}
-          </AuthSubmit>
-          {/* The alternative sign-in sits with the primary action, before the
-              secondary links, so a phone user sees both ways in without
-              scrolling past the help text. */}
-          <GoogleButton next={next} />
-          <p className="text-center text-body text-muted-foreground">
-            {t("auth.noAccount")}{" "}
-            <AppLink href={paths.register()} className={AUTH_LINK}>
-              {t("auth.register")}
-            </AppLink>
-          </p>
-          <AuthLegalNote action="signIn" />
-        </div>
-      </form>
+          <div className="flex flex-col gap-3">
+            <AuthSubmit pending={login.isPending} pendingLabel={t("auth.signingIn")}>
+              {t("auth.login")}
+            </AuthSubmit>
+            <p className="text-center text-body text-muted-foreground">
+              {t("auth.noAccount")}{" "}
+              {/* Switching to register keeps where the person was headed (an
+                  invitation, the desktop app's consent). */}
+              <AppLink href={paths.register({ next })} className={AUTH_LINK}>
+                {t("auth.register")}
+              </AppLink>
+            </p>
+            <AuthLegalNote action="signIn" />
+          </div>
+        </form>
+      </div>
     </AuthShell>
   );
 }

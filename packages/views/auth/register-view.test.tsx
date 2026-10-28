@@ -114,6 +114,26 @@ describe("RegisterView", () => {
     expect(nav.push).toHaveBeenCalledWith("/login");
   });
 
+  it("keeps next on the way back to log in", () => {
+    const nav = adapter();
+    render(wrap(<RegisterView onSuccess={() => {}} next="/invite/tok" />, nav));
+    fireEvent.click(screen.getByRole("link", { name: "Đăng nhập" }));
+    expect(nav.push).toHaveBeenCalledWith("/login?next=%2Finvite%2Ftok");
+  });
+
+  it("puts the providers above the form, asking them to create the account, with next", async () => {
+    requestMock.mockResolvedValue({ google: true, apple: false, apple_web: true, google_native: false });
+    render(wrap(<RegisterView onSuccess={() => {}} next="/invite/tok" />));
+    const apple = await screen.findByRole("link", { name: "Tiếp tục với Apple" });
+    expect(apple.getAttribute("href")).toContain("/api/v1/auth/apple/start?next=%2Finvite%2Ftok&intent=sign_up");
+    expect(screen.getByRole("link", { name: "Tiếp tục với Google" }).getAttribute("href")).toContain(
+      "/api/v1/auth/google/start?next=%2Finvite%2Ftok&intent=sign_up",
+    );
+    expect(apple.compareDocumentPosition(screen.getByLabelText("Tên hiển thị")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Links, not buttons: the page keeps exactly one button named "Đăng ký" (e2e/auth-nav.ts).
+    expect(screen.getAllByRole("button", { name: /Đăng ký/ })).toHaveLength(1);
+  });
+
   // Apple 1.2 / Play UGC: signing up is agreeing to terms that forbid objectionable content.
   it("says signing up agrees to the terms, and links the terms and the privacy policy in the reader's language", () => {
     const nav = adapter();

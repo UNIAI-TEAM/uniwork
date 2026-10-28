@@ -41,7 +41,7 @@ function fill() {
   fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "hunter22" } });
 }
 
-/** The Google button also asks /auth/providers, so count only the login call. */
+/** The provider buttons also ask /auth/providers, so count only the login call. */
 function loginCalls() {
   return requestMock.mock.calls.filter(([path]) => path === "/api/v1/auth/login");
 }
@@ -167,21 +167,26 @@ describe("LoginView", () => {
     }
   });
 
-  it("renders the Google sign-in as a real link, not a button acting as one", async () => {
-    requestMock.mockResolvedValue({ google: true });
-    render(wrap(<LoginView onSuccess={() => {}} />));
-    const link = await screen.findByRole("link", { name: "Tiếp tục với Google" });
-    expect(link.tagName).toBe("A");
-    expect(link).not.toHaveAttribute("role");
-    expect(link).not.toHaveAttribute("type");
+  it("puts the provider buttons above the form and keeps next on them", async () => {
+    requestMock.mockResolvedValue({ google: true, apple: false, apple_web: true, google_native: false });
+    render(wrap(<LoginView onSuccess={() => {}} next="/acme/team" />));
+    const google = await screen.findByRole("link", { name: "Tiếp tục với Google" });
+    expect(google.getAttribute("href")).toContain("/api/v1/auth/google/start?next=%2Facme%2Fteam");
+    expect(screen.getByRole("link", { name: "Tiếp tục với Apple" }).getAttribute("href")).toContain(
+      "/api/v1/auth/apple/start?next=%2Facme%2Fteam",
+    );
+    expect(google.compareDocumentPosition(screen.getByLabelText("Email")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Links, not buttons: the page keeps exactly one button named "Đăng nhập" (e2e/auth-nav.ts).
+    expect(screen.getAllByRole("button", { name: /Đăng nhập/ })).toHaveLength(1);
   });
 
-  it("offers Google when the deployment has it", async () => {
-    requestMock.mockResolvedValue({ google: true });
-    render(wrap(<LoginView onSuccess={() => {}} next="/acme/team" />));
-    const link = await screen.findByRole("link", { name: "Tiếp tục với Google" });
-    expect(link.getAttribute("href")).toContain("/api/v1/auth/google/start?next=%2Facme%2Fteam");
+  it("keeps next on the way to register", () => {
+    const nav = adapter();
+    render(wrap(<LoginView onSuccess={() => {}} next="/auth/desktop/authorize?attempt_id=a1" />, nav));
+    fireEvent.click(screen.getByRole("link", { name: "Đăng ký" }));
+    expect(nav.push).toHaveBeenCalledWith("/register?next=%2Fauth%2Fdesktop%2Fauthorize%3Fattempt_id%3Da1");
   });
+
 
   it("asks for the email before sending anything and moves focus there", () => {
     render(wrap(<LoginView onSuccess={() => {}} />));

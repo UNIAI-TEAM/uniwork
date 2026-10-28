@@ -11,14 +11,21 @@ import { AppLink } from "../navigation";
 import { AUTH_INPUT, AuthSubmit } from "./auth-controls";
 import { AuthLegalNote } from "./auth-legal-note";
 import { AuthShell } from "./auth-shell";
-import { GoogleButton } from "./google-button";
 import { AUTH_LINK } from "./login-view";
 import { PasswordField } from "./password-field";
+import { SocialSignIn } from "./social-sign-in";
 
 /** The server's minimum, restated here so the rule is visible before submitting. */
 const PASSWORD_MIN = 8;
 
-export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse) => void }) {
+export function RegisterView({
+  onSuccess,
+  next,
+}: {
+  onSuccess: (sess: SessionResponse) => void;
+  /** Same-origin path to return to once the gates are behind the person; carried by every way out of this screen. */
+  next?: string | null;
+}) {
   const { t } = useTranslation();
   const reg = useRegister();
   const errorId = useId();
@@ -41,72 +48,77 @@ export function RegisterView({ onSuccess }: { onSuccess: (sess: SessionResponse)
 
   return (
     <AuthShell title={t("auth.register")} description={t("auth.registerSubtitle")}>
-      <form className="flex flex-col gap-6" onSubmit={submit} noValidate>
-        <FieldGroup className="gap-4">
-          <Field className="gap-2">
-            <FieldLabel htmlFor="register-name">{t("auth.displayName")}</FieldLabel>
-            <Input
-              id="register-name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              autoComplete="name"
-              enterKeyHint="next"
-              autoFocus
-              required
-              className={AUTH_INPUT}
-            />
-          </Field>
-          <Field className="gap-2" data-invalid={emailTaken ? true : undefined}>
-            <FieldLabel htmlFor="register-email">{t("auth.email")}</FieldLabel>
-            <Input
-              id="register-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={t("auth.emailPlaceholder")}
-              autoComplete="email"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              inputMode="email"
-              enterKeyHint="next"
-              required
-              aria-invalid={emailTaken || undefined}
-              aria-describedby={emailTaken ? errorId : undefined}
-              className={AUTH_INPUT}
-            />
-          </Field>
-          <Field className="gap-2">
-            <FieldLabel htmlFor="register-password">{t("auth.password")}</FieldLabel>
-            <PasswordField
-              id="register-password"
-              value={password}
-              onChange={setPassword}
-              autoComplete="new-password"
-              minLength={PASSWORD_MIN}
-              describedBy={hintId}
-            />
-            <FieldDescription id={hintId} className="text-caption">
-              {t("auth.passwordMinHint", { min: PASSWORD_MIN })}
-            </FieldDescription>
-          </Field>
-          <FieldError id={errorId}>{errorMsg}</FieldError>
-        </FieldGroup>
+      <div className="flex flex-col gap-5">
+        {/* intent=sign_up: a provider identity that matches no account
+            becomes one at once. Opening this screen already said "new
+            account", so the choice screen does not ask again (spec §3.2). */}
+        <SocialSignIn next={next} intent="sign_up" />
+        <form className="flex flex-col gap-6" onSubmit={submit} noValidate>
+          <FieldGroup className="gap-4">
+            <Field className="gap-2">
+              <FieldLabel htmlFor="register-name">{t("auth.displayName")}</FieldLabel>
+              <Input
+                id="register-name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                autoComplete="name"
+                enterKeyHint="next"
+                autoFocus
+                required
+                className={AUTH_INPUT}
+              />
+            </Field>
+            <Field className="gap-2" data-invalid={emailTaken ? true : undefined}>
+              <FieldLabel htmlFor="register-email">{t("auth.email")}</FieldLabel>
+              <Input
+                id="register-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={t("auth.emailPlaceholder")}
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                inputMode="email"
+                enterKeyHint="next"
+                required
+                aria-invalid={emailTaken || undefined}
+                aria-describedby={emailTaken ? errorId : undefined}
+                className={AUTH_INPUT}
+              />
+            </Field>
+            <Field className="gap-2">
+              <FieldLabel htmlFor="register-password">{t("auth.password")}</FieldLabel>
+              <PasswordField
+                id="register-password"
+                value={password}
+                onChange={setPassword}
+                autoComplete="new-password"
+                minLength={PASSWORD_MIN}
+                describedBy={hintId}
+              />
+              <FieldDescription id={hintId} className="text-caption">
+                {t("auth.passwordMinHint", { min: PASSWORD_MIN })}
+              </FieldDescription>
+            </Field>
+            <FieldError id={errorId}>{errorMsg}</FieldError>
+          </FieldGroup>
 
-        <div className="flex flex-col gap-3">
-          <AuthSubmit pending={reg.isPending} pendingLabel={t("auth.registering")}>
-            {t("auth.register")}
-          </AuthSubmit>
-          <GoogleButton />
-          <p className="text-center text-body text-muted-foreground">
-            {t("auth.hasAccount")}{" "}
-            <AppLink href={paths.login()} className={AUTH_LINK}>
-              {t("auth.login")}
-            </AppLink>
-          </p>
-          <AuthLegalNote action="signUp" />
-        </div>
-      </form>
+          <div className="flex flex-col gap-3">
+            <AuthSubmit pending={reg.isPending} pendingLabel={t("auth.registering")}>
+              {t("auth.register")}
+            </AuthSubmit>
+            <p className="text-center text-body text-muted-foreground">
+              {t("auth.hasAccount")}{" "}
+              <AppLink href={paths.login({ next })} className={AUTH_LINK}>
+                {t("auth.login")}
+              </AppLink>
+            </p>
+            <AuthLegalNote action="signUp" />
+          </div>
+        </form>
+      </div>
     </AuthShell>
   );
 }
