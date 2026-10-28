@@ -183,6 +183,14 @@ describe("LoginView", () => {
     expect(link.getAttribute("href")).toContain("/api/v1/auth/google/start?next=%2Facme%2Fteam");
   });
 
+  it("keeps a join next on the register link", () => {
+    const nav = adapter();
+    const next = "/join/l1#secret=s3cret";
+    render(wrap(<LoginView onSuccess={() => {}} next={next} />, nav));
+    fireEvent.click(screen.getByRole("link", { name: "Đăng ký" }));
+    expect(nav.push).toHaveBeenCalledWith(`/register?next=${encodeURIComponent(next)}`);
+  });
+
   it("asks for the email before sending anything and moves focus there", () => {
     render(wrap(<LoginView onSuccess={() => {}} />));
     fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));

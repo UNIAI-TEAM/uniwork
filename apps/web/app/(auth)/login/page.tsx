@@ -2,7 +2,7 @@
 import { useCallback, useEffect } from "react";
 import { api } from "@uniwork/core";
 import { useSession } from "@uniwork/core/auth";
-import { sanitizeNextUrl, type AuthGateUser } from "@uniwork/core/paths";
+import { resolvePostAuthNavigation, sanitizeNextUrl, type AuthGateUser } from "@uniwork/core/paths";
 import { LoginView, type GoogleLoginError } from "@uniwork/views/auth/login-view";
 import { useLoggedInDestination } from "@uniwork/views/auth/post-auth-redirect";
 import { useNavigation } from "@uniwork/views/navigation";
@@ -26,8 +26,8 @@ export default function LoginPage() {
     async (u: AuthGateUser) => {
       const workspaces = await api.workspaces.list().catch(() => []);
       const destination = await resolveDestination(u, workspaces);
-      // `next` only once every gate step is behind the user.
-      push(next && destination !== "/verify" && destination !== "/onboarding" ? next : destination);
+      // Join/email-invite `next` may override onboarding; verify still comes first.
+      push(resolvePostAuthNavigation(destination, next));
     },
     [next, push, resolveDestination],
   );
