@@ -5,6 +5,7 @@ import { useAuthProviders } from "@uniwork/core/auth";
 import { paths, type ProviderStartOptions } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Separator } from "@uniwork/ui/components/ui/separator";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppleMark, GoogleMark } from "../common/provider-icons";
 import { AUTH_PILL } from "./auth-controls";
@@ -53,6 +54,27 @@ const LABEL: Record<SignInProvider, string> = {
   google: "auth.social.continueWithGoogle",
   apple: "auth.social.continueWithApple",
 };
+
+/** What a provider adds to the outline pill: Apple's colours on a dark page. */
+export function providerPillClass(provider: SignInProvider): string | undefined {
+  return provider === "apple" ? APPLE_PILL : undefined;
+}
+
+/**
+ * A provider pill's face, its mark and "Continue with …": the links below,
+ * and the UniChat shell's buttons, which start the same sign-in through the
+ * system browser. `busy` puts a spinner where the mark stands.
+ */
+export function ProviderPillFace({ provider, busy = false }: { provider: SignInProvider; busy?: boolean }) {
+  const { t } = useTranslation();
+  const Mark = MARKS[provider];
+  return (
+    <>
+      {busy ? <Spinner className="size-4" /> : <Mark className={MARK_SIZE[provider]} />}
+      {t(LABEL[provider])}
+    </>
+  );
+}
 
 /**
  * "Continue with Google" and "Continue with Apple" above a login or register
@@ -103,24 +125,15 @@ export function SocialSignIn({
   return (
     <div className="flex flex-col gap-5">
       <div role="group" aria-label={t("auth.social.groupLabel")} className="flex flex-col gap-3">
-        {offered.map((provider) => {
-          const Mark = MARKS[provider];
-          return (
-            <a
-              key={provider}
-              href={providerStartUrl(provider, { next, intent })}
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                AUTH_PILL,
-                "gap-2.5",
-                provider === "apple" && APPLE_PILL,
-              )}
-            >
-              <Mark className={MARK_SIZE[provider]} />
-              {t(LABEL[provider])}
-            </a>
-          );
-        })}
+        {offered.map((provider) => (
+          <a
+            key={provider}
+            href={providerStartUrl(provider, { next, intent })}
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }), AUTH_PILL, "gap-2.5", providerPillClass(provider))}
+          >
+            <ProviderPillFace provider={provider} />
+          </a>
+        ))}
       </div>
       <div className="flex items-center gap-3 text-caption text-muted-foreground">
         <Separator className="flex-1" />
