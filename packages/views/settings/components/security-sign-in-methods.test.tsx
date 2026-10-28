@@ -600,6 +600,24 @@ describe("SignInMethodsSection", () => {
     expect(screen.getByRole("button", { name: "Đăng xuất" })).toBeInTheDocument();
   });
 
+  it("signs out to the account's own security page, whatever workspace this browser's account was sent to", async () => {
+    route({
+      "GET /api/v1/me/sign-in-methods": METHODS,
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "POST /api/v1/auth/logout": undefined,
+    });
+    // /settings sent the other account on to its own workspace's settings.
+    const nav = open("/org-b/ws-b/settings?tab=security&expect_user=u-other");
+    fireEvent.click(await screen.findByRole("button", { name: "Đăng xuất" }));
+    // The page to come back to is the one UniChat opened, not a workspace the
+    // account signing in may not belong to.
+    await waitFor(() =>
+      expect(nav.replace).toHaveBeenCalledWith(
+        `/login?next=${encodeURIComponent("/settings?tab=security&expect_user=u-other")}`,
+      ),
+    );
+  });
+
   it("holds every change while the browser is signed in to the other account", async () => {
     route({ "GET /api/v1/me/sign-in-methods": METHODS, "GET /api/v1/auth/providers": PROVIDERS });
     open("/settings?tab=security&expect_user=u-other");

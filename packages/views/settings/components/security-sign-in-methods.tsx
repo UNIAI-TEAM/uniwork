@@ -417,7 +417,7 @@ export function SignInMethodsSection() {
 
   return (
     <SettingsSection title={t("title")} description={t("description")}>
-      {otherAccount && user ? <OtherBrowserAccount id={warningId} email={user.email} /> : null}
+      {otherAccount && user && expected ? <OtherBrowserAccount id={warningId} email={user.email} expected={expected} /> : null}
       {body}
       {gate.dialog}
       <PasswordDialog mode={passwordMode} open={passwordOpen} onOpenChange={setPasswordOpen} />
@@ -464,12 +464,17 @@ export function SignInMethodsSection() {
  * this browser is signed in to another account: what is linked here would
  * join that one. Said before anything is pressed, with the way out; the
  * rows' actions hold and point here (`id`) until the accounts match.
+ *
+ * The way out comes back to the page UniChat opened, never to this URL:
+ * /settings has already sent the other account on to its own workspace,
+ * which the UniChat account signing in may not belong to. /settings finds
+ * that account's own home again, `expect_user` kept.
  */
-function OtherBrowserAccount({ id, email }: { id: string; email: string }) {
+function OtherBrowserAccount({ id, email, expected }: { id: string; email: string; expected: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.security.signInMethods" });
   const nav = useNavigation();
   const logout = useLogout();
-  const here = `${nav.pathname}?${nav.searchParams.toString()}`;
+  const back = paths.securitySettings({ expectUser: expected });
   return (
     // Part of what the page says from the start, not news: a note, read in its place.
     <Alert id={id} variant="warning" role="note">
@@ -485,7 +490,13 @@ function OtherBrowserAccount({ id, email }: { id: string; email: string }) {
           aria-disabled={logout.isPending || undefined}
           onClick={() => {
             if (logout.isPending) return;
-            logout.mutate(undefined, { onSettled: () => nav.replace(paths.login({ next: here })) });
+            // Signing out drops the user before the call settles, which
+            // unmounts this warning and mutate's own callbacks with it; the
+            // promise still lands.
+            void logout
+              .mutateAsync()
+              .catch(() => undefined)
+              .then(() => nav.replace(paths.login({ next: back })));
           }}
         >
           {logout.isPending ? <Spinner /> : null}
