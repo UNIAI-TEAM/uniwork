@@ -56,7 +56,8 @@ describe("DesktopConsentView", () => {
     expect(screen.getByText(app)).toBeInTheDocument();
 
     rerender(wrap(<DesktopConsentView consent={{ ...consent, client_id }} state="approved" callbackUrl="uniworkchat://auth/callback?code=c" onDecision={vi.fn(async () => {})} />));
-    expect(screen.getByRole("status")).toHaveTextContent(`Allowed ${app} to sign in`);
+    expect(screen.getByRole("heading", { name: `${app} is allowed` })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(`Go back to ${app} to continue.`);
     expect(screen.getByRole("button", { name: `Open ${app}` })).toBeInTheDocument();
   });
 
@@ -70,25 +71,32 @@ describe("DesktopConsentView", () => {
   });
 
   it.each([
-    ["approved", "Desktop sign-in result", "Allowed UniWork to sign in"],
-    ["cancelled", "Desktop sign-in result", "Desktop sign-in was cancelled."],
-    ["error", "Desktop sign-in result", "Couldn't finish the desktop sign-in. Try again."],
-    ["expired", "Desktop sign-in result", "This request has expired. Go back to UniWork and try again."],
-  ] as const)("renders the %s result state", (state, heading, expectedCopy) => {
-    render(wrap(<DesktopConsentView consent={null} state={state} onDecision={vi.fn(async () => {})} />));
+    ["approved", "UniWork Office is allowed", "Go back to UniWork Office to continue."],
+    ["cancelled", "Sign-in cancelled", "UniWork Office wasn't signed in."],
+    ["error", "Couldn't finish signing in", "Try again. If it still fails, start signing in again from the app."],
+    ["expired", "This request has expired", "Go back to UniWork Office and try again."],
+  ] as const)("titles the %s result by what happened", (state, heading, expectedCopy) => {
+    render(wrap(<DesktopConsentView consent={consent} state={state} onDecision={vi.fn(async () => {})} />));
     expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(expectedCopy);
     expect(screen.queryByRole("button", { name: "Allow desktop app" })).not.toBeInTheDocument();
   });
 
-  it.each([
-    ["cancelled", "Phone sign-in was cancelled."],
-    ["error", "Couldn't finish signing in on this phone. Try again."],
-    ["expired", "This request has expired. Go back to UniChat and try again."],
-  ] as const)("says the phone's %s result in the phone's words", (state, expectedCopy) => {
-    render(wrap(<DesktopConsentView consent={phone} state={state} onDecision={vi.fn(async () => {})} />));
-    expect(screen.getByRole("heading", { name: "Phone sign-in result" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(expectedCopy);
+  it("guesses no product or platform for an attempt it never read", () => {
+    render(wrap(<DesktopConsentView consent={null} state="expired" onDecision={vi.fn(async () => {})} />));
+    expect(screen.getByRole("heading", { name: "This request has expired" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Go back to the app and try again.");
+    expect(screen.queryByText(/UniWork|desktop|tab/i)).toBeNull();
+  });
+
+  it("keeps naming the phone's app when the attempt turns out gone after a retry", () => {
+    const { rerender } = render(wrap(<DesktopConsentView consent={phone} onDecision={vi.fn(async () => {})} />));
+    // The page blanks the attempt while it reads it again, then hears a 410.
+    rerender(wrap(<DesktopConsentView consent={null} state="pending" onDecision={vi.fn(async () => {})} />));
+    rerender(wrap(<DesktopConsentView consent={null} state="expired" onDecision={vi.fn(async () => {})} />));
+    expect(screen.getByRole("status")).toHaveTextContent("Go back to UniChat and try again.");
+    // The phone's sign-in sheet has no tab to close.
+    expect(screen.queryByText("You can close this tab.")).toBeNull();
   });
 
   it("offers to try again only where trying here can help", () => {
@@ -149,28 +157,32 @@ describe("DesktopConsentView", () => {
     const onDecision = vi.fn(async () => {});
     render(wrap(<DesktopConsentView consent={consent} onDecision={onDecision} onSwitchAccount={onSwitchAccount} />));
 
-    const notYou = screen.getByRole("button", { name: "Not you? Use another account" });
+    expect(screen.getByText("Not you?")).toBeInTheDocument();
+    const notYou = screen.getByRole("button", { name: "Use another account" });
     fireEvent.click(notYou);
     fireEvent.click(notYou);
     expect(onSwitchAccount).toHaveBeenCalledTimes(1);
     expect(notYou).toHaveAttribute("aria-busy", "true");
+    // Signing out takes a moment: the press is seen.
+    expect(notYou).toHaveTextContent("Signing out…");
     // Allowing as the account being left is not on offer meanwhile.
     fireEvent.click(screen.getByRole("button", { name: "Allow desktop app" }));
     expect(onDecision).not.toHaveBeenCalled();
     finish();
     await waitFor(() => expect(notYou).not.toHaveAttribute("aria-busy"));
+    expect(notYou).toHaveTextContent("Use another account");
   });
 
   it("offers no way to switch accounts when the page gives none", () => {
     render(wrap(<DesktopConsentView consent={consent} onDecision={vi.fn(async () => {})} />));
-    expect(screen.queryByRole("button", { name: "Not you? Use another account" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Use another account" })).toBeNull();
   });
 
   it("speaks Vietnamese by default", async () => {
     await setLocale("vi");
     render(wrap(<DesktopConsentView consent={phone} onDecision={vi.fn(async () => {})} onSwitchAccount={vi.fn(async () => {})} />));
     expect(screen.getByRole("heading", { name: "Cho phép UniChat trên điện thoại này đăng nhập?" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Không phải bạn? Dùng tài khoản khác" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dùng tài khoản khác" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Chi tiết" })).toBeInTheDocument();
   });
 });

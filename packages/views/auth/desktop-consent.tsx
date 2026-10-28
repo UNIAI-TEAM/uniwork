@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Monitor, Smartphone } from "lucide-react";
 import type { DesktopConsent } from "@uniwork/core/api/endpoints/auth";
@@ -159,7 +159,10 @@ function ConsentSkeleton() {
  *
  * Every outcome is final for this attempt: allowed, cancelled and expired
  * point back to the app, which starts a new one if needed; only a failure to
- * read or send offers to try again here.
+ * read or send offers to try again here. Each is titled by what happened.
+ * The attempt last read keeps naming the app and the platform when a retry
+ * or a 410 brings no attempt with it; one never read is spoken of neutrally
+ * ("Quay lại ứng dụng…"), never as a guessed product on a guessed device.
  */
 export function DesktopConsentView({
   consent,
@@ -174,6 +177,11 @@ export function DesktopConsentView({
   const [pending, setPending] = useState<"approve" | "cancel" | null>(null);
   const [switching, setSwitching] = useState(false);
   const busy = pending !== null || switching;
+  const [known, setKnown] = useState<DesktopConsent | null>(consent);
+  useEffect(() => {
+    if (consent) setKnown(consent);
+  }, [consent]);
+  const seen = consent ?? known;
 
   async function decide(decision: "approve" | "cancel") {
     // aria-disabled keeps the buttons in the tab order, so the guard is here.
@@ -196,8 +204,8 @@ export function DesktopConsentView({
     }
   }
 
-  const app = appName(consent?.client_id);
-  const phone = onPhone(consent?.platform);
+  const app = appName(seen?.client_id);
+  const phone = onPhone(seen?.platform);
   const copy = phone ? "auth.desktop.phone" : "auth.desktop";
 
   if (state === "pending" && !consent) {
@@ -209,16 +217,17 @@ export function DesktopConsentView({
   }
 
   if (state !== "pending") {
-    const result =
+    // Allowed and cancelled are only ever reached with the attempt read.
+    const [title, result] =
       state === "approved"
-        ? t("auth.desktop.approved", { app })
+        ? [t("auth.desktop.approvedTitle", { app }), t("auth.desktop.approved", { app })]
         : state === "cancelled"
-          ? t(`${copy}.cancelledResult`)
+          ? [t("auth.desktop.cancelledTitle"), t("auth.desktop.cancelled", { app })]
           : state === "expired"
-            ? t("auth.desktop.expired", { app })
-            : t(`${copy}.errorResult`, { app });
+            ? [t("auth.desktop.expiredTitle"), seen ? t("auth.desktop.expired", { app }) : t("auth.desktop.expiredUnknown")]
+            : [t("auth.desktop.errorTitle"), t("auth.desktop.error")];
     return (
-      <AuthShell title={t(`${copy}.resultTitle`)} description={<span role="status">{result}</span>}>
+      <AuthShell title={title} description={<span role="status">{result}</span>}>
         {state === "error" ? (
           <Button type="button" size="lg" className={AUTH_PILL} onClick={onRetry}>
             {t("common.retry")}
@@ -230,7 +239,10 @@ export function DesktopConsentView({
                 {t("auth.desktop.openDesktop", { app })}
               </Button>
             ) : null}
-            <p className="text-pretty text-caption text-muted-foreground">{t("auth.desktop.closeTab")}</p>
+            {/* A desktop browser's tab; the phone's sign-in sheet has none. */}
+            {seen && !phone ? (
+              <p className="text-pretty text-caption text-muted-foreground">{t("auth.desktop.closeTab")}</p>
+            ) : null}
           </div>
         )}
       </AuthShell>
@@ -271,19 +283,24 @@ export function DesktopConsentView({
             {t("common.cancel")}
           </Button>
           {onSwitchAccount ? (
-            // Button primitive for the 44px coarse-pointer floor, drawn as the
-            // credential screens' inline link.
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="h-auto self-center px-1 text-label text-brand"
-              aria-disabled={busy || undefined}
-              aria-busy={switching || undefined}
-              onClick={() => void switchAccount()}
-            >
-              {t("auth.desktop.notYou")}
-            </Button>
+            <p className="flex flex-wrap items-center justify-center gap-x-1 text-label text-muted-foreground">
+              {t("auth.desktop.notYouQuestion")}
+              {/* Button primitive for the 44px coarse-pointer floor, drawn as the
+                  credential screens' inline link. Signing out takes a moment
+                  before the page moves on: it says so, like its neighbours. */}
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto px-1 text-label text-brand"
+                aria-disabled={busy || undefined}
+                aria-busy={switching || undefined}
+                onClick={() => void switchAccount()}
+              >
+                {switching ? <Spinner /> : null}
+                {switching ? t("auth.desktop.signingOut") : t("auth.desktop.useAnother")}
+              </Button>
+            </p>
           ) : null}
         </div>
       </div>

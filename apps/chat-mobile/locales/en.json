@@ -13,11 +13,15 @@
       "loading": "Loading…",
       "approve": "Allow desktop app",
       "approving": "Allowing…",
-      "resultTitle": "Desktop sign-in result",
-      "approved": "Allowed {{app}} to sign in",
-      "cancelledResult": "Desktop sign-in was cancelled.",
-      "errorResult": "Couldn't finish the desktop sign-in. Try again.",
-      "expired": "This request has expired. Go back to {{app}} and try again.",
+      "approvedTitle": "{{app}} is allowed",
+      "approved": "Go back to {{app}} to continue.",
+      "cancelledTitle": "Sign-in cancelled",
+      "cancelled": "{{app}} wasn't signed in.",
+      "expiredTitle": "This request has expired",
+      "expired": "Go back to {{app}} and try again.",
+      "expiredUnknown": "Go back to the app and try again.",
+      "errorTitle": "Couldn't finish signing in",
+      "error": "Try again. If it still fails, start signing in again from the app.",
       "openDesktop": "Open {{app}}",
       "closeTab": "You can close this tab.",
       "accountUnknown": "UniWork account",
@@ -38,13 +42,12 @@
       "unichat_login_cancel": "Cancel",
       "unichat_login_version": "UniChat {{version}}",
       "details": "Details",
-      "notYou": "Not you? Use another account",
+      "notYouQuestion": "Not you?",
+      "useAnother": "Use another account",
+      "signingOut": "Signing out…",
       "phone": {
         "title": "Allow {{app}} on this phone to sign in?",
-        "approve": "Allow {{app}}",
-        "resultTitle": "Phone sign-in result",
-        "cancelledResult": "Phone sign-in was cancelled.",
-        "errorResult": "Couldn't finish signing in on this phone. Try again."
+        "approve": "Allow {{app}}"
       }
     },
     "logout": "Log out"

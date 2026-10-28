@@ -13,11 +13,15 @@
       "loading": "Đang tải…",
       "approve": "Cho phép ứng dụng desktop",
       "approving": "Đang cho phép…",
-      "resultTitle": "Kết quả đăng nhập desktop",
-      "approved": "Đã cho phép {{app}} đăng nhập",
-      "cancelledResult": "Đã hủy đăng nhập desktop.",
-      "errorResult": "Không thể hoàn tất đăng nhập desktop. Thử lại.",
-      "expired": "Yêu cầu đã hết hạn. Quay lại {{app}} và thử lại.",
+      "approvedTitle": "Đã cho phép {{app}}",
+      "approved": "Quay lại {{app}} để tiếp tục.",
+      "cancelledTitle": "Đã hủy đăng nhập",
+      "cancelled": "{{app}} chưa được đăng nhập.",
+      "expiredTitle": "Yêu cầu đã hết hạn",
+      "expired": "Quay lại {{app}} và thử lại.",
+      "expiredUnknown": "Quay lại ứng dụng và thử lại.",
+      "errorTitle": "Chưa hoàn tất được đăng nhập",
+      "error": "Thử lại. Nếu vẫn chưa được, mở lại đăng nhập từ ứng dụng.",
       "openDesktop": "Mở {{app}}",
       "closeTab": "Bạn có thể đóng tab này.",
       "accountUnknown": "Tài khoản UniWork",
@@ -38,13 +42,12 @@
       "unichat_login_cancel": "Hủy",
       "unichat_login_version": "UniChat {{version}}",
       "details": "Chi tiết",
-      "notYou": "Không phải bạn? Dùng tài khoản khác",
+      "notYouQuestion": "Không phải bạn?",
+      "useAnother": "Dùng tài khoản khác",
+      "signingOut": "Đang đăng xuất…",
       "phone": {
         "title": "Cho phép {{app}} trên điện thoại này đăng nhập?",
-        "approve": "Cho phép {{app}}",
-        "resultTitle": "Kết quả đăng nhập trên điện thoại",
-        "cancelledResult": "Đã hủy đăng nhập trên điện thoại.",
-        "errorResult": "Chưa hoàn tất được đăng nhập trên điện thoại. Thử lại."
+        "approve": "Cho phép {{app}}"
       }
     },
     "logout": "Đăng xuất"
