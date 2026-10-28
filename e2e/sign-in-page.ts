@@ -1,0 +1,56 @@
+import { expect, type Page } from "@playwright/test";
+import { auditText } from "./contrast";
+
+/**
+ * The sign-in screens' specs (ADR 0047, spec 2026-10-27 §4.6): the answers
+ * they need from a server that cannot give them, and the measurements they
+ * share.
+ *
+ * No CI deployment holds Google or Apple credentials, so /auth/providers
+ * offers neither. The stub still lets the request reach the server and keeps
+ * its response (status line, CORS headers), replacing only the JSON, as
+ * landing-office-stubs.ts does for /config: the web app calls the API on
+ * another origin with credentials, and a hand-made response would fail CORS.
+ * Stub before the first navigation.
+ */
+
+/** GET /auth/providers as a deployment with the web's Google and Apple turned on (spec §3.8). */
+const BOTH_PROVIDERS = { google: true, apple: false, apple_web: true, google_native: false };
+
+/**
+ * Offers Google and Apple on the web. `hold` keeps the answer back until it
+ * settles, so a spec can look at the page while the providers are in flight.
+ */
+export async function offerProviders(page: Page, hold?: Promise<void>): Promise<void> {
+  await page.route(/\/api\/v1\/auth\/providers(\?.*)?$/, async (route) => {
+    const response = await route.fetch();
+    await hold;
+    await route.fulfill({ response, json: BOTH_PROVIDERS });
+  });
+}
+
+/** The app's colour mode, as the theme switch sets it. Navigation resets it. */
+export async function setMode(page: Page, mode: "light" | "dark"): Promise<void> {
+  await page.evaluate((m) => document.documentElement.classList.toggle("dark", m === "dark"), mode);
+}
+
+/** Every text node on the page clears WCAG AA against what is painted under it (contrast.ts). */
+export async function expectReadable(page: Page, what: string): Promise<void> {
+  const audit = await auditText(page);
+  expect(audit.colorLevel4, "the canvas does not take CSS Color 4: the measurement would be silently wrong").toBe(true);
+  expect(audit.checked, `${what}: no text node measured, the selector slipped`).toBeGreaterThan(3);
+  expect(audit.fails, `${what}: ${audit.fails.join(" | ")}`).toEqual([]);
+}
+
+/**
+ * How far the page scrolls sideways, in px; 0 when nothing does. The auth
+ * column is its own scroller (`main`, overflow-y-auto, which scrolls in x
+ * too), so a too-wide child shows there and not on the document.
+ */
+export async function sidewaysOverflow(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const doc = document.documentElement;
+    const main = document.querySelector("main");
+    return Math.max(doc.scrollWidth - doc.clientWidth, main ? main.scrollWidth - main.clientWidth : 0);
+  });
+}
