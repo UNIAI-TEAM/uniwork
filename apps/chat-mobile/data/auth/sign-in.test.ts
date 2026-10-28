@@ -314,11 +314,15 @@ describe("the choice screen", () => {
     expect(usePendingSignIn.getState()).toMatchObject({ choice: null, secondFactor: null });
   });
 
-  it("names the identity's address for a new account's second factor", async () => {
+  it("names the identity's address for a new account's second factor, whose session spends the ticket", async () => {
     holdChoice();
+    // The identity opened an account with a second factor by the time "Tạo tài khoản mới" was tapped.
     flow.api.createFromTicket.mockResolvedValueOnce(mfaRequired);
     await runSignIn({ method: "ticket" });
     expect(usePendingSignIn.getState().secondFactor?.context).toEqual({ method: "ticket", email: identity.email, provider: "apple" });
+    flow.api.verifySecondFactor.mockResolvedValueOnce(signedIn());
+    await runSignIn({ method: "second_factor", code: "123456" });
+    expect(usePendingSignIn.getState()).toMatchObject({ choice: null, secondFactor: null });
   });
 
   it("says the sign-in expired, without asking the server, once the ticket is gone", async () => {

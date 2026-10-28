@@ -133,14 +133,18 @@ function issuerFor(request: DoorRequest): Issuer {
   }
 }
 
+/** The choice screen's own ways in: a session from one of them, or from its second factor, spends the ticket. */
+const CHOICE_METHODS: ReadonlySet<string> = new Set(["ticket", "email_claim"]);
+
 /**
  * Whether a session from this request spent the choice screen's ticket: its new account, its mailed code, or the
- * second factor of that code. Any other sign-in keeps it, for the choice screen to link the identity into the account
- * the person just signed in to ("Tôi đã có tài khoản").
+ * second factor of either (a new account's identity may open an account with one by then). Any other sign-in keeps
+ * it, for the choice screen to link the identity into the account the person just signed in to ("Tôi đã có tài
+ * khoản").
  */
 function spendsTicket(request: DoorRequest): boolean {
-  if (request.method === "ticket" || request.method === "email_claim") return true;
-  return request.method === "second_factor" && pendingChallenge(now())?.context.method === "email_claim";
+  if (CHOICE_METHODS.has(request.method)) return true;
+  return request.method === "second_factor" && CHOICE_METHODS.has(pendingChallenge(now())?.context.method ?? "");
 }
 
 /** One sign-in. Rejects with the door's verdict (a TransportError), or with what a sheet threw. */
