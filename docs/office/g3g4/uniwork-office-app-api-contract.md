@@ -391,7 +391,7 @@ Kết quả: `text/event-stream`, một `chat.completion.chunk` cho mỗi đoạ
 giây; response gửi `X-Accel-Buffering: no`. Header 200 chỉ gửi cùng đoạn đầu: **lỗi trước đoạn đầu** là HTTP status thật + `{code, message}` như §3.6:
 400 `invalid_request`, 402 `credits_exhausted`, 403 `forbidden` (khung chỉ xem) / `entitlement_required` / `office_capability_off`,
 404, 409 `conversation_expired` / `run_expired` / `run_limit_reached`, 413 `payload_too_large`, 429 `ai_uniwork_busy` /
-`ai_rate_limited`, 502 `ai_provider_error`, 503 `ai_disabled`, 504 `ai_provider_timeout`. **Lỗi sau khi đã có chữ** kết thúc luồng bằng
+`ai_rate_limited`, 502 `ai_provider_error`, 503 `ai_disabled`, 504 `ai_provider_timeout`, 408 `ai_cancelled`. **Lỗi sau khi đã có chữ** kết thúc luồng bằng
 một chunk `{"x_uniwork":{"terminal":{"code":"<code>"}}}` (không có `step`/`limit`, `choices` rỗng) rồi `[DONE]`, với `code` ∈
 `ai_provider_error`, `ai_provider_timeout`, `ai_cancelled`; client coi lần viết đó là **dở dang**.
 

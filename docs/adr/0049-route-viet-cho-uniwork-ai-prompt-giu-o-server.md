@@ -22,7 +22,7 @@ Hai cách sửa dễ mà sai: mở cho client gửi system prompt (lách luật 
 
 ## Hệ quả
 
-- **Chi phí credit của deck.** Mỗi trang là một lời gọi viết, tính một lượt model và credit của run. Deck lớn hơn sức một run (từ trang thứ 9 trong một lượt) nhận `run_limit_reached` ở các trang thừa: `generate_deck` dừng sinh trang, đặt các trang đã có và báo trang nào chưa làm; lượt trả kết quả công cụ vẫn đi được vì lượt cuối được chừa. Đó là hành vi đúng, không phải lỗi; gói PPTX chia việc để deck tới 64 trang vẫn vừa.
+- **Chi phí credit của deck.** Mỗi trang là một lời gọi viết, tính một lượt model và credit của run. Deck lớn hơn sức một run (lượt chat mở run đã dùng một lượt, nên lời gọi viết thứ 9 trong một lượt, tính cả lần thử lại, bị từ chối) nhận `run_limit_reached` ở các trang thừa: `generate_deck` dừng sinh trang, đặt các trang đã có và báo trang nào chưa làm; lượt trả kết quả công cụ vẫn đi được vì lượt cuối được chừa. Đó là hành vi đúng, không phải lỗi; gói PPTX chia việc để deck tới 64 trang vẫn vừa.
 - **Tính phí khi đứt giữa chừng.** Lỗi nhà cung cấp giữa stream không tính phí (như mọi route stream). Hết hạn hoặc hủy sau khi đã stream chữ thì Gateway tính phần đã nhận đúng một lần, và credit của run tăng đúng bằng số đó (`ai.Error.ChargedTokens`).
 - **Prompt ở server phải đi cùng bundle được pin.** Prompt server và parser fork cùng giữ một hợp đồng định dạng; đổi một bên mà bundle web pin ở bên kia chưa đổi thì chữ model viết ra không qua được parser. Nâng pin bundle và đổi `office_writer_contract.json` đi cùng một lần.
 - **Desktop chưa có.** App desktop vẫn dùng đường BYOK cho bộ viết hoặc từ chối; không có client gọi route viết ngoài frame web.
