@@ -57,6 +57,23 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 const PLANE = "flex flex-col divide-y divide-border/70 rounded-xl bg-muted/50 px-4 py-1";
 
 /**
+ * An address with a break chance after its @: the value column is narrow on
+ * a phone, and without one a long address was cut wherever it ran out
+ * ("…@example.c / om") instead of before its domain.
+ */
+function breakableEmail(email: string): ReactNode {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return email;
+  return (
+    <>
+      {email.slice(0, at + 1)}
+      <wbr />
+      {email.slice(at + 1)}
+    </>
+  );
+}
+
+/**
  * Who is asking and for whom: the app, the device and the account this
  * browser is signed in as lead, because those are what the person checks
  * before allowing. The server and build only matter when something looks
@@ -78,7 +95,7 @@ function ConsentFacts({ consent, app, phone }: { consent: DesktopConsent; app: s
         <Fact label={t("auth.desktop.account")}>
           <span className="block">{consent.account_name || t("auth.desktop.accountUnknown")}</span>
           <span className="block text-caption font-normal text-muted-foreground">
-            {consent.account_email || t("auth.desktop.emailUnknown")}
+            {consent.account_email ? breakableEmail(consent.account_email) : t("auth.desktop.emailUnknown")}
           </span>
         </Fact>
       </dl>
