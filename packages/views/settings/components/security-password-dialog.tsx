@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Check, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useAuthStore, useSetPassword } from "@uniwork/core/auth";
+import { useAuthStore, useSetPassword, useSignInMethods } from "@uniwork/core/auth";
 import { readSignInFailure, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { isAppleRelayEmail } from "@uniwork/core/auth/sign-in-rules";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -54,6 +54,7 @@ export function PasswordDialog({
   const { t: tRoot } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const setPassword = useSetPassword();
+  const methods = useSignInMethods();
   const gate = useStepUpGate();
   const ids = useId();
   const [values, setValues] = useState<Record<PasswordInput, string>>({ current: "", next: "", confirm: "" });
@@ -64,7 +65,8 @@ export function PasswordDialog({
   const [focus, setFocus] = useState<{ field: PasswordInput; turn: number } | null>(null);
   const pending = setPassword.isPending;
   const email = user?.email ?? "";
-  const relay = isAppleRelayEmail(email);
+  // The server's word too, as the proof dialog takes it: it knows a relay domain this build may not yet.
+  const relay = isAppleRelayEmail(email) || Boolean(methods.data?.account_email_is_relay);
 
   useEffect(() => {
     if (focus) refs[focus.field].current?.focus();
