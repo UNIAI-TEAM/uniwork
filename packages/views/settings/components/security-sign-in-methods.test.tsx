@@ -256,6 +256,37 @@ describe("SignInMethodsSection", () => {
     await waitFor(() => expect(calls("POST /api/v1/me/sign-in-methods/apple/link")).toHaveLength(1));
   });
 
+  // Apple's hidden address is named, never shown (docs/conventions.md): known by
+  // its domain, either of Sign in with Apple's, before the server says so, and
+  // by the server's word for a domain this build does not know yet.
+  it.each([
+    ["x9@privaterelay.appleid.com", false],
+    ["x9@private.icloud.com", false],
+    ["x9@relay.example.com", true],
+  ])("mails a code to Apple's hidden address %s without showing it", async (email, flagged) => {
+    setSessionUser({ ...USER, email, has_password: false });
+    route({
+      "GET /api/v1/me/sign-in-methods": {
+        ...METHODS,
+        password: { set: false, changed_at: null },
+        account_email_is_relay: flagged,
+        proofs: ["email_code"],
+      },
+      "GET /api/v1/auth/providers": PROVIDERS,
+      "POST /api/v1/me/step-up/email-code": { status: "sent" },
+    });
+    open();
+    fireEvent.click(await screen.findByRole("button", { name: "Liên kết Apple" }));
+    const dialog = await proofDialog();
+    const send = await dialog.findByRole("button", { name: "Gửi mã tới email ẩn của Apple" });
+    expect(dialog.getByText("Apple chuyển mã từ email ẩn tới hộp thư thật của bạn.")).toBeInTheDocument();
+    expect(dialog.queryByText(email, { exact: false })).toBeNull();
+    fireEvent.click(send);
+    expect(await dialog.findByText("Đã gửi mã tới email ẩn của Apple. Mã có hiệu lực 10 phút.")).toBeInTheDocument();
+    expect(dialog.getByText("Apple chuyển mã từ email ẩn tới hộp thư thật của bạn.")).toBeInTheDocument();
+    expect(dialog.queryByText(email, { exact: false })).toBeNull();
+  });
+
   it("keeps a mailed code through a dropped connection, and clears one the server refused", async () => {
     let tries = 0;
     route({
