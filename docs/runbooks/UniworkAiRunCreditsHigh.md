@@ -9,10 +9,11 @@
 
 ## Kiểm tra
 
-1. `AiCostSpike` có kêu không; ai tiêu: `topk(10, sum by (organization_id) (increase(uniwork_ai_cost_usd_total[1h])))` (chỉ khi ≤ 1000 tổ chức).
-2. Prompt/instruction pack đổi (`prompt_id` `office_uniwork_ai@1`) hoặc tài liệu rất lớn trong ngữ cảnh?
-3. Vòng tool lặp: `UniworkAiRunSecondsHigh` cùng lúc.
-4. Quota `ai.tokens` của tổ chức đầu bảng có đặt không (`uniwork_ai_calls_total{status="rejected"}`).
+1. Route viết trước tiên: run có lời gọi viết (UNI-2276) tiêu tới 9 × 16 384 token đầu ra là bình thường. Xem `sum(increase(uniwork_ai_calls_total{capability="office_uniwork_writer"}[30m]))` có tăng cùng lúc không.
+2. `AiCostSpike` có kêu không; ai tiêu: `topk(10, sum by (organization_id) (increase(uniwork_ai_cost_usd_total[1h])))` (chỉ khi ≤ 1000 tổ chức).
+3. Prompt/instruction pack đổi (`prompt_id` `office_uniwork_ai@1`) hoặc tài liệu rất lớn trong ngữ cảnh?
+4. Vòng tool lặp: `UniworkAiRunSecondsHigh` cùng lúc.
+5. Quota `ai.tokens` của tổ chức đầu bảng có đặt không (`uniwork_ai_calls_total{status="rejected"}`).
 
 ## Khắc phục
 
