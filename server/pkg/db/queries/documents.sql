@@ -291,3 +291,25 @@ WHERE id = sqlc.arg(id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND template_marked_at IS NOT NULL
 RETURNING *;
+
+-- The meeting a minutes page belongs to (UNI-2288). Joined on the document's
+-- own tenant pair (organization_id + workspace_id), matching liveMinutesPage
+-- in service/meeting_minutes.go:93-105, so a meeting whose minutes_document_id
+-- points at another workspace's document never claims it. Title visibility is
+-- gated in Go through WorkspaceService.RequireMemberQ (D1).
+-- name: ListMinutesMeetingsByDocumentIDs :many
+SELECT
+  mt.minutes_document_id::text AS document_id,
+  mt.id::text AS meeting_id,
+  mt.workspace_id::text AS workspace_id,
+  mt.title::text AS meeting_title
+FROM meetings mt
+JOIN documents d
+  ON d.id = mt.minutes_document_id
+ AND d.organization_id = mt.organization_id
+ AND d.workspace_id = mt.workspace_id
+WHERE mt.organization_id = sqlc.arg(organization_id)::text
+  AND d.organization_id = sqlc.arg(organization_id)::text
+  AND d.kind = 'page'
+  AND mt.minutes_document_id = ANY(sqlc.arg(document_ids)::text[])
+ORDER BY mt.created_at DESC, mt.id DESC;

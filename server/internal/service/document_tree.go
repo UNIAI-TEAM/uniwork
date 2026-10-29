@@ -397,6 +397,9 @@ type DocumentTreeNode struct {
 	// IsEmpty is set on folders only: whether the caller can read nothing
 	// directly inside it (ADR 0037, counted per viewer).
 	IsEmpty *bool `json:"is_empty,omitempty"`
+	// MinutesMeeting identifies the meeting this page is the minutes of
+	// (UNI-2288); nil on folders, files and non-minutes pages.
+	MinutesMeeting *DocumentMinutesMeeting `json:"minutes_meeting,omitempty"`
 }
 
 // DocumentTree returns the visible subtree under rootID ("" = the roots) as
@@ -480,7 +483,45 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 		}
 		nodes = buildTreeNodes(children[rootID], children, holds, 1)
 	}
-	return nodes, s.attachTreeEditLocks(ctx, actor, scope.organizationID, nodes)
+	if err := s.attachTreeEditLocks(ctx, actor, scope.organizationID, nodes); err != nil {
+		return nil, err
+	}
+	return nodes, s.attachTreeMinutesMeetings(ctx, actor, scope.organizationID, nodes)
+}
+
+// attachTreeMinutesMeetings fills MinutesMeeting on every page node of the
+// tree forest in one batched query, skipping the query when the forest holds
+// no pages (e.g. foldersOnly=true).
+func (s *DocumentService) attachTreeMinutesMeetings(ctx context.Context, actor Actor, organizationID string, nodes []DocumentTreeNode) error {
+	var pageIDs []string
+	collectTreePageIDs(nodes, &pageIDs)
+	if len(pageIDs) == 0 {
+		return nil
+	}
+	byID, err := s.minutesMeetingsForDocuments(ctx, actor, organizationID, pageIDs)
+	if err != nil || len(byID) == 0 {
+		return err
+	}
+	applyTreeMinutesMeetings(nodes, byID)
+	return nil
+}
+
+func collectTreePageIDs(nodes []DocumentTreeNode, ids *[]string) {
+	for i := range nodes {
+		if nodes[i].Kind == DocumentKindPage {
+			*ids = append(*ids, nodes[i].ID)
+		}
+		collectTreePageIDs(nodes[i].Children, ids)
+	}
+}
+
+func applyTreeMinutesMeetings(nodes []DocumentTreeNode, byID map[string]*DocumentMinutesMeeting) {
+	for i := range nodes {
+		if mm, ok := byID[nodes[i].ID]; ok {
+			nodes[i].MinutesMeeting = mm
+		}
+		applyTreeMinutesMeetings(nodes[i].Children, byID)
+	}
 }
 
 func buildTreeNodes(docs []db.Document, children map[string][]db.Document, holds map[string]bool, depth int) []DocumentTreeNode {

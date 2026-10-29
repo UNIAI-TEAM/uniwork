@@ -970,6 +970,9 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 	for i := range page.Items {
 		page.Items[i].Facts = facts[i]
 	}
+	if err := s.attachSharedMinutesMeetings(ctx, Human(userID), organizationID, page.Items); err != nil {
+		return SharedWithMePage{}, err
+	}
 	if err := s.attachSharedEditLocks(ctx, Human(userID), organizationID, page.Items); err != nil {
 		return SharedWithMePage{}, err
 	}

@@ -20,9 +20,10 @@ const (
 // MIME it was verified as, else the title's extension (internal/files); empty
 // for a page, a folder and a file neither names.
 type DocumentListFacts struct {
-	SizeBytes int64
-	Origin    string
-	Format    string
+	SizeBytes      int64
+	Origin         string
+	Format         string
+	MinutesMeeting *DocumentMinutesMeeting
 }
 
 // attachListFacts fills Facts on one page of list items. Every item of a
@@ -41,6 +42,61 @@ func (s *DocumentService) attachListFacts(ctx context.Context, items []DocumentL
 	}
 	for i := range items {
 		items[i].Facts = facts[i]
+	}
+	return nil
+}
+
+// attachListMinutesMeetings fills Facts.MinutesMeeting on one page of list or
+// recent rows in one batched query (UNI-2288). Skips the query when the page
+// holds no UniNote pages.
+func (s *DocumentService) attachListMinutesMeetings(ctx context.Context, actor Actor, items []DocumentListItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	pageIDs := make([]string, 0, len(items))
+	for i := range items {
+		if items[i].Document.Kind == DocumentKindPage {
+			pageIDs = append(pageIDs, items[i].Document.ID)
+		}
+	}
+	if len(pageIDs) == 0 {
+		return nil
+	}
+	byID, err := s.minutesMeetingsForDocuments(ctx, actor, items[0].Document.OrganizationID, pageIDs)
+	if err != nil || len(byID) == 0 {
+		return err
+	}
+	for i := range items {
+		if mm, ok := byID[items[i].Document.ID]; ok {
+			items[i].Facts.MinutesMeeting = mm
+		}
+	}
+	return nil
+}
+
+// attachSharedMinutesMeetings fills Facts.MinutesMeeting on one page of
+// shared-with-me rows in one batched query (UNI-2288).
+func (s *DocumentService) attachSharedMinutesMeetings(ctx context.Context, actor Actor, organizationID string, items []SharedDocument) error {
+	if len(items) == 0 {
+		return nil
+	}
+	pageIDs := make([]string, 0, len(items))
+	for i := range items {
+		if items[i].Document.Kind == DocumentKindPage {
+			pageIDs = append(pageIDs, items[i].Document.ID)
+		}
+	}
+	if len(pageIDs) == 0 {
+		return nil
+	}
+	byID, err := s.minutesMeetingsForDocuments(ctx, actor, organizationID, pageIDs)
+	if err != nil || len(byID) == 0 {
+		return err
+	}
+	for i := range items {
+		if mm, ok := byID[items[i].Document.ID]; ok {
+			items[i].Facts.MinutesMeeting = mm
+		}
 	}
 	return nil
 }
