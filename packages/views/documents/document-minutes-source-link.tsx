@@ -37,14 +37,13 @@ export function DocumentMinutesSourceLink({
     ? t("documents.page_ui.minutes_source_named", { title })
     : t("documents.page_ui.minutes_source");
 
-  const orgSlug = context?.workspace.organization_slug || "acme";
-  const wsSlug = context?.workspace.slug || "doi";
-  const href = paths.workspace(orgSlug, wsSlug).meeting(minutesMeeting.id);
+  const orgSlug = context?.workspace.organization_slug ?? "";
+  const wsSlug = context?.workspace.slug ?? "";
 
-  if (hasTitle) {
+  if (hasTitle && orgSlug && wsSlug) {
     return (
       <AppLink
-        href={href}
+        href={paths.workspace(orgSlug, wsSlug).meeting(minutesMeeting.id)}
         data-minutes-meeting
         title={label}
         onClick={stopPropagation ? (event) => event.stopPropagation() : undefined}
@@ -59,6 +58,7 @@ export function DocumentMinutesSourceLink({
     );
   }
 
+  // No title, or no workspace to build a path from: plain text, never a guessed link.
   return (
     <span
       data-minutes-meeting

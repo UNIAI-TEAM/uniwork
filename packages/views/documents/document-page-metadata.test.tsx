@@ -9,6 +9,7 @@ import { WorkspaceProvider } from "../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { requestMock, wrap } from "../test/api-mock";
 import "../test/lazy-document-editor";
+import { DocumentMinutesSourceLink } from "./document-minutes-source-link";
 import { DocumentWorkspace } from "./document-workspace";
 
 const { t } = initI18n();
@@ -365,5 +366,14 @@ describe("page metadata lifecycle", () => {
     const plainLabel = t("documents.page_ui.minutes_source");
     expect(await screen.findByText(plainLabel)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: plainLabel })).toBeNull();
+  });
+
+  it("shows the minutes source label as plain text outside a workspace context (UNI-2288)", () => {
+    render(
+      <DocumentMinutesSourceLink minutesMeeting={{ id: "m1", title: "Giao ban tuần 42" }} />,
+    );
+    const label = t("documents.page_ui.minutes_source_named", { title: "Giao ban tuần 42" });
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });
