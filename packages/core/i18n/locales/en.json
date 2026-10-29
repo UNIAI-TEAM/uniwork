@@ -1645,6 +1645,7 @@
         "agent_evaluation": "Agent evaluation",
         "embedding": "Embedding",
         "office_uniwork_ai": "UniWork AI in Office",
+        "office_uniwork_writer": "Document writer (UniWork AI)",
         "office_byok": "Office on the web (own key)",
         "office_byok_desktop": "Office desktop app (own key)"
       },
