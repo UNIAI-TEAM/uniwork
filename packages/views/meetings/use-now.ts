@@ -17,6 +17,8 @@ function clockFor(intervalMs: number): Clock {
   if (!clock) {
     clock = { now: Date.now(), listeners: new Set() };
     clocks.set(intervalMs, clock);
+  } else if (!clock.stop) {
+    clock.now = Date.now();
   }
   return clock;
 }
