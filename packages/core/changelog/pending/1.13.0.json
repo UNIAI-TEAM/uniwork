@@ -1,0 +1,522 @@
+{
+  "schemaVersion": 1,
+  "version": "1.13.0",
+  "date": "2026-10-29",
+  "ready": true,
+  "sourceRef": "294418f863a48b1e0f4b88c9659e797104b26243",
+  "previousSourceRef": "d29327318a22ff5d852d4713d8bd291556f78e04",
+  "title": {
+    "vi": "Đăng nhập thống nhất với Google và Apple, Hỏi UNI giao việc soạn tệp Office cho AI trong trình soạn, tạo việc từ nhiều tin nhắn",
+    "en": "Unified sign-in with Google and Apple, Ask UNI hands Office drafting to the editor's AI, tasks from several messages"
+  },
+  "summary": {
+    "vi": "Đăng nhập bằng email, Google hoặc Apple cho cùng kết quả trên web, máy tính và điện thoại; Apple dùng được trên web, và Cài đặt có mục Phương thức đăng nhập. Hỏi UNI giao việc soạn tệp Office cho AI trong trình soạn trên web, nay viết được cả tài liệu và dựng bài trình chiếu theo dàn ý đã duyệt. Chat tạo việc từ một hoặc nhiều tin nhắn với gợi ý từ AI. Cuộc họp có chuyển động mới, tóm tắt có nguồn cho từng câu và hoàn tác giao việc trong 8 giây, cùng các bản sửa cho tắt mic khách và Hỏi UNI trong phòng.",
+    "en": "Signing in with email, Google or Apple works the same way on the web, desktop and phones; Apple works on the web, and Settings has a Sign-in methods section. Ask UNI hands Office drafting to the editor's AI on the web, which can now write whole documents and build presentations from the approved outline. Chat creates tasks from one or more messages with AI suggestions. Meetings get new motion, summaries with a source for each sentence and an 8-second undo for assigned tasks, plus fixes for muting guests and Ask UNI in the room."
+  },
+  "note": {
+    "vi": "Hỏi UNI giao việc soạn tệp Office cần tính năng AI và thao tác của Hỏi UNI được bật cho tổ chức; AI trong trình soạn chỉ soạn khi tổ chức bật UniWork AI trong trình soạn cho định dạng đó và còn credit, nếu không tệp vẫn được tạo để bạn tự soạn. AI viết cả tài liệu và dựng bài trình chiếu chỉ có trên web, chưa có trong ứng dụng máy tính. Đăng nhập Google ngay trong app điện thoại cần app UniChat từ bản 0.4.0 và chỉ dùng được sau khi cấu hình xong cho app.",
+    "en": "Ask UNI handing Office drafting to the editor needs the organization's AI features and Ask UNI actions to be turned on; the editor's AI only drafts when the organization has UniWork AI in the editor turned on for that format and has credits left, otherwise the file is still created for you to draft yourself. Writing whole documents and building presentations with AI is only on the web, not yet in the desktop app. Google sign-in inside the phone app needs UniChat version 0.4.0 or later and only works once it has been set up for the app."
+  },
+  "changes": [
+    {
+      "commit": "7a3b365763565eeab9ecaadceaa382846adc12f7",
+      "subject": "UNI-2272: Changelog v1.12.0 — duyệt nội dung Việt/Anh (#508)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #508 (mô tả PR): các file công bố Changelog v1.12.0; nội dung của phiên bản trước, không phải thay đổi mới của ứng dụng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/508"
+      }
+    },
+    {
+      "commit": "3c21599462278b2ddb9964171e122957d72b14c7",
+      "subject": "fix(email-hub): bỏ trùng STARRED Gmail; xem ảnh staged trong chat",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Email Hub: thư Gmail gắn sao không còn hiện hai dòng trong thư mục Gắn sao khi cùng một thư nằm ở cả Hộp thư đến và Tất cả thư. Chat: bấm vào ảnh đính kèm đang chờ gửi trong ô soạn tin để xem ảnh lớn trước khi gửi.",
+        "en": "Email Hub: a starred Gmail message no longer shows up twice in the Starred folder when the same message is in both the Inbox and All Mail. Chat: click an image attached in the message composer to view it full size before sending."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/service/email_hub_starred_sync.go",
+          "server/pkg/db/queries/email_hub.sql",
+          "packages/views/chat/chat-composer-parts.tsx",
+          "packages/views/chat/chat-composer-staged-file.test.tsx",
+          "server/internal/service/email_hub_integration_test.go"
+        ]
+      }
+    },
+    {
+      "commit": "cafd2d2d6272afb2cf5e7b3cc4a7552d4af9320b",
+      "subject": "UNI-2264: Hỏi UNI soạn tệp Office: giao việc cho AI trong trình soạn (Office P4) (#510)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Hỏi UNI giao việc soạn tệp Office cho AI trong trình soạn trên web: thẻ kế hoạch có dàn ý và danh sách tư liệu Hỏi UNI đã đọc; bấm Mở và soạn (hoặc Mở và dựng với bài trình chiếu), tệp mới mở ra và AI trong trình soạn viết lần lượt từng phần theo dàn ý đã duyệt, rồi bạn xem lại và tự bấm Lưu. Thẻ nói rõ khi AI không soạn được và vì sao; khi đó nút là Tạo và mở để tự soạn.",
+        "en": "Ask UNI hands Office drafting to the editor's AI on the web: the plan card shows the outline and the sources Ask UNI read; choose Open and draft (or Open and build for presentations), the new file opens and the editor's AI writes it part by part from the approved outline, then you review and choose Save yourself. The card says when the AI can't draft and why; the button then reads Create and open to draft yourself."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/510"
+      }
+    },
+    {
+      "commit": "dd16c15be4bdad5d736562f8796649976e07052b",
+      "subject": "docs: plan 5 of Ask UNI Office (UniWork AI writer route) and plan 4 shipped",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): commit chỉ là tài liệu kế hoạch 5 của Hỏi UNI soạn tệp Office; tài liệu nội bộ, nội dung công khai nằm ở mục 13d78a4c9.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "24596439f695b2b3384f23618a7526007380f1ed",
+      "subject": "feat(ai): writer prompts and the office_uniwork_writer capability for UniWork AI",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): prompt viết và capability office_uniwork_writer ở máy chủ cho route viết; gộp vào mục AI trong trình soạn viết cả tài liệu và dựng bài trình chiếu (13d78a4c9).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "ba1c2d4ab3842539e2d2e33682c45413c75f847f",
+      "subject": "UNI-890: sửa 4 lỗi cuộc họp — khách không bị tắt mic, Hỏi UNI trong phòng (UNI-2229, UNI-2242, UNI-2243) (#511)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Cuộc họp: chủ trì tắt mic được cả khách vào bằng liên kết, kể cả bằng Tắt mic mọi người, và khách nghe theo chủ trì mới sau khi chuyển quyền. Hỏi UNI trong phòng họp: hỏi câu thứ hai không làm mất câu trước, phần chờ không còn đè lên câu trả lời, ký tự như & hiện đúng, và công việc tạo từ một câu trả lời lấy đúng câu hỏi của câu trả lời đó làm tiêu đề.",
+        "en": "Meetings: the host can now mute guests who joined by link, including with Mute everyone, and guests follow the new host after a host transfer. Ask UNI in the meeting room: asking a second question no longer hides the first, the waiting state no longer covers the answer, characters such as & display correctly, and a task created from an answer takes that answer's own question as its title."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/511"
+      }
+    },
+    {
+      "commit": "13d78a4c97f08eba8a8674b2c7e47c76ec6a2785",
+      "subject": "feat(ai): the UniWork AI writer route for one-shot editor writers",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "AI trong trình soạn Office trên web khi dùng UniWork AI nay viết được cả tài liệu Word và Markdown, trang HTML và brief, và dựng bài trình chiếu: tạo phong cách, dàn ý và từng trang, hoặc làm lại một trang. Nhờ vậy việc Hỏi UNI giao cho trình soạn dựng được cả bài trình chiếu. AI chỉ trả nội dung vào trình soạn; bạn quyết định giữ hay bỏ, kể cả khi một lần viết bị dừng giữa chừng. Trang mức dùng AI trong Cài đặt hiện phần này với tên Viết tài liệu (UniWork AI).",
+        "en": "The editor's AI in Office on the web, when using UniWork AI, can now write whole Word and Markdown documents, HTML pages and briefs, and build presentations: a style, an outline and each slide, or redo a single slide. This lets work Ask UNI hands to the editor build whole presentations. The AI only returns content to the editor; you decide whether to keep it, including when a write stops partway. AI usage in Settings lists this as Document writer (UniWork AI)."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "95171970b7613b8e873c741aabaf41f1a047f738",
+      "subject": "fix(ai): writer route charges the run for a stopped partial and stops on a dead client",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): sửa cách tính credit khi lần viết dừng giữa chừng và dừng khi client ngừng đọc, trong cùng PR với tính năng mới; gộp vào mục 13d78a4c9.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "6fc8d7c353637c954ca759378f95f3da7532f61f",
+      "subject": "feat(ai): offer generate_deck and regenerate_slide on bound decks and steer handoff decks to them",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): đưa lại công cụ dựng bài trình chiếu (generate_deck, regenerate_slide) cho lượt slides gắn tài liệu; gộp vào mục 13d78a4c9.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "c491ca6e7a92a33e439b08339fe5938708e49426",
+      "subject": "docs: ADR 0049 and the Office spec for the UniWork AI writer route",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): ADR 0049 và spec Office cho route viết; tài liệu nội bộ.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "db8413c37c816ff3935cb8a29b82ff08d6229a02",
+      "subject": "docs: correct the writer route runbook (proxy timeout, deadline home, ai_cancelled, run cap)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): sửa runbook vận hành route viết; tài liệu nội bộ.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "44c18b815124d7ab07c67738c5ea5d4780524ef4",
+      "subject": "UNI-2142: tab Danh bạ trên iPhone báo lỗi — vá StickyHeaders của FlashList 2.0.2 (#466)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "App UniChat trên iPhone: tab Danh bạ không còn chuyển sang màn báo lỗi khi danh sách vừa dài thêm, như lúc thành viên tải xong, khi xóa ô tìm kiếm hoặc chạm lại tab.",
+        "en": "UniChat app on iPhone: the Contacts tab no longer switches to an error screen when the list grows, such as when members finish loading, when you clear the search box or tap the tab again."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/466"
+      }
+    },
+    {
+      "commit": "8db92bb8a8ad1ffa8a9dd39f5951eb6db2f0335c",
+      "subject": "UNI-2263: Đăng nhập thống nhất email, Google và Apple trên web, desktop và điện thoại (#513)",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Đăng nhập thống nhất trên web, ứng dụng máy tính và điện thoại bằng email và mật khẩu, Google hoặc Apple; Apple nay dùng được trên web. Khi một lần đăng nhập không khớp tài khoản nào, UniWork không tự tạo hay tự nối tài khoản mà cho bạn chọn liên kết với tài khoản có sẵn, tạo tài khoản mới hoặc nhận mã qua email khác. Cài đặt có mục Phương thức đăng nhập; đổi cách đăng nhập, xóa tài khoản hay chuyển giao tổ chức cần xác nhận lại danh tính. App UniChat trên điện thoại từ bản 0.4.0 đăng nhập ngay trong app, không phải mở trình duyệt.",
+        "en": "Unified sign-in on the web, the desktop app and phones with email and password, Google or Apple; Apple now works on the web too. When a sign-in doesn't match any account, UniWork no longer creates or links one on its own: you choose to link it to an existing account, create a new account, or get a code at another email. Settings has a Sign-in methods section; changing how you sign in, deleting your account or transferring an organization asks you to confirm it's you. The UniChat phone app from version 0.4.0 signs you in inside the app instead of opening a browser."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/513"
+      }
+    },
+    {
+      "commit": "c0356f93e315ce39b5478dfd61f25c6e2e74d106",
+      "subject": "UNI-2285: Họp: nâng cấp chuyển động và phản hồi theo bảng đề xuất A–G (#512)",
+      "kind": "improvements",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Cuộc họp có chuyển động và phản hồi rõ hơn ở danh sách, phòng chờ, trong phòng, tóm tắt và giao việc. Cuộc họp đang diễn ra hiện ai đang trong phòng, Thư ký UNI có mặt hay không và thời gian đã họp. Người xin vào phòng hiện thành thẻ để cho vào hoặc từ chối ngay; nút cho mọi người cùng vào chuyển sang tab Người. Mỗi câu trong tóm tắt có số nguồn để mở lời nói gốc. Sau khi giao việc từ cuộc họp, bạn có 8 giây để Hoàn tác; việc được đưa vào thùng rác nếu chưa ai sửa hay bình luận. Hiệu ứng tắt khi bật Giảm chuyển động.",
+        "en": "Meetings get clearer motion and feedback across the list, the lobby, the room, the summary and task assignment. A meeting in progress shows who is in the room, whether UNI Scribe is there and how long it has run. Someone asking to join appears as a card you can admit or reject right away; the button to admit everyone moves to the People tab. Each sentence in the summary has a source number that opens what was actually said. After assigning tasks from a meeting you have 8 seconds to Undo; the tasks go to the trash if no one has edited or commented on them yet. Animations stop when Reduce motion is on."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/512"
+      }
+    },
+    {
+      "commit": "808bfe17bbc1cc2d715699a840c9138040c29f67",
+      "subject": "fix(office-engine): copy pnpm patches into the image before install (#514)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #514 (mô tả PR): Dockerfile của office-engine copy thư mục patches trước pnpm install để build không lỗi; build/hạ tầng, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/514"
+      }
+    },
+    {
+      "commit": "18991543b5e0b421df11df6d96d86f3e5e5dc6cd",
+      "subject": "fix(office-engine): copy patches/ before pnpm install in the image (#515)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #515 (mô tả PR): sửa Dockerfile office-engine thiếu patches/ làm Jenkins dev đỏ; build/hạ tầng, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/515"
+      }
+    },
+    {
+      "commit": "78b7c9d0096d7eebcbcbf44fc647ceafee577e09",
+      "subject": "chore(office): re-pin the web modules at 8d73c6b for the UniWork AI writer route",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): pin lại sáu module trình soạn Office theo bản fork 8d73c6b; phần ảnh hưởng người dùng gộp vào mục 13d78a4c9.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "541bbacba37a832748eee2d0db873656d89775b8",
+      "subject": "docs: plan 5 of Ask UNI Office is implemented and waits for its PR",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): cập nhật trạng thái tài liệu kế hoạch; tài liệu nội bộ.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "e8bcae8f12d96bd58c7531f001427938d9c5b010",
+      "subject": "fix(ai): writer calls add run credits without feeding the run histograms",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): lời gọi viết cộng credit của run mà không ghi vào histogram vận hành; số liệu nội bộ, gộp vào mục 13d78a4c9.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "4b7f1918fb8a1d5220165a3f435097c4b4a9052e",
+      "subject": "chore(ops): UniWork AI alerts read the writer route",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): alert vận hành UniWork AI đọc thêm capability của route viết; vận hành/hạ tầng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "3de810f9e2285a34fe13d9f1e1001add56d543b6",
+      "subject": "docs: the writer route's terminal codes, ai_refused and its model override",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): tài liệu mã lỗi kết thúc và model override của route viết; tài liệu nội bộ.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "9095a9a9888dcd4a1a47ae6a0347fdce18cacea8",
+      "subject": "fix(ai): name the writer capability in Settings, AI usage",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): nhãn capability trong Cài đặt › Mức dùng AI; đã nêu trong mục 13d78a4c9.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "5129c54cc249df19281bb5293e352da811c04545",
+      "subject": "test(ai): a writer call refused at the run cap names its run over HTTP",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): chỉ thêm test cho lời gọi viết bị từ chối khi chạm trần run; chỉ sửa test.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "80267c3af62c6a40db44b75b7c3c1f29f5613325",
+      "subject": "docs: the writer route ADR takes number 0050",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): đổi số ADR của route viết thành 0050; tài liệu nội bộ.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "f28961fa092e19e64682cc54b67cb6c53b3dc425",
+      "subject": "docs(office): regenerate the genoffice tool extract at 8d73c6b6e",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): sinh lại bản trích danh sách công cụ genoffice; tài liệu nội bộ.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "77a03d7cdb930c7f6880bf6b935822659c0830fe",
+      "subject": "test(office): re-bless the G7-06 goldens at frame pin 0.1.0-8d73c6b",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #516 (mô tả PR): cập nhật ảnh mẫu golden G7-06 theo bản pin mới; chỉ sửa test.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/516"
+      }
+    },
+    {
+      "commit": "5126171f6582348dd244670217291d422d0a2686",
+      "subject": "feat(chat): tạo việc từ tin nhắn bằng composer thủ công và AI draft",
+      "kind": "features",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Chat trên web: tạo việc từ một hoặc nhiều tin nhắn đã chọn (mục Tạo việc từ tin đã chọn) bằng hộp tạo việc đầy đủ, gồm mô tả, mức ưu tiên, hạn, người nhận và project. Khi tổ chức bật tính năng AI, AI gợi ý sẵn tiêu đề, mô tả, mức ưu tiên và hạn từ các tin đã chọn để bạn sửa trước khi tạo. Việc gắn với tin mới nhất trong lựa chọn, và thẻ việc trong chat hiện giống thẻ trên bảng công việc.",
+        "en": "Chat on the web: create a task from one or more selected messages (Create task from selected) with the full task form, including description, priority, due date, assignee and project. When your organization has AI features turned on, AI pre-fills the title, description, priority and due date from the selected messages for you to edit before creating. The task links to the newest selected message, and task cards in chat look like the ones on the task board."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/views/chat/create-task-from-message-dialog.tsx",
+          "packages/views/chat/chat-message-selection-bar.tsx",
+          "packages/views/chat/message-task-card.tsx",
+          "server/internal/service/askuni_chat_task_draft.go",
+          "server/internal/ai/prompts.go",
+          "packages/views/chat/create-task-from-message-dialog.test.tsx"
+        ]
+      }
+    },
+    {
+      "commit": "51f38dbe6550775b32b57798656f2037ffb7595c",
+      "subject": "test(ai): thêm golden snapshot cho chat_task_draft@1 và @2",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #518 chỉ có một dòng tóm tắt và template chưa điền, nên đọc diff: chỉ thêm golden snapshot cho prompt chat_task_draft; chỉ sửa test, thuộc mục 5126171f6.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/ai/testdata/chat_task_draft_v1.golden",
+          "server/internal/ai/testdata/chat_task_draft_v2.golden"
+        ]
+      }
+    },
+    {
+      "commit": "0dbacfcab7bbd460800710cbc7a65d7ee6fd100b",
+      "subject": "UNI-2287: Đăng nhập Apple nhận địa chỉ ẩn mới @private.icloud.com (#517)",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Đăng nhập bằng Apple: địa chỉ email ẩn mới của Apple (đuôi @private.icloud.com) được nhận ra giống địa chỉ ẩn cũ, nên Cài đặt hiện đúng là email ẩn của Apple và các quy tắc liên kết Apple áp dụng đúng.",
+        "en": "Sign in with Apple: Apple's new hidden email addresses (ending in @private.icloud.com) are recognized like the older hidden addresses, so Settings correctly shows them as Apple hidden email and the Apple linking rules apply correctly."
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/517"
+      }
+    },
+    {
+      "commit": "c5f5e8223614cbb3c5c82318d499f1c0f576847e",
+      "subject": "fix(ai): đồng bộ genoffice schema 8d73c6b6 và citation trong openai_facade",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #518 chỉ có một dòng tóm tắt và template chưa điền, nên đọc diff: đồng bộ bảng công cụ genoffice và chú thích trong openai_facade theo bản 8d73c6b sau khi merge develop để test schema xanh; thuộc Hỏi UNI soạn tệp Office (cafd2d2d6, 13d78a4c9), không có thay đổi riêng.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "server/internal/ai/openai_facade.go",
+          "server/internal/ai/openai_facade_schema_table_test.go",
+          "docs/office/g5g6g7/genoffice-tool-schemas.json"
+        ]
+      }
+    },
+    {
+      "commit": "23ac90e64aee15f8b25122c7b2a6aa72a15847f3",
+      "subject": "UNI-2290: Bản app staging đăng nhập trên dev (uniwork.unicomhub.com), production chỉ nhận app store (#519)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #519 (mô tả PR): cấu hình môi trường cho bản app staging trên server dev, audience Apple của production và hash web-copies; cấu hình triển khai/hạ tầng, không có thay đổi công khai.",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/519"
+      }
+    },
+    {
+      "commit": "294418f863a48b1e0f4b88c9659e797104b26243",
+      "subject": "chore(deploy): bật Sign in with Apple trên web bằng Services ID com.uniworkos.web (#520)",
+      "kind": "internal",
+      "include": false,
+      "excludeReason": "PR #520 (mô tả PR): đặt Services ID để bật đăng nhập Apple trên web ở dev và production; cấu hình triển khai. Phần người dùng thấy (Apple trên web) đã nêu trong mục đăng nhập thống nhất (8db92bb8a).",
+      "text": {
+        "en": "",
+        "vi": ""
+      },
+      "evidence": {
+        "kind": "pr",
+        "url": "https://github.com/UNIAI-TEAM/uniwork/pull/520"
+      }
+    }
+  ]
+}
