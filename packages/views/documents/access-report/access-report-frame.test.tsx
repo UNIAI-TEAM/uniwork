@@ -105,6 +105,8 @@ function renderView(url = BASE_URL) {
 const classes = (value: string) => value.split(" ").filter(Boolean);
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(vectors.dates.now));
   requestMock.mockReset();
   toast.success.mockReset();
   toast.error.mockReset();
@@ -211,8 +213,6 @@ describe("access report frame - shared cells", () => {
   for (const locale of ["vi", "en"] as const) {
     for (const [index, c] of cases.entries()) {
       it(`#${index} the last-change cell reads the shared date format (${locale}): ${c[locale]}`, async () => {
-        vi.useFakeTimers({ toFake: ["Date"] });
-        vi.setSystemTime(new Date(vectors.dates.now));
         await setLocale(locale);
         renderTable(rows(c));
         const row = screen.getByText("Hợp đồng ABC").closest("tr")!;
@@ -222,8 +222,6 @@ describe("access report frame - shared cells", () => {
   }
 
   it("reads a grant's date and its granter through the shared date format and person cell", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(vectors.dates.now));
     renderTable();
     fireEvent.click(screen.getByRole("button", { name: at("expand_document", { name: "Hợp đồng ABC" }) }));
     const grants = screen.getByRole("table", { name: "Hợp đồng ABC" });
