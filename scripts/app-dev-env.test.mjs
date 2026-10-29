@@ -92,6 +92,9 @@ test("the staging app signs in on dev, production takes only the store app", () 
   assert.equal(dev.get("APPLE_SIWA_TEAM_ID"), "XJAM488A6D");
   const prod = assignments("deploy/app/env/uniwork-be.env");
   assert.equal(prod.get("APPLE_SIWA_AUDIENCES"), "com.uniworkos.chat");
+  // One Services ID for the web of both, registered with both hosts' return URLs.
+  assert.equal(dev.get("APPLE_SIWA_WEB_CLIENT_ID"), "com.uniworkos.web");
+  assert.equal(prod.get("APPLE_SIWA_WEB_CLIENT_ID"), "com.uniworkos.web");
   const pins = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/tls-pins.json"), "utf8"));
   assert.equal(pins.hosts.staging.includes("uniwork.unicomhub.com"), true);
 });
