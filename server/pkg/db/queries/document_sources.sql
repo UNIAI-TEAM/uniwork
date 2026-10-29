@@ -357,6 +357,15 @@ WITH base AS (
           AND (doc.system_kind IS NULL OR doc.system_kind <> 'my_folder' OR doc.acl_owner_id = sqlc.arg(viewer_id)::text)
           AND (doc.acl_owner_id = sqlc.arg(viewer_id)::text
                OR (doc.visibility = 'workspace' AND doc.workspace_level = ANY(sqlc.arg(share_levels)::text[]))
+               OR EXISTS (
+                    SELECT 1 FROM document_break_glass_grants g
+                    WHERE g.organization_id = doc.organization_id
+                      AND g.workspace_id = doc.workspace_id
+                      AND g.document_id = doc.id
+                      AND g.actor_id = sqlc.arg(viewer_id)::text
+                      AND g.actor_kind = 'human'
+                      AND g.revoked_at IS NULL
+                      AND g.expires_at > now())
                OR NOT EXISTS (
                     SELECT 1 FROM uw_my_folder_foreign_ids(
                       sqlc.arg(viewer_id)::text, sqlc.arg(organization_id)::text, sqlc.arg(workspace_id)::text, sqlc.arg(max_level)::int

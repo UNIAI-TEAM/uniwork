@@ -991,7 +991,13 @@ func TestDocumentSourceMeetingMinutesParityWithLevelFor(t *testing.T) {
 	}
 	assertParity("restricted after break-glass revoked (wsAdmin)", tn.wsAdmin, false)
 
-	// Case 9: page moved into aclOwner's My Folder -> listed for aclOwner, hidden for foreign viewers.
+	// Case 9: page moved into aclOwner's My Folder -> listed for aclOwner, hidden for
+	// ungranted foreign viewers, and listed for a foreign workspace admin with a live
+	// break-glass grant (RB1-2 parity with LevelFor).
+	bgForeignMF, _, err := env.svc.GrantDocumentBreakGlass(s.ctx, human(tn.wsAdmin), docID, "Kiểm tra biên bản trong My Folder")
+	if err != nil {
+		t.Fatalf("GrantDocumentBreakGlass(before My Folder move): %v", err)
+	}
 	mf, _, err := env.svc.EnsureMyFolder(s.ctx, human(tn.aclOwner), tn.wsA)
 	if err != nil {
 		t.Fatalf("EnsureMyFolder: %v", err)
@@ -1007,8 +1013,12 @@ func TestDocumentSourceMeetingMinutesParityWithLevelFor(t *testing.T) {
 	}
 	assertParity("inside My Folder (aclOwner)", tn.aclOwner, true)
 	assertParity("inside My Folder (foreign member)", tn.member, false)
-	assertParity("inside My Folder (foreign wsAdmin)", tn.wsAdmin, false)
-	assertParity("inside My Folder (foreign orgOwner)", tn.owner, false)
+	assertParity("inside My Folder + live break-glass (foreign wsAdmin)", tn.wsAdmin, true)
+	assertParity("inside My Folder (foreign orgOwner without grant)", tn.owner, false)
+	if err := env.svc.RevokeDocumentBreakGlass(s.ctx, human(tn.wsAdmin), docID, bgForeignMF.Grant.ID); err != nil {
+		t.Fatalf("RevokeDocumentBreakGlass(inside My Folder): %v", err)
+	}
+	assertParity("inside My Folder after break-glass revoked (foreign wsAdmin)", tn.wsAdmin, false)
 
 	// Case 10: trashed page -> hidden even for owner; restored -> listed again.
 	if _, err := env.svc.ArchiveDocument(s.ctx, human(tn.aclOwner), docID, ArchiveDocumentInput{IdempotencyKey: util.NewID()}); err != nil {

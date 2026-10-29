@@ -547,6 +547,15 @@ WITH base AS (
           AND (doc.system_kind IS NULL OR doc.system_kind <> 'my_folder' OR doc.acl_owner_id = $7::text)
           AND (doc.acl_owner_id = $7::text
                OR (doc.visibility = 'workspace' AND doc.workspace_level = ANY($8::text[]))
+               OR EXISTS (
+                    SELECT 1 FROM document_break_glass_grants g
+                    WHERE g.organization_id = doc.organization_id
+                      AND g.workspace_id = doc.workspace_id
+                      AND g.document_id = doc.id
+                      AND g.actor_id = $7::text
+                      AND g.actor_kind = 'human'
+                      AND g.revoked_at IS NULL
+                      AND g.expires_at > now())
                OR NOT EXISTS (
                     SELECT 1 FROM uw_my_folder_foreign_ids(
                       $7::text, $1::text, $3::text, $9::int
