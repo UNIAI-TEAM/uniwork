@@ -617,6 +617,7 @@ describe("DocumentTree", () => {
   });
   it("renders minutes_meeting source label on page nodes (linked with title, plain without title) and navigates to the meeting without opening the page (UNI-2288)", async () => {
     const onOpen = vi.fn();
+    const onAncestorPointerDown = vi.fn();
     const nav = fakeNav();
     const workspace: Workspace = {
       id: WS,
@@ -651,7 +652,10 @@ describe("DocumentTree", () => {
     render(
       wrapWithNav(
         <WorkspaceProvider workspace={workspace} user={user}>
-          <DocumentTree wsId={WS} onOpen={onOpen} />
+          {/* Stand-in for the row's dnd pointerdown listener: an ancestor React handler. */}
+          <div onPointerDown={onAncestorPointerDown}>
+            <DocumentTree wsId={WS} onOpen={onOpen} />
+          </div>
         </WorkspaceProvider>,
         nav,
       ),
@@ -661,6 +665,12 @@ describe("DocumentTree", () => {
     const namedLabel = t("documents.page_ui.minutes_source_named", { title: "Giao ban tuần 42" });
     const link = within(memberRow).getByRole("link", { name: namedLabel });
     expect(link).toHaveAttribute("href", "/acme/doi/meetings/m1");
+    // Not a Tab stop (the row is the roving stop), and pointerdown never reaches the row's drag listeners.
+    expect(link).toHaveAttribute("tabindex", "-1");
+    fireEvent.pointerDown(link);
+    expect(onAncestorPointerDown).not.toHaveBeenCalled();
+    fireEvent.pointerDown(within(memberRow).getByText("Biên bản Q4"));
+    expect(onAncestorPointerDown).toHaveBeenCalledTimes(1);
 
     const guestRow = screen.getByRole("treeitem", { name: /Biên bản nội bộ/ });
     const plainLabel = t("documents.page_ui.minutes_source");

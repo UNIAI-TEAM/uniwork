@@ -46,6 +46,9 @@ export function DocumentMinutesSourceLink({
         href={paths.workspace(orgSlug, wsSlug).meeting(minutesMeeting.id)}
         data-minutes-meeting
         title={label}
+        // Tree use: the row is the roving-tabindex stop and owns the drag listeners.
+        tabIndex={stopPropagation ? -1 : undefined}
+        onPointerDown={stopPropagation ? (event) => event.stopPropagation() : undefined}
         onClick={stopPropagation ? (event) => event.stopPropagation() : undefined}
         className={cn(
           "inline-flex min-w-0 max-w-full items-center gap-1 text-caption text-muted-foreground hover:text-foreground hover:underline",
