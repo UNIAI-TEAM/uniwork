@@ -325,6 +325,32 @@ func TestAIUniworkWriteStopsWhenTheClientStopsReading(t *testing.T) {
 	}
 }
 
+// A writer call refused at the run's cap is an answer of that run: the 409
+// run_limit_reached JSON names the run and the conversation, so the frame
+// knows which run ended (A12).
+func TestAIUniworkWriteRunLimitNamesTheRun(t *testing.T) {
+	w := newUniworkWorld(t)
+	tn := w.alpha
+	conv, run := uniworkFrameRun(t, w, tn)
+	if _, err := w.pool.Exec(context.Background(), `UPDATE ai_uniwork_runs SET model_calls = 9 WHERE id = $1`, run); err != nil {
+		t.Fatal(err)
+	}
+	calls := w.uniworkProvider.Calls
+
+	res, raw := uniworkWriteCall(t, w, tn, conv, run, uniworkWriteDocsBody)
+	var out map[string]any
+	_ = json.Unmarshal([]byte(raw), &out)
+	if res.StatusCode != http.StatusConflict || uniworkErrorCode(t, out) != "run_limit_reached" {
+		t.Fatalf("a writer call at nine model calls = %d %s, want 409 run_limit_reached", res.StatusCode, raw)
+	}
+	if res.Header.Get(ai.UniworkRunHeader) != run || res.Header.Get(ai.UniworkConversationHeader) != conv {
+		t.Fatalf("answer headers = %q/%q, want the refused run %q/%q", res.Header.Get(ai.UniworkRunHeader), res.Header.Get(ai.UniworkConversationHeader), run, conv)
+	}
+	if w.uniworkProvider.Calls != calls {
+		t.Fatal("a writer call at the cap reached the provider")
+	}
+}
+
 func TestAIUniworkWriteFieldOverCapIs413(t *testing.T) {
 	w := newUniworkWorld(t)
 	tn := w.alpha
