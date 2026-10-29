@@ -103,6 +103,14 @@ func registerAI(r api, h Routes) {
 		sdo:         sdo.ChatCatchUpSDO{},
 		auth:        true,
 	})
+	r.Post("/workspaces/{workspaceID}/ai/chat/task-draft", h.ChatTaskDraft, apiOp{
+		summary:     "Chat task draft",
+		description: "Gợi ý tiêu đề, mô tả và độ ưu tiên của một việc từ các tin đã chọn trong cùng phòng. Không tạo task. 402/429/503 như Ask UNI.",
+		tags:        []string{"ai"},
+		sdi:         sdi.ChatTaskDraftSDI{},
+		sdo:         sdo.ChatTaskDraftSDO{},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/ai/conversations", h.ListAiConversations, apiOp{
 		summary:     "My conversations",
 		description: "20 hội thoại gần nhất của chính người gọi trong workspace; có q thì tìm theo tiêu đề (gấp dấu), tối đa 50.",

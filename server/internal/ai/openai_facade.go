@@ -764,8 +764,8 @@ type uniworkModuleTools struct {
 // and an unknown or missing module (the org route without `module`, a name no
 // table knows) yields no tools at all. Names and the read/write split come
 // from docs/office/g5g6g7/genoffice-tools.md §3, the mechanical block
-// generated at fork rev 3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b (extract
-// sha256 235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95):
+// generated at fork rev 8d73c6b6e127ded30bfb4f904885eebf5e6db1a6 (extract
+// sha256 b991d173ce1ef4cad68e0f29cca64a38f0d73dff1fec42b1a13a7805fd8a9683):
 // every editor_write=yes row, plus the four group-B rows the document lists
 // as writing files or creating versions (create_document in docs, sheets and
 // pdf, save_style_template in slides), minus the three slides rows G6-09a

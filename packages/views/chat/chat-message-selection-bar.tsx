@@ -4,30 +4,35 @@ import { Copy, Forward, Trash, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MODULE_ICONS } from "../layout/module-icons";
 import { CHAT_CONVERSATION_GUTTER } from "./chat-wall";
 
 /**
  * Replaces the composer while multi-select is active (Telegram Desktop):
- * count + clear on the left, bulk Copy / Forward / Delete on the right.
+ * count + clear on the left, bulk Copy / Create task / Forward / Delete on the right.
  */
 export function ChatMessageSelectionBar({
   count,
   canForward,
   canDelete,
+  canCreateTask = false,
   busy = false,
   onClear,
   onCopy,
   onForward,
   onDelete,
+  onCreateTask,
 }: {
   count: number;
   canForward: boolean;
   canDelete: boolean;
+  canCreateTask?: boolean;
   busy?: boolean;
   onClear: () => void;
   onCopy: () => void;
   onForward: () => void;
   onDelete: () => void;
+  onCreateTask?: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -57,6 +62,19 @@ export function ChatMessageSelectionBar({
         >
           <Copy className="size-5" aria-hidden />
         </Button>
+        {onCreateTask ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-lg"
+            className="size-10 rounded-full"
+            disabled={busy || !canCreateTask}
+            onClick={onCreateTask}
+            aria-label={t("chat.selection.create_task_selected")}
+          >
+            <MODULE_ICONS.tasks className="size-5" aria-hidden />
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="ghost"

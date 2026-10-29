@@ -35,10 +35,14 @@ export type ChatMessageLinkRecord = z.infer<typeof ChatMessageLinkSchema>;
 
 export type CreateTaskFromMessageInput = {
   title?: string;
+  description?: string;
+  status?: string;
   project_id?: string;
   assignee_id?: string;
   assignee_kind?: string;
+  start_date?: string;
   due_date?: string;
+  label_ids?: string[];
   sync_thread?: boolean;
   priority?: string;
 };

@@ -165,6 +165,12 @@ export function ChatMessageMenuItems({
           <Copy className="size-4" aria-hidden />
           {t("chat.selection.copy_selected")}
         </P.Item>
+        {selection.canCreateTaskSelected ? (
+          <P.Item onClick={selection.createTaskSelected}>
+            <MODULE_ICONS.tasks className="size-4.5" aria-hidden />
+            {t("chat.selection.create_task_selected")}
+          </P.Item>
+        ) : null}
         {selection.canForwardSelected ? (
           <P.Item onClick={selection.forwardSelected}>
             <Forward className="size-4" aria-hidden />

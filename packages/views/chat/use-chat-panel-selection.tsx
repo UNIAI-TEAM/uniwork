@@ -20,6 +20,7 @@ export function useChatPanelSelection({
   messages,
   canModerate,
   onSelectionChange,
+  onCreateTaskFromMessages,
 }: {
   workspaceId: string;
   roomId: string;
@@ -27,6 +28,7 @@ export function useChatPanelSelection({
   messages: ChatMessage[];
   canModerate: boolean;
   onSelectionChange?: (bar: ChatMessageSelectionBarState | null) => void;
+  onCreateTaskFromMessages?: (messages: ChatMessage[]) => void;
 }): {
   selectionUi: ChatMessageSelectionUi | null;
   selectionActive: boolean;
@@ -53,6 +55,8 @@ export function useChatPanelSelection({
     messages,
     selection,
     mayForward,
+    mayCreateTask: Boolean(onCreateTaskFromMessages),
+    onCreateTaskFromMessages,
   });
 
   useEffect(() => {

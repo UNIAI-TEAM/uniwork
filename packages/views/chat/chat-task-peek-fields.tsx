@@ -3,7 +3,7 @@
 import { FolderKanban, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskPatch } from "@uniwork/core/api/endpoints/tasks";
-import { useProjects } from "@uniwork/core/tasks";
+import { useProjects, useTaskLabels } from "@uniwork/core/tasks";
 import type { ActorKind, Task, TaskPriority } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AgentBadge } from "../agents/agent-badge";
@@ -16,6 +16,7 @@ import {
   useWorkspaceAssigneeOptions,
   type AssigneeRef,
 } from "../tasks/pickers";
+import { CreateTaskLabelField } from "../tasks/pickers/create-task-property-fields";
 import { EnumFieldPicker } from "../tasks/pickers/enum-field-picker";
 import { usePickerTriggerLabel } from "../tasks/pickers/trigger-label";
 
@@ -122,6 +123,108 @@ export function ChatTaskAssigneeField({
 /** "T4, 23/10" (canvas): Vietnamese writes the weekday in its narrow form; other languages keep the short one. */
 function dueFormat(language: string): Intl.DateTimeFormatOptions {
   return { weekday: language.startsWith("vi") ? "narrow" : "short", day: "2-digit", month: "2-digit" };
+}
+
+export function ChatTaskPriorityField({
+  value,
+  onChange,
+}: {
+  value: TaskPriority;
+  onChange: (next: TaskPriority) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <PriorityPicker
+      value={value}
+      ariaLabel={t("tasks.priority")}
+      triggerClassName={chatTaskPillTrigger}
+      align="start"
+      onChange={onChange}
+    />
+  );
+}
+
+export function ChatTaskStatusField({
+  workspaceId,
+  value,
+  onChange,
+}: {
+  workspaceId: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <StatusPicker
+      workspaceId={workspaceId}
+      value={value || "todo"}
+      ariaLabel={t("tasks.status")}
+      searchPlaceholder={t("tasks.create.status_search_placeholder")}
+      noResultsLabel={t("tasks.create.options_no_results")}
+      triggerClassName={chatTaskPillTrigger}
+      align="start"
+      onChange={onChange}
+    />
+  );
+}
+
+export function ChatTaskLabelField({
+  workspaceId,
+  value,
+  onChange,
+}: {
+  workspaceId: string;
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const { t } = useTranslation();
+  const { data: labelList } = useTaskLabels(workspaceId);
+  const selected = new Set(value);
+  return (
+    <CreateTaskLabelField
+      labels={labelList?.labels ?? []}
+      selectedIds={selected}
+      onToggle={(labelId, checked) => {
+        const next = new Set(selected);
+        if (checked) next.add(labelId);
+        else next.delete(labelId);
+        onChange([...next]);
+      }}
+      ariaLabel={t("tasks.detail.prop_labels")}
+      valueLabel={t("tasks.create.labels_selected", { count: value.length })}
+      emptyLabel={t("tasks.table.labels_empty")}
+      searchPlaceholder={t("tasks.create.label_search_placeholder")}
+      noResultsLabel={t("tasks.create.options_no_results")}
+    />
+  );
+}
+
+export function ChatTaskStartField({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const date = value ? dateOnlyToLocalDate(value) : undefined;
+  const shown = date
+    ? date.toLocaleDateString(i18n.language, dueFormat(i18n.language))
+    : undefined;
+  const ariaLabel = usePickerTriggerLabel(t("tasks.create.start_date"), shown);
+  return (
+    <DateField
+      id={id}
+      value={value}
+      onChange={onChange}
+      ariaLabel={ariaLabel}
+      formatOptions={dueFormat(i18n.language)}
+      className={cn(chatTaskPillTrigger, !value && "text-muted-foreground")}
+      placeholder={t("tasks.create.start_date")}
+    />
+  );
 }
 
 export function ChatTaskDueField({

@@ -205,11 +205,13 @@ export function ChatPageConversation({
           count={selectionBar.count}
           canForward={selectionBar.canForward}
           canDelete={selectionBar.canDelete}
+          canCreateTask={selectionBar.canCreateTask}
           busy={selectionBar.busy}
           onClear={selectionBar.clear}
           onCopy={selectionBar.copy}
           onForward={selectionBar.forward}
           onDelete={selectionBar.deleteSelected}
+          onCreateTask={selectionBar.createTask}
         />
       ) : (
         <ChatRoomComposer

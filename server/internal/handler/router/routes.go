@@ -403,6 +403,7 @@ type Routes struct {
 	AskUni                  http.HandlerFunc
 	AskUniStream            http.HandlerFunc
 	ChatCatchUp             http.HandlerFunc
+	ChatTaskDraft           http.HandlerFunc
 	ListAiConversations     http.HandlerFunc
 	ListAiMessages          http.HandlerFunc
 	DeleteAiConversation    http.HandlerFunc

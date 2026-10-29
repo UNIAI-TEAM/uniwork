@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api/endpoints/ai";
 import { ApiError } from "../api/http";
-import type { AiMessage, AskUniInput, ChatCatchUpInput } from "../types/ai";
+import type { AiMessage, AskUniInput, ChatCatchUpInput, ChatTaskDraftInput } from "../types/ai";
 import {
   buildTransientTranscript,
   MAX_TRANSIENT_CHARS,
@@ -116,6 +116,17 @@ export function useChatCatchUp(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ChatCatchUpInput) => api.chatCatchUp(wsId, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: aiKeys.capabilities(wsId) });
+      void qc.invalidateQueries({ queryKey: aiKeys.usages() });
+    },
+  });
+}
+
+export function useChatTaskDraft(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ChatTaskDraftInput) => api.chatTaskDraft(wsId, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: aiKeys.capabilities(wsId) });
       void qc.invalidateQueries({ queryKey: aiKeys.usages() });

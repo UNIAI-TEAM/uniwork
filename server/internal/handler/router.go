@@ -678,6 +678,7 @@ func New(d Deps) http.Handler {
 		AskUni:                  h.askUni,
 		AskUniStream:            h.askUniStream,
 		ChatCatchUp:             h.chatCatchUp,
+		ChatTaskDraft:           h.chatTaskDraft,
 		ListAiConversations:     h.listAiConversations,
 		ListAiMessages:          h.listAiMessages,
 		DeleteAiConversation:    h.deleteAiConversation,
