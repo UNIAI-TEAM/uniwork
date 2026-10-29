@@ -564,3 +564,17 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND unlinked_at IS NULL
 ORDER BY created_at DESC, id DESC
 LIMIT 20;
+
+-- name: ListActiveWorkspaceDriveFolderIDs :many
+SELECT DISTINCT drive_folder_id::text AS drive_folder_id
+FROM drive_files
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND drive_folder_id IS NOT NULL
+  AND unlinked_at IS NULL;
+
+-- name: DeleteWorkspaceDriveFoldersByIDs :exec
+DELETE FROM drive_folders
+WHERE organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND drive_folder_id = ANY(sqlc.arg('drive_folder_ids')::text[]);

@@ -2682,6 +2682,29 @@ func TestAssembleDriveFolderTreeUnit(t *testing.T) {
 	if len(descIDs) != 65 || !foundGrandchild {
 		t.Fatalf("collectDescendantFolderIDs: len=%d includesOnlyFileBearingLeaf=%v, want 65 and true", len(descIDs), foundGrandchild)
 	}
+
+	// 6. collectOrphanedDriveFolderIDs (D-F4): keeps folders on the ancestor chain of
+	// any active file (with cycle protection) and prunes folders whose active files
+	// have all been unlinked.
+	pruneFolders := []db.ListWorkspaceDriveFoldersRow{
+		{DriveFolderID: "fld-a", Name: "Root A", ParentFolderID: pgtype.Text{}},
+		{DriveFolderID: "fld-b", Name: "Mid B", ParentFolderID: pgtype.Text{String: "fld-a", Valid: true}},
+		{DriveFolderID: "fld-c", Name: "Leaf C", ParentFolderID: pgtype.Text{String: "fld-b", Valid: true}},
+		{DriveFolderID: "fld-orphan", Name: "Orphan", ParentFolderID: pgtype.Text{String: "fld-a", Valid: true}},
+		{DriveFolderID: "fld-cyc-1", Name: "Cyc 1", ParentFolderID: pgtype.Text{String: "fld-cyc-2", Valid: true}},
+		{DriveFolderID: "fld-cyc-2", Name: "Cyc 2", ParentFolderID: pgtype.Text{String: "fld-cyc-1", Valid: true}},
+	}
+	// While an active file remains under fld-c, fld-c, fld-b, and fld-a survive;
+	// fld-orphan and the disconnected cycle are pruned.
+	staleWithC := collectOrphanedDriveFolderIDs(pruneFolders, []string{"fld-c"})
+	if len(staleWithC) != 3 || staleWithC[0] != "fld-cyc-1" || staleWithC[1] != "fld-cyc-2" || staleWithC[2] != "fld-orphan" {
+		t.Fatalf("collectOrphanedDriveFolderIDs(active=[fld-c]) = %v, want [fld-cyc-1 fld-cyc-2 fld-orphan]", staleWithC)
+	}
+	// Once the last active file under fld-c is unlinked, fld-a, fld-b, and fld-c are also pruned.
+	staleNone := collectOrphanedDriveFolderIDs(pruneFolders, nil)
+	if len(staleNone) != 6 {
+		t.Fatalf("collectOrphanedDriveFolderIDs(active=nil) = %v, want all 6 pruned", staleNone)
+	}
 }
 
 // TestDriveFolderTreeUpwardWalkAndNesting (UNI-2291) verifies on PostgreSQL:
@@ -2928,6 +2951,81 @@ func TestDriveFolderTreeUpwardWalkAndNesting(t *testing.T) {
 	}
 	if outboxAfter != outboxBefore+1 {
 		t.Fatalf("outbox drive_file.updated count for wideLeafFileID = %d -> %d, want +1", outboxBefore, outboxAfter)
+	}
+
+	// Step 6 (D-F4): Named ancestor (B above C) survives an unlink while another active
+	// file under C remains, and is pruned after the last active file under its subtree
+	// is unlinked; the tree no longer lists it and a subsequent 404 link does not inherit
+	// the pruned name.
+	env.googleSrv.SetFile("fld-prune-b", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-prune-b", Name: "Prune Ancestor B", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("fld-prune-c", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-prune-c", Name: "Prune Child C", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-prune-b"}},
+	})
+	env.googleSrv.SetFile("doc-prune-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "doc-prune-1", Name: "Prune Doc 1", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-prune-c"}},
+	})
+	env.googleSrv.SetFile("doc-prune-2", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "doc-prune-2", Name: "Prune Doc 2", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-prune-c"}},
+	})
+	linkedPrune, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"doc-prune-1", "doc-prune-2"},
+	})
+	if err != nil || len(linkedPrune) != 2 || linkedPrune[0].File == nil || linkedPrune[1].File == nil {
+		t.Fatalf("Link doc-prune-1,2 = %+v, err=%v", linkedPrune, err)
+	}
+
+	// Unlink the first file in C while the second active file under C remains:
+	// both fld-prune-b (ancestor) and fld-prune-c survive in drive_folders and ListFolders.
+	if err := env.fileSvc.Unlink(ctx, Human(env.owner.ID), env.wsA.ID, linkedPrune[0].File.ID); err != nil {
+		t.Fatalf("Unlink doc-prune-1: %v", err)
+	}
+	var pruneCountAfterFirst int
+	if err := env.pool.QueryRow(ctx,
+		`SELECT count(*) FROM drive_folders WHERE organization_id = $1 AND workspace_id = $2 AND drive_folder_id IN ('fld-prune-b', 'fld-prune-c')`,
+		env.wsA.OrganizationID, env.wsA.ID,
+	).Scan(&pruneCountAfterFirst); err != nil || pruneCountAfterFirst != 2 {
+		t.Fatalf("drive_folders count after first unlink = %d (err=%v), want 2 (ancestor B and child C kept)", pruneCountAfterFirst, err)
+	}
+	foldersAfterFirstUnlink, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
+	if err != nil {
+		t.Fatalf("ListFolders after first unlink: %v", err)
+	}
+	afterFirstMap := map[string]DriveFolderGroupView{}
+	for _, g := range foldersAfterFirstUnlink {
+		if g.ID != nil {
+			afterFirstMap[*g.ID] = g
+		}
+	}
+	if gB, ok := afterFirstMap["fld-prune-b"]; !ok || gB.Name == nil || *gB.Name != "Prune Ancestor B" || gB.FileCount != 0 {
+		t.Fatalf("fld-prune-b after first unlink = %+v (ok=%v), want kept with name Prune Ancestor B", gB, ok)
+	}
+	if gC, ok := afterFirstMap["fld-prune-c"]; !ok || gC.ParentID == nil || *gC.ParentID != "fld-prune-b" || gC.FileCount != 1 {
+		t.Fatalf("fld-prune-c after first unlink = %+v (ok=%v), want kept under fld-prune-b with file_count=1", gC, ok)
+	}
+
+	// Unlink the last remaining active file under C: both fld-prune-c and ancestor fld-prune-b
+	// are pruned from drive_folders and no longer appear in ListFolders.
+	if err := env.fileSvc.Unlink(ctx, Human(env.owner.ID), env.wsA.ID, linkedPrune[1].File.ID); err != nil {
+		t.Fatalf("Unlink doc-prune-2: %v", err)
+	}
+	var pruneCountAfterLast int
+	if err := env.pool.QueryRow(ctx,
+		`SELECT count(*) FROM drive_folders WHERE organization_id = $1 AND workspace_id = $2 AND drive_folder_id IN ('fld-prune-b', 'fld-prune-c')`,
+		env.wsA.OrganizationID, env.wsA.ID,
+	).Scan(&pruneCountAfterLast); err != nil || pruneCountAfterLast != 0 {
+		t.Fatalf("drive_folders count after last unlink = %d (err=%v), want 0 (both B and C pruned)", pruneCountAfterLast, err)
+	}
+	foldersAfterLastUnlink, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
+	if err != nil {
+		t.Fatalf("ListFolders after last unlink: %v", err)
+	}
+	for _, g := range foldersAfterLastUnlink {
+		if g.ID != nil && (*g.ID == "fld-prune-b" || *g.ID == "fld-prune-c") {
+			t.Fatalf("ListFolders after last unlink still listed pruned folder: %+v", g)
+		}
 	}
 }
 

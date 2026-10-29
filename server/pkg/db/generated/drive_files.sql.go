@@ -551,6 +551,24 @@ func (q *Queries) DeleteDriveFileTaskLinksByTask(ctx context.Context, arg Delete
 	return items, nil
 }
 
+const deleteWorkspaceDriveFoldersByIDs = `-- name: DeleteWorkspaceDriveFoldersByIDs :exec
+DELETE FROM drive_folders
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND drive_folder_id = ANY($3::text[])
+`
+
+type DeleteWorkspaceDriveFoldersByIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	DriveFolderIds []string `json:"drive_folder_ids"`
+}
+
+func (q *Queries) DeleteWorkspaceDriveFoldersByIDs(ctx context.Context, arg DeleteWorkspaceDriveFoldersByIDsParams) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceDriveFoldersByIDs, arg.OrganizationID, arg.WorkspaceID, arg.DriveFolderIds)
+	return err
+}
+
 const getActiveDriveFileByExternalIDForUpdate = `-- name: GetActiveDriveFileByExternalIDForUpdate :one
 SELECT id, organization_id, workspace_id, external_file_id, drive_id, connection_id, bound_by, created_by, created_by_kind, name, mime_type, icon_kind, web_view_link, owner_display, drive_modified_at, drive_modified_by_display, sharing_state, shared_user_count, metadata_refreshed_at, access_lost_at, created_at, updated_at, unlinked_at, unlinked_by, unlinked_by_kind, drive_folder_id, drive_folder_name
 FROM drive_files
@@ -1059,6 +1077,40 @@ func (q *Queries) ListActiveDriveFileIDsByFolderIDs(ctx context.Context, arg Lis
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveWorkspaceDriveFolderIDs = `-- name: ListActiveWorkspaceDriveFolderIDs :many
+SELECT DISTINCT drive_folder_id::text AS drive_folder_id
+FROM drive_files
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND drive_folder_id IS NOT NULL
+  AND unlinked_at IS NULL
+`
+
+type ListActiveWorkspaceDriveFolderIDsParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+func (q *Queries) ListActiveWorkspaceDriveFolderIDs(ctx context.Context, arg ListActiveWorkspaceDriveFolderIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listActiveWorkspaceDriveFolderIDs, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var drive_folder_id string
+		if err := rows.Scan(&drive_folder_id); err != nil {
+			return nil, err
+		}
+		items = append(items, drive_folder_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

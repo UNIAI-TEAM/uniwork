@@ -408,6 +408,33 @@ func (r *memDriveStringRows) Scan(dest ...any) error {
 	return nil
 }
 
+type memDriveFolderRows struct {
+	vals []db.ListWorkspaceDriveFoldersRow
+	idx  int
+}
+
+func (r *memDriveFolderRows) Close()                                       {}
+func (r *memDriveFolderRows) Err() error                                   { return nil }
+func (r *memDriveFolderRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
+func (r *memDriveFolderRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (r *memDriveFolderRows) Values() ([]any, error)                       { return nil, nil }
+func (r *memDriveFolderRows) RawValues() [][]byte                          { return nil }
+func (r *memDriveFolderRows) Conn() *pgx.Conn                              { return nil }
+func (r *memDriveFolderRows) Next() bool {
+	if r.idx >= len(r.vals) {
+		return false
+	}
+	r.idx++
+	return true
+}
+func (r *memDriveFolderRows) Scan(dest ...any) error {
+	row := r.vals[r.idx-1]
+	*(dest[0].(*string)) = row.DriveFolderID
+	*(dest[1].(*string)) = row.Name
+	*(dest[2].(*pgtype.Text)) = row.ParentFolderID
+	return nil
+}
+
 func (m *memDriveUnitDBTX) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -432,6 +459,20 @@ func (m *memDriveUnitDBTX) Exec(_ context.Context, sql string, args ...any) (pgc
 		m.conns[id] = row
 		return pgconn.NewCommandTag("UPDATE 1"), nil
 	}
+	if strings.Contains(sql, "-- name: DeleteWorkspaceDriveFoldersByIDs ") {
+		orgID, _ := args[0].(string)
+		wsID, _ := args[1].(string)
+		folderIDs, _ := args[2].([]string)
+		var deleted int64
+		for _, fid := range folderIDs {
+			key := wsID + "|" + fid
+			if df, ok := m.folders[key]; ok && df.OrganizationID == orgID {
+				delete(m.folders, key)
+				deleted++
+			}
+		}
+		return pgconn.NewCommandTag("DELETE " + strconv.FormatInt(deleted, 10)), nil
+	}
 	return pgconn.NewCommandTag(""), errors.New("unexpected Exec in memDriveUnitDBTX: " + sql)
 }
 
@@ -452,6 +493,36 @@ func (m *memDriveUnitDBTX) Query(_ context.Context, sql string, args ...any) (pg
 				f.DriveFolderName = pgtype.Text{String: folderName, Valid: true}
 				m.files[id] = f
 				ids = append(ids, id)
+			}
+		}
+		return &memDriveStringRows{vals: ids}, nil
+	}
+	if strings.Contains(sql, "-- name: ListWorkspaceDriveFolders ") {
+		orgID, _ := args[0].(string)
+		wsID, _ := args[1].(string)
+		var rows []db.ListWorkspaceDriveFoldersRow
+		for _, df := range m.folders {
+			if df.OrganizationID == orgID && df.WorkspaceID == wsID {
+				rows = append(rows, db.ListWorkspaceDriveFoldersRow{
+					DriveFolderID:  df.DriveFolderID,
+					Name:           df.Name,
+					ParentFolderID: df.ParentFolderID,
+				})
+			}
+		}
+		return &memDriveFolderRows{vals: rows}, nil
+	}
+	if strings.Contains(sql, "-- name: ListActiveWorkspaceDriveFolderIDs ") {
+		orgID, _ := args[0].(string)
+		wsID, _ := args[1].(string)
+		seen := make(map[string]bool)
+		var ids []string
+		for _, f := range m.files {
+			if f.OrganizationID == orgID && f.WorkspaceID == wsID && !f.UnlinkedAt.Valid && f.DriveFolderID.Valid && f.DriveFolderID.String != "" {
+				if !seen[f.DriveFolderID.String] {
+					seen[f.DriveFolderID.String] = true
+					ids = append(ids, f.DriveFolderID.String)
+				}
 			}
 		}
 		return &memDriveStringRows{vals: ids}, nil
@@ -3289,5 +3360,116 @@ func TestDriveOpportunisticRefreshAtomicRollbackUnit(t *testing.T) {
 	}
 	if got := memDB.files[file2ID].DriveFolderName.String; got != "New Folder Name" {
 		t.Fatalf("file2 drive_folder_name after clean refresh = %q, want New Folder Name", got)
+	}
+}
+
+// TestPruneOrphanedWorkspaceDriveFoldersInTxUnit (D-F4, UNI-2291) verifies DB-free via memDriveUnitDBTX:
+//   - While at least one active file remains under C (whose ancestor is B), both B and C survive
+//     pruneOrphanedWorkspaceDriveFoldersInTx, and GetWorkspaceDriveFolderName continues to return their names.
+//   - Once the last active file under C is unlinked, both C and ancestor B are deleted from drive_folders,
+//     and GetWorkspaceDriveFolderName returns "" so a subsequent child link with 404 folder lookup cannot
+//     copy the unlinked folder name.
+func TestPruneOrphanedWorkspaceDriveFoldersInTxUnit(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	orgID := "org-prune-unit"
+	wsID := "ws-prune-unit"
+	wsRow := db.Workspace{ID: wsID, OrganizationID: orgID}
+
+	memDB := &memDriveUnitDBTX{
+		workspaces: map[string]db.Workspace{wsID: wsRow},
+		folders: map[string]db.DriveFolder{
+			wsID + "|fld-b": {
+				ID:             "df-b",
+				OrganizationID: orgID,
+				WorkspaceID:    wsID,
+				DriveFolderID:  "fld-b",
+				Name:           "Ancestor B",
+			},
+			wsID + "|fld-c": {
+				ID:             "df-c",
+				OrganizationID: orgID,
+				WorkspaceID:    wsID,
+				DriveFolderID:  "fld-c",
+				Name:           "Child C",
+				ParentFolderID: pgtype.Text{String: "fld-b", Valid: true},
+			},
+			wsID + "|fld-picked": {
+				ID:             "df-picked",
+				OrganizationID: orgID,
+				WorkspaceID:    wsID,
+				DriveFolderID:  "fld-picked",
+				Name:           "Picked Folder",
+			},
+		},
+		files: map[string]db.DriveFile{
+			"file-c-1": {
+				ID:              "file-c-1",
+				OrganizationID:  orgID,
+				WorkspaceID:     wsID,
+				DriveFolderID:   pgtype.Text{String: "fld-c", Valid: true},
+				DriveFolderName: pgtype.Text{String: "Child C", Valid: true},
+			},
+			"file-c-2": {
+				ID:              "file-c-2",
+				OrganizationID:  orgID,
+				WorkspaceID:     wsID,
+				DriveFolderID:   pgtype.Text{String: "fld-c", Valid: true},
+				DriveFolderName: pgtype.Text{String: "Child C", Valid: true},
+			},
+			"file-picked": {
+				ID:              "file-picked",
+				OrganizationID:  orgID,
+				WorkspaceID:     wsID,
+				DriveFolderID:   pgtype.Text{String: "fld-picked", Valid: true},
+				DriveFolderName: pgtype.Text{String: "Picked Folder", Valid: true},
+				UnlinkedAt:      pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+			},
+		},
+	}
+	q := db.New(memDB)
+
+	// 1. file-picked is already unlinked while file-c-1 and file-c-2 are active under fld-c:
+	// prune removes fld-picked and keeps both fld-c and its ancestor fld-b.
+	if err := pruneOrphanedWorkspaceDriveFoldersInTx(ctx, q, wsRow); err != nil {
+		t.Fatalf("pruneOrphanedWorkspaceDriveFoldersInTx step 1: %v", err)
+	}
+	if _, exists := memDB.folders[wsID+"|fld-picked"]; exists {
+		t.Fatalf("fld-picked still in drive_folders after its sole file was unlinked")
+	}
+	if namePicked, err := q.GetWorkspaceDriveFolderName(ctx, db.GetWorkspaceDriveFolderNameParams{
+		OrganizationID: orgID,
+		WorkspaceID:    wsID,
+		DriveFolderID:  "fld-picked",
+	}); err != nil || namePicked != "" {
+		t.Fatalf("GetWorkspaceDriveFolderName(fld-picked) after prune = %q (err=%v), want empty", namePicked, err)
+	}
+	if _, exists := memDB.folders[wsID+"|fld-b"]; !exists {
+		t.Fatalf("ancestor fld-b was pruned while active files remained under fld-c")
+	}
+	if _, exists := memDB.folders[wsID+"|fld-c"]; !exists {
+		t.Fatalf("child fld-c was pruned while active files remained under fld-c")
+	}
+
+	// 2. Unlink file-c-1 while file-c-2 stays active: both fld-b and fld-c still survive.
+	f1 := memDB.files["file-c-1"]
+	f1.UnlinkedAt = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+	memDB.files["file-c-1"] = f1
+	if err := pruneOrphanedWorkspaceDriveFoldersInTx(ctx, q, wsRow); err != nil {
+		t.Fatalf("pruneOrphanedWorkspaceDriveFoldersInTx step 2: %v", err)
+	}
+	if _, exists := memDB.folders[wsID+"|fld-b"]; !exists {
+		t.Fatalf("ancestor fld-b was pruned after first unlink while file-c-2 remained active")
+	}
+
+	// 3. Unlink the last active file (file-c-2): both fld-c and ancestor fld-b are pruned.
+	f2 := memDB.files["file-c-2"]
+	f2.UnlinkedAt = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+	memDB.files["file-c-2"] = f2
+	if err := pruneOrphanedWorkspaceDriveFoldersInTx(ctx, q, wsRow); err != nil {
+		t.Fatalf("pruneOrphanedWorkspaceDriveFoldersInTx step 3: %v", err)
+	}
+	if len(memDB.folders) != 0 {
+		t.Fatalf("drive_folders after unlinking all active files = %+v, want empty", memDB.folders)
 	}
 }

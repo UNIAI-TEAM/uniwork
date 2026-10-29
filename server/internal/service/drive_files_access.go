@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -578,6 +579,9 @@ func (s *DriveFileService) Unlink(ctx context.Context, actor Actor, workspaceID,
 	}); err != nil {
 		return err
 	}
+	if err := pruneOrphanedWorkspaceDriveFoldersInTx(ctx, qtx, ws); err != nil {
+		return err
+	}
 	if err := discardReadyProposalsForFileInTx(ctx, qtx, actor, lockedFile.ID, boundEmail, boundSub); err != nil {
 		return err
 	}
@@ -814,6 +818,85 @@ func collectDescendantFolderIDs(rows []db.ListWorkspaceDriveFoldersRow, rootFold
 		}
 	}
 	return out
+}
+
+// pruneOrphanedWorkspaceDriveFoldersInTx deletes any drive_folders rows in ws
+// that are no longer on the ancestor path of at least one active (unlinked_at IS NULL)
+// drive_files row in that workspace (D-F4, UNI-2291).
+func pruneOrphanedWorkspaceDriveFoldersInTx(ctx context.Context, qtx *db.Queries, ws db.Workspace) error {
+	wsFolders, err := qtx.ListWorkspaceDriveFolders(ctx, db.ListWorkspaceDriveFoldersParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+	})
+	if err != nil || len(wsFolders) == 0 {
+		return err
+	}
+	activeFolderIDs, err := qtx.ListActiveWorkspaceDriveFolderIDs(ctx, db.ListActiveWorkspaceDriveFolderIDsParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+	})
+	if err != nil {
+		return err
+	}
+	staleIDs := collectOrphanedDriveFolderIDs(wsFolders, activeFolderIDs)
+	if len(staleIDs) == 0 {
+		return nil
+	}
+	return qtx.DeleteWorkspaceDriveFoldersByIDs(ctx, db.DeleteWorkspaceDriveFoldersByIDsParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+		DriveFolderIds: staleIDs,
+	})
+}
+
+func collectOrphanedDriveFolderIDs(wsFolders []db.ListWorkspaceDriveFoldersRow, activeDirectFolderIDs []string) []string {
+	if len(wsFolders) == 0 {
+		return nil
+	}
+	parentByID := make(map[string]string, len(wsFolders))
+	for _, r := range wsFolders {
+		fid := strings.TrimSpace(r.DriveFolderID)
+		if fid == "" {
+			continue
+		}
+		var pid string
+		if r.ParentFolderID.Valid {
+			pid = strings.TrimSpace(r.ParentFolderID.String)
+			if pid == fid {
+				pid = ""
+			}
+		}
+		parentByID[fid] = pid
+	}
+
+	keep := make(map[string]bool, len(activeDirectFolderIDs))
+	for _, startRaw := range activeDirectFolderIDs {
+		curr := strings.TrimSpace(startRaw)
+		if curr == "" {
+			continue
+		}
+		visited := map[string]bool{}
+		for depth := 0; depth <= driveFolderWalkMaxDepth && curr != ""; depth++ {
+			if visited[curr] {
+				break
+			}
+			visited[curr] = true
+			keep[curr] = true
+			curr = parentByID[curr]
+		}
+	}
+
+	var stale []string
+	seenStale := make(map[string]bool)
+	for _, r := range wsFolders {
+		fid := strings.TrimSpace(r.DriveFolderID)
+		if fid != "" && !keep[fid] && !seenStale[fid] {
+			seenStale[fid] = true
+			stale = append(stale, fid)
+		}
+	}
+	sort.Strings(stale)
+	return stale
 }
 
 func errDriveUseRebind() error {
