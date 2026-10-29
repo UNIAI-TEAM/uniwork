@@ -6,12 +6,9 @@ import {
   aiCloudGenerateImage,
   aiCloudSearch,
   aiCloudTranscribe,
-  byokProxyBaseUrl,
-  deleteAiCredential,
   getAiCloudStatus,
-  listAiCredentials,
-  saveAiCredential,
 } from "./ai-office";
+import * as aiOfficeEndpoints from "./ai-office";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -30,74 +27,14 @@ describe("ai-office endpoints", () => {
     setAccessToken(null);
   });
 
-  it("byokProxyBaseUrl points a vendor protocol at the org route", () => {
-    expect(byokProxyBaseUrl("o1", "openai")).toBe("http://api.test/api/v1/orgs/o1/ai/byok/openai");
-    expect(byokProxyBaseUrl("o1", "a/b")).toBe("http://api.test/api/v1/orgs/o1/ai/byok/a%2Fb");
-  });
-
-  it("listAiCredentials keeps providers, defaults missing fields and degrades to empty", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      json({
-        items: [{ provider: "openai", key_hint: "…abcd" }],
-        providers: [{ id: "custom", protocol: "openai-compatible", requires_base_url: true }],
-      }),
-    );
-    const res = await listAiCredentials("o1");
-    expect(callUrl(0)).toBe("http://api.test/api/v1/orgs/o1/ai/credentials");
-    expect(res.items[0]).toMatchObject({ provider: "openai", label: "", base_url: "", key_hint: "…abcd", model: "", model_updated_at: "" });
-    expect(res.providers[0]!.requires_base_url).toBe(true);
-    expect(res.providers[0]!.default_base_url).toBe("");
-    vi.mocked(fetch).mockResolvedValueOnce(json({ items: "nope", providers: [{ id: 1 }] }));
-    expect(await listAiCredentials("o1")).toEqual({ items: [], providers: [] });
-  });
-
-  it("saveAiCredential PUTs the body, parses the credential and degrades on a malformed answer", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      json({ provider: "openai", label: "work", key_hint: "…wxyz", created_at: "t", updated_at: "t" }, 201),
-    );
-    const cred = await saveAiCredential("o1", "openai", { api_key: "sk-secret", label: "work" });
-    expect(cred.key_hint).toBe("…wxyz");
-    expect(callUrl(0)).toBe("http://api.test/api/v1/orgs/o1/ai/credentials/openai");
-    expect(callInit(0).method).toBe("PUT");
-    expect(JSON.parse(callInit(0).body as string)).toEqual({ api_key: "sk-secret", label: "work" });
-    // A malformed 2xx does not throw: it falls back to what the request said, never the key.
-    vi.mocked(fetch).mockResolvedValueOnce(json({ provider: 7 }));
-    const degraded = await saveAiCredential("o1", "openai", {
-      api_key: "sk-secret",
-      label: "work",
-      base_url: "https://x.test/v1",
-    });
-    expect(degraded).toEqual({
-      provider: "openai",
-      label: "work",
-      base_url: "https://x.test/v1",
-      key_hint: "…",
-      model: "",
-      model_updated_at: "",
-      created_at: "",
-      updated_at: "",
-    });
-    expect(JSON.stringify(degraded)).not.toContain("sk-secret");
-  });
-
-  it("saveAiCredential sends a model-only body and reads the model back, degrading to the requested model", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      json({ provider: "openai", key_hint: "…wxyz", model: "gpt-4.1-mini", model_updated_at: "2026-10-11T08:00:00Z" }),
-    );
-    const cred = await saveAiCredential("o1", "openai", { model: "gpt-4.1-mini" });
-    expect(JSON.parse(callInit(0).body as string)).toEqual({ model: "gpt-4.1-mini" });
-    expect(cred).toMatchObject({ model: "gpt-4.1-mini", model_updated_at: "2026-10-11T08:00:00Z", key_hint: "…wxyz" });
-    // A malformed model field (or a malformed answer) falls back to what was asked.
-    vi.mocked(fetch).mockResolvedValueOnce(json({ provider: "openai", model: 42 }));
-    const degraded = await saveAiCredential("o1", "openai", { model: "claude-sonnet-4-5" });
-    expect(degraded).toMatchObject({ provider: "openai", model: "claude-sonnet-4-5", model_updated_at: "" });
-  });
-
-  it("deleteAiCredential sends DELETE and tolerates an empty 204", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
-    await deleteAiCredential("o1", "openai");
-    expect(callUrl(0)).toBe("http://api.test/api/v1/orgs/o1/ai/credentials/openai");
-    expect(callInit(0).method).toBe("DELETE");
+  it("exports no key-store client or BYOK proxy helper", () => {
+    expect(Object.keys(aiOfficeEndpoints).sort()).toEqual([
+      "aiCloudAnalyzeMedia",
+      "aiCloudGenerateImage",
+      "aiCloudSearch",
+      "aiCloudTranscribe",
+      "getAiCloudStatus",
+    ]);
   });
 
   it("getAiCloudStatus fills the credits line and degrades to disabled", async () => {

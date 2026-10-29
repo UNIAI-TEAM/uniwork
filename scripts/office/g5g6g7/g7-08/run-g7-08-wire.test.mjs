@@ -182,11 +182,11 @@ describe('G7-08 real-run wire observation drives the matrix stop', () => {
 
   it('G708-R4-3: a missed route seen by the broader observer is an unknown-usage stop, not a crash', () => {
     // Test (2) of the finding: the matched list is empty, so the old rule read "no request began";
-    // the observer's own AI-mount record proves a BYOK POST did begin.
+    // the observer's own AI-mount record proves a model POST did begin.
     const seen = interruptionFromTurn(new Error('frame navigated away'), {
       requests: [],
       responses: [],
-      aiPaths: [{ path: '/api/v1/office-frame/documents/D1/ai/byok/openai/chat/completions' }],
+      aiPaths: [{ path: '/api/v1/office-frame/documents/D1/ai/unregistered/chat/completions' }],
     });
     assert.equal(seen.name, 'InterruptedAiTurnError');
     assert.equal(seen.usage.missingUsageCalls, 1);
@@ -279,7 +279,7 @@ describe('G7-08 real-run wire observation drives the matrix stop', () => {
     await bindDryRunStubRoutes({
       page, frameAiOrigin: 'http://web.test', fetchImpl, stub: { url: 'http://stub.test' }, documentId: 'D1', rowId: 'X-R1', wireResponses: [],
     });
-    assert.ok(routed.length >= 7, 'credentials, cloud, models and the four model-call routes');
+    assert.equal(routed.length, 3, 'cloud, models and the one model-call route');
     for (const glob of routed) assert.ok(glob.startsWith('http://web.test/api/v1/office-frame/documents/*/ai/'), glob);
   });
 });

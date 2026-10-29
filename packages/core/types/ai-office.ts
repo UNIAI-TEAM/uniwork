@@ -5,48 +5,6 @@ import { z } from "zod";
  * Lenient on the wire: server enums stay strings, every optional field defaults.
  */
 
-export const AiOfficeProviderSchema = z.object({
-  id: z.string(),
-  protocol: z.string().optional().default(""),
-  requires_base_url: z.boolean().optional().default(false),
-  default_base_url: z.string().optional().default(""),
-});
-export type AiOfficeProvider = z.infer<typeof AiOfficeProviderSchema>;
-
-/** Never carries the key: `key_hint` is "…" plus its last four characters. */
-export const AiCredentialSchema = z.object({
-  provider: z.string(),
-  label: z.string().optional().default(""),
-  base_url: z.string().optional().default(""),
-  key_hint: z.string().optional().default(""),
-  /** The model chosen for this provider; "" when none (an older server omits it). */
-  model: z.string().optional().default(""),
-  /** When `model` was last set (RFC 3339), "" when never; the latest one is the default provider. */
-  model_updated_at: z.string().optional().default(""),
-  created_at: z.string().optional().default(""),
-  updated_at: z.string().optional().default(""),
-});
-export type AiCredential = z.infer<typeof AiCredentialSchema>;
-
-export const AiCredentialListSchema = z.object({
-  items: z.array(AiCredentialSchema).optional().default([]),
-  providers: z.array(AiOfficeProviderSchema).optional().default([]),
-});
-export type AiCredentialList = z.infer<typeof AiCredentialListSchema>;
-
-export interface SaveAiCredentialInput {
-  /** Required on create (<= 4096 chars); omit on update to keep the stored key. */
-  api_key?: string;
-  base_url?: string;
-  /** <= 80 chars. */
-  label?: string;
-  /**
-   * <= 200 chars of letters, digits and `. _ : / @ + -`; "" clears it. A body with only
-   * `model` switches the model of a stored credential without the key.
-   */
-  model?: string;
-}
-
 export const AiCloudToolsSchema = z.object({
   web_search: z.boolean().optional().default(false),
   image_search: z.boolean().optional().default(false),

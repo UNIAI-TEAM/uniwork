@@ -17,7 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_REPO_ROOT = resolve(HERE, '../../../..');
 export const ACCEPTANCE_REL = 'docs/office/g5g6g7/acceptance.md';
 
-export const PROVIDERS = Object.freeze(['uniwork', 'byok']);
+export const PROVIDERS = Object.freeze(['uniwork']);
 export const HOSTS = Object.freeze(['web', 'desktop']);
 export const FORMATS = Object.freeze(['xlsx', 'docx', 'pptx', 'pdf', 'md', 'html']);
 export const ROW_EXIT = Object.freeze({ PASS: 0, FAIL: 1, BLOCKED: 77 });

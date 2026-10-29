@@ -103,28 +103,18 @@ export function interruptionFromTurn(turnError, { requests = [], responses = [],
 }
 
 /**
- * R3-1 + R4-1: the frame's model-CALL routes, exactly as the router registers
- * them (`server/internal/handler/router/office_frame_ai.go`): the UniWork turn
- * at `:126` and the three BYOK vendor calls at `:74` (`chat/completions`),
- * `:79` (`messages`) and `:84` (`generate`). The `:89` `.../models` route is a
- * GET listing of vendor models, not a model call, so it is deliberately absent
- * here; so is `/ai/{provider}/chat/completions`, which no route serves (the
- * BYOK path always carries the `byok` segment).
+ * R3-1 + R4-1: the frame's model-CALL route, exactly as the router registers it
+ * (`server/internal/handler/router/office_frame_ai.go`): the UniWork turn at
+ * `/ai/uniwork/chat/completions`. The `.../uniwork/models` route is a GET
+ * listing, not a model call, so it is deliberately absent here; so is
+ * `/ai/{provider}/chat/completions`, which no route serves.
  *
  * Each route is paired with the response shape its usage block is read in
- * (`usagePairFromDoc`). The shape is the protocol that route is wired to:
- * `handler/ai_mount.go:71-73` binds the three BYOK routes to
- * `ai.ProxyChatCompletions` / `ProxyMessages` / `ProxyGenerate`, and
- * `server/internal/ai/proxy.go:61-63,223-236` pins those to
- * openai-compatible / anthropic / gemini. The BYOK proxy streams the vendor's
- * body through untouched (`proxy.go:193,219`), so the frame sees the vendor's
- * native shape; the UniWork turn is built by `ai/openai_facade.go:377-383`.
+ * (`usagePairFromDoc`): the UniWork turn is built by `ai/openai_facade.go`,
+ * so it is `openai`.
  */
 const MODEL_CALL_ROUTES = Object.freeze([
   { re: /\/office-frame\/documents\/[^/]+\/ai\/uniwork\/chat\/completions$/, globPath: '/api/v1/office-frame/documents/*/ai/uniwork/chat/completions', shape: 'openai' },
-  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/chat\/completions$/, globPath: '/api/v1/office-frame/documents/*/ai/byok/*/chat/completions', shape: 'openai' },
-  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/messages$/, globPath: '/api/v1/office-frame/documents/*/ai/byok/*/messages', shape: 'anthropic' },
-  { re: /\/office-frame\/documents\/[^/]+\/ai\/byok\/[^/]+\/generate$/, globPath: '/api/v1/office-frame/documents/*/ai/byok/*/generate', shape: 'gemini' },
 ]);
 
 function normalizeHttpOrigin(rawOrigin) {
@@ -137,7 +127,7 @@ function normalizeHttpOrigin(rawOrigin) {
 }
 
 /**
- * R4-1 + w2i + w2j: the four model-CALL routes as Playwright `page.route` globs on the origin the
+ * R4-1 + w2i + w2j: the model-CALL routes as Playwright `page.route` globs on the origin the
  * frame POSTs to - the app (web) origin, since the frame is same-origin (connect-src 'self') and
  * the app proxies the route to the API. Never `**`, so a POST to any other origin is not intercepted.
  */
@@ -175,7 +165,7 @@ export function isFrameAiPath(pathname) {
  * reads (`server/internal/ai/proxy.go:425-447`):
  * - `openai`    - `usage.prompt_tokens` / `usage.completion_tokens`: the UniWork
  *   facade's `UniworkUsage` (`ai/openai_facade.go:213-215`, written into the SSE
- *   chunk at `:382`) and the OpenAI-compatible BYOK proxy (`proxy.go:442-446`);
+ *   chunk at `:382`) and any OpenAI-compatible body;
  * - `anthropic` - `usage.input_tokens` / `usage.output_tokens`, and the same pair
  *   under `message.usage` on a `message_start` (`proxy.go:433-441`);
  * - `gemini`    - `usageMetadata.promptTokenCount` / `usageMetadata.candidatesTokenCount`
@@ -239,8 +229,7 @@ function geminiChunkHasFinishReason(chunk) {
  *   initial `output_tokens`);
  * - openai: a complete JSON chunk with both usage counts AND a later
  *   `data: [DONE]` (UniWork facade writes the pair then `[DONE]` at
- *   `openai_facade.go:382-396`; BYOK `/chat/completions` is the vendor body
- *   through `proxy.go:193,219`, same `[DONE]` trailer);
+ *   `openai_facade.go:382-396`);
  * - gemini: the last usage-bearing chunk also carries a candidate
  *   `finishReason` (usageMetadata is cumulative, so a cut undercounts).
  * A non-stream JSON body is unchanged. A line cut mid-JSON is not a chunk.

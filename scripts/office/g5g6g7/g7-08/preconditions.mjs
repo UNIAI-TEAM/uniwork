@@ -181,7 +181,6 @@ export async function ensureServerPreconditions({
   fetchImpl = fetch,
   seeded,
   row,
-  provider = 'uniwork',
   dryRun = false,
   stubUrl = null,
 } = {}) {
@@ -222,11 +221,8 @@ export async function ensureServerPreconditions({
   }
 
   const formatsEnabled = Array.isArray(capBody?.ai_uniwork_formats) ? capBody.ai_uniwork_formats : [];
-  const needUniwork = provider === 'uniwork';
-  const capabilityMet = needUniwork
-    ? Boolean(capBody?.ai_uniwork && formatsEnabled.includes(serverFormatToken) && frameGrant.uniwork_ai)
-    : Boolean(frameGrant.ai);
-  const providerMet = needUniwork ? Boolean(cloudBody?.uniwork_model && cloudBody?.tools?.chat) : true;
+  const capabilityMet = Boolean(capBody?.ai_uniwork && formatsEnabled.includes(serverFormatToken) && frameGrant.uniwork_ai);
+  const providerMet = Boolean(cloudBody?.uniwork_model && cloudBody?.tools?.chat);
   const stubBound = dryRun ? Boolean(stubUrl) : true;
   const met = Boolean(capabilityMet && providerMet && stubBound);
 
@@ -295,15 +291,6 @@ export async function bindDryRunStubRoutes({
   });
   const { token: stubFrameToken } = await mintRes.json();
 
-  await page.route(`${baseOrigin}/api/v1/office-frame/documents/*/ai/credentials`, async (route) => {
-    const headers = corsHeadersForOrigin(route.request().headers().origin || '*');
-    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
-    await route.fulfill({
-      status: 200, headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: [], providers: [] }),
-    });
-  });
-
   await page.route(`${baseOrigin}/api/v1/office-frame/documents/*/ai/cloud`, async (route) => {
     const headers = corsHeadersForOrigin(route.request().headers().origin || '*');
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers, body: '' });
@@ -336,7 +323,7 @@ export async function bindDryRunStubRoutes({
         return route.fulfill({
           status: 501,
           headers: { ...cors, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: { code: 'dry_run_byok_stub_absent', message: 'the dry-run stub serves the UniWork turn only' } }),
+          body: JSON.stringify({ error: { code: 'dry_run_stub_route_absent', message: 'the dry-run stub serves the UniWork turn only' } }),
         });
       }
       const reqHeaders = req.headers();
@@ -397,15 +384,14 @@ export async function verifyHostAndFramePreconditions({
   const initMsg = frameMessages.find((m) => m.type === 'init' && (m.kind === 'request' || !m.kind)) ?? null;
   const initAckMsg = hostMessages.find((m) => (m.type === 'init' && m.kind === 'response') || m.type === 'init.ack') ?? null;
 
-  const needUniwork = provider === 'uniwork';
-  const hostCapValue = needUniwork ? initMsg?.capabilities?.uniworkAi : initMsg?.capabilities?.byok;
+  const hostCapValue = initMsg?.capabilities?.uniworkAi;
   const hostMet = Boolean(initMsg && hostCapValue === true);
   const hostEvidence = {
     met: hostMet,
     initCaptured: Boolean(initMsg),
     capabilities: initMsg?.capabilities ?? null,
     capabilitiesUniworkAi: initMsg?.capabilities?.uniworkAi ?? null,
-    failureReason: hostMet ? null : !initMsg ? 'postMessage init envelope not captured in frame' : `init.payload.capabilities.${needUniwork ? 'uniworkAi' : 'byok'}=${String(hostCapValue)}`,
+    failureReason: hostMet ? null : !initMsg ? 'postMessage init envelope not captured in frame' : `init.payload.capabilities.uniworkAi=${String(hostCapValue)}`,
   };
 
   let openPanel = await frame.$(mSel.openPanel);
@@ -416,7 +402,7 @@ export async function verifyHostAndFramePreconditions({
       openPanel = await frame.waitForSelector(mSel.openPanel, { state: 'visible', timeout: 5_000 }).catch(() => null);
     }
   }
-  if (row.module === 'sheets' && needUniwork) {
+  if (row.module === 'sheets') {
     await frame.waitForSelector('.ai-model-chip, button.ai-uniwork-disclosure-ack', { state: 'attached', timeout: 5_000 }).catch(() => null);
     await frame.evaluate(async () => {
       const api = window.desktopApi;
@@ -441,7 +427,7 @@ export async function verifyHostAndFramePreconditions({
     await page.screenshot({ path: screenshotPath }).catch(() => { screenshotPath = null; });
   }
 
-  const ackCapValue = needUniwork ? initAckMsg?.capabilities?.uniworkAi : initAckMsg?.capabilities?.byok;
+  const ackCapValue = initAckMsg?.capabilities?.uniworkAi;
   const frameClaimsCap = Boolean(ackCapValue === true || openPanel);
   const frameMet = Boolean(frameClaimsCap && openPanel);
   const frameEvidence = {
