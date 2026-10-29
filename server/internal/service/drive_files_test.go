@@ -2985,7 +2985,7 @@ func TestDriveFolderTreeUpwardWalkAndNesting(t *testing.T) {
 	wideLeafFileID := linkedWide[0].File.ID
 	var outboxBefore int
 	if err := env.pool.QueryRow(ctx,
-		`SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`,
+		`SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload::jsonb->>'drive_file_id' = $1`,
 		wideLeafFileID,
 	).Scan(&outboxBefore); err != nil {
 		t.Fatalf("count outbox before NameFolder: %v", err)
@@ -2996,7 +2996,7 @@ func TestDriveFolderTreeUpwardWalkAndNesting(t *testing.T) {
 	}
 	var outboxAfter int
 	if err := env.pool.QueryRow(ctx,
-		`SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`,
+		`SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload::jsonb->>'drive_file_id' = $1`,
 		wideLeafFileID,
 	).Scan(&outboxAfter); err != nil {
 		t.Fatalf("count outbox after NameFolder: %v", err)
