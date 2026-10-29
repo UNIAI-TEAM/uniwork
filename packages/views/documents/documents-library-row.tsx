@@ -221,7 +221,7 @@ export function LibraryRowView({
       // format), else downloads it; "Xem nơi đính kèm" is a secondary.
       const open = sourceOpenAction(row.source);
       if (open === "page" && row.source.document_id) {
-        handlers.onOpen(row.source.document_id, { id: row.source.document_id, kind: "page" } as DocumentSummaryRow);
+        handlers.onOpen(row.source.document_id);
       } else if (open === "office" && handlers.onViewSource) {
         handlers.onViewSource(row.source);
       } else {
