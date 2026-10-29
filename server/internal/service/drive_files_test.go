@@ -3498,15 +3498,13 @@ func TestDriveOpportunisticRefreshAtomicityAndInterleaving(t *testing.T) {
 	}
 }
 
-// TestDriveFolderGraphLockOrderAndPruneConcurrency (UNI-2291 D-LOCK, RB2-1, RB2-2, RB2-3)
+// TestDriveFolderGraphLockOrderAndPruneConcurrency (UNI-2291 D-LOCK, D-BUSY, RB2-1..3, RB3-3..4)
 // verifies on PostgreSQL using a bounded small pool (MaxConns=2) and a separate watcher
 // connection that:
 //  1. Refresh vs Unlink and Unlink vs Refresh settle without 40P01 deadlock or partial state;
-//     when Unlink holds the workspace folder-graph lock, refresh's TryLockDriveFolderGraph
-//     skips persistence without blocking or stamping metadata_refreshed_at.
-//  2. Refresh vs GrantAccess and GrantAccess vs Refresh settle without 40P01 deadlock or
-//     partial state; when GrantAccess holds the graph lock, refresh skips without stamping
-//     so a subsequent read retries.
+//     when Unlink holds the workspace folder-graph lock, refresh's preflight TryLockDriveFolderGraph
+//     skips the whole refresh (0 Google calls, no claim) and serves cached data without waiting.
+//  2. Refresh vs GrantAccess settles without 40P01 deadlock or partial state.
 //  3. Concurrent Unlink of the last two active files in a folder serializes on
 //     LockDriveFolderGraph and leaves the folder pruned from drive_folders.
 //  4. Concurrent Link vs Unlink (prune) serializes on LockDriveFolderGraph so an ancestor
@@ -3597,8 +3595,10 @@ func TestDriveFolderGraphLockOrderAndPruneConcurrency(t *testing.T) {
 		var lastErr error
 		for time.Now().Before(deadline) {
 			var waiting int
-			// Query pg_locks on env.pool (dedicated watcher pool, never starving smallPool).
-			lastErr = env.pool.QueryRow(baseCtx, `
+			qCtx, qCancel := context.WithTimeout(baseCtx, 500*time.Millisecond)
+			// Query pg_locks on env.pool (dedicated watcher pool, never starving smallPool),
+			// filtered to the exact 64-bit advisory key for drive_folder_graph:<wsID>.
+			lastErr = env.pool.QueryRow(qCtx, `
 				SELECT count(*)
 				FROM pg_locks w
 				JOIN pg_locks h
@@ -3608,8 +3608,12 @@ func TestDriveFolderGraphLockOrderAndPruneConcurrency(t *testing.T) {
 				 AND h.objsubid = w.objsubid
 				 AND h.granted
 				WHERE w.locktype = 'advisory'
-				  AND NOT w.granted`,
+				  AND NOT w.granted
+				  AND w.objsubid = 1
+				  AND ((w.classid::bigint << 32) | (w.objid::bigint & 4294967295)) = hashtextextended('drive_folder_graph:' || $1::text, 0)`,
+				wsID,
 			).Scan(&waiting)
+			qCancel()
 			if lastErr == nil && waiting > 0 {
 				return
 			}
@@ -3701,9 +3705,8 @@ func TestDriveFolderGraphLockOrderAndPruneConcurrency(t *testing.T) {
 		t.Fatalf("fld-rb2-1a count after Refresh+Unlink = %d (err=%v), want 0 (pruned)", count1AFolders, err)
 	}
 
-	// --- Case 1B: Unlink holds LockDriveFolderGraph while Refresh reaches TryLockDriveFolderGraph:
-	// Refresh immediately skips persistence without blocking, serves cached data, and restores
-	// the stale metadata_refreshed_at timestamp so the next request retries. ---
+	// --- Case 1B: Unlink holds LockDriveFolderGraph while Refresh runs preflight TryLockDriveFolderGraph:
+	// Refresh immediately skips the whole refresh (0 Google calls, no claim) without blocking and serves cached data. ---
 	env.googleSrv.SetFile("fld-rb2-1b-keep", FakeGoogleDriveFile{
 		Metadata: googleDriveFileJSON{ID: "fld-rb2-1b-keep", Name: "Keep Folder Initial", MimeType: DriveMimeGoogleFolder},
 	})
@@ -3755,8 +3758,9 @@ func TestDriveFolderGraphLockOrderAndPruneConcurrency(t *testing.T) {
 	}()
 	waitCh(unlink1BHeld, "Unlink 1B to hold LockDriveFolderGraph", safeRelease1B)
 
-	// While Unlink holds LockDriveFolderGraph, Get on keep1BID runs opportunistic refresh,
-	// sees TryLockDriveFolderGraph == false, skips persistence without waiting, and returns cached data.
+	// While Unlink holds LockDriveFolderGraph, Get on keep1BID runs preflight TryLockDriveFolderGraph,
+	// sees false, skips the whole refresh (0 Google calls, no claim) without waiting, and returns cached data.
+	callsBeforeBusy1B := len(env.googleSrv.Calls())
 	gotWhileBusy, err := fileSvc.Get(ctx1B, Human(env.owner.ID), env.wsA.ID, keep1BID)
 	if err != nil {
 		safeRelease1B()
@@ -3766,15 +3770,10 @@ func TestDriveFolderGraphLockOrderAndPruneConcurrency(t *testing.T) {
 		safeRelease1B()
 		t.Fatalf("Get while busy returned %+v, want cached Keep Folder Initial", gotWhileBusy.DriveFolder)
 	}
-	var stillStale1B bool
-	if err := env.pool.QueryRow(baseCtx,
-		`SELECT metadata_refreshed_at < now() - interval '10 minutes' FROM drive_files WHERE id = $1`,
-		keep1BID,
-	).Scan(&stillStale1B); err != nil || !stillStale1B {
+	if gotCalls := len(env.googleSrv.Calls()) - callsBeforeBusy1B; gotCalls != 0 {
 		safeRelease1B()
-		t.Fatalf("keep1B stillStale after busy try-lock skip = %v (err=%v), want true (not stamped)", stillStale1B, err)
+		t.Fatalf("Google calls during Get while graph lock busy = %d, want 0 (preflight skipped)", gotCalls)
 	}
-
 	safeRelease1B()
 	unlink1BErr := waitErrCh(unlink1BErrCh, "Unlink 1B completion")
 	joinWorker(unlink1BDone, "Unlink 1B")

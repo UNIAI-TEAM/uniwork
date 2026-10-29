@@ -336,6 +336,7 @@ type memDriveUnitDBTX struct {
 	failSetFolderName bool
 	failUpdateFile    bool
 	tryLockGraphBusy  bool
+	parent            *memDriveUnitDBTX
 }
 
 func (m *memDriveUnitDBTX) beginTx() (*db.Queries, func(context.Context) error, func(context.Context) error, error) {
@@ -363,6 +364,7 @@ func (m *memDriveUnitDBTX) beginTx() (*db.Queries, func(context.Context) error, 
 		failSetFolderName: m.failSetFolderName,
 		failUpdateFile:    m.failUpdateFile,
 		tryLockGraphBusy:  m.tryLockGraphBusy,
+		parent:            m,
 	}
 	closed := false
 	commit := func(context.Context) error {
@@ -440,26 +442,11 @@ func (r *memDriveFolderRows) Scan(dest ...any) error {
 func (m *memDriveUnitDBTX) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if strings.Contains(sql, "-- name: LockDriveFolderGraph ") {
+	if strings.Contains(sql, "-- name: LockDriveFolderGraph ") ||
+		strings.Contains(sql, "-- name: LockDriveFileWorkspaceExternal ") ||
+		strings.Contains(sql, "-- name: InsertAuditEvent ") ||
+		strings.Contains(sql, "-- name: InsertDomainOutboxEvent ") {
 		return pgconn.NewCommandTag("SELECT 1"), nil
-	}
-	if strings.Contains(sql, "-- name: RestoreDriveFileMetadataRefreshedAt ") {
-		prevRef, _ := args[0].(pgtype.Timestamptz)
-		id, _ := args[1].(string)
-		orgID, _ := args[2].(string)
-		wsID, _ := args[3].(string)
-		claimedRef, _ := args[4].(pgtype.Timestamptz)
-		row, ok := m.files[id]
-		if !ok || row.OrganizationID != orgID || row.WorkspaceID != wsID || row.UnlinkedAt.Valid {
-			return pgconn.NewCommandTag("UPDATE 0"), nil
-		}
-		if row.MetadataRefreshedAt.Valid != claimedRef.Valid ||
-			(row.MetadataRefreshedAt.Valid && !row.MetadataRefreshedAt.Time.Equal(claimedRef.Time)) {
-			return pgconn.NewCommandTag("UPDATE 0"), nil
-		}
-		row.MetadataRefreshedAt = prevRef
-		m.files[id] = row
-		return pgconn.NewCommandTag("UPDATE 1"), nil
 	}
 	if strings.Contains(sql, "-- name: UpdateDriveConnectionTokens ") {
 		accessEnc, _ := args[0].(string)
@@ -605,7 +592,13 @@ func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) 
 		}
 		return scanMemDriveFile(row)
 	case strings.Contains(sql, "-- name: TryLockDriveFolderGraph "):
-		locked := !m.tryLockGraphBusy
+		busy := m.tryLockGraphBusy
+		if !busy && m.parent != nil {
+			m.parent.mu.Lock()
+			busy = m.parent.tryLockGraphBusy
+			m.parent.mu.Unlock()
+		}
+		locked := !busy
 		return driveUnitRowFunc(func(dest ...any) error {
 			*(dest[0].(*bool)) = locked
 			return nil
@@ -618,7 +611,11 @@ func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) 
 		if !ok || row.OrganizationID != orgID || row.WorkspaceID != wsID || row.UnlinkedAt.Valid {
 			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
 		}
-		row.MetadataRefreshedAt = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+		nowClaim := time.Now().UTC()
+		if row.MetadataRefreshedAt.Valid && !row.MetadataRefreshedAt.Time.Before(nowClaim.Add(-10*time.Minute)) {
+			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
+		}
+		row.MetadataRefreshedAt = pgtype.Timestamptz{Time: nowClaim, Valid: true}
 		m.files[id] = row
 		return scanMemDriveFile(row)
 	case strings.Contains(sql, "-- name: UpsertDriveFolder "):
@@ -719,7 +716,8 @@ func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) 
 		row.MetadataRefreshedAt, _ = args[12].(pgtype.Timestamptz)
 		m.files[id] = row
 		return scanMemDriveFile(row)
-	case strings.Contains(sql, "-- name: GetDriveFileAccessByUser "):
+	case strings.Contains(sql, "-- name: GetDriveFileAccessByUser ") ||
+		strings.Contains(sql, "-- name: GetDriveFileAccessByUserForUpdate "):
 		orgID, _ := args[0].(string)
 		wsID, _ := args[1].(string)
 		fileID, _ := args[2].(string)
@@ -742,7 +740,82 @@ func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) 
 		row.State = "granted"
 		m.access[fileID+"|"+userID] = row
 		return scanMemDriveFileAccess(row)
-	case strings.Contains(sql, "-- name: GetDriveConnection ") || strings.Contains(sql, "-- name: GetDriveConnectionAnyState "):
+	case strings.Contains(sql, "-- name: GetActiveDriveFileByExternalIDForUpdate "):
+		orgID, _ := args[0].(string)
+		wsID, _ := args[1].(string)
+		extID, _ := args[2].(string)
+		for _, row := range m.files {
+			if row.OrganizationID == orgID && row.WorkspaceID == wsID && row.ExternalFileID == extID && !row.UnlinkedAt.Valid {
+				return scanMemDriveFile(row)
+			}
+		}
+		return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
+	case strings.Contains(sql, "-- name: CreateDriveFile "):
+		row := db.DriveFile{
+			ID:                     args[0].(string),
+			OrganizationID:         args[1].(string),
+			WorkspaceID:            args[2].(string),
+			ExternalFileID:         args[3].(string),
+			DriveID:                args[4].(pgtype.Text),
+			DriveFolderID:          args[5].(pgtype.Text),
+			DriveFolderName:        args[6].(pgtype.Text),
+			ConnectionID:           args[7].(string),
+			BoundBy:                args[8].(string),
+			CreatedBy:              args[9].(string),
+			CreatedByKind:          args[10].(string),
+			Name:                   args[11].(string),
+			MimeType:               args[12].(string),
+			IconKind:               args[13].(string),
+			WebViewLink:            args[14].(string),
+			OwnerDisplay:           args[15].(string),
+			DriveModifiedAt:        args[16].(pgtype.Timestamptz),
+			DriveModifiedByDisplay: args[17].(string),
+			SharingState:           args[18].(string),
+			SharedUserCount:        args[19].(pgtype.Int4),
+			MetadataRefreshedAt:    args[20].(pgtype.Timestamptz),
+		}
+		if m.files == nil {
+			m.files = make(map[string]db.DriveFile)
+		}
+		m.files[row.ID] = row
+		return scanMemDriveFile(row)
+	case strings.Contains(sql, "-- name: UpsertDriveFileAccessGranted "):
+		row := db.DriveFileAccess{
+			ID:             args[0].(string),
+			OrganizationID: args[1].(string),
+			WorkspaceID:    args[2].(string),
+			DriveFileID:    args[3].(string),
+			UserID:         args[4].(string),
+			ConnectionID:   args[5].(string),
+			State:          "granted",
+		}
+		if m.access == nil {
+			m.access = make(map[string]db.DriveFileAccess)
+		}
+		m.access[row.DriveFileID+"|"+row.UserID] = row
+		return scanMemDriveFileAccess(row)
+	case strings.Contains(sql, "-- name: CreateDriveFileTaskLink "):
+		id, _ := args[0].(string)
+		orgID, _ := args[1].(string)
+		wsID, _ := args[2].(string)
+		fileID, _ := args[3].(string)
+		taskID, _ := args[4].(string)
+		createdBy, _ := args[5].(string)
+		createdByKind, _ := args[6].(string)
+		return driveUnitRowFunc(func(dest ...any) error {
+			*(dest[0].(*string)) = id
+			*(dest[1].(*string)) = orgID
+			*(dest[2].(*string)) = wsID
+			*(dest[3].(*string)) = fileID
+			*(dest[4].(*string)) = taskID
+			*(dest[5].(*string)) = createdBy
+			*(dest[6].(*string)) = createdByKind
+			*(dest[7].(*pgtype.Timestamptz)) = pgtype.Timestamptz{}
+			return nil
+		})
+	case strings.Contains(sql, "-- name: GetDriveConnection ") ||
+		strings.Contains(sql, "-- name: GetDriveConnectionForShare ") ||
+		strings.Contains(sql, "-- name: GetDriveConnectionAnyState "):
 		id, _ := args[0].(string)
 		orgID, _ := args[1].(string)
 		userID, _ := args[2].(string)
@@ -3355,30 +3428,76 @@ func TestDriveOpportunisticRefreshAtomicRollbackUnit(t *testing.T) {
 	f1Init.MetadataRefreshedAt = staleRefreshedAt
 	memDB.files[file1ID] = f1Init
 
-	// 0. When TryLockDriveFolderGraph reports busy (locked=false), refresh skips
-	// persistence without stamping metadata_refreshed_at (restoring the pre-claim
-	// stale timestamp so the next request retries; D-LOCK, RB2-1).
+	resetStale := func() {
+		f := memDB.files[file1ID]
+		f.MetadataRefreshedAt = staleRefreshedAt
+		memDB.files[file1ID] = f
+	}
+
+	// 0a (D-BUSY, RB3-3, RB3-4). When the preflight TryLockDriveFolderGraph sees
+	// busy (locked=false), N=5 stale reads skip the whole refresh before claiming
+	// or calling Google: 0 Google calls are made, metadata_refreshed_at is not
+	// claimed, and cached data is served.
 	memDB.tryLockGraphBusy = true
-	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, staleRefreshedAt, nil); ok {
-		t.Fatalf("refreshFileWithViewerConnection succeeded when TryLockDriveFolderGraph was busy")
+	callsBeforePreflightBusy := len(gSrv.Calls())
+	for range 5 {
+		if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); ok {
+			t.Fatalf("refreshFileWithViewerConnection succeeded when preflight TryLockDriveFolderGraph was busy")
+		}
+	}
+	if gotCalls := len(gSrv.Calls()) - callsBeforePreflightBusy; gotCalls != 0 {
+		t.Fatalf("Google calls during 5 preflight-busy refresh attempts = %d, want 0", gotCalls)
 	}
 	if got := memDB.folders[wsID+"|"+folderID].Name; got != "Old Folder Name" {
-		t.Fatalf("drive_folders.name when try-lock busy = %q, want Old Folder Name", got)
+		t.Fatalf("drive_folders.name when preflight try-lock busy = %q, want Old Folder Name", got)
 	}
 	if got := memDB.files[file1ID].Name; got != "Doc 1" {
-		t.Fatalf("file1 name when try-lock busy = %q, want Doc 1", got)
+		t.Fatalf("file1 name when preflight try-lock busy = %q, want Doc 1", got)
 	}
 	if gotRef := memDB.files[file1ID].MetadataRefreshedAt; !gotRef.Valid || !gotRef.Time.Equal(staleRefreshedAt.Time) {
-		t.Fatalf("file1 metadata_refreshed_at when try-lock busy = %+v, want restored stale %+v (not stamped)", gotRef, staleRefreshedAt)
-	}
-	if !fileSvc.isMetadataStale(memDB.files[file1ID].MetadataRefreshedAt) {
-		t.Fatalf("file1 metadata_refreshed_at must remain stale after busy try-lock skip so next request retries")
+		t.Fatalf("file1 metadata_refreshed_at when preflight try-lock busy = %+v, want unchanged stale %+v (no claim)", gotRef, staleRefreshedAt)
 	}
 	memDB.tryLockGraphBusy = false
 
+	// 0b (D-BUSY, RB3-3, RB3-4). When the preflight succeeds, the claim + Google
+	// fetch run once, and the post-fetch TryLockDriveFolderGraph becomes busy:
+	// persistence is skipped, the claim stamp is KEPT (not restored), and subsequent
+	// attempts before the 10-minute cooldown make 0 additional Google calls.
+	fileSvc.testBeforeGraphLock = func(op, _ string, _ string) {
+		if op == "refresh" {
+			memDB.mu.Lock()
+			memDB.tryLockGraphBusy = true
+			memDB.mu.Unlock()
+		}
+	}
+	callsBeforePostFetchBusy := len(gSrv.Calls())
+	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); ok {
+		t.Fatalf("refreshFileWithViewerConnection succeeded when post-fetch TryLockDriveFolderGraph was busy")
+	}
+	callsAfterFirstPostFetchBusy := len(gSrv.Calls())
+	if gotCalls := callsAfterFirstPostFetchBusy - callsBeforePostFetchBusy; gotCalls != 2 {
+		t.Fatalf("Google calls on first post-fetch-busy attempt = %d (1 file + 1 folder), want 2", gotCalls)
+	}
+	if fileSvc.isMetadataStale(memDB.files[file1ID].MetadataRefreshedAt) {
+		t.Fatalf("file1 metadata_refreshed_at must keep its claim stamp after post-fetch busy skip (no retry before 10 min)")
+	}
+	memDB.mu.Lock()
+	memDB.tryLockGraphBusy = false
+	memDB.mu.Unlock()
+	fileSvc.testBeforeGraphLock = nil
+	for range 4 {
+		if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); ok {
+			t.Fatalf("refreshFileWithViewerConnection retried before 10-minute claim cooldown elapsed")
+		}
+	}
+	if gotExtraCalls := len(gSrv.Calls()) - callsAfterFirstPostFetchBusy; gotExtraCalls != 0 {
+		t.Fatalf("extra Google calls before 10-min cooldown after post-fetch busy skip = %d, want 0", gotExtraCalls)
+	}
+
 	// 1. Failure in SetDriveFolderNameInWorkspace must roll back UpsertDriveFolder and fail refresh cleanly.
+	resetStale()
 	memDB.failSetFolderName = true
-	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, staleRefreshedAt, nil); ok {
+	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); ok {
 		t.Fatalf("refreshFileWithViewerConnection succeeded when SetDriveFolderNameInWorkspace failed")
 	}
 	if got := memDB.folders[wsID+"|"+folderID].Name; got != "Old Folder Name" {
@@ -3390,8 +3509,9 @@ func TestDriveOpportunisticRefreshAtomicRollbackUnit(t *testing.T) {
 	memDB.failSetFolderName = false
 
 	// 2. Failure in UpdateDriveFileMetadata must roll back both UpsertDriveFolder and SetDriveFolderNameInWorkspace.
+	resetStale()
 	memDB.failUpdateFile = true
-	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, staleRefreshedAt, nil); ok {
+	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); ok {
 		t.Fatalf("refreshFileWithViewerConnection succeeded when UpdateDriveFileMetadata failed")
 	}
 	if got := memDB.folders[wsID+"|"+folderID].Name; got != "Old Folder Name" {
@@ -3403,7 +3523,8 @@ func TestDriveOpportunisticRefreshAtomicRollbackUnit(t *testing.T) {
 	memDB.failUpdateFile = false
 
 	// 3. When all writes succeed, folder upsert, sibling folder-name sync, and file snapshot commit together.
-	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, staleRefreshedAt, nil); !ok {
+	resetStale()
+	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); !ok {
 		t.Fatalf("refreshFileWithViewerConnection failed on clean run")
 	}
 	if got := memDB.folders[wsID+"|"+folderID].Name; got != "New Folder Name" {
@@ -3598,5 +3719,145 @@ func TestPruneOrphanedWorkspaceDriveFoldersInTxUnit(t *testing.T) {
 	}
 	if _, exists := memDB.folders[wsID+"|cyc-b"]; !exists {
 		t.Fatalf("reachable cycle node cyc-b was wrongly pruned")
+	}
+}
+
+// TestTaskCreateResolvesAllGoogleMetadataBeforeGraphLockUnit (UNI-2291 RB3-2)
+// verifies without a database that both single-task linkFilesForTaskCreateInTx
+// and multi-task batch preparation resolve every Google Drive metadata/ancestor
+// call BEFORE the first LockDriveFolderGraph acquisition, and make 0 Google
+// calls during the graph-locked persistence loop.
+func TestTaskCreateResolvesAllGoogleMetadataBeforeGraphLockUnit(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	gSrv := NewFakeGoogleDriveServer(t.Cleanup)
+	box := testDriveBox(t)
+	seal := func(plain string) string {
+		s, serr := box.Seal([]byte(plain))
+		if serr != nil {
+			t.Fatal(serr)
+		}
+		return base64.StdEncoding.EncodeToString(s)
+	}
+
+	const (
+		orgID  = "01ORG00000000000000000RB32"
+		wsID   = "01WS000000000000000000RB32"
+		userID = "01USER0000000000000000RB32"
+		connID = "01CONN0000000000000000RB32"
+	)
+	now := time.Now().UTC()
+	wsRow := db.Workspace{ID: wsID, OrganizationID: orgID, Slug: "ws-rb32", Name: "WS RB32", TaskPrefix: "RB"}
+	memDB := &memDriveUnitDBTX{
+		admitted:   map[string]string{wsID + "|" + userID: orgID},
+		workspaces: map[string]db.Workspace{wsID: wsRow},
+		files:      map[string]db.DriveFile{},
+		folders:    map[string]db.DriveFolder{},
+		access:     map[string]db.DriveFileAccess{},
+		conns: map[string]db.DriveConnection{
+			connID: {
+				ID:              connID,
+				OrganizationID:  orgID,
+				UserID:          userID,
+				Provider:        "google",
+				GoogleSub:       "sub-rb32",
+				GoogleEmail:     "rb32@example.com",
+				RefreshTokenEnc: seal("tok-r-rb32"),
+				AccessTokenEnc:  seal("tok-a-rb32"),
+				AccessExpiresAt: pgtype.Timestamptz{Time: now.Add(time.Hour), Valid: true},
+				Scopes:          "openid email " + DriveGoogleScope,
+			},
+		},
+	}
+	for _, item := range []struct{ id, folderID string }{
+		{"ext-rb32-1", "fld-rb32-1"},
+		{"ext-rb32-2", "fld-rb32-2"},
+		{"ext-rb32-3", "fld-rb32-3"},
+	} {
+		gSrv.SetFile(item.folderID, FakeGoogleDriveFile{
+			Metadata: googleDriveFileJSON{ID: item.folderID, Name: "Folder " + item.folderID, MimeType: DriveMimeGoogleFolder},
+		})
+		gSrv.SetFile(item.id, FakeGoogleDriveFile{
+			Metadata: googleDriveFileJSON{ID: item.id, Name: "Doc " + item.id, MimeType: DriveMimeGoogleDoc, Parents: []string{item.folderID}},
+		})
+	}
+
+	q := db.New(memDB)
+	ws := &WorkspaceService{q: q}
+	connSvc := NewDriveConnectionService(nil, q, ws, box)
+	connSvc.SetProvider(NewFakeDriveProvider(config.Config{FrontendOrigin: "http://localhost:3000"}))
+	connSvc.SetFlags(driveConnectorFlags(t, true))
+	fileSvc := NewDriveFileService(nil, q, ws, connSvc, gSrv.Client)
+	fileSvc.SetFlags(driveConnectorFlags(t, true))
+	// 1. Single-task linkFilesForTaskCreateInTx with 2 files: all 4 Google calls
+	// (2 files + 2 folders) must finish before the first LockDriveFolderGraph.
+	var lockCount int
+	var googleCallsAtFirstLock int
+	fileSvc.testBeforeGraphLock = func(op, _ string, _ string) {
+		if op == "link" {
+			lockCount++
+			if lockCount == 1 {
+				googleCallsAtFirstLock = len(gSrv.Calls())
+			}
+		}
+	}
+	err := fileSvc.linkFilesForTaskCreateInTx(
+		ctx,
+		q,
+		Human(userID),
+		wsRow,
+		db.Task{ID: "01TASK0000000000000001RB32", OrganizationID: orgID, WorkspaceID: wsID},
+		[]CreateTaskDriveFileInput{
+			{ConnectionID: connID, ExternalFileID: "ext-rb32-1"},
+			{ConnectionID: connID, ExternalFileID: "ext-rb32-2"},
+		},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("linkFilesForTaskCreateInTx: %v", err)
+	}
+	totalCalls := len(gSrv.Calls())
+	if lockCount != 2 {
+		t.Fatalf("lockCount = %d, want 2", lockCount)
+	}
+	if googleCallsAtFirstLock != totalCalls || totalCalls != 4 {
+		t.Fatalf("Google calls at first graph lock = %d, total after persistence = %d (want 4 == 4, 0 calls while holding lock)", googleCallsAtFirstLock, totalCalls)
+	}
+
+	// 2. Multi-task batch preparation (as used by CreateManyWith): pre-resolving
+	// every task's DriveFiles before the first task's linkFilesForTaskCreateInTx
+	// makes 0 additional Google calls during persistence across all tasks in the batch.
+	batchCache := make(driveFolderWalkCache)
+	prepTask1, err := fileSvc.prepareFilesForTaskCreate(ctx, q, Human(userID), wsRow, []CreateTaskDriveFileInput{
+		{ConnectionID: connID, ExternalFileID: "ext-rb32-1"},
+	}, batchCache)
+	if err != nil {
+		t.Fatalf("prepareFilesForTaskCreate task1: %v", err)
+	}
+	prepTask2, err := fileSvc.prepareFilesForTaskCreate(ctx, q, Human(userID), wsRow, []CreateTaskDriveFileInput{
+		{ConnectionID: connID, ExternalFileID: "ext-rb32-3"},
+	}, batchCache)
+	if err != nil {
+		t.Fatalf("prepareFilesForTaskCreate task2: %v", err)
+	}
+	callsBeforeBatchPersist := len(gSrv.Calls())
+	if err := fileSvc.linkFilesForTaskCreateInTx(
+		ctx, q, Human(userID), wsRow,
+		db.Task{ID: "01TASK0000000000000002RB32", OrganizationID: orgID, WorkspaceID: wsID},
+		[]CreateTaskDriveFileInput{{ConnectionID: connID, ExternalFileID: "ext-rb32-1"}},
+		prepTask1,
+	); err != nil {
+		t.Fatalf("batch task1 linkFilesForTaskCreateInTx: %v", err)
+	}
+	if err := fileSvc.linkFilesForTaskCreateInTx(
+		ctx, q, Human(userID), wsRow,
+		db.Task{ID: "01TASK0000000000000003RB32", OrganizationID: orgID, WorkspaceID: wsID},
+		[]CreateTaskDriveFileInput{{ConnectionID: connID, ExternalFileID: "ext-rb32-3"}},
+		prepTask2,
+	); err != nil {
+		t.Fatalf("batch task2 linkFilesForTaskCreateInTx: %v", err)
+	}
+	if gotAfter := len(gSrv.Calls()); gotAfter != callsBeforeBatchPersist {
+		t.Fatalf("Google calls during batch persistence = %d, want 0 (%d -> %d)", gotAfter-callsBeforeBatchPersist, callsBeforeBatchPersist, gotAfter)
 	}
 }
