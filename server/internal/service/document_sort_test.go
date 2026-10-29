@@ -578,7 +578,14 @@ func TestDocumentSortNameAndEditorFollowTheVietnameseFixture(t *testing.T) {
 func TestDocumentSourceSortPagesEveryKeyBothWays(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
-	svc, _ := sourceService(t, env)
+	store := newMemStorage()
+	tasks := NewTaskService(env.f.pool, env.f.q, env.svc.ws, store)
+	chatSvc := NewChatService(env.f.pool, env.f.q, env.svc.ws, NopPublisher{})
+	chatSvc.SetFiles(env.fs)
+	meetingsSvc := NewMeetingService(env.f.pool, env.f.q, env.svc.ws, NopPublisher{}, nil, MeetingRuntime{})
+	meetingsSvc.Docs = env.svc
+	meetingsSvc.files = env.fs
+	svc := NewDocumentSourceService(DocumentSourceDeps{Documents: env.svc, Tasks: tasks, Chat: chatSvc, Meetings: meetingsSvc})
 	tn := env.tn
 	f := env.f
 	f.exec(t, `UPDATE users SET display_name = 'Bình' WHERE id = $1`, tn.owner.ID)
@@ -588,6 +595,8 @@ func TestDocumentSourceSortPagesEveryKeyBothWays(t *testing.T) {
 
 	type srow struct {
 		id     string
+		source string
+		kind   string
 		name   string
 		size   int64
 		editor string
@@ -607,7 +616,7 @@ func TestDocumentSourceSortPagesEveryKeyBothWays(t *testing.T) {
 		id := s.fileMessage(tn.orgID, tn.wsA, public, sender, name, false)
 		f.exec(t, `UPDATE chat_messages SET sender_kind = $2, created_at = $3 WHERE id = $1`, id, kind, at(i))
 		f.exec(t, `UPDATE files SET size_bytes = $2 WHERE id = (SELECT file_id FROM chat_messages WHERE id = $1)`, id, size)
-		rows = append(rows, srow{"chat:" + id, name, size, editor, at(i)})
+		rows = append(rows, srow{"chat:" + id, DocumentSourceChat, DocumentKindFile, name, size, editor, at(i)})
 	}
 	task := func(name string, size int64, editor string, i int) {
 		uploader, typ := tn.owner.ID, "member"
@@ -619,7 +628,50 @@ func TestDocumentSourceSortPagesEveryKeyBothWays(t *testing.T) {
 		}
 		id := s.attachment(tn, tn.wsA, taskA, "", name)
 		f.exec(t, `UPDATE attachments SET uploader_id = $2, uploader_type = $3, size_bytes = $4, created_at = $5 WHERE id = $1`, id, uploader, typ, size, at(i))
-		rows = append(rows, srow{"task:" + id, name, size, editor, at(i)})
+		rows = append(rows, srow{"task:" + id, DocumentSourceTask, DocumentKindFile, name, size, editor, at(i)})
+	}
+	minutes := func(idSuffix, name, editor string, i int) {
+		by, kind := tn.owner.ID, "human"
+		switch editor {
+		case "u2":
+			by = tn.member.ID
+		case "agent":
+			by, kind = "agent-minutes", "agent"
+		}
+		docID := util.NewID()
+		insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+			"id": docID, "organization_id": tn.orgID, "workspace_id": tn.wsA, "kind": DocumentKindPage,
+			"title": "Biên bản: " + name, "visibility": documentVisibilityWorkspace,
+			"created_by": tn.owner.ID, "updated_by": by, "updated_by_kind": kind,
+			"created_at": at(i), "updated_at": at(i),
+		}))
+		mID := "01MTG" + idSuffix + strings.ToUpper(util.NewID()[10:])
+		f.exec(t, `INSERT INTO meetings (id, workspace_id, organization_id, title, starts_at, ends_at, status, room_name, created_by, host_user_id, minutes_document_id)
+			VALUES ($1, $2, $3, $4, $5, $6, 'ENDED', $7, $8, $8, $9)`,
+			mID, tn.wsA, tn.orgID, name, at(i).Add(-time.Hour), at(i), "lk-srt-"+mID, tn.owner.ID, docID)
+		rows = append(rows, srow{"meeting:minutes:" + mID, DocumentSourceMeeting, DocumentKindPage, name, 0, editor, at(i)})
+	}
+	recording := func(idSuffix, name string, size int64, editor string, i int) {
+		starter := tn.owner.ID
+		switch editor {
+		case "u2":
+			starter = tn.member.ID
+		case "deleted":
+			starter = "01DELETEDRECUSER0000000000"
+		}
+		mID := util.NewID()
+		f.exec(t, `INSERT INTO meetings (id, workspace_id, organization_id, title, starts_at, ends_at, status, room_name, created_by, host_user_id)
+			VALUES ($1, $2, $3, $4, $5, $6, 'ENDED', $7, $8, $8)`,
+			mID, tn.wsA, tn.orgID, "Họp "+name, at(i).Add(-time.Hour), at(i), "lk-rec-"+mID, tn.owner.ID)
+		fileID := s.readyFile(tn.orgID, name, "application/pdf")
+		f.exec(t, `UPDATE files SET size_bytes = $2 WHERE id = $1`, fileID, size)
+		// Prefix recID with "01REC" (< "minutes:") or "z9REC" (> "minutes:") so
+		// recordings and minutes interleave in both C-collation directions on ties.
+		recID := idSuffix + strings.ToUpper(util.NewID()[10:])
+		f.exec(t, `INSERT INTO meeting_recordings (id, meeting_id, organization_id, egress_id, status, file_id, started_by, ended_at)
+			VALUES ($1, $2, $3, $4, 'COMPLETE', $5, $6, $7)`,
+			recID, mID, tn.orgID, "egress-srt-"+recID, fileID, starter, at(i))
+		rows = append(rows, srow{"meeting:" + recID, DocumentSourceMeeting, DocumentKindFile, name, size, editor, at(i)})
 	}
 	chat("alpha.pdf", 10, "u1", 0)
 	chat("Beta.pdf", 20, "u2", 1)
@@ -630,15 +682,21 @@ func TestDocumentSourceSortPagesEveryKeyBothWays(t *testing.T) {
 	task("Beta.pdf", 10, "agent", 0)
 	task("Đào.pdf", 20, "u2", 1)
 	task("Zed.pdf", 30, "u1", 2)
+	minutes("A1", "alpha.pdf", "u1", 0)
+	minutes("B2", "Beta.pdf", "u2", 1)
+	minutes("D3", "Đào.pdf", "agent", 2)
+	recording("01REC", "alpha.pdf", 0, "u1", 0)
+	recording("z9REC", "Beta.pdf", 20, "u2", 1)
+	recording("m5REC", "Zed.pdf", 30, "deleted", 2)
 
 	nameRank := map[string]int{"alpha.pdf": 1, "Beta.pdf": 2, "ca.pdf": 3, "Đào.pdf": 4, "Zed.pdf": 5}
-	want := func(key string, desc bool) []string {
-		r := append([]srow(nil), rows...)
+	wantFor := func(subset []srow, key string, desc bool) []string {
+		r := append([]srow(nil), subset...)
 		sort.SliceStable(r, func(i, j int) bool {
 			a, b := r[i], r[j]
 			c := 0
 			switch key {
-			case "updated":
+			case "", "updated":
 				c = a.at.Compare(b.at)
 			case "size":
 				c = int(a.size - b.size)
@@ -666,49 +724,122 @@ func TestDocumentSourceSortPagesEveryKeyBothWays(t *testing.T) {
 		}
 		return out
 	}
-	// limit 2 puts a cursor on an editor-less row (the two agent files, last
-	// under sort=editor); limit 4 does not (UNI-2038 r1 F4).
+	want := func(key string, desc bool) []string { return wantFor(rows, key, desc) }
+	walkSourceFilter := func(label string, base DocumentSourceFilter, expected []string) (sawMinutesBoundary, sawRecBoundary bool) {
+		t.Helper()
+		var got []string
+		seen := map[string]bool{}
+		cursor, pages := "", 0
+		for range 25 {
+			flt := base
+			flt.Cursor = cursor
+			page, err := svc.List(s.ctx, human(tn.member), tn.wsA, flt)
+			if err != nil {
+				t.Fatalf("%s: %v", label, err)
+			}
+			pages++
+			for _, it := range page.Items {
+				if seen[it.ID] {
+					t.Fatalf("%s: duplicate source row %s", label, it.ID)
+				}
+				seen[it.ID] = true
+				got = append(got, it.ID)
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			if len(page.Items) > 0 {
+				lastID := page.Items[len(page.Items)-1].ID
+				if strings.HasPrefix(lastID, "meeting:minutes:") {
+					sawMinutesBoundary = true
+				} else if strings.HasPrefix(lastID, "meeting:") {
+					sawRecBoundary = true
+				}
+			}
+			cursor = page.NextCursor
+		}
+		if pages != (len(expected)+base.Limit-1)/base.Limit {
+			t.Errorf("%s: %d pages, want %d", label, pages, (len(expected)+base.Limit-1)/base.Limit)
+		}
+		if !reflect.DeepEqual(got, expected) {
+			t.Errorf("%s\n got  %v\n want %v", label, got, expected)
+		}
+		return sawMinutesBoundary, sawRecBoundary
+	}
+	// Small limits (4 and 2) put cursors across tied keys, editor-less rows
+	// (agent chat/task/minutes and deleted-starter recording), and both
+	// branches of the meeting UNION (minutes pages and recordings).
 	for _, limit := range []int{4, 2} {
 		for _, key := range []string{"updated", "name", "size", "editor"} {
 			for _, desc := range []bool{false, true} {
 				so := DocumentSort{Key: key, Desc: desc}
-				var got []string
-				cursor, pages := "", 0
-				for range 10 {
-					page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Sort: so, Cursor: cursor, Limit: limit})
-					if err != nil {
-						t.Fatalf("sources %+v: %v", so, err)
-					}
-					pages++
-					for _, it := range page.Items {
-						got = append(got, it.ID)
-					}
-					if page.NextCursor == "" {
-						break
-					}
-					cursor = page.NextCursor
-				}
-				if pages != (len(rows)+limit-1)/limit {
-					t.Errorf("sources %+v limit=%d: %d pages, want %d", so, limit, pages, (len(rows)+limit-1)/limit)
-				}
-				if w := want(key, desc); !reflect.DeepEqual(got, w) {
-					t.Errorf("sources limit=%d sort=%s desc=%v\n got  %v\n want %v", limit, key, desc, got, w)
-				}
+				walkSourceFilter(
+					"sources limit="+strconv.Itoa(limit)+" sort="+key+" desc="+strconv.FormatBool(desc),
+					DocumentSourceFilter{Sort: so, Limit: limit},
+					want(key, desc),
+				)
 			}
 		}
+		// Default order (no sort key): newest first, source_id descending, paged with small limit.
+		walkSourceFilter(
+			"sources default order limit="+strconv.Itoa(limit),
+			DocumentSourceFilter{Limit: limit},
+			want("", true),
+		)
 	}
 
-	// today's order without sort: newest first, source id descending.
-	page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Limit: 100})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := 1; i < len(page.Items); i++ {
-		if !documentSourceBefore(page.Items[i-1], page.Items[i]) {
-			t.Fatalf("unsorted sources out of order at %d: %s then %s", i, page.Items[i-1].ID, page.Items[i].ID)
+	// Meeting source alone with limit=2 across default order and all 4 sort keys:
+	// verifies cursor landing directly on both the minutes branch and the recording branch.
+	var meetingRows, pageOnlyRows []srow
+	for _, r := range rows {
+		if r.source == DocumentSourceMeeting {
+			meetingRows = append(meetingRows, r)
+		}
+		if r.kind == DocumentKindPage {
+			pageOnlyRows = append(pageOnlyRows, r)
 		}
 	}
+	sawMinCur, sawRecCur := walkSourceFilter(
+		"source=meeting default order limit=2",
+		DocumentSourceFilter{Source: DocumentSourceMeeting, Limit: 2},
+		wantFor(meetingRows, "", true),
+	)
+	for _, key := range []string{"updated", "name", "size", "editor"} {
+		for _, desc := range []bool{false, true} {
+			mCur, rCur := walkSourceFilter(
+				"source=meeting sort="+key+" desc="+strconv.FormatBool(desc),
+				DocumentSourceFilter{Source: DocumentSourceMeeting, Sort: DocumentSort{Key: key, Desc: desc}, Limit: 2},
+				wantFor(meetingRows, key, desc),
+			)
+			sawMinCur = sawMinCur || mCur
+			sawRecCur = sawRecCur || rCur
+		}
+	}
+	if !sawMinCur || !sawRecCur {
+		t.Fatalf("expected cursor to land on both meeting UNION branches: minutes=%v recording=%v", sawMinCur, sawRecCur)
+	}
 
+	// Page-only (?type=page) and mixed (?type=page&type=pdf) filters paged with small limit.
+	walkSourceFilter(
+		"type=page default order limit=2",
+		DocumentSourceFilter{Types: []string{"page"}, Limit: 2},
+		wantFor(pageOnlyRows, "", true),
+	)
+	walkSourceFilter(
+		"type=page sort=editor asc limit=2",
+		DocumentSourceFilter{Types: []string{"page"}, Sort: DocumentSort{Key: "editor"}, Limit: 2},
+		wantFor(pageOnlyRows, "editor", false),
+	)
+	walkSourceFilter(
+		"type=page&type=pdf sort=name asc limit=2",
+		DocumentSourceFilter{Types: []string{"page", "pdf"}, Sort: DocumentSort{Key: "name"}, Limit: 2},
+		want("name", false),
+	)
+	walkSourceFilter(
+		"type=page&type=pdf default order limit=2",
+		DocumentSourceFilter{Types: []string{"page", "pdf"}, Limit: 2},
+		want("", true),
+	)
 	// cursor and parameter refusals.
 	first, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Sort: DocumentSort{Key: "name"}, Limit: 2})
 	if err != nil || first.NextCursor == "" {

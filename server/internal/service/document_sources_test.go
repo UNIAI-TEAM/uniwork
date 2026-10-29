@@ -377,20 +377,44 @@ func sourceService(t *testing.T, env *docStorageEnv) (*DocumentSourceService, *m
 func TestDocumentSourceListPagesAcrossSources(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn}
-	svc, _ := sourceService(t, env)
+	store := newMemStorage()
+	tasks := NewTaskService(env.f.pool, env.f.q, env.svc.ws, store)
+	chat := NewChatService(env.f.pool, env.f.q, env.svc.ws, NopPublisher{})
+	chat.SetFiles(env.fs)
+	meetingsSvc := NewMeetingService(env.f.pool, env.f.q, env.svc.ws, NopPublisher{}, nil, MeetingRuntime{})
+	meetingsSvc.Docs = env.svc
+	meetingsSvc.files = env.fs
+	svc := NewDocumentSourceService(DocumentSourceDeps{Documents: env.svc, Tasks: tasks, Chat: chat, Meetings: meetingsSvc})
 	tn := env.tn
 	taskA := s.task(tn, tn.wsA)
 	public := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
 	want := map[string]bool{}
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		want["task:"+s.attachment(tn, tn.wsA, taskA, "", "file.pdf")] = true
 		want["chat:"+s.fileMessage(tn.orgID, tn.wsA, public, tn.owner.ID, "file.pdf", false)] = true
+		pageDoc, err := env.svc.CreatePage(s.ctx, human(tn.owner), tn.wsA, CreatePageInput{
+			Title: "Biên bản " + util.NewID(), Visibility: documentVisibilityWorkspace,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		mID := util.NewID()
+		s.exec(`INSERT INTO meetings (id, workspace_id, organization_id, title, starts_at, ends_at, status, room_name, created_by, host_user_id, minutes_document_id)
+			VALUES ($1, $2, $3, $4, now() - interval '2 hours', now() - interval '1 hour', 'ENDED', $5, $6, $6, $7)`,
+			mID, tn.wsA, tn.orgID, "Họp "+mID[20:], "lk-pg-"+mID, tn.owner.ID, pageDoc.Document.ID)
+		want["meeting:minutes:"+mID] = true
+		recID := util.NewID()
+		recFileID := s.readyFile(tn.orgID, "rec-"+recID[20:]+".pdf", "application/pdf")
+		s.exec(`INSERT INTO meeting_recordings (id, meeting_id, organization_id, egress_id, status, file_id, started_by, ended_at)
+			VALUES ($1, $2, $3, $4, 'COMPLETE', $5, $6, now())`,
+			recID, mID, tn.orgID, "egress-pg-"+recID, recFileID, tn.owner.ID)
+		want["meeting:"+recID] = true
 	}
 	seen := map[string]bool{}
 	cursor := ""
 	var last *DocumentSourceItem
-	for pages := 0; pages < 10; pages++ {
-		page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Cursor: cursor, Limit: 4})
+	for range 15 {
+		page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{Cursor: cursor, Limit: 3})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -411,7 +435,7 @@ func TestDocumentSourceListPagesAcrossSources(t *testing.T) {
 		cursor = page.NextCursor
 	}
 	if len(seen) != len(want) {
-		t.Fatalf("paged %d files, want %d", len(seen), len(want))
+		t.Fatalf("paged %d sources, want %d", len(seen), len(want))
 	}
 	for id := range want {
 		if !seen[id] {
