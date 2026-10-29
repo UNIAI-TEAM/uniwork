@@ -580,8 +580,9 @@ export interface DocumentTreeNode {
   visibility?: DocumentVisibility;
   share_scope?: DocumentShareScope | null;
   /** UNI-2055 W6: no document in the folder is visible to this viewer; absent = unknown. */
-  minutes_meeting?: DocumentMinutesMeeting | null;
   is_empty?: boolean;
+  /** UNI-2288: source meeting of a minutes page; absent for ordinary pages. */
+  minutes_meeting?: DocumentMinutesMeeting | null;
   position: number;
   children: DocumentTreeNode[];
 }
