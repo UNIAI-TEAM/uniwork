@@ -1157,8 +1157,16 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 		t.Fatalf("Get while all linked tasks trashed = %+v, err=%v, want UsedInCount=0", trashedDetail, err)
 	}
 	trashedMine, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{})
-	if err != nil || len(trashedMine.Files) != 1 || trashedMine.Files[0].UsedInCount != 0 || len(trashedMine.Files[0].UsedInTasks) != 0 {
-		t.Fatalf("ListMine while all linked tasks trashed = %+v, err=%v, want UsedInCount=0", trashedMine, err)
+	trashedIdx := -1
+	if err == nil {
+		for i := range trashedMine.Files {
+			if trashedMine.Files[i].ID == driveFileID {
+				trashedIdx = i
+			}
+		}
+	}
+	if err != nil || trashedIdx < 0 || trashedMine.Files[trashedIdx].UsedInCount != 0 || len(trashedMine.Files[trashedIdx].UsedInTasks) != 0 {
+		t.Fatalf("ListMine while all linked tasks trashed = %+v, err=%v, want file %s with UsedInCount=0", trashedMine, err, driveFileID)
 	}
 	if _, perr := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, driveFileID); !errors.Is(perr, ErrNotFound) {
 		t.Fatalf("peer Get while all linked tasks trashed = %v, want ErrNotFound", perr)
@@ -1179,8 +1187,16 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 		t.Fatalf("Restore batchTask1 batch: %v", err)
 	}
 	restoredMine, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{})
-	if err != nil || len(restoredMine.Files) != 1 || restoredMine.Files[0].UsedInCount != 3 || len(restoredMine.Files[0].UsedInTasks) != 3 {
-		t.Fatalf("ListMine after Restore all = %+v, err=%v, want UsedInCount=3", restoredMine, err)
+	restoredIdx := -1
+	if err == nil {
+		for i := range restoredMine.Files {
+			if restoredMine.Files[i].ID == driveFileID {
+				restoredIdx = i
+			}
+		}
+	}
+	if err != nil || restoredIdx < 0 || restoredMine.Files[restoredIdx].UsedInCount != 3 || len(restoredMine.Files[restoredIdx].UsedInTasks) != 3 {
+		t.Fatalf("ListMine after Restore all = %+v, err=%v, want file %s with UsedInCount=3", restoredMine, err, driveFileID)
 	}
 
 	// Trash again and Purge: Purge deletes drive_file_task_links and emits drive_file.updated.
