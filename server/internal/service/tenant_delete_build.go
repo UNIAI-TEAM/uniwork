@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -218,18 +217,9 @@ func (c *PrivacyDeletionConsumer) erase(ctx context.Context, row db.DataSubjectR
 	return tx.Commit(ctx)
 }
 
-func deleteTenantTables(ctx context.Context, dbtx db.DBTX, orgID string) (int64, error) {
-	q := db.New(dbtx)
-	wsIDs, err := q.ListOrganizationWorkspaceIDs(ctx, orgID)
-	if err != nil {
-		return 0, fmt.Errorf("privacy delete: list workspaces: %w", err)
-	}
-	slices.Sort(wsIDs)
-	for _, wsID := range wsIDs {
-		if err := q.LockDriveFolderGraph(ctx, wsID); err != nil {
-			return 0, fmt.Errorf("privacy delete: lock drive folder graph %s: %w", wsID, err)
-		}
-	}
+// deleteTenantTables deliberately takes no folder-graph lock; any rare Drive
+// row-lock cycle aborts one side with 40P01 and relies on outbox retry.
+func deleteTenantTables(ctx context.Context, tx pgx.Tx, orgID string) (int64, error) {
 	allowed := map[string]bool{}
 	for _, name := range tenantDeleteTables() {
 		allowed[name] = true
@@ -239,7 +229,7 @@ func deleteTenantTables(ctx context.Context, dbtx db.DBTX, orgID string) (int64,
 		if !tenantTableIdent.MatchString(table) || !allowed[table] {
 			return 0, fmt.Errorf("privacy delete: refused table %q", table)
 		}
-		tag, err := dbtx.Exec(ctx, fmt.Sprintf(`DELETE FROM %s WHERE organization_id = $1`, table), orgID)
+		tag, err := tx.Exec(ctx, fmt.Sprintf(`DELETE FROM %s WHERE organization_id = $1`, table), orgID)
 		if err != nil {
 			return 0, fmt.Errorf("privacy delete: %s: %w", table, err)
 		}

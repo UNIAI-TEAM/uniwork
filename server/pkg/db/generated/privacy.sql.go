@@ -469,30 +469,6 @@ func (q *Queries) ListOrganizationFileIDs(ctx context.Context, organizationID pg
 	return items, nil
 }
 
-const listOrganizationWorkspaceIDs = `-- name: ListOrganizationWorkspaceIDs :many
-SELECT id FROM workspaces WHERE organization_id = $1 ORDER BY id ASC
-`
-
-func (q *Queries) ListOrganizationWorkspaceIDs(ctx context.Context, organizationID string) ([]string, error) {
-	rows, err := q.db.Query(ctx, listOrganizationWorkspaceIDs, organizationID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const releaseDataSubjectRequestFile = `-- name: ReleaseDataSubjectRequestFile :execrows
 UPDATE data_subject_requests SET file_id = NULL WHERE id = $1 AND file_id = $2
 `

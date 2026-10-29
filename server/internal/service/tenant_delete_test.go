@@ -3,13 +3,9 @@ package service
 import (
 	"context"
 	"errors"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
@@ -38,74 +34,6 @@ func TestTenantDeletionRetainsAuditAndInvoices(t *testing.T) {
 	}
 	if !foundTask {
 		t.Fatal("tasks are business content and must be deleted")
-	}
-}
-
-type tenantDeleteRecorderDBTX struct {
-	workspaces []string
-	ops        []string
-}
-
-func (r *tenantDeleteRecorderDBTX) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
-	if strings.Contains(sql, "-- name: LockDriveFolderGraph ") {
-		wsID, _ := args[0].(string)
-		r.ops = append(r.ops, "lock:"+wsID)
-		return pgconn.NewCommandTag("SELECT 1"), nil
-	}
-	if strings.HasPrefix(sql, "DELETE FROM ") {
-		rest := strings.TrimPrefix(sql, "DELETE FROM ")
-		table, _, _ := strings.Cut(rest, " ")
-		r.ops = append(r.ops, "delete:"+table)
-		return pgconn.NewCommandTag("DELETE 1"), nil
-	}
-	return pgconn.NewCommandTag(""), errors.New("unexpected Exec in tenantDeleteRecorderDBTX: " + sql)
-}
-
-func (r *tenantDeleteRecorderDBTX) Query(_ context.Context, sql string, _ ...any) (pgx.Rows, error) {
-	if strings.Contains(sql, "-- name: ListOrganizationWorkspaceIDs ") {
-		return &memDriveStringRows{vals: append([]string(nil), r.workspaces...)}, nil
-	}
-	return nil, errors.New("unexpected Query in tenantDeleteRecorderDBTX: " + sql)
-}
-
-func (r *tenantDeleteRecorderDBTX) QueryRow(_ context.Context, sql string, _ ...any) pgx.Row {
-	return driveUnitRowFunc(func(...any) error { return errors.New("unexpected QueryRow in tenantDeleteRecorderDBTX: " + sql) })
-}
-
-// TestDeleteTenantTablesLocksWorkspaceDriveFolderGraphsFirstUnit (UNI-2291 RB3-1)
-// verifies without a database that deleteTenantTables acquires LockDriveFolderGraph
-// for every workspace of the organization in deterministic workspace-id order
-// BEFORE executing any DELETE statement (and specifically before deleting any
-// Drive table).
-func TestDeleteTenantTablesLocksWorkspaceDriveFolderGraphsFirstUnit(t *testing.T) {
-	t.Parallel()
-	rec := &tenantDeleteRecorderDBTX{
-		workspaces: []string{"ws-03", "ws-01", "ws-02"},
-	}
-	removed, err := deleteTenantTables(context.Background(), rec, "org-rb3-1")
-	if err != nil {
-		t.Fatalf("deleteTenantTables: %v", err)
-	}
-	expectedTables := tenantDeleteTables()
-	if removed != int64(len(expectedTables)) {
-		t.Fatalf("removed = %d, want %d", removed, len(expectedTables))
-	}
-	wantLocks := []string{"lock:ws-01", "lock:ws-02", "lock:ws-03"}
-	if len(rec.ops) != len(wantLocks)+len(expectedTables) {
-		t.Fatalf("recorded ops len = %d, want %d", len(rec.ops), len(wantLocks)+len(expectedTables))
-	}
-	if !reflect.DeepEqual(rec.ops[:len(wantLocks)], wantLocks) {
-		t.Fatalf("initial lock ops = %v, want %v", rec.ops[:len(wantLocks)], wantLocks)
-	}
-	firstDriveDeleteIdx := -1
-	for i, op := range rec.ops {
-		if strings.HasPrefix(op, "delete:drive_") {
-			firstDriveDeleteIdx = i
-			break
-		}
-	}
-	if firstDriveDeleteIdx < len(wantLocks) {
-		t.Fatalf("first Drive delete at index %d (%v), must follow all %d workspace graph locks", firstDriveDeleteIdx, rec.ops, len(wantLocks))
 	}
 }
 

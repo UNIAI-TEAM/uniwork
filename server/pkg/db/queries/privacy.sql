@@ -98,9 +98,6 @@ WHERE organization_id = $1 AND file_id IS NOT NULL;
 -- name: ListOrganizationFileIDs :many
 SELECT id FROM files WHERE organization_id = $1 AND deleted_at IS NULL;
 
--- name: ListOrganizationWorkspaceIDs :many
-SELECT id FROM workspaces WHERE organization_id = $1 ORDER BY id ASC;
-
 -- name: ScrubOrganizationMemberProfiles :exec
 UPDATE organization_member_profiles SET
   title = '', phone = '', phone_visible = false, location = '', bio = '',
