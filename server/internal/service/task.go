@@ -84,6 +84,9 @@ type CreateTaskInput struct {
 
 	// order is set by CreateManyWith when the batch keeps its input order.
 	order *createOrder
+	// preparedDriveFiles holds pre-resolved Google Drive metadata for a batch so
+	// no Google call runs after the first task acquires LockDriveFolderGraph (RB3-2).
+	preparedDriveFiles []preparedTaskDriveFile
 }
 
 // UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/StartDate/DueDate/StartAt/DueAt/ProjectID
@@ -422,6 +425,20 @@ func (s *TaskService) CreateManyWith(ctx context.Context, actor Actor, workspace
 	if opts.KeepOrder {
 		order = newCreateOrder(len(inputs))
 	}
+	var batchParentCache driveFolderWalkCache
+	for i := range inputs {
+		if len(inputs[i].DriveFiles) == 0 || len(inputs[i].preparedDriveFiles) > 0 {
+			continue
+		}
+		if batchParentCache == nil {
+			batchParentCache = make(driveFolderWalkCache, len(inputs[i].DriveFiles))
+		}
+		prep, err := s.driveFiles.prepareFilesForTaskCreate(ctx, q, actor, ws, inputs[i].DriveFiles, batchParentCache)
+		if err != nil {
+			return nil, err
+		}
+		inputs[i].preparedDriveFiles = prep
+	}
 	tasks := make([]db.Task, 0, len(inputs))
 	for _, in := range inputs {
 		in.order = order
@@ -632,7 +649,7 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		return db.Task{}, err
 	}
 	if len(in.DriveFiles) > 0 {
-		if err := s.driveFiles.linkFilesForTaskCreateInTx(ctx, q, actor, ws, task, in.DriveFiles); err != nil {
+		if err := s.driveFiles.linkFilesForTaskCreateInTx(ctx, q, actor, ws, task, in.DriveFiles, in.preparedDriveFiles); err != nil {
 			return db.Task{}, err
 		}
 	}
