@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -342,6 +344,72 @@ func TestRelayAddressIsExactlyAtAnAppleRelayDomain(t *testing.T) {
 		if got := isRelayAddress(email); got != want {
 			t.Errorf("isRelayAddress(%q) = %v, want %v", email, got, want)
 		}
+	}
+}
+
+// A relay address is Apple's alias for one app (resolution 7): an account
+// someone made on it another way is a conflict, never a link_required ticket
+// its holder could accept, on either relay domain and whether or not the
+// token says is_private_email (the domain alone marks the address).
+func TestARelayAddressNamesNoAccountMadeAnotherWay(t *testing.T) {
+	f := newNativeFixture(t)
+	for _, tc := range []struct {
+		email   string
+		private bool
+	}{
+		{"held1@privaterelay.appleid.com", true},
+		{"held2@privaterelay.appleid.com", false},
+		{"held3@private.icloud.com", true},
+		{"held4@private.icloud.com", false},
+	} {
+		t.Run(fmt.Sprintf("%s is_private_email=%v", tc.email, tc.private), func(t *testing.T) {
+			holder := registerVerified(t, f.q, f.auth, tc.email, "R")
+			_, _, err := f.apple(t, "apple-"+tc.email, tc.email, tc.private, "")
+			wantStatusCode(t, err, "sign_in_account_conflict", http.StatusConflict)
+			if u := f.user(t, holder.ID); u.AppleID.Valid {
+				t.Fatalf("the relay address linked the account someone made on it: %+v", u)
+			}
+		})
+	}
+}
+
+// A link tells the account's owner, and the provider's own address only when
+// it is a mailbox the person chose: never an Apple relay, on either domain,
+// whether or not the token said is_private_email; an iCloud address is told.
+func TestALinkTellsNoRelayAddress(t *testing.T) {
+	f := newIdentityFixture(t)
+	tickets := f.tickets()
+	for i, tc := range []struct {
+		email string
+		told  bool
+	}{
+		{"lan@privaterelay.appleid.com", false},
+		{"lan@private.icloud.com", false},
+		{"lan@icloud.com", true},
+	} {
+		t.Run(tc.email, func(t *testing.T) {
+			owner := registerVerified(t, f.q, f.auth, fmt.Sprintf("owner%d@company.vn", i), "O")
+			id := appleIdentity(auth.AppleClaims{Sub: "apple-" + tc.email, Email: tc.email, EmailVerified: true}, "", "", "")
+			ticket, err := f.auth.issueSignInTicket(id, TicketKindUnmatched, SignInIntentSignIn, WebTicket())
+			if err != nil {
+				t.Fatal(err)
+			}
+			sess, err := f.auth.Login(f.ctx, owner.Email, "password123")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if out, err := tickets.Link(f.bearer(t, sess), ticket, WebTicket(), TicketLink{}); err != nil || !out.Methods.Apple.Linked {
+				t.Fatalf("link = %+v %v", out.Methods, err)
+			}
+			f.mailOfKind(t, owner.Email, mail.KindSignInMethodChanged)
+			told := false
+			for _, m := range f.mailsTo(tc.email) {
+				told = told || m.Kind == mail.KindSignInMethodChanged
+			}
+			if told != tc.told {
+				t.Fatalf("the provider's address told of the link: %v, want %v", told, tc.told)
+			}
+		})
 	}
 }
 

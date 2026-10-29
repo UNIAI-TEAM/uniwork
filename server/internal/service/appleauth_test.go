@@ -236,17 +236,23 @@ func TestAppleSignInLinksOnlyAVerifiedAddressThatIsNotARelay(t *testing.T) {
 			t.Fatal("an Apple ID on a Gmail address linked by itself")
 		}
 	})
-	t.Run("relay address someone registered", func(t *testing.T) {
-		reg, err := f.auth.Register(ctx, "abc@privaterelay.appleid.com", "password123", "R", "vi")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := f.pool.Exec(ctx, `UPDATE users SET email_verified_at = now() WHERE id = $1`, reg.User.ID); err != nil {
-			t.Fatal(err)
-		}
-		_, err = f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-relay", "abc@privaterelay.appleid.com", true, "n"), "n"))
-		conflict(t, err)
-	})
+	// Both of Apple's relay domains: the older one, and the one Apple issues new addresses at.
+	for _, relay := range []string{"abc@privaterelay.appleid.com", "abc@private.icloud.com"} {
+		t.Run("relay address someone registered "+relay, func(t *testing.T) {
+			reg, err := f.auth.Register(ctx, relay, "password123", "R", "vi")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.pool.Exec(ctx, `UPDATE users SET email_verified_at = now() WHERE id = $1`, reg.User.ID); err != nil {
+				t.Fatal(err)
+			}
+			_, err = f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-"+relay, relay, true, "n"), "n"))
+			conflict(t, err)
+			if u, _ := f.q.GetUserByID(ctx, reg.User.ID); u.AppleID.Valid {
+				t.Fatal("no link on a conflict")
+			}
+		})
+	}
 	t.Run("address linked to another Apple subject", func(t *testing.T) {
 		_, err := f.apple.SignIn(ctx, f.input(t, appletest.Claims(appleBundle, "apple-other", "mai@icloud.com", false, "n"), "n"))
 		conflict(t, err)
