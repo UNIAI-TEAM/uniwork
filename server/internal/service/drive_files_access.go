@@ -921,8 +921,8 @@ func collectOrphanedDriveFolderIDs(wsFolders []db.ListWorkspaceDriveFoldersRow, 
 			continue
 		}
 		visited := map[string]bool{}
-		for depth := 0; depth <= driveFolderWalkMaxDepth && curr != ""; depth++ {
-			if visited[curr] {
+		for curr != "" {
+			if keep[curr] || visited[curr] {
 				break
 			}
 			visited[curr] = true
