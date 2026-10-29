@@ -390,15 +390,16 @@ Kết quả: `text/event-stream`, một `chat.completion.chunk` cho mỗi đoạ
 `finish_reason` (`length` khi chạm trần token của kind, ngược lại `stop`) và `usage`, rồi `data: [DONE]`. Mỗi lần ghi có hạn 60
 giây; response gửi `X-Accel-Buffering: no`. Header 200 chỉ gửi cùng đoạn đầu: **lỗi trước đoạn đầu** là HTTP status thật + `{code, message}` như §3.6:
 400 `invalid_request`, 402 `credits_exhausted`, 403 `forbidden` (khung chỉ xem) / `entitlement_required` / `office_capability_off`,
-404, 409 `conversation_expired` / `run_expired` / `run_limit_reached`, 413 `payload_too_large`, 429 `ai_uniwork_busy` /
+404, 409 `conversation_expired` / `run_expired` / `run_limit_reached`, 413 `payload_too_large`, 422 `ai_refused`, 429 `ai_uniwork_busy` /
 `ai_rate_limited`, 502 `ai_provider_error`, 503 `ai_disabled`, 504 `ai_provider_timeout`, 408 `ai_cancelled`. **Lỗi sau khi đã có chữ** kết thúc luồng bằng
 một chunk `{"x_uniwork":{"terminal":{"code":"<code>"}}}` (không có `step`/`limit`, `choices` rỗng) rồi `[DONE]`, với `code` ∈
-`ai_provider_error`, `ai_provider_timeout`, `ai_cancelled`; client coi lần viết đó là **dở dang**.
+`ai_provider_error`, `ai_provider_timeout`, `ai_cancelled`, `ai_refused` (model từ chối sau khi đã viết); client coi lần viết đó là **dở dang**.
 
 Cổng và đếm như route chat (§3.6): quyền sửa tài liệu, `RequireMember`, gói `office.ai_cloud`, cờ `office_ai_uniwork`
 và cờ định dạng, `CheckQuota` (`ai.tokens`), trần đồng thời riêng của route viết, nhóm rate limit `ai-uniwork` dùng chung; miễn
 `LoadShed` theo mẫu route. Usage ghi dưới capability `office_uniwork_writer` với `prompt_id` nêu kind. Lỗi nhà cung cấp giữa
-stream không tính phí; hết hạn hoặc hủy sau khi đã có chữ thì Gateway tính phần đã nhận một lần và credit của run tăng bằng số đó.
+stream không tính phí; hết hạn hoặc hủy sau khi đã có chữ thì Gateway tính phần đã nhận một lần và credit của run tăng bằng số đó;
+model từ chối sau khi đã viết thì Gateway tính đủ phí, credit của run không tăng.
 
 ## 4. Bản cài (GO-A8, UNI-1009)
 

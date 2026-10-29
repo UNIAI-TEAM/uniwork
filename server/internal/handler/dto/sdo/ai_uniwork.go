@@ -118,5 +118,5 @@ type AiUniworkWriteExtSDO struct {
 
 // AiUniworkWriteTerminalSDO names why the stream ended early.
 type AiUniworkWriteTerminalSDO struct {
-	Code string `json:"code" description:"Mã mà câu trả lời lỗi JSON lẽ ra mang (ai_provider_error, ai_provider_timeout, ai_rate_limited…)" example:"ai_provider_error"`
+	Code string `json:"code" enum:"ai_provider_error,ai_provider_timeout,ai_cancelled,ai_refused" description:"Mã mà câu trả lời lỗi JSON lẽ ra mang: ai_provider_error (nhà cung cấp lỗi), ai_provider_timeout (hết hạn), ai_cancelled (client dừng), ai_refused (model từ chối sau khi đã viết)" example:"ai_provider_error"`
 }
