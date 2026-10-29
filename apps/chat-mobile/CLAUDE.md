@@ -1,10 +1,13 @@
 # apps/chat-mobile
 
-App Expo (iOS + Android) của UniChat: đăng nhập PKCE qua trình duyệt hệ thống, chọn workspace, một socket realtime,
-push, deep link, bốn tab (Chat, Cuộc gọi, Danh bạ, Cài đặt) và cuộc gọi. Luật gốc: ADR 0011 (mobile chỉ import kiểu
-và hàm thuần từ `packages/core`) và ADR 0043 (cổng chất lượng). File này là **bản đồ**: tầng, ranh giới, đặt gì ở đâu
-và luật nào có test giữ. Thiết kế từng phần nằm ở `docs/engineering/unichat-mobile/` (mục lục:
-`docs/engineering/unichat-mobile/README.md`); sửa hành vi một phần thì sửa file của phần đó cùng PR.
+App Expo (iOS + Android) của UniChat: đăng nhập ngay trong app (email + mật khẩu, Apple, Google, bước hai và màn chọn,
+ADR 0049; `app/(auth)/`, `components/auth/`, `data/auth/sign-in.ts`), PKCE qua trình duyệt hệ thống cho phần còn lại,
+chọn workspace (chưa có thì trả lời lời mời: `components/workspace/pending-invitations.tsx`, link `/invite/{token}`
+mở màn xem trước), phương thức đăng nhập trong Cài đặt, một socket realtime, push, deep link, bốn tab (Chat, Cuộc gọi,
+Danh bạ, Cài đặt) và cuộc gọi. Luật gốc: ADR 0011 (mobile chỉ import kiểu và hàm thuần từ `packages/core`) và ADR 0043
+(cổng chất lượng). File này là **bản đồ**: tầng, ranh giới, đặt gì ở đâu và luật nào có test giữ. Thiết kế từng phần nằm ở
+`docs/engineering/unichat-mobile/` (mục lục: `docs/engineering/unichat-mobile/README.md`); sửa hành vi một phần thì
+sửa file của phần đó cùng PR.
 `scripts/mobile-docs.test.mjs` giữ file này ngắn (≤ 200 dòng) và mọi tài liệu nó trỏ tới tồn tại.
 
 ## Tầng và chiều phụ thuộc
@@ -53,7 +56,8 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   `.githooks/pre-commit` chặn ở mọi `GATE_LEVEL`); toast, alert, lời đọc cho trình đọc màn hình và chữ của thông báo
   trong file `.ts` cũng vậy (`copySyntax` của `eslint.config.mjs`); ngày giờ và số (`{{count}}`, cỡ tệp) chỉ qua
   `lib/locale-format.ts` (`formatSyntax`: không `toFixed`/`toLocale*`/`new Intl` ở nơi khác).
-- Vùng chạm 44 pt / 48 dp qua `useTapTarget` / `hitSlopFor`; tương phản AA ở cả hai chế độ (`lib/theme-contrast.test.ts`);
+- Vùng chạm 44 pt / 48 dp qua `useTapTarget` / `hitSlopFor` (màn đăng nhập vẽ đủ cỡ, không nhờ hit slop:
+  `scripts/mobile-a11y-audit.mjs` đo khung vẽ trên emulator); tương phản AA ở cả hai chế độ (`lib/theme-contrast.test.ts`);
   cỡ chữ theo vai trò (`lib/type-scale.test.ts`); hàng đặt tên, dấu và giờ cạnh nhau thì xếp chồng ở cỡ chữ trợ năng
   (`useLargeText`), menu/sheet dài thì cuộn trong chiều cao còn lại (`lib/action-menu-layout.ts`, `ActionSheet`).
 - Quyền native, dịch vụ nền và loại dữ liệu khớp `store/listing.md` (`android-manifest.test.ts`,
@@ -69,6 +73,23 @@ Chi tiết và lý do: `docs/engineering/unichat-mobile/boundaries.md`.
   tên `UniChatCallKit`, khác `UniChatCalls` của Android, và call center chỉ chạy khi Info.plist khai `voip`
   (`UNICHAT_IOS_CALLS=1`, `app.config.test.ts`). Hai nửa tới app qua một `NativeCallSession`
   (`data/calls/native-call-session.ts`, `native-call-session.test.ts`).
+- Đăng nhập trong app (ADR 0049): màn hình chỉ gọi `useAuthStore().login(request)` (`COMMAND_MODULES` cấm
+  `auth/sign-in`, `auth/methods-api`). Mật khẩu vào cửa qua closure, không vào event, effect, lỗi, log hay Sentry
+  (`data/auth/store.test.ts`, `data/auth/endpoint-request.test.ts`); thử thách bước hai, vé và nonce của màn chọn chỉ ở
+  bộ nhớ, không persist, không thành route param, máy chỉ giữ dấu `{provider, at}` để báo lượt bỏ dở
+  (`data/auth/pending-sign-in.test.ts`); màn hình không import hàm đọc/giữ bí mật của `pending-sign-in` và
+  `step-up-store` (`eslint.config.mjs`, `lib/lint-quality.test.ts`). Mỗi sheet Apple/Google một nonce mới: SDK nhận
+  SHA-256, server nhận nonce gốc (`data/auth/sign-in.test.ts`). Google chỉ qua module riêng
+  `modules/unichat-google-sign-in` (bọc ở `data/auth/google.ts`; gói npm không có nonce), không Play services hay client
+  id thì qua trình duyệt; sheet của Apple/Google lỗi thì thành `ProviderSheetError`, chỉ báo Sentry khi bản build sai
+  (`lib/provider-sheet-error.ts`). Flow Maestro tìm màn đăng nhập theo testID và chữ nó thật sự vẽ
+  (`test/routes/sign-in-flows.test.tsx`). Lệnh mang mật khẩu, mã hay token step-up khai `secret` (`data/mutations/command.ts`):
+  không còn trong MutationCache khi xong.
+- Mọi lệnh cần "xác nhận là bạn" (đặt/đổi mật khẩu, liên kết/gỡ liên kết, xoá tài khoản, chuyển quyền, liên kết vé)
+  đi qua `components/settings/use-step-up.ts` (`run(action, command)`): token chỉ trong bộ nhớ
+  (`data/auth/step-up-store.ts`), bằng chứng hỏi trước khi mở sheet của Apple/Google, lệnh ở `data/mutations` bọc
+  `withHeldStepUp` để token bị từ chối được quên; khoá app cất sheet đi rồi đưa lại đúng bằng chứng đang làm (mã đã gửi
+  giữ mười phút), và trên iOS sheet sau chờ sheet trước đóng hẳn (`components/settings/step-up-sheet.test.tsx`).
 - Công tắc mobile mới: `MOBILE_FLAG_DEFAULTS` (`data/remote-config.ts`) và `server/internal/featureflags/keys.go` cùng
   PR, có `ReviewAt`.
 - Coverage: vitest (`lib/`, `data/` trừ hook React) 100/100/100/100; jest (`components/`, hook của `data/`, route theo

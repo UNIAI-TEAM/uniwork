@@ -40,10 +40,11 @@ const PARTIAL_DESCRIPTION_TOOLS = [
 // Tools whose block cell is the documented `unresolved:<reason>` form: the extractor cannot resolve the schema
 // statically, so the block carries no hash and the file lists the tool in the catalogue without a schema instead of
 // offering it to a model. Since G6-09d (`3e4e9b71f`) folds parameterised self-recursive arrows (`nodeSchema(maxDepth)`),
-// `docs/generate_mindmap` and `markdown/generate_mindmap` resolve (`ad838ec1…`) and this list is empty: any unresolved
+// `docs/generate_mindmap` and `markdown/generate_mindmap` resolve (`429247ed…` since `8d73c6b6e`, whose leaf `children`
+// array carries `items`; `ad838ec1…` before) and this list is empty: any unresolved
 // row in the block, or any entry that is not offered, fails below.
 const UNRESOLVED_SCHEMA_TOOLS = [];
-const MINDMAP_SCHEMA_SHA256 = 'ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0';
+const MINDMAP_SCHEMA_SHA256 = '429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5';
 
 const schemaBytes = fs.readFileSync(SCHEMAS_FILE);
 const file = JSON.parse(schemaBytes.toString('utf8'));

@@ -856,3 +856,10 @@ func threadView(r db.EmailHubThread) EmailHubThreadView {
 	}
 	return v
 }
+
+func stripEmailHubListBodies(views []EmailHubThreadView) {
+	for i := range views {
+		views[i].BodyText = ""
+		views[i].BodyHTML = ""
+	}
+}

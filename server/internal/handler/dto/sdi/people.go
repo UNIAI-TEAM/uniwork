@@ -64,11 +64,12 @@ type OrgInviteSDI struct {
 }
 
 // TransferOwnershipSDI is POST /api/v1/orgs/{org}/transfer-ownership. The
-// current owner re-enters their password: this is the one change they cannot
-// undo alone afterwards (OPEN_QUESTIONS P2).
+// current owner proves it is them: this is the one change they cannot undo
+// alone afterwards (OPEN_QUESTIONS P2, ADR 0049 §5).
 type TransferOwnershipSDI struct {
-	ToUserID string `json:"to_user_id" description:"ULID thành viên nhận quyền chủ sở hữu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Password string `json:"password" description:"Mật khẩu hiện tại của chủ sở hữu" example:"••••••••"`
+	ToUserID    string `json:"to_user_id" description:"ULID thành viên nhận quyền chủ sở hữu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	StepUpToken string `json:"step_up_token,omitempty" description:"Token từ POST /me/step-up (action transfer_ownership khi chứng minh bằng mã email)" example:"q1h8u3WbF0tA…"`
+	Password    string `json:"password,omitempty" description:"Cũ (app đã phát hành, xem lại 2027-01-31): mật khẩu hiện tại của chủ sở hữu, khi không gửi step_up_token" example:"••••••••"`
 }
 
 // CloseOrganizationSDI confirms a close by typing the organization's slug back.

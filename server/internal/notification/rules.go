@@ -1813,7 +1813,8 @@ func ruleChatReminderDue(ctx context.Context, e env, ev outbox.Row, p map[string
 // While the meeting waits in the auto summary queue (UNI-2026) it stays
 // quiet: the worker settles the row and, when no summary came of it, emits
 // meeting.auto_summary_failed, which runs this rule again. Once per group,
-// so the two topics never remind twice.
+// so the two topics never remind twice. The end of an in-person meeting
+// reminds nobody (see below).
 // Personal reminder: the host is the recipient even when they ended the
 // meeting themselves, so the draft is built here rather than through
 // recipients.add, which drops the actor.
@@ -1835,6 +1836,21 @@ func ruleMeetingEnded(ctx context.Context, e env, ev outbox.Row, p map[string]st
 	}
 	if m.Status != "ENDED" || m.HostUserID == "" {
 		return nil, nil
+	}
+	// An in-person meeting ends before its recording's parts upload: their
+	// transcription queues the summary, so a nudge to summarize by hand now
+	// would read the notes alone and keep the recording out. A failed auto
+	// run still reminds; with auto summaries off nothing queues one, so the
+	// end reminds as it does for any meeting.
+	if ev.Topic == "meeting.ended" && m.Venue == service.MeetingVenueInPerson {
+		set, err := e.q.GetMeetingSettings(ctx, m.OrganizationID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		// No row is the default: on.
+		if err != nil || set.AutoSummaryEnabled {
+			return nil, nil
+		}
 	}
 	if !e.summaries.SummaryAvailable(ctx, m.OrganizationID) {
 		return nil, nil

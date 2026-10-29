@@ -13,7 +13,7 @@
  * for every avatar, which also ends the CSP noise older pins produce. The re-pin to a bundle with the
  * avatar loader adds that build's version string here, and nothing else changes.
  */
-export const AVATAR_ROUTE_FRAME_VERSIONS: readonly string[] = ["0.1.0-59defc1"];
+export const AVATAR_ROUTE_FRAME_VERSIONS: readonly string[] = ["0.1.0-8d73c6b"];
 
 /** Whether the frame build `frameVersion` is one that knows the avatar route. */
 export function frameKnowsAvatarRoute(frameVersion: string, known: readonly string[] = AVATAR_ROUTE_FRAME_VERSIONS): boolean {

@@ -35,12 +35,19 @@ grep -q 'name: uniwork-fe' "${OUT}"
 grep -q 'name: uniwork-office-engine' "${OUT}"
 grep -q 'name: uniwork-meeting-agent' "${OUT}"
 grep -q 'replicas: 1' "${OUT}"
-# Scheduling is a nodeAffinity over the app and exam pools plus the exam taint's
-# toleration (helpers: uniwork.nodeAffinity / uniwork.tolerations).
+# Scheduling is a nodeAffinity over the shared pool (helpers: uniwork.nodeAffinity).
 grep -q 'key: workload' "${OUT}"
-grep -q -- '- "app"' "${OUT}"
-grep -q -- '- "exam"' "${OUT}"
-grep -q 'key: dedicated' "${OUT}"
+grep -q -- '- "shared"' "${OUT}"
+if grep -q -- '- "exam"' "${OUT}"; then
+  echo "FAIL: exam pool must not remain" >&2
+  exit 1
+fi
+if grep -q 'value: exam' "${OUT}"; then
+  echo "FAIL: dedicated=exam toleration must not remain" >&2
+  exit 1
+fi
+grep -q 'maxReplicas: 1' "${OUT}"
+grep -q 'cluster-name: reap-postgresql' "${OUT}"
 grep -q 'type: ClusterIP' "${OUT}"
 grep -q 'path: /healthz' "${OUT}"
 grep -q 'path: /readyz' "${OUT}"

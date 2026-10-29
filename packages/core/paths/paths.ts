@@ -1,5 +1,35 @@
+import type { SignInProvider } from "../api/endpoints/sign-in-schemas";
+import type { LoginRedirectError } from "../auth/sign-in-errors";
 import { runtimeConfig } from "../runtime-config";
 import { marketingHref, vietnamesePath } from "./marketing";
+
+/** `path?a=1&b=2` of the params that have a value, in the order given (URLSearchParams encodes them). */
+function withQuery(path: string, params: Record<string, string | null | undefined>): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) if (value) query.set(key, value);
+  const s = query.toString();
+  return s ? `${path}?${s}` : path;
+}
+
+/**
+ * Where a provider's start sends the browser back when nothing matched
+ * (ADR 0049): sign_in (the default, left out of the URL) issues a ticket for
+ * the choice screen; sign_up (the register page) creates the account at once.
+ */
+export type ProviderStartIntent = "sign_in" | "sign_up";
+
+/** `next` is a same-origin path the server sanitizes again; `intent` as above. */
+export interface ProviderStartOptions {
+  next?: string | null;
+  intent?: ProviderStartIntent;
+}
+
+function providerStart(path: string, opts: ProviderStartOptions): string {
+  return withQuery(`${runtimeConfig().apiUrl}${path}`, {
+    next: opts.next,
+    intent: opts.intent === "sign_up" ? "sign_up" : null,
+  });
+}
 
 /** Search params of the Documents › Google Drive library: the selected account and Drive folder. */
 export const DRIVE_ACCOUNT_PARAM = "account";
@@ -27,27 +57,67 @@ export function parseDriveNameFolderRequest(params: { get(name: string): string 
 
 export const paths = {
   root: () => "/",
-  login: () => "/login",
-  register: () => "/register",
-  verify: () => "/verify",
+  /**
+   * `next` survives the sign-in; `link` is the choice screen's "Tôi đã có tài
+   * khoản" (spec §4.4): the page says which provider waits and keeps the
+   * pending sign-in through the password, the second factor and a reset.
+   * `provider` is the desktop or phone app's button (spec §3.5): the page
+   * goes on to that provider once, and drops it from the URL. `error` is
+   * why a sign-in came back without a session, as the server's redirects
+   * say it (spec §3.4). `mfa` opens on the second factor a cookie carries
+   * (a password reset on an account that has one); `reset` says that reset
+   * was in link mode, so the account the code opens links only if the reset
+   * was asked for it.
+   */
+  login: (
+    opts: {
+      next?: string | null;
+      link?: boolean;
+      provider?: SignInProvider | null;
+      /** With `provider`: the app's register screen asked, so the provider starts to sign up (spec §5.2). */
+      intent?: ProviderStartIntent | null;
+      error?: LoginRedirectError;
+      mfa?: boolean;
+      reset?: boolean;
+    } = {},
+  ) =>
+    withQuery("/login", {
+      mfa: opts.mfa ? "1" : null,
+      reset: opts.reset ? "1" : null,
+      next: opts.next,
+      link: opts.link ? "1" : null,
+      provider: opts.provider,
+      intent: opts.provider && opts.intent === "sign_up" ? "sign_up" : null,
+      error: opts.error,
+    }),
+  register: (opts: { next?: string | null } = {}) => withQuery("/register", { next: opts.next }),
+  verify: (opts: { next?: string | null } = {}) => withQuery("/verify", { next: opts.next }),
   authCallback: () => "/auth/callback",
+  /**
+   * The choice screen a provider sign-in that found no account lands on
+   * (ADR 0049 §2c, spec §4.3); `step: "link"` is its link step, which a
+   * sign-in whose `next` it is keeps the pending sign-in for.
+   */
+  authContinue: (opts: { next?: string | null; step?: "link" } = {}) =>
+    withQuery("/auth/continue", { step: opts.step, next: opts.next }),
   /** Consent page the desktop app's system-browser sign-in lands on (G4-02b). */
   desktopAuthorize: () => "/auth/desktop/authorize",
   /** Consent page an external AI client (MCP connector) sends the browser to (UNI-1308). */
   connectAuthorize: () => "/auth/connect/authorize",
   /** The UniChat desktop shell's start page; hands over to /login on the client. */
   unichatStart: () => "/auth/unichat",
-  forgotPassword: () => "/forgot-password",
+  forgotPassword: (opts: { next?: string | null } = {}) => withQuery("/forgot-password", { next: opts.next }),
   resetPassword: (token?: string) =>
     token ? `/reset-password?token=${encodeURIComponent(token)}` : "/reset-password",
   /**
-   * Absolute URL on the API, not a page: the browser leaves for Google from
-   * here and the API sets the session cookie before sending it back to
-   * authCallback(). `next` is re-sanitized by the server.
+   * Absolute URLs on the API, not pages: the browser leaves for Google or
+   * Apple from here and the API sets the session cookie (or the choice
+   * screen's ticket) before sending it back to authCallback() (or
+   * authContinue()).
    */
-  googleStart: (next?: string | null) =>
-    `${runtimeConfig().apiUrl}/api/v1/auth/google/start${next ? `?next=${encodeURIComponent(next)}` : ""}`,
-  onboarding: () => "/onboarding",
+  googleStart: (opts: ProviderStartOptions = {}) => providerStart("/api/v1/auth/google/start", opts),
+  appleStart: (opts: ProviderStartOptions = {}) => providerStart("/api/v1/auth/apple/start", opts),
+  onboarding: (opts: { next?: string | null } = {}) => withQuery("/onboarding", { next: opts.next }),
   /**
    * Where an onboarded person who belongs to no organization lands: create one
    * or join through an invitation (ADR 0032 D12). Hyphenated root, reserved.
@@ -96,7 +166,19 @@ export const paths = {
     unichat: () => "/apps/unichat",
   },
   about: () => "/about",
+  /** The public security page (marketing); the account's own security settings are securitySettings(). */
   security: () => "/security",
+  /**
+   * Account-level settings outside every workspace (spec §4.5): a person
+   * with a workspace is sent on to its settings, one without one gets the
+   * security tab here. securitySettings is where Sign-in methods lives and
+   * where a link from Settings comes back to; `expectUser` is the account
+   * the UniChat shell signed in with, so the browser can warn when it is
+   * signed in as someone else.
+   */
+  accountSettings: () => "/settings",
+  securitySettings: (opts: { expectUser?: string } = {}) =>
+    withQuery("/settings", { tab: "security", expect_user: opts.expectUser }),
   privacy: () => "/privacy",
   terms: () => "/terms",
   guide: (slug: string) => `/learn/${encodeURIComponent(slug)}`,
@@ -169,6 +251,8 @@ export const paths = {
       documentVersions: (id: string) => `${base}/documents/${id}?panel=versions`,
       meeting: (id: string) => `${base}/meetings/${id}`,
       room: (id: string) => `${base}/meetings/${id}/room`,
+      /** An in-person meeting's recorder; `send` opens it on sending what this device holds. */
+      record: (id: string, opts?: { send?: boolean }) => `${base}/meetings/${id}/record${opts?.send ? "?send=1" : ""}`,
       chat: () => `${base}/chat`,
       /** Chat's direct messages and groups, which belong to the organization (UniChat's Tin nhắn). */
       chatMessages: () => `${base}/chat?view=messages`,
@@ -205,6 +289,20 @@ export function sanitizeNextUrl(raw: string | null | undefined): string | null {
 }
 
 /**
+ * Paths whose accept/join marks the user onboarded (membership link or email
+ * invite), so a `next` to one goes before onboarding
+ * (views/auth/post-auth-redirect.tsx). Meeting invites do not — they must not
+ * skip create-org onboarding.
+ */
+export function nextOverridesOnboarding(next: string | null | undefined): boolean {
+  if (!next) return false;
+  const path = next.split(/[?#]/, 1)[0] ?? "";
+  if (path.startsWith("/join/")) return true;
+  if (path.startsWith("/invite/") && !path.startsWith("/invite/meeting/")) return true;
+  return false;
+}
+
+/**
  * Route prefixes that are never workspace-scoped. Each one's first segment
  * must also be a reserved slug (consistency.test.ts checks), otherwise an
  * organization named "login" would shadow the login page.
@@ -221,6 +319,8 @@ export const GLOBAL_PREFIXES = [
   "/no-workspace",
   "/invitations",
   "/workspaces",
+  // The account's own settings, outside every workspace (spec §4.5).
+  "/settings",
   "/invite/",
   "/join/",
   "/share/",

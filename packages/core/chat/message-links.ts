@@ -1,4 +1,5 @@
 import type { ChatMessageLinkRecord } from "../api/endpoints/chat-links";
+import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 
 export const CHAT_TASK_TITLE_MAX = 120;
 export const CHAT_TASK_TITLE_WORD_MIN = 40;
@@ -7,11 +8,12 @@ export const CHAT_TASK_TITLE_WORD_MIN = 40;
 export const EMPTY_CHAT_TASK_TITLE = "Task từ chat";
 
 /**
- * Derive a task title from a chat message body: trim, cap at 120 runes,
- * and prefer a word boundary after the 40th character (same rule as Go).
+ * Derive a task title from a chat message body: mentions read as @Name (never
+ * raw `mention://…` markup), trim, cap at 120 runes, and prefer a word
+ * boundary after the 40th character (same rule as Go).
  */
 export function titleFromMessageBody(body: string): string {
-  const trimmed = body.trim();
+  const trimmed = deserializeMessageBodyToComposerDraft(body).trim();
   if (!trimmed) return EMPTY_CHAT_TASK_TITLE;
   const runes = Array.from(trimmed);
   if (runes.length <= CHAT_TASK_TITLE_MAX) return runes.join("");

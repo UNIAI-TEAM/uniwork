@@ -45,5 +45,15 @@
   "chat/room-timeline-cache",
   "chat/send-retry",
   "chat/optimistic-merge",
-  "chat/chat-message-cache"
+  "chat/chat-message-cache",
+  "api/endpoints/endpoint-request",
+  "api/endpoints/sign-in-schemas",
+  "api/endpoints/sign-in-native-api",
+  "api/endpoints/sign-in-methods-api",
+  "auth/sign-in-errors",
+  "auth/sign-in-rules",
+  "auth/sign-in-form",
+  "auth/step-up",
+  "types/workspace",
+  "types/organization"
 ]

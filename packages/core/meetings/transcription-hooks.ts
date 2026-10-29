@@ -11,18 +11,23 @@ import { meetingKeys } from "./hooks";
 // recording transcribed in batch. Both await the server (they navigate state
 // across screens and are not locally predictable).
 
+const TRANSCRIPTION_POLL_MS = 15_000;
+const OPEN = new Set(["QUEUED", "RUNNING"]);
+
 export function useMeetingTranscriptions(meetingId: string, enabled = true) {
   return useQuery({
     queryKey: meetingKeys.transcriptions(meetingId),
     queryFn: () => api.listMeetingTranscriptions(meetingId),
     enabled: enabled && Boolean(meetingId),
+    // Poll while any part is still being transcribed: an in-person recording sends several (UNI-2247).
+    refetchInterval: (q) => (q.state.data?.some((t) => OPEN.has(t.status)) ? TRANSCRIPTION_POLL_MS : false),
   });
 }
 
 export function useRecordMeetingHeld(workspaceId: string, meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { started_at: string; ended_at: string }) => api.recordMeetingHeld(meetingId, v),
+    mutationFn: (v: Parameters<typeof api.recordMeetingHeld>[1]) => api.recordMeetingHeld(meetingId, v),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: meetingKeys.list(workspaceId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
@@ -38,6 +43,8 @@ interface UploadRecordingInput {
   consent: boolean;
   /** The length the browser read from the file; undefined when it could not. */
   durationSeconds?: number;
+  /** Seconds from the meeting's actual start; an in-app recording always sends it. */
+  offsetSeconds?: number;
 }
 
 /**
@@ -86,6 +93,7 @@ export function useUploadMeetingRecording(meetingId: string) {
         language: v.language,
         consent: v.consent,
         ...(v.durationSeconds ? { duration_seconds: v.durationSeconds } : {}),
+        ...(v.offsetSeconds !== undefined ? { offset_seconds: v.offsetSeconds } : {}),
       });
     },
     onSettled: () => {

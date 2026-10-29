@@ -1,22 +1,42 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api/http";
-import { deleteAccountProofRefused } from "./errors";
+import { ownedOrganization } from "./errors";
 
-describe("deleteAccountProofRefused", () => {
-  it("reads each refused proof by its own code", () => {
-    expect(deleteAccountProofRefused(new ApiError("x", "password_incorrect", 403))).toBe(true);
-    expect(deleteAccountProofRefused(new ApiError("x", "mfa_code_incorrect", 403))).toBe(true);
-    expect(deleteAccountProofRefused(new ApiError("x", "email_confirmation_mismatch", 400))).toBe(true);
+const refusal = (fields?: Record<string, unknown>) => new ApiError("x", "owner_must_transfer", 409, undefined, fields);
+
+describe("ownedOrganization", () => {
+  it("names the organization a deletion was refused for, and whether it closes with the erasure", () => {
+    expect(ownedOrganization(refusal({ organization_name: "Acme", organization_slug: "acme", can_close: true }))).toEqual({
+      name: "Acme",
+      slug: "acme",
+      canClose: true,
+    });
+    expect(ownedOrganization(refusal({ organization_name: "Acme", organization_slug: "acme", can_close: false }))).toEqual({
+      name: "Acme",
+      slug: "acme",
+      canClose: false,
+    });
   });
 
-  it("still reads the 401 an older server answered", () => {
-    expect(deleteAccountProofRefused(new ApiError("x", "invalid_credentials", 401))).toBe(true);
+  it("reads drifted fields as an organization with nothing to close", () => {
+    expect(ownedOrganization(refusal())).toEqual({ name: "", slug: "", canClose: false });
+    // can_close without a slug to type back cannot close anything.
+    expect(ownedOrganization(refusal({ organization_name: "Acme", can_close: true }))).toEqual({
+      name: "Acme",
+      slug: "",
+      canClose: false,
+    });
+    expect(ownedOrganization(refusal({ organization_slug: " acme ", can_close: "yes" }))).toEqual({
+      name: "acme",
+      slug: "acme",
+      canClose: false,
+    });
   });
 
-  it("is false for any other failure", () => {
-    expect(deleteAccountProofRefused(new ApiError("x", "owner_must_transfer", 409))).toBe(false);
-    expect(deleteAccountProofRefused(new ApiError("x", "invalid_code", 400))).toBe(false);
-    expect(deleteAccountProofRefused(new Error("x"))).toBe(false);
-    expect(deleteAccountProofRefused(undefined)).toBe(false);
+  it("is null for any other failure", () => {
+    expect(ownedOrganization(new ApiError("x", "proof_required", 403))).toBeNull();
+    expect(ownedOrganization(new ApiError("x", "organization_has_members", 409))).toBeNull();
+    expect(ownedOrganization(new Error("x"))).toBeNull();
+    expect(ownedOrganization(undefined)).toBeNull();
   });
 });

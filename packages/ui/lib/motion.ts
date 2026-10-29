@@ -1,5 +1,12 @@
 export const UI_EASE_OUT = [0.23, 1, 0.32, 1] as const;
 
+/** A face or a ✓ arriving: .6 → 1.08 → 1 over 360 ms. Spread it on a motion element; skip it under reduced motion. */
+export const UI_POP = {
+  initial: { opacity: 0, scale: 0.6 },
+  animate: { opacity: 1, scale: [0.6, 1.08, 1] },
+  transition: { duration: 0.36, ease: UI_EASE_OUT },
+};
+
 /** A heavier, damped settle for objects that travel (the sidebar's active row). */
 export const UI_EASE_SETTLE = [0.32, 0.72, 0, 1] as const;
 

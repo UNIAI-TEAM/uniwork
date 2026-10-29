@@ -26,10 +26,12 @@ import (
 // the scope.
 
 // Deadline and concurrency numbers. The deadline is A14's 55 s from the
-// moment the request arrives (under the fork's 60 s watchdog); the
-// concurrency defaults are A11, with G7-D1 owning their final values.
+// moment the request arrives (under the fork's 60 s watchdog); the writer
+// route's is longer, since one call writes a whole document or slide (plan 5).
+// The concurrency defaults are A11, with G7-D1 owning their final values.
 const (
 	UniworkDeadline       = 55 * time.Second
+	UniworkWriterDeadline = 300 * time.Second
 	UniworkPodMax         = 32
 	UniworkGlobalMax      = 64
 	UniworkOrgMax         = 8
@@ -50,6 +52,9 @@ type AIUniworkService struct {
 	limiter  *uniworkConcurrency
 	now      func() time.Time
 	deadline time.Duration
+	// writerLimiter bounds the writer route on its own keys, so long writer
+	// calls cannot starve the chat turns (plan 5).
+	writerLimiter *uniworkConcurrency
 	// runs is A3's run counter (G6-03b). Wired by SetRunStore; nil leaves the
 	// service without run accounting until W-B fills the seam (design §9).
 	runs ai.RunStore
@@ -98,17 +103,25 @@ func (s *AIUniworkService) addRunCredits(ctx context.Context, run ai.Run, tokens
 	if run.ID == "" {
 		return
 	}
-	sctx, cancel := uniworkSettleContext(ctx)
-	defer cancel()
-	if tokens > 0 {
-		if err := s.runs.AddCredits(sctx, run.ID, run.ConversationID, tokens); err != nil {
-			slog.Default().Warn("uniwork ai: run credits", "run_id", run.ID, "err", err)
-		}
-	}
+	s.storeRunCredits(ctx, run, tokens)
 	if s.metrics != nil {
 		// The run's credits after this turn: what the store held before it
 		// (zero for a run opened by this turn) plus what the vendor charged.
 		s.metrics.ObserveUniworkRun(s.now().Sub(run.CreatedAt).Seconds(), run.Credits+tokens)
+	}
+}
+
+// storeRunCredits is the store half of addRunCredits alone. The writer route
+// (plan 5) uses it: a writer call adds to the run's credits but feeds neither
+// run histogram, which describe the chat route's tool loop.
+func (s *AIUniworkService) storeRunCredits(ctx context.Context, run ai.Run, tokens int64) {
+	if run.ID == "" || tokens <= 0 {
+		return
+	}
+	sctx, cancel := uniworkSettleContext(ctx)
+	defer cancel()
+	if err := s.runs.AddCredits(sctx, run.ID, run.ConversationID, tokens); err != nil {
+		slog.Default().Warn("uniwork ai: run credits", "run_id", run.ID, "err", err)
 	}
 }
 
@@ -177,6 +190,8 @@ func NewAIUniworkService(orgs *OrganizationService, ents *EntitlementService, do
 		limiter:  newUniworkConcurrency(rdb, "ai:uniwork:", UniworkPodMax, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second),
 		now:      time.Now,
 		deadline: UniworkDeadline,
+		writerLimiter: newUniworkConcurrency(rdb, "ai:uniwork-writer:", UniworkPodMax, UniworkOrgMax, UniworkGlobalMax,
+			UniworkWriterDeadline+10*time.Second),
 	}
 }
 
@@ -189,6 +204,9 @@ func (s *AIUniworkService) SetDeadline(d time.Duration) {
 
 // Deadline is the 55 s budget the handler puts on the request context (A14).
 func (s *AIUniworkService) Deadline() time.Duration { return s.deadline }
+
+// WriterDeadline is the budget of one writer call (plan 5).
+func (s *AIUniworkService) WriterDeadline() time.Duration { return UniworkWriterDeadline }
 
 // UniworkScope is who and what one turn acts on. DocumentID/Module are empty
 // on the org route (R1: a local file, S10).
@@ -206,8 +224,11 @@ type UniworkScope struct {
 type UniworkTurnInput struct {
 	ConversationID string
 	RunID          string
-	Body           json.RawMessage
-	Stream         bool
+	// HandoffID names the Ask UNI handoff package the turn works on (ADR
+	// 0048); a package the caller may not use is ignored without a trace.
+	HandoffID string
+	Body      json.RawMessage
+	Stream    bool
 }
 
 // UniworkTurn is one answered turn: what the handler writes out plus the
@@ -221,6 +242,10 @@ type UniworkTurn struct {
 	Limit          int
 	Dropped        []ai.UniworkDroppedToolCall
 	Stream         bool
+	// HandoffRemaining is the parts of the handoff package left after this
+	// part, -1 when the turn did not expand one or was refused (ADR 0048); the
+	// handler writes it only when >= 0.
+	HandoffRemaining int
 }
 
 // Chat answers one turn: gates, conversation, transcript, one Gateway call.
@@ -232,6 +257,15 @@ type UniworkTurn struct {
 // longer readable is refused and the caller's transcript for it is deleted
 // (design §9.4: a share revoked with no event must not outlive the access).
 func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in UniworkTurnInput) (UniworkTurn, error) {
+	out, err := s.chat(ctx, scope, in)
+	if err != nil {
+		// A refusal never advanced a package, so it names no parts left.
+		out.HandoffRemaining = -1
+	}
+	return out, err
+}
+
+func (s *AIUniworkService) chat(ctx context.Context, scope UniworkScope, in UniworkTurnInput) (UniworkTurn, error) {
 	doc, err := s.documentScope(ctx, scope)
 	if err != nil {
 		return UniworkTurn{}, err
@@ -288,7 +322,17 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 		return UniworkTurn{}, err
 	}
 	allow := ai.UniworkModuleAllowlist(module, req.Tools, !doc.edit, scope.DocumentID != "")
-	turn, err := ai.PlanUniworkTurn(transcriptMessages(conv), in.Body, allow)
+	// The Ask UNI handoff expands a question turn only (ADR 0048); the package
+	// is read inside the plan so a tool-result turn never touches it.
+	var handoff *OfficeHandoff
+	turn, err := ai.PlanUniworkTurnWith(transcriptMessages(conv), in.Body, allow, func(question string) string {
+		h, ok := s.officeHandoff(ctx, in.HandoffID, orgID, scope, conv.ID)
+		if !ok {
+			return question
+		}
+		handoff = &h
+		return officeHandoffQuestion(h, question)
+	})
 	if err != nil {
 		// The conversation exists and is untouched; the client still gets its
 		// id back (A12) so the next turn can continue it.
@@ -366,10 +410,46 @@ func (s *AIUniworkService) Chat(ctx context.Context, scope UniworkScope, in Uniw
 	if err := s.store.Append(ctx, conv.ID, appended); err != nil {
 		return UniworkTurn{ConversationID: conv.ID, RunID: run.ID}, err
 	}
+	remaining := -1
+	if handoff != nil {
+		remaining = s.advanceHandoff(ctx, *handoff, conv.ID)
+	}
 	return UniworkTurn{
 		Response: resp, ConversationID: conv.ID, RunID: run.ID,
 		Step: run.ToolRounds, Limit: ai.UniworkToolStepLimit, Dropped: dropped, Stream: turn.Stream,
+		HandoffRemaining: remaining,
 	}, nil
+}
+
+// officeHandoff reads the Ask UNI package a turn names (ADR 0048). Only a
+// document-bound turn may use one; anything the caller may not use reads as no
+// package, so the turn runs as a plain question and nothing tells whether the
+// id exists. A read failure is logged by id and never fails the turn.
+func (s *AIUniworkService) officeHandoff(ctx context.Context, id, orgID string, scope UniworkScope, conversationID string) (OfficeHandoff, bool) {
+	if id == "" || scope.DocumentID == "" {
+		return OfficeHandoff{}, false
+	}
+	h, err := loadOfficeHandoff(ctx, s.docs.q, id, orgID, scope.UserID, scope.DocumentID, conversationID, s.now())
+	if err != nil {
+		if !errors.Is(err, ErrNotFound) {
+			slog.Default().Warn("uniwork ai: office handoff read", "handoff_id", id, "err", err)
+		}
+		return OfficeHandoff{}, false
+	}
+	return h, true
+}
+
+// advanceHandoff moves the package past the part this answered turn did
+// and answers the parts left. It runs on a context that outlives the request,
+// like the run's credits; a lost race or a failure is logged by id and the
+// part is simply offered again.
+func (s *AIUniworkService) advanceHandoff(ctx context.Context, h OfficeHandoff, conversationID string) int {
+	sctx, cancel := uniworkSettleContext(ctx)
+	defer cancel()
+	if ok, err := advanceOfficeHandoff(sctx, s.docs.q, h, conversationID, s.now()); err != nil || !ok {
+		slog.Default().Warn("uniwork ai: office handoff not advanced", "handoff_id", h.ID, "conversation_id", conversationID, "err", err)
+	}
+	return len(h.Parts) - (h.NextPart + 1)
 }
 
 // uniworkDocument is what the bound document (R2/R3) contributes to a turn.

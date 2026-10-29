@@ -1,5 +1,72 @@
 [
   {
+    "id": "release-1-13-0",
+    "version": "1.13.0",
+    "date": "2026-10-29",
+    "sourceRef": "294418f863a48b1e0f4b88c9659e797104b26243",
+    "contentKey": "v1_13_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "ccafd2d2d6272afb2cf5e7b3cc4a7552d4af9320b",
+          "c13d78a4c97f08eba8a8674b2c7e47c76ec6a2785",
+          "c8db92bb8a8ad1ffa8a9dd39f5951eb6db2f0335c",
+          "c5126171f6582348dd244670217291d422d0a2686"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "cc0356f93e315ce39b5478dfd61f25c6e2e74d106"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c3c21599462278b2ddb9964171e122957d72b14c7",
+          "cba1c2d4ab3842539e2d2e33682c45413c75f847f",
+          "c44c18b815124d7ab07c67738c5ea5d4780524ef4",
+          "c0dbacfcab7bbd460800710cbc7a65d7ee6fd100b"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "release-1-12-0",
+    "version": "1.12.0",
+    "date": "2026-10-28",
+    "sourceRef": "d29327318a22ff5d852d4713d8bd291556f78e04",
+    "contentKey": "v1_12_0",
+    "sections": [
+      {
+        "kind": "features",
+        "items": [
+          "c6cbd2bbb048a5379f54a25dce30fbe88b030f426",
+          "c4228c23e3f2b0c806c324186730aa56559b9990e",
+          "c7f427c7f30d2e29c7b08d0d33d3ebf9d48aa5510",
+          "cb7ffc3f9677e4cf5bb92bfa345773eb1e4dc1e1f",
+          "c0cd5e5ae6b1803536689748f96dc5e7bcc1b2525",
+          "c0c9a7ae41d024ebecc4eebc94917b2bb8a171347"
+        ]
+      },
+      {
+        "kind": "improvements",
+        "items": [
+          "ce4e631d6b566eeb4aa8e15e03668f517ce02a82d",
+          "c6fcf7fd13c09a42ca3e91fd1d4e256c1feb2e513"
+        ]
+      },
+      {
+        "kind": "fixes",
+        "items": [
+          "c4458af37e9a9c952f6a5a985672db59325e3da30",
+          "cf0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf"
+        ]
+      }
+    ]
+  },
+  {
     "id": "release-1-11-0",
     "version": "1.11.0",
     "date": "2026-10-27",

@@ -245,9 +245,15 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
 
 1. EAS: tài khoản tổ chức Expo. `cd apps/chat-mobile && eas init` (dự án `unichat`), ghi id vào hằng `EAS_PROJECT_ID`
    trong `app.config.ts` qua PR (không phải bí mật). Từ đó app có `updates.url` và đăng ký push.
-2. Biến máy chủ trong EAS, cho `preview` và `production`:
-   `eas env:create --environment preview --name UNICHAT_API_URL --value <url> --visibility plaintext`, tương tự
-   `UNICHAT_APP_URL`. Thiếu thì build staging/production đỏ với `UNICHAT_API_URL is required when UNICHAT_ENV=…`.
+2. Biến máy chủ trong EAS, cho `preview` và `production` (`npx eas-cli@latest env:set`, lệnh tạo hoặc sửa;
+   `env:create` đã cũ). Không có server staging riêng: bản staging (`preview`) gọi server dev, bản store gọi production:
+   `eas env:set preview --name UNICHAT_API_URL --value https://uniwork.unicomhub.com --visibility plaintext`, tương tự
+   `UNICHAT_APP_URL`; `production` là `https://uniworkos.com` (đặt 2026-10-29). Thiếu thì build staging/production đỏ
+   với `UNICHAT_API_URL is required when UNICHAT_ENV=…`. Google trong app (ADR 0049), cũng cho từng môi trường:
+   `eas env:set preview --name UNICHAT_GOOGLE_IOS_CLIENT_ID --value <client iOS của biến thể> --visibility plaintext`
+   và `--name UNICHAT_GOOGLE_WEB_CLIENT_ID --value <GOOGLE_CLIENT_ID của server>`; client iOS và Android cũng vào
+   `GOOGLE_NATIVE_CLIENT_IDS` của server mà biến thể đó gọi (`.staging` ở dev, `com.uniworkos.chat` ở production). Không có build nào đỏ khi thiếu: app lặng lẽ đi Google qua trình duyệt, nên
+   xem màn đăng nhập của bản build mở sheet Google trước khi gửi duyệt.
 3. Apple: Apple Developer Program (tổ chức). App Store Connect: tạo app `com.uniworkos.chat.staging` (bản `internal`;
    `com.uniworkos.chat` khi tới production). `eas credentials -p ios` để EAS tạo chứng chỉ phân phối và profile. Tạo
    App Store Connect API key (vai trò App Manager), tải lên EAS qua `eas credentials -p ios`. Ghi Apple ID số của app
@@ -297,7 +303,7 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
      chạy đọc từ nhánh mặc định); secret `EXPO_TOKEN` (cùng robot token). **Không** đặt Required reviewers: run theo lịch
      sẽ đứng chờ duyệt. Thiếu token thì run theo lịch đỏ ở job đó.
    Không thêm khoá Apple/Google vào GitHub.
-6. Server staging và production: `DESKTOP_AUTH_CLIENTS` có
+6. Server dev (bản staging gọi nó) và production: `DESKTOP_AUTH_CLIENTS` có
    `uniwork-chat-mobile=uniworkchat://auth/callback|uniworkchat-dev://auth/callback` (`.env.example`). Universal link
    (`applinks:app.uniworkos.com`) cần Team ID của Apple trong AASA và SHA-256 của khoá Play App Signing trong
    `assetlinks.json` (web, lát N3).
@@ -624,7 +630,8 @@ từng mục khi đã nộp:
   `.staging`) bật capability Sign In with Apple (EAS bật khi ký bằng credential nó quản lý; không thì Certificates,
   Identifiers & Profiles › Identifiers › App ID › Sign In with Apple, "Enable as a primary App ID", rồi tạo lại profile);
   một khoá ở Keys › "+" › Sign in with Apple › Configure với primary App ID `com.uniworkos.chat`, tải `.p8` (một lần);
-  server production có `APPLE_SIWA_AUDIENCES=com.uniworkos.chat,com.uniworkos.chat.staging` và
+  server production có `APPLE_SIWA_AUDIENCES=com.uniworkos.chat` (bản `.staging` đăng nhập trên dev,
+  `deploy/app-dev/env/uniwork-be.env`) và
   `APPLE_SIWA_TEAM_ID=XJAM488A6D` (`deploy/app/env/uniwork-be.env`), `APPLE_SIWA_KEY_ID`, `APPLE_SIWA_PRIVATE_KEY`
   (nội dung `.p8`, Secret `uniwork-apple`, `deploy/app/env/README.md › Apple`) và đã deploy bản có
   migration `users.apple_id`; `GET https://uniworkos.com/api/v1/auth/providers` trả `"apple":true`. Tên miền và địa
@@ -1085,8 +1092,8 @@ hai tài khoản cùng tổ chức, A gọi B; B là iPhone):
 10. PR đỏ ở `conversation-renders` hoặc `chat-tab-renders` (số render của hàng tăng): một cell nhận closure mới, object
     dựng trong render, hoặc màn hình đăng ký cả store (gõ, hiện diện) thay vì một selector theo phòng/người. Đọc mục
     Hiệu năng của `apps/chat-mobile/CLAUDE.md`; đừng nới số trong test nếu không có lý do ghi trong body commit.
-11. Nightly đỏ ở `gate`: đặt các biến/secrets `MAESTRO_*` (Thiết lập lần đầu, bước 10); chưa có server staging thì
-   chạy tay với `maestro` bỏ chọn — run theo lịch sẽ đỏ mỗi đêm cho tới khi có, có chủ đích. Đỏ ở bước đầu của
+11. Nightly đỏ ở `gate`: đặt các biến/secrets `MAESTRO_*` (Thiết lập lần đầu, bước 10); chưa có tài khoản thử trên server dev
+   (bản staging gọi nó) thì chạy tay với `maestro` bỏ chọn — run theo lịch sẽ đỏ mỗi đêm cho tới khi có, có chủ đích. Đỏ ở bước đầu của
    `android-two-party`: thiếu tài khoản thứ hai hay `UNICHAT_GOOGLE_SERVICES_JSON` (bước 10; `node
    scripts/mobile-ci-provisioning.mjs --check` liệt kê tên thiếu). Đỏ ở luồng push thật mà luồng deep link xanh: push
    không tới emulator (token chưa đăng ký vì APK thiếu file Firebase, hay khoá FCM V1 của dự án EAS sai) — ảnh chụp

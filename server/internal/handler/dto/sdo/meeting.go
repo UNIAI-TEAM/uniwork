@@ -13,7 +13,10 @@ type MeetingListSDO struct {
 // draw without a request of its own.
 type MeetingListItemDTO struct {
 	MeetingDTO
-	HasPlayableRecording bool `json:"has_playable_recording" description:"Có ít nhất một bản ghi hình đã có file để xem lại"`
+	HasPlayableRecording bool     `json:"has_playable_recording" description:"Có ít nhất một bản ghi hình đã có file để xem lại"`
+	InRoomUserIDs        []string `json:"in_room_user_ids,omitempty" description:"Cuộc họp đang diễn ra: tối đa 3 user id thành viên đang trong phòng, ai vào trước đứng trước" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
+	InRoomCount          int32    `json:"in_room_count,omitempty" description:"Cuộc họp đang diễn ra: số người đang trong phòng, kể cả khách" example:"5"`
+	ScribeLive           bool     `json:"scribe_live,omitempty" description:"Cuộc họp đang diễn ra: Thư ký UNI đang ghi (lần chạy mới nhất ACTIVE)" example:"true"`
 }
 
 type MeetingDTO struct {
@@ -28,6 +31,7 @@ type MeetingDTO struct {
 	CreatedAt        string `json:"created_at" example:"2026-08-28T02:00:00Z"`
 	Status           string `json:"status" example:"SCHEDULED"`
 	MeetingType      string `json:"meeting_type" example:"SCHEDULED"`
+	Venue            string `json:"venue" enum:"online,in_person" description:"Hình thức: online có phòng họp; in_person ghi âm tại phòng" example:"online"`
 	HostUserID       string `json:"host_user_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	Timezone         string `json:"timezone" example:"UTC"`
 	AllowJoinRequest bool   `json:"allow_join_request"`
@@ -98,6 +102,7 @@ type ParticipantDTO struct {
 	IsSecretary         bool   `json:"is_secretary"`
 	SharedMic           bool   `json:"shared_mic" description:"Mic của người này là micro hội trường: thư ký AI tách người nói"`
 	InRoom              bool   `json:"in_room" description:"Người này đang có mặt trong phòng (có phiên điểm danh đang mở)" example:"true"`
+	IsHost              bool   `json:"is_host" description:"Ghế của chủ trì hiện tại: khách, vốn không đọc cuộc họp, theo đó nhận lệnh tắt mic; chỉ có trong danh sách người tham dự" example:"false"`
 	RemovedBy           string `json:"removed_by,omitempty" description:"Người đã mời người này ra khỏi cuộc họp; không trả cho khách" example:"01J9Z3D4QH8M2X7N5K1C6V0B9A"`
 	RemovedAt           string `json:"removed_at,omitempty" description:"Lúc người này bị mời ra (RFC 3339)" example:"2026-10-27T08:52:00Z"`
 }
@@ -291,6 +296,8 @@ type MeetingSummaryDTO struct {
 	// Topics and OpenQuestions are meeting_summary@7's; empty before it.
 	Topics        []MeetingSummaryTopicDTO    `json:"topics" description:"Các chủ đề theo thứ tự được bàn (meeting_summary@7); rỗng với bản tóm tắt cũ"`
 	OpenQuestions []MeetingSummaryDecisionDTO `json:"open_questions" description:"Câu hỏi còn bỏ ngỏ, mỗi câu kèm căn cứ (meeting_summary@7)"`
+	// SummaryPoints are meeting_summary@8's; Summary is them joined.
+	SummaryPoints []MeetingSummaryDecisionDTO `json:"summary_points" description:"Đoạn tóm tắt tách thành 2–6 câu, mỗi câu kèm căn cứ (meeting_summary@8); summary là các câu này ghép lại; rỗng với bản tóm tắt cũ"`
 }
 
 // MeetingSummaryTopicDTO is one topic of a summary: where it starts in the
@@ -443,6 +450,11 @@ type ActionItemLinkDTO struct {
 // ConvertActionItemsSDO answers POST .../action-items/convert, in request order.
 type ConvertActionItemsSDO struct {
 	Links []ActionItemLinkDTO `json:"links"`
+}
+
+// UndoConvertActionItemsSDO lists the items put back to pending.
+type UndoConvertActionItemsSDO struct {
+	Restored []string `json:"restored" description:"Các việc đã về chờ xử lý (task của chúng đã vào thùng rác); việc không đủ điều kiện không có ở đây" example:"[\"01J8X4AI0N1P2Q3R4S5T6U7V8W\"]"`
 }
 
 type TaskIDListSDO struct {
@@ -607,20 +619,21 @@ type SpeakerLabelSDO struct {
 // MeetingTranscriptionDTO is one transcription of one uploaded recording
 // (UNI-2001, parent spec §5.3).
 type MeetingTranscriptionDTO struct {
-	ID           string `json:"id" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
-	MeetingID    string `json:"meeting_id" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
-	FileID       string `json:"file_id" example:"01JA09K3N1P2Q3R4S5T6U7V9"`
-	Filename     string `json:"filename" example:"hop-chi-bo.m4a"`
-	SizeBytes    int64  `json:"size_bytes" example:"28800000"`
-	Language     string `json:"language" enum:"vi,en" example:"vi"`
-	Status       string `json:"status" enum:"QUEUED,RUNNING,COMPLETE,FAILED" example:"RUNNING"`
-	ErrorCode    string `json:"error_code,omitempty" enum:"file_unavailable,provider_error,timeout" description:"Lý do của lần thử gần nhất bị lỗi; với FAILED là lý do cuối" example:"provider_error"`
-	Attempts     int32  `json:"attempts" description:"Số lần đã gửi nhà cung cấp (tối đa 3)" example:"1"`
-	StartsAt     string `json:"starts_at" description:"Giờ thật ứng với giây 0 của tệp" example:"2026-10-20T01:30:00Z"`
-	AudioSeconds int32  `json:"audio_seconds,omitempty" description:"Thời lượng đã tính phí, có khi COMPLETE" example:"3600"`
-	CreatedBy    string `json:"created_by" example:"01J8X4USER0N1P2Q3R4S5T6U7"`
-	CreatedAt    string `json:"created_at" example:"2026-10-20T04:00:00Z"`
-	CompletedAt  string `json:"completed_at,omitempty" example:"2026-10-20T04:20:00Z"`
+	ID               string `json:"id" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
+	MeetingID        string `json:"meeting_id" example:"01J8X4MTGN1P2Q3R4S5T6U7V"`
+	FileID           string `json:"file_id" example:"01JA09K3N1P2Q3R4S5T6U7V9"`
+	Filename         string `json:"filename" example:"hop-chi-bo.m4a"`
+	SizeBytes        int64  `json:"size_bytes" example:"28800000"`
+	Language         string `json:"language" enum:"vi,en" example:"vi"`
+	Status           string `json:"status" enum:"QUEUED,RUNNING,COMPLETE,FAILED" example:"RUNNING"`
+	ErrorCode        string `json:"error_code,omitempty" enum:"file_unavailable,provider_error,timeout" description:"Lý do của lần thử gần nhất bị lỗi; với FAILED là lý do cuối" example:"provider_error"`
+	Attempts         int32  `json:"attempts" description:"Số lần đã gửi nhà cung cấp (tối đa 3)" example:"1"`
+	StartsAt         string `json:"starts_at" description:"Giờ thật ứng với giây 0 của tệp" example:"2026-10-20T01:30:00Z"`
+	EstimatedSeconds int32  `json:"estimated_seconds" description:"Thời lượng ước tính lúc nhận tệp (giây), có ngay từ QUEUED" example:"2538"`
+	AudioSeconds     int32  `json:"audio_seconds,omitempty" description:"Thời lượng đã tính phí, có khi COMPLETE" example:"3600"`
+	CreatedBy        string `json:"created_by" example:"01J8X4USER0N1P2Q3R4S5T6U7"`
+	CreatedAt        string `json:"created_at" example:"2026-10-20T04:00:00Z"`
+	CompletedAt      string `json:"completed_at,omitempty" example:"2026-10-20T04:20:00Z"`
 }
 
 type MeetingTranscriptionSDO struct {

@@ -28,12 +28,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@uniwork/ui/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@uniwork/ui/components/ui/tooltip";
+import { TooltipProvider } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toast } from "sonner";
 import { toastApiError } from "../toast-api-error";
@@ -46,6 +41,7 @@ import {
   ReactionsControl,
 } from "./meeting-control-bar-controls";
 import type { RoomExit } from "./exit/exit-model";
+import { BarTooltipTrigger, ControlBarTooltips } from "./meeting-control";
 import { MEETING_DARK_BAR } from "./meeting-dark-bar";
 import { MeetingHostLeaveDialog } from "./meeting-host-leave-dialog";
 import { MeetingLeaveConfirmDialog } from "./meeting-leave-confirm-dialog";
@@ -123,7 +119,7 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   // rest fold into "More" so the bar fits a 375px screen without scrolling.
   const secondaryInMenu = mobile;
   // While recording, the control names what pressing it does next.
-  const recordLabel = recording ? t("meetings.stopRecording") : t("meetings.record");
+  const recordLabel = recording ? t("meetings.stopRecording") : t("meetings.recordVideo");
 
   const toggleRecording = () => {
     if (recording) {
@@ -248,7 +244,9 @@ export const MeetingControlBar = memo(function MeetingControlBar({
   return (
     <>
       <div className={className}>
-        <TooltipProvider delay={300}>
+        {/* closeDelay bridges the gap between two buttons, so the tip glides instead of closing. */}
+        <TooltipProvider delay={300} closeDelay={100}>
+          <ControlBarTooltips>
           <div className={cn(MEETING_DARK_BAR, "w-fit max-w-full")}>
             <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
               <IconControl
@@ -293,26 +291,24 @@ export const MeetingControlBar = memo(function MeetingControlBar({
                 </>
               ) : null}
               <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <PopoverTrigger
-                        render={
-                          <Button
-                            type="button"
-                            size="icon-lg"
-                            variant="meetingChip"
-                            aria-label={t("meetings.more")}
-                            className={MEETING_CHIP}
-                          />
-                        }
-                      />
-                    }
-                  >
-                    <Ellipsis aria-hidden />
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="dark">{t("meetings.more")}</TooltipContent>
-                </Tooltip>
+                <BarTooltipTrigger
+                  label={t("meetings.more")}
+                  render={
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          type="button"
+                          size="icon-lg"
+                          variant="meetingChip"
+                          aria-label={t("meetings.more")}
+                          className={MEETING_CHIP}
+                        />
+                      }
+                    />
+                  }
+                >
+                  <Ellipsis aria-hidden />
+                </BarTooltipTrigger>
                 {/* `dark`, like the admit-guests card: the popup portals out of the dark stage. */}
                 <PopoverContent side="top" className="dark flex w-56 flex-col gap-0.5 p-1.5">
                   {moreMenu}
@@ -322,24 +318,23 @@ export const MeetingControlBar = memo(function MeetingControlBar({
 
             <span aria-hidden className="mx-0.5 h-8 w-px shrink-0 bg-meeting-bar-border" />
 
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="destructiveSolid"
-                    size="icon-lg"
-                    onClick={() => setLeaveConfirmOpen(true)}
-                    aria-label={t("meetings.leave")}
-                    className={MEETING_CHIP}
-                  />
-                }
-              >
-                <PhoneOff aria-hidden />
-              </TooltipTrigger>
-              <TooltipContent side="top" className="dark">{t("meetings.leave")}</TooltipContent>
-            </Tooltip>
+            <BarTooltipTrigger
+              label={t("meetings.leave")}
+              render={
+                <Button
+                  type="button"
+                  variant="destructiveSolid"
+                  size="icon-lg"
+                  onClick={() => setLeaveConfirmOpen(true)}
+                  aria-label={t("meetings.leave")}
+                  className={MEETING_CHIP}
+                />
+              }
+            >
+              <PhoneOff aria-hidden />
+            </BarTooltipTrigger>
           </div>
+          </ControlBarTooltips>
         </TooltipProvider>
       </div>
       <MeetingRecordConfirmDialog

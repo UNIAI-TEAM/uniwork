@@ -15,7 +15,7 @@ describe("application translations after a marketing request", () => {
     // An isolated marketing instance was initialized later than the app singleton.
     createI18n("en", { en: { translation: { auth: { login: "Unrelated public instance" } } } });
     const html = renderToString(<WebLocaleProvider initialLocale={locale} initialDictionary={locale === "vi" ? vi : undefined}><LoginCopy /></WebLocaleProvider>);
-    expect(html).toContain(locale === "vi" ? "Đăng nhập" : "Log in");
+    expect(html).toContain(locale === "vi" ? "Đăng nhập" : "Sign in");
     expect(html).not.toContain("Unrelated public instance");
   });
 });

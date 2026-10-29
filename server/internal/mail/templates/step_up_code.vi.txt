@@ -1,0 +1,15 @@
+Subject: {{.Data.Code}} là mã xác nhận UniWork của bạn
+
+Xác nhận là bạn
+
+Có người vừa yêu cầu mã để {{.Data.ActionName}} trên tài khoản UniWork của bạn. Mã này chỉ dùng được cho việc đó:
+
+    {{.Data.Code}}
+
+Mã có hiệu lực trong {{expires .Data.Expires .Locale}} và chỉ dùng được một lần.
+{{if .Data.Device}}
+    Thiết bị: {{.Data.Device}}{{end}}{{if .Data.IP}}
+    Địa chỉ IP: {{.Data.IP}}{{end}}
+    Thời điểm: {{.Data.At.Format "02/01/2006 15:04 MST"}}
+
+Không chia sẻ mã này với ai, kể cả người tự nhận là UniWork. Nếu bạn không vừa yêu cầu, đừng nhập mã: có người đang dùng phiên đăng nhập của bạn. Hãy xem lại các phiên đang mở và đổi mật khẩu: {{.Data.SecurityURL}}

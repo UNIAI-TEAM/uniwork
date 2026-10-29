@@ -55,7 +55,7 @@ func RequireAuthWithDevice(m auth.TokenMinter, check func(context.Context, strin
 			platform, _, _ := ClientMetadataFromContext(r.Context())
 			telemetry.SetActor(r.Context(), uid, string(audit.KindHuman), platform)
 			ctx = context.WithValue(WithUserID(ctx, uid), sessionIDKey, sid)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, r.WithContext(auth.WithAccessToken(ctx, at)))
 		})
 	}
 }
@@ -102,6 +102,9 @@ func DeviceSession(ctx context.Context) bool {
 	return v
 }
 
+// RequireAuth validates the bearer without the device check. Like
+// RequireAuthWithDevice it puts the verified token on the context
+// (auth.WithAccessToken) for the commands that judge it themselves.
 func RequireAuth(m auth.TokenMinter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -111,15 +114,16 @@ func RequireAuth(m auth.TokenMinter) func(http.Handler) http.Handler {
 				writeUnauthorized(w, "missing bearer token")
 				return
 			}
-			uid, sid, err := m.ParseSession(token)
+			at, err := m.ParseAccessToken(token)
 			if err != nil {
 				writeUnauthorized(w, "invalid token")
 				return
 			}
+			uid, sid := at.UserID, at.SessionID
 			platform, _, _ := ClientMetadataFromContext(r.Context())
 			telemetry.SetActor(r.Context(), uid, string(audit.KindHuman), platform)
 			ctx := context.WithValue(WithUserID(r.Context(), uid), sessionIDKey, sid)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, r.WithContext(auth.WithAccessToken(ctx, at)))
 		})
 	}
 }

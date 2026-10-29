@@ -141,7 +141,7 @@ describe("MeetingSheet · create", () => {
     await pickPerson(dialog, "Hà Vũ");
     expect(within(dialog).getAllByText("Hà Vũ sẽ nhận lời mời").length).toBeGreaterThan(0);
     fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
-    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"), { timeout: 3_000 });
     const create = posts("/workspaces/w1/meetings")[0]![1] as Init;
     expect(create.body).toMatchObject({ title: "Duyệt kịch bản", attendee_user_ids: [], timezone: "Asia/Ho_Chi_Minh" });
     expect(create.headers?.["Idempotency-Key"]).toBeTruthy();
@@ -162,6 +162,46 @@ describe("MeetingSheet · create", () => {
     await waitFor(() => expect(within(dialog).getByLabelText("Nội dung")).toHaveFocus());
     fireEvent.click(within(dialog).getByRole("button", { name: "Bỏ Biểu quyết" }));
     expect(within(chips).getAllByRole("button")).toHaveLength(3);
+  });
+
+  it("creates an in-person meeting: no room door, no outside guests", async () => {
+    serve((path) => (path.endsWith("/meeting-capabilities") ? { scribe: true, scribe_policy: "on", transcription: true } : undefined));
+    const onDone = vi.fn();
+    const dialog = openCreate(onDone);
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Giao ban" } });
+    fireEvent.click(await within(dialog).findByRole("radio", { name: /Trực tiếp/ }));
+    expect(within(dialog).queryByRole("button", { name: /^Vào phòng/ })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Khách bên ngoài" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"), { timeout: 3_000 });
+    expect((posts("/workspaces/w1/meetings")[0]![1] as Init).body).toMatchObject({ title: "Giao ban", venue: "in_person" });
+  });
+
+  it("an in-person draft drops its guest links", async () => {
+    serve((path) => (path.endsWith("/meeting-capabilities") ? { scribe: true, scribe_policy: "on", transcription: true } : undefined));
+    const onDone = vi.fn();
+    const dialog = openCreate(onDone);
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Giao ban" } });
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Khách bên ngoài" }));
+    expect(within(dialog).getByRole("region", { name: "Khách bên ngoài" })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Trực tiếp/ }));
+    expect(within(dialog).queryByRole("region", { name: "Khách bên ngoài" })).toBeNull();
+    // Back to Online, the unsaved link is still there.
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Online/ }));
+    expect(within(dialog).getByRole("region", { name: "Khách bên ngoài" })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("radio", { name: /Trực tiếp/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"), { timeout: 3_000 });
+    expect(posts("/invite-links")).toHaveLength(0);
+  });
+
+  it("offers the venue without transcription", async () => {
+    // Spec D5: without recording, an in-person meeting is still recorded held by hand ("Ghi nhận đã họp").
+    const dialog = openCreate();
+    await within(dialog).findByRole("group", { name: "Thêm tùy chọn" });
+    await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(within(dialog).getByRole("radiogroup", { name: "Hình thức" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /^Vào phòng/ })).toBeInTheDocument();
   });
 
   it("says who reads the scribe's notes on one chip and changes it from its menu", async () => {
@@ -232,6 +272,35 @@ describe("MeetingSheet · create", () => {
 describe("MeetingSheet · create runs", () => {
   const isCreate = (path: string, init: Init) => path === "/api/v1/workspaces/w1/meetings" && init.method === "POST";
   const sent = () => posts("/workspaces/w1/meetings").map((c) => c[1] as Init);
+
+  it("submit morphs while pending and shows the check on success", async () => {
+    let answer!: (v: unknown) => void;
+    serve((path, init) => (isCreate(path, init) ? new Promise((r) => (answer = r)) : undefined));
+    const onDone = vi.fn();
+    const dialog = openCreate(onDone);
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp A" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    const busy = await within(dialog).findByRole("button", { name: "Đang tạo…" });
+    expect(busy).toHaveAttribute("aria-busy", "true");
+    expect(busy).toHaveAttribute("data-state", "busy");
+    answer({ meeting: { ...meeting, id: "new1", scribe_enabled: true } });
+    const done = await within(dialog).findByRole("button", { name: "Đã tạo cuộc họp" });
+    expect(done).toHaveAttribute("data-state", "done");
+    // The sheet holds the ✓ before it goes and opens the meeting.
+    expect(onDone).not.toHaveBeenCalled();
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith("new1"), { timeout: 3_000 });
+  });
+
+  it("submit returns to its label on error", async () => {
+    serve((path, init) => (isCreate(path, init) ? Promise.reject(new ApiError("dự án không còn", "not_found", 404)) : undefined));
+    const dialog = openCreate();
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Họp A" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tạo cuộc họp" }));
+    expect(await within(dialog).findByText(/^Chưa tạo được cuộc họp\./)).toBeInTheDocument();
+    const primary = within(dialog).getByRole("button", { name: "Tạo cuộc họp" });
+    expect(primary).toHaveAttribute("data-state", "idle");
+    expect(primary).not.toHaveAttribute("aria-busy");
+  });
 
   it("sends the edited draft after a refused create, under the same key", async () => {
     let n = 0;
@@ -409,6 +478,24 @@ describe("MeetingSheet · edit", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã lưu thay đổi", expect.anything()));
     const patch = requestMock.mock.calls.find((c) => String(c[0]) === "/api/v1/meetings/m3" && (c[1] as Init)?.method === "PATCH");
     expect((patch![1] as Init).body).toEqual({ title: "Duyệt kịch bản mới" });
+  });
+
+  it("keeps an in-person meeting's venue in view without transcription and PATCHes only what changed", async () => {
+    openEdit({ ...meeting, venue: "in_person" });
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByRole("radio", { name: /Trực tiếp/ })).toHaveAttribute("aria-checked", "true");
+    expect(within(dialog).getByRole("radio", { name: /Online/ })).not.toHaveAttribute("aria-disabled");
+    fireEvent.change(within(dialog).getByLabelText("Tiêu đề"), { target: { value: "Mới" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const patch = requestMock.mock.calls.find((c) => String(c[0]) === "/api/v1/meetings/m3" && (c[1] as Init)?.method === "PATCH");
+    expect((patch![1] as Init).body).toEqual({ title: "Mới" });
+  });
+
+  it("locks the venue of a live meeting", async () => {
+    openEdit({ ...meeting, venue: "in_person", status: "IN_PROGRESS" });
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByRole("radio", { name: /Online/ })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("locks the time of a live meeting and the quorum of a finalized roll", async () => {

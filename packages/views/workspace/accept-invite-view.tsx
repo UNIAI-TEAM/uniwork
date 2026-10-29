@@ -3,7 +3,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError, errorCode } from "@uniwork/core/api";
 import { useSession } from "@uniwork/core/auth";
-import { organizationSwitchConflicts, passwordRefusal, type PasswordRefusal } from "@uniwork/core/organizations/errors";
+import type { StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { readSignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import { organizationSwitchConflicts } from "@uniwork/core/organizations/errors";
 import type { MembershipConflict, SwitchResolution, Workspace } from "@uniwork/core/types";
 import { useAcceptInvite, useInvitationPreview } from "@uniwork/core/workspaces";
 import { AuthShell } from "../auth/auth-shell";
@@ -23,7 +25,7 @@ import { SwitchWizard } from "./accept-invite/switch-wizard";
 type Refusal =
   | { kind: "changed"; conflicts: MembershipConflict[] | null }
   | { kind: "gone"; reason: GoneReason }
-  | { kind: "password"; why: PasswordRefusal }
+  | { kind: "proof"; proofs: readonly StepUpProof[] }
   | { kind: "retry"; why: RetryReason; error: unknown }
   | { kind: "fatal"; error: unknown };
 
@@ -34,8 +36,9 @@ function classify(err: unknown): Refusal {
   if (code === "close_confirm_mismatch") return { kind: "changed", conflicts: null };
   const gone = goneReason(code);
   if (gone) return { kind: "gone", reason: gone };
-  const password = passwordRefusal(err);
-  if (password) return { kind: "password", why: password };
+  // The owner's proof no longer serves (ADR 0049 §5): the wizard asks again.
+  const failure = readSignInFailure(err, "methods");
+  if (failure.kind === "step_up") return { kind: "proof", proofs: failure.proofs ?? [] };
   if (code === "membership_busy") return { kind: "retry", why: "busy", error: err };
   return { kind: "fatal", error: err };
 }
@@ -95,7 +98,7 @@ export function AcceptInviteView({
     if (status === "anon") onAnon();
   }, [status, onAnon]);
 
-  const submit = (resolve?: SwitchResolution[], onPasswordRefused?: (why: PasswordRefusal) => void) => {
+  const submit = (resolve?: SwitchResolution[], onProofRequired?: (proofs: readonly StepUpProof[]) => void) => {
     setRefusal(null);
     accept.mutate(
       { token, resolve },
@@ -106,8 +109,8 @@ export function AcceptInviteView({
         },
         onError: (err) => {
           const next = classify(err);
-          if (next.kind === "password") {
-            onPasswordRefused?.(next.why);
+          if (next.kind === "proof") {
+            onProofRequired?.(next.proofs);
             return;
           }
           if (next.kind === "changed") {

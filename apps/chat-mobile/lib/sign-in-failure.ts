@@ -1,18 +1,50 @@
-// What the sign-in screen says when a sign-in failed. The browser's only failure is opening the browser; Sign in with
-// Apple (ADR 0041) can also be refused by the server, two of them with a way forward the person should read.
+// What a sign-in screen says when a step failed (ADR 0049, spec §5.2). Every refusal of the server reads through
+// core's one table (auth/sign-in-errors.ts › readSignInFailure), so the phone and the web say the same thing; this
+// module only adds what happens on the phone before the server answers: Apple's or Google's own sheet failing and the
+// system browser not opening. The step the app held in memory being gone (sign_in_expired) is a row of core's table.
+import type { SignInProvider } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { readSignInFailure, type SignInContext, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import type { SignInRequest } from "@/data/auth/sign-in";
 import { pathOf } from "./unknown-shape";
 
-type SignInMethod = "browser" | "apple";
+/** How the sign-in that failed was started: a provider's sheet and the browser fail on the phone, before any server. */
+export type SignInStart = "browser" | SignInProvider | "form";
 
-/** the copy key of the line under the buttons */
-export function signInFailureKey(method: SignInMethod, error: unknown): string {
-  if (method === "browser") return "auth.desktop.unichat_login_failed";
-  switch (pathOf(error, "code")) {
-    case "apple_account_conflict":
-      return "chat.mobile.login_apple_conflict";
-    case "mfa_required":
-      return "chat.mobile.login_apple_mfa";
-    default:
-      return "chat.mobile.login_apple_failed";
+/** What a request opens on the phone before any server: a provider's sheet, the browser, or nothing (a form). */
+export function startOf(request: SignInRequest): SignInStart {
+  return request.method === "browser" || request.method === "apple" || request.method === "google" ? request.method : "form";
+}
+
+function failure(key: string, kind: SignInFailure["kind"], code: string, provider: SignInProvider | null = null): SignInFailure {
+  return { code, status: null, kind, key, values: {}, provider, retryAfterSeconds: null, retry: null, proofs: null, maskedEmail: null };
+}
+
+/** The app's auth transport and bearer client answer with these; anything else came from the phone itself. */
+const fromTransport = (error: unknown): boolean => {
+  const name = pathOf(error, "name");
+  return name === "TransportError" || name === "ApiError";
+};
+
+/**
+ * The sentence for a failed step. `start` names what the person tapped: a sheet that threw (Apple's or Google's
+ * own error, never the server's) says that provider did not work, as a sign-in ("…hoặc dùng email") or, in Settings,
+ * as the link the web's Settings says failed; a browser that would not open says so.
+ */
+export function signInFailureOf(error: unknown, context: SignInContext, start: SignInStart = "form"): SignInFailure {
+  if (!fromTransport(error) && !(error instanceof TypeError)) {
+    if ((start === "apple" || start === "google") && context === "methods") {
+      return failure("settings.security.signInMethods.results.failed", "form", "provider_sheet", start);
+    }
+    if (start === "apple" || start === "google") return failure(`auth.social.errors.${start}_failed`, "form", "provider_sheet");
+    if (start === "browser") return failure("auth.desktop.unichat_login_failed", "form", "browser");
   }
+  return readSignInFailure(error, context);
+}
+
+/**
+ * "Tôi đã có tài khoản": the provider just tried matched no account either (data/auth/sign-in.ts › unmatched). The
+ * web's own sentence for it (the `?error=<provider>_no_account` of link mode), whose key names the provider.
+ */
+export function unmatchedWhileLinking(provider: SignInProvider): SignInFailure {
+  return failure(`auth.social.errors.${provider}_no_account`, "form", "identity_unmatched");
 }

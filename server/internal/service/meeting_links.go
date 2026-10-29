@@ -57,6 +57,10 @@ func (s *MeetingService) CreateInviteLink(ctx context.Context, userID, meetingID
 	if err != nil {
 		return CreatedInviteLink{}, err
 	}
+	// No room ever opens in person; links made before the venue changed stay, unused.
+	if m.Venue == MeetingVenueInPerson {
+		return CreatedInviteLink{}, errMeetingInPerson()
+	}
 	if m.Status != MeetingScheduled && m.Status != MeetingInProgress {
 		return CreatedInviteLink{}, errInvalidState()
 	}

@@ -13,18 +13,20 @@ import (
 )
 
 // enrol turns MFA on for a fresh account and hands back its secret and
-// recovery codes, the way the settings screen would.
+// recovery codes, the way the settings screen would: a browser session that
+// just proved it is the owner (stepUpFor), then setup and confirm.
 func enrol(t *testing.T, s *AuthService, ctx context.Context, userID string) (secret string, codes []string) {
 	t.Helper()
-	setup, err := s.SetupTOTP(ctx, userID)
+	ctx, token := stepUpFor(t, s, ctx, userID)
+	setup, err := s.SetupTOTP(ctx, userID, token)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.ConfirmTOTP(ctx, userID, "000000"); !errors.Is(err, ErrInvalidCode) {
+	if _, err := s.ConfirmTOTP(ctx, userID, "000000", token); !errors.Is(err, ErrInvalidCode) {
 		t.Fatalf("wrong code must not enable MFA: %v", err)
 	}
 	code, _ := auth.TOTPCode(setup.Secret, time.Now())
-	codes, err = s.ConfirmTOTP(ctx, userID, code)
+	codes, err = s.ConfirmTOTP(ctx, userID, code, token)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,6 +36,31 @@ func enrol(t *testing.T, s *AuthService, ctx context.Context, userID string) (se
 	return setup.Secret, codes
 }
 
+// stepUpFor opens a browser session for userID and hands back its bearer
+// context, as the auth middleware leaves it, and a step-up token of that
+// session, as POST /me/step-up would after a right proof. The proofs
+// themselves are TestSignInMethodChangesNeedAProof's.
+func stepUpFor(t *testing.T, s *AuthService, ctx context.Context, userID string) (context.Context, string) {
+	t.Helper()
+	u, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, _, err := s.openSession(ctx, s.q, u, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at, err := s.minter.ParseAccessToken(sess.AccessToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := s.mintStepUp(at, ProofPassword, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return auth.WithAccessToken(ctx, at), g.Token
+}
+
 func TestMFALoginIsTwoSteps(t *testing.T) {
 	s := newAuthService(t)
 	ctx := context.Background()
@@ -41,8 +68,12 @@ func TestMFALoginIsTwoSteps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Only a verified address enrols (TestUnverifiedAccountsCannotEnrolMFAOrLink).
+	if _, err := s.q.MarkEmailVerified(ctx, sess.User.ID); err != nil {
+		t.Fatal(err)
+	}
 	secret, codes := enrol(t, s, ctx, sess.User.ID)
-	if _, err := s.SetupTOTP(ctx, sess.User.ID); !errors.Is(err, ErrConflict) {
+	if _, err := s.SetupTOTP(ctx, sess.User.ID, ""); !errors.Is(err, ErrConflict) {
 		t.Fatalf("setup while enabled: %v", err)
 	}
 

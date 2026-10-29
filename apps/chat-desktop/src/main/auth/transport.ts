@@ -1,3 +1,4 @@
+import type { LoginProvider } from "../../shared/bridge";
 import type { ShellConfig } from "../runtime-config";
 
 /**
@@ -62,6 +63,8 @@ interface StartRequest {
   redirectUri: string;
   deviceLabel?: string;
   platform?: string;
+  /** sends the browser straight to this provider (spec §3.5); the server answers 400 to any other value */
+  provider?: LoginProvider;
 }
 
 export interface Transport {
@@ -224,6 +227,7 @@ export function createTransport(
       });
       if (input.deviceLabel) query.set("device_label", input.deviceLabel);
       if (input.platform) query.set("platform", input.platform);
+      if (input.provider) query.set("provider", input.provider);
       const raw = await request("GET", "/auth/desktop/start", { query });
       if (!isRecord(raw)) throw new TransportError("malformed_response");
       let parsed: URL;

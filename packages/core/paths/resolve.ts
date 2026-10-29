@@ -88,10 +88,26 @@ export interface WorkspaceRef {
 }
 
 /**
- * Where "Home" leads a signed-in user: the home screen of the workspace they
- * were last in while they still belong to it, otherwise of the first one.
- * Slugs repeat across organizations, so the match is on the pair.
+ * The workspace a signed-in user's own pages open in ("Home", the account's
+ * settings): the one they were last in while they still belong to it,
+ * otherwise the first one they may land in. Slugs repeat across
+ * organizations, so the match is on the pair. Null while a gate step is
+ * still owed, or when there is none.
  */
+export function homeWorkspace(
+  workspaces: Workspace[],
+  user: AuthGateUser | null,
+  last: WorkspaceRef | null,
+  organizations?: readonly OrganizationGateRef[],
+): Workspace | null {
+  if (pendingAuthStep(user)) return null;
+  const candidates = landable(workspaces, organizations);
+  return (
+    (last && candidates.find((w) => w.organization_slug === last.orgSlug && w.slug === last.wsSlug)) ?? candidates[0] ?? null
+  );
+}
+
+/** Where "Home" leads a signed-in user: the home screen of their homeWorkspace, else the gate or the workspaceless landing. */
 export function resolveHomeDestination(
   workspaces: Workspace[],
   user: AuthGateUser | null,
@@ -100,9 +116,7 @@ export function resolveHomeDestination(
 ): string {
   const step = pendingAuthStep(user);
   if (step) return authStepPath(step);
-  const candidates = landable(workspaces, organizations);
-  const target =
-    (last && candidates.find((w) => w.organization_slug === last.orgSlug && w.slug === last.wsSlug)) ?? candidates[0];
+  const target = homeWorkspace(workspaces, user, last, organizations);
   if (target) return paths.workspace(target.organization_slug, target.slug).root();
   return workspacelessDestination(organizations);
 }

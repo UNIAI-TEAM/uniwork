@@ -411,6 +411,10 @@ const (
 	reasonLink       = "the link secret in the path or body is the credential; holding it is the grant"
 	reasonPlatform   = "platform console: across tenants by design, closed without users.platform_role"
 	reasonStub       = "catalogue stub: the same 422 capability_unavailable for every caller and id"
+	reasonTicket     = "authentication: the sealed sign-in ticket in the caller's HttpOnly cookie is the credential; there is no tenant before sign-in"
+	// reasonNativeTicket is the app's ticket: in the JSON body, and opened
+	// only with the nonce of the sign-in that issued it.
+	reasonNativeTicket = "authentication: the sealed sign-in ticket in the body, which opens only with the nonce of the sign-in that issued it, is the credential; there is no tenant before sign-in"
 )
 
 // isoRoutes holds every route that is not plain isoScoped-with-no-body.
@@ -437,14 +441,42 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/auth/google/callback":      {class: isoPublic, reason: reasonAuth},
 	"GET /api/v1/auth/google/start":         {class: isoPublic, reason: reasonAuth},
 	"POST /api/v1/auth/apple/native":        {class: isoPublic, reason: "authentication: Apple's identity token, signed for this app's bundle id and carrying the hash of the request's nonce, is the credential; it names no tenant row"},
-	"POST /api/v1/auth/login":               {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/logout":              {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/mfa/verify":          {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/password/forgot":     {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/password/reset":      {class: isoPublic, reason: reasonAuth},
-	"GET /api/v1/auth/providers":            {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/refresh":             {class: isoPublic, reason: reasonAuth},
-	"POST /api/v1/auth/register":            {class: isoPublic, reason: reasonAuth},
+	// Sign in with Apple on the web (ADR 0049 §7): the state sealed in the
+	// browser's cookie, and the identity token Apple answers the code with,
+	// are the credential; the result cookie the finish reads is sealed too.
+	"GET /api/v1/auth/apple/start":      {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/apple/callback":  {class: isoPublic, reason: reasonProvider},
+	"GET /api/v1/auth/apple/finish":     {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/login":           {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/logout":          {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/mfa/verify":      {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/password/forgot": {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/password/reset":  {class: isoPublic, reason: reasonAuth},
+	"GET /api/v1/auth/providers":        {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/refresh":         {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/register":        {class: isoPublic, reason: reasonAuth},
+	// The choice screen of a provider sign-in that found no account (ADR
+	// 0049): the sealed ticket in the HttpOnly cookie is the credential, the
+	// identity a provider just proved; it names no tenant row.
+	"GET /api/v1/auth/sign-in-ticket":                     {class: isoPublic, reason: reasonTicket},
+	"DELETE /api/v1/auth/sign-in-ticket":                  {class: isoPublic, reason: reasonTicket},
+	"POST /api/v1/auth/sign-in-ticket/create":             {class: isoPublic, reason: reasonTicket},
+	"POST /api/v1/auth/sign-in-ticket/claim-email":        {class: isoPublic, reason: reasonTicket},
+	"POST /api/v1/auth/sign-in-ticket/claim-email/verify": {class: isoPublic, reason: reasonTicket},
+	"POST /api/v1/auth/sign-in-ticket/link":               {class: isoSelf, reason: "links the ticket's identity into the caller's own account only; the account is the bearer's, the identity the sealed ticket the caller's browser holds, and no id is taken from the request"},
+	// The app's own sign-in screen (ADR 0049 §8): the same credentials as
+	// the browser's doors, in JSON; client_id and deployment_id are
+	// allowlist values, never rows.
+	"POST /api/v1/auth/native/password":                          {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/native/mfa":                               {class: isoPublic, reason: "authentication: the challenge token, signed and bound to this app's client and deployment, with the second factor is the credential; it names no tenant row"},
+	"POST /api/v1/auth/native/google":                            {class: isoPublic, reason: "authentication: Google's ID token, issued to this app's own client (azp) and carrying the hash of the request's nonce, is the credential; it names no tenant row"},
+	"POST /api/v1/auth/native/apple":                             {class: isoPublic, reason: "authentication: Apple's identity token, signed for this app's bundle id and carrying the hash of the request's nonce, is the credential; it names no tenant row"},
+	"POST /api/v1/auth/native/register":                          {class: isoPublic, reason: reasonAuth},
+	"POST /api/v1/auth/native/sign-in-ticket/create":             {class: isoPublic, reason: reasonNativeTicket},
+	"POST /api/v1/auth/native/sign-in-ticket/claim-email":        {class: isoPublic, reason: reasonNativeTicket},
+	"POST /api/v1/auth/native/sign-in-ticket/claim-email/verify": {class: isoPublic, reason: reasonNativeTicket},
+	"POST /api/v1/auth/native/sign-in-ticket/discard":            {class: isoPublic, reason: reasonNativeTicket},
+	"POST /api/v1/auth/native/sign-in-ticket/link":               {class: isoSelf, reason: "links the app's ticket's identity into the caller's own account only; the account is the bearer's device session's, the identity the sealed ticket the app holds with its nonce, and no id is taken from the request"},
 
 	// MCP connector OAuth server (ADR 0031): a client is a program, and the
 	// code, verifier, refresh token or client secret is the credential.
@@ -529,6 +561,16 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/me/mfa/confirm":                             {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/mfa/disable":                             {class: isoSelf, reason: reasonSelf},
 	"POST /api/v1/me/mfa/setup":                               {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/step-up":                                 {class: isoSelf, reason: "proves the caller to their own account; the token it answers is bound to the caller's own session and opens nothing of a tenant's"},
+	"POST /api/v1/me/step-up/email-code":                      {class: isoSelf, reason: "mails a code to the caller's own account address; takes no id"},
+	"GET /api/v1/me/sign-in-methods":                          {class: isoSelf, reason: reasonSelf},
+	"PUT /api/v1/me/password":                                 {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/sign-in-methods/google/link":             {class: isoSelf, reason: "starts a link into the caller's own account; the link token it answers names that account and session, nothing taken from the request"},
+	"POST /api/v1/me/sign-in-methods/apple/link":              {class: isoSelf, reason: "starts a link into the caller's own account; the link token it answers names that account and session, nothing taken from the request"},
+	"POST /api/v1/me/sign-in-methods/google/unlink":           {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/sign-in-methods/apple/unlink":            {class: isoSelf, reason: reasonSelf},
+	"POST /api/v1/me/sign-in-methods/google/native":           {class: isoSelf, reason: "links the identity the app's Google token proves into the caller's own account; no id is taken from the request"},
+	"POST /api/v1/me/sign-in-methods/apple/native":            {class: isoSelf, reason: "links the identity the app's Apple token proves into the caller's own account; no id is taken from the request"},
 	"GET /api/v1/me/notification-preferences":                 {class: isoSelf, reason: reasonSelf},
 	"PUT /api/v1/me/notification-preferences":                 {class: isoSelf, reason: reasonSelf},
 	"GET /api/v1/me/notifications":                            {class: isoSelf, reason: reasonSelf},
@@ -754,6 +796,11 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/shares":                                   {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
 	"POST /api/v1/documents/{documentID}/shares/batch":                             {body: isoWith(map[string]string{}, map[string]any{"principal_ids": []any{"01J8X4K2M0N1P2Q3R4S5T6U7V8"}, "level": "view"})},
 	"PUT /api/v1/documents/{documentID}/access":                                    {body: isoWith(map[string]string{}, map[string]any{"items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}})},
+	// The writer route (plan 5) on the same DOCX frame token. The run and the
+	// conversation ride headers, never the body, so the owner's control is
+	// refused 400 for want of a running turn — after the gates that decide who
+	// is asking, which is all the write control needs.
+	"POST /api/v1/office-frame/documents/{documentID}/ai/uniwork/write": {body: isoJSON(uniworkWriteDocsBody)},
 	// UNI-2244: folder bulk access update and batch progress.
 	"PUT /api/v1/documents/{folderID}/contents-access": {
 		body: isoWith(map[string]string{}, map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}}),
@@ -908,13 +955,16 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs/{org}/ai/memory/import": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
 		return isoBody{json: map[string]any{"entries": []map[string]any{{"kind": "fact", "text": tn.marker + " imported by the route"}}}}
 	}},
-	"PATCH /api/v1/orgs/{org}/ai/memory/{memoryID}":                                                    {body: isoJSON(map[string]any{"text": "edited"})},
-	"PATCH /api/v1/ai/conversations/{conversationID}":                                                  {body: isoJSON(map[string]any{"title": "renamed"})},
-	"PUT /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback":                      {body: isoJSON(map[string]any{"rating": "up"})},
-	"POST /api/v1/workspaces/{workspaceID}/ai/ask":                                                     {body: isoJSON(map[string]any{"question": "what is overdue?"})},
-	"POST /api/v1/workspaces/{workspaceID}/ai/ask/stream":                                              {body: isoJSON(map[string]any{"question": "what is overdue?"})},
-	"POST /api/v1/workspaces/{workspaceID}/ai/attachments":                                             {body: isoFile("note.pdf", "application/pdf", tinyPDF, nil)},
-	"POST /api/v1/workspaces/{workspaceID}/ai/chat/catch-up":                                           {body: isoWith(map[string]string{"room_id": "room"}, nil)},
+	"PATCH /api/v1/orgs/{org}/ai/memory/{memoryID}":                               {body: isoJSON(map[string]any{"text": "edited"})},
+	"PATCH /api/v1/ai/conversations/{conversationID}":                             {body: isoJSON(map[string]any{"title": "renamed"})},
+	"PUT /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback": {body: isoJSON(map[string]any{"rating": "up"})},
+	"POST /api/v1/workspaces/{workspaceID}/ai/ask":                                {body: isoJSON(map[string]any{"question": "what is overdue?"})},
+	"POST /api/v1/workspaces/{workspaceID}/ai/ask/stream":                         {body: isoJSON(map[string]any{"question": "what is overdue?"})},
+	"POST /api/v1/workspaces/{workspaceID}/ai/attachments":                        {body: isoFile("note.pdf", "application/pdf", tinyPDF, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/ai/chat/catch-up":                      {body: isoWith(map[string]string{"room_id": "room"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/ai/chat/task-draft": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"message_ids": []any{tn.ids["message"]}}}
+	}},
 	"POST /api/v1/workspaces/{workspaceID}/icon":                                                       {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/attachments":                                                {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/dm":                                                    {body: isoWith(map[string]string{"user_id": "peer"}, nil)},

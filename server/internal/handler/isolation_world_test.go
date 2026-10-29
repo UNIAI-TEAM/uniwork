@@ -1081,6 +1081,14 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 	}
 	tn.ids["file"] = fileID
 
+	// The handoff package Ask UNI's Apply leaves for the editor AI; no route
+	// writes it yet, so a raw insert names its tenant like the writer will.
+	if _, err := w.pool.Exec(ctx, `INSERT INTO ai_office_handoffs (id, organization_id, workspace_id, user_id, document_id, proposal_id, format, title, request, outline, parts, sources, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'docx', $7, $8, $9, '[]', '[]', now() + interval '24 hours')`,
+		util.NewID(), tn.orgID, tn.wsID, tn.userID, util.NewID(), util.NewID(), m+" handoff", m+" request", m+" outline"); err != nil {
+		t.Fatalf("office handoff: %v", err)
+	}
+
 	// A finished audit export, written by the consumer the outbox drives.
 	consumer := service.NewAuditExportConsumer(w.q, w.deps.Storage)
 	consumer.SetFileService(w.pool, w.files)

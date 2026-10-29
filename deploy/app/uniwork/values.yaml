@@ -3,15 +3,9 @@ namespace: uniwork
 imagePullSecrets:
   - name: harbor-registry
 
-# pool-app (workload=app, no taint) or pool-exam (workload=exam,
-# dedicated=exam:NoSchedule). nodeSelector cannot express that OR.
 scheduling:
-  workloads: [app, exam]
-  tolerations:
-    - key: dedicated
-      operator: Equal
-      value: exam
-      effect: NoSchedule
+  workloads: [shared]
+  tolerations: []
 
 # Non-secret KEY=value files from deploy/app/env/*.env (helm --set-file).
 env:
@@ -63,6 +57,9 @@ be:
     # OpenRouter / OpenAI-compatible key (Email Hub AI, Ask UNI, meeting summary).
     openAPIKey: { name: uniwork-open-api-key, key: OPENAI_API_KEY }
     anthropicAPIKey: { name: uniwork-anthropic-api-key, key: ANTHROPIC_API_KEY }
+    # The meeting agent's STT key, also used by the BE to transcribe meeting recordings.
+    # Optional: without it nothing is transcribed and the recorder stays hidden.
+    assemblyAIAPIKey: { name: uniwork-assemblyai-api-key, key: ASSEMBLYAI_API_KEY }
     # Expo access token for UniChat mobile push (enhanced push security). Optional:
     # create the Secret before turning enhanced push security on in the Expo project.
     expo: { name: uniwork-expo, key: EXPO_ACCESS_TOKEN }
@@ -195,7 +192,7 @@ meetingAgent:
   # and is capped at 1 CPU / 2 GiB. maxReplicas 3 is the ceiling across both
   # nodes; measure a real meeting before raising either number (benchmark #13).
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 1
   # Scale on meetings per pod instead of CPU (benchmark #13): KEDA reads
   # scribe_jobs_running from Prometheus and keeps about jobsPerPod meetings on
   # each pod; prescale holds prescale.replicas from a few minutes before each

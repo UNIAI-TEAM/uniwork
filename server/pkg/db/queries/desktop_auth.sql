@@ -18,14 +18,25 @@ WHERE id = $1 AND (user_id IS NULL OR user_id = $2)
 RETURNING *;
 
 -- name: ApproveDesktopAuthAttempt :one
+-- approver_signed_in_at is when the approving session signed in, which the
+-- device session the code opens inherits (ADR 0049).
 UPDATE desktop_auth_attempts
-SET user_id = $2, code_digest = $3, code_expires_at = $4, approved_at = now(), csrf_digest = NULL
+SET user_id = $2, code_digest = $3, code_expires_at = $4, approved_at = now(), csrf_digest = NULL,
+    approver_signed_in_at = $5
 WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND cancelled_at IS NULL AND approved_at IS NULL AND expires_at > now()
 RETURNING *;
 
 -- name: CancelDesktopAuthAttempt :execrows
 UPDATE desktop_auth_attempts SET cancelled_at = now()
 WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND cancelled_at IS NULL AND expires_at > now();
+
+-- name: CancelOpenDesktopAuthAttemptsForUser :execrows
+-- An account taken back by the owner of its mailbox, or whose password a reset
+-- link replaced (ADR 0049): every attempt claimed or approved before and
+-- nobody redeemed yet dies, so an approved code cannot open a device session
+-- after the reclaim or the reset.
+UPDATE desktop_auth_attempts SET cancelled_at = now()
+WHERE user_id = $1 AND used_at IS NULL AND cancelled_at IS NULL;
 
 -- name: RedeemDesktopAuthAttempt :one
 UPDATE desktop_auth_attempts SET used_at = now()
@@ -36,8 +47,8 @@ RETURNING *;
 -- name: CreateDeviceSession :one
 INSERT INTO device_sessions (
   id, user_id, session_family_id, client_id, deployment_id, device_label,
-  platform, build, refresh_token_digest, expires_at, created_by_kind
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+  platform, build, refresh_token_digest, expires_at, created_by_kind, signed_in_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetDeviceSession :one
@@ -61,6 +72,22 @@ UPDATE device_sessions d SET revoked_at = COALESCE(d.revoked_at, now())
 FROM (
   SELECT l.id FROM device_sessions l
   WHERE l.user_id = sqlc.arg(user_id) AND l.revoked_at IS NULL
+  ORDER BY l.id
+  FOR UPDATE
+) live
+WHERE d.id = live.id;
+
+-- name: RevokeOtherDeviceSessions :execrows
+-- First half of revoking every session but the caller's
+-- (revokeOtherUserSessions; the refresh tokens follow): every live device of
+-- the user outside the kept family, locked in id order like
+-- RevokeAllDeviceSessions, so the two and a logout take locks in one order.
+-- A browser caller keeps no family: its session id names none.
+UPDATE device_sessions d SET revoked_at = COALESCE(d.revoked_at, now())
+FROM (
+  SELECT l.id FROM device_sessions l
+  WHERE l.user_id = sqlc.arg(user_id) AND l.revoked_at IS NULL
+    AND l.session_family_id <> sqlc.arg(keep_family_id)
   ORDER BY l.id
   FOR UPDATE
 ) live

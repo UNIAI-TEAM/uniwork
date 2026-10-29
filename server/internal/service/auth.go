@@ -32,6 +32,8 @@ type AuthService struct {
 	verification *VerificationService
 	// sealer keeps TOTP secrets unreadable at rest; keyed from the JWT
 	// secret so no second secret has to be configured (spec F-01 §2 I2).
+	// main.go injects the server's one sealer (SetSealer); the one derived
+	// here from the minter's secret is the same key, for the tests.
 	sealer auth.SecretSealer
 	// render/out are nil-safe: without SetMail no new-login mail goes out.
 	render mail.Renderer
@@ -46,6 +48,12 @@ type AuthService struct {
 	// apple is optional: wired, DeleteAccount revokes the Sign in with Apple
 	// token the account kept (ADR 0041).
 	apple *AppleAuthService
+	// proofVerifiers check the provider tokens the app offers as a step-up
+	// proof, by provider; one is offered only once its verifier is here.
+	proofVerifiers map[string]ProviderProofVerifier
+	// googleNative checks the app's Google ID tokens (SetGoogleNative); nil
+	// keeps the app's Google door closed.
+	googleNative GoogleTokenVerifier
 	// drive is optional: wired, DeleteAccount revokes the Google Drive grants
 	// of the connections it disconnects after commit (spec §5.3a).
 	drive *DriveConnectionService
@@ -56,18 +64,35 @@ func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, 
 	return &AuthService{pool: pool, q: q, minter: minter, refreshTTL: refreshTTL, verification: verification, sealer: sealer, now: time.Now}
 }
 
-// SetMail enables the new-device login alert (spec F-01 §2 I8).
+// SetMail enables the new-device login alert (spec F-01 §2 I8) and the
+// sign-in method notices the provider sign-ins built on this service queue.
 func (s *AuthService) SetMail(r mail.Renderer, out mail.Enqueuer) {
 	s.render, s.out = r, out
 }
+
+// SetSealer hands the service the server's one sealer, which main.go builds
+// from the JWT secret and every service shares (ADR 0049).
+func (s *AuthService) SetSealer(sealer auth.SecretSealer) { s.sealer = sealer }
 
 // SetEmailHub lets DeleteAccount revoke the refresh tokens it removes; main
 // wires it once EmailHubService exists.
 func (s *AuthService) SetEmailHub(h *EmailHubService) { s.emailHub = h }
 
-// SetApple lets DeleteAccount revoke the account's Sign in with Apple token;
-// main wires it when Sign in with Apple is configured.
-func (s *AuthService) SetApple(a *AppleAuthService) { s.apple = a }
+// SetApple lets DeleteAccount revoke the account's Sign in with Apple token,
+// and a fresh identity token from the iPhone's Apple sheet prove an
+// Apple-linked account in a step-up; main wires it when Sign in with Apple is
+// configured.
+func (s *AuthService) SetApple(a *AppleAuthService) {
+	s.apple = a
+	if a == nil || a.verifier == nil {
+		s.setProofVerifier(ProviderApple, nil)
+		return
+	}
+	s.setProofVerifier(ProviderApple, func(ctx context.Context, token, nonce string) (string, time.Time, error) {
+		c, err := a.verifier.Verify(ctx, token, nonce)
+		return c.Sub, c.IssuedAt, err
+	})
+}
 
 // SetDrive lets DeleteAccount revoke the Google Drive grants it disconnects after commit.
 func (s *AuthService) SetDrive(d *DriveConnectionService) { s.drive = d }
@@ -125,6 +150,14 @@ type Session struct {
 	// MFAToken is set instead of the tokens above when the account has MFA
 	// on: the first factor passed, the second is still owed (spec F-01 §2 I4).
 	MFAToken string
+	// LinkSkipped, after a second factor whose challenge carried a pending
+	// provider link: why the identity was not linked (ADR 0049, spec §3.3).
+	// The sign-in itself succeeded; the client offers Settings instead.
+	LinkSkipped string
+	// Reclaimed: this sign-in took the account back from whoever registered
+	// the address before proving it (a reset link on an unverified account);
+	// the client says so once.
+	Reclaimed bool
 }
 
 // MFAPending reports whether the caller must still answer the TOTP challenge.
@@ -149,37 +182,62 @@ func validatePassword(p string) error {
 }
 
 func (s *AuthService) Register(ctx context.Context, email, password, displayName, locale string) (Session, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	if !strings.Contains(email, "@") || len(email) < 5 {
-		return Session{}, Invalid("email không hợp lệ")
-	}
-	if err := validatePassword(password); err != nil {
+	p, err := newPasswordAccount(email, password, displayName, locale)
+	if err != nil {
 		return Session{}, err
 	}
+	u, err := createPasswordAccount(ctx, s.q, p)
+	if err != nil {
+		return Session{}, err
+	}
+	s.sendVerificationAfterSignUp(ctx, u.ID)
+	return s.mintSession(ctx, u, "", "")
+}
+
+// newPasswordAccount checks a sign-up by email (the web's and the app's) and
+// hashes its password: the row createPasswordAccount inserts.
+func newPasswordAccount(email, password, displayName, locale string) (db.CreateUserParams, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if !strings.Contains(email, "@") || len(email) < 5 {
+		return db.CreateUserParams{}, Invalid("email không hợp lệ")
+	}
+	if err := validatePassword(password); err != nil {
+		return db.CreateUserParams{}, err
+	}
 	if strings.TrimSpace(displayName) == "" {
-		return Session{}, Invalid("tên hiển thị không được để trống")
+		return db.CreateUserParams{}, Invalid("tên hiển thị không được để trống")
 	}
 	hash, err := auth.HashPassword(password)
 	if err != nil {
-		return Session{}, err
+		return db.CreateUserParams{}, err
 	}
-	userID := util.NewID()
-	u, err := s.q.CreateUser(ctx, db.CreateUserParams{
-		ID: userID, Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
+	return db.CreateUserParams{
+		ID: util.NewID(), Email: email, PasswordHash: pgtype.Text{String: hash, Valid: true}, DisplayName: displayName,
 		Locale: NormalizeLocale(locale),
-	})
+	}, nil
+}
+
+// createPasswordAccount inserts a sign-up's account in q; an address another
+// account holds is ErrConflict. The address starts unverified: the caller
+// mails the code once its transaction committed.
+func createPasswordAccount(ctx context.Context, q *db.Queries, p db.CreateUserParams) (db.User, error) {
+	u, err := q.CreateUser(ctx, p)
 	if isUniqueViolation(err) {
-		return Session{}, ErrConflict
+		return db.User{}, ErrConflict
 	}
-	if err != nil {
-		return Session{}, err
+	return u, err
+}
+
+// sendVerificationAfterSignUp mails the code that proves a new account's
+// address, best effort: the account exists either way and the person can ask
+// for the code again.
+func (s *AuthService) sendVerificationAfterSignUp(ctx context.Context, userID string) {
+	if s.verification == nil {
+		return
 	}
-	if s.verification != nil {
-		if err := s.verification.Send(ctx, u.ID); err != nil {
-			slog.Warn("send verification code after register", "user", u.ID, "err", err)
-		}
+	if err := s.verification.Send(ctx, userID); err != nil {
+		slog.Warn("send verification code after sign-up", "user", userID, "err", err)
 	}
-	return s.mintSession(ctx, u, "", "")
 }
 
 func (s *AuthService) Login(ctx context.Context, email, password string) (Session, error) {
@@ -201,11 +259,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (Sessio
 // on means a challenge token, otherwise a session plus the login audit row.
 func (s *AuthService) sessionOrChallenge(ctx context.Context, u db.User, meta map[string]any) (Session, error) {
 	if u.MfaEnabledAt.Valid {
-		tok, err := s.minter.MintMFA(u.ID)
-		if err != nil {
-			return Session{}, err
-		}
-		return Session{User: s.decorateAvatar(ctx, u), MFAToken: tok}, nil
+		return s.challengeOn(ctx, u, auth.MFAChallenge{Channel: auth.MFAChannelWeb})
 	}
 	sess, err := s.mintSession(ctx, u, "", "")
 	if err != nil {
@@ -215,24 +269,80 @@ func (s *AuthService) sessionOrChallenge(ctx context.Context, u db.User, meta ma
 	return sess, nil
 }
 
+// reclaimedSession opens the session of a reclaim (a provider that owns the
+// address, a reset link) with its login audit row and no new-login alert:
+// the reclaim already told the owner and ended every session before it, and
+// the sessions it ended would make the owner's own browser read as new. The
+// reclaim cleared the second factor, so no challenge is owed.
+func (s *AuthService) reclaimedSession(ctx context.Context, u db.User, meta map[string]any) (Session, error) {
+	sess, _, err := s.openSessionTx(ctx, u, "", "")
+	if err != nil {
+		return Session{}, err
+	}
+	s.recordAuth(ctx, audit.ActionAuthLoginSucceeded, u.ID, meta)
+	return sess, nil
+}
+
+// challengeOn answers a first factor that passed on an account with a
+// second factor: the challenge token for ch's channel (and native client),
+// in place of a session.
+func (s *AuthService) challengeOn(ctx context.Context, u db.User, ch auth.MFAChallenge) (Session, error) {
+	ch.UserID = u.ID
+	tok, err := s.minter.MintMFA(ch)
+	if err != nil {
+		return Session{}, err
+	}
+	return Session{User: s.decorateAvatar(ctx, u), MFAToken: tok}, nil
+}
+
+// Refresh rotates a browser session's refresh token. It runs in one
+// transaction under the account's row held FOR SHARE, which every
+// account-wide revocation (a reclaim, a password change or reset, an unlink)
+// takes FOR UPDATE before it revokes: the token is read again once the row
+// is held, so a revocation that committed meanwhile ended it, and one that
+// comes after waits for the successor and ends it too. Two refreshes of the
+// same token at once still both rotate, as before.
 func (s *AuthService) Refresh(ctx context.Context, rawToken string) (Session, error) {
-	rt, err := s.q.GetRefreshTokenByHash(ctx, hashToken(rawToken))
+	hash := hashToken(rawToken)
+	rt, err := s.q.GetRefreshTokenByHash(ctx, hash)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, ErrInvalidCredentials
 	}
 	if err != nil {
 		return Session{}, err
 	}
-	if err := s.q.RevokeRefreshToken(ctx, rt.TokenHash); err != nil {
-		return Session{}, err
-	}
-	u, err := s.q.GetUserByID(ctx, rt.UserID)
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Session{}, err
 	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	q := s.q.WithTx(tx)
+	u, err := q.GetUserForShare(ctx, rt.UserID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, ErrInvalidCredentials
+	}
+	if err != nil {
+		return Session{}, err
+	}
+	if _, err := q.GetRefreshTokenByHash(ctx, hash); errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, ErrInvalidCredentials
+	} else if err != nil {
+		return Session{}, err
+	}
+	if err := q.RevokeRefreshToken(ctx, hash); err != nil {
+		return Session{}, err
+	}
 	// Rotation stays inside the session: same id, same browser string; the
-	// address is whatever the client is on now.
-	return s.mintSession(ctx, u, rt.SessionID, rt.UserAgent)
+	// address is whatever the client is on now. A rotation is never a new
+	// device, so there is no alert to send.
+	sess, _, err := s.openSession(ctx, q, u, rt.SessionID, rt.UserAgent)
+	if err != nil {
+		return Session{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Session{}, err
+	}
+	return sess, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, rawToken string) error {
@@ -381,6 +491,71 @@ func (s *AuthService) SessionFor(ctx context.Context, u db.User) (Session, error
 // from a browser string this account has never used gets the alert mail;
 // the very first session of an account (registration) does not.
 func (s *AuthService) mintSession(ctx context.Context, u db.User, sessionID, inheritedUA string) (Session, error) {
+	sess, newDevice, err := s.openSessionTx(ctx, u, sessionID, inheritedUA)
+	if err != nil {
+		return Session{}, err
+	}
+	if newDevice {
+		s.sendNewLoginMail(ctx, sess.User, sessionMetaFrom(ctx))
+	}
+	return sess, nil
+}
+
+// openSessionTx is openSession in a transaction of its own, for a first
+// factor that wrote nothing else: the account's row is held until the
+// session commits (holdAccountForSession).
+func (s *AuthService) openSessionTx(ctx context.Context, u db.User, sessionID, inheritedUA string) (Session, bool, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Session{}, false, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	sess, newDevice, err := s.openSession(ctx, s.q.WithTx(tx), u, sessionID, inheritedUA)
+	if err != nil {
+		return Session{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Session{}, false, err
+	}
+	return sess, newDevice, nil
+}
+
+// holdAccountForSession holds u's row FOR SHARE in q's transaction until it
+// commits, so opening a session and an account-wide revocation (which takes
+// the row FOR UPDATE before it revokes) never interleave: the revocation
+// either ends this session too or commits first, and this then sees it. u
+// is the row the session's first factor was judged against (a password, a
+// provider, a reset link, a second step); when the account was erased since,
+// or its credentials changed since (credentials_revoked_at moved: a reclaim,
+// a password change or reset, an unlink), that judgement no longer stands
+// and the answer is invalid_credentials.
+func holdAccountForSession(ctx context.Context, q *db.Queries, u db.User) error {
+	held, err := q.GetUserForShare(ctx, u.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrInvalidCredentials
+	}
+	if err != nil {
+		return err
+	}
+	same := held.CredentialsRevokedAt.Valid == u.CredentialsRevokedAt.Valid &&
+		(!held.CredentialsRevokedAt.Valid || held.CredentialsRevokedAt.Time.Equal(u.CredentialsRevokedAt.Time))
+	if held.DeletedAt.Valid || !same {
+		return ErrInvalidCredentials
+	}
+	return nil
+}
+
+// openSession is mintSession in the caller's transaction (q), for a
+// command whose session commits together with what it wrote (the link a
+// second factor finishes). It holds the account's row for the session
+// (holdAccountForSession), so q must be a transaction's. It reports whether
+// the browser is new to the account instead of mailing: the alert is
+// best-effort, and a failed insert would abort the caller's transaction, so
+// the caller mails after commit.
+func (s *AuthService) openSession(ctx context.Context, q *db.Queries, u db.User, sessionID, inheritedUA string) (Session, bool, error) {
+	if err := holdAccountForSession(ctx, q, u); err != nil {
+		return Session{}, false, err
+	}
 	u = s.decorateAvatar(ctx, u)
 	meta := sessionMetaFrom(ctx)
 	if sessionID != "" {
@@ -389,42 +564,47 @@ func (s *AuthService) mintSession(ctx context.Context, u db.User, sessionID, inh
 	newDevice := false
 	if sessionID == "" {
 		sessionID = util.NewID()
-		newDevice = s.isNewDevice(ctx, u.ID, meta.UserAgent)
+		newDevice = s.isNewDevice(ctx, q, u.ID, meta.UserAgent)
 	}
 	access, err := s.minter.MintWebSession(u.ID, sessionID)
 	if err != nil {
-		return Session{}, err
+		return Session{}, false, err
 	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
-		return Session{}, err
+		return Session{}, false, err
 	}
 	refresh := hex.EncodeToString(raw)
 	exp := s.now().Add(s.refreshTTL)
-	_, err = s.q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
+	_, err = q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
 		ID: util.NewID(), UserID: u.ID, TokenHash: hashToken(refresh),
 		ExpiresAt: pgtype.Timestamptz{Time: exp, Valid: true},
 		SessionID: sessionID, UserAgent: meta.UserAgent, Ip: meta.IP,
 	})
 	if err != nil {
-		return Session{}, err
+		return Session{}, false, err
 	}
-	if newDevice {
-		s.sendNewLoginMail(ctx, u, meta)
-	}
-	return Session{User: u, AccessToken: access, RefreshToken: refresh, RefreshExpiresAt: exp, SessionID: sessionID}, nil
+	return Session{User: u, AccessToken: access, RefreshToken: refresh, RefreshExpiresAt: exp, SessionID: sessionID}, newDevice, nil
 }
 
-func (s *AuthService) isNewDevice(ctx context.Context, userID, ua string) bool {
+// isNewDevice reads in q, the caller's transaction when there is one, so it
+// sees what that transaction wrote and holds no second connection.
+func (s *AuthService) isNewDevice(ctx context.Context, q *db.Queries, userID, ua string) bool {
 	if s.out == nil {
 		return false
 	}
-	total, err := s.q.CountRefreshTokensForUser(ctx, userID)
+	total, err := q.CountRefreshTokensForUser(ctx, userID)
 	if err != nil || total == 0 {
 		return false
 	}
-	same, err := s.q.CountRefreshTokensForUserAgent(ctx, db.CountRefreshTokensForUserAgentParams{UserID: userID, UserAgent: ua})
+	same, err := q.CountRefreshTokensForUserAgent(ctx, db.CountRefreshTokensForUserAgentParams{UserID: userID, UserAgent: ua})
 	return err == nil && same == 0
+}
+
+// signInMailer is where this service's sign-in commands queue their
+// sign_in_method_changed notices (nil-safe without SetMail).
+func (s *AuthService) signInMailer() signInMailer {
+	return signInMailer{render: s.render, out: s.out, now: s.now}
 }
 
 // sendNewLoginMail is best-effort: a login must not fail because the alert

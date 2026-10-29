@@ -144,7 +144,7 @@ describe("route coverage stays in step with paths.ts", () => {
       invitations: paths.invitations,
       onboarding: paths.onboarding,
       root: paths.root,
-    } as Record<string, (...args: string[]) => string>;
+    } as unknown as Record<string, (...args: string[]) => string>;
 
     return [...Object.values(scoped), ...Object.values(global)].map((build) =>
       build(RAW_ID, RAW_SECOND_ID),

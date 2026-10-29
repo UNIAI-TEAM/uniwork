@@ -36,7 +36,7 @@ UPDATE meetings SET
   updated_at = now(),
   version = version + 1
 WHERE id = $3 AND status = 'SCHEDULED' AND version = $4
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue
 `
 
 type CancelMeetingParams struct {
@@ -96,6 +96,7 @@ func (q *Queries) CancelMeeting(ctx context.Context, arg CancelMeetingParams) (M
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }
@@ -148,13 +149,13 @@ const createMeeting = `-- name: CreateMeeting :one
 INSERT INTO meetings (
   id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_by_kind,
   status, meeting_type, host_user_id, timezone, allow_join_request, version, updated_by, project_id, preferred_provider_key,
-  organization_id, series_id
+  organization_id, series_id, venue
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, $16,
   $9, $10, $11, $12, $13, 1, $8, $14, $15,
-  $17, $18
+  $17, $18, $19
 )
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue
 `
 
 type CreateMeetingParams struct {
@@ -176,6 +177,7 @@ type CreateMeetingParams struct {
 	CreatedByKind        string             `json:"created_by_kind"`
 	OrganizationID       string             `json:"organization_id"`
 	SeriesID             pgtype.Text        `json:"series_id"`
+	Venue                string             `json:"venue"`
 }
 
 func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (Meeting, error) {
@@ -198,6 +200,7 @@ func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (M
 		arg.CreatedByKind,
 		arg.OrganizationID,
 		arg.SeriesID,
+		arg.Venue,
 	)
 	var i Meeting
 	err := row.Scan(
@@ -241,6 +244,7 @@ func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (M
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }
@@ -307,7 +311,7 @@ UPDATE meetings SET
   updated_at = now(),
   version = version + 1
 WHERE id = $2 AND status = 'IN_PROGRESS' AND version = $3
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue
 `
 
 type EndMeetingParams struct {
@@ -361,12 +365,13 @@ func (q *Queries) EndMeeting(ctx context.Context, arg EndMeetingParams) (Meeting
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }
 
 const getMeeting = `-- name: GetMeeting :one
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id FROM meetings WHERE id = $1
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue FROM meetings WHERE id = $1
 `
 
 // tenant: by-id
@@ -414,6 +419,7 @@ func (q *Queries) GetMeeting(ctx context.Context, id string) (Meeting, error) {
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }
@@ -543,7 +549,7 @@ func (q *Queries) ListMeetingNotes(ctx context.Context, meetingID string) ([]Lis
 }
 
 const listMeetingsByWorkspace = `-- name: ListMeetingsByWorkspace :many
-SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id FROM meetings WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue FROM meetings WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC
 `
 
 func (q *Queries) ListMeetingsByWorkspace(ctx context.Context, workspaceID string) ([]Meeting, error) {
@@ -596,6 +602,7 @@ func (q *Queries) ListMeetingsByWorkspace(ctx context.Context, workspaceID strin
 			&i.AiContentSharedAt,
 			&i.AiContentSharedBy,
 			&i.SeriesID,
+			&i.Venue,
 		); err != nil {
 			return nil, err
 		}
@@ -608,33 +615,47 @@ func (q *Queries) ListMeetingsByWorkspace(ctx context.Context, workspaceID strin
 }
 
 const listMeetingsByWorkspaceFiltered = `-- name: ListMeetingsByWorkspaceFiltered :many
-SELECT meetings.id, meetings.workspace_id, meetings.title, meetings.description, meetings.starts_at, meetings.ends_at, meetings.room_name, meetings.created_by, meetings.created_at, meetings.updated_at, meetings.status, meetings.meeting_type, meetings.host_user_id, meetings.actual_start_at, meetings.actual_end_at, meetings.timezone, meetings.allow_join_request, meetings.preferred_provider_key, meetings.version, meetings.updated_by, meetings.canceled_by, meetings.canceled_at, meetings.cancel_reason, meetings.project_id, meetings.created_by_kind, meetings.quorum_percent, meetings.attendance_finalized_at, meetings.attendance_finalized_by, meetings.organization_id, meetings.scribe_off_at, meetings.scribe_off_by, meetings.minutes_document_id, meetings.minutes_finalized_at, meetings.minutes_finalized_by, meetings.minutes_finalized_version_id, meetings.dial_in_pin, meetings.sip_dispatch_rule_id, meetings.ai_content_shared_at, meetings.ai_content_shared_by, meetings.series_id,
+SELECT meetings.id, meetings.workspace_id, meetings.title, meetings.description, meetings.starts_at, meetings.ends_at, meetings.room_name, meetings.created_by, meetings.created_at, meetings.updated_at, meetings.status, meetings.meeting_type, meetings.host_user_id, meetings.actual_start_at, meetings.actual_end_at, meetings.timezone, meetings.allow_join_request, meetings.preferred_provider_key, meetings.version, meetings.updated_by, meetings.canceled_by, meetings.canceled_at, meetings.cancel_reason, meetings.project_id, meetings.created_by_kind, meetings.quorum_percent, meetings.attendance_finalized_at, meetings.attendance_finalized_by, meetings.organization_id, meetings.scribe_off_at, meetings.scribe_off_by, meetings.minutes_document_id, meetings.minutes_finalized_at, meetings.minutes_finalized_by, meetings.minutes_finalized_version_id, meetings.dial_in_pin, meetings.sip_dispatch_rule_id, meetings.ai_content_shared_at, meetings.ai_content_shared_by, meetings.series_id, meetings.venue,
   EXISTS (
     SELECT 1 FROM meeting_recordings r
     WHERE r.meeting_id = meetings.id AND r.file_url IS NOT NULL AND r.file_url <> ''
-  )::boolean AS has_playable_recording
+  )::boolean AS has_playable_recording,
+  (CASE WHEN meetings.status = 'IN_PROGRESS' THEN ARRAY(
+    SELECT p.user_id FROM meeting_attendance_sessions a
+    JOIN meeting_participants p ON p.id = a.participant_id
+    WHERE a.meeting_id = meetings.id AND a.left_at IS NULL AND p.user_id <> ''
+    GROUP BY p.user_id ORDER BY min(a.joined_at), p.user_id LIMIT 3
+  ) ELSE '{}' END)::text[] AS in_room_user_ids,
+  (CASE WHEN meetings.status = 'IN_PROGRESS' THEN (
+    SELECT count(DISTINCT a.participant_id) FROM meeting_attendance_sessions a
+    WHERE a.meeting_id = meetings.id AND a.left_at IS NULL
+  ) ELSE 0 END)::int AS in_room_count,
+  (meetings.status = 'IN_PROGRESS' AND COALESCE((
+    SELECT sr.status FROM meeting_scribe_runs sr
+    WHERE sr.meeting_id = meetings.id ORDER BY sr.created_at DESC, sr.id DESC LIMIT 1
+  ) = 'ACTIVE', false))::boolean AS scribe_live
 FROM meetings
-WHERE workspace_id = $1
+WHERE meetings.workspace_id = $1
   AND ($2::text IS NULL
-    OR ($2 = 'MISSED' AND status = 'SCHEDULED' AND ends_at < $3::timestamptz)
-    OR ($2 = 'SCHEDULED' AND status = 'SCHEDULED' AND ends_at >= $3::timestamptz)
-    OR ($2 NOT IN ('SCHEDULED', 'MISSED') AND status = $2))
-  AND ($4::text IS NULL OR meeting_type = $4)
-  AND ($5::text IS NULL OR host_user_id = $5)
-  AND ($6::text IS NULL OR project_id = $6)
-  AND ($7::text IS NULL OR title ILIKE '%' || $7 || '%')
-  AND ($8::timestamptz IS NULL OR starts_at >= $8)
-  AND ($9::timestamptz IS NULL OR starts_at <= $9)
+    OR ($2 = 'MISSED' AND meetings.status = 'SCHEDULED' AND meetings.ends_at < $3::timestamptz)
+    OR ($2 = 'SCHEDULED' AND meetings.status = 'SCHEDULED' AND meetings.ends_at >= $3::timestamptz)
+    OR ($2 NOT IN ('SCHEDULED', 'MISSED') AND meetings.status = $2))
+  AND ($4::text IS NULL OR meetings.meeting_type = $4)
+  AND ($5::text IS NULL OR meetings.host_user_id = $5)
+  AND ($6::text IS NULL OR meetings.project_id = $6)
+  AND ($7::text IS NULL OR meetings.title ILIKE '%' || $7 || '%')
+  AND ($8::timestamptz IS NULL OR meetings.starts_at >= $8)
+  AND ($9::timestamptz IS NULL OR meetings.starts_at <= $9)
 ORDER BY
-  CASE WHEN $10 = 'actual_start_at' THEN actual_start_at END DESC NULLS LAST,
+  CASE WHEN $10 = 'actual_start_at' THEN meetings.actual_start_at END DESC NULLS LAST,
   CASE WHEN $10 = 'starts_at'
-    THEN (starts_at AT TIME ZONE $11::text)::date < $12::date END ASC,
-  CASE WHEN $10 = 'starts_at' AND (starts_at AT TIME ZONE $11::text)::date < $12::date
-    THEN (starts_at AT TIME ZONE $11::text)::date END DESC NULLS LAST,
-  CASE WHEN $10 = 'starts_at' THEN starts_at END ASC,
-  CASE WHEN $10 = 'starts_at' THEN id END ASC,
-  created_at DESC,
-  id DESC
+    THEN (meetings.starts_at AT TIME ZONE $11::text)::date < $12::date END ASC,
+  CASE WHEN $10 = 'starts_at' AND (meetings.starts_at AT TIME ZONE $11::text)::date < $12::date
+    THEN (meetings.starts_at AT TIME ZONE $11::text)::date END DESC NULLS LAST,
+  CASE WHEN $10 = 'starts_at' THEN meetings.starts_at END ASC,
+  CASE WHEN $10 = 'starts_at' THEN meetings.id END ASC,
+  meetings.created_at DESC,
+  meetings.id DESC
 LIMIT $14 OFFSET $13
 `
 
@@ -656,8 +677,11 @@ type ListMeetingsByWorkspaceFilteredParams struct {
 }
 
 type ListMeetingsByWorkspaceFilteredRow struct {
-	Meeting              Meeting `json:"meeting"`
-	HasPlayableRecording bool    `json:"has_playable_recording"`
+	Meeting              Meeting  `json:"meeting"`
+	HasPlayableRecording bool     `json:"has_playable_recording"`
+	InRoomUserIds        []string `json:"in_room_user_ids"`
+	InRoomCount          int32    `json:"in_room_count"`
+	ScribeLive           bool     `json:"scribe_live"`
 }
 
 // sort = 'starts_at' is the list screen's calendar order: meetings on
@@ -669,6 +693,9 @@ type ListMeetingsByWorkspaceFilteredRow struct {
 // that differs: a SCHEDULED meeting whose window passed (ends_at < now) is
 // MISSED, and status = 'SCHEDULED' lists only the ones that can still start.
 // Every other value matches the stored status.
+// A live (IN_PROGRESS) row also says who is in the room: up to three member
+// user ids by first open-session join, everyone in it (guests included), and
+// whether the latest scribe run is ACTIVE. Other rows skip those lookups.
 func (q *Queries) ListMeetingsByWorkspaceFiltered(ctx context.Context, arg ListMeetingsByWorkspaceFilteredParams) ([]ListMeetingsByWorkspaceFilteredRow, error) {
 	rows, err := q.db.Query(ctx, listMeetingsByWorkspaceFiltered,
 		arg.WorkspaceID,
@@ -734,7 +761,11 @@ func (q *Queries) ListMeetingsByWorkspaceFiltered(ctx context.Context, arg ListM
 			&i.Meeting.AiContentSharedAt,
 			&i.Meeting.AiContentSharedBy,
 			&i.Meeting.SeriesID,
+			&i.Meeting.Venue,
 			&i.HasPlayableRecording,
+			&i.InRoomUserIds,
+			&i.InRoomCount,
+			&i.ScribeLive,
 		); err != nil {
 			return nil, err
 		}
@@ -799,7 +830,7 @@ UPDATE meetings SET
   updated_at = now(),
   version = version + 1
 WHERE id = $2 AND status = 'CANCELED' AND version = $3 AND ends_at > now()
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue
 `
 
 type RestoreMeetingParams struct {
@@ -854,6 +885,7 @@ func (q *Queries) RestoreMeeting(ctx context.Context, arg RestoreMeetingParams) 
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }
@@ -866,7 +898,7 @@ UPDATE meetings SET
   updated_at = now(),
   version = version + 1
 WHERE id = $2 AND status = 'SCHEDULED' AND version = $3
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue
 `
 
 type StartMeetingParams struct {
@@ -920,6 +952,7 @@ func (q *Queries) StartMeeting(ctx context.Context, arg StartMeetingParams) (Mee
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }
@@ -932,7 +965,7 @@ UPDATE meetings SET
   version = version + 1
 WHERE id = $3 AND version = $4
   AND status IN ('SCHEDULED', 'IN_PROGRESS')
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue
 `
 
 type TransferMeetingHostParams struct {
@@ -992,6 +1025,7 @@ func (q *Queries) TransferMeetingHost(ctx context.Context, arg TransferMeetingHo
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }
@@ -1004,22 +1038,23 @@ UPDATE meetings SET
   ends_at     = COALESCE($4, ends_at),
   timezone    = COALESCE($5, timezone),
   allow_join_request = COALESCE($6, allow_join_request),
+  venue       = COALESCE($7, venue),
   -- NULL keeps the project; '' clears it to NULL (C-11 §9.1 V2: the graph
   -- reads NULL as "no project", never '').
   project_id  = CASE
-    WHEN $7::text IS NULL THEN project_id
-    ELSE NULLIF($7::text, '')
+    WHEN $8::text IS NULL THEN project_id
+    ELSE NULLIF($8::text, '')
   END,
   quorum_percent = CASE
-    WHEN $8::smallint IS NULL THEN quorum_percent
-    WHEN $8::smallint = 0 THEN NULL
-    ELSE $8::smallint
+    WHEN $9::smallint IS NULL THEN quorum_percent
+    WHEN $9::smallint = 0 THEN NULL
+    ELSE $9::smallint
   END,
-  updated_by  = $9,
+  updated_by  = $10,
   updated_at  = now(),
   version     = version + 1
-WHERE id = $10 AND version = $11
-RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id
+WHERE id = $11 AND version = $12
+RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by, organization_id, scribe_off_at, scribe_off_by, minutes_document_id, minutes_finalized_at, minutes_finalized_by, minutes_finalized_version_id, dial_in_pin, sip_dispatch_rule_id, ai_content_shared_at, ai_content_shared_by, series_id, venue
 `
 
 type UpdateMeetingParams struct {
@@ -1029,6 +1064,7 @@ type UpdateMeetingParams struct {
 	EndsAt           pgtype.Timestamptz `json:"ends_at"`
 	Timezone         pgtype.Text        `json:"timezone"`
 	AllowJoinRequest pgtype.Bool        `json:"allow_join_request"`
+	Venue            pgtype.Text        `json:"venue"`
 	ProjectID        pgtype.Text        `json:"project_id"`
 	QuorumPercent    pgtype.Int2        `json:"quorum_percent"`
 	UpdatedBy        pgtype.Text        `json:"updated_by"`
@@ -1045,6 +1081,7 @@ func (q *Queries) UpdateMeeting(ctx context.Context, arg UpdateMeetingParams) (M
 		arg.EndsAt,
 		arg.Timezone,
 		arg.AllowJoinRequest,
+		arg.Venue,
 		arg.ProjectID,
 		arg.QuorumPercent,
 		arg.UpdatedBy,
@@ -1093,6 +1130,7 @@ func (q *Queries) UpdateMeeting(ctx context.Context, arg UpdateMeetingParams) (M
 		&i.AiContentSharedAt,
 		&i.AiContentSharedBy,
 		&i.SeriesID,
+		&i.Venue,
 	)
 	return i, err
 }

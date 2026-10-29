@@ -49,6 +49,11 @@ const (
 	UniworkConversationHeader = "X-UniWork-AI-Conversation"
 	// UniworkRunHeader is A12 too; G6-03b owns issuing and checking it.
 	UniworkRunHeader = "X-UniWork-AI-Run"
+	// UniworkHandoffHeader names the Ask UNI handoff package a turn works on
+	// (ADR 0048); UniworkHandoffRemainingHeader answers the parts left after
+	// a turn the package expanded.
+	UniworkHandoffHeader          = "X-UniWork-AI-Handoff"
+	UniworkHandoffRemainingHeader = "X-UniWork-AI-Handoff-Remaining"
 )
 
 // Reasons a model call is dropped from an answer (A13, security rule 6).
@@ -293,6 +298,15 @@ func DecodeUniworkChatRequest(raw json.RawMessage) (UniworkChatRequest, error) {
 // turn's own message joins the History the Gateway sends: the office pack
 // (G6-14) renders nothing, so the question is the last user message there.
 func PlanUniworkTurn(transcript []provider.Message, raw json.RawMessage, allow UniworkAllowlist) (UniworkTurn, error) {
+	return PlanUniworkTurnWith(transcript, raw, allow, nil)
+}
+
+// PlanUniworkTurnWith is PlanUniworkTurn with a server-side expansion of the
+// question (the Ask UNI handoff, ADR 0048): the client's text passes the
+// 8 000-rune check first, then expand's result becomes the turn's Question and
+// last History message. A tool-result turn never calls expand; nil keeps the
+// question as the client sent it.
+func PlanUniworkTurnWith(transcript []provider.Message, raw json.RawMessage, allow UniworkAllowlist, expand func(question string) string) (UniworkTurn, error) {
 	req, err := DecodeUniworkChatRequest(raw)
 	if err != nil {
 		return UniworkTurn{}, err
@@ -322,7 +336,10 @@ func PlanUniworkTurn(transcript []provider.Message, raw json.RawMessage, allow U
 			return UniworkTurn{}, err
 		}
 		turn.Question = newest.Content
-		history, err := uniworkHistory(transcript, []provider.Message{{Role: "user", Content: newest.Content}}, false, allow.Module)
+		if expand != nil {
+			turn.Question = expand(newest.Content)
+		}
+		history, err := uniworkHistory(transcript, []provider.Message{{Role: "user", Content: turn.Question}}, false, allow.Module)
 		if err != nil {
 			return UniworkTurn{}, err
 		}
@@ -747,19 +764,22 @@ type uniworkModuleTools struct {
 // and an unknown or missing module (the org route without `module`, a name no
 // table knows) yields no tools at all. Names and the read/write split come
 // from docs/office/g5g6g7/genoffice-tools.md §3, the mechanical block
-// generated at fork rev 3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b (extract
-// sha256 235ceb7a82b5c0d3a11315314eb6dbf68de2d6cbedf29f12aace8fb4599e9b95):
+// generated at fork rev 8d73c6b6e127ded30bfb4f904885eebf5e6db1a6 (extract
+// sha256 b991d173ce1ef4cad68e0f29cca64a38f0d73dff1fec42b1a13a7805fd8a9683):
 // every editor_write=yes row, plus the four group-B rows the document lists
 // as writing files or creating versions (create_document in docs, sheets and
-// pdf, save_style_template in slides), minus the five slides rows G6-09a
+// pdf, save_style_template in slides), minus the three slides rows G6-09a
 // removes below. G6-01/G6-12 replace the contents when the mechanical table
 // lands; the mechanism and its tests stay.
 //
-// G6-09a (N1) takes the five slides tools the client never offers under
-// UniWork AI out of the table again — generate_deck, regenerate_slide,
-// insert_web_image, replace_image, save_style_template (the slides skill hides
-// them whenever the provider is UniWork AI) — so a modified client cannot
-// offer them and a call for one is dropped as not_allowlisted. What stays on
+// G6-09a (N1) takes three slides tools the client never offers under UniWork
+// AI out of the table again — insert_web_image, replace_image,
+// save_style_template (the slides skill hides them whenever the provider is
+// UniWork AI) — so a modified client cannot offer them and a call for one is
+// dropped as not_allowlisted. generate_deck and regenerate_slide were out with
+// them; plan 5 (ADR 0050) brings them back for a bound deck, because the
+// writer route now lets them build pages through UniWork AI. They stay in the
+// table and are withheld on unbound turns by officeUniworkUnboundHiddenTools. What stays on
 // purpose in the base table: create_document (docs, sheets, pdf) and the pdf
 // file-level page tools (insert_blank_page, set_page_size, crop_pages,
 // replace_pages, extract_pages, split_pdf, split_pages, merge_pages). Those stay
@@ -817,8 +837,17 @@ var officeUniworkModulesV1 = map[string]uniworkModuleTools{
 			"analyze_media", "ask_clarification", "generate_image", "image_search", "list_style_templates",
 			"load_guide", "plan_deck", "read_attachment", "read_slide", "web_search",
 		},
-		Write: []string{"apply_ops", "edit_chart", "execute_slide_script"},
+		Write: []string{"apply_ops", "edit_chart", "execute_slide_script", "generate_deck", "regenerate_slide"},
 	},
+}
+
+// officeUniworkUnboundHiddenTools lists the tools withheld on an unbound turn
+// (scope.DocumentID == ""): the slides deck builders write pages through the
+// writer route, which needs a document to write into (ADR 0050). Applied like
+// officeUniworkBoundHiddenTools, so both Tools and WriteNames lose them and a
+// call for one is dropped as not_allowlisted.
+var officeUniworkUnboundHiddenTools = map[string]map[string]bool{
+	"slides": uniworkNameSet([]string{"generate_deck", "regenerate_slide"}),
 }
 
 // officeUniworkBoundHiddenTools lists the tools withheld on a bound turn
@@ -861,7 +890,8 @@ func UniworkPackModule(module string) (string, bool) {
 // the module table knows the name. On a bound turn (a saved UniWork document),
 // create_document and the 8 pdf file-level page tools are removed from both
 // Tools and WriteNames so they are never offered and a call for one is reported
-// not_allowlisted. While viewOnly the module's remaining write tools are
+// not_allowlisted; on an unbound turn the slides deck builders are removed the
+// same way. While viewOnly the module's remaining write tools are
 // withheld (rule 6) but stay in WriteNames, so a call for one is reported
 // view_only; an empty intersection offers no tool and the model answers in
 // text. The registry entries carry the client's schema and description — the
@@ -874,7 +904,7 @@ func UniworkModuleAllowlist(module string, offered []UniworkToolSpec, viewOnly, 
 	if !ok {
 		return UniworkAllowlist{ViewOnly: viewOnly, Module: pack}
 	}
-	var hidden map[string]bool
+	hidden := officeUniworkUnboundHiddenTools[module]
 	if bound {
 		hidden = officeUniworkBoundHiddenTools[module]
 	}

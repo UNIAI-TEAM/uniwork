@@ -44,6 +44,7 @@ type SwitchResolutionSDI struct {
 	OrganizationID   string `json:"organization_id" description:"ULID tổ chức hiện tại, lấy từ conflicts" example:"01J8X4ORG0N1P2Q3R4S5T6U7V"`
 	Action           string `json:"action" enum:"leave,transfer,close" description:"Đúng required_action của tổ chức đó: leave | transfer | close" example:"leave"`
 	TransferToUserID string `json:"transfer_to_user_id,omitempty" description:"Với transfer: ULID thành viên active nhận quyền chủ sở hữu" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	Password         string `json:"password,omitempty" description:"Với transfer: mật khẩu hiện tại của chủ sở hữu" example:"••••••••"`
+	StepUpToken      string `json:"step_up_token,omitempty" description:"Với transfer: token từ POST /me/step-up chứng minh là chủ sở hữu" example:"q1h8u3WbF0tA…"`
+	Password         string `json:"password,omitempty" description:"Với transfer, cũ (app đã phát hành, xem lại 2027-01-31): mật khẩu hiện tại của chủ sở hữu, khi không gửi step_up_token" example:"••••••••"`
 	ConfirmSlug      string `json:"confirm_slug,omitempty" description:"Với close: slug của tổ chức, gõ lại để xác nhận đóng" example:"acme"`
 }

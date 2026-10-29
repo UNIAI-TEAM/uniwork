@@ -17,7 +17,7 @@ describe("syncRequestLocale", () => {
   it("starts in English, the product default", () => {
     initI18n();
     expect(i18next.language).toBe("en");
-    expect(i18next.t("auth.login")).toBe("Log in");
+    expect(i18next.t("auth.login")).toBe("Sign in");
   });
 
   it("applies Vietnamese synchronously for SSR and hydration", () => {
@@ -32,7 +32,7 @@ describe("syncRequestLocale", () => {
     void i18next.changeLanguage("vi");
     syncRequestLocale("en");
     expect(i18next.language).toBe("en");
-    expect(i18next.t("auth.login")).toBe("Log in");
+    expect(i18next.t("auth.login")).toBe("Sign in");
   });
 
   it("refreshes an initialized English bundle before SSR renders", () => {

@@ -15,8 +15,11 @@
 // What it cannot see: React Native's hitSlop grows a touch area without
 // growing the view, so a control drawn smaller than the minimum on purpose
 // (hit slop making up the rest) reads as too small here; pass --min-dp 44 for
-// a screen that has one. Contrast is held on the tokens instead
-// (apps/chat-mobile/lib/theme-contrast.test.ts).
+// a screen that has one. Nor a control cut by the edge of the scroll view it
+// sits in: uiautomator gives the bounds of what is on screen, so such a control
+// is left unmeasured, as the Accessibility Test Framework leaves it, and listed
+// as such (a flow that wants it measured scrolls it whole into view). Contrast
+// is held on the tokens instead (apps/chat-mobile/lib/theme-contrast.test.ts).
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -46,12 +49,18 @@ export function parseHierarchy(xml) {
   return root;
 }
 
-/** `[x1,y1][x2,y2]` as a width and height in px; null when unreadable. */
-export function boundsSize(bounds) {
+/** `[x1,y1][x2,y2]` as its edges in px; null when unreadable. */
+function boundsEdges(bounds) {
   const match = /^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$/.exec(bounds ?? "");
   if (!match) return null;
   const [x1, y1, x2, y2] = match.slice(1).map(Number);
-  return { width: x2 - x1, height: y2 - y1 };
+  return { x1, y1, x2, y2 };
+}
+
+/** `[x1,y1][x2,y2]` as a width and height in px; null when unreadable. */
+export function boundsSize(bounds) {
+  const edges = boundsEdges(bounds);
+  return edges ? { width: edges.x2 - edges.x1, height: edges.y2 - edges.y1 } : null;
 }
 
 /** What TalkBack reads for a node: its own text or description, else the text of the children it speaks for. */
@@ -67,29 +76,40 @@ export function spokenName(node) {
 }
 
 /**
- * Every control of `pkg` (clickable or long-clickable, enabled, on screen) that breaks a rule:
- * no name, or drawn smaller than `minDp` on either side at `density` (px per dp).
+ * Every control of `pkg` (clickable or long-clickable, enabled, on screen) that breaks a rule — no name, or drawn
+ * smaller than `minDp` on either side at `density` (px per dp) — and, apart, every one too small only along the way its
+ * nearest scroll view scrolls and touching that view's edge there: what is drawn of it is not its size, so it is not
+ * judged. A small control flush with a vertical scroll view's side is still one.
  */
 export function auditHierarchy(xml, { pkg, density, minDp = 48 }) {
   const issues = [];
+  const unmeasured = [];
   const minPx = Math.floor(minDp * density);
-  const visit = (node) => {
+  const visit = (node, viewport) => {
     const a = node.attrs;
     const control = (a.clickable === "true" || a["long-clickable"] === "true") && a.enabled !== "false" && a.package === pkg;
+    const edges = boundsEdges(a.bounds);
     const size = boundsSize(a.bounds);
-    if (control && size && size.width > 0 && size.height > 0) {
+    if (control && edges && size && size.width > 0 && size.height > 0) {
       const where = `${a.class ?? "node"} ${a["resource-id"] || ""} ${a.bounds}`.replace(/\s+/g, " ").trim();
       const name = spokenName(node);
       if (!name) issues.push({ rule: "name", where, detail: "a control with no text or content description" });
-      if (size.width < minPx || size.height < minPx) {
+      const narrow = size.width < minPx;
+      const short = size.height < minPx;
+      if (narrow || short) {
         const dp = (px) => Math.round(px / density);
-        issues.push({ rule: "target", where, detail: `${name || "unnamed"}: ${dp(size.width)} × ${dp(size.height)} dp, under ${minDp} dp` });
+        const detail = `${name || "unnamed"}: ${dp(size.width)} × ${dp(size.height)} dp, under ${minDp} dp`;
+        const cutSideways = viewport?.horizontal === true && (edges.x1 <= viewport.x1 || edges.x2 >= viewport.x2);
+        const cutUpOrDown = viewport?.horizontal === false && (edges.y1 <= viewport.y1 || edges.y2 >= viewport.y2);
+        if ((!narrow || cutSideways) && (!short || cutUpOrDown)) unmeasured.push({ where, detail: `${detail} as drawn, cut by its scroll view` });
+        else issues.push({ rule: "target", where, detail });
       }
     }
-    node.children.forEach(visit);
+    const inner = a.scrollable === "true" && edges ? { ...edges, horizontal: /HorizontalScrollView$/.test(a.class ?? "") } : viewport;
+    node.children.forEach((child) => visit(child, inner));
   };
-  visit(parseHierarchy(xml));
-  return issues;
+  visit(parseHierarchy(xml), null);
+  return { issues, unmeasured };
 }
 
 /** `wm density` output: the density in px per dp (its override when one is set). */
@@ -116,13 +136,14 @@ function main(argv) {
   if (!density) throw new Error("adb shell wm density gave no density");
   adb("shell", "uiautomator", "dump", "/sdcard/unichat-a11y.xml");
   const xml = adb("exec-out", "cat", "/sdcard/unichat-a11y.xml");
-  const issues = auditHierarchy(xml, { pkg, density, minDp });
-  if (out) fs.writeFileSync(out, `${JSON.stringify({ pkg, minDp, density, issues }, null, 2)}\n`);
+  const { issues, unmeasured } = auditHierarchy(xml, { pkg, density, minDp });
+  if (out) fs.writeFileSync(out, `${JSON.stringify({ pkg, minDp, density, issues, unmeasured }, null, 2)}\n`);
   if (!xml.includes(`package="${pkg}"`)) {
     console.error(`✗ the screen holds nothing of ${pkg}: the app is not in front`);
     return 1;
   }
   for (const issue of issues) console.error(`${warn ? "::warning::" : "✗ "}${issue.rule}: ${issue.detail} (${issue.where})`);
+  for (const control of unmeasured) console.log(`· not measured: ${control.detail} (${control.where})`);
   console.log(issues.length === 0 ? `✓ every control of ${pkg} is named and at least ${minDp} dp` : `${issues.length} accessibility issue(s)`);
   return issues.length === 0 || warn ? 0 : 1;
 }

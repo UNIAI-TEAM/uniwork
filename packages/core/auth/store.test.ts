@@ -21,6 +21,7 @@ import * as auth from "../api/endpoints/auth";
 import { endOfficeDraftSession, getOfficeDraftKey } from "../office/draft-session-key";
 import { resetFolderAccessBatches, useFolderAccessBatchStore } from "../documents/folder-access-batches";
 import { getAccessToken, setAccessToken } from "../api/session";
+import { linkResetIntent, rememberLinkReset } from "./link-reset-intent";
 import { registerSessionProvider } from "./session-provider";
 import { resetAuthStoreForTests, useAuthStore } from "./store";
 
@@ -80,6 +81,13 @@ describe("auth store", () => {
     expect(auth.logout).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
     expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it("logout forgets the address a link-mode reset was asked for", async () => {
+    await rememberLinkReset("an@company.vn");
+    useAuthStore.getState().setUser(user);
+    await useAuthStore.getState().logout();
+    expect(linkResetIntent()).toBeNull();
   });
 
   it("logout clears the workspace scope so the next user starts outside any workspace", async () => {

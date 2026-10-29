@@ -17,7 +17,7 @@ func (f *fixture) scheduleMeeting(t *testing.T, title string, startsAt time.Time
 	t.Helper()
 	m, err := f.q.CreateMeeting(f.ctx, db.CreateMeetingParams{
 		ID: util.NewID(), WorkspaceID: f.wsID, OrganizationID: f.orgID, Title: title, RoomName: "r-" + title, CreatedBy: f.owner.ID, CreatedByKind: "human",
-		Status: "SCHEDULED", MeetingType: "SCHEDULED", HostUserID: f.owner.ID, Timezone: "UTC", AllowJoinRequest: true,
+		Status: "SCHEDULED", MeetingType: "SCHEDULED", HostUserID: f.owner.ID, Timezone: "UTC", AllowJoinRequest: true, Venue: "online",
 		StartsAt: pgtype.Timestamptz{Time: startsAt, Valid: true},
 		EndsAt:   pgtype.Timestamptz{Time: startsAt.Add(30 * time.Minute), Valid: true},
 	})

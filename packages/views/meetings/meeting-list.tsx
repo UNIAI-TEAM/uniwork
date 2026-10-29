@@ -1,16 +1,22 @@
 "use client";
+import { useEffect, useState } from "react";
 import { Video } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { displayMeetingStatus, isScheduledMeetingLive } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
 import type { Meeting } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { NumberFlow } from "@uniwork/ui/components/ui/number-flow";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { UI_EASE_OUT } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
+import { meetingAvatarTint } from "./meeting-detail/avatar-tint";
 import { formatMeetingDay, formatMeetingTimes, meetingDayKey, meetingLocale } from "./meeting-datetime";
+import { ElapsedClock, LiveRail, LiveRowFaces } from "./meeting-list-live";
 import { MeetingListRecordingButton } from "./meeting-list-recording-button";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { formatRelativeTime } from "./meeting-relative-time";
@@ -93,19 +99,37 @@ function railClass(display: string): string {
   }
 }
 
+/** Rows rise in after a filter change: 8 px and a fade over 420 ms, 32 ms apart, the first 14 only. */
+const STAGGER_LIMIT = 14;
+function rise(index: number | null) {
+  if (index === null || index >= STAGGER_LIMIT) return { initial: false as const };
+  return {
+    initial: { opacity: 0, y: 8 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.42, ease: UI_EASE_OUT, delay: index * 0.032 },
+  };
+}
+
+type MemberList = NonNullable<ReturnType<typeof useMembers>["data"]>;
+
 function MeetingRow({
   meeting: m,
   host,
+  members,
   href,
   locale,
   nowMs,
+  enter,
   onOpenRoom,
 }: {
   meeting: Meeting;
   host: { name: string; avatarUrl?: unknown };
+  members: MemberList;
   href: string;
   locale: string;
   nowMs: number;
+  /** Its place in the rise-in, or null when the list did not just change. */
+  enter: number | null;
   onOpenRoom: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -115,16 +139,26 @@ function MeetingRow({
   const untilStart = startMs(m) - nowMs;
   const soon = display === "SCHEDULED" && untilStart > 0 && untilStart < SOON_MS;
   const instant = m.meeting_type === "INSTANT";
+  const running = m.status === "IN_PROGRESS";
+  const faces = (m.in_room_user_ids ?? []).slice(0, 3).map((id) => {
+    const member = members.find((x) => x.user_id === id);
+    return { id, name: member?.display_name ?? t("meetings.hostUnknown"), avatarUrl: member?.avatar_url, tint: meetingAvatarTint(id, members) };
+  });
 
   return (
-    <li className={ROW}>
+    <motion.li className={ROW} {...rise(enter)}>
       {/* The time column is for the eye; the link carries the same span as text. */}
       <span aria-hidden className="flex w-11 shrink-0 flex-col text-right tabular-nums">
         <span className="text-label font-semibold text-foreground">{clock(m.starts_at, locale)}</span>
         <span className="text-caption text-muted-foreground">{clock(m.ends_at, locale)}</span>
       </span>
-      <span aria-hidden className={cn("w-1 self-stretch rounded-full", railClass(display))} />
-      <MeetingPersonAvatar name={host.name} avatarUrl={host.avatarUrl} className="max-sm:hidden" />
+      {display === "IN_PROGRESS" ? <LiveRail /> : <span aria-hidden className={cn("w-1 self-stretch rounded-full", railClass(display))} />}
+      {/* A live row always shows the room, empty included: the server leaves the fields out when nobody is in, and a host face would read as "the host is in". */}
+      {running ? (
+        <LiveRowFaces people={faces} count={m.in_room_count ?? faces.length} scribe={m.scribe_live === true} />
+      ) : (
+        <MeetingPersonAvatar name={host.name} avatarUrl={host.avatarUrl} className="max-sm:hidden" />
+      )}
       <div className="min-w-0 flex-1">
         {/* Two lines on a phone so a long title is still readable; one from sm, where the row is wide. */}
         <AppLink
@@ -151,6 +185,7 @@ function MeetingRow({
         </p>
       </div>
       <div className="relative z-10 flex shrink-0 items-center gap-2">
+        {running ? <ElapsedClock since={m.actual_start_at ?? m.starts_at} /> : null}
         <MeetingStatusBadge status={display} className={cn(live && "max-sm:hidden")} />
         {rewatch ? <MeetingListRecordingButton meetingId={m.id} /> : null}
         {live ? (
@@ -166,8 +201,15 @@ function MeetingRow({
           </Button>
         ) : null}
       </div>
-    </li>
+    </motion.li>
   );
+}
+
+/** A day's count; after a filter change it rolls up from zero. */
+function DayCount({ value, roll }: { value: number; roll: boolean }) {
+  const [shown, setShown] = useState(roll ? 0 : value);
+  useEffect(() => setShown(value), [value]);
+  return <NumberFlow value={shown} />;
 }
 
 /** The loading shape is the row's shape: a day heading, then framed rows of time, rail, face, title and state. */
@@ -209,23 +251,33 @@ export function MeetingList({
   workspaceId,
   meetings,
   onOpenRoom,
+  enterKey,
   className,
 }: {
   workspaceId: string;
   meetings: Meeting[];
   onOpenRoom: (id: string) => void;
+  /** The filter (status, search, page) the rows answer; when it changes the rows rise in again. */
+  enterKey?: string;
   className?: string;
 }) {
   const { t, i18n } = useTranslation();
   const { workspace } = useWorkspace();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const locale = meetingLocale(i18n.language);
-  const { data: members } = useMembers(workspaceId);
+  const { data: members = [] } = useMembers(workspaceId);
   const hostOf = (id?: string) => {
-    const member = members?.find((m) => m.user_id === id);
+    const member = members.find((m) => m.user_id === id);
     return { name: member?.display_name ?? t("meetings.hostUnknown"), avatarUrl: member?.avatar_url };
   };
+  // The minute clock for the badges and chips; a live row's elapsed clock ticks each second on its own.
   const nowMs = useNow();
+  const reduce = useReducedMotion() ?? false;
+  // The first answer appears as is; only a later filter change replays the rise-in.
+  const [shown, setShown] = useState({ key: enterKey, moved: false });
+  if (shown.key !== enterKey) setShown({ key: enterKey, moved: true });
+  const enter = shown.moved && !reduce;
+  let order = 0;
   const today = meetingDayKey(new Date(nowMs).toISOString());
   const relative: Record<string, string> = {
     [today]: t("meetings.today"),
@@ -234,15 +286,16 @@ export function MeetingList({
   };
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div key={enterKey} className={cn("space-y-4", className)}>
       {groupMeetingsByDay(meetings, today).map((group) => {
         const date = formatMeetingDay(group.day, locale);
         const near = relative[group.day];
         return (
           <section key={group.day} aria-labelledby={`meeting-day-${group.day}`}>
-            <h2
+            <motion.h2
               id={`meeting-day-${group.day}`}
               className="sticky top-0 z-20 flex items-center gap-2 bg-background py-1.5 text-overline text-muted-foreground"
+              {...rise(enter ? order++ : null)}
             >
               {near ? (
                 <>
@@ -253,19 +306,21 @@ export function MeetingList({
                 <span>{date}</span>
               )}
               <span aria-hidden className="min-w-5 rounded-sm bg-muted px-1 text-center tabular-nums">
-                {group.items.length}
+                <DayCount value={group.items.length} roll={enter} />
               </span>
               <span className="sr-only">{t("meetings.dayCount", { count: group.items.length })}</span>
-            </h2>
+            </motion.h2>
             <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
               {group.items.map((m) => (
                 <MeetingRow
                   key={m.id}
                   meeting={m}
                   host={hostOf(m.host_user_id ?? m.created_by)}
+                  members={members}
                   href={ws.meeting(m.id)}
                   locale={locale}
                   nowMs={nowMs}
+                  enter={enter ? order++ : null}
                   onOpenRoom={onOpenRoom}
                 />
               ))}

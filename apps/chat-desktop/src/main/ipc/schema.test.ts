@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   expectBoolean,
   expectCount,
+  expectLoginOptions,
   expectString,
   expectUrl,
   guard,
@@ -82,6 +83,31 @@ describe("validators", () => {
     expect(expectBoolean(false)).toBe(false);
     expect(() => expectBoolean("true")).toThrow(IpcRejected);
     expect(() => expectBoolean(1)).toThrow(IpcRejected);
+  });
+
+  it("expectLoginOptions takes nothing or exactly one provider the start route knows", () => {
+    expect(expectLoginOptions(undefined)).toBeUndefined();
+    expect(expectLoginOptions({ provider: "google" })).toEqual({ provider: "google" });
+    expect(expectLoginOptions({ provider: "apple" })).toEqual({ provider: "apple" });
+    // The server takes the value as sent (no trimming, no case folding), so neither does the shell.
+    for (const bad of [
+      null,
+      "google",
+      ["google"],
+      {},
+      { provider: undefined },
+      { provider: "Apple" },
+      { provider: " google" },
+      { provider: "github" },
+      { provider: "" },
+      { provider: 1 },
+      { provider: "toString" },
+      { provider: "__proto__" },
+      { provider: "google", extra: true },
+      { kind: "google" },
+    ]) {
+      expect(() => expectLoginOptions(bad)).toThrow(new IpcRejected("not_login_options"));
+    }
   });
 
   it("IpcRejected names the reason without echoing the payload", () => {

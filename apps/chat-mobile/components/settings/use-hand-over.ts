@@ -26,7 +26,7 @@ export function useHandOver(organization: OwnedOrganization | null) {
       setHeir(null);
       void members.refetch();
     },
-    /** Hands the organization to the chosen member with the owner's password; rejects with the server's answer. */
-    handOver: (orgSlug: string, toUserId: string, password: string) => transfer({ orgSlug, toUserId, password }),
+    /** Hands the organization to the chosen member with the step-up token; rejects with the server's answer. */
+    handOver: (orgSlug: string, toUserId: string, stepUpToken: string) => transfer({ orgSlug, toUserId, stepUpToken }),
   };
 }

@@ -9,7 +9,15 @@ import type { NavigationAdapter } from "../navigation";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingsPageView } from "./meetings-page-view";
 
-vi.mock("./instant-meeting-dialog", () => ({ InstantMeetingDialog: ({ trigger }: { trigger: ReactNode }) => trigger }));
+vi.mock("./instant-meeting-dialog", () => ({
+  InstantMeetingDialog: ({ trigger, onStarted }: { trigger: ReactNode; onStarted: (id: string, venue: string) => void }) => (
+    <>
+      {trigger}
+      <button type="button" onClick={() => onStarted("m-on", "online")}>started online</button>
+      <button type="button" onClick={() => onStarted("m-in", "in_person")}>started in person</button>
+    </>
+  ),
+}));
 vi.mock("./meeting-sheet", () => ({
   MeetingSheet: ({ trigger, open }: { trigger: ReactNode; open?: boolean }) => (
     <div data-testid="meeting-sheet" data-open={String(Boolean(open))}>
@@ -241,6 +249,63 @@ describe("MeetingsPageView when a window closes", () => {
   });
 });
 
+describe("MeetingsPageView live rows", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const listWith = (status: string) =>
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.includes("/meetings?")) {
+        return Promise.resolve({
+          meetings: [
+            {
+              id: "m3",
+              workspace_id: "w1",
+              title: "Daily",
+              description: "",
+              starts_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+              ends_at: new Date(Date.now() + 3_600_000).toISOString(),
+              room_name: "r",
+              created_by: "u-host",
+              status,
+            },
+          ],
+          total: 1,
+        });
+      }
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      return Promise.resolve({});
+    });
+
+  it("refetches only while a row is live", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    listWith("IN_PROGRESS");
+    const live = renderPage(nav(""));
+    await screen.findByText("Daily");
+    const before = listCalls().length;
+    await vi.advanceTimersByTimeAsync(30_500);
+    await waitFor(() => expect(listCalls().length).toBe(before + 1));
+    // A hidden tab does not poll.
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(listCalls().length).toBe(before + 1);
+    visibility.mockRestore();
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => expect(listCalls().length).toBe(before + 2));
+    live.unmount();
+
+    requestMock.mockClear();
+    listWith("ENDED");
+    renderPage(nav("status=ENDED"));
+    await screen.findByText("Daily");
+    const idle = listCalls().length;
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(listCalls().length).toBe(idle);
+  });
+});
+
 describe("MeetingsPageView error", () => {
   it("says the list did not load and offers a retry", async () => {
     requestMock.mockImplementation((path: unknown) =>
@@ -264,5 +329,36 @@ describe("MeetingsPageView error", () => {
     renderPage(nav(""));
     expect(await screen.findByText("Chưa tải được danh sách cuộc họp")).toBeInTheDocument();
     expect(screen.queryByText("Chưa có cuộc họp nào")).not.toBeInTheDocument();
+  });
+});
+
+describe("MeetingsPageView after Họp ngay", () => {
+  function renderWith(props: { onOpen: (id: string) => void; onOpenRoom: (id: string) => void; onOpenRecord?: (id: string) => void }) {
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={me}>
+          <MeetingsPageView workspaceId="w1" {...props} />
+        </WorkspaceProvider>,
+        nav(""),
+      ),
+    );
+  }
+
+  it("opens the room online and the recorder in person", () => {
+    const p = { onOpen: vi.fn(), onOpenRoom: vi.fn(), onOpenRecord: vi.fn() };
+    renderWith(p);
+    fireEvent.click(screen.getByRole("button", { name: "started online" }));
+    expect(p.onOpenRoom).toHaveBeenCalledWith("m-on");
+    fireEvent.click(screen.getByRole("button", { name: "started in person" }));
+    expect(p.onOpenRecord).toHaveBeenCalledWith("m-in");
+    expect(p.onOpenRoom).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the meeting in person until a recorder route is given", () => {
+    const p = { onOpen: vi.fn(), onOpenRoom: vi.fn() };
+    renderWith(p);
+    fireEvent.click(screen.getByRole("button", { name: "started in person" }));
+    expect(p.onOpen).toHaveBeenCalledWith("m-in");
+    expect(p.onOpenRoom).not.toHaveBeenCalled();
   });
 });

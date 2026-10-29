@@ -1,4 +1,5 @@
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types/meeting";
+import { meetingVenue } from "@uniwork/core/meetings/venue";
 import { combineLocalIso, splitIsoLocal } from "../meeting-datetime";
 import { canonicalZone, type MeetingDraft } from "./draft-model";
 import { plusMinutes } from "./draft-validation";
@@ -94,6 +95,8 @@ export function followUpDraft(
     swap: named.swap,
     draft: {
       title: named.title,
+      // A series keeps its venue, like its project and its scribe.
+      venue: meetingVenue(previous),
       description: "",
       date,
       start,

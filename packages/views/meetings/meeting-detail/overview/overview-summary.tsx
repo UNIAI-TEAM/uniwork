@@ -1,5 +1,6 @@
 "use client";
 import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Info, RotateCcw, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api/http";
@@ -8,6 +9,7 @@ import { useMeetingSummaryRun } from "@uniwork/core/meetings/summary";
 import { useFullTranscript } from "@uniwork/core/meetings/transcript";
 import { ScribeMark, type ScribeMarkState } from "@uniwork/ui/brand/scribe-mark";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { UI_EASE_SETTLE } from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import { meetingLocale, splitIsoLocal } from "../../meeting-datetime";
 import { MeetingSectionError, MeetingTextSkeleton } from "../../meeting-section-state";
@@ -21,6 +23,8 @@ import { kitButton } from "../ui/kit-buttons";
 import { Byline, Section } from "../ui/section";
 import { TextButton } from "../ui/text-button";
 import { TEXT_BUTTON_HIT } from "./overview-recap";
+import { SummaryComposing } from "./summary-composing";
+import { SummaryText } from "./summary-points";
 import { sourceCounts, sourceWords } from "./summary-words";
 import { ScribeSign } from "../../scribe-sign";
 
@@ -115,7 +119,7 @@ function SummaryByline({ model }: { model: OverviewSummaryModel }) {
 }
 
 /** The summary prose: muted until the minutes are final; four lines and "Đọc tiếp" on a phone. */
-function SummaryProse({ text, finalized, spaced }: { text: string; finalized: boolean; spaced: boolean }) {
+function SummaryProse({ text, finalized, spaced, children }: { text: string; finalized: boolean; spaced: boolean; children: ReactNode }) {
   const { t } = useTranslation();
   const { isPhone } = useDetail();
   const id = useId();
@@ -139,7 +143,7 @@ function SummaryProse({ text, finalized, spaced }: { text: string; finalized: bo
           clamp && "line-clamp-4",
         )}
       >
-        {text}
+        {children}
       </p>
       {isPhone && (clamped || open) ? (
         <TextButton className={cn("mt-2", TEXT_BUTTON_HIT)} aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)}>
@@ -185,11 +189,36 @@ function SummaryStateCard({
   );
 }
 
+/**
+ * The id of a summary that landed after this screen saw Thư ký UNI composing
+ * (it alone writes itself in); a summary read on load never does. `from` is the
+ * summary on screen when composing started, settled once when it ends, so a
+ * failed run leaves the old summary still and a refetch mid-run cannot move it.
+ * Held in state, adjusted while rendering, so a remount (a reload, a tab switch) forgets it.
+ */
+function useSeenComposing(composing: boolean, summaryId: string | undefined): string | null {
+  const [from, setFrom] = useState<{ id: string | null } | null>(null);
+  const [landed, setLanded] = useState<string | null>(null);
+  if (composing && !from) {
+    setFrom({ id: summaryId ?? null });
+    setLanded(null);
+  }
+  if (!composing && from) {
+    if (summaryId && summaryId !== from.id) setLanded(summaryId);
+    setFrom(null);
+  }
+  return landed;
+}
+
 /** Tóm tắt (brief §2.6 + AfterAIStates c1–c3): the AI's prose with its byline, or why there is none yet. */
 export function OverviewSummary({ model }: { model: OverviewSummaryModel }) {
   const { t, i18n } = useTranslation();
+  const { transcribing } = useDetail();
   const { gen, state, failure, attempts, finalized, times, transcriptReady } = model;
   const reasonId = useId();
+  const reduced = useReducedMotion() ?? false;
+  const composing = gen.generating && (state === "running" || state === "ready");
+  const landed = useSeenComposing(composing, gen.summary?.id);
   if (state === "off") return null;
   const locale = meetingLocale(i18n.language);
   const now = transcriptReady ? sourceWords(sourceCounts(times), t, locale) : "";
@@ -214,28 +243,23 @@ export function OverviewSummary({ model }: { model: OverviewSummaryModel }) {
     />
   ) : null;
 
-  const running = (
-    <Byline>
-      <ScribeSign state="composing" />
-      {now ? t("meetings.detail.overview.runningFrom", { sources: now }) : t("meetings.detail.overview.running")}
-    </Byline>
-  );
+  // While Thư ký UNI rewrites, the old summary's credit and notes leave with its prose.
   const byline =
-    state === "ready" && summary ? (
+    state === "ready" && summary && !composing ? (
       <>
-        {gen.serverRunning ? running : <SummaryByline model={model} />}
+        <SummaryByline model={model} />
         {summary.transcript_changed_at ? <Byline icon={Info}>{t("meetings.summaryTranscriptChanged")}</Byline> : null}
         {facts?.stale ? <Byline icon={Info}>{t("meetings.summaryStale")}</Byline> : null}
         {summary.partial ? <Byline>{t("meetings.summaryPartial")}</Byline> : null}
       </>
-    ) : state === "running" ? (
-      running
     ) : null;
   const body =
-    state === "ready" && summary ? (
+    composing ? null : state === "ready" && summary ? (
       <>
         {failed}
-        <SummaryProse text={summary.summary} finalized={finalized} spaced={failed !== null} />
+        <SummaryProse text={summary.summary} finalized={finalized} spaced={failed !== null}>
+          <SummaryText summary={summary} reveal={landed === summary.id} />
+        </SummaryProse>
       </>
     ) : state === "loading" ? (
       <MeetingTextSkeleton />
@@ -243,6 +267,24 @@ export function OverviewSummary({ model }: { model: OverviewSummaryModel }) {
       <MeetingSectionError message={t("meetings.summaryLoadFailed")} onRetry={() => void gen.summaryQuery.refetch()} />
     ) : state === "failed" ? (
       failed
+    ) : state === "none" && transcribing ? (
+      // In person, the recording is still being transcribed: no summary to ask for yet (board p07).
+      <SummaryStateCard
+        mark="composing"
+        title={t("meetings.record.summaryTranscribing")}
+        caption={
+          <>
+            <span aria-hidden className="mt-2 mb-1.5 block h-1 max-w-90 overflow-hidden rounded-full bg-tint-violet">
+              <span
+                className="block h-full rounded-full bg-tint-violet-foreground"
+                // Received is a third; transcribing fills the second third as parts finish.
+                style={{ width: `${Math.round(((1 + (transcribing.seconds ? 1 - transcribing.openSeconds / transcribing.seconds : 0)) / 3) * 100)}%` }}
+              />
+            </span>
+            {t("meetings.record.summarySteps")}
+          </>
+        }
+      />
     ) : state === "none" ? (
       <SummaryStateCard
         mark={gen.aiOn || !gen.capsLoaded ? "idle" : "off"}
@@ -273,6 +315,19 @@ export function OverviewSummary({ model }: { model: OverviewSummaryModel }) {
     // `contents`: the test id spans the section without becoming a box between it and the column.
     <div className="contents" data-testid="meeting-summary-panel">
       <Section id="summary" title={t("meetings.summaryTitle")} byline={byline} className="@max-[37.5rem]/meeting:mt-6!">
+        {/* While Thư ký UNI writes, its card stands in for the prose; it folds away when the summary lands (clip F). */}
+        {/* No initial={false}: it would also block the card's own loop (the beam) when the card mounts with the section. */}
+        <AnimatePresence>
+          {composing ? (
+            <motion.div
+              key="composing"
+              className="overflow-hidden"
+              exit={reduced ? { opacity: 0, transition: { duration: 0 } } : { height: 0, opacity: 0, transition: { duration: 0.45, ease: UI_EASE_SETTLE } }}
+            >
+              <SummaryComposing />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
         {body}
       </Section>
       <SummaryLiveRegion message={gen.announcement} seq={gen.announcementSeq} />

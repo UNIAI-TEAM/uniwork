@@ -1,19 +1,27 @@
 // The line under the sign-in button: signing in is agreeing to the terms of use, which forbid
 // objectionable content and abusive users (Apple 1.2, Google Play's UGC policy), and the privacy
 // policy is one tap away. The web's sign-in and sign-up pages say the same (packages/views/auth/
-// auth-legal-note.tsx). Each page is its own link with a full tap target, rather than words inside
-// the sentence: a nested Text link is neither a 44 pt target nor its own element for TalkBack.
+// auth-legal-note.tsx). Each page is its own link drawn at the platform's minimum target (44 pt, 48 dp:
+// the sign-in screen's audit measures drawn bounds), rather than words inside the sentence: a nested
+// Text link is neither a full target nor its own element for TalkBack.
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useTranslation } from "react-i18next";
-import { Pressable, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { legalLinks, legalLocale } from "@/lib/legal-links";
+import { minTouchTarget } from "@/lib/platform-ui";
 import { useOpenWebPage } from "./use-open-web-page";
 
 function LegalLink({ label, url, testID }: { label: string; url: string; testID: string }) {
   const openWebPage = useOpenWebPage();
   return (
-    <Pressable accessibilityRole="link" testID={testID} onPress={() => openWebPage(url)} className="min-h-11 justify-center px-1.5 active:opacity-70">
+    <Pressable
+      accessibilityRole="link"
+      testID={testID}
+      onPress={() => openWebPage(url)}
+      style={{ minHeight: minTouchTarget(Platform.OS) }}
+      className="justify-center px-1.5 active:opacity-70"
+    >
       <Text className="text-footnote font-semibold text-primary">{label}</Text>
     </Pressable>
   );

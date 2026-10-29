@@ -52,7 +52,7 @@ export async function signInAs(page: Page, email: string): Promise<void> {
   await page.getByLabel("Email").fill(email);
   // Either locale: the desktop-open step signs in under vi and en.
   await page.getByLabel(/^(Mật khẩu|Password)$/).fill("password123");
-  await page.getByRole("button", { name: /^(Đăng nhập|Log in)$/ }).click();
+  await page.getByRole("button", { name: /^(Đăng nhập|Sign in)$/ }).click();
   await expect(page).not.toHaveURL(/\/login/, { timeout: 60_000 });
 }
 

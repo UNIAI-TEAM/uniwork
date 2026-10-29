@@ -31,26 +31,13 @@ export function MeetingJoinRequestRow({
   onReject: () => void;
   approving?: boolean;
   rejecting?: boolean;
-  variant?: "sidebar" | "overlay" | "compact";
+  variant?: "sidebar" | "compact";
 }) {
   const { t } = useTranslation();
   const name = requestDisplayName(request);
   const avatarUrl = useUserAvatarOf()(request.requester_user_id);
   // A signed-in member is not a guest; only link guests are unconfirmed.
   const kind = request.requester_user_id ? t("meetings.joinRequesterMember") : t("meetings.unconfirmedGuest");
-
-  if (variant === "overlay") {
-    return (
-      <div className="flex items-center gap-3 rounded-xl bg-surface-hover px-3 py-2.5 [@media(max-height:500px)]:py-1.5">
-        {/* The overlay sits on the dark notice, whose row fill is the default avatar fill. */}
-        <MeetingPersonAvatar name={name} avatarUrl={avatarUrl} size="default" tone="stage" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-body font-medium text-foreground">{name}</p>
-          <p className="text-caption text-muted-foreground [@media(max-height:500px)]:hidden">{kind}</p>
-        </div>
-      </div>
-    );
-  }
 
   if (variant === "compact") {
     return (

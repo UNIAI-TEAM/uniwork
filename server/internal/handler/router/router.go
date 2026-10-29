@@ -104,6 +104,10 @@ func New(d Deps, h Routes) http.Handler {
 		// Native refresh skips it for the same reason: phones behind one
 		// carrier address would share 300 a minute; it has its own
 		// per-device budget under an address ceiling (refreshLimit).
+		// The password and second-factor steps of a sign-in skip it too, the
+		// browser's and the app's: an office behind one NAT signs in on a
+		// budget per person under a ceiling of 600 a minute per address
+		// (signInBudgets), which the global 300 would otherwise cap.
 		global := mw.RateLimitByIdentity(d.Redis, 300, time.Minute, proxies, globalIdentity(d.Minter, d.FrameIdentity))
 		// The scribe agent's routes skip it too (isMeetingAgentPath): one agent
 		// pod sends every meeting it serves from one address; they have their
@@ -112,7 +116,9 @@ func New(d Deps, h Routes) http.Handler {
 		// The folder upload content route skips it too: one folder of 500
 		// files sends 500 PUTs; it has its own per-person budget
 		// (folder-upload-content, 600/min).
-		r.Use(exceptFolderUploadContent(mw.ExceptPaths(global, "/healthz", "/readyz", apiHealthPath, "/mcp", "/api/v1/auth/desktop/refresh", "/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath)))
+		r.Use(exceptFolderUploadContent(mw.ExceptPaths(global, "/healthz", "/readyz", apiHealthPath, "/mcp", "/api/v1/auth/desktop/refresh",
+			"/api/v1/auth/login", "/api/v1/auth/mfa/verify", "/api/v1/auth/native/password", "/api/v1/auth/native/mfa",
+			"/api/v1"+liveKitWebhookPath, "/api/v1"+vnpayBillingWebhookPath)))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
 	// Native refresh: per (address, device) under a ceiling per address; the
@@ -129,6 +135,9 @@ func New(d Deps, h Routes) http.Handler {
 		return mw.ClientIP(r, proxies) + ":" + id
 	})
 	refreshLimit := func(next http.Handler) http.Handler { return refreshCeiling(refreshPerDevice(next)) }
+	// The guesses at a secret (a password, a second factor, a signed-in
+	// person's proof) budget per account under a ceiling per address.
+	budgets := newSignInBudgets(d.Redis, proxies, d.Minter)
 	// In-room limiters budget per verified person, not per address: a formal
 	// meeting often sits behind one office NAT. They run after OptionalAuth.
 	inRoom := meetingCaller([]byte(d.Cfg.JWTSecret))
@@ -156,6 +165,8 @@ func New(d Deps, h Routes) http.Handler {
 			// the page.
 			ai.UniworkConversationHeader,
 			ai.UniworkRunHeader,
+			// The Ask UNI handoff package a turn works on (ADR 0048).
+			ai.UniworkHandoffHeader,
 			// Vendor headers the BYOK proxy forwards (provider/byok_client.go); a
 			// browser caller needs them in the preflight or the fetch never leaves.
 			"Anthropic-Beta",
@@ -169,6 +180,8 @@ func New(d Deps, h Routes) http.Handler {
 			// G6-05 reads both off the response: the conversation to continue
 			// and, from G6-03b on, the run id.
 			ai.UniworkConversationHeader, ai.UniworkRunHeader,
+			// The parts of an Ask UNI handoff left after the turn (ADR 0048).
+			ai.UniworkHandoffRemainingHeader,
 			// The access report export (UNI-1643): the file name and the
 			// counts the web shows after the download.
 			"Content-Disposition", "X-Report-Rows", "X-Report-Skipped", "X-Report-Generated-At",
@@ -180,9 +193,10 @@ func New(d Deps, h Routes) http.Handler {
 	// Inside CORS, so a shed request still carries the headers the browser
 	// needs to read its 503 and Retry-After, and preflights never count.
 	//
-	// The three UniWork AI routes are exempt by pattern (G6-03a §7.4): a turn
-	// waits up to 55 s on a model, so counting it against the in-flight bound
-	// would let a handful of AI turns shed every other request in the pod.
+	// The UniWork AI routes are exempt by pattern (G6-03a §7.4): a turn waits
+	// up to 55 s on a model (a writer call of plan 5 up to 300 s), so counting
+	// it against the in-flight bound would let a handful of AI turns shed every
+	// other request in the pod.
 	// Patterns, not prefixes, on purpose: a prefix under /api/v1/orgs/{orgID}/ai/
 	// would exempt the BYOK proxy and the cloud tools too. Exempt routes still
 	// get their body deadline.
@@ -190,6 +204,7 @@ func New(d Deps, h Routes) http.Handler {
 		"/api/v1/orgs/{orgID}/ai/uniwork/chat/completions",
 		"/api/v1/documents/{documentID}/ai/uniwork/chat/completions",
 		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/write",
 	))
 	cat := &apiCatalog{}
 	root := newAPI(r, cat)
@@ -209,7 +224,7 @@ func New(d Deps, h Routes) http.Handler {
 	root.Route("/api/v1", func(v1 api) {
 		v1.r.Get("/ws", h.WS) // WebSocket — off the OpenAPI spec
 		registerAPIHealth(v1, h)
-		registerAuth(v1, h, credentialLimit, refreshLimit)
+		registerAuth(v1, h, credentialLimit, refreshLimit, budgets)
 		registerDemoRequests(v1, h, mw.RateLimit(d.Redis, 5, time.Hour, proxies))
 		// Outside authed: the provider redirects the popup here with no bearer.
 		registerEmailHubCallback(v1, h, credentialLimit)
@@ -226,6 +241,7 @@ func New(d Deps, h Routes) http.Handler {
 				desktop.Use(mw.RequireAuth(d.Minter))
 			}
 			registerDesktopAuth(desktop, h)
+			registerSignInTicketLink(desktop, h, credentialLimit)
 		})
 		v1.Group(func(pub api) {
 			pub.Use(mw.OptionalAuth(d.Minter))
@@ -259,13 +275,13 @@ func New(d Deps, h Routes) http.Handler {
 			} else {
 				authed.Use(mw.RequireAuth(d.Minter))
 			}
-			registerMe(authed, h, credentialLimit)
+			registerMe(authed, h, credentialLimit, budgets.stepUp)
 			registerMobileEvents(authed, h)
 			registerConnect(authed, h)
-			registerOrganizations(authed, h)
+			registerOrganizations(authed, h, budgets.stepUp)
 			registerPeople(authed, h)
 			registerDepartments(authed, h)
-			registerWorkspaces(authed, h)
+			registerWorkspaces(authed, h, budgets.stepUp)
 			registerAgents(authed, h)
 			registerBilling(authed, h)
 			registerNotifications(authed, h)

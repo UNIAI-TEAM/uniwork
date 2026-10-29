@@ -250,3 +250,19 @@ UPDATE organizations SET
   ask_uni_write_ceiling_updated_at = now(),
   updated_at = now()
 WHERE id = sqlc.arg(id);
+
+-- name: UserEverJoinedAnOrganization :one
+-- tenant: token
+-- Whether an account ever belonged to an organization: a membership row
+-- (deactivated ones included), or the member.joined / member.left audit row
+-- every join and leave writes, since leaving deletes the membership row and
+-- audit_events is append-only. A sign-in identity moves only out of an
+-- account that never did (ADR 0049); the caller reached that account through
+-- the provider identity it just proved, and only a yes or no comes back.
+SELECT (
+  EXISTS (SELECT 1 FROM organization_members m WHERE m.user_id = sqlc.arg(user_id)::text)
+  OR EXISTS (
+    SELECT 1 FROM audit_events a
+    WHERE a.resource_type = 'organization_member' AND a.resource_id = sqlc.arg(user_id)::text
+  )
+)::bool AS joined;

@@ -12,11 +12,12 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/config"
 )
 
-// The three UniWork AI routes draw on one 60/min budget per person under the
+// The UniWork AI routes draw on one 60/min budget per person under the
 // ai-uniwork bucket (G6-03b §5.1, ADR 0029 D6): the organization and document
-// ids the paths carry do not mint a new budget, the frame route and the
-// session routes of one person share it, and the failing turn answers
-// ai_rate_limited rather than the generic rate_limited of every other bucket.
+// ids the paths carry do not mint a new budget, the frame routes (the turn and
+// the writer of plan 5) and the session routes of one person share it, and the
+// failing turn answers ai_rate_limited rather than the generic rate_limited of
+// every other bucket.
 func TestAIUniworkRoutesUseOwnLimiterBucket(t *testing.T) {
 	h, minter := frameAIMux(t)
 	const office = "10.20.0.41"
@@ -24,11 +25,15 @@ func TestAIUniworkRoutesUseOwnLimiterBucket(t *testing.T) {
 	aliceSession := caller{ip: office, bearer: mustMint(t, minter, "alice")}
 
 	aliceFrame.spend(t, h, http.MethodPost, frameAIPath("doc-a", "/uniwork/chat/completions"), 20)
-	aliceFrame.spend(t, h, http.MethodPost, frameAIPath("doc-b", "/uniwork/chat/completions"), 20)
+	aliceFrame.spend(t, h, http.MethodPost, frameAIPath("doc-b", "/uniwork/chat/completions"), 10)
+	aliceFrame.spend(t, h, http.MethodPost, frameAIPath("doc-b", "/uniwork/write"), 10)
 	aliceSession.spend(t, h, http.MethodPost, "/api/v1/orgs/o1/ai/uniwork/chat/completions", 20)
 	refused := aliceFrame.sendRec(h, http.MethodPost, frameAIPath("doc-c", "/uniwork/chat/completions"))
 	if refused.Code != http.StatusTooManyRequests {
-		t.Fatalf("the turn past the budget: status %d, want 429 (one ai-uniwork budget across the three routes and every id)", refused.Code)
+		t.Fatalf("the turn past the budget: status %d, want 429 (one ai-uniwork budget across the four routes and every id)", refused.Code)
+	}
+	if writer := aliceFrame.sendRec(h, http.MethodPost, frameAIPath("doc-c", "/uniwork/write")); writer.Code != http.StatusTooManyRequests {
+		t.Fatalf("a writer call past the budget: status %d, want 429 (the writer draws on the same bucket)", writer.Code)
 	}
 	if code := refusalCode(t, refused); code != "ai_rate_limited" {
 		t.Fatalf("refusal code = %q, want ai_rate_limited", code)

@@ -294,6 +294,7 @@ var tenantExemptTables = map[string]string{
 	"mcp_clients":               "OAuth client registry shared by every organization; a client is a program, not tenant data (UNI-1308)",
 	"mcp_auth_attempts":         "pending MCP authorization, before the person picks an organization; the approved attempt reaches its tenant through grant_id (UNI-1308)",
 	"email_verification_codes":  "pre-registration, no organization yet",
+	"sign_in_email_claims":      "identity: a code proving an address during a sign-in that has no account yet, so no organization (ADR 0049)",
 	"password_reset_tokens":     "credential recovery, keyed by user",
 	"organizations":             "the tenant itself",
 	"emails":                    "transactional mail outbox, provider-facing",

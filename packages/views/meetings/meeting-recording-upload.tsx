@@ -55,7 +55,7 @@ const REFUSALS: Readonly<Record<string, string>> = {
  * connection or a server hiccup resumes where it stopped; a refusal of the
  * file itself does not. Null for a cancel the user asked for.
  */
-function uploadFailure(err: unknown, t: Translate): { message: string; retry: boolean } | null {
+export function uploadFailure(err: unknown, t: Translate): { message: string; retry: boolean } | null {
   if (err instanceof ChunkedUploadError && err.code === "upload_canceled") return null;
   // The session is gone (it expired, or another tab stopped it): the same file sends again, from the start.
   if (errorCode(err) === "upload_session_expired") return { message: t("meetings.transcription.uploadError.expired"), retry: true };

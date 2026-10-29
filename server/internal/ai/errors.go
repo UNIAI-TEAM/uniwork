@@ -26,6 +26,10 @@ type Error struct {
 	// settled before it was refused, for the caller's log; "" when the call
 	// never got that far. Never sent to clients.
 	UsageEventID string
+	// ChargedTokens is what a stopped streamed call charged the ai.tokens
+	// meter (settleCancelled), so a caller keeping its own counter (the
+	// writer route's run credits) can match it; 0 when nothing was charged.
+	ChargedTokens int64
 }
 
 func (e *Error) Error() string {

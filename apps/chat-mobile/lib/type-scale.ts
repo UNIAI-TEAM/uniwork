@@ -5,8 +5,9 @@
 // every Text unless told otherwise); containers that hold text use min-height
 // so a larger size grows them instead of clipping. Only badges cap their text,
 // at BADGE_MAX_FONT_SCALE: a count in a small pill beside a name must not outgrow its row, and
-// the element around it still reads the full count; tab labels (TAB_LABEL_MAX_FONT_SCALE) and the
-// sign-in screen's display title (DISPLAY_MAX_FONT_SCALE) stop growing for the reasons beside them.
+// the element around it still reads the full count; tab labels (TAB_LABEL_MAX_FONT_SCALE), the
+// sign-in screen's display title (DISPLAY_MAX_FONT_SCALE) and its provider buttons (PROVIDER_BUTTON_MAX_FONT_SCALE)
+// stop growing for the reasons beside them.
 // type-scale.test.ts fails on Tailwind's default ramp (text-sm, text-lg…) or a
 // raw `text-[13px]` in app/ and components/.
 
@@ -29,6 +30,22 @@ export const TAB_LABEL_MAX_FONT_SCALE = 1.3;
  * AX5 (3.57×) sets it at 100 pt, where "Welcome" no longer fits a 390 pt phone's line and iOS breaks it mid-word.
  */
 export const DISPLAY_MAX_FONT_SCALE = 2;
+
+/**
+ * How far the sign-in screen's Apple and Google buttons grow with the system text size. Apple's system button does
+ * not follow Dynamic Type: its title grows only with the button's height, and Apple's HIG asks that it be no smaller
+ * than the other ways in. So both are drawn at one height that follows the text (providerButtonHeight), and the
+ * Google pill's one-line label stops growing here too (it shrinks to fit rather than wrap), so the two stay equal.
+ */
+export const PROVIDER_BUTTON_MAX_FONT_SCALE = 1.6;
+
+/** The provider buttons' height at the default text size: Google's and Apple's own guidance, and Android's target. */
+const PROVIDER_BUTTON_HEIGHT = 48;
+
+/** The one height of the Apple and Google buttons at `fontScale`: never under 48 pt, growing with the text to the cap. */
+export function providerButtonHeight(fontScale: number): number {
+  return Math.round(PROVIDER_BUTTON_HEIGHT * Math.min(Math.max(fontScale, 1), PROVIDER_BUTTON_MAX_FONT_SCALE));
+}
 
 /** Whether the system text size is one of the accessibility sizes (LARGE_TEXT_SCALE). */
 export function isLargeText(fontScale: number): boolean {

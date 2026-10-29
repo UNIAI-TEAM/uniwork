@@ -6,6 +6,8 @@ import { setSessionUser } from "@uniwork/core/auth";
 import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../../../test/api-mock";
 import { DetailContext, type DetailContextValue } from "../detail-context";
+import { PhoneBarProvider } from "../phone-frame";
+import { StripJobRow, type StripHandlers } from "../strip-rows";
 import { demo, demoUser, demoWorkspace, detailValue, fixtureMeeting, routeMeeting, type DemoUserKey } from "../test-fixtures";
 import { ScheduledBody } from "./scheduled-body";
 import { StripRsvpRow } from "./strip-rsvp-row";
@@ -135,6 +137,24 @@ describe("StripRsvpRow", () => {
     expect(screen.queryByRole("group", { name: "Trả lời lời mời của Lan Phạm" })).not.toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Phòng họp" })).toHaveTextContent(/Phòng họp mở lúc \d\d:\d\d/);
     expect(screen.getByRole("button", { name: "Vào phòng họp" })).toBeInTheDocument();
+  });
+
+  it("the phone bar starts the recording", async () => {
+    const bar = document.createElement("div");
+    document.body.append(bar);
+    const onRecord = vi.fn();
+    const handlers = { onRecord, hostName: "Lan Phạm", clerkNames: [] } as unknown as StripHandlers;
+    renderSlot(
+      <PhoneBarProvider value={bar}>
+        <StripJobRow job={{ kind: "start", canStart: true, pendingNames: [], inPerson: true, canRecord: true }} handlers={handlers} />
+      </PhoneBarProvider>,
+      "lan",
+      { meeting: { ...m3, venue: "in_person" }, isPhone: true },
+    );
+    fireEvent.click(await within(bar).findByRole("button", { name: "Bắt đầu ghi âm" }));
+    expect(onRecord).toHaveBeenCalledWith();
+    expect(screen.queryByRole("button", { name: "Bắt đầu họp" })).not.toBeInTheDocument();
+    bar.remove();
   });
 
   it("renders nothing for someone without an invitation (the host)", () => {

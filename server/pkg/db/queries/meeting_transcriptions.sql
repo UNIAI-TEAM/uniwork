@@ -60,6 +60,12 @@ SELECT COALESCE(sum(ceil(estimated_seconds / 60.0)), 0)::bigint
 FROM meeting_transcriptions
 WHERE organization_id = $1 AND status IN ('QUEUED', 'RUNNING');
 
+-- name: CountOpenMeetingTranscriptions :one
+-- tenant: system
+-- The auto summary worker's check: parts of the meeting still to transcribe.
+SELECT count(*) FROM meeting_transcriptions
+WHERE meeting_id = sqlc.arg(meeting_id) AND status IN ('QUEUED', 'RUNNING');
+
 -- name: ClaimMeetingTranscriptions :many
 -- tenant: system
 -- The worker's claim: due open rows nobody holds, leased for lease_seconds.

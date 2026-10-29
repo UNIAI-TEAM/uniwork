@@ -196,7 +196,7 @@ func (h *handlers) joinMembershipInviteLink(w http.ResponseWriter, r *http.Reque
 	for _, x := range in.Resolve {
 		resolve = append(resolve, service.SwitchResolution{
 			OrganizationID: x.OrganizationID, Action: x.Action,
-			TransferToUserID: x.TransferToUserID, Password: x.Password, ConfirmSlug: x.ConfirmSlug,
+			TransferToUserID: x.TransferToUserID, StepUpToken: x.StepUpToken, Password: x.Password, ConfirmSlug: x.ConfirmSlug,
 		})
 	}
 	result, err := h.Workspaces.JoinMembershipInviteLink(r.Context(), middleware.UserID(r.Context()), in.LinkID, in.Secret, resolve)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInfoFrom, clientHeaders, compareVersions, isUpdateRequired, sentryRelease, shortUpdateId, updateNudgeFor, type BuildInputs } from "./build-info";
+import { buildInfoFrom, buildLabel, clientHeaders, compareVersions, isUpdateRequired, sentryRelease, shortUpdateId, updateNudgeFor, type BuildInputs } from "./build-info";
 
 const inputs = (over: Partial<BuildInputs> = {}): BuildInputs => ({
   configVersion: "0.3.0",
@@ -71,6 +71,13 @@ describe("sentryRelease", () => {
   it("names the update an OTA run is on, as semver build metadata", () => {
     expect(sentryRelease(buildInfoFrom(inputs()))).toBe("com.uniworkos.chat@0.3.0+42.android.ota.0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b");
     expect(sentryRelease(buildInfoFrom(inputs({ nativeBuild: null, updateId: "ab_c/1", os: "i_os" })))).toBe("com.uniworkos.chat@0.3.0+ios.ota.abc1");
+  });
+});
+
+describe("buildLabel", () => {
+  it("names the version, and the build number when the platform says one", () => {
+    expect(buildLabel({ version: "0.4.0", build: "17" })).toBe("0.4.0 (17)");
+    expect(buildLabel({ version: "0.4.0", build: "" })).toBe("0.4.0");
   });
 });
 

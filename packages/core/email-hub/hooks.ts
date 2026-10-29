@@ -32,6 +32,7 @@ export {
   invalidateEmailHubReadingCachesForAccount,
   invalidateEmailHubUnread,
   patchEmailHubThreadInLists,
+  removeEmailHubThreadFromLists,
   setEmailHubListRefreshPaused,
 } from "./query-cache";
 

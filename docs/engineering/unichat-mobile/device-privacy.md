@@ -29,7 +29,13 @@
   khoá lại; chưa biết lựa chọn thì phủ (app có khoá không hiện inbox một khung hình). Trong lúc đó chỉ cuộc gọi hiện:
   `data/stores/app-lock-store.ts` (`engaged`, guard ghi) làm màn cuộc gọi không thu nhỏ được (đang thu nhỏ thì phóng
   to lại) và đóng mọi `CallAwareModal` đang mở khi khoá bật (Modal là cửa sổ native riêng, nằm trên màn khoá; sheet của
-  chính cuộc gọi đang diễn ra — `keepOpenForCall` — thì giữ). Màn Face ID/mã khoá của chính app (`authenticateOwner`,
+  chính cuộc gọi đang diễn ra — `keepOpenForCall` — thì giữ). Sheet "Xác nhận là bạn" (step-up, `components/settings/use-step-up.ts`) thì khoá bật là cất đi chứ không
+  trả lời (`away`), và hiện lại đúng chỗ khi mở khoá, vì bằng chứng thường đưa người ra khỏi app (mã trong Mail, ứng dụng
+  xác thực trên cùng máy); trong sheet Xoá tài khoản thì nó đóng cùng sheet đó (iOS không cất rồi đưa lại được hai sheet
+  chồng nhau). Mã step-up đã gửi mail được nhớ theo từng việc trong mười phút của nó, nên sheet mở lại cho việc đó chờ ở ô
+  mã thay vì gửi mã khác. **Chỗ hở đã biết**: trong lúc một bước của Xoá tài khoản đang chạy (bằng chứng, chuyển quyền,
+  xoá), sheet đó từ chối lệnh đóng của khoá và còn vẽ trên màn khoá tới khi bước xong; sửa cần một trình tự đã kiểm trên
+  máy cho hai modal iOS chồng nhau (đóng con, chờ `onDismiss`, rồi tới cha). Màn Face ID/mã khoá của chính app (`authenticateOwner`,
   đếm ở `ownerPrompts`) không tính là rời app: trên Android màn mã khoá là activity khác, app thành `background`, nếu
   tính thì "Ngay" khoá lại ngay sau khi mở. Trình chọn ảnh/tệp và hộp thoại quyền của hệ thống vẫn tính là rời app. Android: `USE_BIOMETRIC`/
   `USE_FINGERPRINT` là quyền thường; `READ_MEDIA_IMAGES` mà `expo-screen-capture` khai cho listener chụp màn hình

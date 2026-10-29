@@ -9,11 +9,7 @@ import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Field, FieldDescription, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { useTransferCandidates } from "../../settings/components/transfer-ownership-dialog";
-import {
-  TransferCandidateField,
-  TransferPasswordField,
-  candidateLabel,
-} from "../../settings/components/transfer-owner-fields";
+import { TransferCandidateField, candidateLabel } from "../../settings/components/transfer-owner-fields";
 import { SettingsFieldError } from "../../settings/components/settings-layout";
 import { cn } from "@uniwork/ui/lib/utils";
 import { RoleBadge } from "./org-mark";
@@ -23,10 +19,6 @@ type BlockProps = {
   conflict: MembershipConflict;
   draft: SwitchDraft;
   onChange: (patch: Partial<SwitchDraft>) => void;
-  /** The server refused the owner's password on the last attempt. */
-  passwordError?: string;
-  /** The account has no password, so a transfer cannot be confirmed here. */
-  passwordless?: boolean;
 };
 
 /**
@@ -117,7 +109,8 @@ function LeaveBlock({ conflict, draft, onChange }: BlockProps) {
   );
 }
 
-function TransferBlock({ conflict, draft, onChange, passwordError, passwordless = false }: BlockProps) {
+/** Who receives the organization; that its owner is handing it over is proved when the switch is sent. */
+function TransferBlock({ conflict, draft, onChange }: BlockProps) {
   const { t } = useTranslation();
   const name = conflict.organization.name;
   const prefix = `switch-${conflict.organization.id}`;
@@ -141,16 +134,6 @@ function TransferBlock({ conflict, draft, onChange, passwordError, passwordless 
         onRetry={retry}
         empty={none ? t("org.transfer.no_candidate") : undefined}
       />
-      {passwordless ? (
-        <DestructiveNotice>{t("org.transfer.no_password", { name })}</DestructiveNotice>
-      ) : (
-        <TransferPasswordField
-          id={`${prefix}-password`}
-          value={draft.password}
-          onValueChange={(password) => onChange({ password })}
-          error={passwordError}
-        />
-      )}
     </>
   );
 }

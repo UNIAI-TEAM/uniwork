@@ -1,10 +1,12 @@
-// The two shapes a link into the app takes: the web's chat URL
+// The shapes a link into the app takes: the web's chat URL
 // (`https://<appUrl>/{org}/{ws}/chat?room=&message=&dm=`, plus `call=` on a
 // ringing call's push (server notification.ResourceURL), the same params
 // packages/views/chat/use-chat-room-url.ts, use-chat-message-deep-link.ts and
 // use-chat-dm-deep-link.ts read) and the custom scheme wrapper
 // `<scheme>://open?url=<percent-encoded path>` for builds without verified
-// universal links. Expo installs a WHATWG URL on Hermes, so `new URL` is safe.
+// universal links; and an invitation's link (`/invite/{token}`, the web's
+// paths.invite, which the app claims as a universal link), which opens its
+// preview. Expo installs a WHATWG URL on Hermes, so `new URL` is safe.
 //
 // A URL can be fired by anyone: a web page, a message, any app on the phone
 // (an implicit VIEW intent). So no link acts on its own: `call=` only shows the
@@ -35,7 +37,8 @@ function tryUrl(value: string, base?: string): URL | null {
   }
 }
 
-export function parseDeepLink(url: string, appUrl: string, scheme: string): DeepLink | null {
+/** The page a URL names on the app's own origin, unwrapping `<scheme>://open?url=`; null for anything else. */
+function appTarget(url: string, appUrl: string, scheme: string): URL | null {
   let target = tryUrl(url);
   if (!target) return null;
   if (target.protocol === `${scheme.toLowerCase()}:`) {
@@ -44,7 +47,12 @@ export function parseDeepLink(url: string, appUrl: string, scheme: string): Deep
     target = wrapped ? tryUrl(wrapped, appUrl) : null;
     if (!target) return null;
   }
-  if (target.origin !== tryUrl(appUrl)?.origin) return null;
+  return target.origin === tryUrl(appUrl)?.origin ? target : null;
+}
+
+export function parseDeepLink(url: string, appUrl: string, scheme: string): DeepLink | null {
+  const target = appTarget(url, appUrl, scheme);
+  if (!target) return null;
   const [, orgSlug, wsSlug] = CHAT_PATH.exec(target.pathname) ?? [];
   if (!orgSlug || !wsSlug) return null;
   const link: DeepLink = { orgSlug, wsSlug };
@@ -70,17 +78,46 @@ export function deepLinkHref(link: DeepLink): string {
   return `/${link.orgSlug}/${link.wsSlug}/chat${search ? `?${search}` : ""}`;
 }
 
-/** What the app does with a URL the OS hands it (app/_layout.tsx): complete the sign-in, keep a chat link until
- *  someone is signed in, or open it — only when asked to navigate (a notification tap), since app/+native-intent.ts
- *  already routes a Linking URL; anything else is ignored. */
-export type IncomingUrlAction = { kind: "callback" } | { kind: "keep"; link: DeepLink } | { kind: "open"; href: string } | { kind: "ignore" };
+// `/invite/{token}`: one segment. A meeting's invite link (`/invite/meeting/{id}`) is the web's, not an invitation.
+const INVITE_PATH = /^\/invite\/([^/]+)\/?$/;
+
+/** The invitation token an invite link carries, or null when the URL is no invite link of the app's origin. */
+export function parseInviteLink(url: string, appUrl: string, scheme: string): string | null {
+  const target = appTarget(url, appUrl, scheme);
+  const [, raw] = (target && INVITE_PATH.exec(target.pathname)) ?? [];
+  if (!raw || raw === "meeting") return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** The app's route for an invitation: its preview, which shows it and joins nothing by itself. */
+export function invitationHref(token: string): string {
+  return `/invite/${encodeURIComponent(token)}`;
+}
+
+/** The in-app route of a link from outside the app: a chat, or an invitation's preview; null for any other URL. */
+function linkHref(url: string, appUrl: string, scheme: string): string | null {
+  const link = parseDeepLink(url, appUrl, scheme);
+  if (link) return deepLinkHref(link);
+  const token = parseInviteLink(url, appUrl, scheme);
+  return token ? invitationHref(token) : null;
+}
+
+/** What the app does with a URL the OS hands it (app/_layout.tsx): complete the sign-in, keep a chat or invite link
+ *  until someone is signed in (an invitation is often opened before the account exists), or open it — only when
+ *  asked to navigate (a notification tap), since app/+native-intent.ts already routes a Linking URL; anything else
+ *  is ignored. */
+export type IncomingUrlAction = { kind: "callback" } | { kind: "keep"; href: string } | { kind: "open"; href: string } | { kind: "ignore" };
 
 export function incomingUrlAction(url: string, options: { appUrl: string; scheme: string; signedIn: boolean; navigate: boolean }): IncomingUrlAction {
   if (isAuthCallbackUrl(url, options.scheme)) return { kind: "callback" };
-  const link = parseDeepLink(url, options.appUrl, options.scheme);
-  if (!link) return { kind: "ignore" };
-  if (!options.signedIn) return { kind: "keep", link };
-  return options.navigate ? { kind: "open", href: deepLinkHref(link) } : { kind: "ignore" };
+  const href = linkHref(url, options.appUrl, options.scheme);
+  if (!href) return { kind: "ignore" };
+  if (!options.signedIn) return { kind: "keep", href };
+  return options.navigate ? { kind: "open", href } : { kind: "ignore" };
 }
 
 /** Where a URL from outside the app may land when it is not a chat link: the start screen, which sends a
@@ -88,32 +125,32 @@ export function incomingUrlAction(url: string, options: { appUrl: string; scheme
 const START_ROUTE = "/";
 
 /** For app/+native-intent.ts: the route expo-router opens for an OS URL. A
- *  chat link becomes its href (a bare path is read on the app's origin), the
- *  PKCE callback lands on the login screen (the Linking listener in app/_layout
- *  completes the sign-in), and anything else lands on the start screen. An
- *  allowlist, not a pass-through: any app or web page can fire a URL at the
- *  phone, and no URL may open an inner screen it names (account deletion, a
- *  room's info, a group picker preloaded with ?room=) — audit "Security &
- *  privacy", deep-link-catch-all. */
+ *  chat link becomes its href (a bare path is read on the app's origin), an
+ *  invite link its preview (which joins nothing by itself), the PKCE callback
+ *  lands on the login screen (the Linking listener in app/_layout completes the
+ *  sign-in), and anything else lands on the start screen. An allowlist, not a
+ *  pass-through: any app or web page can fire a URL at the phone, and no URL
+ *  may open an inner screen it names (account deletion, a room's info, a group
+ *  picker preloaded with ?room=) — audit "Security & privacy",
+ *  deep-link-catch-all. */
 export function systemPathToRoute(url: string, appUrl: string, scheme: string): string {
   const absolute = url.startsWith("/") ? `${appUrl}${url}` : url;
   if (isAuthCallbackUrl(url, scheme)) return "/login";
-  const link = parseDeepLink(absolute, appUrl, scheme);
-  return link ? deepLinkHref(link) : START_ROUTE;
+  return linkHref(absolute, appUrl, scheme) ?? START_ROUTE;
 }
 
-// A link that arrives before sign-in waits here; app/index.tsx takes it once
-// a user and a workspace exist.
-let pending: DeepLink | null = null;
+// A link that arrives before sign-in waits here, as its in-app route; app/index.tsx takes it once a user whose
+// address is proved exists.
+let pending: string | null = null;
 
-export function setPendingDeepLink(link: DeepLink): void {
-  pending = link;
+export function setPendingLink(href: string): void {
+  pending = href;
 }
 
-export function takePendingDeepLink(): DeepLink | null {
-  const link = pending;
+export function takePendingLink(): string | null {
+  const href = pending;
   pending = null;
-  return link;
+  return href;
 }
 
 // "Message this person" inside the app (Contacts, room info) goes through the Chat tab's `dm=` too, so the back

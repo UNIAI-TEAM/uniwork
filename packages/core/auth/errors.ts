@@ -1,21 +1,28 @@
-import { errorCode } from "../api/http";
+import { errorCode, errorFields } from "../api/http";
+
+/** The organization a deletion was refused for (409 owner_must_transfer). */
+export interface OwnedOrganization {
+  /** Its name; the slug when the refusal names none, "" when it names neither. */
+  name: string;
+  /** Its slug, typed back as `close_organization`; "" when the refusal names none. */
+  slug: string;
+  /** The account is its only active member and it is active: it closes with the erasure. */
+  canClose: boolean;
+}
 
 /**
- * Whether the server refused the proof typed to delete the account (spec F-01
- * §2 I9): a wrong password (403 password_incorrect), a wrong two-factor code
- * (403 mfa_code_incorrect) or a typed address that does not match (400
- * email_confirmation_mismatch). None of them is 401, so the transport never
- * refreshes and replays the request. 401 invalid_credentials is still read as
- * a refusal so a client running against an older server says the same.
+ * The organization standing between the account and its erasure, when
+ * POST /me/delete was refused with 409 owner_must_transfer; null for any
+ * other failure. The server weighs the proof first, then names the
+ * organization the account owns (account_deletion.go,
+ * errOwnerMustTransferFor): its only member closes it in the same request,
+ * anyone else hands it over first. A refusal whose fields do not name it
+ * (an older server, drift) still reads as one, with nothing to close.
  */
-export function deleteAccountProofRefused(err: unknown): boolean {
-  switch (errorCode(err)) {
-    case "password_incorrect":
-    case "mfa_code_incorrect":
-    case "email_confirmation_mismatch":
-    case "invalid_credentials":
-      return true;
-    default:
-      return false;
-  }
+export function ownedOrganization(err: unknown): OwnedOrganization | null {
+  if (errorCode(err) !== "owner_must_transfer") return null;
+  const fields = errorFields(err) ?? {};
+  const slug = typeof fields.organization_slug === "string" ? fields.organization_slug.trim() : "";
+  const named = typeof fields.organization_name === "string" ? fields.organization_name.trim() : "";
+  return { name: named || slug, slug, canClose: slug !== "" && fields.can_close === true };
 }

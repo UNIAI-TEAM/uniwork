@@ -105,15 +105,18 @@ export function EvidenceTimeChip({
   );
 }
 
-function EvidenceBody({
+export function EvidenceBody({
   meetingId,
   refs,
   phone,
+  compact = false,
   onClose,
 }: {
   meetingId: string;
   refs: readonly MeetingEvidenceRef[];
   phone: boolean;
+  /** A summary sentence's source (clip F): a caption header with the time at the end and the quote at body size. */
+  compact?: boolean;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -161,11 +164,14 @@ function EvidenceBody({
   return (
     <div>
       <div className="flex items-center gap-2">
-        <div className="flex min-w-0 items-center gap-2 text-body font-medium">
+        <div className={cn("flex min-w-0 items-center gap-2 font-medium", compact ? "flex-1 text-caption" : "text-body")}>
           <MeetingPersonAvatar name={first.author || "?"} size={20} tint={meetingAvatarTint(authorId, members)} />
           {first.author || "—"}
-          {phone ? null : <span aria-hidden>·</span>}
-          <time dateTime={first.at ?? undefined} className="font-mono text-caption font-medium text-muted-foreground tabular-nums">
+          {phone || compact ? null : <span aria-hidden>·</span>}
+          <time
+            dateTime={first.at ?? undefined}
+            className={cn("font-mono font-medium text-muted-foreground tabular-nums", compact ? "ml-auto text-micro" : "text-caption")}
+          >
             {clockWithSeconds(first.at)}
           </time>
         </div>
@@ -182,7 +188,7 @@ function EvidenceBody({
           </Button>
         ) : null}
       </div>
-      <blockquote className={cn(phone ? "mt-1" : "mt-2", "text-body-lg whitespace-pre-wrap text-pretty")}>
+      <blockquote className={cn(phone || compact ? "mt-1" : "mt-2", compact ? "text-body" : "text-body-lg", "whitespace-pre-wrap text-pretty")}>
         {t("meetings.detail.evidence.quote", { text: first.text })}
       </blockquote>
       {parts.length > 0 ? (
@@ -196,11 +202,14 @@ function EvidenceBody({
             {t("meetings.detail.evidence.openInTranscript")}
           </Button>
         ) : (
-          <div className="mt-3 border-t border-border pt-3">
+          <div className={cn("border-t border-border", compact ? "mt-2.5 pt-2" : "mt-3 pt-3")}>
             <button
               type="button"
               onClick={openTranscript}
-              className="inline-flex items-center gap-0.5 rounded-xs text-body font-medium text-primary underline-offset-2 hover:underline"
+              className={cn(
+                "inline-flex items-center gap-0.5 rounded-xs font-medium text-primary underline-offset-2 hover:underline",
+                compact ? "text-caption" : "text-body",
+              )}
             >
               {t("meetings.detail.evidence.openInTranscript")}
               <ChevronRight aria-hidden className="size-3" />

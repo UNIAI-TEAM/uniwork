@@ -319,10 +319,20 @@ const countEmailHubStarredThreads = `-- name: CountEmailHubStarredThreads :one
 SELECT
   count(*)::bigint AS total,
   count(*) FILTER (WHERE NOT is_read)::bigint AS unread
-FROM email_hub_threads
-WHERE account_id = $1
-  AND organization_id = $2
-  AND is_starred = true
+FROM (
+  SELECT DISTINCT ON (
+    CASE WHEN message_id <> '' THEN lower(message_id) ELSE id END
+  ) is_read
+  FROM email_hub_threads
+  WHERE account_id = $1
+    AND organization_id = $2
+    AND is_starred = true
+  ORDER BY
+    CASE WHEN message_id <> '' THEN lower(message_id) ELSE id END,
+    CASE folder WHEN 'INBOX' THEN 0 WHEN 'SENT' THEN 1 WHEN 'ARCHIVE' THEN 2 ELSE 3 END,
+    sent_at DESC,
+    id DESC
+) starred_unique
 `
 
 type CountEmailHubStarredThreadsParams struct {
@@ -335,6 +345,8 @@ type CountEmailHubStarredThreadsRow struct {
 	Unread int64 `json:"unread"`
 }
 
+// One row per Message-ID (UNI-2269): Gmail can cache the same starred mail in
+// INBOX and All Mail under different UIDs.
 func (q *Queries) CountEmailHubStarredThreads(ctx context.Context, arg CountEmailHubStarredThreadsParams) (CountEmailHubStarredThreadsRow, error) {
 	row := q.db.QueryRow(ctx, countEmailHubStarredThreads, arg.AccountID, arg.OrganizationID)
 	var i CountEmailHubStarredThreadsRow
@@ -359,7 +371,24 @@ WHERE t.account_id = $1
       $3 = ''
       AND (
         ($4 = 'SNOOZED' AND t.folder = 'INBOX' AND t.snoozed_until IS NOT NULL AND t.snoozed_until > now())
-        OR ($4 = 'STARRED' AND t.is_starred = true)
+        OR (
+          $4 = 'STARRED'
+          AND t.is_starred = true
+          AND t.id IN (
+            SELECT DISTINCT ON (
+              CASE WHEN t2.message_id <> '' THEN lower(t2.message_id) ELSE t2.id END
+            ) t2.id
+            FROM email_hub_threads t2
+            WHERE t2.account_id = $1
+              AND t2.organization_id = $2
+              AND t2.is_starred = true
+            ORDER BY
+              CASE WHEN t2.message_id <> '' THEN lower(t2.message_id) ELSE t2.id END,
+              CASE t2.folder WHEN 'INBOX' THEN 0 WHEN 'SENT' THEN 1 WHEN 'ARCHIVE' THEN 2 ELSE 3 END,
+              t2.sent_at DESC,
+              t2.id DESC
+          )
+        )
         OR (
           $4 NOT IN ('STARRED', 'SNOOZED')
           AND t.folder = $4
@@ -683,6 +712,41 @@ WHERE thread_id = ANY($1::text[])
 func (q *Queries) DeleteEmailHubAttachmentsForThreads(ctx context.Context, dollar_1 []string) error {
 	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForThreads, dollar_1)
 	return err
+}
+
+const deleteEmailHubDuplicateThreadsByMessageID = `-- name: DeleteEmailHubDuplicateThreadsByMessageID :execrows
+DELETE FROM email_hub_threads t
+WHERE t.account_id = $1
+  AND t.organization_id = $2
+  AND t.message_id <> ''
+  AND lower(t.message_id) = lower($3::text)
+  AND t.id <> (
+    SELECT id FROM email_hub_threads
+    WHERE account_id = $1
+      AND organization_id = $2
+      AND message_id <> ''
+      AND lower(message_id) = lower($3::text)
+    ORDER BY
+      CASE folder WHEN 'INBOX' THEN 0 WHEN 'SENT' THEN 1 WHEN 'ARCHIVE' THEN 2 ELSE 3 END,
+      sent_at DESC,
+      id DESC
+    LIMIT 1
+  )
+`
+
+type DeleteEmailHubDuplicateThreadsByMessageIDParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+	MessageID      string `json:"message_id"`
+}
+
+// Keep the preferred folder copy (INBOX > SENT > ARCHIVE); drop the rest.
+func (q *Queries) DeleteEmailHubDuplicateThreadsByMessageID(ctx context.Context, arg DeleteEmailHubDuplicateThreadsByMessageIDParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteEmailHubDuplicateThreadsByMessageID, arg.AccountID, arg.OrganizationID, arg.MessageID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteEmailHubThread = `-- name: DeleteEmailHubThread :exec
@@ -1772,7 +1836,14 @@ func (q *Queries) ListEmailHubInboxConversationMembers(ctx context.Context, arg 
 }
 
 const listEmailHubInboxConversationPage = `-- name: ListEmailHubInboxConversationPage :many
-SELECT t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id, t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at, t.is_read, t.is_starred, t.has_attachments, t.body_text, t.body_html, t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key, t.body_object_key
+SELECT
+  t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id,
+  t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at,
+  t.is_read, t.is_starred, t.has_attachments,
+  NULL::text AS body_text,
+  NULL::text AS body_html,
+  t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key,
+  t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = $1
   AND t.organization_id = $2
@@ -1835,7 +1906,35 @@ type ListEmailHubInboxConversationPageParams struct {
 	LimitVal           int32              `json:"limit_val"`
 }
 
-func (q *Queries) ListEmailHubInboxConversationPage(ctx context.Context, arg ListEmailHubInboxConversationPageParams) ([]EmailHubThread, error) {
+type ListEmailHubInboxConversationPageRow struct {
+	ID              string             `json:"id"`
+	AccountID       string             `json:"account_id"`
+	OrganizationID  string             `json:"organization_id"`
+	Folder          string             `json:"folder"`
+	ImapUid         int32              `json:"imap_uid"`
+	MessageID       pgtype.Text        `json:"message_id"`
+	Subject         string             `json:"subject"`
+	Snippet         string             `json:"snippet"`
+	FromAddr        string             `json:"from_addr"`
+	FromName        pgtype.Text        `json:"from_name"`
+	ToAddrs         []string           `json:"to_addrs"`
+	SentAt          pgtype.Timestamptz `json:"sent_at"`
+	IsRead          bool               `json:"is_read"`
+	IsStarred       bool               `json:"is_starred"`
+	HasAttachments  bool               `json:"has_attachments"`
+	BodyText        pgtype.Text        `json:"body_text"`
+	BodyHtml        pgtype.Text        `json:"body_html"`
+	BodyCached      bool               `json:"body_cached"`
+	SyncedAt        pgtype.Timestamptz `json:"synced_at"`
+	ImapLabels      []string           `json:"imap_labels"`
+	SnoozedUntil    pgtype.Timestamptz `json:"snoozed_until"`
+	ConversationKey string             `json:"conversation_key"`
+	BodyObjectKey   string             `json:"body_object_key"`
+}
+
+// List pages omit body_text/body_html so Postgres does not pull TOAST for the
+// inbox/folder list (UNI-2268). Detail/conversation queries still SELECT *.
+func (q *Queries) ListEmailHubInboxConversationPage(ctx context.Context, arg ListEmailHubInboxConversationPageParams) ([]ListEmailHubInboxConversationPageRow, error) {
 	rows, err := q.db.Query(ctx, listEmailHubInboxConversationPage,
 		arg.AccountID,
 		arg.OrganizationID,
@@ -1851,9 +1950,9 @@ func (q *Queries) ListEmailHubInboxConversationPage(ctx context.Context, arg Lis
 		return nil, err
 	}
 	defer rows.Close()
-	items := []EmailHubThread{}
+	items := []ListEmailHubInboxConversationPageRow{}
 	for rows.Next() {
-		var i EmailHubThread
+		var i ListEmailHubInboxConversationPageRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AccountID,
@@ -2195,7 +2294,14 @@ func (q *Queries) ListEmailHubThreads(ctx context.Context, arg ListEmailHubThrea
 }
 
 const listEmailHubThreadsPage = `-- name: ListEmailHubThreadsPage :many
-SELECT t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id, t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at, t.is_read, t.is_starred, t.has_attachments, t.body_text, t.body_html, t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key, t.body_object_key
+SELECT
+  t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id,
+  t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at,
+  t.is_read, t.is_starred, t.has_attachments,
+  NULL::text AS body_text,
+  NULL::text AS body_html,
+  t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key,
+  t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = $1
   AND t.organization_id = $2
@@ -2209,7 +2315,24 @@ WHERE t.account_id = $1
       $3 = ''
       AND (
         ($4 = 'SNOOZED' AND t.folder = 'INBOX' AND t.snoozed_until IS NOT NULL AND t.snoozed_until > now())
-        OR ($4 = 'STARRED' AND t.is_starred = true)
+        OR (
+          $4 = 'STARRED'
+          AND t.is_starred = true
+          AND t.id IN (
+            SELECT DISTINCT ON (
+              CASE WHEN t2.message_id <> '' THEN lower(t2.message_id) ELSE t2.id END
+            ) t2.id
+            FROM email_hub_threads t2
+            WHERE t2.account_id = $1
+              AND t2.organization_id = $2
+              AND t2.is_starred = true
+            ORDER BY
+              CASE WHEN t2.message_id <> '' THEN lower(t2.message_id) ELSE t2.id END,
+              CASE t2.folder WHEN 'INBOX' THEN 0 WHEN 'SENT' THEN 1 WHEN 'ARCHIVE' THEN 2 ELSE 3 END,
+              t2.sent_at DESC,
+              t2.id DESC
+          )
+        )
         OR (
           $4 NOT IN ('STARRED', 'SNOOZED')
           AND t.folder = $4
@@ -2267,7 +2390,33 @@ type ListEmailHubThreadsPageParams struct {
 	LimitVal           int32              `json:"limit_val"`
 }
 
-func (q *Queries) ListEmailHubThreadsPage(ctx context.Context, arg ListEmailHubThreadsPageParams) ([]EmailHubThread, error) {
+type ListEmailHubThreadsPageRow struct {
+	ID              string             `json:"id"`
+	AccountID       string             `json:"account_id"`
+	OrganizationID  string             `json:"organization_id"`
+	Folder          string             `json:"folder"`
+	ImapUid         int32              `json:"imap_uid"`
+	MessageID       pgtype.Text        `json:"message_id"`
+	Subject         string             `json:"subject"`
+	Snippet         string             `json:"snippet"`
+	FromAddr        string             `json:"from_addr"`
+	FromName        pgtype.Text        `json:"from_name"`
+	ToAddrs         []string           `json:"to_addrs"`
+	SentAt          pgtype.Timestamptz `json:"sent_at"`
+	IsRead          bool               `json:"is_read"`
+	IsStarred       bool               `json:"is_starred"`
+	HasAttachments  bool               `json:"has_attachments"`
+	BodyText        pgtype.Text        `json:"body_text"`
+	BodyHtml        pgtype.Text        `json:"body_html"`
+	BodyCached      bool               `json:"body_cached"`
+	SyncedAt        pgtype.Timestamptz `json:"synced_at"`
+	ImapLabels      []string           `json:"imap_labels"`
+	SnoozedUntil    pgtype.Timestamptz `json:"snoozed_until"`
+	ConversationKey string             `json:"conversation_key"`
+	BodyObjectKey   string             `json:"body_object_key"`
+}
+
+func (q *Queries) ListEmailHubThreadsPage(ctx context.Context, arg ListEmailHubThreadsPageParams) ([]ListEmailHubThreadsPageRow, error) {
 	rows, err := q.db.Query(ctx, listEmailHubThreadsPage,
 		arg.AccountID,
 		arg.OrganizationID,
@@ -2286,9 +2435,9 @@ func (q *Queries) ListEmailHubThreadsPage(ctx context.Context, arg ListEmailHubT
 		return nil, err
 	}
 	defer rows.Close()
-	items := []EmailHubThread{}
+	items := []ListEmailHubThreadsPageRow{}
 	for rows.Next() {
-		var i EmailHubThread
+		var i ListEmailHubThreadsPageRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AccountID,
@@ -2462,7 +2611,14 @@ func (q *Queries) ListEmailHubThreadsPendingBodyRecent(ctx context.Context, arg 
 }
 
 const listEmailHubThreadsSearchPage = `-- name: ListEmailHubThreadsSearchPage :many
-SELECT t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id, t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at, t.is_read, t.is_starred, t.has_attachments, t.body_text, t.body_html, t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key, t.body_object_key
+SELECT
+  t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id,
+  t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at,
+  t.is_read, t.is_starred, t.has_attachments,
+  NULL::text AS body_text,
+  NULL::text AS body_html,
+  t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key,
+  t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = $1
   AND t.organization_id = $2
@@ -2509,7 +2665,33 @@ type ListEmailHubThreadsSearchPageParams struct {
 	LimitVal           int32              `json:"limit_val"`
 }
 
-func (q *Queries) ListEmailHubThreadsSearchPage(ctx context.Context, arg ListEmailHubThreadsSearchPageParams) ([]EmailHubThread, error) {
+type ListEmailHubThreadsSearchPageRow struct {
+	ID              string             `json:"id"`
+	AccountID       string             `json:"account_id"`
+	OrganizationID  string             `json:"organization_id"`
+	Folder          string             `json:"folder"`
+	ImapUid         int32              `json:"imap_uid"`
+	MessageID       pgtype.Text        `json:"message_id"`
+	Subject         string             `json:"subject"`
+	Snippet         string             `json:"snippet"`
+	FromAddr        string             `json:"from_addr"`
+	FromName        pgtype.Text        `json:"from_name"`
+	ToAddrs         []string           `json:"to_addrs"`
+	SentAt          pgtype.Timestamptz `json:"sent_at"`
+	IsRead          bool               `json:"is_read"`
+	IsStarred       bool               `json:"is_starred"`
+	HasAttachments  bool               `json:"has_attachments"`
+	BodyText        pgtype.Text        `json:"body_text"`
+	BodyHtml        pgtype.Text        `json:"body_html"`
+	BodyCached      bool               `json:"body_cached"`
+	SyncedAt        pgtype.Timestamptz `json:"synced_at"`
+	ImapLabels      []string           `json:"imap_labels"`
+	SnoozedUntil    pgtype.Timestamptz `json:"snoozed_until"`
+	ConversationKey string             `json:"conversation_key"`
+	BodyObjectKey   string             `json:"body_object_key"`
+}
+
+func (q *Queries) ListEmailHubThreadsSearchPage(ctx context.Context, arg ListEmailHubThreadsSearchPageParams) ([]ListEmailHubThreadsSearchPageRow, error) {
 	rows, err := q.db.Query(ctx, listEmailHubThreadsSearchPage,
 		arg.AccountID,
 		arg.OrganizationID,
@@ -2527,9 +2709,9 @@ func (q *Queries) ListEmailHubThreadsSearchPage(ctx context.Context, arg ListEma
 		return nil, err
 	}
 	defer rows.Close()
-	items := []EmailHubThread{}
+	items := []ListEmailHubThreadsSearchPageRow{}
 	for rows.Next() {
-		var i EmailHubThread
+		var i ListEmailHubThreadsSearchPageRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AccountID,
@@ -2665,6 +2847,35 @@ type MarkEmailHubScheduledSendSentParams struct {
 // tenant: system
 func (q *Queries) MarkEmailHubScheduledSendSent(ctx context.Context, arg MarkEmailHubScheduledSendSentParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markEmailHubScheduledSendSent, arg.ID, arg.LeaseOwner)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markEmailHubThreadsStarredByMessageID = `-- name: MarkEmailHubThreadsStarredByMessageID :execrows
+UPDATE email_hub_threads
+SET is_starred = $1, synced_at = now()
+WHERE account_id = $2
+  AND organization_id = $3
+  AND message_id <> ''
+  AND lower(message_id) = lower($4::text)
+`
+
+type MarkEmailHubThreadsStarredByMessageIDParams struct {
+	IsStarred      bool   `json:"is_starred"`
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+	MessageID      string `json:"message_id"`
+}
+
+func (q *Queries) MarkEmailHubThreadsStarredByMessageID(ctx context.Context, arg MarkEmailHubThreadsStarredByMessageIDParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markEmailHubThreadsStarredByMessageID,
+		arg.IsStarred,
+		arg.AccountID,
+		arg.OrganizationID,
+		arg.MessageID,
+	)
 	if err != nil {
 		return 0, err
 	}

@@ -92,6 +92,7 @@ func TestLoadShedExemptsRoutePatterns(t *testing.T) {
 	h := LoadShed(1, "/healthz",
 		"/api/v1/orgs/{orgID}/ai/uniwork/chat/completions",
 		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/write",
 	)(slow)
 
 	started.Add(1)
@@ -105,6 +106,7 @@ func TestLoadShedExemptsRoutePatterns(t *testing.T) {
 	for _, path := range []string{
 		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
 		"/api/v1/office-frame/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/write",
 	} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, nil))
@@ -121,6 +123,7 @@ func TestLoadShedExemptsRoutePatterns(t *testing.T) {
 		"/api/v1/orgs//ai/uniwork/chat/completions",
 		"/api/v1/orgs/a/b/ai/uniwork/chat/completions",
 		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/chat/completions/extra",
+		"/api/v1/office-frame/documents/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/uniwork/write/extra",
 	} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, nil))

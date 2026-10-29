@@ -111,6 +111,15 @@ describe("DetailRail rows", () => {
     expect(within(rail()).getByRole("button", { name: "Lịch sử thao tác" })).toBeInTheDocument();
   });
 
+  it("lists Hình thức first for an in-person meeting", async () => {
+    const { unmount } = renderRail("m3", { value: { meeting: { ...fixtureMeeting("m3"), venue: "in_person" } } });
+    await within(rail()).findByRole("button", { name: "Lịch sử thao tác" });
+    expect(rail().textContent).toMatch(/^Hình thứcTrực tiếpChủ trìLPLan Phạm/);
+    unmount();
+    renderRail("m3");
+    expect(within(rail()).queryByText("Hình thức")).not.toBeInTheDocument();
+  });
+
   it("draws the live host's roll, invitations and guests, and no project (LiveHost)", async () => {
     renderRail("m4");
     expect(
@@ -351,6 +360,21 @@ describe("RailOutline on the minutes tab", () => {
       .getAllByRole("link")
       .map((a) => [...a.childNodes].filter((n) => !(n instanceof Element && n.hasAttribute("aria-hidden"))).map((n) => n.textContent).join(""));
     expect(rows).toEqual(["Thành phần 3/3", "Nội dung 2 chủ đề", "Kết luận 2"]);
+  });
+
+  it("rolls the overview's items count", async () => {
+    renderRail("m1", {
+      ui: (
+        <>
+          <section id="action-items"><h2>Việc cần làm</h2></section>
+          <DetailRail />
+        </>
+      ),
+    });
+    const nav = await screen.findByRole("navigation", { name: "Trên trang này" });
+    const row = await within(nav).findByRole("link", { name: /^Việc cần làm \d+ chờ · \d+ đã giao$/ });
+    // The drawn count is numbers that roll (NumberFlow), read once as the plain sentence.
+    expect(row.querySelector("[aria-hidden] number-flow-react")).not.toBeNull();
   });
 });
 

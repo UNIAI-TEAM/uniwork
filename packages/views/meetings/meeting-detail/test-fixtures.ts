@@ -151,6 +151,7 @@ export function detailValue(
     } as DetailContextValue["memberIndex"],
     participants,
     invitations: b.invitations as MeetingInvitation[],
+    rosterLoaded: true,
     sections: sectionFlags({
       status: displayStatus,
       viewer,

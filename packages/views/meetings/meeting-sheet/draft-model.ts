@@ -6,6 +6,7 @@ import type {
   MotionBase,
   MotionThreshold,
 } from "@uniwork/core/types/meeting";
+import { meetingVenue, type MeetingVenue } from "@uniwork/core/meetings/venue";
 import { splitIsoLocal } from "../meeting-datetime";
 
 /**
@@ -34,6 +35,7 @@ export type MotionDraft = {
 
 export type MeetingDraft = {
   title: string;
+  venue: MeetingVenue;
   description: string;
   /** Wall date "YYYY-MM-DD" and "HH:MM" times in `timezone`. */
   date: string;
@@ -60,6 +62,11 @@ let keySeq = 0;
 export function draftKey(prefix: string): string {
   keySeq += 1;
   return `${prefix}${keySeq}`;
+}
+
+/** The new guest links the draft would create: none in person, which has no room (spec D4); kept for a switch back to Online. */
+export function draftLinks(draft: Pick<MeetingDraft, "venue" | "links">): GuestLinkDraft[] {
+  return draft.venue === "in_person" ? [] : draft.links;
 }
 
 export function newGuestLink(): GuestLinkDraft {
@@ -99,6 +106,7 @@ export function emptyDraft(nowMs: number, zone: string): MeetingDraft {
   const timezone = canonicalZone(zone);
   return {
     title: "",
+    venue: "online",
     description: "",
     ...defaultWindow(nowMs, timezone),
     timezone,
@@ -156,6 +164,7 @@ export function draftFromMeeting(
   const to = splitIsoLocal(meeting.ends_at, timezone);
   return {
     title: meeting.title,
+    venue: meetingVenue(meeting),
     description: meeting.description ?? "",
     date: from.date,
     start: from.time,
@@ -178,7 +187,7 @@ function motionChanged(a: MotionDraft, b: MotionDraft): boolean {
   return MOTION_FIELDS.some((f) => (typeof a[f] === "string" ? a[f].trim() : a[f]) !== (typeof b[f] === "string" ? b[f].trim() : b[f]));
 }
 
-const SCALARS = ["title", "description", "date", "start", "end", "timezone", "projectId", "allowJoin", "scribe", "aiShared", "quorum"] as const;
+const SCALARS = ["title", "venue", "description", "date", "start", "end", "timezone", "projectId", "allowJoin", "scribe", "aiShared", "quorum"] as const;
 
 function same(a: unknown, b: unknown): boolean {
   return (typeof a === "string" && typeof b === "string" ? a.trim() === b.trim() : a === b);
@@ -199,7 +208,7 @@ export function draftChanges(draft: MeetingDraft, snapshot: MeetingDraft): strin
   }
   for (const id of before.keys()) if (!after.has(id)) out.push(`person-:${id}`);
   const linkKeys = new Set(snapshot.links.map((l) => l.key));
-  for (const l of draft.links) if (!linkKeys.has(l.key)) out.push(`link:${l.key}`);
+  for (const l of draftLinks(draft)) if (!linkKeys.has(l.key)) out.push(`link:${l.key}`);
   const oldMotions = new Map(snapshot.motions.map((m, i) => [m.key, { m, i }]));
   const kept = draft.motions.filter((m) => oldMotions.has(m.key));
   for (const m of draft.motions) {

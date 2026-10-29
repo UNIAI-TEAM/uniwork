@@ -27,3 +27,14 @@ tolerations:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- end -}}
+
+{{- define "uniwork.avoidPostgres" -}}
+podAntiAffinity:
+  preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        topologyKey: kubernetes.io/hostname
+        labelSelector:
+          matchLabels:
+            cluster-name: reap-postgresql
+{{- end }}

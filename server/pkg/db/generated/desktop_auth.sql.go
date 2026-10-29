@@ -13,24 +13,29 @@ import (
 
 const approveDesktopAuthAttempt = `-- name: ApproveDesktopAuthAttempt :one
 UPDATE desktop_auth_attempts
-SET user_id = $2, code_digest = $3, code_expires_at = $4, approved_at = now(), csrf_digest = NULL
+SET user_id = $2, code_digest = $3, code_expires_at = $4, approved_at = now(), csrf_digest = NULL,
+    approver_signed_in_at = $5
 WHERE id = $1 AND user_id = $2 AND used_at IS NULL AND cancelled_at IS NULL AND approved_at IS NULL AND expires_at > now()
-RETURNING id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at
+RETURNING id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at, approver_signed_in_at
 `
 
 type ApproveDesktopAuthAttemptParams struct {
-	ID            string             `json:"id"`
-	UserID        pgtype.Text        `json:"user_id"`
-	CodeDigest    pgtype.Text        `json:"code_digest"`
-	CodeExpiresAt pgtype.Timestamptz `json:"code_expires_at"`
+	ID                 string             `json:"id"`
+	UserID             pgtype.Text        `json:"user_id"`
+	CodeDigest         pgtype.Text        `json:"code_digest"`
+	CodeExpiresAt      pgtype.Timestamptz `json:"code_expires_at"`
+	ApproverSignedInAt pgtype.Timestamptz `json:"approver_signed_in_at"`
 }
 
+// approver_signed_in_at is when the approving session signed in, which the
+// device session the code opens inherits (ADR 0049).
 func (q *Queries) ApproveDesktopAuthAttempt(ctx context.Context, arg ApproveDesktopAuthAttemptParams) (DesktopAuthAttempt, error) {
 	row := q.db.QueryRow(ctx, approveDesktopAuthAttempt,
 		arg.ID,
 		arg.UserID,
 		arg.CodeDigest,
 		arg.CodeExpiresAt,
+		arg.ApproverSignedInAt,
 	)
 	var i DesktopAuthAttempt
 	err := row.Scan(
@@ -54,6 +59,7 @@ func (q *Queries) ApproveDesktopAuthAttempt(ctx context.Context, arg ApproveDesk
 		&i.UsedAt,
 		&i.CancelledAt,
 		&i.CreatedAt,
+		&i.ApproverSignedInAt,
 	)
 	return i, err
 }
@@ -70,6 +76,23 @@ type CancelDesktopAuthAttemptParams struct {
 
 func (q *Queries) CancelDesktopAuthAttempt(ctx context.Context, arg CancelDesktopAuthAttemptParams) (int64, error) {
 	result, err := q.db.Exec(ctx, cancelDesktopAuthAttempt, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const cancelOpenDesktopAuthAttemptsForUser = `-- name: CancelOpenDesktopAuthAttemptsForUser :execrows
+UPDATE desktop_auth_attempts SET cancelled_at = now()
+WHERE user_id = $1 AND used_at IS NULL AND cancelled_at IS NULL
+`
+
+// An account taken back by the owner of its mailbox, or whose password a reset
+// link replaced (ADR 0049): every attempt claimed or approved before and
+// nobody redeemed yet dies, so an approved code cannot open a device session
+// after the reclaim or the reset.
+func (q *Queries) CancelOpenDesktopAuthAttemptsForUser(ctx context.Context, userID pgtype.Text) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelOpenDesktopAuthAttemptsForUser, userID)
 	if err != nil {
 		return 0, err
 	}
@@ -98,7 +121,7 @@ INSERT INTO desktop_auth_attempts (
   id, client_id, deployment_id, code_challenge, code_challenge_method,
   redirect_uri, state, state_digest, device_label, platform, build, expires_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-RETURNING id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at
+RETURNING id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at, approver_signed_in_at
 `
 
 type CreateDesktopAuthAttemptParams struct {
@@ -153,6 +176,7 @@ func (q *Queries) CreateDesktopAuthAttempt(ctx context.Context, arg CreateDeskto
 		&i.UsedAt,
 		&i.CancelledAt,
 		&i.CreatedAt,
+		&i.ApproverSignedInAt,
 	)
 	return i, err
 }
@@ -160,9 +184,9 @@ func (q *Queries) CreateDesktopAuthAttempt(ctx context.Context, arg CreateDeskto
 const createDeviceSession = `-- name: CreateDeviceSession :one
 INSERT INTO device_sessions (
   id, user_id, session_family_id, client_id, deployment_id, device_label,
-  platform, build, refresh_token_digest, expires_at, created_by_kind
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, user_id, session_family_id, client_id, deployment_id, device_label, platform, build, refresh_token_digest, created_at, last_used_at, expires_at, revoked_at, created_by_kind
+  platform, build, refresh_token_digest, expires_at, created_by_kind, signed_in_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, user_id, session_family_id, client_id, deployment_id, device_label, platform, build, refresh_token_digest, created_at, last_used_at, expires_at, revoked_at, created_by_kind, signed_in_at
 `
 
 type CreateDeviceSessionParams struct {
@@ -177,6 +201,7 @@ type CreateDeviceSessionParams struct {
 	RefreshTokenDigest string             `json:"refresh_token_digest"`
 	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
 	CreatedByKind      string             `json:"created_by_kind"`
+	SignedInAt         pgtype.Timestamptz `json:"signed_in_at"`
 }
 
 func (q *Queries) CreateDeviceSession(ctx context.Context, arg CreateDeviceSessionParams) (DeviceSession, error) {
@@ -192,6 +217,7 @@ func (q *Queries) CreateDeviceSession(ctx context.Context, arg CreateDeviceSessi
 		arg.RefreshTokenDigest,
 		arg.ExpiresAt,
 		arg.CreatedByKind,
+		arg.SignedInAt,
 	)
 	var i DeviceSession
 	err := row.Scan(
@@ -209,12 +235,13 @@ func (q *Queries) CreateDeviceSession(ctx context.Context, arg CreateDeviceSessi
 		&i.ExpiresAt,
 		&i.RevokedAt,
 		&i.CreatedByKind,
+		&i.SignedInAt,
 	)
 	return i, err
 }
 
 const getDesktopAuthAttempt = `-- name: GetDesktopAuthAttempt :one
-SELECT id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at FROM desktop_auth_attempts WHERE id = $1
+SELECT id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at, approver_signed_in_at FROM desktop_auth_attempts WHERE id = $1
 `
 
 func (q *Queries) GetDesktopAuthAttempt(ctx context.Context, id string) (DesktopAuthAttempt, error) {
@@ -241,12 +268,13 @@ func (q *Queries) GetDesktopAuthAttempt(ctx context.Context, id string) (Desktop
 		&i.UsedAt,
 		&i.CancelledAt,
 		&i.CreatedAt,
+		&i.ApproverSignedInAt,
 	)
 	return i, err
 }
 
 const getDesktopAuthAttemptForUpdate = `-- name: GetDesktopAuthAttemptForUpdate :one
-SELECT id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at FROM desktop_auth_attempts WHERE id = $1 FOR UPDATE
+SELECT id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at, approver_signed_in_at FROM desktop_auth_attempts WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetDesktopAuthAttemptForUpdate(ctx context.Context, id string) (DesktopAuthAttempt, error) {
@@ -273,12 +301,13 @@ func (q *Queries) GetDesktopAuthAttemptForUpdate(ctx context.Context, id string)
 		&i.UsedAt,
 		&i.CancelledAt,
 		&i.CreatedAt,
+		&i.ApproverSignedInAt,
 	)
 	return i, err
 }
 
 const getDeviceSession = `-- name: GetDeviceSession :one
-SELECT id, user_id, session_family_id, client_id, deployment_id, device_label, platform, build, refresh_token_digest, created_at, last_used_at, expires_at, revoked_at, created_by_kind FROM device_sessions WHERE id = $1
+SELECT id, user_id, session_family_id, client_id, deployment_id, device_label, platform, build, refresh_token_digest, created_at, last_used_at, expires_at, revoked_at, created_by_kind, signed_in_at FROM device_sessions WHERE id = $1
 `
 
 func (q *Queries) GetDeviceSession(ctx context.Context, id string) (DeviceSession, error) {
@@ -299,12 +328,13 @@ func (q *Queries) GetDeviceSession(ctx context.Context, id string) (DeviceSessio
 		&i.ExpiresAt,
 		&i.RevokedAt,
 		&i.CreatedByKind,
+		&i.SignedInAt,
 	)
 	return i, err
 }
 
 const getDeviceSessionForUpdate = `-- name: GetDeviceSessionForUpdate :one
-SELECT id, user_id, session_family_id, client_id, deployment_id, device_label, platform, build, refresh_token_digest, created_at, last_used_at, expires_at, revoked_at, created_by_kind FROM device_sessions WHERE id = $1 FOR UPDATE
+SELECT id, user_id, session_family_id, client_id, deployment_id, device_label, platform, build, refresh_token_digest, created_at, last_used_at, expires_at, revoked_at, created_by_kind, signed_in_at FROM device_sessions WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetDeviceSessionForUpdate(ctx context.Context, id string) (DeviceSession, error) {
@@ -325,12 +355,13 @@ func (q *Queries) GetDeviceSessionForUpdate(ctx context.Context, id string) (Dev
 		&i.ExpiresAt,
 		&i.RevokedAt,
 		&i.CreatedByKind,
+		&i.SignedInAt,
 	)
 	return i, err
 }
 
 const listDeviceSessions = `-- name: ListDeviceSessions :many
-SELECT id, user_id, session_family_id, client_id, deployment_id, device_label, platform, build, refresh_token_digest, created_at, last_used_at, expires_at, revoked_at, created_by_kind FROM device_sessions WHERE user_id = $1 ORDER BY created_at DESC
+SELECT id, user_id, session_family_id, client_id, deployment_id, device_label, platform, build, refresh_token_digest, created_at, last_used_at, expires_at, revoked_at, created_by_kind, signed_in_at FROM device_sessions WHERE user_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListDeviceSessions(ctx context.Context, userID string) ([]DeviceSession, error) {
@@ -357,6 +388,7 @@ func (q *Queries) ListDeviceSessions(ctx context.Context, userID string) ([]Devi
 			&i.ExpiresAt,
 			&i.RevokedAt,
 			&i.CreatedByKind,
+			&i.SignedInAt,
 		); err != nil {
 			return nil, err
 		}
@@ -387,7 +419,7 @@ const redeemDesktopAuthAttempt = `-- name: RedeemDesktopAuthAttempt :one
 UPDATE desktop_auth_attempts SET used_at = now()
 WHERE code_digest = $1 AND client_id = $2 AND deployment_id = $3 AND redirect_uri = $4 AND code_challenge = $5
   AND used_at IS NULL AND cancelled_at IS NULL AND approved_at IS NOT NULL AND code_expires_at > now()
-RETURNING id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at
+RETURNING id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at, approver_signed_in_at
 `
 
 type RedeemDesktopAuthAttemptParams struct {
@@ -428,6 +460,7 @@ func (q *Queries) RedeemDesktopAuthAttempt(ctx context.Context, arg RedeemDeskto
 		&i.UsedAt,
 		&i.CancelledAt,
 		&i.CreatedAt,
+		&i.ApproverSignedInAt,
 	)
 	return i, err
 }
@@ -565,10 +598,40 @@ func (q *Queries) RevokeDeviceSessionFamily(ctx context.Context, arg RevokeDevic
 	return result.RowsAffected(), nil
 }
 
+const revokeOtherDeviceSessions = `-- name: RevokeOtherDeviceSessions :execrows
+UPDATE device_sessions d SET revoked_at = COALESCE(d.revoked_at, now())
+FROM (
+  SELECT l.id FROM device_sessions l
+  WHERE l.user_id = $1 AND l.revoked_at IS NULL
+    AND l.session_family_id <> $2
+  ORDER BY l.id
+  FOR UPDATE
+) live
+WHERE d.id = live.id
+`
+
+type RevokeOtherDeviceSessionsParams struct {
+	UserID       string `json:"user_id"`
+	KeepFamilyID string `json:"keep_family_id"`
+}
+
+// First half of revoking every session but the caller's
+// (revokeOtherUserSessions; the refresh tokens follow): every live device of
+// the user outside the kept family, locked in id order like
+// RevokeAllDeviceSessions, so the two and a logout take locks in one order.
+// A browser caller keeps no family: its session id names none.
+func (q *Queries) RevokeOtherDeviceSessions(ctx context.Context, arg RevokeOtherDeviceSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeOtherDeviceSessions, arg.UserID, arg.KeepFamilyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const rotateDeviceSessionToken = `-- name: RotateDeviceSessionToken :one
 UPDATE device_sessions SET refresh_token_digest = $2, last_used_at = now()
 WHERE id = $1 AND refresh_token_digest = $3 AND revoked_at IS NULL AND expires_at > now()
-RETURNING id, user_id, session_family_id, client_id, deployment_id, device_label, platform, build, refresh_token_digest, created_at, last_used_at, expires_at, revoked_at, created_by_kind
+RETURNING id, user_id, session_family_id, client_id, deployment_id, device_label, platform, build, refresh_token_digest, created_at, last_used_at, expires_at, revoked_at, created_by_kind, signed_in_at
 `
 
 type RotateDeviceSessionTokenParams struct {
@@ -595,6 +658,7 @@ func (q *Queries) RotateDeviceSessionToken(ctx context.Context, arg RotateDevice
 		&i.ExpiresAt,
 		&i.RevokedAt,
 		&i.CreatedByKind,
+		&i.SignedInAt,
 	)
 	return i, err
 }
@@ -603,7 +667,7 @@ const setDesktopAuthCSRF = `-- name: SetDesktopAuthCSRF :one
 UPDATE desktop_auth_attempts SET csrf_digest = $3, user_id = $2
 WHERE id = $1 AND (user_id IS NULL OR user_id = $2)
   AND used_at IS NULL AND cancelled_at IS NULL AND expires_at > now()
-RETURNING id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at
+RETURNING id, client_id, deployment_id, code_challenge, code_challenge_method, redirect_uri, state, state_digest, csrf_digest, code_digest, code_expires_at, user_id, device_label, platform, build, expires_at, approved_at, used_at, cancelled_at, created_at, approver_signed_in_at
 `
 
 type SetDesktopAuthCSRFParams struct {
@@ -636,6 +700,7 @@ func (q *Queries) SetDesktopAuthCSRF(ctx context.Context, arg SetDesktopAuthCSRF
 		&i.UsedAt,
 		&i.CancelledAt,
 		&i.CreatedAt,
+		&i.ApproverSignedInAt,
 	)
 	return i, err
 }

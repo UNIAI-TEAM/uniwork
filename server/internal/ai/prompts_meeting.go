@@ -33,6 +33,8 @@ type ContextLine struct{ Speaker, Text string }
 
 const meetingRecordShapeV7 = `{"tldr": string, "topics": [{"title": string, "start_label": string, "points": [{"text": string, "evidence": string[]}]}], "decisions": [{"text": string, "evidence": string[]}], "action_items": [{"title": string, "owner": string, "due": string, "description": string, "priority": string, "evidence": string[], "draft": string}], "open_questions": [{"text": string, "evidence": string[]}]}`
 
+const meetingRecordShapeV8 = `{"tldr": string, "summary_points": [{"text": string, "evidence": string[]}], "topics": [{"title": string, "start_label": string, "points": [{"text": string, "evidence": string[]}]}], "decisions": [{"text": string, "evidence": string[]}], "action_items": [{"title": string, "owner": string, "due": string, "description": string, "priority": string, "evidence": string[], "draft": string}], "open_questions": [{"text": string, "evidence": string[]}]}`
+
 // meetingRecordFieldRulesV7 describe the fields of a @7 record and of a part.
 const meetingRecordFieldRulesV7 = `- "topics": the subjects discussed, in the order they came up, within the topic and point budget under "Record size". "title" names the subject in a few words. "start_label" is the label of the transcript line where the subject starts, or "" when no transcript line does. "points" are the key statements about the subject, one sentence each. Use an empty array when there was a single short subject the tldr already covers.
 - "decisions": concrete decisions that were made; empty array if none. "text" states the decision.
@@ -49,14 +51,36 @@ const actionItemProseRulesV7 = `- "description": at most two sentences of prose 
 - "priority": "urgent", "high", "medium" or "low" only when the input signals how pressing the task is: an explicit word of urgency or priority (for example "gấp", "ưu tiên"), work that blocks other work, or a close deadline stated in the input. Otherwise "". Never guess a priority.
 `
 
-const meetingSummaryRulesV7 = `You turn meeting transcripts and notes into a written record for a work team.
+const meetingSummaryRulesV7 = meetingSummaryIntro + meetingRecordShapeV7 + "\n" + meetingSummaryTLDRRule + meetingRecordFieldRulesV7 + meetingSummaryCombineRulesV7
+
+// meetingSummaryRulesV8 is @7 plus "summary_points": the paragraph as cited
+// sentences, which the server joins into the paragraph (spec 2026-10-29).
+const meetingSummaryRulesV8 = meetingSummaryIntro + meetingRecordShapeV8 + "\n" + meetingSummaryTLDRRule + meetingSummaryPointsRule + meetingRecordFieldRulesV7 + meetingSummaryCombineRulesV8
+
+const meetingSummaryIntro = `You turn meeting transcripts and notes into a written record for a work team.
 Respond with a single JSON object and nothing else, shaped exactly as:
-` + meetingRecordShapeV7 + `
-- "tldr": one short paragraph on what was discussed and the outcome, within the sentence budget under "Record size"; one or two sentences when little was said. Never pad it.
-` + meetingRecordFieldRulesV7 + `- "Draft action items" lists tasks captured while the meeting was under way, each with a label such as [D1]. When the input later refines one (a new or corrected owner, due date or priority, or a fuller description), return it once in "action_items" with "draft" set to its label, its title unchanged and the refined fields. Never return a draft the input does not refine, never return one twice, and never return a draft as a new item. "draft" is "" for every other item.
-- "Partial records" appear instead of transcript lines when the transcript was too long to read at once: each was written from one consecutive stretch of it, in order. Build the record from them: merge topics, decisions, action items and open questions that repeat across parts, keep an action item once, and copy the S labels they cite as evidence.
-- Write every string in the language named by the caller.
 `
+
+const meetingSummaryTLDRRule = `- "tldr": one short paragraph on what was discussed and the outcome, within the sentence budget under "Record size"; one or two sentences when little was said. Never pad it.
+`
+
+const meetingSummaryPointsRule = `- "summary_points": the tldr written again as 2 to 6 short sentences in the same order, each stating one thing. Read one after another they say what the tldr says. "evidence" lists 1 to 3 labels of the lines the sentence rests on.
+`
+
+const meetingSummaryDraftRule = `- "Draft action items" lists tasks captured while the meeting was under way, each with a label such as [D1]. When the input later refines one (a new or corrected owner, due date or priority, or a fuller description), return it once in "action_items" with "draft" set to its label, its title unchanged and the refined fields. Never return a draft the input does not refine, never return one twice, and never return a draft as a new item. "draft" is "" for every other item.
+`
+
+const meetingSummaryPartsRule = `- "Partial records" appear instead of transcript lines when the transcript was too long to read at once: each was written from one consecutive stretch of it, in order. Build the record from them: merge topics, decisions, action items and open questions that repeat across parts, keep an action item once, and copy the S labels they cite as evidence.
+`
+
+const meetingSummaryLanguageRule = `- Write every string in the language named by the caller.
+`
+
+const meetingSummaryCombineRulesV7 = meetingSummaryDraftRule + meetingSummaryPartsRule + meetingSummaryLanguageRule
+
+const meetingSummaryCombineRulesV8 = meetingSummaryDraftRule + meetingSummaryPartsRule +
+	`- From "Partial records", write "summary_points" over the whole meeting and cite the S labels the parts cite for what each sentence says.
+` + meetingSummaryLanguageRule
 
 const meetingSummaryPartRules = `You write the notes of one stretch of a long meeting's transcript. Another step combines the notes of every stretch into the meeting's record, so cover only this stretch.
 Respond with a single JSON object and nothing else, shaped exactly as:
@@ -88,6 +112,8 @@ const pointSchemaV7 = `{"type":"object","properties":{"text":{"type":"string"},"
 const actionItemSchemaV7 = `{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"},"description":{"type":"string"},"priority":{"type":"string"},"evidence":` + evidenceSchema + `,"draft":{"type":"string"}},"required":["title","owner","due","description","priority","evidence","draft"],"additionalProperties":false}`
 
 const meetingSummarySchemaV7 = `{"type":"object","properties":{"tldr":{"type":"string"},"topics":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"start_label":{"type":"string"},"points":{"type":"array","items":` + pointSchemaV7 + `}},"required":["title","start_label","points"],"additionalProperties":false}},"decisions":{"type":"array","items":` + pointSchemaV7 + `},"action_items":{"type":"array","items":` + actionItemSchemaV7 + `},"open_questions":{"type":"array","items":` + pointSchemaV7 + `}},"required":["tldr","topics","decisions","action_items","open_questions"],"additionalProperties":false}`
+
+const meetingSummarySchemaV8 = `{"type":"object","properties":{"tldr":{"type":"string"},"summary_points":{"type":"array","items":` + pointSchemaV7 + `},"topics":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"start_label":{"type":"string"},"points":{"type":"array","items":` + pointSchemaV7 + `}},"required":["title","start_label","points"],"additionalProperties":false}},"decisions":{"type":"array","items":` + pointSchemaV7 + `},"action_items":{"type":"array","items":` + actionItemSchemaV7 + `},"open_questions":{"type":"array","items":` + pointSchemaV7 + `}},"required":["tldr","summary_points","topics","decisions","action_items","open_questions"],"additionalProperties":false}`
 
 // renderSummaryShape writes the @7 header lines: the record size, the
 // stretch a part covers, and the brief output mode of a retry after an
@@ -195,6 +221,12 @@ func init() {
 		ID: "meeting_summary", Version: 7,
 		System:       meetingSummaryRulesV7 + meetingSummaryFactRules + meetingSummaryInputRules + meetingSummaryExistingRules + UntrustedFooter,
 		OutputSchema: json.RawMessage(meetingSummarySchemaV7),
+		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 7) },
+	})
+	register(Prompt{
+		ID: "meeting_summary", Version: 8,
+		System:       meetingSummaryRulesV8 + meetingSummaryFactRules + meetingSummaryInputRules + meetingSummaryExistingRules + UntrustedFooter,
+		OutputSchema: json.RawMessage(meetingSummarySchemaV8),
 		Render:       func(vars map[string]any) string { return renderMeetingSummary(vars, 7) },
 	})
 	register(Prompt{

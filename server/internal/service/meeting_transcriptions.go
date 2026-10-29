@@ -49,6 +49,10 @@ const (
 	transcriptionMinBytesPerSec = 1_500
 	// A clock in the future by more than this is a wrong time, not a skew.
 	heldClockSkew = time.Minute
+	// A meeting recorded on a device lasts at most a day, and is sent within
+	// 30 days of its end.
+	heldMaxLength = 24 * time.Hour
+	heldMaxAgo    = 30 * 24 * time.Hour
 )
 
 // transcriptionURLTTL is how long the vendor may read the recording (§7.4).
@@ -99,11 +103,17 @@ func (s *MeetingService) requireTranscription(ctx context.Context, orgID string)
 }
 
 // RecordHeld is "Ghi nhận đã họp" (D10): a meeting held in person without a
-// room goes SCHEDULED → ENDED at the times the host reports, with no
+// room goes SCHEDULED → ENDED at the times a clerk reports, with no
 // conference session. It emits meeting.ended like End, so what follows an
 // ended meeting follows this one too.
 func (s *MeetingService) RecordHeld(ctx context.Context, userID, meetingID string, startedAt, endedAt time.Time) (db.Meeting, error) {
-	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
+	return s.recordHeld(ctx, userID, meetingID, startedAt, endedAt, true)
+}
+
+// recordHeld is RecordHeld; queueSummary false leaves the auto summary to the
+// recording's completed transcription.
+func (s *MeetingService) recordHeld(ctx context.Context, userID, meetingID string, startedAt, endedAt time.Time, queueSummary bool) (db.Meeting, error) {
+	m, err := s.requireMeetingClerk(ctx, userID, meetingID)
 	if err != nil {
 		return db.Meeting{}, err
 	}
@@ -137,8 +147,10 @@ func (s *MeetingService) RecordHeld(ctx context.Context, userID, meetingID strin
 	}
 	// As endMeeting does (A5). With no notes or transcript yet (the audio is
 	// usually uploaded later) the run settles quietly as summary_no_source.
-	if err := s.queueAutoSummary(ctx, q, ended); err != nil {
-		return db.Meeting{}, err
+	if queueSummary {
+		if err := s.queueAutoSummary(ctx, q, ended); err != nil {
+			return db.Meeting{}, err
+		}
 	}
 	s.recordAction(ctx, q, ended, audit.User(userID), audit.ActionMeetingHeldRecorded, "meeting.ended", nil,
 		audit.Diff(map[string]any{"status": MeetingScheduled}, map[string]any{
@@ -149,6 +161,22 @@ func (s *MeetingService) RecordHeld(ctx context.Context, userID, meetingID strin
 	}
 	s.count("ended")
 	return ended, nil
+}
+
+// RecordHeldNow is RecordHeld for a meeting recorded in the room: it ended
+// ago before now, on the server's clock, after d (the browser's clock may be
+// off; both lengths are measured on the device, so its skew cancels out). A
+// recording sent hours later keeps the meeting's own time. It queues no auto
+// summary: the app records the meeting held before it uploads the parts, and a
+// summary made then would keep the recording out for good; the completed
+// transcription queues it instead.
+func (s *MeetingService) RecordHeldNow(ctx context.Context, userID, meetingID string, d, ago time.Duration) (db.Meeting, error) {
+	if d <= 0 || d > heldMaxLength || ago < 0 || ago > heldMaxAgo {
+		// A zero start is refused by recordHeld after it authorizes the caller.
+		return s.recordHeld(ctx, userID, meetingID, time.Time{}, time.Time{}, false)
+	}
+	end := time.Now().Add(-ago)
+	return s.recordHeld(ctx, userID, meetingID, end.Add(-d), end, false)
 }
 
 // OpenAudioUploadSession opens the large upload session for a recording of
@@ -190,6 +218,9 @@ type TranscriptionRequest struct {
 	// DurationSeconds is what the browser read from the file's metadata;
 	// 0 when it could not. See estimateSeconds.
 	DurationSeconds float64
+	// OffsetSeconds is where this part starts, in seconds from the meeting's
+	// actual start; nil places it after every earlier part.
+	OffsetSeconds *int
 }
 
 // RequestTranscription claims an uploaded recording for the meeting and
@@ -208,6 +239,17 @@ func (s *MeetingService) RequestTranscription(ctx context.Context, userID, meeti
 	if !in.Consent {
 		return db.MeetingTranscription{}, coded(http.StatusUnprocessableEntity, "recording_consent_required",
 			"cần xác nhận đã thông báo cho người dự họp về việc ghi âm")
+	}
+	// A part's place on the meeting's clock, from the server's record of the
+	// meeting (actual start, else scheduled), never the device's clock.
+	base, end := m.ActualStartAt, m.ActualEndAt
+	if !base.Valid {
+		base, end = m.StartsAt, m.EndsAt
+	}
+	if in.OffsetSeconds != nil && (*in.OffsetSeconds < 0 ||
+		int64(*in.OffsetSeconds) > int64((end.Time.Sub(base.Time)+time.Minute)/time.Second)) {
+		return db.MeetingTranscription{}, coded(http.StatusUnprocessableEntity, "invalid_offset",
+			"thời điểm bắt đầu của phần ghi nằm ngoài thời gian cuộc họp")
 	}
 	if in.Language == "" {
 		in.Language = scribeLocale
@@ -254,17 +296,18 @@ func (s *MeetingService) RequestTranscription(ctx context.Context, userID, meeti
 	if err := s.checkTranscriptionQuota(ctx, q, m.OrganizationID, estimate); err != nil {
 		return db.MeetingTranscription{}, err
 	}
-	start, err := q.MeetingTranscriptionFileStart(ctx, db.MeetingTranscriptionFileStartParams{MeetingID: m.ID, FileID: string(f.ID)})
-	if err != nil {
-		return db.MeetingTranscription{}, err
-	}
-	startsAt := start.PreviousStart
-	if !startsAt.Valid {
-		base := m.ActualStartAt
-		if !base.Valid {
-			base = m.StartsAt
+	var startsAt pgtype.Timestamptz
+	if in.OffsetSeconds != nil {
+		startsAt = pgtype.Timestamptz{Time: base.Time.Add(time.Duration(*in.OffsetSeconds) * time.Second), Valid: true}
+	} else {
+		start, err := q.MeetingTranscriptionFileStart(ctx, db.MeetingTranscriptionFileStartParams{MeetingID: m.ID, FileID: string(f.ID)})
+		if err != nil {
+			return db.MeetingTranscription{}, err
 		}
-		startsAt = pgtype.Timestamptz{Time: base.Time.Add(time.Duration(start.EarlierSeconds) * time.Second), Valid: true}
+		startsAt = start.PreviousStart
+		if !startsAt.Valid {
+			startsAt = pgtype.Timestamptz{Time: base.Time.Add(time.Duration(start.EarlierSeconds) * time.Second), Valid: true}
+		}
 	}
 	t, err := q.InsertMeetingTranscription(ctx, db.InsertMeetingTranscriptionParams{
 		ID: util.NewID(), OrganizationID: m.OrganizationID, WorkspaceID: m.WorkspaceID, MeetingID: m.ID,

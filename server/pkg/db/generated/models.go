@@ -187,6 +187,25 @@ type AiModelRate struct {
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 }
 
+type AiOfficeHandoff struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	UserID         string             `json:"user_id"`
+	DocumentID     string             `json:"document_id"`
+	ProposalID     string             `json:"proposal_id"`
+	Format         string             `json:"format"`
+	Title          string             `json:"title"`
+	Request        string             `json:"request"`
+	Outline        string             `json:"outline"`
+	Parts          []byte             `json:"parts"`
+	Sources        []byte             `json:"sources"`
+	NextPart       int32              `json:"next_part"`
+	ConversationID pgtype.Text        `json:"conversation_id"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type AiProviderCredential struct {
 	ID               string             `json:"id"`
 	OrganizationID   string             `json:"organization_id"`
@@ -725,6 +744,7 @@ type DesktopAuthAttempt struct {
 	UsedAt              pgtype.Timestamptz `json:"used_at"`
 	CancelledAt         pgtype.Timestamptz `json:"cancelled_at"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	ApproverSignedInAt  pgtype.Timestamptz `json:"approver_signed_in_at"`
 }
 
 type DeviceSession struct {
@@ -742,6 +762,7 @@ type DeviceSession struct {
 	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt          pgtype.Timestamptz `json:"revoked_at"`
 	CreatedByKind      string             `json:"created_by_kind"`
+	SignedInAt         pgtype.Timestamptz `json:"signed_in_at"`
 }
 
 type Document struct {
@@ -1416,6 +1437,8 @@ type EmailVerificationCode struct {
 	UsedAt    pgtype.Timestamptz `json:"used_at"`
 	Attempts  int32              `json:"attempts"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	Purpose   string             `json:"purpose"`
+	Action    pgtype.Text        `json:"action"`
 }
 
 type Feature struct {
@@ -1897,6 +1920,7 @@ type Meeting struct {
 	AiContentSharedAt         pgtype.Timestamptz `json:"ai_content_shared_at"`
 	AiContentSharedBy         pgtype.Text        `json:"ai_content_shared_by"`
 	SeriesID                  pgtype.Text        `json:"series_id"`
+	Venue                     string             `json:"venue"`
 }
 
 type MeetingAccessGrant struct {
@@ -2250,6 +2274,7 @@ type MeetingSummary struct {
 	TranscriptChangedAt pgtype.Timestamptz `json:"transcript_changed_at"`
 	Topics              string             `json:"topics"`
 	OpenQuestions       string             `json:"open_questions"`
+	SummaryPoints       string             `json:"summary_points"`
 }
 
 type MeetingSummaryRun struct {
@@ -2672,6 +2697,17 @@ type SavedSignature struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type SignInEmailClaim struct {
+	ID         string             `json:"id"`
+	TicketHash string             `json:"ticket_hash"`
+	Email      string             `json:"email"`
+	CodeHash   string             `json:"code_hash"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	Attempts   int32              `json:"attempts"`
+	UsedAt     pgtype.Timestamptz `json:"used_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type Subscription struct {
 	ID                     string             `json:"id"`
 	OrganizationID         string             `json:"organization_id"`
@@ -2956,16 +2992,26 @@ type User struct {
 	MfaRecoveryCodes        []string           `json:"mfa_recovery_codes"`
 	DeletedAt               pgtype.Timestamptz `json:"deleted_at"`
 	// FileService file id of the account avatar; NULL = avatar_url (legacy or external) is the source.
-	AvatarFileID         pgtype.Text        `json:"avatar_file_id"`
-	AiConsentVersion     pgtype.Text        `json:"ai_consent_version"`
-	AiConsentAt          pgtype.Timestamptz `json:"ai_consent_at"`
-	PushPreviewsHiddenAt pgtype.Timestamptz `json:"push_previews_hidden_at"`
-	AiOptOutAt           pgtype.Timestamptz `json:"ai_opt_out_at"`
-	AppleID              pgtype.Text        `json:"apple_id"`
-	AppleClientID        pgtype.Text        `json:"apple_client_id"`
-	AppleRefreshTokenEnc pgtype.Text        `json:"apple_refresh_token_enc"`
-	AskUniMode           pgtype.Text        `json:"ask_uni_mode"`
-	AskUniMemoryOff      bool               `json:"ask_uni_memory_off"`
+	AvatarFileID            pgtype.Text        `json:"avatar_file_id"`
+	AiConsentVersion        pgtype.Text        `json:"ai_consent_version"`
+	AiConsentAt             pgtype.Timestamptz `json:"ai_consent_at"`
+	PushPreviewsHiddenAt    pgtype.Timestamptz `json:"push_previews_hidden_at"`
+	AiOptOutAt              pgtype.Timestamptz `json:"ai_opt_out_at"`
+	AppleID                 pgtype.Text        `json:"apple_id"`
+	AppleClientID           pgtype.Text        `json:"apple_client_id"`
+	AppleRefreshTokenEnc    pgtype.Text        `json:"apple_refresh_token_enc"`
+	AskUniMode              pgtype.Text        `json:"ask_uni_mode"`
+	AskUniMemoryOff         bool               `json:"ask_uni_memory_off"`
+	GoogleEmail             pgtype.Text        `json:"google_email"`
+	GoogleLinkedAt          pgtype.Timestamptz `json:"google_linked_at"`
+	GoogleUnlinkedSub       pgtype.Text        `json:"google_unlinked_sub"`
+	AppleEmail              pgtype.Text        `json:"apple_email"`
+	AppleLinkedAt           pgtype.Timestamptz `json:"apple_linked_at"`
+	AppleUnlinkedSub        pgtype.Text        `json:"apple_unlinked_sub"`
+	PasswordChangedAt       pgtype.Timestamptz `json:"password_changed_at"`
+	CredentialsRevokedAt    pgtype.Timestamptz `json:"credentials_revoked_at"`
+	SecondFactorFailures    int32              `json:"second_factor_failures"`
+	SecondFactorLockedUntil pgtype.Timestamptz `json:"second_factor_locked_until"`
 }
 
 type WebhookInbox struct {

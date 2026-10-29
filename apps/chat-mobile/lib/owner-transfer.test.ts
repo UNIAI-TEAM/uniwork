@@ -26,9 +26,6 @@ describe("transferCandidates", () => {
 
 describe("transferOwnershipFailure", () => {
   it("names what the person can act on, and nothing else", () => {
-    expect(transferOwnershipFailure(refusal("password_incorrect"))).toBe("proof_refused");
-    expect(transferOwnershipFailure(refusal("invalid_credentials", 401))).toBe("proof_refused");
-    expect(transferOwnershipFailure(refusal("password_required"))).toBe("password_required");
     // The one chosen left, was switched off, or is no longer in the organization.
     expect(transferOwnershipFailure(refusal("member_deactivated"))).toBe("member_gone");
     expect(transferOwnershipFailure(refusal("not_found", 404))).toBe("member_gone");
@@ -39,6 +36,6 @@ describe("transferOwnershipFailure", () => {
   });
 
   it("lists the codes the sheet answers itself", () => {
-    expect([...TRANSFER_OWNERSHIP_HANDLED_CODES].sort()).toEqual(["invalid_credentials", "member_deactivated", "not_found", "password_incorrect", "password_required"]);
+    expect([...TRANSFER_OWNERSHIP_HANDLED_CODES].sort()).toEqual(["member_deactivated", "not_found", "proof_required"]);
   });
 });

@@ -19,16 +19,18 @@ const (
 	CapChatCatchUp          Capability = "chat_catchup"
 	CapMeetingCatchUp       Capability = "meeting_catch_up" // a late joiner's brief (scribe spec §5.1)
 	CapChatCallSummary      Capability = "chat_call_summary"
-	CapEmailThreadSummary   Capability = "email_thread_summary"
-	CapContextExtraction    Capability = "context_extraction"
-	CapAgentPlanning        Capability = "agent_planning"
-	CapAgentGeneration      Capability = "agent_generation"
-	CapAgentEvaluation      Capability = "agent_evaluation"
-	CapEmbedding            Capability = "embedding"
-	CapCloudSearch          Capability = "cloud_search"
-	CapCloudImage           Capability = "cloud_image_generate"
-	CapCloudTranscribe      Capability = "cloud_transcribe"
-	CapMediaAnalysis        Capability = "media_analysis"
+	// CapChatTaskDraft drafts one task title/description/priority from selected chat messages.
+	CapChatTaskDraft      Capability = "chat_task_draft"
+	CapEmailThreadSummary Capability = "email_thread_summary"
+	CapContextExtraction  Capability = "context_extraction"
+	CapAgentPlanning      Capability = "agent_planning"
+	CapAgentGeneration    Capability = "agent_generation"
+	CapAgentEvaluation    Capability = "agent_evaluation"
+	CapEmbedding          Capability = "embedding"
+	CapCloudSearch        Capability = "cloud_search"
+	CapCloudImage         Capability = "cloud_image_generate"
+	CapCloudTranscribe    Capability = "cloud_transcribe"
+	CapMediaAnalysis      Capability = "media_analysis"
 	// CapMeetingTranscribe is a long uploaded meeting recording (parent spec
 	// 2026-10-20-meeting-follow-through §7.4): paid in meeting.transcription
 	// minutes, not AI credits, so it has no model policy either.
@@ -39,6 +41,11 @@ const (
 	// CapOfficeUniworkAI is the Office editors' UniWork AI agent loop (G6-D1
 	// A1): a tool-calling chat, one Complete per tool-result round.
 	CapOfficeUniworkAI Capability = "office_uniwork_ai"
+	// CapOfficeUniworkWriter is the Office editors' one-shot writers (plan 5 of
+	// Ask UNI × Office): a document, an HTML page or a deck page written in one
+	// streamed call with no tool loop, so its usage row never reconciles from a
+	// transcript. The kind sits in Request.Module (writerKindMaxTokens).
+	CapOfficeUniworkWriter Capability = "office_uniwork_writer"
 	// CapMeetingLiveItems is the scribe's in-meeting action items (scribe
 	// spec §4.4): up to 20 calls an hour per meeting, hence the fast model.
 	CapMeetingLiveItems Capability = "meeting_live_items"
@@ -60,6 +67,9 @@ type ModelPolicy struct {
 	// TimeoutScale multiplies AI_TIMEOUT_SECONDS for one call (0 is 1): a
 	// capability whose answer runs to MaxTokens needs the time to write it.
 	TimeoutScale int
+	// StreamTimeoutScale does the same for a streamed call (0 is 1): the
+	// deadline is the gateway's StreamTimeout times it.
+	StreamTimeoutScale int
 }
 
 var (
@@ -94,6 +104,7 @@ var policies = map[Capability]ModelPolicy{
 	CapChatCatchUp:          {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapMeetingCatchUp:       {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapChatCallSummary:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
+	CapChatTaskDraft:        {Default: fast, MaxTokens: 1024, Temperature: 0},
 	CapEmailThreadSummary:   {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapContextExtraction:    {Default: fast, MaxTokens: 800, Temperature: 0},
 	CapAgentPlanning:        {Default: flagship, MaxTokens: 4096, Temperature: 0},
@@ -107,6 +118,10 @@ var policies = map[Capability]ModelPolicy{
 	// Capability-wide ceiling covering the largest single-turn Office tool call (HTML); per-module ceilings are lowered in officeModuleMaxTokens.
 	CapOfficeUniworkAI:    {Default: officeUniwork, MaxTokens: 4096, Temperature: 0},
 	CapDriveTaskProposals: {Default: flagship, MaxTokens: 4096, Temperature: 0},
+	// A whole Word document or HTML page is up to 16384 output tokens, minutes
+	// of streaming on claude-opus-5; the per-kind ceilings are in
+	// writerKindMaxTokens. The values are provisional (G7-D1).
+	CapOfficeUniworkWriter: {Default: officeUniwork, MaxTokens: 16384, Temperature: 0.3, TimeoutScale: 3, StreamTimeoutScale: 3},
 }
 
 // officeModuleMaxTokens tunes the max output tokens per genoffice module (G6-08,
@@ -147,10 +162,17 @@ func OfficeModuleMaxTokens(module string) int {
 // or unknown module keeps the capability ceiling here: the sectioned office
 // prompt is refused by systemText before a request is built, and a
 // non-sectioned prompt under this capability carries no module by design.
+// A writer call (CapOfficeUniworkWriter) takes its kind's ceiling from
+// writerKindMaxTokens, and an unknown kind the capability's.
 // Every other capability ignores Request.Module and keeps its own policy.
 func officeMaxTokens(req Request, p ModelPolicy) int {
-	if req.Capability == CapOfficeUniworkAI {
+	switch req.Capability {
+	case CapOfficeUniworkAI:
 		return OfficeModuleMaxTokens(req.Module)
+	case CapOfficeUniworkWriter:
+		if n, ok := writerKindMaxTokens[WriterKind(req.Module)]; ok {
+			return n
+		}
 	}
 	return p.MaxTokens
 }
