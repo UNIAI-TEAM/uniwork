@@ -107,8 +107,11 @@ export function DocumentPageHeader({ wsId, doc, editable, shelved = false, title
           {shelved ? <DocumentShelvedBadge /> : null}
           {doc.minutes_meeting?.id ? (
             <>
-              <DocumentMinutesSourceLink minutesMeeting={doc.minutes_meeting} />
-              {time || comments.data ? <span aria-hidden>·</span> : null}
+              {/* Label and separator wrap as one unit: the dot never dangles at a line end. */}
+              <span className="inline-flex min-w-0 max-w-full items-center gap-x-2">
+                <DocumentMinutesSourceLink minutesMeeting={doc.minutes_meeting} />
+                {time || comments.data ? <span aria-hidden className="shrink-0">·</span> : null}
+              </span>
             </>
           ) : null}
           {time ? <time dateTime={doc.updated_at} title={date?.toLocaleString(i18n.language)}>

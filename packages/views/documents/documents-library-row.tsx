@@ -39,6 +39,7 @@ import {
 import { EditLockHolderChip } from "./edit-lock-holder-chip";
 import { docAccessLevel } from "./doclist/access";
 import { DocNameCell, DocPersonCell } from "./doclist/cells";
+import { DocumentMinutesSourceLink } from "./document-minutes-source-link";
 import { docListSpec, type DocListScreen } from "./doclist/columns";
 import { EMPTY_CELL, formatBytes, formatListDate } from "./doclist/format";
 import { docListRowFields } from "./doclist/row-fields";
@@ -392,6 +393,8 @@ export function LibraryRowView({
             {nameCell}
           </button>
         )}
+        {/* Outside the button (no link inside a button); under the name, past the type icon. */}
+        <DocumentMinutesSourceLink minutesMeeting={doc?.minutes_meeting} className="mt-0.5 ml-9 flex w-fit" />
       </td>
     ),
     access: (
