@@ -9,7 +9,7 @@ import (
 )
 
 // The web Office frame's AI (UNI-1014, CONTRACT C16, ADR 0029 D9): GO-A7's
-// credential, BYOK proxy and cloud handlers mounted under
+// cloud handlers and the UniWork AI turn and writer mounted under
 // /office-frame/documents/{documentID}/ai/... behind the frame token. The
 // frame auth middleware has already verified the token, matched its document
 // to {documentID} and checked the token module's flag; this resolver adds the
@@ -20,9 +20,8 @@ import (
 // frameAIActor names the caller of a frame AI route: the frame token's user
 // in the token's organization, and only while that user may still view the
 // token's document (rechecked on every request, so revoking access or moving
-// the document ends the frame's AI with its next call). AI credentials are
-// personal rows of (organization, user), not part of the document, so view
-// access is the bar for every route, credential PUT/DELETE included.
+// the document ends the frame's AI with its next call). View access is the
+// bar for every route.
 func (h *handlers) frameAIActor(r *http.Request) (string, string, error) {
 	claims := officeFrameClaims(r)
 	if claims.UserID == "" || claims.OrganizationID == "" || h.OfficeFrame == nil {
@@ -38,9 +37,9 @@ func (h *handlers) frameAIActor(r *http.Request) (string, string, error) {
 // `uniwork_ai` (G6-03c) holds when the cloud status says chat is on (member,
 // office.ai_cloud, UniWork AI configured, office_ai_uniwork) and the format of
 // the token's module has its office_ai_uniwork_<format> on. Each cloud tool
-// needs `uniwork_ai` and GO-A7's cloud status saying that tool is available;
-// no BYOK state is read. Any failure reads as off: the grant only shows or
-// hides AI, every AI route still gates itself.
+// needs `uniwork_ai` and GO-A7's cloud status saying that tool is available.
+// Any failure reads as off: the grant only shows or hides AI, every AI route
+// still gates itself.
 func (h *handlers) officeFrameAIGrant(ctx context.Context, claims service.OfficeFrameClaims) sdo.OfficeFrameAIGrantSDO {
 	var out sdo.OfficeFrameAIGrantSDO
 	if claims.UserID == "" || claims.OrganizationID == "" || h.AICloud == nil {

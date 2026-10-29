@@ -412,15 +412,11 @@ type Routes struct {
 	WorkspaceAiUsage        http.HandlerFunc
 	OrganizationAiUsage     http.HandlerFunc
 
-	AiByokChatCompletions http.HandlerFunc
-	AiByokMessages        http.HandlerFunc
-	AiByokGenerate        http.HandlerFunc
-	AiByokModels          http.HandlerFunc
-	AiCloudStatus         http.HandlerFunc
-	AiCloudSearch         http.HandlerFunc
-	AiCloudImages         http.HandlerFunc
-	AiCloudAnalyzeMedia   http.HandlerFunc
-	AiCloudTranscribe     http.HandlerFunc
+	AiCloudStatus       http.HandlerFunc
+	AiCloudSearch       http.HandlerFunc
+	AiCloudImages       http.HandlerFunc
+	AiCloudAnalyzeMedia http.HandlerFunc
+	AiCloudTranscribe   http.HandlerFunc
 	// UniWork AI (G6-03a): the org session route, the desktop document route
 	// and the web frame's mount of the same turn.
 	AiUniworkChatCompletions            http.HandlerFunc
@@ -753,18 +749,11 @@ type Routes struct {
 	// The formats that export can render here (follow-6).
 	GetDocumentPageExportFormats http.HandlerFunc
 	// GO-A7's AI handlers on the frame-token mount (UNI-1014, ADR 0029 D9).
-	OfficeFrameAiCredentialsList     http.HandlerFunc
-	OfficeFrameAiCredentialSave      http.HandlerFunc
-	OfficeFrameAiCredentialDelete    http.HandlerFunc
-	OfficeFrameAiByokChatCompletions http.HandlerFunc
-	OfficeFrameAiByokMessages        http.HandlerFunc
-	OfficeFrameAiByokGenerate        http.HandlerFunc
-	OfficeFrameAiByokModels          http.HandlerFunc
-	OfficeFrameAiCloudStatus         http.HandlerFunc
-	OfficeFrameAiCloudSearch         http.HandlerFunc
-	OfficeFrameAiCloudImages         http.HandlerFunc
-	OfficeFrameAiCloudAnalyzeMedia   http.HandlerFunc
-	OfficeFrameAiCloudTranscribe     http.HandlerFunc
+	OfficeFrameAiCloudStatus       http.HandlerFunc
+	OfficeFrameAiCloudSearch       http.HandlerFunc
+	OfficeFrameAiCloudImages       http.HandlerFunc
+	OfficeFrameAiCloudAnalyzeMedia http.HandlerFunc
+	OfficeFrameAiCloudTranscribe   http.HandlerFunc
 
 	// Document comments + favorites (G1-07, UNI-681; lane 07b).
 	ListDocumentComments          http.HandlerFunc
@@ -788,11 +777,6 @@ type Routes struct {
 	ListSavedSignatures  http.HandlerFunc
 	CreateSavedSignature http.HandlerFunc
 	DeleteSavedSignature http.HandlerFunc
-
-	// Personal AI provider credentials (UNI-1008, ADR 0029).
-	ListAICredentials  http.HandlerFunc
-	SaveAICredential   http.HandlerFunc
-	DeleteAICredential http.HandlerFunc
 
 	// Documents collections, lifecycle, sharing and public reads (C-01 §5.1,
 	// §5.3, §5.4; UNI-679, G1-05b).

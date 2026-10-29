@@ -7,9 +7,9 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
-// tag: ai — the UniWork cloud tools for Office (GO-A7, ADR 0029): search,
-// image generation, media analysis and transcription, paid in the
-// organization's ai.tokens credits. Requires Bearer (web session or desktop
+// tag: ai — the UniWork cloud tools for Office (GO-A7; ADR 0029's cloud
+// part, kept by ADR 0051): search, image generation, media analysis and
+// transcription, paid in the organization's ai.tokens credits. Requires Bearer (web session or desktop
 // device). Each tool call is limited to 20 per minute per signed-in person.
 // Media arrives as bytes; the server never fetches a URL for these routes.
 //

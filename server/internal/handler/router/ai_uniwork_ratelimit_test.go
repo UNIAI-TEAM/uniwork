@@ -43,7 +43,6 @@ func TestAIUniworkRoutesUseOwnLimiterBucket(t *testing.T) {
 	caller{ip: office, bearer: "frame-bob"}.spend(t, h, http.MethodPost, frameAIPath("doc-a", "/uniwork/chat/completions"), 1)
 
 	// The turn budget is its own: the neighbouring buckets still answer.
-	aliceSession.spend(t, h, http.MethodPost, "/api/v1/orgs/o1/ai/byok/openai/chat/completions", 40)
 	aliceSession.spend(t, h, http.MethodPost, "/api/v1/orgs/o1/ai/cloud/images", 20)
 }
 

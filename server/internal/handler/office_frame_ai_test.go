@@ -5,19 +5,18 @@ package handler
 // answers through the frame token; the token's document must be the path's,
 // a session token or another organization's token is refused, view access is
 // rechecked on every call, entitlement and the module flag gate as on the
-// session routes, the BYOK stream passes through byte for byte, and the frame
-// token answer carries the AI grant the host may give the frame.
+// session routes, and the frame token answer carries the AI grant the host
+// may give the frame.
 
 import (
 	"context"
-	"crypto/tls"
-	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
@@ -29,25 +28,11 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-const frameAIKey = "sk-frame-ai-0123456789wxyz"
-
-// frameAISSE is what the fake vendor streams; the frame must get it unchanged.
-const frameAISSE = "data: {\"choices\":[{\"delta\":{\"content\":\"Xin chào\"}}]}\n\ndata: [DONE]\n\n"
-
-type frameAIPublicResolver struct{}
-
-func (frameAIPublicResolver) LookupIPAddr(context.Context, string) ([]net.IPAddr, error) {
-	return []net.IPAddr{{IP: net.ParseIP("93.184.216.34")}}, nil
-}
-
-// frameAIWorld is an office world whose BYOK proxy reaches a fake TLS vendor
-// (through the production address guard) and whose cloud tools are fakes.
+// frameAIWorld is an office world whose cloud tools are fakes.
 type frameAIWorld struct {
 	*officeWorld
 	docID string
 	token string
-	// vendorAuth is the Authorization header the vendor last saw.
-	vendorAuth string
 }
 
 func newFrameAIWorld(t *testing.T) *frameAIWorld {
@@ -55,43 +40,13 @@ func newFrameAIWorld(t *testing.T) *frameAIWorld {
 	return newFrameAIWorldWith(t, nil)
 }
 
-// newFrameAIWorldWith is newFrameAIWorld with extra run after the world's own
-// dependency tweak, to swap a service in before the server starts.
+// newFrameAIWorldWith is newFrameAIWorld with extra run on the dependencies,
+// to swap a service in before the server starts.
 func newFrameAIWorldWith(t *testing.T, extra func(*Deps, *pgxpool.Pool)) *frameAIWorld {
 	t.Helper()
 	setCloudEnv(t, "fake", "fake", "fake")
 	fw := &frameAIWorld{}
-	vendor := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fw.vendorAuth = r.Header.Get("Authorization")
-		if r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = io.WriteString(w, `{"data":[{"id":"gpt-frame"}]}`)
-			return
-		}
-		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = io.WriteString(w, frameAISSE)
-	}))
-	t.Cleanup(vendor.Close)
-	target := vendor.Listener.Addr().String()
-	tweak := func(d *Deps, pool *pgxpool.Pool) {
-		q := db.New(pool)
-		gw := ai.NewGateway(q, nil, nil, nil, ai.Options{})
-		gw.SetBYOKClient(provider.NewBYOKClient(provider.BYOKClientOptions{
-			Resolver: frameAIPublicResolver{},
-			// The httptest certificate does not name the vendor host; the
-			// address guard still runs before this dial.
-			TLSConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // test vendor
-			Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
-				var dl net.Dialer
-				return dl.DialContext(ctx, network, target)
-			},
-		}))
-		d.AIBYOK = service.NewAIBYOKService(d.Organizations, service.NewEntitlementService(pool, q), d.AICredentials, gw)
-		if extra != nil {
-			extra(d, pool)
-		}
-	}
-	fw.officeWorld = newOfficeWorldTweaked(t, true, func(*filesfake.Fake) service.OfficeEngine { return newHandlerStubEngine(t) }, tweak)
+	fw.officeWorld = newOfficeWorldTweaked(t, true, func(*filesfake.Fake) service.OfficeEngine { return newHandlerStubEngine(t) }, extra)
 	enableOfficeDocsWeb(t, fw.q)
 	fw.docID = fw.createDocx(t, "frame-ai.docx", frameDocx(t, "frameai"))
 	fw.token = fw.mintFrameToken(t, fw.docID)["token"].(string)
@@ -113,13 +68,6 @@ func (w *frameAIWorld) override(t *testing.T, overrides string) {
 type frameAIRoute struct{ method, rest, body string }
 
 var frameAIRoutes = []frameAIRoute{
-	{"GET", "/credentials", ""},
-	{"PUT", "/credentials/openai", `{"api_key":"` + frameAIKey + `"}`},
-	{"DELETE", "/credentials/openai", ""},
-	{"POST", "/byok/openai/chat/completions", `{"model":"gpt-frame","stream":true,"messages":[]}`},
-	{"POST", "/byok/anthropic/messages", `{"model":"claude","messages":[]}`},
-	{"POST", "/byok/gemini/generate", `{"model":"gemini","request":{}}`},
-	{"GET", "/byok/openai/models", ""},
 	{"GET", "/cloud", ""},
 	{"POST", "/cloud/search", `{"query":"giá cà phê","kind":"web","max_results":3}`},
 	{"POST", "/cloud/images", `{"prompt":"văn phòng xanh","aspect_ratio":"16:9"}`},
@@ -127,55 +75,11 @@ var frameAIRoutes = []frameAIRoute{
 	{"POST", "/cloud/transcribe", `{"audio":{"mime":"audio/mpeg","data_base64":"AAAA"}}`},
 }
 
-// The whole round trip on the frame token alone: a key saved through the
-// frame is the person's organization key (the session route lists it), the
-// BYOK stream and model list pass through unchanged with the stored key
-// attached server-side, the cloud tools answer, and the delete removes it.
+// The whole round trip on the frame token alone: the cloud status says the
+// tools are on and every cloud tool answers.
 func TestOfficeFrameAIHappyPath(t *testing.T) {
 	w := newFrameAIWorld(t)
-
-	code, body := rawCall(t, w.srv, "PUT", w.path(w.docID, "/credentials/openai"), w.token, `{"api_key":"`+frameAIKey+`","label":"frame key"}`)
-	if code != http.StatusCreated || strings.Contains(body, frameAIKey) || !strings.Contains(body, `"key_hint":"…wxyz"`) {
-		t.Fatalf("save through the frame = %d %s", code, body)
-	}
-	code, body = rawCall(t, w.srv, "GET", w.path(w.docID, "/credentials"), w.token, "")
-	if code != http.StatusOK || !strings.Contains(body, `"provider":"openai"`) || strings.Contains(body, frameAIKey) {
-		t.Fatalf("list through the frame = %d %s", code, body)
-	}
-	code, body = rawCall(t, w.srv, "GET", "/api/v1/orgs/"+w.orgID+"/ai/credentials", w.token0(), "")
-	if code != http.StatusOK || !strings.Contains(body, `"label":"frame key"`) {
-		t.Fatalf("the session route sees the frame's key: %d %s", code, body)
-	}
-	var audited int
-	if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM audit_events WHERE organization_id = $1 AND action = 'ai.credential.saved'`, w.orgID).Scan(&audited); err != nil || audited != 1 {
-		t.Fatalf("credential save audited %d times (%v), want 1", audited, err)
-	}
-
-	req, _ := http.NewRequest("POST", w.srv.URL+w.path(w.docID, "/byok/openai/chat/completions"), strings.NewReader(`{"model":"gpt-frame","stream":true,"messages":[]}`))
-	req.Header.Set("Authorization", "Bearer "+w.token)
-	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw, _ := io.ReadAll(res.Body)
-	_ = res.Body.Close()
-	if res.StatusCode != http.StatusOK || string(raw) != frameAISSE || !strings.HasPrefix(res.Header.Get("Content-Type"), "text/event-stream") {
-		t.Fatalf("stream = %d %q %q", res.StatusCode, res.Header.Get("Content-Type"), raw)
-	}
-	if w.vendorAuth != "Bearer "+frameAIKey {
-		t.Fatalf("vendor saw Authorization %q, want the stored key", w.vendorAuth)
-	}
-	var byokCap string
-	if err := testPool.QueryRow(context.Background(), `SELECT capability FROM ai_usage_events WHERE organization_id = $1`, w.orgID).Scan(&byokCap); err != nil || byokCap != string(ai.CapOfficeBYOK) {
-		t.Fatalf("frame BYOK usage capability = %q (%v), want %q (never %q)", byokCap, err, ai.CapOfficeBYOK, ai.CapOfficeBYOKDesktop)
-	}
-	code, body = rawCall(t, w.srv, "GET", w.path(w.docID, "/byok/openai/models"), w.token, "")
-	if code != http.StatusOK || !strings.Contains(body, "gpt-frame") {
-		t.Fatalf("models = %d %s", code, body)
-	}
-
-	code, body = rawCall(t, w.srv, "GET", w.path(w.docID, "/cloud"), w.token, "")
+	code, body := rawCall(t, w.srv, "GET", w.path(w.docID, "/cloud"), w.token, "")
 	if code != http.StatusOK || !strings.Contains(body, `"enabled":true`) {
 		t.Fatalf("cloud status = %d %s", code, body)
 	}
@@ -186,13 +90,6 @@ func TestOfficeFrameAIHappyPath(t *testing.T) {
 		if code, body := rawCall(t, w.srv, rt.method, w.path(w.docID, rt.rest), w.token, rt.body); code != http.StatusOK {
 			t.Errorf("%s %s = %d %s", rt.method, rt.rest, code, body)
 		}
-	}
-
-	if code, body := rawCall(t, w.srv, "DELETE", w.path(w.docID, "/credentials/openai"), w.token, ""); code != http.StatusNoContent {
-		t.Fatalf("delete through the frame = %d %s", code, body)
-	}
-	if code, body := rawCall(t, w.srv, "POST", w.path(w.docID, "/byok/openai/chat/completions"), w.token, `{"model":"m"}`); code != http.StatusNotFound || !strings.Contains(body, "credential_missing") {
-		t.Fatalf("proxy after delete = %d %s", code, body)
 	}
 }
 
@@ -289,22 +186,13 @@ func TestOfficeFrameAIRechecksViewAccessPerRequest(t *testing.T) {
 }
 
 // The plan gates the frame exactly as the session routes: without
-// office.ai_byok a key cannot be saved and the proxy refuses (list and delete
-// stay open); without office.ai_cloud the tools refuse and the status says why.
+// office.ai_cloud the tools refuse and the status says why.
 func TestOfficeFrameAIEntitlementRequired(t *testing.T) {
 	w := newFrameAIWorld(t)
-	w.override(t, `{"office.ai_byok": false, "office.ai_cloud": false}`)
+	w.override(t, `{"office.ai_cloud": false}`)
 	for _, rt := range frameAIRoutes {
 		code, body := rawCall(t, w.srv, rt.method, w.path(w.docID, rt.rest), w.token, rt.body)
 		switch {
-		case rt.rest == "/credentials":
-			if code != http.StatusOK {
-				t.Errorf("list without the plan = %d %s", code, body)
-			}
-		case rt.method == "DELETE":
-			if code != http.StatusNotFound || !strings.Contains(body, "credential_missing") {
-				t.Errorf("delete without the plan = %d %s", code, body)
-			}
 		case rt.rest == "/cloud":
 			if code != http.StatusOK || !strings.Contains(body, `"reason":"entitlement_required"`) {
 				t.Errorf("cloud status without the plan = %d %s", code, body)
@@ -329,8 +217,8 @@ func TestOfficeFrameAIFollowsTheModuleFlag(t *testing.T) {
 }
 
 // The frame token answer carries the cloud grant: the three cloud tools follow
-// UniWork AI (flags on, office.ai_cloud on), never a BYOK store, and the answer
-// has no `ai` key at all.
+// UniWork AI (flags on, office.ai_cloud on), and the answer has no `ai` key
+// at all.
 func TestOfficeFrameTokenCarriesTheAIGrant(t *testing.T) {
 	w := newFrameAIWorld(t)
 	grant := func() map[string]any {
@@ -363,9 +251,8 @@ func enableUniworkAI(t *testing.T, formats ...string) {
 	}
 }
 
-// UniWork AI and the cloud tools follow office.ai_cloud and the flags, with no
-// BYOK configured at all; spent credits do not take them away (the turn
-// answers 402 instead).
+// UniWork AI and the cloud tools follow office.ai_cloud and the flags; spent
+// credits do not take them away (the turn answers 402 instead).
 func TestOfficeFrameCloudToolsFollowUniworkAI(t *testing.T) {
 	w := newFrameAIWorld(t)
 	grant := func() map[string]any {
@@ -537,5 +424,62 @@ func TestOfficeFrameUniworkAIOnlyForMembersWithAccess(t *testing.T) {
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+restricted+"/office/frame-token", viewer, nil)
 	if (res.StatusCode != http.StatusNotFound && res.StatusCode != http.StatusForbidden) || out["ai"] != nil {
 		t.Fatalf("revoked viewer mint = %d %v, want a refusal without a grant", res.StatusCode, out)
+	}
+}
+
+// An older desktop app still asks the session routes for the organization's
+// stored keys and still posts to the key proxy: with a valid device session
+// both answer 404, and no model is called and nothing is metered.
+func TestOldDesktopKeyListIsNotFound(t *testing.T) {
+	d, pool := newTestDeps(t, nil, discardOutbox{})
+	q := db.New(pool)
+	d.Cfg.DesktopAuthClientID = "uniwork-office"
+	d.Cfg.DesktopAuthDeploymentIDs = []string{"default"}
+	d.DesktopAuth = service.NewDesktopAuthService(pool, q, d.Minter, d.Cfg)
+	model := &provider.Fake{}
+	d.AICloud = service.NewAICloudService(d.Organizations, service.NewEntitlementService(pool, q), ai.NewGateway(q, model, nil, nil, ai.Options{}))
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+
+	webToken, userID := filesRegister(t, srv, "old-desktop-keys@example.com")
+	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", webToken, map[string]string{"name": "Old Desktop Org", "slug": "old-desktop-org"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create org: %d %v", res.StatusCode, out)
+	}
+	orgID := out["organization"].(map[string]any)["id"].(string)
+
+	const deviceSessionID = "old-desktop-device-session"
+	if _, err := q.CreateDeviceSession(context.Background(), db.CreateDeviceSessionParams{
+		ID: deviceSessionID, UserID: userID, SessionFamilyID: "old-desktop-family",
+		ClientID: "uniwork-office", DeploymentID: "default", DeviceLabel: "MacBook",
+		Platform: "darwin", Build: "1.0.0", RefreshTokenDigest: "old-desktop-refresh-digest",
+		ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedByKind: "human",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	deviceToken, err := d.Minter.MintSession(userID, deviceSessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Control: the device bearer opens a live AI route, so the 404s below are
+	// the missing routes, not a refused bearer.
+	if code, body := rawCall(t, srv, "GET", "/api/v1/orgs/"+orgID+"/ai/cloud", deviceToken, ""); code != http.StatusOK {
+		t.Fatalf("device bearer on the cloud status = %d %s, want 200", code, body)
+	}
+
+	for _, c := range []struct{ method, path, body string }{
+		{"GET", "/api/v1/orgs/" + orgID + "/ai/credentials", ""},
+		{"POST", "/api/v1/orgs/" + orgID + "/ai/byok/openai/chat/completions", `{"model":"gpt-4.1-mini","stream":true,"messages":[]}`},
+	} {
+		if code, body := rawCall(t, srv, c.method, c.path, deviceToken, c.body); code != http.StatusNotFound {
+			t.Errorf("%s %s with a device session = %d %s, want 404", c.method, c.path, code, body)
+		}
+	}
+	if model.Calls != 0 {
+		t.Fatalf("the model was called %d times, want none", model.Calls)
+	}
+	var metered int
+	if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM ai_usage_events WHERE organization_id = $1`, orgID).Scan(&metered); err != nil || metered != 0 {
+		t.Fatalf("usage rows = %d (%v), want none", metered, err)
 	}
 }

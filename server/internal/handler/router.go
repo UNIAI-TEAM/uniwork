@@ -81,8 +81,6 @@ type Deps struct {
 	AskUNI              *service.AskUNIService
 	// AiMemory is Ask UNI's per-person memory (P4); nil answers 503.
 	AiMemory *service.AiMemoryService
-	// AIBYOK is the web host's own-key proxy (UNI-1008); nil answers 503.
-	AIBYOK *service.AIBYOKService
 	// AICloud is the Office cloud tools service (GO-A7); nil answers 503
 	// cloud_unavailable on its routes.
 	AICloud *service.AICloudService
@@ -116,9 +114,6 @@ type Deps struct {
 	// Signatures is the per-user saved-signature store (UNI-925 B6); nil
 	// answers 501 on the signature routes until the server wires it.
 	Signatures *service.SignatureService
-	// AICredentials is the per-user AI provider key store (UNI-1008, ADR
-	// 0029); nil answers 503 ai_credentials_unavailable.
-	AICredentials *service.AICredentialService
 
 	// Office is the Office job service (G2-07, UNI-690); nil answers 503
 	// office_not_configured on the office routes, so Documents keeps working
@@ -687,15 +682,11 @@ func New(d Deps) http.Handler {
 		WorkspaceAiUsage:        h.workspaceAiUsage,
 		OrganizationAiUsage:     h.organizationAiUsage,
 
-		AiByokChatCompletions: aiMount.ByokChatCompletions,
-		AiByokMessages:        aiMount.ByokMessages,
-		AiByokGenerate:        aiMount.ByokGenerate,
-		AiByokModels:          aiMount.ByokModels,
-		AiCloudStatus:         aiMount.CloudStatus,
-		AiCloudSearch:         aiMount.CloudSearch,
-		AiCloudImages:         aiMount.CloudImages,
-		AiCloudAnalyzeMedia:   aiMount.CloudAnalyzeMedia,
-		AiCloudTranscribe:     aiMount.CloudTranscribe,
+		AiCloudStatus:       aiMount.CloudStatus,
+		AiCloudSearch:       aiMount.CloudSearch,
+		AiCloudImages:       aiMount.CloudImages,
+		AiCloudAnalyzeMedia: aiMount.CloudAnalyzeMedia,
+		AiCloudTranscribe:   aiMount.CloudTranscribe,
 
 		AiUniworkChatCompletions:            aiMount.UniworkChatCompletions,
 		AiUniworkDocumentChatCompletions:    h.uniworkDocumentChatCompletions,
@@ -1012,18 +1003,11 @@ func New(d Deps) http.Handler {
 		ExportDocumentPage:           h.exportDocumentPage,
 		GetDocumentPageExportFormats: h.getDocumentPageExportFormats,
 
-		OfficeFrameAiCredentialsList:     frameAI.CredentialsList,
-		OfficeFrameAiCredentialSave:      frameAI.CredentialSave,
-		OfficeFrameAiCredentialDelete:    frameAI.CredentialDelete,
-		OfficeFrameAiByokChatCompletions: frameAI.ByokChatCompletions,
-		OfficeFrameAiByokMessages:        frameAI.ByokMessages,
-		OfficeFrameAiByokGenerate:        frameAI.ByokGenerate,
-		OfficeFrameAiByokModels:          frameAI.ByokModels,
-		OfficeFrameAiCloudStatus:         frameAI.CloudStatus,
-		OfficeFrameAiCloudSearch:         frameAI.CloudSearch,
-		OfficeFrameAiCloudImages:         frameAI.CloudImages,
-		OfficeFrameAiCloudAnalyzeMedia:   frameAI.CloudAnalyzeMedia,
-		OfficeFrameAiCloudTranscribe:     frameAI.CloudTranscribe,
+		OfficeFrameAiCloudStatus:       frameAI.CloudStatus,
+		OfficeFrameAiCloudSearch:       frameAI.CloudSearch,
+		OfficeFrameAiCloudImages:       frameAI.CloudImages,
+		OfficeFrameAiCloudAnalyzeMedia: frameAI.CloudAnalyzeMedia,
+		OfficeFrameAiCloudTranscribe:   frameAI.CloudTranscribe,
 
 		ListDocumentComments:          h.listDocumentComments,
 		CreateDocumentComment:         h.createDocumentComment,
@@ -1043,9 +1027,6 @@ func New(d Deps) http.Handler {
 		ListSavedSignatures:  h.listSavedSignatures,
 		CreateSavedSignature: h.createSavedSignature,
 		DeleteSavedSignature: h.deleteSavedSignature,
-		ListAICredentials:    aiMount.CredentialsList,
-		SaveAICredential:     aiMount.CredentialSave,
-		DeleteAICredential:   aiMount.CredentialDelete,
 
 		ListDocuments:                  h.listDocuments,
 		ListRecentDocuments:            h.listRecentDocuments,

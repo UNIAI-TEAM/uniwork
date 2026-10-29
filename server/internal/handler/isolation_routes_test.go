@@ -403,15 +403,14 @@ func TestUniformAnswerComparisonIsNotATautology(t *testing.T) {
 }
 
 const (
-	reasonAuth       = "authentication: there is no tenant before sign-in"
-	reasonProbe      = "process probe or public configuration, no tenant data"
-	reasonBYOKVendor = "the owner's call would reach the real vendor with the seeded key; the proxy path is held by internal/ai TestGatewayProxy* and provider TestBYOKClient*"
-	reasonProvider   = "provider callback authenticated by the provider's signature or OAuth state, not by a member"
-	reasonSelf       = "the caller's own account; the listing pass checks it shows nothing of another tenant"
-	reasonLink       = "the link secret in the path or body is the credential; holding it is the grant"
-	reasonPlatform   = "platform console: across tenants by design, closed without users.platform_role"
-	reasonStub       = "catalogue stub: the same 422 capability_unavailable for every caller and id"
-	reasonTicket     = "authentication: the sealed sign-in ticket in the caller's HttpOnly cookie is the credential; there is no tenant before sign-in"
+	reasonAuth     = "authentication: there is no tenant before sign-in"
+	reasonProbe    = "process probe or public configuration, no tenant data"
+	reasonProvider = "provider callback authenticated by the provider's signature or OAuth state, not by a member"
+	reasonSelf     = "the caller's own account; the listing pass checks it shows nothing of another tenant"
+	reasonLink     = "the link secret in the path or body is the credential; holding it is the grant"
+	reasonPlatform = "platform console: across tenants by design, closed without users.platform_role"
+	reasonStub     = "catalogue stub: the same 422 capability_unavailable for every caller and id"
+	reasonTicket   = "authentication: the sealed sign-in ticket in the caller's HttpOnly cookie is the credential; there is no tenant before sign-in"
 	// reasonNativeTicket is the app's ticket: in the JSON body, and opened
 	// only with the nonce of the sign-in that issued it.
 	reasonNativeTicket = "authentication: the sealed sign-in ticket in the body, which opens only with the nonce of the sign-in that issued it, is the credential; there is no tenant before sign-in"
@@ -713,10 +712,6 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/workspaces/{workspaceID}/calendar/connections/{provider}/start": {skipControl: "no OAuth client is configured in tests; the owner gets 503"},
 	"POST /api/v1/workspaces/{workspaceID}/email-hub/oauth/{provider}/start":     {skipControl: "no OAuth client is configured in tests; the owner gets 404"},
 	"GET /api/v1/meetings/{meetingID}/lobby-ws":                                  {class: isoRealtime, reason: "lobby WebSocket: the auth frame is checked against the knock - TestIsolationRealtime"},
-	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/chat/completions":            {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
-	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/messages":                    {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
-	"POST /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/generate":                    {body: isoJSON(map[string]any{"model": "m", "request": map[string]any{}}), skipControl: reasonBYOKVendor},
-	"GET /api/v1/orgs/{orgID}/ai/byok/{aiProvider}/models":                       {skipControl: reasonBYOKVendor},
 	"GET /api/v1/files/{fileID}/content":                                         {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 	"HEAD /api/v1/files/{fileID}/content":                                        {skipControl: "reads need the ticket POST .../files/resolve mints; without it everyone is refused"},
 
@@ -780,7 +775,6 @@ var isoRoutes = map[string]isoSpec{
 	// control both send that, and a 400 before the tenancy gate would fail it.
 	"PUT /api/v1/documents/{documentID}/office/offline-lease": {body: func(*isoWorld, *isoTenant) isoBody { return isoBody{noBody: true} }},
 	"POST /api/v1/documents/{documentID}/preview/scopes":      {body: isoPreviewPost},
-	"PUT /api/v1/orgs/{orgID}/ai/credentials/{aiProvider}":    {body: isoAICredentialPut},
 	"POST /api/v1/orgs/{orgID}/ai/cloud/search":               {body: isoJSON(map[string]any{"query": "iso", "kind": "web", "max_results": 1})},
 	"POST /api/v1/orgs/{orgID}/ai/cloud/images":               {body: isoJSON(map[string]any{"prompt": "iso"})},
 	"POST /api/v1/orgs/{orgID}/ai/cloud/media/analyze":        {body: isoJSON(map[string]any{"requirements": "iso", "media": []any{map[string]any{"mime": "image/png", "data_base64": "aXNv"}}})},
@@ -874,22 +868,17 @@ var isoRoutes = map[string]isoSpec{
 	"GET /api/v1/office-frame/sources/{sourceFileID}":                                           {reason: "the source token binds w/o/s/parent; AuthorizeSource re-runs the source gate as the token's user, so a foreign source is not_found"},
 	"GET /api/v1/office-frame/sources/{sourceFileID}/content":                                   {reason: "as the open route: the bytes stream only after AuthorizeSource re-runs the source gate"},
 	"HEAD /api/v1/office-frame/sources/{sourceFileID}/content":                                  {reason: "as the open route: the headers are answered only after AuthorizeSource re-runs the source gate"},
-	// GO-A7's AI on the frame token (UNI-1014): the same bodies and vendor exemptions as the session rows.
-	"PUT /api/v1/office-frame/documents/{documentID}/ai/credentials/{aiProvider}":            {body: isoAICredentialPut},
-	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/chat/completions": {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
-	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/messages":         {body: isoJSON(map[string]any{"model": "m"}), skipControl: reasonBYOKVendor},
-	"POST /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/generate":         {body: isoJSON(map[string]any{"model": "m", "request": map[string]any{}}), skipControl: reasonBYOKVendor},
-	"GET /api/v1/office-frame/documents/{documentID}/ai/byok/{aiProvider}/models":            {skipControl: reasonBYOKVendor},
-	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/search":                       {body: isoJSON(map[string]any{"query": "iso", "kind": "web", "max_results": 1})},
-	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/images":                       {body: isoJSON(map[string]any{"prompt": "iso"})},
-	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/media/analyze":                {body: isoJSON(map[string]any{"requirements": "iso", "media": []any{map[string]any{"mime": "image/png", "data_base64": "aXNv"}}})},
-	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/transcribe":                   {body: isoJSON(map[string]any{"audio": map[string]any{"mime": "audio/mpeg", "data_base64": "aXNv"}})},
-	"POST /api/v1/documents/{documentID}/versions":                                           {body: isoJSON(map[string]any{"label": "v"})},
-	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":                            {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
-	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":                   {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
-	"PATCH /api/v1/meetings/{meetingID}/motions/{motionID}":                                  {body: isoJSON(map[string]any{"title": "edited"})},
-	"PATCH /api/v1/meetings/{meetingID}/notes/{noteID}":                                      {body: isoJSON(map[string]any{"body": "edited"})},
-	"PATCH /api/v1/meetings/{meetingID}/transcript/{segmentID}":                              {body: isoJSON(map[string]any{"text": "edited"})},
+	// GO-A7's AI on the frame token (UNI-1014): the same bodies as the session rows.
+	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/search":        {body: isoJSON(map[string]any{"query": "iso", "kind": "web", "max_results": 1})},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/images":        {body: isoJSON(map[string]any{"prompt": "iso"})},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/media/analyze": {body: isoJSON(map[string]any{"requirements": "iso", "media": []any{map[string]any{"mime": "image/png", "data_base64": "aXNv"}}})},
+	"POST /api/v1/office-frame/documents/{documentID}/ai/cloud/transcribe":    {body: isoJSON(map[string]any{"audio": map[string]any{"mime": "audio/mpeg", "data_base64": "aXNv"}})},
+	"POST /api/v1/documents/{documentID}/versions":                            {body: isoJSON(map[string]any{"label": "v"})},
+	"PUT /api/v1/meetings/{meetingID}/attendance/{participantID}":             {body: isoJSON(map[string]any{"status": "PRESENT"}), mixedFirst: "liveMeeting"},
+	"PUT /api/v1/meetings/{meetingID}/invitations/{invitationID}/response":    {body: isoJSON(map[string]any{"response": "ACCEPTED"}), controlAs: "peer"},
+	"PATCH /api/v1/meetings/{meetingID}/motions/{motionID}":                   {body: isoJSON(map[string]any{"title": "edited"})},
+	"PATCH /api/v1/meetings/{meetingID}/notes/{noteID}":                       {body: isoJSON(map[string]any{"body": "edited"})},
+	"PATCH /api/v1/meetings/{meetingID}/transcript/{segmentID}":               {body: isoJSON(map[string]any{"text": "edited"})},
 	// follow-5: the write-control pass runs .../dismiss first, so the owner's
 	// link of the same item answers 409 action_item_not_pending - the route
 	// decided who is asking and reached the item's state.

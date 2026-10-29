@@ -791,11 +791,6 @@ func isoParam(t *testing.T, method, pattern string, segs []string, i int, tn *is
 		return tn.get(t, "frameSibling")
 	case "{signatureID}":
 		return tn.get(t, "signature")
-	case "{aiProvider}":
-		if under("/office-frame/") {
-			return isoFrameAIProvider
-		}
-		return isoAIProvider
 	case "{launchSessionID}":
 		return tn.get(t, "launchSession")
 	case "{deviceSessionID}":
@@ -1081,7 +1076,7 @@ func isoMixedPath(t *testing.T, pattern, firstKey string, from, to *isoTenant) (
 // isoSharedParams take the same value in both tenants, so swapping them says
 // nothing about isolation.
 var isoSharedParams = map[string]bool{
-	"{provider}": true, "{aiProvider}": true, "{resourceType}": true, "{itemType}": true, "{versionNo}": true, "{key}": true,
+	"{provider}": true, "{resourceType}": true, "{itemType}": true, "{versionNo}": true, "{key}": true,
 	"{code}":          true,
 	"{quickActionID}": true, "{agentTaskID}": true, "{connectionID}": true, "{nodeType}": true, "{driveFolderID}": true,
 }
@@ -1377,6 +1372,7 @@ var isoUnseeded = map[string]string{
 	"file_derivatives":           "written only by the file_thumbnail consumer on the slow lane; the isolation world runs no dispatcher",
 	"chat_link_previews":         "written only by the chat_link_preview consumer on the slow lane (ADR 0035); the isolation world runs no dispatcher",
 	"chat_message_link_previews": "written only by the chat_link_preview consumer on the slow lane (ADR 0035); the isolation world runs no dispatcher",
+	"ai_provider_credentials":    "no code writes it since UNI-2289 removed the key store; the next migration drops it",
 }
 
 // isoDigestSkip lists tenant tables a refused request is allowed to write:

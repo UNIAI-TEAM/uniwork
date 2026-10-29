@@ -20,7 +20,7 @@ import (
 
 // uniworkStreamWriteIdle is the longest one chunk write may block: the server
 // has no WriteTimeout, and a client that stops reading must not pin the call
-// and its concurrency slot (the BYOK stream's rule).
+// and its concurrency slot (sseWriteIdle's rule).
 const uniworkStreamWriteIdle = 60 * time.Second
 
 // UniworkDeltaStream writes one writer answer as SSE.

@@ -378,11 +378,6 @@ func pathParamSDI(path string) any {
 			OrgID       string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
 			SignatureID string `path:"signatureID" description:"ULID chữ ký đã lưu" example:"01K6SIGN1P2Q3R4S5T6U7V8YA"`
 		}{}
-	case "orgID,aiProvider":
-		return struct {
-			OrgID      string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
-			AIProvider string `path:"aiProvider" description:"Mã nhà cung cấp AI (openai, anthropic, gemini, custom, …)" example:"openai"`
-		}{}
 	case "orgID,exportID":
 		return struct {
 			OrgID    string `path:"orgID" description:"ULID tổ chức" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
@@ -575,11 +570,6 @@ func pathParamSDI(path string) any {
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu của token khung" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 			SessionID  string `path:"sessionID" description:"ULID phiên tải lên nhiều phần mở bằng frame token của tài liệu này" example:"01JA09K3N1P2Q3R4S5T6U7V8"`
-		}{}
-	case "documentID,aiProvider":
-		return struct {
-			DocumentID string `path:"documentID" description:"ULID tài liệu của token khung" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
-			AIProvider string `path:"aiProvider" description:"Mã nhà cung cấp AI (openai, anthropic, gemini, custom, …)" example:"openai"`
 		}{}
 	case "documentID,versionNo":
 		return struct {

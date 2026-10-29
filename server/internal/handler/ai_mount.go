@@ -7,13 +7,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
 // AIActorResolver names who is calling an AI route and for which organization.
-// The credential, BYOK proxy and cloud handlers read nothing else from the request, so a
+// The cloud and UniWork AI handlers read nothing else from the request, so a
 // router group with another credential (the web Office frame's frame token)
 // mounts the same handlers by passing its own resolver. A resolver only
 // identifies: membership, entitlement and credits are still decided by the
@@ -33,22 +32,13 @@ func sessionAIActor(r *http.Request) (string, string, error) {
 var errAIActorMissing = errors.New("ai: no authenticated user")
 
 // AIMountable is the AI handler set for a router group to mount under its own
-// paths. The handlers need the same path-parameter names as the session
-// routes for what is not the actor: {aiProvider} on the BYOK and credential
-// routes.
+// paths.
 type AIMountable struct {
-	CredentialsList     http.HandlerFunc
-	CredentialSave      http.HandlerFunc
-	CredentialDelete    http.HandlerFunc
-	ByokChatCompletions http.HandlerFunc
-	ByokMessages        http.HandlerFunc
-	ByokGenerate        http.HandlerFunc
-	ByokModels          http.HandlerFunc
-	CloudStatus         http.HandlerFunc
-	CloudSearch         http.HandlerFunc
-	CloudImages         http.HandlerFunc
-	CloudAnalyzeMedia   http.HandlerFunc
-	CloudTranscribe     http.HandlerFunc
+	CloudStatus       http.HandlerFunc
+	CloudSearch       http.HandlerFunc
+	CloudImages       http.HandlerFunc
+	CloudAnalyzeMedia http.HandlerFunc
+	CloudTranscribe   http.HandlerFunc
 	// UniworkChatCompletions is the UniWork AI turn (G6-03a, R2): the handler
 	// is the session one, mounted with this group's resolver, so a frame token
 	// route continues the conversation of the token's user and module.
@@ -67,13 +57,6 @@ func NewAIMountable(d Deps, resolve AIActorResolver) AIMountable {
 func (h *handlers) aiMountable(resolve AIActorResolver) AIMountable {
 	a := &aiHandlers{handlers: h, actor: resolve}
 	return AIMountable{
-		CredentialsList:        a.listAICredentials,
-		CredentialSave:         a.saveAICredential,
-		CredentialDelete:       a.deleteAICredential,
-		ByokChatCompletions:    a.byokProxy(ai.ProxyChatCompletions),
-		ByokMessages:           a.byokProxy(ai.ProxyMessages),
-		ByokGenerate:           a.byokProxy(ai.ProxyGenerate),
-		ByokModels:             a.byokProxy(ai.ProxyModels),
 		CloudStatus:            a.aiCloudStatus,
 		CloudSearch:            a.aiCloudSearch,
 		CloudImages:            a.aiCloudImages,
@@ -84,7 +67,7 @@ func (h *handlers) aiMountable(resolve AIActorResolver) AIMountable {
 	}
 }
 
-// aiHandlers are the credential, BYOK proxy and cloud handlers bound to one resolver.
+// aiHandlers are the cloud and UniWork AI handlers bound to one resolver.
 type aiHandlers struct {
 	*handlers
 	actor AIActorResolver
