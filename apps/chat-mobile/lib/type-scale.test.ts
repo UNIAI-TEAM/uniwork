@@ -4,7 +4,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { BADGE_MAX_FONT_SCALE, DISPLAY_MAX_FONT_SCALE, isLargeText, LARGE_TEXT_SCALE, TAB_LABEL_MAX_FONT_SCALE } from "./type-scale";
+import {
+  BADGE_MAX_FONT_SCALE,
+  DISPLAY_MAX_FONT_SCALE,
+  isLargeText,
+  LARGE_TEXT_SCALE,
+  PROVIDER_BUTTON_MAX_FONT_SCALE,
+  providerButtonHeight,
+  TAB_LABEL_MAX_FONT_SCALE,
+} from "./type-scale";
 import typeScale from "./type-scale.json";
 import { cn } from "./utils";
 
@@ -34,6 +42,16 @@ describe("text roles", () => {
     expect(isLargeText(2)).toBe(true);
     expect(TAB_LABEL_MAX_FONT_SCALE).toBeGreaterThan(1);
     expect(TAB_LABEL_MAX_FONT_SCALE).toBeLessThan(LARGE_TEXT_SCALE);
+  });
+
+  it("give Apple's and Google's buttons one height that grows with the text, from 48 pt to the provider cap", () => {
+    expect(providerButtonHeight(1)).toBe(48);
+    // Android's smaller sizes never draw a button under its minimum target.
+    expect(providerButtonHeight(0.85)).toBe(48);
+    expect(providerButtonHeight(1.235)).toBe(59);
+    expect(providerButtonHeight(PROVIDER_BUTTON_MAX_FONT_SCALE)).toBe(77);
+    expect(providerButtonHeight(3.57)).toBe(77);
+    expect(PROVIDER_BUTTON_MAX_FONT_SCALE).toBeLessThanOrEqual(LARGE_TEXT_SCALE);
   });
 
   it("let a display title grow into the accessibility sizes, but not past where one word fills a phone's line", () => {
@@ -71,10 +89,6 @@ describe("text roles", () => {
  * system text size. Anything else that holds text takes `min-h-*` and vertical padding (S6 dynamic type).
  */
 const FIXED_HEIGHT_OK: Record<string, string[]> = {
-  // The sign-in illustration (hidden from screen readers) is a fixed stage; its text bubbles are placed on it and their
-  // text does not scale (allowFontScaling={false}); at the accessibility sizes the stage is not drawn at all.
-  // The wall's fade at its foot is an image.
-  "components/brand/login-hero.tsx": ["relative h-[440px]", "absolute inset-x-0 bottom-0 h-[220px] w-full"],
   // Scrims over the video: shading, no text.
   "components/calls/call-room.tsx": ["absolute inset-x-0 top-0 h-36", "absolute inset-x-0 bottom-0 h-48"],
   // A sheet's share of the screen, not a text box.
@@ -86,6 +100,9 @@ const FIXED_HEIGHT_OK: Record<string, string[]> = {
   // The loading skeleton: grey shapes standing in for text, which never hold any.
   "components/chat/room-list-parts.tsx": ["h-[34px] rounded-full bg-muted", "h-[76px] flex-row items-center gap-3 px-4", "h-3.5 rounded-full bg-muted", "h-3 max-w-full rounded-full bg-muted"],
   "components/ui/list-states.tsx": ["h-16 flex-row items-center gap-3 px-4", "h-3.5 rounded-full bg-muted", "h-3 max-w-full rounded-full bg-muted"],
+  "components/settings/sign-in-method-row.tsx": ["h-3.5 rounded-full bg-muted"],
+  "components/workspace/invitation-parts.tsx": ["h-4 rounded-full bg-muted"],
+  "components/workspace/invitation-preview.tsx": ["h-4 rounded-full bg-muted"],
   // Three animated dots, no text.
   "components/chat/typing-bubble.tsx": ["h-9 flex-row items-center gap-1 bg-chat-bubble-other px-3.5"],
 };

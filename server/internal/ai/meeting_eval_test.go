@@ -83,7 +83,7 @@ func (c meetingEvalCase) promptKey() string {
 	if c.Kind == "live" {
 		return "meeting_live_items@3"
 	}
-	return "meeting_summary@7"
+	return PromptMeetingSummary
 }
 
 func (c meetingEvalCase) capability() Capability {

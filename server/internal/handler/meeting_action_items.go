@@ -130,6 +130,19 @@ func (h *handlers) convertActionItems(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, out)
 }
 
+func (h *handlers) undoConvertActionItems(w http.ResponseWriter, r *http.Request) {
+	var in sdi.UndoConvertActionItemsSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	restored, err := h.Meetings.UndoConvertActionItems(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), in.ActionItemIDs)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.UndoConvertActionItemsSDO{Restored: restored})
+}
+
 func (h *handlers) listCarriedOverItems(w http.ResponseWriter, r *http.Request) {
 	list, err := h.Meetings.CarriedOverItems(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
 	if err != nil {

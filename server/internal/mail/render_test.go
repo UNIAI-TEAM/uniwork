@@ -208,23 +208,208 @@ func TestNewLoginFromTheAppNamesTheDevice(t *testing.T) {
 	}
 }
 
-func TestAppleLinkedRendersBothLocales(t *testing.T) {
+// One kind tells of every change to the ways into an account (ADR 0049), in
+// both languages: the change in the subject, where it came from, the security
+// settings and, if it was not the owner, the password reset. It replaced
+// apple_linked, which only told of an Apple link.
+func TestSignInMethodChangedRendersEveryChangeInBothLocales(t *testing.T) {
 	r := Renderer{AppURL: "http://localhost:3000"}
-	for _, loc := range []string{"vi", "en"} {
-		m, err := r.AppleLinked("a@example.com", loc, "u1", AppleLinkedData{
-			Device: "iPhone của An", IP: "10.0.0.1", At: time.Date(2026, 10, 23, 9, 30, 0, 0, time.UTC),
-			SessionsURL: "http://localhost:3000/settings?tab=security",
-		})
-		if err != nil || m.Kind != KindAppleLinked || m.UserID != "u1" || m.Locale != loc {
+	at := time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
+	cases := []struct {
+		change, method string
+		away           bool
+		subject        map[string]string
+	}{
+		{SignInChangeLinked, SignInMethodApple, false, map[string]string{"vi": "Apple đã được liên kết", "en": "Apple was linked"}},
+		{SignInChangeUnlinked, SignInMethodGoogle, false, map[string]string{"vi": "Google đã được gỡ", "en": "Google was unlinked"}},
+		{SignInChangeReclaimed, SignInMethodGoogle, false, map[string]string{"vi": "lấy lại tài khoản", "en": "took back your UniWork account"}},
+		{SignInChangeReclaimed, SignInMethodPassword, false, map[string]string{"vi": "lấy lại tài khoản", "en": "took back your UniWork account"}},
+		{SignInChangeMoved, SignInMethodApple, false, map[string]string{"vi": "chuyển vào tài khoản", "en": "moved into your"}},
+		{SignInChangeMoved, SignInMethodApple, true, map[string]string{"vi": "chuyển sang một tài khoản", "en": "moved to another"}},
+		{SignInChangePasswordSet, SignInMethodPassword, false, map[string]string{"vi": "Đã đặt mật khẩu", "en": "password was set"}},
+		{SignInChangePasswordChanged, SignInMethodPassword, false, map[string]string{"vi": "Mật khẩu tài khoản UniWork đã được đổi", "en": "password was changed"}},
+		{SignInChangeSecondFactorLocked, "", false, map[string]string{"vi": "Tạm dừng", "en": "paused"}},
+	}
+	for _, tc := range cases {
+		for _, loc := range []string{"vi", "en"} {
+			m, err := r.SignInMethodChanged("a@example.com", loc, "u1", SignInMethodChangedData{
+				Change: tc.change, Method: tc.method, MovedAway: tc.away,
+				Device: "iPhone của An", IP: "10.0.0.1", At: at, LockedFor: 15 * time.Minute,
+			})
+			if err != nil || m.Kind != KindSignInMethodChanged || m.UserID != "u1" || m.Locale != loc || m.To != "a@example.com" {
+				t.Fatalf("%s/%s: %v %+v", tc.change, loc, err, m)
+			}
+			if !strings.Contains(m.Subject, tc.subject[loc]) || strings.ContainsAny(m.Subject, "\r\n") {
+				t.Fatalf("%s/%s: subject %q", tc.change, loc, m.Subject)
+			}
+			for _, body := range []string{m.HTML, m.Text} {
+				for _, want := range []string{"iPhone của An", "10.0.0.1", "http://localhost:3000/settings?tab=security", "http://localhost:3000/forgot-password"} {
+					if !strings.Contains(body, want) {
+						t.Fatalf("%s/%s: body misses %q: %s", tc.change, loc, want, body)
+					}
+				}
+				if strings.Contains(body, "{{") || strings.Contains(body, "<no value>") {
+					t.Fatalf("%s/%s: unrendered template: %s", tc.change, loc, body)
+				}
+			}
+			if tc.change == SignInChangeSecondFactorLocked && !strings.Contains(m.Text, map[string]string{"vi": "15 phút", "en": "15 minutes"}[loc]) {
+				t.Fatalf("%s: the lockout names its length: %s", loc, m.Text)
+			}
+			if tc.change == SignInChangeReclaimed && tc.method == SignInMethodPassword && !strings.Contains(m.Text, map[string]string{"vi": "liên kết đặt lại mật khẩu", "en": "password reset link"}[loc]) {
+				t.Fatalf("%s: a reclaim by reset link says so: %s", loc, m.Text)
+			}
+		}
+	}
+
+	// Where the change came from is optional; the time never is.
+	m, err := r.SignInMethodChanged("a@example.com", "en", "u1", SignInMethodChangedData{Change: SignInChangePasswordSet, Method: SignInMethodPassword, At: at})
+	if err != nil || strings.Contains(m.Text, "Device:") || strings.Contains(m.Text, "IP address:") || !strings.Contains(m.Text, "When: 2026-10-27 09:30") {
+		t.Fatalf("no device or address: %v %s", err, m.Text)
+	}
+	// User-controlled fields stay text.
+	m, _ = r.SignInMethodChanged("a@example.com", "vi", "u1", SignInMethodChangedData{Change: SignInChangeLinked, Method: SignInMethodGoogle, Device: "<script>x</script>", At: at})
+	if strings.Contains(m.HTML, "<script>") {
+		t.Fatalf("device not escaped: %s", m.HTML)
+	}
+	// A change it does not know, or a method the change cannot name, is an
+	// error rather than an empty mail.
+	for _, d := range []SignInMethodChangedData{
+		{Change: "apple_linked", Method: SignInMethodApple},
+		{Change: SignInChangeLinked, Method: SignInMethodPassword},
+		{Change: SignInChangeLinked},
+		{Change: SignInChangePasswordSet, Method: SignInMethodGoogle},
+		{Change: SignInChangeSecondFactorLocked, Method: SignInMethodPassword},
+	} {
+		if _, err := r.SignInMethodChanged("a@example.com", "vi", "u1", d); err == nil {
+			t.Fatalf("%+v rendered", d)
+		}
+	}
+}
+
+// The code of "I was invited with another address" (ADR 0049) goes to an
+// address that may have no account: it names no user, says which provider
+// waits on it and for how long, and warns that the code opens the account.
+func TestSignInEmailClaimRendersBothLocales(t *testing.T) {
+	r := Renderer{AppURL: "http://localhost:3000"}
+	for loc, want := range map[string][3]string{
+		"vi": {"là mã đăng nhập UniWork", "15 phút", "ai có mã này sẽ vào được tài khoản"},
+		"en": {"is your UniWork sign-in code", "15 minutes", "whoever has this code can open your UniWork account"},
+	} {
+		m, err := r.SignInEmailClaim("an@company.vn", loc, SignInEmailClaimData{Code: "482913", Expires: 15 * time.Minute, Method: SignInMethodApple})
+		if err != nil || m.Kind != KindSignInEmailClaim || m.UserID != "" || m.Locale != loc || m.To != "an@company.vn" {
 			t.Fatalf("%s: %v %+v", loc, err, m)
 		}
-		if !strings.Contains(m.Subject, "Apple") || strings.ContainsAny(m.Subject, "\r\n") {
+		if !strings.HasPrefix(m.Subject, "482913 ") || !strings.Contains(m.Subject, want[0]) {
 			t.Fatalf("%s: subject %q", loc, m.Subject)
 		}
 		for _, body := range []string{m.HTML, m.Text} {
-			if !strings.Contains(body, "iPhone của An") || !strings.Contains(body, "10.0.0.1") || !strings.Contains(body, "/settings?tab=security") {
-				t.Fatalf("%s: body misses the device, address or sessions link: %s", loc, body)
+			for _, s := range []string{"482913", "Apple", want[1], want[2]} {
+				if !strings.Contains(body, s) {
+					t.Fatalf("%s: body misses %q: %s", loc, s, body)
+				}
+			}
+			if strings.Contains(body, "{{") || strings.Contains(body, "<no value>") {
+				t.Fatalf("%s: unrendered template: %s", loc, body)
 			}
 		}
+	}
+	// Only a provider sign-in waits on an address.
+	for _, method := range []string{"", SignInMethodPassword, "github"} {
+		if _, err := r.SignInEmailClaim("a@example.com", "vi", SignInEmailClaimData{Code: "1", Expires: time.Minute, Method: method}); err == nil {
+			t.Fatalf("method %q rendered", method)
+		}
+	}
+}
+
+// A step-up code names the one action it unlocks, where the request came
+// from and that it must never be shared (ADR 0049 §5), in both languages; an
+// action nobody defined is refused rather than mailed without a name.
+func TestStepUpCodeNamesItsActionInBothLocales(t *testing.T) {
+	r := Renderer{AppURL: "http://localhost:3000"}
+	at := time.Date(2026, 10, 27, 8, 0, 0, 0, time.UTC)
+	for loc, want := range map[string][4]string{
+		"vi": {"là mã xác nhận UniWork", "xóa tài khoản", "10 phút", "Không chia sẻ mã này"},
+		"en": {"is your UniWork confirmation code", "delete your account", "10 minutes", "Never share this code"},
+	} {
+		m, err := r.StepUpCode("an@acme.vn", loc, "u1", StepUpCodeData{
+			Code: "482913", Expires: 10 * time.Minute, Action: StepUpActionDeleteAccount,
+			Device: "Chrome trên macOS", IP: "203.0.113.7", At: at,
+		})
+		if err != nil || m.Kind != KindStepUpCode || m.UserID != "u1" || m.Locale != loc || m.To != "an@acme.vn" {
+			t.Fatalf("%s: %v %+v", loc, err, m)
+		}
+		if !strings.HasPrefix(m.Subject, "482913 ") || !strings.Contains(m.Subject, want[0]) {
+			t.Fatalf("%s: subject %q", loc, m.Subject)
+		}
+		for _, body := range []string{m.HTML, m.Text} {
+			for _, s := range []string{"482913", want[1], want[2], want[3], "Chrome trên macOS", "203.0.113.7", "/settings?tab=security"} {
+				if !strings.Contains(body, s) {
+					t.Fatalf("%s: body misses %q: %s", loc, s, body)
+				}
+			}
+			if strings.Contains(body, "{{") || strings.Contains(body, "<no value>") {
+				t.Fatalf("%s: unrendered template: %s", loc, body)
+			}
+		}
+	}
+	for _, action := range []string{
+		StepUpActionSetPassword, StepUpActionChangePassword, StepUpActionLinkGoogle, StepUpActionLinkApple,
+		StepUpActionUnlinkGoogle, StepUpActionUnlinkApple, StepUpActionEnableMFA, StepUpActionDeleteAccount,
+		StepUpActionTransferOwnership,
+	} {
+		if !IsStepUpAction(action) {
+			t.Fatalf("%s is not a step-up action", action)
+		}
+		if _, err := r.StepUpCode("a@example.com", "vi", "u1", StepUpCodeData{Code: "1", Expires: time.Minute, Action: action, At: at}); err != nil {
+			t.Fatalf("%s: %v", action, err)
+		}
+	}
+	for _, action := range []string{"", "verify_email", "disable_mfa"} {
+		if IsStepUpAction(action) {
+			t.Fatalf("%q is a step-up action", action)
+		}
+		if _, err := r.StepUpCode("a@example.com", "vi", "u1", StepUpCodeData{Code: "1", Expires: time.Minute, Action: action, At: at}); err == nil {
+			t.Fatalf("action %q rendered", action)
+		}
+	}
+}
+
+// An account without a password gets the set-a-password variant (spec
+// §3.7): the providers it signs in with as buttons to the login page that
+// sends the browser straight there, and the same one-time link to set one.
+func TestPasswordResetOffersAPasswordlessAccountItsProviders(t *testing.T) {
+	r := Renderer{AppURL: "http://localhost:3000"}
+	for loc, want := range map[string][3]string{
+		"vi": {"Đặt mật khẩu UniWork", "Google hoặc Apple", "Đăng nhập bằng Google"},
+		"en": {"Set a password for UniWork", "Google or Apple", "Sign in with Google"},
+	} {
+		m, err := r.PasswordReset("a@example.com", loc, "u1", PasswordResetData{
+			ResetURL: "http://localhost:3000/reset-password?token=abc", Expires: time.Hour,
+			SetPassword: true, SignInWith: []string{SignInMethodGoogle, SignInMethodApple},
+		})
+		if err != nil || m.Kind != KindPasswordReset || m.Subject != want[0] {
+			t.Fatalf("%s: %v %+v", loc, err, m)
+		}
+		for _, body := range []string{m.HTML, m.Text} {
+			for _, s := range []string{"token=abc", want[1], "/login?provider=google", "/login?provider=apple"} {
+				if !strings.Contains(body, s) {
+					t.Fatalf("%s: body misses %q: %s", loc, s, body)
+				}
+			}
+			if strings.Contains(body, "{{") || strings.Contains(body, "<no value>") {
+				t.Fatalf("%s: unrendered template: %s", loc, body)
+			}
+		}
+		if !strings.Contains(m.HTML, want[2]) {
+			t.Fatalf("%s: no provider button: %s", loc, m.HTML)
+		}
+		// Without a provider it is still a way to set the first password.
+		bare, err := r.PasswordReset("a@example.com", loc, "u1", PasswordResetData{ResetURL: "http://localhost:3000/reset-password?token=abc", Expires: time.Hour, SetPassword: true})
+		if err != nil || bare.Subject != want[0] || strings.Contains(bare.Text, "/login?provider=") {
+			t.Fatalf("%s: bare variant %v %q", loc, err, bare.Text)
+		}
+	}
+	if _, err := r.PasswordReset("a@example.com", "vi", "u1", PasswordResetData{ResetURL: "x", Expires: time.Hour, SetPassword: true, SignInWith: []string{SignInMethodPassword}}); err == nil {
+		t.Fatal("a password is not a provider sign-in")
 	}
 }

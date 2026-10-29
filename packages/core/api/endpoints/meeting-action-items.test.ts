@@ -9,6 +9,7 @@ import {
   getMeetingCarriedOverItems,
   linkMeetingActionItem,
   restoreMeetingActionItem,
+  undoConvertMeetingActionItems,
 } from "./meeting-action-items";
 
 const json = (body: unknown, status = 200) =>
@@ -161,5 +162,17 @@ describe("meeting action item endpoints", () => {
     expect(sent()).toEqual({ url: "http://api.test/api/v1/meetings/m1/action-items/convert", method: "POST", body });
     vi.mocked(fetch).mockResolvedValueOnce(json({ links: "nope" }));
     expect(await convertMeetingActionItems("m1", body)).toBeNull();
+  });
+
+  it("undoConvertMeetingActionItems sends the ids and answers the restored ones, or null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ restored: ["a1"] }));
+    expect(await undoConvertMeetingActionItems("m1", ["a1", "a2"])).toEqual(["a1"]);
+    expect(sent()).toEqual({
+      url: "http://api.test/api/v1/meetings/m1/action-items/undo-convert",
+      method: "POST",
+      body: { action_item_ids: ["a1", "a2"] },
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(json({ restored: "a1" }));
+    expect(await undoConvertMeetingActionItems("m1", ["a1"])).toBeNull();
   });
 });

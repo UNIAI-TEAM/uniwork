@@ -249,6 +249,63 @@ describe("MeetingsPageView when a window closes", () => {
   });
 });
 
+describe("MeetingsPageView live rows", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const listWith = (status: string) =>
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.includes("/meetings?")) {
+        return Promise.resolve({
+          meetings: [
+            {
+              id: "m3",
+              workspace_id: "w1",
+              title: "Daily",
+              description: "",
+              starts_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+              ends_at: new Date(Date.now() + 3_600_000).toISOString(),
+              room_name: "r",
+              created_by: "u-host",
+              status,
+            },
+          ],
+          total: 1,
+        });
+      }
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      return Promise.resolve({});
+    });
+
+  it("refetches only while a row is live", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    listWith("IN_PROGRESS");
+    const live = renderPage(nav(""));
+    await screen.findByText("Daily");
+    const before = listCalls().length;
+    await vi.advanceTimersByTimeAsync(30_500);
+    await waitFor(() => expect(listCalls().length).toBe(before + 1));
+    // A hidden tab does not poll.
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(listCalls().length).toBe(before + 1);
+    visibility.mockRestore();
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => expect(listCalls().length).toBe(before + 2));
+    live.unmount();
+
+    requestMock.mockClear();
+    listWith("ENDED");
+    renderPage(nav("status=ENDED"));
+    await screen.findByText("Daily");
+    const idle = listCalls().length;
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(listCalls().length).toBe(idle);
+  });
+});
+
 describe("MeetingsPageView error", () => {
   it("says the list did not load and offers a retry", async () => {
     requestMock.mockImplementation((path: unknown) =>

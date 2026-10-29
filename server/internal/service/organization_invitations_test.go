@@ -40,6 +40,8 @@ func newOrgInviteFixture(t *testing.T) *orgInviteFixture {
 		ws:  NewWorkspaceService(pool, q, orgs, renderer, out),
 	}
 	f.svc.SetMail(renderer, out)
+	f.svc.SetStepUp(as)
+	f.ws.SetStepUp(as)
 	f.owner = registerVerified(t, q, as, "inv-owner@example.com", "Chủ")
 	f.admin = registerVerified(t, q, as, "inv-admin@example.com", "Quản trị")
 	f.member = registerVerified(t, q, as, "inv-member@example.com", "Thành viên")
@@ -198,13 +200,13 @@ func TestRevokeInvitationStopsTheToken(t *testing.T) {
 
 func TestTransferOwnershipIsAtomicAndNeedsThePassword(t *testing.T) {
 	f := newOrgInviteFixture(t)
-	if _, err := f.svc.TransferOwnership(f.ctx, f.owner.ID, f.org.ID, f.admin.ID, "wrong-password"); !errors.Is(err, ErrPasswordIncorrect) || !codedIs(err, "password_incorrect") {
+	if _, err := f.svc.TransferOwnership(f.ctx, f.owner.ID, f.org.ID, f.admin.ID, OwnerProof{Password: "wrong-password"}); !errors.Is(err, ErrPasswordIncorrect) || !codedIs(err, "password_incorrect") {
 		t.Fatalf("wrong password: got %v", err)
 	}
-	if _, err := f.svc.TransferOwnership(f.ctx, f.admin.ID, f.org.ID, f.member.ID, "password123"); !errors.Is(err, ErrForbidden) {
+	if _, err := f.svc.TransferOwnership(f.ctx, f.admin.ID, f.org.ID, f.member.ID, OwnerProof{Password: "password123"}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("admin transferring: got %v", err)
 	}
-	updated, err := f.svc.TransferOwnership(f.ctx, f.owner.ID, f.org.ID, f.admin.ID, "password123")
+	updated, err := f.svc.TransferOwnership(f.ctx, f.owner.ID, f.org.ID, f.admin.ID, OwnerProof{Password: "password123"})
 	if err != nil || updated.Role != OrgRoleOwner {
 		t.Fatalf("transfer: %v role=%s", err, updated.Role)
 	}
@@ -241,7 +243,7 @@ func TestTransferOwnershipRefusesADeactivatedTarget(t *testing.T) {
 	if _, err := f.svc.Deactivate(f.ctx, f.owner.ID, f.org.ID, f.member.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.svc.TransferOwnership(f.ctx, f.owner.ID, f.org.ID, f.member.ID, "password123"); !errors.Is(err, ErrMemberDeactivated) {
+	if _, err := f.svc.TransferOwnership(f.ctx, f.owner.ID, f.org.ID, f.member.ID, OwnerProof{Password: "password123"}); !errors.Is(err, ErrMemberDeactivated) {
 		t.Fatalf("deactivated target: got %v", err)
 	}
 }

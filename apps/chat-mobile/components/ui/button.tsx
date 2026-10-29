@@ -3,7 +3,7 @@
 // Android, the small one through hit slop so it keeps its look; Android
 // answers a press with a ripple (components/ui/ripple.ts).
 import { cva, type VariantProps } from "class-variance-authority";
-import { Platform, Pressable } from "react-native";
+import { Platform, Pressable, type View } from "react-native";
 import { useRipple } from "@/components/ui/ripple";
 import { TextClassContext } from "@/components/ui/text";
 import { hitSlopFor } from "@/lib/platform-ui";
@@ -63,7 +63,8 @@ const buttonTextVariants = cva(cn("text-foreground text-callout font-medium", Pl
   defaultVariants: { variant: "default", size: "default" },
 });
 
-type ButtonProps = React.ComponentProps<typeof Pressable> & React.RefAttributes<typeof Pressable> & VariantProps<typeof buttonVariants>;
+// A Pressable's ref is its host view (the registry's `RefAttributes<typeof Pressable>` named the component type instead).
+type ButtonProps = React.ComponentProps<typeof Pressable> & React.RefAttributes<View> & VariantProps<typeof buttonVariants>;
 
 /** How tall each size is drawn at least, in points: the hit slop makes up the rest of the platform's target. */
 const DRAWN: Record<NonNullable<ButtonProps["size"]>, number> = { default: 44, sm: 36, lg: 48, icon: 44 };

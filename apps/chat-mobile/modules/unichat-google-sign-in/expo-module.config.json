@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["UniChatGoogleSignInModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.unichatgooglesignin.UniChatGoogleSignInModule"]
+  }
+}

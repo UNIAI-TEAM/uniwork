@@ -122,7 +122,7 @@ test("buildServerEnv gives the server a test-only AI_CREDENTIAL_KEY, so the web 
 test("the web and the API are served as localhost, never 127.0.0.1 (G7-06 round 1: no web page ever hydrated)", () => {
   // Next 16 `next dev` blocks /_next/hmr from any host but localhost (allowedDevOrigins),
   // so a page opened on http://127.0.0.1:<port> is server-rendered but never hydrated:
-  // a click on "Log in" is a native GET submit and no API request is ever made. The
+  // a click on "Sign in" is a native GET submit and no API request is ever made. The
   // API is localhost too, so the refresh cookie it sets is same-site for the web page
   // (the e2e suite runs localhost:3000 against localhost:8080 for the same reason).
   const env = buildServerEnv({ apiPort: 18080, webPort: 13000, metricsPort: 19090, previewPort: 13001, databaseUrl: "postgres://x", redisUrl: "redis://y", uploadDir: "/tmp/u" });

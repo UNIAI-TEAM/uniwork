@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { deepLinkHref, inAppDmHref, incomingUrlAction, parseDeepLink, setPendingDeepLink, systemPathToRoute, takeInAppDm, takePendingDeepLink } from "./deep-link";
+import {
+  deepLinkHref,
+  inAppDmHref,
+  incomingUrlAction,
+  invitationHref,
+  parseDeepLink,
+  parseInviteLink,
+  setPendingLink,
+  systemPathToRoute,
+  takeInAppDm,
+  takePendingLink,
+} from "./deep-link";
 
 const APP_URL = "https://app.uniworkos.com";
 const SCHEME = "uniworkchat";
@@ -81,13 +92,35 @@ describe("deepLinkHref", () => {
   });
 });
 
-describe("pending deep link", () => {
-  it("hands the link out once", () => {
-    expect(takePendingDeepLink()).toBeNull();
-    const link = { orgSlug: "acme", wsSlug: "hq" };
-    setPendingDeepLink(link);
-    expect(takePendingDeepLink()).toBe(link);
-    expect(takePendingDeepLink()).toBeNull();
+describe("parseInviteLink", () => {
+  it("reads an invitation's token from its link, universal or wrapped, decoded", () => {
+    expect(parseInviteLink(`${APP_URL}/invite/inv_01J8`, APP_URL, SCHEME)).toBe("inv_01J8");
+    expect(parseInviteLink(`${APP_URL}/invite/inv_01J8/`, APP_URL, SCHEME)).toBe("inv_01J8");
+    expect(parseInviteLink(`${SCHEME}://open?url=${encodeURIComponent("/invite/a%2Fb")}`, APP_URL, SCHEME)).toBe("a/b");
+  });
+
+  it.each([
+    ["a meeting's invite link", `${APP_URL}/invite/meeting/l1`],
+    ["the bare meeting segment", `${APP_URL}/invite/meeting`],
+    ["no token", `${APP_URL}/invite/`],
+    ["another origin", "https://evil.example/invite/inv_1"],
+    ["a broken escape", `${APP_URL}/invite/%E0%A4%A`],
+    ["a chat link", `${APP_URL}/acme/hq/chat`],
+  ])("returns null for %s", (_, url) => {
+    expect(parseInviteLink(url, APP_URL, SCHEME)).toBeNull();
+  });
+
+  it("routes an invitation to its preview", () => {
+    expect(invitationHref("a/b")).toBe("/invite/a%2Fb");
+  });
+});
+
+describe("pending link", () => {
+  it("hands the route out once", () => {
+    expect(takePendingLink()).toBeNull();
+    setPendingLink("/acme/hq/chat");
+    expect(takePendingLink()).toBe("/acme/hq/chat");
+    expect(takePendingLink()).toBeNull();
   });
 });
 
@@ -116,6 +149,12 @@ describe("systemPathToRoute (+native-intent)", () => {
     const wrapped = `${SCHEME}://open?url=${encodeURIComponent("/acme/hq/chat?dm=u2")}`;
     expect(systemPathToRoute(wrapped, APP_URL, SCHEME)).toBe("/acme/hq/chat?dm=u2");
     expect(systemPathToRoute("/acme/hq/chat?room=r1", APP_URL, SCHEME)).toBe("/acme/hq/chat?room=r1");
+  });
+
+  it("opens an invitation's preview, which joins nothing by itself", () => {
+    expect(systemPathToRoute(`${APP_URL}/invite/inv_1`, APP_URL, SCHEME)).toBe("/invite/inv_1");
+    expect(systemPathToRoute("/invite/inv_1", APP_URL, SCHEME)).toBe("/invite/inv_1");
+    expect(systemPathToRoute(`${APP_URL}/invite/meeting/l1`, APP_URL, SCHEME)).toBe("/");
   });
 
   it("sends the PKCE callback to the login screen, which the Linking listener completes", () => {
@@ -179,7 +218,14 @@ describe("incomingUrlAction", () => {
   });
 
   it("keeps a chat link until someone is signed in", () => {
-    expect(incomingUrlAction(chatUrl, { ...options, signedIn: false })).toEqual({ kind: "keep", link: { orgSlug: "acme", wsSlug: "hq", roomId: "r1" } });
+    expect(incomingUrlAction(chatUrl, { ...options, signedIn: false })).toEqual({ kind: "keep", href: "/acme/hq/chat?room=r1" });
+  });
+
+  it("keeps an invite link through sign-in, and opens it on a tap once signed in", () => {
+    const invite = `${APP_URL}/invite/inv_1`;
+    expect(incomingUrlAction(invite, { ...options, signedIn: false })).toEqual({ kind: "keep", href: "/invite/inv_1" });
+    expect(incomingUrlAction(invite, options)).toEqual({ kind: "open", href: "/invite/inv_1" });
+    expect(incomingUrlAction(invite, { ...options, navigate: false })).toEqual({ kind: "ignore" });
   });
 
   it("opens a notification's link, and leaves a Linking URL to +native-intent", () => {

@@ -76,7 +76,26 @@ type Routes struct {
 	AuthProviders         http.HandlerFunc
 	GoogleStart           http.HandlerFunc
 	GoogleCallback        http.HandlerFunc
+	AppleStart            http.HandlerFunc
+	AppleCallback         http.HandlerFunc
+	AppleFinish           http.HandlerFunc
+	SignInTicket          http.HandlerFunc
+	SignInTicketCreate    http.HandlerFunc
+	SignInTicketClaim     http.HandlerFunc
+	SignInTicketVerify    http.HandlerFunc
+	SignInTicketDiscard   http.HandlerFunc
+	SignInTicketLink      http.HandlerFunc
 	AppleSignIn           http.HandlerFunc
+	NativePassword        http.HandlerFunc
+	NativeMFA             http.HandlerFunc
+	NativeGoogle          http.HandlerFunc
+	NativeApple           http.HandlerFunc
+	NativeRegister        http.HandlerFunc
+	NativeTicketCreate    http.HandlerFunc
+	NativeTicketClaim     http.HandlerFunc
+	NativeTicketVerify    http.HandlerFunc
+	NativeTicketDiscard   http.HandlerFunc
+	NativeTicketLink      http.HandlerFunc
 	DesktopStart          http.HandlerFunc
 	DesktopConsent        http.HandlerFunc
 	DesktopConsentCommand http.HandlerFunc
@@ -98,6 +117,16 @@ type Routes struct {
 	RevokeSession       http.HandlerFunc
 	RevokeOtherSessions http.HandlerFunc
 	DeleteAccount       http.HandlerFunc
+	StepUp              http.HandlerFunc
+	StepUpEmailCode     http.HandlerFunc
+	SignInMethods       http.HandlerFunc
+	SetPassword         http.HandlerFunc
+	LinkGoogle          http.HandlerFunc
+	LinkApple           http.HandlerFunc
+	UnlinkGoogle        http.HandlerFunc
+	UnlinkApple         http.HandlerFunc
+	LinkGoogleNative    http.HandlerFunc
+	LinkAppleNative     http.HandlerFunc
 	SetAIConsent        http.HandlerFunc
 	WithdrawAIConsent   http.HandlerFunc
 	SetPushPreviews     http.HandlerFunc
@@ -530,6 +559,7 @@ type Routes struct {
 	RestoreActionItem              http.HandlerFunc
 	LinkActionItem                 http.HandlerFunc
 	ConvertActionItems             http.HandlerFunc
+	UndoConvertActionItems         http.HandlerFunc
 	MeetingCatchUp                 http.HandlerFunc
 	StartRecording                 http.HandlerFunc
 	StopRecording                  http.HandlerFunc

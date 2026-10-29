@@ -19,9 +19,11 @@ export default function InvitationsPage() {
   // With no organization left the answer is /get-started, not "create a
   // workspace" (ADR 0032), so the list is read before the page can redirect.
   const { data: organizations, isFetched: orgsFetched } = useOrganizations(status === "authed");
+  // The phone opens this page in an in-app browser that usually holds no web
+  // session: signing in, and verifying the address, come back here.
   useEffect(() => {
-    if (status === "anon") replace(paths.login());
-    if (status === "authed" && step === "verify") replace(paths.verify());
+    if (status === "anon") replace(paths.login({ next: paths.invitations() }));
+    if (status === "authed" && step === "verify") replace(paths.verify({ next: paths.invitations() }));
   }, [status, step, replace]);
   const onEmpty = useCallback(
     () => replace(resolvePostAuthDestination(workspaces, user, organizations)),

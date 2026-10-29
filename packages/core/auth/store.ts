@@ -8,6 +8,8 @@ import { resetFolderAccessBatches } from "../documents/folder-access-batches";
 import { endOfficeDraftSession } from "../office/draft-session-key";
 import { setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
+import { forgetLinkReset, linkResetIntent } from "./link-reset-intent";
+import { forgetVerificationMail } from "./verification-mail";
 import { syncSessionHint } from "./session-hint";
 import { getSessionProvider, registerSessionProvider, type SessionProvider } from "./session-provider";
 
@@ -74,6 +76,10 @@ function clearSession(runLogoutCallback = true): void {
   setCurrentWorkspace(null, null);
   if (runLogoutCallback) {
     endUserSession();
+    // A link-mode reset this browser asked for belongs to the person leaving,
+    // and so does the minute since the last verification code.
+    forgetLinkReset();
+    forgetVerificationMail();
     onLogout?.();
   }
 }
@@ -90,6 +96,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initialize: () => {
     if (initialized) return Promise.resolve();
+    // A link-mode reset past its fifteen minutes goes on this visit, whatever
+    // page it opens, not only when a reset page reads it (link-reset-intent).
+    linkResetIntent();
     initInFlight ??= (async () => {
       try {
         const provider = getSessionProvider();

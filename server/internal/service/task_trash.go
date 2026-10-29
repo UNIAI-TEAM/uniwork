@@ -61,8 +61,19 @@ func (s *TaskService) trashTasks(ctx context.Context, actor Actor, organizationI
 		return TrashResult{}, err
 	}
 	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
+	res, err := s.trashTasksInTx(ctx, s.q.WithTx(tx), actor, organizationID, workspaceID, roots, missing)
+	if err != nil {
+		return TrashResult{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return TrashResult{}, err
+	}
+	return res, nil
+}
 
+// trashTasksInTx is trashTasks inside the caller's transaction q, for a
+// command that trashes tasks as part of its own change (meeting undo-convert).
+func (s *TaskService) trashTasksInTx(ctx context.Context, q *db.Queries, actor Actor, organizationID, workspaceID string, roots []string, missing error) (TrashResult, error) {
 	ids, err := trashSubtreeIDs(ctx, q, organizationID, workspaceID, roots, missing)
 	if err != nil {
 		return TrashResult{}, err
@@ -95,9 +106,6 @@ func (s *TaskService) trashTasks(ctx context.Context, actor Actor, organizationI
 		return TrashResult{}, ErrNotFound
 	}
 	if err := recordTaskBatch(ctx, q, actor, organizationID, workspaceID, audit.ActionTaskTrashed, batch, trashed); err != nil {
-		return TrashResult{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return TrashResult{}, err
 	}
 	return TrashResult{BatchID: batch, IDs: trashed}, nil

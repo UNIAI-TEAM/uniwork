@@ -1,19 +1,45 @@
-# The real PKCE sign-in, done the way a person does it: the app opens the system
-# browser sheet (ASWebAuthenticationSession on iOS, a Chrome Custom Tab on
-# Android), the web signs the test account in, the consent page approves this
-# device and its "Open" button hands the callback back to the app. There is no
-# test-only shortcut in any build. A restored session skips all of it.
+# Signing the test account in, the way a person does it. The app's own sign-in screen (ADR 0049, spec §5.2):
+# the email and password fields by testID, then the app, with no browser. A build from before the native screen
+# (the upgrade path's first half runs last night's) shows no email field: it signs in as that build does, in the
+# system browser sheet (ASWebAuthenticationSession on iOS, a Chrome Custom Tab on Android), where the web signs the
+# account in and the consent page hands the callback back. There is no test-only shortcut in any build. A restored
+# session skips all of it.
 #
-# Text, not ids: the browser pages belong to the web app. Patterns cover vi and
-# en because the app and the web follow the device and browser language.
+# Maestro matches the whole text against a pattern. A cold start lands on the native screen's title, the old
+# screen's "Sign in" button, or a workspace when the session was restored; test/routes/sign-in-flows.test.tsx holds
+# the first of those, and the field ids, to what the native screen draws in both languages. The browser pages
+# belong to the web app: text, not ids. Patterns cover vi and en because the app and the web follow the device and
+# browser language.
 appId: com.uniworkos.chat.staging
 ---
 - extendedWaitUntil:
-    visible: "Sign in|Đăng nhập|Chat|Trò chuyện|Choose a workspace|Chọn workspace"
+    visible: "Sign in to UniChat|Đăng nhập UniChat|Sign in|Đăng nhập|Chat|Trò chuyện|Choose a workspace|Chọn workspace"
     timeout: 30000
 - runFlow:
     when:
+      visible:
+        id: login-email
+    commands:
+      - tapOn:
+          id: login-email
+      - inputText: ${MAESTRO_TEST_EMAIL}
+      # The field's own "next" key moves to the password, which the screen then scrolls above the keyboard, as a
+      # person does. A tap straight away could land on the keyboard: on a short screen it covers the password field,
+      # and Maestro taps where the field is drawn. The tap after the key waits for that move, then types.
+      - pressKey: Enter
+      - tapOn:
+          id: login-password
+      - inputText: ${MAESTRO_TEST_PASSWORD}
+      # And its "go" key submits the form, which the keyboard may cover too.
+      - pressKey: Enter
+      - extendedWaitUntil:
+          visible: "Chat|Trò chuyện|Choose a workspace|Chọn workspace"
+          timeout: 30000
+- runFlow:
+    when:
       visible: "Sign in|Đăng nhập"
+      notVisible:
+        id: login-email
     commands:
       - tapOn: "Sign in|Đăng nhập"
       # iOS asks first: '"UniChat (Staging)" Wants to Use "…" to Sign In'.
@@ -36,19 +62,21 @@ appId: com.uniworkos.chat.staging
             - inputText: ${MAESTRO_TEST_EMAIL}
             - tapOn: "Password|Mật khẩu"
             - inputText: ${MAESTRO_TEST_PASSWORD}
-            # Enter submits the form; the page title and its button share "Log in".
+            # Enter submits the form; the page title and its button share "Sign in".
             - pressKey: Enter
       # The consent page opens on its title; its button sits below the app, device, account and server details,
-      # off a phone's first screen, and the browser leaves off-screen elements out of the hierarchy.
+      # off a phone's first screen, and the browser leaves off-screen elements out of the hierarchy. The button names
+      # the app in one word ("Allow UniChat"), which the title's longer line never matches; a web from before that
+      # said "Allow desktop app".
       - extendedWaitUntil:
           visible: "Allow .+ to sign in.|Cho phép .+ đăng nhập."
           timeout: 30000
       - scrollUntilVisible:
           element:
-            text: "Allow desktop app|Cho phép ứng dụng desktop"
+            text: "(Allow|Cho phép) [^ ]+|Allow desktop app|Cho phép ứng dụng desktop"
           direction: DOWN
           timeout: 15000
-      - tapOn: "Allow desktop app|Cho phép ứng dụng desktop"
+      - tapOn: "(Allow|Cho phép) [^ ]+|Allow desktop app|Cho phép ứng dụng desktop"
       - tapOn: "(Open|Mở) .+"
       - extendedWaitUntil:
           visible: "Chat|Trò chuyện|Choose a workspace|Chọn workspace"

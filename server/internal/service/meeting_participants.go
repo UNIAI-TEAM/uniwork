@@ -118,16 +118,21 @@ func (s *MeetingService) ListParticipants(ctx context.Context, userID, guestID, 
 }
 
 // ListParticipantsInRoom is ListParticipants plus who holds an open attendance
-// session right now, by participant id: the leave screens show who is still in
-// the room to people outside it, guests included.
-func (s *MeetingService) ListParticipantsInRoom(ctx context.Context, userID, guestID, meetingID string) ([]db.MeetingParticipant, map[string]bool, error) {
-	ps, err := s.ListParticipants(ctx, userID, guestID, meetingID)
+// session right now, by participant id, and the host's user id: the leave
+// screens show who is still in the room to people outside it, guests included,
+// and a guest, who never reads the meeting, learns whose mute requests to obey.
+func (s *MeetingService) ListParticipantsInRoom(ctx context.Context, userID, guestID, meetingID string) ([]db.MeetingParticipant, map[string]bool, string, error) {
+	m, err := s.authorizeActiveParticipant(ctx, userID, guestID, meetingID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
+	}
+	ps, err := s.q.ListMeetingParticipants(ctx, meetingID)
+	if err != nil {
+		return nil, nil, "", err
 	}
 	totals, err := s.q.AttendanceSessionTotals(ctx, meetingID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	inRoom := make(map[string]bool, len(totals))
 	for _, t := range totals {
@@ -135,7 +140,7 @@ func (s *MeetingService) ListParticipantsInRoom(ctx context.Context, userID, gue
 			inRoom[t.ParticipantID] = true
 		}
 	}
-	return ps, inRoom, nil
+	return ps, inRoom, m.HostUserID, nil
 }
 
 func (s *MeetingService) ListInvitations(ctx context.Context, userID, meetingID string) ([]db.MeetingInvitation, error) {

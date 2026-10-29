@@ -191,7 +191,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionOrganizationOwnershipChanged: func(t *testing.T, f *auditFixture) {
 			f.addMember(t)
-			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, auditPassword); err != nil {
+			if _, err := f.orgMem.TransferOwnership(f.ctx, f.owner.ID, f.orgID, f.member.ID, OwnerProof{Password: auditPassword}); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -795,6 +795,21 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		audit.ActionAuthPasswordChanged: func(t *testing.T, f *auditFixture) { f.resetPassword(t) },
+		// An account that signs in only with Google sets its first password
+		// from Settings, with a step-up (ADR 0049).
+		audit.ActionAuthPasswordSet: func(t *testing.T, f *auditFixture) {
+			u, err := f.q.CreateGoogleUser(f.ctx, db.CreateGoogleUserParams{
+				ID: util.NewID(), Email: "audit-set@gmail.com", DisplayName: "Set", Locale: "vi",
+				GoogleID: pgtype.Text{String: "audit-set", Valid: true}, EmailVerified: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, token := stepUpFor(t, f.auth, f.ctx, u.ID)
+			if _, err := NewSignInMethodsService(f.pool, f.q, f.auth).SetPassword(ctx, u.ID, PasswordInput{New: "first-password-1", StepUpToken: token}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionAuthMFAEnabled: func(t *testing.T, f *auditFixture) {
 			f.build(t)
 			enrol(t, f.auth, f.ctx, f.member.ID)
@@ -803,6 +818,38 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			f.build(t)
 			_, codes := enrol(t, f.auth, f.ctx, f.member.ID)
 			if _, err := f.auth.DisableTOTP(f.ctx, f.member.ID, codes[0]); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionAuthSignInMethodLinked: func(t *testing.T, f *auditFixture) {
+			registerVerified(t, f.q, f.auth, "audit-link@gmail.com", "Link")
+			google := NewGoogleAuthService(f.auth)
+			if _, err := google.SignIn(f.ctx, GoogleClaims{Sub: "audit-google", Email: "audit-link@gmail.com", EmailVerified: true}, "vi", SignInIntentSignIn); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// A provider identity moved out of the empty account that held it
+		// (ADR 0049): the empty account records the unlink via move.
+		audit.ActionAuthSignInMethodUnlinked: func(t *testing.T, f *auditFixture) {
+			google := NewGoogleAuthService(f.auth)
+			tickets := NewSignInTicketService(f.pool, f.q, f.auth, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+			res, err := google.SignIn(f.ctx, GoogleClaims{Sub: "audit-move", Email: "audit-move@gmail.com", EmailVerified: true, Name: "M"}, "vi", SignInIntentSignIn)
+			if err != nil || res.Ticket == "" {
+				t.Fatalf("ticket: %+v %v", res, err)
+			}
+			if _, err := tickets.Create(f.ctx, res.Ticket, WebTicket(), "", "vi"); err != nil {
+				t.Fatal(err)
+			}
+			registerVerified(t, f.q, f.auth, "audit-move-owner@example.com", "Owner")
+			sess, err := f.auth.Login(f.ctx, "audit-move-owner@example.com", "password123")
+			if err != nil {
+				t.Fatal(err)
+			}
+			at, err := f.auth.minter.ParseAccessToken(sess.AccessToken)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := tickets.Link(authpkg.WithAccessToken(f.ctx, at), res.Ticket, WebTicket(), TicketLink{Move: true}); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -1994,6 +2041,21 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-2285: the clerk takes their fresh conversion back.
+		audit.ActionMeetingActionItemsUnconverted: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
+			items, err := svc.ActionItems(f.ctx, f.owner.ID, m.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := items.Items[0].Item.ID
+			if _, err := svc.ConvertActionItems(f.ctx, f.owner.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: id}}); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := svc.UndoConvertActionItems(f.ctx, f.owner.ID, m.ID, []string{id}); err != nil || len(got) != 1 {
+				t.Fatalf("undo = %v, %v", got, err)
+			}
+		},
 		// follow-5: a clerk links a pending item to a task that already exists.
 		audit.ActionMeetingActionItemLinked: func(t *testing.T, f *auditFixture) {
 			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
@@ -2999,6 +3061,7 @@ func auditActions() []string {
 		audit.ActionAuthLoginFailed,
 		audit.ActionAuthPasswordResetRequested,
 		audit.ActionAuthPasswordChanged,
+		audit.ActionAuthPasswordSet,
 		audit.ActionAuthSessionRevoked,
 		audit.ActionAuthDesktopStarted,
 		audit.ActionAuthDesktopConsentApproved,
@@ -3008,6 +3071,8 @@ func auditActions() []string {
 		audit.ActionAuthDesktopSessionRevoked,
 		audit.ActionAuthMFAEnabled,
 		audit.ActionAuthMFADisabled,
+		audit.ActionAuthSignInMethodLinked,
+		audit.ActionAuthSignInMethodUnlinked,
 		audit.ActionUserDeleted,
 		audit.ActionUserAIConsentGranted,
 		audit.ActionUserAIConsentWithdrawn,
@@ -3140,6 +3205,7 @@ func auditActions() []string {
 		audit.ActionMcpTokenFamilyRevoked,
 		audit.ActionMeetingRestored,
 		audit.ActionMeetingActionItemsConverted,
+		audit.ActionMeetingActionItemsUnconverted,
 		audit.ActionMeetingActionItemCreated,
 		audit.ActionMeetingActionItemDismissed,
 		audit.ActionMeetingActionItemRestored,
@@ -3282,6 +3348,8 @@ func newAuditFixture(t *testing.T) *auditFixture {
 	ws := NewWorkspaceService(pool, q, orgs, renderer, &fakeOutbox{})
 	orgMembers := NewOrganizationMemberService(pool, q, orgs)
 	orgMembers.SetMail(renderer, &fakeOutbox{})
+	orgMembers.SetStepUp(auth)
+	ws.SetStepUp(auth)
 	tasks := NewTaskService(pool, q, ws, newMemStorage())
 	chat := NewChatService(pool, q, ws, NopPublisher{})
 	chat.SetTasks(tasks)

@@ -11,6 +11,9 @@ import { localeAdapter } from "../test/api-mock";
 import { requestMock } from "../test/request-mock";
 import { LoginView } from "./login-view";
 
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), warning: vi.fn() }));
+vi.mock("sonner", () => ({ toast: toastMock }));
+
 initI18n();
 
 function adapter() {
@@ -41,7 +44,7 @@ function fill() {
   fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "hunter22" } });
 }
 
-/** The Google button also asks /auth/providers, so count only the login call. */
+/** The provider buttons also ask /auth/providers, so count only the login call. */
 function loginCalls() {
   return requestMock.mock.calls.filter(([path]) => path === "/api/v1/auth/login");
 }
@@ -53,6 +56,8 @@ const SESSION = {
 
 beforeEach(async () => {
   requestMock.mockReset();
+  toastMock.success.mockReset();
+  toastMock.warning.mockReset();
   resetAuthStoreForTests();
   localeAdapter.persist.mockClear();
   await setLocale("vi");
@@ -74,7 +79,7 @@ describe("LoginView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Email hoặc mật khẩu không đúng");
+    expect(alert).toHaveTextContent("Email hoặc mật khẩu chưa đúng.");
     expect(alert.id).toBeTruthy();
     for (const label of ["Email", "Mật khẩu"]) {
       const field = screen.getByLabelText(label);
@@ -157,9 +162,18 @@ describe("LoginView", () => {
     expect(nav.push).toHaveBeenCalledWith("/register");
   });
 
-  it("shows the Google error as a form-level alert without blaming the fields", () => {
-    render(wrap(<LoginView onSuccess={() => {}} initialError="google_denied" />));
-    expect(screen.getByRole("alert")).toHaveTextContent("Bạn đã hủy đăng nhập Google.");
+  // The one table of /login?error= codes (spec §3.4, §4.2).
+  it.each([
+    ["google_failed", "Chưa đăng nhập được bằng Google. Thử lại, hoặc dùng email."],
+    ["google_unverified", "Google chưa xác minh email của tài khoản này. Dùng tài khoản Google khác, hoặc đăng nhập bằng email."],
+    ["apple_failed", "Chưa đăng nhập được bằng Apple. Thử lại, hoặc dùng email."],
+    ["sign_in_conflict", "Email này đã có tài khoản UniWork dùng một cách đăng nhập khác. Đăng nhập bằng cách đó."],
+    ["sign_in_unverified", "Email của tài khoản này chưa được xác minh. Dùng cách đăng nhập khác."],
+    ["sign_in_account_unverified", 'Email này đã có tài khoản UniWork nhưng chưa được xác minh. Chọn "Quên mật khẩu?" để nhận link qua email và lấy lại tài khoản.'],
+    ["sign_in_failed", "Chưa hoàn tất đăng nhập. Thử lại."],
+  ])("shows ?error=%s as a form-level alert without blaming the fields", (code, sentence) => {
+    render(wrap(<LoginView onSuccess={() => {}} redirectError={code} />));
+    expect(screen.getByRole("alert")).toHaveTextContent(sentence);
     // The fields were never submitted; marking them invalid would send a
     // screen-reader user hunting for a typo that does not exist.
     for (const label of ["Email", "Mật khẩu"]) {
@@ -167,20 +181,93 @@ describe("LoginView", () => {
     }
   });
 
-  it("renders the Google sign-in as a real link, not a button acting as one", async () => {
-    requestMock.mockResolvedValue({ google: true });
-    render(wrap(<LoginView onSuccess={() => {}} />));
-    const link = await screen.findByRole("link", { name: "Tiếp tục với Google" });
-    expect(link.tagName).toBe("A");
-    expect(link).not.toHaveAttribute("role");
-    expect(link).not.toHaveAttribute("type");
+  it.each([
+    ["google_denied", "Bạn đã hủy đăng nhập Google."],
+    ["apple_denied", "Bạn đã hủy đăng nhập Apple."],
+  ])("says a cancelled provider sign-in (%s) as a status, not an alarm", (code, sentence) => {
+    render(wrap(<LoginView onSuccess={() => {}} redirectError={code} />));
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent(sentence);
+    // A glyph keeps the quiet band from reading as a read-only field.
+    expect(notice.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("offers Google when the deployment has it", async () => {
-    requestMock.mockResolvedValue({ google: true });
+  it.each(["google_", "apple_exploded", "<script>", "sign_in_failed "])(
+    "ignores the unknown code %j rather than showing it",
+    (code) => {
+      const { container } = render(wrap(<LoginView onSuccess={() => {}} redirectError={code} />));
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(container.textContent).not.toContain(code.trim());
+    },
+  );
+
+  it("drops the provider's error once the form speaks for itself", () => {
+    render(wrap(<LoginView onSuccess={() => {}} redirectError="google_failed" />));
+    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    const alerts = screen.getAllByRole("alert");
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toHaveTextContent("Nhập email của bạn");
+  });
+
+  it("puts the provider buttons above the form and keeps next on them", async () => {
+    requestMock.mockResolvedValue({ google: true, apple: false, apple_web: true, google_native: false });
     render(wrap(<LoginView onSuccess={() => {}} next="/acme/team" />));
-    const link = await screen.findByRole("link", { name: "Tiếp tục với Google" });
-    expect(link.getAttribute("href")).toContain("/api/v1/auth/google/start?next=%2Facme%2Fteam");
+    const google = await screen.findByRole("link", { name: "Tiếp tục với Google" });
+    expect(google.getAttribute("href")).toContain("/api/v1/auth/google/start?next=%2Facme%2Fteam");
+    expect(screen.getByRole("link", { name: "Tiếp tục với Apple" }).getAttribute("href")).toContain(
+      "/api/v1/auth/apple/start?next=%2Facme%2Fteam",
+    );
+    expect(google.compareDocumentPosition(screen.getByLabelText("Email")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Links, not buttons: the page keeps exactly one button named "Đăng nhập" (e2e/auth-nav.ts).
+    expect(screen.getAllByRole("button", { name: /Đăng nhập/ })).toHaveLength(1);
+  });
+
+  it("keeps next on the way to register", () => {
+    const nav = adapter();
+    render(wrap(<LoginView onSuccess={() => {}} next="/auth/desktop/authorize?attempt_id=a1" />, nav));
+    fireEvent.click(screen.getByRole("link", { name: "Đăng ký" }));
+    expect(nav.push).toHaveBeenCalledWith("/register?next=%2Fauth%2Fdesktop%2Fauthorize%3Fattempt_id%3Da1");
+  });
+
+  it("says once, on the way out, that the provider waiting to be linked was not", async () => {
+    const onSuccess = vi.fn();
+    requestMock.mockImplementation((path: string) =>
+      Promise.resolve(path === "/api/v1/auth/mfa/verify" ? { ...SESSION, link_skipped: "sign_in_method_taken" } : {}),
+    );
+    render(wrap(<LoginView onSuccess={onSuccess} initialMfa />));
+    fireEvent.change(screen.getByLabelText("Mã xác thực"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(toastMock.warning).toHaveBeenCalledTimes(1);
+    expect(toastMock.warning.mock.calls[0]?.[0]).toBe(
+      "Bạn đã đăng nhập, nhưng chưa liên kết được cách đăng nhập vừa dùng. Liên kết lại trong Cài đặt.",
+    );
+  });
+
+  it("says nothing extra after an ordinary sign-in", async () => {
+    requestMock.mockResolvedValue(SESSION);
+    const onSuccess = vi.fn();
+    render(wrap(<LoginView onSuccess={onSuccess} />));
+    fill();
+    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+    expect(toastMock.warning).not.toHaveBeenCalled();
+    expect(toastMock.success).not.toHaveBeenCalled();
+  });
+
+  it("starts at the top when Google or Apple is offered, and in the email field when the form is the only way", async () => {
+    requestMock.mockResolvedValue({ google: false, apple: false, apple_web: true, google_native: false });
+    const { unmount } = render(wrap(<LoginView onSuccess={() => {}} />));
+    await screen.findByRole("link", { name: "Tiếp tục với Apple" });
+    expect(document.activeElement).toBe(document.body);
+    unmount();
+
+    requestMock.mockResolvedValue({ google: false, apple: true, apple_web: false, google_native: true });
+    render(wrap(<LoginView onSuccess={() => {}} />));
+    // The iPhone's own Apple and the app's Google are not ways in on the web.
+    await waitFor(() => expect(screen.getByLabelText("Email")).toHaveFocus());
   });
 
   it("keeps a join next on the register link", () => {
@@ -234,8 +321,9 @@ describe("LoginView", () => {
 
   it.each([
     ["a lost connection", new TypeError("Failed to fetch"), "Không kết nối được. Kiểm tra mạng rồi thử lại."],
-    ["a server failure", new ApiError("boom", "internal", 500), "UniWork đang gặp sự cố. Thử lại sau ít phút."],
-    ["rate limiting", new ApiError("slow down", "rate_limited", 429), "Thử quá nhiều lần. Chờ một phút rồi thử lại."],
+    ["a server failure", new ApiError("boom", "internal", 500), "UniWork đang gặp trục trặc. Thử lại sau ít phút."],
+    ["rate limiting", new ApiError("slow down", "rate_limited", 429), "Bạn đã thử nhiều lần liền. Chờ một lát rồi thử lại."],
+    ["a code the table does not know", new ApiError("boom", "teapot", 418), "Chưa đăng nhập được. Thử lại."],
   ])("reports %s at form level without blaming the fields", async (_name, error, message) => {
     requestMock.mockRejectedValue(error);
     render(wrap(<LoginView onSuccess={() => {}} />));
@@ -249,6 +337,30 @@ describe("LoginView", () => {
     // Nothing the user typed is lost.
     expect(screen.getByLabelText("Email")).toHaveValue("a@b.co");
     expect(screen.getByLabelText("Mật khẩu")).toHaveValue("hunter22");
+  });
+
+  // The same answer the phone reads from /auth/native/password (core's table):
+  // the budget's Retry-After counts down, and the button waits with it.
+  it("says how long a spent sign-in budget waits, and holds Sign in until then", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/auth/login"
+        ? Promise.reject(new ApiError("too many requests", "rate_limited", 429, undefined, undefined, undefined, 42))
+        : Promise.resolve({ google: false }),
+    );
+    render(wrap(<LoginView onSuccess={() => {}} />));
+    fill();
+    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Bạn đã thử nhiều lần liền. Thử lại sau 42 giây.");
+    expect(alert).not.toHaveTextContent("too many requests");
+    const submit = screen.getByRole("button", { name: "Đăng nhập" });
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    // Typing does not end the wait, and pressing again sends nothing.
+    fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "hunter23" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("Bạn đã thử nhiều lần liền.");
+    fireEvent.click(submit);
+    expect(loginCalls()).toHaveLength(1);
   });
 
   it("puts focus on the password after rejected credentials so the retry starts there", async () => {
@@ -282,9 +394,9 @@ describe("LoginView", () => {
     const toEnglish = screen.getAllByRole("radio", { name: "English" }).at(-1)!;
     toEnglish.focus();
     fireEvent.click(toEnglish);
-    await screen.findByRole("heading", { name: "Log in" });
+    await screen.findByRole("heading", { name: "Sign in" });
 
-    expect(screen.getByRole("heading", { name: "Log in" })).not.toHaveFocus();
+    expect(screen.getByRole("heading", { name: "Sign in" })).not.toHaveFocus();
     // Whichever switch is visible/focused — not necessarily index 0 in DOM order.
     expect(document.activeElement).toHaveAccessibleName("English");
     expect(document.activeElement).toBeChecked();
@@ -334,6 +446,42 @@ describe("LoginView", () => {
     expect(onSuccess.mock.calls[0]?.[0]).toMatchObject({ access_token: "tok" });
     const verify = requestMock.mock.calls.find(([path]) => path === "/api/v1/auth/mfa/verify");
     expect(verify?.[1]).toMatchObject({ body: { mfa_token: "chal", code: "123456" } });
+  });
+
+  it("says how long a locked second factor waits, and holds the code until then", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/auth/mfa/verify"
+        ? Promise.reject(new ApiError("locked", "second_factor_locked", 429, undefined, { retry_after: 900 }))
+        : Promise.resolve({ google: false }),
+    );
+    render(wrap(<LoginView onSuccess={() => {}} initialMfa />));
+    fireEvent.change(screen.getByLabelText("Mã xác thực"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
+    // Not "wait a minute": the tenth wrong code locks it for fifteen.
+    expect(await screen.findByText(/Xác thực hai lớp đang tạm khóa vì nhập sai nhiều lần\./)).toHaveTextContent(
+      "Thử lại sau 15 phút.",
+    );
+    const submit = screen.getByRole("button", { name: "Xác nhận" });
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    fireEvent.change(screen.getByLabelText("Mã xác thực"), { target: { value: "654321" } });
+    fireEvent.click(submit);
+    const verifies = requestMock.mock.calls.filter(([path]) => path === "/api/v1/auth/mfa/verify");
+    expect(verifies).toHaveLength(1);
+  });
+
+  it("says a wrong code in the words the phone uses, never the server's own message", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/auth/mfa/verify"
+        ? Promise.reject(new ApiError("invalid code", "invalid_credentials", 401))
+        : Promise.resolve({ google: false }),
+    );
+    render(wrap(<LoginView onSuccess={() => {}} initialMfa />));
+    fireEvent.change(screen.getByLabelText("Mã xác thực"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Mã chưa đúng hoặc lượt đăng nhập đã hết hạn. Nhập lại, hoặc đăng nhập lại từ đầu.",
+    );
+    expect(screen.getByLabelText("Mã xác thực")).toHaveAttribute("aria-invalid", "true");
   });
 
   it("opens on the code step for /login?mfa=1 and sends the cookie-only shape", async () => {

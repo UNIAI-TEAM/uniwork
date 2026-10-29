@@ -58,7 +58,8 @@ export function UniEmptyState({
   const carriedFrom = t("meetings.panel.empty.carriedFrom");
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-4">
+    // Never shorter than its content: Ask UNI's exchanges follow it in the same scroll area (UNI-2229).
+    <div className="flex flex-1 flex-col px-4">
       <div className="flex flex-1 flex-col items-center justify-center text-center">
         <div className="flex size-28 items-center justify-center rounded-full bg-tint-violet/40">
           <div className="flex size-21 items-center justify-center rounded-full bg-tint-violet">

@@ -19,7 +19,7 @@ type Surface = Page | Frame;
  * 150ms. Đọc `getComputedStyle` ngay lúc đó trả về màu đang chạy dở — từng làm
  * test này báo "Bỏ qua 2.44:1" trong khi giá trị token đã đúng.
  */
-async function settle(page: Surface) {
+export async function settle(page: Surface) {
   await page.evaluate(
     async () =>
       await Promise.all(

@@ -1,6 +1,7 @@
 // What erasing the account does, listed before the proof in Settings › Delete account (delete-account.tsx), with
 // the privacy policy's deletion section one tap away (Google Play's account deletion policy asks the app to say
-// what is deleted and what is kept). The web's dialog says it in one paragraph; this list is the phone's own.
+// what is deleted and what is kept). The lines are the web dialog's own (settings.security.delete.consequences), with
+// one more for what happens on this phone; the sentence above them already says it cannot be undone.
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
@@ -9,10 +10,10 @@ import { legalLinks, legalLocale } from "@/lib/legal-links";
 import { continuousCorners } from "@/lib/radius";
 
 const CONSEQUENCES = [
-  ["person-remove-outline", "mobile.account.consequence_identity"],
-  ["chatbubbles-outline", "mobile.account.consequence_content"],
-  ["phone-portrait-outline", "mobile.account.consequence_devices"],
-  ["alert-circle-outline", "mobile.account.consequence_final"],
+  ["person-remove-outline", "settings.security.delete.consequences.erased"],
+  ["phone-portrait-outline", "mobile.account.consequence_this_phone"],
+  ["chatbubbles-outline", "settings.security.delete.consequences.kept"],
+  ["business-outline", "settings.security.delete.consequences.owner"],
 ] as const;
 
 export function DeleteAccountConsequences({

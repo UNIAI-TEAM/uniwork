@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { Notice } from "../common/notice";
 import { ScribeMark } from "@uniwork/ui/brand/scribe-mark";
 
@@ -31,11 +32,24 @@ function acknowledge(meetingKey: string) {
  * and who reads it (where the audio is processed is said only in the
  * organization's settings); once acknowledged it stays away for
  * the meeting in this tab, so prejoin and lobby do not ask twice.
+ *
+ * `chip` is the member prejoin's form (UNI-2285 D): one violet line, with the
+ * same paragraph behind "?" (hover, tap or keyboard). Guests keep `full`.
  */
-export function MeetingScribeNotice({ meetingKey, scribeOn }: { meetingKey: string; scribeOn: boolean }) {
+export function MeetingScribeNotice({
+  meetingKey,
+  scribeOn,
+  variant = "full",
+}: {
+  meetingKey: string;
+  scribeOn: boolean;
+  variant?: "chip" | "full";
+}) {
   const { t } = useTranslation();
   const [done, setDone] = useState(() => acknowledged(meetingKey));
-  if (!scribeOn || done) return null;
+  if (!scribeOn) return null;
+  if (variant === "chip") return <ScribeChip />;
+  if (done) return null;
   return (
     <Notice
       tone="info"
@@ -62,5 +76,33 @@ export function MeetingScribeNotice({ meetingKey, scribeOn }: { meetingKey: stri
         <span className="mt-0.5 block font-normal">{t("meetings.scribe.noticeBody")}</span>
       </span>
     </Notice>
+  );
+}
+
+function ScribeChip() {
+  const { t } = useTranslation();
+  return (
+    <div
+      data-testid="meeting-scribe-chip"
+      className="flex items-center gap-2 rounded-control bg-tint-violet py-1.5 pr-1.5 pl-2 text-label font-semibold text-tint-violet-foreground"
+    >
+      <ScribeMark size={20} />
+      <span className="min-w-0 truncate">{t("meetings.motion.prejoin.scribeChip")}</span>
+      <Popover>
+        <PopoverTrigger
+          openOnHover
+          delay={0}
+          aria-label={t("meetings.scribe.helpTitle")}
+          // A 44 hit area on touch drawn as an overlay, so the chip keeps its height.
+          className="relative ml-auto grid size-5.5 shrink-0 cursor-help place-items-center rounded-full bg-tint-violet-foreground/10 text-caption font-bold pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"
+        >
+          {"?"}
+        </PopoverTrigger>
+        <PopoverContent side="top" align="end" sideOffset={8} className="w-70 max-w-[calc(100vw-2rem)] gap-1 px-3.5 py-3">
+          <p className="font-semibold text-foreground">{t("meetings.scribe.chipShort")}</p>
+          <p className="text-label text-pretty text-foreground">{t("meetings.scribe.noticeBody")}</p>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }

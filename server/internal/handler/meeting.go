@@ -79,7 +79,10 @@ func (h *handlers) listMeetings(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.MeetingListItemDTO, 0, len(ms))
 	for _, row := range ms {
-		out = append(out, sdo.MeetingListItemDTO{MeetingDTO: toMeetingDTO(row.Meeting), HasPlayableRecording: row.HasPlayableRecording})
+		out = append(out, sdo.MeetingListItemDTO{
+			MeetingDTO: toMeetingDTO(row.Meeting), HasPlayableRecording: row.HasPlayableRecording,
+			InRoomUserIDs: row.InRoomUserIds, InRoomCount: row.InRoomCount, ScribeLive: row.ScribeLive,
+		})
 	}
 	respondJSON(w, 200, sdo.MeetingListSDO{Meetings: out, Total: total})
 }

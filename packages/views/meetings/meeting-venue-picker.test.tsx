@@ -28,6 +28,16 @@ describe("MeetingVenuePicker", () => {
     expect(onChange).toHaveBeenLastCalledWith("online");
   });
 
+  it("venue frame follows the chosen card", () => {
+    const { container, rerender } = render(<MeetingVenuePicker value="online" onChange={() => {}} />);
+    const frames = () => container.querySelectorAll("[data-slot=venue-frame]");
+    expect(frames()).toHaveLength(1);
+    expect(screen.getByRole("radio", { name: /Online/ })).toContainElement(frames()[0] as HTMLElement);
+    rerender(<MeetingVenuePicker value="in_person" onChange={() => {}} />);
+    expect(frames()).toHaveLength(1);
+    expect(screen.getByRole("radio", { name: /Trực tiếp/ })).toContainElement(frames()[0] as HTMLElement);
+  });
+
   it("read-only keeps both in view but refuses a change", () => {
     const onChange = vi.fn();
     render(<MeetingVenuePicker value="in_person" onChange={onChange} readOnly />);

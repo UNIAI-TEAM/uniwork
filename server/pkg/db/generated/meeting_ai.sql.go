@@ -99,7 +99,7 @@ func (q *Queries) GetActiveMeetingRecording(ctx context.Context, meetingID strin
 }
 
 const getLatestMeetingSummary = `-- name: GetLatestMeetingSummary :one
-SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
+SELECT id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions, summary_points FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1
 `
 
 // tenant: parent meeting_id
@@ -122,6 +122,7 @@ func (q *Queries) GetLatestMeetingSummary(ctx context.Context, meetingID string)
 		&i.TranscriptChangedAt,
 		&i.Topics,
 		&i.OpenQuestions,
+		&i.SummaryPoints,
 	)
 	return i, err
 }
@@ -286,9 +287,10 @@ func (q *Queries) InsertMeetingRecording(ctx context.Context, arg InsertMeetingR
 }
 
 const insertMeetingSummary = `-- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind, topics, open_questions)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind, topics, open_questions, summary_points)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+  COALESCE(NULLIF($14::text, ''), '[]'))
+RETURNING id, meeting_id, summary, decisions, action_items, model, created_by, created_at, usage_event_id, organization_id, partial, created_by_kind, transcript_changed_at, topics, open_questions, summary_points
 `
 
 type InsertMeetingSummaryParams struct {
@@ -305,6 +307,7 @@ type InsertMeetingSummaryParams struct {
 	CreatedByKind  string      `json:"created_by_kind"`
 	Topics         string      `json:"topics"`
 	OpenQuestions  string      `json:"open_questions"`
+	SummaryPoints  string      `json:"summary_points"`
 }
 
 func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSummaryParams) (MeetingSummary, error) {
@@ -322,6 +325,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		arg.CreatedByKind,
 		arg.Topics,
 		arg.OpenQuestions,
+		arg.SummaryPoints,
 	)
 	var i MeetingSummary
 	err := row.Scan(
@@ -340,6 +344,7 @@ func (q *Queries) InsertMeetingSummary(ctx context.Context, arg InsertMeetingSum
 		&i.TranscriptChangedAt,
 		&i.Topics,
 		&i.OpenQuestions,
+		&i.SummaryPoints,
 	)
 	return i, err
 }

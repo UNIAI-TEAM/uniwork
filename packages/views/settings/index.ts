@@ -1,4 +1,5 @@
 export { SettingsPage } from "./components";
+export { AccountSettingsView } from "./components/account-settings-view";
 export { ChatSettingsPage } from "./components/chat-settings-page";
 export {
   SettingsCard,

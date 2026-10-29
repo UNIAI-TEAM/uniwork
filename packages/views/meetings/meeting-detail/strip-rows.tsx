@@ -2,6 +2,7 @@
 import { Ban, CalendarX, CloudUpload, Lock, Mic, Play, RotateCcw, TriangleAlert, Video } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { useReducedMotion } from "motion/react";
 import { Trans, useTranslation } from "react-i18next";
 import { useExtendMeeting, useRestoreMeeting, useStartMeeting } from "@uniwork/core/meetings";
 import { meetingVenue } from "@uniwork/core/meetings/venue";
@@ -9,6 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toastApiError } from "../../toast-api-error";
+import { useNow } from "../use-now";
 import { MeetingCalendarButton } from "../meeting-calendar-button";
 import { MeetingRecordHeldButton } from "../meeting-record-held-dialog";
 import { ScheduleFollowUpButton } from "../schedule-follow-up-button";
@@ -19,6 +21,7 @@ import { NameSpeakersButton, TranscribingRow, UnsentRow } from "./in-person-rows
 import type { StripJob } from "./next-step-jobs";
 import { PhonePrimary, usePhoneBar } from "./phone-frame";
 import { kitButton } from "./ui/kit-buttons";
+import { COUNTDOWN_MS, UpcomingBrief } from "./scheduled/start-countdown";
 import { useSeriesStrip } from "./scheduled/use-series-strip";
 import { StripRow } from "./ui/strip";
 
@@ -49,6 +52,9 @@ function firstNames(names: string[]): string {
   return names.length > 3 ? `${shown} +${names.length - 3}` : shown;
 }
 const SOON_MS = 15 * 60_000;
+/** The due start button's brand halo (proposal B). */
+const START_GLOW =
+  "shadow-[0_0_0_4px_color-mix(in_oklab,var(--brand)_14%,transparent),0_8px_22px_-8px_color-mix(in_oklab,var(--brand)_60%,transparent)]";
 
 /** A strip sentence led by an icon in ink (kit `.notice` without a tone): missed, canceled, the outsider's lock. */
 function StripNotice({ icon: Icon, muted, children }: { icon: LucideIcon; muted?: boolean; children: ReactNode }) {
@@ -74,12 +80,19 @@ function dayOf(iso: string, now: number, t: ReturnType<typeof useTranslation>["t
 function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: StripHandlers }) {
   const { t } = useTranslation();
   const { meeting, now, workspaceId } = useDetail();
+  const reduce = useReducedMotion() ?? false;
   const start = useStartMeeting(workspaceId);
   const startsAt = Date.parse(meeting.starts_at);
-  const due = now >= startsAt - SOON_MS;
+  // In the last hour the row shares the countdown's 1s clock, so the button turns due on the second the ring shows 15:00.
+  const tick = useNow(startsAt - now <= COUNTDOWN_MS ? 1_000 : 60_000);
+  const due = Math.max(now, tick) >= startsAt - SOON_MS;
   const until = untilWords(meeting.starts_at, now, t);
   // A follow-up, not yet due: what it carries on from instead of when it starts (SeriesBrief).
   const series = useSeriesStrip(job.canStart && !due);
+  // The last hour before the start: the countdown ring and the invitees' faces lead the row.
+  const counting = !series && startsAt > now && startsAt - now <= COUNTDOWN_MS;
+  // Due (≤ 15 min): the start button glows, and a light runs round its edge unless motion is reduced.
+  const beam = due && !reduce;
   const lead = now < startsAt ? (
     <Timed k="meetings.detail.strip.startsAt" values={{ day: dayOf(meeting.starts_at, now, t), time: clock(meeting.starts_at) }} />
   ) : (
@@ -98,7 +111,8 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
       type="button"
       size="lg"
       variant={due ? "brand" : "outline"}
-      className={lg(due ? "" : kitButton.outline)}
+      className={lg(due ? START_GLOW : kitButton.outline, beam ? "border-beam" : "")}
+      data-motion-loop={beam ? "" : undefined}
       aria-disabled={start.isPending || undefined}
       onClick={() => {
         if (!start.isPending) start.mutate(meeting.id, { onError: (err) => toastApiError(err, t("common.error")) });
@@ -117,7 +131,7 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
   return (
     <StripRow
       title={
-        series ? (
+        counting ? undefined : series ? (
           <>
             <strong>{series.lead}</strong>
             {t("meetings.detail.strip.tail", { text: series.rest })}
@@ -130,7 +144,9 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
         )
       }
       caption={
-        series
+        counting
+          ? undefined
+          : series
           ? series.caption || undefined
           : job.pendingNames.length > 0
           ? t("meetings.detail.strip.notAnswered", { count: job.pendingNames.length, names: firstNames(job.pendingNames) })
@@ -153,7 +169,9 @@ function StartRow({ job, h }: { job: Extract<StripJob, { kind: "start" }>; h: St
           <PhonePrimary>{primary}</PhonePrimary>
         </>
       }
-    />
+    >
+      {counting ? <UpcomingBrief /> : undefined}
+    </StripRow>
   );
 }
 

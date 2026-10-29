@@ -78,8 +78,11 @@ export function AskUniMessageTurn({
   onRegenerate,
   onAskAgain,
   regenerateDisabled,
+  question,
 }: {
   message: AskUniTurnMessage;
+  /** The question an answer replies to: a task made from it starts with that title. */
+  question?: string;
   streaming?: boolean;
   conversationId?: string | null;
   transient?: boolean;
@@ -169,6 +172,7 @@ export function AskUniMessageTurn({
             messageId={message.id}
             wsId={wsId}
             content={message.content}
+            question={question}
             proposals={message.proposals}
             sources={byId}
             transient={transient}

@@ -198,3 +198,22 @@ export async function convertMeetingActionItems(
     endpoint: "convertMeetingActionItems",
   });
 }
+
+const UndoConvertResponse = z.object({ restored: z.array(z.string()) });
+
+/**
+ * Takes back the caller's own conversions of the last two minutes whose tasks
+ * nobody touched; the server skips any other item. The ids it put back to
+ * pending, or null when the answer cannot be read (the refetched list shows them).
+ */
+export async function undoConvertMeetingActionItems(meetingId: string, actionItemIds: string[]): Promise<string[] | null> {
+  const raw = await request(`/api/v1/meetings/${enc(meetingId)}/action-items/undo-convert`, {
+    method: "POST",
+    body: { action_item_ids: actionItemIds },
+  });
+  return (
+    parseWithFallback<{ restored: string[] } | null>(raw, UndoConvertResponse, null, {
+      endpoint: "undoConvertMeetingActionItems",
+    })?.restored ?? null
+  );
+}

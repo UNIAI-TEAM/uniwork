@@ -420,6 +420,135 @@ func (q *Queries) LockMeetingSummaryChanges(ctx context.Context, meetingID strin
 	return err
 }
 
+const lockUndoableConvertedActionItems = `-- name: LockUndoableConvertedActionItems :many
+SELECT i.id, i.organization_id, i.workspace_id, i.meeting_id, i.source, i.summary_id, i.position, i.title, i.owner_text, i.due_text, i.task_id, i.converted_at, i.converted_by, i.dismissed_at, i.dismissed_by, i.dismiss_reason, i.created_by, i.created_by_kind, i.created_at, i.updated_at, i.evidence, i.description, i.suggested_priority, t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.assignee_id, t.due_date, t.position, t.created_by, t.created_at, t.updated_at, t.kind, t.created_by_kind, t.assignee_kind, t.organization_id, t.number, t.project_id, t.parent_task_id, t.assignee_type, t.creator_type, t.creator_id, t.acceptance_criteria, t.context_refs, t.metadata, t.properties, t.start_date, t.stage, t.origin_type, t.origin_id, t.first_executed_at, t.revision, t.last_activity_at, t.start_at, t.due_at, t.trashed_at, t.trashed_by, t.purge_after, t.trash_batch_id, t.trashed_project_id
+FROM meeting_action_items i
+JOIN tasks t ON t.id = i.task_id AND t.organization_id = i.organization_id
+WHERE i.organization_id = $1 AND i.meeting_id = $2
+  AND i.id = ANY($3::text[])
+  AND i.dismissed_at IS NULL AND i.converted_by = $4::text
+  AND i.converted_at > now() - make_interval(secs => $5::float8)
+  AND t.trashed_at IS NULL AND t.created_at = i.converted_at AND t.updated_at = t.created_at
+  AND NOT EXISTS (SELECT 1 FROM tasks c WHERE c.organization_id = t.organization_id AND c.workspace_id = t.workspace_id AND c.parent_task_id = t.id)
+  AND NOT EXISTS (SELECT 1 FROM task_comments tc WHERE tc.task_id = t.id)
+  AND NOT EXISTS (SELECT 1 FROM attachments a WHERE a.workspace_id = t.workspace_id AND a.task_id = t.id)
+  AND NOT EXISTS (SELECT 1 FROM task_dependencies d WHERE d.workspace_id = t.workspace_id AND (d.task_id = t.id OR d.depends_on_task_id = t.id))
+  AND NOT EXISTS (SELECT 1 FROM meeting_action_items o WHERE o.task_id = t.id AND o.id <> i.id)
+ORDER BY i.id
+FOR UPDATE OF i, t
+`
+
+type LockUndoableConvertedActionItemsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	MeetingID      string   `json:"meeting_id"`
+	Ids            []string `json:"ids"`
+	ConvertedBy    string   `json:"converted_by"`
+	WindowSeconds  float64  `json:"window_seconds"`
+}
+
+type LockUndoableConvertedActionItemsRow struct {
+	MeetingActionItem MeetingActionItem `json:"meeting_action_item"`
+	Task              Task              `json:"task"`
+}
+
+// The named items of one meeting whose fresh conversion by converted_by can
+// still be taken back (UNI-2285): converted within the window, into a task
+// made in that same transaction (created_at = converted_at, so an item linked
+// to an older task never counts) that is live and nobody used: never updated,
+// no subtask, and none of what leaves updated_at alone (a comment, an
+// attachment, a dependency on either side, another item linked to it). Items
+// and tasks locked in item id order, after LockMeetingSummaryChanges like
+// LockMeetingActionItems.
+func (q *Queries) LockUndoableConvertedActionItems(ctx context.Context, arg LockUndoableConvertedActionItemsParams) ([]LockUndoableConvertedActionItemsRow, error) {
+	rows, err := q.db.Query(ctx, lockUndoableConvertedActionItems,
+		arg.OrganizationID,
+		arg.MeetingID,
+		arg.Ids,
+		arg.ConvertedBy,
+		arg.WindowSeconds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LockUndoableConvertedActionItemsRow{}
+	for rows.Next() {
+		var i LockUndoableConvertedActionItemsRow
+		if err := rows.Scan(
+			&i.MeetingActionItem.ID,
+			&i.MeetingActionItem.OrganizationID,
+			&i.MeetingActionItem.WorkspaceID,
+			&i.MeetingActionItem.MeetingID,
+			&i.MeetingActionItem.Source,
+			&i.MeetingActionItem.SummaryID,
+			&i.MeetingActionItem.Position,
+			&i.MeetingActionItem.Title,
+			&i.MeetingActionItem.OwnerText,
+			&i.MeetingActionItem.DueText,
+			&i.MeetingActionItem.TaskID,
+			&i.MeetingActionItem.ConvertedAt,
+			&i.MeetingActionItem.ConvertedBy,
+			&i.MeetingActionItem.DismissedAt,
+			&i.MeetingActionItem.DismissedBy,
+			&i.MeetingActionItem.DismissReason,
+			&i.MeetingActionItem.CreatedBy,
+			&i.MeetingActionItem.CreatedByKind,
+			&i.MeetingActionItem.CreatedAt,
+			&i.MeetingActionItem.UpdatedAt,
+			&i.MeetingActionItem.Evidence,
+			&i.MeetingActionItem.Description,
+			&i.MeetingActionItem.SuggestedPriority,
+			&i.Task.ID,
+			&i.Task.WorkspaceID,
+			&i.Task.Title,
+			&i.Task.Description,
+			&i.Task.Status,
+			&i.Task.Priority,
+			&i.Task.AssigneeID,
+			&i.Task.DueDate,
+			&i.Task.Position,
+			&i.Task.CreatedBy,
+			&i.Task.CreatedAt,
+			&i.Task.UpdatedAt,
+			&i.Task.Kind,
+			&i.Task.CreatedByKind,
+			&i.Task.AssigneeKind,
+			&i.Task.OrganizationID,
+			&i.Task.Number,
+			&i.Task.ProjectID,
+			&i.Task.ParentTaskID,
+			&i.Task.AssigneeType,
+			&i.Task.CreatorType,
+			&i.Task.CreatorID,
+			&i.Task.AcceptanceCriteria,
+			&i.Task.ContextRefs,
+			&i.Task.Metadata,
+			&i.Task.Properties,
+			&i.Task.StartDate,
+			&i.Task.Stage,
+			&i.Task.OriginType,
+			&i.Task.OriginID,
+			&i.Task.FirstExecutedAt,
+			&i.Task.Revision,
+			&i.Task.LastActivityAt,
+			&i.Task.StartAt,
+			&i.Task.DueAt,
+			&i.Task.TrashedAt,
+			&i.Task.TrashedBy,
+			&i.Task.PurgeAfter,
+			&i.Task.TrashBatchID,
+			&i.Task.TrashedProjectID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const nextMeetingActionItemPosition = `-- name: NextMeetingActionItemPosition :one
 SELECT COALESCE(MAX(position) + 1, 0)::int AS position
 FROM meeting_action_items
@@ -491,5 +620,21 @@ type RestoreMeetingActionItemParams struct {
 
 func (q *Queries) RestoreMeetingActionItem(ctx context.Context, arg RestoreMeetingActionItemParams) error {
 	_, err := q.db.Exec(ctx, restoreMeetingActionItem, arg.OrganizationID, arg.ID)
+	return err
+}
+
+const unconvertMeetingActionItem = `-- name: UnconvertMeetingActionItem :exec
+UPDATE meeting_action_items
+SET task_id = NULL, converted_at = NULL, converted_by = NULL, updated_at = now()
+WHERE organization_id = $1 AND id = $2
+`
+
+type UnconvertMeetingActionItemParams struct {
+	OrganizationID string `json:"organization_id"`
+	ID             string `json:"id"`
+}
+
+func (q *Queries) UnconvertMeetingActionItem(ctx context.Context, arg UnconvertMeetingActionItemParams) error {
+	_, err := q.db.Exec(ctx, unconvertMeetingActionItem, arg.OrganizationID, arg.ID)
 	return err
 }

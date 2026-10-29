@@ -57,15 +57,22 @@ describe("preload desktopAPI", () => {
   it("maps session calls onto the session:* channels", async () => {
     const api = await loadPreload();
     await api.session.login();
+    await api.session.login({ provider: "google" });
     electron.ipcRenderer.invoke.mockResolvedValueOnce("tok");
     await expect(api.session.getAccessToken()).resolves.toBe("tok");
     await api.session.refresh();
     await api.session.logout();
     expect(electron.ipcRenderer.invoke.mock.calls.map(([c]) => c)).toEqual([
       "session:login",
+      "session:login",
       "session:get-access-token",
       "session:refresh",
       "session:logout",
+    ]);
+    // the options reach main as given, where expectLoginOptions decides
+    expect(electron.ipcRenderer.invoke.mock.calls.slice(0, 2)).toEqual([
+      ["session:login", undefined],
+      ["session:login", { provider: "google" }],
     ]);
   });
 

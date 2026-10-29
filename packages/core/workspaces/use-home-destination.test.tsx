@@ -5,7 +5,8 @@ import { setAccessToken } from "../api/session";
 import { setSessionUser } from "../auth/hooks";
 import { resetAuthStoreForTests } from "../auth/store";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
-import { useHomeDestination } from "./hooks";
+import { useHomeDestination, useHomeWorkspace } from "./hooks";
+import { rememberLastWorkspace } from "./last-workspace";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -74,5 +75,37 @@ describe("useHomeDestination", () => {
     serve({ "/api/v1/workspaces": { workspaces: [] }, "/api/v1/orgs": { organizations: [] } });
     const { result } = renderHook(() => useHomeDestination(), { wrapper });
     await waitFor(() => expect(result.current).toBe("/get-started"));
+  });
+
+  describe("useHomeWorkspace", () => {
+    const other = { ...ws, id: "w2", slug: "ops", name: "Ops" };
+
+    it("is unknown while signed out, and asks for nothing", () => {
+      const { result } = renderHook(() => useHomeWorkspace(), { wrapper });
+      expect(result.current).toBeUndefined();
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("opens the workspace the user was last in", async () => {
+      signIn();
+      rememberLastWorkspace("u1", { orgSlug: "acme", wsSlug: "ops" });
+      serve({
+        "/api/v1/workspaces": { workspaces: [ws, other] },
+        "/api/v1/orgs": { organizations: [{ id: "o1", slug: "acme", name: "Acme", status: "active" }] },
+      });
+      const { result } = renderHook(() => useHomeWorkspace(), { wrapper });
+      await waitFor(() => expect(result.current?.slug).toBe("ops"));
+    });
+
+    it("is null when there is no workspace, or the list failed", async () => {
+      signIn();
+      serve({ "/api/v1/workspaces": { workspaces: [] }, "/api/v1/orgs": { organizations: [] } });
+      const { result } = renderHook(() => useHomeWorkspace(), { wrapper });
+      await waitFor(() => expect(result.current).toBeNull());
+
+      serve({});
+      const failed = renderHook(() => useHomeWorkspace(), { wrapper });
+      await waitFor(() => expect(failed.result.current).toBeNull());
+    });
   });
 });

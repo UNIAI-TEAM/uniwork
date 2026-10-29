@@ -43,6 +43,26 @@ function echoBefore(text: string, at: number, title: string): number {
 }
 
 /**
+ * A question (the composer's markdown) as one plain line, as the server titles a conversation
+ * (`questionTitle`, askuni_title.go): no fence, quote or list markers, no inline marks (` * ~; the composer
+ * escapes a typed `_` and never marks with it), escapes and entities (`&amp;`, `&lt;`) read back.
+ */
+export function questionPlainText(markdown: string): string {
+  const text = markdown
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("```"))
+    .map((line) =>
+      line
+        .trim()
+        .replace(/^(?:>\s?)*(?:[-*+]\s+|\d+[.)]\s+)?/, "")
+        .replace(/(?<!\\)[`*~]/g, "")
+        .replace(/\\(.)/g, "$1"),
+    )
+    .join(" ");
+  return (new DOMParser().parseFromString(text, "text/html").documentElement.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
  * The answer without the object names the model wrote right next to their own `[S#]` ("[S4] Thiết kế trang chủ."),
  * since the marker already shows that name in the same place, so the sentence reads the same. Only the whole title
  * goes, as whole words (case-blind, accents kept, bold or italic marks around it included); every other word stays,

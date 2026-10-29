@@ -125,11 +125,17 @@ export const InvitationPreviewSchema = z.object({
 });
 export type InvitationPreview = z.infer<typeof InvitationPreviewSchema>;
 
-/** How the caller gives up one organization when accepting an invitation into another. */
+/**
+ * How the caller gives up one organization when accepting an invitation into
+ * another. A transfer is proved with `step_up_token` (action
+ * transfer_ownership when a mailed code bought it, ADR 0049 §5); `password`
+ * is the shipped app's legacy proof (reviewed 2027-01-31).
+ */
 export type SwitchResolution = {
   organization_id: string;
   action: "leave" | "transfer" | "close";
   transfer_to_user_id?: string;
+  step_up_token?: string;
   password?: string;
   confirm_slug?: string;
 };

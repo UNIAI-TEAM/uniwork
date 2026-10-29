@@ -4,6 +4,7 @@
  * payload through one of the hand-written validators below before the handler
  * sees it. Strings are capped at 64 KiB.
  */
+import type { DesktopLoginOptions, LoginProvider } from "../../shared/bridge";
 
 export const MAX_IPC_BYTES = 65536;
 
@@ -71,6 +72,25 @@ export function expectCount(value: unknown): number {
 export function expectBoolean(value: unknown): boolean {
   if (typeof value !== "boolean") throw new IpcRejected("not_boolean");
   return value;
+}
+
+/** Every provider the start route takes, and nothing else (typed against the bridge, so neither side drifts). */
+const LOGIN_PROVIDERS: Readonly<Record<LoginProvider, true>> = { google: true, apple: true };
+
+/**
+ * `session:login`'s payload: nothing (the UniWork sign-in page), or exactly
+ * `{ provider }` naming one of LOGIN_PROVIDERS. An extra key, a null or a
+ * provider the server would answer 400 is refused here, never sent.
+ */
+export function expectLoginOptions(value: unknown): DesktopLoginOptions | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new IpcRejected("not_login_options");
+  const keys = Object.keys(value);
+  const provider: unknown = (value as { provider?: unknown }).provider;
+  if (keys.length !== 1 || keys[0] !== "provider" || typeof provider !== "string" || !Object.hasOwn(LOGIN_PROVIDERS, provider)) {
+    throw new IpcRejected("not_login_options");
+  }
+  return { provider: provider as LoginProvider };
 }
 
 /**

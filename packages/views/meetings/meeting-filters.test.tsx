@@ -192,4 +192,16 @@ describe("chip and badge agreement", () => {
   it("keeps missed meetings out of the not-started chip", () => {
     expect(MEETING_FILTER_SHOWS.SCHEDULED).not.toContain("MISSED");
   });
+
+  it("pressed filter carries the sliding pill", () => {
+    const { container, rerender } = render(
+      <MeetingFilters status="ENDED" query="" stats={null} onStatus={() => {}} onQuery={() => {}} />,
+    );
+    const pills = () => container.querySelectorAll("[data-slot=status-pill]");
+    expect(pills()).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Đã kết thúc", pressed: true })).toContainElement(pills()[0] as HTMLElement);
+    rerender(<MeetingFilters status="" query="" stats={null} onStatus={() => {}} onQuery={() => {}} />);
+    expect(pills()).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Tất cả", pressed: true })).toContainElement(pills()[0] as HTMLElement);
+  });
 });

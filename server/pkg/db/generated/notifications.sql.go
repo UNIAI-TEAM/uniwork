@@ -1239,6 +1239,26 @@ func (q *Queries) RevokeDevicePushSubscriptionsForUser(ctx context.Context, user
 	return err
 }
 
+const revokeOtherDevicePushSubscriptionsForUser = `-- name: RevokeOtherDevicePushSubscriptionsForUser :exec
+UPDATE push_subscriptions p SET revoked_at = now()
+WHERE p.user_id = $1 AND p.revoked_at IS NULL
+  AND p.session_id <> $2::text
+  AND p.session_id IN (SELECT d.session_family_id FROM device_sessions d WHERE d.user_id = $1)
+`
+
+type RevokeOtherDevicePushSubscriptionsForUserParams struct {
+	UserID       string `json:"user_id"`
+	KeepFamilyID string `json:"keep_family_id"`
+}
+
+// Revoking every session but the caller's closes the pushes of every other
+// native device family; the kept family's and the browsers' stay, as in a
+// user-wide revoke.
+func (q *Queries) RevokeOtherDevicePushSubscriptionsForUser(ctx context.Context, arg RevokeOtherDevicePushSubscriptionsForUserParams) error {
+	_, err := q.db.Exec(ctx, revokeOtherDevicePushSubscriptionsForUser, arg.UserID, arg.KeepFamilyID)
+	return err
+}
+
 const revokePushSubscription = `-- name: RevokePushSubscription :exec
 UPDATE push_subscriptions SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL
 `

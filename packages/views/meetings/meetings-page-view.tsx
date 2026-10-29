@@ -123,6 +123,27 @@ export function MeetingsPageView({
     return () => clearTimeout(timer);
   }, [missedAt, refetch, refetchStats]);
 
+  // A live row carries who is in the room; no event says when that changes, so ask again every 30 s while
+  // one is shown and the tab is seen; a tab that comes back asks at once.
+  const hasLive = meetings.some((m) => m.status === "IN_PROGRESS");
+  useEffect(() => {
+    if (!hasLive) return;
+    const poll = () => {
+      if (document.visibilityState === "visible") void refetch();
+    };
+    const timer = setInterval(poll, 30_000);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", poll);
+    };
+  }, [hasLive, refetch]);
+
+  // The filter the rows on screen answer: it moves when the new answer lands, not while the old one stands in.
+  const filterKey = `${status}|${deferredQuery}|${page}`;
+  const [shownKey, setShownKey] = useState(filterKey);
+  if (settled && shownKey !== filterKey) setShownKey(filterKey);
+
   const resetFilters = () => {
     setQuery("");
     writtenQuery.current = "";
@@ -227,6 +248,7 @@ export function MeetingsPageView({
                 workspaceId={workspaceId}
                 meetings={meetings}
                 onOpenRoom={onOpenRoom}
+                enterKey={shownKey}
                 className={cn("transition-opacity duration-fast", isPlaceholderData && "opacity-60")}
               />
             )}

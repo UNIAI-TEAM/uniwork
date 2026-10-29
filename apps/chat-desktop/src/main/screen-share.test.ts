@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ desktopCapturer: { getSources: vi.fn() }, dialog: { showMessageBox: vi.fn() } }));
 
-import { desktopCapturer } from "electron";
+import { desktopCapturer, dialog } from "electron";
 import { installScreenShare, supportsSystemPicker } from "./screen-share";
 
 type Handler = (
@@ -58,6 +58,22 @@ describe("installScreenShare", () => {
     await expect(declined.request()).resolves.toEqual({});
     expect(declined.confirm).toHaveBeenCalledTimes(1);
     expect(desktopCapturer.getSources).not.toHaveBeenCalled();
+  });
+
+  it("asks with the shell's own dialog by default, whose Cancel is the default answer", async () => {
+    const session = { setDisplayMediaRequestHandler: vi.fn() };
+    installScreenShare(session, APP, "win32", "10.0.0");
+    const [handler] = session.setDisplayMediaRequestHandler.mock.calls[0] as [Handler];
+    const request = (): Promise<unknown> =>
+      new Promise((resolve) => handler({ audioRequested: false, securityOrigin: `${APP}/`, userGesture: true }, resolve));
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 1, checkboxChecked: false });
+    await expect(request()).resolves.toEqual({});
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ defaultId: 1, cancelId: 1 }));
+    expect(desktopCapturer.getSources).not.toHaveBeenCalled();
+    const screen = { id: "screen:0", name: "Screen 1" };
+    vi.mocked(desktopCapturer.getSources).mockResolvedValueOnce([screen] as never);
+    vi.mocked(dialog.showMessageBox).mockResolvedValueOnce({ response: 0, checkboxChecked: false });
+    await expect(request()).resolves.toEqual({ video: screen });
   });
 
   it("answers with no stream to a requester outside the app origin, without asking the capturer", async () => {

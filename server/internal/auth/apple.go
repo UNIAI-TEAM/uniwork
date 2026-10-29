@@ -39,15 +39,22 @@ type AppleClaims struct {
 	Email         string
 	EmailVerified bool
 	PrivateEmail  bool
-	// Audience is the bundle id the token was issued to, one of the
-	// configured audiences: the client id the code exchange and the revoke use.
+	// Audience is the client the token was issued to (a bundle id, or the
+	// web's Services ID), one of the verifier's audiences: the client id the
+	// code exchange and the revoke use.
 	Audience string
+	// IssuedAt is the token's iat: a step-up takes only a token the app just
+	// got from Apple's sheet (ADR 0049 §5).
+	IssuedAt time.Time
 }
 
-// AppleVerifier checks a native Sign in with Apple identity token: Apple's
+// AppleVerifier checks a Sign in with Apple identity token: Apple's
 // signature against its JWKS (cached by the key set, refetched when a token
-// names a key it has not seen), iss, exp, an aud among the app's bundle ids,
-// and a nonce equal to SHA-256 (hex) of the raw nonce the app generated.
+// names a key it has not seen), iss, exp, an aud among its audiences, and a
+// nonce equal to SHA-256 (hex) of the raw nonce. The app's sheet and the web
+// each get their own verifier (ADR 0049 §7): the app's takes its bundle ids,
+// the web's only the Services ID, so a token issued to one door is never
+// accepted at the other.
 type AppleVerifier struct {
 	verifier  *oidc.IDTokenVerifier
 	audiences []string
@@ -112,7 +119,7 @@ func (v *AppleVerifier) Verify(ctx context.Context, rawToken, rawNonce string) (
 	}
 	return AppleClaims{
 		Sub: tok.Subject, Email: c.Email, EmailVerified: bool(c.EmailVerified),
-		PrivateEmail: bool(c.PrivateEmail), Audience: audience,
+		PrivateEmail: bool(c.PrivateEmail), Audience: audience, IssuedAt: tok.IssuedAt,
 	}, nil
 }
 

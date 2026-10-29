@@ -22,29 +22,34 @@
       "bytes": 932995
     },
     {
+      "name": "zod",
+      "modules": 94,
+      "bytes": 854456
+    },
+    {
       "name": "@sentry/core",
       "modules": 176,
       "bytes": 783085
     },
     {
       "name": "(app) components",
-      "modules": 131,
-      "bytes": 575815
-    },
-    {
-      "name": "zod",
-      "modules": 78,
-      "bytes": 567907
+      "modules": 162,
+      "bytes": 734153
     },
     {
       "name": "(app) data",
-      "modules": 125,
-      "bytes": 535204
+      "modules": 158,
+      "bytes": 679452
     },
     {
       "name": "@sentry/react-native",
       "modules": 107,
       "bytes": 422446
+    },
+    {
+      "name": "(app) lib",
+      "modules": 93,
+      "bytes": 282331
     },
     {
       "name": "@expo/ui",
@@ -57,14 +62,14 @@
       "bytes": 269645
     },
     {
-      "name": "(app) lib",
-      "modules": 83,
-      "bytes": 250540
-    },
-    {
       "name": "@shopify/flash-list",
       "modules": 50,
       "bytes": 250191
+    },
+    {
+      "name": "@uniwork/core",
+      "modules": 56,
+      "bytes": 248815
     },
     {
       "name": "@livekit/components-react",
@@ -82,14 +87,9 @@
       "bytes": 188189
     },
     {
-      "name": "@uniwork/core",
-      "modules": 45,
-      "bytes": 166952
-    },
-    {
       "name": "react-native-css-interop",
       "modules": 26,
-      "bytes": 165992
+      "bytes": 166945
     },
     {
       "name": "expo",
@@ -123,8 +123,8 @@
     },
     {
       "name": "(app) app",
-      "modules": 22,
-      "bytes": 111389
+      "modules": 29,
+      "bytes": 118164
     },
     {
       "name": "@sentry/react",
@@ -317,6 +317,11 @@
       "bytes": 17149
     },
     {
+      "name": "expo-apple-authentication",
+      "modules": 6,
+      "bytes": 15698
+    },
+    {
       "name": "expo-crypto",
       "modules": 7,
       "bytes": 15500
@@ -360,6 +365,11 @@
       "name": "debug",
       "modules": 2,
       "bytes": 12299
+    },
+    {
+      "name": "(app) modules",
+      "modules": 3,
+      "bytes": 11782
     },
     {
       "name": "expo-image-manipulator",
@@ -447,9 +457,19 @@
       "bytes": 7427
     },
     {
+      "name": "(other)",
+      "modules": 4,
+      "bytes": 7364
+    },
+    {
       "name": "expo-localization",
       "modules": 3,
       "bytes": 7156
+    },
+    {
+      "name": "expo-background-task",
+      "modules": 3,
+      "bytes": 7147
     },
     {
       "name": "expo-local-authentication",
@@ -467,11 +487,6 @@
       "bytes": 6958
     },
     {
-      "name": "(app) modules",
-      "modules": 1,
-      "bytes": 5878
-    },
-    {
       "name": "color-string",
       "modules": 1,
       "bytes": 5716
@@ -480,11 +495,6 @@
       "name": "@rn-primitives/slot",
       "modules": 1,
       "bytes": 5611
-    },
-    {
-      "name": "(other)",
-      "modules": 4,
-      "bytes": 5377
     },
     {
       "name": "color-name",
@@ -893,7 +903,7 @@
     },
     {
       "name": "(app) assets",
-      "modules": 7,
+      "modules": 6,
       "bytes": 0
     }
   ],
@@ -919,24 +929,24 @@
       "bytes": 932995
     },
     {
+      "name": "zod",
+      "modules": 94,
+      "bytes": 854456
+    },
+    {
       "name": "@sentry/core",
       "modules": 176,
       "bytes": 783085
     },
     {
       "name": "(app) components",
-      "modules": 131,
-      "bytes": 575815
-    },
-    {
-      "name": "zod",
-      "modules": 78,
-      "bytes": 567907
+      "modules": 162,
+      "bytes": 734153
     },
     {
       "name": "(app) data",
-      "modules": 125,
-      "bytes": 535204
+      "modules": 158,
+      "bytes": 679452
     },
     {
       "name": "@sentry/react-native",
@@ -944,19 +954,24 @@
       "bytes": 422446
     },
     {
+      "name": "(app) lib",
+      "modules": 93,
+      "bytes": 282331
+    },
+    {
       "name": "react-native-gesture-handler",
       "modules": 83,
       "bytes": 266517
     },
     {
-      "name": "(app) lib",
-      "modules": 83,
-      "bytes": 250540
-    },
-    {
       "name": "@shopify/flash-list",
       "modules": 50,
       "bytes": 250188
+    },
+    {
+      "name": "@uniwork/core",
+      "modules": 56,
+      "bytes": 248815
     },
     {
       "name": "@livekit/components-react",
@@ -974,14 +989,9 @@
       "bytes": 188189
     },
     {
-      "name": "@uniwork/core",
-      "modules": 45,
-      "bytes": 166952
-    },
-    {
       "name": "react-native-css-interop",
       "modules": 26,
-      "bytes": 165887
+      "bytes": 166840
     },
     {
       "name": "expo",
@@ -1015,8 +1025,8 @@
     },
     {
       "name": "(app) app",
-      "modules": 22,
-      "bytes": 111389
+      "modules": 29,
+      "bytes": 118164
     },
     {
       "name": "@sentry/react",
@@ -1209,6 +1219,11 @@
       "bytes": 17149
     },
     {
+      "name": "expo-apple-authentication",
+      "modules": 6,
+      "bytes": 15698
+    },
+    {
       "name": "expo-crypto",
       "modules": 7,
       "bytes": 15500
@@ -1252,6 +1267,11 @@
       "name": "debug",
       "modules": 2,
       "bytes": 12299
+    },
+    {
+      "name": "(app) modules",
+      "modules": 3,
+      "bytes": 11782
     },
     {
       "name": "expo-image-manipulator",
@@ -1339,9 +1359,19 @@
       "bytes": 7427
     },
     {
+      "name": "(other)",
+      "modules": 4,
+      "bytes": 7364
+    },
+    {
       "name": "expo-localization",
       "modules": 3,
       "bytes": 7156
+    },
+    {
+      "name": "expo-background-task",
+      "modules": 3,
+      "bytes": 7147
     },
     {
       "name": "expo-local-authentication",
@@ -1359,11 +1389,6 @@
       "bytes": 6958
     },
     {
-      "name": "(app) modules",
-      "modules": 1,
-      "bytes": 5878
-    },
-    {
       "name": "color-string",
       "modules": 1,
       "bytes": 5716
@@ -1372,11 +1397,6 @@
       "name": "@rn-primitives/slot",
       "modules": 1,
       "bytes": 5611
-    },
-    {
-      "name": "(other)",
-      "modules": 4,
-      "bytes": 5377
     },
     {
       "name": "color-name",
@@ -1775,7 +1795,7 @@
     },
     {
       "name": "(app) assets",
-      "modules": 7,
+      "modules": 6,
       "bytes": 0
     }
   ]

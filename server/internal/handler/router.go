@@ -35,12 +35,29 @@ type Deps struct {
 	PasswordReset *service.PasswordResetService
 	DemoRequests  *service.DemoRequestService
 	GoogleAuth    *service.GoogleAuthService
+	// SignInTickets runs the choice screen of a provider sign-in that found
+	// no account to sign in to (ADR 0049): /api/v1/auth/sign-in-ticket*.
+	SignInTickets *service.SignInTicketService
+	// SignInMethods runs Settings › Sign-in methods (ADR 0049 §5-6): the
+	// password, links through the signed-in browser, unlinks. nil answers
+	// 503 on those routes, and a provider start refuses intent=link.
+	SignInMethods *service.SignInMethodsService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
 	Google GoogleExchanger
-	// AppleAuth is nil unless APPLE_SIWA_AUDIENCES is set: the native Sign in
-	// with Apple route answers 503 and /auth/providers reports apple=false.
-	AppleAuth           *service.AppleAuthService
+	// Sealer is the server's one sealer (main.go); the browser sign-ins seal
+	// their OAuth state cookie with it (ADR 0049). A zero sealer refuses to
+	// seal, so a provider start answers its failure instead of a weak cookie.
+	Sealer auth.SecretSealer
+	// AppleAuth is Sign in with Apple; nil unless APPLE_SIWA_AUDIENCES or the
+	// web's Services ID is set. Each door answers 503 while closed: the
+	// native route unless the app's bundle ids are set (NativeEnabled,
+	// /auth/providers apple), the web's start and link unless the Services ID
+	// and its key are (WebEnabled, apple_web).
+	AppleAuth *service.AppleAuthService
+	// NativeSignIn runs the app's own sign-in screen (ADR 0049 §8):
+	// /api/v1/auth/native/*. nil answers 503 native_sign_in_unavailable.
+	NativeSignIn        *service.NativeSignInService
 	Organizations       *service.OrganizationService
 	OrgMembers          *service.OrganizationMemberService
 	People              *service.PeopleService
@@ -339,7 +356,26 @@ func New(d Deps) http.Handler {
 		AuthProviders:         h.authProviders,
 		GoogleStart:           h.googleStart,
 		GoogleCallback:        h.googleCallback,
+		AppleStart:            h.appleStart,
+		AppleCallback:         h.appleCallback,
+		AppleFinish:           h.appleFinish,
+		SignInTicket:          h.signInTicket,
+		SignInTicketCreate:    h.signInTicketCreate,
+		SignInTicketClaim:     h.signInTicketClaimEmail,
+		SignInTicketVerify:    h.signInTicketClaimEmailVerify,
+		SignInTicketDiscard:   h.signInTicketDiscard,
+		SignInTicketLink:      h.signInTicketLink,
 		AppleSignIn:           h.appleSignIn,
+		NativePassword:        h.nativePassword,
+		NativeMFA:             h.nativeMFA,
+		NativeGoogle:          h.nativeGoogle,
+		NativeApple:           h.nativeApple,
+		NativeRegister:        h.nativeRegister,
+		NativeTicketCreate:    h.nativeTicketCreate,
+		NativeTicketClaim:     h.nativeTicketClaimEmail,
+		NativeTicketVerify:    h.nativeTicketClaimEmailVerify,
+		NativeTicketDiscard:   h.nativeTicketDiscard,
+		NativeTicketLink:      h.nativeTicketLink,
 		DesktopStart:          h.desktopStart,
 		DesktopConsent:        h.desktopConsent,
 		DesktopConsentCommand: h.desktopConsentCommand,
@@ -361,6 +397,16 @@ func New(d Deps) http.Handler {
 		RevokeSession:       h.revokeSession,
 		RevokeOtherSessions: h.revokeOtherSessions,
 		DeleteAccount:       h.deleteAccount,
+		StepUp:              h.stepUp,
+		StepUpEmailCode:     h.stepUpEmailCode,
+		SignInMethods:       h.signInMethods,
+		SetPassword:         h.setPassword,
+		LinkGoogle:          h.signInMethodLink(service.ProviderGoogle),
+		LinkApple:           h.signInMethodLink(service.ProviderApple),
+		UnlinkGoogle:        h.signInMethodUnlink(service.ProviderGoogle),
+		UnlinkApple:         h.signInMethodUnlink(service.ProviderApple),
+		LinkGoogleNative:    h.signInMethodLinkNative(service.ProviderGoogle),
+		LinkAppleNative:     h.signInMethodLinkNative(service.ProviderApple),
 		SetAIConsent:        h.setAIConsent,
 		WithdrawAIConsent:   h.withdrawAIConsent,
 		SetPushPreviews:     h.setPushPreviews,
@@ -785,6 +831,7 @@ func New(d Deps) http.Handler {
 		RestoreActionItem:              h.restoreActionItem,
 		LinkActionItem:                 h.linkActionItem,
 		ConvertActionItems:             h.convertActionItems,
+		UndoConvertActionItems:         h.undoConvertActionItems,
 		MeetingCatchUp:                 h.meetingCatchUp,
 		StartRecording:                 h.startRecording,
 		StopRecording:                  h.stopRecording,
