@@ -311,5 +311,6 @@ JOIN documents d
 WHERE mt.organization_id = sqlc.arg(organization_id)::text
   AND d.organization_id = sqlc.arg(organization_id)::text
   AND d.kind = 'page'
+  AND mt.minutes_document_id IS NOT NULL
   AND mt.minutes_document_id = ANY(sqlc.arg(document_ids)::text[])
 ORDER BY mt.created_at DESC, mt.id DESC;

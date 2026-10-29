@@ -610,3 +610,50 @@ func TestMinutesPageCarriesMeetingSourceWithWorkspaceMemberTitleGate(t *testing.
 	}
 	assertAdminMinutesMeeting("orgAdmin after break-glass revoked", orgAdmin, nil)
 }
+
+// UNI-2288 (RB1-4): ListMinutesMeetingsByDocumentIDs uses the partial index
+// idx_meetings_org_minutes_document on (organization_id, minutes_document_id)
+// WHERE minutes_document_id IS NOT NULL.
+func TestListMinutesMeetingsByDocumentIDsUsesPartialIndex(t *testing.T) {
+	s, _, _, _, m := minutesFixture(t)
+	ctx := context.Background()
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, "SET LOCAL enable_seqscan = off"); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := tx.Query(ctx, `EXPLAIN SELECT
+		mt.minutes_document_id::text AS document_id,
+		mt.id::text AS meeting_id,
+		mt.workspace_id::text AS workspace_id,
+		mt.title::text AS meeting_title
+	FROM meetings mt
+	JOIN documents d
+	  ON d.id = mt.minutes_document_id
+	 AND d.organization_id = mt.organization_id
+	 AND d.workspace_id = mt.workspace_id
+	WHERE mt.organization_id = $1
+	  AND d.organization_id = $1
+	  AND d.kind = 'page'
+	  AND mt.minutes_document_id IS NOT NULL
+	  AND mt.minutes_document_id = ANY($2::text[])
+	ORDER BY mt.created_at DESC, mt.id DESC`, m.OrganizationID, []string{"01DOC1", "01DOC2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var plan strings.Builder
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			t.Fatal(err)
+		}
+		plan.WriteString(line + "\n")
+	}
+	rows.Close()
+	if !strings.Contains(plan.String(), "idx_meetings_org_minutes_document") {
+		t.Fatalf("ListMinutesMeetingsByDocumentIDs plan does not use idx_meetings_org_minutes_document:\n%s", plan.String())
+	}
+}

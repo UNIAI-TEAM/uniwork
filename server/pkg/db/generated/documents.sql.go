@@ -756,6 +756,7 @@ JOIN documents d
 WHERE mt.organization_id = $1::text
   AND d.organization_id = $1::text
   AND d.kind = 'page'
+  AND mt.minutes_document_id IS NOT NULL
   AND mt.minutes_document_id = ANY($2::text[])
 ORDER BY mt.created_at DESC, mt.id DESC
 `
