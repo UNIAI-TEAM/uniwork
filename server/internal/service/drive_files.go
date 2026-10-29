@@ -95,22 +95,24 @@ type DriveTaskCreationGroup struct {
 	Tasks         []DriveLinkedTaskRef
 }
 
-// DriveFolderRefView is the parent Google Drive folder reference on a DriveFileView (UNI-2221).
+// DriveFolderRefView is the parent Google Drive folder reference on a DriveFileView (UNI-2221, UNI-2291).
 type DriveFolderRefView struct {
-	ID   string
-	Name *string
+	ID       string
+	Name     *string
+	ParentID *string
 }
 
-// DriveFolderNamedResult is the service-layer result of DriveFileService.NameFolder (UNI-2221).
+// DriveFolderNamedResult is the service-layer result of DriveFileService.NameFolder (UNI-2221, UNI-2291).
 type DriveFolderNamedResult struct {
 	DriveFolder  DriveFolderRefView
 	UpdatedCount int
 }
 
-// DriveFolderGroupView is one aggregate parent-folder entry returned by DriveFileService.ListFolders (UNI-2221).
+// DriveFolderGroupView is one aggregate parent-folder entry returned by DriveFileService.ListFolders (UNI-2221, UNI-2291).
 type DriveFolderGroupView struct {
 	ID        *string
 	Name      *string
+	ParentID  *string
 	FileCount int64
 }
 
@@ -174,6 +176,7 @@ type DriveFileLinkReceiptView struct {
 	WorkspaceID        string
 	ExternalFileID     string
 	DriveID            *string
+	DriveFolder        *DriveFolderRefView
 	Name               string
 	MimeType           string
 	IconKind           string

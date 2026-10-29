@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 	"errors"
-	"regexp"
-	"strings"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"regexp"
+	"sort"
+	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -124,7 +124,7 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 	// the stored parent population so a refresh never moves a row out of the echoed folder.
 	isNoneFilter := folderFilter.Valid && folderFilter.String == driveFolderFilterNone
 	if !folderFilter.Valid || isNoneFilter {
-		parentCache := make(map[string]string, len(rows))
+		parentCache := make(driveFolderWalkCache, len(rows))
 		gainedParent := false
 		for i := range rows {
 			if refreshed, ok := s.maybeRefreshEnrichedRow(ctx, actor.ID, ws, rows[i], parentCache); ok {
@@ -178,9 +178,9 @@ func (s *DriveFileService) ListMine(ctx context.Context, actor Actor, workspaceI
 	}, nil
 }
 
-// ListFolders returns the aggregate list of parent Drive folders across active
+// ListFolders returns the aggregate tree of parent Drive folders across active
 // Drive files in workspaceID for which the caller has a row in drive_file_access
-// (GET /api/v1/workspaces/{workspaceID}/drive-folders; UNI-2221).
+// (GET /api/v1/workspaces/{workspaceID}/drive-folders; UNI-2221, UNI-2291).
 func (s *DriveFileService) ListFolders(ctx context.Context, actor Actor, workspaceID, connectionID string) ([]DriveFolderGroupView, error) {
 	ws, _, err := s.workspaceAndMember(ctx, actor, workspaceID)
 	if err != nil {
@@ -215,23 +215,211 @@ func (s *DriveFileService) ListFolders(ctx context.Context, actor Actor, workspa
 		return nil, err
 	}
 
-	out := make([]DriveFolderGroupView, 0, len(rows))
-	for _, r := range rows {
-		var idPtr, namePtr *string
-		if r.DriveFolderID.Valid && strings.TrimSpace(r.DriveFolderID.String) != "" {
-			fid := strings.TrimSpace(r.DriveFolderID.String)
-			idPtr = &fid
-			if fname := strings.TrimSpace(r.DriveFolderName); fname != "" {
-				namePtr = &fname
+	wsFolders, err := s.q.ListWorkspaceDriveFolders(ctx, db.ListWorkspaceDriveFoldersParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return assembleDriveFolderTree(rows, wsFolders), nil
+}
+
+type driveFolderNodeState struct {
+	id          string
+	name        *string
+	rawParentID string
+	parentID    *string
+	fileCount   int64
+}
+
+// assembleDriveFolderTree builds the viewer-scoped folder tree from the viewer's
+// direct file-count rows (ListMyDriveFolders) and the workspace's stored
+// drive_folders metadata rows (ListWorkspaceDriveFolders) (UNI-2291).
+//
+// Invariants:
+//   - A folder node is included iff it holds >= 1 of the viewer's accessible files
+//     OR lies on the upward ancestor path (up to driveFolderWalkMaxDepth hops) above
+//     a folder that holds the viewer's accessible files.
+//   - parent_id is set only when that parent is itself an included node and does
+//     not form a cycle; unknown/unpicked parents normalize to nil (root node).
+//   - Ordering: named folders A-Z (lower(name) ASC, id ASC), then unnamed folders
+//     (id ASC), then the parentless group (id: nil) last.
+func assembleDriveFolderTree(
+	directRows []db.ListMyDriveFoldersRow,
+	wsFolders []db.ListWorkspaceDriveFoldersRow,
+) []DriveFolderGroupView {
+	dfByID := make(map[string]db.ListWorkspaceDriveFoldersRow, len(wsFolders))
+	for _, df := range wsFolders {
+		fid := strings.TrimSpace(df.DriveFolderID)
+		if fid == "" {
+			continue
+		}
+		dfByID[fid] = df
+	}
+
+	nodes := make(map[string]*driveFolderNodeState, len(directRows))
+	var directIDs []string
+	var nullGroupCount int64
+	hasNullGroup := false
+
+	for _, r := range directRows {
+		if !r.DriveFolderID.Valid || strings.TrimSpace(r.DriveFolderID.String) == "" {
+			hasNullGroup = true
+			nullGroupCount += r.FileCount
+			continue
+		}
+		fid := strings.TrimSpace(r.DriveFolderID.String)
+		var namePtr *string
+		if fname := strings.TrimSpace(r.DriveFolderName); fname != "" {
+			nameCopy := fname
+			namePtr = &nameCopy
+		} else if df, ok := dfByID[fid]; ok && strings.TrimSpace(df.Name) != "" {
+			nameCopy := strings.TrimSpace(df.Name)
+			namePtr = &nameCopy
+		}
+		rawParent := strings.TrimSpace(r.ParentFolderID)
+		if rawParent == "" {
+			if df, ok := dfByID[fid]; ok && df.ParentFolderID.Valid {
+				rawParent = strings.TrimSpace(df.ParentFolderID.String)
 			}
 		}
+		if rawParent == fid {
+			rawParent = ""
+		}
+		nodes[fid] = &driveFolderNodeState{
+			id:          fid,
+			name:        namePtr,
+			rawParentID: rawParent,
+			fileCount:   r.FileCount,
+		}
+		directIDs = append(directIDs, fid)
+	}
+
+	// Walk upward from each direct folder through dfByID up to driveFolderWalkMaxDepth.
+	for _, startID := range directIDs {
+		visited := map[string]bool{startID: true}
+		currParentID := nodes[startID].rawParentID
+		for depth := 0; depth < driveFolderWalkMaxDepth && currParentID != ""; depth++ {
+			if visited[currParentID] {
+				break
+			}
+			visited[currParentID] = true
+
+			if existing, ok := nodes[currParentID]; ok {
+				currParentID = existing.rawParentID
+				continue
+			}
+			df, ok := dfByID[currParentID]
+			if !ok {
+				break
+			}
+			fname := strings.TrimSpace(df.Name)
+			if fname == "" {
+				break
+			}
+			nameCopy := fname
+			nextParent := ""
+			if df.ParentFolderID.Valid {
+				nextParent = strings.TrimSpace(df.ParentFolderID.String)
+				if nextParent == currParentID {
+					nextParent = ""
+				}
+			}
+			nodes[currParentID] = &driveFolderNodeState{
+				id:          currParentID,
+				name:        &nameCopy,
+				rawParentID: nextParent,
+				fileCount:   0,
+			}
+			currParentID = nextParent
+		}
+	}
+
+	// Set parentID only when rawParentID is in nodes, and break any cycle deterministically.
+	sortedIDs := make([]string, 0, len(nodes))
+	for id, node := range nodes {
+		sortedIDs = append(sortedIDs, id)
+		if node.rawParentID != "" && node.rawParentID != id {
+			if _, ok := nodes[node.rawParentID]; ok {
+				pCopy := node.rawParentID
+				node.parentID = &pCopy
+			}
+		}
+	}
+	sort.Strings(sortedIDs)
+
+	// Cycle guard: ensure following parentID from every node terminates at nil.
+	for _, startID := range sortedIDs {
+		visited := map[string]bool{startID: true}
+		curr := nodes[startID]
+		for curr != nil && curr.parentID != nil {
+			pid := *curr.parentID
+			if visited[pid] {
+				// Break back-edge so the output is always a valid forest.
+				curr.parentID = nil
+				break
+			}
+			visited[pid] = true
+			curr = nodes[pid]
+		}
+	}
+
+	folderList := make([]*driveFolderNodeState, 0, len(nodes))
+	for _, n := range nodes {
+		folderList = append(folderList, n)
+	}
+	sort.Slice(folderList, func(i, j int) bool {
+		a, b := folderList[i], folderList[j]
+		aNamed := a.name != nil && strings.TrimSpace(*a.name) != ""
+		bNamed := b.name != nil && strings.TrimSpace(*b.name) != ""
+		if aNamed != bNamed {
+			return aNamed
+		}
+		if aNamed && bNamed {
+			la := strings.ToLower(strings.TrimSpace(*a.name))
+			lb := strings.ToLower(strings.TrimSpace(*b.name))
+			if la != lb {
+				return la < lb
+			}
+		}
+		return a.id < b.id
+	})
+
+	totalCap := len(folderList)
+	if hasNullGroup {
+		totalCap++
+	}
+	out := make([]DriveFolderGroupView, 0, totalCap)
+	for _, n := range folderList {
+		idCopy := n.id
+		var namePtr *string
+		if n.name != nil {
+			nc := *n.name
+			namePtr = &nc
+		}
+		var parentPtr *string
+		if n.parentID != nil {
+			pc := *n.parentID
+			parentPtr = &pc
+		}
 		out = append(out, DriveFolderGroupView{
-			ID:        idPtr,
+			ID:        &idCopy,
 			Name:      namePtr,
-			FileCount: r.FileCount,
+			ParentID:  parentPtr,
+			FileCount: n.fileCount,
 		})
 	}
-	return out, nil
+	if hasNullGroup {
+		out = append(out, DriveFolderGroupView{
+			ID:        nil,
+			Name:      nil,
+			ParentID:  nil,
+			FileCount: nullGroupCount,
+		})
+	}
+	return out
 }
 
 // Get returns the full detail of a Drive file reference in workspaceID
@@ -342,7 +530,7 @@ func (s *DriveFileService) ListForTask(ctx context.Context, actor Actor, taskID 
 		return nil, err
 	}
 
-	parentCache := make(map[string]string, len(rows))
+	parentCache := make(driveFolderWalkCache, len(rows))
 	for i := range rows {
 		if refreshed, ok := s.maybeRefreshTaskCardRow(ctx, actor.ID, ws, rows[i], parentCache); ok {
 			rows[i] = refreshed
@@ -553,6 +741,7 @@ func (s *DriveFileService) RecordFileMetadataRefresh(ctx context.Context, worksp
 		return nil
 	}
 	params := normalizeMetadataForDB(meta, meta.ExternalFileID, s.nowUTC())
+	resolveWorkspaceFolderNameFallback(ctx, s.q, ws, &params)
 	_, _ = s.q.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
 		DriveFolderID:          params.DriveFolderID,

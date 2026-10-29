@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -67,7 +66,7 @@ func (s *DriveFileService) Link(ctx context.Context, actor Actor, workspaceID st
 		}
 	}
 
-	parentCache := make(map[string]string, len(in.ExternalFileIDs))
+	parentCache := make(driveFolderWalkCache, len(in.ExternalFileIDs))
 	results := make([]DriveFileLinkItemResult, 0, len(in.ExternalFileIDs))
 	for _, rawExtID := range in.ExternalFileIDs {
 		extID := strings.TrimSpace(rawExtID)
@@ -143,7 +142,7 @@ func (s *DriveFileService) linkFilesForTaskCreateInTx(
 	if !s.isNotGuest(member) {
 		return ErrForbidden
 	}
-	parentCache := make(map[string]string, len(driveFiles))
+	parentCache := make(driveFolderWalkCache, len(driveFiles))
 	for idx, df := range driveFiles {
 		extID := strings.TrimSpace(df.ExternalFileID)
 		connID := strings.TrimSpace(df.ConnectionID)
@@ -250,7 +249,11 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 	}
 
 	now := s.nowUTC()
+	if err := upsertResolvedDriveFolders(ctx, qtx, ws, conn.ID, actor, meta.ResolvedFolders, now); err != nil {
+		return DriveFileLinkItemResult{}, err
+	}
 	params := normalizeMetadataForDB(meta, externalFileID, now)
+	resolveWorkspaceFolderNameFallback(ctx, qtx, ws, &params)
 
 	existing, err := qtx.GetActiveDriveFileByExternalIDForUpdate(ctx, db.GetActiveDriveFileByExternalIDForUpdateParams{
 		OrganizationID: ws.OrganizationID,
@@ -269,15 +272,6 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 	viewerEmail := conn.GoogleEmail
 	accountEmailOnAlreadyLinked := ""
 	if !hasExisting {
-		if params.DriveFolderID.Valid && !params.DriveFolderName.Valid {
-			if sibName, serr := qtx.GetWorkspaceDriveFolderName(ctx, db.GetWorkspaceDriveFolderNameParams{
-				OrganizationID: ws.OrganizationID,
-				WorkspaceID:    ws.ID,
-				DriveFolderID:  params.DriveFolderID.String,
-			}); serr == nil && sibName.Valid && strings.TrimSpace(sibName.String) != "" {
-				params.DriveFolderName = pgtype.Text{String: strings.TrimSpace(sibName.String), Valid: true}
-			}
-		}
 		fileRow, err = qtx.CreateDriveFile(ctx, db.CreateDriveFileParams{
 			ID:                     util.NewID(),
 			OrganizationID:         ws.OrganizationID,

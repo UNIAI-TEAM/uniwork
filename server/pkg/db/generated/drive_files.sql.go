@@ -997,14 +997,23 @@ func (q *Queries) GetDriveFileEnriched(ctx context.Context, arg GetDriveFileEnri
 }
 
 const getWorkspaceDriveFolderName = `-- name: GetWorkspaceDriveFolderName :one
-SELECT drive_folder_name
-FROM drive_files
-WHERE organization_id = $1
-  AND workspace_id = $2
-  AND drive_folder_id = $3::text
-  AND drive_folder_name IS NOT NULL
-  AND unlinked_at IS NULL
-LIMIT 1
+SELECT COALESCE(
+  (SELECT df.name
+   FROM drive_folders df
+   WHERE df.organization_id = $1
+     AND df.workspace_id = $2
+     AND df.drive_folder_id = $3::text
+   LIMIT 1),
+  (SELECT f.drive_folder_name
+   FROM drive_files f
+   WHERE f.organization_id = $1
+     AND f.workspace_id = $2
+     AND f.drive_folder_id = $3::text
+     AND f.drive_folder_name IS NOT NULL
+     AND f.unlinked_at IS NULL
+   LIMIT 1),
+  ''
+)::text AS drive_folder_name
 `
 
 type GetWorkspaceDriveFolderNameParams struct {
@@ -1013,11 +1022,48 @@ type GetWorkspaceDriveFolderNameParams struct {
 	DriveFolderID  string `json:"drive_folder_id"`
 }
 
-func (q *Queries) GetWorkspaceDriveFolderName(ctx context.Context, arg GetWorkspaceDriveFolderNameParams) (pgtype.Text, error) {
+func (q *Queries) GetWorkspaceDriveFolderName(ctx context.Context, arg GetWorkspaceDriveFolderNameParams) (string, error) {
 	row := q.db.QueryRow(ctx, getWorkspaceDriveFolderName, arg.OrganizationID, arg.WorkspaceID, arg.DriveFolderID)
-	var drive_folder_name pgtype.Text
+	var drive_folder_name string
 	err := row.Scan(&drive_folder_name)
 	return drive_folder_name, err
+}
+
+const listActiveDriveFileIDsByFolderIDs = `-- name: ListActiveDriveFileIDsByFolderIDs :many
+SELECT id
+FROM drive_files
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND drive_folder_id = ANY($3::text[])
+  AND unlinked_at IS NULL
+ORDER BY created_at DESC, id DESC
+LIMIT 20
+`
+
+type ListActiveDriveFileIDsByFolderIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	DriveFolderIds []string `json:"drive_folder_ids"`
+}
+
+func (q *Queries) ListActiveDriveFileIDsByFolderIDs(ctx context.Context, arg ListActiveDriveFileIDsByFolderIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listActiveDriveFileIDsByFolderIDs, arg.OrganizationID, arg.WorkspaceID, arg.DriveFolderIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listLinkedTasksByDriveFileIDs = `-- name: ListLinkedTasksByDriveFileIDs :many
@@ -1243,13 +1289,18 @@ func (q *Queries) ListMyDriveFilesEnriched(ctx context.Context, arg ListMyDriveF
 
 const listMyDriveFolders = `-- name: ListMyDriveFolders :many
 SELECT f.drive_folder_id,
-       COALESCE(max(f.drive_folder_name), '')::text AS drive_folder_name,
+       COALESCE(max(df.name), max(f.drive_folder_name), '')::text AS drive_folder_name,
+       COALESCE(max(df.parent_folder_id), '')::text AS parent_folder_id,
        count(*)::bigint AS file_count
 FROM drive_file_access va
 JOIN drive_files f
   ON f.id = va.drive_file_id
  AND f.organization_id = va.organization_id
  AND f.workspace_id = va.workspace_id
+LEFT JOIN drive_folders df
+  ON df.workspace_id = f.workspace_id
+ AND df.organization_id = f.organization_id
+ AND df.drive_folder_id = f.drive_folder_id
 WHERE va.organization_id = $1
   AND va.workspace_id = $2
   AND va.user_id = $3
@@ -1259,10 +1310,10 @@ GROUP BY f.drive_folder_id
 ORDER BY
   CASE
     WHEN f.drive_folder_id IS NULL THEN 2
-    WHEN max(f.drive_folder_name) IS NULL THEN 1
+    WHEN COALESCE(max(df.name), max(f.drive_folder_name)) IS NULL THEN 1
     ELSE 0
   END ASC,
-  lower(COALESCE(max(f.drive_folder_name), '')) ASC,
+  lower(COALESCE(max(df.name), max(f.drive_folder_name), '')) ASC,
   COALESCE(f.drive_folder_id, '') ASC
 `
 
@@ -1276,6 +1327,7 @@ type ListMyDriveFoldersParams struct {
 type ListMyDriveFoldersRow struct {
 	DriveFolderID   pgtype.Text `json:"drive_folder_id"`
 	DriveFolderName string      `json:"drive_folder_name"`
+	ParentFolderID  string      `json:"parent_folder_id"`
 	FileCount       int64       `json:"file_count"`
 }
 
@@ -1293,7 +1345,12 @@ func (q *Queries) ListMyDriveFolders(ctx context.Context, arg ListMyDriveFolders
 	items := []ListMyDriveFoldersRow{}
 	for rows.Next() {
 		var i ListMyDriveFoldersRow
-		if err := rows.Scan(&i.DriveFolderID, &i.DriveFolderName, &i.FileCount); err != nil {
+		if err := rows.Scan(
+			&i.DriveFolderID,
+			&i.DriveFolderName,
+			&i.ParentFolderID,
+			&i.FileCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1445,6 +1502,44 @@ func (q *Queries) ListTaskDriveFilesEnriched(ctx context.Context, arg ListTaskDr
 			&i.ViewerAccountEmail,
 			&i.ViewerConnectionActive,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceDriveFolders = `-- name: ListWorkspaceDriveFolders :many
+SELECT drive_folder_id, name, parent_folder_id
+FROM drive_folders
+WHERE organization_id = $1
+  AND workspace_id = $2
+`
+
+type ListWorkspaceDriveFoldersParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+type ListWorkspaceDriveFoldersRow struct {
+	DriveFolderID  string      `json:"drive_folder_id"`
+	Name           string      `json:"name"`
+	ParentFolderID pgtype.Text `json:"parent_folder_id"`
+}
+
+func (q *Queries) ListWorkspaceDriveFolders(ctx context.Context, arg ListWorkspaceDriveFoldersParams) ([]ListWorkspaceDriveFoldersRow, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceDriveFolders, arg.OrganizationID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkspaceDriveFoldersRow{}
+	for rows.Next() {
+		var i ListWorkspaceDriveFoldersRow
+		if err := rows.Scan(&i.DriveFolderID, &i.Name, &i.ParentFolderID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1987,6 +2082,77 @@ func (q *Queries) UpsertDriveFileAccessGranted(ctx context.Context, arg UpsertDr
 		&i.State,
 		&i.GrantedAt,
 		&i.CheckedAt,
+	)
+	return i, err
+}
+
+const upsertDriveFolder = `-- name: UpsertDriveFolder :one
+INSERT INTO drive_folders (
+  id, organization_id, workspace_id, connection_id,
+  drive_folder_id, name, parent_folder_id, refreshed_at,
+  created_by, created_by_kind
+) VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5,
+  $6,
+  $7,
+  $8,
+  $9,
+  $10
+)
+ON CONFLICT (workspace_id, drive_folder_id) DO UPDATE
+SET connection_id = EXCLUDED.connection_id,
+    name = EXCLUDED.name,
+    parent_folder_id = EXCLUDED.parent_folder_id,
+    refreshed_at = EXCLUDED.refreshed_at,
+    updated_at = now()
+WHERE drive_folders.organization_id = $2
+RETURNING id, organization_id, workspace_id, connection_id, drive_folder_id, name, parent_folder_id, refreshed_at, created_by, created_by_kind, created_at, updated_at
+`
+
+type UpsertDriveFolderParams struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ConnectionID   string             `json:"connection_id"`
+	DriveFolderID  string             `json:"drive_folder_id"`
+	Name           string             `json:"name"`
+	ParentFolderID pgtype.Text        `json:"parent_folder_id"`
+	RefreshedAt    pgtype.Timestamptz `json:"refreshed_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+}
+
+func (q *Queries) UpsertDriveFolder(ctx context.Context, arg UpsertDriveFolderParams) (DriveFolder, error) {
+	row := q.db.QueryRow(ctx, upsertDriveFolder,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ConnectionID,
+		arg.DriveFolderID,
+		arg.Name,
+		arg.ParentFolderID,
+		arg.RefreshedAt,
+		arg.CreatedBy,
+		arg.CreatedByKind,
+	)
+	var i DriveFolder
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ConnectionID,
+		&i.DriveFolderID,
+		&i.Name,
+		&i.ParentFolderID,
+		&i.RefreshedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

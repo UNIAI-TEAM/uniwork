@@ -99,7 +99,12 @@ func (s *DriveFileService) GrantAccess(ctx context.Context, actor Actor, workspa
 		return s.Get(ctx, actor, workspaceID, driveFileID)
 	}
 
-	params := normalizeMetadataForDB(meta, lockedFile.ExternalFileID, s.nowUTC())
+	now := s.nowUTC()
+	if err := upsertResolvedDriveFolders(ctx, qtx, ws, conn.ID, actor, meta.ResolvedFolders, now); err != nil {
+		return DriveFileView{}, err
+	}
+	params := normalizeMetadataForDB(meta, lockedFile.ExternalFileID, now)
+	resolveWorkspaceFolderNameFallback(ctx, qtx, ws, &params)
 	if lerr == nil && lockedAcc.State == "lost" && lockedFile.BoundBy == actor.ID && lockedFile.ConnectionID != conn.ID {
 		if _, err := s.rebindFileInTx(ctx, qtx, actor, ws, lockedFile, conn, params); err != nil {
 			return DriveFileView{}, err
@@ -266,7 +271,12 @@ func (s *DriveFileService) ChangeReadAccount(ctx context.Context, actor Actor, w
 		}
 		return DriveFileView{}, perr
 	}
-	params := normalizeMetadataForDB(meta, lockedFile.ExternalFileID, s.nowUTC())
+	now := s.nowUTC()
+	if err := upsertResolvedDriveFolders(ctx, qtx, ws, conn.ID, actor, meta.ResolvedFolders, now); err != nil {
+		return DriveFileView{}, err
+	}
+	params := normalizeMetadataForDB(meta, lockedFile.ExternalFileID, now)
+	resolveWorkspaceFolderNameFallback(ctx, qtx, ws, &params)
 	if _, err := qtx.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
 		DriveFolderID:          params.DriveFolderID,
@@ -394,7 +404,12 @@ func (s *DriveFileService) Rebind(ctx context.Context, actor Actor, workspaceID,
 		return DriveFileView{}, ErrForbidden
 	}
 
-	params := normalizeMetadataForDB(meta, lockedFile.ExternalFileID, s.nowUTC())
+	now := s.nowUTC()
+	if err := upsertResolvedDriveFolders(ctx, qtx, ws, conn.ID, actor, meta.ResolvedFolders, now); err != nil {
+		return DriveFileView{}, err
+	}
+	params := normalizeMetadataForDB(meta, lockedFile.ExternalFileID, now)
+	resolveWorkspaceFolderNameFallback(ctx, qtx, ws, &params)
 	if _, err := s.rebindFileInTx(ctx, qtx, actor, ws, lockedFile, conn, params); err != nil {
 		return DriveFileView{}, err
 	}
@@ -624,10 +639,15 @@ func (s *DriveFileService) NameFolder(ctx context.Context, actor Actor, workspac
 		return DriveFolderNamedResult{}, err
 	}
 
-	folderName, err := s.api.FolderNameWithConnection(ctx, s.connections, conn, driveFolderID)
+	folderChain, err := s.api.FolderChainWithConnection(ctx, s.connections, conn, driveFolderID)
 	if err != nil {
 		return DriveFolderNamedResult{}, DriveFolderErrToCodedError(err)
 	}
+	if len(folderChain) == 0 || strings.TrimSpace(folderChain[0].Name) == "" {
+		return DriveFolderNamedResult{}, DriveFolderErrToCodedError(ErrDriveFolderNotFound)
+	}
+	firstFolder := folderChain[0]
+	folderName := strings.TrimSpace(firstFolder.Name)
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -642,18 +662,86 @@ func (s *DriveFileService) NameFolder(ctx context.Context, actor Actor, workspac
 	}
 	conn = lockedConn
 
-	updatedIDs, err := qtx.SetDriveFolderNameInWorkspace(ctx, db.SetDriveFolderNameInWorkspaceParams{
-		DriveFolderName: folderName,
-		OrganizationID:  ws.OrganizationID,
-		WorkspaceID:     ws.ID,
-		DriveFolderID:   driveFolderID,
-	})
-	if err != nil {
-		return DriveFolderNamedResult{}, err
+	now := s.nowUTC()
+	ts := pgtype.Timestamptz{Time: now, Valid: true}
+	kind := strings.TrimSpace(string(actor.Kind))
+	if kind == "" {
+		kind = "human"
 	}
 
-	events := make([]audit.Event, 0, len(updatedIDs))
-	for _, fileID := range updatedIDs {
+	var updatedIDs []string
+	seenUpdated := make(map[string]bool)
+	var allUpdatedIDs []string
+	for i, f := range folderChain {
+		fid := strings.TrimSpace(f.FolderID)
+		fname := strings.TrimSpace(f.Name)
+		if fid == "" || fname == "" {
+			continue
+		}
+		if i == 0 {
+			fid = driveFolderID
+		}
+		var parentID pgtype.Text
+		if pid := strings.TrimSpace(f.ParentFolderID); pid != "" && pid != fid {
+			parentID = pgtype.Text{String: pid, Valid: true}
+		}
+		if _, err := qtx.UpsertDriveFolder(ctx, db.UpsertDriveFolderParams{
+			ID:             util.NewID(),
+			OrganizationID: ws.OrganizationID,
+			WorkspaceID:    ws.ID,
+			ConnectionID:   conn.ID,
+			DriveFolderID:  fid,
+			Name:           fname,
+			ParentFolderID: parentID,
+			RefreshedAt:    ts,
+			CreatedBy:      actor.ID,
+			CreatedByKind:  kind,
+		}); err != nil {
+			return DriveFolderNamedResult{}, err
+		}
+		ids, err := qtx.SetDriveFolderNameInWorkspace(ctx, db.SetDriveFolderNameInWorkspaceParams{
+			DriveFolderName: fname,
+			OrganizationID:  ws.OrganizationID,
+			WorkspaceID:     ws.ID,
+			DriveFolderID:   fid,
+		})
+		if err != nil {
+			return DriveFolderNamedResult{}, err
+		}
+		if i == 0 {
+			updatedIDs = ids
+		}
+		for _, id := range ids {
+			if !seenUpdated[id] {
+				seenUpdated[id] = true
+				allUpdatedIDs = append(allUpdatedIDs, id)
+			}
+		}
+	}
+
+	if len(allUpdatedIDs) == 0 {
+		// When naming an ancestor folder that holds only subfolders and 0 direct files,
+		// find any active files in descendant folders in the workspace so other tabs
+		// receive a drive_file.updated invalidation event.
+		if wsFolders, ferr := qtx.ListWorkspaceDriveFolders(ctx, db.ListWorkspaceDriveFoldersParams{
+			OrganizationID: ws.OrganizationID,
+			WorkspaceID:    ws.ID,
+		}); ferr == nil && len(wsFolders) > 0 {
+			descIDs := collectDescendantFolderIDs(wsFolders, driveFolderID)
+			if len(descIDs) > 0 {
+				if descFileIDs, derr := qtx.ListActiveDriveFileIDsByFolderIDs(ctx, db.ListActiveDriveFileIDsByFolderIDsParams{
+					OrganizationID: ws.OrganizationID,
+					WorkspaceID:    ws.ID,
+					DriveFolderIds: descIDs,
+				}); derr == nil {
+					allUpdatedIDs = descFileIDs
+				}
+			}
+		}
+	}
+
+	events := make([]audit.Event, 0, len(allUpdatedIDs))
+	for _, fileID := range allUpdatedIDs {
 		events = append(events, audit.Event{
 			Topic:   "drive_file.updated",
 			Version: 1,
@@ -685,13 +773,47 @@ func (s *DriveFileService) NameFolder(ctx context.Context, actor Actor, workspac
 	}
 
 	nameCopy := folderName
+	var parentPtr *string
+	if pid := strings.TrimSpace(firstFolder.ParentFolderID); pid != "" && pid != driveFolderID {
+		parentPtr = &pid
+	}
 	return DriveFolderNamedResult{
 		DriveFolder: DriveFolderRefView{
-			ID:   driveFolderID,
-			Name: &nameCopy,
+			ID:       driveFolderID,
+			Name:     &nameCopy,
+			ParentID: parentPtr,
 		},
 		UpdatedCount: len(updatedIDs),
 	}, nil
+}
+
+func collectDescendantFolderIDs(rows []db.ListWorkspaceDriveFoldersRow, rootFolderID string) []string {
+	childrenByParent := make(map[string][]string, len(rows))
+	for _, r := range rows {
+		if r.ParentFolderID.Valid && strings.TrimSpace(r.ParentFolderID.String) != "" {
+			pid := strings.TrimSpace(r.ParentFolderID.String)
+			cid := strings.TrimSpace(r.DriveFolderID)
+			if cid != "" && cid != pid {
+				childrenByParent[pid] = append(childrenByParent[pid], cid)
+			}
+		}
+	}
+	visited := map[string]bool{rootFolderID: true}
+	queue := []string{rootFolderID}
+	var out []string
+	for len(queue) > 0 && len(out) < 64 {
+		curr := queue[0]
+		queue = queue[1:]
+		for _, child := range childrenByParent[curr] {
+			if visited[child] {
+				continue
+			}
+			visited[child] = true
+			out = append(out, child)
+			queue = append(queue, child)
+		}
+	}
+	return out
 }
 
 func errDriveUseRebind() error {
