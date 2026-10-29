@@ -44,6 +44,19 @@ type TaskService struct {
 	Chat *ChatService
 	// driveFiles links Google Drive references attached on task create (UNI-2180, spec §7.2).
 	driveFiles *DriveFileService
+	// testBeginTx overrides pool.Begin in DB-free unit tests when non-nil.
+	testBeginTx func(ctx context.Context) (*db.Queries, func(context.Context) error, func(context.Context) error, error)
+}
+
+func (s *TaskService) beginTx(ctx context.Context) (*db.Queries, func(context.Context) error, func(context.Context) error, error) {
+	if s.testBeginTx != nil {
+		return s.testBeginTx(ctx)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return s.q.WithTx(tx), tx.Commit, tx.Rollback, nil
 }
 
 func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, store storage.Storage) *TaskService {
@@ -367,16 +380,17 @@ func (s *TaskService) Create(ctx context.Context, actor Actor, workspaceID strin
 	if err != nil {
 		return db.Task{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
+	q, commitTx, rollbackTx, err := s.beginTx(ctx)
 	if err != nil {
 		return db.Task{}, err
 	}
-	defer tx.Rollback(ctx)
-	task, err := s.createTaskInTx(ctx, s.q.WithTx(tx), actor, ws, workspaceID, in)
+	defer func() { _ = rollbackTx(ctx) }()
+	in.preparedDriveFiles = nil
+	task, err := s.createTaskInTx(ctx, q, actor, ws, workspaceID, in)
 	if err != nil {
 		return db.Task{}, err
 	}
-	if err := tx.Commit(ctx); err != nil {
+	if err := commitTx(ctx); err != nil {
 		return db.Task{}, err
 	}
 	return task, nil
@@ -410,12 +424,11 @@ func (s *TaskService) CreateManyWith(ctx context.Context, actor Actor, workspace
 	if err != nil {
 		return nil, err
 	}
-	tx, err := s.pool.Begin(ctx)
+	q, commitTx, rollbackTx, err := s.beginTx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
+	defer func() { _ = rollbackTx(ctx) }()
 	if opts.Before != nil {
 		if err := opts.Before(ctx, q, ws); err != nil {
 			return nil, err
@@ -425,10 +438,16 @@ func (s *TaskService) CreateManyWith(ctx context.Context, actor Actor, workspace
 	if opts.KeepOrder {
 		order = newCreateOrder(len(inputs))
 	}
-	var batchParentCache driveFolderWalkCache
+	var (
+		batchParentCache driveFolderWalkCache
+		preparedByTask   [][]preparedTaskDriveFile
+	)
 	for i := range inputs {
-		if len(inputs[i].DriveFiles) == 0 || len(inputs[i].preparedDriveFiles) > 0 {
+		if len(inputs[i].DriveFiles) == 0 {
 			continue
+		}
+		if preparedByTask == nil {
+			preparedByTask = make([][]preparedTaskDriveFile, len(inputs))
 		}
 		if batchParentCache == nil {
 			batchParentCache = make(driveFolderWalkCache, len(inputs[i].DriveFiles))
@@ -437,11 +456,16 @@ func (s *TaskService) CreateManyWith(ctx context.Context, actor Actor, workspace
 		if err != nil {
 			return nil, err
 		}
-		inputs[i].preparedDriveFiles = prep
+		preparedByTask[i] = prep
 	}
 	tasks := make([]db.Task, 0, len(inputs))
-	for _, in := range inputs {
+	for i, in := range inputs {
 		in.order = order
+		if i < len(preparedByTask) {
+			in.preparedDriveFiles = preparedByTask[i]
+		} else {
+			in.preparedDriveFiles = nil
+		}
 		task, err := s.createTaskInTx(ctx, q, actor, ws, workspaceID, in)
 		if err != nil {
 			return nil, err
@@ -453,7 +477,7 @@ func (s *TaskService) CreateManyWith(ctx context.Context, actor Actor, workspace
 			return nil, err
 		}
 	}
-	if err := tx.Commit(ctx); err != nil {
+	if err := commitTx(ctx); err != nil {
 		return nil, err
 	}
 	return tasks, nil

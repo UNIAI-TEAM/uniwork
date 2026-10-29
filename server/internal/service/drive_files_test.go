@@ -1071,6 +1071,42 @@ func TestCreateTaskWithDriveFilesAtomicRollback(t *testing.T) {
 	if err != nil || len(cards) != 1 || cards[0].ExternalFileID != "ext-tc-ok" {
 		t.Fatalf("ListForTask on created task = %+v, err=%v", cards, err)
 	}
+	// 2b (RB4-3). A failed CreateManyWith batch followed by retrying the same
+	// inputs slice with DriveFiles changed from A (ext-tc-ok) to B (ext-tc-ok-b)
+	// links B, never retaining prepared metadata from the failed invocation.
+	env.googleSrv.SetFile("ext-tc-ok-b", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "ext-tc-ok-b",
+			Name:     "OK File B",
+			MimeType: DriveMimeGoogleDoc,
+		},
+	})
+	batchRetrySlice := []CreateTaskInput{
+		{
+			Title:      "", // fails validation after batch preparation of A
+			DriveFiles: []CreateTaskDriveFileInput{{ConnectionID: connA.ID, ExternalFileID: "ext-tc-ok"}},
+		},
+	}
+	if _, err := env.taskSvc.CreateManyWith(ctx, Human(env.owner.ID), env.wsA.ID, batchRetrySlice, CreateManyOptions{}); err == nil {
+		t.Fatalf("CreateManyWith with empty title succeeded, want validation error")
+	}
+	batchRetrySlice[0].Title = "Batch Retry Task B"
+	batchRetrySlice[0].DriveFiles = []CreateTaskDriveFileInput{{ConnectionID: connA.ID, ExternalFileID: "ext-tc-ok-b"}}
+	retriedTasks, err := env.taskSvc.CreateManyWith(ctx, Human(env.owner.ID), env.wsA.ID, batchRetrySlice, CreateManyOptions{})
+	if err != nil || len(retriedTasks) != 1 {
+		t.Fatalf("CreateManyWith retry with B = %+v, err=%v", retriedTasks, err)
+	}
+	retriedCards, err := env.fileSvc.ListForTask(ctx, Human(env.owner.ID), retriedTasks[0].ID)
+	if err != nil || len(retriedCards) != 1 || retriedCards[0].ExternalFileID != "ext-tc-ok-b" {
+		t.Fatalf("ListForTask on retried batch task = %+v, err=%v, want ext-tc-ok-b (not stale ext-tc-ok)", retriedCards, err)
+	}
+	if err := env.taskSvc.Delete(ctx, env.owner.ID, retriedTasks[0].ID); err != nil {
+		t.Fatalf("Delete retriedTasks[0]: %v", err)
+	}
+	if err := env.taskSvc.Purge(ctx, Human(env.owner.ID), retriedTasks[0].ID); err != nil {
+		t.Fatalf("Purge retriedTasks[0]: %v", err)
+	}
+
 	// 3 (F09 + UNI-2171 trash). Single and batch task deletion (Trash) keep the
 	// task's drive_file_task_links rows so Restore brings them back with no relink,
 	// while Drive reads (Get, ListMine, ListForTask, and the task-link visibility
