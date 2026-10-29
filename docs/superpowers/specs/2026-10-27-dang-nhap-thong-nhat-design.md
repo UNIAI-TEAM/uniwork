@@ -100,7 +100,9 @@ type ProviderIdentity struct {
 ```
 
 - ⚑ `EmailAuthoritative`: Google — `email` thuộc `gmail.com`/`googlemail.com`, hoặc claim `hd` bằng domain của email
-  (Workspace). Apple — `icloud.com`/`me.com`/`mac.com`, hoặc relay (`@privaterelay.appleid.com`). Thêm `hd` vào
+  (Workspace). Apple — `icloud.com`/`me.com`/`mac.com`, hoặc relay (`@privaterelay.appleid.com`, và
+  `@private.icloud.com` cho địa chỉ Apple cấp từ cuối 2026 — UNI-2287; một danh sách mỗi phía, `appleRelayDomains`
+  của server và `APPLE_RELAY_DOMAINS` của core, giữ khớp bằng `scripts/apple-relay-domains.test.mjs`). Thêm `hd` vào
   `GoogleClaims`.
 
 `resolveIdentity(ctx, q, id) (resolution, error)` — **thứ tự đánh giá cố định**:
@@ -508,7 +510,8 @@ thiếu hay giá trị khác thì theo cookie rồi tiếng Anh như web, `TestN
 }
 ```
 
-`private_relay` suy từ hậu tố `@privaterelay.appleid.com`. `SignInMethodsChangeSDO = {user, sign_in_methods}`; client
+`private_relay` suy từ tên miền sau `@` cuối, đúng bằng một tên miền relay (`privaterelay.appleid.com`,
+`private.icloud.com`). `SignInMethodsChangeSDO = {user, sign_in_methods}`; client
 chỉ ghi `user` vào phiên khi parse đúng, không thì gọi lại `/me` (không bao giờ ghi user dự phòng).
 
 | Route | Vào | Ra |
