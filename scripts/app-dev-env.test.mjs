@@ -84,6 +84,18 @@ test("business env files carry no secrets", () => {
   assert.equal(build.get("NEXT_PUBLIC_APP_URL"), "https://uniwork.unicomhub.com");
 });
 
+test("the staging app signs in on dev, production takes only the store app", () => {
+  // No staging server: the EAS preview environment points the staging build at dev,
+  // and tls-pins.json pins the dev host for it.
+  const dev = assignments("deploy/app-dev/env/uniwork-be.env");
+  assert.equal(dev.get("APPLE_SIWA_AUDIENCES"), "com.uniworkos.chat.staging");
+  assert.equal(dev.get("APPLE_SIWA_TEAM_ID"), "XJAM488A6D");
+  const prod = assignments("deploy/app/env/uniwork-be.env");
+  assert.equal(prod.get("APPLE_SIWA_AUDIENCES"), "com.uniworkos.chat");
+  const pins = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/tls-pins.json"), "utf8"));
+  assert.equal(pins.hosts.staging.includes("uniwork.unicomhub.com"), true);
+});
+
 test("compose files pin registry images", () => {
   const compose = fs.readFileSync(path.join(root, "deploy/app-dev/docker-compose.yml"), "utf8");
   assert.match(compose, /^name: uniwork-app-dev$/m);
