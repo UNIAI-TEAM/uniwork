@@ -951,6 +951,66 @@ func TestDriveAPIFolderParentAndFolderNameResolution(t *testing.T) {
 		t.Fatalf("distinct parent calls = %d, want 2", diffParentCalls)
 	}
 
+	// 6b. Connection-scoped batch cache (RB1-1): two connections of the same viewer
+	// with asymmetric folder grants must not share positive or negative folder entries.
+	tokensMulti := &fakeDriveTokenSource{tokensByConn: map[string]string{
+		"conn-a": "tok-conn-a",
+		"conn-b": "tok-conn-b",
+	}}
+	connA := db.DriveConnection{ID: "conn-a"}
+	connB := db.DriveConnection{ID: "conn-b"}
+	gSrv.SetFile("file-asym", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "file-asym", Name: "Asym Doc", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-asym"}},
+	})
+	// Case 1 (negative then positive): conn-a gets 404 on fld-asym, conn-b gets 200.
+	gSrv.SetFile("fld-asym", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-asym", Name: "Asym Folder", MimeType: DriveMimeGoogleFolder},
+		ErrorByToken: map[string]FakeGoogleDriveErrorResponse{
+			"tok-conn-a": {Status: http.StatusNotFound, Reason: "notFound"},
+		},
+	})
+	cacheNegPos := make(driveFolderWalkCache)
+	mNegFirst, err := gSrv.Client.filesGetWithConnectionAndParentCache(ctx, tokensMulti, connA, "file-asym", cacheNegPos)
+	if err != nil || len(mNegFirst.ResolvedFolders) != 0 || mNegFirst.ParentFolderName != "" {
+		t.Fatalf("connA negative first = (%+v, %v), want 0 resolved folders", mNegFirst, err)
+	}
+	beforeConnB := len(gSrv.Calls())
+	mPosSecond, err := gSrv.Client.filesGetWithConnectionAndParentCache(ctx, tokensMulti, connB, "file-asym", cacheNegPos)
+	if err != nil {
+		t.Fatalf("connB positive second: %v", err)
+	}
+	connBFolderCalls := 0
+	for _, c := range gSrv.Calls()[beforeConnB:] {
+		if c.FileID == "fld-asym" && c.Token == "tok-conn-b" {
+			connBFolderCalls++
+		}
+	}
+	if len(mPosSecond.ResolvedFolders) != 1 || mPosSecond.ParentFolderName != "Asym Folder" || connBFolderCalls != 1 {
+		t.Fatalf("negative->positive: secondFolders=%d name=%q secondConnectionFolderCalls=%d, want 1, Asym Folder, 1",
+			len(mPosSecond.ResolvedFolders), mPosSecond.ParentFolderName, connBFolderCalls)
+	}
+	// Case 2 (positive then negative): conn-b gets 200 on fld-asym, then conn-a gets 404 (must not reuse conn-b's success).
+	cachePosNeg := make(driveFolderWalkCache)
+	mPosFirst, err := gSrv.Client.filesGetWithConnectionAndParentCache(ctx, tokensMulti, connB, "file-asym", cachePosNeg)
+	if err != nil || len(mPosFirst.ResolvedFolders) != 1 || mPosFirst.ParentFolderName != "Asym Folder" {
+		t.Fatalf("connB positive first = (%+v, %v), want 1 resolved folder", mPosFirst, err)
+	}
+	beforeConnA := len(gSrv.Calls())
+	mNegSecond, err := gSrv.Client.filesGetWithConnectionAndParentCache(ctx, tokensMulti, connA, "file-asym", cachePosNeg)
+	if err != nil {
+		t.Fatalf("connA negative second: %v", err)
+	}
+	connAFolderCalls := 0
+	for _, c := range gSrv.Calls()[beforeConnA:] {
+		if c.FileID == "fld-asym" && c.Token == "tok-conn-a" {
+			connAFolderCalls++
+		}
+	}
+	if len(mNegSecond.ResolvedFolders) != 0 || mNegSecond.ParentFolderName != "" || connAFolderCalls != 1 {
+		t.Fatalf("positive->negative: secondFolders=%d name=%q secondConnectionFolderCalls=%d, want 0, \"\", 1",
+			len(mNegSecond.ResolvedFolders), mNegSecond.ParentFolderName, connAFolderCalls)
+	}
+
 	// 7. Optional parent lookup runs under a child context with a 3s timeout
 	// (configurable on DriveAPIClient for fast unit tests): when the parent
 	// lookup blocks longer than the child budget, the parent request is canceled,

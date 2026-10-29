@@ -152,9 +152,23 @@ type DriveFolderMetadata struct {
 }
 
 // driveFolderWalkCache caches folder metadata lookups within a single Link or
-// refresh batch so shared ancestors are queried at most once. A nil pointer entry
-// records a negative (403/404) lookup in the current batch.
-type driveFolderWalkCache map[string]*DriveFolderMetadata
+// refresh batch, partitioned by connection ID and then by Drive folder ID so
+// shared ancestors are queried at most once per connection. A nil pointer entry
+// records a negative (403/404) lookup in the current batch for that connection.
+type driveFolderWalkCache map[string]map[string]*DriveFolderMetadata
+
+func (m driveFolderWalkCache) forConnection(connID string) map[string]*DriveFolderMetadata {
+	if m == nil {
+		return nil
+	}
+	key := strings.TrimSpace(connID)
+	sub, ok := m[key]
+	if !ok {
+		sub = make(map[string]*DriveFolderMetadata)
+		m[key] = sub
+	}
+	return sub
+}
 
 // DriveAPIClient calls Google Drive REST v3 over a 15-second HTTP client that
 // refuses redirects outside Google hosts (spec §8.3).
@@ -296,7 +310,7 @@ func (c *DriveAPIClient) filesGetWithConnectionAndParentCache(
 		return meta, err
 	}
 	if meta.ParentFolderID != "" && c != nil {
-		chain := c.walkFolderChain(ctx, tokens, usedToken, meta.ParentFolderID, walkCache)
+		chain := c.walkFolderChain(ctx, tokens, usedToken, meta.ParentFolderID, walkCache.forConnection(conn.ID))
 		if len(chain) > 0 {
 			meta.ResolvedFolders = chain
 			if meta.ParentFolderName == "" && chain[0].FolderID == meta.ParentFolderID {
@@ -346,7 +360,7 @@ func (c *DriveAPIClient) FolderChainWithConnection(ctx context.Context, tokens D
 	}
 	chain := []DriveFolderMetadata{first}
 	if first.ParentFolderID != "" && c != nil {
-		cache := driveFolderWalkCache{
+		cache := map[string]*DriveFolderMetadata{
 			first.FolderID: &first,
 		}
 		ancestors := c.walkFolderChainWithDepth(ctx, tokens, usedToken, first.ParentFolderID, cache, driveFolderWalkMaxDepth-1, first.FolderID)
@@ -370,7 +384,7 @@ func (c *DriveAPIClient) walkFolderChain(
 	tokens DriveTokenSource,
 	accessToken string,
 	startFolderID string,
-	cache driveFolderWalkCache,
+	cache map[string]*DriveFolderMetadata,
 ) []DriveFolderMetadata {
 	return c.walkFolderChainWithDepth(ctx, tokens, accessToken, startFolderID, cache, driveFolderWalkMaxDepth)
 }
@@ -380,7 +394,7 @@ func (c *DriveAPIClient) walkFolderChainWithDepth(
 	tokens DriveTokenSource,
 	accessToken string,
 	startFolderID string,
-	cache driveFolderWalkCache,
+	cache map[string]*DriveFolderMetadata,
 	maxDepth int,
 	alreadyVisited ...string,
 ) []DriveFolderMetadata {
