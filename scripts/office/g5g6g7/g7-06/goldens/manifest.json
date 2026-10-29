@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "pinVersion": "0.1.0-6799c67",
-  "forkSha": "6799c67",
-  "capturedOn": "2026-10-28T10:51:47.297Z",
+  "pinVersion": "0.1.0-8d73c6b",
+  "forkSha": "8d73c6b",
+  "capturedOn": "2026-10-29T03:54:23.810Z",
   "viewport": {
     "desktop": {
       "w": 1440,
@@ -28,7 +28,7 @@
       "masks": []
     },
     "desktop/fx-docx-report-vi": {
-      "sha256": "b7e4b5a94eac7d4be3ca47afec5d45d89c91858b1e96042267760be6f69002d0",
+      "sha256": "830ac8201e658256e9b60c59d43afdb962c003b962540fb70d289150191d3782",
       "masks": []
     },
     "desktop/fx-pptx-deck-vi": {
@@ -40,7 +40,7 @@
       "masks": []
     },
     "desktop/fx-md-notes-vi": {
-      "sha256": "04a3feb2da47dec8f3d018ecaf9f125bcae638a52c52a08ebfe14122c686b36a",
+      "sha256": "19522d22080b77f52f120dd2cefdf5aaed63be0ef94d5ae803dad6acbf78892b",
       "masks": []
     },
     "desktop/fx-html-page-vi": {
@@ -48,11 +48,11 @@
       "masks": []
     },
     "web/fx-xlsx-revenue-xyz": {
-      "sha256": "e1ce24d4977c86e458bb24df2a05325c8570929f5ea6998c8ce55d3521d1a435",
+      "sha256": "a255f9c6df1bdece5ce162de63f9eb5c72a8e56b33a93a6fcf771ab006e78ca4",
       "masks": []
     },
     "web/fx-docx-report-vi": {
-      "sha256": "98c000f89fef493bbe44c041c4cf10171eb7f8a5465e8d27c3a588636cbc0146",
+      "sha256": "653ba08d306f7a8df30d66f108ad33903461e78a8a238c42d34f3de893c62d1d",
       "masks": []
     },
     "web/fx-pptx-deck-vi": {
@@ -60,11 +60,11 @@
       "masks": []
     },
     "web/fx-pdf-invoice-vi": {
-      "sha256": "968ef1332fb5571c1e1e2775d9c98143d3c42e02563da49868b249ac8a3b1c99",
+      "sha256": "8db1e1423a21a88b9faa66af3ae1be2bfdd5011ba91fb8f407a5584e2929eff1",
       "masks": []
     },
     "web/fx-md-notes-vi": {
-      "sha256": "9724831a731b8062f20552ebf0b0933f11b5ed2985c09df5e01ea1620063ca2c",
+      "sha256": "840f80cf42c0c877ccba0cf51fa4c92a538704fb2e41e7fcabdd438d48022543",
       "masks": []
     },
     "web/fx-html-page-vi": {
