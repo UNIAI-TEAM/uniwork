@@ -58,6 +58,7 @@ var driveSDOTypes = map[string]reflect.Type{
 	"DriveProposalDuplicatesSDO":      reflect.TypeFor[sdo.DriveProposalDuplicatesSDO](),
 	"DriveProposalCreatedTaskItemDTO": reflect.TypeFor[sdo.DriveProposalCreatedTaskItemDTO](),
 	"DriveProposalTasksCreatedSDO":    reflect.TypeFor[sdo.DriveProposalTasksCreatedSDO](),
+	"DriveFolderNamedDTO":             reflect.TypeFor[sdo.DriveFolderNamedDTO](),
 	"DriveFolderNamedSDO":             reflect.TypeFor[sdo.DriveFolderNamedSDO](),
 	"DriveFolderGroupDTO":             reflect.TypeFor[sdo.DriveFolderGroupDTO](),
 	"DriveFolderListSDO":              reflect.TypeFor[sdo.DriveFolderListSDO](),
@@ -158,6 +159,7 @@ func TestDriveLinkReceiptOmitsOtherMemberIdentities(t *testing.T) {
 		"id",
 		"workspace_id",
 		"external_file_id",
+		"drive_folder",
 		"name",
 		"mime_type",
 		"icon_kind",
@@ -364,20 +366,37 @@ func TestDriveFileDTODriveFolderShape(t *testing.T) {
 		t.Fatalf("dtoNamed drive_folder = %+v, want id=fld-1 name=Kế hoạch Q4", mapNamed["drive_folder"])
 	}
 
-	// 4. DriveFileLinkReceiptDTO and DriveTaskFileCardDTO do not carry drive_folder.
-	for _, typ := range []reflect.Type{
-		reflect.TypeFor[sdo.DriveFileLinkReceiptDTO](),
-		reflect.TypeFor[sdo.DriveTaskFileCardDTO](),
-	} {
-		for i := range typ.NumField() {
-			if strings.Split(typ.Field(i).Tag.Get("json"), ",")[0] == "drive_folder" {
-				t.Errorf("%s must not expose drive_folder", typ.Name())
-			}
+	// 4. DriveTaskFileCardDTO does not carry drive_folder, whereas DriveFileLinkReceiptDTO
+	// carries drive_folder: {id, name} | null (UNI-2291).
+	cardType := reflect.TypeFor[sdo.DriveTaskFileCardDTO]()
+	for i := range cardType.NumField() {
+		if strings.Split(cardType.Field(i).Tag.Get("json"), ",")[0] == "drive_folder" {
+			t.Errorf("%s must not expose drive_folder", cardType.Name())
 		}
 	}
-	// 5. DriveFolderNamedSDO marshals updated_count (not updated_files).
+	receiptUnnamed := sdo.DriveFileLinkReceiptDTO{
+		ID:             "01J8X4DRVFILE0N1P2Q3R4S5T6",
+		WorkspaceID:    "01J8X4WS0N1P2Q3R4S5T6U7V8",
+		ExternalFileID: "ext-1",
+		DriveFolder:    &sdo.DriveFolderRefDTO{ID: "fld-unpicked", Name: nil},
+	}
+	rawReceipt, err := json.Marshal(receiptUnnamed)
+	if err != nil {
+		t.Fatalf("marshal receiptUnnamed: %v", err)
+	}
+	var mapReceipt map[string]any
+	if err := json.Unmarshal(rawReceipt, &mapReceipt); err != nil {
+		t.Fatalf("unmarshal receiptUnnamed: %v", err)
+	}
+	recFolder, ok := mapReceipt["drive_folder"].(map[string]any)
+	if !ok || recFolder["id"] != "fld-unpicked" || recFolder["name"] != nil {
+		t.Fatalf("receiptUnnamed drive_folder = %+v, want {id:fld-unpicked, name:nil}", mapReceipt["drive_folder"])
+	}
+
+	// 5. DriveFolderNamedSDO marshals drive_folder {id, name, parent_id} and updated_count (not updated_files).
+	parentID := "fld-parent-1"
 	namedSDO := sdo.DriveFolderNamedSDO{
-		DriveFolder:  sdo.DriveFolderRefDTO{ID: "fld-1", Name: &folderName},
+		DriveFolder:  sdo.DriveFolderNamedDTO{ID: "fld-1", Name: &folderName, ParentID: &parentID},
 		UpdatedCount: 3,
 	}
 	rawNamedSDO, err := json.Marshal(namedSDO)
@@ -391,10 +410,28 @@ func TestDriveFileDTODriveFolderShape(t *testing.T) {
 	if mapNamedSDO["updated_count"] != float64(3) {
 		t.Fatalf("DriveFolderNamedSDO updated_count = %v, want 3", mapNamedSDO["updated_count"])
 	}
+	namedFolderMap, ok := mapNamedSDO["drive_folder"].(map[string]any)
+	if !ok || namedFolderMap["id"] != "fld-1" || namedFolderMap["name"] != "Kế hoạch Q4" || namedFolderMap["parent_id"] != "fld-parent-1" {
+		t.Fatalf("DriveFolderNamedSDO drive_folder = %+v, want {id:fld-1, name:Kế hoạch Q4, parent_id:fld-parent-1}", mapNamedSDO["drive_folder"])
+	}
 	if _, hasOldKey := mapNamedSDO["updated_files"]; hasOldKey {
 		t.Fatalf("DriveFolderNamedSDO must not expose updated_files: %+v", mapNamedSDO)
 	}
 
+	// 5b. DriveFolderGroupDTO always serializes parent_id (string or null).
+	groupID := "fld-root-1"
+	groupRoot := sdo.DriveFolderGroupDTO{ID: &groupID, Name: &folderName, ParentID: nil, FileCount: 2}
+	rawGroupRoot, err := json.Marshal(groupRoot)
+	if err != nil {
+		t.Fatalf("marshal groupRoot: %v", err)
+	}
+	var mapGroupRoot map[string]any
+	if err := json.Unmarshal(rawGroupRoot, &mapGroupRoot); err != nil {
+		t.Fatalf("unmarshal groupRoot: %v", err)
+	}
+	if pVal, pExists := mapGroupRoot["parent_id"]; !pExists || pVal != nil {
+		t.Fatalf("groupRoot parent_id = (%v, exists=%v), want (nil, true)", pVal, pExists)
+	}
 	// 6. DriveFileListSDO marshals top-level drive_folder_id as null when nil,
 	// "none" when filtering parentless files, and "<id>" when filtering by folder id.
 	listUnfiltered := sdo.DriveFileListSDO{Files: []sdo.DriveFileDTO{}, TotalCount: 0}

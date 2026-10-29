@@ -1290,14 +1290,22 @@ func (w *isoWorld) buildSeeded(t *testing.T, tn *isoTenant) {
 	// A linked Google Drive file, the owner's read-access row, and its task link
 	// (UNI-2180, B4): seeded so drive_files, drive_file_access and
 	// drive_file_task_links hold rows of the tenant's.
+	tn.ids["driveFolder"] = util.NewID()
+	isoFolderID := "iso-folder-" + strings.ToLower(m)
+	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_folders
+		(id, organization_id, workspace_id, connection_id, drive_folder_id, name, parent_folder_id, refreshed_at, created_by, created_by_kind)
+		VALUES ($1, $2, $3, $4, $5, $6, NULL, now(), $7, 'human')`,
+		tn.ids["driveFolder"], tn.orgID, tn.wsID, tn.ids["driveConnection"], isoFolderID, m+" Drive Folder", tn.userID); err != nil {
+		t.Fatalf("drive folder: %v", err)
+	}
 	tn.ids["driveFile"] = util.NewID()
 	extFileID := "ext-drive-" + strings.ToLower(m)
 	if _, err := w.pool.Exec(ctx, `INSERT INTO drive_files
-		(id, organization_id, workspace_id, external_file_id, connection_id, bound_by, created_by, created_by_kind,
+		(id, organization_id, workspace_id, external_file_id, drive_folder_id, drive_folder_name, connection_id, bound_by, created_by, created_by_kind,
 		 name, mime_type, icon_kind, web_view_link, owner_display, sharing_state, metadata_refreshed_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $6, 'human', $7, 'application/vnd.google-apps.document', 'google_doc',
-		        $8, $9, 'shared', now())`,
-		tn.ids["driveFile"], tn.orgID, tn.wsID, extFileID, tn.ids["driveConnection"], tn.userID,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, 'human', $9, 'application/vnd.google-apps.document', 'google_doc',
+		        $10, $11, 'shared', now())`,
+		tn.ids["driveFile"], tn.orgID, tn.wsID, extFileID, isoFolderID, m+" Drive Folder", tn.ids["driveConnection"], tn.userID,
 		m+" Drive Doc", "https://docs.google.com/document/d/"+extFileID+"/edit", m+" Owner"); err != nil {
 		t.Fatalf("drive file: %v", err)
 	}

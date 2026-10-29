@@ -904,7 +904,7 @@ func TestDriveAPIFolderParentAndFolderNameResolution(t *testing.T) {
 		Metadata: googleDriveFileJSON{ID: "fld-batch-same", Name: "Shared Batch Folder", MimeType: DriveMimeGoogleFolder},
 	})
 	beforeSame := len(gSrv.Calls())
-	cacheSame := make(map[string]string)
+	cacheSame := make(driveFolderWalkCache)
 	ms1, err := gSrv.Client.filesGetWithConnectionAndParentCache(ctx, tokens, conn, "batch-same-1", cacheSame)
 	if err != nil || ms1.ParentFolderName != "Shared Batch Folder" {
 		t.Fatalf("batch-same-1 = (%+v, %v)", ms1, err)
@@ -930,7 +930,7 @@ func TestDriveAPIFolderParentAndFolderNameResolution(t *testing.T) {
 		Metadata: googleDriveFileJSON{ID: "batch-diff-2", Name: "Diff 2", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-diff-b"}},
 	})
 	beforeDiff := len(gSrv.Calls())
-	cacheDiff := make(map[string]string)
+	cacheDiff := make(driveFolderWalkCache)
 	if _, err := gSrv.Client.filesGetWithConnectionAndParentCache(ctx, tokens, conn, "batch-diff-1", cacheDiff); err != nil {
 		t.Fatal(err)
 	}
@@ -992,6 +992,101 @@ func TestDriveAPIFolderParentAndFolderNameResolution(t *testing.T) {
 	}
 	if callerCtx.Err() != nil {
 		t.Fatalf("callerCtx err = %v, want nil", callerCtx.Err())
+	}
+}
+
+// TestDriveAPIFolderWalkDepthCycleAndCache (UNI-2291) verifies without a database:
+//   - FolderChainWithConnection walks multi-level parents C -> B -> A while 200 OK
+//   - stops cleanly when an ancestor returns 404/403 (e.g. My Drive root)
+//   - enforces driveFolderWalkMaxDepth = 10
+//   - stops on cycle (X -> Y -> X or self-parent X -> X)
+//   - FakeDriveProvider.SetFolderParent and SetFileParent support multi-level chains.
+func TestDriveAPIFolderWalkDepthCycleAndCache(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	gSrv := NewFakeGoogleDriveServer(t.Cleanup)
+	tokens := &fakeDriveTokenSource{tokensByConn: map[string]string{"conn-walk": "tok-walk"}}
+	conn := db.DriveConnection{ID: "conn-walk"}
+
+	// 1. A -> B -> C chain where A's parent is My Drive root (404).
+	gSrv.SetFile("fld-a", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-a", Name: "Branch A", MimeType: DriveMimeGoogleFolder, Parents: []string{"my-drive-root-404"}},
+	})
+	gSrv.SetFile("fld-b", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-b", Name: "Mid B", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-a"}},
+	})
+	gSrv.SetFile("fld-c", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-c", Name: "Leaf C", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-b"}},
+	})
+	gSrv.SetFile("file-in-c", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "file-in-c", Name: "Doc in C", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-c"}},
+	})
+
+	fMeta, err := gSrv.Client.FilesGetWithConnection(ctx, tokens, conn, "file-in-c")
+	if err != nil {
+		t.Fatalf("FilesGetWithConnection file-in-c: %v", err)
+	}
+	if fMeta.ParentFolderID != "fld-c" || fMeta.ParentFolderName != "Leaf C" {
+		t.Fatalf("file-in-c parent = (%q, %q), want (fld-c, Leaf C)", fMeta.ParentFolderID, fMeta.ParentFolderName)
+	}
+	if len(fMeta.ResolvedFolders) != 3 ||
+		fMeta.ResolvedFolders[0].FolderID != "fld-c" || fMeta.ResolvedFolders[0].ParentFolderID != "fld-b" ||
+		fMeta.ResolvedFolders[1].FolderID != "fld-b" || fMeta.ResolvedFolders[1].ParentFolderID != "fld-a" ||
+		fMeta.ResolvedFolders[2].FolderID != "fld-a" || fMeta.ResolvedFolders[2].ParentFolderID != "my-drive-root-404" {
+		t.Fatalf("file-in-c ResolvedFolders = %+v", fMeta.ResolvedFolders)
+	}
+
+	chainC, err := gSrv.Client.FolderChainWithConnection(ctx, tokens, conn, "fld-c")
+	if err != nil {
+		t.Fatalf("FolderChainWithConnection fld-c: %v", err)
+	}
+	if len(chainC) != 3 || chainC[0].FolderID != "fld-c" || chainC[1].FolderID != "fld-b" || chainC[2].FolderID != "fld-a" {
+		t.Fatalf("FolderChainWithConnection fld-c = %+v", chainC)
+	}
+
+	// 2. Cycle guard: cyc-1 -> cyc-2 -> cyc-1 terminates after visiting each once.
+	gSrv.SetFile("cyc-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "cyc-1", Name: "Cycle 1", MimeType: DriveMimeGoogleFolder, Parents: []string{"cyc-2"}},
+	})
+	gSrv.SetFile("cyc-2", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "cyc-2", Name: "Cycle 2", MimeType: DriveMimeGoogleFolder, Parents: []string{"cyc-1"}},
+	})
+	cycChain, err := gSrv.Client.FolderChainWithConnection(ctx, tokens, conn, "cyc-1")
+	if err != nil {
+		t.Fatalf("FolderChainWithConnection cyc-1: %v", err)
+	}
+	if len(cycChain) != 2 || cycChain[0].FolderID != "cyc-1" || cycChain[1].FolderID != "cyc-2" {
+		t.Fatalf("cycChain = %+v, want [cyc-1, cyc-2]", cycChain)
+	}
+
+	// 3. Depth cap: 15-level chain stops at driveFolderWalkMaxDepth (10).
+	for i := range 15 {
+		id := "deep-" + string(rune('a'+i))
+		parent := "deep-" + string(rune('a'+i+1))
+		gSrv.SetFile(id, FakeGoogleDriveFile{
+			Metadata: googleDriveFileJSON{ID: id, Name: "Deep " + id, MimeType: DriveMimeGoogleFolder, Parents: []string{parent}},
+		})
+	}
+	deepChain, err := gSrv.Client.FolderChainWithConnection(ctx, tokens, conn, "deep-a")
+	if err != nil {
+		t.Fatalf("FolderChainWithConnection deep-a: %v", err)
+	}
+	if len(deepChain) != driveFolderWalkMaxDepth {
+		t.Fatalf("len(deepChain) = %d, want %d", len(deepChain), driveFolderWalkMaxDepth)
+	}
+
+	// 4. FakeDriveProvider SetFolderParent / SetFileParent unit check.
+	fp := NewFakeDriveProvider(config.Config{})
+	fp.SetFolderParent("fake-c", "Fake C", "fake-b")
+	fp.SetFolderParent("fake-b", "Fake B", "")
+	fp.SetFileParent("fake-doc", "fake-c")
+	fm, ferr := fp.FilesGet(ctx, "tok", "fake-doc")
+	if ferr != nil || fm.ParentFolderID != "fake-c" {
+		t.Fatalf("FakeDriveProvider.FilesGet = (%+v, %v)", fm, ferr)
+	}
+	fc, ferr := fp.FolderGet(ctx, "tok", "fake-c")
+	if ferr != nil || fc.Name != "Fake C" || fc.ParentFolderID != "fake-b" {
+		t.Fatalf("FakeDriveProvider.FolderGet = (%+v, %v)", fc, ferr)
 	}
 }
 

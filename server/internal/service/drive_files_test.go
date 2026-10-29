@@ -2482,3 +2482,452 @@ func TestListMineDriveFolderFilter(t *testing.T) {
 		t.Fatalf("ListMine fld-alpha-01 after parent gained did not include %s: %+v", firstNoneExtID, alphaAfterGain.Files)
 	}
 }
+
+// TestAssembleDriveFolderTreeUnit (UNI-2291) verifies the DB-free in-memory
+// folder tree assembly, upward ancestor closure, viewer isolation, same-name
+// folders across branches, fallback to drive_files.drive_folder_name for old
+// rows without drive_folders, and cycle breaking.
+func TestAssembleDriveFolderTreeUnit(t *testing.T) {
+	t.Parallel()
+
+	// 1. A/B/C progressive naming:
+	// Step 1a: file in C while C, B, A are unpicked (not in drive_folders).
+	directCUnnamed := []db.ListMyDriveFoldersRow{
+		{
+			DriveFolderID:   pgtype.Text{String: "fld-c", Valid: true},
+			DriveFolderName: "",
+			ParentFolderID:  "",
+			FileCount:       2,
+		},
+		{
+			DriveFolderID: pgtype.Text{Valid: false},
+			FileCount:     1,
+		},
+	}
+	got0 := assembleDriveFolderTree(directCUnnamed, nil)
+	if len(got0) != 2 {
+		t.Fatalf("len(got0) = %d, want 2: %+v", len(got0), got0)
+	}
+	if got0[0].ID == nil || *got0[0].ID != "fld-c" || got0[0].Name != nil || got0[0].ParentID != nil || got0[0].FileCount != 2 {
+		t.Fatalf("got0[0] = %+v, want {id:fld-c, name:nil, parent_id:nil, count:2}", got0[0])
+	}
+	if got0[1].ID != nil || got0[1].Name != nil || got0[1].ParentID != nil || got0[1].FileCount != 1 {
+		t.Fatalf("got0[1] = %+v, want {id:nil, name:nil, parent_id:nil, count:1}", got0[1])
+	}
+
+	// Step 1b: C is named (parent B is still unpicked / not in drive_folders).
+	// Because B is not in the returned node set, C's parent_id must be nil (root).
+	wsAfterC := []db.ListWorkspaceDriveFoldersRow{
+		{
+			DriveFolderID:  "fld-c",
+			Name:           "Leaf C",
+			ParentFolderID: pgtype.Text{String: "fld-b", Valid: true},
+		},
+	}
+	directCNamed := []db.ListMyDriveFoldersRow{
+		{
+			DriveFolderID:   pgtype.Text{String: "fld-c", Valid: true},
+			DriveFolderName: "Leaf C",
+			ParentFolderID:  "fld-b",
+			FileCount:       2,
+		},
+	}
+	gotC := assembleDriveFolderTree(directCNamed, wsAfterC)
+	if len(gotC) != 1 || gotC[0].ID == nil || *gotC[0].ID != "fld-c" || gotC[0].Name == nil || *gotC[0].Name != "Leaf C" || gotC[0].ParentID != nil {
+		t.Fatalf("gotC = %+v, want single root node Leaf C with parent_id=nil", gotC)
+	}
+
+	// Step 1c: B is named (parent A is still unpicked). Now B appears with file_count=0,
+	// parent_id=nil, and C nests under B (parent_id="fld-b").
+	wsAfterB := append(wsAfterC, db.ListWorkspaceDriveFoldersRow{
+		DriveFolderID:  "fld-b",
+		Name:           "Mid B",
+		ParentFolderID: pgtype.Text{String: "fld-a", Valid: true},
+	})
+	gotBC := assembleDriveFolderTree(directCNamed, wsAfterB)
+	if len(gotBC) != 2 {
+		t.Fatalf("len(gotBC) = %d, want 2: %+v", len(gotBC), gotBC)
+	}
+	// Alphabetical: "Leaf C" then "Mid B".
+	if *gotBC[0].ID != "fld-c" || gotBC[0].ParentID == nil || *gotBC[0].ParentID != "fld-b" || gotBC[0].FileCount != 2 {
+		t.Fatalf("gotBC[0] = %+v, want fld-c parent=fld-b count=2", gotBC[0])
+	}
+	if *gotBC[1].ID != "fld-b" || gotBC[1].ParentID != nil || gotBC[1].FileCount != 0 {
+		t.Fatalf("gotBC[1] = %+v, want fld-b parent=nil count=0", gotBC[1])
+	}
+
+	// Step 1d: A is named (parent is My Drive root "0ANsRoot", which is not in drive_folders).
+	// Also add an unrelated folder branch "fld-other-member" in wsFolders that has 0 files for this viewer.
+	wsAfterA := append(wsAfterB,
+		db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  "fld-a",
+			Name:           "Alpha Root",
+			ParentFolderID: pgtype.Text{String: "0ANsMyDriveRoot", Valid: true},
+		},
+		db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  "fld-other-member",
+			Name:           "Unrelated Branch",
+			ParentFolderID: pgtype.Text{Valid: false},
+		},
+	)
+	gotABC := assembleDriveFolderTree(directCNamed, wsAfterA)
+	if len(gotABC) != 3 {
+		t.Fatalf("len(gotABC) = %d, want 3 (unrelated branch excluded): %+v", len(gotABC), gotABC)
+	}
+	// Alphabetical: "Alpha Root" (fld-a), "Leaf C" (fld-c), "Mid B" (fld-b).
+	if *gotABC[0].ID != "fld-a" || gotABC[0].ParentID != nil || gotABC[0].FileCount != 0 {
+		t.Fatalf("gotABC[0] = %+v, want fld-a parent=nil count=0", gotABC[0])
+	}
+	if *gotABC[1].ID != "fld-c" || gotABC[1].ParentID == nil || *gotABC[1].ParentID != "fld-b" || gotABC[1].FileCount != 2 {
+		t.Fatalf("gotABC[1] = %+v, want fld-c parent=fld-b count=2", gotABC[1])
+	}
+	if *gotABC[2].ID != "fld-b" || gotABC[2].ParentID == nil || *gotABC[2].ParentID != "fld-a" || gotABC[2].FileCount != 0 {
+		t.Fatalf("gotABC[2] = %+v, want fld-b parent=fld-a count=0", gotABC[2])
+	}
+
+	// 2. Two same-name folders ("Tài liệu") in two branches ("fld-branch-1" and "fld-branch-2").
+	wsSameName := []db.ListWorkspaceDriveFoldersRow{
+		{DriveFolderID: "fld-branch-1", Name: "Nhánh 1"},
+		{DriveFolderID: "fld-branch-2", Name: "Nhánh 2"},
+		{DriveFolderID: "fld-docs-1", Name: "Tài liệu", ParentFolderID: pgtype.Text{String: "fld-branch-1", Valid: true}},
+		{DriveFolderID: "fld-docs-2", Name: "Tài liệu", ParentFolderID: pgtype.Text{String: "fld-branch-2", Valid: true}},
+	}
+	directSameName := []db.ListMyDriveFoldersRow{
+		{DriveFolderID: pgtype.Text{String: "fld-docs-1", Valid: true}, DriveFolderName: "Tài liệu", ParentFolderID: "fld-branch-1", FileCount: 3},
+		{DriveFolderID: pgtype.Text{String: "fld-docs-2", Valid: true}, DriveFolderName: "Tài liệu", ParentFolderID: "fld-branch-2", FileCount: 5},
+	}
+	gotSame := assembleDriveFolderTree(directSameName, wsSameName)
+	if len(gotSame) != 4 {
+		t.Fatalf("len(gotSame) = %d, want 4: %+v", len(gotSame), gotSame)
+	}
+	byID := make(map[string]DriveFolderGroupView, 4)
+	for _, g := range gotSame {
+		byID[*g.ID] = g
+	}
+	if byID["fld-docs-1"].ParentID == nil || *byID["fld-docs-1"].ParentID != "fld-branch-1" || byID["fld-docs-1"].FileCount != 3 {
+		t.Fatalf("fld-docs-1 = %+v", byID["fld-docs-1"])
+	}
+	if byID["fld-docs-2"].ParentID == nil || *byID["fld-docs-2"].ParentID != "fld-branch-2" || byID["fld-docs-2"].FileCount != 5 {
+		t.Fatalf("fld-docs-2 = %+v", byID["fld-docs-2"])
+	}
+
+	// 3. Old data fallback: drive_files has drive_folder_name, but drive_folders is empty.
+	directLegacy := []db.ListMyDriveFoldersRow{
+		{DriveFolderID: pgtype.Text{String: "fld-legacy", Valid: true}, DriveFolderName: "Legacy Named Folder", ParentFolderID: "", FileCount: 4},
+	}
+	gotLegacy := assembleDriveFolderTree(directLegacy, nil)
+	if len(gotLegacy) != 1 || gotLegacy[0].Name == nil || *gotLegacy[0].Name != "Legacy Named Folder" || gotLegacy[0].ParentID != nil || gotLegacy[0].FileCount != 4 {
+		t.Fatalf("gotLegacy = %+v", gotLegacy)
+	}
+
+	// 4. Cycle guard: X -> Y -> X breaks back-edge so output is a valid forest.
+	wsCycle := []db.ListWorkspaceDriveFoldersRow{
+		{DriveFolderID: "fld-x", Name: "Folder X", ParentFolderID: pgtype.Text{String: "fld-y", Valid: true}},
+		{DriveFolderID: "fld-y", Name: "Folder Y", ParentFolderID: pgtype.Text{String: "fld-x", Valid: true}},
+	}
+	directCycle := []db.ListMyDriveFoldersRow{
+		{DriveFolderID: pgtype.Text{String: "fld-x", Valid: true}, DriveFolderName: "Folder X", ParentFolderID: "fld-y", FileCount: 1},
+	}
+	gotCycle := assembleDriveFolderTree(directCycle, wsCycle)
+	if len(gotCycle) != 2 {
+		t.Fatalf("len(gotCycle) = %d, want 2", len(gotCycle))
+	}
+	roots := 0
+	for _, g := range gotCycle {
+		if g.ParentID == nil {
+			roots++
+		}
+	}
+	if roots != 1 {
+		t.Fatalf("cycle guard must leave exactly 1 root node, got %d: %+v", roots, gotCycle)
+	}
+}
+
+// TestDriveFolderTreeUpwardWalkAndNesting (UNI-2291) verifies on PostgreSQL:
+//   - Linking a file in A/B/C while A, B, C are unpicked (404) creates C as an unnamed root
+//     and returns drive_folder: {id: "fld-c", name: nil} on the link receipt.
+//   - Naming C then B via NameFolder (while A still 404s) nests C under B (B -> C),
+//     even though B has 0 direct files (updated_count == 0 for B).
+//   - Naming A via NameFolder nests A -> B -> C.
+//   - Two same-name folders in two branches appear at their respective places in the tree.
+//   - Viewer isolation: another member's unrelated folder branch never leaks into ListFolders.
+func TestDriveFolderTreeUpwardWalkAndNesting(t *testing.T) {
+	env := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+	connOwner := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-tree-owner", "tree-owner@example.com")
+	connPeer := env.connectAccount(t, env.peer.ID, env.wsA.ID, "sub-tree-peer", "tree-peer@example.com")
+
+	// Initially A, B, C return 404 (unpicked); doc-in-c has parents: ["fld-c"].
+	env.googleSrv.SetFile("doc-in-c", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "doc-in-c",
+			Name:     "Spec in C",
+			MimeType: DriveMimeGoogleDoc,
+			Parents:  []string{"fld-c"},
+		},
+	})
+	linked, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"doc-in-c"},
+	})
+	if err != nil || len(linked) != 1 || linked[0].File == nil {
+		t.Fatalf("Link doc-in-c = %+v, err=%v", linked, err)
+	}
+	if linked[0].File.DriveFolder == nil || linked[0].File.DriveFolder.ID != "fld-c" || linked[0].File.DriveFolder.Name != nil {
+		t.Fatalf("link receipt DriveFolder = %+v, want {ID:fld-c, Name:nil}", linked[0].File.DriveFolder)
+	}
+
+	// Step 1: User picks C in Picker -> C is now readable (200) with parent "fld-b" (still 404).
+	env.googleSrv.SetFile("fld-c", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-c",
+			Name:     "spark",
+			MimeType: DriveMimeGoogleFolder,
+			Parents:  []string{"fld-b"},
+		},
+	})
+	namedC, err := env.fileSvc.NameFolder(ctx, Human(env.owner.ID), env.wsA.ID, "fld-c", connOwner.ID)
+	if err != nil {
+		t.Fatalf("NameFolder fld-c: %v", err)
+	}
+	if namedC.UpdatedCount != 1 || namedC.DriveFolder.ID != "fld-c" || namedC.DriveFolder.Name == nil || *namedC.DriveFolder.Name != "spark" || namedC.DriveFolder.ParentID == nil || *namedC.DriveFolder.ParentID != "fld-b" {
+		t.Fatalf("namedC = %+v, want id=fld-c name=spark parent_id=fld-b updated_count=1", namedC)
+	}
+
+	// Before B is picked, C sits at root (parent_id: nil in ListFolders).
+	treeAfterC, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
+	if err != nil || len(treeAfterC) != 1 || treeAfterC[0].ParentID != nil || *treeAfterC[0].Name != "spark" {
+		t.Fatalf("treeAfterC = %+v, err=%v", treeAfterC, err)
+	}
+
+	// Step 2: User picks B in Picker -> B is readable (200) with parent "fld-a" (still 404).
+	env.googleSrv.SetFile("fld-b", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-b",
+			Name:     "Mid B",
+			MimeType: DriveMimeGoogleFolder,
+			Parents:  []string{"fld-a"},
+		},
+	})
+	namedB, err := env.fileSvc.NameFolder(ctx, Human(env.owner.ID), env.wsA.ID, "fld-b", connOwner.ID)
+	if err != nil {
+		t.Fatalf("NameFolder fld-b: %v", err)
+	}
+	if namedB.UpdatedCount != 0 || namedB.DriveFolder.ID != "fld-b" || *namedB.DriveFolder.Name != "Mid B" || namedB.DriveFolder.ParentID == nil || *namedB.DriveFolder.ParentID != "fld-a" {
+		t.Fatalf("namedB = %+v, want updated_count=0 parent_id=fld-a", namedB)
+	}
+
+	// ListFolders now returns B (root, file_count=0) and C (parent_id="fld-b", file_count=1).
+	treeAfterB, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
+	if err != nil || len(treeAfterB) != 2 {
+		t.Fatalf("treeAfterB = %+v, err=%v", treeAfterB, err)
+	}
+	byIDB := map[string]DriveFolderGroupView{}
+	for _, g := range treeAfterB {
+		byIDB[*g.ID] = g
+	}
+	if byIDB["fld-b"].ParentID != nil || byIDB["fld-b"].FileCount != 0 {
+		t.Fatalf("fld-b in treeAfterB = %+v", byIDB["fld-b"])
+	}
+	if byIDB["fld-c"].ParentID == nil || *byIDB["fld-c"].ParentID != "fld-b" || byIDB["fld-c"].FileCount != 1 {
+		t.Fatalf("fld-c in treeAfterB = %+v", byIDB["fld-c"])
+	}
+
+	// Step 3: User picks A in Picker -> A is readable (200) with parent "my-drive-root-404".
+	env.googleSrv.SetFile("fld-a", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-a",
+			Name:     "UNC-AI_Factory",
+			MimeType: DriveMimeGoogleFolder,
+			Parents:  []string{"my-drive-root-404"},
+		},
+	})
+	namedA, err := env.fileSvc.NameFolder(ctx, Human(env.owner.ID), env.wsA.ID, "fld-a", connOwner.ID)
+	if err != nil {
+		t.Fatalf("NameFolder fld-a: %v", err)
+	}
+	if namedA.UpdatedCount != 0 || *namedA.DriveFolder.Name != "UNC-AI_Factory" {
+		t.Fatalf("namedA = %+v", namedA)
+	}
+
+	treeAfterA, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
+	if err != nil || len(treeAfterA) != 3 {
+		t.Fatalf("treeAfterA = %+v, err=%v", treeAfterA, err)
+	}
+	byIDA := map[string]DriveFolderGroupView{}
+	for _, g := range treeAfterA {
+		byIDA[*g.ID] = g
+	}
+	if byIDA["fld-a"].ParentID != nil || byIDA["fld-a"].FileCount != 0 || *byIDA["fld-a"].Name != "UNC-AI_Factory" {
+		t.Fatalf("fld-a in treeAfterA = %+v", byIDA["fld-a"])
+	}
+	if byIDA["fld-b"].ParentID == nil || *byIDA["fld-b"].ParentID != "fld-a" || byIDA["fld-b"].FileCount != 0 {
+		t.Fatalf("fld-b in treeAfterA = %+v", byIDA["fld-b"])
+	}
+	if byIDA["fld-c"].ParentID == nil || *byIDA["fld-c"].ParentID != "fld-b" || byIDA["fld-c"].FileCount != 1 {
+		t.Fatalf("fld-c in treeAfterA = %+v", byIDA["fld-c"])
+	}
+
+	// Step 4: Two same-name folders ("Tài liệu") in two branches + peer-only branch isolation.
+	env.googleSrv.SetFile("fld-x", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-x", Name: "Branch X", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("fld-docs-a", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-docs-a", Name: "Tài liệu", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-a"}},
+	})
+	env.googleSrv.SetFile("fld-docs-x", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-docs-x", Name: "Tài liệu", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-x"}},
+	})
+	env.googleSrv.SetFile("doc-docs-a", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "doc-docs-a", Name: "Doc A", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-docs-a"}},
+	})
+	env.googleSrv.SetFile("doc-docs-x", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "doc-docs-x", Name: "Doc X", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-docs-x"}},
+	})
+	if _, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"doc-docs-a", "doc-docs-x"},
+	}); err != nil {
+		t.Fatalf("Link same-name folders: %v", err)
+	}
+
+	// Peer links a file in a private branch "fld-peer-top -> fld-peer-sub".
+	env.googleSrv.SetFile("fld-peer-top", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-peer-top", Name: "Peer Top", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("fld-peer-sub", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-peer-sub", Name: "Peer Sub", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-peer-top"}},
+	})
+	env.googleSrv.SetFile("doc-peer-private", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "doc-peer-private", Name: "Peer Doc", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-peer-sub"}},
+	})
+	if _, err := env.fileSvc.Link(ctx, Human(env.peer.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connPeer.ID,
+		ExternalFileIDs: []string{"doc-peer-private"},
+	}); err != nil {
+		t.Fatalf("peer Link: %v", err)
+	}
+
+	ownerFolders, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
+	if err != nil {
+		t.Fatalf("owner ListFolders: %v", err)
+	}
+	ownerMap := map[string]DriveFolderGroupView{}
+	for _, g := range ownerFolders {
+		if g.ID != nil {
+			ownerMap[*g.ID] = g
+		}
+	}
+	if _, leaked := ownerMap["fld-peer-top"]; leaked {
+		t.Fatalf("owner ListFolders leaked peer's ancestor folder fld-peer-top")
+	}
+	if _, leaked := ownerMap["fld-peer-sub"]; leaked {
+		t.Fatalf("owner ListFolders leaked peer's folder fld-peer-sub")
+	}
+	if ownerMap["fld-docs-a"].ParentID == nil || *ownerMap["fld-docs-a"].ParentID != "fld-a" {
+		t.Fatalf("fld-docs-a = %+v, want parent fld-a", ownerMap["fld-docs-a"])
+	}
+	if ownerMap["fld-docs-x"].ParentID == nil || *ownerMap["fld-docs-x"].ParentID != "fld-x" {
+		t.Fatalf("fld-docs-x = %+v, want parent fld-x", ownerMap["fld-docs-x"])
+	}
+}
+
+// TestDriveFolderTreeMoveAndRenameOnRefresh (UNI-2291) verifies on PostgreSQL:
+//   - When a folder is renamed or moved on Drive, opportunistic refresh (>10m) updates
+//     drive_folders.name and drive_folders.parent_folder_id.
+//   - When another member refreshes and gets 404 on the folder chain, stored drive_folders
+//     rows are preserved (never deleted or nulled out).
+//   - When a file is moved to a different folder on Drive, opportunistic refresh moves the
+//     file to the new folder in ListFolders and ListMine.
+func TestDriveFolderTreeMoveAndRenameOnRefresh(t *testing.T) {
+	env := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+	connOwner := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-mv-owner", "mv-owner@example.com")
+	connPeer := env.connectAccount(t, env.peer.ID, env.wsA.ID, "sub-mv-peer", "mv-peer@example.com")
+	peerToken := "tok-a-sub-mv-peer"
+
+	env.googleSrv.SetFile("fld-parent-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-parent-1", Name: "Parent One", MimeType: DriveMimeGoogleFolder},
+		ErrorByToken: map[string]FakeGoogleDriveErrorResponse{
+			peerToken: {Status: http.StatusNotFound, Reason: "notFound"},
+		},
+	})
+	env.googleSrv.SetFile("fld-child-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-child-1", Name: "Child One", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-parent-1"}},
+		ErrorByToken: map[string]FakeGoogleDriveErrorResponse{
+			peerToken: {Status: http.StatusNotFound, Reason: "notFound"},
+		},
+	})
+	env.googleSrv.SetFile("ext-mv-doc", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-mv-doc", Name: "Movable Doc", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-child-1"}},
+	})
+
+	linked, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"ext-mv-doc"},
+	})
+	if err != nil || len(linked) != 1 || linked[0].File == nil {
+		t.Fatalf("owner Link: %+v, err=%v", linked, err)
+	}
+	fileID := linked[0].File.ID
+	if _, err := env.fileSvc.Link(ctx, Human(env.peer.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connPeer.ID,
+		ExternalFileIDs: []string{"ext-mv-doc"},
+	}); err != nil {
+		t.Fatalf("peer Link: %v", err)
+	}
+
+	// 1. Peer refreshes (>10m) while getting 404 on fld-child-1 and fld-parent-1:
+	// both drive_folders rows and nesting must stay intact.
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, fileID); err != nil {
+		t.Fatalf("age metadata: %v", err)
+	}
+	if _, err := env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, fileID); err != nil {
+		t.Fatalf("peer Get: %v", err)
+	}
+	peerTree, err := env.fileSvc.ListFolders(ctx, Human(env.peer.ID), env.wsA.ID, "")
+	if err != nil || len(peerTree) != 2 {
+		t.Fatalf("peerTree after 404 refresh = %+v, err=%v", peerTree, err)
+	}
+
+	// 2. Folder fld-child-1 is renamed on Drive to "Child One Renamed":
+	// when owner refreshes, drive_folders.name updates.
+	env.googleSrv.SetFile("fld-child-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-child-1", Name: "Child One Renamed", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-parent-1"}},
+	})
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, fileID); err != nil {
+		t.Fatalf("age metadata for rename: %v", err)
+	}
+	if _, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, fileID); err != nil {
+		t.Fatalf("owner Get after folder rename: %v", err)
+	}
+	treeRenamed, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
+	if err != nil || len(treeRenamed) != 2 {
+		t.Fatalf("treeRenamed = %+v, err=%v", treeRenamed, err)
+	}
+	for _, g := range treeRenamed {
+		if *g.ID == "fld-child-1" && (g.Name == nil || *g.Name != "Child One Renamed") {
+			t.Fatalf("fld-child-1 after rename = %+v, want Child One Renamed", g)
+		}
+	}
+
+	// 3. File ext-mv-doc is moved on Drive from fld-child-1 to fld-dest:
+	// after owner refreshes, ListFolders shows fld-dest (1 file) and fld-child-1/fld-parent-1 disappear
+	// (since they no longer hold any accessible files).
+	env.googleSrv.SetFile("fld-dest", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-dest", Name: "Destination Folder", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("ext-mv-doc", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-mv-doc", Name: "Movable Doc", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-dest"}},
+	})
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, fileID); err != nil {
+		t.Fatalf("age metadata for file move: %v", err)
+	}
+	if _, err := env.fileSvc.ListMine(ctx, Human(env.owner.ID), env.wsA.ID, ListDriveFilesFilter{}); err != nil {
+		t.Fatalf("owner ListMine after file move: %v", err)
+	}
+	treeMoved, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
+	if err != nil || len(treeMoved) != 1 || *treeMoved[0].ID != "fld-dest" || *treeMoved[0].Name != "Destination Folder" || treeMoved[0].FileCount != 1 {
+		t.Fatalf("treeMoved = %+v, err=%v, want [fld-dest (Destination Folder, count=1)]", treeMoved, err)
+	}
+}
