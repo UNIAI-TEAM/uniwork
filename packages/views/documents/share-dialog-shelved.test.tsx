@@ -21,6 +21,7 @@ const { t } = initI18n();
 
 const WS = "ws1";
 const ORG = "o1";
+const PINNED_NOW = new Date("2026-10-29T10:00:00Z");
 const user: User = {
   id: "u1", email: "an@acme.vn", display_name: "An", onboarded_at: "2026-08-25T00:00:00Z",
   email_verified_at: "2026-08-25T00:00:00Z", onboarding_questionnaire: {}, locale: "vi",
@@ -110,8 +111,15 @@ function renderDialog(doc = shelvedDoc()) {
   );
 }
 
-beforeEach(serve);
-afterEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(PINNED_NOW);
+  serve();
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("UI-AR6 share dialog on a shelved document", () => {
   it("still lists the access and revokes a person, the home row and a link", async () => {
@@ -136,7 +144,8 @@ describe("UI-AR6 share dialog on a shelved document", () => {
     await waitFor(() => expect(putCalls().length).toBeGreaterThan(seenPuts));
     expect(bodyOf(putCalls()[seenPuts]![1])?.items?.[0]).toMatchObject({ principal_type: "workspace", level: null });
 
-    // Revoke a public link.
+    // Revoke an active public link (not expired against PINNED_NOW).
+    expect(screen.queryByText(t("documents.share.link_expired_badge"))).toBeNull();
     await userEv.click(screen.getByRole("button", { name: /^Thu hồi \d/ }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/documents/d1/links/l1", expect.objectContaining({ method: "DELETE" })));
   });

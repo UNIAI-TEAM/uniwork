@@ -42,12 +42,16 @@ function row(n: Notification) {
   return screen.getByRole("link");
 }
 
+const PINNED_NOW = new Date("2026-10-17T03:00:00Z");
 const savedTZ = process.env.TZ;
 beforeEach(() => {
   // 2026-11-16T17:30Z is already 17 Nov on this side of the date line.
   process.env.TZ = "Asia/Ho_Chi_Minh";
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(PINNED_NOW);
 });
 afterEach(() => {
+  vi.useRealTimers();
   if (savedTZ === undefined) delete process.env.TZ;
   else process.env.TZ = savedTZ;
 });
@@ -60,37 +64,28 @@ describe("document_trashed_by_other sentence", () => {
     expect(text).toMatch(/17/);
     expect(text).not.toMatch(/16 /);
     expect(text).not.toMatch(/\d{1,2}:\d{2}/);
-    expect(text).not.toMatch(/2026-11|T17|Z$|\{\{/);
+    expect(text).not.toMatch(/2026|T17|Z$|\{\{/);
   });
 
   it("leaves the year off a date in the viewer's current year and keeps it for another year", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    try {
-      vi.setSystemTime(new Date("2026-10-17T03:00:00Z"));
-      expect(sentence(trashed())).not.toMatch(/2026/);
-      expect(sentence(trashed({ date: "2027-01-05T10:00:00Z" }))).toMatch(/2027/);
-      await i18n.changeLanguage("en");
-      expect(sentence(trashed())).toMatch(/Nov 17$/);
-      expect(sentence(trashed({ date: "2027-01-05T10:00:00Z" }))).toMatch(/Jan 5, 2027$/);
-    } finally {
-      vi.useRealTimers();
-      await i18n.changeLanguage("vi");
-    }
+    expect(sentence(trashed())).not.toMatch(/2026/);
+    expect(sentence(trashed({ date: "2027-01-05T10:00:00Z" }))).toMatch(/2027/);
+    await i18n.changeLanguage("en");
+    expect(sentence(trashed())).toMatch(/Nov 17$/);
+    expect(sentence(trashed({ date: "2027-01-05T10:00:00Z" }))).toMatch(/Jan 5, 2027$/);
   });
 
   it("moves the date to the previous day for a viewer west of UTC", () => {
     process.env.TZ = "America/Los_Angeles";
     const text = sentence(trashed());
     expect(text).toMatch(/16/);
-    expect(text).not.toMatch(/17/);
+    expect(text).not.toMatch(/17|2026/);
   });
 
   it("reads in English for an English viewer", async () => {
     await i18n.changeLanguage("en");
     const text = sentence(trashed());
-    expect(text).toMatch(/^Bình moved your document to trash\. Restore it before /);
-    expect(text).toMatch(/Nov/);
-    expect(text).toMatch(/17/);
+    expect(text).toBe("Bình moved your document to trash. Restore it before Nov 17");
   });
 
   it("uses the title-less sentence once the document name is gone, and it resolves", () => {

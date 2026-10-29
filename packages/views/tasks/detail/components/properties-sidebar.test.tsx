@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type {
@@ -193,8 +193,8 @@ const task: Task = {
   created_by: "u1",
   created_by_kind: "human",
   assignee_kind: "human",
-  created_at: "2026-09-01T00:00:00Z",
-  updated_at: "2026-09-01T00:00:00Z",
+  created_at: "2026-09-01T12:00:00Z",
+  updated_at: "2026-09-01T12:00:00Z",
 };
 
 function shell(ui: React.ReactElement) {
@@ -209,7 +209,11 @@ beforeAll(() => {
   initI18n();
 });
 
+const PINNED_NOW = new Date("2026-09-15T12:00:00Z");
+
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(PINNED_NOW);
   resetAuthStoreForTests();
   setSessionUser(me);
   putMutate.mockReset();
@@ -226,6 +230,10 @@ beforeEach(() => {
   labelState.attached = [];
   projectState.available = false;
   memberState.members = [];
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 function renderSidebar(overrides: Partial<Task> = {}) {
@@ -438,7 +446,7 @@ describe("TaskDetailPropertiesSidebar", () => {
     renderSidebar();
     const details = screen.getByRole("button", { name: "Chi tiết" }).closest("section");
     expect(details).not.toBeNull();
-    expect(within(details as HTMLElement).getAllByText(/^1 thg 9/)).toHaveLength(2);
+    expect(within(details as HTMLElement).getAllByText(/^1 thg 9$/)).toHaveLength(2);
     expect(details?.textContent).not.toMatch(/\d{1,2}:\d{2}/);
   });
 

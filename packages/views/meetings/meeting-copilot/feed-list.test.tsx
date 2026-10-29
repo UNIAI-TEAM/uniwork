@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { MeetingActionItem } from "@uniwork/core/meetings/action-items";
 import type { MeetingFeedEntry } from "@uniwork/core/meetings/feed";
@@ -10,7 +10,11 @@ beforeAll(() => {
   initI18n();
 });
 
+const PINNED_NOW = new Date("2026-10-26T12:00:00Z");
+
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(PINNED_NOW);
   requestMock.mockReset();
   requestMock.mockImplementation((path: unknown) =>
     String(path).endsWith("/members")
@@ -19,6 +23,10 @@ beforeEach(() => {
         })
       : Promise.resolve({}),
   );
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 // Local wall-clock instants, so the HH:mm the row prints does not depend on the test machine's zone.
@@ -96,7 +104,8 @@ describe("MeetingFeedList", () => {
     expect(await within(rows[0]!).findByText("Mai Anh")).toBeInTheDocument();
     // The face takes the member's tint (first to join: blue), as on the empty state.
     expect(within(rows[0]!).getByText("MA")).toHaveClass("bg-tint-blue");
-    expect(rows[0]).toHaveTextContent("Thứ Sáu");
+    expect(rows[0]).toHaveTextContent("Thứ Sáu, 30 tháng 10");
+    expect(rows[0]).not.toHaveTextContent("2026");
     expect(rows[4]).toHaveTextContent("chị Hà");
   });
 
@@ -144,7 +153,8 @@ describe("MeetingFeedList", () => {
       ],
     });
     expect(await within(rows[0]!).findByText("Mai Anh")).toBeInTheDocument();
-    expect(rows[0]).toHaveTextContent("Thứ Hai");
+    expect(rows[0]).toHaveTextContent("Thứ Hai, 2 tháng 11");
+    expect(rows[0]).not.toHaveTextContent("2026");
     expect(rows[0]).not.toHaveTextContent("thứ Sáu");
     expect(rows[0]).not.toHaveTextContent("anh Tuấn");
     // Unassigned and undated: no owner, no due chip, and no "+ Due" since the item is no longer pending.
