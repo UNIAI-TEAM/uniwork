@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"path"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/document"
 	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -776,7 +778,7 @@ func (s *DocumentService) minutesMeetingForDocument(ctx context.Context, q *db.Q
 	if doc.Kind != DocumentKindPage {
 		return nil, nil
 	}
-	byID, err := s.minutesMeetingsForDocumentsQ(ctx, q, actor, doc.OrganizationID, []string{doc.ID})
+	byID, err := s.minutesMeetingsForDocumentsQ(ctx, q, actor, doc.OrganizationID, []string{doc.ID}, false)
 	if err != nil {
 		return nil, err
 	}
@@ -785,12 +787,14 @@ func (s *DocumentService) minutesMeetingForDocument(ctx context.Context, q *db.Q
 
 // minutesMeetingsForDocuments resolves the meeting each page in pageIDs is the
 // minutes of, in one batched query (UNI-2288). Short-circuits with zero DB
-// queries when pageIDs is empty.
+// queries when pageIDs is empty. On list/tree enrichment, a non-refusal error
+// from the meeting-workspace title gate leaves that workspace's titles absent,
+// retains the rows, and logs the failure with IDs and correlation_id (RB1-3).
 func (s *DocumentService) minutesMeetingsForDocuments(ctx context.Context, actor Actor, organizationID string, pageIDs []string) (map[string]*DocumentMinutesMeeting, error) {
-	return s.minutesMeetingsForDocumentsQ(ctx, s.q, actor, organizationID, pageIDs)
+	return s.minutesMeetingsForDocumentsQ(ctx, s.q, actor, organizationID, pageIDs, true)
 }
 
-func (s *DocumentService) minutesMeetingsForDocumentsQ(ctx context.Context, q *db.Queries, actor Actor, organizationID string, pageIDs []string) (map[string]*DocumentMinutesMeeting, error) {
+func (s *DocumentService) minutesMeetingsForDocumentsQ(ctx context.Context, q *db.Queries, actor Actor, organizationID string, pageIDs []string, tolerateTitleGateErr bool) (map[string]*DocumentMinutesMeeting, error) {
 	if len(pageIDs) == 0 || organizationID == "" {
 		return nil, nil
 	}
@@ -809,7 +813,23 @@ func (s *DocumentService) minutesMeetingsForDocumentsQ(ctx context.Context, q *d
 			}
 			_, merr := s.ws.RequireMemberQ(ctx, q, r.WorkspaceID, actor.ID)
 			if merr != nil && !isGateRefusal(merr) {
-				return nil, merr
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					return nil, ctxErr
+				}
+				if errors.Is(merr, context.Canceled) || errors.Is(merr, context.DeadlineExceeded) || !tolerateTitleGateErr {
+					return nil, merr
+				}
+				corrID := audit.CorrelationID(ctx)
+				if corrID == "" {
+					corrID = telemetry.TraceID(ctx)
+				}
+				slog.WarnContext(ctx, "documents: meeting minutes title gate failed",
+					"organization_id", organizationID,
+					"workspace_id", r.WorkspaceID,
+					"user_id", actor.ID,
+					"correlation_id", corrID,
+					"error", merr,
+				)
 			}
 			wsMember[r.WorkspaceID] = merr == nil
 		}

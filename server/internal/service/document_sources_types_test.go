@@ -1,10 +1,20 @@
 package service
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"log/slog"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -121,6 +131,172 @@ func TestDocumentSourceIncludesPagesAndMeetingItemMapper(t *testing.T) {
 	if fileItem.Kind != DocumentKindFile || fileItem.DocumentID != "" || fileItem.Extension != "pdf" ||
 		!fileItem.CanSave || fileItem.Owner == nil || fileItem.Owner.Kind != "human" {
 		t.Fatalf("fileItem = %+v", fileItem)
+	}
+}
+
+type fakeMinutesTitleGateDB struct {
+	rows    []db.ListMinutesMeetingsByDocumentIDsRow
+	gateErr map[string]error
+}
+
+func (f *fakeMinutesTitleGateDB) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+
+func (f *fakeMinutesTitleGateDB) Query(_ context.Context, sql string, _ ...any) (pgx.Rows, error) {
+	if strings.Contains(sql, "ListMinutesMeetingsByDocumentIDs") {
+		return &fakeMinutesRows{rows: f.rows}, nil
+	}
+	return &fakeMinutesRows{}, nil
+}
+
+func (f *fakeMinutesTitleGateDB) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
+	if strings.Contains(sql, "GetWorkspaceAccess") && len(args) > 0 {
+		wsID, _ := args[0].(string)
+		if err, ok := f.gateErr[wsID]; ok {
+			return fakeMinutesErrRow{err: err}
+		}
+		return fakeMinutesAccessRow{orgID: "org-1", role: "member"}
+	}
+	return fakeMinutesErrRow{err: pgx.ErrNoRows}
+}
+
+type fakeMinutesRows struct {
+	rows []db.ListMinutesMeetingsByDocumentIDsRow
+	idx  int
+}
+
+func (r *fakeMinutesRows) Close()                                       {}
+func (r *fakeMinutesRows) Err() error                                   { return nil }
+func (r *fakeMinutesRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
+func (r *fakeMinutesRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (r *fakeMinutesRows) Values() ([]any, error)                       { return nil, nil }
+func (r *fakeMinutesRows) RawValues() [][]byte                          { return nil }
+func (r *fakeMinutesRows) Conn() *pgx.Conn                              { return nil }
+func (r *fakeMinutesRows) Next() bool {
+	if r.idx >= len(r.rows) {
+		return false
+	}
+	r.idx++
+	return true
+}
+func (r *fakeMinutesRows) Scan(dest ...any) error {
+	cur := r.rows[r.idx-1]
+	*(dest[0].(*string)) = cur.DocumentID
+	*(dest[1].(*string)) = cur.MeetingID
+	*(dest[2].(*string)) = cur.WorkspaceID
+	*(dest[3].(*string)) = cur.MeetingTitle
+	return nil
+}
+
+type fakeMinutesErrRow struct{ err error }
+
+func (r fakeMinutesErrRow) Scan(...any) error { return r.err }
+
+type fakeMinutesAccessRow struct {
+	orgID string
+	role  string
+}
+
+func (r fakeMinutesAccessRow) Scan(dest ...any) error {
+	*(dest[0].(*string)) = r.role
+	*(dest[1].(*string)) = r.orgID
+	*(dest[2].(*string)) = "active"
+	*(dest[3].(*string)) = "member"
+	*(dest[5].(*bool)) = false
+	return nil
+}
+
+// UNI-2288 (RB1-3): an infrastructure error from the meeting-workspace title gate
+// during list/tree enrichment leaves the title absent for that workspace, retains
+// all rows (including other workspaces' titles), logs the failure with IDs and
+// correlation_id (never the meeting title), and still propagates context cancellation
+// as well as single-document GET errors.
+func TestMinutesTitleGateInfrastructureErrorKeepsListRowsAndLogsWithoutTitle(t *testing.T) {
+	dbFailure := errors.New("connection reset by peer")
+	secretTitle := "Họp chiến lược M&A tuyệt mật"
+	healthyTitle := "Giao ban sản phẩm"
+	fakeDB := &fakeMinutesTitleGateDB{
+		rows: []db.ListMinutesMeetingsByDocumentIDsRow{
+			{DocumentID: "doc-broken", MeetingID: "mtg-broken", MeetingTitle: secretTitle, WorkspaceID: "ws-broken"},
+			{DocumentID: "doc-healthy", MeetingID: "mtg-healthy", MeetingTitle: healthyTitle, WorkspaceID: "ws-healthy"},
+		},
+		gateErr: map[string]error{"ws-broken": dbFailure},
+	}
+	q := db.New(fakeDB)
+	orgs := NewOrganizationService(nil, q)
+	ws := NewWorkspaceService(nil, q, orgs, mail.Renderer{}, nil)
+	docs := NewDocumentService(nil, q, orgs, ws)
+
+	var logs bytes.Buffer
+	prevLog := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prevLog) })
+
+	ctx := audit.WithRequest(context.Background(), audit.RequestInfo{CorrelationID: "corr-rb1-3-test"})
+	items := []DocumentListItem{
+		{
+			Document: db.Document{ID: "doc-broken", OrganizationID: "org-1", WorkspaceID: "ws-broken", Kind: DocumentKindPage},
+			Access:   DocumentAccess{Level: DocumentLevelView, Via: DocumentViaMember},
+		},
+		{
+			Document: db.Document{ID: "doc-healthy", OrganizationID: "org-1", WorkspaceID: "ws-healthy", Kind: DocumentKindPage},
+			Access:   DocumentAccess{Level: DocumentLevelView, Via: DocumentViaMember},
+		},
+	}
+	if err := docs.attachListMinutesMeetings(ctx, Human("usr-1"), items); err != nil {
+		t.Fatalf("attachListMinutesMeetings returned error on title-gate infra failure: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("items len = %d, want 2", len(items))
+	}
+	if mm := items[0].Facts.MinutesMeeting; mm == nil || mm.ID != "mtg-broken" || mm.Title != "" {
+		t.Fatalf("broken workspace MinutesMeeting = %+v, want {ID:mtg-broken Title:\"\"}", mm)
+	}
+	if mm := items[1].Facts.MinutesMeeting; mm == nil || mm.ID != "mtg-healthy" || mm.Title != healthyTitle {
+		t.Fatalf("healthy workspace MinutesMeeting = %+v, want {ID:mtg-healthy Title:%q}", mm, healthyTitle)
+	}
+	logLine := logs.String()
+	for _, want := range []string{"org-1", "ws-broken", "usr-1", "corr-rb1-3-test", "connection reset by peer"} {
+		if !strings.Contains(logLine, want) {
+			t.Fatalf("log output missing %q: %s", want, logLine)
+		}
+	}
+	if strings.Contains(logLine, secretTitle) {
+		t.Fatalf("log output leaked meeting title %q: %s", secretTitle, logLine)
+	}
+
+	// Tree enrichment also retains nodes and leaves the failed workspace's title absent.
+	treeNodes := []DocumentTreeNode{
+		{ID: "doc-broken", Kind: DocumentKindPage},
+		{ID: "doc-healthy", Kind: DocumentKindPage},
+	}
+	docsByID := map[string]db.Document{
+		"doc-broken":  {ID: "doc-broken", OrganizationID: "org-1", WorkspaceID: "ws-broken", Kind: DocumentKindPage, Visibility: "workspace", WorkspaceLevel: "view"},
+		"doc-healthy": {ID: "doc-healthy", OrganizationID: "org-1", WorkspaceID: "ws-healthy", Kind: DocumentKindPage, Visibility: "workspace", WorkspaceLevel: "view"},
+	}
+	scope := documentListScope{organizationID: "org-1", actorID: "usr-1", memberVisible: true}
+	if err := docs.attachTreeMinutesMeetings(ctx, Human("usr-1"), scope, "ws-healthy", false, docsByID, treeNodes); err != nil {
+		t.Fatalf("attachTreeMinutesMeetings returned error on title-gate infra failure: %v", err)
+	}
+	if mm := treeNodes[0].MinutesMeeting; mm == nil || mm.ID != "mtg-broken" || mm.Title != "" {
+		t.Fatalf("broken tree node MinutesMeeting = %+v, want {ID:mtg-broken Title:\"\"}", mm)
+	}
+	if mm := treeNodes[1].MinutesMeeting; mm == nil || mm.ID != "mtg-healthy" || mm.Title != healthyTitle {
+		t.Fatalf("healthy tree node MinutesMeeting = %+v, want {ID:mtg-healthy Title:%q}", mm, healthyTitle)
+	}
+
+	// Single-document read still returns the error.
+	if _, err := docs.minutesMeetingForDocument(ctx, q, Human("usr-1"), items[0].Document); !errors.Is(err, dbFailure) {
+		t.Fatalf("minutesMeetingForDocument err = %v, want %v", err, dbFailure)
+	}
+
+	// Context cancellation is preserved on list enrichment too.
+	cctx, cancel := context.WithCancel(ctx)
+	cancel()
+	fakeDB.gateErr["ws-broken"] = context.Canceled
+	if err := docs.attachListMinutesMeetings(cctx, Human("usr-1"), items); !errors.Is(err, context.Canceled) {
+		t.Fatalf("attachListMinutesMeetings with canceled ctx = %v, want context.Canceled", err)
 	}
 }
 
