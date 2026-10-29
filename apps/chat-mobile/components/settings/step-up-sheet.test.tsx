@@ -198,8 +198,8 @@ describe("useStepUp and the proof sheet", () => {
     expect(out()).toBe("done:su_email_code");
   });
 
-  it("says Apple's relay address by name, and a code asked for too often", async () => {
-    useAuthStore.setState({ user: { id: "u1", email: "x@privaterelay.appleid.com", display_name: "", has_password: false } as never });
+  it.each(["x@privaterelay.appleid.com", "x@private.icloud.com"])("says Apple's relay address %s by name, and a code asked for too often", async (email) => {
+    useAuthStore.setState({ user: { id: "u1", email, display_name: "", has_password: false } as never });
     jest.mocked(signInMethodsApi.sendStepUpEmailCode).mockRejectedValueOnce(refusal("rate_limited", 429, { retry_after: 3600 }));
     await open({ proofs: ["email_code"] });
     expect(screen.getByText(viText("settings.security.stepUp.emailCode.relayHint"))).toBeOnTheScreen();

@@ -260,8 +260,7 @@ describe("PasswordForm", () => {
     expect(toast.success).toHaveBeenCalledWith(viText("settings.security.signInMethods.password.toastSet"));
   });
 
-  it("offers to copy Apple's relay address, which nobody types", async () => {
-    const relay = "x@privaterelay.appleid.com";
+  it.each(["x@privaterelay.appleid.com", "x@private.icloud.com"])("offers to copy Apple's relay address %s, which nobody types", async (relay) => {
     useAuthStore.setState({ user: { ...user, email: relay, has_password: false } as never });
     methodsApi.getSignInMethods.mockResolvedValue(methods({ password: { set: false, changed_at: null }, proofs: ["apple", "email_code"] }));
     await render(<PasswordForm />);

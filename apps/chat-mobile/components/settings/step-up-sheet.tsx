@@ -8,6 +8,7 @@
 // mailed live in the ask (use-step-up.ts), not here: the sheet the app lock put away comes back on the same proof.
 import { useQuery } from "@tanstack/react-query";
 import type { StepUpAction, StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { isAppleRelayEmail } from "@uniwork/core/auth/sign-in-rules";
 import { stepUpWindowHintKey } from "@uniwork/core/auth/step-up";
 import { paths } from "@uniwork/core/paths/paths";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
@@ -24,7 +25,6 @@ import { proofsFor } from "@/data/auth/step-up-store";
 import { appLockState } from "@/data/stores/app-lock-store";
 import { useSendStepUpCode, useStepUpProof, type ProofEntry } from "@/data/mutations/sign-in-methods";
 import { signInOfferOptions } from "@/data/queries/sign-in";
-import { isAppleRelayAddress } from "@/lib/apple-relay";
 import { signInFailureOf } from "@/lib/sign-in-failure";
 import { EmailCodeProof, PasswordProof, ProviderProof, SecondFactorProof } from "./step-up-proofs";
 import { useOpenWebPage } from "./use-open-web-page";
@@ -163,7 +163,7 @@ function StepUpBody({ ask, onBusy, onDone, onProgress }: BodyProps) {
       <EmailCodeProof
         {...props}
         email={email}
-        relay={isAppleRelayAddress(email)}
+        relay={isAppleRelayEmail(email)}
         sending={sendCode.isPending}
         sentAt={ask.mailedAt}
         onSent={(mailedAt) => onProgress({ mailedAt })}

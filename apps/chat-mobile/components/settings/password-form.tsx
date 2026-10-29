@@ -11,6 +11,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { readSignInFailure, sentenceValues, type SignInFailure } from "@uniwork/core/auth/sign-in-errors";
 import { PASSWORD_MIN } from "@uniwork/core/auth/sign-in-form";
+import { isAppleRelayEmail } from "@uniwork/core/auth/sign-in-rules";
 import * as Clipboard from "expo-clipboard";
 import { router, useNavigation } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -28,7 +29,6 @@ import { stepUpToken } from "@/data/auth/step-up-store";
 import { useSetPassword } from "@/data/mutations/sign-in-methods";
 import { signInMethodsOptions } from "@/data/queries/sign-in";
 import { toast } from "@/data/stores/toast-store";
-import { isAppleRelayAddress } from "@/lib/apple-relay";
 import { confirmsWithSecondFactor } from "@/lib/sign-in-methods";
 import { useStepUp } from "./use-step-up";
 
@@ -70,7 +70,7 @@ export function PasswordForm() {
   // With a second factor on, the server takes that factor alone as the proof (the sheet asks for it).
   const secondFactor = confirmsWithSecondFactor(methods, Boolean(user?.mfa_enabled_at));
   const asksCurrent = change && !secondFactor;
-  const relay = isAppleRelayAddress(email);
+  const relay = isAppleRelayEmail(email);
 
   /** This screen is the one in front (an answer may land after a notification opened another). */
   const inFront = () => mounted.current && navigation.isFocused();
