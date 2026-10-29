@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SignInMethods } from "../api/endpoints/sign-in-schemas";
 import {
-  APPLE_RELAY_DOMAIN,
+  APPLE_RELAY_DOMAINS,
   emailDisplay,
   isAppleRelayEmail,
   maskEmail,
@@ -56,18 +56,32 @@ describe("unlinkVerdict", () => {
 });
 
 describe("relay addresses", () => {
-  it("knows Apple's relay domain exactly, after the last @", () => {
-    expect(isAppleRelayEmail(`q7x2@${APPLE_RELAY_DOMAIN}`)).toBe(true);
+  // Sign in with Apple's relay addresses moved to private.icloud.com in late 2026; the older ones keep working.
+  it("knows both of Apple's relay domains", () => {
+    expect(APPLE_RELAY_DOMAINS).toEqual(["privaterelay.appleid.com", "private.icloud.com"]);
+    for (const domain of APPLE_RELAY_DOMAINS) expect(isAppleRelayEmail(`q7x2@${domain}`)).toBe(true);
+  });
+
+  it("matches a relay domain exactly, after the last @, whatever its case or spacing", () => {
     expect(isAppleRelayEmail("Q7X2@PrivateRelay.AppleID.com ")).toBe(true);
+    expect(isAppleRelayEmail(" Q7X2@Private.iCloud.com")).toBe(true);
     expect(isAppleRelayEmail("an@privaterelay.appleid.com.evil.vn")).toBe(false);
+    expect(isAppleRelayEmail("an@private.icloud.com.evil.vn")).toBe(false);
+    expect(isAppleRelayEmail("an@mail.private.icloud.com")).toBe(false);
+    expect(isAppleRelayEmail("private.icloud.com@example.com")).toBe(false);
     expect(isAppleRelayEmail("@privaterelay.appleid.com")).toBe(false);
+    expect(isAppleRelayEmail(" @private.icloud.com")).toBe(false);
+    expect(isAppleRelayEmail("private.icloud.com")).toBe(false);
+    // iCloud+'s own Hide My Email stays on icloud.com: an iCloud address, not Sign in with Apple's relay.
     expect(isAppleRelayEmail("an@icloud.com")).toBe(false);
+    expect(isAppleRelayEmail("")).toBe(false);
     expect(isAppleRelayEmail(null)).toBe(false);
     expect(isAppleRelayEmail(undefined)).toBe(false);
   });
 
   it("shows a relay as Apple's hidden email, by domain or by the server's flag", () => {
     expect(emailDisplay("q7x2@privaterelay.appleid.com")).toEqual({ kind: "relay", email: "q7x2@privaterelay.appleid.com" });
+    expect(emailDisplay("q7x2@private.icloud.com")).toEqual({ kind: "relay", email: "q7x2@private.icloud.com" });
     expect(emailDisplay("x@icloud.com", { privateRelay: true })).toEqual({ kind: "relay", email: "x@icloud.com" });
     expect(emailDisplay(" an@acme.vn ")).toEqual({ kind: "address", email: "an@acme.vn" });
     expect(emailDisplay("  ")).toEqual({ kind: "none" });
