@@ -160,91 +160,47 @@ export function isFrameAiPath(pathname) {
 }
 
 /**
- * R4-1: the (input, output) pair one JSON document reports, read in the shape of
- * the route it came from - the same three shapes the server's own usage tap
- * reads (`server/internal/ai/proxy.go:425-447`):
- * - `openai`    - `usage.prompt_tokens` / `usage.completion_tokens`: the UniWork
- *   facade's `UniworkUsage` (`ai/openai_facade.go:213-215`, written into the SSE
- *   chunk at `:382`) and any OpenAI-compatible body;
- * - `anthropic` - `usage.input_tokens` / `usage.output_tokens`, and the same pair
- *   under `message.usage` on a `message_start` (`proxy.go:433-441`);
- * - `gemini`    - `usageMetadata.promptTokenCount` / `usageMetadata.candidatesTokenCount`
- *   plus `usageMetadata.thoughtsTokenCount` (`proxy.go:426-432`).
- * With no shape the three are tried in turn, which is what a bare body read means.
- * Either count may come back null: a chunk often carries only one of them.
+ * R4-1: the (input, output) pair one JSON document reports, in the UniWork
+ * route's OpenAI shape: `usage.prompt_tokens` / `usage.completion_tokens` (the
+ * facade's `UniworkUsage`, `ai/openai_facade.go:213-215`, written into the SSE
+ * chunk at `:382`). Either count may come back null: a chunk often carries
+ * only one of them.
  */
-function usagePairFromDoc(doc, shape = null) {
-  let input = null;
-  let output = null;
-  for (const s of shape ? [shape] : ['openai', 'anthropic', 'gemini']) {
-    if (s === 'gemini') {
-      const m = doc?.usageMetadata;
-      if (!m || typeof m !== 'object') continue;
-      if (typeof m.promptTokenCount === 'number') input = m.promptTokenCount;
-      const cand = m.candidatesTokenCount;
-      const thoughts = m.thoughtsTokenCount;
-      if (typeof cand === 'number' || typeof thoughts === 'number') {
-        output = (typeof cand === 'number' ? cand : 0) + (typeof thoughts === 'number' ? thoughts : 0);
-      }
-    } else if (s === 'anthropic') {
-      // A streamed message reports input on `message_start` and the final output on
-      // `message_delta`; a non-stream body carries one `usage` block.
-      for (const u of [doc?.message?.usage, doc?.usage]) {
-        if (!u || typeof u !== 'object') continue;
-        if (typeof u.input_tokens === 'number') input = u.input_tokens;
-        if (typeof u.output_tokens === 'number') output = u.output_tokens;
-      }
-    } else {
-      const u = doc?.usage;
-      if (!u || typeof u !== 'object') continue;
-      if (typeof u.prompt_tokens === 'number') input = u.prompt_tokens;
-      if (typeof u.completion_tokens === 'number') output = u.completion_tokens;
-    }
-  }
-  return { input, output };
+function usagePairFromDoc(doc) {
+  const u = doc?.usage;
+  if (!u || typeof u !== 'object') return { input: null, output: null };
+  return {
+    input: typeof u.prompt_tokens === 'number' ? u.prompt_tokens : null,
+    output: typeof u.completion_tokens === 'number' ? u.completion_tokens : null,
+  };
 }
 
 /**
  * R3-1 + R4-1: a model response body without both token counts is an unknown,
- * not a zero. The counts are read in the shape of the route they came from; a
- * body whose shape reports no block, or only one of the two counts, is null.
+ * not a zero. A body that reports no usage block, or only one of the two counts, is null.
  */
-export function usageFromModelResponseBody(body, shape = null) {
-  const { input, output } = usagePairFromDoc(body, shape);
+export function usageFromModelResponseBody(body) {
+  const { input, output } = usagePairFromDoc(body);
   if (typeof input !== 'number' || typeof output !== 'number') return null;
   return { prompt_tokens: input, completion_tokens: output };
-}
-
-function geminiChunkHasFinishReason(chunk) {
-  const cands = Array.isArray(chunk?.candidates) ? chunk.candidates : [];
-  return cands.some((c) => typeof c?.finishReason === 'string' && c.finishReason !== '');
 }
 
 /**
  * R3-1 + R4-1 + R5-1: the usage of one SSE stream, or null when the stream
  * carried no complete usage. Latest value of each count wins. A stream is
- * complete only with its terminal marker:
- * - anthropic: a `message_delta` with `usage.output_tokens` AND a later
- *   `message_stop` (a cut after `message_start` is unknown, not the start's
- *   initial `output_tokens`);
- * - openai: a complete JSON chunk with both usage counts AND a later
- *   `data: [DONE]` (UniWork facade writes the pair then `[DONE]` at
- *   `openai_facade.go:382-396`);
- * - gemini: the last usage-bearing chunk also carries a candidate
- *   `finishReason` (usageMetadata is cumulative, so a cut undercounts).
- * A non-stream JSON body is unchanged. A line cut mid-JSON is not a chunk.
+ * complete only with a complete JSON chunk with both usage counts AND a later
+ * `data: [DONE]` (UniWork facade writes the pair then `[DONE]` at
+ * `openai_facade.go:382-396`). A non-stream JSON body is unchanged. A line cut
+ * mid-JSON is not a chunk.
  */
-export function usageFromSseText(text, shape = null) {
+export function usageFromSseText(text) {
   const raw = String(text ?? '');
   if (raw.trim() === '') return null;
   let input = null;
   let output = null;
   let sawChunk = false;
-  let anthropicDeltaOutput = false;
-  let anthropicStopAfterDelta = false;
   let openaiCompleteUsage = false;
   let openaiDoneAfterUsage = false;
-  let lastUsageHasFinish = false;
   for (const line of raw.split('\n')) {
     if (!line.startsWith('data:')) continue;
     const payload = line.slice(5).trim();
@@ -260,44 +216,32 @@ export function usageFromSseText(text, shape = null) {
       continue; // a partial or non-JSON line is not a usage chunk
     }
     sawChunk = true;
-    const pair = usagePairFromDoc(chunk, shape);
+    const pair = usagePairFromDoc(chunk);
     if (pair.input !== null) input = pair.input;
     if (pair.output !== null) output = pair.output;
-    if (chunk?.type === 'message_delta' && typeof chunk?.usage?.output_tokens === 'number') {
-      anthropicDeltaOutput = true;
-    }
-    if (chunk?.type === 'message_stop' && anthropicDeltaOutput) anthropicStopAfterDelta = true;
     if (typeof pair.input === 'number' && typeof pair.output === 'number') {
       openaiCompleteUsage = true;
       openaiDoneAfterUsage = false;
     }
-    if (pair.input !== null || pair.output !== null) {
-      lastUsageHasFinish = geminiChunkHasFinishReason(chunk);
-    }
   }
   if (!sawChunk) {
     try {
-      return usageFromModelResponseBody(JSON.parse(raw), shape);
+      return usageFromModelResponseBody(JSON.parse(raw));
     } catch {
       return null; // not JSON either
     }
   }
   if (typeof input !== 'number' || typeof output !== 'number') return null;
-  if (shape === 'anthropic' && (!anthropicDeltaOutput || !anthropicStopAfterDelta)) return null;
-  if (shape === 'openai' && (!openaiCompleteUsage || !openaiDoneAfterUsage)) return null;
-  if (shape === 'gemini' && !lastUsageHasFinish) return null;
+  if (!openaiCompleteUsage || !openaiDoneAfterUsage) return null;
   return { prompt_tokens: input, completion_tokens: output };
 }
 
 /**
- * R3-1 + R4-1: the tool names one stream reports, read in the route's response
- * shape. OpenAI-shaped deltas carry `choices[0].delta.tool_calls[].function.name`
- * (`ai/openai_facade.go:229` names `delta`, `:206-209` the `tool_calls` array);
- * an Anthropic stream names the tool on a `content_block_start` with
- * `content_block.type='tool_use'`; a Gemini stream names it under
- * `candidates[0].content.parts[].functionCall.name`.
+ * R3-1 + R4-1: the tool names one stream reports. OpenAI-shaped deltas carry
+ * `choices[0].delta.tool_calls[].function.name` (`ai/openai_facade.go:229` names
+ * `delta`, `:206-209` the `tool_calls` array).
  */
-export function toolCallNamesFromSseText(text, shape = null) {
+export function toolCallNamesFromSseText(text) {
   const names = [];
   const push = (name) => { if (typeof name === 'string' && name.trim()) names.push(name.trim()); };
   for (const line of String(text ?? '').split('\n')) {
@@ -310,16 +254,7 @@ export function toolCallNamesFromSseText(text, shape = null) {
     } catch {
       continue;
     }
-    if (!shape || shape === 'openai') {
-      for (const tc of chunk?.choices?.[0]?.delta?.tool_calls ?? []) push(tc?.function?.name);
-    }
-    if (!shape || shape === 'anthropic') {
-      const block = chunk?.content_block;
-      if (block?.type === 'tool_use') push(block?.name);
-    }
-    if (!shape || shape === 'gemini') {
-      for (const part of chunk?.candidates?.[0]?.content?.parts ?? []) push(part?.functionCall?.name);
-    }
+    for (const tc of chunk?.choices?.[0]?.delta?.tool_calls ?? []) push(tc?.function?.name);
   }
   return names;
 }
@@ -494,10 +429,8 @@ export function observeModelWire(page, {
       status,
       shape,
       ...(refusal ? { refusal } : {}),
-      // R4-1: the usage is read in the route's own response shape, so an Anthropic
-      // `/messages` stream and a Gemini `/generate` body are counted, not dropped.
-      usage: usageFromSseText(text, shape),
-      toolCallNames: toolCallNamesFromSseText(text, shape),
+      usage: usageFromSseText(text),
+      toolCallNames: toolCallNamesFromSseText(text),
     });
   };
   const track = (task) => {

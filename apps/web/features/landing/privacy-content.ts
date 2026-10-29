@@ -56,6 +56,7 @@ const vi: GuideContent = {
     { title: "UniOffice", paragraphs: [
       "UniOffice cho máy tính mở và lưu tệp ngay trên máy của bạn. Tệp trên máy chỉ được tải lên UniWork khi bạn chọn lưu nó vào một workspace; khi đó mỗi lần lưu tạo một phiên bản mới thay vì ghi đè. Bạn đăng nhập qua trình duyệt, và có thể xem hoặc thu hồi từng máy đã đăng nhập.",
       "Khi bạn mở hoặc xuất PDF, bảng tính hay định dạng cũ trên web, tệp được xử lý trên máy chủ chuyển đổi của chúng tôi trong cùng hạ tầng. Tệp chỉ nằm trong bộ nhớ tạm của lượt xử lý, bị xóa ngay khi xong và không được gửi cho bên thứ ba.",
+      "Khi bạn nhập khóa API AI trực tiếp trong UniOffice cho máy tính, khóa được lưu trên máy đó và ứng dụng gọi thẳng nhà cung cấp; UniWork không nhận khóa hay nội dung. Nội dung được xử lý theo điều khoản của nhà cung cấp bạn chọn, có thể ở ngoài Việt Nam.",
       "Liên kết chia sẻ công khai chỉ cho xem, hết hạn sau 7 ngày theo mặc định (tối đa 90 ngày) và có thể thu hồi; lượt xem được đếm mà không ghi địa chỉ của người xem. Máy chủ MCP cục bộ của UniOffice cho máy tính mặc định tắt; khi bạn bật, các chương trình trên cùng máy tính có thể điều khiển tài liệu đang mở.",
     ] },
     { id: "google-drive", title: "Google Drive", paragraphs: [
@@ -149,6 +150,7 @@ const en: GuideContent = {
     { title: "UniOffice", paragraphs: [
       "UniOffice for desktop opens and saves files on your computer. A local file is uploaded to UniWork only when you choose to save it to a workspace; each save then creates a new version instead of overwriting the last one. You sign in through your browser and can review or revoke each signed-in computer.",
       "When you open or export a PDF, spreadsheet or legacy format on the web, the file is processed by our conversion server in the same infrastructure. The file exists only in the job's temporary storage, is deleted as soon as the job ends and is not sent to any third party.",
+      "If you enter an AI API key directly in UniOffice for desktop, the key is stored on that computer and the app calls the provider directly; UniWork receives neither the key nor the content. The content is processed under the terms of the provider you chose, which may be outside Vietnam.",
       "Public share links are view-only, expire after 7 days by default (90 at most) and can be revoked; views are counted without recording the viewer's address. UniOffice for desktop's local MCP server is off by default; once you turn it on, programs on the same computer can control the open document.",
     ] },
     { id: "google-drive", title: "Google Drive", paragraphs: [

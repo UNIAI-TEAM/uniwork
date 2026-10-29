@@ -129,7 +129,6 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     );
 
     assert.deepEqual(usageFromModelResponseBody({ usage: { prompt_tokens: 12, completion_tokens: 4 } }), { prompt_tokens: 12, completion_tokens: 4 });
-    assert.deepEqual(usageFromModelResponseBody({ usage: { input_tokens: 12, output_tokens: 4 } }), { prompt_tokens: 12, completion_tokens: 4 });
     assert.equal(usageFromModelResponseBody({ usage: { prompt_tokens: 12 } }), null);
     assert.equal(usageFromModelResponseBody({}), null);
 
@@ -140,43 +139,11 @@ describe('G7-08 w2g wire-observe pure helpers', () => {
     assert.equal(usageFromSseText(''), null);
     assert.equal(usageFromSseText('<html>502</html>'), null);
 
-    // R4-1: the Anthropic `/messages` stream - input on message_start, output on
-    // message_delta, both cumulative (ai/proxy.go:433-441).
-    const anthropicSse = 'data: {"type":"message_start","message":{"usage":{"input_tokens":41}}}\n\ndata: {"type":"message_delta","usage":{"output_tokens":9}}\n\ndata: {"type":"message_stop"}\n';
-    assert.deepEqual(usageFromSseText(anthropicSse, 'anthropic'), { prompt_tokens: 41, completion_tokens: 9 });
-    assert.deepEqual(
-      usageFromModelResponseBody({ usage: { input_tokens: 6, output_tokens: 3 } }, 'anthropic'),
-      { prompt_tokens: 6, completion_tokens: 3 },
-    );
-    // R4-1: the Gemini `/generate` body (ai/proxy.go:426-432); thoughts count as output.
-    assert.deepEqual(
-      usageFromModelResponseBody({ usageMetadata: { promptTokenCount: 7, candidatesTokenCount: 5, thoughtsTokenCount: 2 } }, 'gemini'),
-      { prompt_tokens: 7, completion_tokens: 7 },
-    );
-    assert.deepEqual(
-      usageFromSseText('data: {"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":4},"candidates":[{"finishReason":"STOP"}]}\n', 'gemini'),
-      { prompt_tokens: 8, completion_tokens: 4 },
-    );
-    // A shape whose own block is absent is an unknown, never 0 - the wrong-shape body
-    // must not be read as a zero-token call.
-    assert.equal(usageFromSseText('data: {"choices":[{"delta":{}}]}\n\ndata: [DONE]\n', 'anthropic'), null);
-    assert.equal(usageFromModelResponseBody({ usage: { prompt_tokens: 3, completion_tokens: 1 } }, 'anthropic'), null);
-    assert.equal(usageFromModelResponseBody({ usage: { input_tokens: 3, output_tokens: 1 } }, 'gemini'), null);
-
     assert.deepEqual(
       toolCallNamesFromSseText('data: {"choices":[{"delta":{"tool_calls":[{"function":{"name":"read_range"}}]}}]}\n\ndata: [DONE]\n'),
       ['read_range'],
     );
     assert.deepEqual(toolCallNamesFromSseText('not an sse'), []);
-    // R4-1: the tool names of the other two protocols come from their own frames.
-    assert.deepEqual(
-      toolCallNamesFromSseText('data: {"type":"content_block_start","content_block":{"type":"tool_use","name":"edit_block"}}\n', 'anthropic'),
-      ['edit_block'],
-    );
-    assert.deepEqual(
-      toolCallNamesFromSseText('data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"propose_operations"}}]}}]}\n', 'gemini'),
-      ['propose_operations'],
-    );
   });
 
   it('R3-1: the wire tool surface names what the frame offered and what it executed', () => {
