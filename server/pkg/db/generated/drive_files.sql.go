@@ -1843,39 +1843,6 @@ func (q *Queries) RebindDriveFile(ctx context.Context, arg RebindDriveFileParams
 	return i, err
 }
 
-const restoreDriveFileMetadataRefreshedAt = `-- name: RestoreDriveFileMetadataRefreshedAt :exec
-UPDATE drive_files
-SET metadata_refreshed_at = $1
-WHERE id = $2
-  AND organization_id = $3
-  AND workspace_id = $4
-  AND unlinked_at IS NULL
-  AND metadata_refreshed_at IS NOT DISTINCT FROM $5
-`
-
-type RestoreDriveFileMetadataRefreshedAtParams struct {
-	PrevRefreshedAt    pgtype.Timestamptz `json:"prev_refreshed_at"`
-	ID                 string             `json:"id"`
-	OrganizationID     string             `json:"organization_id"`
-	WorkspaceID        string             `json:"workspace_id"`
-	ClaimedRefreshedAt pgtype.Timestamptz `json:"claimed_refreshed_at"`
-}
-
-// Restores the pre-claim metadata_refreshed_at snapshot when an opportunistic
-// refresh skips persistence because TryLockDriveFolderGraph is busy or the
-// refresh transaction fails, so the next request retries instead of waiting
-// 10 minutes on an unstamped refresh (D-LOCK, RB2-1).
-func (q *Queries) RestoreDriveFileMetadataRefreshedAt(ctx context.Context, arg RestoreDriveFileMetadataRefreshedAtParams) error {
-	_, err := q.db.Exec(ctx, restoreDriveFileMetadataRefreshedAt,
-		arg.PrevRefreshedAt,
-		arg.ID,
-		arg.OrganizationID,
-		arg.WorkspaceID,
-		arg.ClaimedRefreshedAt,
-	)
-	return err
-}
-
 const setDriveFolderNameInWorkspace = `-- name: SetDriveFolderNameInWorkspace :many
 UPDATE drive_files
 SET drive_folder_name = $1::text,
@@ -1970,7 +1937,7 @@ SELECT pg_try_advisory_xact_lock(
 
 // Non-blocking variant of LockDriveFolderGraph used by opportunistic metadata
 // refresh on GET/list request paths so a busy workspace graph lock is skipped
-// without waiting or stamping metadata_refreshed_at (D-LOCK, RB2-1).
+// without waiting (D-LOCK, D-BUSY, RB2-1, RB3-3, RB3-4).
 func (q *Queries) TryLockDriveFolderGraph(ctx context.Context, workspaceID string) (bool, error) {
 	row := q.db.QueryRow(ctx, tryLockDriveFolderGraph, workspaceID)
 	var locked bool
