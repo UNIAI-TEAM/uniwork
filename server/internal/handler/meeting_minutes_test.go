@@ -150,11 +150,22 @@ func TestMeetingMinutesDocumentSourceAndLabelHTTP(t *testing.T) {
 		testFlagOverrides.Invalidate()
 	}
 	var res *http.Response
+	// The PATCH base revision is a decimal string and every share or visibility
+	// change moves it, so each PATCH reads the live value first.
+	liveRev := func(docID string) string {
+		t.Helper()
+		_, o := doJSON(t, srv, "GET", "/api/v1/documents/"+docID, host, nil)
+		rev, _ := o["document"].(map[string]any)["revision"].(string)
+		if rev == "" {
+			t.Fatalf("no revision on document %s: %v", docID, o)
+		}
+		return rev
+	}
 	// Create & end meeting, then create minutes.
 	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/meetings/instant", host, map[string]any{
 		"title": "Giao ban Q4",
 	})
-	if res.StatusCode != http.StatusCreated {
+	if res.StatusCode != http.StatusOK {
 		t.Fatalf("create meeting: %d %v", res.StatusCode, out)
 	}
 	meetingID := out["meeting"].(map[string]any)["id"].(string)
@@ -219,7 +230,7 @@ func TestMeetingMinutesDocumentSourceAndLabelHTTP(t *testing.T) {
 		t.Fatalf("GET document minutes_meeting = %v", mm)
 	}
 	res, out = doJSON(t, srv, "PATCH", "/api/v1/documents/"+docID, host, map[string]any{
-		"revision": 1, "icon": "📋",
+		"revision": liveRev(docID), "icon": "📋",
 	})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("PATCH document: %d %v", res.StatusCode, out)
@@ -300,7 +311,7 @@ func TestMeetingMinutesDocumentSourceAndLabelHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	res, out = doJSON(t, srv, "PATCH", "/api/v1/documents/"+docID, host, map[string]any{
-		"revision": 2, "visibility": "restricted",
+		"revision": liveRev(docID), "visibility": "restricted",
 	})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("restrict minutes page: %d %v", res.StatusCode, out)
@@ -339,7 +350,7 @@ func TestMeetingMinutesDocumentSourceAndLabelHTTP(t *testing.T) {
 			t.Fatalf("%s tree node leaked minutes_meeting on restricted page: %v", adm.name, tnodes[0])
 		}
 		res, out = doJSON(t, srv, "PATCH", "/api/v1/documents/"+docID, adm.tok, map[string]any{
-			"revision": 3, "visibility": "restricted",
+			"revision": liveRev(docID), "visibility": "restricted",
 		})
 		if res.StatusCode != http.StatusOK {
 			t.Fatalf("%s PATCH restricted visibility: %d %v", adm.name, res.StatusCode, out)
@@ -371,7 +382,7 @@ func TestMeetingMinutesDocumentSourceAndLabelHTTP(t *testing.T) {
 		t.Fatalf("wsAdmin tree minutes_meeting after break-glass = %v", mm)
 	}
 	res, out = doJSON(t, srv, "PATCH", "/api/v1/documents/"+docID, wsAdminTok, map[string]any{
-		"revision": 3, "visibility": "restricted",
+		"revision": liveRev(docID), "visibility": "restricted",
 	})
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("wsAdmin PATCH after break-glass: %d %v", res.StatusCode, out)
