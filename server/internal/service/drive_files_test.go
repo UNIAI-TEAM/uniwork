@@ -2988,30 +2988,89 @@ func TestDriveFolderTreeMoveAndRenameOnRefresh(t *testing.T) {
 	if err != nil || len(peerTree) != 2 {
 		t.Fatalf("peerTree after 404 refresh = %+v, err=%v", peerTree, err)
 	}
+	peerTreeByID := map[string]DriveFolderGroupView{}
+	for _, g := range peerTree {
+		peerTreeByID[*g.ID] = g
+	}
+	if peerTreeByID["fld-parent-1"].Name == nil || *peerTreeByID["fld-parent-1"].Name != "Parent One" || peerTreeByID["fld-parent-1"].ParentID != nil {
+		t.Fatalf("fld-parent-1 in peerTree after 404 = %+v", peerTreeByID["fld-parent-1"])
+	}
+	if peerTreeByID["fld-child-1"].Name == nil || *peerTreeByID["fld-child-1"].Name != "Child One" || peerTreeByID["fld-child-1"].ParentID == nil || *peerTreeByID["fld-child-1"].ParentID != "fld-parent-1" {
+		t.Fatalf("fld-child-1 in peerTree after 404 = %+v", peerTreeByID["fld-child-1"])
+	}
+	var storedChildName404, storedChildParent404, storedParentName404, storedParentParent404, storedFileFolderName404 string
+	if err := env.pool.QueryRow(ctx,
+		`SELECT name, COALESCE(parent_folder_id, '') FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id = 'fld-child-1'`,
+		env.wsA.ID,
+	).Scan(&storedChildName404, &storedChildParent404); err != nil {
+		t.Fatalf("query stored fld-child-1 after 404: %v", err)
+	}
+	if err := env.pool.QueryRow(ctx,
+		`SELECT name, COALESCE(parent_folder_id, '') FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id = 'fld-parent-1'`,
+		env.wsA.ID,
+	).Scan(&storedParentName404, &storedParentParent404); err != nil {
+		t.Fatalf("query stored fld-parent-1 after 404: %v", err)
+	}
+	if err := env.pool.QueryRow(ctx,
+		`SELECT COALESCE(drive_folder_name, '') FROM drive_files WHERE id = $1`,
+		fileID,
+	).Scan(&storedFileFolderName404); err != nil {
+		t.Fatalf("query stored file folder name after 404: %v", err)
+	}
+	if storedChildName404 != "Child One" || storedChildParent404 != "fld-parent-1" ||
+		storedParentName404 != "Parent One" || storedParentParent404 != "" ||
+		storedFileFolderName404 != "Child One" {
+		t.Fatalf("stored after 404 = child(%q,%q) parent(%q,%q) file(%q)",
+			storedChildName404, storedChildParent404, storedParentName404, storedParentParent404, storedFileFolderName404)
+	}
 
-	// 2. Folder fld-child-1 is renamed on Drive to "Child One Renamed":
-	// when owner refreshes, drive_folders.name updates.
+	// 2. Folder fld-child-1 is renamed on Drive to "Child One Renamed" AND moved under fld-parent-2:
+	// when owner refreshes, drive_folders.name and drive_folders.parent_folder_id both update,
+	// and ListFolders reflects fld-parent-2 -> fld-child-1.
+	env.googleSrv.SetFile("fld-parent-2", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-parent-2", Name: "Parent Two", MimeType: DriveMimeGoogleFolder},
+	})
 	env.googleSrv.SetFile("fld-child-1", FakeGoogleDriveFile{
-		Metadata: googleDriveFileJSON{ID: "fld-child-1", Name: "Child One Renamed", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-parent-1"}},
+		Metadata: googleDriveFileJSON{ID: "fld-child-1", Name: "Child One Renamed", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-parent-2"}},
 	})
 	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, fileID); err != nil {
-		t.Fatalf("age metadata for rename: %v", err)
+		t.Fatalf("age metadata for rename/move: %v", err)
 	}
 	if _, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, fileID); err != nil {
-		t.Fatalf("owner Get after folder rename: %v", err)
+		t.Fatalf("owner Get after folder rename/move: %v", err)
+	}
+	var storedChildNameMoved, storedChildParentMoved string
+	if err := env.pool.QueryRow(ctx,
+		`SELECT name, COALESCE(parent_folder_id, '') FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id = 'fld-child-1'`,
+		env.wsA.ID,
+	).Scan(&storedChildNameMoved, &storedChildParentMoved); err != nil {
+		t.Fatalf("query stored fld-child-1 after folder move: %v", err)
+	}
+	if storedChildNameMoved != "Child One Renamed" || storedChildParentMoved != "fld-parent-2" {
+		t.Fatalf("stored fld-child-1 after folder move = (%q, %q), want (Child One Renamed, fld-parent-2)",
+			storedChildNameMoved, storedChildParentMoved)
 	}
 	treeRenamed, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
 	if err != nil || len(treeRenamed) != 2 {
 		t.Fatalf("treeRenamed = %+v, err=%v", treeRenamed, err)
 	}
+	renamedByID := map[string]DriveFolderGroupView{}
 	for _, g := range treeRenamed {
-		if *g.ID == "fld-child-1" && (g.Name == nil || *g.Name != "Child One Renamed") {
-			t.Fatalf("fld-child-1 after rename = %+v, want Child One Renamed", g)
-		}
+		renamedByID[*g.ID] = g
+	}
+	if _, hasOldParent := renamedByID["fld-parent-1"]; hasOldParent {
+		t.Fatalf("old parent fld-parent-1 still present after folder move: %+v", treeRenamed)
+	}
+	if renamedByID["fld-parent-2"].Name == nil || *renamedByID["fld-parent-2"].Name != "Parent Two" || renamedByID["fld-parent-2"].ParentID != nil {
+		t.Fatalf("fld-parent-2 after folder move = %+v", renamedByID["fld-parent-2"])
+	}
+	if renamedByID["fld-child-1"].Name == nil || *renamedByID["fld-child-1"].Name != "Child One Renamed" ||
+		renamedByID["fld-child-1"].ParentID == nil || *renamedByID["fld-child-1"].ParentID != "fld-parent-2" {
+		t.Fatalf("fld-child-1 after folder move = %+v, want Child One Renamed under fld-parent-2", renamedByID["fld-child-1"])
 	}
 
 	// 3. File ext-mv-doc is moved on Drive from fld-child-1 to fld-dest:
-	// after owner refreshes, ListFolders shows fld-dest (1 file) and fld-child-1/fld-parent-1 disappear
+	// after owner refreshes, ListFolders shows fld-dest (1 file) and fld-child-1/fld-parent-2 disappear
 	// (since they no longer hold any accessible files).
 	env.googleSrv.SetFile("fld-dest", FakeGoogleDriveFile{
 		Metadata: googleDriveFileJSON{ID: "fld-dest", Name: "Destination Folder", MimeType: DriveMimeGoogleFolder},
@@ -3028,6 +3087,53 @@ func TestDriveFolderTreeMoveAndRenameOnRefresh(t *testing.T) {
 	treeMoved, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
 	if err != nil || len(treeMoved) != 1 || *treeMoved[0].ID != "fld-dest" || *treeMoved[0].Name != "Destination Folder" || treeMoved[0].FileCount != 1 {
 		t.Fatalf("treeMoved = %+v, err=%v, want [fld-dest (Destination Folder, count=1)]", treeMoved, err)
+	}
+
+	// 4. Legacy row on PostgreSQL: a drive_files row carrying drive_folder_id and drive_folder_name
+	// with NO corresponding drive_folders row still lists with its fallback name through ListFolders.
+	env.googleSrv.SetFile("ext-legacy-doc", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-legacy-doc", Name: "Legacy Doc", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-legacy-sql"}},
+	})
+	linkedLegacy, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"ext-legacy-doc"},
+	})
+	if err != nil || len(linkedLegacy) != 1 || linkedLegacy[0].File == nil {
+		t.Fatalf("Link ext-legacy-doc: %+v, err=%v", linkedLegacy, err)
+	}
+	legacyFileID := linkedLegacy[0].File.ID
+	if _, err := env.pool.Exec(ctx,
+		`DELETE FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id = 'fld-legacy-sql'`,
+		env.wsA.ID,
+	); err != nil {
+		t.Fatalf("delete drive_folders for legacy simulation: %v", err)
+	}
+	if _, err := env.pool.Exec(ctx,
+		`UPDATE drive_files SET drive_folder_name = 'Legacy SQL Folder' WHERE id = $1`,
+		legacyFileID,
+	); err != nil {
+		t.Fatalf("seed legacy drive_folder_name: %v", err)
+	}
+	var legacyFolderRows int
+	if err := env.pool.QueryRow(ctx,
+		`SELECT count(*) FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id = 'fld-legacy-sql'`,
+		env.wsA.ID,
+	).Scan(&legacyFolderRows); err != nil || legacyFolderRows != 0 {
+		t.Fatalf("legacy drive_folders count = %d, err=%v, want 0", legacyFolderRows, err)
+	}
+	treeWithLegacy, err := env.fileSvc.ListFolders(ctx, Human(env.owner.ID), env.wsA.ID, "")
+	if err != nil {
+		t.Fatalf("ListFolders with legacy row: %v", err)
+	}
+	legacyByID := map[string]DriveFolderGroupView{}
+	for _, g := range treeWithLegacy {
+		if g.ID != nil {
+			legacyByID[*g.ID] = g
+		}
+	}
+	if legacyByID["fld-legacy-sql"].Name == nil || *legacyByID["fld-legacy-sql"].Name != "Legacy SQL Folder" ||
+		legacyByID["fld-legacy-sql"].ParentID != nil || legacyByID["fld-legacy-sql"].FileCount != 1 {
+		t.Fatalf("legacy folder in ListFolders = %+v, want name=Legacy SQL Folder parent=nil count=1", legacyByID["fld-legacy-sql"])
 	}
 }
 
