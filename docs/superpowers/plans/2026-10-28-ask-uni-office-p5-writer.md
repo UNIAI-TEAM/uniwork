@@ -1,6 +1,6 @@
 # Route viết cho UniWork AI, dựng slide và viết cả tài liệu (kế hoạch 5 — Phần 5) Implementation Plan
 
-> **Trạng thái:** in-progress — chờ chủ sản phẩm duyệt; kế hoạch 5 của spec Hỏi UNI soạn tệp Office, issue UNI-2276 (con của UNI-415), nhánh `feature/UNI-2276-hoi-uni-soan-tep-office-route-viet-cho-u`.
+> **Trạng thái:** in-progress — đã triển khai trên nhánh, chờ PR (fork PR UNIAI-TEAM/uniwork-office#26 merge 2026-10-29, bản phát hành `web-0.1.0-8d73c6b`); kế hoạch 5 của spec Hỏi UNI soạn tệp Office, issue UNI-2276 (con của UNI-415), nhánh `feature/UNI-2276-hoi-uni-soan-tep-office-route-viet-cho-u`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
