@@ -7,7 +7,7 @@ import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import type { DocumentTreeNode } from "@uniwork/core/types/document";
 import { WorkspaceProvider } from "../layout/workspace-context";
-import { requestMock, wrap } from "../test/api-mock";
+import { fakeNav, requestMock, wrap, wrapWithNav } from "../test/api-mock";
 import { DocumentFavoriteToggle } from "./document-favorite-toggle";
 import { DocumentTree } from "./document-tree";
 import {
@@ -614,6 +614,67 @@ describe("DocumentTree", () => {
     await waitFor(() =>
       expect(within(otherRow).queryByRole("img", { name: t("documents.home.row.starred") })).toBeNull(),
     );
+  });
+  it("renders minutes_meeting source label on page nodes (linked with title, plain without title) and navigates to the meeting without opening the page (UNI-2288)", async () => {
+    const onOpen = vi.fn();
+    const nav = fakeNav();
+    const workspace: Workspace = {
+      id: WS,
+      slug: "doi",
+      name: "Đội",
+      organization_id: "org1",
+      organization_slug: "acme",
+      organization_name: "Acme",
+    };
+    const user = { id: "u1", email: "an@example.com", display_name: "An", locale: "vi" } as User;
+    const minutesForest: DocumentTreeNode[] = [
+      node({
+        id: "min-member",
+        title: "Biên bản Q4",
+        kind: "page",
+        minutes_meeting: { id: "m1", title: "Giao ban tuần 42" },
+      }),
+      node({
+        id: "min-guest",
+        title: "Biên bản nội bộ",
+        kind: "page",
+        position: 1,
+        minutes_meeting: { id: "m2", title: "" },
+      }),
+    ];
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: minutesForest });
+      if (path === "/api/v1/orgs/org1/documents/favorites") return Promise.resolve({ favorites: [] });
+      return Promise.resolve({});
+    });
+
+    render(
+      wrapWithNav(
+        <WorkspaceProvider workspace={workspace} user={user}>
+          <DocumentTree wsId={WS} onOpen={onOpen} />
+        </WorkspaceProvider>,
+        nav,
+      ),
+    );
+
+    const memberRow = await screen.findByRole("treeitem", { name: /Biên bản Q4/ });
+    const namedLabel = t("documents.page_ui.minutes_source_named", { title: "Giao ban tuần 42" });
+    const link = within(memberRow).getByRole("link", { name: namedLabel });
+    expect(link).toHaveAttribute("href", "/acme/doi/meetings/m1");
+
+    const guestRow = screen.getByRole("treeitem", { name: /Biên bản nội bộ/ });
+    const plainLabel = t("documents.page_ui.minutes_source");
+    expect(within(guestRow).getByText(plainLabel)).toBeInTheDocument();
+    expect(within(guestRow).queryByRole("link")).toBeNull();
+
+    // Clicking the meeting link navigates to the meeting and does not trigger the tree row's onOpen.
+    fireEvent.click(link);
+    expect(nav.push).toHaveBeenCalledWith("/acme/doi/meetings/m1");
+    expect(onOpen).not.toHaveBeenCalled();
+
+    // Clicking the row outside the link still opens the page.
+    fireEvent.click(within(memberRow).getByText("Biên bản Q4"));
+    expect(onOpen).toHaveBeenCalledWith("min-member");
   });
 });
 
