@@ -13,7 +13,12 @@
   `feature/UNI-1366-g6-12-tools` của fork, đã đẩy). Đó là fork `main` `673fc563` cộng toàn bộ nhánh module G6-12 (UNI-1366).
   Bản tài liệu trước (G6-01) đọc ở `0d03b185` = pin web `0.1.0-0d03b18`
   ([office-web-modules](../office-web-modules.md)); các hàng đã sửa ở G6-12 đọc ở `66169a9a` — riêng khối §3 nay đọc ở
-  `3e4e9b71f` (gạch đầu dòng dưới).
+  `8d73c6b6e` (REPIN-10, UNI-2276, 2026-10-29; gạch đầu dòng dưới và §3.1).
+- **Khối §3 ở REPIN-10 (UNI-2276, 2026-10-29):** sinh lại bằng `scripts/genoffice-tools-extract.mjs` của chính fork `main` tại
+  `8d73c6b6e` (`8d73c6b6e127ded30bfb4f904885eebf5e6db1a6`, pin web `0.1.0-8d73c6b`; extractor đã vào fork `main`). Vẫn 143 dòng; so
+  với `3e4e9b71f` chỉ khác dòng `rev=` và hash schema của hai hàng `generate_mindmap` (`docs`, `markdown`):
+  `ad838ec1…` → `429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5`, vì UNI-2282 thêm `items` cho mảng `children` ở
+  tầng lá của cây (Gemini từ chối mảng không có `items`). `editor_write` vẫn `no`, nguồn vẫn `mind-map.ts`.
 - **Khối §3 ở G6-09d / REPIN-1 (UNI-1825, 2026-10-16; trước đó ở G7-06 `cb76dde5` và DOC-05 `bf4ff7b0`):** khối trích xuất nay đọc ở
   `3e4e9b71f` (`3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b`, nhánh `feature/UNI-1825-g6-09d-extractor` trong worktree fork
   `/home/ubuntu/orca/workspaces/uniwork-office/feature-UNI-1374-g6-09-ai-edit-undo`), sinh bằng extractor **đã sửa** G6-09d tại
@@ -111,7 +116,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 ## 3. Cột cơ học (sinh bằng script, không sửa tay)
 
 <!-- extract:begin -->
-<!-- genoffice-tools-extract v1 rev=3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b -->
+<!-- genoffice-tools-extract v1 rev=8d73c6b6e127ded30bfb4f904885eebf5e6db1a6 -->
 | module | tool | input_schema_sha256 | editor_write | source |
 | --- | --- | --- | --- | --- |
 | docs | accept_changes | 9af09d4b7b735877e734a81a8d86f6dbd6fe1ba184cd649a13dec3fe2e196fe0 | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -126,7 +131,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | docs | edit_chart | c29264bd21515db11818de1199fe3af4e8d87a1aaab711fe9ef1f176fe635a45 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | edit_note | f465830acda36342513258eff25bc94a37c3cfc7868505a0fefcceabb4bfb055 | yes | apps/docs/src/renderer/ai/tools.ts |
 | docs | generate_image | f6852b9e5272085ee5e6509a3c6a37dcd28da7f5349151248118e9e4f38c1cde | yes | apps/docs/src/renderer/ai/tools.ts |
-| docs | generate_mindmap | ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0 | no | apps/docs/src/renderer/ai/mind-map.ts |
+| docs | generate_mindmap | 429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5 | no | apps/docs/src/renderer/ai/mind-map.ts |
 | docs | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | image_search | 874a0d101865e7910d3ba9145ce2d9a29776932ce1a689060beb89d8d04fb699 | no | apps/docs/src/renderer/ai/tools.ts |
 | docs | insert_chart | 12fab920f1474bfb8d1ed16c4cc02856f27d322275d274149df02cf2e4b521a4 | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -164,7 +169,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | markdown | apply_ops | e796ff6fcf174827819356e0312f2246fd573b42cb7bbb1f0b7052407c1334c3 | yes | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | ask_clarification | 7b1327afd202f0d0d47debc5f922fdcbe4541bad90d6f97efe31db002b3373f7 | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | generate_image | ed7b16fa3ca50a85c50bc04b296613c9b84014231d5c3ea987819284f5561c25 | yes | apps/markdown/src/renderer/ai/tools.ts |
-| markdown | generate_mindmap | ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0 | no | apps/markdown/src/renderer/ai/mind-map.ts |
+| markdown | generate_mindmap | 429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5 | no | apps/markdown/src/renderer/ai/mind-map.ts |
 | markdown | get_document_context | c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699 | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | image_search | 9c4b23b1cd0fe8dae086fe7c3c86dbceb1130a0c36d8ea7f93bbbe8bcfc9de2a | no | apps/markdown/src/renderer/ai/tools.ts |
 | markdown | insert_image | f53e4d066d933c53c73e9025eb6871cbad02f6693f678290fd1f51748b55f726 | yes | apps/markdown/src/renderer/ai/tools.ts |
@@ -277,6 +282,10 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
   (`feature/UNI-1825-g6-09d-extractor`) extractor gấp mũi tên đệ quy có tham số `nodeSchema(maxDepth)` nên cả hai ô phân giải thành
   `ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0` (0 ô `unresolved`, 0 ô `undeclared`) — đúng đầu ra của
   `scripts/genoffice-tools-extract.mjs --rev 3e4e9b71f` ở fork. Hai hàng đã đóng ở §9.1; cột tay ở §4.2 và §4.3.
+- **Khối ở `8d73c6b6e` (REPIN-10, UNI-2276, 2026-10-29):** 143 dòng; so với `3e4e9b71f` chỉ khác dòng `rev=` và hash của hai hàng
+  `generate_mindmap`, nay `429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5`: schema tầng lá thêm `items` cho
+  `children` (UNI-2282), công cụ vẫn không ghi editor (`editor_write` `no`). Đúng đầu ra của
+  `scripts/genoffice-tools-extract.mjs --rev 8d73c6b6e` ở fork `main`; `genoffice-tool-schemas.json` sinh lại cùng rev.
 - **`editor_write`:** cột cơ học chỉ đọc khai báo của code, còn cột "ghi editor" ở §4 ghi theo hành vi. Ở khối `cb76dde5` còn **12**
   chỗ hai cột khác nhau, đều nhóm B (công cụ ghi file; không phải lỗi). Ở `66169a9a` là **13**: 12 chỗ nhóm B và 1 chỗ nhóm C
   (markdown `ask_clarification`, đọc của script — xem dòng C dưới bảng, đã đóng ở G7-06). Tính lại từ 20 của khối cũ: −5 (nhóm A
