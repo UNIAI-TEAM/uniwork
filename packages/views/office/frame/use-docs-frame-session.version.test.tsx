@@ -75,7 +75,7 @@ describe("useDocsFrameSession: a version view (UNI-2033)", () => {
     expect(init.profile).toBe("readOnly");
     expect(init.capabilities).toMatchObject({
       save: false, saveAs: false, recents: false, exportPdf: false, exportHtml: false,
-      attachments: false, images: false, ai: false, uniworkAi: false, desktopOpen: false, download: false, print: true,
+      attachments: false, images: false, uniworkAi: false, desktopOpen: false, download: false, print: true,
     });
     expect(init.capabilities["commentsViewVersion"]).toBeUndefined();
     expect(init.recovery).toBeUndefined();

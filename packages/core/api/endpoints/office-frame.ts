@@ -19,12 +19,11 @@ const rfc3339 = z.string().min(1);
 // The AI the host may grant the frame (GO-A7 entitlement read at mint, UNI-1014). A field that
 // drifts reads as off: the grant only shows AI, every frame AI route still gates itself.
 const officeFrameAIGrantSchema = z.object({
-  ai: z.boolean().catch(false),
   web_search: z.boolean().catch(false),
   image_search: z.boolean().catch(false),
   image_generation: z.boolean().catch(false),
-  // UniWork AI for this document (G6-03c), independent of `ai` (BYOK). Optional so a grant
-  // from an older server still parses; absent and drifted both read as off.
+  // UniWork AI for this document (G6-03c). Optional so a grant from an older server still
+  // parses; absent and drifted both read as off. An old `ai` (BYOK) key is dropped by zod.
   uniwork_ai: z.boolean().optional().catch(false),
 });
 

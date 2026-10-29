@@ -328,26 +328,29 @@ func TestOfficeFrameAIFollowsTheModuleFlag(t *testing.T) {
 	}
 }
 
-// The frame token answer carries the AI grant: all on with both plan keys and
-// the fake cloud tools; the cloud keys off without office.ai_cloud; all off
-// without office.ai_byok, since the cloud tools only count with `ai`.
+// The frame token answer carries the cloud grant: the three cloud tools follow
+// UniWork AI (flags on, office.ai_cloud on), never a BYOK store, and the answer
+// has no `ai` key at all.
 func TestOfficeFrameTokenCarriesTheAIGrant(t *testing.T) {
 	w := newFrameAIWorld(t)
 	grant := func() map[string]any {
 		t.Helper()
 		return w.mintFrameToken(t, w.docID)["ai"].(map[string]any)
 	}
-	want := func(name string, got map[string]any, ai, cloud bool) {
+	want := func(name string, got map[string]any, on bool) {
 		t.Helper()
-		if got["ai"] != ai || got["web_search"] != cloud || got["image_search"] != cloud || got["image_generation"] != cloud {
-			t.Errorf("%s: grant %v, want ai=%v cloud=%v", name, got, ai, cloud)
+		if _, has := got["ai"]; has {
+			t.Errorf("%s: grant %v still carries an ai key", name, got)
+		}
+		if got["uniwork_ai"] != on || got["web_search"] != on || got["image_search"] != on || got["image_generation"] != on {
+			t.Errorf("%s: grant %v, want every field %v", name, got, on)
 		}
 	}
-	want("full plan", grant(), true, true)
+	want("flags off", grant(), false)
+	enableUniworkAI(t, "docx")
+	want("full plan", grant(), true)
 	w.override(t, `{"office.ai_cloud": false}`)
-	want("no office.ai_cloud", grant(), true, false)
-	w.override(t, `{"office.ai_byok": false}`)
-	want("no office.ai_byok", grant(), false, false)
+	want("no office.ai_cloud", grant(), false)
 }
 
 // enableUniworkAI turns office_ai_uniwork and the given per-format flags on
@@ -360,33 +363,35 @@ func enableUniworkAI(t *testing.T, formats ...string) {
 	}
 }
 
-// G6-03c: uniwork_ai stands apart from BYOK. An organization without
-// office.ai_byok still gets it (ai stays off), it needs office.ai_cloud, and
-// spent credits do not take it away (the turn answers 402 instead).
-func TestOfficeFrameGrantsUniworkAIWithoutBYOK(t *testing.T) {
+// UniWork AI and the cloud tools follow office.ai_cloud and the flags, with no
+// BYOK configured at all; spent credits do not take them away (the turn
+// answers 402 instead).
+func TestOfficeFrameCloudToolsFollowUniworkAI(t *testing.T) {
 	w := newFrameAIWorld(t)
 	grant := func() map[string]any {
 		t.Helper()
 		return w.mintFrameToken(t, w.docID)["ai"].(map[string]any)
 	}
-	if got := grant(); got["uniwork_ai"] != false {
-		t.Fatalf("flags off: grant %v, want uniwork_ai=false", got)
+	all := func(got map[string]any, on bool) bool {
+		return got["uniwork_ai"] == on && got["web_search"] == on && got["image_search"] == on && got["image_generation"] == on
 	}
 	enableUniworkAI(t, "docx")
-	if got := grant(); got["uniwork_ai"] != true || got["ai"] != true {
-		t.Fatalf("full plan: grant %v, want ai and uniwork_ai", got)
+	got := grant()
+	if _, has := got["ai"]; has || !all(got, true) {
+		t.Fatalf("full plan: grant %v, want the four fields true and no ai key", got)
 	}
-	w.override(t, `{"office.ai_byok": false}`)
-	if got := grant(); got["uniwork_ai"] != true || got["ai"] != false {
-		t.Fatalf("no office.ai_byok: grant %v, want uniwork_ai without ai", got)
+	setFlagOverride(t, "office_ai_uniwork", featureflags.ScopeGlobal, "", false)
+	if got := grant(); !all(got, false) {
+		t.Fatalf("office_ai_uniwork off: grant %v, want the four fields false", got)
 	}
-	w.override(t, `{"office.ai_byok": false, "ai.tokens": 0}`)
+	setFlagOverride(t, "office_ai_uniwork", featureflags.ScopeGlobal, "", true)
+	w.override(t, `{"ai.tokens": 0}`)
 	if got := grant(); got["uniwork_ai"] != true {
 		t.Fatalf("credits spent: grant %v, want uniwork_ai still true", got)
 	}
 	w.override(t, `{"office.ai_cloud": false}`)
-	if got := grant(); got["uniwork_ai"] != false || got["ai"] != true {
-		t.Fatalf("no office.ai_cloud: grant %v, want ai without uniwork_ai", got)
+	if got := grant(); !all(got, false) {
+		t.Fatalf("no office.ai_cloud: grant %v, want the four fields false", got)
 	}
 }
 

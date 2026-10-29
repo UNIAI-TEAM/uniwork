@@ -101,13 +101,11 @@ type OfficeFrameResolvedPathsSDO struct {
 // document. Read once at mint from GO-A7's entitlement checks; every AI route
 // on the frame mount still checks membership, entitlement and credits itself.
 type OfficeFrameAIGrantSDO struct {
-	AI              bool `json:"ai" description:"Khung được bật AI (BYOK qua /office-frame/.../ai): tổ chức có office.ai_byok và kho khóa đã cấu hình" example:"true"`
-	WebSearch       bool `json:"web_search" description:"Tìm web đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"true"`
-	ImageSearch     bool `json:"image_search" description:"Tìm ảnh đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"false"`
-	ImageGeneration bool `json:"image_generation" description:"Sinh ảnh và phân tích media đám mây UniWork (chỉ khi ai=true và gói có office.ai_cloud)" example:"false"`
-	// UniworkAI is UniWork AI for this document (G6-03c); it does not need
-	// ai (BYOK).
-	UniworkAI bool `json:"uniwork_ai" description:"UniWork AI cho tài liệu này: thành viên, gói có office.ai_cloud, server đã cấu hình UniWork AI, office_ai_uniwork và office_ai_uniwork_<định dạng của tài liệu> bật; không cần office.ai_byok hay kho khóa" example:"true"`
+	WebSearch       bool `json:"web_search" description:"Tìm web đám mây UniWork (chỉ khi uniwork_ai=true và gói có office.ai_cloud)" example:"true"`
+	ImageSearch     bool `json:"image_search" description:"Tìm ảnh đám mây UniWork (chỉ khi uniwork_ai=true và gói có office.ai_cloud)" example:"false"`
+	ImageGeneration bool `json:"image_generation" description:"Sinh ảnh và phân tích media đám mây UniWork (chỉ khi uniwork_ai=true và gói có office.ai_cloud)" example:"false"`
+	// UniworkAI is UniWork AI for this document (G6-03c).
+	UniworkAI bool `json:"uniwork_ai" description:"UniWork AI cho tài liệu này: thành viên, gói có office.ai_cloud, server đã cấu hình UniWork AI, office_ai_uniwork và office_ai_uniwork_<định dạng của tài liệu> bật" example:"true"`
 }
 
 // OfficeFrameSourceTokenSDO is POST

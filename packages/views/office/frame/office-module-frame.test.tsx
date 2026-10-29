@@ -130,7 +130,7 @@ describe("OfficeModuleFrame", () => {
     expect(frame.inits()[0]?.payload).not.toHaveProperty("profile");
     expect(frame.inits()[0]?.payload).toMatchObject({
       module: "pdf", documentId: "doc-1", token: "tok-1",
-      capabilities: { save: true, saveAs: true, recents: false, print: true, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false },
+      capabilities: { save: true, saveAs: true, recents: false, print: true, exportPdf: false, exportHtml: false, attachments: false, images: false, uniworkAi: false },
     });
   });
 
@@ -145,7 +145,7 @@ describe("OfficeModuleFrame", () => {
       documentId: "chat:s-1",
       token: "ofs1.tok",
       profile: "readOnly",
-      capabilities: { save: false, saveAs: false, recents: false, exportPdf: false, exportHtml: false, attachments: false, images: false, ai: false, desktopOpen: false, download: false },
+      capabilities: { save: false, saveAs: false, recents: false, exportPdf: false, exportHtml: false, attachments: false, images: false, uniworkAi: false, desktopOpen: false, download: false },
     });
     // No comments claim and no save control for a read-only source.
     expect(init?.capabilities?.comments ?? false).toBe(false);
@@ -399,15 +399,15 @@ describe("OfficeModuleFrame", () => {
   const mintWithAI = (module: OfficeModule, ai: unknown) => () => Promise.resolve({ ...minted, module, ai });
 
   it.each(ALL_MODULES)("grants the %s frame AI as far as the minted token's grant", async (module) => {
-    const frame = mountFrame(module, { mint: mintWithAI(module, { ai: true, web_search: true, image_search: false, image_generation: true }) });
+    const frame = mountFrame(module, { mint: mintWithAI(module, { uniwork_ai: true, web_search: true, image_search: false, image_generation: true }) });
     await frame.ready({ module });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
-    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: true, webSearch: true, imageSearch: false, imageGeneration: true } });
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { uniworkAi: true, webSearch: true, imageSearch: false, imageGeneration: true } });
   });
 
   it("keeps AI off for a token without AI and for a malformed grant", async () => {
     const cases: [OfficeModule, unknown][] = [
-      ["pdf", { ai: false, web_search: true, image_search: true, image_generation: true }],
+      ["pdf", { uniwork_ai: false, web_search: true, image_search: true, image_generation: true }],
       ["markdown", "yes"],
       ["html", undefined],
     ];
@@ -415,18 +415,17 @@ describe("OfficeModuleFrame", () => {
       const frame = mountFrame(module, { mint: mintWithAI(module, ai) });
       await frame.ready({ module });
       await waitFor(() => expect(frame.inits()).toHaveLength(1));
-      expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: false, webSearch: false, imageSearch: false, imageGeneration: false } });
+      expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { uniworkAi: false, webSearch: false, imageSearch: false, imageGeneration: false } });
       cleanup();
     }
   });
 
-  // G6-05: UniWork AI is its own grant (`uniwork_ai`), independent of BYOK `ai`; the cloud tools
-  // follow their grants under either one, so an organization with only UniWork AI still gets them.
+  // G6-05: UniWork AI is its own grant (`uniwork_ai`), and the cloud tools follow it.
   it.each(ALL_MODULES)("grants the %s frame uniworkAi and the cloud tools from a uniwork_ai grant alone", async (module) => {
-    const frame = mountFrame(module, { mint: mintWithAI(module, { ai: false, web_search: true, image_search: false, image_generation: true, uniwork_ai: true }) });
+    const frame = mountFrame(module, { mint: mintWithAI(module, { web_search: true, image_search: false, image_generation: true, uniwork_ai: true }) });
     await frame.ready({ module });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
-    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: false, uniworkAi: true, webSearch: true, imageSearch: false, imageGeneration: true } });
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { uniworkAi: true, webSearch: true, imageSearch: false, imageGeneration: true } });
   });
 
   // G6-05 task 2: the six frames still pinned at web-0.1.0-06d77a2 list `uniworkAi` in their protocol keys but
@@ -434,12 +433,12 @@ describe("OfficeModuleFrame", () => {
   // grant is neither a handshake failure nor a hash check at runtime: the session stays up.
   it("stays up when the pinned frame answers a uniworkAi grant with its own uniworkAi: false claim", async () => {
     const frame = mountFrame("pdf", {
-      mint: mintWithAI("pdf", { ai: true, web_search: false, image_search: false, image_generation: false, uniwork_ai: true }),
+      mint: mintWithAI("pdf", { web_search: false, image_search: false, image_generation: false, uniwork_ai: true }),
       ackCapabilities: { ai: true, webSearch: true, imageSearch: true, imageGeneration: true, uniworkAi: false, desktopOpen: true, download: true },
     });
     await frame.ready({ module: "pdf" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
-    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: true, uniworkAi: true } });
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { uniworkAi: true } });
     await waitFor(() => expect(screen.queryByTestId("office-docs-frame-loading")).toBeNull());
     expect(screen.queryByTestId("office-docs-frame-failed")).toBeNull();
     expect(frame.iframe).toBeInTheDocument();
@@ -447,9 +446,9 @@ describe("OfficeModuleFrame", () => {
 
   it("keeps uniworkAi off without the grant, with a drifted one, and keeps cloud tools off without either AI", async () => {
     const cases: [OfficeModule, unknown][] = [
-      ["pdf", { ai: true, web_search: true, image_search: true, image_generation: true }],
-      ["markdown", { ai: true, web_search: false, image_search: false, image_generation: false, uniwork_ai: "yes" }],
-      ["html", { ai: false, web_search: true, image_search: true, image_generation: true, uniwork_ai: false }],
+      ["pdf", { web_search: true, image_search: true, image_generation: true }],
+      ["markdown", { web_search: false, image_search: false, image_generation: false, uniwork_ai: "yes" }],
+      ["html", { web_search: true, image_search: true, image_generation: true, uniwork_ai: false }],
       ["slides", undefined],
     ];
     for (const [module, ai] of cases) {
@@ -464,10 +463,10 @@ describe("OfficeModuleFrame", () => {
   });
 
   it("keeps AI for a view-only user, who still cannot save", async () => {
-    const frame = mountFrame("pdf", { mint: () => Promise.resolve({ ...minted, can_edit: false, ai: { ai: true, web_search: false, image_search: false, image_generation: false } }) });
+    const frame = mountFrame("pdf", { mint: () => Promise.resolve({ ...minted, can_edit: false, ai: { uniwork_ai: true, web_search: false, image_search: false, image_generation: false } }) });
     await frame.ready({ module: "pdf" });
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
-    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { ai: true, webSearch: false, save: false, saveAs: false } });
+    expect(frame.inits()[0]?.payload).toMatchObject({ capabilities: { uniworkAi: true, webSearch: false, save: false, saveAs: false } });
   });
 
   it.each(ALL_MODULES)("hands the %s frame the session's draft-recovery key and the user:document scope", async (module) => {
@@ -792,7 +791,7 @@ describe("OfficeModuleFrame", () => {
     await waitFor(() => expect(frame.inits()).toHaveLength(1));
     expect(frame.inits()[0]?.payload).toMatchObject({
       module: "docs",
-      capabilities: { save: true, saveAs: true, recents: true, print: true, exportPdf: true, exportHtml: false, attachments: true, images: true, ai: false },
+      capabilities: { save: true, saveAs: true, recents: true, print: true, exportPdf: true, exportHtml: false, attachments: true, images: true, uniworkAi: false },
     });
   });
 });

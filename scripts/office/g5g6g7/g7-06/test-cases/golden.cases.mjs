@@ -472,7 +472,6 @@ test("--update-goldens takes a host's viewport from its meta only when that host
 function setWebGrant(captures, fixture, grant) {
   const file = join(captures, "web", "meta.json");
   const meta = readJson(file);
-  delete meta.fixtures[fixture].ai;
   delete meta.fixtures[fixture].uniworkAi;
   Object.assign(meta.fixtures[fixture], grant);
   writeFileSync(file, `${JSON.stringify(meta, null, 2)}\n`);
@@ -480,15 +479,15 @@ function setWebGrant(captures, fixture, grant) {
 
 test("golden: the checked-in fake web captures record an AI grant, and a web capture with AI on passes", () => {
   const meta = readJson(join(fx.mkCaptures(tmpDir("g7-06-captures-")), "web", "meta.json"));
-  for (const entry of Object.values(meta.fixtures)) assert.equal(entry.ai || entry.uniworkAi, true);
+  for (const entry of Object.values(meta.fixtures)) assert.equal(entry.uniworkAi, true);
   const { check } = goldenRun(goldenWorld({ fixtures: FIXTURES }), { name: "golden-ai-on", fixtures: FIXTURES });
   assert.equal(check.status, "PASS", JSON.stringify(check.reasons));
 });
 
 for (const [label, grant] of [
-  ["both grants off", { ai: false, uniworkAi: false }],
+  ["the grant off", { uniworkAi: false }],
   ["no grant recorded at all (a meta from before the field)", {}],
-  ["a drifted value", { ai: "true", uniworkAi: null }],
+  ["a drifted value", { uniworkAi: null }],
 ]) {
   test(`golden: a web capture with AI off is a FAIL capture_ai_off, even with identical pixels (${label})`, () => {
     const world = goldenWorld();
@@ -501,16 +500,16 @@ for (const [label, grant] of [
   });
 }
 
-test("golden: UniWork AI alone is enough, as the host reads ai || uniworkAi", () => {
+test("golden: UniWork AI on is enough for a web capture", () => {
   const world = goldenWorld();
-  setWebGrant(world.captures, ONE, { ai: false, uniworkAi: true });
+  setWebGrant(world.captures, ONE, { uniworkAi: true });
   const { check } = goldenRun(world, { name: "golden-ai-uniwork" });
   assert.equal(check.status, "PASS", JSON.stringify(check.reasons));
 });
 
 test("--update-goldens FAILS a web capture with AI off and blesses nothing for it (RFE5-202)", () => {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
-  setWebGrant(captures, ONE, { ai: false, uniworkAi: false });
+  setWebGrant(captures, ONE, { uniworkAi: false });
   const goldens = tmpDir("g7-06-goldens-");
   const updated = updateGoldens({ capturesDir: captures, goldensDir: goldens, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-ai-off") });
   assert.equal(updated.status, "FAIL");

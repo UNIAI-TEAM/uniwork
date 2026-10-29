@@ -34,42 +34,28 @@ func (h *handlers) frameAIActor(r *http.Request) (string, string, error) {
 	return claims.UserID, claims.OrganizationID, nil
 }
 
-// officeFrameAIGrant is what the host may grant a frame of this token: `ai`
-// when the person could use the BYOK proxy in the document's organization
-// (member, office.ai_byok, a credential store), and each cloud tool only with
-// `ai` and while GO-A7's cloud status says that tool is available
-// (office.ai_cloud and a configured provider). `uniwork_ai` (G6-03c) stands
-// apart from BYOK: the cloud status says chat is on (member, office.ai_cloud,
-// UniWork AI configured, office_ai_uniwork) and the format of the token's
-// module has its office_ai_uniwork_<format> on. Any failure reads as off: the
-// grant only shows or hides AI, every AI route still gates itself.
+// officeFrameAIGrant is what the host may grant a frame of this token.
+// `uniwork_ai` (G6-03c) holds when the cloud status says chat is on (member,
+// office.ai_cloud, UniWork AI configured, office_ai_uniwork) and the format of
+// the token's module has its office_ai_uniwork_<format> on. Each cloud tool
+// needs `uniwork_ai` and GO-A7's cloud status saying that tool is available;
+// no BYOK state is read. Any failure reads as off: the grant only shows or
+// hides AI, every AI route still gates itself.
 func (h *handlers) officeFrameAIGrant(ctx context.Context, claims service.OfficeFrameClaims) sdo.OfficeFrameAIGrantSDO {
 	var out sdo.OfficeFrameAIGrantSDO
-	if claims.UserID == "" || claims.OrganizationID == "" {
+	if claims.UserID == "" || claims.OrganizationID == "" || h.AICloud == nil {
 		return out
 	}
-	var cloud service.AICloudStatus
-	cloudOK := false
-	if h.AICloud != nil {
-		st, err := h.AICloud.Status(ctx, claims.UserID, claims.OrganizationID, h.OfficeCapabilities)
-		if err == nil {
-			cloud, cloudOK = st, true
-			out.UniworkAI = st.UniworkAIFor(claims.ModuleName())
-		}
-	}
-	if h.AIBYOK == nil || h.AICredentials == nil {
+	st, err := h.AICloud.Status(ctx, claims.UserID, claims.OrganizationID, h.OfficeCapabilities)
+	if err != nil {
 		return out
 	}
-	ok, err := h.AIBYOK.Enabled(ctx, claims.UserID, claims.OrganizationID)
-	if err != nil || !ok {
+	out.UniworkAI = st.UniworkAIFor(claims.ModuleName())
+	if !out.UniworkAI || !st.Enabled {
 		return out
 	}
-	out.AI = true
-	if !cloudOK || !cloud.Enabled {
-		return out
-	}
-	out.WebSearch = cloud.Tools.WebSearch
-	out.ImageSearch = cloud.Tools.ImageSearch
-	out.ImageGeneration = cloud.Tools.ImageGenerate
+	out.WebSearch = st.Tools.WebSearch
+	out.ImageSearch = st.Tools.ImageSearch
+	out.ImageGeneration = st.Tools.ImageGenerate
 	return out
 }
