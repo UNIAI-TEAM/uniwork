@@ -59,14 +59,29 @@ func (id ProviderIdentity) emailUsable() bool {
 	return id.EmailVerified && at > 0 && at < len(id.Email)-1
 }
 
-const applePrivateRelayDomain = "privaterelay.appleid.com"
+// appleRelayDomains are the domains of the addresses Hide My Email gives
+// Sign in with Apple: privaterelay.appleid.com, and private.icloud.com for
+// the ones Apple issues from late 2026 on (the older ones keep working).
+// iCloud+'s own Hide My Email stays on icloud.com, an Apple mail domain.
+// packages/core/auth/sign-in-rules.ts lists the same domains
+// (scripts/apple-relay-domains.test.mjs).
+var appleRelayDomains = map[string]bool{"privaterelay.appleid.com": true, "private.icloud.com": true}
 
 // googleAuthoritativeDomains are the consumer domains Google itself owns.
 var googleAuthoritativeDomains = map[string]bool{"gmail.com": true, "googlemail.com": true}
 
-// appleAuthoritativeDomains are Apple's own mail domains; relay addresses
-// are Apple's too.
-var appleAuthoritativeDomains = map[string]bool{"icloud.com": true, "me.com": true, "mac.com": true, applePrivateRelayDomain: true}
+// appleMailDomains are Apple's own mail domains; relay addresses are Apple's
+// too (appleRelayDomains).
+var appleMailDomains = map[string]bool{"icloud.com": true, "me.com": true, "mac.com": true}
+
+// isRelayAddress: the address is one Apple relays, by its domain after the
+// last "@", exactly and whatever its case; a subdomain or a mention of a
+// relay domain is not.
+func isRelayAddress(email string) bool {
+	email = strings.TrimSpace(email)
+	at := strings.LastIndex(email, "@")
+	return at > 0 && appleRelayDomains[strings.ToLower(email[at+1:])]
+}
 
 func emailDomain(email string) string {
 	_, domain, _ := strings.Cut(email, "@")
@@ -103,8 +118,8 @@ func appleIdentity(c auth.AppleClaims, givenName, familyName, sealedRefresh stri
 	domain := emailDomain(email)
 	return ProviderIdentity{
 		Provider: ProviderApple, Subject: c.Sub, Email: email, EmailVerified: c.EmailVerified,
-		EmailAuthoritative: appleAuthoritativeDomains[domain],
-		PrivateRelay:       c.PrivateEmail || domain == applePrivateRelayDomain,
+		EmailAuthoritative: appleMailDomains[domain] || appleRelayDomains[domain],
+		PrivateRelay:       c.PrivateEmail || isRelayAddress(email),
 		Name:               capRunes(strings.Join(strings.Fields(givenName+" "+familyName), " "), maxProviderNameRunes, ""),
 		AppleClientID:      c.Audience, AppleRefresh: sealedRefresh,
 	}

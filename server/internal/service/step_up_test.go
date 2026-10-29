@@ -475,39 +475,42 @@ func (f *identityFixture) tokenID(t *testing.T, sess Session) string {
 	return id
 }
 
-// An account whose own address is Apple's private relay reaches its owner
-// only while Apple keeps relaying for this app, so Apple stays linked even
-// when a password would still sign it in (spec §3.7).
+// An account whose own address is Apple's private relay, on either of its
+// domains, reaches its owner only while Apple keeps relaying for this app, so
+// Apple stays linked even when a password would still sign it in (spec §3.7).
 func TestARelayAccountKeepsApple(t *testing.T) {
-	f := newIdentityFixture(t)
-	methods := NewSignInMethodsService(f.pool, f.q, f.auth)
-	relay := "k2x9@privaterelay.appleid.com"
-	device, err := f.appleSignIn(t, "apple-relay", relay, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	u := f.user(t, device.AccountID)
-	ctx, _ := f.browser(t, u.ID)
-	g := f.stepUpByMail(t, ctx, u, mail.StepUpActionSetPassword)
-	set, err := methods.SetPassword(ctx, u.ID, PasswordInput{New: "relay-password-1", StepUpToken: g.Token})
-	if err != nil || !set.Methods.AccountEmailIsRelay || !set.Methods.Apple.PrivateRelay {
-		t.Fatalf("set a password: %+v %v", set.Methods, err)
-	}
-	byPassword, err := f.auth.StepUp(ctx, u.ID, StepUpProof{Password: "relay-password-1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = methods.Unlink(ctx, u.ID, ProviderApple, byPassword.Token)
-	wantStatusCode(t, err, "sign_in_method_relay_email", http.StatusConflict)
-	if !f.user(t, u.ID).AppleID.Valid {
-		t.Fatal("Apple was unlinked from a relay account")
-	}
-	// The app may prove such an account with a fresh Apple token instead
-	// of a mail that only the relay delivers.
-	app := f.native(t, device)
-	m, err := f.auth.SignInMethods(app, u.ID)
-	if err != nil || strings.Join(m.Proofs, ",") != "password,email_code,apple" {
-		t.Fatalf("app proofs: %v %v", m.Proofs, err)
+	for _, relay := range []string{"k2x9@privaterelay.appleid.com", "k2x9@private.icloud.com"} {
+		t.Run(relay, func(t *testing.T) {
+			f := newIdentityFixture(t)
+			methods := NewSignInMethodsService(f.pool, f.q, f.auth)
+			device, err := f.appleSignIn(t, "apple-relay", relay, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			u := f.user(t, device.AccountID)
+			ctx, _ := f.browser(t, u.ID)
+			g := f.stepUpByMail(t, ctx, u, mail.StepUpActionSetPassword)
+			set, err := methods.SetPassword(ctx, u.ID, PasswordInput{New: "relay-password-1", StepUpToken: g.Token})
+			if err != nil || !set.Methods.AccountEmailIsRelay || !set.Methods.Apple.PrivateRelay {
+				t.Fatalf("set a password: %+v %v", set.Methods, err)
+			}
+			byPassword, err := f.auth.StepUp(ctx, u.ID, StepUpProof{Password: "relay-password-1"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = methods.Unlink(ctx, u.ID, ProviderApple, byPassword.Token)
+			wantStatusCode(t, err, "sign_in_method_relay_email", http.StatusConflict)
+			if !f.user(t, u.ID).AppleID.Valid {
+				t.Fatal("Apple was unlinked from a relay account")
+			}
+			// The app may prove such an account with a fresh Apple token instead
+			// of a mail that only the relay delivers.
+			app := f.native(t, device)
+			m, err := f.auth.SignInMethods(app, u.ID)
+			if err != nil || strings.Join(m.Proofs, ",") != "password,email_code,apple" {
+				t.Fatalf("app proofs: %v %v", m.Proofs, err)
+			}
+		})
 	}
 }
 

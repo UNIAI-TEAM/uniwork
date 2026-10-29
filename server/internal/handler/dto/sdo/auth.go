@@ -87,9 +87,9 @@ type SignInProviderSDO struct {
 // SignInAppleSDO is the Apple row of SignInMethodsSDO.
 type SignInAppleSDO struct {
 	Linked       bool    `json:"linked" description:"true khi Apple mở được tài khoản này" example:"false"`
-	Email        *string `json:"email" description:"Email Apple cho lúc liên kết; null khi chưa liên kết" example:"q7x2@privaterelay.appleid.com"`
+	Email        *string `json:"email" description:"Email Apple cho lúc liên kết; null khi chưa liên kết" example:"q7x2@private.icloud.com"`
 	LinkedAt     *string `json:"linked_at" description:"Thời điểm liên kết (RFC3339); null khi chưa liên kết hoặc liên kết từ trước khi được ghi nhận" example:"2026-10-27T08:00:00Z"`
-	PrivateRelay bool    `json:"private_relay" description:"true khi email Apple là địa chỉ ẩn (Hide My Email)" example:"false"`
+	PrivateRelay bool    `json:"private_relay" description:"true khi email Apple là địa chỉ ẩn (Hide My Email: @privaterelay.appleid.com, hay @private.icloud.com với địa chỉ Apple cấp từ cuối 2026)" example:"true"`
 }
 
 // SignInMethodsSDO is how an account signs in (spec §3.7).

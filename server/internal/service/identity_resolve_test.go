@@ -273,6 +273,14 @@ func TestProviderSignInTrustsOnlyAuthoritativeEmail(t *testing.T) {
 		{"a@me.com", false, true, false},
 		{"a@mac.com", false, true, false},
 		{"Q7x@PrivateRelay.AppleID.com", true, true, true},
+		// The relay addresses Apple issues from late 2026 on.
+		{"q7x@private.icloud.com", true, true, true},
+		// The relay's domain marks the address even when the token leaves
+		// is_private_email out.
+		{"Q7x@Private.iCloud.com", false, true, true},
+		{"q7x@privaterelay.appleid.com", false, true, true},
+		{"a@mail.private.icloud.com", false, false, false},
+		{"a@private.icloud.com.evil.vn", false, false, false},
 		{"a@gmail.com", false, false, false},
 		{"a@icloud.com.evil.vn", false, false, false},
 	} {
@@ -315,6 +323,25 @@ func TestProviderSignInTrustsOnlyAuthoritativeEmail(t *testing.T) {
 	refused(t, err, ErrSignInAccountUnverified)
 	if u := f.user(t, typed.User.ID); !u.PasswordHash.Valid || u.EmailVerifiedAt.Valid {
 		t.Fatalf("a non-authoritative address reclaimed: %+v", u)
+	}
+}
+
+// A relay address is one whose domain, after the last "@", is one of Apple's
+// relay domains exactly, whatever its case: a subdomain, a lookalike or a
+// mention of the domain is not, and neither is an iCloud address (iCloud+'s
+// own Hide My Email stays on icloud.com). packages/core/auth/sign-in-rules.ts
+// holds the same cases.
+func TestRelayAddressIsExactlyAtAnAppleRelayDomain(t *testing.T) {
+	for email, want := range map[string]bool{
+		"q7x@privaterelay.appleid.com": true, "q7x@private.icloud.com": true,
+		"Q7X@PrivateRelay.AppleID.com ": true, " Q7x@Private.iCloud.com": true,
+		"a@icloud.com": false, "a@mail.private.icloud.com": false, "a@private.icloud.com.evil.vn": false,
+		"private.icloud.com@example.com": false, "@private.icloud.com": false, " @privaterelay.appleid.com": false,
+		"private.icloud.com": false, "": false,
+	} {
+		if got := isRelayAddress(email); got != want {
+			t.Errorf("isRelayAddress(%q) = %v, want %v", email, got, want)
+		}
 	}
 }
 
@@ -524,28 +551,38 @@ func TestProviderSignInReclaimsAnUnverifiedAccount(t *testing.T) {
 			t.Fatalf("the squatter's Apple ID: %+v %v", sess, err)
 		}
 	})
-	t.Run("apple", func(t *testing.T) {
-		f := newIdentityFixture(t)
-		s := f.squat(t, "victim@icloud.com")
-		sess, err := f.appleSignIn(t, "victim-apple", "victim@icloud.com", false)
-		if err != nil || sess.AccountID != s.user.ID || sess.AccessToken == "" {
-			t.Fatalf("the owner is signed in on the phone: %+v %v", sess, err)
-		}
-		f.assertGone(t, s, "victim@icloud.com")
-		u := f.user(t, s.user.ID)
-		if u.AppleID.String != "victim-apple" || u.AppleEmail.String != "victim@icloud.com" || u.GoogleID.Valid || u.GoogleEmail.Valid {
-			t.Fatalf("only the owner's Apple ID opens it now: %+v", u)
-		}
-		if u.AppleRefreshTokenEnc.String == "" || u.AppleRefreshTokenEnc.String == s.user.AppleRefreshTokenEnc.String {
-			t.Fatalf("the owner's own Apple consent is kept: %+v", u)
-		}
-		if f.linkAudits(t, u.ID, ProviderApple, "reclaim") != 1 {
-			t.Fatal("the reclaim is audited as a link")
-		}
-		if err := f.desktop.CheckDeviceSession(f.ctx, u.ID, sess.DeviceSessionID); err != nil {
-			t.Fatalf("the owner's device session: %v", err)
-		}
-	})
+	// Apple owns its relay domains as it owns iCloud: an account someone
+	// registered on a relay address goes back to the Apple ID it forwards for.
+	for _, tc := range []struct {
+		name, email string
+		private     bool
+	}{
+		{"apple", "victim@icloud.com", false},
+		{"apple relay", "victim@private.icloud.com", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newIdentityFixture(t)
+			s := f.squat(t, tc.email)
+			sess, err := f.appleSignIn(t, "victim-apple", tc.email, tc.private)
+			if err != nil || sess.AccountID != s.user.ID || sess.AccessToken == "" {
+				t.Fatalf("the owner is signed in on the phone: %+v %v", sess, err)
+			}
+			f.assertGone(t, s, tc.email)
+			u := f.user(t, s.user.ID)
+			if u.AppleID.String != "victim-apple" || u.AppleEmail.String != tc.email || u.GoogleID.Valid || u.GoogleEmail.Valid {
+				t.Fatalf("only the owner's Apple ID opens it now: %+v", u)
+			}
+			if u.AppleRefreshTokenEnc.String == "" || u.AppleRefreshTokenEnc.String == s.user.AppleRefreshTokenEnc.String {
+				t.Fatalf("the owner's own Apple consent is kept: %+v", u)
+			}
+			if f.linkAudits(t, u.ID, ProviderApple, "reclaim") != 1 {
+				t.Fatal("the reclaim is audited as a link")
+			}
+			if err := f.desktop.CheckDeviceSession(f.ctx, u.ID, sess.DeviceSessionID); err != nil {
+				t.Fatalf("the owner's device session: %v", err)
+			}
+		})
+	}
 }
 
 // The second factor on an unverified account was set up by whoever
