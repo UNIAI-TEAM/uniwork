@@ -92,6 +92,28 @@ export function TreeRowItem({
     TREE_MENU_REACH - (starred ? TREE_STAR_SLOT : 0) - (scope ? TREE_BADGE_SLOT : 0),
   );
 
+  const minutes = row.node.kind === "page" && row.node.minutes_meeting?.id;
+  const nameSpan = (
+    <span
+      title={label}
+      className={cn(
+        "min-w-0 truncate",
+        !minutes && "flex-1",
+        overlaySlots && fadeStart > 0 && MASK_NAME_WHEN_REVEALED,
+        overlaySlots && fadeStart > 0 && revealed && "pointer-fine:[mask-image:var(--tree-name-mask)]",
+      )}
+      style={
+        overlaySlots && fadeStart > 0
+          ? ({
+              "--tree-name-mask": `linear-gradient(to left, transparent ${fadeStart}px, black ${fadeStart + TREE_NAME_FADE}px)`,
+            } as React.CSSProperties)
+          : undefined
+      }
+    >
+      {label}
+    </span>
+  );
+
   return (
     <div
       ref={(el) => {
@@ -176,23 +198,7 @@ export function TreeRowItem({
       </span>
       {row.node.kind === "page" && row.node.minutes_meeting?.id ? (
         <span className="flex min-w-0 flex-1 flex-col">
-          <span
-            title={label}
-            className={cn(
-              "min-w-0 truncate",
-              overlaySlots && fadeStart > 0 && MASK_NAME_WHEN_REVEALED,
-              overlaySlots && fadeStart > 0 && revealed && "pointer-fine:[mask-image:var(--tree-name-mask)]",
-            )}
-            style={
-              overlaySlots && fadeStart > 0
-                ? ({
-                    "--tree-name-mask": `linear-gradient(to left, transparent ${fadeStart}px, black ${fadeStart + TREE_NAME_FADE}px)`,
-                  } as React.CSSProperties)
-                : undefined
-            }
-          >
-            {label}
-          </span>
+          {nameSpan}
           <DocumentMinutesSourceLink
             minutesMeeting={row.node.minutes_meeting}
             stopPropagation
@@ -200,23 +206,7 @@ export function TreeRowItem({
           />
         </span>
       ) : (
-        <span
-          title={label}
-          className={cn(
-            "min-w-0 flex-1 truncate",
-            overlaySlots && fadeStart > 0 && MASK_NAME_WHEN_REVEALED,
-            overlaySlots && fadeStart > 0 && revealed && "pointer-fine:[mask-image:var(--tree-name-mask)]",
-          )}
-          style={
-            overlaySlots && fadeStart > 0
-              ? ({
-                  "--tree-name-mask": `linear-gradient(to left, transparent ${fadeStart}px, black ${fadeStart + TREE_NAME_FADE}px)`,
-                } as React.CSSProperties)
-              : undefined
-          }
-        >
-          {label}
-        </span>
+        nameSpan
       )}
       {starred ? (
         <Star
