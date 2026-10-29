@@ -181,8 +181,13 @@ describe("PasswordDialog", () => {
     await waitFor(() => expect(puts()[0]![1]).toMatchObject({ body: { new_password: "brand-new-pass", step_up_token: "sut-1" } }));
   });
 
-  it("shows Apple's hidden address, with a way to copy it, before a first password", async () => {
-    const relay = "x1@privaterelay.appleid.com";
+  // Sign in with Apple's relay addresses, known by their domain (the older one, and the one Apple issues new ones
+  // at) before the server says so, and by the server's word for a domain this build does not know yet.
+  it.each([
+    ["x1@privaterelay.appleid.com", false],
+    ["x1@private.icloud.com", false],
+    ["x1@relay.example.com", true],
+  ])("shows Apple's hidden address %s, with a way to copy it, before a first password", async (relay, flagged) => {
     setSessionUser({ ...USER, email: relay, has_password: false });
     route({
       "GET /api/v1/me/sign-in-methods": {
@@ -190,7 +195,7 @@ describe("PasswordDialog", () => {
         password: { set: false, changed_at: null },
         google: { linked: false, email: null, linked_at: null },
         apple: { linked: true, email: relay, linked_at: null, private_relay: true },
-        account_email_is_relay: true,
+        account_email_is_relay: flagged,
         proofs: ["email_code"],
       },
       "GET /api/v1/auth/providers": PROVIDERS,

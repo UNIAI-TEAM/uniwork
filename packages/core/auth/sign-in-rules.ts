@@ -42,13 +42,19 @@ export function unlinkVerdict(methods: SignInMethods, provider: SignInProvider):
   return { allowed: true };
 }
 
-/** Apple's Hide My Email domain, exactly, after the last "@" (as the server's identity_resolve.go). */
-export const APPLE_RELAY_DOMAIN = "privaterelay.appleid.com";
+/**
+ * The domains of the addresses Hide My Email gives Sign in with Apple: privaterelay.appleid.com, and
+ * private.icloud.com for the ones Apple issues from late 2026 on (the older ones keep working). iCloud+'s own Hide My
+ * Email stays on icloud.com, an ordinary iCloud address. The server's appleRelayDomains (identity_resolve.go) lists
+ * the same (server/internal/service/apple_relay_domains_test.go).
+ */
+export const APPLE_RELAY_DOMAINS: readonly string[] = ["privaterelay.appleid.com", "private.icloud.com"];
 
+/** `email` is at one of Apple's relay domains: exactly, after the last "@", whatever its case (as isRelayAddress on the server). */
 export function isAppleRelayEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const at = email.lastIndexOf("@");
-  return at > 0 && email.slice(at + 1).trim().toLowerCase() === APPLE_RELAY_DOMAIN;
+  const address = email?.trim().toLowerCase() ?? "";
+  const at = address.lastIndexOf("@");
+  return at > 0 && APPLE_RELAY_DOMAINS.includes(address.slice(at + 1));
 }
 
 /**

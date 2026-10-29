@@ -827,21 +827,24 @@ func TestMaskEmailShowsOnlyEnoughToRecognise(t *testing.T) {
 // itself with the factor only; the app's provider proofs are the app's.
 func TestSignInMethodsListTheProofsAnAccountTakes(t *testing.T) {
 	now := pgtype.Timestamptz{Time: time.Now(), Valid: true}
-	relay := db.User{
-		Email: "q7x@privaterelay.appleid.com", AppleID: pgtype.Text{String: "a", Valid: true},
-		AppleEmail: pgtype.Text{String: "q7x@privaterelay.appleid.com", Valid: true}, AppleLinkedAt: now,
-	}
-	m := signInMethodsOf(relay, SignInChannelNative)
-	if m.PasswordSet || !m.Apple.Linked || !m.Apple.PrivateRelay || !m.AccountEmailIsRelay || m.Apple.LinkedAt == nil ||
-		strings.Join(m.Proofs, ",") != "email_code,apple" {
-		t.Fatalf("relay on the app = %+v", m)
-	}
-	if web := signInMethodsOf(relay, SignInChannelWeb); strings.Join(web.Proofs, ",") != "email_code" {
-		t.Fatalf("relay on the web = %+v", web)
-	}
-	relay.MfaEnabledAt = now
-	if m := signInMethodsOf(relay, SignInChannelNative); strings.Join(m.Proofs, ",") != "totp" {
-		t.Fatalf("with a second factor = %+v", m.Proofs)
+	// An account on either of Apple's relay domains is a relay account.
+	for _, address := range []string{"q7x@privaterelay.appleid.com", "q7x@private.icloud.com"} {
+		relay := db.User{
+			Email: address, AppleID: pgtype.Text{String: "a", Valid: true},
+			AppleEmail: pgtype.Text{String: address, Valid: true}, AppleLinkedAt: now,
+		}
+		m := signInMethodsOf(relay, SignInChannelNative)
+		if m.PasswordSet || !m.Apple.Linked || !m.Apple.PrivateRelay || !m.AccountEmailIsRelay || m.Apple.LinkedAt == nil ||
+			strings.Join(m.Proofs, ",") != "email_code,apple" {
+			t.Fatalf("relay %s on the app = %+v", address, m)
+		}
+		if web := signInMethodsOf(relay, SignInChannelWeb); strings.Join(web.Proofs, ",") != "email_code" {
+			t.Fatalf("relay %s on the web = %+v", address, web)
+		}
+		relay.MfaEnabledAt = now
+		if m := signInMethodsOf(relay, SignInChannelNative); strings.Join(m.Proofs, ",") != "totp" {
+			t.Fatalf("relay %s with a second factor = %+v", address, m.Proofs)
+		}
 	}
 }
 

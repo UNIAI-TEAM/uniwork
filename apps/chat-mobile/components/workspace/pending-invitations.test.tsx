@@ -157,9 +157,9 @@ describe("PendingInvitations", () => {
     expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://app.example/get-started");
   });
 
-  it("tells an Apple relay account why an invitation to its work email misses it", async () => {
+  // Both of Sign in with Apple's relay domains: the older one, and the one Apple issues new addresses at.
+  it.each(["x1@privaterelay.appleid.com", "x1@private.icloud.com"])("tells an Apple relay account (%s) why an invitation to its work email misses it", async (email) => {
     api.mine.mockResolvedValueOnce([]);
-    const email = "x1@privaterelay.appleid.com";
     await render(<PendingInvitations email={email} />);
     expect(await screen.findByText(viText("mobile.account.no_workspace_relay", { email }))).toBeOnTheScreen();
   });

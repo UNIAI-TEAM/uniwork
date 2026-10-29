@@ -8,6 +8,7 @@
 // mailed live in the ask (use-step-up.ts), not here: the sheet the app lock put away comes back on the same proof.
 import { useQuery } from "@tanstack/react-query";
 import type { StepUpAction, StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { isAppleRelayEmail } from "@uniwork/core/auth/sign-in-rules";
 import { stepUpWindowHintKey } from "@uniwork/core/auth/step-up";
 import { paths } from "@uniwork/core/paths/paths";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
@@ -23,8 +24,7 @@ import { useAuthStore } from "@/data/auth/store";
 import { proofsFor } from "@/data/auth/step-up-store";
 import { appLockState } from "@/data/stores/app-lock-store";
 import { useSendStepUpCode, useStepUpProof, type ProofEntry } from "@/data/mutations/sign-in-methods";
-import { signInOfferOptions } from "@/data/queries/sign-in";
-import { isAppleRelayAddress } from "@/lib/apple-relay";
+import { signInMethodsOptions, signInOfferOptions } from "@/data/queries/sign-in";
 import { signInFailureOf } from "@/lib/sign-in-failure";
 import { EmailCodeProof, PasswordProof, ProviderProof, SecondFactorProof } from "./step-up-proofs";
 import { useOpenWebPage } from "./use-open-web-page";
@@ -98,6 +98,9 @@ function StepUpBody({ ask, onBusy, onDone, onProgress }: BodyProps) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const offer = useQuery(signInOfferOptions()).data;
+  // The sign-in methods the ask read its proofs from (use-step-up.ts › knownProofs), never a fetch of the sheet's own:
+  // the server's account_email_is_relay knows a relay domain this build may not yet.
+  const methods = useQuery({ ...signInMethodsOptions(), enabled: false }).data;
   const openWebPage = useOpenWebPage();
   const step = useStepUpProof();
   const sendCode = useSendStepUpCode();
@@ -163,7 +166,7 @@ function StepUpBody({ ask, onBusy, onDone, onProgress }: BodyProps) {
       <EmailCodeProof
         {...props}
         email={email}
-        relay={isAppleRelayAddress(email)}
+        relay={isAppleRelayEmail(email) || Boolean(methods?.account_email_is_relay)}
         sending={sendCode.isPending}
         sentAt={ask.mailedAt}
         onSent={(mailedAt) => onProgress({ mailedAt })}

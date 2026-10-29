@@ -99,8 +99,10 @@ mật khẩu" trước; trải nghiệm hai nền tảng khác nhau. Chi phí: S
   mật khẩu bỏ qua nó). Với Ẩn địa chỉ email (Hide My Email) còn tệ hơn: địa chỉ của tài khoản là địa chỉ relay của
   Apple nên lời mời gửi tới email công việc thuộc về tài khoản khác. Hiện giờ màn workspace trống của tài khoản relay
   nói điều đó và chỉ đường đang đi được: đăng xuất rồi đăng nhập qua trình duyệt bằng email đã được mời
-  (`mobile.account.no_workspace_relay`, `lib/apple-relay.ts`, `test/routes/entry.test.tsx`). Việc sau, owner là
-  luồng mobile UNI-2053, cần xong trước khi mở App Store cho người ngoài TestFlight: nhận lời mời ngay trong app
+  (`mobile.account.no_workspace_relay`, `lib/apple-relay.ts`, `test/routes/entry.test.tsx`; từ 2026-10-29, UNI-2287,
+  `lib/apple-relay.ts` nhường chỗ cho `isAppleRelayEmail` của `packages/core/auth/sign-in-rules.ts`, nhận cả
+  `private.icloud.com`). Việc sau, owner là luồng mobile UNI-2053, cần xong trước khi mở App Store cho người ngoài
+  TestFlight: nhận lời mời ngay trong app
   (`GET /api/v1/me/invitations` đã có), hay thêm và xác minh một địa chỉ thứ hai cho tài khoản; cân nhắc gợi ý chọn
   "Chia sẻ email của tôi" cạnh nút Apple cho người vào workspace công ty.
 - Mail tới địa chỉ relay (mã xác minh, `new_login`, lời mời) chỉ tới được người dùng khi tên miền gửi mail của

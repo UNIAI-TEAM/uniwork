@@ -281,6 +281,12 @@ func TestNativeProviderSignInFollowsTheSharedRules(t *testing.T) {
 	if a.AppleID.String != "apple-native-up" || a.AppleClientID.String != appleBundle || !a.AppleRefreshTokenEnc.Valid || !a.EmailVerifiedAt.Valid {
 		t.Fatalf("the Apple account keeps its consent for the bundle id: %+v", a)
 	}
+	// A relay address is Apple's to vouch for too, on the domain Apple
+	// issues new ones at: the account starts verified.
+	res, _, err = f.apple(t, "apple-native-relay-up", "up7@private.icloud.com", true, SignInIntentSignUp)
+	if r := f.wantSignedIn(t, res, err, ""); !r.EmailVerifiedAt.Valid {
+		t.Fatalf("an account on a new relay address starts verified: %+v", r)
+	}
 	// Refused: the Apple ID opens no account, so its consent goes back.
 	held := registerVerified(t, f.q, f.auth, "held@icloud.com", "H")
 	if _, err := f.pool.Exec(f.ctx, `UPDATE users SET apple_id = 'apple-someone' WHERE id = $1`, held.ID); err != nil {

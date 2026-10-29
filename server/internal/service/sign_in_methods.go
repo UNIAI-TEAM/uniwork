@@ -64,10 +64,6 @@ type SignInMethodsChange struct {
 	Methods SignInMethods
 }
 
-func isRelayAddress(email string) bool {
-	return strings.EqualFold(emailDomain(email), applePrivateRelayDomain)
-}
-
 // signInMethodsOf reads u's ways in; channel decides whether the app-only
 // proofs (a fresh provider token) are offered.
 func signInMethodsOf(u db.User, channel string) SignInMethods {

@@ -1,10 +1,14 @@
 // The workspace picker once the server said the account has no workspace (spec §5.2): the invitations waiting for
 // its address, each joined in place; or, with none, what to do instead. Someone already in an organization waits for
 // an admin; someone in none is told no invitation reached this address and may start an organization on the web
-// (the app creates none); an Apple relay account hears why an invitation to its work email misses it (ADR 0041).
+// (the app creates none); an Apple relay account hears why an invitation to its work email misses it (ADR 0041):
+// Hide My Email gives each app its own forwarding address, so the account has that address, not the person's own,
+// and an invitation sent to their work email names another account (server/internal/service/invitation_accept.go ›
+// sameMailbox).
 // A list that could not be read says so with Retry, never "nobody invited you".
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { isAppleRelayEmail } from "@uniwork/core/auth/sign-in-rules";
 import { paths } from "@uniwork/core/paths/paths";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { holdsOrganization } from "@uniwork/core/types/organization";
@@ -18,7 +22,6 @@ import { ListLoadError } from "@/components/ui/list-states";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { myInvitationsOptions, myOrganizationsOptions } from "@/data/queries/invitations";
-import { isAppleRelayAddress } from "@/lib/apple-relay";
 import { THEME } from "@/lib/theme";
 import { InvitationCard, InvitationSkeleton } from "./invitation-parts";
 import { useJoinInvitation } from "./use-join-invitation";
@@ -93,7 +96,7 @@ export function PendingInvitations({ email }: { email: string }) {
           {t("mobile.invitations.none", { email })}
         </Text>
         <Text className="text-callout leading-[22px] text-muted-foreground">
-          {isAppleRelayAddress(email) ? t("mobile.account.no_workspace_relay", { email }) : t("mobile.invitations.none_hint")}
+          {isAppleRelayEmail(email) ? t("mobile.account.no_workspace_relay", { email }) : t("mobile.invitations.none_hint")}
         </Text>
       </View>
       <Button

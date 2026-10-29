@@ -48,7 +48,7 @@ const STATES: State[] = [
   },
   {
     name: "unmatched Apple, hidden email",
-    ticket: { provider: "apple", kind: "unmatched", email: "k7x2m9qp4z@privaterelay.appleid.com", name: "", private_relay: true },
+    ticket: { provider: "apple", kind: "unmatched", email: "k7x2m9qp4z@private.icloud.com", name: "", private_relay: true },
     heading: "Tiếp tục với Apple",
     actions: threeChoices,
   },
@@ -89,7 +89,8 @@ test("Apple's hidden email is named, never printed", async ({ page }) => {
   const main = page.locator("main");
   await expect(main.getByRole("group", { name: "Tài khoản Apple" })).toContainText("Email ẩn của Apple");
   await expect(main.getByText('Tổ chức mời bạn qua email công việc? Chọn "Tôi được mời bằng email khác".')).toBeVisible();
-  await expect(main).not.toContainText("privaterelay");
+  await expect(main).not.toContainText("k7x2m9qp4z");
+  await expect(main).not.toContainText("private.icloud.com");
 });
 
 /**
