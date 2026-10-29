@@ -102,7 +102,7 @@ type ProviderIdentity struct {
 - ⚑ `EmailAuthoritative`: Google — `email` thuộc `gmail.com`/`googlemail.com`, hoặc claim `hd` bằng domain của email
   (Workspace). Apple — `icloud.com`/`me.com`/`mac.com`, hoặc relay (`@privaterelay.appleid.com`, và
   `@private.icloud.com` cho địa chỉ Apple cấp từ cuối 2026 — UNI-2287; một danh sách mỗi phía, `appleRelayDomains`
-  của server và `APPLE_RELAY_DOMAINS` của core, giữ khớp bằng `scripts/apple-relay-domains.test.mjs`). Thêm `hd` vào
+  của server và `APPLE_RELAY_DOMAINS` của core, giữ khớp bằng `TestAppleRelayDomainsMatchTheClients`). Thêm `hd` vào
   `GoogleClaims`.
 
 `resolveIdentity(ctx, q, id) (resolution, error)` — **thứ tự đánh giá cố định**:

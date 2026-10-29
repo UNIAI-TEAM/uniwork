@@ -71,9 +71,6 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/workflows/changelog.yml'
               - 'server/internal/service/reserved_slugs.json'
-              # scripts/apple-relay-domains.test.mjs holds the server's relay
-              # domains to core's; a server-only change must run it too.
-              - 'server/internal/service/identity_resolve.go'
               # governance.test.mjs reads these; a ruleset change must run the
               # job that checks the ruleset.
               - 'CLAUDE.md'

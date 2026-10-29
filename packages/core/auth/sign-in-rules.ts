@@ -46,7 +46,7 @@ export function unlinkVerdict(methods: SignInMethods, provider: SignInProvider):
  * The domains of the addresses Hide My Email gives Sign in with Apple: privaterelay.appleid.com, and
  * private.icloud.com for the ones Apple issues from late 2026 on (the older ones keep working). iCloud+'s own Hide My
  * Email stays on icloud.com, an ordinary iCloud address. The server's appleRelayDomains (identity_resolve.go) lists
- * the same (scripts/apple-relay-domains.test.mjs).
+ * the same (server/internal/service/apple_relay_domains_test.go).
  */
 export const APPLE_RELAY_DOMAINS: readonly string[] = ["privaterelay.appleid.com", "private.icloud.com"];
 

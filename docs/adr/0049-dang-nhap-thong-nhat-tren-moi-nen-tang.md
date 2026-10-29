@@ -114,8 +114,9 @@ một tổ chức), [0041](0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md).
   `privaterelay.appleid.com` (địa chỉ cũ vẫn chuyển thư; Ẩn địa chỉ email của iCloud+ vẫn ở `icloud.com`). Cả hai tên
   miền là relay và thuộc quyền Apple ở mục 2, so khớp đúng tên miền sau `@` cuối. Mỗi phía giữ một danh sách: server
   `appleRelayDomains` (`identity_resolve.go`), core `APPLE_RELAY_DOMAINS` (`packages/core/auth/sign-in-rules.ts`, web
-  và điện thoại cùng đọc); `scripts/apple-relay-domains.test.mjs` hỏng khi hai danh sách khác nhau hay khi nơi khác
-  tự chép quy tắc.
+  và điện thoại cùng đọc). `TestAppleRelayDomainsMatchTheClients` (`server/internal/service/apple_relay_domains_test.go`,
+  job backend chạy ở mọi PR) hỏng khi hai danh sách khác nhau, `TestNoOtherServerSourceNamesAnAppleRelayDomain` khi mã
+  server khác tự chép quy tắc, `scripts/apple-relay-domains.test.mjs` khi mã web hay điện thoại tự chép.
 - Owner action: tạo Services ID cho web (gộp với `com.uniworkos.chat`, return URL
   `https://<API_PUBLIC_URL>/api/v1/auth/apple/callback`), đặt `APPLE_SIWA_WEB_CLIENT_ID`; tạo OAuth client Google trong
   cùng Google Cloud project với client web: iOS một client mỗi bundle id (`com.uniworkos.chat`, `.staging`, `.dev`),

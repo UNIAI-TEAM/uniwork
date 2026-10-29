@@ -64,7 +64,7 @@ func (id ProviderIdentity) emailUsable() bool {
 // the ones Apple issues from late 2026 on (the older ones keep working).
 // iCloud+'s own Hide My Email stays on icloud.com, an Apple mail domain.
 // packages/core/auth/sign-in-rules.ts lists the same domains
-// (scripts/apple-relay-domains.test.mjs).
+// (apple_relay_domains_test.go).
 var appleRelayDomains = map[string]bool{"privaterelay.appleid.com": true, "private.icloud.com": true}
 
 // googleAuthoritativeDomains are the consumer domains Google itself owns.
