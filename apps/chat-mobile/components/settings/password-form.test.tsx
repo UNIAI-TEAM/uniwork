@@ -260,9 +260,17 @@ describe("PasswordForm", () => {
     expect(toast.success).toHaveBeenCalledWith(viText("settings.security.signInMethods.password.toastSet"));
   });
 
-  it.each(["x@privaterelay.appleid.com", "x@private.icloud.com"])("offers to copy Apple's relay address %s, which nobody types", async (relay) => {
+  // Known by its domain (either of Sign in with Apple's) before the server says so, and by the server's word for a
+  // domain this build does not know yet.
+  it.each([
+    ["x@privaterelay.appleid.com", false],
+    ["x@private.icloud.com", false],
+    ["x@relay.example.com", true],
+  ])("offers to copy Apple's relay address %s, which nobody types", async (relay, flagged) => {
     useAuthStore.setState({ user: { ...user, email: relay, has_password: false } as never });
-    methodsApi.getSignInMethods.mockResolvedValue(methods({ password: { set: false, changed_at: null }, proofs: ["apple", "email_code"] }));
+    methodsApi.getSignInMethods.mockResolvedValue(
+      methods({ password: { set: false, changed_at: null }, account_email_is_relay: flagged, proofs: ["apple", "email_code"] }),
+    );
     await render(<PasswordForm />);
     expect(await screen.findByText(viText("settings.security.signInMethods.password.setDescriptionRelay"))).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId("password-copy-email"));

@@ -210,6 +210,15 @@ describe("useStepUp and the proof sheet", () => {
     expect(screen.queryByTestId("step-up-code-sent")).toBeNull();
   });
 
+  it("takes the server's word for a relay address on a domain this build does not know yet", async () => {
+    useAuthStore.setState({ user: { id: "u1", email: "x@relay.example.com", display_name: "", has_password: false } as never });
+    jest.mocked(signInMethodsApi.getSignInMethods).mockResolvedValueOnce({ ...methods(["email_code"]), account_email_is_relay: true });
+    await open();
+    expect(screen.getByText(viText("settings.security.stepUp.emailCode.sendRelay"))).toBeOnTheScreen();
+    expect(screen.getByText(viText("settings.security.stepUp.emailCode.relayHint"))).toBeOnTheScreen();
+    expect(screen.queryByText(/x@relay\.example\.com/)).toBeNull();
+  });
+
   it("lists the other ways, and proves with Google's own sheet", async () => {
     jest.mocked(stepUpWithProvider).mockImplementation(async (_provider, action, userId) => {
       await holds("google")(null, action, userId);

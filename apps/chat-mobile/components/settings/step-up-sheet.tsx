@@ -24,7 +24,7 @@ import { useAuthStore } from "@/data/auth/store";
 import { proofsFor } from "@/data/auth/step-up-store";
 import { appLockState } from "@/data/stores/app-lock-store";
 import { useSendStepUpCode, useStepUpProof, type ProofEntry } from "@/data/mutations/sign-in-methods";
-import { signInOfferOptions } from "@/data/queries/sign-in";
+import { signInMethodsOptions, signInOfferOptions } from "@/data/queries/sign-in";
 import { signInFailureOf } from "@/lib/sign-in-failure";
 import { EmailCodeProof, PasswordProof, ProviderProof, SecondFactorProof } from "./step-up-proofs";
 import { useOpenWebPage } from "./use-open-web-page";
@@ -98,6 +98,9 @@ function StepUpBody({ ask, onBusy, onDone, onProgress }: BodyProps) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const offer = useQuery(signInOfferOptions()).data;
+  // The sign-in methods the ask read its proofs from (use-step-up.ts › knownProofs), never a fetch of the sheet's own:
+  // the server's account_email_is_relay knows a relay domain this build may not yet.
+  const methods = useQuery({ ...signInMethodsOptions(), enabled: false }).data;
   const openWebPage = useOpenWebPage();
   const step = useStepUpProof();
   const sendCode = useSendStepUpCode();
@@ -163,7 +166,7 @@ function StepUpBody({ ask, onBusy, onDone, onProgress }: BodyProps) {
       <EmailCodeProof
         {...props}
         email={email}
-        relay={isAppleRelayEmail(email)}
+        relay={isAppleRelayEmail(email) || Boolean(methods?.account_email_is_relay)}
         sending={sendCode.isPending}
         sentAt={ask.mailedAt}
         onSent={(mailedAt) => onProgress({ mailedAt })}

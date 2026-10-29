@@ -70,7 +70,8 @@ export function PasswordForm() {
   // With a second factor on, the server takes that factor alone as the proof (the sheet asks for it).
   const secondFactor = confirmsWithSecondFactor(methods, Boolean(user?.mfa_enabled_at));
   const asksCurrent = change && !secondFactor;
-  const relay = isAppleRelayEmail(email);
+  // The server's word too: it knows a relay domain this build may not yet.
+  const relay = isAppleRelayEmail(email) || Boolean(methods?.account_email_is_relay);
 
   /** This screen is the one in front (an answer may land after a notification opened another). */
   const inFront = () => mounted.current && navigation.isFocused();
