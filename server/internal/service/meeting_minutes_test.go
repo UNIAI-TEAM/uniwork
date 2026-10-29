@@ -489,4 +489,124 @@ func TestMinutesPageCarriesMeetingSourceWithWorkspaceMemberTitleGate(t *testing.
 			}
 		}
 	}
+
+	// RB1-1: DOC-05 administrative rows (restricted minutes page owned by ub, viewed by
+	// an ungranted workspace admin or implicit org admin) stay in list/tree/patch responses
+	// with AdminScope=true and Level=none, and MUST NOT attach MinutesMeeting; a live share
+	// or a live break-glass grant brings MinutesMeeting back.
+	wsAdmin := registerVerified(t, s.q, as, "ws-admin-rb1@example.com", "WSAdmin")
+	addOrgMember(t, s.q, m.OrganizationID, wsAdmin.ID)
+	if err := s.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{
+		WorkspaceID: m.WorkspaceID, OrganizationID: m.OrganizationID, UserID: wsAdmin.ID, Role: "admin",
+	}); err != nil {
+		t.Fatalf("AddWorkspaceMember(wsAdmin): %v", err)
+	}
+	orgAdmin := registerVerified(t, s.q, as, "org-admin-rb1@example.com", "OrgAdmin")
+	if err := s.q.AddOrganizationMember(ctx, db.AddOrganizationMemberParams{
+		OrganizationID: m.OrganizationID, UserID: orgAdmin.ID, Role: "admin",
+	}); err != nil {
+		t.Fatalf("AddOrganizationMember(orgAdmin): %v", err)
+	}
+
+	curView, err := s.Docs.GetDocument(ctx, Human(ub.ID), minutesDocID)
+	if err != nil {
+		t.Fatalf("GetDocument(ub before restrict): %v", err)
+	}
+	restricted := documentVisibilityRestricted
+	if _, err := s.Docs.UpdateDocument(ctx, Human(ub.ID), minutesDocID, UpdateDocumentInput{
+		Revision: curView.Document.Revision, Visibility: &restricted,
+	}); err != nil {
+		t.Fatalf("UpdateDocument(restrict minutes): %v", err)
+	}
+
+	assertAdminMinutesMeeting := func(label string, admin db.User, want *DocumentMinutesMeeting) {
+		t.Helper()
+		listPage, err := s.Docs.ListDocuments(ctx, Human(admin.ID), m.WorkspaceID, ListDocumentsInput{Limit: 50})
+		if err != nil {
+			t.Fatalf("%s ListDocuments(%s): %v", label, admin.DisplayName, err)
+		}
+		sawRow := false
+		for _, it := range listPage.Items {
+			if it.Document.ID == minutesDocID {
+				sawRow = true
+				if !it.Access.AdminScope {
+					t.Fatalf("%s ListDocuments(%s) row AdminScope = false, want true", label, admin.DisplayName)
+				}
+				if want == nil && it.Facts.MinutesMeeting != nil {
+					t.Fatalf("%s ListDocuments(%s) leaked MinutesMeeting = %+v, want nil", label, admin.DisplayName, it.Facts.MinutesMeeting)
+				}
+				if want != nil && (it.Facts.MinutesMeeting == nil || it.Facts.MinutesMeeting.ID != want.ID || it.Facts.MinutesMeeting.Title != want.Title) {
+					t.Fatalf("%s ListDocuments(%s) MinutesMeeting = %+v, want %+v", label, admin.DisplayName, it.Facts.MinutesMeeting, want)
+				}
+			}
+		}
+		if !sawRow {
+			t.Fatalf("%s ListDocuments(%s) dropped DOC-05 administrative row %s", label, admin.DisplayName, minutesDocID)
+		}
+
+		treeNodes, err := s.Docs.DocumentTree(ctx, Human(admin.ID), m.WorkspaceID, "", false)
+		if err != nil {
+			t.Fatalf("%s DocumentTree(%s): %v", label, admin.DisplayName, err)
+		}
+		sawTree := false
+		for _, n := range treeNodes {
+			if n.ID == minutesDocID {
+				sawTree = true
+				if want == nil && n.MinutesMeeting != nil {
+					t.Fatalf("%s DocumentTree(%s) leaked MinutesMeeting = %+v, want nil", label, admin.DisplayName, n.MinutesMeeting)
+				}
+				if want != nil && (n.MinutesMeeting == nil || n.MinutesMeeting.ID != want.ID || n.MinutesMeeting.Title != want.Title) {
+					t.Fatalf("%s DocumentTree(%s) MinutesMeeting = %+v, want %+v", label, admin.DisplayName, n.MinutesMeeting, want)
+				}
+			}
+		}
+		if !sawTree {
+			t.Fatalf("%s DocumentTree(%s) dropped DOC-05 administrative node %s", label, admin.DisplayName, minutesDocID)
+		}
+
+		latest, err := s.q.GetDocumentByID(ctx, minutesDocID)
+		if err != nil {
+			t.Fatalf("%s GetDocumentByID: %v", label, err)
+		}
+		patchResp, err := s.Docs.UpdateDocument(ctx, Human(admin.ID), minutesDocID, UpdateDocumentInput{
+			Revision: latest.Revision, Visibility: &restricted,
+		})
+		if err != nil {
+			t.Fatalf("%s UpdateDocument(%s): %v", label, admin.DisplayName, err)
+		}
+		if want == nil && patchResp.MinutesMeeting != nil {
+			t.Fatalf("%s UpdateDocument(%s) leaked MinutesMeeting = %+v, want nil", label, admin.DisplayName, patchResp.MinutesMeeting)
+		}
+		if want != nil && (patchResp.MinutesMeeting == nil || patchResp.MinutesMeeting.ID != want.ID || patchResp.MinutesMeeting.Title != want.Title) {
+			t.Fatalf("%s UpdateDocument(%s) MinutesMeeting = %+v, want %+v", label, admin.DisplayName, patchResp.MinutesMeeting, want)
+		}
+	}
+
+	assertAdminMinutesMeeting("ungranted wsAdmin", wsAdmin, nil)
+	assertAdminMinutesMeeting("ungranted implicit orgAdmin", orgAdmin, nil)
+
+	// A live share to wsAdmin restores MinutesMeeting{ID, Title}; revoking removes it again.
+	shView, err := s.Docs.ShareDocument(ctx, Human(ub.ID), minutesDocID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: wsAdmin.ID, Level: DocumentLevelView,
+	})
+	if err != nil {
+		t.Fatalf("ShareDocument(wsAdmin): %v", err)
+	}
+	assertAdminMinutesMeeting("wsAdmin with live share", wsAdmin, &DocumentMinutesMeeting{ID: m.ID, Title: m.Title})
+	assertAdminMinutesMeeting("orgAdmin still ungranted", orgAdmin, nil)
+	if err := s.Docs.RevokeDocumentShare(ctx, Human(ub.ID), minutesDocID, shView.ID); err != nil {
+		t.Fatalf("RevokeDocumentShare(wsAdmin): %v", err)
+	}
+	assertAdminMinutesMeeting("wsAdmin after share revoked", wsAdmin, nil)
+
+	// A live break-glass grant to orgAdmin restores MinutesMeeting{ID, Title}; revoking removes it again.
+	bgGrant, _, err := s.Docs.GrantDocumentBreakGlass(ctx, Human(orgAdmin.ID), minutesDocID, "Kiểm tra biên bản cuộc họp bảo mật")
+	if err != nil {
+		t.Fatalf("GrantDocumentBreakGlass(orgAdmin): %v", err)
+	}
+	assertAdminMinutesMeeting("orgAdmin with live break-glass", orgAdmin, &DocumentMinutesMeeting{ID: m.ID, Title: m.Title})
+	if err := s.Docs.RevokeDocumentBreakGlass(ctx, Human(orgAdmin.ID), minutesDocID, bgGrant.Grant.ID); err != nil {
+		t.Fatalf("RevokeDocumentBreakGlass(orgAdmin): %v", err)
+	}
+	assertAdminMinutesMeeting("orgAdmin after break-glass revoked", orgAdmin, nil)
 }

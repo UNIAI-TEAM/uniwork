@@ -287,4 +287,97 @@ func TestMeetingMinutesDocumentSourceAndLabelHTTP(t *testing.T) {
 	if _, hasTitle := mm["title"]; hasTitle {
 		t.Fatalf("outsider shared-with-me leaked meeting title: %v", mm)
 	}
+
+	// 5. RB1-1: restrict the minutes page (owned by host) and verify an ungranted workspace admin
+	// and implicit org admin still see the DOC-05 administrative row in list/tree/PATCH,
+	// but without minutes_meeting; a live break-glass grant brings minutes_meeting back.
+	wsAdminTok, wsAdminID := docsJoinWorkspace(t, &docsWorld{srv: srv, token: host, wsID: wsID}, "min-src-wsadmin@example.com")
+	if _, err := pool.Exec(context.Background(), `UPDATE workspace_members SET role = 'admin' WHERE workspace_id = $1 AND user_id = $2`, wsID, wsAdminID); err != nil {
+		t.Fatal(err)
+	}
+	orgAdminTok, orgAdminID := registerChatUser(t, srv, "min-src-orgadmin@example.com", "OrgAdmin")
+	if _, err := pool.Exec(context.Background(), `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'admin')`, orgID, orgAdminID); err != nil {
+		t.Fatal(err)
+	}
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/documents/"+docID, host, map[string]any{
+		"revision": 2, "visibility": "restricted",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("restrict minutes page: %d %v", res.StatusCode, out)
+	}
+	for _, adm := range []struct {
+		name string
+		tok  string
+	}{
+		{"wsAdmin", wsAdminTok},
+		{"orgAdmin", orgAdminTok},
+	} {
+		res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents", adm.tok, nil)
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("%s GET documents: %d %v", adm.name, res.StatusCode, out)
+		}
+		docs, _ := out["documents"].([]any)
+		if len(docs) != 1 {
+			t.Fatalf("%s list documents = %v, want 1", adm.name, docs)
+		}
+		row := docs[0].(map[string]any)
+		if row["admin_scope"] != true {
+			t.Fatalf("%s list row admin_scope = %v, want true", adm.name, row["admin_scope"])
+		}
+		if _, has := row["minutes_meeting"]; has {
+			t.Fatalf("%s list row leaked minutes_meeting on restricted page: %v", adm.name, row)
+		}
+		res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents/tree", adm.tok, nil)
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("%s GET tree: %d %v", adm.name, res.StatusCode, out)
+		}
+		tnodes, _ := out["documents"].([]any)
+		if len(tnodes) != 1 {
+			t.Fatalf("%s tree documents = %v, want 1", adm.name, tnodes)
+		}
+		if _, has := tnodes[0].(map[string]any)["minutes_meeting"]; has {
+			t.Fatalf("%s tree node leaked minutes_meeting on restricted page: %v", adm.name, tnodes[0])
+		}
+		res, out = doJSON(t, srv, "PATCH", "/api/v1/documents/"+docID, adm.tok, map[string]any{
+			"revision": 3, "visibility": "restricted",
+		})
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("%s PATCH restricted visibility: %d %v", adm.name, res.StatusCode, out)
+		}
+		if _, has := out["document"].(map[string]any)["minutes_meeting"]; has {
+			t.Fatalf("%s PATCH response leaked minutes_meeting on restricted page: %v", adm.name, out["document"])
+		}
+	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/documents/"+docID+"/break-glass", wsAdminTok, map[string]any{
+		"reason": "Kiểm tra biên bản cuộc họp khẩn cấp",
+	})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("wsAdmin break-glass: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents", wsAdminTok, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("wsAdmin GET documents after break-glass: %d %v", res.StatusCode, out)
+	}
+	mm, _ = out["documents"].([]any)[0].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID || mm["title"] != "Giao ban Q4" {
+		t.Fatalf("wsAdmin list minutes_meeting after break-glass = %v", mm)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents/tree", wsAdminTok, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("wsAdmin GET tree after break-glass: %d %v", res.StatusCode, out)
+	}
+	mm, _ = out["documents"].([]any)[0].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID || mm["title"] != "Giao ban Q4" {
+		t.Fatalf("wsAdmin tree minutes_meeting after break-glass = %v", mm)
+	}
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/documents/"+docID, wsAdminTok, map[string]any{
+		"revision": 3, "visibility": "restricted",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("wsAdmin PATCH after break-glass: %d %v", res.StatusCode, out)
+	}
+	mm, _ = out["document"].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID || mm["title"] != "Giao ban Q4" {
+		t.Fatalf("wsAdmin PATCH minutes_meeting after break-glass = %v", mm)
+	}
 }

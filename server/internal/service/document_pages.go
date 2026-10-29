@@ -758,9 +758,11 @@ func (s *DocumentService) documentView(ctx context.Context, q *db.Queries, actor
 	if err != nil {
 		return DocumentView{}, err
 	}
-	mm, err := s.minutesMeetingForDocument(ctx, q, actor, doc)
-	if err != nil {
-		return DocumentView{}, err
+	var mm *DocumentMinutesMeeting
+	if access.Level.AtLeast(DocumentLevelView) {
+		if mm, err = s.minutesMeetingForDocument(ctx, q, actor, doc); err != nil {
+			return DocumentView{}, err
+		}
 	}
 	return DocumentView{
 		Document: doc, Access: access, Breadcrumbs: crumbs,

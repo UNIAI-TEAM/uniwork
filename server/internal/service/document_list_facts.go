@@ -47,15 +47,16 @@ func (s *DocumentService) attachListFacts(ctx context.Context, items []DocumentL
 }
 
 // attachListMinutesMeetings fills Facts.MinutesMeeting on one page of list or
-// recent rows in one batched query (UNI-2288). Skips the query when the page
-// holds no UniNote pages.
+// recent rows in one batched query (UNI-2288). Only readable pages (level >=
+// view) are queried or enriched, so DOC-05 administrative rows with Level=none
+// never leak meeting associations.
 func (s *DocumentService) attachListMinutesMeetings(ctx context.Context, actor Actor, items []DocumentListItem) error {
 	if len(items) == 0 {
 		return nil
 	}
 	pageIDs := make([]string, 0, len(items))
 	for i := range items {
-		if items[i].Document.Kind == DocumentKindPage {
+		if items[i].Document.Kind == DocumentKindPage && items[i].Access.Level.AtLeast(DocumentLevelView) {
 			pageIDs = append(pageIDs, items[i].Document.ID)
 		}
 	}
@@ -67,6 +68,9 @@ func (s *DocumentService) attachListMinutesMeetings(ctx context.Context, actor A
 		return err
 	}
 	for i := range items {
+		if !items[i].Access.Level.AtLeast(DocumentLevelView) {
+			continue
+		}
 		if mm, ok := byID[items[i].Document.ID]; ok {
 			items[i].Facts.MinutesMeeting = mm
 		}
@@ -82,7 +86,7 @@ func (s *DocumentService) attachSharedMinutesMeetings(ctx context.Context, actor
 	}
 	pageIDs := make([]string, 0, len(items))
 	for i := range items {
-		if items[i].Document.Kind == DocumentKindPage {
+		if items[i].Document.Kind == DocumentKindPage && items[i].Access.Level.AtLeast(DocumentLevelView) {
 			pageIDs = append(pageIDs, items[i].Document.ID)
 		}
 	}
@@ -94,6 +98,9 @@ func (s *DocumentService) attachSharedMinutesMeetings(ctx context.Context, actor
 		return err
 	}
 	for i := range items {
+		if !items[i].Access.Level.AtLeast(DocumentLevelView) {
+			continue
+		}
 		if mm, ok := byID[items[i].Document.ID]; ok {
 			items[i].Facts.MinutesMeeting = mm
 		}

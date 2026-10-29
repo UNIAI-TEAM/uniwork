@@ -486,19 +486,38 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	if err := s.attachTreeEditLocks(ctx, actor, scope.organizationID, nodes); err != nil {
 		return nil, err
 	}
-	return nodes, s.attachTreeMinutesMeetings(ctx, actor, scope.organizationID, nodes)
+	return nodes, s.attachTreeMinutesMeetings(ctx, actor, scope, workspaceID, actor.Kind == audit.KindAgent, byID, nodes)
 }
 
-// attachTreeMinutesMeetings fills MinutesMeeting on every page node of the
-// tree forest in one batched query, skipping the query when the forest holds
-// no pages (e.g. foldersOnly=true).
-func (s *DocumentService) attachTreeMinutesMeetings(ctx context.Context, actor Actor, organizationID string, nodes []DocumentTreeNode) error {
+// attachTreeMinutesMeetings fills MinutesMeeting on every readable page node of
+// the tree forest in one batched query, skipping the query when the forest
+// holds no readable pages (e.g. foldersOnly=true or only ungranted DOC-05
+// administrative rows).
+func (s *DocumentService) attachTreeMinutesMeetings(ctx context.Context, actor Actor, scope documentListScope, workspaceID string, agent bool, docsByID map[string]db.Document, nodes []DocumentTreeNode) error {
 	var pageIDs []string
 	collectTreePageIDs(nodes, &pageIDs)
 	if len(pageIDs) == 0 {
 		return nil
 	}
-	byID, err := s.minutesMeetingsForDocuments(ctx, actor, organizationID, pageIDs)
+	items := make([]DocumentListItem, 0, len(pageIDs))
+	for _, id := range pageIDs {
+		if d, ok := docsByID[id]; ok {
+			items = append(items, DocumentListItem{Document: d})
+		}
+	}
+	if err := s.attachListAccess(ctx, scope, workspaceID, agent, items); err != nil {
+		return err
+	}
+	readableIDs := make([]string, 0, len(items))
+	for i := range items {
+		if items[i].Access.Level.AtLeast(DocumentLevelView) {
+			readableIDs = append(readableIDs, items[i].Document.ID)
+		}
+	}
+	if len(readableIDs) == 0 {
+		return nil
+	}
+	byID, err := s.minutesMeetingsForDocuments(ctx, actor, scope.organizationID, readableIDs)
 	if err != nil || len(byID) == 0 {
 		return err
 	}

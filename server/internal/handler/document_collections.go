@@ -642,7 +642,9 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 		out.ShelvedBy = &by
 	}
 	out.TemplateMarkedAt, out.TemplateMarkedBy = templateMarkFields(doc)
-	out.MinutesMeeting = documentMinutesMeetingDTO(facts.MinutesMeeting)
+	if access == nil || access.Level.AtLeast(service.DocumentLevelView) {
+		out.MinutesMeeting = documentMinutesMeetingDTO(facts.MinutesMeeting)
+	}
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)
 	}

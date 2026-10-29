@@ -125,6 +125,7 @@ func TestDocumentMinutesMeetingAndSourceDTOWireShape(t *testing.T) {
 
 	memberDoc := documentDTO(service.DocumentView{
 		Document:       db.Document{ID: "01DOC", Kind: "page"},
+		Access:         service.DocumentAccess{Level: service.DocumentLevelView, Via: service.DocumentViaMember},
 		MinutesMeeting: &service.DocumentMinutesMeeting{ID: "01MTG", Title: "Giao ban"},
 	})
 	var memberMap map[string]any
@@ -133,6 +134,30 @@ func TestDocumentMinutesMeetingAndSourceDTOWireShape(t *testing.T) {
 	mm, _ := memberMap["minutes_meeting"].(map[string]any)
 	if mm["id"] != "01MTG" || mm["title"] != "Giao ban" {
 		t.Fatalf("member minutes_meeting = %v", mm)
+	}
+
+	// RB1-1: an AdminScope view or list row with Level=none must omit minutes_meeting on the wire.
+	unreadableAdminDoc := documentDTO(service.DocumentView{
+		Document:       db.Document{ID: "01DOC", Kind: "page", Visibility: "restricted"},
+		Access:         service.DocumentAccess{Level: service.DocumentLevelNone, AdminScope: true},
+		MinutesMeeting: &service.DocumentMinutesMeeting{ID: "01MTG", Title: "Giao ban"},
+	})
+	var unreadableDocMap map[string]any
+	raw, _ = json.Marshal(unreadableAdminDoc)
+	_ = json.Unmarshal(raw, &unreadableDocMap)
+	if _, has := unreadableDocMap["minutes_meeting"]; has {
+		t.Fatalf("unreadable AdminScope documentDTO leaked minutes_meeting: %v", unreadableDocMap)
+	}
+	unreadableAdminSummary := toDocumentSummaryDTO(service.DocumentListItem{
+		Document: db.Document{ID: "01DOC", Kind: "page", Visibility: "restricted"},
+		Access:   service.DocumentAccess{Level: service.DocumentLevelNone, AdminScope: true},
+		Facts:    service.DocumentListFacts{MinutesMeeting: &service.DocumentMinutesMeeting{ID: "01MTG", Title: "Giao ban"}},
+	})
+	var unreadableSummaryMap map[string]any
+	raw, _ = json.Marshal(unreadableAdminSummary)
+	_ = json.Unmarshal(raw, &unreadableSummaryMap)
+	if _, has := unreadableSummaryMap["minutes_meeting"]; has {
+		t.Fatalf("unreadable AdminScope summary leaked minutes_meeting: %v", unreadableSummaryMap)
 	}
 
 	crossTree := documentTreeDTOs([]service.DocumentTreeNode{{

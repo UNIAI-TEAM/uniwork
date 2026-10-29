@@ -994,7 +994,9 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 		out.ShelvedBy = &by
 	}
 	out.TemplateMarkedAt, out.TemplateMarkedBy = templateMarkFields(doc)
-	out.MinutesMeeting = documentMinutesMeetingDTO(view.MinutesMeeting)
+	if readable {
+		out.MinutesMeeting = documentMinutesMeetingDTO(view.MinutesMeeting)
+	}
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)
 	}
