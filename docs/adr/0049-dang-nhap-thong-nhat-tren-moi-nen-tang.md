@@ -136,5 +136,8 @@ một tổ chức), [0041](0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md).
   `uniwork.unicomhub.com` (EAS `preview`), nên audience Apple và client Google của nó nằm ở env dev, production chỉ nhận
   `com.uniworkos.chat` (`scripts/app-dev-env.test.mjs`). Services ID `com.uniworkos.web` đã tạo cho `uniworkos.com` và
   `uniwork.unicomhub.com` và đặt ở cả hai server; `UNICHAT_IOS_TEAM_ID`, `UNICHAT_ANDROID_SHA256` đã có trên production.
+  Client Google (project `uniwork-509403`): bản store có client iOS và một client Android cho mỗi khoá ký Play (khoá
+  đang dùng và hai khoá trước), ở `GOOGLE_NATIVE_CLIENT_IDS` của production; bản `.staging` có client iOS và client
+  Android (khoá EAS) ở env dev, cùng web client riêng của dev. `UNICHAT_GOOGLE_*` đặt cho EAS `preview` và `production`.
 - Chưa làm: thông báo server-to-server của Apple (người dùng gỡ quyền), địa chỉ email thứ hai cho tài khoản relay,
   SSO doanh nghiệp. Bộ quy tắc ở mục 2 là chỗ thêm nhà cung cấp sau.
