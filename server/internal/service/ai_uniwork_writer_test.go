@@ -27,6 +27,7 @@ type uniworkWriteWorld struct {
 	flags    flagMap
 	provider *scriptedProvider
 	doc      db.Document
+	metrics  *fakeRunMetrics
 }
 
 func newUniworkWriteWorld(t *testing.T) *uniworkWriteWorld {
@@ -43,6 +44,8 @@ func newUniworkWriteWorld(t *testing.T) *uniworkWriteWorld {
 	svc := NewAIUniworkService(f.svc.orgs, NewEntitlementService(f.pool, f.q), f.svc,
 		featureflag.NewService(flags), gw, ai.NewConversationStore(f.pool, f.q, box), nil)
 	svc.SetRunStore(ai.NewRunStore(f.q))
+	metrics := &fakeRunMetrics{}
+	svc.SetUniworkMetrics(metrics)
 	t.Cleanup(func() {
 		ctx := context.Background()
 		_, _ = f.pool.Exec(ctx, "DELETE FROM ai_uniwork_runs WHERE organization_id = $1", tn.orgID)
@@ -50,7 +53,7 @@ func newUniworkWriteWorld(t *testing.T) *uniworkWriteWorld {
 		_, _ = f.pool.Exec(ctx, "DELETE FROM ai_uniwork_conversations WHERE organization_id = $1", tn.orgID)
 	})
 	doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.member.ID, createdBy: tn.member.ID})
-	return &uniworkWriteWorld{f: f, tn: tn, svc: svc, flags: flags, provider: p, doc: doc}
+	return &uniworkWriteWorld{f: f, tn: tn, svc: svc, flags: flags, provider: p, doc: doc, metrics: metrics}
 }
 
 func (w *uniworkWriteWorld) scope() UniworkScope {
@@ -157,6 +160,32 @@ func TestUniworkWriteStreamsAndCountsOneModelCall(t *testing.T) {
 	}
 	if w.provider.callCount() != 2 {
 		t.Fatalf("provider calls = %d, want the question and the writer call", w.provider.callCount())
+	}
+}
+
+// A writer call adds its cost to the run's credits but feeds neither run
+// histogram (ruling R10): a writer call is a model call outside the tool
+// loop, minutes long and up to 16384 output tokens, and would drown the
+// chat run's age and credits series.
+func TestUniworkWriteAddsCreditsWithoutRunSamples(t *testing.T) {
+	w := newUniworkWriteWorld(t)
+	turn := w.question(t)
+	samples := len(w.metrics.seconds)
+	if samples != 1 || len(w.metrics.credits) != 1 {
+		t.Fatalf("the opening question observed %d/%d run samples, want one of each", samples, len(w.metrics.credits))
+	}
+	_, before := w.run(t, turn.RunID)
+
+	if _, err := w.svc.Write(context.Background(), UniworkWriteInput{
+		Scope: w.scope(), ConversationID: turn.ConversationID, RunID: turn.RunID, Body: docsWriterBody,
+	}, func(string) {}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if _, after := w.run(t, turn.RunID); after <= before {
+		t.Fatalf("run credits %d -> %d, want the writer call added", before, after)
+	}
+	if len(w.metrics.seconds) != samples || len(w.metrics.credits) != samples {
+		t.Fatalf("run samples after a writer call = %d/%d, want still %d", len(w.metrics.seconds), len(w.metrics.credits), samples)
 	}
 }
 

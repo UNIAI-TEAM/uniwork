@@ -103,17 +103,25 @@ func (s *AIUniworkService) addRunCredits(ctx context.Context, run ai.Run, tokens
 	if run.ID == "" {
 		return
 	}
-	sctx, cancel := uniworkSettleContext(ctx)
-	defer cancel()
-	if tokens > 0 {
-		if err := s.runs.AddCredits(sctx, run.ID, run.ConversationID, tokens); err != nil {
-			slog.Default().Warn("uniwork ai: run credits", "run_id", run.ID, "err", err)
-		}
-	}
+	s.storeRunCredits(ctx, run, tokens)
 	if s.metrics != nil {
 		// The run's credits after this turn: what the store held before it
 		// (zero for a run opened by this turn) plus what the vendor charged.
 		s.metrics.ObserveUniworkRun(s.now().Sub(run.CreatedAt).Seconds(), run.Credits+tokens)
+	}
+}
+
+// storeRunCredits is the store half of addRunCredits alone. The writer route
+// (plan 5) uses it: a writer call adds to the run's credits but feeds neither
+// run histogram, which describe the chat route's tool loop.
+func (s *AIUniworkService) storeRunCredits(ctx context.Context, run ai.Run, tokens int64) {
+	if run.ID == "" || tokens <= 0 {
+		return
+	}
+	sctx, cancel := uniworkSettleContext(ctx)
+	defer cancel()
+	if err := s.runs.AddCredits(sctx, run.ID, run.ConversationID, tokens); err != nil {
+		slog.Default().Warn("uniwork ai: run credits", "run_id", run.ID, "err", err)
 	}
 }
 
