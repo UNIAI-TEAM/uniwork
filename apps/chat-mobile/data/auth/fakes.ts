@@ -1,8 +1,8 @@
 // `vitest` is a devDependency and this is not a *.test.ts file, so the mock
 // factory is handed in by each test (a type-only import is not a dependency).
 import type { vi as Vi } from "vitest";
-import type { MobileSessionConfig, SessionStorage, StoredSession } from "./session";
-import { MobileSession } from "./session";
+import { MobileSession, type MobileSessionConfig } from "./session";
+import type { SessionStorage, StoredSession } from "./stored-session";
 import { TransportError, type DesktopSession, type Transport, type TransportErrorCode } from "./transport";
 
 const sessionConfig: MobileSessionConfig = {

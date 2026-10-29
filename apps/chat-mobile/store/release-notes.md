@@ -7,6 +7,26 @@ khác (`scripts/mobile-play-release.mjs`); `scripts/mobile-release-notes.test.mj
 có đủ hai ngôn ngữ. Bản nháp từ commit: `node scripts/mobile-release-notes.mjs draft` — viết lại cho người dùng đọc,
 không chép tên commit.
 
+## 0.4.0
+
+### vi-VN
+
+- Đăng nhập ngay trong UniChat bằng email và mật khẩu, Google hoặc Apple, không cần mở trình duyệt.
+- Xác thực hai lớp ngay trong app.
+- Gợi ý mật khẩu bạn đã lưu cho UniWork trên web.
+- Chưa có workspace? Xem lời mời gửi tới bạn và tham gia ngay trong app.
+- Cài đặt có Phương thức đăng nhập: đặt hoặc đổi mật khẩu, liên kết Google và Apple.
+- Xoá tài khoản và chuyển quyền sở hữu chỉ cần xác nhận là bạn, kể cả khi bạn chưa đặt mật khẩu.
+
+### en-US
+
+- Sign in right inside UniChat with your email and password, Google or Apple, without opening the browser.
+- Two-factor authentication right in the app.
+- Suggests the password you saved for UniWork on the web.
+- No workspace yet? See the invitations sent to you and join right in the app.
+- Settings has Sign-in methods: set or change your password, link Google and Apple.
+- Deleting your account or handing over ownership just asks you to confirm it's you, even without a password.
+
 ## 0.3.1
 
 ### vi-VN

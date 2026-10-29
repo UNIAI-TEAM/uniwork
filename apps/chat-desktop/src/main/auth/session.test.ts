@@ -199,6 +199,63 @@ describe("sign-in", () => {
     expect(ctx.shell.status()).toBe("signed-in");
   });
 
+  it("a provider's button sends the browser straight there, and pressing it again re-opens that page", async () => {
+    const ctx = setup();
+    await ctx.shell.login("apple");
+    expect(ctx.transport.start.mock.lastCall?.[0]).toMatchObject({ provider: "apple" });
+    const first = lastState(ctx);
+    await ctx.shell.login("apple");
+    expect(ctx.transport.start).toHaveBeenCalledTimes(1);
+    expect(ctx.openBrowser).toHaveBeenCalledTimes(2);
+    await ctx.shell.completeCallback(callback(first));
+    expect(ctx.shell.status()).toBe("signed-in");
+  });
+
+  it("another way in is a new attempt, and the tab left behind can no longer sign in", async () => {
+    const ctx = setup();
+    const google = "https://uniwork.example/auth/desktop/authorize?attempt_id=1&provider=google";
+    const plain = "https://uniwork.example/auth/desktop/authorize?attempt_id=2";
+    ctx.transport.start.mockResolvedValueOnce({ authorizationUrl: google }).mockResolvedValueOnce({ authorizationUrl: plain });
+    await ctx.shell.login("google");
+    const left = lastState(ctx);
+    await ctx.shell.login();
+    expect(ctx.transport.start).toHaveBeenCalledTimes(2);
+    expect(ctx.transport.start.mock.lastCall?.[0].provider).toBeUndefined();
+    expect(ctx.openBrowser.mock.calls.map(([url]) => url)).toEqual([google, plain]);
+    await ctx.shell.completeCallback(callback(left, "c_left"));
+    expect(ctx.transport.exchange).not.toHaveBeenCalled();
+    expect(ctx.shell.status()).toBe("signing-in");
+    await ctx.shell.completeCallback(callback(lastState(ctx)));
+    expect(ctx.transport.exchange).toHaveBeenCalledOnce();
+    expect(ctx.shell.status()).toBe("signed-in");
+  });
+
+  it("the new attempt keeps its own ten minutes, not the abandoned one's", async () => {
+    const ctx = setup();
+    await ctx.shell.login("google");
+    await vi.advanceTimersByTimeAsync(9 * 60_000);
+    await ctx.shell.login("apple");
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    expect(ctx.shell.status()).toBe("signing-in");
+    await ctx.shell.completeCallback(callback(lastState(ctx)));
+    expect(ctx.shell.status()).toBe("signed-in");
+  });
+
+  it("a different provider pressed while start() is in flight wins; the first answer opens nothing", async () => {
+    const ctx = setup();
+    let release: (v: { authorizationUrl: string }) => void = () => undefined;
+    ctx.transport.start.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+    const firstClick = ctx.shell.login("google");
+    await ctx.shell.login("apple");
+    expect(ctx.transport.start).toHaveBeenCalledTimes(2);
+    expect(ctx.openBrowser).toHaveBeenCalledOnce();
+    release({ authorizationUrl: "https://uniwork.example/auth/desktop/authorize?attempt_id=late&provider=google" });
+    await firstClick;
+    expect(ctx.openBrowser).toHaveBeenCalledOnce();
+    await ctx.shell.completeCallback(callback(lastState(ctx)));
+    expect(ctx.shell.status()).toBe("signed-in");
+  });
+
   it("a click while start() is still in flight does not open a second attempt", async () => {
     const ctx = setup();
     let release: (v: { authorizationUrl: string }) => void = () => undefined;

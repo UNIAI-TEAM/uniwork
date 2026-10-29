@@ -5,9 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -16,7 +14,6 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
-	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -39,10 +36,11 @@ const appleCallTimeout = 10 * time.Second
 
 var (
 	// ErrAppleTokenInvalid: the identity token is not one Apple issued to
-	// this app for this sign-in (signature, iss, aud, exp or nonce).
+	// this app for this sign-in (signature, iss, aud, exp or nonce), or it
+	// carries no address Apple vouches for and names no linked account.
 	ErrAppleTokenInvalid = errors.New("apple_token_invalid")
 	// ErrAppleAccountConflict: the address belongs to an account the Apple
-	// identity may not take over (ADR 0041).
+	// identity may not join from this route (ADR 0041, 0049).
 	ErrAppleAccountConflict = errors.New("apple_account_conflict")
 	// ErrMFARequired: the account has a second factor, which only the
 	// browser sign-in asks for.
@@ -61,12 +59,18 @@ func appleMFARequired() error {
 	return CodedError{Code: "mfa_required", Status: http.StatusForbidden, Msg: "this account signs in with a second factor in the browser", Err: ErrMFARequired}
 }
 
-// AppleAuthService turns a native Sign in with Apple into the same device
-// session the PKCE code exchange issues (ADR 0041).
+// AppleAuthService is Sign in with Apple, resolving the account with the
+// rules every provider shares (resolveIdentity, ADR 0049), through two
+// doors: the app's native sheet, which ends in the same device session the
+// PKCE code exchange issues (ADR 0041), and the web (apple_web.go), which
+// ends in a browser session. It also holds the account's Apple consent:
+// what a sign-in keeps, and gives back to Apple when nothing kept it.
 type AppleAuthService struct {
-	pool     *pgxpool.Pool
-	q        *db.Queries
-	desktop  *DesktopAuthService
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	desktop *DesktopAuthService
+	// verifier checks the app's identity tokens (its bundle ids); nil keeps
+	// the native door closed (NativeEnabled).
 	verifier AppleTokenVerifier
 	client   AppleTokenClient
 	sealer   auth.SecretSealer
@@ -74,16 +78,21 @@ type AppleAuthService struct {
 	// render/out are nil-safe: without SetMail no alert goes out.
 	render mail.Renderer
 	out    mail.Enqueuer
+	// auth and web are the web door, set by SetWeb; until then it is closed
+	// (WebEnabled).
+	auth *AuthService
+	web  AppleWeb
 }
 
-// NewAppleAuthService seals the kept refresh token with a key derived from the
-// JWT secret, as MFA secrets are; client may be nil.
-func NewAppleAuthService(pool *pgxpool.Pool, q *db.Queries, desktop *DesktopAuthService, verifier AppleTokenVerifier, client AppleTokenClient) *AppleAuthService {
-	sealer, _ := auth.NewSecretSealer([]byte(desktop.cfg.JWTSecret))
+// NewAppleAuthService seals the kept refresh token with the server's one
+// sealer (main.go builds it from the JWT secret, as for MFA secrets); client
+// may be nil, and so may verifier when only the web door is configured.
+func NewAppleAuthService(pool *pgxpool.Pool, q *db.Queries, desktop *DesktopAuthService, verifier AppleTokenVerifier, client AppleTokenClient, sealer auth.SecretSealer) *AppleAuthService {
 	return &AppleAuthService{pool: pool, q: q, desktop: desktop, verifier: verifier, client: client, sealer: sealer, log: slog.Default()}
 }
 
-// SetMail wires the owner alerts: the link notice and the new-login mail.
+// SetMail wires the owner alerts: the sign-in method notice and the
+// new-login mail.
 func (s *AppleAuthService) SetMail(r mail.Renderer, out mail.Enqueuer) {
 	s.render = r
 	s.out = out
@@ -107,13 +116,37 @@ type AppleSignInInput struct {
 	Locale            string
 }
 
-// SignIn resolves the account in this order: the one linked to the Apple
-// subject; else one with the same address, linked, only when Apple's address
-// is not a private relay and the account's address is verified; else a new
-// password-less account, through the same provider path Google sign-up uses
-// (onboarding still ahead). It answers the native device session.
+func (s *AppleAuthService) mailer() signInMailer {
+	return signInMailer{render: s.render, out: s.out, now: s.desktop.now}
+}
+
+// SignIn is POST /auth/apple/native, the contract the shipped iPhone app
+// speaks (ADR 0041): it resolves the account with resolveIdentity and keeps
+// the answers that app knows (spec §3.6) —
+//
+//   - matched: the account linked to the subject;
+//   - unmatched: a new password-less account with a verified address, as
+//     before;
+//   - reclaim: the account registered with the address before it was proved
+//     is taken back without its second factor;
+//   - link (verified on both sides, Apple owns the address): linked, the
+//     owner told;
+//   - a second factor on the account: 403 mfa_required, nothing linked;
+//   - no address Apple vouches for: 401 apple_token_invalid;
+//   - any other refusal, link_required included (this app has no choice
+//     screen and the address is taken): 409 apple_account_conflict.
+//
+// It answers the native device session.
+// ponytail: retire once every mobile build in use calls /auth/native/apple;
+// reviewed by legacyProofReviewBy with the shipped apps' other doors
+// (TestLegacyProofDoorsAreReviewed, spec §3.6).
 func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (DesktopSession, error) {
-	if !s.desktop.clientAllowed(in.ClientID, in.DeploymentID) {
+	if !s.NativeEnabled() {
+		// The handler answers 503 before this; a web-only deployment has no
+		// verifier for the app's tokens.
+		return DesktopSession{}, errors.New("apple native sign-in is not configured")
+	}
+	if !s.desktop.nativeClientAllowed(in.ClientID, in.DeploymentID) {
 		return DesktopSession{}, Invalid("invalid native sign-in client")
 	}
 	claims, err := s.verifier.Verify(ctx, in.IdentityToken, in.Nonce)
@@ -126,7 +159,7 @@ func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (Des
 		s.log.Info("apple sign-in refused", "reason", reason)
 		return DesktopSession{}, appleTokenInvalid()
 	}
-	if !appleEmailUsable(claims) {
+	if !appleIdentity(claims, "", "", "").emailUsable() {
 		// Only an account already linked to the subject can do without the
 		// address; checked before Apple's token endpoint is asked anything.
 		if _, err := s.q.GetUserByAppleID(ctx, pgtype.Text{String: claims.Sub, Valid: true}); err != nil {
@@ -145,23 +178,28 @@ func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (Des
 			s.revoke(ctx, "", claims.Audience, token)
 		}
 	}()
+	id := appleIdentity(claims, in.GivenName, in.FamilyName, sealed)
+	device := mail.SafeField(sanitizeDesktopLabel(in.DeviceLabel))
+	if device == "" {
+		device = mail.SafeField(sanitizeMetadata(in.Platform))
+	}
+	m := s.mailer()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return DesktopSession{}, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	q := s.q.WithTx(tx)
-	u, how, err := s.resolveUser(ctx, q, claims, in)
+	acct, err := s.resolveLegacy(ctx, q, id, in.Locale, device)
 	if err != nil {
-		return DesktopSession{}, err
+		return DesktopSession{}, legacyAppleError(err)
 	}
-	if u.MfaEnabledAt.Valid {
-		return DesktopSession{}, appleMFARequired()
-	}
+	u := acct.user
 	// Read before this sign-in adds its own: an account with a session
-	// somewhere is one whose owner must hear of a new one.
+	// somewhere is one whose owner must hear of a new one. A link or a
+	// reclaim sends its own notice instead.
 	hadSessions := false
-	if how != "created" {
+	if acct.how == "subject" {
 		n, err := q.CountRefreshTokensForUser(ctx, u.ID)
 		if err != nil {
 			return DesktopSession{}, err
@@ -176,9 +214,12 @@ func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (Des
 			return DesktopSession{}, err
 		}
 	}
+	if err := holdAccountForSession(ctx, q, u); err != nil {
+		return DesktopSession{}, err
+	}
 	sess, err := s.desktop.issueDeviceSession(ctx, q, u.ID, nativeDevice{
 		ClientID: in.ClientID, DeploymentID: in.DeploymentID, Label: sanitizeDesktopLabel(in.DeviceLabel),
-		Platform: sanitizeMetadata(in.Platform), Build: sanitizeMetadata(in.Build),
+		Platform: sanitizeMetadata(in.Platform), Build: sanitizeMetadata(in.Build), SignedInAt: s.desktop.now(),
 	})
 	if err != nil {
 		return DesktopSession{}, err
@@ -186,112 +227,107 @@ func (s *AppleAuthService) SignIn(ctx context.Context, in AppleSignInInput) (Des
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: audit.NoOrganization, Actor: audit.User(u.ID),
 		Action: audit.ActionAuthLoginSucceeded, ResourceType: "user", ResourceID: u.ID,
-		Metadata: map[string]any{"via": "apple", "account": how},
+		Metadata: map[string]any{"via": "apple", "account": acct.how},
 	}); err != nil {
 		return DesktopSession{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		if isUniqueViolation(err) {
-			return DesktopSession{}, ErrConflict
+			return DesktopSession{}, appleAccountConflict()
 		}
 		return DesktopSession{}, err
 	}
 	committed = true
-	s.tellOwner(ctx, u, how, hadSessions, in)
+	m.kick(acct.queued)
+	if acct.how == "reclaim" {
+		observeOfficeLeaseRevokes(OfficeLeaseRevokeSessionRevoked, acct.reclaim.leases)
+		s.revokeAfterCommit(ctx, u.ID, acct.reclaim.appleClientID, acct.reclaim.appleToken)
+	}
+	if hadSessions {
+		s.tellNewSession(ctx, u, device)
+	}
 	return sess, nil
 }
 
-// tellOwner sends, after commit and best effort, what a browser sign-in
-// would have: the link notice when Apple was linked to the account by its
-// address (it names the new session too), else the new-login alert when the
-// account had a session before this one. A new account hears nothing.
-func (s *AppleAuthService) tellOwner(ctx context.Context, u db.User, how string, hadSessions bool, in AppleSignInInput) {
-	if s.out == nil || (how != "email" && !hadSessions) {
-		return
-	}
-	device := mail.SafeField(sanitizeDesktopLabel(in.DeviceLabel))
-	if device == "" {
-		device = mail.SafeField(sanitizeMetadata(in.Platform))
-	}
-	ip := mail.SafeField(sessionMetaFrom(ctx).IP)
-	at := s.desktop.now()
-	sessions := s.render.AppURL + "/settings?tab=security"
-	var msg mail.Message
-	var err error
-	if how == "email" {
-		msg, err = s.render.AppleLinked(u.Email, u.Locale, u.ID, mail.AppleLinkedData{Device: device, IP: ip, At: at, SessionsURL: sessions})
-	} else {
-		msg, err = s.render.NewLogin(u.Email, u.Locale, u.ID, mail.NewLoginData{UserAgent: device, IP: ip, At: at, SessionsURL: sessions, App: true})
-	}
-	if err == nil {
-		_, err = s.out.Enqueue(ctx, s.q, msg)
-	}
+// legacyAppleAccount is the account the legacy route signs into and how it
+// was found: subject, created, reclaim or email.
+type legacyAppleAccount struct {
+	user    db.User
+	how     string
+	reclaim reclaimed
+	queued  bool // a notice waits in the transaction for the Kick
+}
+
+// resolveLegacy acts on resolveIdentity's answer for the legacy route.
+func (s *AppleAuthService) resolveLegacy(ctx context.Context, q *db.Queries, id ProviderIdentity, locale, device string) (legacyAppleAccount, error) {
+	res, err := resolveIdentity(ctx, q, id)
 	if err != nil {
-		s.log.Warn("apple sign-in alert not queued", "user", u.ID, "kind", msg.Kind, "err", err)
-		return
+		return legacyAppleAccount{}, err
 	}
-	s.out.Kick()
+	switch res.kind {
+	case identityMatched:
+		if res.user.MfaEnabledAt.Valid {
+			return legacyAppleAccount{}, appleMFARequired()
+		}
+		return legacyAppleAccount{user: res.user, how: "subject"}, nil
+	case identityUnmatched:
+		// Apple verified the address; the shipped app has no screen to prove
+		// it again, so the account starts verified, as it always has.
+		u, err := createProviderUser(ctx, q, id, locale, true)
+		return legacyAppleAccount{user: u, how: "created"}, err
+	case identityReclaim:
+		r, err := reclaimAccount(ctx, q, res.user, id, s.mailer(), device, linkViaReclaim)
+		return legacyAppleAccount{user: r.user, how: "reclaim", reclaim: r, queued: r.queued}, err
+	case identityLink:
+		if res.user.MfaEnabledAt.Valid {
+			return legacyAppleAccount{}, appleMFARequired()
+		}
+		u, queued, err := linkByEmail(ctx, q, res.user, id, s.mailer(), device)
+		return legacyAppleAccount{user: u, how: "email", queued: queued}, err
+	default: // identityLinkRequired: the address is an account's, and only its owner may add Apple
+		return legacyAppleAccount{}, appleAccountConflict()
+	}
 }
 
-// appleEmailUsable: the token carries an address Apple verified.
-func appleEmailUsable(c auth.AppleClaims) bool {
-	email := strings.TrimSpace(c.Email)
-	return c.EmailVerified && strings.Contains(email, "@") && !strings.HasPrefix(email, "@")
-}
-
-// resolveUser answers the account and how it was found: subject, email or
-// created.
-func (s *AppleAuthService) resolveUser(ctx context.Context, q *db.Queries, c auth.AppleClaims, in AppleSignInInput) (db.User, string, error) {
-	sub := pgtype.Text{String: c.Sub, Valid: true}
-	if u, err := q.GetUserByAppleID(ctx, sub); err == nil {
-		return u, "subject", nil
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return db.User{}, "", err
-	}
-	if !appleEmailUsable(c) {
-		return db.User{}, "", appleTokenInvalid()
-	}
-	email := strings.ToLower(strings.TrimSpace(c.Email))
-	existing, err := q.GetUserByEmail(ctx, email)
+// legacyAppleError maps the shared resolver's refusals onto the codes the
+// shipped app reads: an address Apple does not vouch for is the token's
+// fault, every other refusal is a conflict, as it was before ADR 0049.
+func legacyAppleError(err error) error {
 	switch {
-	case err == nil:
-		// A relay address is Apple's alias for this one app: it never names
-		// an account someone made another way. An unverified address could
-		// be one someone typed before its owner arrived.
-		if c.PrivateEmail || !existing.EmailVerifiedAt.Valid || existing.AppleID.Valid {
-			return db.User{}, "", appleAccountConflict()
-		}
-		u, err := q.LinkAppleAccount(ctx, db.LinkAppleAccountParams{ID: existing.ID, AppleID: sub})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return db.User{}, "", appleAccountConflict()
-		}
-		return u, "email", err
-	case errors.Is(err, pgx.ErrNoRows):
-		u, err := q.CreateAppleUser(ctx, db.CreateAppleUserParams{
-			ID: util.NewID(), Email: email, DisplayName: appleDisplayName(in.GivenName, in.FamilyName, email),
-			AppleID: sub, Locale: NormalizeLocale(in.Locale),
-		})
-		if isUniqueViolation(err) {
-			return db.User{}, "", ErrConflict
-		}
-		return u, "created", err
+	case errors.Is(err, ErrSignInEmailUnverified):
+		return appleTokenInvalid()
+	case errors.Is(err, ErrSignInAccountConflict), errors.Is(err, ErrSignInAccountUnverified):
+		return appleAccountConflict()
 	default:
-		return db.User{}, "", err
+		return err
 	}
 }
 
-// appleDisplayName is the name Apple shared on the first sign-in, else the
-// address's local part (a relay address gives its alias; the person renames
-// themselves in Settings).
-func appleDisplayName(given, family, email string) string {
-	name := strings.Join(strings.Fields(strings.TrimSpace(given+" "+family)), " ")
-	if name == "" {
-		name = email[:strings.Index(email, "@")]
+// tellNewSession sends, after commit and best effort, what a browser
+// sign-in from a new device would have: the new-login alert, naming the
+// device. A new account hears nothing; a link or a reclaim queued its own
+// notice in the transaction.
+func (s *AppleAuthService) tellNewSession(ctx context.Context, u db.User, device string) {
+	s.mailer().tellAppSignIn(ctx, s.q, u, device)
+}
+
+// nativeIdentity is the person behind an identity token the app's Apple
+// sheet returned (the app's own sign-in screen, its Settings link): checked
+// by the app's verifier (its bundle ids, the hash of nonce), with the consent
+// Apple's one-time code redeems for, sealed (none without a code or the
+// key). A refused token is the verifier's error (auth.AppleTokenError),
+// which the caller answers with its own code; whatever the identity goes on
+// to, a refusal gives its consent back (giveBack).
+func (s *AppleAuthService) nativeIdentity(ctx context.Context, token, nonce, code, givenName, familyName string) (ProviderIdentity, error) {
+	if !s.NativeEnabled() {
+		return ProviderIdentity{}, errors.New("apple native sign-in is not configured")
 	}
-	if utf8.RuneCountInString(name) > maxDisplayNameRunes {
-		name = string([]rune(name)[:maxDisplayNameRunes])
+	claims, err := s.verifier.Verify(ctx, token, nonce)
+	if err != nil {
+		return ProviderIdentity{}, err
 	}
-	return name
+	_, sealed := s.keepRefreshToken(ctx, claims, code)
+	return appleIdentity(claims, givenName, familyName, sealed), nil
 }
 
 // keepRefreshToken redeems the authorization code for the refresh token
@@ -317,8 +353,9 @@ func (s *AppleAuthService) keepRefreshToken(ctx context.Context, c auth.AppleCla
 	return token, sealed
 }
 
-// revokeAfterCommit tells Apple the deleted account's consent is gone (Apple
-// requires it of apps with Sign in with Apple). The deletion already
+// revokeAfterCommit tells Apple a consent the account no longer holds is gone:
+// a deleted account's (Apple requires it of apps with Sign in with Apple), or
+// the one whoever registered a reclaimed account left. The change already
 // committed, so this never fails it: an error is logged by code, never with
 // the token.
 func (s *AppleAuthService) revokeAfterCommit(ctx context.Context, userID, clientID, sealed string) {

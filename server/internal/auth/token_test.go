@@ -3,6 +3,8 @@ package auth
 import (
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func TestTokenRoundtrip(t *testing.T) {
@@ -57,15 +59,15 @@ func TestWrongSecretRejected(t *testing.T) {
 
 func TestMFATokenNeverPassesAsAccessToken(t *testing.T) {
 	m := TokenMinter{Secret: []byte("test-secret"), TTL: time.Minute}
-	challenge, err := m.MintMFA("user_123")
+	challenge, err := m.MintMFA(MFAChallenge{UserID: "user_123"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := m.Parse(challenge); err == nil {
 		t.Fatal("a challenge token must not open RequireAuth")
 	}
-	if uid, err := m.ParseMFA(challenge); err != nil || uid != "user_123" {
-		t.Fatalf("ParseMFA: %q %v", uid, err)
+	if c, err := m.ParseMFA(challenge); err != nil || c.UserID != "user_123" || c.Channel != MFAChannelWeb {
+		t.Fatalf("ParseMFA: %+v %v", c, err)
 	}
 	access, _ := m.MintSession("user_123", "sess_1")
 	if _, err := m.ParseMFA(access); err == nil {
@@ -74,5 +76,57 @@ func TestMFATokenNeverPassesAsAccessToken(t *testing.T) {
 	uid, sid, err := m.ParseSession(access)
 	if err != nil || uid != "user_123" || sid != "sess_1" {
 		t.Fatalf("ParseSession: %q %q %v", uid, sid, err)
+	}
+}
+
+// A challenge names its channel, the native client and deployment, and the
+// pending link (ADR 0049 §4); a token minted before channels existed reads
+// as web, and a channel the server never mints is refused at minting.
+func TestMFAChallengeCarriesItsChannelAndPendingLink(t *testing.T) {
+	m := TokenMinter{Secret: []byte("test-secret"), TTL: time.Minute}
+	before := time.Now().Truncate(time.Second)
+	// IssuedAt is the token's own: what a caller passes is not minted.
+	native, err := m.MintMFA(MFAChallenge{UserID: "u1", Channel: MFAChannelNative, ClientID: "uniwork-chat-mobile", DeploymentID: "default", PendingLink: "sealed", IssuedAt: before.Add(-time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := m.ParseMFA(native)
+	if err != nil || c.IssuedAt.Before(before) || c.IssuedAt.After(time.Now()) {
+		t.Fatalf("ParseMFA(native).IssuedAt = %v (minted after %v) %v", c.IssuedAt, before, err)
+	}
+	c.IssuedAt = time.Time{}
+	want := MFAChallenge{UserID: "u1", Channel: MFAChannelNative, ClientID: "uniwork-chat-mobile", DeploymentID: "default", PendingLink: "sealed"}
+	if c != want {
+		t.Fatalf("ParseMFA(native) = %+v, want %+v", c, want)
+	}
+	// The shape every challenge had before ADR 0049: no chn, cid, dep or pl.
+	issued := time.Now().Truncate(time.Second)
+	legacy, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
+		Subject: "u2", Audience: jwt.ClaimStrings{mfaAudience},
+		IssuedAt: jwt.NewNumericDate(issued), ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+	}).SignedString(m.Secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c, err := m.ParseMFA(legacy); err != nil || !c.IssuedAt.Equal(issued) || c.UserID != "u2" || c.Channel != MFAChannelWeb || c.ClientID != "" || c.PendingLink != "" {
+		t.Fatalf("ParseMFA(legacy) = %+v %v, want a web challenge issued at %v", c, err, issued)
+	}
+	if _, err := m.MintMFA(MFAChallenge{UserID: "u3", Channel: "desktop"}); err == nil {
+		t.Fatal("an unknown channel was minted")
+	}
+}
+
+// The access token carries its iat, which the credentials_revoked_at gate
+// compares at one-second precision.
+func TestAccessTokenCarriesItsIssuedAt(t *testing.T) {
+	m := TokenMinter{Secret: []byte("test-secret"), TTL: time.Minute}
+	before := time.Now().Truncate(time.Second)
+	tok, err := m.MintWebSession("u1", "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at, err := m.ParseAccessToken(tok)
+	if err != nil || at.IssuedAt.Before(before) || at.IssuedAt.After(time.Now()) || !at.IssuedAt.Equal(at.IssuedAt.Truncate(time.Second)) {
+		t.Fatalf("IssuedAt = %v (minted after %v) %v", at.IssuedAt, before, err)
 	}
 }

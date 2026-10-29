@@ -8,8 +8,22 @@ const sessionMock = vi.hoisted(() => ({
   discardStored: vi.fn(async () => undefined),
   status: vi.fn(() => "signed-out"),
 }));
-const loginWithApple = vi.hoisted(() => vi.fn<() => Promise<void>>(async () => undefined));
-vi.mock("./flow", () => ({ session: sessionMock, loginWithApple }));
+vi.mock("./flow", () => ({ session: sessionMock }));
+// The doors are sign-in.test.ts's: here a request runs the browser's sign-in, or what a test makes of it.
+const signInMock = vi.hoisted(() => ({
+  runSignIn: vi.fn(async (request: { method: string }) => {
+    if (request.method === "browser") await sessionMock.login();
+    return sessionMock.status() === "signed-in" ? { kind: "signed_in", reclaimed: false, linkSkipped: null } : { kind: "dismissed" };
+  }),
+  forgetSignIn: vi.fn(),
+  dropChoice: vi.fn(),
+}));
+vi.mock("./sign-in", () => signInMock);
+// Every event and effect the store hands the reducer, for the test that no credential rides one.
+vi.mock("./machine", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./machine")>();
+  return { ...actual, reduce: vi.fn(actual.reduce) };
+});
 
 const workspaceClear = vi.hoisted(() => vi.fn(async () => undefined));
 const workspaceRestore = vi.hoisted(() => vi.fn<() => Promise<void>>(async () => undefined));
@@ -68,6 +82,7 @@ import { useChatSendStore } from "../stores/chat-send-store";
 import { useDraftStore } from "../stores/draft-store";
 import { chatSyncHeads } from "../chat-sync/heads";
 import { usePendingOpsStore } from "../stores/pending-ops-store";
+import { reduce } from "./machine";
 import { PUSH_UNREGISTER_BUDGET_MS, useAuthStore } from "./store";
 import { openDeviceStore } from "../storage/device-store";
 
@@ -90,6 +105,11 @@ beforeEach(() => {
 });
 
 describe("auth store", () => {
+  it("drops the choice screen's identity through the sign-in module, which tells the server", () => {
+    useAuthStore.getState().dropChoice();
+    expect(signInMock.dropChoice).toHaveBeenCalledTimes(1);
+  });
+
   // Audit (Security & privacy, keychain-survives-reinstall).
   it("initialize on the first launch of a new install discards the previous install's session and person before reading them", async () => {
     const order: string[] = [];
@@ -498,19 +518,50 @@ describe("auth store", () => {
     expect(cacheMock.restoreAccountCache).toHaveBeenCalledTimes(1);
   });
 
-  it("login: Sign in with Apple runs Apple's sign-in, not the browser's, and loads /me the same way", async () => {
-    await useAuthStore.getState().login("apple");
-    expect(loginWithApple).toHaveBeenCalledTimes(1);
+  it("login: runs the request it is handed and loads /me the same way, its password never in an event or an effect", async () => {
+    const request = { method: "password", email: "typed@example.com", password: "hunter2-secret" } as const;
+    signInMock.runSignIn.mockResolvedValueOnce({ kind: "signed_in", reclaimed: true, linkSkipped: null });
+    expect(await useAuthStore.getState().login(request)).toEqual({ kind: "signed_in", reclaimed: true, linkSkipped: null });
+    expect(signInMock.runSignIn).toHaveBeenCalledExactlyOnceWith(request);
     expect(sessionMock.login).not.toHaveBeenCalled();
     expect(useAuthStore.getState().user).toEqual(user);
+    const seen = JSON.stringify([vi.mocked(reduce).mock.calls, vi.mocked(reduce).mock.results]);
+    expect(seen).toContain('"loginStarted"');
+    expect(seen).toContain('"password"');
+    expect(seen).not.toContain("hunter2-secret");
+    expect(seen).not.toContain("typed@example.com");
   });
 
-  it("login: a refused Sign in with Apple rejects with the verdict and lets nobody in", async () => {
-    loginWithApple.mockRejectedValueOnce(Object.assign(new Error("x"), { code: "apple_account_conflict" }));
+  it("login: a sign-in effect no login() armed runs no door at all", async () => {
+    const actual = (await vi.importActual<typeof import("./machine")>("./machine")).reduce;
+    // A transition that settles at once (PATCH /me's), made to ask for a sign-in nobody armed.
+    vi.mocked(reduce).mockImplementationOnce((model, event) => ({ ...actual(model, event), effects: [{ type: "sessionLogin", method: "password" }] }));
     sessionMock.status.mockReturnValue("signed-out");
-    await expect(useAuthStore.getState().login("apple")).rejects.toMatchObject({ code: "apple_account_conflict" });
+    useAuthStore.getState().setUser(user);
+    await vi.waitFor(() => expect(sessionMock.status).toHaveBeenCalled());
+    expect(signInMock.runSignIn).not.toHaveBeenCalled();
+    expect(apiMock.getMe).not.toHaveBeenCalled();
+  });
+
+  it("login: a sign-in that stops at a second factor or a choice resolves with it and lets nobody in yet", async () => {
+    sessionMock.status.mockReturnValue("signed-out");
+    signInMock.runSignIn.mockResolvedValueOnce({ kind: "second_factor" });
+    expect(await useAuthStore.getState().login({ method: "password", email: "a@b.c", password: "pw" })).toEqual({ kind: "second_factor" });
+    signInMock.runSignIn.mockResolvedValueOnce({ kind: "choice" });
+    expect(await useAuthStore.getState().login({ method: "apple" })).toEqual({ kind: "choice" });
     expect(apiMock.getMe).not.toHaveBeenCalled();
     expect(useAuthStore.getState().user).toBeNull();
+  });
+
+  it("login: a refused sign-in rejects with the verdict and lets nobody in", async () => {
+    signInMock.runSignIn.mockRejectedValueOnce(Object.assign(new Error("x"), { code: "sign_in_account_conflict" }));
+    sessionMock.status.mockReturnValue("signed-out");
+    await expect(useAuthStore.getState().login({ method: "apple" })).rejects.toMatchObject({ code: "sign_in_account_conflict" });
+    expect(apiMock.getMe).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().user).toBeNull();
+    // the next one runs its own request, not the refused one's
+    await useAuthStore.getState().login();
+    expect(signInMock.runSignIn).toHaveBeenLastCalledWith({ method: "browser" });
   });
 
   it("login: a dismissed browser leaves the store signed out without /me", async () => {
@@ -542,6 +593,8 @@ describe("auth store", () => {
     });
     await useAuthStore.getState().logout();
     expect(order).toEqual(["session", "wipe"]);
+    // what a sign-in left waiting (a second step, a ticket) goes with the session
+    expect(signInMock.forgetSignIn).toHaveBeenCalledTimes(1);
     // A revoked device or a reused refresh token ends in the same logout (app/_layout.tsx › onChange(null)).
     sessionMock.status.mockReturnValue("signed-out");
     await useAuthStore.getState().logout();

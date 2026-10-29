@@ -2,14 +2,23 @@
 import { useEffect, useRef } from "react";
 import { useSession } from "@uniwork/core/auth";
 import { useOrganizations } from "@uniwork/core/organizations";
-import { paths, resolvePostAuthDestination, useHasOnboarded, usePendingAuthStep } from "@uniwork/core/paths";
+import {
+  paths,
+  resolvePostAuthDestination,
+  sanitizeNextUrl,
+  useHasOnboarded,
+  usePendingAuthStep,
+} from "@uniwork/core/paths";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { useNavigation } from "@uniwork/views/navigation";
 import { OnboardingFlow } from "@uniwork/views/onboarding/onboarding-flow";
 
 export default function OnboardingPage() {
-  const { push, replace } = useNavigation();
+  const { push, replace, searchParams } = useNavigation();
   const { status, user } = useSession();
+  // Where the person was headed before the gates (spec §4.2): onboarding
+  // carries it and goes on to it once the account is set up.
+  const next = sanitizeNextUrl(searchParams.get("next"));
   const hasOnboarded = useHasOnboarded();
   const step = usePendingAuthStep();
   const { data: workspaces = [], isFetched } = useWorkspaces();
@@ -21,12 +30,12 @@ export default function OnboardingPage() {
   const completing = useRef(false);
 
   useEffect(() => {
-    if (status === "anon") replace(paths.login());
-    if (status === "authed" && step === "verify") replace(paths.verify());
+    if (status === "anon") replace(paths.login({ next }));
+    if (status === "authed" && step === "verify") replace(paths.verify({ next }));
     if (status === "authed" && hasOnboarded && isFetched && orgsFetched && !completing.current) {
-      replace(resolvePostAuthDestination(workspaces, user, organizations));
+      replace(next ?? resolvePostAuthDestination(workspaces, user, organizations));
     }
-  }, [status, step, user, hasOnboarded, isFetched, orgsFetched, workspaces, organizations, replace]);
+  }, [status, step, user, hasOnboarded, isFetched, orgsFetched, workspaces, organizations, next, replace]);
 
   if (status !== "authed" || step === "verify" || (hasOnboarded && !completing.current)) return null;
   return (
@@ -39,9 +48,10 @@ export default function OnboardingPage() {
           completing.current = false;
         }}
         onComplete={(ws) => {
-          // `/` is the public landing page now; an onboarding that produced no
-          // workspace belongs on the picker, not on marketing.
-          push(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.workspaces());
+          // `next` first: the invitation or consent that started the sign-up.
+          // Otherwise `/` is the public landing page now; an onboarding that
+          // produced no workspace belongs on the picker, not on marketing.
+          push(next ?? (ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.workspaces()));
         }}
       />
     </div>

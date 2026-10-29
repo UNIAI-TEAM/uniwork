@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
+import { forgetVerificationMail, noteVerificationMailed } from "@uniwork/core/auth/verification-mail";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { VerifyEmailView } from "./verify-email-view";
@@ -22,7 +23,10 @@ beforeEach(() => {
   resetAuthStoreForTests();
   setSessionUser(user);
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  forgetVerificationMail();
+});
 
 describe("VerifyEmailView", () => {
   it("shows the address the code went to and focuses the code input", () => {
@@ -71,9 +75,10 @@ describe("VerifyEmailView", () => {
     expect(otpInput()).toHaveValue("");
   });
 
-  it("keeps resend locked for 60s after arriving, then sends and locks again", async () => {
+  it("keeps resend locked for the minute after a code this browser had mailed, then sends and locks again", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     requestMock.mockResolvedValue({ status: "ok" });
+    noteVerificationMailed("A@b.co", Date.now());
     render(wrapWithNav(<VerifyEmailView onSuccess={() => {}} />));
     const locked = screen.getByRole("button", { name: /Gửi lại sau 60s/ });
     expect(locked).toHaveAttribute("aria-disabled", "true");
@@ -90,13 +95,15 @@ describe("VerifyEmailView", () => {
     expect(screen.getByRole("button", { name: /Gửi lại sau 60s/ })).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("lets a person back days later ask for a code at once, since nothing was sent from here", () => {
+    render(wrapWithNav(<VerifyEmailView onSuccess={() => {}} />));
+    expect(screen.getByRole("button", { name: "Gửi lại mã" })).not.toHaveAttribute("aria-disabled");
+  });
+
   it("treats a 429 on resend as a fresh cooldown", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     requestMock.mockRejectedValue(new ApiError("slow down", "rate_limited", 429));
     render(wrapWithNav(<VerifyEmailView onSuccess={() => {}} />));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(60_000);
-    });
     fireEvent.click(screen.getByRole("button", { name: "Gửi lại mã" }));
     await screen.findByText("Vừa gửi một mã rồi, chờ một phút rồi thử lại.");
     expect(screen.getByRole("button", { name: /Gửi lại sau/ })).toHaveAttribute("aria-disabled", "true");
@@ -107,5 +114,19 @@ describe("VerifyEmailView", () => {
     render(wrapWithNav(<VerifyEmailView onSuccess={() => {}} />));
     fireEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
     await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/auth/logout", expect.anything()));
+  });
+
+  it("offers to delete an account whose address cannot be proved, in its own settings", () => {
+    render(wrapWithNav(<VerifyEmailView onSuccess={() => {}} />));
+    expect(screen.getByRole("link", { name: "Xóa tài khoản trong Cài đặt" })).toHaveAttribute("href", "/settings");
+  });
+
+  it("says other failures in the table's words, never the server's message", async () => {
+    requestMock.mockRejectedValue(new ApiError("internal error", "internal", 500));
+    render(wrapWithNav(<VerifyEmailView onSuccess={() => {}} />));
+    fireEvent.change(otpInput(), { target: { value: "123456" } });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("UniWork đang gặp trục trặc. Thử lại sau ít phút.");
+    expect(alert).not.toHaveTextContent("internal error");
   });
 });

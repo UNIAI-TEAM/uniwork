@@ -8,9 +8,21 @@
  * Tokens: the shell owns the refresh token and hands the renderer access
  * tokens only (`session`), mirroring the Office shell's main-process session.
  */
+import type { SignInProvider } from "../api/endpoints/sign-in-schemas";
+
+/**
+ * `provider` sends the system browser straight on to that provider's sign-in
+ * (the start route's hint, spec §3.5) instead of the UniWork sign-in page.
+ */
+export type DesktopLoginOptions = { provider: SignInProvider };
+
 export interface SessionProvider {
-  /** Start the shell's PKCE login in the system browser; resolves once the browser is open. */
-  login(): Promise<void>;
+  /**
+   * Start the shell's PKCE login in the system browser; resolves once the
+   * browser is open. A shell built before `options` existed ignores them and
+   * opens the UniWork sign-in page, where every provider is one press away.
+   */
+  login(options?: DesktopLoginOptions): Promise<void>;
   /** The current access token, or null when the shell has no session. */
   getAccessToken(): Promise<string | null>;
   /** Rotate and return a fresh access token; null when the session is gone. */

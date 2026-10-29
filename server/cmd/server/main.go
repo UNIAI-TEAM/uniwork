@@ -197,8 +197,20 @@ func main() {
 	service.SetMembershipInviteKey([]byte(cfg.JWTSecret))
 	orgMemberSvc.SetMail(renderer, mailOutbox)
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
+	// The one sealer (ADR 0049): TOTP secrets and the kept Apple token at
+	// rest, and every blob the server hands a client, sealed per purpose.
+	sealer, err := auth.NewSecretSealer([]byte(cfg.JWTSecret))
+	if err != nil {
+		log.Error("secret sealer", "err", err)
+		os.Exit(1)
+	}
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
 	authSvc.SetMail(renderer, mailOutbox)
+	authSvc.SetSealer(sealer)
+	// The hand-overs (transfer, the invitation switch) take the owner's proof
+	// through the one step-up checker (ADR 0049 §5).
+	orgMemberSvc.SetStepUp(authSvc)
+	wsSvc.SetStepUp(authSvc)
 	desktopAuthSvc := service.NewDesktopAuthService(pool, q, minter, cfg)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, mailOutbox)
 	var conference meetings.ConferenceProvider
@@ -740,41 +752,72 @@ func main() {
 	officeSpoolSweep := officeSvc.NewSpoolSweeper()
 	officeSpoolSweepDone := make(chan struct{})
 	go func() { officeSpoolSweep.Run(runCtx); close(officeSpoolSweepDone) }()
-	// Google needs both credentials; discovery runs once here. A failed
-	// discovery leaves Google off rather than taking the API down with it.
+	// Google on the web needs both credentials, Google in the app its iOS
+	// and Android clients (ADR 0049 §8); discovery runs once here for both. A
+	// failed discovery leaves Google off rather than taking the API down with
+	// it.
 	var google handler.GoogleExchanger
-	if cfg.GoogleEnabled() {
-		g, err := auth.NewGoogleOAuth(ctx, auth.GoogleIssuer, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL())
-		if err != nil {
+	if cfg.GoogleEnabled() || cfg.GoogleNativeEnabled() {
+		d, err := auth.DiscoverGoogle(ctx, auth.GoogleIssuer)
+		switch {
+		case err != nil:
 			log.Error("google sign-in disabled", "err", err)
-		} else {
-			google = g
-			log.Info("google sign-in enabled", "redirect_url", cfg.GoogleRedirectURL())
+		default:
+			if cfg.GoogleEnabled() {
+				google = d.OAuth(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL())
+				log.Info("google sign-in enabled", "redirect_url", cfg.GoogleRedirectURL())
+			}
+			if cfg.GoogleNativeEnabled() {
+				// Interfaces stay nil, never a typed nil, while the door is off.
+				authSvc.SetGoogleNative(d.NativeVerifier(cfg.GoogleClientID, cfg.GoogleNativeClientIDs, nil))
+				log.Info("google sign-in in the app enabled", "clients", strings.Join(cfg.GoogleNativeClientIDs, ","))
+			}
 		}
 	}
-	// Sign in with Apple on the phone (ADR 0041): on with the bundle ids its
-	// identity tokens may name. The key that signs Apple client secrets is
-	// what lets a sign-in keep a refresh token and account deletion revoke
-	// it, which Apple requires; without it sign-in still works and the
-	// missing revoke is logged here.
+	// Sign in with Apple (ADR 0041, 0049): the phone's native sheet, on with
+	// the bundle ids its identity tokens may name, and the web, on with the
+	// Services ID. Each door has its own verifier, so a token issued to one
+	// never opens the other. The key that signs Apple client secrets is what
+	// lets a sign-in keep a refresh token and account deletion revoke it,
+	// which Apple requires: the phone signs in without it and the missing
+	// revoke is logged here; the web cannot redeem its code without it, so it
+	// stays off.
 	var appleAuth *service.AppleAuthService
-	if cfg.AppleSignInEnabled() {
-		var appleClient service.AppleTokenClient
+	if cfg.AppleSignInEnabled() || cfg.AppleSignInWebClientID != "" {
+		var appleClient *auth.AppleClient
 		if cfg.AppleRevokeConfigured() {
 			c, err := auth.NewAppleClient(cfg.AppleSignInTeamID, cfg.AppleSignInKeyID, cfg.AppleSignInPrivateKey, auth.AppleIssuer)
 			if err != nil {
-				log.Error("sign in with apple: token revoke disabled", "err", err)
+				log.Error("sign in with apple: the key does not load; token revoke and the web are off", "err", err)
 			} else {
 				appleClient = c
 			}
 		} else {
-			log.Warn("sign in with apple: APPLE_SIWA_TEAM_ID, APPLE_SIWA_KEY_ID or APPLE_SIWA_PRIVATE_KEY unset; account deletion cannot revoke Apple tokens")
+			log.Warn("sign in with apple: APPLE_SIWA_TEAM_ID, APPLE_SIWA_KEY_ID or APPLE_SIWA_PRIVATE_KEY unset; account deletion cannot revoke Apple tokens and the web stays off")
 		}
-		verifier := auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, cfg.AppleSignInAudiences, nil)
-		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, verifier, appleClient)
+		// Interfaces stay nil, never a typed nil, while a door or the key is off.
+		var native service.AppleTokenVerifier
+		if cfg.AppleSignInEnabled() {
+			native = auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, cfg.AppleSignInAudiences, nil)
+		}
+		var tokens service.AppleTokenClient
+		if appleClient != nil {
+			tokens = appleClient
+		}
+		appleAuth = service.NewAppleAuthService(pool, q, desktopAuthSvc, native, tokens, sealer)
 		appleAuth.SetMail(renderer, mailOutbox)
+		if cfg.AppleWebConfigured() && appleClient != nil {
+			appleAuth.SetWeb(authSvc, service.AppleWeb{
+				ServicesID: cfg.AppleSignInWebClientID, RedirectURI: cfg.AppleWebRedirectURL(),
+				Verifier: auth.NewAppleVerifier(auth.AppleIssuer, auth.AppleJWKSURL, []string{cfg.AppleSignInWebClientID}, nil),
+				Client:   appleClient,
+			})
+			log.Info("sign in with apple on the web enabled", "services_id", cfg.AppleSignInWebClientID, "redirect_url", cfg.AppleWebRedirectURL())
+		}
 		authSvc.SetApple(appleAuth)
-		log.Info("sign in with apple enabled", "audiences", strings.Join(cfg.AppleSignInAudiences, ","))
+		if cfg.AppleSignInEnabled() {
+			log.Info("sign in with apple enabled", "audiences", strings.Join(cfg.AppleSignInAudiences, ","))
+		}
 	}
 	// Platform console (F-11): reads metadata across tenants, guarded by
 	// users.platform_role rather than membership.
@@ -905,6 +948,7 @@ func main() {
 	// runCancel and is awaited below.
 	mcpCleanupDone := make(chan struct{})
 	go func() { mcpAuth.Run(runCtx); close(mcpCleanupDone) }()
+	signInTickets := service.NewSignInTicketService(pool, q, authSvc, renderer, mailOutbox)
 	officeCapabilitiesSvc := service.NewOfficeCapabilitiesService(orgSvc, flags)
 	officeCapabilitiesSvc.SetDrive(driveConnectionSvc)
 	aiCloudSvc := service.NewAICloudService(orgSvc, service.NewEntitlementService(pool, q), gateway)
@@ -915,9 +959,13 @@ func main() {
 		Auth:                authSvc,
 		DesktopAuth:         desktopAuthSvc,
 		AppleAuth:           appleAuth,
+		NativeSignIn:        service.NewNativeSignInService(pool, q, authSvc, desktopAuthSvc, signInTickets),
 		Verification:        verification,
 		PasswordReset:       passwordReset,
-		GoogleAuth:          service.NewGoogleAuthService(q, authSvc),
+		GoogleAuth:          service.NewGoogleAuthService(authSvc),
+		SignInTickets:       signInTickets,
+		SignInMethods:       service.NewSignInMethodsService(pool, q, authSvc),
+		Sealer:              sealer,
 		Google:              google,
 		Organizations:       orgSvc,
 		OrgMembers:          orgMemberSvc,

@@ -1,0 +1,13 @@
+{{define "preheader"}}Mã {{.Data.Code}} · hết hạn sau {{expires .Data.Expires .Locale}}{{end}}
+{{define "content"}}
+<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#202020">Xác nhận email</h1></td></tr>
+<tr><td style="padding-bottom:24px;font-size:15px;line-height:24px;color:#646464">Có người đang đăng nhập UniWork bằng {{.Data.MethodName}} và cho biết đây là email công việc của họ. Nhập mã dưới đây để liên kết {{.Data.MethodName}} với tài khoản UniWork mang địa chỉ này, hoặc tạo tài khoản mới với địa chỉ này.</td></tr>
+<tr><td align="center" style="padding-bottom:24px">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center"><tr>
+    <td class="code" style="background:#f4f4f5;border:1px solid #e4e4e7;border-radius:12px;padding:18px 28px;font-family:'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:36px;line-height:44px;font-weight:700;letter-spacing:0.28em;text-indent:0.28em;color:#202020;text-align:center">{{.Data.Code}}</td>
+  </tr></table>
+</td></tr>
+<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#646464">Mã có hiệu lực trong <strong style="color:#202020;font-weight:600">{{expires .Data.Expires .Locale}}</strong> và chỉ dùng được một lần.</td></tr>
+<tr><td style="border-top:1px solid #e4e4e7;padding-top:20px;font-size:13px;line-height:20px;color:#646464">Chỉ nhập mã khi chính bạn đang đăng nhập: ai có mã này sẽ vào được tài khoản UniWork của bạn. Đừng chia sẻ mã với ai, kể cả người tự nhận là UniWork. Nếu bạn không vừa đăng nhập UniWork, bỏ qua email này, không có gì thay đổi nếu không có mã.</td></tr>
+{{end}}
+{{define "footer"}}Bạn nhận email này vì địa chỉ của bạn vừa được nhập khi đăng nhập UniWork.{{end}}

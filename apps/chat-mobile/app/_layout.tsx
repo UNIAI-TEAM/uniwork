@@ -51,7 +51,7 @@ import { bestEffort } from "@/data/report";
 import { sentryNavigation } from "@/data/sentry";
 import { installDeviceStore, openDeviceStore } from "@/data/storage/device-store";
 import { openNativeDeviceStore } from "@/data/storage/native-device-store";
-import { incomingUrlAction, setPendingDeepLink } from "@/lib/deep-link";
+import { incomingUrlAction, setPendingLink } from "@/lib/deep-link";
 import { createNotificationResponseHandler, handleLaunchResponse } from "@/lib/notification-response";
 import { I18nProvider, loadLocalePreference, useLocaleReady } from "@/components/app/i18n-provider";
 import { NAV_THEME } from "@/components/ui/nav-theme";
@@ -90,7 +90,7 @@ export function ErrorBoundary(props: ErrorBoundaryProps) {
   return <ErrorFallback {...props} boundary="root" />;
 }
 
-/** A URL from the OS: the PKCE callback completes the sign-in; a chat link waits
+/** A URL from the OS: the PKCE callback completes the sign-in; a chat or invite link waits
  *  for one, or is pushed only when expo-router did not already route it
  *  (+native-intent routes Linking URLs; a notification tap is not one). */
 function openUrl(url: string, navigate = false) {
@@ -101,7 +101,7 @@ function openUrl(url: string, navigate = false) {
     navigate,
   });
   if (action.kind === "callback") void session.completeCallback(url);
-  else if (action.kind === "keep") setPendingDeepLink(action.link);
+  else if (action.kind === "keep") setPendingLink(action.href);
   else if (action.kind === "open") router.push(action.href);
 }
 

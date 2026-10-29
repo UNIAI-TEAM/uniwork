@@ -229,7 +229,7 @@ func TestLeaveRacingTransferNeverLeavesTheOrganizationOwnerless(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			_, transferErr = f.svc.TransferOwnership(f.ctx, owner.ID, f.org.ID, leaver.ID, "password123")
+			_, transferErr = f.svc.TransferOwnership(f.ctx, owner.ID, f.org.ID, leaver.ID, OwnerProof{Password: "password123"})
 		}()
 		go func() {
 			defer wg.Done()

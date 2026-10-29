@@ -71,6 +71,11 @@ export function sentryRelease(info: BuildInfo): string {
   return build ? `${id}@${info.version}+${build}` : `${id}@${info.version}`;
 }
 
+/** What a native sign-in tells the server of the build (NativeClientSDI.build): the device list and the new-sign-in mail show it. */
+export function buildLabel(info: Pick<BuildInfo, "version" | "build">): string {
+  return info.build ? `${info.version} (${info.build})` : info.version;
+}
+
 /** The X-Client-* headers every REST call carries (server: middleware.ClientMetadata). */
 export function clientHeaders(info: BuildInfo): Record<string, string> {
   return {

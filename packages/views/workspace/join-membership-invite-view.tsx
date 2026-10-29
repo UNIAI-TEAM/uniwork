@@ -5,7 +5,9 @@ import { useTranslation } from "react-i18next";
 import { ApiError, errorCode } from "@uniwork/core/api";
 import { useSession } from "@uniwork/core/auth";
 import type { MembershipInvitePreview } from "@uniwork/core/api/endpoints/membership-invite-links";
-import { organizationSwitchConflicts, passwordRefusal, type PasswordRefusal } from "@uniwork/core/organizations/errors";
+import type { StepUpProof } from "@uniwork/core/api/endpoints/sign-in-schemas";
+import { readSignInFailure } from "@uniwork/core/auth/sign-in-errors";
+import { organizationSwitchConflicts } from "@uniwork/core/organizations/errors";
 import { paths } from "@uniwork/core/paths";
 import type { InvitationPreview, MembershipConflict, SwitchResolution, Workspace } from "@uniwork/core/types";
 import {
@@ -33,7 +35,7 @@ import { readMembershipInviteSecret } from "./membership-invite-secret";
 type Refusal =
   | { kind: "changed"; conflicts: MembershipConflict[] | null }
   | { kind: "gone"; reason: GoneReason }
-  | { kind: "password"; why: PasswordRefusal }
+  | { kind: "proof"; proofs: readonly StepUpProof[] }
   | { kind: "retry"; why: RetryReason; error: unknown }
   | { kind: "fatal"; error: unknown };
 
@@ -45,8 +47,9 @@ function classify(err: unknown): Refusal {
   if (code === "invite_link_revoked") return { kind: "gone", reason: "revoked" };
   const gone = goneReason(code);
   if (gone) return { kind: "gone", reason: gone };
-  const password = passwordRefusal(err);
-  if (password) return { kind: "password", why: password };
+  // The owner's proof no longer serves (ADR 0049 §5): the wizard asks again.
+  const failure = readSignInFailure(err, "methods");
+  if (failure.kind === "step_up") return { kind: "proof", proofs: failure.proofs ?? [] };
   if (code === "membership_busy") return { kind: "retry", why: "busy", error: err };
   return { kind: "fatal", error: err };
 }
@@ -111,6 +114,7 @@ export function JoinMembershipInviteView({ linkId }: { linkId: string }) {
   const preview = useMembershipInvitePreview(linkId, secret, enabled);
   const join = useJoinMembershipInviteLink();
 
+  // The workspace's root, its Home (e2e/membership-invite-link.spec.ts).
   const land = (workspace: Workspace | null, orgSlug?: string) => {
     if (workspace?.organization_slug && workspace.slug) {
       navigation.replace(paths.workspace(workspace.organization_slug, workspace.slug).root());
@@ -131,7 +135,7 @@ export function JoinMembershipInviteView({ linkId }: { linkId: string }) {
     navigation.replace(paths.workspace(preview.data.organization.slug, first.slug).root());
   }, [preview.data, navigation, joined]);
 
-  const submit = (resolve?: SwitchResolution[], onPasswordRefused?: (why: PasswordRefusal) => void) => {
+  const submit = (resolve?: SwitchResolution[], onProofRequired?: (proofs: readonly StepUpProof[]) => void) => {
     setRefusal(null);
     join.mutate(
       { linkId, secret, resolve },
@@ -142,8 +146,8 @@ export function JoinMembershipInviteView({ linkId }: { linkId: string }) {
         },
         onError: (err) => {
           const next = classify(err);
-          if (next.kind === "password") {
-            onPasswordRefused?.(next.why);
+          if (next.kind === "proof") {
+            onProofRequired?.(next.proofs);
             return;
           }
           if (next.kind === "changed") {

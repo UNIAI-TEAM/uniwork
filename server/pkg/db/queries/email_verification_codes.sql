@@ -1,20 +1,24 @@
+-- A code proves the mailbox for one purpose (ADR 0049): verify_email, or a
+-- step_up proof whose action names what it allows. Every read and the delete
+-- name the purpose, so a code mailed for one never answers the other.
+
 -- name: CreateEmailVerificationCode :one
-INSERT INTO email_verification_codes (id, user_id, code_hash, expires_at, created_at)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO email_verification_codes (id, user_id, code_hash, expires_at, created_at, purpose, action)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- Single-use, expiry and the attempt cap are all decided here so callers
 -- cannot forget one of them.
 -- name: GetActiveEmailVerificationCode :one
 SELECT * FROM email_verification_codes
-WHERE user_id = $1 AND used_at IS NULL AND expires_at > now() AND attempts < 5
+WHERE user_id = $1 AND purpose = $2 AND used_at IS NULL AND expires_at > now() AND attempts < 5
 ORDER BY created_at DESC
 LIMIT 1;
 
 -- Newest row regardless of state: powers the resend gate.
 -- name: GetLatestEmailVerificationCode :one
 SELECT * FROM email_verification_codes
-WHERE user_id = $1
+WHERE user_id = $1 AND purpose = $2
 ORDER BY created_at DESC
 LIMIT 1;
 
@@ -24,8 +28,18 @@ UPDATE email_verification_codes SET used_at = now() WHERE id = $1;
 -- name: IncrementEmailVerificationCodeAttempts :exec
 UPDATE email_verification_codes SET attempts = attempts + 1 WHERE id = $1;
 
+-- Step-up codes are kept for a day: their daily cap counts the rows.
 -- name: DeleteExpiredEmailVerificationCodes :exec
-DELETE FROM email_verification_codes WHERE expires_at < now() - interval '1 hour';
+DELETE FROM email_verification_codes
+WHERE expires_at < now() - interval '1 hour'
+  AND (purpose <> 'step_up' OR created_at < now() - interval '1 day');
+
+-- How many codes of a purpose went to the user since a moment, and the
+-- oldest of them: the step-up daily cap and when it lets the next one out.
+-- name: CountEmailVerificationCodesSince :one
+SELECT count(*)::int AS n, min(created_at)::timestamptz AS oldest
+FROM email_verification_codes
+WHERE user_id = $1 AND purpose = $2 AND created_at > $3;
 
 -- name: DeleteEmailVerificationCodesForUser :exec
-DELETE FROM email_verification_codes WHERE user_id = $1;
+DELETE FROM email_verification_codes WHERE user_id = $1 AND purpose = $2;

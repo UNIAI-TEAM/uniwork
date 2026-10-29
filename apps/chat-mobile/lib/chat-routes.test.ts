@@ -19,6 +19,6 @@ describe("chatRoutes", () => {
   // Reachable with no workspace at all (select-workspace › Settings): account deletion and the
   // legal pages may never sit behind a workspace (Apple 5.1.1(v), Play's account deletion policy).
   it("keeps the account's screens outside every workspace", () => {
-    expect(accountRoutes).toEqual({ settings: "/account", licenses: "/licenses" });
+    expect(accountRoutes).toEqual({ settings: "/account", licenses: "/licenses", password: "/password" });
   });
 });

@@ -9,13 +9,15 @@ import { NoOrganizationView } from "@uniwork/views/onboarding/no-organization-vi
  * Where an onboarded person with no organization lands (ADR 0032 D12). The
  * gates ahead of it are the usual ones: signed in, email verified, onboarded —
  * someone still onboarding creates their organization in that flow instead.
+ * The phone opens it in an in-app browser that usually holds no web session,
+ * so signing in comes back here.
  */
 export default function GetStartedPage() {
   const { replace } = useNavigation();
   const { status } = useSession();
   const step = usePendingAuthStep();
   useEffect(() => {
-    if (status === "anon") replace(paths.login());
+    if (status === "anon") replace(paths.login({ next: paths.getStarted() }));
     if (status === "authed" && step) replace(authStepPath(step));
   }, [status, step, replace]);
   // The view's own loading frame while the gates resolve: never a blank page.

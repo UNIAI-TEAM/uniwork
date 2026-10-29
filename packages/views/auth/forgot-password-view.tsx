@@ -4,24 +4,35 @@ import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
-import { useForgotPassword } from "@uniwork/core/auth";
+import { rememberLinkReset, useAuthStore, useForgotPassword } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
-import { AUTH_INPUT, AUTH_PILL, AuthSubmit } from "./auth-controls";
+import { AUTH_INPUT, AUTH_PILL, AUTH_PILL_HELD, AuthSubmit } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 import { AUTH_LINK } from "./login-view";
+import { isLinkStep } from "./post-auth-redirect";
 
 /** Mirrors the server's per-user resend gap; a click inside it is silently dropped there. */
 const RESEND_SECONDS = 60;
 
-export function ForgotPasswordView() {
+/**
+ * `next` came with "Quên mật khẩu?" from the sign-in page (spec §4.4): the way
+ * back keeps it, and the link mode a link step's `next` stands for. The mailed
+ * link cannot carry it: in link mode this browser remembers the address the
+ * reset went to, and only a reset of that address links the pending sign-in.
+ */
+export function ForgotPasswordView({ next = null }: { next?: string | null }) {
   const { t } = useTranslation();
+  const backToLogin = paths.login({ next, link: isLinkStep(next) });
   const forgot = useForgotPassword();
   const errorId = useId();
-  const [email, setEmail] = useState("");
+  // A signed-in person (from Settings' "Quên mật khẩu?") starts on their own address.
+  const signedInEmail = useAuthStore((s) => s.user?.email ?? "");
+  const [email, setEmail] = useState(signedInEmail);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
   const [resent, setResent] = useState(false);
@@ -36,7 +47,13 @@ export function ForgotPasswordView() {
 
   const send = (onSent: () => void) => {
     if (forgot.isPending) return;
-    forgot.mutate(email, { onSuccess: onSent });
+    forgot.mutate(email, {
+      onSuccess: () => {
+        // Remembered as a digest; one that cannot be taken only means the reset will not link.
+        if (isLinkStep(next)) void rememberLinkReset(email).catch(() => undefined);
+        onSent();
+      },
+    });
   };
 
   // Never reveal whether the address has an account: the "sent" state shows
@@ -55,7 +72,7 @@ export function ForgotPasswordView() {
               type="button"
               variant="outline"
               size="lg"
-              className={AUTH_PILL}
+              className={cn(AUTH_PILL, cooldown > 0 && !forgot.isPending && AUTH_PILL_HELD)}
               onClick={() => {
                 if (cooldown > 0) return;
                 send(() => {
@@ -76,7 +93,6 @@ export function ForgotPasswordView() {
                 t("auth.forgot.resend")
               )}
             </Button>
-            <p className="text-center text-body text-muted-foreground">{t("auth.forgot.googleHint")}</p>
             <p className="flex flex-wrap items-center justify-center gap-x-1 text-label text-muted-foreground">
               {t("auth.forgot.wrongEmail")}
               {/* Button primitive for the 44px coarse-pointer floor, same as verify. */}
@@ -95,7 +111,7 @@ export function ForgotPasswordView() {
               </Button>
             </p>
             <p className="text-center text-body text-muted-foreground">
-              <AppLink href={paths.login()} className={AUTH_LINK}>
+              <AppLink href={backToLogin} className={AUTH_LINK}>
                 {t("auth.forgot.backToLogin")}
               </AppLink>
             </p>
@@ -148,8 +164,12 @@ export function ForgotPasswordView() {
           <AuthSubmit pending={forgot.isPending} pendingLabel={t("auth.forgot.sending")}>
             {t("auth.forgot.submit")}
           </AuthSubmit>
+          {/* Before the address is sent, where "the email above" is: a Google or
+              Apple account needs no reset, and one that wants a password too
+              is mailed a link to set one (spec §3.7). */}
+          <p className="text-pretty text-center text-caption text-muted-foreground">{t("auth.forgot.googleHint")}</p>
           <p className="text-center text-body text-muted-foreground">
-            <AppLink href={paths.login()} className={AUTH_LINK}>
+            <AppLink href={backToLogin} className={AUTH_LINK}>
               {t("auth.forgot.backToLogin")}
             </AppLink>
           </p>

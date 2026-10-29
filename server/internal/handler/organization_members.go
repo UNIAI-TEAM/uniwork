@@ -254,7 +254,8 @@ func (h *handlers) transferOrgOwnership(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	m, err := h.OrgMembers.TransferOwnership(r.Context(), middleware.UserID(r.Context()), orgID, in.ToUserID, in.Password)
+	m, err := h.OrgMembers.TransferOwnership(r.Context(), middleware.UserID(r.Context()), orgID, in.ToUserID,
+		service.OwnerProof{StepUpToken: in.StepUpToken, Password: in.Password})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

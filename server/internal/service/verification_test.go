@@ -155,7 +155,7 @@ func TestVerificationExpiredCode(t *testing.T) {
 	f := newVerificationFixture(t, "")
 	ctx := context.Background()
 	u := f.registered(t)
-	if err := f.q.DeleteEmailVerificationCodesForUser(ctx, u.ID); err != nil {
+	if err := f.q.DeleteEmailVerificationCodesForUser(ctx, db.DeleteEmailVerificationCodesForUserParams{UserID: u.ID, Purpose: codePurposeVerifyEmail}); err != nil {
 		t.Fatal(err)
 	}
 	// Issue a code from 20 minutes "ago": its 10-minute expiry has passed.

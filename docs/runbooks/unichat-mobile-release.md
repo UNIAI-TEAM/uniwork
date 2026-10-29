@@ -248,6 +248,11 @@ của bản store trên kênh đó (`staging` cho `internal`/`preview`, `product
 2. Biến máy chủ trong EAS, cho `preview` và `production`:
    `eas env:create --environment preview --name UNICHAT_API_URL --value <url> --visibility plaintext`, tương tự
    `UNICHAT_APP_URL`. Thiếu thì build staging/production đỏ với `UNICHAT_API_URL is required when UNICHAT_ENV=…`.
+   Google trong app (ADR 0049), cũng cho từng môi trường:
+   `eas env:create --environment preview --name UNICHAT_GOOGLE_IOS_CLIENT_ID --value <client iOS của biến thể> --visibility plaintext`
+   và `--name UNICHAT_GOOGLE_WEB_CLIENT_ID --value <GOOGLE_CLIENT_ID của server>`; client iOS và Android cũng vào
+   `GOOGLE_NATIVE_CLIENT_IDS` của server. Không có build nào đỏ khi thiếu: app lặng lẽ đi Google qua trình duyệt, nên
+   xem màn đăng nhập của bản build mở sheet Google trước khi gửi duyệt.
 3. Apple: Apple Developer Program (tổ chức). App Store Connect: tạo app `com.uniworkos.chat.staging` (bản `internal`;
    `com.uniworkos.chat` khi tới production). `eas credentials -p ios` để EAS tạo chứng chỉ phân phối và profile. Tạo
    App Store Connect API key (vai trò App Manager), tải lên EAS qua `eas credentials -p ios`. Ghi Apple ID số của app

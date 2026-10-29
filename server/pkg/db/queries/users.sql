@@ -57,46 +57,148 @@ WHERE deleted_at IS NULL
   AND avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
 -- name: CreateGoogleUser :one
-INSERT INTO users (id, email, display_name, avatar_url, google_id, email_verified_at, locale)
-VALUES ($1, $2, $3, $4, $5, now(), $6)
+-- The caller says whether the address starts verified (ADR 0049): Google
+-- owns its domain, or a mailed code proved it. The link records the address
+-- Google gave, which differs from the account's when a code proved another
+-- one ("I was invited with another address").
+INSERT INTO users (id, email, display_name, avatar_url, google_id, google_email, google_linked_at, email_verified_at, locale)
+VALUES (
+  sqlc.arg('id'), sqlc.arg('email'), sqlc.arg('display_name'), sqlc.narg('avatar_url'), sqlc.arg('google_id'),
+  sqlc.arg('google_email'), now(), CASE WHEN sqlc.arg('email_verified')::bool THEN now() END, sqlc.arg('locale')
+)
 RETURNING *;
 
 -- name: GetUserByGoogleID :one
 SELECT * FROM users WHERE google_id = $1;
 
 -- name: CreateAppleUser :one
--- Sign in with Apple (ADR 0041): Apple vouches for the address, so it starts
--- verified; no password, onboarding still ahead (onboarded_at stays NULL).
-INSERT INTO users (id, email, display_name, apple_id, email_verified_at, locale)
-VALUES ($1, $2, $3, $4, now(), $5)
+-- Sign in with Apple (ADR 0041): no password, onboarding still ahead
+-- (onboarded_at stays NULL). The caller says whether the address starts
+-- verified (ADR 0049); the link records the address Apple gave, which
+-- differs from the account's when a mailed code proved another one.
+INSERT INTO users (id, email, display_name, apple_id, apple_email, apple_linked_at, email_verified_at, locale)
+VALUES (
+  sqlc.arg('id'), sqlc.arg('email'), sqlc.arg('display_name'), sqlc.arg('apple_id'),
+  sqlc.arg('apple_email'), now(), CASE WHEN sqlc.arg('email_verified')::bool THEN now() END, sqlc.arg('locale')
+)
 RETURNING *;
 
 -- name: GetUserByAppleID :one
 SELECT * FROM users WHERE apple_id = $1;
 
 -- name: LinkAppleAccount :one
--- Only an account not linked to another Apple subject takes the link.
+-- Only a live account whose address is verified, and that is not linked to
+-- another Apple subject, takes the link (ADR 0049): a link never verifies an
+-- address. It records the Apple address and when (kept on a relink of the
+-- same subject) and forgets an unlink of the subject.
 UPDATE users SET
   apple_id = sqlc.arg('apple_id'),
-  email_verified_at = COALESCE(email_verified_at, now()),
+  apple_email = sqlc.arg('apple_email'),
+  apple_linked_at = CASE WHEN apple_id = sqlc.arg('apple_id') THEN apple_linked_at ELSE now() END,
+  apple_unlinked_sub = NULL,
   updated_at = now()
-WHERE id = sqlc.arg('id') AND (apple_id IS NULL OR apple_id = sqlc.arg('apple_id'))
+WHERE id = sqlc.arg('id') AND deleted_at IS NULL AND email_verified_at IS NOT NULL
+  AND (apple_id IS NULL OR apple_id = sqlc.arg('apple_id'))
+RETURNING *;
+
+-- name: UnlinkAppleAccount :one
+-- Removes the Apple link and the token kept for it (the caller revokes that
+-- token after commit). The subject stays as apple_unlinked_sub, so the same
+-- Apple ID is never linked back by its address (ADR 0049).
+UPDATE users SET
+  apple_unlinked_sub = apple_id,
+  apple_id = NULL, apple_email = NULL, apple_linked_at = NULL,
+  apple_client_id = NULL, apple_refresh_token_enc = NULL,
+  updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL AND apple_id IS NOT NULL
 RETURNING *;
 
 -- name: SetAppleRefreshToken :exec
--- The sealed refresh token of the account's Apple consent and the bundle id it
--- was issued to: account deletion revokes it with that client id.
+-- The sealed refresh token of the account's Apple consent and the client it
+-- was issued to (the app's bundle id, or the web's Services ID): account
+-- deletion revokes it with that client id.
 UPDATE users SET apple_client_id = $2, apple_refresh_token_enc = $3, updated_at = now()
 WHERE id = $1 AND apple_id IS NOT NULL;
 
 -- name: LinkGoogleAccount :one
+-- Only a live account whose address is verified, and that is not linked to
+-- another Google subject, takes the link (ADR 0049): a link never verifies an
+-- address. It records the Google address and when (kept on a relink of the
+-- same subject), forgets an unlink of the subject and fills an empty avatar.
 UPDATE users SET
-  google_id = $2,
-  email_verified_at = COALESCE(email_verified_at, now()),
+  google_id = sqlc.arg('google_id'),
+  google_email = sqlc.arg('google_email'),
+  google_linked_at = CASE WHEN google_id = sqlc.arg('google_id') THEN google_linked_at ELSE now() END,
+  google_unlinked_sub = NULL,
   avatar_url = COALESCE(avatar_url, sqlc.narg('avatar_url')),
   updated_at = now()
-WHERE id = $1
+WHERE id = sqlc.arg('id') AND deleted_at IS NULL AND email_verified_at IS NOT NULL
+  AND (google_id IS NULL OR google_id = sqlc.arg('google_id'))
 RETURNING *;
+
+-- name: UnlinkGoogleAccount :one
+-- The subject stays as google_unlinked_sub, so the same Google account is
+-- never linked back by its address (ADR 0049).
+UPDATE users SET
+  google_unlinked_sub = google_id,
+  google_id = NULL, google_email = NULL, google_linked_at = NULL,
+  updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL AND google_id IS NOT NULL
+RETURNING *;
+
+-- name: GetUserForUpdate :one
+-- Serializes the commands that change how the account signs in.
+SELECT * FROM users WHERE id = $1 FOR UPDATE;
+
+-- name: GetUserForShare :one
+-- Held by a session being opened until it commits, so a revocation (which
+-- takes the row FOR UPDATE first) either ends that session too or commits
+-- before it, and the session then sees the revocation (ADR 0049).
+SELECT * FROM users WHERE id = $1 FOR SHARE;
+
+-- name: ReclaimUnverifiedUser :one
+-- The owner of the mailbox takes an account someone registered with their
+-- address before proving it (ADR 0049): whatever that person set up goes —
+-- password, second factor, recovery codes, every provider link (the caller
+-- read the sealed Apple token first, to revoke it after commit), the AI
+-- consent answer — and the address is verified. Only an unverified, live
+-- account matches.
+UPDATE users SET
+  password_hash = NULL, password_changed_at = NULL,
+  totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}',
+  second_factor_failures = 0, second_factor_locked_until = NULL,
+  google_id = NULL, google_email = NULL, google_linked_at = NULL, google_unlinked_sub = NULL,
+  apple_id = NULL, apple_email = NULL, apple_linked_at = NULL, apple_unlinked_sub = NULL,
+  apple_client_id = NULL, apple_refresh_token_enc = NULL,
+  ai_consent_version = NULL, ai_consent_at = NULL, ai_opt_out_at = NULL,
+  email_verified_at = now(), updated_at = now()
+WHERE id = $1 AND email_verified_at IS NULL AND deleted_at IS NULL
+RETURNING *;
+
+-- name: MarkCredentialsRevoked :exec
+-- Sensitive commands refuse an access token issued before this (ADR 0049).
+-- The caller passes the second of its own clock, the one every token's iat
+-- comes from, so the session the same command hands out is never older than
+-- the mark however far the database's clock runs from the server's.
+UPDATE users SET credentials_revoked_at = sqlc.arg(marked_at)::timestamptz, updated_at = now()
+WHERE id = sqlc.arg(id);
+
+-- name: RecordSecondFactorFailure :one
+-- One more wrong second factor or step-up proof (ADR 0049). The failure that
+-- reaches max_failures locks both until locked_until and starts the count
+-- over; the caller compares the lockout it reads back with the one it passed
+-- to tell whether this failure started it.
+UPDATE users SET
+  second_factor_failures = CASE WHEN second_factor_failures + 1 >= sqlc.arg('max_failures')::int THEN 0 ELSE second_factor_failures + 1 END,
+  second_factor_locked_until = CASE WHEN second_factor_failures + 1 >= sqlc.arg('max_failures')::int THEN sqlc.arg('locked_until')::timestamptz ELSE second_factor_locked_until END,
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND deleted_at IS NULL
+RETURNING second_factor_failures, second_factor_locked_until;
+
+-- name: ResetSecondFactorFailures :exec
+-- A right answer clears the count; a row with nothing to clear is not written.
+UPDATE users SET second_factor_failures = 0, second_factor_locked_until = NULL, updated_at = now()
+WHERE id = $1 AND (second_factor_failures <> 0 OR second_factor_locked_until IS NOT NULL);
 
 -- name: MarkEmailVerified :one
 UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
@@ -140,9 +242,11 @@ UPDATE users SET
 WHERE id = sqlc.arg('id') AND deleted_at IS NULL
 RETURNING *;
 
--- name: UpdateUserPassword :one
-UPDATE users SET password_hash = $2, updated_at = now()
-WHERE id = $1
+-- name: SetUserPassword :one
+-- Every password write (reset link, Settings) records when; a deleted
+-- account takes none, so a reset link mailed before the deletion is dead.
+UPDATE users SET password_hash = $2, password_changed_at = now(), updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 
 -- name: SetUserMatrixUserID :one
@@ -184,11 +288,16 @@ WHERE m.user_id = $1 AND m.role = 'owner' AND m.deactivated_at IS NULL
   AND o.status IN ('active', 'suspended');
 
 -- name: AnonymizeUser :one
--- Nghị định 13 deletion: identity fields go, the row and its audit trail stay.
+-- Nghị định 13 deletion: identity fields go, the row and its audit trail stay;
+-- every credential issued before now is marked revoked (ADR 0049).
 UPDATE users SET
   email = $2, display_name = $3, password_hash = NULL, avatar_url = NULL, avatar_file_id = NULL,
-  google_id = NULL, apple_id = NULL, apple_client_id = NULL, apple_refresh_token_enc = NULL,
+  google_id = NULL, google_email = NULL, google_linked_at = NULL, google_unlinked_sub = NULL,
+  apple_id = NULL, apple_email = NULL, apple_linked_at = NULL, apple_unlinked_sub = NULL,
+  apple_client_id = NULL, apple_refresh_token_enc = NULL,
+  password_changed_at = NULL, credentials_revoked_at = date_trunc('second', now()),
   totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}',
+  second_factor_failures = 0, second_factor_locked_until = NULL,
   platform_role = NULL, matrix_user_id = NULL, onboarding_questionnaire = '{}'::jsonb,
   ai_consent_version = NULL, ai_consent_at = NULL,
   deleted_at = now(), updated_at = now()

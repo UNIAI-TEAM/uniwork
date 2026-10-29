@@ -82,17 +82,25 @@ function RailCascade() {
  * the heading and description hold their place as skeleton lines. The first
  * real title that replaces it is an arrival, not a change, so it does not
  * take focus; the heading never shows one title and then flips to another.
+ * A screen that knows the words it will most likely land on (`loadingAs`)
+ * draws them as skeleton text instead of fixed bars, so the card holds the
+ * lines they wrap to at every width: a two-line title on a phone stays two.
  */
 export function AuthShell({
   title,
   description,
   nameInTitle = false,
   announce = false,
+  loadingAs,
   children,
 }: {
   /** Absent while the screen is still resolving which one it is. */
   title?: string;
-  description?: string;
+  /**
+   * The line under the title. A node, so a screen whose title stays generic
+   * (a result) can make this line the live status that says what happened.
+   */
+  description?: ReactNode;
   /**
    * The title carries a name of any length (an organization's). On a phone
    * it steps down one size, so "Chuyển sang <a long name>" takes two lines
@@ -106,6 +114,8 @@ export function AuthShell({
    * for a screen the person opened, where first render leaves focus alone.
    */
   announce?: boolean;
+  /** While loading: the title and line the screen most likely lands on, drawn as skeleton text. */
+  loadingAs?: { title: string; description?: string };
   children?: ReactNode;
 }) {
   const { t, i18n } = useTranslation();
@@ -185,17 +195,12 @@ export function AuthShell({
                     <h1
                       ref={heading}
                       tabIndex={-1}
-                      className={cn(
-                        loading
-                          ? "sr-only"
-                          : "rounded-sm text-balance font-display font-bold text-foreground [overflow-wrap:anywhere]",
-                        !loading && (nameInTitle ? "text-display-sm sm:text-display" : "text-display"),
-                      )}
+                      className={cn(loading ? "sr-only" : cn("rounded-sm text-foreground", titleType(nameInTitle)))}
                     >
                       {title ?? t("common.loading")}
                     </h1>
                     {loading ? (
-                      <TitleSkeleton />
+                      <TitleSkeleton as={loadingAs} nameInTitle={nameInTitle} />
                     ) : (
                       /* Descriptions carry user strings (an email address) that
                          have no break opportunity; without this a long one
@@ -216,11 +221,48 @@ export function AuthShell({
   );
 }
 
+/** The heading's type, shared with its skeleton text so both wrap alike. */
+function titleType(nameInTitle: boolean): string {
+  return cn(
+    "text-balance font-display font-bold [overflow-wrap:anywhere]",
+    nameInTitle ? "text-display-sm sm:text-display" : "text-display",
+  );
+}
+
 /**
- * The heading and description lines while the title is unknown, each bar
+ * A line of copy as a skeleton: the words themselves, transparent, on the
+ * muted bone, cloned onto every line they wrap to. It takes exactly the room
+ * the text will, at any width and font scale. Always inside an aria-hidden
+ * skeleton, so the words are never read.
+ */
+export function SkeletonText({ children }: { children: string }) {
+  return (
+    <span className="animate-pulse select-none rounded-md bg-muted text-transparent box-decoration-clone motion-reduce:animate-none">
+      {children}
+    </span>
+  );
+}
+
+/**
+ * The heading and description lines while the title is unknown: the likely
+ * words as skeleton text when the screen gave them, otherwise one bar each,
  * sitting in a box of its line's height so nothing moves when the text lands.
  */
-function TitleSkeleton() {
+function TitleSkeleton({ as, nameInTitle }: { as?: { title: string; description?: string }; nameInTitle: boolean }) {
+  if (as) {
+    return (
+      <div aria-hidden className="flex flex-col gap-2">
+        <p className={titleType(nameInTitle)}>
+          <SkeletonText>{as.title}</SkeletonText>
+        </p>
+        {as.description ? (
+          <p className="text-pretty text-body [overflow-wrap:anywhere]">
+            <SkeletonText>{as.description}</SkeletonText>
+          </p>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <div aria-hidden className="flex flex-col gap-2">
       <div className="flex h-10 items-center">

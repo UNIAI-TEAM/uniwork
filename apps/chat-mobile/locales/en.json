@@ -1,9 +1,8 @@
 {
   "auth": {
     "desktop": {
-      "eyebrow": "Desktop sign-in",
       "title": "Allow {{app}} to sign in?",
-      "description": "Check the app and device details before continuing. This approval is valid for this device only.",
+      "description": "Check the app and device details before you continue. This approval only applies to this device.",
       "app": "App",
       "device": "Device",
       "account": "Account",
@@ -12,34 +11,251 @@
       "build": "Build",
       "unknown": "Not provided",
       "loading": "Loading…",
-      "approve": "Allow desktop app",
+      "approve": "Allow {{app}}",
       "approving": "Allowing…",
-      "resultTitle": "Desktop sign-in result",
-      "approved": "Allowed {{app}} to sign in",
-      "cancelledResult": "Desktop sign-in was cancelled.",
-      "errorResult": "The desktop sign-in request could not be completed. Try again.",
-      "expired": "This desktop sign-in request has expired.",
+      "approvedTitle": "You allowed {{app}}",
+      "approved": "If {{app}} didn't open, choose \"Open {{app}}\".",
+      "approvedReturn": "Go back to {{app}} to continue.",
+      "cancelledTitle": "Sign-in cancelled",
+      "cancelled": "{{app}} wasn't signed in.",
+      "expiredTitle": "This request has expired",
+      "expired": "Go back to {{app}} and try again.",
+      "expiredUnknown": "Go back to the app and try again.",
+      "errorTitle": "Couldn't finish signing in",
+      "error": "Try again. If it still fails, start signing in again from the app.",
       "openDesktop": "Open {{app}}",
       "closeTab": "You can close this tab.",
-      "accountUnknown": "Account name unavailable",
-      "emailUnknown": "Email unavailable",
+      "accountUnknown": "UniWork account",
+      "emailUnknown": "No email",
       "libraryWorkspace": "Document library",
       "unichat_login_title": "Welcome to UniChat",
       "unichat_login_hint": "Message and call your team, right from your desktop.",
       "unichat_login_button": "Sign in",
       "unichat_login_waiting": "Finish signing in with the browser that just opened.",
       "unichat_login_reopen": "Open browser again",
-      "unichat_login_failed": "Could not open the browser to sign in. Try again.",
+      "unichat_login_failed": "Couldn't open the browser to sign in. Try again.",
       "unichat_login_feature_chats": "Direct messages, groups and every workspace's channels in one place",
       "unichat_login_feature_calls": "Voice and video calls, and screen sharing",
       "unichat_login_feature_uni": "UNI sums up your unread messages and calls",
       "unichat_login_step_opened": "The browser opened the UniWork sign-in page",
-      "unichat_login_step_allow": "Choose “Allow desktop app” there",
-      "unichat_login_step_return": "Come back here: UniChat opens your conversations",
+      "unichat_login_step_allow": "Choose \"Allow UniChat\" there",
+      "unichat_login_step_return": "UniChat opens again, right into your conversations",
       "unichat_login_cancel": "Cancel",
-      "unichat_login_version": "UniChat {{version}}"
+      "unichat_login_version": "UniChat {{version}}",
+      "details": "Details",
+      "notYouQuestion": "Not you?",
+      "useAnother": "Use another account",
+      "signingOut": "Signing out…",
+      "phone": {
+        "title": "Allow {{app}} on this phone to sign in?",
+        "closePage": "Close this page to return to {{app}}."
+      }
     },
-    "logout": "Log out"
+    "logout": "Sign out",
+    "social": {
+      "continueWithGoogle": "Continue with Google",
+      "continueWithApple": "Continue with Apple",
+      "continueWithEmail": "Continue with email",
+      "divider": "or use email",
+      "or": "or",
+      "browserOpened": "The browser opened the {{provider}} sign-in page",
+      "groupLabel": "Sign in with Google or Apple",
+      "signingIn": "Signing you in…",
+      "reclaimed": "You've taken back your account. The old password, set before your email was verified, has been removed.",
+      "provider": {
+        "google": "Google",
+        "apple": "Apple"
+      },
+      "linkSkipped": {
+        "generic": "You're signed in, but the sign-in method you just used couldn't be linked. Try again in Settings.",
+        "withProvider": "You're signed in, but {{provider}} couldn't be linked. Try again in Settings."
+      },
+      "retry": {
+        "later": "Wait a moment, then try again.",
+        "seconds_one": "Try again in {{count}} second.",
+        "seconds_other": "Try again in {{count}} seconds.",
+        "minutes_one": "Try again in {{count}} minute.",
+        "minutes_other": "Try again in {{count}} minutes.",
+        "hours_one": "Try again in {{count}} hour.",
+        "hours_other": "Try again in {{count}} hours."
+      },
+      "errors": {
+        "generic": "Couldn't sign you in. Try again.",
+        "network": "Couldn't connect. Check your connection and try again.",
+        "server": "UniWork is having trouble. Try again in a few minutes.",
+        "session_ended": "Your session ended. Sign in again to continue.",
+        "invalid_credentials": "That email or password isn't right.",
+        "second_factor_invalid": "That code isn't right, or this sign-in expired. Try again, or start over.",
+        "second_factor_locked": "Two-factor authentication is temporarily locked after too many wrong codes.",
+        "rate_limited": "Too many tries in a row.",
+        "provider_token_invalid": "Couldn't confirm the account you chose. Try again.",
+        "provider_unavailable": "This sign-in method isn't available right now. Use another one.",
+        "native_unavailable": "Signing in from the app isn't available right now. Sign in with your browser.",
+        "email_taken": "This email already has an account. Sign in, or reset your password if you forgot it.",
+        "register_invalid": "Check the email address. Passwords need at least 8 characters.",
+        "google_denied": "You cancelled the Google sign-in.",
+        "google_failed": "Couldn't sign in with Google. Try again, or use your email.",
+        "google_unverified": "Google hasn't verified this account's email. Use another Google account, or sign in with email.",
+        "apple_denied": "You cancelled the Apple sign-in.",
+        "apple_failed": "Couldn't sign in with Apple. Try again, or use your email.",
+        "sign_in_conflict": "This email already has a UniWork account with another sign-in method. Sign in with that method.",
+        "sign_in_unverified": "This account's email isn't verified. Use another sign-in method.",
+        "sign_in_account_unverified": "This email has a UniWork account that was never verified. Choose \"Forgot password?\" to get a link by email and take the account back.",
+        "sign_in_failed": "Sign-in didn't finish. Try again.",
+        "google_no_account": "No UniWork account signs in with this Google account. Sign in the way you usually do.",
+        "apple_no_account": "No UniWork account signs in with this Apple account. Sign in the way you usually do."
+      }
+    },
+    "continue": {
+      "loading": "Loading your sign-in…",
+      "loadErrorTitle": "Couldn't load your sign-in",
+      "title": "Continue with {{provider}}",
+      "description": "This {{provider}} account isn't linked to any UniWork account yet.",
+      "identityLabel": "{{provider}} account",
+      "choicesLabel": "Choose how to continue",
+      "relayHint": "Did your organization invite your work email? Choose \"I was invited with another email\".",
+      "existing": {
+        "title": "I already have a UniWork account",
+        "body": "Sign in once to link {{provider}}. Next time, {{provider}} is all you need."
+      },
+      "invited": {
+        "title": "I was invited with another email",
+        "body": "Use the work email your organization invited."
+      },
+      "create": {
+        "title": "Create a new account",
+        "body": "Use {{email}} to sign in to UniWork.",
+        "bodyRelay": "Use Apple's hidden email to sign in to UniWork.",
+        "displayNameLabel": "Display name",
+        "displayNameHint": "The name your colleagues see.",
+        "displayNameRequired": "Enter a display name.",
+        "displayNameTooLong": "Display names can be up to {{max}} characters.",
+        "submit": "Create account",
+        "submitting": "Creating your account…"
+      },
+      "linkRequired": {
+        "title": "This email already has a UniWork account",
+        "body": "Sign in to {{email}} to link {{provider}}.",
+        "bodyRelay": "Sign in to your UniWork account to link {{provider}}.",
+        "action": "Sign in to link"
+      },
+      "claim": {
+        "emailTitle": "Enter your work email",
+        "emailBody": "Enter the email your organization invited. We'll send a 6-digit code there.",
+        "emailLabel": "Work email",
+        "emailPlaceholder": "name@company.com",
+        "send": "Send code",
+        "sending": "Sending code…",
+        "codeTitle": "Enter the code",
+        "codeBody": "Enter the 6-digit code we sent to {{email}}. It expires in 15 minutes.",
+        "codeLabel": "Confirmation code",
+        "verify": "Continue",
+        "verifying": "Checking the code…",
+        "resend": "Resend code",
+        "resendIn_one": "Resend in {{count}} second",
+        "resendIn_other": "Resend in {{count}} seconds",
+        "resent": "We sent a new code to {{email}}.",
+        "changeEmail": "Change email",
+        "spamHint": "Can't find it? Check your spam folder."
+      },
+      "link": {
+        "title": "Link {{provider}}",
+        "question": "Link {{provider}} ({{providerEmail}}) to {{accountEmail}}?",
+        "questionRelay": "Link {{provider}} (Apple's hidden email) to {{accountEmail}}?",
+        "signedInAs": "You're signed in as {{accountEmail}}.",
+        "body": "After that, you can sign in with {{provider}} or the way you do now.",
+        "confirm": "Link",
+        "decline": "Don't link",
+        "linking": "Linking…",
+        "done": "{{provider}} is linked. Next time, {{provider}} is all you need.",
+        "notLinked": "{{provider}} isn't linked to {{accountEmail}}.",
+        "nothingLeft": "There's nothing left to link. Continue to UniWork.",
+        "nothingLeftTitle": "You're all set",
+        "continue": "Continue",
+        "movableTitle": "Move {{provider}} to this account?",
+        "movable": "This {{provider}} account is used by an empty account, {{masked}}.",
+        "movableUnknown": "This {{provider}} account is used by an empty account.",
+        "movableNote": "That empty account never joined an organization and will be deleted.",
+        "move": "Move it here",
+        "moveDecline": "Don't move it",
+        "moving": "Moving…",
+        "taken": "This {{provider}} account is used by {{masked}}. Sign in there and unlink it first.",
+        "takenUnknown": "This {{provider}} account is used by another UniWork account. Sign in there and unlink it first."
+      },
+      "signedIn": {
+        "linkTo": "Link {{provider}} to {{account}}",
+        "linkToBody": "Next time, {{provider}} takes you straight into this account.",
+        "otherAccount": "Use another account",
+        "otherAccountBody": "Sign out of {{account}} and choose again."
+      },
+      "loginMode": {
+        "banner": "Sign in to your UniWork account to link {{provider}} ({{email}}).",
+        "bannerRelay": "Sign in to your UniWork account to link {{provider}}.",
+        "decline": "Don't link",
+        "mfaSubtitle": "Sign in to {{email}} to link {{provider}}."
+      },
+      "expired": {
+        "title": "This sign-in has expired",
+        "body": "This sign-in has expired or was already completed. Start again from the sign-in page.",
+        "bodyProvider": "Your {{provider}} sign-in has expired.",
+        "retry": "Try again"
+      },
+      "cancel": "Cancel",
+      "cancelling": "Cancelling…",
+      "errors": {
+        "generic": "Couldn't finish this step. Try again.",
+        "expired": "This sign-in has expired. Start again.",
+        "channel": "This sign-in belongs to another device. Start again here.",
+        "conflict": "An account was just created with this email. Sign in to link it.",
+        "invalidEmail": "That email doesn't look right.",
+        "invalidCode": "That code isn't right or has expired. Try again, or send a new one.",
+        "tooManyCodes": "Codes for this address are paused."
+      }
+    },
+    "apple": {
+      "relayEmail": "Apple's hidden email",
+      "hideMyEmail": "Hide My Email",
+      "relayHint": "You chose Hide My Email: Apple forwards mail sent to this address to your real inbox.",
+      "signingIn": "Signing in with Apple…"
+    },
+    "mfa": {
+      "title": "Two-factor authentication",
+      "subtitle": "Enter the 6-digit code from your authenticator app, or a recovery code.",
+      "codeLabel": "Verification code",
+      "hint": "The 6-digit app code, or a recovery code like xxxxx‑xxxxx.",
+      "submit": "Confirm",
+      "verifying": "Confirming…",
+      "back": "Back to sign in"
+    },
+    "verify": {
+      "title": "Verify your email",
+      "subtitle": "Enter the 6-digit code we just sent to {{email}}.",
+      "codeLabel": "Verification code",
+      "invalidCode": "That code is wrong or has expired. Try again or request a new one.",
+      "resend": "Resend code",
+      "resendIn": "Resend in {{seconds}}s",
+      "resending": "Sending code…",
+      "resent": "A new code is on its way.",
+      "resendTooSoon": "A code was just sent — wait a minute and try again.",
+      "verifying": "Verifying…",
+      "wrongAccount": "Wrong account?",
+      "spamHint": "No email? Check your spam folder.",
+      "deleteInSettings": "Delete the account in Settings"
+    },
+    "email": "Email",
+    "password": "Password",
+    "displayName": "Display name",
+    "login": "Sign in",
+    "noAccount": "No account yet?",
+    "hasAccount": "Already have an account?",
+    "signingIn": "Signing in…",
+    "registering": "Creating account…",
+    "emailPlaceholder": "you@company.com",
+    "passwordMinHint": "At least {{min}} characters",
+    "forgotPassword": "Forgot your password?",
+    "emailRequired": "Enter your email",
+    "emailInvalid": "That email doesn't look right, e.g. you@company.com",
+    "passwordRequired": "Enter your password"
   },
   "common": {
     "save": "Save",
@@ -181,29 +397,190 @@
         "open": "Delete account",
         "title": "Delete your account?",
         "body": "You will be signed out everywhere and cannot sign in again. This cannot be undone.",
-        "proof": {
-          "password": "Enter your current password to confirm",
-          "code": "Enter your two-factor code to confirm",
-          "email": "Type your email address to confirm"
-        },
         "ownerHint": "An account that owns an organization cannot be deleted until ownership is transferred.",
         "cancel": "Cancel",
         "confirm": "Delete permanently",
         "failed": "Could not delete the account",
-        "required": {
-          "password": "Enter your password to confirm.",
-          "code": "Enter your two-factor code to confirm.",
-          "email": "Type your email address to confirm."
+        "deleting": "Deleting…",
+        "consequences": {
+          "erased": "Your email, name, photo and every way to sign in are erased.",
+          "kept": "Work and messages you created stay with the organization, shown as \"Deleted user\".",
+          "owner": "If you own an organization, transfer it first, or close it if you're its only member."
         },
-        "incorrect": {
-          "password": "That password isn't right. Enter it again to delete the account.",
-          "code": "That code isn't right or has expired. Enter a new one to delete the account.",
-          "email": "That doesn't match the email you're signed in with. Type it again to delete the account."
-        }
+        "ownerTransfer": "You own {{name}}, and it has other members. Transfer ownership in Settings › Organization members, then come back to delete your account.",
+        "closeNotice": "You're the only member of {{name}}, so it closes along with your account.",
+        "closeAndDelete": "Close organization and delete account"
       },
       "sessions": {
         "revoke": "Revoke",
         "revokeFailed": "Could not revoke the session"
+      },
+      "signInMethods": {
+        "title": "Sign-in methods",
+        "description": "How you sign in to UniWork on the web, your computer and your phone.",
+        "loadError": "Couldn't load your sign-in methods.",
+        "retry": "Try again",
+        "badge": {
+          "set": "Set",
+          "unset": "Not set",
+          "linked": "Linked"
+        },
+        "method": {
+          "password": "your password",
+          "google": "Google",
+          "apple": "Apple"
+        },
+        "password": {
+          "name": "Password",
+          "changedOn": "Last changed on {{date}}",
+          "set": "Set",
+          "unset": "Set a password to sign in with your email",
+          "setAction": "Set password",
+          "changeAction": "Change password",
+          "setTitle": "Set a password",
+          "setDescription": "You'll sign in with {{email}} and this password.",
+          "setDescriptionRelay": "You'll sign in with Apple's hidden email below and this password.",
+          "copyEmail": "Copy email",
+          "emailCopied": "Email copied",
+          "changeTitle": "Change password",
+          "signsOutOthers": "Your other devices will be signed out.",
+          "current": "Current password",
+          "new": "New password",
+          "confirm": "Confirm new password",
+          "hint": "At least {{min}} characters",
+          "tooShort": "Passwords need at least 8 characters.",
+          "mismatch": "The passwords don't match.",
+          "currentRequired": "Enter your current password.",
+          "currentIncorrect": "That isn't your current password.",
+          "save": "Save password",
+          "saving": "Saving…",
+          "cancel": "Cancel",
+          "toastSet": "Password set.",
+          "toastChanged": "Password changed. Your other devices were signed out."
+        },
+        "provider": {
+          "linkedOn": "Linked on {{date}}",
+          "linked": "Linked",
+          "notLinked": "Link to sign in with {{provider}}",
+          "link": "Link",
+          "linkAria": "Link {{provider}}",
+          "unlink": "Unlink",
+          "unlinkAria": "Unlink {{provider}}",
+          "linking": "Opening {{provider}}…",
+          "linkOnWeb": "Link on the web",
+          "linkOnWebAria": "Link on the web for {{provider}}",
+          "linkOnWebHint": "Open UniWork in your browser to link {{provider}}."
+        },
+        "reasons": {
+          "last": "This is your only way to sign in. Set a password or link another method first.",
+          "relay": "Your account email is Apple's hidden email, so Apple can't be unlinked."
+        },
+        "unlink": {
+          "title": "Unlink {{provider}}?",
+          "body": "You won't be able to sign in with {{provider}} anymore.",
+          "remainingOne": "You can still sign in with {{method}}.",
+          "remainingTwo": "You can still sign in with {{first}} or {{second}}.",
+          "signsOutOthers": "Your other devices will be signed out.",
+          "confirm": "Unlink",
+          "pending": "Unlinking…",
+          "toast": "{{provider}} unlinked."
+        },
+        "move": {
+          "title": "Move {{provider}} to this account?",
+          "body": "This {{provider}} account is used by an empty account, {{masked}}. That account never joined an organization and will be deleted.",
+          "bodyUnknown": "This {{provider}} account is used by an empty account. That account never joined an organization and will be deleted.",
+          "confirm": "Move it here",
+          "decline": "Don't move it",
+          "pending": "Moving…",
+          "toast": "{{provider}} moved to this account."
+        },
+        "results": {
+          "linked": "{{provider}} linked.",
+          "denied": "You stopped before {{provider}} was linked.",
+          "failed": "Couldn't link {{provider}}. Try again.",
+          "taken": "This {{provider}} account is used by {{masked}}. Sign in there and unlink it first.",
+          "takenUnknown": "This {{provider}} account is used by another UniWork account. Sign in there and unlink it first.",
+          "movable": "This {{provider}} account is used by an empty account, {{masked}}.",
+          "movableUnknown": "This {{provider}} account is used by an empty account.",
+          "already_linked": "This account already has another {{provider}} account linked. Unlink that one first, then try again.",
+          "session_mismatch": "This browser just signed in to another account. Sign in to the right account and try again."
+        },
+        "browserOtherAccount": "This browser is signed in as {{other}}, not the account you use in UniChat.",
+        "browserOtherAccountHint": "Sign out here, then sign in with your UniChat account to link the right one.",
+        "signOut": "Sign out",
+        "errors": {
+          "generic": "Couldn't save the change. Try again.",
+          "taken": "This sign-in method is used by {{masked}}. Sign in there and unlink it first.",
+          "takenUnknown": "This sign-in method is used by another UniWork account. Sign in there and unlink it first.",
+          "movable": "This sign-in method is used by an empty account, {{masked}}. Move it to this account?",
+          "movableUnknown": "This sign-in method is used by an empty account. Move it to this account?",
+          "alreadyLinked": "Another account of this kind is already linked. Unlink it first, then try again.",
+          "emailUnverified": "Verify your email first, then link.",
+          "sessionMismatch": "This browser just signed in to another account. Sign in to the right account and try again.",
+          "notConfigured": "This sign-in method isn't turned on for your UniWork."
+        }
+      },
+      "stepUp": {
+        "title": "Confirm it's you",
+        "description": "To keep your account safe, confirm it's you before you {{action}}.",
+        "descriptionGeneric": "To keep your account safe, confirm it's you before you continue.",
+        "windowHint": "You won't be asked again for the next 10 minutes.",
+        "windowHintOneAction": "The code from the email confirms only this action.",
+        "actions": {
+          "set_password": "set a password",
+          "change_password": "change your password",
+          "link_google": "link Google",
+          "link_apple": "link Apple",
+          "unlink_google": "unlink Google",
+          "unlink_apple": "unlink Apple",
+          "enable_mfa": "turn on two-factor authentication",
+          "delete_account": "delete your account",
+          "transfer_ownership": "transfer ownership"
+        },
+        "password": {
+          "label": "Current password",
+          "forgot": "Forgot password?",
+          "required": "Enter your current password."
+        },
+        "totp": {
+          "label": "Code from your authenticator app",
+          "hint": "The 6-digit code, or a recovery code like xxxxx‑xxxxx.",
+          "required": "Enter the code from your authenticator app."
+        },
+        "emailCode": {
+          "send": "Send a code to {{email}}",
+          "sendRelay": "Send a code to Apple's hidden email",
+          "sending": "Sending code…",
+          "sent": "We sent a code to {{email}}. It expires in 10 minutes.",
+          "sentRelay": "We sent a code to Apple's hidden email. It expires in 10 minutes.",
+          "resent": "We sent a new code to {{email}}. It expires in 10 minutes.",
+          "resentRelay": "We sent a new code to Apple's hidden email. It expires in 10 minutes.",
+          "label": "Code from the email",
+          "required": "Enter the 6-digit code from the email.",
+          "resend": "Resend code",
+          "resendIn_one": "Resend in {{count}} second",
+          "resendIn_other": "Resend in {{count}} seconds",
+          "relayHint": "Apple forwards the code from the hidden email to your real inbox."
+        },
+        "provider": {
+          "apple": "Confirm with Apple",
+          "google": "Confirm with Google",
+          "hint": "Choose the {{provider}} account you linked."
+        },
+        "useAnother": "Try another way",
+        "submit": "Confirm",
+        "submitting": "Confirming…",
+        "cancel": "Cancel",
+        "errors": {
+          "generic": "Couldn't confirm it's you. Try again.",
+          "proofRequired": "Confirm it's you to continue.",
+          "passwordIncorrect": "That password isn't right. Try again.",
+          "totpIncorrect": "That code isn't right. Enter a new one from the app.",
+          "emailCodeIncorrect": "That code isn't right or has expired. Try again, or send a new one.",
+          "providerInvalid": "That isn't the account you linked. Choose the linked account, or try another way.",
+          "locked": "Confirming is temporarily locked after too many wrong tries.",
+          "tooManyCodes": "Sending codes to your email is paused."
+        }
       }
     },
     "profile": {
@@ -213,8 +590,36 @@
       "push_section": "Push notifications"
     }
   },
+  "org": {
+    "close": {
+      "consequences": {
+        "archived": "{{name}} is archived: every workspace and all its data stay.",
+        "no_access": "Nobody can open it any more, you included.",
+        "restore": "Only support can restore it.",
+        "billing": "Pending invitations are revoked and the paid plan is cancelled."
+      }
+    }
+  },
   "workspace": {
-    "pickTitle": "Choose a workspace"
+    "pickTitle": "Choose a workspace",
+    "acceptInviteError": {
+      "title": "This invitation can't be used",
+      "gone": "The invitation was already used, was revoked, or the link is wrong.",
+      "deactivated": "Your account in this organization is deactivated. Ask an admin to reactivate it.",
+      "suspended": "This organization is currently suspended.",
+      "deletionScheduled": "This organization is scheduled for deletion, so it isn't taking new members.",
+      "askInviterHint": "If you think this is a mistake, ask the person who invited you.",
+      "rateLimited": "Too many attempts. Wait a moment, then open the link again.",
+      "wrongAccount": "This invitation was sent to a different email address than the account you're signed in with.",
+      "wrongAccountHint": "Sign in with the address that received the invitation, then open the link again.",
+      "switchAccount": "Use another account",
+      "unverified": "Verify your email before accepting the invitation.",
+      "unverifiedHint": "Enter the code we sent to your email. Once you're verified, the invitation is waiting in your invitations list.",
+      "verifyEmail": "Verify email",
+      "failed": "We couldn't process this invitation.",
+      "hint": "Each invitation works once. Ask whoever invited you to send a new link.",
+      "goToWorkspaces": "See my workspaces"
+    }
   },
   "chat": {
     "scope": {
@@ -1518,12 +1923,6 @@
       "call_add_person": "Add someone to the call",
       "call_summary_hint": "UNI will post a summary to the chat after the call",
       "call_back_to": "Back to the call",
-      "login_browser_hint": "Sign in with your UniWork account in the browser",
-      "login_sample_in": "Can we meet at 3 this afternoon?",
-      "login_sample_out": "Sure, joining now",
-      "login_apple_failed": "Could not sign in with Apple. Try again.",
-      "login_apple_conflict": "Your Apple email already belongs to another UniWork account. Sign in with the browser instead.",
-      "login_apple_mfa": "This account uses two-step verification. Sign in with the browser instead.",
       "thread_reply_placeholder": "Reply in thread…",
       "back_to_conversation": "Back to the conversation",
       "cancel_reply": "Cancel reply",
@@ -1583,9 +1982,50 @@
     "status_blocked": "Blocked",
     "status_cancelled": "Cancelled"
   },
+  "invitations": {
+    "list_title": "Invitations waiting for you",
+    "invitedBy": "{{name}} invited you to",
+    "invited": "You're invited to",
+    "place": "{{workspace}} in {{organization}}",
+    "join": "Join",
+    "load_error": "Couldn't load your invitations.",
+    "expires_soon": "Expires soon",
+    "preview": {
+      "title": "Join {{name}}",
+      "description": "You've been invited to join this organization.",
+      "description_inviter": "{{inviter}} invited you to join this organization.",
+      "organization": "Organization",
+      "workspace": "Workspace",
+      "no_workspace": "No workspace granted yet. An admin will add you to one later.",
+      "role": "Role",
+      "inviter": "Invited by",
+      "expiry": "Expires",
+      "expires_in_one": "In {{count}} day",
+      "expires_in_other": "In {{count}} days",
+      "join": "Join"
+    },
+    "gone": {
+      "title": "This invitation no longer works",
+      "expired": "The invitation has expired.",
+      "revoked": "The invitation was revoked.",
+      "accepted": "The invitation has already been used.",
+      "still_in": "You're still in {{name}}; nothing changed.",
+      "hint_expired": "Invitations work for a limited time. Ask whoever invited you to send a new link.",
+      "hint_revoked": "Whoever invited you withdrew this invitation. If you still need to join, ask them for a new one.",
+      "hint_accepted": "Each invitation works once. Ask whoever invited you for a new link if you need one."
+    },
+    "switch": {
+      "description": "Each account belongs to one organization. Joining {{name}} means leaving your current one.",
+      "busy": "Another change to your account is in progress. Try again in a moment."
+    }
+  },
+  "people": {
+    "role_owner": "Owner",
+    "role_admin": "Admin",
+    "role_member": "Member"
+  },
   "mobile": {
     "tab_calls": "Calls",
-    "login_hint": "Message and call your team, right from your phone.",
     "calls": {
       "empty": "No calls yet. Calls in your conversations show up here.",
       "outgoing": "Outgoing",
@@ -1647,23 +2087,16 @@
     },
     "account": {
       "what_happens": "What happens",
-      "consequence_identity": "Your email, name, photo, password and Google sign-in are erased for good.",
-      "consequence_content": "Messages and work you created stay with your organization, shown as “Deleted user”.",
-      "consequence_devices": "Every device is signed out and stops getting notifications; the account's data on this phone is wiped.",
-      "consequence_final": "This cannot be undone.",
+      "consequence_this_phone": "The account's data on this phone is wiped too.",
       "policy_link": "Read the data deletion policy",
       "owner_title": "Transfer ownership first",
-      "owner_body": "You own an organization. Hand ownership to another admin in Settings › Organization on the web, then come back to delete your account.",
+      "owner_body": "You own an organization. Transfer ownership in Settings › Organization members on the web, then come back to delete your account.",
       "owner_open_web": "Open settings on the web",
-      "owner_body_named": "You own {{name}}, and it has other members. Hand ownership to another admin in Settings › Organization on the web, then come back to delete your account.",
       "close_title": "Close the organization and delete your account",
-      "close_body": "You're the only member of {{name}}. It closes when your account is deleted: nobody can open it any more, and its subscription is cancelled.",
       "close_label": "Type the organization's address to confirm: {{slug}}",
-      "close_confirm": "Close organization and delete account",
       "close_required": "Type the organization's address to confirm.",
       "close_mismatch": "That doesn't match your organization's address.",
-      "close_has_members": "Someone just joined the organization, so it can't be closed. Hand ownership over on the web instead.",
-      "close_code_again": "Enter a new code: the one you just used has already confirmed it's you.",
+      "close_has_members": "Someone just joined the organization, so it can't be closed. Choose who takes ownership below.",
       "transfer_body": "You own {{name}}, and it has other members. Choose who takes over; your account is deleted right after.",
       "transfer_list": "Active members",
       "transfer_admin": "Admin",
@@ -1673,14 +2106,14 @@
       "transfer_empty": "Couldn't load the members. Try again, or hand ownership over on the web.",
       "transfer_retry": "Load the list again",
       "transfer_member_gone": "That person is no longer active in the organization. Choose someone else.",
-      "transfer_password_needed": "Your account has no password, so ownership can't be handed over on the phone. Hand it over in Settings › Organization on the web, then come back to delete your account.",
+      "transfer_done_not_deleted": "{{organization}} now belongs to {{name}}. Your account hasn't been deleted yet.",
       "transferring": "Handing over…",
       "rate_limited": "Too many attempts. Wait a few minutes, then try again.",
       "offline": "Couldn't reach the server. Check your connection, then try again.",
       "deleting": "Deleting…",
       "deleted": "Your account has been deleted.",
       "no_workspace": "You're not in any workspace yet. Ask an admin of your organization to add you to one, or open UniWork on the web.",
-      "no_workspace_relay": "You signed in with Apple's Hide My Email, so this account's address is {{email}}. An invitation sent to your work email can't reach this account: sign out, then sign in through the browser with the email your organization invited.",
+      "no_workspace_relay": "You signed in with Apple's Hide My Email, so this account's address is {{email}}. An invitation sent to your work email can't reach this account: sign out, sign in with the email your organization invited, then link Apple in Settings to keep using it.",
       "signed_in_as": "Signed in as {{email}}",
       "erased_name": "Deleted user"
     },
@@ -1894,6 +2327,47 @@
       "unlock": "Unlock",
       "unlock_prompt": "Unlock UniChat",
       "privacy_cover": "UniChat"
+    },
+    "sign_in": {
+      "title": "Sign in to UniChat",
+      "subtitle": "Use your UniWork account.",
+      "create_account": "Create an account",
+      "browser": "Sign in with a browser",
+      "browser_busy": "Opening the browser…",
+      "sign_up_with_apple": "Sign up with Apple",
+      "mfa": {
+        "subtitle": "Signing in to {{email}}.",
+        "code_hint": "The 6-digit code from your authenticator app.",
+        "use_recovery": "Use a recovery code",
+        "use_app": "Use your authenticator app",
+        "recovery_label": "Recovery code",
+        "recovery_hint": "Looks like xxxxx-xxxxx. Each code works once.",
+        "recovery_required": "Enter a recovery code."
+      },
+      "register": {
+        "title": "Create your account",
+        "subtitle": "One UniWork account for UniChat on your phone, your computer and the web.",
+        "submit": "Create account"
+      },
+      "verify": {
+        "wrong_email": "Wrong email?"
+      }
+    },
+    "step_up": {
+      "unavailable": "This phone can't confirm it's you the way your account does. Open UniWork on the web to continue."
+    },
+    "sign_in_methods": {
+      "link_named": "Link {{provider}}",
+      "unlink_named": "Unlink {{provider}}"
+    },
+    "invitations": {
+      "none": "No invitations have been sent to {{email}} yet.",
+      "none_hint": "When an organization invites this address, the invitation shows up here.",
+      "create_org": "Create an organization on the web",
+      "joining": "Joining…",
+      "joined_no_workspace": "You've joined {{org}}. An admin will add you to a workspace.",
+      "continue_on_web": "Continue on the web",
+      "switch_hint": "You finish switching organizations on the web, then come back to UniChat."
     }
   }
 }
