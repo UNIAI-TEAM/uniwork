@@ -19,16 +19,18 @@ const (
 	CapChatCatchUp          Capability = "chat_catchup"
 	CapMeetingCatchUp       Capability = "meeting_catch_up" // a late joiner's brief (scribe spec §5.1)
 	CapChatCallSummary      Capability = "chat_call_summary"
-	CapEmailThreadSummary   Capability = "email_thread_summary"
-	CapContextExtraction    Capability = "context_extraction"
-	CapAgentPlanning        Capability = "agent_planning"
-	CapAgentGeneration      Capability = "agent_generation"
-	CapAgentEvaluation      Capability = "agent_evaluation"
-	CapEmbedding            Capability = "embedding"
-	CapCloudSearch          Capability = "cloud_search"
-	CapCloudImage           Capability = "cloud_image_generate"
-	CapCloudTranscribe      Capability = "cloud_transcribe"
-	CapMediaAnalysis        Capability = "media_analysis"
+	// CapChatTaskDraft drafts one task title/description/priority from selected chat messages.
+	CapChatTaskDraft      Capability = "chat_task_draft"
+	CapEmailThreadSummary Capability = "email_thread_summary"
+	CapContextExtraction  Capability = "context_extraction"
+	CapAgentPlanning      Capability = "agent_planning"
+	CapAgentGeneration    Capability = "agent_generation"
+	CapAgentEvaluation    Capability = "agent_evaluation"
+	CapEmbedding          Capability = "embedding"
+	CapCloudSearch        Capability = "cloud_search"
+	CapCloudImage         Capability = "cloud_image_generate"
+	CapCloudTranscribe    Capability = "cloud_transcribe"
+	CapMediaAnalysis      Capability = "media_analysis"
 	// CapMeetingTranscribe is a long uploaded meeting recording (parent spec
 	// 2026-10-20-meeting-follow-through §7.4): paid in meeting.transcription
 	// minutes, not AI credits, so it has no model policy either.
@@ -94,6 +96,7 @@ var policies = map[Capability]ModelPolicy{
 	CapChatCatchUp:          {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapMeetingCatchUp:       {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapChatCallSummary:      {Default: flagship, MaxTokens: 2048, Temperature: 0},
+	CapChatTaskDraft:        {Default: fast, MaxTokens: 1024, Temperature: 0},
 	CapEmailThreadSummary:   {Default: flagship, MaxTokens: 2048, Temperature: 0},
 	CapContextExtraction:    {Default: fast, MaxTokens: 800, Temperature: 0},
 	CapAgentPlanning:        {Default: flagship, MaxTokens: 4096, Temperature: 0},

@@ -49,6 +49,7 @@ const (
 	PromptChatCatchUp        = "chat_catchup@2"
 	PromptMeetingCatchUp     = "meeting_catch_up@1"
 	PromptChatCallSummary    = "chat_call_summary@1"
+	PromptChatTaskDraft      = "chat_task_draft@2"
 	PromptEmailThreadSummary = "email_thread_summary@2"
 	PromptMediaAnalysis      = "media_analysis@1"
 	PromptMemoryImport       = "memory_import@2"
@@ -621,6 +622,52 @@ Tone: a helpful colleague, no mascot voice, no emojis.
 				fmt.Fprintf(&b, "Sources:\n%s\n", src)
 			} else {
 				b.WriteString("Sources: (none)\n")
+			}
+			return b.String()
+		},
+	})
+
+	register(Prompt{
+		ID: "chat_task_draft", Version: 1,
+		System: `You draft one workspace task from selected chat messages in a Vietnamese work OS.
+Respond with a single JSON object and nothing else, shaped exactly as:
+{"title": string, "description": string, "priority": string}
+- "title": a short imperative task title (≤ 80 characters), not a quote of the chat.
+- "description": 2–6 sentences that capture what was agreed or needs doing; include concrete names/dates from the sources when useful; no invented facts.
+- "priority": one of none, low, medium, high, urgent — pick from what the messages imply; default medium when unclear.
+- Write every string in the language named by the caller. Tone: helpful colleague, no emojis.
+` + UntrustedFooter,
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"description":{"type":"string"},"priority":{"type":"string"}},"required":["title","description","priority"],"additionalProperties":false}`),
+		Render: func(vars map[string]any) string {
+			var b strings.Builder
+			fmt.Fprintf(&b, "Output language: %s\nToday: %s\n\n", language(str(vars, "locale")), str(vars, "today"))
+			if src := str(vars, "sources"); src != "" {
+				fmt.Fprintf(&b, "Selected chat messages:\n%s\n", src)
+			} else {
+				b.WriteString("Selected chat messages: (none)\n")
+			}
+			return b.String()
+		},
+	})
+	register(Prompt{
+		ID: "chat_task_draft", Version: 2,
+		System: `You draft one workspace task from selected chat messages in a Vietnamese work OS.
+Respond with a single JSON object and nothing else, shaped exactly as:
+{"title": string, "description": string, "priority": string, "due_date": string}
+- "title": a short imperative task title (≤ 80 characters), not a quote of the chat.
+- "description": 2–6 sentences that capture what was agreed or needs doing; include concrete names from the sources when useful; no invented facts. Do not repeat the due date as the only content of the description when "due_date" is set.
+- "priority": one of none, low, medium, high, urgent — pick from what the messages imply; default medium when unclear.
+- "due_date": "YYYY-MM-DD" when the messages state or clearly imply a deadline (e.g. "hôm nay"/today, "ngày mai"/tomorrow, "thứ Sáu", "cuối tuần", a calendar date), resolved against Today above; otherwise "". Never invent a due date that is not grounded in the messages.
+- Write every string in the language named by the caller. Tone: helpful colleague, no emojis.
+` + UntrustedFooter,
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"title":{"type":"string"},"description":{"type":"string"},"priority":{"type":"string"},"due_date":{"type":"string"}},"required":["title","description","priority","due_date"],"additionalProperties":false}`),
+		Render: func(vars map[string]any) string {
+			var b strings.Builder
+			fmt.Fprintf(&b, "Output language: %s\nToday: %s\n\n", language(str(vars, "locale")), str(vars, "today"))
+			if src := str(vars, "sources"); src != "" {
+				fmt.Fprintf(&b, "Selected chat messages:\n%s\n", src)
+			} else {
+				b.WriteString("Selected chat messages: (none)\n")
 			}
 			return b.String()
 		},

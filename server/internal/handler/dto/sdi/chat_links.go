@@ -2,13 +2,17 @@ package sdi
 
 // CreateTaskFromMessageSDI is POST .../chat/messages/{messageID}/tasks.
 type CreateTaskFromMessageSDI struct {
-	Title        string  `json:"title,omitempty" description:"Task title; defaults to the first 120 characters of the message" example:"Sửa bug login"`
-	ProjectID    *string `json:"project_id,omitempty" description:"Optional project id in the same workspace" example:"01J8X4PRJ0N1P2Q3R4S5T6U7V8"`
-	AssigneeID   *string `json:"assignee_id,omitempty" description:"Optional assignee user or agent id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
-	AssigneeKind string  `json:"assignee_kind,omitempty" description:"human or agent" example:"human"`
-	DueDate      *string `json:"due_date,omitempty" description:"Optional YYYY-MM-DD due date" example:"2026-09-20"`
-	SyncThread   bool    `json:"sync_thread,omitempty" description:"When true, also link the message thread to the new task" example:"true"`
-	Priority     string  `json:"priority,omitempty" description:"Task priority; defaults to medium" example:"medium"`
+	Title        string   `json:"title,omitempty" description:"Task title; defaults to the first 120 characters of the message" example:"Sửa bug login"`
+	Description  string   `json:"description,omitempty" description:"Optional task description; defaults to the message body with chat provenance" example:"Chốt demo thứ Sáu với An"`
+	Status       string   `json:"status,omitempty" description:"Task status key; defaults to todo" example:"todo"`
+	ProjectID    *string  `json:"project_id,omitempty" description:"Optional project id in the same workspace" example:"01J8X4PRJ0N1P2Q3R4S5T6U7V8"`
+	AssigneeID   *string  `json:"assignee_id,omitempty" description:"Optional assignee user or agent id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	AssigneeKind string   `json:"assignee_kind,omitempty" description:"human or agent" example:"human"`
+	StartDate    *string  `json:"start_date,omitempty" description:"Optional YYYY-MM-DD start date" example:"2026-09-18"`
+	DueDate      *string  `json:"due_date,omitempty" description:"Optional YYYY-MM-DD due date" example:"2026-09-20"`
+	LabelIDs     []string `json:"label_ids,omitempty" description:"Optional workspace label ids" example:"[\"01J8X4LBL0N1P2Q3R4S5T6U7V8\"]"`
+	SyncThread   bool     `json:"sync_thread,omitempty" description:"When true, also link the message thread to the new task" example:"true"`
+	Priority     string   `json:"priority,omitempty" description:"Task priority; defaults to medium" example:"medium"`
 }
 
 // CreateChatMessageLinkSDI is POST .../chat/messages/{messageID}/links.
