@@ -1,10 +1,12 @@
 "use client";
 import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Check, Search, UserPlus, X } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useMembers } from "@uniwork/core/workspaces";
 import type { Member } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { NumberFlow } from "@uniwork/ui/components/ui/number-flow";
 import { cn } from "@uniwork/ui/lib/utils";
 import { meetingAvatarTint } from "../meeting-detail/avatar-tint";
 import { kitButton } from "../meeting-detail/ui/kit-buttons";
@@ -274,8 +276,15 @@ export function PeopleField({
         <span id={labelId} className={cn(FIELD_LABEL, "mb-0")}>
           {t("meetings.attendees")}
         </span>
-        <span className="text-caption text-muted-foreground" aria-live="polite">
-          {t("meetings.sheet.peopleCount", { count: people.length + 1 })}
+        <span className="text-caption text-muted-foreground">
+          <span className="sr-only" aria-live="polite">
+            {t("meetings.sheet.peopleCount", { count: people.length + 1 })}
+          </span>
+          {/* The same words with a rolling number, for the eye. */}
+          <span aria-hidden className="inline-flex items-center gap-1">
+            <NumberFlow value={people.length + 1} />
+            {t("meetings.motion.create.peopleRest", { count: people.length + 1 })}
+          </span>
         </span>
       </div>
       {edit ? null : search}
@@ -299,33 +308,37 @@ export function PeopleField({
         </ul>
       ) : (
         <ul className={cn(!edit && "mt-1 group-data-[fresh]/sheet:mt-2")}>
-          <PersonRoleRow
-            name={host.name}
-            avatarUrl={host.avatarUrl}
-            tint={meetingAvatarTint(host.userId, members)}
-            you={host.userId === viewerId}
-            host
-          />
-          {people.map((p) => (
-            <PersonGroup key={p.userId} isSecretary={!edit && secretary?.userId === p.userId} secretaryName={nameOf(p.userId)}>
-              <PersonRoleRow
-                name={nameOf(p.userId)}
-                avatarUrl={byId.get(p.userId)?.avatar_url}
-                tint={meetingAvatarTint(p.userId, members)}
-                role={p.role}
-                rsvp={rsvp?.get(p.userId)}
-                readOnly={readOnly}
-                onRole={(next) => role(p.userId, next)}
-                onRemove={() => remove(p.userId)}
-                removeStyle={edit ? "menu" : "x"}
-                note={
-                  previousSecretaryId === p.userId && p.role !== "SECRETARY" ? (
-                    <PreviousSecretaryNote week={previousWeek ?? null} onAssign={readOnly ? undefined : () => role(p.userId, "SECRETARY")} />
-                  ) : undefined
-                }
-              />
-            </PersonGroup>
-          ))}
+          {/* Rows there on open stand still; a person added later grows in (PersonRoleRow). */}
+          <AnimatePresence initial={false}>
+            <PersonRoleRow
+              key="host"
+              name={host.name}
+              avatarUrl={host.avatarUrl}
+              tint={meetingAvatarTint(host.userId, members)}
+              you={host.userId === viewerId}
+              host
+            />
+            {people.map((p) => (
+              <PersonGroup key={p.userId} isSecretary={!edit && secretary?.userId === p.userId} secretaryName={nameOf(p.userId)}>
+                <PersonRoleRow
+                  name={nameOf(p.userId)}
+                  avatarUrl={byId.get(p.userId)?.avatar_url}
+                  tint={meetingAvatarTint(p.userId, members)}
+                  role={p.role}
+                  rsvp={rsvp?.get(p.userId)}
+                  readOnly={readOnly}
+                  onRole={(next) => role(p.userId, next)}
+                  onRemove={() => remove(p.userId)}
+                  removeStyle={edit ? "menu" : "x"}
+                  note={
+                    previousSecretaryId === p.userId && p.role !== "SECRETARY" ? (
+                      <PreviousSecretaryNote week={previousWeek ?? null} onAssign={readOnly ? undefined : () => role(p.userId, "SECRETARY")} />
+                    ) : undefined
+                  }
+                />
+              </PersonGroup>
+            ))}
+          </AnimatePresence>
         </ul>
       )}
       {edit ? (

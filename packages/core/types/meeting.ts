@@ -21,6 +21,12 @@ export const MeetingSchema = z.object({
   version: z.number().optional(),
   /** List rows only: a recording with a file exists, so the row can offer a rewatch. */
   has_playable_recording: z.boolean().optional(),
+  /** List rows of an IN_PROGRESS meeting: up to three members in the room now, earliest first. */
+  in_room_user_ids: z.array(z.string()).optional().catch(undefined),
+  /** List rows of an IN_PROGRESS meeting: everyone in the room now, guests included. */
+  in_room_count: z.number().int().nonnegative().optional().catch(undefined),
+  /** List rows of an IN_PROGRESS meeting: Thư ký UNI is in the room (its latest run is ACTIVE). */
+  scribe_live: z.boolean().optional().catch(undefined),
   /** Minimum attendance (%); null or absent = none. */
   quorum_percent: z.number().nullish(),
   /** The AI scribe is on for this meeting (default on; host/admin switch it). */
@@ -288,6 +294,8 @@ export const MeetingSummarySchema = z.object({
   topics: SummaryTopicsSchema.catch([]).optional(),
   /** Questions raised and left open, each with its evidence (meeting_summary@7). */
   open_questions: SummaryDecisionsSchema.catch([]).optional(),
+  /** meeting_summary@8: the summary paragraph as sentences, each with its evidence; empty before @8. */
+  summary_points: SummaryDecisionsSchema.catch([]).optional(),
 });
 export type MeetingSummary = z.infer<typeof MeetingSummarySchema>;
 

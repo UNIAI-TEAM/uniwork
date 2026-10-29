@@ -81,8 +81,9 @@ ORDER BY created_at ASC, id ASC
 LIMIT sqlc.arg('row_limit');
 
 -- name: InsertMeetingSummary :one
-INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind, topics, open_questions)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, sqlc.arg('topics'), sqlc.arg('open_questions'))
+INSERT INTO meeting_summaries (id, meeting_id, summary, decisions, action_items, model, created_by, usage_event_id, organization_id, partial, created_by_kind, topics, open_questions, summary_points)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, sqlc.arg('topics'), sqlc.arg('open_questions'),
+  COALESCE(NULLIF(sqlc.arg('summary_points')::text, ''), '[]'))
 RETURNING *;
 
 -- name: ListWorkspaceMeetingSearchTexts :many

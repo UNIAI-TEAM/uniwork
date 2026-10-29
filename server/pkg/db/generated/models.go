@@ -2274,6 +2274,7 @@ type MeetingSummary struct {
 	TranscriptChangedAt pgtype.Timestamptz `json:"transcript_changed_at"`
 	Topics              string             `json:"topics"`
 	OpenQuestions       string             `json:"open_questions"`
+	SummaryPoints       string             `json:"summary_points"`
 }
 
 type MeetingSummaryRun struct {

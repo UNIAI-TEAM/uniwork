@@ -3917,14 +3917,8 @@
     "guestAdmitted": "Admitted to the room",
     "allGuestsAdmitted": "Everyone admitted to the room",
     "joinRequestsPendingTitle": "{{count}} join requests waiting",
-    "viewAllJoinRequestsCount": "View all ({{count}})",
-    "waitingToJoin": "Waiting to join",
-    "waitingToJoinHostHint": "Visible to hosts",
     "waitingToBeAdmitted": "Waiting to join",
-    "admitAll": "Admit all",
     "unconfirmedGuest": "Unconfirmed guest",
-    "unconfirmedUsers_one": "{{count}} person waiting",
-    "unconfirmedUsers_other": "{{count}} people waiting",
     "joinRequestActions": "Join request actions",
     "pendingCount": "{{count}} waiting",
     "transferConfirmTitle": "Transfer host role?",
@@ -4630,7 +4624,6 @@
     "inviteOnlyHint": "Ask the host to invite you, then join the meeting again.",
     "endedHint": "Notes and recordings, if any, are on the meeting page.",
     "waitingApprovalNotStartedHint": "The meeting hasn't started yet. The host will see your request when they join. This page updates automatically.",
-    "joinRequestNoticeDismiss": "Hide notice",
     "canceledHint": "Ask the organizer if you still need to meet.",
     "pastScheduledEndHint": "The host can extend the meeting so people can join again.",
     "joinRequestChime": "Sound for join requests",
@@ -5365,7 +5358,6 @@
         "selMetaNoDue_one": "{{count}} person",
         "selMetaNoDue_other": "{{count}} people",
         "selClear": "Clear",
-        "selReview": "Review and assign",
         "keys": "Keyboard shortcuts",
         "keyMove": "↑ ↓ move between items",
         "keyToggle": "Space select or clear",
@@ -5408,7 +5400,6 @@
           "votes_other": "{{count}} vote results"
         },
         "running": "Writing the summary",
-        "runningFrom": "Writing the summary from {{sources}}",
         "none": "This meeting has no summary yet.",
         "noneFrom": "UNI Scribe writes it from {{sources}}",
         "generate": "Write summary",
@@ -5995,6 +5986,47 @@
       },
       "chat": {
         "placeholder": "Message everyone…"
+      }
+    },
+    "motion": {
+      "list": {
+        "elapsed": "In session for {{time}}",
+        "inRoom_one": "{{count}} person in the room",
+        "inRoom_other": "{{count}} people in the room",
+        "scribeLive": "UNI Scribe is taking notes"
+      },
+      "upcoming": {
+        "startsAt": "Starts {{time}}",
+        "startsIn": "Starts in {{time}}",
+        "waiting": "waiting"
+      },
+      "create": {
+        "peopleRest_one": "person · you included",
+        "peopleRest_other": "people · you included"
+      },
+      "summary": {
+        "outOf": "/{{count}}",
+        "source": "Source {{n}}"
+      },
+      "assign": {
+        "selected": "selected",
+        "changeOwner": "Change assignee",
+        "setDue": "Set due date",
+        "done_one": "Assigned {{count}} task",
+        "done_other": "Assigned {{count}} tasks",
+        "groupDone": "{{name}} · all assigned",
+        "undoPartial_one": "Couldn't undo {{count}} task",
+        "undoPartial_other": "Couldn't undo {{count}} tasks"
+      },
+      "prejoin": {
+        "scribeChip": "UNI Scribe transcribes"
+      },
+      "room": {
+        "notices": "Room notices",
+        "joined": "<b>{{name}}</b> joined",
+        "left": "<b>{{name}}</b> left",
+        "hand": "<b>{{name}}</b> raised a hand",
+        "knock": "<b>{{name}}</b> wants to join"
       }
     }
   },

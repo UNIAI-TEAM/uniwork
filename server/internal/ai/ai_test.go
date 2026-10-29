@@ -276,6 +276,7 @@ func TestPromptSnapshots(t *testing.T) {
 		"meeting_summary@2":      meetingWithFacts,
 		"meeting_summary@3":      meetingWithFacts,
 		"meeting_summary@6":      meetingWithLabels,
+		"meeting_summary@7":      meetingV7,
 		PromptMeetingSummary:     meetingV7,
 		PromptMeetingSummaryPart: meetingPart,
 		"meeting_live_items@2":   liveItems,

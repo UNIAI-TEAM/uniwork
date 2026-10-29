@@ -73,6 +73,17 @@ describe("meeting summary endpoints", () => {
     expect(drifted?.open_questions).toEqual([]);
   });
 
+  it("getMeetingSummary reads @8 summary points and drops a malformed one", async () => {
+    const points = [{ text: "Chốt ngày 30/10.", evidence: [{ kind: "segment", id: "g1" }] }, 4, { text: "Ngân sách 350 triệu." }];
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { ...summary, summary_points: points } }));
+    expect((await getMeetingSummary("m1")).summary?.summary_points).toEqual([
+      { text: "Chốt ngày 30/10.", evidence: [{ kind: "segment", id: "g1" }] },
+      { text: "Ngân sách 350 triệu.", evidence: [] },
+    ]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { ...summary, summary_points: "x" } }));
+    expect((await getMeetingSummary("m1")).summary?.summary_points).toEqual([]);
+  });
+
   it("getMeetingSummary drops one malformed decision, not the whole summary", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ summary: { ...summary, decisions: ["D", 7], model: null } }));
     const got = (await getMeetingSummary("m1")).summary;

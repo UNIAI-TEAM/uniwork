@@ -147,8 +147,6 @@ export function useSummaryGeneration({
     capsLoaded,
     showGenerate,
     generating,
-    /** The server is making a summary nobody on this screen asked for just now. */
-    serverRunning: serverRunning && !generate.isPending,
     blockedReason,
     requestGenerate,
     confirmOpen,

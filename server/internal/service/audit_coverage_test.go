@@ -2041,6 +2041,21 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// UNI-2285: the clerk takes their fresh conversion back.
+		audit.ActionMeetingActionItemsUnconverted: func(t *testing.T, f *auditFixture) {
+			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
+			items, err := svc.ActionItems(f.ctx, f.owner.ID, m.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			id := items.Items[0].Item.ID
+			if _, err := svc.ConvertActionItems(f.ctx, f.owner.ID, m.ID, "vi", []ConvertActionItem{{ActionItemID: id}}); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := svc.UndoConvertActionItems(f.ctx, f.owner.ID, m.ID, []string{id}); err != nil || len(got) != 1 {
+				t.Fatalf("undo = %v, %v", got, err)
+			}
+		},
 		// follow-5: a clerk links a pending item to a task that already exists.
 		audit.ActionMeetingActionItemLinked: func(t *testing.T, f *auditFixture) {
 			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
@@ -3190,6 +3205,7 @@ func auditActions() []string {
 		audit.ActionMcpTokenFamilyRevoked,
 		audit.ActionMeetingRestored,
 		audit.ActionMeetingActionItemsConverted,
+		audit.ActionMeetingActionItemsUnconverted,
 		audit.ActionMeetingActionItemCreated,
 		audit.ActionMeetingActionItemDismissed,
 		audit.ActionMeetingActionItemRestored,

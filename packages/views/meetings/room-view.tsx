@@ -46,6 +46,7 @@ import {
 } from "./room-disconnect";
 import { useFocusHeadingOnViewChange } from "./use-focus-heading-on-view-change";
 import { useInertOutside } from "./use-inert-outside";
+import { useJoinWash } from "./meeting-join-wash";
 import { isRetryableJoinError } from "./room-connection";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 import { useWithdrawJoinRequestOnLeave } from "./use-withdraw-join-request";
@@ -61,6 +62,7 @@ function MeetingRoomShell({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useInertOutside(ref);
+  useJoinWash(ref);
   return (
     <div
       ref={ref}
@@ -168,6 +170,8 @@ export function MeetingRoomView({
     if (initialChoice) return initialChoice;
     return isJoinAdmitted(initialJoinDecision) ? { audio: false, video: false } : null;
   });
+  // The prejoin stays up, its button a ring, until the first join answers.
+  const [prejoinJoining, setPrejoinJoining] = useState(false);
   const mutateJoin = join.mutate;
   const mutateRefreshAsync = credentialRefresh.mutateAsync;
   const joinArgs = useMemo(() => {
@@ -346,6 +350,11 @@ export function MeetingRoomView({
     onClosed: closeRoom,
   });
 
+  const firstJoinAnswered = Boolean(decision || joinError || closedReason);
+  useEffect(() => {
+    if (firstJoinAnswered) setPrejoinJoining(false);
+  }, [firstJoinAnswered]);
+
   const selfParticipantId = participantIdFromToken(lastAdmittedRef.current?.participant_token);
   if (exit) {
     return (
@@ -371,14 +380,15 @@ export function MeetingRoomView({
     );
   }
 
-  if (!choice) {
+  if (!choice || (prejoinJoining && !firstJoinAnswered)) {
     return (
       <MeetingRoomShell testId="meeting-prejoin">
         <MeetingPreJoin
           meeting={meeting ?? undefined}
           loading={!guestMode && meetingLoading}
           scribeNoticeFor={scribeNoticeFor}
-          onJoin={setChoice}
+          joining={Boolean(choice)}
+          onJoin={(next) => (setPrejoinJoining(true), setChoice(next))}
           onLeave={onLeave}
         />
       </MeetingRoomShell>

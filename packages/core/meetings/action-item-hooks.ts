@@ -85,3 +85,12 @@ export function useConvertMeetingActionItems(workspaceId: string, meetingId: str
     workspaceId,
   );
 }
+
+/** Takes back a conversion the caller made moments ago; refreshes what a conversion refreshes. */
+export function useUndoConvertActionItems(workspaceId: string, meetingId: string) {
+  return useActionItemMutation(
+    meetingId,
+    (actionItemIds: string[]) => api.undoConvertMeetingActionItems(meetingId, actionItemIds),
+    workspaceId,
+  );
+}

@@ -13,7 +13,10 @@ type MeetingListSDO struct {
 // draw without a request of its own.
 type MeetingListItemDTO struct {
 	MeetingDTO
-	HasPlayableRecording bool `json:"has_playable_recording" description:"Có ít nhất một bản ghi hình đã có file để xem lại"`
+	HasPlayableRecording bool     `json:"has_playable_recording" description:"Có ít nhất một bản ghi hình đã có file để xem lại"`
+	InRoomUserIDs        []string `json:"in_room_user_ids,omitempty" description:"Cuộc họp đang diễn ra: tối đa 3 user id thành viên đang trong phòng, ai vào trước đứng trước" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
+	InRoomCount          int32    `json:"in_room_count,omitempty" description:"Cuộc họp đang diễn ra: số người đang trong phòng, kể cả khách" example:"5"`
+	ScribeLive           bool     `json:"scribe_live,omitempty" description:"Cuộc họp đang diễn ra: Thư ký UNI đang ghi (lần chạy mới nhất ACTIVE)" example:"true"`
 }
 
 type MeetingDTO struct {
@@ -293,6 +296,8 @@ type MeetingSummaryDTO struct {
 	// Topics and OpenQuestions are meeting_summary@7's; empty before it.
 	Topics        []MeetingSummaryTopicDTO    `json:"topics" description:"Các chủ đề theo thứ tự được bàn (meeting_summary@7); rỗng với bản tóm tắt cũ"`
 	OpenQuestions []MeetingSummaryDecisionDTO `json:"open_questions" description:"Câu hỏi còn bỏ ngỏ, mỗi câu kèm căn cứ (meeting_summary@7)"`
+	// SummaryPoints are meeting_summary@8's; Summary is them joined.
+	SummaryPoints []MeetingSummaryDecisionDTO `json:"summary_points" description:"Đoạn tóm tắt tách thành 2–6 câu, mỗi câu kèm căn cứ (meeting_summary@8); summary là các câu này ghép lại; rỗng với bản tóm tắt cũ"`
 }
 
 // MeetingSummaryTopicDTO is one topic of a summary: where it starts in the
@@ -445,6 +450,11 @@ type ActionItemLinkDTO struct {
 // ConvertActionItemsSDO answers POST .../action-items/convert, in request order.
 type ConvertActionItemsSDO struct {
 	Links []ActionItemLinkDTO `json:"links"`
+}
+
+// UndoConvertActionItemsSDO lists the items put back to pending.
+type UndoConvertActionItemsSDO struct {
+	Restored []string `json:"restored" description:"Các việc đã về chờ xử lý (task của chúng đã vào thùng rác); việc không đủ điều kiện không có ở đây" example:"[\"01J8X4AI0N1P2Q3R4S5T6U7V8W\"]"`
 }
 
 type TaskIDListSDO struct {

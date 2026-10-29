@@ -245,6 +245,7 @@ export function MeetingDetailView({
     memberIndex,
     participants: activeParticipants,
     invitations: invitations ?? [],
+    rosterLoaded: participants !== undefined && invitations !== undefined,
     sections,
     tabs: {
       list: tabList,

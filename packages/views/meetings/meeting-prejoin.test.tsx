@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import type { Meeting } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingPreJoin } from "./meeting-prejoin";
+import { MeetingMicDots } from "./meeting-room-mic-check";
 
 const meeting: Meeting = {
   id: "m1",
@@ -199,5 +201,61 @@ describe("MeetingPreJoin", () => {
       fireEvent.click(screen.getByRole("button", { name: "Mic", pressed: true }));
       expect(useMeetingRoomPreferencesStore.getState().joinWithMic).toBe(false);
     });
+  });
+});
+
+describe("MeetingPreJoin motion (UNI-2285 D)", () => {
+  it("mic dots follow the level", () => {
+    const { container } = render(<MeetingMicDots level={0.5} />);
+    const meter = screen.getByRole("meter", { name: "Mức âm thanh mic" });
+    expect(meter).toHaveAttribute("aria-valuenow", "50");
+    const dots = container.querySelectorAll("[data-mic-dot]");
+    expect(dots).toHaveLength(5);
+    // The middle dot stands tallest, the edges shortest.
+    const h = [...dots].map((d) => parseFloat((d as HTMLElement).style.height));
+    expect(h[2]).toBeGreaterThan(h[1]!);
+    expect(h[1]).toBeGreaterThan(h[0]!);
+    expect(h[0]).toBe(h[4]);
+  });
+
+  it("draws the dots inside the mic picker instead of the old level bar", async () => {
+    render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
+    expect(await screen.findByText("Built-in Mic")).toBeInTheDocument();
+    expect(screen.queryByTestId("meeting-mic-level")).not.toBeInTheDocument();
+    expect(screen.getByRole("meter", { name: "Mức âm thanh mic" })).toHaveAttribute("data-slot", "mic-dots");
+  });
+
+  it("member prejoin shows the scribe chip and the full text behind ?", async () => {
+    sessionStorage.clear();
+    render(
+      wrapWithNav(<MeetingPreJoin meeting={meeting} scribeNoticeFor="m1" onJoin={() => {}} onLeave={() => {}} />),
+    );
+    const chip = screen.getByTestId("meeting-scribe-chip");
+    expect(chip).toHaveTextContent("Thư ký UNI ghi lời");
+    expect(chip.querySelector("[data-scribe-mark]")).not.toBeNull();
+    expect(screen.queryByTestId("meeting-scribe-notice")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Đã hiểu" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Thư ký UNI làm gì?" }));
+    expect(await screen.findByText(/là trợ lý AI của UniWork/)).toBeInTheDocument();
+  });
+
+  it("join button is busy while joining", () => {
+    const onJoin = vi.fn();
+    render(wrapWithNav(<MeetingPreJoin meeting={meeting} joining onJoin={onJoin} onLeave={() => {}} />));
+    const join = screen.getByRole("button", { name: "Vào phòng họp" });
+    expect(join).toHaveAttribute("aria-busy", "true");
+    expect(join).toHaveAttribute("data-joining");
+    fireEvent.click(join);
+    expect(onJoin).not.toHaveBeenCalled();
+  });
+
+  it("joining freezes the media choice the room opens with", async () => {
+    render(wrapWithNav(<MeetingPreJoin meeting={meeting} joining onJoin={() => {}} onLeave={() => {}} />));
+    // The room takes the choice made at the press: toggles and pickers go inert, Back stays.
+    expect(screen.getByRole("button", { name: "Camera", pressed: true }).closest("[inert]")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Mic" }).closest("[inert]")).not.toBeNull();
+    expect((await screen.findByText("Built-in Mic")).closest("[inert]")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Quay lại" }).closest("[inert]")).toBeNull();
+    expect(screen.getByRole("button", { name: "Vào phòng họp" }).closest("[inert]")).toBeNull();
   });
 });

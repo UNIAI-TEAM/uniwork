@@ -6,7 +6,7 @@ Vietnamese or Vietnamese/English transcript, optional notes and chat, and the
 action items a correct record holds (keywords of the title, owner, due as
 said, evidence lines), the decisions it must state, and the text that must
 never become an item (`forbid`). `kind` picks the prompt:
-`summary` → `meeting_summary@7`, `live` → `meeting_live_items@3`
+`summary` → `meeting_summary@8`, `live` → `meeting_live_items@3`
 (`earlier` lines are the read-only context, `existing` the items the meeting
 already has). Negative cases expect no item; injection cases carry a hostile
 line in the transcript or chat.

@@ -3916,14 +3916,8 @@
     "guestAdmitted": "Đã cho vào phòng",
     "allGuestsAdmitted": "Đã cho tất cả vào phòng",
     "joinRequestsPendingTitle": "{{count}} yêu cầu đang chờ",
-    "viewAllJoinRequestsCount": "Xem tất cả ({{count}})",
-    "waitingToJoin": "Đang chờ vào phòng",
-    "waitingToJoinHostHint": "Chỉ chủ trì mới thấy",
     "waitingToBeAdmitted": "Đang chờ vào phòng",
-    "admitAll": "Cho tất cả vào",
     "unconfirmedGuest": "Khách chưa xác nhận",
-    "unconfirmedUsers_one": "{{count}} người đang chờ",
-    "unconfirmedUsers_other": "{{count}} người đang chờ",
     "joinRequestActions": "Thao tác yêu cầu vào phòng",
     "pendingCount": "{{count}} đang chờ",
     "transferConfirmTitle": "Chuyển quyền chủ trì?",
@@ -4629,7 +4623,6 @@
     "inviteOnlyHint": "Nhờ người chủ trì mời bạn rồi vào lại cuộc họp.",
     "endedHint": "Ghi chú và bản ghi (nếu có) nằm ở trang cuộc họp.",
     "waitingApprovalNotStartedHint": "Cuộc họp chưa bắt đầu. Người chủ trì sẽ thấy yêu cầu của bạn khi vào phòng. Trang này tự cập nhật.",
-    "joinRequestNoticeDismiss": "Ẩn thông báo",
     "canceledHint": "Hỏi người tổ chức nếu vẫn cần họp.",
     "pastScheduledEndHint": "Người chủ trì có thể gia hạn để mọi người vào tiếp.",
     "joinRequestChime": "Âm báo khi có người xin vào",
@@ -5364,7 +5357,6 @@
         "selMetaNoDue_one": "{{count}} người",
         "selMetaNoDue_other": "{{count}} người",
         "selClear": "Bỏ chọn",
-        "selReview": "Xem lại và giao",
         "keys": "Phím tắt",
         "keyMove": "↑ ↓ chuyển giữa các việc",
         "keyToggle": "Space chọn hoặc bỏ chọn",
@@ -5407,7 +5399,6 @@
           "votes_other": "{{count}} kết quả biểu quyết"
         },
         "running": "Đang soạn tóm tắt",
-        "runningFrom": "Đang soạn tóm tắt từ {{sources}}",
         "none": "Chưa có tóm tắt cho cuộc họp này.",
         "noneFrom": "Thư ký UNI soạn từ {{sources}}",
         "generate": "Soạn tóm tắt",
@@ -5994,6 +5985,47 @@
       },
       "chat": {
         "placeholder": "Nhắn cho mọi người…"
+      }
+    },
+    "motion": {
+      "list": {
+        "elapsed": "Đã họp {{time}}",
+        "inRoom_one": "{{count}} người trong phòng",
+        "inRoom_other": "{{count}} người trong phòng",
+        "scribeLive": "Thư ký UNI đang ghi"
+      },
+      "upcoming": {
+        "startsAt": "Bắt đầu {{time}}",
+        "startsIn": "Bắt đầu sau {{time}}",
+        "waiting": "chờ"
+      },
+      "create": {
+        "peopleRest_one": "người · gồm bạn",
+        "peopleRest_other": "người · gồm bạn"
+      },
+      "summary": {
+        "outOf": "/{{count}}",
+        "source": "Nguồn {{n}}"
+      },
+      "assign": {
+        "selected": "việc",
+        "changeOwner": "Đổi người nhận",
+        "setDue": "Đặt hạn",
+        "done_one": "Đã giao {{count}} việc",
+        "done_other": "Đã giao {{count}} việc",
+        "groupDone": "{{name}} · đã giao hết",
+        "undoPartial_one": "Không hoàn tác được {{count}} việc",
+        "undoPartial_other": "Không hoàn tác được {{count}} việc"
+      },
+      "prejoin": {
+        "scribeChip": "Thư ký UNI ghi lời"
+      },
+      "room": {
+        "notices": "Thông báo trong phòng",
+        "joined": "<b>{{name}}</b> vào phòng",
+        "left": "<b>{{name}}</b> rời phòng",
+        "hand": "<b>{{name}}</b> giơ tay",
+        "knock": "<b>{{name}}</b> xin vào"
       }
     }
   },

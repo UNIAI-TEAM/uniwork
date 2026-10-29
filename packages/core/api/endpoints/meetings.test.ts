@@ -64,6 +64,17 @@ describe("meetings endpoints", () => {
     expect(page.meetings[0]?.has_playable_recording).toBe(true);
   });
 
+  it("listMeetings reads who is in a live room and drops those fields when they drift", async () => {
+    const live = { ...meeting, status: "IN_PROGRESS", in_room_user_ids: ["u1", "u2"], in_room_count: 3, scribe_live: true };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meetings: [live], total: 1 }));
+    const row = (await listMeetings("ws1")).meetings[0];
+    expect([row?.in_room_user_ids, row?.in_room_count, row?.scribe_live]).toEqual([["u1", "u2"], 3, true]);
+    const drifted = { ...meeting, in_room_user_ids: "u1", in_room_count: -1, scribe_live: "yes" };
+    vi.mocked(fetch).mockResolvedValueOnce(json({ meetings: [drifted], total: 1 }));
+    const row2 = (await listMeetings("ws1")).meetings[0];
+    expect([row2?.id, row2?.in_room_user_ids, row2?.in_room_count, row2?.scribe_live]).toEqual([meeting.id, undefined, undefined, undefined]);
+  });
+
   it("listMeetings throws on drift instead of reading as an empty workspace", async () => {
     // An empty page would render "No meetings yet"; the list must show its error state instead.
     vi.mocked(fetch).mockResolvedValueOnce(json({ meetings: [{ id: "m1" }] }));

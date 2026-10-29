@@ -47,4 +47,18 @@ describe("useNow", () => {
     });
     expect(Number(screen.getByTestId("a").textContent)).toBe(Date.parse("2026-09-22T09:20:00Z"));
   });
+
+  it("paints the current time first when an idle clock is picked up again", () => {
+    const first = render(<Clock id="a" interval={1_000} />);
+    first.unmount();
+    vi.setSystemTime(new Date("2026-09-22T09:05:00Z"));
+    const painted: number[] = [];
+    function Recorder() {
+      const now = useNow(1_000);
+      painted.push(now);
+      return null;
+    }
+    render(<Recorder />);
+    expect(painted[0]).toBe(Date.parse("2026-09-22T09:05:00Z"));
+  });
 });

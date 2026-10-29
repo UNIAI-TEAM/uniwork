@@ -120,6 +120,9 @@ type MeetingSummary struct {
 	Decisions     []Decision     `json:"decisions"`
 	ActionItems   []ActionItem   `json:"action_items"`
 	OpenQuestions []Decision     `json:"open_questions,omitempty"`
+	// SummaryPoints (@8) are the paragraph as 2-6 cited sentences; when any
+	// survives cleaning, Summary is them joined.
+	SummaryPoints []Decision `json:"summary_points,omitempty"`
 }
 
 // SummaryTopic is one subject of a @7 record: StartLabel is the transcript
@@ -276,6 +279,9 @@ const (
 	maxTopicTitleRunes = 200
 	maxPointRunes      = 500
 	maxOpenQuestions   = 20
+	// @8: the prompt asks for 2-6 summary sentences.
+	maxSummaryPoints     = 6
+	maxSummaryPointRunes = 300
 )
 
 // ParseSummaryJSON accepts the model text and tolerates a ```json fence or
@@ -300,6 +306,14 @@ func ParseSummaryJSON(s string) (MeetingSummary, error) {
 	out.Summary = capRunes(strings.TrimSpace(out.Summary), maxSummaryRunes)
 	out.Decisions = cleanPoints(out.Decisions, maxSummaryDecisions, maxDecisionRunes)
 	out.OpenQuestions = cleanPoints(out.OpenQuestions, maxOpenQuestions, maxDecisionRunes)
+	out.SummaryPoints = cleanPoints(out.SummaryPoints, maxSummaryPoints, maxSummaryPointRunes)
+	if len(out.SummaryPoints) > 0 {
+		texts := make([]string, len(out.SummaryPoints))
+		for i, p := range out.SummaryPoints {
+			texts[i] = p.Text
+		}
+		out.Summary = strings.Join(texts, " ")
+	}
 	topics := make([]SummaryTopic, 0, len(out.Topics))
 	for _, t := range out.Topics {
 		t.Title = capRunes(strings.TrimSpace(t.Title), maxTopicTitleRunes)

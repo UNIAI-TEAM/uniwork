@@ -402,3 +402,23 @@ describe("MeetingLobby", () => {
     expect(screen.queryByText("Sẵn sàng vào họp")).not.toBeInTheDocument();
   });
 });
+
+describe("MeetingLobby scribe notice", () => {
+  it("guest lobby keeps the full notice", () => {
+    sessionStorage.clear();
+    render(
+      wrapWithNav(
+        <MeetingLobby
+          decision="WAITING_APPROVAL"
+          error={undefined}
+          guestMode
+          scribeNoticeFor="m-lobby"
+          onLeave={() => {}}
+        />,
+      ),
+    );
+    expect(screen.getByTestId("meeting-scribe-notice")).toHaveTextContent("Cuộc họp này có Thư ký UNI");
+    expect(screen.getByRole("button", { name: "Đã hiểu" })).toBeInTheDocument();
+    expect(screen.queryByTestId("meeting-scribe-chip")).not.toBeInTheDocument();
+  });
+});

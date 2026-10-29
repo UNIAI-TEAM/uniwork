@@ -1,5 +1,6 @@
 "use client";
 import { ChevronRight } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useId, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -23,6 +24,7 @@ import { Byline, Section } from "../ui/section";
 import { SegmentedSm } from "../ui/segmented";
 import { TextButton } from "../ui/text-button";
 import { ConvertedItemRow, PendingItemRow } from "./action-item-row";
+import { DrawnCheck, Rolling } from "./assign-motion";
 import { ownerGroups, ownerOf, type OwnerGroup } from "./owner-groups";
 import { effectiveValues } from "./use-close-out";
 import { ScribeSign } from "../../scribe-sign";
@@ -45,11 +47,47 @@ export function groupMeta(t: TFunction, name: string, group: Pick<OwnerGroup, "p
     .join(" · ");
 }
 
-/** An owner group's overline (kit `.group-h`) with an optional caption button. */
-export function GroupHeader({ label, children, className }: { label: string; children?: ReactNode; className?: string }) {
+/**
+ * An owner group's overline (kit `.group-h`), its counts rolling, with an
+ * optional caption button; `allAssigned` (the owner's name) turns it into
+ * "✓ Lan Phạm · đã giao hết" once nothing of theirs waits (clip G).
+ */
+export function GroupHeader({
+  label,
+  name,
+  allAssigned,
+  children,
+  className,
+}: {
+  label: string;
+  /** The owner's name that leads `label`: shown as written, only the counts roll. */
+  name?: string;
+  allAssigned?: string;
+  children?: ReactNode;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  const reduced = useReducedMotion() ?? false;
   return (
     <div className={cn("flex h-8 items-center justify-between gap-4", className)}>
-      <p className="text-caption font-medium text-muted-foreground">{label}</p>
+      {/* initial={false}: a group already done on load is drawn still; only one finished here pops its ✓. */}
+      <AnimatePresence initial={false}>
+        {allAssigned ? (
+          <motion.p
+            key="done"
+            className="inline-flex items-center gap-1.5 text-caption font-medium text-success"
+            initial={reduced ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <DrawnCheck className="size-4.5" />
+            {t("meetings.motion.assign.groupDone", { name: allAssigned })}
+          </motion.p>
+        ) : (
+          <p key="open" className="text-caption font-medium text-muted-foreground">
+            <Rolling text={label} lead={name} />
+          </p>
+        )}
+      </AnimatePresence>
       {children}
     </div>
   );
@@ -69,9 +107,13 @@ export function ConvertedFold({ items, done }: { items: readonly MeetingActionIt
         onClick={() => setOpen(!open)}
         className="group/fold ml-5 inline-flex h-7 items-center gap-1 self-start rounded-md px-2 text-caption font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground @max-[37.5rem]/meeting:-ml-2 @max-[37.5rem]/meeting:h-11"
       >
-        {done > 0
-          ? t("meetings.detail.closeOut.foldDone", { count: items.length, done })
-          : t("meetings.detail.closeOut.fold", { count: items.length })}
+        <Rolling
+          text={
+            done > 0
+              ? t("meetings.detail.closeOut.foldDone", { count: items.length, done })
+              : t("meetings.detail.closeOut.fold", { count: items.length })
+          }
+        />
         <ChevronRight aria-hidden className="size-3 transition-transform group-aria-expanded/fold:rotate-90 motion-reduce:transition-none" />
       </button>
       {open ? (
@@ -243,13 +285,18 @@ export function MemberItems({ items }: { items: readonly MeetingActionItem[] }) 
     const name = memberIndex.memberOf(id)?.display_name ?? t("meetings.detail.closeOut.ownerNone");
     return id === userId ? t("meetings.detail.closeOut.you", { name }) : name;
   };
-  const blocks =
+  const blocks: { key: string; name?: string; label: string; rows: MeetingActionItem[] }[] =
     scope === "mine"
       ? [
           { key: "done", label: t("meetings.detail.closeOut.mineAssigned", { count: mine.filter((i) => i.status === "CONVERTED").length }), rows: mine.filter((i) => i.status === "CONVERTED") },
           { key: "wait", label: t("meetings.detail.closeOut.minePending", { count: mine.filter((i) => i.status === "PENDING").length }), rows: mine.filter((i) => i.status === "PENDING") },
         ]
-      : ownerGroups(items).map((g) => ({ key: g.ownerId, label: groupMeta(t, nameOf(g.ownerId), g), rows: [...g.converted, ...g.pending] }));
+      : ownerGroups(items).map((g) => ({
+          key: g.ownerId,
+          name: nameOf(g.ownerId),
+          label: groupMeta(t, nameOf(g.ownerId), g),
+          rows: [...g.converted, ...g.pending],
+        }));
   return (
     <Section
       id="action-items"
@@ -274,7 +321,7 @@ export function MemberItems({ items }: { items: readonly MeetingActionItem[] }) 
         .filter((b) => b.rows.length > 0)
         .map((b, i) => (
           <div key={b.key} className={cn("flex flex-col", i > 0 && "mt-4")}>
-            <GroupHeader label={b.label} />
+            <GroupHeader label={b.label} name={b.name} />
             <ul className="flex flex-col">{b.rows.map(ro)}</ul>
           </div>
         ))}

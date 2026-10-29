@@ -329,6 +329,12 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/convert", what: "attachment", body: map[string]any{
 		"items": []any{map[string]any{"action_item_id": isoOwn("actionItem6"), "attachment_ids": []any{isoRef("attachment")}}}},
 		noControl: "the attachment is already attached to a task; a staged one would be needed", covers: []string{"ConvertActionItemSDI.attachment_ids"}},
+	// Undo skips any id it cannot take back, so a foreign item answers 200
+	// with an empty restored list. The control names the pending item: a
+	// no-op that leaves item 3's conversion (made by the fixture) in place.
+	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/undo-convert", what: "action item",
+		body: map[string]any{"action_item_ids": []any{isoRef("actionItem3")}}, controlBody: map[string]any{"action_item_ids": []any{isoOwn("actionItem")}},
+		allow2xx: true, covers: []string{"UndoConvertActionItemsSDI.action_item_ids"}},
 	{method: "POST", pattern: "/api/v1/meetings/{meetingID}/action-items/{actionItemID}/link", what: "task", body: map[string]any{"task_id": isoRef("task")},
 		noControl: "linking converts the tenant's one pending {actionItemID} item, which later cases and passes name; the write-control pass links it on its own tenant",
 		covers:    []string{"LinkActionItemSDI.task_id"}},

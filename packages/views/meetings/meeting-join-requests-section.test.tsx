@@ -90,4 +90,16 @@ describe("MeetingJoinRequestsSection", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Cho Guest One vào" })).toBeDisabled());
     expect(screen.getByRole("button", { name: "Cho Guest Two vào" })).toBeEnabled();
   });
+
+  it("switches the knock chime from the waiting card, remembered per browser", async () => {
+    window.localStorage.removeItem("uniwork_meeting_join_chime_muted");
+    render(wrapWithNav(<MeetingJoinRequestsSection meetingId="m1" />));
+    const bell = await screen.findByRole("button", { name: "Âm báo khi có người xin vào" });
+    expect(bell).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(bell);
+    expect(screen.getByRole("button", { name: "Âm báo khi có người xin vào" })).toHaveAttribute("aria-pressed", "false");
+    expect(window.localStorage.getItem("uniwork_meeting_join_chime_muted")).toBe("1");
+    fireEvent.click(bell);
+    expect(window.localStorage.getItem("uniwork_meeting_join_chime_muted")).toBeNull();
+  });
 });

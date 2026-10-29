@@ -10,17 +10,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@uniwork/ui/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingAdjustViewDialog } from "./meeting-adjust-view-dialog";
 import { MeetingDevicesDialog } from "./meeting-devices-dialog";
 import { REACTIONS, reactionLabelKey } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
-import { MEETING_CHIP } from "./meeting-control";
+import { BarTooltipTrigger, MEETING_CHIP } from "./meeting-control";
 export { IconControl, MenuControl, MEETING_CHIP } from "./meeting-control";
 
 export function DeviceSettingsControl({ inMenu = false }: { inMenu?: boolean }) {
@@ -52,26 +47,24 @@ export function DeviceSettingsControl({ inMenu = false }: { inMenu?: boolean }) 
       open={open}
       onOpenChange={setOpen}
       trigger={
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <DialogTrigger
-                render={
-                  <Button
-                    type="button"
-                    size="icon-lg"
-                    variant="meetingChip"
-                    aria-label={label}
-                    className={MEETING_CHIP}
-                  />
-                }
-              />
-            }
-          >
-            <Settings aria-hidden />
-          </TooltipTrigger>
-          <TooltipContent side="top" className="dark">{label}</TooltipContent>
-        </Tooltip>
+        <BarTooltipTrigger
+          label={label}
+          render={
+            <DialogTrigger
+              render={
+                <Button
+                  type="button"
+                  size="icon-lg"
+                  variant="meetingChip"
+                  aria-label={label}
+                  className={MEETING_CHIP}
+                />
+              }
+            />
+          }
+        >
+          <Settings aria-hidden />
+        </BarTooltipTrigger>
       }
     />
   );
@@ -106,26 +99,24 @@ export function AdjustViewControl({ inMenu = false }: { inMenu?: boolean }) {
       open={open}
       onOpenChange={setOpen}
       trigger={
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <DialogTrigger
-                render={
-                  <Button
-                    type="button"
-                    size="icon-lg"
-                    variant="meetingChip"
-                    aria-label={label}
-                    className={MEETING_CHIP}
-                  />
-                }
-              />
-            }
-          >
-            <LayoutGrid aria-hidden />
-          </TooltipTrigger>
-          <TooltipContent side="top" className="dark">{label}</TooltipContent>
-        </Tooltip>
+        <BarTooltipTrigger
+          label={label}
+          render={
+            <DialogTrigger
+              render={
+                <Button
+                  type="button"
+                  size="icon-lg"
+                  variant="meetingChip"
+                  aria-label={label}
+                  className={MEETING_CHIP}
+                />
+              }
+            />
+          }
+        >
+          <LayoutGrid aria-hidden />
+        </BarTooltipTrigger>
       }
     />
   );

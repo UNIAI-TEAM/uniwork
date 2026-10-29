@@ -7,6 +7,8 @@ import { prejoinMicOn, useMeetingRoomPreferencesStore } from "@uniwork/core/meet
 import type { Meeting } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { cn } from "@uniwork/ui/lib/utils";
 import {
   MeetingCameraPreview,
   type CameraPreviewStatus,
@@ -14,8 +16,9 @@ import {
 import { formatMeetingWindow, meetingLocale } from "./meeting-datetime";
 import { MeetingCanvas } from "./meeting-canvas";
 import { MeetingDeviceField } from "./meeting-device-field";
+import { markJoinWash } from "./meeting-join-wash";
 import { MeetingMediaControlBar, useMediaDevices } from "./meeting-media-controls";
-import { MeetingMediaPermissionAction, MeetingMicLevel } from "./meeting-room-mic-check";
+import { MeetingMediaPermissionAction, MeetingMicDotsLive } from "./meeting-room-mic-check";
 import { MeetingScribeNotice } from "./meeting-scribe-notice";
 
 /** What the user chose before connecting; LiveKitRoom takes it as initial media. */
@@ -30,6 +33,7 @@ export function MeetingPreJoin({
   meeting,
   loading = false,
   scribeNoticeFor,
+  joining = false,
   onJoin,
   onLeave,
 }: {
@@ -38,7 +42,9 @@ export function MeetingPreJoin({
   loading?: boolean;
   /** The meeting's id when the AI scribe would transcribe it: the consent notice shows before joining. */
   scribeNoticeFor?: string;
-  onJoin: (choice: PreJoinChoice) => void;
+  /** The join is on its way: the button folds into a ring until the room answers. */
+  joining?: boolean;
+  onJoin:(choice: PreJoinChoice) => void;
   onLeave: () => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -85,8 +91,13 @@ export function MeetingPreJoin({
       {/* Centred as one block, tops aligned: the card starts where the camera does. */}
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-stretch gap-6 px-4 pb-8 lg:my-auto lg:flex-none lg:flex-row lg:items-start lg:gap-8">
         {/* The camera frame is its own `dark` island; the toggles below keep
-            the page's tokens so they match the room's control bar exactly. */}
-        <div className="w-full min-w-0 rounded-2xl bg-meeting-stage p-3 ring-1 ring-surface-border lg:flex-1">
+            the page's tokens so they match the room's control bar exactly.
+            While joining, the room opens with the choice made at the press:
+            the toggles and pickers go inert so the screen cannot say otherwise. */}
+        <div
+          inert={joining}
+          className="w-full min-w-0 rounded-2xl bg-meeting-stage p-3 ring-1 ring-surface-border lg:flex-1"
+        >
           <MeetingCameraPreview
             active={video}
             deviceId={videoDeviceId || undefined}
@@ -108,7 +119,7 @@ export function MeetingPreJoin({
               setJoinWithMic(!audio);
             }}
             onVideoToggle={() => setVideo((v) => !v)}
-            className="mt-3 flex justify-center gap-3"
+            className={cn("mt-3 flex justify-center gap-3 transition-opacity duration-fast", joining && "opacity-50")}
           />
           {mutedForCrowd ? (
             <p className="mt-2 text-center text-caption text-meeting-bar-muted-foreground" data-testid="prejoin-mic-crowded">
@@ -138,47 +149,67 @@ export function MeetingPreJoin({
               </p>
             ) : null}
           </div>
-          <MeetingDeviceField
-            id="prejoin-mic"
-            label={t("meetings.deviceMic")}
-            devices={mics}
-            value={audioDeviceId}
-            onValueChange={setAudioDeviceId}
-            emptyDescription={t("meetings.deviceMicNeedsPermission")}
-            emptyAction={
-              <MeetingMediaPermissionAction
-                label={t("meetings.micAllow")}
-                icon={Mic}
-                deniedMessage={t("meetings.micAllowDenied")}
-                onGranted={refresh}
-              />
-            }
+          <div
+            inert={joining}
+            className={cn("flex flex-col gap-4 transition-opacity duration-fast", joining && "opacity-50")}
           >
-            {audio ? <MeetingMicLevel deviceId={audioDeviceId || mics[0]?.deviceId} className="mt-1" /> : null}
-          </MeetingDeviceField>
-          <MeetingDeviceField
-            id="prejoin-camera"
-            label={t("meetings.deviceCamera")}
-            devices={cameras}
-            value={videoDeviceId}
-            onValueChange={setVideoDeviceId}
-            emptyDescription={t("meetings.deviceCameraNeedsPermission")}
-          />
-          {scribeNoticeFor ? <MeetingScribeNotice meetingKey={scribeNoticeFor} scribeOn /> : null}
+            <MeetingDeviceField
+              id="prejoin-mic"
+              label={t("meetings.deviceMic")}
+              devices={mics}
+              value={audioDeviceId}
+              onValueChange={setAudioDeviceId}
+              adornment={audio ? <MeetingMicDotsLive deviceId={audioDeviceId || mics[0]?.deviceId} /> : null}
+              emptyDescription={t("meetings.deviceMicNeedsPermission")}
+              emptyAction={
+                <MeetingMediaPermissionAction
+                  label={t("meetings.micAllow")}
+                  icon={Mic}
+                  deniedMessage={t("meetings.micAllowDenied")}
+                  onGranted={refresh}
+                />
+              }
+            />
+            <MeetingDeviceField
+              id="prejoin-camera"
+              label={t("meetings.deviceCamera")}
+              devices={cameras}
+              value={videoDeviceId}
+              onValueChange={setVideoDeviceId}
+              emptyDescription={t("meetings.deviceCameraNeedsPermission")}
+            />
+          </div>
+          {scribeNoticeFor ? <MeetingScribeNotice meetingKey={scribeNoticeFor} scribeOn variant="chip" /> : null}
+          {/* The press folds the button into a ring until the room answers;
+              the name stays for screen readers, the ring is decorative. */}
           <Button
             type="button"
             variant="brand"
-            className="h-11 w-full"
-            onClick={() =>
+            aria-busy={joining || undefined}
+            aria-disabled={joining || undefined}
+            data-joining={joining ? "" : undefined}
+            className={cn(
+              "relative mx-auto h-11 w-full overflow-hidden transition-[width,border-radius,background-color] duration-(--duration-settle) ease-(--ease-settle) motion-reduce:transition-none",
+              // Busy, not disabled: keep the brand fill instead of the faded look.
+              joining && "w-11 rounded-full aria-disabled:cursor-progress aria-disabled:opacity-100",
+            )}
+            onClick={(e) => {
+              markJoinWash(e.currentTarget);
               onJoin({
                 audio,
                 video,
                 audioDeviceId: audioDeviceId || undefined,
                 videoDeviceId: videoDeviceId || undefined,
-              })
-            }
+              });
+            }}
           >
-            {t("meetings.join")}
+            <span className={cn("transition-opacity duration-fast", joining && "opacity-0")}>{t("meetings.join")}</span>
+            <Spinner
+              className={cn(
+                "absolute inset-0 m-auto size-6 opacity-0 transition-opacity duration-fast",
+                joining && "opacity-100 delay-250 motion-reduce:delay-0",
+              )}
+            />
           </Button>
           <p className="text-caption text-muted-foreground">
             {t("meetings.prejoinHint")}
