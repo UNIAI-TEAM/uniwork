@@ -157,7 +157,10 @@ export function buildSearchViewState({
     const foldedQuery = foldSearchText(search.committedQuery);
     const rows = foldedQuery
       ? libraryRows.filter(
-          (row) => row.type === "source" && foldSearchText(row.source.name).includes(foldedQuery),
+          (row) =>
+            row.type === "source" &&
+            (foldSearchText(row.source.name).includes(foldedQuery) ||
+              (row.source.kind === "page" && foldSearchText(row.source.parent.title).includes(foldedQuery))),
         )
       : libraryRows;
     return {

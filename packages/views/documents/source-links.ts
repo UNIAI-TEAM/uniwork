@@ -12,13 +12,20 @@ export interface SourceLinkPaths {
   email: () => string;
 }
 
+export type SourceOpenAction = "page" | "office" | "download";
+
 /**
- * What the primary click of a "Từ nơi khác" row does with the file (U-SRC1,
- * UNI-1869): a file the server marks openable AND a web module exists for
- * opens in its module frame, view-only; every other kind downloads. Sources
- * are document files only (UNI-1967), so there is no image preview.
+ * What the primary click of a "Từ nơi khác" row does with the item (U-SRC1,
+ * UNI-1869, UNI-2288): a UniNote minutes page (`kind: "page"` with a
+ * `document_id`) opens its page route; a file the server marks openable AND a
+ * web module exists for opens in its module frame, view-only; every other kind
+ * downloads. Sources are document files or minutes pages only (UNI-1967), so
+ * there is no image preview.
  */
-export function sourceOpenAction(source: Pick<DocumentSourceFile, "name" | "mime_type" | "extension" | "can_open_in_app">): "office" | "download" {
+export function sourceOpenAction(
+  source: Pick<DocumentSourceFile, "name" | "mime_type" | "extension" | "can_open_in_app" | "kind" | "document_id">,
+): SourceOpenAction {
+  if (source.kind === "page" && Boolean(source.document_id)) return "page";
   // The server vouches (can_open_in_app) and the client can map a module: the
   // office viewer. A flag on a format this build has no module for still downloads.
   if (source.can_open_in_app && sourceOfficeModule(source) !== null) return "office";
