@@ -335,6 +335,7 @@ type memDriveUnitDBTX struct {
 	conns             map[string]db.DriveConnection // connID -> row
 	failSetFolderName bool
 	failUpdateFile    bool
+	tryLockGraphBusy  bool
 }
 
 func (m *memDriveUnitDBTX) beginTx() (*db.Queries, func(context.Context) error, func(context.Context) error, error) {
@@ -361,6 +362,7 @@ func (m *memDriveUnitDBTX) beginTx() (*db.Queries, func(context.Context) error, 
 		conns:             m.conns,
 		failSetFolderName: m.failSetFolderName,
 		failUpdateFile:    m.failUpdateFile,
+		tryLockGraphBusy:  m.tryLockGraphBusy,
 	}
 	closed := false
 	commit := func(context.Context) error {
@@ -438,6 +440,27 @@ func (r *memDriveFolderRows) Scan(dest ...any) error {
 func (m *memDriveUnitDBTX) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if strings.Contains(sql, "-- name: LockDriveFolderGraph ") {
+		return pgconn.NewCommandTag("SELECT 1"), nil
+	}
+	if strings.Contains(sql, "-- name: RestoreDriveFileMetadataRefreshedAt ") {
+		prevRef, _ := args[0].(pgtype.Timestamptz)
+		id, _ := args[1].(string)
+		orgID, _ := args[2].(string)
+		wsID, _ := args[3].(string)
+		claimedRef, _ := args[4].(pgtype.Timestamptz)
+		row, ok := m.files[id]
+		if !ok || row.OrganizationID != orgID || row.WorkspaceID != wsID || row.UnlinkedAt.Valid {
+			return pgconn.NewCommandTag("UPDATE 0"), nil
+		}
+		if row.MetadataRefreshedAt.Valid != claimedRef.Valid ||
+			(row.MetadataRefreshedAt.Valid && !row.MetadataRefreshedAt.Time.Equal(claimedRef.Time)) {
+			return pgconn.NewCommandTag("UPDATE 0"), nil
+		}
+		row.MetadataRefreshedAt = prevRef
+		m.files[id] = row
+		return pgconn.NewCommandTag("UPDATE 1"), nil
+	}
 	if strings.Contains(sql, "-- name: UpdateDriveConnectionTokens ") {
 		accessEnc, _ := args[0].(string)
 		accessExp, _ := args[1].(pgtype.Timestamptz)
@@ -581,6 +604,12 @@ func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) 
 			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
 		}
 		return scanMemDriveFile(row)
+	case strings.Contains(sql, "-- name: TryLockDriveFolderGraph "):
+		locked := !m.tryLockGraphBusy
+		return driveUnitRowFunc(func(dest ...any) error {
+			*(dest[0].(*bool)) = locked
+			return nil
+		})
 	case strings.Contains(sql, "-- name: ClaimDriveFileMetadataRefresh "):
 		id, _ := args[0].(string)
 		orgID, _ := args[1].(string)
@@ -589,10 +618,9 @@ func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) 
 		if !ok || row.OrganizationID != orgID || row.WorkspaceID != wsID || row.UnlinkedAt.Valid {
 			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
 		}
-		return driveUnitRowFunc(func(dest ...any) error {
-			*(dest[0].(*string)) = row.ID
-			return nil
-		})
+		row.MetadataRefreshedAt = pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+		m.files[id] = row
+		return scanMemDriveFile(row)
 	case strings.Contains(sql, "-- name: UpsertDriveFolder "):
 		id, _ := args[0].(string)
 		orgID, _ := args[1].(string)
@@ -3322,9 +3350,35 @@ func TestDriveOpportunisticRefreshAtomicRollbackUnit(t *testing.T) {
 		return memDB.beginTx()
 	}
 
+	staleRefreshedAt := pgtype.Timestamptz{Time: now.Add(-15 * time.Minute), Valid: true}
+	f1Init := memDB.files[file1ID]
+	f1Init.MetadataRefreshedAt = staleRefreshedAt
+	memDB.files[file1ID] = f1Init
+
+	// 0. When TryLockDriveFolderGraph reports busy (locked=false), refresh skips
+	// persistence without stamping metadata_refreshed_at (restoring the pre-claim
+	// stale timestamp so the next request retries; D-LOCK, RB2-1).
+	memDB.tryLockGraphBusy = true
+	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, staleRefreshedAt, nil); ok {
+		t.Fatalf("refreshFileWithViewerConnection succeeded when TryLockDriveFolderGraph was busy")
+	}
+	if got := memDB.folders[wsID+"|"+folderID].Name; got != "Old Folder Name" {
+		t.Fatalf("drive_folders.name when try-lock busy = %q, want Old Folder Name", got)
+	}
+	if got := memDB.files[file1ID].Name; got != "Doc 1" {
+		t.Fatalf("file1 name when try-lock busy = %q, want Doc 1", got)
+	}
+	if gotRef := memDB.files[file1ID].MetadataRefreshedAt; !gotRef.Valid || !gotRef.Time.Equal(staleRefreshedAt.Time) {
+		t.Fatalf("file1 metadata_refreshed_at when try-lock busy = %+v, want restored stale %+v (not stamped)", gotRef, staleRefreshedAt)
+	}
+	if !fileSvc.isMetadataStale(memDB.files[file1ID].MetadataRefreshedAt) {
+		t.Fatalf("file1 metadata_refreshed_at must remain stale after busy try-lock skip so next request retries")
+	}
+	memDB.tryLockGraphBusy = false
+
 	// 1. Failure in SetDriveFolderNameInWorkspace must roll back UpsertDriveFolder and fail refresh cleanly.
 	memDB.failSetFolderName = true
-	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); ok {
+	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, staleRefreshedAt, nil); ok {
 		t.Fatalf("refreshFileWithViewerConnection succeeded when SetDriveFolderNameInWorkspace failed")
 	}
 	if got := memDB.folders[wsID+"|"+folderID].Name; got != "Old Folder Name" {
@@ -3337,7 +3391,7 @@ func TestDriveOpportunisticRefreshAtomicRollbackUnit(t *testing.T) {
 
 	// 2. Failure in UpdateDriveFileMetadata must roll back both UpsertDriveFolder and SetDriveFolderNameInWorkspace.
 	memDB.failUpdateFile = true
-	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); ok {
+	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, staleRefreshedAt, nil); ok {
 		t.Fatalf("refreshFileWithViewerConnection succeeded when UpdateDriveFileMetadata failed")
 	}
 	if got := memDB.folders[wsID+"|"+folderID].Name; got != "Old Folder Name" {
@@ -3349,7 +3403,7 @@ func TestDriveOpportunisticRefreshAtomicRollbackUnit(t *testing.T) {
 	memDB.failUpdateFile = false
 
 	// 3. When all writes succeed, folder upsert, sibling folder-name sync, and file snapshot commit together.
-	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); !ok {
+	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, staleRefreshedAt, nil); !ok {
 		t.Fatalf("refreshFileWithViewerConnection failed on clean run")
 	}
 	if got := memDB.folders[wsID+"|"+folderID].Name; got != "New Folder Name" {
@@ -3471,5 +3525,78 @@ func TestPruneOrphanedWorkspaceDriveFoldersInTxUnit(t *testing.T) {
 	}
 	if len(memDB.folders) != 0 {
 		t.Fatalf("drive_folders after unlinking all active files = %+v, want empty", memDB.folders)
+	}
+
+	// 4. Deep stored chain > 10 hops (f00 <- f01 <- ... <- f11) and reachable cycle
+	// in pruneOrphanedWorkspaceDriveFoldersInTx (RB2-2): unlinking an unrelated file
+	// retains every ancestor of active f11 (including f00 at depth 11) and the reachable cycle.
+	for i := range 12 {
+		fid := "f" + string(rune('0'+i/10)) + string(rune('0'+i%10))
+		var parent pgtype.Text
+		if i > 0 {
+			pid := "f" + string(rune('0'+(i-1)/10)) + string(rune('0'+(i-1)%10))
+			parent = pgtype.Text{String: pid, Valid: true}
+		}
+		memDB.folders[wsID+"|"+fid] = db.DriveFolder{
+			ID:             "df-" + fid,
+			OrganizationID: orgID,
+			WorkspaceID:    wsID,
+			DriveFolderID:  fid,
+			Name:           "Deep " + fid,
+			ParentFolderID: parent,
+		}
+	}
+	memDB.folders[wsID+"|cyc-a"] = db.DriveFolder{
+		ID:             "df-cyc-a",
+		OrganizationID: orgID,
+		WorkspaceID:    wsID,
+		DriveFolderID:  "cyc-a",
+		Name:           "Cyc A",
+		ParentFolderID: pgtype.Text{String: "cyc-b", Valid: true},
+	}
+	memDB.folders[wsID+"|cyc-b"] = db.DriveFolder{
+		ID:             "df-cyc-b",
+		OrganizationID: orgID,
+		WorkspaceID:    wsID,
+		DriveFolderID:  "cyc-b",
+		Name:           "Cyc B",
+		ParentFolderID: pgtype.Text{String: "cyc-a", Valid: true},
+	}
+	memDB.folders[wsID+"|unrelated"] = db.DriveFolder{
+		ID:             "df-unrelated",
+		OrganizationID: orgID,
+		WorkspaceID:    wsID,
+		DriveFolderID:  "unrelated",
+		Name:           "Unrelated",
+	}
+	memDB.files["file-deep-leaf"] = db.DriveFile{
+		ID:             "file-deep-leaf",
+		OrganizationID: orgID,
+		WorkspaceID:    wsID,
+		DriveFolderID:  pgtype.Text{String: "f11", Valid: true},
+	}
+	memDB.files["file-cyc"] = db.DriveFile{
+		ID:             "file-cyc",
+		OrganizationID: orgID,
+		WorkspaceID:    wsID,
+		DriveFolderID:  pgtype.Text{String: "cyc-a", Valid: true},
+	}
+	if err := pruneOrphanedWorkspaceDriveFoldersInTx(ctx, q, wsRow); err != nil {
+		t.Fatalf("pruneOrphanedWorkspaceDriveFoldersInTx deep chain: %v", err)
+	}
+	if _, exists := memDB.folders[wsID+"|unrelated"]; exists {
+		t.Fatalf("unrelated folder was not pruned")
+	}
+	for i := range 12 {
+		fid := "f" + string(rune('0'+i/10)) + string(rune('0'+i%10))
+		if _, exists := memDB.folders[wsID+"|"+fid]; !exists {
+			t.Fatalf("ancestor %s in 12-node active chain was wrongly pruned", fid)
+		}
+	}
+	if _, exists := memDB.folders[wsID+"|cyc-a"]; !exists {
+		t.Fatalf("reachable cycle node cyc-a was wrongly pruned")
+	}
+	if _, exists := memDB.folders[wsID+"|cyc-b"]; !exists {
+		t.Fatalf("reachable cycle node cyc-b was wrongly pruned")
 	}
 }

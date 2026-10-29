@@ -6,15 +6,18 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -2705,6 +2708,55 @@ func TestAssembleDriveFolderTreeUnit(t *testing.T) {
 	if len(staleNone) != 6 {
 		t.Fatalf("collectOrphanedDriveFolderIDs(active=nil) = %v, want all 6 pruned", staleNone)
 	}
+
+	// 7. Deep stored chain > 10 hops + reachable cycle + shared ancestor reuse (RB2-2):
+	// f00 <- f01 <- ... <- f12 (13 nodes, 12 parent hops) with active file in f12,
+	// sibling leaf f12-sib sharing f10, and reachable cycle cyc-r1 <-> cyc-r2 <- cyc-leaf.
+	var deepFolders []db.ListWorkspaceDriveFoldersRow
+	for i := range 13 {
+		fid := "f" + string(rune('0'+i/10)) + string(rune('0'+i%10))
+		var parent pgtype.Text
+		if i > 0 {
+			pid := "f" + string(rune('0'+(i-1)/10)) + string(rune('0'+(i-1)%10))
+			parent = pgtype.Text{String: pid, Valid: true}
+		}
+		deepFolders = append(deepFolders, db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  fid,
+			Name:           "Folder " + fid,
+			ParentFolderID: parent,
+		})
+	}
+	deepFolders = append(deepFolders,
+		db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  "f12-sib",
+			Name:           "Sibling Leaf",
+			ParentFolderID: pgtype.Text{String: "f10", Valid: true},
+		},
+		db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  "cyc-r1",
+			Name:           "Reachable Cyc 1",
+			ParentFolderID: pgtype.Text{String: "cyc-r2", Valid: true},
+		},
+		db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  "cyc-r2",
+			Name:           "Reachable Cyc 2",
+			ParentFolderID: pgtype.Text{String: "cyc-r1", Valid: true},
+		},
+		db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  "cyc-leaf",
+			Name:           "Reachable Cyc Leaf",
+			ParentFolderID: pgtype.Text{String: "cyc-r2", Valid: true},
+		},
+		db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  "unrelated-stale",
+			Name:           "Unrelated Stale",
+			ParentFolderID: pgtype.Text{},
+		},
+	)
+	staleDeep := collectOrphanedDriveFolderIDs(deepFolders, []string{"f12", "f12-sib", "cyc-leaf"})
+	if len(staleDeep) != 1 || staleDeep[0] != "unrelated-stale" {
+		t.Fatalf("collectOrphanedDriveFolderIDs on 12-hop chain + reachable cycle = %v, want [unrelated-stale]", staleDeep)
+	}
 }
 
 // TestDriveFolderTreeUpwardWalkAndNesting (UNI-2291) verifies on PostgreSQL:
@@ -3443,5 +3495,581 @@ func TestDriveOpportunisticRefreshAtomicityAndInterleaving(t *testing.T) {
 	}
 	if finalFolderName != "Consistent Renamed Folder" || finalFileAFolder != finalFolderName || finalFileBFolder != finalFolderName {
 		t.Fatalf("inconsistent folder names: folder=%q fileA=%q fileB=%q", finalFolderName, finalFileAFolder, finalFileBFolder)
+	}
+}
+
+// TestDriveFolderGraphLockOrderAndPruneConcurrency (UNI-2291 D-LOCK, RB2-1, RB2-2, RB2-3)
+// verifies on PostgreSQL using a bounded small pool (MaxConns=2) and a separate watcher
+// connection that:
+//  1. Refresh vs Unlink and Unlink vs Refresh settle without 40P01 deadlock or partial state;
+//     when Unlink holds the workspace folder-graph lock, refresh's TryLockDriveFolderGraph
+//     skips persistence without blocking or stamping metadata_refreshed_at.
+//  2. Refresh vs GrantAccess and GrantAccess vs Refresh settle without 40P01 deadlock or
+//     partial state; when GrantAccess holds the graph lock, refresh skips without stamping
+//     so a subsequent read retries.
+//  3. Concurrent Unlink of the last two active files in a folder serializes on
+//     LockDriveFolderGraph and leaves the folder pruned from drive_folders.
+//  4. Concurrent Link vs Unlink (prune) serializes on LockDriveFolderGraph so an ancestor
+//     above the newly linked file is retained when Link runs first or restored when Link
+//     runs second, never leaving the newly linked file with a pruned ancestor.
+//  5. Deep stored ancestor chains (>10 hops) are retained across Unlink of an unrelated file.
+func TestDriveFolderGraphLockOrderAndPruneConcurrency(t *testing.T) {
+	env := newDriveFilesTestEnv(t)
+	baseCtx := context.Background()
+
+	smallCfg := env.pool.Config().Copy()
+	smallCfg.MaxConns = 2
+	smallCfg.MinConns = 0
+	smallPool, err := pgxpool.NewWithConfig(baseCtx, smallCfg)
+	if err != nil {
+		t.Fatalf("new smallPool: %v", err)
+	}
+	t.Cleanup(smallPool.Close)
+
+	smallQ := db.New(smallPool)
+	smallOrgs := NewOrganizationService(smallPool, smallQ)
+	smallWS := NewWorkspaceService(smallPool, smallQ, smallOrgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	smallWS.q = db.New(&guestOverrideDBTX{inner: smallPool, orgID: env.org.ID, guests: env.guests})
+	smallConnSvc := NewDriveConnectionService(smallPool, smallQ, smallWS, env.box)
+	smallConnSvc.SetFlags(env.svc.flags)
+	smallConnSvc.SetProvider(env.fake)
+	fileSvc := NewDriveFileService(smallPool, smallQ, smallWS, smallConnSvc, env.googleSrv.Client)
+	fileSvc.SetFlags(env.svc.flags)
+	taskSvc := NewTaskService(smallPool, smallQ, smallWS, nil)
+	taskSvc.SetDriveFiles(fileSvc)
+
+	var workerLeaked bool
+	resetHooks := func() {
+		if workerLeaked {
+			return
+		}
+		fileSvc.testBeforeGraphLock = nil
+		fileSvc.testAfterGraphLock = nil
+		fileSvc.testAfterRefreshFoldersUpsert = nil
+	}
+	joinWorker := func(done <-chan struct{}, label string) {
+		t.Helper()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			workerLeaked = true
+			t.Fatalf("timed out joining worker %s; leaving hooks untouched to avoid data race", label)
+		}
+	}
+	waitCh := func(ch <-chan struct{}, label string, cleanups ...func()) {
+		t.Helper()
+		select {
+		case <-ch:
+		case <-time.After(5 * time.Second):
+			for _, fn := range cleanups {
+				if fn != nil {
+					fn()
+				}
+			}
+			t.Fatalf("timed out waiting for %s", label)
+		}
+	}
+	waitErrCh := func(ch <-chan error, label string, cleanups ...func()) error {
+		t.Helper()
+		select {
+		case err := <-ch:
+			return err
+		case <-time.After(5 * time.Second):
+			for _, fn := range cleanups {
+				if fn != nil {
+					fn()
+				}
+			}
+			t.Fatalf("timed out waiting for %s", label)
+			return nil
+		}
+	}
+	assertNoDeadlock := func(err error, label string) {
+		t.Helper()
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "40P01" {
+			t.Fatalf("%s deadlocked with 40P01: %v", label, err)
+		}
+	}
+	waitForGraphLockWaiter := func(wsID string, cleanups ...func()) {
+		t.Helper()
+		deadline := time.Now().Add(3 * time.Second)
+		var lastErr error
+		for time.Now().Before(deadline) {
+			var waiting int
+			// Query pg_locks on env.pool (dedicated watcher pool, never starving smallPool).
+			lastErr = env.pool.QueryRow(baseCtx, `
+				SELECT count(*)
+				FROM pg_locks w
+				JOIN pg_locks h
+				  ON h.locktype = 'advisory'
+				 AND h.classid = w.classid
+				 AND h.objid = w.objid
+				 AND h.objsubid = w.objsubid
+				 AND h.granted
+				WHERE w.locktype = 'advisory'
+				  AND NOT w.granted`,
+			).Scan(&waiting)
+			if lastErr == nil && waiting > 0 {
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		for _, fn := range cleanups {
+			if fn != nil {
+				fn()
+			}
+		}
+		t.Fatalf("did not observe backend waiting on drive_folder_graph lock for ws %s (lastErr=%v)", wsID, lastErr)
+	}
+
+	connOwner := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-rb2-owner", "rb2-owner@example.com")
+	connPeer := env.connectAccount(t, env.peer.ID, env.wsA.ID, "sub-rb2-peer", "rb2-peer@example.com")
+
+	// --- Case 1A: Refresh holds LockDriveFolderGraph (via TryLockDriveFolderGraph) while Unlink
+	// starts and waits on LockDriveFolderGraph before taking any file lock. Both settle without
+	// 40P01 and the unlinked file's sole folder is pruned once Unlink runs. ---
+	env.googleSrv.SetFile("fld-rb2-1a", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb2-1a", Name: "Folder 1A Initial", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("ext-rb2-1a", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-rb2-1a", Name: "Doc 1A", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-rb2-1a"}},
+	})
+	linked1A, err := fileSvc.Link(baseCtx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"ext-rb2-1a"},
+	})
+	if err != nil || len(linked1A) != 1 || linked1A[0].File == nil {
+		t.Fatalf("Link 1A: %+v, err=%v", linked1A, err)
+	}
+	file1AID := linked1A[0].File.ID
+	env.googleSrv.SetFile("fld-rb2-1a", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb2-1a", Name: "Folder 1A Renamed", MimeType: DriveMimeGoogleFolder},
+	})
+	if _, err := env.pool.Exec(baseCtx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, file1AID); err != nil {
+		t.Fatalf("age file1A: %v", err)
+	}
+
+	refresh1AHeld := make(chan struct{})
+	releaseRefresh1A := make(chan struct{})
+	var release1AOnce sync.Once
+	safeRelease1A := func() { release1AOnce.Do(func() { close(releaseRefresh1A) }) }
+	var refresh1AHookOnce atomic.Bool
+	fileSvc.testAfterRefreshFoldersUpsert = func(driveFileID string) error {
+		if driveFileID == file1AID && refresh1AHookOnce.CompareAndSwap(false, true) {
+			close(refresh1AHeld)
+			<-releaseRefresh1A
+		}
+		return nil
+	}
+
+	ctx1A, cancel1A := context.WithTimeout(baseCtx, 15*time.Second)
+	defer cancel1A()
+	get1AErrCh := make(chan error, 1)
+	unlink1AErrCh := make(chan error, 1)
+	get1ADone := make(chan struct{})
+	unlink1ADone := make(chan struct{})
+	go func() {
+		defer close(get1ADone)
+		_, gerr := fileSvc.Get(ctx1A, Human(env.owner.ID), env.wsA.ID, file1AID)
+		get1AErrCh <- gerr
+	}()
+	waitCh(refresh1AHeld, "Refresh 1A to hold LockDriveFolderGraph after folder upsert", safeRelease1A)
+
+	go func() {
+		defer close(unlink1ADone)
+		unlink1AErrCh <- fileSvc.Unlink(ctx1A, Human(env.owner.ID), env.wsA.ID, file1AID)
+	}()
+	waitForGraphLockWaiter(env.wsA.ID, safeRelease1A)
+	safeRelease1A()
+
+	get1AErr := waitErrCh(get1AErrCh, "Get 1A completion")
+	unlink1AErr := waitErrCh(unlink1AErrCh, "Unlink 1A completion")
+	joinWorker(get1ADone, "Get 1A")
+	joinWorker(unlink1ADone, "Unlink 1A")
+	resetHooks()
+	assertNoDeadlock(get1AErr, "Get 1A vs Unlink 1A")
+	assertNoDeadlock(unlink1AErr, "Unlink 1A vs Get 1A")
+	if unlink1AErr != nil {
+		t.Fatalf("Unlink 1A error: %v", unlink1AErr)
+	}
+	var count1AFolders int
+	if err := env.pool.QueryRow(baseCtx,
+		`SELECT count(*) FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id = 'fld-rb2-1a'`,
+		env.wsA.ID,
+	).Scan(&count1AFolders); err != nil || count1AFolders != 0 {
+		t.Fatalf("fld-rb2-1a count after Refresh+Unlink = %d (err=%v), want 0 (pruned)", count1AFolders, err)
+	}
+
+	// --- Case 1B: Unlink holds LockDriveFolderGraph while Refresh reaches TryLockDriveFolderGraph:
+	// Refresh immediately skips persistence without blocking, serves cached data, and restores
+	// the stale metadata_refreshed_at timestamp so the next request retries. ---
+	env.googleSrv.SetFile("fld-rb2-1b-keep", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb2-1b-keep", Name: "Keep Folder Initial", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("fld-rb2-1b-drop", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb2-1b-drop", Name: "Drop Folder", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("ext-rb2-1b-keep", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-rb2-1b-keep", Name: "Doc 1B Keep", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-rb2-1b-keep"}},
+	})
+	env.googleSrv.SetFile("ext-rb2-1b-drop", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-rb2-1b-drop", Name: "Doc 1B Drop", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-rb2-1b-drop"}},
+	})
+	linked1B, err := fileSvc.Link(baseCtx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"ext-rb2-1b-keep", "ext-rb2-1b-drop"},
+	})
+	if err != nil || len(linked1B) != 2 {
+		t.Fatalf("Link 1B: %+v, err=%v", linked1B, err)
+	}
+	keep1BID := linked1B[0].File.ID
+	drop1BID := linked1B[1].File.ID
+
+	env.googleSrv.SetFile("fld-rb2-1b-keep", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb2-1b-keep", Name: "Keep Folder Renamed", MimeType: DriveMimeGoogleFolder},
+	})
+	if _, err := env.pool.Exec(baseCtx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, keep1BID); err != nil {
+		t.Fatalf("age keep1B: %v", err)
+	}
+
+	unlink1BHeld := make(chan struct{})
+	releaseUnlink1B := make(chan struct{})
+	var release1BOnce sync.Once
+	safeRelease1B := func() { release1BOnce.Do(func() { close(releaseUnlink1B) }) }
+	var unlink1BHookOnce atomic.Bool
+	fileSvc.testAfterGraphLock = func(op, _ string, targetID string) {
+		if op == "unlink" && targetID == drop1BID && unlink1BHookOnce.CompareAndSwap(false, true) {
+			close(unlink1BHeld)
+			<-releaseUnlink1B
+		}
+	}
+
+	ctx1B, cancel1B := context.WithTimeout(baseCtx, 15*time.Second)
+	defer cancel1B()
+	unlink1BErrCh := make(chan error, 1)
+	unlink1BDone := make(chan struct{})
+	go func() {
+		defer close(unlink1BDone)
+		unlink1BErrCh <- fileSvc.Unlink(ctx1B, Human(env.owner.ID), env.wsA.ID, drop1BID)
+	}()
+	waitCh(unlink1BHeld, "Unlink 1B to hold LockDriveFolderGraph", safeRelease1B)
+
+	// While Unlink holds LockDriveFolderGraph, Get on keep1BID runs opportunistic refresh,
+	// sees TryLockDriveFolderGraph == false, skips persistence without waiting, and returns cached data.
+	gotWhileBusy, err := fileSvc.Get(ctx1B, Human(env.owner.ID), env.wsA.ID, keep1BID)
+	if err != nil {
+		safeRelease1B()
+		t.Fatalf("Get while Unlink holds graph lock: %v", err)
+	}
+	if gotWhileBusy.DriveFolder == nil || gotWhileBusy.DriveFolder.Name == nil || *gotWhileBusy.DriveFolder.Name != "Keep Folder Initial" {
+		safeRelease1B()
+		t.Fatalf("Get while busy returned %+v, want cached Keep Folder Initial", gotWhileBusy.DriveFolder)
+	}
+	var stillStale1B bool
+	if err := env.pool.QueryRow(baseCtx,
+		`SELECT metadata_refreshed_at < now() - interval '10 minutes' FROM drive_files WHERE id = $1`,
+		keep1BID,
+	).Scan(&stillStale1B); err != nil || !stillStale1B {
+		safeRelease1B()
+		t.Fatalf("keep1B stillStale after busy try-lock skip = %v (err=%v), want true (not stamped)", stillStale1B, err)
+	}
+
+	safeRelease1B()
+	unlink1BErr := waitErrCh(unlink1BErrCh, "Unlink 1B completion")
+	joinWorker(unlink1BDone, "Unlink 1B")
+	resetHooks()
+	assertNoDeadlock(unlink1BErr, "Unlink 1B")
+	if unlink1BErr != nil {
+		t.Fatalf("Unlink 1B error: %v", unlink1BErr)
+	}
+
+	// Next Get on keep1BID now succeeds in acquiring TryLockDriveFolderGraph and persists the new folder name.
+	gotAfterRelease, err := fileSvc.Get(ctx1B, Human(env.owner.ID), env.wsA.ID, keep1BID)
+	if err != nil {
+		t.Fatalf("Get after Unlink 1B release: %v", err)
+	}
+	if gotAfterRelease.DriveFolder == nil || gotAfterRelease.DriveFolder.Name == nil || *gotAfterRelease.DriveFolder.Name != "Keep Folder Renamed" {
+		t.Fatalf("Get after release DriveFolder = %+v, want Keep Folder Renamed", gotAfterRelease.DriveFolder)
+	}
+
+	// --- Case 2: Refresh vs GrantAccess (both directions settle without 40P01 or partial state). ---
+	taskGA, err := taskSvc.Create(baseCtx, Human(env.owner.ID), env.wsA.ID, CreateTaskInput{Title: "GrantAccess Concurrency Task"})
+	if err != nil {
+		t.Fatalf("Create taskGA: %v", err)
+	}
+	taskGAID := taskGA.ID
+	env.googleSrv.SetFile("fld-rb2-ga", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb2-ga", Name: "GA Folder Initial", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("ext-rb2-ga", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-rb2-ga", Name: "Doc GA", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-rb2-ga"}},
+	})
+	linkedGA, err := fileSvc.Link(baseCtx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"ext-rb2-ga"},
+		TaskID:          &taskGAID,
+	})
+	if err != nil || len(linkedGA) != 1 || linkedGA[0].File == nil {
+		t.Fatalf("Link GA: %+v, err=%v", linkedGA, err)
+	}
+	fileGAID := linkedGA[0].File.ID
+	env.googleSrv.SetFile("fld-rb2-ga", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb2-ga", Name: "GA Folder Updated", MimeType: DriveMimeGoogleFolder},
+	})
+	if _, err := env.pool.Exec(baseCtx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, fileGAID); err != nil {
+		t.Fatalf("age fileGA: %v", err)
+	}
+
+	refreshGAHeld := make(chan struct{})
+	releaseRefreshGA := make(chan struct{})
+	var releaseGAOnce sync.Once
+	safeReleaseGA := func() { releaseGAOnce.Do(func() { close(releaseRefreshGA) }) }
+	var refreshGAHookOnce atomic.Bool
+	fileSvc.testAfterRefreshFoldersUpsert = func(driveFileID string) error {
+		if driveFileID == fileGAID && refreshGAHookOnce.CompareAndSwap(false, true) {
+			close(refreshGAHeld)
+			<-releaseRefreshGA
+		}
+		return nil
+	}
+
+	ctx2, cancel2 := context.WithTimeout(baseCtx, 15*time.Second)
+	defer cancel2()
+	getGAErrCh := make(chan error, 1)
+	grantGAErrCh := make(chan error, 1)
+	getGADone := make(chan struct{})
+	grantGADone := make(chan struct{})
+	go func() {
+		defer close(getGADone)
+		_, gerr := fileSvc.Get(ctx2, Human(env.owner.ID), env.wsA.ID, fileGAID)
+		getGAErrCh <- gerr
+	}()
+	waitCh(refreshGAHeld, "Refresh GA to hold LockDriveFolderGraph", safeReleaseGA)
+
+	go func() {
+		defer close(grantGADone)
+		_, gerr := fileSvc.GrantAccess(ctx2, Human(env.peer.ID), env.wsA.ID, fileGAID, connPeer.ID)
+		grantGAErrCh <- gerr
+	}()
+	waitForGraphLockWaiter(env.wsA.ID, safeReleaseGA)
+	safeReleaseGA()
+
+	getGAErr := waitErrCh(getGAErrCh, "Get GA completion")
+	grantGAErr := waitErrCh(grantGAErrCh, "GrantAccess GA completion")
+	joinWorker(getGADone, "Get GA")
+	joinWorker(grantGADone, "GrantAccess GA")
+	resetHooks()
+	assertNoDeadlock(getGAErr, "Get GA vs GrantAccess")
+	assertNoDeadlock(grantGAErr, "GrantAccess vs Get GA")
+	if getGAErr != nil || grantGAErr != nil {
+		t.Fatalf("Refresh vs GrantAccess errors: get=%v grant=%v", getGAErr, grantGAErr)
+	}
+	peerGAView, err := fileSvc.Get(baseCtx, Human(env.peer.ID), env.wsA.ID, fileGAID)
+	if err != nil || peerGAView.ViewerAccess != DriveViewerAccessGranted || peerGAView.DriveFolder == nil || peerGAView.DriveFolder.Name == nil || *peerGAView.DriveFolder.Name != "GA Folder Updated" {
+		t.Fatalf("peerGAView after Refresh+GrantAccess = %+v, err=%v", peerGAView, err)
+	}
+
+	// --- Case 3: Concurrent Unlinks of the last two active files in a folder serialize on
+	// LockDriveFolderGraph and leave the folder pruned (RB2-3). ---
+	env.googleSrv.SetFile("fld-rb2-last2", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb2-last2", Name: "Last Two Folder", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("ext-rb2-last2-a", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-rb2-last2-a", Name: "Last2 Doc A", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-rb2-last2"}},
+	})
+	env.googleSrv.SetFile("ext-rb2-last2-b", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-rb2-last2-b", Name: "Last2 Doc B", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-rb2-last2"}},
+	})
+	linkedLast2, err := fileSvc.Link(baseCtx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"ext-rb2-last2-a", "ext-rb2-last2-b"},
+	})
+	if err != nil || len(linkedLast2) != 2 {
+		t.Fatalf("Link Last2: %+v, err=%v", linkedLast2, err)
+	}
+	last2AID := linkedLast2[0].File.ID
+	last2BID := linkedLast2[1].File.ID
+
+	u1Held := make(chan struct{})
+	releaseU1 := make(chan struct{})
+	var releaseU1Once sync.Once
+	safeReleaseU1 := func() { releaseU1Once.Do(func() { close(releaseU1) }) }
+	var u1HookOnce atomic.Bool
+	fileSvc.testAfterGraphLock = func(op, _ string, targetID string) {
+		if op == "unlink" && targetID == last2AID && u1HookOnce.CompareAndSwap(false, true) {
+			close(u1Held)
+			<-releaseU1
+		}
+	}
+
+	ctx3, cancel3 := context.WithTimeout(baseCtx, 15*time.Second)
+	defer cancel3()
+	u1ErrCh := make(chan error, 1)
+	u2ErrCh := make(chan error, 1)
+	u1Done := make(chan struct{})
+	u2Done := make(chan struct{})
+	go func() {
+		defer close(u1Done)
+		u1ErrCh <- fileSvc.Unlink(ctx3, Human(env.owner.ID), env.wsA.ID, last2AID)
+	}()
+	waitCh(u1Held, "Unlink 1 (last2A) to hold LockDriveFolderGraph", safeReleaseU1)
+
+	go func() {
+		defer close(u2Done)
+		u2ErrCh <- fileSvc.Unlink(ctx3, Human(env.owner.ID), env.wsA.ID, last2BID)
+	}()
+	waitForGraphLockWaiter(env.wsA.ID, safeReleaseU1)
+	safeReleaseU1()
+
+	u1Err := waitErrCh(u1ErrCh, "Unlink 1 completion")
+	u2Err := waitErrCh(u2ErrCh, "Unlink 2 completion")
+	joinWorker(u1Done, "Unlink 1")
+	joinWorker(u2Done, "Unlink 2")
+	resetHooks()
+	assertNoDeadlock(u1Err, "Unlink 1 vs Unlink 2")
+	assertNoDeadlock(u2Err, "Unlink 2 vs Unlink 1")
+	if u1Err != nil || u2Err != nil {
+		t.Fatalf("concurrent last-two Unlinks errors: u1=%v u2=%v", u1Err, u2Err)
+	}
+	var last2FolderCount int
+	if err := env.pool.QueryRow(baseCtx,
+		`SELECT count(*) FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id = 'fld-rb2-last2'`,
+		env.wsA.ID,
+	).Scan(&last2FolderCount); err != nil || last2FolderCount != 0 {
+		t.Fatalf("fld-rb2-last2 count after concurrent last-two Unlinks = %d (err=%v), want 0 (pruned)", last2FolderCount, err)
+	}
+
+	// --- Case 4: Link vs Unlink (prune) keeps the ancestor above the newly linked file (RB2-3). ---
+	env.googleSrv.SetFile("fld-rb2-anc", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb2-anc", Name: "Shared Ancestor", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("fld-rb2-child", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb2-child", Name: "New Child Folder", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-rb2-anc"}},
+	})
+	env.googleSrv.SetFile("fld-rb2-old", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb2-old", Name: "Old Unlinked Folder", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-rb2-anc"}},
+	})
+	env.googleSrv.SetFile("ext-rb2-old", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-rb2-old", Name: "Old Doc", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-rb2-old"}},
+	})
+	env.googleSrv.SetFile("ext-rb2-new", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-rb2-new", Name: "New Doc", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-rb2-child"}},
+	})
+	linkedOld, err := fileSvc.Link(baseCtx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"ext-rb2-old"},
+	})
+	if err != nil || len(linkedOld) != 1 || linkedOld[0].File == nil {
+		t.Fatalf("Link ext-rb2-old: %+v, err=%v", linkedOld, err)
+	}
+	oldFileID := linkedOld[0].File.ID
+
+	linkHeld := make(chan struct{})
+	releaseLink := make(chan struct{})
+	var releaseLinkOnce sync.Once
+	safeReleaseLink := func() { releaseLinkOnce.Do(func() { close(releaseLink) }) }
+	var linkHookOnce atomic.Bool
+	fileSvc.testAfterGraphLock = func(op, _ string, targetID string) {
+		if op == "link" && targetID == "ext-rb2-new" && linkHookOnce.CompareAndSwap(false, true) {
+			close(linkHeld)
+			<-releaseLink
+		}
+	}
+
+	ctx4, cancel4 := context.WithTimeout(baseCtx, 15*time.Second)
+	defer cancel4()
+	linkNewErrCh := make(chan error, 1)
+	unlinkOldErrCh := make(chan error, 1)
+	linkNewDone := make(chan struct{})
+	unlinkOldDone := make(chan struct{})
+	var linkedNewRes []DriveFileLinkItemResult
+	go func() {
+		defer close(linkNewDone)
+		var lerr error
+		linkedNewRes, lerr = fileSvc.Link(ctx4, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+			ConnectionID:    connOwner.ID,
+			ExternalFileIDs: []string{"ext-rb2-new"},
+		})
+		linkNewErrCh <- lerr
+	}()
+	waitCh(linkHeld, "Link ext-rb2-new to hold LockDriveFolderGraph", safeReleaseLink)
+
+	go func() {
+		defer close(unlinkOldDone)
+		unlinkOldErrCh <- fileSvc.Unlink(ctx4, Human(env.owner.ID), env.wsA.ID, oldFileID)
+	}()
+	waitForGraphLockWaiter(env.wsA.ID, safeReleaseLink)
+	safeReleaseLink()
+
+	linkNewErr := waitErrCh(linkNewErrCh, "Link ext-rb2-new completion")
+	unlinkOldErr := waitErrCh(unlinkOldErrCh, "Unlink oldFile completion")
+	joinWorker(linkNewDone, "Link ext-rb2-new")
+	joinWorker(unlinkOldDone, "Unlink oldFile")
+	resetHooks()
+	assertNoDeadlock(linkNewErr, "Link vs Unlink prune")
+	assertNoDeadlock(unlinkOldErr, "Unlink prune vs Link")
+	if linkNewErr != nil || unlinkOldErr != nil || len(linkedNewRes) != 1 || linkedNewRes[0].File == nil {
+		t.Fatalf("Link vs Unlink prune: linkErr=%v unlinkErr=%v res=%+v", linkNewErr, unlinkOldErr, linkedNewRes)
+	}
+	var ancAndChildCount, oldFolderCount int
+	if err := env.pool.QueryRow(baseCtx,
+		`SELECT count(*) FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id IN ('fld-rb2-anc', 'fld-rb2-child')`,
+		env.wsA.ID,
+	).Scan(&ancAndChildCount); err != nil || ancAndChildCount != 2 {
+		t.Fatalf("ancestor+child folder count after Link vs Unlink = %d (err=%v), want 2 (both kept)", ancAndChildCount, err)
+	}
+	if err := env.pool.QueryRow(baseCtx,
+		`SELECT count(*) FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id = 'fld-rb2-old'`,
+		env.wsA.ID,
+	).Scan(&oldFolderCount); err != nil || oldFolderCount != 0 {
+		t.Fatalf("old folder count after Link vs Unlink = %d (err=%v), want 0 (pruned)", oldFolderCount, err)
+	}
+
+	// --- Case 5: Deep stored chain (>10 hops) on PostgreSQL survives Unlink of an unrelated file (RB2-2). ---
+	for i := range 12 {
+		fid := "fld-deep-" + string(rune('0'+i/10)) + string(rune('0'+i%10))
+		var parent pgtype.Text
+		if i > 0 {
+			pid := "fld-deep-" + string(rune('0'+(i-1)/10)) + string(rune('0'+(i-1)%10))
+			parent = pgtype.Text{String: pid, Valid: true}
+		}
+		if _, err := env.q.UpsertDriveFolder(baseCtx, db.UpsertDriveFolderParams{
+			ID:             util.NewID(),
+			OrganizationID: env.wsA.OrganizationID,
+			WorkspaceID:    env.wsA.ID,
+			ConnectionID:   connOwner.ID,
+			DriveFolderID:  fid,
+			Name:           "Deep " + fid,
+			ParentFolderID: parent,
+			RefreshedAt:    pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+			CreatedBy:      env.owner.ID,
+			CreatedByKind:  "human",
+		}); err != nil {
+			t.Fatalf("UpsertDriveFolder %s: %v", fid, err)
+		}
+	}
+	env.googleSrv.SetFile("fld-deep-11", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-deep-11", Name: "Deep fld-deep-11", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-deep-10"}},
+	})
+	env.googleSrv.SetFile("ext-deep-leaf", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-deep-leaf", Name: "Deep Leaf Doc", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-deep-11"}},
+	})
+	if _, err := fileSvc.Link(baseCtx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"ext-deep-leaf"},
+	}); err != nil {
+		t.Fatalf("Link ext-deep-leaf: %v", err)
+	}
+	// Unlink the file from Case 4 (ext-rb2-new) so prune runs while ext-deep-leaf is active in fld-deep-11.
+	if err := fileSvc.Unlink(baseCtx, Human(env.owner.ID), env.wsA.ID, linkedNewRes[0].File.ID); err != nil {
+		t.Fatalf("Unlink ext-rb2-new: %v", err)
+	}
+	var deepKeptCount int
+	if err := env.pool.QueryRow(baseCtx,
+		`SELECT count(*) FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id LIKE 'fld-deep-%'`,
+		env.wsA.ID,
+	).Scan(&deepKeptCount); err != nil || deepKeptCount != 12 {
+		t.Fatalf("deep chain count after unrelated Unlink = %d (err=%v), want all 12 kept (including root fld-deep-00)", deepKeptCount, err)
 	}
 }
