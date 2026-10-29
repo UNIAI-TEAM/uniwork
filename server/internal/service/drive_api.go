@@ -19,13 +19,15 @@ const (
 	driveAPIDefaultTimeout  = 15 * time.Second
 	driveAPIMaxRedirects    = 5
 	driveParentLookupBudget = 3 * time.Second
+	driveFolderWalkBudget   = 3 * time.Second
+	driveFolderWalkMaxDepth = 10
 	driveMetadataMaxBytes   = 1 << 20 // 1 MiB metadata response ceiling
 	driveErrorBodyMaxBytes  = 64 << 10
 
 	// driveFilesGetFields is the exact field mask spec §6.2 and §7.2 step 2 require
 	// when reading a linked Google Drive file's metadata.
 	driveFilesGetFields   = "id,name,mimeType,webViewLink,iconLink,driveId,parents,owners(displayName),lastModifyingUser(displayName),modifiedTime,shared,trashed,permissions(id)"
-	driveFolderGetFields  = "id,name,mimeType,trashed"
+	driveFolderGetFields  = "id,name,mimeType,parents,driveId,trashed"
 	DriveMimeGoogleFolder = "application/vnd.google-apps.folder"
 )
 
@@ -137,6 +139,35 @@ type DriveFileMetadata struct {
 	Trashed           bool
 	ParentFolderID    string
 	ParentFolderName  string
+	ResolvedFolders   []DriveFolderMetadata
+}
+
+// DriveFolderMetadata is the metadata snapshot of a Google Drive folder returned
+// by GET /drive/v3/files/{folderId} under drive.file scope (UNI-2291).
+type DriveFolderMetadata struct {
+	FolderID       string
+	Name           string
+	ParentFolderID string
+	DriveID        string
+}
+
+// driveFolderWalkCache caches folder metadata lookups within a single Link or
+// refresh batch, partitioned by connection ID and then by Drive folder ID so
+// shared ancestors are queried at most once per connection. A nil pointer entry
+// records a negative (403/404) lookup in the current batch for that connection.
+type driveFolderWalkCache map[string]map[string]*DriveFolderMetadata
+
+func (m driveFolderWalkCache) forConnection(connID string) map[string]*DriveFolderMetadata {
+	if m == nil {
+		return nil
+	}
+	key := strings.TrimSpace(connID)
+	sub, ok := m[key]
+	if !ok {
+		sub = make(map[string]*DriveFolderMetadata)
+		m[key] = sub
+	}
+	return sub
 }
 
 // DriveAPIClient calls Google Drive REST v3 over a 15-second HTTP client that
@@ -260,7 +291,7 @@ func (c *DriveAPIClient) filesGetWithConnectionAndParentCache(
 	tokens DriveTokenSource,
 	conn db.DriveConnection,
 	externalFileID string,
-	parentCache map[string]string,
+	walkCache driveFolderWalkCache,
 ) (DriveFileMetadata, error) {
 	var meta DriveFileMetadata
 	var usedToken string
@@ -278,74 +309,171 @@ func (c *DriveAPIClient) filesGetWithConnectionAndParentCache(
 	if err != nil {
 		return meta, err
 	}
-	if meta.ParentFolderID != "" && meta.ParentFolderName == "" && c != nil {
-		if parentCache != nil {
-			if cached, seen := parentCache[meta.ParentFolderID]; seen {
-				meta.ParentFolderName = cached
-				return meta, nil
+	if meta.ParentFolderID != "" && c != nil {
+		chain := c.walkFolderChain(ctx, tokens, usedToken, meta.ParentFolderID, walkCache.forConnection(conn.ID))
+		if len(chain) > 0 {
+			meta.ResolvedFolders = chain
+			if meta.ParentFolderName == "" && chain[0].FolderID == meta.ParentFolderID {
+				meta.ParentFolderName = chain[0].Name
 			}
 		}
-		resolved := c.tryResolveParentFolderName(ctx, tokens, usedToken, meta.ParentFolderID)
-		if parentCache != nil {
-			parentCache[meta.ParentFolderID] = resolved
-		}
-		meta.ParentFolderName = resolved
 	}
 	return meta, nil
+}
+
+// FolderGetWithConnection fetches metadata for a Google Drive folder using conn's OAuth token,
+// refreshing once on 401/authError and classifying any error per §5.7 (UNI-2291).
+func (c *DriveAPIClient) FolderGetWithConnection(ctx context.Context, tokens DriveTokenSource, conn db.DriveConnection, folderID string) (DriveFolderMetadata, error) {
+	var meta DriveFolderMetadata
+	err := c.withConnectionToken(ctx, tokens, conn, func(accessToken string) error {
+		if fp := c.fakeProviderForTokens(tokens); fp != nil {
+			var callErr error
+			meta, callErr = fp.FolderGet(ctx, accessToken, folderID)
+			return callErr
+		}
+		var callErr error
+		meta, callErr = c.FolderGet(ctx, accessToken, folderID)
+		return callErr
+	})
+	return meta, err
+}
+
+// FolderChainWithConnection resolves folderID (returning a classified error if folderID
+// itself cannot be read or is not a folder) and then walks its parent chain upward while
+// ancestors are readable within the walk depth and time budget (UNI-2291).
+func (c *DriveAPIClient) FolderChainWithConnection(ctx context.Context, tokens DriveTokenSource, conn db.DriveConnection, folderID string) ([]DriveFolderMetadata, error) {
+	var first DriveFolderMetadata
+	var usedToken string
+	err := c.withConnectionToken(ctx, tokens, conn, func(accessToken string) error {
+		usedToken = accessToken
+		if fp := c.fakeProviderForTokens(tokens); fp != nil {
+			var callErr error
+			first, callErr = fp.FolderGet(ctx, accessToken, folderID)
+			return callErr
+		}
+		var callErr error
+		first, callErr = c.FolderGet(ctx, accessToken, folderID)
+		return callErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	chain := []DriveFolderMetadata{first}
+	if first.ParentFolderID != "" && c != nil {
+		cache := map[string]*DriveFolderMetadata{
+			first.FolderID: &first,
+		}
+		ancestors := c.walkFolderChainWithDepth(ctx, tokens, usedToken, first.ParentFolderID, cache, driveFolderWalkMaxDepth-1, first.FolderID)
+		chain = append(chain, ancestors...)
+	}
+	return chain, nil
 }
 
 // FolderNameWithConnection fetches the name of a Google Drive folder using conn's OAuth token,
 // refreshing once on 401/authError and classifying any error per §5.7 (UNI-2221).
 func (c *DriveAPIClient) FolderNameWithConnection(ctx context.Context, tokens DriveTokenSource, conn db.DriveConnection, folderID string) (string, error) {
-	var name string
-	err := c.withConnectionToken(ctx, tokens, conn, func(accessToken string) error {
-		if c == nil || c.baseURL == driveGoogleAPIBaseURL {
-			if dcs, ok := tokens.(*DriveConnectionService); ok && dcs != nil {
-				if fp, ok := dcs.Provider().(*FakeDriveProvider); ok && fp != nil {
-					var callErr error
-					name, callErr = fp.FolderNameGet(ctx, accessToken, folderID)
-					return callErr
-				}
-			}
-		}
-		var callErr error
-		name, callErr = c.FolderNameGet(ctx, accessToken, folderID)
-		return callErr
-	})
-	return name, err
+	meta, err := c.FolderGetWithConnection(ctx, tokens, conn, folderID)
+	if err != nil {
+		return "", err
+	}
+	return meta.Name, nil
 }
 
-func (c *DriveAPIClient) tryResolveParentFolderName(ctx context.Context, tokens DriveTokenSource, accessToken, folderID string) string {
-	budget := driveParentLookupBudget
+func (c *DriveAPIClient) walkFolderChain(
+	ctx context.Context,
+	tokens DriveTokenSource,
+	accessToken string,
+	startFolderID string,
+	cache map[string]*DriveFolderMetadata,
+) []DriveFolderMetadata {
+	return c.walkFolderChainWithDepth(ctx, tokens, accessToken, startFolderID, cache, driveFolderWalkMaxDepth)
+}
+
+func (c *DriveAPIClient) walkFolderChainWithDepth(
+	ctx context.Context,
+	tokens DriveTokenSource,
+	accessToken string,
+	startFolderID string,
+	cache map[string]*DriveFolderMetadata,
+	maxDepth int,
+	alreadyVisited ...string,
+) []DriveFolderMetadata {
+	currID := strings.TrimSpace(startFolderID)
+	if currID == "" || maxDepth <= 0 {
+		return nil
+	}
+	budget := driveFolderWalkBudget
 	if c != nil && c.parentLookupBudget > 0 {
 		budget = c.parentLookupBudget
 	}
-	pctx, cancel := context.WithTimeout(ctx, budget)
+	wctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
-	if c.baseURL == driveGoogleAPIBaseURL {
-		if dcs, ok := tokens.(*DriveConnectionService); ok && dcs != nil {
-			if fp, ok := dcs.Provider().(*FakeDriveProvider); ok && fp != nil {
-				name, err := fp.FolderNameGet(pctx, accessToken, folderID)
-				if err == nil {
-					return name
-				}
-				return ""
-			}
+
+	visited := make(map[string]bool, maxDepth+len(alreadyVisited))
+	for _, v := range alreadyVisited {
+		if v = strings.TrimSpace(v); v != "" {
+			visited[v] = true
 		}
 	}
-	name, err := c.FolderNameGet(pctx, accessToken, folderID)
-	if err != nil {
-		return ""
+	var chain []DriveFolderMetadata
+	for depth := 0; depth < maxDepth && currID != ""; depth++ {
+		if visited[currID] {
+			break
+		}
+		visited[currID] = true
+
+		if cache != nil {
+			if cached, seen := cache[currID]; seen {
+				if cached == nil {
+					break
+				}
+				chain = append(chain, *cached)
+				currID = cached.ParentFolderID
+				continue
+			}
+		}
+
+		meta, err := c.folderGetSingle(wctx, tokens, accessToken, currID)
+		if err != nil {
+			if cache != nil && isNegativeFolderLookupError(err) {
+				cache[currID] = nil
+			}
+			break
+		}
+		if cache != nil {
+			metaCopy := meta
+			cache[currID] = &metaCopy
+		}
+		chain = append(chain, meta)
+		currID = meta.ParentFolderID
 	}
-	return name
+	return chain
 }
 
-// FolderNameGet fetches a Drive folder's name from GET /drive/v3/files/{folderId}
-// with supportsAllDrives=true and fields=id,name,mimeType,trashed (UNI-2221).
-func (c *DriveAPIClient) FolderNameGet(ctx context.Context, accessToken, folderID string) (string, error) {
+func (c *DriveAPIClient) folderGetSingle(ctx context.Context, tokens DriveTokenSource, accessToken, folderID string) (DriveFolderMetadata, error) {
+	if fp := c.fakeProviderForTokens(tokens); fp != nil {
+		return fp.FolderGet(ctx, accessToken, folderID)
+	}
+	return c.FolderGet(ctx, accessToken, folderID)
+}
+
+func isNegativeFolderLookupError(err error) bool {
+	var apiErr *DriveAPIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.Class {
+		case DriveErrorClassFolderNotFound, DriveErrorClassFolderNotFolder, DriveErrorClassFileNotAccessible, DriveErrorClassGrantRequired, DriveErrorClassBlockedByAdmin:
+			return true
+		}
+	}
+	return errors.Is(err, ErrDriveFolderNotFound) || errors.Is(err, ErrDriveFolderNotFolder) || errors.Is(err, ErrDriveFileNotAccessible)
+}
+
+// FolderGet fetches a Drive folder's metadata (id, name, parentFolderID, driveID) from
+// GET /drive/v3/files/{folderId} with supportsAllDrives=true and fields=id,name,mimeType,parents,driveId,trashed (UNI-2291).
+func (c *DriveAPIClient) FolderGet(ctx context.Context, accessToken, folderID string) (DriveFolderMetadata, error) {
 	folderID = strings.TrimSpace(folderID)
 	if folderID == "" {
-		return "", &DriveAPIError{
+		return DriveFolderMetadata{}, &DriveAPIError{
 			Class:        DriveErrorClassFolderNotFound,
 			HTTPStatus:   http.StatusNotFound,
 			GoogleReason: "notFound",
@@ -359,17 +487,17 @@ func (c *DriveAPIClient) FolderNameGet(ctx context.Context, accessToken, folderI
 	endpoint := c.endpoint("/files/"+url.PathEscape(folderID), q)
 	body, err := c.doGET(ctx, accessToken, endpoint, driveMetadataMaxBytes)
 	if err != nil {
-		return "", err
+		return DriveFolderMetadata{}, err
 	}
 	var raw googleDriveFileJSON
 	if err := json.Unmarshal(body, &raw); err != nil {
-		return "", &DriveAPIError{
+		return DriveFolderMetadata{}, &DriveAPIError{
 			Class: DriveErrorClassUnavailable,
 			Err:   ErrDriveUnavailable,
 		}
 	}
 	if raw.Trashed || strings.TrimSpace(raw.MimeType) != DriveMimeGoogleFolder {
-		return "", &DriveAPIError{
+		return DriveFolderMetadata{}, &DriveAPIError{
 			Class:        DriveErrorClassFolderNotFolder,
 			HTTPStatus:   http.StatusUnprocessableEntity,
 			GoogleReason: "notFolder",
@@ -378,14 +506,41 @@ func (c *DriveAPIClient) FolderNameGet(ctx context.Context, accessToken, folderI
 	}
 	name := strings.TrimSpace(raw.Name)
 	if name == "" {
-		return "", &DriveAPIError{
+		return DriveFolderMetadata{}, &DriveAPIError{
 			Class:        DriveErrorClassFolderNotFound,
 			HTTPStatus:   http.StatusNotFound,
 			GoogleReason: "notFound",
 			Err:          ErrDriveFolderNotFound,
 		}
 	}
-	return name, nil
+	id := strings.TrimSpace(raw.ID)
+	if id == "" {
+		id = folderID
+	}
+	var parentID string
+	for _, p := range raw.Parents {
+		p = strings.TrimSpace(p)
+		if p != "" && p != id {
+			parentID = p
+			break
+		}
+	}
+	return DriveFolderMetadata{
+		FolderID:       id,
+		Name:           name,
+		ParentFolderID: parentID,
+		DriveID:        strings.TrimSpace(raw.DriveID),
+	}, nil
+}
+
+// FolderNameGet fetches a Drive folder's name from GET /drive/v3/files/{folderId}
+// with supportsAllDrives=true (UNI-2221).
+func (c *DriveAPIClient) FolderNameGet(ctx context.Context, accessToken, folderID string) (string, error) {
+	meta, err := c.FolderGet(ctx, accessToken, folderID)
+	if err != nil {
+		return "", err
+	}
+	return meta.Name, nil
 }
 
 func (c *DriveAPIClient) withConnectionToken(ctx context.Context, tokens DriveTokenSource, conn db.DriveConnection, fn func(accessToken string) error) error {

@@ -84,7 +84,7 @@ type driveFileAccessLostRecorder interface {
 // persist the refreshed metadata snapshot returned by FilesGetWithConnection
 // before each content read (spec §6.2).
 type driveFileMetadataRecorder interface {
-	RecordFileMetadataRefresh(ctx context.Context, workspaceID, driveFileID string, meta DriveFileMetadata) error
+	RecordFileMetadataRefresh(ctx context.Context, requesterID, workspaceID, driveFileID, connectionID string, meta DriveFileMetadata) error
 }
 
 // driveOfficeExtractor is the narrow seam satisfied by *office.Client for
@@ -278,7 +278,7 @@ func (s *DriveContentService) ReadForAI(
 	}
 	partial.Name = name
 	partial.MimeType = mimeType
-	s.maybeRecordMetadataRefresh(ctx, workspaceID, row.DriveFileID, meta)
+	s.maybeRecordMetadataRefresh(ctx, requesterID, workspaceID, row.DriveFileID, conn.ID, meta)
 	if s.q != nil && row.OrganizationID != "" {
 		_, _ = s.q.TouchDriveFileAccessCheckedAt(ctx, db.TouchDriveFileAccessCheckedAtParams{
 			OrganizationID: row.OrganizationID,
@@ -468,13 +468,13 @@ func (s *DriveContentService) maybeRecordAccessLost(ctx context.Context, request
 	}
 }
 
-func (s *DriveContentService) maybeRecordMetadataRefresh(ctx context.Context, workspaceID, driveFileID string, meta DriveFileMetadata) {
+func (s *DriveContentService) maybeRecordMetadataRefresh(ctx context.Context, requesterID, workspaceID, driveFileID, connectionID string, meta DriveFileMetadata) {
 	if s.metaRecorder == nil {
 		return
 	}
 	recCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), driveAuditTxTimeout)
 	defer cancel()
-	if rerr := s.metaRecorder.RecordFileMetadataRefresh(recCtx, workspaceID, driveFileID, meta); rerr != nil {
+	if rerr := s.metaRecorder.RecordFileMetadataRefresh(recCtx, requesterID, workspaceID, driveFileID, connectionID, meta); rerr != nil {
 		s.log.Warn("drive record file metadata refresh failed", "drive_file_id", driveFileID, "err", rerr)
 	}
 }

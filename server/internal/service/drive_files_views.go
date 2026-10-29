@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -186,7 +187,104 @@ func (s *DriveFileService) isMetadataStale(refreshedAt pgtype.Timestamptz) bool 
 	return s.nowUTC().Sub(refreshedAt.Time.UTC()) >= driveMetadataRefreshInterval
 }
 
-func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, viewerID string, ws db.Workspace, driveFileID, externalFileID, viewerConnID string, parentCache map[string]string) bool {
+func upsertResolvedDriveFolders(
+	ctx context.Context,
+	q *db.Queries,
+	ws db.Workspace,
+	connectionID string,
+	actor Actor,
+	folders []DriveFolderMetadata,
+	refreshedAt time.Time,
+) error {
+	if q == nil || len(folders) == 0 || strings.TrimSpace(connectionID) == "" || strings.TrimSpace(actor.ID) == "" {
+		return nil
+	}
+	kind := strings.TrimSpace(string(actor.Kind))
+	if kind == "" {
+		kind = "human"
+	}
+	ts := pgtype.Timestamptz{Time: refreshedAt.UTC(), Valid: true}
+	for _, f := range folders {
+		fid := strings.TrimSpace(f.FolderID)
+		fname := strings.TrimSpace(f.Name)
+		if fid == "" || fname == "" {
+			continue
+		}
+		var parentID pgtype.Text
+		if pid := strings.TrimSpace(f.ParentFolderID); pid != "" && pid != fid {
+			parentID = pgtype.Text{String: pid, Valid: true}
+		}
+		if _, err := q.UpsertDriveFolder(ctx, db.UpsertDriveFolderParams{
+			ID:             util.NewID(),
+			OrganizationID: ws.OrganizationID,
+			WorkspaceID:    ws.ID,
+			ConnectionID:   connectionID,
+			DriveFolderID:  fid,
+			Name:           fname,
+			ParentFolderID: parentID,
+			RefreshedAt:    ts,
+			CreatedBy:      actor.ID,
+			CreatedByKind:  kind,
+		}); err != nil {
+			return err
+		}
+		if _, err := q.SetDriveFolderNameInWorkspace(ctx, db.SetDriveFolderNameInWorkspaceParams{
+			DriveFolderName: fname,
+			OrganizationID:  ws.OrganizationID,
+			WorkspaceID:     ws.ID,
+			DriveFolderID:   fid,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func resolveWorkspaceFolderNameFallback(ctx context.Context, q *db.Queries, ws db.Workspace, params *normalizedDriveMetadataParams) {
+	if q == nil || params == nil || !params.DriveFolderID.Valid || params.DriveFolderName.Valid {
+		return
+	}
+	if sibName, serr := q.GetWorkspaceDriveFolderName(ctx, db.GetWorkspaceDriveFolderNameParams{
+		OrganizationID: ws.OrganizationID,
+		WorkspaceID:    ws.ID,
+		DriveFolderID:  params.DriveFolderID.String,
+	}); serr == nil && strings.TrimSpace(sibName) != "" {
+		params.DriveFolderName = pgtype.Text{String: strings.TrimSpace(sibName), Valid: true}
+	}
+}
+
+func (s *DriveFileService) beginRefreshTx(ctx context.Context) (*db.Queries, func(context.Context) error, func(context.Context) error, error) {
+	if s.testBeginRefreshTx != nil {
+		return s.testBeginRefreshTx(ctx)
+	}
+	if s.pool == nil {
+		return nil, nil, nil, errors.New("drive refresh: pool is nil")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return s.q.WithTx(tx), tx.Commit, tx.Rollback, nil
+}
+
+func (s *DriveFileService) preflightRefreshGraphAvailable(ctx context.Context, workspaceID string) bool {
+	qtx, commitTx, rollbackTx, err := s.beginRefreshTx(ctx)
+	if err != nil {
+		return false
+	}
+	locked, err := qtx.TryLockDriveFolderGraph(ctx, workspaceID)
+	if err != nil || !locked {
+		_ = rollbackTx(ctx)
+		return false
+	}
+	if err := commitTx(ctx); err != nil {
+		_ = rollbackTx(ctx)
+		return false
+	}
+	return true
+}
+
+func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, viewerID string, ws db.Workspace, driveFileID, externalFileID, viewerConnID string, parentCache driveFolderWalkCache) bool {
 	if s == nil || s.api == nil || s.connections == nil || viewerConnID == "" {
 		return false
 	}
@@ -196,6 +294,9 @@ func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, 
 		UserID:         viewerID,
 	})
 	if err != nil || conn.AuthFailedAt.Valid {
+		return false
+	}
+	if !s.preflightRefreshGraphAvailable(ctx, ws.ID) {
 		return false
 	}
 	if _, err := s.q.ClaimDriveFileMetadataRefresh(ctx, db.ClaimDriveFileMetadataRefreshParams{
@@ -210,8 +311,35 @@ func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, 
 		s.maybeRecordAccessLost(ctx, viewerID, ws.OrganizationID, ws.ID, driveFileID, conn.ID, err)
 		return true
 	}
-	params := normalizeMetadataForDB(meta, externalFileID, s.nowUTC())
-	if _, err := s.q.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
+	qtx, commitTx, rollbackTx, err := s.beginRefreshTx(ctx)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = rollbackTx(ctx) }()
+
+	if s.testBeforeGraphLock != nil {
+		s.testBeforeGraphLock("refresh", ws.ID, driveFileID)
+	}
+	locked, err := qtx.TryLockDriveFolderGraph(ctx, ws.ID)
+	if err != nil || !locked {
+		_ = rollbackTx(ctx)
+		return false
+	}
+	if s.testAfterGraphLock != nil {
+		s.testAfterGraphLock("refresh", ws.ID, driveFileID)
+	}
+	now := s.nowUTC()
+	if err := upsertResolvedDriveFolders(ctx, qtx, ws, conn.ID, Human(viewerID), meta.ResolvedFolders, now); err != nil {
+		return false
+	}
+	if s.testAfterRefreshFoldersUpsert != nil {
+		if err := s.testAfterRefreshFoldersUpsert(driveFileID); err != nil {
+			return false
+		}
+	}
+	params := normalizeMetadataForDB(meta, externalFileID, now)
+	resolveWorkspaceFolderNameFallback(ctx, qtx, ws, &params)
+	if _, err := qtx.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
 		DriveFolderID:          params.DriveFolderID,
 		DriveFolderName:        params.DriveFolderName,
@@ -231,17 +359,20 @@ func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, 
 	}); err != nil {
 		return false
 	}
-	_, _ = s.q.TouchDriveFileAccessCheckedAt(ctx, db.TouchDriveFileAccessCheckedAtParams{
+	_, _ = qtx.TouchDriveFileAccessCheckedAt(ctx, db.TouchDriveFileAccessCheckedAtParams{
 		OrganizationID: ws.OrganizationID,
 		WorkspaceID:    ws.ID,
 		DriveFileID:    driveFileID,
 		UserID:         viewerID,
 		ConnectionID:   conn.ID,
 	})
+	if err := commitTx(ctx); err != nil {
+		return false
+	}
 	return true
 }
 
-func (s *DriveFileService) maybeRefreshEnrichedRow(ctx context.Context, viewerID string, ws db.Workspace, r db.ListMyDriveFilesEnrichedRow, parentCache map[string]string) (db.ListMyDriveFilesEnrichedRow, bool) {
+func (s *DriveFileService) maybeRefreshEnrichedRow(ctx context.Context, viewerID string, ws db.Workspace, r db.ListMyDriveFilesEnrichedRow, parentCache driveFolderWalkCache) (db.ListMyDriveFilesEnrichedRow, bool) {
 	if r.ViewerAccessState != "granted" || !r.ViewerConnectionActive || !s.isMetadataStale(r.MetadataRefreshedAt) {
 		return r, false
 	}
@@ -279,7 +410,7 @@ func (s *DriveFileService) maybeRefreshDetailRow(ctx context.Context, viewerID s
 	return detail, true
 }
 
-func (s *DriveFileService) maybeRefreshTaskCardRow(ctx context.Context, viewerID string, ws db.Workspace, r db.ListTaskDriveFilesEnrichedRow, parentCache map[string]string) (db.ListTaskDriveFilesEnrichedRow, bool) {
+func (s *DriveFileService) maybeRefreshTaskCardRow(ctx context.Context, viewerID string, ws db.Workspace, r db.ListTaskDriveFilesEnrichedRow, parentCache driveFolderWalkCache) (db.ListTaskDriveFilesEnrichedRow, bool) {
 	if r.ViewerAccessState.String != "granted" || !r.ViewerConnectionActive || !s.isMetadataStale(r.MetadataRefreshedAt) {
 		return r, false
 	}
@@ -599,6 +730,17 @@ func buildDriveFileLinkReceipt(f db.DriveFile, viewerAccess, viewerConnID, viewe
 		v := f.DriveID.String
 		driveID = &v
 	}
+	var driveFolder *DriveFolderRefView
+	if f.DriveFolderID.Valid && strings.TrimSpace(f.DriveFolderID.String) != "" {
+		ref := &DriveFolderRefView{
+			ID: strings.TrimSpace(f.DriveFolderID.String),
+		}
+		if f.DriveFolderName.Valid && strings.TrimSpace(f.DriveFolderName.String) != "" {
+			fname := strings.TrimSpace(f.DriveFolderName.String)
+			ref.Name = &fname
+		}
+		driveFolder = ref
+	}
 	if viewerAccess == "" {
 		viewerAccess = DriveViewerAccessGranted
 	}
@@ -608,6 +750,7 @@ func buildDriveFileLinkReceipt(f db.DriveFile, viewerAccess, viewerConnID, viewe
 		WorkspaceID:        f.WorkspaceID,
 		ExternalFileID:     f.ExternalFileID,
 		DriveID:            driveID,
+		DriveFolder:        driveFolder,
 		Name:               f.Name,
 		MimeType:           f.MimeType,
 		IconKind:           f.IconKind,

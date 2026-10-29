@@ -246,6 +246,8 @@ type FakeDriveProvider struct {
 	refreshFunc   func(ctx context.Context, refreshToken string) (DriveTokenResponse, error)
 	revokeFunc    func(ctx context.Context, token string) error
 	idTokens      map[string]DriveIDTokenClaims
+	folders       map[string]DriveFolderMetadata
+	fileParents   map[string]string
 	exchangeCalls []FakeDriveExchangeCall
 	refreshCalls  []string
 	revokeCalls   []string
@@ -456,6 +458,48 @@ func (f *FakeDriveProvider) RevokeToken(ctx context.Context, token string) error
 	return nil
 }
 
+// SetFolderParent configures folder metadata (name and parent folder ID) for
+// FakeDriveProvider.FolderGet (UNI-2291).
+func (f *FakeDriveProvider) SetFolderParent(folderID, name, parentID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.folders == nil {
+		f.folders = make(map[string]DriveFolderMetadata)
+	}
+	id := strings.TrimSpace(folderID)
+	if id == "" {
+		return
+	}
+	n := strings.TrimSpace(name)
+	if n == "" {
+		n = id
+	}
+	p := strings.TrimSpace(parentID)
+	if p == id {
+		p = ""
+	}
+	f.folders[id] = DriveFolderMetadata{
+		FolderID:       id,
+		Name:           n,
+		ParentFolderID: p,
+	}
+}
+
+// SetFileParent configures the parent folder ID returned by FakeDriveProvider.FilesGet
+// for externalFileID (UNI-2291).
+func (f *FakeDriveProvider) SetFileParent(externalFileID, parentFolderID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.fileParents == nil {
+		f.fileParents = make(map[string]string)
+	}
+	extID := strings.TrimSpace(externalFileID)
+	if extID == "" {
+		return
+	}
+	f.fileParents[extID] = strings.TrimSpace(parentFolderID)
+}
+
 // FilesGet returns deterministic in-memory DriveFileMetadata for any non-empty
 // externalFileID when running under DRIVE_FAKE_PROVIDER=1 so offline and E2E
 // flows never dial https://www.googleapis.com.
@@ -470,6 +514,9 @@ func (f *FakeDriveProvider) FilesGet(_ context.Context, _, externalFileID string
 			Err:            ErrDriveFileNotAccessible,
 		}
 	}
+	f.mu.Lock()
+	parentID := f.fileParents[extID]
+	f.mu.Unlock()
 	return DriveFileMetadata{
 		ExternalFileID: extID,
 		Name:           extID,
@@ -479,21 +526,40 @@ func (f *FakeDriveProvider) FilesGet(_ context.Context, _, externalFileID string
 		OwnerDisplay:   "Fake Drive Owner",
 		SharingState:   DriveSharingStateShared,
 		Trashed:        false,
+		ParentFolderID: parentID,
+	}, nil
+}
+
+// FolderGet returns deterministic folder metadata (including parent) for FakeDriveProvider (UNI-2291).
+func (f *FakeDriveProvider) FolderGet(_ context.Context, _, folderID string) (DriveFolderMetadata, error) {
+	id := strings.TrimSpace(folderID)
+	if id == "" {
+		return DriveFolderMetadata{}, &DriveAPIError{
+			Class:        DriveErrorClassFolderNotFound,
+			HTTPStatus:   http.StatusNotFound,
+			GoogleReason: "notFound",
+			Err:          ErrDriveFolderNotFound,
+		}
+	}
+	f.mu.Lock()
+	configured, ok := f.folders[id]
+	f.mu.Unlock()
+	if ok {
+		return configured, nil
+	}
+	return DriveFolderMetadata{
+		FolderID: id,
+		Name:     id,
 	}, nil
 }
 
 // FolderNameGet returns deterministic folder name for FakeDriveProvider (UNI-2221).
-func (f *FakeDriveProvider) FolderNameGet(_ context.Context, _, folderID string) (string, error) {
-	id := strings.TrimSpace(folderID)
-	if id == "" {
-		return "", &DriveAPIError{
-			Class:        DriveErrorClassFileNotAccessible,
-			HTTPStatus:   http.StatusNotFound,
-			GoogleReason: "notFound",
-			Err:          ErrDriveFileNotAccessible,
-		}
+func (f *FakeDriveProvider) FolderNameGet(ctx context.Context, accessToken, folderID string) (string, error) {
+	meta, err := f.FolderGet(ctx, accessToken, folderID)
+	if err != nil {
+		return "", err
 	}
-	return id, nil
+	return meta.Name, nil
 }
 
 const (

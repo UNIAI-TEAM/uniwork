@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -67,7 +66,7 @@ func (s *DriveFileService) Link(ctx context.Context, actor Actor, workspaceID st
 		}
 	}
 
-	parentCache := make(map[string]string, len(in.ExternalFileIDs))
+	parentCache := make(driveFolderWalkCache, len(in.ExternalFileIDs))
 	results := make([]DriveFileLinkItemResult, 0, len(in.ExternalFileIDs))
 	for _, rawExtID := range in.ExternalFileIDs {
 		extID := strings.TrimSpace(rawExtID)
@@ -112,10 +111,77 @@ func (s *DriveFileService) Link(ctx context.Context, actor Actor, workspaceID st
 	return results, nil
 }
 
+type preparedTaskDriveFile struct {
+	conn           db.DriveConnection
+	externalFileID string
+	meta           DriveFileMetadata
+}
+
+// prepareFilesForTaskCreate validates the caller's Drive permissions and
+// resolves all Google Drive file and ancestor metadata BEFORE any workspace
+// folder-graph lock is acquired (RB3-2).
+func (s *DriveFileService) prepareFilesForTaskCreate(
+	ctx context.Context,
+	q *db.Queries,
+	actor Actor,
+	ws db.Workspace,
+	driveFiles []CreateTaskDriveFileInput,
+	parentCache driveFolderWalkCache,
+) ([]preparedTaskDriveFile, error) {
+	if len(driveFiles) == 0 {
+		return nil, nil
+	}
+	if len(driveFiles) > driveMaxLinkBatch {
+		return nil, Invalid("drive_files tối đa 20")
+	}
+	if s == nil {
+		return nil, errDriveFeatureDisabled()
+	}
+	_, member, err := s.workspaceAndMember(ctx, actor, ws.ID)
+	if err != nil {
+		return nil, err
+	}
+	if !s.flagEnabledForMember(ctx, actor.ID, ws.OrganizationID) {
+		return nil, errDriveFeatureDisabled()
+	}
+	if !s.isNotGuest(member) {
+		return nil, ErrForbidden
+	}
+	if parentCache == nil {
+		parentCache = make(driveFolderWalkCache, len(driveFiles))
+	}
+	prepared := make([]preparedTaskDriveFile, 0, len(driveFiles))
+	for idx, df := range driveFiles {
+		extID := strings.TrimSpace(df.ExternalFileID)
+		connID := strings.TrimSpace(df.ConnectionID)
+		conn, err := s.requireCallerConnection(ctx, q, ws.OrganizationID, actor.ID, connID)
+		if err != nil {
+			return nil, wrapTaskCreateDriveFileError(idx, df.ExternalFileID, err)
+		}
+		if extID == "" {
+			return nil, wrapTaskCreateDriveFileError(idx, df.ExternalFileID, ErrDriveFileNotAccessible)
+		}
+		meta, err := s.api.filesGetWithConnectionAndParentCache(ctx, s.connections, conn, extID, parentCache)
+		if err != nil {
+			return nil, wrapTaskCreateDriveFileError(idx, extID, err)
+		}
+		prepared = append(prepared, preparedTaskDriveFile{
+			conn:           conn,
+			externalFileID: extID,
+			meta:           meta,
+		})
+	}
+	return prepared, nil
+}
+
 // linkFilesForTaskCreateInTx links each file in driveFiles to task inside the
-// caller's task-create transaction (spec §7.2, W4 gaps §1). If any file fails,
-// it returns a CodedError carrying fields.drive_files_index and
-// fields.external_file_id so the whole task-create transaction rolls back.
+// caller's task-create transaction (spec §7.2, W4 gaps §1, RB3-2). When the
+// batch caller has not pre-resolved prepared items, it prepares all Google
+// metadata before the first linkSingleFileWithMetaInTx call acquires the
+// workspace folder-graph lock; the persistence loop then performs DB work only
+// (including connection liveness rechecks). If any file fails, it returns a
+// CodedError carrying fields.drive_files_index and fields.external_file_id so
+// the whole task-create transaction rolls back.
 func (s *DriveFileService) linkFilesForTaskCreateInTx(
 	ctx context.Context,
 	qtx *db.Queries,
@@ -123,43 +189,21 @@ func (s *DriveFileService) linkFilesForTaskCreateInTx(
 	ws db.Workspace,
 	task db.Task,
 	driveFiles []CreateTaskDriveFileInput,
+	prepared []preparedTaskDriveFile,
 ) error {
 	if len(driveFiles) == 0 {
 		return nil
 	}
-	if len(driveFiles) > driveMaxLinkBatch {
-		return Invalid("drive_files tối đa 20")
-	}
-	if s == nil {
-		return errDriveFeatureDisabled()
-	}
-	_, member, err := s.workspaceAndMember(ctx, actor, ws.ID)
-	if err != nil {
-		return err
-	}
-	if !s.flagEnabledForMember(ctx, actor.ID, ws.OrganizationID) {
-		return errDriveFeatureDisabled()
-	}
-	if !s.isNotGuest(member) {
-		return ErrForbidden
-	}
-	parentCache := make(map[string]string, len(driveFiles))
-	for idx, df := range driveFiles {
-		extID := strings.TrimSpace(df.ExternalFileID)
-		connID := strings.TrimSpace(df.ConnectionID)
-		conn, err := s.requireCallerConnection(ctx, qtx, ws.OrganizationID, actor.ID, connID)
+	if len(prepared) == 0 {
+		var err error
+		prepared, err = s.prepareFilesForTaskCreate(ctx, qtx, actor, ws, driveFiles, nil)
 		if err != nil {
-			return wrapTaskCreateDriveFileError(idx, df.ExternalFileID, err)
+			return err
 		}
-		if extID == "" {
-			return wrapTaskCreateDriveFileError(idx, df.ExternalFileID, ErrDriveFileNotAccessible)
-		}
-		meta, err := s.api.filesGetWithConnectionAndParentCache(ctx, s.connections, conn, extID, parentCache)
-		if err != nil {
-			return wrapTaskCreateDriveFileError(idx, extID, err)
-		}
-		if _, err := s.linkSingleFileWithMetaInTx(ctx, qtx, actor, ws, conn, extID, meta, task.ID); err != nil {
-			return wrapTaskCreateDriveFileError(idx, extID, err)
+	}
+	for idx, item := range prepared {
+		if _, err := s.linkSingleFileWithMetaInTx(ctx, qtx, actor, ws, item.conn, item.externalFileID, item.meta, task.ID); err != nil {
+			return wrapTaskCreateDriveFileError(idx, item.externalFileID, err)
 		}
 	}
 	return nil
@@ -234,6 +278,15 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 	meta DriveFileMetadata,
 	taskID string,
 ) (DriveFileLinkItemResult, error) {
+	if s.testBeforeGraphLock != nil {
+		s.testBeforeGraphLock("link", ws.ID, externalFileID)
+	}
+	if err := qtx.LockDriveFolderGraph(ctx, ws.ID); err != nil {
+		return DriveFileLinkItemResult{}, err
+	}
+	if s.testAfterGraphLock != nil {
+		s.testAfterGraphLock("link", ws.ID, externalFileID)
+	}
 	lockedConn, err := s.requireCallerConnectionForShare(ctx, qtx, ws.OrganizationID, actor.ID, conn.ID)
 	if err != nil {
 		return DriveFileLinkItemResult{}, err
@@ -250,7 +303,11 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 	}
 
 	now := s.nowUTC()
+	if err := upsertResolvedDriveFolders(ctx, qtx, ws, conn.ID, actor, meta.ResolvedFolders, now); err != nil {
+		return DriveFileLinkItemResult{}, err
+	}
 	params := normalizeMetadataForDB(meta, externalFileID, now)
+	resolveWorkspaceFolderNameFallback(ctx, qtx, ws, &params)
 
 	existing, err := qtx.GetActiveDriveFileByExternalIDForUpdate(ctx, db.GetActiveDriveFileByExternalIDForUpdateParams{
 		OrganizationID: ws.OrganizationID,
@@ -269,15 +326,6 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 	viewerEmail := conn.GoogleEmail
 	accountEmailOnAlreadyLinked := ""
 	if !hasExisting {
-		if params.DriveFolderID.Valid && !params.DriveFolderName.Valid {
-			if sibName, serr := qtx.GetWorkspaceDriveFolderName(ctx, db.GetWorkspaceDriveFolderNameParams{
-				OrganizationID: ws.OrganizationID,
-				WorkspaceID:    ws.ID,
-				DriveFolderID:  params.DriveFolderID.String,
-			}); serr == nil && sibName.Valid && strings.TrimSpace(sibName.String) != "" {
-				params.DriveFolderName = pgtype.Text{String: strings.TrimSpace(sibName.String), Valid: true}
-			}
-		}
 		fileRow, err = qtx.CreateDriveFile(ctx, db.CreateDriveFileParams{
 			ID:                     util.NewID(),
 			OrganizationID:         ws.OrganizationID,
