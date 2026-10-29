@@ -642,6 +642,9 @@ func documentSummaryDTO(doc db.Document, facts service.DocumentListFacts, snippe
 		out.ShelvedBy = &by
 	}
 	out.TemplateMarkedAt, out.TemplateMarkedBy = templateMarkFields(doc)
+	if access == nil || access.Level.AtLeast(service.DocumentLevelView) {
+		out.MinutesMeeting = documentMinutesMeetingDTO(facts.MinutesMeeting)
+	}
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)
 	}
@@ -658,9 +661,10 @@ func documentTreeDTOs(nodes []service.DocumentTreeNode) []sdo.DocumentTreeNodeDT
 	for _, n := range nodes {
 		dto := sdo.DocumentTreeNodeDTO{
 			ID: n.ID, Title: n.Title, Kind: n.Kind, Position: n.Position,
-			Children: documentTreeDTOs(n.Children),
-			EditLock: documentRowEditLockSDO(n.EditLock),
-			IsEmpty:  n.IsEmpty,
+			Children:       documentTreeDTOs(n.Children),
+			EditLock:       documentRowEditLockSDO(n.EditLock),
+			IsEmpty:        n.IsEmpty,
+			MinutesMeeting: documentMinutesMeetingDTO(n.MinutesMeeting),
 		}
 		if n.ParentID != "" {
 			parent := n.ParentID

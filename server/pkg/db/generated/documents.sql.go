@@ -742,6 +742,67 @@ func (q *Queries) ListMemberOwnedDocumentsForTransfer(ctx context.Context, arg L
 	return items, nil
 }
 
+const listMinutesMeetingsByDocumentIDs = `-- name: ListMinutesMeetingsByDocumentIDs :many
+SELECT
+  mt.minutes_document_id::text AS document_id,
+  mt.id::text AS meeting_id,
+  mt.workspace_id::text AS workspace_id,
+  mt.title::text AS meeting_title
+FROM meetings mt
+JOIN documents d
+  ON d.id = mt.minutes_document_id
+ AND d.organization_id = mt.organization_id
+ AND d.workspace_id = mt.workspace_id
+WHERE mt.organization_id = $1::text
+  AND d.organization_id = $1::text
+  AND d.kind = 'page'
+  AND mt.minutes_document_id IS NOT NULL
+  AND mt.minutes_document_id = ANY($2::text[])
+ORDER BY mt.created_at DESC, mt.id DESC
+`
+
+type ListMinutesMeetingsByDocumentIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	DocumentIds    []string `json:"document_ids"`
+}
+
+type ListMinutesMeetingsByDocumentIDsRow struct {
+	DocumentID   string `json:"document_id"`
+	MeetingID    string `json:"meeting_id"`
+	WorkspaceID  string `json:"workspace_id"`
+	MeetingTitle string `json:"meeting_title"`
+}
+
+// The meeting a minutes page belongs to (UNI-2288). Joined on the document's
+// own tenant pair (organization_id + workspace_id), matching liveMinutesPage
+// in service/meeting_minutes.go:93-105, so a meeting whose minutes_document_id
+// points at another workspace's document never claims it. Title visibility is
+// gated in Go through WorkspaceService.RequireMemberQ (D1).
+func (q *Queries) ListMinutesMeetingsByDocumentIDs(ctx context.Context, arg ListMinutesMeetingsByDocumentIDsParams) ([]ListMinutesMeetingsByDocumentIDsRow, error) {
+	rows, err := q.db.Query(ctx, listMinutesMeetingsByDocumentIDs, arg.OrganizationID, arg.DocumentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMinutesMeetingsByDocumentIDsRow{}
+	for rows.Next() {
+		var i ListMinutesMeetingsByDocumentIDsRow
+		if err := rows.Scan(
+			&i.DocumentID,
+			&i.MeetingID,
+			&i.WorkspaceID,
+			&i.MeetingTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockDocumentTree = `-- name: LockDocumentTree :exec
 SELECT pg_advisory_xact_lock(hashtextextended('documents.tree:' || $1::text, 0))
 `

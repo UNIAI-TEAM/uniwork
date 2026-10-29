@@ -994,6 +994,9 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 		out.ShelvedBy = &by
 	}
 	out.TemplateMarkedAt, out.TemplateMarkedBy = templateMarkFields(doc)
+	if readable {
+		out.MinutesMeeting = documentMinutesMeetingDTO(view.MinutesMeeting)
+	}
 	if doc.CreatedAt.Valid {
 		out.CreatedAt = doc.CreatedAt.Time.UTC().Format(time.RFC3339)
 	}
@@ -1001,6 +1004,13 @@ func documentDTO(view service.DocumentView) sdo.DocumentDTO {
 		out.UpdatedAt = doc.UpdatedAt.Time.UTC().Format(time.RFC3339)
 	}
 	return out
+}
+
+func documentMinutesMeetingDTO(m *service.DocumentMinutesMeeting) *sdo.DocumentMinutesMeetingDTO {
+	if m == nil || m.ID == "" {
+		return nil
+	}
+	return &sdo.DocumentMinutesMeetingDTO{ID: m.ID, Title: m.Title}
 }
 
 // documentResultDTO renders the document block of a file command's result

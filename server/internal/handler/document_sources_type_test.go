@@ -2,9 +2,13 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"testing"
+
+	"github.com/unicomhub/uniwork/server/internal/service"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // UNI-2113 (contract A): GET .../documents/sources reads every ?type= value
@@ -73,5 +77,101 @@ func TestDocumentSourcesRepeatedTypeParam(t *testing.T) {
 	for _, bad := range []string{"type=pdf&type=bogus", "type=", "type=pdf&type=", "type=image", "type=PDF"} {
 		res, out := doJSON(t, srv, "GET", "/api/v1/workspaces/"+f.wsID+"/documents/sources?"+bad, member, nil)
 		wantErr(t, res, out, http.StatusBadRequest, "invalid_type", "")
+	}
+}
+
+// UNI-2288: wire JSON contract for DocumentSourceDTO (kind, document_id) and
+// DocumentMinutesMeetingDTO (minutes_meeting with title omitted when blank).
+func TestDocumentMinutesMeetingAndSourceDTOWireShape(t *testing.T) {
+	fileDTO := documentSourceDTO(service.DocumentSourceItem{
+		ID: "chat:01MSG", Source: "chat", Name: "spec.pdf", MimeType: "application/pdf", Extension: "pdf", SizeBytes: 42,
+	})
+	var fileJSON map[string]any
+	raw, err := json.Marshal(fileDTO)
+	if err != nil || json.Unmarshal(raw, &fileJSON) != nil {
+		t.Fatalf("marshal fileDTO: %v", err)
+	}
+	if fileJSON["kind"] != "file" {
+		t.Fatalf("file kind = %v, want file", fileJSON["kind"])
+	}
+	if _, has := fileJSON["document_id"]; has {
+		t.Fatalf("file DTO unexpectedly serialized document_id: %v", fileJSON)
+	}
+
+	pageDTO := documentSourceDTO(service.DocumentSourceItem{
+		ID: "meeting:minutes:01MTG", Source: "meeting", Kind: "page", DocumentID: "01DOC",
+		Parent: service.DocumentSourceParent{Kind: "meeting", ID: "01MTG", Title: "Giao ban"},
+		Name:   "Giao ban",
+	})
+	var pageJSON map[string]any
+	raw, err = json.Marshal(pageDTO)
+	if err != nil || json.Unmarshal(raw, &pageJSON) != nil {
+		t.Fatalf("marshal pageDTO: %v", err)
+	}
+	if pageJSON["kind"] != "page" || pageJSON["document_id"] != "01DOC" || pageJSON["name"] != "Giao ban" ||
+		pageJSON["mime_type"] != "" || pageJSON["extension"] != "" || pageJSON["size_bytes"] != float64(0) ||
+		pageJSON["can_open_in_app"] != false || pageJSON["can_save"] != false {
+		t.Fatalf("page DTO JSON = %v", pageJSON)
+	}
+
+	// minutes_meeting omitted when nil; includes id+title for a workspace member; omits title when blank.
+	plainSummary := documentSummaryDTO(db.Document{ID: "01DOC", Kind: "page"}, service.DocumentListFacts{}, "", nil)
+	var plainMap map[string]any
+	raw, _ = json.Marshal(plainSummary)
+	_ = json.Unmarshal(raw, &plainMap)
+	if _, has := plainMap["minutes_meeting"]; has {
+		t.Fatalf("non-minutes summary serialized minutes_meeting: %v", plainMap)
+	}
+
+	memberDoc := documentDTO(service.DocumentView{
+		Document:       db.Document{ID: "01DOC", Kind: "page"},
+		Access:         service.DocumentAccess{Level: service.DocumentLevelView, Via: service.DocumentViaMember},
+		MinutesMeeting: &service.DocumentMinutesMeeting{ID: "01MTG", Title: "Giao ban"},
+	})
+	var memberMap map[string]any
+	raw, _ = json.Marshal(memberDoc)
+	_ = json.Unmarshal(raw, &memberMap)
+	mm, _ := memberMap["minutes_meeting"].(map[string]any)
+	if mm["id"] != "01MTG" || mm["title"] != "Giao ban" {
+		t.Fatalf("member minutes_meeting = %v", mm)
+	}
+
+	// RB1-1: an AdminScope view or list row with Level=none must omit minutes_meeting on the wire.
+	unreadableAdminDoc := documentDTO(service.DocumentView{
+		Document:       db.Document{ID: "01DOC", Kind: "page", Visibility: "restricted"},
+		Access:         service.DocumentAccess{Level: service.DocumentLevelNone, AdminScope: true},
+		MinutesMeeting: &service.DocumentMinutesMeeting{ID: "01MTG", Title: "Giao ban"},
+	})
+	var unreadableDocMap map[string]any
+	raw, _ = json.Marshal(unreadableAdminDoc)
+	_ = json.Unmarshal(raw, &unreadableDocMap)
+	if _, has := unreadableDocMap["minutes_meeting"]; has {
+		t.Fatalf("unreadable AdminScope documentDTO leaked minutes_meeting: %v", unreadableDocMap)
+	}
+	unreadableAdminSummary := toDocumentSummaryDTO(service.DocumentListItem{
+		Document: db.Document{ID: "01DOC", Kind: "page", Visibility: "restricted"},
+		Access:   service.DocumentAccess{Level: service.DocumentLevelNone, AdminScope: true},
+		Facts:    service.DocumentListFacts{MinutesMeeting: &service.DocumentMinutesMeeting{ID: "01MTG", Title: "Giao ban"}},
+	})
+	var unreadableSummaryMap map[string]any
+	raw, _ = json.Marshal(unreadableAdminSummary)
+	_ = json.Unmarshal(raw, &unreadableSummaryMap)
+	if _, has := unreadableSummaryMap["minutes_meeting"]; has {
+		t.Fatalf("unreadable AdminScope summary leaked minutes_meeting: %v", unreadableSummaryMap)
+	}
+
+	crossTree := documentTreeDTOs([]service.DocumentTreeNode{{
+		ID: "01DOC", Kind: "page",
+		MinutesMeeting: &service.DocumentMinutesMeeting{ID: "01MTG", Title: ""},
+	}})
+	var treeMap []map[string]any
+	raw, _ = json.Marshal(crossTree)
+	_ = json.Unmarshal(raw, &treeMap)
+	treeMM, _ := treeMap[0]["minutes_meeting"].(map[string]any)
+	if treeMM["id"] != "01MTG" {
+		t.Fatalf("tree minutes_meeting = %v", treeMM)
+	}
+	if _, hasTitle := treeMM["title"]; hasTitle {
+		t.Fatalf("blank title must be omitted from minutes_meeting JSON: %v", treeMM)
 	}
 }

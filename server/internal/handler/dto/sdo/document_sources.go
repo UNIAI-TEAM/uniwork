@@ -16,12 +16,14 @@ type DocumentSourceOwnerDTO struct {
 	Name string `json:"name" description:"Tên hiển thị" example:"Nguyễn Văn An"`
 }
 
-// DocumentSourceDTO is one source file the viewer may read.
+// DocumentSourceDTO is one source file or meeting minutes page the viewer may read.
 type DocumentSourceDTO struct {
-	ID           string                  `json:"id" description:"Id tệp nguồn dạng <source>:<ULID dòng gốc>, ổn định" example:"chat:01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	ID           string                  `json:"id" description:"Id tệp nguồn dạng <source>:<ULID dòng gốc> (biên bản họp: meeting:minutes:<meetingID>), ổn định" example:"chat:01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 	Source       string                  `json:"source" description:"chat, task, meeting hoặc email" example:"chat"`
+	Kind         string                  `json:"kind" description:"file (tệp nguồn) hoặc page (trang biên bản họp UniNote)" example:"file"`
+	DocumentID   string                  `json:"document_id,omitempty" description:"ULID trang UniNote khi kind=page; vắng mặt với tệp nguồn" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Parent       DocumentSourceParentDTO `json:"parent" description:"Nơi chứa tệp"`
-	Name         string                  `json:"name" description:"Tên tệp kèm phần mở rộng" example:"Báo cáo quý 3.docx"`
+	Name         string                  `json:"name" description:"Tên tệp kèm phần mở rộng (với kind=page: tiêu đề cuộc họp)" example:"Báo cáo quý 3.docx"`
 	MimeType     string                  `json:"mime_type" description:"MIME type đã xác minh (email: theo thư)" example:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"`
 	Extension    string                  `json:"extension" description:"Phần mở rộng chữ thường, không dấu chấm; rỗng nếu không có" example:"docx"`
 	SizeBytes    int64                   `json:"size_bytes" description:"Kích thước byte" example:"48213"`

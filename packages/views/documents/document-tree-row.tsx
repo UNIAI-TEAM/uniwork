@@ -8,6 +8,7 @@ import type { DocumentShareScope } from "@uniwork/core/types/document";
 import { isMyFolder } from "@uniwork/core/types/document";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DocumentShareScopeBadge } from "./document-share-scope-badge";
+import { DocumentMinutesSourceLink } from "./document-minutes-source-link";
 import {
   DocumentTreeRowMenu, isRowMenuShortcut, TREE_ROW_KEYSHORTCUTS, type TreeRowMenuActions,
 } from "./document-tree-row-menu";
@@ -91,6 +92,28 @@ export function TreeRowItem({
     TREE_MENU_REACH - (starred ? TREE_STAR_SLOT : 0) - (scope ? TREE_BADGE_SLOT : 0),
   );
 
+  const minutes = row.node.kind === "page" && row.node.minutes_meeting?.id;
+  const nameSpan = (
+    <span
+      title={label}
+      className={cn(
+        "min-w-0 truncate",
+        !minutes && "flex-1",
+        overlaySlots && fadeStart > 0 && MASK_NAME_WHEN_REVEALED,
+        overlaySlots && fadeStart > 0 && revealed && "pointer-fine:[mask-image:var(--tree-name-mask)]",
+      )}
+      style={
+        overlaySlots && fadeStart > 0
+          ? ({
+              "--tree-name-mask": `linear-gradient(to left, transparent ${fadeStart}px, black ${fadeStart + TREE_NAME_FADE}px)`,
+            } as React.CSSProperties)
+          : undefined
+      }
+    >
+      {label}
+    </span>
+  );
+
   return (
     <div
       ref={(el) => {
@@ -124,7 +147,7 @@ export function TreeRowItem({
         onKeyDown(event);
       }}
       onClick={(event) => {
-        if ((event.target as HTMLElement).closest("[data-chevron], [data-row-menu]")) return;
+        if ((event.target as HTMLElement).closest("[data-chevron], [data-row-menu], [data-minutes-meeting]")) return;
         onOpen();
       }}
       className={cn(
@@ -173,23 +196,18 @@ export function TreeRowItem({
           <DocumentTypeIcon format={documentIconFormat(row.node.kind, row.node.title)} className="size-4" />
         )}
       </span>
-      <span
-        title={label}
-        className={cn(
-          "min-w-0 flex-1 truncate",
-          overlaySlots && fadeStart > 0 && MASK_NAME_WHEN_REVEALED,
-          overlaySlots && fadeStart > 0 && revealed && "pointer-fine:[mask-image:var(--tree-name-mask)]",
-        )}
-        style={
-          overlaySlots && fadeStart > 0
-            ? ({
-                "--tree-name-mask": `linear-gradient(to left, transparent ${fadeStart}px, black ${fadeStart + TREE_NAME_FADE}px)`,
-              } as React.CSSProperties)
-            : undefined
-        }
-      >
-        {label}
-      </span>
+      {row.node.kind === "page" && row.node.minutes_meeting?.id ? (
+        <span className="flex min-w-0 flex-1 flex-col">
+          {nameSpan}
+          <DocumentMinutesSourceLink
+            minutesMeeting={row.node.minutes_meeting}
+            stopPropagation
+            className="leading-tight"
+          />
+        </span>
+      ) : (
+        nameSpan
+      )}
       {starred ? (
         <Star
           role="img"

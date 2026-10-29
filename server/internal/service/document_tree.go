@@ -397,6 +397,9 @@ type DocumentTreeNode struct {
 	// IsEmpty is set on folders only: whether the caller can read nothing
 	// directly inside it (ADR 0037, counted per viewer).
 	IsEmpty *bool `json:"is_empty,omitempty"`
+	// MinutesMeeting identifies the meeting this page is the minutes of
+	// (UNI-2288); nil on folders, files and non-minutes pages.
+	MinutesMeeting *DocumentMinutesMeeting `json:"minutes_meeting,omitempty"`
 }
 
 // DocumentTree returns the visible subtree under rootID ("" = the roots) as
@@ -480,7 +483,64 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 		}
 		nodes = buildTreeNodes(children[rootID], children, holds, 1)
 	}
-	return nodes, s.attachTreeEditLocks(ctx, actor, scope.organizationID, nodes)
+	if err := s.attachTreeEditLocks(ctx, actor, scope.organizationID, nodes); err != nil {
+		return nil, err
+	}
+	return nodes, s.attachTreeMinutesMeetings(ctx, actor, scope, workspaceID, actor.Kind == audit.KindAgent, byID, nodes)
+}
+
+// attachTreeMinutesMeetings fills MinutesMeeting on every readable page node of
+// the tree forest in one batched query, skipping the query when the forest
+// holds no readable pages (e.g. foldersOnly=true or only ungranted DOC-05
+// administrative rows).
+func (s *DocumentService) attachTreeMinutesMeetings(ctx context.Context, actor Actor, scope documentListScope, workspaceID string, agent bool, docsByID map[string]db.Document, nodes []DocumentTreeNode) error {
+	var pageIDs []string
+	collectTreePageIDs(nodes, &pageIDs)
+	if len(pageIDs) == 0 {
+		return nil
+	}
+	items := make([]DocumentListItem, 0, len(pageIDs))
+	for _, id := range pageIDs {
+		if d, ok := docsByID[id]; ok {
+			items = append(items, DocumentListItem{Document: d})
+		}
+	}
+	if err := s.attachListAccess(ctx, scope, workspaceID, agent, items); err != nil {
+		return err
+	}
+	readableIDs := make([]string, 0, len(items))
+	for i := range items {
+		if items[i].Access.Level.AtLeast(DocumentLevelView) {
+			readableIDs = append(readableIDs, items[i].Document.ID)
+		}
+	}
+	if len(readableIDs) == 0 {
+		return nil
+	}
+	byID, err := s.minutesMeetingsForDocuments(ctx, actor, scope.organizationID, readableIDs)
+	if err != nil || len(byID) == 0 {
+		return err
+	}
+	applyTreeMinutesMeetings(nodes, byID)
+	return nil
+}
+
+func collectTreePageIDs(nodes []DocumentTreeNode, ids *[]string) {
+	for i := range nodes {
+		if nodes[i].Kind == DocumentKindPage {
+			*ids = append(*ids, nodes[i].ID)
+		}
+		collectTreePageIDs(nodes[i].Children, ids)
+	}
+}
+
+func applyTreeMinutesMeetings(nodes []DocumentTreeNode, byID map[string]*DocumentMinutesMeeting) {
+	for i := range nodes {
+		if mm, ok := byID[nodes[i].ID]; ok {
+			nodes[i].MinutesMeeting = mm
+		}
+		applyTreeMinutesMeetings(nodes[i].Children, byID)
+	}
 }
 
 func buildTreeNodes(docs []db.Document, children map[string][]db.Document, holds map[string]bool, depth int) []DocumentTreeNode {

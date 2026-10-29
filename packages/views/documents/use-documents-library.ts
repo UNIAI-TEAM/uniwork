@@ -141,7 +141,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
   // parameter (UNI-2113): the server filters, no row is narrowed on the client.
   const typeParam = types.length > 0 ? types : undefined;
   const sourcesShown = (home && !folderId) || view.kind === "sources";
-  const sourcesWanted = (types.length === 0 || types.some((type) => type !== "page")) && sourcesShown;
+  const sourcesWanted = view.kind === "sources" ? true : (types.length === 0 || types.some((type) => type !== "page")) && sourcesShown;
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const [lastUserId, setLastUserId] = useState<string | null>(userId);
   const [editor, setEditor] = useState<EditorFilter>("any");
@@ -273,7 +273,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
   const sourceFilter = useMemo(
     () => ({
       ...(view.kind === "sources" && view.source ? { source: view.source } : {}),
-      // A page-only pick sends type=page too: sources hold no page, so the answer is empty.
+      // Send the picked types to the sources route whenever it is shown (including type=page on the sources view for meeting minutes).
       ...(sourcesShown && typeParam ? { types: typeParam } : {}),
       ...(sourcesWanted ? sourcesSortParams(sort) : {}),
     }),
@@ -298,6 +298,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
   );
 
   const sourceRows = (sourcesQuery.data?.pages.flatMap((page) => page.items) ?? []).map(sourceRow);
+  const homeSourceRows = sourceRows.filter((row) => row.type !== "source" || !row.source.document_id);
   let state: LibraryState;
   switch (view.kind) {
     case "recent":
@@ -350,7 +351,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
       state = merge
         ? {
             ...docs,
-            rows: mergeSorted(docs.rows, sourceRows, { docs: docs.hasMore, sources: Boolean(sourcesQuery.hasNextPage) }, placeholder ? settledSort : sort, editorNames),
+            rows: mergeSorted(docs.rows, homeSourceRows, { docs: docs.hasMore, sources: Boolean(sourcesQuery.hasNextPage) }, placeholder ? settledSort : sort, editorNames),
             hasMore: docs.hasMore || Boolean(sourcesQuery.hasNextPage),
             loadingMore: docs.loadingMore || sourcesQuery.isFetchingNextPage,
             loadMore: () => {
@@ -368,7 +369,7 @@ export function useDocumentsLibrary({ wsId, orgId, enabled, view, folderId, type
   // only — a document row there is the server's answer. The Type picks are the
   // server's everywhere, source rows included. A merged home counts only while source rows
   // actually merged — an empty sources answer leaves the doc list fully server-filtered.
-  const mergedHome = Boolean(homeRoot && sourcesWanted && sourcesAvailable && sourceRows.length > 0);
+  const mergedHome = Boolean(homeRoot && sourcesWanted && sourcesAvailable && homeSourceRows.length > 0);
   const loadedInFull = view.kind === "starred" || view.kind === "sources" || folderView;
   // The "Lưu trữ bởi" member filter is always client-side: the server has no
   // shelved_by parameter, so it narrows only the loaded pages (Q-UI2).

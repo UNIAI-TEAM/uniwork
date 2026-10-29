@@ -12589,6 +12589,8 @@
       "updated_by": "Updated {{time}} by {{name}}",
       "comment_count_one": "{{count}} comment",
       "comment_count_other": "{{count}} comments",
+      "minutes_source_named": "Meeting minutes · {{title}}",
+      "minutes_source": "Meeting minutes",
       "empty_placeholder": "Start writing, or type \"/\" to insert a block…",
       "line_placeholder": "Type \"/\" to insert a block…",
       "insert_block": "Insert block",
@@ -14040,7 +14042,8 @@
         "open_email": "Open Email",
         "open_email_named": "Open Email: {{title}}",
         "new_subfolder": "New subfolder",
-        "rename": "Rename"
+        "rename": "Rename",
+        "minutes_named": "Minutes · {{title}}"
       },
       "empty": {
         "title": "No documents in this workspace yet",

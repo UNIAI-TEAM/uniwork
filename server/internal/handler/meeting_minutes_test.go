@@ -112,3 +112,283 @@ func TestMeetingMinutesHTTP(t *testing.T) {
 		t.Fatalf("reopen: %d %v", res.StatusCode, out)
 	}
 }
+
+// UNI-2288: meeting minutes appear in GET /workspaces/{wsID}/documents/sources
+// (and ?source=meeting, ?type=page) with kind="page", document_id, and name =
+// the meeting title; download, save and office/frame-token return 404 not_found
+// on meeting:minutes:<id>; and GET/PATCH /documents/{id}, /documents/tree,
+// /documents and /documents/shared-with-me carry minutes_meeting (with title
+// omitted when the viewer is not a member of the meeting's workspace).
+func TestMeetingMinutesDocumentSourceAndLabelHTTP(t *testing.T) {
+	d, pool := newTestDeps(t, nil, discardOutbox{})
+	q := db.New(pool)
+	d.Documents = service.NewDocumentService(pool, q, d.Organizations, d.Workspaces)
+	d.Meetings.Docs = d.Documents
+	d.DocumentSources = service.NewDocumentSourceService(service.DocumentSourceDeps{
+		Documents: d.Documents, Tasks: d.Tasks, Chat: d.Chat, Meetings: d.Meetings,
+	})
+	srv := httptest.NewServer(New(d))
+	t.Cleanup(srv.Close)
+
+	host, _ := registerChatUser(t, srv, "min-src-host@example.com", "Host")
+	_, out := doJSON(t, srv, "POST", "/api/v1/orgs", host, map[string]string{"name": "MinSrcOrg", "slug": "min-src-org"})
+	orgID := out["organization"].(map[string]any)["id"].(string)
+	_, out = doJSON(t, srv, "POST", "/api/v1/orgs/"+orgID+"/workspaces", host, map[string]string{"name": "General", "slug": "general"})
+	wsID := out["workspace"].(map[string]any)["id"].(string)
+	member, _ := docsJoinWorkspace(t, &docsWorld{srv: srv, token: host, wsID: wsID}, "min-src-member@example.com")
+	_, out = doJSON(t, srv, "POST", "/api/v1/orgs/"+orgID+"/workspaces", host, map[string]string{"name": "Other", "slug": "other"})
+	wsBID := out["workspace"].(map[string]any)["id"].(string)
+	outsider, outsiderID := docsJoinWorkspace(t, &docsWorld{srv: srv, token: host, wsID: wsBID}, "min-src-out@example.com")
+
+	setMeetingMinutesFlag(t, featureflags.ScopeOrganization, orgID, true)
+	if _, err := pool.Exec(context.Background(), `INSERT INTO feature_flag_overrides
+		(id, flag_key, scope_type, scope_id, enabled, note, created_by)
+		VALUES ($1, 'documents', 'organization', $2, true, 'test', 'test')`, util.NewID(), orgID); err != nil {
+		t.Fatal(err)
+	}
+	if testFlagOverrides != nil {
+		testFlagOverrides.Invalidate()
+	}
+	var res *http.Response
+	// The PATCH base revision is a decimal string and every share or visibility
+	// change moves it, so each PATCH reads the live value first.
+	liveRev := func(docID string) string {
+		t.Helper()
+		_, o := doJSON(t, srv, "GET", "/api/v1/documents/"+docID, host, nil)
+		rev, _ := o["document"].(map[string]any)["revision"].(string)
+		if rev == "" {
+			t.Fatalf("no revision on document %s: %v", docID, o)
+		}
+		return rev
+	}
+	// Create & end meeting, then create minutes.
+	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/meetings/instant", host, map[string]any{
+		"title": "Giao ban Q4",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("create meeting: %d %v", res.StatusCode, out)
+	}
+	meetingID := out["meeting"].(map[string]any)["id"].(string)
+	if res, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+meetingID+"/end", host, nil); res.StatusCode != http.StatusOK {
+		t.Fatalf("end meeting: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/meetings/"+meetingID+"/minutes", host, map[string]any{"locale": "vi"})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("create minutes: %d %v", res.StatusCode, out)
+	}
+	docID := out["minutes"].(map[string]any)["document_id"].(string)
+	wantSourceID := "meeting:minutes:" + meetingID
+
+	// 1. Sources endpoint lists the minutes row on all, ?source=meeting, and ?type=page, and omits it on ?type=pdf.
+	for _, qstr := range []string{"", "source=meeting", "type=page", "source=meeting&type=page"} {
+		res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents/sources?"+qstr, member, nil)
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("GET sources?%s: %d %v", qstr, res.StatusCode, out)
+		}
+		items, _ := out["items"].([]any)
+		if len(items) != 1 {
+			t.Fatalf("GET sources?%s items = %v, want 1", qstr, items)
+		}
+		it := items[0].(map[string]any)
+		parent, _ := it["parent"].(map[string]any)
+		if it["id"] != wantSourceID || it["source"] != "meeting" || it["kind"] != "page" ||
+			it["document_id"] != docID || it["name"] != "Giao ban Q4" ||
+			parent["kind"] != "meeting" || parent["id"] != meetingID || parent["title"] != "Giao ban Q4" ||
+			it["mime_type"] != "" || it["extension"] != "" || it["size_bytes"] != float64(0) ||
+			it["can_open_in_app"] != false || it["can_save"] != false {
+			t.Fatalf("GET sources?%s item = %v", qstr, it)
+		}
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents/sources?type=pdf", member, nil)
+	if res.StatusCode != http.StatusOK || len(out["items"].([]any)) != 0 {
+		t.Fatalf("GET sources?type=pdf = %d %v, want empty", res.StatusCode, out)
+	}
+
+	// 2. D4: download, save and office/frame-token refuse meeting:minutes:<id> with 404 not_found.
+	escapedID := "meeting%3Aminutes%3A" + meetingID
+	for _, call := range []struct {
+		method string
+		suffix string
+	}{
+		{"GET", "/download"},
+		{"POST", "/save"},
+		{"POST", "/office/frame-token"},
+	} {
+		res, out = doJSON(t, srv, call.method, "/api/v1/workspaces/"+wsID+"/documents/sources/"+escapedID+call.suffix, member, nil)
+		if res.StatusCode != http.StatusNotFound || errorCode(out) != "not_found" {
+			t.Fatalf("%s %s = %d %v, want 404 not_found", call.method, call.suffix, res.StatusCode, out)
+		}
+	}
+
+	// 3. GET /documents/{id}, PATCH /documents/{id}, /documents/tree and /documents return minutes_meeting{id, title} for member.
+	res, out = doJSON(t, srv, "GET", "/api/v1/documents/"+docID, member, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET document: %d %v", res.StatusCode, out)
+	}
+	mm, _ := out["document"].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID || mm["title"] != "Giao ban Q4" {
+		t.Fatalf("GET document minutes_meeting = %v", mm)
+	}
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/documents/"+docID, host, map[string]any{
+		"revision": liveRev(docID), "icon": "📋",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("PATCH document: %d %v", res.StatusCode, out)
+	}
+	mm, _ = out["document"].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID || mm["title"] != "Giao ban Q4" {
+		t.Fatalf("PATCH document minutes_meeting = %v", mm)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents/tree", member, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET tree: %d %v", res.StatusCode, out)
+	}
+	treeDocs, _ := out["documents"].([]any)
+	if len(treeDocs) != 1 {
+		t.Fatalf("tree documents = %v, want 1", treeDocs)
+	}
+	mm, _ = treeDocs[0].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID || mm["title"] != "Giao ban Q4" {
+		t.Fatalf("tree minutes_meeting = %v", mm)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents", member, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET documents: %d %v", res.StatusCode, out)
+	}
+	listDocs, _ := out["documents"].([]any)
+	if len(listDocs) != 1 {
+		t.Fatalf("list documents = %v, want 1", listDocs)
+	}
+	mm, _ = listDocs[0].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID || mm["title"] != "Giao ban Q4" {
+		t.Fatalf("list minutes_meeting = %v", mm)
+	}
+
+	// 4. Share the page with outsider (in wsB only): GET /documents/{id} and GET /workspaces/{wsB}/documents/shared-with-me
+	// return minutes_meeting with id and NO title key.
+	res, out = doJSON(t, srv, "POST", "/api/v1/documents/"+docID+"/shares", host, map[string]any{
+		"principal_type": "user", "principal_id": outsiderID, "level": "view",
+	})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("share document with outsider: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/documents/"+docID, outsider, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("outsider GET document: %d %v", res.StatusCode, out)
+	}
+	mm, _ = out["document"].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID {
+		t.Fatalf("outsider GET document minutes_meeting = %v", mm)
+	}
+	if _, hasTitle := mm["title"]; hasTitle {
+		t.Fatalf("outsider GET document leaked meeting title: %v", mm)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsBID+"/documents/shared-with-me", outsider, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("outsider shared-with-me: %d %v", res.StatusCode, out)
+	}
+	sharedDocs, _ := out["documents"].([]any)
+	if len(sharedDocs) != 1 {
+		t.Fatalf("outsider shared-with-me = %v, want 1", sharedDocs)
+	}
+	mm, _ = sharedDocs[0].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID {
+		t.Fatalf("outsider shared-with-me minutes_meeting = %v", mm)
+	}
+	if _, hasTitle := mm["title"]; hasTitle {
+		t.Fatalf("outsider shared-with-me leaked meeting title: %v", mm)
+	}
+
+	// 5. RB1-1: restrict the minutes page (owned by host) and verify an ungranted workspace admin
+	// and implicit org admin still see the DOC-05 administrative row in list/tree/PATCH,
+	// but without minutes_meeting; a live break-glass grant brings minutes_meeting back.
+	wsAdminTok, wsAdminID := docsJoinWorkspace(t, &docsWorld{srv: srv, token: host, wsID: wsID}, "min-src-wsadmin@example.com")
+	if _, err := pool.Exec(context.Background(), `UPDATE workspace_members SET role = 'admin' WHERE workspace_id = $1 AND user_id = $2`, wsID, wsAdminID); err != nil {
+		t.Fatal(err)
+	}
+	orgAdminTok, orgAdminID := registerChatUser(t, srv, "min-src-orgadmin@example.com", "OrgAdmin")
+	if _, err := pool.Exec(context.Background(), `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'admin')`, orgID, orgAdminID); err != nil {
+		t.Fatal(err)
+	}
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/documents/"+docID, host, map[string]any{
+		"revision": liveRev(docID), "visibility": "restricted",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("restrict minutes page: %d %v", res.StatusCode, out)
+	}
+	for _, adm := range []struct {
+		name string
+		tok  string
+	}{
+		{"wsAdmin", wsAdminTok},
+		{"orgAdmin", orgAdminTok},
+	} {
+		res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents", adm.tok, nil)
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("%s GET documents: %d %v", adm.name, res.StatusCode, out)
+		}
+		docs, _ := out["documents"].([]any)
+		if len(docs) != 1 {
+			t.Fatalf("%s list documents = %v, want 1", adm.name, docs)
+		}
+		row := docs[0].(map[string]any)
+		if row["admin_scope"] != true {
+			t.Fatalf("%s list row admin_scope = %v, want true", adm.name, row["admin_scope"])
+		}
+		if _, has := row["minutes_meeting"]; has {
+			t.Fatalf("%s list row leaked minutes_meeting on restricted page: %v", adm.name, row)
+		}
+		res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents/tree", adm.tok, nil)
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("%s GET tree: %d %v", adm.name, res.StatusCode, out)
+		}
+		tnodes, _ := out["documents"].([]any)
+		if len(tnodes) != 1 {
+			t.Fatalf("%s tree documents = %v, want 1", adm.name, tnodes)
+		}
+		if _, has := tnodes[0].(map[string]any)["minutes_meeting"]; has {
+			t.Fatalf("%s tree node leaked minutes_meeting on restricted page: %v", adm.name, tnodes[0])
+		}
+		res, out = doJSON(t, srv, "PATCH", "/api/v1/documents/"+docID, adm.tok, map[string]any{
+			"revision": liveRev(docID), "visibility": "restricted",
+		})
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("%s PATCH restricted visibility: %d %v", adm.name, res.StatusCode, out)
+		}
+		if _, has := out["document"].(map[string]any)["minutes_meeting"]; has {
+			t.Fatalf("%s PATCH response leaked minutes_meeting on restricted page: %v", adm.name, out["document"])
+		}
+	}
+	res, out = doJSON(t, srv, "POST", "/api/v1/documents/"+docID+"/break-glass", wsAdminTok, map[string]any{
+		"reason": "Kiểm tra biên bản cuộc họp khẩn cấp",
+	})
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("wsAdmin break-glass: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents", wsAdminTok, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("wsAdmin GET documents after break-glass: %d %v", res.StatusCode, out)
+	}
+	mm, _ = out["documents"].([]any)[0].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID || mm["title"] != "Giao ban Q4" {
+		t.Fatalf("wsAdmin list minutes_meeting after break-glass = %v", mm)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/documents/tree", wsAdminTok, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("wsAdmin GET tree after break-glass: %d %v", res.StatusCode, out)
+	}
+	mm, _ = out["documents"].([]any)[0].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID || mm["title"] != "Giao ban Q4" {
+		t.Fatalf("wsAdmin tree minutes_meeting after break-glass = %v", mm)
+	}
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/documents/"+docID, wsAdminTok, map[string]any{
+		"revision": liveRev(docID), "visibility": "restricted",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("wsAdmin PATCH after break-glass: %d %v", res.StatusCode, out)
+	}
+	mm, _ = out["document"].(map[string]any)["minutes_meeting"].(map[string]any)
+	if mm["id"] != meetingID || mm["title"] != "Giao ban Q4" {
+		t.Fatalf("wsAdmin PATCH minutes_meeting after break-glass = %v", mm)
+	}
+}

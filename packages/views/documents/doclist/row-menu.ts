@@ -171,18 +171,22 @@ function shelvedGroups(doc: DocumentSummaryRow, { handlers, open }: RowMenuConte
   return [reading, removing];
 }
 
-function sourceGroups(row: SourceRow, { handlers }: RowMenuContext): RowMenuGroup[] {
+function sourceGroups(row: SourceRow, { handlers, open }: RowMenuContext): RowMenuGroup[] {
   const items: RowMenuItem[] = [];
   const { onGoToSource, onDownloadSource, onSaveSource } = handlers;
+  const isPage = row.source.kind === "page";
+  if (isPage && Boolean(row.source.document_id)) {
+    items.push({ id: "open", labelKey: "documents.tree.menu.open", run: open });
+  }
   // A parent kind with no route offers neither the menu item nor the button.
   if (onGoToSource && sourceParentLinked(row.source.parent)) {
     items.push({ id: "go-to-source", labelKey: sourceLinkLabelKey(row.source.parent), run: () => onGoToSource(row) });
   }
-  if (onDownloadSource) {
+  if (!isPage && onDownloadSource) {
     items.push({ id: "download", labelKey: "documents.home.row.download", run: () => onDownloadSource(row.source.id) });
   }
   // Only a file the server marks as copyable offers the save.
-  if (onSaveSource && row.source.can_save) {
+  if (!isPage && onSaveSource && row.source.can_save) {
     items.push({ id: "save", labelKey: "documents.home.row.save_to_folder", run: () => onSaveSource(row) });
   }
   return [items];

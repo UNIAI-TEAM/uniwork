@@ -1000,6 +1000,88 @@ describe("DocumentsPageView", () => {
     expect(screen.getByRole("menuitem", { name: t("documents.home.row.download") })).toBeInTheDocument();
   });
 
+  it("renders meeting minutes in From elsewhere > Meetings with client i18n title, UniNote icon, — size, opens the page, and omits download/save from the menu (UNI-2288)", async () => {
+    const onOpen = vi.fn();
+    const urls: string[] = [];
+    route({
+      list: () => [summary({ id: "doc-min", title: "Biên bản Giao ban tuần 42" })],
+      sources: () => {
+        const lastSourceCall = requestMock.mock.calls.filter(([p]) => String(p).startsWith(`${LIST_BASE}/sources`)).pop();
+        if (lastSourceCall) urls.push(String(lastSourceCall[0]));
+        return [
+          source({
+            id: "meeting:minutes:m1",
+            source: "meeting",
+            kind: "page",
+            document_id: "doc-min",
+            parent: { kind: "meeting", id: "m1", title: "Giao ban tuần 42" },
+            name: "Giao ban tuần 42",
+            mime_type: "",
+            extension: "",
+            size_bytes: 0,
+            can_open_in_app: false,
+            can_save: false,
+          }),
+        ];
+      },
+    });
+    const { nav } = renderView(onOpen, { initialUrl: `/acme/doi/documents?view=sources&source=meeting` });
+
+    const expectedLabel = t("documents.home.row.minutes_named", { title: "Giao ban tuần 42" });
+    const row = await rowOf(expectedLabel);
+    expect(within(row.querySelector("td[data-column='size']") as HTMLElement).getByText("—")).toBeInTheDocument();
+
+    // Clicking the row opens the UniNote page, not the Office viewer or download.
+    fireEvent.click(within(row.querySelector("td[data-column='name']") as HTMLElement).getByRole("button"));
+    expect(onOpen).toHaveBeenCalledWith("doc-min");
+    expect(requestMock.mock.calls.some(([p]) => String(p).includes("/download"))).toBe(false);
+
+    // Row menu offers Open and Go to source, with no Download or Save to folder.
+    fireEvent.click(within(row).getByRole("button", { name: t("documents.home.row.menu", { title: expectedLabel }) }));
+    expect(await screen.findByRole("menuitem", { name: t("documents.tree.menu.open") })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: t("documents.home.row.go_to_source") })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.download") })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: t("documents.home.row.save_to_folder") })).toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: t("documents.tree.menu.open") })).toBeNull());
+
+    // Picking type=page on the sources view keeps the sources query active with type=page.
+    await pickTypeFilter("page");
+    await waitFor(() => expect(urls.some((u) => queryOf(u).get("type") === "page")).toBe(true));
+    const filteredRow = await rowOf(expectedLabel);
+    expect(filteredRow).toBeInTheDocument();
+
+    // Secondary source link navigates to the meeting.
+    fireEvent.click(within(filteredRow).getByRole("button", { name: t("documents.home.row.go_to_source_named", { title: expectedLabel }) }));
+    expect(nav.push).toHaveBeenCalledWith("/acme/doi/meetings/m1");
+  });
+
+  it("deduplicates a meeting minutes source row on the home root so the minutes page is not shown twice (UNI-2288)", async () => {
+    route({
+      list: () => [summary({ id: "doc-min", title: "Giao ban tuần 42" })],
+      sources: () => [
+        source({
+          id: "meeting:minutes:m1",
+          source: "meeting",
+          kind: "page",
+          document_id: "doc-min",
+          parent: { kind: "meeting", id: "m1", title: "Giao ban tuần 42" },
+          name: "Giao ban tuần 42",
+          mime_type: "",
+          extension: "",
+          size_bytes: 0,
+          can_open_in_app: false,
+          can_save: false,
+        }),
+      ],
+    });
+    renderView(vi.fn());
+
+    expect(await screen.findByText("Giao ban tuần 42")).toBeInTheDocument();
+    expect(screen.queryByText(t("documents.home.row.minutes_named", { title: "Giao ban tuần 42" }))).toBeNull();
+    expect(document.querySelectorAll("[data-library-row]")).toHaveLength(1);
+  });
+
   it("explains a refused save in the dialog", async () => {
     route({
       list: () => [],
