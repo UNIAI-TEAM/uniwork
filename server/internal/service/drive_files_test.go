@@ -3035,3 +3035,110 @@ func TestDriveFolderTreeRefreshOnReadForAI(t *testing.T) {
 		t.Fatalf("file2 drive_folder_name = %q, want AI Sub New", file2FolderName)
 	}
 }
+
+// TestDriveOpportunisticRefreshAtomicityAndInterleaving (UNI-2291 RB1-3) verifies on PostgreSQL:
+//   - When an error occurs between folder upserts and file metadata update during opportunistic
+//     refresh, the transaction rolls back all folder and workspace folder-name updates while
+//     Get/ListMine still degrades cleanly.
+//   - When two refreshes of different files in the same folder interleave across a Drive folder
+//     rename, the transactional persistence keeps drive_folders.name and drive_files.drive_folder_name
+//     consistent.
+func TestDriveOpportunisticRefreshAtomicityAndInterleaving(t *testing.T) {
+	env := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+	connOwner := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-rb13-owner", "rb13-owner@example.com")
+	connPeer := env.connectAccount(t, env.peer.ID, env.wsA.ID, "sub-rb13-peer", "rb13-peer@example.com")
+
+	env.googleSrv.SetFile("fld-rb13", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb13", Name: "Initial Folder", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("ext-rb13-a", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-rb13-a", Name: "Doc A", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-rb13"}},
+	})
+	env.googleSrv.SetFile("ext-rb13-b", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-rb13-b", Name: "Doc B", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-rb13"}},
+	})
+
+	linkedOwner, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"ext-rb13-a"},
+	})
+	if err != nil || len(linkedOwner) != 1 || linkedOwner[0].File == nil {
+		t.Fatalf("owner Link: %+v, err=%v", linkedOwner, err)
+	}
+	fileAID := linkedOwner[0].File.ID
+
+	linkedPeer, err := env.fileSvc.Link(ctx, Human(env.peer.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connPeer.ID,
+		ExternalFileIDs: []string{"ext-rb13-b"},
+	})
+	if err != nil || len(linkedPeer) != 1 || linkedPeer[0].File == nil {
+		t.Fatalf("peer Link: %+v, err=%v", linkedPeer, err)
+	}
+	fileBID := linkedPeer[0].File.ID
+
+	// 1. Mid-refresh failure rolls back UpsertDriveFolder and SetDriveFolderNameInWorkspace, while Get degrades cleanly.
+	env.googleSrv.SetFile("fld-rb13", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb13", Name: "Aborted Rename", MimeType: DriveMimeGoogleFolder},
+	})
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id = $1`, fileAID); err != nil {
+		t.Fatalf("age fileA: %v", err)
+	}
+	env.fileSvc.testAfterRefreshFoldersUpsert = func(driveFileID string) error {
+		if driveFileID == fileAID {
+			return errors.New("simulated failure after upsertResolvedDriveFolders")
+		}
+		return nil
+	}
+	gotA, err := env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, fileAID)
+	env.fileSvc.testAfterRefreshFoldersUpsert = nil
+	if err != nil {
+		t.Fatalf("Get must degrade cleanly on refresh tx failure, got err=%v", err)
+	}
+	if gotA.DriveFolder == nil || gotA.DriveFolder.Name == nil || *gotA.DriveFolder.Name != "Initial Folder" {
+		t.Fatalf("gotA.DriveFolder after rolled-back refresh = %+v, want Initial Folder", gotA.DriveFolder)
+	}
+	var folderNameAfterAbort, fileBFolderNameAfterAbort string
+	if err := env.pool.QueryRow(ctx, `SELECT name FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id = 'fld-rb13'`, env.wsA.ID).Scan(&folderNameAfterAbort); err != nil {
+		t.Fatalf("query drive_folders: %v", err)
+	}
+	if err := env.pool.QueryRow(ctx, `SELECT COALESCE(drive_folder_name, '') FROM drive_files WHERE id = $1`, fileBID).Scan(&fileBFolderNameAfterAbort); err != nil {
+		t.Fatalf("query fileB: %v", err)
+	}
+	if folderNameAfterAbort != "Initial Folder" || fileBFolderNameAfterAbort != "Initial Folder" {
+		t.Fatalf("post-rollback state: folder=%q fileB=%q, want both Initial Folder", folderNameAfterAbort, fileBFolderNameAfterAbort)
+	}
+
+	// 2. Concurrent refresh of two different files in the same folder across a rename keeps folder and file names consistent.
+	env.googleSrv.SetFile("fld-rb13", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-rb13", Name: "Consistent Renamed Folder", MimeType: DriveMimeGoogleFolder},
+	})
+	if _, err := env.pool.Exec(ctx, `UPDATE drive_files SET metadata_refreshed_at = now() - interval '11 minutes' WHERE id IN ($1, $2)`, fileAID, fileBID); err != nil {
+		t.Fatalf("age both files: %v", err)
+	}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, _ = env.fileSvc.Get(ctx, Human(env.owner.ID), env.wsA.ID, fileAID)
+	}()
+	go func() {
+		defer wg.Done()
+		_, _ = env.fileSvc.Get(ctx, Human(env.peer.ID), env.wsA.ID, fileBID)
+	}()
+	wg.Wait()
+
+	var finalFolderName, finalFileAFolder, finalFileBFolder string
+	if err := env.pool.QueryRow(ctx, `SELECT name FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id = 'fld-rb13'`, env.wsA.ID).Scan(&finalFolderName); err != nil {
+		t.Fatalf("query final drive_folders: %v", err)
+	}
+	if err := env.pool.QueryRow(ctx, `SELECT COALESCE(drive_folder_name, '') FROM drive_files WHERE id = $1`, fileAID).Scan(&finalFileAFolder); err != nil {
+		t.Fatalf("query final fileA: %v", err)
+	}
+	if err := env.pool.QueryRow(ctx, `SELECT COALESCE(drive_folder_name, '') FROM drive_files WHERE id = $1`, fileBID).Scan(&finalFileBFolder); err != nil {
+		t.Fatalf("query final fileB: %v", err)
+	}
+	if finalFolderName != "Consistent Renamed Folder" || finalFileAFolder != finalFolderName || finalFileBFolder != finalFolderName {
+		t.Fatalf("inconsistent folder names: folder=%q fileA=%q fileB=%q", finalFolderName, finalFileAFolder, finalFileBFolder)
+	}
+}

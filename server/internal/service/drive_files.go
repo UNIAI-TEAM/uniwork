@@ -258,18 +258,20 @@ type DriveTaskCreationsLoader interface {
 // task links, rebind, metadata refresh, and the real driveFileAccessLookup for
 // DriveContentService.ReadForAI (spec §6.2–§6.4, §7.1–§7.8, §7.6a, ADR 0047).
 type DriveFileService struct {
-	pool              *pgxpool.Pool
-	q                 *db.Queries
-	ws                *WorkspaceService
-	connections       *DriveConnectionService
-	api               *DriveAPIClient
-	flags             *featureflag.Service
-	log               *slog.Logger
-	now               func() time.Time
-	aiEnabled         func() bool
-	taskPolicy        DriveTaskAccessPolicy
-	creations         DriveTaskCreationsLoader
-	testAfterLinkLock func(workspaceID, externalFileID string)
+	pool                          *pgxpool.Pool
+	q                             *db.Queries
+	ws                            *WorkspaceService
+	connections                   *DriveConnectionService
+	api                           *DriveAPIClient
+	flags                         *featureflag.Service
+	log                           *slog.Logger
+	now                           func() time.Time
+	aiEnabled                     func() bool
+	taskPolicy                    DriveTaskAccessPolicy
+	creations                     DriveTaskCreationsLoader
+	testAfterLinkLock             func(workspaceID, externalFileID string)
+	testBeginRefreshTx            func(ctx context.Context) (*db.Queries, func(context.Context) error, func(context.Context) error, error)
+	testAfterRefreshFoldersUpsert func(driveFileID string) error
 }
 
 // NewDriveFileService constructs a DriveFileService.

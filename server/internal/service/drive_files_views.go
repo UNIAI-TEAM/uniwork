@@ -253,6 +253,20 @@ func resolveWorkspaceFolderNameFallback(ctx context.Context, q *db.Queries, ws d
 	}
 }
 
+func (s *DriveFileService) beginRefreshTx(ctx context.Context) (*db.Queries, func(context.Context) error, func(context.Context) error, error) {
+	if s.testBeginRefreshTx != nil {
+		return s.testBeginRefreshTx(ctx)
+	}
+	if s.pool == nil {
+		return nil, nil, nil, errors.New("drive refresh: pool is nil")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return s.q.WithTx(tx), tx.Commit, tx.Rollback, nil
+}
+
 func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, viewerID string, ws db.Workspace, driveFileID, externalFileID, viewerConnID string, parentCache driveFolderWalkCache) bool {
 	if s == nil || s.api == nil || s.connections == nil || viewerConnID == "" {
 		return false
@@ -277,11 +291,24 @@ func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, 
 		s.maybeRecordAccessLost(ctx, viewerID, ws.OrganizationID, ws.ID, driveFileID, conn.ID, err)
 		return true
 	}
+	qtx, commitTx, rollbackTx, err := s.beginRefreshTx(ctx)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = rollbackTx(ctx) }()
+
 	now := s.nowUTC()
-	_ = upsertResolvedDriveFolders(ctx, s.q, ws, conn.ID, Human(viewerID), meta.ResolvedFolders, now)
+	if err := upsertResolvedDriveFolders(ctx, qtx, ws, conn.ID, Human(viewerID), meta.ResolvedFolders, now); err != nil {
+		return false
+	}
+	if s.testAfterRefreshFoldersUpsert != nil {
+		if err := s.testAfterRefreshFoldersUpsert(driveFileID); err != nil {
+			return false
+		}
+	}
 	params := normalizeMetadataForDB(meta, externalFileID, now)
-	resolveWorkspaceFolderNameFallback(ctx, s.q, ws, &params)
-	if _, err := s.q.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
+	resolveWorkspaceFolderNameFallback(ctx, qtx, ws, &params)
+	if _, err := qtx.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
 		DriveFolderID:          params.DriveFolderID,
 		DriveFolderName:        params.DriveFolderName,
@@ -301,13 +328,16 @@ func (s *DriveFileService) refreshFileWithViewerConnection(ctx context.Context, 
 	}); err != nil {
 		return false
 	}
-	_, _ = s.q.TouchDriveFileAccessCheckedAt(ctx, db.TouchDriveFileAccessCheckedAtParams{
+	_, _ = qtx.TouchDriveFileAccessCheckedAt(ctx, db.TouchDriveFileAccessCheckedAtParams{
 		OrganizationID: ws.OrganizationID,
 		WorkspaceID:    ws.ID,
 		DriveFileID:    driveFileID,
 		UserID:         viewerID,
 		ConnectionID:   conn.ID,
 	})
+	if err := commitTx(ctx); err != nil {
+		return false
+	}
 	return true
 }
 

@@ -326,12 +326,86 @@ func (fn driveUnitRowFunc) Scan(dest ...any) error { return fn(dest...) }
 // the real WorkspaceService.requireActorMember gate and the real
 // DriveConnectionService token refresh path without a live Postgres connection.
 type memDriveUnitDBTX struct {
-	mu         sync.Mutex
-	admitted   map[string]string             // "wsID|userID" -> orgID
-	workspaces map[string]db.Workspace       // wsID -> workspace
-	files      map[string]db.DriveFile       // fileID -> row
-	access     map[string]db.DriveFileAccess // "fileID|userID" -> row
-	conns      map[string]db.DriveConnection // connID -> row
+	mu                sync.Mutex
+	admitted          map[string]string             // "wsID|userID" -> orgID
+	workspaces        map[string]db.Workspace       // wsID -> workspace
+	files             map[string]db.DriveFile       // fileID -> row
+	folders           map[string]db.DriveFolder     // "wsID|driveFolderID" -> row
+	access            map[string]db.DriveFileAccess // "fileID|userID" -> row
+	conns             map[string]db.DriveConnection // connID -> row
+	failSetFolderName bool
+	failUpdateFile    bool
+}
+
+func (m *memDriveUnitDBTX) beginTx() (*db.Queries, func(context.Context) error, func(context.Context) error, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	filesCopy := make(map[string]db.DriveFile, len(m.files))
+	for k, v := range m.files {
+		filesCopy[k] = v
+	}
+	foldersCopy := make(map[string]db.DriveFolder, len(m.folders))
+	for k, v := range m.folders {
+		foldersCopy[k] = v
+	}
+	accessCopy := make(map[string]db.DriveFileAccess, len(m.access))
+	for k, v := range m.access {
+		accessCopy[k] = v
+	}
+	txDB := &memDriveUnitDBTX{
+		admitted:          m.admitted,
+		workspaces:        m.workspaces,
+		files:             filesCopy,
+		folders:           foldersCopy,
+		access:            accessCopy,
+		conns:             m.conns,
+		failSetFolderName: m.failSetFolderName,
+		failUpdateFile:    m.failUpdateFile,
+	}
+	closed := false
+	commit := func(context.Context) error {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if closed {
+			return errors.New("tx already closed")
+		}
+		closed = true
+		m.files = txDB.files
+		m.folders = txDB.folders
+		m.access = txDB.access
+		return nil
+	}
+	rollback := func(context.Context) error {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		closed = true
+		return nil
+	}
+	return db.New(txDB), commit, rollback, nil
+}
+
+type memDriveStringRows struct {
+	vals []string
+	idx  int
+}
+
+func (r *memDriveStringRows) Close()                                       {}
+func (r *memDriveStringRows) Err() error                                   { return nil }
+func (r *memDriveStringRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
+func (r *memDriveStringRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (r *memDriveStringRows) Values() ([]any, error)                       { return nil, nil }
+func (r *memDriveStringRows) RawValues() [][]byte                          { return nil }
+func (r *memDriveStringRows) Conn() *pgx.Conn                              { return nil }
+func (r *memDriveStringRows) Next() bool {
+	if r.idx >= len(r.vals) {
+		return false
+	}
+	r.idx++
+	return true
+}
+func (r *memDriveStringRows) Scan(dest ...any) error {
+	*(dest[0].(*string)) = r.vals[r.idx-1]
+	return nil
 }
 
 func (m *memDriveUnitDBTX) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
@@ -361,7 +435,27 @@ func (m *memDriveUnitDBTX) Exec(_ context.Context, sql string, args ...any) (pgc
 	return pgconn.NewCommandTag(""), errors.New("unexpected Exec in memDriveUnitDBTX: " + sql)
 }
 
-func (m *memDriveUnitDBTX) Query(_ context.Context, sql string, _ ...any) (pgx.Rows, error) {
+func (m *memDriveUnitDBTX) Query(_ context.Context, sql string, args ...any) (pgx.Rows, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if strings.Contains(sql, "-- name: SetDriveFolderNameInWorkspace ") {
+		if m.failSetFolderName {
+			return nil, errors.New("simulated SetDriveFolderNameInWorkspace error")
+		}
+		folderName, _ := args[0].(string)
+		orgID, _ := args[1].(string)
+		wsID, _ := args[2].(string)
+		folderID, _ := args[3].(string)
+		var ids []string
+		for id, f := range m.files {
+			if f.OrganizationID == orgID && f.WorkspaceID == wsID && !f.UnlinkedAt.Valid && f.DriveFolderID.Valid && f.DriveFolderID.String == folderID {
+				f.DriveFolderName = pgtype.Text{String: folderName, Valid: true}
+				m.files[id] = f
+				ids = append(ids, id)
+			}
+		}
+		return &memDriveStringRows{vals: ids}, nil
+	}
 	return nil, errors.New("unexpected Query in memDriveUnitDBTX: " + sql)
 }
 
@@ -416,7 +510,83 @@ func (m *memDriveUnitDBTX) QueryRow(_ context.Context, sql string, args ...any) 
 			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
 		}
 		return scanMemDriveFile(row)
+	case strings.Contains(sql, "-- name: ClaimDriveFileMetadataRefresh "):
+		id, _ := args[0].(string)
+		orgID, _ := args[1].(string)
+		wsID, _ := args[2].(string)
+		row, ok := m.files[id]
+		if !ok || row.OrganizationID != orgID || row.WorkspaceID != wsID || row.UnlinkedAt.Valid {
+			return driveUnitRowFunc(func(...any) error { return pgx.ErrNoRows })
+		}
+		return driveUnitRowFunc(func(dest ...any) error {
+			*(dest[0].(*string)) = row.ID
+			return nil
+		})
+	case strings.Contains(sql, "-- name: UpsertDriveFolder "):
+		id, _ := args[0].(string)
+		orgID, _ := args[1].(string)
+		wsID, _ := args[2].(string)
+		connID, _ := args[3].(string)
+		folderID, _ := args[4].(string)
+		name, _ := args[5].(string)
+		parentID, _ := args[6].(pgtype.Text)
+		refreshedAt, _ := args[7].(pgtype.Timestamptz)
+		createdBy, _ := args[8].(string)
+		createdByKind, _ := args[9].(string)
+		if m.folders == nil {
+			m.folders = make(map[string]db.DriveFolder)
+		}
+		row := db.DriveFolder{
+			ID:             id,
+			OrganizationID: orgID,
+			WorkspaceID:    wsID,
+			ConnectionID:   connID,
+			DriveFolderID:  folderID,
+			Name:           name,
+			ParentFolderID: parentID,
+			RefreshedAt:    refreshedAt,
+			CreatedBy:      createdBy,
+			CreatedByKind:  createdByKind,
+		}
+		m.folders[wsID+"|"+folderID] = row
+		return driveUnitRowFunc(func(dest ...any) error {
+			*(dest[0].(*string)) = row.ID
+			*(dest[1].(*string)) = row.OrganizationID
+			*(dest[2].(*string)) = row.WorkspaceID
+			*(dest[3].(*string)) = row.ConnectionID
+			*(dest[4].(*string)) = row.DriveFolderID
+			*(dest[5].(*string)) = row.Name
+			*(dest[6].(*pgtype.Text)) = row.ParentFolderID
+			*(dest[7].(*pgtype.Timestamptz)) = row.RefreshedAt
+			*(dest[8].(*string)) = row.CreatedBy
+			*(dest[9].(*string)) = row.CreatedByKind
+			*(dest[10].(*pgtype.Timestamptz)) = row.CreatedAt
+			*(dest[11].(*pgtype.Timestamptz)) = row.UpdatedAt
+			return nil
+		})
+	case strings.Contains(sql, "-- name: GetWorkspaceDriveFolderName "):
+		orgID, _ := args[0].(string)
+		wsID, _ := args[1].(string)
+		folderID, _ := args[2].(string)
+		var found string
+		if df, ok := m.folders[wsID+"|"+folderID]; ok && df.OrganizationID == orgID {
+			found = df.Name
+		} else {
+			for _, f := range m.files {
+				if f.OrganizationID == orgID && f.WorkspaceID == wsID && !f.UnlinkedAt.Valid && f.DriveFolderID.Valid && f.DriveFolderID.String == folderID && f.DriveFolderName.Valid {
+					found = f.DriveFolderName.String
+					break
+				}
+			}
+		}
+		return driveUnitRowFunc(func(dest ...any) error {
+			*(dest[0].(*string)) = found
+			return nil
+		})
 	case strings.Contains(sql, "-- name: UpdateDriveFileMetadata "):
+		if m.failUpdateFile {
+			return driveUnitRowFunc(func(...any) error { return errors.New("simulated UpdateDriveFileMetadata error") })
+		}
 		id, _ := args[13].(string)
 		orgID, _ := args[14].(string)
 		wsID, _ := args[15].(string)
@@ -2960,4 +3130,164 @@ func (r rewriteHostRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	clone.URL.Host = r.target.Host
 	clone.Host = r.target.Host
 	return r.base.RoundTrip(clone)
+}
+
+// TestDriveOpportunisticRefreshAtomicRollbackUnit (UNI-2291 RB1-3) verifies without a live
+// database that refreshFileWithViewerConnection executes folder upserts, workspace
+// folder-name synchronization, and file metadata update inside one transaction, checking
+// errors and rolling back atomically if any step fails.
+func TestDriveOpportunisticRefreshAtomicRollbackUnit(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	gSrv := NewFakeGoogleDriveServer(t.Cleanup)
+	box := testDriveBox(t)
+	seal := func(plain string) string {
+		s, serr := box.Seal([]byte(plain))
+		if serr != nil {
+			t.Fatal(serr)
+		}
+		return base64.StdEncoding.EncodeToString(s)
+	}
+
+	const (
+		orgID    = "01ORG00000000000000000RB13"
+		wsID     = "01WS000000000000000000RB13"
+		userID   = "01USER0000000000000000RB13"
+		connID   = "01CONN0000000000000000RB13"
+		file1ID  = "01FILE0000000000000001RB13"
+		file2ID  = "01FILE0000000000000002RB13"
+		extFile1 = "ext-rb13-1"
+		extFile2 = "ext-rb13-2"
+		folderID = "fld-rb13-shared"
+	)
+	now := time.Now().UTC()
+	wsRow := db.Workspace{ID: wsID, OrganizationID: orgID, Slug: "ws-rb13", Name: "WS RB13", TaskPrefix: "RB"}
+	memDB := &memDriveUnitDBTX{
+		admitted:   map[string]string{wsID + "|" + userID: orgID},
+		workspaces: map[string]db.Workspace{wsID: wsRow},
+		files: map[string]db.DriveFile{
+			file1ID: {
+				ID:              file1ID,
+				OrganizationID:  orgID,
+				WorkspaceID:     wsID,
+				ExternalFileID:  extFile1,
+				ConnectionID:    connID,
+				BoundBy:         userID,
+				CreatedBy:       userID,
+				CreatedByKind:   "human",
+				Name:            "Doc 1",
+				MimeType:        DriveMimeGoogleDoc,
+				IconKind:        "google_doc",
+				SharingState:    DriveSharingStateShared,
+				DriveFolderID:   pgtype.Text{String: folderID, Valid: true},
+				DriveFolderName: pgtype.Text{String: "Old Folder Name", Valid: true},
+			},
+			file2ID: {
+				ID:              file2ID,
+				OrganizationID:  orgID,
+				WorkspaceID:     wsID,
+				ExternalFileID:  extFile2,
+				ConnectionID:    connID,
+				BoundBy:         userID,
+				CreatedBy:       userID,
+				CreatedByKind:   "human",
+				Name:            "Doc 2",
+				MimeType:        DriveMimeGoogleDoc,
+				IconKind:        "google_doc",
+				SharingState:    DriveSharingStateShared,
+				DriveFolderID:   pgtype.Text{String: folderID, Valid: true},
+				DriveFolderName: pgtype.Text{String: "Old Folder Name", Valid: true},
+			},
+		},
+		folders: map[string]db.DriveFolder{
+			wsID + "|" + folderID: {
+				ID:             "01FLDR0000000000000000RB13",
+				OrganizationID: orgID,
+				WorkspaceID:    wsID,
+				ConnectionID:   connID,
+				DriveFolderID:  folderID,
+				Name:           "Old Folder Name",
+			},
+		},
+		access: map[string]db.DriveFileAccess{
+			file1ID + "|" + userID: {
+				ID:             "01ACC00000000000000001RB13",
+				OrganizationID: orgID,
+				WorkspaceID:    wsID,
+				DriveFileID:    file1ID,
+				UserID:         userID,
+				ConnectionID:   connID,
+				State:          "granted",
+			},
+		},
+		conns: map[string]db.DriveConnection{
+			connID: {
+				ID:              connID,
+				OrganizationID:  orgID,
+				UserID:          userID,
+				Provider:        "google",
+				GoogleSub:       "sub-rb13",
+				GoogleEmail:     "rb13@example.com",
+				RefreshTokenEnc: seal("tok-r-rb13"),
+				AccessTokenEnc:  seal("tok-a-rb13"),
+				AccessExpiresAt: pgtype.Timestamptz{Time: now.Add(time.Hour), Valid: true},
+				Scopes:          "openid email " + DriveGoogleScope,
+			},
+		},
+	}
+
+	gSrv.SetFile(folderID, FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: folderID, Name: "New Folder Name", MimeType: DriveMimeGoogleFolder},
+	})
+	gSrv.SetFile(extFile1, FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: extFile1, Name: "Doc 1 Renamed", MimeType: DriveMimeGoogleDoc, Parents: []string{folderID}},
+	})
+
+	q := db.New(memDB)
+	ws := &WorkspaceService{q: q}
+	connSvc := NewDriveConnectionService(nil, q, ws, box)
+	fileSvc := NewDriveFileService(nil, q, ws, connSvc, gSrv.Client)
+	fileSvc.testBeginRefreshTx = func(context.Context) (*db.Queries, func(context.Context) error, func(context.Context) error, error) {
+		return memDB.beginTx()
+	}
+
+	// 1. Failure in SetDriveFolderNameInWorkspace must roll back UpsertDriveFolder and fail refresh cleanly.
+	memDB.failSetFolderName = true
+	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); ok {
+		t.Fatalf("refreshFileWithViewerConnection succeeded when SetDriveFolderNameInWorkspace failed")
+	}
+	if got := memDB.folders[wsID+"|"+folderID].Name; got != "Old Folder Name" {
+		t.Fatalf("drive_folders.name after SetDriveFolderNameInWorkspace failure = %q, want Old Folder Name (rolled back)", got)
+	}
+	if got := memDB.files[file1ID].DriveFolderName.String; got != "Old Folder Name" {
+		t.Fatalf("file1 drive_folder_name after failure = %q, want Old Folder Name", got)
+	}
+	memDB.failSetFolderName = false
+
+	// 2. Failure in UpdateDriveFileMetadata must roll back both UpsertDriveFolder and SetDriveFolderNameInWorkspace.
+	memDB.failUpdateFile = true
+	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); ok {
+		t.Fatalf("refreshFileWithViewerConnection succeeded when UpdateDriveFileMetadata failed")
+	}
+	if got := memDB.folders[wsID+"|"+folderID].Name; got != "Old Folder Name" {
+		t.Fatalf("drive_folders.name after UpdateDriveFileMetadata failure = %q, want Old Folder Name (rolled back)", got)
+	}
+	if got := memDB.files[file2ID].DriveFolderName.String; got != "Old Folder Name" {
+		t.Fatalf("sibling file2 drive_folder_name after failure = %q, want Old Folder Name (rolled back)", got)
+	}
+	memDB.failUpdateFile = false
+
+	// 3. When all writes succeed, folder upsert, sibling folder-name sync, and file snapshot commit together.
+	if ok := fileSvc.refreshFileWithViewerConnection(ctx, userID, wsRow, file1ID, extFile1, connID, nil); !ok {
+		t.Fatalf("refreshFileWithViewerConnection failed on clean run")
+	}
+	if got := memDB.folders[wsID+"|"+folderID].Name; got != "New Folder Name" {
+		t.Fatalf("drive_folders.name after clean refresh = %q, want New Folder Name", got)
+	}
+	if got := memDB.files[file1ID].DriveFolderName.String; got != "New Folder Name" {
+		t.Fatalf("file1 drive_folder_name after clean refresh = %q, want New Folder Name", got)
+	}
+	if got := memDB.files[file2ID].DriveFolderName.String; got != "New Folder Name" {
+		t.Fatalf("file2 drive_folder_name after clean refresh = %q, want New Folder Name", got)
+	}
 }
