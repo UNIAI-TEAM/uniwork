@@ -70,8 +70,12 @@ func (h *handlers) listDocumentSources(w http.ResponseWriter, r *http.Request) {
 }
 
 func documentSourceDTO(it service.DocumentSourceItem) sdo.DocumentSourceDTO {
+	kind := it.Kind
+	if kind == "" {
+		kind = service.DocumentKindFile
+	}
 	dto := sdo.DocumentSourceDTO{
-		ID: it.ID, Source: it.Source,
+		ID: it.ID, Source: it.Source, Kind: kind, DocumentID: it.DocumentID,
 		Parent: sdo.DocumentSourceParentDTO{
 			Kind: it.Parent.Kind, ID: it.Parent.ID, Title: it.Parent.Title, MessageID: it.Parent.MessageID,
 		},
