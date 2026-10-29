@@ -1416,7 +1416,6 @@
         "storage_bytes": "Dung lượng lưu trữ",
         "sso_oidc": "Đăng nhập SSO (OIDC)",
         "documents_public_links": "Liên kết công khai cho tài liệu",
-        "office_ai_byok": "Khóa AI riêng cho Office",
         "office_ai_cloud": "Công cụ AI đám mây cho Office"
       },
       "errors": {
@@ -11498,7 +11497,6 @@
           "meeting_ai_summary": "Tóm tắt họp bằng AI",
           "documents_public_links": "Liên kết công khai cho tài liệu",
           "meeting_transcription": "Phút ghi lời cuộc họp",
-          "office_ai_byok": "Khóa AI riêng cho Office",
           "office_ai_cloud": "Công cụ AI đám mây cho Office"
         }
       }

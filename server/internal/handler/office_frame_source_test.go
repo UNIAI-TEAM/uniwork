@@ -475,7 +475,6 @@ func TestOfficeFrameSourceTokenCannotWriteDocuments(t *testing.T) {
 			"{documentID}", docID,
 			"{assetID}", "01J8X4AST0N1P2Q3R4S5T6U7V8",
 			"{linkedDocumentID}", "01J8X4DOC1N1P2Q3R4S5T6U7",
-			"{aiProvider}", "openai",
 		).Replace(route)
 		res, out := doJSON(t, srv, method, path, srcToken, nil)
 		if res.StatusCode != http.StatusUnauthorized {

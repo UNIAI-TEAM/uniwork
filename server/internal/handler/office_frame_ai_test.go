@@ -473,6 +473,10 @@ func TestOldDesktopKeyListIsNotFound(t *testing.T) {
 	} {
 		if code, body := rawCall(t, srv, c.method, c.path, deviceToken, c.body); code != http.StatusNotFound {
 			t.Errorf("%s %s with a device session = %d %s, want 404", c.method, c.path, code, body)
+		} else if strings.Contains(body, "credential_missing") {
+			// chi's route miss and the old handler's 404 are both 404; only the
+			// old handler's answer names a credential.
+			t.Errorf("%s %s answered with the old handler's body: %s", c.method, c.path, body)
 		}
 	}
 	if model.Calls != 0 {

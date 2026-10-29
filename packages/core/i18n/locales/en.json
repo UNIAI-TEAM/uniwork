@@ -1417,7 +1417,6 @@
         "storage_bytes": "Storage",
         "sso_oidc": "SSO sign-in (OIDC)",
         "documents_public_links": "Public links for documents",
-        "office_ai_byok": "Office AI with your own key",
         "office_ai_cloud": "Office cloud AI tools"
       },
       "errors": {
@@ -11560,7 +11559,6 @@
           "meeting_ai_summary": "AI meeting summaries",
           "documents_public_links": "Public links for documents",
           "meeting_transcription": "Meeting transcription minutes",
-          "office_ai_byok": "Office AI with your own key",
           "office_ai_cloud": "Office cloud AI tools"
         }
       }
