@@ -193,9 +193,10 @@ func New(d Deps, h Routes) http.Handler {
 	// Inside CORS, so a shed request still carries the headers the browser
 	// needs to read its 503 and Retry-After, and preflights never count.
 	//
-	// The three UniWork AI routes are exempt by pattern (G6-03a §7.4): a turn
-	// waits up to 55 s on a model, so counting it against the in-flight bound
-	// would let a handful of AI turns shed every other request in the pod.
+	// The UniWork AI routes are exempt by pattern (G6-03a §7.4): a turn waits
+	// up to 55 s on a model (a writer call of plan 5 up to 300 s), so counting
+	// it against the in-flight bound would let a handful of AI turns shed every
+	// other request in the pod.
 	// Patterns, not prefixes, on purpose: a prefix under /api/v1/orgs/{orgID}/ai/
 	// would exempt the BYOK proxy and the cloud tools too. Exempt routes still
 	// get their body deadline.
@@ -203,6 +204,7 @@ func New(d Deps, h Routes) http.Handler {
 		"/api/v1/orgs/{orgID}/ai/uniwork/chat/completions",
 		"/api/v1/documents/{documentID}/ai/uniwork/chat/completions",
 		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/chat/completions",
+		"/api/v1/office-frame/documents/{documentID}/ai/uniwork/write",
 	))
 	cat := &apiCatalog{}
 	root := newAPI(r, cat)

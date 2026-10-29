@@ -57,3 +57,15 @@ type AiUniworkToolSpecFunctionSDI struct {
 	Description string         `json:"description" description:"Mô tả cho model" example:"Đọc giá trị của một ô"`
 	Parameters  map[string]any `json:"parameters" description:"JSON Schema tham số của công cụ" example:"{\"type\":\"object\",\"properties\":{\"cell\":{\"type\":\"string\"}}}"`
 }
+
+// AiUniworkWriteSDI is the body of the writer route (plan 5): one of the
+// Office editors' one-shot writers, run under UniWork AI. The client names the
+// writer and sends its material; the system prompt is the server's, and every
+// input text reaches the model inside one untrusted block. The conversation
+// and the run the call belongs to travel in X-UniWork-AI-Conversation and
+// X-UniWork-AI-Run, never in the body.
+type AiUniworkWriteSDI struct {
+	Kind  string         `json:"kind" enum:"docs.write_document,markdown.write_document,html.page,html.brief,slides.deck_style,slides.deck_outline,slides.page" description:"Bộ viết; phải thuộc module của frame token (khác module → 400 invalid_request)" example:"docs.write_document"`
+	Lang  string         `json:"lang,omitempty" enum:"vi,en" description:"Ngôn ngữ giao diện; thiếu là vi" example:"vi"`
+	Input map[string]any `json:"input" description:"Tư liệu của bộ viết, chỉ các trường của kind (trường lạ, thiếu trường bắt buộc, sai kiểu → 400 invalid_request); mỗi trường có trần riêng, vượt trần → 413 payload_too_large" example:"{\"plan\":\"Báo cáo quý: tổng quan, doanh thu, chi phí\",\"title\":\"Báo cáo quý ba\"}"`
+}

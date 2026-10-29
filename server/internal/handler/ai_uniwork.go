@@ -77,6 +77,62 @@ func (h *handlers) uniworkChat(w http.ResponseWriter, r *http.Request, scope ser
 	respondJSON(w, http.StatusOK, ai.NewUniworkChatCompletion(turn.Response, meta))
 }
 
+// uniworkWrite answers one writer call (plan 5) with the writer's deadline.
+// The text streams as it arrives; a refusal before the first byte is the
+// chat route's JSON error, one after it ends the stream with
+// x_uniwork.terminal carrying the code that JSON would have named.
+func (h *handlers) uniworkWrite(w http.ResponseWriter, r *http.Request, scope service.UniworkScope) {
+	if h.AIUniwork == nil {
+		h.mapServiceError(w, ai.ErrDisabled)
+		return
+	}
+	var raw json.RawMessage
+	if !decode(w, r, &raw, maxJSONBody) {
+		return
+	}
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(h.AIUniwork.WriterDeadline()))
+	defer cancel()
+	in := service.UniworkWriteInput{
+		Scope:          scope,
+		ConversationID: r.Header.Get(ai.UniworkConversationHeader),
+		RunID:          r.Header.Get(ai.UniworkRunHeader),
+		Body:           raw,
+	}
+	stream := ai.NewUniworkDeltaStream(w, ai.UniworkResponseMeta{ConversationID: in.ConversationID, Now: time.Now()})
+	res, err := h.AIUniwork.Write(ctx, in, func(text string) {
+		if ctx.Err() != nil {
+			return
+		}
+		if !stream.Started() {
+			// A delta means the run was taken: the service continues exactly
+			// the conversation and run the request named (it never opens
+			// one), so their ids go out before the first byte.
+			uniworkAnswerHeaders(w, service.UniworkTurn{ConversationID: in.ConversationID, RunID: in.RunID})
+		}
+		if stream.Delta(text) != nil {
+			// The client stopped reading: stop the model too, as the BYOK
+			// stream does, so the call does not run on for nobody and hold the
+			// writer slot. The Gateway settles it as cancelled.
+			cancel()
+		}
+	})
+	if !stream.Started() {
+		uniworkAnswerHeaders(w, service.UniworkTurn{ConversationID: res.ConversationID, RunID: res.RunID})
+	}
+	switch {
+	case err != nil && !stream.Started():
+		h.uniworkError(w, ctx, err)
+		return
+	case err != nil:
+		err = stream.Fail(uniworkFailureCode(ctx, err))
+	default:
+		err = stream.Finish(res.Response)
+	}
+	if err != nil {
+		h.Log.Warn("uniwork ai: writer stream write failed", "conversation_id", res.ConversationID, "run_id", res.RunID, "err", err)
+	}
+}
+
 // uniworkDocumentChatCompletions is R3: the desktop session route for a
 // document (A10). It names the user and the document only; the service takes
 // the organization, workspace and module from the document, and rechecks that
@@ -108,6 +164,18 @@ func (a *aiHandlers) uniworkFrameChatCompletions(w http.ResponseWriter, r *http.
 	claims := officeFrameClaims(r)
 	a.uniworkChat(w, r, service.UniworkScope{
 		UserID: userID, OrgID: orgID, DocumentID: chi.URLParam(r, "documentID"), Module: claims.ModuleName(),
+	})
+}
+
+// uniworkFrameWrite is the writer route on the web Office frame token: the
+// module is the token's, never the kind's (plan 5).
+func (a *aiHandlers) uniworkFrameWrite(w http.ResponseWriter, r *http.Request) {
+	userID, orgID, ok := a.resolve(w, r)
+	if !ok {
+		return
+	}
+	a.uniworkWrite(w, r, service.UniworkScope{
+		UserID: userID, OrgID: orgID, DocumentID: chi.URLParam(r, "documentID"), Module: officeFrameClaims(r).ModuleName(),
 	})
 }
 
@@ -151,6 +219,15 @@ func (h *handlers) uniworkError(w http.ResponseWriter, ctx context.Context, err 
 		return
 	}
 	h.mapServiceError(w, err)
+}
+
+// uniworkFailureCode is the code uniworkError would answer err with, for a
+// stream that can no longer carry a status (the writer's terminal chunk).
+func uniworkFailureCode(ctx context.Context, err error) string {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) && uniworkDeadlineRefusal(err) {
+		return ai.ErrProviderTimeout.Code
+	}
+	return classifyServiceError(err).code
 }
 
 // uniworkRetryAfter reads the seconds a refusal wants the client to wait out

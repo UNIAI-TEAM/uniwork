@@ -360,6 +360,47 @@ tool-result tiếp nối nó. Run do **server** cấp và đếm; client chỉ c
   có khoá meter riêng theo `(run id, seq)` nên retry không bị tính hai lần; provider không trả usage ⇒
   dòng usage `usage_unknown` + metric, được đối soát (ước lượng từ transcript) đúng một lần.
 
+### 3.8 Route viết một lần (UNI-2276, ADR 0050)
+
+Lời gọi "viết một lần" của trình soạn (Word, Markdown, HTML, slide) dưới UniWork AI, **chỉ trên frame web**:
+
+| Việc | Route | Danh tính |
+| --- | --- | --- |
+| Viết một lần, tài liệu (frame web) | `POST /office-frame/documents/{documentID}/ai/uniwork/write` | bearer frame-token; module lấy từ **claim của token** |
+
+Không có bản desktop (desktop vẫn từ chối mọi `purpose`, spec Office §7.1) và không có bản theo tổ chức.
+
+Body: `{ kind, lang?, input }`, tối đa 1 MiB. Client **không** gửi system prompt; prompt do server giữ và mọi chữ trong
+`input` vào model dưới dạng không tin cậy.
+
+- `kind` (đóng): `docs.write_document`, `markdown.write_document`, `html.page`, `html.brief`, `slides.deck_style`,
+  `slides.deck_outline`, `slides.page`. Kind của module khác với module của token → 400.
+- `lang`: `vi` (mặc định) hoặc `en`.
+- `input`: các trường của kind (bảng và trần theo trường ở `server/internal/ai/prompts_office_writer.go`, `writerFields`):
+  trường lạ, thiếu trường bắt buộc hoặc sai kiểu → 400 `invalid_request`; trường vượt trần → 413 `payload_too_large`,
+  không gọi model.
+
+Header: client **phải** gửi `X-UniWork-AI-Conversation` và `X-UniWork-AI-Run` của lượt đang chạy (§3.6, §3.7). Lời gọi viết không bao
+giờ mở run: thiếu một trong hai → 400 `invalid_request`; run lạ, hết hạn hoặc của hội thoại khác → 409 `run_expired`;
+hội thoại hết hạn → 409 `conversation_expired`. Lời gọi tính **một lượt model** của run và luôn chừa lượt cuối cho vòng công cụ:
+run đã dùng 9 lượt → 409 `run_limit_reached` (`fields.limit = "model_calls"`), trước byte đầu, không ghi usage. Không ghi
+vào transcript; hạn một lời gọi 300 giây.
+
+Kết quả: `text/event-stream`, một `chat.completion.chunk` cho mỗi đoạn chữ (cùng một `id` cho cả luồng), chunk cuối có
+`finish_reason` (`length` khi chạm trần token của kind, ngược lại `stop`) và `usage`, rồi `data: [DONE]`. Mỗi lần ghi có hạn 60
+giây; response gửi `X-Accel-Buffering: no`. Header 200 chỉ gửi cùng đoạn đầu: **lỗi trước đoạn đầu** là HTTP status thật + `{code, message}` như §3.6:
+400 `invalid_request`, 402 `credits_exhausted`, 403 `forbidden` (khung chỉ xem) / `entitlement_required` / `office_capability_off`,
+404, 409 `conversation_expired` / `run_expired` / `run_limit_reached`, 413 `payload_too_large`, 422 `ai_refused`, 429 `ai_uniwork_busy` /
+`ai_rate_limited`, 502 `ai_provider_error`, 503 `ai_disabled`, 504 `ai_provider_timeout`, 408 `ai_cancelled`. **Lỗi sau khi đã có chữ** kết thúc luồng bằng
+một chunk `{"x_uniwork":{"terminal":{"code":"<code>"}}}` (không có `step`/`limit`, `choices` rỗng) rồi `[DONE]`, với `code` ∈
+`ai_provider_error`, `ai_provider_timeout`, `ai_cancelled`, `ai_refused` (model từ chối sau khi đã viết); client coi lần viết đó là **dở dang**.
+
+Cổng và đếm như route chat (§3.6): quyền sửa tài liệu, `RequireMember`, gói `office.ai_cloud`, cờ `office_ai_uniwork`
+và cờ định dạng, `CheckQuota` (`ai.tokens`), trần đồng thời riêng của route viết, nhóm rate limit `ai-uniwork` dùng chung; miễn
+`LoadShed` theo mẫu route. Usage ghi dưới capability `office_uniwork_writer` với `prompt_id` nêu kind. Lỗi nhà cung cấp giữa
+stream không tính phí; hết hạn hoặc hủy sau khi đã có chữ thì Gateway tính phần đã nhận một lần và credit của run tăng bằng số đó;
+model từ chối sau khi đã viết thì Gateway tính đủ phí, credit của run không tăng.
+
 ## 4. Bản cài (GO-A8, UNI-1009)
 
 Server chỉ phát link, không lưu bản cài. Biến môi trường (đều có trong

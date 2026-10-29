@@ -1816,6 +1816,7 @@
         "agent_evaluation": "Agent đánh giá",
         "embedding": "Embedding",
         "office_uniwork_ai": "UniWork AI trong Office",
+        "office_uniwork_writer": "Viết tài liệu (UniWork AI)",
         "office_byok": "Office trên web (khóa riêng)",
         "office_byok_desktop": "Ứng dụng Office (khóa riêng)"
       },

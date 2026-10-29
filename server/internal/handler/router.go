@@ -700,6 +700,7 @@ func New(d Deps) http.Handler {
 		AiUniworkChatCompletions:            aiMount.UniworkChatCompletions,
 		AiUniworkDocumentChatCompletions:    h.uniworkDocumentChatCompletions,
 		OfficeFrameAiUniworkChatCompletions: frameAI.UniworkChatCompletions,
+		OfficeFrameAiUniworkWrite:           frameAI.UniworkWrite,
 
 		ListPlans:           h.listPlans,
 		GetSubscription:     h.getSubscription,

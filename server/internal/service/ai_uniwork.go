@@ -26,10 +26,12 @@ import (
 // the scope.
 
 // Deadline and concurrency numbers. The deadline is A14's 55 s from the
-// moment the request arrives (under the fork's 60 s watchdog); the
-// concurrency defaults are A11, with G7-D1 owning their final values.
+// moment the request arrives (under the fork's 60 s watchdog); the writer
+// route's is longer, since one call writes a whole document or slide (plan 5).
+// The concurrency defaults are A11, with G7-D1 owning their final values.
 const (
 	UniworkDeadline       = 55 * time.Second
+	UniworkWriterDeadline = 300 * time.Second
 	UniworkPodMax         = 32
 	UniworkGlobalMax      = 64
 	UniworkOrgMax         = 8
@@ -50,6 +52,9 @@ type AIUniworkService struct {
 	limiter  *uniworkConcurrency
 	now      func() time.Time
 	deadline time.Duration
+	// writerLimiter bounds the writer route on its own keys, so long writer
+	// calls cannot starve the chat turns (plan 5).
+	writerLimiter *uniworkConcurrency
 	// runs is A3's run counter (G6-03b). Wired by SetRunStore; nil leaves the
 	// service without run accounting until W-B fills the seam (design §9).
 	runs ai.RunStore
@@ -98,17 +103,25 @@ func (s *AIUniworkService) addRunCredits(ctx context.Context, run ai.Run, tokens
 	if run.ID == "" {
 		return
 	}
-	sctx, cancel := uniworkSettleContext(ctx)
-	defer cancel()
-	if tokens > 0 {
-		if err := s.runs.AddCredits(sctx, run.ID, run.ConversationID, tokens); err != nil {
-			slog.Default().Warn("uniwork ai: run credits", "run_id", run.ID, "err", err)
-		}
-	}
+	s.storeRunCredits(ctx, run, tokens)
 	if s.metrics != nil {
 		// The run's credits after this turn: what the store held before it
 		// (zero for a run opened by this turn) plus what the vendor charged.
 		s.metrics.ObserveUniworkRun(s.now().Sub(run.CreatedAt).Seconds(), run.Credits+tokens)
+	}
+}
+
+// storeRunCredits is the store half of addRunCredits alone. The writer route
+// (plan 5) uses it: a writer call adds to the run's credits but feeds neither
+// run histogram, which describe the chat route's tool loop.
+func (s *AIUniworkService) storeRunCredits(ctx context.Context, run ai.Run, tokens int64) {
+	if run.ID == "" || tokens <= 0 {
+		return
+	}
+	sctx, cancel := uniworkSettleContext(ctx)
+	defer cancel()
+	if err := s.runs.AddCredits(sctx, run.ID, run.ConversationID, tokens); err != nil {
+		slog.Default().Warn("uniwork ai: run credits", "run_id", run.ID, "err", err)
 	}
 }
 
@@ -177,6 +190,8 @@ func NewAIUniworkService(orgs *OrganizationService, ents *EntitlementService, do
 		limiter:  newUniworkConcurrency(rdb, "ai:uniwork:", UniworkPodMax, UniworkOrgMax, UniworkGlobalMax, UniworkDeadline+10*time.Second),
 		now:      time.Now,
 		deadline: UniworkDeadline,
+		writerLimiter: newUniworkConcurrency(rdb, "ai:uniwork-writer:", UniworkPodMax, UniworkOrgMax, UniworkGlobalMax,
+			UniworkWriterDeadline+10*time.Second),
 	}
 }
 
@@ -189,6 +204,9 @@ func (s *AIUniworkService) SetDeadline(d time.Duration) {
 
 // Deadline is the 55 s budget the handler puts on the request context (A14).
 func (s *AIUniworkService) Deadline() time.Duration { return s.deadline }
+
+// WriterDeadline is the budget of one writer call (plan 5).
+func (s *AIUniworkService) WriterDeadline() time.Duration { return UniworkWriterDeadline }
 
 // UniworkScope is who and what one turn acts on. DocumentID/Module are empty
 // on the org route (R1: a local file, S10).

@@ -796,6 +796,11 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/documents/{documentID}/shares":                                   {body: isoWith(map[string]string{}, map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"})},
 	"POST /api/v1/documents/{documentID}/shares/batch":                             {body: isoWith(map[string]string{}, map[string]any{"principal_ids": []any{"01J8X4K2M0N1P2Q3R4S5T6U7V8"}, "level": "view"})},
 	"PUT /api/v1/documents/{documentID}/access":                                    {body: isoWith(map[string]string{}, map[string]any{"items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}})},
+	// The writer route (plan 5) on the same DOCX frame token. The run and the
+	// conversation ride headers, never the body, so the owner's control is
+	// refused 400 for want of a running turn — after the gates that decide who
+	// is asking, which is all the write control needs.
+	"POST /api/v1/office-frame/documents/{documentID}/ai/uniwork/write": {body: isoJSON(uniworkWriteDocsBody)},
 	// UNI-2244: folder bulk access update and batch progress.
 	"PUT /api/v1/documents/{folderID}/contents-access": {
 		body: isoWith(map[string]string{}, map[string]any{"mode": "merge", "items": []any{map[string]any{"principal_type": "workspace", "principal_id": "01J8X4WS0N1P2Q3R4S5T6U7V8", "level": "view"}}}),

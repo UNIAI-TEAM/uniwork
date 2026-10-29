@@ -12,7 +12,9 @@ Công cụ mà extractor không phân giải được `inputSchema` — ô trong
 `tableHash` giữ nguyên ô `unresolved:<lý do>` của bảng, và công cụ đó không nằm trong mảng module nào gửi cho model. Từ
 G6-09d (`3e4e9b71f`, nhánh `feature/UNI-1825-g6-09d-extractor`), extractor gấp mũi tên đệ quy có tham số
 `nodeSchema(maxDepth)` nên cả hai hàng `generate_mindmap` ở docs và markdown đều phân giải thành hash
-`ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0` (`offered: true`, `schemaComplete: true`), và
+`ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0` (`offered: true`, `schemaComplete: true`; từ khối `8d73c6b6e` của REPIN-10 là
+`429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5`, vì UNI-2282 thêm `items` cho `children` ở tầng lá; extractor nay nằm
+trong fork `main`, nên `git show <rev>:scripts/genoffice-tools-extract.mjs` lấy từ chính rev đó), và
 `UNRESOLVED_SCHEMA_TOOLS` trong `genoffice-tool-schemas.test.mjs` nay rỗng (`[]`; bất kỳ hàng `unresolved:` nào hoặc chữ
 `unresolved:` trong mảng module là lỗi).
 

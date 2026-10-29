@@ -130,6 +130,25 @@ func registerOfficeFrameAI(r api, h Routes, flags *featureflag.Service, frameAut
 			"trường module trong body bị bỏ qua." + uniworkHandoffWire + uniworkChatErrs,
 		tags: []string{"ai"}, sdi: sdi.AiUniworkChatCompletionsSDI{}, sdo: sdo.AiUniworkChatCompletionsSDO{}, auth: true,
 	})
+
+	// The writer route (Ask UNI × Office plan 5): the editors' one-shot
+	// writers under UniWork AI, inside a run the frame already holds. Same
+	// bucket as the turn: one 60/min per person.
+	f.With(limits.uniwork).Post(base+"/uniwork/write", h.OfficeFrameAiUniworkWrite, apiOp{
+		summary: "Frame: UniWork AI writer, one call",
+		description: frame + "Một lời gọi bộ viết của trình soạn (Word, Markdown, HTML, slide) dưới UniWork AI: body {kind, lang, input}, " +
+			"prompt hệ thống do server giữ. Lời gọi nằm trong một lượt đang chạy: phải nêu X-UniWork-AI-Conversation và X-UniWork-AI-Run " +
+			"(thiếu → 400), không bao giờ mở run mới, tính một lượt gọi model của run và luôn chừa lượt cuối cho vòng công cụ " +
+			"(run đã dùng 9 lượt → 409 run_limit_reached, fields.limit = model_calls). Không ghi vào hội thoại. Câu trả lời là SSE: " +
+			"chunk chat.completion.chunk theo từng đoạn chữ, chunk cuối có finish_reason và usage, rồi [DONE]; lỗi sau khi đã có chữ " +
+			"kết thúc bằng chunk x_uniwork.terminal {code} rồi [DONE], code ∈ ai_provider_error, ai_provider_timeout, ai_cancelled, ai_refused. " +
+			"Module lấy từ claim của token; kind của module khác → 400. " +
+			"Lỗi trước byte đầu: 400 invalid_request, 402 credits_exhausted, 403 forbidden (khung chỉ xem) / entitlement_required / " +
+			"office_capability_off, 404, 408 ai_cancelled, 409 conversation_expired / run_expired / run_limit_reached, 413 payload_too_large " +
+			"(body > 1 MiB hoặc trường vượt trần), 422 ai_refused, 429 ai_uniwork_busy / ai_rate_limited, 502 ai_provider_error, " +
+			"503 ai_disabled, 504 ai_provider_timeout.",
+		tags: []string{"ai"}, sdi: sdi.AiUniworkWriteSDI{}, sdo: sdo.AiUniworkWriteSDO{}, auth: true,
+	})
 }
 
 // frameAuthNotFound stands in for the frame auth when the server has no

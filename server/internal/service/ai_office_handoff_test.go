@@ -186,3 +186,20 @@ func TestOfficeHandoffSweeperDeletesOnlyExpiredRows(t *testing.T) {
 		t.Fatal("expired row survived")
 	}
 }
+
+// A pptx handoff tells the editor AI to build the part through generate_deck
+// from the approved outline (plan 5, ADR 0050), so the style and outline
+// writer calls are skipped; other formats get no such line.
+func TestOfficeHandoffDeckPartAsksForGenerateDeck(t *testing.T) {
+	h := OfficeHandoff{Format: "pptx", Request: "Deck bán hàng", Outline: "1. Mở đầu\n2. Giá", Parts: []string{"1. Mở đầu\n2. Giá"}}
+	got := officeHandoffQuestion(h, "stub")
+	for _, want := range []string{"generate_deck", "insert_mode", `"append"`, "core_hook", "style", "pages", "Do not pass topic"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("pptx handoff question lacks %q:\n%s", want, got)
+		}
+	}
+	h.Format = "docx"
+	if got := officeHandoffQuestion(h, "stub"); strings.Contains(got, "generate_deck") {
+		t.Errorf("docx handoff question names generate_deck:\n%s", got)
+	}
+}
