@@ -77,7 +77,7 @@ var uniworkGroupBPdfFileWriteTools = map[string]string{
 
 // uniworkG609aHiddenSlidesTools lists the three slides tools that G6-09a
 // (UNI-1374 N1) removes from officeUniworkModulesV1["slides"] altogether
-// (generate_deck and regenerate_slide came back in plan 5, ADR 0049, for bound
+// (generate_deck and regenerate_slide came back in plan 5, ADR 0050, for bound
 // decks only, so they are ordinary write tools here) because the slides skill (UNIWORK_AI_HIDDEN_TOOLS in
 // apps/slides/src/renderer/ai/slides-skill.ts:1100-1106 at fork rev
 // 3e4e9b71fb08682f8afbe5cc0c2045792d14fd3b) hides them whenever the provider is

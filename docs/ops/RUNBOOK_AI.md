@@ -322,7 +322,7 @@ Khi người hỏi áp dụng thẻ `create_office_document` mà thẻ ghi "Mở
 - **Việc không bắt đầu trong trình soạn**: xem dòng lý do trên thẻ (`editor_ai`); xem khung có nhận capability `aiStart` không (bundle web phải là bản pin từ `web-0.1.0-6799c67` trở về sau; frame chỉ nhận khi bảng AI dùng UniWork AI); trang chưa giữ được khóa sửa thì việc nằm chờ, chưa bị từ chối. Header của một gói hết hạn, của người khác, tài liệu khác hay hội thoại khác thì server bỏ qua im lặng: lượt chạy như câu hỏi thường.
 - **Dữ liệu**: gói chứa chữ người hỏi đã duyệt; không log và không audit chữ đó (log chỉ có id). Gói không vào bản xuất dữ liệu tổ chức: thẻ đề xuất gốc (`agent_action_proposals`) đã được xuất.
 
-## Hỏi UNI soạn tệp Office: route viết (UNI-2276, ADR 0049)
+## Hỏi UNI soạn tệp Office: route viết (UNI-2276, ADR 0050)
 
 Các bộ viết một lần của trình soạn (viết cả tài liệu Word/Markdown, trang HTML và brief, style/dàn ý/trang của deck) chạy dưới UniWork AI qua `POST /api/v1/office-frame/documents/{documentID}/ai/uniwork/write` (frame token, chỉ web). Body `{kind, lang, input}`; prompt do server giữ (`server/internal/ai/prompts_office_writer.go`, prompt id `office_writer_<kind>@1`, ví dụ `office_writer_slides_page@1`). Không có cờ riêng: cùng cổng với route chat (quyền sửa tài liệu, `RequireMember`, gói `office.ai_cloud`, `office_ai_uniwork` và `office_ai_uniwork_<định dạng>`, `CheckQuota(ai.tokens)`), nên tắt cờ chat là tắt luôn route viết.
 

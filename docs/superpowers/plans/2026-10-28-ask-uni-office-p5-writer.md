@@ -297,15 +297,15 @@ Không ghi transcript, không đọc gói giao việc.
     - gói `Format: "pptx"` → câu mở rộng chứa `generate_deck`, `insert_mode`, `"append"`, `core_hook` và câu "không truyền topic" (tiếng Anh như phần còn lại của câu mở rộng);
     - gói `docx` → không chứa `generate_deck`.
 - [ ] **Step 2: Chạy, xác nhận fail** — `cd server && go test ./internal/ai -run 'AIUniwork|UniworkModule|G609a' && go test ./internal/service -run 'OfficeHandoff'`.
-- [ ] **Step 3: Cài đặt.** Sửa chú thích `:761-786`: G6-09a giữ ba công cụ; hai công cụ dựng deck trở lại cho lượt gắn tài liệu (ADR 0049, Phần 5); số dòng sai trong reason string của test cũng sửa. Dòng PPTX trong `officeHandoffQuestion` theo quyết định 8, chữ đi qua `ai.EscapeUntrusted` như các dòng khác.
+- [ ] **Step 3: Cài đặt.** Sửa chú thích `:761-786`: G6-09a giữ ba công cụ; hai công cụ dựng deck trở lại cho lượt gắn tài liệu (ADR 0050, Phần 5); số dòng sai trong reason string của test cũng sửa. Dòng PPTX trong `officeHandoffQuestion` theo quyết định 8, chữ đi qua `ai.EscapeUntrusted` như các dòng khác.
 - [ ] **Step 4: Chạy lại** Step 2 cùng `go test ./internal/ai -run 'Schema|Table'` và `go test ./internal/service -run 'AIUniworkHandoff|AskCreateOffice'` → PASS.
 - [ ] **Step 5: Commit** — `feat(ai): offer generate_deck and regenerate_slide on bound decks and steer handoff decks to them`.
 
 ### Task 4: ADR, spec Office, runbook và luật (UniWork)
 
 **Files:**
-- Create: `docs/adr/0049-route-viet-cho-uniwork-ai-prompt-giu-o-server.md`
-- Modify: `docs/adr/README.md` (dòng bảng cho 0049)
+- Create: `docs/adr/0050-route-viet-cho-uniwork-ai-prompt-giu-o-server.md`
+- Modify: `docs/adr/README.md` (dòng bảng cho 0050)
 - Modify: `docs/superpowers/specs/2026-10-02-office-g5-g6-g7-design.md`:
   - §6.2: thêm đoạn sau dòng `:401`, và thêm dòng route viết vào bảng route `:365-375`;
   - §6.5 dòng PPTX `:444`.
@@ -315,7 +315,7 @@ Không ghi transcript, không đọc gói giao việc.
 - Modify: `CLAUDE.md` (Audit and Events: một gạch cạnh dòng ADR 0048)
 - Modify: `docs/superpowers/specs/2026-10-27-ask-uni-office-design.md` (sửa số dòng cũ trong Phần 5: `openai_facade.go:775-780`, `:798/803/807`; fork `stream.ts:217-232`, `AiPanel.tsx:950-1003`)
 
-- [ ] **Step 1: ADR 0049** theo khuôn `docs/adr/README.md:8-11` và đầu ADR 0048:
+- [ ] **Step 1: ADR 0050** theo khuôn `docs/adr/README.md:8-11` và đầu ADR 0048:
   - dòng `**Trạng thái:** accepted (2026-10-28, UNI-2276). …`, dòng `**Issue:** UNI-2276 · **Liên quan:** 0010, 0029, 0044, 0048`;
   - `## Bối cảnh`: bộ viết một lần bị từ chối dưới UniWork AI;
   - `## Quyết định` gồm:
@@ -330,17 +330,17 @@ Không ghi transcript, không đọc gói giao việc.
   Trước khi đặt số, kiểm `git fetch origin` và `git ls-tree origin/develop docs/adr/` để chắc chưa ai dùng 0049.
 - [ ] **Step 2: Spec Office.**
   - §6.2: lời gọi viết là lượt model ngoài vòng công cụ, cùng run id, cùng trần `model_calls`, chừa một lượt; thêm dòng route vào bảng.
-  - §6.5 PPTX: thay "không hứa AI tạo layout toàn deck" bằng: dựng cả deck bằng `generate_deck` trên lượt gắn tài liệu (route viết, ADR 0049); ảnh trên web bị bỏ qua.
+  - §6.5 PPTX: thay "không hứa AI tạo layout toàn deck" bằng: dựng cả deck bằng `generate_deck` trên lượt gắn tài liệu (route viết, ADR 0050); ảnh trên web bị bỏ qua.
   - genoffice-tools.md: mục 29 ghi đã đi qua route viết (UNI-2276); `:745` và dòng (c) cập nhật tương ứng.
-- [ ] **Step 3: Runbook** mục "## Hỏi UNI soạn tệp Office: route viết (UNI-2276, ADR 0049)":
+- [ ] **Step 3: Runbook** mục "## Hỏi UNI soạn tệp Office: route viết (UNI-2276, ADR 0050)":
   - route, cổng, capability `office_uniwork_writer`, dòng usage và `prompt_id`;
   - các lỗi 400/403/409/413/429 nghĩa là gì;
   - lỗi `run_limit_reached` trên deck lớn là bình thường;
   - nơi đổi trần (policy, `writerKindMaxTokens`);
   - dữ liệu: input và chữ trả về không được log.
-- [ ] **Step 4: CLAUDE.md**: một gạch trong Audit and Events nói lời gọi viết một lần của AI trong trình soạn chỉ đi qua route viết với prompt giữ ở server, đếm vào run đang chạy và không bao giờ mở run mới (ADR 0049). Nêu tên các test giữ luật: `TestUniworkWriteNeverOpensARun`, `TestUniworkWriteKeepsTheLastCallForTheToolRound`, `TestWriterRenderWrapsInputAsUntrusted`, `TestUniworkWriteRefusesAKindOfAnotherModule`.
+- [ ] **Step 4: CLAUDE.md**: một gạch trong Audit and Events nói lời gọi viết một lần của AI trong trình soạn chỉ đi qua route viết với prompt giữ ở server, đếm vào run đang chạy và không bao giờ mở run mới (ADR 0050). Nêu tên các test giữ luật: `TestUniworkWriteNeverOpensARun`, `TestUniworkWriteKeepsTheLastCallForTheToolRound`, `TestWriterRenderWrapsInputAsUntrusted`, `TestUniworkWriteRefusesAKindOfAnotherModule`.
 - [ ] **Step 5: Chạy** `node --test scripts/governance.test.mjs` → PASS.
-- [ ] **Step 6: Commit** — `docs: ADR 0049 and the Office spec for the UniWork AI writer route`.
+- [ ] **Step 6: Commit** — `docs: ADR 0050 and the Office spec for the UniWork AI writer route`.
 
 ### Task 5: Fork — bộ viết đi qua route viết
 

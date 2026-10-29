@@ -1233,7 +1233,7 @@ func TestAIUniworkBoundDocumentHidesDocumentCreatingTools(t *testing.T) {
 	}
 }
 
-// Plan 5 (ADR 0049): generate_deck and regenerate_slide build pages through the
+// Plan 5 (ADR 0050): generate_deck and regenerate_slide build pages through the
 // UniWork AI writer route, which needs a document to write into, so the table
 // offers them on a bound deck only. View-only keeps them in WriteNames, so a
 // call for one is reported view_only like any other write.

@@ -37,7 +37,7 @@ func officeHandoffQuestion(h OfficeHandoff, stub string) string {
 	}
 	if h.Format == "pptx" {
 		// The approved outline is already the input of generate_deck (plan 5, ADR
-		// 0049): naming its arguments skips the style and outline writer calls.
+		// 0050): naming its arguments skips the style and outline writer calls.
 		blocks = append(blocks, ai.EscapeUntrusted(`Build the slides with generate_deck: insert_mode "append", a core_hook, one style line taken from the request, and pages taken from the outline items of the part to do now. Do not pass topic.`))
 	}
 	if k < n {

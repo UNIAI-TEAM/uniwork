@@ -777,7 +777,7 @@ type uniworkModuleTools struct {
 // save_style_template (the slides skill hides them whenever the provider is
 // UniWork AI) — so a modified client cannot offer them and a call for one is
 // dropped as not_allowlisted. generate_deck and regenerate_slide were out with
-// them; plan 5 (ADR 0049) brings them back for a bound deck, because the
+// them; plan 5 (ADR 0050) brings them back for a bound deck, because the
 // writer route now lets them build pages through UniWork AI. They stay in the
 // table and are withheld on unbound turns by officeUniworkUnboundHiddenTools. What stays on
 // purpose in the base table: create_document (docs, sheets, pdf) and the pdf
@@ -843,7 +843,7 @@ var officeUniworkModulesV1 = map[string]uniworkModuleTools{
 
 // officeUniworkUnboundHiddenTools lists the tools withheld on an unbound turn
 // (scope.DocumentID == ""): the slides deck builders write pages through the
-// writer route, which needs a document to write into (ADR 0049). Applied like
+// writer route, which needs a document to write into (ADR 0050). Applied like
 // officeUniworkBoundHiddenTools, so both Tools and WriteNames lose them and a
 // call for one is dropped as not_allowlisted.
 var officeUniworkUnboundHiddenTools = map[string]map[string]bool{

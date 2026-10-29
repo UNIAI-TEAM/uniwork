@@ -486,7 +486,7 @@ module spec copies that shape, so adding one needs no CI change.
 All six modules are pinned to one fork commit, `8d73c6b6e` (`0.1.0-8d73c6b`, the REPIN-10 pin of UNI-2276: fork main
 `8d73c6b6e`, whose one-shot writers in Docs, Markdown, HTML and Slides send `writer: {kind, input}` to the UniWork AI
 writer route `…/ai/uniwork/write` instead of being refused under UniWork AI, and whose web Slides frame generates and lands
-deck pages, with `generate_deck` and `regenerate_slide` offered under UniWork AI on the web only (ADR 0049). It also carries
+deck pages, with `generate_deck` and `regenerate_slide` offered under UniWork AI on the web only (ADR 0050). It also carries
 the fork main work merged since `0.1.0-6799c67`: UNI-2265, UNI-2266, UNI-2267, UNI-2275, UNI-2277, UNI-2278 (Hide from AI),
 UNI-2280, UNI-2281 and UNI-2282, so every bundle changes for more than this feature.) Nothing under `web/docs/protocol`
 changed since `6799c6765`, so the three digests stay the same and the vendored headers keep naming `6799c6765`. The writer

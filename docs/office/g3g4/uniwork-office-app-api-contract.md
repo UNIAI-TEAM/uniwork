@@ -360,7 +360,7 @@ tool-result tiếp nối nó. Run do **server** cấp và đếm; client chỉ c
   có khoá meter riêng theo `(run id, seq)` nên retry không bị tính hai lần; provider không trả usage ⇒
   dòng usage `usage_unknown` + metric, được đối soát (ước lượng từ transcript) đúng một lần.
 
-### 3.8 Route viết một lần (UNI-2276, ADR 0049)
+### 3.8 Route viết một lần (UNI-2276, ADR 0050)
 
 Lời gọi "viết một lần" của trình soạn (Word, Markdown, HTML, slide) dưới UniWork AI, **chỉ trên frame web**:
 

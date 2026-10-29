@@ -1,4 +1,4 @@
-# 0049 — Route viết cho UniWork AI: prompt giữ ở server, đếm vào run đang chạy
+# 0050 — Route viết cho UniWork AI: prompt giữ ở server, đếm vào run đang chạy
 
 **Trạng thái:** accepted (2026-10-28, UNI-2276). Chủ sản phẩm duyệt kế hoạch 5 của spec Hỏi UNI × Office (`docs/superpowers/plans/2026-10-28-ask-uni-office-p5-writer.md`).
 **Issue:** UNI-2276 · **Liên quan:** [0010](0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md), [0029](0029-ai-cua-office-tren-web-qua-ai-gateway.md), [0044](0044-hoi-uni-ghi-qua-de-xuat-tren-server-va-ba-che-do-quyen.md), [0048](0048-goi-giao-viec-dua-tu-lieu-hoi-uni-vao-ai-trong-trinh-soan.md), spec `docs/superpowers/specs/2026-10-27-ask-uni-office-design.md` Phần 5, spec Office `docs/superpowers/specs/2026-10-02-office-g5-g6-g7-design.md` §6.2, §6.5.

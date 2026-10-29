@@ -188,7 +188,7 @@ func TestOfficeHandoffSweeperDeletesOnlyExpiredRows(t *testing.T) {
 }
 
 // A pptx handoff tells the editor AI to build the part through generate_deck
-// from the approved outline (plan 5, ADR 0049), so the style and outline
+// from the approved outline (plan 5, ADR 0050), so the style and outline
 // writer calls are skipped; other formats get no such line.
 func TestOfficeHandoffDeckPartAsksForGenerateDeck(t *testing.T) {
 	h := OfficeHandoff{Format: "pptx", Request: "Deck bán hàng", Outline: "1. Mở đầu\n2. Giá", Parts: []string{"1. Mở đầu\n2. Giá"}}

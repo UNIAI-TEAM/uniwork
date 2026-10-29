@@ -373,7 +373,7 @@ trả lời phải nói rõ là theo nội dung đang mở.
 | Rate limit | Nhóm `ai-uniwork`, theo danh tính, như ADR 0029 D6 |
 | Trạng thái | `GET .../ai/cloud` thêm `tools.chat`; frame thêm grant `uniwork_ai` |
 | Lỗi | Bộ lỗi chuẩn ADR 0029, thêm `run_limit_reached` khi vượt trần lượt (dưới) |
-| Route viết (UNI-2276, ADR 0049) | `POST /office-frame/documents/{documentID}/ai/uniwork/write`, body `{kind, lang, input}`; SSE; lời gọi nằm trong run đang chạy (đoạn "Lời gọi viết một lần" dưới) |
+| Route viết (UNI-2276, ADR 0050) | `POST /office-frame/documents/{documentID}/ai/uniwork/write`, body `{kind, lang, input}`; SSE; lời gọi nằm trong run đang chạy (đoạn "Lời gọi viết một lần" dưới) |
 
 Sau khi chốt, hợp đồng app ↔ UniWork (`uniwork-office-app-api-contract.md` §3) thêm mục cho route này.
 
@@ -401,7 +401,7 @@ Với nhà cung cấp UniWork AI trong v1:
 - Trần số vòng tool và số lượt gọi model cho mỗi lượt chạy, đếm ở server theo run id (bảng hợp đồng ở trên); vượt trần trả `run_limit_reached`.
   Mỗi request tool-result là một lượt model có tính credit.
 
-**Lời gọi viết một lần (UNI-2276, ADR 0049).** Các bộ viết của trình soạn (viết cả tài liệu Word/Markdown, trang HTML và brief,
+**Lời gọi viết một lần (UNI-2276, ADR 0050).** Các bộ viết của trình soạn (viết cả tài liệu Word/Markdown, trang HTML và brief,
 style, dàn ý và từng trang của deck) là một lượt model **ngoài vòng công cụ**, nhưng vẫn nằm trong run của lượt đang chạy:
 cùng run id (`X-UniWork-AI-Run`, kèm `X-UniWork-AI-Conversation`), cùng trần `model_calls`, và luôn **chừa một lượt** cho vòng
 công cụ (nhận khi run đã dùng dưới 9 lượt model; vượt → `run_limit_reached`). Nó không bao giờ mở run, không vào transcript.
@@ -449,7 +449,7 @@ không tuyên bố genoffice hiện hỗ trợ hết.
 | --- | --- | --- | --- |
 | XLSX | Tổng/count/average, điều kiện, nhóm, đối chiếu sheet, giải thích công thức, phát hiện dữ liệu bất thường | Công thức, giá trị hoặc cột dẫn xuất trong range xác định | Expected cells, types/formulas, recalc, reopen, unchanged regions |
 | DOCX | Hỏi/tóm tắt, trích nội dung có anchor, so sánh và giải thích | Viết lại/rút gọn/dịch đoạn được chọn; giữ bảng và phần không sửa | OOXML parts diff, text/structure, render theo ngưỡng; mở lại bằng Word |
-| PPTX | Hỏi/tóm tắt theo slide và text shape | Viết lại/dịch text shape | Text/shape/layout preserved, fresh reopen; dựng cả deck bằng `generate_deck` trên lượt gắn tài liệu (route viết, ADR 0049, UNI-2276); ảnh trên slides web bị bỏ qua (CSP `connect-src 'self'`, chỉ nhận `data:`/`blob:`) |
+| PPTX | Hỏi/tóm tắt theo slide và text shape | Viết lại/dịch text shape | Text/shape/layout preserved, fresh reopen; dựng cả deck bằng `generate_deck` trên lượt gắn tài liệu (route viết, ADR 0050, UNI-2276); ảnh trên slides web bị bỏ qua (CSP `connect-src 'self'`, chỉ nhận `data:`/`blob:`) |
 | PDF có text layer | Hỏi/tóm tắt với page/text anchors | Text patch trong capability đã chứng minh; giới hạn font/layout rõ | Extraction/render và vùng ngoài patch; scan không giả có text/OCR |
 | Markdown | Hỏi/tóm tắt theo heading/source range | Sửa vùng chọn, giữ frontmatter/link/assets ngoài vùng | Source diff + render + assets |
 | HTML | Hỏi/tóm tắt nội dung | Sửa text/DOM targets được phép | DOM/source diff, assets, CSP/sandbox của frame |
