@@ -284,3 +284,209 @@ func TestShelvedMinutesCannotBeEdited(t *testing.T) {
 	_, err = s.FinalizeMinutes(ctx, ua.ID, m.ID)
 	wantCode(t, err, "document_shelved")
 }
+
+// UNI-2288 (D1): a minutes page carries MinutesMeeting {ID, Title} on GetDocument,
+// UpdateDocument, DocumentTree, ListDocuments, ListRecentDocuments and
+// ListSharedWithMe. Title is populated only when the viewer is a human who passes
+// WorkspaceService.RequireMember on the meeting's workspace; cross-workspace share
+// recipients and agents receive ID with an empty Title, and non-minutes documents
+// carry nil.
+func TestMinutesPageCarriesMeetingSourceWithWorkspaceMemberTitleGate(t *testing.T) {
+	s, ua, ub, uc, m := minutesFixture(t)
+	ctx := context.Background()
+	as := NewAuthService(s.pool, s.q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+
+	// ud is a member of the meeting's workspace who was never invited to the meeting:
+	// under D1 they pass RequireMember(m.WorkspaceID) and see the meeting title.
+	ud := registerVerified(t, s.q, as, "d-ws-member@example.com", "D")
+	addOrgMember(t, s.q, m.OrganizationID, ud.ID)
+	addMember(t, s, m.WorkspaceID, ud.ID)
+
+	// outsider belongs to the organization and a sibling workspace (wsB), not m.WorkspaceID.
+	outsider := registerVerified(t, s.q, as, "outsider-share@example.com", "Outsider")
+	addOrgMember(t, s.q, m.OrganizationID, outsider.ID)
+	wsB, err := s.ws.CreateInOrg(ctx, ua.ID, m.OrganizationID, "Sibling", "sib-"+strings.ToLower(m.ID[20:]))
+	if err != nil {
+		t.Fatalf("CreateInOrg(wsB): %v", err)
+	}
+	addMember(t, s, wsB.ID, outsider.ID)
+
+	made, err := s.CreateMinutes(ctx, ub.ID, m.ID, "vi")
+	if err != nil {
+		t.Fatalf("CreateMinutes: %v", err)
+	}
+	minutesDocID := made.DocumentID
+
+	plainPage, err := s.Docs.CreatePage(ctx, Human(ua.ID), m.WorkspaceID, CreatePageInput{
+		Title:      "Trang thường",
+		Visibility: documentVisibilityWorkspace,
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(plainPage): %v", err)
+	}
+	folderDoc, err := s.Docs.CreatePage(ctx, Human(ua.ID), m.WorkspaceID, CreatePageInput{
+		Kind:  DocumentKindFolder,
+		Title: "Thư mục thường",
+	})
+	if err != nil {
+		t.Fatalf("CreatePage(folderDoc): %v", err)
+	}
+	if plainPage.MinutesMeeting != nil || folderDoc.MinutesMeeting != nil {
+		t.Fatalf("non-minutes create carried MinutesMeeting: page=%+v folder=%+v", plainPage.MinutesMeeting, folderDoc.MinutesMeeting)
+	}
+
+	// A meeting in wsB whose minutes_document_id points at plainPage in m.WorkspaceID must never claim it.
+	crossM, err := s.CreateInstant(ctx, ua.ID, wsB.ID, "Họp ở workspace B")
+	if err != nil {
+		t.Fatalf("CreateInstant(wsB): %v", err)
+	}
+	if err := s.q.SetMeetingMinutesDocument(ctx, db.SetMeetingMinutesDocumentParams{
+		DocumentID: strText(plainPage.Document.ID), ID: crossM.ID, OrganizationID: m.OrganizationID,
+	}); err != nil {
+		t.Fatalf("SetMeetingMinutesDocument(cross): %v", err)
+	}
+
+	// Every human member of m.WorkspaceID (host, secretary, participant, non-participant workspace member)
+	// gets {ID: m.ID, Title: m.Title}.
+	for _, viewer := range []struct {
+		name string
+		user db.User
+	}{
+		{"host", ua},
+		{"secretary", ub},
+		{"participant member", uc},
+		{"non-participant workspace member", ud},
+	} {
+		got, err := s.Docs.GetDocument(ctx, Human(viewer.user.ID), minutesDocID)
+		if err != nil {
+			t.Fatalf("GetDocument(%s): %v", viewer.name, err)
+		}
+		if got.MinutesMeeting == nil || got.MinutesMeeting.ID != m.ID || got.MinutesMeeting.Title != m.Title {
+			t.Fatalf("GetDocument(%s) MinutesMeeting = %+v, want {ID:%q Title:%q}", viewer.name, got.MinutesMeeting, m.ID, m.Title)
+		}
+	}
+
+	// UpdateDocument (PATCH) also returns MinutesMeeting.
+	newIcon := "📝"
+	patched, err := s.Docs.UpdateDocument(ctx, Human(ua.ID), minutesDocID, UpdateDocumentInput{
+		Revision: 1, Icon: &newIcon,
+	})
+	if err != nil {
+		t.Fatalf("UpdateDocument: %v", err)
+	}
+	if patched.MinutesMeeting == nil || patched.MinutesMeeting.ID != m.ID || patched.MinutesMeeting.Title != m.Title {
+		t.Fatalf("UpdateDocument MinutesMeeting = %+v, want {ID:%q Title:%q}", patched.MinutesMeeting, m.ID, m.Title)
+	}
+
+	// DocumentTree (foldersOnly=false) attaches MinutesMeeting to the minutes page node only;
+	// foldersOnly=true skips page queries and returns only folders with nil MinutesMeeting.
+	tree, err := s.Docs.DocumentTree(ctx, Human(ud.ID), m.WorkspaceID, "", false)
+	if err != nil {
+		t.Fatalf("DocumentTree: %v", err)
+	}
+	byTreeID := map[string]*DocumentMinutesMeeting{}
+	for _, n := range tree {
+		byTreeID[n.ID] = n.MinutesMeeting
+	}
+	if mm := byTreeID[minutesDocID]; mm == nil || mm.ID != m.ID || mm.Title != m.Title {
+		t.Fatalf("tree minutes node MinutesMeeting = %+v, want {ID:%q Title:%q}", mm, m.ID, m.Title)
+	}
+	if mm := byTreeID[plainPage.Document.ID]; mm != nil {
+		t.Fatalf("tree plainPage node MinutesMeeting = %+v, want nil", mm)
+	}
+	if mm := byTreeID[folderDoc.Document.ID]; mm != nil {
+		t.Fatalf("tree folderDoc node MinutesMeeting = %+v, want nil", mm)
+	}
+	foldersTree, err := s.Docs.DocumentTree(ctx, Human(ud.ID), m.WorkspaceID, "", true)
+	if err != nil || len(foldersTree) != 1 || foldersTree[0].MinutesMeeting != nil {
+		t.Fatalf("DocumentTree(foldersOnly) = %+v, %v", foldersTree, err)
+	}
+
+	// ListDocuments & ListRecentDocuments attach Facts.MinutesMeeting to the minutes page only.
+	list, err := s.Docs.ListDocuments(ctx, Human(ud.ID), m.WorkspaceID, ListDocumentsInput{Limit: 50})
+	if err != nil {
+		t.Fatalf("ListDocuments: %v", err)
+	}
+	byListID := map[string]*DocumentMinutesMeeting{}
+	for _, it := range list.Items {
+		byListID[it.Document.ID] = it.Facts.MinutesMeeting
+	}
+	if mm := byListID[minutesDocID]; mm == nil || mm.ID != m.ID || mm.Title != m.Title {
+		t.Fatalf("list minutes row MinutesMeeting = %+v, want {ID:%q Title:%q}", mm, m.ID, m.Title)
+	}
+	if mm := byListID[plainPage.Document.ID]; mm != nil {
+		t.Fatalf("list plainPage row MinutesMeeting = %+v, want nil", mm)
+	}
+	recent, err := s.Docs.ListRecentDocuments(ctx, Human(ud.ID), m.WorkspaceID, ListDocumentsInput{Limit: 50})
+	if err != nil {
+		t.Fatalf("ListRecentDocuments: %v", err)
+	}
+	sawMinutesInRecent := false
+	for _, it := range recent.Items {
+		if it.Document.ID == minutesDocID {
+			sawMinutesInRecent = true
+			if it.Facts.MinutesMeeting == nil || it.Facts.MinutesMeeting.ID != m.ID || it.Facts.MinutesMeeting.Title != m.Title {
+				t.Fatalf("recent minutes row MinutesMeeting = %+v", it.Facts.MinutesMeeting)
+			}
+		}
+	}
+	if !sawMinutesInRecent {
+		t.Fatal("recent list missing opened minutes page")
+	}
+
+	// Cross-workspace share recipient (outsider): sees MinutesMeeting.ID, but Title is blanked.
+	if _, err := s.Docs.ShareDocument(ctx, Human(ub.ID), minutesDocID, DocumentShareInput{
+		PrincipalType: DocumentPrincipalUser, PrincipalID: outsider.ID, Level: DocumentLevelView,
+	}); err != nil {
+		t.Fatalf("ShareDocument(outsider): %v", err)
+	}
+	outsiderView, err := s.Docs.GetDocument(ctx, Human(outsider.ID), minutesDocID)
+	if err != nil {
+		t.Fatalf("GetDocument(outsider): %v", err)
+	}
+	if outsiderView.MinutesMeeting == nil || outsiderView.MinutesMeeting.ID != m.ID || outsiderView.MinutesMeeting.Title != "" {
+		t.Fatalf("GetDocument(outsider) MinutesMeeting = %+v, want {ID:%q Title:\"\"}", outsiderView.MinutesMeeting, m.ID)
+	}
+	sharedPage, err := s.Docs.ListSharedWithMe(ctx, outsider.ID, m.OrganizationID, SharedWithMeQuery{Limit: 50})
+	if err != nil || len(sharedPage.Items) != 1 {
+		t.Fatalf("ListSharedWithMe(outsider) = %+v, %v", sharedPage.Items, err)
+	}
+	if mm := sharedPage.Items[0].Facts.MinutesMeeting; mm == nil || mm.ID != m.ID || mm.Title != "" {
+		t.Fatalf("ListSharedWithMe(outsider) MinutesMeeting = %+v, want {ID:%q Title:\"\"}", mm, m.ID)
+	}
+
+	// Workspace agent: sees MinutesMeeting.ID, but Title is blanked (agents never get meeting titles under D1).
+	ag, err := s.q.CreateAgent(ctx, db.CreateAgentParams{
+		ID: "ag-" + strings.ToLower(m.ID[20:]), OrganizationID: m.OrganizationID,
+		Name: "ScribeBot", Handle: "scribebot-" + strings.ToLower(m.ID[20:]),
+		OwnerUserID: ua.ID, AutonomyPolicy: "{}", CreatedBy: ua.ID, CreatedByKind: "human",
+	})
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	if err := s.q.AddWorkspaceAgentMember(ctx, db.AddWorkspaceAgentMemberParams{
+		WorkspaceID: m.WorkspaceID, AgentID: ag.ID, OrganizationID: m.OrganizationID,
+		CreatedBy: ua.ID, CreatedByKind: "human",
+	}); err != nil {
+		t.Fatalf("AddWorkspaceAgentMember: %v", err)
+	}
+	agentActor := Actor{Kind: audit.KindAgent, ID: ag.ID}
+	agentView, err := s.Docs.GetDocument(ctx, agentActor, minutesDocID)
+	if err != nil {
+		t.Fatalf("GetDocument(agent): %v", err)
+	}
+	if agentView.MinutesMeeting == nil || agentView.MinutesMeeting.ID != m.ID || agentView.MinutesMeeting.Title != "" {
+		t.Fatalf("GetDocument(agent) MinutesMeeting = %+v, want {ID:%q Title:\"\"}", agentView.MinutesMeeting, m.ID)
+	}
+	agentTree, err := s.Docs.DocumentTree(ctx, agentActor, m.WorkspaceID, "", false)
+	if err != nil {
+		t.Fatalf("DocumentTree(agent): %v", err)
+	}
+	for _, n := range agentTree {
+		if n.ID == minutesDocID {
+			if n.MinutesMeeting == nil || n.MinutesMeeting.ID != m.ID || n.MinutesMeeting.Title != "" {
+				t.Fatalf("DocumentTree(agent) MinutesMeeting = %+v, want {ID:%q Title:\"\"}", n.MinutesMeeting, m.ID)
+			}
+		}
+	}
+}

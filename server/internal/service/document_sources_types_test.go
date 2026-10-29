@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // UNI-2113: GET .../documents/sources takes the repeated ?type= of the
@@ -62,6 +64,63 @@ func TestDocumentSourceTypeFilterAcceptsTheListVocabulary(t *testing.T) {
 		if _, _, err := documentSourceTypeFilter([]string{typ}); err != nil {
 			t.Errorf("type=%s: %v", typ, err)
 		}
+	}
+}
+
+// UNI-2288: documentSourceIncludesPages is true when no ?type= filter is passed
+// or when "page" is among the values, and documentSourceMeetingItem maps both
+// file and page rows without running file extension/policy logic on pages.
+func TestDocumentSourceIncludesPagesAndMeetingItemMapper(t *testing.T) {
+	for _, c := range []struct {
+		types []string
+		want  bool
+	}{
+		{nil, true},
+		{[]string{}, true},
+		{[]string{"page"}, true},
+		{[]string{"pdf", "page"}, true},
+		{[]string{"pdf"}, false},
+		{[]string{"docx", "xlsx"}, false},
+	} {
+		if got := documentSourceIncludesPages(c.types); got != c.want {
+			t.Errorf("documentSourceIncludesPages(%v) = %v, want %v", c.types, got, c.want)
+		}
+	}
+
+	policy := documentFilePolicyFor(nil)
+	pageItem := documentSourceMeetingItem(db.ListDocumentSourceMeetingFilesRow{
+		RowID:       "01MTG",
+		SourceID:    "meeting:minutes:01MTG",
+		Kind:        DocumentKindPage,
+		DocumentID:  "01DOC",
+		ParentKind:  "meeting",
+		ParentID:    "01MTG",
+		ParentTitle: "Giao ban.pdf",
+		Name:        "Giao ban.pdf",
+	}, policy)
+	if pageItem.Kind != DocumentKindPage || pageItem.DocumentID != "01DOC" || pageItem.Name != "Giao ban.pdf" ||
+		pageItem.Extension != "" || pageItem.MimeType != "" || pageItem.SizeBytes != 0 ||
+		pageItem.CanOpenInApp || pageItem.CanSave || pageItem.Owner != nil {
+		t.Fatalf("pageItem = %+v", pageItem)
+	}
+
+	fileItem := documentSourceMeetingItem(db.ListDocumentSourceMeetingFilesRow{
+		RowID:       "01REC",
+		SourceID:    "meeting:01REC",
+		Kind:        DocumentKindFile,
+		ParentKind:  "meeting",
+		ParentID:    "01MTG",
+		ParentTitle: "Giao ban",
+		Name:        "recording.pdf",
+		MimeType:    "application/pdf",
+		SizeBytes:   2048,
+		OwnerID:     "01USR",
+		OwnerKind:   "member",
+		OwnerName:   "An",
+	}, policy)
+	if fileItem.Kind != DocumentKindFile || fileItem.DocumentID != "" || fileItem.Extension != "pdf" ||
+		!fileItem.CanSave || fileItem.Owner == nil || fileItem.Owner.Kind != "human" {
+		t.Fatalf("fileItem = %+v", fileItem)
 	}
 }
 
