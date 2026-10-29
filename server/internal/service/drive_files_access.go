@@ -801,7 +801,7 @@ func collectDescendantFolderIDs(rows []db.ListWorkspaceDriveFoldersRow, rootFold
 	visited := map[string]bool{rootFolderID: true}
 	queue := []string{rootFolderID}
 	var out []string
-	for len(queue) > 0 && len(out) < 64 {
+	for len(queue) > 0 {
 		curr := queue[0]
 		queue = queue[1:]
 		for _, child := range childrenByParent[curr] {

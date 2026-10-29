@@ -2641,6 +2641,47 @@ func TestAssembleDriveFolderTreeUnit(t *testing.T) {
 	if roots != 1 {
 		t.Fatalf("cycle guard must leave exactly 1 root node, got %d: %+v", roots, gotCycle)
 	}
+
+	// 5. Descendant folder search (RB1-4): 64 immediate children + a file-bearing grandchild
+	// under the first child must include the grandchild without stopping at 64 nodes,
+	// while still terminating on cycles.
+	wsWide := make([]db.ListWorkspaceDriveFoldersRow, 0, 68)
+	for i := range 64 {
+		childID := "fld-wide-child-" + string(rune('A'+i/26)) + string(rune('a'+i%26))
+		wsWide = append(wsWide, db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  childID,
+			Name:           "Child " + childID,
+			ParentFolderID: pgtype.Text{String: "fld-wide-root", Valid: true},
+		})
+	}
+	wsWide = append(wsWide,
+		db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  "fld-wide-grandchild",
+			Name:           "Grandchild Leaf",
+			ParentFolderID: pgtype.Text{String: "fld-wide-child-Aa", Valid: true},
+		},
+		db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  "fld-wide-cyc-1",
+			Name:           "Cyc 1",
+			ParentFolderID: pgtype.Text{String: "fld-wide-cyc-2", Valid: true},
+		},
+		db.ListWorkspaceDriveFoldersRow{
+			DriveFolderID:  "fld-wide-cyc-2",
+			Name:           "Cyc 2",
+			ParentFolderID: pgtype.Text{String: "fld-wide-cyc-1", Valid: true},
+		},
+	)
+	descIDs := collectDescendantFolderIDs(wsWide, "fld-wide-root")
+	foundGrandchild := false
+	for _, id := range descIDs {
+		if id == "fld-wide-grandchild" {
+			foundGrandchild = true
+			break
+		}
+	}
+	if len(descIDs) != 65 || !foundGrandchild {
+		t.Fatalf("collectDescendantFolderIDs: len=%d includesOnlyFileBearingLeaf=%v, want 65 and true", len(descIDs), foundGrandchild)
+	}
 }
 
 // TestDriveFolderTreeUpwardWalkAndNesting (UNI-2291) verifies on PostgreSQL:
@@ -2829,6 +2870,64 @@ func TestDriveFolderTreeUpwardWalkAndNesting(t *testing.T) {
 	}
 	if ownerMap["fld-docs-x"].ParentID == nil || *ownerMap["fld-docs-x"].ParentID != "fld-x" {
 		t.Fatalf("fld-docs-x = %+v, want parent fld-x", ownerMap["fld-docs-x"])
+	}
+
+	// Step 5 (RB1-4): Naming an ancestor folder above >64 intermediate child folders emits
+	// drive_file.updated for a file in the grandchild below the first 64 nodes.
+	env.googleSrv.SetFile("fld-wide-root", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-wide-root", Name: "Wide Root", MimeType: DriveMimeGoogleFolder},
+	})
+	for i := range 64 {
+		cid := "fld-wide-c-" + string(rune('A'+i/26)) + string(rune('a'+i%26))
+		if _, err := env.q.UpsertDriveFolder(ctx, db.UpsertDriveFolderParams{
+			ID:             util.NewID(),
+			OrganizationID: env.wsA.OrganizationID,
+			WorkspaceID:    env.wsA.ID,
+			ConnectionID:   connOwner.ID,
+			DriveFolderID:  cid,
+			Name:           "Wide " + cid,
+			ParentFolderID: pgtype.Text{String: "fld-wide-root", Valid: true},
+			RefreshedAt:    pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+			CreatedBy:      env.owner.ID,
+			CreatedByKind:  "human",
+		}); err != nil {
+			t.Fatalf("UpsertDriveFolder %s: %v", cid, err)
+		}
+	}
+	env.googleSrv.SetFile("fld-wide-grandchild", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-wide-grandchild", Name: "Wide Grandchild", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-wide-c-Aa"}},
+	})
+	env.googleSrv.SetFile("doc-wide-leaf", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "doc-wide-leaf", Name: "Wide Leaf Doc", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-wide-grandchild"}},
+	})
+	linkedWide, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"doc-wide-leaf"},
+	})
+	if err != nil || len(linkedWide) != 1 || linkedWide[0].File == nil {
+		t.Fatalf("Link doc-wide-leaf: %+v, err=%v", linkedWide, err)
+	}
+	wideLeafFileID := linkedWide[0].File.ID
+	var outboxBefore int
+	if err := env.pool.QueryRow(ctx,
+		`SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`,
+		wideLeafFileID,
+	).Scan(&outboxBefore); err != nil {
+		t.Fatalf("count outbox before NameFolder: %v", err)
+	}
+	namedWideRoot, err := env.fileSvc.NameFolder(ctx, Human(env.owner.ID), env.wsA.ID, "fld-wide-root", connOwner.ID)
+	if err != nil || namedWideRoot.UpdatedCount != 0 {
+		t.Fatalf("NameFolder fld-wide-root = %+v, err=%v", namedWideRoot, err)
+	}
+	var outboxAfter int
+	if err := env.pool.QueryRow(ctx,
+		`SELECT count(*) FROM outbox_events WHERE topic = 'drive_file.updated' AND payload->>'drive_file_id' = $1`,
+		wideLeafFileID,
+	).Scan(&outboxAfter); err != nil {
+		t.Fatalf("count outbox after NameFolder: %v", err)
+	}
+	if outboxAfter != outboxBefore+1 {
+		t.Fatalf("outbox drive_file.updated count for wideLeafFileID = %d -> %d, want +1", outboxBefore, outboxAfter)
 	}
 }
 
