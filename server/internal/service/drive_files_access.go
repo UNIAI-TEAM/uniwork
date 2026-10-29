@@ -69,6 +69,15 @@ func (s *DriveFileService) GrantAccess(ctx context.Context, actor Actor, workspa
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
 
+	if s.testBeforeGraphLock != nil {
+		s.testBeforeGraphLock("grant_access", ws.ID, fileRow.ID)
+	}
+	if err := qtx.LockDriveFolderGraph(ctx, ws.ID); err != nil {
+		return DriveFileView{}, err
+	}
+	if s.testAfterGraphLock != nil {
+		s.testAfterGraphLock("grant_access", ws.ID, fileRow.ID)
+	}
 	lockedConn, err := s.requireCallerConnectionForShare(ctx, qtx, ws.OrganizationID, actor.ID, conn.ID)
 	if err != nil {
 		return DriveFileView{}, err
@@ -243,6 +252,15 @@ func (s *DriveFileService) ChangeReadAccount(ctx context.Context, actor Actor, w
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
 
+	if s.testBeforeGraphLock != nil {
+		s.testBeforeGraphLock("change_read_account", ws.ID, fileRow.ID)
+	}
+	if err := qtx.LockDriveFolderGraph(ctx, ws.ID); err != nil {
+		return DriveFileView{}, err
+	}
+	if s.testAfterGraphLock != nil {
+		s.testAfterGraphLock("change_read_account", ws.ID, fileRow.ID)
+	}
 	lockedConn, err := s.requireCallerConnectionForShare(ctx, qtx, ws.OrganizationID, actor.ID, conn.ID)
 	if err != nil {
 		return DriveFileView{}, err
@@ -385,6 +403,15 @@ func (s *DriveFileService) Rebind(ctx context.Context, actor Actor, workspaceID,
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
 
+	if s.testBeforeGraphLock != nil {
+		s.testBeforeGraphLock("rebind", ws.ID, fileRow.ID)
+	}
+	if err := qtx.LockDriveFolderGraph(ctx, ws.ID); err != nil {
+		return DriveFileView{}, err
+	}
+	if s.testAfterGraphLock != nil {
+		s.testAfterGraphLock("rebind", ws.ID, fileRow.ID)
+	}
 	lockedConn, err := s.requireCallerConnectionForShare(ctx, qtx, ws.OrganizationID, actor.ID, conn.ID)
 	if err != nil {
 		return DriveFileView{}, err
@@ -537,6 +564,15 @@ func (s *DriveFileService) Unlink(ctx context.Context, actor Actor, workspaceID,
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
 
+	if s.testBeforeGraphLock != nil {
+		s.testBeforeGraphLock("unlink", ws.ID, fileRow.ID)
+	}
+	if err := qtx.LockDriveFolderGraph(ctx, ws.ID); err != nil {
+		return err
+	}
+	if s.testAfterGraphLock != nil {
+		s.testAfterGraphLock("unlink", ws.ID, fileRow.ID)
+	}
 	lockedFile, err := qtx.GetActiveDriveFileByIDForUpdate(ctx, db.GetActiveDriveFileByIDForUpdateParams{
 		ID:             fileRow.ID,
 		OrganizationID: ws.OrganizationID,
@@ -660,6 +696,15 @@ func (s *DriveFileService) NameFolder(ctx context.Context, actor Actor, workspac
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := s.q.WithTx(tx)
 
+	if s.testBeforeGraphLock != nil {
+		s.testBeforeGraphLock("name_folder", ws.ID, driveFolderID)
+	}
+	if err := qtx.LockDriveFolderGraph(ctx, ws.ID); err != nil {
+		return DriveFolderNamedResult{}, err
+	}
+	if s.testAfterGraphLock != nil {
+		s.testAfterGraphLock("name_folder", ws.ID, driveFolderID)
+	}
 	lockedConn, err := s.requireCallerConnectionForShare(ctx, qtx, ws.OrganizationID, actor.ID, conn.ID)
 	if err != nil {
 		return DriveFolderNamedResult{}, err

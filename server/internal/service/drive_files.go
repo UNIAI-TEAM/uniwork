@@ -270,6 +270,8 @@ type DriveFileService struct {
 	taskPolicy                    DriveTaskAccessPolicy
 	creations                     DriveTaskCreationsLoader
 	testAfterLinkLock             func(workspaceID, externalFileID string)
+	testBeforeGraphLock           func(op, workspaceID, targetID string)
+	testAfterGraphLock            func(op, workspaceID, targetID string)
 	testBeginRefreshTx            func(ctx context.Context) (*db.Queries, func(context.Context) error, func(context.Context) error, error)
 	testAfterRefreshFoldersUpsert func(driveFileID string) error
 }

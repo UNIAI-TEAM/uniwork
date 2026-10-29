@@ -233,6 +233,15 @@ func (s *DriveFileService) linkSingleFileWithMetaInTx(
 	meta DriveFileMetadata,
 	taskID string,
 ) (DriveFileLinkItemResult, error) {
+	if s.testBeforeGraphLock != nil {
+		s.testBeforeGraphLock("link", ws.ID, externalFileID)
+	}
+	if err := qtx.LockDriveFolderGraph(ctx, ws.ID); err != nil {
+		return DriveFileLinkItemResult{}, err
+	}
+	if s.testAfterGraphLock != nil {
+		s.testAfterGraphLock("link", ws.ID, externalFileID)
+	}
 	lockedConn, err := s.requireCallerConnectionForShare(ctx, qtx, ws.OrganizationID, actor.ID, conn.ID)
 	if err != nil {
 		return DriveFileLinkItemResult{}, err

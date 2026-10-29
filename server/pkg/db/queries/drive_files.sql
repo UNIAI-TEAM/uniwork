@@ -1,3 +1,18 @@
+-- name: LockDriveFolderGraph :exec
+-- Serializes Drive folder-graph mutations, workspace folder-name synchronization,
+-- and file unlink/prune within a workspace transaction (D-LOCK, RB2-1, RB2-3).
+SELECT pg_advisory_xact_lock(
+  hashtextextended('drive_folder_graph:' || sqlc.arg('workspace_id')::text, 0)
+);
+
+-- name: TryLockDriveFolderGraph :one
+-- Non-blocking variant of LockDriveFolderGraph used by opportunistic metadata
+-- refresh on GET/list request paths so a busy workspace graph lock is skipped
+-- without waiting or stamping metadata_refreshed_at (D-LOCK, RB2-1).
+SELECT pg_try_advisory_xact_lock(
+  hashtextextended('drive_folder_graph:' || sqlc.arg('workspace_id')::text, 0)
+) AS locked;
+
 -- name: LockDriveFileWorkspaceExternal :exec
 -- Serializes Link operations for the same (workspace_id, external_file_id) pair
 -- within a transaction (spec §7.2 step 3).
@@ -112,6 +127,19 @@ WHERE id = sqlc.arg('id')
     OR metadata_refreshed_at < now() - interval '10 minutes'
   )
 RETURNING *;
+
+-- name: RestoreDriveFileMetadataRefreshedAt :exec
+-- Restores the pre-claim metadata_refreshed_at snapshot when an opportunistic
+-- refresh skips persistence because TryLockDriveFolderGraph is busy or the
+-- refresh transaction fails, so the next request retries instead of waiting
+-- 10 minutes on an unstamped refresh (D-LOCK, RB2-1).
+UPDATE drive_files
+SET metadata_refreshed_at = sqlc.narg('prev_refreshed_at')
+WHERE id = sqlc.arg('id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+  AND unlinked_at IS NULL
+  AND metadata_refreshed_at IS NOT DISTINCT FROM sqlc.arg('claimed_refreshed_at');
 -- name: RebindDriveFile :one
 UPDATE drive_files
 SET connection_id = sqlc.arg('connection_id'),

@@ -752,6 +752,15 @@ func (s *DriveFileService) RecordFileMetadataRefresh(ctx context.Context, reques
 		defer func() { _ = tx.Rollback(ctx) }()
 		q = s.q.WithTx(tx)
 	}
+	if s.testBeforeGraphLock != nil {
+		s.testBeforeGraphLock("read_for_ai_refresh", ws.ID, driveFileID)
+	}
+	if err := q.LockDriveFolderGraph(ctx, ws.ID); err != nil {
+		return err
+	}
+	if s.testAfterGraphLock != nil {
+		s.testAfterGraphLock("read_for_ai_refresh", ws.ID, driveFileID)
+	}
 	now := s.nowUTC()
 	requesterID = strings.TrimSpace(requesterID)
 	connectionID = strings.TrimSpace(connectionID)
