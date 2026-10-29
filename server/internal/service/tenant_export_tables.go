@@ -111,6 +111,7 @@ var tenantExportIncludedTables = []string{
 	"documents",
 	"drive_file_task_links",
 	"drive_files",
+	"drive_folders",
 	"drive_task_proposal_links",
 	"email_hub_accounts",
 	"email_hub_attachments",
