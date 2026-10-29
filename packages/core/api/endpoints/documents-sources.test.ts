@@ -118,6 +118,8 @@ describe("documents-sources endpoints", () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ items: [bare] }));
     const out = await listDocumentSources("w1");
     expect(out.items[0]).toMatchObject({
+      kind: "file",
+      document_id: "",
       size_bytes: 0,
       owner: null,
       can_open_in_app: false,
@@ -126,6 +128,40 @@ describe("documents-sources endpoints", () => {
       extension: "",
       parent: { message_id: "" },
     });
+  });
+
+  it("parses kind: page and document_id on a meeting minutes source item, and degrades malformed kind/document_id", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        items: [
+          item({
+            id: "meeting:minutes:m1",
+            source: "meeting",
+            kind: "page",
+            document_id: "doc1",
+            parent: { kind: "meeting", id: "m1", title: "Giao ban tuần 42" },
+            name: "Giao ban tuần 42",
+            mime_type: "",
+            extension: "",
+            size_bytes: 0,
+            can_open_in_app: false,
+            can_save: false,
+          }),
+          item({ id: "s2", kind: 123, document_id: null }),
+          item({ id: "s3", kind: null, document_id: 456 }),
+        ],
+      }),
+    );
+    const out = await listDocumentSources("w1");
+    expect(out.items[0]).toMatchObject({
+      id: "meeting:minutes:m1",
+      source: "meeting",
+      kind: "page",
+      document_id: "doc1",
+      parent: { kind: "meeting", id: "m1", title: "Giao ban tuần 42" },
+    });
+    expect(out.items[1]).toMatchObject({ id: "s2", kind: "file", document_id: "" });
+    expect(out.items[2]).toMatchObject({ id: "s3", kind: "file", document_id: "" });
   });
 
   it("parses chat parent message_id for deep links", async () => {
