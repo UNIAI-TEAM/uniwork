@@ -731,8 +731,10 @@ func (s *DriveFileService) RecordFileAccessLost(ctx context.Context, userID, wor
 }
 
 // RecordFileMetadataRefresh implements driveFileMetadataRecorder for DriveContentService
-// so every ReadForAI call also refreshes the file's metadata snapshot.
-func (s *DriveFileService) RecordFileMetadataRefresh(ctx context.Context, workspaceID, driveFileID string, meta DriveFileMetadata) error {
+// so every ReadForAI call also refreshes the file's metadata snapshot and resolved
+// folder chain using the requester's own validated connection (never the file's
+// bound connection).
+func (s *DriveFileService) RecordFileMetadataRefresh(ctx context.Context, requesterID, workspaceID, driveFileID, connectionID string, meta DriveFileMetadata) error {
 	if s == nil || s.q == nil {
 		return nil
 	}
@@ -740,9 +742,33 @@ func (s *DriveFileService) RecordFileMetadataRefresh(ctx context.Context, worksp
 	if err != nil {
 		return nil
 	}
-	params := normalizeMetadataForDB(meta, meta.ExternalFileID, s.nowUTC())
-	resolveWorkspaceFolderNameFallback(ctx, s.q, ws, &params)
-	_, _ = s.q.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
+	q := s.q
+	var tx pgx.Tx
+	if s.pool != nil {
+		tx, err = s.pool.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		q = s.q.WithTx(tx)
+	}
+	now := s.nowUTC()
+	requesterID = strings.TrimSpace(requesterID)
+	connectionID = strings.TrimSpace(connectionID)
+	if requesterID != "" && connectionID != "" {
+		if conn, cerr := q.GetDriveConnectionAnyState(ctx, db.GetDriveConnectionAnyStateParams{
+			ID:             connectionID,
+			OrganizationID: ws.OrganizationID,
+			UserID:         requesterID,
+		}); cerr == nil {
+			if err := upsertResolvedDriveFolders(ctx, q, ws, conn.ID, Human(requesterID), meta.ResolvedFolders, now); err != nil {
+				return err
+			}
+		}
+	}
+	params := normalizeMetadataForDB(meta, meta.ExternalFileID, now)
+	resolveWorkspaceFolderNameFallback(ctx, q, ws, &params)
+	if _, err := q.UpdateDriveFileMetadata(ctx, db.UpdateDriveFileMetadataParams{
 		DriveID:                params.DriveID,
 		DriveFolderID:          params.DriveFolderID,
 		DriveFolderName:        params.DriveFolderName,
@@ -759,7 +785,12 @@ func (s *DriveFileService) RecordFileMetadataRefresh(ctx context.Context, worksp
 		ID:                     driveFileID,
 		OrganizationID:         ws.OrganizationID,
 		WorkspaceID:            ws.ID,
-	})
+	}); err != nil {
+		return err
+	}
+	if tx != nil {
+		return tx.Commit(ctx)
+	}
 	return nil
 }
 

@@ -2931,3 +2931,107 @@ func TestDriveFolderTreeMoveAndRenameOnRefresh(t *testing.T) {
 		t.Fatalf("treeMoved = %+v, err=%v, want [fld-dest (Destination Folder, count=1)]", treeMoved, err)
 	}
 }
+
+// TestDriveFolderTreeRefreshOnReadForAI (UNI-2291 RB1-2) verifies on PostgreSQL that
+// reading a file via DriveContentService.ReadForAI refreshes and persists the resolved
+// folder chain in drive_folders and synchronizes drive_files.drive_folder_name in the
+// workspace using the requester's own connection (never the file's bound connection).
+func TestDriveFolderTreeRefreshOnReadForAI(t *testing.T) {
+	env := newDriveFilesTestEnv(t)
+	ctx := context.Background()
+	connOwner := env.connectAccount(t, env.owner.ID, env.wsA.ID, "sub-ai-owner", "ai-owner@example.com")
+	connPeer := env.connectAccount(t, env.peer.ID, env.wsA.ID, "sub-ai-peer", "ai-peer@example.com")
+
+	env.googleSrv.SetFile("fld-ai-root-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-ai-root-1", Name: "AI Root One", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("fld-ai-root-2", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-ai-root-2", Name: "AI Root Two", MimeType: DriveMimeGoogleFolder},
+	})
+	env.googleSrv.SetFile("fld-ai-sub", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-ai-sub", Name: "AI Sub Old", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-ai-root-1"}},
+	})
+	env.googleSrv.SetFile("ext-ai-doc-1", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-ai-doc-1", Name: "AI Doc 1", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-ai-sub"}},
+		ExportByMime: map[string][]byte{
+			"text/plain": []byte("Nội dung tài liệu AI"),
+		},
+	})
+	env.googleSrv.SetFile("ext-ai-doc-2", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "ext-ai-doc-2", Name: "AI Doc 2", MimeType: DriveMimeGoogleDoc, Parents: []string{"fld-ai-sub"}},
+	})
+
+	// Owner links both files (so connOwner is the bound connection on both).
+	linkedOwner, err := env.fileSvc.Link(ctx, Human(env.owner.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connOwner.ID,
+		ExternalFileIDs: []string{"ext-ai-doc-1", "ext-ai-doc-2"},
+	})
+	if err != nil || len(linkedOwner) != 2 || linkedOwner[0].File == nil || linkedOwner[1].File == nil {
+		t.Fatalf("owner Link: %+v, err=%v", linkedOwner, err)
+	}
+	file1ID := linkedOwner[0].File.ID
+	file2ID := linkedOwner[1].File.ID
+
+	// Peer links ext-ai-doc-1 (so peer has a granted access row on connPeer).
+	if _, err := env.fileSvc.Link(ctx, Human(env.peer.ID), env.wsA.ID, LinkDriveFilesInput{
+		ConnectionID:    connPeer.ID,
+		ExternalFileIDs: []string{"ext-ai-doc-1"},
+	}); err != nil {
+		t.Fatalf("peer Link: %v", err)
+	}
+
+	// Rename fld-ai-sub to "AI Sub New" and move it from fld-ai-root-1 to fld-ai-root-2 on Drive.
+	env.googleSrv.SetFile("fld-ai-sub", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{ID: "fld-ai-sub", Name: "AI Sub New", MimeType: DriveMimeGoogleFolder, Parents: []string{"fld-ai-root-2"}},
+	})
+
+	// Peer reads ext-ai-doc-1 via ReadForAI (real content service + real metadata recorder).
+	dc, err := env.contentSvc.ReadForAI(ctx, env.peer.ID, env.wsA.ID, file1ID, DriveContentPurposeAskUni)
+	if err != nil {
+		t.Fatalf("peer ReadForAI: %v", err)
+	}
+	if !strings.Contains(dc.Text, "Nội dung tài liệu AI") {
+		t.Fatalf("ReadForAI text = %q", dc.Text)
+	}
+
+	// Tree for peer and owner must reflect the renamed and moved folder ("AI Root Two" -> "AI Sub New").
+	peerTree, err := env.fileSvc.ListFolders(ctx, Human(env.peer.ID), env.wsA.ID, "")
+	if err != nil || len(peerTree) != 2 {
+		t.Fatalf("peerTree after ReadForAI = %+v, err=%v", peerTree, err)
+	}
+	byID := map[string]DriveFolderGroupView{}
+	for _, g := range peerTree {
+		byID[*g.ID] = g
+	}
+	if byID["fld-ai-root-2"].Name == nil || *byID["fld-ai-root-2"].Name != "AI Root Two" || byID["fld-ai-root-2"].ParentID != nil {
+		t.Fatalf("fld-ai-root-2 in peerTree = %+v", byID["fld-ai-root-2"])
+	}
+	if byID["fld-ai-sub"].Name == nil || *byID["fld-ai-sub"].Name != "AI Sub New" || byID["fld-ai-sub"].ParentID == nil || *byID["fld-ai-sub"].ParentID != "fld-ai-root-2" {
+		t.Fatalf("fld-ai-sub in peerTree = %+v, want name=AI Sub New parent=fld-ai-root-2", byID["fld-ai-sub"])
+	}
+
+	// Stored drive_folders row for fld-ai-sub must record peer's connection (never owner's bound connection).
+	var storedConnID, storedName, storedParentID string
+	if err := env.pool.QueryRow(ctx,
+		`SELECT connection_id, name, COALESCE(parent_folder_id, '') FROM drive_folders WHERE workspace_id = $1 AND drive_folder_id = $2`,
+		env.wsA.ID, "fld-ai-sub",
+	).Scan(&storedConnID, &storedName, &storedParentID); err != nil {
+		t.Fatalf("query drive_folders fld-ai-sub: %v", err)
+	}
+	if storedConnID != connPeer.ID || storedName != "AI Sub New" || storedParentID != "fld-ai-root-2" {
+		t.Fatalf("stored drive_folders fld-ai-sub = (conn=%q, name=%q, parent=%q), want (%q, AI Sub New, fld-ai-root-2)",
+			storedConnID, storedName, storedParentID, connPeer.ID)
+	}
+
+	// Sibling file (file2ID) in fld-ai-sub must also have its stored drive_folder_name synchronized.
+	var file2FolderName string
+	if err := env.pool.QueryRow(ctx,
+		`SELECT COALESCE(drive_folder_name, '') FROM drive_files WHERE id = $1`,
+		file2ID,
+	).Scan(&file2FolderName); err != nil {
+		t.Fatalf("query drive_files file2: %v", err)
+	}
+	if file2FolderName != "AI Sub New" {
+		t.Fatalf("file2 drive_folder_name = %q, want AI Sub New", file2FolderName)
+	}
+}

@@ -217,6 +217,7 @@ type fakeDriveFileAccessLookup struct {
 	lookupCalls int
 	lostRecs    []string
 	metaRecs    []DriveFileMetadata
+	metaCallers []string
 }
 
 func (f *fakeDriveFileAccessLookup) LookupFileForRead(_ context.Context, requesterID, workspaceID, driveFileID string) (driveFileAccessRow, error) {
@@ -242,11 +243,20 @@ func (f *fakeDriveFileAccessLookup) RecordFileAccessLost(_ context.Context, requ
 	return nil
 }
 
-func (f *fakeDriveFileAccessLookup) RecordFileMetadataRefresh(_ context.Context, _, _ string, meta DriveFileMetadata) error {
+func (f *fakeDriveFileAccessLookup) RecordFileMetadataRefresh(_ context.Context, requesterID, workspaceID, driveFileID, connectionID string, meta DriveFileMetadata) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.metaRecs = append(f.metaRecs, meta)
+	f.metaCallers = append(f.metaCallers, requesterID+"|"+workspaceID+"|"+driveFileID+"|"+connectionID)
 	return nil
+}
+
+func (f *fakeDriveFileAccessLookup) refreshedCallers() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]string, len(f.metaCallers))
+	copy(out, f.metaCallers)
+	return out
 }
 
 func (f *fakeDriveFileAccessLookup) lostSnapshots() []string {
@@ -2189,11 +2199,19 @@ func TestDriveContentOfficeExtractAndAccessLostRecording(t *testing.T) {
 		AccessState:    "granted",
 		Connection:     conn,
 	}
+	gSrv.SetFile("fld-ai-parent", FakeGoogleDriveFile{
+		Metadata: googleDriveFileJSON{
+			ID:       "fld-ai-parent",
+			Name:     "AI Parent Folder",
+			MimeType: DriveMimeGoogleFolder,
+		},
+	})
 	gSrv.SetFile(extFileID, FakeGoogleDriveFile{
 		Metadata: googleDriveFileJSON{
 			ID:       extFileID,
 			Name:     "RenamedOnDrive.docx",
 			MimeType: DriveMimeDOCX,
+			Parents:  []string{"fld-ai-parent"},
 		},
 		DefaultMedia: []byte("PK-updated-docx"),
 	})
@@ -2209,10 +2227,13 @@ func TestDriveContentOfficeExtractAndAccessLostRecording(t *testing.T) {
 	if len(extractor.calls) != 1 || extractor.calls[0].Format != office.ExtractFormatDOCX {
 		t.Fatalf("expected DOCX extractor call after metadata refresh, got %+v", extractor.calls)
 	}
-	if metas := lookup.refreshedMetadata(); len(metas) == 0 || metas[len(metas)-1].Name != "RenamedOnDrive.docx" {
-		t.Fatalf("expected RecordFileMetadataRefresh with RenamedOnDrive.docx, got %+v", metas)
+	metas := lookup.refreshedMetadata()
+	if len(metas) == 0 || metas[len(metas)-1].Name != "RenamedOnDrive.docx" || len(metas[len(metas)-1].ResolvedFolders) != 1 || metas[len(metas)-1].ResolvedFolders[0].Name != "AI Parent Folder" {
+		t.Fatalf("expected RecordFileMetadataRefresh with RenamedOnDrive.docx and ResolvedFolders, got %+v", metas)
 	}
-
+	if callers := lookup.refreshedCallers(); len(callers) == 0 || callers[len(callers)-1] != userID+"|"+wsID+"|"+driveFileID+"|"+conn.ID {
+		t.Fatalf("expected RecordFileMetadataRefresh caller %s|%s|%s|%s, got %v", userID, wsID, driveFileID, conn.ID, callers)
+	}
 	// (b) Trashed file on Google -> refused with ErrDriveFileNotAccessible before any download,
 	// and access lost is recorded.
 	gSrv.SetFile(extFileID, FakeGoogleDriveFile{
