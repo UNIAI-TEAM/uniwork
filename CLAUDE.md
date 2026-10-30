@@ -373,8 +373,8 @@ Every command that changes business state writes an `audit_events` row and its
   that needs a model is a request the server answers through `ai.Gateway`.
   `scripts/governance.test.mjs` fails if the agent's requirements name an LLM
   SDK; `TestMeetingAgentToken*` in `server/internal/handler` holds the token.
-- UniWork never stores, receives or forwards a person's own AI provider key (ADR 0051, superseding 0028, 0029 and
-  0034): every Office AI call from the web frame and every server-side AI call goes through UniWork AI behind
+- UniWork never stores, receives or forwards a person's own AI provider key (ADR 0051, superseding 0034 and the
+  key-store parts of 0028 and 0029): every Office AI call from the web frame and every server-side AI call goes through UniWork AI behind
   `office.ai_cloud`, and the frame's cloud tools follow the `uniwork_ai` grant. There is no
   `ai_provider_credentials` table and no proxy route. `TestNoProviderKeyRoutes`, `TestNoProviderCredentialTable`,
   `TestOldDesktopKeyListIsNotFound` and `TestOfficeFrameCloudToolsFollowUniworkAI` hold it.
