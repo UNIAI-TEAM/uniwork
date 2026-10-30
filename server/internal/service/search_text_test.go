@@ -75,3 +75,22 @@ func TestMatchSnippet(t *testing.T) {
 		}
 	})
 }
+
+// BenchmarkMatchSnippet is a 600k-rune Vietnamese file with its match near the
+// start: the cost must follow the indexed window, not the file.
+func BenchmarkMatchSnippet(b *testing.B) {
+	body := "Điều khoản bảo hành 24 tháng áp dụng. " + strings.Repeat("Đoạn mở đầu số một. ", 30000)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if matchSnippet(body, "bao hanh 24", "sql") == "sql" {
+			b.Fatal("no match")
+		}
+	}
+}
+
+func TestMatchSnippetStopsAtTheIndexedWindow(t *testing.T) {
+	body := strings.Repeat("a ", maxSearchContentRunes) + "bao hanh"
+	if got := matchSnippet(body, "bao hanh", "sql"); got != "sql" {
+		t.Fatalf("a match past the indexed window shaped the snippet: %q", got)
+	}
+}

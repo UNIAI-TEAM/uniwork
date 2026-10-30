@@ -53,15 +53,39 @@ func matchSnippet(contentText, query, sqlSnippet string) string {
 	if q == "" || sqlSnippet == "" {
 		return sqlSnippet
 	}
-	orig := []rune(contentText)
+	// search_text covers only the first maxSearchContentRunes runes, so a body
+	// match always lies there: cut the text at that window plus one snippet's
+	// reach, without converting the whole file to runes.
+	cut, n := len(contentText), 0
+	for i := range contentText {
+		if n == maxSearchContentRunes+documentSnippetRunes {
+			cut = i
+			break
+		}
+		n++
+	}
+	orig := []rune(contentText[:cut])
+	truncated := cut < len(contentText)
+	window := min(len(orig), maxSearchContentRunes)
 	// Fold rune by rune the way foldForSearch does, remembering which original
 	// rune each folded rune came from.
 	var folded strings.Builder
-	var from []int
+	folded.Grow(window)
+	from := make([]int, 0, window)
 	space := false
-	for i, r := range orig {
+	for i, r := range orig[:window] {
 		if unicode.IsSpace(r) {
 			space = folded.Len() > 0
+			continue
+		}
+		if r < utf8.RuneSelf { // ASCII has no marks to strip
+			if space {
+				folded.WriteByte(' ')
+				from = append(from, i)
+				space = false
+			}
+			folded.WriteRune(unicode.ToLower(r))
+			from = append(from, i)
 			continue
 		}
 		for _, f := range norm.NFD.String(strings.ToLower(string(r))) {
@@ -91,7 +115,7 @@ func matchSnippet(contentText, query, sqlSnippet string) string {
 		lead, room = "…", room-1
 	}
 	end := start + room
-	if end < len(orig) {
+	if end < len(orig) || truncated {
 		tail, end = "…", end-1
 	}
 	return lead + string(orig[start:min(end, len(orig))]) + tail
