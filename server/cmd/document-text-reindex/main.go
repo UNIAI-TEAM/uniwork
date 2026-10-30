@@ -1,12 +1,15 @@
 // document-text-reindex requests the text index of file documents uploaded
 // before document.text_index_requested existed.
 //
-//	document-text-reindex --org <organization id> [--dry-run] [--batch-size 200]
-//	document-text-reindex --all [--dry-run] [--batch-size 200]
+//	document-text-reindex --org <organization id> [--dry-run] [--batch-size 20] [--max-pending 20]
+//	document-text-reindex --all [--dry-run] [--batch-size 20] [--max-pending 20]
 //
 // It emits one request per file document's current version, one transaction
 // per batch; the document_text_index consumer on the slow lane does the
-// extraction. --dry-run counts and writes nothing. Running it twice only
+// extraction. Before each batch it waits until fewer than --max-pending
+// requests are still open, so the run never floods the slow lane that link
+// previews, thumbnails and exports share. --dry-run counts and writes
+// nothing, and never waits. Running it twice only
 // repeats work: the consumer overwrites the same text. An --org id that does
 // not exist, or any positional argument, is an error. Like cmd/graph-rebuild
 // it reads only DATABASE_URL.
@@ -19,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,7 +36,10 @@ import (
 // command does not import the service layer.
 const topicTextIndexRequested = "document.text_index_requested"
 
-const usage = "usage: document-text-reindex (--org <id> | --all) [--dry-run] [--batch-size 200]"
+const usage = "usage: document-text-reindex (--org <id> | --all) [--dry-run] [--batch-size 20] [--max-pending 20]"
+
+// pollEvery is how often a run that waits for the slow lane looks again.
+const pollEvery = 2 * time.Second
 
 func main() {
 	if err := run(context.Background(), os.Args[1:], os.Stdout); err != nil {
@@ -47,14 +54,15 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	org := fs.String("org", "", "organization id to reindex")
 	all := fs.Bool("all", false, "reindex every organization")
 	dry := fs.Bool("dry-run", false, "count the requests without writing")
-	batch := fs.Int("batch-size", 200, "documents per transaction")
+	batch := fs.Int("batch-size", 20, "documents per transaction")
+	maxPending := fs.Int("max-pending", 20, "wait before each batch until fewer requests than this are open")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("%w; %s", err, usage)
 	}
 	if fs.NArg() > 0 {
 		return fmt.Errorf("unexpected arguments %q; %s", fs.Args(), usage)
 	}
-	if (*org == "") == !*all || *batch < 1 {
+	if (*org == "") == !*all || *batch < 1 || *maxPending < 1 {
 		return errors.New(usage)
 	}
 	url := os.Getenv("DATABASE_URL")
@@ -97,6 +105,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if *dry {
 			continue
 		}
+		if err := waitForRoom(ctx, q, *maxPending); err != nil {
+			return err
+		}
 		if err := emitBatch(ctx, pool, recorder, actor, rows); err != nil {
 			return err
 		}
@@ -107,6 +118,25 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		fmt.Fprintf(out, "requested=%d\n", total)
 	}
 	return nil
+}
+
+// waitForRoom blocks until fewer than maxPending requests of the topic are
+// pending or processing; only a cancelled ctx or a failing query ends it early.
+func waitForRoom(ctx context.Context, q *db.Queries, maxPending int) error {
+	for {
+		open, err := q.CountOpenOutboxByTopic(ctx, topicTextIndexRequested)
+		if err != nil {
+			return err
+		}
+		if open < int64(maxPending) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(pollEvery):
+		}
+	}
 }
 
 func emitBatch(ctx context.Context, pool *pgxpool.Pool, r *audit.Recorder, actor audit.Actor, rows []db.ListFileDocumentsForTextIndexRow) error {

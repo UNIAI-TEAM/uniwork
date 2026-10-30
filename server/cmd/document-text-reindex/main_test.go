@@ -3,12 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 )
 
@@ -127,5 +130,38 @@ func TestRejectsAnUnknownOrganization(t *testing.T) {
 	err := run(context.Background(), []string{"--org", "org-typo"}, &bytes.Buffer{})
 	if err == nil || !strings.Contains(err.Error(), `organization "org-typo" does not exist`) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestReindexWaitsForRoomInTheSlowLane(t *testing.T) {
+	pool := seed(t)
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO outbox_events (id, workspace_id, topic, payload, status) VALUES ('open-1', 'ws-1', $1, '{"document_id":"open","version_id":"x"}', 'PENDING')`, topic); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	err := run(ctx, []string{"--all", "--max-pending", "1"}, &bytes.Buffer{})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want the context deadline", err)
+	}
+	if got := requests(t, pool); len(got) != 1 {
+		t.Fatalf("emitted %v while the lane was full", got)
+	}
+	// A dry run counts without waiting.
+	if err := run(ctx2(t), []string{"--all", "--dry-run", "--max-pending", "1"}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+}
+
+func ctx2(t *testing.T) context.Context {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
+	return ctx
+}
+
+func TestTopicIsInTheCatalogue(t *testing.T) {
+	if _, ok := outbox.Lookup(topicTextIndexRequested); !ok {
+		t.Fatalf("%q is not in the outbox catalogue", topicTextIndexRequested)
 	}
 }

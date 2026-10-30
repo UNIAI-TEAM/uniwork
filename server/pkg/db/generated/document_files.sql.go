@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countOpenOutboxByTopic = `-- name: CountOpenOutboxByTopic :one
+SELECT count(*)::bigint FROM outbox_events
+WHERE topic = $1 AND status IN ('PENDING', 'PROCESSING')
+`
+
+// cmd/document-text-reindex: how many requests of one topic still wait for or
+// sit in a consumer, so the command can pace itself behind the slow lane.
+// tenant: system
+func (q *Queries) CountOpenOutboxByTopic(ctx context.Context, topic string) (int64, error) {
+	row := q.db.QueryRow(ctx, countOpenOutboxByTopic, topic)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const documentFileInUse = `-- name: DocumentFileInUse :one
 SELECT EXISTS (
   SELECT 1 FROM document_versions v

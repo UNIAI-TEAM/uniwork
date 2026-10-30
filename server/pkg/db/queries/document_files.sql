@@ -74,3 +74,10 @@ WHERE kind = 'file'
   AND id > sqlc.arg(after_id)
 ORDER BY id
 LIMIT sqlc.arg(page_limit);
+
+-- cmd/document-text-reindex: how many requests of one topic still wait for or
+-- sit in a consumer, so the command can pace itself behind the slow lane.
+-- name: CountOpenOutboxByTopic :one
+-- tenant: system
+SELECT count(*)::bigint FROM outbox_events
+WHERE topic = sqlc.arg('topic') AND status IN ('PENDING', 'PROCESSING');
