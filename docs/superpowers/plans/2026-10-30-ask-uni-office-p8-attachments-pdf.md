@@ -1,6 +1,6 @@
 # Hỏi UNI soạn tệp Office — kế hoạch 8: tệp đính kèm ở module khác (Phần 1c) và đọc chữ PDF Implementation Plan
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-30; kế hoạch 8 (Phần 1c và đọc PDF) của spec Hỏi UNI soạn tệp Office; issue UNI-2307 (con của UNI-415).
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-30; đã triển khai trên nhánh, chờ PR; kế hoạch 8 (Phần 1c và đọc PDF) của spec Hỏi UNI soạn tệp Office; issue UNI-2307 (con của UNI-415).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -65,20 +65,20 @@
 - Produces (Go): `const ExtractFormatPDF ExtractFormat = ExtractFormat(FormatPDF)`; `ExtractTextRequest` thêm `DocumentID string` và `ActorKind string` (rỗng = `"human"`). `ExtractText` nhận đúng một trong `DriveFileID`/`DocumentID` (cả hai hay không cái nào → lỗi, không gọi engine); grant mang `DocumentID` hay `DriveFileID` tương ứng, cái kia `""`. Kết quả PDF: `ExtractTextResult.Text` là các trang nối bằng `\f`.
 - Produces (engine): handler `"extract_text:pdf"`; job hoàn tất trả `result: { text, truncated, format: "pdf" }`.
 
-- [ ] **Step 1: Viết test đỏ.**
+- [x] **Step 1: Viết test đỏ.**
   - `grants.test.ts`: grant `extract_text` với `document_id: "01DOC…"`, `drive_file_id: ""` → nhận; có cả hai → `malformed` field `drive_file_id`; không cái nào → `malformed`. Fixture parity mới `grant-parity-extract-document.json` (như `grant-parity-extract.json` nhưng `document_id` có giá trị, `drive_file_id: ""`, `actor_kind: "system"`, `format: "pdf"`) → parse ra đúng các trường.
   - `handlers.test.ts`: `extract_text:pdf` trên `docs/office/g0/fixtures/files/pdf/pdf-text-editable.pdf` → `ok`, `result.format === "pdf"`, `result.text.split("\f")` dài 2, đoạn đầu chứa `"Bao cao tong hop nam 2026"`, `truncated === false`; `pdf-scanned-page.pdf` → `ok`, mọi đoạn rỗng; `pdf-password-4spaces.pdf` → `{ ok: false, code: "engine_result_invalid", reason: "password_required" }`; `pdf-corrupt.pdf` → `reason: "corrupted"`.
   - `capability.test.ts`: `extract_text` cho `pdf` là `supported: true`.
   - `grant_test.go`: `TestExtractGrantParityDocument` đọc fixture mới, `SignGrant` cho ra đúng `token`, `VerifyGrant` nhận; grant có cả `DocumentID` lẫn `DriveFileID` → `ErrGrantInvalid`. Token của fixture sinh một lần bằng `SignGrant` với `key` của fixture (không commit chương trình sinh).
   - `extract_test.go`: `ExtractText` với `Format: ExtractFormatPDF, DocumentID: "d1", ActorKind: "system"` gửi grant có `document_id: "d1"`, `drive_file_id` vắng, `actor_kind: "system"`, `format: "pdf"` (engine giả dùng httptest như các test sẵn có); request có cả `DriveFileID` và `DocumentID` → lỗi, không request nào tới engine.
 
-- [ ] **Step 2: Chạy, thấy đỏ.** `pnpm --filter @uniwork/office-engine-app exec vitest run src/grants.test.ts src/worker/handlers.test.ts src/capability.test.ts`, `pnpm --filter @uniwork/office-contracts exec vitest run src/results.test.ts`, `cd server && go test ./internal/office -run 'TestExtractGrantParity|TestExtractText' -count=1` → FAIL.
+- [x] **Step 2: Chạy, thấy đỏ.** `pnpm --filter @uniwork/office-engine-app exec vitest run src/grants.test.ts src/worker/handlers.test.ts src/capability.test.ts`, `pnpm --filter @uniwork/office-contracts exec vitest run src/results.test.ts`, `cd server && go test ./internal/office -run 'TestExtractGrantParity|TestExtractText' -count=1` → FAIL.
 
-- [ ] **Step 3: Cài đặt engine.** Handler `extractPdfText(message)`: `loadPdf()`, `readPdfText(bytes, { charBudget: MAX_EXTRACT_CODE_POINTS })` (không bao giờ truyền mật khẩu); bỏ `\f` trong chữ từng trang, nối các trang bằng `\f`; nếu chữ vượt `MAX_EXTRACT_CODE_POINTS` code point hay `MAX_EXTRACT_UTF8_BYTES` byte (hằng của `packages/office-engine/src/node/convert/extract.ts`) thì cắt ở ranh giới code point và đặt `truncated`. `PdfOpenError` có `detail` là `FPDF_ERR_PASSWORD` hay `FPDF_ERR_SECURITY` → `password_required`; số khác → `corrupted`; `"heap"` → ném lại (lỗi engine). Grant: `extract_text` đòi đúng một trong `drive_file_id`, `document_id` khác rỗng; trả về giữ cả hai trường (cái không dùng là `""`). Sửa comment `extract.go:20-35` (Drive và tài liệu UniWork).
+- [x] **Step 3: Cài đặt engine.** Handler `extractPdfText(message)`: `loadPdf()`, `readPdfText(bytes, { charBudget: MAX_EXTRACT_CODE_POINTS })` (không bao giờ truyền mật khẩu); bỏ `\f` trong chữ từng trang, nối các trang bằng `\f`; nếu chữ vượt `MAX_EXTRACT_CODE_POINTS` code point hay `MAX_EXTRACT_UTF8_BYTES` byte (hằng của `packages/office-engine/src/node/convert/extract.ts`) thì cắt ở ranh giới code point và đặt `truncated`. `PdfOpenError` có `detail` là `FPDF_ERR_PASSWORD` hay `FPDF_ERR_SECURITY` → `password_required`; số khác → `corrupted`; `"heap"` → ném lại (lỗi engine). Grant: `extract_text` đòi đúng một trong `drive_file_id`, `document_id` khác rỗng; trả về giữ cả hai trường (cái không dùng là `""`). Sửa comment `extract.go:20-35` (Drive và tài liệu UniWork).
 
-- [ ] **Step 4: Chạy lại, thấy xanh** (các lệnh Step 2).
+- [x] **Step 4: Chạy lại, thấy xanh** (các lệnh Step 2).
 
-- [ ] **Step 5: Commit** `feat(office): the engine reads the text layer of a PDF`.
+- [x] **Step 5: Commit** `feat(office): the engine reads the text layer of a PDF`.
 
 ### Task 2: `get_document` đọc PDF qua bộ đọc tệp dùng chung
 
@@ -103,19 +103,19 @@
   - `func (s *McpToolService) SetPDFText(x DriveOfficeExtractor)`.
 - Ghi chú mới (tiếng Anh, cạnh các ghi chú cũ): `mcpPDFNote` = "only the text layer of this PDF is shown, page by page; images, scans and layout are not"; `mcpPDFNoTextNote` = "this PDF has no text layer (a scan or pictures only) and text recognition is not supported, so only its name and type are shown"; `mcpPDFUnavailableNote` = "PDF text cannot be read on this server, so only its name and type are shown"; `mcpNotTextNote` thêm `pdf` vào danh sách định dạng đọc được.
 
-- [ ] **Step 1: Viết test đỏ** (thế giới `newMcpToolWorld`, `x.docs(t)`; một `fakePDFText` trong test cài `DriveOfficeExtractor`, ghi lại request nhận được):
+- [x] **Step 1: Viết test đỏ** (thế giới `newMcpToolWorld`, `x.docs(t)`; một `fakePDFText` trong test cài `DriveOfficeExtractor`, ghi lại request nhận được):
   - `TestGetDocumentReadsAPDF`: tải `report.pdf`; fake trả `"Trang một\fTrang hai"` → `Format = "extracted"`, `Content` chứa `"[page 1]\nTrang một"` và `"[page 2]\nTrang hai"`, `Note = mcpPDFNote`; request có `Format: ExtractFormatPDF`, `DocumentID` = id tài liệu, `ActorID` = người gọi, `ActorKind` rỗng hay `"human"`, `len(Content)` = cỡ tệp; một dòng `download` trong nhật ký truy cập như tệp Office.
   - `TestGetDocumentPDFNotes`: fake trả `"\f\f"` → `mcpPDFNoTextNote`; `&office.ExtractUnreadableError{Reason: "password_required"}` → `mcpOfficeUnreadableNote`; `office.ErrExtractUnavailable` → `mcpFileBusyNote`; không gọi `SetPDFText` → `mcpPDFUnavailableNote`; PDF > 20 MiB (kích thước khai qua `filesfake` như Task 2 kế hoạch 7) → `mcpOfficeTooLargeNote`, fake không được gọi. Mọi ca: lời gọi không lỗi, khe đọc được trả (sau test, `len(s.ask.fileReads) == 0`).
   - `TestPDFModelTextCutsAtTheItemCap` (`file_content_test.go`): 3 trang × 9.000 ký tự → kết quả ≤ `mcpMaxItemRunes` rune, kết thúc bằng `mcpItemCut`, `Truncated`; `pdfIndexText` cùng đầu vào ≤ `maxSearchContentRunes` rune và không chứa `[page`.
   - Các test DOCX/XLSX/PPTX/text hiện có của `get_document` vẫn xanh (bộ đọc dùng chung không đổi hành vi cũ).
 
-- [ ] **Step 2: Chạy, thấy đỏ.** `cd server && TEST_DATABASE_URL=… go test ./internal/service -run 'TestGetDocument|TestPDFModelText|TestMCP' -count=1` → FAIL ở test mới.
+- [x] **Step 2: Chạy, thấy đỏ.** `cd server && TEST_DATABASE_URL=… go test ./internal/service -run 'TestGetDocument|TestPDFModelText|TestMCP' -count=1` → FAIL ở test mới.
 
-- [ ] **Step 3: Cài đặt.** Viết `file_content.go`; `GetDocument` gọi `fileKindOf`, giữ khe cho office/pdf (như `officeDocument` nay), đọc `fileReadLimit(kind)` byte qua `fileRead`, rồi `fileContentOf`. Lỗi khi đọc bytes vẫn là `mcpFileBusyNote` và một dòng log có `document_id`. Sửa mô tả `get_document` ở MCP và ở Hỏi UNI (pdf đọc được theo trang). Nối `SetPDFText` trong `main.go` (`driveExtractor` là interface nil khi engine tắt).
+- [x] **Step 3: Cài đặt.** Viết `file_content.go`; `GetDocument` gọi `fileKindOf`, giữ khe cho office/pdf (như `officeDocument` nay), đọc `fileReadLimit(kind)` byte qua `fileRead`, rồi `fileContentOf`. Lỗi khi đọc bytes vẫn là `mcpFileBusyNote` và một dòng log có `document_id`. Sửa mô tả `get_document` ở MCP và ở Hỏi UNI (pdf đọc được theo trang). Nối `SetPDFText` trong `main.go` (`driveExtractor` là interface nil khi engine tắt).
 
-- [ ] **Step 4: Chạy lại, thấy xanh**, cùng `go test ./internal/service -run 'TestAskAgentToolBytesAreStable|TestMCPReadToolsDoNotMutate' -count=1` và `go test ./internal/handler -run TestIsolationMCP -count=1`.
+- [x] **Step 4: Chạy lại, thấy xanh**, cùng `go test ./internal/service -run 'TestAskAgentToolBytesAreStable|TestMCPReadToolsDoNotMutate' -count=1` và `go test ./internal/handler -run TestIsolationMCP -count=1`.
 
-- [ ] **Step 5: Commit** `feat(ask-uni): get_document reads the text layer of a PDF`.
+- [x] **Step 5: Commit** `feat(ask-uni): get_document reads the text layer of a PDF`.
 
 ### Task 3: Chỉ mục tìm kiếm đọc PDF
 
@@ -129,18 +129,18 @@
 - Consumes: `fileKindOf`, `pdfPageTexts`, `pdfIndexText` (Task 2); `ExtractFormatPDF`, `ActorKind` (Task 1).
 - Produces: `func NewDocumentTextIndexer(docs *DocumentService, ask *AskUNIService, pdf DriveOfficeExtractor) *DocumentTextIndexer` (`pdf` nil → PDF lập chỉ mục rỗng). Request của PDF: `ActorKind: "system"`, `ActorID: "document_text_index"`, `DocumentID` = id tài liệu, tổ chức và workspace của tài liệu.
 
-- [ ] **Step 1: Viết test đỏ** (dùng `fakePDFText` của Task 2):
+- [x] **Step 1: Viết test đỏ** (dùng `fakePDFText` của Task 2):
   - `TestTextIndexMakesPDFsSearchable`: tải `hop-dong.pdf`; fake trả `"Mở đầu\fĐiều khoản bảo hành 24 tháng"` → sau `Index`, `content_text` chứa `"Điều khoản bảo hành 24 tháng"` và không chứa `"[page"`; `x.searchIDs(t, x.p, "bao hanh 24 thang")` có id tệp; request của fake có `ActorKind: "system"`, `ActorID: "document_text_index"`.
   - `TestTextIndexDoesNotRetryWithoutTheEngine`: fake trả `office.ErrExtractUnavailable` → `Index` trả `nil`, `content_text = ''`; indexer dựng với `pdf == nil` → `nil`, fake không bao giờ được gọi; `ExtractUnreadableError` → `nil`, chữ rỗng.
   - Sửa `TestTextIndexClearsWhatItCannotRead`: bỏ ca PDF (nay đọc được); giữ HTML, DOCX hỏng, > 20 MiB.
 
-- [ ] **Step 2: Chạy, thấy đỏ.** `go test ./internal/service -run 'TestTextIndex' -count=1` → FAIL.
+- [x] **Step 2: Chạy, thấy đỏ.** `go test ./internal/service -run 'TestTextIndex' -count=1` → FAIL.
 
-- [ ] **Step 3: Cài đặt.** Bỏ `application/pdf` khỏi `unindexableMIMEPrefixes`; trong `read`, sau khi mở version và đọc bytes (vẫn giữ khe, vẫn `recover`), loại `fileReadPDF` gọi `x.pdf.ExtractText` rồi `pdfIndexText(pdfPageTexts(text))`; mọi lỗi của engine (vắng, chưa cấu hình, không đọc được) → chữ rỗng, `nil` (ruling P7), một dòng log chỉ có id. Sửa comment `Index` và `fileTextIndexMIME` (PDF nay đọc được, HTML vẫn không). `main.go`: truyền `driveExtractor`.
+- [x] **Step 3: Cài đặt.** Bỏ `application/pdf` khỏi `unindexableMIMEPrefixes`; trong `read`, sau khi mở version và đọc bytes (vẫn giữ khe, vẫn `recover`), loại `fileReadPDF` gọi `x.pdf.ExtractText` rồi `pdfIndexText(pdfPageTexts(text))`; mọi lỗi của engine (vắng, chưa cấu hình, không đọc được) → chữ rỗng, `nil` (ruling P7), một dòng log chỉ có id. Sửa comment `Index` và `fileTextIndexMIME` (PDF nay đọc được, HTML vẫn không). `main.go`: truyền `driveExtractor`.
 
-- [ ] **Step 4: Chạy lại, thấy xanh**, cùng `go test ./cmd/document-text-reindex -count=1`.
+- [x] **Step 4: Chạy lại, thấy xanh**, cùng `go test ./cmd/document-text-reindex -count=1`.
 
-- [ ] **Step 5: Commit** `feat(documents): the text index reads PDFs through the office engine`.
+- [x] **Step 5: Commit** `feat(documents): the text index reads PDFs through the office engine`.
 
 ### Task 4: Danh sách tệp nguồn lọc theo nơi chứa
 
@@ -152,15 +152,15 @@
 **Interfaces:**
 - Produces: `DocumentSourceFilter.ParentID string` — rỗng là không lọc; có giá trị thì chỉ giữ tệp ở phòng chat có id đó (`room_id`), ở công việc có id đó (`t.id`, gồm tệp của mọi bình luận của công việc), ở cuộc họp có id đó (`mt.id`), ở thread email có id đó (`th.id`). Mỗi truy vấn thêm `AND (sqlc.narg(parent_id)::text IS NULL OR <cột> = sqlc.narg(parent_id)::text)`. Route HTTP không đọc tham số này (ruling P9).
 
-- [ ] **Step 1: Viết test đỏ** `TestDocumentSourcesFilterByParent` (cảnh `newSourceScene`): công việc A có một tệp trên công việc và một tệp trên bình luận, công việc B có một tệp; phòng chat R1, R2 mỗi phòng một tệp → `List(..., ParentID: A)` trả đúng hai tệp của A; `ParentID: R1` trả đúng tệp của R1; `ParentID` của một phòng riêng người xem không ở → trang rỗng; `ParentID` của công việc ở tổ chức khác → trang rỗng; `ParentID: ""` → như cũ (cùng số dòng với test liệt kê đang có).
+- [x] **Step 1: Viết test đỏ** `TestDocumentSourcesFilterByParent` (cảnh `newSourceScene`): công việc A có một tệp trên công việc và một tệp trên bình luận, công việc B có một tệp; phòng chat R1, R2 mỗi phòng một tệp → `List(..., ParentID: A)` trả đúng hai tệp của A; `ParentID: R1` trả đúng tệp của R1; `ParentID` của một phòng riêng người xem không ở → trang rỗng; `ParentID` của công việc ở tổ chức khác → trang rỗng; `ParentID: ""` → như cũ (cùng số dòng với test liệt kê đang có).
 
-- [ ] **Step 2: Chạy, thấy đỏ.** `go test ./internal/service -run 'TestDocumentSources' -count=1` → FAIL.
+- [x] **Step 2: Chạy, thấy đỏ.** `go test ./internal/service -run 'TestDocumentSources' -count=1` → FAIL.
 
-- [ ] **Step 3: Cài đặt** như Interfaces; `make sqlc`.
+- [x] **Step 3: Cài đặt** như Interfaces; `make sqlc`.
 
-- [ ] **Step 4: Chạy lại, thấy xanh**, cùng `go test ./migrations -run TestEveryQueryNamesItsTenant -count=1` và `go test ./internal/handler -run 'DocumentSource' -count=1`.
+- [x] **Step 4: Chạy lại, thấy xanh**, cùng `go test ./migrations -run TestEveryQueryNamesItsTenant -count=1` và `go test ./internal/handler -run 'DocumentSource' -count=1`.
 
-- [ ] **Step 5: Commit** `feat(documents): source files can be listed by the task, room or thread that holds them`.
+- [x] **Step 5: Commit** `feat(documents): source files can be listed by the task, room or thread that holds them`.
 
 ### Task 5: Hỏi UNI liệt kê và đọc tệp đính kèm
 
@@ -183,7 +183,7 @@
   - ghi chú mới: `askAttachmentOptOutNote` = "the person who shared this file declined AI processing, so its content is not read".
 - Thứ tự trong `get_attachment`: cờ `documents` → `ViewSource` (lỗi → trả nguyên `not_found`) → chủ là người và đã tắt AI → ghi chú, dừng → `fileKindOf` none → `mcpNotTextNote`, dừng → `SizeBytes > mcpOfficeReadBytes` → `mcpOfficeTooLargeNote`, dừng → `takeSlot` (mọi loại, vì email đọc cả thân vào bộ nhớ) → `Open` → đọc tối đa `fileReadLimit(kind)` byte → đóng → `fileContentOf` với `fileSubject{DocumentID: <id nguồn>}`. Lỗi khi mở hay đọc sau khi lookup thành công → `mcpFileBusyNote`, không lỗi lời gọi.
 
-- [ ] **Step 1: Viết test đỏ** (`newAgentWorld`, `runAgentTool`; seed tệp nguồn như `document_sources_test.go`, tệp công việc có bytes thật qua đường tải tệp đính kèm của `TaskService` mà `task_attachments_test.go` dùng):
+- [x] **Step 1: Viết test đỏ** (`newAgentWorld`, `runAgentTool`; seed tệp nguồn như `document_sources_test.go`, tệp công việc có bytes thật qua đường tải tệp đính kèm của `TaskService` mà `task_attachments_test.go` dùng):
   - `TestAskListsAttachmentsOfATask`: công việc có `bao-gia.docx` → `list_attachments` với `parent_id` = id công việc trả một dòng, `Title = "bao-gia.docx"`, `Foreign`, `Href` kết thúc bằng `"/tasks/"+taskID`.
   - `TestAskReadsATaskAttachment`: `get_attachment` của DOCX có câu "Đơn hàng tháng 10" → `Body` chứa câu đó, `Foreign`; một PDF với `fakePDFText` → `Body` chứa `"[page 1]"`, request của fake có `DocumentID` = `"task:"+rowID`.
   - `TestAskAttachmentRefusals`: tệp trong phòng chat riêng người hỏi không ở → `not_found`; tệp đính kèm thư của người khác → `not_found`; id của công việc ở workspace khác cùng tổ chức, ở tổ chức khác, id không có, id tài liệu thư viện (không có `:`) → `not_found`; `get_document` với một id tệp nguồn (`"task:"+rowID`) → `not_found`; cờ `documents` tắt → `errMcpDocumentsUnavailable` như `list_templates`.
@@ -193,13 +193,13 @@
   - `TestAskAttachmentToolsAreNotOnTheConnector` (`mcp_tools_test.go`): danh sách công cụ MCP không có `list_attachments`, `get_attachment`.
   - Thêm ca `get_attachment` vào `TestAskAgentToolsStayInTheAskedWorkspace` và một ca phòng riêng vào `TestAskAgentToolsRespectVisibility`.
 
-- [ ] **Step 2: Chạy, thấy đỏ.** `go test ./internal/service -run 'TestAskListsAttachments|TestAskReadsATaskAttachment|TestAskAttachment|TestAskAgentTools' -count=1` → FAIL.
+- [x] **Step 2: Chạy, thấy đỏ.** `go test ./internal/service -run 'TestAskListsAttachments|TestAskReadsATaskAttachment|TestAskAttachment|TestAskAgentTools' -count=1` → FAIL.
 
-- [ ] **Step 3: Cài đặt** như Interfaces. `sources == nil` (chưa nối) → lỗi máy chủ như `errAskReadsNotWired`, không phải lỗi của model. Dòng bị bỏ vì người gửi tắt AI làm trang ngắn hơn 50: chấp nhận, vẫn trả cursor.
+- [x] **Step 3: Cài đặt** như Interfaces. `sources == nil` (chưa nối) → lỗi máy chủ như `errAskReadsNotWired`, không phải lỗi của model. Dòng bị bỏ vì người gửi tắt AI làm trang ngắn hơn 50: chấp nhận, vẫn trả cursor.
 
-- [ ] **Step 4: Chạy lại, thấy xanh**, cùng `go test ./internal/service -run 'TestAskAgentToolBytesAreStable|TestAskUniLoopNeverRunsAWriteCommand|TestAskUniTaintedTurnNeverAutoApplies|TestMCPReadToolsDoNotMutate' -count=1` và `go test ./internal -run 'TestActorConstructedOnlyInService' -count=1`.
+- [x] **Step 4: Chạy lại, thấy xanh**, cùng `go test ./internal/service -run 'TestAskAgentToolBytesAreStable|TestAskUniLoopNeverRunsAWriteCommand|TestAskUniTaintedTurnNeverAutoApplies|TestMCPReadToolsDoNotMutate' -count=1` và `go test ./internal -run 'TestActorConstructedOnlyInService' -count=1`.
 
-- [ ] **Step 5: Commit** `feat(ask-uni): read files attached to tasks, chat and email`.
+- [x] **Step 5: Commit** `feat(ask-uni): read files attached to tasks, chat and email`.
 
 ### Task 6: Tài liệu đóng vòng
 
@@ -208,10 +208,10 @@
 - Modify: `docs/superpowers/specs/2026-10-27-ask-uni-office-design.md` (dòng trạng thái `:3`; §6 Phần 1 "Đọc nội dung tệp" thay `ReadPDF` bằng Office engine, ghi ruling P1)
 - Modify: kế hoạch này (dòng trạng thái)
 
-- [ ] **Step 1: Sửa runbook:** PDF nay được lập chỉ mục khi Office engine chạy; engine tắt hay lỗi thì chữ PDF để rỗng, không thử lại; sau khi bật hay sửa engine, chạy lại `document-text-reindex` theo các bước sẵn có. PDF quét vẫn không có chữ (không OCR).
-- [ ] **Step 2: Sửa spec và kế hoạch:** spec ghi kế hoạch 8 (issue, "đã triển khai trên nhánh, chờ PR"); kế hoạch đổi dòng trạng thái tương tự. Không sửa `docs/ask-uni-documents-assessment.md` (thuộc phiên khác).
-- [ ] **Step 3: Chạy** `node --test scripts/governance.test.mjs scripts/no-plan-literal.test.mjs` → pass.
-- [ ] **Step 4: Commit** `docs: plan 8 of Ask UNI drafting Office files on its branch`.
+- [x] **Step 1: Sửa runbook:** PDF nay được lập chỉ mục khi Office engine chạy; engine tắt hay lỗi thì chữ PDF để rỗng, không thử lại; sau khi bật hay sửa engine, chạy lại `document-text-reindex` theo các bước sẵn có. PDF quét vẫn không có chữ (không OCR).
+- [x] **Step 2: Sửa spec và kế hoạch:** spec ghi kế hoạch 8 (issue, "đã triển khai trên nhánh, chờ PR"); kế hoạch đổi dòng trạng thái tương tự. Không sửa `docs/ask-uni-documents-assessment.md` (thuộc phiên khác).
+- [x] **Step 3: Chạy** `node --test scripts/governance.test.mjs scripts/no-plan-literal.test.mjs` → pass.
+- [x] **Step 4: Commit** `docs: plan 8 of Ask UNI drafting Office files on its branch`.
 
 ## Đã cố ý bỏ ra ngoài
 
@@ -222,3 +222,4 @@
 - MCP connector không đọc tệp đính kèm (ADR 0031 §4).
 - Chất lượng chữ trên PDF tiếng Việt dùng font CID chưa đo bằng fixture riêng; fixture có sẵn chỉ có tiêu đề có dấu.
 - Eval sống của luồng mới: chỉ khi chủ sản phẩm đồng ý.
+- Sửa kèm: lệnh `document-text-reindex` nay phát qua `service.RequestFileTextIndex` (luật arch: chỉ `internal/service` đặt tên actor; PR #535 đã merge khi test arch này còn đỏ). Hành vi không đổi.

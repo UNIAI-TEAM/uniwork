@@ -223,8 +223,11 @@ thể kêu cho topic này, đó là dự kiến chứ không phải sự cố. C
 trước), giữ `--max-pending` mặc định. Một lần tải lên cả thư mục lớn toàn tệp Office cũng xếp nhiều dòng chỉ
 mục vào cùng làn (đã biết, việc theo dõi sau).
 
-Không được lập chỉ mục, chữ để rỗng: PDF và HTML (chưa có bộ trích; PDF thuộc việc sau), và tệp lớn hơn
-20 MiB (không mở tệp để trích).
+PDF được lập chỉ mục khi Office engine chạy (đọc lớp chữ bằng `extract_text:pdf`). Engine tắt hay lỗi thì chữ PDF
+để rỗng và không thử lại. Sau khi bật hay sửa engine, chạy lại `document-text-reindex` theo các bước ở trên. PDF
+quét (ảnh) vẫn không có chữ vì không có OCR.
+
+Không được lập chỉ mục, chữ để rỗng: HTML (chưa có bộ trích) và tệp lớn hơn 20 MiB (không mở tệp để trích).
 
 ## Leo thang
 
