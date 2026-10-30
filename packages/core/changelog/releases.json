@@ -3,7 +3,7 @@
     "id": "release-1-14-0",
     "version": "1.14.0",
     "date": "2026-10-30",
-    "sourceRef": "3a349102c9182b5d6d3cc617194afec465a17c7e",
+    "sourceRef": "349c27ed4d2af0ef189b6068697bec45b43a0c59",
     "contentKey": "v1_14_0",
     "sections": [
       {
@@ -22,7 +22,8 @@
       {
         "kind": "fixes",
         "items": [
-          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69"
+          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69",
+          "c349c27ed4d2af0ef189b6068697bec45b43a0c59"
         ]
       }
     ]

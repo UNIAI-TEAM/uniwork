@@ -372,7 +372,8 @@
           "cc8edec27b62389b94f9fff325c6ab7258fab8545": "Ask UNI drafting Office files has its own switch, off by default, which UniWork turns on for each organization. While it's off, Ask UNI doesn't offer to draft files, and applying existing drafting suggestions, including within a plan or in Auto mode, is refused with a clear message instead of being applied partway. Reading attached files and the Templates section are not affected."
         },
         "fixes": {
-          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Meetings: guests joining by invite link no longer wait, sometimes close to a minute, after the host chooses Admit; they're taken into the room shortly after being approved."
+          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Meetings: guests joining by invite link no longer wait, sometimes close to a minute, after the host chooses Admit; they're taken into the room shortly after being approved.",
+          "c349c27ed4d2af0ef189b6068697bec45b43a0c59": "Chat: typing an email address such as name@gmail.com no longer opens the @mention suggestions; typing @ followed by a person's name still shows suggestions as before."
         }
       }
     }

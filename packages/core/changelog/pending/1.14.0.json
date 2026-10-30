@@ -3,7 +3,7 @@
   "version": "1.14.0",
   "date": "2026-10-30",
   "ready": true,
-  "sourceRef": "3a349102c9182b5d6d3cc617194afec465a17c7e",
+  "sourceRef": "349c27ed4d2af0ef189b6068697bec45b43a0c59",
   "previousSourceRef": "294418f863a48b1e0f4b88c9659e797104b26243",
   "title": {
     "vi": "Tìm tệp theo nội dung trong Tài liệu và Hỏi UNI, AI trong trình soạn Office chỉ dùng UniWork AI, khách họp vào phòng nhanh hơn",
@@ -798,6 +798,24 @@
       "evidence": {
         "kind": "pr",
         "url": "https://github.com/UNIAI-TEAM/uniwork/pull/534"
+      }
+    },
+    {
+      "commit": "349c27ed4d2af0ef189b6068697bec45b43a0c59",
+      "subject": "fix(chat): tắt gợi ý mention khi gõ email",
+      "kind": "fixes",
+      "include": true,
+      "excludeReason": "",
+      "text": {
+        "vi": "Trò chuyện: khi gõ một địa chỉ email như ten@gmail.com, danh sách gợi ý nhắc tên (@) không còn bật lên; gõ @ kèm tên người vẫn hiện gợi ý như trước.",
+        "en": "Chat: typing an email address such as name@gmail.com no longer opens the @mention suggestions; typing @ followed by a person's name still shows suggestions as before."
+      },
+      "evidence": {
+        "kind": "commit",
+        "paths": [
+          "packages/core/chat/chat-mention-utils.ts",
+          "packages/core/chat/chat-mention-utils.test.ts"
+        ]
       }
     }
   ]

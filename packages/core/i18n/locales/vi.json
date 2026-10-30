@@ -372,7 +372,8 @@
           "cc8edec27b62389b94f9fff325c6ab7258fab8545": "Hỏi UNI soạn tệp Office có công tắc riêng, mặc định tắt, do UniWork bật cho từng tổ chức. Khi tắt, Hỏi UNI không đề xuất soạn tệp, và việc áp dụng các đề xuất soạn tệp đã có, kể cả trong một kế hoạch hay ở chế độ Tự động, bị từ chối kèm thông báo rõ ràng thay vì áp dụng dở dang. Đọc tệp đính kèm và mục Mẫu văn bản không bị ảnh hưởng."
         },
         "fixes": {
-          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Họp: khách vào bằng link mời không còn phải chờ, có lúc gần một phút, sau khi chủ trì bấm Cho vào; khách được đưa vào phòng ngay sau khi được duyệt."
+          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Họp: khách vào bằng link mời không còn phải chờ, có lúc gần một phút, sau khi chủ trì bấm Cho vào; khách được đưa vào phòng ngay sau khi được duyệt.",
+          "c349c27ed4d2af0ef189b6068697bec45b43a0c59": "Trò chuyện: khi gõ một địa chỉ email như ten@gmail.com, danh sách gợi ý nhắc tên (@) không còn bật lên; gõ @ kèm tên người vẫn hiện gợi ý như trước."
         }
       }
     }
