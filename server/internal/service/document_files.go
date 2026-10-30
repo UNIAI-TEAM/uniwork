@@ -695,6 +695,27 @@ func insertFileVersion(ctx context.Context, q *db.Queries, actor Actor, params d
 	return version, nil
 }
 
+// RequestFileTextIndex requests the text index of each row's current file
+// version in the caller's transaction, as the system actor of the
+// document-text-reindex command.
+func RequestFileTextIndex(ctx context.Context, q *db.Queries, rows []db.ListFileDocumentsForTextIndexRow) error {
+	actor := audit.System("document-text-reindex")
+	for _, d := range rows {
+		if err := auditRecorder.Emit(ctx, q, actor, audit.Event{
+			Topic:          topicDocumentTextIndexRequested,
+			OrganizationID: d.OrganizationID,
+			WorkspaceID:    d.WorkspaceID,
+			Payload: map[string]string{
+				"document_id": d.ID, "version_id": d.FileVersionID.String,
+				"organization_id": d.OrganizationID, "workspace_id": d.WorkspaceID,
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // UploadDocumentAsset stores an image pasted into a page (C-01 §3.3 as
 // amended by §14.2): edit on the page, bytes into FileService under
 // document_asset, the image check (width/height come from the decoded

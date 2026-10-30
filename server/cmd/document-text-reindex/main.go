@@ -27,13 +27,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// topicTextIndexRequested must equal the catalogue row and
-// topicDocumentTextIndexRequested in internal/service/document_files.go; this
-// command does not import the service layer.
+// topicTextIndexRequested is only read here, to count open requests; it must
+// equal topicDocumentTextIndexRequested in internal/service/document_files.go.
 const topicTextIndexRequested = "document.text_index_requested"
 
 const usage = "usage: document-text-reindex (--org <id> | --all) [--dry-run] [--batch-size 20] [--max-pending 20]"
@@ -87,8 +86,6 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		}
 		scope = pgtype.Text{String: *org, Valid: true}
 	}
-	recorder := audit.NewRecorder()
-	actor := audit.System("document-text-reindex")
 	total, after := 0, ""
 	for {
 		rows, err := q.ListFileDocumentsForTextIndex(ctx, db.ListFileDocumentsForTextIndexParams{
@@ -108,7 +105,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		if err := waitForRoom(ctx, q, *maxPending); err != nil {
 			return err
 		}
-		if err := emitBatch(ctx, pool, recorder, actor, rows); err != nil {
+		if err := emitBatch(ctx, pool, rows); err != nil {
 			return err
 		}
 	}
@@ -139,25 +136,14 @@ func waitForRoom(ctx context.Context, q *db.Queries, maxPending int) error {
 	}
 }
 
-func emitBatch(ctx context.Context, pool *pgxpool.Pool, r *audit.Recorder, actor audit.Actor, rows []db.ListFileDocumentsForTextIndexRow) error {
+func emitBatch(ctx context.Context, pool *pgxpool.Pool, rows []db.ListFileDocumentsForTextIndexRow) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	q := db.New(tx)
-	for _, d := range rows {
-		if err := r.Emit(ctx, q, actor, audit.Event{
-			Topic:          topicTextIndexRequested,
-			OrganizationID: d.OrganizationID,
-			WorkspaceID:    d.WorkspaceID,
-			Payload: map[string]string{
-				"document_id": d.ID, "version_id": d.FileVersionID.String,
-				"organization_id": d.OrganizationID, "workspace_id": d.WorkspaceID,
-			},
-		}); err != nil {
-			return err
-		}
+	if err := service.RequestFileTextIndex(ctx, db.New(tx), rows); err != nil {
+		return err
 	}
 	return tx.Commit(ctx)
 }
