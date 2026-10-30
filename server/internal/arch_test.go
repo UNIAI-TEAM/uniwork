@@ -672,3 +672,25 @@ func TestDriveContentOnlyFromDriveContent(t *testing.T) {
 		t.Fatal("internal/service/drive_content.go makes no driveExportFile/driveDownloadMedia references; the guard is stale")
 	}
 }
+
+// Every file version is inserted through insertFileVersion, which asks the
+// slow lane to index the version's text; a direct insert would leave the
+// version unsearchable by content.
+func TestFileVersionsInsertThroughInsertFileVersion(t *testing.T) {
+	files, err := filepath.Glob("service/*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range files {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(src), "InsertDocumentVersion(ctx, fileVersionParams") {
+			t.Errorf("%s inserts a file version directly; use insertFileVersion", path)
+		}
+	}
+}

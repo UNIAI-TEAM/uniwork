@@ -690,7 +690,7 @@ func (s *DocumentService) commitFolderUploadFile(
 	if err != nil {
 		return "", err
 	}
-	version, err := q.InsertDocumentVersion(ctx, fileVersionParams(doc, versionID, 1, "upload", actor, file, DocumentEngineInfo{}, pgtype.Int4{}))
+	version, err := insertFileVersion(ctx, q, actor, fileVersionParams(doc, versionID, 1, "upload", actor, file, DocumentEngineInfo{}, pgtype.Int4{}))
 	if err != nil {
 		return "", err
 	}

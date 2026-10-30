@@ -526,7 +526,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
-	version, err := q.InsertDocumentVersion(ctx, fileVersionParams(doc, versionID, 1, "upload", actor, file, in.engine, pgtype.Int4{}))
+	version, err := insertFileVersion(ctx, q, actor, fileVersionParams(doc, versionID, 1, "upload", actor, file, in.engine, pgtype.Int4{}))
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
@@ -668,6 +668,31 @@ func fileVersionParams(doc db.Document, id string, version int32, reason string,
 		CreatedBy:       actor.ID,
 		CreatedByKind:   string(actor.Kind),
 	}
+}
+
+// topicDocumentTextIndexRequested asks the slow lane to extract a file
+// version's text into documents.content_text.
+const topicDocumentTextIndexRequested = "document.text_index_requested"
+
+// insertFileVersion inserts a file version and requests its text index in the
+// caller's transaction; every file version goes through it.
+func insertFileVersion(ctx context.Context, q *db.Queries, actor Actor, params db.InsertDocumentVersionParams) (db.DocumentVersion, error) {
+	version, err := q.InsertDocumentVersion(ctx, params)
+	if err != nil {
+		return db.DocumentVersion{}, err
+	}
+	if err := auditRecorder.Emit(ctx, q, actor, audit.Event{
+		Topic:          topicDocumentTextIndexRequested,
+		OrganizationID: version.OrganizationID,
+		WorkspaceID:    version.WorkspaceID,
+		Payload: map[string]string{
+			"document_id": version.DocumentID, "version_id": version.ID,
+			"organization_id": version.OrganizationID, "workspace_id": version.WorkspaceID,
+		},
+	}); err != nil {
+		return db.DocumentVersion{}, err
+	}
+	return version, nil
 }
 
 // UploadDocumentAsset stores an image pasted into a page (C-01 §3.3 as
