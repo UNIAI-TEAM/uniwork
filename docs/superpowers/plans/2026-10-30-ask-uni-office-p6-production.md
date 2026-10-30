@@ -1,6 +1,6 @@
 # Hỏi UNI soạn tệp Office — kế hoạch 6: lên production Implementation Plan
 
-> **Trạng thái:** in-progress — đã triển khai trên nhánh, chờ PR; kế hoạch 6 (Phần 6) của spec Hỏi UNI soạn tệp Office; chủ sản phẩm duyệt 2026-10-30; issue UNI-2304 (con của UNI-415).
+> **Trạng thái:** shipped — PR #532 merge vào `develop` ngày 2026-10-30 (`2ef1a6a6b`); kế hoạch 6 (Phần 6) của spec Hỏi UNI soạn tệp Office; chủ sản phẩm duyệt 2026-10-30; issue UNI-2304 (con của UNI-415). G6-D2, eval sống và bật cờ còn chờ chủ sản phẩm theo `docs/ops/OFFICE_AI_GO_LIVE.md`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -114,10 +114,10 @@
 
 ### Task 4: Đóng vòng và PR
 
-- [ ] **Step 1:** Spec Hỏi UNI soạn tệp Office: dòng Trạng thái ghi kế hoạch 6 và rằng G6-D2 cùng eval sống còn chờ chủ sản phẩm.
-- [ ] **Step 2:** Kế hoạch 6 sang "in-progress — đã triển khai trên nhánh, chờ PR".
-- [ ] **Step 3:** Việc ra ngoài, controller hỏi chủ sản phẩm trước: đẩy nhánh; `make issue-pr KEY=<issue>`. Thân PR theo khuôn PR #516; mục "Đã cố ý bỏ ra ngoài": G6-D2, eval sống, bật cờ, phần 1b, 1c, đọc PDF.
-- [ ] **Step 4:** CI chạy toàn bộ. Tụt sàn coverage thì thêm test, không hạ sàn.
+- [x] **Step 1:** Spec Hỏi UNI soạn tệp Office: dòng Trạng thái ghi kế hoạch 6 và rằng G6-D2 cùng eval sống còn chờ chủ sản phẩm.
+- [x] **Step 2:** Kế hoạch 6 sang "in-progress — đã triển khai trên nhánh, chờ PR".
+- [x] **Step 3:** Việc ra ngoài, controller hỏi chủ sản phẩm trước: đẩy nhánh; `make issue-pr KEY=<issue>`. Thân PR theo khuôn PR #516; mục "Đã cố ý bỏ ra ngoài": G6-D2, eval sống, bật cờ, phần 1b, 1c, đọc PDF.
+- [x] **Step 4:** CI chạy toàn bộ. Tụt sàn coverage thì thêm test, không hạ sàn.
 
 ### Việc của chủ sản phẩm (không phải code)
 
