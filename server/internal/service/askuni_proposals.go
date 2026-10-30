@@ -388,6 +388,9 @@ func (s *AskUNIService) ApplyProposal(ctx context.Context, userID, proposalID st
 	if err := s.askGate(ctx, proposalContext(row), false); err != nil {
 		return AskProposal{}, err
 	}
+	if askOfficeTools[row.ActionType] && !s.askOfficeOn(ctx, proposalContext(row)) {
+		return AskProposal{}, CodedError{Code: "ask_uni_office_off", Status: http.StatusForbidden}
+	}
 	decision := "confirmed"
 	if row.Position == askAnswerPosition {
 		decision = "answer"

@@ -8557,6 +8557,7 @@
         "proposal_expired": "Đề xuất đã hết hạn. Hỏi lại UNI.",
         "proposal_ref_pending": "Bước này dùng kết quả của một bước trước chưa được áp dụng. Áp dụng bước đó trước.",
         "proposal_not_pending": "Đề xuất này đã được xử lý, có thể ở một tab khác.",
+        "ask_uni_office_off": "Hỏi UNI chưa được bật soạn tệp Office ở tổ chức này. Nhờ quản trị tổ chức liên hệ UniWork.",
         "ai_actions_disabled": "Hỏi UNI đang tắt hành động ghi. Nhờ quản trị tổ chức bật lại.",
         "ai_write_rate_limited": "Áp dụng quá nhanh. Đợi một phút rồi thử lại.",
         "undo_unavailable": "Không hoàn tác được: đã có người sửa sau đó.",

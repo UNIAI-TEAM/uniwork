@@ -33,6 +33,9 @@ func (f agentFlagFake) IsEnabled(ctx context.Context, key string, def bool) bool
 	if key == askAgentFlag {
 		return featureflag.EvalContextFrom(ctx).OrganizationID == f.org
 	}
+	if key == askOfficeFlag { // list_templates is in the read tools these tests count
+		return true
+	}
 	return def
 }
 
