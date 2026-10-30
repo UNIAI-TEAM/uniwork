@@ -483,12 +483,14 @@ the only AI, and the host stopped sending `ai`). It also carries the fork main w
 more than this feature.) `types.ts` changed (`'ai'` left `Capability` and `CAPABILITY_KEYS`), so the `protocol` digest is now
 `ff03daa8...acd1`; `endpoint.ts` and `host.ts` did not change, so their digests stay and only the three vendored headers now name
 `c4b20c542`. The avatar route list (`AVATAR_ROUTE_FRAME_VERSIONS`) now holds `0.1.0-c4b20c5`, which keeps the avatar loader.
-Published at `web-0.1.0-c4b20c5` (`dist-web-0.1.0-c4b20c5.tar.gz`, sha256 `f7410b4b...38b9`), and written by
+Built on linux/arm64 (the Sheets wasm is the arm64 line `24e30396...a1d` of the fork's checksum file), published at
+`web-0.1.0-c4b20c5` (`dist-web-0.1.0-c4b20c5.tar.gz`, sha256 `f7410b4b...38b9`), and written by
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` with `source.json` naming the release URL. The G7-06
 goldens still name `0.1.0-8d73c6b` and are re-captured on Linux in a separate commit.
 
 The pin before it, kept for the history: `8d73c6b6e` (`0.1.0-8d73c6b`, the REPIN-10 pin of UNI-2276; the one-shot writers and the
-web Slides frame, sha256 `8396201c...09de`), replacing the next one.
+web Slides frame; built on linux/arm64 with the Sheets wasm arm64 line `24e30396...a1d`, sha256 `8396201c...09de`), replacing
+the next one.
 
 The previous pin, kept for the history: `6799c6765` (`0.1.0-6799c67`, the REPIN-9 pin of UNI-2264: fork main `6799c6765`,
 which added the frame request `ai.start` and the capability `aiStart` over `0.1.0-59defc1`, plus the UNI-2262 PDF editing
