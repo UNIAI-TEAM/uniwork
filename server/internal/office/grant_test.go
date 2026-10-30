@@ -16,6 +16,7 @@ var updateFixtures = flag.Bool("update", false, "rewrite testdata golden files")
 // format on either side fails one of the two tests.
 const parityFixture = "testdata/grant-parity.json"
 const extractParityFixture = "testdata/grant-parity-extract.json"
+const extractDocumentParityFixture = "testdata/grant-parity-extract-document.json"
 
 type parity struct {
 	Key   string       `json:"key"`
@@ -218,5 +219,56 @@ func TestGrantVariantRules(t *testing.T) {
 				t.Fatalf("%s: expected ErrGrantInvalid, got %v", tc.name, err)
 			}
 		})
+	}
+}
+
+func TestExtractGrantParityDocument(t *testing.T) {
+	key := "parity-grant-key-0123456789abcdef-0123"
+	g := ServiceGrant{
+		V: 1, GrantID: "01GRANT000000000000000000F", JobID: "01JOB00000000000000000000F",
+		ActorID: "01USER00000000000000000000", ActorKind: "system",
+		OrganizationID: "01ORG000000000000000000000", WorkspaceID: "01WS0000000000000000000000",
+		DocumentID: "01DOC00000000000000000000A",
+		Operation:  OperationExtractText, Format: FormatPDF,
+		Input:      &GrantInput{Checksum: "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9", Length: 11},
+		DeadlineAt: 1790000060000, IssuedAt: 1790000000000, ExpiresAt: 1790000030000,
+	}
+	token, err := SignGrant(g, []byte(key))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.FromSlash(extractDocumentParityFixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fx parity
+	if err := json.Unmarshal(raw, &fx); err != nil {
+		t.Fatal(err)
+	}
+	if fx.Token != token {
+		t.Fatalf("extract document grant wire format drifted: Go signs %s, fixture has %s", token, fx.Token)
+	}
+	got, err := VerifyGrant(fx.Token, []byte(fx.Key))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.DocumentID != g.DocumentID || got.DriveFileID != "" || got.ActorKind != "system" || got.Format != FormatPDF || got.Output != nil {
+		t.Fatalf("round trip lost fields: %+v", got)
+	}
+	both := g
+	both.DriveFileID = "01DRIVEFILE00000000000000A"
+	tok, err := SignGrant(both, []byte(key))
+	if err == nil {
+		_, err = VerifyGrant(tok, []byte(key))
+	}
+	if err != ErrGrantInvalid {
+		t.Fatalf("grant with both ids: %v", err)
+	}
+	none := g
+	none.DocumentID = ""
+	if tok, err := SignGrant(none, []byte(key)); err == nil {
+		if _, err := VerifyGrant(tok, []byte(key)); err != ErrGrantInvalid {
+			t.Fatalf("grant with no id: %v", err)
+		}
 	}
 }

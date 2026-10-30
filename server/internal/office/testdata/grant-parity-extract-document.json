@@ -1,0 +1,26 @@
+{
+  "key": "parity-grant-key-0123456789abcdef-0123",
+  "grant": {
+    "v": 1,
+    "grant_id": "01GRANT000000000000000000F",
+    "job_id": "01JOB00000000000000000000F",
+    "actor_id": "01USER00000000000000000000",
+    "actor_kind": "system",
+    "organization_id": "01ORG000000000000000000000",
+    "workspace_id": "01WS0000000000000000000000",
+    "document_id": "01DOC00000000000000000000A",
+    "operation": "extract_text",
+    "format": "pdf",
+    "base_revision": 0,
+    "base_version_id": "",
+    "input": {
+      "checksum": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+      "length": 11
+    },
+    "output": null,
+    "deadline_at": 1790000060000,
+    "issued_at": 1790000000000,
+    "expires_at": 1790000030000
+  },
+  "token": "eyJ2IjoxLCJncmFudF9pZCI6IjAxR1JBTlQwMDAwMDAwMDAwMDAwMDAwMDBGIiwiam9iX2lkIjoiMDFKT0IwMDAwMDAwMDAwMDAwMDAwMDAwMEYiLCJhY3Rvcl9pZCI6IjAxVVNFUjAwMDAwMDAwMDAwMDAwMDAwMDAwIiwiYWN0b3Jfa2luZCI6InN5c3RlbSIsIm9yZ2FuaXphdGlvbl9pZCI6IjAxT1JHMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwid29ya3NwYWNlX2lkIjoiMDFXUzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCJkb2N1bWVudF9pZCI6IjAxRE9DMDAwMDAwMDAwMDAwMDAwMDAwMDBBIiwib3BlcmF0aW9uIjoiZXh0cmFjdF90ZXh0IiwiZm9ybWF0IjoicGRmIiwiYmFzZV9yZXZpc2lvbiI6MCwiYmFzZV92ZXJzaW9uX2lkIjoiIiwiaW5wdXQiOnsiY2hlY2tzdW0iOiJiOTRkMjdiOTkzNGQzZTA4YTUyZTUyZDdkYTdkYWJmYWM0ODRlZmUzN2E1MzgwZWU5MDg4ZjdhY2UyZWZjZGU5IiwibGVuZ3RoIjoxMX0sIm91dHB1dCI6bnVsbCwiZGVhZGxpbmVfYXQiOjE3OTAwMDAwNjAwMDAsImlzc3VlZF9hdCI6MTc5MDAwMDAwMDAwMCwiZXhwaXJlc19hdCI6MTc5MDAwMDAzMDAwMH0.2V7VKE_scWY-nxjw2R7ulWJt10mmJmnS2xG2Iinc7AA"
+}

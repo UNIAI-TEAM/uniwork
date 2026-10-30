@@ -119,8 +119,12 @@ function parseGrant(raw: unknown): ServiceGrant {
   const output = parseOutput(raw.output ?? null);
   const operation = raw.operation as GrantableOperation;
   if (operation === "extract_text") {
-    if (raw.document_id !== "") scope("malformed", { field: "document_id" });
-    if (!str(raw.drive_file_id)) scope("malformed", { field: "drive_file_id" });
+    // Exactly one source: a Drive file or a UniWork document; the unused id is "" or absent.
+    const driveFileId = raw.drive_file_id === undefined ? "" : raw.drive_file_id;
+    const documentId = raw.document_id;
+    if (driveFileId !== "" && !str(driveFileId)) scope("malformed", { field: "drive_file_id" });
+    if (documentId !== "" && !str(documentId)) scope("malformed", { field: "document_id" });
+    if ((driveFileId === "") === (documentId === "")) scope("malformed", { field: "drive_file_id" });
     if (raw.base_revision !== 0) scope("malformed", { field: "base_revision" });
     if (raw.base_version_id !== "") scope("malformed", { field: "base_version_id" });
     if (input === null) scope("malformed", { field: "input" });
@@ -133,8 +137,8 @@ function parseGrant(raw: unknown): ServiceGrant {
       actor_kind: raw.actor_kind as ServiceGrant["actor_kind"],
       organization_id: raw.organization_id as string,
       workspace_id: raw.workspace_id as string,
-      document_id: "",
-      drive_file_id: raw.drive_file_id,
+      document_id: documentId as string,
+      drive_file_id: driveFileId as string,
       operation,
       format: raw.format as OfficeFormat,
       base_revision: 0,

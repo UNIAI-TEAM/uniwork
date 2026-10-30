@@ -18,20 +18,27 @@ import (
 )
 
 // ExtractFormat is a document format supported by OperationExtractText.
-type ExtractFormat string // "docx" | "xlsx" | "pptx"
+type ExtractFormat string // "docx" | "xlsx" | "pptx" | "pdf"
 
 const (
 	ExtractFormatDOCX ExtractFormat = ExtractFormat(FormatDOCX)
 	ExtractFormatXLSX ExtractFormat = ExtractFormat(FormatXLSX)
 	ExtractFormatPPTX ExtractFormat = ExtractFormat(FormatPPTX)
+	ExtractFormatPDF  ExtractFormat = ExtractFormat(FormatPDF)
 )
 
 // ExtractTextRequest asks the engine to extract plain text from an in-memory
-// Office Open XML file linked from Google Drive (spec §8.3a, B11).
+// file: an Office Open XML file linked from Google Drive (spec §8.3a, B11) or a
+// UniWork document. Exactly one of DriveFileID and DocumentID names the source.
+// A PDF's text is its pages joined by a form feed (\f).
 type ExtractTextRequest struct {
-	Format                                            ExtractFormat
-	Content                                           []byte // <= 20 MiB, in memory
-	ActorID, OrganizationID, WorkspaceID, DriveFileID string // for the extract-only ServiceGrant (actor_kind "human")
+	Format  ExtractFormat
+	Content []byte // <= 20 MiB, in memory
+	// ActorID, OrganizationID and WorkspaceID fill the extract-only ServiceGrant.
+	ActorID, OrganizationID, WorkspaceID string
+	DriveFileID                          string // a Drive file's id; empty for a UniWork document
+	DocumentID                           string // a UniWork document's id; empty for a Drive file
+	ActorKind                            string // "human" (default when empty), "agent" or "system"
 }
 
 // ExtractTextResult is the extracted text returned in the final job status.
@@ -83,15 +90,22 @@ func (c *Client) ExtractText(ctx context.Context, req ExtractTextRequest) (Extra
 		return ExtractTextResult{}, fmt.Errorf("%w: %w", ErrExtractUnavailable, ErrNotConfigured)
 	}
 	switch req.Format {
-	case ExtractFormatDOCX, ExtractFormatXLSX, ExtractFormatPPTX:
+	case ExtractFormatDOCX, ExtractFormatXLSX, ExtractFormatPPTX, ExtractFormatPDF:
 	default:
 		return ExtractTextResult{}, fmt.Errorf("office: unsupported extract_text format %q", req.Format)
 	}
 	if len(req.Content) > MaxExtractInputBytes {
 		return ExtractTextResult{}, fmt.Errorf("office: extract_text content length %d exceeds max %d", len(req.Content), MaxExtractInputBytes)
 	}
-	if req.ActorID == "" || req.OrganizationID == "" || req.WorkspaceID == "" || req.DriveFileID == "" {
-		return ExtractTextResult{}, errors.New("office: extract_text requires actor_id, organization_id, workspace_id, and drive_file_id")
+	if req.ActorID == "" || req.OrganizationID == "" || req.WorkspaceID == "" {
+		return ExtractTextResult{}, errors.New("office: extract_text requires actor_id, organization_id, and workspace_id")
+	}
+	if (req.DriveFileID == "") == (req.DocumentID == "") {
+		return ExtractTextResult{}, errors.New("office: extract_text requires exactly one of drive_file_id and document_id")
+	}
+	actorKind := req.ActorKind
+	if actorKind == "" {
+		actorKind = "human"
 	}
 
 	if _, err := c.Ready(ctx); err != nil {
@@ -120,10 +134,10 @@ func (c *Client) ExtractText(ctx context.Context, req ExtractTextRequest) (Extra
 		GrantID:        grantID,
 		JobID:          jobID,
 		ActorID:        req.ActorID,
-		ActorKind:      "human",
+		ActorKind:      actorKind,
 		OrganizationID: req.OrganizationID,
 		WorkspaceID:    req.WorkspaceID,
-		DocumentID:     "",
+		DocumentID:     req.DocumentID,
 		DriveFileID:    req.DriveFileID,
 		Operation:      OperationExtractText,
 		Format:         Format(req.Format),
