@@ -46,7 +46,9 @@ chỉ dấu tích.
 
 ## 5. Bật theo thứ tự
 
-Bật cho tổ chức nội bộ UniWork trước, bằng override ở `/admin/flags`. Mỗi bước kiểm `GET /api/v1/config` thấy cờ đã lên rồi mới sang bước sau.
+Bật cho tổ chức nội bộ UniWork trước, bằng override ở `/admin/flags`. Mỗi bước kiểm cờ đã lên rồi mới sang bước sau:
+cờ công khai (`office_ai_uniwork`, cờ định dạng, `ask_uni_actions`) thấy ở `GET /api/v1/config` của một thành viên;
+cờ chỉ ở máy chủ (`ask_uni_agent`, `ask_uni_office`) xem ở danh sách override của `/admin/flags`.
 
 | # | Việc | Ai | Bằng chứng | Xong |
 |---|---|---|---|---|
@@ -59,9 +61,10 @@ Bật cho tổ chức nội bộ UniWork trước, bằng override ở `/admin/f
 
 ## 6. Rút lại
 
-Rút nhanh: đặt override về tắt ở `/admin/flags`, hoặc đặt `FF_ASK_UNI_OFFICE=false` / `FF_OFFICE_AI_UNIWORK=false`
-rồi khởi động lại. Tắt `ask_uni_office` làm ba công cụ soạn tệp biến khỏi Hỏi UNI và Apply của chúng
-bị từ chối (`ask_uni_office_off`); tắt `office_ai_uniwork` tắt luôn AI trong trình soạn.
+Rút nhanh: đặt override về tắt (hoặc xóa override đã bật) ở `/admin/flags`. Override thắng biến `FF_*`, nên
+`FF_ASK_UNI_OFFICE=false` / `FF_OFFICE_AI_UNIWORK=false` chỉ có tác dụng khi không còn override nào bật cờ đó.
+Tắt `ask_uni_office` làm ba công cụ soạn tệp biến khỏi Hỏi UNI và Apply của chúng bị từ chối
+(`ask_uni_office_off`); tắt `office_ai_uniwork` tắt luôn AI trong trình soạn.
 
 | # | Việc | Ai | Bằng chứng | Xong |
 |---|---|---|---|---|
