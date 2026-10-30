@@ -12,6 +12,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/attachtext"
 	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
@@ -469,5 +470,11 @@ func TestFileIndexText(t *testing.T) {
 	one := attachtext.Doc{Parts: []attachtext.Part{{Text: strings.Repeat("a", maxSearchContentRunes-1)}, {Text: "zz"}}}
 	if got := fileIndexText(one); len([]rune(got)) != maxSearchContentRunes {
 		t.Errorf("separator counted: %d runes", len([]rune(got)))
+	}
+}
+
+func TestTextIndexTopicIsInTheCatalogue(t *testing.T) {
+	if _, ok := outbox.Lookup(topicDocumentTextIndexRequested); !ok {
+		t.Fatalf("%q is not in the outbox catalogue", topicDocumentTextIndexRequested)
 	}
 }
