@@ -38,10 +38,11 @@ func officeFlagWorld(t *testing.T, sw officeSwitch) *actWorld {
 	w.s.SetFlags(sw)
 	w.s.SetDocuments(w.x.docs(t))
 	w.s.SetFiles(w.x.files)
+	w.s.SetOffice(NewDocumentOfficeService(DocumentOfficeOptions{Pool: w.s.pool, Queries: w.s.q, Files: w.x.files, Documents: w.x.docs(t)}))
 	return w
 }
 
-// toolNames is the tools the first request of a dock turn carried.
+// dockToolNames is the tools the first request of a dock turn carried.
 func (w *actWorld) dockToolNames(t *testing.T, tc ai.ToolContext) []string {
 	t.Helper()
 	seen := scriptCalls(w.fake, "Xong.")
@@ -78,7 +79,7 @@ func TestAskUniOfficeFlagHidesItsTools(t *testing.T) {
 }
 
 func TestAskUniOfficeFlagFollowsTheOrganization(t *testing.T) {
-	w := officeFlagWorld(t, officeSwitch{byOrg: map[string]bool{}})
+	w := officeFlagWorld(t, officeSwitch{})
 	w.s.SetFlags(officeSwitch{byOrg: map[string]bool{w.x.w.OrganizationID: true}})
 	if got := w.dockToolNames(t, w.tc); !slices.Contains(got, "create_office_document") || !slices.Contains(got, "list_templates") {
 		t.Fatalf("organization A with the override: %v", got)
@@ -137,7 +138,6 @@ func TestAskUniOfficeFlagKeepsOfficeReads(t *testing.T) {
 // editor AI off, the file is still drafted, with no package.
 func TestAskUniOfficeFlagLeavesTheEditorGateAlone(t *testing.T) {
 	w := officeFlagWorld(t, officeSwitch{global: true})
-	w.s.SetOffice(NewDocumentOfficeService(DocumentOfficeOptions{Pool: w.s.pool, Queries: w.s.q, Files: w.x.files, Documents: w.x.docs(t)}))
 	w.s.SetEditorAI(&editorAIFake{reason: "off"})
 	row := askPrepare(t, w.s, w.tc, "create_office_document", `{"title":"Đề xuất","format":"docx","outline":"## A\n## B","instructions":"Viết ngắn."}`)
 	if f, _ := officeField(row, "editor_ai"); f.To != "off" {
@@ -146,5 +146,27 @@ func TestAskUniOfficeFlagLeavesTheEditorGateAlone(t *testing.T) {
 	p := applyOffice(t, w.s, w.tc, w.x.ua.ID, row)
 	if p.Result.ObjectID == "" || p.Result.HandoffID != "" {
 		t.Fatalf("result = %+v, want a document and no handoff_id", p.Result)
+	}
+}
+
+// A plan's rows apply through ApplyMessageProposals, not ApplyProposal: the
+// switch holds there too.
+func TestAskUniOfficeFlagRefusesAPlanApply(t *testing.T) {
+	w := officeFlagWorld(t, officeSwitch{global: true})
+	s, x, tc := w.s, w.x, w.tc
+	row := askPrepare(t, s, tc, "create_office_document", `{"title":"Đề xuất","format":"docx","outline":"## A"}`)
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	pr := propose(t, s, tc, convID, msgID, AskModePlan, row)[0]
+	s.SetFlags(officeSwitch{global: false})
+	docs := x.docRows(t)
+	_, err := s.ApplyMessageProposals(context.Background(), x.ua.ID, convID, msgID, []string{pr.ID})
+	if codeOf(err) != "ask_uni_office_off" {
+		t.Fatalf("plan apply with the flag off: %v, want ask_uni_office_off", err)
+	}
+	if after := x.docRows(t); after != docs {
+		t.Fatalf("documents %d -> %d", docs, after)
+	}
+	if n := x.count(t, `SELECT count(*) FROM ai_office_handoffs WHERE organization_id = $1`, x.w.OrganizationID); n != 0 {
+		t.Fatalf("%d handoff rows, want none", n)
 	}
 }

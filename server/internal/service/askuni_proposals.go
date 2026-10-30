@@ -388,9 +388,6 @@ func (s *AskUNIService) ApplyProposal(ctx context.Context, userID, proposalID st
 	if err := s.askGate(ctx, proposalContext(row), false); err != nil {
 		return AskProposal{}, err
 	}
-	if askOfficeTools[row.ActionType] && !s.askOfficeOn(ctx, proposalContext(row)) {
-		return AskProposal{}, CodedError{Code: "ask_uni_office_off", Status: http.StatusForbidden}
-	}
 	decision := "confirmed"
 	if row.Position == askAnswerPosition {
 		decision = "answer"
@@ -407,6 +404,9 @@ func (s *AskUNIService) ApplyProposal(ctx context.Context, userID, proposalID st
 func (s *AskUNIService) applyRow(ctx context.Context, userID string, row db.AgentActionProposal, decision string) (AskProposal, error) {
 	if err := s.proposalMember(ctx, userID, row); err != nil {
 		return AskProposal{}, err
+	}
+	if askOfficeTools[row.ActionType] && !s.askOfficeOn(ctx, proposalContext(row)) {
+		return AskProposal{}, CodedError{Code: "ask_uni_office_off", Status: http.StatusForbidden}
 	}
 	// Defense in depth for Auto mode (R11): the stored row must say it may run
 	// unasked, whatever the caller decided.
