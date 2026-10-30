@@ -45,3 +45,18 @@ SELECT EXISTS (
     AND a.workspace_id = sqlc.arg(workspace_id)
     AND a.file_id = sqlc.arg(file_id)
 ) AS in_use;
+
+-- The text index of a file document (document.text_index_requested consumer):
+-- the extracted text and the folded search column. A derived column, not a
+-- content change, so revision, content_revision and updated_at stay as they
+-- are. The file_version_id guard drops a result for a version that is no
+-- longer current; zero rows is not an error.
+-- name: SetDocumentFileText :execrows
+UPDATE documents
+SET content_text = sqlc.arg(content_text),
+    search_text = sqlc.arg(search_text)
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND kind = 'file'
+  AND file_version_id = sqlc.arg(file_version_id);

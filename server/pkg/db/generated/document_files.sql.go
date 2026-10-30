@@ -44,6 +44,46 @@ func (q *Queries) DocumentFileInUse(ctx context.Context, arg DocumentFileInUsePa
 	return in_use, err
 }
 
+const setDocumentFileText = `-- name: SetDocumentFileText :execrows
+UPDATE documents
+SET content_text = $1,
+    search_text = $2
+WHERE id = $3
+  AND organization_id = $4
+  AND workspace_id = $5
+  AND kind = 'file'
+  AND file_version_id = $6
+`
+
+type SetDocumentFileTextParams struct {
+	ContentText    string      `json:"content_text"`
+	SearchText     string      `json:"search_text"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	FileVersionID  pgtype.Text `json:"file_version_id"`
+}
+
+// The text index of a file document (document.text_index_requested consumer):
+// the extracted text and the folded search column. A derived column, not a
+// content change, so revision, content_revision and updated_at stay as they
+// are. The file_version_id guard drops a result for a version that is no
+// longer current; zero rows is not an error.
+func (q *Queries) SetDocumentFileText(ctx context.Context, arg SetDocumentFileTextParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setDocumentFileText,
+		arg.ContentText,
+		arg.SearchText,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.FileVersionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setDocumentFileVersion = `-- name: SetDocumentFileVersion :one
 
 UPDATE documents

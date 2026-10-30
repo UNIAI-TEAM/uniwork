@@ -2,8 +2,13 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/unicomhub/uniwork/server/internal/attachtext"
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
@@ -75,5 +80,236 @@ func TestNewFileVersionClearsTheIndexedText(t *testing.T) {
 		`SELECT title, content_text, search_text FROM documents WHERE id = $1`, created.Document.ID).Scan(&title, &content, &search), "read")
 	if content != "" || search != documentSearchText(title, "") {
 		t.Fatalf("content_text = %q, search_text = %q, want empty and %q", content, search, documentSearchText(title, ""))
+	}
+}
+
+const (
+	textIndexPhrase = "Điều khoản bảo hành 24 tháng"
+	textIndexQuery  = "bao hanh 24 thang"
+	textIndexW      = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"`
+	textIndexA      = `xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`
+)
+
+// textIndexRow is the columns the indexer writes, plus the ones it must not touch.
+type textIndexRow struct {
+	Title, Content, Search    string
+	Revision, ContentRevision int64
+	UpdatedAt                 time.Time
+}
+
+func readTextIndexRow(t *testing.T, pool *pgxpool.Pool, id string) textIndexRow {
+	t.Helper()
+	var r textIndexRow
+	mustf(t, pool.QueryRow(context.Background(),
+		`SELECT title, content_text, search_text, revision, content_revision, updated_at FROM documents WHERE id = $1`, id).
+		Scan(&r.Title, &r.Content, &r.Search, &r.Revision, &r.ContentRevision, &r.UpdatedAt), "read row")
+	return r
+}
+
+// textIndexDocx puts the phrase in the 12th paragraph, after more than 300 characters.
+func textIndexDocx(t *testing.T) []byte {
+	var b strings.Builder
+	b.WriteString(`<w:document ` + textIndexW + `><w:body>`)
+	for i := 1; i <= 11; i++ {
+		b.WriteString(`<w:p><w:r><w:t>` + strings.Repeat("Đoạn mở đầu số một. ", 3) + `</w:t></w:r></w:p>`)
+	}
+	b.WriteString(`<w:p><w:r><w:t>` + textIndexPhrase + `</w:t></w:r></w:p></w:body></w:document>`)
+	return officeFile(t, map[string]string{"word/document.xml": b.String()})
+}
+
+func TestTextIndexMakesOfficeFilesSearchable(t *testing.T) {
+	x := newMcpToolWorld(t)
+	idx := NewDocumentTextIndexer(x.docs(t), x.tools.ask)
+	ctx := context.Background()
+
+	slide := func(s string) string {
+		return `<p:sld ` + textIndexA + `><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>` + s + `</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`
+	}
+	xlsx := map[string]string{}
+	for k, v := range officeXLSXParts {
+		xlsx[k] = v
+	}
+	xlsx["xl/worksheets/sheet1.xml"] = `<worksheet><sheetData><row r="7"><c r="B7" t="inlineStr"><is><t>` + textIndexPhrase + `</t></is></c></row></sheetData></worksheet>`
+
+	for name, body := range map[string][]byte{
+		"hop-dong.docx": textIndexDocx(t),
+		"bang.xlsx":     officeFile(t, xlsx),
+		"gioi-thieu.pptx": officeFile(t, map[string]string{
+			"ppt/presentation.xml":  `<p:presentation/>`,
+			"ppt/slides/slide1.xml": slide("Mở đầu"), "ppt/slides/slide2.xml": slide("Giữa"),
+			"ppt/slides/slide3.xml": slide(textIndexPhrase),
+		}),
+	} {
+		id := x.textFile(t, name, body)
+		if ids := x.searchIDs(t, x.p, textIndexQuery); containsID(ids, id) {
+			t.Fatalf("%s found before it was indexed", name)
+		}
+		doc, err := x.docs(t).q.GetDocumentByID(ctx, id)
+		mustf(t, err, "get")
+		mustf(t, idx.Index(ctx, doc.OrganizationID, id, doc.FileVersionID.String), "index %s", name)
+		row := readTextIndexRow(t, x.tools.ask.pool, id)
+		if !strings.Contains(row.Content, textIndexPhrase) {
+			t.Fatalf("%s content_text = %q", name, row.Content)
+		}
+		if ids := x.searchIDs(t, x.p, textIndexQuery); !containsID(ids, id) {
+			t.Fatalf("%s not found after indexing: %v", name, ids)
+		}
+	}
+}
+
+func TestTextIndexSurvivesRenameAndMove(t *testing.T) {
+	x := newMcpToolWorld(t)
+	docs := x.docs(t)
+	idx := NewDocumentTextIndexer(docs, x.tools.ask)
+	ctx := context.Background()
+	id := x.textFile(t, "hd.docx", textIndexDocx(t))
+	doc, err := docs.q.GetDocumentByID(ctx, id)
+	mustf(t, err, "get")
+	mustf(t, idx.Index(ctx, doc.OrganizationID, id, doc.FileVersionID.String), "index")
+
+	title := "Tên mới của hợp đồng"
+	v, err := docs.UpdateDocument(ctx, Human(x.ua.ID), id, UpdateDocumentInput{Revision: doc.Revision, Title: &title})
+	mustf(t, err, "rename")
+	folder, err := docs.CreatePage(ctx, Human(x.ua.ID), x.w.ID, CreatePageInput{Kind: DocumentKindFolder, Title: "Thư mục", Visibility: documentVisibilityWorkspace})
+	mustf(t, err, "folder")
+	_, err = docs.MoveDocument(ctx, Human(x.ua.ID), id, MoveDocumentInput{ParentID: folder.Document.ID, Revision: v.Document.Revision, IdempotencyKey: util.NewID()})
+	mustf(t, err, "move")
+	if ids := x.searchIDs(t, x.p, textIndexQuery); !containsID(ids, id) {
+		t.Fatalf("not found after rename and move: %v", ids)
+	}
+}
+
+func TestTextIndexWritesNoBusinessChange(t *testing.T) {
+	x := newMcpToolWorld(t)
+	idx := NewDocumentTextIndexer(x.docs(t), x.tools.ask)
+	ctx := context.Background()
+	pool := x.tools.ask.pool
+	id := x.textFile(t, "hd.docx", textIndexDocx(t))
+	doc, err := x.docs(t).q.GetDocumentByID(ctx, id)
+	mustf(t, err, "get")
+	count := func(q string) (n int) {
+		mustf(t, pool.QueryRow(ctx, q, id).Scan(&n), "count")
+		return n
+	}
+	const audits, logs = `SELECT count(*) FROM audit_events WHERE resource_id = $1`, `SELECT count(*) FROM document_access_logs WHERE document_id = $1`
+	auditBefore, logsBefore, before := count(audits), count(logs), readTextIndexRow(t, pool, id)
+
+	mustf(t, idx.Index(ctx, doc.OrganizationID, id, doc.FileVersionID.String), "index")
+
+	after := readTextIndexRow(t, pool, id)
+	if after.Revision != before.Revision || after.ContentRevision != before.ContentRevision || !after.UpdatedAt.Equal(before.UpdatedAt) {
+		t.Fatalf("business columns moved: before %+v after %+v", before, after)
+	}
+	if a, l := count(audits), count(logs); a != auditBefore || l != logsBefore {
+		t.Fatalf("audit %d->%d, access logs %d->%d", auditBefore, a, logsBefore, l)
+	}
+}
+
+func TestTextIndexIgnoresAStaleVersion(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	member := human(env.tn.member)
+	idx := NewDocumentTextIndexer(env.svc, nil)
+	created := env.createFile(t, member, "cu.docx", textIndexDocx(t))
+	first := created.Document.FileVersionID.String
+	up := env.upload(t, member, created.Document.ID, "cu-v2.docx", officeFile(t, map[string]string{"word/document.xml": "<w:document ></w:document>"}))
+	_, err := env.commit(member, created.Document.ID, up.UploadID, created.Document.Revision, util.NewID())
+	mustf(t, err, "commit")
+	before := readTextIndexRow(t, env.f.pool, created.Document.ID)
+
+	mustf(t, idx.Index(context.Background(), env.tn.orgID, created.Document.ID, first), "stale index")
+	if after := readTextIndexRow(t, env.f.pool, created.Document.ID); after != before {
+		t.Fatalf("a stale version wrote: before %+v after %+v", before, after)
+	}
+}
+
+func TestTextIndexClearsWhatItCannotRead(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	member := human(env.tn.member)
+	idx := NewDocumentTextIndexer(env.svc, nil)
+	ctx := context.Background()
+	broken := officeFile(t, map[string]string{"word/document.xml": `<w:document ` + textIndexW + `><w:body><w:p>`})
+	for name, body := range map[string][]byte{
+		"a.pdf": pdfBody("x"), "b.html": []byte("<p>Điều khoản</p>"), "c.docx": broken, "d.docx": textIndexDocx(t),
+	} {
+		res := env.createFile(t, member, name, body)
+		id := res.Document.ID
+		_, err := env.f.pool.Exec(ctx, `UPDATE documents SET content_text = 'cũ' WHERE id = $1`, id)
+		mustf(t, err, "seed")
+		if name == "d.docx" { // over the read ceiling: decided by the recorded size, the file is never opened
+			_, err = env.f.pool.Exec(ctx, `UPDATE document_versions SET size_bytes = $2 WHERE id = $1`, res.Document.FileVersionID.String, int64(mcpOfficeReadBytes+1))
+			mustf(t, err, "size")
+		}
+		mustf(t, idx.Index(ctx, env.tn.orgID, id, res.Document.FileVersionID.String), "index %s", name)
+		row := readTextIndexRow(t, env.f.pool, id)
+		if row.Content != "" || row.Search != documentSearchText(row.Title, "") {
+			t.Fatalf("%s: content %q, search %q", name, row.Content, row.Search)
+		}
+	}
+}
+
+func TestTextIndexWaitsForTheFileReadSlot(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	idx := NewDocumentTextIndexer(env.svc, nil)
+	res := env.createFile(t, human(env.tn.member), "hd.docx", textIndexDocx(t))
+	before := readTextIndexRow(t, env.f.pool, res.Document.ID)
+	idx.reads <- struct{}{}
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if err := idx.Index(ctx, env.tn.orgID, res.Document.ID, res.Document.FileVersionID.String); err == nil {
+		t.Fatal("Index returned nil while the read slot was held")
+	}
+	<-idx.reads
+	if after := readTextIndexRow(t, env.f.pool, res.Document.ID); after != before {
+		t.Fatalf("wrote without the slot: %+v", after)
+	}
+}
+
+func TestTextIndexIgnoresOtherTenantsAndPages(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	member := human(env.tn.member)
+	idx := NewDocumentTextIndexer(env.svc, nil)
+	ctx := context.Background()
+	res := env.createFile(t, member, "hd.docx", textIndexDocx(t))
+	page, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Title: "Trang"})
+	mustf(t, err, "page")
+	before := readTextIndexRow(t, env.f.pool, res.Document.ID)
+	ver := res.Document.FileVersionID.String
+
+	for name, call := range map[string]func() error{
+		"wrong org":  func() error { return idx.Index(ctx, util.NewID(), res.Document.ID, ver) },
+		"page":       func() error { return idx.Index(ctx, env.tn.orgID, page.Document.ID, ver) },
+		"unknown id": func() error { return idx.Index(ctx, env.tn.orgID, util.NewID(), ver) },
+	} {
+		if err := call(); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	if after := readTextIndexRow(t, env.f.pool, res.Document.ID); after != before {
+		t.Fatalf("a foreign call wrote: %+v", after)
+	}
+	if p := readTextIndexRow(t, env.f.pool, page.Document.ID); p.Content != "" {
+		t.Fatalf("page content_text = %q", p.Content)
+	}
+}
+
+func TestTextIndexMIMEAndText(t *testing.T) {
+	docx := officeByExt[".docx"]
+	for _, c := range []struct {
+		mime, name, want string
+		ok               bool
+	}{
+		{"application/zip", "a.docx", docx, true},
+		{"", "a.md", "text/markdown", true}, {"", "a.markdown", "text/markdown", true},
+		{"text/plain", "a.txt", "text/plain", true},
+		{"text/html", "a.html", "", false}, {"application/pdf", "a.pdf", "", false}, {"", "a.bin", "", false},
+	} {
+		if got, ok := fileTextIndexMIME(c.mime, c.name); got != c.want || ok != c.ok {
+			t.Errorf("fileTextIndexMIME(%q, %q) = %q %v", c.mime, c.name, got, ok)
+		}
+	}
+	d := attachtext.Doc{Parts: []attachtext.Part{{Label: "Slide 1"}, {Label: "Slide 2", Text: "bb"}, {Text: strings.Repeat("ê", maxSearchContentRunes)}}}
+	got := fileIndexText(d)
+	if !strings.HasPrefix(got, "Slide 1\nbb\n") || len([]rune(got)) != maxSearchContentRunes {
+		t.Errorf("fileIndexText = %d runes, prefix %q", len([]rune(got)), got[:12])
 	}
 }
