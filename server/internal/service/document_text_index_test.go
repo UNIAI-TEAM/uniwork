@@ -12,6 +12,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/attachtext"
 	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
@@ -21,7 +22,7 @@ import (
 func indexRequests(t *testing.T, env *docStorageEnv, docID string) []string {
 	t.Helper()
 	var out []string
-	for _, p := range outboxPayloads(t, env.f.pool, topicDocumentTextIndexRequested) {
+	for _, p := range outboxPayloads(t, env.f.pool, TopicDocumentTextIndexRequested) {
 		if p["document_id"] == docID {
 			if p["organization_id"] == "" || p["workspace_id"] == "" {
 				t.Fatalf("payload misses a tenant id: %v", p)
@@ -123,7 +124,7 @@ func textIndexDocx(t *testing.T) []byte {
 
 func TestTextIndexMakesOfficeFilesSearchable(t *testing.T) {
 	x := newMcpToolWorld(t)
-	idx := NewDocumentTextIndexer(x.docs(t), x.tools.ask)
+	idx := NewDocumentTextIndexer(x.docs(t), x.tools.ask, nil)
 	ctx := context.Background()
 
 	slide := func(s string) string {
@@ -164,7 +165,7 @@ func TestTextIndexMakesOfficeFilesSearchable(t *testing.T) {
 func TestTextIndexSurvivesRenameAndMove(t *testing.T) {
 	x := newMcpToolWorld(t)
 	docs := x.docs(t)
-	idx := NewDocumentTextIndexer(docs, x.tools.ask)
+	idx := NewDocumentTextIndexer(docs, x.tools.ask, nil)
 	ctx := context.Background()
 	id := x.textFile(t, "hd.docx", textIndexDocx(t))
 	doc, err := docs.q.GetDocumentByID(ctx, id)
@@ -185,7 +186,7 @@ func TestTextIndexSurvivesRenameAndMove(t *testing.T) {
 
 func TestTextIndexWritesNoBusinessChange(t *testing.T) {
 	x := newMcpToolWorld(t)
-	idx := NewDocumentTextIndexer(x.docs(t), x.tools.ask)
+	idx := NewDocumentTextIndexer(x.docs(t), x.tools.ask, nil)
 	ctx := context.Background()
 	pool := x.tools.ask.pool
 	id := x.textFile(t, "hd.docx", textIndexDocx(t))
@@ -212,7 +213,7 @@ func TestTextIndexWritesNoBusinessChange(t *testing.T) {
 func TestTextIndexIgnoresAStaleVersion(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	member := human(env.tn.member)
-	idx := NewDocumentTextIndexer(env.svc, nil)
+	idx := NewDocumentTextIndexer(env.svc, nil, nil)
 	created := env.createFile(t, member, "cu.docx", textIndexDocx(t))
 	first := created.Document.FileVersionID.String
 	up := env.upload(t, member, created.Document.ID, "cu-v2.docx", officeFile(t, map[string]string{"word/document.xml": "<w:document ></w:document>"}))
@@ -229,11 +230,11 @@ func TestTextIndexIgnoresAStaleVersion(t *testing.T) {
 func TestTextIndexClearsWhatItCannotRead(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	member := human(env.tn.member)
-	idx := NewDocumentTextIndexer(env.svc, nil)
+	idx := NewDocumentTextIndexer(env.svc, nil, nil)
 	ctx := context.Background()
 	broken := officeFile(t, map[string]string{"word/document.xml": `<w:document ` + textIndexW + `><w:body><w:p>`})
 	for name, body := range map[string][]byte{
-		"a.pdf": pdfBody("x"), "b.html": []byte("<p>Điều khoản</p>"), "c.docx": broken, "d.docx": textIndexDocx(t),
+		"b.html": []byte("<p>Điều khoản</p>"), "c.docx": broken, "d.docx": textIndexDocx(t),
 	} {
 		res := env.createFile(t, member, name, body)
 		id := res.Document.ID
@@ -251,9 +252,103 @@ func TestTextIndexClearsWhatItCannotRead(t *testing.T) {
 	}
 }
 
+func TestTextIndexMakesPDFsSearchable(t *testing.T) {
+	x := newMcpToolWorld(t)
+	fake := &fakePDFText{text: "Mở đầu\fĐiều khoản bảo hành 24 tháng"}
+	idx := NewDocumentTextIndexer(x.docs(t), x.tools.ask, fake)
+	ctx := context.Background()
+	id := x.textFile(t, "hop-dong.pdf", []byte(testPDFBytes))
+	if ids := x.searchIDs(t, x.p, "bao hanh 24 thang"); containsID(ids, id) {
+		t.Fatal("found before it was indexed")
+	}
+	doc, err := x.docs(t).q.GetDocumentByID(ctx, id)
+	mustf(t, err, "get")
+	mustf(t, idx.Index(ctx, doc.OrganizationID, id, doc.FileVersionID.String), "index")
+	row := readTextIndexRow(t, x.tools.ask.pool, id)
+	if !strings.Contains(row.Content, "Điều khoản bảo hành 24 tháng") || strings.Contains(row.Content, "[page") {
+		t.Fatalf("content_text = %q", row.Content)
+	}
+	if ids := x.searchIDs(t, x.p, "bao hanh 24 thang"); !containsID(ids, id) {
+		t.Fatalf("not found after indexing: %v", ids)
+	}
+	if len(fake.calls) != 1 {
+		t.Fatalf("engine calls = %d", len(fake.calls))
+	}
+	if c := fake.calls[0]; c.Format != office.ExtractFormatPDF || c.ActorKind != "system" || c.ActorID != "document_text_index" ||
+		c.DocumentID != id || c.DriveFileID != "" || c.OrganizationID != doc.OrganizationID || c.WorkspaceID != doc.WorkspaceID {
+		t.Fatalf("request = %+v", c)
+	}
+}
+
+func TestTextIndexDoesNotRetryWithoutTheEngine(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	ctx := context.Background()
+	for name, c := range map[string]struct {
+		fake     *fakePDFText
+		noEngine bool
+	}{
+		"unavailable": {fake: &fakePDFText{err: office.ErrExtractUnavailable}},
+		"unreadable":  {fake: &fakePDFText{err: &office.ExtractUnreadableError{}}},
+		"no-engine":   {fake: &fakePDFText{text: "x"}, noEngine: true},
+	} {
+		var pdf DriveOfficeExtractor = c.fake
+		if c.noEngine {
+			pdf = nil
+		}
+		idx := NewDocumentTextIndexer(env.svc, nil, pdf)
+		res := env.createFile(t, human(env.tn.member), name+".pdf", pdfBody(name))
+		id := res.Document.ID
+		_, err := env.f.pool.Exec(ctx, `UPDATE documents SET content_text = 'cũ' WHERE id = $1`, id)
+		mustf(t, err, "seed")
+		mustf(t, idx.Index(ctx, env.tn.orgID, id, res.Document.FileVersionID.String), "index %s", name)
+		if row := readTextIndexRow(t, env.f.pool, id); row.Content != "" {
+			t.Fatalf("%s: content_text = %q", name, row.Content)
+		}
+		want := 1
+		if c.noEngine {
+			want = 0
+		}
+		if len(c.fake.calls) != want {
+			t.Fatalf("%s: engine calls = %d, want %d", name, len(c.fake.calls), want)
+		}
+	}
+}
+
+// blockingPDFText waits for its context to end, like an engine job that never finishes.
+type blockingPDFText struct{ calls int }
+
+func (b *blockingPDFText) ExtractText(ctx context.Context, _ office.ExtractTextRequest) (office.ExtractTextResult, error) {
+	b.calls++
+	<-ctx.Done()
+	return office.ExtractTextResult{}, ctx.Err()
+}
+
+func TestTextIndexDoesNotRetryASlowEngine(t *testing.T) {
+	old := pdfIndexExtractTimeout
+	pdfIndexExtractTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { pdfIndexExtractTimeout = old })
+	env := newFakeDocStorageEnv(t)
+	fake := &blockingPDFText{}
+	idx := NewDocumentTextIndexer(env.svc, nil, fake)
+	res := env.createFile(t, human(env.tn.member), "cham.pdf", pdfBody("cham"))
+	id := res.Document.ID
+	_, err := env.f.pool.Exec(context.Background(), `UPDATE documents SET content_text = 'cũ' WHERE id = $1`, id)
+	mustf(t, err, "seed")
+	// The parent context must still be alive when the engine is cut, so store runs.
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	mustf(t, idx.Index(ctx, env.tn.orgID, id, res.Document.FileVersionID.String), "index")
+	if fake.calls != 1 {
+		t.Fatalf("engine calls = %d", fake.calls)
+	}
+	if row := readTextIndexRow(t, env.f.pool, id); row.Content != "" {
+		t.Fatalf("content_text = %q", row.Content)
+	}
+}
+
 func TestTextIndexWaitsForTheFileReadSlot(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
-	idx := NewDocumentTextIndexer(env.svc, nil)
+	idx := NewDocumentTextIndexer(env.svc, nil, nil)
 	res := env.createFile(t, human(env.tn.member), "hd.docx", textIndexDocx(t))
 	before := readTextIndexRow(t, env.f.pool, res.Document.ID)
 	idx.reads <- struct{}{}
@@ -271,7 +366,7 @@ func TestTextIndexWaitsForTheFileReadSlot(t *testing.T) {
 func TestTextIndexIgnoresOtherTenantsAndPages(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
 	member := human(env.tn.member)
-	idx := NewDocumentTextIndexer(env.svc, nil)
+	idx := NewDocumentTextIndexer(env.svc, nil, nil)
 	ctx := context.Background()
 	res := env.createFile(t, member, "hd.docx", textIndexDocx(t))
 	page, err := env.svc.CreatePage(ctx, member, env.tn.wsA, CreatePageInput{Title: "Trang"})
@@ -320,7 +415,7 @@ func TestTextIndexMIMEAndText(t *testing.T) {
 
 func TestSearchSnippetShowsTheMatch(t *testing.T) {
 	x := newMcpToolWorld(t)
-	idx := NewDocumentTextIndexer(x.docs(t), x.tools.ask)
+	idx := NewDocumentTextIndexer(x.docs(t), x.tools.ask, nil)
 	ctx := context.Background()
 	id := x.textFile(t, "hd.docx", textIndexDocx(t))
 	doc, err := x.docs(t).q.GetDocumentByID(ctx, id)
@@ -347,7 +442,7 @@ func TestAskUniSearchFindsWordsDeepInAFile(t *testing.T) {
 	ctx := context.Background()
 	s.SetDocuments(x.docs(t))
 	s.SetFlags(agentFlagFake{org: x.w.OrganizationID})
-	idx := NewDocumentTextIndexer(x.docs(t), s)
+	idx := NewDocumentTextIndexer(x.docs(t), s, nil)
 	id := x.textFile(t, "hd.docx", textIndexDocx(t))
 	doc, err := x.docs(t).q.GetDocumentByID(ctx, id)
 	mustf(t, err, "get")
@@ -391,7 +486,7 @@ func TestRestrictedFileBodyStaysHidden(t *testing.T) {
 
 func TestTextIndexSurvivesAnExtractorPanic(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
-	idx := NewDocumentTextIndexer(env.svc, nil)
+	idx := NewDocumentTextIndexer(env.svc, nil, nil)
 	res := env.createFile(t, human(env.tn.member), "hd.docx", textIndexDocx(t))
 	_, err := env.f.pool.Exec(context.Background(), `UPDATE documents SET content_text = 'cũ' WHERE id = $1`, res.Document.ID)
 	mustf(t, err, "seed")
@@ -407,7 +502,7 @@ func TestTextIndexSurvivesAnExtractorPanic(t *testing.T) {
 
 func TestTextIndexDropsAFileThatIsGone(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
-	idx := NewDocumentTextIndexer(env.svc, nil)
+	idx := NewDocumentTextIndexer(env.svc, nil, nil)
 	res := env.createFile(t, human(env.tn.member), "hd.docx", textIndexDocx(t))
 	_, err := env.f.pool.Exec(context.Background(), `UPDATE documents SET content_text = 'cũ' WHERE id = $1`, res.Document.ID)
 	mustf(t, err, "seed")
@@ -423,7 +518,7 @@ func TestTextIndexDropsAFileThatIsGone(t *testing.T) {
 
 func TestTextIndexRetriesWhenStorageIsDown(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
-	idx := NewDocumentTextIndexer(env.svc, nil)
+	idx := NewDocumentTextIndexer(env.svc, nil, nil)
 	res := env.createFile(t, human(env.tn.member), "hd.docx", textIndexDocx(t))
 	env.fake.SetStorageDown(true)
 	defer env.fake.SetStorageDown(false)
@@ -434,11 +529,11 @@ func TestTextIndexRetriesWhenStorageIsDown(t *testing.T) {
 
 func TestTextIndexSkipsTypesItCannotRead(t *testing.T) {
 	env := newFakeDocStorageEnv(t)
-	idx := NewDocumentTextIndexer(env.svc, nil)
+	idx := NewDocumentTextIndexer(env.svc, nil, nil)
 	ctx := context.Background()
 	idx.reads <- struct{}{} // a read would block on the slot
 	defer func() { <-idx.reads }()
-	for _, mime := range []string{"application/pdf", "image/png"} {
+	for _, mime := range []string{"text/html", "image/png"} {
 		res := env.createFile(t, human(env.tn.member), "x-"+strings.ReplaceAll(mime, "/", "-")+".docx", textIndexDocx(t))
 		_, err := env.f.pool.Exec(ctx, `UPDATE document_versions SET mime_type = $2 WHERE id = $1`, res.Document.FileVersionID.String, mime)
 		mustf(t, err, "mime")
@@ -474,7 +569,7 @@ func TestFileIndexText(t *testing.T) {
 }
 
 func TestTextIndexTopicIsInTheCatalogue(t *testing.T) {
-	if _, ok := outbox.Lookup(topicDocumentTextIndexRequested); !ok {
-		t.Fatalf("%q is not in the outbox catalogue", topicDocumentTextIndexRequested)
+	if _, ok := outbox.Lookup(TopicDocumentTextIndexRequested); !ok {
+		t.Fatalf("%q is not in the outbox catalogue", TopicDocumentTextIndexRequested)
 	}
 }

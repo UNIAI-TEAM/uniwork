@@ -12,10 +12,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 )
 
-const topic = "document.text_index_requested"
+const topic = service.TopicDocumentTextIndexRequested
 
 func TestUsage(t *testing.T) {
 	for _, args := range [][]string{nil, {"--org", "o", "--all"}, {"--all", "extra"}, {"--all", "--batch-size", "0"}} {
@@ -161,7 +162,7 @@ func ctx2(t *testing.T) context.Context {
 }
 
 func TestTopicIsInTheCatalogue(t *testing.T) {
-	if _, ok := outbox.Lookup(topicTextIndexRequested); !ok {
-		t.Fatalf("%q is not in the outbox catalogue", topicTextIndexRequested)
+	if _, ok := outbox.Lookup(service.TopicDocumentTextIndexRequested); !ok {
+		t.Fatalf("%q is not in the outbox catalogue", service.TopicDocumentTextIndexRequested)
 	}
 }

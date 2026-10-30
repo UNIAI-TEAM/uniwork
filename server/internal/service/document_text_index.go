@@ -16,6 +16,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/attachtext"
 	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -31,23 +32,31 @@ type DocumentTextIndexer struct {
 	// process and a read holds up to 20 MiB plus its extraction). It is Ask
 	// UNI's own slot when that service is wired.
 	reads chan struct{}
+	// pdf reads the text layer of a PDF through the Office engine; nil (engine
+	// off) leaves PDFs with empty text.
+	pdf DriveOfficeExtractor
 }
 
-func NewDocumentTextIndexer(docs *DocumentService, ask *AskUNIService) *DocumentTextIndexer {
+func NewDocumentTextIndexer(docs *DocumentService, ask *AskUNIService, pdf DriveOfficeExtractor) *DocumentTextIndexer {
 	reads := make(chan struct{}, 1)
 	if ask != nil {
 		reads = ask.fileReads
 	}
-	return &DocumentTextIndexer{docs: docs, reads: reads}
+	return &DocumentTextIndexer{docs: docs, reads: reads, pdf: pdf}
 }
 
 func (*DocumentTextIndexer) Name() string { return "document_text_index" }
 func (*DocumentTextIndexer) Topics() []string {
-	return []string{topicDocumentTextIndexRequested}
+	return []string{TopicDocumentTextIndexRequested}
 }
 
-// DeliveryTimeout leaves room to wait for the read slot, read 20 MiB and extract it.
-func (*DocumentTextIndexer) DeliveryTimeout() time.Duration { return 60 * time.Second }
+// pdfIndexExtractTimeout cuts a slow Office engine well before the delivery
+// budget ends, so the store still has a live context and the row is not retried.
+var pdfIndexExtractTimeout = 30 * time.Second
+
+// DeliveryTimeout leaves room to wait for the read slot, read 20 MiB and extract it
+// (the claim lease caps it at 120 seconds).
+func (*DocumentTextIndexer) DeliveryTimeout() time.Duration { return 90 * time.Second }
 
 func (x *DocumentTextIndexer) Handle(ctx context.Context, ev outbox.Row) error {
 	payload := map[string]string{}
@@ -64,8 +73,9 @@ func (x *DocumentTextIndexer) Handle(ctx context.Context, ev outbox.Row) error {
 // Index extracts the text of one file version and stores it on its document.
 // A request that no longer matches (another organization, not a file, another
 // current version, purged) is dropped without a word. A file that cannot be
-// read as text (PDF, HTML, damaged, over the read ceiling, an extractor that
-// panics) or a file that is gone or no longer serveable (not found, deleting,
+// read as text (HTML, damaged, over the read ceiling, an extractor that
+// panics, a PDF whose text the Office engine cannot give: it is off,
+// unreachable or refuses the file) or a file that is gone or no longer serveable (not found, deleting,
 // not ready) stores empty text, which is the answer, like CreateThumbnail
 // drops a file it cannot serve; only the storage failing returns an error, so
 // the outbox tries again.
@@ -106,7 +116,7 @@ var extractFileText = attachtext.Extract
 
 // unindexableMIMEPrefixes are types the extractor never reads, so a version of
 // one needs neither the read slot nor an open.
-var unindexableMIMEPrefixes = []string{"image/", "video/", "audio/", "application/pdf", "text/html"}
+var unindexableMIMEPrefixes = []string{"image/", "video/", "audio/", "text/html"}
 
 // read returns the indexable text of the version; empty when it has none.
 func (x *DocumentTextIndexer) read(ctx context.Context, doc db.Document, ver db.DocumentVersion) (text string, err error) {
@@ -117,6 +127,11 @@ func (x *DocumentTextIndexer) read(ctx context.Context, doc db.Document, ver db.
 	mt := strings.ToLower(ver.MimeType.String)
 	for _, p := range unindexableMIMEPrefixes {
 		if strings.HasPrefix(mt, p) {
+			return "", nil
+		}
+	}
+	if x.pdf == nil { // no engine: a PDF stays empty without taking the slot or opening the file
+		if k, _ := fileKindOf(ver.MimeType.String, doc.Title); k == fileReadPDF {
 			return "", nil
 		}
 	}
@@ -137,8 +152,12 @@ func (x *DocumentTextIndexer) read(ctx context.Context, doc db.Document, ver db.
 		return "", err
 	}
 	defer f.Reader.Close()
+	kind, _ := fileKindOf(ver.MimeType.String, f.Reader.File.Filename)
+	if kind == fileReadPDF && x.pdf == nil {
+		return "", nil
+	}
 	mimeType, ok := fileTextIndexMIME(ver.MimeType.String, f.Reader.File.Filename)
-	if !ok {
+	if !ok && kind != fileReadPDF {
 		return "", nil
 	}
 	raw, err := io.ReadAll(io.LimitReader(f.Reader.Body, mcpOfficeReadBytes+1))
@@ -155,6 +174,9 @@ func (x *DocumentTextIndexer) read(ctx context.Context, doc db.Document, ver db.
 			text, err = "", nil
 		}
 	}()
+	if kind == fileReadPDF {
+		return x.pdfText(ctx, doc, raw), nil
+	}
 	parsed, err := extractFileText(mimeType, bytes.NewReader(raw), int64(len(raw)))
 	if errors.Is(err, attachtext.ErrUnreadable) {
 		return "", nil
@@ -163,6 +185,24 @@ func (x *DocumentTextIndexer) read(ctx context.Context, doc db.Document, ver db.
 		return "", err
 	}
 	return fileIndexText(parsed), nil
+}
+
+// pdfText asks the Office engine for the text layer of a PDF. Any engine
+// failure (off, unreachable, an unreadable file) is an empty answer, not an
+// error: a retry would only repeat it, and a person can search by title.
+func (x *DocumentTextIndexer) pdfText(ctx context.Context, doc db.Document, raw []byte) string {
+	ectx, cancel := context.WithTimeout(ctx, pdfIndexExtractTimeout)
+	defer cancel()
+	res, err := x.pdf.ExtractText(ectx, office.ExtractTextRequest{
+		Format: office.ExtractFormatPDF, Content: raw,
+		ActorKind: "system", ActorID: x.Name(),
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+	})
+	if err != nil {
+		slog.WarnContext(ctx, "document text index: pdf text unavailable", "error", err, "document_id", doc.ID, "version_id", doc.FileVersionID.String)
+		return ""
+	}
+	return pdfIndexText(pdfPageTexts(res.Text))
 }
 
 // store writes the text under the document's row lock, the lock every document
@@ -197,7 +237,8 @@ func (x *DocumentTextIndexer) store(ctx context.Context, documentID, organizatio
 }
 
 // fileTextIndexMIME names the extractor for a file whose text is indexed:
-// Office and CSV files, Markdown and plain text. HTML and PDF are not read.
+// Office and CSV files, Markdown and plain text. HTML is not read; a PDF is
+// read by the Office engine (pdfText), not by this extractor.
 func fileTextIndexMIME(mimeType, filename string) (string, bool) {
 	if m, ok := mcpOfficeMIME(mimeType, filename); ok {
 		return m, true
