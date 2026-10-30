@@ -13,10 +13,13 @@ export type ChatMessageSelectionUi = {
   copySelected: () => void;
   forwardSelected: () => void;
   deleteSelected: () => void;
+  createTaskSelected: () => void;
   /** At least one selected message is forwardable. */
   canForwardSelected: boolean;
   /** At least one selected message is the viewer's own (deletable). */
   canDeleteSelected: boolean;
+  /** Create-task-from-chat is available in this room. */
+  canCreateTaskSelected: boolean;
 };
 
 export const ChatMessageSelectionContext = createContext<ChatMessageSelectionUi | null>(null);

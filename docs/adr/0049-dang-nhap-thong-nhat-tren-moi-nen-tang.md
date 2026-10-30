@@ -132,5 +132,12 @@ một tổ chức), [0041](0041-dang-nhap-tren-iphone-va-sign-in-with-apple.md).
   thay dấu `logo-apple` của Ionicons trong pill Apple tự vẽ (`ProviderButton`, Android; và pill iOS theo ngôn ngữ của
   app nếu chọn làm). Ở archive 0.4.0 đầu tiên, xem privacy report của Xcode cho manifest của GoogleSignIn, AppAuth và
   GTM* (comment trong `app.config.ts` nói chúng không thêm loại dữ liệu nào) trước khi trả lời App Privacy.
+- Tiến độ owner action (2026-10-29): không có server staging riêng, bản `.staging` gọi server dev
+  `uniwork.unicomhub.com` (EAS `preview`), nên audience Apple và client Google của nó nằm ở env dev, production chỉ nhận
+  `com.uniworkos.chat` (`scripts/app-dev-env.test.mjs`). Services ID `com.uniworkos.web` đã tạo cho `uniworkos.com` và
+  `uniwork.unicomhub.com` và đặt ở cả hai server; `UNICHAT_IOS_TEAM_ID`, `UNICHAT_ANDROID_SHA256` đã có trên production.
+  Client Google (project `uniwork-509403`): bản store có client iOS và một client Android cho mỗi khoá ký Play (khoá
+  đang dùng và hai khoá trước), ở `GOOGLE_NATIVE_CLIENT_IDS` của production; bản `.staging` có client iOS và client
+  Android (khoá EAS) ở env dev, cùng web client riêng của dev. `UNICHAT_GOOGLE_*` đặt cho EAS `preview` và `production`.
 - Chưa làm: thông báo server-to-server của Apple (người dùng gỡ quyền), địa chỉ email thứ hai cho tài khoản relay,
   SSO doanh nghiệp. Bộ quy tắc ở mục 2 là chỗ thêm nhà cung cấp sau.

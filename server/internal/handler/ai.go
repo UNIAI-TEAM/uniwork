@@ -213,6 +213,25 @@ func (h *handlers) chatCatchUp(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *handlers) chatTaskDraft(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ChatTaskDraftSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	res, err := h.AskUNI.ChatTaskDraft(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), service.ChatTaskDraftInput{
+		MessageIDs: in.MessageIDs, Locale: in.Locale,
+	})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.ChatTaskDraftSDO{
+		Title: res.Title, Description: res.Description, Priority: res.Priority, DueDate: res.DueDate,
+		MessageCount: res.MessageCount,
+		Usage:        sdo.AiUsageDTO{InputTokens: res.InputTokens, OutputTokens: res.OutputTokens},
+	})
+}
+
 func (h *handlers) listAiConversations(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.AskUNI.ListConversations(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), r.URL.Query().Get("q"))
 	if err != nil {

@@ -1,15 +1,16 @@
 # LiveKit hostNetwork → uniwork-be webhook (Calico IPIP).
 #
-# LiveKit runs hostNetwork on pool-livekit. Cross-node calls to ClusterIP appear
-# with source = node IPv4IPIPTunnelAddr (not InternalIP, not reap-integrations
-# namespace identity). NetworkPolicy on uniwork only allows reap-edge ingress,
-# so webhook delivery times out until this tunnel /32 is allowed on :8080.
+# LiveKit runs hostNetwork on a shared worker. Cross-node calls to ClusterIP
+# appear with source = node IPv4IPIPTunnelAddr (not InternalIP, not
+# reap-integrations namespace identity). NetworkPolicy on uniwork only allows
+# reap-edge ingress, so webhook delivery times out until these tunnel /32s are
+# allowed on :8080.
 #
 # Discover tunnel addr:
-#   kubectl get node <livekit-node> \
-#     -o jsonpath='{.metadata.annotations.projectcalico\.org/IPv4IPIPTunnelAddr}{"\n"}'
+#   kubectl get nodes -l workload=shared \
+#     -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.annotations.projectcalico\.org/IPv4IPIPTunnelAddr}{"\n"}{end}'
 #
-# Re-apply CIDR when a second pool-livekit worker appears.
+# Re-apply when LiveKit moves to another shared worker.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -23,8 +24,8 @@ metadata:
     reap.io/gate: "LK-001"
     reap.io/reason: hostNetwork-source-is-calico-ipip-tunnel-addr
     reap.io/cmc-guidance: "allow IPv4IPIPTunnelAddr not node InternalIP / namespaceSelector"
-    reap.io/livekit-node: "reap-eng-prod-k8s-pool-livekit-worker-cw5zk-lkjht"
-    reap.io/tunnel-addr: "10.244.217.192"
+    reap.io/livekit-node: "reap-eng-prod-k8s-pool-data-worker-q6frs-x58q4"
+    reap.io/tunnel-addr: "10.244.214.192"
     reap.io/webhook-url: "http://uniwork-be.uniwork.svc.cluster.local:8080/api/v1/integrations/livekit/webhook"
 spec:
   podSelector:
@@ -35,7 +36,13 @@ spec:
   ingress:
     - from:
         - ipBlock:
-            cidr: 10.244.217.192/32
+            cidr: 10.244.96.64/32
+        - ipBlock:
+            cidr: 10.244.30.64/32
+        - ipBlock:
+            cidr: 10.244.7.64/32
+        - ipBlock:
+            cidr: 10.244.214.192/32
       ports:
         - protocol: TCP
           port: 8080

@@ -295,6 +295,7 @@ export function NativeChatMessagePanel({
     messages,
     canModerate,
     onSelectionChange,
+    onCreateTaskFromMessages: taskLinkActions.onCreateTaskFromMessages,
   });
 
   useEffect(() => {

@@ -95,7 +95,7 @@ Runbook: `docs/runbooks/unichat-mobile-release.md`; plan:
   chế độ máy bay ở đó), `flows/offline-send-relaunch.yaml` (tin viết offline sống qua kill, mở lạnh offline từ cache,
   tới đúng thứ tự mỗi tin một lần), cùng ba bước đo `flows/perf-{open-room,scroll-room,jump-quote}.yaml` (cú nhảy
   tới trích dẫn xa phải tới đúng tin) chạy hằng đêm bởi
-  `.github/workflows/chat-mobile-verify.yml` với server staging (biến
+  `.github/workflows/chat-mobile-verify.yml` với server dev, server của bản staging (biến
   `MAESTRO_*`; thiếu thì run theo lịch **đỏ**, chạy tay bỏ chọn `maestro` để chỉ
   build), Maestro ghim `MAESTRO_VERSION`; cùng đêm đó job `android-production`
   build AAB release từ profile production, không cần secret. Trong app flow chọn theo `testID`

@@ -4,6 +4,7 @@ import { setAccessToken } from "../session";
 import {
   askUni,
   chatCatchUp,
+  chatTaskDraft,
   deleteAiConversation,
   deleteAiFeedback,
   getAskModels,
@@ -116,6 +117,27 @@ describe("ai endpoints", () => {
     const noActions = await chatCatchUp("ws1", { room_id: "r1" });
     expect(noActions.summary).toBe("Lệch");
     expect(noActions.action_items).toEqual([]);
+  });
+
+  it("chatTaskDraft posts message ids and degrades malformed payloads", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        title: "Gửi bản nháp",
+        description: "An nhờ gửi trước thứ Sáu.",
+        priority: "high",
+        message_count: 2,
+        usage: { input_tokens: 8, output_tokens: 3 },
+      }),
+    );
+    const res = await chatTaskDraft("ws1", { message_ids: ["m1", "m2"], locale: "vi" });
+    expect(res.title).toBe("Gửi bản nháp");
+    expect(res.priority).toBe("high");
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ message_ids: ["m1", "m2"], locale: "vi" });
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe("http://api.test/api/v1/workspaces/ws1/ai/chat/task-draft");
+    vi.mocked(fetch).mockResolvedValueOnce(json({ title: 1 }));
+    expect((await chatTaskDraft("ws1", { message_ids: ["m1"] })).title).toBe("");
   });
 
   it("conversations and messages degrade to empty lists", async () => {

@@ -15,7 +15,7 @@ env:
 
 public:
   origin: https://uniworkos.com
-  livekitUrl: wss://livekit.vn247.info:7880
+  livekitUrl: wss://livekit.uniworkos.com:7880
 
 be:
   # One replica until ADR 0025 §3 holds: several background loops (Email Hub
@@ -103,7 +103,9 @@ fe:
     capabilities: { drop: ["ALL"] }
 
 networkPolicy:
-  livekitTunnelCidr: "10.244.217.192/32"
+  # Calico IPv4IPIPTunnelAddr of the node running LiveKit hostNetwork
+  # (reap-eng-prod-k8s-pool-data-worker-q6frs-x58q4 after the four-worker shrink).
+  livekitTunnelCidr: "10.244.214.192/32"
   # Namespace of the in-cluster Prometheus allowed to scrape be.metricsPort.
   # Empty renders no rule: the port stays closed to every other pod.
   metricsScrapeNamespace: ""
@@ -185,7 +187,7 @@ meetingAgent:
   # Same public URL the BE hands to clients (public.livekitUrl). Signaling
   # resolves to the shared ELB; ICE host candidates are the livekit node's
   # private address because useExternalIp is false. Both are in egress.livekit.cidrs.
-  livekitUrl: wss://livekit.vn247.info:7880
+  livekitUrl: wss://livekit.uniworkos.com:7880
   # Sized for the two nodes this chart may land on. pool-exam is 4 vCPU / 8 GiB
   # (allocatable 3720m / ~7 GiB) and already runs the exam workload, so a
   # 4 CPU / 8 GiB request cannot schedule there. One pod requests 500m / 1 GiB
@@ -233,12 +235,12 @@ meetingAgent:
   # address until ops pin one.
   egress:
     livekit:
-      # 101.99.38.253: public ELB VIP livekit.vn247.info resolves to
-      # (evidence/phase-7, 2026-09-10). 10.60.10.168: pool-livekit node
-      # reap-prod-livekit-01, the ICE host candidate while useExternalIp is false.
+      # 101.99.38.253: public ELB VIP livekit.uniworkos.com resolves to.
+      # 10.60.10.29: current shared worker running LiveKit hostNetwork
+      # (pool-data x58q4); ICE host candidate while useExternalIp is false.
       cidrs:
         - 101.99.38.253/32
-        - 10.60.10.168/32
+        - 10.60.10.29/32
       ports:
         - { port: 443, protocol: TCP }
         - { port: 7880, protocol: TCP }

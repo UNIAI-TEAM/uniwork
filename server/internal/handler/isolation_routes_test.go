@@ -944,13 +944,16 @@ var isoRoutes = map[string]isoSpec{
 	"POST /api/v1/orgs/{org}/ai/memory/import": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
 		return isoBody{json: map[string]any{"entries": []map[string]any{{"kind": "fact", "text": tn.marker + " imported by the route"}}}}
 	}},
-	"PATCH /api/v1/orgs/{org}/ai/memory/{memoryID}":                                                    {body: isoJSON(map[string]any{"text": "edited"})},
-	"PATCH /api/v1/ai/conversations/{conversationID}":                                                  {body: isoJSON(map[string]any{"title": "renamed"})},
-	"PUT /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback":                      {body: isoJSON(map[string]any{"rating": "up"})},
-	"POST /api/v1/workspaces/{workspaceID}/ai/ask":                                                     {body: isoJSON(map[string]any{"question": "what is overdue?"})},
-	"POST /api/v1/workspaces/{workspaceID}/ai/ask/stream":                                              {body: isoJSON(map[string]any{"question": "what is overdue?"})},
-	"POST /api/v1/workspaces/{workspaceID}/ai/attachments":                                             {body: isoFile("note.pdf", "application/pdf", tinyPDF, nil)},
-	"POST /api/v1/workspaces/{workspaceID}/ai/chat/catch-up":                                           {body: isoWith(map[string]string{"room_id": "room"}, nil)},
+	"PATCH /api/v1/orgs/{org}/ai/memory/{memoryID}":                               {body: isoJSON(map[string]any{"text": "edited"})},
+	"PATCH /api/v1/ai/conversations/{conversationID}":                             {body: isoJSON(map[string]any{"title": "renamed"})},
+	"PUT /api/v1/ai/conversations/{conversationID}/messages/{messageID}/feedback": {body: isoJSON(map[string]any{"rating": "up"})},
+	"POST /api/v1/workspaces/{workspaceID}/ai/ask":                                {body: isoJSON(map[string]any{"question": "what is overdue?"})},
+	"POST /api/v1/workspaces/{workspaceID}/ai/ask/stream":                         {body: isoJSON(map[string]any{"question": "what is overdue?"})},
+	"POST /api/v1/workspaces/{workspaceID}/ai/attachments":                        {body: isoFile("note.pdf", "application/pdf", tinyPDF, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/ai/chat/catch-up":                      {body: isoWith(map[string]string{"room_id": "room"}, nil)},
+	"POST /api/v1/workspaces/{workspaceID}/ai/chat/task-draft": {body: func(_ *isoWorld, tn *isoTenant) isoBody {
+		return isoBody{json: map[string]any{"message_ids": []any{tn.ids["message"]}}}
+	}},
 	"POST /api/v1/workspaces/{workspaceID}/icon":                                                       {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/attachments":                                                {body: isoFile("pixel.png", "image/png", docsPNG, nil)},
 	"POST /api/v1/workspaces/{workspaceID}/chat/dm":                                                    {body: isoWith(map[string]string{"user_id": "peer"}, nil)},

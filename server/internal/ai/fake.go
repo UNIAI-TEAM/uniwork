@@ -70,6 +70,24 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 		}
 		b, _ := json.Marshal(es)
 		text = string(b)
+	case strings.Contains(req.System, "You draft one workspace task from selected chat messages"):
+		draft := ChatTaskDraft{
+			Title:       "Theo dõi việc đã thống nhất trong chat",
+			Description: "Các tin đã chọn nêu việc cần làm. Rà lại nội dung chat và hoàn thành đúng hạn.",
+			Priority:    "medium",
+			DueDate:     "",
+		}
+		if matches := sourceTag.FindAllStringSubmatch(last, -1); len(matches) > 0 {
+			draft.Description = "Dựa trên " + itoa(len(matches)) + " tin đã chọn: " + strings.TrimSpace(matches[0][2])
+			joined := last
+			if strings.Contains(joined, "hôm nay") || strings.Contains(joined, "today") {
+				if m := regexp.MustCompile(`(?m)^Today: (\d{4}-\d{2}-\d{2})$`).FindStringSubmatch(joined); m != nil {
+					draft.DueDate = m[1]
+				}
+			}
+		}
+		b, _ := json.Marshal(draft)
+		text = string(b)
 	case strings.Contains(req.System, "You summarize a completed voice call"):
 		cu := CatchUp{
 			Summary:     "Cuộc gọi đã kết thúc.",

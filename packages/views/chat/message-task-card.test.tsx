@@ -38,6 +38,7 @@ beforeAll(() => {
 
 const taskRow = {
   id: "t1",
+  workspace_id: "ws1",
   identifier: "LUN-2",
   title: "long ơi",
   status: "todo",
@@ -48,6 +49,10 @@ const taskRow = {
   assignee_kind: "human",
   due_date: null,
   project_id: null,
+  position: 0,
+  created_by: "u1",
+  created_at: "2026-10-29T08:00:00Z",
+  updated_at: "2026-10-29T08:10:00Z",
 };
 
 vi.mock("@uniwork/core/tasks", () => ({
@@ -110,16 +115,21 @@ describe("MessageTaskCard", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 
-  it("draws a linked task as one line, and says a made one was made from the message, in the reader's words", () => {
+  it("draws a linked task as one line, and a made one as the board card", () => {
     const { unmount } = wrap(<MessageTaskCard workspaceId="ws1" messageId="m1" />);
     // Linked only: identifier, title and status on one line, no heading (canvas).
     expect(screen.getByRole("button", { name: "Mở LUN-2 · long ơi" })).toHaveTextContent("LUN-2 · long ơi");
     expect(screen.getByText("Cần làm")).toBeInTheDocument();
     expect(screen.queryByText(/Đã tạo việc/)).toBeNull();
+    expect(screen.queryByTestId("message-task-board-card")).toBeNull();
     unmount();
     LINKS.set("m1", [{ ...LINKS.get("m1")![0]!, relation: "created_from" }]);
     wrap(<MessageTaskCard workspaceId="ws1" messageId="m1" isOwn />);
     expect(screen.getByText("Đã tạo việc từ tin nhắn của bạn")).toBeInTheDocument();
+    expect(screen.getByTestId("message-task-board-card")).toBeInTheDocument();
+    expect(screen.getByTestId("message-task-board-card").querySelector('[data-slot="task-card"]')).not.toBeNull();
+    expect(screen.getByText("LUN-2")).toBeInTheDocument();
+    expect(screen.getByText("long ơi")).toBeInTheDocument();
   });
 });
 
@@ -131,7 +141,7 @@ describe("MessageTaskCard titles with mention markup", () => {
     const open = screen.getByRole("button", { name: /Mở LUN-2/ });
     expect(open).toHaveTextContent("@Miên Thi");
     expect(open).not.toHaveTextContent("mention://");
-    expect(open.querySelector(".font-bold")).toHaveClass("[overflow-wrap:anywhere]");
+    expect(open.querySelector('[data-slot="task-card"]')).not.toBeNull();
     taskRow.title = "long ơi";
   });
 });

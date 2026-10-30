@@ -339,6 +339,26 @@
           "c4458af37e9a9c952f6a5a985672db59325e3da30": "Chat: a task created from a message that mentions someone now shows @Name in its title instead of the raw mention code, and the task card no longer overflows on long strings.",
           "cf0e6fc102a674b22c2950b4ab9ba1ff8ae50c3bf": "Documents: selecting several documents and downloading them as a zip no longer fails when saving the file; if the download fails, the app shows an error and does not save an empty file."
         }
+      },
+      "v1_13_0": {
+        "title": "Unified sign-in with Google and Apple, Ask UNI hands Office drafting to the editor's AI, tasks from several messages",
+        "summary": "Signing in with email, Google or Apple works the same way on the web, desktop and phones; Apple works on the web, and Settings has a Sign-in methods section. Ask UNI hands Office drafting to the editor's AI on the web, which can now write whole documents and build presentations from the approved outline. Chat creates tasks from one or more messages with AI suggestions. Meetings get new motion, summaries with a source for each sentence and an 8-second undo for assigned tasks, plus fixes for muting guests and Ask UNI in the room.",
+        "note": "Ask UNI handing Office drafting to the editor needs the organization's AI features and Ask UNI actions to be turned on; the editor's AI only drafts when the organization has UniWork AI in the editor turned on for that format and has credits left, otherwise the file is still created for you to draft yourself. Writing whole documents and building presentations with AI is only on the web, not yet in the desktop app. Google sign-in inside the phone app needs UniChat version 0.4.0 or later and only works once it has been set up for the app.",
+        "features": {
+          "ccafd2d2d6272afb2cf5e7b3cc4a7552d4af9320b": "Ask UNI hands Office drafting to the editor's AI on the web: the plan card shows the outline and the sources Ask UNI read; choose Open and draft (or Open and build for presentations), the new file opens and the editor's AI writes it part by part from the approved outline, then you review and choose Save yourself. The card says when the AI can't draft and why; the button then reads Create and open to draft yourself.",
+          "c13d78a4c97f08eba8a8674b2c7e47c76ec6a2785": "The editor's AI in Office on the web, when using UniWork AI, can now write whole Word and Markdown documents, HTML pages and briefs, and build presentations: a style, an outline and each slide, or redo a single slide. This lets work Ask UNI hands to the editor build whole presentations. The AI only returns content to the editor; you decide whether to keep it, including when a write stops partway. AI usage in Settings lists this as Document writer (UniWork AI).",
+          "c8db92bb8a8ad1ffa8a9dd39f5951eb6db2f0335c": "Unified sign-in on the web, the desktop app and phones with email and password, Google or Apple; Apple now works on the web too. When a sign-in doesn't match any account, UniWork no longer creates or links one on its own: you choose to link it to an existing account, create a new account, or get a code at another email. Settings has a Sign-in methods section; changing how you sign in, deleting your account or transferring an organization asks you to confirm it's you. The UniChat phone app from version 0.4.0 signs you in inside the app instead of opening a browser.",
+          "c5126171f6582348dd244670217291d422d0a2686": "Chat on the web: create a task from one or more selected messages (Create task from selected) with the full task form, including description, priority, due date, assignee and project. When your organization has AI features turned on, AI pre-fills the title, description, priority and due date from the selected messages for you to edit before creating. The task links to the newest selected message, and task cards in chat look like the ones on the task board."
+        },
+        "improvements": {
+          "cc0356f93e315ce39b5478dfd61f25c6e2e74d106": "Meetings get clearer motion and feedback across the list, the lobby, the room, the summary and task assignment. A meeting in progress shows who is in the room, whether UNI Scribe is there and how long it has run. Someone asking to join appears as a card you can admit or reject right away; the button to admit everyone moves to the People tab. Each sentence in the summary has a source number that opens what was actually said. After assigning tasks from a meeting you have 8 seconds to Undo; the tasks go to the trash if no one has edited or commented on them yet. Animations stop when Reduce motion is on."
+        },
+        "fixes": {
+          "c3c21599462278b2ddb9964171e122957d72b14c7": "Email Hub: a starred Gmail message no longer shows up twice in the Starred folder when the same message is in both the Inbox and All Mail. Chat: click an image attached in the message composer to view it full size before sending.",
+          "cba1c2d4ab3842539e2d2e33682c45413c75f847f": "Meetings: the host can now mute guests who joined by link, including with Mute everyone, and guests follow the new host after a host transfer. Ask UNI in the meeting room: asking a second question no longer hides the first, the waiting state no longer covers the answer, characters such as & display correctly, and a task created from an answer takes that answer's own question as its title.",
+          "c44c18b815124d7ab07c67738c5ea5d4780524ef4": "UniChat app on iPhone: the Contacts tab no longer switches to an error screen when the list grows, such as when members finish loading, when you clear the search box or tap the tab again.",
+          "c0dbacfcab7bbd460800710cbc7a65d7ee6fd100b": "Sign in with Apple: Apple's new hidden email addresses (ending in @private.icloud.com) are recognized like the older hidden addresses, so Settings correctly shows them as Apple hidden email and the Apple linking rules apply correctly."
+        }
       }
     }
   },
@@ -6779,6 +6799,7 @@
       "selected_count_one": "{{count}} selected",
       "selected_count_other": "{{count}} selected",
       "copy_selected": "Copy selected as text",
+      "create_task_selected": "Create task from selected",
       "forward_selected": "Forward selected",
       "delete_selected": "Delete selected",
       "clear": "Clear selection",
@@ -6980,10 +7001,20 @@
       "source_message": "Original message",
       "source_sender_unknown": "A member",
       "create_task_title": "Create task from message",
+      "create_task_title_multi_one": "Create task from {{count}} message",
+      "create_task_title_multi_other": "Create task from {{count}} messages",
       "create_task_description": "The task will link back to this chat message.",
+      "create_task_description_multi": "The task links to the newest selected message; the rest go into the description.",
       "link_task_title": "Link an existing task",
       "link_task_description": "Pick a workspace task to show as a card under this message.",
       "title_label": "Title",
+      "description_label": "Description",
+      "description_placeholder": "Add a description…",
+      "ai_draft": "Suggest with AI",
+      "ai_drafting": "Analyzing…",
+      "ai_draft_error": "Couldn't draft from the selected messages. Try again in a moment.",
+      "source_more_one": "+{{count}} more message",
+      "source_more_other": "+{{count}} more messages",
       "project_label": "Project",
       "project_none": "No project",
       "assignee_label": "Assignee",

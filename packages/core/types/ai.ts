@@ -381,3 +381,21 @@ export interface ChatCatchUpInput {
   /** Room read pointer from before the room was opened (opening marks it read). */
   since?: string;
 }
+
+export const ChatTaskDraftResponseSchema = z.object({
+  title: z.string().optional().default(""),
+  description: z.string().optional().default(""),
+  priority: z.string().optional().default("medium"),
+  due_date: z.string().optional().default(""),
+  message_count: z.number().optional().default(0),
+  usage: z
+    .object({ input_tokens: z.number().optional().default(0), output_tokens: z.number().optional().default(0) })
+    .optional()
+    .default({ input_tokens: 0, output_tokens: 0 }),
+});
+export type ChatTaskDraftResponse = z.infer<typeof ChatTaskDraftResponseSchema>;
+
+export interface ChatTaskDraftInput {
+  message_ids: string[];
+  locale?: string;
+}

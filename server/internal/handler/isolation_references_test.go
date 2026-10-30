@@ -232,6 +232,8 @@ var isoReferences = []isoReference{
 		"title": isoUnique("ref"), "project_id": isoRef("project")}, covers: []string{"CreateTaskFromMessageSDI.project_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/tasks", what: "assignee", body: map[string]any{
 		"title": isoUnique("ref"), "assignee_id": isoRef("peer")}, covers: []string{"CreateTaskFromMessageSDI.assignee_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/messages/{messageID}/tasks", what: "label", body: map[string]any{
+		"title": isoUnique("ref"), "label_ids": []any{isoRef("label")}}, covers: []string{"CreateTaskFromMessageSDI.label_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages", what: "reply to", body: map[string]any{
 		"body": "ref", "reply_to_message_id": isoRef("message")}, covers: []string{"SendChatMessageSDI.reply_to_message_id"}},
 	// The document send is multipart (formData tags), so its reply target is
@@ -252,6 +254,8 @@ var isoReferences = []isoReference{
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/rooms/{roomID}/messages/document-link", what: "reply to", body: map[string]any{
 		"document_id": isoOwn("document"), "share_level": "comment", "reply_to_message_id": isoRef("message")}, covers: []string{"SendChatDocumentLinkSDI.reply_to_message_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/catch-up", what: "room", body: map[string]any{"room_id": isoRef("room")}, covers: []string{"ChatCatchUpSDI.room_id"}},
+	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/chat/task-draft", what: "message", body: map[string]any{
+		"message_ids": []any{isoRef("message")}}, covers: []string{"ChatTaskDraftSDI.message_ids"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/chat/delivered", what: "room", allow2xx: true,
 		body: map[string]any{"rooms": []any{map[string]any{"room_id": isoRef("room"), "up_to": isoAt(0)}}}, covers: []string{"ChatDeliveredRoomSDI.room_id"}},
 	{method: "POST", pattern: "/api/v1/workspaces/{workspaceID}/ai/ask", what: "conversation", body: map[string]any{
