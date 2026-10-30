@@ -359,6 +359,22 @@
           "c44c18b815124d7ab07c67738c5ea5d4780524ef4": "App UniChat trên iPhone: tab Danh bạ không còn chuyển sang màn báo lỗi khi danh sách vừa dài thêm, như lúc thành viên tải xong, khi xóa ô tìm kiếm hoặc chạm lại tab.",
           "c0dbacfcab7bbd460800710cbc7a65d7ee6fd100b": "Đăng nhập bằng Apple: địa chỉ email ẩn mới của Apple (đuôi @private.icloud.com) được nhận ra giống địa chỉ ẩn cũ, nên Cài đặt hiện đúng là email ẩn của Apple và các quy tắc liên kết Apple áp dụng đúng."
         }
+      },
+      "v1_14_0": {
+        "title": "Tìm tệp theo nội dung trong Tài liệu và Hỏi UNI, AI trong trình soạn Office chỉ dùng UniWork AI, khách họp vào phòng nhanh hơn",
+        "summary": "Ô tìm của Tài liệu và Hỏi UNI nay tìm được tệp Word, Excel, PowerPoint và tệp văn bản theo chữ bên trong tệp, kèm đoạn trích quanh chỗ khớp. AI trong trình soạn Office trên web chỉ chạy bằng UniWork AI; tùy chọn khóa AI riêng của tổ chức đã được gỡ. Hỏi UNI soạn tệp Office có công tắc riêng cho từng tổ chức. Khách vào họp bằng link không còn phải chờ lâu sau khi chủ trì cho vào.",
+        "note": "Tìm theo nội dung chỉ đọc 20.000 ký tự đầu của mỗi tệp và chưa hỗ trợ PDF, HTML, ảnh, video hay tệp lớn hơn 20 MiB; tệp đã có từ trước chỉ tìm được theo nội dung sau khi được lập chỉ mục lại. Hỏi UNI soạn tệp Office mặc định tắt cho tới khi UniWork bật cho tổ chức của bạn. Ứng dụng máy tính vẫn dùng được khóa AI bạn tự nhập.",
+        "features": {
+          "c19f5e9f57b705db4e4f60e308c6fc31127c771a3": "Tài liệu: ô tìm và Hỏi UNI nay tìm được tệp theo chữ bên trong tệp DOCX, XLSX, PPTX, ODT, CSV, Markdown và TXT. Kết quả tìm có đoạn trích ngắn lấy quanh chỗ khớp, nên bạn thấy ngay vì sao tệp được tìm ra, kể cả khi chữ khớp nằm sâu trong tệp. Tệp hạn chế mà bạn không có quyền đọc vẫn không lộ nội dung trong kết quả."
+        },
+        "improvements": {
+          "ce90cc8c27246adc34dfb30501bdcd000ece46e03": "AI trong trình soạn Office trên web nay chỉ chạy bằng UniWork AI: tùy chọn dùng khóa AI riêng (BYOK) của tổ chức đã được gỡ, cùng các khóa đã lưu. Tìm trên web, tìm ảnh và tạo ảnh trong trình soạn đi theo quyền dùng UniWork AI của tổ chức. Ứng dụng máy tính vẫn dùng được khóa AI bạn tự nhập, và trang quyền riêng tư nói rõ khi đó nội dung được gửi thẳng tới nhà cung cấp AI.",
+          "cc8edec27b62389b94f9fff325c6ab7258fab8545": "Hỏi UNI soạn tệp Office có công tắc riêng, mặc định tắt, do UniWork bật cho từng tổ chức. Khi tắt, Hỏi UNI không đề xuất soạn tệp, và việc áp dụng các đề xuất soạn tệp đã có, kể cả trong một kế hoạch hay ở chế độ Tự động, bị từ chối kèm thông báo rõ ràng thay vì áp dụng dở dang. Đọc tệp đính kèm và mục Mẫu văn bản không bị ảnh hưởng."
+        },
+        "fixes": {
+          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Họp: khách vào bằng link mời không còn phải chờ, có lúc gần một phút, sau khi chủ trì bấm Cho vào; khách được đưa vào phòng ngay sau khi được duyệt.",
+          "c349c27ed4d2af0ef189b6068697bec45b43a0c59": "Trò chuyện: khi gõ một địa chỉ email như ten@gmail.com, danh sách gợi ý nhắc tên (@) không còn bật lên; gõ @ kèm tên người vẫn hiện gợi ý như trước."
+        }
       }
     }
   },
