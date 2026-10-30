@@ -156,8 +156,10 @@ func TestActorConstructedOnlyInService(t *testing.T) {
 		// internal/notification is a worker on the service tier: it reads
 		// committed events and its jobs act as "system" (F-07). No request
 		// reaches it, which is what the rule protects against.
+		// cmd/document-text-reindex is the same: an operator runs it by
+		// hand, it serves no request, and its requests act as "system".
 		if strings.Contains(slash, "internal/service/") || strings.Contains(slash, "internal/audit/") ||
-			strings.Contains(slash, "internal/notification/") {
+			strings.Contains(slash, "internal/notification/") || strings.Contains(slash, "cmd/document-text-reindex/") {
 			return nil
 		}
 		src, err := os.ReadFile(path)
