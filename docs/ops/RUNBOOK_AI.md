@@ -291,9 +291,12 @@ UNI đề xuất thay đổi (task, dự án, cuộc họp, tài liệu, bình l
 | `proposal_expired` | 409 | Dòng quá 24 giờ | Hỏi lại UNI |
 | `proposal_not_pending` | 409 | Dòng đã được áp dụng, bỏ qua hoặc đang chạy (bấm đúp, hai tab) | Không cần làm; thẻ vẽ lại theo trạng thái thật |
 | `proposal_ref_pending` | 409 | Dòng dùng `{{row:N.id}}` của một dòng chưa áp dụng | Áp dụng dòng N trước (duyệt kế hoạch làm theo thứ tự) |
+| `ask_uni_office_off` | 403 | Cờ `ask_uni_office` tắt cho tổ chức này: Apply (một dòng hoặc cả kế hoạch) của dòng `list_templates`, `create_office_document` hay `save_attachment_template` bị từ chối trước khi chạy gì, dòng giữ `pending` | Không phải sự cố nếu cố ý tắt; nếu không, bật `ask_uni_office` theo `OFFICE_AI_GO_LIVE.md` |
 | `revision_conflict` | 409 | Đối tượng đã đổi `revision` sau khi UNI đề xuất | Hỏi lại UNI để lấy đề xuất mới |
 | `undo_unavailable` | 409 | Đã có người sửa đối tượng sau khi áp dụng, hoặc dòng không có lệnh ngược | Không hoàn tác được; sửa tay |
 | `proposal_not_auto` | 409 | Từ chối nội bộ, không do người dùng gây ra: `applyRow` không nhận `decision=auto` trừ khi dòng lưu là mức 1, không nhiễm và có chế độ `auto` | Có đường mã tự áp dụng một dòng không đủ điều kiện: coi là lỗi, tìm nơi gọi, không nới điều kiện |
+
+Khi `ask_uni_office` tắt, thẻ soạn tệp đã có vẫn hiện: Sửa (nó chuẩn bị lại dòng, không kiểm cờ), Bỏ qua và Hoàn tác (hai nút chỉ qua cổng `ask_uni_actions`) vẫn chạy bình thường; chỉ Áp dụng bị từ chối.
 
 Lệnh nghiệp vụ lỗi (`not_found`, `invalid_args`, `forbidden`…) trả mã của nó và dòng chuyển `failed`. Audit của lệnh ghi `metadata.via = {kind: "ask_uni", proposal_id}`: tìm một thay đổi do UNI làm bằng `proposal_id` đó. Xóa hội thoại xóa dòng đề xuất của nó, không xóa thay đổi đã áp dụng.
 
