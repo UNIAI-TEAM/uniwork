@@ -30,7 +30,8 @@ các công cụ đó.
 ## Quyết định
 
 1. **Một đường AI.** Mọi AI của UniWork — Hỏi UNI, agent họp, trình soạn Office trên web và trên desktop — chạy bằng
-   UniWork AI qua `ai.Gateway`, dưới entitlement `office.ai_cloud` và credit `ai.tokens` của gói tổ chức. UniWork không
+   UniWork AI qua `ai.Gateway`; AI trong Office (các lời gọi của frame web) còn nằm dưới entitlement `office.ai_cloud` và credit
+   `ai.tokens` của gói tổ chức. UniWork không
    nhận, không lưu, không giải mã, không chuyển tiếp khóa nhà cung cấp của người dùng. Không có proxy pass-through tới
    nhà cung cấp do người dùng chọn. App desktop không gọi thẳng nhà cung cấp bằng khóa trên máy hay CLI cục bộ (thời
    điểm của phần desktop: Quyết định 5).

@@ -687,7 +687,7 @@
           "report": "reports/g6-ai_server/cloud-test-15.md (TEST_GO_EXIT=0, ISOLATION_EXIT=0)",
           "review": "reports/g6-ai_server/review-be-g03b-2.md (verdict clear)",
           "tests": [
-            "TestAIUniworkRoutesUseOwnLimiterBucket (router; one 60/min ai-uniwork budget per person across the three routes, separate from ai-byok/ai-cloud)",
+            "TestAIUniworkRoutesUseOwnLimiterBucket (router; one 60/min ai-uniwork budget per person across the three routes, separate from ai-cloud; the ai-byok bucket was removed by ADR 0051)",
             "TestAIUniworkRunWithinCapNeverHitsLimiter (router; eleven turns of one run, none refused by the bucket)",
             "TestAIUniworkGlobalLimiterKeysFrameTokenByIdentity (router; the global limiter names the frame token's person and document, so one address no longer pools every frame)",
             "TestRateLimitBucketRefusalCode (middleware; the ai-uniwork bucket answers ai_rate_limited + Retry-After: 60, another bucket keeps rate_limited)"

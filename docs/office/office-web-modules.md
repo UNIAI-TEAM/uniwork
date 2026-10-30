@@ -372,8 +372,8 @@ as off. The host (`officeModuleCapabilities`) grants `uniworkAi`, `aiStart`
 to a module with AI panels (`officeModuleSpec(m).ai`: all six modules) and only
 as far as that grant; a view-only user keeps the AI panel (it still cannot
 save). Without the grant the frame hides every AI entry. The host no longer
-sends the `ai` capability; the key leaves `packages/core/office/docs-frame-protocol.ts`
-when the protocol is re-vendored from the fork release of ADR 0051.
+sends the `ai` capability, and the protocol vendored at `0.1.0-c4b20c5`
+(`packages/core/office/docs-frame-protocol.ts`) has no `ai` capability (ADR 0051).
 
 The three vendored protocol files (`docs-frame-{protocol,endpoint,host}.ts`) are
 the fork main head `0d03b185`, which holds
