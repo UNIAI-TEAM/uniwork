@@ -12309,7 +12309,7 @@
         "q3": "Có dùng được khi không có mạng không?",
         "a3": "Sửa file trên máy không cần kết nối. AI cloud và tài liệu UniWork (mở từ workspace, lưu thành phiên bản mới) cần kết nối.",
         "q4": "Dữ liệu của tôi được xử lý thế nào?",
-        "a4": "File lưu vào workspace nằm trong workspace UniWork và theo phân quyền của tổ chức; file lưu trên máy ở lại trên máy. Khi bạn dùng AI, nội dung cần xử lý được máy chủ UniWork gửi tới nhà cung cấp mô hình, theo gói của tổ chức.",
+        "a4": "File lưu vào workspace nằm trong workspace UniWork và theo phân quyền của tổ chức; file lưu trên máy ở lại trên máy. Khi bạn dùng AI, nội dung cần xử lý được máy chủ UniWork gửi tới nhà cung cấp mô hình, theo gói của tổ chức. Nếu bạn nhập khóa AI riêng trong app desktop, nội dung đi thẳng từ máy bạn tới nhà cung cấp đó.",
         "q5": "Tôi có cần tài khoản riêng cho Office không?",
         "a5": "Không. Bạn đăng nhập bằng tài khoản UniWork, với cùng quyền và workspace như trên web.",
         "q6": "Làm sao mở file từ UniWork trên web?",

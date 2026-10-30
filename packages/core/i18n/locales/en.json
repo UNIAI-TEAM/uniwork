@@ -12371,7 +12371,7 @@
         "q3": "Does it work offline?",
         "a3": "You can edit files on your computer without a connection. Cloud AI and UniWork documents (opening from the workspace, saving a new version) need one.",
         "q4": "How is my data handled?",
-        "a4": "Files you save to the workspace live in the UniWork workspace under your organization's permissions; files stored on your computer stay on your computer. When you use AI, the UniWork server sends the content to work on to the model provider, under your organization's plan.",
+        "a4": "Files you save to the workspace live in the UniWork workspace under your organization's permissions; files stored on your computer stay on your computer. When you use AI, the UniWork server sends the content to work on to the model provider, under your organization's plan. If you enter your own AI key in the desktop app, content goes from your computer straight to that provider.",
         "q5": "Do I need a separate account for Office?",
         "a5": "No. You sign in with your UniWork account, with the same permissions and workspaces as on the web.",
         "q6": "How do I open a file from UniWork on the web?",
