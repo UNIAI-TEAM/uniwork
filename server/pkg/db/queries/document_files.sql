@@ -60,3 +60,17 @@ WHERE id = sqlc.arg(id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND kind = 'file'
   AND file_version_id = sqlc.arg(file_version_id);
+
+-- cmd/document-text-reindex: one keyset page of file documents across
+-- organizations (or one, when organization_id is set), to request the text
+-- index of files uploaded before document.text_index_requested existed.
+-- name: ListFileDocumentsForTextIndex :many
+-- tenant: system
+SELECT id, organization_id, workspace_id, file_version_id
+FROM documents
+WHERE kind = 'file'
+  AND file_version_id IS NOT NULL
+  AND (sqlc.narg(organization_id)::text IS NULL OR organization_id = sqlc.narg(organization_id))
+  AND id > sqlc.arg(after_id)
+ORDER BY id
+LIMIT sqlc.arg(page_limit);

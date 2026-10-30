@@ -44,6 +44,59 @@ func (q *Queries) DocumentFileInUse(ctx context.Context, arg DocumentFileInUsePa
 	return in_use, err
 }
 
+const listFileDocumentsForTextIndex = `-- name: ListFileDocumentsForTextIndex :many
+SELECT id, organization_id, workspace_id, file_version_id
+FROM documents
+WHERE kind = 'file'
+  AND file_version_id IS NOT NULL
+  AND ($1::text IS NULL OR organization_id = $1)
+  AND id > $2
+ORDER BY id
+LIMIT $3
+`
+
+type ListFileDocumentsForTextIndexParams struct {
+	OrganizationID pgtype.Text `json:"organization_id"`
+	AfterID        string      `json:"after_id"`
+	PageLimit      int32       `json:"page_limit"`
+}
+
+type ListFileDocumentsForTextIndexRow struct {
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	FileVersionID  pgtype.Text `json:"file_version_id"`
+}
+
+// cmd/document-text-reindex: one keyset page of file documents across
+// organizations (or one, when organization_id is set), to request the text
+// index of files uploaded before document.text_index_requested existed.
+// tenant: system
+func (q *Queries) ListFileDocumentsForTextIndex(ctx context.Context, arg ListFileDocumentsForTextIndexParams) ([]ListFileDocumentsForTextIndexRow, error) {
+	rows, err := q.db.Query(ctx, listFileDocumentsForTextIndex, arg.OrganizationID, arg.AfterID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListFileDocumentsForTextIndexRow{}
+	for rows.Next() {
+		var i ListFileDocumentsForTextIndexRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.FileVersionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setDocumentFileText = `-- name: SetDocumentFileText :execrows
 UPDATE documents
 SET content_text = $1,
