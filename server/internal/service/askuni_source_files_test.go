@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -189,7 +190,7 @@ func TestAskAttachmentRefusals(t *testing.T) {
 
 	// A private room the asker is not in, and a mailbox that is not the asker's.
 	_, inPrivate := w.chatFile(t, member.UserID, "mat.pdf", member.UserID)
-	acc, th, mail := w.mail(t, member.UserID)
+	_, _, mail := w.mail(t, member.UserID)
 
 	// A second workspace of the same organization and a second organization, each with a file ua may not read here.
 	v2, err := w.x.tools.ws.CreateInOrg(ctx, w.x.ua.ID, w.x.w.OrganizationID, "Beta", "beta-att")
@@ -231,7 +232,7 @@ func TestAskAttachmentRefusals(t *testing.T) {
 	for _, it := range w.run(t, tcB, "list_attachments", `{"source":"email","parent_id":"","query":"","type":"","cursor":""}`) {
 		if it.ID == mail {
 			found = true
-			if it.Title != "thu.pdf" || !it.Foreign || !strings.HasSuffix(it.Href, "/email?thread="+th+"&account="+acc) {
+			if it.Title != "thu.pdf" || !it.Foreign || !strings.HasSuffix(it.Href, "/email") || it.Key != it.Href+"#"+it.ID {
 				t.Errorf("mail row = %+v", it)
 			}
 		}
@@ -287,9 +288,22 @@ func TestAskAttachmentHonoursAIOptOut(t *testing.T) {
 	if items := list(); len(items) != 1 || items[0].ID != shared {
 		t.Fatalf("list after opt-out = %+v; want only %s", items, shared)
 	}
+	holdSlots(t, w.s.fileReads) // a read would wait for a slot here, and the bounded context below would end it
+	var getTool agentTool
+	for _, tool := range w.s.agentTools() {
+		if tool.Name == "get_attachment" {
+			getTool = tool
+		}
+	}
 	for _, id := range []string{declined, real} {
-		it := get(id)
-		if it.Title != "Attachment" || it.Body != "" || it.Text != "ID: "+id+"\nNote: "+askAttachmentOptOutNote ||
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		items, err := getTool.run(ctx, w.tc, json.RawMessage(`{"attachment_id":"`+id+`"}`))
+		cancel()
+		if err != nil || len(items) != 1 {
+			t.Fatalf("get_attachment(%s) = %+v, %v; want the opt-out note without a read", id, items, err)
+		}
+		it := items[0]
+		if it.Title != "" || it.Body != "" || it.Text != "ID: "+id+"\nNote: "+askAttachmentOptOutNote ||
 			strings.Contains(it.Text+it.Href+it.Key, "bi-mat") || strings.Contains(it.Text, mcpFileBusyNote) {
 			t.Errorf("opted-out file %s = %+v; want the id and the note only, no read", id, it)
 		}

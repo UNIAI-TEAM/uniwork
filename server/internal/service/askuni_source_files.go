@@ -59,7 +59,7 @@ func attachmentHref(base string, it DocumentSourceItem) string {
 	case "task", "task_comment":
 		return base + "/tasks/" + p.Ref
 	case "email_thread":
-		return base + "/email?thread=" + p.ID + "&account=" + p.Ref
+		return base + "/email" // Email Hub has no thread route
 	case "meeting":
 		return base + "/meetings/" + p.ID
 	}
@@ -160,7 +160,7 @@ func (s *AskUNIService) agentGetAttachment(ctx context.Context, tc ai.ToolContex
 	}
 	if declinedAI(it, optOuts) {
 		// Like read_chat_room, which drops an opted-out sender: no name, no container, no bytes.
-		return []agentItem{{Kind: "document", ID: it.ID, Key: base + "#" + it.ID, Href: base, Title: "Attachment", Text: "ID: " + it.ID + "\nNote: " + askAttachmentOptOutNote, Foreign: true}}, nil
+		return []agentItem{{Kind: "document", ID: it.ID, Key: base + "#" + it.ID, Href: base, Title: "", Text: "ID: " + it.ID + "\nNote: " + askAttachmentOptOutNote, Foreign: true}}, nil
 	}
 	content := s.readAttachment(ctx, tc, ws.OrganizationID, it)
 	fields := "ID: " + it.ID + "\nFile: " + it.Name + " (" + it.MimeType + ")\n" + attachmentIn(it)
