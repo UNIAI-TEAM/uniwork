@@ -15,7 +15,6 @@ var tenantExportExcluded = map[string]string{
 	"usage_counters":                 "Số đo hạn mức, không phải nội dung.",
 	"usage_events":                   "Số đo hạn mức, không phải nội dung.",
 	"ai_usage_events":                "Số đo token, không phải nội dung hội thoại.",
-	"ai_provider_credentials":        "Khóa API nhà cung cấp của từng người, đã niêm phong.",
 	"ai_uniwork_conversations":       "Bản ghi hội thoại UniWork AI tạm (TTL 30 phút nhàn rỗi/24 giờ), đã niêm phong; máy chủ tự dọn.",
 	"ai_uniwork_turns":               "Lượt của bản ghi hội thoại UniWork AI tạm, đã niêm phong.",
 	"ai_uniwork_runs":                "Lượt chạy UniWork AI tạm (cùng TTL với hội thoại), số đếm trần và tín dụng của máy chủ; máy chủ tự dọn.",

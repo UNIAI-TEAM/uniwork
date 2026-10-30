@@ -7,9 +7,9 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
 )
 
-// Billing rule for transcription (ADR 0029): seconds of audio come from the
-// vendor's own report (whisper's duration, a usage.seconds block) and
-// otherwise from the size of the upload at the byte rate below, so a model
+// Billing rule for transcription (ADR 0029, kept by ADR 0051): seconds of
+// audio come from the vendor's own report (whisper's duration, a usage.seconds
+// block) and otherwise from the size of the upload at the byte rate below, so a model
 // that reports no duration cannot turn hours of audio into one minute. The
 // rates are typical bitrates per container (a WAV header states its own);
 // the charge is per started minute, at least one.

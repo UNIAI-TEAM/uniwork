@@ -263,7 +263,7 @@ groups:
           severity: "2"
         annotations:
           summary: "UniWork AI lỗi trên 10% lượt gọi model"
-          description: "Hơn 10% lượt gọi model của capability office_uniwork_ai và office_uniwork_writer (route viết) kết thúc failed trong 10 phút (hiện {{ $value | humanizePercentage }}): upstream, khóa hoặc model sai. Editor, Lưu và BYOK vẫn chạy."
+          description: "Hơn 10% lượt gọi model của capability office_uniwork_ai và office_uniwork_writer (route viết) kết thúc failed trong 10 phút (hiện {{ $value | humanizePercentage }}): upstream, khóa hoặc model sai. Editor và Lưu vẫn chạy, nhưng trình soạn không còn AI dự phòng (ADR 0051)."
           runbook_url: https://github.com/UNIAI-TEAM/uniwork/blob/develop/docs/runbooks/UniworkAiModelErrors.md
 
       # G7-D1 pending. 20 s is RUNBOOK_AI's tier-change reading and sits well under the 55 s upstream timeout (A14), so it warns before users see ai_provider_timeout.

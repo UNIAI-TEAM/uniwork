@@ -142,7 +142,7 @@ describe("OfficeDocsFrame", () => {
     const [init] = frame.sent("request", "init");
     expect(init?.payload).toMatchObject({
       protocolVersion: 1, token: "tok-1", documentId: "doc-1", workspaceId: "ws-1", apiMode: "host-proxy",
-      locale: "vi", theme: "light", capabilities: { save: true, images: true, saveAs: false, exportPdf: false, attachments: false, ai: false },
+      locale: "vi", theme: "light", capabilities: { save: true, images: true, saveAs: false, exportPdf: false, attachments: false, uniworkAi: false },
     });
     expect(frame.sent("request", "init")).toHaveLength(1);
   });

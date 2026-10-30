@@ -50,6 +50,16 @@ describe("AskUniEntityChip", () => {
     expect(link).toHaveTextContent("Sửa lỗi crash");
   });
 
+  it("opens an attached file's card without asking for a library document", async () => {
+    requestMock.mockRejectedValue(Object.assign(new Error("not found"), { status: 404 }));
+    const file: AiCitation = { source_id: "S3", kind: "document", object_id: "task:01ABC", title: "hop-dong.pdf", quote: "", href: "/acme/team/tasks/T1" };
+    mount(file);
+    fireEvent.focus(screen.getByRole("link", { name: /hop-dong\.pdf/ }));
+    expect(await screen.findByRole("link", { name: "Mở" })).toHaveAttribute("href", file.href);
+    expect(requestMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("Không còn xem được đối tượng này.")).toBeNull();
+  });
+
   it("opens the card on keyboard focus with the task's details", async () => {
     mount(task);
     fireEvent.focus(screen.getByRole("link", { name: "Task: Sửa lỗi crash" }));

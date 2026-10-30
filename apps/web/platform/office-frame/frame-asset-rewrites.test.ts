@@ -57,10 +57,6 @@ describe("officeFrameAssetRewrites", () => {
       aiPath: ["uniwork", "chat", "completions"],
     });
     expect(matcher(`/api/v1/office-frame/documents/${DOC}/ai/cloud`)).toEqual({ documentId: DOC, aiPath: ["cloud"] });
-    expect(matcher(`/api/v1/office-frame/documents/${DOC}/ai/byok/openai/chat/completions`)).toEqual({
-      documentId: DOC,
-      aiPath: ["byok", "openai", "chat", "completions"],
-    });
   });
 
   it("the frame AI rewrite matches ULID ids only, never a non-ULID document id or a non-frame path", () => {

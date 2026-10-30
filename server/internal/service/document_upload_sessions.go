@@ -1308,7 +1308,7 @@ func (s *DocumentService) createFileDocumentFromStagedUploadInTx(
 	if err != nil {
 		return DocumentFileResult{}, files.File{}, err
 	}
-	version, err := q.InsertDocumentVersion(ctx, fileVersionParams(doc, versionID, 1, "upload", actor, file, DocumentEngineInfo{}, pgtype.Int4{}))
+	version, err := insertFileVersion(ctx, q, actor, fileVersionParams(doc, versionID, 1, "upload", actor, file, DocumentEngineInfo{}, pgtype.Int4{}))
 	if err != nil {
 		return DocumentFileResult{}, files.File{}, err
 	}

@@ -15,12 +15,13 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// UniWork cloud tools (GO-A7, ADR 0029): search, image generation and
-// transcription paid by UniWork. Each call is metered like a completion — a
-// pending usage row, the vendor call, a finished row, the ai.tokens meter —
-// but a tool has no token count of its own, so it charges a fixed
-// token-equivalent from the one table below. Media analysis is a completion
-// with media parts (Complete + Request.Attachments) and charges real tokens.
+// UniWork cloud tools (GO-A7; ADR 0029's cloud part, kept by ADR 0051):
+// search, image generation and transcription paid by UniWork. Each call is
+// metered like a completion — a pending usage row, the vendor call, a
+// finished row, the ai.tokens meter — but a tool has no token count of its
+// own, so it charges a fixed token-equivalent from the one table below.
+// Media analysis is a completion with media parts (Complete +
+// Request.Attachments) and charges real tokens.
 
 // Token-equivalents per tool call (contract D5). Changing a number changes
 // what organizations pay; it belongs to the product owner, not a refactor.
@@ -264,7 +265,7 @@ const (
 // settleContext is the context for finishing a usage row and recording the
 // meter: it keeps the request's values (correlation id) but not its
 // cancellation, so a client hang-up cannot leave a row pending or a paid call
-// uncharged (the BYOK proxy settles the same way).
+// uncharged.
 func settleContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), cloudSettleTimeout)
 }

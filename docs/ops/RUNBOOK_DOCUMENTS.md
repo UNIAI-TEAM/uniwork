@@ -201,6 +201,42 @@ WHERE status IN ('open', 'validating') AND expires_at < now() - interval '30 min
 Một phiên `validating` có `lease_expires_at` đã qua là phiên mà lần `complete` trước bị cắt giữa chừng: client gọi
 lại `complete` sẽ nhận lại phiên, hoặc GC dọn khi phiên hết hạn. Không sửa dòng bằng tay.
 
+## Chỉ mục chữ của tệp
+
+Chữ của tệp tài liệu (DOCX, XLSX, PPTX, ODT, CSV, Markdown, TXT) nằm ở `documents.content_text`, tối đa
+20.000 ký tự; tìm kiếm tài liệu đọc cột này. Mỗi phiên bản tệp mới phát `document.text_index_requested`,
+consumer `document_text_index` ở làn chậm trích chữ và ghi lại. Không sửa `content_text` bằng tay.
+
+Tệp tải lên trước khi có tính năng chưa có chữ. Chạy một lần, bằng lệnh đọc mỗi `DATABASE_URL`:
+
+1. Sau lần triển khai đầu có tính năng này: `document-text-reindex --all --dry-run`, đọc `would request=<n>`,
+   rồi `document-text-reindex --all` (hoặc `--org <id>` cho một tổ chức). Lệnh tự điều tốc: trước mỗi lô
+   nó chờ (hỏi lại mỗi 2 giây) đến khi số yêu cầu `document.text_index_requested` còn chờ hoặc đang xử lý
+   dưới `--max-pending` (mặc định 20); `--batch-size` mặc định 20; `--dry-run` không bao giờ chờ.
+2. Chạy lại sau khi đổi `attachtext` (thêm hoặc sửa một định dạng); chạy lại chỉ lặp việc, consumer ghi đè
+   cùng chữ.
+3. Theo dõi làn chậm theo `RUNBOOK_OUTBOX.md` cho đến khi hàng đợi `document.text_index_requested` cạn.
+
+Chi phí của lần chạy: việc trích chữ dùng chung làn chậm với xem trước liên kết, ảnh thu nhỏ, tải zip, xuất dữ
+liệu riêng tư và tóm tắt giọng nói, nên các việc đó phải chờ trong lúc lệnh chạy; `OutboxLagHigh` (sev 2) có
+thể kêu cho topic này, đó là dự kiến chứ không phải sự cố. Chạy ngoài giờ làm việc, từng tổ chức một (`--org`
+trước), giữ `--max-pending` mặc định. Một lần tải lên cả thư mục lớn toàn tệp Office cũng xếp nhiều dòng chỉ
+mục vào cùng làn (đã biết, việc theo dõi sau).
+
+PDF được lập chỉ mục khi Office engine chạy (đọc lớp chữ bằng `extract_text:pdf`). Engine tắt hay lỗi thì chữ PDF
+để rỗng và không thử lại. Engine chậm bị cắt sau 30 giây: PDF đó cũng để rỗng, không thử lại. PDF quét (ảnh)
+vẫn không có chữ vì không có OCR.
+
+Thứ tự phát hành và nạp lại chữ cho PDF:
+
+1. Triển khai image Office engine trước, rồi mới triển khai server.
+2. Khi engine trả lời `extract_text:pdf` (hàng khả năng của engine có `pdf`), chạy `document-text-reindex --all`
+   (hoặc `--org <id>`) để các PDF tải lên trước bản này có chữ.
+3. Lệnh này yêu cầu lại mọi tệp, không chỉ PDF, nên theo đúng hướng dẫn ngoài giờ và `--max-pending` ở trên.
+   Sau khi bật hay sửa engine, chạy lại theo các bước này.
+
+Không được lập chỉ mục, chữ để rỗng: HTML (chưa có bộ trích) và tệp lớn hơn 20 MiB (không mở tệp để trích).
+
 ## Leo thang
 
 - `outcome="error"` hoặc `"unavailable"` > 5% số lần lưu trong 10 phút → sev 2,

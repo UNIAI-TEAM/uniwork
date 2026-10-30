@@ -57,7 +57,11 @@ func (s *AskUNIService) turnWrites(ctx context.Context, tc ai.ToolContext, in As
 	if !a.Enabled || a.Mode == "" {
 		return nil
 	}
-	return &askWrites{mode: a.Mode, tools: s.askWriteTools()}
+	tools := s.askWriteTools()
+	if !s.askOfficeOn(ctx, tc) {
+		tools = slices.DeleteFunc(tools, func(t askWriteTool) bool { return askOfficeTools[t.Name] })
+	}
+	return &askWrites{mode: a.Mode, tools: tools}
 }
 
 // tool is the offered write tool named name.

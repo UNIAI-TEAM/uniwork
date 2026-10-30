@@ -31,8 +31,10 @@ import {
   ConvertTypedError,
   extractDocumentText,
   ExtractTypedError,
+  MAX_EXTRACT_CODE_POINTS,
   PageInputError,
   pageToDocx,
+  truncateExtractedText,
 } from "@uniwork/office-engine/convert/native";
 import {
   createXlsxSidecar,
@@ -464,6 +466,31 @@ async function extractText(message: RunMessage): Promise<HandlerOutcome> {
     throw error;
   }
 }
+// extract_text:pdf — the text layer of each page, pages joined by a form feed.
+// A scanned page has no text layer and yields an empty segment (no OCR here).
+async function extractPdfText(message: RunMessage): Promise<HandlerOutcome> {
+  if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
+  const bytes = await readFile(message.inputPath);
+  const pdf = await loadPdf();
+  try {
+    // Never pass a password: an encrypted file is reported, not opened.
+    const doc = await pdf.readPdfText(bytes, { charBudget: MAX_EXTRACT_CODE_POINTS });
+    const joined = doc.pages.map((page) => page.text.replaceAll("\f", "")).join("\f");
+    const cut = truncateExtractedText(joined);
+    return {
+      ok: true,
+      warnings: [],
+      result: { text: cut.text, truncated: doc.truncated || cut.truncated, format: "pdf" },
+    };
+  } catch (error) {
+    if (error instanceof pdf.PdfOpenError && error.detail !== "heap") {
+      const locked = error.detail === pdf.FPDF_ERR_PASSWORD || error.detail === pdf.FPDF_ERR_SECURITY;
+      return { ok: false, code: "engine_result_invalid", reason: locked ? "password_required" : "corrupted" };
+    }
+    throw error;
+  }
+}
+
 const HANDLERS: Record<string, Handler> = {
   "serialize:md": serializeText,
   "serialize:html": serializeText,
@@ -480,6 +507,7 @@ const HANDLERS: Record<string, Handler> = {
   "extract_text:docx": extractText,
   "extract_text:xlsx": extractText,
   "extract_text:pptx": extractText,
+  "extract_text:pdf": extractPdfText,
 };
 
 /** Keys ("operation:format") this build binds; capability rows read it. */

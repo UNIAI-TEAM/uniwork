@@ -359,6 +359,22 @@
           "c44c18b815124d7ab07c67738c5ea5d4780524ef4": "App UniChat trên iPhone: tab Danh bạ không còn chuyển sang màn báo lỗi khi danh sách vừa dài thêm, như lúc thành viên tải xong, khi xóa ô tìm kiếm hoặc chạm lại tab.",
           "c0dbacfcab7bbd460800710cbc7a65d7ee6fd100b": "Đăng nhập bằng Apple: địa chỉ email ẩn mới của Apple (đuôi @private.icloud.com) được nhận ra giống địa chỉ ẩn cũ, nên Cài đặt hiện đúng là email ẩn của Apple và các quy tắc liên kết Apple áp dụng đúng."
         }
+      },
+      "v1_14_0": {
+        "title": "Tìm tệp theo nội dung trong Tài liệu và Hỏi UNI, AI trong trình soạn Office chỉ dùng UniWork AI, khách họp vào phòng nhanh hơn",
+        "summary": "Ô tìm của Tài liệu và Hỏi UNI nay tìm được tệp Word, Excel, PowerPoint và tệp văn bản theo chữ bên trong tệp, kèm đoạn trích quanh chỗ khớp. AI trong trình soạn Office trên web chỉ chạy bằng UniWork AI; tùy chọn khóa AI riêng của tổ chức đã được gỡ. Hỏi UNI soạn tệp Office có công tắc riêng cho từng tổ chức. Khách vào họp bằng link không còn phải chờ lâu sau khi chủ trì cho vào.",
+        "note": "Tìm theo nội dung chỉ đọc 20.000 ký tự đầu của mỗi tệp và chưa hỗ trợ PDF, HTML, ảnh, video hay tệp lớn hơn 20 MiB; tệp đã có từ trước chỉ tìm được theo nội dung sau khi được lập chỉ mục lại. Hỏi UNI soạn tệp Office mặc định tắt cho tới khi UniWork bật cho tổ chức của bạn. Ứng dụng máy tính vẫn dùng được khóa AI bạn tự nhập.",
+        "features": {
+          "c19f5e9f57b705db4e4f60e308c6fc31127c771a3": "Tài liệu: ô tìm và Hỏi UNI nay tìm được tệp theo chữ bên trong tệp DOCX, XLSX, PPTX, ODT, CSV, Markdown và TXT. Kết quả tìm có đoạn trích ngắn lấy quanh chỗ khớp, nên bạn thấy ngay vì sao tệp được tìm ra, kể cả khi chữ khớp nằm sâu trong tệp. Tệp hạn chế mà bạn không có quyền đọc vẫn không lộ nội dung trong kết quả."
+        },
+        "improvements": {
+          "ce90cc8c27246adc34dfb30501bdcd000ece46e03": "AI trong trình soạn Office trên web nay chỉ chạy bằng UniWork AI: tùy chọn dùng khóa AI riêng (BYOK) của tổ chức đã được gỡ, cùng các khóa đã lưu. Tìm trên web, tìm ảnh và tạo ảnh trong trình soạn đi theo quyền dùng UniWork AI của tổ chức. Ứng dụng máy tính vẫn dùng được khóa AI bạn tự nhập, và trang quyền riêng tư nói rõ khi đó nội dung được gửi thẳng tới nhà cung cấp AI.",
+          "cc8edec27b62389b94f9fff325c6ab7258fab8545": "Hỏi UNI soạn tệp Office có công tắc riêng, mặc định tắt, do UniWork bật cho từng tổ chức. Khi tắt, Hỏi UNI không đề xuất soạn tệp, và việc áp dụng các đề xuất soạn tệp đã có, kể cả trong một kế hoạch hay ở chế độ Tự động, bị từ chối kèm thông báo rõ ràng thay vì áp dụng dở dang. Đọc tệp đính kèm và mục Mẫu văn bản không bị ảnh hưởng."
+        },
+        "fixes": {
+          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Họp: khách vào bằng link mời không còn phải chờ, có lúc gần một phút, sau khi chủ trì bấm Cho vào; khách được đưa vào phòng ngay sau khi được duyệt.",
+          "c349c27ed4d2af0ef189b6068697bec45b43a0c59": "Trò chuyện: khi gõ một địa chỉ email như ten@gmail.com, danh sách gợi ý nhắc tên (@) không còn bật lên; gõ @ kèm tên người vẫn hiện gợi ý như trước."
+        }
       }
     }
   },
@@ -1436,7 +1452,6 @@
         "storage_bytes": "Dung lượng lưu trữ",
         "sso_oidc": "Đăng nhập SSO (OIDC)",
         "documents_public_links": "Liên kết công khai cho tài liệu",
-        "office_ai_byok": "Khóa AI riêng cho Office",
         "office_ai_cloud": "Công cụ AI đám mây cho Office"
       },
       "errors": {
@@ -8558,6 +8573,7 @@
         "proposal_expired": "Đề xuất đã hết hạn. Hỏi lại UNI.",
         "proposal_ref_pending": "Bước này dùng kết quả của một bước trước chưa được áp dụng. Áp dụng bước đó trước.",
         "proposal_not_pending": "Đề xuất này đã được xử lý, có thể ở một tab khác.",
+        "ask_uni_office_off": "Hỏi UNI chưa được bật soạn tệp Office ở tổ chức này. Nhờ quản trị tổ chức liên hệ UniWork.",
         "ai_actions_disabled": "Hỏi UNI đang tắt hành động ghi. Nhờ quản trị tổ chức bật lại.",
         "ai_write_rate_limited": "Áp dụng quá nhanh. Đợi một phút rồi thử lại.",
         "undo_unavailable": "Không hoàn tác được: đã có người sửa sau đó.",
@@ -11529,7 +11545,6 @@
           "meeting_ai_summary": "Tóm tắt họp bằng AI",
           "documents_public_links": "Liên kết công khai cho tài liệu",
           "meeting_transcription": "Phút ghi lời cuộc họp",
-          "office_ai_byok": "Khóa AI riêng cho Office",
           "office_ai_cloud": "Công cụ AI đám mây cho Office"
         }
       }
@@ -11641,7 +11656,7 @@
       "pillar3Title": "Work Products là kết quả thực",
       "pillar3Desc": "Tạo, chỉnh sửa, phê duyệt tài liệu, phân tích và trình bày ngay tại chỗ công việc sinh ra chúng.",
       "pillar4Title": "Linh hoạt triển khai",
-      "pillar4Desc": "Cloud, private cloud, on-premise và BYOK, phù hợp doanh nghiệp và cơ quan tại Việt Nam.",
+      "pillar4Desc": "Cloud, private cloud và on-premise, phù hợp doanh nghiệp và cơ quan tại Việt Nam.",
       "ms365": {
         "name": "Microsoft 365",
         "tagline": "The productivity powerhouse",
@@ -12202,7 +12217,7 @@
         "demo": "Xem sáu trình soạn thảo",
         "unavailable": "Bản cài đặt đang được chuẩn bị. Trong lúc chờ, bạn vẫn mở và sửa file Office ngay trên web, trong mục Tài liệu.",
         "trustAccount": "Dùng chung tài khoản UniWork",
-        "trustAi": "AI theo gói UniWork hoặc khóa riêng",
+        "trustAi": "AI chạy bằng UniWork AI, tính vào credit của gói",
         "trustOffline": "Sửa file trên máy không cần kết nối; AI cloud và tài liệu UniWork cần kết nối"
       },
       "editors": {
@@ -12296,7 +12311,7 @@
         "sub": "UniOffice dùng chung tài khoản và phân quyền với UniWork, nên file của nhóm vẫn theo quyền truy cập của tổ chức.",
         "account": {
           "title": "AI qua tài khoản UniWork",
-          "description": "Công cụ AI trên cloud chạy qua UniWork theo cấu hình và gói của tổ chức. Khi dùng khóa API riêng trên web, yêu cầu vẫn đi qua UniWork tới nhà cung cấp bạn chọn. Luồng desktop có cấu hình riêng; kiểm tra trong ứng dụng trước khi gửi nội dung."
+          "description": "Công cụ AI trên cloud chạy bằng UniWork AI theo cấu hình và gói của tổ chức, tính vào credit của gói. Luồng desktop có cấu hình riêng; kiểm tra trong ứng dụng trước khi gửi nội dung."
         },
         "files": {
           "title": "File của nhóm lưu trong workspace",
@@ -12313,7 +12328,7 @@
         },
         "ai": {
           "title": "AI theo nhu cầu",
-          "description": "Dùng gói của tổ chức hoặc khóa API riêng."
+          "description": "Chạy bằng UniWork AI, tính vào credit của gói."
         },
         "permissions": {
           "title": "Quyền truy cập nhất quán",
@@ -12342,7 +12357,7 @@
         "q3": "Có dùng được khi không có mạng không?",
         "a3": "Sửa file trên máy không cần kết nối. AI cloud và tài liệu UniWork (mở từ workspace, lưu thành phiên bản mới) cần kết nối.",
         "q4": "Dữ liệu của tôi được xử lý thế nào?",
-        "a4": "File lưu vào workspace nằm trong workspace UniWork và theo phân quyền của tổ chức; file lưu trên máy ở lại trên máy. Khi bạn dùng AI, nội dung cần xử lý được gửi tới nhà cung cấp mô hình: qua UniWork với công cụ chạy theo gói của tổ chức, hoặc thẳng từ máy bạn nếu dùng khóa API riêng.",
+        "a4": "File lưu vào workspace nằm trong workspace UniWork và theo phân quyền của tổ chức; file lưu trên máy ở lại trên máy. Khi bạn dùng AI, nội dung cần xử lý được máy chủ UniWork gửi tới nhà cung cấp mô hình, theo gói của tổ chức. Nếu bạn nhập khóa AI riêng trong app desktop, nội dung đi thẳng từ máy bạn tới nhà cung cấp đó.",
         "q5": "Tôi có cần tài khoản riêng cho Office không?",
         "a5": "Không. Bạn đăng nhập bằng tài khoản UniWork, với cùng quyền và workspace như trên web.",
         "q6": "Làm sao mở file từ UniWork trên web?",

@@ -110,9 +110,9 @@ func (h *handlers) uniworkWrite(w http.ResponseWriter, r *http.Request, scope se
 			uniworkAnswerHeaders(w, service.UniworkTurn{ConversationID: in.ConversationID, RunID: in.RunID})
 		}
 		if stream.Delta(text) != nil {
-			// The client stopped reading: stop the model too, as the BYOK
-			// stream does, so the call does not run on for nobody and hold the
-			// writer slot. The Gateway settles it as cancelled.
+			// The client stopped reading: stop the model too, so the call
+			// does not run on for nobody and hold the writer slot. The
+			// Gateway settles it as cancelled.
 			cancel()
 		}
 	})

@@ -12,38 +12,32 @@
     "fx-xlsx-revenue-xyz": {
       "status": "ok",
       "reason": "",
-      "ai": true,
-      "uniworkAi": false
+      "uniworkAi": true
     },
     "fx-docx-report-vi": {
       "status": "ok",
       "reason": "",
-      "ai": true,
-      "uniworkAi": false
+      "uniworkAi": true
     },
     "fx-pptx-deck-vi": {
       "status": "ok",
       "reason": "",
-      "ai": true,
-      "uniworkAi": false
+      "uniworkAi": true
     },
     "fx-pdf-invoice-vi": {
       "status": "ok",
       "reason": "",
-      "ai": true,
-      "uniworkAi": false
+      "uniworkAi": true
     },
     "fx-md-notes-vi": {
       "status": "ok",
       "reason": "",
-      "ai": true,
-      "uniworkAi": false
+      "uniworkAi": true
     },
     "fx-html-page-vi": {
       "status": "ok",
       "reason": "",
-      "ai": true,
-      "uniworkAi": false
+      "uniworkAi": true
     }
   }
 }

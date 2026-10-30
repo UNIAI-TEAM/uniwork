@@ -20,7 +20,7 @@ import (
 
 var agentToolOrder = []string{
 	"search", "list_tasks", "get_task", "list_meetings", "get_meeting", "get_meeting_transcript", "list_projects",
-	"get_project", "get_document", "list_documents", "list_templates", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
+	"get_project", "get_document", "list_documents", "list_templates", "list_attachments", "get_attachment", "list_chat_rooms", "read_chat_room", "list_members", "member_workload",
 }
 
 // newAgentWorld is the MCP tool world with Ask UNI's read tools wired to it,
@@ -205,6 +205,19 @@ func TestAskAgentToolsStayInTheAskedWorkspace(t *testing.T) {
 	if items := runAgentTool(t, s, tc, "list_templates", `{"format":"","cursor":""}`); slices.ContainsFunc(items, func(it agentItem) bool { return it.ID == tpl2.Document.ID }) {
 		t.Errorf("list_templates in workspace one listed workspace two's template: %+v", items)
 	}
+	// A file attached to a task of workspace two or of organization B reads as absent.
+	aw := wireSources(t, x, s, tc)
+	for name, id := range map[string]string{
+		"workspace two":  aw.rawAttachment(t, x.w.OrganizationID, v2.Workspace.ID, task2.ID, x.ua.ID, "mat-hai.docx", 10),
+		"organization B": aw.rawAttachment(t, wsB.OrganizationID, wsB.ID, taskB.ID, x.ub.ID, "mat-b.docx", 10),
+	} {
+		if items := aw.run(t, tc, "get_attachment", `{"attachment_id":"`+id+`"}`); !isError(items, "not_found") {
+			t.Errorf("get_attachment of %s = %+v; want error: not_found", name, items)
+		}
+	}
+	if items := aw.run(t, tc, "get_attachment", `{"attachment_id":"`+aw.rawAttachment(t, x.w.OrganizationID, x.w.ID, own.ID, x.ua.ID, "cua-toi.docx", 10)+`"}`); len(items) != 1 || items[0].Title != "cua-toi.docx" {
+		t.Fatalf("get_attachment control = %+v", items)
+	}
 	// The control: the asker's own task reads under its own workspace.
 	if items := runAgentTool(t, s, tc, "get_task", `{"task":"`+own.ID+`"}`); len(items) != 1 || items[0].Title != own.Title || !strings.Contains(items[0].Text, "Ref: ") {
 		t.Fatalf("get_task of workspace one = %+v", items)
@@ -246,6 +259,14 @@ func TestAskAgentToolsRespectVisibility(t *testing.T) {
 	}
 	if items := get(open.Document.ID); len(items) != 1 || items[0].Title != "Kế hoạch công khai" || !strings.Contains(items[0].Text, "Mục tiêu") {
 		t.Fatalf("control: member reads the open page: %+v", items)
+	}
+	aw := wireSources(t, x, s, ai.ToolContext{ActorID: x.ua.ID, OrganizationID: x.w.OrganizationID, WorkspaceID: x.w.ID})
+	_, private := aw.chatFile(t, member.UserID, "rieng-tu.pdf", member.UserID)
+	if items := aw.run(t, aw.tc, "get_attachment", `{"attachment_id":"`+private+`"}`); !isError(items, "not_found") {
+		t.Errorf("get_attachment of a private room's file = %+v", items)
+	}
+	if items := aw.run(t, tcB, "get_attachment", `{"attachment_id":"`+private+`"}`); len(items) != 1 || items[0].Title != "rieng-tu.pdf" {
+		t.Errorf("control: a room member reads the file: %+v", items)
 	}
 	x.flags.byOrg = map[string]bool{x.w.OrganizationID: false}
 	if items := get(open.Document.ID); !isError(items, "documents_unavailable") {

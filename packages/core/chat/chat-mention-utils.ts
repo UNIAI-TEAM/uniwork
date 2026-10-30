@@ -182,7 +182,8 @@ export function getActiveMentionQuery(
   if (at < 0) return null;
 
   const query = before.slice(at + 1);
-  if (/\s/.test(query)) return null;
+  // A dot is a domain (dangdat@gmail.com), not a name, so the picker closes.
+  if (/\s/.test(query) || query.includes(".")) return null;
 
   const prefix = before.slice(0, at);
   if (prefix.endsWith("](")) return null;
@@ -196,7 +197,8 @@ export function getActiveMentionQuery(
 /**
  * The mention under the caret, including a multi-word name ("@tran hoang")
  * while that text still matches someone. A finished mention followed by a
- * space, or a sentence that no longer matches, closes the picker.
+ * space, a sentence that no longer matches, or a dot after @ (an email
+ * domain, including once a space follows it) closes the picker.
  */
 export function resolveActiveMentionQuery(
   text: string,
@@ -211,6 +213,9 @@ export function resolveActiveMentionQuery(
   const at = before.lastIndexOf("@");
   if (at < 0) return null;
   const query = before.slice(at + 1);
+  // The strict path already rejected a dot. This path still sees "gmail.com "
+  // because of the space, and an email substring would keep the picker open.
+  if (query.includes(".")) return null;
   if (!query.trim() || /[\r\n]/.test(query)) return null;
   if (before.slice(0, at).endsWith("](")) return null;
   if (before.slice(at).includes("](")) return null;

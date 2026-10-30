@@ -45,8 +45,7 @@ export function officeFrameAssetRewrites(apiUrl = process.env.NEXT_PUBLIC_API_UR
     { source: `/api/v1/office-frame/documents/:documentId(${ULID})/linked/:linkedId(${ULID})`, destination: "/api/v1/office-frame/documents/:documentId/linked/:linkedId" },
     // The comment avatars: the document id and the person's id are ULIDs.
     { source: `/api/v1/office-frame/documents/:documentId(${ULID})/avatars/:userId(${ULID})`, destination: "/api/v1/office-frame/documents/:documentId/avatars/:userId" },
-    // The frame's own AI routes: every tail under `/ai/` (credentials, byok,
-    // cloud, uniwork) is one catch-all, so a new route needs no change here.
+    // The frame's own AI routes: every tail under `/ai/` (cloud, uniwork) is one catch-all, so a new route needs no change here.
     { source: `/api/v1/office-frame/documents/:documentId(${ULID})/ai/:aiPath*`, destination: "/api/v1/office-frame/documents/:documentId/ai/:aiPath*" },
   ];
   return tails.map(({ source, destination }) => ({ source, destination: origin + destination }));

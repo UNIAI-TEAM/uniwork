@@ -26,6 +26,9 @@ func (f withActions) IsEnabled(ctx context.Context, key string, def bool) bool {
 	if key == askActionsFlag {
 		return f.on
 	}
+	if key == askOfficeFlag { // Office drafting is on in every actions world; askuni_office_flag_test.go turns it off
+		return true
+	}
 	return f.McpFlags.IsEnabled(ctx, key, def)
 }
 

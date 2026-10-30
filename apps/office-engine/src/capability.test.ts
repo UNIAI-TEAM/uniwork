@@ -35,8 +35,8 @@ describe("export_pdf capability row", () => {
     expect(docsPdfRendererMissing(dir, true)).toBeNull();
   });
 
-  it("claims extract_text as bound with pending evidence for docx, xlsx and pptx and unsupported for other formats", () => {
-    for (const format of ["docx", "xlsx", "pptx"] as const) {
+  it("claims extract_text as bound with pending evidence for docx, xlsx, pptx and pdf and unsupported for other formats", () => {
+    for (const format of ["docx", "xlsx", "pptx", "pdf"] as const) {
       expect(rows(format, null).find((r) => r.operation === "extract_text")).toMatchObject({
         operation: "extract_text",
         supported: true,
@@ -44,7 +44,7 @@ describe("export_pdf capability row", () => {
         evidence_level: "pending",
       });
     }
-    for (const format of ["pdf", "md", "page"] as const) {
+    for (const format of ["md", "page"] as const) {
       expect(rows(format, null).find((r) => r.operation === "extract_text")).toMatchObject({
         operation: "extract_text",
         supported: false,

@@ -96,8 +96,7 @@ test("the README documents the docs tab close-readiness wait and HARNESS_DOCS_CL
   assert.match(README, /HARNESS_DOCS_CLOSE_SETTLE_MS/, "the README documents HARNESS_DOCS_CLOSE_SETTLE_MS");
   assert.match(README, /2500/, "the default 2500 ms settle window is documented");
 });
-test("the README says the capture server gets a test-only AI_CREDENTIAL_KEY and why (RFE5-201)", () => {
-  assert.match(README, /`AI_CREDENTIAL_KEY`/);
-  assert.match(README, /test-only/);
-  assert.match(README, /office\.ai_byok/);
+test("the README says the capture server needs no AI key and the web capture records the uniworkAi grant (RFE5-202)", () => {
+  assert.doesNotMatch(README, /AI_CREDENTIAL_KEY/);
+  assert.match(README, /`uniworkAi`/);
 });

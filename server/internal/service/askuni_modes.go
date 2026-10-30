@@ -20,6 +20,7 @@ const (
 	AskModeAuto    = "auto"
 	AskCeilingOff  = "off"
 	askActionsFlag = "ask_uni_actions"
+	askOfficeFlag  = "ask_uni_office"
 	// askWriteBudget is applied rows per person per minute.
 	askWriteBudget = 30
 )
@@ -82,6 +83,21 @@ func (s *AskUNIService) askActionsFlag(ctx context.Context, tc ai.ToolContext) b
 	f, _ := featureflags.Lookup(askActionsFlag)
 	fctx := featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: tc.ActorID, OrganizationID: tc.OrganizationID, WorkspaceID: tc.WorkspaceID})
 	return s.flags.IsEnabled(fctx, askActionsFlag, f.Default)
+}
+
+// askOfficeTools are the tools that draft Office files; ask_uni_office hides
+// them and refuses their Apply.
+var askOfficeTools = map[string]bool{"create_office_document": true, "save_attachment_template": true, "list_templates": true}
+
+// askOfficeOn is ask_uni_office as tc's asker, organization and workspace see
+// it; false without a flag source.
+func (s *AskUNIService) askOfficeOn(ctx context.Context, tc ai.ToolContext) bool {
+	if s.flags == nil {
+		return false
+	}
+	f, _ := featureflags.Lookup(askOfficeFlag)
+	fctx := featureflag.WithEvalContext(ctx, featureflag.EvalContext{UserID: tc.ActorID, OrganizationID: tc.OrganizationID, WorkspaceID: tc.WorkspaceID})
+	return s.flags.IsEnabled(fctx, askOfficeFlag, f.Default)
 }
 
 // AskActionsEnabled is the kill switch (R2) for the routes that name no

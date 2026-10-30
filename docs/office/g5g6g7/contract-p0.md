@@ -97,7 +97,7 @@ Phiên app desktop là bearer thường qua `RequireAuthWithDevice` (`router/rou
 | Tra intent (G5-07) | `GET /documents/{documentID}/versions/commit` + header `Idempotency-Key` | Cùng path với `POST …/versions/commit` (`router/documents.go:114`), khác method; không tham số mới | Khóa idempotency không vào URL/access log; trả `{outcome: committed\|not_committed\|in_flight\|unknown, version?, revision?}`; đọc được cả khi `office_sync_write` tắt (plan G5-07). Phương án dự phòng: `POST …/versions/commit/lookup`. Số retention: G5-D2 |
 | Lease offline (G5-08s) | `PUT /documents/{documentID}/office/offline-lease` (cấp/gia hạn, idempotent theo thiết bị) · `DELETE` cùng path (trả) | Không trùng; nhóm `/documents/{documentID}/office/*` đã có `sessions`, `capabilities`, `jobs` (`router/documents.go:90,210,218`) | Thiết bị lấy từ phiên bearer, không từ body; phiên web hoặc sid không có hàng `device_sessions` sống → 403 `offline_lease_device_required`. **Đã chốt: G5-D1 (lô #2b, ký 2026-10-13)**, chi tiết [DOC-005 §6.2](../g0/login-sync-contract.md) |
 | Capability app (X-03) | `GET /orgs/{orgID}/office/capabilities` | Path không trùng; nhưng đã có `GET /documents/{documentID}/office/capabilities` với nghĩa khác (định dạng/thao tác, `OfficeCapabilitySDO`, `dto/sdo/office.go:43`) | Giữ path theo plan, đặt SDO `OfficeAppCapabilitiesSDO` và summary "Office features enabled for this organization (app)" để không lẫn; `pathParamSDI` `orgID` đã có (`router/openapi.go:269`) |
-| UniWork AI (G6-03a, để tham chiếu) | `POST /orgs/{orgID}/ai/uniwork/chat/completions` · `POST /office-frame/documents/{documentID}/ai/uniwork/chat/completions` | Cùng họ `/orgs/{orgID}/ai/*` (`router/ai_byok.go:22`, `ai_cloud.go:23`) | Tên theo plan G6-03a; hình dạng wire: G6-D1 |
+| UniWork AI (G6-03a, để tham chiếu) | `POST /orgs/{orgID}/ai/uniwork/chat/completions` · `POST /office-frame/documents/{documentID}/ai/uniwork/chat/completions` | Cùng họ `/orgs/{orgID}/ai/*` (`router/ai_cloud.go:23`; `router/ai_byok.go` lúc ký, đã gỡ theo ADR 0051) | Tên theo plan G6-03a; hình dạng wire: G6-D1 |
 | UniWork AI, route tài liệu (G6-03a; A10/OQ-P2 = G6-D1 hàng 10) | `POST /documents/{documentID}/ai/uniwork/chat/completions` | Cùng họ `/documents/{documentID}/ai/*` đã có; `pathParamSDI` `documentID` đã có | Phiên tài liệu của app desktop (bearer thiết bị qua `RequireAuthWithDevice`); tổ chức/workspace/module suy từ tài liệu, quyền đọc kiểm lại mỗi request. Không thêm số hay hành vi mới: mọi giá trị theo A10/OQ-P2 đã ký |
 
 ## 4. Flag, mã lỗi (X-03) và `ReviewAt`
@@ -115,7 +115,7 @@ hoàn thành"); với 10 wave (plan §6.1) và nhịp lane hiện tại, P3 dự
 | `office_sync_feed` | true | true | Đọc feed; web tắt thanh S6 khi tắt |
 | `office_sync_write` | true | false | Kill switch dispatch intent mới; giữ queue/nháp/đối soát |
 | `office_offline_library` | false | false | Cấp/gia hạn lease, ghim offline |
-| `office_ai_uniwork` | false | true | Kill switch UniWork AI (BYOK không đổi); tắt cho org có dữ liệu thật tới khi G6-D2 đóng |
+| `office_ai_uniwork` | false | true | Kill switch UniWork AI (lúc ký: BYOK không đổi; từ ADR 0051 không còn BYOK, nên tắt cờ là tắt mọi AI của trình soạn); tắt cho org có dữ liệu thật tới khi G6-D2 đóng |
 | `office_ai_uniwork_{docx,xlsx,pptx,pdf,markdown,html}` | false | true | Capability theo định dạng; G7-08 điều khiển |
 
 Tất cả `Owner: "office"`, `ReviewAt: day(2027, 3, 31)`.
@@ -372,7 +372,7 @@ light/dark vi/en cho task UI.
 | G5-D2 | — (giao đội chốt) | Retention feed/snapshot/idempotency, tra intent, fencing, claim refresh | Lô #2; người dùng (vai G1/FileService); dev dùng giá trị tạm của G5-01a/G5-07 |
 | G5-D3 | Một intent chưa giải quyết mỗi Document; số giới hạn queue/cache/nháp (OQ-UX2) | — | Đóng bởi U-01 apply (U-15, 2026-10-12): số đã ký ở `ux/EXPERIENCE.md` › Open questions |
 | G6-D1 | Entitlement dùng lại `office.ai_cloud`; façade route/wire/run id, streaming, vòng tool-result, `ModelPolicy`, trần pack/lượt/đồng thời, quota semantics (lô #2) | — | **Đã ký** lô #2 2026-10-13 (A1–A16, Q1–Q6); A17 → G6-D2 |
-| G6-D2 | — (người dùng quyết khi lên production) | Upstream production, region, retention/log, secrets, transcript | Người dùng; tới đó chỉ fixture tổng hợp trên upstream dev |
+| G6-D2 | — (người dùng quyết khi lên production) | Upstream production, region, retention/log, secrets, transcript | Người dùng; tới đó chỉ fixture tổng hợp trên upstream dev. Checklist bật: [`docs/ops/OFFICE_AI_GO_LIVE.md`](../../ops/OFFICE_AI_GO_LIVE.md) |
 | G6-D3 | Đóng (spec §13.1) | — | — |
 | G6-D4 | — (giao đội chốt) | Ma trận §6.5 theo bảng G6-01, cách hiển thị thay đổi AI | Lô #3; người dùng |
 | G7-D1 | ≥100 tình huống eval | Ngưỡng §9.2, fixture/load profile, cost/run, ngân sách token (≥3 lần × ≥100 ca), SLO | Lô #3; người dùng |

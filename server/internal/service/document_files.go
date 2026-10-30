@@ -526,7 +526,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
-	version, err := q.InsertDocumentVersion(ctx, fileVersionParams(doc, versionID, 1, "upload", actor, file, in.engine, pgtype.Int4{}))
+	version, err := insertFileVersion(ctx, q, actor, fileVersionParams(doc, versionID, 1, "upload", actor, file, in.engine, pgtype.Int4{}))
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
@@ -668,6 +668,52 @@ func fileVersionParams(doc db.Document, id string, version int32, reason string,
 		CreatedBy:       actor.ID,
 		CreatedByKind:   string(actor.Kind),
 	}
+}
+
+// TopicDocumentTextIndexRequested asks the slow lane to extract a file
+// version's text into documents.content_text.
+const TopicDocumentTextIndexRequested = "document.text_index_requested"
+
+// insertFileVersion inserts a file version and requests its text index in the
+// caller's transaction; every file version goes through it.
+func insertFileVersion(ctx context.Context, q *db.Queries, actor Actor, params db.InsertDocumentVersionParams) (db.DocumentVersion, error) {
+	version, err := q.InsertDocumentVersion(ctx, params)
+	if err != nil {
+		return db.DocumentVersion{}, err
+	}
+	if err := auditRecorder.Emit(ctx, q, actor, audit.Event{
+		Topic:          TopicDocumentTextIndexRequested,
+		OrganizationID: version.OrganizationID,
+		WorkspaceID:    version.WorkspaceID,
+		Payload: map[string]string{
+			"document_id": version.DocumentID, "version_id": version.ID,
+			"organization_id": version.OrganizationID, "workspace_id": version.WorkspaceID,
+		},
+	}); err != nil {
+		return db.DocumentVersion{}, err
+	}
+	return version, nil
+}
+
+// RequestFileTextIndex requests the text index of each row's current file
+// version in the caller's transaction, as the system actor of the
+// document-text-reindex command.
+func RequestFileTextIndex(ctx context.Context, q *db.Queries, rows []db.ListFileDocumentsForTextIndexRow) error {
+	actor := audit.System("document-text-reindex")
+	for _, d := range rows {
+		if err := auditRecorder.Emit(ctx, q, actor, audit.Event{
+			Topic:          TopicDocumentTextIndexRequested,
+			OrganizationID: d.OrganizationID,
+			WorkspaceID:    d.WorkspaceID,
+			Payload: map[string]string{
+				"document_id": d.ID, "version_id": d.FileVersionID.String,
+				"organization_id": d.OrganizationID, "workspace_id": d.WorkspaceID,
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // UploadDocumentAsset stores an image pasted into a page (C-01 §3.3 as

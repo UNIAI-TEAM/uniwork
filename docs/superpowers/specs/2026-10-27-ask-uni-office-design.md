@@ -1,6 +1,6 @@
 # UniWork — Hỏi UNI soạn tệp Office cùng AI trong trình soạn
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-27 (Q1–Q10); kế hoạch 1 (Phần 1a, shipped PR #486): `docs/superpowers/plans/2026-10-27-ask-uni-office-p1-read.md`, issue UNI-2224; kế hoạch 2 (Phần 2, trừ "Lưu từ khung chat" chuyển sang kế hoạch Phần 3; shipped PR #491): `docs/superpowers/plans/2026-10-27-ask-uni-office-p2-templates.md`, issue UNI-2225; kế hoạch 3 (Phần 3 và "Lưu từ khung chat"; gói giao việc và nhãn "Mở và soạn" chuyển sang Phần 4): `docs/superpowers/plans/2026-10-28-ask-uni-office-p3-create.md`, issue UNI-2261, shipped PR #498; kế hoạch 4 (Phần 4, gồm nhãn "Mở và soạn", kiểm AI trong trình soạn và tư liệu chuyển từ Phần 3; hai repo, cần một bản phát hành fork): `docs/superpowers/plans/2026-10-28-ask-uni-office-p4-handoff.md`, issue UNI-2264, shipped PR #510; kế hoạch 5 (Phần 5: route viết cho UniWork AI, dựng deck trên web; hai repo, cần một bản phát hành fork): `docs/superpowers/plans/2026-10-28-ask-uni-office-p5-writer.md`, issue UNI-2276, đã triển khai, chờ PR; Phần 1b, 1c và Phần 6 chưa có kế hoạch.
+> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-27 (Q1–Q10); kế hoạch 1 (Phần 1a, shipped PR #486): `docs/superpowers/plans/2026-10-27-ask-uni-office-p1-read.md`, issue UNI-2224; kế hoạch 2 (Phần 2, trừ "Lưu từ khung chat" chuyển sang kế hoạch Phần 3; shipped PR #491): `docs/superpowers/plans/2026-10-27-ask-uni-office-p2-templates.md`, issue UNI-2225; kế hoạch 3 (Phần 3 và "Lưu từ khung chat"; gói giao việc và nhãn "Mở và soạn" chuyển sang Phần 4): `docs/superpowers/plans/2026-10-28-ask-uni-office-p3-create.md`, issue UNI-2261, shipped PR #498; kế hoạch 4 (Phần 4, gồm nhãn "Mở và soạn", kiểm AI trong trình soạn và tư liệu chuyển từ Phần 3; hai repo, cần một bản phát hành fork): `docs/superpowers/plans/2026-10-28-ask-uni-office-p4-handoff.md`, issue UNI-2264, shipped PR #510; kế hoạch 5 (Phần 5: route viết cho UniWork AI, dựng deck trên web; hai repo, cần một bản phát hành fork): `docs/superpowers/plans/2026-10-28-ask-uni-office-p5-writer.md`, issue UNI-2276, shipped PR #516; kế hoạch 6 (Phần 6: cờ `ask_uni_office`, eval offline, checklist lên production): `docs/superpowers/plans/2026-10-30-ask-uni-office-p6-production.md`, issue UNI-2304, shipped PR #532; G6-D2 và eval sống chờ chủ sản phẩm; kế hoạch 7 (Phần 1b: tìm theo nội dung tệp): `docs/superpowers/plans/2026-10-30-ask-uni-office-p7-content-search.md`, issue UNI-2305, shipped PR #535; kế hoạch 8 (Phần 1c: tệp đính kèm ở module khác, và đọc chữ PDF qua Office engine): `docs/superpowers/plans/2026-10-30-ask-uni-office-p8-attachments-pdf.md`, issue UNI-2307, chủ sản phẩm duyệt 2026-10-30; đã triển khai trên nhánh, chờ PR.
 
 **Nguồn quyết định:** trao đổi với chủ sản phẩm ngày 2026-10-27 (phiên brainstorm sau báo cáo
 `docs/ask-uni-documents-assessment.md`). Mọi số dòng `file:line` của repo này theo `develop` tại `b1dcd6152`; của fork
@@ -112,9 +112,10 @@ Sáu phần, làm theo thứ tự; phần 1 và 2 độc lập với nhau.
 ### Phần 1 — Hỏi UNI đọc tệp Office và duyệt thư mục
 
 - **Đọc nội dung tệp.** `get_document` (`askuni_agent_tools.go:183`, `agentGetDocument` `:515-536`) gọi
-  `McpToolService.GetDocument` (`mcp_tools_documents.go:182-224`). Với DOCX/XLSX/PPTX/ODT/CSV/PDF, đọc chữ bằng
-  `server/internal/attachtext` (`Extract` `attachtext.go:57`, `ReadPDF`) — bộ đọc file đính kèm đang dùng
-  (`askuni_file_plan.go:95-122`) — thay vì chỉ trả tên và loại. Cắt cùng trần 16.000 ký tự và dòng báo cắt hiện có
+  `McpToolService.GetDocument` (`mcp_tools_documents.go:182-224`). Với DOCX/XLSX/PPTX/ODT/CSV, đọc chữ bằng
+  `server/internal/attachtext` (`Extract` `attachtext.go:57`) — bộ đọc file đính kèm đang dùng
+  (`askuni_file_plan.go:95-122`) — thay vì chỉ trả tên và loại. PDF thì Office engine đọc lớp chữ (pdfium,
+  `extract_text:pdf`), vì `attachtext.ReadPDF` chỉ đếm và cắt trang chứ không lấy chữ (ruling P1 của kế hoạch 8). Cắt cùng trần 16.000 ký tự và dòng báo cắt hiện có
   (`mcp_tools.go:79-82`); ghi `download` vào nhật ký truy cập như tệp văn bản (`mcp_tools_documents.go:230`).
 - **Duyệt thư mục.** Đăng ký công cụ đọc `list_documents` cho Hỏi UNI, dùng lại `ListDocuments`
   (`mcp_tools_documents.go:244`).

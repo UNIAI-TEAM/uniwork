@@ -27,8 +27,8 @@ import (
 //
 // Free queries never see work-product-owned documents (owner_id IS NULL in
 // every predicate); owned search belongs to the owner service (§13.6). A
-// file document's search_text is its metadata only - the file text index
-// accepts a verified extractor result and nothing else writes the column.
+// file document's search_text is its metadata plus the text the indexer
+// extracted from its current version (empty until it runs).
 
 const (
 	defaultDocumentListPage = 50
@@ -258,8 +258,8 @@ type DocumentPathItem struct {
 }
 
 // DocumentListItem is one result row. Snippet is a short excerpt of
-// content_text when Query matched, empty otherwise (and always empty for
-// file documents - only metadata is searched).
+// content_text when Query matched, empty otherwise (and empty for file
+// documents until the indexer has filled content_text).
 type DocumentListItem struct {
 	Document db.Document
 	Snippet  string
@@ -798,7 +798,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 				}
 				break
 			}
-			item := DocumentListItem{Document: listRowDocument(r), Snippet: r.Snippet}
+			item := DocumentListItem{Document: listRowDocument(r), Snippet: snippetFor(r, in.Query, matchTitle)}
 			if r.FavoritedAt.Valid {
 				at := r.FavoritedAt.Time.UTC()
 				item.FavoritedAt = &at
@@ -1106,4 +1106,11 @@ func listRowDocument(r db.ListDocumentsPageRow) db.Document {
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		TemplateMarkedAt: r.TemplateMarkedAt, TemplateMarkedBy: r.TemplateMarkedBy, TemplateMarkedByKind: r.TemplateMarkedByKind,
 	}
+}
+
+func snippetFor(r db.ListDocumentsPageRow, query string, matchTitle bool) string {
+	if matchTitle {
+		return r.Snippet
+	}
+	return matchSnippet(r.ContentText, query, r.Snippet)
 }

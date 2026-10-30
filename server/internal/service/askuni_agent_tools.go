@@ -180,7 +180,7 @@ func (s *AskUNIService) agentTools() []agentTool {
 			}, s.needsReads(s.agentListProjects)),
 		readTool("get_project", "One project with its description; its first 20 tasks follow as their own sources.",
 			map[string]agentProp{"project_id": strArg("The project's id.")}, s.needsReads(s.agentGetProject)),
-		readTool("get_document", "One document: a page as Markdown; a text file's text; a docx, xlsx, pptx, odt or csv file's text read paragraph by paragraph, slide by slide or row by row (no formatting); any other file's name and type.",
+		readTool("get_document", "One document: a page as Markdown; a text file's text; a docx, xlsx, pptx, odt or csv file's text read paragraph by paragraph, slide by slide or row by row (no formatting); a pdf's text layer page by page (a scan has none); any other file's name and type.",
 			map[string]agentProp{"document_id": strArg("The document's id.")}, s.needsReads(s.agentGetDocument)),
 		readTool("list_documents", "Pages, files and folders directly under one folder or page of the workspace (the top level when parent_id is \"\"), in the order of the document tree, 50 at a time. Use it to browse a folder; open a row with get_document.",
 			map[string]agentProp{
@@ -192,6 +192,8 @@ func (s *AskUNIService) agentTools() []agentTool {
 				"format": strArg("docx, xlsx, pptx, pdf, md or html; an empty string lists every format"),
 				"cursor": strArg("The cursor a previous list_templates call gave; \"\" for the first page."),
 			}, s.needsReads(s.agentListTemplates)),
+		s.listAttachmentsTool(),
+		s.getAttachmentTool(),
 		readTool("list_chat_rooms", "Chat rooms the user belongs to in the workspace: name, type and last activity.", nil, s.agentListChatRooms),
 		readTool("read_chat_room", "The latest 30 messages of one chat room the user may read.",
 			map[string]agentProp{

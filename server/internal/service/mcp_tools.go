@@ -31,6 +31,7 @@ type McpToolService struct {
 	docs     *DocumentService // nil until SetDocuments; the document tools then say so
 	flags    McpFlags         // nil until SetFlags; the documents flag then reads as off
 	frontend string
+	pdf      DriveOfficeExtractor // nil until SetPDFText; a PDF then reads as its name and type
 }
 
 func NewMcpToolService(q *db.Queries, ask *AskUNIService, home *HomeService, ws *WorkspaceService, frontendOrigin string) *McpToolService {

@@ -107,7 +107,7 @@ export const convertResultSchema = z.object({
 });
 export type ConvertResult = z.infer<typeof convertResultSchema>;
 
-export const extractTextFormats = ["docx", "xlsx", "pptx"] as const;
+export const extractTextFormats = ["docx", "xlsx", "pptx", "pdf"] as const;
 export const extractTextFormatSchema = z.enum(extractTextFormats);
 export type ExtractTextFormat = (typeof extractTextFormats)[number];
 

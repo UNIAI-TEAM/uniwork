@@ -359,6 +359,22 @@
           "c44c18b815124d7ab07c67738c5ea5d4780524ef4": "UniChat app on iPhone: the Contacts tab no longer switches to an error screen when the list grows, such as when members finish loading, when you clear the search box or tap the tab again.",
           "c0dbacfcab7bbd460800710cbc7a65d7ee6fd100b": "Sign in with Apple: Apple's new hidden email addresses (ending in @private.icloud.com) are recognized like the older hidden addresses, so Settings correctly shows them as Apple hidden email and the Apple linking rules apply correctly."
         }
+      },
+      "v1_14_0": {
+        "title": "Find files by their content in Documents and Ask UNI, Office editor AI runs only on UniWork AI, link guests get into meetings faster",
+        "summary": "The Documents search box and Ask UNI now find Word, Excel, PowerPoint and text files by the words inside them, with a snippet around the match. AI in the Office editor on the web runs only on UniWork AI; the option to use the organization's own AI key has been removed. Ask UNI drafting Office files has its own switch for each organization. Guests joining a meeting by link no longer wait long after the host admits them.",
+        "note": "Content search reads only the first 20,000 characters of each file and doesn't yet cover PDF, HTML, images, video or files larger than 20 MiB; files that already existed are found by their content only after they have been re-indexed. Ask UNI drafting Office files is off by default until UniWork turns it on for your organization. The desktop app still accepts an AI key you enter yourself.",
+        "features": {
+          "c19f5e9f57b705db4e4f60e308c6fc31127c771a3": "Documents: the search box and Ask UNI now find files by the text inside DOCX, XLSX, PPTX, ODT, CSV, Markdown and TXT files. Results show a short snippet around the match so you can see why a file was found, even when the matching words are deep inside the file. Restricted files you can't read still don't reveal their content in results."
+        },
+        "improvements": {
+          "ce90cc8c27246adc34dfb30501bdcd000ece46e03": "AI in the Office editor on the web now runs only on UniWork AI: the option to use the organization's own AI key (BYOK) has been removed, along with any saved keys. Web search, image search and image generation in the editor follow the organization's access to UniWork AI. The desktop app still accepts an AI key you enter yourself, and the privacy page explains that content is then sent straight to the AI provider.",
+          "cc8edec27b62389b94f9fff325c6ab7258fab8545": "Ask UNI drafting Office files has its own switch, off by default, which UniWork turns on for each organization. While it's off, Ask UNI doesn't offer to draft files, and applying existing drafting suggestions, including within a plan or in Auto mode, is refused with a clear message instead of being applied partway. Reading attached files and the Templates section are not affected."
+        },
+        "fixes": {
+          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Meetings: guests joining by invite link no longer wait, sometimes close to a minute, after the host chooses Admit; they're taken into the room shortly after being approved.",
+          "c349c27ed4d2af0ef189b6068697bec45b43a0c59": "Chat: typing an email address such as name@gmail.com no longer opens the @mention suggestions; typing @ followed by a person's name still shows suggestions as before."
+        }
       }
     }
   },
@@ -1437,7 +1453,6 @@
         "storage_bytes": "Storage",
         "sso_oidc": "SSO sign-in (OIDC)",
         "documents_public_links": "Public links for documents",
-        "office_ai_byok": "Office AI with your own key",
         "office_ai_cloud": "Office cloud AI tools"
       },
       "errors": {
@@ -8609,6 +8624,7 @@
         "proposal_expired": "This proposal has expired. Ask UNI again.",
         "proposal_ref_pending": "This step uses the result of an earlier step that is not applied yet. Apply that step first.",
         "proposal_not_pending": "This proposal was already handled, perhaps in another tab.",
+        "ask_uni_office_off": "Ask UNI cannot draft Office files in this organization yet. Ask your organization's admin to contact UniWork.",
         "ai_actions_disabled": "Ask UNI actions are switched off. Ask an organization admin to turn them on.",
         "ai_write_rate_limited": "Too many changes at once. Wait a minute and try again.",
         "undo_unavailable": "Cannot undo: someone changed it afterwards.",
@@ -11591,7 +11607,6 @@
           "meeting_ai_summary": "AI meeting summaries",
           "documents_public_links": "Public links for documents",
           "meeting_transcription": "Meeting transcription minutes",
-          "office_ai_byok": "Office AI with your own key",
           "office_ai_cloud": "Office cloud AI tools"
         }
       }
@@ -11703,7 +11718,7 @@
       "pillar3Title": "Work Products are the real output",
       "pillar3Desc": "Create, edit, approve, analyse and present right where the work that produced them lives.",
       "pillar4Title": "Deploy it your way",
-      "pillar4Desc": "Cloud, private cloud, on-premise and BYOK, built for companies and public bodies in Vietnam.",
+      "pillar4Desc": "Cloud, private cloud and on-premise, built for companies and public bodies in Vietnam.",
       "ms365": {
         "name": "Microsoft 365",
         "tagline": "The productivity powerhouse",
@@ -12264,7 +12279,7 @@
         "demo": "See the six editors",
         "unavailable": "The installers are being prepared. Meanwhile you can still open and edit Office files on the web, in Documents.",
         "trustAccount": "Uses your UniWork account",
-        "trustAi": "AI through your UniWork plan or your own key",
+        "trustAi": "AI runs on UniWork AI and counts against your plan's credits",
         "trustOffline": "Edit files on your computer without a connection; cloud AI and UniWork documents need one"
       },
       "editors": {
@@ -12358,7 +12373,7 @@
         "sub": "UniOffice shares its account and permissions with UniWork, so your team's files keep following your organization's access rules.",
         "account": {
           "title": "AI through your UniWork account",
-          "description": "Cloud AI tools run through UniWork under your organization’s configuration and plan. On the web, requests using your own API key still pass through UniWork to your chosen provider. Desktop has its own configuration; check the application before sending content."
+          "description": "Cloud AI tools run on UniWork AI under your organization’s configuration and plan, and count against the plan’s credits. Desktop has its own configuration; check the application before sending content."
         },
         "files": {
           "title": "Team files are saved in the workspace",
@@ -12375,7 +12390,7 @@
         },
         "ai": {
           "title": "AI on your terms",
-          "description": "Use your organization's plan or your own API key."
+          "description": "Runs on UniWork AI and counts against your plan's credits."
         },
         "permissions": {
           "title": "Consistent access",
@@ -12404,7 +12419,7 @@
         "q3": "Does it work offline?",
         "a3": "You can edit files on your computer without a connection. Cloud AI and UniWork documents (opening from the workspace, saving a new version) need one.",
         "q4": "How is my data handled?",
-        "a4": "Files you save to the workspace live in the UniWork workspace under your organization's permissions; files stored on your computer stay on your computer. When you use AI, the content to work on is sent to the model provider: through UniWork for tools that run under your organization's plan, or straight from your computer if you use your own API key.",
+        "a4": "Files you save to the workspace live in the UniWork workspace under your organization's permissions; files stored on your computer stay on your computer. When you use AI, the UniWork server sends the content to work on to the model provider, under your organization's plan. If you enter your own AI key in the desktop app, content goes from your computer straight to that provider.",
         "q5": "Do I need a separate account for Office?",
         "a5": "No. You sign in with your UniWork account, with the same permissions and workspaces as on the web.",
         "q6": "How do I open a file from UniWork on the web?",

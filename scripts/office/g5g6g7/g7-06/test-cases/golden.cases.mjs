@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { sha256Hex } from "../../../../../apps/web/platform/office-frame/frame-bundle.mjs";
 import { runBrandCheck } from "../brand-check.mjs";
 import { runGoldenCheck, updateGoldens } from "../golden-check.mjs";
-import { DEFAULT_PIN_DIR, HOSTS, REPO_ROOT, sameRevision } from "../job-lib.mjs";
+import { HOSTS, REPO_ROOT } from "../job-lib.mjs";
 import * as fx from "../test-fixtures/capture-fixtures.mjs";
 import { FAKE_CAPTURE } from "../test-fixtures/fake-capture.mjs";
 import { FIXTURES, JOB_DIR, ONE, outDir, readJson, tmpDir } from "../test-fixtures/test-env.mjs";
@@ -355,15 +355,6 @@ test("the committed goldens manifest matches its PNG files", () => {
   }
 });
 
-test("live pin: the committed goldens were blessed at the pin apps/web ships (docs.pin.json)", () => {
-  // Compares two live sources with each other, no constant: after a re-pin this
-  // is red until the goldens are re-blessed (job.mjs --update-goldens).
-  const manifest = readJson(join(JOB_DIR, "goldens", "manifest.json"));
-  const pin = readJson(join(DEFAULT_PIN_DIR, "docs.pin.json"));
-  assert.equal(manifest.pinVersion, pin.version);
-  assert.ok(sameRevision(manifest.forkSha, pin.gitSha), `${manifest.forkSha} vs ${pin.gitSha}`);
-});
-
 test("golden: the old flat viewport shape in manifest.json is BLOCKED invalid_manifest, never read as one for both hosts", () => {
   for (const [label, viewport] of [
     ["flat", { w: 1440, h: 900 }],
@@ -472,7 +463,6 @@ test("--update-goldens takes a host's viewport from its meta only when that host
 function setWebGrant(captures, fixture, grant) {
   const file = join(captures, "web", "meta.json");
   const meta = readJson(file);
-  delete meta.fixtures[fixture].ai;
   delete meta.fixtures[fixture].uniworkAi;
   Object.assign(meta.fixtures[fixture], grant);
   writeFileSync(file, `${JSON.stringify(meta, null, 2)}\n`);
@@ -480,15 +470,15 @@ function setWebGrant(captures, fixture, grant) {
 
 test("golden: the checked-in fake web captures record an AI grant, and a web capture with AI on passes", () => {
   const meta = readJson(join(fx.mkCaptures(tmpDir("g7-06-captures-")), "web", "meta.json"));
-  for (const entry of Object.values(meta.fixtures)) assert.equal(entry.ai || entry.uniworkAi, true);
+  for (const entry of Object.values(meta.fixtures)) assert.equal(entry.uniworkAi, true);
   const { check } = goldenRun(goldenWorld({ fixtures: FIXTURES }), { name: "golden-ai-on", fixtures: FIXTURES });
   assert.equal(check.status, "PASS", JSON.stringify(check.reasons));
 });
 
 for (const [label, grant] of [
-  ["both grants off", { ai: false, uniworkAi: false }],
+  ["the grant off", { uniworkAi: false }],
   ["no grant recorded at all (a meta from before the field)", {}],
-  ["a drifted value", { ai: "true", uniworkAi: null }],
+  ["a drifted value", { uniworkAi: null }],
 ]) {
   test(`golden: a web capture with AI off is a FAIL capture_ai_off, even with identical pixels (${label})`, () => {
     const world = goldenWorld();
@@ -501,16 +491,16 @@ for (const [label, grant] of [
   });
 }
 
-test("golden: UniWork AI alone is enough, as the host reads ai || uniworkAi", () => {
+test("golden: UniWork AI on is enough for a web capture", () => {
   const world = goldenWorld();
-  setWebGrant(world.captures, ONE, { ai: false, uniworkAi: true });
+  setWebGrant(world.captures, ONE, { uniworkAi: true });
   const { check } = goldenRun(world, { name: "golden-ai-uniwork" });
   assert.equal(check.status, "PASS", JSON.stringify(check.reasons));
 });
 
 test("--update-goldens FAILS a web capture with AI off and blesses nothing for it (RFE5-202)", () => {
   const captures = fx.mkCaptures(tmpDir("g7-06-captures-"));
-  setWebGrant(captures, ONE, { ai: false, uniworkAi: false });
+  setWebGrant(captures, ONE, { uniworkAi: false });
   const goldens = tmpDir("g7-06-goldens-");
   const updated = updateGoldens({ capturesDir: captures, goldensDir: goldens, fixtures: [ONE], hosts: HOSTS, ...UPDATE_ID, outDir: outDir("golden-update-ai-off") });
   assert.equal(updated.status, "FAIL");

@@ -3,6 +3,11 @@
 > **Trạng thái:** in-progress — spec v1.2 bàn giao (đã duyệt 2026-10-12, U-13; gate còn mở ở §13.1; triển khai bằng cook-plan theo U-14), ngày 2026-10-12 (v1.1 ngày 2026-10-11, v1.0 ngày 2026-10-02). U-14 (2026-10-12) thay U-10:
 > phiên Advisor của UNI-923 triển khai G5/G6/G7 theo plan v2.6. v1.2 bỏ Dify khỏi phạm vi (U-12). Triển khai bắt đầu 2026-10-12 (U-14); chưa cấu hình upstream model production, chưa nghiệm thu sản phẩm.
 
+> **Ghi chú (2026-10-29):** [ADR 0051](../../adr/0051-ai-chi-chay-bang-uniwork-ai-go-byok.md) gỡ BYOK khỏi khung web,
+> kho khóa trên UniWork và máy chủ (spec `2026-10-27-remove-byok-design.md`). Mọi chỗ dưới đây nói BYOK của web còn chạy,
+> "BYOK vẫn chạy" khi UniWork AI lỗi, hay grant `ai` của khung, là lịch sử: UniWork AI là đường AI duy nhất của trình
+> soạn và không còn AI dự phòng. Khóa trên máy và CLI của app desktop (ADR 0028 QĐ2) còn tới kế hoạch 2 của ADR 0051.
+
 **Issue tài liệu:** UNI-923, parent UNI-437; Roadmap C-01, liên quan C-15/C-16.
 **Issue triển khai:** G5 UNI-660 · G6 UNI-635 · G7 UNI-661 (đội nhận bàn giao giữ các issue này).
 **Phạm vi tài liệu:** một phase với ba luồng song song và các mốc bàn giao; không hợp nhất ba issue thành một.

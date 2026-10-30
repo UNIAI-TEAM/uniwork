@@ -5,7 +5,7 @@
 ## Triệu chứng
 
 - Alert `UniworkAiModelErrors`: trên 10 % lượt gọi model của capability `office_uniwork_ai` và `office_uniwork_writer` (route viết, UNI-2276) kết thúc `failed` trong 10 phút (`uniwork_ai_calls_total{capability=~"office_uniwork_ai|office_uniwork_writer"}`), với ít nhất 20 lượt.
-- Người dùng thấy trợ lý UniWork AI báo lỗi hoặc timeout (`ai_provider_error`, `ai_provider_timeout`). Editor, Lưu, BYOK và đồng bộ không bị ảnh hưởng (spec §8.3).
+- Người dùng thấy trợ lý UniWork AI báo lỗi hoặc timeout (`ai_provider_error`, `ai_provider_timeout`). Editor, Lưu và đồng bộ không bị ảnh hưởng (spec §8.3), nhưng trình soạn không còn AI dự phòng: từ ADR 0051 không có BYOK, nên trong lúc UniWork AI lỗi người dùng không có AI nào trong trình soạn.
 
 ## Kiểm tra
 
@@ -19,7 +19,7 @@
 
 - Upstream sập: UniWork AI tự báo không khả dụng, không fallback âm thầm sang nhà cung cấp khác. Chuyển upstream theo mục "Upstream model: sập và đổi" trong [`docs/ops/RUNBOOK_OFFICE_SYNC.md`](../ops/RUNBOOK_OFFICE_SYNC.md).
 - Model sai: sửa `AI_MODEL_OFFICE_UNIWORK_AI` về model trong allowlist, restart.
-- Cần dừng ngay: tắt flag `office_ai_uniwork` (kill switch, không ảnh hưởng BYOK).
+- Cần dừng ngay: tắt flag `office_ai_uniwork` (kill switch). Tắt là tắt mọi AI của trình soạn, vì không còn đường AI nào khác (ADR 0051); editor và Lưu vẫn chạy.
 
 ## Leo thang
 

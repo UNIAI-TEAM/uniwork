@@ -138,7 +138,6 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 	adminSvc.SetOrganizationDeletionQueue(privacy)
 	adminSvc.SetSystemSources(readiness, nil, nil)
 	ents := service.NewEntitlementService(pool, q)
-	aiCredentials := service.NewAICredentialService(pool, q, orgs, ents, testEmailHubSecretBox(t))
 	sealer, err := auth.NewSecretSealer(minter.Secret)
 	if err != nil {
 		t.Fatal(err)
@@ -185,9 +184,7 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Notifications: notification.NewService(q, notification.PushConfig{}),
 		AskUNI:        service.NewAskUNIService(pool, q, ws, orgs, tasks, meetingSvc, chatSvc, gateway, nil),
 		Signatures:    service.NewSignatureService(pool, q, orgs),
-		AICredentials: aiCredentials,
 		// Wired so a non-member meets the membership refusal, not "not configured".
-		AIBYOK:  service.NewAIBYOKService(orgs, ents, aiCredentials, gateway),
 		AICloud: service.NewAICloudService(orgs, ents, gateway),
 	}
 	d.Graph = service.NewGraphService(q, orgs, ws, chatSvc)

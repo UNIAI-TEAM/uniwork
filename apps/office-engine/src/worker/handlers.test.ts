@@ -58,6 +58,7 @@ describe("handler table", () => {
       "export:docx",
       "export:page",
       "extract_text:docx",
+      "extract_text:pdf",
       "extract_text:pptx",
       "extract_text:xlsx",
       "open:pdf",
@@ -69,7 +70,7 @@ describe("handler table", () => {
     ]);
     expect(findHandler("serialize", "docx")).toBeUndefined();
     expect(findHandler("open", "md")).toBeUndefined();
-    expect(findHandler("extract_text", "pdf")).toBeUndefined();
+    expect(findHandler("extract_text", "md")).toBeUndefined();
   });
 
   it("convert refuses a missing payload, a missing target and an unbound pair", async () => {
@@ -137,6 +138,30 @@ describe("handler table", () => {
     xlsx: "../../../../docs/office/g0/fixtures/files/sheets/xlsx-vietnamese.xlsx",
     pptx: "../../../../docs/office/g0/fixtures/files/slides/pptx-notes.pptx",
   } as const;
+
+  it("extract_text:pdf returns the pages joined by form feed and maps password and corrupt files", async () => {
+    const pdfDir = "../../../../docs/office/g0/fixtures/files/pdf/";
+    const handler = findHandler("extract_text", "pdf")!;
+    const msg: RunMessage = { ...message, operation: "extract_text", format: "pdf" };
+    const run = async (name: string) => {
+      await writeFile(msg.inputPath!, await readFile(new URL(pdfDir + name, import.meta.url)));
+      return handler(msg);
+    };
+
+    const text = await run("pdf-text-editable.pdf");
+    expect(text).toMatchObject({ ok: true, result: { format: "pdf", truncated: false } });
+    const pages = (text as { result: { text: string } }).result.text.split("\f");
+    expect(pages).toHaveLength(2);
+    expect(pages[0]).toContain("Bao cao tong hop nam 2026");
+
+    const scanned = await run("pdf-scanned-page.pdf");
+    expect(scanned).toMatchObject({ ok: true, result: { format: "pdf", truncated: false } });
+    expect((scanned as { result: { text: string } }).result.text.split("\f").every((p) => p === "")).toBe(true);
+
+    expect(await run("pdf-password-4spaces.pdf")).toEqual({ ok: false, code: "engine_result_invalid", reason: "password_required" });
+    expect(await run("pdf-corrupt.pdf")).toEqual({ ok: false, code: "engine_result_invalid", reason: "corrupted" });
+    await expect(stat(msg.outputPath)).rejects.toThrow();
+  });
 
   it("extract_text returns exact inline result.text for docx, xlsx and pptx without writing output.bin and maps typed failure classes", async () => {
     for (const format of ["docx", "xlsx", "pptx"] as const) {

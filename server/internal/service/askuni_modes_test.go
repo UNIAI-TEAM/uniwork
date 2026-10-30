@@ -14,7 +14,7 @@ import (
 type actionsFlagFake struct{ on bool }
 
 func (f actionsFlagFake) IsEnabled(_ context.Context, key string, def bool) bool {
-	if key == askActionsFlag {
+	if key == askActionsFlag || key == askOfficeFlag { // the Office tools ride with the actions here
 		return f.on
 	}
 	return def

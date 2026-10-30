@@ -334,12 +334,6 @@ const (
 	ActionSignatureCreated = "signature.created"
 	ActionSignatureDeleted = "signature.deleted"
 
-	// Personal AI provider credentials (UNI-1008, ADR 0029). Only the owner's
-	// own settings read them, so they audit without an outbox event; the
-	// metadata names the provider, never the key.
-	ActionAICredentialSaved   = "ai.credential.saved"
-	ActionAICredentialDeleted = "ai.credential.deleted"
-
 	// Email Hub (UNI-1237): the owner connects (or reconnects) a mailbox and
 	// disconnects one (cache dropped);
 	// a mailbox whose provider refused its credential is marked needs-reconnect

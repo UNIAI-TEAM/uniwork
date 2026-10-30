@@ -56,7 +56,7 @@ const vi: GuideContent = {
     { title: "UniOffice", paragraphs: [
       "UniOffice cho máy tính mở và lưu tệp ngay trên máy của bạn. Tệp trên máy chỉ được tải lên UniWork khi bạn chọn lưu nó vào một workspace; khi đó mỗi lần lưu tạo một phiên bản mới thay vì ghi đè. Bạn đăng nhập qua trình duyệt, và có thể xem hoặc thu hồi từng máy đã đăng nhập.",
       "Khi bạn mở hoặc xuất PDF, bảng tính hay định dạng cũ trên web, tệp được xử lý trên máy chủ chuyển đổi của chúng tôi trong cùng hạ tầng. Tệp chỉ nằm trong bộ nhớ tạm của lượt xử lý, bị xóa ngay khi xong và không được gửi cho bên thứ ba.",
-      "Khóa API AI riêng: khóa bạn lưu trên UniWork được mã hóa và không bao giờ gửi về trình duyệt hay máy tính; yêu cầu đi qua máy chủ UniWork tới nhà cung cấp bạn chọn, và chúng tôi chỉ ghi số liệu sử dụng (nhà cung cấp, mô hình, số token), không ghi nội dung. Khóa bạn nhập trực tiếp trong UniOffice cho máy tính được lưu trên máy đó và ứng dụng gọi thẳng nhà cung cấp; UniWork không thấy khóa hay nội dung. Trong cả hai trường hợp, nội dung được xử lý theo điều khoản của nhà cung cấp bạn chọn, có thể ở ngoài Việt Nam.",
+      "Khi bạn nhập khóa API AI trực tiếp trong UniOffice cho máy tính, khóa được lưu trên máy đó và ứng dụng gọi thẳng nhà cung cấp; UniWork không nhận khóa hay nội dung. Nội dung được xử lý theo điều khoản của nhà cung cấp bạn chọn, có thể ở ngoài Việt Nam.",
       "Liên kết chia sẻ công khai chỉ cho xem, hết hạn sau 7 ngày theo mặc định (tối đa 90 ngày) và có thể thu hồi; lượt xem được đếm mà không ghi địa chỉ của người xem. Máy chủ MCP cục bộ của UniOffice cho máy tính mặc định tắt; khi bạn bật, các chương trình trên cùng máy tính có thể điều khiển tài liệu đang mở.",
     ] },
     { id: "google-drive", title: "Google Drive", paragraphs: [
@@ -91,7 +91,7 @@ const vi: GuideContent = {
       "Với nội dung thuộc workspace của tổ chức, chúng tôi có thể chuyển yêu cầu tới quản trị viên của tổ chức đó, vì họ quản lý nội dung này.",
     ] },
     { title: "Bảo mật", paragraphs: [
-      "Dữ liệu được mã hóa khi truyền (HTTPS, WSS). Mật khẩu chỉ lưu dạng băm; khóa xác thực hai lớp, khóa API AI riêng và lịch sử hội thoại AI được mã hóa khi lưu. Quyền truy cập được kiểm tra theo tổ chức và workspace ở mọi yêu cầu, và mọi thay đổi dữ liệu được ghi vào nhật ký hoạt động không sửa được.",
+      "Dữ liệu được mã hóa khi truyền (HTTPS, WSS). Mật khẩu chỉ lưu dạng băm; khóa xác thực hai lớp và lịch sử hội thoại AI được mã hóa khi lưu. Quyền truy cập được kiểm tra theo tổ chức và workspace ở mọi yêu cầu, và mọi thay đổi dữ liệu được ghi vào nhật ký hoạt động không sửa được.",
       "Ứng dụng UniChat trên Android và iPhone giữ một bản trên điện thoại để dùng được khi mất mạng: danh sách cuộc trò chuyện, số tin chưa đọc, danh bạ của workspace, các tin mới nhất của những cuộc trò chuyện gần đây, và tin, lượt đọc, biểu cảm, bình chọn bạn đã gửi khi chưa có mạng. Bản này được mã hóa trên máy bằng khóa giữ trong Keychain hoặc Keystore của điện thoại; khóa không rời máy nên bản sao lưu hay máy khác không đọc được bản này. Ảnh và tệp chờ gửi nằm trong thư mục riêng của ứng dụng và bị xóa khi đã gửi. Mọi thứ bị xóa khi bạn đăng xuất hoặc xóa tài khoản.",
     ] },
     { title: "Độ tuổi", paragraphs: [
@@ -150,7 +150,7 @@ const en: GuideContent = {
     { title: "UniOffice", paragraphs: [
       "UniOffice for desktop opens and saves files on your computer. A local file is uploaded to UniWork only when you choose to save it to a workspace; each save then creates a new version instead of overwriting the last one. You sign in through your browser and can review or revoke each signed-in computer.",
       "When you open or export a PDF, spreadsheet or legacy format on the web, the file is processed by our conversion server in the same infrastructure. The file exists only in the job's temporary storage, is deleted as soon as the job ends and is not sent to any third party.",
-      "Your own AI API key: a key you save on UniWork is encrypted and never sent back to a browser or computer; requests pass through the UniWork server to the provider you chose, and we record only usage figures (provider, model, token counts), never content. A key you enter directly in UniOffice for desktop is stored on that computer and the app calls the provider directly; UniWork sees neither the key nor the content. Either way, content is processed under the terms of the provider you chose, which may be outside Vietnam.",
+      "If you enter an AI API key directly in UniOffice for desktop, the key is stored on that computer and the app calls the provider directly; UniWork receives neither the key nor the content. The content is processed under the terms of the provider you chose, which may be outside Vietnam.",
       "Public share links are view-only, expire after 7 days by default (90 at most) and can be revoked; views are counted without recording the viewer's address. UniOffice for desktop's local MCP server is off by default; once you turn it on, programs on the same computer can control the open document.",
     ] },
     { id: "google-drive", title: "Google Drive", paragraphs: [
@@ -185,7 +185,7 @@ const en: GuideContent = {
       "For content that belongs to an organization's workspace, we may refer your request to that organization's administrators, since they manage it.",
     ] },
     { title: "Security", paragraphs: [
-      "Data is encrypted in transit (HTTPS, WSS). Passwords are stored only as hashes; two-factor secrets, your own AI API keys and AI conversation history are encrypted at rest. Access is checked against the organization and workspace on every request, and every data change is written to an activity log that cannot be altered.",
+      "Data is encrypted in transit (HTTPS, WSS). Passwords are stored only as hashes; two-factor secrets and AI conversation history are encrypted at rest. Access is checked against the organization and workspace on every request, and every data change is written to an activity log that cannot be altered.",
       "The UniChat apps for Android and iPhone keep a copy on the phone so they work without a connection: your conversation list, unread counts, the workspace's people, the latest messages of recent conversations, and the messages, reads, reactions and votes you made while offline. That copy is encrypted on the phone with a key held in the phone's Keychain or Keystore; the key never leaves the phone, so a backup or another device cannot read the copy. Photos and files waiting to be sent sit in the app's private folder and are deleted once sent. All of it is erased when you sign out or delete your account.",
     ] },
     { title: "Age", paragraphs: [

@@ -225,6 +225,10 @@ test("the production build is verified, built from a main tag once, proved in Se
   assert.match(wf, /eas build --platform android --profile production --non-interactive --wait --json/);
   // The binary built is the binary submitted: by its EAS build id, to the production app's internal track.
   assert.match(wf, /eas submit --platform android --profile production-internal --id "\$BUILD_ID" --non-interactive --wait/);
+  // A submit profile has no env, so app.config.ts would read as the dev app and eas would look up the Play key of
+  // com.uniworkos.chat.dev: 0.4.0 (13) was refused that way.
+  const submit = wf.split("- name: Submit this binary to the production app's internal track")[1]?.split(/^ {6}- /m)[0] ?? "";
+  assert.match(submit, /^ {10}UNICHAT_ENV: production$/m, "the submit reads the production app's config");
   assert.doesNotMatch(wf, /--auto-submit/, "no second build behind a submit");
   const eas = JSON.parse(fs.readFileSync(path.join(root, "apps/chat-mobile/eas.json"), "utf8"));
   assert.deepEqual(eas.submit["production-internal"], { android: { track: "internal" } });

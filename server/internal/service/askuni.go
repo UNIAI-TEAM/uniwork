@@ -40,8 +40,9 @@ type AskUNIService struct {
 	flags    McpFlags
 	drive    DriveContentReader
 	memory   *AiMemoryService
-	files    files.Service   // nil until SetFiles; Ask UNI attachments read as off without it
-	reads    *McpToolService // nil until SetReadTools; the agent's tools read through it
+	files    files.Service          // nil until SetFiles; Ask UNI attachments read as off without it
+	reads    *McpToolService        // nil until SetReadTools; the agent's tools read through it
+	sources  *DocumentSourceService // nil until SetDocumentSources; list_attachments and get_attachment read through it
 	gw       *ai.Gateway
 	ent      *EntitlementService
 	rdb      *redis.Client
@@ -92,6 +93,10 @@ func (s *AskUNIService) SetMemory(m *AiMemoryService) { s.memory = m }
 // SetReadTools wires the MCP connector's read methods, which the agent's tools
 // call as the asker (set from main after construction).
 func (s *AskUNIService) SetReadTools(m *McpToolService) { s.reads = m }
+
+// SetDocumentSources wires the files of tasks, chat and email that
+// list_attachments and get_attachment read, each under its own module's gate.
+func (s *AskUNIService) SetDocumentSources(d *DocumentSourceService) { s.sources = d }
 
 // taskRow is what the source reader renders; it is the sqlc row.
 type taskRow = db.Task

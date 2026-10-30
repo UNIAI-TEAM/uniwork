@@ -304,7 +304,7 @@ func registerAI(r api, h Routes) {
 		summary: "Apply an Ask UNI proposal",
 		description: "Áp dụng một dòng đề xuất của chính người hỏi (nút Áp dụng): chạy lệnh nghiệp vụ như người hỏi, ghi audit ai_proposal.applied. Bấm hai lần chỉ chạy một lần. " +
 			"Dòng của người khác hoặc không có -> 404 (không lộ dòng có tồn tại). Dòng không còn pending 409 proposal_not_pending, quá 24 giờ 409 proposal_expired, trỏ tới dòng chưa áp dụng 409 proposal_ref_pending, " +
-			"cờ ask_uni_actions tắt hoặc trần off 403 ai_actions_disabled, quá 30 dòng mỗi phút 429 ai_write_rate_limited. " +
+			"cờ ask_uni_actions tắt hoặc trần off 403 ai_actions_disabled, dòng soạn tệp Office khi cờ ask_uni_office tắt 403 ask_uni_office_off, quá 30 dòng mỗi phút 429 ai_write_rate_limited. " +
 			"Lệnh chạy nhưng bị từ chối (not_found, invalid_args, revision_conflict, lỗi của lệnh…) thì dòng thành failed và route trả 409 với mã đó, kèm chính dòng trong error.fields.proposal; " +
 			"khác với các từ chối trên, vốn không kèm dòng. Thành công trả 200 và dòng.",
 		tags: []string{"ai"},
@@ -339,6 +339,7 @@ func registerAI(r api, h Routes) {
 		summary: "Apply several Ask UNI proposals of an answer",
 		description: "Áp dụng các dòng được chọn của một câu trả lời (Áp dụng tất cả, hoặc duyệt kế hoạch), theo position; dừng ở dòng lỗi đầu tiên, các dòng chọn sau nó giữ pending. " +
 			"Chế độ Kế hoạch: dòng pending không được chọn chuyển rejected trong cùng lần gọi. Một dòng chọn trỏ tới dòng chưa chọn và chưa áp dụng thì 409 proposal_ref_pending trước khi chạy gì. " +
+			"Một dòng chọn là dòng soạn tệp Office khi cờ ask_uni_office tắt thì 403 ask_uni_office_off trước khi chạy gì. " +
 			"proposal_ids rỗng hoặc quá 10 -> 400; id không thuộc câu trả lời của chính người hỏi -> 404. Thành công trả mọi dòng của câu trả lời. " +
 			"Dừng vì lệnh bị từ chối thì 409 với mã của dòng lỗi, kèm mọi dòng của câu trả lời trong error.fields.proposals.",
 		tags: []string{"ai"},

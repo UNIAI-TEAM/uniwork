@@ -107,21 +107,25 @@ test('verifyRowFixtures passes on the canonical table and rejects unknown fixtur
   );
 });
 
-test('expandMatrixRuns produces 52 automated row-runs + 2 hitl Word runs with web runs ordered first', () => {
+test('the matrix has the UniWork provider only', () => {
+  assert.deepEqual([...PROVIDERS], ['uniwork']);
+});
+
+test('expandMatrixRuns produces 26 automated row-runs + 1 hitl Word run with web runs ordered first', () => {
   const runs = expandMatrixRuns();
   const automated = runs.filter((r) => r.mode === 'automated');
   const hitl = runs.filter((r) => r.mode === 'hitl');
 
-  assert.equal(automated.length, 52);
-  assert.equal(hitl.length, 2);
-  assert.equal(runs.length, 54);
+  assert.equal(automated.length, 26);
+  assert.equal(hitl.length, 1);
+  assert.equal(runs.length, 27);
 
   const runIds = runs.map((r) => r.runId);
-  assert.equal(new Set(runIds).size, 54, 'unique runIds');
+  assert.equal(new Set(runIds).size, 27, 'unique runIds');
 
-  // First 26 automated runs are web, next 26 are desktop (Advisor decision: web rows first).
-  assert.ok(automated.slice(0, 26).every((r) => r.host === 'web'));
-  assert.ok(automated.slice(26, 52).every((r) => r.host === 'desktop'));
+  // First 13 automated runs are web, next 13 are desktop (Advisor decision: web rows first).
+  assert.ok(automated.slice(0, 13).every((r) => r.host === 'web'));
+  assert.ok(automated.slice(13, 26).every((r) => r.host === 'desktop'));
 
   for (const provider of PROVIDERS) {
     for (const host of HOSTS) {
@@ -132,12 +136,12 @@ test('expandMatrixRuns produces 52 automated row-runs + 2 hitl Word runs with we
 
   assert.deepEqual(
     hitl.map((r) => r.runId),
-    ['D-W1:uniwork:web:hitl', 'D-W1:byok:web:hitl'],
+    ['D-W1:uniwork:web:hitl'],
   );
   assert.ok(hitl.every((r) => r.host === 'web'));
   assert.deepEqual(
     hitl.map((r) => r.provider),
-    ['uniwork', 'byok'],
+    ['uniwork'],
   );
 
   const de1 = getRowById('D-E1');

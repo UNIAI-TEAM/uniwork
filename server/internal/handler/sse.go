@@ -13,6 +13,11 @@ import (
 // shorten it.
 var sseHeartbeat = 15 * time.Second
 
+// sseWriteIdle is the longest one write to the client may block. The server
+// has no WriteTimeout (a stream outlives any fixed one), so each chunk gets
+// its own deadline: a client that stops reading cannot pin the handler.
+const sseWriteIdle = 60 * time.Second
+
 // sseWriter writes server-sent events. Nothing is written, not even the
 // header, until start: a refusal before the first event can still be JSON
 // (R5). One mutex orders event frames and pings; close stops and waits for
@@ -84,7 +89,7 @@ func (s *sseWriter) write(chunk string) {
 	if s.dead {
 		return
 	}
-	_ = s.rc.SetWriteDeadline(time.Now().Add(byokWriteIdle))
+	_ = s.rc.SetWriteDeadline(time.Now().Add(sseWriteIdle))
 	if _, err := s.w.Write([]byte(chunk)); err != nil {
 		s.kill()
 		return
@@ -93,7 +98,7 @@ func (s *sseWriter) write(chunk string) {
 }
 
 // flush pushes the buffer out; a failure other than an unflushable writer
-// (tests) means the client is gone, as in serveProxyStream.
+// (tests) means the client is gone.
 func (s *sseWriter) flush() {
 	if err := s.rc.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
 		s.kill()

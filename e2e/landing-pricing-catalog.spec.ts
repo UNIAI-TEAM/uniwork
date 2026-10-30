@@ -14,7 +14,6 @@ const features = [
   { feature_key: "meeting.participant_minutes", enabled: true, quota_limit: 8000 },
   { feature_key: "meeting.transcription", enabled: true, quota_limit: 321 },
   { feature_key: "ai.tokens", enabled: true, quota_limit: 650000 },
-  { feature_key: "office.ai_byok", enabled: true, quota_limit: null },
   { feature_key: "office.ai_cloud", enabled: true, quota_limit: null },
   { feature_key: "meeting.recording", enabled: true, quota_limit: null },
   { feature_key: "meeting.ai_summary", enabled: false, quota_limit: null },

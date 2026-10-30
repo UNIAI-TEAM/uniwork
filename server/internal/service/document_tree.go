@@ -410,7 +410,7 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.q.ListTreeDocuments(ctx, db.ListTreeDocumentsParams{
+	treeRows, err := s.q.ListTreeDocuments(ctx, db.ListTreeDocumentsParams{
 		OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
 		MaxLevel: subtreeMaxLevel(),
 		SeeAll:   scope.seeAll, MemberVisible: scope.memberVisible,
@@ -420,6 +420,10 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	})
 	if err != nil {
 		return nil, err
+	}
+	rows := make([]db.Document, len(treeRows))
+	for i, r := range treeRows {
+		rows[i] = treeRowDocument(r)
 	}
 	byID := make(map[string]db.Document, len(rows))
 	children := make(map[string][]db.Document, len(rows))
@@ -562,4 +566,26 @@ func (s *DocumentService) promotedToRoot(ctx context.Context, scope documentList
 		}
 	}
 	return out, nil
+}
+
+// treeRowDocument maps a tree row (no body columns) back to the Document the
+// tree code works with; Content, ContentText and SearchText stay empty.
+func treeRowDocument(r db.ListTreeDocumentsRow) db.Document {
+	return db.Document{
+		ID: r.ID, OrganizationID: r.OrganizationID, WorkspaceID: r.WorkspaceID, ParentID: r.ParentID,
+		Kind: r.Kind, SystemKind: r.SystemKind, Title: r.Title, Icon: r.Icon, Visibility: r.Visibility, WorkspaceLevel: r.WorkspaceLevel,
+		ContentBytes:   r.ContentBytes,
+		CurrentVersion: r.CurrentVersion, FileVersionID: r.FileVersionID, Revision: r.Revision, ContentRevision: r.ContentRevision,
+		Position: r.Position, OwnerKind: r.OwnerKind, OwnerID: r.OwnerID, AclOwnerID: r.AclOwnerID,
+		SourceDocumentID: r.SourceDocumentID, SourceVersionID: r.SourceVersionID, SourceRevision: r.SourceRevision,
+		SourceFormat: r.SourceFormat, SourceEngine: r.SourceEngine, TargetFormat: r.TargetFormat,
+		SourceChecksumSha256: r.SourceChecksumSha256, ConversionReason: r.ConversionReason,
+		CreatedBy: r.CreatedBy, CreatedByKind: r.CreatedByKind, UpdatedBy: r.UpdatedBy,
+		UpdatedByKind: r.UpdatedByKind, ContentSavedAt: r.ContentSavedAt, LastVersionAt: r.LastVersionAt,
+		ArchivedAt: r.ArchivedAt, ArchivedBy: r.ArchivedBy, PurgeAfter: r.PurgeAfter,
+		ArchiveBatchID: r.ArchiveBatchID,
+		ShelvedAt:      r.ShelvedAt, ShelvedBy: r.ShelvedBy, ShelvedByKind: r.ShelvedByKind, ShelveBatchID: r.ShelveBatchID,
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		TemplateMarkedAt: r.TemplateMarkedAt, TemplateMarkedBy: r.TemplateMarkedBy, TemplateMarkedByKind: r.TemplateMarkedByKind,
+	}
 }

@@ -64,7 +64,7 @@ export function writeFakeCaptures(dir, { hosts = HOSTS, fixtures = fixtureIds(),
     for (const [index, fixture] of fixtures.entries()) {
       const status = statuses[`${host}/${fixture}`] ?? "ok";
       // the web capture records the frame AI grant it saw (RFE5-202); the desktop records none
-      entries[fixture] = { status, reason: status === "ok" ? "" : "fake capture provider said so", ...(host === "web" && status === "ok" ? { ai: true, uniworkAi: false } : {}) };
+      entries[fixture] = { status, reason: status === "ok" ? "" : "fake capture provider said so", ...(host === "web" && status === "ok" ? { uniworkAi: true } : {}) };
       writeFileSync(join(dir, host, `${fixture}.png`), fakePngBuffer({ seed: index + (host === "web" ? 7 : 0) }));
       writeFileSync(join(dir, host, `${fixture}.txt`), fakeText(host, fixture));
     }
