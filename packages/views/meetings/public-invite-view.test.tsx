@@ -8,11 +8,41 @@ import { requestMock, wrapWithNav } from "../test/api-mock";
 import type { NavigationAdapter } from "../navigation";
 import { MeetingPublicInviteView } from "./public-invite-view";
 
+// A lobby socket that is open and authenticated; the test pushes frames into it.
+const lobbySocket = vi.hoisted(() => {
+  const handlers = new Set<(msg: { type: string; payload?: unknown }) => void>();
+  return {
+    handlers,
+    /** Lobby sockets currently open (providers mounted). */
+    open: 0,
+    client: {
+      onAny: (cb: (msg: { type: string; payload?: unknown }) => void) => {
+        handlers.add(cb);
+        return () => handlers.delete(cb);
+      },
+      onReconnect: () => () => undefined,
+      isAuthenticated: () => true,
+    },
+  };
+});
+
+// Like the real provider, the client is only visible below it.
 vi.mock("@uniwork/core/realtime", async (orig) => {
   const mod = await orig<typeof import("@uniwork/core/realtime")>();
+  const { createContext, createElement, useContext, useEffect } = await import("react");
+  const LobbyContext = createContext<{ client: unknown } | null>(null);
   return {
     ...mod,
-    MeetingLobbyWSProvider: ({ children }: { children: React.ReactNode }) => children,
+    MeetingLobbyWSProvider: ({ children }: { children: React.ReactNode }) => {
+      useEffect(() => {
+        lobbySocket.open += 1;
+        return () => {
+          lobbySocket.open -= 1;
+        };
+      }, []);
+      return createElement(LobbyContext.Provider, { value: { client: lobbySocket.client } }, children);
+    },
+    useOptionalMeetingLobbyWS: () => useContext(LobbyContext),
   };
 });
 
@@ -435,6 +465,46 @@ describe("MeetingPublicInviteView", () => {
       await screen.findByText("Người chủ trì sẽ đưa bạn vào cuộc họp. Trang này tự cập nhật."),
     ).toBeInTheDocument();
     expect(joinBodies.at(-1)?.request_again).toBe(true);
+  });
+
+  it("opens the lobby socket once it waits, and enters as soon as the host approves", async () => {
+    // No jitter on the WS-triggered retry; the backoff poll would still be 8s away.
+    const random = vi.spyOn(Math, "random").mockReturnValue(0);
+    const adapter = fakeNav();
+    let approved = false;
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === RESOLVE) return Promise.resolve(resolved({ access_mode: "REQUEST_APPROVAL" }));
+      if (path === "/api/v1/meetings/m1/join" && opts?.method === "POST") {
+        return Promise.resolve(
+          approved
+            ? { decision: "ADMIT", participant_token: "tok", server_url: "wss://lk.example", provider: "livekit" }
+            : { decision: "WAITING_APPROVAL", join_request_id: "jr-1" },
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    try {
+      render(wrapWithNav(<MeetingPublicInviteView linkId="link-1" secret="sec-abc" />, adapter));
+
+      fireEvent.change(await screen.findByLabelText("Tên hiển thị"), { target: { value: "Khách A" } });
+      // No request yet, so the server would refuse a lobby socket opened here.
+      expect(lobbySocket.open).toBe(0);
+      fireEvent.click(screen.getByRole("button", { name: "Xin vào phòng" }));
+      await screen.findByText("Người chủ trì sẽ đưa bạn vào cuộc họp. Trang này tự cập nhật.");
+      expect(lobbySocket.open).toBe(1);
+
+      approved = true;
+      for (const h of lobbySocket.handlers) {
+        h({ type: "join_request.approved", payload: { meeting_id: "m1", join_request_id: "jr-1" } });
+      }
+
+      await waitFor(() => {
+        expect(adapter.push).toHaveBeenCalledWith(paths.meetingInviteRoom("link-1"));
+      });
+    } finally {
+      random.mockRestore();
+    }
   });
 
   it("Back from the waiting lobby cancels the request and brings the form back", async () => {
