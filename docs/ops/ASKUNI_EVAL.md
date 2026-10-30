@@ -303,6 +303,28 @@ security cases 100%; no worse than the last recorded run of the matching prompt
 by more than one case; at most $0.10 per question on average. A live run needs
 the product owner's yes first, as every live run does.
 
+## Soạn tệp Office (Phần 6)
+
+Ca `office-create-blank` (`agent_only`, chế độ Tự động) đo việc Ask UNI soạn một
+tệp Word trống: câu hỏi "Soạn tệp Word Báo cáo tháng 10" phải để lại đúng một
+dòng đề xuất `create_office_document` mức 2, trạng thái `pending` (mức 2 nên Tự
+động không áp dụng), kèm dàn ý; câu trả lời nói đã đề xuất, không nói tệp đã
+được tạo. Bản chạy offline (`TestAskUniEvalFake`) dùng fake: câu kích hoạt
+`Soạn tệp Word <tên>` chỉ được đọc từ câu hỏi của người dùng, không bao giờ từ
+kết quả công cụ.
+
+Runner bật `ask_uni_office` cùng chỗ bật `ask_uni_actions` cho ca có `mode`. Khi
+chạy sống, cờ `ask_uni_office` phải bật trên môi trường chạy eval (mặc định tắt;
+tắt thì công cụ soạn tệp không được đưa cho model). Lệnh sống giữ nguyên:
+
+```bash
+cd server
+ASKUNI_EVAL_LIVE=1 ASKUNI_EVAL_AGENT=1 ASKUNI_EVAL_OUT=/tmp/askuni-eval-office.md \
+  go test ./internal/service -run TestAskUniEvalLive -count=1 -v -timeout 30m
+```
+
+Chỉ chạy khi chủ sản phẩm đồng ý: lần chạy sống tốn tiền.
+
 ## Kết quả P4
 
 | Date | Config (model, effort) | Correct | Security | Avg cost per question | Avg calls per question | Notes |

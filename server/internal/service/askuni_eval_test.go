@@ -170,7 +170,7 @@ type evalAgentFlags struct {
 }
 
 func (f evalAgentFlags) IsEnabled(ctx context.Context, key string, def bool) bool {
-	if key == askActionsFlag {
+	if key == askActionsFlag || key == askOfficeFlag {
 		return *f.actions
 	}
 	if key == askMemoryFlag {
