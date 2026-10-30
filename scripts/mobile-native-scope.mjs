@@ -108,6 +108,7 @@ export const MOBILE_PATHS = [
   "server/internal/handler/push_preview_policy.go",
   "server/internal/handler/workspace.go",
   "server/internal/handler/task.go",
+  "server/internal/handler/document_collections.go",
   "server/internal/handler/organization_members.go",
   // The routes the app's calls must find (scripts/mobile-route-catalogue.test.mjs): a router change that drops one
   // fails there, not on the phones.

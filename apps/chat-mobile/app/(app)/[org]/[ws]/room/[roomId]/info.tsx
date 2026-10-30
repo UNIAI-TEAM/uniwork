@@ -12,7 +12,8 @@ import { voiceCallKindFromServer } from "@uniwork/core/chat/voice-call-kind";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ScrollView, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { DmSafetyRows, MemberSafetySheet, type SafetyPerson } from "@/components/chat/room-safety";
 import { RoomInfoHero, RoomQuickActions } from "@/components/chat/room-info/hero";
@@ -26,9 +27,15 @@ import { useChatWorkspace, type ChatWorkspace } from "@/components/chat/use-chat
 import { useRoomContext } from "@/components/chat/use-room-context";
 import { ensureCallPermissions } from "@/components/ui/permission-gate";
 import { SearchField } from "@/components/ui/search-field";
+import { Text } from "@/components/ui/text";
+import { useColorScheme } from "@/components/ui/use-color-scheme";
 import { callEngine } from "@/data/calls/call-store";
+import { NicknameSheet } from "@/components/chat/room-info/nickname-sheet";
+import { WallpaperSheet } from "@/components/chat/room-info/wallpaper-sheet";
 import { useLeaveRoom, useSetRoomMuted } from "@/data/mutations/rooms";
-import { roomSearchOptions, roomTimelineOptions, sharedSummaryOptions } from "@/data/queries/chat";
+import { nicknamesOptions, roomSearchOptions, roomTimelineOptions, sharedSummaryOptions } from "@/data/queries/chat";
+import { resolveChatNicknameForUser } from "@uniwork/core/chat/contact-labels";
+import { THEME } from "@/lib/theme";
 import { useMobileFlag } from "@/data/remote-config";
 import { toast } from "@/data/stores/toast-store";
 import { chatRoutes } from "@/lib/chat-routes";
@@ -39,6 +46,8 @@ import { senderLabelFor } from "@/lib/people-display";
 /** The screen once the workspace resolved: its queries and the wiring of the parts (components/chat/room-info/). */
 function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
   const { t } = useTranslation();
+  const { colorScheme } = useColorScheme();
+  const theme = THEME[colorScheme];
   const qc = useQueryClient();
   const leaveRoom = useLeaveRoom(chat.wsId).mutateAsync;
   const setRoomMuted = useSetRoomMuted(chat.wsId).mutateAsync;
@@ -46,6 +55,9 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
   const searchInput = useRef<TextInput>(null);
   const [q, setQ] = useState("");
   const [memberMenu, setMemberMenu] = useState<SafetyPerson | null>(null);
+  const [nicknameFor, setNicknameFor] = useState<SafetyPerson | null>(null);
+  const [wallpaperOpen, setWallpaperOpen] = useState(false);
+  const nicknames = useQuery(nicknamesOptions(chat.wsId)).data;
   const search = useQuery(roomSearchOptions(chat.wsId, roomId, q));
   const shared = useQuery(sharedSummaryOptions(chat.wsId, roomId)).data;
   const muted = room.room?.notifications_muted === true;
@@ -78,8 +90,33 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
                 callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera: false }),
               )
             }
+            onVideoCall={() =>
+              void ensureCallPermissions(true).then(() =>
+                callEngine.startCall(roomId, room.title, voiceCallKindFromServer(room.room?.kind), { withCamera: true }),
+              )
+            }
             onAddPeople={() => router.push(chatRoutes.newGroup(chat, roomId))}
           />
+        ) : null}
+        {room.room ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setWallpaperOpen(true)}
+            className="min-h-14 flex-row items-center gap-3 px-5 active:bg-secondary"
+          >
+            <Ionicons name="color-palette-outline" size={22} color={theme.primary} />
+            <Text className="flex-1 text-body text-foreground">{t("chat.settings_wallpaper")}</Text>
+          </Pressable>
+        ) : null}
+        {room.room?.kind === "dm" && room.room.peer_user_id ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setNicknameFor({ userId: room.room?.peer_user_id ?? "", name: room.title })}
+            className="min-h-14 flex-row items-center gap-3 px-5 active:bg-secondary"
+          >
+            <Ionicons name="pencil-outline" size={22} color={theme.primary} />
+            <Text className="flex-1 text-body text-foreground">{t("chat.nickname_action")}</Text>
+          </Pressable>
         ) : null}
 
         <View className="px-5 pb-3.5">
@@ -125,6 +162,25 @@ function RoomInfo({ chat, roomId }: { chat: ChatWorkspace; roomId: string }) {
         person={memberMenu}
         onClose={() => setMemberMenu(null)}
         onMessage={(person) => router.push(inAppDmHref(chat, person.userId))}
+        onNickname={(person) => {
+          setMemberMenu(null);
+          setNicknameFor(person);
+        }}
+      />
+      <NicknameSheet
+        key={nicknameFor?.userId ?? "none"}
+        wsId={chat.wsId}
+        userId={nicknameFor?.userId ?? null}
+        name={nicknameFor?.name ?? ""}
+        current={nicknameFor ? (resolveChatNicknameForUser(nicknames, nicknameFor.userId) ?? "") : ""}
+        onClose={() => setNicknameFor(null)}
+      />
+      <WallpaperSheet
+        wsId={chat.wsId}
+        roomId={roomId}
+        visible={wallpaperOpen}
+        current={room.room?.wallpaper?.preset ?? "default"}
+        onClose={() => setWallpaperOpen(false)}
       />
     </View>
   );

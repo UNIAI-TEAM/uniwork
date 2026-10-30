@@ -91,6 +91,8 @@ export interface MessageRowProps {
   onToggleReaction: (message: TimelineMessage, emoji: string) => void;
   /** Quotes it in the composer, as the swipe does: set where the swipe is on (message-cell.tsx). */
   onReply?: (message: TimelineMessage) => void;
+  /** While a selection is open: a tap adds or removes this message. */
+  onToggleSelect?: (message: TimelineMessage) => void;
 }
 
 /** A local message's state in words: sending, waiting for the network, or failed. */
@@ -137,7 +139,9 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   // already has stand still; one added while the cell is on screen still pops (LayoutAnimationConfig skips only at mount).
   const [fresh] = useState(() => message.pending !== undefined && firstSend(message.id));
 
-  const longPress = () => props.onLongPress(message);
+  const selecting = ctx.selection !== undefined;
+  const selected = selecting && ctx.selection?.has(message.id) === true;
+  const longPress = () => (selecting && props.onToggleSelect ? props.onToggleSelect(message) : props.onLongPress(message));
 
   if (record && messageView(record) === "system") {
     return (
@@ -226,15 +230,25 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
       testID={highlighted ? "message-highlighted" : undefined}
     >
       <View className={cn("max-w-full flex-row items-end gap-1.5", own ? "justify-end" : "justify-start")}>
+        {selecting ? (
+          <Ionicons name={selected ? "checkmark-circle" : "ellipse-outline"} size={22} color={selected ? theme.primary : theme.mutedForeground} />
+        ) : null}
         {avatar}
         <Pressable
           accessible={!interactive}
           accessibilityLabel={label}
           accessibilityHint={hint}
+          accessibilityState={selecting ? { selected } : undefined}
           accessibilityActions={actions}
           onAccessibilityAction={onAction}
           onLongPress={longPress}
-          onPress={message.pending ? () => props.onPressPending(message) : undefined}
+          onPress={
+            selecting && props.onToggleSelect
+              ? () => props.onToggleSelect?.(message)
+              : message.pending
+                ? () => props.onPressPending(message)
+                : undefined
+          }
           delayLongPress={200}
           className={cn(
             album ? "gap-1 p-[3px]" : bareImage ? "overflow-hidden p-0" : "gap-1 px-3 pb-2 pt-1.5",
@@ -247,6 +261,16 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
           {showSender ? (
             <Text className={cn("text-footnote font-semibold", senderNameClass(message.sender), album && "px-2 pt-0.5")} numberOfLines={1}>
               {senderName}
+            </Text>
+          ) : null}
+          {record?.priority === "important" || record?.priority === "urgent" ? (
+            <Text
+              className={cn(
+                "text-caption font-semibold",
+                own ? "text-chat-bubble-own-foreground" : record.priority === "urgent" ? "text-destructive" : "text-primary",
+              )}
+            >
+              {t(record.priority === "urgent" ? "chat.message_flag_urgent" : "chat.message_flag_important")}
             </Text>
           ) : null}
           {quote ? (

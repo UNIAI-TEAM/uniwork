@@ -38,11 +38,16 @@ import { ChatSyncSchema } from "./chat-sync/api";
 import {
   ActiveRecordingSchema,
   FollowUpEnvelopeSchema,
+  DocumentPickListSchema,
+  DocumentPickSchema,
   FollowUpListSchema,
+  LinkEnvelopeSchema,
   LinkListSchema,
   MembersSchema,
   OutgoingVoiceCallsSchema,
   TaskEnvelopeSchema,
+  TaskPickListSchema,
+  TaskPickSchema,
   ThreadReadSchema,
   WorkspaceMemberSchema,
   WorkspaceMembersSchema,
@@ -57,7 +62,7 @@ const SERVER = path.resolve(__dirname, "../../../server/internal");
 const SDO_DIR = path.join(SERVER, "handler/dto/sdo");
 // The handler files the rows' handlers live in; each pattern is in scripts/mobile-native-scope.mjs › MOBILE_PATHS,
 // so a change to one runs this test (checked below).
-const HANDLER_FILES = ["chat*.go", "auth.go", "identity.go", "config.go", "push_preview_policy.go", "workspace.go", "task.go", "organization_members.go"];
+const HANDLER_FILES = ["chat*.go", "auth.go", "identity.go", "config.go", "push_preview_policy.go", "workspace.go", "task.go", "document_collections.go", "organization_members.go"];
 // Structs of other packages an SDO embeds as a field: ConfigSDO.unichat_stores is a config.UniChatStoreLinks.
 const FOREIGN_STRUCTS: Record<string, string> = { config: "config/unichat_downloads.go" };
 
@@ -289,6 +294,9 @@ const CONTRACTS: Contract[] = [
   { endpoint: "GET …/chat/follow-ups", schema: FollowUpListSchema, sdo: "ChatFollowUpListSDO", handlers: ["listChatFollowUps"] },
   { endpoint: "POST|PATCH …/chat/follow-ups", schema: FollowUpEnvelopeSchema, sdo: "ChatFollowUpSDO", handlers: ["createChatFollowUp", "patchChatFollowUp"] },
   { endpoint: "GET …/chat/rooms/{id}/message-links", schema: LinkListSchema, sdo: "ChatMessageLinkListSDO", handlers: ["listChatRoomMessageLinks"] },
+  { endpoint: "POST …/chat/messages/{id}/links", schema: LinkEnvelopeSchema, sdo: { link: "ChatMessageLinkDTO" }, handlers: ["createChatMessageLink"] },
+  { endpoint: "GET /workspaces/{id}/documents", schema: DocumentPickListSchema, sdo: "DocumentListSDO", handlers: ["listDocuments"], items: { documents: DocumentPickSchema } },
+  { endpoint: "GET /workspaces/{id}/tasks", schema: TaskPickListSchema, sdo: { tasks: "TaskDTO" }, handlers: ["listTasks"], items: { tasks: TaskPickSchema } },
   { endpoint: "GET …/chat/gifs|stickers", schema: ChatGifListSchema, sdo: "ChatGifListSDO", handlers: ["searchChatGifs", "trendingChatGifs", "searchChatStickers", "trendingChatStickers"] },
   { endpoint: "POST …/chat/follow-ups/{id}/task", schema: TaskEnvelopeSchema, sdo: { task: "TaskDTO" }, handlers: ["convertChatFollowUpToTask"] },
   { endpoint: "GET …/chat/rooms/{id}/voice/recording/active", schema: ActiveRecordingSchema, sdo: "ChatVoiceRecordingSDO", handlers: ["getActiveChatVoiceRecording"] },

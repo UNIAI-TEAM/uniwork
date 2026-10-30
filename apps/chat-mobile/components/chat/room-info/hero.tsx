@@ -51,11 +51,12 @@ export function RoomQuickActions(props: {
   onToggleMute: () => void;
   onSearch: () => void;
   onCall: () => void;
+  onVideoCall?: () => void;
   onAddPeople: () => void;
 }) {
   const { t } = useTranslation();
   return (
-    <View className="flex-row justify-center gap-1 px-2 pb-4">
+    <View className="flex-row flex-wrap justify-center gap-1 px-2 pb-4">
       <QuickAction
         icon={props.muted ? "notifications-outline" : "notifications-off-outline"}
         label={props.muted ? t("chat.mobile.unmute_notifications") : t("chat.settings_mute_notifications")}
@@ -64,6 +65,14 @@ export function RoomQuickActions(props: {
       <QuickAction icon="search" label={t("chat.mobile.search_short")} accessibilityLabel={t("chat.search_messages")} onPress={props.onSearch} />
       {props.callable ? (
         <QuickAction icon="call-outline" label={t("chat.mobile.call_short")} accessibilityLabel={t("chat.voice_call_start")} onPress={props.onCall} />
+      ) : null}
+      {props.callable && props.onVideoCall ? (
+        <QuickAction
+          icon="videocam-outline"
+          label={t("chat.video_call_start")}
+          accessibilityLabel={t("chat.video_call_start")}
+          onPress={props.onVideoCall}
+        />
       ) : null}
       {props.isGroup ? (
         <QuickAction

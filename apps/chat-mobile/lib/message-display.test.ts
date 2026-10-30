@@ -42,6 +42,8 @@ const byKind: Record<(typeof KNOWN_MESSAGE_KINDS)[number], ChatMessageRecord> = 
   voice: { ...base, kind: "voice", voice: { duration_ms: 4000, content_type: "audio/mp4", size_bytes: 1, url: "", url_expires_at: "" } },
   file: { ...base, kind: "file", file: file("plan.pdf", "application/pdf") },
   post: { ...base, kind: "post", post: { title: "Tin", body: "Nội dung", pin_to_top: false } },
+  document: { ...base, kind: "document", document: { document_id: "d1", title: "Kế hoạch", viewer_has_access: true, viewer_level: "view" } },
+  document_version: { ...base, kind: "document_version", document: { document_id: "d1", title: "Kế hoạch", viewer_has_access: true, viewer_level: "view" } },
 };
 
 describe("messageView", () => {
@@ -72,7 +74,7 @@ describe("messageView", () => {
     // The schema keeps any kind string, so a newer server's kind reaches the list.
     const future = ChatMessageSchema.parse({ ...base, kind: "whiteboard" });
     expect(messageView(future)).toBe("unsupported");
-    for (const kind of ["file", "voice", "poll", "poll_vote", "note", "post", "reminder"]) {
+    for (const kind of ["file", "voice", "poll", "poll_vote", "note", "post", "reminder", "document", "document_version"]) {
       expect(messageView({ ...base, kind }), kind).toBe("unsupported");
     }
   });

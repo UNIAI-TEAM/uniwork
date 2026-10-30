@@ -19,6 +19,8 @@
   "chat/message-links",
   "chat/typing-user-id",
   "chat/composer-priority",
+  "chat/chat-wallpaper",
+  "chat/chat-wallpaper-from-room",
   "chat/chat-room-helpers",
   "chat/search-fold",
   "chat/initials",

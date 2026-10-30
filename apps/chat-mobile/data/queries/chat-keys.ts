@@ -26,6 +26,12 @@ export const chatKeys = {
   threadsRoot: (wsId: string) => ["chat", wsId, "thread-messages"] as const,
   roomMembers: (wsId: string, roomId: string) => ["chat", wsId, "room-members", roomId] as const,
   roomSearch: (wsId: string, roomId: string, q: string) => ["chat", wsId, "room-search", roomId, q] as const,
+  /** Messages across every room of one sidebar scope (Tin nhắn or the workspace's channels). */
+  workspaceSearch: (wsId: string, scope: string, q: string) => ["chat", wsId, "workspace-search", scope, q] as const,
+  /** Documents this person can attach to a message. */
+  documents: (wsId: string, q: string) => ["chat", wsId, "documents", q] as const,
+  /** Tasks this person can link a message to. */
+  tasks: (wsId: string) => ["chat", wsId, "tasks"] as const,
   discoverableChannels: (wsId: string) => ["chat", wsId, "channels", "discoverable"] as const,
   /** The channels the reader is in, for the directory's "Đã tham gia" rows. */
   myChannels: (wsId: string) => ["chat", wsId, "channels", "mine"] as const,

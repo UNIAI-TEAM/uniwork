@@ -20,6 +20,8 @@ import { createChatRoomsApi } from "@uniwork/core/api/endpoints/chat-rooms-api";
 import { createChatThreadsApi } from "@uniwork/core/api/endpoints/chat-threads-api";
 import { createChatUsersApi } from "@uniwork/core/api/endpoints/chat-users-api";
 import { createChatVoiceApi } from "@uniwork/core/api/endpoints/chat-voice-api";
+import type { ChatSendMessageInput } from "@uniwork/core/api/endpoints/chat-messages-api";
+import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import {
   ChatMessageEnvelopeSchema,
   enc,
@@ -40,14 +42,19 @@ import {
   ActiveRecordingSchema,
   FollowUpEnvelopeSchema,
   FollowUpListSchema,
+  DocumentPickListSchema,
+  LinkEnvelopeSchema,
   LinkListSchema,
   OkSchema,
+  TaskPickListSchema,
   OutgoingVoiceCallsSchema,
   StatusSchema,
   TaskEnvelopeSchema,
   WorkspaceMembersSchema,
   type ChatFollowUp,
   type ChatMessageLink,
+  type DocumentPick,
+  type TaskPick,
   type ChatTask,
   type OutgoingVoiceCall,
   type WorkspaceMemberRecord,
@@ -150,18 +157,56 @@ export function createChatApi(send: Request) {
       messages.listChatRoomMessagesAround(wsId, roomId, messageId, limit),
     getMessage: (wsId: string, roomId: string, messageId: string) => messages.getChatRoomMessage(wsId, roomId, messageId),
     searchMessages: (wsId: string, roomId: string, q: string, limit = 30) => messages.searchChatRoomMessages(wsId, roomId, { q, limit }),
-    /** Text, or a reminder (`reminder` and no body, as the web's reminder dialog sends it). */
-    sendMessage(
+    /** Text, a reminder, a poll, a note, a post, or a priority mark — the web's send body. */
+    sendMessage(wsId: string, roomId: string, input: ChatSendMessageInput) {
+      return messages.sendChatRoomMessage(wsId, roomId, input);
+    },
+    /** A document that already exists, shared into the room at comment unless a level is given. */
+    sendDocumentLink(
       wsId: string,
       roomId: string,
-      input: {
-        body?: string;
-        client_msg_id: string;
-        reply_to_message_id?: string;
-        reminder?: { body: string; remind_at: string; repeat?: string };
-      },
+      input: { document_id: string; client_msg_id: string; reply_to_message_id?: string; share_level?: "view" | "comment" | "edit" },
     ) {
-      return messages.sendChatRoomMessage(wsId, roomId, input);
+      return messages.sendChatDocumentLink(wsId, roomId, input);
+    },
+    /** Turns a file message into a document card the room can open. */
+    shareMessageAsDocument(wsId: string, roomId: string, messageId: string) {
+      return messages.shareChatMessageAsDocument(wsId, roomId, messageId, {
+        share_level: "comment",
+        client_msg_id: newChatClientMsgId(),
+      });
+    },
+    /** Messages across the workspace's conversations, or its channels (`scope`). */
+    searchWorkspaceMessages(wsId: string, q: string, scope: "messages" | "workspace", limit = 30) {
+      return messages.searchChatMessages(wsId, { q, scope, limit });
+    },
+    /** A preset everyone in the room sees. */
+    patchRoom(wsId: string, roomId: string, body: { wallpaper?: { preset: string } }) {
+      return rooms.patchChatRoom(wsId, roomId, body);
+    },
+    setNickname(wsId: string, userId: string, nickname: string) {
+      return users.setChatNickname(wsId, userId, nickname);
+    },
+    async listDocuments(wsId: string, q: string): Promise<DocumentPick[]> {
+      const raw = await request(`${ws(wsId)}/documents${query({ q: q.trim() || undefined, limit: 30 })}`);
+      return parseWithFallback(raw, DocumentPickListSchema, { documents: [] }, {
+        endpoint: "GET /api/v1/workspaces/{ws}/documents",
+      }).documents;
+    },
+    async listTasks(wsId: string): Promise<TaskPick[]> {
+      const raw = await request(`${ws(wsId)}/tasks`);
+      return parseWithFallback(raw, TaskPickListSchema, { tasks: [] }, { endpoint: "GET /api/v1/workspaces/{ws}/tasks" }).tasks;
+    },
+    async linkMessageToTask(wsId: string, messageId: string, taskId: string): Promise<ChatMessageLink | null> {
+      const raw = await request(`${ws(wsId)}/chat/messages/${enc(messageId)}/links`, json("POST", { target_type: "task", target_id: taskId }));
+      return (
+        parseWithFallback(raw, LinkEnvelopeSchema, { link: undefined }, { endpoint: "POST .../chat/messages/{id}/links" }).link ?? null
+      );
+    },
+    /** Uniform 202: true only when the answer says the request was sent. */
+    async requestDocumentAccess(documentId: string): Promise<boolean> {
+      const raw = await request(`/api/v1/documents/${enc(documentId)}/access-requests`, json("POST", { requested_level: "view" }));
+      return parseWithFallback(raw, StatusSchema, { status: "" }, { endpoint: "POST /api/v1/documents/{id}/access-requests" }).status === "sent";
     },
     sendFileMessage(wsId: string, roomId: string, input: { file: PendingFile; client_msg_id: string; reply_to_message_id?: string }) {
       const file = { uri: input.file.uri, name: input.file.name, type: input.file.mimeType ?? "application/octet-stream" };
@@ -268,7 +313,11 @@ export function createChatApi(send: Request) {
     convertFollowUpToTask(wsId: string, followUpId: string) {
       return task(request(`${ws(wsId)}/chat/follow-ups/${enc(followUpId)}/task`, json("POST")), "POST .../chat/follow-ups/{id}/task");
     },
-    createTaskFromMessage(wsId: string, messageId: string, input: { title?: string } = {}) {
+    createTaskFromMessage(
+      wsId: string,
+      messageId: string,
+      input: { title?: string; description?: string; due_date?: string; priority?: string } = {},
+    ) {
       return task(request(`${ws(wsId)}/chat/messages/${enc(messageId)}/tasks`, json("POST", input)), "POST .../chat/messages/{id}/tasks");
     },
     /**

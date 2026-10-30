@@ -3,6 +3,7 @@
 // many flushes or retries race for it, and a room's messages go strictly in
 // the order they were written.
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
+import type { ChatSendMessageInput } from "@uniwork/core/api/endpoints/chat-messages-api";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat-schemas";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -56,6 +57,7 @@ const sendMessage = vi.fn<ChatSendDeps["api"]["sendMessage"]>();
 const sendThreadMessage = vi.fn<ChatSendDeps["api"]["sendThreadMessage"]>();
 const sendFileMessage = vi.fn<ChatSendDeps["api"]["sendFileMessage"]>();
 const sendVoiceMessage = vi.fn<ChatSendDeps["api"]["sendVoiceMessage"]>();
+const sendDocumentLink = vi.fn<ChatSendDeps["api"]["sendDocumentLink"]>();
 const files = {
   keep: vi.fn<OutboxFiles["keep"]>(),
   release: vi.fn<OutboxFiles["release"]>(),
@@ -88,7 +90,7 @@ const elapse = (ms: number) => {
   for (const wake of woken) wake();
 };
 const deps: ChatSendDeps = {
-  api: { sendMessage, sendThreadMessage, sendFileMessage, sendVoiceMessage },
+  api: { sendMessage, sendThreadMessage, sendFileMessage, sendVoiceMessage, sendDocumentLink },
   isOnline: () => online,
   retry: (fn) => fn(),
   files,
@@ -99,10 +101,11 @@ const deps: ChatSendDeps = {
 
 /** The server's idempotency: one message per client_msg_id, whatever the number of posts. */
 function idempotentServer() {
-  return async (_ws: string, _room: string, input: { client_msg_id: string; body?: string }) => {
+  return async (_ws: string, _room: string, input: ChatSendMessageInput) => {
+    const clientMsgId = input.client_msg_id ?? "";
     if (!online) throw new TypeError("Network request failed");
-    const existing = server.get(input.client_msg_id) ?? echo(input.client_msg_id, { body: input.body ?? "" });
-    server.set(input.client_msg_id, existing);
+    const existing = server.get(clientMsgId) ?? echo(clientMsgId, { body: input.body ?? "" });
+    server.set(clientMsgId, existing);
     return existing;
   };
 }
@@ -133,6 +136,7 @@ beforeEach(() => {
   sendThreadMessage.mockReset();
   sendFileMessage.mockReset();
   sendVoiceMessage.mockReset();
+  sendDocumentLink.mockReset();
   files.keep.mockReset().mockImplementation(async (id, file) => ({ ...file, uri: `file:///docs/outbox/${id}/${file.name}` }));
   files.release.mockReset();
   files.releaseAll.mockReset();
@@ -496,6 +500,38 @@ describe("what goes where", () => {
     expect(statuses()).toEqual([]);
   });
 
+  it("sends a poll with the room's default settings and a priority on a text message", async () => {
+    const qc = new QueryClient();
+    sendMessage.mockResolvedValueOnce(echo("p", { kind: "poll" }));
+    sendMessage.mockResolvedValueOnce(echo("u"));
+    await sendChatMessage(qc, { ...input, body: "Ăn gì?", poll: { question: "Ăn gì?", options: ["Phở", "Bún"] } }, deps);
+    await sendChatMessage(qc, { ...input, body: "gấp", priority: "urgent" }, deps);
+    await flushQueuedSends(qc, "w1", "u1", deps);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, "w1", "r1", {
+      client_msg_id: expect.any(String),
+      reply_to_message_id: undefined,
+      priority: undefined,
+      poll: {
+        question: "Ăn gì?",
+        options: ["Phở", "Bún"],
+        settings: {
+          deadline_at: null,
+          pin_to_top: false,
+          allow_multiple: true,
+          allow_add_options: true,
+          hide_results_until_vote: false,
+          hide_voters: false,
+        },
+      },
+    });
+    expect(sendMessage).toHaveBeenNthCalledWith(2, "w1", "r1", {
+      body: "gấp",
+      client_msg_id: expect.any(String),
+      reply_to_message_id: undefined,
+      priority: "urgent",
+    });
+  });
+
   it("a message discarded while its file is copied is neither kept nor sent", async () => {
     const qc = new QueryClient();
     files.keep.mockImplementationOnce(async (id, file) => {
@@ -734,7 +770,7 @@ describe("sendsSettled", () => {
     let answer: () => void = () => undefined;
     sendMessage.mockImplementationOnce(async (_ws, _room, body) => {
       await new Promise<void>((resolve) => (answer = resolve));
-      return echo(body.client_msg_id);
+      return echo(body.client_msg_id ?? "");
     });
     const sending = sendChatMessage(qc, input, deps);
     await settle();
