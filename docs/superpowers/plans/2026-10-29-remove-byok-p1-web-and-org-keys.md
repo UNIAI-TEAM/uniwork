@@ -1,6 +1,6 @@
 # Gỡ BYOK — kế hoạch 1: khung web, "Khóa trên UniWork" và máy chủ Implementation Plan
 
-> **Trạng thái:** in-progress — kế hoạch đã viết, chờ chủ sản phẩm duyệt; kế hoạch 1 của spec gỡ BYOK, issue UNI-2289.
+> **Trạng thái:** in-progress — đã triển khai trên nhánh, chờ PR; kế hoạch 1 của spec gỡ BYOK, issue UNI-2289.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
