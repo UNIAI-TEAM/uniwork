@@ -8608,6 +8608,7 @@
         "proposal_expired": "This proposal has expired. Ask UNI again.",
         "proposal_ref_pending": "This step uses the result of an earlier step that is not applied yet. Apply that step first.",
         "proposal_not_pending": "This proposal was already handled, perhaps in another tab.",
+        "ask_uni_office_off": "Ask UNI cannot draft Office files in this organization yet. Ask your organization's admin to contact UniWork.",
         "ai_actions_disabled": "Ask UNI actions are switched off. Ask an organization admin to turn them on.",
         "ai_write_rate_limited": "Too many changes at once. Wait a minute and try again.",
         "undo_unavailable": "Cannot undo: someone changed it afterwards.",

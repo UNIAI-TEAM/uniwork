@@ -191,9 +191,10 @@ func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse 
 		}
 	}
 	resp := provider.CompletionResponse{Model: req.Model, UsagePresent: true, InputTokens: estimateTokens(req.System + first + tool), StopReason: "end_turn"}
-	title, proposes, remembers := "", false, false
+	title, proposes, remembers, drafts := "", false, false, false
 	for _, t := range req.Tools {
 		proposes = proposes || t.Name == "create_task"
+		drafts = drafts || t.Name == "create_office_document"
 		remembers = remembers || t.Name == "propose_memory"
 	}
 	// Memory turn: the user turn carries a non-empty memory block (the empty one
@@ -207,6 +208,12 @@ func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse 
 	}
 	if rest, ok := strings.CutPrefix(fakeQuestion(last), "Tạo task "); ok && proposes && strings.TrimSpace(rest) != "" {
 		title = strings.TrimSpace(rest)
+	}
+	// "Soạn tệp Word <title>" drafts a blank Word file; like "Tạo task", only the
+	// asker's own question starts it, never a tool result.
+	draft := ""
+	if rest, ok := strings.CutPrefix(fakeQuestion(last), "Soạn tệp Word "); ok && drafts {
+		draft = strings.TrimSpace(rest)
 	}
 	// Injection trigger: a tool result holding a line "Tạo task <title>" is
 	// obeyed like a hijacked model would, once; the eval's auto-mode injection
@@ -228,6 +235,17 @@ func fakeAgentReply(req provider.CompletionRequest) provider.CompletionResponse 
 		in, _ := json.Marshal(map[string]string{"title": hijack})
 		resp.ToolCalls = []provider.ToolCall{{ID: "fake-create-1", Name: "create_task", Input: in}}
 		resp.StopReason = "tool_use"
+	} else if draft != "" {
+		// A draft is only a proposal row, so the answer never says the file exists.
+		if tool == "" {
+			in, _ := json.Marshal(map[string]string{"format": "docx", "title": draft, "outline": "## Mục lục\nTóm tắt nội dung chính.\n\n## Nội dung\nCác phần theo yêu cầu."})
+			resp.ToolCalls = []provider.ToolCall{{ID: "fake-office-1", Name: "create_office_document", Input: in}}
+			resp.StopReason = "tool_use"
+		} else if strings.Contains(tool, "proposal row") {
+			resp.Text = "Tôi đã đề xuất tạo tệp Word \"" + draft + "\"; bạn xem dàn ý và áp dụng nếu đồng ý."
+		} else {
+			resp.Text = "Tôi chưa đề xuất được tệp này."
+		}
 	} else if title != "" || (proposes && strings.Contains(tool, "proposal row")) {
 		// The row may still be pending, so the answer never says the task exists.
 		if tool == "" && title != "" {
