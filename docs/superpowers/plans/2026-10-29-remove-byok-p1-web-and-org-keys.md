@@ -1,6 +1,6 @@
 # Gỡ BYOK — kế hoạch 1: khung web, "Khóa trên UniWork" và máy chủ Implementation Plan
 
-> **Trạng thái:** in-progress — đã triển khai trên nhánh, chờ PR; kế hoạch 1 của spec gỡ BYOK, issue UNI-2289.
+> **Trạng thái:** shipped — PR #527 merge vào `develop` ngày 2026-10-30 (`592c121c8`); fork PR UNIAI-TEAM/uniwork-office#27, bản phát hành `web-0.1.0-c4b20c5`; kế hoạch 1 của spec gỡ BYOK, issue UNI-2289. Bước 7 (ảnh mẫu G7-06) bỏ theo quyết định của chủ sản phẩm.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
