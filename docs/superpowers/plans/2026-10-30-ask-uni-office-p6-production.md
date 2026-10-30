@@ -1,6 +1,6 @@
 # Hỏi UNI soạn tệp Office — kế hoạch 6: lên production Implementation Plan
 
-> **Trạng thái:** in-progress — kế hoạch 6 (Phần 6) của spec Hỏi UNI soạn tệp Office; chủ sản phẩm duyệt 2026-10-30; issue UNI-2304 (con của UNI-415).
+> **Trạng thái:** in-progress — đã triển khai trên nhánh, chờ PR; kế hoạch 6 (Phần 6) của spec Hỏi UNI soạn tệp Office; chủ sản phẩm duyệt 2026-10-30; issue UNI-2304 (con của UNI-415).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
