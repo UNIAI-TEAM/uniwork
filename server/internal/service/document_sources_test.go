@@ -798,3 +798,58 @@ func TestDocumentSourceChatParentIncludesMessageID(t *testing.T) {
 		t.Fatalf("task parent MessageID = %q, want empty", item.Parent.MessageID)
 	}
 }
+
+// ParentID keeps only the files held by one task (its comments included), room,
+// meeting or thread, and never widens what the viewer's own gate lets through.
+func TestDocumentSourcesFilterByParent(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	s := &sourceScene{t: t, ctx: context.Background(), f: env.f, tn: env.tn, other: env.f.tenant(t, "srx"+strings.ToLower(util.NewID()[20:]))}
+	svc, _ := sourceService(t, env)
+	tn := env.tn
+	taskA := s.task(tn, tn.wsA)
+	taskB := s.task(tn, tn.wsA)
+	commentID := util.NewID()
+	s.exec(`INSERT INTO task_comments (id, organization_id, workspace_id, task_id, author_id, body, updated_at)
+		VALUES ($1, $2, $3, $4, $5, 'c', now())`, commentID, tn.orgID, tn.wsA, taskA, tn.owner.ID)
+	onTask := "task:" + s.attachment(tn, tn.wsA, taskA, "", "on-task.pdf")
+	onComment := "task:" + s.attachment(tn, tn.wsA, "", commentID, "on-comment.pdf")
+	s.attachment(tn, tn.wsA, taskB, "", "on-b.pdf")
+	r1 := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
+	r2 := s.room(tn.orgID, tn.wsA, "channel", "public", "", false)
+	inR1 := "chat:" + s.fileMessage(tn.orgID, tn.wsA, r1, tn.owner.ID, "r1.pdf", false)
+	s.fileMessage(tn.orgID, tn.wsA, r2, tn.owner.ID, "r2.pdf", false)
+	private := s.room(tn.orgID, tn.wsA, "group", "private", "", false)
+	s.roomMember(tn.orgID, tn.wsA, private, tn.owner.ID, "active")
+	s.fileMessage(tn.orgID, tn.wsA, private, tn.owner.ID, "private.pdf", false)
+	foreignTask := s.task(s.other, s.other.wsA)
+	s.attachment(s.other, s.other.wsA, foreignTask, "", "foreign.pdf")
+
+	ids := func(parent string) map[string]bool {
+		t.Helper()
+		page, err := svc.List(s.ctx, human(tn.member), tn.wsA, DocumentSourceFilter{ParentID: parent})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]bool{}
+		for _, it := range page.Items {
+			out[it.ID] = true
+		}
+		return out
+	}
+	if got := ids(taskA); len(got) != 2 || !got[onTask] || !got[onComment] {
+		t.Fatalf("task A files = %v, want the task's and its comment's", got)
+	}
+	if got := ids(r1); len(got) != 1 || !got[inR1] {
+		t.Fatalf("room 1 files = %v, want only its own", got)
+	}
+	if got := ids(private); len(got) != 0 {
+		t.Fatalf("a room the viewer is not in lists %v", got)
+	}
+	if got := ids(foreignTask); len(got) != 0 {
+		t.Fatalf("a task of another organization lists %v", got)
+	}
+	all, blank := ids(""), ids("  ")
+	if len(all) != 5 || len(blank) != 5 {
+		t.Fatalf("no parent lists %d files and blank lists %d, want the 5 the viewer may see", len(all), len(blank))
+	}
+}

@@ -14,6 +14,7 @@
 --   type_mode            '' all | 'ext' extension in type_exts | 'image' |
 --                        'other' neither a known extension nor an image
 --   row_id               one row by its own id (download/save lookup)
+--   parent_id            only the files held by this room / task / meeting / thread
 --
 -- Shape of each query: "base" holds the domain's gate and the raw columns;
 -- "page" applies the keyset and filters, sorts on the base columns (so the
@@ -74,6 +75,7 @@ WITH base AS (
           OR upper(sqlc.arg(viewer_id)::text) = ANY(string_to_array(upper(COALESCE(r.member_set_key, '')), '|'))))
     )
     AND (sqlc.narg(row_id)::text IS NULL OR m.id = sqlc.narg(row_id)::text)
+    AND (sqlc.narg(parent_id)::text IS NULL OR r.id = sqlc.narg(parent_id)::text)
 ), page AS (
   SELECT id, source_id, sort_at, sender_id, sender_kind, room_id, room_kind, room_name, name, mime_type, size_bytes, name_key, editor_key, editor_null
   FROM base
@@ -199,6 +201,7 @@ WITH base AS (
     AND (a.file_id IS NULL OR f.status = 'ready')
     AND a.purpose IS DISTINCT FROM 'task_description_image'
     AND (sqlc.narg(row_id)::text IS NULL OR a.id = sqlc.narg(row_id)::text)
+    AND (sqlc.narg(parent_id)::text IS NULL OR t.id = sqlc.narg(parent_id)::text)
 ), page AS (
   SELECT id, source_id, sort_at, parent_kind, parent_id, parent_title, parent_ref, name, mime_type, size_bytes,
     uploader_id, uploader_type, name_key, editor_key, editor_null
@@ -307,6 +310,7 @@ WITH base AS (
     AND rec.status = 'COMPLETE'
     AND rec.file_id IS NOT NULL
     AND (sqlc.narg(row_id)::text IS NULL OR rec.id = sqlc.narg(row_id)::text)
+    AND (sqlc.narg(parent_id)::text IS NULL OR mt.id = sqlc.narg(parent_id)::text)
 ), page AS (
   SELECT id, source_id, sort_at, parent_id, parent_title, name, mime_type, size_bytes, started_by, name_key, editor_key, editor_null
   FROM base
@@ -429,6 +433,7 @@ WITH base AS (
         AND btrim(ea2.filename) <> ''
         AND ea2.id < ea.id)
     AND (sqlc.narg(row_id)::text IS NULL OR ea.id = sqlc.narg(row_id)::text)
+    AND (sqlc.narg(parent_id)::text IS NULL OR th.id = sqlc.narg(parent_id)::text)
 )
 SELECT
   source_id::text AS source_id,
