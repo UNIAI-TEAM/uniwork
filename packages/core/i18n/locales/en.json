@@ -359,6 +359,21 @@
           "c44c18b815124d7ab07c67738c5ea5d4780524ef4": "UniChat app on iPhone: the Contacts tab no longer switches to an error screen when the list grows, such as when members finish loading, when you clear the search box or tap the tab again.",
           "c0dbacfcab7bbd460800710cbc7a65d7ee6fd100b": "Sign in with Apple: Apple's new hidden email addresses (ending in @private.icloud.com) are recognized like the older hidden addresses, so Settings correctly shows them as Apple hidden email and the Apple linking rules apply correctly."
         }
+      },
+      "v1_14_0": {
+        "title": "Find files by their content in Documents and Ask UNI, Office editor AI runs only on UniWork AI, link guests get into meetings faster",
+        "summary": "The Documents search box and Ask UNI now find Word, Excel, PowerPoint and text files by the words inside them, with a snippet around the match. AI in the Office editor on the web runs only on UniWork AI; the option to use the organization's own AI key has been removed. Ask UNI drafting Office files has its own switch for each organization. Guests joining a meeting by link no longer wait long after the host admits them.",
+        "note": "Content search reads only the first 20,000 characters of each file and doesn't yet cover PDF, HTML, images, video or files larger than 20 MiB; files that already existed are found by their content only after they have been re-indexed. Ask UNI drafting Office files is off by default until UniWork turns it on for your organization. The desktop app still accepts an AI key you enter yourself.",
+        "features": {
+          "c19f5e9f57b705db4e4f60e308c6fc31127c771a3": "Documents: the search box and Ask UNI now find files by the text inside DOCX, XLSX, PPTX, ODT, CSV, Markdown and TXT files. Results show a short snippet around the match so you can see why a file was found, even when the matching words are deep inside the file. Restricted files you can't read still don't reveal their content in results."
+        },
+        "improvements": {
+          "ce90cc8c27246adc34dfb30501bdcd000ece46e03": "AI in the Office editor on the web now runs only on UniWork AI: the option to use the organization's own AI key (BYOK) has been removed, along with any saved keys. Web search, image search and image generation in the editor follow the organization's access to UniWork AI. The desktop app still accepts an AI key you enter yourself, and the privacy page explains that content is then sent straight to the AI provider.",
+          "cc8edec27b62389b94f9fff325c6ab7258fab8545": "Ask UNI drafting Office files has its own switch, off by default, which UniWork turns on for each organization. While it's off, Ask UNI doesn't offer to draft files, and applying existing drafting suggestions, including within a plan or in Auto mode, is refused with a clear message instead of being applied partway. Reading attached files and the Templates section are not affected."
+        },
+        "fixes": {
+          "cf6274a0c5991e5f1bd1215451c815d03cc7b5e69": "Meetings: guests joining by invite link no longer wait, sometimes close to a minute, after the host chooses Admit; they're taken into the room shortly after being approved."
+        }
       }
     }
   },
