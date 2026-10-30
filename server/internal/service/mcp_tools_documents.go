@@ -16,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
-	"github.com/unicomhub/uniwork/server/internal/attachtext"
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/document"
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
@@ -202,24 +201,7 @@ func (s *McpToolService) GetDocument(ctx context.Context, p McpPrincipal, in mcp
 		out.Truncated = out.Content != md
 	case v.File != nil:
 		out.Filename, out.MimeType = v.File.Filename, v.File.MimeType
-		if !mcpTextFile(v.File.MimeType, v.File.Filename) {
-			s.officeDocument(ctx, p, v, &out)
-			break
-		}
-		raw, err := s.fileRead(ctx, p, v.Document.ID, mcpTextReadBytes+1)
-		if err != nil {
-			// The name and type were readable; the bytes not being so (storage down,
-			// a file not ready) is no reason to fail the call.
-			slog.WarnContext(ctx, "mcp get_document: file text not read", "error", err, "document_id", v.Document.ID)
-			out.Note = mcpFileBusyNote
-			break
-		}
-		text, truncated, ok := mcpFileText(raw)
-		if !ok {
-			out.Note = "this file is not valid UTF-8 text, so its content is not shown"
-			break
-		}
-		out.Format, out.Content, out.Truncated = "text", text, truncated
+		s.fileDocument(ctx, p, v, &out)
 	}
 	return out, nil
 }
@@ -229,59 +211,48 @@ const (
 	mcpOfficeEmptyNote      = "this file holds no text to show (pictures or empty pages only)"
 	mcpOfficeUnreadableNote = "the text of this file could not be read (damaged, encrypted or too complex), so only its name and type are shown"
 	mcpOfficeTooLargeNote   = "this file is larger than 20 MiB, so only its name and type are shown; open it in UniWork"
-	mcpNotTextNote          = "this file type cannot be read as text here (md, html, txt, docx, xlsx, pptx, odt and csv can), so only its name and type are shown"
+	mcpNotTextNote          = "this file type cannot be read as text here (md, html, txt, docx, xlsx, pptx, odt, csv and pdf can), so only its name and type are shown"
 	mcpFileBusyNote         = "the text of this file could not be read just now, so only its name and type are shown; try again later"
 )
 
-// officeDocument fills out with the text of an Office file, or with the note
-// that says why it could not be shown.
-func (s *McpToolService) officeDocument(ctx context.Context, p McpPrincipal, v DocumentView, out *McpDocument) {
-	mimeType, ok := mcpOfficeMIME(v.File.MimeType, v.File.Filename)
-	if !ok {
-		out.Note = mcpNotTextNote
-		return
+// fileDocument fills out with the text of a file, or with the note that says
+// why it could not be shown. Office and PDF files wait on Ask UNI's one
+// process-wide file-read slot: the pod is one 512 MiB process and such a read
+// holds up to 20 MiB plus its extraction.
+func (s *McpToolService) fileDocument(ctx context.Context, p McpPrincipal, v DocumentView, out *McpDocument) {
+	kind, extractMIME := fileKindOf(v.File.MimeType, v.File.Filename)
+	apply := func(c fileContent) {
+		out.Format, out.Content, out.Truncated, out.Note = c.Format, c.Content, c.Truncated, c.Note
 	}
-	if !mcpOfficeReadable(v.File.SizeBytes) {
+	switch {
+	case kind == fileReadNone:
+		apply(s.fileContentOf(ctx, kind, "", nil, fileSubject{}))
+		return
+	case kind == fileReadPDF && s.pdf == nil:
+		out.Note = mcpPDFUnavailableNote
+		return
+	case kind != fileReadText && !mcpOfficeReadable(v.File.SizeBytes):
 		out.Note = mcpOfficeTooLargeNote
 		return
+	case kind != fileReadText:
+		if err := takeSlot(ctx, s.ask.fileReads); err != nil {
+			slog.WarnContext(ctx, "mcp get_document: file read slot not taken", "error", err, "document_id", v.Document.ID)
+			out.Note = mcpFileBusyNote
+			return
+		}
+		defer func() { <-s.ask.fileReads }()
 	}
-	// Office reads share Ask UNI's one process-wide file-read slot: the pod is one
-	// 512 MiB process and a read holds up to 20 MiB plus its extraction.
-	if err := takeSlot(ctx, s.ask.fileReads); err != nil {
-		slog.WarnContext(ctx, "mcp get_document: file read slot not taken", "error", err, "document_id", v.Document.ID)
-		out.Note = mcpFileBusyNote
-		return
-	}
-	defer func() { <-s.ask.fileReads }()
-	raw, err := s.fileRead(ctx, p, v.Document.ID, mcpOfficeReadBytes+1)
-	if err == nil && len(raw) > mcpOfficeReadBytes {
-		err = errors.New("file larger than the read ceiling")
-	}
-	var doc attachtext.Doc
-	if err == nil {
-		doc, err = attachtext.Extract(mimeType, bytes.NewReader(raw), int64(len(raw)))
-	}
-	if errors.Is(err, attachtext.ErrUnreadable) {
-		out.Note = mcpOfficeUnreadableNote
-		return
-	}
+	raw, err := s.fileRead(ctx, p, v.Document.ID, fileReadLimit(kind))
 	if err != nil {
-		// The name and type were readable; the bytes not being so is no reason to fail the call.
-		slog.WarnContext(ctx, "mcp get_document: office text not read", "error", err, "document_id", v.Document.ID)
+		// The name and type were readable; the bytes not being so (storage down,
+		// a file not ready) is no reason to fail the call.
+		slog.WarnContext(ctx, "mcp get_document: file text not read", "error", err, "document_id", v.Document.ID)
 		out.Note = mcpFileBusyNote
 		return
 	}
-	out.Format = "extracted"
-	text, truncated := mcpOfficeText(doc)
-	switch {
-	case text == "" && truncated:
-		// Text exists but none of it was kept (a first part over the retain cap).
-		out.Note = mcpOfficeUnreadableNote
-	case text == "":
-		out.Note = mcpOfficeEmptyNote
-	default:
-		out.Content, out.Truncated, out.Note = text, truncated, mcpOfficeNote
-	}
+	apply(s.fileContentOf(ctx, kind, extractMIME, raw, fileSubject{
+		OrganizationID: v.Document.OrganizationID, WorkspaceID: v.Document.WorkspaceID, ActorID: p.UserID, DocumentID: v.Document.ID,
+	}))
 }
 
 // fileRead reads the start of a file document's current version, as the
@@ -665,7 +636,7 @@ func mcpDocumentTools(s *McpToolService) []ai.Tool {
 			func(ctx context.Context, p McpPrincipal, in mcpListDocumentsIn) (any, error) {
 				return s.ListDocuments(ctx, p, in)
 			}),
-		mcpReadTool("get_document", "Get document", "One document the user may read. A page comes as Markdown in content, with its revision. lossy true means the page holds something Markdown cannot carry back exactly (a blank paragraph, a merged table cell, formatting Markdown cannot express, or more than "+strconv.Itoa(document.MaxMarkdownRunes)+" characters), so it can only be appended to, never replaced. content is cut at "+strconv.Itoa(mcpMaxItemRunes)+" characters and truncated says so; a cut page cannot be replaced either. A text file (md, html, txt) comes as text, cut the same way; a docx, xlsx, pptx, odt or csv file comes as the text taken out of it with format extracted, cut the same way (formatting, images and layout are not shown); a pdf or any other file comes as filename and mime_type only, with a note saying why, and so does a file whose text cannot be read at that moment. A folder has no content: list_documents with its id as parent_id shows what is in it.", mcpSchemaDocument,
+		mcpReadTool("get_document", "Get document", "One document the user may read. A page comes as Markdown in content, with its revision. lossy true means the page holds something Markdown cannot carry back exactly (a blank paragraph, a merged table cell, formatting Markdown cannot express, or more than "+strconv.Itoa(document.MaxMarkdownRunes)+" characters), so it can only be appended to, never replaced. content is cut at "+strconv.Itoa(mcpMaxItemRunes)+" characters and truncated says so; a cut page cannot be replaced either. A text file (md, html, txt) comes as text, cut the same way; a docx, xlsx, pptx, odt or csv file comes as the text taken out of it with format extracted, cut the same way (formatting, images and layout are not shown); a pdf comes the same way, its text layer page by page as [page N] (a scan with no text layer has none); any other file comes as filename and mime_type only, with a note saying why, and so does a file whose text cannot be read at that moment. A folder has no content: list_documents with its id as parent_id shows what is in it.", mcpSchemaDocument,
 			func(ctx context.Context, p McpPrincipal, in mcpDocumentRef) (any, error) {
 				return s.GetDocument(ctx, p, in)
 			}),

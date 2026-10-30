@@ -927,6 +927,7 @@ func main() {
 	mcpTools := service.NewMcpToolService(q, askUNI, homeSvc, wsSvc, cfg.FrontendOrigin)
 	mcpTools.SetDocuments(documentSvc)
 	mcpTools.SetFlags(flags)
+	mcpTools.SetPDFText(driveExtractor)
 	askUNI.SetReadTools(mcpTools)
 	if reg != nil {
 		askUNI.SetAgentMetrics(reg.AIAsk)
