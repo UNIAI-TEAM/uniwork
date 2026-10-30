@@ -798,7 +798,7 @@ func (s *DocumentService) listDocumentsPage(ctx context.Context, actor Actor, wo
 				}
 				break
 			}
-			item := DocumentListItem{Document: listRowDocument(r), Snippet: r.Snippet}
+			item := DocumentListItem{Document: listRowDocument(r), Snippet: snippetFor(r, in.Query, matchTitle)}
 			if r.FavoritedAt.Valid {
 				at := r.FavoritedAt.Time.UTC()
 				item.FavoritedAt = &at
@@ -1106,4 +1106,11 @@ func listRowDocument(r db.ListDocumentsPageRow) db.Document {
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 		TemplateMarkedAt: r.TemplateMarkedAt, TemplateMarkedBy: r.TemplateMarkedBy, TemplateMarkedByKind: r.TemplateMarkedByKind,
 	}
+}
+
+func snippetFor(r db.ListDocumentsPageRow, query string, matchTitle bool) string {
+	if matchTitle {
+		return r.Snippet
+	}
+	return matchSnippet(r.ContentText, query, r.Snippet)
 }

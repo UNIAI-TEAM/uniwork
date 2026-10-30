@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -311,5 +312,76 @@ func TestTextIndexMIMEAndText(t *testing.T) {
 	got := fileIndexText(d)
 	if !strings.HasPrefix(got, "Slide 1\nbb\n") || len([]rune(got)) != maxSearchContentRunes {
 		t.Errorf("fileIndexText = %d runes, prefix %q", len([]rune(got)), got[:12])
+	}
+}
+
+func TestSearchSnippetShowsTheMatch(t *testing.T) {
+	x := newMcpToolWorld(t)
+	idx := NewDocumentTextIndexer(x.docs(t), x.tools.ask)
+	ctx := context.Background()
+	id := x.textFile(t, "hd.docx", textIndexDocx(t))
+	doc, err := x.docs(t).q.GetDocumentByID(ctx, id)
+	mustf(t, err, "get")
+	mustf(t, idx.Index(ctx, doc.OrganizationID, id, doc.FileVersionID.String), "index")
+
+	raw, err := callMcpTool(t, x.tools, x.p, "search", `{"workspace_id":"`+x.w.ID+`","query":"`+textIndexQuery+`"}`)
+	mustf(t, err, "search")
+	var items []McpItem
+	mustf(t, json.Unmarshal(raw, &items), "decode")
+	for _, it := range items {
+		if it.ID == id {
+			if !strings.Contains(it.Excerpt, "bảo hành 24 tháng") {
+				t.Fatalf("excerpt = %q", it.Excerpt)
+			}
+			return
+		}
+	}
+	t.Fatalf("file not found: %s", raw)
+}
+
+func TestAskUniSearchFindsWordsDeepInAFile(t *testing.T) {
+	x, s, tc := newAgentWorld(t)
+	ctx := context.Background()
+	s.SetDocuments(x.docs(t))
+	s.SetFlags(agentFlagFake{org: x.w.OrganizationID})
+	idx := NewDocumentTextIndexer(x.docs(t), s)
+	id := x.textFile(t, "hd.docx", textIndexDocx(t))
+	doc, err := x.docs(t).q.GetDocumentByID(ctx, id)
+	mustf(t, err, "get")
+	mustf(t, idx.Index(ctx, doc.OrganizationID, id, doc.FileVersionID.String), "index")
+
+	for _, it := range runAgentTool(t, s, tc, "search", `{"query":"điều khoản bảo hành"}`) {
+		if it.ID == id {
+			return
+		}
+	}
+	t.Fatal("Ask UNI search dropped the file whose body holds the words")
+}
+
+func TestRestrictedFileBodyStaysHidden(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "snip")
+	admin := Human(tn.wsAdmin.ID)
+	doc := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+	body := strings.Repeat("mở đầu ", 60) + textIndexPhrase
+	_, err := f.pool.Exec(f.ctx, `UPDATE documents SET title = 'Hợp đồng mua', content_text = $2, search_text = $3 WHERE id = $1`,
+		doc.ID, body, foldForSearch("Hợp đồng mua "+body))
+	mustf(t, err, "seed")
+
+	list := func(q string) (DocumentListItem, bool) {
+		page, err := f.svc.ListDocuments(f.ctx, admin, tn.wsA, ListDocumentsInput{Query: q})
+		mustf(t, err, "list")
+		for _, it := range page.Items {
+			if it.Document.ID == doc.ID {
+				return it, true
+			}
+		}
+		return DocumentListItem{}, false
+	}
+	if _, ok := list(textIndexQuery); ok {
+		t.Fatal("a body-only search matched a restricted file the admin cannot read")
+	}
+	if it, ok := list("hop dong"); !ok || it.Snippet != "" {
+		t.Fatalf("title search = snippet %q, found %v; want found with an empty snippet", it.Snippet, ok)
 	}
 }
