@@ -110,8 +110,10 @@ test("buildServerEnv sets no AI_CREDENTIAL_KEY (UniWork AI needs no key store) a
   assert.equal("AI_CREDENTIAL_KEY" in env, false);
   // the run owns its names: the VM's own .env value (a real one, if any) is dropped from the server's copy
   assert.equal(serverDotEnv("JWT_SECRET=real-secret\nPORT=1\n", Object.keys(env)).includes("real-secret"), false);
-  // the conversation store keeps its own key and is not switched on here
-  assert.equal("AI_CONVERSATION_KEY" in env, false);
+  // UniWork AI is switched on for the run: the frame token grants `uniwork_ai` only then (ADR 0051)
+  assert.equal(env.AI_PROVIDER, "fake");
+  assert.equal(env.AI_CONVERSATION_KEY, Buffer.alloc(32, 7).toString("base64"));
+  for (const f of ["", "_XLSX", "_DOCX", "_PPTX", "_PDF", "_MARKDOWN", "_HTML"]) assert.equal(env[`FF_OFFICE_AI_UNIWORK${f}`], "true");
 });
 
 test("the web and the API are served as localhost, never 127.0.0.1 (G7-06 round 1: no web page ever hydrated)", () => {

@@ -380,7 +380,7 @@ export async function runWebMatrixRow(runEntry, {
       return evaluatePreconditions({ server: serverEvidence, host: { met: false, failureReason: `host iframe ${sel.iframe} not attached` }, frame: { met: false } });
     }
 
-    const precondVerdict = await verifyHostAndFramePreconditions({ page: web.page, frame, row, provider, runDir, serverEvidence, timeoutMs });
+    const precondVerdict = await verifyHostAndFramePreconditions({ page: web.page, frame, row, runDir, serverEvidence, timeoutMs });
     const preconditions = precondVerdict.preconditions;
     const screenshotPath = preconditions?.frame?.screenshotPath ?? null;
     if (precondVerdict.status !== VERDICT.PASS) return { ...precondVerdict, documentId, preconditions, screenshotPath };

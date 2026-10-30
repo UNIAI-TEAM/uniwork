@@ -141,6 +141,15 @@ export function buildServerEnv({
     LIVEKIT_URL: "",
     LIVEKIT_API_KEY: "",
     LIVEKIT_API_SECRET: "",
+    // Frame tokens carry `uniwork_ai` only when UniWork AI is configured and its
+    // flags are on (ADR 0051); a run-owned fake provider and a test-only key
+    // (not a secret) give the web capture its AI chrome, as G7-08 does.
+    AI_PROVIDER: "fake",
+    AI_CONVERSATION_KEY: Buffer.alloc(32, 7).toString("base64"),
+    FF_OFFICE_AI_UNIWORK: "true",
+    ...Object.fromEntries(
+      ["XLSX", "DOCX", "PPTX", "PDF", "MARKDOWN", "HTML"].map((f) => [`FF_OFFICE_AI_UNIWORK_${f}`, "true"]),
+    ),
   };
 }
 

@@ -91,8 +91,10 @@ and the exact command in `start.sh`'s output.
   `DESKTOP_AUTH_CLIENT_ID` in `server.env` was undone by the checkout's `.env`
   and the server died with `set either DESKTOP_AUTH_CLIENTS or
   DESKTOP_AUTH_CLIENT_ID/DESKTOP_AUTH_REDIRECT_URIS, not both` (cloud round 4).
-* The D server needs no AI key: UniWork AI is the only AI the Office frame runs, and the
-  frame token grants it from the plan and the server's AI gateway. The web capture records
+* The D server needs no AI key. UniWork AI is the only AI the Office frame runs, and the run
+  switches it on itself (`buildServerEnv`): `AI_PROVIDER=fake`, a test-only `AI_CONVERSATION_KEY`
+  and `FF_OFFICE_AI_UNIWORK` plus the six `FF_OFFICE_AI_UNIWORK_<FORMAT>` flags, so the frame token
+  grants it from the default plan (`office.ai_cloud`) and the gateway. The web capture records
   the grant it saw in `meta.json` (`uniworkAi`) and the job fails a web capture without it
   (RFE5-202).
 * The Electron app (and the second instance that carries a deep link) gets an

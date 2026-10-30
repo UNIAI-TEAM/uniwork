@@ -344,8 +344,8 @@ export async function bindDryRunStubRoutes({
         origin,
         status: upstreamRes.status,
         shape,
-        usage: usageFromSseText(sseText, shape),
-        toolCallNames: toolCallNamesFromSseText(sseText, shape),
+        usage: usageFromSseText(sseText),
+        toolCallNames: toolCallNamesFromSseText(sseText),
       });
       await route.fulfill({
         status: upstreamRes.status,
@@ -361,7 +361,7 @@ export async function bindDryRunStubRoutes({
 }
 
 export async function verifyHostAndFramePreconditions({
-  page, frame, row, provider = 'uniwork', runDir, serverEvidence, timeoutMs = 30_000,
+  page, frame, row, runDir, serverEvidence, timeoutMs = 30_000,
 }) {
   const mSel = moduleAiSelectors(row.module);
   await frame.waitForSelector(mSel.docReady, { state: 'attached', timeout: timeoutMs }).catch(() => null);
