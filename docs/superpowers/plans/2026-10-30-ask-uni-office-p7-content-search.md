@@ -1,6 +1,6 @@
 # Hỏi UNI soạn tệp Office — kế hoạch 7: tìm theo nội dung tệp (Phần 1b) Implementation Plan
 
-> **Trạng thái:** in-progress — chủ sản phẩm duyệt 2026-10-30; kế hoạch 7 (Phần 1b) của spec Hỏi UNI soạn tệp Office; issue UNI-2305 (con của UNI-415).
+> **Trạng thái:** in-progress — đã triển khai trên nhánh, chờ PR; chủ sản phẩm duyệt 2026-10-30; kế hoạch 7 (Phần 1b) của spec Hỏi UNI soạn tệp Office; issue UNI-2305 (con của UNI-415).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -54,18 +54,18 @@
 **Interfaces:**
 - Produces: hằng `topicDocumentTextIndexRequested = "document.text_index_requested"`; dòng catalogue `{Topic: "document.text_index_requested", Version: 1, Payload: []string{"document_id", "version_id", "organization_id", "workspace_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox}`; `func insertFileVersion(ctx context.Context, q *db.Queries, actor Actor, params db.InsertDocumentVersionParams) (db.DocumentVersion, error)` — chèn version rồi `auditRecorder.Emit` một event topic trên, `OrganizationID`/`WorkspaceID` của version, payload bốn id. Actor của event là actor của lệnh, như `auditRecorder.Record` ở `pointAtNewFileVersion`.
 
-- [ ] **Step 1: Viết test đỏ** trong `document_text_index_test.go`, dùng thế giới `newMcpToolWorld` + `x.docs(t)` + `x.textFile` (`mcp_tools_documents_test.go:29,141`) và `officeFile` (`:549`):
+- [x] **Step 1: Viết test đỏ** trong `document_text_index_test.go`, dùng thế giới `newMcpToolWorld` + `x.docs(t)` + `x.textFile` (`mcp_tools_documents_test.go:29,141`) và `officeFile` (`:549`):
   - `TestFileVersionsRequestTheirTextIndex`: sau `CreateFileDocument` một DOCX → đúng một dòng `outbox_events` topic `document.text_index_requested` có `document_id` và `version_id` = `file_version_id` của tài liệu. Tải version mới bằng `CommitFileVersion` (`document_commit.go:416`, như `document_commit_*_test.go`) → thêm một dòng với `version_id` mới. `CopyDocument` (`document_copy.go:78`) tệp đó → một dòng cho bản sao. `RestoreDocumentVersion` (`document_versions.go:339`) về version 1 → thêm một dòng.
   - `TestNewFileVersionClearsTheIndexedText`: đặt tay `content_text = 'chữ cũ'`, `search_text` gồm chữ đó (SQL trong test); tải version mới → `content_text = ''`, `search_text = documentSearchText(title, "")`.
   - Trong `server/internal/arch_test.go`, `TestFileVersionsInsertThroughInsertFileVersion`: quét `internal/service/*.go` (trừ `_test.go`); chuỗi `fileVersionParams(` chỉ được xuất hiện trong `document_files.go`, và `InsertDocumentVersion(ctx, fileVersionParams` không xuất hiện ở đâu.
 
-- [ ] **Step 2: Chạy, thấy đỏ.** `cd server; TEST_DATABASE_URL=… go test ./internal/service -run 'TestFileVersionsRequestTheirTextIndex|TestNewFileVersionClearsTheIndexedText' -count=1` và `go test ./internal -run TestFileVersionsInsertThroughInsertFileVersion -count=1` → FAIL.
+- [x] **Step 2: Chạy, thấy đỏ.** `cd server; TEST_DATABASE_URL=… go test ./internal/service -run 'TestFileVersionsRequestTheirTextIndex|TestNewFileVersionClearsTheIndexedText' -count=1` và `go test ./internal -run TestFileVersionsInsertThroughInsertFileVersion -count=1` → FAIL.
 
-- [ ] **Step 3: Cài đặt.** Thêm dòng catalogue ở hai nơi (topic nội bộ như `file.thumbnail_requested`, không vào `packages/core/types/events.ts`). Viết `insertFileVersion`; thay sáu điểm gọi. Sửa `SetDocumentFileVersion` và `pointAtNewFileVersion`. Sửa comment `document_search.go:28-31` và `:260-262` (chữ tệp nay được tìm, qua consumer của Task 2).
+- [x] **Step 3: Cài đặt.** Thêm dòng catalogue ở hai nơi (topic nội bộ như `file.thumbnail_requested`, không vào `packages/core/types/events.ts`). Viết `insertFileVersion`; thay sáu điểm gọi. Sửa `SetDocumentFileVersion` và `pointAtNewFileVersion`. Sửa comment `document_search.go:28-31` và `:260-262` (chữ tệp nay được tìm, qua consumer của Task 2).
 
-- [ ] **Step 4: Chạy lại, thấy xanh**, cùng `node --test scripts/events-catalogue.test.mjs` và `go test ./migrations -run TestEveryQueryNamesItsTenant -count=1`.
+- [x] **Step 4: Chạy lại, thấy xanh**, cùng `node --test scripts/events-catalogue.test.mjs` và `go test ./migrations -run TestEveryQueryNamesItsTenant -count=1`.
 
-- [ ] **Step 5: Commit** `feat(documents): every new file version requests its text index`.
+- [x] **Step 5: Commit** `feat(documents): every new file version requests its text index`.
 
 ### Task 2: Consumer lập chỉ mục chữ của tệp
 
@@ -87,7 +87,7 @@
   - `func fileIndexText(d attachtext.Doc) string`: nối `Label` (khi `Text` rỗng) và `Text` của từng `Part` bằng `\n`, dừng ở `maxSearchContentRunes` rune, không cắt giữa một rune;
   - query `-- name: SetDocumentFileText :execrows`: `UPDATE documents SET content_text = $content_text, search_text = $search_text WHERE id = $id AND organization_id = $organization_id AND workspace_id = $workspace_id AND kind = 'file' AND file_version_id = $file_version_id` (không đụng `revision`, `updated_at`).
 
-- [ ] **Step 1: Viết test đỏ** (cùng thế giới Task 1; gọi `Index` trực tiếp, không chạy dispatcher):
+- [x] **Step 1: Viết test đỏ** (cùng thế giới Task 1; gọi `Index` trực tiếp, không chạy dispatcher):
   - `TestTextIndexMakesOfficeFilesSearchable`: DOCX có câu "Điều khoản bảo hành 24 tháng" ở đoạn thứ 12 (sau 300 ký tự) → `Index` → `content_text` chứa câu đó; `x.searchIDs(t, x.p, "bao hanh 24 thang")` có id tệp. Làm lại với XLSX (ô B7) và PPTX (slide 3).
   - `TestTextIndexWritesNoBusinessChange`: sau `Index`, `revision`, `content_revision`, `updated_at` như trước; số dòng `audit_events`, `document_access_logs` của tài liệu như trước.
   - `TestTextIndexIgnoresAStaleVersion`: tải version 2, rồi `Index(…, versionID của version 1)` → `nil`, không ghi.
@@ -97,13 +97,13 @@
   - `TestTextIndexIgnoresOtherTenantsAndPages`: `organizationID` sai, id của một trang, id không tồn tại → `nil`, không ghi.
   - Test handler: GET tài liệu tệp đã lập chỉ mục → JSON không có khóa `content_text`; GET trang có `content_text` như trước.
 
-- [ ] **Step 2: Chạy, thấy đỏ.** `go test ./internal/service -run 'TestTextIndex' -count=1` → FAIL (chưa có `DocumentTextIndexer`).
+- [x] **Step 2: Chạy, thấy đỏ.** `go test ./internal/service -run 'TestTextIndex' -count=1` → FAIL (chưa có `DocumentTextIndexer`).
 
-- [ ] **Step 3: Cài đặt `Index`.** Thứ tự: đọc hàng (`GetDocumentByID`) và version (`GetDocumentVersionByID`); bỏ qua im lặng nếu không còn khớp (khác tổ chức, không phải `file`, `file_version_id` khác `versionID`, đã purge). `SizeBytes` > `mcpOfficeReadBytes` → chữ rỗng, không mở tệp. Ngược lại `takeSlot` (lỗi ctx → trả lỗi), mở bằng `openVersionFile` (reader mang tên tệp đã qua `versionFilename`), xác định MIME bằng `fileTextIndexMIME(version.MimeType.String, tên tệp của reader)`; không lập chỉ mục được → đóng reader, chữ rỗng; được → đọc tối đa `mcpOfficeReadBytes+1`, `attachtext.Extract`; `ErrUnreadable` → chữ rỗng; lỗi kho lưu → trả lỗi. Rồi một giao dịch: `LockDocumentByID`, kiểm lại `file_version_id` và tổ chức, `SetDocumentFileText` với `documentSearchText(hàng đã khóa.Title, chữ)`. `Handle` đọc payload như `FileThumbnailConsumer.Handle` (`file_derivative.go:236-246`). Đăng ký `dispatcher.RegisterLane(outbox.LaneSlow, service.NewDocumentTextIndexer(documentSvc, askUNI))` trong `main.go` (`askUNI` dựng ở `:333`). Sửa handler `:946` thành `readable && doc.Kind == service.DocumentKindPage && doc.ContentText != ""`.
+- [x] **Step 3: Cài đặt `Index`.** Thứ tự: đọc hàng (`GetDocumentByID`) và version (`GetDocumentVersionByID`); bỏ qua im lặng nếu không còn khớp (khác tổ chức, không phải `file`, `file_version_id` khác `versionID`, đã purge). `SizeBytes` > `mcpOfficeReadBytes` → chữ rỗng, không mở tệp. Ngược lại `takeSlot` (lỗi ctx → trả lỗi), mở bằng `openVersionFile` (reader mang tên tệp đã qua `versionFilename`), xác định MIME bằng `fileTextIndexMIME(version.MimeType.String, tên tệp của reader)`; không lập chỉ mục được → đóng reader, chữ rỗng; được → đọc tối đa `mcpOfficeReadBytes+1`, `attachtext.Extract`; `ErrUnreadable` → chữ rỗng; lỗi kho lưu → trả lỗi. Rồi một giao dịch: `LockDocumentByID`, kiểm lại `file_version_id` và tổ chức, `SetDocumentFileText` với `documentSearchText(hàng đã khóa.Title, chữ)`. `Handle` đọc payload như `FileThumbnailConsumer.Handle` (`file_derivative.go:236-246`). Đăng ký `dispatcher.RegisterLane(outbox.LaneSlow, service.NewDocumentTextIndexer(documentSvc, askUNI))` trong `main.go` (`askUNI` dựng ở `:333`). Sửa handler `:946` thành `readable && doc.Kind == service.DocumentKindPage && doc.ContentText != ""`.
 
-- [ ] **Step 4: Chạy lại, thấy xanh**: `-run 'TestTextIndex|TestFileVersionsRequestTheirTextIndex'` và test handler đã thêm; `gofmt`, `go vet ./internal/service ./cmd/server`, `go tool staticcheck ./internal/service`.
+- [x] **Step 4: Chạy lại, thấy xanh**: `-run 'TestTextIndex|TestFileVersionsRequestTheirTextIndex'` và test handler đã thêm; `gofmt`, `go vet ./internal/service ./cmd/server`, `go tool staticcheck ./internal/service`.
 
-- [ ] **Step 5: Commit** `feat(documents): a slow-lane consumer indexes the text of file documents`.
+- [x] **Step 5: Commit** `feat(documents): a slow-lane consumer indexes the text of file documents`.
 
 ### Task 3: Đoạn trích quanh chỗ khớp; Hỏi UNI giữ kết quả khớp trong thân tệp
 
@@ -116,19 +116,19 @@
 - Consumes: `foldForSearch` (`search_text.go:15`); `Index` của Task 2 trong test.
 - Produces: hằng `documentSnippetRunes = 160`; `func matchSnippet(contentText, query, sqlSnippet string) string`: trả `sqlSnippet` khi `query` rỗng hoặc `sqlSnippet` rỗng (rỗng nghĩa là người tìm không đọc được thân, DOC-05, hoặc thân rỗng); ngược lại tìm `foldForSearch(query)` trong `contentText` đã gập từng rune (giữ bảng vị trí rune gập → rune gốc; một dãy khoảng trắng gập thành một dấu cách, như `foldForSearch`), trả cửa sổ ≤ `documentSnippetRunes` rune quanh chỗ khớp, bắt đầu khoảng 40 rune trước nó, có `…` ở đầu và/hoặc cuối khi cắt; không thấy (khớp ở tên) → `sqlSnippet`.
 
-- [ ] **Step 1: Viết test đỏ.**
+- [x] **Step 1: Viết test đỏ.**
   - `TestMatchSnippet` (bảng): khớp ở ký tự 500 của một chuỗi tiếng Việt có dấu, query không dấu "bao hanh" → kết quả chứa "bảo hành", ≤ 160 rune, bắt đầu bằng `…`; khớp ở đầu → không có `…` đầu; query rỗng → trả `sqlSnippet`; `sqlSnippet` rỗng → rỗng (dù `contentText` có chữ khớp); không khớp → `sqlSnippet`; chuỗi có `đ`, emoji và xuống dòng không làm lệch vị trí.
   - `TestSearchSnippetShowsTheMatch`: sau `Index` DOCX của Task 2, `x.searchIDs` (`search` của MCP) trả mục có `Excerpt` chứa "bảo hành 24 tháng".
   - `TestAskUniSearchFindsWordsDeepInAFile`: cùng tệp, `agentSearch` của Hỏi UNI (`askuni_agent_tools.go:262`) với câu "điều khoản bảo hành" trả tài liệu đó (trước đây bị `score(title+snippet)` của `searchDocumentSources`, `askuni_sources.go:415-461`, loại vì đoạn trích là 160 ký tự đầu).
   - `TestRestrictedFileBodyStaysHidden`: tệp đã lập chỉ mục, đặt `visibility = restricted`, người tìm là quản trị workspace không có chia sẻ → tìm "bao hanh 24 thang" không ra tệp; tìm theo tên ra tệp với `Snippet` rỗng.
 
-- [ ] **Step 2: Chạy, thấy đỏ.** `go test ./internal/service -run 'TestMatchSnippet|TestSearchSnippetShowsTheMatch|TestAskUniSearchFindsWordsDeepInAFile|TestRestrictedFileBodyStaysHidden' -count=1` → FAIL ở ba test đầu.
+- [x] **Step 2: Chạy, thấy đỏ.** `go test ./internal/service -run 'TestMatchSnippet|TestSearchSnippetShowsTheMatch|TestAskUniSearchFindsWordsDeepInAFile|TestRestrictedFileBodyStaysHidden' -count=1` → FAIL ở ba test đầu.
 
-- [ ] **Step 3: Cài đặt.** `matchSnippet` trong `search_text.go`; dòng `:801` thành `Snippet: matchSnippet(r.ContentText, in.Query, r.Snippet)` khi `matchTitle` tắt (tìm theo tên giữ `r.Snippet`).
+- [x] **Step 3: Cài đặt.** `matchSnippet` trong `search_text.go`; dòng `:801` thành `Snippet: matchSnippet(r.ContentText, in.Query, r.Snippet)` khi `matchTitle` tắt (tìm theo tên giữ `r.Snippet`).
 
-- [ ] **Step 4: Chạy lại, thấy xanh**, cùng các test tìm kiếm đang có: `-run 'Search|Snippet|McpSearch'` của `./internal/service` và `./internal/handler`.
+- [x] **Step 4: Chạy lại, thấy xanh**, cùng các test tìm kiếm đang có: `-run 'Search|Snippet|McpSearch'` của `./internal/service` và `./internal/handler`.
 
-- [ ] **Step 5: Commit** `feat(documents): search snippets show the matched words`.
+- [x] **Step 5: Commit** `feat(documents): search snippets show the matched words`.
 
 ### Task 4: Lập chỉ mục tệp cũ, runbook, đóng vòng
 
@@ -142,19 +142,19 @@
 - Consumes: topic và payload của Task 1; `audit.NewRecorder().Emit`, `audit.System("document-text-reindex")`.
 - Produces: query `-- name: ListFileDocumentsForTextIndex :many` với dòng `-- tenant: system`: `SELECT id, organization_id, workspace_id, file_version_id FROM documents WHERE kind = 'file' AND file_version_id IS NOT NULL AND (sqlc.narg(organization_id)::text IS NULL OR organization_id = sqlc.narg(organization_id)) AND id > $after_id ORDER BY id LIMIT $page_limit`; lệnh `document-text-reindex (--org <id> | --all) [--dry-run] [--batch-size 200]`, chỉ đọc `DATABASE_URL` (khuôn `cmd/graph-rebuild/main.go`), mỗi lô một giao dịch phát một yêu cầu cho mỗi tệp, in `requested=<n>` (hoặc `would request=<n>` khi `--dry-run`). `--org` không tồn tại → lỗi.
 
-- [ ] **Step 1: Viết test đỏ** trong `main_test.go` (khuôn `cmd/graph-rebuild/main_test.go`): `TestUsage` (thiếu `--org`/`--all`, cả hai, đối số thừa → lỗi có "usage"); `TestReindexDryRunWritesNothing`; `TestReindexRequestsEveryFileDocument`: hai tệp và một trang trong một tổ chức, một tệp ở tổ chức khác → `--org` phát đúng hai dòng outbox topic `document.text_index_requested` với `version_id` = `file_version_id`; `--all` phát ba; `--batch-size 1` cho cùng kết quả.
+- [x] **Step 1: Viết test đỏ** trong `main_test.go` (khuôn `cmd/graph-rebuild/main_test.go`): `TestUsage` (thiếu `--org`/`--all`, cả hai, đối số thừa → lỗi có "usage"); `TestReindexDryRunWritesNothing`; `TestReindexRequestsEveryFileDocument`: hai tệp và một trang trong một tổ chức, một tệp ở tổ chức khác → `--org` phát đúng hai dòng outbox topic `document.text_index_requested` với `version_id` = `file_version_id`; `--all` phát ba; `--batch-size 1` cho cùng kết quả.
 
-- [ ] **Step 2: Chạy, thấy đỏ.** `go test ./cmd/document-text-reindex -count=1` → FAIL.
+- [x] **Step 2: Chạy, thấy đỏ.** `go test ./cmd/document-text-reindex -count=1` → FAIL.
 
-- [ ] **Step 3: Cài đặt** lệnh và query.
+- [x] **Step 3: Cài đặt** lệnh và query.
 
-- [ ] **Step 4: Chạy lại, thấy xanh**, cùng `go test ./migrations -run TestEveryQueryNamesItsTenant -count=1` và `go test ./internal -run 'TestFileVersionsInsertThroughInsertFileVersion' -count=1`.
+- [x] **Step 4: Chạy lại, thấy xanh**, cùng `go test ./migrations -run TestEveryQueryNamesItsTenant -count=1` và `go test ./internal -run 'TestFileVersionsInsertThroughInsertFileVersion' -count=1`.
 
-- [ ] **Step 5: Runbook.** Mục "Chỉ mục chữ của tệp" trong `RUNBOOK_DOCUMENTS.md`: chữ tệp nằm ở `content_text` (tối đa 20.000 ký tự), consumer `document_text_index` ở làn chậm; khi nào chạy lệnh (một lần sau lần triển khai đầu có tính năng này; sau khi đổi `attachtext`), chạy `--dry-run` trước, theo dõi làn chậm theo `RUNBOOK_OUTBOX.md`; định dạng không được lập chỉ mục (PDF, HTML, > 20 MiB) và lý do.
+- [x] **Step 5: Runbook.** Mục "Chỉ mục chữ của tệp" trong `RUNBOOK_DOCUMENTS.md`: chữ tệp nằm ở `content_text` (tối đa 20.000 ký tự), consumer `document_text_index` ở làn chậm; khi nào chạy lệnh (một lần sau lần triển khai đầu có tính năng này; sau khi đổi `attachtext`), chạy `--dry-run` trước, theo dõi làn chậm theo `RUNBOOK_OUTBOX.md`; định dạng không được lập chỉ mục (PDF, HTML, > 20 MiB) và lý do.
 
-- [ ] **Step 6: Đóng vòng tài liệu.** Spec: dòng Trạng thái thêm kế hoạch 7 (Phần 1b) và câu "Phần 1c và đọc PDF chưa có kế hoạch". Kế hoạch này: "in-progress — đã triển khai trên nhánh, chờ PR".
+- [x] **Step 6: Đóng vòng tài liệu.** Spec: dòng Trạng thái thêm kế hoạch 7 (Phần 1b) và câu "Phần 1c và đọc PDF chưa có kế hoạch". Kế hoạch này: "in-progress — đã triển khai trên nhánh, chờ PR".
 
-- [ ] **Step 7: Commit** `feat(documents): document-text-reindex requests the index of existing files` và `docs: content search of files in the documents runbook and the plan status`.
+- [x] **Step 7: Commit** `feat(documents): document-text-reindex requests the index of existing files` và `docs: content search of files in the documents runbook and the plan status`.
 
 - [ ] **Step 8: Việc ra ngoài, controller hỏi chủ sản phẩm trước:** đẩy nhánh; `make issue-pr KEY=<issue>`. Thân PR theo khuôn PR #532; mục "Đã cố ý bỏ ra ngoài": PDF, HTML, tệp > 20 MiB, Phần 1c, việc chạy `document-text-reindex` ở production (chủ sản phẩm hoặc ops chạy sau khi deploy).
 

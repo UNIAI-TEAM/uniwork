@@ -201,6 +201,23 @@ WHERE status IN ('open', 'validating') AND expires_at < now() - interval '30 min
 Một phiên `validating` có `lease_expires_at` đã qua là phiên mà lần `complete` trước bị cắt giữa chừng: client gọi
 lại `complete` sẽ nhận lại phiên, hoặc GC dọn khi phiên hết hạn. Không sửa dòng bằng tay.
 
+## Chỉ mục chữ của tệp
+
+Chữ của tệp tài liệu (DOCX, XLSX, PPTX, ODT, CSV, Markdown, TXT) nằm ở `documents.content_text`, tối đa
+20.000 ký tự; tìm kiếm tài liệu đọc cột này. Mỗi phiên bản tệp mới phát `document.text_index_requested`,
+consumer `document_text_index` ở làn chậm trích chữ và ghi lại. Không sửa `content_text` bằng tay.
+
+Tệp tải lên trước khi có tính năng chưa có chữ. Chạy một lần, bằng lệnh đọc mỗi `DATABASE_URL`:
+
+1. Sau lần triển khai đầu có tính năng này: `document-text-reindex --all --dry-run`, đọc `would request=<n>`,
+   rồi `document-text-reindex --all` (hoặc `--org <id>` cho một tổ chức; `--batch-size` mặc định 200).
+2. Chạy lại sau khi đổi `attachtext` (thêm hoặc sửa một định dạng); chạy lại chỉ lặp việc, consumer ghi đè
+   cùng chữ.
+3. Theo dõi làn chậm theo `RUNBOOK_OUTBOX.md` cho đến khi hàng đợi `document.text_index_requested` cạn.
+
+Không được lập chỉ mục, chữ để rỗng: PDF và HTML (chưa có bộ trích; PDF thuộc việc sau), và tệp lớn hơn
+20 MiB (không mở tệp để trích).
+
 ## Leo thang
 
 - `outcome="error"` hoặc `"unavailable"` > 5% số lần lưu trong 10 phút → sev 2,
