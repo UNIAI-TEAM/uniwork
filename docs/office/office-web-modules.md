@@ -476,18 +476,19 @@ module spec copies that shape, so adding one needs no CI change.
 
 ## Pinned builds
 
-All six modules are pinned to one fork commit, `8d73c6b6e` (`0.1.0-8d73c6b`, the REPIN-10 pin of UNI-2276: fork main
-`8d73c6b6e`, whose one-shot writers in Docs, Markdown, HTML and Slides send `writer: {kind, input}` to the UniWork AI
-writer route `…/ai/uniwork/write` instead of being refused under UniWork AI, and whose web Slides frame generates and lands
-deck pages, with `generate_deck` and `regenerate_slide` offered under UniWork AI on the web only (ADR 0050). It also carries
-the fork main work merged since `0.1.0-6799c67`: UNI-2265, UNI-2266, UNI-2267, UNI-2275, UNI-2277, UNI-2278 (Hide from AI),
-UNI-2280, UNI-2281 and UNI-2282, so every bundle changes for more than this feature.) Nothing under `web/docs/protocol`
-changed since `6799c6765`, so the three digests stay the same and the vendored headers keep naming `6799c6765`. The writer
-route is plain HTTP from the frame, not a frame request. The avatar route list (`AVATAR_ROUTE_FRAME_VERSIONS`) now holds
-`0.1.0-8d73c6b`, which keeps the avatar loader, in place of `0.1.0-6799c67`. Built on linux/arm64 (the Sheets wasm is the
-arm64 line `24e30396...a1d` of the fork's checksum file), published at `web-0.1.0-8d73c6b`
-(`dist-web-0.1.0-8d73c6b.tar.gz`, sha256 `8396201c...09de`), and written by
-`node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` with `source.json` naming the release URL.
+All six modules are pinned to one fork commit, `c4b20c542` (`0.1.0-c4b20c5`, the REPIN-11 pin of UNI-2289: fork main
+`c4b20c542`, whose frame protocol no longer has the `ai` capability (BYOK is gone from the frame; UniWork AI, `uniworkAi`, is
+the only AI, and the host stopped sending `ai`). It also carries the fork main work merged since `0.1.0-8d73c6b`: ODF slice 1
+(UNI-2279), compact ribbon set B (UNI-2277), skills X4 and X5 (UNI-2282) and PDF wave 2 (UNI-2284), so every bundle changes for
+more than this feature.) `types.ts` changed (`'ai'` left `Capability` and `CAPABILITY_KEYS`), so the `protocol` digest is now
+`ff03daa8...acd1`; `endpoint.ts` and `host.ts` did not change, so their digests stay and only the three vendored headers now name
+`c4b20c542`. The avatar route list (`AVATAR_ROUTE_FRAME_VERSIONS`) now holds `0.1.0-c4b20c5`, which keeps the avatar loader.
+Published at `web-0.1.0-c4b20c5` (`dist-web-0.1.0-c4b20c5.tar.gz`, sha256 `f7410b4b...38b9`), and written by
+`node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` with `source.json` naming the release URL. The G7-06
+goldens still name `0.1.0-8d73c6b` and are re-captured on Linux in a separate commit.
+
+The pin before it, kept for the history: `8d73c6b6e` (`0.1.0-8d73c6b`, the REPIN-10 pin of UNI-2276; the one-shot writers and the
+web Slides frame, sha256 `8396201c...09de`), replacing the next one.
 
 The previous pin, kept for the history: `6799c6765` (`0.1.0-6799c67`, the REPIN-9 pin of UNI-2264: fork main `6799c6765`,
 which added the frame request `ai.start` and the capability `aiStart` over `0.1.0-59defc1`, plus the UNI-2262 PDF editing
