@@ -192,6 +192,8 @@ func (s *AskUNIService) agentTools() []agentTool {
 				"format": strArg("docx, xlsx, pptx, pdf, md or html; an empty string lists every format"),
 				"cursor": strArg("The cursor a previous list_templates call gave; \"\" for the first page."),
 			}, s.needsReads(s.agentListTemplates)),
+		s.listAttachmentsTool(),
+		s.getAttachmentTool(),
 		readTool("list_chat_rooms", "Chat rooms the user belongs to in the workspace: name, type and last activity.", nil, s.agentListChatRooms),
 		readTool("read_chat_room", "The latest 30 messages of one chat room the user may read.",
 			map[string]agentProp{

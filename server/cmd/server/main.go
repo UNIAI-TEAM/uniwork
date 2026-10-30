@@ -929,6 +929,12 @@ func main() {
 	mcpTools.SetFlags(flags)
 	mcpTools.SetPDFText(driveExtractor)
 	askUNI.SetReadTools(mcpTools)
+	// One composition for the documents home and Ask UNI's attachment tools, so
+	// the router does not build a second one.
+	documentSourceSvc := service.NewDocumentSourceService(service.DocumentSourceDeps{
+		Documents: documentSvc, Chat: chatSvc, Tasks: taskSvc, Meetings: meetingSvc, EmailHub: emailHubSvc,
+	})
+	askUNI.SetDocumentSources(documentSourceSvc)
 	if reg != nil {
 		askUNI.SetAgentMetrics(reg.AIAsk)
 		aiMemorySvc.SetMetrics(reg.AIAsk)
@@ -990,6 +996,7 @@ func main() {
 		Storage:             store,
 		FileAccess:          fileAccess,
 		Documents:           documentSvc,
+		DocumentSources:     documentSourceSvc,
 		DocumentChanges:     docChanges,
 		OfficeLease:         officeLeases,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),

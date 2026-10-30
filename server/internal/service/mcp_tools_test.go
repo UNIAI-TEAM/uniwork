@@ -1309,3 +1309,13 @@ func deref(s *string) string {
 	}
 	return *s
 }
+
+// Ask UNI's attachment tools read through the document sources as the asker;
+// the MCP connector never offers them (ADR 0031 §4).
+func TestAskAttachmentToolsAreNotOnTheConnector(t *testing.T) {
+	for _, name := range []string{"list_attachments", "get_attachment"} {
+		if _, ok := McpTools(&McpToolService{}).Get(name); ok {
+			t.Errorf("the MCP connector offers %s", name)
+		}
+	}
+}
