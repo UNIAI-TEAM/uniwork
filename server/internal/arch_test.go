@@ -675,8 +675,14 @@ func TestDriveContentOnlyFromDriveContent(t *testing.T) {
 
 // Every file version is inserted through insertFileVersion, which asks the
 // slow lane to index the version's text; a direct insert would leave the
-// version unsearchable by content.
+// version unsearchable by content. InsertDocumentVersion( may appear only in
+// the files below, and in document_files.go only once, inside insertFileVersion.
 func TestFileVersionsInsertThroughInsertFileVersion(t *testing.T) {
+	allowedFiles := map[string]string{
+		"document_files.go":    "holds insertFileVersion, the one file-version insert",
+		"document_workers.go":  "inserts page versions, which have no file text",
+		"document_versions.go": "inserts page versions, which have no file text",
+	}
 	files, err := filepath.Glob("service/*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -689,8 +695,13 @@ func TestFileVersionsInsertThroughInsertFileVersion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(string(src), "InsertDocumentVersion(ctx, fileVersionParams") {
-			t.Errorf("%s inserts a file version directly; use insertFileVersion", path)
+		n := strings.Count(string(src), "InsertDocumentVersion(")
+		base := filepath.Base(path)
+		if _, ok := allowedFiles[base]; !ok && n > 0 {
+			t.Errorf("%s calls InsertDocumentVersion; insert file versions through insertFileVersion", path)
+		}
+		if base == "document_files.go" && n != 1 {
+			t.Errorf("%s calls InsertDocumentVersion %d times; only insertFileVersion may, once", path, n)
 		}
 	}
 }
