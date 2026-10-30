@@ -22,7 +22,7 @@ import (
 func indexRequests(t *testing.T, env *docStorageEnv, docID string) []string {
 	t.Helper()
 	var out []string
-	for _, p := range outboxPayloads(t, env.f.pool, topicDocumentTextIndexRequested) {
+	for _, p := range outboxPayloads(t, env.f.pool, TopicDocumentTextIndexRequested) {
 		if p["document_id"] == docID {
 			if p["organization_id"] == "" || p["workspace_id"] == "" {
 				t.Fatalf("payload misses a tenant id: %v", p)
@@ -304,9 +304,45 @@ func TestTextIndexDoesNotRetryWithoutTheEngine(t *testing.T) {
 		if row := readTextIndexRow(t, env.f.pool, id); row.Content != "" {
 			t.Fatalf("%s: content_text = %q", name, row.Content)
 		}
-		if c.noEngine && len(c.fake.calls) != 0 {
-			t.Fatalf("%s: engine was called", name)
+		want := 1
+		if c.noEngine {
+			want = 0
 		}
+		if len(c.fake.calls) != want {
+			t.Fatalf("%s: engine calls = %d, want %d", name, len(c.fake.calls), want)
+		}
+	}
+}
+
+// blockingPDFText waits for its context to end, like an engine job that never finishes.
+type blockingPDFText struct{ calls int }
+
+func (b *blockingPDFText) ExtractText(ctx context.Context, _ office.ExtractTextRequest) (office.ExtractTextResult, error) {
+	b.calls++
+	<-ctx.Done()
+	return office.ExtractTextResult{}, ctx.Err()
+}
+
+func TestTextIndexDoesNotRetryASlowEngine(t *testing.T) {
+	old := pdfIndexExtractTimeout
+	pdfIndexExtractTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { pdfIndexExtractTimeout = old })
+	env := newFakeDocStorageEnv(t)
+	fake := &blockingPDFText{}
+	idx := NewDocumentTextIndexer(env.svc, nil, fake)
+	res := env.createFile(t, human(env.tn.member), "cham.pdf", pdfBody("cham"))
+	id := res.Document.ID
+	_, err := env.f.pool.Exec(context.Background(), `UPDATE documents SET content_text = 'cũ' WHERE id = $1`, id)
+	mustf(t, err, "seed")
+	// The parent context must still be alive when the engine is cut, so store runs.
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	mustf(t, idx.Index(ctx, env.tn.orgID, id, res.Document.FileVersionID.String), "index")
+	if fake.calls != 1 {
+		t.Fatalf("engine calls = %d", fake.calls)
+	}
+	if row := readTextIndexRow(t, env.f.pool, id); row.Content != "" {
+		t.Fatalf("content_text = %q", row.Content)
 	}
 }
 
@@ -533,7 +569,7 @@ func TestFileIndexText(t *testing.T) {
 }
 
 func TestTextIndexTopicIsInTheCatalogue(t *testing.T) {
-	if _, ok := outbox.Lookup(topicDocumentTextIndexRequested); !ok {
-		t.Fatalf("%q is not in the outbox catalogue", topicDocumentTextIndexRequested)
+	if _, ok := outbox.Lookup(TopicDocumentTextIndexRequested); !ok {
+		t.Fatalf("%q is not in the outbox catalogue", TopicDocumentTextIndexRequested)
 	}
 }

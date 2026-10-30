@@ -47,11 +47,16 @@ func NewDocumentTextIndexer(docs *DocumentService, ask *AskUNIService, pdf Drive
 
 func (*DocumentTextIndexer) Name() string { return "document_text_index" }
 func (*DocumentTextIndexer) Topics() []string {
-	return []string{topicDocumentTextIndexRequested}
+	return []string{TopicDocumentTextIndexRequested}
 }
 
-// DeliveryTimeout leaves room to wait for the read slot, read 20 MiB and extract it.
-func (*DocumentTextIndexer) DeliveryTimeout() time.Duration { return 60 * time.Second }
+// pdfIndexExtractTimeout cuts a slow Office engine well before the delivery
+// budget ends, so the store still has a live context and the row is not retried.
+var pdfIndexExtractTimeout = 30 * time.Second
+
+// DeliveryTimeout leaves room to wait for the read slot, read 20 MiB and extract it
+// (the claim lease caps it at 120 seconds).
+func (*DocumentTextIndexer) DeliveryTimeout() time.Duration { return 90 * time.Second }
 
 func (x *DocumentTextIndexer) Handle(ctx context.Context, ev outbox.Row) error {
 	payload := map[string]string{}
@@ -125,6 +130,11 @@ func (x *DocumentTextIndexer) read(ctx context.Context, doc db.Document, ver db.
 			return "", nil
 		}
 	}
+	if x.pdf == nil { // no engine: a PDF stays empty without taking the slot or opening the file
+		if k, _ := fileKindOf(ver.MimeType.String, doc.Title); k == fileReadPDF {
+			return "", nil
+		}
+	}
 	if err := takeSlot(ctx, x.reads); err != nil {
 		return "", err
 	}
@@ -181,13 +191,15 @@ func (x *DocumentTextIndexer) read(ctx context.Context, doc db.Document, ver db.
 // failure (off, unreachable, an unreadable file) is an empty answer, not an
 // error: a retry would only repeat it, and a person can search by title.
 func (x *DocumentTextIndexer) pdfText(ctx context.Context, doc db.Document, raw []byte) string {
-	res, err := x.pdf.ExtractText(ctx, office.ExtractTextRequest{
+	ectx, cancel := context.WithTimeout(ctx, pdfIndexExtractTimeout)
+	defer cancel()
+	res, err := x.pdf.ExtractText(ectx, office.ExtractTextRequest{
 		Format: office.ExtractFormatPDF, Content: raw,
 		ActorKind: "system", ActorID: x.Name(),
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 	})
 	if err != nil {
-		slog.Warn("document text index: pdf text unavailable", "document_id", doc.ID, "version_id", doc.FileVersionID.String)
+		slog.WarnContext(ctx, "document text index: pdf text unavailable", "error", err, "document_id", doc.ID, "version_id", doc.FileVersionID.String)
 		return ""
 	}
 	return pdfIndexText(pdfPageTexts(res.Text))
