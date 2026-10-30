@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -25,5 +27,19 @@ func TestDocumentDTOOmitsContentBelowView(t *testing.T) {
 	read := documentDTO(service.DocumentView{Document: doc, Access: service.DocumentAccess{Level: service.DocumentLevelView}})
 	if read.Content == nil || read.ContentText != "secret body" {
 		t.Fatalf("reader DTO lost content: %+v %q", read.Content, read.ContentText)
+	}
+}
+
+// A file document's content_text is its search index: it never goes to a
+// client, whatever the level, and the JSON has no content_text key.
+func TestDocumentDTOKeepsAFilesSearchTextOnTheServer(t *testing.T) {
+	file := db.Document{ID: "f", Kind: service.DocumentKindFile, Title: "Hợp đồng", ContentText: "Điều khoản bảo hành"}
+	dto := documentDTO(service.DocumentView{Document: file, Access: service.DocumentAccess{Level: service.DocumentLevelView}})
+	raw, err := json.Marshal(dto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dto.ContentText != "" || strings.Contains(string(raw), "content_text") {
+		t.Fatalf("file DTO carries its search text: %s", raw)
 	}
 }

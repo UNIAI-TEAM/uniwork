@@ -201,6 +201,31 @@ WHERE status IN ('open', 'validating') AND expires_at < now() - interval '30 min
 Một phiên `validating` có `lease_expires_at` đã qua là phiên mà lần `complete` trước bị cắt giữa chừng: client gọi
 lại `complete` sẽ nhận lại phiên, hoặc GC dọn khi phiên hết hạn. Không sửa dòng bằng tay.
 
+## Chỉ mục chữ của tệp
+
+Chữ của tệp tài liệu (DOCX, XLSX, PPTX, ODT, CSV, Markdown, TXT) nằm ở `documents.content_text`, tối đa
+20.000 ký tự; tìm kiếm tài liệu đọc cột này. Mỗi phiên bản tệp mới phát `document.text_index_requested`,
+consumer `document_text_index` ở làn chậm trích chữ và ghi lại. Không sửa `content_text` bằng tay.
+
+Tệp tải lên trước khi có tính năng chưa có chữ. Chạy một lần, bằng lệnh đọc mỗi `DATABASE_URL`:
+
+1. Sau lần triển khai đầu có tính năng này: `document-text-reindex --all --dry-run`, đọc `would request=<n>`,
+   rồi `document-text-reindex --all` (hoặc `--org <id>` cho một tổ chức). Lệnh tự điều tốc: trước mỗi lô
+   nó chờ (hỏi lại mỗi 2 giây) đến khi số yêu cầu `document.text_index_requested` còn chờ hoặc đang xử lý
+   dưới `--max-pending` (mặc định 20); `--batch-size` mặc định 20; `--dry-run` không bao giờ chờ.
+2. Chạy lại sau khi đổi `attachtext` (thêm hoặc sửa một định dạng); chạy lại chỉ lặp việc, consumer ghi đè
+   cùng chữ.
+3. Theo dõi làn chậm theo `RUNBOOK_OUTBOX.md` cho đến khi hàng đợi `document.text_index_requested` cạn.
+
+Chi phí của lần chạy: việc trích chữ dùng chung làn chậm với xem trước liên kết, ảnh thu nhỏ, tải zip, xuất dữ
+liệu riêng tư và tóm tắt giọng nói, nên các việc đó phải chờ trong lúc lệnh chạy; `OutboxLagHigh` (sev 2) có
+thể kêu cho topic này, đó là dự kiến chứ không phải sự cố. Chạy ngoài giờ làm việc, từng tổ chức một (`--org`
+trước), giữ `--max-pending` mặc định. Một lần tải lên cả thư mục lớn toàn tệp Office cũng xếp nhiều dòng chỉ
+mục vào cùng làn (đã biết, việc theo dõi sau).
+
+Không được lập chỉ mục, chữ để rỗng: PDF và HTML (chưa có bộ trích; PDF thuộc việc sau), và tệp lớn hơn
+20 MiB (không mở tệp để trích).
+
 ## Leo thang
 
 - `outcome="error"` hoặc `"unavailable"` > 5% số lần lưu trong 10 phút → sev 2,

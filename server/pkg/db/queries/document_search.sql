@@ -1051,8 +1051,21 @@ FROM anc;
 
 -- Every visible live document of one workspace in tree order - the
 -- DocumentTree endpoint assembles the forest in memory.
+-- The body columns (content, content_text, search_text) are left out: a tree
+-- node is built from the rest, and a workspace of file documents would
+-- otherwise ship up to 20000 runes of text per row for nothing.
 -- name: ListTreeDocuments :many
-SELECT d.*
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title,
+       d.icon, d.visibility, d.content_bytes, d.current_version, d.file_version_id,
+       d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id,
+       d.source_document_id, d.source_version_id, d.source_revision,
+       d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256,
+       d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by,
+       d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at,
+       d.archived_by, d.purge_after, d.created_at, d.updated_at,
+       d.archive_batch_id, d.content_revision, d.workspace_level, d.system_kind,
+       d.shelved_at, d.shelved_by, d.shelved_by_kind, d.shelve_batch_id,
+       d.template_marked_at, d.template_marked_by, d.template_marked_by_kind
 FROM documents d
 WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.workspace_id = sqlc.arg(workspace_id)

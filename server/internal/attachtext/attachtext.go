@@ -1,6 +1,8 @@
 // Package attachtext turns a file attached to an Ask UNI question into text
-// the model can read: Word, PowerPoint, Excel, ODT and plain-text files. The
-// server re-reads each file on every turn and never stores what it extracts.
+// the model can read: Word, PowerPoint, Excel, ODT and plain-text files. Ask
+// UNI re-reads each file on every turn and never stores what it extracts. The
+// document search index is the one place that stores extracted text: at most
+// 20,000 characters per file document, in documents.content_text.
 //
 // It is a leaf: nothing from the rest of the repo, and outside the standard
 // library only pdfcpu (pure Go, for counting and trimming PDF pages).

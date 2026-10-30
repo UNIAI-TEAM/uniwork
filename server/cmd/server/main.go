@@ -518,6 +518,8 @@ func main() {
 	dispatcher.RegisterLane(outbox.LaneNotify, service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatVoiceSummaryConsumer(chatSvc))
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewFileThumbnailConsumer(fileSvc))
+	// Content search of file documents: it reads the file, so the slow lane and Ask UNI's one file-read slot.
+	dispatcher.RegisterLane(outbox.LaneSlow, service.NewDocumentTextIndexer(documentSvc, askUNI))
 	// Link previews (ADR 0035): a fetch waits on a third party, so never the realtime lane.
 	dispatcher.RegisterLane(outbox.LaneSlow, service.NewChatLinkPreviewConsumer(chatSvc, linkpreview.New(linkpreview.Options{})))
 	// The UniWork AI transcript follows what it is bound to: a deleted document
