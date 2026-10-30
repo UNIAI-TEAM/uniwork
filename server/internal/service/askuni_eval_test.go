@@ -160,7 +160,7 @@ func (e *evalWorld) useAgent(t *testing.T, on bool) {
 }
 
 // evalAgentFlags is the seed's flags with ask_uni_agent and ask_uni_attachments
-// on for one organization, and ask_uni_actions and ask_uni_memory off unless a
+// on for one organization, and ask_uni_actions, ask_uni_office and ask_uni_memory off unless a
 // case with a mode or with memory turned them on: the eval measures the
 // read-only prompts, @4 and @5 (R12).
 type evalAgentFlags struct {
