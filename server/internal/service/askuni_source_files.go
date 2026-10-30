@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -89,11 +90,21 @@ func (s *AskUNIService) agentListAttachments(ctx context.Context, tc ai.ToolCont
 	if !s.reads.documentsOn(ctx, principalOf(tc)) {
 		return nil, errMcpDocumentsUnavailable
 	}
+	if !slices.Contains([]string{"", "chat", "task", "email", "meeting"}, a.Source) {
+		return nil, McpInvalidArgs{Msg: "source must be chat, task, email, meeting or empty"}
+	}
+	if !slices.Contains([]string{"", "docx", "xlsx", "pptx", "pdf", "md", "html", "txt"}, a.Type) {
+		return nil, McpInvalidArgs{Msg: "type must be docx, xlsx, pptx, pdf, md, html, txt or empty"}
+	}
 	f := DocumentSourceFilter{Source: a.Source, ParentID: a.ParentID, Q: a.Query, Cursor: a.Cursor, Limit: mcpMaxList}
 	if a.Type != "" {
 		f.Types = []string{a.Type}
 	}
 	page, err := s.sources.List(ctx, Human(tc.ActorID), tc.WorkspaceID, f)
+	var invalid ValidationError
+	if errors.As(err, &invalid) {
+		return nil, McpInvalidArgs{Msg: "the query or cursor was not accepted; use a cursor list_attachments returned and a query of at most 200 characters"}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -147,12 +158,11 @@ func (s *AskUNIService) agentGetAttachment(ctx context.Context, tc ai.ToolContex
 	if err != nil {
 		return nil, err
 	}
-	var content fileContent
 	if declinedAI(it, optOuts) {
-		content.Note = askAttachmentOptOutNote
-	} else {
-		content = s.readAttachment(ctx, tc, ws.OrganizationID, it)
+		// Like read_chat_room, which drops an opted-out sender: no name, no container, no bytes.
+		return []agentItem{{Kind: "document", ID: it.ID, Key: base + "#" + it.ID, Href: base, Title: "Attachment", Text: "ID: " + it.ID + "\nNote: " + askAttachmentOptOutNote, Foreign: true}}, nil
 	}
+	content := s.readAttachment(ctx, tc, ws.OrganizationID, it)
 	fields := "ID: " + it.ID + "\nFile: " + it.Name + " (" + it.MimeType + ")\n" + attachmentIn(it)
 	if content.Note != "" {
 		fields += "\nNote: " + content.Note
@@ -177,6 +187,8 @@ func (s *AskUNIService) readAttachment(ctx context.Context, tc ai.ToolContext, o
 	switch {
 	case kind == fileReadNone:
 		return fileContent{Note: mcpNotTextNote}
+	case kind == fileReadPDF && s.reads.pdf == nil:
+		return fileContent{Note: mcpPDFUnavailableNote}
 	case it.SizeBytes > mcpOfficeReadBytes:
 		return fileContent{Note: mcpOfficeTooLargeNote}
 	}

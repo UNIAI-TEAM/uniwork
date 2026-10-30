@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +36,7 @@ func wireSources(t *testing.T, x *mcpToolWorld, s *AskUNIService, tc ai.ToolCont
 	docs := x.docs(t)
 	s.chat.SetFiles(x.files)
 	tasks := NewTaskService(x.tools.ask.pool, x.tools.q, x.tools.ws, newMemStorage())
-	s.SetDocumentSources(NewDocumentSourceService(DocumentSourceDeps{Documents: docs, Chat: s.chat, Tasks: tasks, EmailHub: NewEmailHubService(x.tools.q, x.tools.ws, nil)}))
+	s.SetDocumentSources(NewDocumentSourceService(DocumentSourceDeps{Documents: docs, Chat: s.chat, Tasks: tasks, EmailHub: NewEmailHubService(x.tools.q, x.tools.ws, testEmailHubBox(t))}))
 	return &attachWorld{x: x, s: s, tc: tc, tasks: tasks}
 }
 
@@ -98,6 +99,37 @@ func (w *attachWorld) chatFile(t *testing.T, senderID, name string, members ...s
 	return roomID, "chat:" + msgID
 }
 
+// mail seeds a mailbox of ownerID with one thread and one PDF attachment; it
+// returns the account id, the thread id and the source file id.
+func (w *attachWorld) mail(t *testing.T, ownerID string) (accountID, threadID, sourceID string) {
+	t.Helper()
+	ctx, org := context.Background(), w.x.w.OrganizationID
+	acc, err := w.x.tools.q.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
+		ID: util.NewID(), UserID: ownerID, OrganizationID: org, EmailAddress: strings.ToLower(util.NewID()) + "@example.com",
+		Provider: "gmail", ImapHost: "imap.example.com", ImapPort: 993, ImapSecurity: "tls",
+		SmtpHost: "smtp.example.com", SmtpPort: 465, SmtpSecurity: "starttls", AuthKind: "password", PasswordEnc: "x",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	th, err := w.x.tools.q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
+		ID: util.NewID(), AccountID: acc.ID, OrganizationID: org, Folder: "INBOX", ImapUid: 1,
+		Subject: "Thư", FromAddr: "a@example.com", ToAddrs: []string{acc.EmailAddress},
+		SentAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}, HasAttachments: true, ImapLabels: []string{}, ConversationKey: "conv-" + acc.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	att, err := w.x.tools.q.CreateEmailHubAttachment(ctx, db.CreateEmailHubAttachmentParams{
+		ID: util.NewID(), ThreadID: th.ID, AccountID: acc.ID, OrganizationID: org,
+		Filename: "thu.pdf", MimeType: "application/pdf", SizeBytes: 4, PartID: "2",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return acc.ID, th.ID, "email:" + att.ID
+}
+
 func wordFile(t *testing.T, text string) []byte {
 	t.Helper()
 	return officeFile(t, map[string]string{"word/document.xml": `<w:document ` + textIndexW + `><w:body><w:p><w:r><w:t>` + text + `</w:t></w:r></w:p></w:body></w:document>`})
@@ -157,31 +189,9 @@ func TestAskAttachmentRefusals(t *testing.T) {
 
 	// A private room the asker is not in, and a mailbox that is not the asker's.
 	_, inPrivate := w.chatFile(t, member.UserID, "mat.pdf", member.UserID)
-	acc, err := w.x.tools.q.CreateEmailHubAccount(ctx, db.CreateEmailHubAccountParams{
-		ID: util.NewID(), UserID: member.UserID, OrganizationID: w.x.w.OrganizationID, EmailAddress: strings.ToLower(util.NewID()) + "@example.com",
-		Provider: "gmail", ImapHost: "imap.example.com", ImapPort: 993, ImapSecurity: "tls",
-		SmtpHost: "smtp.example.com", SmtpPort: 465, SmtpSecurity: "starttls", AuthKind: "password", PasswordEnc: "x",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	th, err := w.x.tools.q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
-		ID: util.NewID(), AccountID: acc.ID, OrganizationID: w.x.w.OrganizationID, Folder: "INBOX", ImapUid: 1,
-		Subject: "Thư", FromAddr: "a@example.com", ToAddrs: []string{acc.EmailAddress},
-		SentAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}, HasAttachments: true, ImapLabels: []string{}, ConversationKey: "conv-" + acc.ID,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	att, err := w.x.tools.q.CreateEmailHubAttachment(ctx, db.CreateEmailHubAttachmentParams{
-		ID: util.NewID(), ThreadID: th.ID, AccountID: acc.ID, OrganizationID: w.x.w.OrganizationID,
-		Filename: "thu.pdf", MimeType: "application/pdf", SizeBytes: 4, PartID: "2",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	acc, th, mail := w.mail(t, member.UserID)
 
-	// The same workspace's other organization member, another workspace and another organization.
+	// A second workspace of the same organization and a second organization, each with a file ua may not read here.
 	v2, err := w.x.tools.ws.CreateInOrg(ctx, w.x.ua.ID, w.x.w.OrganizationID, "Beta", "beta-att")
 	if err != nil {
 		t.Fatal(err)
@@ -189,13 +199,14 @@ func TestAskAttachmentRefusals(t *testing.T) {
 	task2 := w.x.task(t, w.x.ua.ID, v2.Workspace.ID, "Việc workspace hai")
 	org2, ws2 := w.x.org(t, w.x.ub.ID, "Org B", "org-b-att")
 	taskB := w.x.task(t, w.x.ub.ID, ws2.ID, "Việc tổ chức B")
+	libraryDoc := w.x.textFile(t, "thu-vien.docx", wordFile(t, "Thư viện"))
 	cases := map[string]string{
 		"a private room":        inPrivate,
-		"another person's mail": "email:" + att.ID,
+		"another person's mail": mail,
 		"workspace two":         w.rawAttachment(t, w.x.w.OrganizationID, v2.Workspace.ID, task2.ID, w.x.ua.ID, "hai.docx", 10),
 		"organization B":        w.rawAttachment(t, org2.ID, ws2.ID, taskB.ID, w.x.ub.ID, "b.docx", 10),
 		"nobody's":              "task:" + util.NewID(),
-		"a library document id": w.x.taskID,
+		"a library document id": libraryDoc,
 		"no prefix":             util.NewID(),
 	}
 	for name, id := range cases {
@@ -207,9 +218,32 @@ func TestAskAttachmentRefusals(t *testing.T) {
 	if items := w.run(t, w.tc, "get_document", `{"document_id":"`+own+`"}`); !isError(items, "not_found") {
 		t.Errorf("get_document of a source id = %+v", items)
 	}
-	// The mail is not listed to the asker either.
-	for _, it := range w.run(t, w.tc, "list_attachments", `{"source":"email","parent_id":"","query":"","type":"","cursor":""}`) {
-		t.Errorf("list_attachments shows another person's mail: %+v", it)
+	// Neither the mail nor the private room's file is listed to the asker.
+	for _, it := range w.run(t, w.tc, "list_attachments", `{"source":"","parent_id":"","query":"","type":"","cursor":""}`) {
+		if it.ID == mail || it.ID == inPrivate {
+			t.Errorf("list_attachments shows what the asker may not open: %+v", it)
+		}
+	}
+	// Controls: the mailbox owner lists and reads their own mail (the IMAP fetch
+	// fails here, which is the busy note), and a room member lists the room's file.
+	tcB := ai.ToolContext{ActorID: member.UserID, OrganizationID: member.OrganizationID, WorkspaceID: w.x.w.ID}
+	var found bool
+	for _, it := range w.run(t, tcB, "list_attachments", `{"source":"email","parent_id":"","query":"","type":"","cursor":""}`) {
+		if it.ID == mail {
+			found = true
+			if it.Title != "thu.pdf" || !it.Foreign || !strings.HasSuffix(it.Href, "/email?thread="+th+"&account="+acc) {
+				t.Errorf("mail row = %+v", it)
+			}
+		}
+	}
+	if !found {
+		t.Error("the mailbox owner does not list their own mail")
+	}
+	if items := w.run(t, tcB, "get_attachment", `{"attachment_id":"`+mail+`"}`); len(items) != 1 || items[0].Title != "thu.pdf" {
+		t.Errorf("mailbox owner reads own mail = %+v", items)
+	}
+	if !slices.ContainsFunc(w.run(t, tcB, "list_attachments", `{"source":"chat","parent_id":"","query":"","type":"","cursor":""}`), func(it agentItem) bool { return it.ID == inPrivate }) {
+		t.Error("a room member does not list the room's file")
 	}
 
 	w.x.flags.byOrg = map[string]bool{w.x.w.OrganizationID: false}
@@ -226,27 +260,67 @@ func TestAskAttachmentHonoursAIOptOut(t *testing.T) {
 	member := w.x.member(t)
 	_, declined := w.chatFile(t, member.UserID, "tu-choi.pdf")
 	_, shared := w.chatFile(t, w.x.ua.ID, "dong-y.pdf")
-	list := func() []agentItem {
-		return w.run(t, w.tc, "list_attachments", `{"source":"chat","parent_id":"","query":"","type":"","cursor":""}`)
+	// A file with real bytes the member attached: opening it would show its text.
+	secret := wordFile(t, "Nội dung bí mật")
+	att, err := w.tasks.UploadTaskAttachment(context.Background(), Human(w.x.ua.ID), w.x.taskID, "", "bi-mat.docx", docxMIME, int64(len(secret)), bytes.NewReader(secret))
+	if err != nil {
+		t.Fatal(err)
 	}
-	get := func(id string) string {
+	w.exec(t, `UPDATE attachments SET uploader_id = $2 WHERE id = $1`, att.ID, member.UserID)
+	real := "task:" + att.ID
+	list := func() []agentItem {
+		return w.run(t, w.tc, "list_attachments", `{"source":"","parent_id":"","query":"","type":"","cursor":""}`)
+	}
+	get := func(id string) agentItem {
 		items := w.run(t, w.tc, "get_attachment", `{"attachment_id":"`+id+`"}`)
 		if len(items) != 1 {
 			t.Fatalf("get_attachment(%s) = %+v", id, items)
 		}
-		return items[0].Text
+		return items[0]
 	}
-	// Control: before the sender opts out both are listed, and the bytes are
-	// tried (a seeded file has none, so the answer is "try again later").
-	if len(list()) != 2 || !strings.Contains(get(declined), mcpFileBusyNote) {
+	// Control: before the sender opts out all three are listed, the bytes are
+	// read, and the PDF is answered as unreadable here (no engine) with its note.
+	if len(list()) != 3 || !strings.Contains(get(real).Body, "Nội dung bí mật") || !strings.Contains(get(declined).Text, mcpPDFUnavailableNote) {
 		t.Fatalf("control: list %+v", list())
 	}
 	w.exec(t, `UPDATE users SET ai_consent_version = 'v1', ai_consent_at = now(), ai_opt_out_at = now() WHERE id = $1`, member.UserID)
 	if items := list(); len(items) != 1 || items[0].ID != shared {
 		t.Fatalf("list after opt-out = %+v; want only %s", items, shared)
 	}
-	if text := get(declined); !strings.Contains(text, "Note: "+askAttachmentOptOutNote) || strings.Contains(text, mcpFileBusyNote) {
-		t.Fatalf("opted-out file = %q; want the opt-out note and no read", text)
+	for _, id := range []string{declined, real} {
+		it := get(id)
+		if it.Title != "Attachment" || it.Body != "" || it.Text != "ID: "+id+"\nNote: "+askAttachmentOptOutNote ||
+			strings.Contains(it.Text+it.Href+it.Key, "bi-mat") || strings.Contains(it.Text, mcpFileBusyNote) {
+			t.Errorf("opted-out file %s = %+v; want the id and the note only, no read", id, it)
+		}
+		if strings.Contains(it.Href, "/tasks/") || strings.Contains(it.Href, "room=") {
+			t.Errorf("opted-out file shows its container: %+v", it)
+		}
+	}
+}
+
+// With no engine wired a PDF is answered before a slot is taken or a byte opened.
+func TestAskAttachmentPDFWithoutAnEngine(t *testing.T) {
+	w := newAttachWorld(t)
+	pdf := w.upload(t, "bao-cao.pdf", "application/pdf", []byte(testPDFBytes))
+	holdSlots(t, w.s.fileReads) // a read that asked for the slot would wait here for ever
+	items := w.run(t, w.tc, "get_attachment", `{"attachment_id":"`+pdf+`"}`)
+	if len(items) != 1 || !strings.Contains(items[0].Text, "Note: "+mcpPDFUnavailableNote) || items[0].Body != "" {
+		t.Fatalf("pdf without an engine = %+v", items)
+	}
+}
+
+func TestAskListAttachmentsRefusesBadFilters(t *testing.T) {
+	w := newAttachWorld(t)
+	for name, args := range map[string]string{
+		"source": `{"source":"drive","parent_id":"","query":"","type":"","cursor":""}`,
+		"type":   `{"source":"","parent_id":"","query":"","type":"zip","cursor":""}`,
+		"cursor": `{"source":"","parent_id":"","query":"","type":"","cursor":"not-a-cursor"}`,
+	} {
+		items := w.run(t, w.tc, "list_attachments", args)
+		if len(items) != 1 || items[0].Kind != "error" || !strings.HasPrefix(items[0].Text, "error: invalid_args: ") || strings.ContainsAny(items[0].Text, "àáảãạăâđêôơưđ") {
+			t.Errorf("bad %s = %+v; want an English invalid_args error", name, items)
+		}
 	}
 }
 
