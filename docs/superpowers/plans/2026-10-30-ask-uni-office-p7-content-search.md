@@ -1,6 +1,6 @@
 # Hỏi UNI soạn tệp Office — kế hoạch 7: tìm theo nội dung tệp (Phần 1b) Implementation Plan
 
-> **Trạng thái:** in-progress — đã triển khai trên nhánh, chờ PR; chủ sản phẩm duyệt 2026-10-30; kế hoạch 7 (Phần 1b) của spec Hỏi UNI soạn tệp Office; issue UNI-2305 (con của UNI-415).
+> **Trạng thái:** shipped — PR #535 merge vào `develop` ngày 2026-10-30 (`3a349102c`); chủ sản phẩm duyệt 2026-10-30; kế hoạch 7 (Phần 1b) của spec Hỏi UNI soạn tệp Office; issue UNI-2305 (con của UNI-415). Ops chạy `document-text-reindex` sau deploy theo `docs/ops/RUNBOOK_DOCUMENTS.md`. Để sau: khôi phục từ thùng rác có thể để `search_text` thiếu thân tệp; tải thư mục lớn có thể làm `OutboxLagHigh` báo.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -156,7 +156,7 @@
 
 - [x] **Step 7: Commit** `feat(documents): document-text-reindex requests the index of existing files` và `docs: content search of files in the documents runbook and the plan status`.
 
-- [ ] **Step 8: Việc ra ngoài, controller hỏi chủ sản phẩm trước:** đẩy nhánh; `make issue-pr KEY=<issue>`. Thân PR theo khuôn PR #532; mục "Đã cố ý bỏ ra ngoài": PDF, HTML, tệp > 20 MiB, Phần 1c, việc chạy `document-text-reindex` ở production (chủ sản phẩm hoặc ops chạy sau khi deploy).
+- [x] **Step 8: Việc ra ngoài, controller hỏi chủ sản phẩm trước:** đẩy nhánh; `make issue-pr KEY=<issue>`. Thân PR theo khuôn PR #532; mục "Đã cố ý bỏ ra ngoài": PDF, HTML, tệp > 20 MiB, Phần 1c, việc chạy `document-text-reindex` ở production (chủ sản phẩm hoặc ops chạy sau khi deploy).
 
 ### Việc của chủ sản phẩm hoặc ops (không phải code)
 
