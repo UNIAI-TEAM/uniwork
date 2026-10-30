@@ -372,7 +372,7 @@ light/dark vi/en cho task UI.
 | G5-D2 | — (giao đội chốt) | Retention feed/snapshot/idempotency, tra intent, fencing, claim refresh | Lô #2; người dùng (vai G1/FileService); dev dùng giá trị tạm của G5-01a/G5-07 |
 | G5-D3 | Một intent chưa giải quyết mỗi Document; số giới hạn queue/cache/nháp (OQ-UX2) | — | Đóng bởi U-01 apply (U-15, 2026-10-12): số đã ký ở `ux/EXPERIENCE.md` › Open questions |
 | G6-D1 | Entitlement dùng lại `office.ai_cloud`; façade route/wire/run id, streaming, vòng tool-result, `ModelPolicy`, trần pack/lượt/đồng thời, quota semantics (lô #2) | — | **Đã ký** lô #2 2026-10-13 (A1–A16, Q1–Q6); A17 → G6-D2 |
-| G6-D2 | — (người dùng quyết khi lên production) | Upstream production, region, retention/log, secrets, transcript | Người dùng; tới đó chỉ fixture tổng hợp trên upstream dev |
+| G6-D2 | — (người dùng quyết khi lên production) | Upstream production, region, retention/log, secrets, transcript | Người dùng; tới đó chỉ fixture tổng hợp trên upstream dev. Checklist bật: [`docs/ops/OFFICE_AI_GO_LIVE.md`](../../ops/OFFICE_AI_GO_LIVE.md) |
 | G6-D3 | Đóng (spec §13.1) | — | — |
 | G6-D4 | — (giao đội chốt) | Ma trận §6.5 theo bảng G6-01, cách hiển thị thay đổi AI | Lô #3; người dùng |
 | G7-D1 | ≥100 tình huống eval | Ngưỡng §9.2, fixture/load profile, cost/run, ngân sách token (≥3 lần × ≥100 ca), SLO | Lô #3; người dùng |
