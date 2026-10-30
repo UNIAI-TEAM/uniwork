@@ -3,7 +3,15 @@
 // task, forward, say "typing", mark read. See command.ts for the layer's rule.
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { createTaskFromMessage, followUpCommand, forwardMessage, linkMessageToTask, shareMessageAsDocument, togglePin } from "../chat-actions";
+import {
+  createTaskFromMessage,
+  followUpCommand,
+  forwardMessage,
+  linkMessageToTask,
+  shareMessageAsDocument,
+  togglePin,
+  unlinkMessageTask,
+} from "../chat-actions";
 import { chatApi } from "../chat-api";
 import { chatSendDeps, discardPendingSend, retryPendingSend, sendChatMessage, type ChatSendInput } from "../chat-send";
 import { deleteMessage, editMessage, markRoomRead, toggleReaction, votePoll } from "../pending-ops";
@@ -55,7 +63,7 @@ export const useFollowUp = (wsId: string) =>
   );
 
 type CreateTaskFrom =
-  | { messageId: string; title?: string; description?: string; due_date?: string; priority?: string }
+  | { messageId: string; title?: string; description?: string; due_date?: string; priority?: string; status?: string }
   | { followUpId: string };
 
 export const useCreateTask = (wsId: string, roomId: string) =>
@@ -64,6 +72,11 @@ export const useCreateTask = (wsId: string, roomId: string) =>
 export const useLinkTask = (wsId: string, roomId: string) =>
   useCommand("chat.link_task", (qc, { messageId, taskId }: { messageId: string; taskId: string }) =>
     linkMessageToTask(qc, wsId, roomId, messageId, taskId),
+  );
+
+export const useUnlinkMessage = (wsId: string, roomId: string) =>
+  useCommand("chat.unlink_message", (qc, { messageId, linkId }: { messageId: string; linkId: string }) =>
+    unlinkMessageTask(qc, wsId, roomId, messageId, linkId),
   );
 
 export const useShareAsDocument = (wsId: string, roomId: string) =>

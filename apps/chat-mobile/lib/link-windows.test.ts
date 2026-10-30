@@ -41,24 +41,35 @@ describe("linkWindows", () => {
 });
 
 describe("taskIdsByMessage", () => {
-  const link = (message_id: string, target_id: string, target_type = "task") => ({ message_id, target_id, target_type });
+  const link = (id: string, message_id: string, target_id: string, target_type = "task", relation = "created_from") => ({
+    id,
+    message_id,
+    target_id,
+    target_type,
+    relation,
+  });
+  const ref = (taskId: string, linkId: string, relation = "created_from") => ({ taskId, linkId, relation });
 
   it("reads the tasks of every answered window, several per message, and skips other targets", () => {
     const map = taskIdsByMessage(
       [["a", "b"], ["c"]],
-      [[link("a", "t1"), link("a", "t2"), link("b", "d1", "document")], [link("c", "t3")]],
+      [[link("l1", "a", "t1"), link("l2", "a", "t2"), link("l3", "b", "d1", "document")], [link("l4", "c", "t3", "task", "mentions")]],
       new Map(),
     );
-    expect(Object.fromEntries(map)).toEqual({ a: ["t1", "t2"], c: ["t3"] });
+    expect(Object.fromEntries(map)).toEqual({
+      a: [ref("t1", "l1"), ref("t2", "l2")],
+      c: [ref("t3", "l4", "mentions")],
+    });
   });
 
   it("a window waiting for its answer keeps what its messages showed; an answered one replaces it", () => {
+    const kept = [ref("t1", "l1")];
     const previous = new Map([
-      ["a", ["t1"]],
-      ["c", ["t3"]],
+      ["a", kept],
+      ["c", [ref("t3", "l3")]],
     ]);
     const map = taskIdsByMessage([["a", "b"], ["c", "d"]], [undefined, []], previous);
-    expect(Object.fromEntries(map)).toEqual({ a: ["t1"] });
-    expect(map.get("a")).toBe(previous.get("a"));
+    expect(Object.fromEntries(map)).toEqual({ a: kept });
+    expect(map.get("a")).toBe(kept);
   });
 });

@@ -4,6 +4,8 @@ import { buildMessageRowModels, sameRowModel, type MessageRowModel, type Message
 import { toTimelineMessage, type TimelineMessage } from "./timeline-display";
 import { layoutTimeline } from "./timeline-layout";
 
+const task = (taskId: string, linkId = "l1") => ({ taskId, linkId, relation: "created_from" });
+
 const at = (id: string, sender: string, minutes: number, extra: Partial<TimelineMessage> = {}): TimelineMessage => ({
   id,
   sender,
@@ -85,8 +87,8 @@ describe("buildMessageRowModels", () => {
 
   it("lets a server message outside a thread swipe to reply and carries its tasks", () => {
     const message = record("m1", "an");
-    const models = buildMessageRowModels(input([message], { taskIdsByMessage: new Map([["m1", ["t1"]]]) }));
-    expect(models.get("m1")).toMatchObject({ swipeToReply: true, taskIds: ["t1"] });
+    const models = buildMessageRowModels(input([message], { taskIdsByMessage: new Map([["m1", [task("t1")]]]) }));
+    expect(models.get("m1")).toMatchObject({ swipeToReply: true, taskIds: [task("t1")] });
   });
 
   it("does not let a poll vote's notice swipe to reply", () => {
@@ -97,13 +99,13 @@ describe("buildMessageRowModels", () => {
   it("hands back last time's object for a row that draws the same, a new one for a row that changed", () => {
     const a1 = at("a1", "an", 0);
     const a2 = at("a2", "an", 1);
-    const first = buildMessageRowModels(input([a1, a2], { taskIdsByMessage: new Map([["a1", ["t1"]]]) }));
+    const first = buildMessageRowModels(input([a1, a2], { taskIdsByMessage: new Map([["a1", [task("t1")]]]) }));
     // A new message from someone else: a2 stays the run's last, a1 keeps its (equal, rebuilt) task list.
-    const second = buildMessageRowModels(input([a1, a2, at("b1", "binh", 2)], { taskIdsByMessage: new Map([["a1", ["t1"]]]) }), first);
+    const second = buildMessageRowModels(input([a1, a2, at("b1", "binh", 2)], { taskIdsByMessage: new Map([["a1", [task("t1")]]]) }), first);
     expect(second.get("a1")).toBe(first.get("a1"));
     expect(second.get("a2")).toBe(first.get("a2"));
     // A new message from the same sender continues a2's run: only a2 changes.
-    const third = buildMessageRowModels(input([a1, a2, at("a3", "an", 2)], { taskIdsByMessage: new Map([["a1", ["t1"]]]) }), first);
+    const third = buildMessageRowModels(input([a1, a2, at("a3", "an", 2)], { taskIdsByMessage: new Map([["a1", [task("t1")]]]) }), first);
     expect(third.get("a1")).toBe(first.get("a1"));
     expect(third.get("a2")).not.toBe(first.get("a2"));
   });
@@ -160,12 +162,12 @@ describe("sameRowModel", () => {
     highlighted: false,
     showThread: true,
     swipeToReply: true,
-    taskIds: ["t1"],
+    taskIds: [task("t1")],
   });
 
   it("holds equal rows equal, rebuilt quotes and lists included", () => {
     const a = base();
-    expect(sameRowModel(a, { ...a, quote: { ...a.quote! }, taskIds: ["t1"] })).toBe(true);
+    expect(sameRowModel(a, { ...a, quote: { ...a.quote! }, taskIds: [task("t1")] })).toBe(true);
     expect(sameRowModel({ ...a, quote: null }, { ...a, quote: null })).toBe(true);
   });
 
@@ -190,8 +192,8 @@ describe("sameRowModel", () => {
     ["quote text", { quote: { id: "q", sender: "Bình", text: "hello" } }],
     ["album", { album: [at("p1", "an", 0)] }],
     ["tasks gone", { taskIds: undefined }],
-    ["tasks length", { taskIds: ["t1", "t2"] }],
-    ["tasks item", { taskIds: ["t2"] }],
+    ["tasks length", { taskIds: [task("t1"), task("t2", "l2")] }],
+    ["tasks item", { taskIds: [task("t2", "l2")] }],
   ])("tells a change of %s apart", (_name, change) => {
     const a = base();
     expect(sameRowModel(a, { ...a, ...change })).toBe(false);

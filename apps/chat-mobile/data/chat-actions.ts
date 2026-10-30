@@ -106,7 +106,7 @@ export async function createTaskFromMessage(
   wsId: string,
   roomId: string,
   from:
-    | { messageId: string; title?: string; description?: string; due_date?: string; priority?: string }
+    | { messageId: string; title?: string; description?: string; due_date?: string; priority?: string; status?: string }
     | { followUpId: string },
 ): Promise<ChatTask> {
   const task =
@@ -156,6 +156,12 @@ export async function setChatNickname(qc: QueryClient, wsId: string, userId: str
 /** An existing task under a message; the card shows once the room's links refetch. */
 export async function linkMessageToTask(qc: QueryClient, wsId: string, roomId: string, messageId: string, taskId: string): Promise<void> {
   if (!(await chatApi.linkMessageToTask(wsId, messageId, taskId))) throw new Error("chat_link_task_failed");
+  void qc.invalidateQueries({ queryKey: chatKeys.roomLinksRoot(wsId, roomId) });
+}
+
+/** Takes the task card off the message. The task itself stays. */
+export async function unlinkMessageTask(qc: QueryClient, wsId: string, roomId: string, messageId: string, linkId: string): Promise<void> {
+  if (!(await chatApi.deleteMessageLink(wsId, messageId, linkId))) throw new Error("chat_unlink_failed");
   void qc.invalidateQueries({ queryKey: chatKeys.roomLinksRoot(wsId, roomId) });
 }
 

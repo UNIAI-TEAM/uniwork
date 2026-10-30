@@ -305,6 +305,11 @@ export function createChatApi(send: Request) {
     patchFollowUp(wsId: string, followUpId: string, input: { note?: string; due_at?: string | null; completed?: boolean }) {
       return followUp(request(`${ws(wsId)}/chat/follow-ups/${enc(followUpId)}`, json("PATCH", input)), "PATCH .../chat/follow-ups/{id}");
     },
+    async deleteMessageLink(wsId: string, messageId: string, linkId: string): Promise<boolean> {
+      const raw = await request(`${ws(wsId)}/chat/messages/${enc(messageId)}/links/${enc(linkId)}`, { method: "DELETE" });
+      const parsed = parseWithFallback<z.infer<typeof OkSchema>>(raw, OkSchema, {}, { endpoint: "DELETE .../chat/messages/{id}/links/{linkID}" });
+      return parsed.ok === true || parsed.status === "ok";
+    },
     async deleteFollowUp(wsId: string, followUpId: string): Promise<boolean> {
       const raw = await request(`${ws(wsId)}/chat/follow-ups/${enc(followUpId)}`, { method: "DELETE" });
       const parsed = parseWithFallback<z.infer<typeof OkSchema>>(raw, OkSchema, {}, { endpoint: "DELETE .../chat/follow-ups/{id}" });
@@ -316,7 +321,13 @@ export function createChatApi(send: Request) {
     createTaskFromMessage(
       wsId: string,
       messageId: string,
-      input: { title?: string; description?: string; due_date?: string; priority?: string } = {},
+      input: {
+        title?: string;
+        description?: string;
+        due_date?: string;
+        priority?: string;
+        status?: string;
+      } = {},
     ) {
       return task(request(`${ws(wsId)}/chat/messages/${enc(messageId)}/tasks`, json("POST", input)), "POST .../chat/messages/{id}/tasks");
     },

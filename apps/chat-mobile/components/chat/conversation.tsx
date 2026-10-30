@@ -27,7 +27,7 @@ import { readDraft, useDraftStore } from "@/data/stores/draft-store";
 import { draftKey } from "@/lib/drafts";
 import { countNewSince } from "@/lib/arrivals";
 import { chatRoutes } from "@/lib/chat-routes";
-import { linkWindows, taskIdsByMessage as readTaskIds } from "@/lib/link-windows";
+import { linkWindows, taskIdsByMessage as readTaskIds, type MessageTaskRef } from "@/lib/link-windows";
 import { conversationSheetReducer, NO_SHEET } from "@/lib/conversation-sheets";
 import { messagePreviewText } from "@/lib/message-display";
 import { buildMessageRowModels, type MessageRowModel, type Receipt } from "@/lib/message-row-model";
@@ -258,7 +258,7 @@ export function Conversation(props: Props) {
   // whose key just changed keeps the cards its messages had until its answer comes (readTaskIds).
   const windows = useMemo(() => linkWindows(messages.flatMap((m) => (m.record ? [m.id] : []))), [messages]);
   const answers = useQueries({ queries: windows.map((ids) => roomLinksOptions(wsId, roomId, ids)), combine: windowAnswers });
-  const previousTaskIds = useRef<ReadonlyMap<string, readonly string[]>>(new Map());
+  const previousTaskIds = useRef<ReadonlyMap<string, readonly MessageTaskRef[]>>(new Map());
   const taskIdsByMessage = useMemo(() => {
     const next = readTaskIds(windows, answers, previousTaskIds.current);
     previousTaskIds.current = next;

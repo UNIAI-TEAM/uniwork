@@ -66,7 +66,13 @@ export type ChatFollowUp = z.infer<typeof FollowUpSchema>;
 export const FollowUpEnvelopeSchema = z.object({ follow_up: FollowUpSchema.optional() });
 export const FollowUpListSchema = z.object({ follow_ups: z.array(FollowUpSchema).optional().default([]) });
 
-const MessageLinkSchema = z.object({ id: z.string(), message_id: z.string(), target_type: z.string(), target_id: z.string() });
+const MessageLinkSchema = z.object({
+  id: z.string(),
+  message_id: z.string(),
+  target_type: z.string(),
+  target_id: z.string(),
+  relation: z.string().catch(""),
+});
 export type ChatMessageLink = z.infer<typeof MessageLinkSchema>;
 export const LinkListSchema = z.object({ links: z.array(MessageLinkSchema).optional().default([]) });
 export const LinkEnvelopeSchema = z.object({ link: MessageLinkSchema.optional() });
@@ -100,7 +106,15 @@ export const TaskPickListSchema = z.object({
     ),
 });
 
-const TaskSchema = z.object({ id: z.string(), title: z.string().catch(""), identifier: z.string().catch(""), status: z.string().catch("") });
+const TaskAssigneeSchema = z.object({ display_name: z.string().catch("") });
+const TaskSchema = z.object({
+  id: z.string(),
+  title: z.string().catch(""),
+  identifier: z.string().catch(""),
+  status: z.string().catch(""),
+  priority: z.string().catch(""),
+  assignee: TaskAssigneeSchema.nullish(),
+});
 export type ChatTask = z.infer<typeof TaskSchema>;
 export const TaskEnvelopeSchema = z.object({ task: TaskSchema.optional() });
 

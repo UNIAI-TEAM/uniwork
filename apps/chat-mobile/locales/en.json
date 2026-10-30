@@ -1602,7 +1602,18 @@
     "status_in_review": "In review",
     "status_done": "Done",
     "status_blocked": "Blocked",
-    "status_cancelled": "Cancelled"
+    "status_cancelled": "Cancelled",
+    "unassigned": "Unassigned",
+    "create": {
+      "title_placeholder": "Issue title",
+      "description_placeholder": "Add a description…",
+      "creating": "Creating…"
+    },
+    "priority_none": "No priority",
+    "priority_low": "Low",
+    "priority_medium": "Medium",
+    "priority_high": "High",
+    "priority_urgent": "Urgent"
   },
   "mobile": {
     "tab_calls": "Calls",

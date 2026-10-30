@@ -24,6 +24,7 @@ import { senderNameClass } from "@/lib/sender-colors";
 import { deserializeMessageBodyToComposerDraft } from "@uniwork/core/chat/chat-mention-utils";
 import { messagePreviewText, messageView, pendingPreviewText } from "@/lib/message-display";
 import { messageLinks, spokenLink } from "@/lib/message-format";
+import type { MessageTaskRef } from "@/lib/link-windows";
 import type { Receipt } from "@/lib/message-row-model";
 import { THEME } from "@/lib/theme";
 import type { PendingSend } from "@/lib/send-pipeline";
@@ -83,7 +84,7 @@ export interface MessageRowProps {
   ctx: MessageCardContext;
   scheme: "light" | "dark";
   /** The tasks this message was turned into (its task links). */
-  taskIds?: readonly string[];
+  taskIds?: readonly MessageTaskRef[];
   onLongPress: (message: TimelineMessage) => void;
   onPressQuote: (messageId: string) => void;
   onPressThread: (message: TimelineMessage) => void;
@@ -223,6 +224,40 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
   // ring is its edge.
   const lift = own || scheme === "dark" ? null : Platform.OS === "ios" ? (ringed ? null : LIFT_IOS) : LIFT_ANDROID;
 
+  const boardTask = props.taskIds?.some((link) => link.relation === "created_from") ?? false;
+  const foot = (
+    <View
+      className={cn(
+        "flex-row items-center gap-1",
+        bareImage ? "absolute bottom-2 right-2 rounded-md bg-black/55 px-1.5 py-0.5" : "self-end",
+        album && "px-2 pb-1",
+      )}
+      accessible={interactive}
+      accessibilityLabel={footLabel}
+    >
+      {record ? (
+        <>
+          <Text className={cn("text-meta", bareImage ? "text-white/90" : meta)} style={{ fontVariant: ["tabular-nums"] }}>
+            {[record.edited_at ? t("chat.edited_label") : null, album ? formatMessageTime(footTs, i18n.language) : time]
+              .filter(Boolean)
+              .join(" · ")}
+          </Text>
+          {receipt === "seen" ? (
+            <Ionicons
+              name="checkmark-done-circle"
+              size={16}
+              color={bareImage ? ON_PHOTO : theme.chatBubbleOwnForeground}
+              testID="receipt-seen"
+            />
+          ) : null}
+          {receipt === "delivered" ? <Ionicons name="checkmark-done" size={15} color={tickMeta} /> : null}
+          {receipt === "sent" ? <Ionicons name="checkmark" size={15} color={tickMeta} /> : null}
+        </>
+      ) : message.pending ? (
+        <PendingMeta pending={message.pending} scheme={scheme} />
+      ) : null}
+    </View>
+  );
   const body = (
     <View
       className={cn(CHAT_CONVERSATION_ROW_INSET, compactTop ? "pt-0.5" : "pt-2.5", own ? "items-end" : "items-start", highlighted && "bg-primary/10")}
@@ -304,39 +339,7 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
           ) : (
             <Text className="text-body text-chat-bubble-own-foreground">{preview}</Text>
           )}
-          <View
-            className={cn(
-              "flex-row items-center gap-1",
-              // A bare photo carries its time on a scrim in its corner (the canvas's bare media).
-              bareImage ? "absolute bottom-2 right-2 rounded-md bg-black/55 px-1.5 py-0.5" : "self-end",
-              album && "px-2 pb-1",
-            )}
-            accessible={interactive}
-            accessibilityLabel={footLabel}
-          >
-            {record ? (
-              <>
-                <Text className={cn("text-meta", bareImage ? "text-white/90" : meta)} style={{ fontVariant: ["tabular-nums"] }}>
-                  {[record.edited_at ? t("chat.edited_label") : null, album ? formatMessageTime(footTs, i18n.language) : time]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </Text>
-                {/* Seen is a filled badge in the bubble's ink, not only a lighter tint of delivered's two ticks. */}
-                {receipt === "seen" ? (
-                  <Ionicons
-                    name="checkmark-done-circle"
-                    size={16}
-                    color={bareImage ? ON_PHOTO : theme.chatBubbleOwnForeground}
-                    testID="receipt-seen"
-                  />
-                ) : null}
-                {receipt === "delivered" ? <Ionicons name="checkmark-done" size={15} color={tickMeta} /> : null}
-                {receipt === "sent" ? <Ionicons name="checkmark" size={15} color={tickMeta} /> : null}
-              </>
-            ) : message.pending ? (
-              <PendingMeta pending={message.pending} scheme={scheme} />
-            ) : null}
-          </View>
+          {boardTask && !bareImage ? null : foot}
         </Pressable>
       </View>
       {reactions.length > 0 ? (
@@ -366,8 +369,14 @@ export const MessageRow = memo(function MessageRow(props: MessageRowProps) {
         </View>
       ) : null}
       {props.taskIds?.length ? (
-        <View className={avatar ? "ms-9" : undefined}>
-          <TaskCards ctx={ctx} taskIds={props.taskIds} own={own} />
+        <View className={cn("w-full", avatar && "ms-9")}>
+          <TaskCards
+            ctx={ctx}
+            links={props.taskIds}
+            own={own}
+            messageId={message.id}
+            meta={boardTask && !bareImage ? foot : undefined}
+          />
         </View>
       ) : null}
       {showThread && record && record.reply_count > 0 ? (

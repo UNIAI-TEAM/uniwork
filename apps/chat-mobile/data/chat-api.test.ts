@@ -213,6 +213,15 @@ const cases: Case[] = [
     fallback: null,
   },
   { name: "deleteFollowUp ok", call: (c) => c.deleteFollowUp("w1", "f1"), path: `${W}/chat/follow-ups/f1`, method: "DELETE", good: { ok: true }, read: true, fallback: false },
+  {
+    name: "deleteMessageLink",
+    call: (c) => c.deleteMessageLink("w1", "m1", "l1"),
+    path: `${W}/chat/messages/m1/links/l1`,
+    method: "DELETE",
+    good: { status: "ok" },
+    read: true,
+    fallback: false,
+  },
   { name: "deleteFollowUp status", call: (c) => c.deleteFollowUp("w1", "f1"), path: `${W}/chat/follow-ups/f1`, method: "DELETE", good: { status: "ok" }, read: true, fallback: false },
   {
     name: "convertFollowUpToTask",
@@ -221,7 +230,7 @@ const cases: Case[] = [
     method: "POST",
     body: {},
     good: { task: { id: "t1", title: "Gọi lại", identifier: "UNI-1", status: "todo" } },
-    read: { id: "t1", title: "Gọi lại", identifier: "UNI-1", status: "todo" },
+    read: { id: "t1", title: "Gọi lại", identifier: "UNI-1", status: "todo", priority: "" },
     fallback: null,
   },
   {
@@ -231,7 +240,7 @@ const cases: Case[] = [
     method: "POST",
     body: { title: "Báo giá" },
     good: { task: { id: "t1", title: "Báo giá" } },
-    read: { id: "t1", title: "Báo giá", identifier: "", status: "" },
+    read: { id: "t1", title: "Báo giá", identifier: "", status: "", priority: "" },
     fallback: null,
   },
   { name: "createTaskFromMessage bare", call: (c) => c.createTaskFromMessage("w1", "m1"), path: `${W}/chat/messages/m1/tasks`, method: "POST", body: {}, good: {}, read: null, fallback: null },
@@ -241,7 +250,7 @@ const cases: Case[] = [
     path: `${R}/message-links?message_ids=m1%2Cm2`,
     method: "GET",
     good: { links: [{ id: "l1", message_id: "m1", target_type: "task", target_id: "t1" }] },
-    read: [{ id: "l1", message_id: "m1", target_type: "task", target_id: "t1" }],
+    read: [{ id: "l1", message_id: "m1", target_type: "task", target_id: "t1", relation: "" }],
     fallback: [],
   },
   {
@@ -401,7 +410,7 @@ const cases: Case[] = [
     method: "POST",
     body: { target_type: "task", target_id: "t1" },
     good: { link: { id: "l1", message_id: "m1", target_type: "task", target_id: "t1" } },
-    read: { id: "l1", message_id: "m1", target_type: "task", target_id: "t1" },
+    read: { id: "l1", message_id: "m1", target_type: "task", target_id: "t1", relation: "" },
     fallback: null,
   },
   {

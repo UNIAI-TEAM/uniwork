@@ -1546,7 +1546,18 @@
     "status_in_review": "Đang review",
     "status_done": "Hoàn thành",
     "status_blocked": "Đang chặn",
-    "status_cancelled": "Đã hủy"
+    "status_cancelled": "Đã hủy",
+    "unassigned": "Chưa giao",
+    "create": {
+      "title_placeholder": "Tiêu đề issue",
+      "description_placeholder": "Thêm mô tả…",
+      "creating": "Đang tạo…"
+    },
+    "priority_none": "Không ưu tiên",
+    "priority_low": "Thấp",
+    "priority_medium": "Trung bình",
+    "priority_high": "Cao",
+    "priority_urgent": "Khẩn cấp"
   },
   "mobile": {
     "tab_calls": "Cuộc gọi",
