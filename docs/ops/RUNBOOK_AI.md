@@ -296,7 +296,7 @@ UNI đề xuất thay đổi (task, dự án, cuộc họp, tài liệu, bình l
 | `undo_unavailable` | 409 | Đã có người sửa đối tượng sau khi áp dụng, hoặc dòng không có lệnh ngược | Không hoàn tác được; sửa tay |
 | `proposal_not_auto` | 409 | Từ chối nội bộ, không do người dùng gây ra: `applyRow` không nhận `decision=auto` trừ khi dòng lưu là mức 1, không nhiễm và có chế độ `auto` | Có đường mã tự áp dụng một dòng không đủ điều kiện: coi là lỗi, tìm nơi gọi, không nới điều kiện |
 
-Khi `ask_uni_office` tắt, thẻ soạn tệp đã có vẫn hiện: Sửa (nó chuẩn bị lại dòng, không kiểm cờ), Bỏ qua và Hoàn tác (hai nút chỉ qua cổng `ask_uni_actions`) vẫn chạy bình thường; chỉ Áp dụng bị từ chối.
+Khi `ask_uni_office` tắt, thẻ soạn tệp đã có vẫn hiện: Sửa (chuẩn bị lại dòng, không ghi gì), Bỏ qua và Hoàn tác vẫn chạy bình thường, vì cả ba chỉ qua cổng `ask_uni_actions`, không kiểm `ask_uni_office`; chỉ Áp dụng bị từ chối.
 
 Lệnh nghiệp vụ lỗi (`not_found`, `invalid_args`, `forbidden`…) trả mã của nó và dòng chuyển `failed`. Audit của lệnh ghi `metadata.via = {kind: "ask_uni", proposal_id}`: tìm một thay đổi do UNI làm bằng `proposal_id` đó. Xóa hội thoại xóa dòng đề xuất của nó, không xóa thay đổi đã áp dụng.
 
