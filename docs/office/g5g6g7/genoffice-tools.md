@@ -116,7 +116,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 ## 3. Cột cơ học (sinh bằng script, không sửa tay)
 
 <!-- extract:begin -->
-<!-- genoffice-tools-extract v1 rev=8d73c6b6e127ded30bfb4f904885eebf5e6db1a6 -->
+<!-- genoffice-tools-extract v1 rev=c4b20c542d8837773209301c2871f0ecdf5aa9b7 -->
 | module | tool | input_schema_sha256 | editor_write | source |
 | --- | --- | --- | --- | --- |
 | docs | accept_changes | 9af09d4b7b735877e734a81a8d86f6dbd6fe1ba184cd649a13dec3fe2e196fe0 | yes | apps/docs/src/renderer/ai/tools.ts |
@@ -186,7 +186,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | pdf | crop_pages | 96866da2a702d164f399f1fca3391f63593220bbf53ee92688144905cee0044f | yes | apps/pdf/src/renderer/ai/tools.ts |
 | pdf | delete_image | aa9d7de1d597d6b21ba83a2a9bd9a451ccf8eecf3acefca64284ccee4dcc24a4 | yes | apps/pdf/src/renderer/ai/tools.ts |
 | pdf | delete_inserted_text | 4d55d4f349564d7ee4d7f488c5b8b6a5e88fc513b82801f307f2644c9918ff27 | yes | apps/pdf/src/renderer/ai/tools.ts |
-| pdf | delete_markup | 65dde718fc4c40634bdbbb0bb7c799b76139c8bd5b57f0671a8b3e46240172b7 | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | delete_markup | 3e1038a2a11a7f4ca918e1649d38b0fc51cd9b42abc51631cf0eb9be174228c5 | yes | apps/pdf/src/renderer/ai/tools.ts |
 | pdf | delete_note | 4e4f6cfea22486f5a0a47782cc9d42033c3dfe7e369c318cd62a1997d531638a | yes | apps/pdf/src/renderer/ai/tools.ts |
 | pdf | edit_block | 93267a67fa162f956614318f8238f3059d014c3b2a8ebdb704e50d885435a15f | yes | apps/pdf/src/renderer/ai/tools.ts |
 | pdf | edit_inserted_text | 28587e819fdb98bd3c9a7c837ad9cfc512ce03c360a137c7dccd097090a9883f | yes | apps/pdf/src/renderer/ai/tools.ts |
@@ -204,7 +204,7 @@ cấp model Codex là một tiến trình CLI (xem gạch đầu dòng cuối).*
 | pdf | list_form_fields | efddc7bd8bbcef73a14eb1ace1ffdaec81e518ef1e13c1e9271d0b8acb694a49 | no | apps/pdf/src/renderer/ai/tools.ts |
 | pdf | list_inserted_text | 7ae9c14dd2b9684a3a39a454a872d8ad9cd7f9974a4df090df533e55af8b6905 | no | apps/pdf/src/renderer/ai/tools.ts |
 | pdf | list_page_images | 52a8289c184b879b1e0c79242971986bd567db2c57692c24a46a3c11d8e3871a | no | apps/pdf/src/renderer/ai/tools.ts |
-| pdf | markup_text | 151b7c2f778dc88011252ad826b3e33d166741195e35c954e15c4dd2f544608a | yes | apps/pdf/src/renderer/ai/tools.ts |
+| pdf | markup_text | 744319fa94232e8c8938930602aa900388b56fa02cffef08f517b585d51ef942 | yes | apps/pdf/src/renderer/ai/tools.ts |
 | pdf | merge_pages | f986e106682a79ad266071249c5c7d3a1393b8079c75c090c5fea5e003d16415 | yes | apps/pdf/src/renderer/ai/tools.ts |
 | pdf | move_inserted_text | a6fb60a0ed52995372e587bbe8fa674d6470e777779b89306f0d5aa06897673d | yes | apps/pdf/src/renderer/ai/tools.ts |
 | pdf | move_text_block | 5b49a73e30dd1f6725d5d1e6696facd424921284875f9f83d0832c0ce2698511 | yes | apps/pdf/src/renderer/ai/tools.ts |
