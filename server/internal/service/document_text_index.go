@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"path"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/attachtext"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -62,9 +64,11 @@ func (x *DocumentTextIndexer) Handle(ctx context.Context, ev outbox.Row) error {
 // Index extracts the text of one file version and stores it on its document.
 // A request that no longer matches (another organization, not a file, another
 // current version, purged) is dropped without a word. A file that cannot be
-// read as text (PDF, HTML, damaged, over the read ceiling) stores empty text,
-// which is the answer; only the storage failing returns an error, so the
-// outbox tries again.
+// read as text (PDF, HTML, damaged, over the read ceiling, an extractor that
+// panics) or a file that is gone or no longer serveable (not found, deleting,
+// not ready) stores empty text, which is the answer, like CreateThumbnail
+// drops a file it cannot serve; only the storage failing returns an error, so
+// the outbox tries again.
 func (x *DocumentTextIndexer) Index(ctx context.Context, organizationID, documentID, versionID string) error {
 	doc, err := x.docs.q.GetDocumentByID(ctx, documentID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -97,11 +101,24 @@ func (*DocumentTextIndexer) current(doc db.Document, organizationID, versionID s
 		doc.FileVersionID.Valid && doc.FileVersionID.String == versionID
 }
 
+// extractFileText is attachtext.Extract; a test swaps it to make it panic.
+var extractFileText = attachtext.Extract
+
+// unindexableMIMEPrefixes are types the extractor never reads, so a version of
+// one needs neither the read slot nor an open.
+var unindexableMIMEPrefixes = []string{"image/", "video/", "audio/", "application/pdf", "text/html"}
+
 // read returns the indexable text of the version; empty when it has none.
-func (x *DocumentTextIndexer) read(ctx context.Context, doc db.Document, ver db.DocumentVersion) (string, error) {
-	// The recorded size decides before the file is opened.
+func (x *DocumentTextIndexer) read(ctx context.Context, doc db.Document, ver db.DocumentVersion) (text string, err error) {
+	// The recorded size and type decide before the file is opened.
 	if !mcpOfficeReadable(ver.SizeBytes) {
 		return "", nil
+	}
+	mt := strings.ToLower(ver.MimeType.String)
+	for _, p := range unindexableMIMEPrefixes {
+		if strings.HasPrefix(mt, p) {
+			return "", nil
+		}
 	}
 	if err := takeSlot(ctx, x.reads); err != nil {
 		return "", err
@@ -112,6 +129,11 @@ func (x *DocumentTextIndexer) read(ctx context.Context, doc db.Document, ver db.
 	// the system reading a file, not a person.
 	f, err := x.docs.openVersionFile(ctx, doc, ver, DocumentByteRange{})
 	if err != nil {
+		// A refusal about the file's state is final; only the store failing is retried.
+		var ce CodedError
+		if errors.Is(err, ErrNotFound) || (errors.As(err, &ce) && ce.Code != files.CodeStorageUnavailable) {
+			return "", nil
+		}
 		return "", err
 	}
 	defer f.Reader.Close()
@@ -126,7 +148,14 @@ func (x *DocumentTextIndexer) read(ctx context.Context, doc db.Document, ver db.
 	if len(raw) > mcpOfficeReadBytes {
 		return "", nil
 	}
-	parsed, err := attachtext.Extract(mimeType, bytes.NewReader(raw), int64(len(raw)))
+	// A crafted file must not crash the pod (the consumer has no recover): log ids only, index nothing.
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("document text index: extractor panic", "document_id", doc.ID, "version_id", ver.ID)
+			text, err = "", nil
+		}
+	}()
+	parsed, err := extractFileText(mimeType, bytes.NewReader(raw), int64(len(raw)))
 	if errors.Is(err, attachtext.ErrUnreadable) {
 		return "", nil
 	}
@@ -155,6 +184,9 @@ func (x *DocumentTextIndexer) store(ctx context.Context, documentID, organizatio
 	if !x.current(doc, organizationID, versionID) {
 		return nil
 	}
+	if text == "" && doc.ContentText == "" { // search_text already is the title
+		return nil
+	}
 	if _, err := q.SetDocumentFileText(ctx, db.SetDocumentFileTextParams{
 		ContentText: text, SearchText: documentSearchText(doc.Title, text),
 		ID: doc.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, FileVersionID: doc.FileVersionID,
@@ -180,19 +212,23 @@ func fileTextIndexMIME(mimeType, filename string) (string, bool) {
 }
 
 // fileIndexText joins the parts of a file with newlines: a part's own text, or
-// its label when it has none (a heading), stopping at maxSearchContentRunes.
+// its label when it has none (a heading), stopping at maxSearchContentRunes
+// runes, the joining newlines included. An empty slide adds no "Slide N".
 func fileIndexText(d attachtext.Doc) string {
 	var b strings.Builder
 	runes := 0
 	for _, p := range d.Parts {
 		piece := p.Text
-		if piece == "" {
+		if piece == "" && d.Unit != "slide" {
 			piece = p.Label
 		}
 		if piece == "" {
 			continue
 		}
 		if runes > 0 {
+			if runes >= maxSearchContentRunes {
+				return b.String()
+			}
 			b.WriteByte('\n')
 			runes++
 		}

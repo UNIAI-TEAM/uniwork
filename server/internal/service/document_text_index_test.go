@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/attachtext"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
 
@@ -383,5 +385,89 @@ func TestRestrictedFileBodyStaysHidden(t *testing.T) {
 	}
 	if it, ok := list("hop dong"); !ok || it.Snippet != "" {
 		t.Fatalf("title search = snippet %q, found %v; want found with an empty snippet", it.Snippet, ok)
+	}
+}
+
+func TestTextIndexSurvivesAnExtractorPanic(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	idx := NewDocumentTextIndexer(env.svc, nil)
+	res := env.createFile(t, human(env.tn.member), "hd.docx", textIndexDocx(t))
+	_, err := env.f.pool.Exec(context.Background(), `UPDATE documents SET content_text = 'cũ' WHERE id = $1`, res.Document.ID)
+	mustf(t, err, "seed")
+	old := extractFileText
+	extractFileText = func(string, io.ReaderAt, int64) (attachtext.Doc, error) { panic("crafted file") }
+	defer func() { extractFileText = old }()
+
+	mustf(t, idx.Index(context.Background(), env.tn.orgID, res.Document.ID, res.Document.FileVersionID.String), "index")
+	if row := readTextIndexRow(t, env.f.pool, res.Document.ID); row.Content != "" {
+		t.Fatalf("content_text = %q, want empty", row.Content)
+	}
+}
+
+func TestTextIndexDropsAFileThatIsGone(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	idx := NewDocumentTextIndexer(env.svc, nil)
+	res := env.createFile(t, human(env.tn.member), "hd.docx", textIndexDocx(t))
+	_, err := env.f.pool.Exec(context.Background(), `UPDATE documents SET content_text = 'cũ' WHERE id = $1`, res.Document.ID)
+	mustf(t, err, "seed")
+	var fileID string
+	mustf(t, env.f.pool.QueryRow(context.Background(), `SELECT file_id FROM document_versions WHERE id = $1`, res.Document.FileVersionID.String).Scan(&fileID), "file id")
+	env.fake.SimulateGC(files.FileID(fileID))
+
+	mustf(t, idx.Index(context.Background(), env.tn.orgID, res.Document.ID, res.Document.FileVersionID.String), "index a deleting file")
+	if row := readTextIndexRow(t, env.f.pool, res.Document.ID); row.Content != "" {
+		t.Fatalf("content_text = %q, want empty", row.Content)
+	}
+}
+
+func TestTextIndexRetriesWhenStorageIsDown(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	idx := NewDocumentTextIndexer(env.svc, nil)
+	res := env.createFile(t, human(env.tn.member), "hd.docx", textIndexDocx(t))
+	env.fake.SetStorageDown(true)
+	defer env.fake.SetStorageDown(false)
+	if err := idx.Index(context.Background(), env.tn.orgID, res.Document.ID, res.Document.FileVersionID.String); err == nil {
+		t.Fatal("Index returned nil while storage was down; the outbox must retry")
+	}
+}
+
+func TestTextIndexSkipsTypesItCannotRead(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	idx := NewDocumentTextIndexer(env.svc, nil)
+	ctx := context.Background()
+	idx.reads <- struct{}{} // a read would block on the slot
+	defer func() { <-idx.reads }()
+	for _, mime := range []string{"application/pdf", "image/png"} {
+		res := env.createFile(t, human(env.tn.member), "x-"+strings.ReplaceAll(mime, "/", "-")+".docx", textIndexDocx(t))
+		_, err := env.f.pool.Exec(ctx, `UPDATE document_versions SET mime_type = $2 WHERE id = $1`, res.Document.FileVersionID.String, mime)
+		mustf(t, err, "mime")
+		before := readTextIndexRow(t, env.f.pool, res.Document.ID)
+		tctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err = idx.Index(tctx, env.tn.orgID, res.Document.ID, res.Document.FileVersionID.String)
+		cancel()
+		mustf(t, err, "index %s", mime)
+		if after := readTextIndexRow(t, env.f.pool, res.Document.ID); after != before {
+			t.Fatalf("%s: row changed: before %+v after %+v", mime, before, after)
+		}
+	}
+}
+
+func TestFileIndexText(t *testing.T) {
+	slides := attachtext.Doc{Unit: "slide", Parts: []attachtext.Part{{Label: "Slide 1"}, {Label: "Slide 2", Text: "bb"}}}
+	if got := fileIndexText(slides); got != "bb" {
+		t.Errorf("empty slide: got %q, want %q", got, "bb")
+	}
+	sheets := attachtext.Doc{Unit: "row", Parts: []attachtext.Part{{Label: "Sheet1"}, {Text: "x"}}}
+	if got := fileIndexText(sheets); got != "Sheet1\nx" {
+		t.Errorf("sheet label: got %q", got)
+	}
+	// The separator counts: a part that fills the window exactly leaves no room for "\n" or more.
+	full := attachtext.Doc{Parts: []attachtext.Part{{Text: strings.Repeat("a", maxSearchContentRunes)}, {Text: "z"}}}
+	if got := fileIndexText(full); len([]rune(got)) != maxSearchContentRunes || strings.Contains(got, "\n") {
+		t.Errorf("window overflow: %d runes", len([]rune(got)))
+	}
+	one := attachtext.Doc{Parts: []attachtext.Part{{Text: strings.Repeat("a", maxSearchContentRunes-1)}, {Text: "zz"}}}
+	if got := fileIndexText(one); len([]rune(got)) != maxSearchContentRunes {
+		t.Errorf("separator counted: %d runes", len([]rune(got)))
 	}
 }
