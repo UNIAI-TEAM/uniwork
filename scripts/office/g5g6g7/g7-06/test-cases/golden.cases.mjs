@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { sha256Hex } from "../../../../../apps/web/platform/office-frame/frame-bundle.mjs";
 import { runBrandCheck } from "../brand-check.mjs";
 import { runGoldenCheck, updateGoldens } from "../golden-check.mjs";
-import { DEFAULT_PIN_DIR, HOSTS, REPO_ROOT, sameRevision } from "../job-lib.mjs";
+import { HOSTS, REPO_ROOT } from "../job-lib.mjs";
 import * as fx from "../test-fixtures/capture-fixtures.mjs";
 import { FAKE_CAPTURE } from "../test-fixtures/fake-capture.mjs";
 import { FIXTURES, JOB_DIR, ONE, outDir, readJson, tmpDir } from "../test-fixtures/test-env.mjs";
@@ -353,15 +353,6 @@ test("the committed goldens manifest matches its PNG files", () => {
       assert.ok(`${host}/${name.slice(0, -4)}` in manifest.entries, `${host}/${name}: PNG without a manifest entry`);
     }
   }
-});
-
-test("live pin: the committed goldens were blessed at the pin apps/web ships (docs.pin.json)", () => {
-  // Compares two live sources with each other, no constant: after a re-pin this
-  // is red until the goldens are re-blessed (job.mjs --update-goldens).
-  const manifest = readJson(join(JOB_DIR, "goldens", "manifest.json"));
-  const pin = readJson(join(DEFAULT_PIN_DIR, "docs.pin.json"));
-  assert.equal(manifest.pinVersion, pin.version);
-  assert.ok(sameRevision(manifest.forkSha, pin.gitSha), `${manifest.forkSha} vs ${pin.gitSha}`);
 });
 
 test("golden: the old flat viewport shape in manifest.json is BLOCKED invalid_manifest, never read as one for both hosts", () => {

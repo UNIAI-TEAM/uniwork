@@ -488,7 +488,9 @@ Nội dung:
 - [ ] **Step 6: Việc ra ngoài, controller hỏi chủ sản phẩm trước:**
   1. đẩy nhánh;
   2. `make issue-pr KEY=UNI-2289`. Thân PR theo khuôn PR #516: UniAI; Thay đổi gì; Đã cố ý bỏ ra ngoài (đường C, `packages/office-upstream`, changelog); Kiểm chứng; Definition of Done; điều kiện C2, C3 trước khi merge.
-- [ ] **Step 7: Ảnh mẫu G7-06.**
+- [x] **Step 7: Ảnh mẫu G7-06.** Bỏ ngày 2026-10-30, theo quyết định của chủ sản phẩm: PR gỡ test "live pin" (ảnh mẫu
+  phải chụp ở pin khung web đang dùng) khỏi CI, nên pin lại không cần chụp lại ảnh mẫu. Công cụ G7-06 và ảnh mẫu
+  `0.1.0-8d73c6b` giữ để chạy tay. Các bước dưới đây chỉ còn là cách chạy tay khi cần:
   - Controller soạn hướng dẫn cho agent Cursor Cloud theo bộ nhớ `g7-06-golden-rebless`, với `OFFICE_FORK_SHA=<sha>`.
   - Chủ sản phẩm chạy agent trên nhánh PR. Controller kiểm commit agent đẩy lên:
     - chỉ đổi `goldens/`;

@@ -486,7 +486,9 @@ more than this feature.) `types.ts` changed (`'ai'` left `Capability` and `CAPAB
 Built on linux/arm64 (the Sheets wasm is the arm64 line `24e30396...a1d` of the fork's checksum file), published at
 `web-0.1.0-c4b20c5` (`dist-web-0.1.0-c4b20c5.tar.gz`, sha256 `f7410b4b...38b9`), and written by
 `node apps/web/scripts/office-frame-sync.mjs --all --pin --from <tarball>` with `source.json` naming the release URL. The G7-06
-goldens still name `0.1.0-8d73c6b` and are re-captured on Linux in a separate commit.
+goldens stay at `0.1.0-8d73c6b`: from this pin on, CI no longer checks that they were captured at the live pin (the owner's
+decision on UNI-2289), so a re-pin needs no re-capture. The G7-06 job and its goldens remain for a manual run on a Linux harness
+(`job.mjs --update-goldens`, then the four checks).
 
 The pin before it, kept for the history: `8d73c6b6e` (`0.1.0-8d73c6b`, the REPIN-10 pin of UNI-2276; the one-shot writers and the
 web Slides frame; built on linux/arm64 with the Sheets wasm arm64 line `24e30396...a1d`, sha256 `8396201c...09de`), replacing
