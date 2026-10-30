@@ -31,10 +31,6 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// topicTextIndexRequested is only read here, to count open requests; it must
-// equal topicDocumentTextIndexRequested in internal/service/document_files.go.
-const topicTextIndexRequested = "document.text_index_requested"
-
 const usage = "usage: document-text-reindex (--org <id> | --all) [--dry-run] [--batch-size 20] [--max-pending 20]"
 
 // pollEvery is how often a run that waits for the slow lane looks again.
@@ -121,7 +117,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 // pending or processing; only a cancelled ctx or a failing query ends it early.
 func waitForRoom(ctx context.Context, q *db.Queries, maxPending int) error {
 	for {
-		open, err := q.CountOpenOutboxByTopic(ctx, topicTextIndexRequested)
+		open, err := q.CountOpenOutboxByTopic(ctx, service.TopicDocumentTextIndexRequested)
 		if err != nil {
 			return err
 		}

@@ -848,8 +848,36 @@ func TestDocumentSourcesFilterByParent(t *testing.T) {
 	if got := ids(foreignTask); len(got) != 0 {
 		t.Fatalf("a task of another organization lists %v", got)
 	}
+	// An email thread id returns only that thread's attachment.
+	acc, err := env.f.q.CreateEmailHubAccount(s.ctx, db.CreateEmailHubAccountParams{
+		ID: util.NewID(), UserID: tn.member.ID, OrganizationID: tn.orgID, EmailAddress: strings.ToLower(util.NewID()) + "@example.com",
+		Provider: "gmail", ImapHost: "imap.example.com", ImapPort: 993, ImapSecurity: "tls",
+		SmtpHost: "smtp.example.com", SmtpPort: 465, SmtpSecurity: "starttls", AuthKind: "password", PasswordEnc: "x",
+	})
+	mustf(t, err, "mail account")
+	threadFile := map[string]string{}
+	for i := int32(1); i <= 2; i++ {
+		th, err := env.f.q.UpsertEmailHubThread(s.ctx, db.UpsertEmailHubThreadParams{
+			ID: util.NewID(), AccountID: acc.ID, OrganizationID: tn.orgID, Folder: "INBOX", ImapUid: i,
+			Subject: "Thư", FromAddr: "a@example.com", ToAddrs: []string{acc.EmailAddress},
+			SentAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}, HasAttachments: true, ImapLabels: []string{}, ConversationKey: util.NewID(),
+		})
+		mustf(t, err, "mail thread")
+		att, err := env.f.q.CreateEmailHubAttachment(s.ctx, db.CreateEmailHubAttachmentParams{
+			ID: util.NewID(), ThreadID: th.ID, AccountID: acc.ID, OrganizationID: tn.orgID,
+			Filename: "thu.pdf", MimeType: "application/pdf", SizeBytes: 4, PartID: "2",
+		})
+		mustf(t, err, "mail attachment")
+		threadFile[th.ID] = "email:" + att.ID
+	}
+	svc = NewDocumentSourceService(DocumentSourceDeps{Documents: env.svc, Tasks: svc.tasks, Chat: svc.chat, EmailHub: NewEmailHubService(env.f.q, env.svc.ws, testEmailHubBox(t))})
+	for thread, want := range threadFile {
+		if got := ids(thread); len(got) != 1 || !got[want] {
+			t.Fatalf("email thread %s files = %v, want only %s", thread, got, want)
+		}
+	}
 	all, blank := ids(""), ids("  ")
-	if len(all) != 5 || len(blank) != 5 {
-		t.Fatalf("no parent lists %d files and blank lists %d, want the 5 the viewer may see", len(all), len(blank))
+	if len(all) != 7 || len(blank) != 7 {
+		t.Fatalf("no parent lists %d files and blank lists %d, want the 7 the viewer may see", len(all), len(blank))
 	}
 }

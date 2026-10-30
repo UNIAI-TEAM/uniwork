@@ -222,7 +222,7 @@ export function bindEnvelope(grant: ServiceGrant, facts: EnvelopeFacts, outputOr
   if (facts.format !== grant.format) scope("format");
   // Convert, export, and extract_text carry no base_revision payload field:
   // convert/export bind the source version id (compared below as baseVersionId),
-  // and extract_text runs on an in-memory Drive file with base_version_id "".
+  // and extract_text runs on a Drive file or a UniWork document with base_version_id "".
   if (
     facts.operation !== "convert" &&
     facts.operation !== "export" &&
