@@ -701,7 +701,7 @@
           "report": "reports/g6-ai_server/tester-cloud-g05-5.md (web shard TEST_WEB_EXIT=0; office-ci-test 21/21 steps exit 0; package totals only, no cited file has a skip; the web/modules root reports one skipped file the log does not name)",
           "tests": [
             "web/docs/bridge/frame-capabilities.test.ts ('<module>: uniworkAi alone is effective and opens AI without credentials' and '<module>: no uniworkAi without the host grant', for each of the six modules)",
-            "web/modules/shared/ai/ai.test.ts ('aiHostGrants: uniworkAi alone opens the panel, no credentials, no cloud tools'; 'uniworkAi alone: active, no credential list read, an unlocked UniWork AI entry chosen by default'; 'without the uniworkAi grant there is no UniWork AI entry, and a stored choice of it is ignored'; 'office_capability_off before any run: the entry hides, the key goes off, no error chip, BYOK untouched')",
+            "web/modules/shared/ai/ai.test.ts ('aiHostGrants: uniworkAi alone opens the panel, no credentials, no cloud tools'; 'uniworkAi alone: active, no credential list read, an unlocked UniWork AI entry chosen by default'; 'without the uniworkAi grant there is no UniWork AI entry, and a stored choice of it is ignored'; 'office_capability_off before any run: the entry hides, the key goes off, no error chip, BYOK untouched'; the BYOK clause and the web BYOK entries this record names were removed by ADR 0051, fork PR UNIAI-TEAM/uniwork-office#27)",
             "web/modules/sheets/ai.test.ts ('sheetsHostGrants uniworkAi alone: the panel opens, no credentials entry, no cloud tools')",
             "apps/shell/tests/uniwork-ai-availability.test.ts (desktop: 'offered when the cloud is ready with chat and the format is on'; hidden when the format is not in ai_uniwork_formats, when ai_uniwork is off, when tools.chat is false, when the cloud is not ready)",
             "packages/ai-provider/tests/uniwork-protocol.test.ts ('second request carries only the tool results and both ids, never an assistant turn'; 'sends only the module tools, cloud tools only with office.ai_cloud' (no MCP tool); 'dropped_tool_calls reach onNotice with view_only / not_allowlisted'; 'run_limit_reached ends the run with aiErrRunLimit'; 'office_capability_off before any run id reports uniwork-off')"
@@ -722,7 +722,7 @@
     },
     {
       "id": "G6-A08",
-      "title": "Upstream model timeouts/outage, `credits_exhausted`, rate limit, disconnect và cancel có bounded outcome; không phá editor, BYOK vẫn chạy",
+      "title": "Upstream model timeouts/outage, `credits_exhausted`, rate limit, disconnect và cancel có bounded outcome; không phá editor, Lưu vẫn chạy và lỗi được báo rõ (không còn AI dự phòng, ADR 0051)",
       "owner": "AI Platform + Lead F",
       "host": [
         "web",
@@ -730,9 +730,9 @@
       ],
       "oracle": {
         "type": "receipt",
-        "assertion": "Assert an upstream timeout or outage, credits_exhausted, a rate limit, a client disconnect and a cancel each end in a bounded structured outcome, the editor keeps its state, and a BYOK turn still completes while UniWork AI fails."
+        "assertion": "Assert an upstream timeout or outage, credits_exhausted, a rate limit, a client disconnect and a cancel each end in a bounded structured outcome, the editor keeps its state and Save still commits, and the AI panel shows the failure with its code (there is no fallback AI since ADR 0051)."
       },
-      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the bounded outcome of each failure case and the BYOK turn that still completed.",
+      "evidenceRequired": "A recorded run on fx-xlsx-revenue-xyz with result PASS and its artifact, plus the bounded outcome of each failure case, the error the AI panel showed and the Save that still committed.",
       "fixtures": [
         {
           "id": "fx-xlsx-revenue-xyz",
@@ -742,7 +742,7 @@
       "negativeCases": [
         "An upstream timeout or outage must not retry unboundedly or leave the editor unusable.",
         "A 402 credits_exhausted or a 429 must not call the gateway or record usage, and a 429 must carry Retry-After.",
-        "A UniWork AI failure must not disable a BYOK provider."
+        "A UniWork AI failure must not block the editor or Save, and must not end silently: the panel names the error."
       ],
       "tasks": [
         "G6-03a",

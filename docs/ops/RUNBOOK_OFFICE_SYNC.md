@@ -122,8 +122,8 @@ nó nhận revoke hoặc khi lease hết hạn (tối đa 24 giờ), logout khó
 ## Upstream model: sập và đổi upstream
 
 **Triệu chứng.** `UniworkAiModelErrors`, `UniworkAiLatencyP95High`, hoặc `ai_provider_error` / `ai_provider_timeout` (504 sau
-55 giây) từ route UniWork AI. Chỉ UniWork AI (và mọi tính năng AI dùng cùng Gateway) bị ảnh hưởng; editor, Lưu, BYOK, feed và
-offline vẫn chạy. Không fallback âm thầm sang nhà cung cấp khác.
+55 giây) từ route UniWork AI. Chỉ UniWork AI (và mọi tính năng AI dùng cùng Gateway) bị ảnh hưởng; editor, Lưu, feed và offline vẫn chạy.
+Trình soạn không còn AI dự phòng (ADR 0051: không còn BYOK). Không fallback âm thầm sang nhà cung cấp khác.
 
 **Kiểm tra.** Mục "UniWork AI upstream" của [`RUNBOOK_AI.md`](RUNBOOK_AI.md) (biến `AI_PROVIDER`, `OPENAI_BASE_URL`,
 `OPENAI_API_KEY`, `AI_MODEL_ALLOW`, `AI_MODEL_OFFICE_UNIWORK_AI`). Gateway là một cho cả server: đổi `OPENAI_*` đổi upstream

@@ -1,6 +1,9 @@
 # G6-05k — Desktop uses the keys saved on UniWork (API contract)
 
-> **Trạng thái:** in-progress (server D1 + d-f1 and fork F1–F3 + fixes are built and reviewed; the E2E spec is in
+> **Trạng thái:** superseded (2026-10-29) — by [ADR 0051](../../../adr/0051-ai-chi-chay-bang-uniwork-ai-go-byok.md)
+> (UNI-2289): UniWork no longer stores or forwards a person's AI key; every route, table and service this contract
+> describes is removed, and the desktop app drops the "Keys on UniWork" source. Kept as history; nothing below is
+> current. Before: in-progress (server D1 + d-f1 and fork F1–F3 + fixes are built and reviewed; the E2E spec is in
 > progress). Decision record:
 > [ADR 0034](../../../adr/0034-desktop-dung-khoa-luu-tren-uniwork-qua-proxy-byok.md), `accepted` 2026-10-15 (user
 > answered Q-K1 = (a) at 15:10 UTC+7: the person's own keys saved on UniWork).
