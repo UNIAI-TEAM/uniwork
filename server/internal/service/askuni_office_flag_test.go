@@ -170,3 +170,48 @@ func TestAskUniOfficeFlagRefusesAPlanApply(t *testing.T) {
 		t.Fatalf("%d handoff rows, want none", n)
 	}
 }
+
+// A plan with an ordinary row before the drafting row must apply nothing when
+// the switch is off: the refusal comes before any row runs.
+func TestAskUniOfficeFlagRefusesAPlanBeforeAnyRowRuns(t *testing.T) {
+	w := officeFlagWorld(t, officeSwitch{global: true})
+	s, x, tc := w.s, w.x, w.tc
+	task := askPrepare(t, s, tc, "create_task", `{"title":"Việc đứng trước"}`)
+	office := askPrepare(t, s, tc, "create_office_document", `{"title":"Đề xuất","format":"docx","outline":"## A"}`)
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	rows := propose(t, s, tc, convID, msgID, AskModePlan, task, office)
+	s.SetFlags(officeSwitch{global: false})
+	tasks := x.count(t, `SELECT count(*) FROM tasks WHERE organization_id = $1`, x.w.OrganizationID)
+	_, err := s.ApplyMessageProposals(context.Background(), x.ua.ID, convID, msgID, []string{rows[0].ID, rows[1].ID})
+	if codeOf(err) != "ask_uni_office_off" {
+		t.Fatalf("plan apply with the flag off: %v, want ask_uni_office_off", err)
+	}
+	if after := x.count(t, `SELECT count(*) FROM tasks WHERE organization_id = $1`, x.w.OrganizationID); after != tasks {
+		t.Fatalf("tasks %d -> %d, the first row ran", tasks, after)
+	}
+	if got, err := s.ownProposal(context.Background(), x.ua.ID, rows[0].ID); err != nil || got.Status != proposalPending {
+		t.Fatalf("task row after the refusal: %v, %v; want pending", got.Status, err)
+	}
+}
+
+// Apply follows the organization's override, not only the global value.
+func TestAskUniOfficeFlagApplyFollowsTheOrganization(t *testing.T) {
+	w := officeFlagWorld(t, officeSwitch{global: true})
+	s, x, tc := w.s, w.x, w.tc
+	row := askPrepare(t, s, tc, "create_office_document", `{"title":"Đề xuất","format":"docx","outline":"## A"}`)
+	convID, msgID := askAnswer(t, s, tc, "x", nil)
+	pr := propose(t, s, tc, convID, msgID, AskModeAsk, row)[0]
+
+	s.SetFlags(officeSwitch{global: false, byOrg: map[string]bool{"01OTHERORGANIZATION00000": true}})
+	if _, err := s.ApplyProposal(context.Background(), x.ua.ID, pr.ID); codeOf(err) != "ask_uni_office_off" {
+		t.Fatalf("organization without the override: %v, want ask_uni_office_off", err)
+	}
+	docs := x.docRows(t)
+	s.SetFlags(officeSwitch{global: false, byOrg: map[string]bool{x.w.OrganizationID: true}})
+	if _, err := s.ApplyProposal(context.Background(), x.ua.ID, pr.ID); err != nil {
+		t.Fatalf("organization with the override: %v", err)
+	}
+	if after := x.docRows(t); after <= docs {
+		t.Fatalf("documents %d -> %d, want a created document", docs, after)
+	}
+}

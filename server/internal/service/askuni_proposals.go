@@ -597,6 +597,13 @@ func (s *AskUNIService) ApplyMessageProposals(ctx context.Context, userID, conve
 			}
 		}
 	}
+	// The same for drafting rows with the switch off: applyRow refuses them
+	// too, but only after the rows before them ran.
+	for _, r := range rows {
+		if chosen[r.ID] && askOfficeTools[r.ActionType] && !s.askOfficeOn(ctx, proposalContext(r)) {
+			return nil, CodedError{Code: "ask_uni_office_off", Status: http.StatusForbidden}
+		}
+	}
 	plan := rows[0].Mode == AskModePlan
 	decision := "confirmed"
 	if plan {
