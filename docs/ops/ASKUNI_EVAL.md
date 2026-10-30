@@ -313,9 +313,11 @@ dòng đề xuất `create_office_document` mức 2, trạng thái `pending` (m�
 `Soạn tệp Word <tên>` chỉ được đọc từ câu hỏi của người dùng, không bao giờ từ
 kết quả công cụ.
 
-Runner bật `ask_uni_office` cùng chỗ bật `ask_uni_actions` cho ca có `mode`. Khi
-chạy sống, cờ `ask_uni_office` phải bật trên môi trường chạy eval (mặc định tắt;
-tắt thì công cụ soạn tệp không được đưa cho model). Lệnh sống giữ nguyên:
+Runner tự bật `ask_uni_office` cùng chỗ bật `ask_uni_actions` cho mọi ca có
+`mode`, ở cả bản offline lẫn bản sống, nên các ca `action-*` cũng thấy ba công cụ
+soạn tệp (bản sống tốn thêm chút token cho phần mô tả công cụ). Cờ trên môi trường
+chỉ quan trọng khi thử tay ngoài runner: mặc định tắt, và tắt thì công cụ soạn tệp
+không được đưa cho model. Lệnh sống giữ nguyên:
 
 ```bash
 cd server
