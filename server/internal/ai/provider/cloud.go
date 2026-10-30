@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -86,6 +88,19 @@ type Transcriber interface {
 const cloudTimeout = 3 * time.Minute
 
 func cloudClient() *http.Client { return &http.Client{Timeout: cloudTimeout} }
+
+// transportReason names the failure class without the URL or any header.
+func transportReason(err error) string {
+	var ne net.Error
+	switch {
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		return "timeout"
+	case errors.As(err, &ne) && ne.Timeout():
+		return "timeout"
+	default:
+		return "connection failed"
+	}
+}
 
 // doVendor sends req and decodes a 2xx JSON body into out. The errors it
 // returns reach the logs, so they carry the host, the path, the status and the

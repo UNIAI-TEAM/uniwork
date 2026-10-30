@@ -1,8 +1,10 @@
 # UniWork — Gỡ BYOK khỏi cả sản phẩm: mọi AI chỉ chạy bằng UniWork AI
 
-> **Trạng thái:** in-progress — bản thiết kế v2 (2026-10-27): **chuyển thẳng**, một lần, không cờ cuốn chiếu, không
-> thông báo khách, không giai đoạn giữ khóa; gỡ cả khóa trên máy của app desktop (Q-B1 = (a)); chưa có issue UniAI;
-> chưa có mã. Không còn câu chờ chủ sản phẩm.
+> **Trạng thái:** in-progress — kế hoạch 1 đã triển khai, chờ PR; kế hoạch 2 (đường C) chưa viết. Bản thiết kế v2 (2026-10-27): **chuyển thẳng**, một lần, không cờ cuốn chiếu, không
+> thông báo khách, không giai đoạn giữ khóa; gỡ cả khóa trên máy của app desktop (Q-B1 = (a)). Kế hoạch 1 (khung web,
+> "Khóa trên UniWork", máy chủ): `docs/superpowers/plans/2026-10-29-remove-byok-p1-web-and-org-keys.md`, issue
+> UNI-2289, đã triển khai trên nhánh, chờ PR. Kế hoạch 2 (đường C, khóa trên máy) chưa viết: còn năm câu chờ chủ sản phẩm, liệt kê ở cuối kế
+> hoạch 1. ADR mới lấy số **0051** (0048–0050 đã có chủ); mọi chỗ "0048" bên dưới đọc là 0051.
 
 **Nguồn quyết định:**
 

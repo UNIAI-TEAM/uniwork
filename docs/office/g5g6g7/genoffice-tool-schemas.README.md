@@ -14,7 +14,7 @@ G6-09d (`3e4e9b71f`, nhánh `feature/UNI-1825-g6-09d-extractor`), extractor gấ
 `nodeSchema(maxDepth)` nên cả hai hàng `generate_mindmap` ở docs và markdown đều phân giải thành hash
 `ad838ec1782297153a2f798b110c62ef30e050ee6656615f7d4ff6a7f9c925e0` (`offered: true`, `schemaComplete: true`; từ khối `8d73c6b6e` của REPIN-10 là
 `429247ed06edd88672907f9990f1a01dbfa0ca17691d13c8019be461fdf06cb5`, vì UNI-2282 thêm `items` cho `children` ở tầng lá; extractor nay nằm
-trong fork `main`, nên `git show <rev>:scripts/genoffice-tools-extract.mjs` lấy từ chính rev đó), và
+trong fork `main`, nên `git show <rev>:scripts/genoffice-tools-extract.mjs` lấy từ chính rev đó; ở khối `c4b20c542` của REPIN-11, vẫn 143 hàng, chỉ hai ô `pdf/delete_markup` và `pdf/markup_text` đổi hash do UNI-2284), và
 `UNRESOLVED_SCHEMA_TOOLS` trong `genoffice-tool-schemas.test.mjs` nay rỗng (`[]`; bất kỳ hàng `unresolved:` nào hoặc chữ
 `unresolved:` trong mảng module là lỗi).
 

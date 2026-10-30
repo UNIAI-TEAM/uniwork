@@ -115,9 +115,9 @@ func TestLoadShedExemptsRoutePatterns(t *testing.T) {
 		}
 	}
 	for _, path := range []string{
-		// The same prefix, a route the pattern does not name (the BYOK proxy
-		// and the cloud tools): a prefix exemption would have passed these too.
-		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/byok/openai/chat/completions",
+		// The same prefix, a route the pattern does not name (the cloud
+		// tools): a prefix exemption would have passed these too.
+		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/cloud/images",
 		"/api/v1/orgs/01HZZZZZZZZZZZZZZZZZZZZZZZ/ai/cloud/search",
 		// A {param} segment is exactly one non-empty segment.
 		"/api/v1/orgs//ai/uniwork/chat/completions",

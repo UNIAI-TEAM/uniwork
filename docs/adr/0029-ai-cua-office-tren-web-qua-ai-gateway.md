@@ -1,6 +1,6 @@
 # 0029 — AI của Office trên web: khóa của người dùng lưu mã hóa phía server, mọi lệnh gọi đi qua `ai.Gateway`
 
-**Trạng thái:** accepted (2026-10-09, UNI-1008; quyết định người dùng 2026-10-09: khóa lưu mã hóa phía server, web gọi qua `ai.Gateway`, không giữ khóa trong trình duyệt)
+**Trạng thái:** superseded by 0051 (2026-10-29) — kho khóa (`ai_provider_credentials`, `AI_CREDENTIAL_KEY`), proxy pass-through, `office.ai_byok`, header vendor và rào `custom` đã gỡ theo [0051](0051-ai-chi-chay-bang-uniwork-ai-go-byok.md); phần công cụ đám mây, `office.ai_cloud`, bảng tính credit, giới hạn đầu vào, nhóm `ai-cloud` và handler mountable vẫn đúng và được nhắc lại trong 0051. Lịch sử giữ nguyên, không sửa phần còn lại. Trước đó: accepted (2026-10-09, UNI-1008; quyết định người dùng 2026-10-09: khóa lưu mã hóa phía server, web gọi qua `ai.Gateway`, không giữ khóa trong trình duyệt)
 **Issue:** UNI-1008 · **Parent:** UNI-1001 · **Liên quan:** [0010](0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md) (AI phía server), [0028](0028-ai-phia-client-cua-uniwork-office.md) (AI phía client), [0008](0008-cach-ly-tenant-o-tang-service.md), [0009](0009-audit-va-outbox-cung-transaction.md).
 **Bổ sung cho 0028** (không sửa nó): dòng "Frame web" ở Quyết định 5 của 0028 nói AI web sau này chỉ đi qua UniWork API + `ai.Gateway`; ADR này là quyết định đó.
 

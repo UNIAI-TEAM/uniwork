@@ -63,7 +63,7 @@
       "packages/core/chat/sidebar-typing-store.ts": "f1ac2f8deeced5f25c3cff51eb6fabe923505290f4ddb4c2eda4519c5aaee262"
     },
     "apps/chat-mobile/lib/ai-consent.ts": {
-      "apps/web/features/landing/privacy-content.ts": "48c856f88a86b9e38249bc1a3c1e951e7ad42d4bef0a5ce9411d7285e6d700ca"
+      "apps/web/features/landing/privacy-content.ts": "0daa17fbe3f040d98e067d335f9dc9def0e977b2c5bc9797fcaa8b4c4904ea29"
     },
     "apps/chat-mobile/lib/album.ts": {
       "packages/views/chat/native-chat-message-grouping.ts": "1e784e27b31710190a89031d43875d9af3ac15f7d11c3b4610a34cd5099beb2f"
@@ -87,7 +87,7 @@
       "packages/views/chat/chat-file-accept.ts": "e0ad5975aa3c18ea921758b6b1cac8109654a8ebb9c85f53b463efaf119fd0f9"
     },
     "apps/chat-mobile/lib/legal-links.ts": {
-      "apps/web/features/landing/privacy-content.ts": "48c856f88a86b9e38249bc1a3c1e951e7ad42d4bef0a5ce9411d7285e6d700ca",
+      "apps/web/features/landing/privacy-content.ts": "0daa17fbe3f040d98e067d335f9dc9def0e977b2c5bc9797fcaa8b4c4904ea29",
       "apps/web/platform/site-information.ts": "832076f4952d42644e7fa61d36d59bf576da93917bb4ce5f17f9891dbfe20d39"
     },
     "apps/chat-mobile/lib/media-body.ts": {

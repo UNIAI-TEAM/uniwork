@@ -1437,7 +1437,6 @@
         "storage_bytes": "Storage",
         "sso_oidc": "SSO sign-in (OIDC)",
         "documents_public_links": "Public links for documents",
-        "office_ai_byok": "Office AI with your own key",
         "office_ai_cloud": "Office cloud AI tools"
       },
       "errors": {
@@ -11591,7 +11590,6 @@
           "meeting_ai_summary": "AI meeting summaries",
           "documents_public_links": "Public links for documents",
           "meeting_transcription": "Meeting transcription minutes",
-          "office_ai_byok": "Office AI with your own key",
           "office_ai_cloud": "Office cloud AI tools"
         }
       }
@@ -11703,7 +11701,7 @@
       "pillar3Title": "Work Products are the real output",
       "pillar3Desc": "Create, edit, approve, analyse and present right where the work that produced them lives.",
       "pillar4Title": "Deploy it your way",
-      "pillar4Desc": "Cloud, private cloud, on-premise and BYOK, built for companies and public bodies in Vietnam.",
+      "pillar4Desc": "Cloud, private cloud and on-premise, built for companies and public bodies in Vietnam.",
       "ms365": {
         "name": "Microsoft 365",
         "tagline": "The productivity powerhouse",
@@ -12264,7 +12262,7 @@
         "demo": "See the six editors",
         "unavailable": "The installers are being prepared. Meanwhile you can still open and edit Office files on the web, in Documents.",
         "trustAccount": "Uses your UniWork account",
-        "trustAi": "AI through your UniWork plan or your own key",
+        "trustAi": "AI runs on UniWork AI and counts against your plan's credits",
         "trustOffline": "Edit files on your computer without a connection; cloud AI and UniWork documents need one"
       },
       "editors": {
@@ -12358,7 +12356,7 @@
         "sub": "UniOffice shares its account and permissions with UniWork, so your team's files keep following your organization's access rules.",
         "account": {
           "title": "AI through your UniWork account",
-          "description": "Cloud AI tools run through UniWork under your organization’s configuration and plan. On the web, requests using your own API key still pass through UniWork to your chosen provider. Desktop has its own configuration; check the application before sending content."
+          "description": "Cloud AI tools run on UniWork AI under your organization’s configuration and plan, and count against the plan’s credits. Desktop has its own configuration; check the application before sending content."
         },
         "files": {
           "title": "Team files are saved in the workspace",
@@ -12375,7 +12373,7 @@
         },
         "ai": {
           "title": "AI on your terms",
-          "description": "Use your organization's plan or your own API key."
+          "description": "Runs on UniWork AI and counts against your plan's credits."
         },
         "permissions": {
           "title": "Consistent access",
@@ -12404,7 +12402,7 @@
         "q3": "Does it work offline?",
         "a3": "You can edit files on your computer without a connection. Cloud AI and UniWork documents (opening from the workspace, saving a new version) need one.",
         "q4": "How is my data handled?",
-        "a4": "Files you save to the workspace live in the UniWork workspace under your organization's permissions; files stored on your computer stay on your computer. When you use AI, the content to work on is sent to the model provider: through UniWork for tools that run under your organization's plan, or straight from your computer if you use your own API key.",
+        "a4": "Files you save to the workspace live in the UniWork workspace under your organization's permissions; files stored on your computer stay on your computer. When you use AI, the UniWork server sends the content to work on to the model provider, under your organization's plan. If you enter your own AI key in the desktop app, content goes from your computer straight to that provider.",
         "q5": "Do I need a separate account for Office?",
         "a5": "No. You sign in with your UniWork account, with the same permissions and workspaces as on the web.",
         "q6": "How do I open a file from UniWork on the web?",

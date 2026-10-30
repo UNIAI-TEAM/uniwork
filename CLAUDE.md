@@ -373,12 +373,11 @@ Every command that changes business state writes an `audit_events` row and its
   that needs a model is a request the server answers through `ai.Gateway`.
   `scripts/governance.test.mjs` fails if the agent's requirements name an LLM
   SDK; `TestMeetingAgentToken*` in `server/internal/handler` holds the token.
-- The signed-in desktop app uses the keys the person saved on UniWork only
-  through the BYOK proxy routes (ADR 0034, extending 0029): it never receives a
-  key, and its calls record the `office.byok_desktop` capability while web and
-  frame calls keep `office.byok`.
-  `TestAIBYOKDeviceSessionStreamsAndMetersDesktopCapability` and
-  `TestProxySurfaceCapability` hold it.
+- UniWork never stores, receives or forwards a person's own AI provider key (ADR 0051, superseding 0034 and the
+  key-store parts of 0028 and 0029): every server-side AI call goes through `ai.Gateway`, Office AI (the web frame's calls) runs on UniWork AI
+  behind `office.ai_cloud`, and the frame's cloud tools follow the `uniwork_ai` grant. There is no
+  `ai_provider_credentials` table and no proxy route. `TestNoProviderKeyRoutes`, `TestNoProviderCredentialTable`,
+  `TestOldDesktopKeyListIsNotFound` and `TestOfficeFrameCloudToolsFollowUniworkAI` hold it.
 - External AI clients (Claude, ChatGPT, Gemini) reach UniWork only through
   the MCP connector, with UniWork as their OAuth server (ADR 0031). They get
   opaque tokens (`uwm_at_`, `uwm_rt_`) that only `/mcp` accepts, and `/mcp`

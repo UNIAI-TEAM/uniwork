@@ -98,7 +98,7 @@ hay khóa của upstream dev ở đâu ngoài secret store/cấu hình máy dev.
 Trợ lý UniWork AI trong editor Office giữ hội thoại **trên server**: client chỉ gửi câu hỏi mới hoặc tool-result, không
 bao giờ gửi lịch sử (luật bảo mật 7). Hai bảng `ai_uniwork_conversations` / `ai_uniwork_turns`; mỗi lượt là JSON của
 `provider.Message` (nội dung + tool call + tool-result) được mã hóa `server/internal/util/secretbox` (AES-256-GCM)
-bằng khóa riêng `AI_CONVERSATION_KEY` — không dùng chung `AI_CREDENTIAL_KEY` để lộ một khóa không lộ cả hai.
+bằng khóa riêng `AI_CONVERSATION_KEY`, không dùng chung với khóa nào khác của máy chủ để lộ một khóa không lộ khóa kia.
 
 | Mục | Giá trị |
 | --- | --- |

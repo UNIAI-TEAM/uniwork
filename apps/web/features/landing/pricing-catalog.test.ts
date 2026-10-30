@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pricingComparisonRows } from "./pricing-catalog";
 
-const live = ["meeting.recording", "meeting.ai_summary", "documents.public_links", "office.ai_byok", "office.ai_cloud"];
+const live = ["meeting.recording", "meeting.ai_summary", "documents.public_links", "office.ai_cloud"];
 const plan = (disabled: string[] = [], omitted: string[] = []) => ({
   features: [...live, "sso.oidc"].filter(key => !omitted.includes(key)).map(key => ({
     feature_key: key, enabled: !disabled.includes(key), quota_limit: null,

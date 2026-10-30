@@ -2012,24 +2012,6 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
-		// UNI-1008 W1: the per-user AI provider key store.
-		audit.ActionAICredentialSaved: func(t *testing.T, f *auditFixture) {
-			f.build(t)
-			svc := NewAICredentialService(f.pool, f.q, f.orgs, NewEntitlementService(f.pool, f.q), testAICredentialBox(t))
-			if _, _, err := svc.SaveAICredential(f.ctx, Human(f.owner.ID), f.orgID, "openai", SaveAICredentialInput{APIKey: strPtr(testAIKey)}); err != nil {
-				t.Fatal(err)
-			}
-		},
-		audit.ActionAICredentialDeleted: func(t *testing.T, f *auditFixture) {
-			f.build(t)
-			svc := NewAICredentialService(f.pool, f.q, f.orgs, NewEntitlementService(f.pool, f.q), testAICredentialBox(t))
-			if _, _, err := svc.SaveAICredential(f.ctx, Human(f.owner.ID), f.orgID, "openai", SaveAICredentialInput{APIKey: strPtr(testAIKey)}); err != nil {
-				t.Fatal(err)
-			}
-			if err := svc.DeleteAICredential(f.ctx, Human(f.owner.ID), f.orgID, "openai"); err != nil {
-				t.Fatal(err)
-			}
-		},
 		// UNI-1998: a clerk turns pending action items into tasks.
 		audit.ActionMeetingActionItemsConverted: func(t *testing.T, f *auditFixture) {
 			svc, m := auditMeetingWithItems(t, f, "Gửi báo cáo")
@@ -3176,8 +3158,6 @@ func auditActions() []string {
 		audit.ActionDocumentUploadSessionExpired,
 		audit.ActionSignatureCreated,
 		audit.ActionSignatureDeleted,
-		audit.ActionAICredentialSaved,
-		audit.ActionAICredentialDeleted,
 		audit.ActionEmailHubAccountConnected,
 		audit.ActionEmailHubAccountDisconnected,
 		audit.ActionEmailHubAccountAuthFailed,

@@ -241,7 +241,6 @@ test("runJob FAILS (exit 1, never a bless) a web capture whose frame token grant
   const goldens = cx.writeGoldens(tmpDir("g7-06-goldens-"), { capturesDir: captures, fixtures: [ONE], hosts: ["desktop", "web"] });
   const metaFile = join(captures, "web", "meta.json");
   const meta = readJson(metaFile);
-  meta.fixtures[ONE].ai = false;
   meta.fixtures[ONE].uniworkAi = false;
   writeFileSync(metaFile, `${JSON.stringify(meta, null, 2)}\n`);
   const pinDir = fixturePinDir();

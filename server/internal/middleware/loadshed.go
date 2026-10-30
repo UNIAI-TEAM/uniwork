@@ -18,7 +18,7 @@ import (
 // whole life. A skip entry may also be a route pattern whose {param} segments
 // each stand for exactly one non-empty path segment (G6-03a §7.4: the UniWork
 // AI routes are exempt by pattern, because a prefix under /api/v1/orgs/{orgID}
-// /ai/ would also exempt the BYOK and cloud routes). An exempt request still
+// /ai/ would also exempt the cloud routes). An exempt request still
 // gets its body deadline: the exempt branch used to skip it, which let a
 // client trickle the body of an exempt route forever. They are exempt by path,
 // not by Upgrade header, which any request can carry. A max of zero or less

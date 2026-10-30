@@ -153,7 +153,7 @@ Nội dung lấy nguyên từ ảnh 3, không thêm bớt luận điểm. Mỗi 
 
 `MarketGap` là `EmphasisSection` (đảo polarity, đã có trong `layout-primitives.tsx`), một câu: từ công việc phân mảnh đến một tổ chức thực sự hiệu quả.
 
-`Pillars` là bốn ô: một nền tảng thống nhất, AI hiểu bối cảnh và thực thi công việc, Work Products là kết quả thực, linh hoạt triển khai (Cloud / Private Cloud / On-prem / BYOK). Lấy từ dải cuối ảnh 3.
+`Pillars` là bốn ô: một nền tảng thống nhất, AI hiểu bối cảnh và thực thi công việc, Work Products là kết quả thực, linh hoạt triển khai (Cloud / Private Cloud / On-prem). Lấy từ dải cuối ảnh 3. Chữ "BYOK" của ảnh gốc bỏ theo ADR 0051 (spec gỡ BYOK §12, Q-B7).
 
 ### 5.3 Điều hướng
 

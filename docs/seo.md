@@ -179,8 +179,10 @@ included with light/dark variants and a sample-data caption.
 Meeting guidance describes the implemented host/admin action-item selection and
 task-creation flow. Task guidance includes a clearly labelled teaching example.
 About distinguishes published examples, roadmap status and actual evaluation.
-Data & AI distinguishes access revocation from deletion and states that web BYOK
-requests pass through UniWork. The older blanket claim that personal API keys
+Data & AI distinguishes access revocation from deletion. Since ADR 0051 (2026-10-29)
+it no longer describes web BYOK, which is removed: AI on the web runs on UniWork AI only,
+and the one remaining disclosure is that a key entered in UniOffice for desktop stays on
+that computer and the app calls the provider directly. The older blanket claim that personal API keys
 always bypass UniWork has also been corrected on the Office page. The footer
 uses the UniWork brand while legal operator identity awaits confirmation.
 

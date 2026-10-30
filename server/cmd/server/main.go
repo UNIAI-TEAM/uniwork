@@ -854,20 +854,6 @@ func main() {
 	calendarConnectionSvc := service.NewCalendarConnectionService(pool, q, wsSvc, calendarBox, cfg)
 	driveWorkersDone := make(chan struct{})
 	go func() { driveConnectionSvc.RunWorkers(runCtx); close(driveWorkersDone) }()
-	// Personal AI provider keys (ADR 0029): without AI_CREDENTIAL_KEY the
-	// server still boots and the credential routes answer 503.
-	var aiCredentialBox *secretbox.Box
-	if key, err := secretbox.LoadKey("AI_CREDENTIAL_KEY"); err == nil {
-		aiCredentialBox, err = secretbox.New(key)
-		if err != nil {
-			log.Warn("AI provider credentials disabled", "err", err)
-		}
-	} else if os.Getenv("AI_CREDENTIAL_KEY") != "" {
-		log.Warn("AI provider credentials disabled", "err", err)
-	}
-	aiCredentialSvc := service.NewAICredentialService(pool, q, orgSvc, service.NewEntitlementService(pool, q), aiCredentialBox)
-	// BYOK proxy for the web host (UNI-1008): the stored key, resolved per call.
-	aiBYOK := service.NewAIBYOKService(orgSvc, service.NewEntitlementService(pool, q), aiCredentialSvc, gateway)
 	emailHubSvc.AI = gateway
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)
@@ -991,7 +977,6 @@ func main() {
 		AiMemory:            aiMemorySvc,
 		McpAuth:             mcpAuth,
 		McpTools:            mcpTools,
-		AIBYOK:              aiBYOK,
 		Meetings:            meetingSvc,
 		Chat:                chatSvc,
 		Graph:               graphSvc,
@@ -1005,7 +990,6 @@ func main() {
 		DocumentChanges:     docChanges,
 		OfficeLease:         officeLeases,
 		Signatures:          service.NewSignatureService(pool, q, orgSvc),
-		AICredentials:       aiCredentialSvc,
 		AICloud:             aiCloudSvc,
 		// The UniWork AI façade (G6-03a): the org, document and frame routes,
 		// the conversation store why the key above exists, and the process's

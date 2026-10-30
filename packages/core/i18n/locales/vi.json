@@ -1436,7 +1436,6 @@
         "storage_bytes": "Dung lượng lưu trữ",
         "sso_oidc": "Đăng nhập SSO (OIDC)",
         "documents_public_links": "Liên kết công khai cho tài liệu",
-        "office_ai_byok": "Khóa AI riêng cho Office",
         "office_ai_cloud": "Công cụ AI đám mây cho Office"
       },
       "errors": {
@@ -11529,7 +11528,6 @@
           "meeting_ai_summary": "Tóm tắt họp bằng AI",
           "documents_public_links": "Liên kết công khai cho tài liệu",
           "meeting_transcription": "Phút ghi lời cuộc họp",
-          "office_ai_byok": "Khóa AI riêng cho Office",
           "office_ai_cloud": "Công cụ AI đám mây cho Office"
         }
       }
@@ -11641,7 +11639,7 @@
       "pillar3Title": "Work Products là kết quả thực",
       "pillar3Desc": "Tạo, chỉnh sửa, phê duyệt tài liệu, phân tích và trình bày ngay tại chỗ công việc sinh ra chúng.",
       "pillar4Title": "Linh hoạt triển khai",
-      "pillar4Desc": "Cloud, private cloud, on-premise và BYOK, phù hợp doanh nghiệp và cơ quan tại Việt Nam.",
+      "pillar4Desc": "Cloud, private cloud và on-premise, phù hợp doanh nghiệp và cơ quan tại Việt Nam.",
       "ms365": {
         "name": "Microsoft 365",
         "tagline": "The productivity powerhouse",
@@ -12202,7 +12200,7 @@
         "demo": "Xem sáu trình soạn thảo",
         "unavailable": "Bản cài đặt đang được chuẩn bị. Trong lúc chờ, bạn vẫn mở và sửa file Office ngay trên web, trong mục Tài liệu.",
         "trustAccount": "Dùng chung tài khoản UniWork",
-        "trustAi": "AI theo gói UniWork hoặc khóa riêng",
+        "trustAi": "AI chạy bằng UniWork AI, tính vào credit của gói",
         "trustOffline": "Sửa file trên máy không cần kết nối; AI cloud và tài liệu UniWork cần kết nối"
       },
       "editors": {
@@ -12296,7 +12294,7 @@
         "sub": "UniOffice dùng chung tài khoản và phân quyền với UniWork, nên file của nhóm vẫn theo quyền truy cập của tổ chức.",
         "account": {
           "title": "AI qua tài khoản UniWork",
-          "description": "Công cụ AI trên cloud chạy qua UniWork theo cấu hình và gói của tổ chức. Khi dùng khóa API riêng trên web, yêu cầu vẫn đi qua UniWork tới nhà cung cấp bạn chọn. Luồng desktop có cấu hình riêng; kiểm tra trong ứng dụng trước khi gửi nội dung."
+          "description": "Công cụ AI trên cloud chạy bằng UniWork AI theo cấu hình và gói của tổ chức, tính vào credit của gói. Luồng desktop có cấu hình riêng; kiểm tra trong ứng dụng trước khi gửi nội dung."
         },
         "files": {
           "title": "File của nhóm lưu trong workspace",
@@ -12313,7 +12311,7 @@
         },
         "ai": {
           "title": "AI theo nhu cầu",
-          "description": "Dùng gói của tổ chức hoặc khóa API riêng."
+          "description": "Chạy bằng UniWork AI, tính vào credit của gói."
         },
         "permissions": {
           "title": "Quyền truy cập nhất quán",
@@ -12342,7 +12340,7 @@
         "q3": "Có dùng được khi không có mạng không?",
         "a3": "Sửa file trên máy không cần kết nối. AI cloud và tài liệu UniWork (mở từ workspace, lưu thành phiên bản mới) cần kết nối.",
         "q4": "Dữ liệu của tôi được xử lý thế nào?",
-        "a4": "File lưu vào workspace nằm trong workspace UniWork và theo phân quyền của tổ chức; file lưu trên máy ở lại trên máy. Khi bạn dùng AI, nội dung cần xử lý được gửi tới nhà cung cấp mô hình: qua UniWork với công cụ chạy theo gói của tổ chức, hoặc thẳng từ máy bạn nếu dùng khóa API riêng.",
+        "a4": "File lưu vào workspace nằm trong workspace UniWork và theo phân quyền của tổ chức; file lưu trên máy ở lại trên máy. Khi bạn dùng AI, nội dung cần xử lý được máy chủ UniWork gửi tới nhà cung cấp mô hình, theo gói của tổ chức. Nếu bạn nhập khóa AI riêng trong app desktop, nội dung đi thẳng từ máy bạn tới nhà cung cấp đó.",
         "q5": "Tôi có cần tài khoản riêng cho Office không?",
         "a5": "Không. Bạn đăng nhập bằng tài khoản UniWork, với cùng quyền và workspace như trên web.",
         "q6": "Làm sao mở file từ UniWork trên web?",

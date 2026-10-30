@@ -7,7 +7,7 @@ export const PRICING_QUOTA_KEYS = [
 
 // Each flag has a runtime entitlement gate. The catalog-only SSO flag is not evidence of a tier-specific runtime entitlement.
 const COMPARISON_FEATURES = [
-  "meeting.recording", "meeting.ai_summary", "documents.public_links", "office.ai_byok", "office.ai_cloud",
+  "meeting.recording", "meeting.ai_summary", "documents.public_links", "office.ai_cloud",
 ] as const;
 
 /** A standalone table needs several real differences; common, missing and unwired flags add no comparison value. */

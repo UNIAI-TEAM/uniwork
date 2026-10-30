@@ -206,23 +206,6 @@ type AiOfficeHandoff struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
-type AiProviderCredential struct {
-	ID               string             `json:"id"`
-	OrganizationID   string             `json:"organization_id"`
-	UserID           string             `json:"user_id"`
-	Provider         string             `json:"provider"`
-	Label            string             `json:"label"`
-	BaseUrl          string             `json:"base_url"`
-	SecretCiphertext []byte             `json:"secret_ciphertext"`
-	KeyHint          string             `json:"key_hint"`
-	CreatedBy        string             `json:"created_by"`
-	CreatedByKind    string             `json:"created_by_kind"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
-	Model            string             `json:"model"`
-	ModelUpdatedAt   pgtype.Timestamptz `json:"model_updated_at"`
-}
-
 type AiUniworkConversation struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

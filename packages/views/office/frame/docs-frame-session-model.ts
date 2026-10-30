@@ -295,20 +295,17 @@ export function hostSaveCauseError(cause: HostSaveWatch["cause"]): ProtocolError
  * module workers fill in), narrowed by readonly and by what the API
  * implements. A key the grant leaves out is off. AI (CONTRACT C16) is on only
  * for a module with AI panels (`officeModuleSpec(module).ai`) and only as far
- * as the minted token's `ai` grant says (the organization's entitlement, read
- * by the server at mint); `uniworkAi` follows `ai.uniwork_ai` the same way, and
- * each cloud tool needs `ai` or `uniworkAi` plus its own grant. The frame then calls
+ * as the minted token's `ai` grant says (read by the server at mint):
+ * `uniworkAi` follows `ai.uniwork_ai`, and each cloud tool needs `uniworkAi`
+ * plus its own grant. The frame then calls
  * the frame-token AI routes itself; a viewer keeps AI (it never saves).
  */
 export function officeModuleCapabilities(module: OfficeModule, readonly: boolean, api: DocsFrameApi, aiGrant?: OfficeFrameAIGrant, desktopOpen = false, download = false, copyRefused = readonly || !download): Capabilities {
   const spec = officeModuleSpec(module);
   const { saveCopy: _saveCopy, ...grant } = spec.grant;
   const on = (key: keyof Capabilities) => spec.grant[key] === true;
-  const ai = spec.ai === true && aiGrant?.ai === true;
-  // UniWork AI (G6-05) is its own grant, independent of BYOK `ai`.
   const uniworkAi = spec.ai === true && aiGrant?.uniwork_ai === true;
-  // The cloud tools serve either AI, so an organization with only UniWork AI still gets the ones it is granted.
-  const cloud = ai || uniworkAi;
+  const cloud = uniworkAi;
   const saveCopy = module === "docs" && on("saveCopy") && !copyRefused && download && Boolean(api.saveCopy);
   return {
     ...grant,
@@ -316,7 +313,7 @@ export function officeModuleCapabilities(module: OfficeModule, readonly: boolean
     ...(saveCopy ? { saveCopy: true } : {}),
     exportPdf: on("exportPdf") && (module !== "docs" || Boolean(api.export)), exportHtml: on("exportHtml"),
     attachments: on("attachments") && !readonly && Boolean(api.addAttachments), images: on("images") && !readonly && (module === "docs" || Boolean(api.uploadImage)),
-    ai, uniworkAi,
+    uniworkAi,
     // Ask UNI's handoff (UNI-2264) runs on UniWork AI and types into the document, so a viewer is not offered it.
     aiStart: uniworkAi && !readonly,
     webSearch: cloud && aiGrant?.web_search === true, imageSearch: cloud && aiGrant?.image_search === true,

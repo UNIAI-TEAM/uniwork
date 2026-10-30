@@ -167,13 +167,6 @@ func New(d Deps, h Routes) http.Handler {
 			ai.UniworkRunHeader,
 			// The Ask UNI handoff package a turn works on (ADR 0048).
 			ai.UniworkHandoffHeader,
-			// Vendor headers the BYOK proxy forwards (provider/byok_client.go); a
-			// browser caller needs them in the preflight or the fetch never leaves.
-			"Anthropic-Beta",
-			"Openai-Organization",
-			"Openai-Project",
-			"Http-Referer",
-			"X-Title",
 		},
 		ExposedHeaders: []string{
 			mw.CorrelationHeader, telemetry.TraceHeader, "Retry-After",
@@ -198,8 +191,8 @@ func New(d Deps, h Routes) http.Handler {
 	// it against the in-flight bound would let a handful of AI turns shed every
 	// other request in the pod.
 	// Patterns, not prefixes, on purpose: a prefix under /api/v1/orgs/{orgID}/ai/
-	// would exempt the BYOK proxy and the cloud tools too. Exempt routes still
-	// get their body deadline.
+	// would exempt the cloud tools too. Exempt routes still get their body
+	// deadline.
 	r.Use(mw.LoadShed(d.Cfg.HTTPMaxInFlight, "/healthz", "/readyz", apiHealthPath,
 		"/api/v1/orgs/{orgID}/ai/uniwork/chat/completions",
 		"/api/v1/documents/{documentID}/ai/uniwork/chat/completions",
@@ -261,9 +254,7 @@ func New(d Deps, h Routes) http.Handler {
 		// GO-A7's AI on the frame token: the same per-person buckets as the
 		// session routes, so a frame and a host tab share one budget.
 		registerOfficeFrameAI(v1, h, d.FeatureFlags, d.OfficeFrameAuth, officeFrameAILimits{
-			credentials: mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, frameUser),
-			byok:        mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, frameUser),
-			cloud:       mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, frameUser),
+			cloud: mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, frameUser),
 			// G6-03b: the UniWork AI turn draws on the ai-uniwork bucket, the
 			// same one the two session routes use, so a person's frame and
 			// host tab share the 60/min and the refusal carries its own code.
@@ -286,7 +277,6 @@ func New(d Deps, h Routes) http.Handler {
 			registerBilling(authed, h)
 			registerNotifications(authed, h)
 			registerAI(authed, h)
-			registerAIBYOK(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-byok", 60, time.Minute, proxies, bearerUser(d.Minter)))
 			registerAICloud(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-cloud", 20, time.Minute, proxies, bearerUser(d.Minter)))
 			// UniWork AI (G6-03b): one 60/min budget per person across the
 			// three UniWork AI routes, keyed by the bucket so the ids in their
@@ -366,8 +356,6 @@ func New(d Deps, h Routes) http.Handler {
 			// per signed-in person across every page, like the frame's export.
 			registerPageExport(docs, h, d.FeatureFlags, mw.RateLimitByIdentityBucket(d.Redis, "page-export", 20, time.Minute, proxies, bearerUser(d.Minter)))
 			registerSignatures(authed, h)
-			// Personal AI keys: per signed-in person across the whole group, 30/min (ADR 0029).
-			registerAICredentials(authed, h, mw.RateLimitByIdentityBucket(d.Redis, "ai-credentials", 30, time.Minute, proxies, bearerUser(d.Minter)))
 			registerOfficeLaunch(authed, h)
 			registerOfficeFrameToken(docs, h, d.FeatureFlags)
 			registerOfficeDesktopDownload(authed, h, mw.RateLimit(d.Redis, 10, time.Minute, proxies))

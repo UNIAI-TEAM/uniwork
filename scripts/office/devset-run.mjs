@@ -1415,12 +1415,12 @@ async function main() {
         locale: lang,
         theme: 'light',
         module: mod,
-        capabilities: { ai: true, uniworkAi: true, save: true, saveAs: true },
+        capabilities: { uniworkAi: true, save: true, saveAs: true },
       } as any),
       getToken: () => mount.frameToken,
       refreshToken: async () => mount.frameToken,
     },
-    capabilities: { ai: true, uniworkAi: true },
+    capabilities: { uniworkAi: true },
     module: mod,
   });
   await webAi.active();
@@ -1438,7 +1438,7 @@ async function main() {
     {
       ...aiMembers,
       onLanguageChanged: () => () => {},
-      capabilities: { platform: 'web', ai: true, uniworkAi: true },
+      capabilities: { platform: 'web', uniworkAi: true },
     } as any,
     {
       get(t, k) {

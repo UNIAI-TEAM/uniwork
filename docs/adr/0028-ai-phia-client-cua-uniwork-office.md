@@ -1,6 +1,6 @@
 # 0028 — AI phía client của UniWork Office: khóa của người dùng gọi thẳng nhà cung cấp, mọi thứ tốn credit đi qua UniWork API
 
-**Trạng thái:** accepted (2026-10-09, UNI-1019; quyết định người dùng 2026-10-08, câu hỏi Q4 của kế hoạch: "AI giữ như genoffice")
+**Trạng thái:** superseded by 0051 (2026-10-29) — Quyết định 2 (khóa của người dùng và CLI cục bộ gọi thẳng nhà cung cấp) được thay bởi [0051](0051-ai-chi-chay-bang-uniwork-ai-go-byok.md): mọi AI chỉ chạy bằng UniWork AI; app desktop còn khóa trên máy tới khi kế hoạch 2 của 0051 gỡ đường đó. Quyết định 1, 3, 4, 5 vẫn đúng và được nhắc lại trong 0051. Lịch sử giữ nguyên, không sửa phần còn lại. Trước đó: accepted (2026-10-09, UNI-1019; quyết định người dùng 2026-10-08, câu hỏi Q4 của kế hoạch: "AI giữ như genoffice")
 **Issue:** UNI-1019 · **Parent:** UNI-1001 · **Liên quan:** [0010](0010-ai-khong-ghi-truc-tiep-de-xuat-xac-nhan-thuc-thi.md) (AI phía server), [0021](0021-runtime-engine-office-da-dinh-dang.md), [0026](0026-office-desktop-host.md).
 **Nguồn:** `docs/superpowers/plans/2026-10-08-uniwork-office-genoffice.md` (kế hoạch genoffice; chưa có trên `develop`, land cùng UNI-1001).
 
