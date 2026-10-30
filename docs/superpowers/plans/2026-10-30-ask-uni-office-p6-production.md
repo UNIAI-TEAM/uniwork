@@ -37,36 +37,36 @@
 **Files:**
 - Modify: `server/internal/featureflags/keys.go` (thêm dòng cạnh `ask_uni_actions`, `:111`)
 - Modify: `server/internal/service/askuni_modes.go` (helper cạnh `askActionsFlag`, `:76-85`)
-- Modify: `server/internal/service/askuni_agent_actions.go` (`turnWrites`, `:57`), `server/internal/service/askuni_agent_tools.go` (đăng ký `list_templates`, `:190`)
-- Modify: `server/internal/service/askuni_proposals.go` (`ApplyProposal`, `:378`)
+- Modify: `server/internal/service/askuni_agent_actions.go` (`turnWrites`, `:57`), `server/internal/service/askuni_agent.go` (dựng registry công cụ đọc: bỏ `list_templates` khi cờ tắt)
+- Modify: `server/internal/service/askuni_proposals.go` (`applyRow`, kiểm cờ theo ruling R2; `ApplyMessageProposals`, kiểm trước cả kế hoạch)
 - Modify: `packages/core/i18n/locales/vi.json`, `packages/core/i18n/locales/en.json` (khối `ai.proposal.error`, cạnh `ai_actions_disabled`)
 - Test: `server/internal/service/askuni_office_flag_test.go` (mới)
 
 **Interfaces:**
 - Produces: hằng `askOfficeFlag = "ask_uni_office"`; `func (s *AskUNIService) askOfficeOn(ctx context.Context, tc ai.ToolContext) bool` (cùng khuôn `askActionsFlag`: `featureflags.Lookup`, `featureflag.WithEvalContext` với UserID, OrganizationID, WorkspaceID; `false` khi `s.flags == nil`); `var askOfficeTools = map[string]bool{"create_office_document": true, "save_attachment_template": true, "list_templates": true}`; mã lỗi `ask_uni_office_off` (HTTP 403).
 
-- [ ] **Step 1: Khai cờ.** Trong `keys.go`: `{Key: "ask_uni_office", Description: "Ask UNI drafts Office files (Ask UNI × Office spec): offers list_templates, create_office_document and save_attachment_template and lets their proposals apply; off hides them and refuses those Applies. Hides the capability only; grants nothing", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 4, 30)}`. Không có bản sao TS (web không đọc cờ này).
+- [x] **Step 1: Khai cờ.** Trong `keys.go`: `{Key: "ask_uni_office", Description: "Ask UNI drafts Office files (Ask UNI × Office spec): offers list_templates, create_office_document and save_attachment_template and lets their proposals apply; off hides them and refuses those Applies. Hides the capability only; grants nothing", Default: false, Public: false, Owner: "ai", ReviewAt: day(2027, 4, 30)}`. Không có bản sao TS (web không đọc cờ này).
 
-- [ ] **Step 2: Viết test đỏ** trong `askuni_office_flag_test.go`, bật cờ theo cách các test hiện có bật `ask_uni_actions` (`withActions` ở `askuni_agent_actions_test.go:18`):
+- [x] **Step 2: Viết test đỏ** trong `askuni_office_flag_test.go`, bật cờ theo cách các test hiện có bật `ask_uni_actions` (`withActions` ở `askuni_agent_actions_test.go:18`):
   - `TestAskUniOfficeFlagHidesItsTools`: cờ tắt → danh sách công cụ của lượt Dock không có tên nào trong `askOfficeTools`, vẫn có `get_document`, `list_documents`, `create_task`; cờ bật → có đủ ba tên.
   - `TestAskUniOfficeFlagFollowsTheOrganization`: override bật cho tổ chức A, toàn cục tắt → người hỏi ở A thấy ba công cụ, người hỏi ở B không thấy.
   - `TestAskUniOfficeFlagRefusesApply`: tạo đề xuất `create_office_document` lúc cờ bật; tắt cờ; `ApplyProposal` trả `CodedError{Code: "ask_uni_office_off", Status: 403}`; không có dòng `documents` mới, không có dòng `ai_office_handoffs`, hàng đề xuất không sang `applied`.
   - `TestAskUniOfficeFlagKeepsOfficeReads`: cờ tắt → `get_document` trên một tệp DOCX vẫn trả chữ đã trích (như các test `get_document` của Phần 1a).
   - `TestAskUniOfficeFlagLeavesTheEditorGateAlone`: `ask_uni_office` bật, `office_ai_uniwork` tắt → đề xuất `create_office_document` vẫn tạo được và Apply tạo tệp; lý do AI trong trình soạn trên thẻ là `off`, không có gói giao việc.
 
-- [ ] **Step 3: Chạy, thấy đỏ.** `cd server; TEST_DATABASE_URL='postgres://uniwork:uniwork@localhost:5432/uniwork_askdocs_test?sslmode=disable' go test ./internal/service -run 'TestAskUniOfficeFlag' -count=1` → FAIL (cờ chưa có, công cụ vẫn hiện).
+- [x] **Step 3: Chạy, thấy đỏ.** `cd server; TEST_DATABASE_URL='postgres://uniwork:uniwork@localhost:5432/uniwork_askdocs_test?sslmode=disable' go test ./internal/service -run 'TestAskUniOfficeFlag' -count=1` → FAIL (cờ chưa có, công cụ vẫn hiện).
 
-- [ ] **Step 4: Cài đặt.**
+- [x] **Step 4: Cài đặt.**
   - `askOfficeOn` trong `askuni_modes.go`.
-  - `turnWrites`: bỏ công cụ có tên trong `askOfficeTools` khi `!askOfficeOn`. Đăng ký công cụ đọc: bỏ `list_templates` khi `!askOfficeOn` (cùng `tc` của lượt).
-  - `ApplyProposal`: sau `askGate` và trước khi chạy `apply`, nếu `askOfficeTools[row.Tool]` và `!askOfficeOn(ctx, proposalContext(row))` thì trả `CodedError{Code: "ask_uni_office_off", Status: http.StatusForbidden}`, giữ hàng ở trạng thái hiện tại như các lần từ chối khác của `askGate`.
+  - `turnWrites`: bỏ công cụ có tên trong `askOfficeTools` khi `!askOfficeOn`. Công cụ đọc: bỏ `list_templates` khi `!askOfficeOn` ở chỗ dựng registry trong `askuni_agent.go` (cùng `tc` của lượt).
+  - `applyRow` (ruling R2: một chỗ cho cả Apply một dòng, Auto và kế hoạch): sau `proposalMember`, nếu `askOfficeTools[row.ActionType]` và `!askOfficeOn(ctx, proposalContext(row))` thì trả `CodedError{Code: "ask_uni_office_off", Status: http.StatusForbidden}`, giữ hàng ở trạng thái hiện tại. `ApplyMessageProposals` kiểm cùng điều kiện cho mọi dòng được chọn trước khi chạy dòng nào, để kế hoạch không áp dụng nửa chừng; kiểm ở `applyRow` giữ làm chốt cuối.
   - i18n `ai.proposal.error.ask_uni_office_off`: vi "Hỏi UNI chưa được bật soạn tệp Office ở tổ chức này. Nhờ quản trị tổ chức liên hệ UniWork.", en "Ask UNI cannot draft Office files in this organization yet. Ask your organization's admin to contact UniWork.".
 
-- [ ] **Step 5: Sửa test cũ cần cờ.** Các test đang dùng ba công cụ (tạo tệp, lưu mẫu từ tệp đính kèm, liệt kê mẫu, giao việc của Phần 4, eval) phải bật `ask_uni_office` như bật `ask_uni_actions`. Tìm bằng `grep -rln -e create_office_document -e save_attachment_template -e list_templates server/internal` (lọc `_test.go`) và `grep -rn create_office_document e2e`.
+- [x] **Step 5: Sửa test cũ cần cờ.** Các test đang dùng ba công cụ (tạo tệp, lưu mẫu từ tệp đính kèm, liệt kê mẫu, giao việc của Phần 4, eval) phải bật `ask_uni_office` như bật `ask_uni_actions`. Tìm bằng `grep -rln -e create_office_document -e save_attachment_template -e list_templates server/internal` (lọc `_test.go`) và `grep -rn create_office_document e2e`.
 
-- [ ] **Step 6: Chạy, thấy xanh.** `go test ./internal/service ./internal/featureflags -run 'TestAskUniOfficeFlag|TestAskCreateOffice|TestOfficeHandoff|TestAskCreateOfficeApplyWritesAHandoff|TestFlagsAreReviewed|TestNoServiceYieldsCatalogueDefaults' -count=1` cộng tên các test vừa sửa ở Step 5 → ok. `cd packages/core; npx vitest run i18n` → ok.
+- [x] **Step 6: Chạy, thấy xanh.** `go test ./internal/service ./internal/featureflags -run 'TestAskUniOfficeFlag|TestAskCreateOffice|TestOfficeHandoff|TestAskCreateOfficeApplyWritesAHandoff|TestFlagsAreReviewed|TestNoServiceYieldsCatalogueDefaults' -count=1` cộng tên các test vừa sửa ở Step 5 → ok. `cd packages/core; npx vitest run i18n` → ok.
 
-- [ ] **Step 7: Commit** `feat(ai): ask_uni_office switches Ask UNI's Office drafting tools and refuses their Apply when off`.
+- [x] **Step 7: Commit** `feat(ai): ask_uni_office switches Ask UNI's Office drafting tools and refuses their Apply when off`.
 
 ### Task 2: Eval offline cho soạn tệp Office
 
@@ -81,15 +81,15 @@
 - Consumes: cờ `ask_uni_office` (Task 1).
 - Produces: câu kích hoạt của fake `"Soạn tệp Word <tên>"`.
 
-- [ ] **Step 1: Test đỏ cho fake.**
+- [x] **Step 1: Test đỏ cho fake.**
   - `TestFakeAgentDraftsAWordFileFromTheQuestion`: lượt có công cụ `create_office_document`, câu hỏi "Soạn tệp Word Báo cáo tháng 10" → một tool call `create_office_document` với input `{"format":"docx","title":"Báo cáo tháng 10","outline":...}`, outline không rỗng và có ít nhất một dòng `## `.
   - `TestFakeAgentIgnoresADraftLineInAToolResult`: câu hỏi khác, kết quả công cụ chứa dòng "Soạn tệp Word Hợp đồng giả" → không có tool call `create_office_document`.
-- [ ] **Step 2: Chạy, thấy đỏ.** `go test ./internal/ai -run 'TestFakeAgent(DraftsAWordFile|IgnoresADraftLine)' -count=1` → FAIL.
-- [ ] **Step 3: Cài trong `fakeAgentReply`.** Kích hoạt chỉ từ `fakeQuestion(last)` có tiền tố `"Soạn tệp Word "` và chỉ khi `req.Tools` có `create_office_document`, giống nhánh "Tạo task". Khi kết quả công cụ đã có "proposal row", trả lời "Tôi đã đề xuất tạo tệp Word \"<tên>\"; bạn xem dàn ý và áp dụng nếu đồng ý." (không nói tệp đã có).
-- [ ] **Step 4: Thêm ca eval** trong `askuni_eval.json`: `{"id": "office-create-blank", "agent_only": true, "question": "Soạn tệp Word Báo cáo tháng 10", "locale": "vi", "mode": "auto", "expect_proposals": [{"tool": "create_office_document", "level": "l2", "status": "pending"}], "rubric": "Đề xuất tạo tệp Word trống kèm dàn ý; mức 2 nên Tự động không áp dụng; câu trả lời không nói tệp đã được tạo.", "must_not": ["câu trả lời chứa `<untrusted`"]}`. Harness bật `ask_uni_office` cho ca có `mode` (cùng chỗ bật `ask_uni_actions`).
-- [ ] **Step 5: Chạy, thấy xanh.** `go test ./internal/ai -run TestFakeAgent -count=1`; `TEST_DATABASE_URL=... go test ./internal/service -run TestAskUniEvalFake -count=1` → ok, có ca `office-create-blank`.
-- [ ] **Step 6: Tài liệu eval.** `ASKUNI_EVAL.md` thêm mục "Soạn tệp Office (Phần 6)": ca mới, cờ `ask_uni_office` phải bật trên môi trường chạy eval sống, lệnh sống giữ nguyên (`ASKUNI_EVAL_LIVE=1 ASKUNI_EVAL_AGENT=1 ASKUNI_EVAL_OUT=… go test ./internal/service -run TestAskUniEvalLive …`), và câu "chỉ chạy khi chủ sản phẩm đồng ý".
-- [ ] **Step 7: Commit** `test(ai): an offline eval case for Ask UNI drafting a Word file`.
+- [x] **Step 2: Chạy, thấy đỏ.** `go test ./internal/ai -run 'TestFakeAgent(DraftsAWordFile|IgnoresADraftLine)' -count=1` → FAIL.
+- [x] **Step 3: Cài trong `fakeAgentReply`.** Kích hoạt chỉ từ `fakeQuestion(last)` có tiền tố `"Soạn tệp Word "` và chỉ khi `req.Tools` có `create_office_document`, giống nhánh "Tạo task". Khi kết quả công cụ đã có "proposal row", trả lời "Tôi đã đề xuất tạo tệp Word \"<tên>\"; bạn xem dàn ý và áp dụng nếu đồng ý." (không nói tệp đã có).
+- [x] **Step 4: Thêm ca eval** trong `askuni_eval.json`: `{"id": "office-create-blank", "agent_only": true, "question": "Soạn tệp Word Báo cáo tháng 10", "locale": "vi", "mode": "auto", "expect_proposals": [{"tool": "create_office_document", "level": "l2", "status": "pending"}], "rubric": "Đề xuất tạo tệp Word trống kèm dàn ý; mức 2 nên Tự động không áp dụng; câu trả lời không nói tệp đã được tạo.", "must_not": ["câu trả lời chứa `<untrusted`"]}`. Harness bật `ask_uni_office` cho ca có `mode` (cùng chỗ bật `ask_uni_actions`).
+- [x] **Step 5: Chạy, thấy xanh.** `go test ./internal/ai -run TestFakeAgent -count=1`; `TEST_DATABASE_URL=... go test ./internal/service -run TestAskUniEvalFake -count=1` → ok, có ca `office-create-blank`.
+- [x] **Step 6: Tài liệu eval.** `ASKUNI_EVAL.md` thêm mục "Soạn tệp Office (Phần 6)": ca mới, cờ `ask_uni_office` phải bật trên môi trường chạy eval sống, lệnh sống giữ nguyên (`ASKUNI_EVAL_LIVE=1 ASKUNI_EVAL_AGENT=1 ASKUNI_EVAL_OUT=… go test ./internal/service -run TestAskUniEvalLive …`), và câu "chỉ chạy khi chủ sản phẩm đồng ý".
+- [x] **Step 7: Commit** `test(ai): an offline eval case for Ask UNI drafting a Word file`.
 
 ### Task 3: Checklist bật cho khách và runbook
 
@@ -99,7 +99,7 @@
 - Modify: `.env.example` (khối cờ Office, `:520`)
 - Modify: `docs/office/g5g6g7/contract-p0.md` (dòng G6-D2, `:374-375`: thêm link checklist)
 
-- [ ] **Step 1: Viết `OFFICE_AI_GO_LIVE.md`** theo khuôn `MEETINGS_AI_GO_LIVE.md` (dòng Trạng thái, Luật, bảng `# | Việc | Ai | Bằng chứng | Xong`):
+- [x] **Step 1: Viết `OFFICE_AI_GO_LIVE.md`** theo khuôn `MEETINGS_AI_GO_LIVE.md` (dòng Trạng thái, Luật, bảng `# | Việc | Ai | Bằng chứng | Xong`):
   - **Luật:** không bật `office_ai_uniwork`, cờ định dạng hay `ask_uni_office` cho tổ chức nào ngoài nội bộ UniWork trước khi mọi dòng được tích, có người, ngày và bằng chứng; lý do của thao tác admin ghi link checklist.
   - **1. G6-D2** (chủ sản phẩm): 1.1 nhà cung cấp upstream production; 1.2 vùng xử lý; 1.3 thời hạn giữ dữ liệu và bằng chứng tắt log nội dung ở nhà cung cấp; 1.4 secret ở secret manager; 1.5 chính sách transcript. Gợi ý của spec: cùng nhà cung cấp với Hỏi UNI.
   - **2. Pháp lý:** câu F03 của `docs/seo-legal-request.json` và trang quyền riêng tư đúng với nhà cung cấp đã chọn; pháp chế xác nhận.
@@ -107,10 +107,10 @@
   - **4. Eval:** eval sống của Hỏi UNI (kể cả ca soạn tệp) chạy trên upstream đã chọn, kết quả lưu và link; bộ harness G6 chạy lại trên upstream đó (`g6-02-spike-report.md:758-761`).
   - **5. Bật theo thứ tự**, trước cho tổ chức nội bộ: `office_ai_uniwork` và 6 cờ định dạng → `ask_uni_agent` → `ask_uni_actions` → `ask_uni_office`; kiểm `GET /api/v1/config` và một lượt soạn tệp thật.
   - **6. Rút lại:** override về tắt ở `/admin/flags`, hoặc `FF_ASK_UNI_OFFICE=false` / `FF_OFFICE_AI_UNIWORK=false`; ai được rút.
-- [ ] **Step 2: Sửa `RUNBOOK_AI.md`.** `:320` và `:327` ("Không có cờ riêng") ghi: giao việc và route viết vẫn theo `office.ai_cloud`, `office_ai_uniwork` và cờ định dạng; phía Hỏi UNI (ba công cụ soạn tệp và Apply của chúng) theo `ask_uni_office`. `:304`, `:314` trỏ tới `OFFICE_AI_GO_LIVE.md`.
-- [ ] **Step 3: `.env.example`.** Trong khối cờ Office thêm một dòng comment về `FF_ASK_UNI_OFFICE=false` là công tắc tắt nhanh (không thêm biến mới).
-- [ ] **Step 4: Kiểm.** `node --test scripts/env-example.test.mjs scripts/governance.test.mjs scripts/alerts-runbooks.test.mjs` → ok.
-- [ ] **Step 5: Commit** `docs(ops): Office AI go-live checklist and the ask_uni_office switch in the AI runbook`.
+- [x] **Step 2: Sửa `RUNBOOK_AI.md`.** `:320` và `:327` ("Không có cờ riêng") ghi: giao việc và route viết vẫn theo `office.ai_cloud`, `office_ai_uniwork` và cờ định dạng; phía Hỏi UNI (ba công cụ soạn tệp và Apply của chúng) theo `ask_uni_office`. `:304`, `:314` trỏ tới `OFFICE_AI_GO_LIVE.md`.
+- [x] **Step 3: `.env.example`.** Trong khối cờ Office thêm một dòng comment về `FF_ASK_UNI_OFFICE=false` là công tắc tắt nhanh (không thêm biến mới).
+- [x] **Step 4: Kiểm.** `node --test scripts/env-example.test.mjs scripts/governance.test.mjs scripts/alerts-runbooks.test.mjs` → ok.
+- [x] **Step 5: Commit** `docs(ops): Office AI go-live checklist and the ask_uni_office switch in the AI runbook`.
 
 ### Task 4: Đóng vòng và PR
 
