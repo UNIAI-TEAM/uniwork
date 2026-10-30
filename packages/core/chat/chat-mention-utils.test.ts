@@ -228,6 +228,18 @@ describe("chat-mention-utils", () => {
     ).toBe("[@An](mention://member/u2) xem [@all](mention://all/all) nhé");
   });
 
+  it("closes the picker once a dot follows @, and keeps a name open", () => {
+    const people: ChatMentionCandidate[] = [
+      { kind: "member", userId: "u1", label: "Tùng Lâm", email: "tunglam20895@gmail.com" },
+    ];
+    const typing = "dangdatcd01@gmail";
+    expect(resolveActiveMentionQuery(typing, typing.length, people, "all")).toEqual({ start: 11, query: "gmail" });
+    for (const draft of ["dangdatcd01@gmail.", "dangdatcd01@gmail.com", "dangdatcd01@gmail.com ", "a@uniwork.vn"]) {
+      expect(resolveActiveMentionQuery(draft, draft.length, people, "all")).toBeNull();
+    }
+    expect(resolveActiveMentionQuery("@tung", 5, people, "all")).toEqual({ start: 0, query: "tung" });
+  });
+
   it("keeps a multi-word name open and matches without accents", () => {
     const people = [{ kind: "member" as const, userId: "u1", label: "Tuấn Hoàng", email: "t@x.com" }];
     expect(resolveActiveMentionQuery("@tuan ho", 8, people, "all")).toEqual({ start: 0, query: "tuan ho" });
